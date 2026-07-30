@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "common/fod",
+    "common/frame-envelope",
+    "ingest/study-bundle",
+    "server",
+    "client/transport-wasm",
+    "client/flight-registry",
+    "tools/pack-study",
+]
