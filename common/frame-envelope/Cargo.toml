@@ -1,0 +1,7 @@
+[package]
+name = "frame-envelope"
+version = "0.1.0"
+edition = "2021"
+description = "Display-index prefix for exact-tier HTJ2K wire payloads"
+
+[dependencies]
