@@ -66,3 +66,26 @@ impl TransportSession {
         let conn = wt_connect(&wt_url, &cert_sha256)
             .await
             .map_err(|e| format!("wt connect: {:?}", e))?;
+
+        let readable = Reflect::get(&conn, &JsValue::from_str("readable"))
+            .map_err(|_| "missing readable")?;
+        let writable = Reflect::get(&conn, &JsValue::from_str("writable"))
+            .map_err(|_| "missing writable")?;
+        let transport = Reflect::get(&conn, &JsValue::from_str("transport"))
+            .map_err(|_| "missing transport")?;
+
+        let state = Rc::new(RefCell::new(SessionState::default()));
+        let st_uni = Rc::clone(&state);
+        let transport_uni = transport.clone();
+
+        spawn_local(async move {
+            loop {
+                let stream = match wt_accept_uni(&transport_uni).await {
+                    Ok(v) if v.is_null() => break,
+                    Ok(v) => v,
+                    Err(_) => break,
+                };
+                let bytes = match wt_read_all(&stream).await {
+                    Ok(b) => b,
+                    Err(_) => continue,
+                };

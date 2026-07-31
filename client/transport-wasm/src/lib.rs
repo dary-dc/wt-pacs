@@ -26,3 +26,12 @@ impl TransportSessionHandle {
 
     #[wasm_bindgen(js_name = requestExactFrame)]
     pub async fn request_exact_frame(&self, frame_index: u32) -> Result<JsValue, JsValue> {
+        self.inner
+            .request_frame(frame_index)
+            .await
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen(js_name = requestExactFrames)]
+    pub async fn request_exact_frames(
+        &self,
