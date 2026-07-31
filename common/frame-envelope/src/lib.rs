@@ -15,3 +15,11 @@ pub fn unwrap(payload: &[u8]) -> Result<(u32, &[u8]), String> {
         return Err(format!(
             "frame envelope too short ({} bytes, need {})",
             payload.len(),
+            ENVELOPE_LEN
+        ));
+    }
+    let index = u32::from_be_bytes(
+        payload[0..ENVELOPE_LEN]
+            .try_into()
+            .map_err(|_| "frame envelope header")?,
+    );

@@ -17,3 +17,12 @@ pub async fn read_fod_msg(recv: &mut RecvStream) -> Result<FodMsg> {
 }
 
 pub async fn write_fod_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
+    let bytes = encode_fod_msg(msg)?;
+    send.write_all(&bytes).await.context("write FoD")?;
+    Ok(())
+}
+
+pub async fn read_envelope(recv: &mut RecvStream) -> Result<Vec<u8>> {
+    let mut out = Vec::new();
+    let mut buf = vec![0u8; 65536];
+    loop {
