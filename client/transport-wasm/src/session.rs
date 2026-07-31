@@ -112,3 +112,25 @@ impl TransportSession {
         spawn_local(async move {
             loop {
                 let bytes = match wt_read_all(&readable_ctl).await {
+                    Ok(b) => b,
+                    Err(_) => break,
+                };
+                let raw = b.to_vec();
+                if let Ok(FodMsg::FrameError {
+                    frame_index,
+                    reason,
+                }) = fod::decode_fod_msg(&raw)
+                {
+                    let mut s = st_ctl.borrow_mut();
+                    s.errors.insert(frame_index, reason);
+                    s.frame_errors += 1;
+                    s.waiters.remove(&frame_index);
+                }
+            }
+        });
+
+        let (req_tx, mut req_rx) = mpsc::unbounded::<Vec<u8>>();
+        let writable_send = writable.clone();
+        spawn_local(async move {
+            while let Some(payload) = req_rx.next().await {
+                if wt_write(&writable_send, &payload).await.is_err() {
