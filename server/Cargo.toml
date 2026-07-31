@@ -1,0 +1,9 @@
+[package]
+name = "exact-server"
+version = "0.1.0"
+edition = "2021"
+description = "WebTransport exact HTJ2K server — Media-complete (FoD ask-only)"
+
+[lib]
+name = "exact_server"
+path = "src/lib.rs"
