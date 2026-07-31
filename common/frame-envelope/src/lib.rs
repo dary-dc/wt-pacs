@@ -7,3 +7,11 @@ pub fn wrap(display_index: u32, codestream: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(ENVELOPE_LEN + codestream.len());
     out.extend_from_slice(&display_index.to_be_bytes());
     out.extend_from_slice(codestream);
+    out
+}
+
+pub fn unwrap(payload: &[u8]) -> Result<(u32, &[u8]), String> {
+    if payload.len() < ENVELOPE_LEN {
+        return Err(format!(
+            "frame envelope too short ({} bytes, need {})",
+            payload.len(),
