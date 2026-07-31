@@ -17,3 +17,12 @@ pub struct TransportSessionHandle {
 #[wasm_bindgen]
 impl TransportSessionHandle {
     #[wasm_bindgen(js_name = connect)]
+    pub async fn connect(wt_url: String, cert_sha256: String) -> Result<TransportSessionHandle, JsValue> {
+        let inner = TransportSession::connect(wt_url, cert_sha256)
+            .await
+            .map_err(|e| JsValue::from_str(&e))?;
+        Ok(Self { inner })
+    }
+
+    #[wasm_bindgen(js_name = requestExactFrame)]
+    pub async fn request_exact_frame(&self, frame_index: u32) -> Result<JsValue, JsValue> {

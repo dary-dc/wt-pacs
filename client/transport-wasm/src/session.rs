@@ -44,3 +44,25 @@ fn js_buffer_from(src: &[u8]) -> Uint8Array {
 }
 
 #[derive(Default)]
+struct SessionState {
+    waiters: HashMap<u32, oneshot::Sender<(Uint8Array, f64)>>,
+    dropped_early: u64,
+    cancelled_frames: u64,
+    errors: HashMap<u32, String>,
+    frame_errors: u64,
+}
+
+pub struct TransportSession {
+    transport: JsValue,
+    state: Rc<RefCell<SessionState>>,
+    req_tx: mpsc::UnboundedSender<Vec<u8>>,
+    control_writable: JsValue,
+    bulk_rx: RefCell<HashMap<u32, oneshot::Receiver<(Uint8Array, f64)>>>,
+    bulk_ask_ms: Cell<Option<f64>>,
+}
+
+impl TransportSession {
+    pub async fn connect(wt_url: String, cert_sha256: String) -> Result<Self, String> {
+        let conn = wt_connect(&wt_url, &cert_sha256)
+            .await
+            .map_err(|e| format!("wt connect: {:?}", e))?;
