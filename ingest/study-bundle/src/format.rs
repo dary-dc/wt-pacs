@@ -16,3 +16,12 @@ pub struct ParsedLayout {
     pub index: Vec<(u64, u32)>,
 }
 
+pub fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
+    if bytes.len() < HEADER_SIZE {
+        bail!("bundle too small");
+    }
+    if &bytes[0..4] != MAGIC {
+        bail!("invalid magic (expected SBND)");
+    }
+    let version = u32::from_le_bytes(bytes[4..8].try_into()?);
+    if version != VERSION {

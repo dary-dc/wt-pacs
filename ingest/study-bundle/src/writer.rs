@@ -31,3 +31,20 @@ impl BundleWriter {
         out.write_all(&frame_count.to_le_bytes())?;
 
         let mut offset = data_base as u64;
+        for &length in frame_lengths {
+            out.write_all(&offset.to_le_bytes())?;
+            out.write_all(&length.to_le_bytes())?;
+            offset += u64::from(length);
+        }
+
+        out.write_all(metadata)?;
+
+        Ok(Self {
+            out,
+            lengths: frame_lengths.to_vec(),
+            written: 0,
+        })
+    }
+
+    pub fn write_frame(&mut self, bytes: &[u8]) -> Result<()> {
+        let expected = *self
