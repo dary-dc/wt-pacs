@@ -23,3 +23,12 @@
     import { TransportSession } from "/client/transport-ts/dist/session.js";
 
     const logEl = document.getElementById("log");
+    function log(...a) {
+      logEl.textContent += a.join(" ") + "\n";
+    }
+
+    async function boot() {
+      const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
+      log("connect", cfg.wt_url);
+      const session = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
+      document.getElementById("frame0").onclick = async () => {

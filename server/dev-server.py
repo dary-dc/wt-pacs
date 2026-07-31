@@ -20,3 +20,10 @@ class Handler(SimpleHTTPRequestHandler):
         path = unquote(path)
         if path.startswith("/study/metadata"):
             p = ROOT / "fixtures" / self.study_name / "metadata.json"
+            return str(p)
+        if path.startswith("/wt/dev-transport.json"):
+            p = ROOT / "client" / "dev-transport.json"
+            return str(p)
+        if path.startswith("/harness"):
+            rel = path[len("/harness") :]
+            if not rel or rel == "/":
