@@ -58,3 +58,18 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
             if let Err(err) = handle_incoming(incoming, store).await {
                 warn!(%err, "session ended");
             }
+        });
+    }
+}
+
+async fn handle_incoming(
+    incoming: wtransport::endpoint::IncomingSession,
+    store: Arc<FrameStore>,
+) -> Result<()> {
+    let session_request = incoming.await.context("incoming session")?;
+    let connection = session_request.accept().await.context("accept session")?;
+    info!(frames = store.frame_count(), "session opened");
+
+    let (mut control_send, mut control_recv) = connection
+        .accept_bi()
+        .await

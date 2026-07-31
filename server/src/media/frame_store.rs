@@ -37,3 +37,12 @@ impl FrameStore {
     }
 
     pub fn metadata_json(&self) -> Result<&str> {
+        let start = self.data_base - self.metadata_len as usize;
+        let end = self.data_base;
+        std::str::from_utf8(&self.mmap[start..end]).context("metadata JSON is not UTF-8")
+    }
+
+    pub fn frame_slice(&self, index: u32) -> Result<&[u8]> {
+        let (offset, length) = self
+            .index
+            .get(index as usize)

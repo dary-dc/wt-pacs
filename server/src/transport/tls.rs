@@ -42,3 +42,13 @@ pub fn load_pem_cert(cert_pem: &str, key_pem: &str) -> Result<WebTransportCert> 
         .ok_or_else(|| anyhow::anyhow!("empty key pem"))?;
 
     let mut hasher = Sha256::new();
+    hasher.update(&cert_der);
+    let sha256_hex = format!("{:x}", hasher.finalize());
+
+    Ok(WebTransportCert {
+        inner: Arc::new(Inner {
+            cert_der,
+            key_der,
+            sha256_hex,
+        }),
+    })
