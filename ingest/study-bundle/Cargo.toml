@@ -1,0 +1,8 @@
+[package]
+name = "study-bundle"
+version = "0.1.0"
+edition = "2021"
+description = "SBND study-bundle on-disk format and streaming writer"
+
+[dependencies]
+anyhow = { workspace = true }
