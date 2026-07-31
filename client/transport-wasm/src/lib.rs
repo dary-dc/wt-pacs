@@ -35,3 +35,13 @@ impl TransportSessionHandle {
     #[wasm_bindgen(js_name = requestExactFrames)]
     pub async fn request_exact_frames(
         &self,
+        indices: js_sys::Uint32Array,
+    ) -> Result<JsValue, JsValue> {
+        let mut v = Vec::with_capacity(indices.length() as usize);
+        for i in 0..indices.length() {
+            v.push(indices.get_index(i));
+        }
+        self.inner
+            .request_frames(v)
+            .await
+            .map_err(|e| JsValue::from_str(&e))

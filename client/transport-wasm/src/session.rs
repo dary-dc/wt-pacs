@@ -89,3 +89,26 @@ impl TransportSession {
                     Ok(b) => b,
                     Err(_) => continue,
                 };
+                let raw: Vec<u8> = bytes.to_vec();
+                let now = perf_now_ms();
+                match unwrap_envelope(&raw) {
+                    Ok((index, chunk)) => {
+                        let view = js_buffer_from(chunk);
+                        let mut s = st_uni.borrow_mut();
+                        if let Some(tx) = s.waiters.remove(&index) {
+                            let _ = tx.send((view, now));
+                        } else {
+                            s.dropped_early += 1;
+                        }
+                    }
+                    Err(_) => continue,
+                }
+            }
+            st_uni.borrow_mut().waiters.clear();
+        });
+
+        let st_ctl = Rc::clone(&state);
+        let readable_ctl = readable.clone();
+        spawn_local(async move {
+            loop {
+                let bytes = match wt_read_all(&readable_ctl).await {
