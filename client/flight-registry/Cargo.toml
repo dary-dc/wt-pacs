@@ -1,0 +1,8 @@
+[package]
+name = "flight-registry"
+version = "0.1.0"
+edition = "2021"
+description = "Host-testable multi-flight bookkeeping for transport asks"
+
+[dependencies]
+futures = "0.3"

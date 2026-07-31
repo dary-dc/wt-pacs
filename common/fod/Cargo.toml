@@ -1,0 +1,10 @@
+[package]
+name = "fod"
+version = "0.1.0"
+edition = "2021"
+description = "FoD JSON control messages on the WebTransport control stream"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = "1"
