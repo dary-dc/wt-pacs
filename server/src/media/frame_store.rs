@@ -46,3 +46,13 @@ impl FrameStore {
         let (offset, length) = self
             .index
             .get(index as usize)
+            .copied()
+            .with_context(|| format!("frame index {index} out of range ({})", self.frame_count))?;
+        let start = offset as usize;
+        let end = start + length as usize;
+        if end > self.mmap.len() {
+            bail!(
+                "frame {index} slice out of bounds ({start}..{end}, file {})",
+                self.mmap.len()
+            );
+        }

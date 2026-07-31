@@ -73,3 +73,18 @@ async fn handle_incoming(
     let (mut control_send, mut control_recv) = connection
         .accept_bi()
         .await
+        .context("accept control bidi")?;
+
+    loop {
+        let msg = match read_fod_msg(&mut control_recv).await {
+            Ok(m) => m,
+            Err(err) => {
+                warn!(%err, "control read ended");
+                break;
+            }
+        };
+
+        match msg {
+            FodMsg::RequestFrame { frame } => {
+                send_frames(&connection, &mut control_send, &store, &[frame]).await?;
+            }

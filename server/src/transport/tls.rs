@@ -52,3 +52,14 @@ pub fn load_pem_cert(cert_pem: &str, key_pem: &str) -> Result<WebTransportCert> 
             sha256_hex,
         }),
     })
+}
+
+pub fn generate_localhost_cert() -> Result<WebTransportCert> {
+    use rcgen::{CertificateParams, DnType, SanType};
+    use std::net::IpAddr;
+
+    const COMMON_NAME: &str = "localhost";
+    let now = time::OffsetDateTime::now_utc();
+
+    let mut dname = rcgen::DistinguishedName::new();
+    dname.push(DnType::CommonName, COMMON_NAME);
