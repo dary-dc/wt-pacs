@@ -27,3 +27,12 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
     let args = Args::parse();
+    run_server(ServeConfig {
+        wt_port: args.port,
+        study_path: args.study,
+        cert_pem: args.cert_pem,
+        key_pem: args.key_pem,
+    })
+    .await?;
+    Ok(())
+}

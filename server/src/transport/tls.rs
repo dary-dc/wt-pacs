@@ -31,3 +31,14 @@ impl WebTransportCert {
     }
 }
 
+pub fn load_pem_cert(cert_pem: &str, key_pem: &str) -> Result<WebTransportCert> {
+    let cert_der = rustls_pemfile::certs(&mut cert_pem.as_bytes())
+        .next()
+        .transpose()
+        .context("read cert pem")?
+        .ok_or_else(|| anyhow::anyhow!("empty cert pem"))?;
+    let key_der = rustls_pemfile::private_key(&mut key_pem.as_bytes())
+        .context("read key pem")?
+        .ok_or_else(|| anyhow::anyhow!("empty key pem"))?;
+
+    let mut hasher = Sha256::new();

@@ -27,3 +27,13 @@ impl FrameStore {
             mmap,
             frame_count: parsed.frame_count,
             metadata_len: parsed.metadata_len,
+            data_base: parsed.data_base,
+            index: parsed.index,
+        })
+    }
+
+    pub fn frame_count(&self) -> u32 {
+        self.frame_count
+    }
+
+    pub fn metadata_json(&self) -> Result<&str> {

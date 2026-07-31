@@ -43,3 +43,18 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("wt_url={wt_url}");
     println!("cert_sha256={cert_sha256}");
     println!("study={}", config.study_path.display());
+    println!("frames={}", store.frame_count());
+    println!("completion=media_uni_stream");
+    info!(
+        %wt_url,
+        study = %config.study_path.display(),
+        "exact-server ready (Media-complete)"
+    );
+
+    loop {
+        let incoming = endpoint.accept().await;
+        let store = Arc::clone(&store);
+        tokio::spawn(async move {
+            if let Err(err) = handle_incoming(incoming, store).await {
+                warn!(%err, "session ended");
+            }
