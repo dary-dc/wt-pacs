@@ -18,3 +18,12 @@ pub struct FrameStore {
 impl FrameStore {
     pub fn open(study_path: &Path) -> Result<Self> {
         let file = File::open(study_path)
+            .with_context(|| format!("open study bundle {}", study_path.display()))?;
+        // SAFETY: `_file` keeps the fd open; bundle must not be truncated while mapped.
+        let mmap = unsafe { Mmap::map(&file).context("mmap study bundle")? };
+        let parsed = parse_layout(&mmap)?;
+        Ok(Self {
+            _file: file,
+            mmap,
+            frame_count: parsed.frame_count,
+            metadata_len: parsed.metadata_len,

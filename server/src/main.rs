@@ -17,3 +17,13 @@ struct Args {
 }
 
 #[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env().add_directive("exact_server=info".parse()?))
+        .init();
+
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
+
+    let args = Args::parse();

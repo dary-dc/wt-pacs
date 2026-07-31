@@ -28,3 +28,18 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
         .await
         .context("load wtransport identity")?;
+
+    let server_config = ServerConfig::builder()
+        .with_bind_default(config.wt_port)
+        .with_identity(identity)
+        .build();
+
+    let endpoint = Endpoint::server(server_config).context("wtransport endpoint")?;
+
+    let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
+
+    let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
+    let cert_sha256 = cert.sha256_hex().to_string();
+    println!("wt_url={wt_url}");
+    println!("cert_sha256={cert_sha256}");
+    println!("study={}", config.study_path.display());

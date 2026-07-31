@@ -20,3 +20,14 @@ pub struct WebTransportCert {
 impl WebTransportCert {
     pub fn cert_der(&self) -> &pki_types::CertificateDer<'static> {
         &self.inner.cert_der
+    }
+
+    pub fn key_der(&self) -> &pki_types::PrivateKeyDer<'static> {
+        &self.inner.key_der
+    }
+
+    pub fn sha256_hex(&self) -> &str {
+        &self.inner.sha256_hex
+    }
+}
+
