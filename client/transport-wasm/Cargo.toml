@@ -8,3 +8,12 @@ description = "WASM WebTransport client — Media-complete exact frames"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+fod = { path = "../../common/fod" }
+frame-envelope = { path = "../../common/frame-envelope" }
+futures = { version = "0.3", features = ["std"] }
+gloo-timers = { version = "0.3", features = ["futures"] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Window",
