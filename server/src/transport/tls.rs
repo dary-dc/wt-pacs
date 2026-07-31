@@ -9,3 +9,14 @@ use time::Duration;
 struct Inner {
     cert_der: pki_types::CertificateDer<'static>,
     key_der: pki_types::PrivateKeyDer<'static>,
+    sha256_hex: String,
+}
+
+#[derive(Clone)]
+pub struct WebTransportCert {
+    inner: Arc<Inner>,
+}
+
+impl WebTransportCert {
+    pub fn cert_der(&self) -> &pki_types::CertificateDer<'static> {
+        &self.inner.cert_der
