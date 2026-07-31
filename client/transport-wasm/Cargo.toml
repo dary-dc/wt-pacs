@@ -1,0 +1,10 @@
+[package]
+name = "transport-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "WASM WebTransport client — Media-complete exact frames"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
