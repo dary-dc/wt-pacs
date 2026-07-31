@@ -13,3 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 class Handler(SimpleHTTPRequestHandler):
     study_name: str = "us_cine_smoke"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(ROOT), **kwargs)
+
+    def translate_path(self, path: str) -> str:
+        path = unquote(path)
+        if path.startswith("/study/metadata"):
+            p = ROOT / "fixtures" / self.study_name / "metadata.json"

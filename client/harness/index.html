@@ -15,3 +15,11 @@
     <a href="/harness/ts.html">TypeScript harness</a>
     Frame timing logs — not clinical decode. Client uses <code>web_sys::WebTransport</code>.
   </p>
+  <button id="frame0">Frame 0</button>
+  <button id="bulk">Bulk 0..2</button>
+  <div id="log"></div>
+  <script type="module">
+    import init, { TransportSessionHandle } from "/client/transport-wasm/pkg/transport_wasm.js";
+
+    const logEl = document.getElementById("log");
+    function log(...a) {

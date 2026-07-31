@@ -15,3 +15,11 @@
   <p>
     <a href="/harness/">WASM harness</a>
     Pure TS WebTransport client — same wire as WASM.
+  </p>
+  <button id="frame0">Frame 0</button>
+  <button id="bulk">Bulk 0..2</button>
+  <div id="log"></div>
+  <script type="module">
+    import { TransportSession } from "/client/transport-ts/dist/session.js";
+
+    const logEl = document.getElementById("log");
