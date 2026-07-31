@@ -9,3 +9,14 @@ use std::path::{Path, PathBuf};
 #[command(name = "pack-study")]
 struct Args {
     #[arg(long)]
+    metadata: PathBuf,
+    #[arg(long)]
+    frames: PathBuf,
+    #[arg(long)]
+    output: PathBuf,
+    #[arg(long)]
+    sidecar: Option<PathBuf>,
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();

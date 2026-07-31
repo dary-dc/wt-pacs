@@ -15,3 +15,19 @@ pub struct BundleWriter {
 impl BundleWriter {
     pub fn create(path: &Path, metadata: &[u8], frame_lengths: &[u32]) -> Result<Self> {
         let frame_count = frame_lengths.len() as u32;
+        let metadata_len = metadata.len() as u32;
+        let index_bytes = frame_lengths.len() * INDEX_ENTRY_SIZE;
+        let data_base = HEADER_SIZE + index_bytes + metadata.len();
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).context("create bundle parent dir")?;
+        }
+        let file = File::create(path).with_context(|| format!("create {}", path.display()))?;
+        let mut out = BufWriter::new(file);
+
+        out.write_all(MAGIC)?;
+        out.write_all(&VERSION.to_le_bytes())?;
+        out.write_all(&metadata_len.to_le_bytes())?;
+        out.write_all(&frame_count.to_le_bytes())?;
+
+        let mut offset = data_base as u64;
