@@ -31,3 +31,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn round_trip() {
+        let raw = b"htj2k-bytes";
+        let wrapped = wrap(42, raw);
+        let (idx, body) = unwrap(&wrapped).unwrap();
+        assert_eq!(idx, 42);
+        assert_eq!(body, raw);
+    }
+}

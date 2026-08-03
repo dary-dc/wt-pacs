@@ -35,3 +35,12 @@ pub async fn read_envelope(recv: &mut RecvStream) -> Result<Vec<u8>> {
 }
 
 async fn read_exact(recv: &mut RecvStream, out: &mut [u8]) -> Result<()> {
+    let mut filled = 0;
+    while filled < out.len() {
+        match recv.read(&mut out[filled..]).await? {
+            Some(n) => filled += n,
+            None => anyhow::bail!("stream ended before {} bytes", out.len()),
+        }
+    }
+    Ok(())
+}
