@@ -6,3 +6,5 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 ```bash
 # Terminal 1 — dev TLS + dev-transport.json
+./server/scripts/gen_dev_cert.sh
+
