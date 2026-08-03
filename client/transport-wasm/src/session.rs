@@ -157,3 +157,26 @@ impl TransportSession {
             s.cancelled_frames += 1;
         }
         0
+    }
+
+    pub async fn request_frame(&self, frame_index: u32) -> Result<JsValue, String> {
+        let ask_ms = perf_now_ms();
+        let (tx, rx) = oneshot::channel();
+        {
+            let mut s = self.state.borrow_mut();
+            if s.waiters.contains_key(&frame_index) {
+                return Err(format!("frame {frame_index} already requested"));
+            }
+            s.waiters.insert(frame_index, tx);
+        }
+
+        let payload = encode_fod_msg(&FodMsg::RequestFrame {
+            frame: frame_index,
+        })
+        .map_err(|e| format!("encode FoD: {e}"))?;
+        if self.req_tx.unbounded_send(payload).is_err() {
+            self.state.borrow_mut().waiters.remove(&frame_index);
+            return Err("FoD request channel closed".into());
+        }
+
+        let (bytes, received_ms) = match await_bytes(rx, frame_index).await {
