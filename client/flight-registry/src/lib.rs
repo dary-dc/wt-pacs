@@ -16,3 +16,12 @@ impl FlightRegistry {
         true
     }
 
+    pub fn complete(&mut self, frame: u32) {
+        self.in_flight.remove(&frame);
+    }
+
+    pub fn cancel(&mut self, frame: u32) -> bool {
+        self.in_flight.remove(&frame)
+    }
+
+    pub fn len(&self) -> usize {
