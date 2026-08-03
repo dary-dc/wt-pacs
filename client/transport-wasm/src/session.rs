@@ -134,3 +134,26 @@ impl TransportSession {
         spawn_local(async move {
             while let Some(payload) = req_rx.next().await {
                 if wt_write(&writable_send, &payload).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        Ok(Self {
+            transport,
+            state,
+            req_tx,
+            control_writable: writable,
+            bulk_rx: RefCell::new(HashMap::new()),
+            bulk_ask_ms: Cell::new(None),
+        })
+    }
+
+    pub fn cancel_frame(&self, frame_index: u32) -> u32 {
+        let mut s = self.state.borrow_mut();
+        let had = s.waiters.remove(&frame_index).is_some();
+        self.bulk_rx.borrow_mut().remove(&frame_index);
+        if had {
+            s.cancelled_frames += 1;
+        }
+        0

@@ -54,3 +54,12 @@ impl TransportSessionHandle {
             v.push(indices.get_index(i));
         }
         self.inner.start_frames(v).map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen(js_name = waitExactFrame)]
+    pub async fn wait_exact_frame(
+        &self,
+        frame_index: u32,
+        ask_ms: f64,
+    ) -> Result<JsValue, JsValue> {
+        self.inner
