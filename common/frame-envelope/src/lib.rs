@@ -23,3 +23,11 @@ pub fn unwrap(payload: &[u8]) -> Result<(u32, &[u8]), String> {
             .try_into()
             .map_err(|_| "frame envelope header")?,
     );
+    Ok((index, &payload[ENVELOPE_LEN..]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]

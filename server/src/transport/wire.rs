@@ -26,3 +26,12 @@ pub async fn read_envelope(recv: &mut RecvStream) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     let mut buf = vec![0u8; 65536];
     loop {
+        match recv.read(&mut buf).await? {
+            Some(n) => out.extend_from_slice(&buf[..n]),
+            None => break,
+        }
+    }
+    Ok(out)
+}
+
+async fn read_exact(recv: &mut RecvStream, out: &mut [u8]) -> Result<()> {
