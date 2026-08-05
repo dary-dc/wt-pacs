@@ -39,3 +39,5 @@ mod tests {
         assert_eq!(body, raw);
     }
 }
+
+// history-note: feat: wrap exact-tier HTJ2K in a display-index frame envelop
