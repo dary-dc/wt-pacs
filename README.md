@@ -10,3 +10,5 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 # Terminal 2 — pack or use smoke bundle
 cargo run -p pack-study -- \
+  --metadata fixtures/us_cine_smoke/metadata.json \
+  --frames fixtures/us_cine_smoke/frames \
