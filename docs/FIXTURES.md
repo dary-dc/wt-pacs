@@ -4,3 +4,4 @@
 
 On-disk layout:
 
+```text

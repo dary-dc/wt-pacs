@@ -12,3 +12,5 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 cargo run -p pack-study -- \
   --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames \
+  --output fixtures/us_cine_smoke/us_cine_smoke.sbnd
+
