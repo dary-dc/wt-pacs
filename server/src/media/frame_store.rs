@@ -56,3 +56,12 @@ impl FrameStore {
                 self.mmap.len()
             );
         }
+        Ok(&self.mmap[start..end])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use study_bundle::write_bundle;
+    use std::time::{SystemTime, UNIX_EPOCH};

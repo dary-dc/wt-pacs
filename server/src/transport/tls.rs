@@ -63,3 +63,14 @@ pub fn generate_localhost_cert() -> Result<WebTransportCert> {
 
     let mut dname = rcgen::DistinguishedName::new();
     dname.push(DnType::CommonName, COMMON_NAME);
+
+    let mut params = CertificateParams::new(vec![COMMON_NAME.to_string()])?;
+    params.distinguished_name = dname;
+    params.subject_alt_names = vec![
+        SanType::DnsName(COMMON_NAME.try_into().context("dns san")?),
+        SanType::IpAddress(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+    ];
+    params.not_before = now
+        .checked_sub(Duration::days(2))
+        .context("not_before underflow")?;
+    params.not_after = now

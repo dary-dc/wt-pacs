@@ -88,3 +88,18 @@ async fn handle_incoming(
             FodMsg::RequestFrame { frame } => {
                 send_frames(&connection, &mut control_send, &store, &[frame]).await?;
             }
+            FodMsg::RequestFrames { frames } => {
+                send_frames(&connection, &mut control_send, &store, &frames).await?;
+            }
+            FodMsg::EndSession => break,
+            other => warn!(?other, "ask-only: ignoring unexpected FoD message"),
+        }
+    }
+    Ok(())
+}
+
+async fn send_frames(
+    connection: &wtransport::Connection,
+    control_send: &mut wtransport::stream::SendStream,
+    store: &FrameStore,
+    requested: &[u32],
