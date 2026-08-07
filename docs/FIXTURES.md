@@ -6,3 +6,4 @@ On-disk layout:
 
 ```text
 magic "SBND" · version u32 · metadata_len u32 · frame_count u32
+frame_table[frame_count]: offset u64 · length u32

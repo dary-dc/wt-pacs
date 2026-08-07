@@ -16,3 +16,4 @@ cargo run -p pack-study -- \
 
 # Terminal 3 — WebTransport server
 cargo run --release -p exact-server -- \
+  --port 4433 \
