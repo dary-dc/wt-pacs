@@ -19,3 +19,5 @@ cargo run --release -p exact-server -- \
   --port 4433 \
   --study fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
+# Terminal 4 — clients (after changes)
+client/transport-wasm/build.sh   # web_sys WASM client

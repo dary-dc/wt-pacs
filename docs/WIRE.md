@@ -6,3 +6,4 @@ Two WebTransport streams per session:
    Server may write `FrameError` on the same stream for immediate refusal.
 
 2. **Media (server unidirectional)** — one stream per frame response, payload
+   `[4B BE display_index][HTJ2K codestream…]`.
