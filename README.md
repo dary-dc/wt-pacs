@@ -21,3 +21,5 @@ cargo run --release -p exact-server -- \
 
 # Terminal 4 — clients (after changes)
 client/transport-wasm/build.sh   # web_sys WASM client
+client/transport-ts/build.sh     # TypeScript client → dist/
+
