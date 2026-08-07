@@ -17,3 +17,5 @@ cargo run -p pack-study -- \
 # Terminal 3 — WebTransport server
 cargo run --release -p exact-server -- \
   --port 4433 \
+  --study fixtures/us_cine_smoke/us_cine_smoke.sbnd
+
