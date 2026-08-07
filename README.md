@@ -14,3 +14,5 @@ cargo run -p pack-study -- \
   --frames fixtures/us_cine_smoke/frames \
   --output fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
+# Terminal 3 — WebTransport server
+cargo run --release -p exact-server -- \
