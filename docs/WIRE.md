@@ -8,3 +8,4 @@ Two WebTransport streams per session:
 2. **Media (server unidirectional)** — one stream per frame response, payload
    `[4B BE display_index][HTJ2K codestream…]`.
 
+Media-complete: frame completion is the envelope payload on a uni stream, not a separate control ack.
