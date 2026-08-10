@@ -33,3 +33,11 @@ pub fn decode_fod_msg(bytes: &[u8]) -> Result<FodMsg> {
         bail!("FodMsg too short");
     }
     let len = u32::from_le_bytes(bytes[0..4].try_into()?) as usize;
+    let body = bytes.get(4..4 + len).context("FodMsg truncated")?;
+    serde_json::from_slice(body).context("deserialize FodMsg")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+

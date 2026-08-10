@@ -34,3 +34,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn rejects_duplicate_register() {
+        let mut r = FlightRegistry::default();
+        assert!(r.register(1));
+        assert!(!r.register(1));
+        r.complete(1);
+        assert!(r.register(1));
+    }
+}
