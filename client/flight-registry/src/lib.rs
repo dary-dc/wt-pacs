@@ -25,3 +25,12 @@ impl FlightRegistry {
     }
 
     pub fn len(&self) -> usize {
+        self.in_flight.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]

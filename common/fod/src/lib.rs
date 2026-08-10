@@ -24,3 +24,12 @@ pub fn encode_fod_msg(msg: &FodMsg) -> Result<Vec<u8>> {
     let body = serde_json::to_vec(msg).context("serialize FodMsg")?;
     let mut out = Vec::with_capacity(4 + body.len());
     out.extend_from_slice(&(body.len() as u32).to_le_bytes());
+    out.extend_from_slice(&body);
+    Ok(out)
+}
+
+pub fn decode_fod_msg(bytes: &[u8]) -> Result<FodMsg> {
+    if bytes.len() < 4 {
+        bail!("FodMsg too short");
+    }
+    let len = u32::from_le_bytes(bytes[0..4].try_into()?) as usize;
