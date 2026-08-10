@@ -25,3 +25,12 @@ pub fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
     }
     let version = u32::from_le_bytes(bytes[4..8].try_into()?);
     if version != VERSION {
+        bail!("unsupported bundle version {version}");
+    }
+    let metadata_len = u32::from_le_bytes(bytes[8..12].try_into()?);
+    let frame_count = u32::from_le_bytes(bytes[12..16].try_into()?);
+    let index_bytes = frame_count as usize * INDEX_ENTRY_SIZE;
+    let header_bytes = HEADER_SIZE + index_bytes;
+    let data_base = header_bytes + metadata_len as usize;
+    if data_base > bytes.len() {
+        bail!("bundle header/metadata extends past file end");

@@ -48,3 +48,19 @@ impl BundleWriter {
 
     pub fn write_frame(&mut self, bytes: &[u8]) -> Result<()> {
         let expected = *self
+            .lengths
+            .get(self.written)
+            .with_context(|| format!("frame {} is past the declared count", self.written))?;
+        if bytes.len() as u32 != expected {
+            bail!(
+                "frame {} length changed after the index was written: declared {expected}, got {}",
+                self.written,
+                bytes.len()
+            );
+        }
+        self.out.write_all(bytes)?;
+        self.written += 1;
+        Ok(())
+    }
+
+    pub fn finish(mut self) -> Result<()> {
