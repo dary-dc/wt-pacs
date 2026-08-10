@@ -180,3 +180,25 @@ impl TransportSession {
         }
 
         let (bytes, received_ms) = match await_bytes(rx, frame_index).await {
+            Ok(d) => d,
+            Err(e) => {
+                let mut s = self.state.borrow_mut();
+                s.waiters.remove(&frame_index);
+                if let Some(reason) = s.errors.remove(&frame_index) {
+                    return Err(format!("frame {frame_index} unavailable: {reason}"));
+                }
+                return Err(e);
+            }
+        };
+        result_to_js(frame_index, ask_ms, bytes, received_ms)
+    }
+
+    pub async fn request_frames(&self, indices: Vec<u32>) -> Result<JsValue, String> {
+        let ask_ms = self.start_frames(indices.clone())?;
+        let results = js_sys::Array::new();
+        for &frame_index in &indices {
+            let one = self.wait_frame(frame_index, ask_ms).await?;
+            results.push(&one);
+        }
+        Ok(results.into())
+    }
