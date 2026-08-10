@@ -41,3 +41,12 @@ pub fn decode_fod_msg(bytes: &[u8]) -> Result<FodMsg> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn roundtrip_request_frame() {
+        let msg = FodMsg::RequestFrame { frame: 7 };
+        let enc = encode_fod_msg(&msg).unwrap();
+        assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
+    }
+
+    #[test]
+    fn roundtrip_frame_error() {
