@@ -27,3 +27,5 @@ client/transport-ts/build.sh     # TypeScript client → dist/
 python3 server/dev-server.py --port 8765 --study us_cine_smoke
 ```
 
+Open in Chrome:
+

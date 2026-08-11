@@ -11,3 +11,4 @@ frame_table[frame_count]: offset u64 · length u32
 [concatenated HTJ2K codestreams]
 ```
 
+Pack with `cargo run -p pack-study -- --metadata … --frames … --output ….sbnd`.
