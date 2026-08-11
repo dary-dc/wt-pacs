@@ -42,3 +42,14 @@ fn main() -> Result<()> {
         );
     }
 
+    let mut writer = BundleWriter::create(&args.output, &metadata, &lengths)
+        .with_context(|| format!("create {}", args.output.display()))?;
+    for path in &frame_paths {
+        let bytes = std::fs::read(path).with_context(|| format!("read {}", path.display()))?;
+        writer
+            .write_frame(&bytes)
+            .with_context(|| format!("write frame from {}", path.display()))?;
+    }
+    writer
+        .finish()
+        .with_context(|| format!("finish {}", args.output.display()))?;

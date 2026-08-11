@@ -34,3 +34,12 @@ pub fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
     let data_base = header_bytes + metadata_len as usize;
     if data_base > bytes.len() {
         bail!("bundle header/metadata extends past file end");
+    }
+
+    let mut index = Vec::with_capacity(frame_count as usize);
+    for i in 0..frame_count as usize {
+        let base = HEADER_SIZE + i * INDEX_ENTRY_SIZE;
+        let offset = u64::from_le_bytes(bytes[base..base + 8].try_into()?);
+        let length = u32::from_le_bytes(bytes[base + 8..base + 12].try_into()?);
+        index.push((offset, length));
+    }

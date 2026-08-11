@@ -64,3 +64,20 @@ impl BundleWriter {
     }
 
     pub fn finish(mut self) -> Result<()> {
+        if self.written != self.lengths.len() {
+            bail!(
+                "bundle incomplete: {} of {} frames written",
+                self.written,
+                self.lengths.len()
+            );
+        }
+        self.out.flush().context("flush bundle")?;
+        Ok(())
+    }
+}
+
+pub fn write_bundle(path: &Path, metadata: &[u8], frames: &[&[u8]]) -> Result<()> {
+    let lengths: Vec<u32> = frames.iter().map(|f| f.len() as u32).collect();
+    let mut writer = BundleWriter::create(path, metadata, &lengths)?;
+    for frame in frames {
+        writer.write_frame(frame)?;
