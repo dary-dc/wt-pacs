@@ -12,3 +12,4 @@ frame_table[frame_count]: offset u64 · length u32
 ```
 
 Pack with `cargo run -p pack-study -- --metadata … --frames … --output ….sbnd`.
+

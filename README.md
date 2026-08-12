@@ -29,3 +29,5 @@ python3 server/dev-server.py --port 8765 --study us_cine_smoke
 
 Open in Chrome:
 
+- WASM: `http://127.0.0.1:8765/harness/`
+- TypeScript: `http://127.0.0.1:8765/harness/ts.html`
