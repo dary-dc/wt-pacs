@@ -10,3 +10,4 @@ Two WebTransport streams per session:
 
 Media-complete: frame completion is the envelope payload on a uni stream, not a separate control ack.
 
+Study bundles use on-disk **SBND** layout (see `docs/FIXTURES.md`).

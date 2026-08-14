@@ -31,3 +31,5 @@ Open in Chrome:
 
 - WASM: `http://127.0.0.1:8765/harness/`
 - TypeScript: `http://127.0.0.1:8765/harness/ts.html`
+
+Both speak the same wire (FoD on bidi control + envelope on server uni streams).
