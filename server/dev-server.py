@@ -27,3 +27,11 @@ class Handler(SimpleHTTPRequestHandler):
         if path.startswith("/harness"):
             rel = path[len("/harness") :]
             if not rel or rel == "/":
+                rel = "/index.html"
+            return str(ROOT / "client" / "harness" / rel.lstrip("/"))
+        if path.startswith("/client/transport-wasm/pkg/"):
+            rel = path[len("/client/transport-wasm/pkg/") :]
+            return str(ROOT / "client" / "transport-wasm" / "pkg" / rel)
+        if path.startswith("/client/transport-ts/"):
+            rel = path[len("/client/transport-ts/") :]
+            return str(ROOT / "client" / "transport-ts" / rel)

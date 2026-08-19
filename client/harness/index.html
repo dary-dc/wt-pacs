@@ -32,3 +32,11 @@
       log("connect", cfg.wt_url);
       const session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
       document.getElementById("frame0").onclick = async () => {
+        const r = await session.requestExactFrame(0);
+        log("frame0 bytes", r.bytes.length, "wire ms", r.timing.lastChunkMs - r.timing.askMs);
+      };
+      document.getElementById("bulk").onclick = async () => {
+        const indices = Uint32Array.from([0, 1, 2]);
+        const askMs = session.startExactFrames(indices);
+        for (let i = 0; i < indices.length; i++) {
+          const r = await session.waitExactFrame(indices[i], askMs);
