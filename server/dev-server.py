@@ -35,3 +35,10 @@ class Handler(SimpleHTTPRequestHandler):
         if path.startswith("/client/transport-ts/"):
             rel = path[len("/client/transport-ts/") :]
             return str(ROOT / "client" / "transport-ts" / rel)
+        return super().translate_path(path)
+
+    def end_headers(self):
+        # Allow SharedArrayBuffer later; COOP/COEP optional for now.
+        super().end_headers()
+
+    def guess_type(self, path):

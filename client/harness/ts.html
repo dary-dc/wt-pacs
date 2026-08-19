@@ -40,3 +40,11 @@
         const askMs = session.startExactFrames(indices);
         for (const i of indices) {
           const r = await session.waitExactFrame(i, askMs);
+          log("bulk", r.frameIndex, r.bytes.length);
+        }
+      };
+    }
+    boot().catch((e) => log("boot error", e));
+  </script>
+</body>
+</html>
