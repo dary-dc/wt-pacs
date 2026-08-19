@@ -202,3 +202,26 @@ impl TransportSession {
         }
         Ok(results.into())
     }
+
+    pub fn start_frames(&self, indices: Vec<u32>) -> Result<f64, String> {
+        if indices.is_empty() {
+            return Err("start_frames: empty index list".into());
+        }
+        if !self.bulk_rx.borrow().is_empty() {
+            return Err("start_frames: previous bulk still pending".into());
+        }
+        let ask_ms = perf_now_ms();
+        self.bulk_ask_ms.set(Some(ask_ms));
+        let mut need_wire: Vec<u32> = Vec::new();
+        {
+            let mut s = self.state.borrow_mut();
+            let mut bulk_rx = self.bulk_rx.borrow_mut();
+            for &frame_index in &indices {
+                if s.waiters.contains_key(&frame_index) || bulk_rx.contains_key(&frame_index) {
+                    return Err(format!("frame {frame_index} already requested"));
+                }
+                let (tx, rx) = oneshot::channel();
+                s.waiters.insert(frame_index, tx);
+                bulk_rx.insert(frame_index, rx);
+                need_wire.push(frame_index);
+            }
