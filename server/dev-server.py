@@ -42,3 +42,10 @@ class Handler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def guess_type(self, path):
+        if path.endswith(".ts"):
+            return "text/typescript"
+        return super().guess_type(path)
+
+    def log_message(self, fmt, *args):
+        return
+
