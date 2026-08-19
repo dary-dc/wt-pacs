@@ -49,3 +49,10 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
 
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--study", default="us_cine_smoke")
+    args = parser.parse_args()
+    Handler.study_name = args.study
