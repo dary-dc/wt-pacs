@@ -33,3 +33,4 @@ Open in Chrome:
 - TypeScript: `http://127.0.0.1:8765/harness/ts.html`
 
 Both speak the same wire (FoD on bidi control + envelope on server uni streams).
+The WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
