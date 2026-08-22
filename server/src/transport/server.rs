@@ -103,3 +103,18 @@ async fn send_frames(
     control_send: &mut wtransport::stream::SendStream,
     store: &FrameStore,
     requested: &[u32],
+) -> Result<()> {
+    for &idx in requested {
+        let bytes = match store.frame_slice(idx) {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                warn!(frame = idx, %err, "frame refused");
+                write_fod_msg(
+                    control_send,
+                    &FodMsg::FrameError {
+                        frame_index: idx,
+                        reason: err.to_string(),
+                    },
+                )
+                .await?;
+                continue;

@@ -65,3 +65,13 @@ mod tests {
     use super::*;
     use study_bundle::write_bundle;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn round_trip_from_writer() -> Result<()> {
+        let meta = br#"{"frameCount":2}"#;
+        let f0 = b"frame-0";
+        let f1 = b"frame-1-longer";
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+        let path = std::env::temp_dir().join(format!("frame-store-{stamp}.sbnd"));
+        write_bundle(&path, meta, &[f0.as_slice(), f1.as_slice()])?;
+

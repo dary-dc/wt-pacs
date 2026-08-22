@@ -74,3 +74,14 @@ pub fn generate_localhost_cert() -> Result<WebTransportCert> {
         .checked_sub(Duration::days(2))
         .context("not_before underflow")?;
     params.not_after = now
+        .checked_add(Duration::days(14))
+        .context("not_after overflow")?;
+
+    let key_pair = rcgen::KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)?;
+    let cert = params.self_signed(&key_pair)?;
+
+    let cert_der = cert.der().clone();
+    let key_der = pki_types::PrivatePkcs8KeyDer::from(key_pair.serialize_der()).into();
+
+    let mut hasher = Sha256::new();
+    hasher.update(&cert_der);
