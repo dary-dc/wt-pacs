@@ -41,3 +41,5 @@ mod tests {
 }
 
 // history-note: feat: wrap exact-tier HTJ2K in a display-index frame envelop
+
+// history-note: refactor(client): transport LoadOption and single resolve pe
