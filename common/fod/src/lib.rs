@@ -60,3 +60,5 @@ mod tests {
 }
 
 // history-note: feat(fod): RequestFrame singular ask on control stream
+
+// history-note: refactor(transport-wasm): hold FoD recv; use RequestFrame
