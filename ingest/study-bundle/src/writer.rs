@@ -97,3 +97,19 @@ mod tests {
         let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
         let a = std::env::temp_dir().join(format!("sbnd-buffered-{stamp}.sbnd"));
         let b = std::env::temp_dir().join(format!("sbnd-streamed-{stamp}.sbnd"));
+
+        write_bundle(&a, meta, &frames)?;
+
+        let lengths: Vec<u32> = frames.iter().map(|f| f.len() as u32).collect();
+        let mut w = BundleWriter::create(&b, meta, &lengths)?;
+        for frame in frames {
+            w.write_frame(frame)?;
+        }
+        w.finish()?;
+
+        assert_eq!(std::fs::read(&a)?, std::fs::read(&b)?);
+        let _ = std::fs::remove_file(a);
+        let _ = std::fs::remove_file(b);
+        Ok(())
+    }
+}

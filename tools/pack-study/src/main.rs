@@ -64,3 +64,13 @@ fn main() -> Result<()> {
         frame_count,
         std::fs::metadata(&args.output)?.len()
     );
+    Ok(())
+}
+
+fn write_sidecar(path: &Path, metadata: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).context("create sidecar parent dir")?;
+    }
+    std::fs::write(path, metadata).with_context(|| format!("write {}", path.display()))?;
+    Ok(())
+}
