@@ -72,3 +72,12 @@ impl TransportSessionHandle {
     pub fn cancel_frame(&self, frame_index: u32) -> u32 {
         self.inner.cancel_frame(frame_index)
     }
+
+    #[wasm_bindgen(js_name = stats)]
+    pub fn stats(&self) -> Result<JsValue, JsValue> {
+        self.inner.stats().map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen(js_name = close)]
+    pub fn close(self) {}
+}

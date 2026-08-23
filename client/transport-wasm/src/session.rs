@@ -293,3 +293,25 @@ fn result_to_js(
     ask_ms: f64,
     bytes: Uint8Array,
     received_ms: f64,
+) -> Result<JsValue, String> {
+    let timing = Object::new();
+    set(&timing, "askMs", &JsValue::from(ask_ms))?;
+    set(&timing, "firstChunkMs", &JsValue::from(received_ms))?;
+    set(&timing, "lastChunkMs", &JsValue::from(received_ms))?;
+    set(&timing, "chunks", &JsValue::from(1u32))?;
+    set(&timing, "serveUs", &JsValue::NULL)?;
+
+    let result = Object::new();
+    set(&result, "frameIndex", &JsValue::from(frame_index))?;
+    set(&result, "tier", &JsValue::from_str("exact"))?;
+    set(&result, "codec", &JsValue::from_str("htj2k"))?;
+    set(&result, "bytes", &bytes)?;
+    set(&result, "timing", &timing)?;
+    Ok(result.into())
+}
+
+fn set(target: &Object, key: &str, value: &JsValue) -> Result<(), String> {
+    Reflect::set(target, &JsValue::from_str(key), value)
+        .map(|_| ())
+        .map_err(|_| format!("set {key}"))
+}
