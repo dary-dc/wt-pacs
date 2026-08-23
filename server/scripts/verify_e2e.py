@@ -137,3 +137,141 @@ def main() -> int:
                 text=True,
             )
         )
+        # Wait until server prints wt_url=
+        deadline = time.time() + 30
+        out_buf = ""
+        while time.time() < deadline:
+            line = procs[0].stdout.readline() if procs[0].stdout else ""
+            if line:
+                out_buf += line
+                sys.stdout.write(f"[server] {line}")
+                if "wt_url=" in line:
+                    break
+            if procs[0].poll() is not None:
+                raise SystemExit(f"exact-server exited early:\n{out_buf}")
+            time.sleep(0.05)
+        else:
+            raise SystemExit(f"timeout waiting for exact-server ready:\n{out_buf}")
+
+        print("starting static host…")
+        http_log = open("/tmp/wt-verify-http.log", "w")
+        procs.append(
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    str(ROOT / "server/dev-server.py"),
+                    "--port",
+                    str(args.port_http),
+                    "--study",
+                    "us_cine_smoke",
+                ],
+                cwd=ROOT,
+                stdout=http_log,
+                stderr=subprocess.STDOUT,
+            )
+        )
+        time.sleep(0.6)
+        if procs[-1].poll() is not None:
+            http_log.flush()
+            raise SystemExit(
+                f"static host exited early:\n{Path('/tmp/wt-verify-http.log').read_text()}"
+            )
+
+        # Keep cert pin in sync with the cert we just loaded.
+        import json
+        import hashlib
+
+        der = subprocess.check_output(
+            ["openssl", "x509", "-in", str(cert), "-outform", "DER"]
+        )
+        pin = hashlib.sha256(der).hexdigest()
+        (ROOT / "client" / "dev-transport.json").write_text(
+            json.dumps(
+                {"wt_url": f"https://127.0.0.1:{args.port_wt}/", "cert_sha256": pin},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        print(f"dev-transport.json cert_sha256={pin}")
+
+        # Playwright may not be installed; install into .venv if needed.
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            print("installing playwright into .venv…")
+            venv = ROOT / ".venv"
+            if not venv.is_dir():
+                subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
+            pip = venv / "bin" / "pip"
+            py = venv / "bin" / "python"
+            subprocess.run([str(pip), "install", "-q", "playwright"], check=True)
+            # Re-exec under venv python so imports resolve.
+            os.execv(
+                str(py),
+                [str(py), __file__, *sys.argv[1:]],
+            )
+
+        from playwright.sync_api import sync_playwright
+
+        paths = []
+        if args.harness in ("wasm", "both"):
+            paths.append(("/harness/", "wasm"))
+        if args.harness in ("ts", "both"):
+            paths.append(("/harness/ts.html", "ts"))
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                executable_path=chrome,
+                headless=True,
+                args=[
+                    "--enable-features=WebTransport",
+                    "--no-sandbox",
+                ],
+            )
+            for path, label in paths:
+                url = f"http://127.0.0.1:{args.port_http}{path}"
+                print(f"verify {label}: {url}")
+                page = browser.new_page()
+                errors: list[str] = []
+                page.on("pageerror", lambda e: errors.append(str(e)))
+                page.on("console", lambda m: print(f"[{label}/console] {m.type}: {m.text}"))
+
+                page.goto(url, wait_until="networkidle", timeout=30_000)
+                # Wait for connect log
+                page.wait_for_function(
+                    """() => {
+                      const t = document.getElementById('log')?.textContent || '';
+                      return t.includes('connect') || t.includes('boot error');
+                    }""",
+                    timeout=15_000,
+                )
+                log = page.locator("#log").inner_text()
+                if "boot error" in log:
+                    raise SystemExit(f"{label} boot failed:\n{log}\npageerrors={errors}")
+
+                page.click("#frame0")
+                page.wait_for_function(
+                    """() => (document.getElementById('log')?.textContent || '').includes('frame0 bytes')""",
+                    timeout=20_000,
+                )
+                log = page.locator("#log").inner_text()
+                print(f"[{label}] after frame0:\n{log}")
+                if "frame0 bytes" not in log:
+                    raise SystemExit(f"{label}: frame0 did not complete")
+                if errors:
+                    raise SystemExit(f"{label}: page errors: {errors}")
+                page.close()
+                print(f"OK {label}")
+
+            browser.close()
+
+        print("PASS e2e")
+        return 0
+    finally:
+        if not args.keep:
+            stop_all()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

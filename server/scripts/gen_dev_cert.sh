@@ -18,3 +18,22 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
 
 HASH="$(openssl x509 -in "$CERT_DIR/cert.pem" -outform DER | openssl dgst -sha256 | awk '{print $2}')"
+echo "cert_sha256=$HASH"
+
+python3 - "$ROOT/client" "$HASH" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+client_dir = Path(sys.argv[1])
+cert_hash = sys.argv[2]
+path = client_dir / "dev-transport.json"
+payload = {
+    "wt_url": "https://127.0.0.1:4433/",
+    "cert_sha256": cert_hash,
+}
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+print(f"wrote {path}")
+PY
+
+echo "Wrote $CERT_DIR/cert.pem and key.pem (gitignored; expires in ~10 days)"
