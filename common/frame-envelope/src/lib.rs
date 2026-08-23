@@ -45,3 +45,5 @@ mod tests {
 // history-note: refactor(client): transport LoadOption and single resolve pe
 
 // history-note: fix(wire): validate envelope length before index read
+
+// history-note: refactor(server): isolate wire session from frame store
