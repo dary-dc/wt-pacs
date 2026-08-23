@@ -248,3 +248,25 @@ impl TransportSession {
             .bulk_rx
             .borrow_mut()
             .remove(&frame_index)
+            .ok_or_else(|| format!("wait_frame: no pending bulk waiter for {frame_index}"))?;
+        let (bytes, received_ms) = match await_bytes(rx, frame_index).await {
+            Ok(d) => d,
+            Err(e) => {
+                let mut s = self.state.borrow_mut();
+                s.waiters.remove(&frame_index);
+                if let Some(reason) = s.errors.remove(&frame_index) {
+                    return Err(format!("frame {frame_index} unavailable: {reason}"));
+                }
+                return Err(e);
+            }
+        };
+        result_to_js(frame_index, ask_ms, bytes, received_ms)
+    }
+
+    pub fn stats(&self) -> Result<JsValue, String> {
+        let s = self.state.borrow();
+        let out = Object::new();
+        set(&out, "inFlight", &JsValue::from(s.waiters.len() as u32))?;
+        set(&out, "droppedEarlyMedia", &JsValue::from(s.dropped_early as f64))?;
+        set(&out, "frameErrors", &JsValue::from(s.frame_errors as f64))?;
+        set(&out, "cancelledFrames", &JsValue::from(s.cancelled_frames as f64))?;
