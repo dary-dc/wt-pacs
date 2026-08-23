@@ -56,3 +56,10 @@ def main():
     parser.add_argument("--study", default="us_cine_smoke")
     args = parser.parse_args()
     Handler.study_name = args.study
+    host = ("127.0.0.1", args.port)
+    print(f"static host http://{host[0]}:{host[1]}/harness/ study={args.study}")
+    ThreadingHTTPServer(host, Handler).serve_forever()
+
+
+if __name__ == "__main__":
+    main()
