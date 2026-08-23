@@ -270,3 +270,26 @@ impl TransportSession {
         set(&out, "droppedEarlyMedia", &JsValue::from(s.dropped_early as f64))?;
         set(&out, "frameErrors", &JsValue::from(s.frame_errors as f64))?;
         set(&out, "cancelledFrames", &JsValue::from(s.cancelled_frames as f64))?;
+        Ok(out.into())
+    }
+}
+
+async fn await_bytes(
+    rx: oneshot::Receiver<(Uint8Array, f64)>,
+    frame_index: u32,
+) -> Result<(Uint8Array, f64), String> {
+    let mut rx = rx.fuse();
+    let mut timeout = TimeoutFuture::new(FRAME_TIMEOUT_MS).fuse();
+    select! {
+        res = rx => res.map_err(|_| format!("frame {frame_index} aborted before completion")),
+        _ = timeout => Err(format!(
+            "timeout waiting for frame {frame_index} after {FRAME_TIMEOUT_MS} ms"
+        )),
+    }
+}
+
+fn result_to_js(
+    frame_index: u32,
+    ask_ms: f64,
+    bytes: Uint8Array,
+    received_ms: f64,
