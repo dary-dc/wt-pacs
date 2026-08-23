@@ -225,3 +225,26 @@ impl TransportSession {
                 bulk_rx.insert(frame_index, rx);
                 need_wire.push(frame_index);
             }
+        }
+        let payload = encode_fod_msg(&FodMsg::RequestFrames {
+            frames: need_wire.clone(),
+        })
+        .map_err(|e| format!("encode FoD: {e}"))?;
+        if self.req_tx.unbounded_send(payload).is_err() {
+            let mut s = self.state.borrow_mut();
+            let mut bulk_rx = self.bulk_rx.borrow_mut();
+            for &frame_index in &need_wire {
+                s.waiters.remove(&frame_index);
+                bulk_rx.remove(&frame_index);
+            }
+            self.bulk_ask_ms.set(None);
+            return Err("FoD request channel closed".into());
+        }
+        Ok(ask_ms)
+    }
+
+    pub async fn wait_frame(&self, frame_index: u32, ask_ms: f64) -> Result<JsValue, String> {
+        let rx = self
+            .bulk_rx
+            .borrow_mut()
+            .remove(&frame_index)
