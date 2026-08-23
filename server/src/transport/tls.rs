@@ -85,3 +85,13 @@ pub fn generate_localhost_cert() -> Result<WebTransportCert> {
 
     let mut hasher = Sha256::new();
     hasher.update(&cert_der);
+    let sha256_hex = format!("{:x}", hasher.finalize());
+
+    Ok(WebTransportCert {
+        inner: Arc::new(Inner {
+            cert_der,
+            key_der,
+            sha256_hex,
+        }),
+    })
+}

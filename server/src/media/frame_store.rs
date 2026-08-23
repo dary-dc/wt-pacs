@@ -75,3 +75,12 @@ mod tests {
         let path = std::env::temp_dir().join(format!("frame-store-{stamp}.sbnd"));
         write_bundle(&path, meta, &[f0.as_slice(), f1.as_slice()])?;
 
+        let store = FrameStore::open(&path)?;
+        assert_eq!(store.frame_count(), 2);
+        assert_eq!(store.metadata_json()?, r#"{"frameCount":2}"#);
+        assert_eq!(store.frame_slice(0)?, f0);
+        assert_eq!(store.frame_slice(1)?, f1);
+        let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+}

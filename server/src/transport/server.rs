@@ -118,3 +118,17 @@ async fn send_frames(
                 )
                 .await?;
                 continue;
+            }
+        };
+        let payload = wrap(idx, bytes);
+        let mut uni = connection
+            .open_uni()
+            .await
+            .context("open uni")?
+            .await
+            .context("open uni ready")?;
+        uni.write_all(&payload).await.context("write envelope")?;
+        uni.finish().await.context("finish uni")?;
+    }
+    Ok(())
+}
