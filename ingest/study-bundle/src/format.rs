@@ -43,3 +43,11 @@ pub fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
         let length = u32::from_le_bytes(bytes[base + 8..base + 12].try_into()?);
         index.push((offset, length));
     }
+
+    Ok(ParsedLayout {
+        frame_count,
+        metadata_len,
+        data_base,
+        index,
+    })
+}

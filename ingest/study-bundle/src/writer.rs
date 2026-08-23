@@ -81,3 +81,19 @@ pub fn write_bundle(path: &Path, metadata: &[u8], frames: &[&[u8]]) -> Result<()
     let mut writer = BundleWriter::create(path, metadata, &lengths)?;
     for frame in frames {
         writer.write_frame(frame)?;
+    }
+    writer.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn streamed_write_matches_buffered_write() -> Result<()> {
+        let meta = br#"{"frameCount":3}"#;
+        let frames: [&[u8]; 3] = [b"aaa", b"bbbb", b"cc"];
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+        let a = std::env::temp_dir().join(format!("sbnd-buffered-{stamp}.sbnd"));
+        let b = std::env::temp_dir().join(format!("sbnd-streamed-{stamp}.sbnd"));

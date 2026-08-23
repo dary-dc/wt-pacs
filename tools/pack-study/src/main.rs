@@ -53,3 +53,14 @@ fn main() -> Result<()> {
     writer
         .finish()
         .with_context(|| format!("finish {}", args.output.display()))?;
+
+    if let Some(sidecar) = args.sidecar {
+        write_sidecar(&sidecar, &metadata)?;
+    }
+
+    println!(
+        "wrote {} ({} frames, {} bytes)",
+        args.output.display(),
+        frame_count,
+        std::fs::metadata(&args.output)?.len()
+    );
