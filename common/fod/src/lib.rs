@@ -50,3 +50,11 @@ mod tests {
 
     #[test]
     fn roundtrip_frame_error() {
+        let msg = FodMsg::FrameError {
+            frame_index: 9,
+            reason: "out of range".into(),
+        };
+        let enc = encode_fod_msg(&msg).unwrap();
+        assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
+    }
+}
