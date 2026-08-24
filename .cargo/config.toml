@@ -1,0 +1,6 @@
+[build]
+# WebTransport bindings in web-sys are behind this cfg.
+rustflags = ["--cfg=web_sys_unstable_apis"]
+
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg=web_sys_unstable_apis"]

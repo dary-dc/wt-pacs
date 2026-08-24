@@ -1,32 +1,22 @@
-//! Media-complete session over browser WebTransport.
+//! Media-complete session over browser WebTransport via `web_sys`.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use fod::{decode_fod_msg, encode_fod_msg, FodMsg};
+use frame_envelope::unwrap as unwrap_envelope;
 use futures::channel::{mpsc, oneshot};
 use futures::{select, FutureExt, StreamExt};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::{Object, Reflect, Uint8Array};
-use fod::{encode_fod_msg, FodMsg};
-use frame_envelope::unwrap as unwrap_envelope;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::spawn_local;
-
-#[wasm_bindgen(module = "/session_wt.js")]
-extern "C" {
-    #[wasm_bindgen(catch, js_name = wtConnect)]
-    async fn wt_connect(url: &str, hash_hex: &str) -> Result<JsValue, JsValue>;
-
-    #[wasm_bindgen(catch, js_name = wtWrite)]
-    async fn wt_write(writer: &JsValue, bytes: &[u8]) -> Result<(), JsValue>;
-
-    #[wasm_bindgen(catch, js_name = wtReadAll)]
-    async fn wt_read_all(reader: &JsValue) -> Result<Uint8Array, JsValue>;
-
-    #[wasm_bindgen(catch, js_name = wtAcceptUni)]
-    async fn wt_accept_uni(transport: &JsValue) -> Result<JsValue, JsValue>;
-}
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::{spawn_local, JsFuture};
+use web_sys::{
+    ReadableStream, ReadableStreamDefaultReader, WebTransport, WebTransportCongestionControl,
+    WebTransportHash, WebTransportOptions, WritableStreamDefaultWriter,
+};
 
 const FRAME_TIMEOUT_MS: u32 = 15_000;
 
@@ -43,6 +33,102 @@ fn js_buffer_from(src: &[u8]) -> Uint8Array {
     view
 }
 
+fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
+    if hex.len() % 2 != 0 {
+        return Err("cert hash hex length must be even".into());
+    }
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| {
+            u8::from_str_radix(&hex[i..i + 2], 16)
+                .map_err(|_| format!("bad hex at {i}"))
+        })
+        .collect()
+}
+
+async fn reader_read_value(
+    reader: &ReadableStreamDefaultReader,
+) -> Result<Option<JsValue>, JsValue> {
+    let obj = JsFuture::from(reader.read()).await?;
+    let done = Reflect::get(&obj, &JsValue::from_str("done"))?
+        .as_bool()
+        .unwrap_or(false);
+    if done {
+        return Ok(None);
+    }
+    Ok(Some(Reflect::get(&obj, &JsValue::from_str("value"))?))
+}
+
+async fn reader_read_bytes(
+    reader: &ReadableStreamDefaultReader,
+) -> Result<Option<Uint8Array>, JsValue> {
+    match reader_read_value(reader).await? {
+        None => Ok(None),
+        Some(v) => Ok(Some(v.dyn_into::<Uint8Array>()?)),
+    }
+}
+
+async fn read_exact(
+    reader: &ReadableStreamDefaultReader,
+    buf: &mut Vec<u8>,
+    need: usize,
+) -> Result<(), String> {
+    while buf.len() < need {
+        match reader_read_bytes(reader)
+            .await
+            .map_err(|e| format!("stream read: {e:?}"))?
+        {
+            Some(chunk) => {
+                let mut tmp = vec![0u8; chunk.length() as usize];
+                chunk.copy_to(&mut tmp);
+                buf.extend_from_slice(&tmp);
+            }
+            None => return Err("stream ended early".into()),
+        }
+    }
+    Ok(())
+}
+
+/// Drain a uni stream into one buffer (one Media-complete frame per stream).
+async fn read_stream_to_end(stream: ReadableStream) -> Result<Vec<u8>, String> {
+    let reader = stream
+        .get_reader()
+        .dyn_into::<ReadableStreamDefaultReader>()
+        .map_err(|e| format!("uni reader: {e:?}"))?;
+    let mut out = Vec::new();
+    loop {
+        match reader_read_bytes(&reader)
+            .await
+            .map_err(|e| format!("uni read: {e:?}"))?
+        {
+            Some(chunk) => {
+                let mut tmp = vec![0u8; chunk.length() as usize];
+                chunk.copy_to(&mut tmp);
+                out.extend_from_slice(&tmp);
+            }
+            None => break,
+        }
+    }
+    let _ = JsFuture::from(reader.cancel()).await;
+    Ok(out)
+}
+
+async fn write_all(writer: &WritableStreamDefaultWriter, bytes: &[u8]) -> Result<(), String> {
+    let arr = Uint8Array::from(bytes);
+    JsFuture::from(writer.write_with_chunk(&arr))
+        .await
+        .map_err(|e| format!("write: {e:?}"))?;
+    Ok(())
+}
+
+async fn read_fod_msg(reader: &ReadableStreamDefaultReader) -> Result<FodMsg, String> {
+    let mut buf = Vec::new();
+    read_exact(reader, &mut buf, 4).await?;
+    let len = u32::from_le_bytes(buf[0..4].try_into().unwrap()) as usize;
+    read_exact(reader, &mut buf, 4 + len).await?;
+    decode_fod_msg(&buf).map_err(|e| format!("decode FoD: {e}"))
+}
+
 #[derive(Default)]
 struct SessionState {
     waiters: HashMap<u32, oneshot::Sender<(Uint8Array, f64)>>,
@@ -53,43 +139,71 @@ struct SessionState {
 }
 
 pub struct TransportSession {
-    transport: JsValue,
+    _transport: WebTransport,
     state: Rc<RefCell<SessionState>>,
     req_tx: mpsc::UnboundedSender<Vec<u8>>,
-    control_writable: JsValue,
     bulk_rx: RefCell<HashMap<u32, oneshot::Receiver<(Uint8Array, f64)>>>,
     bulk_ask_ms: Cell<Option<f64>>,
 }
 
 impl TransportSession {
     pub async fn connect(wt_url: String, cert_sha256: String) -> Result<Self, String> {
-        let conn = wt_connect(&wt_url, &cert_sha256)
-            .await
-            .map_err(|e| format!("wt connect: {:?}", e))?;
+        let hash_bytes = hex_to_bytes(&cert_sha256)?;
+        let hash_arr = Uint8Array::from(hash_bytes.as_slice());
 
-        let readable = Reflect::get(&conn, &JsValue::from_str("readable"))
-            .map_err(|_| "missing readable")?;
-        let writable = Reflect::get(&conn, &JsValue::from_str("writable"))
-            .map_err(|_| "missing writable")?;
-        let transport = Reflect::get(&conn, &JsValue::from_str("transport"))
-            .map_err(|_| "missing transport")?;
+        let hash = WebTransportHash::new();
+        hash.set_algorithm("sha-256");
+        hash.set_value(&hash_arr);
+
+        let options = WebTransportOptions::new();
+        options.set_server_certificate_hashes(&[hash]);
+        options.set_congestion_control(WebTransportCongestionControl::LowLatency);
+
+        let transport = WebTransport::new_with_options(&wt_url, &options)
+            .map_err(|e| format!("WebTransport new: {e:?}"))?;
+        JsFuture::from(transport.ready())
+            .await
+            .map_err(|e| format!("WebTransport ready: {e:?}"))?;
+
+        let bi = JsFuture::from(transport.create_bidirectional_stream())
+            .await
+            .map_err(|e| format!("create bidi: {e:?}"))?
+            .dyn_into::<web_sys::WebTransportBidirectionalStream>()
+            .map_err(|e| format!("bidi cast: {e:?}"))?;
+
+        let control_writer = bi
+            .writable()
+            .get_writer()
+            .map_err(|e| format!("control writer: {e:?}"))?;
+        let control_reader = bi
+            .readable()
+            .get_reader()
+            .dyn_into::<ReadableStreamDefaultReader>()
+            .map_err(|e| format!("control reader: {e:?}"))?;
 
         let state = Rc::new(RefCell::new(SessionState::default()));
-        let st_uni = Rc::clone(&state);
-        let transport_uni = transport.clone();
 
+        // Media pump — one finished uni stream = one envelope (Media-complete).
+        let st_uni = Rc::clone(&state);
+        let uni_incoming = transport.incoming_unidirectional_streams();
+        let uni_reader = uni_incoming
+            .get_reader()
+            .dyn_into::<ReadableStreamDefaultReader>()
+            .map_err(|e| format!("uni streams reader: {e:?}"))?;
         spawn_local(async move {
             loop {
-                let stream = match wt_accept_uni(&transport_uni).await {
-                    Ok(v) if v.is_null() => break,
-                    Ok(v) => v,
-                    Err(_) => break,
+                let next = match reader_read_value(&uni_reader).await {
+                    Ok(Some(v)) => v,
+                    Ok(None) | Err(_) => break,
                 };
-                let bytes = match wt_read_all(&stream).await {
+                let stream = match next.dyn_into::<ReadableStream>() {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+                let raw = match read_stream_to_end(stream).await {
                     Ok(b) => b,
                     Err(_) => continue,
                 };
-                let raw: Vec<u8> = bytes.to_vec();
                 let now = perf_now_ms();
                 match unwrap_envelope(&raw) {
                     Ok((index, chunk)) => {
@@ -107,43 +221,39 @@ impl TransportSession {
             st_uni.borrow_mut().waiters.clear();
         });
 
+        // FoD downlink — exceptions only (FrameError), length-prefixed on control stream.
         let st_ctl = Rc::clone(&state);
-        let readable_ctl = readable.clone();
         spawn_local(async move {
             loop {
-                let bytes = match wt_read_all(&readable_ctl).await {
-                    Ok(b) => b,
+                match read_fod_msg(&control_reader).await {
+                    Ok(FodMsg::FrameError {
+                        frame_index,
+                        reason,
+                    }) => {
+                        let mut s = st_ctl.borrow_mut();
+                        s.errors.insert(frame_index, reason);
+                        s.frame_errors += 1;
+                        s.waiters.remove(&frame_index);
+                    }
+                    Ok(_) => continue,
                     Err(_) => break,
-                };
-                let raw = b.to_vec();
-                if let Ok(FodMsg::FrameError {
-                    frame_index,
-                    reason,
-                }) = fod::decode_fod_msg(&raw)
-                {
-                    let mut s = st_ctl.borrow_mut();
-                    s.errors.insert(frame_index, reason);
-                    s.frame_errors += 1;
-                    s.waiters.remove(&frame_index);
                 }
             }
         });
 
         let (req_tx, mut req_rx) = mpsc::unbounded::<Vec<u8>>();
-        let writable_send = writable.clone();
         spawn_local(async move {
             while let Some(payload) = req_rx.next().await {
-                if wt_write(&writable_send, &payload).await.is_err() {
+                if write_all(&control_writer, &payload).await.is_err() {
                     break;
                 }
             }
         });
 
         Ok(Self {
-            transport,
+            _transport: transport,
             state,
             req_tx,
-            control_writable: writable,
             bulk_rx: RefCell::new(HashMap::new()),
             bulk_ask_ms: Cell::new(None),
         })
@@ -267,9 +377,17 @@ impl TransportSession {
         let s = self.state.borrow();
         let out = Object::new();
         set(&out, "inFlight", &JsValue::from(s.waiters.len() as u32))?;
-        set(&out, "droppedEarlyMedia", &JsValue::from(s.dropped_early as f64))?;
+        set(
+            &out,
+            "droppedEarlyMedia",
+            &JsValue::from(s.dropped_early as f64),
+        )?;
         set(&out, "frameErrors", &JsValue::from(s.frame_errors as f64))?;
-        set(&out, "cancelledFrames", &JsValue::from(s.cancelled_frames as f64))?;
+        set(
+            &out,
+            "cancelledFrames",
+            &JsValue::from(s.cancelled_frames as f64),
+        )?;
         Ok(out.into())
     }
 }
