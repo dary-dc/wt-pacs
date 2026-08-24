@@ -237,6 +237,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
+name = "cold-page-bench"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "exact-server",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -966,6 +975,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "queue-harness"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "fod",
+ "frame-envelope",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "wtransport",
+]
+
+[[package]]
+name = "queue-sim"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "memmap2",
+ "study-bundle",
 ]
 
 [[package]]

@@ -1,0 +1,9 @@
+{
+  "name": "dense_scrub",
+  "max_step": 1,
+  "step_interval_ms": 32,
+  "burst_count": 15,
+  "frame_modulo": 3,
+  "settle_on": "last_asked",
+  "send_cancel_on_settle": true
+}

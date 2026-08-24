@@ -1,5 +1,7 @@
 //! Transport-agnostic queue simulation — predicted curves before real harness runs.
 
+pub mod study;
+
 /// One server arm: cancel policy on or off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CancelPolicy {
@@ -22,13 +24,22 @@ pub struct FlyAndSettleConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimMetrics {
-    /// Bytes written for frames the reader had already left.
+    /// Bytes written for frames the reader had already left (codestream only).
     pub wasted_bytes: u64,
     /// Settle → first byte of wanted frame (microseconds).
     pub recovered_time_us: u64,
     /// Unwanted frames fully sent after settle.
     pub commitment_depth: u32,
+    /// Media uni streams completed (until wanted frame delivered).
+    pub frames_on_wire: u32,
+    /// Envelope payload bytes: frames × (4-byte index + codestream).
+    pub bytes_on_wire: u64,
+    /// Frames completed after settle (wanted + wasted).
+    pub frames_after_settle: u32,
+    pub bytes_after_settle: u64,
 }
+
+pub const ENVELOPE_OVERHEAD: u64 = 4;
 
 pub fn frame_send_us(frame_bytes: u64, link_bps: u64) -> u64 {
     frame_bytes.saturating_mul(8).saturating_mul(1_000_000) / link_bps
@@ -52,6 +63,11 @@ pub fn simulate_fly_and_settle(cfg: &FlyAndSettleConfig) -> SimMetrics {
     let mut commitment_depth: u32 = 0;
     let mut recovered_time_us: u64 = 0;
     let mut recovered_recorded = false;
+    let mut frames_on_wire: u32 = 0;
+    let mut bytes_on_wire: u64 = 0;
+    let mut frames_after_settle: u32 = 0;
+    let mut bytes_after_settle: u64 = 0;
+    let wire_frame_bytes = cfg.frame_bytes + ENVELOPE_OVERHEAD;
 
     // Upper bound: all asks land, then drain the queue at send rate.
     let horizon = settle_time_us
@@ -83,6 +99,12 @@ pub fn simulate_fly_and_settle(cfg: &FlyAndSettleConfig) -> SimMetrics {
         }
 
         let front = deque.remove(0);
+        frames_on_wire += 1;
+        bytes_on_wire += wire_frame_bytes;
+        if settled {
+            frames_after_settle += 1;
+            bytes_after_settle += wire_frame_bytes;
+        }
 
         if settled {
             if front != wanted {
@@ -105,6 +127,10 @@ pub fn simulate_fly_and_settle(cfg: &FlyAndSettleConfig) -> SimMetrics {
         wasted_bytes,
         recovered_time_us,
         commitment_depth,
+        frames_on_wire,
+        bytes_on_wire,
+        frames_after_settle,
+        bytes_after_settle,
     }
 }
 

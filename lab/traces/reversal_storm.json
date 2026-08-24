@@ -1,0 +1,29 @@
+{
+  "name": "reversal_storm",
+  "max_step": 1,
+  "step_interval_ms": 16,
+  "steps": [
+    { "frame": 0 },
+    { "frame": 1 },
+    { "frame": 2 },
+    { "frame": 1 },
+    { "frame": 0 },
+    { "frame": 1 },
+    { "frame": 2 },
+    { "frame": 1 },
+    { "frame": 0 },
+    { "frame": 1 },
+    { "frame": 2 },
+    { "frame": 1 },
+    { "frame": 0 },
+    { "frame": 1 },
+    { "frame": 2 },
+    { "frame": 1 },
+    { "frame": 0 },
+    { "frame": 1 },
+    { "frame": 2 },
+    { "frame": 1 }
+  ],
+  "settle_on": "last_asked",
+  "send_cancel_on_settle": true
+}

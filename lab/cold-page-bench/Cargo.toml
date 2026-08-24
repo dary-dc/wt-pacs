@@ -1,0 +1,14 @@
+[package]
+name = "cold-page-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Warm vs cold SBND mmap frame_slice timings (lab scaffolding)"
+
+[[bin]]
+name = "cold-page-bench"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+exact-server = { path = "../../server" }
