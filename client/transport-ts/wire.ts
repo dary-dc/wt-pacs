@@ -4,6 +4,7 @@ export type FodMsg =
   | { op: "request_frame"; frame: number }
   | { op: "request_frames"; frames: number[] }
   | { op: "request_path"; from: number; to: number; stride: number }
+  | { op: "cancel_frames"; frames: number[] }
   | { op: "end_session" }
   | { op: "frame_error"; frame_index: number; reason?: string };
 
