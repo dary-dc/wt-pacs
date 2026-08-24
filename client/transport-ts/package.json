@@ -1,0 +1,12 @@
+{
+  "name": "wt-pacs-transport-ts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild session.ts --bundle --format=esm --outfile=dist/session.js --platform=browser --target=es2022"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}
