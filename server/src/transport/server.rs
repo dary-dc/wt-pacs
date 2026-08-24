@@ -1,11 +1,9 @@
 //! FoD ask → envelope on server uni stream (Media-complete).
 
 use crate::media::frame_store::FrameStore;
+use crate::transport::queue::run_session;
 use crate::transport::tls::load_pem_cert;
-use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
-use fod::FodMsg;
-use frame_envelope::wrap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -70,65 +68,10 @@ async fn handle_incoming(
     let connection = session_request.accept().await.context("accept session")?;
     info!(frames = store.frame_count(), "session opened");
 
-    let (mut control_send, mut control_recv) = connection
+    let (control_send, control_recv) = connection
         .accept_bi()
         .await
         .context("accept control bidi")?;
 
-    loop {
-        let msg = match read_fod_msg(&mut control_recv).await {
-            Ok(m) => m,
-            Err(err) => {
-                warn!(%err, "control read ended");
-                break;
-            }
-        };
-
-        match msg {
-            FodMsg::RequestFrame { frame } => {
-                send_frames(&connection, &mut control_send, &store, &[frame]).await?;
-            }
-            FodMsg::RequestFrames { frames } => {
-                send_frames(&connection, &mut control_send, &store, &frames).await?;
-            }
-            FodMsg::EndSession => break,
-            other => warn!(?other, "ask-only: ignoring unexpected FoD message"),
-        }
-    }
-    Ok(())
-}
-
-async fn send_frames(
-    connection: &wtransport::Connection,
-    control_send: &mut wtransport::stream::SendStream,
-    store: &FrameStore,
-    requested: &[u32],
-) -> Result<()> {
-    for &idx in requested {
-        let bytes = match store.frame_slice(idx) {
-            Ok(bytes) => bytes,
-            Err(err) => {
-                warn!(frame = idx, %err, "frame refused");
-                write_fod_msg(
-                    control_send,
-                    &FodMsg::FrameError {
-                        frame_index: idx,
-                        reason: err.to_string(),
-                    },
-                )
-                .await?;
-                continue;
-            }
-        };
-        let payload = wrap(idx, bytes);
-        let mut uni = connection
-            .open_uni()
-            .await
-            .context("open uni")?
-            .await
-            .context("open uni ready")?;
-        uni.write_all(&payload).await.context("write envelope")?;
-        uni.finish().await.context("finish uni")?;
-    }
-    Ok(())
+    run_session(connection, control_send, control_recv, store).await
 }

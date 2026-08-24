@@ -14,7 +14,7 @@ in one commit when it has answered its question.
 
 | | Question | Status |
 | - | -------- | ------ |
-| **Q1 · Queue** | Does holding asks and cancelling stale ones recover enough time to justify keeping it? | Design settled, value unproven |
+| **Q1 · Queue** | Does holding asks and cancelling stale ones recover enough time to justify keeping it? | **Cancel rejected** — see [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md). Two-task shape kept |
 | **Q2 · Head-of-line** | Does spreading frames across several streams recover enough under loss to justify it? | **Open — do not pre-commit to an answer** |
 
 They share a harness because they are the same measurement with different independent variables.
@@ -56,7 +56,7 @@ choosing its next frame.
 | - | -------- | ------ |
 | Contents | Asks, not data | Locating a frame is a memory-map slice |
 | Priority | **None in phase 1** | With client-side stride and no speculative fill, everything queued is wanted. Priority arrives with the orientation-fill layer |
-| Stale asks | Explicit `CancelFrames` uplink | Implicit supersede-by-newest breaks bulk load, which accumulates asks deliberately |
+| Stale asks | **`CancelFrames` ignored server-side** | Measured; cancel did not pay — [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md). Client stride limits outstanding asks instead |
 | Cap | Bounded channel | A **robustness** bound against any client asking for 2000 frames — not a performance knob, and unrelated to stride |
 | Mid-frame stop | No | A frame is one write. Commitment depth is one frame |
 
@@ -65,12 +65,9 @@ conflated in earlier discussion.
 
 ### Unconditional vs on probation
 
-- **Unconditional:** the two-task shape. It is the prerequisite for `queue_us` in the telemetry spec,
-  it is what makes cancel possible at all, and it handles `EndSession` promptly. Same bytes, same order
-- **On probation:** cancel, and later priority. This is what the harness must earn
-
-If the harness kills cancel, the private deque collapses to a plain channel receive and the code gets
-smaller again.
+- **Unconditional:** the two-task shape. It is the prerequisite for `queue_us` in the telemetry spec
+  and it handles `EndSession` promptly. Same bytes, same order
+- **Rejected (2026-08-24):** server-side cancel — see ADR. Priority remains deferred
 
 ---
 
@@ -124,17 +121,22 @@ Expect to stop after layer 2.
 
 ### Constraining the link
 
-**Q1 — pace the harness client's reads.** It reads at rate R; flow control does the rest, the server's
-write blocks exactly as on a slow link. Zero product code, deterministic, no privileges. It produces
-*flow-control* blocking rather than *congestion* blocking, and those differ in congestion window and
-RTT — but **not in drain rate for a known byte count**, which is the entire question here. For Q1 this
-is exact, not an approximation.
+**Throughput axis — pace the harness client's reads.** It reads at rate R; flow control does the rest,
+the server's write blocks as on a slow link. Zero product code, deterministic, no privileges.
 
-**Q2 — `netem`.** Flow-control pacing cannot answer anything about loss or RTT, so it cannot answer Q2
-at all. Needs the container and `NET_ADMIN`. Two or three points, not a sweep.
+**RTT axis — `netem` delay. Not optional.**
 
-> Put this limitation in the harness README. Otherwise someone will use this rig for an RTT number in
-> six months and get a confident wrong answer.
+> **Correction.** An earlier draft of this section said read pacing was "exact, not an approximation"
+> for Q1, and that `netem` was needed only for Q2. **That was wrong.** Working the model analytically
+> (see [`stride-and-queue-experiment.md`](stride-and-queue-experiment.md)) shows the queue recovers
+> approximately `U·RTT` at the depth stride would actually choose — so **RTT is the dominant variable
+> for Q1 too**, and read pacing cannot vary it. A pacing-only rig would sweep the axis that barely
+> matters while holding fixed the one that decides the answer.
+
+**Loss axis — `netem` loss.** Q2 only. Needs the container and `NET_ADMIN`.
+
+> Record in the harness README which axis each mechanism can and cannot move. Otherwise someone reuses
+> this rig for a question it cannot answer and gets a confident wrong number.
 
 ### Traces — use the right one
 
@@ -170,8 +172,8 @@ First two are headless.
 
 ### Falsifier, stated in advance
 
-> **Q1:** if at the link rates we actually care about the recovered time is under ~100 ms on
-> `fly_and_settle`, the policy does not pay. Ship the two-task shape with no cancel.
+> **Q1:** falsifier met — recovered time under ~100 ms on `fly_and_settle` at paced read rates 2–300
+> Mbps; cancel saved 0 ms vs FIFO. **Decision:** [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md).
 >
 > **Q2:** state a threshold before the first `netem` run, not after.
 
@@ -182,8 +184,8 @@ First two are headless.
 | | |
 | - | - |
 | Design docs | `wt-pacs/docs/` — **committed**. Not `.local/`, which is gitignored, and history is the point |
-| Harness + simulation | A separate crate. **No product crate may depend on it.** Removed in one commit once it has answered |
-| The product change | The two-task shape, plus a flag for the cancel policy. Nothing else |
+| Harness + simulation | `lab/` — committed for reruns. **No product crate may depend on it.** |
+| The product change | Two-task queue shape only |
 
 ---
 
@@ -197,7 +199,7 @@ running:
 | **One uni stream per frame response** | Shared-stream servers measure a different HoL problem |
 | **`wtransport` write path** | Internal buffering before bytes hit QUIC changes "committed" timing |
 | **SBND mmap slice send** | Copy vs mmap affects server CPU but not queue drain math — still document which |
-| **Cancel policy flag** | Arm A vs arm B must differ only on cancel, not on unrelated server changes |
+| **Cancel policy flag** | Historical A/B used `WTPACS_QUEUE_CANCEL` (removed). Harness `--server-cancel` is label-only |
 | **Trace `max_step`** | Jump traces vs scroll-only traces answer different queue questions |
 
 Maintain in the harness README a named checklist of these invariants. Without it, a number from one

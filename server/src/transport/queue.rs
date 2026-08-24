@@ -5,7 +5,7 @@ use crate::transport::wire::write_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use frame_envelope::wrap;
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -20,7 +20,7 @@ const INBOX_CAP: usize = 512;
 enum InboxMsg {
     Ask(u32),
     AskMany(Vec<u32>),
-    Cancel(Vec<u32>),
+    Cancel,
     EndSession,
 }
 
@@ -29,19 +29,11 @@ struct QueuedFrame {
     enqueued_at: Instant,
 }
 
-pub fn cancel_enabled_from_env() -> bool {
-    match std::env::var("WTPACS_QUEUE_CANCEL") {
-        Ok(v) => v == "1" || v.eq_ignore_ascii_case("true"),
-        Err(_) => false,
-    }
-}
-
 pub async fn run_session(
     connection: Connection,
     mut control_send: SendStream,
     mut control_recv: wtransport::stream::RecvStream,
     store: Arc<FrameStore>,
-    cancel_enabled: bool,
 ) -> Result<()> {
     let (tx, mut rx) = mpsc::channel::<InboxMsg>(INBOX_CAP);
 
@@ -58,7 +50,7 @@ pub async fn run_session(
             let (inbox, is_end) = match msg {
                 FodMsg::RequestFrame { frame } => (InboxMsg::Ask(frame), false),
                 FodMsg::RequestFrames { frames } => (InboxMsg::AskMany(frames), false),
-                FodMsg::CancelFrames { frames } => (InboxMsg::Cancel(frames), false),
+                FodMsg::CancelFrames { .. } => (InboxMsg::Cancel, false),
                 FodMsg::EndSession => (InboxMsg::EndSession, true),
                 other => {
                     warn!(?other, "ask-only: ignoring unexpected FoD message");
@@ -80,7 +72,7 @@ pub async fn run_session(
     let mut stop_after_current = false;
 
     loop {
-        drain_inbox(&mut rx, &mut deque, cancel_enabled, &mut stop_after_current);
+        drain_inbox(&mut rx, &mut deque, &mut stop_after_current);
 
         if stop_after_current && deque.is_empty() {
             break;
@@ -116,7 +108,7 @@ pub async fn run_session(
         }
 
         match rx.recv().await {
-            Some(msg) => apply_one(msg, &mut deque, cancel_enabled, &mut stop_after_current),
+            Some(msg) => apply_one(msg, &mut deque, &mut stop_after_current),
             None => break,
         }
     }
@@ -128,18 +120,16 @@ pub async fn run_session(
 fn drain_inbox(
     rx: &mut mpsc::Receiver<InboxMsg>,
     deque: &mut VecDeque<QueuedFrame>,
-    cancel_enabled: bool,
     stop_after_current: &mut bool,
 ) {
     while let Ok(msg) = rx.try_recv() {
-        apply_one(msg, deque, cancel_enabled, stop_after_current);
+        apply_one(msg, deque, stop_after_current);
     }
 }
 
 fn apply_one(
     msg: InboxMsg,
     deque: &mut VecDeque<QueuedFrame>,
-    cancel_enabled: bool,
     stop_after_current: &mut bool,
 ) {
     match msg {
@@ -156,11 +146,8 @@ fn apply_one(
                 });
             }
         }
-        InboxMsg::Cancel(frames) if cancel_enabled => {
-            let drop: HashSet<u32> = frames.into_iter().collect();
-            deque.retain(|q| !drop.contains(&q.index));
-        }
-        InboxMsg::Cancel(_) => {}
+        // CancelFrames ignored — docs/adr-reject-server-cancel.md
+        InboxMsg::Cancel => {}
         InboxMsg::EndSession => *stop_after_current = true,
     }
 }
