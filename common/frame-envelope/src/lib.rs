@@ -39,11 +39,3 @@ mod tests {
         assert_eq!(body, raw);
     }
 }
-
-// history-note: feat: wrap exact-tier HTJ2K in a display-index frame envelop
-
-// history-note: refactor(client): transport LoadOption and single resolve pe
-
-// history-note: fix(wire): validate envelope length before index read
-
-// history-note: refactor(server): isolate wire session from frame store

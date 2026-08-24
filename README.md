@@ -34,3 +34,10 @@ Open in Chrome:
 
 Both speak the same wire (FoD on bidi control + envelope on server uni streams).
 The WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
+
+
+## Provenance
+
+Public MIT extract of work that began in a private codebase. Names, license,
+and git history were cleaned for publication; treat the log as an engineering
+timeline of this tree, not a byte-for-byte mirror of the private repo.
