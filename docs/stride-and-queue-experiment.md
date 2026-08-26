@@ -1,5 +1,11 @@
 # Stride depth and queue value — the experiment that decides both
 
+> **Paused 2026-08-26.** Stride is paused at the design level — the control law (how stride follows
+> reader speed, how fast gap-fill engages on deceleration) is undesigned, so there is nothing to
+> measure yet. The queue half is rejected outright.
+> **§2 (the RTT-recovery derivation) stands** and is cited by
+> [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
+
 **Written:** 2026-08-24 · **Status:** predicted analytically, unmeasured ·
 **Companion to:** [`queue-and-hol-harness.md`](queue-and-hol-harness.md), which says what to build.
 This says what to measure and what the numbers have to clear.

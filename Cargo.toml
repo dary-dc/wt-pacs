@@ -7,10 +7,8 @@ members = [
     "client/transport-wasm",
     "client/flight-registry",
     "tools/pack-study",
-    "lab/queue-sim",
     "lab/queue-harness",
     "lab/cold-page-bench",
-    "lab/window-server",
 ]
 resolver = "2"
 

@@ -1,5 +1,11 @@
 # Queue and head-of-line — what to build, and what has to justify it
 
+> **§1 obsolete 2026-08-26.** The queue shape it specifies is rejected and being removed
+> ([`adr-reject-server-ordering.md`](adr-reject-server-ordering.md),
+> [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md)).
+> **§2 (head-of-line) is still open and still the plan.** §5 (quotability) still governs every
+> measurement in this repo.
+
 **Written:** 2026-08-24 · **Status:** queue design settled, HoL deliberately open ·
 **Audience:** the agent implementing this, with no access to the design session.
 

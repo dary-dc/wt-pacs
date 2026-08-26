@@ -3,6 +3,11 @@
 **Status:** accepted · **Date:** 2026-08-24 · **Supersedes:** Q1 cancel policy in
 [`queue-and-hol-harness.md`](queue-and-hol-harness.md)
 
+> **§4 and §5 superseded 2026-08-26** by [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
+> Three of §4's four flip conditions are wrong — only RTT changes the answer. §5's retained two-task
+> queue shape is being removed; see [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md).
+> **§1–§3 stand: the measurement is still the evidence.**
+
 ---
 
 ## 1 · What was proposed
