@@ -1,6 +1,6 @@
-use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics};
+use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics, StreamMode};
 use crate::trace::TraceSpec;
-use crate::wire::{read_exact_paced, read_paced, write_fod_msg, LinkPacer};
+use crate::wire::{read_framed_paced, write_fod_msg, LinkPacer};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use frame_envelope::unwrap;
@@ -17,10 +17,6 @@ use std::sync::atomic::{AtomicU32, Ordering};
 /// producing the concurrency it claims and every number from the run is void.
 /// Two bugs violated exactly this and went undetected across three campaigns.
 pub(crate) static PEAK_OUTSTANDING: AtomicU32 = AtomicU32::new(0);
-
-/// Recorded so every result carries the stream architecture it was measured on.
-pub(crate) static SHARED_STREAM: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
 
 fn note_outstanding(n: u32) {
     PEAK_OUTSTANDING.fetch_max(n, Ordering::Relaxed);
@@ -131,13 +127,31 @@ pub async fn run_harness(
     let in_flight_uni = Arc::clone(&in_flight);
     let pacer_uni = Arc::clone(&pacer);
     let rtt_ms = cfg.rtt_ms;
-    let shared = cfg.shared_stream;
-    SHARED_STREAM.store(shared, std::sync::atomic::Ordering::Relaxed);
+    let stream_mode = cfg.stream_mode;
     let uni_task = tokio::spawn(async move {
-        let r = if shared {
-            shared_stream_loop(conn_uni, metrics_uni, outstanding_uni, in_flight_uni, pacer_uni, rtt_ms).await
-        } else {
-            accept_uni_loop(conn_uni, metrics_uni, outstanding_uni, in_flight_uni, pacer_uni, rtt_ms).await
+        let r = match stream_mode {
+            StreamMode::Shared => {
+                shared_stream_loop(
+                    conn_uni,
+                    metrics_uni,
+                    outstanding_uni,
+                    in_flight_uni,
+                    pacer_uni,
+                    rtt_ms,
+                )
+                .await
+            }
+            StreamMode::PerFrame => {
+                accept_uni_loop(
+                    conn_uni,
+                    metrics_uni,
+                    outstanding_uni,
+                    in_flight_uni,
+                    pacer_uni,
+                    rtt_ms,
+                )
+                .await
+            }
         };
         if let Err(err) = r {
             eprintln!("uni loop ended: {err:#}");
@@ -200,7 +214,10 @@ pub async fn run_harness(
         arm_label,
         asks_sent,
         cfg.fill_dwell_ms,
-        cfg.warm_cache, cfg.rtt_ms))
+        cfg.warm_cache,
+        cfg.rtt_ms,
+        cfg.stream_mode,
+    ))
 }
 
 async fn run_saturate(
@@ -538,6 +555,27 @@ async fn wait_wanted(metrics: &SharedMetrics, timeout_ms: u64, wanted: u32) -> R
     }
 }
 
+async fn on_frame_arrived(
+    index: u32,
+    wire_len: u64,
+    metrics: &SharedMetrics,
+    outstanding: &Arc<Mutex<HashSet<u32>>>,
+    in_flight: &Arc<Mutex<u32>>,
+    rtt_ms: u64,
+) {
+    rtt_full(rtt_ms).await;
+    {
+        let mut o = outstanding.lock().expect("outstanding");
+        o.remove(&index);
+    }
+    {
+        let mut c = in_flight.lock().expect("in_flight");
+        *c = c.saturating_sub(1);
+    }
+    let mut m = metrics.lock().expect("metrics lock");
+    m.on_envelope(index, wire_len);
+}
+
 /// One shared uni stream carrying `[4B BE envelope_len][envelope]` repeatedly.
 ///
 /// Frames arrive strictly in order — that is the point of the architecture. Post-processing
@@ -555,18 +593,10 @@ async fn shared_stream_loop(
         Err(_) => return Ok(()),
     };
     loop {
-        let mut len_buf = [0u8; 4];
-        if read_exact_paced(&mut recv, &mut len_buf, &pacer).await.is_err() {
-            break;
-        }
-        let len = u32::from_be_bytes(len_buf) as usize;
-        if len == 0 || len > 64 * 1024 * 1024 {
-            break;
-        }
-        let mut payload = vec![0u8; len];
-        if read_exact_paced(&mut recv, &mut payload, &pacer).await.is_err() {
-            break;
-        }
+        let payload = match read_framed_paced(&mut recv, &pacer).await {
+            Ok(p) => p,
+            Err(_) => break,
+        };
         let (index, body) = match unwrap(&payload) {
             Ok(v) => v,
             Err(err) => {
@@ -574,22 +604,12 @@ async fn shared_stream_loop(
                 break;
             }
         };
-        let body_len = body.len();
+        let wire_len = (4 + body.len()) as u64;
         let metrics = Arc::clone(&metrics);
         let outstanding = Arc::clone(&outstanding);
         let in_flight = Arc::clone(&in_flight);
         tokio::spawn(async move {
-            rtt_full(rtt_ms).await;
-            {
-                let mut o = outstanding.lock().expect("outstanding");
-                o.remove(&index);
-            }
-            {
-                let mut c = in_flight.lock().expect("in_flight");
-                *c = c.saturating_sub(1);
-            }
-            let mut m = metrics.lock().expect("metrics lock");
-            m.on_envelope(index, (4 + body_len) as u64);
+            on_frame_arrived(index, wire_len, &metrics, &outstanding, &in_flight, rtt_ms).await;
         });
     }
     Ok(())
@@ -613,7 +633,7 @@ async fn accept_uni_loop(
         let in_flight = Arc::clone(&in_flight);
         let pacer = Arc::clone(&pacer);
         tokio::spawn(async move {
-            let payload = match read_paced(&mut recv, &pacer).await {
+            let payload = match read_framed_paced(&mut recv, &pacer).await {
                 Ok(p) => p,
                 Err(err) => {
                     eprintln!("uni read error: {err:#}");
@@ -627,19 +647,15 @@ async fn accept_uni_loop(
                     return;
                 }
             };
-            // Full simulated RTT, applied once here. Each uni stream is handled in its
-            // own spawned task, so this delays arrival without serialising anything.
-            rtt_full(rtt_ms).await;
-            {
-                let mut o = outstanding.lock().expect("outstanding");
-                o.remove(&index);
-            }
-            {
-                let mut c = in_flight.lock().expect("in_flight");
-                *c = c.saturating_sub(1);
-            }
-            let mut m = metrics.lock().expect("metrics lock");
-            m.on_envelope(index, (4 + body.len()) as u64);
+            on_frame_arrived(
+                index,
+                (4 + body.len()) as u64,
+                &metrics,
+                &outstanding,
+                &in_flight,
+                rtt_ms,
+            )
+            .await;
         });
     }
     Ok(())

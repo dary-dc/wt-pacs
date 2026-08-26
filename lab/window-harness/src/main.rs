@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
-use window_harness::{peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RunConfig, TraceSpec};
+use window_harness::{peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RunConfig, StreamMode, TraceSpec};
 
 #[derive(Parser)]
 #[command(name = "window-harness")]
@@ -34,9 +34,9 @@ struct Args {
     rtt_ms: u64,
     #[arg(long, default_value = "?")]
     arm: String,
-    /// Read from one shared uni stream. Must match the server's --shared-stream.
-    #[arg(long, default_value_t = false)]
-    shared_stream: bool,
+    /// Must match the server's `--stream-mode`.
+    #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
+    stream_mode: StreamMode,
 
     /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
     #[arg(long)]
@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
         mode,
         warm_cache: args.warm_cache,
         rtt_ms: args.rtt_ms,
-        shared_stream: args.shared_stream,
+        stream_mode: args.stream_mode,
     };
     if let Some(sweep) = &args.depth_sweep {
         let depths: Vec<u32> = sweep
