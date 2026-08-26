@@ -56,15 +56,25 @@ a client-side cache model so hits can score 0.
 ### Gate: E4 premise check *(do this first)*
 
 Run the **random control** (`D` drawn uniformly 1–8 per session) against the **oracle control** (best
-`D` by exhaustive sweep) on `fly_and_settle`.
+`D` by exhaustive sweep on **p95**) on `fly_and_settle`, under **netem RTT ∈ {20, 60, 150} ms**.
+
+**Decision rule (fixed in advance):** oracle must beat random by **≥ 100 ms at p95**
+(`mean(random session p95) − oracle p95 ≥ 100`). Report mean too; **do not decide on mean** — cache
+hits dilute stalls. An ~10 ms mean gap does not justify a formula plus estimators.
+
+**RTT≈0 is a floor control only.** At zero delay, `D>1` has only cost, so oracle→D=1 and
+“oracle beats random” is guaranteed — it does **not** answer the gate. Keep those numbers; do not
+treat them as a pass.
+
+Also report oracle’s chosen `D` at each RTT. If it tracks `ceil(0.95 × (1 + RTT/Tf))`, that is the
+first real evidence the formula works.
 
 | Outcome | Then |
 | ------- | ---- |
-| Random ≈ oracle | **Stop.** `D` does not matter. Say so, and [`adr-client-window-depth.md`](adr-client-window-depth.md) gets an ADR rejecting it. Do not run E1, E2, E4, or E5 |
-| Oracle clearly beats random | Continue below |
+| p95 gap < 100 ms at a gate RTT | **Stop** (at least for that regime). `D` does not clearly matter |
+| Oracle beats random by ≥100 ms p95 at the gate RTTs | Continue below |
 
-This is deliberately the cheapest way to kill the design. Do not skip it because the formula looks
-reasonable.
+Script: `lab/scripts/e4_premise_check.sh` (needs `CAP_NET_ADMIN` for netem).
 
 ### Then, in order
 

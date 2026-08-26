@@ -4,11 +4,10 @@
 **Replaces:** `window-depth-and-priority-experiment.md` (deleted — it swept arms for a mechanism
 rejected in [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md))
 
-> **Status correction (2026-08-26):** E1 at RTT≈0 is **not yet tested** — `D = ceil(U×(1+RTT/Tf))`
-> collapses to 1 when RTT is 0, so that run cannot validate the model. E2 at `D=1` is likewise
-> uninformative because `(D−1)·Tf = 0`. Prior RTT≈0 numbers are exploratory only.
-> **Gate first:** E4 premise (random `D` vs oracle `D` on `fly_and_settle`) — see
-> [`implementer-handoff-2026-08-26.md`](implementer-handoff-2026-08-26.md) §3.
+> **Status (2026-08-26):** E4 premise gate **not yet answered**. The RTT≈0 run is a floor control only
+> (oracle→D=1 was guaranteed). Decision rule: oracle must beat random by **≥100 ms at p95** under
+> netem RTT 20/60/150 ms — see [`implementer-handoff-2026-08-26.md`](implementer-handoff-2026-08-26.md) §3.
+> E1/E2 at RTT≈0 remain **not tested** (formula collapses; `(D−1)·Tf=0` at D=1).
 
 
 ---
