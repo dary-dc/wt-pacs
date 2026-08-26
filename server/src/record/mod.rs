@@ -5,7 +5,7 @@
 
 mod types;
 
-pub use types::{LocateOutcome, Refusal, WriteOutcome};
+pub use types::{DeliverOutcome, LocateOutcome, Refusal, WriteOutcome};
 
 /// Opaque recorder — product path hands facts in, never reads state back (I2).
 pub trait Record: Send {
@@ -19,6 +19,10 @@ pub trait Record: Send {
     fn located(&mut self, since: Self::Stamp, outcome: LocateOutcome, byte_len: usize);
 
     fn wrote(&mut self, since: Self::Stamp, outcome: WriteOutcome, byte_len: usize);
+
+    /// Peer acknowledged the frame. Only fires in `PerFrame` mode. The stamp is captured
+    /// inside the delivery task at ack time; recording here may lag one ask (drain time).
+    fn delivered(&mut self, since: Self::Stamp, outcome: DeliverOutcome, frame_index: u32);
 
     fn refused(&mut self, reason: Refusal);
 }
@@ -41,6 +45,9 @@ impl Record for Noop {
 
     #[inline(always)]
     fn wrote(&mut self, _: (), _: WriteOutcome, _: usize) {}
+
+    #[inline(always)]
+    fn delivered(&mut self, _: (), _: DeliverOutcome, _: u32) {}
 
     #[inline(always)]
     fn refused(&mut self, _: Refusal) {}

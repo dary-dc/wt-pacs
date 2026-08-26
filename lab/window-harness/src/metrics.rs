@@ -1,8 +1,24 @@
 use serde::Serialize;
-use crate::client::SHARED_STREAM;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum StreamMode {
+    /// One persistent uni stream for the session.
+    Shared,
+    /// One uni stream per frame.
+    PerFrame,
+}
+
+impl StreamMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Shared => "shared",
+            Self::PerFrame => "per-frame",
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HarnessMode {
@@ -28,9 +44,8 @@ pub struct RunConfig {
     pub warm_cache: bool,
     /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
-    /// Read frames from ONE shared uni stream (length-prefixed) instead of one per frame.
-    /// Must match the server's `--shared-stream`.
-    pub shared_stream: bool,
+    /// Must match the server's `--stream-mode`.
+    pub stream_mode: StreamMode,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -40,8 +55,7 @@ pub struct HarnessMetrics {
     pub read_bps: u64,
     pub depth: u32,
     /// Stream architecture this run was measured on. Depth results are not comparable across it.
-    #[serde(default)]
-    pub shared_stream: bool,
+    pub stream_mode: String,
     /// Peak concurrent outstanding asks actually observed. If this is below `depth`,
     /// the harness did not produce the concurrency it claims and the run is void.
     #[serde(default)]
@@ -194,6 +208,7 @@ impl MetricsState {
         fill_dwell_ms: u64,
         warm_cache: bool,
         rtt_ms: u64,
+        stream_mode: StreamMode,
     ) -> HarnessMetrics {
         let recovered_ms = match (self.reversal_at, self.first_byte_wanted_at) {
             (Some(r), Some(w)) => w.duration_since(r).as_secs_f64() * 1000.0,
@@ -221,10 +236,8 @@ impl MetricsState {
             mode: mode.to_string(),
             read_bps,
             depth,
-            shared_stream: SHARED_STREAM.load(std::sync::atomic::Ordering::Relaxed),
-            
+            stream_mode: stream_mode.as_str().to_string(),
             peak_outstanding: crate::client::peak_outstanding(),
-            
             arm_label: arm_label.to_string(),
             wanted_frame: self.wanted_frame,
             asks_sent,

@@ -4,6 +4,7 @@
 //! Drain thread writes one JSON report on shutdown (summary first). No panics (R7).
 
 use crate::record::{LocateOutcome, Record, Refusal, WriteOutcome};
+use crate::record::DeliverOutcome;
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
@@ -146,6 +147,10 @@ impl Record for Tap {
 
     fn refused(&mut self, _reason: Refusal) {
         // Facts already recorded via located/wrote on the refuse path.
+    }
+
+    fn delivered(&mut self, _since: Instant, _outcome: DeliverOutcome, _frame_index: u32) {
+        // Peer-ack timestamp; row already emitted at wrote(). Future: attach via offline join.
     }
 }
 

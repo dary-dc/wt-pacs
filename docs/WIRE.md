@@ -17,8 +17,9 @@ Two WebTransport streams per session:
 [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) and
 [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md) §2b.
 
-2. **Media (server unidirectional)** — one stream per frame response, payload
-   `[4B BE display_index][HTJ2K codestream…]`.
+2. **Media (server unidirectional)** — `[4B BE envelope_len][4B BE display_index][HTJ2K codestream…]`.
+   Every media envelope is length-prefixed in **both** stream modes. The difference is stream
+   lifetime only: one persistent uni for the session (`shared`) or one uni per frame (`per-frame`).
 
 Media-complete: frame completion is the envelope payload on a uni stream, not a separate control ack.
 

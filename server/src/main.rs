@@ -1,5 +1,6 @@
 use clap::Parser;
 use exact_server::{run_server, ServeConfig};
+use exact_server::transport::StreamMode;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
@@ -14,9 +15,9 @@ struct Args {
     cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
-    /// Send all frames on one shared uni stream (length-prefixed) instead of one per frame.
-    #[arg(long, default_value_t = false)]
-    shared_stream: bool,
+    /// How frames reach the client: one shared uni stream or one per frame.
+    #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
+    stream_mode: StreamMode,
 }
 
 #[tokio::main]
@@ -35,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
         study_path: args.study,
         cert_pem: args.cert_pem,
         key_pem: args.key_pem,
-        shared_stream: args.shared_stream,
+        mode: args.stream_mode,
     })
     .await?;
     Ok(())
