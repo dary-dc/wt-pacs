@@ -1,0 +1,9 @@
+{
+  "name": "fly_and_settle",
+  "max_step": 1,
+  "step_interval_ms": 16,
+  "burst_count": 20,
+  "frame_modulo": 20,
+  "settle_on": "last_asked",
+  "send_cancel_on_settle": false
+}

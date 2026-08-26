@@ -9,10 +9,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum FodMsg {
-    RequestFrame { frame: u32 },
-    RequestFrames { frames: Vec<u32> },
+    RequestFrame {
+        frame: u32,
+        /// Client window generation — newer wins when server order=generation.
+        #[serde(default)]
+        generation: u32,
+    },
+    RequestFrames {
+        frames: Vec<u32>,
+        #[serde(default)]
+        generation: u32,
+    },
     RequestPath { from: u32, to: u32, stride: u32 },
     /// Client → server. Drop queued frames that have not started sending.
+    /// Server ignores this today — see docs/adr-reject-server-cancel.md.
     CancelFrames { frames: Vec<u32> },
     EndSession,
     FrameError {
@@ -45,9 +55,27 @@ mod tests {
 
     #[test]
     fn roundtrip_request_frame() {
-        let msg = FodMsg::RequestFrame { frame: 7 };
+        let msg = FodMsg::RequestFrame {
+            frame: 7,
+            generation: 3,
+        };
         let enc = encode_fod_msg(&msg).unwrap();
         assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
+    }
+
+    #[test]
+    fn request_frame_generation_defaults_to_zero() {
+        let body = br#"{"op":"request_frame","frame":2}"#;
+        let mut enc = Vec::new();
+        enc.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        enc.extend_from_slice(body);
+        assert_eq!(
+            decode_fod_msg(&enc).unwrap(),
+            FodMsg::RequestFrame {
+                frame: 2,
+                generation: 0
+            }
+        );
     }
 
     #[test]

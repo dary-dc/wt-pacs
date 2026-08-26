@@ -282,6 +282,7 @@ impl TransportSession {
 
         let payload = encode_fod_msg(&FodMsg::RequestFrame {
             frame: frame_index,
+            generation: 0,
         })
         .map_err(|e| format!("encode FoD: {e}"))?;
         if self.req_tx.unbounded_send(payload).is_err() {
@@ -338,6 +339,7 @@ impl TransportSession {
         }
         let payload = encode_fod_msg(&FodMsg::RequestFrames {
             frames: need_wire.clone(),
+            generation: 0,
         })
         .map_err(|e| format!("encode FoD: {e}"))?;
         if self.req_tx.unbounded_send(payload).is_err() {

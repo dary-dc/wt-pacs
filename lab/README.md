@@ -21,8 +21,18 @@ To reproduce the original A/B numbers, check out the commit immediately before t
 | Crate | Layer | Purpose |
 | ----- | ----- | ------- |
 | `queue-sim` | 1 | Predicted curves (no transport) |
-| `queue-harness` | 2 | Headless `wtransport` client + read pacing |
+| `queue-harness` | 2 | Headless `wtransport` client + read pacing / depth window |
+| `window-server` | 2 | **Lab-only** gen-order + stream-cap arms (not product) |
 | `cold-page-bench` | — | Warm vs cold-ish `frame_slice` timings |
+
+### Window-depth × priority
+
+```bash
+./lab/scripts/window_depth_sweep.sh
+# → .local/measurements/WINDOW_DEPTH.tsv
+```
+
+Uses `window-server` + `queue-harness --depth`. Product `exact-server` is unchanged.
 
 ## Traces
 

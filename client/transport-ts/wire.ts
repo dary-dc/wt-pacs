@@ -1,8 +1,8 @@
 /** FoD control messages — LE u32 length + JSON (same as common/fod). */
 
 export type FodMsg =
-  | { op: "request_frame"; frame: number }
-  | { op: "request_frames"; frames: number[] }
+  | { op: "request_frame"; frame: number; generation?: number }
+  | { op: "request_frames"; frames: number[]; generation?: number }
   | { op: "request_path"; from: number; to: number; stride: number }
   | { op: "cancel_frames"; frames: number[] }
   | { op: "end_session" }

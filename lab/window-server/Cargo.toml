@@ -1,0 +1,21 @@
+[package]
+name = "window-server"
+version = "0.1.0"
+edition = "2021"
+description = "Lab-only WebTransport server for window-depth × priority arms (not product)"
+
+[[bin]]
+name = "window-server"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+exact-server = { path = "../../server" }
+fod = { path = "../../common/fod" }
+frame-envelope = { path = "../../common/frame-envelope" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring"] }
+rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12", "ring"] }

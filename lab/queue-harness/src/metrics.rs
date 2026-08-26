@@ -8,22 +8,30 @@ pub struct RunConfig {
     pub read_bps: u64,
     pub send_cancel: bool,
     pub timeout_ms: u64,
+    /// Outstanding-ask depth D (0 = legacy fire-all schedule).
+    pub depth: u32,
+    /// After settle + wanted, dwell this many ms to measure fill_rate.
+    pub fill_dwell_ms: u64,
+    /// Study frame count for window construction.
+    pub frame_count: u32,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct HarnessMetrics {
     pub trace: String,
     pub read_bps: u64,
-    pub server_cancel_enabled: bool,
-    pub client_sent_cancel: bool,
+    pub depth: u32,
+    pub arm_label: String,
     pub wanted_frame: u32,
     pub asks_sent: u32,
-    pub reversal_ms: f64,
     pub recovered_ms: f64,
+    /// Steady-state frames/s while stationary after settle.
+    pub fill_rate: f64,
+    pub fill_frames: u32,
+    pub fill_dwell_ms: u64,
     pub wasted_bytes: u64,
     pub commitment_depth: u32,
     pub wanted_received: bool,
-    /// Completed server uni streams (envelope payloads read).
     pub frames_on_wire: u32,
     pub bytes_on_wire: u64,
     pub frames_after_settle: u32,
@@ -45,6 +53,10 @@ pub struct MetricsState {
     pub bytes_on_wire: u64,
     pub frames_after_settle: u32,
     pub bytes_after_settle: u64,
+    /// Deliveries counted during fill dwell.
+    pub fill_active: bool,
+    pub fill_frames: u32,
+    pub fill_started_at: Option<Instant>,
 }
 
 impl MetricsState {
@@ -61,6 +73,9 @@ impl MetricsState {
             bytes_on_wire: 0,
             frames_after_settle: 0,
             bytes_after_settle: 0,
+            fill_active: false,
+            fill_frames: 0,
+            fill_started_at: None,
         }
     }
 
@@ -71,12 +86,25 @@ impl MetricsState {
         }
     }
 
+    pub fn start_fill(&mut self) {
+        self.fill_active = true;
+        self.fill_frames = 0;
+        self.fill_started_at = Some(Instant::now());
+    }
+
+    pub fn stop_fill(&mut self) {
+        self.fill_active = false;
+    }
+
     pub fn on_envelope(&mut self, index: u32, nbytes: u64) {
         self.frames_on_wire += 1;
         self.bytes_on_wire += nbytes;
         if self.settled {
             self.frames_after_settle += 1;
             self.bytes_after_settle += nbytes;
+        }
+        if self.fill_active {
+            self.fill_frames += 1;
         }
 
         if index == self.wanted_frame {
@@ -96,23 +124,31 @@ impl MetricsState {
         &self,
         trace: &str,
         read_bps: u64,
-        server_cancel_enabled: bool,
-        client_sent_cancel: bool,
+        depth: u32,
+        arm_label: &str,
         asks_sent: u32,
+        fill_dwell_ms: u64,
     ) -> HarnessMetrics {
         let recovered_ms = match (self.reversal_at, self.first_byte_wanted_at) {
             (Some(r), Some(w)) => w.duration_since(r).as_secs_f64() * 1000.0,
             _ => 0.0,
         };
+        let fill_rate = if fill_dwell_ms > 0 {
+            self.fill_frames as f64 / (fill_dwell_ms as f64 / 1000.0)
+        } else {
+            0.0
+        };
         HarnessMetrics {
             trace: trace.to_string(),
             read_bps,
-            server_cancel_enabled,
-            client_sent_cancel,
+            depth,
+            arm_label: arm_label.to_string(),
             wanted_frame: self.wanted_frame,
             asks_sent,
-            reversal_ms: 0.0,
             recovered_ms,
+            fill_rate,
+            fill_frames: self.fill_frames,
+            fill_dwell_ms,
             wasted_bytes: self.wasted_bytes,
             commitment_depth: self.commitment_depth,
             wanted_received: self.wanted_received,

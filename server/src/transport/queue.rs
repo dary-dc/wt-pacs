@@ -48,8 +48,10 @@ pub async fn run_session(
             };
 
             let (inbox, is_end) = match msg {
-                FodMsg::RequestFrame { frame } => (InboxMsg::Ask(frame), false),
-                FodMsg::RequestFrames { frames } => (InboxMsg::AskMany(frames), false),
+                FodMsg::RequestFrame { frame, generation: _ } => (InboxMsg::Ask(frame), false),
+                FodMsg::RequestFrames { frames, generation: _ } => {
+                    (InboxMsg::AskMany(frames), false)
+                }
                 FodMsg::CancelFrames { .. } => (InboxMsg::Cancel, false),
                 FodMsg::EndSession => (InboxMsg::EndSession, true),
                 other => {
