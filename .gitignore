@@ -17,3 +17,4 @@ client/dev-transport.json
 # Generated Tf-axis fixtures (regenerate with lab/scripts/gen_tf_fixtures.sh)
 lab/fixtures/frames_32k/*.sbnd
 lab/fixtures/frames_250k/*.sbnd
+lab/fixtures/frames_250k_live/*.sbnd
