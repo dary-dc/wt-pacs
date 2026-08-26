@@ -29,6 +29,9 @@ struct Args {
     /// E2 warm-cache control: prefetch before settle.
     #[arg(long, default_value_t = false)]
     warm_cache: bool,
+    /// Simulated RTT (ms). Userspace stand-in for netem (ask + return path).
+    #[arg(long, default_value_t = 0)]
+    rtt_ms: u64,
     #[arg(long, default_value = "?")]
     arm: String,
     #[arg(long)]
@@ -66,6 +69,7 @@ async fn main() -> anyhow::Result<()> {
         frame_count: args.frame_count,
         mode,
         warm_cache: args.warm_cache,
+        rtt_ms: args.rtt_ms,
     };
     let m = run_harness(trace.as_ref(), &cfg, &args.arm).await?;
     if args.json {
@@ -88,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         println!("commitment_depth={}", m.commitment_depth);
         println!("wanted_received={}", m.wanted_received);
         println!("warm_cache={}", m.warm_cache);
+        println!("rtt_ms={}", m.rtt_ms);
     }
     Ok(())
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E4 premise gate — random D vs oracle D on fly_and_settle, under netem RTT.
+# E4 premise gate — random D vs oracle D on fly_and_settle, under non-zero RTT.
 #
 # Decision metric (fixed in advance): oracle must beat random by ≥ 100 ms at p95.
 # Report mean_wait_ms too; do not decide on mean (cache hits dilute stalls).
@@ -7,8 +7,12 @@
 # RTT=0 is a floor control only (pipelining cannot help; oracle→D=1 is expected).
 # The gate is answered only at RTT ∈ {20,60,150} ms.
 #
-# Requires CAP_NET_ADMIN (tc netem on lo). On lo, each direction hits the qdisc once,
-# so netem delay = RTT/2.
+# Default RTT path (no privileges): window-harness --rtt-ms (userspace: RTT/2 before
+# each ask, RTT/2 after each uni read before cache). Same BDP question as netem for
+# this gate; label results as sim-rtt.
+#
+# Optional: USE_NETEM=1 applies tc netem on lo (needs CAP_NET_ADMIN). Prefer a
+# container with --cap-add=NET_ADMIN over host sudo if you want real qdisc delay.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -25,6 +29,7 @@ RANDOM_N="${RANDOM_N:-24}"
 FRAME_COUNT="${FRAME_COUNT:-20}"
 RTTS_MS="${RTTS_MS:-0,20,60,150}"
 IFACE="${IFACE:-lo}"
+USE_NETEM="${USE_NETEM:-0}"
 P95_GAP_MS="${P95_GAP_MS:-100}"
 U="${U:-0.95}"
 SUMMARY="${SUMMARY:-$OUT_DIR/E4_PREMISE_SUMMARY.md}"
@@ -35,22 +40,7 @@ mkdir -p "$OUT_DIR"
 [[ -f "$STUDY" ]] || { echo "missing study $STUDY" >&2; exit 1; }
 [[ -f "$TRACE" ]] || { echo "missing trace $TRACE" >&2; exit 1; }
 
-need_netem=0
 IFS=',' read -ra RTT_ARR <<< "$RTTS_MS"
-for r in "${RTT_ARR[@]}"; do
-  [[ "$r" != "0" ]] && need_netem=1
-done
-if [[ "$need_netem" -eq 1 ]]; then
-  if ! tc qdisc replace dev "$IFACE" root netem delay 1ms 2>/dev/null; then
-    echo "FATAL: tc netem on $IFACE failed — need CAP_NET_ADMIN." >&2
-    echo "This Cursor agent sandbox has CapEff=0 / NoNewPrivs=1 and cannot run netem." >&2
-    echo "Run in a normal host terminal:" >&2
-    echo "  sudo -E $ROOT/lab/scripts/e4_premise_check.sh" >&2
-    tc qdisc del dev "$IFACE" root 2>/dev/null || true
-    exit 2
-  fi
-  tc qdisc del dev "$IFACE" root 2>/dev/null || true
-fi
 
 cargo build -p exact-server -p window-harness --release >/dev/null
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
@@ -63,22 +53,33 @@ echo -e "rtt_ms\tdepth\tmean_wait_ms\tp95_wait_ms\trecovered_ms\twait_samples\tw
 echo -e "rtt_ms\ttrial\tdepth\tmean_wait_ms\tp95_wait_ms\trecovered_ms\twait_samples\twasted_bytes" > "$RANDOM_TSV"
 
 spid=""
+CURRENT_RTT_MS=0
 cleanup() {
   kill "$spid" 2>/dev/null || true
-  tc qdisc del dev "$IFACE" root 2>/dev/null || true
+  if [[ "$USE_NETEM" == "1" ]]; then
+    tc qdisc del dev "$IFACE" root 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 
 set_rtt() {
   local rtt_ms=$1
-  tc qdisc del dev "$IFACE" root 2>/dev/null || true
-  if [[ "$rtt_ms" -gt 0 ]]; then
-    local one_way
-    one_way=$(python3 -c "print(max(0.001, float($rtt_ms) / 2.0))")
-    tc qdisc replace dev "$IFACE" root netem delay "${one_way}ms"
-    echo "netem $IFACE delay ${one_way}ms (target RTT≈${rtt_ms}ms)" >&2
+  CURRENT_RTT_MS=$rtt_ms
+  if [[ "$USE_NETEM" == "1" ]]; then
+    tc qdisc del dev "$IFACE" root 2>/dev/null || true
+    if [[ "$rtt_ms" -gt 0 ]]; then
+      local one_way
+      one_way=$(python3 -c "print(max(0.001, float($rtt_ms) / 2.0))")
+      if ! tc qdisc replace dev "$IFACE" root netem delay "${one_way}ms"; then
+        echo "FATAL: tc netem failed — need CAP_NET_ADMIN (or unset USE_NETEM)." >&2
+        exit 2
+      fi
+      echo "netem $IFACE delay ${one_way}ms (target RTT≈${rtt_ms}ms)" >&2
+    else
+      echo "netem off (RTT≈0 floor control)" >&2
+    fi
   else
-    echo "netem off (RTT≈0 floor control)" >&2
+    echo "sim-rtt --rtt-ms=${rtt_ms} (userspace; no CAP_NET_ADMIN)" >&2
   fi
 }
 
@@ -146,13 +147,13 @@ sys.exit(0 if (p95 < best_p95 - 1e-9) or (abs(p95 - best_p95) <= 1e-9 and mean <
   SUMMARY_ROWS+=("${rtt}|${best_d}|${best_mean}|${best_p95}|$(IFS=,; echo "${rand_means[*]}")|$(IFS=,; echo "${rand_p95s[*]}")")
 done
 
-tc qdisc del dev "$IFACE" root 2>/dev/null || true
+if [[ "$USE_NETEM" == "1" ]]; then tc qdisc del dev "$IFACE" root 2>/dev/null || true; fi
 
-python3 - "$SUMMARY" "$ORACLE_TSV" "$RANDOM_TSV" "$READ_BPS" "$FRAME_BYTES" "$U" "$P95_GAP_MS" "$TRACE" "$STUDY" "${SUMMARY_ROWS[@]}" <<'PY'
+python3 - "$SUMMARY" "$ORACLE_TSV" "$RANDOM_TSV" "$READ_BPS" "$FRAME_BYTES" "$U" "$P95_GAP_MS" "$TRACE" "$STUDY" "$USE_NETEM" "${SUMMARY_ROWS[@]}" <<'PY'
 import math, statistics, sys
 from pathlib import Path
 
-summary, oracle_tsv, random_tsv, read_bps, frame_bytes, U, gap_need, trace, study, *rows = sys.argv[1:]
+summary, oracle_tsv, random_tsv, read_bps, frame_bytes, U, gap_need, trace, study, use_netem, *rows = sys.argv[1:]
 read_bps = float(read_bps)
 frame_bytes = float(frame_bytes)
 U = float(U)
@@ -165,9 +166,11 @@ def pred_d(rtt_ms: float) -> int:
 lines = []
 lines.append("# E4 premise check")
 lines.append("")
+rtt_path = "tc netem on lo" if use_netem == "1" else "harness --rtt-ms (userspace sim)"
 lines.append(
     f"**Trace:** `{Path(trace).name}` · **Study:** `{Path(study).name}` · "
-    f"**read_bps:** {int(read_bps)} · **Tf:** {tf_ms:.1f} ms (frame≈{int(frame_bytes)} B)"
+    f"**read_bps:** {int(read_bps)} · **Tf:** {tf_ms:.1f} ms (frame≈{int(frame_bytes)} B) · "
+    f"**RTT path:** {rtt_path}"
 )
 lines.append("")
 lines.append("## Decision rule (fixed in advance)")

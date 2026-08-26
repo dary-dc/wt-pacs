@@ -25,6 +25,8 @@ pub struct RunConfig {
     pub mode: HarnessMode,
     /// Pre-fetch all schedule frames before settle (E2 warm-cache control).
     pub warm_cache: bool,
+    /// Simulated RTT (ms): RTT/2 before ask send, RTT/2 after uni read before cache.
+    pub rtt_ms: u64,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -59,6 +61,8 @@ pub struct HarnessMetrics {
     pub frames_before_settle: u32,
     pub bytes_before_settle: u64,
     pub warm_cache: bool,
+    /// Simulated RTT (ms): RTT/2 before ask send, RTT/2 after uni read before cache.
+    pub rtt_ms: u64,
 }
 
 #[derive(Debug)]
@@ -165,6 +169,7 @@ impl MetricsState {
         asks_sent: u32,
         fill_dwell_ms: u64,
         warm_cache: bool,
+        rtt_ms: u64,
     ) -> HarnessMetrics {
         let recovered_ms = match (self.reversal_at, self.first_byte_wanted_at) {
             (Some(r), Some(w)) => w.duration_since(r).as_secs_f64() * 1000.0,
@@ -214,6 +219,7 @@ impl MetricsState {
             frames_before_settle: self.frames_on_wire.saturating_sub(self.frames_after_settle),
             bytes_before_settle: self.bytes_on_wire.saturating_sub(self.bytes_after_settle),
             warm_cache,
+            rtt_ms,
         }
     }
 }

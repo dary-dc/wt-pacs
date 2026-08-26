@@ -74,7 +74,7 @@ first real evidence the formula works.
 | p95 gap < 100 ms at a gate RTT | **Stop** (at least for that regime). `D` does not clearly matter |
 | Oracle beats random by ≥100 ms p95 at the gate RTTs | Continue below |
 
-Script: `lab/scripts/e4_premise_check.sh` (needs `CAP_NET_ADMIN` for netem).
+Script: `lab/scripts/e4_premise_check.sh` — default uses harness `--rtt-ms` (no privileges). Optional `USE_NETEM=1` for real tc (container `--cap-add=NET_ADMIN` preferred over host sudo).
 
 ### Then, in order
 

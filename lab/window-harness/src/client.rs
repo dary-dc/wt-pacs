@@ -51,14 +51,9 @@ pub async fn run_harness(
     let outstanding_uni = Arc::clone(&outstanding);
     let in_flight_uni = Arc::clone(&in_flight);
     let pacer_uni = Arc::clone(&pacer);
+    let rtt_ms = cfg.rtt_ms;
     let uni_task = tokio::spawn(async move {
-        if let Err(err) = accept_uni_loop(
-            conn_uni,
-            metrics_uni,
-            outstanding_uni,
-            in_flight_uni,
-            pacer_uni,
-        )
+        if let Err(err) = accept_uni_loop(conn_uni, metrics_uni, outstanding_uni, in_flight_uni, pacer_uni, rtt_ms)
         .await
         {
             eprintln!("uni accept loop ended: {err:#}");
@@ -113,8 +108,7 @@ pub async fn run_harness(
         arm_label,
         asks_sent,
         cfg.fill_dwell_ms,
-        cfg.warm_cache,
-    ))
+        cfg.warm_cache, cfg.rtt_ms))
 }
 
 async fn run_saturate(
@@ -136,7 +130,7 @@ async fn run_saturate(
         }
         let frame = next_ask % n;
         next_ask = next_ask.wrapping_add(1);
-        write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
+        ask_frame(control_send, frame, cfg.rtt_ms).await?;
         asks_sent += 1;
     }
 
@@ -155,7 +149,7 @@ async fn run_saturate(
             }
             let frame = next_ask % n;
             next_ask = next_ask.wrapping_add(1);
-            write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
+            ask_frame(control_send, frame, cfg.rtt_ms).await?;
             asks_sent += 1;
         }
         tokio::time::sleep(Duration::from_millis(1)).await;
@@ -181,7 +175,7 @@ async fn run_legacy_schedule(
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
-        write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
+        ask_frame(control_send, frame, cfg.rtt_ms).await?;
         asks_sent += 1;
     }
 
@@ -212,7 +206,7 @@ async fn run_windowed(
         let mut seen = HashSet::new();
         for &frame in schedule {
             if seen.insert(frame) {
-                write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
+                ask_frame(control_send, frame, cfg.rtt_ms).await?;
                 asks_sent += 1;
                 outstanding.lock().expect("outstanding").insert(frame);
             }
@@ -241,7 +235,7 @@ async fn run_windowed(
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
         // Ask first so depth can pipeline; then measure wait for this cursor.
-        asks_sent += emit_window(control_send, outstanding, cursor, d, n).await?;
+        asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
         wait_displayable(metrics, cursor, cfg.timeout_ms).await?;
         wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
     }
@@ -250,7 +244,7 @@ async fn run_windowed(
         let mut m = metrics.lock().expect("metrics lock");
         m.settle();
     }
-    asks_sent += emit_window(control_send, outstanding, wanted, d, n).await?;
+    asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
     wait_displayable(metrics, wanted, cfg.timeout_ms).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
@@ -261,7 +255,7 @@ async fn run_windowed(
         }
         let fill_deadline = std::time::Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
         while std::time::Instant::now() < fill_deadline {
-            asks_sent += emit_window(control_send, outstanding, wanted, d, n).await?;
+            asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
             wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
@@ -307,6 +301,7 @@ async fn emit_window(
     center: u32,
     d: u32,
     n: u32,
+    rtt_ms: u64,
 ) -> Result<u32> {
     let frames = window_frames(center, d, n);
     let mut sent = 0u32;
@@ -318,7 +313,7 @@ async fn emit_window(
             }
             o.insert(frame);
         }
-        write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
+        ask_frame(control_send, frame, rtt_ms).await?;
         sent += 1;
     }
     Ok(sent)
@@ -344,6 +339,24 @@ async fn wait_outstanding_below(
     }
 }
 
+
+
+async fn rtt_half(rtt_ms: u64) {
+    let half = rtt_ms / 2;
+    if half > 0 {
+        tokio::time::sleep(Duration::from_millis(half)).await;
+    }
+}
+
+
+async fn ask_frame(
+    control_send: &mut wtransport::stream::SendStream,
+    frame: u32,
+    rtt_ms: u64,
+) -> Result<()> {
+    rtt_half(rtt_ms).await;
+    write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await
+}
 
 async fn wait_displayable(
     metrics: &SharedMetrics,
@@ -400,6 +413,7 @@ async fn accept_uni_loop(
     outstanding: Arc<Mutex<HashSet<u32>>>,
     in_flight: Arc<Mutex<u32>>,
     pacer: Arc<tokio::sync::Mutex<LinkPacer>>,
+    rtt_ms: u64,
 ) -> Result<()> {
     loop {
         let mut recv = match connection.accept_uni().await {
@@ -425,6 +439,8 @@ async fn accept_uni_loop(
                     return;
                 }
             };
+            // Return-path half of simulated RTT (ask half is in ask_frame).
+            rtt_half(rtt_ms).await;
             {
                 let mut o = outstanding.lock().expect("outstanding");
                 o.remove(&index);
