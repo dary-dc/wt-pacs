@@ -2,8 +2,12 @@
 //!
 //! Serial loop: read one ask, send it to completion, read the next.
 //! No server-side ask queue — see docs/adr-reject-server-ordering.md.
+//!
+//! Recording: generic `R: Record` seam (`crate::record`). Production uses `Noop`;
+//! lab builds (`feature = "telemetry"`) may attach `Tap` at the single spawn-site fork.
 
 use crate::media::frame_store::FrameStore;
+use crate::record::{LocateOutcome, Noop, Record, WriteOutcome};
 use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
@@ -11,8 +15,7 @@ use fod::FodMsg;
 use frame_envelope::wrap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Connection, Endpoint, Identity, ServerConfig};
 
@@ -57,6 +60,10 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("study={}", config.study_path.display());
     println!("frames={}", store.frame_count());
     println!("completion=media_uni_stream");
+    #[cfg(feature = "telemetry")]
+    println!("telemetry=compile-time");
+    #[cfg(not(feature = "telemetry"))]
+    println!("telemetry=absent");
     info!(
         %wt_url,
         study = %config.study_path.display(),
@@ -82,24 +89,66 @@ async fn handle_incoming(
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     let connection = session_request.accept().await.context("accept session")?;
-    info!(frames = store.frame_count(), shared_stream, "session opened");
 
     let (control_send, control_recv) = connection
         .accept_bi()
         .await
         .context("accept control bidi")?;
 
-    run_session(connection, control_send, control_recv, store, shared_stream).await
+    spawn_session(
+        connection,
+        control_send,
+        control_recv,
+        store,
+        shared_stream,
+    )
+    .await
+}
+
+/// The only `cfg` fork in product code (R10).
+async fn spawn_session(
+    connection: Connection,
+    control_send: SendStream,
+    control_recv: RecvStream,
+    store: Arc<FrameStore>,
+    shared_stream: bool,
+) -> Result<()> {
+    #[cfg(feature = "telemetry")]
+    {
+        if let Some(tap) = crate::record::tap::Tap::for_session() {
+            return run_session(
+                connection,
+                control_send,
+                control_recv,
+                store,
+                shared_stream,
+                tap,
+            )
+            .await;
+        }
+    }
+    run_session(
+        connection,
+        control_send,
+        control_recv,
+        store,
+        shared_stream,
+        Noop,
+    )
+    .await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
-async fn run_session(
+async fn run_session<R: Record>(
     connection: Connection,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
     store: Arc<FrameStore>,
     shared_stream: bool,
+    mut rec: R,
 ) -> Result<()> {
+    info!(frames = store.frame_count(), shared_stream, "session opened");
+
     // Opened once per session when shared; frames are length-prefixed into it in order.
     let mut shared: Option<SendStream> = if shared_stream {
         Some(
@@ -124,11 +173,27 @@ async fn run_session(
 
         match msg {
             FodMsg::RequestFrame { frame } => {
-                send_one_frame(&connection, &mut shared, &mut control_send, &store, frame).await?;
+                send_one_frame(
+                    &connection,
+                    &mut shared,
+                    &mut control_send,
+                    &store,
+                    frame,
+                    &mut rec,
+                )
+                .await?;
             }
             FodMsg::RequestFrames { frames } => {
                 for frame in frames {
-                    send_one_frame(&connection, &mut shared, &mut control_send, &store, frame).await?;
+                    send_one_frame(
+                        &connection,
+                        &mut shared,
+                        &mut control_send,
+                        &store,
+                        frame,
+                        &mut rec,
+                    )
+                    .await?;
                 }
             }
             FodMsg::EndSession => break,
@@ -140,17 +205,33 @@ async fn run_session(
     Ok(())
 }
 
-async fn send_one_frame(
+async fn send_one_frame<R: Record>(
     connection: &Connection,
     shared: &mut Option<SendStream>,
     control_send: &mut SendStream,
     store: &FrameStore,
     idx: u32,
+    rec: &mut R,
 ) -> Result<()> {
-    let work_start = Instant::now();
-    let bytes = match store.frame_slice(idx) {
-        Ok(bytes) => bytes,
+    rec.ask(idx);
+
+    let t0 = rec.stamp();
+    match store.frame_slice(idx) {
+        Ok(bytes) => {
+            rec.located(t0, LocateOutcome::Ok, bytes.len());
+
+            let t1 = rec.stamp();
+            let payload = wrap(idx, bytes);
+            match write_payload(connection, shared, &payload).await {
+                Ok(()) => rec.wrote(t1, WriteOutcome::Sent, payload.len()),
+                Err(err) => {
+                    rec.wrote(t1, WriteOutcome::WriteErr, 0);
+                    return Err(err);
+                }
+            }
+        }
         Err(err) => {
+            rec.located(t0, LocateOutcome::NotFound, 0);
             warn!(frame = idx, %err, "frame refused");
             write_fod_msg(
                 control_send,
@@ -160,19 +241,24 @@ async fn send_one_frame(
                 },
             )
             .await?;
-            return Ok(());
+            let t1 = rec.stamp();
+            rec.wrote(t1, WriteOutcome::Refused, 0);
         }
-    };
-    let payload = wrap(idx, bytes);
-    let work_us = work_start.elapsed().as_micros() as u64;
+    }
+    Ok(())
+}
 
-    let write_start = Instant::now();
+async fn write_payload(
+    connection: &Connection,
+    shared: &mut Option<SendStream>,
+    payload: &[u8],
+) -> Result<()> {
     match shared {
         // Shared stream: [4B BE envelope_len][envelope]. Stream stays open for the session.
         Some(uni) => {
             let len = (payload.len() as u32).to_be_bytes();
             uni.write_all(&len).await.context("write shared len")?;
-            uni.write_all(&payload).await.context("write shared envelope")?;
+            uni.write_all(payload).await.context("write shared envelope")?;
         }
         // Per-frame stream: stream end delimits the envelope.
         //
@@ -193,12 +279,9 @@ async fn send_one_frame(
                 .context("open uni")?
                 .await
                 .context("open uni ready")?;
-            uni.write_all(&payload).await.context("write envelope")?;
+            uni.write_all(payload).await.context("write envelope")?;
             uni.finish().await.context("finish uni")?;
         }
     }
-    let write_us = write_start.elapsed().as_micros() as u64;
-
-    debug!(frame = idx, work_us, write_us, "frame sent");
     Ok(())
 }

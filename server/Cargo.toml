@@ -12,6 +12,10 @@ path = "src/lib.rs"
 name = "exact-server"
 path = "src/main.rs"
 
+[features]
+default = []
+telemetry = []
+
 [dependencies]
 anyhow = { workspace = true }
 bytes = { workspace = true }
