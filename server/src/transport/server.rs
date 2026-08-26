@@ -1,13 +1,20 @@
 //! FoD ask → envelope on server uni stream (Media-complete).
+//!
+//! Serial loop: read one ask, send it to completion, read the next.
+//! No server-side ask queue — see docs/adr-reject-server-ordering.md.
 
 use crate::media::frame_store::FrameStore;
-use crate::transport::queue::run_session;
 use crate::transport::tls::load_pem_cert;
+use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
+use fod::FodMsg;
+use frame_envelope::wrap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{info, warn};
-use wtransport::{Endpoint, Identity, ServerConfig};
+use std::time::Instant;
+use tracing::{debug, info, warn};
+use wtransport::stream::{RecvStream, SendStream};
+use wtransport::{Connection, Endpoint, Identity, ServerConfig};
 
 pub struct ServeConfig {
     pub wt_port: u16,
@@ -74,4 +81,81 @@ async fn handle_incoming(
         .context("accept control bidi")?;
 
     run_session(connection, control_send, control_recv, store).await
+}
+
+/// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
+async fn run_session(
+    connection: Connection,
+    mut control_send: SendStream,
+    mut control_recv: RecvStream,
+    store: Arc<FrameStore>,
+) -> Result<()> {
+    loop {
+        let msg = match read_fod_msg(&mut control_recv).await {
+            Ok(m) => m,
+            Err(err) => {
+                warn!(%err, "control read ended");
+                break;
+            }
+        };
+
+        match msg {
+            FodMsg::RequestFrame { frame, generation: _ } => {
+                send_one_frame(&connection, &mut control_send, &store, frame).await?;
+            }
+            FodMsg::RequestFrames { frames, generation: _ } => {
+                for frame in frames {
+                    send_one_frame(&connection, &mut control_send, &store, frame).await?;
+                }
+            }
+            FodMsg::CancelFrames { .. } => {
+                // Ignored until wire removal — docs/cleanup-plan-2026-08.md §2
+            }
+            FodMsg::EndSession => break,
+            other => {
+                warn!(?other, "ask-only: ignoring unexpected FoD message");
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn send_one_frame(
+    connection: &Connection,
+    control_send: &mut SendStream,
+    store: &FrameStore,
+    idx: u32,
+) -> Result<()> {
+    let work_start = Instant::now();
+    let bytes = match store.frame_slice(idx) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            warn!(frame = idx, %err, "frame refused");
+            write_fod_msg(
+                control_send,
+                &FodMsg::FrameError {
+                    frame_index: idx,
+                    reason: err.to_string(),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let payload = wrap(idx, bytes);
+    let work_us = work_start.elapsed().as_micros() as u64;
+
+    let write_start = Instant::now();
+    let mut uni = connection
+        .open_uni()
+        .await
+        .context("open uni")?
+        .await
+        .context("open uni ready")?;
+    uni.write_all(&payload).await.context("write envelope")?;
+    uni.finish().await.context("finish uni")?;
+    let write_us = write_start.elapsed().as_micros() as u64;
+
+    debug!(frame = idx, work_us, write_us, "frame sent");
+    Ok(())
 }
