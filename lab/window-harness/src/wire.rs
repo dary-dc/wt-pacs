@@ -1,23 +1,11 @@
-//! FoD length-prefixed read/write on wtransport streams.
+//! FoD length-prefixed write + paced uni reads on wtransport streams.
 
 use anyhow::{Context, Result};
-use fod::{decode_fod_msg, encode_fod_msg, FodMsg};
+use fod::{encode_fod_msg, FodMsg};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use wtransport::stream::{RecvStream, SendStream};
-
-pub async fn read_fod_msg(recv: &mut RecvStream) -> Result<FodMsg> {
-    let mut len_buf = [0u8; 4];
-    read_exact(recv, &mut len_buf).await?;
-    let len = u32::from_le_bytes(len_buf) as usize;
-    let mut body = vec![0u8; len];
-    read_exact(recv, &mut body).await?;
-    let mut full = Vec::with_capacity(4 + len);
-    full.extend_from_slice(&len_buf);
-    full.extend_from_slice(&body);
-    decode_fod_msg(&full).context("decode FoD")
-}
 
 pub async fn write_fod_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
     let bytes = encode_fod_msg(msg)?;
@@ -81,15 +69,4 @@ pub async fn read_paced(recv: &mut RecvStream, pacer: &Arc<Mutex<LinkPacer>>) ->
         LinkPacer::consume_bytes(pacer, n).await;
     }
     Ok(out)
-}
-
-async fn read_exact(recv: &mut RecvStream, out: &mut [u8]) -> Result<()> {
-    let mut filled = 0;
-    while filled < out.len() {
-        match recv.read(&mut out[filled..]).await? {
-            Some(n) => filled += n,
-            None => anyhow::bail!("stream ended before {} bytes", out.len()),
-        }
-    }
-    Ok(())
 }

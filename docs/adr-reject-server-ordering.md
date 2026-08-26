@@ -36,7 +36,7 @@ Ask depth is not a free parameter. Depth past the point that saturates the link 
 adds only staleness, so the correct production value is the link-derived minimum:
 
 ```
-D_min  = ceil( demand × (1 + RTT / Tf) )
+D_min  = ceil( U × (1 + RTT / Tf) )      U ≈ 0.95
 saving = (D_min − 1) · Tf          →  bounded by ≈ RTT + one frame time
 ```
 

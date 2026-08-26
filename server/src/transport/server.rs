@@ -100,10 +100,10 @@ async fn run_session(
         };
 
         match msg {
-            FodMsg::RequestFrame { frame, generation: _ } => {
+            FodMsg::RequestFrame { frame } => {
                 send_one_frame(&connection, &mut control_send, &store, frame).await?;
             }
-            FodMsg::RequestFrames { frames, generation: _ } => {
+            FodMsg::RequestFrames { frames } => {
                 for frame in frames {
                     send_one_frame(&connection, &mut control_send, &store, frame).await?;
                 }

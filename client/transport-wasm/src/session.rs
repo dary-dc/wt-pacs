@@ -133,7 +133,6 @@ async fn read_fod_msg(reader: &ReadableStreamDefaultReader) -> Result<FodMsg, St
 struct SessionState {
     waiters: HashMap<u32, oneshot::Sender<(Uint8Array, f64)>>,
     dropped_early: u64,
-    cancelled_frames: u64,
     errors: HashMap<u32, String>,
     frame_errors: u64,
 }
@@ -259,16 +258,6 @@ impl TransportSession {
         })
     }
 
-    pub fn cancel_frame(&self, frame_index: u32) -> u32 {
-        let mut s = self.state.borrow_mut();
-        let had = s.waiters.remove(&frame_index).is_some();
-        self.bulk_rx.borrow_mut().remove(&frame_index);
-        if had {
-            s.cancelled_frames += 1;
-        }
-        0
-    }
-
     pub async fn request_frame(&self, frame_index: u32) -> Result<JsValue, String> {
         let ask_ms = perf_now_ms();
         let (tx, rx) = oneshot::channel();
@@ -282,7 +271,6 @@ impl TransportSession {
 
         let payload = encode_fod_msg(&FodMsg::RequestFrame {
             frame: frame_index,
-            generation: 0,
         })
         .map_err(|e| format!("encode FoD: {e}"))?;
         if self.req_tx.unbounded_send(payload).is_err() {
@@ -339,7 +327,6 @@ impl TransportSession {
         }
         let payload = encode_fod_msg(&FodMsg::RequestFrames {
             frames: need_wire.clone(),
-            generation: 0,
         })
         .map_err(|e| format!("encode FoD: {e}"))?;
         if self.req_tx.unbounded_send(payload).is_err() {
@@ -385,11 +372,6 @@ impl TransportSession {
             &JsValue::from(s.dropped_early as f64),
         )?;
         set(&out, "frameErrors", &JsValue::from(s.frame_errors as f64))?;
-        set(
-            &out,
-            "cancelledFrames",
-            &JsValue::from(s.cancelled_frames as f64),
-        )?;
         Ok(out.into())
     }
 }

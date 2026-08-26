@@ -9,18 +9,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum FodMsg {
-    RequestFrame {
-        frame: u32,
-        /// Optional client tag; product server ignores it.
-        #[serde(default)]
-        generation: u32,
-    },
-    RequestFrames {
-        frames: Vec<u32>,
-        #[serde(default)]
-        generation: u32,
-    },
-    RequestPath { from: u32, to: u32, stride: u32 },
+    /// Interactive / real-time path — one frame per message (depth = outstanding asks).
+    RequestFrame { frame: u32 },
+    /// Bulk / sequential testing path — server drains the whole batch before the next ask.
+    RequestFrames { frames: Vec<u32> },
     EndSession,
     FrameError {
         frame_index: u32,
@@ -52,27 +44,9 @@ mod tests {
 
     #[test]
     fn roundtrip_request_frame() {
-        let msg = FodMsg::RequestFrame {
-            frame: 7,
-            generation: 3,
-        };
+        let msg = FodMsg::RequestFrame { frame: 7 };
         let enc = encode_fod_msg(&msg).unwrap();
         assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
-    }
-
-    #[test]
-    fn request_frame_generation_defaults_to_zero() {
-        let body = br#"{"op":"request_frame","frame":2}"#;
-        let mut enc = Vec::new();
-        enc.extend_from_slice(&(body.len() as u32).to_le_bytes());
-        enc.extend_from_slice(body);
-        assert_eq!(
-            decode_fod_msg(&enc).unwrap(),
-            FodMsg::RequestFrame {
-                frame: 2,
-                generation: 0
-            }
-        );
     }
 
     #[test]

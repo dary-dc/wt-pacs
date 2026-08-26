@@ -128,7 +128,6 @@ async fn run_saturate(
     let dwell = cfg.fill_dwell_ms.max(500);
     let mut asks_sent = 0u32;
     let mut next_ask = 0u32;
-    let generation = 1u32;
 
     // Count-based outstanding (same frame may be re-asked while in flight).
     while *in_flight.lock().expect("in_flight") < d {
@@ -137,11 +136,7 @@ async fn run_saturate(
         }
         let frame = next_ask % n;
         next_ask = next_ask.wrapping_add(1);
-        write_fod_msg(
-            control_send,
-            &FodMsg::RequestFrame { frame, generation },
-        )
-        .await?;
+        write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
         asks_sent += 1;
     }
 
@@ -160,11 +155,7 @@ async fn run_saturate(
             }
             let frame = next_ask % n;
             next_ask = next_ask.wrapping_add(1);
-            write_fod_msg(
-                control_send,
-                &FodMsg::RequestFrame { frame, generation },
-            )
-            .await?;
+            write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
             asks_sent += 1;
         }
         tokio::time::sleep(Duration::from_millis(1)).await;
@@ -190,14 +181,7 @@ async fn run_legacy_schedule(
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
-        write_fod_msg(
-            control_send,
-            &FodMsg::RequestFrame {
-                frame,
-                generation: 0,
-            },
-        )
-        .await?;
+        write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
         asks_sent += 1;
     }
 
@@ -221,7 +205,6 @@ async fn run_windowed(
 ) -> Result<u32> {
     let n = cfg.frame_count.max(1);
     let d = cfg.depth;
-    let mut generation = 0u32;
     let mut asks_sent = 0u32;
 
     if cfg.warm_cache {
@@ -229,14 +212,7 @@ async fn run_windowed(
         let mut seen = HashSet::new();
         for &frame in schedule {
             if seen.insert(frame) {
-                write_fod_msg(
-                    control_send,
-                    &FodMsg::RequestFrame {
-                        frame,
-                        generation: 0,
-                    },
-                )
-                .await?;
+                write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
                 asks_sent += 1;
                 outstanding.lock().expect("outstanding").insert(frame);
             }
@@ -264,8 +240,7 @@ async fn run_windowed(
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
-        generation = generation.saturating_add(1);
-        asks_sent += emit_window(control_send, outstanding, cursor, d, n, generation).await?;
+        asks_sent += emit_window(control_send, outstanding, cursor, d, n).await?;
         wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
     }
 
@@ -273,8 +248,7 @@ async fn run_windowed(
         let mut m = metrics.lock().expect("metrics lock");
         m.settle();
     }
-    generation = generation.saturating_add(1);
-    asks_sent += emit_window(control_send, outstanding, wanted, d, n, generation).await?;
+    asks_sent += emit_window(control_send, outstanding, wanted, d, n).await?;
 
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
@@ -285,7 +259,7 @@ async fn run_windowed(
         }
         let fill_deadline = std::time::Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
         while std::time::Instant::now() < fill_deadline {
-            asks_sent += emit_window(control_send, outstanding, wanted, d, n, generation).await?;
+            asks_sent += emit_window(control_send, outstanding, wanted, d, n).await?;
             wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
@@ -331,7 +305,6 @@ async fn emit_window(
     center: u32,
     d: u32,
     n: u32,
-    generation: u32,
 ) -> Result<u32> {
     let frames = window_frames(center, d, n);
     let mut sent = 0u32;
@@ -343,11 +316,7 @@ async fn emit_window(
             }
             o.insert(frame);
         }
-        write_fod_msg(
-            control_send,
-            &FodMsg::RequestFrame { frame, generation },
-        )
-        .await?;
+        write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await?;
         sent += 1;
     }
     Ok(sent)

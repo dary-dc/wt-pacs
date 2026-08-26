@@ -41,7 +41,6 @@ export class TransportSession {
   private bulkPending = new Map<number, Promise<{ bytes: Uint8Array; receivedMs: number }>>();
   private droppedEarly = 0;
   private frameErrors = 0;
-  private cancelledFrames = 0;
 
   private constructor(
     transport: WebTransport,
@@ -198,24 +197,11 @@ export class TransportSession {
     return out;
   }
 
-  cancelFrame(frameIndex: number): number {
-    const w = this.waiters.get(frameIndex);
-    this.bulkPending.delete(frameIndex);
-    if (w) {
-      clearTimeout(w.timer);
-      this.waiters.delete(frameIndex);
-      this.cancelledFrames += 1;
-      w.reject(new Error(`frame ${frameIndex} cancelled`));
-    }
-    return 0;
-  }
-
   stats() {
     return {
       inFlight: this.waiters.size,
       droppedEarlyMedia: this.droppedEarly,
       frameErrors: this.frameErrors,
-      cancelledFrames: this.cancelledFrames,
     };
   }
 

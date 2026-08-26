@@ -38,18 +38,43 @@ emitted. `work_us` and `write_us` are unaffected and remain worth having.
 
 An ignored message is worse than an absent one: it advertises a capability that does not exist.
 
-### Open question, not a cleanup action
+### Decided 2026-08-26
 
 `client/transport-wasm` and `client/transport-ts` expose a **client-local** `cancelFrame` that rejects
-the pending promise and counts it. It never reaches the wire, so it is unaffected by the ADR — but
-under the window design it looks wrong for a different reason:
+the pending promise and counts it. It never reaches the wire. **It has no callers anywhere in the
+repo** — dead API surface in both clients.
 
-> The server sends the frame regardless. Cancelling locally **discards bytes already paid for**, and
-> repeated depth passes mean that frame will be wanted again shortly.
+**Remove it.** The window design never cancels: the server sends the frame regardless, so cancelling
+locally discards bytes already paid for.
 
-The client should cache whatever arrives and never discard it. Needs a decision before phase 1, but it
-is a design question, not cleanup.
+### Idea, explicitly not for implementation
 
+> **Cache whatever arrives; never discard a frame.**
+
+Repeated depth passes mean an unwanted frame is usually wanted again shortly, so discarding throws away
+bytes that were already spent. Plausible, and more attractive once frames are tiled, because units are
+smaller and reusable across positions.
+
+**Untested. Not a phase-1 item, and not to be implemented on the strength of the argument alone.**
+Recorded so it is not lost, not so it is built.
+
+---
+
+## 2b · Wire surface left behind (added 2026-08-26) — **executed**
+
+### 2b.1 · Remove `generation` — done
+
+`generation` removed from `RequestFrame` / `RequestFrames` in `common/fod`, both clients, and
+`window-harness`. It advertised ask-ordering that was rejected.
+
+### 2b.2 · `RequestPath` — removed
+
+Removed with stride paused at the design level. Not reserved-on-the-wire: absent is clearer than
+silent-ignore.
+
+### 2b.3 · Ask granularity — documented in `WIRE.md`
+
+`RequestFrames` stays for bulk/test. Real-time path is one `RequestFrame` per message.
 ---
 
 ## 3 · Lab
@@ -103,7 +128,7 @@ Steps 1–2 can land in one commit. Step 3 should be its own.
 
 | | |
 | - | - |
-| Product server | 562 → ~350 lines |
-| Lab crates | 4 → 2 |
-| Wire messages | one fewer |
+| Product server | 562 → **433 lines** (executed) |
+| Lab crates | 4 → **2** (executed) |
+| Wire messages | `CancelFrames`, `generation`, `RequestPath` removed; ask granularity in `WIRE.md` (executed) |
 | Docs | 8 files, 3 with supersession banners, 1 deleted, 1 added |

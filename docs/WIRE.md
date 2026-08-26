@@ -3,11 +3,19 @@
 Two WebTransport streams per session:
 
 1. **Control (bidirectional)** — length-prefixed FoD JSON (`RequestFrame`, `RequestFrames`,
-   `EndSession`). `RequestFrame` / `RequestFrames` may include optional `generation` (default 0);
-   product `exact-server` ignores it. Server may write `FrameError` on the same stream for immediate
-   refusal.
+   `EndSession`). Server may write `FrameError` on the same stream for immediate refusal.
 
-`CancelFrames` was removed — see [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
+   **Ask granularity matters.** The **real-time path uses one `RequestFrame` per message.**
+   `RequestFrames` is served as a batch — every frame in it is sent before the next control message is
+   read — which makes it a **bulk / sequential path for testing** (start-to-end sends where latency is
+   not under test). A batch of `N` produces an effective outstanding depth of `N` regardless of the
+   depth the client computed, so client window depth
+   ([`adr-client-window-depth.md`](adr-client-window-depth.md)) **does not apply to it** and its
+   latency numbers are not comparable to the interactive path.
+
+`CancelFrames`, `generation`, and `RequestPath` were removed — see
+[`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) and
+[`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md) §2b.
 
 2. **Media (server unidirectional)** — one stream per frame response, payload
    `[4B BE display_index][HTJ2K codestream…]`.
