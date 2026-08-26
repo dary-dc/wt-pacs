@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Layer-2 harness sweep: read_bps (downlink pace) vs cancel arms on fly_and_settle.
+# Layer-2 harness sweep: read_bps vs depth on fly_and_settle (E1 prep).
+# Against product exact-server (serial loop).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -19,9 +20,9 @@ STEP_HIGH="${STEP_HIGH:-5}"
 
 mkdir -p "$(dirname "$OUT")"
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh"
-cargo build -p exact-server -p queue-harness --release >/dev/null
+cargo build -p exact-server -p window-harness --release >/dev/null
 
-HARNESS="$CARGO_TARGET_DIR/release/queue-harness"
+HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
 
 mbps_list() {

@@ -11,10 +11,10 @@ Server-side cancel and ordering are **rejected** — see
 
 | Crate | Purpose |
 | ----- | ------- |
-| `queue-harness` | Headless `wtransport` client — read pacing, `--depth` window (rename to `window-harness` pending) |
+| `window-harness` | Headless `wtransport` client — read pacing, `--depth` window (E1/E2) |
 | `cold-page-bench` | Warm vs cold `frame_slice` timings (E3) |
 
-Deleted (history retains): `queue-sim`, `window-server`.
+Deleted (history retains): `queue-sim`, `window-server`, former name `queue-harness`.
 
 ## Traces
 

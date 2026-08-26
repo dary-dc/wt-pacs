@@ -1,11 +1,11 @@
 [package]
-name = "queue-harness"
+name = "window-harness"
 version = "0.1.0"
 edition = "2021"
-description = "Layer-2 headless queue harness for wt-pacs (scaffolding)"
+description = "Headless WebTransport client for window-saturation / HoL lab (scaffolding)"
 
 [[bin]]
-name = "queue-harness"
+name = "window-harness"
 path = "src/main.rs"
 
 [dependencies]

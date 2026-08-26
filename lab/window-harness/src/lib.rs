@@ -1,4 +1,4 @@
-//! Headless WebTransport client for queue/HoL measurements.
+//! Headless WebTransport client for window-saturation / HoL measurements.
 
 mod client;
 mod metrics;

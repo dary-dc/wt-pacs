@@ -12,9 +12,9 @@ KEY="$ROOT/server/dev-cert/key.pem"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
 mkdir -p "$(dirname "$OUT")"
-cargo build -p queue-harness -p exact-server --release >/dev/null
+cargo build -p window-harness -p exact-server --release >/dev/null
 
-HARNESS="$CARGO_TARGET_DIR/release/queue-harness"
+HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh"
 

@@ -1,10 +1,10 @@
 use anyhow::Context;
 use clap::Parser;
-use queue_harness::{run_harness, RunConfig, TraceSpec};
+use window_harness::{run_harness, RunConfig, TraceSpec};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "queue-harness")]
+#[command(name = "window-harness")]
 struct Args {
     #[arg(long, default_value = "https://127.0.0.1:4433/")]
     url: String,

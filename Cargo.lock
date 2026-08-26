@@ -978,21 +978,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "queue-harness"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "fod",
- "frame-envelope",
- "rustls",
- "serde",
- "serde_json",
- "tokio",
- "wtransport",
-]
-
-[[package]]
 name = "quinn"
 version = "0.11.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1762,6 +1747,21 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "window-harness"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "fod",
+ "frame-envelope",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "wtransport",
 ]
 
 [[package]]

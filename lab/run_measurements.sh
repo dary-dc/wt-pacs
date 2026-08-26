@@ -17,8 +17,8 @@ if [[ ! -f "$CERT" ]]; then
   "$ROOT/server/scripts/gen_dev_cert.sh"
 fi
 
-cargo build -p exact-server -p queue-harness -p cold-page-bench --release >/dev/null
-HARNESS="$CARGO_TARGET_DIR/release/queue-harness"
+cargo build -p exact-server -p window-harness -p cold-page-bench --release >/dev/null
+HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
 COLD="$CARGO_TARGET_DIR/release/cold-page-bench"
 

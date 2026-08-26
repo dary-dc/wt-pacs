@@ -26,7 +26,7 @@ cargo run -p exact-server --release -- \
 spid=$!
 sleep 1.5
 
-out=$(cargo run -p queue-harness --release -- \
+out=$(cargo run -p window-harness --release -- \
   --url "https://127.0.0.1:4433/" \
   --trace "$ROOT/lab/traces/fly_and_settle.json" \
   --read-bps "$READ_BPS" --server-cancel --json)
