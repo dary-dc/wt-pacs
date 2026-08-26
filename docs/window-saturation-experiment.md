@@ -26,6 +26,115 @@ changes. Three experiments, in priority order.
 
 ---
 
+## 0b. Precondition — the condition that makes any of this measurable
+
+**Added 2026-08-26 after two null runs. This was missing from the original spec and is the reason both
+produced no signal.**
+
+A cache miss can only happen when the reader **outruns the link**. If the link delivers frames faster
+than the reader consumes them, the cache is always ahead, every wait is 0, and `D` cannot matter no
+matter how the grid is swept.
+
+```
+reader demand  =  reader speed (frames/s) × frame bytes
+must exceed
+link supply    =  configured link rate
+```
+
+### Dead vs live cells
+
+| fixture | link | link delivers | reader wants | verdict |
+| ------- | ---- | ------------- | ------------ | ------- |
+| 51 KB | 5 Mbps | 12.0 f/s | 9 f/s | **dead** — link faster than reader |
+| 51 KB | 1 Mbps | 2.4 f/s | 9 f/s | live |
+| 250 KB | 10 Mbps | 4.9 f/s | 9 f/s | **live, ratio 1.8** ← primary |
+| 250 KB | 25 Mbps | 12.2 f/s | 9 f/s | dead |
+
+**Every group in every experiment must be run in a live cell.** Report the demand/supply ratio
+alongside every result; a result from a dead cell is not a null, it is not a measurement.
+
+This is also the product's stated target regime — low bandwidth, large studies — so it is where the
+numbers should come from anyway.
+
+### Trace requirements
+
+`fly_and_settle` has `frame_modulo: 3` — three unique frames. Once cached, everything is a hit. It
+cannot test depth, **and it could not have tested cancel either** (see the caveat in
+[`adr-reject-server-cancel.md`](adr-reject-server-cancel.md)).
+
+The replacement trace must have:
+
+| | |
+| - | - |
+| **≥ 300 unique frames** | no modulo, no small cycling set |
+| **`max_step = 1`** | scroll-only. Established reader behaviour; no jump affordance exists |
+| **Sustained traversal at ~9 frames/s** | fast enough to outrun the link in a live cell |
+| **A reversal at ~60% through** | the miss-generating event E2 needs |
+| **Long enough to reach steady state** | the first few frames are cold-start, not the regime under test |
+
+---
+
+## 0c. Harness defects found 2026-08-26 — all three produced convincing nulls
+
+Three campaigns reported "formula not validated". None of them measured the formula. Fixed in
+`lab/window-harness` and `lab/scripts/`.
+
+| # | Defect | Effect |
+| - | ------ | ------ |
+| 1 | `ask_frame` slept `RTT/2` **inline**, and every caller awaited it in a loop | Issuing `D` asks took `D × RTT/2` ms. Asks were never simultaneously in flight. `D` was a counter with no wire meaning |
+| 2 | `LinkPacer::consume_bytes` held its mutex **across the sleep** | Only one uni stream could read at a time. Concurrent delivery impossible by construction |
+| 3 | `e1_saturation_sweep.sh` started the server with `>/dev/null 2>&1` | A failed bind was **silent**. The `frames_250k` cells were served by the *`queue_large`* server — reported `per_frame_bytes` was 51,004 against a 250,000-byte fixture |
+
+Defects 1 and 2 pinned measured utilisation at the `D`=1 value for every depth. That is the flat
+**0.408** in the old tables: for 51 KB at 10 Mbps and RTT 60, `Tf/(Tf+RTT) = 40.8/100.8 = 0.405`. It was
+never a result — it was the only number the harness could produce.
+
+Defect 3 is what earlier reports called *"identical util matrices — metric artifact."* Not an
+artifact; the wrong server.
+
+### Defect 4 — simulated RTT is inert in shared-stream mode
+
+Found 2026-08-26 while adding `--shared-stream`. Measured at `D`=1, 250 KB frames, 10 Mbps
+(`Tf` = 200 ms):
+
+| RTT | measured util | correct |
+| --- | ------------- | ------- |
+| 0 | 1.000 | 1.000 |
+| 60 | **1.000** | 0.77 |
+| 150 | **1.000** | 0.57 |
+| 400 | 0.333 | 0.333 |
+
+**`--rtt-ms` has no effect until RTT exceeds the frame time.** Below that it is invisible; above it, it
+is exact. The mechanism is **not established** — two earlier mechanism guesses in this campaign were
+wrong, so this one is recorded as an observation only.
+
+**Consequence: depth cannot be measured on shared-stream mode with `--rtt-ms`.** It needs `tc netem` —
+but **not** root and **not** the cloud host:
+
+```bash
+unshare --user --map-root-user --net -- bash
+ip link set lo up
+tc qdisc add dev lo root netem delay 30ms rate 10mbit   # loopback traverses once per direction → RTT 60
+# run server and harness inside this shell; disable the in-process pacer with --read-bps 0
+```
+
+Verified working on Fedora 2026-08-26; `ping` confirmed 60.3 ms RTT. The cloud host is still wanted for
+**loss** emulation and a real-path check, but it is no longer a prerequisite for depth numbers. Per-frame mode does not show this, which is itself the
+point — a harness property that holds in one architecture and not the other is exactly why local
+emulation cannot be trusted across a design change.
+
+### Guards now required
+
+| | |
+| - | - |
+| **`peak_outstanding`** | highest concurrent ask count actually observed, recorded per run. **If it is below `D`, the run is void.** This is the invariant defects 1 and 2 violated |
+| **Frame-size assertion** | compare observed bytes-per-frame against the fixture's declared size. This is what exposed defect 3. Note fixtures with *variable* frame sizes (`queue_large`) need a tolerance, not equality |
+| **Never discard server output** | a silently failing server is indistinguishable from a slow one |
+| **Fresh port per cell** | do not rebind the same port across studies |
+| **`--rtt-ms` is per-frame-mode only** | in shared-stream mode use `tc netem`. Any shared-stream depth number taken with `--rtt-ms` below the frame time is void |
+
+---
+
 ## 1. E1 — does `D_min` saturate the link?
 
 **The load-bearing question.** Everything in the client window design assumes it does.
@@ -74,7 +183,12 @@ Predicted `(D − 1) · Tf`. We accepted it analytically; measure it once.
 
 ### Metric
 
-`recovered_ms` — reversal → first byte of the wanted frame.
+**`recovered_ms` — reversal → the wanted frame is _displayable_.** Not first byte.
+
+> **Changed 2026-08-26.** One uni stream per frame means QUIC can **interleave** them: the wanted
+> frame's first byte can arrive while earlier frames are still draining, so a first-byte metric looks
+> good while the frame completes no sooner. You cannot show a partial frame. First-byte would also make
+> E2 incomparable with E4, which measures displayable.
 
 ### Pass condition
 
@@ -94,6 +208,14 @@ Independent of everything above. Three real options; no measurement exists.
 | Treatment | mmap + `MADV_WILLNEED` · `pread` on a blocking pool · io_uring |
 | **Warm control** | page cache hot — the floor. Any arm near it is good enough |
 | **Naive control** | plain mmap, no advice — what we have today |
+
+> **The arms are not on equal footing, and the spec must say so.** `MADV_WILLNEED` needs to know which
+> frame comes next. The server is now a serial loop — it reads one ask at a time and has no lookahead,
+> so it cannot issue a useful hint beyond the frame it is already serving. Judge that arm on what it
+> can actually do here, not on what it could do with a queue.
+>
+> Study bundles lay frames out sequentially, so kernel readahead should cover forward scrolling on its
+> own. **Expect cold-page cost to appear on reversal, not on traversal** — the trace must contain one.
 
 ### Metrics — two, and the second is the one that matters
 
@@ -188,6 +310,95 @@ series.
 | `mean_wait_ms` flat under ±50% error | Estimators can be crude. Large design saving — take it |
 | Degrades sharply | Estimator accuracy is load-bearing and must be designed carefully |
 | **Blind control ≈ truth control** | Stop estimating. Ship a constant and delete the machinery |
+
+---
+
+## 3d. E0 — does netem tell the truth?
+
+**Cheap, and it validates the entire rest of the campaign. Run it early, not last.**
+
+Every other number here comes from an emulated link. If the emulation is wrong, all of them are wrong
+together and nothing downstream reveals it.
+
+| Step | |
+| ---- | - |
+| 1 | Run the harness against the cloud host over the **real path, unshaped**. Record actual RTT and achieved throughput |
+| 2 | Run the same trace locally under **netem configured to those measured values** |
+| 3 | Compare `mean_wait_ms` (mean and p95) |
+
+| Result | Meaning |
+| ------ | ------- |
+| Within ~15% | The netem grid is trustworthy. Proceed |
+| Diverges | **Stop.** netem is not reproducing this transport's behaviour, and every emulated result needs re-reading before it is quoted |
+
+Clocks are not an issue: `mean_wait_ms` is measured entirely client-side, end to end, so nothing is
+subtracted across machines.
+
+---
+
+## 3e. E6 — one stream per frame, or one stream per session?
+
+**This now gates the depth numbers, not just head-of-line.** Depth results measured on one stream
+layout do not describe the other, so E1/E2/E4 cannot be finalised until this is settled.
+
+### Why it is open
+
+wt-pacs opens **one uni stream per frame**. The viewer integration target opens **one stream per
+endpoint** — a single shared stream. The reason for per-frame streams is head-of-line avoidance: on a
+shared stream one lost packet stalls everything behind it until retransmitted.
+
+### Why the benefit is smaller than it looks
+
+Two factors multiply, and both are small:
+
+| | |
+| - | - |
+| **Loss** | On a clean link the two designs are identical. The difference exists only under loss |
+| **Out-of-order demand** | During a scroll you want frames **in order anyway**. If frame N stalls, finishing N+1 first does not help — you cannot show N+1 before N in a stack. The benefit appears only when the reader reverses or jumps |
+
+So the real quantity is **loss × out-of-order demand**, not raw head-of-line probability.
+
+### What is at stake
+
+Per-frame streams in the viewer means restructuring around endpoints — substantial work.
+**The valuable outcome of this experiment is the negative one:** if the shared stream is within noise
+at target loss rates, the viewer keeps what it has, per-frame streams get an ADR rejecting them, and
+that investigation never happens.
+
+### Groups
+
+| Group | Setting | Purpose |
+| ----- | ------- | ------- |
+| **A** | one uni stream per frame (today) | treatment |
+| **B** | one shared uni stream, frames back to back | treatment — new server flag |
+| **Clean-link control** | both arms at **0% loss** | A and B must land within noise. **If they differ at 0% loss, something other than head-of-line is driving it and the run is invalid** |
+| **In-order control** | pure forward scroll, no reversal | tests the claim above. Head-of-line should buy little or nothing here |
+| **Out-of-order treatment** | reversal trace | where the benefit should appear, if anywhere |
+
+### Axes
+
+Loss 0 / 0.1 / 0.5 / 1% via netem · depth 1–8 · fixtures 250 KB and 51 KB · RTT 60 ms
+
+Loss requires `tc`, so this runs on the cloud host.
+
+### Decision rule, fixed in advance
+
+| Result | Consequence |
+| ------ | ----------- |
+| B within **100 ms p95** of A at ≤ 0.5% loss | **Reject per-frame streams.** Write the ADR; the viewer keeps one stream; the endpoint restructuring is cancelled |
+| A beats B by > 100 ms p95 at target loss | Per-frame streams are worth the work. Size the effort before committing |
+| A and B differ at **0% loss** | Invalid run — a confound is present. Find it before interpreting anything |
+| Benefit appears only in the out-of-order arm | Correct and expected. Weight it by how often readers actually reverse, not by how often packets are lost |
+
+### Prerequisite — remove a known confound first
+
+The in-process `LinkPacer` takes a mutex on every 16 KB chunk, so concurrent readers contend. That
+confound scales with **stream count**, which is exactly the variable under test here. **Shape with `tc`
+and disable the in-process pacer before running E6**, or arm A is penalised by the harness rather than
+by the transport.
+
+This also settles the open question from §1: whether the 51 KB / 150 ms shortfall is transport
+behaviour or pacer contention. If it disappears under `tc` shaping, it was the harness.
 
 ---
 

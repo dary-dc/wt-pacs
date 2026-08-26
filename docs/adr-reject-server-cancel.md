@@ -6,7 +6,17 @@
 > **§4 and §5 superseded 2026-08-26** by [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
 > Three of §4's four flip conditions are wrong — only RTT changes the answer. §5's retained two-task
 > queue shape is being removed; see [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md).
-> **§1–§3 stand: the measurement is still the evidence.**
+> **Measured on one stream per frame.** The viewer integration target uses one shared stream. The
+> *mechanism* in §3 (bytes committed to the transport before cancel lands) is **stronger** on a shared
+> stream, not weaker — frames commit to a single stream strictly in order, so there is even less sitting
+> in the deque for cancel to reach. The rejection holds on both architectures. See §3e of
+> [`window-saturation-experiment.md`](window-saturation-experiment.md).
+>
+> **§1–§3 stand as a record, but the measurement is weaker than it reads.** Two regime defects found
+> later: the sweep ran at `D ≈ 1`, where the mechanism is zero by construction, and the trace has
+> `frame_modulo: 3` — three unique frames, so the cache saturates immediately and there is nothing for
+> cancel to recover. **The 0-of-100 is not a strong null.** The rejection now rests on the analytic
+> argument in the ordering ADR, not on this sweep.
 
 ---
 

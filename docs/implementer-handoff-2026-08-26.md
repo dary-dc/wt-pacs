@@ -1,127 +1,132 @@
-# Implementer handoff — window depth experiments
+# Implementer handoff — window depth and stream architecture
 
-**Date:** 2026-08-26 · **Prior handoff:** `queue-and-hol-harness.md` §7 (queue work, now **done and
-partly rejected** — do not work from it)
-
----
-
-## 0. Where things stand
-
-You already landed the cleanup: server back to a serial loop (562 → 433 lines), `CancelFrames` off the
-wire, `queue-sim` and `window-server` deleted, `queue-harness` renamed `window-harness`. Nothing below
-asks you to revisit that.
-
-**What changed in the design since:** server-side ordering joined cancel in being rejected
-([`adr-reject-server-ordering.md`](adr-reject-server-ordering.md)), and the client-side window that
-replaces both is specified in [`adr-client-window-depth.md`](adr-client-window-depth.md):
-
-```
-D = ceil( U × (1 + RTT / Tf) )        Tf = time to send one frame,  U ≈ 0.95
-```
-
-**That formula is unvalidated.** Everything below exists to test it, including the possibility that it
-should be deleted.
+**Date:** 2026-08-26 (rev 2) · **Supersedes** rev 1 and `queue-and-hol-harness.md` §7
 
 ---
 
-## 1. Finish the cleanup first — small, and it keeps measurements clean
+## 0. What changed since your last report
+
+**Three harness defects were found and fixed** (`window-harness`, `wire.rs`, `client.rs`). All three
+independently prevented the harness from ever having more than one ask in flight, so every "formula not
+validated" conclusion was guaranteed before the run started. Details in
+[`window-saturation-experiment.md`](window-saturation-experiment.md) §0c.
+
+With them fixed, **E1 passes at 5 of 6 gate points.** The flat `0.408` was the `D`=1 utilisation —
+`40.8/100.8` — which is all the harness could produce.
+
+**And a scope problem was found in the results themselves.** Everything was measured on a server that
+opens **one uni stream per frame**. The viewer integration target uses **one shared stream**. Three of
+the four E1 findings are properties of the stream layout, not the formula. The ADRs are now marked
+accordingly.
+
+---
+
+## 1. Already done — do not redo
 
 | | |
 | - | - |
-| **`generation`** | remove from `RequestFrame` / `RequestFrames`, `WIRE.md`, and both clients. Server ignores it; it was added for the rejected ordering design |
-| **`RequestPath`** | currently falls into `warn!("ignoring unexpected FoD message")`. Either remove it or mark it reserved-and-unimplemented in `WIRE.md`. Not both silent and present |
-| **`cancelFrame`** | client-local, **no callers anywhere**. Remove from `transport-wasm` and `transport-ts` |
+| `wire.rs` | `LinkPacer` releases the lock before sleeping. Aggregate rate still enforced by the `next_at` reservation |
+| `client.rs` | `ask_frame` no longer sleeps inline; full RTT applied once on the return path, inside the already-spawned per-stream handler |
+| `client.rs` / `metrics.rs` | **`peak_outstanding`** — highest concurrent ask count observed, recorded per run |
+| ADRs | `adr-client-window-depth`, `adr-reject-server-cancel`, `adr-reject-server-ordering` scoped to the architecture they were measured on |
 
-Detail in [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md) §2b.
-
----
-
-## 2. Build this before any experiment
-
-**The objective metric.** Everything decision-relevant depends on it:
-
-> `mean_wait_ms` — across a trace, mean time from *reader wants frame N* to *frame N displayable*.
-> Cache hits count as 0.
-
-Report **mean and p95 together.** They select different optima and the choice between them is a
-product decision, not yours to bury.
-
-`window-harness` already has `--depth`. What is new is trace-driven "reader wants frame N" timing and
-a client-side cache model so hits can score 0.
+Uncommitted in the working tree. Review, then commit as one change.
 
 ---
 
-## 3. Run order — the first result can cancel the rest
+## 2. Fix these before measuring anything
 
-### Gate: E4 premise check *(do this first)*
+### 2.1 · Server lifecycle in `e1_saturation_sweep.sh`
 
-Run the **random control** (`D` drawn uniformly 1–8 per session) against the **oracle control** (best
-`D` by exhaustive sweep on **p95**) on `fly_and_settle`, under **netem RTT ∈ {20, 60, 150} ms**.
+Line ~92 starts the server with `>/dev/null 2>&1`, so a **failed bind is silent** and the harness talks
+to whatever is still listening. That is how `frames_250k` cells were served by the `queue_large` server
+— observed `per_frame_bytes` was 51,004 against a 250,000-byte fixture.
 
-**Decision rule (fixed in advance):** oracle must beat random by **≥ 100 ms at p95**
-(`mean(random session p95) − oracle p95 ≥ 100`). Report mean too; **do not decide on mean** — cache
-hits dilute stalls. An ~10 ms mean gap does not justify a formula plus estimators.
+Fix: capture server output, assert it reports the expected study and frame count, use a **fresh port per
+cell**, and fail loudly if the server is not up.
 
-**RTT≈0 is a floor control only.** At zero delay, `D>1` has only cost, so oracle→D=1 and
-“oracle beats random” is guaranteed — it does **not** answer the gate. Keep those numbers; do not
-treat them as a pass.
+### 2.2 · Replace the in-process pacer with `tc`
 
-Also report oracle’s chosen `D` at each RTT. If it tracks `ceil(0.95 × (1 + RTT/Tf))`, that is the
-first real evidence the formula works.
+`LinkPacer` takes a mutex on every 16 KB chunk, so concurrent readers contend — and that contention
+**scales with stream count**, which is the variable E6 tests. Shaping in the harness would penalise the
+per-frame-stream arm for a harness property.
 
-| Outcome | Then |
-| ------- | ---- |
-| p95 gap < 100 ms at a gate RTT | **Stop** (at least for that regime). `D` does not clearly matter |
-| Oracle beats random by ≥100 ms p95 at the gate RTTs | Continue below |
+Shape bandwidth with `tc` on the cloud host and disable the in-process pacer. This is also required for
+loss emulation, which E6 needs.
 
-Script: `lab/scripts/e4_premise_check.sh` — default uses harness `--rtt-ms` (no privileges). Optional `USE_NETEM=1` for real tc (container `--cap-add=NET_ADMIN` preferred over host sudo).
+**Side benefit:** it settles whether the 51 KB / 150 ms shortfall (measured `D_min`=8 vs predicted 5) is
+transport behaviour or pacer contention. If it disappears under `tc`, it was the harness — and I should
+not have attributed it to per-stream overhead.
 
-### Then, in order
+### 2.3 · Guards, permanent
 
-| | Experiment | Why here |
-| - | ---------- | -------- |
-| 1 | **E1** — does `D_min` saturate? | Cheap, no trace needed. Validates the model that generates `D` |
-| 2 | **E2** — real miss cost | Prices the residual the design accepts |
-| 3 | **E4** full + `U` sub-sweep | Does the predicted `D` match the optimal `D` |
-| 4 | **E5** — estimator sensitivity | **Gates whether RTT and `Tf` estimators need designing at all** |
-| — | **E3** — cold-page I/O | Independent of all of the above. Run whenever convenient |
-
-Specifications: [`window-saturation-experiment.md`](window-saturation-experiment.md).
+| | |
+| - | - |
+| `peak_outstanding` must reach `D` | else the run is void — the invariant all three defects violated |
+| Observed bytes-per-frame must match the fixture | with a **tolerance**, not equality: `queue_large` has variable frame sizes |
+| Demand ÷ supply ≥ 1.0 | §0b. Print the ratio; refuse to run below it |
+| Never discard server output | a silently failing server looks like a slow one |
 
 ---
 
-## 4. Three traps, each of which has already cost this project a wrong answer
+## 3. Run order
 
-**Measuring a parameter where it is defined to do nothing.** The 0-of-100 cancel result was taken at
-`D ≈ 1`, where the mechanism is zero by construction. The `U` sweep can repeat this exactly: `D` is an
-integer, so `U` only moves it when `1 + RTT/Tf` sits just above an integer. Place `(RTT, Tf)` pairs
-deliberately at `x ≈ 1.02`, `2.05`, `3.05`, and **report which points those are.**
+### 3.1 · Shared-stream mode — built, verified for transport, blocked for measurement
 
-**Reporting a sweep without a ceiling.** A plateau is not a ceiling. Every `D` sweep needs the
-`D = 64` control or the result is unreadable.
+**The architecture is decided: single shared stream.** The integration target already works that way and
+changing it is expensive, so it is the default. **There is no A/B comparison to run** —
+[`window-saturation-experiment.md`](window-saturation-experiment.md) §3e records the decision and the
+condition that would reopen it.
 
-**Tuning and reporting on the same trace.** Choose parameters on `fly_and_settle`, report on
-`reversal_storm` and `dense_scrub` **without re-tuning**. Otherwise the formula has learned the trace.
+**Already built and in the working tree:** `exact-server --shared-stream` and
+`window-harness --shared-stream`. Frames go back to back on one uni stream as
+`[4B BE envelope_len][envelope]`. Default stays per-frame on both sides. Every run now records
+`shared_stream` in its metrics.
+
+Verified end to end: correct frame sizes, `peak_outstanding` tracks `D`. **Transport works.**
+
+> **Blocked for measurement.** `--rtt-ms` is **inert in shared-stream mode** below the frame time —
+> utilisation reads 1.000 at RTT 0, 60 and 150 ms alike, and only becomes correct above the frame time
+> (§0c defect 4). **Shared-stream depth numbers require `tc netem` on the cloud host.** Do not produce
+> them with `--rtt-ms`.
+
+Everything measured so far used per-frame streams. **Do not carry those numbers across** — re-measure on
+shared-stream under netem.
+
+### 3.2 · Then, in order
+
+| | | |
+| - | - | - |
+| **E1** | re-run, shared-stream, netem | confirms `D_min` on the architecture we are keeping |
+| **E4** gate | 8 runs, one RTT, depths 1–8 | random arm **derived by pooling raw per-frame waits**, not run separately |
+| **E5** sensitivity | RTT and `Tf` fed ±50% wrong | gates whether the estimators need designing at all |
+| **E3** treatment arms | independent of all the above | baseline done; report **p99/p999** stall, not the mean |
+
+### 3.3 · A question for the product, not a blocker
+
+wt-pacs keeping per-frame streams as its default while every measurement runs shared-stream leaves two
+paths, one unmeasured. Under the essentialist rule that is worth resolving — but it is a wt-pacs product
+call and blocks nothing above. Raise it; do not wait on it.
 
 ---
 
-## 5. What not to do
+## 4. Things not to spend time on
 
-- Do not build server-side ordering, priority, generations, or cancel. All rejected, with ADRs
-- Do not implement the window using `RequestFrames` — a batch of `N` produces an effective depth of `N`
-  and silently defeats depth control. Real-time path is **one `RequestFrame` per message** (`WIRE.md`)
-- Do not implement "cache whatever arrives, never discard." It is a recorded idea, untested, explicitly
-  not phase 1 (`cleanup-plan-2026-08.md` §2)
-- Do not design RTT or `Tf` estimators before E5 says how accurate they need to be
-- Do not quote a number without checking [`queue-and-hol-harness.md`](queue-and-hol-harness.md) §5
+- **E0 is deleted.** It validated local emulation; measurement moved to the cloud, so there is nothing
+  to validate. Local runs are development only — never quote a local number
+- Do not sweep four RTTs for the E4 gate. At 250 KB / 10 Mbps the formula returns `D`=2 for every RTT
+  from 30 to 180 ms, so four RTTs measure one prediction four times
+- Do not build server-side ordering, priority, generations, or cancel. Rejected, with ADRs
+- Do not implement the window using `RequestFrames` — a batch of `N` forces depth `N`. Real-time path is
+  one `RequestFrame` per message (`WIRE.md`)
 
 ---
 
-## 6. Reporting
+## 5. Reporting
 
-For each experiment: the groups actually run, the control values, the objective (mean **and** p95), and
-the pass/fail against the criterion **as written in the spec** — not a criterion adjusted after seeing
-the data.
+Per experiment: groups run, control values, objective (**mean and p95**), `peak_outstanding`,
+demand÷supply ratio, **and the stream architecture it was measured on**. Pass/fail against the criterion
+*as written in the spec*, not one adjusted after seeing data.
 
-A null result is a result. The two most valuable outcomes available here are *"`D` does not matter"*
-and *"the estimators can be crude"*, and both are nulls.
+A null is a result. The three most valuable outcomes available are *"the shared stream is fine"*,
+*"`D` does not matter"*, and *"the estimators can be crude"* — all nulls, each deleting work.

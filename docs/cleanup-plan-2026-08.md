@@ -110,6 +110,32 @@ Repo convention is **retract in writing** — banner, do not silently edit.
 
 ---
 
+## 4b · Make shared-stream the default (added 2026-08-26)
+
+**Measured defect, not a preference.** With per-frame streams the server's `finish().await` blocks
+until the frame is transmitted and acknowledged — measured at **271.8 ms** median against `open_uni`
+0.0 ms and `write_all` 0.1 ms. The session loop is serial, so throughput is capped at `Tf / (Tf + RTT)`
+of the link no matter what the client does.
+
+| fixture | RTT | link used |
+| ------- | --- | --------- |
+| 250 KB | 60 ms | 77% |
+| 51 KB | 150 ms | **21%** |
+
+`exact-server --shared-stream` already exists and has no per-frame `finish()`. Measured 8.50 Mbps
+against 7.00 on the same netem link.
+
+| Step | Action |
+| ---- | ------ |
+| 4b.1 | Flip the default to shared-stream; keep per-frame behind a flag for one release |
+| 4b.2 | Update `docs/WIRE.md` — the media stream description changes |
+| 4b.3 | Once nothing depends on per-frame, delete it. Two paths, one measurably worse, is not essentialist |
+
+This also resolves the open question in §2 about wt-pacs diverging from the integration target: they
+converge instead.
+
+---
+
 ## 5 · Order of work
 
 Sequenced so nothing is deleted before what depends on it:

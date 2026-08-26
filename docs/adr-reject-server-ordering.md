@@ -3,6 +3,16 @@
 **Status:** accepted · **Date:** 2026-08-26 ·
 **Supersedes:** §4 and §5 of [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md)
 
+> **Stream architecture, added 2026-08-26.** The measurements behind this ADR were taken on a server
+> opening **one uni stream per frame**; the viewer integration target uses **one shared stream**. The
+> load-bearing argument here is analytic — the saving is bounded by `(D−1)·Tf` regardless of how the
+> bytes are framed — so it carries to both. And as with cancel, a shared stream makes ordering **less**
+> useful, not more: frames commit to one stream strictly in order, so less work remains reorderable in
+> the deque. **The rejection is safe on both architectures.** What is *not* transferable is the depth
+> arithmetic in §2, whose measured `D_min` values are architecture-specific — see
+> [`adr-client-window-depth.md`](adr-client-window-depth.md) and §3e of
+> [`window-saturation-experiment.md`](window-saturation-experiment.md).
+
 ---
 
 ## 1 · What was proposed
