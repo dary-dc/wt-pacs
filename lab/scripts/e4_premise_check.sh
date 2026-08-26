@@ -42,9 +42,16 @@ mkdir -p "$OUT_DIR"
 
 IFS=',' read -ra RTT_ARR <<< "$RTTS_MS"
 
-cargo build -p exact-server -p window-harness --release >/dev/null
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
+if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+  cargo build -p exact-server -p window-harness --release >/dev/null
+else
+  [[ -x "$SERVER" && -x "$HARNESS" ]] || {
+    echo "SKIP_BUILD=1 but missing $SERVER or $HARNESS" >&2
+    exit 1
+  }
+fi
 
 ORACLE_TSV="$OUT_DIR/E4_PREMISE_ORACLE.tsv"
 RANDOM_TSV="$OUT_DIR/E4_PREMISE_RANDOM.tsv"

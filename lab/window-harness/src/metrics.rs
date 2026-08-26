@@ -1,4 +1,5 @@
 use serde::Serialize;
+use crate::client::SHARED_STREAM;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -25,8 +26,11 @@ pub struct RunConfig {
     pub mode: HarnessMode,
     /// Pre-fetch all schedule frames before settle (E2 warm-cache control).
     pub warm_cache: bool,
-    /// Simulated RTT (ms): RTT/2 before ask send, RTT/2 after uni read before cache.
+    /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
+    /// Read frames from ONE shared uni stream (length-prefixed) instead of one per frame.
+    /// Must match the server's `--shared-stream`.
+    pub shared_stream: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -35,6 +39,13 @@ pub struct HarnessMetrics {
     pub mode: String,
     pub read_bps: u64,
     pub depth: u32,
+    /// Stream architecture this run was measured on. Depth results are not comparable across it.
+    #[serde(default)]
+    pub shared_stream: bool,
+    /// Peak concurrent outstanding asks actually observed. If this is below `depth`,
+    /// the harness did not produce the concurrency it claims and the run is void.
+    #[serde(default)]
+    pub peak_outstanding: u32,
     pub arm_label: String,
     pub wanted_frame: u32,
     pub asks_sent: u32,
@@ -43,6 +54,9 @@ pub struct HarnessMetrics {
     pub mean_wait_ms: f64,
     /// p95 of the same wait samples.
     pub p95_wait_ms: f64,
+    /// Raw per-step waits (ms); cache hits are 0. For derived random arm offline.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub wait_ms: Vec<f64>,
     pub wait_samples: u32,
     /// Steady-state frames/s while fill is active.
     pub fill_rate: f64,
@@ -61,7 +75,7 @@ pub struct HarnessMetrics {
     pub frames_before_settle: u32,
     pub bytes_before_settle: u64,
     pub warm_cache: bool,
-    /// Simulated RTT (ms): RTT/2 before ask send, RTT/2 after uni read before cache.
+    /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
 }
 
@@ -197,12 +211,17 @@ impl MetricsState {
             mode: mode.to_string(),
             read_bps,
             depth,
+            shared_stream: SHARED_STREAM.load(std::sync::atomic::Ordering::Relaxed),
+            
+            peak_outstanding: crate::client::peak_outstanding(),
+            
             arm_label: arm_label.to_string(),
             wanted_frame: self.wanted_frame,
             asks_sent,
             recovered_ms,
             mean_wait_ms,
             p95_wait_ms,
+            wait_ms: self.wait_samples_ms.clone(),
             wait_samples: self.wait_samples_ms.len() as u32,
             fill_rate,
             fill_frames: self.fill_frames,

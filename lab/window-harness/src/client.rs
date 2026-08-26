@@ -1,6 +1,6 @@
 use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics};
 use crate::trace::TraceSpec;
-use crate::wire::{read_paced, write_fod_msg, LinkPacer};
+use crate::wire::{read_exact_paced, read_paced, write_fod_msg, LinkPacer};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use frame_envelope::unwrap;
@@ -8,6 +8,49 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use wtransport::{ClientConfig, Connection, Endpoint};
+
+use std::sync::atomic::{AtomicU32, Ordering};
+
+/// Peak concurrent outstanding asks actually observed during a run.
+///
+/// Invariant check: if this never reaches the configured `D`, the harness is not
+/// producing the concurrency it claims and every number from the run is void.
+/// Two bugs violated exactly this and went undetected across three campaigns.
+pub(crate) static PEAK_OUTSTANDING: AtomicU32 = AtomicU32::new(0);
+
+/// Recorded so every result carries the stream architecture it was measured on.
+pub(crate) static SHARED_STREAM: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+fn note_outstanding(n: u32) {
+    PEAK_OUTSTANDING.fetch_max(n, Ordering::Relaxed);
+}
+
+pub fn peak_outstanding() -> u32 {
+    PEAK_OUTSTANDING.load(Ordering::Relaxed)
+}
+
+pub fn reset_peak_outstanding() {
+    PEAK_OUTSTANDING.store(0, Ordering::Relaxed);
+}
+
+/// One process, serial depth sweep — fresh session per D, no shell between depths.
+pub async fn run_depth_sweep(
+    trace: &TraceSpec,
+    cfg: &RunConfig,
+    depths: &[u32],
+    arm_prefix: &str,
+) -> Result<Vec<HarnessMetrics>> {
+    let mut out = Vec::with_capacity(depths.len());
+    for &depth in depths {
+        reset_peak_outstanding();
+        let mut run_cfg = cfg.clone();
+        run_cfg.depth = depth;
+        let label = format!("{arm_prefix}_d{depth}");
+        out.push(run_harness(Some(trace), &run_cfg, &label).await?);
+    }
+    Ok(out)
+}
 
 pub async fn run_harness(
     trace: Option<&TraceSpec>,
@@ -30,14 +73,15 @@ pub async fn run_harness(
         .await
         .context("connect")?;
 
-    let (schedule, wanted, trace_name) = match (cfg.mode, trace) {
-        (HarnessMode::Saturate, _) => (Vec::new(), 0u32, "saturate".to_string()),
-        (HarnessMode::Trace, Some(t)) => {
+    let trace_ref = trace.as_ref();
+    let (schedule, wanted, trace_name) = match cfg.mode {
+        HarnessMode::Saturate => (Vec::new(), 0u32, "saturate".to_string()),
+        HarnessMode::Trace => {
+            let t = trace_ref.context("trace required")?;
             let schedule = t.frame_schedule();
             let wanted = *schedule.last().context("empty trace")?;
             (schedule, wanted, t.name.clone())
         }
-        (HarnessMode::Trace, None) => anyhow::bail!("trace mode requires --trace"),
     };
 
     let metrics: SharedMetrics = Arc::new(Mutex::new(crate::metrics::MetricsState::new(wanted)));
@@ -52,11 +96,16 @@ pub async fn run_harness(
     let in_flight_uni = Arc::clone(&in_flight);
     let pacer_uni = Arc::clone(&pacer);
     let rtt_ms = cfg.rtt_ms;
+    let shared = cfg.shared_stream;
+    SHARED_STREAM.store(shared, std::sync::atomic::Ordering::Relaxed);
     let uni_task = tokio::spawn(async move {
-        if let Err(err) = accept_uni_loop(conn_uni, metrics_uni, outstanding_uni, in_flight_uni, pacer_uni, rtt_ms)
-        .await
-        {
-            eprintln!("uni accept loop ended: {err:#}");
+        let r = if shared {
+            shared_stream_loop(conn_uni, metrics_uni, outstanding_uni, in_flight_uni, pacer_uni, rtt_ms).await
+        } else {
+            accept_uni_loop(conn_uni, metrics_uni, outstanding_uni, in_flight_uni, pacer_uni, rtt_ms).await
+        };
+        if let Err(err) = r {
+            eprintln!("uni loop ended: {err:#}");
         }
     });
 
@@ -72,7 +121,7 @@ pub async fn run_harness(
             run_saturate(&mut control_send, cfg, &metrics, &in_flight).await?
         }
         HarnessMode::Trace => {
-            let t = trace.expect("trace");
+            let t = trace_ref.context("trace required")?;
             if cfg.depth > 0 {
                 run_windowed(
                     &mut control_send,
@@ -85,15 +134,23 @@ pub async fn run_harness(
                 )
                 .await?
             } else {
-                run_legacy_schedule(&mut control_send, t, cfg, &schedule, wanted, &metrics)
-                    .await?
+                run_legacy_schedule(
+                    &mut control_send,
+                    t,
+                    cfg,
+                    &schedule,
+                    wanted,
+                    &metrics,
+                )
+                .await?
             }
         }
     };
 
     write_fod_msg(&mut control_send, &FodMsg::EndSession).await?;
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    let _ = uni_task.await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    connection.close(0u32.into(), b"harness done");
+    let _ = tokio::time::timeout(Duration::from_secs(1), uni_task).await;
 
     let mode = match cfg.mode {
         HarnessMode::Saturate => "saturate",
@@ -126,12 +183,26 @@ async fn run_saturate(
     // Count-based outstanding (same frame may be re-asked while in flight).
     while *in_flight.lock().expect("in_flight") < d {
         {
-            *in_flight.lock().expect("in_flight") += 1;
+            let mut c = in_flight.lock().expect("in_flight");
+            *c += 1;
+            note_outstanding(*c);
         }
         let frame = next_ask % n;
         next_ask = next_ask.wrapping_add(1);
-        ask_frame(control_send, frame, cfg.rtt_ms).await?;
-        asks_sent += 1;
+        match tokio::time::timeout(
+            Duration::from_millis(cfg.rtt_ms + 10_000),
+            ask_frame(control_send, frame, cfg.rtt_ms),
+        )
+        .await
+        {
+            Ok(Ok(())) => asks_sent += 1,
+            Ok(Err(err)) => return Err(err),
+            Err(_) => {
+                let mut c = in_flight.lock().expect("in_flight");
+                *c = c.saturating_sub(1);
+                break;
+            }
+        }
     }
 
     {
@@ -144,13 +215,31 @@ async fn run_saturate(
     let fill_deadline = std::time::Instant::now() + Duration::from_millis(dwell);
     while std::time::Instant::now() < fill_deadline {
         while *in_flight.lock().expect("in_flight") < d {
+            if std::time::Instant::now() >= fill_deadline {
+                break;
+            }
             {
-                *in_flight.lock().expect("in_flight") += 1;
+                let mut c = in_flight.lock().expect("in_flight");
+                *c += 1;
+                note_outstanding(*c);
             }
             let frame = next_ask % n;
             next_ask = next_ask.wrapping_add(1);
-            ask_frame(control_send, frame, cfg.rtt_ms).await?;
-            asks_sent += 1;
+            // Bound each ask so a blocked control write cannot outlive the dwell.
+            match tokio::time::timeout(
+                Duration::from_millis(dwell + cfg.rtt_ms + 5_000),
+                ask_frame(control_send, frame, cfg.rtt_ms),
+            )
+            .await
+            {
+                Ok(Ok(())) => asks_sent += 1,
+                Ok(Err(err)) => return Err(err),
+                Err(_) => {
+                    let mut c = in_flight.lock().expect("in_flight");
+                    *c = c.saturating_sub(1);
+                    break;
+                }
+            }
         }
         tokio::time::sleep(Duration::from_millis(1)).await;
     }
@@ -312,6 +401,7 @@ async fn emit_window(
                 continue;
             }
             o.insert(frame);
+            note_outstanding(o.len() as u32);
         }
         ask_frame(control_send, frame, rtt_ms).await?;
         sent += 1;
@@ -341,20 +431,25 @@ async fn wait_outstanding_below(
 
 
 
-async fn rtt_half(rtt_ms: u64) {
-    let half = rtt_ms / 2;
-    if half > 0 {
-        tokio::time::sleep(Duration::from_millis(half)).await;
+async fn rtt_full(rtt_ms: u64) {
+    if rtt_ms > 0 {
+        tokio::time::sleep(Duration::from_millis(rtt_ms)).await;
     }
 }
 
 
+/// Writes the ask immediately. **Does not sleep.**
+///
+/// The ask half of simulated RTT used to be slept here, but every caller awaits
+/// `ask_frame` in a loop, so issuing D asks took `D × RTT/2` ms and the asks were
+/// never simultaneously in flight — depth became a counter with no wire meaning.
+/// The full RTT is now applied once on the return path, which models the same
+/// per-frame latency while leaving the issue loop free to pipeline.
 async fn ask_frame(
     control_send: &mut wtransport::stream::SendStream,
     frame: u32,
-    rtt_ms: u64,
+    _rtt_ms: u64,
 ) -> Result<()> {
-    rtt_half(rtt_ms).await;
     write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await
 }
 
@@ -407,6 +502,63 @@ async fn wait_wanted(metrics: &SharedMetrics, timeout_ms: u64, wanted: u32) -> R
     }
 }
 
+/// One shared uni stream carrying `[4B BE envelope_len][envelope]` repeatedly.
+///
+/// Frames arrive strictly in order — that is the point of the architecture. Post-processing
+/// (RTT delay + metrics) is spawned so the read loop is never blocked by it.
+async fn shared_stream_loop(
+    connection: Connection,
+    metrics: SharedMetrics,
+    outstanding: Arc<Mutex<HashSet<u32>>>,
+    in_flight: Arc<Mutex<u32>>,
+    pacer: Arc<tokio::sync::Mutex<LinkPacer>>,
+    rtt_ms: u64,
+) -> Result<()> {
+    let mut recv = match connection.accept_uni().await {
+        Ok(s) => s,
+        Err(_) => return Ok(()),
+    };
+    loop {
+        let mut len_buf = [0u8; 4];
+        if read_exact_paced(&mut recv, &mut len_buf, &pacer).await.is_err() {
+            break;
+        }
+        let len = u32::from_be_bytes(len_buf) as usize;
+        if len == 0 || len > 64 * 1024 * 1024 {
+            break;
+        }
+        let mut payload = vec![0u8; len];
+        if read_exact_paced(&mut recv, &mut payload, &pacer).await.is_err() {
+            break;
+        }
+        let (index, body) = match unwrap(&payload) {
+            Ok(v) => v,
+            Err(err) => {
+                eprintln!("unwrap error: {err}");
+                break;
+            }
+        };
+        let body_len = body.len();
+        let metrics = Arc::clone(&metrics);
+        let outstanding = Arc::clone(&outstanding);
+        let in_flight = Arc::clone(&in_flight);
+        tokio::spawn(async move {
+            rtt_full(rtt_ms).await;
+            {
+                let mut o = outstanding.lock().expect("outstanding");
+                o.remove(&index);
+            }
+            {
+                let mut c = in_flight.lock().expect("in_flight");
+                *c = c.saturating_sub(1);
+            }
+            let mut m = metrics.lock().expect("metrics lock");
+            m.on_envelope(index, (4 + body_len) as u64);
+        });
+    }
+    Ok(())
+}
+
 async fn accept_uni_loop(
     connection: Connection,
     metrics: SharedMetrics,
@@ -439,8 +591,9 @@ async fn accept_uni_loop(
                     return;
                 }
             };
-            // Return-path half of simulated RTT (ask half is in ask_frame).
-            rtt_half(rtt_ms).await;
+            // Full simulated RTT, applied once here. Each uni stream is handled in its
+            // own spawned task, so this delays arrival without serialising anything.
+            rtt_full(rtt_ms).await;
             {
                 let mut o = outstanding.lock().expect("outstanding");
                 o.remove(&index);

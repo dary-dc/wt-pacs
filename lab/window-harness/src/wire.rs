@@ -29,26 +29,33 @@ impl LinkPacer {
         }))
     }
 
-    async fn consume_bytes(pacer: &Arc<Mutex<Self>>, nbytes: usize) {
+    pub(crate) async fn consume_bytes(pacer: &Arc<Mutex<Self>>, nbytes: usize) {
         if nbytes == 0 {
             return;
         }
-        let mut p = pacer.lock().await;
-        if p.read_bps == 0 {
-            return;
-        }
-        let need = Duration::from_micros(
-            (nbytes as u64)
-                .saturating_mul(8)
-                .saturating_mul(1_000_000)
-                / p.read_bps,
-        );
-        let now = Instant::now();
-        let start = p.next_at.max(now);
-        p.next_at = start + need;
-        let delay = start.saturating_duration_since(now);
+        // Reserve this stream's slot under the lock, then RELEASE it before sleeping.
+        // `next_at` already sequences bytes, so the aggregate rate still holds at read_bps.
+        // Holding the lock across the sleep would serialise streams instead of sharing
+        // bandwidth between them — that made concurrent delivery impossible and pinned
+        // measured utilisation at the D=1 value regardless of depth.
+        let delay = {
+            let mut p = pacer.lock().await;
+            if p.read_bps == 0 {
+                Duration::ZERO
+            } else {
+                let need = Duration::from_micros(
+                    (nbytes as u64)
+                        .saturating_mul(8)
+                        .saturating_mul(1_000_000)
+                        / p.read_bps,
+                );
+                let now = Instant::now();
+                let start = p.next_at.max(now);
+                p.next_at = start + need;
+                start.saturating_duration_since(now)
+            }
+        };
         if !delay.is_zero() {
-            // Hold the mutex across sleep so concurrent streams cannot overlap wall time.
             tokio::time::sleep(delay).await;
         }
     }
@@ -69,4 +76,28 @@ pub async fn read_paced(recv: &mut RecvStream, pacer: &Arc<Mutex<LinkPacer>>) ->
         LinkPacer::consume_bytes(pacer, n).await;
     }
     Ok(out)
+}
+
+/// Read exactly `buf.len()` bytes, pacing against the shared link budget as they arrive.
+/// Used by the shared-stream reader, where envelopes are length-prefixed rather than
+/// delimited by stream end.
+pub async fn read_exact_paced(
+    recv: &mut RecvStream,
+    buf: &mut [u8],
+    pacer: &Arc<Mutex<LinkPacer>>,
+) -> Result<()> {
+    let mut filled = 0usize;
+    while filled < buf.len() {
+        let n = recv
+            .read(&mut buf[filled..])
+            .await
+            .context("read shared uni")?
+            .unwrap_or(0);
+        if n == 0 {
+            anyhow::bail!("shared stream ended early");
+        }
+        filled += n;
+        LinkPacer::consume_bytes(pacer, n).await;
+    }
+    Ok(())
 }

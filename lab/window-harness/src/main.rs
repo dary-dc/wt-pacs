@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
-use window_harness::{run_harness, HarnessMode, RunConfig, TraceSpec};
+use window_harness::{peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RunConfig, TraceSpec};
 
 #[derive(Parser)]
 #[command(name = "window-harness")]
@@ -34,6 +34,13 @@ struct Args {
     rtt_ms: u64,
     #[arg(long, default_value = "?")]
     arm: String,
+    /// Read from one shared uni stream. Must match the server's --shared-stream.
+    #[arg(long, default_value_t = false)]
+    shared_stream: bool,
+
+    /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
+    #[arg(long)]
+    depth_sweep: Option<String>,
     #[arg(long)]
     json: bool,
 }
@@ -70,7 +77,28 @@ async fn main() -> anyhow::Result<()> {
         mode,
         warm_cache: args.warm_cache,
         rtt_ms: args.rtt_ms,
+        shared_stream: args.shared_stream,
     };
+    if let Some(sweep) = &args.depth_sweep {
+        let depths: Vec<u32> = sweep
+            .split(',')
+            .map(|s| s.trim().parse())
+            .collect::<Result<_, _>>()
+            .context("parse --depth-sweep")?;
+        let trace = trace.context("--trace required with --depth-sweep")?;
+        let results = run_depth_sweep(&trace, &cfg, &depths, &args.arm).await?;
+        if args.json {
+            println!("{}", serde_json::to_string_pretty(&results)?);
+        } else {
+            for m in &results {
+                println!(
+                    "depth={} peak_outstanding={} mean={:.2} p95={:.2} waits={}",
+                    m.depth, m.peak_outstanding, m.mean_wait_ms, m.p95_wait_ms, m.wait_ms.len()
+                );
+            }
+        }
+        return Ok(());
+    }
     let m = run_harness(trace.as_ref(), &cfg, &args.arm).await?;
     if args.json {
         println!("{}", serde_json::to_string_pretty(&m)?);
@@ -79,6 +107,7 @@ async fn main() -> anyhow::Result<()> {
         println!("mode={}", m.mode);
         println!("arm={}", m.arm_label);
         println!("depth={}", m.depth);
+        println!("peak_outstanding={}", peak_outstanding());
         println!("read_bps={}", m.read_bps);
         println!("wanted_frame={}", m.wanted_frame);
         println!("recovered_ms={:.2}", m.recovered_ms);
