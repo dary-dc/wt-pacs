@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 pub enum FodMsg {
     RequestFrame {
         frame: u32,
-        /// Client window generation — newer wins when server order=generation.
+        /// Optional client tag; product server ignores it.
         #[serde(default)]
         generation: u32,
     },
@@ -21,9 +21,6 @@ pub enum FodMsg {
         generation: u32,
     },
     RequestPath { from: u32, to: u32, stride: u32 },
-    /// Client → server. Drop queued frames that have not started sending.
-    /// Server ignores this today — see docs/adr-reject-server-cancel.md.
-    CancelFrames { frames: Vec<u32> },
     EndSession,
     FrameError {
         frame_index: u32,
@@ -83,15 +80,6 @@ mod tests {
         let msg = FodMsg::FrameError {
             frame_index: 9,
             reason: "out of range".into(),
-        };
-        let enc = encode_fod_msg(&msg).unwrap();
-        assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
-    }
-
-    #[test]
-    fn roundtrip_cancel_frames() {
-        let msg = FodMsg::CancelFrames {
-            frames: vec![1, 2, 3],
         };
         let enc = encode_fod_msg(&msg).unwrap();
         assert_eq!(decode_fod_msg(&enc).unwrap(), msg);

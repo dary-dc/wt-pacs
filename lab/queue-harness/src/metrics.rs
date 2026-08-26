@@ -6,7 +6,6 @@ use std::time::Instant;
 pub struct RunConfig {
     pub wt_url: String,
     pub read_bps: u64,
-    pub send_cancel: bool,
     pub timeout_ms: u64,
     /// Outstanding-ask depth D (0 = legacy fire-all schedule).
     pub depth: u32,

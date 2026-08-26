@@ -121,20 +121,6 @@ async fn run_legacy_schedule(
         let mut m = metrics.lock().expect("metrics lock");
         m.settle();
     }
-    if cfg.send_cancel && trace.send_cancel_on_settle {
-        let cancel: Vec<u32> = schedule
-            .iter()
-            .copied()
-            .filter(|&f| f != wanted)
-            .collect();
-        if !cancel.is_empty() {
-            write_fod_msg(
-                control_send,
-                &FodMsg::CancelFrames { frames: cancel },
-            )
-            .await?;
-        }
-    }
 
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
     Ok(asks_sent)

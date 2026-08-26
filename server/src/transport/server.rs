@@ -108,9 +108,6 @@ async fn run_session(
                     send_one_frame(&connection, &mut control_send, &store, frame).await?;
                 }
             }
-            FodMsg::CancelFrames { .. } => {
-                // Ignored until wire removal — docs/cleanup-plan-2026-08.md §2
-            }
             FodMsg::EndSession => break,
             other => {
                 warn!(?other, "ask-only: ignoring unexpected FoD message");

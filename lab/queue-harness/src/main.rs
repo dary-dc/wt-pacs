@@ -12,8 +12,6 @@ struct Args {
     trace: PathBuf,
     #[arg(long, default_value_t = 2_000_000)]
     read_bps: u64,
-    #[arg(long, default_value = "true")]
-    send_cancel: bool,
     #[arg(long, default_value_t = 60_000)]
     timeout_ms: u64,
     /// Outstanding-ask depth D. 0 = legacy non-window schedule.
@@ -25,7 +23,7 @@ struct Args {
     /// Stationary dwell after settle for fill_rate (ms).
     #[arg(long, default_value_t = 2000)]
     fill_dwell_ms: u64,
-    /// Report label (A/B/C/D) matching server arm.
+    /// Report label.
     #[arg(long, default_value = "?")]
     arm: String,
     #[arg(long)]
@@ -39,7 +37,6 @@ async fn main() -> anyhow::Result<()> {
     let cfg = RunConfig {
         wt_url: args.url,
         read_bps: args.read_bps,
-        send_cancel: args.send_cancel,
         timeout_ms: args.timeout_ms,
         depth: args.depth,
         fill_dwell_ms: if args.depth > 0 {
