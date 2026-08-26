@@ -1,9 +1,13 @@
-//! Time `frame_slice()` on warm vs cold-ish SBND mappings.
+//! Time `frame_slice()` and runtime stall under warm vs cold-ish SBND mappings.
+//! Stall = heartbeat scheduling delay while another task faults pages (E3).
 
 use anyhow::Context;
 use clap::Parser;
 use exact_server::media::frame_store::FrameStore;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
+use std::thread;
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
@@ -13,16 +17,67 @@ struct Args {
     study: PathBuf,
     #[arg(long, default_value_t = 500)]
     iterations: u32,
+    /// Heartbeat period while measuring stall (µs).
+    #[arg(long, default_value_t = 500)]
+    heartbeat_us: u64,
 }
 
-fn bench(store: &FrameStore, iterations: u32) -> Duration {
+fn percentile(sorted: &[u64], p: f64) -> u64 {
+    if sorted.is_empty() {
+        return 0;
+    }
+    let idx = ((sorted.len() as f64 - 1.0) * p).round() as usize;
+    sorted[idx.min(sorted.len() - 1)]
+}
+
+fn bench_latencies(store: &FrameStore, iterations: u32) -> Vec<u64> {
     let n = store.frame_count();
-    let start = Instant::now();
+    let mut samples = Vec::with_capacity(iterations as usize);
     for i in 0..iterations {
         let idx = i % n;
+        let t0 = Instant::now();
         let _ = store.frame_slice(idx).expect("frame_slice");
+        samples.push(t0.elapsed().as_nanos() as u64);
     }
-    start.elapsed()
+    samples
+}
+
+fn measure_stall_ns(store: &FrameStore, iterations: u32, heartbeat_us: u64) -> (u64, u64, u64) {
+    let stop = Arc::new(AtomicBool::new(false));
+    let max_delay = Arc::new(AtomicU64::new(0));
+    let sum_delay = Arc::new(AtomicU64::new(0));
+    let samples = Arc::new(AtomicU64::new(0));
+
+    let stop_h = Arc::clone(&stop);
+    let max_h = Arc::clone(&max_delay);
+    let sum_h = Arc::clone(&sum_delay);
+    let n_h = Arc::clone(&samples);
+    let hb = thread::spawn(move || {
+        let period = Duration::from_micros(heartbeat_us);
+        let mut expected = Instant::now() + period;
+        while !stop_h.load(Ordering::Relaxed) {
+            thread::sleep(period);
+            let now = Instant::now();
+            let delay = now.saturating_duration_since(expected).as_nanos() as u64;
+            expected = now + period;
+            max_h.fetch_max(delay, Ordering::Relaxed);
+            sum_h.fetch_add(delay, Ordering::Relaxed);
+            n_h.fetch_add(1, Ordering::Relaxed);
+        }
+    });
+
+    // Concurrent page-touching work on this process (same OS threads compete).
+    let n = store.frame_count();
+    for i in 0..iterations {
+        let _ = store.frame_slice(i % n);
+    }
+
+    stop.store(true, Ordering::Relaxed);
+    let _ = hb.join();
+    let count = samples.load(Ordering::Relaxed).max(1);
+    let sum = sum_delay.load(Ordering::Relaxed);
+    let max = max_delay.load(Ordering::Relaxed);
+    (sum / count, max, count)
 }
 
 fn main() -> anyhow::Result<()> {
@@ -33,7 +88,10 @@ fn main() -> anyhow::Result<()> {
     for idx in 0..warm_store.frame_count() {
         let _ = warm_store.frame_slice(idx)?;
     }
-    let warm = bench(&warm_store, args.iterations);
+    let mut warm_lat = bench_latencies(&warm_store, args.iterations);
+    warm_lat.sort_unstable();
+    let (warm_stall_mean, warm_stall_max, _) =
+        measure_stall_ns(&warm_store, args.iterations, args.heartbeat_us);
 
     let cold_copy = std::env::temp_dir().join(format!(
         "wt-pacs-cold-{}.sbnd",
@@ -41,17 +99,36 @@ fn main() -> anyhow::Result<()> {
     ));
     std::fs::copy(&study, &cold_copy)?;
     let cold_store = FrameStore::open(&cold_copy)?;
-    let cold = bench(&cold_store, args.iterations);
+    let mut cold_lat = bench_latencies(&cold_store, args.iterations);
+    cold_lat.sort_unstable();
+    // Fresh mapping again for stall under cold-ish faults.
+    drop(cold_store);
+    let cold_store2 = FrameStore::open(&cold_copy)?;
+    let (cold_stall_mean, cold_stall_max, _) =
+        measure_stall_ns(&cold_store2, args.iterations, args.heartbeat_us);
     let _ = std::fs::remove_file(&cold_copy);
 
     println!("study={}", study.display());
     println!("iterations={}", args.iterations);
-    println!("warm_total_ms={:.2}", warm.as_secs_f64() * 1000.0);
-    println!("cold_total_ms={:.2}", cold.as_secs_f64() * 1000.0);
     println!(
-        "cold_over_warm_ratio={:.2}",
-        cold.as_secs_f64() / warm.as_secs_f64().max(1e-9)
+        "warm_p50_ns={} warm_p99_ns={}",
+        percentile(&warm_lat, 0.50),
+        percentile(&warm_lat, 0.99)
     );
-    println!("note= cold copy avoids warm process pages; OS page cache may still help");
+    println!(
+        "cold_p50_ns={} cold_p99_ns={}",
+        percentile(&cold_lat, 0.50),
+        percentile(&cold_lat, 0.99)
+    );
+    println!(
+        "warm_stall_mean_ns={} warm_stall_max_ns={}",
+        warm_stall_mean, warm_stall_max
+    );
+    println!(
+        "cold_stall_mean_ns={} cold_stall_max_ns={}",
+        cold_stall_mean, cold_stall_max
+    );
+    println!("note=cold copy avoids warm process pages; OS page cache may still help");
+    println!("note=stall is heartbeat late-wake while frame_slice runs (naive mmap arm)");
     Ok(())
 }

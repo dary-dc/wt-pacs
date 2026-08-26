@@ -1,37 +1,22 @@
 # wt-pacs lab (scaffolding)
 
-Measurement rigs for [`docs/window-saturation-experiment.md`](../docs/window-saturation-experiment.md)
+Measurement for [`docs/window-saturation-experiment.md`](../docs/window-saturation-experiment.md)
 and Q2 (head-of-line). **No product crate depends on these.**
-
-Server-side cancel and ordering are **rejected** — see
-[`docs/adr-reject-server-ordering.md`](../docs/adr-reject-server-ordering.md) and
-[`docs/cleanup-plan-2026-08.md`](../docs/cleanup-plan-2026-08.md).
 
 ## Crates
 
 | Crate | Purpose |
 | ----- | ------- |
-| `window-harness` | Headless `wtransport` client — read pacing, `--depth` window (E1/E2) |
-| `cold-page-bench` | Warm vs cold `frame_slice` timings (E3) |
-
-Deleted (history retains): `queue-sim`, `window-server`, former name `queue-harness`.
-
-## Traces
-
-`lab/traces/*.json` — synthetic reader schedules. Primary for window work: `fly_and_settle` /
-`fly_and_settle_window`. E2 uses `reversal_storm`.
+| `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2) |
+| `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
 
 ## Run
 
 ```bash
-./lab/run_measurements.sh
-./lab/scripts/harness_sweep_mbps.sh
+./lab/scripts/gen_tf_fixtures.sh          # ~32 KB / ~250 KB studies
+./lab/scripts/e1_saturation_sweep.sh      # → .local/measurements/E1_SATURATION.tsv
+./lab/scripts/e2_miss_cost_sweep.sh       # → .local/measurements/E2_MISS_COST.tsv
+cargo run -p cold-page-bench --release -- --study lab/fixtures/queue_large/queue_large.sbnd
 ```
 
-Results land in `.local/measurements/` (gitignored).
-
-## Harness limitations
-
-- **Read pacing** models flow-control drain rate, **not** congestion RTT.
-- **Q2 / loss** needs `lab/scripts/netem_q2.sh` (`NET_ADMIN`, typically root).
-- **Cold-page bench** does not drop the OS page cache unless you do that separately.
+Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.

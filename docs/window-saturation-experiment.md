@@ -1,8 +1,13 @@
 # Window saturation and miss cost — the experiments that remain
 
-**Status:** design, not yet run · **Date:** 2026-08-26
+**Status:** design + **first focused run 2026-08-26** (RTT≈0) · **Date:** 2026-08-26
 **Replaces:** `window-depth-and-priority-experiment.md` (deleted — it swept arms for a mechanism
 rejected in [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md))
+
+> **Results (RTT≈0):** see `.local/measurements/WINDOW_SATURATION_RESULTS.md`.
+> E1 pass at predicted `D_min=1`. E2 warm-cache ok; magnitude vs `(D−1)·Tf` not within 20%.
+> E3 inconclusive on small warm fixtures. **RTT axis (netem) still required for E1.**
+
 
 ---
 
@@ -12,7 +17,7 @@ Server ordering and cancel are both closed. What is **not** closed is the arithm
 window design rests on:
 
 ```
-D_min = ceil( demand × (1 + RTT / Tf) )        demand = reader speed × Tf
+D_min = ceil( U × (1 + RTT / Tf) )        Tf = time to send one frame, U ≈ 0.95
 ```
 
 That is a model. If the real transport needs depth 4 where it predicts 2, every number downstream
@@ -35,7 +40,7 @@ changes. Three experiments, in priority order.
 
 ### Axes
 
-`Tf` via frame size (~32 KB, ~51 KB, ~250 KB) · RTT via netem (0, 20, 60, 150 ms) · link rate 1–300 Mbps
+`U` fixed at 0.95 · `Tf` via frame size (~32 KB, ~51 KB, ~250 KB) · RTT via netem (0, 20, 60, 150 ms) · link rate 1–300 Mbps
 
 ### Metric
 

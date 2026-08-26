@@ -2,6 +2,14 @@ use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HarnessMode {
+    /// Trace-driven fly / settle (E2).
+    Trace,
+    /// Stationary pipeline fill only (E1).
+    Saturate,
+}
+
 #[derive(Debug, Clone)]
 pub struct RunConfig {
     pub wt_url: String,
@@ -13,21 +21,28 @@ pub struct RunConfig {
     pub fill_dwell_ms: u64,
     /// Study frame count for window construction.
     pub frame_count: u32,
+    pub mode: HarnessMode,
+    /// Pre-fetch all schedule frames before settle (E2 warm-cache control).
+    pub warm_cache: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct HarnessMetrics {
     pub trace: String,
+    pub mode: String,
     pub read_bps: u64,
     pub depth: u32,
     pub arm_label: String,
     pub wanted_frame: u32,
     pub asks_sent: u32,
     pub recovered_ms: f64,
-    /// Steady-state frames/s while stationary after settle.
+    /// Steady-state frames/s while fill is active.
     pub fill_rate: f64,
     pub fill_frames: u32,
+    pub fill_bytes: u64,
     pub fill_dwell_ms: u64,
+    /// fill_bytes*8/dwell_s as fraction of read_bps (E1 util).
+    pub link_util: f64,
     pub wasted_bytes: u64,
     pub commitment_depth: u32,
     pub wanted_received: bool,
@@ -37,6 +52,7 @@ pub struct HarnessMetrics {
     pub bytes_after_settle: u64,
     pub frames_before_settle: u32,
     pub bytes_before_settle: u64,
+    pub warm_cache: bool,
 }
 
 #[derive(Debug)]
@@ -52,9 +68,9 @@ pub struct MetricsState {
     pub bytes_on_wire: u64,
     pub frames_after_settle: u32,
     pub bytes_after_settle: u64,
-    /// Deliveries counted during fill dwell.
     pub fill_active: bool,
     pub fill_frames: u32,
+    pub fill_bytes: u64,
     pub fill_started_at: Option<Instant>,
 }
 
@@ -74,6 +90,7 @@ impl MetricsState {
             bytes_after_settle: 0,
             fill_active: false,
             fill_frames: 0,
+            fill_bytes: 0,
             fill_started_at: None,
         }
     }
@@ -88,6 +105,7 @@ impl MetricsState {
     pub fn start_fill(&mut self) {
         self.fill_active = true;
         self.fill_frames = 0;
+        self.fill_bytes = 0;
         self.fill_started_at = Some(Instant::now());
     }
 
@@ -104,6 +122,7 @@ impl MetricsState {
         }
         if self.fill_active {
             self.fill_frames += 1;
+            self.fill_bytes += nbytes;
         }
 
         if index == self.wanted_frame {
@@ -122,23 +141,37 @@ impl MetricsState {
     pub fn finalize(
         &self,
         trace: &str,
+        mode: &str,
         read_bps: u64,
         depth: u32,
         arm_label: &str,
         asks_sent: u32,
         fill_dwell_ms: u64,
+        warm_cache: bool,
     ) -> HarnessMetrics {
         let recovered_ms = match (self.reversal_at, self.first_byte_wanted_at) {
             (Some(r), Some(w)) => w.duration_since(r).as_secs_f64() * 1000.0,
             _ => 0.0,
         };
-        let fill_rate = if fill_dwell_ms > 0 {
-            self.fill_frames as f64 / (fill_dwell_ms as f64 / 1000.0)
+        let dwell_s = fill_dwell_ms as f64 / 1000.0;
+        let fill_rate = if dwell_s > 0.0 {
+            self.fill_frames as f64 / dwell_s
+        } else {
+            0.0
+        };
+        let throughput_bps = if dwell_s > 0.0 {
+            (self.fill_bytes as f64 * 8.0) / dwell_s
+        } else {
+            0.0
+        };
+        let link_util = if read_bps > 0 {
+            throughput_bps / read_bps as f64
         } else {
             0.0
         };
         HarnessMetrics {
             trace: trace.to_string(),
+            mode: mode.to_string(),
             read_bps,
             depth,
             arm_label: arm_label.to_string(),
@@ -147,7 +180,9 @@ impl MetricsState {
             recovered_ms,
             fill_rate,
             fill_frames: self.fill_frames,
+            fill_bytes: self.fill_bytes,
             fill_dwell_ms,
+            link_util,
             wasted_bytes: self.wasted_bytes,
             commitment_depth: self.commitment_depth,
             wanted_received: self.wanted_received,
@@ -157,6 +192,7 @@ impl MetricsState {
             bytes_after_settle: self.bytes_after_settle,
             frames_before_settle: self.frames_on_wire.saturating_sub(self.frames_after_settle),
             bytes_before_settle: self.bytes_on_wire.saturating_sub(self.bytes_after_settle),
+            warm_cache,
         }
     }
 }

@@ -29,7 +29,7 @@ sleep 1.5
 out=$(cargo run -p window-harness --release -- \
   --url "https://127.0.0.1:4433/" \
   --trace "$ROOT/lab/traces/fly_and_settle.json" \
-  --read-bps "$READ_BPS" --server-cancel --json)
+  --read-bps "$READ_BPS" --depth 4 --json)
 
 kill "$spid" 2>/dev/null || true
 wait "$spid" 2>/dev/null || true

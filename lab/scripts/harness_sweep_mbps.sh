@@ -50,7 +50,6 @@ run_one() {
   local sp=$!
   sleep 1.0
   local extra=()
-  [[ "$cancel" == "1" ]] && extra+=(--server-cancel)
   set +e
   local json
   json=$("$HARNESS" --url "https://127.0.0.1:4433/" --trace "$TRACE" \
