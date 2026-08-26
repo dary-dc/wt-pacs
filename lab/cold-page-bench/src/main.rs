@@ -22,6 +22,23 @@ struct Args {
     heartbeat_us: u64,
 }
 
+/// Ask the kernel to drop file pages from the page cache (no privileges required).
+fn advise_dontneed(path: &std::path::Path) -> anyhow::Result<()> {
+    use std::os::unix::io::AsRawFd;
+    let f = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .with_context(|| format!("open {}", path.display()))?;
+    // Ensure copy is durable, then drop cached pages so the next mmap faults from disk.
+    f.sync_all().context("fsync cold copy")?;
+    let rc = unsafe { libc::posix_fadvise(f.as_raw_fd(), 0, 0, libc::POSIX_FADV_DONTNEED) };
+    if rc != 0 {
+        anyhow::bail!("posix_fadvise(DONTNEED) failed errno={rc}");
+    }
+    Ok(())
+}
+
 fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;
@@ -36,10 +53,23 @@ fn bench_latencies(store: &FrameStore, iterations: u32) -> Vec<u64> {
     for i in 0..iterations {
         let idx = i % n;
         let t0 = Instant::now();
-        let _ = store.frame_slice(idx).expect("frame_slice");
+        let slice = store.frame_slice(idx).expect("frame_slice");
+        // Must touch pages — constructing the slice alone does not fault the whole range.
+        touch_pages(slice);
         samples.push(t0.elapsed().as_nanos() as u64);
     }
     samples
+}
+
+fn touch_pages(bytes: &[u8]) {
+    let mut acc = 0u8;
+    for page in bytes.chunks(4096) {
+        acc ^= page[0];
+    }
+    if let Some(last) = bytes.last() {
+        acc ^= *last;
+    }
+    std::hint::black_box(acc);
 }
 
 fn measure_stall_ns(store: &FrameStore, iterations: u32, heartbeat_us: u64) -> (u64, u64, u64) {
@@ -69,7 +99,8 @@ fn measure_stall_ns(store: &FrameStore, iterations: u32, heartbeat_us: u64) -> (
     // Concurrent page-touching work on this process (same OS threads compete).
     let n = store.frame_count();
     for i in 0..iterations {
-        let _ = store.frame_slice(i % n);
+        let slice = store.frame_slice(i % n).expect("frame_slice");
+        touch_pages(slice);
     }
 
     stop.store(true, Ordering::Relaxed);
@@ -86,23 +117,31 @@ fn main() -> anyhow::Result<()> {
 
     let warm_store = FrameStore::open(&study)?;
     for idx in 0..warm_store.frame_count() {
-        let _ = warm_store.frame_slice(idx)?;
+        let slice = warm_store.frame_slice(idx)?;
+        touch_pages(slice);
     }
     let mut warm_lat = bench_latencies(&warm_store, args.iterations);
     warm_lat.sort_unstable();
     let (warm_stall_mean, warm_stall_max, _) =
         measure_stall_ns(&warm_store, args.iterations, args.heartbeat_us);
 
-    let cold_copy = std::env::temp_dir().join(format!(
-        "wt-pacs-cold-{}.sbnd",
-        std::process::id()
-    ));
+    // Must not use tmpfs (/tmp) — DONTNEED is a no-op there and "cold" stays RAM-hot.
+    let cold_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../.local/measurements");
+    std::fs::create_dir_all(&cold_dir)?;
+    let cold_copy = cold_dir.join(format!("e3-cold-{}.sbnd", std::process::id()));
     std::fs::copy(&study, &cold_copy)?;
+    // Avoid btrfs/xfs reflink sharing extents with the warm original.
+    {
+        let data = std::fs::read(&study)?;
+        std::fs::write(&cold_copy, &data)?;
+    }
+    advise_dontneed(&cold_copy)?;
     let cold_store = FrameStore::open(&cold_copy)?;
     let mut cold_lat = bench_latencies(&cold_store, args.iterations);
     cold_lat.sort_unstable();
-    // Fresh mapping again for stall under cold-ish faults.
     drop(cold_store);
+    advise_dontneed(&cold_copy)?;
     let cold_store2 = FrameStore::open(&cold_copy)?;
     let (cold_stall_mean, cold_stall_max, _) =
         measure_stall_ns(&cold_store2, args.iterations, args.heartbeat_us);
@@ -128,7 +167,8 @@ fn main() -> anyhow::Result<()> {
         "cold_stall_mean_ns={} cold_stall_max_ns={}",
         cold_stall_mean, cold_stall_max
     );
-    println!("note=cold copy avoids warm process pages; OS page cache may still help");
-    println!("note=stall is heartbeat late-wake while frame_slice runs (naive mmap arm)");
+    println!("note=cold copy + posix_fadvise(DONTNEED); no drop_caches / CAP_SYS_ADMIN");
+    println!("note=stall is heartbeat late-wake while frame_slice runs (naive mmap arm only)");
     Ok(())
 }
+// rebuild bump
