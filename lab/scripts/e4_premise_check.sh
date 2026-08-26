@@ -93,9 +93,14 @@ start_server() {
 
 run_one() {
   local depth=$1 arm=$2
+  local rtt_args=()
+  # When not using netem, inject RTT in the harness (no CAP_NET_ADMIN).
+  if [[ "$USE_NETEM" != "1" ]]; then
+    rtt_args+=(--rtt-ms "$CURRENT_RTT_MS")
+  fi
   "$HARNESS" --url "$URL" --trace "$TRACE" --read-bps "$READ_BPS" \
     --depth "$depth" --frame-count "$FRAME_COUNT" --fill-dwell-ms 0 \
-    --mode trace --arm "$arm" --json
+    --mode trace --arm "$arm" "${rtt_args[@]}" --json
 }
 
 SUMMARY_ROWS=()
