@@ -77,6 +77,16 @@ pub struct HarnessMetrics {
     pub warm_cache: bool,
     /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
+    /// Per FoD ask sent: `(frame_index, ask_ordinal)` for offline join with server Tap.
+    /// Ordinals increment per `frame_index` within the session (same rule as server Tap).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ask_join: Vec<AskJoinRow>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AskJoinRow {
+    pub frame_index: u32,
+    pub ask_ordinal: u32,
 }
 
 #[derive(Debug)]
@@ -239,6 +249,7 @@ impl MetricsState {
             bytes_before_settle: self.bytes_on_wire.saturating_sub(self.bytes_after_settle),
             warm_cache,
             rtt_ms,
+            ask_join: crate::client::take_ask_join(),
         }
     }
 }

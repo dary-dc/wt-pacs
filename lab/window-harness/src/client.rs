@@ -4,8 +4,8 @@ use crate::wire::{read_exact_paced, read_paced, write_fod_msg, LinkPacer};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use frame_envelope::unwrap;
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use wtransport::{ClientConfig, Connection, Endpoint};
 
@@ -34,6 +34,38 @@ pub fn reset_peak_outstanding() {
     PEAK_OUTSTANDING.store(0, Ordering::Relaxed);
 }
 
+/// Per-session ask ordinals for offline join with server `telemetry-server.json`.
+/// Rule: increment per `frame_index` (0-based), same as server Tap `take_ordinal`.
+static ASK_ORDINALS: LazyLock<Mutex<HashMap<u32, u32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static ASK_JOIN: LazyLock<Mutex<Vec<crate::metrics::AskJoinRow>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
+
+pub fn reset_ask_join() {
+    ASK_ORDINALS.lock().expect("ask ordinals").clear();
+    ASK_JOIN.lock().expect("ask join").clear();
+}
+
+pub fn take_ask_join() -> Vec<crate::metrics::AskJoinRow> {
+    ASK_JOIN.lock().expect("ask join").clone()
+}
+
+fn record_ask(frame_index: u32) {
+    let ordinal = {
+        let mut map = ASK_ORDINALS.lock().expect("ask ordinals");
+        let entry = map.entry(frame_index).or_insert(0);
+        let n = *entry;
+        *entry = entry.saturating_add(1);
+        n
+    };
+    ASK_JOIN
+        .lock()
+        .expect("ask join")
+        .push(crate::metrics::AskJoinRow {
+            frame_index,
+            ask_ordinal: ordinal,
+        });
+}
+
 /// One process, serial depth sweep — fresh session per D, no shell between depths.
 pub async fn run_depth_sweep(
     trace: &TraceSpec,
@@ -44,6 +76,7 @@ pub async fn run_depth_sweep(
     let mut out = Vec::with_capacity(depths.len());
     for &depth in depths {
         reset_peak_outstanding();
+        reset_ask_join();
         let mut run_cfg = cfg.clone();
         run_cfg.depth = depth;
         let label = format!("{arm_prefix}_d{depth}");
@@ -57,6 +90,8 @@ pub async fn run_harness(
     cfg: &RunConfig,
     arm_label: &str,
 ) -> Result<HarnessMetrics> {
+    reset_peak_outstanding();
+    reset_ask_join();
     rustls::crypto::ring::default_provider()
         .install_default()
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
@@ -450,6 +485,7 @@ async fn ask_frame(
     frame: u32,
     _rtt_ms: u64,
 ) -> Result<()> {
+    record_ask(frame);
     write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await
 }
 
