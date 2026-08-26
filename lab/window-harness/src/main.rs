@@ -78,6 +78,9 @@ async fn main() -> anyhow::Result<()> {
         println!("read_bps={}", m.read_bps);
         println!("wanted_frame={}", m.wanted_frame);
         println!("recovered_ms={:.2}", m.recovered_ms);
+        println!("mean_wait_ms={:.2}", m.mean_wait_ms);
+        println!("p95_wait_ms={:.2}", m.p95_wait_ms);
+        println!("wait_samples={}", m.wait_samples);
         println!("fill_rate={:.2}", m.fill_rate);
         println!("link_util={:.4}", m.link_util);
         println!("fill_bytes={}", m.fill_bytes);

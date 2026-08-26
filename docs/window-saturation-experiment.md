@@ -4,9 +4,11 @@
 **Replaces:** `window-depth-and-priority-experiment.md` (deleted — it swept arms for a mechanism
 rejected in [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md))
 
-> **Results (RTT≈0):** see `.local/measurements/WINDOW_SATURATION_RESULTS.md`.
-> E1 pass at predicted `D_min=1`. E2 warm-cache ok; magnitude vs `(D−1)·Tf` not within 20%.
-> E3 inconclusive on small warm fixtures. **RTT axis (netem) still required for E1.**
+> **Status correction (2026-08-26):** E1 at RTT≈0 is **not yet tested** — `D = ceil(U×(1+RTT/Tf))`
+> collapses to 1 when RTT is 0, so that run cannot validate the model. E2 at `D=1` is likewise
+> uninformative because `(D−1)·Tf = 0`. Prior RTT≈0 numbers are exploratory only.
+> **Gate first:** E4 premise (random `D` vs oracle `D` on `fly_and_settle`) — see
+> [`implementer-handoff-2026-08-26.md`](implementer-handoff-2026-08-26.md) §3.
 
 
 ---
@@ -103,6 +105,90 @@ Independent of everything above. Three real options; no measurement exists.
 
 Measure stall directly (e.g. a heartbeat task recording scheduling delay), not by inference from
 frame latency.
+
+---
+
+## 3b. E4 — does the formula actually pick the right `D`?
+
+E1 and E2 measure the two halves separately: throughput, then miss cost. **The formula is a trade-off
+between them, so neither test validates it.** Sweeping `D` and picking the best is fitting, not
+testing. E4 tests whether the *predicted* `D` is the *optimal* `D`.
+
+### Objective — one number combining both halves
+
+`mean_wait_ms` — across a full trace, mean time from *reader wants frame N* to *frame N displayable*.
+Cache hits count as 0. This is the only metric that prices link idle and miss cost on the same scale.
+
+### Groups
+
+| Group | Setting | Purpose |
+| ----- | ------- | ------- |
+| **Formula** | `D` from `ceil(U × (1 + RTT/Tf))`, recomputed live | the treatment |
+| **Oracle control** | best `D` found by exhaustive sweep, chosen with hindsight | **the ceiling.** If the formula lands within noise of it, the formula is validated. If it is far off, the formula is wrong *even when E1 passes* |
+| **Shallow control** | `D` = 1 | responsiveness-only extreme |
+| **Deep control** | `D` = 8 | throughput-only extreme |
+| **Random control** | `D` drawn uniformly 1–8 per session | **tests the premise.** If random ≈ formula ≈ oracle, `D` does not matter and [`adr-client-window-depth.md`](adr-client-window-depth.md) is over-engineering |
+
+The random control is the one that can kill the whole design. It should be run first.
+
+### `U` sub-sweep — and the trap that would void it
+
+`U` ∈ {0.80, 0.90, 0.95, 1.00}, formula arm only.
+
+**Once an objective is fixed, `U` is measurable, not merely a policy.** `mean_wait_ms` already prices
+link idle and miss cost on the same scale, so sweeping `U` and taking the minimum *is* finding the
+optimum. What stays a policy is the **choice of objective** — a mean weights every wait equally, and a
+p95 or a never-exceed-500 ms target would select a different `U`. Report the mean and p95 side by side
+so that choice stays visible instead of buried.
+
+> **The trap.** `D` is an integer, so `U` only changes anything when `U·x` and `x` fall on opposite
+> sides of an integer, where `x = 1 + RTT/Tf`. That happens only when `x` sits **just above** an
+> integer. At `x = 1.3` (a 250 KB frame, 60 ms RTT, 10 Mbps) every `U` in the sweep yields `D = 2` and
+> the result is a null by construction.
+>
+> **This is the same error that produced the 0-of-100 cancel result** — measuring a parameter at the
+> one point where it is defined to do nothing. Place `(RTT, Tf)` pairs deliberately at `x ≈ 1.02`,
+> `2.05`, `3.05` so `U` can actually move `D`, and report which points those are.
+
+**Outcome with teeth:** if `mean_wait_ms` is flat across `U` **at points where `U` changes `D`**,
+remove `U` from the formula. It prices a trade; if the trade does not show up in the objective, it is
+decoration.
+
+**Second question the sweep answers:** is the optimal `U` *stable* across traces and link rates? A
+stable optimum ships as a constant. An optimum that moves means `U` is standing in for something that
+should react — most likely the cache hit rate — and the formula needs rethinking, not retuning.
+
+### Cross-validation
+
+Choose any parameter on `fly_and_settle`, then report on `reversal_storm` and `dense_scrub`
+**without re-tuning.** A formula tuned per trace has learned the trace, not the system.
+
+---
+
+## 3c. E5 — how wrong can the estimators be?
+
+`D` needs live RTT and live `Tf`. Neither estimator is designed yet. **Measure the sensitivity before
+designing them** — it says how precise they must be, which is otherwise a guess.
+
+`Tf` in particular cannot be exact: HTJ2K compression varies per slice, so frame size varies within a
+series.
+
+### Groups
+
+| Group | Setting |
+| ----- | ------- |
+| Treatment | RTT fed to the formula scaled by ×0.5, ×0.75, ×1.5, ×2 |
+| Treatment | `Tf` fed to the formula scaled by ×0.5, ×0.75, ×1.5, ×2 |
+| **Truth control** | exact RTT and `Tf` — the floor |
+| **Blind control** | fixed `D` = 2, no estimation at all | 
+
+### What the answers mean
+
+| Result | Consequence |
+| ------ | ----------- |
+| `mean_wait_ms` flat under ±50% error | Estimators can be crude. Large design saving — take it |
+| Degrades sharply | Estimator accuracy is load-bearing and must be designed carefully |
+| **Blind control ≈ truth control** | Stop estimating. Ship a constant and delete the machinery |
 
 ---
 

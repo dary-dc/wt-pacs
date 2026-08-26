@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -36,6 +37,11 @@ pub struct HarnessMetrics {
     pub wanted_frame: u32,
     pub asks_sent: u32,
     pub recovered_ms: f64,
+    /// Mean time from reader-wants to displayable; cache hits count as 0.
+    pub mean_wait_ms: f64,
+    /// p95 of the same wait samples.
+    pub p95_wait_ms: f64,
+    pub wait_samples: u32,
     /// Steady-state frames/s while fill is active.
     pub fill_rate: f64,
     pub fill_frames: u32,
@@ -72,6 +78,10 @@ pub struct MetricsState {
     pub fill_frames: u32,
     pub fill_bytes: u64,
     pub fill_started_at: Option<Instant>,
+    /// Client-side display cache: frame index is displayable once present.
+    pub cache: HashSet<u32>,
+    /// Per want: ms until displayable (0 on cache hit).
+    pub wait_samples_ms: Vec<f64>,
 }
 
 impl MetricsState {
@@ -92,6 +102,8 @@ impl MetricsState {
             fill_frames: 0,
             fill_bytes: 0,
             fill_started_at: None,
+            cache: HashSet::new(),
+            wait_samples_ms: Vec::new(),
         }
     }
 
@@ -116,6 +128,7 @@ impl MetricsState {
     pub fn on_envelope(&mut self, index: u32, nbytes: u64) {
         self.frames_on_wire += 1;
         self.bytes_on_wire += nbytes;
+        self.cache.insert(index);
         if self.settled {
             self.frames_after_settle += 1;
             self.bytes_after_settle += nbytes;
@@ -136,6 +149,10 @@ impl MetricsState {
             self.wasted_bytes += nbytes;
             self.commitment_depth += 1;
         }
+    }
+
+    pub fn record_wait_ms(&mut self, ms: f64) {
+        self.wait_samples_ms.push(ms);
     }
 
     pub fn finalize(
@@ -169,6 +186,7 @@ impl MetricsState {
         } else {
             0.0
         };
+        let (mean_wait_ms, p95_wait_ms) = wait_stats(&self.wait_samples_ms);
         HarnessMetrics {
             trace: trace.to_string(),
             mode: mode.to_string(),
@@ -178,6 +196,9 @@ impl MetricsState {
             wanted_frame: self.wanted_frame,
             asks_sent,
             recovered_ms,
+            mean_wait_ms,
+            p95_wait_ms,
+            wait_samples: self.wait_samples_ms.len() as u32,
             fill_rate,
             fill_frames: self.fill_frames,
             fill_bytes: self.fill_bytes,
@@ -195,6 +216,18 @@ impl MetricsState {
             warm_cache,
         }
     }
+}
+
+fn wait_stats(samples: &[f64]) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+    let mean = samples.iter().sum::<f64>() / samples.len() as f64;
+    let mut sorted = samples.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let idx = ((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize;
+    let p95 = sorted[idx.min(sorted.len() - 1)];
+    (mean, p95)
 }
 
 pub type SharedMetrics = Arc<Mutex<MetricsState>>;

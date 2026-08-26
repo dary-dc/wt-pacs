@@ -240,7 +240,9 @@ async fn run_windowed(
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
+        // Ask first so depth can pipeline; then measure wait for this cursor.
         asks_sent += emit_window(control_send, outstanding, cursor, d, n).await?;
+        wait_displayable(metrics, cursor, cfg.timeout_ms).await?;
         wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
     }
 
@@ -249,7 +251,7 @@ async fn run_windowed(
         m.settle();
     }
     asks_sent += emit_window(control_send, outstanding, wanted, d, n).await?;
-
+    wait_displayable(metrics, wanted, cfg.timeout_ms).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
     if cfg.fill_dwell_ms > 0 {
@@ -337,6 +339,39 @@ async fn wait_outstanding_below(
         }
         if start.elapsed() >= Duration::from_millis(timeout_ms) {
             return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
+}
+
+
+async fn wait_displayable(
+    metrics: &SharedMetrics,
+    frame: u32,
+    timeout_ms: u64,
+) -> Result<f64> {
+    let start = std::time::Instant::now();
+    {
+        let mut m = metrics.lock().expect("metrics lock");
+        if m.cache.contains(&frame) {
+            m.record_wait_ms(0.0);
+            return Ok(0.0);
+        }
+    }
+    let deadline = Duration::from_millis(timeout_ms);
+    loop {
+        {
+            let mut m = metrics.lock().expect("metrics lock");
+            if m.cache.contains(&frame) {
+                let ms = start.elapsed().as_secs_f64() * 1000.0;
+                m.record_wait_ms(ms);
+                return Ok(ms);
+            }
+        }
+        if start.elapsed() >= deadline {
+            let ms = start.elapsed().as_secs_f64() * 1000.0;
+            metrics.lock().expect("metrics lock").record_wait_ms(ms);
+            anyhow::bail!("timeout waiting for displayable frame {frame}");
         }
         tokio::time::sleep(Duration::from_millis(2)).await;
     }
