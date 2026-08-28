@@ -3,8 +3,7 @@
 //! Hot path: `try_send` fixed `Copy` records into a process-wide bounded queue.
 //! Drain thread writes one JSON report on shutdown (summary first). No panics (R7).
 
-use crate::record::{LocateOutcome, Record, Refusal, WriteOutcome};
-use crate::record::DeliverOutcome;
+use crate::record::{LocateOutcome, Refusal, WriteOutcome};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
@@ -119,38 +118,28 @@ impl Tap {
     }
 }
 
-impl Record for Tap {
-    type Stamp = Instant;
-
-    fn stamp(&self) -> Instant {
-        Instant::now()
-    }
-
-    fn ask(&mut self, frame_index: u32) {
+impl Tap {
+    pub(crate) fn ask(&mut self, frame_index: u32) {
         self.serve_start = Some(Instant::now());
         self.frame_index = frame_index;
         self.ask_ordinal = self.take_ordinal(frame_index);
     }
 
-    fn located(&mut self, since: Instant, outcome: LocateOutcome, byte_len: usize) {
+    pub(crate) fn located(&mut self, since: Instant, outcome: LocateOutcome, byte_len: usize) {
         self.pending_work_us = micros_since(since);
         self.pending_locate = outcome as u8;
         self.pending_bytes = usize_to_u32(byte_len);
     }
 
-    fn wrote(&mut self, since: Instant, outcome: WriteOutcome, byte_len: usize) {
+    pub(crate) fn wrote(&mut self, since: Instant, outcome: WriteOutcome, byte_len: usize) {
         if outcome == WriteOutcome::Sent {
             self.pending_bytes = usize_to_u32(byte_len);
         }
         self.try_emit(outcome, micros_since(since));
     }
 
-    fn refused(&mut self, _reason: Refusal) {
+    pub(crate) fn refused(&mut self, _reason: Refusal) {
         // Facts already recorded via located/wrote on the refuse path.
-    }
-
-    fn delivered(&mut self, _since: Instant, _outcome: DeliverOutcome, _frame_index: u32) {
-        // Peer-ack timestamp; row already emitted at wrote(). Future: attach via offline join.
     }
 }
 
@@ -446,15 +435,14 @@ mod tests {
 
     #[test]
     fn serve_span_starts_at_ask_and_ends_at_wrote() {
-        use crate::record::Record;
-
+        
         let mut t = test_tap();
         t.ask(0);
         assert!(t.serve_start.is_some());
 
-        let t0 = t.stamp();
+        let t0 = Instant::now();
         t.located(t0, LocateOutcome::Ok, 4096);
-        let t1 = t.stamp();
+        let t1 = Instant::now();
         t.wrote(t1, WriteOutcome::Sent, 4096);
         assert!(t.serve_start.is_none());
     }

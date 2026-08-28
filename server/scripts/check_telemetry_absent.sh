@@ -33,13 +33,13 @@ if [[ ! -f "$BIN" ]]; then
 fi
 
 echo "Checking $BIN …"
-if nm -C "$BIN" 2>/dev/null | rg -q 'exact_server::record::tap|Tap::for_session|server_work_us'; then
+if nm -C "$BIN" 2>/dev/null | grep -qE 'exact_server::record::tap|Tap::for_session|server_work_us'; then
   echo "FAIL: telemetry symbols found in default build" >&2
-  nm -C "$BIN" | rg 'record::tap|Tap::' || true
+  nm -C "$BIN" | grep -E 'record::tap|Tap::' || true
   exit 1
 fi
 
-if cargo tree -p exact-server -e normal 2>/dev/null | rg -qi 'telemetry'; then
+if cargo tree -p exact-server -e normal 2>/dev/null | grep -qiE 'telemetry'; then
   echo "FAIL: telemetry crate/name in default dependency tree" >&2
   exit 1
 fi

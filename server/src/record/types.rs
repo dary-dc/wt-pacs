@@ -21,9 +21,3 @@ pub enum Refusal {
     NotFound = 0,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum DeliverOutcome {
-    Acked = 0,
-    Failed = 1,
-}

@@ -1,289 +1,193 @@
 # Plan: separate the two stream modes
 
-**For:** wt-pacs implementer · **Date:** 2026-08-27 · **Rev 2** ·
-**Basis:** [`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md)
+**For:** wt-pacs implementer · 2026-08-27 · rev 4 ·
+**Why:** [`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md)
 
-Goal: the choice between **one persistent uni stream** and **one uni stream per frame** must live in
-exactly one place. Today it is a `bool` threaded through CLI → config → session → send → wire format →
-a client `AtomicBool` static → two client loops → two metrics fields.
+Two removals:
 
-Not a rewrite. One new file, one enum, and deletions.
+1. The shared-vs-per-frame `bool`, currently threaded through CLI → config → session → send → wire
+   format → a client `AtomicBool` static → two client loops → two metrics fields.
+2. `handle_incoming → spawn_session → run_session` and the `R: Record` generic on every signature.
 
----
-
-## 0 · Sequencing — do not stash
-
-The tree carries **uncommitted telemetry work from another session**: `server/src/record/` (577 lines),
-the `run_session<R: Record>` seam, a `telemetry` cargo feature, `server/scripts/check_telemetry_absent.sh`,
-and client-side `ask_join` capture. Verified 2026-08-27:
-
-```
-cargo check --workspace            ✅
-cargo check -p exact-server --features telemetry  ✅
-cargo test --workspace             ✅ all pass
-```
-
-**Commit that work first, as its own commit. Do not stash it.**
-
-- it is green, coherent, and roughly complete — stashing means unstashing it an hour later
-- both changes edit `run_session` and `send_one_frame` signatures, so a stash guarantees a
-  hand-resolved conflict in exactly those functions
-- it already extracted `write_payload(connection, shared, payload)` — the seam this plan builds on.
-  Stashing removes that seam and then re-adds it, conflicting
-
-Work on top of the working tree, not `HEAD`. Line numbers in older docs are stale — navigate by symbol.
-
-### 0.1 · Fix before committing it
-
-`lab/window-harness/src/client.rs:79-80`:
-
-```rust
-        reset_ask_join();
-    reset_ask_join();      // duplicated, broken indent
-```
-
-Idempotent, so harmless at runtime. Still a botched edit — delete line 80.
+Net subtraction.
 
 ---
 
-## 1 · Server — the enum
+## 0 · Start here
 
-New file `server/src/transport/sink.rs`.
+Uncommitted telemetry work from another session is in the tree (`server/src/record/`, the `R: Record`
+seam, `telemetry` feature, client `ask_join`). It is green — `cargo check` both feature configs,
+`cargo test --workspace`, all pass.
+
+**Commit it first. Do not stash** — both changes edit `run_session` and `send_one_frame`, so a stash
+guarantees a conflict there. Work from the working tree, not `HEAD`. Navigate by symbol; line numbers
+in older docs are stale.
+
+First delete `lab/window-harness/src/client.rs:80` — `reset_ask_join()` duplicated with broken indent.
+
+---
+
+## 1 · `server/src/transport/sink.rs`
 
 ```rust
-/// How frames reach the client. Chosen once per session; nothing downstream branches on it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum StreamMode {
-    /// One uni stream for the whole session. Frames strictly in ask order.
-    Shared,
-    /// One uni stream per frame. Independent delivery; allows `set_priority` and `reset`.
-    PerFrame,
-}
+pub enum StreamMode { Shared, PerFrame }
 
-/// `S` is `R::Stamp` from the recording seam. It crosses into the delivery task and
-/// comes back on the ack channel, so **no clock is read in product code** (record seam I2).
-pub enum FrameSink<S: Copy + Send + 'static> {
+pub enum FrameSink {
     Shared(SendStream),
-    PerFrame {
-        conn: Connection,
-        tasks: JoinSet<()>,
-        acks: mpsc::UnboundedSender<Ack<S>>,
-    },
+    PerFrame { conn: Connection, tasks: JoinSet<()> },
 }
 
-pub struct Ack<S> {
-    pub frame_index: u32,
-    pub since: S,
-    pub outcome: DeliverOutcome,
-}
-```
+impl FrameSink {
+    pub async fn open(connection: &Connection, mode: StreamMode) -> Result<Self> {
+        Ok(match mode {
+            StreamMode::Shared => Self::Shared(connection.open_uni().await?.await?),
+            StreamMode::PerFrame => Self::PerFrame {
+                conn: connection.clone(),
+                tasks: JoinSet::new(),
+            },
+        })
+    }
 
-`send` takes the frame index and a stamp:
-
-```rust
-pub async fn send(&mut self, idx: u32, payload: &[u8], since: S) -> Result<()> {
-    let len = (payload.len() as u32).to_be_bytes();
-    match self {
-        Self::Shared(uni) => {
-            uni.write_all(&len).await?;
-            uni.write_all(payload).await?;
+    pub async fn send(&mut self, payload: &[u8]) -> Result<()> {
+        let len = (payload.len() as u32).to_be_bytes();
+        match self {
+            Self::Shared(uni) => {
+                uni.write_all(&len).await?;
+                uni.write_all(payload).await?;
+            }
+            Self::PerFrame { conn, tasks } => {
+                let mut uni = conn.open_uni().await?.await?;
+                uni.write_all(&len).await?;
+                uni.write_all(payload).await?;
+                // MOVED off the session loop, not deleted: wtransport's `finish()` awaits the
+                // peer's ack (~272 ms measured). Inline, it caps throughput at Tf/(Tf+RTT).
+                tasks.spawn(async move { let _ = uni.finish().await; });
+            }
         }
-        Self::PerFrame { conn, tasks, acks } => {
-            let mut uni = conn.open_uni().await?.await?;
-            uni.write_all(&len).await?;
-            uni.write_all(payload).await?;
+        Ok(())
+    }
 
-            // Option C. `finish().await` is moved OFF the session loop, not deleted.
-            // wtransport's `finish()` awaits the peer's acknowledgement (~272 ms measured);
-            // awaiting it inline is the defect in adr-frame-framing-and-loop-shape.md §1.
-            // Awaiting it in a task costs nothing and yields a real delivery timestamp.
-            let acks = acks.clone();
-            tasks.spawn(async move {
-                let outcome = match uni.finish().await {
-                    Ok(()) => DeliverOutcome::Acked,
-                    Err(_) => DeliverOutcome::Failed,
-                };
-                let _ = acks.send(Ack { frame_index: idx, since, outcome });
-            });
+    /// Await outstanding acks so trailing frames survive session close.
+    pub async fn drain(&mut self) {
+        if let Self::PerFrame { tasks, .. } = self {
+            while tasks.join_next().await.is_some() {}
         }
     }
-    Ok(())
 }
 ```
 
-### Why C and not "just drop the stream"
+In `server.rs`:
 
-Rev 1 of this plan dropped the stream. That is option **B**, and the ADR concluded C dominates B. Two
-concrete reasons, both live right now:
+- `ServeConfig.shared_stream: bool` → `mode: StreamMode`, threaded as `StreamMode`
+- `run_session`: `let mut sink = FrameSink::open(&connection, mode).await?;`
+- `send_one_frame`: takes `sink: &mut FrameSink`; **delete `write_payload`**
+- after the ask loop: `let _ = timeout(Duration::from_secs(2), sink.drain()).await;`
+- `main.rs`: `--shared-stream` → `--stream-mode shared|per-frame`
 
-1. **Delivery timestamp.** `finish()` completing *is* the peer's acknowledgement of that frame. It is
-   the only server-side signal that gives network time **without client clock sync** — and the
-   telemetry system being built next is exactly what consumes it.
-2. **Graceful close.** With a bare drop, frames still in flight when the session ends can be cut off by
-   connection close. Awaiting the `JoinSet` at session end fixes that. Do this:
-
-```rust
-// after the ask loop breaks, before returning:
-let _ = tokio::time::timeout(Duration::from_secs(2), sink.drain()).await;
-```
-
-**Spawn in every build, including production.** The alternative — drop in production, spawn under
-`--features telemetry` — would make telemetry measure behaviour production does not have. A task per
-frame at realistic ask rates is noise.
-
-### Changes in `server.rs`
-
-- `ServeConfig.shared_stream: bool` → `ServeConfig.mode: StreamMode`
-- thread `StreamMode` (not `bool`) through `run_server` → `handle_incoming` → `spawn_session` →
-  `run_session`
-- `run_session`: replace `let mut shared: Option<SendStream> = if shared_stream {...}` with
-  `let mut sink = FrameSink::open(&connection, mode).await?;`
-- `send_one_frame`: takes `sink: &mut FrameSink<R::Stamp>` instead of `connection` + `shared`
-- **delete `write_payload` entirely** — `FrameSink::send` replaces it
-- keep every existing `Record` call (`rec.ask`, `rec.located`, `rec.wrote`) exactly where it is
-
-`server/src/main.rs`: `--shared-stream` → `--stream-mode shared|per-frame`.
-
-> **Confirm the default.** Written as `PerFrame` on the reading that per-frame is the chosen mode.
-> One line to flip if that is backwards.
+> **Confirm the default.** Written `PerFrame`. One line to flip.
 
 ---
 
-## 2 · Recording the delivery
+## 2 · Collapse the recording seam
 
-One method on the existing trait in `server/src/record/mod.rs`:
-
-```rust
-/// Peer acknowledged the frame. Only fires in `PerFrame` mode.
-fn delivered(&mut self, since: Self::Stamp, outcome: DeliverOutcome, frame_index: u32);
-```
-
-`Noop` gets the usual `#[inline(always)]` empty body, so default builds stay zero-sized — keep the
-`noop_is_zero_sized` test passing.
-
-The session loop drains the ack channel opportunistically, so the task never touches `R`:
+`Tap::for_session()` already returns `Option<Self>`, gated at runtime on `WTPACS_TELEMETRY`. The
+generic, `Noop`, and the `cfg` fork buy one avoided `Option` branch. Not worth it.
 
 ```rust
-loop {
-    while let Ok(ack) = sink.try_recv_ack() {
-        rec.delivered(ack.since, ack.outcome, ack.frame_index);
-    }
-    let msg = read_fod_msg(&mut control_recv).await;
-    ...
+#[derive(Default)]
+pub struct Recorder {
+    #[cfg(feature = "telemetry")]
+    tap: Option<tap::Tap>,
 }
-// and once more after the loop, after drain()
 ```
 
-Acks land one ask late. The *timestamp* is captured at acknowledgement time inside the task, so the
-measurement is correct; only its recording is deferred. Say so in the tap schema, or someone will read
-`delivered` as the drain time.
+Same methods (`stamp`, `ask`, `located`, `wrote`, `refused`), inherent not trait. `Tap` unchanged.
 
-Channel is unbounded. At realistic ask depth (`D` ≈ 2–5) the queue never exceeds single digits. If that
-assumption ever breaks, bound it and count drops — do not let it grow silently.
+Delete: `Record`, `Noop`, `spawn_session`, every `<R: Record>` bound, the `cfg` fork. Call sites in
+`send_one_frame` stay put — only the receiver type changes. Result: `handle_incoming → run_session`,
+opening with `let mut rec = Recorder::for_session();`.
+
+Rename `noop_is_zero_sized` → `recorder_is_zero_sized`, still asserting `size_of == 0` in default
+builds. That test is what replaces the type parameter as the zero-cost guarantee.
 
 ---
 
 ## 3 · One wire format, two stream lifetimes
 
-Both arms above write `[4B BE len][envelope]`. Today only the shared arm does; the per-frame arm relies
-on stream end to delimit.
+Both arms above length-prefix. Today only the shared arm does. Unifying costs 4 bytes per frame and
+reduces the difference between modes to one thing: how long the stream lives.
 
-Unifying costs 4 redundant bytes per frame on the per-frame path and buys **one parse path on the
-client**, so the difference between the two modes collapses to exactly one thing: how long the stream
-lives. That is the cleanest possible statement of the separation.
+Same commit: `read_envelope` is no longer the per-frame reader; `WIRE.md` gains *every media envelope
+is length-prefixed, in both modes*; per-frame fixtures are invalidated.
 
-Consequences, all in the same commit:
-- `read_envelope` (read-to-end) in `server/src/transport/wire.rs` is no longer the per-frame reader
-- `WIRE.md` gains the rule: *every media envelope is length-prefixed, in both stream modes*
-- any recorded fixture of the per-frame path is invalidated
-
-**Opt-out:** for the minimum diff, keep stream-end delimiting on the per-frame arm and skip this
-section. Then §5's shared parse helper applies to the shared mode only.
+**Opt-out:** keep stream-end delimiting on the per-frame arm and skip this section.
 
 ---
 
-## 4 · Harness client — the worse half
+## 4 · Harness client
 
-`lab/window-harness/src/client.rs`.
+`lab/window-harness/src/client.rs` — delete `SHARED_STREAM: AtomicBool` and its read at
+`metrics.rs:224`. A global holding per-run state; the worst thing in the tree.
 
-Delete `SHARED_STREAM: AtomicBool` (~line 22, stored ~line 136) and its read in `metrics.rs:224`. It is
-a global holding per-run state, and it is the single ugliest thing in the tree.
+`shared_stream_loop` and `accept_uni_loop` share a ~20-line tail (`rtt_full`, `outstanding.remove`,
+`in_flight`, `metrics.on_envelope`). Extract as `on_frame_arrived(...)`.
 
-`shared_stream_loop` and `accept_uni_loop` share an identical ~20-line tail — `rtt_full`,
-`outstanding.remove`, `in_flight` decrement, `metrics.on_envelope`. Extract it once:
+**Keep both loops** — one reads a stream in a loop, the other accepts per frame. Merging reintroduces
+a branch. Select on `StreamMode` once, at the existing call site.
 
-```rust
-async fn on_frame_arrived(
-    index: u32, wire_len: u64, metrics: &SharedMetrics,
-    outstanding: &Arc<Mutex<HashSet<u32>>>, in_flight: &Arc<Mutex<u32>>, rtt_ms: u64,
-)
-```
-
-Both loops become thin readers. **Keep both loops** — one reads a stream in a loop, the other accepts
-per frame with a task each. They are genuinely different; merging them reintroduces a branch. Select
-between them once, on `StreamMode`, at the existing call site.
-
-`lab/window-harness/src/main.rs`: `--shared-stream` → `--stream-mode`.
+`main.rs`: `--shared-stream` → `--stream-mode`.
 
 ---
 
-## 5 · Tests — the bytes, not the socket
+## 5 · Tests
 
-Pure functions in `sink.rs`, unit-tested. No async, no network:
+Pure, in `sink.rs`:
 
 ```rust
 pub fn length_prefixed(payload: &[u8]) -> Vec<u8>;
 pub fn parse_length_prefixed(buf: &[u8]) -> Option<(&[u8], usize)>;
 ```
 
-Cover: round trip, zero length, truncated prefix, truncated body, length exceeding the 64 MiB guard
-already present in `shared_stream_loop`.
-
-That is the whole test scope. The wtransport I/O does not get a unit test — it gets the harness, which
-exists. `frame_store.rs` and `record::tests` remain the other tested units.
+Round trip, zero length, truncated prefix, truncated body, over the 64 MiB guard. Plus
+`recorder_is_zero_sized`. That is the whole scope — wtransport I/O gets the harness, not unit tests.
 
 ---
 
 ## 6 · Metrics
 
-- `RunConfig.shared_stream: bool` → `mode: StreamMode`
-- `HarnessMetrics.shared_stream: bool` → `stream_mode: String`
-
-Existing result JSON carrying `shared_stream` becomes unreadable by the new parser. Grep `lab/` for
-scripts reading that key and update them in the same commit.
+`RunConfig.shared_stream: bool` → `mode: StreamMode`; `HarnessMetrics.shared_stream: bool` →
+`stream_mode: String`. Grep `lab/` for scripts reading the old key; same commit.
 
 ---
 
-## 7 · Explicitly out of scope
+## 7 · Out of scope
 
-**The reader/sender task split.** Buys nothing under the shared mode on a healthy link; a precondition
-only for `set_priority` / `reset`, which nothing uses yet. Ranked below the framing decision in the ADR.
-
-**`set_priority`.** Enabled by per-frame mode; not wired up. Separate change.
-
-**Choosing shared vs per-frame.** This plan makes both first-class and cheap to switch. The decision
-needs a netem run with **loss enabled**, which has never been run. See ADR §6.
+- **Reader/sender task split** — precondition for `set_priority`/`reset` only, which nothing uses
+- **Per-frame delivery timestamps** — one line inside the spawned closure, when the tap wants it
+- **`set_priority`** — enabled by per-frame mode, not wired
+- **Choosing shared vs per-frame** — needs a netem run with loss enabled, never yet run. ADR §6
 
 ---
 
 ## 8 · Order
 
-1. Fix §0.1, then **commit the telemetry work as-is**
-2. `sink.rs` + pure framing fns + their tests — compiles standalone
-3. `Record::delivered` + `Noop` impl; confirm `noop_is_zero_sized` still passes
-4. Server: thread `StreamMode`, adopt `FrameSink`, move `finish()` into the task, delete
-   `write_payload`, add the ack drain and `drain()` at session end
-5. Harness client: kill the static, extract `on_frame_arrived`, switch on `StreamMode`
-6. Metrics + CLI on both sides, and the `lab/` scripts reading the old key
-7. `WIRE.md` if §3 was taken
+1. Fix §0's duplicate line, commit the telemetry work
+2. `sink.rs` + pure fns + tests
+3. §2 collapse
+4. Server: `StreamMode`, `FrameSink`, `finish()` into the task, delete `write_payload`, `drain()`
+5. Client: kill the static, extract `on_frame_arrived`, switch on `StreamMode`
+6. Metrics + CLI both sides + `lab/` scripts
+7. `WIRE.md` if §3 taken
 
-**Checkpoint after step 4, falsifiable:** run the harness in per-frame mode at 250 KB frames / 60 ms
-RTT on a 10 Mbit link. Link utilisation must land **clearly above 7.00 Mbps** — the old
-`Tf / (Tf + RTT)` ceiling. If it does not, `finish()` is still being awaited on the session loop.
+2 and 3 are independent.
+
+**Checkpoint after 4:** per-frame mode, 250 KB frames, 60 ms RTT, 10 Mbit link — utilisation must land
+clearly above **7.00 Mbps**, the old `Tf/(Tf+RTT)` ceiling. If not, `finish()` is still on the loop.
 
 ---
 
-## 9 · Docs to correct while here
+## 9 · Docs to correct
 
-- `adr-client-window-depth.md` — label the architecture comparison as measuring a misplaced `await`
-- `cleanup-plan-2026-08.md` §4b — the recommendation stands; its cited justification does not
+- `adr-client-window-depth.md` — the architecture comparison measured a misplaced `await`, not framing
+- `cleanup-plan-2026-08.md` §4b — recommendation stands, cited justification does not
