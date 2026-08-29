@@ -21,6 +21,8 @@ function unwrapEnvelope(payload) {
   return { index, codestream: payload.subarray(4) };
 }
 
+const MAX_FRAME_LEN = 64 * 1024 * 1024;
+
 function hexToBytes(hex) {
   if (hex.length % 2 !== 0) throw new Error("hex length must be even");
   const out = new Uint8Array(hex.length / 2);
@@ -104,14 +106,8 @@ export class TransportSession {
       for (;;) {
         const { value: stream, done } = await reader.read();
         if (done || !stream) break;
-        const raw = await readStreamToEnd(stream);
-        const receivedMs = performance.now();
-        try {
-          const { index, codestream } = unwrapEnvelope(raw);
-          this.#completeWaiter(index, codestream, receivedMs);
-        } catch {
-          /* ignore */
-        }
+        // Both modes: `[4B BE len][envelope]` per frame. Shared keeps the uni open.
+        void this.#pumpFramedStream(stream);
       }
     } catch {
       /* closed */
@@ -121,6 +117,26 @@ export class TransportSession {
         w.reject(new Error("session closed"));
       }
       this.#waiters.clear();
+    }
+  }
+
+  async #pumpFramedStream(stream) {
+    const reader = stream.getReader();
+    const buf = new ByteAccumulator();
+    try {
+      for (;;) {
+        const envelope = await readLengthPrefixed(reader, buf);
+        if (!envelope) break;
+        const receivedMs = performance.now();
+        try {
+          const { index, codestream } = unwrapEnvelope(envelope);
+          this.#completeWaiter(index, codestream, receivedMs);
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch {
+      /* stream ended */
     }
   }
 
@@ -226,25 +242,23 @@ function toResult(frameIndex, askMs, bytes, receivedMs) {
   };
 }
 
-async function readStreamToEnd(stream) {
-  const reader = stream.getReader();
-  const chunks = [];
-  let total = 0;
-  for (;;) {
+async function readLengthPrefixed(reader, buf) {
+  while (buf.length < 4) {
     const { value, done } = await reader.read();
-    if (done) break;
-    if (value) {
-      chunks.push(value);
-      total += value.length;
-    }
+    if (done) return null;
+    if (value) buf.push(value);
   }
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    out.set(c, off);
-    off += c.length;
+  const header = buf.take(4);
+  const len = new DataView(header.buffer, header.byteOffset, 4).getUint32(0, false);
+  if (len === 0 || len > MAX_FRAME_LEN) {
+    throw new Error(`invalid frame length ${len}`);
   }
-  return out;
+  while (buf.length < len) {
+    const { value, done } = await reader.read();
+    if (done) throw new Error("uni stream ended mid-frame");
+    if (value) buf.push(value);
+  }
+  return buf.take(len);
 }
 
 class ByteAccumulator {

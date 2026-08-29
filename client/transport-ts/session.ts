@@ -7,6 +7,7 @@ import {
   decodeFodMsg,
   encodeFodMsg,
   hexToBytes,
+  MAX_FRAME_LEN,
   unwrapEnvelope,
   type FodMsg,
 } from "./wire.ts";
@@ -108,14 +109,9 @@ export class TransportSession {
       for (;;) {
         const { value: stream, done } = await reader.read();
         if (done || !stream) break;
-        const raw = await readStreamToEnd(stream);
-        const receivedMs = performance.now();
-        try {
-          const { index, codestream } = unwrapEnvelope(raw);
-          this.completeWaiter(index, codestream, receivedMs);
-        } catch {
-          /* ignore bad envelope */
-        }
+        // Both stream modes write `[4B BE len][envelope]` per frame. Per-frame mode
+        // ends the uni after one frame; shared mode keeps delivering frames on one uni.
+        void this.pumpFramedStream(stream);
       }
     } catch {
       /* session closed */
@@ -125,6 +121,27 @@ export class TransportSession {
         w.reject(new Error("session closed"));
       }
       this.waiters.clear();
+    }
+  }
+
+  /** Read length-prefixed envelopes until the uni stream ends. */
+  private async pumpFramedStream(stream: ReadableStream<Uint8Array>) {
+    const reader = stream.getReader();
+    const buf = new ByteAccumulator();
+    try {
+      for (;;) {
+        const envelope = await readLengthPrefixed(reader, buf);
+        if (!envelope) break;
+        const receivedMs = performance.now();
+        try {
+          const { index, codestream } = unwrapEnvelope(envelope);
+          this.completeWaiter(index, codestream, receivedMs);
+        } catch {
+          /* ignore bad envelope */
+        }
+      }
+    } catch {
+      /* stream ended */
     }
   }
 
@@ -235,25 +252,26 @@ function toResult(
   };
 }
 
-async function readStreamToEnd(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
+async function readLengthPrefixed(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  buf: ByteAccumulator,
+): Promise<Uint8Array | null> {
+  while (buf.length < 4) {
     const { value, done } = await reader.read();
-    if (done) break;
-    if (value) {
-      chunks.push(value);
-      total += value.length;
-    }
+    if (done) return null;
+    if (value) buf.push(value);
   }
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    out.set(c, off);
-    off += c.length;
+  const header = buf.take(4);
+  const len = new DataView(header.buffer, header.byteOffset, 4).getUint32(0, false);
+  if (len === 0 || len > MAX_FRAME_LEN) {
+    throw new Error(`invalid frame length ${len}`);
   }
-  return out;
+  while (buf.length < len) {
+    const { value, done } = await reader.read();
+    if (done) throw new Error("uni stream ended mid-frame");
+    if (value) buf.push(value);
+  }
+  return buf.take(len);
 }
 
 class ByteAccumulator {
