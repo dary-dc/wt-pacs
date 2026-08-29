@@ -110,7 +110,10 @@ pub async fn run_harness(
         HarnessMode::Trace => {
             let t = trace_ref.context("trace required")?;
             let schedule = t.frame_schedule();
-            let wanted = *schedule.last().context("empty trace")?;
+            // Wrap like `window_frames` does. A trace whose cursor exceeds the study's frame
+            // count would otherwise set `wanted` to a frame that is never asked for and never
+            // arrives, so `wait_wanted` blocks for the whole timeout.
+            let wanted = *schedule.last().context("empty trace")? % cfg.frame_count.max(1);
             (schedule, wanted, t.name.clone())
         }
     };
@@ -377,7 +380,11 @@ async fn run_windowed(
         }
         // Ask first so depth can pipeline; then measure wait for this cursor.
         asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
-        wait_displayable(metrics, cursor, cfg.timeout_ms).await?;
+        // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
+        // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
+        // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
+        // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
+        wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
         wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
     }
 
@@ -386,7 +393,7 @@ async fn run_windowed(
         m.settle();
     }
     asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
-    wait_displayable(metrics, wanted, cfg.timeout_ms).await?;
+    wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
     if cfg.fill_dwell_ms > 0 {
