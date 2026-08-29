@@ -79,9 +79,10 @@ async fn read_exact(
             .map_err(|e| format!("stream read: {e:?}"))?
         {
             Some(chunk) => {
-                let mut tmp = vec![0u8; chunk.length() as usize];
-                chunk.copy_to(&mut tmp);
-                buf.extend_from_slice(&tmp);
+                let n = chunk.length() as usize;
+                let start = buf.len();
+                buf.resize(start + n, 0);
+                chunk.copy_to(&mut buf[start..]);
             }
             None => return Err("stream ended early".into()),
         }
@@ -89,28 +90,62 @@ async fn read_exact(
     Ok(())
 }
 
-/// Drain a uni stream into one buffer (one Media-complete frame per stream).
-async fn read_stream_to_end(stream: ReadableStream) -> Result<Vec<u8>, String> {
-    let reader = stream
+const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
+
+/// Read one `[4B BE len][payload]` from a uni stream. `Ok(None)` on clean EOF before a frame.
+async fn read_length_prefixed(
+    reader: &ReadableStreamDefaultReader,
+    buf: &mut Vec<u8>,
+) -> Result<Option<Vec<u8>>, String> {
+    if let Err(e) = read_exact(reader, buf, 4).await {
+        if buf.is_empty() {
+            return Ok(None);
+        }
+        return Err(e);
+    }
+    let len = u32::from_be_bytes(buf[0..4].try_into().unwrap()) as usize;
+    if len == 0 || len > MAX_FRAME_LEN {
+        return Err(format!("invalid frame length {len}"));
+    }
+    read_exact(reader, buf, 4 + len).await?;
+    let payload = buf[4..4 + len].to_vec();
+    buf.drain(..4 + len);
+    Ok(Some(payload))
+}
+
+/// Drain length-prefixed envelopes from one uni until EOF (shared or per-frame).
+async fn pump_framed_stream(
+    stream: ReadableStream,
+    st: Rc<RefCell<SessionState>>,
+) {
+    let reader = match stream
         .get_reader()
         .dyn_into::<ReadableStreamDefaultReader>()
-        .map_err(|e| format!("uni reader: {e:?}"))?;
-    let mut out = Vec::new();
+    {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    let mut buf = Vec::new();
     loop {
-        match reader_read_bytes(&reader)
-            .await
-            .map_err(|e| format!("uni read: {e:?}"))?
-        {
-            Some(chunk) => {
-                let mut tmp = vec![0u8; chunk.length() as usize];
-                chunk.copy_to(&mut tmp);
-                out.extend_from_slice(&tmp);
+        let envelope = match read_length_prefixed(&reader, &mut buf).await {
+            Ok(Some(e)) => e,
+            Ok(None) | Err(_) => break,
+        };
+        let now = perf_now_ms();
+        match unwrap_envelope(&envelope) {
+            Ok((index, chunk)) => {
+                let view = js_buffer_from(chunk);
+                let mut s = st.borrow_mut();
+                if let Some(tx) = s.waiters.remove(&index) {
+                    let _ = tx.send((view, now));
+                } else {
+                    s.dropped_early += 1;
+                }
             }
-            None => break,
+            Err(_) => continue,
         }
     }
     let _ = JsFuture::from(reader.cancel()).await;
-    Ok(out)
 }
 
 async fn write_all(writer: &WritableStreamDefaultWriter, bytes: &[u8]) -> Result<(), String> {
@@ -182,7 +217,7 @@ impl TransportSession {
 
         let state = Rc::new(RefCell::new(SessionState::default()));
 
-        // Media pump — one finished uni stream = one envelope (Media-complete).
+        // Media pump — each uni carries `[4B BE len][envelope]` frames (one or many).
         let st_uni = Rc::clone(&state);
         let uni_incoming = transport.incoming_unidirectional_streams();
         let uni_reader = uni_incoming
@@ -199,23 +234,10 @@ impl TransportSession {
                     Ok(s) => s,
                     Err(_) => continue,
                 };
-                let raw = match read_stream_to_end(stream).await {
-                    Ok(b) => b,
-                    Err(_) => continue,
-                };
-                let now = perf_now_ms();
-                match unwrap_envelope(&raw) {
-                    Ok((index, chunk)) => {
-                        let view = js_buffer_from(chunk);
-                        let mut s = st_uni.borrow_mut();
-                        if let Some(tx) = s.waiters.remove(&index) {
-                            let _ = tx.send((view, now));
-                        } else {
-                            s.dropped_early += 1;
-                        }
-                    }
-                    Err(_) => continue,
-                }
+                let st = Rc::clone(&st_uni);
+                spawn_local(async move {
+                    pump_framed_stream(stream, st).await;
+                });
             }
             st_uni.borrow_mut().waiters.clear();
         });

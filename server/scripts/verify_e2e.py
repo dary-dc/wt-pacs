@@ -50,6 +50,12 @@ def main() -> int:
         choices=("wasm", "ts", "both"),
         default="both",
     )
+    parser.add_argument(
+        "--stream-mode",
+        choices=("shared", "per-frame"),
+        default="per-frame",
+        help="exact-server --stream-mode",
+    )
     parser.add_argument("--keep", action="store_true", help="leave servers running")
     args = parser.parse_args()
 
@@ -114,22 +120,25 @@ def main() -> int:
             raise SystemExit(f"exact-server binary not found under {env['CARGO_TARGET_DIR']}")
 
         print("starting exact-server…")
+        server_cmd = [
+            "stdbuf",
+            "-oL",
+            "-eL",
+            str(server_bin),
+            "--port",
+            str(args.port_wt),
+            "--study",
+            str(study),
+            "--cert-pem",
+            str(cert),
+            "--key-pem",
+            str(key),
+            "--stream-mode",
+            args.stream_mode,
+        ]
         procs.append(
             subprocess.Popen(
-                [
-                    "stdbuf",
-                    "-oL",
-                    "-eL",
-                    str(server_bin),
-                    "--port",
-                    str(args.port_wt),
-                    "--study",
-                    str(study),
-                    "--cert-pem",
-                    str(cert),
-                    "--key-pem",
-                    str(key),
-                ],
+                server_cmd,
                 cwd=ROOT,
                 env=env,
                 stdout=subprocess.PIPE,
