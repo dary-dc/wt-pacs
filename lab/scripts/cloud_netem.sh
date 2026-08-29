@@ -2,13 +2,16 @@
 # Server-side tc shaping for wt-pacs cloud measurements.
 # Run ON the cloud box (root/sudo). SSH port bypass keeps the rig reachable.
 #
-# Usage: cloud_netem.sh {off|30|50|90|180}
+# Usage: cloud_netem.sh {off|20|30|50|60|90|150|180}
 #
-# Profiles target TOTAL RTT including ~30 ms base WAN path:
+# Legacy profiles target TOTAL RTT including ~30 ms base WAN path:
 #   30  — 10 Mbps cap only (no added delay)
 #   50  — +10 ms one-way delay (~+20 ms RTT)
 #   90  — +30 ms one-way
 #   180 — +75 ms one-way
+#
+# Campaign profiles 20/60/150 use one-way delay = N/2 ms (named RTT), rate 10mbit.
+# WAN RTT adds on top equally for every arm.
 set -euo pipefail
 
 PROFILE="${1:-}"
@@ -27,10 +30,11 @@ fi
 
 usage() {
   cat >&2 <<EOF
-usage: $0 {off|30|50|90|180}
-  off   remove shaping
-  30    rate ${RATE} only
-  50|90|180  rate ${RATE} + added one-way delay
+usage: $0 {off|20|30|50|60|90|150|180}
+  off            remove shaping
+  30             rate ${RATE} only (legacy)
+  50|90|180      legacy total-RTT targets
+  20|60|150      rate ${RATE} + one-way delay = N/2 ms
 EOF
 }
 
@@ -77,6 +81,11 @@ case "$PROFILE" in
   180)
     apply_netem 75
     echo "netem on $IFACE: rate=$RATE delay 75ms (target RTT~180 ms)"
+    ;;
+  20|60|150)
+    one_way=$((PROFILE / 2))
+    apply_netem "$one_way"
+    echo "netem on $IFACE: rate=$RATE delay ${one_way}ms (named RTT ${PROFILE} ms)"
     ;;
   *)
     echo "unknown profile: $PROFILE" >&2
