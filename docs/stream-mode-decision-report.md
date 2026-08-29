@@ -1,5 +1,13 @@
 # Stream mode decision — experiment report
 
+> ## ⚠ RETRACTED 2026-08-29 — the decision below is not supported by this data
+>
+> **`Chosen: shared` does not follow from these results. The stream-mode question is OPEN and
+> unmeasured.** Do not cite this report in either direction. Details in §X below; remediation in
+> [`stream-mode-remediation.md`](stream-mode-remediation.md).
+>
+> Shared may still be the right answer. We do not know yet.
+
 **Date:** 2026-08-28 · **Campaign:** [`stream-mode-decision-experiments.md`](stream-mode-decision-experiments.md)  
 **Raw data:** `.local/measurements/stream-mode-decision/`
 
@@ -61,3 +69,50 @@ unshare --user --map-root-user --net -- bash lab/scripts/stream_mode_decision.sh
 # X3 alone (after X1/X2 data exists):
 unshare --user --map-root-user --net -- bash lab/scripts/stream_mode_x3_only.sh
 ```
+
+
+---
+
+## X · Why this is retracted (added 2026-08-29)
+
+**1 · The two modes ran at unequal depth.** X2 measured `D_min` at the 250 KB / 60 ms cell as
+**shared = 2, per-frame = 8**. X3 then ran **both at `D = 4`** (`X3_D="${X3_D:-4}"` in
+`lab/scripts/stream_mode_x3_only.sh`). Shared got twice what it needs; per-frame got half. The plan
+said to use each mode's own `D_min`. This alone can produce the observed result.
+
+**2 · A built-in control failed and was not noticed.** The **0% loss** row shows per-frame 92% worse.
+X3 exists to measure *loss*. A gap that large with **zero** loss means the run is measuring something
+else, unidentified. That is a stop condition, not a footnote.
+
+**3 · A stop gate was overridden.** X2 showed an 18.2% mode gap at 150 ms RTT. The plan said stop
+above ~10%, precisely so an unexplained mode-specific difference could not be read as the loss result.
+The run continued.
+
+**4 · The statistics are too thin.** p95 over an 80-step trace is ~4 samples in the tail. The full
+`mild_cell` trace timed out and was silently swapped for a short one; **that timeout is unexplained
+and may be the more interesting finding.**
+
+### What is probably happening, and why the hypothesis was wrong
+
+QUIC **fair-shares bandwidth across concurrent streams**. With `D` per-frame streams open, all `D`
+progress together and finish late. One ordered stream sends frame 1 to completion, then frame 2 — so
+the frame the reader is waiting for arrives early. For **ordered demand**, in-order delivery matches
+the request pattern; head-of-line "blocking" is alignment, not a defect.
+
+That predicts everything observed, including the zero-loss gap, and it scales with `D`.
+
+**And the mechanism that fixes it was never wired: `set_priority`.** It was explicitly out of scope in
+the plan, so the per-frame arm was tested without the one feature that makes per-frame competitive.
+The arm that lost was the handicapped variant.
+
+### What must not be recorded as a finding
+
+**Not** "per-frame is worse under loss" — that inverts the physics and will not survive review.
+
+**Instead:** *per-frame **without stream priority** is worse for ordered demand, at any loss rate,
+because concurrent streams share bandwidth fairly.*
+
+### What was done correctly
+
+`--read-bps 0` everywhere, so `LinkPacer` was not fighting `tc`. netns netem. Per-mode `D_min`
+recorded — which is what made flaw 1 detectable. Raw data kept. Tier stated honestly as T2.

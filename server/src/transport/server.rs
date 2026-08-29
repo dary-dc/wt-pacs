@@ -12,7 +12,7 @@
 use crate::media::frame_store::FrameStore;
 use crate::record::{LocateOutcome, Recorder, WriteOutcome};
 use crate::transport::tls::load_pem_cert;
-use crate::transport::wire::{length_prefixed, read_fod_msg, write_fod_msg};
+use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use frame_envelope::wrap;
@@ -255,10 +255,15 @@ async fn write_payload(
     acks: &mut JoinSet<()>,
     payload: &[u8],
 ) -> Result<()> {
-    let framed = length_prefixed(payload);
+    // Two writes, not one buffer: building `[len][payload]` would copy the whole frame a
+    // second time (`wrap` already copied it once). `write_all` copies into the connection's
+    // send buffer either way, so the extra allocation buys nothing.
+    // See docs/send-path-copy-costs.md. This fix has been reverted once — keep it.
+    let len = (payload.len() as u32).to_be_bytes();
     match shared {
         Some(uni) => {
-            uni.write_all(&framed).await.context("write shared frame")?;
+            uni.write_all(&len).await.context("write shared len")?;
+            uni.write_all(payload).await.context("write shared frame")?;
         }
         None => {
             let mut uni = connection
@@ -267,7 +272,8 @@ async fn write_payload(
                 .context("open uni")?
                 .await
                 .context("open uni ready")?;
-            uni.write_all(&framed).await.context("write envelope")?;
+            uni.write_all(&len).await.context("write len")?;
+            uni.write_all(payload).await.context("write envelope")?;
 
             // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
             // the peer's acknowledgement (~272 ms measured), which caps throughput at
