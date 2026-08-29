@@ -93,6 +93,20 @@ transmitted first. **A few lines**, in the `None` arm of `write_payload`.
 
 Without this, per-frame is not the design worth testing, and any rerun repeats the same mistake.
 
+### Priority levels — decided 2026-08-29, keep as implemented
+
+`feat/set-priority-per-frame` assigns `i32::MAX - ask_seq`, a distinct level per frame. That was
+queried against quinn's warning that *"using many different priority levels per connection may have a
+negative impact on performance."*
+
+**Keep it.** The warning concerns the ordering structure over **concurrently pending** streams, and at
+depth `D` = 2–8 only that many are ever live; the value is unbounded across a session but never
+concurrently. And "earliest ask wins" is what `adr-reject-server-ordering.md` already settled — *the
+client encodes priority as ask order, and a FIFO server transmits that order unchanged.* Per-stream
+priority expresses the same rule at the transport layer.
+
+No change needed. Recorded so it is not re-queried.
+
 Note: this also delivers what `adr-frame-framing-and-loop-shape.md` §4 called *"the finding worth
 carrying forward"* — *fill ahead, but never delay the frame the reader needs now*, as a transport
 primitive rather than an application queue.

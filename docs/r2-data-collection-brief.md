@@ -107,5 +107,10 @@ campaign rather than a comparison against older data.
 - `--read-bps 0` whenever `tc` is shaping, or `LinkPacer` fights netem
 - Never measure on localhost without netem — every term here is RTT-proportional
 - Evidence tier on anything you report; nothing goes above T2
-- Raw data under `.local/measurements/r2/`, committed logs excluded
+- **Reporting is not optional and `.local/` is gitignored.** Raw data written there never reaches
+  anyone. Commit results to **`docs/measurements/r2/`** (tracked): the Task C TSV, and for Task B a
+  short `FINDINGS.md` stating hang-or-crawl, last frame served, last ask read, and wall time to the
+  stall. Large logs stay in `.local/`; quote the relevant lines in `FINDINGS.md`
+- State facts, not conclusions. "Stalled at frame 412 after 143 s, no further progress" is the
+  deliverable; "per-frame mode is slower" is not
 - No Claude attribution in commit messages
