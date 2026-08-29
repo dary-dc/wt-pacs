@@ -150,6 +150,8 @@ async fn run_session(
 
     // Per-frame mode only: holds the acknowledgement waits moved off this loop.
     let mut acks = JoinSet::new();
+    // Ask order for QUIC stream priority (earliest ask → highest priority).
+    let mut ask_seq: i32 = 0;
 
     loop {
         let msg = match read_fod_msg(&mut control_recv).await {
@@ -170,6 +172,7 @@ async fn run_session(
                     &store,
                     frame,
                     &mut rec,
+                    &mut ask_seq,
                 )
                 .await?;
             }
@@ -183,6 +186,7 @@ async fn run_session(
                         &store,
                         frame,
                         &mut rec,
+                        &mut ask_seq,
                     )
                     .await?;
                 }
@@ -211,6 +215,7 @@ async fn send_one_frame(
     store: &FrameStore,
     idx: u32,
     rec: &mut Recorder,
+    ask_seq: &mut i32,
 ) -> Result<()> {
     rec.ask(idx);
 
@@ -221,7 +226,7 @@ async fn send_one_frame(
 
             let t1 = rec.stamp();
             let payload = wrap(idx, bytes);
-            match write_payload(connection, shared, acks, &payload).await {
+            match write_payload(connection, shared, acks, &payload, ask_seq).await {
                 Ok(()) => rec.wrote(t1, WriteOutcome::Sent, payload.len()),
                 Err(err) => {
                     rec.wrote(t1, WriteOutcome::WriteErr, 0);
@@ -254,6 +259,7 @@ async fn write_payload(
     shared: &mut Option<SendStream>,
     acks: &mut JoinSet<()>,
     payload: &[u8],
+    ask_seq: &mut i32,
 ) -> Result<()> {
     // Two writes, not one buffer: building `[len][payload]` would copy the whole frame a
     // second time (`wrap` already copied it once). `write_all` copies into the connection's
@@ -272,6 +278,9 @@ async fn write_payload(
                 .context("open uni")?
                 .await
                 .context("open uni ready")?;
+            // Higher priority transmits first (wtransport/quinn). Earliest ask wins.
+            uni.set_priority(i32::MAX.saturating_sub(*ask_seq));
+            *ask_seq = ask_seq.saturating_add(1);
             uni.write_all(&len).await.context("write len")?;
             uni.write_all(payload).await.context("write envelope")?;
 
