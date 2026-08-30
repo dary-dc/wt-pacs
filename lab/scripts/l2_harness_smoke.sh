@@ -38,14 +38,15 @@ run_h() {
     "$@" --json >"$OUT/$label.json" 2>"$OUT/$label.err" || echo "rc=$? for $label" >&2
   t1=$(date +%s.%N)
   python3 - "$OUT/$label.json" "$t0" "$t1" <<'PY'
-import json, sys, collections
+import json, sys
 m = json.load(open(sys.argv[1]))
 wall = float(sys.argv[3]) - float(sys.argv[2])
 asks = m.get("ask_join", [])
-per = collections.Counter(r["frame_index"] for r in asks)
+from collections import Counter
+per = Counter(r["frame_index"] for r in asks)
 unique = len(per)
 dups = sum(v - 1 for v in per.values())
-short = m["asks_sent"] * int(sys.argv[0]) - m["bytes_on_wire"] if False else m["asks_sent"] * 32004 - m["bytes_on_wire"]
+short = m["asks_sent"] * 32004 - m["bytes_on_wire"]
 print(
     f"wall={wall:.2f}s asks={m['asks_sent']} unique_frames={unique} dup_asks={dups} "
     f"bytes={m['bytes_on_wire']} p95_wait={m.get('p95_wait_ms',0):.1f} "
@@ -89,8 +90,8 @@ def load(name):
 
 def unique_frames(m):
     asks = m.get("ask_join", [])
-  from collections import Counter
-  return len(Counter(r["frame_index"] for r in asks))
+    from collections import Counter
+    return len(Counter(r["frame_index"] for r in asks))
 
 c, f, d, c26 = load("control"), load("fixed"), load("dynamic"), load("control_step26")
 gates = []
