@@ -30,10 +30,10 @@ gate() {
 }
 
 run_h() {
-  local label=$1; shift
+  local label=$1 trace=$2; shift 2
   local t0 t1
   t0=$(date +%s.%N)
-  "$HARNESS" --url "$URL" --trace "$TRACE" --read-bps "$BPS" --frame-count 80 \
+  "$HARNESS" --url "$URL" --trace "$trace" --read-bps "$BPS" --frame-count 80 \
     --fill-dwell-ms 0 --mode trace --arm "$label" --rtt-ms 0 --stream-mode shared \
     "$@" --json >"$OUT/$label.json" 2>"$OUT/$label.err" || echo "rc=$? for $label" >&2
   t1=$(date +%s.%N)
@@ -58,7 +58,8 @@ PY
 }
 
 slow_trace() {
-  local ms=$1 out="$OUT/trace_step${ms}.json"
+  local ms=$1
+  local out="$OUT/trace_step${ms}.json"
   python3 - "$TRACE" "$out" "$ms" <<'PY'
 import json, sys
 t = json.load(open(sys.argv[1]))
@@ -70,9 +71,9 @@ PY
 }
 
 note "running three arms (depth=$DEPTH)"
-run_h control --depth 0
-run_h fixed   --depth "$DEPTH"
-run_h dynamic --depth "$DEPTH" --dynamic-depth
+run_h control "$TRACE" --depth 0
+run_h fixed   "$TRACE" --depth "$DEPTH"
+run_h dynamic "$TRACE" --depth "$DEPTH" --dynamic-depth --path-rtt-ms 0
 
 note "control slower steps (cadence demo)"
 run_h control_step26 "$(slow_trace 26)" --depth 0

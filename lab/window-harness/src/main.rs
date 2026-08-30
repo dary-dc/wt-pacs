@@ -45,6 +45,9 @@ struct Args {
     /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
     #[arg(long)]
     depth_sweep: Option<String>,
+    /// Path RTT (ms) for dynamic BDP formula (`--path-rtt-ms`).
+    #[arg(long)]
+    path_rtt_ms: Option<u64>,
     #[arg(long)]
     json: bool,
 }
@@ -86,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
         rtt_ms: args.rtt_ms,
         stream_mode: args.stream_mode,
         dynamic_depth: args.dynamic_depth,
+        path_rtt_ms: args.path_rtt_ms,
     };
     if let Some(sweep) = &args.depth_sweep {
         if args.dynamic_depth {
@@ -124,7 +128,13 @@ async fn main() -> anyhow::Result<()> {
         println!("recovered_ms={:.2}", m.recovered_ms);
         println!("mean_wait_ms={:.2}", m.mean_wait_ms);
         println!("p95_wait_ms={:.2}", m.p95_wait_ms);
+        println!("p95_lateness_ms={:.2}", m.p95_lateness_ms);
+        println!("mean_lateness_ms={:.2}", m.mean_lateness_ms);
+        println!("frac_steps_late={:.4}", m.frac_steps_late);
         println!("wait_samples={}", m.wait_samples);
+        println!("unique_frames_asked={}", m.unique_frames_asked);
+        println!("duplicate_asks={}", m.duplicate_asks);
+        println!("drain_incomplete={}", m.drain_incomplete);
         println!("fill_rate={:.2}", m.fill_rate);
         println!("link_util={:.4}", m.link_util);
         println!("fill_bytes={}", m.fill_bytes);
@@ -138,10 +148,14 @@ async fn main() -> anyhow::Result<()> {
         println!("d_min_observed={}", m.d_min_observed);
         println!("d_max_observed={}", m.d_max_observed);
         println!("depth_oscillating={}", m.depth_oscillating);
+        println!("depth_saturated={}", m.depth_saturated);
     }
-    // L2: print metrics (incl. d_current) first, then non-zero exit so the campaign stops.
     if m.depth_oscillating {
         eprintln!("depth oscillating despite damping — stop");
+        std::process::exit(2);
+    }
+    if m.depth_saturated {
+        eprintln!("depth saturated at clamp — stop");
         std::process::exit(2);
     }
     Ok(())
