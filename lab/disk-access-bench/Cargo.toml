@@ -1,0 +1,16 @@
+[package]
+name = "disk-access-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Compare study disk-access arms (mmap / pread / madvise) with shared metrics"
+
+[[bin]]
+name = "disk-access-bench"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+exact-server = { path = "../../server" }
+libc = "0.2"
+tokio = { workspace = true }

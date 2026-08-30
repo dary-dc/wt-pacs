@@ -1,13 +1,14 @@
 //! Server-side SBND reader: one open study mapped for serving.
 
 use anyhow::{bail, Context, Result};
-use memmap2::Mmap;
+use memmap2::{Advice, Mmap};
 use study_bundle::parse_layout;
 use std::fs::File;
+use std::os::unix::fs::FileExt;
 use std::path::Path;
 
 pub struct FrameStore {
-    _file: File,
+    file: File,
     mmap: Mmap,
     frame_count: u32,
     metadata_len: u32,
@@ -19,11 +20,11 @@ impl FrameStore {
     pub fn open(study_path: &Path) -> Result<Self> {
         let file = File::open(study_path)
             .with_context(|| format!("open study bundle {}", study_path.display()))?;
-        // SAFETY: `_file` keeps the fd open; bundle must not be truncated while mapped.
+        // SAFETY: `file` keeps the fd open; bundle must not be truncated while mapped.
         let mmap = unsafe { Mmap::map(&file).context("mmap study bundle")? };
         let parsed = parse_layout(&mmap)?;
         Ok(Self {
-            _file: file,
+            file,
             mmap,
             frame_count: parsed.frame_count,
             metadata_len: parsed.metadata_len,
@@ -42,12 +43,16 @@ impl FrameStore {
         std::str::from_utf8(&self.mmap[start..end]).context("metadata JSON is not UTF-8")
     }
 
-    pub fn frame_slice(&self, index: u32) -> Result<&[u8]> {
-        let (offset, length) = self
-            .index
+    /// Byte offset and length of frame payload in the SBND file.
+    pub fn frame_range(&self, index: u32) -> Result<(u64, u32)> {
+        self.index
             .get(index as usize)
             .copied()
-            .with_context(|| format!("frame index {index} out of range ({})", self.frame_count))?;
+            .with_context(|| format!("frame index {index} out of range ({})", self.frame_count))
+    }
+
+    pub fn frame_slice(&self, index: u32) -> Result<&[u8]> {
+        let (offset, length) = self.frame_range(index)?;
         let start = offset as usize;
         let end = start + length as usize;
         if end > self.mmap.len() {
@@ -68,6 +73,32 @@ impl FrameStore {
     /// One byte per 4 KiB (plus the last byte). No copy, no second mapping.
     pub fn touch_frame_pages(&self, index: u32) -> Result<()> {
         touch_pages(self.frame_slice(index)?);
+        Ok(())
+    }
+
+    /// `madvise(WILLNEED)` for one frame's byte range. Advisory — the kernel may ignore it.
+    pub fn advise_frame_willneed(&self, index: u32) -> Result<()> {
+        let (offset, length) = self.frame_range(index)?;
+        self.mmap
+            .advise_range(Advice::WillNeed, offset as usize, length as usize)
+            .context("madvise WILLNEED")?;
+        Ok(())
+    }
+
+    /// Read frame bytes with `pread` into `buf` (must be exactly frame length).
+    ///
+    /// Always copies into userspace. Safe to call from a blocking pool.
+    pub fn pread_frame(&self, index: u32, buf: &mut [u8]) -> Result<()> {
+        let (offset, length) = self.frame_range(index)?;
+        if buf.len() != length as usize {
+            bail!(
+                "pread_frame buf len {} != frame {index} len {length}",
+                buf.len()
+            );
+        }
+        self.file
+            .read_exact_at(buf, offset)
+            .with_context(|| format!("pread frame {index} at {offset}"))?;
         Ok(())
     }
 }
@@ -106,6 +137,10 @@ mod tests {
         assert_eq!(store.frame_slice(1)?, f1);
         store.touch_frame_pages(0)?;
         store.touch_frame_pages(1)?;
+        let mut buf = vec![0u8; f0.len()];
+        store.pread_frame(0, &mut buf)?;
+        assert_eq!(buf, f0);
+        store.advise_frame_willneed(1)?;
         let _ = std::fs::remove_file(path);
         Ok(())
     }
