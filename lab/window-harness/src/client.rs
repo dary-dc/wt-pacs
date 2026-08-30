@@ -358,13 +358,17 @@ async fn run_legacy_schedule(
     wanted: u32,
     metrics: &SharedMetrics,
 ) -> Result<u32> {
+    let n = cfg.frame_count.max(1);
     let mut asks_sent = 0u32;
+    // Fire-all: ask every schedule frame with no outstanding bound, but still measure
+    // time-to-displayable per step so L2's p95 is defined for the control arm.
     for (i, &frame) in schedule.iter().enumerate() {
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
-        ask_frame(control_send, frame, cfg.rtt_ms).await?;
+        ask_frame(control_send, frame % n, cfg.rtt_ms).await?;
         asks_sent += 1;
+        wait_displayable(metrics, frame % n, cfg.timeout_ms).await?;
     }
 
     {
@@ -372,7 +376,7 @@ async fn run_legacy_schedule(
         m.settle();
     }
 
-    wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
+    wait_wanted(metrics, cfg.timeout_ms, wanted % n).await?;
     Ok(asks_sent)
 }
 
@@ -431,6 +435,10 @@ async fn run_windowed(
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
         let d = current_d();
+        // Make room for the new window before asking. Required when dynamic D shrinks:
+        // otherwise outstanding stays at the old (larger) D and emit_window skips the
+        // center frame → wait_displayable times out.
+        wait_outstanding_below(outstanding, d.saturating_sub(1), cfg.timeout_ms).await?;
         // Ask first so depth can pipeline; then measure wait for this cursor.
         asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
         // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
@@ -451,6 +459,7 @@ async fn run_windowed(
         m.settle();
     }
     let d = current_d();
+    wait_outstanding_below(outstanding, d.saturating_sub(1), cfg.timeout_ms).await?;
     asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
     wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
@@ -463,6 +472,7 @@ async fn run_windowed(
         let fill_deadline = std::time::Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
         while std::time::Instant::now() < fill_deadline {
             let d = current_d();
+            wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
             asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
             wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
             tokio::time::sleep(Duration::from_millis(5)).await;
@@ -513,10 +523,11 @@ async fn emit_window(
 ) -> Result<u32> {
     let frames = window_frames(center, d, n);
     let mut sent = 0u32;
-    for frame in frames {
+    for (i, frame) in frames.into_iter().enumerate() {
         {
             let mut o = outstanding.lock().expect("outstanding");
-            if o.len() as u32 >= d && !o.contains(&frame) {
+            // Always ask the center (index 0). Neighbours may be skipped when at capacity.
+            if i > 0 && o.len() as u32 >= d && !o.contains(&frame) {
                 continue;
             }
             o.insert(frame);
