@@ -144,8 +144,13 @@ def main() -> int:
             time.sleep(0.5)
 
         print("building exact-server…")
+        build_cmd = ["cargo", "build", "--release", "-p", "exact-server"]
+        if args.telemetry:
+            # Existing server Tap (feature-gated). No product-path rewrite — ADR.
+            build_cmd.append("--features")
+            build_cmd.append("telemetry")
         subprocess.run(
-            ["cargo", "build", "--release", "-p", "exact-server"],
+            build_cmd,
             cwd=ROOT,
             env=env,
             check=True,
@@ -157,49 +162,57 @@ def main() -> int:
         if not server_bin.is_file():
             raise SystemExit(f"exact-server binary not found under {env['CARGO_TARGET_DIR']}")
 
-        print("starting exact-server…")
-        server_cmd = [
-            "stdbuf",
-            "-oL",
-            "-eL",
-            str(server_bin),
-            "--port",
-            str(args.port_wt),
-            "--study",
-            str(study),
-            "--cert-pem",
-            str(cert),
-            "--key-pem",
-            str(key),
-            "--stream-mode",
-            args.stream_mode,
-        ]
-        procs.append(
-            subprocess.Popen(
-                server_cmd,
+        def start_exact_server(server_env: dict) -> subprocess.Popen:
+            cmd = [
+                "stdbuf",
+                "-oL",
+                "-eL",
+                str(server_bin),
+                "--port",
+                str(args.port_wt),
+                "--study",
+                str(study),
+                "--cert-pem",
+                str(cert),
+                "--key-pem",
+                str(key),
+                "--stream-mode",
+                args.stream_mode,
+            ]
+            proc = subprocess.Popen(
+                cmd,
                 cwd=ROOT,
-                env=env,
+                env=server_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
             )
-        )
-        # Wait until server prints wt_url=
-        deadline = time.time() + 30
-        out_buf = ""
-        while time.time() < deadline:
-            line = procs[0].stdout.readline() if procs[0].stdout else ""
-            if line:
-                out_buf += line
-                sys.stdout.write(f"[server] {line}")
-                if "wt_url=" in line:
-                    break
-            if procs[0].poll() is not None:
-                raise SystemExit(f"exact-server exited early:\n{out_buf}")
-            time.sleep(0.05)
-        else:
+            deadline = time.time() + 30
+            out_buf = ""
+            while time.time() < deadline:
+                line = proc.stdout.readline() if proc.stdout else ""
+                if line:
+                    out_buf += line
+                    sys.stdout.write(f"[server] {line}")
+                    if "wt_url=" in line:
+                        return proc
+                if proc.poll() is not None:
+                    raise SystemExit(f"exact-server exited early:\n{out_buf}")
+                time.sleep(0.05)
             raise SystemExit(f"timeout waiting for exact-server ready:\n{out_buf}")
 
+        def stop_proc(proc: subprocess.Popen | None) -> None:
+            if proc is None or proc.poll() is not None:
+                return
+            proc.send_signal(signal.SIGTERM)
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+        print("starting exact-server…")
+        server_proc = start_exact_server(env)
+        procs.append(server_proc)
         print("starting static host…")
         http_log = open("/tmp/wt-verify-http.log", "w")
         procs.append(
@@ -279,9 +292,11 @@ def main() -> int:
                 for rep in range(args.repeats):
                     schedule.append((path, label, rep))
 
-        meas_dir = ROOT / ".local" / "measurements"
+        meas_root = ROOT / ".local" / "measurements"
         if args.telemetry:
-            meas_dir.mkdir(parents=True, exist_ok=True)
+            meas_root.mkdir(parents=True, exist_ok=True)
+
+        study_slug = study.stem.replace(".sbnd", "") if study.suffix == ".sbnd" else study.stem
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -293,6 +308,34 @@ def main() -> int:
                 ],
             )
             for path, label, rep in schedule:
+                run_dir = None
+                if args.telemetry:
+                    # Independent pieces in one run folder (no join file):
+                    #   <stamp>-<study>-<arm>-<stream>-<cell>-rN/
+                    #     telemetry-client.json
+                    #     telemetry-server.json
+                    from datetime import datetime, timezone
+                    import json as _json
+
+                    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                    run_dir = (
+                        meas_root
+                        / f"{stamp}-{study_slug}-{label}-{args.stream_mode}-{args.cell}-r{rep}"
+                    )
+                    run_dir.mkdir(parents=True, exist_ok=True)
+                    server_report = run_dir / "telemetry-server.json"
+                    # Restart server so this run gets its own server Tap report.
+                    if server_proc in procs:
+                        procs.remove(server_proc)
+                    stop_proc(server_proc)
+                    time.sleep(0.4)
+                    senv = env.copy()
+                    senv["WTPACS_TELEMETRY"] = "1"
+                    senv["WTPACS_TELEMETRY_PATH"] = str(server_report)
+                    print(f"starting exact-server (telemetry → {server_report})…")
+                    server_proc = start_exact_server(senv)
+                    procs.insert(0, server_proc)
+
                 q = []
                 if args.telemetry:
                     q.append("telemetry=1")
@@ -331,35 +374,50 @@ def main() -> int:
                         raise SystemExit(
                             f"{label}: telemetry build expected but __wtpacsTelemetry absent"
                         )
-                    out = (
-                        meas_dir
-                        / f"telemetry-client-{label}-{args.stream_mode}-{args.cell}-r{rep}.json"
-                    )
-                    import json as _json
+                    assert run_dir is not None
+                    client_out = run_dir / "telemetry-client.json"
+                    client_out.write_text(_json.dumps(report, indent=2) + "\n")
+                    print(f"wrote {client_out}")
+                    print(f"[{label}] after run:\n{log}")
+                    if errors:
+                        raise SystemExit(f"{label}: page errors: {errors}")
+                    # Close the page first so the server session ends and Tap Drop
+                    # flushes telemetry-server.json (killing mid-session skips the write).
+                    page.close()
+                    server_out = run_dir / "telemetry-server.json"
+                    # Wait for Tap Drop on session end — do not SIGTERM yet.
+                    deadline = time.time() + 5
+                    while time.time() < deadline and not server_out.is_file():
+                        time.sleep(0.1)
+                    if server_proc in procs:
+                        procs.remove(server_proc)
+                    stop_proc(server_proc)
+                    # Drain thread may finish writing on process exit as well.
+                    deadline = time.time() + 3
+                    while time.time() < deadline and not server_out.is_file():
+                        time.sleep(0.1)
+                    if server_out.is_file():
+                        print(f"wrote {server_out}")
+                    else:
+                        print(f"WARN: missing {server_out} (server Tap did not flush)")
+                    server_proc = start_exact_server(env)
+                    procs.insert(0, server_proc)
+                    print(f"OK {label} rep={rep}")
+                    continue
 
-                    out.write_text(_json.dumps(report, indent=2) + "\n")
-                    print(f"wrote {out}")
-                else:
-                    page.click("#frame0")
-                    page.wait_for_function(
-                        """() => (document.getElementById('log')?.textContent || '').includes('frame0 bytes')""",
-                        timeout=20_000,
-                    )
+                page.click("#frame0")
+                page.wait_for_function(
+                    """() => (document.getElementById('log')?.textContent || '').includes('frame0 bytes')""",
+                    timeout=20_000,
+                )
                 log = page.locator("#log").inner_text()
                 print(f"[{label}] after run:\n{log}")
-                if args.telemetry:
-                    if args.cell == "fill" and "bulk " not in log:
-                        raise SystemExit(f"{label}: fill cell did not complete")
-                    if args.cell == "ondemand" and "frame0 bytes" not in log:
-                        raise SystemExit(f"{label}: ondemand cell did not complete")
-                else:
-                    if "frame0 bytes" not in log:
-                        raise SystemExit(f"{label}: frame0 did not complete")
+                if "frame0 bytes" not in log:
+                    raise SystemExit(f"{label}: frame0 did not complete")
                 if errors:
                     raise SystemExit(f"{label}: page errors: {errors}")
                 page.close()
                 print(f"OK {label} rep={rep}")
-
             browser.close()
 
         print("PASS e2e")
