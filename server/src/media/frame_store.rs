@@ -58,6 +58,30 @@ impl FrameStore {
         }
         Ok(&self.mmap[start..end])
     }
+
+    /// Fault every page of `index` into the page cache.
+    ///
+    /// Call this from a **blocking** pool (`spawn_blocking`), not on the async executor: a cold
+    /// fault is not an `.await`, so it stalls every task sharing the OS thread. After this returns,
+    /// `frame_slice` + `write_all` on the executor should not take major faults for that frame.
+    ///
+    /// One byte per 4 KiB (plus the last byte). No copy, no second mapping.
+    pub fn touch_frame_pages(&self, index: u32) -> Result<()> {
+        touch_pages(self.frame_slice(index)?);
+        Ok(())
+    }
+}
+
+/// Touch one byte per page so the kernel faults the range now, not during a later read.
+pub fn touch_pages(bytes: &[u8]) {
+    let mut acc = 0u8;
+    for page in bytes.chunks(4096) {
+        acc ^= page[0];
+    }
+    if let Some(last) = bytes.last() {
+        acc ^= *last;
+    }
+    std::hint::black_box(acc);
 }
 
 #[cfg(test)]
@@ -80,6 +104,8 @@ mod tests {
         assert_eq!(store.metadata_json()?, r#"{"frameCount":2}"#);
         assert_eq!(store.frame_slice(0)?, f0);
         assert_eq!(store.frame_slice(1)?, f1);
+        store.touch_frame_pages(0)?;
+        store.touch_frame_pages(1)?;
         let _ = std::fs::remove_file(path);
         Ok(())
     }

@@ -167,7 +167,7 @@ async fn run_session(
                     &mut shared,
                     &mut acks,
                     &mut control_send,
-                    &store,
+                    Arc::clone(&store),
                     frame,
                     &mut rec,
                 )
@@ -180,7 +180,7 @@ async fn run_session(
                         &mut shared,
                         &mut acks,
                         &mut control_send,
-                        &store,
+                        Arc::clone(&store),
                         frame,
                         &mut rec,
                     )
@@ -208,14 +208,22 @@ async fn send_one_frame(
     shared: &mut Option<SendStream>,
     acks: &mut JoinSet<()>,
     control_send: &mut SendStream,
-    store: &FrameStore,
+    store: Arc<FrameStore>,
     idx: u32,
     rec: &mut Recorder,
 ) -> Result<()> {
     rec.ask(idx);
 
     let t0 = rec.stamp();
-    match store.frame_slice(idx) {
+    // Pre-touch mmap pages on a blocking thread. Cold faults here must not run on the
+    // async executor — they are not `.await` points and stall every task on the OS thread.
+    // `frame_slice` alone does not fault the range; the read in wrap/write_all would.
+    let store_touch = Arc::clone(&store);
+    let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
+        .await
+        .context("join frame page touch")?;
+
+    match touch.and_then(|_| store.frame_slice(idx)) {
         Ok(bytes) => {
             rec.located(t0, LocateOutcome::Ok, bytes.len());
 
