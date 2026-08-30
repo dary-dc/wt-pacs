@@ -1,6 +1,7 @@
 # Lane L3 — keep page faults off the executor
 
-**Status: ready for cloud agent.** · No rig needed.
+**Status: implemented — ready to merge.** · No rig needed for the code change.  
+Follow-ups parked in [`docs/disk-access-later.md`](../disk-access-later.md).
 
 ## Purpose
 
@@ -57,3 +58,9 @@ needs `MADV_WILLNEED` and io_uring arms to be meaningful.
 
 `server/src/media/frame_store.rs` and its call site, plus `lab/cold-page-bench`. Nothing else — other
 lanes own other files. Branch, do not push to `main`.
+
+## Landed
+
+- `FrameStore::touch_frame_pages` + `send_one_frame` `spawn_blocking` pre-touch
+- Broader arm comparison: `docs/measurements/r2/DISK_ACCESS_CAMPAIGN.md`
+- Prior art: `docs/disk-access-prior-art.md` · later ideas: `docs/disk-access-later.md`
