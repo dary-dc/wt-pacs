@@ -139,5 +139,10 @@ async fn main() -> anyhow::Result<()> {
         println!("d_max_observed={}", m.d_max_observed);
         println!("depth_oscillating={}", m.depth_oscillating);
     }
+    // L2: print metrics (incl. d_current) first, then non-zero exit so the campaign stops.
+    if m.depth_oscillating {
+        eprintln!("depth oscillating despite damping — stop");
+        std::process::exit(2);
+    }
     Ok(())
 }
