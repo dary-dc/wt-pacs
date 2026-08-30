@@ -1,0 +1,16 @@
+{
+  "phase": "1-post",
+  "arm": "transport-wasm",
+  "path": "client/transport-wasm/src/session.rs",
+  "copies_per_frame": 2,
+  "copies": [
+    "chunk.copy_to -> RecvBuf (read_exact accumulate)",
+    "js_buffer_from copy_from (codestream only, once)"
+  ],
+  "removed": [
+    "buf[4..4+len].to_vec()",
+    "per-frame buf.drain memmove"
+  ],
+  "js_heap_copies_per_frame": 1,
+  "note": "structural count after P4; accumulate into Rust buf still required for parsing"
+}

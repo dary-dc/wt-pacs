@@ -1,0 +1,14 @@
+{
+  "phase": "1-pre",
+  "arm": "transport-wasm",
+  "path": "client/transport-wasm/src/session.rs",
+  "copies_per_frame": 3,
+  "copies": [
+    "chunk.copy_to -> buf (read_exact)",
+    "buf[4..4+len].to_vec() (read_length_prefixed)",
+    "js_buffer_from copy_from (pump_framed_stream)"
+  ],
+  "extra": "buf.drain(..4+len) memmove of remainder",
+  "js_heap_copies_per_frame": 1,
+  "note": "structural count from source before P4 fix; not timed"
+}

@@ -38,7 +38,10 @@ class Handler(SimpleHTTPRequestHandler):
         return super().translate_path(path)
 
     def end_headers(self):
-        # Allow SharedArrayBuffer later; COOP/COEP optional for now.
+        # Cross-origin isolation → performance.now() at 5 µs (plan §11).
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         super().end_headers()
 
     def guess_type(self, path):

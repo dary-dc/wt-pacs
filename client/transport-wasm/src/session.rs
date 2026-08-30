@@ -68,22 +68,60 @@ async fn reader_read_bytes(
     }
 }
 
+/// Receive buffer with a read cursor — avoids per-frame `to_vec` + `drain` memmove (P4).
+struct RecvBuf {
+    data: Vec<u8>,
+    pos: usize,
+}
+
+impl RecvBuf {
+    fn new() -> Self {
+        Self {
+            data: Vec::new(),
+            pos: 0,
+        }
+    }
+
+    fn available(&self) -> usize {
+        self.data.len() - self.pos
+    }
+
+    fn is_empty(&self) -> bool {
+        self.pos >= self.data.len()
+    }
+
+    fn as_slice(&self) -> &[u8] {
+        &self.data[self.pos..]
+    }
+
+    fn consume(&mut self, n: usize) {
+        self.pos += n;
+        // Compact only when the discarded prefix is large — not every frame.
+        if self.pos >= 64 * 1024 && self.pos * 2 >= self.data.len() {
+            self.data.drain(..self.pos);
+            self.pos = 0;
+        }
+    }
+
+    fn push_chunk(&mut self, chunk: &Uint8Array) {
+        let n = chunk.length() as usize;
+        let start = self.data.len();
+        self.data.resize(start + n, 0);
+        chunk.copy_to(&mut self.data[start..]);
+    }
+}
+
 async fn read_exact(
     reader: &ReadableStreamDefaultReader,
-    buf: &mut Vec<u8>,
+    buf: &mut RecvBuf,
     need: usize,
 ) -> Result<(), String> {
-    while buf.len() < need {
+    while buf.available() < need {
         match reader_read_bytes(reader)
             .await
             .map_err(|e| format!("stream read: {e:?}"))?
         {
-            Some(chunk) => {
-                let n = chunk.length() as usize;
-                let start = buf.len();
-                buf.resize(start + n, 0);
-                chunk.copy_to(&mut buf[start..]);
-            }
+            Some(chunk) => buf.push_chunk(&chunk),
             None => return Err("stream ended early".into()),
         }
     }
@@ -93,24 +131,28 @@ async fn read_exact(
 const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
 
 /// Read one `[4B BE len][payload]` from a uni stream. `Ok(None)` on clean EOF before a frame.
-async fn read_length_prefixed(
+/// Returns `(display_index, js_codestream)` with a single JS-heap copy of the codestream.
+async fn read_length_prefixed_frame(
     reader: &ReadableStreamDefaultReader,
-    buf: &mut Vec<u8>,
-) -> Result<Option<Vec<u8>>, String> {
+    buf: &mut RecvBuf,
+) -> Result<Option<(u32, Uint8Array)>, String> {
     if let Err(e) = read_exact(reader, buf, 4).await {
         if buf.is_empty() {
             return Ok(None);
         }
         return Err(e);
     }
-    let len = u32::from_be_bytes(buf[0..4].try_into().unwrap()) as usize;
+    let len = u32::from_be_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
     if len == 0 || len > MAX_FRAME_LEN {
         return Err(format!("invalid frame length {len}"));
     }
     read_exact(reader, buf, 4 + len).await?;
-    let payload = buf[4..4 + len].to_vec();
-    buf.drain(..4 + len);
-    Ok(Some(payload))
+    let envelope = &buf.as_slice()[4..4 + len];
+    let (index, codestream) = unwrap_envelope(envelope).map_err(|e| format!("envelope: {e}"))?;
+    // One full-frame copy into the JS heap — the app-owned Uint8Array.
+    let view = js_buffer_from(codestream);
+    buf.consume(4 + len);
+    Ok(Some((index, view)))
 }
 
 /// Drain length-prefixed envelopes from one uni until EOF (shared or per-frame).
@@ -125,24 +167,19 @@ async fn pump_framed_stream(
         Ok(r) => r,
         Err(_) => return,
     };
-    let mut buf = Vec::new();
+    let mut buf = RecvBuf::new();
     loop {
-        let envelope = match read_length_prefixed(&reader, &mut buf).await {
-            Ok(Some(e)) => e,
+        let frame = match read_length_prefixed_frame(&reader, &mut buf).await {
+            Ok(Some(f)) => f,
             Ok(None) | Err(_) => break,
         };
         let now = perf_now_ms();
-        match unwrap_envelope(&envelope) {
-            Ok((index, chunk)) => {
-                let view = js_buffer_from(chunk);
-                let mut s = st.borrow_mut();
-                if let Some(tx) = s.waiters.remove(&index) {
-                    let _ = tx.send((view, now));
-                } else {
-                    s.dropped_early += 1;
-                }
-            }
-            Err(_) => continue,
+        let (index, view) = frame;
+        let mut s = st.borrow_mut();
+        if let Some(tx) = s.waiters.remove(&index) {
+            let _ = tx.send((view, now));
+        } else {
+            s.dropped_early += 1;
         }
     }
     let _ = JsFuture::from(reader.cancel()).await;
@@ -157,11 +194,11 @@ async fn write_all(writer: &WritableStreamDefaultWriter, bytes: &[u8]) -> Result
 }
 
 async fn read_fod_msg(reader: &ReadableStreamDefaultReader) -> Result<FodMsg, String> {
-    let mut buf = Vec::new();
+    let mut buf = RecvBuf::new();
     read_exact(reader, &mut buf, 4).await?;
-    let len = u32::from_le_bytes(buf[0..4].try_into().unwrap()) as usize;
+    let len = u32::from_le_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
     read_exact(reader, &mut buf, 4 + len).await?;
-    decode_fod_msg(&buf).map_err(|e| format!("decode FoD: {e}"))
+    decode_fod_msg(buf.as_slice()).map_err(|e| format!("decode FoD: {e}"))
 }
 
 #[derive(Default)]
