@@ -524,11 +524,8 @@ async fn run_windowed(
         }));
 
         if let Some(ctl) = depth_ctl {
-            let stop = {
-                let c = ctl.lock().expect("depth ctl");
-                c.oscillating || c.saturated
-            };
-            if stop {
+            let oscillating = ctl.lock().expect("depth ctl").oscillating;
+            if oscillating {
                 break;
             }
         }
@@ -558,11 +555,11 @@ async fn run_windowed(
         m.settle();
     }
 
-    if !oscillating && !saturated {
+    if !oscillating {
         wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
     }
 
-    if !oscillating && !saturated && cfg.fill_dwell_ms > 0 {
+    if !oscillating && cfg.fill_dwell_ms > 0 {
         {
             let mut m = metrics.lock().expect("metrics lock");
             m.start_fill();
