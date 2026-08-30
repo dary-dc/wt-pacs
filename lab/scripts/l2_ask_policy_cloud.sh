@@ -24,8 +24,8 @@ TRACE="$ROOT/lab/traces/l2_ask_policy_scroll.json"
 CERT="${CERT:-$ROOT/server/dev-cert/cert.pem}"
 KEY_PEM="${KEY_PEM:-$ROOT/server/dev-cert/key.pem}"
 BIN_SERVER="${BIN_SERVER:-$ROOT/target/release/exact-server}"
-LOCK_REMOTE="/tmp/wt-pacs-rig.lock"
-LOCK_HOLDER="L2"
+export RIG_LOCK_HOLDER=L2
+source "$ROOT/lab/scripts/rig_lock.sh"
 
 RTTS=(20 60 150)
 LOSSES=(0 0.5)
@@ -68,34 +68,9 @@ print(max(1, min(16, d)))
 "
 }
 
-acquire_rig() {
-  "${SSH[@]}" "bash -s" "$LOCK_HOLDER" <<'REMOTE'
-set -euo pipefail
-HOLDER=$1
-LOCK=/tmp/wt-pacs-rig.lock
-if [[ -f "$LOCK" ]]; then
-  cur=$(cat "$LOCK" || true)
-  if [[ "$cur" != "$HOLDER" ]]; then
-    echo "rig locked by '$cur' — L2 waits (round-robin)" >&2
-    exit 75
-  fi
-fi
-echo "$HOLDER" > "$LOCK"
-echo "rig acquired by $HOLDER"
-REMOTE
-}
-
 release_rig() {
-  "${SSH[@]}" "bash -s" "$LOCK_HOLDER" <<'REMOTE'
-set -euo pipefail
-HOLDER=$1
-LOCK=/tmp/wt-pacs-rig.lock
-if [[ -f "$LOCK" ]] && [[ "$(cat "$LOCK")" == "$HOLDER" ]]; then
-  rm -f "$LOCK"
-  echo "rig released by $HOLDER"
-fi
-REMOTE
   cloud_set_netem off 0 2>/dev/null || true
+  rig_lock_release || true
 }
 
 cleanup() { release_rig || true; }
@@ -203,7 +178,7 @@ PY
 
 # Wait for the rig (round-robin with L1).
 for attempt in $(seq 1 120); do
-  if acquire_rig; then
+  if rig_lock_acquire; then
     break
   fi
   echo "waiting for rig (attempt $attempt/120)..." >&2
