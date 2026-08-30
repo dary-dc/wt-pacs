@@ -1,0 +1,605 @@
+{
+  "trace": "l2_ask_policy_scroll",
+  "mode": "trace",
+  "read_bps": 0,
+  "depth": 16,
+  "stream_mode": "shared",
+  "peak_outstanding": 16,
+  "arm_label": "L2v2_fixed_rtt150_loss0_r1",
+  "wanted_frame": 40,
+  "asks_sent": 80,
+  "recovered_ms": 0.0,
+  "mean_wait_ms": 250.26180965546223,
+  "p95_wait_ms": 545.9755120000001,
+  "p95_lateness_ms": 2010.522598,
+  "mean_lateness_ms": 1212.7946138739494,
+  "frac_steps_late": 0.7478991596638656,
+  "lateness_ms": [
+    665.02438,
+    757.446639,
+    969.286307,
+    1097.8649110000001,
+    1164.33708,
+    1227.3451790000001,
+    1294.0957310000001,
+    1324.726654,
+    1363.6705849999998,
+    1372.953798,
+    1391.7813159999998,
+    1402.826775,
+    1411.54925,
+    1418.666757,
+    1432.9212499999999,
+    1450.070953,
+    1457.9112599999999,
+    1466.863295,
+    1473.6597339999998,
+    1486.320976,
+    1497.8124269999998,
+    1511.8550100000002,
+    1517.10379,
+    1528.773904,
+    1538.1498769999998,
+    1548.198314,
+    1559.715744,
+    1569.1564119999998,
+    1583.1826119999998,
+    1594.237905,
+    1602.167035,
+    1614.35741,
+    1625.393297,
+    1637.6624130000002,
+    1646.369944,
+    1658.7987229999999,
+    1670.724162,
+    1680.854971,
+    1692.2874180000001,
+    1701.724118,
+    1713.583279,
+    1723.901468,
+    1736.2498799999998,
+    1747.2161929999997,
+    1758.13939,
+    1770.655238,
+    1778.828836,
+    1790.673929,
+    1802.159474,
+    1813.0701259999998,
+    1822.751041,
+    1834.978494,
+    1847.454358,
+    1855.958528,
+    1868.1915490000001,
+    1879.345542,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1890.2965840000002,
+    1197.3089969999999,
+    1902.378035,
+    1242.3285429999999,
+    1914.33465,
+    1922.285461,
+    1282.289568,
+    1326.531202,
+    1934.536362,
+    1946.637279,
+    1370.6408909999998,
+    1958.5924019999998,
+    1414.5965899999999,
+    1455.7141279999998,
+    1967.7208689999998,
+    1979.146295,
+    1499.1523,
+    1542.8393090000002,
+    1990.8443770000001,
+    1999.431256,
+    1583.4486729999999,
+    1626.52185,
+    2010.522598,
+    1672.0529159999999,
+    2024.0551010000001,
+    1712.556,
+    2035.238575,
+    1755.464463,
+    2043.465274,
+    2057.4159550000004,
+    1801.4236939999998,
+    1843.890639,
+    2067.892574
+  ],
+  "wait_ms": [
+    665.0227480000001,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    851.807459,
+    778.223169,
+    662.863513,
+    602.079695,
+    545.9755120000001,
+    511.05890899999997,
+    499.661283,
+    484.134633,
+    464.761869,
+    453.802777,
+    435.039571,
+    427.675097,
+    430.0109,
+    432.375583,
+    431.327264,
+    431.97274899999996,
+    431.236695,
+    423.934261,
+    422.294455,
+    427.621466,
+    431.410815,
+    425.437512,
+    422.098878,
+    419.70316099999997,
+    426.79531599999996,
+    427.31188199999997,
+    429.706747,
+    428.78617,
+    422.784656,
+    432.365339,
+    428.832596,
+    431.308251,
+    430.50035199999996,
+    432.777709,
+    434.011588,
+    430.956496,
+    435.641549,
+    429.060808,
+    431.20996099999996,
+    433.916965,
+    431.297721,
+    432.32977,
+    432.185058,
+    432.739842,
+    430.993584,
+    433.21896599999997,
+    433.462898,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    430.48973,
+    0.0,
+    434.343313,
+    0.0,
+    433.96453099999997,
+    430.956724,
+    0.0,
+    0.0,
+    432.23200299999996,
+    431.807312,
+    0.0,
+    435.68787100000003,
+    0.0,
+    0.0,
+    432.918657,
+    431.798126,
+    0.0,
+    0.0,
+    434.927868,
+    430.27795499999996,
+    0.0,
+    0.0,
+    431.435334,
+    0.0,
+    432.514801,
+    0.0,
+    435.140133,
+    0.0,
+    431.162298,
+    432.88109099999997,
+    0.0,
+    0.0,
+    434.893404
+  ],
+  "wait_samples": 119,
+  "duplicate_asks": 823,
+  "unique_frames_asked": 80,
+  "drain_incomplete": false,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
+  "fill_dwell_ms": 0,
+  "link_util": 0.0,
+  "wasted_bytes": 0,
+  "commitment_depth": 0,
+  "wanted_received": true,
+  "frames_on_wire": 80,
+  "bytes_on_wire": 2560320,
+  "frames_after_settle": 0,
+  "bytes_after_settle": 0,
+  "frames_before_settle": 80,
+  "bytes_before_settle": 2560320,
+  "warm_cache": false,
+  "rtt_ms": 0,
+  "ask_join": [
+    {
+      "frame_index": 0,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 1,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 79,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 2,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 78,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 3,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 77,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 76,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 75,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 74,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 73,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 9,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 14,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 17,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 22,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 27,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 28,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 30,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 34,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 37,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 38,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 42,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 43,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 44,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 46,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 47,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 48,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 49,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 50,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 51,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 52,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 53,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 54,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 55,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 56,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 57,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 58,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 59,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 60,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 61,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 62,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 63,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 64,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 65,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 66,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 67,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 68,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 69,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 70,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 71,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 72,
+      "ask_ordinal": 0
+    }
+  ],
+  "d_min_observed": 16,
+  "d_max_observed": 16,
+  "depth_oscillating": false,
+  "depth_saturated": false
+}
