@@ -295,3 +295,6 @@ bash lab/scripts/l2_review_replicate.sh
 
 Arithmetic checks on the committed rows (the `D`-frame shortfall in S1, the link-time bound in B1)
 need only `l2_ask_policy.tsv` and the 32 004-byte frame size.
+
+**Remediation plan:** `docs/lanes/L2-ask-policy-harness-fix.md` — implement before re-run; smoke:
+`lab/scripts/l2_harness_smoke.sh`.
