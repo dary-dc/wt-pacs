@@ -57,6 +57,23 @@ def main() -> int:
         help="exact-server --stream-mode",
     )
     parser.add_argument("--keep", action="store_true", help="leave servers running")
+    parser.add_argument(
+        "--telemetry",
+        action="store_true",
+        help="load telemetry builds and harvest window.__wtpacsTelemetry",
+    )
+    parser.add_argument(
+        "--cell",
+        choices=("ondemand", "fill"),
+        default="ondemand",
+        help="with --telemetry: which FoD ask cell to autorun",
+    )
+    parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument(
+        "--interleave",
+        action="store_true",
+        help="with --telemetry and harness=both: alternate arms per repeat",
+    )
     args = parser.parse_args()
 
     chrome = find_chrome(args.chrome)
@@ -72,6 +89,24 @@ def main() -> int:
     pkg_js = ROOT / "client/transport-wasm/pkg/transport_wasm.js"
     if not pkg_js.is_file():
         subprocess.run([str(ROOT / "client/transport-wasm/build.sh")], check=True, cwd=ROOT)
+
+    if args.telemetry:
+        ts_tel = ROOT / "client/transport-ts/dist/session.telemetry.js"
+        if not ts_tel.is_file():
+            subprocess.run(
+                ["bash", str(ROOT / "client/transport-ts/build.sh")],
+                check=True,
+                cwd=ROOT,
+            )
+        # Optional separate wasm out-dir; product wasm is identical.
+        env_tel = os.environ.copy()
+        env_tel["WTPACS_TELEMETRY_BUILD"] = "1"
+        subprocess.run(
+            ["bash", str(ROOT / "client/transport-wasm/build.sh")],
+            check=False,
+            cwd=ROOT,
+            env=env_tel,
+        )
 
     # Prefer a local target dir inside the repo for predictability.
     env = os.environ.copy()
@@ -90,20 +125,23 @@ def main() -> int:
 
     try:
         # Avoid colliding with other local WebTransport demos.
-        for port in (args.port_http,):
+        from shutil import which as _which
+
+        if _which("fuser"):
+            for port in (args.port_http,):
+                subprocess.run(
+                    ["fuser", "-k", f"{port}/tcp"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             subprocess.run(
-                ["fuser", "-k", f"{port}/tcp"],
+                ["fuser", "-k", f"{args.port_wt}/udp"],
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        subprocess.run(
-            ["fuser", "-k", f"{args.port_wt}/udp"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        time.sleep(0.5)
+            time.sleep(0.5)
 
         print("building exact-server…")
         subprocess.run(
@@ -229,6 +267,22 @@ def main() -> int:
         if args.harness in ("ts", "both"):
             paths.append(("/harness/ts.html", "ts"))
 
+        if args.telemetry and args.interleave and len(paths) > 1:
+            # Alternate arms across repeats: (r0 arm0), (r0 arm1), (r1 arm0), ...
+            schedule: list[tuple[str, str, int]] = []
+            for rep in range(args.repeats):
+                for path, label in paths:
+                    schedule.append((path, label, rep))
+        else:
+            schedule = []
+            for path, label in paths:
+                for rep in range(args.repeats):
+                    schedule.append((path, label, rep))
+
+        meas_dir = ROOT / ".local" / "measurements"
+        if args.telemetry:
+            meas_dir.mkdir(parents=True, exist_ok=True)
+
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 executable_path=chrome,
@@ -238,9 +292,16 @@ def main() -> int:
                     "--no-sandbox",
                 ],
             )
-            for path, label in paths:
-                url = f"http://127.0.0.1:{args.port_http}{path}"
-                print(f"verify {label}: {url}")
+            for path, label, rep in schedule:
+                q = []
+                if args.telemetry:
+                    q.append("telemetry=1")
+                    q.append("autorun=1")
+                    q.append(f"cell={args.cell}")
+                    q.append(f"stream_mode={args.stream_mode}")
+                qs = ("?" + "&".join(q)) if q else ""
+                url = f"http://127.0.0.1:{args.port_http}{path}{qs}"
+                print(f"verify {label} rep={rep}: {url}")
                 page = browser.new_page()
                 errors: list[str] = []
                 page.on("pageerror", lambda e: errors.append(str(e)))
@@ -259,19 +320,45 @@ def main() -> int:
                 if "boot error" in log:
                     raise SystemExit(f"{label} boot failed:\n{log}\npageerrors={errors}")
 
-                page.click("#frame0")
-                page.wait_for_function(
-                    """() => (document.getElementById('log')?.textContent || '').includes('frame0 bytes')""",
-                    timeout=20_000,
-                )
+                if args.telemetry:
+                    done_token = "bulk " if args.cell == "fill" else "frame0 bytes"
+                    page.wait_for_function(
+                        f"""() => (document.getElementById('log')?.textContent || '').includes({done_token!r})""",
+                        timeout=60_000,
+                    )
+                    report = page.evaluate("() => window.__wtpacsTelemetry?.() ?? null")
+                    if report is None:
+                        raise SystemExit(
+                            f"{label}: telemetry build expected but __wtpacsTelemetry absent"
+                        )
+                    out = (
+                        meas_dir
+                        / f"telemetry-client-{label}-{args.stream_mode}-{args.cell}-r{rep}.json"
+                    )
+                    import json as _json
+
+                    out.write_text(_json.dumps(report, indent=2) + "\n")
+                    print(f"wrote {out}")
+                else:
+                    page.click("#frame0")
+                    page.wait_for_function(
+                        """() => (document.getElementById('log')?.textContent || '').includes('frame0 bytes')""",
+                        timeout=20_000,
+                    )
                 log = page.locator("#log").inner_text()
-                print(f"[{label}] after frame0:\n{log}")
-                if "frame0 bytes" not in log:
-                    raise SystemExit(f"{label}: frame0 did not complete")
+                print(f"[{label}] after run:\n{log}")
+                if args.telemetry:
+                    if args.cell == "fill" and "bulk " not in log:
+                        raise SystemExit(f"{label}: fill cell did not complete")
+                    if args.cell == "ondemand" and "frame0 bytes" not in log:
+                        raise SystemExit(f"{label}: ondemand cell did not complete")
+                else:
+                    if "frame0 bytes" not in log:
+                        raise SystemExit(f"{label}: frame0 did not complete")
                 if errors:
                     raise SystemExit(f"{label}: page errors: {errors}")
                 page.close()
-                print(f"OK {label}")
+                print(f"OK {label} rep={rep}")
 
             browser.close()
 

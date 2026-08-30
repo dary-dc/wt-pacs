@@ -350,6 +350,7 @@ fn distribution_stats(values: &[u32]) -> DistributionStats {
     }
 }
 
+/// Nearest-rank: rank = ceil(p/100 × N), clamped to [1, N]; value = sorted[rank - 1].
 fn percentile(sorted: &[u32], p: f64) -> f64 {
     if sorted.is_empty() {
         return 0.0;
@@ -357,14 +358,10 @@ fn percentile(sorted: &[u32], p: f64) -> f64 {
     if sorted.len() == 1 {
         return f64::from(sorted[0]);
     }
-    let rank = (sorted.len() - 1) as f64 * (p / 100.0);
-    let lo = rank.floor() as usize;
-    let hi = (lo + 1).min(sorted.len() - 1);
-    if lo == hi {
-        return f64::from(sorted[lo]);
-    }
-    let weight = rank - lo as f64;
-    f64::from(sorted[lo]) + (f64::from(sorted[hi]) - f64::from(sorted[lo])) * weight
+    let n = sorted.len();
+    let rank = ((p / 100.0) * n as f64).ceil() as usize;
+    let rank = rank.clamp(1, n);
+    f64::from(sorted[rank - 1])
 }
 
 fn round2(v: f64) -> f64 {
@@ -445,6 +442,23 @@ mod tests {
         let t1 = Instant::now();
         t.wrote(t1, WriteOutcome::Sent, 4096);
         assert!(t.serve_start.is_none());
+    }
+
+    #[test]
+    fn nearest_rank_disagrees_with_linear_interpolation() {
+        // N=10, p95: nearest-rank → sorted[9]=100
+        // linear (old): (N-1)*0.95 = 8.55 → interpolate 9 and 100
+        let sorted: Vec<u32> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 100];
+        assert_eq!(percentile(&sorted, 95.0), 100.0);
+        let linear_rank = (sorted.len() - 1) as f64 * 0.95;
+        let lo = linear_rank.floor() as usize;
+        let hi = (lo + 1).min(sorted.len() - 1);
+        let linear =
+            f64::from(sorted[lo]) + (f64::from(sorted[hi]) - f64::from(sorted[lo])) * (linear_rank - lo as f64);
+        assert!(
+            (linear - 100.0).abs() > 1.0,
+            "fixture must disagree with linear interpolation, got linear={linear}"
+        );
     }
 
     #[test]

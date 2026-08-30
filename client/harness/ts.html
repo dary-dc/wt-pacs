@@ -20,7 +20,10 @@
   <button id="bulk">Bulk 0..2</button>
   <div id="log"></div>
   <script type="module">
-    import { TransportSession } from "/client/transport-ts/dist/session.js";
+    const params = new URLSearchParams(location.search);
+    const telemetry = params.get("telemetry") === "1";
+    const streamMode = params.get("stream_mode") || "shared";
+    const cell = params.get("cell") || "ondemand";
 
     const logEl = document.getElementById("log");
     function log(...a) {
@@ -28,8 +31,17 @@
     }
 
     async function boot() {
+      if (telemetry) {
+        globalThis.__wtpacsArm = "transport-ts";
+        globalThis.__wtpacsStreamMode = streamMode;
+      }
+      const mod = telemetry
+        ? await import("/client/transport-ts/dist/session.telemetry.js")
+        : await import("/client/transport-ts/dist/session.js");
+      const { TransportSession } = mod;
+
       const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
-      log("connect", cfg.wt_url);
+      log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
       const session = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
       document.getElementById("frame0").onclick = async () => {
         const r = await session.requestExactFrame(0);
@@ -43,6 +55,11 @@
           log("bulk", r.frameIndex, r.bytes.length);
         }
       };
+
+      if (telemetry && params.get("autorun") === "1") {
+        if (cell === "fill") document.getElementById("bulk").click();
+        else document.getElementById("frame0").click();
+      }
     }
     boot().catch((e) => log("boot error", e));
   </script>

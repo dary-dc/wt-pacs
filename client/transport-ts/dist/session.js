@@ -1,5 +1,4 @@
-/** Bundled ESM — generated from session.ts + wire.ts (no npm required to run harness). */
-
+// wire.ts
 function encodeFodMsg(msg) {
   const body = new TextEncoder().encode(JSON.stringify(msg));
   const out = new Uint8Array(4 + body.length);
@@ -7,22 +6,18 @@ function encodeFodMsg(msg) {
   out.set(body, 4);
   return out;
 }
-
 function decodeFodMsg(bytes) {
   if (bytes.length < 4) throw new Error("FodMsg too short");
   const len = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true);
   const body = bytes.subarray(4, 4 + len);
   return JSON.parse(new TextDecoder().decode(body));
 }
-
 function unwrapEnvelope(payload) {
   if (payload.length < 4) throw new Error("envelope too short");
   const index = new DataView(payload.buffer, payload.byteOffset, payload.byteLength).getUint32(0, false);
   return { index, codestream: payload.subarray(4) };
 }
-
-const MAX_FRAME_LEN = 64 * 1024 * 1024;
-
+var MAX_FRAME_LEN = 64 * 1024 * 1024;
 function hexToBytes(hex) {
   if (hex.length % 2 !== 0) throw new Error("hex length must be even");
   const out = new Uint8Array(hex.length / 2);
@@ -32,161 +27,142 @@ function hexToBytes(hex) {
   return out;
 }
 
-const FRAME_TIMEOUT_MS = 15_000;
-
-export class TransportSession {
-  #transport;
-  #controlWriter;
-  #waiters = new Map();
-  #errors = new Map();
-  #bulkPending = new Map();
-  #droppedEarly = 0;
-  #frameErrors = 0;
-
+// session.ts
+var FRAME_TIMEOUT_MS = 15e3;
+var TransportSession = class _TransportSession {
+  transport;
+  controlWriter;
+  waiters = /* @__PURE__ */ new Map();
+  errors = /* @__PURE__ */ new Map();
+  bulkPending = /* @__PURE__ */ new Map();
+  droppedEarly = 0;
+  frameErrors = 0;
   constructor(transport, controlWriter) {
-    this.#transport = transport;
-    this.#controlWriter = controlWriter;
+    this.transport = transport;
+    this.controlWriter = controlWriter;
   }
-
   static async connect(wtUrl, certSha256) {
     const hash = hexToBytes(certSha256);
     const transport = new WebTransport(wtUrl, {
       serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
-      congestionControl: "low-latency",
+      congestionControl: "low-latency"
     });
     await transport.ready;
-
     const bi = await transport.createBidirectionalStream();
     const controlWriter = bi.writable.getWriter();
-    const session = new TransportSession(transport, controlWriter);
-
-    session.#pumpUni(transport.incomingUnidirectionalStreams);
-    session.#pumpControl(bi.readable);
-
+    const session = new _TransportSession(transport, controlWriter);
+    session.pumpUni(transport.incomingUnidirectionalStreams);
+    session.pumpControl(bi.readable);
     return session;
   }
-
-  #armWaiter(frameIndex) {
-    if (this.#waiters.has(frameIndex)) {
+  armWaiter(frameIndex) {
+    if (this.waiters.has(frameIndex)) {
       return Promise.reject(new Error(`frame ${frameIndex} already requested`));
     }
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.#waiters.delete(frameIndex);
+        this.waiters.delete(frameIndex);
         reject(new Error(`timeout waiting for frame ${frameIndex} after ${FRAME_TIMEOUT_MS} ms`));
       }, FRAME_TIMEOUT_MS);
-      this.#waiters.set(frameIndex, { resolve, reject, timer });
+      this.waiters.set(frameIndex, { resolve, reject, timer });
     });
   }
-
-  #completeWaiter(frameIndex, bytes, receivedMs) {
-    const w = this.#waiters.get(frameIndex);
+  completeWaiter(frameIndex, bytes, receivedMs) {
+    const w = this.waiters.get(frameIndex);
     if (!w) {
-      this.#droppedEarly += 1;
+      this.droppedEarly += 1;
       return;
     }
     clearTimeout(w.timer);
-    this.#waiters.delete(frameIndex);
+    this.waiters.delete(frameIndex);
     w.resolve({ bytes, receivedMs });
   }
-
-  #failWaiter(frameIndex, reason) {
-    const w = this.#waiters.get(frameIndex);
-    this.#errors.set(frameIndex, reason);
-    this.#frameErrors += 1;
+  failWaiter(frameIndex, reason) {
+    const w = this.waiters.get(frameIndex);
+    this.errors.set(frameIndex, reason);
+    this.frameErrors += 1;
     if (!w) return;
     clearTimeout(w.timer);
-    this.#waiters.delete(frameIndex);
+    this.waiters.delete(frameIndex);
     w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
   }
-
-  async #pumpUni(incoming) {
+  async pumpUni(incoming) {
     const reader = incoming.getReader();
     try {
-      for (;;) {
+      for (; ; ) {
         const { value: stream, done } = await reader.read();
         if (done || !stream) break;
-        // Both modes: `[4B BE len][envelope]` per frame. Shared keeps the uni open.
-        void this.#pumpFramedStream(stream);
+        void this.pumpFramedStream(stream);
       }
     } catch {
-      /* closed */
     } finally {
-      for (const [, w] of this.#waiters) {
+      for (const [, w] of this.waiters) {
         clearTimeout(w.timer);
         w.reject(new Error("session closed"));
       }
-      this.#waiters.clear();
+      this.waiters.clear();
     }
   }
-
-  async #pumpFramedStream(stream) {
+  /** Read length-prefixed envelopes until the uni stream ends. */
+  async pumpFramedStream(stream) {
     const reader = stream.getReader();
     const buf = new ByteAccumulator();
     try {
-      for (;;) {
+      for (; ; ) {
         const envelope = await readLengthPrefixed(reader, buf);
         if (!envelope) break;
         const receivedMs = performance.now();
         try {
           const { index, codestream } = unwrapEnvelope(envelope);
-          this.#completeWaiter(index, codestream, receivedMs);
+          this.completeWaiter(index, codestream, receivedMs);
         } catch {
-          /* ignore */
         }
       }
     } catch {
-      /* stream ended */
     }
   }
-
-  async #pumpControl(readable) {
+  async pumpControl(readable) {
     const reader = readable.getReader();
     const buf = new ByteAccumulator();
     try {
-      for (;;) {
+      for (; ; ) {
         const msg = await readFodFrom(reader, buf);
         if (msg.op === "frame_error") {
-          this.#failWaiter(msg.frame_index, msg.reason ?? "frame error");
+          this.failWaiter(msg.frame_index, msg.reason ?? "frame error");
         }
       }
     } catch {
-      /* ended */
     }
   }
-
-  async #sendFod(msg) {
-    await this.#controlWriter.write(encodeFodMsg(msg));
+  async sendFod(msg) {
+    await this.controlWriter.write(encodeFodMsg(msg));
   }
-
   async requestExactFrame(frameIndex) {
     const askMs = performance.now();
-    const pending = this.#armWaiter(frameIndex);
-    await this.#sendFod({ op: "request_frame", frame: frameIndex });
+    const pending = this.armWaiter(frameIndex);
+    await this.sendFod({ op: "request_frame", frame: frameIndex });
     try {
       const { bytes, receivedMs } = await pending;
       return toResult(frameIndex, askMs, bytes, receivedMs);
     } catch (e) {
-      const reason = this.#errors.get(frameIndex);
+      const reason = this.errors.get(frameIndex);
       if (reason) throw new Error(`frame ${frameIndex} unavailable: ${reason}`);
       throw e;
     }
   }
-
   startExactFrames(indices) {
     if (indices.length === 0) throw new Error("startExactFrames: empty index list");
-    if (this.#bulkPending.size > 0) throw new Error("startExactFrames: previous bulk still pending");
+    if (this.bulkPending.size > 0) throw new Error("startExactFrames: previous bulk still pending");
     const askMs = performance.now();
     for (const frameIndex of indices) {
-      this.#bulkPending.set(frameIndex, this.#armWaiter(frameIndex));
+      this.bulkPending.set(frameIndex, this.armWaiter(frameIndex));
     }
-    void this.#sendFod({ op: "request_frames", frames: [...indices] });
+    void this.sendFod({ op: "request_frames", frames: [...indices] });
     return askMs;
   }
-
   async waitExactFrame(frameIndex, askMs) {
-    const pending = this.#bulkPending.get(frameIndex);
-    this.#bulkPending.delete(frameIndex);
+    const pending = this.bulkPending.get(frameIndex);
+    this.bulkPending.delete(frameIndex);
     if (!pending) {
       throw new Error(`waitExactFrame: no pending bulk waiter for ${frameIndex}`);
     }
@@ -194,12 +170,11 @@ export class TransportSession {
       const { bytes, receivedMs } = await pending;
       return toResult(frameIndex, askMs, bytes, receivedMs);
     } catch (e) {
-      const reason = this.#errors.get(frameIndex);
+      const reason = this.errors.get(frameIndex);
       if (reason) throw new Error(`frame ${frameIndex} unavailable: ${reason}`);
       throw e;
     }
   }
-
   async requestExactFrames(indices) {
     const askMs = this.startExactFrames(indices);
     const out = [];
@@ -208,24 +183,20 @@ export class TransportSession {
     }
     return out;
   }
-
   stats() {
     return {
-      inFlight: this.#waiters.size,
-      droppedEarlyMedia: this.#droppedEarly,
-      frameErrors: this.#frameErrors,
+      inFlight: this.waiters.size,
+      droppedEarlyMedia: this.droppedEarly,
+      frameErrors: this.frameErrors
     };
   }
-
   close() {
     try {
-      this.#transport.close();
+      this.transport.close();
     } catch {
-      /* ignore */
     }
   }
-}
-
+};
 function toResult(frameIndex, askMs, bytes, receivedMs) {
   return {
     frameIndex,
@@ -237,11 +208,10 @@ function toResult(frameIndex, askMs, bytes, receivedMs) {
       firstChunkMs: receivedMs,
       lastChunkMs: receivedMs,
       chunks: 1,
-      serveUs: null,
-    },
+      serveUs: null
+    }
   };
 }
-
 async function readLengthPrefixed(reader, buf) {
   while (buf.length < 4) {
     const { value, done } = await reader.read();
@@ -260,12 +230,9 @@ async function readLengthPrefixed(reader, buf) {
   }
   return buf.take(len);
 }
-
-class ByteAccumulator {
-  constructor() {
-    this.parts = [];
-    this.len = 0;
-  }
+var ByteAccumulator = class {
+  parts = [];
+  len = 0;
   push(chunk) {
     this.parts.push(chunk);
     this.len += chunk.length;
@@ -273,6 +240,7 @@ class ByteAccumulator {
   get length() {
     return this.len;
   }
+  /** Consume `n` bytes from the front. */
   take(n) {
     if (n > this.len) throw new Error("take past length");
     const out = new Uint8Array(n);
@@ -293,8 +261,7 @@ class ByteAccumulator {
     this.len -= n;
     return out;
   }
-}
-
+};
 async function readFodFrom(reader, buf) {
   while (buf.length < 4) {
     const { value, done } = await reader.read();
@@ -314,3 +281,6 @@ async function readFodFrom(reader, buf) {
   full.set(body, 4);
   return decodeFodMsg(full);
 }
+export {
+  TransportSession
+};

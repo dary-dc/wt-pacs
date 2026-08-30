@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>wt-pacs harness</title>
+  <title>wt-pacs harness (WASM)</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 1rem; }
     #log { white-space: pre-wrap; font-size: 12px; background: #111; color: #0f0; padding: 1rem; }
@@ -19,7 +19,10 @@
   <button id="bulk">Bulk 0..2</button>
   <div id="log"></div>
   <script type="module">
-    import init, { TransportSessionHandle } from "/client/transport-wasm/pkg/transport_wasm.js";
+    const params = new URLSearchParams(location.search);
+    const telemetry = params.get("telemetry") === "1";
+    const streamMode = params.get("stream_mode") || "shared";
+    const cell = params.get("cell") || "ondemand";
 
     const logEl = document.getElementById("log");
     function log(...a) {
@@ -27,10 +30,40 @@
     }
 
     async function boot() {
+      let wrapSession = (s) => s;
+      if (telemetry) {
+        globalThis.__wtpacsArm = "transport-wasm";
+        globalThis.__wtpacsStreamMode = streamMode;
+        const { install, wrapSession: wrap } = await import(
+          "/client/transport-ts/record/dist/install.js"
+        );
+        install({ arm: "transport-wasm", stream_mode: streamMode, copies_per_frame: 2 });
+        wrapSession = wrap;
+      }
+
+      const pkgCandidates = telemetry
+        ? [
+            "/client/transport-wasm/pkg-telemetry/transport_wasm.js",
+            "/client/transport-wasm/pkg/transport_wasm.js",
+          ]
+        : ["/client/transport-wasm/pkg/transport_wasm.js"];
+      let initMod = null;
+      for (const url of pkgCandidates) {
+        try {
+          initMod = await import(url);
+          break;
+        } catch {
+          /* try next */
+        }
+      }
+      if (!initMod) throw new Error("wasm pkg not found");
+      const { default: init, TransportSessionHandle } = initMod;
       await init();
       const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
-      log("connect", cfg.wt_url);
-      const session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
+      log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
+      let session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
+      session = wrapSession(session);
+
       document.getElementById("frame0").onclick = async () => {
         const r = await session.requestExactFrame(0);
         log("frame0 bytes", r.bytes.length, "wire ms", r.timing.lastChunkMs - r.timing.askMs);
@@ -43,6 +76,11 @@
           log("bulk", r.frameIndex, r.bytes.length);
         }
       };
+
+      if (telemetry && params.get("autorun") === "1") {
+        if (cell === "fill") document.getElementById("bulk").click();
+        else document.getElementById("frame0").click();
+      }
     }
     boot().catch((e) => log("boot error", e));
   </script>
