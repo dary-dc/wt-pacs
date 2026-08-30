@@ -14,6 +14,7 @@ Shareable summary: [`docs/disk-access-team-brief.md`](disk-access-team-brief.md)
 | WILLNEED-only on executor | **Rejected** |
 | **`mincore` hybrid** (skip hop when resident) | **Done** — product path + follow-up TSV |
 | ADR | **Written** |
+| Realistic access patterns (large series · user trace · prefix) | **Done** — `DISK_ACCESS_REALISTIC.md`; ranking unchanged |
 
 ---
 

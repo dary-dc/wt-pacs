@@ -96,7 +96,40 @@ Record per arm in the summary (Y/N / note):
 | `lab/fixtures/frames_32k/*.sbnd` | smaller Tf, more frames in cache |
 | `lab/fixtures/frames_250k/*.sbnd` | E3 / L3 size (~250 KB × 80) |
 
-Generate with `lab/scripts/gen_tf_fixtures.sh` if missing.
+Generate with `lab/scripts/gen_tf_fixtures.sh` if missing.  
+Live-cell large series: `lab/scripts/gen_live_cell_fixture.sh` → `frames_250k_live` (320 × 250 KB).
+
+---
+
+## 5b · Realistic final wave (access patterns)
+
+Before merge reshape: confirm the decision under **large series**, **user-like ask order**, and **partial byte access**.
+
+| Axis | How |
+| --- | --- |
+| Large series | `frames_250k_live` (320 frames) · synthetic forward / reverse |
+| User trace | `--trace-file lab/traces/live_cell_scroll.json` (500 asks, reversal) |
+| Access | `--access full` · `prefix_4k` · `prefix_64k` (partial HTJ2K / first-bytes proxy) |
+| Arms | `--realistic` → decision subset + those access modes |
+
+```bash
+# regenerate fixture if missing
+lab/scripts/gen_live_cell_fixture.sh
+
+cargo run -p disk-access-bench --release -- \
+  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
+  --realistic \
+  --trace forward --trace reverse \
+  --out docs/measurements/r2/disk_access_realistic.tsv
+
+cargo run -p disk-access-bench --release -- \
+  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
+  --realistic \
+  --trace-file lab/traces/live_cell_scroll.json \
+  --out docs/measurements/r2/disk_access_realistic_trace.tsv
+```
+
+Results: `docs/measurements/r2/DISK_ACCESS_REALISTIC.md`.
 
 ---
 
@@ -104,5 +137,6 @@ Generate with `lab/scripts/gen_tf_fixtures.sh` if missing.
 
 - TSV: `docs/measurements/r2/disk_access_campaign.tsv`  
 - Short raw summary: `docs/measurements/r2/DISK_ACCESS_CAMPAIGN.md`  
+- Realistic wave: `docs/measurements/r2/disk_access_realistic.tsv` · `DISK_ACCESS_REALISTIC.md`
 
 No interpretation beyond “what the columns mean” and within-run deltas. Evidence ≤ T2 on this host.

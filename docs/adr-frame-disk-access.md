@@ -49,9 +49,37 @@ Do **not** load the whole study into process RAM. Do **not** use `pread` as the 
 
 - Campaign Wave A/B: `docs/measurements/r2/DISK_ACCESS_CAMPAIGN.md`
 - Follow-up (hybrid / dedicated): `docs/measurements/r2/DISK_ACCESS_FOLLOWUP.md`
+- **Realistic final wave** (large series · `live_cell_scroll` · full / prefix_4k / prefix_64k):
+  `docs/measurements/r2/DISK_ACCESS_REALISTIC.md`
 - Prior art: `docs/disk-access-prior-art.md`
 - Team brief: `docs/disk-access-team-brief.md`
 - Implementation: `FrameStore::frame_pages_resident`, `send_one_frame` in `server/src/transport/server.rs`
+
+### Realistic wave — explained (why the decision still holds)
+
+Study `frames_250k_live` (320 × 250 KB). Decision arms only. Overlayfs lab (≤ T2).
+
+**Warm user-like scroll (`live_cell_scroll`, 500 asks) · full frame**
+
+| Arm | later p50 | hop p50 | Why it matters |
+| --- | ---: | ---: | --- |
+| **hybrid** | **0.64 µs** | **0** | Already-resident frames skip the pool; typical scroll after first pass. |
+| always blocking touch | 12 µs | 12 µs | Safe but pays hop tax every ask even when hot. |
+| pread | 37 µs | 37 µs | Same safety class; **125 MB** copied for this trace. |
+| naive | 0.88 µs | 0 | Fast when warm — but see cold row. |
+
+**Cold same trace · full frame**
+
+| Arm | stall n | stall max | Why it matters |
+| --- | ---: | ---: | --- |
+| naive | **1** | **~55 ms** | Heartbeat never woke during the series → executor frozen. |
+| **hybrid** | **50** | ~1.5 ms | Runtime stayed alive; hops only while pages are cold. |
+
+**Partial access (prefix_4k / prefix_64k) on the same warm scroll:** hybrid remains hop-free and sub‑µs; `pread` copies shrink (2 MB / 33 MB) but still lose to hybrid on later/hop. Ranking does **not** flip if we only needed early HTJ2K bytes.
+
+**Large-series forward (320 frames, warm full):** hybrid later ~0.40 µs / hop 0 — same shape as the 80-frame follow-up at larger N.
+
+Product path remains **full-frame** hybrid; prefix helpers are lab/API for progressive experiments, not a change to wire serve.
 
 Evidence tier ≤ T2 (lab / overlayfs). Optional confirm on a real study volume does not change the decision shape unless ranking flips.
 

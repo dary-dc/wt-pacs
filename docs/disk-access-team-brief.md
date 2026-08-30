@@ -60,6 +60,8 @@ Related (same docs):
 
 **Cold path:** hybrid and always-hop keep the runtime alive (`stall n` ≈ 15); naive mmap does **not**. Hybrid’s warm path matches “almost naive speed” without that freeze.
 
+**Realistic final wave** (320-frame study · `live_cell_scroll` · full + prefix_4k/64k): same ranking — warm hybrid hop 0 / sub‑µs; cold naive freezes (~55 ms stall max); partial access does not make `pread` the winner. Tables: `DISK_ACCESS_REALISTIC.md`.
+
 Tables: `DISK_ACCESS_CAMPAIGN.md`, `DISK_ACCESS_FOLLOWUP.md` · Prior art: `disk-access-prior-art.md`
 
 ---
