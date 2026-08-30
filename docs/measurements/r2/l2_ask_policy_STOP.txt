@@ -20,3 +20,5 @@ Prior provisional rows retained for audit only:
   l2_ask_policy_d_current_PROVISIONAL_pre_review/
 
 Raw only — no interpretation in this file.
+
+**Next:** `docs/lanes/L2-ask-policy-harness-fix.md` — ordered remediation + smoke gates.
