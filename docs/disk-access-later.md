@@ -1,7 +1,8 @@
 # Disk access — later ideas (lane closed)
 
-**2026-08-30** · L3 ships **mmap + `spawn_blocking` pre-touch** (`send_one_frame`).  
-This page is a parking lot only. Do not treat items below as open blockers.
+**2026-08-30** · L3 baseline (**mmap + `spawn_blocking` pre-touch**) is implemented.  
+**Plan:** evaluate the interesting items below, then write an **ADR** — see also
+[`docs/disk-access-team-brief.md`](disk-access-team-brief.md) for a shareable summary.
 
 Evidence already in-tree:
 

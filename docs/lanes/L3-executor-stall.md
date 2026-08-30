@@ -1,7 +1,7 @@
 # Lane L3 — keep page faults off the executor
 
-**Status: implemented — ready to merge.** · No rig needed for the code change.  
-Follow-ups parked in [`docs/disk-access-later.md`](../disk-access-later.md).
+**Status: baseline implemented.** · Research continues via [`docs/disk-access-later.md`](../disk-access-later.md);
+team brief [`docs/disk-access-team-brief.md`](../disk-access-team-brief.md); **ADR after** the interesting follow-ups.
 
 ## Purpose
 

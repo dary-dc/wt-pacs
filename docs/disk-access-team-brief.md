@@ -1,0 +1,97 @@
+# Disk access for frame serve — team brief
+
+**2026-08-30** · wt-pacs · working notes on branch `cursor/l3-executor-stall-bc88`  
+**Audience:** anyone deciding how the server should read SBND frame bytes  
+**Status:** L3 mitigation implemented and measured; **broader options still open** — evaluate the interesting follow-ups, then write an ADR.
+
+---
+
+## 1 · The problem in one paragraph
+
+The server maps the study file with **mmap** and treats frames like byte slices. If a page is not already in RAM, the first access causes a **page fault**: the kernel loads that page from disk and the **OS thread waits**. In Tokio that wait is **not** an `.await`, so the whole async executor thread freezes — other sessions/frames on that thread stall too. That is unsafe for a multi-session server when studies are larger than RAM (e.g. DBT).
+
+---
+
+## 2 · What the metric names mean
+
+From `docs/measurements/r2/DISK_ACCESS_CAMPAIGN.md` (lab harness, not end-to-end WebTransport):
+
+| Name in the tables | Plain meaning |
+| --- | --- |
+| **later p50** | Median time to prepare **one frame after the first** in the same run. “Typical” per-frame cost once the series has started. Lower is better. |
+| **series wall** | Clock time to finish **all frames** in the ask order (e.g. 80 frames). End-to-end for that lab trace. Lower is better. |
+| **bytes copied** | How many frame payload bytes we **explicitly copied into a userspace buffer** for that series. `0` = we only touched mmap pages (no `pread`-style copy). `pread` copies every frame (e.g. 80 × 250 KB = **20 MB**). |
+
+Related (same docs):
+
+| Name | Plain meaning |
+| --- | --- |
+| **first** | Time for the **first** frame (often colder / includes startup). |
+| **stall max / stall n** | Did the async runtime keep beating a heartbeat while serving? `stall n = 1` + large stall max ≈ **executor froze**. Many samples ≈ **runtime stayed alive**. |
+| **hop p50** | Median cost of the **thread-pool round trip** (`spawn_blocking`) when the arm uses one. |
+
+**Caveat:** numbers are from a cloud container (overlayfs). Use them to **rank** approaches, not as Oracle-rig absolute µs.
+
+---
+
+## 3 · Approaches we already compared (simple)
+
+| Approach | What it does | Executor safe when cold? |
+| --- | --- | --- |
+| **mmap naive** (old habit) | Touch/read mapped pages on the async thread | **No** — page fault freezes the runtime |
+| **mmap + blocking touch (L3)** | Prefault pages on a **background pool thread**, then use mmap on the executor | **Yes** |
+| **pread + blocking** | Background thread **reads into a buffer** (`pread`) | **Yes** |
+| **mmap + WILLNEED** | Ask kernel to prefetch, still touch on executor | **No** (in our cells) — advice ≠ off-thread fault |
+| **mmap + WILLNEED next / ahead-2** | Prefetch or prefault an extra frame | Ahead-2 is safe; willneed* alone was not |
+
+**“Blocking” in “blocking touch”** means “may block a *pool* OS thread on disk,” **not** “blocks the async event loop.” The whole point is to keep the event loop free.
+
+---
+
+## 4 · Snapshot of results worth sharing
+
+**Warm path · `frames_250k` (80 × 250 KB), forward** — steady state:
+
+| Approach | later p50 | series wall | bytes copied |
+| --- | ---: | ---: | ---: |
+| mmap + blocking touch (L3) | ~10.5 µs | ~1.1 ms | 0 |
+| pread + blocking | ~35 µs | ~3.3 ms | **20 MB** |
+
+So when data is already warm enough to compare, **L3 is cheaper than `pread`**: similar “don’t freeze us” idea, but no full-frame copy and a smaller per-frame cost in this harness.
+
+**Cold path:** both L3 and `pread` keep the runtime alive; naive mmap does **not** (one huge stall, heartbeat almost never fires). L3’s main win vs naive is **scheduler safety**, not “disk got faster.”
+
+Full tables: `docs/measurements/r2/DISK_ACCESS_CAMPAIGN.md`  
+Prior art (industry already knew the mmap+async hazard): `docs/disk-access-prior-art.md`
+
+---
+
+## 5 · What “hybrid” means (clarified)
+
+Two different hybrids get confused:
+
+| People sometimes mean | What we meant in “later polish” |
+| --- | --- |
+| **A.** Mix **mmap vs `pread`** (choose API per situation) | Possible; e.g. mmap when hot, `pread` when cold |
+| **B.** **Always mmap**, but **skip the pool hop** when pages are already in RAM | What “`mincore` hybrid” in `disk-access-later.md` refers to |
+
+**“Page already in cache” = already in RAM** (kernel page cache).
+
+So hybrid is **not** only “mmap vs normal reading.” The interesting polish on top of L3 is usually **B**: if resident → touch/use on executor with no hop; if cold → pool prefault (or explicit read). That keeps L3’s safety without paying ~10 µs hop on every warm frame.
+
+---
+
+## 6 · Revised plan
+
+1. **Keep L3 code** as the current safe baseline (already on the PR branch).  
+2. **Do not treat the lane as fully closed for research** — work through the interesting items in `docs/disk-access-later.md` (hybrid skip-hop, dedicated fault pool, real-disk confirm, io_uring if warranted, etc.).  
+3. When the interesting options are evaluated, **write an ADR** that records the decision, rejected alternatives, and evidence.  
+4. Merge product code when the ADR (or an interim decision) says the baseline is good enough — research follow-ups need not all land in the same PR.
+
+Parking list: [`docs/disk-access-later.md`](disk-access-later.md)
+
+---
+
+## 7 · One-line takeaway for the team
+
+> Cold mmap on the async thread is unsafe; **prefault on a pool thread (L3)** fixes that without the full-frame copy of `pread`. Next: evaluate parked follow-ups (especially skip-hop when already in RAM), then lock the choice in an ADR.
