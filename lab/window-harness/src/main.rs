@@ -15,8 +15,12 @@ struct Args {
     #[arg(long, default_value_t = 60_000)]
     timeout_ms: u64,
     /// Outstanding-ask depth D. 0 = legacy fire-all schedule (trace mode).
+    /// With `--dynamic-depth`, this is the warm-up fixed value.
     #[arg(long, default_value_t = 0)]
     depth: u32,
+    /// Adapt D live (L2 estimator). Requires `--depth` ≥ 1 as warm-up.
+    #[arg(long, default_value_t = false)]
+    dynamic_depth: bool,
     /// Frame count in the study (for window / pipeline wrap).
     #[arg(long, default_value_t = 20)]
     frame_count: u32,
@@ -57,6 +61,9 @@ async fn main() -> anyhow::Result<()> {
         (HarnessMode::Trace, None) => anyhow::bail!("--trace required in trace mode"),
         (HarnessMode::Saturate, _) => None,
     };
+    if args.dynamic_depth && args.depth == 0 {
+        anyhow::bail!("--dynamic-depth requires --depth N≥1 as the warm-up fixed value");
+    }
     let depth = if mode == HarnessMode::Saturate {
         args.depth.max(1)
     } else {
@@ -78,8 +85,12 @@ async fn main() -> anyhow::Result<()> {
         warm_cache: args.warm_cache,
         rtt_ms: args.rtt_ms,
         stream_mode: args.stream_mode,
+        dynamic_depth: args.dynamic_depth,
     };
     if let Some(sweep) = &args.depth_sweep {
+        if args.dynamic_depth {
+            anyhow::bail!("--depth-sweep is incompatible with --dynamic-depth");
+        }
         let depths: Vec<u32> = sweep
             .split(',')
             .map(|s| s.trim().parse())
@@ -117,11 +128,16 @@ async fn main() -> anyhow::Result<()> {
         println!("fill_rate={:.2}", m.fill_rate);
         println!("link_util={:.4}", m.link_util);
         println!("fill_bytes={}", m.fill_bytes);
+        println!("bytes_on_wire={}", m.bytes_on_wire);
+        println!("asks_sent={}", m.asks_sent);
         println!("wasted_bytes={}", m.wasted_bytes);
         println!("commitment_depth={}", m.commitment_depth);
         println!("wanted_received={}", m.wanted_received);
         println!("warm_cache={}", m.warm_cache);
         println!("rtt_ms={}", m.rtt_ms);
+        println!("d_min_observed={}", m.d_min_observed);
+        println!("d_max_observed={}", m.d_max_observed);
+        println!("depth_oscillating={}", m.depth_oscillating);
     }
     Ok(())
 }

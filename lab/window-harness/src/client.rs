@@ -1,3 +1,4 @@
+use crate::depth::DepthController;
 use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics, StreamMode};
 use crate::trace::TraceSpec;
 use crate::wire::{read_framed_paced, write_fod_msg, LinkPacer};
@@ -6,7 +7,7 @@ use fod::FodMsg;
 use frame_envelope::unwrap;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use wtransport::{ClientConfig, Connection, Endpoint};
 
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -35,10 +36,13 @@ pub fn reset_peak_outstanding() {
 static ASK_ORDINALS: LazyLock<Mutex<HashMap<u32, u32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 static ASK_JOIN: LazyLock<Mutex<Vec<crate::metrics::AskJoinRow>>> =
     LazyLock::new(|| Mutex::new(Vec::new()));
+/// Latest ask wall-time per frame index (for dynamic RTT samples).
+static ASK_AT: LazyLock<Mutex<HashMap<u32, Instant>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn reset_ask_join() {
     ASK_ORDINALS.lock().expect("ask ordinals").clear();
     ASK_JOIN.lock().expect("ask join").clear();
+    ASK_AT.lock().expect("ask at").clear();
 }
 
 pub fn take_ask_join() -> Vec<crate::metrics::AskJoinRow> {
@@ -46,6 +50,10 @@ pub fn take_ask_join() -> Vec<crate::metrics::AskJoinRow> {
 }
 
 fn record_ask(frame_index: u32) {
+    ASK_AT
+        .lock()
+        .expect("ask at")
+        .insert(frame_index, Instant::now());
     let ordinal = {
         let mut map = ASK_ORDINALS.lock().expect("ask ordinals");
         let entry = map.entry(frame_index).or_insert(0);
@@ -60,6 +68,11 @@ fn record_ask(frame_index: u32) {
             frame_index,
             ask_ordinal: ordinal,
         });
+}
+
+fn take_ask_rtt_ms(frame_index: u32) -> Option<f64> {
+    let at = ASK_AT.lock().expect("ask at").remove(&frame_index)?;
+    Some(at.elapsed().as_secs_f64() * 1000.0)
 }
 
 /// One process, serial depth sweep — fresh session per D, no shell between depths.
@@ -119,6 +132,11 @@ pub async fn run_harness(
     };
 
     let metrics: SharedMetrics = Arc::new(Mutex::new(crate::metrics::MetricsState::new(wanted)));
+    let depth_ctl: Option<Arc<Mutex<DepthController>>> = if cfg.dynamic_depth {
+        Some(Arc::new(Mutex::new(DepthController::new(cfg.depth.max(1)))))
+    } else {
+        None
+    };
 
     let conn_uni = connection.clone();
     let metrics_uni = Arc::clone(&metrics);
@@ -129,6 +147,7 @@ pub async fn run_harness(
     let outstanding_uni = Arc::clone(&outstanding);
     let in_flight_uni = Arc::clone(&in_flight);
     let pacer_uni = Arc::clone(&pacer);
+    let depth_uni = depth_ctl.clone();
     let rtt_ms = cfg.rtt_ms;
     let stream_mode = cfg.stream_mode;
     let uni_task = tokio::spawn(async move {
@@ -141,6 +160,7 @@ pub async fn run_harness(
                     in_flight_uni,
                     pacer_uni,
                     rtt_ms,
+                    depth_uni,
                 )
                 .await
             }
@@ -152,6 +172,7 @@ pub async fn run_harness(
                     in_flight_uni,
                     pacer_uni,
                     rtt_ms,
+                    depth_uni,
                 )
                 .await
             }
@@ -174,7 +195,7 @@ pub async fn run_harness(
         }
         HarnessMode::Trace => {
             let t = trace_ref.context("trace required")?;
-            if cfg.depth > 0 {
+            if cfg.depth > 0 || cfg.dynamic_depth {
                 run_windowed(
                     &mut control_send,
                     t,
@@ -183,6 +204,7 @@ pub async fn run_harness(
                     wanted,
                     &metrics,
                     &outstanding,
+                    depth_ctl.as_ref(),
                 )
                 .await?
             } else {
@@ -208,18 +230,40 @@ pub async fn run_harness(
         HarnessMode::Saturate => "saturate",
         HarnessMode::Trace => "trace",
     };
+    let (d_min, d_max, d_traj, oscillating, report_depth) = if let Some(ctl) = &depth_ctl {
+        let c = ctl.lock().expect("depth ctl");
+        if c.oscillating {
+            anyhow::bail!(
+                "depth oscillating despite damping — trajectory={:?}",
+                c.d_trajectory
+            );
+        }
+        (
+            c.d_min_observed,
+            c.d_max_observed,
+            c.d_trajectory.clone(),
+            c.oscillating,
+            c.current_d(),
+        )
+    } else {
+        (cfg.depth, cfg.depth, Vec::new(), false, cfg.depth)
+    };
     let m = metrics.lock().expect("metrics lock");
     Ok(m.finalize(
         &trace_name,
         mode,
         cfg.read_bps,
-        cfg.depth,
+        report_depth,
         arm_label,
         asks_sent,
         cfg.fill_dwell_ms,
         cfg.warm_cache,
         cfg.rtt_ms,
         cfg.stream_mode,
+        d_min,
+        d_max,
+        d_traj,
+        oscillating,
     ))
 }
 
@@ -340,10 +384,18 @@ async fn run_windowed(
     wanted: u32,
     metrics: &SharedMetrics,
     outstanding: &Arc<Mutex<HashSet<u32>>>,
+    depth_ctl: Option<&Arc<Mutex<DepthController>>>,
 ) -> Result<u32> {
     let n = cfg.frame_count.max(1);
-    let d = cfg.depth;
     let mut asks_sent = 0u32;
+
+    let current_d = || -> u32 {
+        if let Some(ctl) = depth_ctl {
+            ctl.lock().expect("depth ctl").current_d()
+        } else {
+            cfg.depth
+        }
+    };
 
     if cfg.warm_cache {
         // Prefetch every unique frame once so settle is a cache hit.
@@ -378,6 +430,7 @@ async fn run_windowed(
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
+        let d = current_d();
         // Ask first so depth can pipeline; then measure wait for this cursor.
         asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
         // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
@@ -386,12 +439,18 @@ async fn run_windowed(
         // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
         wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
         wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
+        if let Some(ctl) = depth_ctl {
+            if ctl.lock().expect("depth ctl").oscillating {
+                anyhow::bail!("depth oscillating despite damping — stop");
+            }
+        }
     }
 
     {
         let mut m = metrics.lock().expect("metrics lock");
         m.settle();
     }
+    let d = current_d();
     asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
     wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
@@ -403,6 +462,7 @@ async fn run_windowed(
         }
         let fill_deadline = std::time::Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
         while std::time::Instant::now() < fill_deadline {
+            let d = current_d();
             asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
             wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
             tokio::time::sleep(Duration::from_millis(5)).await;
@@ -569,7 +629,11 @@ async fn on_frame_arrived(
     outstanding: &Arc<Mutex<HashSet<u32>>>,
     in_flight: &Arc<Mutex<u32>>,
     rtt_ms: u64,
+    depth_ctl: &Option<Arc<Mutex<DepthController>>>,
 ) {
+    // Sample ask→first-byte before the simulated return-path sleep so netem (rtt_ms=0)
+    // and userspace RTT both see a real interval.
+    let ask_rtt = take_ask_rtt_ms(index);
     rtt_full(rtt_ms).await;
     {
         let mut o = outstanding.lock().expect("outstanding");
@@ -579,8 +643,15 @@ async fn on_frame_arrived(
         let mut c = in_flight.lock().expect("in_flight");
         *c = c.saturating_sub(1);
     }
-    let mut m = metrics.lock().expect("metrics lock");
-    m.on_envelope(index, wire_len);
+    {
+        let mut m = metrics.lock().expect("metrics lock");
+        m.on_envelope(index, wire_len);
+    }
+    if let (Some(ctl), Some(rtt)) = (depth_ctl, ask_rtt) {
+        ctl.lock()
+            .expect("depth ctl")
+            .on_frame_completed(rtt, wire_len);
+    }
 }
 
 /// One shared uni stream carrying `[4B BE envelope_len][envelope]` repeatedly.
@@ -594,6 +665,7 @@ async fn shared_stream_loop(
     in_flight: Arc<Mutex<u32>>,
     pacer: Arc<tokio::sync::Mutex<LinkPacer>>,
     rtt_ms: u64,
+    depth_ctl: Option<Arc<Mutex<DepthController>>>,
 ) -> Result<()> {
     let mut recv = match connection.accept_uni().await {
         Ok(s) => s,
@@ -615,8 +687,18 @@ async fn shared_stream_loop(
         let metrics = Arc::clone(&metrics);
         let outstanding = Arc::clone(&outstanding);
         let in_flight = Arc::clone(&in_flight);
+        let depth_ctl = depth_ctl.clone();
         tokio::spawn(async move {
-            on_frame_arrived(index, wire_len, &metrics, &outstanding, &in_flight, rtt_ms).await;
+            on_frame_arrived(
+                index,
+                wire_len,
+                &metrics,
+                &outstanding,
+                &in_flight,
+                rtt_ms,
+                &depth_ctl,
+            )
+            .await;
         });
     }
     Ok(())
@@ -629,6 +711,7 @@ async fn accept_uni_loop(
     in_flight: Arc<Mutex<u32>>,
     pacer: Arc<tokio::sync::Mutex<LinkPacer>>,
     rtt_ms: u64,
+    depth_ctl: Option<Arc<Mutex<DepthController>>>,
 ) -> Result<()> {
     loop {
         let mut recv = match connection.accept_uni().await {
@@ -639,6 +722,7 @@ async fn accept_uni_loop(
         let outstanding = Arc::clone(&outstanding);
         let in_flight = Arc::clone(&in_flight);
         let pacer = Arc::clone(&pacer);
+        let depth_ctl = depth_ctl.clone();
         tokio::spawn(async move {
             let payload = match read_framed_paced(&mut recv, &pacer).await {
                 Ok(p) => p,
@@ -661,6 +745,7 @@ async fn accept_uni_loop(
                 &outstanding,
                 &in_flight,
                 rtt_ms,
+                &depth_ctl,
             )
             .await;
         });

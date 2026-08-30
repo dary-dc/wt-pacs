@@ -46,6 +46,8 @@ pub struct RunConfig {
     pub rtt_ms: u64,
     /// Must match the server's `--stream-mode`.
     pub stream_mode: StreamMode,
+    /// When true, depth is the warm-up fixed value and adapts per L2 estimator.
+    pub dynamic_depth: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -95,6 +97,17 @@ pub struct HarnessMetrics {
     /// Ordinals increment per `frame_index` within the session (same rule as server Tap).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ask_join: Vec<AskJoinRow>,
+    /// Dynamic arm: min/max D observed; 0 when not dynamic.
+    #[serde(default)]
+    pub d_min_observed: u32,
+    #[serde(default)]
+    pub d_max_observed: u32,
+    /// Dynamic arm: `d_current` after each completed displayable step.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub d_current: Vec<u32>,
+    /// Dynamic arm tripped the oscillation stop condition.
+    #[serde(default)]
+    pub depth_oscillating: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -209,6 +222,10 @@ impl MetricsState {
         warm_cache: bool,
         rtt_ms: u64,
         stream_mode: StreamMode,
+        d_min_observed: u32,
+        d_max_observed: u32,
+        d_current: Vec<u32>,
+        depth_oscillating: bool,
     ) -> HarnessMetrics {
         let recovered_ms = match (self.reversal_at, self.first_byte_wanted_at) {
             (Some(r), Some(w)) => w.duration_since(r).as_secs_f64() * 1000.0,
@@ -263,8 +280,25 @@ impl MetricsState {
             warm_cache,
             rtt_ms,
             ask_join: crate::client::take_ask_join(),
+            d_min_observed,
+            d_max_observed,
+            d_current,
+            depth_oscillating,
         }
     }
+}
+
+/// Nearest-rank percentile (L2 / client telemetry contract).
+///
+/// `rank = ceil(p/100 × N)`, clamped to `[1, N]`; value = `sorted[rank - 1]`.
+pub fn nearest_rank_percentile(sorted_asc: &[f64], p: f64) -> f64 {
+    if sorted_asc.is_empty() {
+        return 0.0;
+    }
+    let n = sorted_asc.len();
+    let rank = ((p / 100.0) * n as f64).ceil() as usize;
+    let rank = rank.clamp(1, n);
+    sorted_asc[rank - 1]
 }
 
 fn wait_stats(samples: &[f64]) -> (f64, f64) {
@@ -274,9 +308,31 @@ fn wait_stats(samples: &[f64]) -> (f64, f64) {
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let mut sorted = samples.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let idx = ((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize;
-    let p95 = sorted[idx.min(sorted.len() - 1)];
+    let p95 = nearest_rank_percentile(&sorted, 95.0);
     (mean, p95)
 }
 
 pub type SharedMetrics = Arc<Mutex<MetricsState>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Vector where old `((N-1)*0.95).ceil()` index and nearest-rank disagree.
+    #[test]
+    fn nearest_rank_disagrees_with_old_index() {
+        let n = 20usize;
+        let sorted: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let old_idx = (((n as f64 - 1.0) * 0.95).ceil() as usize).min(n - 1);
+        let old = sorted[old_idx];
+        let near = nearest_rank_percentile(&sorted, 95.0);
+        assert_ne!(old, near, "old_idx={old_idx} old={old} near={near}");
+        // nearest-rank: ceil(0.95*20)=19 → sorted[18]
+        assert_eq!(near, 18.0);
+    }
+
+    #[test]
+    fn nearest_rank_n1() {
+        assert_eq!(nearest_rank_percentile(&[42.0], 95.0), 42.0);
+    }
+}
