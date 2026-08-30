@@ -164,8 +164,6 @@ bytes_w = m.get("bytes_on_wire", 0)
 asks = m.get("asks_sent", 0)
 dmin = m.get("d_min_observed", 0)
 dmax = m.get("d_max_observed", 0)
-if p95 == 0:
-    print(f"VOID {arm} rtt={rtt} loss={loss} run={run}: p95_wait_ms=0", file=sys.stderr)
 with open(tsv, "a") as f:
     f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{p95}\t{mean}\t{bytes_w}\t{asks}\t{dmin}\t{dmax}\n")
 traj = m.get("d_current") or []
@@ -173,7 +171,19 @@ if traj:
     out = pathlib.Path(ddir) / f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv"
     out.write_text("step\td_current\n" + "\n".join(f"{i}\t{d}" for i, d in enumerate(traj)) + "\n")
 print(f"OK {arm} rtt={rtt} loss={loss} run={run} p95={p95} mean={mean} bytes={bytes_w} d=[{dmin},{dmax}]")
+if p95 == 0:
+    print(f"STOP: p95_wait_ms=0 — wrong mode / void cell ({arm} rtt={rtt} loss={loss} run={run})", file=sys.stderr)
+    sys.exit(3)
 PY
+  local py_rc=$?
+  if [[ $py_rc -eq 3 ]]; then
+    echo "campaign void from p95=0 — stopping" >&2
+    exit 2
+  fi
+  if [[ $py_rc -ne 0 ]]; then
+    echo "row parse failed rc=$py_rc" >&2
+    exit 1
+  fi
 }
 
 # Wait for the rig (round-robin with L1).
