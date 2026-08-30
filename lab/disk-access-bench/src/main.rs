@@ -8,7 +8,9 @@ use clap::{Parser, ValueEnum};
 use exact_server::media::frame_store::{touch_pages, FrameStore};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread;
 use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
@@ -16,6 +18,10 @@ use tokio::runtime::Builder;
 enum Arm {
     MmapNaive,
     MmapBlockingTouch,
+    /// `mincore`: skip pool hop when pages are already resident; else blocking touch.
+    MmapHybridMincore,
+    /// Prefault on a dedicated single OS thread (Mimir-style isolation), not Tokio's pool.
+    MmapDedicatedPool,
     PreadBlocking,
     MmapWillneed,
     MmapWillneedNext,
@@ -27,6 +33,8 @@ impl Arm {
         match self {
             Self::MmapNaive => "mmap_naive",
             Self::MmapBlockingTouch => "mmap_blocking_touch",
+            Self::MmapHybridMincore => "mmap_hybrid_mincore",
+            Self::MmapDedicatedPool => "mmap_dedicated_pool",
             Self::PreadBlocking => "pread_blocking",
             Self::MmapWillneed => "mmap_willneed",
             Self::MmapWillneedNext => "mmap_willneed_next",
@@ -38,10 +46,23 @@ impl Arm {
         &[
             Self::MmapNaive,
             Self::MmapBlockingTouch,
+            Self::MmapHybridMincore,
+            Self::MmapDedicatedPool,
             Self::PreadBlocking,
             Self::MmapWillneed,
             Self::MmapWillneedNext,
             Self::MmapBlockingAhead2,
+        ]
+    }
+
+    /// Decision-relevant subset for the follow-up campaign.
+    fn decision() -> &'static [Arm] {
+        &[
+            Self::MmapNaive,
+            Self::MmapBlockingTouch,
+            Self::MmapHybridMincore,
+            Self::MmapDedicatedPool,
+            Self::PreadBlocking,
         ]
     }
 }
@@ -100,6 +121,9 @@ struct Args {
     temp: Option<Vec<Temp>>,
     #[arg(long, default_value_t = 500)]
     heartbeat_us: u64,
+    /// Use the decision-relevant arm subset (naive / L3 / hybrid / dedicated / pread).
+    #[arg(long, default_value_t = false)]
+    decision: bool,
     /// TSV output path (default stdout only).
     #[arg(long)]
     out: Option<PathBuf>,
@@ -202,6 +226,39 @@ fn percentile(sorted: &[u64], p: f64) -> u64 {
     }
     let idx = ((sorted.len() as f64 - 1.0) * p).round() as usize;
     sorted[idx.min(sorted.len() - 1)]
+}
+
+type FaultJob = Box<dyn FnOnce() + Send>;
+
+/// Single dedicated OS thread for mmap prefaults (isolates faults from Tokio's blocking pool).
+fn fault_tx() -> &'static Mutex<mpsc::Sender<FaultJob>> {
+    static TX: OnceLock<Mutex<mpsc::Sender<FaultJob>>> = OnceLock::new();
+    TX.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<FaultJob>();
+        thread::Builder::new()
+            .name("mmap-fault".into())
+            .spawn(move || {
+                while let Ok(job) = rx.recv() {
+                    job();
+                }
+            })
+            .expect("spawn mmap-fault thread");
+        Mutex::new(tx)
+    })
+}
+
+async fn dedicated_fault_touch(store: Arc<FrameStore>, idx: u32) -> Result<()> {
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    {
+        let tx = fault_tx().lock().expect("fault tx");
+        tx.send(Box::new(move || {
+            let r = store.touch_frame_pages(idx);
+            let _ = done_tx.send(r);
+        }))
+        .expect("fault queue");
+    }
+    done_rx.await.context("fault oneshot")??;
+    Ok(())
 }
 
 struct FrameOutcome {
@@ -429,6 +486,39 @@ async fn serve_frame_async(
                 bytes_copied: 0,
             })
         }
+        Arm::MmapHybridMincore => {
+            let t0 = Instant::now();
+            let mut hop = 0u64;
+            if !store.frame_pages_resident(idx).unwrap_or(false) {
+                let s = Arc::clone(store);
+                let th = Instant::now();
+                tokio::task::spawn_blocking(move || s.touch_frame_pages(idx))
+                    .await
+                    .context("join")??;
+                hop = th.elapsed().as_nanos() as u64;
+            }
+            let slice = store.frame_slice(idx)?;
+            std::hint::black_box(slice.len());
+            Ok(FrameOutcome {
+                latency_ns: t0.elapsed().as_nanos() as u64,
+                hop_ns: hop,
+                bytes_copied: 0,
+            })
+        }
+        Arm::MmapDedicatedPool => {
+            let t0 = Instant::now();
+            let s = Arc::clone(store);
+            let th = Instant::now();
+            dedicated_fault_touch(s, idx).await?;
+            let hop = th.elapsed().as_nanos() as u64;
+            let slice = store.frame_slice(idx)?;
+            std::hint::black_box(slice.len());
+            Ok(FrameOutcome {
+                latency_ns: t0.elapsed().as_nanos() as u64,
+                hop_ns: hop,
+                bytes_copied: 0,
+            })
+        }
         Arm::PreadBlocking => {
             let (_, len) = store.frame_range(idx)?;
             let t0 = Instant::now();
@@ -501,9 +591,13 @@ async fn serve_frame_async(
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let arms = args
-        .arm
-        .unwrap_or_else(|| Arm::all().to_vec());
+    let arms = if let Some(a) = args.arm {
+        a
+    } else if args.decision {
+        Arm::decision().to_vec()
+    } else {
+        Arm::all().to_vec()
+    };
     let traces = args
         .trace
         .unwrap_or_else(|| TraceKind::all().to_vec());

@@ -1,7 +1,7 @@
 # Lane L3 — keep page faults off the executor
 
-**Status: baseline implemented.** · Research continues via [`docs/disk-access-later.md`](../disk-access-later.md);
-team brief [`docs/disk-access-team-brief.md`](../disk-access-team-brief.md); **ADR after** the interesting follow-ups.
+**Status: implemented (hybrid) — see ADR.** · [`docs/adr-frame-disk-access.md`](../adr-frame-disk-access.md)  
+Optional leftovers: [`docs/disk-access-later.md`](../disk-access-later.md).
 
 ## Purpose
 

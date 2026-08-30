@@ -1,47 +1,36 @@
-# Disk access — later ideas (lane closed)
+# Disk access — later ideas
 
-**2026-08-30** · L3 baseline (**mmap + `spawn_blocking` pre-touch**) is implemented.  
-**Plan:** evaluate the interesting items below, then write an **ADR** — see also
-[`docs/disk-access-team-brief.md`](disk-access-team-brief.md) for a shareable summary.
-
-Evidence already in-tree:
-
-- [`docs/lanes/L3-executor-stall.md`](lanes/L3-executor-stall.md) — lane brief  
-- [`docs/disk-access-campaign.md`](disk-access-campaign.md) — metrics / arms  
-- [`docs/measurements/r2/DISK_ACCESS_CAMPAIGN.md`](measurements/r2/DISK_ACCESS_CAMPAIGN.md) — raw cells  
-- [`docs/disk-access-prior-art.md`](disk-access-prior-art.md) — industry prior art  
+**2026-08-30** · Baseline + hybrid shipped; **ADR:** [`docs/adr-frame-disk-access.md`](adr-frame-disk-access.md).  
+Shareable summary: [`docs/disk-access-team-brief.md`](disk-access-team-brief.md).
 
 ---
 
-## Done / closed
+## Done
 
 | Item | Status |
 | --- | --- |
-| Cold mmap must not run on the Tokio executor | **Shipped** (L3) |
-| Compare mmap-blocking vs `pread` vs willneed* | **Measured** (Wave A/B) |
-| WILLNEED-only on the executor | **Rejected** as a stall fix |
+| Cold mmap must not run on the Tokio executor | **Done** |
+| mmap-blocking vs `pread` vs willneed* | **Measured** |
+| WILLNEED-only on executor | **Rejected** |
+| **`mincore` hybrid** (skip hop when resident) | **Done** — product path + follow-up TSV |
+| ADR | **Written** |
 
 ---
 
-## Worth trying later (not now)
+## Still optional later
 
-| Idea | Why it might help | Cost / risk |
-| --- | --- | --- |
-| **`mincore` hybrid** | Skip `spawn_blocking` when pages are already resident → remove ~10 µs warm hop | Extra syscall; platform quirks |
-| **Dedicated fault thread pool** (Mimir-style) | Cap how many threads may sit in major faults; isolate from other `spawn_blocking` work | More plumbing |
-| **Re-run Wave A on a real study disk / Oracle volume** | Overlayfs understates cold I/O; confirm ranking | Rig time only |
-| **`io_uring` read** | Await cold I/O without a userspace pool hop | Complexity; biggest win off page-cache / deep QD |
-| **Ask-queue prefetch (ahead-N)** | Prefault next frames when a real window exists | Needs product queue; wrong guesses waste I/O |
-| **Zero-copy file→wire** (`sendfile` / splice) | Kernel path for TCP static files | Unlikely to plug into userspace QUIC/WebTransport cleanly |
-| **Layout / page-align fixtures** | Fewer partial pages per frame | Fixture / packer change |
-| **`O_DIRECT` + app cache** | Bypass page cache | Usually wrong for revisitable medical studies |
+| Idea | Note |
+| --- | --- |
+| Dedicated fault thread under **product** load | Lab hop ≈ `spawn_blocking`; revisit if blocking pool contends |
+| Wave A on **real study disk** / Oracle volume | Confirm ranking off overlayfs |
+| **`io_uring` read** prototype | Only if leaving page-cache assumptions or needing deep QD |
+| Ask-queue **ahead-N** prefetch | When a real client window exists |
+| Layout / page-align fixtures | Packer experiment |
 
----
+## Rejected / out of scope
 
-## Explicit non-goals
-
-- Load entire study into process RAM  
-- SPDK / userspace NVMe for SBND-on-filesystem  
-- More willneed-on-executor variants  
-
-When revisiting, start from prior art + this list; do not re-open “is mmap secretly blocking?”
+| Idea | Note |
+| --- | --- |
+| `sendfile` / splice into QUIC | Userspace QUIC still copies |
+| `O_DIRECT` + app cache | Wrong default for revisitable studies |
+| SPDK / whole-study RAM | Explicit non-goals |

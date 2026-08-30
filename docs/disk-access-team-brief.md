@@ -50,48 +50,40 @@ Related (same docs):
 
 ## 4 · Snapshot of results worth sharing
 
-**Warm path · `frames_250k` (80 × 250 KB), forward** — steady state:
+**Warm path · `frames_250k` forward** (follow-up campaign):
 
-| Approach | later p50 | series wall | bytes copied |
+| Approach | later p50 | hop p50 | bytes copied |
 | --- | ---: | ---: | ---: |
-| mmap + blocking touch (L3) | ~10.5 µs | ~1.1 ms | 0 |
-| pread + blocking | ~35 µs | ~3.3 ms | **20 MB** |
+| **mmap hybrid (`mincore`)** | **~0.40 µs** | **0** | 0 |
+| mmap always blocking touch | ~10.6 µs | ~10 µs | 0 |
+| pread + blocking | ~35 µs | ~35 µs | **20 MB** |
 
-So when data is already warm enough to compare, **L3 is cheaper than `pread`**: similar “don’t freeze us” idea, but no full-frame copy and a smaller per-frame cost in this harness.
+**Cold path:** hybrid and always-hop keep the runtime alive (`stall n` ≈ 15); naive mmap does **not**. Hybrid’s warm path matches “almost naive speed” without that freeze.
 
-**Cold path:** both L3 and `pread` keep the runtime alive; naive mmap does **not** (one huge stall, heartbeat almost never fires). L3’s main win vs naive is **scheduler safety**, not “disk got faster.”
-
-Full tables: `docs/measurements/r2/DISK_ACCESS_CAMPAIGN.md`  
-Prior art (industry already knew the mmap+async hazard): `docs/disk-access-prior-art.md`
+Tables: `DISK_ACCESS_CAMPAIGN.md`, `DISK_ACCESS_FOLLOWUP.md` · Prior art: `disk-access-prior-art.md`
 
 ---
 
-## 5 · What “hybrid” means (clarified)
+## 5 · What “hybrid” means
 
-Two different hybrids get confused:
-
-| People sometimes mean | What we meant in “later polish” |
+| Sense | Meaning |
 | --- | --- |
-| **A.** Mix **mmap vs `pread`** (choose API per situation) | Possible; e.g. mmap when hot, `pread` when cold |
-| **B.** **Always mmap**, but **skip the pool hop** when pages are already in RAM | What “`mincore` hybrid” in `disk-access-later.md` refers to |
+| **A.** mmap vs `pread` | Choose API — we evaluated; **mmap wins as default** |
+| **B. (shipped)** | Always mmap; **`mincore` → skip pool hop when already in RAM**; cold → pool prefault |
 
-**“Page already in cache” = already in RAM** (kernel page cache).
-
-So hybrid is **not** only “mmap vs normal reading.” The interesting polish on top of L3 is usually **B**: if resident → touch/use on executor with no hop; if cold → pool prefault (or explicit read). That keeps L3’s safety without paying ~10 µs hop on every warm frame.
+**In cache = in RAM** (page cache).
 
 ---
 
-## 6 · Revised plan
+## 6 · Plan / decision
 
-1. **Keep L3 code** as the current safe baseline (already on the PR branch).  
-2. **Do not treat the lane as fully closed for research** — work through the interesting items in `docs/disk-access-later.md` (hybrid skip-hop, dedicated fault pool, real-disk confirm, io_uring if warranted, etc.).  
-3. When the interesting options are evaluated, **write an ADR** that records the decision, rejected alternatives, and evidence.  
-4. Merge product code when the ADR (or an interim decision) says the baseline is good enough — research follow-ups need not all land in the same PR.
+**ADR:** [`docs/adr-frame-disk-access.md`](adr-frame-disk-access.md)
 
-Parking list: [`docs/disk-access-later.md`](disk-access-later.md)
+**Accepted:** mmap + `mincore` + blocking pre-touch **only when cold** (hybrid).  
+Follow-ups that remain optional: `docs/disk-access-later.md`.
 
 ---
 
 ## 7 · One-line takeaway for the team
 
-> Cold mmap on the async thread is unsafe; **prefault on a pool thread (L3)** fixes that without the full-frame copy of `pread`. Next: evaluate parked follow-ups (especially skip-hop when already in RAM), then lock the choice in an ADR.
+> Cold mmap on the async thread is unsafe; **prefault on a pool thread when cold, skip the hop when pages are already in RAM**. Prefer that over `pread` as the default. Details and rejected options are in the ADR.

@@ -215,13 +215,18 @@ async fn send_one_frame(
     rec.ask(idx);
 
     let t0 = rec.stamp();
-    // Pre-touch mmap pages on a blocking thread. Cold faults here must not run on the
-    // async executor — they are not `.await` points and stall every task on the OS thread.
-    // `frame_slice` alone does not fault the range; the read in wrap/write_all would.
-    let store_touch = Arc::clone(&store);
-    let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
-        .await
-        .context("join frame page touch")?;
+    // Prefault only when cold: `mincore` on the executor (no fault), then `spawn_blocking`
+    // touch only if pages are not resident. Hot frames skip the pool hop.
+    // Cold faults must not run on the async executor — they are not `.await` points.
+    let resident = store.frame_pages_resident(idx).unwrap_or(false);
+    let touch = if resident {
+        Ok(())
+    } else {
+        let store_touch = Arc::clone(&store);
+        tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
+            .await
+            .context("join frame page touch")?
+    };
 
     match touch.and_then(|_| store.frame_slice(idx)) {
         Ok(bytes) => {

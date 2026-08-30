@@ -76,6 +76,26 @@ impl FrameStore {
         Ok(())
     }
 
+    /// `true` if every page backing `index` is currently resident (page-cache / RAM).
+    ///
+    /// Uses `mincore(2)`. Safe to call on the async executor — it does not fault pages in.
+    /// On error (unsupported FS, etc.) returns `Ok(false)` so callers take the slow/safe path.
+    pub fn frame_pages_resident(&self, index: u32) -> Result<bool> {
+        let slice = self.frame_slice(index)?;
+        Ok(pages_resident(slice).unwrap_or(false))
+    }
+
+    /// Ensure pages for `index` are resident: no-op if `mincore` says hot, else `touch_frame_pages`.
+    ///
+    /// The touch half must still run on a blocking pool when this returns that work is needed;
+    /// use [`Self::frame_pages_resident`] on the executor and only `spawn_blocking` when cold.
+    pub fn touch_frame_pages_if_cold(&self, index: u32) -> Result<()> {
+        if self.frame_pages_resident(index)? {
+            return Ok(());
+        }
+        self.touch_frame_pages(index)
+    }
+
     /// `madvise(WILLNEED)` for one frame's byte range. Advisory — the kernel may ignore it.
     pub fn advise_frame_willneed(&self, index: u32) -> Result<()> {
         let (offset, length) = self.frame_range(index)?;
@@ -115,6 +135,29 @@ pub fn touch_pages(bytes: &[u8]) {
     std::hint::black_box(acc);
 }
 
+const PAGE_SIZE: usize = 4096;
+
+/// `mincore` over the pages spanning `bytes`. `None` if the syscall fails.
+fn pages_resident(bytes: &[u8]) -> Option<bool> {
+    if bytes.is_empty() {
+        return Some(true);
+    }
+    let addr = bytes.as_ptr() as usize;
+    let end = addr + bytes.len();
+    let start = addr & !(PAGE_SIZE - 1);
+    let len = end.saturating_sub(start);
+    let len = len.div_ceil(PAGE_SIZE) * PAGE_SIZE;
+    let n_pages = len / PAGE_SIZE;
+    let mut vec = vec![0u8; n_pages];
+    // SAFETY: `start`..`start+len` covers mapped pages of `bytes` (mmap region).
+    let rc = unsafe { libc::mincore(start as *mut libc::c_void, len, vec.as_mut_ptr()) };
+    if rc != 0 {
+        return None;
+    }
+    // LSB set => page resident.
+    Some(vec.iter().all(|&b| b & 1 != 0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,6 +180,8 @@ mod tests {
         assert_eq!(store.frame_slice(1)?, f1);
         store.touch_frame_pages(0)?;
         store.touch_frame_pages(1)?;
+        assert!(store.frame_pages_resident(0)?);
+        store.touch_frame_pages_if_cold(0)?;
         let mut buf = vec![0u8; f0.len()];
         store.pread_frame(0, &mut buf)?;
         assert_eq!(buf, f0);
