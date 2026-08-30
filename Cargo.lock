@@ -377,6 +377,8 @@ dependencies = [
  "clap",
  "exact-server",
  "libc",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

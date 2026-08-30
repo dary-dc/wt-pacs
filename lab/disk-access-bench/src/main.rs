@@ -1,11 +1,14 @@
 //! Disk-access campaign harness — see `docs/disk-access-campaign.md`.
 //!
-//! One TSV row per (arm × study × temperature × trace). Stall uses a current_thread
-//! tokio runtime so sync faults on the executor freeze the heartbeat.
+//! One TSV row per (arm × study × temperature × trace × access). Stall uses a
+//! current_thread tokio runtime so sync faults on the executor freeze the heartbeat.
+//!
+//! Realistic final wave: JSON ask traces, large series, full vs prefix (partial HTJ2K) access.
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use exact_server::media::frame_store::{touch_pages, FrameStore};
+use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
@@ -55,7 +58,7 @@ impl Arm {
         ]
     }
 
-    /// Decision-relevant subset for the follow-up campaign.
+    /// Decision-relevant subset for the follow-up / realistic campaigns.
     fn decision() -> &'static [Arm] {
         &[
             Self::MmapNaive,
@@ -88,6 +91,45 @@ impl TraceKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+enum AccessMode {
+    /// Touch / read the whole frame (product path today).
+    Full,
+    /// First 4 KiB — one page / HTJ2K header-ish.
+    #[value(name = "prefix_4k")]
+    Prefix4k,
+    /// First 64 KiB — partial codestream / early layer proxy.
+    #[value(name = "prefix_64k")]
+    Prefix64k,
+}
+
+impl AccessMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Prefix4k => "prefix_4k",
+            Self::Prefix64k => "prefix_64k",
+        }
+    }
+
+    fn max_bytes(self) -> Option<usize> {
+        match self {
+            Self::Full => None,
+            Self::Prefix4k => Some(4096),
+            Self::Prefix64k => Some(65536),
+        }
+    }
+
+    fn all() -> &'static [AccessMode] {
+        &[Self::Full, Self::Prefix4k, Self::Prefix64k]
+    }
+
+    fn realistic() -> &'static [AccessMode] {
+        // Final wave: full product path + two partial proxies.
+        Self::all()
+    }
+}
+
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum Temp {
     Cold,
@@ -117,13 +159,22 @@ struct Args {
     arm: Option<Vec<Arm>>,
     #[arg(long, value_enum)]
     trace: Option<Vec<TraceKind>>,
+    /// Lab JSON ask traces (`steps[].frame`). Repeatable. Overrides `--trace` when set.
+    #[arg(long = "trace-file")]
+    trace_files: Option<Vec<PathBuf>>,
     #[arg(long, value_enum)]
     temp: Option<Vec<Temp>>,
+    /// Bytes accessed per ask: full frame or prefix (partial HTJ2K proxy).
+    #[arg(long, value_enum)]
+    access: Option<Vec<AccessMode>>,
     #[arg(long, default_value_t = 500)]
     heartbeat_us: u64,
     /// Use the decision-relevant arm subset (naive / L3 / hybrid / dedicated / pread).
     #[arg(long, default_value_t = false)]
     decision: bool,
+    /// Default access modes for the realistic final wave (full + prefixes).
+    #[arg(long, default_value_t = false)]
+    realistic: bool,
     /// TSV output path (default stdout only).
     #[arg(long)]
     out: Option<PathBuf>,
@@ -133,6 +184,17 @@ struct Args {
 struct RusageDelta {
     user_us: u64,
     sys_us: u64,
+}
+
+#[derive(Deserialize)]
+struct TraceFileJson {
+    name: Option<String>,
+    steps: Vec<TraceStep>,
+}
+
+#[derive(Deserialize)]
+struct TraceStep {
+    frame: u32,
 }
 
 fn rusage_now() -> libc::rusage {
@@ -220,6 +282,36 @@ fn build_trace(kind: TraceKind, n: u32) -> Vec<u32> {
     }
 }
 
+fn load_trace_file(path: &Path, frame_count: u32) -> Result<(String, Vec<u32>)> {
+    let raw = std::fs::read_to_string(path)
+        .with_context(|| format!("read trace {}", path.display()))?;
+    let parsed: TraceFileJson =
+        serde_json::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
+    let name = parsed
+        .name
+        .unwrap_or_else(|| {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("trace")
+                .to_string()
+        });
+    let mut frames = Vec::with_capacity(parsed.steps.len());
+    for (i, step) in parsed.steps.iter().enumerate() {
+        if step.frame >= frame_count {
+            anyhow::bail!(
+                "trace {} step {i}: frame {} >= study frame_count {frame_count}",
+                path.display(),
+                step.frame
+            );
+        }
+        frames.push(step.frame);
+    }
+    if frames.is_empty() {
+        anyhow::bail!("trace {} has no steps", path.display());
+    }
+    Ok((name, frames))
+}
+
 fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;
@@ -247,18 +339,44 @@ fn fault_tx() -> &'static Mutex<mpsc::Sender<FaultJob>> {
     })
 }
 
-async fn dedicated_fault_touch(store: Arc<FrameStore>, idx: u32) -> Result<()> {
+async fn dedicated_fault_touch(
+    store: Arc<FrameStore>,
+    idx: u32,
+    access: AccessMode,
+) -> Result<()> {
     let (done_tx, done_rx) = tokio::sync::oneshot::channel();
     {
         let tx = fault_tx().lock().expect("fault tx");
         tx.send(Box::new(move || {
-            let r = store.touch_frame_pages(idx);
+            let r = touch_for_access(&store, idx, access);
             let _ = done_tx.send(r);
         }))
         .expect("fault queue");
     }
     done_rx.await.context("fault oneshot")??;
     Ok(())
+}
+
+fn touch_for_access(store: &FrameStore, idx: u32, access: AccessMode) -> Result<()> {
+    match access.max_bytes() {
+        None => store.touch_frame_pages(idx),
+        Some(n) => store.touch_frame_prefix_pages(idx, n),
+    }
+}
+
+fn resident_for_access(store: &FrameStore, idx: u32, access: AccessMode) -> Result<bool> {
+    match access.max_bytes() {
+        None => store.frame_pages_resident(idx),
+        Some(n) => store.frame_prefix_pages_resident(idx, n),
+    }
+}
+
+fn access_len(store: &FrameStore, idx: u32, access: AccessMode) -> Result<usize> {
+    let (_, len) = store.frame_range(idx)?;
+    Ok(match access.max_bytes() {
+        None => len as usize,
+        Some(n) => (len as usize).min(n),
+    })
 }
 
 struct FrameOutcome {
@@ -272,7 +390,9 @@ struct RunRow {
     study: String,
     temp: String,
     trace: String,
+    access: String,
     frames: u32,
+    asks: u32,
     first_frame_ns: u64,
     later_p50_ns: u64,
     later_p99_ns: u64,
@@ -289,18 +409,20 @@ struct RunRow {
 }
 
 fn tsv_header() -> &'static str {
-    "arm\tstudy\ttemp\ttrace\tframes\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tstall_mean_ns\tstall_max_ns\tstall_samples\tbytes_copied\tcpu_user_us\tcpu_sys_us\trss_delta_bytes\thop_p50_ns"
+    "arm\tstudy\ttemp\ttrace\taccess\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tstall_mean_ns\tstall_max_ns\tstall_samples\tbytes_copied\tcpu_user_us\tcpu_sys_us\trss_delta_bytes\thop_p50_ns"
 }
 
 impl RunRow {
     fn to_tsv(&self) -> String {
         format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             self.arm,
             self.study,
             self.temp,
             self.trace,
+            self.access,
             self.frames,
+            self.asks,
             self.first_frame_ns,
             self.later_p50_ns,
             self.later_p99_ns,
@@ -322,7 +444,9 @@ fn run_cell(
     arm: Arm,
     study_src: &Path,
     temp: Temp,
-    trace_kind: TraceKind,
+    trace_name: &str,
+    trace: &[u32],
+    access: AccessMode,
     heartbeat_us: u64,
 ) -> Result<RunRow> {
     let (path, cleanup) = match temp {
@@ -335,15 +459,14 @@ fn run_cell(
 
     let store = Arc::new(FrameStore::open(&path)?);
     let n = store.frame_count();
-    let trace = build_trace(trace_kind, n);
 
     if matches!(temp, Temp::Warm) {
-        for i in 0..n {
-            // Warm both mmap pages and, for pread fairness, page cache via touch.
-            let _ = store.touch_frame_pages(i);
-            let (_, len) = store.frame_range(i)?;
-            let mut buf = vec![0u8; len as usize];
-            let _ = store.pread_frame(i, &mut buf);
+        // Warm only what this access mode will touch (fair prefix vs full).
+        for &idx in trace {
+            touch_for_access(&store, idx, access)?;
+            let len = access_len(&store, idx, access)?;
+            let mut buf = vec![0u8; len];
+            store.pread_frame_prefix(idx, &mut buf)?;
         }
     }
 
@@ -380,7 +503,7 @@ fn run_cell(
         });
 
         let store_w = Arc::clone(&store);
-        let trace_w = trace.clone();
+        let trace_w = trace.to_vec();
         let work = tokio::spawn(async move {
             let mut lats = Vec::with_capacity(trace_w.len());
             let mut hops = Vec::with_capacity(trace_w.len());
@@ -388,8 +511,7 @@ fn run_cell(
             let wall0 = Instant::now();
             for (i, &idx) in trace_w.iter().enumerate() {
                 let next = trace_w.get(i + 1).copied();
-                // Inside runtime: use spawn_blocking paths.
-                let out = serve_frame_async(arm, &store_w, idx, next).await?;
+                let out = serve_frame_async(arm, &store_w, idx, next, access).await?;
                 lats.push(out.latency_ns);
                 if out.hop_ns > 0 {
                     hops.push(out.hop_ns);
@@ -435,8 +557,10 @@ fn run_cell(
             .unwrap_or("study")
             .to_string(),
         temp: temp.as_str().to_string(),
-        trace: trace_kind.as_str().to_string(),
+        trace: trace_name.to_string(),
+        access: access.as_str().to_string(),
         frames: n,
+        asks: trace.len() as u32,
         first_frame_ns: first,
         later_p50_ns: percentile(&later, 0.50),
         later_p99_ns: percentile(&later, 0.99),
@@ -458,11 +582,15 @@ async fn serve_frame_async(
     store: &Arc<FrameStore>,
     idx: u32,
     next: Option<u32>,
+    access: AccessMode,
 ) -> Result<FrameOutcome> {
     match arm {
         Arm::MmapNaive => {
             let t0 = Instant::now();
-            let slice = store.frame_slice(idx)?;
+            let slice = match access.max_bytes() {
+                None => store.frame_slice(idx)?,
+                Some(n) => store.frame_prefix_slice(idx, n)?,
+            };
             touch_pages(slice);
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -474,11 +602,14 @@ async fn serve_frame_async(
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
-            tokio::task::spawn_blocking(move || s.touch_frame_pages(idx))
+            tokio::task::spawn_blocking(move || touch_for_access(&s, idx, access))
                 .await
                 .context("join")??;
             let hop = th.elapsed().as_nanos() as u64;
-            let slice = store.frame_slice(idx)?;
+            let slice = match access.max_bytes() {
+                None => store.frame_slice(idx)?,
+                Some(n) => store.frame_prefix_slice(idx, n)?,
+            };
             std::hint::black_box(slice.len());
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -489,15 +620,18 @@ async fn serve_frame_async(
         Arm::MmapHybridMincore => {
             let t0 = Instant::now();
             let mut hop = 0u64;
-            if !store.frame_pages_resident(idx).unwrap_or(false) {
+            if !resident_for_access(store, idx, access).unwrap_or(false) {
                 let s = Arc::clone(store);
                 let th = Instant::now();
-                tokio::task::spawn_blocking(move || s.touch_frame_pages(idx))
+                tokio::task::spawn_blocking(move || touch_for_access(&s, idx, access))
                     .await
                     .context("join")??;
                 hop = th.elapsed().as_nanos() as u64;
             }
-            let slice = store.frame_slice(idx)?;
+            let slice = match access.max_bytes() {
+                None => store.frame_slice(idx)?,
+                Some(n) => store.frame_prefix_slice(idx, n)?,
+            };
             std::hint::black_box(slice.len());
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -509,9 +643,12 @@ async fn serve_frame_async(
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
-            dedicated_fault_touch(s, idx).await?;
+            dedicated_fault_touch(s, idx, access).await?;
             let hop = th.elapsed().as_nanos() as u64;
-            let slice = store.frame_slice(idx)?;
+            let slice = match access.max_bytes() {
+                None => store.frame_slice(idx)?,
+                Some(n) => store.frame_prefix_slice(idx, n)?,
+            };
             std::hint::black_box(slice.len());
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -520,13 +657,13 @@ async fn serve_frame_async(
             })
         }
         Arm::PreadBlocking => {
-            let (_, len) = store.frame_range(idx)?;
+            let len = access_len(store, idx, access)?;
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
             let copied = tokio::task::spawn_blocking(move || {
-                let mut buf = vec![0u8; len as usize];
-                s.pread_frame(idx, &mut buf)?;
+                let mut buf = vec![0u8; len];
+                s.pread_frame_prefix(idx, &mut buf)?;
                 std::hint::black_box(&buf);
                 Ok::<u64, anyhow::Error>(len as u64)
             })
@@ -541,8 +678,12 @@ async fn serve_frame_async(
         }
         Arm::MmapWillneed => {
             let t0 = Instant::now();
+            // WILLNEED is whole-frame advisory (product API); touch respects access.
             store.advise_frame_willneed(idx)?;
-            let slice = store.frame_slice(idx)?;
+            let slice = match access.max_bytes() {
+                None => store.frame_slice(idx)?,
+                Some(n) => store.frame_prefix_slice(idx, n)?,
+            };
             touch_pages(slice);
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -556,7 +697,10 @@ async fn serve_frame_async(
             if let Some(n) = next {
                 let _ = store.advise_frame_willneed(n);
             }
-            let slice = store.frame_slice(idx)?;
+            let slice = match access.max_bytes() {
+                None => store.frame_slice(idx)?,
+                Some(n) => store.frame_prefix_slice(idx, n)?,
+            };
             touch_pages(slice);
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -569,16 +713,19 @@ async fn serve_frame_async(
             let s = Arc::clone(store);
             let th = Instant::now();
             tokio::task::spawn_blocking(move || {
-                s.touch_frame_pages(idx)?;
+                touch_for_access(&s, idx, access)?;
                 if let Some(n) = next {
-                    s.touch_frame_pages(n)?;
+                    touch_for_access(&s, n, access)?;
                 }
                 Ok::<(), anyhow::Error>(())
             })
             .await
             .context("join")??;
             let hop = th.elapsed().as_nanos() as u64;
-            let slice = store.frame_slice(idx)?;
+            let slice = match access.max_bytes() {
+                None => store.frame_slice(idx)?,
+                Some(n) => store.frame_prefix_slice(idx, n)?,
+            };
             std::hint::black_box(slice.len());
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -589,30 +736,74 @@ async fn serve_frame_async(
     }
 }
 
+enum TraceSpec {
+    Synthetic(TraceKind),
+    File { name: String, frames: Vec<u32> },
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     let arms = if let Some(a) = args.arm {
         a
-    } else if args.decision {
+    } else if args.decision || args.realistic {
         Arm::decision().to_vec()
     } else {
         Arm::all().to_vec()
     };
-    let traces = args
-        .trace
-        .unwrap_or_else(|| TraceKind::all().to_vec());
+    let accesses = if let Some(a) = args.access {
+        a
+    } else if args.realistic {
+        AccessMode::realistic().to_vec()
+    } else {
+        vec![AccessMode::Full]
+    };
     let temps = args.temp.unwrap_or_else(|| Temp::all().to_vec());
 
     let mut rows = Vec::new();
     println!("{}", tsv_header());
     for study in &args.studies {
         let study = study.canonicalize().context("study")?;
+        let store_probe = FrameStore::open(&study)?;
+        let n = store_probe.frame_count();
+        drop(store_probe);
+
+        let traces: Vec<TraceSpec> = if let Some(files) = &args.trace_files {
+            files
+                .iter()
+                .map(|p| {
+                    let (name, frames) = load_trace_file(p, n)?;
+                    Ok(TraceSpec::File { name, frames })
+                })
+                .collect::<Result<Vec<_>>>()?
+        } else {
+            args.trace
+                .clone()
+                .unwrap_or_else(|| TraceKind::all().to_vec())
+                .into_iter()
+                .map(TraceSpec::Synthetic)
+                .collect()
+        };
+
         for &temp in &temps {
-            for &trace in &traces {
-                for &arm in &arms {
-                    let row = run_cell(arm, &study, temp, trace, args.heartbeat_us)?;
-                    println!("{}", row.to_tsv());
-                    rows.push(row);
+            for &access in &accesses {
+                for spec in &traces {
+                    let (tname, tframes): (&str, Vec<u32>) = match spec {
+                        TraceSpec::Synthetic(kind) => (kind.as_str(), build_trace(*kind, n)),
+                        TraceSpec::File { name, frames } => (name.as_str(), frames.clone()),
+                    };
+                    for &arm in &arms {
+                        let row = run_cell(
+                            arm,
+                            &study,
+                            temp,
+                            tname,
+                            &tframes,
+                            access,
+                            args.heartbeat_us,
+                        )?;
+                        println!("{}", row.to_tsv());
+                        rows.push(row);
+                    }
                 }
             }
         }

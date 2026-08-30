@@ -64,6 +64,14 @@ impl FrameStore {
         Ok(&self.mmap[start..end])
     }
 
+    /// First `max_bytes` of frame `index` (or the whole frame if shorter).
+    ///
+    /// Lab / progressive-style access: HTJ2K often only needs early bytes for a first layer.
+    pub fn frame_prefix_slice(&self, index: u32, max_bytes: usize) -> Result<&[u8]> {
+        let full = self.frame_slice(index)?;
+        Ok(&full[..full.len().min(max_bytes)])
+    }
+
     /// Fault every page of `index` into the page cache.
     ///
     /// Call this from a **blocking** pool (`spawn_blocking`), not on the async executor: a cold
@@ -76,12 +84,24 @@ impl FrameStore {
         Ok(())
     }
 
+    /// Fault pages covering the first `max_bytes` of `index` (partial / first-layer access).
+    pub fn touch_frame_prefix_pages(&self, index: u32, max_bytes: usize) -> Result<()> {
+        touch_pages(self.frame_prefix_slice(index, max_bytes)?);
+        Ok(())
+    }
+
     /// `true` if every page backing `index` is currently resident (page-cache / RAM).
     ///
     /// Uses `mincore(2)`. Safe to call on the async executor — it does not fault pages in.
     /// On error (unsupported FS, etc.) returns `Ok(false)` so callers take the slow/safe path.
     pub fn frame_pages_resident(&self, index: u32) -> Result<bool> {
         let slice = self.frame_slice(index)?;
+        Ok(pages_resident(slice).unwrap_or(false))
+    }
+
+    /// `true` if every page covering the first `max_bytes` of `index` is resident.
+    pub fn frame_prefix_pages_resident(&self, index: u32, max_bytes: usize) -> Result<bool> {
+        let slice = self.frame_prefix_slice(index, max_bytes)?;
         Ok(pages_resident(slice).unwrap_or(false))
     }
 
@@ -119,6 +139,16 @@ impl FrameStore {
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("pread frame {index} at {offset}"))?;
+        Ok(())
+    }
+
+    /// `pread` the first `buf.len()` bytes of frame `index` (capped at frame length).
+    pub fn pread_frame_prefix(&self, index: u32, buf: &mut [u8]) -> Result<()> {
+        let (offset, length) = self.frame_range(index)?;
+        let n = buf.len().min(length as usize);
+        self.file
+            .read_exact_at(&mut buf[..n], offset)
+            .with_context(|| format!("pread frame {index} prefix {n} at {offset}"))?;
         Ok(())
     }
 }
@@ -185,6 +215,12 @@ mod tests {
         let mut buf = vec![0u8; f0.len()];
         store.pread_frame(0, &mut buf)?;
         assert_eq!(buf, f0);
+        assert_eq!(store.frame_prefix_slice(1, 5)?, &f1[..5]);
+        store.touch_frame_prefix_pages(1, 5)?;
+        assert!(store.frame_prefix_pages_resident(1, 5)?);
+        let mut pref = [0u8; 5];
+        store.pread_frame_prefix(1, &mut pref)?;
+        assert_eq!(&pref, &f1[..5]);
         store.advise_frame_willneed(1)?;
         let _ = std::fs::remove_file(path);
         Ok(())
