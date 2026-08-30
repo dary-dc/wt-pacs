@@ -267,6 +267,18 @@ impl MetricsState {
     }
 }
 
+/// Nearest-rank percentile (L2 brief / client telemetry contract).
+/// `rank = ceil(p/100 × N)` clamped to `[1, N]`; value = `sorted[rank - 1]`.
+fn percentile_nearest_rank(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let n = sorted.len();
+    let rank = ((p / 100.0) * n as f64).ceil() as usize;
+    let rank = rank.clamp(1, n);
+    sorted[rank - 1]
+}
+
 fn wait_stats(samples: &[f64]) -> (f64, f64) {
     if samples.is_empty() {
         return (0.0, 0.0);
@@ -274,9 +286,28 @@ fn wait_stats(samples: &[f64]) -> (f64, f64) {
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let mut sorted = samples.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let idx = ((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize;
-    let p95 = sorted[idx.min(sorted.len() - 1)];
+    let p95 = percentile_nearest_rank(&sorted, 95.0);
     (mean, p95)
+}
+
+#[cfg(test)]
+mod wait_stats_tests {
+    use super::{percentile_nearest_rank, wait_stats};
+
+    #[test]
+    fn nearest_rank_disagrees_with_old_index_formula() {
+        // N=20: old idx = ceil((19)*0.95)=19 → sorted[19]; nearest-rank rank=ceil(0.95*20)=19 → sorted[18].
+        let samples: Vec<f64> = (1..=20).map(|i| i as f64).collect();
+        let mut sorted = samples.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let old_idx = (((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize).min(sorted.len() - 1);
+        let old = sorted[old_idx];
+        let new = percentile_nearest_rank(&sorted, 95.0);
+        assert_ne!(old, new, "fixture must disagree: old={old} new={new}");
+        assert_eq!(new, 19.0);
+        let (_mean, p95) = wait_stats(&samples);
+        assert_eq!(p95, 19.0);
+    }
 }
 
 pub type SharedMetrics = Arc<Mutex<MetricsState>>;
