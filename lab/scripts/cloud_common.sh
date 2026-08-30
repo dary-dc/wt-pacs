@@ -13,8 +13,8 @@ SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 REMOTE="${CLOUD_USER}@${CLOUD_HOST}"
 REMOTE_WT="$REMOTE:/home/ubuntu/wt-pacs"
 
-SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes "$REMOTE")
-SCP=(scp -i "$SSH_KEY")
+SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=10 "$REMOTE")
+SCP=(scp -i "$SSH_KEY" -o IdentitiesOnly=yes -o ConnectTimeout=10)
 
 # Harness: no client-side shaping — wire cap is on the server via cloud_netem.sh
 HARNESS_READ_BPS="${HARNESS_READ_BPS:-1000000000}"
