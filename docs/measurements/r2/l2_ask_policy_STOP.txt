@@ -1,17 +1,19 @@
-L2 ask-policy — status after review remediation (harness code).
+L2 ask-policy — post-review shaped campaign COMPLETE.
 
-Previous shaped rows in l2_ask_policy.tsv / l2_ask_policy_d_current/ are
-PROVISIONAL. They were collected before:
+Re-ran on Oracle SP with harness tip that includes review remediations
+(ask→first-byte + FIFO pairing, consecutive-eval oscillation detector,
+finalize-on-oscillation, control/windowed drain, matched step cadence,
+TSV peak_outstanding/wait_samples/stream_mode).
 
-  1. Oscillation path actually finalized JSON (bail-before-finalize removed)
-  2. Oscillation detector required consecutive evaluation adopts
-  3. Ask→first-byte sampling (not ask→last-byte after full body)
-  4. FIFO ask→response pairing (no overwrite / dropped samples)
-  5. Control drain so bytes_on_wire counts all responses
-  6. Windowed arms offering the same step cadence as control
+Canonical outputs (this run):
+  docs/measurements/r2/l2_ask_policy.tsv          — 54 raw rows, full grid
+  docs/measurements/r2/l2_ask_policy_d_current/   — dynamic trajectories
 
-Do not treat those rows as D26 evidence. Re-run the shaped campaign with the
-fixed harness before drawing conclusions.
+Exit: CAMPAIGN_EXIT=0 (no oscillation stop, no void stop).
+demand/supply offered at 16 ms/step ≈ 1.60 for all arms.
 
-Original stop note (oscillation on dynamic rtt=60 loss=0.5 run=2) remains
-historically true for that build; the detector itself did not match the brief.
+Prior provisional rows retained for audit only:
+  l2_ask_policy_PROVISIONAL_pre_review.tsv
+  l2_ask_policy_d_current_PROVISIONAL_pre_review/
+
+Raw only — no interpretation in this file.
