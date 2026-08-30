@@ -54,7 +54,8 @@ fi
 [[ -x "$BIN_SERVER" ]] || { echo "missing $BIN_SERVER" >&2; exit 1; }
 
 if [[ ! -f "$OUT_TSV" ]]; then
-  echo -e "arm\trtt_ms\tloss_pct\trun\tp95_wait_ms\tmean_wait_ms\tbytes_on_wire\asks_sent\td_min_observed\td_max_observed" > "$OUT_TSV"
+  # NOTE: must be `\tasks_sent` (tab + asks_sent). `\asks_sent` is echo -e BEL + "sks_sent".
+  echo -e "arm\trtt_ms\tloss_pct\trun\tp95_wait_ms\tmean_wait_ms\tbytes_on_wire\tasks_sent\td_min_observed\td_max_observed" > "$OUT_TSV"
 fi
 
 formula_depth() {
