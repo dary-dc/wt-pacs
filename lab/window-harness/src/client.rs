@@ -215,6 +215,7 @@ pub async fn run_harness(
                     &schedule,
                     wanted,
                     &metrics,
+                    &outstanding,
                 )
                 .await?
             }
@@ -357,18 +358,37 @@ async fn run_legacy_schedule(
     schedule: &[u32],
     wanted: u32,
     metrics: &SharedMetrics,
+    outstanding: &Arc<Mutex<HashSet<u32>>>,
 ) -> Result<u32> {
     let n = cfg.frame_count.max(1);
     let mut asks_sent = 0u32;
-    // Fire-all: ask every schedule frame with no outstanding bound, but still measure
-    // time-to-displayable per step so L2's p95 is defined for the control arm.
+    // Fire-all: ask every schedule frame with no outstanding bound (shipping behaviour).
+    // Measure per-step time-to-displayable concurrently so waits do not serialize asks
+    // into depth≈1 — that would void the control arm.
+    let mut wait_tasks = Vec::with_capacity(schedule.len());
     for (i, &frame) in schedule.iter().enumerate() {
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
-        ask_frame(control_send, frame % n, cfg.rtt_ms).await?;
+        let idx = frame % n;
+        {
+            let mut o = outstanding.lock().expect("outstanding");
+            o.insert(idx);
+            note_outstanding(o.len() as u32);
+        }
+        ask_frame(control_send, idx, cfg.rtt_ms).await?;
         asks_sent += 1;
-        wait_displayable(metrics, frame % n, cfg.timeout_ms).await?;
+        let metrics_w = Arc::clone(metrics);
+        let timeout_ms = cfg.timeout_ms;
+        wait_tasks.push(tokio::spawn(async move {
+            wait_displayable(&metrics_w, idx, timeout_ms).await
+        }));
+    }
+
+    for task in wait_tasks {
+        task.await
+            .context("legacy wait task join")?
+            .context("legacy wait_displayable")?;
     }
 
     {
