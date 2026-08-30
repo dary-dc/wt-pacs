@@ -171,13 +171,16 @@ if traj:
     out = pathlib.Path(ddir) / f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv"
     out.write_text("step\td_current\n" + "\n".join(f"{i}\t{d}" for i, d in enumerate(traj)) + "\n")
 print(f"OK {arm} rtt={rtt} loss={loss} run={run} p95={p95} mean={mean} bytes={bytes_w} d=[{dmin},{dmax}]")
-if p95 == 0:
-    print(f"STOP: p95_wait_ms=0 — wrong mode / void cell ({arm} rtt={rtt} loss={loss} run={run})", file=sys.stderr)
+# Void = no wait samples (wrong mode / not measuring). Legitimate p95=0 from
+# window cache hits must still be reported — do not abort the campaign.
+n_waits = int(m.get("wait_samples") or len(m.get("wait_ms") or []))
+if n_waits == 0:
+    print(f"STOP: wait_samples=0 — wrong mode / void cell ({arm} rtt={rtt} loss={loss} run={run})", file=sys.stderr)
     sys.exit(3)
 PY
   local py_rc=$?
   if [[ $py_rc -eq 3 ]]; then
-    echo "campaign void from p95=0 — stopping" >&2
+    echo "campaign void from empty wait samples — stopping" >&2
     exit 2
   fi
   if [[ $py_rc -ne 0 ]]; then
