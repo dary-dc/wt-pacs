@@ -172,19 +172,22 @@ run_one() {
 import json, sys, pathlib
 path, tsv, arm, rtt, loss, run, path_rtt, ddir = sys.argv[1:9]
 m = json.load(open(path))
-def wrow():
-  with open(tsv, "a") as f:
-    f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{path_rtt}\t{m.get('p95_lateness_ms',0)}\t{m.get('mean_lateness_ms',0)}\t{m.get('frac_steps_late',0)}\t{m.get('p95_wait_ms',0)}\t{m.get('mean_wait_ms',0)}\t{m.get('bytes_on_wire',0)}\t{m.get('asks_sent',0)}\t{m.get('unique_frames_asked',0)}\t{m.get('duplicate_asks',0)}\t{m.get('d_min_observed',0)}\t{m.get('d_max_observed',0)}\t{m.get('peak_outstanding',0)}\t{m.get('wait_samples',0)}\t{m.get('stream_mode','')}\t{int(m.get('drain_incomplete',0))}\t{int(m.get('depth_saturated',0))}\n")
+with open(tsv, "a") as f:
+  f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{path_rtt}\t{m.get('p95_lateness_ms',0)}\t{m.get('mean_lateness_ms',0)}\t{m.get('frac_steps_late',0)}\t{m.get('p95_wait_ms',0)}\t{m.get('mean_wait_ms',0)}\t{m.get('bytes_on_wire',0)}\t{m.get('asks_sent',0)}\t{m.get('unique_frames_asked',0)}\t{m.get('duplicate_asks',0)}\t{m.get('d_min_observed',0)}\t{m.get('d_max_observed',0)}\t{m.get('peak_outstanding',0)}\t{m.get('wait_samples',0)}\t{m.get('stream_mode','')}\t{int(m.get('drain_incomplete',0))}\t{int(m.get('depth_saturated',0))}\n")
 traj = m.get("d_current") or []
 if traj:
   pathlib.Path(ddir, f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv").write_text(
     "step\td_current\n" + "\n".join(f"{i}\t{d}" for i, d in enumerate(traj)) + "\n")
-wrow()
+if m.get("depth_oscillating"):
+  print("STOP: depth_oscillating", file=sys.stderr)
+  sys.exit(2)
 PY
-    fi
-    if [[ $rc -eq 2 ]]; then
-      echo "STOP: dynamic oscillation/saturated" >&2
-      exit 2
+      local py_rc=$?
+      if [[ $py_rc -eq 2 ]]; then
+        echo "STOP: dynamic oscillating" >&2
+        exit 2
+      fi
+      return 0
     fi
     echo -e "${arm}\t${rtt_nom}\t${loss}\t${run}\t${path_rtt}\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL" >> "$OUT_TSV"
     return 0

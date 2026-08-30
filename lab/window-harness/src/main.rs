@@ -154,9 +154,5 @@ async fn main() -> anyhow::Result<()> {
         eprintln!("depth oscillating despite damping — stop");
         std::process::exit(2);
     }
-    if m.depth_saturated {
-        eprintln!("depth saturated at clamp — stop");
-        std::process::exit(2);
-    }
     Ok(())
 }
