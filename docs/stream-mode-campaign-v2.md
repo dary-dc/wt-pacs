@@ -1,5 +1,28 @@
 # Campaign: shared vs per-frame, second attempt
 
+> ## ✅ EXECUTED 2026-08-29 — do not re-run this spec as written
+>
+> Ran clean: **432/432 rows, 0 failures** (`measurements/r2/stream_mode_campaign_v2.tsv`).
+> Analysis: [`measurements/r2/CAMPAIGN_V2_ANALYSIS.md`](measurements/r2/CAMPAIGN_V2_ANALYSIS.md).
+>
+> **What it proved.** Per-frame without priority (**P**) trails shared (**S**) by 10–25 %; per-frame
+> **with** priority (**Q**) ties S. The fair-sharing mechanism is confirmed and `set_priority` fixes
+> the deficit — which explains why the earlier X3 campaign's per-frame arm looked catastrophic.
+>
+> **Two flaws in the spec below — both in the plan, not the run:**
+>
+> 1. **No loss dimension.** Every cell is lossless, which is the one regime where head-of-line
+>    blocking cannot occur — so per-frame's entire reason for existing was never exercised.
+> 2. **`--mode saturate` produces no p95.** All 144 cells report `p95_wait_ms = 0`. The decision rule
+>    fixed in advance was written in p95, so **this data cannot evaluate its own rule.**
+>
+> **The control below is also wrong.** "At RTT 20 all three arms should be close" was checked at
+> **D = 16**, where concurrency *is* the effect under test. At **D = 1** the arms agree to within
+> 0.13 Mbps. Use D = 1 as the control; a spread there is a real stop condition.
+>
+> **The follow-up is `parallel-work-plan-2026-08-29.md` § Lane A** — S vs Q only, loss 0/0.5/2 %,
+> `--mode trace` so waits exist, each arm at its own `D_min`. Read that instead.
+
 **For:** wt-pacs implementer (cloud) · 2026-08-29 ·
 **Supersedes:** Task C of `r2-data-collection-brief.md` and R4 of `stream-mode-remediation.md`
 
