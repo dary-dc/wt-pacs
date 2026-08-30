@@ -1,9 +1,10 @@
 # Plan: migrate server telemetry to the frame-pipeline contract
 
-**2026-08-30** · companion to [`client-frame-pipeline-telemetry-plan.md`](client-frame-pipeline-telemetry-plan.md)
-and revision of [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md)
-§ “The server keeps its inline seam”.
-**Status: planned, not started.** Risk accepted by product owner.
+**Status: DRAFT — seam option not approved.** Do not implement from this doc until
+[`telemetry-seam-decision-brief.md`](telemetry-seam-decision-brief.md) Decision C is settled.
+The “Chosen: domain events” section below is a **proposal only**, not a decision.
+
+**2026-08-30** · companion to [`client-frame-pipeline-telemetry-plan.md`](client-frame-pipeline-telemetry-plan.md).
 
 Goal: **one stamp vocabulary and report spine on both sides of the wire**, with server
 session logic that reads as product code — not a forest of `rec.ask` / `rec.located` /
@@ -75,7 +76,9 @@ Headline / distributions follow the client spine where applicable:
 | **Keep today’s four call sites forever** | Readable product loop is the reason for this plan. |
 | **Join script as the way to understand path** | Path is a derived quantity; raw artifacts stay two files (see §5). |
 
-### Chosen: **domain events at natural boundaries, zero-sized subscriber**
+### Proposed (not approved): **domain events at natural boundaries, zero-sized subscriber**
+
+> Supersede this pick via Decision C in `telemetry-seam-decision-brief.md` before any code.
 
 ```
 product loop                          lab (feature = "telemetry")

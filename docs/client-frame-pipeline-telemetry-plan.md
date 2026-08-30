@@ -359,33 +359,18 @@ rather than running one then the other, so drift and thermal state cancel.
 
 ---
 
-## 10 · The server join, and the percentile reconciliation
+## 10 · The server join — **withdrawn as a product**
 
-**The join already exists in half.** The server Tap emits `ask_ordinal` per `frame_index` via
-`take_ordinal`, and `lab/window-harness/src/client.rs:48` mirrors that rule exactly in `record_ask`.
-The browser clients do not. Adding the same 0-based counter completes it:
+**Do not ship `join_client_server.py` or a `path_estimate` field.** Harvest keeps two
+independent files in one run folder (`telemetry-client.json`, `telemetry-server.json`).
+Both already carry `frame_index` and `ask_ordinal` if a human later aligns rows offline.
 
-```text
-path_estimate_us(frame, ordinal) ≈ client.serve_plus_path_us − server.server_serve_us
-```
+The old sketch `client.serve_plus_path − server.server_serve` was a poorly named stand-in
+for “path-ish leftover,” not RTT, and mixed batch queueing under fill. It is not part of
+the contract.
 
-Durations only — **no cross-machine absolute clock math** (spec §8).
-
-**What it buys that neither side has alone.** Under a batch ask the server sets `serve_start` per
-frame *inside* the batch loop (`server.rs:215`), so `server_serve_us` excludes queueing behind its
-predecessors, while the client's `serve_plus_path` from the shared T0 includes it. The difference
-**decomposes fill inflation into path versus server-side batch queueing** — the quantity the spec
-warns about but cannot measure from one side. Ship `lab/scripts/join_client_server.py`.
-
-Caveat: `server_serve_us` ends at `write_all` into the send buffer, not at bytes on the wire, so the
-estimate is path *minus a little*, with a known and constant direction.
-
-**Percentiles — fix the server, do not fork the rule.** The spec requires nearest-rank;
-`server/src/record/tap.rs:353` interpolates linearly, and two reports computing p95 differently cannot
-be joined. **No published document quotes a server-Tap percentile** (checked across `docs/` and
-`.local/measurements/`), and every summary is recomputable from raw rows, so reconciling costs
-nothing. Change the server to nearest-rank and pin it with a unit test over a vector where the two
-rules disagree.
+**Percentiles — still reconcile.** Nearest-rank on both sides so summaries are comparable
+when read side by side (`server/src/record/tap.rs`); no merge step required.
 
 ---
 
@@ -472,7 +457,7 @@ shot), fix, then instrument the fixed path.
 | **4** | **Report.** Spine, nearest-rank distributions, binding term, integrity block, headline gating, `copies` | `record/tap.ts` | Validates against §7; headline nulls present, not omitted |
 | **5** | **Harvest** | `server/scripts/verify_e2e.py` | `.local/measurements/telemetry-client-*.json` for both arms, both cells |
 | **6** | **Cells.** on-demand trace + fill batch, interleaved arms, repeats | `verify_e2e.py`, `client/harness/*.html` | Both cells produce §7 headlines; frame 0 separated |
-| **7** | **Server join + percentile fix** | `lab/scripts/join_client_server.py`, `server/src/record/tap.rs` | Path estimate and batch-queue decomposition produced |
+| **7** | **Server percentile fix only** (no join product) | `server/src/record/tap.rs` | Nearest-rank; unit test where linear disagrees |
 | **8** | Trap checklist signed off (§13), adaptation note written (§2) | `docs/measurements/` | Results reportable; nothing above T2 |
 
 ### 14.1 Tests
