@@ -147,8 +147,31 @@ run_one() {
   if [[ $rc -ne 0 ]]; then
     echo "FAIL $label rc=$rc" >&2
     cat "$json.err" >&2 || true
-    if grep -q oscillating "$json.err" 2>/dev/null; then
-      echo "STOP: depth oscillating — see $json.err" >&2
+    # Oscillation: land trajectory from JSON (harness exits 2 after printing metrics), then stop.
+    if { grep -q oscillating "$json.err" 2>/dev/null || [[ $rc -eq 2 ]]; } && [[ -s "$json" ]]; then
+      python3 - "$json" "$OUT_TSV" "$arm" "$rtt" "$loss" "$run" "$D_TRACE_DIR" <<'PY'
+import json, sys, pathlib
+path, tsv, arm, rtt, loss, run, ddir = sys.argv[1:8]
+m = json.load(open(path))
+p95 = m.get("p95_wait_ms", 0)
+mean = m.get("mean_wait_ms", 0)
+bytes_w = m.get("bytes_on_wire", 0)
+asks = m.get("asks_sent", 0)
+dmin = m.get("d_min_observed", 0)
+dmax = m.get("d_max_observed", 0)
+with open(tsv, "a") as f:
+    f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{p95}\t{mean}\t{bytes_w}\t{asks}\t{dmin}\t{dmax}\n")
+traj = m.get("d_current") or []
+if traj:
+    out = pathlib.Path(ddir) / f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv"
+    out.write_text("step\td_current\n" + "\n".join(f"{i}\t{d}" for i, d in enumerate(traj)) + "\n")
+print(f"OSCILLATION {arm} rtt={rtt} loss={loss} run={run} d=[{dmin},{dmax}] traj_len={len(traj)} depth_oscillating={m.get('depth_oscillating')}")
+PY
+      echo "STOP: depth oscillating — trajectory landed; see $json and $D_TRACE_DIR" >&2
+      exit 2
+    fi
+    if grep -q oscillating "$json.err" 2>/dev/null || [[ $rc -eq 2 ]]; then
+      echo "STOP: depth oscillating — see $json.err (no JSON trajectory)" >&2
       exit 2
     fi
     echo -e "${arm}\t${rtt}\t${loss}\t${run}\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL" >> "$OUT_TSV"

@@ -467,24 +467,32 @@ async fn run_windowed(
         // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
         wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
         wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
+        // L2 brief: on oscillation, stop and report the trajectory — do not bail
+        // before finalize, or d_current is lost.
         if let Some(ctl) = depth_ctl {
             if ctl.lock().expect("depth ctl").oscillating {
-                anyhow::bail!("depth oscillating despite damping — stop");
+                break;
             }
         }
     }
+
+    let oscillating = depth_ctl
+        .map(|c| c.lock().expect("depth ctl").oscillating)
+        .unwrap_or(false);
 
     {
         let mut m = metrics.lock().expect("metrics lock");
         m.settle();
     }
-    let d = current_d();
-    wait_outstanding_below(outstanding, d.saturating_sub(1), cfg.timeout_ms).await?;
-    asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
-    wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
-    wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
+    if !oscillating {
+        let d = current_d();
+        wait_outstanding_below(outstanding, d.saturating_sub(1), cfg.timeout_ms).await?;
+        asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
+        wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
+        wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
+    }
 
-    if cfg.fill_dwell_ms > 0 {
+    if !oscillating && cfg.fill_dwell_ms > 0 {
         {
             let mut m = metrics.lock().expect("metrics lock");
             m.start_fill();

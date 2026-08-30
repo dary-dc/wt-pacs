@@ -1,0 +1,22 @@
+L2 ask-policy campaign STOP — docs/lanes/L2-ask-policy.md oscillation rule.
+
+Observed: harness exited with "depth oscillating despite damping — stop" on
+  arm=dynamic  rtt_ms=60  loss_pct=0.5  run=2
+  (see .local/r2/l2_ask_policy/raw/dynamic_rtt60_loss0.5_run2.json.err)
+
+That build bailed before writing JSON, so the oscillating d_current path for run=2
+was not captured. Harness was then fixed to finalize+emit d_current before exit 2.
+A same-cell retry under netem 60/0.5 completed without oscillation
+  (trajectory: l2_ask_policy_d_current/dynamic_rtt60_loss0.5_run2_retry_no_oscillation.tsv).
+
+Campaign was not resumed past the stop cell (rtt=150 cells not run), per brief.
+
+Partial raw TSV: docs/measurements/r2/l2_ask_policy.tsv
+  — rows through dynamic rtt=60 loss=0.5 run=1 inclusive; prior cells OK.
+Dynamic d_current traces for completed dynamic runs under l2_ask_policy_d_current/.
+
+Raw only — no interpretation of whether dynamic wins.
+---
+Nearest completed same-cell dynamic trajectory (run=1):
+d_current run-length: 4x64 3x112 4x20
+len=196 min=3 max=4
