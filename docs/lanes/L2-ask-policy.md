@@ -1,6 +1,6 @@
 # Lane L2 — ask policy: unbounded vs fixed vs dynamic
 
-**Status: ready for cloud agent.** · Harness only · Round-robin the Oracle São Paulo rig with L1
+**Status: harness remediated after review — shaped rows provisional; re-run required.** · Harness only · Round-robin the Oracle São Paulo rig with L1
 
 ## Purpose
 
