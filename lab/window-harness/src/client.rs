@@ -522,13 +522,6 @@ async fn run_windowed(
         wait_tasks.push(tokio::spawn(async move {
             wait_step_displayable(&metrics_w, frame, scheduled_at, ask_at, timeout_ms).await
         }));
-
-        if let Some(ctl) = depth_ctl {
-            let oscillating = ctl.lock().expect("depth ctl").oscillating;
-            if oscillating {
-                break;
-            }
-        }
     }
 
     for task in wait_tasks {
@@ -555,11 +548,9 @@ async fn run_windowed(
         m.settle();
     }
 
-    if !oscillating {
-        wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
-    }
+    wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
-    if !oscillating && cfg.fill_dwell_ms > 0 {
+    if cfg.fill_dwell_ms > 0 {
         {
             let mut m = metrics.lock().expect("metrics lock");
             m.start_fill();
