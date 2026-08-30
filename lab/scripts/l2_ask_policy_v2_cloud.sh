@@ -33,7 +33,11 @@ ONLY_RTT="${ONLY_RTT:-}"
 ONLY_LOSS="${ONLY_LOSS:-}"
 ONLY_ARM="${ONLY_ARM:-}"
 
-mkdir -p "$(dirname "$OUT_TSV")" "$D_TRACE_DIR" "$RAW_DIR" "$(dirname "$LOG")"
+mkdir -p "$(dirname "$OUT_TSV")" "$D_TRACE_DIR" "$RAW_DIR" "$(dirname "$LOG")" "$(dirname "$LOG")/../probe"
+PROBE_TRACE="${PROBE_TRACE:-$(dirname "$LOG")/../probe/one_frame.json}"
+if [[ ! -f "$PROBE_TRACE" ]]; then
+  echo '{"name":"probe","max_step":1,"step_interval_ms":16,"settle_on":"last_asked","steps":[{"frame":0}]}' > "$PROBE_TRACE"
+fi
 exec > >(tee -a "$LOG") 2>&1
 
 echo "=== L2 ask-policy v2 $(date -Iseconds) ==="
@@ -54,17 +58,29 @@ if [[ ! -f "$OUT_TSV" ]]; then
 fi
 
 measure_path_rtt() {
-  python3 - "$CLOUD_HOST" "$PORT" <<'PY'
-import socket, statistics, sys, time
-host, port = sys.argv[1], int(sys.argv[2])
-rtts = []
-for _ in range(5):
-    t0 = time.perf_counter()
-    s = socket.create_connection((host, port), timeout=8)
-    s.close()
-    rtts.append((time.perf_counter() - t0) * 1000)
-print(int(statistics.median(rtts)))
-PY
+  local rtt_nom=${1:-20}
+  local err json rc
+  err=$(mktemp)
+  set +e
+  json=$("$HARNESS" --url "$CLOUD_URL" --trace "$PROBE_TRACE" --read-bps 0 --depth 0 \
+    --frame-count "$FRAME_COUNT" --fill-dwell-ms 0 --mode trace --arm _path_rtt_probe \
+    --rtt-ms 0 --stream-mode shared --timeout-ms 90000 --json 2>"$err")
+  rc=$?
+  set -e
+  if [[ $rc -ne 0 || -z "$json" ]]; then
+    echo "WARN path RTT probe failed rc=$rc — fallback to nominal ${rtt_nom}ms" >&2
+    cat "$err" >&2 || true
+    rm -f "$err"
+    echo "$rtt_nom"
+    return 0
+  fi
+  rm -f "$err"
+  python3 -c "
+import json, sys, statistics
+m = json.loads(sys.argv[1])
+waits = [w for w in m.get('wait_ms', []) if w > 0]
+print(int(statistics.median(waits)) if waits else int(round(m.get('mean_wait_ms', 0))))
+" "$json"
 }
 
 formula_depth() {
@@ -213,7 +229,7 @@ for rtt in "${RTTS[@]}"; do
   for loss in "${LOSSES[@]}"; do
     [[ -n "$ONLY_LOSS" && "$ONLY_LOSS" != "$loss" ]] && continue
     cloud_set_netem "$rtt" "$loss"
-    path_rtt=$(measure_path_rtt)
+    path_rtt=$(measure_path_rtt "$rtt")
     echo "path_rtt_ms=$path_rtt (nominal $rtt)" >&2
     # Interleave arms: run 1..N cycles through shuffled order per cell
     for run in $(seq 1 "$REPEATS"); do
