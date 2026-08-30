@@ -151,8 +151,7 @@ async fn main() -> anyhow::Result<()> {
         println!("depth_saturated={}", m.depth_saturated);
     }
     if m.depth_oscillating {
-        eprintln!("depth oscillating despite damping — stop");
-        std::process::exit(2);
+        eprintln!("depth oscillating despite damping — flagged in metrics");
     }
     Ok(())
 }

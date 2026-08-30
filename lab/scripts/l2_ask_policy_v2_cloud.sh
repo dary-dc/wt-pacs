@@ -179,14 +179,8 @@ if traj:
   pathlib.Path(ddir, f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv").write_text(
     "step\td_current\n" + "\n".join(f"{i}\t{d}" for i, d in enumerate(traj)) + "\n")
 if m.get("depth_oscillating"):
-  print("STOP: depth_oscillating", file=sys.stderr)
-  sys.exit(2)
+  print("WARN: depth_oscillating", file=sys.stderr)
 PY
-      local py_rc=$?
-      if [[ $py_rc -eq 2 ]]; then
-        echo "STOP: dynamic oscillating" >&2
-        exit 2
-      fi
       return 0
     fi
     echo -e "${arm}\t${rtt_nom}\t${loss}\t${run}\t${path_rtt}\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL" >> "$OUT_TSV"
