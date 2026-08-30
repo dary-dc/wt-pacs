@@ -1,22 +1,17 @@
-L2 ask-policy campaign STOP — docs/lanes/L2-ask-policy.md oscillation rule.
+L2 ask-policy — status after review remediation (harness code).
 
-Observed: harness exited with "depth oscillating despite damping — stop" on
-  arm=dynamic  rtt_ms=60  loss_pct=0.5  run=2
-  (see .local/r2/l2_ask_policy/raw/dynamic_rtt60_loss0.5_run2.json.err)
+Previous shaped rows in l2_ask_policy.tsv / l2_ask_policy_d_current/ are
+PROVISIONAL. They were collected before:
 
-That build bailed before writing JSON, so the oscillating d_current path for run=2
-was not captured. Harness was then fixed to finalize+emit d_current before exit 2.
-A same-cell retry under netem 60/0.5 completed without oscillation
-  (trajectory: l2_ask_policy_d_current/dynamic_rtt60_loss0.5_run2_retry_no_oscillation.tsv).
+  1. Oscillation path actually finalized JSON (bail-before-finalize removed)
+  2. Oscillation detector required consecutive evaluation adopts
+  3. Ask→first-byte sampling (not ask→last-byte after full body)
+  4. FIFO ask→response pairing (no overwrite / dropped samples)
+  5. Control drain so bytes_on_wire counts all responses
+  6. Windowed arms offering the same step cadence as control
 
-Campaign was not resumed past the stop cell (rtt=150 cells not run), per brief.
+Do not treat those rows as D26 evidence. Re-run the shaped campaign with the
+fixed harness before drawing conclusions.
 
-Partial raw TSV: docs/measurements/r2/l2_ask_policy.tsv
-  — rows through dynamic rtt=60 loss=0.5 run=1 inclusive; prior cells OK.
-Dynamic d_current traces for completed dynamic runs under l2_ask_policy_d_current/.
-
-Raw only — no interpretation of whether dynamic wins.
----
-Nearest completed same-cell dynamic trajectory (run=1):
-d_current run-length: 4x64 3x112 4x20
-len=196 min=3 max=4
+Original stop note (oscillation on dynamic rtt=60 loss=0.5 run=2) remains
+historically true for that build; the detector itself did not match the brief.

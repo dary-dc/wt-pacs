@@ -55,8 +55,15 @@ fi
 
 if [[ ! -f "$OUT_TSV" ]]; then
   # NOTE: must be `\tasks_sent` (tab + asks_sent). `\asks_sent` is echo -e BEL + "sks_sent".
-  echo -e "arm\trtt_ms\tloss_pct\trun\tp95_wait_ms\tmean_wait_ms\tbytes_on_wire\tasks_sent\td_min_observed\td_max_observed" > "$OUT_TSV"
+  echo -e "arm\trtt_ms\tloss_pct\trun\tp95_wait_ms\tmean_wait_ms\tbytes_on_wire\tasks_sent\td_min_observed\td_max_observed\tpeak_outstanding\twait_samples\tstream_mode" > "$OUT_TSV"
 fi
+
+# Live-cell precondition (window-saturation-experiment.md): report demand/supply.
+python3 -c "
+fb=$FRAME_BYTES; mbps=$LINK_MBPS; step=16
+supply=mbps*1e6/(fb*8); demand=1000.0/step
+print(f'demand/supply={demand/supply:.2f} (reader {demand:.1f} f/s, link {supply:.1f} f/s @ {mbps} Mbps, {fb} B, {step} ms/step) — all arms offer this step cadence; depth only bounds outstanding asks')
+"
 
 formula_depth() {
   local rtt=$1
@@ -160,7 +167,7 @@ asks = m.get("asks_sent", 0)
 dmin = m.get("d_min_observed", 0)
 dmax = m.get("d_max_observed", 0)
 with open(tsv, "a") as f:
-    f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{p95}\t{mean}\t{bytes_w}\t{asks}\t{dmin}\t{dmax}\n")
+    f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{p95}\t{mean}\t{bytes_w}\t{asks}\t{dmin}\t{dmax}\t{m.get('peak_outstanding',0)}\t{m.get('wait_samples',0)}\t{m.get('stream_mode','')}\n")
 traj = m.get("d_current") or []
 if traj:
     out = pathlib.Path(ddir) / f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv"
@@ -174,10 +181,11 @@ PY
       echo "STOP: depth oscillating — see $json.err (no JSON trajectory)" >&2
       exit 2
     fi
-    echo -e "${arm}\t${rtt}\t${loss}\t${run}\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL" >> "$OUT_TSV"
+    echo -e "${arm}\t${rtt}\t${loss}\t${run}\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL" >> "$OUT_TSV"
     return 0
   fi
 
+  set +e
   python3 - "$json" "$OUT_TSV" "$arm" "$rtt" "$loss" "$run" "$D_TRACE_DIR" <<'PY'
 import json, sys, pathlib
 path, tsv, arm, rtt, loss, run, ddir = sys.argv[1:8]
@@ -189,12 +197,12 @@ asks = m.get("asks_sent", 0)
 dmin = m.get("d_min_observed", 0)
 dmax = m.get("d_max_observed", 0)
 with open(tsv, "a") as f:
-    f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{p95}\t{mean}\t{bytes_w}\t{asks}\t{dmin}\t{dmax}\n")
+    f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{p95}\t{mean}\t{bytes_w}\t{asks}\t{dmin}\t{dmax}\t{m.get('peak_outstanding',0)}\t{m.get('wait_samples',0)}\t{m.get('stream_mode','')}\n")
 traj = m.get("d_current") or []
 if traj:
     out = pathlib.Path(ddir) / f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv"
     out.write_text("step\td_current\n" + "\n".join(f"{i}\t{d}" for i, d in enumerate(traj)) + "\n")
-print(f"OK {arm} rtt={rtt} loss={loss} run={run} p95={p95} mean={mean} bytes={bytes_w} d=[{dmin},{dmax}]")
+print(f"OK {arm} rtt={rtt} loss={loss} run={run} p95={p95} mean={mean} bytes={bytes_w} peak={m.get('peak_outstanding',0)} waits={m.get('wait_samples',0)} d=[{dmin},{dmax}]")
 # Void = no wait samples (wrong mode / not measuring). Legitimate p95=0 from
 # window cache hits must still be reported — do not abort the campaign.
 n_waits = int(m.get("wait_samples") or len(m.get("wait_ms") or []))
@@ -203,6 +211,7 @@ if n_waits == 0:
     sys.exit(3)
 PY
   local py_rc=$?
+  set -e
   if [[ $py_rc -eq 3 ]]; then
     echo "campaign void from empty wait samples — stopping" >&2
     exit 2

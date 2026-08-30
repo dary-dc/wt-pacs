@@ -5,7 +5,7 @@ use crate::wire::{read_framed_paced, write_fod_msg, LinkPacer};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use frame_envelope::unwrap;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 use wtransport::{ClientConfig, Connection, Endpoint};
@@ -36,8 +36,12 @@ pub fn reset_peak_outstanding() {
 static ASK_ORDINALS: LazyLock<Mutex<HashMap<u32, u32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 static ASK_JOIN: LazyLock<Mutex<Vec<crate::metrics::AskJoinRow>>> =
     LazyLock::new(|| Mutex::new(Vec::new()));
-/// Latest ask wall-time per frame index (for dynamic RTT samples).
-static ASK_AT: LazyLock<Mutex<HashMap<u32, Instant>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+/// FIFO ask wall-times per frame index (for dynamic RTT samples).
+/// One slot was wrong: a re-ask overwrote the earlier timestamp and the second
+/// response then cleared the entry (`None`), dropping ~40% of samples and biasing
+/// survivors low (timed from the latest ask).
+static ASK_AT: LazyLock<Mutex<HashMap<u32, VecDeque<Instant>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn reset_ask_join() {
     ASK_ORDINALS.lock().expect("ask ordinals").clear();
@@ -53,7 +57,9 @@ fn record_ask(frame_index: u32) {
     ASK_AT
         .lock()
         .expect("ask at")
-        .insert(frame_index, Instant::now());
+        .entry(frame_index)
+        .or_default()
+        .push_back(Instant::now());
     let ordinal = {
         let mut map = ASK_ORDINALS.lock().expect("ask ordinals");
         let entry = map.entry(frame_index).or_insert(0);
@@ -70,9 +76,14 @@ fn record_ask(frame_index: u32) {
         });
 }
 
-fn take_ask_rtt_ms(frame_index: u32) -> Option<f64> {
-    let at = ASK_AT.lock().expect("ask at").remove(&frame_index)?;
-    Some(at.elapsed().as_secs_f64() * 1000.0)
+/// Pair the oldest unmatched ask for `frame_index` with a first-byte instant.
+fn take_ask_rtt_ms(frame_index: u32, first_byte_at: Instant) -> Option<f64> {
+    let at = ASK_AT
+        .lock()
+        .expect("ask at")
+        .get_mut(&frame_index)?
+        .pop_front()?;
+    Some(first_byte_at.saturating_duration_since(at).as_secs_f64() * 1000.0)
 }
 
 /// One process, serial depth sweep — fresh session per D, no shell between depths.
@@ -233,12 +244,7 @@ pub async fn run_harness(
     };
     let (d_min, d_max, d_traj, oscillating, report_depth) = if let Some(ctl) = &depth_ctl {
         let c = ctl.lock().expect("depth ctl");
-        if c.oscillating {
-            anyhow::bail!(
-                "depth oscillating despite damping — trajectory={:?}",
-                c.d_trajectory
-            );
-        }
+        // Do not bail here — main prints JSON (incl. d_current) then exits 2.
         (
             c.d_min_observed,
             c.d_max_observed,
@@ -391,6 +397,11 @@ async fn run_legacy_schedule(
             .context("legacy wait_displayable")?;
     }
 
+    // Drain in-flight responses so bytes_on_wire counts every ask's payload — otherwise
+    // control stops at last unique displayable and leaves ~30% of responses uncounted.
+    wait_frames_on_wire(metrics, asks_sent, cfg.timeout_ms).await?;
+    wait_outstanding_below(outstanding, 0, cfg.timeout_ms).await?;
+
     {
         let mut m = metrics.lock().expect("metrics lock");
         m.settle();
@@ -450,25 +461,23 @@ async fn run_windowed(
         outstanding.lock().expect("outstanding").clear();
     }
 
+    let mut wait_tasks = Vec::with_capacity(schedule.len());
     for (i, &cursor) in schedule.iter().enumerate() {
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
         let d = current_d();
-        // Make room for the new window before asking. Required when dynamic D shrinks:
-        // otherwise outstanding stays at the old (larger) D and emit_window skips the
-        // center frame → wait_displayable times out.
+        // Depth bound only — do not await displayable inline. Awaiting here made the
+        // windowed arms self-throttle to link service (~50 ms/step) while control offers
+        // the trace's 16 ms cadence; that asymmetry dominated the p95 gap.
         wait_outstanding_below(outstanding, d.saturating_sub(1), cfg.timeout_ms).await?;
-        // Ask first so depth can pipeline; then measure wait for this cursor.
         asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
-        // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
-        // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
-        // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
-        // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
-        wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
-        wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
-        // L2 brief: on oscillation, stop and report the trajectory — do not bail
-        // before finalize, or d_current is lost.
+        let metrics_w = Arc::clone(metrics);
+        let timeout_ms = cfg.timeout_ms;
+        let frame = cursor % n;
+        wait_tasks.push(tokio::spawn(async move {
+            wait_displayable(&metrics_w, frame, timeout_ms).await
+        }));
         if let Some(ctl) = depth_ctl {
             if ctl.lock().expect("depth ctl").oscillating {
                 break;
@@ -476,9 +485,19 @@ async fn run_windowed(
         }
     }
 
+    for task in wait_tasks {
+        task.await
+            .context("windowed wait task join")?
+            .context("windowed wait_displayable")?;
+    }
+
     let oscillating = depth_ctl
         .map(|c| c.lock().expect("depth ctl").oscillating)
         .unwrap_or(false);
+
+    // Drain so bytes_on_wire is comparable with control.
+    wait_frames_on_wire(metrics, asks_sent, cfg.timeout_ms).await?;
+    wait_outstanding_below(outstanding, 0, cfg.timeout_ms).await?;
 
     {
         let mut m = metrics.lock().expect("metrics lock");
@@ -587,7 +606,28 @@ async fn wait_outstanding_below(
     }
 }
 
-
+/// Wait until `frames_on_wire >= min_frames` (or timeout). Used to drain responses so
+/// `bytes_on_wire` counts every ask, not just the first unique displayable.
+async fn wait_frames_on_wire(
+    metrics: &SharedMetrics,
+    min_frames: u32,
+    timeout_ms: u64,
+) -> Result<()> {
+    let start = std::time::Instant::now();
+    loop {
+        let got = {
+            let m = metrics.lock().expect("metrics lock");
+            m.frames_on_wire
+        };
+        if got >= min_frames {
+            return Ok(());
+        }
+        if start.elapsed() >= Duration::from_millis(timeout_ms) {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
+}
 
 async fn rtt_full(rtt_ms: u64) {
     if rtt_ms > 0 {
@@ -669,10 +709,11 @@ async fn on_frame_arrived(
     in_flight: &Arc<Mutex<u32>>,
     rtt_ms: u64,
     depth_ctl: &Option<Arc<Mutex<DepthController>>>,
+    first_byte_at: Instant,
 ) {
-    // Sample ask→first-byte before the simulated return-path sleep so netem (rtt_ms=0)
-    // and userspace RTT both see a real interval.
-    let ask_rtt = take_ask_rtt_ms(index);
+    // Ask→first-byte: first_byte_at is when the length-prefix's first byte arrived,
+    // before the body is drained (not ask→last-byte).
+    let ask_rtt = take_ask_rtt_ms(index, first_byte_at);
     rtt_full(rtt_ms).await;
     {
         let mut o = outstanding.lock().expect("outstanding");
@@ -711,7 +752,7 @@ async fn shared_stream_loop(
         Err(_) => return Ok(()),
     };
     loop {
-        let payload = match read_framed_paced(&mut recv, &pacer).await {
+        let (payload, first_byte_at) = match read_framed_paced(&mut recv, &pacer).await {
             Ok(p) => p,
             Err(_) => break,
         };
@@ -736,6 +777,7 @@ async fn shared_stream_loop(
                 &in_flight,
                 rtt_ms,
                 &depth_ctl,
+                first_byte_at,
             )
             .await;
         });
@@ -763,7 +805,7 @@ async fn accept_uni_loop(
         let pacer = Arc::clone(&pacer);
         let depth_ctl = depth_ctl.clone();
         tokio::spawn(async move {
-            let payload = match read_framed_paced(&mut recv, &pacer).await {
+            let (payload, first_byte_at) = match read_framed_paced(&mut recv, &pacer).await {
                 Ok(p) => p,
                 Err(err) => {
                     eprintln!("uni read error: {err:#}");
@@ -785,6 +827,7 @@ async fn accept_uni_loop(
                 &in_flight,
                 rtt_ms,
                 &depth_ctl,
+                first_byte_at,
             )
             .await;
         });
