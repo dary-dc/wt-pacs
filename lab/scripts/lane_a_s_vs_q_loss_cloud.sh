@@ -65,7 +65,7 @@ echo "RIG HOLD: lane A exclusive until this script exits"
 [[ -f "$CERT" ]] || bash "$ROOT/server/scripts/gen_dev_cert.sh"
 
 if [[ ! -f "$OUT_TSV" ]]; then
-  echo -e "arm\tfixture\trtt_ms\tloss_pct\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tmbps\tpeak_outstanding\asks_sent" > "$OUT_TSV"
+  printf 'arm\tfixture\trtt_ms\tloss_pct\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tmbps\tpeak_outstanding\t%s\n' 'asks_sent' > "$OUT_TSV"
 fi
 
 cleanup() {
