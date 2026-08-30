@@ -459,18 +459,20 @@ Spec §7 applies unchanged. These are this project's own; three are already scar
 
 ## 14 · Work plan
 
-**The recorder lands before P4 is fixed, so the fix is proven rather than assumed.**
+**P4 lands before the recorder.** Measuring the triple-copy bug is not the experiment — see
+`client-runtime-experiment-plan.md` §3. Record the pre-fix `copies_per_frame` structurally (or one
+shot), fix, then instrument the fixed path.
 
 | Phase | Work | Files | Done when |
 | --- | --- | --- | --- |
 | **0** | Clock resolution + isolation | `server/dev-server.py` | `crossOriginIsolated === true`; measured resolution recorded |
-| **1** | **The seam.** Global patch + transport/writer/reader/session proxies; no report yet | `client/transport-ts/record/`, `client/transport-wasm/` telemetry build | Both arms run unmodified against the patched global; absence checks pass |
-| **2** | **Stamps + offset arithmetic** (§5.1); row kinds; first-write-wins | `record/tap.ts` | Stage-math tests pass; `byte_closure_ok` true on a clean run |
-| **3** | **Report.** Spine, nearest-rank distributions, binding term, integrity block, headline gating, `copies` | `record/tap.ts` | Validates against §7; headline nulls present, not omitted |
-| **4** | **Harvest** | `server/scripts/verify_e2e.py` | `.local/measurements/telemetry-client-*.json` for both arms, both cells |
-| **5** | **Cells.** on-demand trace + fill batch, interleaved arms, repeats | `verify_e2e.py`, `client/harness/*.html` | Both cells produce §7 headlines; frame 0 separated |
-| **6** | **Server join + percentile fix** | `lab/scripts/join_client_server.py`, `server/src/record/tap.rs` | Path estimate and batch-queue decomposition produced |
-| **7** | **P4 — fix the WASM copy path, re-measure** | `client/transport-wasm/src/session.rs` | `copies_per_frame` before vs after, both reported |
+| **1** | **P4 — fix the WASM copy path** | `client/transport-wasm/src/session.rs` | Pre-fix `copies_per_frame` recorded; post-fix path no longer triple-copies; both numbers reported |
+| **2** | **The seam.** Global patch + transport/writer/reader/session proxies; no report yet | `client/transport-ts/record/`, `client/transport-wasm/` telemetry build | Both arms run unmodified against the patched global; absence checks pass |
+| **3** | **Stamps + offset arithmetic** (§5.1); row kinds; first-write-wins | `record/tap.ts` | Stage-math tests pass; `byte_closure_ok` true on a clean run |
+| **4** | **Report.** Spine, nearest-rank distributions, binding term, integrity block, headline gating, `copies` | `record/tap.ts` | Validates against §7; headline nulls present, not omitted |
+| **5** | **Harvest** | `server/scripts/verify_e2e.py` | `.local/measurements/telemetry-client-*.json` for both arms, both cells |
+| **6** | **Cells.** on-demand trace + fill batch, interleaved arms, repeats | `verify_e2e.py`, `client/harness/*.html` | Both cells produce §7 headlines; frame 0 separated |
+| **7** | **Server join + percentile fix** | `lab/scripts/join_client_server.py`, `server/src/record/tap.rs` | Path estimate and batch-queue decomposition produced |
 | **8** | Trap checklist signed off (§13), adaptation note written (§2) | `docs/measurements/` | Results reportable; nothing above T2 |
 
 ### 14.1 Tests
