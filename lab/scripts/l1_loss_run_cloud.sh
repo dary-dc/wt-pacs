@@ -128,12 +128,28 @@ p95 = float(m.get("p95_wait_ms") or 0)
 mean = float(m.get("mean_wait_ms") or 0)
 peak = int(m.get("peak_outstanding") or 0)
 asks = int(m.get("asks_sent") or 0)
+waits = int(m.get("wait_samples") or 0)
+if waits == 0 and not m.get("wait_ms"):
+    waits = 0
+elif waits == 0:
+    waits = len(m.get("wait_ms") or [])
 dwell_ms = max(1, int(m.get("fill_dwell_ms") or 1))
 fill_bytes = int(m.get("fill_bytes") or 0)
 mbps = (fill_bytes * 8.0 / (dwell_ms / 1000.0)) / 1_000_000.0 if fill_bytes and dwell_ms > 1 else 0.0
-if p95 == 0.0:
-    print(f"STOP: p95_wait_ms=0 for {arm} {fixture} rtt={rtt} loss={loss} D={depth} run={run} — mode wrong / void", flush=True)
+# Void only when there are no wait samples (wrong mode / empty trace).
+# p95==0 with waits>0 is the cache-hit-heavy edge case — still a valid row.
+if waits == 0:
+    print(
+        f"STOP: wait_samples=0 for {arm} {fixture} rtt={rtt} loss={loss} "
+        f"D={depth} run={run} — no waits recorded / void",
+        flush=True,
+    )
     raise SystemExit(4)
+if p95 == 0.0:
+    print(
+        f"NOTE: p95_wait_ms=0 with {waits} waits (cache-hit heavy); recording row",
+        flush=True,
+    )
 line = f"{arm}\t{fixture}\t{rtt}\t{loss}\t{depth}\t{run}\t{p95:.2f}\t{mean:.2f}\t{mbps:.3f}\t{peak}\t{asks}\n"
 open(out, "a").write(line)
 print(f"OK arm {arm}, {fixture}, {rtt} ms, {loss} % loss, D={depth}, run {run}: p95 {p95:.2f} ms", flush=True)

@@ -54,15 +54,17 @@ the effect under test.
 TSV to `docs/measurements/r2/`. Columns: `arm, fixture, rtt_ms, loss_pct, depth, run, p95_wait_ms,
 mean_wait_ms, mbps, peak_outstanding, asks_sent`.
 
-**Verify `p95_wait_ms` is non-zero before reporting anything.** Zero means the mode is wrong and the
-run is void — that is exactly what happened last time.
+**Verify waits were recorded before trusting a row.** `wait_samples == 0` (or empty
+`wait_ms`) means the mode is wrong and the run is void — that is the saturate failure mode.
+`p95_wait_ms == 0` with a non-empty wait vector is **not** void: cache hits count as 0, and a
+cache-hit-heavy scroll can put nearest-rank p95 on 0 while mean stays positive. Record the row.
 
 Raw rows. No interpretation.
 
 ## Stop conditions
 
 - arms differ at D = 1
-- `p95_wait_ms` is zero
+- **no wait samples** (`wait_samples == 0`) — wrong mode
 - a run will not complete — **that is the finding.** Do not shorten a trace, drop a depth, or swap a
   fixture to make it finish
 
