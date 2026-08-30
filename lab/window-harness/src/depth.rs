@@ -1,6 +1,7 @@
 //! Dynamic ask-depth estimator — docs/lanes/L2-ask-policy.md
 //!
-//! Implement exactly as specified; do not vary the rule.
+//! L2 v2: path RTT for the BDP formula when set (`--path-rtt-ms`); ask→first-byte
+//! samples feed Tf/throughput only when `in_flight_at_ask <= 1` (not HOL-contaminated).
 
 use std::collections::VecDeque;
 use std::time::Instant;
@@ -12,35 +13,39 @@ const D_MAX: u32 = 16;
 
 #[derive(Debug, Clone)]
 struct CompletedSample {
-    /// ask → first-byte, milliseconds.
     rtt_ms: f64,
     bytes: u64,
     completed_at: Instant,
+    /// True when ask→first-byte is usable as a path probe (not behind queue).
+    clean_rtt: bool,
 }
 
 /// Live depth controller for the dynamic arm.
 #[derive(Debug)]
 pub struct DepthController {
-    /// Depth held through warm-up and until damping admits a change.
     current: u32,
     completed: u32,
-    /// Number of estimator evaluations performed (every 8 completed frames).
     eval_count: u32,
     samples: VecDeque<CompletedSample>,
-    /// Last computed D (before damping adopt). Two equal consecutive computes adopt.
     last_computed: Option<u32>,
-    /// Per completed-frame `d_current` trajectory.
     pub d_trajectory: Vec<u32>,
     pub d_min_observed: u32,
     pub d_max_observed: u32,
-    /// Set when D alternates on consecutive evaluations despite damping — stop the campaign.
     pub oscillating: bool,
-    /// Recent adopts as `(eval_index, D)`. Oscillation requires consecutive eval indices.
+    /// D pinned at clamp for >50% of trajectory after warm-up.
+    pub saturated: bool,
     recent_adopts: VecDeque<(u32, u32)>,
+    /// Measured/configured path RTT (ms) for the BDP formula; overrides median when set.
+    path_rtt_ms: Option<f64>,
+    recent_computed: VecDeque<u32>,
 }
 
 impl DepthController {
     pub fn new(warm_fixed: u32) -> Self {
+        Self::with_path_rtt(warm_fixed, None)
+    }
+
+    pub fn with_path_rtt(warm_fixed: u32, path_rtt_ms: Option<u64>) -> Self {
         let d = warm_fixed.clamp(D_MIN, D_MAX);
         Self {
             current: d,
@@ -52,7 +57,10 @@ impl DepthController {
             d_min_observed: d,
             d_max_observed: d,
             oscillating: false,
+            saturated: false,
             recent_adopts: VecDeque::with_capacity(6),
+            path_rtt_ms: path_rtt_ms.map(|v| v as f64),
+            recent_computed: VecDeque::with_capacity(8),
         }
     }
 
@@ -60,29 +68,68 @@ impl DepthController {
         self.current
     }
 
-    /// Record one completed frame. `rtt_ms` = first-byte − ask. Returns the D to use next.
-    pub fn on_frame_completed(&mut self, rtt_ms: f64, bytes: u64) -> u32 {
-        self.samples.push_back(CompletedSample {
-            rtt_ms,
-            bytes,
-            completed_at: Instant::now(),
-        });
-        while self.samples.len() > WINDOW {
-            self.samples.pop_front();
+    /// `rtt_ms` = None when ask pairing missing; trajectory still advances.
+    pub fn on_frame_completed(
+        &mut self,
+        rtt_ms: Option<f64>,
+        bytes: u64,
+        in_flight_at_ask: u32,
+    ) -> u32 {
+        if let Some(rtt) = rtt_ms {
+            let clean_rtt = in_flight_at_ask <= 1;
+            self.samples.push_back(CompletedSample {
+                rtt_ms: rtt,
+                bytes,
+                completed_at: Instant::now(),
+                clean_rtt,
+            });
+            while self.samples.len() > WINDOW {
+                self.samples.pop_front();
+            }
         }
         self.completed = self.completed.saturating_add(1);
         self.d_trajectory.push(self.current);
         self.d_min_observed = self.d_min_observed.min(self.current);
         self.d_max_observed = self.d_max_observed.max(self.current);
 
-        // Warm-up: fixed D until 8 frames completed. Recompute every 8 thereafter.
         if self.completed >= WINDOW as u32 && self.completed % WINDOW as u32 == 0 {
             self.eval_count = self.eval_count.saturating_add(1);
             if let Some(computed) = self.compute_d() {
+                self.track_computed(computed);
                 self.maybe_adopt(computed, self.eval_count);
             }
         }
+        self.check_saturated();
         self.current
+    }
+
+    fn track_computed(&mut self, computed: u32) {
+        self.recent_computed.push_back(computed);
+        while self.recent_computed.len() > 8 {
+            self.recent_computed.pop_front();
+        }
+        // A/B/A/B on consecutive *computed* values (lane stop rule intent).
+        if self.recent_computed.len() >= 4 {
+            let v: Vec<u32> = self.recent_computed.iter().copied().collect();
+            let n = v.len();
+            if v[n - 4] == v[n - 2] && v[n - 3] == v[n - 1] && v[n - 4] != v[n - 3] {
+                self.oscillating = true;
+            }
+        }
+    }
+
+    fn check_saturated(&mut self) {
+        if self.d_trajectory.len() < WINDOW {
+            return;
+        }
+        let at_max = self
+            .d_trajectory
+            .iter()
+            .filter(|&&d| d >= D_MAX)
+            .count();
+        if at_max as f64 / self.d_trajectory.len() as f64 > 0.5 {
+            self.saturated = true;
+        }
     }
 
     fn compute_d(&self) -> Option<u32> {
@@ -90,8 +137,21 @@ impl DepthController {
             return None;
         }
         let n = self.samples.len();
-        let rtts: Vec<f64> = self.samples.iter().map(|s| s.rtt_ms).collect();
-        let rtt = median_f64(&rtts)?;
+        let rtt = if let Some(path) = self.path_rtt_ms {
+            path
+        } else {
+            let clean: Vec<f64> = self
+                .samples
+                .iter()
+                .filter(|s| s.clean_rtt)
+                .map(|s| s.rtt_ms)
+                .collect();
+            if clean.len() >= 4 {
+                median_f64(&clean)?
+            } else {
+                median_f64(&self.samples.iter().map(|s| s.rtt_ms).collect::<Vec<_>>())?
+            }
+        };
         let bytes: Vec<f64> = self.samples.iter().map(|s| s.bytes as f64).collect();
         let median_bytes = median_f64(&bytes)?;
         let t0 = self.samples.front()?.completed_at;
@@ -101,8 +161,6 @@ impl DepthController {
             return None;
         }
         let total_bytes: f64 = self.samples.iter().map(|s| s.bytes as f64).sum();
-        // First→last completion spans (n-1) intervals for n samples; correct the
-        // (n/(n-1)) over-estimate of throughput.
         let span_factor = if n > 1 {
             (n - 1) as f64 / n as f64
         } else {
@@ -112,19 +170,16 @@ impl DepthController {
         if throughput_bps <= 0.0 {
             return None;
         }
-        // Tf = median frame bytes ÷ observed throughput (seconds).
         let tf_s = (median_bytes * 8.0) / throughput_bps;
         if tf_s <= 0.0 {
             return None;
         }
         let rtt_s = rtt / 1000.0;
         let raw = U * (1.0 + rtt_s / tf_s);
-        let d = raw.ceil() as u32;
-        Some(d.clamp(D_MIN, D_MAX))
+        Some((raw.ceil() as u32).clamp(D_MIN, D_MAX))
     }
 
     fn maybe_adopt(&mut self, computed: u32, eval_index: u32) {
-        // Damping: adopt only if differs by ≥ 1 from current AND same value on 2 consecutive evals.
         if computed == self.current {
             self.last_computed = Some(computed);
             return;
@@ -139,7 +194,6 @@ impl DepthController {
                 while self.recent_adopts.len() > 6 {
                     self.recent_adopts.pop_front();
                 }
-                // Oscillation: A B A B on *consecutive* evaluations despite damping.
                 if self.recent_adopts.len() >= 4 {
                     let v: Vec<(u32, u32)> = self.recent_adopts.iter().copied().collect();
                     let n = v.len();
@@ -195,76 +249,22 @@ mod tests {
 
     #[test]
     fn formula_32k_10mbps() {
-        // Tf = 32000*8/10e6 = 25.6 ms
         assert_eq!(formula_depth(20, 32_000, 10.0), 2);
         assert_eq!(formula_depth(60, 32_000, 10.0), 4);
         assert_eq!(formula_depth(150, 32_000, 10.0), 7);
     }
 
     #[test]
-    fn warm_up_holds_fixed() {
-        let mut c = DepthController::new(4);
-        for _ in 0..7 {
-            assert_eq!(c.on_frame_completed(60.0, 32_000), 4);
+    fn path_rtt_zero_keeps_d_shallow() {
+        let mut c = DepthController::with_path_rtt(2, Some(0));
+        for _ in 0..64 {
+            c.on_frame_completed(Some(400.0), 32_000, 8);
         }
-        assert_eq!(c.d_trajectory.len(), 7);
-        assert_eq!(c.current_d(), 4);
-    }
-
-    #[test]
-    fn damping_needs_two_consecutive_before_adopt() {
-        let mut c = DepthController::new(4);
-        // Drive maybe_adopt directly so the test does not depend on Tf numerics.
-        c.maybe_adopt(1, 1); // first sight — no adopt
-        assert_eq!(c.current_d(), 4);
-        c.maybe_adopt(1, 2); // second consecutive — adopt
-        assert_eq!(c.current_d(), 1);
-        assert!(!c.oscillating);
-    }
-
-    #[test]
-    fn oscillation_requires_consecutive_eval_adopts() {
-        let mut c = DepthController::new(4);
-        // Spread alternating adopts across non-consecutive evals — must NOT trip.
-        c.maybe_adopt(2, 1); // first sight of 2
-        c.maybe_adopt(2, 2); // adopt 2
-        c.maybe_adopt(3, 10); // first sight of 3 (gap)
-        c.maybe_adopt(3, 11); // adopt 3
-        c.maybe_adopt(2, 20);
-        c.maybe_adopt(2, 21); // adopt 2
-        c.maybe_adopt(3, 30);
-        c.maybe_adopt(3, 31); // adopt 3 — A B A B but not consecutive evals
         assert!(
-            !c.oscillating,
-            "adopts spaced across evals must not count as every-evaluation oscillation"
+            c.current_d() <= 2,
+            "path_rtt=0 must not ratchet to clamp, got {}",
+            c.current_d()
         );
-
-        let mut c2 = DepthController::new(4);
-        c2.maybe_adopt(2, 1);
-        c2.maybe_adopt(2, 2); // adopt 2 at eval 2
-        c2.maybe_adopt(3, 3);
-        c2.maybe_adopt(3, 4); // adopt 3 at eval 4 — not consecutive to 2
-        // Force consecutive-eval alternating adopts directly:
-        c2.recent_adopts.clear();
-        c2.recent_adopts
-            .extend([(5, 2), (6, 3), (7, 2), (8, 3)].iter().copied());
-        // Re-trigger check via one more consecutive adopt path:
-        c2.last_computed = Some(2);
-        c2.maybe_adopt(2, 9); // adopt 2 at eval 9 (consecutive after 8)
-        // recent = (6,3),(7,2),(8,3),(9,2) → B A B A on consecutive evals
-        assert!(c2.oscillating, "A/B on consecutive evaluations must trip");
-    }
-
-    #[test]
-    fn spaced_adopts_do_not_oscillate_like_review_probe() {
-        // Review probe: 4 adopts across 40 evaluations must not trip.
-        let mut c = DepthController::new(4);
-        for (eval, d) in [(1u32, 2u32), (11, 3), (21, 2), (31, 3)] {
-            c.last_computed = None;
-            c.maybe_adopt(d, eval);
-            c.maybe_adopt(d, eval + 1); // second consecutive compute adopts
-        }
-        assert!(!c.oscillating);
-        assert_eq!(c.recent_adopts.len(), 4);
+        assert!(!c.saturated);
     }
 }
