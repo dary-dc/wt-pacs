@@ -1,0 +1,4 @@
+arm	fixture	rtt_ms	loss_pct	depth	run	miss_p95_wait_ms	miss_mean_wait_ms	p95_wait_ms	mean_wait_ms	cache_hit_rate	cache_misses	asks_sent	peak_outstanding
+S	frames_32k	60	0	1	1	265.50	261.34	265.50	258.11	0.0123	80	81	1
+S	frames_32k	60	0	1	2	264.90	260.14	264.90	256.92	0.0123	80	81	1
+S	frames_32k	60	0	1	3	264.85	257.05	264.85	253.88	0.0123	80	81	1
