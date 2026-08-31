@@ -128,3 +128,40 @@ buffers (D3), not a fresh `Vec` per ask.
 `send_one_frame` uses **unconditional** `spawn_blocking(touch_frame_pages)` (L3 v1).
 `frame_pages_resident` remains a lab helper. Gate returns only with verification (D2) if a future
 cell clears both C1 worst-case **and** a fair all-sessions hop-cost cell.
+
+---
+
+## D3 — Pooled-buffer `pread` vs always-touch
+
+TSVs: [`disk_access_pread_pooled.tsv`](disk_access_pread_pooled.tsv) ·
+[`disk_access_pread_pooled_mempressure.tsv`](disk_access_pread_pooled_mempressure.tsv)
+
+```bash
+./target/release/disk-access-bench \
+  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
+  --arm mmap-blocking-touch --arm pread-blocking --arm pread-blocking-pooled \
+  --temp warm --temp cold --trace forward --access full \
+  --chunk 16384 --repeats 5 \
+  --out docs/measurements/r2/disk_access_pread_pooled.tsv
+
+lab/scripts/run_disk_access_mempressure.sh 48M -- \
+  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
+  --arm mmap-blocking-touch --arm pread-blocking --arm pread-blocking-pooled \
+  --temp cold --trace forward --access full \
+  --chunk 16384 --repeats 5 \
+  --out docs/measurements/r2/disk_access_pread_pooled_mempressure.tsv
+```
+
+Median across 5 repeats (this host):
+
+| Arm | Warm later p50 | Cold later p50 | Cold mempressure later p50 | Cold mempressure gap_max |
+| --- | ---: | ---: | ---: | ---: |
+| mmap_blocking_touch | **~22.5 µs** | ~190 µs | ~219 µs | ~65 µs |
+| pread_blocking (fresh `Vec`) | ~55.2 µs | ~94 µs | ~125 µs | ~57 µs |
+| **pread_blocking_pooled** | ~52.8 µs | ~92 µs | ~119 µs | ~68 µs |
+
+**Reading:** pooling removes little (~2–6 µs) vs a fresh `Vec`. On the **warm/common path**, always-touch
+stays ~2× faster than pooled `pread` and avoids the second full-frame copy. Under cold/pressure,
+`pread` can win later_p50 (I/O + hop shape) while gap_max stays in the same safe class — that does
+**not** overturn the default: mmap always-touch remains preferred; pooled `pread` stays the hard-guarantee escape hatch. Absolute ranking can still flip by host; copy count (1 vs 2) does not.
+

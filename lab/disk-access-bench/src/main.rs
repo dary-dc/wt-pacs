@@ -27,7 +27,10 @@ enum Arm {
     MmapBlockingTouch,
     MmapHybridMincore,
     MmapDedicatedPool,
+    /// Fresh `Vec` per ask (allocation tax included).
     PreadBlocking,
+    /// Reused buffer across asks — fair product-shaped `pread` (D3).
+    PreadBlockingPooled,
     MmapWillneed,
     MmapWillneedNext,
     MmapBlockingAhead2,
@@ -41,6 +44,7 @@ impl Arm {
             Self::MmapHybridMincore => "mmap_hybrid_mincore",
             Self::MmapDedicatedPool => "mmap_dedicated_pool",
             Self::PreadBlocking => "pread_blocking",
+            Self::PreadBlockingPooled => "pread_blocking_pooled",
             Self::MmapWillneed => "mmap_willneed",
             Self::MmapWillneedNext => "mmap_willneed_next",
             Self::MmapBlockingAhead2 => "mmap_blocking_ahead_2",
@@ -54,6 +58,7 @@ impl Arm {
             Self::MmapHybridMincore,
             Self::MmapDedicatedPool,
             Self::PreadBlocking,
+            Self::PreadBlockingPooled,
             Self::MmapWillneed,
             Self::MmapWillneedNext,
             Self::MmapBlockingAhead2,
@@ -65,8 +70,8 @@ impl Arm {
             Self::MmapNaive,
             Self::MmapBlockingTouch,
             Self::MmapHybridMincore,
-            Self::MmapDedicatedPool,
             Self::PreadBlocking,
+            Self::PreadBlockingPooled,
         ]
     }
 }
@@ -94,32 +99,13 @@ impl TraceKind {
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 enum AccessMode {
+    /// Whole frame (product path). Prefix modes removed with FrameStore prefix APIs (E5).
     Full,
-    #[value(name = "prefix_4k")]
-    Prefix4k,
-    #[value(name = "prefix_64k")]
-    Prefix64k,
 }
 
 impl AccessMode {
     fn as_str(self) -> &'static str {
-        match self {
-            Self::Full => "full",
-            Self::Prefix4k => "prefix_4k",
-            Self::Prefix64k => "prefix_64k",
-        }
-    }
-
-    fn max_bytes(self) -> Option<usize> {
-        match self {
-            Self::Full => None,
-            Self::Prefix4k => Some(4096),
-            Self::Prefix64k => Some(65536),
-        }
-    }
-
-    fn all() -> &'static [AccessMode] {
-        &[Self::Full, Self::Prefix4k, Self::Prefix64k]
+        "full"
     }
 }
 
@@ -348,26 +334,17 @@ async fn dedicated_fault_touch(
     Ok(())
 }
 
-fn touch_for_access(store: &FrameStore, idx: u32, access: AccessMode) -> Result<()> {
-    match access.max_bytes() {
-        None => store.touch_frame_pages(idx),
-        Some(n) => store.touch_frame_prefix_pages(idx, n),
-    }
+fn touch_for_access(store: &FrameStore, idx: u32, _access: AccessMode) -> Result<()> {
+    store.touch_frame_pages(idx)
 }
 
-fn resident_for_access(store: &FrameStore, idx: u32, access: AccessMode) -> Result<bool> {
-    match access.max_bytes() {
-        None => store.frame_pages_resident(idx),
-        Some(n) => store.frame_prefix_pages_resident(idx, n),
-    }
+fn resident_for_access(store: &FrameStore, idx: u32, _access: AccessMode) -> Result<bool> {
+    store.frame_pages_resident(idx)
 }
 
-fn access_len(store: &FrameStore, idx: u32, access: AccessMode) -> Result<usize> {
+fn access_len(store: &FrameStore, idx: u32, _access: AccessMode) -> Result<usize> {
     let (_, len) = store.frame_range(idx)?;
-    Ok(match access.max_bytes() {
-        None => len as usize,
-        Some(n) => (len as usize).min(n),
-    })
+    Ok(len as usize)
 }
 
 /// Models quinn `write_all`: copy flow-control-sized chunks with an await between them.
@@ -478,7 +455,7 @@ fn run_cell(
             touch_for_access(&store, idx, access)?;
             let len = access_len(&store, idx, access)?;
             let mut buf = vec![0u8; len];
-            store.pread_frame_prefix(idx, &mut buf)?;
+            store.pread_frame(idx, &mut buf)?;
         }
     }
 
@@ -550,11 +527,21 @@ fn run_cell(
             let mut hops = Vec::with_capacity(trace_w.len());
             let mut bytes = 0u64;
             let mut sink = Vec::new();
+            let mut pread_pool = Vec::new();
             let wall0 = Instant::now();
             for (i, &idx) in trace_w.iter().enumerate() {
                 let next = trace_w.get(i + 1).copied();
-                let out =
-                    serve_frame_async(arm, &store_w, idx, next, access, chunk, &mut sink).await?;
+                let out = serve_frame_async(
+                    arm,
+                    &store_w,
+                    idx,
+                    next,
+                    access,
+                    chunk,
+                    &mut sink,
+                    &mut pread_pool,
+                )
+                .await?;
                 lats.push(out.latency_ns);
                 if out.hop_ns > 0 {
                     hops.push(out.hop_ns);
@@ -638,15 +625,12 @@ async fn serve_frame_async(
     access: AccessMode,
     chunk: usize,
     sink: &mut Vec<u8>,
+    pread_pool: &mut Vec<u8>,
 ) -> Result<FrameOutcome> {
     match arm {
         Arm::MmapNaive => {
             let t0 = Instant::now();
-            let slice = match access.max_bytes() {
-                None => store.frame_slice(idx)?,
-                Some(n) => store.frame_prefix_slice(idx, n)?,
-            };
-            // Consume: same write_sim as every other arm (may fault on executor when cold).
+            let slice = store.frame_slice(idx)?;
             write_sim(slice, chunk, sink).await;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -662,10 +646,7 @@ async fn serve_frame_async(
                 .await
                 .context("join")??;
             let hop = th.elapsed().as_nanos() as u64;
-            let slice = match access.max_bytes() {
-                None => store.frame_slice(idx)?,
-                Some(n) => store.frame_prefix_slice(idx, n)?,
-            };
+            let slice = store.frame_slice(idx)?;
             write_sim(slice, chunk, sink).await;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -684,10 +665,7 @@ async fn serve_frame_async(
                     .context("join")??;
                 hop = th.elapsed().as_nanos() as u64;
             }
-            let slice = match access.max_bytes() {
-                None => store.frame_slice(idx)?,
-                Some(n) => store.frame_prefix_slice(idx, n)?,
-            };
+            let slice = store.frame_slice(idx)?;
             write_sim(slice, chunk, sink).await;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -701,10 +679,7 @@ async fn serve_frame_async(
             let th = Instant::now();
             dedicated_fault_touch(s, idx, access).await?;
             let hop = th.elapsed().as_nanos() as u64;
-            let slice = match access.max_bytes() {
-                None => store.frame_slice(idx)?,
-                Some(n) => store.frame_prefix_slice(idx, n)?,
-            };
+            let slice = store.frame_slice(idx)?;
             write_sim(slice, chunk, sink).await;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -719,14 +694,36 @@ async fn serve_frame_async(
             let th = Instant::now();
             let buf = tokio::task::spawn_blocking(move || {
                 let mut buf = vec![0u8; len];
-                s.pread_frame_prefix(idx, &mut buf)?;
+                s.pread_frame(idx, &mut buf)?;
                 Ok::<Vec<u8>, anyhow::Error>(buf)
             })
             .await
             .context("join")??;
             let hop = th.elapsed().as_nanos() as u64;
-            // Hand the same buffer to write_sim — one pool copy + quinn-shaped copy.
             write_sim(&buf, chunk, sink).await;
+            Ok(FrameOutcome {
+                latency_ns: t0.elapsed().as_nanos() as u64,
+                hop_ns: hop,
+                bytes_copied: len as u64,
+            })
+        }
+        Arm::PreadBlockingPooled => {
+            // Reuse one buffer across asks — removes per-frame allocation from the comparison.
+            let len = access_len(store, idx, access)?;
+            let t0 = Instant::now();
+            let s = Arc::clone(store);
+            let th = Instant::now();
+            let mut buf = std::mem::take(pread_pool);
+            buf.resize(len, 0);
+            let buf = tokio::task::spawn_blocking(move || {
+                s.pread_frame(idx, &mut buf)?;
+                Ok::<Vec<u8>, anyhow::Error>(buf)
+            })
+            .await
+            .context("join")??;
+            let hop = th.elapsed().as_nanos() as u64;
+            write_sim(&buf, chunk, sink).await;
+            *pread_pool = buf;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
@@ -736,10 +733,7 @@ async fn serve_frame_async(
         Arm::MmapWillneed => {
             let t0 = Instant::now();
             store.advise_frame_willneed(idx)?;
-            let slice = match access.max_bytes() {
-                None => store.frame_slice(idx)?,
-                Some(n) => store.frame_prefix_slice(idx, n)?,
-            };
+            let slice = store.frame_slice(idx)?;
             write_sim(slice, chunk, sink).await;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -753,10 +747,7 @@ async fn serve_frame_async(
             if let Some(n) = next {
                 let _ = store.advise_frame_willneed(n);
             }
-            let slice = match access.max_bytes() {
-                None => store.frame_slice(idx)?,
-                Some(n) => store.frame_prefix_slice(idx, n)?,
-            };
+            let slice = store.frame_slice(idx)?;
             write_sim(slice, chunk, sink).await;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -778,10 +769,7 @@ async fn serve_frame_async(
             .await
             .context("join")??;
             let hop = th.elapsed().as_nanos() as u64;
-            let slice = match access.max_bytes() {
-                None => store.frame_slice(idx)?,
-                Some(n) => store.frame_prefix_slice(idx, n)?,
-            };
+            let slice = store.frame_slice(idx)?;
             write_sim(slice, chunk, sink).await;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
@@ -894,8 +882,6 @@ fn main() -> Result<()> {
     };
     let accesses = if let Some(a) = args.access {
         a
-    } else if args.realistic {
-        AccessMode::all().to_vec()
     } else {
         vec![AccessMode::Full]
     };

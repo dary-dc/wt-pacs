@@ -1,7 +1,7 @@
 # Disk access — later ideas
 
-**2026-08-30** · Baseline + hybrid shipped; **ADR:** [`docs/adr-frame-disk-access.md`](adr-frame-disk-access.md).  
-Shareable summary: [`docs/disk-access-team-brief.md`](disk-access-team-brief.md).
+**ADR (accepted):** [`docs/adr-frame-disk-access.md`](adr-frame-disk-access.md) ·
+Re-run record: [`docs/measurements/r2/DISK_ACCESS_RERUN.md`](measurements/r2/DISK_ACCESS_RERUN.md).
 
 ---
 
@@ -10,12 +10,11 @@ Shareable summary: [`docs/disk-access-team-brief.md`](disk-access-team-brief.md)
 | Item | Status |
 | --- | --- |
 | Cold mmap must not run on the Tokio executor | **Done** |
-| mmap-blocking vs `pread` vs willneed* | **Measured** |
-| WILLNEED-only on executor | **Rejected** |
-| **`mincore` hybrid** (skip hop when resident) | **Done** — product path + follow-up TSV |
-| ADR | **Written** |
-| Realistic access patterns (large series · user trace · prefix) | **Done** — then **instrument invalidated** (evidence review); see re-run |
-| Fixed instrument + C1/C2 re-run | **Done** — `DISK_ACCESS_RERUN.md`; always-touch provisional |
+| Fixed instrument (gaps, write_sim, equal work, one-pass cold) | **Done** |
+| C1 memory-pressure · C2 multi-session | **Done** |
+| D3 pooled `pread` | **Done** — warm always-touch still preferred; default unchanged |
+| Always-touch product path · ADR accepted | **Done** |
+| `mincore` gate as product default | **Rejected** |
 
 ---
 
@@ -23,13 +22,12 @@ Shareable summary: [`docs/disk-access-team-brief.md`](disk-access-team-brief.md)
 
 | Idea | Note |
 | --- | --- |
-| Dedicated fault thread under **product** load | Lab hop ≈ `spawn_blocking`; revisit if blocking pool contends |
-| **Multi-session cold serve under load** | Harness: `disk-access-bench --sessions N`. Measure **other sessions’** latency during cold serve. **Re-run required** with fixed instrument. |
-| **Study ≫ page cache (memory-pressure)** | Harness: `lab/scripts/run_disk_access_mempressure.sh`. ADR premise. **Re-run required.** |
-| Wave A on **real study disk** / Oracle volume | Confirm ranking off overlayfs |
-| **`io_uring` read** prototype | Lab learning only — unlikely to beat always-touch/mmap on warm page-cache serve |
-| Ask-queue **ahead-N** prefetch | When a real client window exists |
-| Layout / page-align fixtures | Packer experiment |
+| Real study disk / Oracle volume (C3) | Ranking confirm off overlayfs |
+| All-sessions hop-cost cell | Every session on the arm under test + throughput |
+| Dedicated fault thread under product load | Only if blocking pool contends |
+| `io_uring` lab | Unlikely to beat warm page-cache mmap |
+| Ask-queue ahead-N prefetch | When a real client window exists |
+| Gate + verification (D2) | Only if a future regime clears C1 with a lease-like check |
 
 ## Rejected / out of scope
 
@@ -38,3 +36,4 @@ Shareable summary: [`docs/disk-access-team-brief.md`](disk-access-team-brief.md)
 | `sendfile` / splice into QUIC | Userspace QUIC still copies |
 | `O_DIRECT` + app cache | Wrong default for revisitable studies |
 | SPDK / whole-study RAM | Explicit non-goals |
+| Product `frame_prefix_*` APIs | Dropped (E5); restore from history if progressive serve lands |

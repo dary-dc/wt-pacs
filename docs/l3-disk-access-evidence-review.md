@@ -291,10 +291,9 @@ concurrency. That trade should be re-made explicitly, on data, not carried over.
 - [ ] D2 — If the gate is kept, it must be gate **plus** verification, not gate alone — e.g. re-check residency
       after the hop and before handing the slice to `write_all`, and/or hop unconditionally for the first N
       frames of a study. Document the failure mode either way.
-- [ ] D3 — Re-evaluate `pread` fairly under the new copy accounting (§2.1): 2 copies vs 1, but immune to
-      reclaim and to the widened window. It should be a first-class candidate in the re-run, not an escape
-      hatch in a footnote. Its per-frame 250 KB allocation is a real cost but a pooled buffer removes it —
-      measure it that way rather than with a fresh `Vec` per ask.
+- [x] D3 — Re-evaluate `pread` fairly under the new copy accounting (§2.1): pooled buffer arm
+      `pread_blocking_pooled`. **Done:** warm always-touch still faster; default unchanged.
+      TSVs in `DISK_ACCESS_RERUN.md` §D3.
 
 ### E. Code fixes worth making regardless
 
@@ -303,8 +302,7 @@ concurrency. That trade should be re-made explicitly, on data, not carried over.
       failure alone maps to `Ok(false)`. Strict helper available.
 - [x] E3 — Document the reclaim race in the ADR.
 - [x] E4 — Cold-copy names use wall time + seq; `ColdCopy` Drop cleans; stream copy (no full-file heap read).
-- [ ] E5 — Per the merge plan, drop the `frame_prefix_*` / `pread_frame_prefix` APIs from the product path
-      unless progressive serve is actually scheduled; they are lab surface on a product type.
+- [x] E5 — Dropped `frame_prefix_*` / `pread_frame_prefix` from `FrameStore` (lab full-frame only).
 
 ### F. Documentation corrections (do these even if the re-run is deferred)
 
