@@ -1,6 +1,9 @@
 # Lane L2 — ask policy: unbounded vs fixed vs dynamic
 
-**Status: harness remediated after review — shaped rows provisional; re-run required.** · Harness only · Round-robin the Oracle São Paulo rig with L1
+**Status: campaign rows withdrawn — see
+[`l2_ask_policy_METHODOLOGY_REVIEW.md`](../measurements/r2/l2_ask_policy_METHODOLOGY_REVIEW.md).
+The harness must be fixed before the grid is worth running again.** · Harness only · Round-robin the
+Oracle São Paulo rig with L1
 
 ## Purpose
 
