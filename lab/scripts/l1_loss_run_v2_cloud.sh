@@ -37,6 +37,8 @@ REPEATS_LOSSLESS="${REPEATS_LOSSLESS:-5}"
 REPEATS_LOSS="${REPEATS_LOSS:-10}"
 MIN_MISSES="${MIN_MISSES:-20}"
 MAX_HIT_RATE="${MAX_HIT_RATE:-0.90}"
+GATE_RETRIES="${GATE_RETRIES:-3}"
+MIN_VALID_LOSS="${MIN_VALID_LOSS:-7}"
 
 HARNESS_TIMEOUT_MS="${HARNESS_TIMEOUT_MS:-600000}"
 CELL_TIMEOUT_S="${CELL_TIMEOUT_S:-900}"
@@ -181,11 +183,33 @@ REMOTE
 }
 
 row_exists() {
+  # Good numeric row only — VOID/FAIL are retried on resume.
   awk -F'\t' -v a="$1" -v f="$2" -v r="$3" -v l="$4" -v d="$5" -v n="$6" \
-    'NR>1 && $1==a && $2==f && $3==r && $4==l && $5==d && $6==n && $7!="FAIL" {found=1} END{exit !found}' "$OUT_TSV"
+    'NR>1 && $1==a && $2==f && $3==r && $4==l && $5==d && $6==n \
+      && $7!="FAIL" && $7!="VOID" && $7!="-" {found=1} END{exit !found}' "$OUT_TSV"
+}
+
+drop_row_key() {
+  # Remove any prior VOID/FAIL for this key so a retry does not duplicate.
+  python3 - "$OUT_TSV" "$1" "$2" "$3" "$4" "$5" "$6" <<'PY'
+import sys
+path, a, f, r, l, d, n = sys.argv[1:8]
+lines = open(path).read().splitlines()
+if not lines:
+    raise SystemExit(0)
+hdr, body = lines[0], lines[1:]
+keep = []
+for line in body:
+    p = line.split("\t")
+    if len(p) >= 6 and p[0]==a and p[1]==f and p[2]==r and p[3]==l and p[4]==d and p[5]==n:
+        continue
+    keep.append(line)
+open(path, "w").write(hdr + "\n" + ("\n".join(keep) + ("\n" if keep else "")))
+PY
 }
 
 append_row() {
+  # Exit 0 = OK written; 5 = gate void (no row); other = hard error.
   local arm=$1 fixture=$2 rtt=$3 loss=$4 depth=$5 run=$6 raw=$7
   python3 - "$arm" "$fixture" "$rtt" "$loss" "$depth" "$run" "$raw" "$OUT_TSV" \
     "$MIN_MISSES" "$MAX_HIT_RATE" <<'PY'
@@ -206,22 +230,22 @@ asks = int(m.get("asks_sent") or 0)
 loss_f = float(loss)
 
 if waits == 0:
-    print(f"STOP: wait_samples=0 — void", flush=True)
-    raise SystemExit(4)
+    print(f"GATE: wait_samples=0 — will retry/void", flush=True)
+    raise SystemExit(5)
 if loss_f > 0 and misses < min_misses:
     print(
-        f"STOP: cache_misses={misses} < {min_misses} at loss={loss} "
-        f"(not enough miss samples for miss_p95) — void",
+        f"GATE: cache_misses={misses} < {min_misses} at loss={loss} "
+        f"(hit_rate={hit_rate:.3f}) — will retry/void",
         flush=True,
     )
-    raise SystemExit(4)
+    raise SystemExit(5)
 if loss_f > 0 and hit_rate > max_hit:
     print(
-        f"STOP: cache_hit_rate={hit_rate:.3f} > {max_hit} at loss={loss} "
-        f"(prefetch still dominates) — void",
+        f"GATE: cache_hit_rate={hit_rate:.3f} > {max_hit} at loss={loss} "
+        f"— will retry/void",
         flush=True,
     )
-    raise SystemExit(4)
+    raise SystemExit(5)
 
 line = (
     f"{arm}\t{fixture}\t{rtt}\t{loss}\t{depth}\t{run}\t"
@@ -237,20 +261,29 @@ print(
 PY
 }
 
+write_void_row() {
+  local arm=$1 rtt=$2 loss=$3 depth=$4 run=$5 reason=$6
+  drop_row_key "$arm" "$FIXTURE" "$rtt" "$loss" "$depth" "$run"
+  echo -e "${arm}\t${FIXTURE}\t${rtt}\t${loss}\t${depth}\t${run}\tVOID\tVOID\tVOID\tVOID\t-\t-\t-\t-" >> "$OUT_TSV"
+  echo "VOID $arm rtt=$rtt loss=$loss D=$depth run=$run ($reason)" >&2
+}
+
 run_cell() {
   local arm=$1 rtt=$2 loss=$3 depth=$4 run=$5
   local mode="${ARM_MODE[$arm]}"
   local tag="${arm}_${FIXTURE}_rtt${rtt}_loss${loss}_d${depth}_r${run}"
   local raw="$RAW_DIR/${tag}.json"
-  local attempt rc
+  local attempt rc ar
+  local max_attempts=$GATE_RETRIES
 
   if row_exists "$arm" "$FIXTURE" "$rtt" "$loss" "$depth" "$run"; then
     echo "skip $tag" >&2
     return 0
   fi
+  drop_row_key "$arm" "$FIXTURE" "$rtt" "$loss" "$depth" "$run"
 
-  for attempt in 1 2; do
-    echo "==> $tag (attempt $attempt)" >&2
+  for attempt in $(seq 1 "$max_attempts"); do
+    echo "==> $tag (attempt $attempt/$max_attempts)" >&2
     assert_netem "$rtt" "$loss" || return 2
     set +e
     timeout "$CELL_TIMEOUT_S" "$HARNESS" --url "$CLOUD_URL" --mode trace \
@@ -260,22 +293,46 @@ run_cell() {
       >"$raw" 2>"$raw.err"
     rc=$?
     set -e
-    if [[ $rc -eq 0 ]]; then
-      append_row "$arm" "$FIXTURE" "$rtt" "$loss" "$depth" "$run" "$raw"
+    if [[ $rc -ne 0 ]]; then
+      echo "FAIL $tag harness_rc=$rc attempt=$attempt" >&2
+      cat "$raw.err" >&2 || true
+      if [[ $attempt -lt $max_attempts ]]; then
+        echo "retry: redeploy arm=$arm and re-run cell" >&2
+        deploy_arm "$arm" "$mode"
+        cloud_set_netem "$rtt" "$loss"
+        continue
+      fi
+      write_void_row "$arm" "$rtt" "$loss" "$depth" "$run" "harness_rc=$rc"
+      # Harness exhaustion is fatal for the campaign.
+      echo "STOP: harness failed after $max_attempts attempts ($tag)." >&2
+      return 2
+    fi
+
+    set +e
+    append_row "$arm" "$FIXTURE" "$rtt" "$loss" "$depth" "$run" "$raw"
+    ar=$?
+    set -e
+    if [[ $ar -eq 0 ]]; then
       return 0
     fi
-    echo "FAIL $tag harness_rc=$rc attempt=$attempt" >&2
-    cat "$raw.err" >&2 || true
-    if [[ $attempt -eq 1 ]]; then
-      echo "retry: redeploy arm=$arm and re-run cell" >&2
-      deploy_arm "$arm" "$mode"
-      cloud_set_netem "$rtt" "$loss"
-      continue
+    if [[ $ar -eq 5 ]]; then
+      if [[ $attempt -lt $max_attempts ]]; then
+        echo "gate fail — retry cell ($attempt/$max_attempts)" >&2
+        continue
+      fi
+      write_void_row "$arm" "$rtt" "$loss" "$depth" "$run" "integrity_gate"
+      return 0
     fi
-    echo -e "${arm}\t${FIXTURE}\t${rtt}\t${loss}\t${depth}\t${run}\tFAIL\tFAIL\tFAIL\tFAIL\t-\t-\t-\t-" >> "$OUT_TSV"
-    echo "STOP: run will not complete ($tag). Campaign void." >&2
+    echo "STOP: append_row rc=$ar ($tag)" >&2
     return 2
   done
+}
+
+count_valid_loss_rows() {
+  local arm=$1 rtt=$2 loss=$3 depth=$4
+  awk -F'\t' -v a="$arm" -v r="$rtt" -v l="$loss" -v d="$depth" \
+    'NR>1 && $1==a && $3==r && $4==l && $5==d && $7!="FAIL" && $7!="VOID" && $7!="-" {c++}
+     END{print c+0}' "$OUT_TSV"
 }
 
 check_d1_control() {
@@ -288,7 +345,7 @@ with open(path) as f:
     for r in csv.DictReader(f, delimiter="\t"):
         if r["rtt_ms"] != rtt or r["loss_pct"] != "0" or r["depth"] != "1":
             continue
-        if r["miss_p95_wait_ms"] in ("FAIL", "-", ""):
+        if r["miss_p95_wait_ms"] in ("FAIL", "VOID", "-", ""):
             continue
         by[r["arm"]].append(float(r["miss_p95_wait_ms"]))
 need = int(__import__('os').environ.get('REPEATS_LOSSLESS', '5'))
@@ -338,6 +395,14 @@ for rtt in "${RTTS[@]}"; do
       for run in $(seq 1 "$repeats"); do
         run_cell "$arm" "$rtt" "$loss" "$d_op" "$run" || exit 2
       done
+      if [[ "$loss" != "0" ]]; then
+        valid=$(count_valid_loss_rows "$arm" "$rtt" "$loss" "$d_op")
+        echo "valid rows arm=$arm rtt=$rtt loss=$loss D=$d_op: $valid (need ≥$MIN_VALID_LOSS)"
+        if [[ "$valid" -lt "$MIN_VALID_LOSS" ]]; then
+          echo "STOP: insufficient valid repeats for arm=$arm rtt=$rtt loss=$loss (got $valid)" >&2
+          exit 4
+        fi
+      fi
     done
   done
 done

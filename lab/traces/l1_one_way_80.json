@@ -1,11 +1,11 @@
 {
   "name": "l1_one_way_80",
   "max_step": 1,
-  "step_interval_ms": 185,
+  "step_interval_ms": 50,
   "settle_on": "last_asked",
   "send_cancel_on_settle": false,
   "_design": {
-    "notes": "L1 v2: one-way through frames_32k (80 unique). No revisits so cache hits only come from window prefetch, not loop-backs."
+    "notes": "L1 v2: one-way through frames_32k (80 unique). No revisits so cache hits only come from window prefetch, not loop-backs. step_interval_ms=50 so display outruns D=4/7 prefetch enough to keep cache_misses above the integrity gate."
   },
   "steps": [
     {
