@@ -1,7 +1,7 @@
 //! Server-side SBND reader: one open study mapped for serving.
 
 use anyhow::{bail, Context, Result};
-use memmap2::{Advice, Mmap};
+use memmap2::Mmap;
 use study_bundle::parse_layout;
 use std::fs::File;
 use std::os::unix::fs::FileExt;
@@ -77,45 +77,10 @@ impl FrameStore {
         Ok(())
     }
 
-    /// `true` if every page backing `index` is currently resident (page-cache / RAM).
-    ///
-    /// Uses `mincore(2)`. Safe to call on the async executor — it does not fault pages in.
-    /// Propagates bad frame index / slice errors. Returns `Ok(false)` only when `mincore`
-    /// itself fails (unsupported FS, etc.) so callers can take the slow/safe path.
-    pub fn frame_pages_resident(&self, index: u32) -> Result<bool> {
-        let slice = self.frame_slice(index)?;
-        Ok(pages_resident(slice).unwrap_or(false))
-    }
-
-    /// Like [`Self::frame_pages_resident`], but returns `Err` when `mincore` fails so callers
-    /// can distinguish "not resident" from "syscall unsupported".
-    pub fn frame_pages_resident_strict(&self, index: u32) -> Result<bool> {
-        let slice = self.frame_slice(index)?;
-        pages_resident(slice).ok_or_else(|| anyhow::anyhow!("mincore failed for frame {index}"))
-    }
-
-    /// Ensure pages for `index` are resident: no-op if `mincore` says hot, else `touch_frame_pages`.
-    ///
-    /// Lab helper — product path is unconditional touch on the blocking pool.
-    pub fn touch_frame_pages_if_cold(&self, index: u32) -> Result<()> {
-        if self.frame_pages_resident(index)? {
-            return Ok(());
-        }
-        self.touch_frame_pages(index)
-    }
-
-    /// `madvise(WILLNEED)` for one frame's byte range. Advisory — the kernel may ignore it.
-    pub fn advise_frame_willneed(&self, index: u32) -> Result<()> {
-        let (offset, length) = self.frame_range(index)?;
-        self.mmap
-            .advise_range(Advice::WillNeed, offset as usize, length as usize)
-            .context("madvise WILLNEED")?;
-        Ok(())
-    }
-
     /// Read frame bytes with `pread` into `buf` (must be exactly frame length).
     ///
-    /// Always copies into userspace. Safe to call from a blocking pool.
+    /// Always copies into userspace. Escape hatch when a hard reclaim guarantee outweighs the
+    /// extra copy (see `docs/disk-access/adr.md`). Safe to call from a blocking pool.
     pub fn pread_frame(&self, index: u32, buf: &mut [u8]) -> Result<()> {
         let (offset, length) = self.frame_range(index)?;
         if buf.len() != length as usize {
@@ -157,28 +122,6 @@ pub fn touch_pages(bytes: &[u8]) {
     std::hint::black_box(acc);
 }
 
-/// `mincore` over the pages spanning `bytes`. `None` if the syscall fails.
-fn pages_resident(bytes: &[u8]) -> Option<bool> {
-    if bytes.is_empty() {
-        return Some(true);
-    }
-    let page = host_page_size();
-    let addr = bytes.as_ptr() as usize;
-    let end = addr + bytes.len();
-    let start = addr & !(page - 1);
-    let len = end.saturating_sub(start);
-    let len = len.div_ceil(page) * page;
-    let n_pages = len / page;
-    let mut vec = vec![0u8; n_pages];
-    // SAFETY: `start`..`start+len` covers mapped pages of `bytes` (mmap region).
-    let rc = unsafe { libc::mincore(start as *mut libc::c_void, len, vec.as_mut_ptr()) };
-    if rc != 0 {
-        return None;
-    }
-    // LSB set => page resident.
-    Some(vec.iter().all(|&b| b & 1 != 0))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,13 +151,10 @@ mod tests {
         assert_eq!(store.frame_slice(1)?, f1);
         store.touch_frame_pages(0)?;
         store.touch_frame_pages(1)?;
-        assert!(store.frame_pages_resident(0)?);
-        store.touch_frame_pages_if_cold(0)?;
         let mut buf = vec![0u8; f0.len()];
         store.pread_frame(0, &mut buf)?;
         assert_eq!(buf, f0);
-        store.advise_frame_willneed(1)?;
-        assert!(store.frame_pages_resident(99).is_err());
+        assert!(store.frame_slice(99).is_err());
         let _ = std::fs::remove_file(path);
         Ok(())
     }
