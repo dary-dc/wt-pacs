@@ -1,3 +1,4 @@
+# SUPERSEDED by l1_s_vs_q_loss_v2.tsv — all-sample p95 polluted by cache hits; do not use for stream-mode decision.
 arm	fixture	rtt_ms	loss_pct	depth	run	p95_wait_ms	mean_wait_ms	mbps	peak_outstanding	asks_sent
 S	frames_32k	60	0	1	1	266.11	156.12	0.000	1	64
 S	frames_32k	60	0	1	2	263.95	155.89	0.000	1	64
