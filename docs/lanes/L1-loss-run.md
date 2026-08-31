@@ -31,7 +31,7 @@ different hit rates were incomparable.
 | RTT | 60 and 150 ms |
 | Depth | **formula** `D = ceil(0.95 × (1 + RTT/Tf))` with Tf = frame_bits / 10e6 — **not** saturate `D_min` |
 | Fixture | `frames_32k` |
-| Trace | `lab/traces/l1_one_way_80.json` — **80 unique frames, no revisits** |
+| Trace | `lab/traces/l1_one_way_80.json` — **80 unique frames, no revisits**, `step_interval_ms=50` |
 | Repeats | **10** on loss > 0; **5** on lossless (incl. D=1 control) |
 
 Formula depths for 32 KB @ 10 Mbit: **D(60)=4**, **D(150)=7**.
@@ -40,12 +40,16 @@ Formula depths for 32 KB @ 10 Mbit: **D(60)=4**, **D(150)=7**.
 
 ## Integrity gates (per cell)
 
-Void the cell (record `VOID` row, stop campaign) if:
+On gate failure: **retry the cell up to 3 times**, then record a `VOID` row and **continue** (do not abort the whole grid). Decision rows use non-`VOID` / non-`FAIL` only.
+
+Gate if:
 
 - `wait_samples == 0`
 - **`cache_misses < 20`** on a loss > 0 cell (not enough miss samples for p95)
 - **`cache_hit_rate > 0.90`** on a loss > 0 cell (prefetch still dominates)
-- harness non-zero exit / timeout
+- harness non-zero exit / timeout → `FAIL` row after redeploy retry; abort campaign
+
+After each loss>0 arm block: require **≥ 7** valid (non-VOID) repeats or mark that block incomplete.
 
 D=1 lossless control: arms' median **miss_p95** must agree within 25 % relative or 200 ms absolute.
 
