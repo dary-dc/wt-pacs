@@ -9,7 +9,6 @@ members = [
     "tools/pack-study",
     "lab/window-harness",
     "lab/cold-page-bench",
-    "lab/disk-access-bench",
 ]
 resolver = "2"
 
