@@ -116,6 +116,40 @@ trap cleanup EXIT
 acquire_rig_lock
 cloud_sync_netem_script
 
+# Abort if another lane overwrote our shaping mid-campaign (prior L2 contamination).
+assert_netem() {
+  local rtt=$1 loss=$2
+  local delay_ms=$((rtt / 2))
+  local qdisc
+  qdisc=$("${SSH[@]}" 'tc qdisc show dev ens3' 2>/dev/null || true)
+  if ! echo "$qdisc" | grep -q "netem"; then
+    echo "STOP: netem missing on ens3 (expected delay ${delay_ms}ms loss=${loss}%)" >&2
+    echo "$qdisc" >&2
+    return 1
+  fi
+  if [[ "$delay_ms" -gt 0 ]]; then
+    if ! echo "$qdisc" | grep -Eq "delay ${delay_ms}ms"; then
+      echo "STOP: netem delay mismatch (want ${delay_ms}ms for rtt=${rtt}): $qdisc" >&2
+      return 1
+    fi
+  fi
+  if [[ "$loss" != "0" && "$loss" != "0.0" ]]; then
+    if ! echo "$qdisc" | grep -Eq "loss ${loss}%"; then
+      echo "STOP: netem loss mismatch (want ${loss}%): $qdisc" >&2
+      return 1
+    fi
+  else
+    if echo "$qdisc" | grep -Eq 'loss [1-9]|loss 0\.[1-9]'; then
+      echo "STOP: unexpected netem loss while expecting 0%: $qdisc" >&2
+      return 1
+    fi
+  fi
+  if ! echo "$qdisc" | grep -Eq 'rate 10Mbit|rate 10mbit'; then
+    echo "WARN: netem rate not 10Mbit: $qdisc" >&2
+  fi
+  return 0
+}
+
 deploy_arm() {
   local arm=$1 stream_mode=$2
   local bin="${ARM_BIN[$arm]}"
@@ -217,6 +251,7 @@ run_cell() {
 
   for attempt in 1 2; do
     echo "==> $tag (attempt $attempt)" >&2
+    assert_netem "$rtt" "$loss" || return 2
     set +e
     timeout "$CELL_TIMEOUT_S" "$HARNESS" --url "$CLOUD_URL" --mode trace \
       --trace "$TRACE" --read-bps 0 --depth "$depth" --frame-count "$FIX_FC" \
