@@ -432,7 +432,6 @@ mod tests {
 
     #[test]
     fn serve_span_starts_at_ask_and_ends_at_wrote() {
-        
         let mut t = test_tap();
         t.ask(0);
         assert!(t.serve_start.is_some());
@@ -442,6 +441,45 @@ mod tests {
         let t1 = Instant::now();
         t.wrote(t1, WriteOutcome::Sent, 4096);
         assert!(t.serve_start.is_none());
+    }
+
+    /// Batch-like loop: each ask arms its own serve_start; re-ask increments ordinal.
+    #[test]
+    fn batch_like_asks_emit_independent_serve_and_ordinals() {
+        let mut t = test_tap();
+
+        t.ask(5);
+        assert_eq!(t.ask_ordinal, 0);
+        let serve0 = t.serve_start.expect("serve_start armed at ask");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let loc = Instant::now();
+        t.located(loc, LocateOutcome::Ok, 100);
+        let serve_us_0 = micros_since(serve0);
+        t.wrote(Instant::now(), WriteOutcome::Sent, 104);
+        assert!(t.serve_start.is_none(), "serve_start consumed at wrote");
+        assert!(
+            serve_us_0 >= 1_500,
+            "first row serve must cover sleep after its own ask, got {serve_us_0}"
+        );
+
+        t.ask(5);
+        assert_eq!(t.ask_ordinal, 1);
+        let serve1 = t.serve_start.expect("new serve_start for second ask");
+        assert!(
+            serve1 > serve0,
+            "second ask must arm a new serve_start, not reuse the first"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        t.located(Instant::now(), LocateOutcome::Ok, 100);
+        let serve_us_1 = micros_since(serve1);
+        t.wrote(Instant::now(), WriteOutcome::Sent, 104);
+        assert!(
+            serve_us_1 < serve_us_0,
+            "second row serve is its own ask→wrote window ({serve_us_1}), not the first ({serve_us_0})"
+        );
+
+        t.ask(9);
+        assert_eq!(t.ask_ordinal, 0);
     }
 
     #[test]

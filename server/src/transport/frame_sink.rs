@@ -1,7 +1,7 @@
 //! Send-path seam: product `LiveSink` vs lab `RecordedSink` decorator (telemetry Option B).
 //!
-//! `ask(idx)` stays an explicit method — wrappers cannot recover the frame index under
-//! `RequestFrames`. Locate stays a free `FrameStore` call observed via `time_locate`.
+//! Outbound mode is a type (`FrameOut`) chosen once per session — not an `Option<SendStream>`
+//! re-checked on every frame. `ask(idx)` stays explicit on `FrameSink` (batch asks).
 
 use anyhow::{Context, Result};
 use frame_envelope::ENVELOPE_LEN;
@@ -35,11 +35,88 @@ pub(crate) trait FrameSink: Send {
     fn drain_acks(&mut self) -> impl Future<Output = ()> + Send;
 }
 
+/// Mode decided once at session start. Shared never owns `acks`; PerFrame never owns a session uni.
+pub(crate) enum FrameOut {
+    Shared {
+        uni: SendStream,
+    },
+    PerFrame {
+        connection: Connection,
+        acks: JoinSet<()>,
+    },
+}
+
+impl FrameOut {
+    pub(crate) fn shared(uni: SendStream) -> Self {
+        Self::Shared { uni }
+    }
+
+    pub(crate) fn per_frame(connection: Connection) -> Self {
+        Self::PerFrame {
+            connection,
+            acks: JoinSet::new(),
+        }
+    }
+
+    pub(crate) fn is_shared(&self) -> bool {
+        matches!(self, Self::Shared { .. })
+    }
+
+    async fn send_frame(&mut self, idx: u32, codestream: &[u8]) -> Result<()> {
+        let envelope_len = (ENVELOPE_LEN + codestream.len()) as u32;
+        let len = envelope_len.to_be_bytes();
+        let index = idx.to_be_bytes();
+        match self {
+            Self::Shared { uni } => {
+                uni.write_all(&len).await.context("write shared len")?;
+                uni.write_all(&index).await.context("write shared index")?;
+                uni.write_all(codestream)
+                    .await
+                    .context("write shared codestream")?;
+            }
+            Self::PerFrame { connection, acks } => {
+                let mut uni = connection
+                    .open_uni()
+                    .await
+                    .context("open uni")?
+                    .await
+                    .context("open uni ready")?;
+                uni.write_all(&len).await.context("write len")?;
+                uni.write_all(&index).await.context("write index")?;
+                uni.write_all(codestream)
+                    .await
+                    .context("write codestream")?;
+
+                // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
+                // the peer's acknowledgement (~272 ms measured), which caps throughput at
+                // Tf/(Tf+RTT) when awaited inline. See docs/adr-frame-framing-and-loop-shape.md.
+                acks.spawn(async move {
+                    let _ = uni.finish().await;
+                });
+            }
+        }
+        Ok(())
+    }
+
+    async fn drain_acks(&mut self) {
+        if let Self::PerFrame { acks, .. } = self {
+            let _ = tokio::time::timeout(Duration::from_secs(2), async {
+                while acks.join_next().await.is_some() {}
+            })
+            .await;
+        }
+    }
+}
+
 /// Product sink — zero telemetry tokens in method bodies.
 pub(crate) struct LiveSink {
-    pub connection: Connection,
-    pub shared: Option<SendStream>,
-    pub acks: JoinSet<()>,
+    out: FrameOut,
+}
+
+impl LiveSink {
+    pub(crate) fn new(out: FrameOut) -> Self {
+        Self { out }
+    }
 }
 
 impl FrameSink for LiveSink {
@@ -55,21 +132,11 @@ impl FrameSink for LiveSink {
     fn on_refused(&mut self) {}
 
     async fn send_frame(&mut self, idx: u32, bytes: &[u8]) -> Result<()> {
-        write_payload(
-            &self.connection,
-            &mut self.shared,
-            &mut self.acks,
-            idx,
-            bytes,
-        )
-        .await
+        self.out.send_frame(idx, bytes).await
     }
 
     async fn drain_acks(&mut self) {
-        let _ = tokio::time::timeout(Duration::from_secs(2), async {
-            while self.acks.join_next().await.is_some() {}
-        })
-        .await;
+        self.out.drain_acks().await;
     }
 }
 
@@ -130,49 +197,6 @@ impl<S: FrameSink> FrameSink for RecordedSink<S> {
     async fn drain_acks(&mut self) {
         self.inner.drain_acks().await;
     }
-}
-
-/// Three writes: len, index, mmap codestream.
-pub(crate) async fn write_payload(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    display_index: u32,
-    codestream: &[u8],
-) -> Result<()> {
-    let envelope_len = (ENVELOPE_LEN + codestream.len()) as u32;
-    let len = envelope_len.to_be_bytes();
-    let index = display_index.to_be_bytes();
-    match shared {
-        Some(uni) => {
-            uni.write_all(&len).await.context("write shared len")?;
-            uni.write_all(&index).await.context("write shared index")?;
-            uni.write_all(codestream)
-                .await
-                .context("write shared codestream")?;
-        }
-        None => {
-            let mut uni = connection
-                .open_uni()
-                .await
-                .context("open uni")?
-                .await
-                .context("open uni ready")?;
-            uni.write_all(&len).await.context("write len")?;
-            uni.write_all(&index).await.context("write index")?;
-            uni.write_all(codestream)
-                .await
-                .context("write codestream")?;
-
-            // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
-            // the peer's acknowledgement (~272 ms measured), which caps throughput at
-            // Tf/(Tf+RTT) when awaited inline. See docs/adr-frame-framing-and-loop-shape.md.
-            acks.spawn(async move {
-                let _ = uni.finish().await;
-            });
-        }
-    }
-    Ok(())
 }
 
 #[cfg(all(test, feature = "telemetry"))]

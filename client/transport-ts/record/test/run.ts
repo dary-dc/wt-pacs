@@ -120,6 +120,43 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   );
 }
 
+// Re-ask same index → ask_ordinal 0 then 1 in the report
+{
+  const tap = new Tap({
+    arm: "transport-ts",
+    stream_mode: "shared",
+    copies_per_frame: 1,
+  });
+  const frameIndex = 5;
+  function fodRequest(frame: number): Uint8Array {
+    const enc = new TextEncoder();
+    const body = enc.encode(JSON.stringify({ op: "request_frame", frame }));
+    const fod = new Uint8Array(4 + body.length);
+    new DataView(fod.buffer).setUint32(0, body.length, true);
+    fod.set(body, 4);
+    return fod;
+  }
+  function mediaFor(idx: number): Uint8Array {
+    const m = new Uint8Array(12);
+    new DataView(m.buffer).setUint32(0, 8, false);
+    new DataView(m.buffer).setUint32(4, idx, false);
+    return m;
+  }
+  for (let n = 0; n < 2; n++) {
+    tap.gesture(frameIndex);
+    tap.onControlWrite(fodRequest(frameIndex));
+    tap.onAskFlush();
+    const sid = tap.nextStreamId();
+    tap.onMediaRead(sid, mediaFor(frameIndex));
+    tap.onDelivered(frameIndex);
+  }
+  const report = tap.finish();
+  const rows = report.client_frames.filter((r) => r.frame_index === frameIndex);
+  assertEq(rows.length, 2, "two rows for re-asked frame");
+  assertEq(rows[0].ask_ordinal, 0, "first ask ordinal 0");
+  assertEq(rows[1].ask_ordinal, 1, "second ask ordinal 1");
+}
+
 // empty sample → null distribution (null ≠ 0)
 {
   assertEq(distributionStats([]), null, "empty distributionStats is null");

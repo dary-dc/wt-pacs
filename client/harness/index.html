@@ -60,9 +60,10 @@
       const { default: init, TransportSessionHandle } = initMod;
       await init();
       const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
-      log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
+      log("connecting", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
       let session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
       session = wrapSession(session);
+      log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
 
       document.getElementById("frame0").onclick = async () => {
         const r = await session.requestExactFrame(0);

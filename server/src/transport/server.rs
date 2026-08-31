@@ -3,23 +3,19 @@
 //! Serial loop: read one ask, send it to completion, read the next.
 //! No server-side ask queue — see docs/adr-reject-server-ordering.md.
 //!
-//! Stream mode is resolved once per session in `handle_incoming` and carried as
-//! `Option<SendStream>`: `Some` = one shared stream for the session, `None` = one
-//! stream per frame. Nothing downstream branches on a flag.
-//!
+//! Stream mode is resolved once per session into `FrameOut` (shared uni vs per-frame).
 //! Recording (Decision C / Option B): product `LiveSink` has zero telemetry tokens;
 //! lab builds wrap it in `RecordedSink` at session start. See
-//! `docs/telemetry-seam-decision-brief.md` and `docs/adr-server-frame-sink.md`.
+//! `docs/adr-server-frame-sink.md`.
 
 use crate::media::frame_store::FrameStore;
-use crate::transport::frame_sink::{FrameSink, LiveSink};
+use crate::transport::frame_sink::{FrameOut, FrameSink, LiveSink};
 use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::task::JoinSet;
 use tracing::{info, warn};
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Endpoint, Identity, ServerConfig};
@@ -30,7 +26,7 @@ use crate::record::Recorder;
 use crate::transport::frame_sink::RecordedSink;
 
 /// How frames reach the client. A process-wide configuration choice, resolved to an
-/// `Option<SendStream>` once per session.
+/// `FrameOut` once per session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum StreamMode {
     /// One uni stream for the whole session. Frames arrive strictly in ask order.
@@ -121,25 +117,21 @@ async fn handle_incoming(
         .await
         .context("accept control bidi")?;
 
-    // The mode, resolved once. Everything downstream sees a value, not a flag.
-    let shared = match mode {
-        StreamMode::Shared => Some(
-            connection
+    // Mode → FrameOut once. No Option<SendStream> re-checked per frame downstream.
+    let out = match mode {
+        StreamMode::Shared => {
+            let uni = connection
                 .open_uni()
                 .await
                 .context("open shared uni")?
                 .await
-                .context("shared uni ready")?,
-        ),
-        StreamMode::PerFrame => None,
+                .context("shared uni ready")?;
+            FrameOut::shared(uni)
+        }
+        StreamMode::PerFrame => FrameOut::per_frame(connection),
     };
-
-    let is_shared = shared.is_some();
-    let sink = LiveSink {
-        connection,
-        shared,
-        acks: JoinSet::new(),
-    };
+    let is_shared = out.is_shared();
+    let sink = LiveSink::new(out);
 
     // Fork once: default binary never constructs RecordedSink / Recorder.
     #[cfg(feature = "telemetry")]

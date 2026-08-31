@@ -14,8 +14,9 @@ the server should keep inline calls, emit domain events, or wrap the send path.
 
 **Option B — decorator over a `FrameSink` trait.**
 
-- Product type `LiveSink` implements locate-observe hooks and `send_frame` with **zero**
-  telemetry tokens in method bodies.
+- Product type `LiveSink` wraps a `FrameOut` enum (`Shared` uni vs `PerFrame` +
+  `JoinSet`) chosen once at session start — not an `Option<SendStream>` re-checked on
+  every write.
 - Lab builds (`feature = "telemetry"`) wrap it once at session start:
   `RecordedSink { inner: LiveSink, rec: Recorder }`.
 - `run_session` / `send_one_frame` are generic over `S: FrameSink` — one loop, no twin.
