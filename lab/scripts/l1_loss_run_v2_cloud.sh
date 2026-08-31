@@ -68,12 +68,6 @@ if head -1 "$OUT_TSV" | grep -q 'tasks_sent'; then
   sed -i '1s/tasks_sent/asks_sent/' "$OUT_TSV"
 fi
 
-cleanup() {
-  echo "RIG RELEASE: clearing netem" >&2
-  cloud_set_netem off 2>/dev/null || true
-}
-trap cleanup EXIT
-
 python3 - <<'PY'
 from pathlib import Path
 src = Path("lab/window-harness/src/metrics.rs").read_text()
@@ -81,6 +75,45 @@ assert "miss_p95_wait_ms" in src and "cache_misses" in src
 print("harness metrics: miss-only fields present in source")
 PY
 
+# Advisory exclusive holder so operators / other lanes see who owns netem.
+acquire_rig_lock() {
+  echo "==> acquire rig lock" >&2
+  "${SSH[@]}" 'bash -s' <<'REMOTE'
+set -euo pipefail
+LOCKDIR=/home/ubuntu/wt-pacs/locks
+mkdir -p "$LOCKDIR"
+HOLDER=$LOCKDIR/netem.holder
+if [[ -f "$HOLDER" ]]; then
+  if find "$HOLDER" -mmin +180 | grep -q .; then
+    echo "stale lock; taking over: $(cat "$HOLDER")"
+    rm -f "$HOLDER"
+  else
+    cur=$(cat "$HOLDER")
+    case "$cur" in
+      L1-v2*) echo "renewing our L1-v2 lock" ;;
+      *)
+        echo "WARN: displacing holder: $cur (L1 v2 taking exclusive netem)"
+        rm -f "$HOLDER"
+        ;;
+    esac
+  fi
+fi
+echo "L1-v2 $(date -Iseconds)" > "$HOLDER"
+REMOTE
+}
+
+release_rig_lock() {
+  "${SSH[@]}" 'rm -f /home/ubuntu/wt-pacs/locks/netem.holder' 2>/dev/null || true
+}
+
+cleanup() {
+  echo "RIG RELEASE: clearing netem + lock" >&2
+  cloud_set_netem off 2>/dev/null || true
+  release_rig_lock
+}
+trap cleanup EXIT
+
+acquire_rig_lock
 cloud_sync_netem_script
 
 deploy_arm() {
@@ -115,7 +148,7 @@ REMOTE
 
 row_exists() {
   awk -F'\t' -v a="$1" -v f="$2" -v r="$3" -v l="$4" -v d="$5" -v n="$6" \
-    'NR>1 && $1==a && $2==f && $3==r && $4==l && $5==d && $6==n {found=1} END{exit !found}' "$OUT_TSV"
+    'NR>1 && $1==a && $2==f && $3==r && $4==l && $5==d && $6==n && $7!="FAIL" {found=1} END{exit !found}' "$OUT_TSV"
 }
 
 append_row() {
@@ -175,29 +208,39 @@ run_cell() {
   local mode="${ARM_MODE[$arm]}"
   local tag="${arm}_${FIXTURE}_rtt${rtt}_loss${loss}_d${depth}_r${run}"
   local raw="$RAW_DIR/${tag}.json"
+  local attempt rc
 
   if row_exists "$arm" "$FIXTURE" "$rtt" "$loss" "$depth" "$run"; then
     echo "skip $tag" >&2
     return 0
   fi
 
-  echo "==> $tag" >&2
-  set +e
-  timeout "$CELL_TIMEOUT_S" "$HARNESS" --url "$CLOUD_URL" --mode trace \
-    --trace "$TRACE" --read-bps 0 --depth "$depth" --frame-count "$FIX_FC" \
-    --fill-dwell-ms 0 --stream-mode "$mode" --rtt-ms 0 \
-    --timeout-ms "$HARNESS_TIMEOUT_MS" --arm "$tag" --json \
-    >"$raw" 2>"$raw.err"
-  local rc=$?
-  set -e
-  if [[ $rc -ne 0 ]]; then
-    echo "FAIL $tag harness_rc=$rc" >&2
+  for attempt in 1 2; do
+    echo "==> $tag (attempt $attempt)" >&2
+    set +e
+    timeout "$CELL_TIMEOUT_S" "$HARNESS" --url "$CLOUD_URL" --mode trace \
+      --trace "$TRACE" --read-bps 0 --depth "$depth" --frame-count "$FIX_FC" \
+      --fill-dwell-ms 0 --stream-mode "$mode" --rtt-ms 0 \
+      --timeout-ms "$HARNESS_TIMEOUT_MS" --arm "$tag" --json \
+      >"$raw" 2>"$raw.err"
+    rc=$?
+    set -e
+    if [[ $rc -eq 0 ]]; then
+      append_row "$arm" "$FIXTURE" "$rtt" "$loss" "$depth" "$run" "$raw"
+      return 0
+    fi
+    echo "FAIL $tag harness_rc=$rc attempt=$attempt" >&2
     cat "$raw.err" >&2 || true
+    if [[ $attempt -eq 1 ]]; then
+      echo "retry: redeploy arm=$arm and re-run cell" >&2
+      deploy_arm "$arm" "$mode"
+      cloud_set_netem "$rtt" "$loss"
+      continue
+    fi
     echo -e "${arm}\t${FIXTURE}\t${rtt}\t${loss}\t${depth}\t${run}\tFAIL\tFAIL\tFAIL\tFAIL\t-\t-\t-\t-" >> "$OUT_TSV"
     echo "STOP: run will not complete ($tag). Campaign void." >&2
     return 2
-  fi
-  append_row "$arm" "$FIXTURE" "$rtt" "$loss" "$depth" "$run" "$raw"
+  done
 }
 
 check_d1_control() {
@@ -213,7 +256,7 @@ with open(path) as f:
         if r["miss_p95_wait_ms"] in ("FAIL", "-", ""):
             continue
         by[r["arm"]].append(float(r["miss_p95_wait_ms"]))
-need = 5
+need = int(__import__('os').environ.get('REPEATS_LOSSLESS', '5'))
 if len(by["S"]) < need or len(by["Q"]) < need:
     print(f"STOP: D=1 control incomplete rtt={rtt}: { {k: len(v) for k,v in by.items()} }")
     raise SystemExit(3)

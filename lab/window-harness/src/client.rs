@@ -385,7 +385,15 @@ async fn run_windowed(
         // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
         // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
         wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
-        wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
+        // Drain completed asks before the next emit. Waiting for `<= d` is a no-op when
+        // outstanding already equals d and lets D=1 skip the next ask (timeout on an
+        // unasked frame). Wait until below d (0 when d=1).
+        wait_outstanding_below(
+            outstanding,
+            d.saturating_sub(1),
+            cfg.timeout_ms,
+        )
+        .await?;
     }
 
     {
