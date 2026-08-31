@@ -1,6 +1,9 @@
 # ADR: instrument the browser clients from outside, not with an inline recorder
 
-**Status:** proposed · **Date:** 2026-08-30 · **Tags:** telemetry, client, lab
+**Status:** proposed (client Proxy G) · **Date:** 2026-08-30 · **Tags:** telemetry, client, lab  
+**Open:** Decision A — whether frame-level `firstByte`/`lastByte` keep §5.1 byte
+attribution (A1), session-method totals only (A2), product framing edits (A3), or a
+hybrid (A4). Server Decision C is settled in [`adr-server-frame-sink.md`](adr-server-frame-sink.md).
 
 Plan that depends on this: [`client-frame-pipeline-telemetry-plan.md`](client-frame-pipeline-telemetry-plan.md).
 

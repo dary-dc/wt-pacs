@@ -1,23 +1,16 @@
 {
   "phase": "8",
   "trap_checklist_local": {
-    "rows_opened_eq_closed": "observed true on fill cells (3/3)",
+    "rows_opened_eq_closed": "observed true on fill cells",
     "proxy_not_hand_rolled": "Proxy + getPrototypeOf; instanceof ReadableStreamDefaultReader smoke true",
     "install_before_client": "session.telemetry.js / harness import order",
     "clock_5us": "crossOriginIsolated true; clock_resolution_us 5 (local Chrome)",
-    "transfer_chunks1_excluded": "unit test covered",
+    "transfer_chunks1_excluded": "unit test + transfer distribution null when all chunks==1",
     "ask_to_last_paint_null": "unit test + fill reports",
-    "frame0_excluded_from_means": "ondemand frame0-only → headline nulls",
+    "frame0_excluded_from_means": "ondemand frame0-only → distribution/headline null (not zero)",
     "byte_closure_ok": "true on harvested localhost reports",
     "server_nearest_rank": "unit test nearest_rank_disagrees_with_linear_interpolation passed",
     "absence_default_build": "client/scripts/check_telemetry_absent.sh OK"
-  },
-  "shaped_cells": {
-    "status": "blocked",
-    "reasons": [
-      "L2 agent still RUNNING (round-robin netem)",
-      "SSH_KEY=~/.ssh/id_ed25519_rig_agent absent in this environment"
-    ]
   },
   "evidence_tier": "T2 max; localhost harvests are smoke only — not quotable for serve_plus_path"
 }
