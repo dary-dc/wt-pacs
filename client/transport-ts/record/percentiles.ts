@@ -21,21 +21,10 @@ export function distributionStats(values: number[]): {
   p90: number;
   p95: number;
   p99: number;
-} {
+} | null {
   if (values.length === 0) {
-    return {
-      count: 0,
-      mean: 0,
-      median: 0,
-      min: 0,
-      max: 0,
-      total: 0,
-      p50: 0,
-      p75: 0,
-      p90: 0,
-      p95: 0,
-      p99: 0,
-    };
+    // null ≠ 0: an empty sample is absent, not a measured zero vector.
+    return null;
   }
   const sorted = [...values].sort((a, b) => a - b);
   const total = sorted.reduce((s, v) => s + v, 0);

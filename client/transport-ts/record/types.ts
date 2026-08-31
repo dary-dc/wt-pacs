@@ -70,6 +70,9 @@ export type DistributionStats = {
   p99: number;
 };
 
+/** Absent sample set — never a zero-filled stats object (null ≠ 0). */
+export type DistributionOrAbsent = DistributionStats | null;
+
 export type Integrity = {
   rows_opened: number;
   rows_closed: number;
@@ -99,7 +102,7 @@ export type TelemetryReport = {
       max_serve_plus_path_us: number | null;
       first_of_burst_serve_plus_path_us: number | null;
     };
-    distributions: Record<string, DistributionStats>;
+    distributions: Record<string, DistributionOrAbsent>;
     copies: {
       js_heap_bytes_per_frame: number | null;
       copies_per_frame: number;

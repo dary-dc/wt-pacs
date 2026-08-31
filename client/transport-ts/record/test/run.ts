@@ -112,6 +112,46 @@ function assertEq(a: unknown, b: unknown, msg: string) {
     report.summary.headline.ask_to_last_frame_complete_us != null,
     "analogue ask_to_last_frame_complete_us present",
   );
+  assert(report.summary.distributions.bytes != null, "frame1 contributes to bytes distribution");
+  assert(report.summary.distributions.bytes!.count === 1, "one usable frame in bytes dist");
+  assert(
+    report.summary.distributions.transfer === null,
+    "transfer dist null when only chunks==1 frames",
+  );
+}
+
+// empty sample → null distribution (null ≠ 0)
+{
+  assertEq(distributionStats([]), null, "empty distributionStats is null");
+}
+
+// frame-0-only ondemand: rows present, distributions absent
+{
+  const tap = new Tap({
+    arm: "transport-ts",
+    stream_mode: "shared",
+    copies_per_frame: 1,
+  });
+  const frameIndex = 0;
+  const enc = new TextEncoder();
+  const body = enc.encode(JSON.stringify({ op: "request_frame", frame: frameIndex }));
+  const fod = new Uint8Array(4 + body.length);
+  new DataView(fod.buffer).setUint32(0, body.length, true);
+  fod.set(body, 4);
+  tap.gesture(frameIndex);
+  tap.onControlWrite(fod);
+  tap.onAskFlush();
+  const sid = tap.nextStreamId();
+  const media = new Uint8Array(12);
+  new DataView(media.buffer).setUint32(0, 8, false);
+  new DataView(media.buffer).setUint32(4, frameIndex, false);
+  tap.onMediaRead(sid, media);
+  tap.onDelivered(frameIndex);
+  const report = tap.finish();
+  assertEq(report.client_frames.length, 1, "frame0 row kept in client_frames");
+  assertEq(report.summary.distributions.queue, null, "frame0 excluded → queue dist null");
+  assertEq(report.summary.distributions.bytes, null, "frame0 excluded → bytes dist null");
+  assertEq(report.summary.headline.ask_to_first_frame_complete_us, null, "headline null without usable");
 }
 
 // first write wins; mark after close increments

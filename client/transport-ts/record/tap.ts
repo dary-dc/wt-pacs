@@ -377,6 +377,11 @@ export class Tap {
     const distributions: Record<string, ReturnType<typeof distributionStats>> = {};
     for (const k of distKeys) {
       const vals = usable
+        .filter((f) => {
+          // Trap: single-chunk frames have structural transfer==0 — exclude from transfer means.
+          if (k === "transfer") return (f.chunks ?? 0) > 1;
+          return true;
+        })
         .map((f) => {
           if (k === "queue") return f.queue_us;
           if (k === "serve_plus_path") return f.serve_plus_path_us;
