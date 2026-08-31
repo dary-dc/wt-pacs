@@ -85,4 +85,6 @@ Evidence tier ≤ T2 (lab / overlayfs). Optional confirm on a real study volume 
 
 ## Follow-ups (non-blocking)
 
-Listed in `docs/disk-access-later.md` — dedicated pool under load, io_uring experiment, real-disk confirm, ask-queue prefetch when a window exists.
+Listed in `docs/disk-access-later.md` — **multi-session cold-under-load** (other sessions’ latency while one session faults), dedicated pool under load, io_uring lab experiment, real-disk confirm, ask-queue prefetch when a window exists.
+
+Essentialist merge plan (what lands on `main` vs research branch): `docs/l3-merge-plan.md`.
