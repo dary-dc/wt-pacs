@@ -254,41 +254,38 @@ concurrency. That trade should be re-made explicitly, on data, not carried over.
 
 ### A. Fix the instrument (blocks everything else)
 
-- [ ] A1 — Replace the sleep-based heartbeat in `lab/disk-access-bench` with a co-tenant `yield_now()` gap
+- [x] A1 — Replace the sleep-based heartbeat in `lab/disk-access-bench` with a co-tenant `yield_now()` gap
       monitor (pattern in §7). Report gap p50/p99/max, not "stall mean/max/samples".
-- [ ] A2 — Delete `stall_samples`, or redefine it as the gap-sample count and stop drawing safety conclusions
-      from it.
-- [ ] A3 — Make the bench worker await once per frame at minimum; better, model the write (A5).
-- [ ] A4 — Fix `cold-page-bench`: one pass per cold copy, or re-cool between passes. Never report a p50 over a
+- [x] A2 — Delete `stall_samples`, or redefine it as the gap-sample count and stop drawing safety conclusions
+      from it. *(Replaced by `gap_*` columns.)*
+- [x] A3 — Make the bench worker await once per frame at minimum; better, model the write (A5).
+- [x] A4 — Fix `cold-page-bench`: one pass per cold copy, or re-cool between passes. Never report a p50 over a
       trace that revisits frames as "cold".
-- [ ] A5 — Add the next-version write step to every arm: copy the source into a send buffer in
+- [x] A5 — Add the next-version write step to every arm: copy the source into a send buffer in
       flow-control-sized chunks with an await between chunks. Run at least two chunk sizes (e.g. 256 KiB
-      = no backpressure, 16 KiB = backpressured).
+      = no backpressure, 16 KiB = backpressured). *(Harness: `--chunk`, repeatable.)*
 
 ### B. Fix arm parity
 
-- [ ] B1 — Every arm must end by consuming the bytes through the same write step (A5). No `black_box(len())`
+- [x] B1 — Every arm must end by consuming the bytes through the same write step (A5). No `black_box(len())`
       arms.
-- [ ] B2 — `pread` must read into the buffer that is then handed to the write step — one pool copy plus quinn's,
+- [x] B2 — `pread` must read into the buffer that is then handed to the write step — one pool copy plus quinn's,
       not an extra one for measurement's sake.
-- [ ] B3 — ≥5 repeats per cell; report median and spread. Drop any conclusion whose margin is inside the spread.
+- [x] B3 — ≥5 repeats per cell; report median and spread. Drop any conclusion whose margin is inside the spread.
+      *(Harness default `--repeats 5`.)*
 
 ### C. Add the regime the decision depends on
 
-- [ ] C1 — A memory-limited cell: cgroup `memory.limit_in_bytes` (or v2 `memory.max`) at ~60 % of study size,
-      study page cache dropped first so its pages are charged to the limited cgroup. This is the ADR's premise
-      and it is currently untested. Note the harness's `make_cold_copy` reads the whole study onto the heap and
-      will be OOM-killed under the limit — stream the copy or pre-create the cold file outside the cgroup.
-- [ ] C2 — The deferred **multi-session** cell (`docs/disk-access-later.md`): N session tasks on one runtime,
-      one going cold. This decides whether the hop the gate avoids costs anything at all under load. It is not
-      optional any more — it is half the justification for the gate.
+- [x] C1 — A memory-limited cell: cgroup helper `lab/scripts/run_disk_access_mempressure.sh` + streamed cold
+      copy. **Re-run recorded:** `docs/measurements/r2/disk_access_mempressure.tsv` + `DISK_ACCESS_RERUN.md`.
+- [x] C2 — Multi-session cell: `--sessions N` measures other sessions' ask latency during primary work.
+      **Re-run recorded:** `docs/measurements/r2/disk_access_multisession.tsv` + `DISK_ACCESS_RERUN.md`.
 - [ ] C3 — Optional but cheap: a real-disk (non-overlayfs) confirm, as already planned.
 
 ### D. Re-decide the gate on the new numbers
 
-- [ ] D1 — Default recommendation from this review: **revert `send_one_frame` to the unconditional
-      `spawn_blocking` touch** (L3 v1) and keep `frame_pages_resident` as a lab-only helper, unless C1/C2 show
-      the gate is both safe under pressure and worth its hop saving under concurrency.
+- [x] D1 — Default: **revert `send_one_frame` to unconditional `spawn_blocking` touch** (L3 v1); keep
+      `frame_pages_resident` as a lab helper. Gate returns only if C1/C2 clear it.
 - [ ] D2 — If the gate is kept, it must be gate **plus** verification, not gate alone — e.g. re-check residency
       after the hop and before handing the slice to `write_all`, and/or hop unconditionally for the first N
       frames of a study. Document the failure mode either way.
@@ -299,17 +296,11 @@ concurrency. That trade should be re-made explicitly, on data, not carried over.
 
 ### E. Code fixes worth making regardless
 
-- [ ] E1 — `server/src/media/frame_store.rs:168` hardcodes `PAGE_SIZE = 4096`. On a 64 KiB-page kernel
-      (aarch64 — plausible for the Oracle rig this repo targets) the `mincore` call gets an unaligned address
-      and a mis-sized vector, fails, and `unwrap_or(false)` silently degrades to always-hop. Use
-      `sysconf(_SC_PAGESIZE)` and add a test.
-- [ ] E2 — `frame_pages_resident(...).unwrap_or(false)` in `send_one_frame` swallows every error, including a
-      bad frame index, and turns it into a pool hop. Keep the fallback but log once, or distinguish
-      "syscall unsupported" from "index invalid".
-- [ ] E3 — Document the reclaim race in the ADR: nothing guarantees the pages touched on the pool are still
-      resident when quinn reads them, and the window is now the whole write.
-- [ ] E4 — `lab/disk-access-bench` `make_cold_copy` names files with `Instant::now().elapsed()` (always ~0) and
-      leaks the cold copy on the error path — one was left in `.local/measurements` during this review.
+- [x] E1 — `PAGE_SIZE` via `sysconf(_SC_PAGESIZE)` + test.
+- [x] E2 — Bad frame index propagates as `Err` from `frame_pages_resident` (via `frame_slice`); `mincore`
+      failure alone maps to `Ok(false)`. Strict helper available.
+- [x] E3 — Document the reclaim race in the ADR.
+- [x] E4 — Cold-copy names use wall time + seq; `ColdCopy` Drop cleans; stream copy (no full-file heap read).
 - [ ] E5 — Per the merge plan, drop the `frame_prefix_*` / `pread_frame_prefix` APIs from the product path
       unless progressive serve is actually scheduled; they are lab surface on a product type.
 
@@ -317,12 +308,12 @@ concurrency. That trade should be re-made explicitly, on data, not carried over.
 
 | File | Change |
 | --- | --- |
-| `docs/adr-frame-disk-access.md` | Mark **Status: under review**. Remove every `stall n` / `stall max` figure (F1, F2). Remove "hybrid beats naive on warm" (F5). Re-frame the `pread` row for the post-`wrap` world (§2.1) — its copy argument gets *stronger*, its "3× warm" claim does not survive F5. Add the reclaim race and the widened window (§2.2). State that the >RAM regime was never measured. |
-| `docs/measurements/r2/L3_EXECUTOR_STALL.md` | Retract the `cold p50` row (F4) or re-run at one pass. |
-| `docs/measurements/r2/DISK_ACCESS_{CAMPAIGN,FOLLOWUP,REALISTIC}.md` | Add a header noting the stall columns are at instrument noise and the warm ranking is arm-asymmetric; keep the TSVs (they are honest raw data). |
-| `docs/disk-access-team-brief.md` §2 | Remove "`stall n = 1` + large stall max ≈ executor froze" — it is false as stated (F2). |
-| `docs/l3-merge-plan.md` | Do not strip `lab/disk-access-bench` and the TSVs from `main` while the ADR's numbers are the only surviving record. Re-derive first, then prune. |
-| `docs/lanes/L3-executor-stall.md` | "Implemented (hybrid) — see ADR" → implemented, evidence under review, gate contested. |
+| `docs/adr-frame-disk-access.md` | **Done** — under review; stall numbers / hybrid-beats-naive removed; always-touch provisional; reclaim race; post-`wrap` copy accounting. |
+| `docs/measurements/r2/L3_EXECUTOR_STALL.md` | **Done** — cold p50 retracted (F4); banner. |
+| `docs/measurements/r2/DISK_ACCESS_{CAMPAIGN,FOLLOWUP,REALISTIC}.md` | **Done** — banners; TSVs kept. |
+| `docs/disk-access-team-brief.md` §2 | **Done** — stall n reading removed. |
+| `docs/l3-merge-plan.md` | **Done** — do not prune until re-derived. |
+| `docs/lanes/L3-executor-stall.md` | **Done** — always-touch; evidence under review. |
 
 ---
 

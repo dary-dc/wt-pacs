@@ -13,9 +13,9 @@ This is the plan for **what lands on `main`**, not execution yet.
 
 | | |
 | --- | --- |
-| **Ship** | Hybrid disk access in the server + one self-contained ADR a reader can decide from without opening TSVs |
-| **Preserve** | Full research branch (harnesses, campaigns, prior art, all TSVs) in git history forever |
-| **Avoid** | Bloat on `main`: duplicate campaign docs, 200+ line benches, raw measurement dumps |
+| **Ship** | Always-touch (L3 v1) disk access in the server + one self-contained ADR; gate only if C1/C2 re-clear it |
+| **Preserve** | Full harness + campaign TSVs on the branch **until numbers are re-derived** — then prune for essentialist `main` |
+| **Avoid** | Landing ADR tables that cite broken stall_n / asymmetric warm ranking; pruning the only raw record while wrong |
 
 ---
 

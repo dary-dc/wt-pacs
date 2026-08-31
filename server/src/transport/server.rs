@@ -215,18 +215,13 @@ async fn send_one_frame(
     rec.ask(idx);
 
     let t0 = rec.stamp();
-    // Prefault only when cold: `mincore` on the executor (no fault), then `spawn_blocking`
-    // touch only if pages are not resident. Hot frames skip the pool hop.
-    // Cold faults must not run on the async executor — they are not `.await` points.
-    let resident = store.frame_pages_resident(idx).unwrap_or(false);
-    let touch = if resident {
-        Ok(())
-    } else {
-        let store_touch = Arc::clone(&store);
-        tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
-            .await
-            .context("join frame page touch")?
-    };
+    // Prefault off the executor (L3 v1 / always-touch). A major fault is not an `.await`.
+    // The `mincore` gate is contested under >RAM pressure — see evidence review; product path
+    // stays unconditional until C1/C2 re-clear it.
+    let store_touch = Arc::clone(&store);
+    let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
+        .await
+        .context("join frame page touch")?;
 
     match touch.and_then(|_| store.frame_slice(idx)) {
         Ok(bytes) => {

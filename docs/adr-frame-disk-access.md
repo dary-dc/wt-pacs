@@ -1,8 +1,14 @@
 # ADR: how the server reads SBND frame bytes
 
-> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](l3-disk-access-evidence-review.md). The stall columns quoted below sit at the measuring instrument's noise floor, the warm ranking compares arms that do different work, and the >RAM regime this ADR cites as motivation was never measured. Under that regime the `mincore` gate measures ~10x worse than the always-blocking touch it supersedes. Do not treat the tables here as decided.**
+> ⚠️ **Status: under review** — see [`docs/l3-disk-access-evidence-review.md`](l3-disk-access-evidence-review.md).
+> Prior campaign stall columns sit at the instrument noise floor; the warm “hybrid beats naive”
+> ranking compared arms that did different work; the **>RAM regime this ADR cites was never
+> measured in those campaigns**. Under memory pressure the `mincore` gate measured ~10× worse
+> worst-case executor block than always-blocking touch (review §5). **Do not treat the old
+> tables as decided.** Product path is **unconditional `spawn_blocking` touch (L3 v1)** until
+> re-derived C1/C2 cells clear a gate.
 
-**Status:** Accepted · **2026-08-30** · Branch evidence under `docs/measurements/r2/`
+**Status:** Under review · **2026-08-31** · Branch evidence under `docs/measurements/r2/`
 
 ## Context
 
@@ -10,83 +16,73 @@
 The server uses Tokio. A major page fault on an mmap’d slice is **not** an `.await`, so it freezes
 every task on that OS thread.
 
-Question: how should we bring frame bytes into a state safe for `wrap` / `write_all`?
+Question: how should we bring frame bytes into a state safe for `write_all` (next version: no
+`wrap()` — the only copy is quinn’s inside the write)?
 
-## Decision
+## Decision (provisional)
 
-**Use mmap + residency check (`mincore`) + blocking pre-touch only when cold.**
+**Use mmap + unconditional blocking pre-touch (`spawn_blocking(touch_frame_pages)`), then
+`frame_slice` + write on the executor.**
 
 1. Map the study once (`mmap`).
-2. Before serving frame *i*, call `frame_pages_resident(i)` on the executor (no fault).
-3. If not fully resident → `spawn_blocking(touch_frame_pages(i))` (one byte / 4 KiB).
-4. Then `frame_slice` + `wrap` + `write_all` on the executor.
+2. Before serving frame *i*, always `spawn_blocking(touch_frame_pages(i))`.
+3. Then `frame_slice` + `write_all` on the executor.
 
-Do **not** load the whole study into process RAM. Do **not** use `pread` as the default path.
+Do **not** load the whole study into process RAM.
+
+The **`mincore` gate** (skip hop when resident) is **lab-contested**: keep as a lab arm; do not
+ship as product default until memory-pressure + multi-session cells clear it — and if kept, it
+needs a verification step after the hop, not check-alone (review §6 D2).
+
+### Soft guarantee (document either way)
+
+Pages touched on the pool may be reclaimed before quinn finishes copying them under memory
+pressure. With `wrap()` removed, the window is the **whole flow-controlled write**, not one
+immediate `memcpy`. `pread` into a private buffer is the hard guarantee (one extra copy).
 
 ## Consequences
 
 | | |
 | --- | --- |
-| **Good** | Cold faults leave the executor; warm frames skip the pool hop (~sub‑µs later p50 in lab). No full-frame copy for the access step. |
-| **Cost** | Extra `mincore` syscall per frame; rare false “not resident” → unnecessary hop (safe). |
-| **Still true** | Product `wrap` still copies into a `Vec` for the wire; this ADR is about *storage → ready bytes*, not QUIC zero-copy. |
+| **Good** | Cold faults leave the executor; co-tenant sessions can run while one session hops. |
+| **Cost** | Pool hop on every frame (~10–30 µs latency on lab hosts) even when already hot — mostly overlaps under concurrency (to be confirmed by multi-session cell). |
+| **Next version** | No product `wrap` copy; mmap arms do **1** copy (quinn); `pread` does **2**. That strengthens mmap vs `pread` on copy count and weakens any residency prediction that must hold for the whole write. |
 
 ## Alternatives considered
 
 | Option | Verdict | Why |
 | --- | --- | --- |
-| mmap naive (touch on executor) | **Rejected** | Freezes runtime when cold (`stall_samples=1`). |
-| mmap always `spawn_blocking` touch (L3 v1) | **Superseded** by hybrid | Safe, but pays ~10 µs hop even when already hot. |
-| `pread` on blocking pool | **Rejected as default** | Same safety class; copies every frame; warm later ~3× hybrid. Keep as escape hatch if mmap/`mincore` ever broken on a FS. |
-| `madvise(WILLNEED)` then touch on executor | **Rejected** | Does not remove executor stall in our cells. |
-| Blocking ahead-2 / ask-queue prefetch | **Deferred** | Needs a real ask window; ahead-2 did not beat single-frame prefault on series wall. |
-| Dedicated mmap-fault OS thread | **Deferred** | Lab hop ≈ `spawn_blocking`; isolation only matters under pool contention we have not measured in product. |
-| `io_uring` read | **Deferred** | True async file I/O; high integration cost with multi-thread Tokio + userspace QUIC; prior art: wins mainly for deep `O_DIRECT` queues, not warm page-cache serve. |
-| `sendfile` / splice file→socket | **Rejected for this stack** | Zero-copy into kernel TCP paths; WebTransport/QUIC is userspace — bytes still enter library buffers. |
-| `O_DIRECT` + app cache | **Rejected** | Throws away page cache that helps revisits; app would reimplement caching. |
-| SPDK / userspace NVMe | **Rejected** | Out of scope for SBND-on-filesystem. |
+| mmap naive (touch/read on executor) | **Rejected** | Major faults block every task on that OS thread (invariant stands; re-measured with co-tenant gaps). |
+| mmap always `spawn_blocking` touch (L3 v1) | **Provisional default** | Safe in review pressure cells; pays hop always. |
+| mmap + `mincore` gate (hybrid) | **Contested / not default** | Warm path looks like naive when arms do equal work; under >RAM pressure gate fires rarely and worst executor block ≫ always-touch (review §5). |
+| `pread` on blocking pool | **First-class candidate** | 2 copies vs 1, but immune to reclaim and to the widened write window. Re-measure with pooled buffers, not a fresh `Vec` per ask. |
+| `madvise(WILLNEED)` then touch on executor | **Rejected** | Does not move the fault off the executor. |
+| Blocking ahead-2 / ask-queue prefetch | **Deferred** | Needs a real ask window. |
+| Dedicated mmap-fault OS thread | **Deferred** | Lab hop ≈ `spawn_blocking` unless pool contends. |
+| `io_uring` read | **Deferred** | Lab learning; prior art wins mainly at deep `O_DIRECT` QD. |
+| `sendfile` / splice file→socket | **Rejected for this stack** | Userspace QUIC still copies. |
+| `O_DIRECT` + app cache | **Rejected** | Wrong default for revisitable studies. |
+| SPDK / userspace NVMe | **Rejected** | Out of scope. |
 | Whole-study preload | **Rejected** | Does not survive DBT-scale RAM. |
 
 ## Evidence
 
-- Campaign Wave A/B: `docs/measurements/r2/DISK_ACCESS_CAMPAIGN.md`
-- Follow-up (hybrid / dedicated): `docs/measurements/r2/DISK_ACCESS_FOLLOWUP.md`
-- **Realistic final wave** (large series · `live_cell_scroll` · full / prefix_4k / prefix_64k):
-  `docs/measurements/r2/DISK_ACCESS_REALISTIC.md`
+Prior campaign TSVs remain on the branch as **raw history** but their stall columns and warm
+hybrid-vs-naive ranking are **not decision evidence** (F1–F5). Re-runs use the fixed instrument
+(`docs/l3-disk-access-evidence-review.md` §6–§7).
+
+- Evidence review + required actions: `docs/l3-disk-access-evidence-review.md`
+- Raw review probes: `docs/measurements/r2/REVIEW_2026-08-31_RAW.txt`
+- Historical campaigns (caveated): `docs/measurements/r2/DISK_ACCESS_*.md`
 - Prior art: `docs/disk-access-prior-art.md`
-- Team brief: `docs/disk-access-team-brief.md`
-- Implementation: `FrameStore::frame_pages_resident`, `send_one_frame` in `server/src/transport/server.rs`
+- Implementation: `FrameStore::touch_frame_pages`, `send_one_frame` (always-touch)
 
-### Realistic wave — explained (why the decision still holds)
+## Follow-ups (blocking for any gate return)
 
-Study `frames_250k_live` (320 × 250 KB). Decision arms only. Overlayfs lab (≤ T2).
+1. **Memory-pressure cell (C1)** — study ≫ page cache; report worst co-tenant gap per arm.
+2. **Multi-session cell (C2)** — other sessions’ latency while one goes cold; decides whether hop saving matters.
+3. If gate returns: verification after hop + document reclaim race.
 
-**Warm user-like scroll (`live_cell_scroll`, 500 asks) · full frame**
+Non-blocking: real-disk confirm, dedicated pool under product load, `io_uring` lab.
 
-| Arm | later p50 | hop p50 | Why it matters |
-| --- | ---: | ---: | --- |
-| **hybrid** | **0.64 µs** | **0** | Already-resident frames skip the pool; typical scroll after first pass. |
-| always blocking touch | 12 µs | 12 µs | Safe but pays hop tax every ask even when hot. |
-| pread | 37 µs | 37 µs | Same safety class; **125 MB** copied for this trace. |
-| naive | 0.88 µs | 0 | Fast when warm — but see cold row. |
-
-**Cold same trace · full frame**
-
-| Arm | stall n | stall max | Why it matters |
-| --- | ---: | ---: | --- |
-| naive | **1** | **~55 ms** | Heartbeat never woke during the series → executor frozen. |
-| **hybrid** | **50** | ~1.5 ms | Runtime stayed alive; hops only while pages are cold. |
-
-**Partial access (prefix_4k / prefix_64k) on the same warm scroll:** hybrid remains hop-free and sub‑µs; `pread` copies shrink (2 MB / 33 MB) but still lose to hybrid on later/hop. Ranking does **not** flip if we only needed early HTJ2K bytes.
-
-**Large-series forward (320 frames, warm full):** hybrid later ~0.40 µs / hop 0 — same shape as the 80-frame follow-up at larger N.
-
-Product path remains **full-frame** hybrid; prefix helpers are lab/API for progressive experiments, not a change to wire serve.
-
-Evidence tier ≤ T2 (lab / overlayfs). Optional confirm on a real study volume does not change the decision shape unless ranking flips.
-
-## Follow-ups (non-blocking)
-
-Listed in `docs/disk-access-later.md` — **multi-session cold-under-load** (other sessions’ latency while one session faults), dedicated pool under load, io_uring lab experiment, real-disk confirm, ask-queue prefetch when a window exists.
-
-Essentialist merge plan (what lands on `main` vs research branch): `docs/l3-merge-plan.md`.
+Merge plan: `docs/l3-merge-plan.md` — **do not prune harness/TSVs until numbers are re-derived**.

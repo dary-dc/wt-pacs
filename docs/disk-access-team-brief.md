@@ -29,8 +29,12 @@ Related (same docs):
 | Name | Plain meaning |
 | --- | --- |
 | **first** | Time for the **first** frame (often colder / includes startup). |
-| **stall max / stall n** | Did the async runtime keep beating a heartbeat while serving? `stall n = 1` + large stall max ≈ **executor froze**. Many samples ≈ **runtime stayed alive**. |
+| **gap p50 / p99 / max** (new instrument) | How long a co-tenant `yield_now` task waited between polls — executor unavailable to another session. |
 | **hop p50** | Median cost of the **thread-pool round trip** (`spawn_blocking`) when the arm uses one. |
+
+**Deprecated (do not use for safety conclusions):** old **stall max / stall n** from the sleep-heartbeat
+instrument. `stall n = 1` is produced by *any* arm that never awaits — including warm cells — and is
+**not** “executor froze” (evidence review F1–F2).
 
 **Caveat:** numbers are from a cloud container (overlayfs). Use them to **rank** approaches, not as Oracle-rig absolute µs.
 

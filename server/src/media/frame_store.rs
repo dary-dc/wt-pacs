@@ -6,6 +6,7 @@ use study_bundle::parse_layout;
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct FrameStore {
     file: File,
@@ -78,7 +79,7 @@ impl FrameStore {
     /// fault is not an `.await`, so it stalls every task sharing the OS thread. After this returns,
     /// `frame_slice` + `write_all` on the executor should not take major faults for that frame.
     ///
-    /// One byte per 4 KiB (plus the last byte). No copy, no second mapping.
+    /// One byte per host page (plus the last byte). No copy, no second mapping.
     pub fn touch_frame_pages(&self, index: u32) -> Result<()> {
         touch_pages(self.frame_slice(index)?);
         Ok(())
@@ -93,10 +94,18 @@ impl FrameStore {
     /// `true` if every page backing `index` is currently resident (page-cache / RAM).
     ///
     /// Uses `mincore(2)`. Safe to call on the async executor — it does not fault pages in.
-    /// On error (unsupported FS, etc.) returns `Ok(false)` so callers take the slow/safe path.
+    /// Propagates bad frame index / slice errors. Returns `Ok(false)` only when `mincore`
+    /// itself fails (unsupported FS, etc.) so callers can take the slow/safe path.
     pub fn frame_pages_resident(&self, index: u32) -> Result<bool> {
         let slice = self.frame_slice(index)?;
         Ok(pages_resident(slice).unwrap_or(false))
+    }
+
+    /// Like [`Self::frame_pages_resident`], but returns `Err` when `mincore` fails so callers
+    /// can distinguish "not resident" from "syscall unsupported".
+    pub fn frame_pages_resident_strict(&self, index: u32) -> Result<bool> {
+        let slice = self.frame_slice(index)?;
+        pages_resident(slice).ok_or_else(|| anyhow::anyhow!("mincore failed for frame {index}"))
     }
 
     /// `true` if every page covering the first `max_bytes` of `index` is resident.
@@ -153,11 +162,25 @@ impl FrameStore {
     }
 }
 
+/// Host page size from `sysconf(_SC_PAGESIZE)` (fallback 4096).
+pub fn host_page_size() -> usize {
+    static PAGE: OnceLock<usize> = OnceLock::new();
+    *PAGE.get_or_init(|| {
+        let n = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        if n > 0 {
+            n as usize
+        } else {
+            4096
+        }
+    })
+}
+
 /// Touch one byte per page so the kernel faults the range now, not during a later read.
 pub fn touch_pages(bytes: &[u8]) {
+    let page = host_page_size();
     let mut acc = 0u8;
-    for page in bytes.chunks(4096) {
-        acc ^= page[0];
+    for chunk in bytes.chunks(page) {
+        acc ^= chunk[0];
     }
     if let Some(last) = bytes.last() {
         acc ^= *last;
@@ -165,19 +188,18 @@ pub fn touch_pages(bytes: &[u8]) {
     std::hint::black_box(acc);
 }
 
-const PAGE_SIZE: usize = 4096;
-
 /// `mincore` over the pages spanning `bytes`. `None` if the syscall fails.
 fn pages_resident(bytes: &[u8]) -> Option<bool> {
     if bytes.is_empty() {
         return Some(true);
     }
+    let page = host_page_size();
     let addr = bytes.as_ptr() as usize;
     let end = addr + bytes.len();
-    let start = addr & !(PAGE_SIZE - 1);
+    let start = addr & !(page - 1);
     let len = end.saturating_sub(start);
-    let len = len.div_ceil(PAGE_SIZE) * PAGE_SIZE;
-    let n_pages = len / PAGE_SIZE;
+    let len = len.div_ceil(page) * page;
+    let n_pages = len / page;
     let mut vec = vec![0u8; n_pages];
     // SAFETY: `start`..`start+len` covers mapped pages of `bytes` (mmap region).
     let rc = unsafe { libc::mincore(start as *mut libc::c_void, len, vec.as_mut_ptr()) };
@@ -193,6 +215,13 @@ mod tests {
     use super::*;
     use study_bundle::write_bundle;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn host_page_size_is_power_of_two() {
+        let p = host_page_size();
+        assert!(p >= 4096, "page size {p}");
+        assert!(p.is_power_of_two(), "page size {p}");
+    }
 
     #[test]
     fn round_trip_from_writer() -> Result<()> {
@@ -222,6 +251,7 @@ mod tests {
         store.pread_frame_prefix(1, &mut pref)?;
         assert_eq!(&pref, &f1[..5]);
         store.advise_frame_willneed(1)?;
+        assert!(store.frame_pages_resident(99).is_err());
         let _ = std::fs::remove_file(path);
         Ok(())
     }
