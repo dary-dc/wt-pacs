@@ -25,7 +25,7 @@ Current experiment state, so this plan is not read as jumping the queue.
 | **X1** `finish()` gate | **PASS** |
 | **X2** lossless mode comparison | **has data**, but the 18.2% gap at 150 ms RTT is **unexplained** |
 | **X3** loss decider | **INVALID.** Unequal depths (shared `D_min` 2, per-frame 8, both run at `D=4`), a control that failed unnoticed (92% gap at **zero** loss), an overridden stop gate, p95 over ~4 tail samples, and an unexplained `mild_cell` timeout |
-| Copy-cost knee sweep | **not started** (`send-path-copy-costs.md`) |
+| Copy-cost knee sweep | **not started** (see [`WIRE.md`](WIRE.md) § Server send path) |
 | **This plan (N6)** | blocked on §3 |
 
 **Do this first, before N6** — see [`stream-mode-remediation.md`](stream-mode-remediation.md):

@@ -15,7 +15,7 @@ use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
 use fod::FodMsg;
-use frame_envelope::wrap;
+use frame_envelope::ENVELOPE_LEN;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -220,9 +220,9 @@ async fn send_one_frame(
             rec.located(t0, LocateOutcome::Ok, bytes.len());
 
             let t1 = rec.stamp();
-            let payload = wrap(idx, bytes);
-            match write_payload(connection, shared, acks, &payload).await {
-                Ok(()) => rec.wrote(t1, WriteOutcome::Sent, payload.len()),
+            let envelope_len = ENVELOPE_LEN + bytes.len();
+            match write_payload(connection, shared, acks, idx, bytes).await {
+                Ok(()) => rec.wrote(t1, WriteOutcome::Sent, envelope_len),
                 Err(err) => {
                     rec.wrote(t1, WriteOutcome::WriteErr, 0);
                     return Err(err);
@@ -248,22 +248,26 @@ async fn send_one_frame(
 }
 
 /// `Some` = append to the session's shared stream. `None` = one stream per frame.
-/// Both write `[4B BE len][envelope]`; the modes differ only in how long a stream lives.
+/// Both write `[4B BE len][4B BE display_index][codestream]`; the modes differ only in how long a
+/// stream lives. Three writes — len, index, mmap slice — avoid assembling a contiguous envelope
+/// (`wrap()` memcpy). `write_all` still copies the codestream into QUIC's send buffer once.
 async fn write_payload(
     connection: &Connection,
     shared: &mut Option<SendStream>,
     acks: &mut JoinSet<()>,
-    payload: &[u8],
+    display_index: u32,
+    codestream: &[u8],
 ) -> Result<()> {
-    // Two writes, not one buffer: building `[len][payload]` would copy the whole frame a
-    // second time (`wrap` already copied it once). `write_all` copies into the connection's
-    // send buffer either way, so the extra allocation buys nothing.
-    // See docs/send-path-copy-costs.md. This fix has been reverted once — keep it.
-    let len = (payload.len() as u32).to_be_bytes();
+    let envelope_len = (ENVELOPE_LEN + codestream.len()) as u32;
+    let len = envelope_len.to_be_bytes();
+    let index = display_index.to_be_bytes();
     match shared {
         Some(uni) => {
             uni.write_all(&len).await.context("write shared len")?;
-            uni.write_all(payload).await.context("write shared frame")?;
+            uni.write_all(&index).await.context("write shared index")?;
+            uni.write_all(codestream)
+                .await
+                .context("write shared codestream")?;
         }
         None => {
             let mut uni = connection
@@ -273,7 +277,10 @@ async fn write_payload(
                 .await
                 .context("open uni ready")?;
             uni.write_all(&len).await.context("write len")?;
-            uni.write_all(payload).await.context("write envelope")?;
+            uni.write_all(&index).await.context("write index")?;
+            uni.write_all(codestream)
+                .await
+                .context("write codestream")?;
 
             // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
             // the peer's acknowledgement (~272 ms measured), which caps throughput at

@@ -111,10 +111,10 @@ let bytes = match store.frame_slice(idx) {
     Ok(b) => { rec.on_located(b.len()); b }
     Err(e) => { rec.on_refused(...); /* write FrameError */ return Ok(()); }
 };
-let payload = wrap(idx, bytes);
+let index = idx.to_be_bytes();
 rec.on_first_byte();
-write_payload(...).await?;
-rec.on_last_byte(payload.len());
+write_payload(..., index, bytes).await?;
+rec.on_last_byte(ENVELOPE_LEN + bytes.len());
 ```
 
 Clocks live inside `rec` when the feature is on; product code does not call `Instant::now`.
@@ -203,7 +203,7 @@ from the two raw files — not as a shipped join product.
 | **S6** | One localhost smoke + one shaped cell when rig free | Raw artifacts only |
 
 **Do not** change the wire, stream mode logic, or `write_payload` copy discipline
-(`send-path-copy-costs.md`) except to place emit points around existing writes.
+([`WIRE.md`](WIRE.md) § Server send path) except to place emit points around existing writes.
 
 ---
 
