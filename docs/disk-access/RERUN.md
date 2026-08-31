@@ -1,18 +1,11 @@
 # Disk-access re-run (fixed instrument) — 2026-08-31
 
-**Host:** cloud agent container (overlayfs, ~16 GB RAM) · **Branch:** `cursor/l3-executor-stall-bc88`  
-**Spec:** [`docs/l3-disk-access-evidence-review.md`](../../l3-disk-access-evidence-review.md) §6–§7  
-**Harness:** `lab/disk-access-bench` / `lab/cold-page-bench` after A1–A5 / B1–B3 fixes  
+**Host:** cloud agent container (overlayfs, ~16 GB RAM)  
+**Decision:** [`adr.md`](adr.md) · **Restore lab:** [`README.md`](README.md)
 
-**Instrument changes vs prior campaigns:** co-tenant `yield_now` gaps (not sleep heartbeat);
-per-frame await + quinn-shaped `write_sim`; every arm consumes bytes the same way; cold =
-one pass; `--repeats 5`; streamed cold copies with Drop cleanup; mempressure script asserts a
-real cgroup limit (in-process `--require-cgroup-mem-bytes`).
-
-> **Harness location:** `lab/disk-access-bench` and `lab/scripts/run_disk_access_mempressure.sh`
-> were pruned from this essentialist tip; restore from git at `ca94a87` (or any ancestor) to re-run.
-
-Prior campaign TSVs / stall columns remain as **raw history only** (in git) — do not cite for decisions.
+**Instrument:** co-tenant `yield_now` gaps; per-frame await + quinn-shaped `write_sim`; equal
+byte consume; cold = one pass; `--repeats 5`; real cgroup mempressure assert.
+Prior flawed campaigns stay in git only — do not cite for decisions.
 
 ---
 
@@ -65,7 +58,7 @@ TSV: [`disk_access_multisession.tsv`](disk_access_multisession.tsv)
   --temp warm --temp cold --trace forward --access full \
   --chunk 16384 --repeats 5 \
   --sessions 4 --session-asks 400 \
-  --out docs/measurements/r2/disk_access_multisession.tsv
+  --out docs/disk-access/disk_access_multisession.tsv
 ```
 
 Backgrounds are sized to **outlast** the cold primary (`other_asks=1600` vs primary wall ~44–80 ms).
@@ -86,10 +79,6 @@ keep neighbours near the warm baseline on this no-pressure cell. Warm hop cost s
 **primary** later p50 in other campaigns (~10–30 µs); neighbours stay similar when the primary is
 warm — state hop-worth from primary numbers, not as a background-arm result.
 
-Earlier short-background run (`--session-asks 80`) archived as
-[`disk_access_multisession_sessions4_asks80.tsv`](disk_access_multisession_sessions4_asks80.tsv)
-(backgrounds finished before primary was ~⅓ done).
-
 ---
 
 ## C1 — Memory pressure (48 MiB cgroup · 80 MB study)
@@ -102,7 +91,7 @@ lab/scripts/run_disk_access_mempressure.sh 48M -- \
   --arm mmap-naive --arm mmap-blocking-touch --arm mmap-hybrid-mincore --arm pread-blocking \
   --temp cold --trace forward --access full \
   --chunk 16384 --repeats 5 \
-  --out docs/measurements/r2/disk_access_mempressure.tsv
+  --out docs/disk-access/disk_access_mempressure.tsv
 ```
 
 Script prints `fstype=cgroup2fs` (or v1) and the bench prints `cgroup mem assert ok` — abort if either is missing.
@@ -128,8 +117,8 @@ buffers (D3), not a fresh `Vec` per ask.
 ## Product path
 
 `send_one_frame` uses **unconditional** `spawn_blocking(touch_frame_pages)` (L3 v1).
-`frame_pages_resident` remains a lab helper. Gate returns only with verification (D2) if a future
-cell clears both C1 worst-case **and** a fair all-sessions hop-cost cell.
+`mincore` / WILLNEED live only in the restored lab (`rejected_access`). Gate returns only with
+verification (D2) if a future cell clears C1 **and** a fair all-sessions hop-cost cell.
 
 ---
 
@@ -144,14 +133,14 @@ TSVs: [`disk_access_pread_pooled.tsv`](disk_access_pread_pooled.tsv) ·
   --arm mmap-blocking-touch --arm pread-blocking --arm pread-blocking-pooled \
   --temp warm --temp cold --trace forward --access full \
   --chunk 16384 --repeats 5 \
-  --out docs/measurements/r2/disk_access_pread_pooled.tsv
+  --out docs/disk-access/disk_access_pread_pooled.tsv
 
 lab/scripts/run_disk_access_mempressure.sh 48M -- \
   --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
   --arm mmap-blocking-touch --arm pread-blocking --arm pread-blocking-pooled \
   --temp cold --trace forward --access full \
   --chunk 16384 --repeats 5 \
-  --out docs/measurements/r2/disk_access_pread_pooled_mempressure.tsv
+  --out docs/disk-access/disk_access_pread_pooled_mempressure.tsv
 ```
 
 Median across 5 repeats (this host):

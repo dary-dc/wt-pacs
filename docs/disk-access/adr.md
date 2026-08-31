@@ -1,7 +1,6 @@
 # ADR: how the server reads SBND frame bytes
 
-**Status:** Accepted · **2026-08-31** · Evidence: [`docs/measurements/r2/DISK_ACCESS_RERUN.md`](measurements/r2/DISK_ACCESS_RERUN.md)  
-Prior flawed campaigns: caveated under `docs/measurements/r2/` / git history only.
+**Status:** Accepted · **2026-08-31** · Evidence: [`RERUN.md`](RERUN.md)
 
 ## Context
 
@@ -55,7 +54,7 @@ pressure. With `wrap()` removed, that window is the **whole flow-controlled writ
 
 ## Evidence (fixed instrument)
 
-See [`DISK_ACCESS_RERUN.md`](measurements/r2/DISK_ACCESS_RERUN.md):
+See [`RERUN.md`](RERUN.md):
 
 | Cell | Result |
 | --- | --- |
@@ -64,11 +63,6 @@ See [`DISK_ACCESS_RERUN.md`](measurements/r2/DISK_ACCESS_RERUN.md):
 | C2 multi-session | Cold naive inflates neighbour **p99**; always-touch does not |
 | D3 pooled `pread` | Warm always-touch **faster** than pooled `pread`; pooling ≪ gap to mmap; default unchanged |
 
-Review trail: [`l3-disk-access-evidence-review.md`](l3-disk-access-evidence-review.md).
+## Follow-ups
 
-## Follow-ups (non-blocking)
-
-- Real-disk confirm (C3)
-- All-sessions hop-cost cell (every session on the arm under test)
-- Dedicated pool under product load; `io_uring` lab
-- Gate+verify only if a future regime clears C1 **and** adds verification (D2)
+Non-blocking leftovers: [`later.md`](later.md). Lab restore: [`README.md`](README.md).
