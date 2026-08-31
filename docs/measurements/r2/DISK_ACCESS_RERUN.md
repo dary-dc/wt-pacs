@@ -9,8 +9,10 @@ per-frame await + quinn-shaped `write_sim`; every arm consumes bytes the same wa
 one pass; `--repeats 5`; streamed cold copies with Drop cleanup; mempressure script asserts a
 real cgroup limit (in-process `--require-cgroup-mem-bytes`).
 
-Prior campaign `DISK_ACCESS_{CAMPAIGN,FOLLOWUP,REALISTIC}.tsv` / stall columns remain as **raw
-history only** — do not cite for decisions.
+> **Harness location:** `lab/disk-access-bench` and `lab/scripts/run_disk_access_mempressure.sh`
+> were pruned from this essentialist tip; restore from git at `ca94a87` (or any ancestor) to re-run.
+
+Prior campaign TSVs / stall columns remain as **raw history only** (in git) — do not cite for decisions.
 
 ---
 
