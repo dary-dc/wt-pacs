@@ -279,7 +279,9 @@ concurrency. That trade should be re-made explicitly, on data, not carried over.
 - [x] C1 — A memory-limited cell: cgroup helper `lab/scripts/run_disk_access_mempressure.sh` + streamed cold
       copy. **Re-run recorded:** `docs/measurements/r2/disk_access_mempressure.tsv` + `DISK_ACCESS_RERUN.md`.
 - [x] C2 — Multi-session cell: `--sessions N` measures other sessions' ask latency during primary work.
-      **Re-run recorded:** `docs/measurements/r2/disk_access_multisession.tsv` + `DISK_ACCESS_RERUN.md`.
+      **Re-run recorded:** `docs/measurements/r2/disk_access_multisession.tsv` + `DISK_ACCESS_RERUN.md`
+      (`--sessions 4 --session-asks 400` so backgrounds outlast primary; lead with other **p99**).
+      Short-background archive: `disk_access_multisession_sessions4_asks80.tsv`.
 - [ ] C3 — Optional but cheap: a real-disk (non-overlayfs) confirm, as already planned.
 
 ### D. Re-decide the gate on the new numbers
