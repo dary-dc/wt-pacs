@@ -66,8 +66,18 @@ pub struct HarnessMetrics {
     pub recovered_ms: f64,
     /// Mean time from reader-wants to displayable; cache hits count as 0.
     pub mean_wait_ms: f64,
-    /// p95 of the same wait samples.
+    /// p95 of the same wait samples (includes cache-hit zeros).
     pub p95_wait_ms: f64,
+    /// Mean of positive waits only (network misses). 0 if no misses.
+    pub miss_mean_wait_ms: f64,
+    /// Nearest-rank p95 of positive waits only. 0 if no misses.
+    pub miss_p95_wait_ms: f64,
+    /// Steps that were already displayable (wait recorded as 0).
+    pub cache_hits: u32,
+    /// Steps that waited on the network (wait > 0).
+    pub cache_misses: u32,
+    /// cache_hits / wait_samples.
+    pub cache_hit_rate: f64,
     /// Raw per-step waits (ms); cache hits are 0. For derived random arm offline.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub wait_ms: Vec<f64>,
@@ -231,6 +241,20 @@ impl MetricsState {
             0.0
         };
         let (mean_wait_ms, p95_wait_ms) = wait_stats(&self.wait_samples_ms);
+        let misses: Vec<f64> = self
+            .wait_samples_ms
+            .iter()
+            .copied()
+            .filter(|ms| *ms > 0.0)
+            .collect();
+        let cache_misses = misses.len() as u32;
+        let cache_hits = self.wait_samples_ms.len() as u32 - cache_misses;
+        let cache_hit_rate = if self.wait_samples_ms.is_empty() {
+            0.0
+        } else {
+            cache_hits as f64 / self.wait_samples_ms.len() as f64
+        };
+        let (miss_mean_wait_ms, miss_p95_wait_ms) = wait_stats(&misses);
         HarnessMetrics {
             trace: trace.to_string(),
             mode: mode.to_string(),
@@ -244,6 +268,11 @@ impl MetricsState {
             recovered_ms,
             mean_wait_ms,
             p95_wait_ms,
+            miss_mean_wait_ms,
+            miss_p95_wait_ms,
+            cache_hits,
+            cache_misses,
+            cache_hit_rate,
             wait_ms: self.wait_samples_ms.clone(),
             wait_samples: self.wait_samples_ms.len() as u32,
             fill_rate,
@@ -307,6 +336,20 @@ mod wait_stats_tests {
         assert_eq!(new, 19.0);
         let (_mean, p95) = wait_stats(&samples);
         assert_eq!(p95, 19.0);
+    }
+
+    #[test]
+    fn miss_only_ignores_cache_hit_zeros() {
+        // 19 zeros + one 100ms miss → all-sample nearest-rank p95 is 0; miss-only p95 is 100.
+        let mut samples = vec![0.0; 19];
+        samples.push(100.0);
+        let (mean_all, p95_all) = wait_stats(&samples);
+        assert_eq!(p95_all, 0.0);
+        assert!((mean_all - 5.0).abs() < 1e-9);
+        let misses: Vec<f64> = samples.into_iter().filter(|ms| *ms > 0.0).collect();
+        let (miss_mean, miss_p95) = wait_stats(&misses);
+        assert_eq!(miss_mean, 100.0);
+        assert_eq!(miss_p95, 100.0);
     }
 }
 
