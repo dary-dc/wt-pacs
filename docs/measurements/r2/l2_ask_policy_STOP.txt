@@ -1,3 +1,6 @@
+WITHDRAWN 2026-08-31: these rows do not measure ask policy. Read
+l2_ask_policy_METHODOLOGY_REVIEW.md before quoting anything below.
+
 L2 ask-policy — post-review shaped campaign COMPLETE.
 
 Re-ran on Oracle SP with harness tip that includes review remediations
