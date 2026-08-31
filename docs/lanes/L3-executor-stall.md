@@ -1,5 +1,7 @@
 # Lane L3 — keep page faults off the executor
 
+> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](../l3-disk-access-evidence-review.md). The lane's invariant stands; the hybrid gate that shipped for it does not survive a >RAM cell.**
+
 **Status: implemented (hybrid) — see ADR.** · [`docs/adr-frame-disk-access.md`](../adr-frame-disk-access.md)  
 Optional leftovers: [`docs/disk-access-later.md`](../disk-access-later.md).
 

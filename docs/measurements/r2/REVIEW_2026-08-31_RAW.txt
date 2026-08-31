@@ -1,0 +1,223 @@
+L3 / disk-access evidence review — raw probe output
+Host: cloud agent container, 4 vCPU, 16075 MB RAM, kernel 6.18.44-fc-v22, overlayfs, uid 0
+Date: 2026-08-31T15:47:12Z · Branch: cursor/l3-executor-stall-bc88 @ d70197e
+NOTE: absolute microseconds differ from the campaign host. Structural findings are code properties
+      or are re-derived from the campaign's own committed TSVs (section 2).
+
+================ 1. Stall instrument floor (idle current_thread runtime, no work at all) ================
+idle current_thread runtime, sleep(100us):
+    lateness                   n=200   p50=  1027.41us p90=  1202.75us p99=  2215.21us max=  2395.01us mean=  1130.52us
+idle current_thread runtime, sleep(500us):
+    lateness                   n=200   p50=   686.71us p90=  1662.35us p99=  1717.78us max=  1794.17us mean=  1100.06us
+idle current_thread runtime, sleep(1000us):
+    lateness                   n=200   p50=  1139.50us p90=  1196.20us p99=  1280.29us max=  1445.42us mean=  1135.48us
+idle current_thread runtime, sleep(2000us):
+    lateness                   n=200   p50=  1147.71us p90=  1216.94us p99=  1383.74us max=  1534.49us mean=  1152.89us
+
+================ 2. Meta-analysis of the committed campaign TSVs ================
+disk_access_campaign.tsv
+   arms WITH a hop      n=36  series_wall_ms / stall_samples: median=0.87 range=[0.51,1.00]  -> one 'sample' per ~1 ms of wall
+   arms WITHOUT a hop   n=36  distinct stall_samples values = [1]  -> always 1, warm and cold alike
+   warm cells (nothing can fault): stall_max median=0.63 ms max=1.51 ms
+   warm cells whose stall_max EXCEEDS the entire series wall: 20/36
+disk_access_followup.tsv
+   arms WITH a hop      n=42  series_wall_ms / stall_samples: median=0.90 range=[0.50,1.13]  -> one 'sample' per ~1 ms of wall
+   arms WITHOUT a hop   n=18  distinct stall_samples values = [1]  -> always 1, warm and cold alike
+   warm cells (nothing can fault): stall_max median=0.63 ms max=1.55 ms
+   warm cells whose stall_max EXCEEDS the entire series wall: 20/30
+disk_access_realistic.tsv
+   arms WITH a hop      n=63  series_wall_ms / stall_samples: median=0.98 range=[0.79,1.06]  -> one 'sample' per ~1 ms of wall
+   arms WITHOUT a hop   n=27  distinct stall_samples values = [1]  -> always 1, warm and cold alike
+   warm cells (nothing can fault): stall_max median=0.84 ms max=1.44 ms
+   warm cells whose stall_max EXCEEDS the entire series wall: 18/45
+
+================ 3. cold-page-bench: 'cold' latency is 84% warm re-reads (idx = i % n) ================
+--- as published: --iterations 500 over 80 frames
+arm=naive
+warm_p50_ns=683 warm_p99_ns=3499
+cold_p50_ns=600 cold_p99_ns=982882
+warm_stall_mean_ns=1119551 warm_stall_max_ns=1119551 warm_stall_samples=1
+cold_stall_mean_ns=12755908 cold_stall_max_ns=12755908 cold_stall_samples=1
+note=stall uses current_thread tokio runtime: heartbeat sleep vs worker faults
+arm=blocking_pretouch
+warm_p50_ns=90 warm_p99_ns=320
+cold_p50_ns=35247 cold_p99_ns=603414
+warm_stall_mean_ns=513660 warm_stall_max_ns=848618 warm_stall_samples=25
+cold_stall_mean_ns=570054 cold_stall_max_ns=1514324 cold_stall_samples=35
+note=stall uses current_thread tokio runtime: heartbeat sleep vs worker faults
+note=warm_p50 is frame_slice on executor after spawn_blocking touch; warm_hop is hop+touch
+note=cold_p50/p99 are spawn_blocking hop+touch (fault cost stays on the pool)
+--- one honest pass: --iterations 80
+arm=naive
+warm_p50_ns=653 warm_p99_ns=1695
+cold_p50_ns=16293 cold_p99_ns=2529744
+warm_stall_mean_ns=721554 warm_stall_max_ns=721554 warm_stall_samples=1
+cold_stall_mean_ns=12645143 cold_stall_max_ns=12645143 cold_stall_samples=1
+note=stall uses current_thread tokio runtime: heartbeat sleep vs worker faults
+arm=blocking_pretouch
+warm_p50_ns=141 warm_p99_ns=307
+cold_p50_ns=87562 cold_p99_ns=2289069
+warm_stall_mean_ns=519055 warm_stall_max_ns=617230 warm_stall_samples=6
+cold_stall_mean_ns=576951 cold_stall_max_ns=1132445 cold_stall_samples=15
+note=stall uses current_thread tokio runtime: heartbeat sleep vs worker faults
+note=warm_p50 is frame_slice on executor after spawn_blocking touch; warm_hop is hop+touch
+note=cold_p50/p99 are spawn_blocking hop+touch (fault cost stays on the pool)
+
+================ 4. Does mincore predict a cheap executor read? (cold frames_250k) ================
+  PRE-SCAN (no reads yet): mincore resident for 4/80 frames right after fadvise(DONTNEED)
+cold study /home/user/wt-pacs/.local/measurements/probe-5132-mt.sbnd frames=80 order=forward
+  mincore said RESIDENT for 71/80 frames before any touch
+  read-on-executor | said resident n=71    p50=    39.70us p90=    54.00us p99=    82.38us max=   238.36us mean=    45.12us
+  read-on-executor | said cold n=9     p50=   807.44us p90=  2420.21us p99=  3209.36us max=  3209.36us mean=  1184.44us
+  read-on-executor | truly warm n=80    p50=    35.54us p90=    43.48us p99=    92.58us max=   238.59us mean=    39.24us
+  PRE-SCAN (no reads yet): mincore resident for 4/80 frames right after fadvise(DONTNEED)
+cold study /home/user/wt-pacs/.local/measurements/probe-5133-mt.sbnd frames=80 order=forward
+  mincore said RESIDENT for 72/80 frames before any touch
+  read-on-executor | said resident n=72    p50=    41.19us p90=    62.20us p99=   130.35us max=   228.12us mean=    48.01us
+  read-on-executor | said cold n=8     p50=   835.32us p90=  2588.79us p99=  3217.68us max=  3217.68us mean=  1241.94us
+  read-on-executor | truly warm n=80    p50=    35.46us p90=    40.93us p99=   108.91us max=   252.41us mean=    39.40us
+--- random ask order
+  PRE-SCAN (no reads yet): mincore resident for 4/80 frames right after fadvise(DONTNEED)
+cold study /home/user/wt-pacs/.local/measurements/probe-5134-mt.sbnd frames=80 order=random
+  mincore said RESIDENT for 78/80 frames before any touch
+  read-on-executor | said resident n=78    p50=    48.31us p90=    62.66us p99=    95.25us max=   110.58us mean=    51.76us
+  read-on-executor | said cold n=2     p50= 10663.29us p90= 10663.29us p99= 10663.29us max= 10663.29us mean=  8583.38us
+  read-on-executor | truly warm n=80    p50=    34.03us p90=    38.62us p99=    83.81us max=   231.56us mean=    37.58us
+
+================ 5. Executor availability: bench-shaped vs product-shaped worker (cold, 80x250KB) ================
+--- worker never awaits between frames (what lab/disk-access-bench does)
+== executor availability, worker never awaits (bench-style loop) per frame ==
+  naive            series_wall=  15.994ms
+  executor-unavailable gap     n=1     p50= 15991.96us p90= 15991.96us p99= 15991.96us max= 15991.96us mean= 15991.96us
+  hybrid_mincore   series_wall=  15.844ms
+  executor-unavailable gap     n=14895 p50=     0.57us p90=     0.64us p99=     0.98us max=  1498.87us mean=     1.04us
+  blocking_touch   series_wall=  15.899ms
+  executor-unavailable gap     n=15994 p50=     0.57us p90=     0.64us p99=     1.01us max=   151.87us mean=     0.97us
+--- worker awaits per frame (what send_one_frame does)
+== executor availability, worker AWAITS (like write_payload) per frame ==
+  naive            series_wall=  15.899ms
+  executor-unavailable gap     n=81    p50=     9.86us p90=   530.56us p99=  2511.95us max=  3841.64us mean=   196.09us
+  hybrid_mincore   series_wall=  14.928ms
+  executor-unavailable gap     n=9634  p50=     0.82us p90=     1.00us p99=     1.88us max=   198.63us mean=     1.51us
+  blocking_touch   series_wall=  17.039ms
+  executor-unavailable gap     n=11729 p50=     0.83us p90=     1.12us p99=     2.75us max=   182.44us mean=     1.41us
+== executor availability, worker AWAITS (like write_payload) per frame ==
+  naive            series_wall=  14.793ms
+  executor-unavailable gap     n=81    p50=     7.92us p90=   528.39us p99=  2514.69us max=  3208.16us mean=   182.48us
+  hybrid_mincore   series_wall=  13.792ms
+  executor-unavailable gap     n=13127 p50=     0.57us p90=     0.84us p99=     1.32us max=   227.61us mean=     1.02us
+  blocking_touch   series_wall=  16.242ms
+  executor-unavailable gap     n=18076 p50=     0.57us p90=     0.65us p99=     1.32us max=   105.66us mean=     0.87us
+
+================ 6. NEXT-VERSION model: wrap() removed, only copy is quinn's ================
+Model: gate/hop per arm, then the frame is copied into the send buffer in flow-control-sized
+chunks with an await between chunks — quinn-proto 0.11 send.rs ByteSlice::pop_chunk does
+Bytes::from(data[..limit].to_owned()) inside SendStream::write(), and write_all loops over it.
+Study: frames_250k_live (320 x 250 KB = 80 MB). 'gaps' = how long the executor was unavailable
+to a co-tenant task (ns-resolution yield monitor), i.e. what another session would wait.
+
+---------------- 6a. NO memory pressure (16 GB RAM, 80 MB study) ----------------
+--- run 1
+== next version: no wrap(); only copy is quinn's chunked copy inside write_all ==
+-- warm, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    29.1us hops=0    hop_p50=     0.0us wall=  10.90ms | gaps n=321    p50= 49.69us p99=  114.86us max=   416.34us sum=  11.01ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    31.1us hops=0    hop_p50=     0.0us wall=  11.42ms | gaps n=321    p50= 14.71us p99=  155.02us max=   256.21us sum=  11.47ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    58.1us hops=320  hop_p50=    25.1us wall=  20.48ms | gaps n=2724   p50=  0.91us p99=   69.17us max=   157.95us sum=  20.34ms | pool copy=0.0MB
+  pread            frame_p50=   105.1us hops=320  hop_p50=    84.3us wall=  35.80ms | gaps n=31284  p50=  0.60us p99=   32.76us max=   114.35us sum=  34.51ms | pool copy=80.0MB
+-- cold, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    41.4us hops=0    hop_p50=     0.0us wall=  40.50ms | gaps n=321    p50= 10.30us p99= 3992.44us max=  5252.99us sum=  40.54ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    51.8us hops=12   hop_p50=   620.2us wall=  62.83ms | gaps n=24485  p50=  0.73us p99=    6.23us max=  5406.79us sum=  61.59ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    83.0us hops=320  hop_p50=    38.1us wall=  94.29ms | gaps n=86964  p50=  0.70us p99=    1.65us max=   218.74us sum=  89.90ms | pool copy=0.0MB
+  pread            frame_p50=   117.0us hops=320  hop_p50=    92.6us wall=  68.43ms | gaps n=76352  p50=  0.57us p99=    1.35us max=   462.38us sum=  65.40ms | pool copy=80.0MB
+-- warm, quinn chunk = 16 KiB --
+  naive (no gate)  frame_p50=    51.2us hops=0    hop_p50=     0.0us wall=  16.51ms | gaps n=5121   p50=  2.44us p99=   10.93us max=    66.14us sum=  16.33ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    42.6us hops=0    hop_p50=     0.0us wall=  14.48ms | gaps n=5121   p50=  2.46us p99=   10.36us max=   102.94us sum=  14.33ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    68.4us hops=320  hop_p50=    24.0us wall=  23.21ms | gaps n=9140   p50=  0.75us p99=   20.04us max=    86.23us sum=  22.94ms | pool copy=0.0MB
+  pread            frame_p50=   114.8us hops=320  hop_p50=    83.0us wall=  38.42ms | gaps n=36536  p50=  0.58us p99=   14.73us max=   130.51us sum=  37.26ms | pool copy=80.0MB
+-- cold, quinn chunk = 16 KiB --
+  naive (no gate)  frame_p50=    53.2us hops=0    hop_p50=     0.0us wall=  56.25ms | gaps n=5121   p50=  2.73us p99=   17.84us max=  7888.47us sum=  56.05ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=   598.2us hops=7    hop_p50=  1710.5us wall= 407.09ms | gaps n=50438  p50=  0.62us p99=  283.33us max= 18382.59us sum= 404.44ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    91.0us hops=320  hop_p50=    35.0us wall=  72.58ms | gaps n=71431  p50=  0.58us p99=    7.74us max=   126.01us sum=  70.26ms | pool copy=0.0MB
+  pread            frame_p50=   117.2us hops=320  hop_p50=    87.2us wall=  82.62ms | gaps n=98791  p50=  0.58us p99=    3.59us max=   186.78us sum=  79.58ms | pool copy=80.0MB
+--- run 2
+== next version: no wrap(); only copy is quinn's chunked copy inside write_all ==
+-- warm, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    37.2us hops=0    hop_p50=     0.0us wall=  12.90ms | gaps n=321    p50= 52.11us p99=  126.84us max=   273.79us sum=  13.04ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    42.6us hops=0    hop_p50=     0.0us wall=  14.93ms | gaps n=321    p50=  6.91us p99=  183.24us max=   349.60us sum=  14.99ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    68.3us hops=320  hop_p50=    23.7us wall=  24.85ms | gaps n=2180   p50=  0.83us p99=  124.78us max=   302.80us sum=  24.72ms | pool copy=0.0MB
+  pread            frame_p50=   114.2us hops=320  hop_p50=    88.0us wall=  39.80ms | gaps n=28370  p50=  0.64us p99=   34.95us max=   333.49us sum=  38.46ms | pool copy=80.0MB
+-- cold, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    38.5us hops=0    hop_p50=     0.0us wall=  45.35ms | gaps n=321    p50= 40.80us p99= 5078.70us max=  6393.84us sum=  45.38ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    42.5us hops=12   hop_p50=  1539.6us wall=  46.58ms | gaps n=44663  p50=  0.57us p99=    2.26us max=   282.61us sum=  44.76ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    62.2us hops=320  hop_p50=    26.1us wall=  78.67ms | gaps n=86748  p50=  0.57us p99=    1.55us max=   153.98us sum=  75.11ms | pool copy=0.0MB
+  pread            frame_p50=   105.2us hops=320  hop_p50=    84.5us wall=  55.07ms | gaps n=59256  p50=  0.58us p99=    1.66us max=   110.68us sum=  52.79ms | pool copy=80.0MB
+-- warm, quinn chunk = 16 KiB --
+  naive (no gate)  frame_p50=    39.2us hops=0    hop_p50=     0.0us wall=  13.61ms | gaps n=5121   p50=  2.35us p99=    7.02us max=   127.39us sum=  13.41ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    37.7us hops=0    hop_p50=     0.0us wall=  13.55ms | gaps n=5121   p50=  2.34us p99=    9.27us max=    65.37us sum=  13.41ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    63.2us hops=320  hop_p50=    20.4us wall=  21.76ms | gaps n=7410   p50=  0.84us p99=   20.44us max=   133.72us sum=  21.55ms | pool copy=0.0MB
+  pread            frame_p50=   119.3us hops=320  hop_p50=    84.6us wall=  39.20ms | gaps n=36319  p50=  0.60us p99=   12.12us max=    99.46us sum=  37.96ms | pool copy=80.0MB
+-- cold, quinn chunk = 16 KiB --
+  naive (no gate)  frame_p50=    49.1us hops=0    hop_p50=     0.0us wall=  42.24ms | gaps n=5121   p50=  2.45us p99=   17.41us max=  4956.74us sum=  42.04ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    60.6us hops=12   hop_p50=  1168.6us wall=  45.19ms | gaps n=28393  p50=  0.90us p99=   10.27us max=   156.17us sum=  44.00ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    70.8us hops=320  hop_p50=    26.3us wall=  42.52ms | gaps n=36748  p50=  0.58us p99=   14.41us max=   125.12us sum=  41.34ms | pool copy=0.0MB
+  pread            frame_p50=   112.5us hops=320  hop_p50=    81.0us wall=  45.43ms | gaps n=47431  p50=  0.58us p99=    5.31us max=    76.70us sum=  44.01ms | pool copy=80.0MB
+
+---------------- 6b. WORKING SET > PAGE CACHE (cgroup memory limit 48 MB, study 80 MB) ----------------
+This is the regime the ADR cites as motivation (DBT ~570 MB vs <1 GB cache) and that no
+campaign cell ever entered. Study cache dropped before each run so its pages are charged
+to the limited cgroup. Warm cells only: the harness's cold-copy path allocates the whole
+study on the heap and is OOM-killed under the limit.
+--- run 1
+== next version: no wrap(); only copy is quinn's chunked copy inside write_all ==
+(study page cache dropped with fadvise(DONTNEED) before the run)
+-- warm, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    42.2us hops=0    hop_p50=     0.0us wall=  70.45ms | gaps n=321    p50= 48.12us p99= 4136.48us max=  7359.34us sum=  70.57ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    48.4us hops=13   hop_p50=  3752.9us wall=  62.33ms | gaps n=24365  p50=  0.83us p99=   33.66us max=  2871.09us sum=  60.04ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    66.4us hops=320  hop_p50=    30.1us wall=  67.12ms | gaps n=27537  p50=  0.84us p99=   49.89us max=   191.21us sum=  63.94ms | pool copy=0.0MB
+  pread            frame_p50=   104.5us hops=320  hop_p50=    82.9us wall=  56.13ms | gaps n=50089  p50=  0.58us p99=   16.78us max=   118.02us sum=  53.86ms | pool copy=80.0MB
+--- run 2
+== next version: no wrap(); only copy is quinn's chunked copy inside write_all ==
+(study page cache dropped with fadvise(DONTNEED) before the run)
+-- warm, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    45.1us hops=0    hop_p50=     0.0us wall=  72.04ms | gaps n=321    p50= 51.60us p99= 3806.81us max=  7126.38us sum=  72.22ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    42.4us hops=16   hop_p50=  1918.0us wall=  61.77ms | gaps n=46170  p50=  0.58us p99=   14.90us max=  1840.79us sum=  58.57ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    69.3us hops=320  hop_p50=    33.8us wall=  80.37ms | gaps n=55741  p50=  0.57us p99=   25.52us max=   175.54us sum=  77.02ms | pool copy=0.0MB
+  pread            frame_p50=   100.1us hops=320  hop_p50=    79.4us wall=  78.15ms | gaps n=79739  p50=  0.58us p99=    4.64us max=   140.27us sum=  74.04ms | pool copy=80.0MB
+--- run 3
+== next version: no wrap(); only copy is quinn's chunked copy inside write_all ==
+(study page cache dropped with fadvise(DONTNEED) before the run)
+-- warm, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    44.6us hops=0    hop_p50=     0.0us wall=  75.49ms | gaps n=321    p50= 57.86us p99= 4455.09us max=  8058.38us sum=  75.59ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    60.4us hops=14   hop_p50=  4088.9us wall= 102.52ms | gaps n=58548  p50=  0.65us p99=   20.46us max=  9523.17us sum=  98.32ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    83.4us hops=320  hop_p50=    32.7us wall= 211.82ms | gaps n=224088 p50=  0.57us p99=    1.90us max=   696.92us sum= 201.41ms | pool copy=0.0MB
+  pread            frame_p50=   102.1us hops=320  hop_p50=    81.7us wall= 131.78ms | gaps n=154824 p50=  0.57us p99=    2.10us max=   221.73us sum= 125.91ms | pool copy=80.0MB
+
+================ 7. Environment notes ================
+mincore semantics on this kernel: reports PAGE-CACHE residency (verified as root and as an
+unprivileged uid with no write permission on the file), not page-table mapping. A page it
+calls resident may still cost a minor fault, and may still be under in-flight readahead.
+cgroup used for 6b: /sys/fs/cgroup/memory/l3 (cgroup v1), memory.limit_in_bytes=48M
+--- run 4
+== next version: no wrap(); only copy is quinn's chunked copy inside write_all ==
+(study page cache dropped with fadvise(DONTNEED) before the run)
+-- warm, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    38.4us hops=0    hop_p50=     0.0us wall=  58.54ms | gaps n=321    p50= 51.05us p99= 4005.60us max=  5818.85us sum=  58.64ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    44.3us hops=16   hop_p50=  1825.6us wall=  79.60ms | gaps n=46990  p50=  0.59us p99=   19.33us max=  3496.49us sum=  76.65ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    70.6us hops=320  hop_p50=    36.3us wall=  71.19ms | gaps n=51993  p50=  0.58us p99=   25.75us max=   165.21us sum=  68.16ms | pool copy=0.0MB
+  pread            frame_p50=   118.2us hops=320  hop_p50=    93.7us wall= 224.00ms | gaps n=302684 p50=  0.58us p99=    1.09us max=   192.13us sum= 212.03ms | pool copy=80.0MB
+--- run 5
+== next version: no wrap(); only copy is quinn's chunked copy inside write_all ==
+(study page cache dropped with fadvise(DONTNEED) before the run)
+-- warm, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    32.9us hops=0    hop_p50=     0.0us wall=  48.20ms | gaps n=321    p50= 37.57us p99= 3594.51us max=  5579.83us sum=  48.33ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    42.3us hops=18   hop_p50=  1437.2us wall=  63.71ms | gaps n=45474  p50=  0.57us p99=   19.26us max=  1859.00us sum=  60.56ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    63.9us hops=320  hop_p50=    31.4us wall=  74.62ms | gaps n=46983  p50=  0.68us p99=   30.57us max=   232.11us sum=  71.43ms | pool copy=0.0MB
+  pread            frame_p50=    99.7us hops=320  hop_p50=    79.5us wall=  76.62ms | gaps n=77807  p50=  0.58us p99=   14.47us max=   102.38us sum=  73.09ms | pool copy=80.0MB
+--- run 6
+== next version: no wrap(); only copy is quinn's chunked copy inside write_all ==
+(study page cache dropped with fadvise(DONTNEED) before the run)
+-- warm, quinn chunk = 256 KiB --
+  naive (no gate)  frame_p50=    36.7us hops=0    hop_p50=     0.0us wall=  61.58ms | gaps n=321    p50= 45.60us p99= 3558.55us max=  7133.42us sum=  61.66ms | pool copy=0.0MB
+  hybrid_mincore   frame_p50=    40.9us hops=16   hop_p50=  2739.3us wall=  66.04ms | gaps n=46878  p50=  0.57us p99=   20.94us max=  1545.68us sum=  62.05ms | pool copy=0.0MB
+  blocking_touch   frame_p50=    67.9us hops=320  hop_p50=    36.6us wall=  76.30ms | gaps n=63386  p50=  0.57us p99=   24.19us max=   150.74us sum=  73.05ms | pool copy=0.0MB
+  pread            frame_p50=   101.1us hops=320  hop_p50=    79.3us wall=  55.33ms | gaps n=47843  p50=  0.58us p99=   23.82us max=   250.72us sum=  53.03ms | pool copy=80.0MB

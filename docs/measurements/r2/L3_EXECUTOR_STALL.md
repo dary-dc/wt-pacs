@@ -1,5 +1,7 @@
 # L3 — executor stall: raw before/after
 
+> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](../../l3-disk-access-evidence-review.md). The `cold p50` figures below are ~84% warm re-reads (`idx = i % n` over 500 iterations of an 80-frame study); one honest pass measures 22 us, not 349 ns.**
+
 **Branch:** `cursor/l3-executor-stall-bc88` · **Host:** cloud agent container (not the Oracle SP rig)  
 **Tool:** `cold-page-bench` · **Study:** `lab/fixtures/frames_250k/frames_250k.sbnd` (80 × 250000 B)  
 **Method:** `posix_fadvise(DONTNEED)` cold copy · `iterations=500` · heartbeat 500 µs  

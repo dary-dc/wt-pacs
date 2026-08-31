@@ -1,5 +1,7 @@
 # Disk-access realistic final wave
 
+> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](../../l3-disk-access-evidence-review.md). Raw TSV is sound; same two caveats as the earlier waves, and no cell here puts the working set above the page cache.**
+
 **Host:** cloud agent container (overlayfs) · **Branch:** `cursor/l3-executor-stall-bc88`  
 **TSV:** [`disk_access_realistic.tsv`](disk_access_realistic.tsv) · 90 cells  
 **Harness:** `lab/disk-access-bench --realistic`  

@@ -1,5 +1,7 @@
 # ADR: how the server reads SBND frame bytes
 
+> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](l3-disk-access-evidence-review.md). The stall columns quoted below sit at the measuring instrument's noise floor, the warm ranking compares arms that do different work, and the >RAM regime this ADR cites as motivation was never measured. Under that regime the `mincore` gate measures ~10x worse than the always-blocking touch it supersedes. Do not treat the tables here as decided.**
+
 **Status:** Accepted · **2026-08-30** · Branch evidence under `docs/measurements/r2/`
 
 ## Context

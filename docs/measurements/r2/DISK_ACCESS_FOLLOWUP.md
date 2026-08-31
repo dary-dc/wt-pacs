@@ -1,5 +1,7 @@
 # Disk-access follow-up — hybrid & dedicated pool
 
+> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](../../l3-disk-access-evidence-review.md). Raw TSV is sound; the warm ranking compares arms that do different work (the mmap arms never read the frame bytes), and the `stall_*` columns are at instrument noise.**
+
 **Host:** cloud agent container (overlayfs) · **Branch:** `cursor/l3-executor-stall-bc88`  
 **TSV:** [`disk_access_followup.tsv`](disk_access_followup.tsv) · 60 cells  
 **Arms:** naive · blocking_touch (L3) · **hybrid_mincore** · dedicated_pool · pread  

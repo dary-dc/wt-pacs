@@ -1,5 +1,7 @@
 # Disk-access campaign — raw results
 
+> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](../../l3-disk-access-evidence-review.md). Raw TSV is sound; the `stall_*` columns are at instrument noise and `stall_samples` counts await points, not faults.**
+
 **Host:** cloud agent container (overlayfs) · **Branch:** `cursor/l3-executor-stall-bc88`  
 **Spec:** [`docs/disk-access-campaign.md`](../../disk-access-campaign.md)  
 **TSV:** [`disk_access_campaign.tsv`](disk_access_campaign.tsv) · 72 cells (2 studies × 2 temps × 3 traces × 6 arms)  

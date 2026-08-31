@@ -1,5 +1,7 @@
 # Disk access for frame serve — team brief
 
+> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](l3-disk-access-evidence-review.md). In particular the `stall n = 1` reading in §2 is not valid: that value is produced by any arm without an await, warm cells included.**
+
 **2026-08-30** · wt-pacs · working notes on branch `cursor/l3-executor-stall-bc88`  
 **Audience:** anyone deciding how the server should read SBND frame bytes  
 **Status:** L3 mitigation implemented and measured; **broader options still open** — evaluate the interesting follow-ups, then write an ADR.

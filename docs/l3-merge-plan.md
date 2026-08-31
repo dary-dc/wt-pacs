@@ -1,5 +1,7 @@
 # L3 / disk-access — essentialist merge plan
 
+> ⚠️ **Evidence under review — see [`docs/l3-disk-access-evidence-review.md`](l3-disk-access-evidence-review.md). Do not prune the harness or the TSVs from `main` until the numbers behind the ADR are re-derived.**
+
 **Date:** 2026-08-31 · **Research branch:** `cursor/l3-executor-stall-bc88` (preserve on remote)  
 **Rule:** Same as [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md) — *a mechanism with no product role and thick lab-only evidence does not stay on `main`. Git history preserves everything.*
 
