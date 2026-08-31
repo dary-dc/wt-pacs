@@ -1,10 +1,13 @@
 # Plan: migrate server telemetry to the frame-pipeline contract
 
-**Status: DRAFT — seam option not approved.** Do not implement from this doc until
-[`telemetry-seam-decision-brief.md`](telemetry-seam-decision-brief.md) Decision C is settled.
-The “Chosen: domain events” section below is a **proposal only**, not a decision.
+**Status: PARTIAL.** Seam attachment **accepted** as `FrameSink` / `RecordedSink`
+([`adr-server-frame-sink.md`](adr-server-frame-sink.md), Decision C in
+[`telemetry-seam-decision-brief.md`](telemetry-seam-decision-brief.md)). The “Chosen: domain
+events” / schema-unification sections below remain **DRAFT — unapproved**; do not rewrite the
+Tap JSON contract from this doc until that pick is settled separately.
 
 **2026-08-30** · companion to [`client-frame-pipeline-telemetry-plan.md`](client-frame-pipeline-telemetry-plan.md).
+**2026-08-31** · seam implemented; schema migration still open.
 
 Goal: **one stamp vocabulary and report spine on both sides of the wire**, with server
 session logic that reads as product code — not a forest of `rec.ask` / `rec.located` /
@@ -102,22 +105,18 @@ refuse/error  ──emit Refused───►
 4. **Default binary:** `size_of::<Recorder>() == 0`, absence script extended to new symbols /
    string literals (`serve_us`, `send_us`, `server_frames` if renamed).
 
-### Readable loop shape (target)
+### Readable loop shape (current after Decision C)
 
 ```rust
-// send_one_frame — product narrative
-rec.on_ask(idx);
-let bytes = match store.frame_slice(idx) {
-    Ok(b) => { rec.on_located(b.len()); b }
-    Err(e) => { rec.on_refused(...); /* write FrameError */ return Ok(()); }
-};
-let index = idx.to_be_bytes();
-rec.on_first_byte();
-write_payload(..., index, bytes).await?;
-rec.on_last_byte(ENVELOPE_LEN + bytes.len());
+sink.ask(idx);
+match sink.time_locate(|| store.frame_slice(idx)) {
+    Ok(bytes) => sink.send_frame(idx, bytes).await?,
+    Err(e) => { /* FrameError */ sink.on_refused(); }
+}
 ```
 
-Clocks live inside `rec` when the feature is on; product code does not call `Instant::now`.
+Clocks and outcome enums live in `RecordedSink` when `feature = "telemetry"`; product
+`LiveSink` methods are empty of measurement. Schema unification (below) is still draft.
 
 ---
 

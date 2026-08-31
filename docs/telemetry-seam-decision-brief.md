@@ -3,7 +3,9 @@
 **Audience:** analyst / decision agent with no prior chat context.  
 **Date:** 2026-08-30  
 **Repo:** `wt-pacs` (WebTransport medical-frame delivery; Rust server + TS/WASM browser clients).  
-**Status:** open — **no further implementation until options below are decided.**
+**Status:** Decision B resolved earlier; **Decision C accepted 2026-08-31** (server
+`FrameSink` decorator — see [`adr-server-frame-sink.md`](adr-server-frame-sink.md)).
+Decision A (client stamp site) remains open.
 
 ---
 
@@ -20,7 +22,7 @@ We need **latency telemetry** on the **receive path** (browser) and optionally a
 3. **Null ≠ 0:** absent stages export `null`, never fake zeros.
 4. **Wire unchanged.** FoD control + length-prefixed media envelopes stay as today.
 5. **Artifacts:** per run directory, two files — `telemetry-client.json`, `telemetry-server.json`. No merge/join pipeline.
-6. **Do not implement** until the decision table in §Options is filled.
+6. **Decision A** still open for client stamp site; **Decision C implemented** (server FrameSink).
 
 ---
 
@@ -28,7 +30,10 @@ We need **latency telemetry** on the **receive path** (browser) and optionally a
 
 **Client:** app asks by display index over a bidi control stream; media returns on server uni streams as `[4B BE len][4B BE index][HTJ2K]`. Shared mode multiplexes many frames on one uni; per-frame mode uses one uni per frame. Product framing lives in private methods (`pumpFramedStream` / `readLengthPrefixed`). Public API: `connect`, `requestExactFrame`, `startExactFrames`, `waitExactFrame`, …
 
-**Server:** `run_session` reads FoD; `send_one_frame` does `ask → frame_slice → wrap → write_all(len)+write_all(payload)`. `RequestFrames` is one control message then **N serial sends** — ask identity is per frame index inside the loop, not recoverable from “Nth write” alone without carrying the index.
+**Server:** `run_session` reads FoD; `send_one_frame` does
+`ask → time_locate(frame_slice) → send_frame` (three `write_all`: len, index, mmap
+codestream). Lab wraps the sink in `RecordedSink`. `RequestFrames` is one control message
+then **N serial sends** — ask identity is per frame index via `sink.ask(idx)`.
 
 **Already in tree (branch work):** external client install/Proxy; session wrap for gesture/delivered; §5.1-style byte attribution; harvest to run folders; draft server migration doc that **prematurely** picked “domain events” — treat that pick as **unapproved**.
 
@@ -59,6 +64,12 @@ We need **latency telemetry** on the **receive path** (browser) and optionally a
 | **C2** | Wrap I/O (`SendStream::write_all`, FoD read) like client Proxy | Closest to browser ADR | No global to patch; `RequestFrames` needs explicit frame index at ask — wrap-only write cannot invent it |
 | **C3** | Domain events at ask/locate/first/last byte, ZST subscriber | Readable loop; zero default cost | Not “Proxy”; was drafted without approval |
 | **C4** | Other (analyst proposes) | — | Must meet hard constraints |
+
+**Accepted (2026-08-31):** **C4 = planner Option B** — `FrameSink` + `LiveSink` /
+`RecordedSink` decorator ([`adr-server-frame-sink.md`](adr-server-frame-sink.md)).
+Product loop has no stamp/outcome lines; `ask(idx)` remains explicit on the trait; default
+build never constructs `RecordedSink`. Report schema stays today’s Tap. Domain-events /
+client-aligned vocabulary (draft server plan) remain a separate, unapproved migration.
 
 ---
 

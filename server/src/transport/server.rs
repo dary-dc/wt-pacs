@@ -7,22 +7,27 @@
 //! `Option<SendStream>`: `Some` = one shared stream for the session, `None` = one
 //! stream per frame. Nothing downstream branches on a flag.
 //!
-//! Recording: `crate::record::Recorder` — zero-sized unless `feature = "telemetry"`.
+//! Recording (Decision C / Option B): product `LiveSink` has zero telemetry tokens;
+//! lab builds wrap it in `RecordedSink` at session start. See
+//! `docs/telemetry-seam-decision-brief.md` and `docs/adr-server-frame-sink.md`.
 
 use crate::media::frame_store::FrameStore;
-use crate::record::{LocateOutcome, Recorder, WriteOutcome};
+use crate::transport::frame_sink::{FrameSink, LiveSink};
 use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
 use fod::FodMsg;
-use frame_envelope::ENVELOPE_LEN;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::task::JoinSet;
 use tracing::{info, warn};
 use wtransport::stream::{RecvStream, SendStream};
-use wtransport::{Connection, Endpoint, Identity, ServerConfig};
+use wtransport::{Endpoint, Identity, ServerConfig};
+
+#[cfg(feature = "telemetry")]
+use crate::record::Recorder;
+#[cfg(feature = "telemetry")]
+use crate::transport::frame_sink::RecordedSink;
 
 /// How frames reach the client. A process-wide configuration choice, resolved to an
 /// `Option<SendStream>` once per session.
@@ -129,27 +134,46 @@ async fn handle_incoming(
         StreamMode::PerFrame => None,
     };
 
-    run_session(connection, control_send, control_recv, store, shared).await
+    let is_shared = shared.is_some();
+    let sink = LiveSink {
+        connection,
+        shared,
+        acks: JoinSet::new(),
+    };
+
+    // Fork once: default binary never constructs RecordedSink / Recorder.
+    #[cfg(feature = "telemetry")]
+    {
+        let rec = Recorder::for_session();
+        return run_session(
+            RecordedSink { inner: sink, rec },
+            control_send,
+            control_recv,
+            store,
+            is_shared,
+        )
+        .await;
+    }
+
+    #[cfg(not(feature = "telemetry"))]
+    {
+        run_session(sink, control_send, control_recv, store, is_shared).await
+    }
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
-async fn run_session(
-    connection: Connection,
+async fn run_session<S: FrameSink>(
+    mut sink: S,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
     store: Arc<FrameStore>,
-    mut shared: Option<SendStream>,
+    is_shared: bool,
 ) -> Result<()> {
-    let mut rec = Recorder::for_session();
-
     info!(
         frames = store.frame_count(),
-        shared = shared.is_some(),
+        shared = is_shared,
         "session opened"
     );
-
-    // Per-frame mode only: holds the acknowledgement waits moved off this loop.
-    let mut acks = JoinSet::new();
 
     loop {
         let msg = match read_fod_msg(&mut control_recv).await {
@@ -162,29 +186,11 @@ async fn run_session(
 
         match msg {
             FodMsg::RequestFrame { frame } => {
-                send_one_frame(
-                    &connection,
-                    &mut shared,
-                    &mut acks,
-                    &mut control_send,
-                    &store,
-                    frame,
-                    &mut rec,
-                )
-                .await?;
+                send_one_frame(&mut sink, &mut control_send, &store, frame).await?;
             }
             FodMsg::RequestFrames { frames } => {
                 for frame in frames {
-                    send_one_frame(
-                        &connection,
-                        &mut shared,
-                        &mut acks,
-                        &mut control_send,
-                        &store,
-                        frame,
-                        &mut rec,
-                    )
-                    .await?;
+                    send_one_frame(&mut sink, &mut control_send, &store, frame).await?;
                 }
             }
             FodMsg::EndSession => break,
@@ -194,43 +200,21 @@ async fn run_session(
         }
     }
 
-    // Let trailing frames finish acknowledging before the connection closes.
-    let _ = tokio::time::timeout(Duration::from_secs(2), async {
-        while acks.join_next().await.is_some() {}
-    })
-    .await;
+    sink.drain_acks().await;
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn send_one_frame(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
+async fn send_one_frame<S: FrameSink>(
+    sink: &mut S,
     control_send: &mut SendStream,
     store: &FrameStore,
     idx: u32,
-    rec: &mut Recorder,
 ) -> Result<()> {
-    rec.ask(idx);
+    sink.ask(idx);
 
-    let t0 = rec.stamp();
-    match store.frame_slice(idx) {
-        Ok(bytes) => {
-            rec.located(t0, LocateOutcome::Ok, bytes.len());
-
-            let t1 = rec.stamp();
-            let envelope_len = ENVELOPE_LEN + bytes.len();
-            match write_payload(connection, shared, acks, idx, bytes).await {
-                Ok(()) => rec.wrote(t1, WriteOutcome::Sent, envelope_len),
-                Err(err) => {
-                    rec.wrote(t1, WriteOutcome::WriteErr, 0);
-                    return Err(err);
-                }
-            }
-        }
+    match sink.time_locate(|| store.frame_slice(idx)) {
+        Ok(bytes) => sink.send_frame(idx, bytes).await,
         Err(err) => {
-            rec.located(t0, LocateOutcome::NotFound, 0);
             warn!(frame = idx, %err, "frame refused");
             write_fod_msg(
                 control_send,
@@ -240,55 +224,8 @@ async fn send_one_frame(
                 },
             )
             .await?;
-            let t1 = rec.stamp();
-            rec.wrote(t1, WriteOutcome::Refused, 0);
+            sink.on_refused();
+            Ok(())
         }
     }
-    Ok(())
-}
-
-/// `Some` = append to the session's shared stream. `None` = one stream per frame.
-/// Both write `[4B BE len][4B BE display_index][codestream]`; the modes differ only in how long a
-/// stream lives. Three writes — len, index, mmap slice — avoid assembling a contiguous envelope
-/// (`wrap()` memcpy). `write_all` still copies the codestream into QUIC's send buffer once.
-async fn write_payload(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    display_index: u32,
-    codestream: &[u8],
-) -> Result<()> {
-    let envelope_len = (ENVELOPE_LEN + codestream.len()) as u32;
-    let len = envelope_len.to_be_bytes();
-    let index = display_index.to_be_bytes();
-    match shared {
-        Some(uni) => {
-            uni.write_all(&len).await.context("write shared len")?;
-            uni.write_all(&index).await.context("write shared index")?;
-            uni.write_all(codestream)
-                .await
-                .context("write shared codestream")?;
-        }
-        None => {
-            let mut uni = connection
-                .open_uni()
-                .await
-                .context("open uni")?
-                .await
-                .context("open uni ready")?;
-            uni.write_all(&len).await.context("write len")?;
-            uni.write_all(&index).await.context("write index")?;
-            uni.write_all(codestream)
-                .await
-                .context("write codestream")?;
-
-            // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
-            // the peer's acknowledgement (~272 ms measured), which caps throughput at
-            // Tf/(Tf+RTT) when awaited inline. See docs/adr-frame-framing-and-loop-shape.md.
-            acks.spawn(async move {
-                let _ = uni.finish().await;
-            });
-        }
-    }
-    Ok(())
 }

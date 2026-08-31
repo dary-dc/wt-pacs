@@ -1,11 +1,15 @@
 # Telemetry seam — session findings and proposals
 
-**2026-08-31** · **Status: findings and proposals. Nothing here is approved to implement.**
+**2026-08-31** · **Status: findings archive.** Decision C was **accepted** as the
+`FrameSink` / `RecordedSink` decorator ([`adr-server-frame-sink.md`](adr-server-frame-sink.md)).
+§5 proposals below are historical context; do not re-litigate the seam against them without
+amending the ADR.
 
 **Revision note.** First drafted against `64e2c0a`; revised against `9832e9f` after `61dbd29`
 removed the `wrap()` memcpy from the send path. §2.3 and §3.1 changed materially in that
 revision — §3.1 records a conclusion this document got wrong. All file:line citations were
-re-verified against `9832e9f`.
+re-verified against `9832e9f` (line numbers for `server.rs` stamps are obsolete after the
+FrameSink move).
 Companion to [`telemetry-seam-decision-brief.md`](telemetry-seam-decision-brief.md) (Decision C)
 and [`server-frame-pipeline-telemetry-plan.md`](server-frame-pipeline-telemetry-plan.md) (draft).
 

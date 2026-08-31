@@ -438,7 +438,7 @@ Spec §7 applies unchanged. These are this project's own; three are already scar
 | Frame 0 in the mean | WASM fetch + compile charged to the transport | Exclude |
 | Running on localhost | "No difference", for unrelated reasons | netem in a user netns. X3 already produced one unusable result this way |
 | `transfer` named as binding on a single-chunk frame | Blaming the wire for a structural zero | `chunks == 1` exclusion |
-| Client and server percentiles by different rules | A join comparing unlike numbers | §10 |
+| Client and server percentiles by different rules | Side-by-side summaries disagree | §10 nearest-rank on both; no join file |
 
 ---
 

@@ -97,21 +97,12 @@ different points, because it is the same code stamping.
   `parseLengthPrefixed`, which currently has no callers at all
 - It does **not** fix the event-loop timing confound. Only D does, and D is not a dependency
 
-## The server keeps its inline seam — deliberately
+## The server uses a `FrameSink` decorator — deliberately different from the browser
 
-This ADR does not apply to `server/src/record/`, and the divergence is intentional rather than an
-oversight to be unified later.
+**Updated 2026-08-31.** See [`adr-server-frame-sink.md`](adr-server-frame-sink.md).
 
-The server has no equivalent objects to wrap without cost. Its three recorder calls could map onto
-`read_fod_msg`, `FrameStore::frame_slice` and `SendStream::write_all`, but `RequestFrames` is one
-control message and *N* sends, so a wrapped Tap would have to correlate them **positionally** — a
-correctness assumption where `rec.ask(idx)` currently has none, in exactly the batch path whose ask
-ordinals the fill analysis depends on.
+The browser keeps Proxy-on-`WebTransport` (option G). The server has no equivalent global.
+It uses a small `FrameSink` trait: product `LiveSink`, lab `RecordedSink` wrapping
+`Recorder`/`Tap`. `ask(idx)` remains explicit so `RequestFrames` stays correct.
 
-More plainly: **the server's telemetry works, is tested, has a CI absence check, and produced the only
-trustworthy numbers in the tree.** Refactoring it buys elegance and risks a regression in the one
-component that can currently be believed. The client code is not written yet, so the better seam is
-free there.
-
-If server invasiveness is revisited, the cheap 80% is wrapping `frame_slice` and `write_all` only,
-leaving `rec.ask(idx)` inline — it is the one call carrying information no wrapper can recover.
+The Tap report schema is unchanged; this ADR’s client decision is unchanged.
