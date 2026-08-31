@@ -173,6 +173,10 @@ struct Args {
     /// Asks per background session during multi-session cell.
     #[arg(long, default_value_t = 200)]
     session_asks: u32,
+    /// Abort unless this process is in a cgroup with memory limit ≤ this many bytes.
+    /// Used by `run_disk_access_mempressure.sh` so a fake tmpfs "cgroup" cannot silently clear the gate.
+    #[arg(long)]
+    require_cgroup_mem_bytes: Option<u64>,
     #[arg(long)]
     out: Option<PathBuf>,
 }
@@ -793,8 +797,94 @@ enum TraceSpec {
     File { name: String, frames: Vec<u32> },
 }
 
+/// Confirm we are inside a real memory cgroup with a finite limit ≤ `max_bytes`.
+/// Rejects plain files on tmpfs that a buggy wrapper might create as "memory.max".
+fn assert_cgroup_mem_limit(max_bytes: u64) -> Result<()> {
+    let cg = std::fs::read_to_string("/proc/self/cgroup").context("read /proc/self/cgroup")?;
+    // cgroup v2: single line `0::/path`
+    let v2_path = cg.lines().find_map(|l| l.strip_prefix("0::"));
+    if let Some(rel) = v2_path {
+        let base = PathBuf::from(format!("/sys/fs/cgroup{rel}"));
+        let max_path = base.join("memory.max");
+        let cur_path = base.join("memory.current");
+        if !cur_path.is_file() {
+            anyhow::bail!(
+                "cgroup mem assert failed: {} missing (not a real memory cgroup? path={})",
+                cur_path.display(),
+                base.display()
+            );
+        }
+        let raw = std::fs::read_to_string(&max_path)
+            .with_context(|| format!("read {}", max_path.display()))?
+            .trim()
+            .to_string();
+        if raw == "max" {
+            anyhow::bail!(
+                "cgroup mem assert failed: memory.max is unlimited at {}",
+                max_path.display()
+            );
+        }
+        let got: u64 = raw
+            .parse()
+            .with_context(|| format!("parse memory.max={raw:?}"))?;
+        if got > max_bytes {
+            anyhow::bail!(
+                "cgroup mem assert failed: memory.max={got} > required ≤{max_bytes} ({})",
+                max_path.display()
+            );
+        }
+        eprintln!(
+            "cgroup mem assert ok: path={} memory.max={} memory.current={}",
+            base.display(),
+            got,
+            std::fs::read_to_string(&cur_path).unwrap_or_default().trim()
+        );
+        return Ok(());
+    }
+    // cgroup v1: memory:/path
+    let v1_path = cg.lines().find_map(|l| {
+        let mut parts = l.split(':');
+        let _id = parts.next()?;
+        let ctrl = parts.next()?;
+        let path = parts.next()?;
+        if ctrl.split(',').any(|c| c == "memory") {
+            Some(path)
+        } else {
+            None
+        }
+    });
+    if let Some(rel) = v1_path {
+        let base = PathBuf::from(format!("/sys/fs/cgroup/memory{rel}"));
+        let lim_path = base.join("memory.limit_in_bytes");
+        let raw = std::fs::read_to_string(&lim_path)
+            .with_context(|| format!("read {}", lim_path.display()))?
+            .trim()
+            .to_string();
+        let got: u64 = raw
+            .parse()
+            .with_context(|| format!("parse memory.limit_in_bytes={raw:?}"))?;
+        // v1 "unlimited" is a huge number near 2^63
+        if got > max_bytes {
+            anyhow::bail!(
+                "cgroup mem assert failed: memory.limit_in_bytes={got} > required ≤{max_bytes} ({})",
+                lim_path.display()
+            );
+        }
+        eprintln!(
+            "cgroup mem assert ok: path={} memory.limit_in_bytes={}",
+            base.display(),
+            got
+        );
+        return Ok(());
+    }
+    anyhow::bail!("cgroup mem assert failed: no memory cgroup in /proc/self/cgroup:\n{cg}")
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
+    if let Some(limit) = args.require_cgroup_mem_bytes {
+        assert_cgroup_mem_limit(limit)?;
+    }
     let arms = if let Some(a) = args.arm {
         a
     } else if args.decision || args.realistic {

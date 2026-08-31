@@ -2,11 +2,10 @@
 
 > ⚠️ **Status: under review** — see [`docs/l3-disk-access-evidence-review.md`](l3-disk-access-evidence-review.md).
 > Prior campaign stall columns sit at the instrument noise floor; the warm “hybrid beats naive”
-> ranking compared arms that did different work; the **>RAM regime this ADR cites was never
-> measured in those campaigns**. Under memory pressure the `mincore` gate measured ~10× worse
-> worst-case executor block than always-blocking touch (review §5). **Do not treat the old
-> tables as decided.** Product path is **unconditional `spawn_blocking` touch (L3 v1)** until
-> re-derived C1/C2 cells clear a gate.
+> ranking compared arms that did different work. Under memory pressure the `mincore` gate’s worst
+> executor block matches naive’s millisecond class (host-dependent hit rate; see re-run C1).
+> **Do not treat the old campaign tables as decided.** Product path is **unconditional
+> `spawn_blocking` touch (L3 v1)**.
 
 **Status:** Under review · **2026-08-31** · Branch evidence under `docs/measurements/r2/`
 
@@ -30,9 +29,9 @@ Question: how should we bring frame bytes into a state safe for `write_all` (nex
 
 Do **not** load the whole study into process RAM.
 
-The **`mincore` gate** (skip hop when resident) is **lab-contested**: keep as a lab arm; do not
-ship as product default until memory-pressure + multi-session cells clear it — and if kept, it
-needs a verification step after the hop, not check-alone (review §6 D2).
+The **`mincore` gate** (skip hop when resident) is **not the product default**: under >RAM
+pressure it fails open onto the executor with a host-dependent rate; keep as a lab arm. If revived,
+it needs verification after the hop, not check-alone (review §6 D2).
 
 ### Soft guarantee (document either way)
 
@@ -44,18 +43,18 @@ immediate `memcpy`. `pread` into a private buffer is the hard guarantee (one ext
 
 | | |
 | --- | --- |
-| **Good** | Cold faults leave the executor; co-tenant sessions can run while one session hops. |
-| **Cost** | Pool hop on every frame (~10–30 µs latency on lab hosts) even when already hot — mostly overlaps under concurrency (to be confirmed by multi-session cell). |
+| **Good** | Cold faults leave the executor; co-tenant sessions stay healthy while one session hops (re-run C2 other p99). |
+| **Cost** | Pool hop on every frame (~10–30 µs primary latency on lab hosts) even when already hot. |
 | **Next version** | No product `wrap` copy; mmap arms do **1** copy (quinn); `pread` does **2**. That strengthens mmap vs `pread` on copy count and weakens any residency prediction that must hold for the whole write. |
 
 ## Alternatives considered
 
 | Option | Verdict | Why |
 | --- | --- | --- |
-| mmap naive (touch/read on executor) | **Rejected** | Major faults block every task on that OS thread (invariant stands; re-measured with co-tenant gaps). |
-| mmap always `spawn_blocking` touch (L3 v1) | **Provisional default** | Safe in review pressure cells; pays hop always. |
-| mmap + `mincore` gate (hybrid) | **Contested / not default** | Warm path looks like naive when arms do equal work; under >RAM pressure gate fires rarely and worst executor block ≫ always-touch (review §5). |
-| `pread` on blocking pool | **First-class candidate** | 2 copies vs 1, but immune to reclaim and to the widened write window. Re-measure with pooled buffers, not a fresh `Vec` per ask. |
+| mmap naive (touch/read on executor) | **Rejected** | Major faults block every task on that OS thread (invariant stands; re-measured with co-tenant gaps + C2 neighbour p99). |
+| mmap always `spawn_blocking` touch (L3 v1) | **Provisional default** | Safe in pressure cells; pays hop always. |
+| mmap + `mincore` gate (hybrid) | **Rejected as default** | Equal-work warm ≈ naive; under pressure worst gap is millisecond-class at naive’s magnitude (host-dependent rate). |
+| `pread` on blocking pool | **First-class candidate** | 2 copies vs 1, but immune to reclaim and to the widened write window. Per-frame cost vs always-touch flips by host under pressure — re-measure with pooled buffers (D3). |
 | `madvise(WILLNEED)` then touch on executor | **Rejected** | Does not move the fault off the executor. |
 | Blocking ahead-2 / ask-queue prefetch | **Deferred** | Needs a real ask window. |
 | Dedicated mmap-fault OS thread | **Deferred** | Lab hop ≈ `spawn_blocking` unless pool contends. |
@@ -68,21 +67,31 @@ immediate `memcpy`. `pread` into a private buffer is the hard guarantee (one ext
 ## Evidence
 
 Prior campaign TSVs remain on the branch as **raw history** but their stall columns and warm
-hybrid-vs-naive ranking are **not decision evidence** (F1–F5). Re-runs use the fixed instrument
-(`docs/l3-disk-access-evidence-review.md` §6–§7).
+hybrid-vs-naive ranking are **not decision evidence** (F1–F5).
 
-- Evidence review + required actions: `docs/l3-disk-access-evidence-review.md`
-- Raw review probes: `docs/measurements/r2/REVIEW_2026-08-31_RAW.txt`
-- Historical campaigns (caveated): `docs/measurements/r2/DISK_ACCESS_*.md`
+**Decision evidence (fixed instrument):** [`docs/measurements/r2/DISK_ACCESS_RERUN.md`](measurements/r2/DISK_ACCESS_RERUN.md)
+— C1 mempressure (`disk_access_mempressure.tsv`), C2 multi-session (`disk_access_multisession.tsv`),
+arm-parity smoke, one-pass cold.
+
+Also:
+
+- Evidence review + checklist: `docs/l3-disk-access-evidence-review.md`
+- Raw first-review probes: `docs/measurements/r2/REVIEW_2026-08-31_RAW.txt`
+- Historical campaigns (caveated): `docs/measurements/r2/DISK_ACCESS_{CAMPAIGN,FOLLOWUP,REALISTIC}.md`
 - Prior art: `docs/disk-access-prior-art.md`
 - Implementation: `FrameStore::touch_frame_pages`, `send_one_frame` (always-touch)
 
-## Follow-ups (blocking for any gate return)
+## Follow-ups
 
-1. **Memory-pressure cell (C1)** — study ≫ page cache; report worst co-tenant gap per arm.
-2. **Multi-session cell (C2)** — other sessions’ latency while one goes cold; decides whether hop saving matters.
-3. If gate returns: verification after hop + document reclaim race.
+**Done (re-derived):** C1 memory-pressure · C2 multi-session neighbour safety — see `DISK_ACCESS_RERUN.md`.
 
-Non-blocking: real-disk confirm, dedicated pool under product load, `io_uring` lab.
+**Blocking for any gate return:**
 
-Merge plan: `docs/l3-merge-plan.md` — **do not prune harness/TSVs until numbers are re-derived**.
+1. Gate **plus** verification after hop (D2), not check-alone.
+2. Fair all-sessions hop-cost cell (all N on the arm under test + throughput) — C2 so far only measures neighbour *safety* while backgrounds are always-touch.
+
+**Raise priority:** pooled-buffer `pread` (D3) — copy-vs-safety trade still host-dependent.
+
+**Non-blocking:** real-disk confirm (C3), dedicated pool under product load, `io_uring` lab, drop prefix APIs from product type (E5).
+
+Merge plan: `docs/l3-merge-plan.md` — keep harness/TSVs until essential merge after review sign-off.
