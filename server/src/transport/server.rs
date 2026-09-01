@@ -167,7 +167,7 @@ async fn run_session(
                     &mut shared,
                     &mut acks,
                     &mut control_send,
-                    Arc::clone(&store),
+                    &store,
                     frame,
                     &mut rec,
                 )
@@ -180,7 +180,7 @@ async fn run_session(
                         &mut shared,
                         &mut acks,
                         &mut control_send,
-                        Arc::clone(&store),
+                        &store,
                         frame,
                         &mut rec,
                     )
@@ -208,17 +208,16 @@ async fn send_one_frame(
     shared: &mut Option<SendStream>,
     acks: &mut JoinSet<()>,
     control_send: &mut SendStream,
-    store: Arc<FrameStore>,
+    store: &Arc<FrameStore>,
     idx: u32,
     rec: &mut Recorder,
 ) -> Result<()> {
     rec.ask(idx);
 
     let t0 = rec.stamp();
-    // Prefault off the executor (L3 v1 / always-touch). A major fault is not an `.await`.
-    // The `mincore` gate is contested under >RAM pressure — see evidence review; product path
-    // stays unconditional until C1/C2 re-clear it.
-    let store_touch = Arc::clone(&store);
+    // Prefault off the executor — a major fault is not an `.await`.
+    // TODO(readability): hide Arc (inner FrameStore handle or block_in_place); perf unchanged.
+    let store_touch = Arc::clone(store);
     let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
         .await
         .context("join frame page touch")?;
