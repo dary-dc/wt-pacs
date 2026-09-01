@@ -230,7 +230,7 @@ async fn send_one_frame<S: FrameSink>(
         },
         Err(err) => {
             let reason = err.to_string();
-            let _ = sink.time_locate(|| Err(err));
+            sink.on_locate_failed();
             warn!(frame = idx, reason = %reason, "frame refused");
             write_fod_msg(
                 control_send,

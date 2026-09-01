@@ -82,12 +82,11 @@ impl Recorder {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "telemetry")))]
 mod tests {
     use super::*;
 
     /// The guarantee the deleted `Record`/`Noop` type parameter used to provide.
-    #[cfg(not(feature = "telemetry"))]
     #[test]
     fn recorder_is_zero_sized() {
         assert_eq!(std::mem::size_of::<Recorder>(), 0);

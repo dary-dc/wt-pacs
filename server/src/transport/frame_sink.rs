@@ -24,6 +24,9 @@ pub(crate) trait FrameSink: Send {
         f: impl FnOnce() -> Result<&'a [u8]>,
     ) -> Result<&'a [u8]>;
 
+    /// Prefault/locate failed before a slice was obtained. Lab sink records NotFound.
+    fn on_locate_failed(&mut self);
+
     fn on_refused(&mut self);
 
     fn send_frame<'a>(
@@ -129,6 +132,8 @@ impl FrameSink for LiveSink {
         f()
     }
 
+    fn on_locate_failed(&mut self) {}
+
     fn on_refused(&mut self) {}
 
     async fn send_frame(&mut self, idx: u32, bytes: &[u8]) -> Result<()> {
@@ -170,6 +175,12 @@ impl<S: FrameSink> FrameSink for RecordedSink<S> {
                 Err(err)
             }
         }
+    }
+
+    fn on_locate_failed(&mut self) {
+        let t0 = self.rec.stamp();
+        self.rec.located(t0, LocateOutcome::NotFound, 0);
+        self.inner.on_locate_failed();
     }
 
     fn on_refused(&mut self) {
@@ -216,6 +227,7 @@ mod tests {
         ) -> Result<&'a [u8]> {
             f()
         }
+        fn on_locate_failed(&mut self) {}
         fn on_refused(&mut self) {}
         async fn send_frame(&mut self, idx: u32, bytes: &[u8]) -> Result<()> {
             self.sent.push((idx, bytes.len()));
