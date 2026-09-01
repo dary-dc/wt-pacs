@@ -24,6 +24,7 @@ fod = { path = "../common/fod" }
 frame-envelope = { path = "../common/frame-envelope" }
 study-bundle = { path = "../ingest/study-bundle" }
 memmap2 = "0.9"
+libc = "0.2"
 rcgen = "0.13"
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12", "ring"] }
 rustls-pemfile = "2"
