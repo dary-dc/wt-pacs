@@ -199,20 +199,44 @@ async fn run_session<S: FrameSink>(
 async fn send_one_frame<S: FrameSink>(
     sink: &mut S,
     control_send: &mut SendStream,
-    store: &FrameStore,
+    store: &Arc<FrameStore>,
     idx: u32,
 ) -> Result<()> {
     sink.ask(idx);
 
-    match sink.time_locate(|| store.frame_slice(idx)) {
-        Ok(bytes) => sink.send_frame(idx, bytes).await,
+    // Prefault off the executor — a major fault is not an `.await`.
+    // TODO(readability): hide Arc (inner FrameStore handle or block_in_place); perf unchanged.
+    let store_touch = Arc::clone(store);
+    let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
+        .await
+        .context("join frame page touch")?;
+
+    match touch {
+        Ok(()) => match sink.time_locate(|| store.frame_slice(idx)) {
+            Ok(bytes) => sink.send_frame(idx, bytes).await,
+            Err(err) => {
+                warn!(frame = idx, %err, "frame refused");
+                write_fod_msg(
+                    control_send,
+                    &FodMsg::FrameError {
+                        frame_index: idx,
+                        reason: err.to_string(),
+                    },
+                )
+                .await?;
+                sink.on_refused();
+                Ok(())
+            }
+        },
         Err(err) => {
-            warn!(frame = idx, %err, "frame refused");
+            let reason = err.to_string();
+            let _ = sink.time_locate(|| Err(err));
+            warn!(frame = idx, reason = %reason, "frame refused");
             write_fod_msg(
                 control_send,
                 &FodMsg::FrameError {
                     frame_index: idx,
-                    reason: err.to_string(),
+                    reason,
                 },
             )
             .await?;
