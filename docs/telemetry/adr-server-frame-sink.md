@@ -1,41 +1,35 @@
-# ADR: server send-path telemetry via `FrameSink` decorator
+# ADR: server send-path telemetry via pipeline wrapper
 
-**Status:** accepted · **Date:** 2026-08-31 · **Tags:** telemetry, server  
-**Amends:** [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md) § “The server keeps its inline seam”  
-**Decides:** Decision C — server send-path seam (Option B: `FrameSink` decorator)
+**Status:** accepted (amended 2026-09-01) · **Tags:** telemetry, server  
+**Supersedes:** inline `FrameSink` hook shape from the 2026-08-31 decision  
+**Decides:** Decision C — lab wraps a product `FramePipeline`, not call-site closures
 
 ## Context
 
-The server session loop mixed product work with `Recorder` stamps (`ask` / `stamp` /
-`located` / `wrote`). The browser clients use an external Proxy seam; the open question was whether
-the server should keep inline calls, emit domain events, or wrap the send path.
+The server session loop mixed product work with timing. An earlier refactor introduced
+`FrameSink` + `RecordedSink`, but hollow hooks (`ask`, `on_refused`) and closures
+(`time_locate(|| slice)`) left measurement-shaped calls in the session loop. Prefault
+(`spawn_blocking`) sat outside the seam entirely.
 
 ## Decision
 
-**Option B — decorator over a `FrameSink` trait.**
+**Product `LivePipeline`** implements the per-frame story as methods: `prepare` → `locate` →
+`send`, with `refuse` writing `FrameError` on the control stream.
 
-- Product type `LiveSink` wraps a `FrameOut` enum (`Shared` uni vs `PerFrame` +
-  `JoinSet`) chosen once at session start — not an `Option<SendStream>` re-checked on
-  every write.
-- Lab builds (`feature = "telemetry"`) wrap it once at session start:
-  `RecordedSink { inner: LiveSink, rec: Recorder }`.
-- `run_session` / `send_one_frame` are generic over `S: FrameSink` — one loop, no twin.
-- **`ask(idx)` stays an explicit sink method.** Under `RequestFrames`, wrapping
-  `frame_slice` / `write_all` alone cannot recover the frame index.
-- Locate remains `store.frame_slice` outside the sink; `time_locate(|| …)` lets the
-  decorator stamp without borrowing the mmap slice from `&mut self`.
+**Lab `RecordedPipeline`** wraps `LivePipeline`, holds `Tap` directly, and stamps each leaf.
+The session loop calls only `serve_one` (default trait method).
 
-Default builds construct only `LiveSink`. `RecordedSink` / `Recorder` are not named on that
-path — absence by construction at the session entry, with the existing
-`check_telemetry_absent.sh` still applying to Tap symbols.
+- Prefault lives in `LivePipeline::prepare` (see `docs/disk-access/adr.md`).
+- `FrameOut` remains the media write path inside `send`.
+- Default builds construct only `LivePipeline`; `RecordedPipeline` is `#[cfg(feature = "telemetry")]`.
+
+## Report schema
+
+`telemetry-server.json` uses `schema: "server-pipeline-v1"` with stages `prepare_us`,
+`locate_us`, `send_us`, `serve_us` (µs). Refused paths export absent stages as `null`.
 
 ## Consequences
 
-- Product `send_one_frame` reads as ask → locate → send / refuse; clocks and outcome enums
-  live in `RecordedSink`.
-- Slightly more types than inline `rec.*`; no `phase!` macro, no `tracing` Layer, no
-  duplicated `*_recorded` session loop.
-- Schema of `telemetry-server.json` unchanged (same `Recorder` / `Tap`).
-- Rejected alternatives for this decision: leave inline forever (C1); raw I/O Proxy without
-  ask (insufficient); domain-events rewrite of the report contract (orthogonal, deferred);
-  `phase!` / tracing (viable, not chosen).
+- Session loop has zero telemetry tokens and no closures for locate.
+- `Recorder` intermediate layer removed; `Tap` is owned by the wrapper only.
+- ADR companion docs (`disk-access`) must reference `pipeline.rs` as prefault home.

@@ -3,15 +3,14 @@
 //! Serial loop: read one ask, send it to completion, read the next.
 //! No server-side ask queue — see docs/adr-reject-server-ordering.md.
 //!
-//! Stream mode is resolved once per session into `FrameOut` (shared uni vs per-frame).
-//! Recording (Decision C / Option B): product `LiveSink` has zero telemetry tokens;
-//! lab builds wrap it in `RecordedSink` at session start. See
-//! `docs/telemetry/adr-server-frame-sink.md`.
+//! Per-frame work runs through [`pipeline::FramePipeline`] (`LivePipeline` / lab
+//! `RecordedPipeline`). See `docs/telemetry/adr-server-frame-sink.md`.
 
 use crate::media::frame_store::FrameStore;
-use crate::transport::frame_sink::{FrameOut, FrameSink, LiveSink};
+use crate::transport::frame_sink::FrameOut;
+use crate::transport::pipeline::{FramePipeline, LivePipeline};
 use crate::transport::tls::load_pem_cert;
-use crate::transport::wire::{read_fod_msg, write_fod_msg};
+use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::path::PathBuf;
@@ -21,9 +20,7 @@ use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Endpoint, Identity, ServerConfig};
 
 #[cfg(feature = "telemetry")]
-use crate::record::Recorder;
-#[cfg(feature = "telemetry")]
-use crate::transport::frame_sink::RecordedSink;
+use crate::transport::pipeline::RecordedPipeline;
 
 /// How frames reach the client. A process-wide configuration choice, resolved to an
 /// `FrameOut` once per session.
@@ -117,7 +114,6 @@ async fn handle_incoming(
         .await
         .context("accept control bidi")?;
 
-    // Mode → FrameOut once. No Option<SendStream> re-checked per frame downstream.
     let out = match mode {
         StreamMode::Shared => {
             let uni = connection
@@ -131,17 +127,15 @@ async fn handle_incoming(
         StreamMode::PerFrame => FrameOut::per_frame(connection),
     };
     let is_shared = out.is_shared();
-    let sink = LiveSink::new(out);
+    let live = LivePipeline::new(store, out);
 
-    // Fork once: default binary never constructs RecordedSink / Recorder.
     #[cfg(feature = "telemetry")]
     {
-        let rec = Recorder::for_session();
+        let mut pipeline = RecordedPipeline::new(live);
         return run_session(
-            RecordedSink { inner: sink, rec },
+            &mut pipeline,
             control_send,
             control_recv,
-            store,
             is_shared,
         )
         .await;
@@ -149,23 +143,19 @@ async fn handle_incoming(
 
     #[cfg(not(feature = "telemetry"))]
     {
-        run_session(sink, control_send, control_recv, store, is_shared).await
+        let mut pipeline = live;
+        run_session(&mut pipeline, control_send, control_recv, is_shared).await
     }
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
-async fn run_session<S: FrameSink>(
-    mut sink: S,
+async fn run_session<P: FramePipeline>(
+    pipeline: &mut P,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
-    store: Arc<FrameStore>,
     is_shared: bool,
 ) -> Result<()> {
-    info!(
-        frames = store.frame_count(),
-        shared = is_shared,
-        "session opened"
-    );
+    info!(shared = is_shared, "session opened");
 
     loop {
         let msg = match read_fod_msg(&mut control_recv).await {
@@ -178,11 +168,11 @@ async fn run_session<S: FrameSink>(
 
         match msg {
             FodMsg::RequestFrame { frame } => {
-                send_one_frame(&mut sink, &mut control_send, &store, frame).await?;
+                pipeline.serve_one(frame, &mut control_send).await?;
             }
             FodMsg::RequestFrames { frames } => {
                 for frame in frames {
-                    send_one_frame(&mut sink, &mut control_send, &store, frame).await?;
+                    pipeline.serve_one(frame, &mut control_send).await?;
                 }
             }
             FodMsg::EndSession => break,
@@ -192,56 +182,6 @@ async fn run_session<S: FrameSink>(
         }
     }
 
-    sink.drain_acks().await;
+    pipeline.drain_acks().await;
     Ok(())
-}
-
-async fn send_one_frame<S: FrameSink>(
-    sink: &mut S,
-    control_send: &mut SendStream,
-    store: &Arc<FrameStore>,
-    idx: u32,
-) -> Result<()> {
-    sink.ask(idx);
-
-    // Prefault off the executor — a major fault is not an `.await`.
-    // TODO(readability): hide Arc (inner FrameStore handle or block_in_place); perf unchanged.
-    let store_touch = Arc::clone(store);
-    let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
-        .await
-        .context("join frame page touch")?;
-
-    match touch {
-        Ok(()) => match sink.time_locate(|| store.frame_slice(idx)) {
-            Ok(bytes) => sink.send_frame(idx, bytes).await,
-            Err(err) => {
-                warn!(frame = idx, %err, "frame refused");
-                write_fod_msg(
-                    control_send,
-                    &FodMsg::FrameError {
-                        frame_index: idx,
-                        reason: err.to_string(),
-                    },
-                )
-                .await?;
-                sink.on_refused();
-                Ok(())
-            }
-        },
-        Err(err) => {
-            let reason = err.to_string();
-            sink.on_locate_failed();
-            warn!(frame = idx, reason = %reason, "frame refused");
-            write_fod_msg(
-                control_send,
-                &FodMsg::FrameError {
-                    frame_index: idx,
-                    reason,
-                },
-            )
-            .await?;
-            sink.on_refused();
-            Ok(())
-        }
-    }
 }

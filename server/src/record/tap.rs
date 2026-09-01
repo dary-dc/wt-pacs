@@ -3,7 +3,7 @@
 //! Hot path: `try_send` fixed `Copy` records into a process-wide bounded queue.
 //! Drain thread writes one JSON report on shutdown (summary first). No panics (R7).
 
-use crate::record::{LocateOutcome, Refusal, WriteOutcome};
+use crate::record::{LocateOutcome, WriteOutcome};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
@@ -14,23 +14,24 @@ use std::time::Instant;
 use tracing::{info, warn};
 
 const RING_CAP: usize = 4096;
+const SCHEMA: &str = "server-pipeline-v1";
 
 static SESSION_IDS: AtomicU64 = AtomicU64::new(1);
 static ACTIVE_TAPS: AtomicU64 = AtomicU64::new(0);
 static SINK: OnceLock<Mutex<Option<SyncSender<FrameRecord>>>> = OnceLock::new();
 static DROP_TOTAL: AtomicU64 = AtomicU64::new(0);
 
-/// Fixed-width row — durations and counts only (R4, R8).
+/// Fixed-width row — durations in µs; absent stages are `None` (JSON null).
 #[derive(Clone, Copy, Debug)]
-#[repr(C)]
 pub struct FrameRecord {
     pub session_id: u64,
     pub frame_index: u32,
     pub ask_ordinal: u32,
-    pub server_work_us: u32,
-    pub server_write_us: u32,
-    /// Continuous span: `ask()` → row emit (locate + send/refuse).
-    pub server_serve_us: u32,
+    pub prepare_us: Option<u32>,
+    pub locate_us: Option<u32>,
+    pub send_us: Option<u32>,
+    /// Continuous span: `begin_frame` → row emit.
+    pub serve_us: u32,
     pub server_bytes_sent: u32,
     pub locate_outcome: u8,
     pub write_outcome: u8,
@@ -42,7 +43,8 @@ pub struct Tap {
     ordinals: HashMap<u32, u32>,
     frame_index: u32,
     ask_ordinal: u32,
-    pending_work_us: u32,
+    pending_prepare_us: Option<u32>,
+    pending_locate_us: Option<u32>,
     pending_bytes: u32,
     pending_locate: u8,
     drops_since_emit: u16,
@@ -66,7 +68,8 @@ impl Tap {
             ordinals: HashMap::new(),
             frame_index: 0,
             ask_ordinal: 0,
-            pending_work_us: 0,
+            pending_prepare_us: None,
+            pending_locate_us: None,
             pending_bytes: 0,
             pending_locate: LocateOutcome::Ok as u8,
             drops_since_emit: 0,
@@ -81,10 +84,46 @@ impl Tap {
         n
     }
 
-    fn try_emit(&mut self, write_outcome: WriteOutcome, write_us: u32) {
+    pub(crate) fn begin_frame(&mut self, frame_index: u32) {
+        self.serve_start = Some(Instant::now());
+        self.frame_index = frame_index;
+        self.ask_ordinal = self.take_ordinal(frame_index);
+        self.pending_prepare_us = None;
+        self.pending_locate_us = None;
+        self.pending_bytes = 0;
+        self.pending_locate = LocateOutcome::Ok as u8;
+    }
+
+    pub(crate) fn record_prepare(&mut self, us: u32) {
+        self.pending_prepare_us = Some(us);
+    }
+
+    pub(crate) fn record_locate(&mut self, us: u32, outcome: LocateOutcome, byte_len: usize) {
+        self.pending_locate_us = Some(us);
+        self.pending_locate = outcome as u8;
+        if outcome == LocateOutcome::Ok {
+            self.pending_bytes = usize_to_u32(byte_len);
+        }
+    }
+
+    pub(crate) fn emit_sent(&mut self, send_us: u32, envelope_len: usize) {
+        self.pending_bytes = usize_to_u32(envelope_len);
+        self.try_emit(WriteOutcome::Sent, Some(send_us));
+    }
+
+    pub(crate) fn emit_write_err(&mut self, send_us: u32) {
+        self.try_emit(WriteOutcome::WriteErr, Some(send_us));
+    }
+
+    pub(crate) fn emit_refused(&mut self) {
+        self.pending_locate = LocateOutcome::NotFound as u8;
+        self.try_emit(WriteOutcome::Refused, None);
+    }
+
+    fn try_emit(&mut self, write_outcome: WriteOutcome, send_us: Option<u32>) {
         let dropped = self.drops_since_emit;
         self.drops_since_emit = 0;
-        let server_serve_us = self
+        let serve_us = self
             .serve_start
             .take()
             .map(|t| micros_since(t))
@@ -93,9 +132,10 @@ impl Tap {
             session_id: self.session_id,
             frame_index: self.frame_index,
             ask_ordinal: self.ask_ordinal,
-            server_work_us: self.pending_work_us,
-            server_write_us: write_us,
-            server_serve_us,
+            prepare_us: self.pending_prepare_us,
+            locate_us: self.pending_locate_us,
+            send_us,
+            serve_us,
             server_bytes_sent: self.pending_bytes,
             locate_outcome: self.pending_locate,
             write_outcome: write_outcome as u8,
@@ -115,31 +155,6 @@ impl Tap {
                 }
             }
         }
-    }
-}
-
-impl Tap {
-    pub(crate) fn ask(&mut self, frame_index: u32) {
-        self.serve_start = Some(Instant::now());
-        self.frame_index = frame_index;
-        self.ask_ordinal = self.take_ordinal(frame_index);
-    }
-
-    pub(crate) fn located(&mut self, since: Instant, outcome: LocateOutcome, byte_len: usize) {
-        self.pending_work_us = micros_since(since);
-        self.pending_locate = outcome as u8;
-        self.pending_bytes = usize_to_u32(byte_len);
-    }
-
-    pub(crate) fn wrote(&mut self, since: Instant, outcome: WriteOutcome, byte_len: usize) {
-        if outcome == WriteOutcome::Sent {
-            self.pending_bytes = usize_to_u32(byte_len);
-        }
-        self.try_emit(outcome, micros_since(since));
-    }
-
-    pub(crate) fn refused(&mut self, _reason: Refusal) {
-        // Facts already recorded via located/wrote on the refuse path.
     }
 }
 
@@ -208,6 +223,7 @@ fn drain_loop(rx: std::sync::mpsc::Receiver<FrameRecord>, path: PathBuf) {
 
     let written = frames.len() as u64;
     let report = TelemetryReport {
+        schema: SCHEMA,
         summary: acc.build_summary(),
         server_frames: frames,
         run_end: RunEndMeta {
@@ -235,6 +251,7 @@ fn drain_loop(rx: std::sync::mpsc::Receiver<FrameRecord>, path: PathBuf) {
 
 #[derive(serde::Serialize)]
 struct TelemetryReport {
+    schema: &'static str,
     summary: RunSummary,
     server_frames: Vec<FrameRecordJson>,
     run_end: RunEndMeta,
@@ -249,17 +266,19 @@ struct RunEndMeta {
 
 #[derive(Default)]
 struct RunAccumulator {
-    work: Vec<u32>,
-    write: Vec<u32>,
+    prepare: Vec<u32>,
+    locate: Vec<u32>,
+    send: Vec<u32>,
     serve: Vec<u32>,
     bytes: Vec<u32>,
 }
 
 impl RunAccumulator {
     fn push(&mut self, row: &FrameRecord) {
-        self.work.push(row.server_work_us);
-        self.write.push(row.server_write_us);
-        self.serve.push(row.server_serve_us);
+        self.prepare.push(row.prepare_us.unwrap_or(0));
+        self.locate.push(row.locate_us.unwrap_or(0));
+        self.send.push(row.send_us.unwrap_or(0));
+        self.serve.push(row.serve_us);
         self.bytes.push(row.server_bytes_sent);
     }
 
@@ -267,14 +286,16 @@ impl RunAccumulator {
         RunSummary {
             frame_count: self.serve.len() as u32,
             totals: SummaryTotals {
-                server_work_us: self.work.iter().map(|&v| u64::from(v)).sum(),
-                server_write_us: self.write.iter().map(|&v| u64::from(v)).sum(),
-                server_serve_us: self.serve.iter().map(|&v| u64::from(v)).sum(),
+                prepare_us: self.prepare.iter().map(|&v| u64::from(v)).sum(),
+                locate_us: self.locate.iter().map(|&v| u64::from(v)).sum(),
+                send_us: self.send.iter().map(|&v| u64::from(v)).sum(),
+                serve_us: self.serve.iter().map(|&v| u64::from(v)).sum(),
                 server_bytes_sent: self.bytes.iter().map(|&v| u64::from(v)).sum(),
             },
-            server_work_us: distribution_stats(&self.work),
-            server_write_us: distribution_stats(&self.write),
-            server_serve_us: distribution_stats(&self.serve),
+            prepare_us: distribution_stats(&self.prepare),
+            locate_us: distribution_stats(&self.locate),
+            send_us: distribution_stats(&self.send),
+            serve_us: distribution_stats(&self.serve),
             server_bytes_sent: distribution_stats(&self.bytes),
         }
     }
@@ -284,17 +305,19 @@ impl RunAccumulator {
 struct RunSummary {
     frame_count: u32,
     totals: SummaryTotals,
-    server_work_us: DistributionStats,
-    server_write_us: DistributionStats,
-    server_serve_us: DistributionStats,
+    prepare_us: DistributionStats,
+    locate_us: DistributionStats,
+    send_us: DistributionStats,
+    serve_us: DistributionStats,
     server_bytes_sent: DistributionStats,
 }
 
 #[derive(serde::Serialize)]
 struct SummaryTotals {
-    server_work_us: u64,
-    server_write_us: u64,
-    server_serve_us: u64,
+    prepare_us: u64,
+    locate_us: u64,
+    send_us: u64,
+    serve_us: u64,
     server_bytes_sent: u64,
 }
 
@@ -374,9 +397,13 @@ struct FrameRecordJson {
     session_id: u64,
     frame_index: u32,
     ask_ordinal: u32,
-    server_work_us: u32,
-    server_write_us: u32,
-    server_serve_us: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    prepare_us: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    locate_us: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    send_us: Option<u32>,
+    serve_us: u32,
     server_bytes_sent: u32,
     locate_outcome: u8,
     write_outcome: u8,
@@ -390,9 +417,10 @@ impl From<FrameRecord> for FrameRecordJson {
             session_id: r.session_id,
             frame_index: r.frame_index,
             ask_ordinal: r.ask_ordinal,
-            server_work_us: r.server_work_us,
-            server_write_us: r.server_write_us,
-            server_serve_us: r.server_serve_us,
+            prepare_us: r.prepare_us,
+            locate_us: r.locate_us,
+            send_us: r.send_us,
+            serve_us: r.serve_us,
             server_bytes_sent: r.server_bytes_sent,
             locate_outcome: r.locate_outcome,
             write_outcome: r.write_outcome,
@@ -411,7 +439,8 @@ mod tests {
             ordinals: HashMap::new(),
             frame_index: 0,
             ask_ordinal: 0,
-            pending_work_us: 0,
+            pending_prepare_us: None,
+            pending_locate_us: None,
             pending_bytes: 0,
             pending_locate: 0,
             drops_since_emit: 0,
@@ -422,47 +451,45 @@ mod tests {
     #[test]
     fn ordinals_per_frame() {
         let mut t = test_tap();
-        t.ask(7);
+        t.begin_frame(7);
         assert_eq!(t.ask_ordinal, 0);
-        t.ask(7);
+        t.begin_frame(7);
         assert_eq!(t.ask_ordinal, 1);
-        t.ask(3);
+        t.begin_frame(3);
         assert_eq!(t.ask_ordinal, 0);
     }
 
     #[test]
-    fn serve_span_starts_at_ask_and_ends_at_wrote() {
+    fn serve_span_starts_at_begin_and_ends_at_emit() {
         let mut t = test_tap();
-        t.ask(0);
+        t.begin_frame(0);
         assert!(t.serve_start.is_some());
 
-        let t0 = Instant::now();
-        t.located(t0, LocateOutcome::Ok, 4096);
-        let t1 = Instant::now();
-        t.wrote(t1, WriteOutcome::Sent, 4096);
+        t.record_prepare(5);
+        t.record_locate(1, LocateOutcome::Ok, 4096);
+        t.emit_sent(10, 4096);
         assert!(t.serve_start.is_none());
     }
 
-    /// Batch-like loop: each ask arms its own serve_start; re-ask increments ordinal.
     #[test]
     fn batch_like_asks_emit_independent_serve_and_ordinals() {
         let mut t = test_tap();
 
-        t.ask(5);
+        t.begin_frame(5);
         assert_eq!(t.ask_ordinal, 0);
-        let serve0 = t.serve_start.expect("serve_start armed at ask");
+        let serve0 = t.serve_start.expect("serve_start armed at begin_frame");
         std::thread::sleep(std::time::Duration::from_millis(2));
-        let loc = Instant::now();
-        t.located(loc, LocateOutcome::Ok, 100);
+        t.record_prepare(100);
+        t.record_locate(50, LocateOutcome::Ok, 100);
         let serve_us_0 = micros_since(serve0);
-        t.wrote(Instant::now(), WriteOutcome::Sent, 104);
-        assert!(t.serve_start.is_none(), "serve_start consumed at wrote");
+        t.emit_sent(200, 104);
+        assert!(t.serve_start.is_none(), "serve_start consumed at emit");
         assert!(
             serve_us_0 >= 1_500,
             "first row serve must cover sleep after its own ask, got {serve_us_0}"
         );
 
-        t.ask(5);
+        t.begin_frame(5);
         assert_eq!(t.ask_ordinal, 1);
         let serve1 = t.serve_start.expect("new serve_start for second ask");
         assert!(
@@ -470,22 +497,42 @@ mod tests {
             "second ask must arm a new serve_start, not reuse the first"
         );
         std::thread::sleep(std::time::Duration::from_millis(1));
-        t.located(Instant::now(), LocateOutcome::Ok, 100);
+        t.record_prepare(80);
+        t.record_locate(40, LocateOutcome::Ok, 100);
         let serve_us_1 = micros_since(serve1);
-        t.wrote(Instant::now(), WriteOutcome::Sent, 104);
+        t.emit_sent(150, 104);
         assert!(
             serve_us_1 < serve_us_0,
-            "second row serve is its own ask→wrote window ({serve_us_1}), not the first ({serve_us_0})"
+            "second row serve is its own ask→emit window ({serve_us_1}), not the first ({serve_us_0})"
         );
 
-        t.ask(9);
+        t.begin_frame(9);
         assert_eq!(t.ask_ordinal, 0);
     }
 
     #[test]
+    fn stage_partition_invariant() {
+        let row = FrameRecord {
+            session_id: 1,
+            frame_index: 0,
+            ask_ordinal: 0,
+            prepare_us: Some(20),
+            locate_us: Some(1),
+            send_us: Some(40),
+            serve_us: 65,
+            server_bytes_sent: 100,
+            locate_outcome: LocateOutcome::Ok as u8,
+            write_outcome: WriteOutcome::Sent as u8,
+            dropped_since_last: 0,
+        };
+        let p = row.prepare_us.unwrap_or(0);
+        let l = row.locate_us.unwrap_or(0);
+        let s = row.send_us.unwrap_or(0);
+        assert!(row.serve_us >= p + l + s);
+    }
+
+    #[test]
     fn nearest_rank_disagrees_with_linear_interpolation() {
-        // N=10, p95: nearest-rank → sorted[9]=100
-        // linear (old): (N-1)*0.95 = 8.55 → interpolate 9 and 100
         let sorted: Vec<u32> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 100];
         assert_eq!(percentile(&sorted, 95.0), 100.0);
         let linear_rank = (sorted.len() - 1) as f64 * 0.95;
@@ -507,9 +554,10 @@ mod tests {
                 session_id: 1,
                 frame_index: 0,
                 ask_ordinal: 0,
-                server_work_us: 0,
-                server_write_us: 100,
-                server_serve_us: 101,
+                prepare_us: Some(1),
+                locate_us: Some(0),
+                send_us: Some(100),
+                serve_us: 101,
                 server_bytes_sent: 1000,
                 locate_outcome: 0,
                 write_outcome: 0,
@@ -519,9 +567,10 @@ mod tests {
                 session_id: 1,
                 frame_index: 1,
                 ask_ordinal: 0,
-                server_work_us: 0,
-                server_write_us: 300,
-                server_serve_us: 305,
+                prepare_us: Some(1),
+                locate_us: Some(0),
+                send_us: Some(300),
+                serve_us: 305,
                 server_bytes_sent: 2000,
                 locate_outcome: 0,
                 write_outcome: 0,
@@ -532,9 +581,9 @@ mod tests {
         }
         let summary = acc.build_summary();
         assert_eq!(summary.frame_count, 2);
-        assert_eq!(summary.totals.server_serve_us, 406);
-        assert_eq!(summary.server_write_us.total, 400);
-        assert_eq!(summary.server_write_us.min, 100);
-        assert_eq!(summary.server_write_us.max, 300);
+        assert_eq!(summary.totals.serve_us, 406);
+        assert_eq!(summary.send_us.total, 400);
+        assert_eq!(summary.send_us.min, 100);
+        assert_eq!(summary.send_us.max, 300);
     }
 }

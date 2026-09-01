@@ -4,11 +4,23 @@ Lab-only frame-pipeline timing for the wt-pacs browser clients and server. Defau
 builds contain **no telemetry code**; lab builds harvest JSON reports from a run folder.
 
 **Decisions:** [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md)
-(client Proxy G) · [`adr-server-frame-sink.md`](adr-server-frame-sink.md) (server `FrameSink` B)
+(client Proxy G) · [`adr-server-frame-sink.md`](adr-server-frame-sink.md) (server pipeline seam)
 
 ---
 
-## Artifacts
+## Server report (`schema: server-pipeline-v1`)
+
+Per-frame stages (µs):
+
+| Field | Interval |
+| --- | --- |
+| `prepare_us` | prefault (`spawn_blocking(touch_frame_pages)`) |
+| `locate_us` | `frame_slice` only |
+| `send_us` | media `write_all` |
+| `serve_us` | ask → row emit (total) |
+
+Invariant: `serve_us >= prepare_us + locate_us + send_us` (residual = loop overhead).
+Refused rows export absent stages as JSON `null`.
 
 Each harvest run writes **two independent files** (no join file):
 
@@ -19,7 +31,8 @@ Each harvest run writes **two independent files** (no join file):
 
 Output directory: `.local/measurements/<stamp>-…/` (created by the e2e harness).
 
-**Schema unification is deferred.** Server stages (`server_work_us`, `server_serve_us`) and client
+**Schema unification is deferred.** Server stages (`prepare_us`, `locate_us`, `send_us`, `serve_us`)
+and client stages (`queue`, `serve_plus_path`, `transfer`, …) stay independent until a separate
 stages (`queue`, `serve_plus_path`, `transfer`, …) stay independent until a separate product
 decision approves migration.
 
@@ -87,6 +100,6 @@ session-method totals only (A2), product framing edits (A3), or hybrid (A4). See
 | Area | Path |
 | --- | --- |
 | Client install + Proxy | `client/transport-ts/record/` |
-| Server sink + Tap | `server/src/transport/frame_sink.rs`, `server/src/record/` |
+| Server pipeline + Tap | `server/src/transport/pipeline.rs`, `server/src/record/tap.rs` |
 | E2e harvest | `server/scripts/verify_e2e.py` |
 | Harness import order | `client/harness/ts.html`, `client/harness/index.html` |
