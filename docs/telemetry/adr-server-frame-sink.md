@@ -2,12 +2,12 @@
 
 **Status:** accepted · **Date:** 2026-08-31 · **Tags:** telemetry, server  
 **Amends:** [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md) § “The server keeps its inline seam”  
-**Decides:** Decision C in [`telemetry-seam-decision-brief.md`](telemetry-seam-decision-brief.md)
+**Decides:** Decision C — server send-path seam (Option B: `FrameSink` decorator)
 
 ## Context
 
 The server session loop mixed product work with `Recorder` stamps (`ask` / `stamp` /
-`located` / `wrote`). The browser clients use an external Proxy seam; the brief asked whether
+`located` / `wrote`). The browser clients use an external Proxy seam; the open question was whether
 the server should keep inline calls, emit domain events, or wrap the send path.
 
 ## Decision

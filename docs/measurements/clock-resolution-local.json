@@ -1,7 +1,0 @@
-{
-  "crossOriginIsolated": true,
-  "min_nonzero_delta_ms": 0.004999999888241291,
-  "clock_resolution_us": 5,
-  "nonzero_samples": 4825,
-  "performance_timeOrigin": 1788107533878.895
-}

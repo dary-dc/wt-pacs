@@ -6,7 +6,7 @@
 //! Stream mode is resolved once per session into `FrameOut` (shared uni vs per-frame).
 //! Recording (Decision C / Option B): product `LiveSink` has zero telemetry tokens;
 //! lab builds wrap it in `RecordedSink` at session start. See
-//! `docs/adr-server-frame-sink.md`.
+//! `docs/telemetry/adr-server-frame-sink.md`.
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_sink::{FrameOut, FrameSink, LiveSink};

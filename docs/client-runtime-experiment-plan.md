@@ -86,7 +86,7 @@ gated (see below).
 | --- | --- |
 | P1 clients behind the server wire | **product defect** — the shipped clients cannot read what the server writes |
 | P2 no shared-stream reader | **product gap** — shared is the server's real-traffic mode |
-| P3 client telemetry | **new capability — must be feature-gated, see P3** |
+| P3 client telemetry | **landed** — see [`telemetry/README.md`](telemetry/README.md) |
 | P4 WASM triple copy | **product defect** |
 
 
@@ -101,22 +101,19 @@ reproduced in a browser.
 frame*. Shared mode needs a framing loop over one long-lived stream. ~15–20 lines in TS, same in
 Rust. Required, because shared is the mode the server defaults to for real traffic.
 
-**P3 · There is no client telemetry in this repo.** Nothing named `record`, `tap`, or `telemetry`
-exists under `client/`. The TS client has `timing.firstChunkMs` / `lastChunkMs`, but a single
-`performance.now()` after `readStreamToEnd` makes them **always equal** — the transfer term is
-degenerate today.
+**P3 · Client telemetry — landed.** See [`telemetry/README.md`](telemetry/README.md). External
+Proxy on `WebTransport` (ADR option G) instruments both arms from one implementation; default builds
+contain no telemetry code (`client/scripts/check_telemetry_absent.sh`). Harvest:
+`server/scripts/verify_e2e.py --telemetry`.
 
-> **One schema, both arms, written once.** If the arms emit different fields or stamp at different
-> points, the comparison is unmeasurable no matter how clean the shell is. This is the real gate.
+> **One schema, both arms, written once.** The Proxy seam enforces identical stamping; if the arms
+> diverged, the comparison would be unmeasurable.
 
-> **Gate it like the server's.** The server compiles telemetry out by default — a `telemetry` cargo
-> feature, a zero-sized `Recorder`, and `server/scripts/check_telemetry_absent.sh` proving absence in
-> a default build. The client must follow the same discipline: **off by default, provably absent from
-> a default build, with its own absence check.** Measurement capability is not a reason to ship
-> measurement code.
+> **Open:** Decision A (byte attribution vs session totals) in
+> [`telemetry/adr-instrument-clients-from-outside.md`](telemetry/adr-instrument-clients-from-outside.md).
 
-Minimum fields per frame: `askMs`, `firstChunkMs`, `lastChunkMs`, `chunks`, `bytes`, `frameIndex`,
-plus a per-session `connectMs` (module fetch → first ask on the wire).
+Per-frame fields include `ask`, chunk stamps, `chunks`, `bytes`, `frameIndex`; per-session
+`connectMs`. Transfer is non-degenerate when frames arrive in multiple reads.
 
 **P4 · Fix the WASM client's own copy defect first.** `read_stream_to_end` allocates a `tmp` vec per
 chunk, copies into it, copies again into `out`, then a third time into JS. Measuring that would
@@ -148,7 +145,7 @@ instantiate land entirely on it.
 
 Goal metric: **p95 time-to-displayable per frame.** Secondary, all per frame:
 
-- `lastChunkMs − firstChunkMs` — the transfer term, non-degenerate once P3 lands
+- `lastChunkMs − firstChunkMs` — the transfer term (non-degenerate with P3 telemetry)
 - bytes copied into the JS heap, and count of copies
 - transient allocation per frame (JS heap growth between frames)
 - `connectMs`, reported separately, never folded into the per-frame mean
