@@ -1,332 +1,412 @@
-# Proposals: reshaping the server telemetry seam
+# Proposal: `FramePipeline` — wrap methods, not closures
 
-**Date:** 2026-09-01 · **Status:** proposals for review — nothing decided, no code changed
+**Date:** 2026-09-01 · **Status:** proposal for review — nothing decided, no product code changed
 · scope: **server only** (client Proxy seam and Decision A untouched)
-· companion to [`../server-work-us-semantics-proposal.md`](../server-work-us-semantics-proposal.md)
+· pairs with [`../server-work-us-semantics-proposal.md`](../server-work-us-semantics-proposal.md)
 
-Two different questions, deliberately kept apart:
+Two separable questions:
 
 | Doc | Question |
 | --- | --- |
 | `server-work-us-semantics-proposal.md` | **What should the fields mean?** (`server_work_us` after prefault) |
 | **this doc** | **What shape should the seam have?** (how much measurement lives in product code) |
 
-They can be decided independently, in either order.
+The code in §4 was **compiled and run** before this doc was written (§3). The design is not a
+sketch.
 
 ---
 
-## 1 · The problem, in one picture
+## 1 · What is actually leaking
 
-`docs/telemetry/adr-server-frame-sink.md` says product code should read as
-`ask → locate → send / refuse`, with "clocks and outcome enums in `RecordedSink`". Here is what
-`send_one_frame` actually does today (`server/src/transport/server.rs:199`):
+Not "telemetry in `server.rs`". The leak is **work that isn't a method on something we can
+wrap**. Walk today's `send_one_frame` (`server/src/transport/server.rs:199`) and ask, per step,
+*can a decorator see this?*
+
+| Step | On the seam? | Why it leaks |
+| --- | --- | --- |
+| `sink.ask(idx)` | yes — but `LiveSink::ask` is `{ }` | hook with no product work; pure stamping site |
+| `spawn_blocking(touch_frame_pages).await` | **no** | free-standing async in the loop, not a method on anything |
+| `sink.time_locate(\|\| store.frame_slice(idx))` | **partly** | decorator sees *the call*, not "prepare vs locate" as product steps |
+| `store.frame_slice(idx)` | **no** | reached through a caller-supplied closure, not through the seam |
+| `write_fod_msg(control_send, FrameError…)` | **no** | free function, **written twice** in the loop |
+| `sink.on_locate_failed()` / `sink.on_refused()` | yes — both `{ }` | hooks that exist so the failure paths have a stamping site |
+| `sink.send_frame(idx, bytes)` | **yes** | the one method that does product work |
 
 ```
 send_one_frame (PRODUCT)              LiveSink (PRODUCT)        RecordedSink (LAB)
 ──────────────────────────            ──────────────────        ──────────────────
 sink.ask(idx) ───────────────────────► { }              ······► stamp T0, ordinal
-spawn_blocking(touch).await ─────────►  (not in the sink)  ····► ✗ nothing stamps this
+spawn_blocking(touch).await ─────────►  (never reaches it)  ···► ✗ nothing stamps this
 sink.time_locate(|| frame_slice) ────► f()              ······► stamp → server_work_us
 sink.send_frame(idx, bytes) ─────────► WRITES BYTES     ······► stamp → server_write_us
 sink.on_locate_failed() ─────────────► { }              ······► record NotFound
 sink.on_refused() ───────────────────► { }              ······► record Refused
 ```
 
-Read the middle column. **Six call sites; one writes bytes.** `time_locate` is a pass-through
-around work the caller supplied; `ask`, `on_locate_failed`, `on_refused` are literally `{ }` in
-the product type. They exist so the decorator has somewhere to stamp.
+**Six call sites; one writes bytes.** The ADR wanted to wrap *the send path*; what got wrapped
+were **call sites**, not **the story**. Closures and free functions are where the story escapes
+the type — and the two escapes (`spawn_blocking`, `write_fod_msg`) are exactly the two things
+the decorator cannot see, which is why the prefault ended up unmeasured after the merge.
 
-So the count of measurement-shaped calls in the session loop is unchanged from the old inline
-version — the *type* moved out (`rec.ask` → `sink.ask`), the *shape* did not:
-
-```
-before the ADR                     after the ADR
-──────────────                     ─────────────
-rec.ask(idx)                  →    sink.ask(idx)
-rec.located(t0, …)            →    sink.time_locate(…)
-rec.wrote(t1, Refused, 0)     →    sink.on_refused()
-```
-
-For contrast, the client side of the same programme: `client/transport-ts/record/` is ~1130
-lines and product `src/` references it **zero** times. Same stated goal, one side achieved it.
-
-### Two more things the picture shows
-
-- **The expensive step is unmeasured.** The prefault hop never enters the sink, so nothing
-  stamps it — the subject of the companion doc.
-- **The refuse path is duplicated in product code.** `send_one_frame` contains two nearly
-  identical `warn! + write_fod_msg(FrameError) + sink.on_refused()` blocks. That duplication
-  exists because refusal is a telemetry *hook* rather than a sink *method*.
+Compare the client side of the same programme: `client/transport-ts/record/` is ~1130 lines,
+referenced **zero** times from product `src/`.
 
 ---
 
-## 2 · A measuring stick
+## 2 · The proposal
 
-So proposals can be compared instead of argued. Five properties, all checkable by reading:
+**Make the whole per-frame story a trait of real methods, then wrap the trait.**
 
-| # | Property | How to check |
-| --- | --- | --- |
-| **P1** | Product call sites per frame that exist **only** to be measured | count them in `send_one_frame` |
-| **P2** | Product method bodies that are empty `{ }` | count them in `LiveSink` |
-| **P3** | **Drift-safe?** Can moving a line silently change what a field means? | is the interval bounded by one construct, or by call order? |
-| **P4** | Default-build absence proof | does `check_telemetry_absent.sh` still hold, and at what cost? |
-| **P5** | New dependency / platform requirement | Cargo.toml, kernel, privileges |
+```
+                serve_one  ← the story, written once
+                    │
+    ┌───────────────┼───────────────┬──────────────┐
+ prepare()       locate()        send()        refuse()      ← leaf methods, all real work
+    │               │               │              │
+ LivePipeline: spawn_blocking · frame_slice · write bytes · write FrameError
+ RecordedPipeline<P>: stamp → delegate → stamp, one row emitted per story
+```
 
-Today: **P1 = 4** (`ask`, `on_locate_failed`, ×2 `on_refused`) · **P2 = 3** · **P3 = no**
-(the merge proved it) · **P4 = holds** · **P5 = none**.
+- **`LivePipeline`** — every method does product work. No `{ }` bodies.
+- **`RecordedPipeline<P>`** — same decorator pattern as `RecordedSink`, but **one level up** and
+  **complete**: it intercepts leaves, not a closure someone handed in.
+- **The story lives once.** The session loop calls `serve_one` and nothing else.
+
+This is the "Structural" package from the earlier draft (M1 + M2 + S3), stated the way you would
+actually build it.
 
 ---
 
-## 3 · Mechanism proposals
+## 3 · Corrections found by compiling it
 
-Four options, cheapest first. Each shows the `send_one_frame` it produces.
+The natural way to write this design **does not compile**. Four fixes; each is load-bearing.
 
-### M1 — Every seam method must do product work
-
-*Keep the trait. Delete the hooks that don't earn their place.*
-
-Fold `ask` into the acquire call (the index is already an argument). Make `refuse` a **real**
-method that writes the `FodMsg::FrameError` — then it is product work, not a hook, and the
-duplicated refuse block collapses into it.
+### C1 — `fn locate(&self) -> Result<&[u8]>` is the borrow trap the ADR was avoiding
 
 ```rust
-// send_one_frame — the whole body
-let bytes = match sink.acquire(idx, prefault(store, idx), || store.frame_slice(idx)).await {
-    Ok(b) => b,
-    Err(e) => return sink.refuse(control_send, idx, e).await,
-};
-sink.send_frame(idx, bytes).await
+let bytes = self.locate(idx)?;      // immutable borrow of *self, alive while bytes lives
+self.send(idx, bytes).await         // needs &mut self  →  E0502
 ```
 
-```
-      product                        LiveSink                    RecordedSink
-      ───────                        ────────                    ────────────
-      acquire ──────────────────────► prefault.await; locate()  ► stamp ask/prepare/locate
-      refuse  ──────────────────────► write FrameError          ► record refusal
-      send_frame ───────────────────► write bytes               ► stamp send
+> `error[E0502]: cannot borrow *self as mutable because it is also borrowed as immutable`
+
+Verified against `rustc 1.94.1`. This is *precisely* why `adr-server-frame-sink.md` chose
+`time_locate(|| …)`: the closure ties the slice to the **store**, not to the sink. Any pipeline
+proposal that owns the store and hands out slices walks straight back into it.
+
+**Fix — thread the store as a parameter so the two borrows are disjoint:**
+
+```rust
+/// Slice is tied to `'s` (the store), NOT to `&mut self` — so the borrow of self ends
+/// at return, and `send(&mut self, …)` is free afterwards.
+fn locate<'s>(&mut self, store: &'s FrameStore, idx: u32) -> Result<&'s [u8]>;
 ```
 
-The closure stays because the ADR chose it for a reason: it lets the decorator stamp *without*
-borrowing the mmap slice out of `&mut self`. Async-fn-in-trait is stable (rustc 1.94 here) and
-`FrameSink` is used generically, never as `dyn` — no `async-trait`, no boxing.
+This buys `&mut self` on `locate`, which **removes the need for `RefCell` in the wrapper** — the
+recorded impl mutates its row builder directly.
 
-| P1 | P2 | P3 | P4 | P5 |
+### C2 — `async fn` in the trait loses `Send`
+
+`handle_incoming` runs under `tokio::spawn`, so the session future must be `Send`. Bare `async fn`
+in a trait desugars to RPITIT with no auto-trait guarantee — which is why the *existing*
+`FrameSink` already writes `-> impl Future<Output = Result<()>> + Send`. Keep that discipline:
+
+```rust
+fn prepare(&mut self, store: &Arc<FrameStore>, idx: u32)
+    -> impl Future<Output = Result<()>> + Send;
+```
+
+Verified: the story survives `tokio::spawn` with these bounds and fails without them.
+
+### C3 — `on_ask` stays hollow unless the story is a free function
+
+A default `serve_one` body cannot be called explicitly by an override, so a wrapper that wants to
+bracket the story must otherwise re-state it — or keep a hollow `on_ask` hook, which is the
+smell we set out to remove.
+
+**Fix — story as a free generic function; the trait default delegates to it; the wrapper
+overrides `serve_one` *only* to open and close the row:**
+
+```rust
+async fn serve_story<P: FramePipeline>(p: &mut P, store: &Arc<FrameStore>, idx: u32) -> Result<()>
+```
+
+The story is written exactly once and `on_ask` disappears. Verified: leaf calls inside
+`serve_story` dispatch to the *recorded* impls when called with the wrapper as `P`.
+
+### C4 — `refuse(control: &mut SendStream, …)` threads a stream that only refusal uses
+
+`control_send` is used for exactly one thing: writing `FodMsg::FrameError`. `run_session` reads
+from `control_recv`, never writes. So **move `control_send` into the pipeline** — then `refuse`
+needs no stream parameter and the session loop's signature shrinks again.
+
+### C5 — the row must be emitted exactly once, on all four paths
+
+The sketch emits inside `send` regardless of outcome, and sets `row.locate_ok` inside `prepare`
+— conflating a **prefault** failure with a **locate** failure (a conflation today's
+`on_locate_failed` also has). Record the failing stage *where it fails*:
+
+| Path | prepare_us | locate_us | send_us | outcome |
 | --- | --- | --- | --- | --- |
-| **0** | **0** | improved (prefault bounded by one construct) | unchanged | none |
+| sent | ✓ | ✓ | ✓ | `Sent` |
+| write error | ✓ | ✓ | ✓ | `WriteErr` |
+| locate failed | ✓ | ✓ | `null` | `LocateFailed` |
+| **prefault failed** | ✓ | `null` | `null` | `PrepareFailed` |
 
-**Cost:** `LiveSink` inherits the "don't fault on the executor" invariant, so
-`docs/disk-access/adr.md` must say where prefault now lives. The closure argument is still a
-slightly odd thing to see in product code.
-
----
-
-### M2 — Split the source from the sink; drop the closure
-
-*The borrow problem the closure solves disappears if acquisition takes `&self`.*
-
-```rust
-trait FrameSource { async fn acquire(&self, idx: u32) -> Result<Prepared<'_>>; }  // &self!
-trait FrameSink   { async fn send(&mut self, p: Prepared<'_>) -> Result<()>;
-                    async fn refuse(&mut self, …) -> Result<()>; }
-```
-
-```rust
-// send_one_frame — no closures, no telemetry vocabulary at all
-let prepared = match source.acquire(idx).await {
-    Ok(p) => p,
-    Err(e) => return sink.refuse(control_send, idx, e).await,
-};
-sink.send(prepared).await
-```
-
-`acquire(&self)` can return `&'a [u8]` tied to `&'a self`, so nothing needs a closure. This is
-the best-reading product code of the four.
-
-**The catch, stated plainly:** one telemetry row spans both traits (ask/prepare/locate from the
-source, send from the sink), so the two halves must share state. Three ways, none free:
-
-| Way | Cost |
-| --- | --- |
-| `Rc<RefCell<Tap>>` shared by both decorators | session-local, no contention, but two owners of one Tap |
-| `Prepared` carries the stamps as a `#[cfg(feature = "telemetry")]` field | zero-sized by default, but a cfg token appears in a product type |
-| `Prepared` generic over a marker type (`Prepared<'a, M = ()>`) | no cfg in the type, more type machinery |
-
-| P1 | P2 | P3 | P4 | P5 |
-| --- | --- | --- | --- | --- |
-| **0** | **0** | **best** — stamps travel *with* the row (see S3) | unchanged | none |
+`null` where a stage did not run — which the report contract already requires and today's
+`0`-for-everything refusal rows quietly violate.
 
 ---
 
-### M3 — No bespoke trait: `tracing` spans + a lab `Layer`
-
-*Instrumentation that the product wants anyway.* The server already depends on `tracing` and
-uses it in 13 places. Spans are legitimate operability, not measurement scaffolding; the lab
-build attaches a `Layer` that turns span-close events into Tap rows.
+## 4 · The shape (verified)
 
 ```rust
-// product — reads as diagnostics
-async fn send_one_frame(…) -> Result<()> {
-    let prepared = trace_span!("prepare", frame = idx).in_scope(|| …);
-    …
+// server/src/pipeline/mod.rs
+
+/// The per-frame story, written once. The trait default delegates here so a wrapper can
+/// bracket it without re-stating it.
+async fn serve_story<P: FramePipeline>(p: &mut P, store: &Arc<FrameStore>, idx: u32) -> Result<()> {
+    if let Err(e) = p.prepare(store, idx).await {
+        return p.refuse(idx, e.to_string()).await;
+    }
+    let bytes = match p.locate(store, idx) {
+        Ok(b) => b,
+        Err(e) => return p.refuse(idx, e.to_string()).await,
+    };
+    p.send(idx, bytes).await
 }
-// lab — server/src/record/layer.rs
-impl<S: Subscriber> Layer<S> for TapLayer { fn on_close(&self, id, ctx) { …build row… } }
+
+pub(crate) trait FramePipeline: Send {
+    /// Prefault off the executor (disk-access ADR invariant).
+    fn prepare(&mut self, store: &Arc<FrameStore>, idx: u32)
+        -> impl Future<Output = Result<()>> + Send;
+
+    /// Resolve the mmap slice. Borrows the store, not self — see C1.
+    fn locate<'s>(&mut self, store: &'s FrameStore, idx: u32) -> Result<&'s [u8]>;
+
+    /// Write the frame on the media uni stream.
+    fn send(&mut self, idx: u32, bytes: &[u8]) -> impl Future<Output = Result<()>> + Send;
+
+    /// Write FodMsg::FrameError on the control stream. Real I/O, not a hook.
+    fn refuse(&mut self, idx: u32, reason: String) -> impl Future<Output = Result<()>> + Send;
+
+    fn drain_acks(&mut self) -> impl Future<Output = ()> + Send;
+
+    fn serve_one<'a>(&'a mut self, store: &'a Arc<FrameStore>, idx: u32)
+        -> impl Future<Output = Result<()>> + Send + 'a
+    where Self: Sized
+    { serve_story(self, store, idx) }
+}
 ```
 
-| P1 | P2 | P3 | P4 | P5 |
-| --- | --- | --- | --- | --- |
-| 0 (spans are product diagnostics) | **0** — no trait at all | order-independent (spans nest) | **⚠ see below** | none |
+**Product impl — every method carries work:**
 
-**⚠ The honest cost — P4.** `check_telemetry_absent.sh` greps the default binary for symbols and
-string literals. Span field names are string literals. They compile away **only** if
-`tracing`'s `release_max_level_*` feature strips the callsite, and Cargo features are
-*additive* — you cannot un-set that feature when `--features telemetry` is on. So the lab build
-must become `--no-default-features --features telemetry`, and **any** crate in the graph that
-enables the max-level feature poisons it. This is a real operational sharp edge, not a
-formality; it should be prototyped against the absence script before M3 is chosen.
+```rust
+pub(crate) struct LivePipeline { out: FrameOut, control: SendStream }
 
-Secondary: field names become stringly-typed, and `ask_ordinal` bookkeeping moves into the Layer.
+impl FramePipeline for LivePipeline {
+    async fn prepare(&mut self, store: &Arc<FrameStore>, idx: u32) -> Result<()> {
+        let store = Arc::clone(store);
+        tokio::task::spawn_blocking(move || store.touch_frame_pages(idx))
+            .await.context("join frame page touch")?
+    }
+    fn locate<'s>(&mut self, store: &'s FrameStore, idx: u32) -> Result<&'s [u8]> {
+        store.frame_slice(idx)
+    }
+    async fn send(&mut self, idx: u32, bytes: &[u8]) -> Result<()> {
+        self.out.send_frame(idx, bytes).await
+    }
+    async fn refuse(&mut self, idx: u32, reason: String) -> Result<()> {
+        write_fod_msg(&mut self.control, &FodMsg::FrameError { frame_index: idx, reason }).await
+    }
+    async fn drain_acks(&mut self) { self.out.drain_acks().await }
+}
+```
+
+**Lab wrapper — stamp, delegate, stamp; one row per story:**
+
+```rust
+#[cfg(feature = "telemetry")]
+pub(crate) struct RecordedPipeline<P> { inner: P, row: RowBuilder, tap: Option<Tap> }
+
+#[cfg(feature = "telemetry")]
+impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
+    async fn prepare(&mut self, store: &Arc<FrameStore>, idx: u32) -> Result<()> {
+        let t0 = Instant::now();
+        let r = self.inner.prepare(store, idx).await;
+        self.row.prepare_us = Some(micros(t0));
+        if r.is_err() { self.row.failed_at = Stage::Prepare; }   // C5
+        r
+    }
+
+    fn locate<'s>(&mut self, store: &'s FrameStore, idx: u32) -> Result<&'s [u8]> {
+        let t0 = Instant::now();                                  // &mut self → no RefCell (C1)
+        let r = self.inner.locate(store, idx);
+        self.row.locate_us = Some(micros(t0));
+        if r.is_err() { self.row.failed_at = Stage::Locate; }
+        r
+    }
+
+    async fn send(&mut self, idx: u32, bytes: &[u8]) -> Result<()> {
+        let t0 = Instant::now();
+        let r = self.inner.send(idx, bytes).await;
+        self.row.send_us = Some(micros(t0));
+        self.emit(match r { Ok(()) => Outcome::Sent(bytes.len()), Err(_) => Outcome::WriteErr });
+        r
+    }
+
+    async fn refuse(&mut self, idx: u32, reason: String) -> Result<()> {
+        let r = self.inner.refuse(idx, reason).await;
+        self.emit(Outcome::Refused);                              // stages that never ran → null
+        r
+    }
+
+    async fn drain_acks(&mut self) { self.inner.drain_acks().await }
+
+    /// Overridden ONLY to open the row. The story itself is not restated (C3).
+    async fn serve_one<'a>(&'a mut self, store: &'a Arc<FrameStore>, idx: u32) -> Result<()> {
+        self.row = RowBuilder::start(idx, self.next_ordinal(idx));
+        serve_story(self, store, idx).await
+    }
+}
+```
+
+**Wiring — and this deletes today's duplicated `cfg` blocks in `handle_incoming`:**
+
+```rust
+let pipeline = LivePipeline::new(out, control_send);
+#[cfg(feature = "telemetry")]
+let pipeline = RecordedPipeline::new(pipeline);          // shadow; one call site below
+run_session(pipeline, control_recv, store, is_shared).await
+```
+
+```rust
+// the loop, in full
+FodMsg::RequestFrame  { frame }  => pipeline.serve_one(&store, frame).await?,
+FodMsg::RequestFrames { frames } => for f in frames { pipeline.serve_one(&store, f).await?; },
+```
+
+### Compile evidence
+
+A standalone harness with this exact trait shape (stub `FrameStore`, real `tokio`) compiles and
+runs on `rustc 1.94.1`: two `serve_one` calls through `RecordedPipeline` produce **exactly two
+rows**, every row has `prepare_us` and `locate_us` populated, and the story survives
+`tokio::spawn` (proving `Send`). The measured `prepare_us` in that harness was **131 µs** — the
+`spawn_blocking` hop, which is the quantity today's `server_work_us` does not contain.
+The variant with `locate(&self)` fails to compile with `E0502`, as described in C1.
 
 ---
 
-### M4 — Zero server code: observe from outside
+## 5 · What it buys
 
-*The client ADR's philosophy, applied to the server.* No trait, no feature flag, no absence
-check — because there is nothing in the binary to be absent.
-
-```
-# no server diff at all
-uprobe:exact-server:*touch_frame_pages  { @t[tid] = nsecs }
-uretprobe:exact-server:*touch_frame_pages { @prepare = hist(nsecs - @t[tid]) }
-```
-
-| P1 | P2 | P3 | P4 | P5 |
-| --- | --- | --- | --- | --- |
-| **0** | **0** | n/a | **vacuous — nothing to check** | **Linux + CAP_BPF; symbol stability** |
-
-**Why this probably loses anyway** — worth writing down so it stops being re-proposed:
-
-1. **Frame index under `RequestFrames`.** The objection that already killed Decision C option
-   C2 applies unchanged: one control message, N serial sends. Recovering per-frame identity from
-   a probe means reading argument registers, which is ABI-fragile.
-2. **Inlining.** `touch_frame_pages` and `frame_slice` are small and generic; there may be no
-   symbol to probe in a release build.
-3. **Harvest contract.** `verify_e2e.py` expects a `telemetry-server.json` beside the client
-   file. An external collector must reproduce that file, or the two-file contract breaks.
-4. **The rig.** Whether `CAP_BPF` is available on the shaped cloud rig is unknown
-   (`docs/cloud-rig-access.md`) — a blocker to confirm before, not after.
-
-Best use: as a **cross-check** on whatever seam is chosen, not as the seam.
-
----
-
-### Mechanism comparison
-
-| | M1 hooks earn their place | M2 source/sink split | M3 tracing + Layer | M4 external |
-| --- | --- | --- | --- | --- |
-| Telemetry-only call sites (P1) | 0 | 0 | 0 | 0 |
-| Empty product bodies (P2) | 0 | 0 | 0 | 0 |
-| Product code reads as | ask/acquire → send/refuse | acquire → send/refuse | plain flow + spans | plain flow |
-| Drift-safe (P3) | improved | best | good | n/a |
-| Absence proof (P4) | unchanged ✅ | unchanged ✅ | **needs new build discipline** ⚠ | vacuous |
-| New deps / platform (P5) | none | none | none | **kernel + privs** ❌ |
-| Diff size | small | medium | medium | none in `server/` |
-| Reversible if wrong | easily | easily | easily | n/a |
-
----
-
-## 4 · Scope proposals — a ladder, pick a rung
-
-Independent of mechanism. Each rung is landable on its own and leaves the tree consistent.
-
-```
-S1  fields mean what they say          ── semantics only, no seam change
-S2  + seam repair (M1 or M2)           ── product code stops carrying measurement
-S3  + row-as-value                     ── drift becomes impossible to express
-S4  + delete the Recorder layer        ── removes a wrapper with no remaining caller
-S5  + schema version cut               ── one clean break, one round of doc updates
-```
-
-**S1 — Semantics only.** The companion doc's rename (`prepare_us` / `locate_us` / `send_us` /
-`serve_us`) plus the `serve ≥ prepare + locate + send` invariant test. No seam change. *Buys:* the
-number stops lying. *Leaves:* empty hooks, state-machine Tap.
-
-**S2 — Seam repair.** Apply the chosen mechanism. *Buys:* P1 and P2 → 0, and the duplicated
-refuse block collapses. *Leaves:* Tap's cross-call state.
-
-**S3 — Row as value.** Today `Tap` is a state machine: `serve_start`, `pending_work_us`,
-`pending_bytes`, `pending_locate` are carried across three calls that must occur in order.
-
-```
- today                                   S3
- ─────                                   ──
- ask()      → tap.serve_start = now      acquire() ─┐
- located()  → tap.pending_work_us = …               ├─► Row { ask_at, prepare, locate, … }
- wrote()    → emit(pending_* + write)    send() ────┘   └─► emit once
-```
-
-*Buys:* the field's meaning is bounded by where the row is built, not by call order — which is
-exactly the failure mode the merge produced. Also makes `null` natural (`Option<u32>`) instead of
-0-means-two-things. Pairs naturally with M2, whose `Prepared` token is already the carrier.
-
-**S4 — Delete `Recorder`.** `Recorder` is a cfg-forking wrapper that exists so *product* code can
-call it without knowing about `Tap`. Since the ADR landed, **no product code calls it** —
-`RecordedSink` is itself `#[cfg(feature = "telemetry")]`, so it can hold `Option<Tap>` directly.
-*Buys:* deletes `record/mod.rs`'s cfg branches and the `Stamp = ()` alias. *Note:* the
-`recorder_is_zero_sized` test goes with it; the replacement guarantee is absence-by-construction
-at `handle_incoming` (which the ADR already claims) plus the existing absence script.
-
-**S5 — Schema cut.** `schema: "server-pipeline-v1"`, refused stages `null`, absence-script
-literals updated. Cheap: the only reference to `server_work_us` outside `tap.rs` in the entire
-tree is a string literal in `check_telemetry_absent.sh:36`.
-
-| Rung | Files touched | Net LOC | Risk |
-| --- | --- | --- | --- |
-| S1 | `tap.rs`, absence script, docs | + small | very low |
-| S2 | `frame_sink.rs`, `server.rs` | ≈ 0 | low — behaviour-preserving |
-| S3 | `frame_sink.rs`, `tap.rs` | ≈ 0 | low; needs row-completeness tests |
-| S4 | delete `record/mod.rs` fork | **−** | low |
-| S5 | `tap.rs`, absence script, docs, README | + small | low (no numeric consumer) |
-
----
-
-## 5 · Sensible combinations
-
-| Package | = | Good when |
+| Concern | Today | `FramePipeline` |
 | --- | --- | --- |
-| **Minimal** | S1 | You only want the number to stop lying, now. |
-| **Clean seam** | M1 + S2 + S5 | You want the ADR's stated goal actually met, small diff, no new concepts. |
-| **Structural** | M2 + S2 + S3 + S4 + S5 | You want the drift bug class gone and are willing to spend one refactor to get it. |
-| **Explore first** | prototype M3 against `check_telemetry_absent.sh` | You suspect the bespoke trait is the wrong abstraction and want evidence before committing. |
+| Closures in the product path | `time_locate(\|\| slice)` | **gone** — `locate` is a method |
+| Prefault outside the seam | free-standing in `server.rs` | **`prepare()`** — wrappable |
+| Hollow bodies | `ask`, `on_locate_failed`, `on_refused` | **none** — `on_ask` deleted, `refuse` is real I/O |
+| Duplicated refuse block | twice in `send_one_frame` | **once**, in `serve_story` |
+| Drift when steps move | move a line → field silently re-points | stamps follow **methods**; the story is one function |
+| Adding a stage later | new hook + new session-loop call | new **method**; the wrapper stamps it |
+| `null` vs `0` | refusal rows report `0` everywhere | stages that didn't run are `null` (C5) |
+| Testing the story | needs a live WebTransport session | a fake impl gets `serve_one` free — the four paths become unit-testable |
 
-If one opinion is wanted: **Clean seam now, Structural if the lab is going to keep growing
-stages.** M4 is a cross-check, not a seam. But the point of this doc is that all four are
-defensible and the scorecard, not taste, should pick.
+Scorecard (defined in the earlier draft of this doc):
 
----
-
-## 6 · What each choice obliges you to amend
-
-| Choice | Amend |
-| --- | --- |
-| any M | `docs/telemetry/adr-server-frame-sink.md` — "Decision" section describes `time_locate`, which would no longer exist |
-| M1 / M2 | `docs/disk-access/adr.md` — prefault moves out of `server.rs`; say where it lives |
-| M3 | ADR + a new note on the `--no-default-features` lab build; re-run both absence scripts |
-| S3 / S4 | `docs/telemetry/README.md` code map; drop `recorder_is_zero_sized` from the guarantees list and state the replacement |
-| S5 | `README.md` report contract, `check_telemetry_absent.sh:36`, `tap.rs` tests |
+| | P1 telemetry-only call sites | P2 empty product bodies | P3 drift-safe | P4 absence proof | P5 new deps |
+| --- | --- | --- | --- | --- | --- |
+| today | 4 | 3 | **no** | holds | none |
+| `FramePipeline` | **0** | **0** | **yes** | holds (`RecordedPipeline` never named by default) | **none** |
 
 ---
 
-## 7 · Questions for the reviewer
+## 6 · What it costs — honestly
 
-1. Is "product code contains no line that exists only to be measured" the actual goal, or is
-   "product code contains no *clock* and no *Tap type*" enough? Today's seam meets the second
-   and not the first; **which one did the ADR intend?**
-2. Is `LiveSink` the right owner of the executor-safety invariant (M1/M2 both move prefault
-   into it), or must `spawn_blocking` stay visible in the session loop for reviewability?
-3. Is the lab expected to gain more stages (write progress, ask queueing, batch position)? If
-   yes, S3 stops being optional — each new stage adds another ordering dependency to Tap.
-4. Is a `#[cfg(feature = "telemetry")]` **field** on a product type (M2, second variant)
-   acceptable, given the ADR's "absence by construction" framing?
-5. Does the shaped cloud rig grant `CAP_BPF`? Only matters if M4 is to be kept alive even as a
-   cross-check.
+1. **The store is a parameter, not a field.** Forced by C1: a pipeline that owns the store cannot
+   hand out slices that outlive `&self`. Defensible (the store is session-scoped shared state;
+   the pipeline is per-session send machinery) but it is a consequence, not a preference.
+2. **`serve_one` carries `where Self: Sized`**, so `FramePipeline` is not object-safe. Fine today —
+   it is used generically, never as `dyn` — but it forecloses a runtime-selected pipeline.
+3. **`control_send` moves into the pipeline** (C4). Any future control-plane write outside the
+   per-frame flow would have to go through it or take the stream back.
+4. **Bigger refactor than a patch:** `frame_sink.rs` → `pipeline/`, `server.rs`, `record/`, tests,
+   two ADRs. Coherent, but not small. `FrameSink`/`LiveSink`/`RecordedSink` are **deleted**;
+   `FrameOut` survives as `LivePipeline`'s field.
+5. **A new leaf method could be added un-stamped.** The row would simply lack a field — a soft
+   failure. Mitigate with a row-completeness test over all four paths (§3 C5 table).
+6. **`Recorder` should go with it.** It exists so *product* code can call it without knowing
+   `Tap`; no product code calls it any more, so `RecordedPipeline` holds `Option<Tap>` directly and
+   `record/mod.rs`'s cfg fork is deleted. The `recorder_is_zero_sized` test goes too — the
+   replacement guarantee is absence-by-construction at `handle_incoming` plus the existing script.
+
+---
+
+## 7 · Alternatives considered
+
+| Option | Verdict | Why |
+| --- | --- | --- |
+| **Keep `FrameSink` as-is; fix field semantics only** | viable minimum | The number stops lying, but the closures, hollow hooks and duplicated refuse block stay. Choose if appetite is one commit. |
+| **`tracing` spans + a lab `Layer`** | plausible, needs a spike | Spans are legitimate operability; no bespoke trait. **But** span field names are string literals that only vanish via `tracing`'s `release_max_level_*` feature, and Cargo features are *additive* — so the lab build must become `--no-default-features --features telemetry`, and any crate enabling that feature poisons the absence check. Prototype against `check_telemetry_absent.sh` before adopting. |
+| **External observation (eBPF/uprobe), zero server code** | cross-check, not a seam | Frame index under `RequestFrames` needs register reads (the objection that killed Decision C option C2); `touch_frame_pages` may inline away in release; `verify_e2e.py` still expects a `telemetry-server.json`; rig `CAP_BPF` unknown. |
+| **`Prepared<'a>` token carrying stamps** | folded in | The typed version of "the row travels with the bytes". Unnecessary once `locate` borrows the store (C1) — the wrapper holds the row directly. Revisit only if stages ever need to outlive `serve_one`. |
+
+---
+
+## 8 · Landing order
+
+Each rung is independently landable and leaves the tree consistent.
+
+```
+1. semantics      prepare_us / locate_us / send_us / serve_us + `serve ≥ Σ stages` test
+2. pipeline       FramePipeline + LivePipeline + RecordedPipeline   ← this doc
+3. row-as-value   RowBuilder replaces Tap's serve_start / pending_*
+4. delete         Recorder cfg fork, FrameSink, LiveSink, RecordedSink
+5. schema         `schema: "server-pipeline-v1"`, null stages, absence-script literals
+```
+
+Rungs 2–4 are naturally one change (the wrapper needs the row builder; the row builder obsoletes
+`Recorder`). Rung 1 can go first or last — it is independent. Rung 5 is cheap: the only reference
+to `server_work_us` outside `tap.rs` in the whole tree is a string literal in
+`check_telemetry_absent.sh:36`.
+
+**Docs to amend:** `docs/telemetry/adr-server-frame-sink.md` (its Decision section describes
+`time_locate`, which would no longer exist — this is an amendment, not a reversal: the decorator
+principle is kept and completed), `docs/disk-access/adr.md` (prefault moves from `server.rs` into
+`LivePipeline::prepare`), `docs/telemetry/README.md` (code map, stage table).
+
+---
+
+## 9 · Questions for the approver
+
+1. **Is the ADR's intent "no line that exists only to be measured", or just "no clock and no Tap
+   type in product code"?** Today's seam meets the second, not the first. This proposal is only
+   worth its refactor if the first is the goal.
+2. Is `LivePipeline` the right owner of the executor-safety invariant, or must `spawn_blocking`
+   stay visible in the session loop for reviewability?
+3. Is threading `store` as a parameter (§6.1) acceptable, given the alternative does not compile?
+4. Is the lab expected to gain more stages (write progress, ask queueing, batch position)? If yes,
+   rung 3 stops being optional — every new stage adds an ordering dependency to today's `Tap`.
+5. Should rung 1 (field names) land first, so a campaign can run on corrected numbers before the
+   refactor?
+
+---
+
+## Appendix · Reproducing the C1 check
+
+Minimal repro of the borrow trap, so a reviewer can confirm §3 C1 without rebuilding the server.
+`cargo check` on a scratch crate with `anyhow` + `tokio`:
+
+```rust
+trait FramePipeline: Send {
+    fn locate(&self, idx: u32) -> Result<&[u8]>;                       // ← the trap
+    async fn send(&mut self, idx: u32, bytes: &[u8]) -> Result<()>;
+    async fn serve_one(&mut self, idx: u32) -> Result<()> {
+        let bytes = self.locate(idx)?;
+        self.send(idx, bytes).await      // error[E0502]: cannot borrow `*self` as mutable
+    }
+}
+```
+
+Changing the signature to `fn locate<'s>(&mut self, store: &'s FrameStore, idx: u32) ->
+Result<&'s [u8]>` and passing the store in from the session compiles, runs, and keeps the
+future `Send` across `tokio::spawn`. That single signature is what makes the rest of §4 possible
+without `RefCell`, without a `Prepared` token, and without a closure.
