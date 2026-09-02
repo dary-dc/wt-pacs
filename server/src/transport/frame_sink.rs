@@ -12,6 +12,8 @@ use wtransport::Connection;
 pub(crate) enum FrameOut {
     Shared {
         uni: SendStream,
+        /// Keeps the QUIC connection alive for the session-scoped uni.
+        _connection: Connection,
     },
     PerFrame {
         connection: Connection,
@@ -29,7 +31,10 @@ impl FrameOut {
                     .context("open shared uni")?
                     .await
                     .context("shared uni ready")?;
-                Ok(Self::Shared { uni })
+                Ok(Self::Shared {
+                    uni,
+                    _connection: connection,
+                })
             }
             StreamMode::PerFrame => Ok(Self::PerFrame {
                 connection,
@@ -43,7 +48,7 @@ impl FrameOut {
         let len = envelope_len.to_be_bytes();
         let index = idx.to_be_bytes();
         match self {
-            Self::Shared { uni } => {
+            Self::Shared { uni, .. } => {
                 uni.write_all(&len).await.context("write shared len")?;
                 uni.write_all(&index).await.context("write shared index")?;
                 uni.write_all(codestream)
