@@ -105,7 +105,7 @@ different points, because it is the same code stamping.
 **Updated 2026-09-02.** See [`adr-server-pipeline.md`](adr-server-pipeline.md).
 
 The browser keeps Proxy-on-`WebTransport` (option G). The server has no equivalent global.
-It uses `LivePipeline` (product) and `RecordedPipeline` (lab wrapper + `Tap`) in
+It uses `FramePipeline` (product) and `RecordedFramePipeline` (lab wrapper + `Tap`) in
 `server/src/transport/pipeline.rs`. Wire writes go through `FrameOut` in `frame_out.rs`.
 The session loop calls only `serve_one`.
 

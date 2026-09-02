@@ -3,12 +3,12 @@
 //! Serial loop: read one ask, send it to completion, read the next.
 //! No server-side ask queue — see docs/adr-reject-server-ordering.md.
 //!
-//! Per-frame work runs through [`pipeline::FramePipeline`] (`LivePipeline` / lab
-//! `RecordedPipeline`). See `docs/telemetry/adr-server-pipeline.md`.
+//! Per-frame work runs through [`pipeline::SessionPipeline`] (product [`pipeline::FramePipeline`]
+//! or lab [`pipeline::RecordedFramePipeline`]). See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
-use crate::transport::pipeline::{FramePipeline, LivePipeline};
+use crate::transport::pipeline::SessionPipeline;
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::read_fod_msg;
@@ -19,9 +19,6 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Endpoint, Identity, ServerConfig};
-
-#[cfg(feature = "telemetry")]
-use crate::transport::pipeline::RecordedPipeline;
 
 pub struct ServeConfig {
     pub wt_port: u16,
@@ -96,27 +93,18 @@ async fn handle_incoming(
         .context("accept control bidi")?;
 
     let out = FrameOut::open(mode, connection).await?;
-    let mut live = LivePipeline::new(store, out);
 
     #[cfg(feature = "telemetry")]
-    {
-        return run_session(
-            &mut RecordedPipeline::new(live),
-            control_send,
-            control_recv,
-        )
-        .await;
-    }
-
+    let mut pipeline = SessionPipeline::recorded(store, out);
     #[cfg(not(feature = "telemetry"))]
-    {
-        run_session(&mut live, control_send, control_recv).await
-    }
+    let mut pipeline = SessionPipeline::product(store, out);
+
+    run_session(&mut pipeline, control_send, control_recv).await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
-async fn run_session<P: FramePipeline>(
-    pipeline: &mut P,
+async fn run_session(
+    pipeline: &mut SessionPipeline,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
 ) -> Result<()> {
