@@ -318,6 +318,7 @@ editing the v3 work order (propose; do not rewrite it) · taking the stream-mode
 |------|---------|
 | `docs/measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md` | **Why v2 is void — read first** |
 | `docs/lanes/L1-v3-work-order.md` | The replacement campaign and its gates |
+| `docs/lanes/L1-v3-action-plan.md` | **The work order checked against the code** — corrections, gaps, sequencing |
 | `docs/lanes/L1-loss-run.md` | v2 methodology (superseded) |
 | `docs/measurements/r2/l1_s_vs_q_loss_v2.tsv` | v2 rows (void) |
 | `docs/l1-loss-literature-review.md` | **This lane's output** |
