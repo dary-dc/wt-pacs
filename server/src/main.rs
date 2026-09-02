@@ -1,6 +1,5 @@
 use clap::Parser;
-use exact_server::{run_server, ServeConfig};
-use exact_server::transport::StreamMode;
+use exact_server::{run_server, ServeConfig, StreamMode};
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 

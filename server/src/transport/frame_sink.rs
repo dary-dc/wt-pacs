@@ -1,7 +1,6 @@
 //! Outbound media path: `FrameOut` (shared uni vs per-frame + ack drain).
-//!
-//! Session code uses [`super::pipeline::LivePipeline`], which owns a `FrameOut`.
 
+use crate::transport::stream_mode::StreamMode;
 use anyhow::{Context, Result};
 use frame_envelope::ENVELOPE_LEN;
 use std::time::Duration;
@@ -9,7 +8,7 @@ use tokio::task::JoinSet;
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
-/// Mode decided once at session start. Shared never owns `acks`; PerFrame never owns a session uni.
+/// Outbound path chosen once per session.
 pub(crate) enum FrameOut {
     Shared {
         uni: SendStream,
@@ -21,19 +20,22 @@ pub(crate) enum FrameOut {
 }
 
 impl FrameOut {
-    pub(crate) fn shared(uni: SendStream) -> Self {
-        Self::Shared { uni }
-    }
-
-    pub(crate) fn per_frame(connection: Connection) -> Self {
-        Self::PerFrame {
-            connection,
-            acks: JoinSet::new(),
+    pub(crate) async fn open(mode: StreamMode, connection: Connection) -> Result<Self> {
+        match mode {
+            StreamMode::Shared => {
+                let uni = connection
+                    .open_uni()
+                    .await
+                    .context("open shared uni")?
+                    .await
+                    .context("shared uni ready")?;
+                Ok(Self::Shared { uni })
+            }
+            StreamMode::PerFrame => Ok(Self::PerFrame {
+                connection,
+                acks: JoinSet::new(),
+            }),
         }
-    }
-
-    pub(crate) fn is_shared(&self) -> bool {
-        matches!(self, Self::Shared { .. })
     }
 
     pub(crate) async fn send_frame(&mut self, idx: u32, codestream: &[u8]) -> Result<()> {

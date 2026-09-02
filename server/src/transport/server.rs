@@ -9,6 +9,7 @@
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_sink::FrameOut;
 use crate::transport::pipeline::{FramePipeline, LivePipeline};
+use crate::transport::stream_mode::StreamMode;
 use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
@@ -22,31 +23,11 @@ use wtransport::{Endpoint, Identity, ServerConfig};
 #[cfg(feature = "telemetry")]
 use crate::transport::pipeline::RecordedPipeline;
 
-/// How frames reach the client. A process-wide configuration choice, resolved to an
-/// `FrameOut` once per session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum StreamMode {
-    /// One uni stream for the whole session. Frames arrive strictly in ask order.
-    Shared,
-    /// One uni stream per frame. Independent delivery; allows `set_priority` and `reset`.
-    PerFrame,
-}
-
-impl StreamMode {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Shared => "shared",
-            Self::PerFrame => "per-frame",
-        }
-    }
-}
-
 pub struct ServeConfig {
     pub wt_port: u16,
     pub study_path: PathBuf,
     pub cert_pem: PathBuf,
     pub key_pem: PathBuf,
-    /// How frames reach the client for this process. See `StreamMode`.
     pub mode: StreamMode,
 }
 
@@ -114,37 +95,22 @@ async fn handle_incoming(
         .await
         .context("accept control bidi")?;
 
-    let out = match mode {
-        StreamMode::Shared => {
-            let uni = connection
-                .open_uni()
-                .await
-                .context("open shared uni")?
-                .await
-                .context("shared uni ready")?;
-            FrameOut::shared(uni)
-        }
-        StreamMode::PerFrame => FrameOut::per_frame(connection),
-    };
-    let is_shared = out.is_shared();
-    let live = LivePipeline::new(store, out);
+    let out = FrameOut::open(mode, connection).await?;
+    let mut live = LivePipeline::new(store, out);
 
     #[cfg(feature = "telemetry")]
     {
-        let mut pipeline = RecordedPipeline::new(live);
         return run_session(
-            &mut pipeline,
+            &mut RecordedPipeline::new(live),
             control_send,
             control_recv,
-            is_shared,
         )
         .await;
     }
 
     #[cfg(not(feature = "telemetry"))]
     {
-        let mut pipeline = live;
-        run_session(&mut pipeline, control_send, control_recv, is_shared).await
+        run_session(&mut live, control_send, control_recv).await
     }
 }
 
@@ -153,10 +119,7 @@ async fn run_session<P: FramePipeline>(
     pipeline: &mut P,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
-    is_shared: bool,
 ) -> Result<()> {
-    info!(shared = is_shared, "session opened");
-
     loop {
         let msg = match read_fod_msg(&mut control_recv).await {
             Ok(m) => m,
