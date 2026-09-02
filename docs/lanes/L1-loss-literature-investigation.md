@@ -1,10 +1,29 @@
 # L1 loss run — literature & web investigation guide
 
-**Purpose:** Ground the L1 v2 empirical results (S shared stream vs Q per-frame+priority under netem loss) in published theory and practitioner analysis — not only in our TSV. Usable by any agent doing follow-up web research.
+> ## ⚠ The v2 grid is VOID. This lane may not corroborate it.
+>
+> [`../measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md`](../measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md)
+> voided `l1_s_vs_q_loss_v2.tsv`: the noise floor exceeds the decision threshold, the harness
+> manufactures head-of-line exposure on the shared arm specifically, and the RTT labels are wrong.
+> [`L1-v3-work-order.md`](L1-v3-work-order.md) is the replacement campaign.
+>
+> **So this lane's job is not "explain the 35.5 %".** A literature review cannot rescue a void
+> measurement, and an agent that arrives at "the papers say per-frame should win, so the result is
+> probably right" has done the one thing this doc exists to prevent. The job is:
+>
+> 1. **Mechanism** — what does published work say the effect *is*, and what does it require?
+> 2. **Falsification** — what pattern must a real effect produce? Does v2's pattern match? (It does
+>    not, and that is evidence *for* the void, not against it)
+> 3. **Design input for v3** — regime facts the work order still has to settle: the loss *model*,
+>    the depth, whether the loss cells are congestion-limited at all
+> 4. **Competing explanations** — for each rig defect the review found, does the literature name it as
+>    a known confound?
 
-**Empirical anchor:** `docs/measurements/r2/l1_s_vs_q_loss_v2.tsv` (120 rows, v2 miss-only methodology). Decision rule: Q must beat S by **>15% on median `miss_p95_wait_ms` at 0.5% loss**.
+**Empirical anchor (void, for pattern only):** `docs/measurements/r2/l1_s_vs_q_loss_v2.tsv`.
+**Decision rule (v3, not v2):** `L1-v3-work-order.md` §S12 — null control CI contains 0, *lower bound*
+of the 0.5 % CI exceeds 15 %, and the effect responds to the dose.
 
-**Do not treat this doc as the experiment result.** It is a **research plan + hypothesis map**.
+**Do not treat this doc as the experiment result.** It is a research plan and a hypothesis map.
 
 ---
 
@@ -13,210 +32,299 @@
 | Arm | Meaning |
 |-----|---------|
 | **S** | One shared WebTransport uni stream for all frames |
-| **Q** | One uni stream per frame + priority scheduling |
+| **P** | One uni stream per frame, no priority (dropped in v2, restored in v3) |
+| **Q** | One uni stream per frame **+ FIFO `set_priority` by ask order** |
 
-Under controlled RTT (60 / 150 ms) and loss (0 / 0.5 / 2 %), a trace-driven client keeps **window depth D** frames in flight (prefetch). Metric for decision: **miss-only p95 wait** (positive waits only).
+Under RTT and loss shaped by `netem`, a trace-driven client keeps **window depth D** frames in
+flight. Decision metric: **miss-only p95 wait** (positive waits only).
 
-### Empirical summary (medians, n=10 per loss cell)
+### v2 numbers — quote only with the CI beside them
 
-| RTT | Loss | S miss_p95 | Q miss_p95 | Q vs S |
-|-----|------|------------|------------|--------|
-| 60 ms | 0.5% | 257 ms | 166 ms | ~−36% |
-| 150 ms | 0.5% | 685 ms | 485 ms | ~−29% |
-| 60 ms | 2% | 1375 ms | 1394 ms | ~0% |
-| 150 ms | 2% | 3138 ms | 3027 ms | ~+4% |
+| RTT | Loss | D | gain (median) | bootstrap 95 % CI | perm p |
+|-----|------|---|---------------|-------------------|--------|
+| 60 | 0 % | 4 | +3.9 % | — | 1.00 |
+| **60** | **0.5 %** | **4** | **+35.5 %** | **[+3.3 %, +55.3 %]** | 0.016–0.037 |
+| 60 | 2 % | 4 | −1.4 % | — | 0.89 |
+| **150** | **0 %** | **7** | **+26.0 %** | — | 0.17 |
+| **150** | **0.5 %** | **7** | **+29.2 %** | **[−6.3 %, +51.6 %]** | 0.101–0.13 |
+| 150 | 2 % | 7 | +3.6 % | — | 0.43 |
 
-**Open question:** Why does stream architecture seem to matter at 0.5% but not at 2%?
+Two facts about this table govern everything below. **A zero-effect control produced +26 %.** And
+**the advantage vanishes at the loss rate where the mechanism should be strongest.** Any agent whose
+literature reading "explains" the 0.5 % column without also explaining those two has explained noise.
+
+One shape *is* worth carrying into the reading, because it is a mechanism fingerprint rather than a
+level: at 60 ms / 0.5 % the gain is **+35.5 % on p95 but only +9.9 % on the mean** (150 ms: +29.2 %
+vs +17.4 %). Delivery-gating relief removes occasional stalls; it does not shift the typical wait.
+Whether that survives the rig fixes is a v3 question.
 
 ---
 
 ## 2. Research questions (prioritized)
 
-### RQ1 — Mechanism (0.5% loss)
-When loss is light, **why** should per-stream isolation + priority reduce miss tail latency vs one shared byte stream?
+### RQ1 — Mechanism
+What, in published terms, is the effect Q is supposed to have, and what does it **require** to exist?
+Specifically: does it need (a) several streams in flight at once, (b) a non-round-robin scheduler,
+(c) a loss rate high enough to matter but low enough not to dominate?
 
-- Transport HoL blocking on a single TCP/QUIC connection?
-- Application-level blocking (one outstanding frame blocks others on shared stream)?
-- Priority scheduling delivering the *wanted* frame first on Q?
-- Different prefetch / hit dynamics (hit rate differs between arms)?
+### RQ2 — The pattern, not the number
+Does any published mechanism predict **a gap at 0 % loss** and **no gap at 2 %**? If none does, say so
+plainly: that is independent support for the adversarial review's verdict.
 
-### RQ2 — Null at 2% loss
-When loss is heavy, **why** do S and Q converge?
+### RQ3 — Regime: is the loss cell even measuring HOL blocking?
+At 10 Mbit with the **real** path RTT (~240 / ~300 ms per the review, not the 60 / 150 labels), what
+throughput does a loss-based congestion controller sustain at 0.5 % and 2 %? If the connection is
+congestion-limited, the arms are queued behind the same `cwnd` and the experiment is measuring
+congestion control, not stream architecture. **Estimate it, then tell v3 to record achieved
+throughput per run so it can be checked rather than argued.**
 
-Candidate explanations (not mutually exclusive):
+### RQ4 — Loss model
+`cloud_netem.sh` applies i.i.d. Bernoulli `netem loss p%`. Real loss is bursty. Does the literature
+tie the *sign* of this effect to the loss model? If it does, v3 needs a `loss gemodel` cell and the
+decision rule must name the loss process, not only the rate.
 
-1. **Connection-level congestion control** — one `cwnd` for the connection; loss shrinks rate for all streams (QUIC per-stream isolation ≠ per-stream bandwidth).
-2. **Loss dominates recovery** — every miss waits ~RTT for retransmission; architecture matters less than “how often you miss.”
-3. **Saturation / high baseline** — waits are so large (1–3 s) that a 10–15% architectural gap is within run noise.
-4. **Measurement ceiling** — high variance (CV ~0.14–0.23 at 2%) with n=10 cannot resolve small differences.
-5. **Experimental regime mismatch** — theory assumes *many* concurrent in-flight streams; we have D=4/7 frames, not a full web page waterfall.
+### RQ5 — Competing explanations for the rig defects
+For each defect in the adversarial review — redundant re-asks riding the shared stream, arms in
+blocks rather than interleaved, depth below formula, one-way loss — is it a **known** confound in the
+measurement literature, and how do published setups control it?
 
-### RQ3 — Is prefetch/caching part of the story or noise?
-- Is window prefetch **realistic** for this product (yes — it is the client model)?
-- Does comparing miss-only p95 **discard** the main benefit of Q (fewer misses via better scheduling)?
-- Should decision also consider hit rate, mean wait, or user-visible all-sample p95?
-
-### RQ4 — External validity
-Do HTTP/3 / QUIC / WebTransport results transfer to:
-
-- Binary frame payloads (~32 KB), not HTML/CSS/JS?
-- Exactly **two** arms (shared vs per-frame), not browser prioritization trees?
-- Server-side netem on a 10 Mbit cap?
+### RQ6 — External validity
+Do HTTP/3 web-page results transfer to 32 KB binary frames, two arms, a 10 Mbit shaped path, and a
+client that prefetches a window?
 
 ---
 
-## 3. Concepts to lookup (glossary for search)
+## 3. Concepts to look up (glossary for search)
 
 | Term | Why it matters here |
 |------|---------------------|
-| **Head-of-line (HoL) blocking** | Single ordered byte stream: loss on one frame may delay delivery of later frames on **S**. |
-| **QUIC stream isolation** | Loss on stream A should not block delivery on stream B (transport layer). |
-| **HTTP/2 vs HTTP/3 HoL** | Canonical web narrative; map carefully to our WebTransport framing. |
-| **Connection-level congestion control** | Shared `cwnd` — all streams slow together after loss ([RFC 9002](https://www.rfc-editor.org/rfc/rfc9002)). |
-| **Resource prioritization (HTTP/2 / HTTP/3 EPS)** | Whether priority helps the *current* wanted resource under parallel loads. |
-| **QPACK blocking** | HTTP/3-specific app-layer blocking (likely N/A to our binary frames — confirm). |
-| **Loss recovery RTT** | Fast retransmit / timer-based loss detection ≈ 1 RTT stall per loss event. |
-| **Multiplexing gain vs overhead** | More streams ⇒ more headers/state; may hurt at low loss too. |
+| **Head-of-line (HoL) blocking** | Single ordered byte stream: a lost packet withholds *already-arrived* bytes of later frames on **S** |
+| **QUIC stream independence** | RFC 9000: no ordering guarantee *between* streams — the property Q buys |
+| **Round-robin vs sequential multiplexing** | The P-vs-Q distinction. RFC 9218 calls it *incremental* vs *non-incremental* — use that vocabulary |
+| **Connection-level congestion control** | One `cwnd` for all streams (RFC 9002). The likely reason 2 % is a null |
+| **Congestion-limited regime / Mathis model** | `BW ≈ MSS / (RTT·√p)` — if this is far below the link cap, the cell measures CC, not architecture |
+| **Stream vs connection flow control** | RFC 9000 has both. One shared stream is bounded by **one** stream window; N streams get N windows — an arm asymmetry at **zero loss** |
+| **Loss burstiness / Gilbert–Elliott** | `netem loss gemodel`. i.i.d. loss is the regime most favourable to per-stream arms |
+| **PTO / tail loss** | Timer-based recovery is packet-level, not stream-level — per-frame framing does not speed recovery |
+| **QPACK blocking** | HTTP/3-specific; N/A to our binary framing — confirm and move on |
 
 ---
 
-## 4. Seed references (starting points — verify and extend)
+## 4. Sources: what counts, and what is readable from here
 
-Agents should **read primary sources**, not only blog summaries.
+**Tiers.** **T1** IETF RFC or WG draft · **T2** peer-reviewed measurement work with a stated method ·
+**T3** implementation source at a pinned version · **T4** practitioner writing. **T4 is for framing
+and never for a number**, with one exception noted below.
 
-| Source | URL | Relevance |
-|--------|-----|-----------|
-| Robin Marx — QUIC HoL blocking blog series | https://github.com/rmarx/holblocking-blogpost | Skeptical take: HoL removal may **not** help typical web much; needs multiplexing + loss. |
-| TMA 2022 — Resource prioritization & HTTP/3 HoL | https://dl.ifip.org/db/conf/tma/tma2022/tma2022-paper28.pdf | Prioritization + multi-stream in-flight needed for QUIC benefit. |
-| RFC 9000 (QUIC transport) | https://www.rfc-editor.org/rfc/rfc9000 | Stream independence, connection-level FC/CC. |
-| RFC 9002 (QUIC loss recovery & CC) | https://www.rfc-editor.org/rfc/rfc9002 | Shared congestion control — key for RQ2. |
-| “TCP vs QUIC loss recovery” (practitioner) | https://www.network-priority.com/http2-http3-multiplexing-connection-optimization/mitigating-head-of-line-blocking/tcp-vs-quic-loss-recovery-under-packet-loss/ | Same RTT to detect loss; different *blast radius* across streams. |
-| “Does HTTP/3 eliminate HoL blocking?” | https://www.network-priority.com/http2-http3-multiplexing-connection-optimization/mitigating-head-of-line-blocking/does-http3-eliminate-head-of-line-blocking/ | CC collapse at high loss; app-layer blocking remains. |
+**Access, stated honestly in every citation.** Record for each source: *read in full*, *abstract
+only*, or *search-index summary*. A search snippet is not a read paper, and this environment blocks
+most publisher hosts (`rfc-editor.org`, `arxiv.org`, `dl.acm.org`, ScienceDirect, `docs.rs`, most
+university PDF hosts). Reachable: **`raw.githubusercontent.com`** and the package registries. So:
+
+- **The IETF drafts are readable** via the WG repos, e.g.
+  `raw.githubusercontent.com/quicwg/base-drafts/draft-ietf-quic-transport-34/draft-ietf-quic-transport.md`
+  (and `-recovery-34`), `raw.githubusercontent.com/moq-wg/moq-transport/main/draft-ietf-moq-transport.md`
+- **Marx's HOL-blocking post is readable** at
+  `raw.githubusercontent.com/rmarx/holblocking-blogpost/master/README.md` — T4 by format, but it is
+  the author of the T2 work and the text is auditable, so quote it directly rather than a summary
+- **The strongest evidence is local.** The stack that produced the rows is in the cargo registry:
+
+```bash
+cargo fetch
+Q=~/.cargo/registry/src/*/quinn-proto-0.11.17
+grep -n "send_fairness\|CubicConfig\|packet_threshold\|STREAM_RWND\|send_window" $Q/src/config/transport.rs
+sed -n '370,450p' $Q/src/connection/streams/mod.rs        # PendingStreamsQueue / strict priority
+grep -n "fn detect_lost_packets" -A 30 $Q/src/connection/mod.rs
+grep -n -B8 "pub fn set_priority" ~/.cargo/registry/src/*/quinn-0.11.11/src/send_stream.rs
+```
+
+**Seed references** (verify and extend; the last two are SEO-grade — use them for search terms only):
+
+| Source | URL | Tier | Relevance |
+|--------|-----|------|-----------|
+| Marx — QUIC HoL blocking post | https://github.com/rmarx/holblocking-blogpost | T4⁺ | Skeptical: HOL removal needs concurrent streams and non-rare loss; loss is bursty |
+| Sander, Kunze, Wehrle — TMA 2022, prioritization & HTTP/3 HOL | https://dl.ifip.org/db/conf/tma/tma2022/tma2022-paper28.pdf | T2 | Round-robin worst; effect shrinks at higher loss |
+| Marx et al. — Resource multiplexing H2 vs H3 (WEBIST 2020) | https://h3.edm.uhasselt.be/files/ResourceMultiplexing_H2andH3_Marx2020.pdf | T2 | Scheduler × loss-model interaction |
+| Fernández et al. — Exploiting stream scheduling in QUIC (Ad Hoc Networks 2024) | https://doi.org/10.1016/j.adhoc.2024.103601 | T2 | Application-set priorities, delay metric, effect size |
+| RFC 9000 / 9002 / 9218 | rfc-editor (blocked; use the WG repos) | T1 | Stream independence · loss & CC · incremental vs non-incremental |
+| network-priority.com pages | — | T4⁻ | Search terms only. Do not cite |
 
 ---
 
-## 5. Search queries (copy-paste for agents)
+## 5. Search queries (copy-paste)
 
 ### HoL & streams
 - `QUIC stream isolation packet loss head-of-line blocking shared connection`
 - `HTTP/2 TCP HoL blocking vs HTTP/3 QUIC independent streams measurement`
-- `WebTransport streams multiplexing loss recovery`
 
-### Priority
-- `HTTP/3 extensible prioritization scheme lossy network`
-- `QUIC stream priority scheduler retransmission`
-- `resource prioritization tail latency web`
+### Priority / scheduling
+- `HTTP/3 extensible prioritization incremental non-incremental lossy network`
+- `QUIC stream priority scheduler retransmission round-robin sequential`
 
-### High loss / null result
-- `QUIC advantage disappears high packet loss congestion window`
-- `connection-level congestion control QUIC all streams throttle`
-- `when does HTTP/3 outperform HTTP/2 loss rate threshold`
+### The 2 % null
+- `QUIC advantage disappears high packet loss congestion window collapse`
+- `Mathis model throughput RTT sqrt loss congestion-limited regime`
 
-### Window / prefetch (map to our D=4/7)
-- `prefetch window concurrent streams optimal count`
-- `parallel downloads vs head of line blocking diminishing returns`
+### Loss model (RQ4 — do not skip)
+- `Gilbert-Elliott bursty loss versus uniform random loss QUIC evaluation`
+- `netem loss gemodel realistic burst length measurement study`
 
-### WebTransport-specific
-- `WebTransport datagram uni stream performance`
-- `WebTransport vs HTTP/3 streaming latency`
+### Flow control (RQ3/H7)
+- `QUIC stream flow control window single stream throughput limit`
+- `per-stream receive window versus connection window many streams`
+
+### Regime
+- `minimum concurrent streams for QUIC HOL benefit`
+- `packet loss rate distribution broadband cellular measurement`
 
 ---
 
 ## 6. Hypotheses ↔ evidence map
 
-Use this table when reading papers. Mark each: **supports / contradicts / neutral / not addressed**.
+Mark each **supports / contradicts / neutral / not addressed**, and say which access level the
+verdict rests on.
 
-| ID | Hypothesis | Predicts at 0.5% | Predicts at 2% | How to test with our data | How to test via literature |
-|----|------------|------------------|----------------|---------------------------|----------------------------|
-| H1 | **Transport HoL on S** | Q better miss tail | Gap shrinks if all streams loss-limited equally | Compare miss wait distribution shape S vs Q | Papers quantifying stall *per loss event* × streams affected |
-| H2 | **Connection CC dominates** | Small gap if cwnd healthy | S≈Q when cwnd collapsed | Monotonic miss_p95 vs loss; check if 2% waits ≫ RTT | RFC 9002, CC collapse thresholds (~15–20% cited in blogs — verify) |
-| H3 | **Priority helps wanted frame (Q)** | Q better even at same miss count | Same if everything retransmit-bound | Raw waits: is Q's *current-frame* wait lower at same step? | Priority scheduling under loss papers |
-| H4 | **Prefetch masks architecture** | Hit rate differs S vs Q | Hit rate low both (~5%) | Compare `cache_hit_rate`, `cache_misses` | Theory often assumes no client-side prefetch window |
-| H5 | **Noise / n too small** | — | S≈Q within CI | Bootstrap CI, sign tests | Statistical power analysis |
-| H6 | **Wrong regime (D too small)** | Partial Q benefit | No benefit | Literature on minimum parallel streams for gain | Marx blog: need luck + multiplexing |
+| ID | Hypothesis | Predicts at 0 % | Predicts at 0.5 % | Predicts at 2 % | Test with data | Test via literature |
+|----|------------|-----------------|-------------------|-----------------|----------------|---------------------|
+| H1 | **Transport HoL on S** | **no gap** | Q better in the **tail** | gap ≥ 0.5 % gap | mean-vs-p95 split; wait histograms | Stall per loss event × streams affected |
+| H2 | **Connection CC dominates at high loss** | no gap | small gap | S≈Q | waits ≫ RTT; achieved throughput ≪ link | RFC 9002; Mathis; CC-collapse thresholds |
+| H3 | **Priority helps the wanted frame** | possible gap | Q better | same | S-vs-P-vs-Q (needs P — v3 S10) | Prioritization-under-loss papers |
+| H4 | **Prefetch masks architecture** | — | hit-rate differs by arm | low hits both | `cache_hit_rate`, `cache_misses` | Theory usually assumes no client window |
+| H5 | **Underpowered / noise** | any gap | any gap | any gap | bootstrap CI, power | Power analysis |
+| H6 | **Wrong regime (D too small)** | — | partial benefit | none | D vs formula at *real* RTT | Minimum-concurrency claims |
+| **H7** | **Flow-control asymmetry** — one shared stream is bounded by one stream receive window; N streams get N windows (quinn: `stream_receive_window` 1.25 MB, `send_window` 10 MB) | **gap, growing with queued bytes** | gap | gap | Does the lossless gap scale with redundancy (3.8× at D=4 → 6.7× at D=7 vs +3.9 % → +26 %)? | RFC 9000 flow control; quinn source |
+| **H8** | **i.i.d. loss favours per-frame; bursty loss does not** | no gap | Q better **under i.i.d. only** | — | `loss gemodel` cell at the same mean rate | Scheduler × loss-model literature; burst-length measurements |
+
+**Competing rig explanations to weigh against H1–H8** — from the adversarial review, not the papers:
+
+| ID | Explanation | Where it bites |
+|----|-------------|----------------|
+| C1 | Redundant re-asks (3.8–6.7×) ride the shared stream and block real frames; on per-frame arms they sit on throwaway streams | Inflates every S-vs-Q gap, at **every** loss rate including 0 % |
+| C2 | Real path ≈ 240 / 300 ms with ~210 ms of unmodelled WAN; arms run in blocks, not interleaved | The 0 % gap; the RTT axis is a 1.26× contrast, not 2.5× |
+| C3 | Depth 4 / 7 against a formula that wants ~10 / 13 at the real RTT | H6; and fewer streams in flight is exactly the condition Marx says kills the benefit |
 
 ---
 
-## 7. Agent workflow (step-by-step)
+## 7. Agent workflow
 
-1. **Read** `docs/lanes/L1-loss-run.md` (methodology) and skim TSV.
-2. **Run validation** (local, no new experiments): bootstrap CI, raw JSON histograms — see §8 below.
-3. **Pick 2–3 hypotheses** from §6 that match the 0.5% win / 2% null pattern.
-4. **Web investigation:** for each hypothesis, find **≥1 primary** (RFC, paper) + **≥1 measurement study**.
-5. **Extract claim cards** (template below) into a new section or sibling doc — do not overwrite this guide.
-6. **Reconcile:** Does literature predict our crossover near 0.5–2%? If not, note **regime mismatch**.
-7. **Recommend** (separate section): *follow-up experiments* vs *interpretation only* — do not change past TSV without new campaign.
+1. **Read** the adversarial review and the v3 work order **before** the TSV. The data is void; you are
+   reading it for *shape*, not for a result
+2. **Run the falsification test first** (§9). If the literature predicts a pattern the data does not
+   show, that is your headline, and the rest of the reading is context
+3. **Pick hypotheses** from §6 — including H7/H8 and the C-column, not only H1
+4. **Read sources**, recording tier *and* access level. Prefer what you can read in full: the WG
+   drafts, Marx's post, and the pinned crate sources
+5. **Write claim cards** into the sibling doc (`docs/l1-loss-literature-review.md`) — do not overwrite
+   this guide
+6. **Reconcile:** where the literature's regime differs from ours (metric, loss model, object size,
+   scheduler, concurrency), the difference goes in the card. A number without its regime is not
+   evidence
+7. **Hand v3 concrete design input**, not adjectives: cells, gates, columns to record
 
 ### Claim card template
 
 ```markdown
 ### [Author, year] — [title]
-- **URL:**
+- **URL / access:** (read in full | abstract only | search-index summary)
+- **Tier:** T1 / T2 / T3 / T4
 - **Claim (1 sentence):**
-- **Loss / RTT regime:**
-- **# concurrent streams:**
-- **Maps to H1–H6:**
-- **Predicts our 0.5% result:** yes / no / unclear
-- **Predicts our 2% null:** yes / no / unclear
-- **Caveat for wt-pacs:** (WebTransport, 32KB frames, D=4/7, netem, etc.)
+- **Regime:** loss rate & model · RTT · bandwidth · object sizes · concurrency · metric
+- **Maps to:** H1–H8 / C1–C3
+- **Predicts our 0.5 % result:** yes / no / unclear
+- **Predicts our 2 % null:** yes / no / unclear
+- **Predicts a 0 % gap:** yes / no  ← if no, it argues the rig, not the architecture
+- **Caveat for wt-pacs:**
 ```
 
 ---
 
-## 8. Local validation checklist (no rig required)
+## 8. Local validation checklist
 
-Run against committed TSV + `.local/r2/l1v2/raw/*.json`.
+Against the committed TSV. **The per-run JSON is gone** — `.local/` is gitignored (review §6) — so
+every check that needs `wait_ms` is **unrunnable until v3 commits raw data (work order S8)**. Mark
+them blocked; do not silently skip them.
 
-| Check | Pass criterion | Failure implies |
-|-------|----------------|-----------------|
-| Row count | 120 data rows, 0 VOID/FAIL | Incomplete campaign |
-| Raw JSON | Every TSV row has matching JSON | Metric not auditable |
-| Recompute miss_p95 | Matches TSV from `wait_ms` | Harness bug |
-| Integrity gates @ 0.5% | misses ≥20, hit ≤90% | Prefetch-dominated cell |
-| Integrity gates @ 2% | misses ≥20, hit ≤90% | Same |
-| Monotonicity | miss_p95: 0 < 0.5% < 2% per arm | netem / setup bug |
-| peak_outstanding ≥ D | all rows | Window not saturated |
-| stream_mode in raw | S=shared, Q=per-frame | Wrong binary deployed |
-| Bootstrap CI @ 0.5% | 60ms: CI excludes 0; 150ms: may include 0 | Power / variance issue |
-| Bootstrap CI @ 2% | CI includes 0 | Cannot claim S≠Q |
-| Pooled wait histogram | Q shifted left vs S at 0.5%; overlap at 2% | Shape vs median artifact |
-
----
-
-## 9. Expected literature-backed narrative (draft — verify)
-
-**Working hypothesis (to confirm/refute via investigation):**
-
-> At **0.5% loss**, occasional loss events create **partial HoL or scheduling delay** on the shared stream; **Q** isolates or prioritizes the wanted frame, shortening miss tails. At **2% loss**, **connection-level congestion control and repeated recovery** raise all miss waits into a **multi-second, high-variance regime** where stream isolation no longer differentiates arms measurably with n=10.
-
-This is **consistent with** QUIC/CC literature (shared `cwnd`, loss recovery ≈ RTT) and **consistent with** our validation (gates pass, monotonicity holds, 2% CIs wide).
-
-This is **not proven** without: (a) stronger statistics, (b) transport traces (qlog), (c) explicit HoL classification.
+| Check | Pass criterion | Status |
+|-------|----------------|--------|
+| Row count | 120 rows, 0 VOID/FAIL | runnable |
+| `peak_outstanding ≥ D` | all rows | runnable |
+| Monotonicity of miss_p95 in loss | per arm | runnable |
+| Integrity gates | misses ≥ 20, hit ≤ 90 % on loss cells | runnable |
+| Bootstrap CI, per cell | reported with every gain | runnable |
+| Null-control CI contains 0 | **v2 fails this** | runnable |
+| Recompute miss_p95 from raw | matches TSV | **blocked — raw data gone** |
+| Wait histogram shape | Q shifted left at 0.5 %, overlap at 2 % | **blocked — raw data gone** |
+| netem state per run | matches the cell | **blocked — not recorded** |
 
 ---
 
-## 10. Deliverables for investigation agents
+## 9. The falsification test — run this before reading anything
 
-When closing a research pass, produce:
+If the mechanism is transport head-of-line blocking, then **all** of the following must hold. Write
+the verdict per line, from the data, before opening a paper:
 
-1. **Annotated bibliography** (≥5 sources) using claim cards.
-2. **Hypothesis verdict table** (H1–H6: supported / refuted / open).
-3. **Regime map:** which published results apply at 0.5% vs 2% vs our D=4/7.
-4. **One-page “so what”** for product: when Q matters, when it does not, what we still don’t know.
-5. **Optional:** suggested *future* measurements (qlog, paired runs, extra loss points) — list only; do not execute unless asked.
+| # | Prediction | v2 |
+|---|-----------|-----|
+| 1 | No arm gap at 0 % loss | **fails** — +26 % at RTT 150 / D=7 |
+| 2 | Gain grows with loss over the measured range, or the reason it does not is *named and shown* (e.g. congestion-limited) | **fails, unexplained** — +35.5 % → −1.4 % |
+| 3 | The gain is tail-shaped, not a level shift | **holds** — p95 +35.5 % vs mean +9.9 % |
+| 4 | The gain scales with concurrency (more streams in flight ⇒ more benefit) | **untested** — D never varied within a cell |
+
+**Two of four fail.** So the literature's role is diagnostic: which of C1/C2/H7 explains a **lossless**
+arm difference, and does any published mechanism produce one? If none does, that is the finding, and
+"the papers support per-frame" must not be written down as though it supported *this* measurement.
 
 ---
 
-## 11. Related repo paths
+## 10. Deliverables
+
+Into `docs/l1-loss-literature-review.md`:
+
+1. **Verdict table** — per RQ: corroborated / contradicted / not addressed, with the access level the
+   verdict rests on
+2. **Annotated bibliography** — ≥ 5 claim cards, §7 template
+3. **Hypothesis verdict table** — H1–H8 and C1–C3: supported / refuted / open
+4. **Regime map** — which published result applies at which loss rate, loss model, concurrency and
+   metric, and where ours sits
+5. **One-page "so what"** — when Q matters, when it does not, what we still do not know
+6. **Design input for v3** — cells, gates and recorded columns, phrased so the work order can absorb
+   them verbatim
+7. **What the literature could not tell us** — the open list
+
+**The prohibition, stated once:** no sentence in the deliverable may use the literature to raise
+confidence in a void measurement. The literature constrains what v3 should measure; it cannot
+retro-validate v2.
+
+---
+
+## 11. Stop conditions · out of scope
+
+- **A source says the effect depends on the loss model.** Then a `loss gemodel` cell is a v3
+  precondition, not a nice-to-have. Say so in the verdict and hand the work order the exact `tc` line
+- **The estimate in RQ3 says the loss cells are congestion-limited.** Then the grid cannot isolate the
+  mechanism at any loss rate and v3 needs a lower-RTT or higher-rate operating point — a bigger change
+  than the work order currently carries. Raise it rather than burying it in prose
+- **Nothing relevant exists** for a question: one line, and stop. A padded review is worse than a short
+  one
+
+**Out of scope:** rig time · code changes · merging `feat/set-priority-per-frame` · re-running cells ·
+editing the v3 work order (propose; do not rewrite it) · taking the stream-mode decision.
+
+---
+
+## 12. Related repo paths
 
 | Path | Content |
 |------|---------|
-| `docs/lanes/L1-loss-run.md` | v2 methodology |
-| `docs/measurements/r2/l1_s_vs_q_loss_v2.tsv` | Results |
-| `docs/measurements/r2/l1_s_vs_q_loss.tsv` | **Superseded** v1 |
-| `.local/r2/l1v2/raw/*.json` | Per-run `wait_ms` arrays |
-| `lab/window-harness/src/metrics.rs` | Metric definitions |
+| `docs/measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md` | **Why v2 is void — read first** |
+| `docs/lanes/L1-v3-work-order.md` | The replacement campaign and its gates |
+| `docs/lanes/L1-loss-run.md` | v2 methodology (superseded) |
+| `docs/measurements/r2/l1_s_vs_q_loss_v2.tsv` | v2 rows (void) |
+| `docs/l1-loss-literature-review.md` | **This lane's output** |
+| `lab/window-harness/src/{client,metrics}.rs` | Window, metric definitions |
+| `lab/scripts/cloud_netem.sh` | The loss model (`netem loss p%`, i.i.d.) |
 
 ---
 
-*Last updated: 2026-09-02 — created after L1 v2 grid completion.*
+*Created 2026-09-02 after the v2 grid completed · rewritten the same day against the adversarial
+review and the v3 work order.*
