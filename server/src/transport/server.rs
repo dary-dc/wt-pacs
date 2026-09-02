@@ -96,27 +96,17 @@ async fn handle_incoming(
         .context("accept control bidi")?;
 
     let out = FrameOut::open(mode, connection).await?;
-    let mut live = LivePipeline::new(store, out);
-
+    let pipeline = LivePipeline::new(out);
     #[cfg(feature = "telemetry")]
-    {
-        return run_session(
-            &mut RecordedPipeline::new(live),
-            control_send,
-            control_recv,
-        )
-        .await;
-    }
+    let pipeline = RecordedPipeline::new(pipeline);
 
-    #[cfg(not(feature = "telemetry"))]
-    {
-        run_session(&mut live, control_send, control_recv).await
-    }
+    run_session(pipeline, store, control_send, control_recv).await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
 async fn run_session<P: FramePipeline>(
-    pipeline: &mut P,
+    mut pipeline: P,
+    store: Arc<FrameStore>,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
 ) -> Result<()> {
@@ -131,11 +121,11 @@ async fn run_session<P: FramePipeline>(
 
         match msg {
             FodMsg::RequestFrame { frame } => {
-                pipeline.serve_one(frame, &mut control_send).await?;
+                pipeline.serve_one(&store, frame, &mut control_send).await?;
             }
             FodMsg::RequestFrames { frames } => {
                 for frame in frames {
-                    pipeline.serve_one(frame, &mut control_send).await?;
+                    pipeline.serve_one(&store, frame, &mut control_send).await?;
                 }
             }
             FodMsg::EndSession => break,

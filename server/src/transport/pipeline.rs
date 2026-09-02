@@ -1,13 +1,15 @@
-//! Per-frame server pipeline: product `LivePipeline` vs lab `RecordedPipeline` wrapper.
+//! One frame's life, as one method per step.
 //!
-//! Every observable step is a method; the session loop calls only [`FramePipeline::serve_one`].
-//! See `docs/telemetry/adr-server-pipeline.md`.
+//! [`FramePipeline::serve_one`] is the story and is written **once**, as a default method.
+//! Implementors provide only the steps. The lab wrapper therefore implements steps and
+//! never restates the story. See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::wire::write_fod_msg;
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use fod::FodMsg;
+use frame_envelope::ENVELOPE_LEN;
 use std::sync::Arc;
 use tracing::warn;
 use wtransport::stream::SendStream;
@@ -19,76 +21,76 @@ use crate::record::LocateOutcome;
 #[cfg(feature = "telemetry")]
 use std::time::Instant;
 
-/// Per-frame story: prepare → locate+send, or refuse on control.
+/// The per-frame story and the steps it is made of.
 pub(crate) trait FramePipeline: Send {
-    /// Default orchestration — written once; wrappers stamp leaf methods only.
+    /// The story: prepare the pages, find the bytes, send them — or tell the client why not.
+    ///
+    /// Written once. Implementors override **steps**, never this.
     async fn serve_one(
         &mut self,
+        store: &Arc<FrameStore>,
         idx: u32,
         control: &mut SendStream,
     ) -> Result<()> {
-        self.on_ask(idx);
-        if let Err(e) = self.prepare(idx).await {
-            return self.refuse(control, idx, e).await;
+        if let Err(err) = self.prepare(store, idx).await {
+            return self.refuse(control, idx, err).await;
         }
-        match self.serve_located(idx).await {
-            Ok(()) => Ok(()),
-            Err(e) => self.refuse(control, idx, e).await,
-        }
+        let bytes = match self.locate(store, idx) {
+            Ok(bytes) => bytes,
+            Err(err) => return self.refuse(control, idx, err).await,
+        };
+        self.send(idx, bytes).await.map(|_sent| ())
     }
 
-    fn on_ask(&mut self, idx: u32);
-    async fn prepare(&mut self, idx: u32) -> Result<()>;
-    /// Slice from mmap (`Arc` clone avoids store/out borrow conflict) then send on media uni.
-    async fn serve_located(&mut self, idx: u32) -> Result<()>;
-    async fn refuse(
-        &mut self,
-        control: &mut SendStream,
-        idx: u32,
-        reason: impl std::fmt::Display + Send,
-    ) -> Result<()>;
+    /// Fault the frame's pages in, off the executor. See `docs/disk-access/adr.md`.
+    async fn prepare(&mut self, store: &Arc<FrameStore>, idx: u32) -> Result<()>;
+
+    /// Find the frame's bytes in the mapped study.
+    ///
+    /// The slice borrows `store`, not `self`, so [`send`](Self::send) can still take
+    /// `&mut self` afterwards — which is what lets a wrapper delegate instead of inline.
+    fn locate<'s>(&mut self, store: &'s FrameStore, idx: u32) -> Result<&'s [u8]>;
+
+    /// Put the frame on the media path. Returns the bytes written.
+    async fn send(&mut self, idx: u32, bytes: &[u8]) -> Result<usize>;
+
+    /// Tell the client this frame is not coming.
+    async fn refuse(&mut self, control: &mut SendStream, idx: u32, err: Error) -> Result<()>;
+
+    /// Session shutdown: let per-frame streams finish acknowledging.
     async fn drain_acks(&mut self);
 }
 
-/// Product pipeline — every method performs real work (no hollow hooks).
+/// Product pipeline. Every method does real work; nothing here knows about measurement.
 pub(crate) struct LivePipeline {
-    pub(crate) store: Arc<FrameStore>,
-    pub(crate) out: FrameOut,
+    out: FrameOut,
 }
 
 impl LivePipeline {
-    pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut) -> Self {
-        Self { store, out }
-    }
-
-    async fn prefault(store: Arc<FrameStore>, idx: u32) -> Result<()> {
-        tokio::task::spawn_blocking(move || store.touch_frame_pages(idx))
-            .await
-            .context("join frame page touch")??;
-        Ok(())
+    pub(crate) fn new(out: FrameOut) -> Self {
+        Self { out }
     }
 }
 
 impl FramePipeline for LivePipeline {
-    fn on_ask(&mut self, _idx: u32) {}
-
-    async fn prepare(&mut self, idx: u32) -> Result<()> {
-        Self::prefault(Arc::clone(&self.store), idx).await
+    async fn prepare(&mut self, store: &Arc<FrameStore>, idx: u32) -> Result<()> {
+        let store = Arc::clone(store);
+        tokio::task::spawn_blocking(move || store.touch_frame_pages(idx))
+            .await
+            .context("join frame page touch")?
     }
 
-    async fn serve_located(&mut self, idx: u32) -> Result<()> {
-        let store = Arc::clone(&self.store);
-        let bytes = store.frame_slice(idx)?;
-        self.out.send_frame(idx, bytes).await
+    fn locate<'s>(&mut self, store: &'s FrameStore, idx: u32) -> Result<&'s [u8]> {
+        store.frame_slice(idx)
     }
 
-    async fn refuse(
-        &mut self,
-        control: &mut SendStream,
-        idx: u32,
-        reason: impl std::fmt::Display + Send,
-    ) -> Result<()> {
-        let reason = reason.to_string();
+    async fn send(&mut self, idx: u32, bytes: &[u8]) -> Result<usize> {
+        self.out.send_frame(idx, bytes).await?;
+        Ok(ENVELOPE_LEN + bytes.len())
+    }
+
+    async fn refuse(&mut self, control: &mut SendStream, idx: u32, err: Error) -> Result<()> {
+        let reason = err.to_string();
         warn!(frame = idx, %reason, "frame refused");
         write_fod_msg(
             control,
@@ -105,16 +107,17 @@ impl FramePipeline for LivePipeline {
     }
 }
 
-/// Lab wrapper — stamps each leaf; holds `Tap` directly (no `Recorder` layer).
+/// Lab wrapper: stamp, delegate, stamp. Generic over the inner pipeline, so it *cannot*
+/// reach into the product type's fields — isolation is a compile error, not a promise.
 #[cfg(feature = "telemetry")]
-pub(crate) struct RecordedPipeline {
-    inner: LivePipeline,
+pub(crate) struct RecordedPipeline<P> {
+    inner: P,
     tap: Option<Tap>,
 }
 
 #[cfg(feature = "telemetry")]
-impl RecordedPipeline {
-    pub(crate) fn new(inner: LivePipeline) -> Self {
+impl<P: FramePipeline> RecordedPipeline<P> {
+    pub(crate) fn new(inner: P) -> Self {
         Self {
             inner,
             tap: Tap::for_session(),
@@ -124,74 +127,54 @@ impl RecordedPipeline {
 
 #[cfg(feature = "telemetry")]
 fn micros_since(start: Instant) -> u32 {
-    start
-        .elapsed()
-        .as_micros()
-        .min(u32::MAX as u128) as u32
+    start.elapsed().as_micros().min(u32::MAX as u128) as u32
 }
 
 #[cfg(feature = "telemetry")]
-impl FramePipeline for RecordedPipeline {
-    fn on_ask(&mut self, idx: u32) {
+impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
+    // serve_one: the default. The story is not restated here.
+
+    async fn prepare(&mut self, store: &Arc<FrameStore>, idx: u32) -> Result<()> {
         if let Some(tap) = &mut self.tap {
             tap.begin_frame(idx);
         }
-        self.inner.on_ask(idx);
-    }
-
-    async fn prepare(&mut self, idx: u32) -> Result<()> {
         let t0 = Instant::now();
-        let r = self.inner.prepare(idx).await;
+        let result = self.inner.prepare(store, idx).await;
         if let Some(tap) = &mut self.tap {
             tap.record_prepare(micros_since(t0));
         }
-        r
+        result
     }
 
-    async fn serve_located(&mut self, idx: u32) -> Result<()> {
-        let store = Arc::clone(&self.inner.store);
+    fn locate<'s>(&mut self, store: &'s FrameStore, idx: u32) -> Result<&'s [u8]> {
         let t0 = Instant::now();
-        let bytes = match store.frame_slice(idx) {
-            Ok(b) => b,
-            Err(e) => {
-                if let Some(tap) = &mut self.tap {
-                    tap.record_locate(micros_since(t0), LocateOutcome::NotFound, 0);
-                }
-                return Err(e);
-            }
-        };
+        let result = self.inner.locate(store, idx);
         if let Some(tap) = &mut self.tap {
-            tap.record_locate(micros_since(t0), LocateOutcome::Ok, bytes.len());
-        }
-
-        let t0 = Instant::now();
-        let envelope_len = frame_envelope::ENVELOPE_LEN + bytes.len();
-        match self.inner.out.send_frame(idx, bytes).await {
-            Ok(()) => {
-                if let Some(tap) = &mut self.tap {
-                    tap.emit_sent(micros_since(t0), envelope_len);
-                }
-                Ok(())
-            }
-            Err(err) => {
-                if let Some(tap) = &mut self.tap {
-                    tap.emit_write_err(micros_since(t0));
-                }
-                Err(err)
+            match &result {
+                Ok(bytes) => tap.record_locate(micros_since(t0), LocateOutcome::Ok, bytes.len()),
+                Err(_) => tap.record_locate(micros_since(t0), LocateOutcome::NotFound, 0),
             }
         }
+        result
     }
 
-    async fn refuse(
-        &mut self,
-        control: &mut SendStream,
-        idx: u32,
-        reason: impl std::fmt::Display + Send,
-    ) -> Result<()> {
+    async fn send(&mut self, idx: u32, bytes: &[u8]) -> Result<usize> {
+        let t0 = Instant::now();
+        let result = self.inner.send(idx, bytes).await;
+        if let Some(tap) = &mut self.tap {
+            match &result {
+                Ok(sent) => tap.emit_sent(micros_since(t0), *sent),
+                Err(_) => tap.emit_write_err(micros_since(t0)),
+            }
+        }
+        result
+    }
+
+    async fn refuse(&mut self, control: &mut SendStream, idx: u32, err: Error) -> Result<()> {
         if let Some(tap) = &mut self.tap {
             tap.emit_refused();
         }
-        self.inner.refuse(control, idx, reason).await
+        self.inner.refuse(control, idx, err).await
     }
 
     async fn drain_acks(&mut self) {
