@@ -1,4 +1,4 @@
-pub mod frame_sink;
+pub mod frame_out;
 pub mod pipeline;
 pub mod server;
 pub mod stream_mode;

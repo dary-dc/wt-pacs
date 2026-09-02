@@ -3,7 +3,7 @@
 **Status:** accepted (client Proxy G) · **Date:** 2026-08-30 · **Tags:** telemetry, client, lab  
 **Open:** Decision A — whether frame-level `firstByte`/`lastByte` keep byte attribution (A1),
 session-method totals only (A2), product framing edits (A3), or a hybrid (A4). Server Decision C
-is settled in [`adr-server-frame-sink.md`](adr-server-frame-sink.md).
+is settled in [`adr-server-pipeline.md`](adr-server-pipeline.md).
 
 As-built module: [`README.md`](README.md).
 
@@ -100,12 +100,13 @@ different points, because it is the same code stamping.
   `parseLengthPrefixed`
 - It does **not** fix the event-loop timing confound. Only D does, and D is not a dependency
 
-## The server uses a `FrameSink` decorator — deliberately different from the browser
+## The server pipeline — deliberately different from the browser
 
-**Updated 2026-08-31.** See [`adr-server-frame-sink.md`](adr-server-frame-sink.md).
+**Updated 2026-09-02.** See [`adr-server-pipeline.md`](adr-server-pipeline.md).
 
 The browser keeps Proxy-on-`WebTransport` (option G). The server has no equivalent global.
-It uses a small `FrameSink` trait: product `LiveSink`, lab `RecordedSink` wrapping
-`Recorder`/`Tap`. `ask(idx)` remains explicit so `RequestFrames` stays correct.
+It uses `LivePipeline` (product) and `RecordedPipeline` (lab wrapper + `Tap`) in
+`server/src/transport/pipeline.rs`. Wire writes go through `FrameOut` in `frame_out.rs`.
+The session loop calls only `serve_one`.
 
 The Tap report schema is unchanged; this ADR’s client decision is unchanged.

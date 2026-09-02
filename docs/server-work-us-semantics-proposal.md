@@ -1,7 +1,7 @@
 # Proposal: what `server_work_us` should mean now that prefault exists
 
 **Date:** 2026-09-01 · **Status:** proposal, awaiting decision
-· follows [`docs/telemetry/adr-server-frame-sink.md`](telemetry/adr-server-frame-sink.md)
+· follows [`docs/telemetry/adr-server-pipeline.md`](telemetry/adr-server-pipeline.md)
 and [`docs/disk-access/adr.md`](disk-access/adr.md).
 
 Answers the three questions in the handoff: what `server_work_us` should mean, where its
@@ -24,7 +24,7 @@ match touch {
 ```
 
 `RecordedSink::time_locate` stamps `t0`, calls the closure, and calls
-`rec.located(t0, …)`, which sets `server_work_us` (`frame_sink.rs`, `tap.rs:124`).
+`rec.located(t0, …)`, which sets `server_work_us` (`pipeline.rs`, `tap.rs:124`).
 The closure is `store.frame_slice(idx)` alone. The handoff's description is accurate.
 
 Three facts materially change the shape of the answer:
@@ -38,7 +38,7 @@ no name. Lab is mis-attributed, not blind.
 
 **(b) `server_write_us` got *better* at the same merge.** `wrap()` is gone; `FrameOut::send_frame`
 writes `len` / `index` / `codestream` as three `write_all` calls with no full-frame copy
-(`frame_sink.rs`). On the pre-merge branch `server_write_us` silently included a whole-frame
+(`frame_out.rs`). On the pre-merge branch `server_write_us` silently included a whole-frame
 `Vec` copy. It no longer does. So exactly one stage regressed in meaning and one improved —
 worth saying, because "the merge broke telemetry" is too broad.
 
@@ -172,7 +172,7 @@ disk-access instrument (§4).
 ### Adjacent honesty fix (either way)
 
 Both refusal hooks stamp `t0 = rec.stamp()` and immediately record against it
-(`on_locate_failed`, `on_refused` in `frame_sink.rs`), so refusal rows carry
+(`on_locate_failed`, `on_refused` in the old `FrameSink` seam), so refusal rows carry
 `server_work_us = 0` / `server_write_us = 0` — indistinguishable from a fast success. With
 `locate_outcome` / `write_outcome` on the row a reader *can* disambiguate, but the row would be
 better with those stages explicitly `null`. Cheap to fix while the schema is open.
@@ -223,8 +223,8 @@ number. Say so in its doc comment, or it will be quoted as one.
 3. **Update the guards:** `check_telemetry_absent.sh:36` literals; `tap.rs` tests; add the
    `serve_us >= prepare_us + locate_us + send_us` invariant test; `recorder_is_zero_sized`
    unchanged; re-run both absence scripts.
-4. **Amend the docs:** `docs/disk-access/adr.md` (prefault's home is now `frame_sink.rs`),
-   `docs/telemetry/adr-server-frame-sink.md` (hook is `acquire`, not `time_locate`),
+4. **Amend the docs:** `docs/disk-access/adr.md` (prefault's home is `pipeline.rs`),
+   `docs/telemetry/adr-server-pipeline.md` (hook is `acquire`, not `time_locate`),
    `docs/telemetry/README.md` (stage table + §4 ownership split).
 5. **Validate cheaply:** one warm localhost run — expect `prepare_us` ≈ the ADR's 10–30 µs pool
    hop and `locate_us` at the clock floor — and one `posix_fadvise(DONTNEED)` cold run on the same

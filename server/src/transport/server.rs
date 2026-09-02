@@ -4,10 +4,10 @@
 //! No server-side ask queue — see docs/adr-reject-server-ordering.md.
 //!
 //! Per-frame work runs through [`pipeline::FramePipeline`] (`LivePipeline` / lab
-//! `RecordedPipeline`). See `docs/telemetry/adr-server-frame-sink.md`.
+//! `RecordedPipeline`). See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::FrameStore;
-use crate::transport::frame_sink::FrameOut;
+use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, LivePipeline};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tls::load_pem_cert;

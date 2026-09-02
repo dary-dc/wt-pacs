@@ -1,4 +1,7 @@
-//! Outbound media path: `FrameOut` (shared uni vs per-frame + ack drain).
+//! Wire seam: session-scoped outbound media (`FrameOut`).
+//!
+//! Opens shared or per-frame uni streams and writes length-prefixed envelopes.
+//! The per-frame app story lives in [`super::pipeline`]; see `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::transport::stream_mode::StreamMode;
 use anyhow::{Context, Result};

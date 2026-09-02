@@ -4,7 +4,7 @@ Lab-only frame-pipeline timing for the wt-pacs browser clients and server. Defau
 builds contain **no telemetry code**; lab builds harvest JSON reports from a run folder.
 
 **Decisions:** [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md)
-(client Proxy G) · [`adr-server-frame-sink.md`](adr-server-frame-sink.md) (server pipeline seam)
+(client Proxy G) · [`adr-server-pipeline.md`](adr-server-pipeline.md) (server pipeline seam)
 
 ---
 
@@ -33,8 +33,7 @@ Output directory: `.local/measurements/<stamp>-…/` (created by the e2e harness
 
 **Schema unification is deferred.** Server stages (`prepare_us`, `locate_us`, `send_us`, `serve_us`)
 and client stages (`queue`, `serve_plus_path`, `transfer`, …) stay independent until a separate
-stages (`queue`, `serve_plus_path`, `transfer`, …) stay independent until a separate product
-decision approves migration.
+product decision approves migration.
 
 ---
 
@@ -100,6 +99,8 @@ session-method totals only (A2), product framing edits (A3), or hybrid (A4). See
 | Area | Path |
 | --- | --- |
 | Client install + Proxy | `client/transport-ts/record/` |
-| Server pipeline + Tap | `server/src/transport/pipeline.rs`, `server/src/record/tap.rs` |
+| Server app seam | `server/src/transport/pipeline.rs` |
+| Server wire out | `server/src/transport/frame_out.rs` |
+| Server Tap | `server/src/record/tap.rs` |
 | E2e harvest | `server/scripts/verify_e2e.py` |
 | Harness import order | `client/harness/ts.html`, `client/harness/index.html` |

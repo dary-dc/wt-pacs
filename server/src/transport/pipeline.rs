@@ -1,10 +1,10 @@
 //! Per-frame server pipeline: product `LivePipeline` vs lab `RecordedPipeline` wrapper.
 //!
 //! Every observable step is a method; the session loop calls only [`FramePipeline::serve_one`].
-//! See `docs/telemetry/adr-server-frame-sink.md`.
+//! See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::FrameStore;
-use crate::transport::frame_sink::FrameOut;
+use crate::transport::frame_out::FrameOut;
 use crate::transport::wire::write_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;

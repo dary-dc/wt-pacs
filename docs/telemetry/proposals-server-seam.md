@@ -90,7 +90,7 @@ self.send(idx, bytes).await         // needs &mut self  →  E0502
 
 > `error[E0502]: cannot borrow *self as mutable because it is also borrowed as immutable`
 
-Verified against `rustc 1.94.1`. This is *precisely* why `adr-server-frame-sink.md` chose
+Verified against `rustc 1.94.1`. This is *precisely* why the pre-pipeline `FrameSink` ADR chose
 `time_locate(|| …)`: the closure ties the slice to the **store**, not to the sink. Any pipeline
 proposal that owns the store and hands out slices walks straight back into it.
 
@@ -328,8 +328,8 @@ Scorecard (defined in the earlier draft of this doc):
    it is used generically, never as `dyn` — but it forecloses a runtime-selected pipeline.
 3. **`control_send` moves into the pipeline** (C4). Any future control-plane write outside the
    per-frame flow would have to go through it or take the stream back.
-4. **Bigger refactor than a patch:** `frame_sink.rs` → `pipeline/`, `server.rs`, `record/`, tests,
-   two ADRs. Coherent, but not small. `FrameSink`/`LiveSink`/`RecordedSink` are **deleted**;
+4. **Bigger refactor than a patch:** landed as `pipeline.rs` + `frame_out.rs` (was `frame_sink.rs`),
+   plus `server.rs`, `record/`, tests, ADR. `FrameSink`/`LiveSink`/`RecordedSink` are **deleted**;
    `FrameOut` survives as `LivePipeline`'s field.
 5. **A new leaf method could be added un-stamped.** The row would simply lack a field — a soft
    failure. Mitigate with a row-completeness test over all four paths (§3 C5 table).
@@ -368,7 +368,7 @@ Rungs 2–4 are naturally one change (the wrapper needs the row builder; the row
 to `server_work_us` outside `tap.rs` in the whole tree is a string literal in
 `check_telemetry_absent.sh:36`.
 
-**Docs to amend:** `docs/telemetry/adr-server-frame-sink.md` (its Decision section describes
+**Docs to amend:** `docs/telemetry/adr-server-pipeline.md` (amended 2026-09-02; describes
 `time_locate`, which would no longer exist — this is an amendment, not a reversal: the decorator
 principle is kept and completed), `docs/disk-access/adr.md` (prefault moves from `server.rs` into
 `LivePipeline::prepare`), `docs/telemetry/README.md` (code map, stage table).
