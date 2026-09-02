@@ -96,10 +96,7 @@ async fn handle_incoming(
         .context("accept control bidi")?;
 
     let out = FrameOut::open(mode, connection).await?;
-    #[cfg(not(feature = "telemetry"))]
     let mut live = LivePipeline::new(store, out);
-    #[cfg(feature = "telemetry")]
-    let live = LivePipeline::new(store, out);
 
     #[cfg(feature = "telemetry")]
     {
