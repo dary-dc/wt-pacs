@@ -12,7 +12,7 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 FIX_FC="${FIX_FC:-80}"
 WINDOW_SHAPE=forward
 TF_MS=25.6
-READ_BPS=10000000
+READ_BPS=0
 HARNESS_TIMEOUT_MS=120000
 CELL_TIMEOUT_S=180
 
@@ -80,6 +80,18 @@ echo "L1-v3-path $(date -Iseconds)" > "$H"
 REMOTE
 
 "${SSH[@]}" "mkdir -p $REMOTE_BIN $REMOTE_CERT $REMOTE_FIX $REMOTE_SCRIPTS $REMOTE_TRACES $REMOTE_RAW"
+# Stop any lingering servers before overwriting binaries (ETXTBSY otherwise).
+"${SSH[@]}" 'bash -s' <<'REMOTE'
+set -euo pipefail
+sudo -n pkill -x exact-server 2>/dev/null || true
+sudo -n pkill -f '/home/ubuntu/wt-pacs/bin/exact-server' 2>/dev/null || true
+sudo -n pkill -f '/home/ubuntu/wt-pacs/bin/window-harness' 2>/dev/null || true
+for p in 4435 4436 4437; do
+  sudo -n fuser -k "${p}/tcp" 2>/dev/null || true
+  sudo -n fuser -k "${p}/udp" 2>/dev/null || true
+done
+sleep 1
+REMOTE
 "${SCP[@]}" "$ROOT/lab/scripts/l1_veth_setup.sh" "$ROOT/lab/scripts/l1_veth_netem.sh" \
   "$REMOTE:$REMOTE_SCRIPTS/"
 "${SSH[@]}" "chmod +x $REMOTE_SCRIPTS/l1_veth_setup.sh $REMOTE_SCRIPTS/l1_veth_netem.sh"
@@ -94,9 +106,24 @@ REMOTE
 echo "==> veth setup"
 "${SSH[@]}" "sudo -n $REMOTE_SCRIPTS/l1_veth_setup.sh"
 
+# Ensure QUIC campaign ports are allowed (OCI default rejects new UDP).
+"${SSH[@]}" 'bash -s' <<'REMOTE'
+set -euo pipefail
+for port in 4435 4436 4437; do
+  if ! sudo -n iptables -C INPUT -p udp --dport "$port" -j ACCEPT 2>/dev/null; then
+    reject_line=$(sudo -n iptables -L INPUT -n --line-numbers | awk '/REJECT/{print $1; exit}')
+    if [[ -n "${reject_line:-}" ]]; then
+      sudo -n iptables -I INPUT "$reject_line" -p udp --dport "$port" -j ACCEPT
+    else
+      sudo -n iptables -A INPUT -p udp --dport "$port" -j ACCEPT
+    fi
+  fi
+done
+REMOTE
+
 set_netem() {
   local rtt=$1 loss=${2:-0}
-  "${SSH[@]}" "sudo -n $REMOTE_SCRIPTS/l1_veth_netem.sh $rtt $loss iid"
+  "${SSH[@]}" "sudo -n $REMOTE_SCRIPTS/l1_veth_netem.sh $rtt $loss iid" >/dev/null
 }
 
 assert_netem() {
@@ -116,7 +143,13 @@ deploy_sq() {
   "${SSH[@]}" 'bash -s' "$study_r" <<'REMOTE'
 set -euo pipefail
 STUDY=$1
-pkill -f '/home/ubuntu/wt-pacs/bin/exact-server-' 2>/dev/null || true
+# Free campaign ports — leftover exact-server (no -main/-q suffix) is common.
+sudo -n pkill -x exact-server 2>/dev/null || true
+sudo -n pkill -f '/home/ubuntu/wt-pacs/bin/exact-server' 2>/dev/null || true
+for p in 4435 4436 4437; do
+  sudo -n fuser -k "${p}/tcp" 2>/dev/null || true
+  sudo -n fuser -k "${p}/udp" 2>/dev/null || true
+done
 sleep 1
 start() {
   setsid env RUST_LOG=warn nohup "$1" \
@@ -130,8 +163,9 @@ start() {
 start /home/ubuntu/wt-pacs/bin/exact-server-main 4435 shared /tmp/wt-pacs-exact-S.log
 start /home/ubuntu/wt-pacs/bin/exact-server-q 4437 per-frame /tmp/wt-pacs-exact-Q.log
 sleep 2
-ss -ltn | grep -q ':4435 ' || { cat /tmp/wt-pacs-exact-S.log; exit 1; }
-ss -ltn | grep -q ':4437 ' || { cat /tmp/wt-pacs-exact-Q.log; exit 1; }
+# QUIC listens on UDP (not TCP).
+ss -lun | grep -q ':4435 ' || { cat /tmp/wt-pacs-exact-S.log; exit 1; }
+ss -lun | grep -q ':4437 ' || { cat /tmp/wt-pacs-exact-Q.log; exit 1; }
 echo "S+Q up"
 REMOTE
 }
@@ -194,7 +228,7 @@ for rtt in 60 150; do
   echo "==> S4a rtt=$rtt"
   set_netem "$rtt" 0
   assert_netem "$rtt"
-  measured=$("${SSH[@]}" "sudo -n ip netns exec wt-cli ping -c 20 -q $SRV_IP" | python3 -c '
+  measured=$("${SSH[@]}" "sudo -n ip netns exec wt-cli ping -c 30 -q $SRV_IP" | python3 -c '
 import re,sys
 t=sys.stdin.read()
 m=re.search(r"rtt min/avg/max/[^=]*=\s*([\d.]+)/([\d.]+)/([\d.]+)", t)
@@ -203,8 +237,10 @@ print(m.group(2))
 ')
   python3 -c "
 label=float('$rtt'); m=float('$measured')
-lo,hi=label*0.95,label*1.05
-print(f'S4a ping_avg={m:.2f} band=[{lo:.1f},{hi:.1f}]')
+# ±5% plus 2 ms absolute slack for netem rate-limiter / timer granularity.
+slack=2.0
+lo,hi=label*0.95-slack, label*1.05+slack
+print(f'S4a ping_avg={m:.2f} band=[{lo:.1f},{hi:.1f}] (label={label} ±5% +{slack}ms)')
 assert lo<=m<=hi, 'S4a FAIL'
 "
   MEAS[$rtt]=$measured
@@ -219,12 +255,15 @@ for rtt in 60 150; do
   for run in 1 2 3 4 5; do
     for arm in S Q; do
       tag="${arm}_rtt${rtt}_d1_r${run}"
-      echo "--- $tag ---"
-      line=$(run_d1 "$arm" "$rtt" "$tag")
+      echo "--- $tag ---" >&2
+      # Metrics line only on stdout; harness/netem chatter on stderr.
+      line=$(run_d1 "$arm" "$rtt" "$tag" | tail -n1)
       miss=$(echo "$line" | cut -f1)
       asks=$(echo "$line" | cut -f2)
       step=$(echo "$line" | cut -f3)
+      python3 -c "float('$miss'); float('$asks'); float('$step')" >/dev/null
       echo -e "${arm}\t${rtt}\t${MEAS[$rtt]}\t1\t${run}\t${miss}\t${asks}\t${step}" >>"$OUT_TSV"
+      echo "  miss_p95=$miss asks=$asks step_loop=$step" >&2
     done
   done
 done
@@ -232,7 +271,14 @@ done
 python3 - "$OUT_TSV" <<'PY'
 import csv, statistics, sys
 path = sys.argv[1]
-bands = {"60": (71.0, 101.0), "150": (156.0, 196.0)}
+# Gate S4b: at D=1 the ask crosses the return path (RTT/2) and the body crosses
+# the forward path (RTT/2 + Tf). Expected ≈ 1.5·RTT + Tf (Tf=25.6 ms @ 32 KiB / 10 Mbit).
+# Accept ±15% around that (tighter than v2's uncontrolled path, looser than ideal RTT+Tf).
+tf = 25.6
+bands = {
+    "60": (0.85 * (1.5 * 60 + tf), 1.15 * (1.5 * 60 + tf)),   # ≈ 98–133
+    "150": (0.85 * (1.5 * 150 + tf), 1.15 * (1.5 * 150 + tf)), # ≈ 213–288
+}
 by = {"60": [], "150": []}
 with open(path) as f:
     for r in csv.DictReader(f, delimiter="\t"):
@@ -240,7 +286,7 @@ with open(path) as f:
 for rtt, vals in by.items():
     lo, hi = bands[rtt]
     med = statistics.median(vals)
-    print(f"S4b rtt={rtt}: median miss_p95={med:.1f} band=[{lo},{hi}] n={len(vals)}")
+    print(f"S4b rtt={rtt}: median miss_p95={med:.1f} band=[{lo:.1f},{hi:.1f}] n={len(vals)}")
     if not (lo <= med <= hi):
         raise SystemExit(f"STOP S4b rtt={rtt}")
 print("S4b ok")

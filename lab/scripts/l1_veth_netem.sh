@@ -55,7 +55,7 @@ case "$PROFILE" in
   off)
     clear_qdisc "$VETH_SRV"
     ip netns exec "$NS" tc qdisc del dev "$VETH_CLI" root 2>/dev/null || true
-    echo "netem off on $VETH_SRV / ns/$NS/$VETH_CLI"
+    echo "netem off on $VETH_SRV / ns/$NS/$VETH_CLI" >&2
     ;;
   *)
     if ! [[ "$PROFILE" =~ ^[0-9]+$ ]]; then
@@ -69,11 +69,11 @@ case "$PROFILE" in
     # Return path: delay + rate only (no loss), matching the work order.
     ip netns exec "$NS" tc qdisc replace dev "$VETH_CLI" root \
       netem delay "${one_way}ms" rate "$RATE"
-    echo "netem veth: RTT≈${PROFILE}ms delay=${one_way}ms rate=$RATE loss=${LOSS_PCT}% model=$LOSS_MODEL"
+    echo "netem veth: RTT≈${PROFILE}ms delay=${one_way}ms rate=$RATE loss=${LOSS_PCT}% model=$LOSS_MODEL" >&2
     ;;
 esac
 
-echo "--- $VETH_SRV ---"
-tc qdisc show dev "$VETH_SRV" || true
-echo "--- ns/$NS $VETH_CLI ---"
-ip netns exec "$NS" tc qdisc show dev "$VETH_CLI" || true
+echo "--- $VETH_SRV ---" >&2
+tc qdisc show dev "$VETH_SRV" >&2 || true
+echo "--- ns/$NS $VETH_CLI ---" >&2
+ip netns exec "$NS" tc qdisc show dev "$VETH_CLI" >&2 || true
