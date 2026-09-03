@@ -44,10 +44,12 @@ if ratio < 1.0:
 }
 
 cloud_set_netem() {
-  # Args: profile [loss_pct]
+  # Args: profile [loss_pct] [loss_model]
+  # loss_model: iid (default) | gemodel  (C5; gemodel uses GE_P/GE_R on the rig)
   local profile=$1
   local loss=${2:-0}
-  "${SSH[@]}" "sudo -n /home/ubuntu/wt-pacs/scripts/cloud_netem.sh $profile $loss"
+  local model=${3:-iid}
+  "${SSH[@]}" "GE_P=${GE_P:-0.07} GE_R=${GE_R:-14} sudo -n -E /home/ubuntu/wt-pacs/scripts/cloud_netem.sh $profile $loss $model"
 }
 
 cloud_ensure_server() {

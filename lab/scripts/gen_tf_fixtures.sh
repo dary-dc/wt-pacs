@@ -41,4 +41,6 @@ PY
 
 gen_one 32000 frames_32k
 gen_one 250000 frames_250k
+# A7 — longer L1 trace fixture (does not replace the 80-frame default).
+FRAMES=160 gen_one 32000 frames_32k_160
 echo "Existing: lab/fixtures/queue_large/queue_large.sbnd (~51 KB)"
