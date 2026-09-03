@@ -6,6 +6,11 @@ builds contain **no telemetry code**; lab builds harvest JSON reports from a run
 **Decisions:** [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md)
 (client Proxy G) · [`adr-server-pipeline.md`](adr-server-pipeline.md) (server pipeline seam)
 
+**Open plan:** [`plan-readability-and-performance.md`](plan-readability-and-performance.md) —
+recorder cost, null ≠ 0 on the server, and report readability. Measured: the client recorder's
+per-read attribution is quadratic (3.4 s of blocking main-thread work on a 100-frame fill run),
+so **fill-cell `transfer` and `serve_plus_path` harvested before that fix are suspect**.
+
 ---
 
 ## Server report (`schema: server-pipeline-v1`)
