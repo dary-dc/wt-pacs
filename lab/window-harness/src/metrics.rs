@@ -20,6 +20,14 @@ impl StreamMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum WindowShape {
+    /// (c, c+1, c-1, c+2, c-2, …) — for traces that reverse.
+    Symmetric,
+    /// (c, c+1, c+2, …) — for strictly forward traces.
+    Forward,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HarnessMode {
     /// Trace-driven fly / settle (E2).
@@ -46,6 +54,12 @@ pub struct RunConfig {
     pub rtt_ms: u64,
     /// Must match the server's `--stream-mode`.
     pub stream_mode: StreamMode,
+    /// Window shape around the cursor. `Forward` for one-way traces.
+    pub window_shape: WindowShape,
+    /// Override trace step interval (ms). None = use the trace file.
+    pub step_interval_ms: Option<u64>,
+    /// Optional QUIC per-stream receive window (bytes). None = stack default.
+    pub stream_recv_window: Option<u64>,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -101,6 +115,18 @@ pub struct HarnessMetrics {
     pub warm_cache: bool,
     /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
+    /// Wall time of the trace step loop (ms).
+    #[serde(default)]
+    pub step_loop_ms: f64,
+    /// Median wait in the first half of step-loop samples (ms).
+    #[serde(default)]
+    pub wait_h1_median_ms: f64,
+    /// Median wait in the second half of step-loop samples (ms).
+    #[serde(default)]
+    pub wait_h2_median_ms: f64,
+    /// bytes_on_wire*8/step_loop_s as fraction of read_bps (A5).
+    #[serde(default)]
+    pub link_util_measured: f64,
     /// Per FoD ask sent: `(frame_index, ask_ordinal)` for offline join with server Tap.
     /// Ordinals increment per `frame_index` within the session (same rule as server Tap).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -134,6 +160,8 @@ pub struct MetricsState {
     pub cache: HashSet<u32>,
     /// Per want: ms until displayable (0 on cache hit).
     pub wait_samples_ms: Vec<f64>,
+    /// Wall ms of the windowed step loop (set by client).
+    pub step_loop_ms: f64,
 }
 
 impl MetricsState {
@@ -156,6 +184,7 @@ impl MetricsState {
             fill_started_at: None,
             cache: HashSet::new(),
             wait_samples_ms: Vec::new(),
+            step_loop_ms: 0.0,
         }
     }
 
@@ -207,6 +236,7 @@ impl MetricsState {
         self.wait_samples_ms.push(ms);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn finalize(
         &self,
         trace: &str,
@@ -255,6 +285,12 @@ impl MetricsState {
             cache_hits as f64 / self.wait_samples_ms.len() as f64
         };
         let (miss_mean_wait_ms, miss_p95_wait_ms) = wait_stats(&misses);
+        let (wait_h1_median_ms, wait_h2_median_ms) = half_medians(&self.wait_samples_ms);
+        let link_util_measured = if self.step_loop_ms > 0.0 && read_bps > 0 {
+            (self.bytes_on_wire as f64 * 8.0) / (self.step_loop_ms / 1000.0) / (read_bps as f64)
+        } else {
+            0.0
+        };
         HarnessMetrics {
             trace: trace.to_string(),
             mode: mode.to_string(),
@@ -291,6 +327,10 @@ impl MetricsState {
             bytes_before_settle: self.bytes_on_wire.saturating_sub(self.bytes_after_settle),
             warm_cache,
             rtt_ms,
+            step_loop_ms: self.step_loop_ms,
+            wait_h1_median_ms,
+            wait_h2_median_ms,
+            link_util_measured,
             ask_join: crate::client::take_ask_join(),
         }
     }
@@ -306,6 +346,28 @@ fn percentile_nearest_rank(sorted: &[f64], p: f64) -> f64 {
     let rank = ((p / 100.0) * n as f64).ceil() as usize;
     let rank = rank.clamp(1, n);
     sorted[rank - 1]
+}
+
+
+fn half_medians(samples: &[f64]) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+    let mid = samples.len() / 2;
+    let (a, b) = if mid == 0 {
+        (samples, &[][..])
+    } else {
+        (&samples[..mid], &samples[mid..])
+    };
+    let med = |xs: &[f64]| -> f64 {
+        if xs.is_empty() {
+            return 0.0;
+        }
+        let mut v = xs.to_vec();
+        v.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+        v[v.len() / 2]
+    };
+    (med(a), med(b))
 }
 
 fn wait_stats(samples: &[f64]) -> (f64, f64) {
