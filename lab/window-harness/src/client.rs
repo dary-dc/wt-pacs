@@ -1,4 +1,4 @@
-use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics, StreamMode};
+use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics, StreamMode, WindowShape};
 use crate::trace::TraceSpec;
 use crate::wire::{read_framed_paced, write_fod_msg, LinkPacer};
 use anyhow::{Context, Result};
@@ -62,6 +62,37 @@ fn record_ask(frame_index: u32) {
         });
 }
 
+
+fn build_client_config(stream_recv_window: Option<u64>) -> Result<ClientConfig> {
+    let builder = ClientConfig::builder().with_bind_default();
+    match stream_recv_window {
+        None => Ok(builder
+            .with_no_cert_validation()
+            .keep_alive_interval(Some(Duration::from_secs(3)))
+            .build()),
+        Some(bytes) => {
+            // A3: same insecure TLS as the default path, with a custom stream receive window.
+            use std::sync::Arc;
+            use rustls::RootCertStore;
+            use wtransport::config::QuicTransportConfig;
+            use wtransport::tls::client::{build_default_tls_config, NoServerVerification};
+
+            let tls = build_default_tls_config(
+                Arc::new(RootCertStore::empty()),
+                Some(Arc::new(NoServerVerification::new())),
+            );
+            let mut transport = QuicTransportConfig::default();
+            let window = wtransport::quinn::VarInt::from_u64(bytes)
+                .map_err(|_| anyhow::anyhow!("stream_recv_window {bytes} out of VarInt range"))?;
+            transport.stream_receive_window(window);
+            Ok(builder
+                .with_custom_tls_and_transport(tls, transport)
+                .keep_alive_interval(Some(Duration::from_secs(3)))
+                .build())
+        }
+    }
+}
+
 /// One process, serial depth sweep — fresh session per D, no shell between depths.
 pub async fn run_depth_sweep(
     trace: &TraceSpec,
@@ -92,11 +123,7 @@ pub async fn run_harness(
         .install_default()
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
-    let client_cfg = ClientConfig::builder()
-        .with_bind_default()
-        .with_no_cert_validation()
-        .keep_alive_interval(Some(Duration::from_secs(3)))
-        .build();
+    let client_cfg = build_client_config(cfg.stream_recv_window)?;
 
     let endpoint = Endpoint::client(client_cfg).context("wtransport client")?;
     let connection = endpoint
@@ -374,33 +401,49 @@ async fn run_windowed(
         outstanding.lock().expect("outstanding").clear();
     }
 
+    let step_interval_ms = cfg.step_interval_ms.unwrap_or(trace.step_interval_ms);
+    let step_loop_start = std::time::Instant::now();
     for (i, &cursor) in schedule.iter().enumerate() {
         if i > 0 {
-            tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
+            tokio::time::sleep(Duration::from_millis(step_interval_ms)).await;
         }
         // Ask first so depth can pipeline; then measure wait for this cursor.
-        asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
+        // C4: do NOT wait_outstanding_below here — that link-paces the reader.
+        // emit_window already caps concurrency via the outstanding set.
+        asks_sent += emit_window(
+            control_send,
+            outstanding,
+            metrics,
+            cursor,
+            d,
+            n,
+            cfg.rtt_ms,
+            cfg.window_shape,
+        )
+        .await?;
         // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
         // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
         // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
         // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
         wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
-        // Drain completed asks before the next emit. Waiting for `<= d` is a no-op when
-        // outstanding already equals d and lets D=1 skip the next ask (timeout on an
-        // unasked frame). Wait until below d (0 when d=1).
-        wait_outstanding_below(
-            outstanding,
-            d.saturating_sub(1),
-            cfg.timeout_ms,
-        )
-        .await?;
     }
 
     {
         let mut m = metrics.lock().expect("metrics lock");
+        m.step_loop_ms = step_loop_start.elapsed().as_secs_f64() * 1000.0;
         m.settle();
     }
-    asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
+    asks_sent += emit_window(
+        control_send,
+        outstanding,
+        metrics,
+        wanted,
+        d,
+        n,
+        cfg.rtt_ms,
+        cfg.window_shape,
+    )
+    .await?;
     wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
@@ -411,8 +454,18 @@ async fn run_windowed(
         }
         let fill_deadline = std::time::Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
         while std::time::Instant::now() < fill_deadline {
-            asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
-            wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
+            asks_sent += emit_window(
+                control_send,
+                outstanding,
+                metrics,
+                wanted,
+                d,
+                n,
+                cfg.rtt_ms,
+                cfg.window_shape,
+            )
+            .await?;
+            wait_outstanding_below(outstanding, d.saturating_sub(1), 2_000).await?;
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         {
@@ -424,9 +477,15 @@ async fn run_windowed(
     Ok(asks_sent)
 }
 
-fn window_frames(center: u32, d: u32, n: u32) -> Vec<u32> {
+fn window_frames(center: u32, d: u32, n: u32, shape: WindowShape) -> Vec<u32> {
     let mut out = Vec::with_capacity(d as usize);
     if d == 0 || n == 0 {
+        return out;
+    }
+    if shape == WindowShape::Forward {
+        for r in 0..d.min(n) {
+            out.push(center.wrapping_add(r) % n);
+        }
         return out;
     }
     out.push(center % n);
@@ -451,17 +510,32 @@ fn window_frames(center: u32, d: u32, n: u32) -> Vec<u32> {
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn emit_window(
     control_send: &mut wtransport::stream::SendStream,
     outstanding: &Arc<Mutex<HashSet<u32>>>,
+    metrics: &SharedMetrics,
     center: u32,
     d: u32,
     n: u32,
     rtt_ms: u64,
+    shape: WindowShape,
 ) -> Result<u32> {
-    let frames = window_frames(center, d, n);
+    let frames = window_frames(center, d, n, shape);
     let mut sent = 0u32;
     for frame in frames {
+        // Already displayable: re-asking re-sends a frame the client holds. On the shared arm
+        // those bytes queue ahead of frames the reader is waiting for — the exact head-of-line
+        // cost this lane exists to measure. Never manufacture it here.
+        //
+        // LOCK ORDER: take `metrics`, drop it, THEN take `outstanding`. Never hold both:
+        // `on_frame_arrived` takes them in the opposite order and would deadlock.
+        {
+            let m = metrics.lock().expect("metrics lock");
+            if m.cache.contains(&frame) {
+                continue;
+            }
+        }
         {
             let mut o = outstanding.lock().expect("outstanding");
             if o.len() as u32 >= d && !o.contains(&frame) {
@@ -674,4 +748,26 @@ async fn accept_uni_loop(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod window_shape_tests {
+    use super::window_frames;
+    use crate::metrics::WindowShape;
+
+    #[test]
+    fn forward_window_never_looks_back() {
+        assert_eq!(
+            window_frames(40, 7, 80, WindowShape::Forward),
+            vec![40, 41, 42, 43, 44, 45, 46]
+        );
+    }
+
+    #[test]
+    fn symmetric_window_is_unchanged() {
+        assert_eq!(
+            window_frames(40, 7, 80, WindowShape::Symmetric),
+            vec![40, 41, 39, 42, 38, 43, 37]
+        );
+    }
 }

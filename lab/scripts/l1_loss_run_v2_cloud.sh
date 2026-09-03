@@ -8,6 +8,14 @@ export SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}"
 source "$ROOT/lab/scripts/cloud_common.sh"
 
 OUT_TSV="${OUT_TSV:-$ROOT/docs/measurements/r2/l1_s_vs_q_loss_v2.tsv}"
+# S0: v2 data is VOID. Never open or append the old path; v3 writes l1_s_vs_q_loss_v3.tsv.
+case "$(basename "$OUT_TSV")" in
+  l1_s_vs_q_loss_v2.tsv|l1_s_vs_q_loss_v2.VOID.tsv)
+    echo "REFUSE: $OUT_TSV is VOID (see docs/measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md). Use the v3 runner." >&2
+    exit 2
+    ;;
+esac
+
 RAW_DIR="${RAW_DIR:-$ROOT/.local/r2/l1v2/raw}"
 LOG="${LOG:-$ROOT/.local/r2/l1v2/RUN.log}"
 PORT="${CLOUD_PORT:-4435}"
