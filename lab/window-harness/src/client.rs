@@ -404,8 +404,12 @@ async fn run_windowed(
     let step_interval_ms = cfg.step_interval_ms.unwrap_or(trace.step_interval_ms);
     let step_loop_start = std::time::Instant::now();
     for (i, &cursor) in schedule.iter().enumerate() {
-        if i > 0 {
-            tokio::time::sleep(Duration::from_millis(step_interval_ms)).await;
+        // Advance on the trace clock (absolute schedule). Miss waits that overrun
+        // the interval stretch the loop — that is the backlog C4 / A2 detect.
+        let target = step_loop_start + Duration::from_millis(step_interval_ms.saturating_mul(i as u64));
+        let now = std::time::Instant::now();
+        if target > now {
+            tokio::time::sleep(target - now).await;
         }
         // Ask first so depth can pipeline; then measure wait for this cursor.
         // C4: do NOT wait_outstanding_below here — that link-paces the reader.
@@ -538,7 +542,12 @@ async fn emit_window(
         }
         {
             let mut o = outstanding.lock().expect("outstanding");
-            if o.len() as u32 >= d && !o.contains(&frame) {
+            // Already in flight: do not re-ask. Re-asking is what produced v2's
+            // ~6× ask inflation and is exactly what S3 polices.
+            if o.contains(&frame) {
+                continue;
+            }
+            if o.len() as u32 >= d {
                 continue;
             }
             o.insert(frame);
