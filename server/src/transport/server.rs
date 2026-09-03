@@ -3,12 +3,12 @@
 //! Serial loop: read one ask, send it to completion, read the next.
 //! No server-side ask queue — see docs/adr-reject-server-ordering.md.
 //!
-//! Per-frame work runs through [`pipeline::SessionPipeline`] (product [`pipeline::FramePipeline`]
-//! or lab [`pipeline::RecordedFramePipeline`]). See `docs/telemetry/adr-server-pipeline.md`.
+//! Per-frame work: [`pipeline::FramePipeline`] trait (product [`pipeline::ProductPipeline`] /
+//! lab [`pipeline::RecordedPipeline`]). See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
-use crate::transport::pipeline::SessionPipeline;
+use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::read_fod_msg;
@@ -19,6 +19,9 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Endpoint, Identity, ServerConfig};
+
+#[cfg(feature = "telemetry")]
+use crate::transport::pipeline::RecordedPipeline;
 
 pub struct ServeConfig {
     pub wt_port: u16,
@@ -93,18 +96,19 @@ async fn handle_incoming(
         .context("accept control bidi")?;
 
     let out = FrameOut::open(mode, connection).await?;
+    let product = ProductPipeline::new(store, out);
 
     #[cfg(feature = "telemetry")]
-    let mut pipeline = SessionPipeline::recorded(store, out);
+    let mut pipeline = RecordedPipeline::new(product);
     #[cfg(not(feature = "telemetry"))]
-    let mut pipeline = SessionPipeline::product(store, out);
+    let mut pipeline = product;
 
     run_session(&mut pipeline, control_send, control_recv).await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
-async fn run_session(
-    pipeline: &mut SessionPipeline,
+async fn run_session<P: FramePipeline>(
+    pipeline: &mut P,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
 ) -> Result<()> {

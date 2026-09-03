@@ -99,8 +99,8 @@ session-method totals only (A2), product framing edits (A3), or hybrid (A4). See
 | Area | Path |
 | --- | --- |
 | Client install + Proxy | `client/transport-ts/record/` |
-| Server app seam | `server/src/transport/pipeline.rs` (`FramePipeline`, `SessionPipeline`) |
-| Server lab wrapper | `server/src/transport/pipeline.rs` (`RecordedFramePipeline`) |
+| Server app seam | `server/src/transport/pipeline.rs` (`FramePipeline` trait, `ProductPipeline`) |
+| Server lab wrapper | `server/src/transport/pipeline.rs` (`RecordedPipeline`) |
 | Server wire out | `server/src/transport/frame_out.rs` |
 | Server Tap | `server/src/record/tap.rs` |
 | E2e harvest | `server/scripts/verify_e2e.py` |

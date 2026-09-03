@@ -1,47 +1,41 @@
 # ADR: server frame pipeline — product seam + lab wrapper
 
-**Status:** accepted (amended 2026-09-02) · **Tags:** telemetry, server  
+**Status:** accepted (amended 2026-09-03) · **Tags:** telemetry, server  
 **Supersedes:** inline `FrameSink` hook shape from the 2026-08-31 decision (`FrameSink` / `RecordedSink` are retired)  
-**Decides:** Decision C — lab wraps a product pipeline, not call-site closures
+**Decides:** Decision C — lab wraps product **steps**, not call-site closures; story is a trait default
 
 ## Context
 
-The server session loop mixed product work with timing. An earlier refactor introduced
-`FrameSink` + `RecordedSink`, but hollow hooks (`ask`, `on_refused`) and closures
-(`time_locate(|| slice)`) left measurement-shaped calls in the session loop. Prefault
-(`spawn_blocking`) sat outside the seam entirely.
-
-The wire type is **`FrameOut`** (`frame_out.rs`). The word “sink” is retired.
+The server session loop mixed product work with timing. Earlier shapes used hollow hooks,
+closures, or a lab `serve_one` that restated the product story. Prefault sat outside the seam.
 
 ## Layers
 
 | Layer | Module | Type | Responsibility |
 | --- | --- | --- | --- |
-| App seam | `pipeline.rs` | `FramePipeline` / `RecordedFramePipeline` | prepare → locate → send → refuse |
-| Wire seam | `frame_out.rs` | `FrameOut` | open session media path; write envelope bytes |
-| Session dispatch | `pipeline.rs` | `SessionPipeline` | enum: product or lab, one `serve_one` entry |
+| App seam | `pipeline.rs` | trait `FramePipeline` + `ProductPipeline` | prepare → locate → send → refuse |
+| Lab wrapper | `pipeline.rs` | `RecordedPipeline<P>` | stamp + delegate each step |
+| Wire seam | `frame_out.rs` | `FrameOut` | open media path; write envelopes |
 
-The session loop (`server.rs`) calls only `SessionPipeline::serve_one` — no trait defaults,
-no hollow hooks.
+The session loop calls only `serve_one` / `drain_acks` on a generic `P: FramePipeline`.
 
 ## Decision
 
-**Product `FramePipeline`** owns the per-frame story in `serve_one`:
+**Trait default `serve_one`** owns the story (written once). Implementors override steps only.
 
-1. `prepare` — prefault (`spawn_blocking(touch_frame_pages)`); see `docs/disk-access/adr.md`
-2. `store.frame_slice` — locate (mmap slice)
-3. `out.send_frame` — send on media uni
-4. `refuse` — `FrameError` on control on failure
+**Product `ProductPipeline`** holds `Arc<FrameStore>` + `FrameOut` and implements real work.
 
-**Lab `RecordedFramePipeline`** wraps `FramePipeline`, holds `Tap` directly:
+**Lab `RecordedPipeline<P>`** wraps any `FramePipeline`, holds `Tap`, stamps each step. It does
+**not** override `serve_one`.
 
-- Own `serve_one`: `tap.begin_frame(idx)` then same story, stamping each stage
-- Delegates `prepare` / `refuse`; locate+send inlined with one `Arc` clone so slice and
-  `inner.send` can borrow disjointly
-- Default builds use `SessionPipeline::product`; lab uses `SessionPipeline::recorded`
-  (`#[cfg(feature = "telemetry")]`)
+**Arc clone in default `serve_one`:** before `locate`, clone the study `Arc` so returned bytes
+borrow that clone (not `self`). That lets `send(&mut self, bytes)` compile for wrappers without
+double-slicing or restating the story. Cost: one atomic refcount bump per frame (plus the
+existing clone for `spawn_blocking` in `prepare`).
 
-**No `on_ask` hook.** Telemetry entry is `begin_frame` at the top of the lab `serve_one` only.
+- Prefault lives in `ProductPipeline::prepare` (see `docs/disk-access/adr.md`).
+- Send failures abort the session (no `FrameError` on control); prepare/locate failures call `refuse`.
+- Default builds construct only `ProductPipeline`; `RecordedPipeline` is `#[cfg(feature = "telemetry")]`.
 
 ## Report schema
 
@@ -52,11 +46,6 @@ Invariant: `serve_us >= prepare_us + locate_us + send_us` (residual = orchestrat
 
 ## Consequences
 
-- Session loop has zero telemetry tokens, no trait default, no closures for locate.
-- `Recorder` intermediate layer removed; `Tap` is owned by the wrapper only.
-- Product fields (`store`, `out`) are private; lab uses `store()` accessor + `inner.send`.
-
-## Future direction (not decided)
-
-Further simplify by deduplicating the ~8-line orchestration shared by product and lab
-`serve_one` via a private helper — only if duplication becomes noisy.
+- Session loop has zero telemetry tokens and no enum match per call.
+- Lab cannot reach product fields (`RecordedPipeline<P>` is generic).
+- No duplicated product story in the lab type.
