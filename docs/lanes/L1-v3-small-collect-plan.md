@@ -2,8 +2,9 @@
 
 **Status:** awaiting review · **Date:** 2026-09-04 · **Branch:** `cursor/l1-loss-run-dbae`  
 **Depends on:** path validation PASSED · A1 cadence frozen in
-[`l1_v3_cadence.json`](../../measurements/r2/l1_v3_cadence.json)  
-**Does not run:** full S9 grid (~10.5 h). This is a methodology smoke + first sample only.
+[`l1_v3_cadence.json`](../measurements/r2/l1_v3_cadence.json)  
+**Does not run:** full S9 grid (~10.5 h). This is a methodology smoke + first sample only.  
+**Collect runner:** `PHASE=collect` currently **refuses** until this plan is approved.
 
 ---
 
@@ -15,88 +16,71 @@ Before spending a long rig night, answer:
 2. At **0 % loss**, do S / P / Q stay close? (null control smoke — S12 clause 1)
 3. At **0.5 % loss**, is there a *directional* Q vs S signal (and is it P or priority)?
 
-A clean small collect unlocks a powered RTT-60 collect later. A dirty one stops the campaign
-cheaply.
+---
+
+## Frozen cadences (from pilots just run)
+
+Rule applied as written in A1: `step_interval_ms = round(1000 / (0.9 × median_f_cell))`  
+with 3× S-arm pilots at `--step-interval-ms 0`.
+
+| RTT | loss | D | f_cell runs (fps) | median | **step_ms** |
+| ---: | ---: | ---: | --- | ---: | ---: |
+| 60 | 0 % | 4 | 33.87, 33.90, 33.89 | 33.89 | **33** |
+| 60 | 0.5 % | 4 | 32.22, **12.52**, 32.17 | 32.17 | **35** |
+| 60 | 2 % | 4 | **9.65**, 31.80, 31.56 | 31.56 | **35** |
+| 150 | 0 % | 7 | 28.45, 28.46, 28.46 | 28.46 | **39** |
+| 150 | 0.5 % | 7 | 26.56, 28.35, **7.92** | 26.56 | **42** |
+
+**Reviewer flags (do not ignore):**
+
+1. **Loss cells: 1-of-3 outlier pilots** (bold). Median still tracks the “good” cluster; cadence is
+   optimistic vs a mean. Consider 5 pilots or outlier rejection before powered collect.
+2. **A1 prose vs formula:** text says “reader *marginally faster* than delivery,” but
+   `1000/(0.9·f)` makes the reader **slower** than `f_cell` (≈0.9×). That may under-produce
+   misses on the 0 % cell (the failure mode A1 was meant to avoid). Confirm whether the factor
+   should be **0.9** (as frozen) or **~1.1** (faster reader) before small collect.
+3. Lossless pilots are rock-stable (spread ≈1.0); trust those cells more than loss cells.
+
+Artifacts: `l1_s_vs_q_loss_v3.pilot.tsv`, `raw/l1v3/pilot/`, `l1_v3_cadence.json`.
 
 ---
 
-## Grid (RTT 60 only)
+## Small-collect grid (RTT 60 only)
 
-| cell | loss | D | arms | repeats/arm | role |
-| --- | ---: | ---: | --- | ---: | --- |
-| null | 0 % | 4 | S, P, Q | **10** | null-control smoke |
-| decision sample | 0.5 % | 4 | S, P, Q | **10** | directional only — **not** ship power |
-| diagnostic | 2 % | 4 | S, Q | **5** | dose direction (optional) |
+| cell | loss | D | arms | repeats/arm | cadence | role |
+| --- | ---: | ---: | --- | ---: | ---: | --- |
+| null | 0 % | 4 | S, P, Q | **10** | 33 ms | null-control smoke |
+| decision sample | 0.5 % | 4 | S, P, Q | **10** | 35 ms | directional only |
+| diagnostic | 2 % | 4 | S, Q | **5** | 35 ms | dose direction |
 
-**Total:** 10×3 + 10×3 + 5×2 = **80 runs** ≈ **1–1.5 h** wall (incl. reconnect).
+**Total:** 80 runs ≈ 1–1.5 h. Not ship power (that needs ~40/arm later).
 
-Cadence: each cell uses the **frozen** `step_interval_ms` from `l1_v3_cadence.json` for **all**
-arms in that cell. No mid-run retune.
-
-Arms:
-
-| arm | server flags |
+| arm | flags |
 | --- | --- |
 | S | `--stream-mode shared` |
 | P | `--stream-mode per-frame` |
 | Q | `--stream-mode per-frame --ask-priority` |
 
-Same binary; three ports (4435/4436/4437) live for the whole small collect (C3).
-
 ---
 
-## Execution rules
-
-1. **S11:** tree clean under `lab/` + `docs/lanes/` before start; stamp `protocol_sha` on every row.
-2. **Interleave** arms run-by-run within a cell (S,P,Q,S,P,Q…), not arm-blocks.
-3. **Assert netem** after every run; capture `tc` snapshot beside raw JSON.
-4. **Pilots never enter** the decision TSV (`role=pilot` stays in `.pilot.tsv` only).
-5. Output TSV: `docs/measurements/r2/l1_s_vs_q_loss_v3.small.tsv`  
-   Raw: `docs/measurements/r2/raw/l1v3/small/`
-
----
-
-## Hard stop gates (any fail → do not scale up)
+## Hard stop gates
 
 | gate | rule |
 | --- | --- |
-| S3 asks | `asks_sent ≤ 1.25 × frame_count` (≤100 on 80-frame trace) |
-| A2 backlog | `wait_h2_median ≤ 1.5 × wait_h1_median` or mark BACKLOG / exclude |
-| Miss samples | each decision-sample row has enough positive waits to compute miss_p95 (target: cache_misses ≥ ~15) |
-| Null smoke | median miss_p95 S vs Q at 0 % within **25 % relative or 200 ms abs** (path-style); large gap → STOP |
-| Cadence used | every row’s `step_interval_ms` matches frozen JSON for that cell |
+| S3 asks | `asks_sent ≤ 100` on 80-frame trace |
+| A2 backlog | h2 median ≤ 1.5× h1 or mark BACKLOG |
+| Miss budget | decision rows need enough positive waits (aim cache_misses ≥ ~15) |
+| Null smoke | S vs Q miss_p95 at 0 % within 25 % rel or 200 ms abs |
+| Cadence stamp | row `step_interval_ms` matches frozen JSON |
 
 ---
 
-## What we will *not* claim from this
+## Reviewer checklist
 
-- Not “Q wins / loses” for shipping (n=10 under-powered vs S9’s 40).
-- Not RTT 150 behaviour.
-- Not bursty (A6) or depth-sweep (A4) claims.
+- [ ] Accept or revise A1 factor (0.9 vs ~1.1) given prose/formula mismatch
+- [ ] Accept median-of-3 despite loss outliers, or require re-pilot
+- [ ] Cadences in table look plausible for product-like stepping
+- [ ] 15 % bar: keep as later powered threshold, or defer
+- [ ] Approve implementing `COLLECT_MODE=small` only after the above
 
-**After review + green small collect:** scale RTT-60 null+decision to 40 repeats/arm (± A6), still
-before any overnight full grid.
-
----
-
-## Reviewer checklist (before approving a run)
-
-- [ ] `l1_v3_cadence.json` present; step intervals look plausible (not 50 ms cargo-cult; derived from pilots)
-- [ ] Pilot TSV shows stable `f_cell` across 3 repeats per cell
-- [ ] Isolation / path notes still hold (excess is post-enqueue; not blocking this smoke)
-- [ ] 15 % bar still accepted as *directional* threshold for later powered collect (or explicitly deferred)
-- [ ] No collect runner started until this plan is approved
-
----
-
-## How to run (after approval only)
-
-```bash
-# Already done for calibration:
-PHASE=pilot bash lab/scripts/l1_loss_run_v3_cloud.sh
-
-# After reviewer OK — implement/enable small collect, then e.g.:
-# PHASE=collect COLLECT_MODE=small bash lab/scripts/l1_loss_run_v3_cloud.sh
-```
-
-Until `COLLECT_MODE=small` is implemented and this doc is approved, `PHASE=collect` must refuse.
+**Do not start collect until this checklist is signed off.**
