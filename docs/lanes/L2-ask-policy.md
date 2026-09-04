@@ -91,12 +91,11 @@ processes.
 
 ## Report
 
-TSV to `docs/measurements/r2/`. Columns: `arm, rtt_ms, loss_pct, run, p95_wait_ms, mean_wait_ms,
-bytes_on_wire, asks_sent, d_min_observed, d_max_observed`.
+**Canonical interpretation:** [`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md).
 
-Plus the per-frame `d_current` trace for the dynamic arm, as a separate file.
+TSV: `docs/measurements/r2/l2_ask_policy_v2.tsv` (v1 `l2_ask_policy.tsv` withdrawn).
 
-Raw rows. No interpretation — **especially** do not conclude whether dynamic "wins."
+Raw rows stay in git; decisions go through the evidence freeze only.
 
 ## Stop conditions
 
