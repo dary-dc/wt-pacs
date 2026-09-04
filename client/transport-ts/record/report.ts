@@ -46,6 +46,7 @@ export function maxOf(values: number[]): number | null {
 
 export function judgeIntegrity(integrity: Integrity): IntegrityJudgement {
   const invalid_reasons: string[] = [];
+  // Hard voids — a run must not be published with these wrong.
   if (integrity.rows_opened !== integrity.rows_closed) {
     invalid_reasons.push(
       `rows_opened ${integrity.rows_opened} != rows_closed ${integrity.rows_closed}`,
@@ -57,9 +58,8 @@ export function judgeIntegrity(integrity: Integrity): IntegrityJudgement {
   if (integrity.first_write_conflicts > 0) {
     invalid_reasons.push(`first_write_conflicts ${integrity.first_write_conflicts}`);
   }
-  if (integrity.marks_after_close > 0) {
-    invalid_reasons.push(`marks_after_close ${integrity.marks_after_close}`);
-  }
+  // marks_after_close is recorded but does not void: fill/preload closes at
+  // last_byte while the harness may still call onDelivered afterward.
   return { valid: invalid_reasons.length === 0, invalid_reasons };
 }
 

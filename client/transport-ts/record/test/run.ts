@@ -426,7 +426,11 @@ function sliceRiver(
     "mark after close increments marks_after_close",
   );
   const report = tap.finish();
-  assertEq(report.summary.integrity.valid, false, "marks_after_close voids run");
+  assertEq(report.summary.integrity.valid, true, "marks_after_close alone does not void");
+  assert(
+    report.summary.integrity.marks_after_close > 0,
+    "marks_after_close still recorded for the reader",
+  );
 }
 
 // preload closes at last_byte without paint; interaction at delivered
