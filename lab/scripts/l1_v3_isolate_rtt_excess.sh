@@ -253,44 +253,46 @@ lines.append(f"**Date:** isolation run · **Tf:** {tf} ms (32 KiB @ 10 Mbit idea
 lines.append("")
 lines.append("## Isolation A — delay+rate vs delay-only")
 lines.append("")
-lines.append("| rate | RTT | median miss_p95 | median miss_mean | ideal RTT+Tf | excess p95 |")
-lines.append("| --- | --- | --- | --- | --- | --- |")
+# Correct ideals: shaped = RTT+Tf; delay-only = RTT (no 10mbit serialization).
+lines.append("| rate | RTT | median miss_p95 | median miss_mean | ideal | excess p95 | excess mean |")
+lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+summary = {}
 for rate in ("10mbit", "delayonly"):
     for rtt in (60, 150):
         subset = [r for r in rows if r["rate"] == rate and r["rtt_label_ms"] == rtt]
         p95 = med([r["miss_p95_wait_ms"] for r in subset])
         mean = med([r["miss_mean_wait_ms"] for r in subset])
-        ideal = rtt + tf
+        ideal = (rtt + tf) if rate == "10mbit" else float(rtt)
+        summary[(rate, rtt)] = (p95, mean, ideal)
         lines.append(
-            f"| {rate} | {rtt} | {p95:.1f} | {mean:.1f} | {ideal:.1f} | {p95 - ideal:.1f} |"
+            f"| {rate} | {rtt} | {p95:.1f} | {mean:.1f} | {ideal:.1f} | "
+            f"{p95 - ideal:.1f} | {mean - ideal:.1f} |"
         )
 
-# Verdict
-p95_rate_60 = med([r["miss_p95_wait_ms"] for r in rows if r["rate"] == "10mbit" and r["rtt_label_ms"] == 60])
-p95_delay_60 = med([r["miss_p95_wait_ms"] for r in rows if r["rate"] == "delayonly" and r["rtt_label_ms"] == 60])
-p95_rate_150 = med([r["miss_p95_wait_ms"] for r in rows if r["rate"] == "10mbit" and r["rtt_label_ms"] == 150])
-p95_delay_150 = med([r["miss_p95_wait_ms"] for r in rows if r["rate"] == "delayonly" and r["rtt_label_ms"] == 150])
-ideal_60, ideal_150 = 60 + tf, 150 + tf
-
-def near_ideal(p95, ideal, tol=0.15):
-    return abs(p95 - ideal) / ideal <= tol
+p95_rate_60, _, _ = summary[("10mbit", 60)]
+p95_delay_60, mean_delay_60, ideal_d60 = summary[("delayonly", 60)]
+p95_rate_150, _, _ = summary[("10mbit", 150)]
+p95_delay_150, mean_delay_150, ideal_d150 = summary[("delayonly", 150)]
 
 lines.append("")
 lines.append("### Read")
-if near_ideal(p95_delay_60, ideal_60) and near_ideal(p95_delay_150, ideal_150):
+# Rate contributes ~Tf if absolute means drop by ~Tf when rate is removed.
+drop_60 = summary[("10mbit", 60)][1] - summary[("delayonly", 60)][1]
+drop_150 = summary[("10mbit", 150)][1] - summary[("delayonly", 150)][1]
+still_scaled = (mean_delay_150 - ideal_d150) > 0.2 * 150
+if still_scaled and drop_60 < tf * 1.5:
     verdict = (
-        "**Delay-only lands near RTT+Tf** while delay+rate keeps the excess → "
-        "the ~1.5×RTT band is largely a **netem rate / ACK-path artifact**, not FoD app logic."
+        f"**Netem `rate` is not the main cause** (mean drop without rate ≈ {drop_60:.0f}/{drop_150:.0f} ms "
+        f"≈ Tf; delay-only still has RTT-proportional excess). Look at Isolation B / QUIC after enqueue."
     )
-elif (p95_delay_60 < p95_rate_60 * 0.85) or (p95_delay_150 < p95_rate_150 * 0.85):
+elif not still_scaled:
     verdict = (
-        "**Delay-only reduces excess but does not fully remove it** → rate shaping contributes; "
-        "remaining gap is still on the wire/stack (CC / multi-flight)."
+        "**Delay-only removes the RTT-proportional excess** → shaped-path rate/ACK interaction "
+        "was the main driver of the 1.5×RTT band."
     )
 else:
     verdict = (
-        "**Delay-only does not remove the excess** → not explained by netem `rate`; "
-        "look at Isolation B / QUIC CC."
+        "**Mixed:** rate and path/CC both contribute; see Isolation B before blaming FoD."
     )
 lines.append(verdict)
 lines.append("")
