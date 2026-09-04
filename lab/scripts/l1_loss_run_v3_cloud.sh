@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # L1 v3 campaign entrypoint.
-#   PHASE=path   → l1_v3_path_validate.sh (S4a/S4b/S5)  [default]
-#   PHASE=pilot  → cadence pilots (requires path gates)
-#   PHASE=collect → full interleaved campaign
-#
-# Pilot/collect share helpers with path validation; both processes run ON the rig.
+#   PHASE=path    → path validation (S4a/S4b/S5)
+#   PHASE=pilot   → A1 cadence pilots → l1_v3_cadence.json
+#   PHASE=collect → refused until small-collect plan is approved + implemented
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -14,24 +12,29 @@ case "$PHASE" in
   path)
     exec bash "$ROOT/lab/scripts/l1_v3_path_validate.sh" "$@"
     ;;
-  pilot|collect)
+  pilot)
+    exec bash "$ROOT/lab/scripts/l1_v3_pilot_cadence.sh" "$@"
+    ;;
+  collect)
+    PATH_TSV="${PATH_TSV:-$ROOT/docs/measurements/r2/l1_s_vs_q_loss_v3.path.tsv}"
+    CADENCE="${CADENCE:-$ROOT/docs/measurements/r2/l1_v3_cadence.json}"
+    PLAN="$ROOT/docs/lanes/L1-v3-small-collect-plan.md"
+    [[ -f "$PATH_TSV" ]] || {
+      echo "STOP: missing path validation ($PATH_TSV)" >&2
+      exit 4
+    }
+    [[ -f "$CADENCE" ]] || {
+      echo "STOP: missing frozen cadence ($CADENCE). Run PHASE=pilot first." >&2
+      exit 4
+    }
+    echo "STOP: PHASE=collect is gated on reviewer approval of:" >&2
+    echo "  $PLAN" >&2
+    echo "Small collect is not auto-started (avoid unreliable long runs)." >&2
+    echo "Cadence artifact OK: $CADENCE" >&2
+    exit 3
     ;;
   *)
     echo "PHASE must be path|pilot|collect (got: $PHASE)" >&2
     exit 2
     ;;
 esac
-
-# Pilot/collect are gated on a successful path validation artifact.
-PATH_TSV="${PATH_TSV:-$ROOT/docs/measurements/r2/l1_s_vs_q_loss_v3.path.tsv}"
-if [[ ! -f "$PATH_TSV" ]]; then
-  echo "STOP: missing path validation TSV ($PATH_TSV)." >&2
-  echo "Run: PHASE=path bash lab/scripts/l1_loss_run_v3_cloud.sh" >&2
-  exit 4
-fi
-
-echo "=== L1 v3 PHASE=$PHASE ===" >&2
-echo "Path gates artifact present: $PATH_TSV" >&2
-echo "Pilot/collect orchestration is staged next; path validation is the hard gate." >&2
-echo "Re-run PHASE=path after any harness/server/netem change." >&2
-exit 0
