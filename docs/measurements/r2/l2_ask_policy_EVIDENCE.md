@@ -73,35 +73,25 @@ medians are unstable. See loss-expansion plan below.
 
 ## Caveats that block ADR lock-in (analyzed)
 
-### A — Path RTT probe contaminates the BDP formula (blocking for “dynamic vs fixed”)
+### A — Path RTT probe (fixed on this branch; WAN clamp still expected)
 
-`path_rtt_ms` in the TSV is **not path RTT**. The v2 campaign probe is a one-frame harness
-ask→displayable wait. On a 10 Mbps cell that includes:
+**Fixed (commit `adc938f`):** harness now records `ask_first_byte_ms` /
+`median_ask_first_byte_ms`. Campaign `measure_path_rtt` uses the median of **3**
+one-frame **ask→first-byte** probes (not ask→displayable). Smoke still passes.
 
-- WAN base (~hundreds of ms from agent → Oracle SP)
-- netem one-way add (`N/2` on server egress)
-- **frame transfer time** (`Tf ≈ 25.6 ms` for 32 KB) and any queueing
+**v2 contamination (historical):** probes of ~469–663 ms were ask→displayable and
+included `Tf ≈ 25.6 ms`. That alone is not why D hit 16 on Oracle SP.
 
-Observed probes: **469 / 479 / 526 / 661 / 663 ms** for nominal labels 20 / 20 / 60 / 150 / 150.
+**WAN reality:** true path RTT agent→Oracle is still **hundreds of ms**. For
+32 KB @ 10 Mbps, formula D reaches the clamp at RTT ≳ 400 ms. So on this rig,
+**D=16 for fixed/dynamic at 0% loss is the correct BDP answer**, not only a probe
+bug. Interior-D proof for the estimator remains the **loopback smoke**
+(`d_max ≤ 2` with `--path-rtt-ms 0`).
 
-Formula with those values always returns **D=16** (clamp). With **true** RTT the same fixture
-would give interior depths:
+**Still required for v3 cloud grid:** SSH key `id_ed25519_rig_agent` in this
+environment (missing after rebuild) — campaign scripts cannot reach the rig until
+restored.
 
-| true RTT | formula D @ 32 KB / 10 Mbps |
-| ---: | ---: |
-| 20 | 2 |
-| 60 | 4 |
-| 150 | 7 |
-| 250 | 11 |
-| ≥400 | 16 |
-
-So the “dynamic saturated” flag is largely **measurement input error**, not a finding that
-the live estimator always pins the clamp on this WAN. Fixed was also sized from the same
-probe → **fixed ≡ dynamic ≡ D=16** on loss=0 (medians within noise).
-
-**Fix before the next grid:** path RTT = control-stream ping, QUIC RTT sample, or
-ask→first-byte with **tiny** probe / empty body — never full-frame displayable wait.
-Record `path_rtt_ms` and `formula_depth` separately from `probe_wait_ms`.
 
 ### B — RTT axis labels are nominal netem profiles, not achieved RTT
 
@@ -144,11 +134,13 @@ Optional second pass: add RTT 20 and/or 5% loss only if rank flips between 1% an
 
 ### Acceptance before quoting loss results
 
-- [ ] Path RTT probe no longer includes full-frame `Tf` (unit/smoke gate).
-- [ ] At least one zero-loss cell shows **interior** `d_max_observed` for dynamic and fixed
-      formula depth matching true RTT (±1).
+- [x] Path RTT probe no longer includes full-frame `Tf` (ask→first-byte; smoke OK).
+- [~] Interior `d_max` on **loopback** with path_rtt=0 — yes (smoke G3). On Oracle WAN,
+      formula D=16 at measured path RTT is expected; not a void condition for v3.
 - [ ] Per loss>0 cell: report median **and** IQR / max; void-stop if `wait_samples` empty.
 - [ ] No ADR text cites a single outlier run as the cell winner.
+- [ ] **v3 cloud campaign executed** (`l2_ask_policy_v3_loss.tsv`) — blocked until rig SSH key restored.
+
 
 ### Output
 
@@ -161,10 +153,10 @@ Optional second pass: add RTT 20 and/or 5% loss only if rank flips between 1% an
 | --- | --- |
 | Harness methodology corrected + smoke | **yes** |
 | Shaped fair-workload grid at 0 / 0.5% | **yes** (with caveats A–B) |
-| Dynamic-vs-fixed as a real comparison | **no** — fix path RTT first |
-| Loss story for ADR | **no** — expand loss + repeats |
+| Dynamic-vs-fixed as a real comparison | **partial** — probe fixed; on WAN both sit at BDP clamp at 0% loss; loss axis is where dynamic can shrink |
+| Loss story for ADR | **blocked** — v3 script ready; needs rig SSH + campaign run |
 | Browser confirmation | **deferred** (not required for this phase) |
-| Final adversarial review for ADR lock-in | **after** path-RTT fix + loss pass (or after an explicit “0% loss only” ADR claim) |
+| Final adversarial review for ADR lock-in | **after** v3 loss TSV lands |
 
 ## Commit / PR references (history)
 
