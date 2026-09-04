@@ -1,6 +1,8 @@
 # L2 harness fix plan — methodology remediation
 
-**Status: plan — implement before any L2 grid re-run.** · Depends on
+**Status: Phases 1–6 + smoke + v2 grid done on PR #9.** Remaining gaps (path-RTT
+probe, loss axis) are tracked in
+[`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md). · Depends on
 [`l2_ask_policy_METHODOLOGY_REVIEW.md`](../measurements/r2/l2_ask_policy_METHODOLOGY_REVIEW.md)
 
 ## Verdict
@@ -168,10 +170,10 @@ Full grid (`l2_ask_policy_cloud.sh`) runs only when **G1–G6** pass.
 
 ## After harness fix
 
-1. Shaped campaign → new TSV (do not overwrite withdrawn rows; use `l2_ask_policy_v2.tsv` or dated name).
-2. Browser bridge cell (control vs fixed) — still blocked until client shared-mode + telemetry
-   ([`l2_browser_bridge_BLOCKED.txt`](../measurements/r2/l2_browser_bridge_BLOCKED.txt)).
-3. Interpretation doc separate from raw TSV (lane rule).
+1. ~~Shaped campaign → `l2_ask_policy_v2.tsv`~~ **done** (PR #9).
+2. Browser bridge — **deferred** (see EVIDENCE.md worth-it note).
+3. Interpretation → [`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md).
+4. **Next:** path-RTT probe fix → loss-axis expansion (plan in EVIDENCE.md).
 
 ---
 
@@ -191,13 +193,13 @@ Full grid (`l2_ask_policy_cloud.sh`) runs only when **G1–G6** pass.
 ## Checklist (copy for PR)
 
 ```
-Phase 1 reader metric     [ ]
-Phase 2 independent clock [ ]
-Phase 3 same workload     [ ]
-Phase 4 dynamic RTT       [ ]
-Phase 5 measured path     [ ]
-Phase 6 audit + drain     [ ]
-Smoke G1–G6               [ ]
-Shaped smoke (1 cell)     [ ]
-Full grid 54/54           [ ]
+Phase 1 reader metric     [x]
+Phase 2 independent clock [x]
+Phase 3 same workload     [x]
+Phase 4 dynamic RTT       [x]  (path RTT CLI + clean samples; probe still contaminated — see EVIDENCE)
+Phase 5 measured path     [~]  (column exists; probe = ask→display, not true RTT — fix before v3)
+Phase 6 audit + drain     [x]
+Smoke G1–G6               [x]
+Shaped smoke (1 cell)     [x]
+Full grid 54/54           [x]  → l2_ask_policy_v2.tsv
 ```

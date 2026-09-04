@@ -1,9 +1,11 @@
 # Lane L2 — ask policy: unbounded vs fixed vs dynamic
 
-**Status: campaign rows withdrawn — implement
-[`L2-ask-policy-harness-fix.md`](L2-ask-policy-harness-fix.md) before re-run.** See also
-[`l2_ask_policy_METHODOLOGY_REVIEW.md`](../measurements/r2/l2_ask_policy_METHODOLOGY_REVIEW.md). ·
-Harness only · Round-robin the Oracle São Paulo rig with L1
+**Status: harness v2 evidence landed — cite
+[`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md) only.**  
+v1 rows remain withdrawn
+([`l2_ask_policy_METHODOLOGY_REVIEW.md`](../measurements/r2/l2_ask_policy_METHODOLOGY_REVIEW.md)).  
+Next: fix path-RTT probe, then loss-axis expansion (plan in the evidence doc). · Harness only ·
+Round-robin the Oracle São Paulo rig with L1
 
 ## Purpose
 
@@ -70,7 +72,7 @@ outcome.
 | Loss | 0 and 0.5 % |
 | Fixture | `frames_32k` |
 | Mode | `--mode trace` |
-| Metric | **p95 time-to-displayable**; also report bytes on the wire |
+| Metric | **`p95_lateness_ms`** (primary); also report `p95_wait_ms` diagnostic + bytes on the wire |
 | Repeats | 3, all rows reported |
 
 `--read-bps 0`. `cargo build --release` first.
