@@ -18,7 +18,7 @@ use fod::FodMsg;
 use frame_envelope::wrap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::task::JoinSet;
 use tracing::{info, warn};
 use wtransport::stream::{RecvStream, SendStream};
@@ -238,6 +238,10 @@ async fn send_one_frame(
     ask_seq: &mut i32,
 ) -> Result<()> {
     rec.ask(idx);
+    // Isolation B: wall clock from ask-handled → first/last write_all into quinn.
+    // Enable with WT_SERVE_TIMING=1 (stderr lines `serve_timing ...`).
+    let timing = std::env::var_os("WT_SERVE_TIMING").is_some();
+    let t_ask = Instant::now();
 
     let t0 = rec.stamp();
     match store.frame_slice(idx) {
@@ -246,7 +250,17 @@ async fn send_one_frame(
 
             let t1 = rec.stamp();
             let payload = wrap(idx, bytes);
-            match write_payload(connection, shared, acks, &payload, ask_priority, ask_seq).await {
+            match write_payload(
+                connection,
+                shared,
+                acks,
+                &payload,
+                ask_priority,
+                ask_seq,
+                timing.then_some((idx, t_ask)),
+            )
+            .await
+            {
                 Ok(()) => rec.wrote(t1, WriteOutcome::Sent, payload.len()),
                 Err(err) => {
                     rec.wrote(t1, WriteOutcome::WriteErr, 0);
@@ -281,6 +295,7 @@ async fn write_payload(
     payload: &[u8],
     ask_priority: bool,
     ask_seq: &mut i32,
+    timing: Option<(u32, Instant)>,
 ) -> Result<()> {
     // Two writes, not one buffer: building `[len][payload]` would copy the whole frame a
     // second time (`wrap` already copied it once). `write_all` copies into the connection's
@@ -289,8 +304,16 @@ async fn write_payload(
     let len = (payload.len() as u32).to_be_bytes();
     match shared {
         Some(uni) => {
+            let t_first = Instant::now();
             uni.write_all(&len).await.context("write shared len")?;
             uni.write_all(payload).await.context("write shared frame")?;
+            if let Some((idx, t_ask)) = timing {
+                let ask_to_first_ms = t_first.duration_since(t_ask).as_secs_f64() * 1000.0;
+                let ask_to_last_ms = t_ask.elapsed().as_secs_f64() * 1000.0;
+                eprintln!(
+                    "serve_timing frame={idx} mode=shared ask_to_first_ms={ask_to_first_ms:.3} ask_to_last_ms={ask_to_last_ms:.3}"
+                );
+            }
         }
         None => {
             let mut uni = connection
@@ -304,8 +327,16 @@ async fn write_payload(
                 uni.set_priority(i32::MAX.saturating_sub(*ask_seq));
                 *ask_seq = ask_seq.saturating_add(1);
             }
+            let t_first = Instant::now();
             uni.write_all(&len).await.context("write len")?;
             uni.write_all(payload).await.context("write envelope")?;
+            if let Some((idx, t_ask)) = timing {
+                let ask_to_first_ms = t_first.duration_since(t_ask).as_secs_f64() * 1000.0;
+                let ask_to_last_ms = t_ask.elapsed().as_secs_f64() * 1000.0;
+                eprintln!(
+                    "serve_timing frame={idx} mode=per-frame ask_to_first_ms={ask_to_first_ms:.3} ask_to_last_ms={ask_to_last_ms:.3}"
+                );
+            }
 
             // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
             // the peer's acknowledgement (~272 ms measured), which caps throughput at

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # L1 v3 — netem on the S4 veth pair (not ens3).
-# Forward path (veth-srv → client) carries delay + rate + loss.
-# Return path (veth-cli → server) carries delay + rate only.
+# Forward path (veth-srv → client) carries delay + optional rate + loss.
+# Return path (veth-cli → server) carries delay + optional rate only.
 #
 # usage: l1_veth_netem.sh {off|RTT_ms} [loss_pct] [loss_model]
 #   loss_model: iid (default) | gemodel   (C5; GE_P/GE_R, defaults 0.07 / 14)
+#   RATE env:   10mbit (default) | none|off  → delay-only (Isolation A for D=1 excess)
 set -euo pipefail
 
 PROFILE="${1:-}"
@@ -23,7 +24,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 [[ -n "$PROFILE" ]] || {
-  echo "usage: $0 {off|RTT_ms} [loss_pct] [loss_model]" >&2
+  echo "usage: $0 {off|RTT_ms} [loss_pct] [loss_model]  (RATE=10mbit|none)" >&2
   exit 1
 }
 
@@ -51,6 +52,17 @@ loss_args_for() {
   esac
 }
 
+rate_args_for() {
+  RATE_ARGS=()
+  case "$RATE" in
+    none|off|""|0|0mbit)
+      ;;
+    *)
+      RATE_ARGS=(rate "$RATE")
+      ;;
+  esac
+}
+
 case "$PROFILE" in
   off)
     clear_qdisc "$VETH_SRV"
@@ -64,12 +76,18 @@ case "$PROFILE" in
     fi
     one_way=$((PROFILE / 2))
     loss_args_for "$LOSS_PCT" "$LOSS_MODEL"
+    rate_args_for
     clear_qdisc "$VETH_SRV"
-    tc qdisc replace dev "$VETH_SRV" root netem delay "${one_way}ms" rate "$RATE" "${LOSS_ARGS[@]}"
-    # Return path: delay + rate only (no loss), matching the work order.
+    tc qdisc replace dev "$VETH_SRV" root netem delay "${one_way}ms" "${RATE_ARGS[@]}" "${LOSS_ARGS[@]}"
+    # Return path: delay + optional rate (no loss), matching the work order.
     ip netns exec "$NS" tc qdisc replace dev "$VETH_CLI" root \
-      netem delay "${one_way}ms" rate "$RATE"
-    echo "netem veth: RTT≈${PROFILE}ms delay=${one_way}ms rate=$RATE loss=${LOSS_PCT}% model=$LOSS_MODEL" >&2
+      netem delay "${one_way}ms" "${RATE_ARGS[@]}"
+    if [[ ${#RATE_ARGS[@]} -eq 0 ]]; then
+      rate_label=none
+    else
+      rate_label="$RATE"
+    fi
+    echo "netem veth: RTT≈${PROFILE}ms delay=${one_way}ms rate=$rate_label loss=${LOSS_PCT}% model=$LOSS_MODEL" >&2
     ;;
 esac
 
