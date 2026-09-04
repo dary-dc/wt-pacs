@@ -5,7 +5,10 @@ fails is a **STOP**: fix the step, re-run the gate, do not proceed on a failed g
 collect data past one.
 
 Supersedes `L1-loss-run.md` (v2). v2's grid is void — see
-`docs/measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md`.
+`docs/measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md`, and
+[`L1-v3-second-review.md`](L1-v3-second-review.md) for an independent confirmation, one
+correction to that review's §8 (`peak_outstanding` was vacuous, and S1/S2 invert what it
+means), and the open items N1–N12.
 
 Nothing in v2's TSV may be reused, resumed, or appended to. **Steps 1–7 land and pass their
 gates before a single v3 row is collected.**
