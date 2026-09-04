@@ -30,6 +30,11 @@ for url in [
 
 subprocess.run(["pkill", "-f", "dev-server.py"], check=False)
 time.sleep(0.4)
+
+ts_js = ROOT / "client/transport-ts/dist/session.js"
+if not ts_js.is_file():
+    subprocess.run(["bash", str(ROOT / "client/transport-ts/build.sh")], check=True, cwd=ROOT)
+
 http = subprocess.Popen(
     ["python3", str(ROOT / "server/dev-server.py"), "--port", "8765", "--study", "us_cine_smoke"],
     cwd=ROOT,

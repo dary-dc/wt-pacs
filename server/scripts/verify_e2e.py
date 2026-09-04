@@ -104,14 +104,18 @@ def main() -> int:
     if not pkg_js.is_file():
         subprocess.run([str(ROOT / "client/transport-wasm/build.sh")], check=True, cwd=ROOT)
 
+    # transport-ts dist/ is gitignored — build product (and telemetry) bundles when needed.
+    ts_js = ROOT / "client/transport-ts/dist/session.js"
+    ts_tel = ROOT / "client/transport-ts/dist/session.telemetry.js"
+    need_ts = not ts_js.is_file() or (args.telemetry and not ts_tel.is_file())
+    if need_ts:
+        subprocess.run(
+            ["bash", str(ROOT / "client/transport-ts/build.sh")],
+            check=True,
+            cwd=ROOT,
+        )
+
     if args.telemetry:
-        ts_tel = ROOT / "client/transport-ts/dist/session.telemetry.js"
-        if not ts_tel.is_file():
-            subprocess.run(
-                ["bash", str(ROOT / "client/transport-ts/build.sh")],
-                check=True,
-                cwd=ROOT,
-            )
         # Optional separate wasm out-dir; product wasm is identical.
         env_tel = os.environ.copy()
         env_tel["WTPACS_TELEMETRY_BUILD"] = "1"

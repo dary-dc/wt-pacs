@@ -4,6 +4,9 @@
 · **Scope:** client recorder (`client/transport-ts/record/`), server Tap (`server/src/record/`),
 server send path (`server/src/transport/`), and the shape of both JSON reports.
 
+**Client track (brief):** apply via [`plan-client-telemetry.md`](plan-client-telemetry.md)
+(C1 streaming attributor first). This file keeps evidence and the full backlog.
+
 Pairs with [`README.md`](README.md) (as-built contract),
 [`adr-server-pipeline.md`](adr-server-pipeline.md) (server seam),
 [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md) (client seam).

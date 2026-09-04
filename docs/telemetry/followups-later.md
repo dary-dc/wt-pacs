@@ -1,52 +1,36 @@
 # Follow-ups (later — do not start now)
 
-Parking lot for ideas that are useful but **not** the next work.
-The active plan is [`plan-readability-and-performance.md`](plan-readability-and-performance.md)
-(client streaming attribution first). Nothing here is scheduled until that plan’s
-early phases land.
+Parking lot outside the active **client** track
+([`plan-client-telemetry.md`](plan-client-telemetry.md)).
+Evidence dump: [`plan-readability-and-performance.md`](plan-readability-and-performance.md).
 
 ---
 
-## 1 · Client recorder: compress the surface (after T1–T6)
+## 1 · Client surface compression
 
-Ideas that shrink lines without changing the outside-in seam
-([`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md)):
+Tracked as **phase C5** in the client plan (after C1–C4). Ideas:
 
-- **Proxy factory** — `proxyReader` / `proxyWriter` / `proxyBidirectional` share the
-  same “wrap stream, call Tap, re-expose” shape; one small factory may cut
-  duplication in `record/proxy.ts`.
-- **Entry files** — `session-telemetry.ts` is install + wrap only; whether product
-  and lab entries can share more without pulling Tap into product remains open.
-- Do **not** collapse this into T1. Streaming attribution is the validity fix;
-  compression is readability after behaviour is correct.
+- **Proxy factory** — fold shared wrap logic in `record/proxy.ts`
+- **Entry files** — share more between product and lab entries only if Tap stays out of product
+
+Do not pull this forward ahead of streaming attribution.
 
 ---
 
-## 2 · Product WASM receive buffer (`session.rs` RecvBuf / P4-style)
+## 2 · Product WASM receive buffer (`session.rs` RecvBuf)
 
-Keeping a custom receive buffer that reduces copies on the WASM client is still
-interesting: it helps **product** efficiency, not only telemetry.
-
-**Later ask (after the plan’s client/server telemetry phases):** is there a
-simpler or less-code equivalent — fewer types, reuse of an existing buffer
-abstraction, or a smaller API — that keeps the same copy reduction?
-
-- Write that investigation down when we get there; **do not implement or redesign
-  now.**
-- Goal if revisited: same win, less surface — or confirm the custom buffer is
-  already the minimal shape.
+Interesting for **product** copy reduction, not telemetry. After client/server telemetry
+phases: ask whether a simpler / less-code equivalent keeps the same win. **Do not redesign now.**
 
 ---
 
-## 3 · Generated vs committed client bundles
+## 3 · Generated client bundles
 
-| Artifact | Source | In git? | Notes |
-| --- | --- | --- | --- |
-| `dist/session.js` | `session.ts` via `build.sh` / `npm run build` | **Committed** | Convenience so the harness can load without a prior build. It is **generated**, not hand-edited. |
-| `dist/session.telemetry.js` | `record/session-telemetry.ts` | **Gitignored** | Lab-only; rebuild with `client/transport-ts/build.sh`. |
-| `record/dist/` | `install.ts`, etc. | **Gitignored** | Same. |
+| Artifact | Source | In git? |
+| --- | --- | --- |
+| `dist/session.js` | `session.ts` | **No** — gitignored |
+| `dist/session.telemetry.js` | `record/session-telemetry.ts` | **No** — gitignored |
+| `record/dist/` | `install.ts`, etc. | **No** — gitignored |
 
-`session-telemetry.ts` only runs `install()` then wraps `TransportSession`. It is
-**not** the attribution hot path (`tap.ts` / future streaming attributor).
-If `session.telemetry.js` is missing on disk, run `build.sh` — that is expected,
-not a missing source file.
+Rebuild: `client/transport-ts/build.sh`. `session-telemetry.ts` is install + wrap only, not the
+attribution hot path.

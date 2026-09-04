@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build product session.js and telemetry session.telemetry.js (gitignored).
+# Build product + telemetry bundles into dist/ (gitignored — do not commit).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"

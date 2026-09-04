@@ -10,8 +10,12 @@ WASM_BG="$ROOT/client/transport-wasm/pkg/transport_wasm_bg.wasm"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
+# dist/ is gitignored — build the default product bundle when missing.
 if [[ ! -f "$TS_DIST" ]]; then
-  fail "missing $TS_DIST — build transport-ts first"
+  bash "$ROOT/client/transport-ts/build.sh"
+fi
+if [[ ! -f "$TS_DIST" ]]; then
+  fail "missing $TS_DIST after build"
 fi
 
 if grep -qE 'record/install|__wtpacsTelemetry|binding_term|serve_plus_path|client_frames|preload_to_decode' "$TS_DIST"; then
