@@ -244,6 +244,7 @@ dependencies = [
  "clap",
  "exact-server",
  "libc",
+ "tokio",
 ]
 
 [[package]]
@@ -398,6 +399,7 @@ dependencies = [
  "clap",
  "fod",
  "frame-envelope",
+ "libc",
  "memmap2",
  "rcgen 0.13.2",
  "rustls",
