@@ -85,7 +85,9 @@ server/scripts/check_telemetry_absent.sh
 - **Null ≠ 0:** absent stamps export `null`; a stage that ran but took no measurable time exports `0`
 - **Transfer:** `lastByte − firstByte` per frame; **`chunks == 1` frames are excluded** from transfer
   distributions (degenerate single-read delivery)
-- **Integrity:** `summary.integrity.valid` + `invalid_reasons` — one place to see if the run is publishable
+- **Integrity:** `summary.integrity.valid` + `invalid_reasons` — void when open/closed rows
+  disagree, byte closure fails, or first-write conflicts occur. `marks_after_close` is recorded
+  (fill/preload may deliver after `last_byte` close) but does not void alone.
 - **Binding rollup:** `summary.binding` counts per-row `binding_term` over usable frames
 - **Copies:** `mean_frame_bytes` is the mean of per-frame `bytes` (not a measured JS heap figure)
 - **Frame 0:** exclude from means or report separately (WASM compile/instantiate lands on it)
