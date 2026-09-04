@@ -7,15 +7,22 @@
 //! `Option<SendStream>`: `Some` = one shared stream for the session, `None` = one
 //! stream per frame. Nothing downstream branches on a flag.
 //!
+//! Frame bytes: streamed a window at a time straight from the page cache — see
+//! `docs/disk-access/adr.md`. Nothing is faulted on the executor and nothing is copied
+//! into a whole-frame envelope; the session's window buffer is the only per-session
+//! allocation.
+//!
 //! Recording: `crate::record::Recorder` — zero-sized unless `feature = "telemetry"`.
 
 use crate::media::frame_store::FrameStore;
+#[cfg(test)]
+use crate::media::frame_store::READ_WINDOW;
 use crate::record::{LocateOutcome, Recorder, WriteOutcome};
 use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
 use fod::FodMsg;
-use frame_envelope::wrap;
+use frame_envelope::ENVELOPE_LEN;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -141,6 +148,9 @@ async fn run_session(
     mut shared: Option<SendStream>,
 ) -> Result<()> {
     let mut rec = Recorder::for_session();
+    // One reusable read window for the whole session, not a buffer per frame and not a
+    // whole-frame envelope. `FrameStore::read_window` sizes it.
+    let mut window = Vec::new();
 
     info!(
         frames = store.frame_count(),
@@ -169,6 +179,7 @@ async fn run_session(
                     &mut control_send,
                     &store,
                     frame,
+                    &mut window,
                     &mut rec,
                 )
                 .await?;
@@ -182,6 +193,7 @@ async fn run_session(
                         &mut control_send,
                         &store,
                         frame,
+                        &mut window,
                         &mut rec,
                     )
                     .await?;
@@ -210,26 +222,21 @@ async fn send_one_frame(
     control_send: &mut SendStream,
     store: &Arc<FrameStore>,
     idx: u32,
+    window: &mut Vec<u8>,
     rec: &mut Recorder,
 ) -> Result<()> {
     rec.ask(idx);
 
     let t0 = rec.stamp();
-    // Prefault off the executor — a major fault is not an `.await`.
-    // TODO(readability): hide Arc (inner FrameStore handle or block_in_place); perf unchanged.
-    let store_touch = Arc::clone(store);
-    let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
-        .await
-        .context("join frame page touch")?;
-
-    match touch.and_then(|_| store.frame_slice(idx)) {
-        Ok(bytes) => {
-            rec.located(t0, LocateOutcome::Ok, bytes.len());
+    // Index lookup only — no I/O, so a refusal costs nothing and happens before any
+    // stream is opened.
+    match store.frame_range(idx) {
+        Ok((offset, len)) => {
+            rec.located(t0, LocateOutcome::Ok, len as usize);
 
             let t1 = rec.stamp();
-            let payload = wrap(idx, bytes);
-            match write_payload(connection, shared, acks, &payload).await {
-                Ok(()) => rec.wrote(t1, WriteOutcome::Sent, payload.len()),
+            match write_frame(connection, shared, acks, store, idx, offset, len, window).await {
+                Ok(sent) => rec.wrote(t1, WriteOutcome::Sent, sent),
                 Err(err) => {
                     rec.wrote(t1, WriteOutcome::WriteErr, 0);
                     return Err(err);
@@ -255,22 +262,26 @@ async fn send_one_frame(
 }
 
 /// `Some` = append to the session's shared stream. `None` = one stream per frame.
-/// Both write `[4B BE len][envelope]`; the modes differ only in how long a stream lives.
-async fn write_payload(
+/// Both write `[4B BE len][4B BE index][codestream]`; the modes differ only in how long a
+/// stream lives. Returns the payload byte count (`[index][codestream]`).
+#[allow(clippy::too_many_arguments)]
+async fn write_frame(
     connection: &Connection,
     shared: &mut Option<SendStream>,
     acks: &mut JoinSet<()>,
-    payload: &[u8],
-) -> Result<()> {
-    // Two writes, not one buffer: building `[len][payload]` would copy the whole frame a
-    // second time (`wrap` already copied it once). `write_all` copies into the connection's
-    // send buffer either way, so the extra allocation buys nothing.
-    // See docs/send-path-copy-costs.md. This fix has been reverted once — keep it.
-    let len = (payload.len() as u32).to_be_bytes();
+    store: &Arc<FrameStore>,
+    idx: u32,
+    offset: u64,
+    len: u32,
+    window: &mut Vec<u8>,
+) -> Result<usize> {
+    let payload_len = ENVELOPE_LEN as u32 + len;
+    let head = frame_head(idx, len);
+
     match shared {
         Some(uni) => {
-            uni.write_all(&len).await.context("write shared len")?;
-            uni.write_all(payload).await.context("write shared frame")?;
+            uni.write_all(&head).await.context("write shared head")?;
+            stream_codestream(uni, store, offset, len, window).await?;
         }
         None => {
             let mut uni = connection
@@ -279,8 +290,8 @@ async fn write_payload(
                 .context("open uni")?
                 .await
                 .context("open uni ready")?;
-            uni.write_all(&len).await.context("write len")?;
-            uni.write_all(payload).await.context("write envelope")?;
+            uni.write_all(&head).await.context("write head")?;
+            stream_codestream(&mut uni, store, offset, len, window).await?;
 
             // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
             // the peer's acknowledgement (~272 ms measured), which caps throughput at
@@ -290,5 +301,113 @@ async fn write_payload(
             });
         }
     }
+    Ok(payload_len as usize)
+}
+
+/// `[4B BE payload len][4B BE frame index]` — the bytes that precede a codestream.
+///
+/// Length and index are both known before a single byte is read, so the header goes out
+/// ahead of the frame and the codestream streams behind it — no whole-frame envelope is
+/// ever built. Still never a combined `[len][payload]` buffer either: `write_all` copies
+/// into the connection's send buffer regardless, so building one only adds a copy.
+/// See docs/send-path-copy-costs.md — that fix has been reverted once, keep it.
+fn frame_head(idx: u32, codestream_len: u32) -> [u8; 4 + ENVELOPE_LEN] {
+    let payload_len = ENVELOPE_LEN as u32 + codestream_len;
+    let mut head = [0u8; 4 + ENVELOPE_LEN];
+    head[..4].copy_from_slice(&payload_len.to_be_bytes());
+    head[4..].copy_from_slice(&idx.to_be_bytes());
+    head
+}
+
+/// Copy the codestream to the wire one `READ_WINDOW` at a time.
+///
+/// Each window is taken from the page cache with `read_at_nowait`, which returns short
+/// instead of waiting on disk — so no ask can park this executor thread on I/O the way a
+/// major fault on an mmap'd slice does. Only the shortfall goes to the blocking pool, and
+/// the read-ahead that miss triggers usually keeps the following windows on the fast path
+/// (measured: 0 pool hops warm, 5–8 per 320-frame sequential cold pass, all 320 on a
+/// reverse pass — i.e. it degrades to plain pooled `pread`, never worse).
+/// See `docs/disk-access/adr.md`.
+///
+/// `store.read_window` decides the stride, so a filesystem that refuses `RWF_NOWAIT` gets
+/// whole-frame pool reads rather than a round trip per window.
+async fn stream_codestream(
+    uni: &mut SendStream,
+    store: &Arc<FrameStore>,
+    offset: u64,
+    len: u32,
+    window: &mut Vec<u8>,
+) -> Result<()> {
+    // Whole frames where `RWF_NOWAIT` is refused (overlayfs, tmpfs), `READ_WINDOW` where
+    // it works: one pool round trip per frame either way, never one per window.
+    let stride = store.read_window(len);
+    if window.len() < stride {
+        window.resize(stride, 0);
+    }
+    let mut pos = 0u32;
+    while pos < len {
+        let want = stride.min((len - pos) as usize);
+        let at = offset + u64::from(pos);
+        let got = store.read_at_nowait(&mut window[..want], at)?;
+        if got < want {
+            let store = Arc::clone(store);
+            let mut owned = std::mem::take(window);
+            owned = tokio::task::spawn_blocking(move || {
+                store.read_at_blocking(&mut owned[got..want], at + got as u64)?;
+                Ok::<Vec<u8>, anyhow::Error>(owned)
+            })
+            .await
+            .context("join frame read")??;
+            *window = owned;
+        }
+        // `write_all` copies into the connection's send buffer, so the window is free to
+        // be refilled as soon as this returns — and the bytes quinn later puts on the wire
+        // are process-private, not page-cache pages that reclaim could take back.
+        uni.write_all(&window[..want])
+            .await
+            .context("write codestream")?;
+        pos += want as u32;
+    }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use frame_envelope::{unwrap, wrap};
+
+    /// Streaming replaced `wrap()`, so the bytes on the wire have to be proven identical
+    /// to what the envelope builder used to produce — clients parse this, not the code.
+    #[test]
+    fn streamed_bytes_match_the_envelope_they_replaced() {
+        let codestream: Vec<u8> = (0..5000u32).map(|i| (i % 251) as u8).collect();
+        let idx = 7u32;
+
+        let old = wrap(idx, &codestream);
+        let mut old_wire = (old.len() as u32).to_be_bytes().to_vec();
+        old_wire.extend_from_slice(&old);
+
+        // What the streaming path writes: the head, then the codestream in windows.
+        let mut new_wire = frame_head(idx, codestream.len() as u32).to_vec();
+        for window in codestream.chunks(READ_WINDOW) {
+            new_wire.extend_from_slice(window);
+        }
+
+        assert_eq!(new_wire, old_wire, "wire bytes changed");
+        let (parsed_idx, body) = unwrap(&new_wire[4..]).expect("client can still parse");
+        assert_eq!(parsed_idx, idx);
+        assert_eq!(body, &codestream[..]);
+    }
+
+    /// A frame larger than one window still frames as a single payload.
+    #[test]
+    fn head_counts_the_whole_codestream_not_one_window() {
+        let len = (READ_WINDOW * 3 + 17) as u32;
+        let head = frame_head(1, len);
+        assert_eq!(
+            u32::from_be_bytes(head[..4].try_into().unwrap()),
+            ENVELOPE_LEN as u32 + len
+        );
+        assert_eq!(u32::from_be_bytes(head[4..].try_into().unwrap()), 1);
+    }
 }

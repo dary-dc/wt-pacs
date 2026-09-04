@@ -1,158 +1,201 @@
-# Disk-access re-run (fixed instrument) — 2026-08-31
+# Disk-access validation campaign — 2026-09-04
 
-**Host:** cloud agent container (overlayfs, ~16 GB RAM)  
-**Decision:** [`adr.md`](adr.md) · **Restore lab:** [`README.md`](README.md)
+Re-run of the 2026-08-31 decision with a corrected instrument and three arms it never had.
+**Decision:** [`adr.md`](adr.md) · **How to run:** [`README.md`](README.md)
 
-**Instrument:** co-tenant `yield_now` gaps; per-frame await + quinn-shaped `write_sim`; equal
-byte consume; cold = one pass; `--repeats 5`; real cgroup mempressure assert.
-Prior flawed campaigns stay in git only — do not cite for decisions.
+**Host:** KVM guest · 4 vCPU Xeon @2.1 GHz · 16 GB RAM · **ext4 on `/dev/vda`** (not
+overlayfs — this closes the archive's C3 follow-up) · Linux 6.18 · cgroup v1.
+Cold sequential read from the guest's own cache-miss path: ~400 MB/s.
+Fixture: `frames_250k_live` — 320 × 250 000 B ≈ 80 MB.
 
 ---
 
-## Metric glossary
+## Instrument
+
+Everything the archived harness had — co-tenant `yield_now` gap monitor, per-frame await,
+quinn-shaped chunked `write_sim`, equal byte consume by every arm, one-pass cold — plus
+four fixes. The first three are why the archived numbers pointed the wrong way.
+
+| Fix | What was wrong |
+| --- | --- |
+| **`--runtime multi`** | The harness ran `Builder::new_current_thread()`. The product is `#[tokio::main]` — multi-thread. Every hop cost, and therefore the whole decision, differs. Both shapes are reported. |
+| **Interleaved repeats** | All repeats of one arm ran back to back, so slow host drift landed on whichever arm held that block. The archived warm table has `mmap_hybrid_mincore` (naive **plus** a `mincore` syscall) beating `mmap_naive` — impossible by construction, and a ~10 µs drift artifact at the scale of the ~8 µs effect being decided. Repeat is now the outer loop. |
+| **Cold cells are verified cold** | `fadvise(DONTNEED)` cannot evict page-cache pages that are still mapped, and `FrameStore::open` parses the header — dragging read-ahead into the first frames. Measured 1.4–2.1% of frame data resident at the start of a "cold" cell. Now: `madvise(DONTNEED)` the data region, `fadvise(DONTNEED)` the file, then assert `< 0.1%` resident or abort the cell. |
+| **`--bg-arm same`** | The C2 neighbours always ran always-touch, so the hop tax could never show up as a neighbour cost. This is the all-sessions cell the archive listed as a follow-up. |
+
+Two bugs also had to be fixed before the pressure cell could run here at all: the wrapper
+rejected cgroup v1's `stat -f` name (`cgroupfs`) and refused the v1 path when already root,
+and the in-process assert took a hybrid host's empty `0::/` v2 line as authoritative and
+never looked at the v1 memory controller.
+
+Arms read through the product `FrameStore`, so `pread_nowait*` time
+`read_at_nowait`/`read_at_blocking` as shipped.
+
+### Metric glossary
 
 | Column | Meaning |
 | --- | --- |
-| `later_p50_ns` | Median per-frame prep+write cost after the first ask |
-| `hop_p50_ns` | Median `spawn_blocking` (or dedicated) round trip when the arm hops |
-| `gap_p50/p99/max_ns` | Co-tenant `yield_now` poll gaps — how long the executor was unavailable to another task |
-| `gap_samples` | Number of co-tenant gap samples (not a safety flag) |
-| `other_later_p50/p99_ns` | Multi-session: latency of background warm sessions during the primary worker. **Lead with p99** for neighbour safety. |
-| `other_asks` | Total background asks completed (should outlast primary wall) |
-| `chunk` | Simulated flow-control write chunk (16 KiB = backpressured; 256 KiB ≈ one chunk/frame) |
-| `bytes_copied` | Explicit pool `pread` bytes (mmap arms = 0 for the access step; quinn copy is separate) |
-
-**“Consume” differs by tool:** `disk-access-bench` does a full chunked copy (`write_sim`);
-`cold-page-bench` touches one byte per page. Their warm floors (~30 µs vs ~1 µs) are **not
-comparable** across tools.
+| `later_p50/p99_ns` | Per-frame prep+write cost after the first ask |
+| `hop_count` | Asks (of 320) that paid a `spawn_blocking` round trip |
+| `gap_max_ns` | Worst co-tenant `yield_now` gap — how long the executor was unavailable |
+| `other_later_p99_ns` | Multi-session: background sessions' ask latency during the primary. **Lead with this for neighbour safety** |
+| `runtime` | `current` (archived shape) or `multi` (product shape) |
 
 ---
 
-## Acceptance smoke (arm parity · warm · `frames_250k` 80×250 KB)
+## Cell 1 — Arm comparison · [`v2_arms_multi.tsv`](v2_arms_multi.tsv) · [`v2_arms_current.tsv`](v2_arms_current.tsv)
 
-Naive and hybrid agree within noise once both consume bytes (F5 fixed). Always-touch pays the hop.
+```bash
+./target/release/disk-access-bench --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
+  --arm mmap-naive --arm mmap-hybrid-mincore --arm mmap-blocking-touch --arm mmap-touch-in-place \
+  --arm mmap-populate-read --arm pread-blocking --arm pread-blocking-pooled \
+  --arm pread-nowait --arm pread-nowait-chunked \
+  --temp warm --temp cold --trace forward --chunk 16384 --repeats 9 \
+  --runtime multi --read-chunk 65536 --out docs/disk-access/v2_arms_multi.tsv
+```
 
-| Arm | chunk 16 KiB later p50 (3 reps median) | chunk 256 KiB |
+Median of 9 interleaved repeats, **product runtime**:
+
+| Arm | Warm p50 | Warm hops | Cold p50 | Cold hops | Cold gap_max (med / worst) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| mmap_naive | 29.5 µs | 0 | 39.2 µs | 0 | 1578 / **2078 µs** |
+| mmap_hybrid_mincore | 25.6 µs | 0 | 39.8 µs | 10 | 213 / 742 µs |
+| mmap_blocking_touch *(prior ADR)* | 103.4 µs | 320 | 118.7 µs | 320 | 79 / 127 µs |
+| mmap_populate_read | 97.6 µs | 320 | 127.6 µs | 320 | 189 / 1282 µs |
+| mmap_touch_in_place | 38.2 µs | 320 | 54.4 µs | 320 | 127 / 2168 µs |
+| pread_blocking (fresh `Vec`) | 149.2 µs | 320 | 153.7 µs | 320 | 117 / 1053 µs |
+| pread_blocking_pooled | 132.5 µs | 320 | 139.7 µs | 320 | 118 / 2674 µs |
+| pread_nowait (whole frame) | 43.9 µs | **0** | 44.0 µs | 6 | 302 / 428 µs |
+| **pread_nowait_chunked (accepted)** | **48.4 µs** | **0** | **48.1 µs** | **6** | 186 / 420 µs |
+
+Three readings:
+
+* **The hop is the whole cost.** `mmap_populate_read` replaces the byte-per-page touch loop
+  with one `madvise` syscall and lands within noise of it (97.6 vs 103.4 µs). What
+  always-touch pays for is the `spawn_blocking` round trip, not the touching.
+* **Pooling a `pread` buffer saves ~17 µs** (149.2 → 132.5 µs) and nothing else — the
+  archive's D3 conclusion, reproduced.
+* **The nowait arms take no hop at all when warm**, and 6 of 320 when cold and sequential.
+  That is the difference the decision turns on.
+
+Same arms on the **archived** current-thread shape: always-touch 40.0 µs warm (not 103.4),
+naive 20.8, chunked nowait 36.6. The arm order is unchanged; the *size* of the hop tax is
+what the runtime decides — and the product's runtime is the expensive one.
+
+---
+
+## Cell 2 — Memory pressure · [`c1_mempressure_multi.tsv`](c1_mempressure_multi.tsv) · [`c1_mempressure_current.tsv`](c1_mempressure_current.tsv)
+
+```bash
+lab/scripts/run_disk_access_mempressure.sh 48M -- \
+  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
+  --arm ... --temp cold --trace forward --chunk 16384 --repeats 5 --read-chunk 65536 \
+  --runtime multi --out docs/disk-access/c1_mempressure_multi.tsv
+```
+
+48 MiB cgroup, 80 MB study. The wrapper prints `fstype=cgroupfs (v1)` and the bench prints
+`cgroup mem assert ok` — abort if either is missing. Per-run `gap_max` (µs):
+
+| Arm | current-thread | multi-thread |
+| --- | --- | --- |
+| mmap_naive | 3585 · 4003 · 3958 · **7698** · 3928 | 57 · 241 · 270 · 1763 · 1997 |
+| mmap_hybrid_mincore | 2850 · 515 · 2663 · 1784 · 2984 | 2123 · 210 · 131 · 1341 · 750 |
+| mmap_blocking_touch | 92 · 74 · 152 · **4008** · 133 | 137 · 1076 · 527 · 326 · 100 |
+| pread_blocking_pooled | 197 · 206 · 200 · 133 · 130 | 103 · 841 · 91 · 305 · 449 |
+| pread_nowait | 1772 · 344 · 355 · 2424 · 251 | 324 · 140 · 217 · 280 · 172 |
+| **pread_nowait_chunked** | 658 · 517 · 409 · 186 · 411 | **292 · 177 · 161 · 135 · 124** |
+
+**Confirms the archive:** the `mincore` gate is unsafe under pressure — here on **5/5** runs
+in both shapes, worse than the 2/5 the archive reported. Do not read it as a rare outlier.
+
+**Corrects the archive:** always-touch is not immune either (one 4.0 ms current-thread run,
+one 1.1 ms multi run). On the product runtime the chunked nowait arm has the tightest
+worst case of any arm measured.
+
+---
+
+## Cell 3 — Neighbour safety · [`c2_multisession_bg-same.tsv`](c2_multisession_bg-same.tsv) · [`c2_multisession_bg-always-touch.tsv`](c2_multisession_bg-always-touch.tsv)
+
+4 background sessions + 1 primary on 4 workers, 400 asks each. Median of 5, cold primary,
+**lead with other p99**:
+
+| Arm | Archived shape (neighbours on always-touch) | **All sessions on the arm** |
 | --- | ---: | ---: |
-| mmap_naive | ~14.7 µs | ~9.5 µs |
-| mmap_hybrid_mincore | ~15.2 µs | ~9.9 µs |
-| mmap_blocking_touch | ~22.6 µs | ~16.6 µs |
+| mmap_naive | 327 µs | 160 µs |
+| mmap_hybrid_mincore | 400 µs | 145 µs |
+| mmap_blocking_touch | 449 µs | 392 µs |
+| mmap_touch_in_place | 698 µs | 1156 µs |
+| pread_blocking_pooled | 468 µs | 587 µs |
+| **pread_nowait_chunked** | **284 µs** | **151 µs** |
 
-### One-pass cold (`cold-page-bench`, this host)
+The archive's headline — cold naive inflating neighbour p99 ~3× versus always-touch — does
+**not** reproduce: naive is better on this axis in both shapes. On four workers, naive's
+pathology lands in `gap_max` (Cell 1), not in a neighbour's p99, because work stealing
+rescues tasks off the faulting worker. Naive is still rejected; the reason is `gap_max`.
 
-| Fixture | cold frames | naive cold p50 (this host) | Notes |
-| --- | ---: | ---: | --- |
-| `lab/fixtures/frames_250k/frames_250k.sbnd` | 80 | **~150 µs** | Was 349–600 ns with `i % n` (F4). Second-review host ~18–22 µs — absolute µs vary; both ≫ sub‑µs artifact. |
-| `lab/fixtures/frames_250k_live/frames_250k_live.sbnd` | 320 | **~140 µs** | Second-review host reported ~1.1 ms — name the fixture when quoting. |
+The all-sessions column is the one the previous ADR never ran. When neighbours pay the hop
+too, always-touch goes from "keeps neighbours near baseline" to the worst safe arm.
 
----
+## Cell 4 — Pressure *and* all sessions · [`c4_pressure_allsessions.tsv`](c4_pressure_allsessions.tsv)
 
-## C2 — Multi-session (neighbour safety)
+128 MiB cgroup, 4 background sessions on the arm under test + cold primary — the closest
+cell to production. Median of 5:
 
-TSV: [`disk_access_multisession.tsv`](disk_access_multisession.tsv)  
+| Arm | Warm other p99 | Cold other p99 | Cold gap_max |
+| --- | ---: | ---: | ---: |
+| mmap_naive | 108 µs | 225 µs | **4528 µs** |
+| mmap_blocking_touch | 337 µs | 702 µs | 943 µs |
+| mmap_touch_in_place | 881 µs | 2150 µs | 1351 µs |
+| pread_blocking_pooled | 467 µs | 953 µs | 1252 µs |
+| **pread_nowait_chunked** | **152 µs** | **166 µs** | **613 µs** |
 
-```bash
-./target/release/disk-access-bench \
-  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
-  --arm mmap-naive --arm mmap-blocking-touch --arm mmap-hybrid-mincore --arm pread-blocking \
-  --temp warm --temp cold --trace forward --access full \
-  --chunk 16384 --repeats 5 \
-  --sessions 4 --session-asks 400 \
-  --out docs/disk-access/disk_access_multisession.tsv
-```
+## Cell 5 — Non-sequential traces · [`v3_traces_multi.tsv`](v3_traces_multi.tsv)
 
-Backgrounds are sized to **outlast** the cold primary (`other_asks=1600` vs primary wall ~44–80 ms).
-Background sessions always use always-touch — this cell measures **how the primary’s arm hurts
-neighbours**, not whether the hop tax survives when all N sessions use the arm under test.
+The nowait arm's low cold hop count comes from read-ahead, so it has to be shown on traces
+that defeat read-ahead. Cold, median of 5:
 
-Median across 5 repeats — **lead with other p99**:
+| Arm | random p50 / hops | reverse p50 / hops |
+| --- | ---: | ---: |
+| mmap_blocking_touch | 141 µs / 320 | 153 µs / 320 |
+| pread_blocking_pooled | 347 µs / 320 | 379 µs / 320 |
+| pread_nowait (whole frame) | 344 µs / 191 | 387 µs / 320 |
+| **pread_nowait_chunked** | 75 µs / 58 | 421 µs / **320** |
 
-| Arm | Cold other p99 | Cold other p50 | Warm other p99 | Primary warm later p50 |
-| --- | ---: | ---: | ---: | ---: |
-| mmap_naive | **~389 µs** | ~133 µs | ~67 µs | ~47 µs |
-| mmap_blocking_touch | ~126 µs | ~47 µs | ~65 µs | ~46 µs |
-| mmap_hybrid_mincore | ~143 µs | ~47 µs | ~66 µs | ~47 µs |
-| pread_blocking | ~182 µs | ~50 µs | ~97 µs | ~84 µs |
-
-**Reading:** cold naive inflates neighbour **p99** (~3× always-touch). Always-touch / hybrid / pread
-keep neighbours near the warm baseline on this no-pressure cell. Warm hop cost shows on the
-**primary** later p50 in other campaigns (~10–30 µs); neighbours stay similar when the primary is
-warm — state hop-worth from primary numbers, not as a background-arm result.
-
----
-
-## C1 — Memory pressure (48 MiB cgroup · 80 MB study)
-
-TSV: [`disk_access_mempressure.tsv`](disk_access_mempressure.tsv)  
-
-```bash
-lab/scripts/run_disk_access_mempressure.sh 48M -- \
-  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
-  --arm mmap-naive --arm mmap-blocking-touch --arm mmap-hybrid-mincore --arm pread-blocking \
-  --temp cold --trace forward --access full \
-  --chunk 16384 --repeats 5 \
-  --out docs/disk-access/disk_access_mempressure.tsv
-```
-
-Script prints `fstype=cgroup2fs` (or v1) and the bench prints `cgroup mem assert ok` — abort if either is missing.
-
-Worst co-tenant **gap_max** (µs), 5 runs on **this** host:
-
-| Arm | gap_max runs | median gap_max |
-| --- | --- | ---: |
-| mmap_naive | 1979–2119 | **~1993 µs** |
-| **mmap_hybrid_mincore** | 72, 72, 78, **2267, 2268** | ~78 µs median; **2/5 runs ~2.3 ms** |
-| mmap_blocking_touch | 57–78 | **~62 µs** |
-| pread_blocking | 33–57 | **~54 µs** |
-
-**Reading:** the gate is **unsafe under pressure**, with a **host-dependent hit rate**. On this host
-millisecond-class hybrid gaps appeared in 2/5 runs; an independent second-review host saw **5/5 at
-naive’s magnitude** (~6–13 ms). Do not describe hybrid pressure failure as a rare outlier.
-Always-touch and pread stay tens–low-hundreds of µs. Gate is **not** cleared for product.
-`pread` vs always-touch per-frame cost under pressure **flips by host** — settle with pooled
-buffers (D3), not a fresh `Vec` per ask.
+A cold reverse pass is the honest worst case: every window misses, the arm becomes pooled
+`pread` exactly, and it lands within noise of it (421 vs 379 µs) with a *better* `gap_max`
+(176 vs 205 µs). **It degrades to the escape hatch; it never degrades below it.** Warm —
+which is the common case, and where the sequential result was never in doubt — it takes
+zero hops on random and reverse alike (42.5 µs, 42.5 µs).
 
 ---
 
-## Product path
+## Filesystem support
 
-`send_one_frame` uses **unconditional** `spawn_blocking(touch_frame_pages)` (L3 v1).
-`mincore` / WILLNEED live only in the restored lab (`rejected_access`). Gate returns only with
-verification (D2) if a future cell clears C1 **and** a fair all-sessions hop-cost cell.
+`preadv2(RWF_NOWAIT)` probed directly on this host:
 
----
+| Filesystem | Warm read | Cold read | Verdict |
+| --- | --- | --- | --- |
+| ext4 | 65536 B | `EAGAIN` | honours the flag |
+| overlayfs | `EOPNOTSUPP` | `EOPNOTSUPP` | **no fast path** |
+| tmpfs | `EOPNOTSUPP` | `EOPNOTSUPP` | **no fast path** |
 
-## D3 — Pooled-buffer `pread` vs always-touch
+The archived campaign ran on overlayfs, where this decision's fast path would not have
+existed. `FrameStore::open` probes once and `read_window` collapses to the whole frame when
+the answer is no, so such a host pays one pooled `pread` per frame rather than one per
+window. Checking the deployment filesystem is the first item in [`later.md`](later.md).
 
-TSVs: [`disk_access_pread_pooled.tsv`](disk_access_pread_pooled.tsv) ·
-[`disk_access_pread_pooled_mempressure.tsv`](disk_access_pread_pooled_mempressure.tsv)
+## Limitations
 
-```bash
-./target/release/disk-access-bench \
-  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
-  --arm mmap-blocking-touch --arm pread-blocking --arm pread-blocking-pooled \
-  --temp warm --temp cold --trace forward --access full \
-  --chunk 16384 --repeats 5 \
-  --out docs/disk-access/disk_access_pread_pooled.tsv
-
-lab/scripts/run_disk_access_mempressure.sh 48M -- \
-  --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
-  --arm mmap-blocking-touch --arm pread-blocking --arm pread-blocking-pooled \
-  --temp cold --trace forward --access full \
-  --chunk 16384 --repeats 5 \
-  --out docs/disk-access/disk_access_pread_pooled_mempressure.tsv
-```
-
-Median across 5 repeats (this host):
-
-| Arm | Warm later p50 | Cold later p50 | Cold mempressure later p50 | Cold mempressure gap_max |
-| --- | ---: | ---: | ---: | ---: |
-| mmap_blocking_touch | **~22.5 µs** | ~190 µs | ~219 µs | ~65 µs |
-| pread_blocking (fresh `Vec`) | ~55.2 µs | ~94 µs | ~125 µs | ~57 µs |
-| **pread_blocking_pooled** | ~52.8 µs | ~92 µs | ~119 µs | ~68 µs |
-
-**Reading:** pooling removes little (~2–6 µs) vs a fresh `Vec`. On the **warm/common path**, always-touch
-stays ~2× faster than pooled `pread` and avoids the second full-frame copy. Under cold/pressure,
-`pread` can win later_p50 (I/O + hop shape) while gap_max stays in the same safe class — that does
-**not** overturn the default: mmap always-touch remains preferred; pooled `pread` stays the hard-guarantee escape hatch. Absolute ranking can still flip by host; copy count (1 vs 2) does not.
-
+- **Cold means guest-cold, not device-cold.** Residency is asserted `< 0.1%` in the guest,
+  but the hypervisor caches the backing file: the same cold pass takes 25 ms on one repeat
+  and 200 ms on another. Arm *rankings* held in every cell; absolute cold latency is not
+  this host's to give.
+- **The gap monitor is one task.** On four workers it can be stolen off a stalled worker, so
+  `gap_max` under `--runtime multi` understates a stall. Cells 3 and 4 — real sessions on
+  every worker — are the sensitive neighbour instrument; `--monitors N` raises monitor count
+  at the cost of pinning every core to a spin loop.
+- **No live end-to-end run.** `with_bind_default` binds IPv6 and this container has no IPv6,
+  so the server could not be driven over the wire here. Wire compatibility is covered by
+  unit tests asserting the streamed bytes equal the `wrap()` envelope they replaced.
+- Prior campaigns (`git show be78860:docs/disk-access/`) are superseded by this one — the
+  instrument differences above are not reconcilable cell by cell. Do not cite them.

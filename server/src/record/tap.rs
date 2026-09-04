@@ -27,6 +27,9 @@ pub struct FrameRecord {
     pub session_id: u64,
     pub frame_index: u32,
     pub ask_ordinal: u32,
+    /// Locating the frame. Since the disk-access ADR of 2026-09-04 this is an index lookup
+    /// and nothing else — reading bytes moved into the streaming write, so this reads ~0
+    /// where older traces showed the pre-touch hop. Frame cost lives in `server_write_us`.
     pub server_work_us: u32,
     pub server_write_us: u32,
     /// Continuous span: `ask()` → row emit (locate + send/refuse).
@@ -152,10 +155,7 @@ impl Drop for Tap {
 }
 
 fn micros_since(start: Instant) -> u32 {
-    start
-        .elapsed()
-        .as_micros()
-        .min(u32::MAX as u128) as u32
+    start.elapsed().as_micros().min(u32::MAX as u128) as u32
 }
 
 fn usize_to_u32(n: usize) -> u32 {
@@ -435,7 +435,6 @@ mod tests {
 
     #[test]
     fn serve_span_starts_at_ask_and_ends_at_wrote() {
-        
         let mut t = test_tap();
         t.ask(0);
         assert!(t.serve_start.is_some());

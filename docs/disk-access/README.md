@@ -4,22 +4,27 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 
 | Doc | What |
 | --- | --- |
-| [`adr.md`](adr.md) | Accepted decision (mmap + always-touch; `pread` escape) |
-| [`RERUN.md`](RERUN.md) | Fixed-instrument evidence (C1 / C2 / D3) + TSVs here |
+| [`adr.md`](adr.md) | Accepted decision (`RWF_NOWAIT` streaming; pool only on the miss) |
+| [`RERUN.md`](RERUN.md) | Evidence: instrument, cells, TSVs here, and what the instrument cannot see |
 | [`later.md`](later.md) | Optional follow-ups only |
 
-## Restore the lab
+## The lab stays on the tip
 
-Tip keeps product surface only. The campaign harness lives in git history.
+`lab/disk-access-bench` is a workspace member, not a git-history artifact. The 2026-08-31
+decision was wrong partly because re-running its harness meant restoring a crate from a
+named commit, and three defects in that harness went unnoticed for a campaign (see
+[`RERUN.md`](RERUN.md) §Instrument). Keeping it buildable is what let the 2026-09-04
+re-run find them.
 
-**Preferred restore** (lab owns rejected helpers — mincore / WILLNEED — so it does not need product APIs that were removed):
+It also earns its place as a regression check: every arm reads through the product
+`FrameStore`, so the nowait arms time `read_at_nowait` / `read_at_blocking` as shipped
+rather than a lab copy of them.
 
 ```bash
-git checkout a2a9c67 -- lab/disk-access-bench lab/scripts/run_disk_access_mempressure.sh
-# add "lab/disk-access-bench" to Cargo.toml [workspace].members
+./lab/scripts/gen_live_cell_fixture.sh          # 320 × 250 KB (~80 MB) primary fixture
 cargo build -p disk-access-bench --release
+./target/release/disk-access-bench --help
 ```
 
-`a2a9c67` is the last commit that has the lab **and** `rejected_access.rs`. Earlier tips (e.g. `ca94a87`) still have the harness but expect `FrameStore::{frame_pages_resident,advise_frame_willneed}`.
-
-`lab/cold-page-bench` stays on main (E3 / one-pass cold). It is not the disk-access campaign harness.
+`lab/cold-page-bench` is the older E3 / one-pass-cold tool; it owns its own copy of the
+rejected pre-touch arm and is not part of this campaign.

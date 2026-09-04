@@ -370,6 +370,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "disk-access-bench"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "exact-server",
+ "libc",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
