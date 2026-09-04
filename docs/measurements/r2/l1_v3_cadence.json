@@ -1,0 +1,104 @@
+{
+  "status": "frozen_for_review",
+  "note": "Pilots excluded from decision analysis. Do not retune mid-collect (S11).",
+  "trace": "lab/traces/l1_one_way_80.json",
+  "fixture": "lab/fixtures/frames_32k/frames_32k.sbnd",
+  "window_shape": "forward",
+  "cells": [
+    {
+      "rtt_label_ms": 60,
+      "loss_pct": 0.0,
+      "depth": 4,
+      "loss_model": "iid",
+      "f_cell_pilot_fps": 33.8931,
+      "f_cell_pilot_runs": [
+        33.866,
+        33.8958,
+        33.8931
+      ],
+      "step_interval_ms": 33,
+      "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
+      "arms_use_same_cadence": [
+        "S",
+        "P",
+        "Q"
+      ]
+    },
+    {
+      "rtt_label_ms": 60,
+      "loss_pct": 0.5,
+      "depth": 4,
+      "loss_model": "iid",
+      "f_cell_pilot_fps": 32.1681,
+      "f_cell_pilot_runs": [
+        32.2219,
+        12.5161,
+        32.1681
+      ],
+      "step_interval_ms": 35,
+      "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
+      "arms_use_same_cadence": [
+        "S",
+        "P",
+        "Q"
+      ]
+    },
+    {
+      "rtt_label_ms": 60,
+      "loss_pct": 2.0,
+      "depth": 4,
+      "loss_model": "iid",
+      "f_cell_pilot_fps": 31.559,
+      "f_cell_pilot_runs": [
+        9.6505,
+        31.8042,
+        31.559
+      ],
+      "step_interval_ms": 35,
+      "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
+      "arms_use_same_cadence": [
+        "S",
+        "P",
+        "Q"
+      ]
+    },
+    {
+      "rtt_label_ms": 150,
+      "loss_pct": 0.0,
+      "depth": 7,
+      "loss_model": "iid",
+      "f_cell_pilot_fps": 28.457,
+      "f_cell_pilot_runs": [
+        28.4461,
+        28.457,
+        28.4571
+      ],
+      "step_interval_ms": 39,
+      "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
+      "arms_use_same_cadence": [
+        "S",
+        "P",
+        "Q"
+      ]
+    },
+    {
+      "rtt_label_ms": 150,
+      "loss_pct": 0.5,
+      "depth": 7,
+      "loss_model": "iid",
+      "f_cell_pilot_fps": 26.5552,
+      "f_cell_pilot_runs": [
+        26.5552,
+        28.3537,
+        7.9173
+      ],
+      "step_interval_ms": 42,
+      "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
+      "arms_use_same_cadence": [
+        "S",
+        "P",
+        "Q"
+      ]
+    }
+  ]
+}
