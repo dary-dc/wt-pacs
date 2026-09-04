@@ -208,14 +208,21 @@ async fn send_one_frame(
     shared: &mut Option<SendStream>,
     acks: &mut JoinSet<()>,
     control_send: &mut SendStream,
-    store: &FrameStore,
+    store: &Arc<FrameStore>,
     idx: u32,
     rec: &mut Recorder,
 ) -> Result<()> {
     rec.ask(idx);
 
     let t0 = rec.stamp();
-    match store.frame_slice(idx) {
+    // Prefault off the executor — a major fault is not an `.await`.
+    // TODO(readability): hide Arc (inner FrameStore handle or block_in_place); perf unchanged.
+    let store_touch = Arc::clone(store);
+    let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
+        .await
+        .context("join frame page touch")?;
+
+    match touch.and_then(|_| store.frame_slice(idx)) {
         Ok(bytes) => {
             rec.located(t0, LocateOutcome::Ok, bytes.len());
 
