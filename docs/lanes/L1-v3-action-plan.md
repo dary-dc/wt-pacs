@@ -193,32 +193,12 @@ across the run.
 step loop. **Gate A2:** if the second-half median exceeds the first-half median by > 50 %, the run is
 backlog-dominated → mark `BACKLOG` in the TSV, exclude from the decision, keep the row.
 
-### A3 · H7 flow-control asymmetry — document and keep defaults (not equalise for v3)
+### A3 · H7 stream receive windows — see transport ADR
 
-quinn's defaults (`quinn-proto 0.11.17`, `config/transport.rs`): `stream_receive_window` **1.25 MB**,
-`send_window` **10 MB** (8×), `receive_window` `VarInt::MAX`. The shared arm gets **one** stream
-window; per-frame arms get one **per frame** up to the connection window. That asymmetry exists
-**at zero loss** in principle.
-
-Direction matters: `stream_receive_window` is *"maximum number of bytes the peer may transmit … on
-any one stream"* — set by the **receiver**, so for server→client uni streams the knob is on the
-**harness**, not the server. `--stream-recv-window` is already on the harness for practice / a
-future diagnostic; leaving it unset uses quinn defaults.
-
-**v3 decision (product framing):** **do not equalise** stream receive windows across arms for the
-campaign. Each arm runs with **stack defaults** — S has one stream at the default per-stream
-window; P/Q have that same default **on each** per-frame stream. That is how a vendor would ship
-the two architectures against the same QUIC stack, and it is what L1 is comparing.
-
-**Why this is fair enough for these phases:** under L1 fixture sizes, peak queued bytes
-≈ `D × frame_bytes` (e.g. D=7 × 32 KiB ≈ 224 KiB) are **well below** the 1.25 MB default stream
-window, so H7 should not bind on the shared arm either. The comparison is still about delivery
-order / HOL under loss, not about who has more aggregate window.
-
-**When to reopen:** if a **lossless** S–Q gap appears, or if fixture/`D` grows so
-`D × frame_bytes` approaches ~1.25 MB, run the optional two-run diagnostic (S at default vs
-`--stream-recv-window` ≈ connection `send_window`). Only if that knob moves the gap would we
-consider equalising for a pure HOL read — a different question from “ship defaults.”
+**Normative decision:** keep quinn defaults; do not equalise S vs P/Q for L1.
+Recorded in [`docs/adr-quic-stream-receive-window-defaults.md`](../adr-quic-stream-receive-window-defaults.md)
+(plans are disposable; the ADR is not). Harness `--stream-recv-window` remains available for an
+optional diagnostic only if a lossless gap appears or `D × frame_bytes` approaches ~1.25 MB.
 
 ### A4 · Vary D inside a cell — the mechanism's most distinctive prediction
 
@@ -342,9 +322,9 @@ for the whole campaign (S8).
 2. **Budget.** ~10.5 h of rig time, exclusive. If that is not available, the minimum decidable
    campaign is RTT 60 only (0 %, 0.5 %, S/P/Q, 40 repeats) **plus A6** — ≈ 4 h — and the RTT axis is
    dropped rather than under-powered.
-3. **~~A3 equalise vs defaults~~ — decided: defaults.** v3 measures arms as a product would ship
-   them (quinn per-stream defaults; no campaign equalisation). See §A3. Equalisation remains an
-   optional diagnostic if H7 is suspected to bind, not the baseline comparison.
+3. **~~A3 equalise vs defaults~~ — decided in ADR.** See
+   [`adr-quic-stream-receive-window-defaults.md`](../adr-quic-stream-receive-window-defaults.md)
+   (keep stack defaults; do not equalise for L1).
 4. **Whether the 15 % bar still applies** once the harness stops manufacturing head-of-line exposure.
    The bar was set against a client-side cost (out-of-order arrival handling in the viewer). It
    should be re-affirmed or re-derived before collection, not after.
