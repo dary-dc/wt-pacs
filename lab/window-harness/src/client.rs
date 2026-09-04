@@ -861,6 +861,12 @@ async fn on_frame_arrived(
     // Ask→first-byte: first_byte_at is when the length-prefix's first byte arrived,
     // before the body is drained (not ask→last-byte).
     let ask_rtt = take_ask_rtt_ms(index, first_byte_at);
+    if let Some((rtt, _)) = ask_rtt {
+        metrics
+            .lock()
+            .expect("metrics lock")
+            .record_ask_first_byte_ms(rtt);
+    }
     rtt_full(rtt_ms).await;
     {
         let mut o = outstanding.lock().expect("outstanding");

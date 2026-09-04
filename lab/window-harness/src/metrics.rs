@@ -85,6 +85,13 @@ pub struct HarnessMetrics {
     /// Raw per-step waits (ms); cache hits are 0. Ask→display diagnostic.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub wait_ms: Vec<f64>,
+    /// Ask→first-byte samples (ms). Path-RTT probe must use these, not `wait_ms`
+    /// (displayable includes full-frame transfer).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ask_first_byte_ms: Vec<f64>,
+    /// Median of `ask_first_byte_ms` (0 if empty).
+    #[serde(default)]
+    pub median_ask_first_byte_ms: f64,
     pub wait_samples: u32,
     #[serde(default)]
     pub duplicate_asks: u32,
@@ -159,6 +166,8 @@ pub struct MetricsState {
     pub wait_samples_ms: Vec<f64>,
     /// Per step: displayable − scheduled reader time (primary L2 v2 metric).
     pub lateness_samples_ms: Vec<f64>,
+    /// Ask→first-byte (length-prefix) samples for path-RTT probes.
+    pub ask_first_byte_samples_ms: Vec<f64>,
     pub duplicate_asks: u32,
     pub drain_incomplete: bool,
 }
@@ -184,6 +193,7 @@ impl MetricsState {
             cache: HashSet::new(),
             wait_samples_ms: Vec::new(),
             lateness_samples_ms: Vec::new(),
+            ask_first_byte_samples_ms: Vec::new(),
             duplicate_asks: 0,
             drain_incomplete: false,
         }
@@ -238,6 +248,10 @@ impl MetricsState {
         self.wait_samples_ms.push(ask_wait_ms);
     }
 
+    pub fn record_ask_first_byte_ms(&mut self, ms: f64) {
+        self.ask_first_byte_samples_ms.push(ms);
+    }
+
     pub fn record_wait_ms(&mut self, ms: f64) {
         self.wait_samples_ms.push(ms);
     }
@@ -288,6 +302,20 @@ impl MetricsState {
         };
         let (mean_wait_ms, p95_wait_ms) = wait_stats(&self.wait_samples_ms);
         let (mean_lateness_ms, p95_lateness_ms) = wait_stats(&self.lateness_samples_ms);
+        let median_ask_first_byte_ms = {
+            let mut v = self.ask_first_byte_samples_ms.clone();
+            if v.is_empty() {
+                0.0
+            } else {
+                v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                let n = v.len();
+                if n % 2 == 1 {
+                    v[n / 2]
+                } else {
+                    (v[n / 2 - 1] + v[n / 2]) / 2.0
+                }
+            }
+        };
         let late = self
             .lateness_samples_ms
             .iter()
@@ -323,7 +351,9 @@ impl MetricsState {
             frac_steps_late,
             lateness_ms: self.lateness_samples_ms.clone(),
             wait_ms: self.wait_samples_ms.clone(),
-            wait_samples,
+            ask_first_byte_ms: self.ask_first_byte_samples_ms.clone(),
+            median_ask_first_byte_ms,
+            wait_samples: wait_samples,
             duplicate_asks,
             unique_frames_asked,
             drain_incomplete,

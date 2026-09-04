@@ -131,6 +131,7 @@ async fn main() -> anyhow::Result<()> {
         println!("p95_lateness_ms={:.2}", m.p95_lateness_ms);
         println!("mean_lateness_ms={:.2}", m.mean_lateness_ms);
         println!("frac_steps_late={:.4}", m.frac_steps_late);
+        println!("median_ask_first_byte_ms={:.2}", m.median_ask_first_byte_ms);
         println!("wait_samples={}", m.wait_samples);
         println!("unique_frames_asked={}", m.unique_frames_asked);
         println!("duplicate_asks={}", m.duplicate_asks);
