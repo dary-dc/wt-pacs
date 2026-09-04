@@ -7,7 +7,27 @@
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
-use exact_server::media::frame_store::{touch_pages, FrameStore};
+use exact_server::media::frame_store::{host_page_size, FrameStore};
+
+/// Fault every page of `index` in. Lab-local since the product stopped pre-touching —
+/// this crate exists to measure that rejected arm. See `docs/disk-access/adr.md`.
+fn touch_frame_pages(store: &FrameStore, index: u32) -> anyhow::Result<()> {
+    touch_pages(store.frame_slice(index)?);
+    Ok(())
+}
+
+/// Touch one byte per page so the kernel faults the range now, not during a later read.
+fn touch_pages(bytes: &[u8]) {
+    let page = host_page_size();
+    let mut acc = 0u8;
+    for chunk in bytes.chunks(page) {
+        acc ^= chunk[0];
+    }
+    if let Some(last) = bytes.last() {
+        acc ^= *last;
+    }
+    std::hint::black_box(acc);
+}
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -94,16 +114,21 @@ fn bench_latencies_naive(store: &FrameStore, frames: &[u32]) -> Vec<u64> {
 }
 
 fn bench_latencies_blocking(store: &Arc<FrameStore>, frames: &[u32]) -> (Vec<u64>, Vec<u64>) {
-    let rt = Builder::new_current_thread().enable_all().build().expect("rt");
+    let rt = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("rt");
     let mut executor_samples = Vec::with_capacity(frames.len());
     let mut hop_samples = Vec::with_capacity(frames.len());
     rt.block_on(async {
         for &idx in frames {
             let store_touch = Arc::clone(store);
             let t_hop = Instant::now();
-            tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx).expect("touch"))
-                .await
-                .expect("join");
+            tokio::task::spawn_blocking(move || {
+                touch_frame_pages(&store_touch, idx).expect("touch")
+            })
+            .await
+            .expect("join");
             hop_samples.push(t_hop.elapsed().as_nanos() as u64);
 
             let t0 = Instant::now();
@@ -121,7 +146,10 @@ fn measure_executor_gaps(
     frames: &[u32],
     arm: Arm,
 ) -> (u64, u64, u64, u64) {
-    let rt = Builder::new_current_thread().enable_all().build().expect("rt");
+    let rt = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("rt");
     let stop = Arc::new(AtomicBool::new(false));
     let gap_out: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
 
@@ -150,9 +178,11 @@ fn measure_executor_gaps(
                     }
                     Arm::BlockingPretouch => {
                         let s = Arc::clone(&store_w);
-                        tokio::task::spawn_blocking(move || s.touch_frame_pages(idx).expect("touch"))
-                            .await
-                            .expect("join");
+                        tokio::task::spawn_blocking(move || {
+                            touch_frame_pages(&s, idx).expect("touch")
+                        })
+                        .await
+                        .expect("join");
                         let slice = store_w.frame_slice(idx).expect("frame_slice");
                         consume_slice(slice);
                         tokio::task::yield_now().await;
@@ -212,7 +242,7 @@ fn run_arm(arm: Arm, study: &std::path::Path, iterations: u32) -> anyhow::Result
     let warm_store = Arc::new(FrameStore::open(study)?);
     let n = warm_store.frame_count();
     for idx in 0..n {
-        warm_store.touch_frame_pages(idx)?;
+        touch_frame_pages(&warm_store, idx)?;
     }
     let warm_frames = warm_frame_list(n, iterations);
 

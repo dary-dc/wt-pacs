@@ -7,6 +7,7 @@ members = [
     "client/transport-wasm",
     "client/flight-registry",
     "tools/pack-study",
+    "lab/disk-access-bench",
     "lab/window-harness",
     "lab/cold-page-bench",
 ]
