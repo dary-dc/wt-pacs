@@ -6,10 +6,10 @@ builds contain **no telemetry code**; lab builds harvest JSON reports from a run
 **Decisions:** [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md)
 (client Proxy G) · [`adr-server-pipeline.md`](adr-server-pipeline.md) (server pipeline seam)
 
-**Open plan (client):** [`plan-client-telemetry.md`](plan-client-telemetry.md) — streaming
-attribution first, then readability, then surface compression.  
+**Open plan (client):** [`plan-client-telemetry.md`](plan-client-telemetry.md) — C1–C4 done; C5 maybe-never.  
+**Open plan (server telemetry):** [`plan-server-telemetry.md`](plan-server-telemetry.md) — null ≠ 0, sink lock, stamps, integrity.  
 **Evidence / full backlog:** [`plan-readability-and-performance.md`](plan-readability-and-performance.md) —
-recorder cost, server null ≠ 0, report readability. Measured: the client recorder's
+recorder cost, server null ≠ 0, report readability, **product send-path P-track (§5, deferred)**. Measured: the client recorder's
 per-read attribution is quadratic (3.4 s of blocking main-thread work on a 100-frame fill run),
 so **fill-cell `transfer` and `serve_plus_path` harvested before that fix are suspect**.
 

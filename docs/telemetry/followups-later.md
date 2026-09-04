@@ -30,7 +30,12 @@ less-code equivalent keeps the same win. **Do not redesign now.**
 
 ---
 
-## 3 · Generated client bundles
+## 4 · Product send path (P3 / P4 / P2 / P1)
+
+Already specified in [`plan-readability-and-performance.md`](plan-readability-and-performance.md) §5.
+**Deferred** — not in the active server-telemetry track
+([`plan-server-telemetry.md`](plan-server-telemetry.md)). Do not forget; do not start now.
+
 
 | Artifact | Source | In git? |
 | --- | --- | --- |
