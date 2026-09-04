@@ -49,6 +49,7 @@ never one pool round trip per window.
 | **Good** | Warm asks take **no pool hop at all** (0 misses in every warm cell). ~2.1× lower per-frame latency than always-touch on the product runtime (48.4 µs vs 103.4 µs). Neighbours under pressure see p99 **166 µs vs 702 µs**. Hard reclaim guarantee. 64 KiB per session instead of a 250 KB envelope allocated per frame. |
 | **Cost** | Two copies (kernel→window, window→quinn) where mmap would need one. Measured: the copy is cheaper than the hop it replaces, on every cell. |
 | **Cost** | Four `write_all` calls per 250 KB frame instead of one. Same bytes, same total copy. |
+| **Considered** | io_uring, in four tuned variants, is a measured tie at best — see [`RERUN.md`](RERUN.md) §io_uring, including the two conditions that would make it worth revisiting. |
 | **Risk** | The win is filesystem-conditional. On overlayfs/tmpfs the path is pooled `pread` — safe, and ~30 µs/frame worse than always-touch would have been. Confirm the deployment filesystem ([`later.md`](later.md)). |
 
 ## Why the previous decision was overturned
@@ -90,7 +91,10 @@ Numbers are the product runtime, warm `later_p50` / worst-cell neighbour p99 —
 | `pread` into a fresh `Vec` | **Rejected** | 149.2 µs — ~17 µs of allocation tax over pooled, no other difference |
 | WILLNEED on executor | **Rejected** | Fault still on the executor |
 | Ahead-N prefetch | **Deferred** | Needs a real ask window ([`later.md`](later.md)) |
-| `io_uring` | **Deferred** | Would replace the fallback, not the fast path — which takes no hop |
+| `io_uring` + `RWF_NOWAIT` hybrid *(best io_uring arm)* | **Rejected** | 80.9 vs 84.7 µs warm, CPU 104 vs 106 µs/ask — a tie, because on a page-cache hit it **is** the accepted path and the ring only serves the miss. Buys a ring, an eventfd and registered buffers per session for nothing measurable |
+| `io_uring` alone (registered file + fixed buffers, whole frame in one submit) | **Rejected** | Ties warm (82–88 µs), worst io_uring arm when reads miss: 224 parked completions on a cold random trace vs 59, and 408–437 µs on a cold reverse pass vs ~345. Batching a frame's windows means every window of a miss waits together |
+| `io_uring` pipelined (read n+1 during write n) | **Rejected** | The one thing only io_uring can do here, order-controlled at ~6% on a 100%-miss trace — while costing ~25% warm (108.6 vs 84.7 µs) and 2× session memory |
+| `io_uring` + `SQPOLL` | **Rejected** | 2.8× the CPU (287 vs 104 µs/ask) for worse latency: with a kernel submitter nothing completes inline, so every read parks |
 | `sendfile`/splice | **Rejected for this stack** | Userspace QUIC still copies |
 | `O_DIRECT` + app cache / SPDK / whole-study preload | **Rejected** | Wrong scale or scope |
 

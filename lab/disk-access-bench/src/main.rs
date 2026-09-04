@@ -13,11 +13,13 @@ use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 mod candidate_access;
 mod rejected_access;
+mod uring_access;
 
 use candidate_access::{populate_read, unmap_pages};
 use exact_server::media::frame_store::{host_page_size, FrameStore};
 use rejected_access::{advise_frame_willneed, frame_pages_resident, touch_frame_pages};
 use serde::Deserialize;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
@@ -49,6 +51,20 @@ enum Arm {
     /// Same, streamed through one small reusable window instead of a whole-frame buffer:
     /// bounds both the executor's uninterrupted copy and per-session memory.
     PreadNowaitChunked,
+    /// Control for the pipelined io_uring arms: the *next* window's pool read is issued
+    /// before the current window is written, so the hop overlaps the wire instead of
+    /// preceding it. Isolates "pipelining" from "io_uring".
+    PreadPipelinedPool,
+    /// io_uring, unregistered, one window per submit — the strawman.
+    UringNaive,
+    /// Registered file + registered buffers, every window of the frame in one
+    /// `io_uring_enter`. Exploits the only batch this workload has.
+    UringTuned,
+    /// Registered, double-buffered: window n+1 is submitted before window n is written.
+    UringPipelined,
+    /// The synthesis: `RWF_NOWAIT` inline for the page-cache hit (no ring work at all on
+    /// the common path), io_uring for the shortfall instead of `spawn_blocking`.
+    UringNowaitHybrid,
 }
 
 impl Arm {
@@ -67,6 +83,11 @@ impl Arm {
             Self::MmapPopulateRead => "mmap_populate_read",
             Self::PreadNowait => "pread_nowait",
             Self::PreadNowaitChunked => "pread_nowait_chunked",
+            Self::PreadPipelinedPool => "pread_pipelined_pool",
+            Self::UringNaive => "uring_naive",
+            Self::UringTuned => "uring_tuned",
+            Self::UringPipelined => "uring_pipelined",
+            Self::UringNowaitHybrid => "uring_nowait_hybrid",
         }
     }
 
@@ -85,6 +106,11 @@ impl Arm {
             Self::MmapPopulateRead,
             Self::PreadNowait,
             Self::PreadNowaitChunked,
+            Self::PreadPipelinedPool,
+            Self::UringNaive,
+            Self::UringTuned,
+            Self::UringPipelined,
+            Self::UringNowaitHybrid,
         ]
     }
 
@@ -232,6 +258,10 @@ struct Args {
     /// small window bounds executor occupancy and session memory but costs more syscalls.
     #[arg(long, default_value_t = 65536)]
     read_chunk: usize,
+    /// Start a kernel submission thread for the io_uring arms. Submits then cost no
+    /// syscall at all, at the price of a core spinning — check `cpu_us`, not just latency.
+    #[arg(long, default_value_t = false)]
+    uring_sqpoll: bool,
     /// Abort unless this process is in a cgroup with memory limit ≤ this many bytes.
     /// Used by `run_disk_access_mempressure.sh` so a fake tmpfs "cgroup" cannot silently clear the gate.
     #[arg(long)]
@@ -399,6 +429,28 @@ fn load_trace_file(path: &Path, frame_count: u32) -> Result<(String, Vec<u32>)> 
     Ok((name, frames))
 }
 
+/// OS threads currently in this process (`/proc/self/status`), 0 if unreadable.
+fn process_threads() -> u32 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find_map(|l| l.strip_prefix("Threads:")?.trim().parse::<u32>().ok())
+        })
+        .unwrap_or(0)
+}
+
+/// Process CPU (user + system) so far, in µs.
+fn process_cpu_us() -> u64 {
+    let mut ru: libc::rusage = unsafe { std::mem::zeroed() };
+    // SAFETY: `ru` is a live, correctly sized `rusage`.
+    if unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut ru) } != 0 {
+        return 0;
+    }
+    let us = |t: libc::timeval| t.tv_sec as u64 * 1_000_000 + t.tv_usec as u64;
+    us(ru.ru_utime) + us(ru.ru_stime)
+}
+
 fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;
@@ -466,6 +518,23 @@ fn access_len(store: &FrameStore, idx: u32, _access: AccessMode) -> Result<usize
     Ok(len as usize)
 }
 
+/// Hand one window buffer to the blocking pool and get it back with the bytes in it.
+fn spawn_window_read(
+    store: &Arc<FrameStore>,
+    slot: &mut Vec<u8>,
+    offset: u64,
+    window: usize,
+    len: usize,
+) -> tokio::task::JoinHandle<Result<Vec<u8>>> {
+    let mut buf = std::mem::take(slot);
+    buf.resize(window, 0);
+    let store = Arc::clone(store);
+    tokio::task::spawn_blocking(move || {
+        store.read_at_blocking(&mut buf[..len], offset)?;
+        Ok(buf)
+    })
+}
+
 /// Models quinn `write_all`: copy flow-control-sized chunks with an await between them.
 async fn write_sim(src: &[u8], chunk: usize, sink: &mut Vec<u8>) {
     let chunk = chunk.max(1);
@@ -483,17 +552,50 @@ struct FrameOutcome {
     bytes_copied: u64,
 }
 
-/// What an arm needs to serve one frame. Every read path — mmap slice, pool `pread`,
-/// `RWF_NOWAIT` — goes through the product `FrameStore`, so the lab times shipped code.
+/// Per-worker scratch that must survive across frames: reusing it is the difference
+/// between measuring an arm and measuring an allocator (and, for io_uring, between
+/// measuring reads and measuring `register_buffers`).
+struct ArmState {
+    sink: Vec<u8>,
+    pread_pool: Vec<u8>,
+    /// Two buffers for the pipelined pool arm.
+    pipe: [Vec<u8>; 2],
+    uring: Option<uring_access::UringReader>,
+    read_chunk: usize,
+    uring_sqpoll: bool,
+}
+
+impl ArmState {
+    fn new(cfg: &CellCfg) -> Self {
+        Self {
+            sink: Vec::new(),
+            pread_pool: Vec::new(),
+            pipe: [Vec::new(), Vec::new()],
+            uring: None,
+            read_chunk: cfg.read_chunk,
+            uring_sqpoll: cfg.uring_sqpoll,
+        }
+    }
+}
+
+/// What an arm needs to serve one frame. Every *shipped* read path — mmap slice, pool
+/// `pread`, `RWF_NOWAIT` — goes through the product `FrameStore`, so the lab times shipped
+/// code. `file` is a second fd on the same inode (same page cache, same results) for the
+/// io_uring arms, which have no product counterpart to borrow one from.
 #[derive(Clone)]
 struct ServeCtx {
     store: Arc<FrameStore>,
+    file: Arc<File>,
 }
 
 impl ServeCtx {
     fn open(path: &Path) -> Result<Self> {
         Ok(Self {
             store: Arc::new(FrameStore::open(path)?),
+            file: Arc::new(
+                File::open(path)
+                    .with_context(|| format!("open {} for io_uring", path.display()))?,
+            ),
         })
     }
 }
@@ -523,6 +625,17 @@ struct RunRow {
     other_later_p50_ns: u64,
     other_later_p99_ns: u64,
     other_asks: u32,
+    /// Peak OS threads in the process during the cell.
+    ///
+    /// io_uring spawns io-wq workers per ring and SQPOLL a submitter thread; a per-session
+    /// ring therefore has a per-session thread cost that latency does not show.
+    threads_max: u32,
+    /// Process CPU (user+sys) burned during the timed series, µs.
+    ///
+    /// io_uring moves work into kernel threads and SQPOLL burns a core outright, so latency
+    /// alone cannot rank these arms. Run with `--monitors 0` to read this: the gap monitor
+    /// is a spin loop, so otherwise a slower arm is charged more monitor CPU.
+    cpu_us: u64,
     /// Executor shape this cell ran on — `current` (archived) or `multi` (product).
     runtime: String,
     /// Asks that paid a pool round trip. `pread_nowait` reports its page-cache miss count.
@@ -530,13 +643,13 @@ struct RunRow {
 }
 
 fn tsv_header() -> &'static str {
-    "arm\tstudy\ttemp\ttrace\taccess\tchunk\trepeat\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tgap_p50_ns\tgap_p99_ns\tgap_max_ns\tgap_samples\tbytes_copied\thop_p50_ns\tother_later_p50_ns\tother_later_p99_ns\tother_asks\truntime\thop_count"
+    "arm\tstudy\ttemp\ttrace\taccess\tchunk\trepeat\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tgap_p50_ns\tgap_p99_ns\tgap_max_ns\tgap_samples\tbytes_copied\thop_p50_ns\tother_later_p50_ns\tother_later_p99_ns\tother_asks\tcpu_us\tthreads_max\truntime\thop_count"
 }
 
 impl RunRow {
     fn to_tsv(&self) -> String {
         format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             self.arm,
             self.study,
             self.temp,
@@ -560,6 +673,8 @@ impl RunRow {
             self.other_later_p50_ns,
             self.other_later_p99_ns,
             self.other_asks,
+            self.cpu_us,
+            self.threads_max,
             self.runtime,
             self.hop_count
         )
@@ -578,6 +693,7 @@ struct CellCfg {
     bg_arm: BgArm,
     monitors: usize,
     read_chunk: usize,
+    uring_sqpoll: bool,
 }
 
 fn build_runtime(cfg: &CellCfg) -> Result<tokio::runtime::Runtime> {
@@ -605,7 +721,6 @@ fn run_cell(
 ) -> Result<RunRow> {
     let access = cfg.access;
     let chunk = cfg.chunk;
-    let read_chunk = cfg.read_chunk;
     let cold_guard = match temp {
         Temp::Cold => Some(make_cold_copy(study_src)?),
         Temp::Warm => None,
@@ -657,12 +772,13 @@ fn run_cell(
     }
 
     let rt = build_runtime(&cfg)?;
+    let cpu0 = process_cpu_us();
 
     let (latencies, hops, bytes_copied, series_wall_ns, mut gaps, other_lats) =
         rt.block_on(async {
             let stop = Arc::new(AtomicBool::new(false));
             let gap_out: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
-            let monitors = cfg.monitors.max(1);
+            let monitors = cfg.monitors;
             let mut mons = Vec::with_capacity(monitors);
             for _ in 0..monitors {
                 let stop_m = Arc::clone(&stop);
@@ -697,8 +813,7 @@ fn run_cell(
                     let acc = Arc::clone(&other_lats_acc);
                     let asks = cfg.session_asks;
                     bg_handles.push(tokio::spawn(async move {
-                        let mut sink = Vec::new();
-                        let mut pool = Vec::new();
+                        let mut state = ArmState::new(&cfg);
                         let nframes = c.store.frame_count();
                         for i in 0..asks {
                             let idx = i % nframes;
@@ -710,9 +825,7 @@ fn run_cell(
                                 Some((i + 1) % nframes),
                                 access,
                                 chunk,
-                                read_chunk,
-                                &mut sink,
-                                &mut pool,
+                                &mut state,
                             )
                             .await
                             .expect("bg serve");
@@ -728,23 +841,12 @@ fn run_cell(
                 let mut lats = Vec::with_capacity(trace_w.len());
                 let mut hops = Vec::with_capacity(trace_w.len());
                 let mut bytes = 0u64;
-                let mut sink = Vec::new();
-                let mut pread_pool = Vec::new();
+                let mut state = ArmState::new(&cfg);
                 let wall0 = Instant::now();
                 for (i, &idx) in trace_w.iter().enumerate() {
                     let next = trace_w.get(i + 1).copied();
-                    let out = serve_frame_async(
-                        arm,
-                        &ctx_w,
-                        idx,
-                        next,
-                        access,
-                        chunk,
-                        read_chunk,
-                        &mut sink,
-                        &mut pread_pool,
-                    )
-                    .await?;
+                    let out = serve_frame_async(arm, &ctx_w, idx, next, access, chunk, &mut state)
+                        .await?;
                     lats.push(out.latency_ns);
                     if out.hop_ns > 0 {
                         hops.push(out.hop_ns);
@@ -769,6 +871,8 @@ fn run_cell(
             Ok::<_, anyhow::Error>((result.0, result.1, result.2, result.3, gaps, other))
         })?;
 
+    let cpu_us = process_cpu_us().saturating_sub(cpu0);
+    let threads_max = process_threads();
     let first = latencies.first().copied().unwrap_or(0);
     let mut later: Vec<u64> = latencies.iter().skip(1).copied().collect();
     later.sort_unstable();
@@ -813,6 +917,8 @@ fn run_cell(
         other_later_p50_ns: percentile(&other, 0.50),
         other_later_p99_ns: percentile(&other, 0.99),
         other_asks,
+        cpu_us,
+        threads_max,
         runtime: cfg.runtime.as_str().to_string(),
         hop_count,
     })
@@ -826,11 +932,12 @@ async fn serve_frame_async(
     next: Option<u32>,
     access: AccessMode,
     chunk: usize,
-    read_chunk: usize,
-    sink: &mut Vec<u8>,
-    pread_pool: &mut Vec<u8>,
+    state: &mut ArmState,
 ) -> Result<FrameOutcome> {
     let store = &ctx.store;
+    let read_chunk = state.read_chunk;
+    let uring_sqpoll = state.uring_sqpoll;
+    let sink = &mut state.sink;
     match arm {
         Arm::MmapNaive => {
             let t0 = Instant::now();
@@ -918,7 +1025,7 @@ async fn serve_frame_async(
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
-            let mut buf = std::mem::take(pread_pool);
+            let mut buf = std::mem::take(&mut state.pread_pool);
             buf.resize(len, 0);
             let (offset, _) = store.frame_range(idx)?;
             let buf = tokio::task::spawn_blocking(move || {
@@ -929,7 +1036,7 @@ async fn serve_frame_async(
             .context("join")??;
             let hop = th.elapsed().as_nanos() as u64;
             write_sim(&buf, chunk, sink).await;
-            *pread_pool = buf;
+            state.pread_pool = buf;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
@@ -997,7 +1104,7 @@ async fn serve_frame_async(
             let (offset, _) = store.frame_range(idx)?;
             let len = access_len(store, idx, access)?;
             let t0 = Instant::now();
-            let mut buf = std::mem::take(pread_pool);
+            let mut buf = std::mem::take(&mut state.pread_pool);
             buf.resize(len, 0);
             // Page-cache hit: the whole frame lands here with no hop and no fault risk.
             let got = store.read_at_nowait(&mut buf, offset)?;
@@ -1014,7 +1121,7 @@ async fn serve_frame_async(
                 hop = th.elapsed().as_nanos() as u64;
             }
             write_sim(&buf, chunk, sink).await;
-            *pread_pool = buf;
+            state.pread_pool = buf;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
@@ -1026,7 +1133,7 @@ async fn serve_frame_async(
             let len = access_len(store, idx, access)?;
             let window = read_chunk.min(len).max(1);
             let t0 = Instant::now();
-            let mut buf = std::mem::take(pread_pool);
+            let mut buf = std::mem::take(&mut state.pread_pool);
             buf.resize(window, 0);
             let mut hop = 0u64;
             let mut pos = 0usize;
@@ -1056,10 +1163,173 @@ async fn serve_frame_async(
                 }
                 pos += this;
             }
-            *pread_pool = buf;
+            state.pread_pool = buf;
             Ok(FrameOutcome {
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
+                bytes_copied: len as u64,
+            })
+        }
+        Arm::PreadPipelinedPool => {
+            // Same pool hop as `pread_blocking_pooled`, but issued one window early so it
+            // overlaps `write_sim` instead of preceding it. If pipelining is what helps,
+            // this arm captures it without io_uring.
+            let (offset, _) = store.frame_range(idx)?;
+            let len = access_len(store, idx, access)?;
+            let win = read_chunk.min(len).max(1);
+            let t0 = Instant::now();
+            let mut hop = 0u64;
+            let mut slot = 0usize;
+            let mut pos = 0usize;
+            let first = win.min(len);
+            let mut pending = Some(spawn_window_read(
+                store,
+                &mut state.pipe[slot],
+                offset,
+                win,
+                first,
+            ));
+            while let Some(handle) = pending.take() {
+                let th = Instant::now();
+                let buf = handle.await.context("join")??;
+                hop += th.elapsed().as_nanos() as u64;
+                let this = win.min(len - pos);
+                let next_pos = pos + this;
+                if next_pos < len {
+                    let n = win.min(len - next_pos);
+                    pending = Some(spawn_window_read(
+                        store,
+                        &mut state.pipe[1 - slot],
+                        offset + next_pos as u64,
+                        win,
+                        n,
+                    ));
+                }
+                for c in buf[..this].chunks(chunk) {
+                    state.sink.clear();
+                    state.sink.extend_from_slice(c);
+                    std::hint::black_box(state.sink.len());
+                    tokio::task::yield_now().await;
+                }
+                state.pipe[slot] = buf;
+                slot = 1 - slot;
+                pos = next_pos;
+            }
+            Ok(FrameOutcome {
+                latency_ns: t0.elapsed().as_nanos() as u64,
+                hop_ns: hop,
+                bytes_copied: len as u64,
+            })
+        }
+        Arm::UringNaive | Arm::UringTuned | Arm::UringPipelined | Arm::UringNowaitHybrid => {
+            let (offset, _) = store.frame_range(idx)?;
+            let len = access_len(store, idx, access)?;
+            let win = read_chunk.min(len).max(1);
+            let windows = len.div_ceil(win);
+            let slots = match arm {
+                Arm::UringTuned => windows,
+                Arm::UringPipelined => 2,
+                // Hybrid and naive hold exactly one window, like `pread_nowait_chunked`.
+                _ => 1,
+            };
+            if state.uring.is_none() {
+                state.uring = Some(uring_access::UringReader::new(
+                    &ctx.file,
+                    slots,
+                    win,
+                    arm != Arm::UringNaive,
+                    uring_sqpoll,
+                )?);
+            }
+            let ring = state.uring.as_mut().expect("ring");
+            let file = &ctx.file;
+            let t0 = Instant::now();
+            let mut hop = 0u64;
+            let mut waited = 0usize;
+
+            match arm {
+                Arm::UringTuned => {
+                    // Every window of the frame in one `io_uring_enter` — the only batch
+                    // this workload offers.
+                    for w in 0..windows {
+                        let at = w * win;
+                        ring.push(w, file, offset + at as u64, win.min(len - at))?;
+                    }
+                    ring.submit()?;
+                    let th = Instant::now();
+                    waited += ring.complete(windows).await?;
+                    hop += th.elapsed().as_nanos() as u64;
+                    for w in 0..windows {
+                        let at = w * win;
+                        let this = win.min(len - at);
+                        write_sim(&ring.buf(w)[..this], chunk, &mut state.sink).await;
+                    }
+                }
+                Arm::UringPipelined => {
+                    // Read window n+1 while window n is on the wire: the read latency hides
+                    // behind the write, which a synchronous `pread` cannot do.
+                    let mut slot = 0usize;
+                    ring.push(slot, file, offset, win.min(len))?;
+                    ring.submit()?;
+                    let mut pos = 0usize;
+                    while pos < len {
+                        let this = win.min(len - pos);
+                        let th = Instant::now();
+                        waited += ring.complete(1).await?;
+                        hop += th.elapsed().as_nanos() as u64;
+                        let next_pos = pos + this;
+                        if next_pos < len {
+                            ring.push(
+                                1 - slot,
+                                file,
+                                offset + next_pos as u64,
+                                win.min(len - next_pos),
+                            )?;
+                            ring.submit()?;
+                        }
+                        write_sim(&ring.buf(slot)[..this], chunk, &mut state.sink).await;
+                        slot = 1 - slot;
+                        pos = next_pos;
+                    }
+                }
+                Arm::UringNowaitHybrid => {
+                    let mut pos = 0usize;
+                    while pos < len {
+                        let this = win.min(len - pos);
+                        let at = offset + pos as u64;
+                        let got = store.read_at_nowait(&mut ring.buf_mut(0)[..this], at)?;
+                        if got < this {
+                            // Miss: finish the window through the ring rather than the
+                            // blocking pool. No wasted work — `got` bytes are already in.
+                            ring.push_at(0, got, file, at + got as u64, this - got)?;
+                            ring.submit()?;
+                            let th = Instant::now();
+                            waited += ring.complete(1).await?;
+                            hop += th.elapsed().as_nanos() as u64;
+                        }
+                        write_sim(&ring.buf(0)[..this], chunk, &mut state.sink).await;
+                        pos += this;
+                    }
+                }
+                _ => {
+                    let mut pos = 0usize;
+                    while pos < len {
+                        let this = win.min(len - pos);
+                        ring.push(0, file, offset + pos as u64, this)?;
+                        ring.submit()?;
+                        let th = Instant::now();
+                        waited += ring.complete(1).await?;
+                        hop += th.elapsed().as_nanos() as u64;
+                        write_sim(&ring.buf(0)[..this], chunk, &mut state.sink).await;
+                        pos += this;
+                    }
+                }
+            }
+            Ok(FrameOutcome {
+                latency_ns: t0.elapsed().as_nanos() as u64,
+                // Only completions that had to park count as a hop, so the column stays
+                // comparable with `spawn_blocking` round trips.
+                hop_ns: if waited > 0 { hop } else { 0 },
                 bytes_copied: len as u64,
             })
         }
@@ -1216,7 +1486,7 @@ fn main() -> Result<()> {
         "runtime={} workers={} monitors={} bg_arm={:?} repeats={}",
         args.runtime.as_str(),
         workers,
-        args.monitors.max(1),
+        args.monitors,
         args.bg_arm,
         repeats
     );
@@ -1264,6 +1534,7 @@ fn main() -> Result<()> {
                             bg_arm: args.bg_arm,
                             monitors: args.monitors,
                             read_chunk: args.read_chunk.max(1),
+                            uring_sqpoll: args.uring_sqpoll,
                         };
                         // Repeat is the OUTER loop: arms interleave round-robin so slow
                         // host drift lands on every arm instead of on whichever arm
