@@ -55,7 +55,13 @@ decide whether product work is warranted:
    stack after enqueue** (CC, pacing, netem). If `ask_to_last` itself tracks the excess, the stall is
    **server-side before/during write** (flow control blocking `write_all`, disk, serial loop).
 
-Prefer A first (no code). Do B if A still leaves a large excess.
+A short isolation distinguishes (1)/(2) from app logic — **ran 2026-09-04**, see
+[`ISOLATION_RTT_EXCESS.md`](ISOLATION_RTT_EXCESS.md):
+
+- **Isolation B:** server ask→last `write_all` median **0.02 ms** → not FoD.
+- **Isolation A:** removing netem `rate` drops wait by ≈Tf only; RTT-proportional excess remains
+  under delay-only → **leading cause is post-enqueue QUIC path (CC / multi-flight / ACK)**, not
+  the rate shaper alone.
 
 ## Also required on the rig
 - `iputils-ping` installed
