@@ -50,6 +50,9 @@ pub struct ServeConfig {
     pub key_pem: PathBuf,
     /// How frames reach the client for this process. See `StreamMode`.
     pub mode: StreamMode,
+    /// When true and `mode` is `PerFrame`, assign decreasing QUIC stream priorities
+    /// in ask order (earliest ask → highest priority). Ignored for `Shared`.
+    pub ask_priority: bool,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -80,6 +83,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("frames={}", store.frame_count());
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
+    println!("ask_priority={}", config.ask_priority);
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
     #[cfg(not(feature = "telemetry"))]
@@ -88,15 +92,17 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         %wt_url,
         study = %config.study_path.display(),
         stream_mode = config.mode.as_str(),
+        ask_priority = config.ask_priority,
         "exact-server ready (Media-complete)"
     );
 
     let mode = config.mode;
+    let ask_priority = config.ask_priority;
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
         tokio::spawn(async move {
-            if let Err(err) = handle_incoming(incoming, store, mode).await {
+            if let Err(err) = handle_incoming(incoming, store, mode, ask_priority).await {
                 warn!(%err, "session ended");
             }
         });
@@ -107,6 +113,7 @@ async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
     store: Arc<FrameStore>,
     mode: StreamMode,
+    ask_priority: bool,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     let connection = session_request.accept().await.context("accept session")?;
@@ -129,7 +136,15 @@ async fn handle_incoming(
         StreamMode::PerFrame => None,
     };
 
-    run_session(connection, control_send, control_recv, store, shared).await
+    run_session(
+        connection,
+        control_send,
+        control_recv,
+        store,
+        shared,
+        ask_priority && matches!(mode, StreamMode::PerFrame),
+    )
+    .await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
@@ -139,17 +154,21 @@ async fn run_session(
     mut control_recv: RecvStream,
     store: Arc<FrameStore>,
     mut shared: Option<SendStream>,
+    ask_priority: bool,
 ) -> Result<()> {
     let mut rec = Recorder::for_session();
 
     info!(
         frames = store.frame_count(),
         shared = shared.is_some(),
+        ask_priority,
         "session opened"
     );
 
     // Per-frame mode only: holds the acknowledgement waits moved off this loop.
     let mut acks = JoinSet::new();
+    // Ask order for QUIC stream priority (earliest ask → highest priority).
+    let mut ask_seq: i32 = 0;
 
     loop {
         let msg = match read_fod_msg(&mut control_recv).await {
@@ -170,6 +189,8 @@ async fn run_session(
                     &store,
                     frame,
                     &mut rec,
+                    ask_priority,
+                    &mut ask_seq,
                 )
                 .await?;
             }
@@ -183,6 +204,8 @@ async fn run_session(
                         &store,
                         frame,
                         &mut rec,
+                        ask_priority,
+                        &mut ask_seq,
                     )
                     .await?;
                 }
@@ -211,6 +234,8 @@ async fn send_one_frame(
     store: &FrameStore,
     idx: u32,
     rec: &mut Recorder,
+    ask_priority: bool,
+    ask_seq: &mut i32,
 ) -> Result<()> {
     rec.ask(idx);
 
@@ -221,7 +246,7 @@ async fn send_one_frame(
 
             let t1 = rec.stamp();
             let payload = wrap(idx, bytes);
-            match write_payload(connection, shared, acks, &payload).await {
+            match write_payload(connection, shared, acks, &payload, ask_priority, ask_seq).await {
                 Ok(()) => rec.wrote(t1, WriteOutcome::Sent, payload.len()),
                 Err(err) => {
                     rec.wrote(t1, WriteOutcome::WriteErr, 0);
@@ -254,6 +279,8 @@ async fn write_payload(
     shared: &mut Option<SendStream>,
     acks: &mut JoinSet<()>,
     payload: &[u8],
+    ask_priority: bool,
+    ask_seq: &mut i32,
 ) -> Result<()> {
     // Two writes, not one buffer: building `[len][payload]` would copy the whole frame a
     // second time (`wrap` already copied it once). `write_all` copies into the connection's
@@ -272,6 +299,11 @@ async fn write_payload(
                 .context("open uni")?
                 .await
                 .context("open uni ready")?;
+            // Higher priority transmits first (wtransport/quinn). Earliest ask wins.
+            if ask_priority {
+                uni.set_priority(i32::MAX.saturating_sub(*ask_seq));
+                *ask_seq = ask_seq.saturating_add(1);
+            }
             uni.write_all(&len).await.context("write len")?;
             uni.write_all(payload).await.context("write envelope")?;
 
