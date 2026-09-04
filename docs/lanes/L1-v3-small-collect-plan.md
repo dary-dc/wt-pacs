@@ -1,6 +1,10 @@
 # L1 v3 — small collect plan (for reviewer; do not run until approved)
 
 **Status:** awaiting review · **Date:** 2026-09-04 · **Branch:** `cursor/l1-loss-run-dbae`  
+> **Second review found two blockers in this plan — see
+> [`L1-v3-second-review.md`](L1-v3-second-review.md) §4:** the null gate (25 %) is looser than
+> the 15 % decision it protects, and `cache_misses ≥ ~15` makes `miss_p95` a max-of-15. Both
+> must be settled before sign-off. Interleaving (S6) is also unstated in the grid below.  
 **Depends on:** path validation PASSED · A1 cadence frozen in
 [`l1_v3_cadence.json`](../measurements/r2/l1_v3_cadence.json)  
 **Does not run:** full S9 grid (~10.5 h). This is a methodology smoke + first sample only.  
@@ -82,5 +86,10 @@ Artifacts: `l1_s_vs_q_loss_v3.pilot.tsv`, `raw/l1v3/pilot/`, `l1_v3_cadence.json
 - [ ] Cadences in table look plausible for product-like stepping
 - [ ] 15 % bar: keep as later powered threshold, or defer
 - [ ] Approve implementing `COLLECT_MODE=small` only after the above
+- [ ] **N1** null gate tightened to ≤ decision threshold (second review §4.1)
+- [ ] **N2** 160-frame trace + tail-sample miss budget (§4.2)
+- [ ] **N3** bimodal pilot regime diagnosed, not median-ed away (§4.3)
+- [ ] **N5** arms interleaved run-by-run, rows timestamped (§4.5)
+- [ ] **N6** `cloud_precheck_ratio` + frame-size assertion in the collect path (§3.1, §3.4)
 
 **Do not start collect until this checklist is signed off.**
