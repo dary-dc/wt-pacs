@@ -268,6 +268,17 @@ struct Args {
     require_cgroup_mem_bytes: Option<u64>,
     #[arg(long)]
     out: Option<PathBuf>,
+    /// Report the instrument's own resolution and overhead, then exit. Every latency column
+    /// is nanoseconds; this says how many of those nanoseconds the instrument invented.
+    #[arg(long, default_value_t = false)]
+    selftest: bool,
+    /// Append one row per ask (`arm temp trace repeat ordinal latency_ns hop_ns`).
+    ///
+    /// A cell's `later_p99` is the 316th of 319 samples — nearly a single observation. Raw
+    /// samples let percentiles pool across repeats, which shrinks the error bar on a tail
+    /// far more than any change of unit could.
+    #[arg(long)]
+    samples: Option<PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -440,15 +451,119 @@ fn process_threads() -> u32 {
         .unwrap_or(0)
 }
 
-/// Process CPU (user + system) so far, in µs.
-fn process_cpu_us() -> u64 {
-    let mut ru: libc::rusage = unsafe { std::mem::zeroed() };
-    // SAFETY: `ru` is a live, correctly sized `rusage`.
-    if unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut ru) } != 0 {
+/// Process CPU (user + system) so far, in **nanoseconds**.
+///
+/// `CLOCK_PROCESS_CPUTIME_ID`, not `getrusage`: the latter reports a `timeval`, so it
+/// quantises to a microsecond before the kernel's own accounting granularity is even
+/// reached. Both are far coarser than the wall clock — see `--selftest`.
+fn process_cpu_ns() -> u64 {
+    let mut ts: libc::timespec = unsafe { std::mem::zeroed() };
+    // SAFETY: `ts` is a live, correctly sized `timespec`.
+    if unsafe { libc::clock_gettime(libc::CLOCK_PROCESS_CPUTIME_ID, &mut ts) } != 0 {
         return 0;
     }
-    let us = |t: libc::timeval| t.tv_sec as u64 * 1_000_000 + t.tv_usec as u64;
-    us(ru.ru_utime) + us(ru.ru_stime)
+    ts.tv_sec as u64 * 1_000_000_000 + ts.tv_nsec as u64
+}
+
+/// What the instrument can and cannot see.
+///
+/// Printed rather than assumed: several columns here are hundreds of nanoseconds, and a
+/// number is only worth its last digit if the clock that produced it can resolve one.
+fn selftest() {
+    const N: usize = 200_000;
+
+    let mut res: libc::timespec = unsafe { std::mem::zeroed() };
+    // SAFETY: live `timespec`.
+    unsafe { libc::clock_getres(libc::CLOCK_MONOTONIC, &mut res) };
+    println!("clock_getres(CLOCK_MONOTONIC)      = {} ns", res.tv_nsec);
+    // SAFETY: live `timespec`.
+    unsafe { libc::clock_getres(libc::CLOCK_PROCESS_CPUTIME_ID, &mut res) };
+    println!("clock_getres(PROCESS_CPUTIME)      = {} ns", res.tv_nsec);
+
+    // Cost of one `Instant::now()` + `elapsed()` pair — the price of every sample.
+    let mut pairs = Vec::with_capacity(N);
+    for _ in 0..N {
+        let t = Instant::now();
+        pairs.push(t.elapsed().as_nanos() as u64);
+    }
+    pairs.sort_unstable();
+    let smallest_step = pairs.iter().copied().find(|&v| v > 0).unwrap_or(0);
+    println!(
+        "Instant::now()+elapsed() overhead  = p50 {} ns · p99 {} ns · min {} ns",
+        percentile(&pairs, 0.50),
+        percentile(&pairs, 0.99),
+        pairs[0]
+    );
+    println!("smallest non-zero delta observed   = {smallest_step} ns");
+
+    // Monotonic step: consecutive readings, which is the true resolution in practice.
+    let mut steps = Vec::with_capacity(N);
+    let mut last = Instant::now();
+    for _ in 0..N {
+        let now = Instant::now();
+        steps.push(now.duration_since(last).as_nanos() as u64);
+        last = now;
+    }
+    steps.sort_unstable();
+    println!(
+        "back-to-back Instant::now() step    = p50 {} ns · p99 {} ns",
+        percentile(&steps, 0.50),
+        percentile(&steps, 0.99)
+    );
+
+    // The gap monitor with nothing to be blocked by: its own floor. Any reported
+    // `gap_p50` at or below this is measuring the monitor, not the arm.
+    for (label, workers) in [("current", 0usize), ("multi(4)", 4usize)] {
+        let rt = if workers == 0 {
+            Builder::new_current_thread().enable_all().build().unwrap()
+        } else {
+            Builder::new_multi_thread()
+                .worker_threads(workers)
+                .enable_all()
+                .build()
+                .unwrap()
+        };
+        let mut gaps = rt.block_on(async {
+            let mut g = Vec::with_capacity(N);
+            for _ in 0..N {
+                let t = Instant::now();
+                tokio::task::yield_now().await;
+                g.push(t.elapsed().as_nanos() as u64);
+            }
+            g
+        });
+        gaps.sort_unstable();
+        println!(
+            "idle yield_now gap floor [{label:8}]  = p50 {} ns · p99 {} ns · max {} ns",
+            percentile(&gaps, 0.50),
+            percentile(&gaps, 0.99),
+            gaps.last().copied().unwrap_or(0)
+        );
+    }
+
+    // CPU-clock granularity: how long until the process CPU clock ticks at all.
+    let c0 = process_cpu_ns();
+    let mut ticks = Vec::new();
+    let mut prev = c0;
+    let t_end = Instant::now();
+    while t_end.elapsed().as_millis() < 50 && ticks.len() < 10_000 {
+        let c = process_cpu_ns();
+        if c != prev {
+            ticks.push(c - prev);
+            prev = c;
+        }
+    }
+    ticks.sort_unstable();
+    if ticks.is_empty() {
+        println!("process CPU clock step             = did not tick in 50 ms");
+    } else {
+        println!(
+            "process CPU clock step             = p50 {} ns · min {} ns ({} ticks)",
+            percentile(&ticks, 0.50),
+            ticks[0],
+            ticks.len()
+        );
+    }
 }
 
 fn percentile(sorted: &[u64], p: f64) -> u64 {
@@ -630,20 +745,26 @@ struct RunRow {
     /// io_uring spawns io-wq workers per ring and SQPOLL a submitter thread; a per-session
     /// ring therefore has a per-session thread cost that latency does not show.
     threads_max: u32,
-    /// Process CPU (user+sys) burned during the timed series, µs.
+    /// Process CPU (user+sys) burned during the timed series, ns.
     ///
     /// io_uring moves work into kernel threads and SQPOLL burns a core outright, so latency
     /// alone cannot rank these arms. Run with `--monitors 0` to read this: the gap monitor
     /// is a spin loop, so otherwise a slower arm is charged more monitor CPU.
-    cpu_us: u64,
+    cpu_ns: u64,
     /// Executor shape this cell ran on — `current` (archived) or `multi` (product).
     runtime: String,
     /// Asks that paid a pool round trip. `pread_nowait` reports its page-cache miss count.
     hop_count: u32,
+    /// Per-ask `(latency_ns, hop_ns)`, not written to the summary TSV.
+    ///
+    /// A cell's `later_p99` is the 316th of 319 samples — one observation with a tail's
+    /// worth of leverage. `--samples` writes these so a percentile can pool across repeats
+    /// and carry a confidence interval instead of a bare number.
+    samples: Vec<(u64, u64)>,
 }
 
 fn tsv_header() -> &'static str {
-    "arm\tstudy\ttemp\ttrace\taccess\tchunk\trepeat\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tgap_p50_ns\tgap_p99_ns\tgap_max_ns\tgap_samples\tbytes_copied\thop_p50_ns\tother_later_p50_ns\tother_later_p99_ns\tother_asks\tcpu_us\tthreads_max\truntime\thop_count"
+    "arm\tstudy\ttemp\ttrace\taccess\tchunk\trepeat\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tgap_p50_ns\tgap_p99_ns\tgap_max_ns\tgap_samples\tbytes_copied\thop_p50_ns\tother_later_p50_ns\tother_later_p99_ns\tother_asks\tcpu_ns\tthreads_max\truntime\thop_count"
 }
 
 impl RunRow {
@@ -673,7 +794,7 @@ impl RunRow {
             self.other_later_p50_ns,
             self.other_later_p99_ns,
             self.other_asks,
-            self.cpu_us,
+            self.cpu_ns,
             self.threads_max,
             self.runtime,
             self.hop_count
@@ -772,10 +893,10 @@ fn run_cell(
     }
 
     let rt = build_runtime(&cfg)?;
-    let cpu0 = process_cpu_us();
+    let cpu0 = process_cpu_ns();
 
-    let (latencies, hops, bytes_copied, series_wall_ns, mut gaps, other_lats) =
-        rt.block_on(async {
+    let (latencies, hops, bytes_copied, series_wall_ns, mut gaps, other_lats, samples) = rt
+        .block_on(async {
             let stop = Arc::new(AtomicBool::new(false));
             let gap_out: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
             let monitors = cfg.monitors;
@@ -840,6 +961,7 @@ fn run_cell(
             let work = tokio::spawn(async move {
                 let mut lats = Vec::with_capacity(trace_w.len());
                 let mut hops = Vec::with_capacity(trace_w.len());
+                let mut per_ask: Vec<(u64, u64)> = Vec::with_capacity(trace_w.len());
                 let mut bytes = 0u64;
                 let mut state = ArmState::new(&cfg);
                 let wall0 = Instant::now();
@@ -848,12 +970,19 @@ fn run_cell(
                     let out = serve_frame_async(arm, &ctx_w, idx, next, access, chunk, &mut state)
                         .await?;
                     lats.push(out.latency_ns);
+                    per_ask.push((out.latency_ns, out.hop_ns));
                     if out.hop_ns > 0 {
                         hops.push(out.hop_ns);
                     }
                     bytes += out.bytes_copied;
                 }
-                Ok::<_, anyhow::Error>((lats, hops, bytes, wall0.elapsed().as_nanos() as u64))
+                Ok::<_, anyhow::Error>((
+                    lats,
+                    hops,
+                    bytes,
+                    wall0.elapsed().as_nanos() as u64,
+                    per_ask,
+                ))
             });
 
             let result = work.await.context("work join")??;
@@ -868,10 +997,12 @@ fn run_cell(
             }
             let gaps = gap_out.lock().unwrap().clone();
             let other = other_lats_acc.lock().unwrap().clone();
-            Ok::<_, anyhow::Error>((result.0, result.1, result.2, result.3, gaps, other))
+            Ok::<_, anyhow::Error>((
+                result.0, result.1, result.2, result.3, gaps, other, result.4,
+            ))
         })?;
 
-    let cpu_us = process_cpu_us().saturating_sub(cpu0);
+    let cpu_ns = process_cpu_ns().saturating_sub(cpu0);
     let threads_max = process_threads();
     let first = latencies.first().copied().unwrap_or(0);
     let mut later: Vec<u64> = latencies.iter().skip(1).copied().collect();
@@ -917,10 +1048,11 @@ fn run_cell(
         other_later_p50_ns: percentile(&other, 0.50),
         other_later_p99_ns: percentile(&other, 0.99),
         other_asks,
-        cpu_us,
+        cpu_ns,
         threads_max,
         runtime: cfg.runtime.as_str().to_string(),
         hop_count,
+        samples,
     })
 }
 
@@ -1449,6 +1581,10 @@ fn assert_cgroup_mem_limit(max_bytes: u64) -> Result<()> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    if args.selftest {
+        selftest();
+        return Ok(());
+    }
     if let Some(limit) = args.require_cgroup_mem_bytes {
         assert_cgroup_mem_limit(limit)?;
     }
@@ -1552,6 +1688,28 @@ fn main() -> Result<()> {
                 }
             }
         }
+    }
+
+    if let Some(path) = args.samples {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut body =
+            String::from("arm\ttemp\ttrace\tchunk\truntime\trepeat\tordinal\tlatency_ns\thop_ns\n");
+        for r in &rows {
+            for (i, (lat, hop)) in r.samples.iter().enumerate() {
+                body.push_str(&format!(
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{i}\t{lat}\t{hop}\n",
+                    r.arm, r.temp, r.trace, r.chunk, r.runtime, r.repeat
+                ));
+            }
+        }
+        std::fs::write(&path, body)?;
+        eprintln!(
+            "wrote {} ({} asks)",
+            path.display(),
+            rows.iter().map(|r| r.samples.len()).sum::<usize>()
+        );
     }
 
     if let Some(out) = args.out {

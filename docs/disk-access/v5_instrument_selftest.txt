@@ -1,0 +1,8 @@
+clock_getres(CLOCK_MONOTONIC)      = 1 ns
+clock_getres(PROCESS_CPUTIME)      = 1 ns
+Instant::now()+elapsed() overhead  = p50 22 ns · p99 27 ns · min 21 ns
+smallest non-zero delta observed   = 21 ns
+back-to-back Instant::now() step    = p50 27 ns · p99 47 ns
+idle yield_now gap floor [current ]  = p50 496 ns · p99 695 ns · max 48561 ns
+idle yield_now gap floor [multi(4)]  = p50 44 ns · p99 53 ns · max 32303 ns
+process CPU clock step             = p50 418 ns · min 393 ns (10000 ticks)

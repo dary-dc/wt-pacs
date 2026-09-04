@@ -37,9 +37,15 @@ Arms read through the product `FrameStore`, so `pread_nowait*` time
 | --- | --- |
 | `later_p50/p99_ns` | Per-frame prep+write cost after the first ask |
 | `hop_count` | Asks (of 320) that paid a `spawn_blocking` round trip |
+| `gap_p50_ns` | Median co-tenant gap. **Do not read this as executor unavailability**: the monitor's own idle floor is ~500 ns on current-thread, and this column sits at it. Lead with `gap_p99`/`gap_max`, which are µs–ms — orders of magnitude clear of the floor |
 | `gap_max_ns` | Worst co-tenant `yield_now` gap — how long the executor was unavailable |
 | `other_later_p99_ns` | Multi-session: background sessions' ask latency during the primary. **Lead with this for neighbour safety** |
 | `runtime` | `current` (archived shape) or `multi` (product shape) |
+| `cpu_ns` | Process CPU (user+sys) over the timed series. `v4_*` files predate this and carry `cpu_us` from `getrusage`, which quantises to a microsecond; `v5_*` onward use `CLOCK_PROCESS_CPUTIME_ID`, whose step measures 418 ns here |
+
+Every latency column is nanoseconds and always was — `Instant` + `as_nanos()`. What limits
+these numbers is not the unit; see **Precision** below for what the instrument can actually
+separate.
 
 ---
 
@@ -298,6 +304,70 @@ Two conditions would make it worth revisiting, and both are in [`later.md`](late
 
 ---
 
+## Precision — what this instrument can separate
+
+Regenerate with `disk-access-bench --selftest`
+([`v5_instrument_selftest.txt`](v5_instrument_selftest.txt)):
+
+```
+clock_getres(CLOCK_MONOTONIC)       = 1 ns
+Instant::now()+elapsed() overhead   = p50 22 ns · p99 27 ns
+back-to-back Instant::now() step    = p50 27 ns
+idle yield_now gap floor [current]  = p50 496 ns · p99 695 ns
+idle yield_now gap floor [multi(4)] = p50  44 ns · p99  53 ns
+process CPU clock step              = p50 418 ns
+```
+
+The clock resolves a nanosecond and a sample costs 22 ns, so per-frame latencies (tens of
+µs) carry ~0.1% instrument overhead. Two consequences:
+
+* **`gap_p50` measures the monitor, not the arm.** On a current-thread cell it sits at the
+  ~500 ns idle floor. Every safety claim in this document leads with `gap_p99` or
+  `gap_max`, which are µs–ms; none rests on `gap_p50`.
+* **`cpu_ns` is the coarsest column**, stepping at ~418 ns. Fine against per-cell totals of
+  tens of ms; not something to read per ask below a microsecond.
+
+### Pooled percentiles beat any change of unit
+
+A cell's `later_p99` is the 316th of 319 samples — nearly a single observation, which is
+how a tail can swing 10× on luck. `--samples` writes every ask, so a percentile pools
+across repeats (2 871 samples/arm at 9 repeats) and carries a bootstrap 95% CI
+([`v5_warm_pooled_ci.tsv`](v5_warm_pooled_ci.tsv), warm, product runtime, two independent
+runs of the same configuration):
+
+| Arm | p50 (run 1) | 95% CI | p50 (run 2) | Shift |
+| --- | ---: | ---: | ---: | ---: |
+| mmap_naive | 43 147 ns | ±0.6% | 41 675 ns | −3.4% |
+| mmap_hybrid_mincore | 43 905 ns | ±0.5% | 42 850 ns | −2.4% |
+| **mmap_blocking_touch** *(prior ADR)* | **152 295 ns** | ±1.1% | 152 668 ns | +0.2% |
+| mmap_touch_in_place | 58 523 ns | ±0.4% | 60 180 ns | +2.8% |
+| pread_blocking_pooled | 170 607 ns | ±0.7% | 173 125 ns | +1.5% |
+| pread_nowait (whole frame) | 57 415 ns | ±0.5% | 61 560 ns | +7.2% |
+| **pread_nowait_chunked** *(accepted)* | **60 894 ns** | ±0.5% | 61 572 ns | +1.1% |
+| uring_nowait_hybrid | 62 424 ns | ±0.4% | 63 034 ns | +1.0% |
+
+### The rule this produces
+
+**A within-run CI is not the error bar.** Re-running the *identical* configuration moves a
+median by up to 7.2% — five to ten times the ±0.5–1% bootstrap interval. The CI measures
+sampling noise inside one run; run-to-run drift on a shared cloud vCPU is larger and the
+bootstrap cannot see it. So:
+
+> A difference counts only if it is larger than run-to-run drift **and** reproduces with the
+> same sign across independent runs.
+
+Applied to this campaign:
+
+| Comparison | Verdict |
+| --- | --- |
+| accepted vs `mmap_blocking_touch` (prior ADR) | **2.5× apart, CIs nowhere near touching.** Resolved beyond argument |
+| accepted vs `pread_blocking_pooled` | **2.8× apart.** Resolved |
+| `mmap_naive` vs `mmap_hybrid_mincore` | ~2%, CIs overlap — **not resolvable**, which is the physically correct answer for "naive plus one syscall" and a check that the interleaving fix works |
+| `pread_nowait` whole-frame vs chunked | −5.7% in run 1, −0.0% in run 2 — **not established**. Chunking's cost is at most a few percent, against a 4× lower worst-case gap and 4× less session memory |
+| io_uring hybrid vs accepted | +2.5% and +2.4%, same sign both runs — reproducible, but it flips sign against the `--monitors 0` cell (−4.5%). **A tie bounded at ±5%**, and the rejection rests on the ring's per-session cost, not on this |
+
+---
+
 ## Filesystem support
 
 `preadv2(RWF_NOWAIT)` probed directly on this host:
@@ -315,6 +385,9 @@ window. Checking the deployment filesystem is the first item in [`later.md`](lat
 
 ## Limitations
 
+- **Every latency here is nanoseconds, and the limit is not the unit.** The clock resolves
+  1 ns; run-to-run drift moves a median by up to 7%. See **Precision** for the rule that
+  follows — a difference must beat drift *and* reproduce with the same sign.
 - **Cold means guest-cold, not device-cold, and cold cells do not resolve small
   differences.** Residency is asserted `< 0.1%` in the guest, but the hypervisor caches the
   backing file: the same cold pass takes 25 ms on one repeat and 200 ms on another. At 25
