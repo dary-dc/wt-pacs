@@ -77,14 +77,18 @@ case "$PROFILE" in
     one_way=$((PROFILE / 2))
     loss_args_for "$LOSS_PCT" "$LOSS_MODEL"
     rate_args_for
+    # Always delete both sides first — `replace` alone left a stale rate on veth-cli
+    # when switching RATE=10mbit → none (Isolation A false negative).
     clear_qdisc "$VETH_SRV"
-    tc qdisc replace dev "$VETH_SRV" root netem delay "${one_way}ms" "${RATE_ARGS[@]}" "${LOSS_ARGS[@]}"
-    # Return path: delay + optional rate (no loss), matching the work order.
-    ip netns exec "$NS" tc qdisc replace dev "$VETH_CLI" root \
-      netem delay "${one_way}ms" "${RATE_ARGS[@]}"
+    ip netns exec "$NS" tc qdisc del dev "$VETH_CLI" root 2>/dev/null || true
     if [[ ${#RATE_ARGS[@]} -eq 0 ]]; then
+      tc qdisc add dev "$VETH_SRV" root netem delay "${one_way}ms" "${LOSS_ARGS[@]}"
+      ip netns exec "$NS" tc qdisc add dev "$VETH_CLI" root netem delay "${one_way}ms"
       rate_label=none
     else
+      tc qdisc add dev "$VETH_SRV" root netem delay "${one_way}ms" "${RATE_ARGS[@]}" "${LOSS_ARGS[@]}"
+      ip netns exec "$NS" tc qdisc add dev "$VETH_CLI" root \
+        netem delay "${one_way}ms" "${RATE_ARGS[@]}"
       rate_label="$RATE"
     fi
     echo "netem veth: RTT≈${PROFILE}ms delay=${one_way}ms rate=$rate_label loss=${LOSS_PCT}% model=$LOSS_MODEL" >&2
