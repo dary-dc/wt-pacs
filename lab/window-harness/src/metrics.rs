@@ -46,6 +46,10 @@ pub struct RunConfig {
     pub rtt_ms: u64,
     /// Must match the server's `--stream-mode`.
     pub stream_mode: StreamMode,
+    /// When true, depth is the warm-up fixed value and adapts per L2 estimator.
+    pub dynamic_depth: bool,
+    /// Path RTT (ms) for dynamic BDP formula when measured/configured (L2 v2).
+    pub path_rtt_ms: Option<u64>,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -66,12 +70,35 @@ pub struct HarnessMetrics {
     pub recovered_ms: f64,
     /// Mean time from reader-wants to displayable; cache hits count as 0.
     pub mean_wait_ms: f64,
-    /// p95 of the same wait samples.
+    /// p95 of the same wait samples (ask→displayable diagnostic).
     pub p95_wait_ms: f64,
-    /// Raw per-step waits (ms); cache hits are 0. For derived random arm offline.
+    /// Primary L2 v2 metric: p95 lateness vs reader schedule.
+    #[serde(default)]
+    pub p95_lateness_ms: f64,
+    #[serde(default)]
+    pub mean_lateness_ms: f64,
+    #[serde(default)]
+    pub frac_steps_late: f64,
+    /// Raw per-step lateness (ms); on-time / cache hits are 0.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lateness_ms: Vec<f64>,
+    /// Raw per-step waits (ms); cache hits are 0. Ask→display diagnostic.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub wait_ms: Vec<f64>,
+    /// Ask→first-byte samples (ms). Path-RTT probe must use these, not `wait_ms`
+    /// (displayable includes full-frame transfer).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ask_first_byte_ms: Vec<f64>,
+    /// Median of `ask_first_byte_ms` (0 if empty).
+    #[serde(default)]
+    pub median_ask_first_byte_ms: f64,
     pub wait_samples: u32,
+    #[serde(default)]
+    pub duplicate_asks: u32,
+    #[serde(default)]
+    pub unique_frames_asked: u32,
+    #[serde(default)]
+    pub drain_incomplete: bool,
     /// Steady-state frames/s while fill is active.
     pub fill_rate: f64,
     pub fill_frames: u32,
@@ -95,6 +122,19 @@ pub struct HarnessMetrics {
     /// Ordinals increment per `frame_index` within the session (same rule as server Tap).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ask_join: Vec<AskJoinRow>,
+    /// Dynamic arm: min/max D observed; 0 when not dynamic.
+    #[serde(default)]
+    pub d_min_observed: u32,
+    #[serde(default)]
+    pub d_max_observed: u32,
+    /// Dynamic arm: `d_current` after each completed displayable step.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub d_current: Vec<u32>,
+    /// Dynamic arm tripped the oscillation stop condition.
+    #[serde(default)]
+    pub depth_oscillating: bool,
+    #[serde(default)]
+    pub depth_saturated: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -122,8 +162,14 @@ pub struct MetricsState {
     pub fill_started_at: Option<Instant>,
     /// Client-side display cache: frame index is displayable once present.
     pub cache: HashSet<u32>,
-    /// Per want: ms until displayable (0 on cache hit).
+    /// Per want: ask→displayable (0 on cache hit at ask time).
     pub wait_samples_ms: Vec<f64>,
+    /// Per step: displayable − scheduled reader time (primary L2 v2 metric).
+    pub lateness_samples_ms: Vec<f64>,
+    /// Ask→first-byte (length-prefix) samples for path-RTT probes.
+    pub ask_first_byte_samples_ms: Vec<f64>,
+    pub duplicate_asks: u32,
+    pub drain_incomplete: bool,
 }
 
 impl MetricsState {
@@ -146,6 +192,10 @@ impl MetricsState {
             fill_started_at: None,
             cache: HashSet::new(),
             wait_samples_ms: Vec::new(),
+            lateness_samples_ms: Vec::new(),
+            ask_first_byte_samples_ms: Vec::new(),
+            duplicate_asks: 0,
+            drain_incomplete: false,
         }
     }
 
@@ -193,8 +243,21 @@ impl MetricsState {
         }
     }
 
+    pub fn record_step(&mut self, lateness_ms: f64, ask_wait_ms: f64) {
+        self.lateness_samples_ms.push(lateness_ms);
+        self.wait_samples_ms.push(ask_wait_ms);
+    }
+
+    pub fn record_ask_first_byte_ms(&mut self, ms: f64) {
+        self.ask_first_byte_samples_ms.push(ms);
+    }
+
     pub fn record_wait_ms(&mut self, ms: f64) {
         self.wait_samples_ms.push(ms);
+    }
+
+    pub fn note_duplicate_ask(&mut self) {
+        self.duplicate_asks = self.duplicate_asks.saturating_add(1);
     }
 
     pub fn finalize(
@@ -209,6 +272,13 @@ impl MetricsState {
         warm_cache: bool,
         rtt_ms: u64,
         stream_mode: StreamMode,
+        d_min_observed: u32,
+        d_max_observed: u32,
+        d_current: Vec<u32>,
+        depth_oscillating: bool,
+        depth_saturated: bool,
+        drain_incomplete: bool,
+        duplicate_asks: u32,
     ) -> HarnessMetrics {
         let recovered_ms = match (self.reversal_at, self.first_byte_wanted_at) {
             (Some(r), Some(w)) => w.duration_since(r).as_secs_f64() * 1000.0,
@@ -231,6 +301,38 @@ impl MetricsState {
             0.0
         };
         let (mean_wait_ms, p95_wait_ms) = wait_stats(&self.wait_samples_ms);
+        let (mean_lateness_ms, p95_lateness_ms) = wait_stats(&self.lateness_samples_ms);
+        let median_ask_first_byte_ms = {
+            let mut v = self.ask_first_byte_samples_ms.clone();
+            if v.is_empty() {
+                0.0
+            } else {
+                v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                let n = v.len();
+                if n % 2 == 1 {
+                    v[n / 2]
+                } else {
+                    (v[n / 2 - 1] + v[n / 2]) / 2.0
+                }
+            }
+        };
+        let late = self
+            .lateness_samples_ms
+            .iter()
+            .filter(|&&x| x > 0.0)
+            .count();
+        let frac_steps_late = if self.lateness_samples_ms.is_empty() {
+            0.0
+        } else {
+            late as f64 / self.lateness_samples_ms.len() as f64
+        };
+        let ask_join = crate::client::take_ask_join();
+        let unique_frames_asked = ask_join
+            .iter()
+            .map(|r| r.frame_index)
+            .collect::<HashSet<_>>()
+            .len() as u32;
+        let wait_samples = self.lateness_samples_ms.len().max(self.wait_samples_ms.len()) as u32;
         HarnessMetrics {
             trace: trace.to_string(),
             mode: mode.to_string(),
@@ -244,8 +346,17 @@ impl MetricsState {
             recovered_ms,
             mean_wait_ms,
             p95_wait_ms,
+            p95_lateness_ms,
+            mean_lateness_ms,
+            frac_steps_late,
+            lateness_ms: self.lateness_samples_ms.clone(),
             wait_ms: self.wait_samples_ms.clone(),
-            wait_samples: self.wait_samples_ms.len() as u32,
+            ask_first_byte_ms: self.ask_first_byte_samples_ms.clone(),
+            median_ask_first_byte_ms,
+            wait_samples: wait_samples,
+            duplicate_asks,
+            unique_frames_asked,
+            drain_incomplete,
             fill_rate,
             fill_frames: self.fill_frames,
             fill_bytes: self.fill_bytes,
@@ -262,9 +373,27 @@ impl MetricsState {
             bytes_before_settle: self.bytes_on_wire.saturating_sub(self.bytes_after_settle),
             warm_cache,
             rtt_ms,
-            ask_join: crate::client::take_ask_join(),
+            ask_join,
+            d_min_observed,
+            d_max_observed,
+            d_current,
+            depth_oscillating,
+            depth_saturated,
         }
     }
+}
+
+/// Nearest-rank percentile (L2 / client telemetry contract).
+///
+/// `rank = ceil(p/100 × N)`, clamped to `[1, N]`; value = `sorted[rank - 1]`.
+pub fn nearest_rank_percentile(sorted_asc: &[f64], p: f64) -> f64 {
+    if sorted_asc.is_empty() {
+        return 0.0;
+    }
+    let n = sorted_asc.len();
+    let rank = ((p / 100.0) * n as f64).ceil() as usize;
+    let rank = rank.clamp(1, n);
+    sorted_asc[rank - 1]
 }
 
 fn wait_stats(samples: &[f64]) -> (f64, f64) {
@@ -274,9 +403,31 @@ fn wait_stats(samples: &[f64]) -> (f64, f64) {
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let mut sorted = samples.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let idx = ((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize;
-    let p95 = sorted[idx.min(sorted.len() - 1)];
+    let p95 = nearest_rank_percentile(&sorted, 95.0);
     (mean, p95)
 }
 
 pub type SharedMetrics = Arc<Mutex<MetricsState>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Vector where old `((N-1)*0.95).ceil()` index and nearest-rank disagree.
+    #[test]
+    fn nearest_rank_disagrees_with_old_index() {
+        let n = 20usize;
+        let sorted: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let old_idx = (((n as f64 - 1.0) * 0.95).ceil() as usize).min(n - 1);
+        let old = sorted[old_idx];
+        let near = nearest_rank_percentile(&sorted, 95.0);
+        assert_ne!(old, near, "old_idx={old_idx} old={old} near={near}");
+        // nearest-rank: ceil(0.95*20)=19 → sorted[18]
+        assert_eq!(near, 18.0);
+    }
+
+    #[test]
+    fn nearest_rank_n1() {
+        assert_eq!(nearest_rank_percentile(&[42.0], 95.0), 42.0);
+    }
+}
