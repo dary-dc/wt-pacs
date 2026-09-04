@@ -1,26 +1,33 @@
 # Follow-ups (later — do not start now)
 
-Parking lot outside the active **client** track
-([`plan-client-telemetry.md`](plan-client-telemetry.md)).
-Evidence dump: [`plan-readability-and-performance.md`](plan-readability-and-performance.md).
+Parking lot for telemetry (and adjacent) improvements **after** the landed client work
+(C1–C4 in [`plan-client-telemetry.md`](plan-client-telemetry.md)). Evidence dump:
+[`plan-readability-and-performance.md`](plan-readability-and-performance.md).
+
+**Pause:** take time to understand the streaming attributor, report fields, and the
+`attribution` / `clock` / `rows` / `report` / `tap` split before picking anything below.
 
 ---
 
-## 1 · Client surface compression
+## 1 · Client surface compression (was plan C5)
 
-Tracked as **phase C5** in the client plan (after C1–C4). Ideas:
+**Why later:** behaviour and measurement validity are already fixed; this only shrinks code.
+Worth doing once the as-built recorder is familiar — not as a substitute for understanding it.
+
+Ideas (same outside-in seam; Tap stays out of product):
 
 - **Proxy factory** — fold shared wrap logic in `record/proxy.ts`
 - **Entry files** — share more between product and lab entries only if Tap stays out of product
 
-Do not pull this forward ahead of streaming attribution.
+Done when: fewer lines in `proxy.ts` / entries; product still clean under
+`check_telemetry_absent.sh`.
 
 ---
 
 ## 2 · Product WASM receive buffer (`session.rs` RecvBuf)
 
-Interesting for **product** copy reduction, not telemetry. After client/server telemetry
-phases: ask whether a simpler / less-code equivalent keeps the same win. **Do not redesign now.**
+Interesting for **product** copy reduction, not telemetry. Later: ask whether a simpler /
+less-code equivalent keeps the same win. **Do not redesign now.**
 
 ---
 
