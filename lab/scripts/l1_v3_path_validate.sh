@@ -151,17 +151,21 @@ for p in 4435 4436 4437; do
   sudo -n fuser -k "${p}/udp" 2>/dev/null || true
 done
 sleep 1
-start() {
-  setsid env RUST_LOG=warn nohup "$1" \
-    --port "$2" --study "$STUDY" \
-    --cert-pem /home/ubuntu/wt-pacs/cert/cert.pem \
-    --key-pem /home/ubuntu/wt-pacs/cert/key.pem \
-    --stream-mode "$3" \
-    >"$4" 2>&1 < /dev/null &
-  disown
-}
-start /home/ubuntu/wt-pacs/bin/exact-server-main 4435 shared /tmp/wt-pacs-exact-S.log
-start /home/ubuntu/wt-pacs/bin/exact-server-q 4437 per-frame /tmp/wt-pacs-exact-Q.log
+# Same binary for S and Q; Q adds --ask-priority (FIFO stream priority by ask order).
+setsid env RUST_LOG=warn nohup /home/ubuntu/wt-pacs/bin/exact-server-main \
+  --port 4435 --study "$STUDY" \
+  --cert-pem /home/ubuntu/wt-pacs/cert/cert.pem \
+  --key-pem /home/ubuntu/wt-pacs/cert/key.pem \
+  --stream-mode shared \
+  >/tmp/wt-pacs-exact-S.log 2>&1 < /dev/null &
+disown
+setsid env RUST_LOG=warn nohup /home/ubuntu/wt-pacs/bin/exact-server-q \
+  --port 4437 --study "$STUDY" \
+  --cert-pem /home/ubuntu/wt-pacs/cert/cert.pem \
+  --key-pem /home/ubuntu/wt-pacs/cert/key.pem \
+  --stream-mode per-frame --ask-priority \
+  >/tmp/wt-pacs-exact-Q.log 2>&1 < /dev/null &
+disown
 sleep 2
 # QUIC listens on UDP (not TCP).
 ss -lun | grep -q ':4435 ' || { cat /tmp/wt-pacs-exact-S.log; exit 1; }

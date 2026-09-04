@@ -54,23 +54,18 @@ The branch **removes `FrameStore::touch_frame_pages` and the `spawn_blocking` pa
 priority + page-fault handling*. The direction favours S, so it does not explain Q's v2 win — but v3
 must not repeat it.
 
-**Do:** re-create the priority change on top of current `main` as a fresh branch
-`feat/set-priority-per-frame-v3`, keeping `main`'s `Arc<FrameStore>` + `spawn_blocking` signature.
-The whole patch against `main`'s `server/src/transport/server.rs` is:
+**Do (done on L1 branch):** `exact-server --ask-priority` wires FIFO `set_priority` on the
+per-frame arm (earliest ask → highest priority). Same tree builds S / P / Q:
 
-```rust
-// run_session: next to `let mut acks = JoinSet::new();`
-let mut ask_seq: i32 = 0;                       // ask order → QUIC stream priority
+| Arm | Flags |
+| --- | --- |
+| S | `--stream-mode shared` |
+| P | `--stream-mode per-frame` |
+| Q | `--stream-mode per-frame --ask-priority` |
 
-// send_one_frame / write_payload: thread `ask_seq: &mut i32` through, and in the PerFrame arm,
-// immediately after `open_uni().await?.await?`:
-uni.set_priority(i32::MAX.saturating_sub(*ask_seq));   // earliest ask wins
-*ask_seq = ask_seq.saturating_add(1);
-```
+No separate Q worktree. PR #10’s priority-only change is folded here; its disk-access extras are not.
 
-**Gate C1.** `git diff main..feat/set-priority-per-frame-v3 -- server/` touches **only**
-`server/src/transport/server.rs` and is under 15 lines. Record both binaries' `git describe`/SHA in
-the TSV (`server_sha` column) so the arms are auditable from the data alone.
+**Gate C1.** Q runs with `--ask-priority`; record `server_sha` in the TSV so arms are auditable.
 
 ### C2 · S12 clause 3 — condition the dose–response, do not drop it
 

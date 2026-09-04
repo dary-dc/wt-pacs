@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Build L1 binaries: shared/main server, Q server from cursor/set-priority-per-frame-v3-dbae, harness.
-# Does not merge the Q branch.
+# Build L1 binaries from this tree only.
+# Arms: S = shared, P = per-frame (no priority), Q = per-frame + --ask-priority.
+# One exact-server binary; Q is selected at runtime via --ask-priority.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -13,24 +14,12 @@ echo "==> harness (this tree)"
 cargo build -p window-harness --release
 cp -f "$CARGO_TARGET_DIR/release/window-harness" "$OUT/window-harness"
 
-echo "==> exact-server arm S (this tree / main)"
+echo "==> exact-server (this tree; S/P/Q via --stream-mode / --ask-priority)"
 cargo build -p exact-server --release
 cp -f "$CARGO_TARGET_DIR/release/exact-server" "$OUT/bin-main-exact-server"
-
-Q_REF="${Q_REF:-origin/cursor/set-priority-per-frame-v3-dbae}"
-WORKDIR="${WORKDIR:-$OUT/q-build}"
-echo "==> exact-server arm Q from $Q_REF (detached worktree, not merged)"
-rm -rf "$WORKDIR"
-git fetch origin cursor/set-priority-per-frame-v3-dbae 2>/dev/null || true
-git worktree add --detach "$WORKDIR" "$Q_REF"
-(
-  cd "$WORKDIR"
-  export CARGO_TARGET_DIR="$OUT/q-target"
-  cargo build -p exact-server --release
-  cp -f "$CARGO_TARGET_DIR/release/exact-server" "$OUT/bin-q-exact-server"
-)
-git worktree remove --force "$WORKDIR"
-rm -rf "$OUT/q-target"
+# Same binary as main — kept for scripts that still SCP a distinct Q path.
+cp -f "$CARGO_TARGET_DIR/release/exact-server" "$OUT/bin-q-exact-server"
 
 echo "bins:"
 ls -la "$OUT/window-harness" "$OUT/bin-main-exact-server" "$OUT/bin-q-exact-server"
+echo "Q runtime: exact-server --stream-mode per-frame --ask-priority"
