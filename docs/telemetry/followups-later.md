@@ -11,16 +11,15 @@ Parking lot for telemetry (and adjacent) improvements **after** the landed clien
 
 ## 1 · Client surface compression (was plan C5)
 
-**Why later:** behaviour and measurement validity are already fixed; this only shrinks code.
-Worth doing once the as-built recorder is familiar — not as a substitute for understanding it.
+**Status:** parked as **low value / maybe never** — not a planned next step.
 
-Ideas (same outside-in seam; Tap stays out of product):
+It would only trim Proxy/entry boilerplate. It does **not** improve measurements or the
+product boundary, and a generic “proxy factory” can make *which* method is tapped *harder* to
+see. Only revisit if you are already editing `proxy.ts` for a real bug or new stream shape.
 
-- **Proxy factory** — fold shared wrap logic in `record/proxy.ts`
-- **Entry files** — share more between product and lab entries only if Tap stays out of product
+Ideas (if ever): fold shared wrap shell in `record/proxy.ts`; tighten lab entry files without
+pulling Tap into product.
 
-Done when: fewer lines in `proxy.ts` / entries; product still clean under
-`check_telemetry_absent.sh`.
 
 ---
 
