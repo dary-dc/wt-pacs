@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# L2 ask-policy v2 — methodology-corrected campaign (see L2-ask-policy-harness-fix.md).
+# L2 ask-policy v3 — loss-axis expansion (see l2_ask_policy_EVIDENCE.md).
+# Requires ask→first-byte path RTT probe (not displayable wait).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 export SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}"
 source "$ROOT/lab/scripts/cloud_common.sh"
 
-OUT_TSV="${OUT_TSV:-$ROOT/docs/measurements/r2/l2_ask_policy_v2.tsv}"
-D_TRACE_DIR="${D_TRACE_DIR:-$ROOT/docs/measurements/r2/l2_ask_policy_v2_d_current}"
-RAW_DIR="${RAW_DIR:-$ROOT/docs/measurements/r2/l2_ask_policy_v2/raw}"
-LOG="${LOG:-$ROOT/.local/r2/l2_ask_policy_v2/RUN.log}"
+OUT_TSV="${OUT_TSV:-$ROOT/docs/measurements/r2/l2_ask_policy_v3_loss.tsv}"
+D_TRACE_DIR="${D_TRACE_DIR:-$ROOT/docs/measurements/r2/l2_ask_policy_v3_loss_d_current}"
+RAW_DIR="${RAW_DIR:-$ROOT/docs/measurements/r2/l2_ask_policy_v3_loss/raw}"
+LOG="${LOG:-$ROOT/.local/r2/l2_ask_policy_v3_loss/RUN.log}"
 PORT="${CLOUD_PORT:-4435}"
 CLOUD_URL="${CLOUD_URL:-https://${CLOUD_HOST}:${PORT}/}"
 export CLOUD_URL
@@ -21,12 +22,14 @@ TRACE="$ROOT/lab/traces/l2_ask_policy_scroll.json"
 CERT="${CERT:-$ROOT/server/dev-cert/cert.pem}"
 KEY_PEM="${KEY_PEM:-$ROOT/server/dev-cert/key.pem}"
 BIN_SERVER="${BIN_SERVER:-$ROOT/target/release/exact-server}"
-export RIG_LOCK_HOLDER=L2-v2
+export RIG_LOCK_HOLDER=L2-v3
 source "$ROOT/lab/scripts/rig_lock.sh"
 
-RTTS=(20 60 150)
-LOSSES=(0 0.5)
-REPEATS=3
+# First-pass loss map: mid/high delay profiles × expanded loss.
+RTTS=(60 150)
+LOSSES=(0 0.1 0.5 1.0 2.0)
+REPEATS_LOSS0="${REPEATS_LOSS0:-3}"
+REPEATS_LOSS="${REPEATS_LOSS:-5}"
 ARMS=(control fixed dynamic)
 
 ONLY_RTT="${ONLY_RTT:-}"
@@ -40,8 +43,8 @@ if [[ ! -f "$PROBE_TRACE" ]]; then
 fi
 exec > >(tee -a "$LOG") 2>&1
 
-echo "=== L2 ask-policy v2 $(date -Iseconds) ==="
-echo "CLOUD_URL=$CLOUD_URL harness=L2-v2 (lateness metric, cache skip, path RTT)"
+echo "=== L2 ask-policy v3 loss $(date -Iseconds) ==="
+echo "CLOUD_URL=$CLOUD_URL harness=L2-v3 (ask→first-byte path RTT, expanded loss)"
 
 [[ -f "$SSH_KEY" ]] || { echo "missing SSH_KEY=$SSH_KEY" >&2; exit 1; }
 [[ -f "$STUDY" ]] || bash "$ROOT/lab/scripts/gen_tf_fixtures.sh"
@@ -54,7 +57,7 @@ fi
 [[ -x "$HARNESS" ]] || { echo "missing $HARNESS" >&2; exit 1; }
 
 if [[ ! -f "$OUT_TSV" ]]; then
-  echo -e "arm\trtt_nom_ms\tloss_pct\trun\tpath_rtt_ms\tp95_lateness_ms\tmean_lateness_ms\tfrac_steps_late\tp95_wait_ms\tmean_wait_ms\tbytes_on_wire\tasks_sent\tunique_frames_asked\tduplicate_asks\td_min_observed\td_max_observed\tpeak_outstanding\twait_samples\tstream_mode\tdrain_incomplete\tdepth_saturated" > "$OUT_TSV"
+  echo -e "arm\trtt_nom_ms\tloss_pct\trun\tpath_rtt_ms\tformula_depth\tp95_lateness_ms\tmean_lateness_ms\tfrac_steps_late\tp95_wait_ms\tmean_wait_ms\tbytes_on_wire\tasks_sent\tunique_frames_asked\tduplicate_asks\td_min_observed\td_max_observed\tpeak_outstanding\twait_samples\tstream_mode\tdrain_incomplete\tdepth_saturated\tmedian_ask_first_byte_ms" > "$OUT_TSV"
 fi
 
 measure_path_rtt() {
@@ -157,8 +160,10 @@ run_one() {
       ;;
   esac
   local json="$RAW_DIR/${arm}_rtt${rtt_nom}_loss${loss}_run${run}.json"
-  local label="L2v2_${arm}_rtt${rtt_nom}_loss${loss}_r${run}"
-  echo "==> $label depth=$depth path_rtt=${path_rtt}ms" >&2
+  local label="L2v3_${arm}_rtt${rtt_nom}_loss${loss}_r${run}"
+  local fdepth
+  fdepth=$(formula_depth "$path_rtt")
+  echo "==> $label depth=$depth formula_depth=$fdepth path_rtt=${path_rtt}ms" >&2
 
   set +e
   "$HARNESS" --url "$CLOUD_URL" --trace "$TRACE" --read-bps 0 --depth "$depth" \
@@ -183,12 +188,12 @@ run_one() {
     echo "FAIL $label rc=$rc" >&2
     cat "$json.err" >&2 || true
     if [[ -s "$json" ]]; then
-      python3 - "$json" "$OUT_TSV" "$arm" "$rtt_nom" "$loss" "$run" "$path_rtt" "$D_TRACE_DIR" <<'PY'
-import json, sys, pathlib
-path, tsv, arm, rtt, loss, run, path_rtt, ddir = sys.argv[1:9]
+      python3 - "$json" "$OUT_TSV" "$arm" "$rtt_nom" "$loss" "$run" "$path_rtt" "$D_TRACE_DIR" "$fdepth" <<'PY'
+import json, sys, pathlib, math
+path, tsv, arm, rtt, loss, run, path_rtt, ddir, fdepth = sys.argv[1:10]
 m = json.load(open(path))
 with open(tsv, "a") as f:
-  f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{path_rtt}\t{m.get('p95_lateness_ms',0)}\t{m.get('mean_lateness_ms',0)}\t{m.get('frac_steps_late',0)}\t{m.get('p95_wait_ms',0)}\t{m.get('mean_wait_ms',0)}\t{m.get('bytes_on_wire',0)}\t{m.get('asks_sent',0)}\t{m.get('unique_frames_asked',0)}\t{m.get('duplicate_asks',0)}\t{m.get('d_min_observed',0)}\t{m.get('d_max_observed',0)}\t{m.get('peak_outstanding',0)}\t{m.get('wait_samples',0)}\t{m.get('stream_mode','')}\t{int(m.get('drain_incomplete',0))}\t{int(m.get('depth_saturated',0))}\n")
+  f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{path_rtt}\t{fdepth}\t{m.get('p95_lateness_ms',0)}\t{m.get('mean_lateness_ms',0)}\t{m.get('frac_steps_late',0)}\t{m.get('p95_wait_ms',0)}\t{m.get('mean_wait_ms',0)}\t{m.get('bytes_on_wire',0)}\t{m.get('asks_sent',0)}\t{m.get('unique_frames_asked',0)}\t{m.get('duplicate_asks',0)}\t{m.get('d_min_observed',0)}\t{m.get('d_max_observed',0)}\t{m.get('peak_outstanding',0)}\t{m.get('wait_samples',0)}\t{m.get('stream_mode','')}\t{int(m.get('drain_incomplete',0))}\t{int(m.get('depth_saturated',0))}\t{m.get('median_ask_first_byte_ms',0)}\n")
 traj = m.get("d_current") or []
 if traj:
   pathlib.Path(ddir, f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv").write_text(
@@ -198,22 +203,22 @@ if m.get("depth_oscillating"):
 PY
       return 0
     fi
-    echo -e "${arm}\t${rtt_nom}\t${loss}\t${run}\t${path_rtt}\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL" >> "$OUT_TSV"
+    echo -e "${arm}\t${rtt_nom}\t${loss}\t${run}\t${path_rtt}\t${fdepth}\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL\tFAIL" >> "$OUT_TSV"
     return 0
   fi
 
   set +e
-  python3 - "$json" "$OUT_TSV" "$arm" "$rtt_nom" "$loss" "$run" "$path_rtt" "$D_TRACE_DIR" <<'PY'
+  python3 - "$json" "$OUT_TSV" "$arm" "$rtt_nom" "$loss" "$run" "$path_rtt" "$D_TRACE_DIR" "$fdepth" <<'PY'
 import json, sys, pathlib
-path, tsv, arm, rtt, loss, run, path_rtt, ddir = sys.argv[1:9]
+path, tsv, arm, rtt, loss, run, path_rtt, ddir, fdepth = sys.argv[1:10]
 m = json.load(open(path))
 with open(tsv, "a") as f:
-  f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{path_rtt}\t{m.get('p95_lateness_ms',0)}\t{m.get('mean_lateness_ms',0)}\t{m.get('frac_steps_late',0)}\t{m.get('p95_wait_ms',0)}\t{m.get('mean_wait_ms',0)}\t{m.get('bytes_on_wire',0)}\t{m.get('asks_sent',0)}\t{m.get('unique_frames_asked',0)}\t{m.get('duplicate_asks',0)}\t{m.get('d_min_observed',0)}\t{m.get('d_max_observed',0)}\t{m.get('peak_outstanding',0)}\t{m.get('wait_samples',0)}\t{m.get('stream_mode','')}\t{int(m.get('drain_incomplete',0))}\t{int(m.get('depth_saturated',0))}\n")
+  f.write(f"{arm}\t{rtt}\t{loss}\t{run}\t{path_rtt}\t{fdepth}\t{m.get('p95_lateness_ms',0)}\t{m.get('mean_lateness_ms',0)}\t{m.get('frac_steps_late',0)}\t{m.get('p95_wait_ms',0)}\t{m.get('mean_wait_ms',0)}\t{m.get('bytes_on_wire',0)}\t{m.get('asks_sent',0)}\t{m.get('unique_frames_asked',0)}\t{m.get('duplicate_asks',0)}\t{m.get('d_min_observed',0)}\t{m.get('d_max_observed',0)}\t{m.get('peak_outstanding',0)}\t{m.get('wait_samples',0)}\t{m.get('stream_mode','')}\t{int(m.get('drain_incomplete',0))}\t{int(m.get('depth_saturated',0))}\t{m.get('median_ask_first_byte_ms',0)}\n")
 traj = m.get("d_current") or []
 if traj:
   pathlib.Path(ddir, f"{arm}_rtt{rtt}_loss{loss}_run{run}.tsv").write_text(
     "step\td_current\n" + "\n".join(f"{i}\t{d}" for i, d in enumerate(traj)) + "\n")
-print(f"OK {arm} rtt={rtt} loss={loss} run={run} p95_lat={m.get('p95_lateness_ms')} asks={m.get('asks_sent')} uniq={m.get('unique_frames_asked')} d=[{m.get('d_min_observed')},{m.get('d_max_observed')}]")
+print(f"OK {arm} rtt={rtt} loss={loss} run={run} p95_lat={m.get('p95_lateness_ms')} asks={m.get('asks_sent')} uniq={m.get('unique_frames_asked')} d=[{m.get('d_min_observed')},{m.get('d_max_observed')}] path_rtt={path_rtt} fD={fdepth} med_fb={m.get('median_ask_first_byte_ms')}")
 if int(m.get('wait_samples') or 0) == 0:
   print('STOP: empty wait samples', file=sys.stderr); sys.exit(3)
 if m.get('drain_incomplete'):
@@ -242,9 +247,12 @@ for rtt in "${RTTS[@]}"; do
     [[ -n "$ONLY_LOSS" && "$ONLY_LOSS" != "$loss" ]] && continue
     cloud_set_netem "$rtt" "$loss"
     path_rtt=$(measure_path_rtt "$rtt")
-    echo "path_rtt_ms=$path_rtt (nominal $rtt)" >&2
-    # Interleave arms: run 1..N cycles through shuffled order per cell
-    for run in $(seq 1 "$REPEATS"); do
+    echo "path_rtt_ms=$path_rtt (nominal $rtt) formula_depth=$(formula_depth "$path_rtt")" >&2
+    repeats=$REPEATS_LOSS0
+    if [[ "$loss" != "0" && "$loss" != "0.0" ]]; then
+      repeats=$REPEATS_LOSS
+    fi
+    for run in $(seq 1 "$repeats"); do
       for arm in dynamic fixed control; do
         [[ -n "$ONLY_ARM" && "$ONLY_ARM" != "$arm" ]] && continue
         run_one "$arm" "$rtt" "$loss" "$run" "$path_rtt"
@@ -256,5 +264,5 @@ done
 cloud_set_netem off 0
 release_rig
 trap - EXIT
-echo "=== L2 ask-policy v2 done $(date -Iseconds) ==="
+echo "=== L2 ask-policy v3 loss done $(date -Iseconds) ==="
 echo "TSV: $OUT_TSV"
