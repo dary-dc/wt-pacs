@@ -1,24 +1,18 @@
-WITHDRAWN 2026-08-31: these rows do not measure ask policy. Read
-l2_ask_policy_METHODOLOGY_REVIEW.md before quoting anything below.
+EVIDENCE BASE 2026-09-02: cite docs/measurements/r2/l2_ask_policy_EVIDENCE.md
+and l2_ask_policy_v2.tsv only. Do not quote rankings from this file's older text
+or from l2_ask_policy.tsv / provisional TSVs.
 
-L2 ask-policy — post-review shaped campaign COMPLETE.
+---
 
-Re-ran on Oracle SP with harness tip that includes review remediations
-(ask→first-byte + FIFO pairing, consecutive-eval oscillation detector,
-finalize-on-oscillation, control/windowed drain, matched step cadence,
-TSV peak_outstanding/wait_samples/stream_mode).
+WITHDRAWN 2026-08-31: the rows below (and l2_ask_policy.tsv) do not measure ask
+policy. Read l2_ask_policy_METHODOLOGY_REVIEW.md before quoting anything from the
+v1 campaign.
 
-Canonical outputs (this run):
-  docs/measurements/r2/l2_ask_policy.tsv          — 54 raw rows, full grid
-  docs/measurements/r2/l2_ask_policy_d_current/   — dynamic trajectories
+L2 ask-policy — post-review shaped campaign COMPLETE (v1 harness — withdrawn).
 
-Exit: CAMPAIGN_EXIT=0 (no oscillation stop, no void stop).
-demand/supply offered at 16 ms/step ≈ 1.60 for all arms.
+Canonical withdrawn outputs (audit only):
+  docs/measurements/r2/l2_ask_policy.tsv
+  docs/measurements/r2/l2_ask_policy_d_current/
 
-Prior provisional rows retained for audit only:
-  l2_ask_policy_PROVISIONAL_pre_review.tsv
-  l2_ask_policy_d_current_PROVISIONAL_pre_review/
-
-Raw only — no interpretation in this file.
-
-**Next:** `docs/lanes/L2-ask-policy-harness-fix.md` — ordered remediation + smoke gates.
+**Current:** l2_ask_policy_EVIDENCE.md + l2_ask_policy_v2.tsv (PR #9).
+**Next:** path-RTT probe fix → loss-axis expansion (see evidence doc).
