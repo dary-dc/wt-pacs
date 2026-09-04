@@ -37,7 +37,25 @@ Gate uses the empirical band **≈ 1.5·RTT + Tf ±15%** so path validation can 
 2. **Netem `delay`+`rate` on both directions** delaying ACKs and interacting with quinn pacing/CC — measurement artifact until reproduced without rate on the ACK path.
 3. Less likely here: stream flow-control stalls (32 KiB ≪ 1.25 MB default stream window).
 
-A short A3-style isolation (delay-only netem, or server-side time from ask-read → first/last byte written) distinguishes (1)/(2) from app logic.
+A short isolation distinguishes (1)/(2) from app logic — **not required to pass S4b**, only to
+decide whether product work is warranted:
+
+### Isolation A — delay-only netem (no `rate`)
+1. Same veth topology; set both directions to `netem delay ${RTT/2}ms` **without** `rate`.
+2. Re-run D=1 S (and optionally Q), 5 repeats, same harness flags (`--rtt-ms 0 --read-bps 0`).
+3. **Read:** if miss_p95 falls to ≈ RTT+Tf (±15%), the excess was largely the **rate limiter /
+   ACK-path interaction**, not FoD. If excess remains ≈ current 1.3–1.5·RTT, look at Isolation B / CC.
+
+### Isolation B — server timestamps (ask → first/last byte)
+1. In `send_one_frame` / `write_payload`: stamp `t_ask` when the FoD ask is fully read; `t_first`
+   immediately before the first `write_all` of that frame; `t_last` when the last `write_all`
+   returns (data accepted into quinn’s send buffer — **not** peer ACK).
+2. Log or JSON: `ask_to_first_ms`, `ask_to_last_ms`, frame index (feature-gate or `RUST_LOG` is fine).
+3. **Read:** if `ask_to_last` is ≪ Tf and client wait is still ≫ RTT+Tf, the gap is **on the wire /
+   stack after enqueue** (CC, pacing, netem). If `ask_to_last` itself tracks the excess, the stall is
+   **server-side before/during write** (flow control blocking `write_all`, disk, serial loop).
+
+Prefer A first (no code). Do B if A still leaves a large excess.
 
 ## Also required on the rig
 - `iputils-ping` installed

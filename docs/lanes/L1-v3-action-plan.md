@@ -193,22 +193,32 @@ across the run.
 step loop. **Gate A2:** if the second-half median exceeds the first-half median by > 50 %, the run is
 backlog-dominated → mark `BACKLOG` in the TSV, exclude from the decision, keep the row.
 
-### A3 · Test H7 — the flow-control asymmetry — before attributing anything to head-of-line blocking
+### A3 · H7 flow-control asymmetry — document and keep defaults (not equalise for v3)
 
 quinn's defaults (`quinn-proto 0.11.17`, `config/transport.rs`): `stream_receive_window` **1.25 MB**,
 `send_window` **10 MB** (8×), `receive_window` `VarInt::MAX`. The shared arm gets **one** stream
-window; per-frame arms get one **per frame** up to the connection window. That is an arm asymmetry
-that exists **at zero loss**, and it is the best available explanation for v2's lossless 26 % gap.
+window; per-frame arms get one **per frame** up to the connection window. That asymmetry exists
+**at zero loss** in principle.
 
 Direction matters: `stream_receive_window` is *"maximum number of bytes the peer may transmit … on
 any one stream"* — set by the **receiver**, so for server→client uni streams the knob is on the
-**harness**, not the server. `wtransport 0.7.2` exposes
-`ClientConfigBuilder::with_custom_transport(QuicTransportConfig)` (`config.rs:1009`).
+**harness**, not the server. `--stream-recv-window` is already on the harness for practice / a
+future diagnostic; leaving it unset uses quinn defaults.
 
-**Do:** add `--stream-recv-window <bytes>` to the harness (default: unchanged, so the default
-campaign is unaffected), and run a **two-run diagnostic** at 0 % loss, D=7, S arm: default vs
-`--stream-recv-window` = the connection send window. If the arm gap moves with that knob, the effect
-is flow control, not HOL blocking, and the decision rule must equalise it across arms.
+**v3 decision (product framing):** **do not equalise** stream receive windows across arms for the
+campaign. Each arm runs with **stack defaults** — S has one stream at the default per-stream
+window; P/Q have that same default **on each** per-frame stream. That is how a vendor would ship
+the two architectures against the same QUIC stack, and it is what L1 is comparing.
+
+**Why this is fair enough for these phases:** under L1 fixture sizes, peak queued bytes
+≈ `D × frame_bytes` (e.g. D=7 × 32 KiB ≈ 224 KiB) are **well below** the 1.25 MB default stream
+window, so H7 should not bind on the shared arm either. The comparison is still about delivery
+order / HOL under loss, not about who has more aggregate window.
+
+**When to reopen:** if a **lossless** S–Q gap appears, or if fixture/`D` grows so
+`D × frame_bytes` approaches ~1.25 MB, run the optional two-run diagnostic (S at default vs
+`--stream-recv-window` ≈ connection `send_window`). Only if that knob moves the gap would we
+consider equalising for a pure HOL read — a different question from “ship defaults.”
 
 ### A4 · Vary D inside a cell — the mechanism's most distinctive prediction
 
@@ -276,7 +286,7 @@ time; wall is rig time.
 | **7** | **Analysis script first** | `lab/scripts/l1_v3_analyze.py` with S12 + **C2**; committed **before** any row (Gate S12) | ~2 h | 8 |
 | **8** | **Protocol freeze** | S11 dirty-tree check, `protocol_sha` column | 30 min | 9 |
 | **9** | **Collect** | S6 interleaved, S8 raw to `docs/measurements/r2/raw/l1v3/`, S9 repeats, A6, A4 | — | 10.5 h rig |
-| **10** | **Diagnostics** | A3 flow-control two-run test; A2/A5 cell labelling | ~1 h | — |
+| **10** | **Diagnostics (optional)** | H7 reopen only if lossless gap or `D×Tf` near stream window; A2/A5 cell labelling | as needed | — |
 | **11** | **Analyse** | Run the frozen script unmodified; report | ~1 h | — |
 
 **Total: ~15 h developer, ~11 h rig.**
@@ -332,10 +342,9 @@ for the whole campaign (S8).
 2. **Budget.** ~10.5 h of rig time, exclusive. If that is not available, the minimum decidable
    campaign is RTT 60 only (0 %, 0.5 %, S/P/Q, 40 repeats) **plus A6** — ≈ 4 h — and the RTT axis is
    dropped rather than under-powered.
-3. **A3's flow-control diagnostic could become a permanent equalisation.** If the knob moves the gap,
-   should v3 equalise flow control across arms (making the comparison purely about delivery order),
-   or measure the arms as a product would ship them (defaults, asymmetry included)? These answer
-   different questions; the second is the product question.
+3. **~~A3 equalise vs defaults~~ — decided: defaults.** v3 measures arms as a product would ship
+   them (quinn per-stream defaults; no campaign equalisation). See §A3. Equalisation remains an
+   optional diagnostic if H7 is suspected to bind, not the baseline comparison.
 4. **Whether the 15 % bar still applies** once the harness stops manufacturing head-of-line exposure.
    The bar was set against a client-side cost (out-of-order arrival handling in the viewer). It
    should be re-affirmed or re-derived before collection, not after.
