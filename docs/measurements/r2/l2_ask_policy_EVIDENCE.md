@@ -1,11 +1,20 @@
 # L2 ask-policy — evidence freeze (harness v2)
 
-**Status: evidence base for ADRs · 2026-09-02** · Branch tip:
+> **STATUS 2026-09-04 — NOT AN ADR SUBSTRATE. The v2 arm ranking is withdrawn.**
+> [`l2_ask_policy_V2_ADVERSARIAL_REVIEW.md`](l2_ask_policy_V2_ADVERSARIAL_REVIEW.md) shows the
+> loss=0 ranking is reproduced to within 0.66 % by a FIFO model with **no depth term**, fitted on
+> the control arm alone — it is an artefact of `window_frames()` walking a ring across the study
+> boundary, and it vanishes entirely with a forward-only prefetch window
+> (`python3 lab/scripts/l2_v2_order_model.py`). Read that review before quoting anything below.
+> The corrections it forces are marked **[WITHDRAWN]** / **[REVISED]** inline.
+
+**Status: superseded as decision input · frozen 2026-09-02, reviewed 2026-09-04** · Branch tip:
 `cursor/l2-harness-fix-plan-c999` (PR #9)
 
-This is the **only** document that should be quoted when updating
+This was the only document to be quoted when updating
 [`adr-client-window-depth.md`](../../adr-client-window-depth.md) or D26-style product
-policy from the L2 ask-policy campaign. Older TSVs and older PR tips are **withdrawn**.
+policy from the L2 ask-policy campaign. Older TSVs and older PR tips are **withdrawn**; as of the
+adversarial review, so are this campaign's arm rankings. **No v2 cell may be cited in an ADR.**
 
 ## What to keep vs history
 
@@ -14,6 +23,8 @@ policy from the L2 ask-policy campaign. Older TSVs and older PR tips are **withd
 | This file | Withdrawn `l2_ask_policy.tsv`, provisional TSVs, `d_current` dumps |
 | `l2_ask_policy_v2.tsv` (54 rows) | Raw JSON under `l2_ask_policy_v2/raw/` |
 | `l2_ask_policy_METHODOLOGY_REVIEW.md` (why v1 was void) | Pre-v2 harness behaviour on other PR branches |
+| **`l2_ask_policy_V2_ADVERSARIAL_REVIEW.md` (why v2's ranking is void)** | — |
+| **`lab/scripts/l2_v2_order_model.py` (reproduces the §A1 finding)** | — |
 | [`ARCHIVE_L2_OVERRIDE.md`](ARCHIVE_L2_OVERRIDE.md) | — |
 
 **Archives on `main` (PRs #6 / #7 / #8 merged):** see
@@ -29,9 +40,9 @@ policy from the L2 ask-policy campaign. Older TSVs and older PR tips are **withd
 | Harness | window-harness **v2** (lateness metric, cache skip, independent reader clock) |
 | Grid | 3 arms × 3 RTT labels × 2 loss × 3 repeats = **54/54** |
 | TSV | [`l2_ask_policy_v2.tsv`](l2_ask_policy_v2.tsv) |
-| Integrity | every arm: `unique_frames_asked=80`, `wait_samples=119`, `asks_sent=80` |
+| Integrity | every arm: `unique_frames_asked=80`, `wait_samples=119`, `asks_sent=80`, `bytes_on_wire=2560320` — **this part of the remediation is real and holds**. Note the committed `lateness_ms`/`wait_ms` vectors are in *completion* order, not step order (review §B5). |
 | Primary metric | **`p95_lateness_ms`** (displayable − reader schedule) |
-| Smoke | `lab/scripts/l2_harness_smoke.sh` passed on loopback before the grid |
+| Smoke | `lab/scripts/l2_harness_smoke.sh` passed on loopback before the grid — **but G2/G3/G5 cannot fail, G6 is not implemented, and it ran at `DEPTH=2`, the one depth where the §A1 ring wrap does not exist. Review §C.** |
 
 Withdrawn (do not quote for decisions): `l2_ask_policy.tsv`,
 `l2_ask_policy_PROVISIONAL_pre_review.tsv`, any clean-RTT follow-up ranking from PR #7.
@@ -49,6 +60,11 @@ Withdrawn (do not quote for decisions): `l2_ask_policy.tsv`,
 Zero-loss cells are **tight** (CV ≈ 0). Fixed and dynamic are within a few ms — they are
 not different arms on this grid (see caveats).
 
+**[WITHDRAWN]** The `control ≪ fixed ≈ dynamic` ordering above is an ask-order artefact, not a
+depth result. A two-parameter FIFO model fitted on control alone predicts every windowed cell
+here within 0.66 % with no notion of depth; with the ring wrap removed the gap is 0.0 ms. See
+adversarial review §A1. The numbers transcribe the TSV correctly — the *interpretation* is void.
+
 ### Loss = 0.5%
 
 | RTT label | control | fixed | dynamic | note |
@@ -60,16 +76,33 @@ not different arms on this grid (see caveats).
 **0.5% alone is not enough to lock a loss story.** Several cells have CV > 0.5 with n=3;
 medians are unstable. See loss-expansion plan below.
 
+**[REVISED]** The loss cells are **bimodal**, not merely noisy: a run either lands at 1.7–2.4 s
+(indistinguishable from loss=0) or blows up to 8–14 s. A median of n=3 over a bimodal
+distribution reports "did ≥2 of 3 runs escape a bad event", not a central tendency — so the
+ranking above is a coin flip, not a weak signal. Also: the "outliers" are not anonymous.
+`dynamic_rtt20_loss0.5_run3` (9674 ms) tripped `depth_oscillating`, a **declared lane stop
+condition**, and the TSV has no column for it. See review §B3/§B4/§D4.
+
 ## Decision implications (safe claims)
 
 1. **Under corrected methodology, “dynamic always wins” is false.** That ranking was a
    harness artefact (see methodology review).
-2. **On this path and fixture, unbounded control is competitive or best at 0% loss** on
-   `p95_lateness_ms`. Bounding depth does not automatically win the reader-lateness contest.
-3. **Adaptivity did not earn complexity on this grid** — not because the estimator was
-   proven useless, but because **fixed and dynamic both ran at D=16** for essentially the
-   whole trace (see caveats). The D26 question remains **open** until an interior-D cell exists.
+2. ~~**On this path and fixture, unbounded control is competitive or best at 0% loss** on
+   `p95_lateness_ms`. Bounding depth does not automatically win the reader-lateness contest.~~
+   **[WITHDRAWN — review §A1/§A2.]** Control's advantage is the harness's ring-wrap prefetch
+   penalising the windowed arms, and the arms differ in *two* variables at once (outstanding cap
+   **and** prefetch shape). There is no `unbounded+window` or `bounded+no-prefetch` arm, so no
+   cell in this grid attributes anything to depth.
+3. **Adaptivity did not earn complexity on this grid** — the D26 question remains **open**.
+   **[REVISED — review §A3/§B4.]** The stated reason ("both ran at D=16") understates it. The
+   campaign passes `--path-rtt-ms`, which **overrides** the lane-specified 8-frame RTT median
+   outright (`depth.rs:140`) with the same constant `formula_depth` gives fixed — so the dynamic
+   arm could only ever differ from fixed through the throughput term, and the specified estimator
+   was never run. Separately, D left 16 in exactly 3 of 18 dynamic runs, and those 3 are the
+   3 worst dynamic runs in the campaign (12599 / 9674 / 2969 ms vs 1612–2246 ms for the 15 that
+   held at 16). Causation is ambiguous and the campaign cannot resolve it.
 4. **Do not amend ADRs from loss=0.5% medians yet** — expand the loss axis and/or repeats first.
+   **[WIDENED]** Do not amend ADRs from **any** v2 cell, at any loss level.
 
 ## Caveats that block ADR lock-in (analyzed)
 
@@ -79,6 +112,11 @@ medians are unstable. See loss-expansion plan below.
 `median_ask_first_byte_ms`. Campaign `measure_path_rtt` uses the median of **3**
 one-frame **ask→first-byte** probes (not ask→displayable). Smoke still passes.
 
+**[CLARIFIED — review §B1.]** That fix landed *after* the grid and has never run against the rig.
+Neither field exists in any of the 54 committed raw JSONs. The `path_rtt_ms` column in
+`l2_ask_policy_v2.tsv` is a **single** ask→**displayable** sample from the pre-fix probe
+(`b0c00ee`), reused for all 9 rows of its cell.
+
 **v2 contamination (historical):** probes of ~469–663 ms were ask→displayable and
 included `Tf ≈ 25.6 ms`. That alone is not why D hit 16 on Oracle SP.
 
@@ -87,6 +125,13 @@ included `Tf ≈ 25.6 ms`. That alone is not why D hit 16 on Oracle SP.
 **D=16 for fixed/dynamic at 0% loss is the correct BDP answer**, not only a probe
 bug. Interior-D proof for the estimator remains the **loopback smoke**
 (`d_max ≤ 2` with `--path-rtt-ms 0`).
+
+**[WITHDRAWN — review §B2/§C.]** Both halves of that are unsupported. (a) The clamp threshold is
+RTT ≈ 405 ms; the only number available is one contaminated sample (~443 ms after subtracting the
+known `Tf`), so "correct BDP answer" rests on a single measurement sitting ~38 ms above the line
+that decides whether the comparison was possible at all. (b) The loopback smoke is not a proof:
+with `--path-rtt-ms 0`, `compute_d()` evaluates `ceil(0.95×(1+0)) = 1`, clamped to `D_MIN`. G3 and
+the unit test `path_rtt_zero_keeps_d_shallow` assert that 0.95 rounds to 1. They cannot fail.
 
 **Still required for v3 cloud grid:** SSH key `id_ed25519_rig_agent` in this
 environment (missing after rebuild) — campaign scripts cannot reach the rig until
@@ -151,12 +196,12 @@ Optional second pass: add RTT 20 and/or 5% loss only if rank flips between 1% an
 
 | Gate | Ready? |
 | --- | --- |
-| Harness methodology corrected + smoke | **yes** |
-| Shaped fair-workload grid at 0 / 0.5% | **yes** (with caveats A–B) |
-| Dynamic-vs-fixed as a real comparison | **partial** — probe fixed; on WAN both sit at BDP clamp at 0% loss; loss axis is where dynamic can shrink |
-| Loss story for ADR | **blocked** — v3 script ready; needs rig SSH + campaign run |
+| Harness methodology corrected + smoke | **no** — equal-workload (Phase 3) and drain (Phase 6) hold; Phase 2 is untested (G2 measures bytes/rate, not wall clock) and the ask order is wrong (§A1) |
+| Shaped fair-workload grid at 0 / 0.5% | **workload yes, comparison no** — identical bytes on every row, but the arms differ in depth *and* prefetch shape (§A2) |
+| Dynamic-vs-fixed as a real comparison | **no** — the estimator's RTT input is overridden by a constant equal to fixed's (§A3) |
+| Loss story for ADR | **blocked** — needs rig SSH, and v3 inherits §A1/§A2/§A4 unchanged |
 | Browser confirmation | **deferred** (not required for this phase) |
-| Final adversarial review for ADR lock-in | **after** v3 loss TSV lands |
+| Final adversarial review for ADR lock-in | **done, 2026-09-04** — [`l2_ask_policy_V2_ADVERSARIAL_REVIEW.md`](l2_ask_policy_V2_ADVERSARIAL_REVIEW.md); run its 9-item fix list before the next campaign |
 
 ## Commit / PR references (history)
 

@@ -1,3 +1,11 @@
+RANKINGS WITHDRAWN 2026-09-04: the v2 arm ranking is void too. It is reproduced
+to within 0.66% by a FIFO model with no depth term (window_frames() walks a ring
+across the study edge). Read l2_ask_policy_V2_ADVERSARIAL_REVIEW.md before quoting
+any L2 cell in an ADR. The v2 rows themselves are sound — the interpretation is not.
+Reproduce: python3 lab/scripts/l2_v2_order_model.py
+
+---
+
 EVIDENCE BASE 2026-09-02: cite docs/measurements/r2/l2_ask_policy_EVIDENCE.md
 and l2_ask_policy_v2.tsv only. Do not quote rankings from this file's older text
 or from l2_ask_policy.tsv / provisional TSVs.

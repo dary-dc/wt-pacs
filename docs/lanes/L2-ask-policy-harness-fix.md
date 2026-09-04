@@ -1,9 +1,19 @@
 # L2 harness fix plan — methodology remediation
 
-**Status: Phases 1–6 + smoke + v2 grid done on PR #9.** Remaining gaps (path-RTT
-probe, loss axis) are tracked in
+> **STATUS 2026-09-04 — the checklist at the bottom of this file overstates what shipped.**
+> [`l2_ask_policy_V2_ADVERSARIAL_REVIEW.md`](../measurements/r2/l2_ask_policy_V2_ADVERSARIAL_REVIEW.md)
+> re-scores it: Phase 3 and Phase 6 genuinely hold; Phase 2 was never tested (its gate measures
+> bytes÷rate, not wall clock); Phase 4's acceptance test is arithmetic that cannot fail; G5 passes
+> on the bug it was written to catch; G6 was never implemented. A defect none of the phases
+> targeted — `window_frames()` walking a ring across the study boundary — accounts for the entire
+> v2 arm ranking. Work that review's 9-item list before the next campaign.
+
+**Status: Phases 1–6 + smoke + v2 grid ran on PR #9; the grid's conclusions are withdrawn.**
+Remaining gaps (path-RTT probe, loss axis) are tracked in
 [`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md). · Depends on
 [`l2_ask_policy_METHODOLOGY_REVIEW.md`](../measurements/r2/l2_ask_policy_METHODOLOGY_REVIEW.md)
+· Re-scored by
+[`l2_ask_policy_V2_ADVERSARIAL_REVIEW.md`](../measurements/r2/l2_ask_policy_V2_ADVERSARIAL_REVIEW.md)
 
 ## Verdict
 
@@ -173,7 +183,12 @@ Full grid (`l2_ask_policy_cloud.sh`) runs only when **G1–G6** pass.
 1. ~~Shaped campaign → `l2_ask_policy_v2.tsv`~~ **done** (PR #9).
 2. Browser bridge — **deferred** (see EVIDENCE.md worth-it note).
 3. Interpretation → [`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md).
-4. **Next:** path-RTT probe fix → loss-axis expansion (plan in EVIDENCE.md).
+4. ~~**Next:** path-RTT probe fix → loss-axis expansion (plan in EVIDENCE.md).~~
+   **Superseded.** Running v3 next would produce a larger version of the same non-result: it
+   inherits the ring window, the two-variables-at-once arm design, the no-abandoned-work trace,
+   the missing columns and the fixed arm order. Do the 9-item list in
+   [`l2_ask_policy_V2_ADVERSARIAL_REVIEW.md`](../measurements/r2/l2_ask_policy_V2_ADVERSARIAL_REVIEW.md)
+   first.
 
 ---
 
@@ -193,13 +208,25 @@ Full grid (`l2_ask_policy_cloud.sh`) runs only when **G1–G6** pass.
 ## Checklist (copy for PR)
 
 ```
-Phase 1 reader metric     [x]
-Phase 2 independent clock [x]
-Phase 3 same workload     [x]
-Phase 4 dynamic RTT       [x]  (path RTT CLI + clean samples; probe still contaminated — see EVIDENCE)
-Phase 5 measured path     [~]  (column exists; probe = ask→display, not true RTT — fix before v3)
-Phase 6 audit + drain     [x]
-Smoke G1–G6               [x]
+Phase 1 reader metric     [x]  lateness recorded; but p95 ≈ max here, and the committed
+                               vectors are in completion order, not step order (review B5)
+Phase 2 independent clock [ ]  UNTESTED — G2's wall() returns bytes*8/10e6, not wall clock;
+                               wait_for_reader_ask_slot still blocks the step loop, unmeasured
+Phase 3 same workload     [x]  HOLDS — 54/54 rows: 80 unique frames, 80 asks, 2 560 320 bytes
+Phase 4 dynamic RTT       [ ]  the estimator's RTT input is OVERRIDDEN by --path-rtt-ms, so the
+                               lane-specified 8-frame median never ran (review A3); the 4.3
+                               saturation void-stop was removed after it fired (review B3)
+Phase 5 measured path     [~]  no achieved_rtt_ms / achieved_mbps column exists at all; the
+                               path_rtt_ms column is one ask→displayable sample (review B1)
+Phase 6 audit + drain     [x]  HOLDS for drain/bytes/raw-JSON; 6.4 (randomise arm order) did
+                               not ship — the loop is `for arm in dynamic fixed control`
+Smoke G1–G6               [ ]  G2/G3/G5 cannot fail; G6 not implemented; ran at DEPTH=2, where
+                               the ring wrap that drives every result does not exist (review C)
 Shaped smoke (1 cell)     [x]
-Full grid 54/54           [x]  → l2_ask_policy_v2.tsv
+Full grid 54/54           [x]  → l2_ask_policy_v2.tsv  (rows valid, ranking withdrawn)
+
+NOT ON THIS PLAN, and it decided the outcome:
+window_frames() walks a ring (center ± r mod n), so at frame 0 with D=16 the arm asks
+79,78,77,76,75,74,73 ahead of 9..15. That alone reproduces the whole loss=0 ranking.
+  python3 lab/scripts/l2_v2_order_model.py
 ```
