@@ -11,7 +11,7 @@ import { parseFootprintsFromBytes } from "../parse.ts";
 import { judgeIntegrity, minOf, maxOf } from "../report.ts";
 import { pickBinding } from "../rows.ts";
 import { Tap } from "../tap.ts";
-import type { ChunkMark, FrameFootprint } from "../types.ts";
+import type { ChunkMark } from "../types.ts";
 
 let failed = 0;
 function assert(cond: boolean, msg: string) {
@@ -501,6 +501,28 @@ function sliceRiver(
   });
   assertEq(j.valid, false, "judge: open!=closed invalid");
   assert(j.invalid_reasons[0].includes("rows_opened"), "judge: reason text");
+}
+
+// Recorder cost smoke: 100 frames × ~250KB river in 48KB reads should stay sub-100ms
+{
+  const specs = [];
+  for (let i = 0; i < 100; i++) specs.push({ index: i, codestreamLen: 250_000 });
+  const river = buildRiver(specs);
+  const attr = new StreamAttributor();
+  const t0 = performance.now();
+  const step = 48 * 1024;
+  let off = 0;
+  let tUs = 0;
+  while (off < river.length) {
+    const end = Math.min(river.length, off + step);
+    tUs += 1;
+    attr.onRead(river.subarray(off, end), tUs);
+    off = end;
+  }
+  const ms = performance.now() - t0;
+  assert(attr.finished.length === 100, "bench: 100 frames attributed");
+  assert(attr.closureOk(), "bench: closure ok");
+  assert(ms < 100, `bench: streaming cost ${ms.toFixed(1)}ms < 100ms (was seconds with concat path)`);
 }
 
 if (failed > 0) {
