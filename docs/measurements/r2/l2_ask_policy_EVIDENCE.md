@@ -14,9 +14,13 @@ policy from the L2 ask-policy campaign. Older TSVs and older PR tips are **withd
 | This file | Withdrawn `l2_ask_policy.tsv`, provisional TSVs, `d_current` dumps |
 | `l2_ask_policy_v2.tsv` (54 rows) | Raw JSON under `l2_ask_policy_v2/raw/` |
 | `l2_ask_policy_METHODOLOGY_REVIEW.md` (why v1 was void) | Pre-v2 harness behaviour on other PR branches |
+| [`ARCHIVE_L2_OVERRIDE.md`](ARCHIVE_L2_OVERRIDE.md) | — |
 
-**Other open L2 PRs (#6, #7, #8):** compress tips to pointers here + commit SHAs; do **not**
-merge their rankings into ADRs. Their experimental trees stay in git history for audit.
+**Archives on `main` (PRs #6 / #7 / #8 merged):** see
+[`ARCHIVE_L2_OVERRIDE.md`](ARCHIVE_L2_OVERRIDE.md). Those pointers are history markers;
+**this branch overrides them** — do not treat archive merge as validation of old rankings.
+
+**Other open L2 PRs:** #6 / #7 / #8 are merged as archive-only tips. Live work stays on PR #9.
 
 ## Campaign that counts
 
