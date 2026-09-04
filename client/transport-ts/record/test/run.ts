@@ -1,13 +1,17 @@
 /**
  * Unit tests for record/ — run with:
- *   node --experimental-strip-types client/transport-ts/record/test/run.mjs
- * or after esbuild of test bundle.
+ *   bash client/transport-ts/build.sh && node client/transport-ts/record/test/run.mjs
+ * or: node --experimental-strip-types client/transport-ts/record/test/run.ts
  */
 
+import { StreamAttributor } from "../attribution.ts";
 import { attributeFrames } from "../offsets.ts";
 import { nearestRank, distributionStats } from "../percentiles.ts";
 import { parseFootprintsFromBytes } from "../parse.ts";
+import { judgeIntegrity, minOf, maxOf } from "../report.ts";
+import { pickBinding } from "../rows.ts";
 import { Tap } from "../tap.ts";
+import type { ChunkMark, FrameFootprint } from "../types.ts";
 
 let failed = 0;
 function assert(cond: boolean, msg: string) {
@@ -24,7 +28,59 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   assert(ok, `${msg} (got ${JSON.stringify(a)}, want ${JSON.stringify(b)})`);
 }
 
-// §5.1 example
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function buildRiver(frames: { index: number; codestreamLen: number }[]): Uint8Array {
+  const parts: Uint8Array[] = [];
+  for (const f of frames) {
+    const len = 4 + f.codestreamLen;
+    const buf = new Uint8Array(4 + len);
+    const dv = new DataView(buf.buffer);
+    dv.setUint32(0, len, false);
+    dv.setUint32(4, f.index, false);
+    parts.push(buf);
+  }
+  const n = parts.reduce((s, p) => s + p.length, 0);
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
+
+function sliceRiver(
+  river: Uint8Array,
+  boundaries: number[],
+): { chunks: ChunkMark[]; slices: Uint8Array[] } {
+  const slices: Uint8Array[] = [];
+  const chunks: ChunkMark[] = [];
+  let prev = 0;
+  let t = 1000;
+  for (const end of boundaries) {
+    const slice = river.subarray(prev, end);
+    slices.push(slice);
+    t += 12;
+    chunks.push({ t_us: t, cum: end });
+    prev = end;
+  }
+  if (prev < river.length) {
+    slices.push(river.subarray(prev));
+    t += 12;
+    chunks.push({ t_us: t, cum: river.length });
+  }
+  return { chunks, slices };
+}
+
+// §5.1 example (oracle)
 {
   const chunks = [
     { t_us: 10_000, cum: 64 },
@@ -48,7 +104,7 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   assertEq(frames[2].last_byte_us, 11_900, "frame2 lastByte");
 }
 
-// truncated log → byte_closure_ok false
+// truncated log → byte_closure_ok false (oracle)
 {
   const chunks = [{ t_us: 1, cum: 50 }];
   const footprints = [{ frame_index: 0, start: 0, end: 108, bytes: 100 }];
@@ -56,17 +112,148 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   assert(!byte_closure_ok, "truncated chunk log fails byte closure");
 }
 
+// Streaming attributor ↔ oracle, 300 randomized cases (headers often straddle)
+{
+  const rand = mulberry32(0xc0ffee);
+  let mismatches = 0;
+  for (let trial = 0; trial < 300; trial++) {
+    const nFrames = 1 + Math.floor(rand() * 8);
+    const specs = [];
+    for (let i = 0; i < nFrames; i++) {
+      specs.push({ index: i, codestreamLen: 1 + Math.floor(rand() * 400) });
+    }
+    const river = buildRiver(specs);
+    const { footprints } = parseFootprintsFromBytes(river);
+    if (footprints.length !== nFrames) {
+      mismatches += 1;
+      continue;
+    }
+
+    // Random read boundaries 1–200 B
+    const cuts: number[] = [];
+    let pos = 0;
+    while (pos < river.length) {
+      const step = 1 + Math.floor(rand() * 200);
+      pos = Math.min(river.length, pos + step);
+      if (pos < river.length) cuts.push(pos);
+    }
+    const { chunks, slices } = sliceRiver(river, cuts);
+
+    const attr = new StreamAttributor();
+    let tBase = 1000;
+    for (const sl of slices) {
+      tBase += 12;
+      attr.onRead(sl, tBase);
+    }
+    const { frames: oracle } = attributeFrames(chunks, footprints);
+    const got = attr.finished;
+    if (got.length !== oracle.length) {
+      mismatches += 1;
+      continue;
+    }
+    for (let i = 0; i < oracle.length; i++) {
+      const a = oracle[i];
+      const b = got[i];
+      if (
+        a.frame_index !== b.frame_index ||
+        a.first_byte_us !== b.first_byte_us ||
+        a.last_byte_us !== b.last_byte_us ||
+        a.chunks !== b.chunks ||
+        a.bytes !== b.bytes ||
+        a.start !== b.start ||
+        a.end !== b.end
+      ) {
+        mismatches += 1;
+        if (mismatches === 1) {
+          console.error("first mismatch trial", trial, { a, b, cuts });
+        }
+        break;
+      }
+    }
+    if (!attr.closureOk()) {
+      mismatches += 1;
+    }
+  }
+  assertEq(mismatches, 0, "streaming attributor matches oracle on 300 randomized cases");
+}
+
+// Explicit straddling-header: firstByte is the read with the first header byte
+{
+  const river = buildRiver([{ index: 0, codestreamLen: 20 }]); // total 28 bytes
+  const attr = new StreamAttributor();
+  attr.onRead(river.subarray(0, 3), 1020); // partial header
+  attr.onRead(river.subarray(3, 10), 1032); // complete header + some body
+  attr.onRead(river.subarray(10), 1040);
+  assertEq(attr.finished.length, 1, "straddle: one frame");
+  assertEq(attr.finished[0].first_byte_us, 1020, "straddle: firstByte from first header byte");
+  assertEq(attr.finished[0].last_byte_us, 1040, "straddle: lastByte on completing read");
+  assert(attr.closureOk(), "straddle: closure ok");
+}
+
+// Read ends exactly on a frame boundary; next read is only the next frame
+{
+  const river = buildRiver([
+    { index: 0, codestreamLen: 4 },
+    { index: 1, codestreamLen: 4 },
+  ]);
+  const mid = 4 + 4 + 4; // end of frame 0
+  const attr = new StreamAttributor();
+  attr.onRead(river.subarray(0, mid), 100);
+  attr.onRead(river.subarray(mid), 200);
+  assertEq(attr.finished.length, 2, "boundary: two frames");
+  assertEq(attr.finished[0].last_byte_us, 100, "boundary: frame0 ends on first read");
+  assertEq(attr.finished[1].first_byte_us, 200, "boundary: frame1 starts on second read");
+}
+
+// Single read carrying several whole frames
+{
+  const river = buildRiver([
+    { index: 1, codestreamLen: 4 },
+    { index: 2, codestreamLen: 4 },
+    { index: 3, codestreamLen: 4 },
+  ]);
+  const attr = new StreamAttributor();
+  attr.onRead(river, 50);
+  assertEq(attr.finished.length, 3, "multi-in-one: three frames");
+  assert(
+    attr.finished.every((f) => f.first_byte_us === 50 && f.last_byte_us === 50 && f.chunks === 1),
+    "multi-in-one: same stamp, one chunk each",
+  );
+}
+
+// Truncated stream → closureOk false; Tap integrity.byte_closure_ok false
+{
+  const attr = new StreamAttributor();
+  const river = buildRiver([{ index: 0, codestreamLen: 100 }]);
+  attr.onRead(river.subarray(0, 20), 1);
+  assert(!attr.closureOk(), "truncated attributor not closed");
+
+  const tap = new Tap({ arm: "transport-ts", stream_mode: "shared", copies_per_frame: 1 });
+  const enc = new TextEncoder();
+  const body = enc.encode(JSON.stringify({ op: "request_frame", frame: 1 }));
+  const fod = new Uint8Array(4 + body.length);
+  new DataView(fod.buffer).setUint32(0, body.length, true);
+  fod.set(body, 4);
+  tap.onControlWrite(fod);
+  const sid = tap.nextStreamId();
+  tap.onMediaRead(sid, river.subarray(0, 20));
+  const report = tap.finish();
+  assert(!report.summary.integrity.byte_closure_ok, "Tap flags truncated stream");
+  assertEq(report.summary.integrity.valid, false, "truncated run invalid");
+  assert(
+    (report.summary.integrity.invalid_reasons ?? []).some((r) => r.includes("byte_closure_ok")),
+    "invalid_reasons mentions byte_closure_ok",
+  );
+}
+
 // nearest-rank where interpolation disagrees
 {
-  // N=10, p95: nearest-rank rank=ceil(9.5)=10 → sorted[9]
-  // linear (old server): (N-1)*0.95 = 8.55 → interpolate sorted[8] and sorted[9]
   const sorted = [1, 2, 3, 4, 5, 6, 7, 8, 9, 100];
   assertEq(nearestRank(sorted, 95), 100, "nearest-rank p95 picks last");
   const linearRank = (sorted.length - 1) * 0.95;
   const lo = Math.floor(linearRank);
   const hi = Math.min(lo + 1, sorted.length - 1);
-  const linear =
-    sorted[lo] + (sorted[hi] - sorted[lo]) * (linearRank - lo);
+  const linear = sorted[lo] + (sorted[hi] - sorted[lo]) * (linearRank - lo);
   assert(linear !== 100, "linear interpolation differs from nearest-rank on this vector");
 }
 
@@ -77,7 +264,7 @@ function assertEq(a: unknown, b: unknown, msg: string) {
     stream_mode: "shared",
     copies_per_frame: 1,
   });
-  // Manual row path via control write + synthetic media
+  assertEq(tap.integrity.clock_resolution_us, null, "clock probe not run in constructor");
   const frameIndex = 1;
   const enc = new TextEncoder();
   const body = enc.encode(JSON.stringify({ op: "request_frame", frame: frameIndex }));
@@ -88,16 +275,15 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   tap.onControlWrite(fod);
   tap.onAskFlush();
 
-  // One media frame: len=8 (4 index + 4 bytes), footprint 12
   const sid = tap.nextStreamId();
   const media = new Uint8Array(12);
-  new DataView(media.buffer).setUint32(0, 8, false); // len
-  new DataView(media.buffer).setUint32(4, frameIndex, false); // index
+  new DataView(media.buffer).setUint32(0, 8, false);
+  new DataView(media.buffer).setUint32(4, frameIndex, false);
   media[8] = 1;
   media[9] = 2;
   media[10] = 3;
   media[11] = 4;
-  tap.onMediaRead(sid, media); // single chunk → chunks==1, transfer==0
+  tap.onMediaRead(sid, media);
   tap.onDelivered(frameIndex);
   const report = tap.finish();
   const row = report.client_frames.find((r) => r.frame_index === frameIndex)!;
@@ -117,6 +303,27 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   assert(
     report.summary.distributions.transfer === null,
     "transfer dist null when only chunks==1 frames",
+  );
+  assert(report.summary.copies.mean_frame_bytes != null, "mean_frame_bytes present");
+  assert(report.summary.binding != null, "binding rollup present");
+  assert(report.summary.integrity.clock_probe_us != null, "clock probe cost recorded at finish");
+  assert(report.summary.integrity.clock_resolution_us != null, "clock resolution set at finish");
+  assertEq(report.summary.integrity.valid, true, "clean run valid");
+  assertEq(report.summary.integrity.invalid_reasons, [], "clean run no reasons");
+}
+
+// pickBinding: chunks===0 must not select transfer
+{
+  assertEq(
+    pickBinding({
+      queue_us: null,
+      serve_plus_path_us: 10,
+      transfer_us: 99,
+      deliver_us: null,
+      chunks: 0,
+    }),
+    "serve_plus_path",
+    "chunks===0 excludes transfer from binding",
   );
 }
 
@@ -189,9 +396,10 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   assertEq(report.summary.distributions.queue, null, "frame0 excluded → queue dist null");
   assertEq(report.summary.distributions.bytes, null, "frame0 excluded → bytes dist null");
   assertEq(report.summary.headline.ask_to_first_frame_complete_us, null, "headline null without usable");
+  assertEq(report.summary.binding.none, 0, "frame0 excluded from binding rollup");
 }
 
-// first write wins; mark after close increments
+// first write wins; mark after close increments → invalid
 {
   const tap = new Tap({
     arm: "transport-ts",
@@ -217,6 +425,8 @@ function assertEq(a: unknown, b: unknown, msg: string) {
     tap.integrity.marks_after_close === before + 1,
     "mark after close increments marks_after_close",
   );
+  const report = tap.finish();
+  assertEq(report.summary.integrity.valid, false, "marks_after_close voids run");
 }
 
 // preload closes at last_byte without paint; interaction at delivered
@@ -248,6 +458,7 @@ function assertEq(a: unknown, b: unknown, msg: string) {
     assertEq(r.kind, "preload", "row kind preload");
     assertEq(r.closed_at, "last_byte", "preload closed_at last_byte");
   }
+  assertEq(report.summary.integrity.valid, true, "preload fill run valid");
 }
 
 // parse footprints
@@ -264,11 +475,32 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   assertEq(footprints[1].frame_index, 8, "index 8");
 }
 
-// distributionStats smoke
+// distributionStats smoke + min/max helpers
 {
   const d = distributionStats([10, 20, 30, 40, 50]);
   assert(d.count === 5, "dist count");
   assert(d.p50 === nearestRank([10, 20, 30, 40, 50], 50), "p50 nearest-rank");
+  assertEq(minOf([3, 1, 2]), 1, "minOf");
+  assertEq(maxOf([3, 1, 2]), 3, "maxOf");
+  assertEq(minOf([]), null, "minOf empty");
+}
+
+// judgeIntegrity unit
+{
+  const j = judgeIntegrity({
+    rows_opened: 2,
+    rows_closed: 1,
+    rows_dropped: 0,
+    marks_after_close: 0,
+    first_write_conflicts: 0,
+    byte_closure_ok: true,
+    long_tasks: 0,
+    clock_resolution_us: 5,
+    clock_probe_us: 100,
+    cross_origin_isolated: true,
+  });
+  assertEq(j.valid, false, "judge: open!=closed invalid");
+  assert(j.invalid_reasons[0].includes("rows_opened"), "judge: reason text");
 }
 
 if (failed > 0) {

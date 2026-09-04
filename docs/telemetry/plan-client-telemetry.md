@@ -1,9 +1,9 @@
 # Plan: client telemetry (brief)
 
-**Status:** plan — apply in order below · **Seam unchanged:** Proxy / install outside product
+**Status:** C1–C4 implemented on this branch · **Seam unchanged:** Proxy / install outside product
 ([`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md))  
 **Detail & evidence:** [`plan-readability-and-performance.md`](plan-readability-and-performance.md)  
-**Parked later:** [`followups-later.md`](followups-later.md) (RecvBuf, etc.)
+**Parked later:** [`followups-later.md`](followups-later.md) (C5 compression, RecvBuf, etc.)
 
 ---
 

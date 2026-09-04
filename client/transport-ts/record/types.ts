@@ -73,6 +73,11 @@ export type DistributionStats = {
 /** Absent sample set — never a zero-filled stats object (null ≠ 0). */
 export type DistributionOrAbsent = DistributionStats | null;
 
+export type IntegrityJudgement = {
+  valid: boolean;
+  invalid_reasons: string[];
+};
+
 export type Integrity = {
   rows_opened: number;
   rows_closed: number;
@@ -82,7 +87,12 @@ export type Integrity = {
   byte_closure_ok: boolean;
   long_tasks: number;
   clock_resolution_us: number | null;
+  /** Cost of the finish-time clock probe (µs); auditable, not on the connect path. */
+  clock_probe_us: number | null;
   cross_origin_isolated: boolean | null;
+  /** Set at finish(): one place to see if the run is publishable. */
+  valid?: boolean;
+  invalid_reasons?: string[];
 };
 
 export type TelemetryReport = {
@@ -103,8 +113,11 @@ export type TelemetryReport = {
       first_of_burst_serve_plus_path_us: number | null;
     };
     distributions: Record<string, DistributionOrAbsent>;
+    /** Rollup of per-row binding_term over usable frames (frame 0 excluded). */
+    binding: Record<string, number>;
     copies: {
-      js_heap_bytes_per_frame: number | null;
+      /** Mean of per-frame `bytes` — not a measured JS heap figure. */
+      mean_frame_bytes: number | null;
       copies_per_frame: number;
     };
     preload_to_decode: null;

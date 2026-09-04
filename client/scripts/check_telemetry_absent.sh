@@ -18,7 +18,7 @@ if [[ ! -f "$TS_DIST" ]]; then
   fail "missing $TS_DIST after build"
 fi
 
-if grep -qE 'record/install|__wtpacsTelemetry|binding_term|serve_plus_path|client_frames|preload_to_decode' "$TS_DIST"; then
+if grep -qE 'record/install|__wtpacsTelemetry|binding_term|serve_plus_path|client_frames|preload_to_decode|invalid_reasons|mean_frame_bytes|clock_probe_us|StreamAttributor' "$TS_DIST"; then
   fail "telemetry strings found in default dist/session.js"
 fi
 
