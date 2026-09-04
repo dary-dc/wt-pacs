@@ -26,5 +26,10 @@ cargo build -p disk-access-bench --release
 ./target/release/disk-access-bench --help
 ```
 
+`io-uring` is a dependency of **this crate only** — the product does not link it. Two flags
+matter when reading results: `--monitors 0` for CPU numbers (the gap monitor is a spin loop
+that changes the latency it is not measuring) and reversing `--arm` order before believing
+any cold ranking (see [`RERUN.md`](RERUN.md) §Limitations).
+
 `lab/cold-page-bench` is the older E3 / one-pass-cold tool; it owns its own copy of the
 rejected pre-touch arm and is not part of this campaign.

@@ -169,6 +169,135 @@ zero hops on random and reverse alike (42.5 µs, 42.5 µs).
 
 ---
 
+## Cell 6 — io_uring
+
+The first pass of this ADR deferred io_uring with an argument rather than a measurement
+("would replace the fallback, not the fast path"). It is measured here, tuned rather than
+naive, because a strawman io_uring arm would prove nothing.
+
+### What the workload lets io_uring do
+
+| io_uring strength | Available here? |
+| --- | --- |
+| Deep queues, batched submission | **Barely.** The session loop sends one frame to completion before reading the next ask (`docs/adr-reject-server-ordering.md`), so queue depth is 1. The only batch inside an ask is the frame's own four windows — which `uring_tuned` submits together |
+| No thread pool for blocking I/O | **Yes** — this is the real opportunity, on the miss |
+| Registered files / fixed buffers | **Yes** — used by every tuned arm |
+| `SINGLE_ISSUER`, `DEFER_TASKRUN` | **No.** Tokio's multi-thread runtime resumes a task on whichever worker steals it, so a per-session ring is submitted from different threads. The kernel answers `EEXIST`; `uring_access.rs` has a test that pins this down rather than citing documentation. These are io_uring's two biggest knobs and a work-stealing runtime cannot have them |
+| `SQPOLL` | Yes, and it tolerates migration — measured below |
+| Provided buffers, linked ops, multishot, zero-copy | Not applicable: read sizes are known, reads do not chain, and userspace QUIC copies regardless |
+
+Completions are awaited through a registered eventfd wrapped in Tokio's `AsyncFd` —
+blocking in `io_uring_enter` would reintroduce the exact executor stall this ADR is about.
+That eventfd costs one extra `read` per *parked* completion, and parks are rare (0 warm,
+4 of 1280 window reads on a cold sequential pass), so it is not what limits these arms.
+
+### Arms · [`v4_uring_arms.tsv`](v4_uring_arms.tsv) · [`v4_uring_hybrid.tsv`](v4_uring_hybrid.tsv)
+
+Warm, 9 interleaved repeats, `--monitors 0`. `pread_nowait_chunked` appears in both cells at
+84.9 and 84.7 µs, which is what makes them comparable:
+
+| Arm | Warm p50 | CPU/ask | Threads | Session memory |
+| --- | ---: | ---: | ---: | ---: |
+| **pread_nowait_chunked** *(accepted)* | 84.7 µs | 106 µs | 5 | 64 KiB |
+| uring_nowait_hybrid | **80.9 µs** | **104 µs** | 5 | 64 KiB + ring |
+| uring_tuned (batched, registered) | 82.1–88.1 µs | 104–111 µs | 5 | 256 KiB + ring |
+| uring_pipelined | 103.0–108.6 µs | 136–141 µs | 5 | 128 KiB + ring |
+| uring_naive | 108.6 µs | 142 µs | 5 | 64 KiB + ring |
+| mmap_blocking_touch | 132.0 µs | 161 µs | 6 | none |
+| pread_blocking_pooled | 162.7 µs | 188 µs | 6 | 250 KB |
+| pread_pipelined_pool | 177.4 µs | 251 µs | 6 | 128 KiB |
+
+The hybrid — `RWF_NOWAIT` inline, io_uring only for the shortfall — is the best io_uring
+arm, and it ties the accepted path within noise. That is the expected result once stated
+plainly: **on a page-cache hit the hybrid *is* the accepted path**, and a hit is what the
+warm path always gets. io_uring can only differ where the read misses.
+
+`pread_pipelined_pool` is the control that separates "pipelining" from "io_uring": the same
+overlap built on `spawn_blocking` is the worst arm in the campaign, and in the multi-session
+cell it reached **28–30 OS threads** and a 1.35 ms neighbour p99 by paying four pool hops
+per frame instead of one. Pipelining is only viable through a ring.
+
+### SQPOLL · [`v4_uring_sqpoll.tsv`](v4_uring_sqpoll.tsv)
+
+| Arm | Warm p50 | CPU/ask | Parked completions |
+| --- | ---: | ---: | ---: |
+| pread_nowait_chunked | 83.9 µs | 126 µs | 0 |
+| uring_tuned + SQPOLL | 153.0 µs | **287 µs** | 320 |
+| uring_pipelined + SQPOLL | 134.2 µs | **297 µs** | 320 |
+
+A kernel submitter removes the submit syscall and takes far more than it gives: nothing
+completes inline any more, so every read parks on the eventfd, and the `iou-sqp` thread's
+spin is charged to the process. (`COOP_TASKRUN` is rejected alongside `SQPOLL` with
+`EINVAL` — with a kernel submitter there is no task work to defer.)
+
+### Neighbours · [`v4_uring_multisession.tsv`](v4_uring_multisession.tsv)
+
+Five sessions, all on the arm under test, cold primary. Median of 5:
+
+| Arm | Other p99 | gap_max | Threads |
+| --- | ---: | ---: | ---: |
+| **pread_nowait_chunked** | **143.7 µs** | **241 µs** | 6 |
+| uring_naive | 160.5 µs | 278 µs | 5 |
+| uring_tuned | 182.4 µs | 373 µs | 5 |
+| uring_pipelined | 183.7 µs | 274 µs | 5 |
+| mmap_blocking_touch | 726.6 µs | 776 µs | 16 |
+| pread_pipelined_pool | 1451 µs | 937 µs | 30 |
+
+Five per-session rings did not multiply io-wq workers — the io_uring arms hold thread count
+at 5. But so does the accepted path, for a simpler reason: it almost never hops.
+
+### The cold path cannot be resolved on this host · order-controlled
+
+Cold cells first appeared to favour io_uring — 34% lower CPU and a 6.5× better p99. Both
+evaporated under an order control. Arms run round-robin, so each takes a turn creating its
+own 80 MB cold copy; re-running with the arm order reversed moved the penalty rather than
+keeping it with the arm ([`v4_order_control_forward_nowait_first.tsv`](v4_order_control_forward_nowait_first.tsv) ·
+[`v4_order_control_forward_uring_first.tsv`](v4_order_control_forward_uring_first.tsv), 25 repeats each):
+
+| Arm | CPU/ask, listed first | CPU/ask, listed last |
+| --- | ---: | ---: |
+| pread_nowait_chunked | 154 µs | **111 µs** |
+| uring_tuned | 116 µs | 117 µs |
+
+**No cold difference between these arms is resolvable on this host**, even at 25 repeats —
+the hypervisor's own cache decides how much real I/O a cold pass does, and that swamps
+everything. Any cold ranking here, in either direction, is noise.
+
+The one cold claim that did survive the control is the 100%-miss trace, where every arm does
+the same disk work and the mechanism is all that is left
+([`v4_order_control_reverse_nowait_first.tsv`](v4_order_control_reverse_nowait_first.tsv) ·
+[`v4_order_control_reverse_uring_first.tsv`](v4_order_control_reverse_uring_first.tsv), 9 repeats each,
+cold reverse):
+
+| Arm | p50, order A | p50, order B |
+| --- | ---: | ---: |
+| **uring_pipelined** | **349 µs** | **340 µs** |
+| pread_nowait_chunked | 358 µs | 372 µs |
+| uring_tuned | 437 µs | 408 µs |
+
+Pipelining is worth ~6% when every read misses, consistently in both orders. It costs ~25%
+on the warm path, which is the path a server spends its life on.
+
+### Verdict
+
+io_uring is not dismissed here; it is tied. Its fast path cannot beat `RWF_NOWAIT` because
+both resolve to the same kernel work on a cache hit, and the miss path — where it could
+win — is either unresolvable on this host or worth single-digit percent. Against that: a
+ring, an eventfd and registered buffers per session, a dependency, and the loss of
+`SINGLE_ISSUER`/`DEFER_TASKRUN`.
+
+Two conditions would make it worth revisiting, and both are in [`later.md`](later.md):
+
+1. **A thread-per-core runtime.** Pinning sessions to cores unlocks `SINGLE_ISSUER` +
+   `DEFER_TASKRUN` and removes the eventfd. That is a server-wide architecture change, not
+   a disk-access decision, and this campaign cannot justify it on its own.
+2. **A genuinely miss-dominated deployment.** Everything above says the same thing: io_uring
+   only matters where reads miss. A study whose working set really does exceed RAM, with a
+   real ask window to prefetch against, is where pipelining and ahead-N would pay — and
+   where this host's variance stopped being able to see.
+
+---
+
 ## Filesystem support
 
 `preadv2(RWF_NOWAIT)` probed directly on this host:
@@ -186,10 +315,18 @@ window. Checking the deployment filesystem is the first item in [`later.md`](lat
 
 ## Limitations
 
-- **Cold means guest-cold, not device-cold.** Residency is asserted `< 0.1%` in the guest,
-  but the hypervisor caches the backing file: the same cold pass takes 25 ms on one repeat
-  and 200 ms on another. Arm *rankings* held in every cell; absolute cold latency is not
-  this host's to give.
+- **Cold means guest-cold, not device-cold, and cold cells do not resolve small
+  differences.** Residency is asserted `< 0.1%` in the guest, but the hypervisor caches the
+  backing file: the same cold pass takes 25 ms on one repeat and 200 ms on another. At 25
+  interleaved repeats an apparent 34% CPU difference between two arms reversed when the arm
+  order was reversed (Cell 6). Large, mechanism-explained cold effects survive — naive
+  mmap's millisecond stalls, the `mincore` gate under pressure, an arm that parks on 100% of
+  reads instead of 2%. Differences of tens of percent do not. **Order-control any new cold
+  claim before believing it.**
+- **The gap monitor changes the numbers it is not measuring.** It is a spin loop, so it
+  keeps a core busy and its absence lets the host drop frequency: the same warm arm reads
+  46.9 µs with one monitor and 84.7 µs with none. Both are internally consistent — compare
+  arms *within* a cell, never across cells with different `--monitors`.
 - **The gap monitor is one task.** On four workers it can be stolen off a stalled worker, so
   `gap_max` under `--runtime multi` understates a stall. Cells 3 and 4 — real sessions on
   every worker — are the sensitive neighbour instrument; `--monitors N` raises monitor count
