@@ -12,7 +12,6 @@ use crate::transport::frame_out::FrameOut;
 use crate::transport::wire::write_fod_msg;
 use anyhow::{Context, Error, Result};
 use fod::FodMsg;
-use frame_envelope::ENVELOPE_LEN;
 use std::sync::Arc;
 use tracing::warn;
 use wtransport::stream::SendStream;
@@ -21,6 +20,8 @@ use wtransport::stream::SendStream;
 use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
 use crate::record::LocateOutcome;
+#[cfg(feature = "telemetry")]
+use frame_envelope::ENVELOPE_LEN;
 #[cfg(feature = "telemetry")]
 use std::time::Instant;
 
@@ -58,8 +59,8 @@ pub(crate) trait FramePipeline: Send {
     /// `bytes` borrow `store`, which must outlive `send` (see default `serve_one`).
     fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]>;
 
-    /// Write bytes; returns envelope + payload length (for lab stamps).
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<usize>;
+    /// Write the frame bytes on the media path.
+    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()>;
 
     async fn refuse(
         &mut self,
@@ -99,9 +100,8 @@ impl FramePipeline for ProductPipeline {
         store.frame_slice(frame)
     }
 
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<usize> {
-        self.out.send_frame(frame, bytes).await?;
-        Ok(ENVELOPE_LEN + bytes.len())
+    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
+        self.out.send_frame(frame, bytes).await
     }
 
     async fn refuse(
@@ -180,12 +180,13 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         result
     }
 
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<usize> {
+    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
         let t0 = Instant::now();
+        let envelope_len = ENVELOPE_LEN + bytes.len();
         let result = self.inner.send(frame, bytes).await;
         if let Some(tap) = &mut self.tap {
             match &result {
-                Ok(sent) => tap.emit_sent(micros_since(t0), *sent),
+                Ok(()) => tap.emit_sent(micros_since(t0), envelope_len),
                 Err(_) => tap.emit_write_err(micros_since(t0)),
             }
         }
