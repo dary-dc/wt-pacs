@@ -4,11 +4,12 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 
 | Doc | What |
 | --- | --- |
+| **[`READ-PATH-DECISION.md`](READ-PATH-DECISION.md)** | **Start here.** Which read path for which case, from a 3 600-cell campaign over three independent runs. Supersedes the io_uring verdicts in the docs below |
 | [`adr.md`](adr.md) | Accepted decision (`RWF_NOWAIT` streaming; pool only on the miss) |
 | [`RERUN.md`](RERUN.md) | Evidence: instrument, cells, TSVs here, and what the instrument cannot see |
 | [`SEND-BUDGET.md`](SEND-BUDGET.md) | What the per-frame number is *made of*, per-op io_uring vs `preadv2`, the send path over real quinn, and the frame cache |
 | [`PREFIX-READS.md`](PREFIX-READS.md) | **Rung delivery strides the file and the fast path misses 319 of 320. Storing rungs contiguously puts it back to 3** |
-| [`DEPTH.md`](DEPTH.md) | **Corrects the io_uring verdict: it was measured only at one read in flight. At depth ≥ 2, cold, the ring costs 1.8–4× less CPU and holds threads flat** |
+| [`DEPTH.md`](DEPTH.md) | First lift of the depth-1 assumption. Superseded by [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md), which crosses depth with miss rate and adds the hybrid |
 | [`later.md`](later.md) | Optional follow-ups only |
 
 **Serving rungs rather than whole frames?** Read [`PREFIX-READS.md`](PREFIX-READS.md) first —

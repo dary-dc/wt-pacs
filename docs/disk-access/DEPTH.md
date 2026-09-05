@@ -1,5 +1,11 @@
 # Reads in flight: where `pread` wins, where io_uring wins · 2026-09-05
 
+> **Superseded by [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md).** That campaign crosses
+> depth with miss rate, adds the hybrid arm, and reproduces over three independent runs. It
+> also records one disagreement with a later harness about the depth-1 magnitude, which this
+> document's "tie at depth 1" sits on one side of. Read this for the depth argument; read the
+> decision doc for the answer.
+
 **This document corrects a conclusion in [`RERUN.md`](RERUN.md) and
 [`PREFIX-READS.md`](PREFIX-READS.md).** Both rejected io_uring on evidence collected
 entirely at **queue depth 1** — one read outstanding at a time. At depth 1 a ring has
