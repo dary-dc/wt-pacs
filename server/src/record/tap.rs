@@ -40,6 +40,8 @@ pub struct FrameRecord {
 
 pub struct Tap {
     session_id: u64,
+    /// Owned clone of the process sink — emit without taking the global lock.
+    tx: Option<SyncSender<FrameRecord>>,
     ordinals: HashMap<u32, u32>,
     frame_index: u32,
     ask_ordinal: u32,
@@ -62,9 +64,14 @@ impl Tap {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("telemetry-server.json"));
         ensure_sink(path);
+        let tx = sink_cell()
+            .lock()
+            .ok()
+            .and_then(|guard| guard.as_ref().cloned());
         ACTIVE_TAPS.fetch_add(1, Ordering::Relaxed);
         Some(Self {
             session_id: SESSION_IDS.fetch_add(1, Ordering::Relaxed),
+            tx,
             ordinals: HashMap::new(),
             frame_index: 0,
             ask_ordinal: 0,
@@ -141,18 +148,18 @@ impl Tap {
             write_outcome: write_outcome as u8,
             dropped_since_last: dropped,
         };
-        if let Ok(guard) = sink_cell().lock() {
-            if let Some(tx) = guard.as_ref() {
-                match tx.try_send(row) {
-                    Ok(()) => {}
-                    Err(TrySendError::Full(_)) => {
-                        DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
-                        self.drops_since_emit = self.drops_since_emit.saturating_add(1);
-                    }
-                    Err(TrySendError::Disconnected(_)) => {
-                        DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
-                    }
-                }
+        // Hot path: owned sender clone — no global Mutex.
+        let Some(tx) = self.tx.as_ref() else {
+            return;
+        };
+        match tx.try_send(row) {
+            Ok(()) => {}
+            Err(TrySendError::Full(_)) => {
+                DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
+                self.drops_since_emit = self.drops_since_emit.saturating_add(1);
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
             }
         }
     }
@@ -432,6 +439,7 @@ mod tests {
     fn test_tap() -> Tap {
         Tap {
             session_id: 1,
+            tx: None,
             ordinals: HashMap::new(),
             frame_index: 0,
             ask_ordinal: 0,
@@ -627,5 +635,19 @@ mod tests {
     #[test]
     fn empty_distribution_is_none() {
         assert!(distribution_stats(&[]).is_none());
+    }
+
+    #[test]
+    fn try_emit_uses_owned_sender_without_global_lock() {
+        let (tx, rx) = sync_channel::<FrameRecord>(4);
+        let mut t = test_tap();
+        t.tx = Some(tx);
+        t.begin_frame(3);
+        t.record_prepare(1);
+        t.record_locate(1, LocateOutcome::Ok, 8);
+        t.emit_sent(2, 12);
+        let row = rx.try_recv().expect("row delivered via owned clone");
+        assert_eq!(row.frame_index, 3);
+        assert_eq!(row.send_us, Some(2));
     }
 }
