@@ -26,20 +26,26 @@ serves everyone else:
 
 What the campaign found:
 
-1. **When the bytes are usually already in RAM, `pool` is fine and io_uring is a bad idea** —
-   it adds queue bookkeeping to a read that never had to wait, costing ~47% more CPU and
-   between 2× and 43× the latency, the more so the busier the server is.
-2. **When the bytes usually are not in RAM, io_uring wins big** — 45–77% less CPU per read —
-   and the advantage grows the more reads are in flight at once.
-3. **`hybrid` gets both**, because it picks per read rather than per deployment. It is a tie
-   in case 1 and a winner in case 2, so it never has to be told which case it is in.
+1. **When the bytes are usually already in RAM, `pool` is the right answer** — it adds queue
+   bookkeeping to a read that never had to wait. Pure io_uring costs 20–160% more CPU and
+   delivers a fifth to a half of the throughput.
+2. **When the bytes usually are not in RAM, io_uring wins big** — 45–77% less CPU per read,
+   *and* a little more throughput — and the advantage grows the more reads are in flight.
+3. **`hybrid` gets both**, because it picks per read rather than per deployment. It wins
+   case 2 outright and is a tie in case 1, so it never has to be told which case it is in.
+   The one caveat is narrow: it serves cache hits one at a time *per session*, so a server
+   that pipelines many asks within a single all-RAM session would lose throughput. Ours does
+   not — our concurrency is one reader per user, and in that shape the caveat disappears.
 4. **Threads are the hidden ceiling.** Every simultaneous cache miss costs `pool` an OS
    thread — up to 96 in these runs. The ring arms held 5 throughout.
 
 Our deployment (tens-of-GB studies on cloud storage, so most reads miss) sits squarely in
 case 2. **The recommendation is the hybrid**, and it does not depend on the disk layout
-design, on rung size, or on whether the server pipelines asks — those change *how much* it
-wins by, never *whether* it wins.
+design or on rung size — those change *how much* it wins by, never *whether* it wins. The one
+input it does depend on is the one we already know: that concurrency comes from many
+independent sessions rather than deep pipelining inside one. If the server ever pipelines
+many asks per session *and* studies fit in RAM, re-measure — that is the only square of the
+surface where the hybrid is not the answer.
 
 ---
 
@@ -55,25 +61,55 @@ the fraction is how many paired comparisons agreed:
 
 | Reads in flight | 0–5% miss | 5–50% miss | 50–100% miss |
 | ---: | ---: | ---: | ---: |
-| **1** | −3.5% · 66/108 *(tie)* | **−44.8% · 12/12** | **−53.4% · 77/78** |
-| **4** | −24.0% · 65/74 | **−51.2% · 45/46** | **−69.9% · 78/78** |
-| **16** | −5.4% · 59/96 *(tie)* | **−61.3% · 78/82** | **−70.9% · 98/98** |
-| **64** | −6.8% · 38/62 *(tie)* | **−70.2% · 28/28** | **−76.5% · 30/30** |
+| **1** | −4.7% · 80/126 *(tie)* | **−44.8% · 12/12** | **−54.2% · 83/84** |
+| **4** | −22.8% · 91/104 *(tie)* | **−48.2% · 51/52** | **−69.4% · 90/90** |
+| **16** | −11.1% · 80/120 *(tie)* | **−60.8% · 90/94** | **−71.0% · 110/110** |
+| **64** | −3.8% · 47/86 *(tie)* | **−71.7% · 40/40** | **−76.9% · 42/42** |
 
 Read it as two rules:
 
-* **Below ~5% misses the hybrid is a tie.** It costs nothing and buys nothing. Sign agreement
-  is near a coin flip, which is what "no effect" looks like.
+* **Below ~5% misses the hybrid is a CPU tie** — but see the warning below, because CPU is
+  not the only metric there and the hybrid is *not* free in that region.
 * **Above ~5% misses the hybrid wins, everywhere, and the win grows with concurrency** — from
-  −45% at one read in flight to −77% at 64. Sign agreement is 12/12, 45/46, 78/82, 98/98,
-  30/30. These are not marginal effects.
+  −45% at one read in flight to −77% at 64. Sign agreement is 12/12, 51/52, 90/94, 110/110,
+  40/40, 42/42. These are not marginal effects. **In that region the hybrid also delivers
+  more throughput than `pool`** (1.02× to 1.34×, never less), so the CPU saving is not bought
+  with wall time.
+
+⚠️ **On cache hits, *how* the reads are held in flight decides the answer — and the CPU
+column hides it.** Below 5% misses the hybrid delivers **0.57× / 0.41× / 0.36×** `pool`'s
+asks per second at 4 / 16 / 64 in flight. That looked like a hidden cost of the hybrid. It is
+not: it is an artifact of the campaign holding concurrency as *ring slots inside one task*.
+At depth *D* the `pool` arm runs *D* concurrent tasks and a cache hit is a synchronous
+`preadv2`, so it gets *D*-way CPU parallelism; the ring arms run **one task per reader** and
+serve hits inline, one at a time.
+
+Holding the *same* number of reads in flight as independent readers instead of depth removes
+it entirely ([`v14_warm_concurrency.tsv`](v14_warm_concurrency.tsv), warm, 512 asks per
+reader, throughput relative to `pool`):
+
+| Reads in flight | held as | `hybrid` | `uring` |
+| ---: | --- | ---: | ---: |
+| 4 | depth 4, one reader | 0.45× | 0.21× |
+| 4 | **4 readers, depth 1** | **1.40×** | 0.64× |
+| 16 | depth 16, one reader | 0.31× | 0.26× |
+| 16 | **16 readers, depth 1** | **0.95×** | 0.66× |
+
+**This matters for us specifically.** Our concurrency is many sessions, not deep pipelining
+inside one session — every user is an independent reader. In that shape the hybrid is at
+parity or better on cache hits, so it carries no throughput penalty anywhere on the surface.
+The 0.36× figure applies only to a server that pipelines many asks *within* one session on an
+all-RAM study, and it is a property of serving hits from a single task, which an
+implementation could fix. `uring` is bad on hits in **both** arrangements (0.21–0.66×), which
+is the claim that actually generalises.
 
 The same comparison for **pure io_uring** shows why the hybrid rather than the ring: it
-matches the hybrid when misses dominate, and is **+47% CPU and 2–43× the latency** when they
-do not, because every cached read pays a submit-and-complete round trip it never needed.
-`pooled_pread` — the ADR's escape hatch — is 5–8× worse than either almost everywhere.
+matches the hybrid when misses dominate, and on cache hits costs **+20% CPU at 64 reads in
+flight rising to +160% at one**, plus 0.21–0.53× the throughput, because every cached read
+pays a submit-and-complete round trip it never needed. `pooled_pread` — the ADR's escape
+hatch — is 5–8× worse than either almost everywhere.
 
-### Latency says the same thing, louder
+### Latency: one half stands, one half withdrawn
 
 CPU per ask is the cost metric; per-ask latency is what a reader feels. Δ vs `pool`, median
 of paired cells, negative = faster:
@@ -89,12 +125,20 @@ of paired cells, negative = faster:
 | 16 | 50–100% | **−21.5%** | 98/110 | +16.2% | 21/110 |
 | 64 | 50–100% | **−16.9%** | 37/42 | +12.7% | 15/42 |
 
-**The hybrid is faster than `pool` in every single group**, on p50 and p99 alike. **Pure
-io_uring is up to 43× slower** where hits dominate, because a cached read that could have
-returned inline instead makes a round trip through the queue.
+**The hybrid is faster than `pool` in every group.** That part stands.
 
-This is the clearest reason the answer is the hybrid and not "adopt io_uring": on cost the
-two ring arms are close, and on latency they are nothing alike.
+⚠️ **The `uring` column above is largely an artifact and is withdrawn.** Adversarial review
+(§Review, F3) showed the two arms start their clocks at different points on the *hit* path: a
+`pool`/`hybrid` hit is a synchronous syscall with no `.await`, so its timer starts when a
+worker picks the ask up and excludes all queueing, while the ring timestamps every slot at
+fill and charges it the batch's drain time. Little's law confirms it — warm, at depth 16,
+`pool` reports a p50 of 0.13× the residence time its own throughput implies, and `uring`
+reports 0.80×. Cold, all three agree, so the asymmetry is confined to the hit path.
+
+The honest version of "io_uring is bad on cached reads" is the **throughput** column, which
+has no such asymmetry: 2–5× fewer asks per second (0.21–0.53× `pool`), not 43× the latency.
+That is still a
+decisive reason to prefer the hybrid over a pure ring, on a smaller number.
 
 **Threads, the ceiling a CPU number does not show:**
 
@@ -109,17 +153,25 @@ A concurrent miss costs an OS thread in the pool arms and nothing in the ring ar
 blocking pool defaults to 512 threads, so `pool` has a hard ceiling on concurrent misses per
 process that a ring does not have.
 
-**The ranking does not move with ask size.** Cold, strided, 16 in flight:
+**Ask size enters only through the miss rate it produces.** Cold, stride 250 KB:
 
-| Ask size | `pool` | `hybrid` | `uring` |
-| ---: | ---: | ---: | ---: |
-| 4 KB | 45 749 ns | 12 704 ns | **7 233 ns** |
-| 16 KB | 63 354 ns | 16 947 ns | **15 114 ns** |
-| 64 KB | 84 723 ns | 35 521 ns | **31 012 ns** |
+| Ask size | Coverage | Miss rate | `pool` | `hybrid` | `uring` |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 KB | 1.6% | 88% | 45 749 ns | 12 704 ns | **7 233 ns** |
+| 16 KB | 6.6% | 88% | 63 354 ns | 16 947 ns | **15 114 ns** |
+| 64 KB | 26% | 90% | 84 723 ns | 35 521 ns | **31 012 ns** |
+| **250 KB** | **100%** | **11%** | 51 476 ns | **48 882 ns** | 59 832 ns |
 
-Rung size — the number nobody can pin down yet — does not change which read path to use.
-**That is the part of this answer that survives the layout design whatever it turns out to
-be.**
+⚠️ **Corrected after review (§Review, F7).** The first version of this table claimed "the
+ranking does not move with ask size" and omitted the 250 KB row — the size the product
+actually uses — because a labelling bug filed it under the wrong access shape. It does move:
+at 250 KB the ring's advantage collapses at one read in flight and `uring` *loses* to `pool`.
+
+But the reason is not size. At a fixed 250 KB stride, a 250 KB ask reads *everything* — it is
+a sequential sweep, so read-ahead works and the miss rate falls from 88% to 11%. The row has
+not left the surface; it has moved to a different square of it. **Size is not an independent
+factor; it is a way of setting the miss rate.** Anyone reading this table should read the
+surface above instead.
 
 ### Reproduced three times
 
@@ -146,55 +198,88 @@ not only for pathological access patterns.
 
 ### The hybrid's worst cases, stated plainly
 
-"Never materially worse" is a claim that deserves its own audit. Over all 792 paired
-comparisons:
+"Never materially worse" is a claim that deserves its own audit, so the analysis script
+prints the whole distribution rather than its median (`section_worst_cases`). Over all **960
+paired cost comparisons**, applying the campaign's own 28.5% resolution threshold:
 
-* the hybrid is **>20% worse in 40 cells (5.1%)** and **>20% better in 535 (67.6%)**;
-* the median across every cell is **−46.6%**;
-* the single worst cell is **+78.8%** (cold, strided, 64 KB asks, one read in flight, 76%
-  misses — a shape where the extra `RWF_NOWAIT` attempt before each ring submission is pure
-  overhead because it nearly always fails).
+* the hybrid is **worse by more than 28.5% in 29 cells (3.0%)** and **better by more than
+  28.5% in 563 (58.6%)**;
+* the median across every cell is **−43.4%**;
+* the single worst cell is **+104.1%** — warm, strided, 16 KB asks, 64 reads in flight, 0%
+  misses. That is the hit-path concurrency shape above: 64 ring slots in one task against 64
+  `pool` tasks, on a workload with nothing to overlap.
 
-So the honest form of H5 is not "never worse" but **"worse in about one cell in twenty, by
-less than it is better in two out of three"**. Every one of the 40 bad cells is at one read
-in flight or at a miss rate under 5% — the two regions where the table above already says the
-hybrid is a tie rather than a win.
+So the honest form of H5 is not "never worse" but **"worse in about one cell in thirty,
+better in three out of five."** **27 of the 29 bad cells are at one read in flight or under
+5% misses** — the regions the table above already calls a tie. The two that are not are
+single repeats (`run1_B_prefetch_stride` cold at 4 in flight, 33% misses, +36.6%;
+`run2_D_size250000` cold sweeping at 16 in flight, 27% misses, +48.2%), neither of which
+reproduces in its neighbours.
 
-### The one thing that did not resolve
+### The harness disagreement, resolved — it was the harness
 
-A separate harness (`crossover_bench`, which controls the miss rate directly by pre-warming a
-chosen fraction of the offsets — [`v11_crossover.tsv`](v11_crossover.tsv)) agrees with the
-campaign everywhere except **one read in flight**, where it finds a tie at every miss rate,
-including 100%:
+Two earlier harnesses (`crossover_bench`, and the `depth_read_bench` behind
+[`DEPTH.md`](DEPTH.md)) found a **tie at one read in flight**, where the campaign finds
+−53%. Both reproduced their own answer on re-runs, so it was not host drift. The cause turned
+out to be in the harnesses, and it is worth stating because it is the kind of mistake that
+looks like a result:
 
-| Reads in flight | miss rate | campaign: hybrid vs pool | crossover: hybrid vs pool |
-| ---: | ---: | ---: | ---: |
-| 1 | 100% | −53.4% (77/78) | −2.1% (4/6) |
-| 8 | 100% | — | **−67.1% (6/6)** |
-| 8 | 2% | — | −16.8% (5/6) |
+**Those two harnesses spawned the `pool` arm onto the runtime and ran the ring arm inline in
+the `block_on` future** — that is, on the calling thread, which is not a runtime worker. Every
+`complete_into().await` there parks a thread Tokio cannot schedule, so each completion batch
+costs a cross-thread wake. The `pool` arm never pays it. It is a difference between how the
+two arms were *driven*, not between the interfaces.
 
-Both were re-run back to back on the identical configuration and both reproduced their own
-answer, so this is a difference between the harnesses, not host drift. The weight of evidence
-favours the campaign — its depth-1 cold result is −54.3% / −50.6% / −57.1% across three
-independent runs, against −2.1% from six repeats of one crossover cell — but an unexplained
-disagreement between two harnesses stays on the record rather than being resolved by
-counting. I could not identify
-the cause: both complete all asks, both report the same miss rate for the ring arm, and their
-throughputs match within 20%. **Treat the depth-1 magnitude as unresolved — somewhere between
-a tie and −53%.**
+Placement is now a switch in `crossover_bench` (`CROSSOVER_INLINE=1` for the old behaviour),
+which turns the suspicion into a controlled A/B — same binary, same cell, same repeats, one
+variable. Median CPU per ask, 6 repeats each
+([`v13_placement_ab.tsv`](v13_placement_ab.tsv)):
 
-It does not change the recommendation. At one read in flight the hybrid is *at worst a tie*
-in both harnesses, and every case we care about runs deeper than one.
+| Cell | Arm | inline | spawned | change |
+| --- | --- | ---: | ---: | ---: |
+| cold, 1 in flight | `pool` | 94 208 ns | 105 455 ns | 0.89× |
+| cold, 1 in flight | `uring` | 94 487 ns | **46 203 ns** | **2.05×** |
+| cold, 1 in flight | `hybrid` | 95 907 ns | **49 042 ns** | **1.96×** |
+| cold, 8 in flight | `pool` | 71 156 ns | 83 791 ns | 0.85× |
+| cold, 8 in flight | `uring` | 26 676 ns | 22 644 ns | 1.18× |
+| cold, 8 in flight | `hybrid` | 25 757 ns | 23 805 ns | 1.08× |
+
+**`pool` does not move; the ring arms halve.** And the residual scales as `1/depth` — about
++47 µs per ask at one in flight, +2 to +4 µs at eight — which is what a fixed cost paid once
+per completion batch and amortised over the batch looks like.
+
+That is the whole disagreement:
+
+| Placement | cold, 1 in flight: hybrid vs pool |
+| --- | --- |
+| inline (old harnesses) | **+1.4%, 2/6** — the "tie" |
+| spawned (campaign) | **−52.8%, 6/6** |
+
+−52.8% against the campaign's −53.4%. **The campaign was right, the tie was an artifact, and
+the depth-1 magnitude is no longer unresolved.** [`DEPTH.md`](DEPTH.md)'s "Real I/O, one read
+at a time → Tie" row is withdrawn.
+
+**What this does *not* rescue is the ring on cache hits.** The same A/B at a 0% miss rate
+leaves `uring` worse than `pool` under both placements — +150% CPU at one in flight (0/6) and
++33% at eight, with p50 still 41 µs against 4 µs — so "never route a cache hit through a
+ring" is not a placement artifact either. It survives, and it is the reason the recommendation
+is the hybrid rather than the ring.
+
+A note on what this cost: the artifact was invisible from the outputs. Both harnesses
+completed every ask, reported the same miss rate for the ring arm, and agreed on throughput
+within 20%. It was only findable by asking *where each arm's code actually runs*, which is why
+an unexplained disagreement between two harnesses is worth keeping on the record until it is
+explained rather than settled by counting cells.
 
 ## What that means for our cases
 
 | Case | Miss rate it produces | Read path | Why |
 | --- | --- | --- | --- |
-| **US stack, whole frames in order, study fits in RAM** | 0% | `pool` or `hybrid` — indistinguishable | Nothing to overlap. Don't add a ring for this alone |
+| **US stack, whole frames in order, study fits in RAM** | 0% | `pool` or `hybrid` — indistinguishable | Nothing to overlap. Don't add a ring for this alone. Equal on throughput too, *provided* the concurrency is one reader per session rather than many asks pipelined inside one ([`v14_warm_concurrency.tsv`](v14_warm_concurrency.tsv)) |
 | **US stack, whole frames in order, study exceeds RAM** | ~6% (median; read-ahead carries most of it) | **`hybrid`** | Just past the crossover. Free when it does not help, −45% or better when it does |
-| **Rung delivery from a frame-major layout** *(prefix of each frame, skip the rest)* | **90%** | **`hybrid`** | Read-ahead cannot see the pattern. −65% CPU, −27% p50, 283/284 cells |
+| **Rung delivery from a frame-major layout** *(prefix of each frame, skip the rest)* | **91%** | **`hybrid`** | Read-ahead cannot see the pattern. **−69.6% CPU in 377 of 378 cells**, −25.6% p50 in 332 of 378 |
 | **Rung delivery from a layout that groups what is read together** | ~6% | **`hybrid`** | Grouping converts the case above into the case above that. Worth doing on its own merits, and the hybrid does not care either way |
-| **Many concurrent sessions, cold** | 88–98% | **`hybrid`** | −20% to −56% CPU, threads flat at 5 vs 12–74 |
+| **Many concurrent sessions, cold** | 60–92% | **`hybrid`** | −24% to −58% CPU, threads flat at 5 vs 82 ([`v12_readers_fixed.tsv`](v12_readers_fixed.tsv), re-run after the bug in §Review F1) |
 | **Filesystem without `RWF_NOWAIT`** (overlayfs, tmpfs) | 100% by definition | `pooled_pread` | The existing escape hatch. Unchanged |
 
 **One recommendation covers every case we know: the hybrid.** It is not a compromise — it is
@@ -237,20 +322,27 @@ It also needs the next ask, which `RequestFrames { frames }` declares today and
 The property the ADR was chosen for does not appear in any cost column, so it is measured
 separately, with a co-tenant task spinning `yield_now` and recording its own scheduling gaps.
 
-| Temp | Arm | Δ co-tenant gap p99 vs `pool` | lower in |
-| --- | --- | ---: | ---: |
-| **cold** | `uring` | **−39.5%** | 19/24 |
-| **cold** | `hybrid` | **−41.0%** | 23/24 |
-| warm | `uring` | +0.3% | 11/24 |
-| warm | `hybrid` | +9.4% | 11/24 |
+| Temp | Arm | Δ co-tenant gap p99 vs `pool` | lower in | verdict by our own rule |
+| --- | --- | ---: | ---: | --- |
+| cold | `uring` | −39.5% | 19/24 | **tie** (needs 20/24) |
+| cold | `hybrid` | −41.0% | 23/24 | better |
+| cold | `pooled_pread` | −45.5% | 20/24 | better ← **implausible** |
+| warm | any | ±10% | 11/24 | noise |
 
-**The ring arms stall co-tenants less, not more** — where it matters (cold), by ~40%. Fewer
-thread wakes and cross-worker migrations. Warm is a coin flip in both directions, i.e. no
-effect. H6 holds: the cheaper arm is also the safer one.
+⚠️ **This phase does not support a safety claim, and the earlier version of this section
+overstated it.** Two problems, both found in review (§Review, F10):
 
-*(Warm safety cells are short, so the monitor collects few gap samples and their p99 is close
-to a single observation — the `hybrid` warm-d1 outlier in the raw data is that, not a stall.
-Lead with the cold rows.)*
+1. `uring`'s 19/24 **fails the 0.8 sign-agreement rule this campaign applies everywhere
+   else**. It was reported as "−39.5%" anyway.
+2. `pooled_pread` — 118 threads, worst CPU, the arm this section is supposed to condemn —
+   scores *better* than `pool` on the same metric. An arm with 118 blocking threads cannot
+   plausibly be gentler on co-tenants. The metric is tracking something else, most likely
+   monitor sample count against wall time.
+
+**What we can say:** nothing here suggests the ring arms are *worse* for co-tenants, and the
+`hybrid` row is the only one that passes the rule. **What we cannot say:** that they are
+better. H6 is **unmeasured**, not supported. Settling it needs one monitor per worker, gaps
+normalised by sample count, and a real co-tenant workload rather than a spin loop.
 
 ---
 
@@ -261,11 +353,11 @@ Stated before the campaign ran; see §Method for the controls.
 | # | Hypothesis | Verdict |
 | --- | --- | --- |
 | **H1** | Ranking is governed by cache temperature, not shape | **Refined.** Neither: it is governed by *miss rate*, which temperature and shape both produce. But miss rate alone was not enough — see H2 |
-| **H2** | Ranking depends on reads in flight; a ring cannot win at depth 1 | **Partly supported, and the correction to H1.** Miss rate and in-flight count *multiply*: the win runs from −45% at one read in flight to −77% at 64. Whether a ring wins at exactly one read in flight is the unresolved disagreement above |
+| **H2** | Ranking depends on reads in flight; a ring cannot win at depth 1 | **Partly supported, and the correction to H1.** Miss rate and in-flight count *multiply*: the win runs from −45% at one read in flight to −77% at 64. The premise — that a ring cannot win at depth 1 — is **false**: it wins there too, and the two harnesses that said otherwise were driving the ring off the runtime (§The harness disagreement) |
 | **H3** | The read-ahead hint and the mechanism are complementary | **Falsified.** They are substitutes: the hint's benefit collapses once the ring is in use |
-| **H4** | Only total reads in flight matters, not how many readers hold them | **Falsified.** At 16 in flight, `pool` costs 60 µs/ask as one reader × 16 and 295 µs/ask as 16 readers × 1. The ring arms are far less sensitive, so the multi-session case favours them *more* than the single-session depth sweep suggests |
-| **H5** | The hybrid is never worse than the better of pool and uring | **Supported with a caveat.** Worse by >20% in 40 of 792 comparisons (5.1%), better by >20% in 535 (67.6%), median −46.6%. Every bad cell sits at one read in flight or under 5% misses |
-| **H6** | A CPU win does not cost executor safety | **Supported.** The ring arms lower co-tenant gaps by ~40% cold and are neutral warm |
+| **H4** | Only total reads in flight matters, not how many readers hold them | **Supported, after a correction.** The first verdict said "falsified — 60 µs/ask as 1×16 vs 295 µs/ask as 16×1"; that gap was a harness bug that discarded 15 of 16 readers' records while keeping their CPU (§Review F1). Re-run: at 16 in flight, `pool` costs 53.9 µs/ask as 4×4 and 42.8 µs/ask as 16×1 — more readers is equal or slightly cheaper, not 5× dearer. **Then falsified for the hit path:** warm, the same 16 in flight gives the hybrid 0.31× `pool`'s throughput as depth 16 and 0.95× as 16 readers. On misses the total is what matters; on hits the arrangement is |
+| **H5** | The hybrid is never worse than the better of pool and uring | **Supported with a caveat.** Worse by >28.5% in 29 of 960 comparisons (3.0%), better by >28.5% in 563 (58.6%), median −43.4%. 27 of the 29 bad cells sit at one read in flight or under 5% misses; the other two are unreproduced single repeats |
+| **H6** | A CPU win does not cost executor safety | **Unmeasured.** The instrument does not discriminate: it scores `pooled_pread` — 118 threads — as gentler on co-tenants than `pool`. No evidence of harm, no evidence of benefit |
 
 ---
 
@@ -283,13 +375,16 @@ Fixture: 5 120 × 16 KB records in an 84 MB SBND, so stride and sweep come from 
 | `pooled_pread` | The ADR's escape hatch: every read on the blocking pool |
 
 Factors crossed: arm × depth (1–64) × readers (1–16) × temperature × shape × ask size
-(4 KB–250 KB) × prefetch. 2 800+ cells over two independent runs.
+(4 KB–250 KB) × prefetch. **3 612 cells over three independent runs**, plus two follow-up
+experiments run while folding in the review: the placement A/B
+([`v13_placement_ab.tsv`](v13_placement_ab.tsv)) and the warm concurrency shape
+([`v14_warm_concurrency.tsv`](v14_warm_concurrency.tsv)).
 
 | Control | The failure it prevents |
 | --- | --- |
 | Arm order **rotates** per repeat | Drift settling on whichever arm runs first — this host produced a 34% "win" that reversed with the order in an earlier campaign |
 | **Paired** comparisons by repeat, with sign counts | Comparing medians from cells that ran at different times |
-| **Two independent runs**, sign-checked | Reading a within-run CI as an error bar. 83 of 84 vs-pool comparisons keep their sign across runs |
+| **Three independent runs**, sign-checked | Reading a within-run CI as an error bar. 26 of 28 phase-A configurations keep their sign across all three; every cold one does |
 | **`--monitors 0` for cost cells** | The co-tenant monitor is a spin loop whose CPU scales with *wall time*, so leaving it on charges slow arms for the monitor's spinning. (An earlier pass of this analysis pooled safety cells into the cost buckets and had to be redone) |
 | Cold cells **verify residency**, retry, and skip rather than abort | A warm cell silently labelled cold |
 | **Wrap control** | `asks × stride` can exceed the file, so a "cold" cell re-reads its own pages warm. Re-run at 256 asks (no wrap) and 1024 asks (3× wrap): ranking and magnitudes unchanged (−50.8%/−54.7% vs −55.8%/−56.3% at cold d1) |
@@ -301,10 +396,11 @@ Factors crossed: arm × depth (1–64) × readers (1–16) × temperature × sha
 * **This host is a 4-vCPU KVM guest on virtio-blk.** Cold cells are guest-cold but
   hypervisor-warm, so absolute latencies are optimistic. The CPU and thread findings do not
   depend on device speed; on slower storage `pool`'s thread count climbs *faster*.
-* **Run-to-run drift is larger than the analysis threshold.** Repeating identical
-  configurations moves a median by p50 11%, p90 28%. The 7% threshold in the script is
-  therefore too permissive for a *single* comparison; the conclusions above rest on paired
-  sign counts (88/88, 283/284) and on effect sizes of 50–70%, both far outside that drift.
+* **Run-to-run drift is large.** Repeating identical configurations moves a median by p50
+  11% and p90 28.5% on this host. The script's threshold is set to that p90 (`DRIFT_PCT`),
+  not to taste — an earlier 7% threshold would have called more than half of pure drift a
+  result (§Review, F6). Every headline effect above survives the stricter test; the ones
+  that do not are labelled ties.
 * **Synthetic fixture**: uniform 16 KB records of constant bytes. Real codestreams vary in
   size, which changes the miss-rate distribution but not the mechanism.
 * **One process, one file.** Sessions here are tasks in one process, which is what the server
@@ -318,3 +414,65 @@ Factors crossed: arm × depth (1–64) × readers (1–16) × temperature × sha
   `uring` reports 100% by construction (every read goes through the ring, whether or not the
   page was cached). Buckets are therefore "what fraction *would* miss", which is the property
   of the workload, not of the arm.
+
+---
+
+## Review
+
+This campaign was reviewed adversarially — a reviewer with the raw data, the harness source
+and a written list of my claims, briefed to break them rather than confirm them. It found
+eleven issues. The ones that changed something:
+
+| # | Finding | What it cost |
+| --- | --- | --- |
+| **F1** | In multi-reader cells, reader *r*'s base offset was **added** to an already-wrapped offset, so every reader but the first read past EOF, panicked, and had its records discarded — while its CPU stayed in the total. `pool` recorded 512 asks where the ring arms recorded 8 192. | **Claim reversed.** "More readers is 5× worse for pool" was the artifact. Re-run: more readers is equal or cheaper. Harness fixed (offsets by reader *phase*, panics propagated, and a hard assertion that recorded asks == expected) |
+| **F2** | Non-partitioned readers walked a shifted subset of the *same* offsets, so 16 "sessions" were ~96% re-reads of one session | Phase C re-run with interleaved phases so readers genuinely differ |
+| **F3** | The two arms start their latency clocks at different points on the hit path; Little's law shows `pool` reporting 1/30th of its own implied residence time warm | **Warm latency comparison withdrawn.** Throughput used instead |
+| **F4** | `miss_pct` means three different things across arms, and the bucketing script was not in the repo | Bucketing committed as `section_surface`, with the x-axis documented as *pool's* miss rate |
+| **F6** | `paired()` keyed on `(cell, repeat)` without the run, so every "6/6" described one run while the median beside it pooled three. And a 7% drift threshold sat below the measured p50 drift of 11% | Both fixed. Threshold now 28.5%, the measured p90. **Every headline result survives the stricter test** |
+| **F7** | The 250 KB block — the production frame size — was labelled with the wrong access shape and silently dropped from the size table | **Claim corrected.** "The ranking does not move with ask size" was wrong; size moves the miss rate, and the row belongs elsewhere on the surface |
+| **F10** | The safety metric scores `pooled_pread` (118 threads) as gentler on co-tenants than `pool`, and `uring`'s 19/24 fails the campaign's own 0.8 rule | **Safety claim withdrawn.** H6 is unmeasured |
+| **F8** | Diagnosed the harness disagreement at depth 1 as a `block_on`-placement artifact. Turned into a controlled A/B: placement is now a switch, and flipping it moves the ring arms 2× while leaving `pool` untouched | **Open question closed**, in the campaign's favour. The same A/B confirms the ring still loses on pure cache hits, so that claim is not an artifact |
+
+What survived unchanged: the decision surface, the −45% to −77% CPU advantage above 5%
+misses, the thread ceiling, and the recommendation. F9's audit of the timed region found the
+remaining instrumentation asymmetries run *against* the ring, not for it, and noted that
+`pooled_pread` is a genuine control showing the wasted `RWF_NOWAIT` syscall is not what drives
+the win.
+
+The review's own residual criticisms, which I have not resolved and which stand against this
+document:
+
+* **The hop tax is this host's.** `pooled_pread` prices a `spawn_blocking` round trip at
+  68–91 µs of process CPU on a near-idle 4-vCPU KVM guest. That constant is what produces the
+  2–3× ring win. Nothing here shows it holds on bare metal, on a loaded runtime, or at a
+  different worker count.
+* **`pool` cannot hold depth > 4 warm.** A hit is a synchronous syscall, so the warm "depth
+  64" cells for `pool`/`hybrid` are really 4-worker cells. **Followed up and it turned out to
+  be worse than the reviewer said, then better:** warm, the *arms* do not even hold depth the
+  same way — `pool` gets *D* tasks, the ring arms get one — which cost the hybrid up to 0.31×
+  `pool`'s throughput. Re-holding the same reads in flight as independent readers restores
+  parity ([`v14_warm_concurrency.tsv`](v14_warm_concurrency.tsv)), which is our shape. The
+  warm depth axis is still a 4-worker measurement and should not be read as a depth result.
+* **The flat-5 thread count for ring arms is unverified at scale** — no cell here runs enough
+  concurrent rings to force io-wq punting.
+* **ext4 only.** Where `RWF_NOWAIT` is refused, `pool` and `hybrid` both collapse onto
+  `pooled_pread`.
+
+### After the review: two things the reconciliation itself turned up
+
+Folding the review in meant re-deriving every number from the committed analysis script
+rather than from working notes, and that shook out two more corrections. Both are in the doc
+above; both are recorded here because neither came from the reviewer.
+
+1. **The surface table and the worst-case audit had drifted from the script.** The published
+   figures had been computed by hand at a 20% threshold over a subset of cells. Regenerated
+   from `analyze_read_campaign.py` at 28.5% over all 960 pairs, the ranking and every verdict
+   are unchanged, but the numbers move (median −46.6% → −43.4%, "40 of 792 bad" → "29 of
+   960"). The audit is now a section of the script (`section_worst_cases`) so it cannot drift
+   again.
+2. **Throughput contradicted CPU on the hit path**, which is what exposed the arms holding
+   concurrency differently — the `v14` experiment above. A CPU-only comparison would have
+   shipped "the hybrid is a free tie on cache hits", which is true for our session shape and
+   false for a pipelined one. **Reporting cost and throughput side by side is what caught
+   it**; either alone would not have.

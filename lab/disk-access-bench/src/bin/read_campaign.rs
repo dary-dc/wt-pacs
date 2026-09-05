@@ -234,18 +234,28 @@ struct Outcome {
 }
 
 /// One reader's worth of work: `asks` reads of `size`, `depth` of them in flight.
+#[allow(clippy::too_many_arguments)]
 async fn reader_pool(
     store: Arc<FrameStore>,
     file: Arc<std::fs::File>,
     cell: &Cell,
     base: u64,
     span: u64,
+    reader: usize,
+    readers: usize,
     lat: Arc<Mutex<Vec<u64>>>,
     misses: Arc<AtomicU64>,
-) {
+) -> Result<()> {
     let (depth, asks, size, stride, prefetch) =
         (cell.depth, cell.asks, cell.size, cell.stride, cell.prefetch);
-    let offset_of = move |i: usize| base + ((i as u64 * stride) % span.max(1));
+    // Reader `r` of `readers` takes every `readers`-th slot of one shared sequence. The
+    // modulus is applied to the *whole* offset, so no reader can walk past the end of the
+    // file — an earlier version added a per-reader base to an already-wrapped offset, which
+    // put every reader but the first past EOF. Interleaving rather than trailing also stops
+    // later readers from simply re-reading what earlier ones warmed.
+    let offset_of = move |i: usize| {
+        base + ((reader as u64 + i as u64 * readers as u64).wrapping_mul(stride) % span.max(1))
+    };
     let next = Arc::new(AtomicU64::new(0));
     let always_pool = cell.arm == Arm::PooledPread;
     let mut set = tokio::task::JoinSet::new();
@@ -294,23 +304,33 @@ async fn reader_pool(
             misses.fetch_add(miss, Ordering::Relaxed);
         });
     }
-    while set.join_next().await.is_some() {}
+    // Propagate a panicking task instead of counting it as success: a task that died still
+    // spent CPU, and swallowing it would divide that CPU by the asks it never recorded.
+    while let Some(joined) = set.join_next().await {
+        joined.context("reader task")?;
+    }
+    Ok(())
 }
 
 /// One reader backed by its own ring — the per-session shape, `depth` slots in flight.
+#[allow(clippy::too_many_arguments)]
 async fn reader_ring(
     store: Arc<FrameStore>,
     file: Arc<std::fs::File>,
     cell: &Cell,
     base: u64,
     span: u64,
+    reader: usize,
+    readers: usize,
     lat: Arc<Mutex<Vec<u64>>>,
     misses: Arc<AtomicU64>,
 ) -> Result<()> {
     let (depth, asks, size, stride, prefetch) =
         (cell.depth, cell.asks, cell.size, cell.stride, cell.prefetch);
     let hybrid = cell.arm == Arm::Hybrid;
-    let offset_of = move |i: usize| base + ((i as u64 * stride) % span.max(1));
+    let offset_of = move |i: usize| {
+        base + ((reader as u64 + i as u64 * readers as u64).wrapping_mul(stride) % span.max(1))
+    };
 
     let mut ring = UringReader::new(&file, depth, size, true, false)?;
     let mut starts = vec![Instant::now(); depth];
@@ -408,7 +428,7 @@ fn run_cell(path: &PathBuf, cell: &Cell, workers: usize) -> Result<Outcome> {
     } else {
         span
     };
-    let (wall_ns, cpu_ns_used, threads_max) = rt.block_on(async {
+    let (wall_ns, cpu_ns_used, threads_max, reader_err) = rt.block_on(async {
         // Co-tenant monitor: an arm that stalls the executor shows up here and nowhere else.
         let stop = Arc::new(AtomicBool::new(false));
         let mut mons = Vec::new();
@@ -434,11 +454,17 @@ fn run_cell(path: &PathBuf, cell: &Cell, workers: usize) -> Result<Outcome> {
             let file = Arc::clone(&file);
             let lat = Arc::clone(&lat);
             let misses = Arc::clone(&misses);
-            // Overlapping (default) or disjoint, per `--partition`.
-            let rbase = if partition {
-                base + (r as u64) * (span / cell.readers.max(1) as u64)
+            // Disjoint slices (`--partition`, "different studies") or one shared sequence
+            // that the readers interleave through ("same study"). Interleaving is done by
+            // phase inside the reader, not by a base offset, so no reader can run past EOF.
+            let (rbase, rreader, rreaders) = if partition {
+                (
+                    base + (r as u64) * (span / cell.readers.max(1) as u64),
+                    0usize,
+                    1usize,
+                )
             } else {
-                base + (r as u64 * cell.stride * 7) % span.max(1)
+                (base, r, cell.readers.max(1))
             };
             let c = Cell {
                 arm: cell.arm,
@@ -454,17 +480,47 @@ fn run_cell(path: &PathBuf, cell: &Cell, workers: usize) -> Result<Outcome> {
             };
             set.spawn(async move {
                 if c.arm.uses_ring() {
-                    reader_ring(store, file, &c, rbase, reader_span, lat, misses)
-                        .await
-                        .expect("ring reader");
+                    reader_ring(
+                        store,
+                        file,
+                        &c,
+                        rbase,
+                        reader_span,
+                        rreader,
+                        rreaders,
+                        lat,
+                        misses,
+                    )
+                    .await
                 } else {
-                    reader_pool(store, file, &c, rbase, reader_span, lat, misses).await;
+                    reader_pool(
+                        store,
+                        file,
+                        &c,
+                        rbase,
+                        reader_span,
+                        rreader,
+                        rreaders,
+                        lat,
+                        misses,
+                    )
+                    .await
                 }
             });
         }
         let mut peak = threads();
-        while set.join_next().await.is_some() {
+        let mut reader_err: Option<String> = None;
+        while let Some(joined) = set.join_next().await {
             peak = peak.max(threads());
+            match joined {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    reader_err.get_or_insert(format!("{e:#}"));
+                }
+                Err(e) => {
+                    reader_err.get_or_insert(format!("reader panicked: {e}"));
+                }
+            }
         }
         let wall = wall0.elapsed().as_nanos() as u64;
         let cpu = cpu_ns() - cpu0;
@@ -473,11 +529,27 @@ fn run_cell(path: &PathBuf, cell: &Cell, workers: usize) -> Result<Outcome> {
         for m in mons {
             let _ = m.await;
         }
-        (wall, cpu, peak.max(threads()))
+        (wall, cpu, peak.max(threads()), reader_err)
     });
 
+    if let Some(e) = reader_err {
+        anyhow::bail!("reader failed: {e}");
+    }
     let mut v = lat.lock().unwrap().clone();
     v.sort_unstable();
+    // Every ask must be accounted for. A cell that silently records a fraction of its work
+    // divides its CPU by the wrong denominator, which is how an arm can look 9x worse than
+    // it is.
+    let expected = cell.asks * cell.readers;
+    if v.len() != expected {
+        anyhow::bail!(
+            "{} recorded {} of {expected} asks (readers={}, depth={})",
+            cell.arm.as_str(),
+            v.len(),
+            cell.readers,
+            cell.depth
+        );
+    }
     let mut g = gaps.lock().unwrap().clone();
     g.sort_unstable();
     Ok(Outcome {

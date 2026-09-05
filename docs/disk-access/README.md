@@ -43,12 +43,14 @@ cargo build -p disk-access-bench --release
 `io-uring`, `quinn`, `rcgen` and `rustls` are dependencies of **this crate only** — the
 product links quinn through wtransport and does not link `io-uring` at all.
 
-Two more binaries live in the same crate, both used by [`SEND-BUDGET.md`](SEND-BUDGET.md):
+Four more binaries live in the same crate:
 
 | Binary | What |
 | --- | --- |
-| `frame_budget <study> [ops\|uring\|ladder\|all] [monitors]` | Splits a frame into syscall, kernel copy, user copy and scheduler; prices one read op from 1 B to 250 KB against io_uring and `O_DIRECT` |
-| `wire_send_bench <study> <mode> <frames> [repeats]` | The send path over real quinn on IPv4 loopback, client in its own process. Modes: `write_all` (product), `write_chunk`, `cache:<MB>` (product `FrameCache`), `preloaded` (ceiling) |
+| `read_campaign` | The campaign behind [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md): arm × prefetch × in-flight × readers × temperature × access shape × ask size. Driven by `lab/scripts/run_read_campaign.sh`, analysed by `lab/scripts/analyze_read_campaign.py` |
+| `crossover_bench <study> [asks] [size] [stride] [repeats]` | Miss rate as a *controlled* variable — evict, then pre-warm a chosen fraction. `CROSSOVER_WARM` / `CROSSOVER_DEPTHS` narrow the sweep; `CROSSOVER_INLINE=1` reproduces the harness placement bug of §The harness disagreement |
+| `frame_budget <study> [ops\|uring\|ladder\|all] [monitors]` | Splits a frame into syscall, kernel copy, user copy and scheduler; prices one read op from 1 B to 250 KB against io_uring and `O_DIRECT`. Used by [`SEND-BUDGET.md`](SEND-BUDGET.md) |
+| `wire_send_bench <study> <mode> <frames> [repeats]` | The send path over real quinn on IPv4 loopback, client in its own process. Modes: `write_all` (product), `write_chunk`, `cache:<MB>` (product `FrameCache`), `preloaded` (ceiling). Used by [`SEND-BUDGET.md`](SEND-BUDGET.md) |
 
 `wire_send_bench` binds IPv4, so it runs where the product's `with_bind_default` (IPv6)
 cannot — which is how the campaign's "no live end-to-end run" gap got closed for the send
@@ -63,8 +65,11 @@ Four flags decide whether a result means anything (see [`RERUN.md`](RERUN.md) §
 | `--monitors 0` | For CPU numbers. The gap monitor is a spin loop and changes the latency it is not measuring — the same warm arm reads 46.9 µs with one monitor and 84.7 µs with none |
 | reversed `--arm` order | Before believing any cold ranking. Arms take turns creating their own cold copy, and that alone produced a 34% "win" that reversed with the order |
 
-And one rule: re-running the same configuration moves a median by up to 7%, so a difference
-counts only if it beats that **and** reproduces with the same sign.
+And one rule: re-running the same configuration moves a median, so a difference counts only
+if it beats that drift **and** reproduces with the same sign. The 7% figure quoted here
+before was measured on a handful of cells; across the 3 600-cell campaign the p50 drift is
+11% and the p90 is **28.5%**, which is the threshold
+[`READ-PATH-DECISION.md`](READ-PATH-DECISION.md) now applies.
 
 `lab/cold-page-bench` is the older E3 / one-pass-cold tool; it owns its own copy of the
 rejected pre-touch arm and is not part of this campaign.
