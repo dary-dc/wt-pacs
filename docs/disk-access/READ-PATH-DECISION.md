@@ -12,6 +12,37 @@ been designed yet — how should the server read frame bytes?*
 
 ---
 
+## In plain terms
+
+There are three ways the server can fetch bytes from disk without freezing the thread that
+serves everyone else:
+
+* **`pool`** — what ships today. Ask the OS for the bytes *only if they are already in RAM*;
+  if they are not, hand that read to a background thread that is allowed to wait.
+* **`uring`** — hand every read to io_uring, a kernel queue that can carry many reads at once
+  without needing a thread each.
+* **`hybrid`** — try RAM first like `pool`; when that comes up empty, use the ring instead of
+  a thread.
+
+What the campaign found:
+
+1. **When the bytes are usually already in RAM, `pool` is fine and io_uring is a bad idea** —
+   it adds queue bookkeeping to a read that never had to wait, costing ~47% more CPU and 6×
+   the latency.
+2. **When the bytes usually are not in RAM, io_uring wins big** — 45–77% less CPU per read —
+   and the advantage grows the more reads are in flight at once.
+3. **`hybrid` gets both**, because it picks per read rather than per deployment. It is a tie
+   in case 1 and a winner in case 2, so it never has to be told which case it is in.
+4. **Threads are the hidden ceiling.** Every simultaneous cache miss costs `pool` an OS
+   thread — up to 96 in these runs. The ring arms held 5 throughout.
+
+Our deployment (tens-of-GB studies on cloud storage, so most reads miss) sits squarely in
+case 2. **The recommendation is the hybrid**, and it does not depend on the disk layout
+design, on rung size, or on whether the server pipelines asks — those change *how much* it
+wins by, never *whether* it wins.
+
+---
+
 ## The answer in one table
 
 **Two things decide it, and they multiply: how many reads are in flight, and what fraction
