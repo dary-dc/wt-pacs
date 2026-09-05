@@ -1,0 +1,10 @@
+[package]
+name = "netsim"
+version = "0.1.0"
+edition = "2021"
+description = "Userspace UDP path simulator — one-way delay, loss, rate, finite queue. Lab only."
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+tokio = { workspace = true }
