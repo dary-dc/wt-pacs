@@ -21,6 +21,8 @@ use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Endpoint, Identity, ServerConfig};
 
 #[cfg(feature = "telemetry")]
+use crate::record::tap::Tap;
+#[cfg(feature = "telemetry")]
 use crate::transport::pipeline::RecordedPipeline;
 
 pub struct ServeConfig {
@@ -98,12 +100,18 @@ async fn handle_incoming(
     let out = FrameOut::open(mode, connection).await?;
     let product = ProductPipeline::new(store, out);
 
+    // Lab wrap only when env on — RecordedPipeline always holds a live Tap.
     #[cfg(feature = "telemetry")]
-    let mut pipeline = RecordedPipeline::new(product);
-    #[cfg(not(feature = "telemetry"))]
-    let mut pipeline = product;
+    if let Some(tap) = Tap::for_session() {
+        return run_session(
+            &mut RecordedPipeline::new(product, tap),
+            control_send,
+            control_recv,
+        )
+        .await;
+    }
 
-    run_session(&mut pipeline, control_send, control_recv).await
+    run_session(&mut product, control_send, control_recv).await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.

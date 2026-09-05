@@ -149,7 +149,14 @@ impl Tap {
         self.try_emit(WriteOutcome::WriteErr, true);
     }
 
+    /// Close whichever stage was open when we bailed (prepare or locate), then emit.
+    /// `send_us` stays null; refuse never entered send.
     pub(crate) fn emit_refused(&mut self) {
+        if self.pending_prepare_us.is_none() {
+            self.boundary_prepare_done();
+        } else if self.pending_locate_us.is_none() {
+            self.boundary_locate_done();
+        }
         self.pending_locate = LocateOutcome::NotFound as u8;
         self.try_emit(WriteOutcome::Refused, false);
     }
@@ -434,6 +441,48 @@ mod tests {
     #[test]
     fn empty_distribution_is_none() {
         assert!(distribution_stats(&[]).is_none());
+    }
+
+    #[test]
+    fn emit_refused_closes_open_prepare() {
+        let (tx, rx) = sync_channel::<FrameRecord>(4);
+        let mut t = test_tap();
+        t.tx = Some(tx);
+        t.begin_frame(1);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        // No boundary — refuse owns finalize (prepare failed path).
+        t.emit_refused();
+        let row = rx.try_recv().expect("row");
+        assert!(row.prepare_us.is_some());
+        assert!(row.locate_us.is_none());
+        assert!(row.send_us.is_none());
+        assert_eq!(row.locate_outcome, LocateOutcome::NotFound as u8);
+        assert_eq!(row.write_outcome, WriteOutcome::Refused as u8);
+        assert_eq!(
+            row.serve_us,
+            row.prepare_us.unwrap_or(0) + row.overhead_us
+        );
+    }
+
+    #[test]
+    fn emit_refused_closes_open_locate() {
+        let (tx, rx) = sync_channel::<FrameRecord>(4);
+        let mut t = test_tap();
+        t.tx = Some(tx);
+        t.begin_frame(2);
+        t.boundary_prepare_done();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        // No locate boundary — refuse owns finalize (locate failed path).
+        t.emit_refused();
+        let row = rx.try_recv().expect("row");
+        assert!(row.prepare_us.is_some());
+        assert!(row.locate_us.is_some());
+        assert!(row.send_us.is_none());
+        assert_eq!(row.locate_outcome, LocateOutcome::NotFound as u8);
+        assert_eq!(
+            row.serve_us,
+            row.prepare_us.unwrap_or(0) + row.locate_us.unwrap_or(0) + row.overhead_us
+        );
     }
 
     #[test]

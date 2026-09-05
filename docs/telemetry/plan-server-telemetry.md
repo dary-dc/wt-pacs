@@ -167,49 +167,40 @@ after send:     now(); send    = now−mark;           // 1  (closes send)
 
 **Before:** local `t0` at the start of every stage + `elapsed` at the end (~8 `now`s).
 
-**After (conceptual) — boundaries at method entry; emit closes send:**
+**After — wrap only when env on (`tap: Tap`); boundaries at method entry; refuse closes open stage:**
 
 ```rust
 async fn prepare(&mut self, frame: u32) -> Result<()> {
-    if let Some(tap) = &mut self.tap {
-        tap.begin_frame(frame); // serve_start = mark = now  (entry)
-    }
+    self.tap.begin_frame(frame); // serve_start = mark = now  (entry)
     self.inner.prepare(frame).await
 }
 
 fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
-    if let Some(tap) = &mut self.tap {
-        tap.boundary_prepare_done(); // entry: close prepare, mark = now
-    }
+    self.tap.boundary_prepare_done(); // entry: close prepare, mark = now
     let result = self.inner.locate(store, frame);
-    if let Some(tap) = &mut self.tap {
-        match &result {
-            Ok(bytes) => tap.note_locate(LocateOutcome::Ok, bytes.len()),
-            Err(_) => tap.note_locate(LocateOutcome::NotFound, 0),
-        }
+    if let Ok(bytes) = &result {
+        self.tap.note_locate(LocateOutcome::Ok, bytes.len());
     }
     result
 }
 
 async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
-    if let Some(tap) = &mut self.tap {
-        tap.boundary_locate_done(); // entry: close locate, mark = now
-    }
+    self.tap.boundary_locate_done(); // entry: close locate, mark = now
     let envelope_len = ENVELOPE_LEN + bytes.len();
-    let result = self.inner.send(frame, bytes).await;
-    if let Some(tap) = &mut self.tap {
-        match &result {
-            Ok(()) => tap.emit_sent(envelope_len), // after send: close send + serve + overhead
-            Err(_) => tap.emit_write_err(),
+    match self.inner.send(frame, bytes).await {
+        Ok(()) => {
+            self.tap.emit_sent(envelope_len); // after send: close send + serve + overhead
+            Ok(())
+        }
+        Err(e) => {
+            self.tap.emit_write_err();
+            Err(e)
         }
     }
-    result
 }
 
 async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
-    if let Some(tap) = &mut self.tap {
-        tap.emit_refused(); // closes whatever is open; send_us = null; serve + overhead
-    }
+    self.tap.emit_refused(); // closes open prepare/locate; send_us = null
     self.inner.refuse(control, frame, err).await
 }
 ```

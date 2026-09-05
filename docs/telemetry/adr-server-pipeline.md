@@ -25,8 +25,10 @@ The session loop calls only `serve_one` / `drain_acks` on a generic `P: FramePip
 
 **Product `ProductPipeline`** holds `Arc<FrameStore>` + `FrameOut` and implements real work.
 
-**Lab `RecordedPipeline<P>`** wraps any `FramePipeline`, holds `Tap`, stamps each step. It does
-**not** override `serve_one`.
+**Lab `RecordedPipeline<P>`** wraps any `FramePipeline`, holds a live `Tap`, stamps each step.
+Session constructs it only when `Tap::for_session()` is `Some` (env on). It does **not** override
+`serve_one`. Failure finalize lives in `Tap::emit_refused` (closes the open stage), not Err
+closes inside prepare/locate.
 
 **Arc clone in default `serve_one`:** before `locate`, clone the study `Arc` so returned bytes
 borrow that clone (not `self`). That lets `send(&mut self, bytes)` compile for wrappers without
@@ -35,7 +37,8 @@ existing clone for `spawn_blocking` in `prepare`).
 
 - Prefault lives in `ProductPipeline::prepare` (see `docs/disk-access/adr.md`).
 - Send failures abort the session (no `FrameError` on control); prepare/locate failures call `refuse`.
-- Default builds construct only `ProductPipeline`; `RecordedPipeline` is `#[cfg(feature = "telemetry")]`.
+- Default builds construct only `ProductPipeline`; `RecordedPipeline` is `#[cfg(feature = "telemetry")]`
+  and is only constructed when the telemetry env is enabled.
 
 ## Report schema
 

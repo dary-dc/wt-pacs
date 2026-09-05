@@ -125,21 +125,19 @@ impl FramePipeline for ProductPipeline {
     }
 }
 
-/// Lab wrapper: stamp at method entry (contiguous chain), delegate, stamp.
+/// Lab wrapper: stamp at method entry (contiguous chain), delegate, metadata/emit.
+/// Constructed only when telemetry env is on — `tap` is always present.
 /// Generic so it cannot reach product fields.
 #[cfg(feature = "telemetry")]
 pub(crate) struct RecordedPipeline<P> {
     inner: P,
-    tap: Option<Tap>,
+    tap: Tap,
 }
 
 #[cfg(feature = "telemetry")]
 impl<P: FramePipeline> RecordedPipeline<P> {
-    pub(crate) fn new(inner: P) -> Self {
-        Self {
-            inner,
-            tap: Tap::for_session(),
-        }
+    pub(crate) fn new(inner: P, tap: Tap) -> Self {
+        Self { inner, tap }
     }
 }
 
@@ -152,50 +150,34 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
     }
 
     async fn prepare(&mut self, frame: u32) -> Result<()> {
-        if let Some(tap) = &mut self.tap {
-            tap.begin_frame(frame); // serve_start = mark = now
-        }
-        let result = self.inner.prepare(frame).await;
-        // Prepare failed → locate will not run; close prepare before refuse.
-        if result.is_err() {
-            if let Some(tap) = &mut self.tap {
-                tap.boundary_prepare_done();
-            }
-        }
-        result
+        self.tap.begin_frame(frame); // serve_start = mark = now
+        self.inner.prepare(frame).await
+        // Prepare Err → serve_one calls refuse; emit_refused closes prepare.
     }
 
     fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
-        if let Some(tap) = &mut self.tap {
-            tap.boundary_prepare_done(); // entry: close prepare
-        }
+        self.tap.boundary_prepare_done(); // entry: close prepare
         let result = self.inner.locate(store, frame);
-        if let Some(tap) = &mut self.tap {
-            match &result {
-                Ok(bytes) => tap.note_locate(LocateOutcome::Ok, bytes.len()),
-                Err(_) => {
-                    tap.note_locate(LocateOutcome::NotFound, 0);
-                    // Locate failed → send will not run; close locate before refuse.
-                    tap.boundary_locate_done();
-                }
-            }
+        if let Ok(bytes) = &result {
+            self.tap.note_locate(LocateOutcome::Ok, bytes.len());
         }
+        // Locate Err → refuse; emit_refused closes locate + notes NotFound.
         result
     }
 
     async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
-        if let Some(tap) = &mut self.tap {
-            tap.boundary_locate_done(); // entry: close locate
-        }
+        self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + bytes.len();
-        let result = self.inner.send(frame, bytes).await;
-        if let Some(tap) = &mut self.tap {
-            match &result {
-                Ok(()) => tap.emit_sent(envelope_len),
-                Err(_) => tap.emit_write_err(),
+        match self.inner.send(frame, bytes).await {
+            Ok(()) => {
+                self.tap.emit_sent(envelope_len);
+                Ok(())
+            }
+            Err(e) => {
+                self.tap.emit_write_err();
+                Err(e)
             }
         }
-        result
     }
 
     async fn refuse(
@@ -204,9 +186,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         frame: u32,
         err: Error,
     ) -> Result<()> {
-        if let Some(tap) = &mut self.tap {
-            tap.emit_refused();
-        }
+        self.tap.emit_refused(); // close open stage + emit
         self.inner.refuse(control, frame, err).await
     }
 
