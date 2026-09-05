@@ -6,6 +6,8 @@
 
 use anyhow::{Context, Result};
 use exact_server::media::frame_store::host_page_size;
+use std::fs::File;
+use std::os::unix::io::AsRawFd;
 
 /// One-syscall populate of a mapped range (Linux 5.14+). Faults like a byte-per-page touch
 /// loop, so it belongs on a blocking pool, but spends no user time walking the range.
@@ -53,4 +55,33 @@ pub fn unmap_pages(bytes: &[u8]) -> Result<()> {
         return Err(std::io::Error::last_os_error()).context("madvise DONTNEED");
     }
     Ok(())
+}
+
+/// Ask the kernel to start read-ahead on a byte range it would not have guessed.
+///
+/// The `RWF_NOWAIT` fast path is only fast because kernel read-ahead has already pulled the
+/// next pages in, and read-ahead only fires on a pattern it can see. A reader taking the
+/// first *N* bytes of each frame and skipping the rest presents no such pattern, so every
+/// ask misses. `POSIX_FADV_WILLNEED` states the pattern instead of implying it: it queues
+/// the I/O and returns without copying anything, so it is safe on the executor.
+///
+/// **Layout-independent by construction.** It works on whatever order the bytes are already
+/// in, which is the point — a packer that groups related bytes would make it unnecessary,
+/// and until that exists this is the only lever that does not need one.
+///
+/// Advisory: the kernel may ignore it, and a hint issued too late is simply a wasted
+/// syscall. Never an error the caller must handle.
+pub fn hint_willneed(file: &File, offset: u64, len: usize) {
+    if len == 0 {
+        return;
+    }
+    // SAFETY: `posix_fadvise` reads no user memory; a bad range is reported, not undefined.
+    unsafe {
+        libc::posix_fadvise(
+            file.as_raw_fd(),
+            offset as libc::off_t,
+            len as libc::off_t,
+            libc::POSIX_FADV_WILLNEED,
+        );
+    }
 }
