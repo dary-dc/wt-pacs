@@ -14,45 +14,35 @@ been designed yet — how should the server read frame bytes?*
 
 ## The answer in one table
 
-**One number decides it: the fraction of asks that miss the page cache.** Not the
-temperature, not the access shape, not the ask size — those only *produce* a miss rate.
+**Two things decide it, and they multiply: how many reads are in flight, and what fraction
+of them miss the page cache.** Temperature, access shape and ask size only *produce* a miss
+rate; depth and session count only *produce* an in-flight count.
 
-CPU per ask, median over 2 748 cost cells across two independent runs
-([`v10_campaign.tsv`](v10_campaign.tsv)); the paired table below draws 792 same-repeat
-comparisons from them:
+`hybrid` versus `pool` (the path shipped today), CPU per ask, paired cell by cell across two
+independent runs ([`v10_campaign.tsv`](v10_campaign.tsv)). Negative = the hybrid is cheaper;
+the fraction is how many paired comparisons agreed:
 
-| Asks that miss | `pool` *(today)* | **`hybrid`** | `uring` | `pooled_pread` | Cheapest |
-| --- | ---: | ---: | ---: | ---: | --- |
-| **0–5%** | 4 544 ns | **4 594 ns** | 8 867 ns | 38 919 ns | pool ≈ hybrid |
-| **5–20%** | 16 955 ns | **7 268 ns** | 7 712 ns | 42 728 ns | **hybrid** |
-| **20–50%** | 49 093 ns | **22 852 ns** | 21 412 ns | 48 103 ns | ring arms |
-| **50–100%** | 74 922 ns | **26 454 ns** | 25 304 ns | 75 448 ns | ring arms |
+| Reads in flight | 0–5% miss | 5–50% miss | 50–100% miss |
+| ---: | ---: | ---: | ---: |
+| **1** | −3.5% · 66/108 *(tie)* | **−44.8% · 12/12** | **−53.4% · 77/78** |
+| **4** | −24.0% · 65/74 | **−51.2% · 45/46** | **−69.9% · 78/78** |
+| **16** | −5.4% · 59/96 *(tie)* | **−61.3% · 78/82** | **−70.9% · 98/98** |
+| **64** | −6.8% · 38/62 *(tie)* | **−70.2% · 28/28** | **−76.5% · 30/30** |
 
-Paired cell by cell against `pool`, the arm shipped today:
+Read it as two rules:
 
-| Miss rate | `hybrid` CPU | cheaper in | `hybrid` p50 | faster in | `uring` CPU | `uring` p50 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0–5% | **−8.6%** | 228/340 | **−8.5%** | 250/340 | +47.1% | **+601%** |
-| 5–20% | **−53.4%** | **88/88** | −16.0% | 71/88 | −51.7% | **+607%** |
-| 20–50% | **−67.3%** | 75/80 | −9.4% | 52/80 | −68.8% | **+91%** |
-| 50–100% | **−65.2%** | **283/284** | −27.1% | 266/284 | −68.8% | −7.5% |
+* **Below ~5% misses the hybrid is a tie.** It costs nothing and buys nothing. Sign agreement
+  is near a coin flip, which is what "no effect" looks like.
+* **Above ~5% misses the hybrid wins, everywhere, and the win grows with concurrency** — from
+  −45% at one read in flight to −77% at 64. Sign agreement is 12/12, 45/46, 78/82, 98/98,
+  30/30. These are not marginal effects.
 
-### The three findings that follow
+The same comparison for **pure io_uring** shows why the hybrid rather than the ring: it
+matches the hybrid when misses dominate, and is **+47% CPU and 6× the latency** when they do
+not, because every cached read pays a submit-and-complete round trip it never needed.
+`pooled_pread` — the ADR's escape hatch — is 5–8× worse than either almost everywhere.
 
-1. **`hybrid` is the only arm that is never materially worse than the best alternative** —
-   on CPU *and* on latency, in every miss bucket. It is `pread` when the page cache hits and
-   a ring when it misses, so it does not need to be told which regime it is in.
-2. **Pure io_uring is never the right choice.** It matches `hybrid` when misses dominate and
-   is catastrophic when they do not: +47% CPU and **6× the latency** at low miss rates,
-   because every cached read pays a submit-and-complete round trip it never needed.
-3. **`pool`, the path shipped today, is right only below ~5% misses.** Above that it costs
-   2–3× the CPU, and it holds concurrency in **OS threads**: up to 118 of them in these
-   cells, against 5 for either ring arm. That is a scaling ceiling, not just a cost.
-
-**The crossover is between 5% and 20% misses**, and it is sharp: at 5–20% the hybrid wins
-88 comparisons out of 88.
-
-**Threads, over every cost cell** — the ceiling that a CPU number does not show:
+**Threads, the ceiling a CPU number does not show:**
 
 | Arm | median | worst |
 | --- | ---: | ---: |
@@ -61,9 +51,9 @@ Paired cell by cell against `pool`, the arm shipped today:
 | `uring` | 5 | **5** |
 | `hybrid` | 5 | **5** |
 
-A concurrent miss costs a *thread* in the pool arms and nothing in the ring arms. Tokio's
+A concurrent miss costs an OS thread in the pool arms and nothing in the ring arms. Tokio's
 blocking pool defaults to 512 threads, so `pool` has a hard ceiling on concurrent misses per
-process that the ring simply does not have.
+process that a ring does not have.
 
 **The ranking does not move with ask size.** Cold, strided, 16 in flight:
 
@@ -73,18 +63,54 @@ process that the ring simply does not have.
 | 16 KB | 63 354 ns | 16 947 ns | **15 114 ns** |
 | 64 KB | 84 723 ns | 35 521 ns | **31 012 ns** |
 
-So rung size — the number nobody can pin down yet — does not change which read path to
-use. That is the part of this answer that survives the layout design whatever it turns out
-to be.
+Rung size — the number nobody can pin down yet — does not change which read path to use.
+**That is the part of this answer that survives the layout design whatever it turns out to
+be.**
 
----
+### The hybrid's worst cases, stated plainly
+
+"Never materially worse" is a claim that deserves its own audit. Over all 792 paired
+comparisons:
+
+* the hybrid is **>20% worse in 40 cells (5.1%)** and **>20% better in 535 (67.6%)**;
+* the median across every cell is **−46.6%**;
+* the single worst cell is **+78.8%** (cold, strided, 64 KB asks, one read in flight, 76%
+  misses — a shape where the extra `RWF_NOWAIT` attempt before each ring submission is pure
+  overhead because it nearly always fails).
+
+So the honest form of H5 is not "never worse" but **"worse in about one cell in twenty, by
+less than it is better in two out of three"**. Every one of the 40 bad cells is at one read
+in flight or at a miss rate under 5% — the two regions where the table above already says the
+hybrid is a tie rather than a win.
+
+### The one thing that did not resolve
+
+A separate harness (`crossover_bench`, which controls the miss rate directly by pre-warming a
+chosen fraction of the offsets — [`v11_crossover.tsv`](v11_crossover.tsv)) agrees with the
+campaign everywhere except **one read in flight**, where it finds a tie at every miss rate,
+including 100%:
+
+| Reads in flight | miss rate | campaign: hybrid vs pool | crossover: hybrid vs pool |
+| ---: | ---: | ---: | ---: |
+| 1 | 100% | −53.4% (77/78) | −2.1% (4/6) |
+| 8 | 100% | — | **−67.1% (6/6)** |
+| 8 | 2% | — | −16.8% (5/6) |
+
+Both were re-run back to back on the identical configuration and both reproduced their own
+answer, so this is a difference between the harnesses, not host drift. I could not identify
+the cause: both complete all asks, both report the same miss rate for the ring arm, and their
+throughputs match within 20%. **Treat the depth-1 magnitude as unresolved — somewhere between
+a tie and −53%.**
+
+It does not change the recommendation. At one read in flight the hybrid is *at worst a tie*
+in both harnesses, and every case we care about runs deeper than one.
 
 ## What that means for our cases
 
 | Case | Miss rate it produces | Read path | Why |
 | --- | --- | --- | --- |
 | **US stack, whole frames in order, study fits in RAM** | 0% | `pool` or `hybrid` — indistinguishable | Nothing to overlap. Don't add a ring for this alone |
-| **US stack, whole frames in order, study exceeds RAM** | ~6% (median; read-ahead carries most of it) | **`hybrid`** | Sits on the crossover. The hybrid is free here and covers the tail |
+| **US stack, whole frames in order, study exceeds RAM** | ~6% (median; read-ahead carries most of it) | **`hybrid`** | Just past the crossover. Free when it does not help, −45% or better when it does |
 | **Rung delivery from a frame-major layout** *(prefix of each frame, skip the rest)* | **90%** | **`hybrid`** | Read-ahead cannot see the pattern. −65% CPU, −27% p50, 283/284 cells |
 | **Rung delivery from a layout that groups what is read together** | ~6% | **`hybrid`** | Grouping converts the case above into the case above that. Worth doing on its own merits, and the hybrid does not care either way |
 | **Many concurrent sessions, cold** | 88–98% | **`hybrid`** | −20% to −56% CPU, threads flat at 5 vs 12–74 |
@@ -153,11 +179,11 @@ Stated before the campaign ran; see §Method for the controls.
 
 | # | Hypothesis | Verdict |
 | --- | --- | --- |
-| **H1** | Ranking is governed by cache temperature, not shape | **Refined, not confirmed.** It is governed by *miss rate*; temperature and shape only produce one. Bucketed by miss rate, cold and warm cells rank identically |
-| **H2** | Ranking depends on reads in flight; a ring cannot win at depth 1 | **Falsified.** The ring wins at depth 1 too when misses dominate (−51% CPU). Depth *amplifies* the advantage; it does not create it |
+| **H1** | Ranking is governed by cache temperature, not shape | **Refined.** Neither: it is governed by *miss rate*, which temperature and shape both produce. But miss rate alone was not enough — see H2 |
+| **H2** | Ranking depends on reads in flight; a ring cannot win at depth 1 | **Partly supported, and the correction to H1.** Miss rate and in-flight count *multiply*: the win runs from −45% at one read in flight to −77% at 64. Whether a ring wins at exactly one read in flight is the unresolved disagreement above |
 | **H3** | The read-ahead hint and the mechanism are complementary | **Falsified.** They are substitutes: the hint's benefit collapses once the ring is in use |
-| **H4** | Only total reads in flight matters, not how many readers hold them | **Falsified.** At 16 in flight, `pool` costs 60 µs/ask as one reader × 16 and 295 µs/ask as 16 readers × 1. The ring arms are far less sensitive |
-| **H5** | The hybrid is never worse than the better of pool and uring | **Supported** across 792 paired comparisons, on CPU and latency, in every bucket |
+| **H4** | Only total reads in flight matters, not how many readers hold them | **Falsified.** At 16 in flight, `pool` costs 60 µs/ask as one reader × 16 and 295 µs/ask as 16 readers × 1. The ring arms are far less sensitive, so the multi-session case favours them *more* than the single-session depth sweep suggests |
+| **H5** | The hybrid is never worse than the better of pool and uring | **Supported with a caveat.** Worse by >20% in 40 of 792 comparisons (5.1%), better by >20% in 535 (67.6%), median −46.6%. Every bad cell sits at one read in flight or under 5% misses |
 | **H6** | A CPU win does not cost executor safety | **Supported.** The ring arms lower co-tenant gaps by ~40% cold and are neutral warm |
 
 ---
