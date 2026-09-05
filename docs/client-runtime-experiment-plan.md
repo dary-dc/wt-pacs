@@ -1,6 +1,6 @@
 # Plan: WASM vs TypeScript client, same wire
 
-**For:** wt-pacs implementer · 2026-08-29 · **Status:** planned, blocked on §3
+**For:** wt-pacs implementer · 2026-08-29 · **Status:** planned — wire preconditions landed on this branch; still blocked on stream-mode remediation (§0) and shaped cells for N6
 
 One question: **what does the WASM/JS boundary cost on the receive path?** Both clients in this repo
 talk to the same server over the same wire, so the transport is held constant and the runtime is the
@@ -25,8 +25,8 @@ Current experiment state, so this plan is not read as jumping the queue.
 | **X1** `finish()` gate | **PASS** |
 | **X2** lossless mode comparison | **has data**, but the 18.2% gap at 150 ms RTT is **unexplained** |
 | **X3** loss decider | **INVALID.** Unequal depths (shared `D_min` 2, per-frame 8, both run at `D=4`), a control that failed unnoticed (92% gap at **zero** loss), an overridden stop gate, p95 over ~4 tail samples, and an unexplained `mild_cell` timeout |
-| Copy-cost knee sweep | **not started** (`send-path-copy-costs.md`) |
-| **This plan (N6)** | blocked on §3 |
+| Copy-cost knee sweep | **not started** (see [`WIRE.md`](WIRE.md) § Server send path) |
+| **This plan (N6)** | preconditions P1–P3 landed on branch; still blocked on §0 remediation + shaped campaign |
 
 **Do this first, before N6** — see [`stream-mode-remediation.md`](stream-mode-remediation.md):
 
@@ -76,51 +76,46 @@ State this now so a null result is informative and a large result is checked rat
 
 ---
 
-## 3 · Preconditions — none of this runs until these are done
+## 3 · Preconditions
 
-**Three of these four are product defects that need fixing regardless of this experiment.** Land them
-on `main` on their own merits, not as experiment scaffolding. Only P3 is new capability, and it is
-gated (see below).
+**P1–P3 are landed on this branch** (verified by local e2e: both arms, shared and per-frame).
+**P4** is also fixed (WASM `RecvBuf` receive path). N6 is no longer blocked on client wire or
+telemetry plumbing — it is blocked on §0 stream-mode remediation and a shaped link cell.
 
-| | product fix or scaffolding? |
+| | status |
 | --- | --- |
-| P1 clients behind the server wire | **product defect** — the shipped clients cannot read what the server writes |
-| P2 no shared-stream reader | **product gap** — shared is the server's real-traffic mode |
-| P3 client telemetry | **new capability — must be feature-gated, see P3** |
-| P4 WASM triple copy | **product defect** |
+| P1 wire framing | **landed** — length-prefixed envelope on both arms |
+| P2 shared-mode reader | **landed** — framing loop over one long-lived uni |
+| P3 client telemetry | **landed** — see [`telemetry/README.md`](telemetry/README.md) |
+| P4 WASM receive copies | **landed** — `RecvBuf` cursor buffer; one JS-heap copy per frame |
 
 
-**P1 · Both browser clients are behind the server wire.** The server writes
-`[4B BE len][4B BE index][codestream]` in both stream modes. `transport-ts/session.ts:111-114` does
-`readStreamToEnd(stream)` then `unwrapEnvelope(raw)`, which reads **the length prefix as the display
-index**. `transport-wasm`'s `read_stream_to_end` has the same shape. Only `lab/window-harness` parses
-the prefix correctly (`read_framed_paced` → `parse_length_prefixed`). Source-confirmed; not
-reproduced in a browser.
+**P1 · Wire framing — landed.** Both clients read `[4B BE len][4B BE index][codestream]` per frame.
+TS: `readLengthPrefixed` → `unwrapEnvelope` in `pumpFramedStream`
+(`client/transport-ts/session.ts`). WASM: `read_length_prefixed_frame` → `unwrap_envelope`
+(`client/transport-wasm/src/session.rs`).
 
-**P2 · Neither browser client can read shared mode at all.** Both assume *one uni stream = one
-frame*. Shared mode needs a framing loop over one long-lived stream. ~15–20 lines in TS, same in
-Rust. Required, because shared is the mode the server defaults to for real traffic.
+**P2 · Shared-mode reader — landed.** Both arms accept incoming uni streams and drain
+length-prefixed envelopes until EOF — one uni carries many frames in shared mode. Per-frame mode
+reuses the same parser on a uni that ends after one frame.
 
-**P3 · There is no client telemetry in this repo.** Nothing named `record`, `tap`, or `telemetry`
-exists under `client/`. The TS client has `timing.firstChunkMs` / `lastChunkMs`, but a single
-`performance.now()` after `readStreamToEnd` makes them **always equal** — the transfer term is
-degenerate today.
+**P3 · Client telemetry — landed.** See [`telemetry/README.md`](telemetry/README.md). External
+Proxy on `WebTransport` (ADR option G) instruments both arms from one implementation; default builds
+contain no telemetry code (`client/scripts/check_telemetry_absent.sh`). Harvest:
+`server/scripts/verify_e2e.py --telemetry`.
 
-> **One schema, both arms, written once.** If the arms emit different fields or stamp at different
-> points, the comparison is unmeasurable no matter how clean the shell is. This is the real gate.
+> **One schema, both arms, written once.** The Proxy seam enforces identical stamping; if the arms
+> diverged, the comparison would be unmeasurable.
 
-> **Gate it like the server's.** The server compiles telemetry out by default — a `telemetry` cargo
-> feature, a zero-sized `Recorder`, and `server/scripts/check_telemetry_absent.sh` proving absence in
-> a default build. The client must follow the same discipline: **off by default, provably absent from
-> a default build, with its own absence check.** Measurement capability is not a reason to ship
-> measurement code.
+> **Open:** Decision A (byte attribution vs session totals) in
+> [`telemetry/adr-instrument-clients-from-outside.md`](telemetry/adr-instrument-clients-from-outside.md).
 
-Minimum fields per frame: `askMs`, `firstChunkMs`, `lastChunkMs`, `chunks`, `bytes`, `frameIndex`,
-plus a per-session `connectMs` (module fetch → first ask on the wire).
+Per-frame fields include `ask`, chunk stamps, `chunks`, `bytes`, `frameIndex`; per-session
+`connectMs`. Transfer is non-degenerate when frames arrive in multiple reads.
 
-**P4 · Fix the WASM client's own copy defect first.** `read_stream_to_end` allocates a `tmp` vec per
-chunk, copies into it, copies again into `out`, then a third time into JS. Measuring that would
-measure our bug, not the cost of WASM.
+**P4 · WASM receive copies — landed.** `RecvBuf` holds stream chunks with a cursor; one copy into
+the JS heap via `js_buffer_from` per delivered frame. The old per-chunk `tmp` vec + triple-copy path
+is gone.
 
 ---
 
@@ -148,7 +143,7 @@ instantiate land entirely on it.
 
 Goal metric: **p95 time-to-displayable per frame.** Secondary, all per frame:
 
-- `lastChunkMs − firstChunkMs` — the transfer term, non-degenerate once P3 lands
+- `lastChunkMs − firstChunkMs` — the transfer term (non-degenerate with P3 telemetry)
 - bytes copied into the JS heap, and count of copies
 - transient allocation per frame (JS heap growth between frames)
 - `connectMs`, reported separately, never folded into the per-frame mean

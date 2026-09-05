@@ -33,9 +33,9 @@ if [[ ! -f "$BIN" ]]; then
 fi
 
 echo "Checking $BIN …"
-if nm -C "$BIN" 2>/dev/null | grep -qE 'exact_server::record::tap|Tap::for_session|server_work_us'; then
+if nm -C "$BIN" 2>/dev/null | grep -qE 'exact_server::record::tap|Tap::for_session|prepare_us|overhead_us|server_work_us'; then
   echo "FAIL: telemetry symbols found in default build" >&2
-  nm -C "$BIN" | grep -E 'record::tap|Tap::' || true
+  nm -C "$BIN" | grep -E 'record::tap|Tap::|overhead_us' || true
   exit 1
 fi
 
