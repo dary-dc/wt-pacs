@@ -3,6 +3,12 @@
 **2026-09-05 · T2** (single-host loopback + TBF shaping in a private netns).
 Claims cross-checked against upstream source, kernel documentation and published
 measurement in [§7](#7--what-the-outside-evidence-says).
+
+> **This is the measurement record, not the implementation guide.** For applying any of
+> it to the post-rewrite server, and for the ranking against *our* primary metric, read
+> [`transport-optimization-spec.md`](transport-optimization-spec.md) instead — it is
+> written against invariants rather than against this tree's file layout, and it re-ranks
+> everything below for **p95 time-to-displayable**, which this campaign did not measure.
 Raw data: [`measurements/quic-opt/`](measurements/quic-opt/). Rig:
 [`lab/scripts/quic_opt_bench.sh`](../lab/scripts/quic_opt_bench.sh) (unshaped),
 [`lab/scripts/quic_opt_shaped.sh`](../lab/scripts/quic_opt_shaped.sh) (rate-shaped),
@@ -475,6 +481,42 @@ last.** Swapping the crypto provider before removing the copies is optimising th
 The **prefault** result (§6) and the **`send_fairness`** result (§4) have no external
 analogue found — the first is specific to this server's design, the second is a quinn knob
 with no published measurement. Both rest on this rig alone.
+
+---
+
+## 8 · What this ranks wrong for the actual goal
+
+Recorded after the target was pinned down: **p95 time-to-displayable primary, server CPU
+per byte secondary, browser-only client, ~3 concurrent viewers.** Against that, this
+document's ordering is wrong in three ways, and the corrected ranking lives in
+[`transport-optimization-spec.md`](transport-optimization-spec.md).
+
+1. **It measures the secondary metric.** A saturating harness on loopback produces
+   throughput and CPU per byte. It produces no p95 at all (`--mode saturate` yields no
+   wait times). Everything ranked #1–#3 in the summary is a *density* result.
+
+2. **At ~3 viewers, density is not the constraint.** Four cores serving three sessions is
+   not close to saturated, so the GSO cap and the send-path copies buy headroom rather
+   than responsiveness. They are still worth taking; they are not the top of the list.
+
+3. **The knobs that move p95 are exactly the ones this rig could not test.** No RTT axis
+   and no loss axis means congestion window, loss recovery and congestion control were
+   either untested or tested in the one regime where they cannot matter.
+
+**One conclusion here must be actively un-learned.** Row 9 — "BBR is 4–6 % worse than
+Cubic" — was measured on a zero-RTT lossless link with a shallow token bucket. That is the
+regime where Cubic is already optimal and where BBR's entire purpose cannot appear. It is
+a true statement about this rig and **not** evidence about a browser on a real path. The
+congestion-controller question is **open**, not closed.
+
+The same caution applies to every null in §5 involving a *window*: the default
+`stream_receive_window` is tuned for 100 Mbps × 100 ms, and finding it makes no difference
+at ~0 RTT is not a finding about a WAN. The MTU and socket-buffer nulls are more
+trustworthy, because those are CPU-side.
+
+And the largest untested lever is not in this document at all: quinn's default initial
+congestion window is 12 000 bytes, so a 250 KB frame spends roughly five RTTs in slow start
+before the link is used. See P1 of the spec.
 
 ---
 
