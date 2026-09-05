@@ -11,6 +11,23 @@ demand actually approaches cell capacity. Arms interleaved within each repeat.
 | file | experiment |
 | ---- | ---------- |
 | `e12_iw_x_congestion.tsv` | initial window × congestion controller, at **matched windows** so the two are not confounded |
+| `e6_loss_burstiness.tsv` | the same two controllers at burst 1 / 5 / 20, mean loss held constant |
+
+## Read `e6_loss_burstiness.tsv` before quoting anything from `e12`
+
+`e12` was run with uniform Bernoulli loss (`--loss-burst 1`), which is the **most
+favourable possible model for a rate-based controller and the most punishing for a
+loss-based one**. Holding the mean loss rate constant and only clustering it:
+
+| cell | burst 1 | burst 5 | burst 20 |
+| ---- | ------- | ------- | -------- |
+| B, cubic → bbr | 345 → 77 ms (−78 %) | 54 → 74 ms (**+38 %, BBR worse**) | 53 → 52 ms (tie) |
+| C, cubic → bbr | 1888 → 325 ms (−83 %) | 468 → 262 ms (−44 %) | 175 → 180 ms (tie) |
+
+Cubic's p95 improves ~11× as loss clusters; BBR is comparatively flat. At constant mean
+rate, bursty loss means fewer independent congestion *events*, and Cubic reduces its
+window per event rather than per lost packet. **A controller comparison that fixes the
+loss model has not measured a controller; it has measured the loss model.**
 
 ## Reading these columns
 
