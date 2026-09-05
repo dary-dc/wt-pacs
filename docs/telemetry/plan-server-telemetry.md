@@ -128,95 +128,78 @@ On a **perfect** contiguous happy path (last stage’s end stamp == serve’s en
 gap attributed into the next stage), residual is **0**. Overhead still matters for **refuse /
 partial** rows and for any work after the last stage stamp.
 
-### Agreed clock pattern (fewer `Instant`s — not just moving them)
+### Units: stay on microseconds
 
-**One mark.** First boundary at `begin_frame`. After that, **only stamp at stage end** (one
-`Instant::now()` per close). Duration = `now − mark`, then `mark = now`.
+Internal pending durations and the JSON report stay **integer µs**.  
+Nanos→µs only if we later see real precision pain (e.g. stages stuck at `0` that we care about).
+For prepare (disk) / send (network), µs is enough; do not add conversion for its own sake.
+
+### Where to put each `Instant::now` (start vs end)
+
+Contiguous = **one mark**, each boundary closes the previous stage. Two placements:
+
+| Placement | What a stage includes | Misses (tiny) |
+| --- | --- | --- |
+| **Stamp at start of each method** (+ final close after last) | From entering this step until entering the next (body + return + caller glue + next call setup) | Arg eval *before* the first line of that method (usually in the caller → folded into the *previous* stage when the next method stamps at entry) |
+| **Stamp at end of each method** | From previous end until this end (body; gap after previous is in this stage) | Code after the stamp (e.g. `return`) |
+
+Fidelity difference is **noise** next to disk/network. The useful difference is **readability**.
+
+**Agreed choice: stamp at the beginning of each stage method; close the last stage after it finishes (emit).**
+
+Why:
+
+- Predictable: first line of `prepare` / `locate` / `send` is the clock boundary  
+- Easy to explain: “when we *enter* locate, prepare is done”  
+- Same contiguous math and ~4 `now`s on the happy path  
+- Last stage still needs an end stamp (or emit) so `send_us` includes `inner.send`, not only the gap before it  
 
 ```text
-begin_frame:     serve_start = mark = now()          // 1 now
-end prepare:     now(); prepare = now−mark; mark=now // 1 now
-end locate:      now(); locate  = now−mark; mark=now // 1 now
-end send/emit:   now(); send    = now−mark;          // 1 now
-                 serve = now−serve_start;
-                 overhead = serve − prepare − locate − send
+prepare entry:  serve_start = mark = now()           // 1
+locate entry:   now(); prepare = now−mark; mark=now  // 1  (closes prepare)
+send entry:     now(); locate  = now−mark; mark=now  // 1  (closes locate)
+after send:     now(); send    = now−mark;           // 1  (closes send)
+                serve = now−serve_start;
+                overhead = serve − prepare − locate − send
 ```
-
-Happy path: **4** `now`s (vs ~8 today).  
-`locate_us` = time from **end of prepare** to **end of locate** (gap between methods is
-attributed to the following stage — that is intentional for a contiguous partition).
 
 ### Before → after (`RecordedPipeline`, all stages)
 
-**Before:**
+**Before:** local `t0` at the start of every stage + `elapsed` at the end (~8 `now`s).
+
+**After (conceptual) — boundaries at method entry; emit closes send:**
 
 ```rust
 async fn prepare(&mut self, frame: u32) -> Result<()> {
-    if let Some(tap) = &mut self.tap { tap.begin_frame(frame); }
-    let t0 = Instant::now();
-    let result = self.inner.prepare(frame).await;
-    if let Some(tap) = &mut self.tap { tap.record_prepare(micros_since(t0)); }
-    result
+    if let Some(tap) = &mut self.tap {
+        tap.begin_frame(frame); // serve_start = mark = now  (entry)
+    }
+    self.inner.prepare(frame).await
 }
 
 fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
-    let t0 = Instant::now();
+    if let Some(tap) = &mut self.tap {
+        tap.boundary_prepare_done(); // entry: close prepare, mark = now
+    }
     let result = self.inner.locate(store, frame);
     if let Some(tap) = &mut self.tap {
         match &result {
-            Ok(bytes) => tap.record_locate(micros_since(t0), LocateOutcome::Ok, bytes.len()),
-            Err(_) => tap.record_locate(micros_since(t0), LocateOutcome::NotFound, 0),
+            Ok(bytes) => tap.note_locate(LocateOutcome::Ok, bytes.len()),
+            Err(_) => tap.note_locate(LocateOutcome::NotFound, 0),
         }
     }
     result
 }
 
 async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
-    let t0 = Instant::now();
+    if let Some(tap) = &mut self.tap {
+        tap.boundary_locate_done(); // entry: close locate, mark = now
+    }
     let envelope_len = ENVELOPE_LEN + bytes.len();
     let result = self.inner.send(frame, bytes).await;
     if let Some(tap) = &mut self.tap {
         match &result {
-            Ok(()) => tap.emit_sent(micros_since(t0), envelope_len),
-            Err(_) => tap.emit_write_err(micros_since(t0)),
-        }
-    }
-    result
-}
-
-async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
-    if let Some(tap) = &mut self.tap { tap.emit_refused(); }
-    self.inner.refuse(control, frame, err).await
-}
-```
-
-**After (conceptual):**
-
-```rust
-async fn prepare(&mut self, frame: u32) -> Result<()> {
-    if let Some(tap) = &mut self.tap { tap.begin_frame(frame); } // serve_start = mark = now
-    let result = self.inner.prepare(frame).await;
-    if let Some(tap) = &mut self.tap { tap.close_prepare(); }    // one now: duration + advance mark
-    result
-}
-
-fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
-    let result = self.inner.locate(store, frame);
-    if let Some(tap) = &mut self.tap {
-        match &result {
-            Ok(bytes) => tap.close_locate(LocateOutcome::Ok, bytes.len()),
-            Err(_) => tap.close_locate(LocateOutcome::NotFound, 0),
-        }
-    }
-    result
-}
-
-async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
-    let envelope_len = ENVELOPE_LEN + bytes.len();
-    let result = self.inner.send(frame, bytes).await;
-    if let Some(tap) = &mut self.tap {
-        match &result {
-            Ok(()) => tap.emit_sent(envelope_len),   // one now: close send + serve + overhead
+            Ok(()) => tap.emit_sent(envelope_len), // after send: close send + serve + overhead
             Err(_) => tap.emit_write_err(),
         }
     }
@@ -224,34 +207,23 @@ async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
 }
 
 async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
-    if let Some(tap) = &mut self.tap { tap.emit_refused(); } // serve + overhead; send_us = null
+    if let Some(tap) = &mut self.tap {
+        tap.emit_refused(); // closes whatever is open; send_us = null; serve + overhead
+    }
     self.inner.refuse(control, frame, err).await
 }
 ```
 
-Tap close helper (one `now` per call — **do not** `elapsed(mark)` then a second `Instant::now()`):
+Boundary helper (one `now` — do not `elapsed` then a second `Instant::now()`):
 
 ```rust
 fn close_against_mark(&mut self) -> u32 {
-    let now = Instant::now(); // single read
+    let now = Instant::now();
     let us = duration_us(self.stage_mark.take().unwrap_or(now), now);
     self.stage_mark = Some(now);
     us
 }
 ```
-
-### Internal nanos → report micros (optional precision)
-
-**Idea:** keep pending stage lengths as **nanoseconds** (`u64`) on the Tap; convert to **µs**
-only when building the `FrameRecord` / JSON (contract stays integer µs).
-
-| | |
-| --- | --- |
-| **Pros** | Short stages that today round to `0` µs keep sub-µs detail until conversion; partition math can use nanos then round once |
-| **Cons** | Extra field width; one `/ 1000` (or `as_micros()`) at emit — **cheap**, not a hot-path concern |
-| **Verdict** | **Worth it if we do S3 anyway** — same touch sites; little cost. Not worth a solo change. Report schema stays µs unless we deliberately bump it later |
-
-`Instant` already has ns resolution on typical Linux; the loss today is mostly **storing µs early**.
 
 ### Schema / docs / tests
 
@@ -285,11 +257,11 @@ S4 or follow once the fields exist.
 
 ---
 
-## S5 · Readability (short — optional)
+## S5 · Readability (planned — separate commit after S1–S4)
 
 Delete `FrameRecordJson` + `From` if `FrameRecord` can `Serialize` directly; split
-`record/tap.rs` into hot path / sink / report; optional `RowBuilder`. **No behaviour change.**
-Skip unless editing that file for S1–S4 leaves it painful — same bar as client C5.
+`record/tap.rs` into hot path / sink / report; optional `RowBuilder`. **No behaviour change
+and no efficiency win** — structure only.
 
 ---
 
