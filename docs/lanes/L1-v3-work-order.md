@@ -4,6 +4,10 @@
 fails is a **STOP**: fix the step, re-run the gate, do not proceed on a failed gate and do not
 collect data past one.
 
+**Governing plan (2026-09-05):** [`L1-v3-complete-plan.md`](L1-v3-complete-plan.md) —
+behavior-first (null + dose-like response + regimes); short phases allowed, skipping scientific
+gates is not. Execute Phases A→F there; this work order remains the detailed S0–S12 checklist.
+
 Supersedes `L1-loss-run.md` (v2). v2's grid is void — see
 `docs/measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md`, and
 [`L1-v3-second-review.md`](L1-v3-second-review.md) for an independent confirmation, one
