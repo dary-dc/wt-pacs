@@ -32,13 +32,12 @@ forgotten. Do not re-copy them here.
 | --- | --- | --- | --- |
 | **S1** | Null ≠ 0 | Distributions skip `None` stages; empty → JSON `null` | **Correctness** — refused frames must not drag means toward 0 |
 | **S2** | Per-frame global lock | Clone `SyncSender` into each `Tap`; lock only at setup/shutdown | Lab hot path cheaper; no schema change |
-| **S3** | Contiguous stamps + `overhead_us` | Chain stage boundaries; exact partition | Clearer math; **schema + docs** change |
+| **S3** | Contiguous stamps + `overhead_us` | One mark chain; fewer `Instant::now`s; exact partition | Clearer math; **schema + docs** change |
 | **S4** | Server integrity block | Mirror client-ish integrity; honest dropped-records name | Trust the artifact |
-| **S5** | Readability (optional) | Drop `FrameRecordJson` dup; split `tap.rs`; optional `RowBuilder` | Structure only — same skepticism as client C5; do **after** S1–S4 if the file still hurts |
+| **S5** | Readability | Drop `FrameRecordJson` dup; split `tap.rs`; optional `RowBuilder` | Structure only — **not** faster; do after S1–S4, **separate commit** |
 
-Suggested order: **S1 → S2 → S4 → S3 → (S5 only if needed)**.  
-S3 is listed after S4 because it changes the published invariant and needs doc/absence updates;
-S1/S2/S4 do not rewrite the stage story.
+Suggested order: **S1 → S2 → S4 → S3 → S5** (one commit per S).  
+S3 after S4 because it changes the published invariant and needs doc/absence updates.
 
 ---
 
@@ -107,144 +106,165 @@ the drain thread’s `recv` loop ends). Last `Tap` drop still triggers shutdown 
 
 ---
 
-## S3 · Contiguous stamps + `overhead_us` (plan + how the edits look)
+## S3 · Contiguous stamps + `overhead_us` (agreed design)
 
 ### Problem (easy picture)
 
-Today each stage starts its **own** stopwatch, and `serve_us` is a third span from
-`begin_frame` → emit:
+Today each stage starts its **own** stopwatch; `serve_us` is a separate span from
+`begin_frame` → emit. Time *between* stages sits in `serve_us` only.
 
-```155:193:server/src/transport/pipeline.rs
-    async fn prepare(...) {
-        tap.begin_frame(frame);          // serve_start = now
-        let t0 = Instant::now();         // ← new clock
-        let result = self.inner.prepare(frame).await;
-        tap.record_prepare(micros_since(t0));
-        ...
-    }
-    fn locate(...) {
-        let t0 = Instant::now();         // ← another clock (gap since prepare ended)
-        ...
-    }
-    async fn send(...) {
-        let t0 = Instant::now();         // ← another clock (gap since locate ended)
-        ...
-        tap.emit_sent(micros_since(t0), ...);
-    }
-```
+Also, each stage does roughly **two** clock reads (`Instant::now` at start + `elapsed()` which
+reads again at end). Plus `begin_frame` and serve-at-emit → on the order of **~8** `now`s per
+happy-path frame.
 
-```87:88:server/src/record/tap.rs
-    pub(crate) fn begin_frame(&mut self, frame_index: u32) {
-        self.serve_start = Some(Instant::now());
-```
+### Two facts about the identity
 
-```126:130:server/src/record/tap.rs
-        let serve_us = self
-            .serve_start
-            .take()
-            .map(|t| micros_since(t))
-            .unwrap_or(0);
-```
+1. **`serve_us` is still measured as a full span** (`serve_start` → emit), **not** computed as
+   `prepare + locate + send`.  
+2. **`overhead_us = serve_us − prepare − locate − send`** (saturating). That is exactly why the
+   field can exist: serve is independent; stages are pieces; overhead is the residual.
 
-**Gaps** between “prepare ended” and “locate’s `Instant::now`” (and locate→send) are inside
-`serve_us` but **not** inside any stage. Hence the soft rule:
+On a **perfect** contiguous happy path (last stage’s end stamp == serve’s end stamp, and every
+gap attributed into the next stage), residual is **0**. Overhead still matters for **refuse /
+partial** rows and for any work after the last stage stamp.
 
-`serve_us ≥ prepare_us + locate_us + send_us`
+### Agreed clock pattern (fewer `Instant`s — not just moving them)
 
-Readers must interpret the leftover. Clock is also read many times per frame.
-
-### Goal
-
-One timeline. End of stage *k* = start of stage *k+1*. Publish:
+**One mark.** First boundary at `begin_frame`. After that, **only stamp at stage end** (one
+`Instant::now()` per close). Duration = `now − mark`, then `mark = now`.
 
 ```text
-serve_us = prepare_us + locate_us + send_us + overhead_us   // exact (happy path)
+begin_frame:     serve_start = mark = now()          // 1 now
+end prepare:     now(); prepare = now−mark; mark=now // 1 now
+end locate:      now(); locate  = now−mark; mark=now // 1 now
+end send/emit:   now(); send    = now−mark;          // 1 now
+                 serve = now−serve_start;
+                 overhead = serve − prepare − locate − send
 ```
 
-- **Happy path (all three stages):** with contiguous boundaries, stage sums cover
-  `[begin_frame, emit]`, so `overhead_us` is ~0 (or only tiny bookkeeping if we keep any
-  work outside the chain on purpose).
-- **Refuse / partial path:** missing stages stay `null`; `overhead_us` (or absent send) makes
-  the partition still honest — document the refuse rule in the same change.
+Happy path: **4** `now`s (vs ~8 today).  
+`locate_us` = time from **end of prepare** to **end of locate** (gap between methods is
+attributed to the following stage — that is intentional for a contiguous partition).
 
-This **changes** the README / server ADR invariant (inequality → equality + `overhead_us`).
-Absence greps must learn the new field name.
+### Before → after (`RecordedPipeline`, all stages)
 
-### Suggested shape of the code change
-
-**A. Tap holds a stage cursor** (not only `serve_start`):
-
-```rust
-// conceptual — not landed
-serve_start: Option<Instant>,
-stage_mark: Option<Instant>,  // end of last closed stage = start of next
-
-begin_frame:
-  let t = Instant::now();
-  serve_start = Some(t);
-  stage_mark = Some(t);
-  clear pendings…
-
-record_prepare / record_locate:  // or a shared close_stage()
-  let us = micros_since(stage_mark.take());
-  stage_mark = Some(Instant::now());  // next stage starts now
-  store us in pending_*
-
-emit_*:
-  let send_us = … from stage_mark …
-  let serve_us = micros_since(serve_start);
-  let overhead_us = serve_us
-      .saturating_sub(prepare.unwrap_or(0))
-      .saturating_sub(locate.unwrap_or(0))
-      .saturating_sub(send.unwrap_or(0));
-  // row gains overhead_us: Option<u32> or u32
-```
-
-**B. RecordedPipeline stops creating a fresh `Instant::now()` before each inner call.**  
-Either:
-
-- pass nothing and let Tap own the marks (prepare calls `tap.stage_begin` / `tap.record_prepare`
-  around `inner.prepare` without a local `t0`), or  
-- pass the shared mark into helpers — Tap ownership is simpler and keeps product `P` free of clocks.
-
-Sketch for `prepare` after the change:
+**Before:**
 
 ```rust
 async fn prepare(&mut self, frame: u32) -> Result<()> {
-    if let Some(tap) = &mut self.tap {
-        tap.begin_frame(frame); // sets serve_start + stage_mark
-    }
+    if let Some(tap) = &mut self.tap { tap.begin_frame(frame); }
+    let t0 = Instant::now();
     let result = self.inner.prepare(frame).await;
+    if let Some(tap) = &mut self.tap { tap.record_prepare(micros_since(t0)); }
+    result
+}
+
+fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
+    let t0 = Instant::now();
+    let result = self.inner.locate(store, frame);
     if let Some(tap) = &mut self.tap {
-        tap.record_prepare_end(); // closes prepare against stage_mark, advances mark
+        match &result {
+            Ok(bytes) => tap.record_locate(micros_since(t0), LocateOutcome::Ok, bytes.len()),
+            Err(_) => tap.record_locate(micros_since(t0), LocateOutcome::NotFound, 0),
+        }
     }
     result
 }
+
+async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
+    let t0 = Instant::now();
+    let envelope_len = ENVELOPE_LEN + bytes.len();
+    let result = self.inner.send(frame, bytes).await;
+    if let Some(tap) = &mut self.tap {
+        match &result {
+            Ok(()) => tap.emit_sent(micros_since(t0), envelope_len),
+            Err(_) => tap.emit_write_err(micros_since(t0)),
+        }
+    }
+    result
+}
+
+async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
+    if let Some(tap) = &mut self.tap { tap.emit_refused(); }
+    self.inner.refuse(control, frame, err).await
+}
 ```
 
-Same pattern for `locate` / `send` / `refuse` (refuse: emit with `send_us = None`, compute
-`overhead_us` from whatever stages ran).
+**After (conceptual):**
 
-**C. Schema / docs**
+```rust
+async fn prepare(&mut self, frame: u32) -> Result<()> {
+    if let Some(tap) = &mut self.tap { tap.begin_frame(frame); } // serve_start = mark = now
+    let result = self.inner.prepare(frame).await;
+    if let Some(tap) = &mut self.tap { tap.close_prepare(); }    // one now: duration + advance mark
+    result
+}
 
-- Add `overhead_us` on `FrameRecord` (+ JSON).
-- Invariant in `docs/telemetry/README.md` and `adr-server-pipeline.md`.
-- `check_telemetry_absent.sh` greps the new literal in default builds.
-- Unit test: happy-path row asserts
-  `serve_us == prepare + locate + send + overhead`; refuse row asserts absent send and a
-  defined rule for overhead.
+fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
+    let result = self.inner.locate(store, frame);
+    if let Some(tap) = &mut self.tap {
+        match &result {
+            Ok(bytes) => tap.close_locate(LocateOutcome::Ok, bytes.len()),
+            Err(_) => tap.close_locate(LocateOutcome::NotFound, 0),
+        }
+    }
+    result
+}
 
-### Size / risk (why it feels like “several lines”)
+async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
+    let envelope_len = ENVELOPE_LEN + bytes.len();
+    let result = self.inner.send(frame, bytes).await;
+    if let Some(tap) = &mut self.tap {
+        match &result {
+            Ok(()) => tap.emit_sent(envelope_len),   // one now: close send + serve + overhead
+            Err(_) => tap.emit_write_err(),
+        }
+    }
+    result
+}
 
-It touches **pipeline wrappers + Tap row + JSON + docs + absence + tests** — not huge logic,
-but a **wide** change. That is why it is its own phase and not mixed into S1/S2.
+async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
+    if let Some(tap) = &mut self.tap { tap.emit_refused(); } // serve + overhead; send_us = null
+    self.inner.refuse(control, frame, err).await
+}
+```
+
+Tap close helper (one `now` per call — **do not** `elapsed(mark)` then a second `Instant::now()`):
+
+```rust
+fn close_against_mark(&mut self) -> u32 {
+    let now = Instant::now(); // single read
+    let us = duration_us(self.stage_mark.take().unwrap_or(now), now);
+    self.stage_mark = Some(now);
+    us
+}
+```
+
+### Internal nanos → report micros (optional precision)
+
+**Idea:** keep pending stage lengths as **nanoseconds** (`u64`) on the Tap; convert to **µs**
+only when building the `FrameRecord` / JSON (contract stays integer µs).
+
+| | |
+| --- | --- |
+| **Pros** | Short stages that today round to `0` µs keep sub-µs detail until conversion; partition math can use nanos then round once |
+| **Cons** | Extra field width; one `/ 1000` (or `as_micros()`) at emit — **cheap**, not a hot-path concern |
+| **Verdict** | **Worth it if we do S3 anyway** — same touch sites; little cost. Not worth a solo change. Report schema stays µs unless we deliberately bump it later |
+
+`Instant` already has ns resolution on typical Linux; the loss today is mostly **storing µs early**.
+
+### Schema / docs / tests
+
+- Add `overhead_us` on the row + JSON  
+- README + ADR: inequality → `serve_us == prepare + locate + send + overhead` (define refuse)  
+- Absence grep for `overhead_us`  
+- Tests: happy-path identity; refuse path  
 
 ### Done when
 
-- Happy-path identity holds in a test  
-- Refuse path documented and tested  
-- Docs + absence updated  
-- No change to the wire or to product `ProductPipeline` bodies  
+- Happy-path identity holds in a test; refuse documented and tested  
+- Docs + absence updated; product `ProductPipeline` untouched  
+- Separate commit from S1/S2/S4/S5  
 
 ---
 
