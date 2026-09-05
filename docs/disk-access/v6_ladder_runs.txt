@@ -1,0 +1,37 @@
+# In-situ ladder, 5 independent runs (tokio multi, 4 workers, 1 spin monitor)
+# 320-frame forward pass x 9 per run. See SEND-BUDGET.md §2.
+A  loop only (no read, no copy, no yield)      p50     1236 ns  p99    11045 ns
+B  + 4 × 64 KiB nowait reads                   p50    15253 ns  p99    59409 ns   Δ   +14017 ns
+C  + copy to sink in 16 KiB chunks             p50    18742 ns  p99    47994 ns   Δ    +3489 ns
+D  + yield per 16 KiB chunk  = accepted arm    p50    22646 ns  p99    49403 ns   Δ    +3904 ns
+E  D, but 64 KiB write chunks (4 yields)       p50    19956 ns  p99    45323 ns
+F  D, but 256 KiB window (1 read, 16 yields)   p50    22840 ns  p99    54304 ns
+G  D, but 16 KiB window (16 reads, 16 yields)  p50    27316 ns  p99    56187 ns
+A  loop only (no read, no copy, no yield)      p50     1680 ns  p99    12472 ns
+B  + 4 × 64 KiB nowait reads                   p50    14096 ns  p99    49865 ns   Δ   +12416 ns
+C  + copy to sink in 16 KiB chunks             p50    17900 ns  p99    43929 ns   Δ    +3804 ns
+D  + yield per 16 KiB chunk  = accepted arm    p50    24503 ns  p99    56724 ns   Δ    +6603 ns
+E  D, but 64 KiB write chunks (4 yields)       p50    19710 ns  p99    45787 ns
+F  D, but 256 KiB window (1 read, 16 yields)   p50    21599 ns  p99    60229 ns
+G  D, but 16 KiB window (16 reads, 16 yields)  p50    28232 ns  p99    63143 ns
+A  loop only (no read, no copy, no yield)      p50     2161 ns  p99    15514 ns
+B  + 4 × 64 KiB nowait reads                   p50    14713 ns  p99    39544 ns   Δ   +12552 ns
+C  + copy to sink in 16 KiB chunks             p50    19442 ns  p99    54004 ns   Δ    +4729 ns
+D  + yield per 16 KiB chunk  = accepted arm    p50    26976 ns  p99    59487 ns   Δ    +7534 ns
+E  D, but 64 KiB write chunks (4 yields)       p50    21833 ns  p99    50803 ns
+F  D, but 256 KiB window (1 read, 16 yields)   p50    24615 ns  p99    53086 ns
+G  D, but 16 KiB window (16 reads, 16 yields)  p50    32081 ns  p99    72824 ns
+A  loop only (no read, no copy, no yield)      p50     2271 ns  p99    14392 ns
+B  + 4 × 64 KiB nowait reads                   p50    14877 ns  p99    46917 ns   Δ   +12606 ns
+C  + copy to sink in 16 KiB chunks             p50    19394 ns  p99    57614 ns   Δ    +4517 ns
+D  + yield per 16 KiB chunk  = accepted arm    p50    25872 ns  p99    54666 ns   Δ    +6478 ns
+E  D, but 64 KiB write chunks (4 yields)       p50    21800 ns  p99    53082 ns
+F  D, but 256 KiB window (1 read, 16 yields)   p50    25729 ns  p99    55520 ns
+G  D, but 16 KiB window (16 reads, 16 yields)  p50    29381 ns  p99    58325 ns
+A  loop only (no read, no copy, no yield)      p50     2121 ns  p99    12936 ns
+B  + 4 × 64 KiB nowait reads                   p50    14898 ns  p99    39491 ns   Δ   +12777 ns
+C  + copy to sink in 16 KiB chunks             p50    18844 ns  p99    45116 ns   Δ    +3946 ns
+D  + yield per 16 KiB chunk  = accepted arm    p50    28005 ns  p99    66101 ns   Δ    +9161 ns
+E  D, but 64 KiB write chunks (4 yields)       p50    20403 ns  p99    50654 ns
+F  D, but 256 KiB window (1 read, 16 yields)   p50    24229 ns  p99    54457 ns
+G  D, but 16 KiB window (16 reads, 16 yields)  p50    30216 ns  p99    64463 ns

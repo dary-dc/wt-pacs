@@ -6,7 +6,14 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 | --- | --- |
 | [`adr.md`](adr.md) | Accepted decision (`RWF_NOWAIT` streaming; pool only on the miss) |
 | [`RERUN.md`](RERUN.md) | Evidence: instrument, cells, TSVs here, and what the instrument cannot see |
+| [`SEND-BUDGET.md`](SEND-BUDGET.md) | What the per-frame number is *made of*, per-op io_uring vs `preadv2`, the send path over real quinn, and the frame cache |
 | [`later.md`](later.md) | Optional follow-ups only |
+
+**Reading a per-frame number for the first time?** Start with
+[`SEND-BUDGET.md`](SEND-BUDGET.md) §1. `later_p50` is one 250 KB frame, prepared and copied
+to the connection, on a page-cache hit — not a device I/O. Comparing it with a per-4 KiB
+NVMe latency is a category error, and in the citation's own unit this path reads 4 KiB in
+561 ns.
 
 ## The lab stays on the tip
 
@@ -26,7 +33,19 @@ cargo build -p disk-access-bench --release
 ./target/release/disk-access-bench --help
 ```
 
-`io-uring` is a dependency of **this crate only** — the product does not link it.
+`io-uring`, `quinn`, `rcgen` and `rustls` are dependencies of **this crate only** — the
+product links quinn through wtransport and does not link `io-uring` at all.
+
+Two more binaries live in the same crate, both used by [`SEND-BUDGET.md`](SEND-BUDGET.md):
+
+| Binary | What |
+| --- | --- |
+| `frame_budget <study> [ops\|uring\|ladder\|all] [monitors]` | Splits a frame into syscall, kernel copy, user copy and scheduler; prices one read op from 1 B to 250 KB against io_uring and `O_DIRECT` |
+| `wire_send_bench <study> <mode> <frames> [repeats]` | The send path over real quinn on IPv4 loopback, client in its own process. Modes: `write_all` (product), `write_chunk`, `cache:<MB>` (product `FrameCache`), `preloaded` (ceiling) |
+
+`wire_send_bench` binds IPv4, so it runs where the product's `with_bind_default` (IPv6)
+cannot — which is how the campaign's "no live end-to-end run" gap got closed for the send
+path.
 
 Four flags decide whether a result means anything (see [`RERUN.md`](RERUN.md) §Precision):
 
