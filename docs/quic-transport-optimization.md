@@ -7,8 +7,14 @@ Raw data: [`measurements/quic-opt/`](measurements/quic-opt/). Rig:
 [`lab/aead-bench`](../lab/aead-bench) (cipher microbench).
 
 Prompted by a generic "make QUIC faster" checklist. Two thirds of it turned out to be
-**already on by default** in `quinn`, and the item with the biggest headline number is
-the one we were already getting for free. The one real win was not on the list.
+**already on by default** in `quinn`, and the item with the biggest headline number —
+GSO — was one we were already getting for free.
+
+The wins were all one level below the checklist. GSO is on, but `quinn` uses a sixth of
+what the kernel allows, and raising it is worth more than anything on the list. The send
+path copied every frame, and the copy that survived an earlier fix turned out to be the
+expensive one. And the cheapest CPU in the server is the work it does per frame whether
+or not the page cache is warm.
 
 ---
 
@@ -16,34 +22,78 @@ the one we were already getting for free. The one real win was not on the list.
 
 | # | Change | Effect | Status |
 | - | ------ | ------ | ------ |
-| 1 | **Chunked send path** — `Bytes` slice of the mapping + `write_all_chunks` | **+15…20 % throughput** at 250 KB frames above ~1.4 Gbps; **−6…−17 % server CPU per byte at every rate** | **Adopted as default** |
-| 2 | UDP GSO | **3.7×** at 250 KB, **1.8×** at 32 KB | Already on — quinn default |
-| 3 | DPLMTUD (RFC 8899) | no measurable effect on this path | Already on — quinn default |
-| 4 | `aws-lc-rs` instead of `ring` | +1–2 % end to end (AEAD itself is 1.33× faster) | Opt-in feature, **not** default |
-| 5 | `send_fairness(false)` | +11.8 % for **per-frame** mode at D=4; nil for shared | Exposed, default unchanged |
-| 6 | ACK frequency extension | +2.7 % at 250 KB, nil at 32 KB | Exposed, default off |
-| 7 | BBR instead of Cubic | **−4…−6 % throughput, up to 2× CPU** | Exposed, default Cubic |
-| 8 | Flow-control windows, socket buffers, `initial_mtu` | **nil, all of them** | Left at quinn defaults |
+| 1 | **quinn's GSO segment cap, 10 → 32** | **+17.2 % throughput, −20.9 % CPU/byte** at 250 KB; +5.1 % / −15.6 % at 32 KB | **Upstream constant — needs a quinn patch.** Biggest lever found |
+| 2 | **Chunked send path** — `Bytes` slice of the mapping + `write_all_chunks` | **+5.3 % throughput, −6…−14 % CPU/byte** vs the current baseline | **Adopted as default** |
+| 3 | **Per-frame prefault hop**, warm cache | **costs 10 % throughput and 14–34 % CPU/byte** | Measured, **default unchanged** — it is a safety decision, see §6 |
+| 4 | UDP GSO itself | **3.7×** at 250 KB, **1.8×** at 32 KB | Already on — quinn default |
+| 5 | DPLMTUD (RFC 8899) | no measurable effect on this path | Already on — quinn default |
+| 6 | `aws-lc-rs` instead of `ring` | +1–2 % end to end (AEAD itself is 1.33× faster) | Opt-in feature, **not** default |
+| 7 | `send_fairness(false)` | +11.8 % for **per-frame** mode at D=4; nil for shared | Exposed, default unchanged |
+| 8 | ACK frequency extension | +2.7 % at 250 KB, nil at 32 KB | Exposed, default off |
+| 9 | BBR instead of Cubic | **−4…−6 % throughput, up to 2× CPU** | Exposed, default Cubic |
+| 10 | Flow-control windows, socket buffers, `initial_mtu` | **nil, all of them** | Left at quinn defaults |
 
-Everything is a runtime flag on `exact-server`, so any of these is one process restart
+Everything except #1 is a runtime flag on `exact-server`, so it is one process restart
 away from being re-measured. Unset means "quinn's own default", so an arm that changes
-nothing measures nothing.
+nothing measures nothing. #1 needs a rebuilt quinn —
+[`lab/scripts/gso_cap_experiment.sh`](../lab/scripts/gso_cap_experiment.sh) does it
+reproducibly without vendoring a fork into the tree.
 
 ---
 
-## 1 · The send path — the actual win
+## 0 · The rig had a bottleneck of its own — read this before any throughput figure
 
-### What was there
+One `window-harness` process saturates **~0.93 of a core** and caps a single session at
+~1.4 Gbps on this box, while the server is still at 1.3 of 4 cores. Running more clients
+against one server:
 
-Per frame, the server made **two full-frame copies**:
+| clients | aggregate | vs 1 client |
+| ------- | --------- | ----------- |
+| 1 | 1406.7 Mbps | — |
+| 2 | 2705.7 Mbps | **1.92×** |
+| 3 | 3470.0 Mbps | 2.47× |
 
-```rust
-let payload = wrap(idx, bytes);        // 1. alloc + copy the whole frame
-uni.write_all(&payload).await?;        // 2. quinn copies it again
-```
+**So every single-client throughput number is a client ceiling, not a server capability.**
+Two clients nearly doubles it; the server was never the limit. This was caught late, and
+it changes how the earlier tables must be read:
 
-The second one is not obvious from the signature. `wtransport::SendStream::write_all`
-takes `&[u8]`, which reaches `quinn_proto`'s `ByteSlice::pop_chunk`:
+- **CPU per byte is the load-bearing metric.** It measures server work per byte and does
+  not care which side is limiting. It is consistent across all four rigs used here.
+- **Throughput deltas are regime-dependent.** The same send-path change reads **+17.9 %**
+  in the single-client closed loop and **+5.3 %** when two clients push the server —
+  because in the first the client and server share the bottleneck and server latency
+  feeds back into client rate.
+- At two clients the box runs ~3.5 of 4 cores with clients and server competing, so even
+  the aggregate is a *whole-box* number. **A clean server-throughput ceiling cannot be
+  measured with local clients on one host at all.** That needs two machines.
+
+Sections 4–5, 7–10 were measured single-client before this was understood. Their
+*rankings* stand — every arm faced the same rig — but read their throughput percentages
+as lower bounds on a shared-bottleneck loop, not as server capability.
+
+---
+
+## 1 · The send path — one copy left, and it was the dear one
+
+### Three shapes, not two
+
+There are **three** send shapes in this tree's history, and the increment that matters is
+the last one. Measuring against the oldest would overstate the change.
+
+| arm | shape | full-frame copies |
+| --- | ----- | ----------------- |
+| `copy` | `wrap()` into a fresh `Vec`, then one `write_all(&[u8])` | **2** |
+| `split` | `[len]`, `[index]`, codestream as three `write_all(&[u8])` calls | **1** |
+| `chunked` | 8-byte header `Bytes` + mapping slice → `write_all_chunks` | **0** |
+
+`split` is **already on `cursor/client-frame-pipeline-telemetry-8017`**
+(`FrameOut::send_frame`), so it — not `copy` — is the baseline any new claim must beat.
+All three are selectable at runtime and pinned to identical wire bytes by
+`all_send_paths_are_the_same_wire`.
+
+The remaining copy in `split` is not visible in the signature.
+`wtransport::SendStream::write_all` takes `&[u8]`, which reaches `quinn_proto`'s
+`ByteSlice::pop_chunk`:
 
 ```rust
 let chunk = Bytes::from(self.data[..limit].to_owned());   // allocate, memcpy
@@ -64,38 +114,61 @@ the codestream is a slice of the mapping, and both go to
 Wire output is **byte-identical**, pinned by `chunked_header_matches_copy_path`. Both
 paths remain selectable (`--send-path copy|chunked`) so the arm stays re-runnable.
 
-### The knee
+### The knee, measured against `split`
 
 `docs/send-path-copy-costs.md` asked for exactly this sweep — *"the rate at which copies
-stop being noise"* — and predicted the shape from arithmetic. Measured, `frames_250k`,
-D=16, mean of 3:
+stop being noise"* — and predicted the shape from arithmetic.
 
-| link rate | copy | chunked | throughput Δ | CPU/GB Δ |
-| --------- | ---- | ------- | ------------ | -------- |
-| 189 Mbps | 188.8 | 189.0 | +0.1 % | **−12.5 %** |
-| 378 Mbps | 377.7 | 376.8 | −0.2 % | −5.9 % |
-| 755 Mbps | 755.2 | 755.4 | +0.0 % | **−13.9 %** |
-| 1.5 Gbps | 1440.9 | 1506.7 | **+4.6 %** | −7.6 % |
-| 1.76 Gbps | 1602.7 | 1755.7 | **+9.5 %** | −10.0 % |
-| unshaped | 1585.2 | **1904.9** | **+20.2 %** | **−17.1 %** |
-| unshaped, replicated | 1633.6 | **1884.3** | **+15.4 %** | **−15.1 %** |
+**Arms are interleaved within each repeat**, not run one arm at a time. That matters: the
+first pass at this table ran arm-by-arm, the VM was replaced mid-campaign, and the drift
+landed unevenly across arms and produced a different answer. Interleaving makes host
+drift common-mode. `frames_250k`, D=16:
 
-**The knee is ~1.4 Gbps.** Below it the link is the bottleneck and the copies are free;
-above it they *are* the bottleneck. That is the document's arithmetic, confirmed.
+| cell | `copy` | `split` | `chunked` | `chunked` vs `split` |
+| ---- | ------ | ------- | --------- | -------------------- |
+| 378 Mbps, CPU-s/GB | 5.044 | 4.860 | **4.419** | **−9.1 %** |
+| 756 Mbps, CPU-s/GB | 5.497 | 5.453 | **5.138** | **−5.8 %** |
+| unshaped, 1 client, Mbps | 1170.8 ± 17.2 | 1171.3 ± 29.0 | **1381.4 ± 54.1** | **+17.9 %** |
+| unshaped, 1 client, CPU-s/GB | 4.813 | 4.683 | **4.035** | **−13.8 %** |
+| unshaped, 2 clients, Mbps | 2442.8 ± 184.7 | 2633.2 ± 100.8 | **2772.5 ± 143.2** | **+5.3 %** |
+| unshaped, 2 clients, CPU-s/GB | 2.877 | 2.619 | **2.443** | **−6.7 %** |
 
-The unshaped cell was re-run after the code was refactored, as arms `R_copy` /
-`R_chunked`: chunked reproduced to 1 % (1904.9 → 1884.3), the copy arm drifted 3 %
-faster, and the gap came out +15.4 % rather than +20.2 %. **Quote this as +15–20 %, not
-+20 %** — within a campaign the spread is 1–3 %, but across campaigns the copy arm is
-the noisier of the two.
+Below the knee all three arms sit exactly on the link rate (377.7 / 755.8 Mbps to three
+figures) and only CPU separates them. Above it, throughput separates them too.
 
-Two things it also says that the arithmetic did not:
+**The two copies are not equally priced, and how unequally depends on the rig.** With one
+client, removing `wrap()`'s copy — the `copy` → `split` step already taken on the
+telemetry branch — is worth **0.0 %** throughput and quinn's is worth +17.9 %. With two
+clients the same two steps read **+7.8 %** and **+5.3 %**. The CPU numbers are steadier
+and rank the same way in every cell: `chunked` is always cheapest, and `split` → `chunked`
+is **−6…−14 % CPU per byte** across all four rigs.
+
+Why the last copy is dearer than the first, **inferred, not measured**: in the `copy` arm
+quinn's copy reads `payload`, a buffer written microseconds earlier and still in cache,
+while in `split` the single remaining copy reads the *mapping* and allocates a fresh
+`Bytes` to hold it. The last copy standing is the one that touches cold pages and the
+allocator. Worth confirming with a cache-miss counter before it is repeated as fact.
+
+Two further things the arithmetic did not say:
 
 - **The CPU saving is there at every rate**, including rates where throughput is
-  identical. A browser on a 200 Mbps link gets its frames no sooner — but the server
-  spends 12 % less CPU delivering them, which is server density, not client latency.
-- **Frame size decides it, not just link rate.** At 32 KB frames the gain is +0.6 %
-  (inside noise). Per-frame fixed costs dominate there; the copy is a rounding error.
+  identical. A browser on a 378 Mbps link gets its frames no sooner — but the server
+  spends 9 % less CPU delivering them, which is server density, not client latency.
+- **Frame size decides it, not just link rate.** At 32 KB frames the gain is inside
+  noise. Per-frame fixed costs dominate there; the copy is a rounding error.
+
+Adopting this on `cursor/client-frame-pipeline-telemetry-8017` is not a drop-in: that
+branch's `FramePipeline` trait is `&[u8]` end to end —
+`locate<'a>(..) -> Result<&'a [u8]>` feeding `send(&mut self, frame, bytes: &[u8])`.
+Reaching the chunk API means those two signatures carry `Bytes` instead, which is a
+trait change, not a call-site change.
+
+### A caution about absolute numbers in this document
+
+The host was replaced mid-campaign — a Xeon @ 2.10 GHz became a Xeon @ 2.80 GHz, and
+unshaped 250 KB throughput moved from ~1.9 Gbps to ~1.4 Gbps with CPU-s/GB rising from
+~2.9 to ~4.0. **Compare arms within a table, never absolute figures across tables.**
+Sections 2–5 were measured on the first host; this section's table on the second.
 
 ### One correction to `send-path-copy-costs.md`
 
@@ -109,10 +182,11 @@ same. Its other ceiling — that QUIC cannot use kernel zero-copy, so "zero-copy
 
 ---
 
-## 2 · GSO — the big number, already collected
+## 2 · GSO — already on, and still leaving 17 % on the table
 
 Turning segmentation offload **off** is the largest single effect measured anywhere in
-this campaign:
+this campaign — and then the cap on how much of it `quinn` uses is the largest available
+*gain*. First, that GSO is doing the work it claims:
 
 | fixture | GSO on | GSO off | | CPU/GB on | CPU/GB off |
 | ------- | ------ | ------- | - | --------- | ---------- |
@@ -125,9 +199,56 @@ receive path the same way. So the checklist's "2–3× throughput, ~50 % less CP
 and we already had it — this run only proves we still have it. The flag exists so the
 control can be re-run, **not** because anyone should turn it off.
 
-One upstream limit worth knowing: `quinn` caps a GSO batch at
-`MAX_TRANSMIT_SEGMENTS = 10` (~14.5 KB per `sendmsg` at a 1452-byte MTU) even though the
-kernel allows 64. Raising it would need a patched `quinn`; unmeasured.
+### The segment cap — the biggest lever in this document
+
+Having GSO is not the same as having enough of it. `quinn` bounds a batch with
+
+```rust
+/// This can be lower than the maximum platform capabilities, to avoid excessive
+/// memory allocations when calling `poll_transmit()`. Benchmarks have shown
+/// that numbers around 10 are a good compromise.
+const MAX_TRANSMIT_SEGMENTS: usize = 10;
+```
+
+so at most ten datagrams — ~14.5 KB at a 1452-byte MTU — go out per `sendmsg`. This host
+reports **64** for both `max_gso_segments` and `gro_segments`, so the cap is 6.4× below
+what the kernel offers. Two clients, interleaved arms, n=4:
+
+| segments | bytes per `sendmsg` | `frames_250k` | vs 10 | `frames_32k` | vs 10 |
+| -------- | ------------------- | ------------- | ----- | ------------ | ----- |
+| 10 (upstream) | 14 520 | 4034.3 ± 58.3 Mbps · 1.678 CPU-s/GB | — | 13 651.8 ± 169.0 · 3.216 | — |
+| **32** | 46 464 | **4728.3 ± 204.1 · 1.328** | **+17.2 % · −20.9 %** | **14 348.0 ± 56.7 · 2.715** | **+5.1 % · −15.6 %** |
+| 44 | 63 888 | 4695.9 ± 78.3 · 1.272 | +16.4 % · −24.2 % | 14 342.4 ± 52.0 · 2.688 | +5.1 % · −16.4 % |
+
+**32 captures the whole gain**; 44 adds only a little more CPU saving and no throughput.
+
+### And a cliff, at exactly 64 KB
+
+Setting the cap to 64 — the number the kernel reports — does not merely stop helping, it
+**collapses throughput by 91 %** (238.2 Mbps, and CPU per byte *rises* 38 %). Bisecting
+finds the edge exactly where the arithmetic puts it:
+
+| segments | bytes per `sendmsg` | aggregate |
+| -------- | ------------------- | --------- |
+| 44 | 63 888 | 4705.2 Mbps |
+| **45** | **65 340** | **4642.7 Mbps** |
+| **48** | **69 696** | **236.3 Mbps** |
+
+**The binding limit is bytes, not segments: a GSO buffer must fit in 65 535.** At a
+1452-byte MTU that is 45 segments, and 45 works while 48 does not. `max_gso_segments()`
+reporting 64 is telling you the kernel's segment *count* limit, which you can only reach
+at an MTU of ~1024. Anything that reads that number and uses it directly falls off this
+cliff on a normal path.
+
+That is very likely why upstream's constant is conservative — but 10 is far below the
+safe ceiling, and the cost of that caution is 17 % throughput and 21 % CPU here.
+**A cap derived from the current MTU** — `min(platform_segments, 65535 / mtu)`, i.e. 45 at
+1452 and 54 at 1200 — would be safe at any MTU and would capture the gain. That is worth
+an upstream issue; the measurement above is the case for it.
+
+Reproduce with [`lab/scripts/gso_cap_experiment.sh`](../lab/scripts/gso_cap_experiment.sh),
+which vendors and patches quinn outside the tree and leaves nothing behind. **No forked
+quinn is committed here** and the default build is unchanged.
 
 ---
 
@@ -230,6 +351,44 @@ negotiate, and browser support is not something this rig can speak to. Left off.
 
 ---
 
+## 6 · The prefault hop — pricing a decision already made
+
+`docs/disk-access/adr.md` accepts an unconditional `spawn_blocking(touch_frame_pages)`
+before every frame, on a sound argument: a major fault on an mmap'd slice is not an
+`.await`, so taking it on the executor freezes every task sharing that OS thread. The ADR
+records the cost as *"Warm path pays only a pool hop (~10–30 µs lab)"* and explicitly
+**rejects a `mincore` gate as the product default**, because under memory pressure
+residency is not a lease for the write window.
+
+None of that is disturbed by what follows. What follows is the price tag, which the ADR
+states in microseconds and never in throughput. Two clients, warm page cache,
+`--send-path chunked`, n=4:
+
+| fixture | prefault on | prefault off | cost of the hop |
+| ------- | ----------- | ------------ | --------------- |
+| 250 KB | 2857.0 Mbps · 2.379 CPU-s/GB | 3145.9 · 2.050 | **−10.1 % throughput, +13.8 % CPU/byte** |
+| 32 KB | 12 175.7 Mbps · 4.233 CPU-s/GB | 13 385.1 · 2.789 | **−9.9 % throughput, +34.1 % CPU/byte** |
+
+"~10–30 µs" is accurate per frame and misleading in aggregate: at 32 KB frames the server
+is doing roughly **47 000 of these hops per second**, and the hop is then a third of the
+CPU it spends per byte. The smaller the frame, the worse — the cost is per frame, the
+benefit is per byte.
+
+**The default is unchanged and should be.** This is a warm-cache measurement with no
+memory pressure, which is precisely the regime the ADR did *not* optimise for, and
+`--prefault false` reintroduces exactly the co-tenant stall the ADR exists to prevent.
+
+What the number does justify is a **third option the ADR did not consider**: keep the
+always-touch guarantee but stop paying per frame for it. `FodMsg::RequestFrames { frames }`
+already arrives as a batch and the loop currently calls `send_one_frame` — and therefore
+`spawn_blocking` — once per frame in it. One hop covering the whole batch keeps every
+fault off the executor while amortising the handoff over N frames. That is neither the
+rejected `mincore` gate nor a change of default; it is the same guarantee, bought in
+bulk. **Unmeasured** — the harness asks one frame at a time, so testing it needs a
+batching client first.
+
+---
+
 ## What this does **not** establish
 
 Stated plainly, because the rig's limits are sharp:
@@ -249,9 +408,16 @@ Stated plainly, because the rig's limits are sharp:
 4. **`--mode saturate` yields no p95.** This campaign is throughput and CPU only. It says
    nothing about time-to-displayable, which is the metric the stream-mode decision rule is
    written in.
-5. **One host, one CPU model.** The AEAD numbers especially are CPU-specific — this Xeon
-   has VAES and AVX-512, which is the best case for `aws-lc-rs` and therefore the *most
-   generous* setting for the arm that still only returned 1 %.
+4b. **No clean server throughput ceiling exists in this data.** Clients and server share
+   four cores; see §0. Every throughput figure is a whole-box result. Two machines would
+   fix this and nothing short of that will.
+5. **Two hosts, mid-campaign.** A Xeon @ 2.10 GHz was replaced by a Xeon @ 2.80 GHz
+   partway through. Arms are only ever compared within a table. The AEAD numbers are
+   CPU-specific either way — both have VAES and AVX-512, the best case for `aws-lc-rs`
+   and therefore the *most generous* setting for the arm that still returned 1 %.
+6. **The GSO cliff is MTU-specific.** 45 segments is the ceiling at a 1452-byte MTU; at
+   1200 it is 54. Any cap chosen as a constant rather than derived from the MTU is wrong
+   at some MTU.
 
 ## Reproducing
 
@@ -260,17 +426,28 @@ bash lab/scripts/gen_tf_fixtures.sh
 bash server/scripts/gen_dev_cert.sh
 cargo build --release -p exact-server -p window-harness
 
-# unshaped arms (CPU-bound regime)
-SRV_FLAGS="--send-path copy"    bash lab/scripts/quic_opt_bench.sh copy    target/release/exact-server frames_250k 4,16 3
-SRV_FLAGS="--send-path chunked" bash lab/scripts/quic_opt_bench.sh chunked target/release/exact-server frames_250k 4,16 3
+# single-client, unshaped — reports server AND client cores; if cli_cores nears 1.00
+# the throughput number is a client result (see §0)
+SRV_FLAGS="--send-path chunked" bash lab/scripts/quic_opt_bench.sh chunked target/release/exact-server frames_250k 16 3
 
-# rate-shaped arms (needs iproute2; runs in a private netns)
+# multi-client — the rig to use for any server-side arm
+SRV_FLAGS="--send-path chunked" bash lab/scripts/quic_opt_multiclient.sh chunked target/release/exact-server 4
+
+# rate-shaped (needs iproute2; runs in a private netns; tbf only, no netem)
 RATE=1600mbit SRV_FLAGS="--send-path chunked" bash lab/scripts/quic_opt_shaped.sh chunked target/release/exact-server frames_250k 16 3
+
+# GSO segment cap — patches quinn outside the tree, leaves nothing behind
+bash lab/scripts/gso_cap_experiment.sh 10 32 44
+SRV_FLAGS="--send-path chunked" bash lab/scripts/quic_opt_multiclient.sh seg32 target/gso-arms/exact-server-32 4
 
 # cipher microbench, both providers
 cargo run --release -p aead-bench --no-default-features --features ring
 cargo run --release -p aead-bench --no-default-features --features aws-lc-rs
 ```
+
+**Interleave arms within each repeat.** Running one arm to completion and then the next
+is how the first pass at §1 got a different answer: the VM was replaced mid-campaign and
+the drift landed on one arm. Every table above with tight error bars was interleaved.
 
 `--bind 127.0.0.1` exists on both server and harness because the default bind is
 dual-stack and fails with `EAFNOSUPPORT` on a host without an IPv6 stack.

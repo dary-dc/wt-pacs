@@ -39,5 +39,16 @@ cargo run --release -p aead-bench --no-default-features --features ring
 cargo run --release -p aead-bench --no-default-features --features aws-lc-rs
 ```
 
+```bash
+# multi-client — use this for server-side arms; one harness caps a session at ~1.4 Gbps
+SRV_FLAGS="--send-path chunked" ./lab/scripts/quic_opt_multiclient.sh chunked \
+  target/release/exact-server 4
+
+# GSO segment cap arms (patches quinn outside the tree)
+./lab/scripts/gso_cap_experiment.sh 10 32 44
+```
+
 `SRV_FLAGS` passes arm-specific flags to `exact-server`; unset knobs keep quinn's own
-defaults, so an arm that changes nothing measures nothing.
+defaults, so an arm that changes nothing measures nothing. **Interleave arms within each
+repeat** — running one arm to completion then the next let host drift land on one arm and
+produced a wrong answer once already.

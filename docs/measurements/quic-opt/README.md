@@ -11,11 +11,27 @@ before quoting any congestion-control or window row.
 | `shaped_arms.tsv` | `lab/scripts/quic_opt_shaped.sh` | the same arms at 47 and 189 Mbps achieved |
 | `copy_knee.tsv` | `lab/scripts/quic_opt_shaped.sh` | copy vs chunked across five rates — the knee sweep `send-path-copy-costs.md` asked for |
 | `aead.tsv` | `lab/aead-bench` | ring vs aws-lc-rs, per-packet seal at 1200 / 1452 / 14520 B |
+| `sendpath_interleaved_unshaped.tsv` | `quic_opt_bench.sh`, interleaved | copy / split / chunked, one client |
+| `sendpath_interleaved_shaped.tsv` | `quic_opt_shaped.sh`, interleaved | the same three at 378 and 756 Mbps |
+| `sendpath_multiclient.tsv` | `quic_opt_multiclient.sh` | the same three with two clients — the rig where the server binds |
+| `gso_segment_cap.tsv` | `quic_opt_multiclient.sh` | `MAX_TRANSMIT_SEGMENTS` 10 / 32 / 44, both fixtures |
+| `gso_segment_cliff.tsv` | `quic_opt_multiclient.sh` | 40 / 44 / 45 / 48 — locates the 65 535-byte GSO buffer edge |
+| `prefault.tsv` | `quic_opt_multiclient.sh` | `--prefault true\|false`, warm cache, both fixtures |
 
-Columns: `mbps` is the harness `fill_rate` (dwell goodput); `cpu_s_per_gb` is server
-CPU seconds over the session divided by bytes on the wire, which is the density metric
-and the one that separates arms at rates where the link is the bottleneck. Three
-repeats per cell, all rows kept.
+Columns: `mbps` / `agg_mbps` is harness `fill_rate` (summed over clients); `cpu_s_per_gb`
+is server CPU seconds over the session divided by bytes on the wire. **Prefer
+`cpu_s_per_gb`**: one harness caps a session at ~1.4 Gbps well before the server does, so
+single-client throughput is a client ceiling, while CPU per byte measures server work
+regardless of which side is limiting. `quic_opt_bench.sh` also emits `srv_cores` and
+`cli_cores` — `cli_cores` near 1.00 means the row is a client result. All repeats kept.
+
+`sendpath_interleaved_unshaped.tsv` predates the `cli_cpu_s` / `srv_cores` / `cli_cores`
+columns, so re-running `quic_opt_bench.sh` now produces three more columns than that file
+has. Nothing else changed about the rig.
+
+The `sendpath_*`, `gso_*` and `prefault` files interleave arms within each repeat so host
+drift is common-mode; the earlier files do not, and the host was replaced mid-campaign.
+Compare arms within a file, never absolutes across files.
 
 Shaped rows label the **configured** TBF bucket. Achieved goodput is a consistent
 47.3 % of it on loopback — arms are compared at equal achieved rate, so the labels are
