@@ -36,7 +36,7 @@ cell_params() {
 }
 
 mkdir -p "$(dirname "$OUT")"
-[ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tfixture\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tfill_rate\tpeak_outstanding\twait_samples\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\n' > "$OUT"
+[ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tfixture\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tfill_rate\tpeak_outstanding\twait_samples\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\tbytes_on_wire\tframes_on_wire\n' > "$OUT"
 
 cpu_of() { awk -v t="$TICK" '{print ($14+$15)/t}' /proc/"$1"/stat 2>/dev/null || echo 0; }
 
@@ -64,6 +64,7 @@ for RUN in $(seq 1 "$REPEATS"); do
 
       "$NETSIM" --listen 127.0.0.1:"$NPORT" --upstream 127.0.0.1:"$SPORT" \
         --delay-ms "$DELAY" --rate-mbps "$RATE" --loss-pct "$LOSS" --queue-pkts 500 \
+        --loss-burst "${LOSS_BURST:-1}" \
         > /tmp/l4_netsim.log 2>&1 &
       NS=$!; sleep 0.4
 
@@ -101,7 +102,8 @@ row = "\t".join([exp, arm, cell, rtt, rate, loss, fx, depth, run,
                  "%.2f" % m["p95_wait_ms"], "%.2f" % m["mean_wait_ms"], "%.2f" % m["fill_rate"],
                  str(m["peak_outstanding"]), str(m["wait_samples"]),
                  "%.3f" % (float(s1)-float(s0)), "%.3f" % float(cli),
-                 "%.3f" % (float(n1)-float(n0)), "%.2f" % wall])
+                 "%.3f" % (float(n1)-float(n0)), "%.2f" % wall,
+                 str(m["bytes_on_wire"]), str(m["frames_on_wire"])])
 print(row)
 open(out, "a").write(row + "\n")
 PYEOF
