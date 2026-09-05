@@ -15,15 +15,21 @@ export SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}"
 source "$ROOT/lab/scripts/cloud_common.sh"
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
-FIX_FC="${FIX_FC:-80}"
+# A1: override with L1_FIX_FC=160 for Phase-B re-pilots / collect-aligned cadence.
+FIX_FC="${L1_FIX_FC:-${FIX_FC:-80}}"
 WINDOW_SHAPE=forward
 READ_BPS=0
 HARNESS_TIMEOUT_MS=180000
 CELL_TIMEOUT_S=300
 PILOT_REPEATS="${PILOT_REPEATS:-3}"
 
-STUDY="$ROOT/lab/fixtures/frames_32k/frames_32k.sbnd"
-TRACE="$ROOT/lab/traces/l1_one_way_80.json"
+if [[ "$FIX_FC" == "160" ]]; then
+  STUDY="$ROOT/lab/fixtures/frames_32k_160/frames_32k_160.sbnd"
+  TRACE="$ROOT/lab/traces/l1_one_way_160.json"
+else
+  STUDY="$ROOT/lab/fixtures/frames_32k/frames_32k.sbnd"
+  TRACE="$ROOT/lab/traces/l1_one_way_80.json"
+fi
 BIN_MAIN="${BIN_MAIN:-$ROOT/.local/r2/bin-main-exact-server}"
 HARNESS_BIN="${HARNESS_BIN:-$ROOT/.local/r2/window-harness}"
 CERT="${CERT:-$ROOT/server/dev-cert/cert.pem}"
@@ -280,12 +286,26 @@ for k in keys:
         f"f_cell_med={f_med:.3f} fps → step_interval_ms={step}"
     )
 
+trace_rel = "lab/traces/l1_one_way_160.json" if int("$FIX_FC") == 160 else "lab/traces/l1_one_way_80.json"
+fix_rel = (
+    "lab/fixtures/frames_32k_160/frames_32k_160.sbnd"
+    if int("$FIX_FC") == 160
+    else "lab/fixtures/frames_32k/frames_32k.sbnd"
+)
 doc = {
     "status": "frozen_for_review",
     "note": "Pilots excluded from decision analysis. Do not retune mid-collect (S11).",
-    "trace": "lab/traces/l1_one_way_80.json",
-    "fixture": "lab/fixtures/frames_32k/frames_32k.sbnd",
+    "trace": trace_rel,
+    "fixture": fix_rel,
     "window_shape": "forward",
+    "fixture_frame_count": int("$FIX_FC"),
+    "reader_model": {
+        "name": "clinical_under_delivery",
+        "factor": 0.9,
+        "doc": "docs/lanes/L1-v3-phase-b-regime-reader.md",
+    },
+    "regime_doc": "docs/lanes/L1-v3-phase-b-regime-reader.md",
+    "review_doc": "docs/lanes/L1-v3-complete-plan.md",
     "cells": cells,
 }
 out_path.write_text(json.dumps(doc, indent=2) + "\n")

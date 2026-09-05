@@ -1,16 +1,16 @@
 # L1 v3 — small collect plan (for reviewer; do not run until approved)
 
-**Status:** superseded as the *governing* plan by
-[`L1-v3-complete-plan.md`](L1-v3-complete-plan.md) (2026-09-05) · this file is the prior smoke
-sketch and will be rewritten as **Phase C** after Phases A–B.  
+**Status:** scaffolding ready · **awaiting A+B sign-off** before SSH collect body ·  
+governed by [`L1-v3-complete-plan.md`](L1-v3-complete-plan.md) (2026-09-05)  
 **Branch:** `cursor/l1-loss-run-dbae`  
-> **Do not run.** Second review blockers + behavior-first redesign are in the complete plan.
+> **Do not run full collect yet.** Phase A helpers + Phase B regime/reader note are on the
+> branch. `PHASE=collect` still refuses without `APPROVE_SMALL_COLLECT=1`, and even then the
+> SSH body stays disabled until sign-off (`DRY_RUN=1` self-tests gates only).  
 > Notable shifts: **dose-like response > fixed 15 %** for early phases; **160-frame / tail-count**
 > miss budget; **regime diagnosis** before cadence freeze; interleave + directional header.  
-**Depends on:** path validation PASSED · cadence **re-freeze after Phase B** (current
-`l1_v3_cadence.json` is draft only)  
-**Collect runner:** `PHASE=collect` **refuses** until `L1-v3-complete-plan.md` Phases A–B
-sign-off and Phase C text matches that doc.
+**Depends on:** path validation PASSED · cadence annotated with
+`reader_model=clinical_under_delivery` · [`L1-v3-phase-b-regime-reader.md`](L1-v3-phase-b-regime-reader.md)  
+**Collect runner:** `lab/scripts/l1_v3_collect_small.sh` (gated).
 
 ---
 

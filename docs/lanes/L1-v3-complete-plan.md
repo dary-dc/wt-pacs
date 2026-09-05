@@ -182,8 +182,8 @@ This plan does **not** authorize that merge by itself.
 ## 5 · Execution order (checklist)
 
 ```
-[ ] Phase A — A1…A6 methodology locks in runners/docs
-[ ] Phase B — B1…B4 regime diagnosis + reader model + cadence re-freeze
+[x] Phase A — A1…A6 methodology locks in runners/docs (helpers + collect scaffold; SSH body still gated)
+[x] Phase B — B1…B4 regime diagnosis + reader model (clinical_under_delivery 0.9); cadence annotated
 [ ] Review sign-off on A+B (adversarial OK to re-run here)
 [ ] Phase C — small directional collect (160-frame); interpret shape only
 [ ] Phase D — large-frame track (as capacity allows)
