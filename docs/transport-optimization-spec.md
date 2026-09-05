@@ -1,380 +1,381 @@
-# Transport optimisation — portable implementation spec
+# Transport optimisation — implementation spec
 
-**Written to survive the server rewrite.** Nothing here names a file, a struct, or a
-function in the current tree. Each item is stated as **invariant → mechanism → change →
-verification**, so it can be applied to whatever the server looks like after the new
-architecture lands, and so an item whose invariant no longer holds can be *recognised as
-inapplicable* rather than cargo-culted.
+**Architecture-independent.** Written to outlive the server it was measured on. Nothing
+below names a function, a module, or a stream mode; each item states an **invariant**, the
+**evidence tier** behind it, and an **acceptance test** you can run against whatever the
+send path looks like when you read this.
 
-Evidence behind each item: [`quic-transport-optimization.md`](quic-transport-optimization.md)
-(measurements, T2) and its §7 (external corroboration). Where an item is **unmeasured**, it
-says so — those are specified as experiments, not as changes to make.
-
----
-
-## 0 · The target, and why it re-ranks the evidence
+**Target profile** (fixed 2026-09-05, and the ranking below follows from it):
 
 | | |
 | --- | --- |
-| **Primary metric** | **p95 time-to-displayable** — ask → frame on screen |
-| **Secondary metric** | **server CPU per byte** — density, cloud cost |
-| **Client** | **browser only, indefinitely** (WebTransport API) |
-| **Path** | wt-pacs server ↔ browser, over a real network |
-| **Concurrency** | ~3 simultaneous viewers per server (not final) |
+| Primary metric | **p95 time-to-displayable** |
+| Secondary metric | **server density** — CPU per byte, memory per connection |
+| Path | wt-pacs ↔ **browser**, over the public internet |
+| Client | **browser only, indefinitely** |
+| Scale | possibly **thousands** of simultaneous viewers per server |
 
-**This inverts the ranking in the measurement document.** That campaign measured
-throughput and CPU per byte, because that is what a saturating harness on loopback can
-measure. The primary metric here is p95, and the two rank the work differently:
-
-- At **~3 viewers** a 4-core host is nowhere near CPU-saturated. The CPU wins (GSO cap,
-  send-path copies) are real and worth taking, but they buy **density, not latency** at
-  this concurrency. They stop being the top of the list.
-- The knobs that move p95 — congestion window, loss recovery, stream scheduling — are
-  precisely the ones the loopback rig **could not test**, because it had no RTT and no
-  loss. Their nulls in that document are nulls *for that rig only*.
-- One result must be **actively un-learned**: "BBR is 4–6 % worse" was measured on a
-  zero-RTT lossless link, which is the one regime where BBR cannot show value. **For a
-  browser over a real path, the congestion controller question is open, not closed.**
-
-Two levers larger than anything transport-level are already decided elsewhere and are not
-restated here: resolution fitting to the viewport
-([`adr-resolution-fitting-for-large-frames.md`](adr-resolution-fitting-for-large-frames.md))
-and stride ([`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md)).
-**Sending fewer bytes beats sending bytes faster.** This spec is the transport layer
-underneath those.
+Companion: [`quic-transport-optimization.md`](quic-transport-optimization.md) is the
+measurement record. It optimised **throughput and CPU/byte on a zero-RTT loopback**, which
+is *not* the profile above. Read this document for what to do; read that one for what was
+actually observed and how far it can be trusted.
 
 ---
 
-## 1 · Invariants this spec depends on
+## The ranking changes with the metric — read this first
 
-Check these against the new architecture first. Each item in §2–§4 names which it needs.
+The measurement campaign ranked work by throughput on a CPU-bound loopback. Under the
+profile above the ranking is different, and the difference is not a detail:
 
-| id | invariant | how to check it survived |
-| -- | --------- | ------------------------ |
-| **I1** | Frame bytes originate in a memory region the server can hand out as a refcounted slice without copying (an mmap, an `Arc<[u8]>`, an arena) | Can you produce a `bytes::Bytes` for a frame without `to_owned()`/`Vec` allocation? |
-| **I2** | The send path can reach the underlying QUIC send stream, not only a `&[u8]` wrapper | Is there a path to `quinn::SendStream` (e.g. an escape hatch on the WebTransport stream type)? |
-| **I3** | The per-frame code path is a distinct, interceptable step (locate → send) | Can you time and swap the locate step and the send step independently? |
-| **I4** | The server owns its `quinn::TransportConfig` / endpoint construction | Can you pass a custom transport config when building the endpoint? |
-| **I5** | Frames are served over QUIC streams whose priority the server can set | Is there a per-stream `set_priority`, or a documented scheduling order? |
-| **I6** | The client is a browser using the WebTransport API | If a native client ever appears, §5 unlocks |
+> **On a WAN, p95 time-to-displayable for a cold frame is set by round trips, not by
+> bandwidth or CPU.** A 250 KB frame cannot arrive faster than the congestion window
+> lets it, and the window starts at 12 000 bytes.
 
-**If I1 or I2 is false, item A2 is not implementable as written** — say so and re-derive,
-do not approximate it.
+Cubic's default initial window is **IW10 — 12 000 bytes**. Slow start doubles per RTT, so
+a 250 KB frame needs cumulative 12 → 36 → 84 → 180 → 372 KB: **five round trips**. At
+60 ms that is **~300 ms**; at 150 ms, **~750 ms** — before a single byte of link capacity
+matters. Every CPU-side optimisation in the companion document is invisible against that
+term.
 
----
-
-## 2 · Ranked for p95 time-to-displayable
-
-Ordered by expected effect on the primary metric. **The first two are unmeasured** — they
-are specified as experiments because they are the largest untested latency levers, not
-because they are known wins.
-
-### P1 · Initial congestion window — **unmeasured, largest suspected p95 lever**
-
-*Invariant: I4.*
-
-**Mechanism.** QUIC starts in slow start with a small congestion window and doubles per
-RTT. quinn's Cubic default is `14720.clamp(2 × 1200, 10 × 1200)` = **12 000 bytes**. A
-250 KB frame therefore needs roughly `log2(250000 / 12000) ≈ 4.4` doublings before it can
-be in flight at once — **~5 RTTs of slow start for the first frame**, or ~300 ms at a
-60 ms RTT, spent entirely on ramp rather than on bandwidth. This is charged to *every cold
-connection*, and it lands directly on time-to-first-displayable.
-
-**Change.** `CubicConfig::initial_window(n)` (also on `NewRenoConfig`, `BbrConfig`), passed
-through `TransportConfig::congestion_controller_factory`. The setter is not clamped.
-
-**Do not just raise it.** A large initial window is a real fairness and congestion hazard —
-it is the classic way to make your own latency better and everyone else's worse, and on a
-congested access link it can cause the loss it was meant to avoid. RFC 9002 sanctions 10
-packets / 14 600 bytes; anything beyond is a deployment decision, not a default.
-
-**Experiment.** Sweep `initial_window` ∈ {12 000 (default), 30 000, 60 000, 120 000} × RTT
-∈ {20, 60, 150 ms} × loss ∈ {0, 0.5, 2 %}, measuring **p95 time-to-displayable for the
-first N frames of a cold connection**, plus retransmission count as the safety check.
-**Requires netem** (see §6). Stop condition: any arm where retransmissions rise
-super-linearly with the window is disqualified regardless of its p95.
-
-### P2 · Stream scheduling — priority, or the fairness switch
-
-*Invariants: I4, I5.*
-
-**Mechanism.** QUIC round-robins between same-priority streams by default. With `D`
-frames in flight on `D` streams, all `D` progress together and *all* finish late — so the
-frame the reader is waiting for arrives at the end, not at the front. For strictly ordered
-demand this is pure p95 damage. This is measured and mechanistically established in
-`measurements/r2/CAMPAIGN_V2_ANALYSIS.md`.
-
-**Two ways to fix it, and they are not equivalent:**
-
-| | effect | cost |
-| --- | --- | --- |
-| Per-stream `set_priority` | Full control: the frame the reader wants can be promoted *after* it was asked for | Per-frame bookkeeping; needs a policy for what priority to assign |
-| `TransportConfig::send_fairness(false)` | Global FIFO: streams drain in the order they were written | One line; no control once a frame is queued |
-
-**Measured:** `send_fairness(false)` recovers per-frame mode's deficit (+11.8 % throughput
-at D=4, never worse in any cell) — but that was a *throughput* measurement on loopback,
-and the p95 question it bears on is still open (lane L1).
-
-**Caution, untested.** With one media stream and one control stream on the same connection,
-FIFO scheduling could let a long media write delay a control write. That interaction was
-never measured. If the new architecture multiplexes anything latency-sensitive alongside
-frame bytes, measure it before flipping the switch.
-
-**Which to choose depends on a decision this repo has not yet made** (shared vs per-frame
-streams — lanes L1/L2). Rule: **if per-frame streams are chosen, one of these two ships
-with it.** Per-frame streams without either is the configuration measured to lose 10–25 %.
-
-### P3 · Remove per-frame latency from the serving path
-
-*Invariant: I3.*
-
-**Mechanism.** Anything the server does per frame between "ask arrives" and "first byte
-written" is added directly to time-to-displayable. At ~3 concurrent viewers the server has
-CPU to spare, so this is a *latency* concern, not a throughput one — the opposite of how
-the measurement document frames it.
-
-The known instance is the unconditional blocking prefault hop: one `spawn_blocking` per
-frame to fault pages in before writing. Measured cost with a warm page cache: **−10 %
-throughput, +14 % CPU/byte at 250 KB, +34 % at 32 KB**. The per-frame latency is a
-thread-pool handoff plus scheduling delay.
-
-**This is a safety mechanism and the default must not be flipped casually.**
-[`disk-access/adr.md`](disk-access/adr.md) accepts this cost deliberately: a major page
-fault is not an `.await`, so taking it on the executor stalls every task on that thread,
-and the ADR explicitly rejected a `mincore` residency gate as the default because
-residency is not a lease for the write window.
-
-**The change that is compatible with the ADR:** keep the guarantee, stop paying per frame.
-If asks can arrive in batches, do **one hop per batch** rather than one per frame — every
-fault still leaves the executor, and the handoff amortises over N frames. Unmeasured;
-needs a batching client to test.
-
-**Generalise the rule when reviewing the new architecture:** for every per-frame step,
-ask whether it is on the ask→first-byte path, and whether it can be batched, cached, or
-moved off it. Enumerate them; do not assume the prefault is the only one.
-
-### P4 · Loss recovery and early-RTT parameters — **unmeasured**
-
-*Invariant: I4.*
-
-Three defaults that shape the p95 *tail* and that the loopback rig could not exercise at
-all, because it had neither loss nor RTT:
-
-| knob | quinn default | why it may matter |
-| ---- | ------------- | ----------------- |
-| `initial_rtt` | **333 ms** | Before the first RTT sample, PTO derives from this. A lost handshake or first-flight packet costs a ~333 ms timeout — straight onto cold-start p95 |
-| `packet_threshold` | 3 | Packets of reordering before loss is declared. Lower = faster recovery, more spurious retransmits |
-| `time_threshold` | 9/8 | Time-based loss detection multiplier, same trade |
-
-`initial_rtt` is the one worth attention: it is a pure cold-start tail parameter, and 333 ms
-is the spec's conservative default for an unknown path, not a measurement of yours.
-
-**Experiment.** Under netem at the real deployment's RTT and loss, measure p95 and p99
-time-to-displayable across `initial_rtt` ∈ {333 ms (default), 100 ms, measured-median}.
-Watch spurious retransmission rate as the disqualifier.
-
-### P5 · Congestion controller — **re-opened, previously mis-measured**
-
-*Invariant: I4.*
-
-The measurement document records BBR as **4–6 % worse than Cubic with up to 2× the CPU**.
-**Do not carry that conclusion into this deployment.** It was measured on loopback and TBF:
-zero RTT, zero loss, a shallow token bucket — the regime where Cubic is already optimal and
-BBR's entire reason for existing (bandwidth-delay probing, buffer-bloat avoidance) cannot
-appear. It is a valid result about that rig and says nothing about a browser on a real path.
-
-Note also that quinn's BBR is a port of quiche's **BBRv1** and is marked experimental
-upstream. BBRv3 is not available in this stack at any price.
-
-**Experiment.** Cubic vs BBR at RTT ∈ {20, 60, 150 ms} × loss ∈ {0, 0.5, 2 %}, metric p95
-time-to-displayable, with the CPU cost recorded alongside — the 2× CPU finding *is*
-transferable and must be weighed against any latency gain.
+So the order below is: **round trips first, then bytes on the wire, then CPU, then
+memory.** Items are numbered by priority, not by confidence.
 
 ---
 
-## 3 · Ranked for server CPU per byte
+## S1 · Initial congestion window — the largest lever, and unmeasured
 
-These are measured, land in the current architecture, and are worth taking — but at ~3
-viewers they buy headroom, not responsiveness. Take them; do not let them displace §2.
+**Tier: T0 (arithmetic + source read). Nothing measured. Highest expected value.**
 
-### C1 · GSO segment cap — **largest measured effect, needs an upstream change**
+### Invariant
 
-*Invariant: I4 (and a Linux host).*
+The transport must not need five round trips to deliver one frame on a fresh connection.
 
-**Mechanism.** quinn packs at most `MAX_TRANSMIT_SEGMENTS = 10` datagrams into one
-`sendmsg` — ~14.5 KB at a 1452-byte MTU — while the kernel allows far more. quinn-udp has
-no `sendmmsg` batching on send, so this constant alone decides syscall count.
+### What is true today
 
-**Measured:** raising it to **32** gives **+17.2 % throughput and −20.9 % CPU/byte** at
-250 KB frames (+5.1 % / −15.6 % at 32 KB). 44 adds nothing further. Independently
-corroborated by an ETH Zürich benchmarking thesis that patched the same constant.
+| controller | initial window | frame-1 RTTs for 250 KB |
+| ---------- | -------------- | ----------------------- |
+| Cubic (quinn default) | 12 000 B (IW10) | ~5 |
+| BBR (quinn) | **240 000 B** (200 × 1200) | ~1–2 |
 
-**The trap, and it is severe.** The binding limit is **bytes, not segments**: Linux caps a
-UDP GSO payload at `65535 − 8 = 65527`, which is **45 segments at a 1452-byte MTU**. Exceed
-it and `sendmsg` returns `EINVAL`, whereupon quinn-udp **permanently sets
-`max_gso_segments = 1`** — offload is dead for the life of that socket. Measured: a
-48-segment cap collapsed throughput by 91 %.
+Both are settable without switching controller: `CubicConfig::initial_window()` and
+`BbrConfig::initial_window()`.
 
-**Therefore: never set a constant. Derive it** — `min(platform_max_segments, 65527 / mtu)`
-— and re-derive it whenever the MTU changes, because DPLMTUD raises the MTU at runtime and
-a cap that was safe at 1200 is not safe at 1452.
+### What to do
 
-**Status: not implementable in-tree.** It is a `quinn` crate constant. Options, in order of
-preference: (a) contribute the measurement to upstream issue **#2201**, which is open and
-asks quinn-udp to handle exactly this; (b) carry a patched quinn only if the density
-justifies a vendored dependency — at 3 viewers it does not. `lab/scripts/gso_cap_experiment.sh`
-reproduces the arms without vendoring a fork.
+1. **Measure this before anything else in this document.** It is the only item that can
+   plausibly move p95 by hundreds of milliseconds.
+2. Treat it as a **sweep, not a switch**: IW10 (12 KB) / IW32 / IW100 / BBR's 240 KB, at
+   60 and 150 ms RTT, at 0 / 0.5 / 2 % loss.
+3. **Do not simply adopt BBR's 240 KB.** RFC 9002 specifies IW10 for a reason; 200 packets
+   unpaced into an unknown path is a burst that can cause the loss it is trying to
+   outrun. The sweep must report loss rate and retransmissions per arm, not just p95.
 
-### C2 · Zero-copy send path
+### Acceptance test
 
-*Invariants: I1, I2.*
+`--mode trace`, p95 time-to-displayable, cold connection per repeat (a warm connection has
+already left slow start and will show nothing). Arms differ **only** in initial window.
+A cell showing a p95 win with elevated loss is not a win — record both.
 
-**Mechanism.** Writing frame bytes as `&[u8]` makes quinn allocate and copy the whole frame
-into its send buffer (`ByteSlice::pop_chunk` → `Bytes::from(data.to_owned())`). Handing it
-an owned `Bytes` instead makes the same step a `mem::take` — the buffer is moved, not
-copied. QUIC must retain bytes for retransmission, so *one* copy is unavoidable; this
-removes the *extra* one.
+### Consequence for the companion document
 
-**Change.** Three parts, all required:
-1. Hold the frame source as something sliceable without copying — e.g. `Bytes::from_owner(mmap)`, mapped **once** (a second mapping makes any prefault touch pages the send path never reads).
-2. Build the frame header as its own small `Bytes` chunk; never prepend it to the payload, because prepending forces a contiguous buffer and reintroduces the copy.
-3. Write header and payload together through the chunked write (`write_all_chunks`), reaching the underlying `quinn::SendStream` if the WebTransport wrapper exposes only `&[u8]`.
-
-**Measured:** **−6…−14 % CPU per byte at every link rate**, and +5.3 % throughput with two
-clients (+17.9 % single-client, where the client shares the bottleneck). At 32 KB frames
-the gain is inside noise — **this is a large-frame optimisation**.
-
-**Verification is not optional.** The wire bytes must be identical to the non-chunked path.
-Pin it with a test that constructs both encodings and asserts equality, including the
-zero-length and maximum-index cases. If the new architecture's pipeline is `&[u8]` end to
-end, this requires a **signature change** to carry `Bytes` — not a call-site edit.
-
-### C3 · Crypto provider — available, and not worth taking first
-
-*Invariant: I4.*
-
-`aws-lc-rs` is genuinely **1.33× faster than `ring`** at the AEAD (1452-byte packets,
-VAES/AVX-512 host) — but the AEAD is only ~5 % of server CPU per byte in this stack, so the
-end-to-end gain is **1–2 %**, which is what was measured. The microbenchmark predicts the
-end-to-end result, so both are believed.
-
-**Ordering rule, and it generalises:** the published figures showing crypto as the dominant
-QUIC cost are measured **with kernel bypass already applied**, which removes the syscall
-and copy overhead that dominates a normal stack. **Batching and copies first, cipher last.**
-Revisit C3 only after C1 and C2 are in and crypto has actually risen to the top of a
-profile.
-
-Cipher *choice* matters more than the library: ChaCha20-Poly1305 is ~3.6× slower than
-AES-GCM on a host with AES-NI. rustls already prefers AES-GCM, so this is a property to
-preserve, not one to add.
+**The "BBR is 4–6 % worse" finding does not transfer to this profile and should not be
+cited against BBR here.** It was measured at ~0 RTT, where slow start completes instantly
+and the 20× initial-window advantage cannot appear. BBR may well win on this path; it is
+untested where it matters.
 
 ---
 
-## 4 · Measured null or negative — do not re-litigate without new evidence
+## S2 · Frame size is a transport parameter
 
-Every one of these was run at 250 KB and 32 KB, three repeats, against a matched baseline.
+**Tier: T0 (arithmetic). Application-level, larger than any knob below.**
 
-| knob | result | caveat that could reopen it |
-| ---- | ------ | --------------------------- |
-| `stream_receive_window` (6.7× default) | nil | **Reopens on a real path.** The default is tuned for 100 Mbps × 100 ms; a null at ~0 RTT says nothing about a WAN BDP |
-| `receive_window`, `send_window` | nil | same |
-| `initial_mtu` 1452 + DPLMTUD off | nil | DPLMTUD already reaches 1452 within a few RTTs; a null here is expected |
-| Socket buffers (`SO_SNDBUF`/`SO_RCVBUF`) 8 MB | nil | Reopens under real loss/queueing |
-| ACK frequency extension | +2.7 % at 250 KB, nil at 32 KB | Marginal, and it is an extension the peer must negotiate — browser support unverified |
-| BBR | −4…−6 %, up to 2× CPU | **Reopened — see P5.** The rig could not show BBR's value |
+### Invariant
 
-**The pattern worth carrying:** every null in this table came from a rig with no RTT and no
-loss. Nulls for the CPU-side items (MTU, socket buffers) are trustworthy. Nulls for the
-*window and congestion* items are artefacts of the rig and must be re-run before being
-treated as settled.
+The unit the client waits on should be small enough to clear slow start quickly, or
+progressive enough that something displays before the whole unit arrives.
 
----
+### Rationale
 
-## 5 · Blocked by the browser client
+S1's five-RTT figure is a function of *frame size*. The same arithmetic at 32 KB is **two**
+round trips, not five. HTJ2K is a progressive codestream: a truncated prefix is a viewable
+lower-resolution image. If the wire carried resolution-ordered prefixes, first-displayable
+could be one RTT regardless of full-frame size.
 
-The client is browser-only indefinitely, which closes these permanently unless that changes
-(invariant I6):
+This is not a transport change and it is out of scope for a transport spec — but it
+**dominates every item below it**, so a spec that omitted it would be misleading.
+`adr-resolution-fitting-for-large-frames.md` is the existing thread; this is the
+performance argument for pulling it.
 
-- **Receive-side zero-copy.** The WebTransport API delivers into the JS heap; there is no
-  chunk API and no way to avoid that copy.
-- **Client-side pacing, congestion control, or socket tuning.** Not exposed.
-- **Kernel bypass anywhere on the client.**
+### Acceptance test
 
-Reachable but unexplored, and worth naming so nobody assumes it was considered and rejected:
-
-- **WebTransport datagrams** are available in browsers. For scrub-ahead frames that are
-  worthless once stale, unreliable delivery avoids retransmitting data nobody will look at.
-  The obstacle is size: a datagram is bounded near the MTU, so a 250 KB frame needs
-  application-level fragmentation and reassembly with no retransmission underneath.
-  **Probably not worth it — but it is the one transport mechanism that changes the shape of
-  the problem rather than the constant factor, and it has never been evaluated.**
-- **Connection reuse / 0-RTT across navigations.** Cold-start p95 includes a QUIC handshake
-  plus HTTP/3 SETTINGS plus CONNECT. What the browser exposes here is unverified.
+Same rig as S1, sweeping mean frame size at fixed total study bytes. If p95 falls roughly
+with log(frame size), the ramp is the mechanism and S1/S2 are the whole game.
 
 ---
 
-## 6 · How to verify any of this on the new architecture
+## S3 · Loss recovery and stream shape
 
-The measurement campaign made three methodological mistakes. Do not repeat them.
+**Tier: T2 for the lossless part, T0 for the loss part — the loss dimension is still
+unmeasured after three campaigns.**
 
-**1 · Interleave arms within each repeat.** Running arm A to completion then arm B lets
-host drift land on one arm. This produced a wrong answer once: a VM was replaced
-mid-campaign and the two arms disagreed by 20 % for reasons that had nothing to do with
-the code.
+### Invariant
 
-**2 · Measure both sides' CPU, and check the client is not the bottleneck.** One native
-harness saturated ~0.93 of a core and capped a session at ~1.4 Gbps while the server sat at
-1.3 of 4 cores — so every single-client throughput figure was a *client* ceiling. Two
-clients reached 1.92×. **Record cores-busy for client and server on every run**; if the
-client is near 1.0, the number is not about the server.
+A lost packet must not delay a frame the reader is waiting for behind frames it is not.
 
-Note that the harness is a native Rust client. **A browser's receive path is different and
-probably slower**, so the production client ceiling is unmeasured and may be lower still.
+### State of the question
 
-**3 · Prefer CPU per byte over throughput where the question is server cost.** It measures
-server work per byte regardless of which side is limiting, and it ranked the arms
-identically on all four rigs used. Throughput deltas swing with the bottleneck's location:
-the same change read +17.9 % and +5.3 % on two rigs.
+`docs/measurements/r2/CAMPAIGN_V2_ANALYSIS.md` established that concurrent streams
+fair-share bandwidth, that per-frame streams lose 10–25 % without priority, and that
+priority recovers it. It did **not** measure loss, which is the only regime where per-frame
+delivery can beat a shared stream. `docs/lanes/L1-loss-run.md` is that run and is still
+outstanding.
 
-**And one gap to close before any §2 work:** the rig has **no p95 and no loss/RTT axis**.
-`--mode saturate` produces no wait times, and the container kernel has no `sch_netem`
-(only `tbf`/`htb` rate shaping). **Every item in §2 needs `--mode trace` on a netem-capable
-host** — the Oracle São Paulo rig in [`cloud-rig-access.md`](cloud-rig-access.md). Without
-that, §2 cannot be evaluated at all.
+Two mechanisms are available and only one has been tried:
 
-### Minimum acceptance for adopting any item here
+- **Stream priority** — the campaign's proposal; per-stream bookkeeping.
+- **`send_fairness(false)`** — one connection-level flag that makes same-priority streams
+  FIFO instead of round-robin. Measured here as recovering the per-frame deficit
+  (+11.8 % at D=4) at no cost in any cell, but **only at zero RTT and zero loss**, and its
+  interaction with the control stream is untested.
 
-1. Arms interleaved, ≥3 repeats, all rows kept.
-2. Client and server cores-busy recorded; client not saturated.
-3. For §2 items: p95 time-to-displayable from `--mode trace`, on netem, at the
-   deployment's RTT and loss.
-4. For a wire-format-touching change: a test asserting byte-identical output against the
-   previous encoding.
-5. Raw rows committed under `docs/measurements/`, with the rig and host named.
+### What to do
+
+1. Run L1 as written — it is the blocking measurement, not this document.
+2. Include `send_fairness(false)` as an arm; it is cheaper than priority bookkeeping and
+   may make it unnecessary.
+3. Whichever stream shape wins, the acceptance test is p95 at **0.5 % loss**, not
+   throughput.
+
+### Constraint the spec must respect
+
+The client cannot un-ask: server-side cancel is rejected
+(`adr-reject-server-cancel.md`) and so is server-side reordering
+(`adr-reject-server-ordering.md`). Any design that recovers p95 by discarding stale
+commitment must re-open those ADRs explicitly, not quietly.
 
 ---
 
-## 7 · So — is this everything?
+## S4 · Bytes on the wire per syscall — the GSO segment cap
 
-**No.** Honestly scoped, for the goal in §0:
+**Tier: T2, measured, and independently corroborated. Highest-value *measured* item.**
 
-**Well covered.** The server's CPU-per-byte path: copies, syscall batching, cipher. These
-were measured properly, corroborated externally, and §3 is close to exhaustive for a
-`quinn`/`wtransport` server on Linux.
+### Invariant
 
-**Specified but unmeasured** — the whole of §2, which is where the *primary* metric lives.
-The initial congestion window (P1) is the largest suspected lever and has never been
-touched. Loss recovery (P4) and congestion control (P5) were nominally tested but on a rig
-that could not exercise them.
+A GSO batch must be as large as the kernel permits **by bytes**, and must never exceed it.
 
-**Not explored at all:**
-- WebTransport datagrams as a delivery mode for stale-able frames (§5).
-- Cold-start cost: handshake, HTTP/3 setup, connection reuse, 0-RTT.
-- Multi-core scaling and `SO_REUSEPORT` — **deliberately dropped**: at ~3 viewers a single
-  endpoint is not the constraint. Reopen only if concurrency targets change by an order of
-  magnitude.
-- Anything measured through a real browser rather than a native harness.
+### The rule
 
-**Larger than all of it,** and already decided elsewhere: resolution fitting and stride.
-A 2.99 MB frame delivered as a viewport-sized rung beats every optimisation in this
-document combined. Transport work is what remains after the byte count is right.
+```
+segments_per_sendmsg = min(platform_max_gso_segments, 65527 / current_mtu)
+```
+
+65 527 = 65 535 − 8, the Linux UDP GSO payload ceiling. At a 1452-byte MTU that is **45**;
+at 1200, **54**. The quinn default is a hard-coded **10**.
+
+### Why it must be derived, not a constant
+
+Exceeding the byte limit returns `EINVAL`, and `quinn-udp` responds by storing
+`max_gso_segments = 1` — **permanently disabling offload for that socket**. One oversized
+send costs GSO for the life of the connection. Measured: a cap of 48 at a 1452-byte MTU
+collapses throughput by 91 %.
+
+### Evidence
+
+| | |
+| --- | --- |
+| Measured here | 10 → 32 is **+17.2 % throughput, −20.9 % CPU/byte** at 250 KB frames |
+| Independent | an ETH Zürich QUIC benchmarking thesis patched the same constant to 40× MTU and measured gains in every scenario, up to 2× |
+| Upstream | quinn issue **#2201** (open) derives the same byte bound and asks `quinn-udp` to chunk internally |
+
+### What to do
+
+This is **upstream code, not ours**. Options in order of preference:
+
+1. Push the derived cap upstream — add the measurement to **#2201**, do not file a new
+   issue.
+2. Until then, if the throughput matters more than the dependency hygiene, carry a patched
+   `quinn` behind a documented `[patch.crates-io]`. `lab/scripts/gso_cap_experiment.sh`
+   builds the arms without vendoring a fork into the tree.
+3. Do **not** ship a raised constant without the MTU-derived bound. A fixed 32 is safe at
+   1452 and 1200; it is *not* safe at every MTU, and DPLMTUD changes MTU at runtime.
+
+### Acceptance test
+
+Throughput and CPU/byte, two or more concurrent clients (see S7). Assert the server log
+never contains `halting segmentation offload` — that string is the failure mode.
+
+---
+
+## S5 · Do not copy the frame on the way out
+
+**Tier: T2, measured, and the change is already made on this branch.**
+
+### Invariant
+
+Frame bytes travel from the page cache to the QUIC send buffer **without a bulk copy**.
+QUIC must retain bytes for retransmission, so exactly one ownership transfer is
+unavoidable and zero is not achievable — "zero-copy" here means *no copy we control*.
+
+### The rule, stated without naming an API
+
+- The store hands out a **refcounted view of the mapping**, not a slice that must be
+  materialised.
+- The framing header is a **separate small buffer**, never prepended into a new allocation
+  containing the payload.
+- The write call **takes ownership of buffers** rather than borrowing a `&[u8]` the
+  transport must copy.
+
+In `quinn`/`wtransport` terms as of 0.11/0.7: `Bytes::from_owner(mmap)` + `slice()` for the
+view, `write_all_chunks(&mut [header, body])` for the write, reached via
+`quic_stream_mut()` — because the `&[u8]` write lands in `ByteSlice::pop_chunk`, which
+allocates and memcpys, while the `Bytes` path is a `mem::take`.
+
+### Evidence and its limits
+
+| cell | vs one-copy baseline |
+| ---- | -------------------- |
+| link-limited (378 / 756 Mbps) | 0 % throughput, **−6…−9 % CPU/byte** |
+| CPU-bound, 2 clients | **+5.3 %** throughput, **−6.7 % CPU/byte** |
+| CPU-bound, 1 client | +17.9 % throughput (client-limited rig — see S7) |
+
+**Under the target profile this is a density item, not a latency item.** A browser on a
+WAN gets its frames no sooner; the server spends 6–14 % less CPU delivering them. Rank it
+accordingly.
+
+### Migration note for the new architecture
+
+If the send path is expressed as a trait or interface, **the `&[u8]` signature is the
+thing that blocks this**. A pipeline shaped
+`locate(..) -> &[u8]` → `send(.., &[u8])` cannot reach the owned-buffer write without
+changing both signatures to carry an owned refcounted buffer. Decide that at interface
+design time; retrofitting it later is a wider change than it looks.
+
+### Acceptance test
+
+Byte-for-byte wire identity against the previous path, pinned by a unit test over an
+empty frame, a 1-byte frame, a typical frame, and `u32::MAX` as the index. Then CPU/byte
+at a link-limited rate, where throughput is equal by construction and only CPU can move.
+
+---
+
+## S6 · Memory per connection — the item that scales with viewers
+
+**Tier: T0 (arithmetic + upstream documentation). Unmeasured, and mandatory at this scale.**
+
+### Invariant
+
+Per-connection buffer commitments must be sized so that the worst case across all
+simultaneous viewers fits in RAM.
+
+### The arithmetic
+
+quinn's defaults are documented as tuned for *"a 100 Mbps link with a 100 ms round trip"*
+— one connection, not thousands:
+
+| parameter | default | × 1 000 viewers | × 5 000 |
+| --------- | ------- | --------------- | ------- |
+| `send_window` | 10 MB | 10 GB | 50 GB |
+| `stream_receive_window` | 1.25 MB | 1.25 GB | 6.25 GB |
+| `receive_window` | unlimited | unbounded | unbounded |
+
+These are ceilings, not allocations — a connection only buffers what is in flight — but
+they are the ceilings that decide whether a bad hour is slow or fatal. quinn's own
+documentation says endpoints handling large numbers of connections should set these low
+enough that memory exhaustion cannot occur if every connection uses its full window.
+
+**The companion document records these knobs as "nil".** That was measured on *throughput*
+at zero RTT with one or two connections, and it is true for that. **It says nothing about
+memory at a thousand connections**, which is the constraint that actually applies here.
+
+### What to do
+
+1. Set `receive_window` to a finite value. Unlimited is not a policy.
+2. Size `send_window` from `target_bandwidth_per_viewer × target_RTT`, not from the
+   default. For 10 Mbps × 150 ms that is ~190 KB, two orders below the default.
+3. Re-check `stream_receive_window` against the real BDP once S1's sweep has told you what
+   the real RTT distribution is. On a WAN it may bind where it did not on loopback.
+4. Bound `max_concurrent_uni_streams` (default 100) to what the stream shape from S3
+   actually needs.
+
+### Acceptance test
+
+RSS per connection at N = 1, 10, 100 idle and active viewers; extrapolate and compare to
+the box. And a deliberate adversarial cell: every connection stalled mid-frame, which is
+where the windows are actually committed.
+
+---
+
+## S7 · How to measure any of this without fooling yourself
+
+**Tier: T2, learned the hard way in the companion campaign.**
+
+Four methodology rules, each of which produced a wrong answer here before it was adopted:
+
+1. **Interleave arms within each repeat.** Running arm A to completion then arm B lets host
+   drift land on one arm. This produced a different answer for the same change; the VM was
+   replaced mid-campaign and nobody noticed until the numbers disagreed.
+2. **Instrument the load generator's CPU, not just the server's.** One harness process
+   saturates ~0.93 of a core and caps a session at ~1.4 Gbps while the server sits at 1.3
+   of 4 cores. Two clients reach 1.92× that. **Any throughput number taken with one client
+   is a client ceiling.** Report client cores alongside server cores; if it approaches
+   1.00, the row measures the client.
+3. **Prefer CPU per byte over throughput** whenever the metric is density. It measures
+   server work per byte regardless of which side is limiting, and it ranked the arms
+   identically on every rig used here — where throughput did not.
+4. **A single host cannot measure a server throughput ceiling** with local clients. At two
+   clients the box was at ~3.5 of 4 cores with clients and server competing; the aggregate
+   is a whole-box number. Use two machines, or quote CPU per byte and say nothing about
+   ceilings.
+
+And one gap that invalidates a whole class of result: **the container used for the
+companion campaign had no `sch_netem`**, so every congestion-control, window, ACK-frequency
+and MTU result in it was taken at **zero RTT and zero loss** — the regime where those four
+matter least. Under the target profile, all four need re-running on a path with RTT and
+loss before any of them is believed. The Oracle São Paulo rig
+(`docs/cloud-rig-access.md`) has netem.
+
+---
+
+## S8 · Settled — apply without re-measuring
+
+Measured, mechanism understood, low risk. Not worth a campaign each.
+
+| item | state | note |
+| ---- | ----- | ---- |
+| UDP GSO | on by quinn default | keep. Disabling it costs 1.8–3.7× here. The *cap* is S4 |
+| GRO | on by quinn default | receive side; the browser's send path is not ours |
+| DPLMTUD (RFC 8899) | on by quinn default | keep. No measurable effect either way on this path |
+| AES-GCM over ChaCha20 | rustls default order | keep. ChaCha20 is 3.6× slower on a CPU with AES-NI |
+| Cipher provider (`ring` vs `aws-lc-rs`) | `ring`, opt-in feature for the other | AEAD is 1.33× faster but only ~5 % of server CPU, so ≤1.3 % total. Revisit only after S4 and S5, which is when crypto's share rises |
+
+---
+
+## S9 · Open, unmeasured, and worth a look in this order
+
+| # | item | why it might matter here | cost to find out |
+| - | ---- | ------------------------ | ---------------- |
+| 1 | **Initial congestion window (S1)** | hundreds of ms of p95 on every cold frame | one netem campaign |
+| 2 | **Congestion controller on a real path** | the loopback verdict against BBR does not transfer | same campaign as #1 |
+| 3 | **Loss dimension for stream shape (S3 / lane L1)** | the whole reason per-frame delivery exists | already specified in L1 |
+| 4 | **Per-connection memory at scale (S6)** | decides how many viewers a box holds | an afternoon, no netem needed |
+| 5 | **Multi-core scaling / `SO_REUSEPORT`** | one endpoint is one UDP socket; the recv path may bottleneck before the cores do | needs two machines to answer honestly |
+| 6 | **Connection setup cost** | thousands of handshakes is real CPU (ECDSA sign) and one RTT of p95 each. Session resumption / 0-RTT reachability from a browser is unverified | a day, plus a browser test |
+| 7 | **ACK frequency on a lossy path** | +2.7 % at zero RTT, but delaying ACKs slows loss detection — the sign may flip where it matters | fold into #1's campaign |
+| 8 | **Batched page prefault** | the per-frame blocking hop costs 10 % throughput and 14–34 % CPU/byte warm; one hop per ask-batch keeps the safety property and amortises it. Needs a batching client to test | small, blocked on the harness |
+| 9 | **Raising quinn's `MAX_TRANSMIT_SEGMENTS` cap upstream** | S4, but done properly rather than patched locally | a PR and a conversation |
+
+**Items 1–3 are the ones that move the primary metric.** Everything else moves density.
+
+---
+
+## What this spec deliberately does not cover
+
+- **Anything requiring a native client.** Browser-only is fixed indefinitely, so
+  receive-side offload, custom congestion control at the client, and reliable-datagram
+  designs are out of scope by construction.
+- **Kernel bypass (DPDK / AF_XDP / io_uring).** The published gains are real but they
+  arrive after syscall and copy overhead are gone, and they are incompatible with running
+  behind an ordinary browser-facing TLS endpoint at this scale. `io_uring` remains deferred
+  in `docs/disk-access/adr.md` for the storage side.
+- **Changing the ask protocol.** Cancel and server-side reordering are both rejected by
+  standing ADRs; a design that needs either must re-open them.

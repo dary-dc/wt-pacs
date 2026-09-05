@@ -1,5 +1,22 @@
 # QUIC transport optimisation — research and measurement
 
+> ## Read [`transport-optimization-spec.md`](transport-optimization-spec.md) first if you are implementing
+>
+> This document is the **measurement record**, tied to the server as it stood on
+> `claude/quic-transport-optimization-hqzk8i` — before the pipeline refactor. Its code
+> references (`send_one_frame`, `--send-path`, `FrameStore::frame_bytes`) will not survive
+> that landing. The spec states the same findings as architecture-independent invariants
+> plus acceptance tests, and is the thing to implement against.
+>
+> **Its ranking is also not the spec's ranking.** Everything here was measured for
+> *throughput and CPU/byte on a zero-RTT loopback*. The target profile is **p95
+> time-to-displayable, browser client, public internet, thousands of viewers** — under
+> which round trips dominate and the largest lever is one this campaign never touched
+> (the initial congestion window; spec §S1). Two specific carry-overs to distrust:
+> the verdict against **BBR** was taken where its 20× initial window cannot appear, and the
+> **flow-control windows** recorded as "nil" were nil *for throughput at zero RTT with one
+> connection* — they are a memory-scaling constraint at a thousand (spec §S6).
+
 **2026-09-05 · T2** (single-host loopback + TBF shaping in a private netns).
 Claims cross-checked against upstream source, kernel documentation and published
 measurement in [§7](#7--what-the-outside-evidence-says).
