@@ -275,9 +275,16 @@ struct RunAccumulator {
 
 impl RunAccumulator {
     fn push(&mut self, row: &FrameRecord) {
-        self.prepare.push(row.prepare_us.unwrap_or(0));
-        self.locate.push(row.locate_us.unwrap_or(0));
-        self.send.push(row.send_us.unwrap_or(0));
+        // Null ≠ 0: absent stages must not enter distributions as fake zeros.
+        if let Some(us) = row.prepare_us {
+            self.prepare.push(us);
+        }
+        if let Some(us) = row.locate_us {
+            self.locate.push(us);
+        }
+        if let Some(us) = row.send_us {
+            self.send.push(us);
+        }
         self.serve.push(row.serve_us);
         self.bytes.push(row.server_bytes_sent);
     }
@@ -305,11 +312,12 @@ impl RunAccumulator {
 struct RunSummary {
     frame_count: u32,
     totals: SummaryTotals,
-    prepare_us: DistributionStats,
-    locate_us: DistributionStats,
-    send_us: DistributionStats,
-    serve_us: DistributionStats,
-    server_bytes_sent: DistributionStats,
+    /// Absent when no sample — JSON `null`, never a zero-filled stats object.
+    prepare_us: Option<DistributionStats>,
+    locate_us: Option<DistributionStats>,
+    send_us: Option<DistributionStats>,
+    serve_us: Option<DistributionStats>,
+    server_bytes_sent: Option<DistributionStats>,
 }
 
 #[derive(serde::Serialize)]
@@ -336,21 +344,9 @@ struct DistributionStats {
     p99: f64,
 }
 
-fn distribution_stats(values: &[u32]) -> DistributionStats {
+fn distribution_stats(values: &[u32]) -> Option<DistributionStats> {
     if values.is_empty() {
-        return DistributionStats {
-            count: 0,
-            mean: 0.0,
-            median: 0.0,
-            min: 0,
-            max: 0,
-            total: 0,
-            p50: 0.0,
-            p75: 0.0,
-            p90: 0.0,
-            p95: 0.0,
-            p99: 0.0,
-        };
+        return None;
     }
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
@@ -358,7 +354,7 @@ fn distribution_stats(values: &[u32]) -> DistributionStats {
     let total: u64 = sorted.iter().map(|&v| u64::from(v)).sum();
     let mean = round2(total as f64 / f64::from(count as u32));
     let median = round2(percentile(&sorted, 50.0));
-    DistributionStats {
+    Some(DistributionStats {
         count: count as u32,
         mean,
         median,
@@ -370,7 +366,7 @@ fn distribution_stats(values: &[u32]) -> DistributionStats {
         p90: round2(percentile(&sorted, 90.0)),
         p95: round2(percentile(&sorted, 95.0)),
         p99: round2(percentile(&sorted, 99.0)),
-    }
+    })
 }
 
 /// Nearest-rank: rank = ceil(p/100 × N), clamped to [1, N]; value = sorted[rank - 1].
@@ -582,8 +578,54 @@ mod tests {
         let summary = acc.build_summary();
         assert_eq!(summary.frame_count, 2);
         assert_eq!(summary.totals.serve_us, 406);
-        assert_eq!(summary.send_us.total, 400);
-        assert_eq!(summary.send_us.min, 100);
-        assert_eq!(summary.send_us.max, 300);
+        let send = summary.send_us.expect("send dist present");
+        assert_eq!(send.total, 400);
+        assert_eq!(send.min, 100);
+        assert_eq!(send.max, 300);
+    }
+
+    #[test]
+    fn refused_row_excluded_from_send_distribution() {
+        let mut acc = RunAccumulator::default();
+        acc.push(&FrameRecord {
+            session_id: 1,
+            frame_index: 0,
+            ask_ordinal: 0,
+            prepare_us: Some(10),
+            locate_us: Some(2),
+            send_us: Some(50),
+            serve_us: 70,
+            server_bytes_sent: 100,
+            locate_outcome: 0,
+            write_outcome: WriteOutcome::Sent as u8,
+            dropped_since_last: 0,
+        });
+        acc.push(&FrameRecord {
+            session_id: 1,
+            frame_index: 1,
+            ask_ordinal: 0,
+            prepare_us: Some(10),
+            locate_us: None,
+            send_us: None, // refused — must not push 0 into send_us
+            serve_us: 12,
+            server_bytes_sent: 0,
+            locate_outcome: LocateOutcome::NotFound as u8,
+            write_outcome: WriteOutcome::Refused as u8,
+            dropped_since_last: 0,
+        });
+        let summary = acc.build_summary();
+        assert_eq!(summary.frame_count, 2);
+        let send = summary.send_us.expect("send dist from one sent row");
+        assert_eq!(send.count, 1);
+        assert_eq!(send.total, 50);
+        assert_eq!(send.min, 50);
+        assert_eq!(summary.totals.send_us, 50);
+        let locate = summary.locate_us.expect("locate from one ok row");
+        assert_eq!(locate.count, 1);
+    }
+
+    #[test]
+    fn empty_distribution_is_none() {
+        assert!(distribution_stats(&[]).is_none());
     }
 }
