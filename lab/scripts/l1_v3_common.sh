@@ -34,7 +34,7 @@ l1_require_study_trace() {
 }
 
 # A4 — demand/supply diagnostic.
-# clinical_under_delivery (default): expect demand/supply in [0.55, 0.95]
+# clinical_under_delivery (default): expect demand/supply in [0.55, 0.98]
 # stress_over_delivery: expect demand/supply >= 1.0
 l1_precheck_ratio() {
   local step_ms=$1 label=${2:-cell}
@@ -93,7 +93,7 @@ if ok != "ok":
 PY
 }
 
-# Phase B regime stamp.
+# Phase B regime stamp (harness keys: wait_h1_median_ms, step_loop_ms).
 l1_stamp_regime() {
   local json=$1 loss=$2
   python3 - "$json" "$loss" <<'PY'

@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 # L1 v3 Phase C — small directional collect (SSH body).
 #
-# Refuses unless ALL of:
-#   APPROVE_SMALL_COLLECT=1
-#   docs/lanes/L1-v3-phase-b-regime-reader.md exists
-#   cadence JSON carries reader_model + frozen status
-#
-# TSV stamped DIRECTIONAL — NOT A DECISION. Not a ship decision.
-# DRY_RUN=1 validates A-gates locally without SSH.
+# Requires: APPROVE_SMALL_COLLECT=1, Phase B doc, frozen cadence with reader_model.
+# TSV stamped DIRECTIONAL — NOT A DECISION. DRY_RUN=1 = local A-gates only.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -29,7 +24,6 @@ REPEATS_NULL="${REPEATS_NULL:-10}"
 REPEATS_DOSE_LOW="${REPEATS_DOSE_LOW:-10}"
 REPEATS_DOSE_HIGH="${REPEATS_DOSE_HIGH:-10}"
 MAX_ASK_RATIO="${MAX_ASK_RATIO:-1.25}"
-# Null "large unexplained gap" stop (pathology), not the 15% product bar.
 NULL_REL_STOP="${NULL_REL_STOP:-0.40}"
 NULL_ABS_STOP_MS="${NULL_ABS_STOP_MS:-200}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
@@ -56,7 +50,6 @@ REMOTE_RAW=/tmp/l1v3-small
 
 declare -A ARM_MODE=([S]=shared [P]=per-frame [Q]=per-frame)
 declare -A ARM_PORT=([S]=4435 [P]=4436 [Q]=4437)
-declare -A ARM_ASK_PRI=([S]=0 [P]=0 [Q]=1)
 
 if [[ "${APPROVE_SMALL_COLLECT:-0}" != "1" ]]; then
   echo "STOP: small collect not approved." >&2
@@ -75,11 +68,11 @@ import json, sys
 doc = json.load(open(sys.argv[1]))
 rm = doc.get("reader_model") or {}
 if not rm.get("name"):
-    raise SystemExit("STOP: cadence JSON missing reader_model.name (Phase B incomplete)")
+    raise SystemExit("STOP: cadence JSON missing reader_model.name")
 st = doc.get("status") or ""
 if st not in ("frozen_for_review", "frozen_phase_b", "frozen"):
     raise SystemExit(f"STOP: cadence status={st!r} not frozen")
-print(f"cadence_ok reader_model={rm['name']} factor={rm.get('factor')}")
+print(f"cadence_ok reader_model={rm['name']} factor={rm.get('factor')} status={st}")
 PY
 
 l1_require_study_trace
@@ -92,8 +85,7 @@ l1_write_directional_header "$OUT_TSV"
 
 echo "=== L1 v3 small collect (DIRECTIONAL) $(date -Iseconds) ==="
 echo "fixture_fc=$L1_FIX_FC study=$(basename "$L1_STUDY") trace=$(basename "$L1_TRACE")"
-echo "protocol_sha=$PROTOCOL_SHA cadence_sha=$CADENCE_SHA"
-echo "server_sha=$SERVER_SHA"
+echo "protocol_sha=$PROTOCOL_SHA cadence_sha=$CADENCE_SHA server_sha=$SERVER_SHA"
 
 cadence_step() {
   local rtt=$1 loss=$2
@@ -110,36 +102,27 @@ PY
 }
 
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
-  echo "DRY_RUN=1 — validate A-gates locally; no SSH collect body."
-  echo "-- interleaved schedule (first 12) --"
+  echo "DRY_RUN=1 — local A-gates only."
   L1_INTERLEAVE_SEED="$L1_INTERLEAVE_SEED" l1_interleave_arms "$REPEATS_NULL" S P Q | head -12
   step="$(cadence_step 60 0)"
-  echo "precheck null cell step_ms=$step"
+  echo "precheck null step_ms=$step"
   l1_precheck_ratio "$step" "dry_null_60_0"
   sample="$(ls "$ROOT"/docs/measurements/r2/raw/l1v3/pilot/S_rtt60_loss0_d4_r*.json | head -1)"
-  echo "sample=$sample"
   l1_assert_frame_bytes "$sample"
   echo -n "regime="; l1_stamp_regime "$sample" 0
-  set +e
-  tail_line="$(l1_tail_gate "$sample" 2>/dev/null)"
-  trc=$?
-  set -e
-  echo "tail_gate_line=$tail_line exit=$trc (80-frame pilots may FAIL L1_TAIL_MIN=$L1_TAIL_MIN — expected)"
-  echo "header:"; head -2 "$OUT_TSV"
+  set +e; tail_line="$(l1_tail_gate "$sample" 2>/dev/null)"; trc=$?; set -e
+  echo "tail_gate=$tail_line exit=$trc"
+  head -2 "$OUT_TSV"
   echo "DRY_RUN complete."
   exit 0
 fi
 
-# --- live SSH collect ---
 [[ -f "$SSH_KEY" ]] || { echo "STOP: missing SSH_KEY=$SSH_KEY" >&2; exit 1; }
 [[ -f "$CERT" && -f "$KEY_PEM" ]] || bash "$ROOT/server/scripts/gen_dev_cert.sh"
 if [[ "$SKIP_BUILD" != "1" ]]; then
   bash "$ROOT/lab/scripts/l1_build_bins.sh"
 fi
-[[ -x "$BIN_MAIN" && -x "$BIN_Q" && -x "$HARNESS_BIN" ]] || {
-  echo "STOP: missing binaries" >&2
-  exit 1
-}
+[[ -x "$BIN_MAIN" && -x "$BIN_Q" && -x "$HARNESS_BIN" ]] || { echo "STOP: missing binaries" >&2; exit 1; }
 SERVER_SHA="$(sha256sum "$BIN_MAIN" | awk '{print $1}')"
 
 cleanup() {
@@ -156,10 +139,7 @@ H=/home/ubuntu/wt-pacs/locks/netem.holder
 if [[ -f "$H" ]]; then
   if ! find "$H" -mmin +180 | grep -q .; then
     cur=$(cat "$H")
-    case "$cur" in
-      L1-v3*) ;;
-      *) echo "STOP: rig held by $cur" >&2; exit 1 ;;
-    esac
+    case "$cur" in L1-v3*) ;; *) echo "STOP: rig held by $cur" >&2; exit 1 ;; esac
   fi
 fi
 echo "L1-v3-small $(date -Iseconds)" > "$H"
@@ -178,8 +158,7 @@ done
 sleep 1
 REMOTE
 
-"${SCP[@]}" "$ROOT/lab/scripts/l1_veth_setup.sh" "$ROOT/lab/scripts/l1_veth_netem.sh" \
-  "$REMOTE:$REMOTE_SCRIPTS/"
+"${SCP[@]}" "$ROOT/lab/scripts/l1_veth_setup.sh" "$ROOT/lab/scripts/l1_veth_netem.sh" "$REMOTE:$REMOTE_SCRIPTS/"
 "${SSH[@]}" "chmod +x $REMOTE_SCRIPTS/l1_veth_setup.sh $REMOTE_SCRIPTS/l1_veth_netem.sh"
 "${SCP[@]}" "$CERT" "$KEY_PEM" "$REMOTE:$REMOTE_CERT/"
 "${SCP[@]}" "$L1_STUDY" "$REMOTE:$REMOTE_FIX/"
@@ -191,7 +170,6 @@ REMOTE
 
 echo "==> veth setup"
 "${SSH[@]}" "sudo -n $REMOTE_SCRIPTS/l1_veth_setup.sh"
-
 "${SSH[@]}" 'bash -s' <<'REMOTE'
 set -euo pipefail
 for port in 4435 4436 4437; do
@@ -218,7 +196,6 @@ for p in 4435 4436 4437; do
   sudo -n fuser -k "${p}/udp" 2>/dev/null || true
 done
 sleep 1
-# S shared · P per-frame · Q per-frame + ask-priority (same binary)
 setsid env RUST_LOG=warn nohup /home/ubuntu/wt-pacs/bin/exact-server-main \
   --port 4435 --study "$STUDY" \
   --cert-pem /home/ubuntu/wt-pacs/cert/cert.pem \
@@ -274,10 +251,7 @@ import json, sys
 m = json.load(open(sys.argv[1]))
 h1 = float(m.get("wait_h1_median_ms") or 0)
 h2 = float(m.get("wait_h2_median_ms") or 0)
-if h1 > 0 and h2 > 1.5 * h1:
-    print("BACKLOG")
-else:
-    print("ok")
+print("BACKLOG" if (h1 > 0 and h2 > 1.5 * h1) else "ok")
 PY
 }
 
@@ -330,34 +304,29 @@ run_one() {
   l1_assert_frame_bytes "$local_json"
   assert_asks "$local_json"
 
-  local regime bl mark cell_out tail_line trc
+  local regime bl mark tail_line trc tail_n
   regime="$(l1_stamp_regime "$local_json" "$loss")"
   bl="$(backlog_mark "$local_json")"
   mark="$cell_label"
-  if [[ "$bl" == "BACKLOG" ]]; then
-    mark="${cell_label}+BACKLOG"
-  fi
+  [[ "$bl" == "BACKLOG" ]] && mark="${cell_label}+BACKLOG"
 
   set +e
-  tail_line="$(l1_tail_gate "$local_json")"
-  trc=$?
+  tail_line="$(l1_tail_gate "$local_json")" trc=$?
   set -e
   if [[ $trc -ne 0 ]]; then
     echo "STOP: tail gate FAIL tag=$tag line=$tail_line" >&2
     exit 2
   fi
-  local tail_n
   tail_n="$(echo "$tail_line" | cut -f2)"
 
   python3 - "$local_json" "$ORDER_INDEX" "$ts_iso" "$arm" "$rtt" "$loss" "$depth" "$run" \
     "$regime" "$step_ms" "$tail_n" "$mark" "$PROTOCOL_SHA" "$CADENCE_SHA" "$SERVER_SHA" \
     "$OUT_TSV" <<'PY'
 import json, sys
-path = sys.argv[1]
+m = json.load(open(sys.argv[1]))
 order, ts, arm, rtt, loss, depth, run = sys.argv[2:9]
 regime, step, tail_n, mark = sys.argv[9:13]
 psha, csha, ssha, out = sys.argv[13:17]
-m = json.load(open(path))
 cols = [
     order, ts, arm, rtt, loss, depth, run, regime, step,
     f"{float(m['miss_p95_wait_ms']):.6f}",
@@ -373,13 +342,8 @@ cols = [
     f"{float(m.get('wait_h2_median_ms') or 0):.6f}",
     mark, psha, csha, ssha,
 ]
-with open(out, "a") as f:
-    f.write("\t".join(cols) + "\n")
-print(
-    f"  ok arm={arm} run={run} regime={regime} "
-    f"miss_p95={m['miss_p95_wait_ms']:.1f} misses={m['cache_misses']} "
-    f"tail={tail_n} asks={m['asks_sent']} mark={mark}"
-)
+open(out, "a").write("\t".join(cols) + "\n")
+print(f"  ok arm={arm} run={run} regime={regime} miss_p95={m['miss_p95_wait_ms']:.1f} misses={m['cache_misses']} tail={tail_n} asks={m['asks_sent']} mark={mark}")
 PY
 }
 
@@ -395,9 +359,8 @@ run_cell() {
 
   mapfile -t schedule < <(L1_INTERLEAVE_SEED="$L1_INTERLEAVE_SEED" l1_interleave_arms "$repeats" "${arms[@]}")
   declare -A run_n=()
+  local a arm
   for a in "${arms[@]}"; do run_n[$a]=0; done
-
-  local arm
   for arm in "${schedule[@]}"; do
     run_n[$arm]=$((run_n[$arm] + 1))
     echo "--- $label $arm r${run_n[$arm]} (order=$ORDER_INDEX) ---"
@@ -412,33 +375,25 @@ from collections import defaultdict
 path, rel_stop, abs_stop = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
 by = defaultdict(list)
 with open(path) as f:
-    # skip banner
     line = f.readline()
     if not line.startswith("#"):
         f.seek(0)
-    rdr = csv.DictReader(f, delimiter="\t")
-    for r in rdr:
+    for r in csv.DictReader(f, delimiter="\t"):
         if r.get("cell_label", "").startswith("null") and float(r["loss_pct"]) == 0.0:
             by[r["arm"]].append(float(r["miss_p95_wait_ms"]))
 if len(by) < 2:
-    print("null_gap_check: insufficient arms — skip")
-    raise SystemExit(0)
+    print("null_gap_check: insufficient arms — skip"); raise SystemExit(0)
 med = {a: statistics.median(v) for a, v in by.items()}
 print("null medians:", {a: round(m, 2) for a, m in med.items()})
-arms = sorted(med)
-worst = 0.0
+arms = sorted(med); worst = 0.0
 for i, a in enumerate(arms):
-    for b in arms[i + 1 :]:
+    for b in arms[i+1:]:
         lo, hi = min(med[a], med[b]), max(med[a], med[b])
-        abs_g = hi - lo
-        rel = abs_g / lo if lo > 0 else float("inf")
+        abs_g, rel = hi - lo, (hi - lo) / lo if lo > 0 else float("inf")
         print(f"  {a} vs {b}: abs={abs_g:.1f}ms rel={rel:.3f}")
         worst = max(worst, rel)
         if abs_g > abs_stop and rel > rel_stop:
-            raise SystemExit(
-                f"STOP: null large unexplained gap {a} vs {b} "
-                f"abs={abs_g:.1f}>{abs_stop} and rel={rel:.3f}>{rel_stop}"
-            )
+            raise SystemExit(f"STOP: null large unexplained gap {a} vs {b} abs={abs_g:.1f} rel={rel:.3f}")
 print(f"null_gap_ok worst_rel={worst:.3f}")
 PY
 }
@@ -448,114 +403,66 @@ write_summary() {
 import csv, statistics, sys
 from collections import defaultdict
 from pathlib import Path
-
 tsv, out = Path(sys.argv[1]), Path(sys.argv[2])
-rows = []
 with open(tsv) as f:
     line = f.readline()
-    if not line.startswith("#"):
-        f.seek(0)
+    if not line.startswith("#"): f.seek(0)
     rows = list(csv.DictReader(f, delimiter="\t"))
 
-def med(vals):
-    return statistics.median(vals) if vals else float("nan")
-
-def mad_ci(vals):
-    if len(vals) < 2:
-        return med(vals), float("nan"), float("nan")
-    m = statistics.median(vals)
-    # simple percentile CI via sorted order stats (directional only)
-    s = sorted(vals)
-    lo = s[max(0, int(0.1 * (len(s) - 1)))]
-    hi = s[min(len(s) - 1, int(0.9 * (len(s) - 1)))]
-    return m, lo, hi
+def med(v): return statistics.median(v) if v else float("nan")
+def pct_ci(v):
+    if len(v) < 2: return med(v), float("nan"), float("nan")
+    s = sorted(v)
+    return med(v), s[max(0,int(0.1*(len(s)-1)))], s[min(len(s)-1,int(0.9*(len(s)-1)))]
+def loss_eq(a,b): return abs(float(a)-float(b)) < 1e-9
 
 by = defaultdict(list)
-regime_counts = defaultdict(lambda: defaultdict(int))
+rc = defaultdict(lambda: defaultdict(int))
 for r in rows:
     key = (r["cell_label"].split("+")[0], r["rtt_label_ms"], r["loss_pct"], r["arm"])
     by[key].append(float(r["miss_p95_wait_ms"]))
-    regime_counts[(r["cell_label"].split("+")[0], r["loss_pct"], r["arm"])][r["regime"]] += 1
+    rc[(r["cell_label"].split("+")[0], r["loss_pct"], r["arm"])][r["regime"]] += 1
 
-lines = [
-    "# L1 v3 Phase C — directional summary",
-    "",
-    "**NOT A DECISION.** Shape-only readout from small collect.",
-    "",
-    "## Miss p95 by cell × arm (median [p10, p90])",
-    "",
-    "| cell | loss | arm | n | median_ms | p10 | p90 |",
-    "| --- | ---: | --- | ---: | ---: | ---: | ---: |",
-]
-for key in sorted(by.keys(), key=lambda k: (k[0], float(k[2]), k[3])):
-    cell, rtt, loss, arm = key
-    m, lo, hi = mad_ci(by[key])
-    lines.append(
-        f"| {cell} | {loss} | {arm} | {len(by[key])} | {m:.1f} | {lo:.1f} | {hi:.1f} |"
-    )
-
+lines = ["# L1 v3 Phase C — directional summary", "", "**NOT A DECISION.** Shape-only readout.", "",
+         "## Miss p95 by cell × arm (median [p10, p90])", "",
+         "| cell | loss | arm | n | median_ms | p10 | p90 |", "| --- | ---: | --- | ---: | ---: | ---: | ---: |"]
+for key in sorted(by, key=lambda k: (k[0], float(k[2]), k[3])):
+    cell,_,loss,arm = key
+    m,lo,hi = pct_ci(by[key])
+    lines.append(f"| {cell} | {loss} | {arm} | {len(by[key])} | {m:.1f} | {lo:.1f} | {hi:.1f} |")
 lines += ["", "## Regime rates", "", "| cell | loss | arm | regimes |", "| --- | ---: | --- | --- |"]
-for key in sorted(regime_counts.keys()):
-    cell, loss, arm = key
-    parts = ", ".join(f"{k}={v}" for k, v in sorted(regime_counts[key].items()))
+for key in sorted(rc):
+    cell,loss,arm = key
+    parts = ", ".join(f"{k}={v}" for k,v in sorted(rc[key].items()))
     lines.append(f"| {cell} | {loss} | {arm} | {parts} |")
-
-def loss_eq(a, b):
-    return abs(float(a) - float(b)) < 1e-9
-
-# Directional shape: Q vs S at each loss (all regimes pooled — label mixed)
-lines += ["", "## Directional shape (Q vs S, all regimes pooled)", ""]
+lines += ["", "## Directional shape (Q vs S, pooled)", ""]
 for loss in (0.0, 0.5, 2.0):
-    for cell_pref in ("null", "dose-low", "dose-high"):
-        sk = next((k for k in by if k[0].startswith(cell_pref) and loss_eq(k[2], loss) and k[3] == "S"), None)
-        qk = next((k for k in by if k[0].startswith(cell_pref) and loss_eq(k[2], loss) and k[3] == "Q"), None)
-        if not sk or not qk:
-            continue
+    for pref in ("null", "dose-low", "dose-high"):
+        sk = next((k for k in by if k[0].startswith(pref) and loss_eq(k[2], loss) and k[3]=="S"), None)
+        qk = next((k for k in by if k[0].startswith(pref) and loss_eq(k[2], loss) and k[3]=="Q"), None)
+        if not sk or not qk: continue
         sm, qm = med(by[sk]), med(by[qk])
-        if sm <= 0:
-            continue
+        if sm <= 0: continue
         gain = (sm - qm) / sm
-        lines.append(
-            f"- {cell_pref} loss={loss}%: S_med={sm:.1f} Q_med={qm:.1f} "
-            f"rel_gain_Q={(gain*100):+.1f}% (pooled; check regime split)"
-        )
-
-pk = next((k for k in by if loss_eq(k[2], 0.5) and k[3] == "P"), None)
-qk = next((k for k in by if loss_eq(k[2], 0.5) and k[3] == "Q"), None)
+        lines.append(f"- {pref} loss={loss}%: S_med={sm:.1f} Q_med={qm:.1f} rel_gain_Q={(gain*100):+.1f}%")
+pk = next((k for k in by if loss_eq(k[2], 0.5) and k[3]=="P"), None)
+qk = next((k for k in by if loss_eq(k[2], 0.5) and k[3]=="Q"), None)
 if pk and qk:
-    pm, qm = med(by[pk]), med(by[qk])
-    lines += [
-        "",
-        "## P vs Q at 0.5% (attribution smoke)",
-        f"- P_med={pm:.1f} Q_med={qm:.1f} (if similar → priority not the lever)",
-    ]
-
-lines += [
-    "",
-    "## Explicit non-claims",
-    "- Not a ship decision for Q.",
-    "- Not a 15% product-bar result.",
-    "- RTT-150 not in this collect.",
-    "",
-]
+    lines += ["", "## P vs Q at 0.5%", f"- P_med={med(by[pk]):.1f} Q_med={med(by[qk]):.1f}"]
+lines += ["", "## Explicit non-claims", "- Not a ship decision for Q.", "- Not a 15% product-bar result.", "- RTT-150 not in this collect.", ""]
+out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text("\n".join(lines))
 print(f"Wrote {out}")
 PY
 }
 
 deploy_spq
-
-# Phase C grid (complete plan)
 run_cell null 60 0 4 "$REPEATS_NULL" S P Q
 null_gap_check
-
 run_cell dose-low 60 0.5 4 "$REPEATS_DOSE_LOW" S P Q
 run_cell dose-high 60 2 4 "$REPEATS_DOSE_HIGH" S Q
-
 write_summary
 
 echo "=== Phase C small collect COMPLETE (DIRECTIONAL ONLY) ==="
-echo "TSV=$OUT_TSV"
-echo "RAW=$RAW_DIR"
-echo "SUMMARY=$SUMMARY_MD"
-echo "Do NOT treat as ship decision. Proceed to Phase E only after review."
+echo "TSV=$OUT_TSV RAW=$RAW_DIR SUMMARY=$SUMMARY_MD"
+echo "Do NOT treat as ship decision."

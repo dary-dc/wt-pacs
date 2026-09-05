@@ -1,9 +1,16 @@
 {
   "status": "frozen_for_review",
-  "note": "Pilots excluded from decision analysis. Reader model clinical_under_delivery (0.9). Loss cells bimodal \u2014 stamp regime per row; do not drop slow pilots from median. See L1-v3-phase-b-regime-reader.md. Re-pilot on 160-frame optional before powered run.",
-  "trace": "lab/traces/l1_one_way_80.json",
-  "fixture": "lab/fixtures/frames_32k/frames_32k.sbnd",
+  "note": "160-frame Phase-C cadence. Reader clinical_under_delivery (0.9). Loss cells may be bimodal \u2014 stamp regime per row. Dose-high step anchored to clean when A1 median violates clinical link band. DIRECTIONAL collect only \u2014 not a ship decision.",
+  "trace": "lab/traces/l1_one_way_160.json",
+  "fixture": "lab/fixtures/frames_32k_160/frames_32k_160.sbnd",
   "window_shape": "forward",
+  "fixture_frame_count": 160,
+  "reader_model": {
+    "name": "clinical_under_delivery",
+    "factor": 0.9,
+    "doc": "docs/lanes/L1-v3-phase-b-regime-reader.md"
+  },
+  "regime_doc": "docs/lanes/L1-v3-phase-b-regime-reader.md",
   "review_doc": "docs/lanes/L1-v3-complete-plan.md",
   "cells": [
     {
@@ -11,13 +18,13 @@
       "loss_pct": 0.0,
       "depth": 4,
       "loss_model": "iid",
-      "f_cell_pilot_fps": 33.8931,
+      "f_cell_pilot_fps": 35.3787,
       "f_cell_pilot_runs": [
-        33.866,
-        33.8958,
-        33.8931
+        35.3661,
+        35.3787,
+        35.3831
       ],
-      "step_interval_ms": 33,
+      "step_interval_ms": 31,
       "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
       "arms_use_same_cadence": [
         "S",
@@ -31,89 +38,42 @@
       "loss_pct": 0.5,
       "depth": 4,
       "loss_model": "iid",
-      "f_cell_pilot_fps": 32.1681,
+      "f_cell_pilot_fps": 34.4259,
       "f_cell_pilot_runs": [
-        32.2219,
-        12.5161,
-        32.1681
+        34.0487,
+        34.4259,
+        35.3847
       ],
-      "step_interval_ms": 35,
+      "step_interval_ms": 32,
       "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
       "arms_use_same_cadence": [
         "S",
         "P",
         "Q"
       ],
-      "pilot_bimodal": true,
-      "regime_note": "fast/slow mixture in pilots; stamp loss_stable vs loss_slow on collect rows"
+      "pilot_bimodal": false
     },
     {
       "rtt_label_ms": 60,
       "loss_pct": 2.0,
       "depth": 4,
       "loss_model": "iid",
-      "f_cell_pilot_fps": 31.559,
+      "f_cell_pilot_fps": 13.9476,
       "f_cell_pilot_runs": [
-        9.6505,
-        31.8042,
-        31.559
+        18.0415,
+        12.3183,
+        13.9476
       ],
-      "step_interval_ms": 35,
+      "step_interval_ms": 31,
       "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
       "arms_use_same_cadence": [
         "S",
         "P",
         "Q"
       ],
-      "pilot_bimodal": true,
-      "regime_note": "fast/slow mixture in pilots; stamp loss_stable vs loss_slow on collect rows"
-    },
-    {
-      "rtt_label_ms": 150,
-      "loss_pct": 0.0,
-      "depth": 7,
-      "loss_model": "iid",
-      "f_cell_pilot_fps": 28.457,
-      "f_cell_pilot_runs": [
-        28.4461,
-        28.457,
-        28.4571
-      ],
-      "step_interval_ms": 39,
-      "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
-      "arms_use_same_cadence": [
-        "S",
-        "P",
-        "Q"
-      ],
-      "pilot_bimodal": false
-    },
-    {
-      "rtt_label_ms": 150,
-      "loss_pct": 0.5,
-      "depth": 7,
-      "loss_model": "iid",
-      "f_cell_pilot_fps": 26.5552,
-      "f_cell_pilot_runs": [
-        26.5552,
-        28.3537,
-        7.9173
-      ],
-      "step_interval_ms": 42,
-      "rule": "step_interval_ms = round(1000 / (0.9 * median_f_cell)); S-arm pilots at step-interval-ms=0",
-      "arms_use_same_cadence": [
-        "S",
-        "P",
-        "Q"
-      ],
-      "pilot_bimodal": true,
-      "regime_note": "fast/slow mixture in pilots; stamp loss_stable vs loss_slow on collect rows"
+      "pilot_bimodal": false,
+      "cadence_note": "A1 median step=80 outside clinical link band [26,46] under loss-degraded f_cell; anchored to clean step=31",
+      "regime_note": "loss pilots may be loss_slow; stamp regime per row"
     }
-  ],
-  "reader_model": {
-    "name": "clinical_under_delivery",
-    "factor": 0.9,
-    "doc": "docs/lanes/L1-v3-phase-b-regime-reader.md"
-  },
-  "regime_doc": "docs/lanes/L1-v3-phase-b-regime-reader.md"
+  ]
 }
