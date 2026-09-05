@@ -112,11 +112,12 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     let mode = config.mode;
     let send_path = config.tuning.send_path;
+    let prefault = config.tuning.prefault;
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
         tokio::spawn(async move {
-            if let Err(err) = handle_incoming(incoming, store, mode, send_path).await {
+            if let Err(err) = handle_incoming(incoming, store, mode, send_path, prefault).await {
                 warn!(%err, "session ended");
             }
         });
@@ -158,6 +159,7 @@ async fn handle_incoming(
     store: Arc<FrameStore>,
     mode: StreamMode,
     send_path: SendPath,
+    prefault: bool,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     let connection = session_request.accept().await.context("accept session")?;
@@ -180,7 +182,7 @@ async fn handle_incoming(
         StreamMode::PerFrame => None,
     };
 
-    run_session(connection, control_send, control_recv, store, shared, send_path).await
+    run_session(connection, control_send, control_recv, store, shared, send_path, prefault).await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
@@ -191,6 +193,7 @@ async fn run_session(
     store: Arc<FrameStore>,
     mut shared: Option<SendStream>,
     send_path: SendPath,
+    prefault: bool,
 ) -> Result<()> {
     let mut rec = Recorder::for_session();
 
@@ -223,6 +226,7 @@ async fn run_session(
                     frame,
                     &mut rec,
                     send_path,
+                    prefault,
                 )
                 .await?;
             }
@@ -237,6 +241,7 @@ async fn run_session(
                         frame,
                         &mut rec,
                         send_path,
+                        prefault,
                     )
                     .await?;
                 }
@@ -266,19 +271,24 @@ async fn send_one_frame(
     idx: u32,
     rec: &mut Recorder,
     send_path: SendPath,
+    prefault: bool,
 ) -> Result<()> {
     rec.ask(idx);
 
     let t0 = rec.stamp();
     // Prefault off the executor — a major fault is not an `.await`.
     // TODO(readability): hide Arc (inner FrameStore handle or block_in_place); perf unchanged.
-    let store_touch = Arc::clone(store);
-    let touch = tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
-        .await
-        .context("join frame page touch")?;
+    let touch = if prefault {
+        let store_touch = Arc::clone(store);
+        tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
+            .await
+            .context("join frame page touch")?
+    } else {
+        Ok(())
+    };
 
     let located = touch.and_then(|_| match send_path {
-        SendPath::Copy => store.frame_slice(idx).map(Payload::Borrowed),
+        SendPath::Copy | SendPath::Split => store.frame_slice(idx).map(Payload::Borrowed),
         SendPath::Chunked => store.frame_bytes(idx).map(Payload::Owned),
     });
 
@@ -293,9 +303,12 @@ async fn send_one_frame(
             // "found and materialised".
             let t1 = rec.stamp();
             let result = match payload {
-                Payload::Borrowed(bytes) => {
+                Payload::Borrowed(bytes) if send_path == SendPath::Copy => {
                     let buf = wrap(idx, bytes);
                     write_payload(connection, shared, acks, &buf).await
+                }
+                Payload::Borrowed(bytes) => {
+                    write_payload_split(connection, shared, acks, idx, bytes).await
                 }
                 Payload::Owned(body) => {
                     write_payload_chunked(connection, shared, acks, idx, body).await
@@ -399,6 +412,47 @@ fn envelope_header(idx: u32, codestream_len: usize) -> [u8; ENVELOPE_LEN * 2] {
     header
 }
 
+/// `[len]`, `[index]`, codestream as three separate `&[u8]` writes.
+///
+/// Drops `wrap()`'s allocation — nothing is ever made contiguous — but each
+/// `write_all(&[u8])` still reaches `ByteSlice::pop_chunk`, which allocates and copies
+/// into the send buffer. So the codestream is copied once, not twice. This is the
+/// current best shape and the baseline the chunked path is measured against.
+async fn write_payload_split(
+    connection: &Connection,
+    shared: &mut Option<SendStream>,
+    acks: &mut JoinSet<()>,
+    idx: u32,
+    codestream: &[u8],
+) -> Result<()> {
+    let header = envelope_header(idx, codestream.len());
+    let (len, index) = header.split_at(ENVELOPE_LEN);
+    match shared {
+        Some(uni) => {
+            uni.write_all(len).await.context("write shared len")?;
+            uni.write_all(index).await.context("write shared index")?;
+            uni.write_all(codestream)
+                .await
+                .context("write shared codestream")?;
+        }
+        None => {
+            let mut uni = connection
+                .open_uni()
+                .await
+                .context("open uni")?
+                .await
+                .context("open uni ready")?;
+            uni.write_all(len).await.context("write len")?;
+            uni.write_all(index).await.context("write index")?;
+            uni.write_all(codestream).await.context("write codestream")?;
+            acks.spawn(async move {
+                let _ = uni.finish().await;
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Same bytes on the wire as `write_payload`, without materialising them.
 ///
 /// `[4B BE len][4B BE display_index]` is an 8-byte header chunk; the codestream is a
@@ -452,9 +506,14 @@ mod tests {
     use super::*;
     use crate::transport::wire::length_prefixed;
 
-    /// The chunked path must be byte-identical to `length_prefixed(wrap(idx, body))`.
+    /// All three send paths must put identical bytes on the wire.
+    ///
+    /// `copy` builds `length_prefixed(wrap(..))`; `split` writes the two header halves
+    /// then the codestream; `chunked` writes the 8-byte header then the codestream. If
+    /// these ever diverge, the arms are measuring different protocols and every number
+    /// in `docs/quic-transport-optimization.md` is void.
     #[test]
-    fn chunked_header_matches_copy_path() {
+    fn all_send_paths_are_the_same_wire() {
         for (idx, body) in [
             (0u32, b"".as_slice()),
             (1, b"x"),
@@ -463,9 +522,17 @@ mod tests {
         ] {
             let copy_wire = length_prefixed(&wrap(idx, body));
             let header = envelope_header(idx, body.len());
+
             let mut chunked_wire = header.to_vec();
             chunked_wire.extend_from_slice(body);
-            assert_eq!(copy_wire, chunked_wire, "idx {idx}, body {}", body.len());
+
+            let (len, index) = header.split_at(ENVELOPE_LEN);
+            let mut split_wire = len.to_vec();
+            split_wire.extend_from_slice(index);
+            split_wire.extend_from_slice(body);
+
+            assert_eq!(copy_wire, chunked_wire, "chunked, idx {idx}, {} B", body.len());
+            assert_eq!(copy_wire, split_wire, "split, idx {idx}, {} B", body.len());
         }
     }
 }

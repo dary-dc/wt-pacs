@@ -19,11 +19,21 @@ pub enum Congestion {
 }
 
 /// How frame bytes reach the connection's send buffer.
+///
+/// Three arms because there are three historical shapes, and the increment that
+/// matters is `Split` → `Chunked`, not `Copy` → `Chunked`. See
+/// `docs/quic-transport-optimization.md` §1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, clap::ValueEnum)]
 pub enum SendPath {
-    /// `wrap()` into a fresh Vec, then `write_all(&[u8])`. Two full-frame copies.
+    /// `wrap()` into a fresh Vec, then `write_all(&[u8])`. **Two** full-frame copies.
+    /// The oldest shape; kept only so the historical delta stays reproducible.
     Copy,
-    /// `Bytes` slice of the mapping + `write_all_chunks`. No full-frame copy.
+    /// `[len]`, `[index]`, codestream as three `write_all(&[u8])` calls — no contiguous
+    /// buffer, so `wrap()`'s copy is gone, but quinn still copies the codestream into
+    /// its send buffer. **One** full-frame copy. This is the shape on
+    /// `cursor/client-frame-pipeline-telemetry-8017`, and the baseline to beat.
+    Split,
+    /// `Bytes` slice of the mapping + `write_all_chunks`. **No** full-frame copy.
     #[default]
     Chunked,
 }
@@ -51,6 +61,12 @@ pub struct TransportTuning {
     pub socket_send_buffer: Option<usize>,
     pub socket_recv_buffer: Option<usize>,
     pub send_path: SendPath,
+    /// Fault frame pages in from a blocking thread before writing them.
+    ///
+    /// On by default, and correct when the page cache is cold — a major fault is not an
+    /// `.await`, so taking it on the executor stalls every task sharing the thread. It
+    /// costs one `spawn_blocking` round trip per frame, which is why it is measurable.
+    pub prefault: bool,
 }
 
 impl Default for TransportTuning {
@@ -69,6 +85,7 @@ impl Default for TransportTuning {
             socket_send_buffer: None,
             socket_recv_buffer: None,
             send_path: SendPath::Chunked,
+            prefault: true,
         }
     }
 }
@@ -150,6 +167,7 @@ mod tests {
             socket_send_buffer: Some(4 << 20),
             socket_recv_buffer: Some(4 << 20),
             send_path: SendPath::Copy,
+            prefault: false,
         };
         t.to_transport_config().unwrap();
         assert!(!t.socket_buffers_are_default());

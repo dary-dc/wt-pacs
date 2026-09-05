@@ -58,6 +58,9 @@ struct Args {
     /// How frame bytes reach the send buffer. See `docs/quic-transport-optimization.md`.
     #[arg(long, value_enum, default_value_t = SendPath::Chunked)]
     send_path: SendPath,
+    /// Fault frame pages in from a blocking thread before writing. On by default.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    prefault: bool,
 }
 
 /// Install the rustls provider selected at compile time (`crypto-ring` by default,
@@ -102,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
             socket_send_buffer: args.socket_send_buffer,
             socket_recv_buffer: args.socket_recv_buffer,
             send_path: args.send_path,
+            prefault: args.prefault,
         },
     })
     .await?;
