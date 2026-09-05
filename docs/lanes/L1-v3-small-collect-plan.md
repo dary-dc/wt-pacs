@@ -1,6 +1,6 @@
 # L1 v3 — small collect plan
 
-**Status:** Phase C **SSH body enabled** · run with `APPROVE_SMALL_COLLECT=1`  
+**Status:** Phase C **run complete** (directional) · see `L1-v3-phase-c-directional-note.md`  
 **Governed by:** [`L1-v3-complete-plan.md`](L1-v3-complete-plan.md)  
 **Branch:** `cursor/l1-loss-run-dbae`  
 **Collect runner:** `lab/scripts/l1_v3_collect_small.sh`
