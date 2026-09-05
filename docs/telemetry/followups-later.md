@@ -1,41 +1,49 @@
 # Follow-ups (later — do not start now)
 
-Parking lot for telemetry (and adjacent) improvements **after** the landed client work
-(C1–C4 in [`plan-client-telemetry.md`](plan-client-telemetry.md)). Evidence dump:
-[`plan-readability-and-performance.md`](plan-readability-and-performance.md).
+Parking lot after landed client C1–C4 and server S1–S5. As-built contract: [`README.md`](README.md).
+Seams: [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md) ·
+[`adr-server-pipeline.md`](adr-server-pipeline.md).
 
-**Pause:** take time to understand the streaming attributor, report fields, and the
+**Pause:** understand the streaming attributor, report fields, and the
 `attribution` / `clock` / `rows` / `report` / `tap` split before picking anything below.
 
 ---
 
-## 1 · Client surface compression (was plan C5)
+## 1 · Client surface compression (was C5)
 
-**Status:** parked as **low value / maybe never** — not a planned next step.
+**Status:** parked — **low value / maybe never**.
 
-It would only trim Proxy/entry boilerplate. It does **not** improve measurements or the
-product boundary, and a generic “proxy factory” can make *which* method is tapped *harder* to
-see. Only revisit if you are already editing `proxy.ts` for a real bug or new stream shape.
-
-Ideas (if ever): fold shared wrap shell in `record/proxy.ts`; tighten lab entry files without
-pulling Tap into product.
-
+Would only trim Proxy/entry boilerplate. Does not improve measurements or the product boundary;
+a generic proxy factory can make *which* method is tapped harder to see. Revisit only if already
+editing `proxy.ts` for a real bug or new stream shape.
 
 ---
 
 ## 2 · Product WASM receive buffer (`session.rs` RecvBuf)
 
-Interesting for **product** copy reduction, not telemetry. Later: ask whether a simpler /
-less-code equivalent keeps the same win. **Do not redesign now.**
+Product copy reduction, not telemetry. Later: ask whether a simpler / less-code equivalent keeps
+the same win. **Do not redesign now.**
 
 ---
 
-## 4 · Product send path (P3 / P4 / P2 / P1)
+## 3 · Product send path (P3 → P4 → measure P2 → maybe P1)
 
-Already specified in [`plan-readability-and-performance.md`](plan-readability-and-performance.md) §5.
-**Deferred** — not in the active server-telemetry track
-([`plan-server-telemetry.md`](plan-server-telemetry.md)). Do not forget; do not start now.
+**Deferred.** Not telemetry. Order: small wire/ack wins first, then measure batch prefault, only
+then consider overlapping prefault with send (the only item that changes the serial pipeline story
+in the server ADR).
 
+| # | Change | Risk |
+| --- | --- | --- |
+| **P3** | One 8-byte header write instead of two 4-byte awaits | Low |
+| **P4** | Reap acks incrementally each send (`try_join_next`) | Low |
+| **P2** | Batch prefault for one `RequestFrames` (one `spawn_blocking`) | Low — measure |
+| **P1** | Overlap prefault(k+1) with send(k) | Medium — ADR story change |
+
+P1 and P2 are alternatives, not a sequence. Full-frame `wrap()` copy is already gone.
+
+---
+
+## 4 · Build artifacts (reminder)
 
 | Artifact | Source | In git? |
 | --- | --- | --- |
@@ -43,5 +51,4 @@ Already specified in [`plan-readability-and-performance.md`](plan-readability-an
 | `dist/session.telemetry.js` | `record/session-telemetry.ts` | **No** — gitignored |
 | `record/dist/` | `install.ts`, etc. | **No** — gitignored |
 
-Rebuild: `client/transport-ts/build.sh`. `session-telemetry.ts` is install + wrap only, not the
-attribution hot path.
+Rebuild: `client/transport-ts/build.sh`.
