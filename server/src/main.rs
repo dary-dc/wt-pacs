@@ -18,6 +18,10 @@ struct Args {
     /// How frames reach the client: one shared uni stream or one per frame.
     #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
     stream_mode: StreamMode,
+    /// Per-frame only: set QUIC stream priority by ask order (earliest ask wins).
+    /// No-op in shared mode. L1 arm Q = `--stream-mode per-frame --ask-priority`.
+    #[arg(long, default_value_t = false)]
+    ask_priority: bool,
 }
 
 #[tokio::main]
@@ -37,6 +41,7 @@ async fn main() -> anyhow::Result<()> {
         cert_pem: args.cert_pem,
         key_pem: args.key_pem,
         mode: args.stream_mode,
+        ask_priority: args.ask_priority,
     })
     .await?;
     Ok(())

@@ -20,6 +20,14 @@ impl StreamMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum WindowShape {
+    /// (c, c+1, c-1, c+2, c-2, …) — for traces that reverse.
+    Symmetric,
+    /// (c, c+1, c+2, …) — for strictly forward traces.
+    Forward,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HarnessMode {
     /// Trace-driven fly / settle (E2).
@@ -46,6 +54,12 @@ pub struct RunConfig {
     pub rtt_ms: u64,
     /// Must match the server's `--stream-mode`.
     pub stream_mode: StreamMode,
+    /// Window shape around the cursor. `Forward` for one-way traces.
+    pub window_shape: WindowShape,
+    /// Override trace step interval (ms). None = use the trace file.
+    pub step_interval_ms: Option<u64>,
+    /// Optional QUIC per-stream receive window (bytes). None = stack default.
+    pub stream_recv_window: Option<u64>,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -66,8 +80,18 @@ pub struct HarnessMetrics {
     pub recovered_ms: f64,
     /// Mean time from reader-wants to displayable; cache hits count as 0.
     pub mean_wait_ms: f64,
-    /// p95 of the same wait samples.
+    /// p95 of the same wait samples (includes cache-hit zeros).
     pub p95_wait_ms: f64,
+    /// Mean of positive waits only (network misses). 0 if no misses.
+    pub miss_mean_wait_ms: f64,
+    /// Nearest-rank p95 of positive waits only. 0 if no misses.
+    pub miss_p95_wait_ms: f64,
+    /// Steps that were already displayable (wait recorded as 0).
+    pub cache_hits: u32,
+    /// Steps that waited on the network (wait > 0).
+    pub cache_misses: u32,
+    /// cache_hits / wait_samples.
+    pub cache_hit_rate: f64,
     /// Raw per-step waits (ms); cache hits are 0. For derived random arm offline.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub wait_ms: Vec<f64>,
@@ -91,6 +115,18 @@ pub struct HarnessMetrics {
     pub warm_cache: bool,
     /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
+    /// Wall time of the trace step loop (ms).
+    #[serde(default)]
+    pub step_loop_ms: f64,
+    /// Median wait in the first half of step-loop samples (ms).
+    #[serde(default)]
+    pub wait_h1_median_ms: f64,
+    /// Median wait in the second half of step-loop samples (ms).
+    #[serde(default)]
+    pub wait_h2_median_ms: f64,
+    /// bytes_on_wire*8/step_loop_s as fraction of read_bps (A5).
+    #[serde(default)]
+    pub link_util_measured: f64,
     /// Per FoD ask sent: `(frame_index, ask_ordinal)` for offline join with server Tap.
     /// Ordinals increment per `frame_index` within the session (same rule as server Tap).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -124,6 +160,8 @@ pub struct MetricsState {
     pub cache: HashSet<u32>,
     /// Per want: ms until displayable (0 on cache hit).
     pub wait_samples_ms: Vec<f64>,
+    /// Wall ms of the windowed step loop (set by client).
+    pub step_loop_ms: f64,
 }
 
 impl MetricsState {
@@ -146,6 +184,7 @@ impl MetricsState {
             fill_started_at: None,
             cache: HashSet::new(),
             wait_samples_ms: Vec::new(),
+            step_loop_ms: 0.0,
         }
     }
 
@@ -197,6 +236,7 @@ impl MetricsState {
         self.wait_samples_ms.push(ms);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn finalize(
         &self,
         trace: &str,
@@ -231,6 +271,26 @@ impl MetricsState {
             0.0
         };
         let (mean_wait_ms, p95_wait_ms) = wait_stats(&self.wait_samples_ms);
+        let misses: Vec<f64> = self
+            .wait_samples_ms
+            .iter()
+            .copied()
+            .filter(|ms| *ms > 0.0)
+            .collect();
+        let cache_misses = misses.len() as u32;
+        let cache_hits = self.wait_samples_ms.len() as u32 - cache_misses;
+        let cache_hit_rate = if self.wait_samples_ms.is_empty() {
+            0.0
+        } else {
+            cache_hits as f64 / self.wait_samples_ms.len() as f64
+        };
+        let (miss_mean_wait_ms, miss_p95_wait_ms) = wait_stats(&misses);
+        let (wait_h1_median_ms, wait_h2_median_ms) = half_medians(&self.wait_samples_ms);
+        let link_util_measured = if self.step_loop_ms > 0.0 && read_bps > 0 {
+            (self.bytes_on_wire as f64 * 8.0) / (self.step_loop_ms / 1000.0) / (read_bps as f64)
+        } else {
+            0.0
+        };
         HarnessMetrics {
             trace: trace.to_string(),
             mode: mode.to_string(),
@@ -244,6 +304,11 @@ impl MetricsState {
             recovered_ms,
             mean_wait_ms,
             p95_wait_ms,
+            miss_mean_wait_ms,
+            miss_p95_wait_ms,
+            cache_hits,
+            cache_misses,
+            cache_hit_rate,
             wait_ms: self.wait_samples_ms.clone(),
             wait_samples: self.wait_samples_ms.len() as u32,
             fill_rate,
@@ -262,9 +327,47 @@ impl MetricsState {
             bytes_before_settle: self.bytes_on_wire.saturating_sub(self.bytes_after_settle),
             warm_cache,
             rtt_ms,
+            step_loop_ms: self.step_loop_ms,
+            wait_h1_median_ms,
+            wait_h2_median_ms,
+            link_util_measured,
             ask_join: crate::client::take_ask_join(),
         }
     }
+}
+
+/// Nearest-rank percentile (L2 brief / client telemetry contract).
+/// `rank = ceil(p/100 × N)` clamped to `[1, N]`; value = `sorted[rank - 1]`.
+fn percentile_nearest_rank(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let n = sorted.len();
+    let rank = ((p / 100.0) * n as f64).ceil() as usize;
+    let rank = rank.clamp(1, n);
+    sorted[rank - 1]
+}
+
+
+fn half_medians(samples: &[f64]) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+    let mid = samples.len() / 2;
+    let (a, b) = if mid == 0 {
+        (samples, &[][..])
+    } else {
+        (&samples[..mid], &samples[mid..])
+    };
+    let med = |xs: &[f64]| -> f64 {
+        if xs.is_empty() {
+            return 0.0;
+        }
+        let mut v = xs.to_vec();
+        v.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+        v[v.len() / 2]
+    };
+    (med(a), med(b))
 }
 
 fn wait_stats(samples: &[f64]) -> (f64, f64) {
@@ -274,9 +377,42 @@ fn wait_stats(samples: &[f64]) -> (f64, f64) {
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let mut sorted = samples.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let idx = ((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize;
-    let p95 = sorted[idx.min(sorted.len() - 1)];
+    let p95 = percentile_nearest_rank(&sorted, 95.0);
     (mean, p95)
+}
+
+#[cfg(test)]
+mod wait_stats_tests {
+    use super::{percentile_nearest_rank, wait_stats};
+
+    #[test]
+    fn nearest_rank_disagrees_with_old_index_formula() {
+        // N=20: old idx = ceil((19)*0.95)=19 → sorted[19]; nearest-rank rank=ceil(0.95*20)=19 → sorted[18].
+        let samples: Vec<f64> = (1..=20).map(|i| i as f64).collect();
+        let mut sorted = samples.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let old_idx = (((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize).min(sorted.len() - 1);
+        let old = sorted[old_idx];
+        let new = percentile_nearest_rank(&sorted, 95.0);
+        assert_ne!(old, new, "fixture must disagree: old={old} new={new}");
+        assert_eq!(new, 19.0);
+        let (_mean, p95) = wait_stats(&samples);
+        assert_eq!(p95, 19.0);
+    }
+
+    #[test]
+    fn miss_only_ignores_cache_hit_zeros() {
+        // 19 zeros + one 100ms miss → all-sample nearest-rank p95 is 0; miss-only p95 is 100.
+        let mut samples = vec![0.0; 19];
+        samples.push(100.0);
+        let (mean_all, p95_all) = wait_stats(&samples);
+        assert_eq!(p95_all, 0.0);
+        assert!((mean_all - 5.0).abs() < 1e-9);
+        let misses: Vec<f64> = samples.into_iter().filter(|ms| *ms > 0.0).collect();
+        let (miss_mean, miss_p95) = wait_stats(&misses);
+        assert_eq!(miss_mean, 100.0);
+        assert_eq!(miss_p95, 100.0);
+    }
 }
 
 pub type SharedMetrics = Arc<Mutex<MetricsState>>;

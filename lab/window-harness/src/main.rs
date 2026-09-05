@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
-use window_harness::{peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RunConfig, StreamMode, TraceSpec};
+use window_harness::{peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RunConfig, StreamMode, TraceSpec, WindowShape};
 
 #[derive(Parser)]
 #[command(name = "window-harness")]
@@ -37,6 +37,16 @@ struct Args {
     /// Must match the server's `--stream-mode`.
     #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
     stream_mode: StreamMode,
+
+    /// Window shape around the cursor. Use `forward` for one-way traces.
+    #[arg(long, value_enum, default_value_t = WindowShape::Symmetric)]
+    window_shape: WindowShape,
+    /// Override the trace step interval (ms).
+    #[arg(long)]
+    step_interval_ms: Option<u64>,
+    /// Optional QUIC per-stream receive window (bytes). Diagnostic / equalisation.
+    #[arg(long)]
+    stream_recv_window: Option<u64>,
 
     /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
     #[arg(long)]
@@ -78,6 +88,9 @@ async fn main() -> anyhow::Result<()> {
         warm_cache: args.warm_cache,
         rtt_ms: args.rtt_ms,
         stream_mode: args.stream_mode,
+        window_shape: args.window_shape,
+        step_interval_ms: args.step_interval_ms,
+        stream_recv_window: args.stream_recv_window,
     };
     if let Some(sweep) = &args.depth_sweep {
         let depths: Vec<u32> = sweep
@@ -113,6 +126,11 @@ async fn main() -> anyhow::Result<()> {
         println!("recovered_ms={:.2}", m.recovered_ms);
         println!("mean_wait_ms={:.2}", m.mean_wait_ms);
         println!("p95_wait_ms={:.2}", m.p95_wait_ms);
+        println!("miss_mean_wait_ms={:.2}", m.miss_mean_wait_ms);
+        println!("miss_p95_wait_ms={:.2}", m.miss_p95_wait_ms);
+        println!("cache_hits={}", m.cache_hits);
+        println!("cache_misses={}", m.cache_misses);
+        println!("cache_hit_rate={:.4}", m.cache_hit_rate);
         println!("wait_samples={}", m.wait_samples);
         println!("fill_rate={:.2}", m.fill_rate);
         println!("link_util={:.4}", m.link_util);
@@ -122,6 +140,10 @@ async fn main() -> anyhow::Result<()> {
         println!("wanted_received={}", m.wanted_received);
         println!("warm_cache={}", m.warm_cache);
         println!("rtt_ms={}", m.rtt_ms);
+        println!("step_loop_ms={:.2}", m.step_loop_ms);
+        println!("wait_h1_median_ms={:.2}", m.wait_h1_median_ms);
+        println!("wait_h2_median_ms={:.2}", m.wait_h2_median_ms);
+        println!("link_util_measured={:.4}", m.link_util_measured);
     }
     Ok(())
 }
