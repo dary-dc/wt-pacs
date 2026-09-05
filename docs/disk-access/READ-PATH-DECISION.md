@@ -27,8 +27,8 @@ serves everyone else:
 What the campaign found:
 
 1. **When the bytes are usually already in RAM, `pool` is fine and io_uring is a bad idea** —
-   it adds queue bookkeeping to a read that never had to wait, costing ~47% more CPU and 6×
-   the latency.
+   it adds queue bookkeeping to a read that never had to wait, costing ~47% more CPU and
+   between 2× and 43× the latency, the more so the busier the server is.
 2. **When the bytes usually are not in RAM, io_uring wins big** — 45–77% less CPU per read —
    and the advantage grows the more reads are in flight at once.
 3. **`hybrid` gets both**, because it picks per read rather than per deployment. It is a tie
@@ -69,8 +69,8 @@ Read it as two rules:
   30/30. These are not marginal effects.
 
 The same comparison for **pure io_uring** shows why the hybrid rather than the ring: it
-matches the hybrid when misses dominate, and is **+47% CPU and 6× the latency** when they do
-not, because every cached read pays a submit-and-complete round trip it never needed.
+matches the hybrid when misses dominate, and is **+47% CPU and 2–43× the latency** when they
+do not, because every cached read pays a submit-and-complete round trip it never needed.
 `pooled_pread` — the ADR's escape hatch — is 5–8× worse than either almost everywhere.
 
 ### Latency says the same thing, louder
