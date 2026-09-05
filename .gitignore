@@ -18,3 +18,6 @@ client/dev-transport.json
 lab/fixtures/frames_32k/*.sbnd
 lab/fixtures/frames_250k/*.sbnd
 lab/fixtures/frames_250k_live/*.sbnd
+# Rung-layout fixtures (regenerate with NAME=... BYTES=... FRAMES=... gen_live_cell_fixture.sh)
+lab/fixtures/frames_16k_rung/*.sbnd
+lab/fixtures/frames_16k_big/*.sbnd
