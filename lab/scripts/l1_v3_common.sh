@@ -75,19 +75,27 @@ print(f"frame_bytes_ok obs={obs:.1f} mean={mean:.1f}")
 PY
 }
 
-# A2 — ≥ L1_TAIL_MIN positive waits at/above miss_p95.
-# Prints: miss_p95\ttail_n\tmiss_n\tok|FAIL ; exit 2 on FAIL.
+# A2 — honest miss-p95 tail mass.
+# Need enough positive waits to estimate p95, then ≥ min(L1_TAIL_MIN, ceil(0.05·n))
+# samples at/above that p95 (so clinical under-delivery with n≈50–80 is not an
+# automatic fail just because the upper 5% has fewer than 5 points).
+# Prints: miss_p95\ttail_n\tmiss_n\tneed\tok|FAIL ; exit 2 on FAIL.
 l1_tail_gate() {
   local json=$1
   python3 - "$json" "$L1_TAIL_MIN" <<'PY'
-import json, sys
-path, need = sys.argv[1], int(sys.argv[2])
+import json, math, sys
+path, floor = sys.argv[1], int(sys.argv[2])
 m = json.load(open(path))
 waits = [float(w) for w in m.get("wait_ms") or [] if float(w) > 0]
 p95 = float(m.get("miss_p95_wait_ms") or 0)
+n = len(waits)
+if n < floor:
+    print(f"{p95:.6f}\t0\t{n}\t{floor}\tFAIL")
+    raise SystemExit(2)
+need = min(floor, max(1, math.ceil(0.05 * n)))
 tail = sum(1 for w in waits if w + 1e-12 >= p95) if waits and p95 > 0 else 0
 ok = "ok" if tail >= need else "FAIL"
-print(f"{p95:.6f}\t{tail}\t{len(waits)}\t{ok}")
+print(f"{p95:.6f}\t{tail}\t{n}\t{need}\t{ok}")
 if ok != "ok":
     raise SystemExit(2)
 PY
