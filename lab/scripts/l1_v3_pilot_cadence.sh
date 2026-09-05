@@ -240,13 +240,14 @@ for cell in $CELLS; do
   CELL_F[$key]="${rates[*]}"
 done
 
-python3 - "$CADENCE_JSON" "$OUT_TSV" "${CELL_KEYS[@]}" <<'PY'
+python3 - "$CADENCE_JSON" "$OUT_TSV" "$FIX_FC" "${CELL_KEYS[@]}" <<'PY'
 import json, math, statistics, sys
 from pathlib import Path
 
 out_path = Path(sys.argv[1])
 pilot_tsv = Path(sys.argv[2])
-keys = sys.argv[3:]
+fix_fc = int(sys.argv[3])
+keys = sys.argv[4:]
 
 # Re-read rates from TSV for stability.
 from collections import defaultdict
@@ -286,10 +287,10 @@ for k in keys:
         f"f_cell_med={f_med:.3f} fps → step_interval_ms={step}"
     )
 
-trace_rel = "lab/traces/l1_one_way_160.json" if int("$FIX_FC") == 160 else "lab/traces/l1_one_way_80.json"
+trace_rel = "lab/traces/l1_one_way_160.json" if fix_fc == 160 else "lab/traces/l1_one_way_80.json"
 fix_rel = (
     "lab/fixtures/frames_32k_160/frames_32k_160.sbnd"
-    if int("$FIX_FC") == 160
+    if fix_fc == 160
     else "lab/fixtures/frames_32k/frames_32k.sbnd"
 )
 doc = {
@@ -298,7 +299,7 @@ doc = {
     "trace": trace_rel,
     "fixture": fix_rel,
     "window_shape": "forward",
-    "fixture_frame_count": int("$FIX_FC"),
+    "fixture_frame_count": fix_fc,
     "reader_model": {
         "name": "clinical_under_delivery",
         "factor": 0.9,
