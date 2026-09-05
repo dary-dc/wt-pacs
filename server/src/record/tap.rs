@@ -33,8 +33,10 @@ pub struct FrameRecord {
     pub prepare_us: Option<u32>,
     pub locate_us: Option<u32>,
     pub send_us: Option<u32>,
-    /// Continuous span: `begin_frame` → row emit.
+    /// Full span: `begin_frame` → row emit (measured independently, not a sum).
     pub serve_us: u32,
+    /// `serve_us − prepare − locate − send` (saturating); 0 on a perfect contiguous happy path.
+    pub overhead_us: u32,
     pub server_bytes_sent: u32,
     pub locate_outcome: u8,
     pub write_outcome: u8,
@@ -54,6 +56,8 @@ pub struct Tap {
     pending_locate: u8,
     drops_since_emit: u16,
     serve_start: Option<Instant>,
+    /// End of last closed stage = start of next (contiguous chain).
+    stage_mark: Option<Instant>,
 }
 
 impl Tap {
@@ -85,6 +89,7 @@ impl Tap {
             pending_locate: LocateOutcome::Ok as u8,
             drops_since_emit: 0,
             serve_start: None,
+            stage_mark: None,
         })
     }
 
@@ -97,7 +102,9 @@ impl Tap {
 
     pub(crate) fn begin_frame(&mut self, frame_index: u32) {
         ROWS_OPENED.fetch_add(1, Ordering::Relaxed);
-        self.serve_start = Some(Instant::now());
+        let t = Instant::now();
+        self.serve_start = Some(t);
+        self.stage_mark = Some(t);
         self.frame_index = frame_index;
         self.ask_ordinal = self.take_ordinal(frame_index);
         self.pending_prepare_us = None;
@@ -106,40 +113,77 @@ impl Tap {
         self.pending_locate = LocateOutcome::Ok as u8;
     }
 
-    pub(crate) fn record_prepare(&mut self, us: u32) {
-        self.pending_prepare_us = Some(us);
+    /// One `Instant::now` — duration since mark, then advance mark.
+    fn close_against_mark(&mut self) -> u32 {
+        let now = Instant::now();
+        let us = self
+            .stage_mark
+            .take()
+            .map(|mark| duration_us(mark, now))
+            .unwrap_or(0);
+        self.stage_mark = Some(now);
+        us
     }
 
-    pub(crate) fn record_locate(&mut self, us: u32, outcome: LocateOutcome, byte_len: usize) {
-        self.pending_locate_us = Some(us);
+    /// Entering locate (or prepare failed): close prepare against the mark.
+    pub(crate) fn boundary_prepare_done(&mut self) {
+        self.pending_prepare_us = Some(self.close_against_mark());
+    }
+
+    /// Entering send (or locate failed): close locate against the mark.
+    pub(crate) fn boundary_locate_done(&mut self) {
+        self.pending_locate_us = Some(self.close_against_mark());
+    }
+
+    pub(crate) fn note_locate(&mut self, outcome: LocateOutcome, byte_len: usize) {
         self.pending_locate = outcome as u8;
         if outcome == LocateOutcome::Ok {
             self.pending_bytes = usize_to_u32(byte_len);
         }
     }
 
-    pub(crate) fn emit_sent(&mut self, send_us: u32, envelope_len: usize) {
+    pub(crate) fn emit_sent(&mut self, envelope_len: usize) {
         self.pending_bytes = usize_to_u32(envelope_len);
-        self.try_emit(WriteOutcome::Sent, Some(send_us));
+        self.try_emit(WriteOutcome::Sent, /* measure send */ true);
     }
 
-    pub(crate) fn emit_write_err(&mut self, send_us: u32) {
-        self.try_emit(WriteOutcome::WriteErr, Some(send_us));
+    pub(crate) fn emit_write_err(&mut self) {
+        self.try_emit(WriteOutcome::WriteErr, true);
     }
 
     pub(crate) fn emit_refused(&mut self) {
         self.pending_locate = LocateOutcome::NotFound as u8;
-        self.try_emit(WriteOutcome::Refused, None);
+        self.try_emit(WriteOutcome::Refused, false);
     }
 
-    fn try_emit(&mut self, write_outcome: WriteOutcome, send_us: Option<u32>) {
+    fn try_emit(&mut self, write_outcome: WriteOutcome, measure_send: bool) {
         let dropped = self.drops_since_emit;
         self.drops_since_emit = 0;
+        let now = Instant::now();
+        let send_us = if measure_send {
+            let us = self
+                .stage_mark
+                .take()
+                .map(|mark| duration_us(mark, now))
+                .unwrap_or(0);
+            Some(us)
+        } else {
+            // Refuse: do not attribute the open interval to send.
+            self.stage_mark = None;
+            None
+        };
         let serve_us = self
             .serve_start
             .take()
-            .map(|t| micros_since(t))
+            .map(|t| duration_us(t, now))
             .unwrap_or(0);
+        let prep = self.pending_prepare_us.unwrap_or(0);
+        let loc = self.pending_locate_us.unwrap_or(0);
+        let send = send_us.unwrap_or(0);
+        let overhead_us = serve_us
+            .saturating_sub(prep)
+            .saturating_sub(loc)
+            .saturating_sub(send);
         let row = FrameRecord {
             session_id: self.session_id,
             frame_index: self.frame_index,
@@ -148,6 +192,7 @@ impl Tap {
             locate_us: self.pending_locate_us,
             send_us,
             serve_us,
+            overhead_us,
             server_bytes_sent: self.pending_bytes,
             locate_outcome: self.pending_locate,
             write_outcome: write_outcome as u8,
@@ -180,9 +225,8 @@ impl Drop for Tap {
     }
 }
 
-fn micros_since(start: Instant) -> u32 {
-    start
-        .elapsed()
+fn duration_us(start: Instant, end: Instant) -> u32 {
+    end.duration_since(start)
         .as_micros()
         .min(u32::MAX as u128) as u32
 }
@@ -444,6 +488,7 @@ struct FrameRecordJson {
     #[serde(skip_serializing_if = "Option::is_none")]
     send_us: Option<u32>,
     serve_us: u32,
+    overhead_us: u32,
     server_bytes_sent: u32,
     locate_outcome: u8,
     write_outcome: u8,
@@ -461,6 +506,7 @@ impl From<FrameRecord> for FrameRecordJson {
             locate_us: r.locate_us,
             send_us: r.send_us,
             serve_us: r.serve_us,
+            overhead_us: r.overhead_us,
             server_bytes_sent: r.server_bytes_sent,
             locate_outcome: r.locate_outcome,
             write_outcome: r.write_outcome,
@@ -486,6 +532,7 @@ mod tests {
             pending_locate: 0,
             drops_since_emit: 0,
             serve_start: None,
+            stage_mark: None,
         }
     }
 
@@ -503,13 +550,15 @@ mod tests {
     #[test]
     fn serve_span_starts_at_begin_and_ends_at_emit() {
         let mut t = test_tap();
-        t.begin_frame(0);
+        t.begin_frame(1);
         assert!(t.serve_start.is_some());
-
-        t.record_prepare(5);
-        t.record_locate(1, LocateOutcome::Ok, 4096);
-        t.emit_sent(10, 4096);
+        assert!(t.stage_mark.is_some());
+        t.boundary_prepare_done();
+        t.note_locate(LocateOutcome::Ok, 8);
+        t.boundary_locate_done();
+        t.emit_sent(16);
         assert!(t.serve_start.is_none());
+        assert!(t.stage_mark.is_none());
     }
 
     #[test]
@@ -520,10 +569,12 @@ mod tests {
         assert_eq!(t.ask_ordinal, 0);
         let serve0 = t.serve_start.expect("serve_start armed at begin_frame");
         std::thread::sleep(std::time::Duration::from_millis(2));
-        t.record_prepare(100);
-        t.record_locate(50, LocateOutcome::Ok, 100);
-        let serve_us_0 = micros_since(serve0);
-        t.emit_sent(200, 104);
+        t.boundary_prepare_done();
+        t.note_locate(LocateOutcome::Ok, 100);
+        t.boundary_locate_done();
+        let before_emit = Instant::now();
+        t.emit_sent(104);
+        let serve_us_0 = duration_us(serve0, before_emit);
         assert!(t.serve_start.is_none(), "serve_start consumed at emit");
         assert!(
             serve_us_0 >= 1_500,
@@ -538,10 +589,12 @@ mod tests {
             "second ask must arm a new serve_start, not reuse the first"
         );
         std::thread::sleep(std::time::Duration::from_millis(1));
-        t.record_prepare(80);
-        t.record_locate(40, LocateOutcome::Ok, 100);
-        let serve_us_1 = micros_since(serve1);
-        t.emit_sent(150, 104);
+        t.boundary_prepare_done();
+        t.note_locate(LocateOutcome::Ok, 100);
+        t.boundary_locate_done();
+        let before_emit1 = Instant::now();
+        t.emit_sent(104);
+        let serve_us_1 = duration_us(serve1, before_emit1);
         assert!(
             serve_us_1 < serve_us_0,
             "second row serve is its own ask→emit window ({serve_us_1}), not the first ({serve_us_0})"
@@ -552,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn stage_partition_invariant() {
+    fn stage_partition_identity_with_overhead() {
         let row = FrameRecord {
             session_id: 1,
             frame_index: 0,
@@ -561,6 +614,7 @@ mod tests {
             locate_us: Some(1),
             send_us: Some(40),
             serve_us: 65,
+            overhead_us: 4,
             server_bytes_sent: 100,
             locate_outcome: LocateOutcome::Ok as u8,
             write_outcome: WriteOutcome::Sent as u8,
@@ -569,7 +623,27 @@ mod tests {
         let p = row.prepare_us.unwrap_or(0);
         let l = row.locate_us.unwrap_or(0);
         let s = row.send_us.unwrap_or(0);
-        assert!(row.serve_us >= p + l + s);
+        assert_eq!(row.serve_us, p + l + s + row.overhead_us);
+    }
+
+    #[test]
+    fn contiguous_emit_partition_holds() {
+        let (tx, rx) = sync_channel::<FrameRecord>(4);
+        let mut t = test_tap();
+        t.tx = Some(tx);
+        t.begin_frame(2);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        t.boundary_prepare_done();
+        t.note_locate(LocateOutcome::Ok, 8);
+        t.boundary_locate_done();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        t.emit_sent(16);
+        let row = rx.try_recv().expect("row");
+        let sum = row.prepare_us.unwrap_or(0)
+            + row.locate_us.unwrap_or(0)
+            + row.send_us.unwrap_or(0)
+            + row.overhead_us;
+        assert_eq!(row.serve_us, sum, "exact partition on contiguous happy path");
     }
 
     #[test]
@@ -579,8 +653,8 @@ mod tests {
         let linear_rank = (sorted.len() - 1) as f64 * 0.95;
         let lo = linear_rank.floor() as usize;
         let hi = (lo + 1).min(sorted.len() - 1);
-        let linear =
-            f64::from(sorted[lo]) + (f64::from(sorted[hi]) - f64::from(sorted[lo])) * (linear_rank - lo as f64);
+        let linear = f64::from(sorted[lo])
+            + (f64::from(sorted[hi]) - f64::from(sorted[lo])) * (linear_rank - lo as f64);
         assert!(
             (linear - 100.0).abs() > 1.0,
             "fixture must disagree with linear interpolation, got linear={linear}"
@@ -599,6 +673,7 @@ mod tests {
                 locate_us: Some(0),
                 send_us: Some(100),
                 serve_us: 101,
+                overhead_us: 0,
                 server_bytes_sent: 1000,
                 locate_outcome: 0,
                 write_outcome: 0,
@@ -612,6 +687,7 @@ mod tests {
                 locate_us: Some(0),
                 send_us: Some(300),
                 serve_us: 305,
+                overhead_us: 4,
                 server_bytes_sent: 2000,
                 locate_outcome: 0,
                 write_outcome: 0,
@@ -640,6 +716,7 @@ mod tests {
             locate_us: Some(2),
             send_us: Some(50),
             serve_us: 70,
+            overhead_us: 8,
             server_bytes_sent: 100,
             locate_outcome: 0,
             write_outcome: WriteOutcome::Sent as u8,
@@ -651,8 +728,9 @@ mod tests {
             ask_ordinal: 0,
             prepare_us: Some(10),
             locate_us: None,
-            send_us: None, // refused — must not push 0 into send_us
+            send_us: None,
             serve_us: 12,
+            overhead_us: 2,
             server_bytes_sent: 0,
             locate_outcome: LocateOutcome::NotFound as u8,
             write_outcome: WriteOutcome::Refused as u8,
@@ -680,11 +758,19 @@ mod tests {
         let mut t = test_tap();
         t.tx = Some(tx);
         t.begin_frame(3);
-        t.record_prepare(1);
-        t.record_locate(1, LocateOutcome::Ok, 8);
-        t.emit_sent(2, 12);
+        t.boundary_prepare_done();
+        t.note_locate(LocateOutcome::Ok, 8);
+        t.boundary_locate_done();
+        t.emit_sent(12);
         let row = rx.try_recv().expect("row delivered via owned clone");
         assert_eq!(row.frame_index, 3);
-        assert_eq!(row.send_us, Some(2));
+        assert!(row.send_us.is_some());
+        assert_eq!(
+            row.serve_us,
+            row.prepare_us.unwrap_or(0)
+                + row.locate_us.unwrap_or(0)
+                + row.send_us.unwrap_or(0)
+                + row.overhead_us
+        );
     }
 }

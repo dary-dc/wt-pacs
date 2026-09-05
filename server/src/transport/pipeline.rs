@@ -22,8 +22,6 @@ use crate::record::tap::Tap;
 use crate::record::LocateOutcome;
 #[cfg(feature = "telemetry")]
 use frame_envelope::ENVELOPE_LEN;
-#[cfg(feature = "telemetry")]
-use std::time::Instant;
 
 /// Implementors override **steps**, never [`serve_one`](Self::serve_one).
 pub(crate) trait FramePipeline: Send {
@@ -127,7 +125,8 @@ impl FramePipeline for ProductPipeline {
     }
 }
 
-/// Lab wrapper: stamp, delegate, stamp. Generic so it cannot reach product fields.
+/// Lab wrapper: stamp at method entry (contiguous chain), delegate, stamp.
+/// Generic so it cannot reach product fields.
 #[cfg(feature = "telemetry")]
 pub(crate) struct RecordedPipeline<P> {
     inner: P,
@@ -154,26 +153,30 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
 
     async fn prepare(&mut self, frame: u32) -> Result<()> {
         if let Some(tap) = &mut self.tap {
-            tap.begin_frame(frame);
+            tap.begin_frame(frame); // serve_start = mark = now
         }
-        let t0 = Instant::now();
         let result = self.inner.prepare(frame).await;
-        if let Some(tap) = &mut self.tap {
-            tap.record_prepare(micros_since(t0));
+        // Prepare failed → locate will not run; close prepare before refuse.
+        if result.is_err() {
+            if let Some(tap) = &mut self.tap {
+                tap.boundary_prepare_done();
+            }
         }
         result
     }
 
     fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
-        let t0 = Instant::now();
+        if let Some(tap) = &mut self.tap {
+            tap.boundary_prepare_done(); // entry: close prepare
+        }
         let result = self.inner.locate(store, frame);
         if let Some(tap) = &mut self.tap {
             match &result {
-                Ok(bytes) => {
-                    tap.record_locate(micros_since(t0), LocateOutcome::Ok, bytes.len())
-                }
+                Ok(bytes) => tap.note_locate(LocateOutcome::Ok, bytes.len()),
                 Err(_) => {
-                    tap.record_locate(micros_since(t0), LocateOutcome::NotFound, 0)
+                    tap.note_locate(LocateOutcome::NotFound, 0);
+                    // Locate failed → send will not run; close locate before refuse.
+                    tap.boundary_locate_done();
                 }
             }
         }
@@ -181,13 +184,15 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
     }
 
     async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
-        let t0 = Instant::now();
+        if let Some(tap) = &mut self.tap {
+            tap.boundary_locate_done(); // entry: close locate
+        }
         let envelope_len = ENVELOPE_LEN + bytes.len();
         let result = self.inner.send(frame, bytes).await;
         if let Some(tap) = &mut self.tap {
             match &result {
-                Ok(()) => tap.emit_sent(micros_since(t0), envelope_len),
-                Err(_) => tap.emit_write_err(micros_since(t0)),
+                Ok(()) => tap.emit_sent(envelope_len),
+                Err(_) => tap.emit_write_err(),
             }
         }
         result
@@ -208,12 +213,4 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
     async fn drain_acks(&mut self) {
         self.inner.drain_acks().await;
     }
-}
-
-#[cfg(feature = "telemetry")]
-fn micros_since(start: Instant) -> u32 {
-    start
-        .elapsed()
-        .as_micros()
-        .min(u32::MAX as u128) as u32
 }
