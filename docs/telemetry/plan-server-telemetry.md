@@ -1,6 +1,6 @@
 # Plan: server telemetry (brief)
 
-**Status:** plan — **not implemented yet** · **Seam unchanged:** `ProductPipeline` +
+**Status:** **S1–S5 implemented** on this branch · **Seam unchanged:** `ProductPipeline` +
 `RecordedPipeline` ([`adr-server-pipeline.md`](adr-server-pipeline.md))  
 **Evidence / backlog:** [`plan-readability-and-performance.md`](plan-readability-and-performance.md)
 §4–§5 · **Client track (done):** [`plan-client-telemetry.md`](plan-client-telemetry.md)

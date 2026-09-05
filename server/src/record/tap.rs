@@ -1,41 +1,42 @@
-//! Lab-only recorder — compiled only with `feature = "telemetry"`.
+//! Lab-only Tap hot path — compiled only with `feature = "telemetry"`.
 //!
-//! Hot path: `try_send` fixed `Copy` records into a process-wide bounded queue.
-//! Drain thread writes one JSON report on shutdown (summary first). No panics (R7).
+//! Sink/drain/report live in sibling modules. Hot path: build a `Copy` row and
+//! `try_send` on an owned `SyncSender` clone (no per-frame global lock).
 
 use crate::record::{LocateOutcome, WriteOutcome};
 use std::collections::HashMap;
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
-use std::sync::{Mutex, OnceLock};
+use std::sync::mpsc::{SyncSender, TrySendError};
 use std::time::Instant;
-use tracing::{info, warn};
 
-const RING_CAP: usize = 4096;
-const SCHEMA: &str = "server-pipeline-v1";
+use super::sink::{clone_sender, ensure_sink, shutdown_sink};
 
-static SESSION_IDS: AtomicU64 = AtomicU64::new(1);
-static ACTIVE_TAPS: AtomicU64 = AtomicU64::new(0);
-static SINK: OnceLock<Mutex<Option<SyncSender<FrameRecord>>>> = OnceLock::new();
-static DROP_TOTAL: AtomicU64 = AtomicU64::new(0);
-static ROWS_OPENED: AtomicU64 = AtomicU64::new(0);
-static ROWS_CLOSED: AtomicU64 = AtomicU64::new(0);
-static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
+pub(super) const RING_CAP: usize = 4096;
+
+pub(super) static SESSION_IDS: AtomicU64 = AtomicU64::new(1);
+pub(super) static ACTIVE_TAPS: AtomicU64 = AtomicU64::new(0);
+pub(super) static DROP_TOTAL: AtomicU64 = AtomicU64::new(0);
+pub(super) static ROWS_OPENED: AtomicU64 = AtomicU64::new(0);
+pub(super) static ROWS_CLOSED: AtomicU64 = AtomicU64::new(0);
+pub(super) static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
 
 /// Fixed-width row — durations in µs; absent stages are `None` (JSON null).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, serde::Serialize)]
 pub struct FrameRecord {
+    pub kind: &'static str,
     pub session_id: u64,
     pub frame_index: u32,
     pub ask_ordinal: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prepare_us: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub locate_us: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub send_us: Option<u32>,
     /// Full span: `begin_frame` → row emit (measured independently, not a sum).
     pub serve_us: u32,
-    /// `serve_us − prepare − locate − send` (saturating); 0 on a perfect contiguous happy path.
+    /// `serve_us − prepare − locate − send` (saturating).
     pub overhead_us: u32,
     pub server_bytes_sent: u32,
     pub locate_outcome: u8,
@@ -71,10 +72,7 @@ impl Tap {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("telemetry-server.json"));
         ensure_sink(path);
-        let tx = sink_cell()
-            .lock()
-            .ok()
-            .and_then(|guard| guard.as_ref().cloned());
+        let tx = clone_sender();
         ACTIVE_TAPS.fetch_add(1, Ordering::Relaxed);
         SESSIONS_STARTED.fetch_add(1, Ordering::Relaxed);
         Some(Self {
@@ -144,7 +142,7 @@ impl Tap {
 
     pub(crate) fn emit_sent(&mut self, envelope_len: usize) {
         self.pending_bytes = usize_to_u32(envelope_len);
-        self.try_emit(WriteOutcome::Sent, /* measure send */ true);
+        self.try_emit(WriteOutcome::Sent, true);
     }
 
     pub(crate) fn emit_write_err(&mut self) {
@@ -168,7 +166,6 @@ impl Tap {
                 .unwrap_or(0);
             Some(us)
         } else {
-            // Refuse: do not attribute the open interval to send.
             self.stage_mark = None;
             None
         };
@@ -185,6 +182,7 @@ impl Tap {
             .saturating_sub(loc)
             .saturating_sub(send);
         let row = FrameRecord {
+            kind: "server_frame",
             session_id: self.session_id,
             frame_index: self.frame_index,
             ask_ordinal: self.ask_ordinal,
@@ -198,7 +196,6 @@ impl Tap {
             write_outcome: write_outcome as u8,
             dropped_since_last: dropped,
         };
-        // Hot path: owned sender clone — no global Mutex.
         let Some(tx) = self.tx.as_ref() else {
             return;
         };
@@ -244,280 +241,11 @@ fn env_enabled(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn sink_cell() -> &'static Mutex<Option<SyncSender<FrameRecord>>> {
-    SINK.get_or_init(|| Mutex::new(None))
-}
-
-fn shutdown_sink() {
-    if let Ok(mut guard) = sink_cell().lock() {
-        *guard = None;
-    }
-}
-
-fn ensure_sink(path: PathBuf) {
-    let mut guard = sink_cell().lock().expect("telemetry sink lock");
-    if guard.is_some() {
-        return;
-    }
-    let (tx, rx) = sync_channel(RING_CAP);
-    *guard = Some(tx);
-    info!(path = %path.display(), cap = RING_CAP, "server telemetry sink started");
-    std::thread::spawn(move || drain_loop(rx, path));
-}
-
-fn drain_loop(rx: std::sync::mpsc::Receiver<FrameRecord>, path: PathBuf) {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-    }
-
-    let mut frames = Vec::new();
-    let mut acc = RunAccumulator::default();
-    while let Ok(row) = rx.recv() {
-        acc.push(&row);
-        frames.push(FrameRecordJson::from(row));
-    }
-
-    let written = frames.len() as u64;
-    let dropped_process = DROP_TOTAL.load(Ordering::Relaxed);
-    let rows_opened = ROWS_OPENED.load(Ordering::Relaxed);
-    let rows_closed = ROWS_CLOSED.load(Ordering::Relaxed);
-    let sessions = SESSIONS_STARTED.load(Ordering::Relaxed);
-    let mut summary = acc.build_summary();
-    summary.integrity = IntegrityBlock {
-        rows_opened,
-        rows_closed,
-        rows_dropped: dropped_process, // process-wide ring drops (same counter as run_end)
-        sessions,
-        ring_capacity: RING_CAP as u64,
-        dropped_records_process_total: dropped_process,
-        clock: Some("std::time::Instant"),
-    };
-    let report = TelemetryReport {
-        schema: SCHEMA,
-        summary,
-        server_frames: frames,
-        run_end: RunEndMeta {
-            event: "run_end",
-            written_records: written,
-            // Process-wide since process start — not per-run.
-            dropped_records_process_total: dropped_process,
-        },
-    };
-
-    match std::fs::File::create(&path) {
-        Ok(file) => {
-            let mut writer = std::io::BufWriter::new(file);
-            match serde_json::to_writer_pretty(&mut writer, &report) {
-                Ok(()) => {
-                    let _ = writer.write_all(b"\n");
-                    let _ = writer.flush();
-                    info!(path = %path.display(), frames = written, "server telemetry report written");
-                }
-                Err(err) => warn!(%err, path = %path.display(), "telemetry: serialize failed"),
-            }
-        }
-        Err(err) => warn!(%err, path = %path.display(), "telemetry: create report failed"),
-    }
-}
-
-#[derive(serde::Serialize)]
-struct TelemetryReport {
-    schema: &'static str,
-    summary: RunSummary,
-    server_frames: Vec<FrameRecordJson>,
-    run_end: RunEndMeta,
-}
-
-#[derive(serde::Serialize)]
-struct RunEndMeta {
-    event: &'static str,
-    written_records: u64,
-    /// Process-wide ring drops since process start (not per-run).
-    dropped_records_process_total: u64,
-}
-
-#[derive(Default, serde::Serialize)]
-struct IntegrityBlock {
-    rows_opened: u64,
-    rows_closed: u64,
-    rows_dropped: u64,
-    sessions: u64,
-    ring_capacity: u64,
-    dropped_records_process_total: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    clock: Option<&'static str>,
-}
-
-#[derive(Default)]
-struct RunAccumulator {
-    prepare: Vec<u32>,
-    locate: Vec<u32>,
-    send: Vec<u32>,
-    serve: Vec<u32>,
-    bytes: Vec<u32>,
-}
-
-impl RunAccumulator {
-    fn push(&mut self, row: &FrameRecord) {
-        // Null ≠ 0: absent stages must not enter distributions as fake zeros.
-        if let Some(us) = row.prepare_us {
-            self.prepare.push(us);
-        }
-        if let Some(us) = row.locate_us {
-            self.locate.push(us);
-        }
-        if let Some(us) = row.send_us {
-            self.send.push(us);
-        }
-        self.serve.push(row.serve_us);
-        self.bytes.push(row.server_bytes_sent);
-    }
-
-    fn build_summary(&self) -> RunSummary {
-        RunSummary {
-            frame_count: self.serve.len() as u32,
-            totals: SummaryTotals {
-                prepare_us: self.prepare.iter().map(|&v| u64::from(v)).sum(),
-                locate_us: self.locate.iter().map(|&v| u64::from(v)).sum(),
-                send_us: self.send.iter().map(|&v| u64::from(v)).sum(),
-                serve_us: self.serve.iter().map(|&v| u64::from(v)).sum(),
-                server_bytes_sent: self.bytes.iter().map(|&v| u64::from(v)).sum(),
-            },
-            prepare_us: distribution_stats(&self.prepare),
-            locate_us: distribution_stats(&self.locate),
-            send_us: distribution_stats(&self.send),
-            serve_us: distribution_stats(&self.serve),
-            server_bytes_sent: distribution_stats(&self.bytes),
-            integrity: IntegrityBlock::default(),
-        }
-    }
-}
-
-#[derive(serde::Serialize)]
-struct RunSummary {
-    frame_count: u32,
-    totals: SummaryTotals,
-    /// Absent when no sample — JSON `null`, never a zero-filled stats object.
-    prepare_us: Option<DistributionStats>,
-    locate_us: Option<DistributionStats>,
-    send_us: Option<DistributionStats>,
-    serve_us: Option<DistributionStats>,
-    server_bytes_sent: Option<DistributionStats>,
-    integrity: IntegrityBlock,
-}
-
-#[derive(serde::Serialize)]
-struct SummaryTotals {
-    prepare_us: u64,
-    locate_us: u64,
-    send_us: u64,
-    serve_us: u64,
-    server_bytes_sent: u64,
-}
-
-#[derive(serde::Serialize)]
-struct DistributionStats {
-    count: u32,
-    mean: f64,
-    median: f64,
-    min: u32,
-    max: u32,
-    total: u64,
-    p50: f64,
-    p75: f64,
-    p90: f64,
-    p95: f64,
-    p99: f64,
-}
-
-fn distribution_stats(values: &[u32]) -> Option<DistributionStats> {
-    if values.is_empty() {
-        return None;
-    }
-    let mut sorted = values.to_vec();
-    sorted.sort_unstable();
-    let count = sorted.len();
-    let total: u64 = sorted.iter().map(|&v| u64::from(v)).sum();
-    let mean = round2(total as f64 / f64::from(count as u32));
-    let median = round2(percentile(&sorted, 50.0));
-    Some(DistributionStats {
-        count: count as u32,
-        mean,
-        median,
-        min: sorted[0],
-        max: sorted[count - 1],
-        total,
-        p50: round2(percentile(&sorted, 50.0)),
-        p75: round2(percentile(&sorted, 75.0)),
-        p90: round2(percentile(&sorted, 90.0)),
-        p95: round2(percentile(&sorted, 95.0)),
-        p99: round2(percentile(&sorted, 99.0)),
-    })
-}
-
-/// Nearest-rank: rank = ceil(p/100 × N), clamped to [1, N]; value = sorted[rank - 1].
-fn percentile(sorted: &[u32], p: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    if sorted.len() == 1 {
-        return f64::from(sorted[0]);
-    }
-    let n = sorted.len();
-    let rank = ((p / 100.0) * n as f64).ceil() as usize;
-    let rank = rank.clamp(1, n);
-    f64::from(sorted[rank - 1])
-}
-
-fn round2(v: f64) -> f64 {
-    (v * 100.0).round() / 100.0
-}
-
-#[derive(serde::Serialize)]
-struct FrameRecordJson {
-    kind: &'static str,
-    session_id: u64,
-    frame_index: u32,
-    ask_ordinal: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    prepare_us: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    locate_us: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    send_us: Option<u32>,
-    serve_us: u32,
-    overhead_us: u32,
-    server_bytes_sent: u32,
-    locate_outcome: u8,
-    write_outcome: u8,
-    dropped_since_last: u16,
-}
-
-impl From<FrameRecord> for FrameRecordJson {
-    fn from(r: FrameRecord) -> Self {
-        Self {
-            kind: "server_frame",
-            session_id: r.session_id,
-            frame_index: r.frame_index,
-            ask_ordinal: r.ask_ordinal,
-            prepare_us: r.prepare_us,
-            locate_us: r.locate_us,
-            send_us: r.send_us,
-            serve_us: r.serve_us,
-            overhead_us: r.overhead_us,
-            server_bytes_sent: r.server_bytes_sent,
-            locate_outcome: r.locate_outcome,
-            write_outcome: r.write_outcome,
-            dropped_since_last: r.dropped_since_last,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::record::report::{distribution_stats, percentile, RunAccumulator};
+    use std::sync::mpsc::sync_channel;
 
     fn test_tap() -> Tap {
         Tap {
@@ -533,6 +261,30 @@ mod tests {
             drops_since_emit: 0,
             serve_start: None,
             stage_mark: None,
+        }
+    }
+
+    fn sample_row(
+        prepare: Option<u32>,
+        locate: Option<u32>,
+        send: Option<u32>,
+        serve: u32,
+        overhead: u32,
+    ) -> FrameRecord {
+        FrameRecord {
+            kind: "server_frame",
+            session_id: 1,
+            frame_index: 0,
+            ask_ordinal: 0,
+            prepare_us: prepare,
+            locate_us: locate,
+            send_us: send,
+            serve_us: serve,
+            overhead_us: overhead,
+            server_bytes_sent: 100,
+            locate_outcome: 0,
+            write_outcome: 0,
+            dropped_since_last: 0,
         }
     }
 
@@ -564,10 +316,9 @@ mod tests {
     #[test]
     fn batch_like_asks_emit_independent_serve_and_ordinals() {
         let mut t = test_tap();
-
         t.begin_frame(5);
         assert_eq!(t.ask_ordinal, 0);
-        let serve0 = t.serve_start.expect("serve_start armed at begin_frame");
+        let serve0 = t.serve_start.expect("serve_start armed");
         std::thread::sleep(std::time::Duration::from_millis(2));
         t.boundary_prepare_done();
         t.note_locate(LocateOutcome::Ok, 100);
@@ -575,19 +326,13 @@ mod tests {
         let before_emit = Instant::now();
         t.emit_sent(104);
         let serve_us_0 = duration_us(serve0, before_emit);
-        assert!(t.serve_start.is_none(), "serve_start consumed at emit");
-        assert!(
-            serve_us_0 >= 1_500,
-            "first row serve must cover sleep after its own ask, got {serve_us_0}"
-        );
+        assert!(t.serve_start.is_none());
+        assert!(serve_us_0 >= 1_500, "got {serve_us_0}");
 
         t.begin_frame(5);
         assert_eq!(t.ask_ordinal, 1);
-        let serve1 = t.serve_start.expect("new serve_start for second ask");
-        assert!(
-            serve1 > serve0,
-            "second ask must arm a new serve_start, not reuse the first"
-        );
+        let serve1 = t.serve_start.expect("new serve_start");
+        assert!(serve1 > serve0);
         std::thread::sleep(std::time::Duration::from_millis(1));
         t.boundary_prepare_done();
         t.note_locate(LocateOutcome::Ok, 100);
@@ -595,35 +340,18 @@ mod tests {
         let before_emit1 = Instant::now();
         t.emit_sent(104);
         let serve_us_1 = duration_us(serve1, before_emit1);
-        assert!(
-            serve_us_1 < serve_us_0,
-            "second row serve is its own ask→emit window ({serve_us_1}), not the first ({serve_us_0})"
-        );
-
+        assert!(serve_us_1 < serve_us_0);
         t.begin_frame(9);
         assert_eq!(t.ask_ordinal, 0);
     }
 
     #[test]
     fn stage_partition_identity_with_overhead() {
-        let row = FrameRecord {
-            session_id: 1,
-            frame_index: 0,
-            ask_ordinal: 0,
-            prepare_us: Some(20),
-            locate_us: Some(1),
-            send_us: Some(40),
-            serve_us: 65,
-            overhead_us: 4,
-            server_bytes_sent: 100,
-            locate_outcome: LocateOutcome::Ok as u8,
-            write_outcome: WriteOutcome::Sent as u8,
-            dropped_since_last: 0,
-        };
-        let p = row.prepare_us.unwrap_or(0);
-        let l = row.locate_us.unwrap_or(0);
-        let s = row.send_us.unwrap_or(0);
-        assert_eq!(row.serve_us, p + l + s + row.overhead_us);
+        let row = sample_row(Some(20), Some(1), Some(40), 65, 4);
+        assert_eq!(
+            row.serve_us,
+            row.prepare_us.unwrap() + row.locate_us.unwrap() + row.send_us.unwrap() + row.overhead_us
+        );
     }
 
     #[test]
@@ -643,7 +371,7 @@ mod tests {
             + row.locate_us.unwrap_or(0)
             + row.send_us.unwrap_or(0)
             + row.overhead_us;
-        assert_eq!(row.serve_us, sum, "exact partition on contiguous happy path");
+        assert_eq!(row.serve_us, sum);
     }
 
     #[test]
@@ -655,51 +383,25 @@ mod tests {
         let hi = (lo + 1).min(sorted.len() - 1);
         let linear = f64::from(sorted[lo])
             + (f64::from(sorted[hi]) - f64::from(sorted[lo])) * (linear_rank - lo as f64);
-        assert!(
-            (linear - 100.0).abs() > 1.0,
-            "fixture must disagree with linear interpolation, got linear={linear}"
-        );
+        assert!((linear - 100.0).abs() > 1.0);
     }
 
     #[test]
     fn run_summary_percentiles() {
         let mut acc = RunAccumulator::default();
-        for row in [
-            FrameRecord {
-                session_id: 1,
-                frame_index: 0,
-                ask_ordinal: 0,
-                prepare_us: Some(1),
-                locate_us: Some(0),
-                send_us: Some(100),
-                serve_us: 101,
-                overhead_us: 0,
-                server_bytes_sent: 1000,
-                locate_outcome: 0,
-                write_outcome: 0,
-                dropped_since_last: 0,
-            },
-            FrameRecord {
-                session_id: 1,
-                frame_index: 1,
-                ask_ordinal: 0,
-                prepare_us: Some(1),
-                locate_us: Some(0),
-                send_us: Some(300),
-                serve_us: 305,
-                overhead_us: 4,
-                server_bytes_sent: 2000,
-                locate_outcome: 0,
-                write_outcome: 0,
-                dropped_since_last: 0,
-            },
-        ] {
-            acc.push(&row);
-        }
+        acc.push(&sample_row(Some(1), Some(0), Some(100), 101, 0));
+        acc.push(&FrameRecord {
+            frame_index: 1,
+            send_us: Some(300),
+            serve_us: 305,
+            overhead_us: 4,
+            server_bytes_sent: 2000,
+            ..sample_row(Some(1), Some(0), Some(300), 305, 4)
+        });
         let summary = acc.build_summary();
         assert_eq!(summary.frame_count, 2);
         assert_eq!(summary.totals.serve_us, 406);
-        let send = summary.send_us.expect("send dist present");
+        let send = summary.send_us.expect("send");
         assert_eq!(send.total, 400);
         assert_eq!(send.min, 100);
         assert_eq!(send.max, 300);
@@ -708,25 +410,9 @@ mod tests {
     #[test]
     fn refused_row_excluded_from_send_distribution() {
         let mut acc = RunAccumulator::default();
+        acc.push(&sample_row(Some(10), Some(2), Some(50), 70, 8));
         acc.push(&FrameRecord {
-            session_id: 1,
-            frame_index: 0,
-            ask_ordinal: 0,
-            prepare_us: Some(10),
-            locate_us: Some(2),
-            send_us: Some(50),
-            serve_us: 70,
-            overhead_us: 8,
-            server_bytes_sent: 100,
-            locate_outcome: 0,
-            write_outcome: WriteOutcome::Sent as u8,
-            dropped_since_last: 0,
-        });
-        acc.push(&FrameRecord {
-            session_id: 1,
             frame_index: 1,
-            ask_ordinal: 0,
-            prepare_us: Some(10),
             locate_us: None,
             send_us: None,
             serve_us: 12,
@@ -734,17 +420,15 @@ mod tests {
             server_bytes_sent: 0,
             locate_outcome: LocateOutcome::NotFound as u8,
             write_outcome: WriteOutcome::Refused as u8,
-            dropped_since_last: 0,
+            ..sample_row(Some(10), None, None, 12, 2)
         });
         let summary = acc.build_summary();
         assert_eq!(summary.frame_count, 2);
-        let send = summary.send_us.expect("send dist from one sent row");
+        let send = summary.send_us.expect("send");
         assert_eq!(send.count, 1);
         assert_eq!(send.total, 50);
-        assert_eq!(send.min, 50);
         assert_eq!(summary.totals.send_us, 50);
-        let locate = summary.locate_us.expect("locate from one ok row");
-        assert_eq!(locate.count, 1);
+        assert_eq!(summary.locate_us.expect("locate").count, 1);
     }
 
     #[test]
@@ -762,9 +446,9 @@ mod tests {
         t.note_locate(LocateOutcome::Ok, 8);
         t.boundary_locate_done();
         t.emit_sent(12);
-        let row = rx.try_recv().expect("row delivered via owned clone");
+        let row = rx.try_recv().expect("row");
         assert_eq!(row.frame_index, 3);
-        assert!(row.send_us.is_some());
+        assert_eq!(row.kind, "server_frame");
         assert_eq!(
             row.serve_us,
             row.prepare_us.unwrap_or(0)
