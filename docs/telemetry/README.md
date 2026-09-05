@@ -28,8 +28,8 @@ Per-frame stages (µs):
 | `send_us` | media `write_all` |
 | `serve_us` | ask → row emit (total) |
 
-Invariant: `serve_us >= prepare_us + locate_us + send_us` (residual = loop overhead).
-Refused rows export absent stages as JSON `null`.
+Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (exact partition;
+absent stages count as 0 in the residual). Refused rows export absent stages as JSON `null`.
 
 Each harvest run writes **two independent files** (no join file):
 

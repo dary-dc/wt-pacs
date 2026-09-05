@@ -42,7 +42,8 @@ existing clone for `spawn_blocking` in `prepare`).
 `telemetry-server.json` uses `schema: "server-pipeline-v1"` with stages `prepare_us`,
 `locate_us`, `send_us`, `serve_us` (µs). Refused paths export absent stages as `null`.
 
-Invariant: `serve_us >= prepare_us + locate_us + send_us` (residual = orchestration overhead).
+Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (exact partition;
+absent stages count as 0 in the residual).
 
 ## Consequences
 
