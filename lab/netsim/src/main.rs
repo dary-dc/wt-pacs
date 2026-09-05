@@ -39,6 +39,15 @@ struct Args {
     /// Independent per-direction drop probability, percent.
     #[arg(long, default_value_t = 0.0)]
     loss_pct: f64,
+    /// Burst length: when a drop fires, drop this many packets in a row.
+    ///
+    /// 1 = independent Bernoulli loss, which is the *most favourable* model for a
+    /// rate-based controller and the least favourable for a loss-based one. Real paths
+    /// lose in bursts, so any controller comparison must be repeated with this > 1
+    /// before it is believed. Mean loss rate is held constant: the per-packet trigger
+    /// probability is divided by the burst length.
+    #[arg(long, default_value_t = 1)]
+    loss_burst: u32,
     /// Per-direction rate limit in Mbit/s. 0 = unlimited.
     #[arg(long, default_value_t = 0.0)]
     rate_mbps: f64,
@@ -128,6 +137,9 @@ async fn pacer(
     let mut heap: BinaryHeap<Reverse<Queued>> = BinaryHeap::new();
     let mut rng = Rng(args.seed ^ label.as_bytes()[0] as u64);
     let mut next_tx = Instant::now();
+    let mut burst_left: u32 = 0;
+    let burst = args.loss_burst.max(1);
+    let trigger_pct = args.loss_pct / burst as f64;
     let bits_per_sec = args.rate_mbps * 1e6;
 
     loop {
@@ -137,7 +149,13 @@ async fn pacer(
             got = rx.recv() => {
                 let Some((data, to, arrived)) = got else { break };
 
-                if args.loss_pct > 0.0 && rng.next_f64() * 100.0 < args.loss_pct {
+                if burst_left > 0 {
+                    burst_left -= 1;
+                    counters.lock().expect("counters").dropped_loss += 1;
+                    continue;
+                }
+                if args.loss_pct > 0.0 && rng.next_f64() * 100.0 < trigger_pct {
+                    burst_left = burst - 1;
                     counters.lock().expect("counters").dropped_loss += 1;
                     continue;
                 }
