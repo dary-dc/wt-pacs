@@ -8,6 +8,19 @@
 //! Here the miss rate is the knob: evict the file, then deliberately pre-warm a chosen
 //! fraction of the offsets the cell will read. Everything else is held fixed. The output is
 //! the one number a router would need — the miss rate above which a ring is worth having.
+//!
+//! ## Where the cell body runs is also a knob, and it was a confound
+//!
+//! The `pool` arm spawns its readers onto the runtime; the ring arms used to run their loop
+//! *inline in the `block_on` future*, i.e. on the calling thread, which is not a runtime
+//! worker. Every `complete_into().await` there parks a thread the runtime cannot schedule,
+//! so each completion batch costs a cross-thread wake the pool arm never pays. That is a
+//! difference between the arms' harnessing, not between the interfaces.
+//!
+//! The cell body is therefore `tokio::spawn`ed for every arm by default. Set
+//! `CROSSOVER_INLINE=1` to reproduce the old placement — the ring arms then pay the wake and
+//! the depth-1 result flips to a tie. `CROSSOVER_WARM` and `CROSSOVER_DEPTHS` take
+//! comma-separated lists to narrow the sweep.
 
 use anyhow::{Context, Result};
 use disk_access_bench::uring_access::UringReader;
@@ -221,8 +234,22 @@ fn main() -> Result<()> {
     );
     println!("arm\twarm_frac\tdepth\trepeat\tmiss_pct\tp50_ns\tp99_ns\tcpu_ns_per_ask\tasks_per_s");
 
-    for &warm_frac in &[0.0f64, 0.5, 0.8, 0.9, 0.95, 0.98, 1.0] {
-        for &depth in &[1usize, 8] {
+    let list = |var: &str, default: Vec<f64>| -> Vec<f64> {
+        std::env::var(var).ok().map_or(default, |v| {
+            v.split(',').filter_map(|s| s.trim().parse().ok()).collect()
+        })
+    };
+    let warms = list("CROSSOVER_WARM", vec![0.0, 0.5, 0.8, 0.9, 0.95, 0.98, 1.0]);
+    let depths: Vec<usize> = list("CROSSOVER_DEPTHS", vec![1.0, 8.0])
+        .into_iter()
+        .map(|d| d as usize)
+        .collect();
+    // The confound, made switchable: see the module comment.
+    let inline = std::env::var("CROSSOVER_INLINE").is_ok_and(|v| v == "1");
+    println!("# placement={}", if inline { "inline" } else { "spawned" });
+
+    for &warm_frac in &warms {
+        for &depth in &depths {
             for repeat in 0..repeats {
                 let arms = [Arm::Pool, Arm::Uring, Arm::Hybrid];
                 for pos in 0..arms.len() {
@@ -254,14 +281,19 @@ fn main() -> Result<()> {
                         .build()?;
                     let cpu0 = cpu_ns();
                     let t0 = Instant::now();
-                    let (lat, misses) = rt.block_on(run(
+                    let cell = run(
                         arm,
                         Arc::clone(&store),
                         Arc::clone(&file),
                         Arc::clone(&offsets),
                         size,
                         depth,
-                    ))?;
+                    );
+                    let (lat, misses) = if inline {
+                        rt.block_on(cell)?
+                    } else {
+                        rt.block_on(async { tokio::spawn(cell).await.expect("cell task") })?
+                    };
                     let wall = t0.elapsed().as_nanos() as u64;
                     let cpu = cpu_ns() - cpu0;
                     let n = lat.len().max(1) as u64;

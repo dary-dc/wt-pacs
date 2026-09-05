@@ -25,7 +25,10 @@ NUM = {
 FLOAT = {"asks_per_s", "miss_pct", "resident_pct"}
 
 # Effect sizes below this are inside this host's run-to-run drift and are reported as ties.
-DRIFT_PCT = 7.0
+# Set from the measured run-to-run spread, not from taste: repeating identical
+# configurations moves a median by p50 11% and p90 28.5% on this host, so a 7% threshold
+# would call more than half of pure drift a result. See §Reproduction output.
+DRIFT_PCT = 28.5
 
 
 def load(path):
@@ -72,11 +75,14 @@ def boot_ci(vals, n=400, p=0.5):
 
 def paired(rows, key_fn, baseline_arm, metric):
     """Median % difference vs `baseline_arm`, paired by repeat, with sign agreement."""
+    # The run must be part of the key. Without it, repeat 0 of run 2 overwrites repeat 0 of
+    # run 1 and every "6/6" silently describes one run while the median beside it pools all
+    # of them.
     by = defaultdict(dict)
     for r in rows:
-        by[(key_fn(r), r["repeat"])][r["arm"]] = r
+        by[(key_fn(r), r["run"], r["repeat"])][r["arm"]] = r
     out = defaultdict(list)
-    for (key, _rep), arms in by.items():
+    for (key, _run, _rep), arms in by.items():
         base = arms.get(baseline_arm)
         if not base or base[metric] == 0:
             continue
@@ -94,6 +100,112 @@ def verdict(med, agree, n):
     if abs(med) < DRIFT_PCT or agree < math.ceil(0.8 * n):
         return "tie"
     return "better" if med < 0 else "worse"
+
+
+def section_surface(rows):
+    """The decision surface: hybrid vs pool by reads-in-flight x miss rate.
+
+    The x-axis is the **pool arm's** miss rate for the same cell, not the row's own
+    `miss_pct`. That column means different things per arm — `uring` counts every read as a
+    slow-path read by construction, and `pooled_pread` never tries the fast path — so only
+    `pool` and `hybrid` report a real page-cache shortfall. Using pool's number makes the
+    axis a property of the workload rather than of the arm.
+
+    Cost cells only: the safety phase runs a spin monitor whose CPU scales with wall time.
+    """
+    cost = [r for r in rows if not r["phase"].startswith("E_")]
+    by = defaultdict(dict)
+    for r in cost:
+        k = (r["label"], r["temp"], r["shape"], r["size"], r["depth"], r["readers"],
+             r["prefetch"], r["repeat"])
+        by[k][r["arm"]] = r
+    def bucket(m):
+        return "0-5%" if m < 5 else ("5-50%" if m < 50 else "50-100%")
+    def inflight(r):
+        n = r["depth"] * r["readers"]
+        return 1 if n == 1 else (4 if n <= 4 else (16 if n <= 16 else 64))
+    agg = defaultdict(list)
+    for v in by.values():
+        if "pool" not in v:
+            continue
+        p = v["pool"]
+        if p["cpu_ns_per_ask"] == 0:
+            continue
+        b = (inflight(p), bucket(p["miss_pct"]))
+        for arm in ("hybrid", "uring"):
+            if arm not in v:
+                continue
+            a = v[arm]
+            agg[(b, arm)].append((
+                (a["cpu_ns_per_ask"] - p["cpu_ns_per_ask"]) / p["cpu_ns_per_ask"] * 100.0,
+                (a["p50_ns"] - p["p50_ns"]) / max(p["p50_ns"], 1) * 100.0,
+            ))
+    print("\n" + "=" * 100)
+    print("DECISION SURFACE — vs pool, by reads in flight x miss rate (pool's miss rate)")
+    print("=" * 100)
+    print(f"{'in-flight':>9} {'miss':>9} {'arm':>7} {'n':>5} {'dCPU':>8} {'cheaper':>10} "
+          f"{'dp50':>9} {'faster':>10} {'verdict':>8}")
+    for ib in (1, 4, 16, 64):
+        for m in ("0-5%", "5-50%", "50-100%"):
+            for arm in ("hybrid", "uring"):
+                v = agg.get(((ib, m), arm))
+                if not v or len(v) < 6:
+                    continue
+                dc = [x for x, _ in v]
+                dl = [y for _, y in v]
+                med = statistics.median(dc)
+                agree = sum(1 for x in dc if x < 0)
+                print(f"{ib:9d} {m:>9} {arm:>7} {len(v):5d} {med:+7.1f}% {agree:5d}/{len(dc):<4} "
+                      f"{statistics.median(dl):+8.1f}% {sum(1 for y in dl if y < 0):5d}/{len(dl):<4} "
+                      f"{verdict(med, max(agree, len(dc) - agree), len(dc)):>8}")
+
+
+def section_worst_cases(rows):
+    """The audit behind "never materially worse": the whole hybrid-vs-pool distribution.
+
+    A recommendation that wins on the median can still be a bad default if its tail is
+    ugly, so this prints the tail rather than a summary statistic — how many cells the
+    hybrid loses by more than the drift threshold, and where the worst one is.
+    """
+    cost = [r for r in rows if not r["phase"].startswith("E_")]
+    by = defaultdict(dict)
+    for r in cost:
+        k = (r["label"], r["temp"], r["shape"], r["size"], r["depth"], r["readers"],
+             r["prefetch"], r["repeat"])
+        by[k][r["arm"]] = r
+    deltas = []
+    for k, v in by.items():
+        if "pool" not in v or "hybrid" not in v or v["pool"]["cpu_ns_per_ask"] == 0:
+            continue
+        d = ((v["hybrid"]["cpu_ns_per_ask"] - v["pool"]["cpu_ns_per_ask"])
+             / v["pool"]["cpu_ns_per_ask"] * 100.0)
+        deltas.append((d, k, v["pool"]["miss_pct"]))
+    deltas.sort()
+    n = len(deltas)
+    print("\n" + "=" * 100)
+    print("WORST CASES — the whole hybrid-vs-pool distribution, not its median")
+    print("=" * 100)
+    if not n:
+        print("no paired cells")
+        return
+    worse = [d for d in deltas if d[0] > DRIFT_PCT]
+    better = [d for d in deltas if d[0] < -DRIFT_PCT]
+    print(f"paired cells                     {n}")
+    print(f"median                           {statistics.median(d[0] for d in deltas):+.1f}%")
+    print(f"hybrid worse by more than {DRIFT_PCT}%   {len(worse)} ({100.0*len(worse)/n:.1f}%)")
+    print(f"hybrid better by more than {DRIFT_PCT}%  {len(better)} ({100.0*len(better)/n:.1f}%)")
+    print("\nthe five worst cells for the hybrid:")
+    print(f"  {'dCPU':>8}  {'in-flight':>9}  {'pool miss':>9}  cell")
+    for d, k, miss in deltas[-5:][::-1]:
+        label, temp, shape, size, depth, readers, prefetch, repeat = k
+        print(f"  {d:>+7.1f}%  {depth*readers:>9}  {miss:>8.1f}%  "
+              f"{label} {temp} {shape} {size}B d{depth} r{readers} prefetch={prefetch}")
+    tail = [d for d in worse]
+    if tail:
+        bad_deep = [d for d in tail if d[1][4] * d[1][5] > 1 and d[2] >= 5.0]
+        print(f"\nof the {len(tail)} bad cells, {len(bad_deep)} are at both >1 read in flight "
+              f"and >=5% misses")
+        print("(the region the surface calls a win — the rest are where it already says tie)")
 
 
 def section_grid(rows):
@@ -167,12 +279,13 @@ def section_prefetch(rows):
                     cmp_txt = ""
                     if pf == "on":
                         ds = []
-                        for rep in sorted({r["repeat"] for r in rs}):
-                            x = [r for r in base if r["repeat"] == rep]
-                            y = [r for r in rs if r["repeat"] == rep]
-                            if x and y:
-                                ds.append((y[0]["cpu_ns_per_ask"] - x[0]["cpu_ns_per_ask"])
-                                          / x[0]["cpu_ns_per_ask"] * 100.0)
+                        for run in sorted({r["run"] for r in rs}):
+                            for rep in sorted({r["repeat"] for r in rs}):
+                                x = [r for r in base if r["repeat"] == rep and r["run"] == run]
+                                y = [r for r in rs if r["repeat"] == rep and r["run"] == run]
+                                if x and y:
+                                    ds.append((y[0]["cpu_ns_per_ask"] - x[0]["cpu_ns_per_ask"])
+                                              / x[0]["cpu_ns_per_ask"] * 100.0)
                         if ds:
                             med = statistics.median(ds)
                             agree = sum(1 for v in ds if (v < 0) == (med < 0))
@@ -314,7 +427,9 @@ def main():
     rows = load(sys.argv[1])
     print(f"loaded {len(rows)} cells from {sys.argv[1]}")
     want = set(sys.argv[2:]) or None
-    for name, fn in (("grid", section_grid), ("prefetch", section_prefetch),
+    for name, fn in (("surface", section_surface), ("worst", section_worst_cases),
+                     ("grid", section_grid),
+                     ("prefetch", section_prefetch),
                      ("readers", section_readers), ("size", section_size),
                      ("safety", section_safety), ("repro", section_reproduction)):
         if want is None or name in want:

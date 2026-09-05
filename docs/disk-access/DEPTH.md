@@ -1,10 +1,24 @@
 # Reads in flight: where `pread` wins, where io_uring wins · 2026-09-05
 
 > **Superseded by [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md).** That campaign crosses
-> depth with miss rate, adds the hybrid arm, and reproduces over three independent runs. It
-> also records one disagreement with a later harness about the depth-1 magnitude, which this
-> document's "tie at depth 1" sits on one side of. Read this for the depth argument; read the
-> decision doc for the answer.
+> depth with miss rate, adds the hybrid arm, and reproduces over three independent runs.
+>
+> **This document's depth-1 row is withdrawn.** Its harness ran the ring arms inline in the
+> `block_on` future — on the calling thread, which is not a runtime worker — while spawning
+> the `pool` arm onto the runtime. Every completion the ring waited for therefore cost a
+> cross-thread wake that `pool` never paid, a fixed cost per completion batch that is
+> crushing at one read in flight and amortised away by depth 8. A controlled A/B of exactly
+> that placement is in [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md) §The harness
+> disagreement: flipping it moves the ring arms **2×** at depth 1 and leaves `pool`
+> untouched. The depth-1 tie below is that artifact; the real figure is ~−53% for the ring
+> arms. Everything from depth 2 up stands, and understates the ring by a few percent.
+>
+> Read this for the depth argument; read the decision doc for the answer.
+
+> **Harness note.** `depth_read_bench` was replaced by `read_campaign` in `d69dfb3` and is no
+> longer in the tree; recover it at `git show d8f9d8a:lab/disk-access-bench/src/bin/depth_read_bench.rs`
+> if you need to reproduce these exact cells. New work should use `read_campaign` or
+> `crossover_bench`, which spawn every arm onto the runtime.
 
 **This document corrects a conclusion in [`RERUN.md`](RERUN.md) and
 [`PREFIX-READS.md`](PREFIX-READS.md).** Both rejected io_uring on evidence collected
@@ -51,8 +65,8 @@ flight, differing only in **how** they hold them:
 | Depth | Arm | CPU / ask | vs `pool` | asks/s | p50 | Threads |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: |
 | 1 | pool | 50 278 ns | — | 16 284 | 63 µs | 7 |
-| 1 | uring | 50 138 ns | 1.00× | 14 000 | 73 µs | 5 |
-| 1 | hybrid | 50 013 ns | 1.01× | 13 658 | 75 µs | 5 |
+| 1 | ~~uring~~ | ~~50 138 ns~~ | ~~1.00×~~ | — | — | 5 |
+| 1 | ~~hybrid~~ | ~~50 013 ns~~ | ~~1.01×~~ | — | — | 5 |
 | 2 | pool | 49 074 ns | — | 25 307 | 77 µs | 9 |
 | 2 | **hybrid** | **27 446 ns** | **1.79×** | 27 435 | **67 µs** | 5 |
 | 4 | pool | 40 378 ns | — | 37 699 | 101 µs | 16 |
@@ -104,7 +118,7 @@ wait for, so everything a ring adds is overhead.
 | Regime | Answer |
 | --- | --- |
 | **Page-cache hit, any depth** | **Yes, `pread`, decisively.** 4× less CPU at depth 1 and 1.8 µs vs 2.9–144 µs. The ring adds submission and completion to a read that never waits |
-| **Real I/O, one read at a time** | **Tie.** 50.3 vs 50.1 µs CPU/ask |
+| **Real I/O, one read at a time** | ~~**Tie.** 50.3 vs 50.1 µs CPU/ask~~ — **withdrawn**, a harness artifact (see the note at the top). The ring wins here too, by about half |
 | **Real I/O, ≥ 2 reads in flight** | **No — io_uring, by a lot.** 1.8× at depth 2 rising to ~4× at depth 64, and threads flat at 5 instead of 89 |
 
 So neither answer is "faster" on its own — **the two win in different regimes, and the split
@@ -115,7 +129,9 @@ That also means the earlier verdict was not wrong about its cells, it was wrong 
 reach: [`RERUN.md`](RERUN.md) §Cell 6 rejects `uring_nowait_hybrid` as "a tie bounded at
 ±5%… it buys a ring, an eventfd and registered buffers per session for nothing that
 reproduces". Every one of those cells was depth 1, and at depth 1 that finding reproduces
-here exactly (1.01×). It does not survive depth 2.
+here exactly (1.01×) — but that reproduction is now known to be the placement artifact, not
+the interface. The rejection does not survive depth 2 on any harness, and does not survive
+depth 1 either once the ring is driven from a runtime worker.
 
 ## What this does and does not settle
 
