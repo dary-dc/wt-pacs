@@ -16,7 +16,7 @@ case "$PHASE" in
     exec bash "$ROOT/lab/scripts/l1_v3_pilot_cadence.sh" "$@"
     ;;
   collect)
-    # Delegates to scaffolding; still refuses without APPROVE_SMALL_COLLECT=1.
+    # Phase C directional collect; refuses without APPROVE_SMALL_COLLECT=1.
     exec bash "$ROOT/lab/scripts/l1_v3_collect_small.sh" "$@"
     ;;
   *)
