@@ -36,3 +36,12 @@ Compare arms within a file, never absolutes across files.
 Shaped rows label the **configured** TBF bucket. Achieved goodput is a consistent
 47.3 % of it on loopback — arms are compared at equal achieved rate, so the labels are
 identifiers, not link rates.
+
+## External corroboration
+
+`gso_segment_cap.tsv` and `gso_segment_cliff.tsv` are not the only evidence for the
+segment-cap finding. An ETH Zürich QUIC benchmarking thesis patched the same constant
+from 10× to 40× MTU and measured gains in every scenario, up to 2×. The cliff's mechanism
+is the Linux 65 527-byte UDP GSO payload limit, and quinn issue #2201 (open) derives the
+same bound independently. See the analysis §7 for the full check, including which of these
+numbers turned out to be rig-inflated.
