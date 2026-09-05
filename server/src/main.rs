@@ -1,6 +1,6 @@
 use clap::Parser;
-use exact_server::transport::StreamMode;
 use exact_server::{run_server, ServeConfig};
+use exact_server::transport::StreamMode;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
@@ -18,11 +18,6 @@ struct Args {
     /// How frames reach the client: one shared uni stream or one per frame.
     #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
     stream_mode: StreamMode,
-    /// MiB of process-private frame cache. A frame asked twice is held here, and later
-    /// asks for it cost no read at all — measured ~19% less server CPU per frame at full
-    /// residency (docs/disk-access/SEND-BUDGET.md). `0` disables the cache.
-    #[arg(long, default_value_t = 0)]
-    frame_cache_mb: usize,
 }
 
 #[tokio::main]
@@ -42,7 +37,6 @@ async fn main() -> anyhow::Result<()> {
         cert_pem: args.cert_pem,
         key_pem: args.key_pem,
         mode: args.stream_mode,
-        frame_cache_bytes: args.frame_cache_mb * 1024 * 1024,
     })
     .await?;
     Ok(())

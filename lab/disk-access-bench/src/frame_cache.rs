@@ -1,11 +1,15 @@
-//! Bounded, process-private frame cache — the only disk-access work worth removing.
+//! Bounded, process-private frame cache — **a lab arm, not product code**.
 //!
-//! `docs/disk-access/adr.md` decided *how* to bring frame bytes in; this decides *whether
-//! to bring them in again*. On the wire the whole read path (four `preadv2` calls plus the
-//! copy into the connection) is ~19% of a frame's server CPU — see
+//! `docs/disk-access/adr.md` decided *how* to bring frame bytes in; this measures *whether
+//! bringing them in again is worth avoiding*. On the wire the whole read path (four
+//! `preadv2` calls plus the copy into the connection) is ~19% of a frame's server CPU — see
 //! `docs/disk-access/SEND-BUDGET.md`. A hit removes all of it: no syscall, no copy into
 //! quinn, no pool hop, and the bytes are already process-private, which is the guarantee
 //! the ADR streams windows to obtain.
+//!
+//! It lives here because a client that caches every increment it receives sends each frame
+//! once per user (`later.md`), which leaves this paying only where several users read one
+//! study at once — a case no cell here has measured. Nothing in `server/` depends on it.
 //!
 //! Three properties keep it safe on a study that exceeds RAM:
 //!

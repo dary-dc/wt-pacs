@@ -100,13 +100,12 @@ is the opposite of that deployment.
    escape hatch — one pool round trip per ask — which is exactly what
    [`adr.md`](adr.md) says it does, and it is now the common case rather than the reverse-trace
    worst case.
-2. **io_uring still does not help.** In both layouts the hybrid tracks the accepted path
-   within noise (3 373 vs 3 456 ns cold striped; 95 400 vs 93 443 ns cold strided). A 99%
-   miss rate was the condition [`RERUN.md`](RERUN.md) §Cell 6 named for revisiting the ring,
-   and here it is — with no advantage. The reason is structural: the session loop sends one
-   frame to completion before reading the next ask
-   ([`adr-reject-server-ordering.md`](../adr-reject-server-ordering.md)), so queue depth is 1
-   per session however many misses there are. io_uring's advantage needs depth to spend.
+2. **io_uring does not help *at one read in flight*.** In both layouts the hybrid tracks the
+   accepted path within noise (3 373 vs 3 456 ns cold striped; 95 400 vs 93 443 ns cold
+   strided). ⚠️ **This is a depth-1 result and does not generalise** — every cell in this
+   document serves one ask to completion before starting the next, mirroring `run_session`.
+   With 2 or more reads in flight the ring costs 1.8–4× less CPU per ask and holds threads
+   flat: see [`DEPTH.md`](DEPTH.md), which corrects this row.
 3. **One lever is the packer.** Nothing in `server/` can recover *implicit* read-ahead once
    the bytes are 234 KB apart — `pack-study` can, by writing rungs in stripes. But an
    explicit hint recovers most of it without any layout change at all; that is Part 2.
@@ -211,9 +210,12 @@ frame, so every row below 250 000 B **strides**; the 250 000 B row **sweeps**.
    prefetch costs nothing when it is not needed. Only `pread_blocking_pooled` is consistently
    worse (it hops on every ask by construction), which is what makes it the escape hatch and
    not the path.
-4. **io_uring never wins outside noise, at any shape.** Best p50 in 2 of 8 cells, within a few
-   percent of `nowait` in both, and behind on CPU/ask in 7 of 8. Queue depth is 1 per session
-   whatever the miss rate, so the ring has nothing to spend.
+4. **io_uring never wins outside noise, at any shape *measured here*.** Best p50 in 2 of 8
+   cells, within a few percent of `nowait` in both, and behind on CPU/ask in 7 of 8.
+   ⚠️ **Every cell holds one read in flight**, which is the one regime where a ring cannot
+   win. [`DEPTH.md`](DEPTH.md) lifts that and reverses the conclusion for cold reads at
+   depth ≥ 2. The shape axis and the depth axis are independent; this document varies only
+   the first.
 
 ### What prefetch needs from the protocol
 

@@ -11,11 +11,8 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
-mod candidate_access;
-mod rejected_access;
-mod uring_access;
-
-use candidate_access::{hint_willneed, populate_read, unmap_pages};
+use disk_access_bench::candidate_access::{hint_willneed, populate_read, unmap_pages};
+use disk_access_bench::{rejected_access, uring_access};
 use exact_server::media::frame_store::{host_page_size, FrameStore};
 use rejected_access::{advise_frame_willneed, frame_pages_resident, touch_frame_pages};
 use serde::Deserialize;

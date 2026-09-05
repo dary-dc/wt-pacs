@@ -16,6 +16,7 @@
 
 use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
+use disk_access_bench::frame_cache::FrameCache;
 use exact_server::media::frame_store::FrameStore;
 use quinn::{Endpoint, SendStream, ServerConfig, TransportConfig, VarInt};
 use std::net::{Ipv4Addr, SocketAddr};
@@ -193,10 +194,12 @@ async fn main() -> Result<()> {
         .install_default()
         .ok();
 
-    let store = Arc::new(match mode {
-        Mode::Cache(mb) => FrameStore::open_with_cache(&study, mb * 1024 * 1024)?,
-        _ => FrameStore::open(&study)?,
-    });
+    let store = Arc::new(FrameStore::open(&study)?);
+    // The cache is a lab arm held beside the store, not inside it — `server/` has no cache.
+    let cache = Arc::new(FrameCache::new(match mode {
+        Mode::Cache(mb) => mb * 1024 * 1024,
+        _ => 0,
+    }));
     // Warm: this bench is about the send path, not about disk.
     {
         let mut buf = vec![0u8; 1 << 20];
@@ -338,7 +341,7 @@ async fn main() -> Result<()> {
                 }
                 // The product path: a hit is a refcount bump; a miss streams as today and
                 // assembles the frame on the ask that earns it a slot.
-                Mode::Cache(_) => match store.cached_frame(idx) {
+                Mode::Cache(_) => match cache.get(idx) {
                     Some(b) => {
                         hits += 1;
                         let mut chunks = [Bytes::copy_from_slice(&head), b];
@@ -346,9 +349,9 @@ async fn main() -> Result<()> {
                     }
                     None => {
                         uni.write_all(&head).await?;
-                        let mut filling = store
-                            .claim_fill(idx)
-                            .then(|| store.assembly_buffer(len as usize));
+                        let mut filling = cache
+                            .claim_fill(idx, len as usize)
+                            .then(|| cache.assembly_buffer(len as usize));
                         let mut pos = 0u32;
                         while pos < len {
                             let want = window.min((len - pos) as usize);
@@ -371,8 +374,8 @@ async fn main() -> Result<()> {
                             pos += want as u32;
                         }
                         match filling {
-                            Some(b) if b.len() == len as usize => store.admit(idx, b.freeze()),
-                            Some(_) => store.abandon_fill(idx),
+                            Some(b) if b.len() == len as usize => cache.admit(idx, b.freeze()),
+                            Some(_) => cache.abandon_fill(idx),
                             None => {}
                         }
                     }
@@ -426,7 +429,7 @@ async fn main() -> Result<()> {
         st.udp_tx.ios as f64 / n as f64,
         st.path.current_mtu,
         hits as f64 / n as f64,
-        store.cache_stats().0 as f64 / 1e6,
+        cache.stats().0 as f64 / 1e6,
         bytes / n.max(1),
         if shared_stream { "shared" } else { "per_frame" },
         cpu as f64 / (bytes as f64 / 1e6),

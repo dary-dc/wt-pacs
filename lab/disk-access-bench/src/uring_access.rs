@@ -167,6 +167,16 @@ impl UringReader {
     /// Returns the number of completions that had to wait on the eventfd — the io_uring
     /// equivalent of a `spawn_blocking` hop, and the number the campaign compares.
     pub async fn complete(&mut self, want: usize) -> Result<usize> {
+        self.complete_into(want, &mut Vec::new()).await
+    }
+
+    /// As [`complete`](Self::complete), but reports **which** slots came back.
+    ///
+    /// A caller holding several reads in flight needs this to refill a slot the moment its
+    /// read lands, instead of waiting for the whole batch. Draining in lockstep would make
+    /// every read in a batch appear to take as long as the slowest one, which measures the
+    /// caller's batching rather than the ring.
+    pub async fn complete_into(&mut self, want: usize, freed: &mut Vec<usize>) -> Result<usize> {
         let mut done = 0usize;
         let mut waited = 0usize;
         while done < want {
@@ -177,7 +187,9 @@ impl UringReader {
                     let e = std::io::Error::from_raw_os_error(-cqe.result());
                     bail!("io_uring read failed: {e}");
                 }
-                self.in_flight[cqe.user_data() as usize] = false;
+                let slot = cqe.user_data() as usize;
+                self.in_flight[slot] = false;
+                freed.push(slot);
                 drained += 1;
             }
             done += drained;

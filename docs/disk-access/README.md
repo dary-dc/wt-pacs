@@ -8,6 +8,7 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 | [`RERUN.md`](RERUN.md) | Evidence: instrument, cells, TSVs here, and what the instrument cannot see |
 | [`SEND-BUDGET.md`](SEND-BUDGET.md) | What the per-frame number is *made of*, per-op io_uring vs `preadv2`, the send path over real quinn, and the frame cache |
 | [`PREFIX-READS.md`](PREFIX-READS.md) | **Rung delivery strides the file and the fast path misses 319 of 320. Storing rungs contiguously puts it back to 3** |
+| [`DEPTH.md`](DEPTH.md) | **Corrects the io_uring verdict: it was measured only at one read in flight. At depth ≥ 2, cold, the ring costs 1.8–4× less CPU and holds threads flat** |
 | [`later.md`](later.md) | Optional follow-ups only |
 
 **Serving rungs rather than whole frames?** Read [`PREFIX-READS.md`](PREFIX-READS.md) first —
