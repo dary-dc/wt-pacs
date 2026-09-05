@@ -1,14 +1,16 @@
 # L1 v3 — small collect plan (for reviewer; do not run until approved)
 
-**Status:** awaiting review · **Date:** 2026-09-04 · **Branch:** `cursor/l1-loss-run-dbae`  
-> **Second review found two blockers in this plan — see
-> [`L1-v3-second-review.md`](L1-v3-second-review.md) §4:** the null gate (25 %) is looser than
-> the 15 % decision it protects, and `cache_misses ≥ ~15` makes `miss_p95` a max-of-15. Both
-> must be settled before sign-off. Interleaving (S6) is also unstated in the grid below.  
-**Depends on:** path validation PASSED · A1 cadence frozen in
-[`l1_v3_cadence.json`](../measurements/r2/l1_v3_cadence.json)  
-**Does not run:** full S9 grid (~10.5 h). This is a methodology smoke + first sample only.  
-**Collect runner:** `PHASE=collect` currently **refuses** until this plan is approved.
+**Status:** superseded as the *governing* plan by
+[`L1-v3-complete-plan.md`](L1-v3-complete-plan.md) (2026-09-05) · this file is the prior smoke
+sketch and will be rewritten as **Phase C** after Phases A–B.  
+**Branch:** `cursor/l1-loss-run-dbae`  
+> **Do not run.** Second review blockers + behavior-first redesign are in the complete plan.
+> Notable shifts: **dose-like response > fixed 15 %** for early phases; **160-frame / tail-count**
+> miss budget; **regime diagnosis** before cadence freeze; interleave + directional header.  
+**Depends on:** path validation PASSED · cadence **re-freeze after Phase B** (current
+`l1_v3_cadence.json` is draft only)  
+**Collect runner:** `PHASE=collect` **refuses** until `L1-v3-complete-plan.md` Phases A–B
+sign-off and Phase C text matches that doc.
 
 ---
 
