@@ -49,8 +49,8 @@ wins by, never *whether* it wins.
 of them miss the page cache.** Temperature, access shape and ask size only *produce* a miss
 rate; depth and session count only *produce* an in-flight count.
 
-`hybrid` versus `pool` (the path shipped today), CPU per ask, paired cell by cell across two
-independent runs ([`v10_campaign.tsv`](v10_campaign.tsv)). Negative = the hybrid is cheaper;
+`hybrid` versus `pool` (the path shipped today), CPU per ask, paired cell by cell across
+three independent runs ([`v10_campaign.tsv`](v10_campaign.tsv)). Negative = the hybrid is cheaper;
 the fraction is how many paired comparisons agreed:
 
 | Reads in flight | 0–5% miss | 5–50% miss | 50–100% miss |
