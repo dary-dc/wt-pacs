@@ -4,13 +4,8 @@
 //! hop) with `read_at_blocking` on a blocking pool for the miss. See
 //! `docs/disk-access/adr.md` — the mapping is kept for the header/index and for the lab's
 //! mmap arms; the serving path never touches it.
-//!
-//! A frame that is asked more than once can skip that path entirely: see `FrameCache`,
-//! which is off unless the server is given a byte budget.
 
-use crate::media::frame_cache::FrameCache;
 use anyhow::{bail, Context, Result};
-use bytes::Bytes;
 use memmap2::Mmap;
 use std::fs::File;
 use std::os::unix::fs::FileExt;
@@ -35,17 +30,10 @@ pub struct FrameStore {
     data_base: usize,
     index: Vec<(u64, u32)>,
     nowait: bool,
-    cache: FrameCache,
 }
 
 impl FrameStore {
-    /// No frame cache. Every ask reads.
     pub fn open(study_path: &Path) -> Result<Self> {
-        Self::open_with_cache(study_path, 0)
-    }
-
-    /// `cache_budget` bytes of process-private frame cache; `0` disables it.
-    pub fn open_with_cache(study_path: &Path, cache_budget: usize) -> Result<Self> {
         let file = File::open(study_path)
             .with_context(|| format!("open study bundle {}", study_path.display()))?;
         // SAFETY: `file` keeps the fd open; bundle must not be truncated while mapped.
@@ -60,7 +48,6 @@ impl FrameStore {
             data_base: parsed.data_base,
             index: parsed.index,
             nowait,
-            cache: FrameCache::new(cache_budget),
         })
     }
 
@@ -175,43 +162,6 @@ impl FrameStore {
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
-    }
-
-    /// Cached frame bytes, if this frame is resident. A hit costs a refcount bump: no
-    /// syscall, nothing to copy into the connection, and the bytes are process-private.
-    pub fn cached_frame(&self, index: u32) -> Option<Bytes> {
-        self.cache.get(index)
-    }
-
-    /// `true` when this ask earned `index` a cache slot and the caller owns the fill.
-    /// Second ask, not the first — see `FrameCache`.
-    pub fn claim_fill(&self, index: u32) -> bool {
-        match self.frame_range(index) {
-            Ok((_, len)) => self.cache.claim_fill(index, len as usize),
-            Err(_) => false,
-        }
-    }
-
-    /// A buffer to assemble a frame into before admitting it. See `FrameCache`.
-    pub fn assembly_buffer(&self, len: usize) -> bytes::BytesMut {
-        self.cache.assembly_buffer(len)
-    }
-
-    pub fn admit(&self, index: u32, bytes: Bytes) {
-        self.cache.admit(index, bytes);
-    }
-
-    pub fn abandon_fill(&self, index: u32) {
-        self.cache.abandon_fill(index);
-    }
-
-    /// Resident cache bytes and frame count.
-    pub fn cache_stats(&self) -> (usize, usize) {
-        self.cache.stats()
-    }
-
-    pub fn cache_enabled(&self) -> bool {
-        self.cache.enabled()
     }
 }
 

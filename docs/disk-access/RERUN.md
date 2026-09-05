@@ -185,7 +185,7 @@ naive, because a strawman io_uring arm would prove nothing.
 
 | io_uring strength | Available here? |
 | --- | --- |
-| Deep queues, batched submission | **Barely.** The session loop sends one frame to completion before reading the next ask (`docs/adr-reject-server-ordering.md`), so queue depth is 1. The only batch inside an ask is the frame's own four windows — which `uring_tuned` submits together |
+| Deep queues, batched submission | **Barely — *as the server is written today*.** The session loop sends one frame to completion before reading the next ask, so queue depth is 1 and the only batch inside an ask is the frame's own four windows, which `uring_tuned` submits together. ⚠️ The client keeps `D` asks outstanding (`docs/adr-client-window-depth.md`); depth 1 at the disk is the server flattening that window, not a property of the workload. At depth ≥ 2 the ring costs 1.8–4× less CPU per ask on cold reads — see [`DEPTH.md`](DEPTH.md) |
 | No thread pool for blocking I/O | **Yes** — this is the real opportunity, on the miss |
 | Registered files / fixed buffers | **Yes** — used by every tuned arm |
 | `SINGLE_ISSUER`, `DEFER_TASKRUN` | **No.** Tokio's multi-thread runtime resumes a task on whichever worker steals it, so a per-session ring is submitted from different threads. The kernel answers `EEXIST`; `uring_access.rs` has a test that pins this down rather than citing documentation. These are io_uring's two biggest knobs and a work-stealing runtime cannot have them |
@@ -285,6 +285,11 @@ Pipelining is worth ~6% when every read misses, consistently in both orders. It 
 on the warm path, which is the path a server spends its life on.
 
 ### Verdict
+
+**Scope correction (2026-09-05):** every cell below is depth 1. [`DEPTH.md`](DEPTH.md) shows
+the verdict holds only there — at 2 or more reads in flight io_uring costs 1.8–4× less CPU
+per ask on cold reads and keeps thread count flat, while `pread` keeps its 4× advantage on
+page-cache hits. Read what follows as "at one read in flight".
 
 io_uring is not dismissed here; it is tied. Its fast path cannot beat `RWF_NOWAIT` because
 both resolve to the same kernel work on a cache hit, and the miss path — where it could
