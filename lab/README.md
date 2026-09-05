@@ -24,7 +24,9 @@ Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.
 
 ## QUIC transport arms
 
-See [`docs/quic-transport-optimization.md`](../docs/quic-transport-optimization.md).
+Measurements: [`docs/quic-transport-optimization.md`](../docs/quic-transport-optimization.md).
+Implementation spec (portable across the server rewrite, ranked for p95):
+[`docs/transport-optimization-spec.md`](../docs/transport-optimization-spec.md).
 
 ```bash
 # unshaped loopback — the CPU-bound regime (copies, crypto, GSO)
