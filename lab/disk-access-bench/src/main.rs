@@ -15,7 +15,7 @@ mod candidate_access;
 mod rejected_access;
 mod uring_access;
 
-use candidate_access::{populate_read, unmap_pages};
+use candidate_access::{hint_willneed, populate_read, unmap_pages};
 use exact_server::media::frame_store::{host_page_size, FrameStore};
 use rejected_access::{advise_frame_willneed, frame_pages_resident, touch_frame_pages};
 use serde::Deserialize;
@@ -51,6 +51,12 @@ enum Arm {
     /// Same, streamed through one small reusable window instead of a whole-frame buffer:
     /// bounds both the executor's uninterrupted copy and per-session memory.
     PreadNowaitChunked,
+    /// The accepted path plus one `POSIX_FADV_WILLNEED` for the *next* ask's range.
+    ///
+    /// The candidate for an access shape read-ahead cannot see — a prefix taken from each
+    /// frame, which strides the file. Costs one syscall and no copy, needs no change to how
+    /// the study is laid out, and only helps if the hint lands far enough ahead of the ask.
+    PreadNowaitPrefetch,
     /// Control for the pipelined io_uring arms: the *next* window's pool read is issued
     /// before the current window is written, so the hop overlaps the wire instead of
     /// preceding it. Isolates "pipelining" from "io_uring".
@@ -83,6 +89,7 @@ impl Arm {
             Self::MmapPopulateRead => "mmap_populate_read",
             Self::PreadNowait => "pread_nowait",
             Self::PreadNowaitChunked => "pread_nowait_chunked",
+            Self::PreadNowaitPrefetch => "pread_nowait_prefetch",
             Self::PreadPipelinedPool => "pread_pipelined_pool",
             Self::UringNaive => "uring_naive",
             Self::UringTuned => "uring_tuned",
@@ -106,6 +113,7 @@ impl Arm {
             Self::MmapPopulateRead,
             Self::PreadNowait,
             Self::PreadNowaitChunked,
+            Self::PreadNowaitPrefetch,
             Self::PreadPipelinedPool,
             Self::UringNaive,
             Self::UringTuned,
@@ -1283,6 +1291,57 @@ async fn serve_frame_async(
             })
         }
         Arm::PreadNowaitChunked => {
+            let (offset, _) = store.frame_range(idx)?;
+            let len = access_len(store, idx, access)?;
+            let window = read_chunk.min(len).max(1);
+            let t0 = Instant::now();
+            let mut buf = std::mem::take(&mut state.pread_pool);
+            buf.resize(window, 0);
+            let mut hop = 0u64;
+            let mut pos = 0usize;
+            while pos < len {
+                let this = window.min(len - pos);
+                let got = store.read_at_nowait(&mut buf[..this], offset + pos as u64)?;
+                if got < this {
+                    // Only the missing tail of this window goes to the pool; the readahead
+                    // it triggers usually keeps the following windows on the fast path.
+                    // This is exactly `stream_codestream` in the product, minus the wire.
+                    let s = Arc::clone(store);
+                    let at = offset + (pos + got) as u64;
+                    let th = Instant::now();
+                    buf = tokio::task::spawn_blocking(move || {
+                        s.read_at_blocking(&mut buf[got..this], at)?;
+                        Ok::<Vec<u8>, anyhow::Error>(buf)
+                    })
+                    .await
+                    .context("join")??;
+                    hop += th.elapsed().as_nanos() as u64;
+                }
+                for c in buf[..this].chunks(chunk) {
+                    sink.clear();
+                    sink.extend_from_slice(c);
+                    std::hint::black_box(sink.len());
+                    tokio::task::yield_now().await;
+                }
+                pos += this;
+            }
+            state.pread_pool = buf;
+            Ok(FrameOutcome {
+                latency_ns: t0.elapsed().as_nanos() as u64,
+                hop_ns: hop,
+                bytes_copied: len as u64,
+            })
+        }
+        Arm::PreadNowaitPrefetch => {
+            // The hint goes out *before* this ask's own reads, so the kernel has this whole
+            // ask's duration to satisfy it. That is the entire mechanism: it only helps if
+            // one ask takes longer than one read-ahead, which is a property of the
+            // deployment's storage, not of this code.
+            if let Some(n) = next {
+                let (noff, nlen) = store.frame_range(n)?;
+                hint_willneed(&ctx.file, noff, served_len(nlen));
+            }
+
             let (offset, _) = store.frame_range(idx)?;
             let len = access_len(store, idx, access)?;
             let window = read_chunk.min(len).max(1);

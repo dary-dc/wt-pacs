@@ -1,4 +1,26 @@
-# Rung delivery breaks the fast path — and the layout fixes it · 2026-09-05
+# What reading costs, by access shape · 2026-09-05
+
+**Read this as a characterisation, not a recommendation.** The disk layout is its own design
+problem — a US stack wants frames in order, a large-frame study wants the device's rung first
+and the rest later, and several clients at different rungs want different things at once.
+That design decides *which shape the reads have*. This document measures what each shape
+costs and which read implementation wins in it, so the layout can be designed against numbers
+instead of guesses, and the read path routed to match afterwards.
+
+Two independent answers came out of it: one needs the packer, one does not.
+
+| Shape the layout produces | Cheapest read path measured | Needs |
+| --- | --- | --- |
+| **Sweeping** — whole frames in order (US stacks; any layout that puts what is read together, together) | Today's `RWF_NOWAIT` streaming, unchanged. 6 misses per 320, no prefetch | nothing |
+| **Striding** — a prefix of each frame, skipping the rest (rung delivery from a frame-major file) | Same path **plus a read-ahead hint for the next ask**: misses 319 → 6–56 per 320, p50 **4.6–4.9× lower**, CPU/ask ~half | the server to know the next ask |
+| **Striding, if the packer can group** | Store the rung contiguously — the shape stops striding and becomes sweeping | `pack-study` change |
+
+Prefetch and layout are not alternatives: prefetch works on whatever order the bytes are
+already in, so it is the answer *until* a layout exists, and a safety net after.
+
+---
+
+## Part 1 — the strided shape, and the layout that removes it · 2026-09-05
 
 [`adr.md`](adr.md) rests on one number: the `RWF_NOWAIT` fast path misses **6 of 320** asks
 on a cold sequential pass, and **0 of 320** warm. That is not a property of the flag. It is a
@@ -85,10 +107,11 @@ is the opposite of that deployment.
    frame to completion before reading the next ask
    ([`adr-reject-server-ordering.md`](../adr-reject-server-ordering.md)), so queue depth is 1
    per session however many misses there are. io_uring's advantage needs depth to spend.
-3. **The lever is the packer, not the read path.** Nothing in `server/` can recover
-   read-ahead once the bytes are 234 KB apart. `pack-study` can, by writing rungs in stripes.
+3. **One lever is the packer.** Nothing in `server/` can recover *implicit* read-ahead once
+   the bytes are 234 KB apart — `pack-study` can, by writing rungs in stripes. But an
+   explicit hint recovers most of it without any layout change at all; that is Part 2.
 
-## What a rung-major SBND would cost
+## What a rung-major SBND would cost, if the layout design goes that way
 
 Not free, and the shape matters:
 
@@ -141,8 +164,89 @@ choice — stay right at every realistic rung size. The crossover is below 16 KB
 recorded here only so that a future move to very small increments re-opens that decision
 rather than inheriting it.
 
+## Part 2 — the read-shape map
+
+The layout-independent question: **for a given ask size and access shape, which read
+implementation is cheapest?** 320 asks, forward, 9 repeats, product runtime, median
+([`v8_shape_map.tsv`](v8_shape_map.tsv)). "Ask size" is the prefix served out of each 250 KB
+frame, so every row below 250 000 B **strides**; the 250 000 B row **sweeps**.
+
+### Cold
+
+| Ask size | Arm | Misses / 320 | p50 | CPU / ask |
+| ---: | --- | ---: | ---: | ---: |
+| 4 KB | `pread_nowait_chunked` | 319 | 85 247 ns | 113 680 ns |
+| 4 KB | **`pread_nowait_prefetch`** | **6** | **17 317 ns** | **71 335 ns** |
+| 4 KB | `uring_nowait_hybrid` | 318 | 87 823 ns | 145 540 ns |
+| 4 KB | `pread_blocking_pooled` | 320 | 88 107 ns | 160 771 ns |
+| 16 KB | `pread_nowait_chunked` | 319 | 100 348 ns | 148 423 ns |
+| 16 KB | **`pread_nowait_prefetch`** | **37** | **20 715 ns** | **76 950 ns** |
+| 16 KB | `uring_nowait_hybrid` | 319 | 105 591 ns | 168 253 ns |
+| 64 KB | `pread_nowait_chunked` | 318 | 136 260 ns | 210 349 ns |
+| 64 KB | **`pread_nowait_prefetch`** | **56** | **29 338 ns** | **107 006 ns** |
+| 64 KB | `uring_nowait_hybrid` | 317 | 133 515 ns | 220 536 ns |
+| **250 KB (sweeps)** | **`pread_nowait_chunked`** | **7** | **46 827 ns** | 283 835 ns |
+| 250 KB (sweeps) | `pread_nowait_prefetch` | 56 | **108 895 ns** | 251 526 ns |
+| 250 KB (sweeps) | `uring_nowait_hybrid` | 7 | 41 671 ns | 240 396 ns |
+
+### Warm
+
+| Ask size | `nowait_chunked` | `nowait_prefetch` | `uring_hybrid` | `blocking_pooled` |
+| ---: | ---: | ---: | ---: | ---: |
+| 4 KB | 1 225 ns | 1 072 ns | 1 423 ns | 31 226 ns |
+| 16 KB | 2 262 ns | 2 264 ns | 2 788 ns | 30 751 ns |
+| 64 KB | 11 305 ns | 10 856 ns | 10 852 ns | 57 763 ns |
+| 250 KB | 46 372 ns | 46 295 ns | 47 088 ns | 148 277 ns |
+
+### The rules this gives
+
+1. **Prefetch is worth 4.6–4.9× on a strided cold read, and it is a hint, not a copy.** One
+   `POSIX_FADV_WILLNEED` for the next ask's range, issued before this ask's own reads, so the
+   kernel has a whole ask's duration to satisfy it. No layout change, no extra bytes moved,
+   one syscall.
+2. **Prefetch is a loss on a sweeping cold read** — 108 895 vs 46 827 ns, misses 7 → 56. Where
+   read-ahead already works, a second opinion competes with it. So this is a *routed* choice,
+   not a default: enable it for shapes that stride, leave it off for shapes that sweep.
+3. **Warm, nothing matters** — every nowait arm ties within a few percent at every size, and
+   prefetch costs nothing when it is not needed. Only `pread_blocking_pooled` is consistently
+   worse (it hops on every ask by construction), which is what makes it the escape hatch and
+   not the path.
+4. **io_uring never wins outside noise, at any shape.** Best p50 in 2 of 8 cells, within a few
+   percent of `nowait` in both, and behind on CPU/ask in 7 of 8. Queue depth is 1 per session
+   whatever the miss rate, so the ring has nothing to spend.
+
+### What prefetch needs from the protocol
+
+It needs the **next ask**, which the server does not always have:
+
+* `FodMsg::RequestFrames { frames: Vec<u32> }` — the bulk path — declares the whole window.
+  Prefetch is free to use there today.
+* `FodMsg::RequestFrame { frame }` — the interactive path — declares one frame. A predictor
+  (direction of travel, `n+1`) would have to supply the hint, and a wrong guess costs one
+  wasted syscall and some read-ahead the loop never consumes.
+
+This is [`later.md`](later.md)'s "ahead-N prefetch — needs a real ask window", now with a
+measured value on the other side of the question.
+
+**Not landed in the product.** The mechanism is characterised; *when to switch it on* depends
+on the shape the layout produces, which is exactly the decision that has not been made yet.
+Wiring it is small when it is wanted: a `hint_willneed(offset, len)` on `FrameStore`, and a
+lookahead in the ask loop.
+
 ## Limitations
 
+* **The prefetch arm is measured against a known-correct next ask.** The harness hands the
+  arm the next entry in the trace. A predictor that is sometimes wrong will land between this
+  number and the un-prefetched one; how far between depends on how predictable a real scrub
+  is, which `lab/traces/` can answer and this cell does not.
+* **The hint is issued on the executor.** `posix_fadvise` queues read-ahead rather than
+  copying, but it is not free: worst co-tenant gap at 64 KB asks is 224 µs against 178 µs
+  without it. At 4 and 16 KB it is inside the spread. If a bigger hint moves that further,
+  the hint belongs on the pool.
+* **Concurrency is not in this map.** Background sessions in the harness are warmed by
+  construction, so this measures one missing reader, not many. Several clients at different
+  rungs missing at once is a distinct shape — and the one where a queue depth greater than 1
+  could finally exist.
 * **Cold here is guest-cold, not device-cold.** Hop counts are exact — they are page-cache
   misses in the guest, and the cell aborts unless residency starts below 0.1%. The
   *latencies* are flattered by the hypervisor's own cache, so read 93 µs vs 3.5 µs as
