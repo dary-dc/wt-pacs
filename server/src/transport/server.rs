@@ -57,6 +57,9 @@ pub struct ServeConfig {
     pub key_pem: PathBuf,
     /// How frames reach the client for this process. See `StreamMode`.
     pub mode: StreamMode,
+    /// Process-private frame cache budget in bytes; `0` disables it. See `FrameCache` —
+    /// a hit skips the read path entirely, at the price of holding those bytes.
+    pub frame_cache_bytes: usize,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -77,7 +80,10 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     let endpoint = Endpoint::server(server_config).context("wtransport endpoint")?;
 
-    let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
+    let store = Arc::new(
+        FrameStore::open_with_cache(&config.study_path, config.frame_cache_bytes)
+            .context("open study")?,
+    );
 
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
     let cert_sha256 = cert.sha256_hex().to_string();
@@ -87,6 +93,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("frames={}", store.frame_count());
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
+    println!("frame_cache_bytes={}", config.frame_cache_bytes);
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
     #[cfg(not(feature = "telemetry"))]
@@ -281,7 +288,7 @@ async fn write_frame(
     match shared {
         Some(uni) => {
             uni.write_all(&head).await.context("write shared head")?;
-            stream_codestream(uni, store, offset, len, window).await?;
+            stream_codestream(uni, store, idx, offset, len, window).await?;
         }
         None => {
             let mut uni = connection
@@ -291,7 +298,7 @@ async fn write_frame(
                 .await
                 .context("open uni ready")?;
             uni.write_all(&head).await.context("write head")?;
-            stream_codestream(&mut uni, store, offset, len, window).await?;
+            stream_codestream(&mut uni, store, idx, offset, len, window).await?;
 
             // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
             // the peer's acknowledgement (~272 ms measured), which caps throughput at
@@ -331,13 +338,34 @@ fn frame_head(idx: u32, codestream_len: u32) -> [u8; 4 + ENVELOPE_LEN] {
 ///
 /// `store.read_window` decides the stride, so a filesystem that refuses `RWF_NOWAIT` gets
 /// whole-frame pool reads rather than a round trip per window.
+///
+/// A frame the cache already holds skips all of it — the bytes are handed to quinn by
+/// reference instead of copied into it (`write_chunk`, not `write_all`), which is sound
+/// only because they are immutable and process-private. See `FrameCache`.
+///
+/// The ask that earns a frame its cache slot fills it from the windows it is already
+/// streaming: one extra copy of the frame, no extra read, no pool hop, no background task.
 async fn stream_codestream(
     uni: &mut SendStream,
     store: &Arc<FrameStore>,
+    idx: u32,
     offset: u64,
     len: u32,
     window: &mut Vec<u8>,
 ) -> Result<()> {
+    if let Some(bytes) = store.cached_frame(idx) {
+        uni.quic_stream_mut()
+            .write_chunk(bytes)
+            .await
+            .context("write cached codestream")?;
+        return Ok(());
+    }
+
+    // Second ask for this frame, and the cache has room: assemble it as we stream.
+    let mut filling = store
+        .claim_fill(idx)
+        .then(|| store.assembly_buffer(len as usize));
+
     // Whole frames where `RWF_NOWAIT` is refused (overlayfs, tmpfs), `READ_WINDOW` where
     // it works: one pool round trip per frame either way, never one per window.
     let stride = store.read_window(len);
@@ -360,6 +388,9 @@ async fn stream_codestream(
             .context("join frame read")??;
             *window = owned;
         }
+        if let Some(buf) = filling.as_mut() {
+            buf.extend_from_slice(&window[..want]);
+        }
         // `write_all` copies into the connection's send buffer, so the window is free to
         // be refilled as soon as this returns — and the bytes quinn later puts on the wire
         // are process-private, not page-cache pages that reclaim could take back.
@@ -367,6 +398,11 @@ async fn stream_codestream(
             .await
             .context("write codestream")?;
         pos += want as u32;
+    }
+    match filling {
+        Some(buf) if buf.len() == len as usize => store.admit(idx, buf.freeze()),
+        Some(_) => store.abandon_fill(idx),
+        None => {}
     }
     Ok(())
 }
@@ -397,6 +433,25 @@ mod tests {
         let (parsed_idx, body) = unwrap(&new_wire[4..]).expect("client can still parse");
         assert_eq!(parsed_idx, idx);
         assert_eq!(body, &codestream[..]);
+    }
+
+    /// The cache hit path writes one owned chunk where the streaming path writes windows.
+    /// Clients parse bytes, not code paths, so the two have to be byte-identical.
+    #[test]
+    fn cached_frame_bytes_match_the_streamed_windows() {
+        let codestream: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
+        let idx = 3u32;
+
+        let mut streamed = frame_head(idx, codestream.len() as u32).to_vec();
+        for window in codestream.chunks(READ_WINDOW) {
+            streamed.extend_from_slice(window);
+        }
+
+        // What the hit path writes: the same head, then the whole frame as one chunk.
+        let mut cached = frame_head(idx, codestream.len() as u32).to_vec();
+        cached.extend_from_slice(&bytes::Bytes::from(codestream.clone()));
+
+        assert_eq!(cached, streamed, "cache hit changed the wire bytes");
     }
 
     /// A frame larger than one window still frames as a single payload.

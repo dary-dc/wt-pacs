@@ -407,5 +407,13 @@ window. Checking the deployment filesystem is the first item in [`later.md`](lat
 - **No live end-to-end run.** `with_bind_default` binds IPv6 and this container has no IPv6,
   so the server could not be driven over the wire here. Wire compatibility is covered by
   unit tests asserting the streamed bytes equal the `wrap()` envelope they replaced.
+  **Partly closed 2026-09-05:** `wire_send_bench` drives the send path over real quinn on
+  IPv4 loopback and prices it — see [`SEND-BUDGET.md`](SEND-BUDGET.md) §4. It measures the
+  sender, not delivery: no propagation delay, no loss, and client and server share the four
+  cores.
+- **Every number here is a per-frame *total*, not an I/O latency.** What it is made of —
+  54% kernel copy, 13% copy into the connection, 28% scheduler — is in
+  [`SEND-BUDGET.md`](SEND-BUDGET.md) §2. None of it is device time, which is why the
+  io_uring cell below could not find anything to win.
 - Prior campaigns (`git show be78860:docs/disk-access/`) are superseded by this one — the
   instrument differences above are not reconcilable cell by cell. Do not cite them.

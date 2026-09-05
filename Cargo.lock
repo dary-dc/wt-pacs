@@ -374,10 +374,14 @@ name = "disk-access-bench"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "clap",
  "exact-server",
  "io-uring",
  "libc",
+ "quinn",
+ "rcgen 0.13.2",
+ "rustls",
  "serde",
  "serde_json",
  "tokio",
