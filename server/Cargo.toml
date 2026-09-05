@@ -13,8 +13,12 @@ name = "exact-server"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["crypto-ring"]
 telemetry = []
+# rustls/quinn crypto provider. `aws-lc-rs` uses AWS-LC's vectorised AES-GCM
+# (VAES/AVX-512 where the CPU has it); `ring` is the historical default.
+crypto-ring = ["rustls/ring", "wtransport/ring"]
+crypto-aws-lc-rs = ["rustls/aws-lc-rs", "wtransport/aws-lc-rs"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -26,13 +30,14 @@ study-bundle = { path = "../ingest/study-bundle" }
 memmap2 = "0.9"
 libc = "0.2"
 rcgen = "0.13"
-rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12", "ring"] }
+rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12"] }
 rustls-pemfile = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"
+socket2 = "0.6"
 time = "0.3"
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring"] }
+wtransport = { version = "0.7", default-features = false, features = ["quinn"] }
