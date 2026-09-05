@@ -20,6 +20,9 @@ static SESSION_IDS: AtomicU64 = AtomicU64::new(1);
 static ACTIVE_TAPS: AtomicU64 = AtomicU64::new(0);
 static SINK: OnceLock<Mutex<Option<SyncSender<FrameRecord>>>> = OnceLock::new();
 static DROP_TOTAL: AtomicU64 = AtomicU64::new(0);
+static ROWS_OPENED: AtomicU64 = AtomicU64::new(0);
+static ROWS_CLOSED: AtomicU64 = AtomicU64::new(0);
+static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
 
 /// Fixed-width row — durations in µs; absent stages are `None` (JSON null).
 #[derive(Clone, Copy, Debug)]
@@ -69,6 +72,7 @@ impl Tap {
             .ok()
             .and_then(|guard| guard.as_ref().cloned());
         ACTIVE_TAPS.fetch_add(1, Ordering::Relaxed);
+        SESSIONS_STARTED.fetch_add(1, Ordering::Relaxed);
         Some(Self {
             session_id: SESSION_IDS.fetch_add(1, Ordering::Relaxed),
             tx,
@@ -92,6 +96,7 @@ impl Tap {
     }
 
     pub(crate) fn begin_frame(&mut self, frame_index: u32) {
+        ROWS_OPENED.fetch_add(1, Ordering::Relaxed);
         self.serve_start = Some(Instant::now());
         self.frame_index = frame_index;
         self.ask_ordinal = self.take_ordinal(frame_index);
@@ -153,7 +158,9 @@ impl Tap {
             return;
         };
         match tx.try_send(row) {
-            Ok(()) => {}
+            Ok(()) => {
+                ROWS_CLOSED.fetch_add(1, Ordering::Relaxed);
+            }
             Err(TrySendError::Full(_)) => {
                 DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
                 self.drops_since_emit = self.drops_since_emit.saturating_add(1);
@@ -229,14 +236,29 @@ fn drain_loop(rx: std::sync::mpsc::Receiver<FrameRecord>, path: PathBuf) {
     }
 
     let written = frames.len() as u64;
+    let dropped_process = DROP_TOTAL.load(Ordering::Relaxed);
+    let rows_opened = ROWS_OPENED.load(Ordering::Relaxed);
+    let rows_closed = ROWS_CLOSED.load(Ordering::Relaxed);
+    let sessions = SESSIONS_STARTED.load(Ordering::Relaxed);
+    let mut summary = acc.build_summary();
+    summary.integrity = IntegrityBlock {
+        rows_opened,
+        rows_closed,
+        rows_dropped: dropped_process, // process-wide ring drops (same counter as run_end)
+        sessions,
+        ring_capacity: RING_CAP as u64,
+        dropped_records_process_total: dropped_process,
+        clock: Some("std::time::Instant"),
+    };
     let report = TelemetryReport {
         schema: SCHEMA,
-        summary: acc.build_summary(),
+        summary,
         server_frames: frames,
         run_end: RunEndMeta {
             event: "run_end",
             written_records: written,
-            dropped_records: DROP_TOTAL.load(Ordering::Relaxed),
+            // Process-wide since process start — not per-run.
+            dropped_records_process_total: dropped_process,
         },
     };
 
@@ -268,7 +290,20 @@ struct TelemetryReport {
 struct RunEndMeta {
     event: &'static str,
     written_records: u64,
-    dropped_records: u64,
+    /// Process-wide ring drops since process start (not per-run).
+    dropped_records_process_total: u64,
+}
+
+#[derive(Default, serde::Serialize)]
+struct IntegrityBlock {
+    rows_opened: u64,
+    rows_closed: u64,
+    rows_dropped: u64,
+    sessions: u64,
+    ring_capacity: u64,
+    dropped_records_process_total: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    clock: Option<&'static str>,
 }
 
 #[derive(Default)]
@@ -311,6 +346,7 @@ impl RunAccumulator {
             send_us: distribution_stats(&self.send),
             serve_us: distribution_stats(&self.serve),
             server_bytes_sent: distribution_stats(&self.bytes),
+            integrity: IntegrityBlock::default(),
         }
     }
 }
@@ -325,6 +361,7 @@ struct RunSummary {
     send_us: Option<DistributionStats>,
     serve_us: Option<DistributionStats>,
     server_bytes_sent: Option<DistributionStats>,
+    integrity: IntegrityBlock,
 }
 
 #[derive(serde::Serialize)]
