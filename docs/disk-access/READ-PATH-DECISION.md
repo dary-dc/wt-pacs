@@ -98,6 +98,29 @@ Rung size — the number nobody can pin down yet — does not change which read 
 **That is the part of this answer that survives the layout design whatever it turns out to
 be.**
 
+### Reproduced three times
+
+The whole of phase A was run three times, independently. `hybrid` vs `pool`, CPU per ask,
+median of paired comparisons within each run:
+
+| Shape | Temp | Depth | run 1 | run 2 | run 3 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| stride | cold | 1 | −54.3% | −50.6% | −57.1% |
+| stride | cold | 8 | −74.1% | −74.4% | −66.9% |
+| stride | cold | 64 | −77.5% | −79.6% | −79.9% |
+| sweep | cold | 1 | −9.2% | −16.2% | −15.9% |
+| sweep | cold | 16 | −65.2% | −60.1% | −64.9% |
+| sweep | warm | 4 | −21.9% | −16.6% | −20.8% |
+| stride | warm | 1 | +15.8% | +4.3% | −6.0% |
+
+**26 of 28 configurations keep their sign across all three runs.** Both exceptions are in the
+warm/strided tie region, where the effect is a few percent and a sign flip is what "no
+difference" looks like. Every cold configuration reproduces, at every depth.
+
+Note the last-but-one row: **even the sweeping shape — the one read-ahead handles well —
+favours the hybrid once the study is cold and more than one read is in flight.** The ring is
+not only for pathological access patterns.
+
 ### The hybrid's worst cases, stated plainly
 
 "Never materially worse" is a claim that deserves its own audit. Over all 792 paired
@@ -128,7 +151,11 @@ including 100%:
 | 8 | 2% | — | −16.8% (5/6) |
 
 Both were re-run back to back on the identical configuration and both reproduced their own
-answer, so this is a difference between the harnesses, not host drift. I could not identify
+answer, so this is a difference between the harnesses, not host drift. The weight of evidence
+favours the campaign — its depth-1 cold result is −54.3% / −50.6% / −57.1% across three
+independent runs, against −2.1% from six repeats of one crossover cell — but an unexplained
+disagreement between two harnesses stays on the record rather than being resolved by
+counting. I could not identify
 the cause: both complete all asks, both report the same miss rate for the ring arm, and their
 throughputs match within 20%. **Treat the depth-1 magnitude as unresolved — somewhere between
 a tie and −53%.**
@@ -259,6 +286,11 @@ Factors crossed: arm × depth (1–64) × readers (1–16) × temperature × sha
   size, which changes the miss-rate distribution but not the mechanism.
 * **One process, one file.** Sessions here are tasks in one process, which is what the server
   is; a multi-process deployment shares only the page cache.
+* **One read per ask, not the product's window loop.** Every arm here issues a single read of
+  `size` bytes per ask. The product streams a frame in 64 KiB windows, so a 250 KB whole-frame
+  ask is four reads there and one here. For rung delivery (16–210 KB) the models coincide;
+  for whole-frame delivery the campaign understates the per-ask syscall count for every arm
+  equally, which should not move a comparison but does move the absolute numbers.
 * **The miss-rate bucketing uses `pool`'s miss counter** as the independent variable, because
   `uring` reports 100% by construction (every read goes through the ring, whether or not the
   page was cached). Buckets are therefore "what fraction *would* miss", which is the property
