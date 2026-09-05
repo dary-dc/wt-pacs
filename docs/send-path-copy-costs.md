@@ -2,6 +2,22 @@
 
 **2026-08-28 · T1, arithmetic and source-read. Nothing measured.**
 
+> ## Superseded in part, 2026-09-05 — see [`quic-transport-optimization.md`](quic-transport-optimization.md)
+>
+> The arithmetic below held up. Two things changed:
+>
+> - **Ceiling 1 is gone.** `wtransport` 0.7.2 exposes `quic_stream_mut()`, which returns
+>   the underlying `quinn::SendStream` and with it `write_all_chunks`. The chunk write is
+>   reachable from the browser-facing path today, with no upstream work. Both full-frame
+>   copies are now removed on `main`; the wire is byte-identical.
+> - **The open question at the bottom is answered.** The knee is **~1.4 Gbps** for 250 KB
+>   frames. Below it throughput is identical and the copies cost only CPU (−6…−17 % per
+>   byte, at every rate); above it they cost throughput too (+20 % unshaped). At 32 KB
+>   frames the gain is inside noise at every rate — **frame size decides this, not link
+>   rate alone**, which the table below does not capture.
+>
+> Ceiling 2 — QUIC cannot use kernel zero-copy, so "zero-copy" means *one* copy — stands.
+
 Recorded so nobody re-derives it. The short version: **on a slow link the copies are invisible; on a
 fast one they are the thing you are measuring.** The usual "it's just a memcpy" dismissal is only
 correct in one regime, and we work in both.
@@ -47,10 +63,10 @@ retransmission.
 
 ## Two hard ceilings
 
-**1. `wtransport` has no chunk write.** `quinn` can take ownership of a `Bytes` without copying —
-`write_chunk(Bytes)`, `write_all_chunks(&mut [Bytes])`. `wtransport::SendStream` exposes only
-`write` and `write_all` over `&[u8]`. Browsers can speak only WebTransport, so on any browser-facing
-path this copy is not removable without upstream work in `wtransport`.
+**1. ~~`wtransport` has no chunk write.~~ — wrong, see the banner.** `quinn` can take ownership of a
+`Bytes` without copying — `write_chunk(Bytes)`, `write_all_chunks(&mut [Bytes])`. `wtransport::SendStream`
+exposes only `write` and `write_all` over `&[u8]` — **but also `quic_stream_mut()`, which hands back the
+`quinn::SendStream` underneath**. The chunk API was reachable all along; nobody looked.
 
 **2. QUIC cannot use kernel zero-copy at all.** No `sendfile`, no splice: QUIC encrypts in userspace,
 so the kernel never sees plaintext to hand to the NIC. TCP + kTLS can go further; QUIC cannot,
@@ -61,13 +77,18 @@ chases a number that does not exist.
 
 ## Position
 
-Do not chase copies for the browser path. Remove the avoidable one when touching the wire for another
-reason, not as a standalone task.
+**Superseded.** Both copies are gone on `main` (`--send-path chunked`, the default). The position
+below was written when the chunk API was believed unreachable.
+
+~~Do not chase copies for the browser path. Remove the avoidable one when touching the wire for another
+reason, not as a standalone task.~~
 
 For a native or LAN path the conclusion is different and **unmeasured**. A native client is not
 browser-constrained, so `quinn`'s chunk API is available, and there is no JS heap to copy into on
 receive — two of the copies disappear by construction.
 
-**Open, cheap, and worth doing before anyone argues about this again:** sweep link rate against
-per-frame copy time and find the knee — the rate at which copies stop being noise. An afternoon on
-existing hardware, and it converts this document from arithmetic into a threshold.
+**Done, 2026-09-05.** The sweep asked for here is
+[`measurements/quic-opt/copy_knee.tsv`](measurements/quic-opt/copy_knee.tsv); the threshold is
+~1.4 Gbps at 250 KB frames. The native/LAN case the paragraph above calls unmeasured is still
+unmeasured — but it is now the *smaller* remaining gap, because the browser path turned out not to
+be constrained after all.

@@ -46,6 +46,8 @@ pub struct RunConfig {
     pub rtt_ms: u64,
     /// Must match the server's `--stream-mode`.
     pub stream_mode: StreamMode,
+    /// Local bind IP for the client socket. `0.0.0.0` on hosts without an IPv6 stack.
+    pub bind_ip: std::net::IpAddr,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]

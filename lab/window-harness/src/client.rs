@@ -93,7 +93,7 @@ pub async fn run_harness(
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
     let client_cfg = ClientConfig::builder()
-        .with_bind_default()
+        .with_bind_address(std::net::SocketAddr::new(cfg.bind_ip, 0))
         .with_no_cert_validation()
         .keep_alive_interval(Some(Duration::from_secs(3)))
         .build();

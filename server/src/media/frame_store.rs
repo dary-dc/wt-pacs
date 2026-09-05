@@ -1,6 +1,7 @@
 //! Server-side SBND reader: one open study mapped for serving.
 
 use anyhow::{bail, Context, Result};
+use bytes::Bytes;
 use memmap2::Mmap;
 use study_bundle::parse_layout;
 use std::fs::File;
@@ -10,7 +11,14 @@ use std::sync::OnceLock;
 
 pub struct FrameStore {
     file: File,
-    mmap: Mmap,
+    /// The whole study, mapped once and held as a refcounted handle.
+    ///
+    /// `Bytes::from_owner` takes ownership of the `Mmap`, so `slice()` is a refcount
+    /// bump — no allocation, no copy — and the send path can hand frame bytes straight
+    /// to quinn. It is the *only* mapping on purpose: a second one would have
+    /// `touch_frame_pages` faulting pages the send path never reads, doubling both the
+    /// fault work and the resident set. See `docs/send-path-copy-costs.md`.
+    all: Bytes,
     frame_count: u32,
     metadata_len: u32,
     data_base: usize,
@@ -24,9 +32,10 @@ impl FrameStore {
         // SAFETY: `file` keeps the fd open; bundle must not be truncated while mapped.
         let mmap = unsafe { Mmap::map(&file).context("mmap study bundle")? };
         let parsed = parse_layout(&mmap)?;
+        let all = Bytes::from_owner(mmap);
         Ok(Self {
             file,
-            mmap,
+            all,
             frame_count: parsed.frame_count,
             metadata_len: parsed.metadata_len,
             data_base: parsed.data_base,
@@ -41,7 +50,7 @@ impl FrameStore {
     pub fn metadata_json(&self) -> Result<&str> {
         let start = self.data_base - self.metadata_len as usize;
         let end = self.data_base;
-        std::str::from_utf8(&self.mmap[start..end]).context("metadata JSON is not UTF-8")
+        std::str::from_utf8(&self.all[start..end]).context("metadata JSON is not UTF-8")
     }
 
     /// Byte offset and length of frame payload in the SBND file.
@@ -56,13 +65,32 @@ impl FrameStore {
         let (offset, length) = self.frame_range(index)?;
         let start = offset as usize;
         let end = start + length as usize;
-        if end > self.mmap.len() {
+        if end > self.all.len() {
             bail!(
                 "frame {index} slice out of bounds ({start}..{end}, file {})",
-                self.mmap.len()
+                self.all.len()
             );
         }
-        Ok(&self.mmap[start..end])
+        Ok(&self.all[start..end])
+    }
+
+    /// Frame payload as a refcounted slice of the mapping — no allocation, no copy.
+    ///
+    /// The counterpart of `frame_slice` for the chunked send path: `Bytes` can be handed
+    /// straight to `quinn::SendStream::write_all_chunks`, which moves it into the
+    /// connection's send buffer instead of copying it there.
+    pub fn frame_bytes(&self, index: u32) -> Result<Bytes> {
+        let (offset, length) = self.frame_range(index)?;
+        let start = offset as usize;
+        let end = start + length as usize;
+        // Explicit, because `Bytes::slice` panics rather than erroring on a short file.
+        if end > self.all.len() {
+            bail!(
+                "frame {index} slice out of bounds ({start}..{end}, file {})",
+                self.all.len()
+            );
+        }
+        Ok(self.all.slice(start..end))
     }
 
     /// Fault every page of `index` into the page cache.
@@ -149,6 +177,9 @@ mod tests {
         assert_eq!(store.metadata_json()?, r#"{"frameCount":2}"#);
         assert_eq!(store.frame_slice(0)?, f0);
         assert_eq!(store.frame_slice(1)?, f1);
+        assert_eq!(&store.frame_bytes(0)?[..], f0);
+        assert_eq!(&store.frame_bytes(1)?[..], f1);
+        assert!(store.frame_bytes(99).is_err());
         store.touch_frame_pages(0)?;
         store.touch_frame_pages(1)?;
         let mut buf = vec![0u8; f0.len()];

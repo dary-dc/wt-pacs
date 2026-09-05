@@ -1,0 +1,14 @@
+[package]
+name = "aead-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Packet-AEAD throughput for the rustls providers, at QUIC datagram sizes"
+
+[features]
+default = ["ring"]
+ring = ["dep:ring"]
+aws-lc-rs = ["dep:aws-lc-rs"]
+
+[dependencies]
+ring = { version = "0.17", optional = true }
+aws-lc-rs = { version = "1", optional = true }

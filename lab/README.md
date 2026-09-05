@@ -9,6 +9,7 @@ and Q2 (head-of-line). **No product crate depends on these.**
 | ----- | ------- |
 | `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2) |
 | `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
+| `aead-bench` | Per-packet AEAD throughput, ring vs aws-lc-rs (QUIC datagram sizes) |
 
 ## Run
 
@@ -20,3 +21,23 @@ cargo run -p cold-page-bench --release -- --study lab/fixtures/queue_large/queue
 ```
 
 Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.
+
+## QUIC transport arms
+
+See [`docs/quic-transport-optimization.md`](../docs/quic-transport-optimization.md).
+
+```bash
+# unshaped loopback — the CPU-bound regime (copies, crypto, GSO)
+SRV_FLAGS="--send-path chunked" ./lab/scripts/quic_opt_bench.sh chunked \
+  target/release/exact-server frames_250k 4,16 3
+
+# rate-shaped, in a private netns (needs iproute2; tbf only, no netem)
+RATE=1600mbit ./lab/scripts/quic_opt_shaped.sh chunked \
+  target/release/exact-server frames_250k 16 3
+
+cargo run --release -p aead-bench --no-default-features --features ring
+cargo run --release -p aead-bench --no-default-features --features aws-lc-rs
+```
+
+`SRV_FLAGS` passes arm-specific flags to `exact-server`; unset knobs keep quinn's own
+defaults, so an arm that changes nothing measures nothing.
