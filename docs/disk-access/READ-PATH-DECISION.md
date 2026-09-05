@@ -73,6 +73,29 @@ matches the hybrid when misses dominate, and is **+47% CPU and 6× the latency**
 not, because every cached read pays a submit-and-complete round trip it never needed.
 `pooled_pread` — the ADR's escape hatch — is 5–8× worse than either almost everywhere.
 
+### Latency says the same thing, louder
+
+CPU per ask is the cost metric; per-ask latency is what a reader feels. Δ vs `pool`, median
+of paired cells, negative = faster:
+
+| Reads in flight | miss | `hybrid` p50 | faster in | `uring` p50 | faster in |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0–5% | **−3.2%** | 82/126 | **+110%** | 5/126 |
+| 4 | 0–5% | **−15.6%** | 90/104 | **+575%** | 0/104 |
+| 16 | 0–5% | **−9.4%** | 87/120 | **+1721%** | 2/120 |
+| 64 | 0–5% | **−17.2%** | 67/86 | **+4277%** | 2/86 |
+| 1 | 50–100% | **−27.1%** | 83/84 | −26.2% | 83/84 |
+| 4 | 50–100% | **−39.1%** | 89/90 | −11.9% | 77/90 |
+| 16 | 50–100% | **−21.5%** | 98/110 | +16.2% | 21/110 |
+| 64 | 50–100% | **−16.9%** | 37/42 | +12.7% | 15/42 |
+
+**The hybrid is faster than `pool` in every single group**, on p50 and p99 alike. **Pure
+io_uring is up to 43× slower** where hits dominate, because a cached read that could have
+returned inline instead makes a round trip through the queue.
+
+This is the clearest reason the answer is the hybrid and not "adopt io_uring": on cost the
+two ring arms are close, and on latency they are nothing alike.
+
 **Threads, the ceiling a CPU number does not show:**
 
 | Arm | median | worst |
