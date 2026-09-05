@@ -154,13 +154,30 @@ impl TraceKind {
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 enum AccessMode {
-    /// Whole frame (product path). Prefix modes removed with FrameStore prefix APIs (E5).
+    /// Whole frame (product path).
     Full,
 }
 
 impl AccessMode {
     fn as_str(self) -> &'static str {
         "full"
+    }
+}
+
+/// Bytes of each frame actually served — `--prefix` caps it.
+///
+/// Rung delivery (`docs/adr-resolution-fitting-for-large-frames.md`) sends the first slice
+/// of a progressive codestream, not the whole thing. That changes the *shape* of the disk
+/// access, not just its size: reads take a prefix and skip the rest of the frame, so the
+/// file is strided rather than swept, and the kernel read-ahead the `RWF_NOWAIT` fast path
+/// leans on has less to work with. A global rather than a threaded parameter because every
+/// arm must see the same lengths for the comparison to mean anything.
+static PREFIX_BYTES: AtomicU64 = AtomicU64::new(0);
+
+fn served_len(whole: u32) -> usize {
+    match PREFIX_BYTES.load(Ordering::Relaxed) {
+        0 => whole as usize,
+        p => (p as usize).min(whole as usize),
     }
 }
 
@@ -258,6 +275,11 @@ struct Args {
     /// small window bounds executor occupancy and session memory but costs more syscalls.
     #[arg(long, default_value_t = 65536)]
     read_chunk: usize,
+    /// Serve only the first N bytes of each frame — the rung/prefix delivery shape. Reads
+    /// then stride over the file instead of sweeping it, which is what a progressive
+    /// codestream fitted to a viewport actually asks for. `0` = whole frames.
+    #[arg(long, default_value_t = 0)]
+    prefix: u64,
     /// Start a kernel submission thread for the io_uring arms. Submits then cost no
     /// syscall at all, at the price of a core spinning — check `cpu_us`, not just latency.
     #[arg(long, default_value_t = false)]
@@ -630,7 +652,7 @@ fn resident_for_access(store: &FrameStore, idx: u32, _access: AccessMode) -> Res
 
 fn access_len(store: &FrameStore, idx: u32, _access: AccessMode) -> Result<usize> {
     let (_, len) = store.frame_range(idx)?;
-    Ok(len as usize)
+    Ok(served_len(len))
 }
 
 /// Hand one window buffer to the blocking pool and get it back with the bytes in it.
@@ -1618,13 +1640,15 @@ fn main() -> Result<()> {
             );
         }
     }
+    PREFIX_BYTES.store(args.prefix, Ordering::Relaxed);
     eprintln!(
-        "runtime={} workers={} monitors={} bg_arm={:?} repeats={}",
+        "runtime={} workers={} monitors={} bg_arm={:?} repeats={} prefix={}",
         args.runtime.as_str(),
         workers,
         args.monitors,
         args.bg_arm,
-        repeats
+        repeats,
+        args.prefix
     );
 
     let mut rows = Vec::new();

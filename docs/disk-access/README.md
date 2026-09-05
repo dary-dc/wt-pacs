@@ -7,7 +7,12 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 | [`adr.md`](adr.md) | Accepted decision (`RWF_NOWAIT` streaming; pool only on the miss) |
 | [`RERUN.md`](RERUN.md) | Evidence: instrument, cells, TSVs here, and what the instrument cannot see |
 | [`SEND-BUDGET.md`](SEND-BUDGET.md) | What the per-frame number is *made of*, per-op io_uring vs `preadv2`, the send path over real quinn, and the frame cache |
+| [`PREFIX-READS.md`](PREFIX-READS.md) | **Rung delivery strides the file and the fast path misses 319 of 320. Storing rungs contiguously puts it back to 3** |
 | [`later.md`](later.md) | Optional follow-ups only |
+
+**Serving rungs rather than whole frames?** Read [`PREFIX-READS.md`](PREFIX-READS.md) first —
+the ADR's hit rate is a property of reading frames whole and in order, and prefix delivery
+takes it away.
 
 **Reading a per-frame number for the first time?** Start with
 [`SEND-BUDGET.md`](SEND-BUDGET.md) §1. `later_p50` is one 250 KB frame, prepared and copied

@@ -63,6 +63,7 @@ never one pool round trip per window.
 | **Cost** | Four `write_all` calls per 250 KB frame instead of one. Same bytes, same total copy. |
 | **Considered** | io_uring, in four tuned variants, is a measured tie at best — see [`RERUN.md`](RERUN.md) §io_uring, including the two conditions that would make it worth revisiting. Priced per operation it is *slower*: 852 ns vs 561 ns on a warm 4 KiB read, 5 of 5 runs ([`SEND-BUDGET.md`](SEND-BUDGET.md) §3). |
 | **Scale** | On the wire this whole decision is ~a fifth of a frame's server CPU; the rest is per-datagram QUIC work. The 2.5× is real and worth having, and it is not where a server's cycles mostly go ([`SEND-BUDGET.md`](SEND-BUDGET.md) §4). |
+| **Risk** | **The hit rate is access-shape-conditional.** "0 hops warm, 6 of 320 cold" assumes whole frames read in order, which is what lets kernel read-ahead run ahead of the loop. Serving rungs — a codestream *prefix* per frame — strides the file instead, and the fast path then misses **319 of 320** cold: the path degrades to its escape hatch on every ask. The read path is still the best arm; the fix is the packer, not the server ([`PREFIX-READS.md`](PREFIX-READS.md)). |
 | **Risk** | The win is filesystem-conditional. On overlayfs/tmpfs the path is pooled `pread` — safe, and ~30 µs/frame worse than always-touch would have been. Confirm the deployment filesystem ([`later.md`](later.md)). |
 
 ## Why the previous decision was overturned

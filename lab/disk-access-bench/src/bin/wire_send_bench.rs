@@ -128,6 +128,25 @@ impl WindowPool {
     }
 }
 
+/// `WIRE_BENCH_PREFIX` caps how many bytes of each frame are sent — the rung/prefix
+/// delivery shape of `docs/adr-resolution-fitting-for-large-frames.md`, where a viewport
+/// needs only the first slice of a progressive HTJ2K codestream. Reads then stride over the
+/// file (take a prefix, skip the rest) instead of running through it.
+fn prefix_env() -> Option<u32> {
+    std::env::var("WIRE_BENCH_PREFIX")
+        .ok()
+        .and_then(|v| v.parse().ok())
+}
+
+/// `WIRE_BENCH_STREAM=shared` sends every frame on one uni stream instead of opening one
+/// per frame. At 250 KB a stream costs nothing next to the payload; at a 16 KB rung it may
+/// not, which is the whole point of measuring it.
+fn shared_stream_env() -> bool {
+    std::env::var("WIRE_BENCH_STREAM")
+        .map(|v| v == "shared")
+        .unwrap_or(false)
+}
+
 /// `WIRE_BENCH_MTU` raises the path-MTU ceiling on both ends.
 fn mtu_env() -> Option<u16> {
     std::env::var("WIRE_BENCH_MTU")
@@ -240,6 +259,8 @@ async fn main() -> Result<()> {
         .arg((frames as usize * repeats).to_string())
         .env("WIRE_BENCH_CERT", &cert_path)
         .spawn()?;
+    let prefix = prefix_env();
+    let shared_stream = shared_stream_env();
 
     let conn = endpoint
         .accept()
@@ -269,28 +290,43 @@ async fn main() -> Result<()> {
     };
     let mut hits = 0u64;
 
+    // Shared mode opens one stream for the whole run; per-frame mode opens one per frame.
+    let mut shared: Option<SendStream> = if shared_stream {
+        Some(conn.open_uni().await.context("open shared uni")?)
+    } else {
+        None
+    };
+
     let cpu0 = cpu_ns();
     let wall0 = Instant::now();
     let mut bytes = 0u64;
     for _ in 0..repeats {
         for idx in 0..frames {
-            let (off, len) = store.frame_range(idx)?;
+            let (off, whole) = store.frame_range(idx)?;
+            // Rung delivery: only the codestream prefix the viewport needs goes out.
+            let len = prefix.map_or(whole, |p| p.min(whole));
             let t = Instant::now();
-            let mut uni = conn.open_uni().await.context("open_uni")?;
+            let mut per_frame = match shared {
+                Some(_) => None,
+                None => Some(conn.open_uni().await.context("open_uni")?),
+            };
+            let uni: &mut SendStream = match (&mut shared, &mut per_frame) {
+                (Some(s), _) => s,
+                (_, Some(s)) => s,
+                _ => unreachable!("one of the two is always Some"),
+            };
             let head = frame_head(idx, len);
             match mode {
                 Mode::WriteAll => {
                     uni.write_all(&head).await?;
-                    stream_write_all(&mut uni, &store, off, len, window, &mut vec_window).await?;
+                    stream_write_all(uni, &store, off, len, window, &mut vec_window).await?;
                 }
                 Mode::WriteChunk => {
                     uni.write_chunk(Bytes::copy_from_slice(&head)).await?;
-                    stream_write_chunk(&mut uni, &store, off, len, window, &mut arena, false)
-                        .await?;
+                    stream_write_chunk(uni, &store, off, len, window, &mut arena, false).await?;
                 }
                 Mode::WriteChunkVectored => {
-                    stream_write_chunk(&mut uni, &store, off, len, window, &mut arena, true)
-                        .await?;
+                    stream_write_chunk(uni, &store, off, len, window, &mut arena, true).await?;
                 }
                 Mode::Preloaded => {
                     hits += 1;
@@ -344,14 +380,20 @@ async fn main() -> Result<()> {
             }
             lat.push(t.elapsed().as_nanos() as u64);
             bytes += u64::from(len) + head.len() as u64;
-            acks.spawn(async move {
-                let _ = uni.finish();
-                let _ = uni.stopped().await;
-            });
-            while acks.len() > 256 {
-                let _ = acks.join_next().await;
+            if let Some(mut uni) = per_frame {
+                acks.spawn(async move {
+                    let _ = uni.finish();
+                    let _ = uni.stopped().await;
+                });
+                while acks.len() > 256 {
+                    let _ = acks.join_next().await;
+                }
             }
         }
+    }
+    if let Some(mut uni) = shared.take() {
+        let _ = uni.finish();
+        let _ = uni.stopped().await;
     }
     while acks.join_next().await.is_some() {}
     let wall = wall0.elapsed();
@@ -368,7 +410,8 @@ async fn main() -> Result<()> {
     println!(
         "mode={}\tframes={}\twindow={}\tp50_ns={}\tp90_ns={}\tp99_ns={}\tcpu_ns_per_frame={}\t\
          wall_ms={}\tMB_per_s={:.1}\tpool_allocs={}\tdatagrams_per_frame={:.1}\t\
-         sendmsg_per_frame={:.1}\tmtu={}\thit_rate={:.2}\tcache_MB={:.1}",
+         sendmsg_per_frame={:.1}\tmtu={}\thit_rate={:.2}\tcache_MB={:.1}\tpayload_B={}\t\
+         stream={}\tcpu_ns_per_MB={:.0}",
         mode.label(),
         n,
         window,
@@ -384,6 +427,9 @@ async fn main() -> Result<()> {
         st.path.current_mtu,
         hits as f64 / n as f64,
         store.cache_stats().0 as f64 / 1e6,
+        bytes / n.max(1),
+        if shared_stream { "shared" } else { "per_frame" },
+        cpu as f64 / (bytes as f64 / 1e6),
     );
     Ok(())
 }
@@ -506,6 +552,26 @@ async fn client(port: u16, expect: usize) -> Result<()> {
     let conn = endpoint
         .connect(SocketAddr::from((Ipv4Addr::LOCALHOST, port)), "localhost")?
         .await?;
+
+    if shared_stream_env() {
+        // One stream carrying `[4B payload len][payload]` back to back.
+        let mut recv = conn.accept_uni().await?;
+        let mut head = [0u8; 4];
+        let mut body = vec![0u8; 8 << 20];
+        for _ in 0..expect {
+            if recv.read_exact(&mut head).await.is_err() {
+                break;
+            }
+            let n = u32::from_be_bytes(head) as usize;
+            if n > body.len() {
+                body.resize(n, 0);
+            }
+            if recv.read_exact(&mut body[..n]).await.is_err() {
+                break;
+            }
+        }
+        return Ok(());
+    }
 
     let mut seen = 0usize;
     let mut tasks = tokio::task::JoinSet::new();
