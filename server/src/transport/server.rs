@@ -98,7 +98,7 @@ async fn handle_incoming(
         .context("accept control bidi")?;
 
     let out = FrameOut::open(mode, connection).await?;
-    let product = ProductPipeline::new(store, out);
+    let mut product = ProductPipeline::new(store, out);
 
     // Lab wrap only when env on — RecordedPipeline always holds a live Tap.
     #[cfg(feature = "telemetry")]
