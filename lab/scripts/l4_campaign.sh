@@ -36,7 +36,7 @@ cell_params() {
 }
 
 mkdir -p "$(dirname "$OUT")"
-[ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tfixture\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tfill_rate\tpeak_outstanding\twait_samples\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\tbytes_on_wire\tframes_on_wire\n' > "$OUT"
+[ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tfixture\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tfill_rate\tpeak_outstanding\twait_samples\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\tbytes_on_wire\tframes_on_wire\tnz_n\tnz_p50\tnz_p95\tnz_p99\tnz_max\n' > "$OUT"
 
 cpu_of() { awk -v t="$TICK" '{print ($14+$15)/t}' /proc/"$1"/stat 2>/dev/null || echo 0; }
 
@@ -64,7 +64,7 @@ for RUN in $(seq 1 "$REPEATS"); do
 
       "$NETSIM" --listen 127.0.0.1:"$NPORT" --upstream 127.0.0.1:"$SPORT" \
         --delay-ms "$DELAY" --rate-mbps "$RATE" --loss-pct "$LOSS" --queue-pkts 500 \
-        --loss-burst "${LOSS_BURST:-1}" \
+        --loss-burst "${LOSS_BURST:-1}" --seed "$((RUN * 7919 + 13))" \
         > /tmp/l4_netsim.log 2>&1 &
       NS=$!; sleep 0.4
 
@@ -98,12 +98,33 @@ try:
 except Exception:
     print("VOID %s %s %s run %s — harness produced no JSON" % (exp, arm, cell, run)); sys.exit(0)
 wall = float(w1) - float(w0)
+
+
+def nz_stats(m):
+    """Percentiles over waits that actually waited.
+
+    The trace visits each frame twice (forward, then reverse over a cache that never
+    evicts), so roughly half of every sample set is a structural zero. A p95 taken over
+    all samples is therefore about the 89th percentile of the informative ones, and in an
+    easy cell it can be near their median. These columns quantile the non-zero waits, and
+    `nz_n` says how many there were — if that is small, no percentile from the row means
+    much."""
+    xs = sorted(x for x in m.get("wait_ms", []) if x > 0.0)
+    if not xs:
+        return ["0", "0", "0", "0", "0"]
+
+    def q(p):
+        # nearest-rank, the rule the client telemetry contract uses
+        import math
+        return xs[min(len(xs) - 1, max(0, math.ceil(p / 100 * len(xs)) - 1))]
+
+    return [str(len(xs)), "%.2f" % q(50), "%.2f" % q(95), "%.2f" % q(99), "%.2f" % xs[-1]]
 row = "\t".join([exp, arm, cell, rtt, rate, loss, fx, depth, run,
                  "%.2f" % m["p95_wait_ms"], "%.2f" % m["mean_wait_ms"], "%.2f" % m["fill_rate"],
                  str(m["peak_outstanding"]), str(m["wait_samples"]),
                  "%.3f" % (float(s1)-float(s0)), "%.3f" % float(cli),
                  "%.3f" % (float(n1)-float(n0)), "%.2f" % wall,
-                 str(m["bytes_on_wire"]), str(m["frames_on_wire"])])
+                 str(m["bytes_on_wire"]), str(m["frames_on_wire"])] + nz_stats(m))
 print(row)
 open(out, "a").write(row + "\n")
 PYEOF
