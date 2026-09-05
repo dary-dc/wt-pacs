@@ -1,0 +1,80 @@
+study lab/fixtures/frames_250k_live/frames_250k_live.sbnd · 320 × 250000 B · file 80003931 B · RWF_NOWAIT yes
+host 4 CPUs · warm page cache · forward trace
+
+
+## io_uring vs preadv2 on the same warm bytes (page-cache hit)
+  io_uring ReadFixed    4096 B (registered, QD1) p50     1313 ns  p99     2168 ns    3.12 GB/s
+  preadv2 RWF_NOWAIT    4096 B                 p50      576 ns  p99      801 ns    7.11 GB/s
+  io_uring ReadFixed   65536 B (registered, QD1) p50     7592 ns  p99    25570 ns    8.63 GB/s
+  preadv2 RWF_NOWAIT   65536 B                 p50     3647 ns  p99     7000 ns   17.97 GB/s
+  io_uring ReadFixed  250000 B (registered, QD1) p50    23731 ns  p99    52006 ns   10.53 GB/s
+  preadv2 RWF_NOWAIT  250000 B                 p50    13875 ns  p99    42123 ns   18.02 GB/s
+
+## What a real device round trip costs here (O_DIRECT, cache bypassed)
+   This is the quantity a "3–6 µs per I/O" figure names.
+  O_DIRECT pread    4096 B (device path)       p50    23728 ns  p99    50745 ns    0.17 GB/s
+  O_DIRECT pread   65536 B (device path)       p50    41019 ns  p99   126223 ns    1.60 GB/s
+study lab/fixtures/frames_250k_live/frames_250k_live.sbnd · 320 × 250000 B · file 80003931 B · RWF_NOWAIT yes
+host 4 CPUs · warm page cache · forward trace
+
+
+## io_uring vs preadv2 on the same warm bytes (page-cache hit)
+  io_uring ReadFixed    4096 B (registered, QD1) p50      852 ns  p99     1288 ns    4.81 GB/s
+  preadv2 RWF_NOWAIT    4096 B                 p50      561 ns  p99      736 ns    7.30 GB/s
+  io_uring ReadFixed   65536 B (registered, QD1) p50     3547 ns  p99     7178 ns   18.48 GB/s
+  preadv2 RWF_NOWAIT   65536 B                 p50     3608 ns  p99     7040 ns   18.16 GB/s
+  io_uring ReadFixed  250000 B (registered, QD1) p50    11036 ns  p99    41523 ns   22.65 GB/s
+  preadv2 RWF_NOWAIT  250000 B                 p50    12098 ns  p99    38212 ns   20.66 GB/s
+
+## What a real device round trip costs here (O_DIRECT, cache bypassed)
+   This is the quantity a "3–6 µs per I/O" figure names.
+  O_DIRECT pread    4096 B (device path)       p50    27543 ns  p99    54562 ns    0.15 GB/s
+  O_DIRECT pread   65536 B (device path)       p50    47783 ns  p99    80943 ns    1.37 GB/s
+study lab/fixtures/frames_250k_live/frames_250k_live.sbnd · 320 × 250000 B · file 80003931 B · RWF_NOWAIT yes
+host 4 CPUs · warm page cache · forward trace
+
+
+## io_uring vs preadv2 on the same warm bytes (page-cache hit)
+  io_uring ReadFixed    4096 B (registered, QD1) p50      857 ns  p99     1226 ns    4.78 GB/s
+  preadv2 RWF_NOWAIT    4096 B                 p50      580 ns  p99      809 ns    7.06 GB/s
+  io_uring ReadFixed   65536 B (registered, QD1) p50     3523 ns  p99     7038 ns   18.60 GB/s
+  preadv2 RWF_NOWAIT   65536 B                 p50     3618 ns  p99    11400 ns   18.11 GB/s
+  io_uring ReadFixed  250000 B (registered, QD1) p50    11410 ns  p99    37883 ns   21.91 GB/s
+  preadv2 RWF_NOWAIT  250000 B                 p50    12080 ns  p99    37388 ns   20.70 GB/s
+
+## What a real device round trip costs here (O_DIRECT, cache bypassed)
+   This is the quantity a "3–6 µs per I/O" figure names.
+  O_DIRECT pread    4096 B (device path)       p50    27578 ns  p99    50371 ns    0.15 GB/s
+  O_DIRECT pread   65536 B (device path)       p50    48018 ns  p99    76921 ns    1.36 GB/s
+study lab/fixtures/frames_250k_live/frames_250k_live.sbnd · 320 × 250000 B · file 80003931 B · RWF_NOWAIT yes
+host 4 CPUs · warm page cache · forward trace
+
+
+## io_uring vs preadv2 on the same warm bytes (page-cache hit)
+  io_uring ReadFixed    4096 B (registered, QD1) p50      584 ns  p99      869 ns    7.01 GB/s
+  preadv2 RWF_NOWAIT    4096 B                 p50      383 ns  p99      518 ns   10.69 GB/s
+  io_uring ReadFixed   65536 B (registered, QD1) p50     3242 ns  p99     5637 ns   20.21 GB/s
+  preadv2 RWF_NOWAIT   65536 B                 p50     3134 ns  p99     6122 ns   20.91 GB/s
+  io_uring ReadFixed  250000 B (registered, QD1) p50    10784 ns  p99    31311 ns   23.18 GB/s
+  preadv2 RWF_NOWAIT  250000 B                 p50    10592 ns  p99    31812 ns   23.60 GB/s
+
+## What a real device round trip costs here (O_DIRECT, cache bypassed)
+   This is the quantity a "3–6 µs per I/O" figure names.
+  O_DIRECT pread    4096 B (device path)       p50    20361 ns  p99    32360 ns    0.20 GB/s
+  O_DIRECT pread   65536 B (device path)       p50    34361 ns  p99    52718 ns    1.91 GB/s
+study lab/fixtures/frames_250k_live/frames_250k_live.sbnd · 320 × 250000 B · file 80003931 B · RWF_NOWAIT yes
+host 4 CPUs · warm page cache · forward trace
+
+
+## io_uring vs preadv2 on the same warm bytes (page-cache hit)
+  io_uring ReadFixed    4096 B (registered, QD1) p50      609 ns  p99      950 ns    6.73 GB/s
+  preadv2 RWF_NOWAIT    4096 B                 p50      398 ns  p99      570 ns   10.29 GB/s
+  io_uring ReadFixed   65536 B (registered, QD1) p50     3265 ns  p99     6759 ns   20.07 GB/s
+  preadv2 RWF_NOWAIT   65536 B                 p50     3309 ns  p99    11560 ns   19.81 GB/s
+  io_uring ReadFixed  250000 B (registered, QD1) p50    11038 ns  p99    35058 ns   22.65 GB/s
+  preadv2 RWF_NOWAIT  250000 B                 p50    11097 ns  p99    32291 ns   22.53 GB/s
+
+## What a real device round trip costs here (O_DIRECT, cache bypassed)
+   This is the quantity a "3–6 µs per I/O" figure names.
+  O_DIRECT pread    4096 B (device path)       p50    28900 ns  p99    58255 ns    0.14 GB/s
+  O_DIRECT pread   65536 B (device path)       p50    47926 ns  p99    87642 ns    1.37 GB/s

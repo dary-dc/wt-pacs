@@ -1,0 +1,63 @@
+study lab/fixtures/frames_250k_live/frames_250k_live.sbnd · 320 × 250000 B · file 80003931 B · RWF_NOWAIT yes
+host 4 CPUs · warm page cache · forward trace
+
+## One warm read op, by size — the unit a device latency figure is quoted in
+   (both flag orders, because the second pass over the same offsets is warmer)
+  pread        1 B  (1st in its pass)          p50      529 ns  p99     1294 ns    0.00 GB/s
+  nowait       1 B  (2nd in its pass)          p50      265 ns  p99      310 ns    0.00 GB/s
+  nowait       1 B  (1st in its pass)          p50      262 ns  p99      307 ns    0.00 GB/s
+  pread        1 B  (2nd in its pass)          p50      261 ns  p99      299 ns    0.00 GB/s
+  pread     4096 B  (1st in its pass)          p50      882 ns  p99     1262 ns    4.64 GB/s
+  nowait    4096 B  (2nd in its pass)          p50      396 ns  p99      657 ns   10.34 GB/s
+  nowait    4096 B  (1st in its pass)          p50      379 ns  p99      499 ns   10.81 GB/s
+  pread     4096 B  (2nd in its pass)          p50      383 ns  p99      507 ns   10.69 GB/s
+  pread    16384 B  (1st in its pass)          p50     2083 ns  p99     2886 ns    7.87 GB/s
+  nowait   16384 B  (2nd in its pass)          p50     1084 ns  p99     1829 ns   15.11 GB/s
+  nowait   16384 B  (1st in its pass)          p50     1079 ns  p99     1842 ns   15.18 GB/s
+  pread    16384 B  (2nd in its pass)          p50     1075 ns  p99     1801 ns   15.24 GB/s
+  pread    65536 B  (1st in its pass)          p50     6543 ns  p99    13530 ns   10.02 GB/s
+  nowait   65536 B  (2nd in its pass)          p50     3490 ns  p99     6748 ns   18.78 GB/s
+  nowait   65536 B  (1st in its pass)          p50     3333 ns  p99     6506 ns   19.66 GB/s
+  pread    65536 B  (2nd in its pass)          p50     3496 ns  p99     7064 ns   18.75 GB/s
+  pread   131072 B  (1st in its pass)          p50    10633 ns  p99    33554 ns   12.33 GB/s
+  nowait  131072 B  (2nd in its pass)          p50     6472 ns  p99    15553 ns   20.25 GB/s
+  nowait  131072 B  (1st in its pass)          p50     6422 ns  p99    21891 ns   20.41 GB/s
+  pread   131072 B  (2nd in its pass)          p50     6145 ns  p99    13248 ns   21.33 GB/s
+  pread   250000 B  (1st in its pass)          p50    18781 ns  p99    42481 ns   13.31 GB/s
+  nowait  250000 B  (2nd in its pass)          p50    12137 ns  p99    35855 ns   20.60 GB/s
+  nowait  250000 B  (1st in its pass)          p50    12358 ns  p99    39697 ns   20.23 GB/s
+  pread   250000 B  (2nd in its pass)          p50    12394 ns  p99    37280 ns   20.17 GB/s
+
+## User-space copy — the window→wire half of each frame
+  copy 250000 B in 16384 B chunks (src L3-hot) p50     3722 ns  p99    10030 ns   67.17 GB/s
+  copy 250000 B in 65536 B chunks (src L3-hot) p50     6016 ns  p99     9425 ns   41.56 GB/s
+  copy 250000 B in 250000 B chunks (src L3-hot) p50     4961 ns  p99     9159 ns   50.39 GB/s
+
+## Whole frame, no runtime, no writes — read cost by window size
+  16 × 16384 B nowait reads                    p50    13663 ns  p99    35752 ns   18.30 GB/s
+  4 × 65536 B nowait reads                     p50    11186 ns  p99    32664 ns   22.35 GB/s
+  2 × 131072 B nowait reads                    p50    11072 ns  p99    33094 ns   22.58 GB/s
+  1 × 262144 B nowait reads                    p50    10880 ns  p99    31969 ns   22.98 GB/s
+
+## io_uring vs preadv2 on the same warm bytes (page-cache hit)
+  io_uring ReadFixed    4096 B (registered, QD1) p50      547 ns  p99      845 ns    7.49 GB/s
+  preadv2 RWF_NOWAIT    4096 B                 p50      352 ns  p99      526 ns   11.64 GB/s
+  io_uring ReadFixed   65536 B (registered, QD1) p50     2994 ns  p99     5065 ns   21.89 GB/s
+  preadv2 RWF_NOWAIT   65536 B                 p50     3226 ns  p99     9407 ns   20.31 GB/s
+  io_uring ReadFixed  250000 B (registered, QD1) p50     9920 ns  p99    31027 ns   25.20 GB/s
+  preadv2 RWF_NOWAIT  250000 B                 p50    11128 ns  p99    32561 ns   22.47 GB/s
+
+## What a real device round trip costs here (O_DIRECT, cache bypassed)
+   This is the quantity a "3–6 µs per I/O" figure names.
+  O_DIRECT pread    4096 B (device path)       p50    21217 ns  p99    35866 ns    0.19 GB/s
+  O_DIRECT pread   65536 B (device path)       p50    39851 ns  p99    64951 ns    1.64 GB/s
+
+## In-situ ladder — tokio multi (4 workers), 1 co-tenant spin monitor(s)
+   Each row adds one ingredient to the row above. 320-frame forward pass × 9.
+A  loop only (no read, no copy, no yield)      p50     2238 ns  p99    13058 ns
+B  + 4 × 64 KiB nowait reads                   p50    14116 ns  p99    39135 ns   Δ   +11878 ns
+C  + copy to sink in 16 KiB chunks             p50    18630 ns  p99    62535 ns   Δ    +4514 ns
+D  + yield per 16 KiB chunk  = accepted arm    p50    30179 ns  p99    60811 ns   Δ   +11549 ns
+E  D, but 64 KiB write chunks (4 yields)       p50    22069 ns  p99    65091 ns
+F  D, but 256 KiB window (1 read, 16 yields)   p50    26717 ns  p99    55754 ns
+G  D, but 16 KiB window (16 reads, 16 yields)  p50    30893 ns  p99    62532 ns

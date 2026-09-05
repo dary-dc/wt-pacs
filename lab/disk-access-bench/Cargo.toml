@@ -1,0 +1,23 @@
+[package]
+name = "disk-access-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Compare study disk-access arms (mmap / pread / madvise) with shared metrics"
+
+[[bin]]
+name = "disk-access-bench"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+exact-server = { path = "../../server" }
+bytes = { workspace = true }
+io-uring = "0.7"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rcgen = "0.13"
+rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12", "ring"] }
+libc = "0.2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
