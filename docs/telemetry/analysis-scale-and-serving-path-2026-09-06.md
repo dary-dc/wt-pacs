@@ -1,6 +1,7 @@
 # Scale review: server telemetry pipeline and serving path
 
-**2026-09-06** · **Status: analysis complete on head `78537c5`; nothing here is implemented yet.**
+**2026-09-06** · **Status: analysis complete on head `78537c5`; T1–T6 implemented on this branch
+the same day (§6); after numbers in §5.6. T7 (rig) is open.**
 Seam decisions are **not reopened**: client A4 and server Decision C stand as recorded in
 [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md) and
 [`adr-server-pipeline.md`](adr-server-pipeline.md). This document takes the `FramePipeline` /
@@ -41,6 +42,11 @@ Behind that, the drain still keeps every row in memory until exit and pretty-pri
 once (728 MB and 28 s at 10 M rows, §5.2), the ring is one 4096-row buffer for the whole process,
 a hard kill still loses the run, and the one delivery signal the server can observe without a
 client clock — the acknowledgement it already awaits per frame — is discarded.
+
+**Outcome (same day).** T1–T6 landed on this branch: telemetry overhead on the serving path is
+now 0.3–2.1 % CPU with throughput inside run-to-run spread, the recorder's own per-row cost inside
+`serve_us` fell from 12–33 µs to 1 µs, rows survive a hard kill, `ack_us` exists in per-frame mode,
+and the send window is a flag (§5.6).
 
 **Proposal.** Keep the seam. Inside `Tap` / `sink` / `report`: per-session batches on the owned
 sender (one channel op per 64 rows), a ring counted in batches, exact fixed-width rows streamed to
@@ -100,8 +106,8 @@ FrameOut::send_frame(frame, bytes, ack_token) ──┐     try_send per 64 rows
 | --- | --- | --- |
 | Per-session batch on the owned sender; ring counted in batches | `tap.rs`, `sink.rs` | none |
 | Exact fixed-width row file, histograms, timer summary, session rows, integrity per session | `sink.rs`, `report.rs` | none |
-| `--telemetry-report <rows>`: offline exact report from the row file | `main.rs` (feature-gated subcommand) | none in default build |
-| `ack_us` | `frame_out.rs` takes an `AckToken` argument; `()` in default builds | one parameter, zero-sized |
+| `--telemetry-report <rows>`: offline exact report from the row file | `main.rs` (feature-gated flag) | none in default build |
+| `ack_us` | `FrameOut::send_frame` takes an `AckHook` (`Option<Box<dyn FnOnce(Duration)>>`, always `None` from the product); the pipeline trait gains an `ack_hook` step the lab wrapper overrides | one parameter and one default trait method; no allocation and no clock read on the `None` path |
 | Session sampling `WTPACS_TELEMETRY_SAMPLE=K` | `tap.rs` `for_session` | none |
 
 The wrapper does not change. `serve_one` stays the only story.
@@ -115,7 +121,7 @@ Existing stages keep their names and meanings (`prepare_us`, `locate_us`, `send_
 | --- | --- | --- | --- |
 | `ack_us` | last byte accepted by the send buffer → peer acknowledged all bytes of the stream | **null** | yes |
 | session row (`kind: "server_session"`) | one per session at close: id, stream mode, frames, bytes, refusals, drops, open / close `t_us` | yes | yes |
-| `integrity.sessions[]` | per-session `rows_opened` / `rows_closed` / `rows_dropped` | yes | yes |
+| session row integrity | each `server_sessions[]` row carries its own `rows_opened` / `rows_closed` / `rows_dropped` / `acks` | yes | yes |
 | `summary.percentile_method` | `exact-sort` or `histogram-loglinear-1024` with its bound | yes | yes |
 
 `ack_us` **must not be used to argue the open stream-mode question**; it exists only in per-frame
@@ -359,6 +365,65 @@ Reading, head first:
 - **Memory** is unremarkable at these sizes: ≈ 1.5 MB per session in the default binary at *N* = 32
   with fast clients, and +1–3 MB for telemetry. The S1 arithmetic only bites with slow clients (P4).
 
+### 5.6 After — the same measurements on this branch with T1–T6
+
+Same protocol as §5.3 (medians of 3, per-frame mode, 5 s dwell, unpaced reads), binaries built from
+this branch with T1–T6. Report `schema: server-pipeline-v2`, `percentile_method: exact-sort` in every
+cell (all runs are under the inline cap), zero drops everywhere, every frame acknowledged.
+
+| *N* | Telemetry | Frames/s (median, min–max) | Mbit/s | Server CPU s | ΔCPU | Peak RSS | Rows | Drops |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | off | 1 748 (1 742–1 754) | 713 | 3.62 | | 13.1 MB | | |
+| 1 | on | 1 747 (1 742–1 760) | 713 | 3.63 | **+0.3 %** | 17.1 MB | 8 735 | 0 |
+| 4 | off | 6 802 (6 596–6 887) | 2 775 | 7.23 | | 28.6 MB | | |
+| 4 | on | 6 833 (6 489–6 866) | 2 788 | 7.34 | **+1.5 %** | 40.4 MB | 34 165 | 0 |
+| 16 | off | 10 203 (9 693–10 406) | 4 163 | 8.16 | | 46.7 MB | | |
+| 16 | on | 10 677 (9 595–10 811) | 4 356 | 8.24 | **+1.0 %** | 55.1 MB | 53 434 | 0 |
+| 32 | off | 7 999 (7 778–9 441) | 3 263 | 7.53 | | 47.4 MB | | |
+| 32 | on | 8 836 (8 097–8 937) | 3 605 | 7.69 | **+2.1 %** | 57.8 MB | 44 278 | 0 |
+
+Per-stage medians from one report per cell (p50 / p95 / p99 µs):
+
+| *N* | `prepare_us` | `send_us` | `serve_us` | `overhead_us` | `ack_us` (new) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 69 / 153 / 264 | 84 / 330 / 437 | 170 / 401 / 503 | **1 / 2 / 2** | 451 / 785 / 1 012 |
+| 4 | 68 / 268 / 468 | 11 / 305 / 571 | 117 / 444 / 725 | **1 / 2 / 2** | 513 / 1 178 / 1 648 |
+| 16 | 111 / 628 / 1 310 | 9 / 132 / 673 | 132 / 762 / 1 477 | **1 / 2 / 2** | 4 148 / 7 933 / 9 959 |
+| 32 | 116 / 665 / 1 471 | 11 / 146 / 731 | 139 / 829 / 1 644 | **1 / 2 / 2** | 10 478 / 18 075 / 29 388 |
+
+**Kill test** (`telemetry_kill_test.sh`: one saturating session, summary timer at 1 s, `SIGKILL` after
+4 s): the row file held 10 304 records and the last timer summary (`run_end.event: "run_progress"`,
+histogram method) covered 5 152 frames. Before T2 the same kill left nothing.
+
+**Slow clients** (16 sessions, depth 64, harness reads paced at 2 Mbit/s each, 8 s, one repeat):
+
+| Server | Peak RSS | Per session above the 13 MB base |
+| --- | --- | --- |
+| default send window (10 MB) | 63.1 MB | ≈ 3.1 MB |
+| `--send-window-bytes 1000000` | 41.2 MB | ≈ 1.75 MB |
+
+Reading, against the protocol in §5.4:
+
+- **P1, P5 met.** Telemetry overhead on the serving path fell from 2–6 % (head) to 0.3–2.1 %, and
+  throughput with telemetry on is inside the run-to-run spread at every *N* (above it in three
+  cells, which is noise). The mechanism is visible in the rows: `overhead_us`, the recorder's own
+  cost inside `serve_us`, went from 12–33 µs p50 on head to **1 µs** with batching.
+- **P2 met by construction and by the smoke run**: the drain holds histograms and a buffer, not
+  rows; the exit report is exact from the row file when under the cap; the offline rebuild was
+  byte-for-byte equal to the inline report on the smoke run. Peak RSS with telemetry on rose by
+  4–10 MB over head: seven histograms, the 1 MB write buffer, and the exit-time re-read of the row
+  file for the inline frames, all of it bounded and none of it per row.
+- **P3 met**: rows and a summary survive `SIGKILL`.
+- **P4 met**: RSS at slow sessions tracks the send window; the 1 MB window saved 22 MB at 16
+  sessions with 64 frames outstanding each, about 1.4 MB per session on this fixture.
+- **P6 partly met**: `ack_us` is present on every per-frame row and is plausible on localhost
+  (p50 0.45 ms with one session). It grows to 4–10 ms at 16–32 sessions, which is the harness
+  processes starving for CPU before they acknowledge, not the server. A shaped-link rig run (T7)
+  is the corroboration the protocol asks for.
+- **P7 met**: `check_fod_len` refuses a 4 GB length before allocating; unit-tested.
+- The prefault cost reported in §5.3 is unchanged (`prepare_us` 68–116 µs p50) and remains the
+  disk track's number.
+
 ### 5.4 Before / after protocol — what each change must show
 
 | # | Change | Metric | Baseline | Acceptance |
@@ -389,14 +454,14 @@ Numbered T1–T7 so they do not collide with the finished S1–S5.
 
 | Phase | Work | Proof |
 | --- | --- | --- |
-| **T0** | This document; measurement file; README pointer | done in this pass |
-| **T1** | `Tap`: per-session batch on the owned sender; `sink`: ring counted in batches; per-session drop counters | §5.1 rerun (P1); existing Tap tests unchanged |
-| **T2** | `sink` / `report`: fixed-width row file, histograms, timer summary, session rows, per-session integrity, `percentile_method`; feature-gated `--telemetry-report` | §5.2 rerun (P2); kill test (P3); nearest-rank-on-histogram test |
-| **T3** | `ack_us`: `AckToken` through `FrameOut::send_frame`, `()` in default builds; ack rows merged by (session, frame, ordinal) in the drain | P6 on localhost; absence script green |
-| **T4** | Session sampling; absence script extended; README as-built table updated | gate green |
-| **T5** | Hardening, separate commits, defaults unchanged: FoD length cap; `ServeConfig` transport knobs | P7 test; P4 run |
-| **T6** | Harvest: `verify_e2e.py` collects `.rows` beside `.json`; `telemetry_e2e_baseline.sh` rerun | §5.3 rerun (P5) |
-| **T7** | Rig run when free: shaped cell, per-frame mode, first `ack_us` distributions | raw artifacts only |
+| **T0** | This document; measurement file; README pointer | done |
+| **T1** | `Tap`: per-session batch on the owned sender; `sink`: ring counted in batches; per-session drop counters | **done** — `rows_ride_one_channel_send_per_batch`, `full_ring_drops_a_batch_and_counts_it`; P5 in §5.6 |
+| **T2** | `sink` / `report` / `rows`: fixed-width row file, histograms, timer summary, session rows, `percentile_method`; `--telemetry-report` | **done** — `rows.rs` round-trip tests, `hist_percentiles_match_exact_within_bound`, sink flush test; P3 in §5.6; offline rebuild identical to the inline report on the smoke run |
+| **T3** | `ack_us`: `AckHook` through `FrameOut::send_frame`; acks ride the next batch via the `AckInbox`; merged by (session, frame, ordinal) when the report is built | **done** — `ack_hook_delivers_into_next_batch`, `late_ack_after_drop_reaches_the_sink`; P6 in §5.6 |
+| **T4** | Session sampling `WTPACS_TELEMETRY_SAMPLE`; absence script extended (symbols and report literals); README as-built | **done** — gate and absence green |
+| **T5** | Hardening, defaults unchanged: FoD length cap (`MAX_FOD_LEN` 4 MiB, `check_fod_len`); `ServeConfig::transport` knobs (`--send-window-bytes`, `--stream-receive-window-bytes`, `--max-idle-timeout-ms`) | **done** — `fod_len_zero_and_huge_are_refused_before_allocation`; P4 in §5.6 |
+| **T6** | Harvest: `run.json` names the row file; `telemetry_e2e_baseline.sh` reads schema v2 and `ack_us`; `telemetry_kill_test.sh` | **done** |
+| **T7** | Rig run when free: shaped cell, per-frame mode, first `ack_us` distributions | open — no rig key in this environment |
 
 Stop conditions: a default-build absence failure; any change to `serve_one`, the wire, or
 `FrameOut`'s write discipline beyond the token parameter.

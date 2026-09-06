@@ -7,10 +7,14 @@ pub use types::{LocateOutcome, Refusal, WriteOutcome};
 #[cfg(feature = "telemetry")]
 mod report;
 #[cfg(feature = "telemetry")]
+mod rows;
+#[cfg(feature = "telemetry")]
 mod sink;
 #[cfg(feature = "telemetry")]
 pub mod tap;
 
+#[cfg(feature = "telemetry")]
+pub use report::write_report_from_rows;
 #[cfg(feature = "telemetry")]
 pub use sink::flush_on_exit;
 #[cfg(feature = "telemetry")]

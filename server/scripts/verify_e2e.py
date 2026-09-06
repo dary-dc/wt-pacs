@@ -473,6 +473,8 @@ def main() -> int:
                         "client_invalid_reasons": integrity.get("invalid_reasons", []),
                         "shell": shell,
                         "server_banner": dict(server_info),
+                        # Every server row, exact, beside the JSON summary (schema v2).
+                        "telemetry_server_rows": "telemetry-server.rows",
                     }
                     (run_dir / "run.json").write_text(_json.dumps(manifest, indent=2) + "\n")
                     if not valid:

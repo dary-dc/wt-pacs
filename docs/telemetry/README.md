@@ -20,7 +20,7 @@ Completed tracks (stubs): [`plan-client-telemetry.md`](plan-client-telemetry.md)
 
 ---
 
-## Server report (`schema: server-pipeline-v1`)
+## Server report (`schema: server-pipeline-v2`)
 
 | Field | Interval |
 | --- | --- |
@@ -29,9 +29,25 @@ Completed tracks (stubs): [`plan-client-telemetry.md`](plan-client-telemetry.md)
 | `send_us` | media `write_all` |
 | `serve_us` | ask → row emit (total) |
 | `overhead_us` | residual (`serve − prepare − locate − send`) |
+| `ack_us` | last byte accepted by the send buffer → peer acknowledged every byte of the stream. **Per-frame mode only**; `null` in shared mode. Delivery to the peer's transport, not the app (ACK delay applies). Not evidence in the stream-mode question |
 
 Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (absent stages count as 0).
 Refused rows export absent stages as JSON `null`.
+
+**Rows are exact at any scale; the JSON is a summary.** The drain appends every record to
+`telemetry-server.rows` (fixed width, beside the JSON) and folds histograms; it rewrites the JSON
+every `WTPACS_TELEMETRY_SUMMARY_MS` (default 5 000) with `run_end.event: "run_progress"`, so a
+hard kill loses at most the last batch of rows. The final report inlines `server_frames` with
+exact nearest-rank percentiles when the rows fit `WTPACS_TELEMETRY_INLINE_CAP` (default 1 M);
+above it the summary comes from log-linear histograms (`summary.percentile_method:
+"histogram-loglinear-1024"`, ≤ 0.1 % low, exact below 2 048 µs) and `server_frames` is empty.
+`exact-server --telemetry-report telemetry-server.rows` rebuilds the full exact JSON offline.
+
+`server_sessions[]`: one row per session (`t_open_us`, `t_close_us`, `frames`, `bytes`,
+`refused`, `acks`, and the session's own `rows_opened` / `rows_closed` / `rows_dropped`).
+`WTPACS_TELEMETRY_SAMPLE=K` records one session in K (default every session); unsampled
+sessions cost one branch per frame. Rows travel to the drain in batches of 64 on an owned
+sender — no lock and no drain wake per row; a full ring drops a batch and says so.
 
 Pairing fields (no join product; these make the two files checkable side by side):
 
@@ -50,6 +66,7 @@ Each harvest writes **two independent files** (no join):
 | --- | --- |
 | `telemetry-client.json` | Browser `window.__wtpacsTelemetry` |
 | `telemetry-server.json` | Server `Tap` (`--features telemetry` + `WTPACS_TELEMETRY=1`) |
+| `telemetry-server.rows` | Every server record, fixed width, exact — the summary's source |
 
 Output: `.local/measurements/<stamp>-…/` (e2e harness). Path override: `WTPACS_TELEMETRY_PATH`.
 
@@ -159,7 +176,9 @@ open track, and it does not reopen either seam.
 | Server app seam | `server/src/transport/pipeline.rs` (`FramePipeline`, `ProductPipeline`) |
 | Server lab wrapper | `server/src/transport/pipeline.rs` (`RecordedPipeline`) |
 | Server wire out | `server/src/transport/frame_out.rs` |
-| Server Tap | `server/src/record/tap.rs` |
+| Server Tap (hot path, batches, ack inbox) | `server/src/record/tap.rs` |
+| Server sink (row file, timer, drain) | `server/src/record/sink.rs` |
+| Server report (exact + histogram, offline) | `server/src/record/report.rs`, `rows.rs` |
 | E2e harvest | `server/scripts/verify_e2e.py` |
 | Harness shell (one run, two arms) | `client/harness/shell.js`; adapters `client/harness/ts.html`, `client/harness/index.html` |
 | Absence checks | `client/scripts/check_telemetry_absent.sh`, `server/scripts/check_telemetry_absent.sh` |

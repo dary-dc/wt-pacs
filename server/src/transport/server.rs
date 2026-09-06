@@ -18,7 +18,8 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, warn};
-use wtransport::config::IpBindConfig;
+use std::time::Duration;
+use wtransport::config::{states, IpBindConfig, QuicTransportConfig, ServerConfigBuilder};
 use wtransport::endpoint::endpoint_side;
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Endpoint, Identity, ServerConfig};
@@ -37,6 +38,41 @@ pub struct ServeConfig {
     /// Explicit bind address. `None` binds dual-stack `[::]` and falls back to `0.0.0.0` on a
     /// host with no IPv6 stack (containers commonly lack one).
     pub bind: Option<IpAddr>,
+    /// QUIC transport knobs. Each `None` keeps the library default (send window 10 MB per
+    /// connection, stream receive window 1.25 MB, idle timeout 30 s). The send window is the
+    /// number that scales with slow clients: it bounds unacknowledged bytes held per connection.
+    pub transport: TransportKnobs,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TransportKnobs {
+    pub send_window_bytes: Option<u64>,
+    pub stream_receive_window_bytes: Option<u32>,
+    pub max_idle_timeout_ms: Option<u64>,
+}
+
+impl TransportKnobs {
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// One line for the startup banner.
+    pub fn describe(&self) -> String {
+        if self.is_default() {
+            return "default".to_string();
+        }
+        let mut parts = Vec::new();
+        if let Some(v) = self.send_window_bytes {
+            parts.push(format!("send_window={v}"));
+        }
+        if let Some(v) = self.stream_receive_window_bytes {
+            parts.push(format!("stream_receive_window={v}"));
+        }
+        if let Some(v) = self.max_idle_timeout_ms {
+            parts.push(format!("max_idle_timeout_ms={v}"));
+        }
+        parts.join(",")
+    }
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -68,6 +104,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
     println!("bind={bound}");
+    println!("transport={}", config.transport.describe());
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
     #[cfg(not(feature = "telemetry"))]
@@ -100,28 +137,58 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
             .context("load wtransport identity")
     }
 
+    /// Identity plus transport knobs, from whichever bind the builder was given.
+    fn finish(
+        builder: ServerConfigBuilder<states::WantsIdentity>,
+        identity: Identity,
+        knobs: TransportKnobs,
+    ) -> Result<ServerConfig> {
+        if knobs.is_default() {
+            return Ok(builder.with_identity(identity).build());
+        }
+        let mut transport = QuicTransportConfig::default();
+        if let Some(v) = knobs.send_window_bytes {
+            transport.send_window(v);
+        }
+        if let Some(v) = knobs.stream_receive_window_bytes {
+            transport.stream_receive_window(v.into());
+        }
+        let mut builder = builder.with_custom_transport(identity, transport);
+        if let Some(ms) = knobs.max_idle_timeout_ms {
+            builder = builder
+                .max_idle_timeout(Some(Duration::from_millis(ms)))
+                .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
+        }
+        Ok(builder.build())
+    }
+
+    let knobs = config.transport;
+
     if let Some(ip) = config.bind {
-        let server_config = ServerConfig::builder()
-            .with_bind_address(SocketAddr::new(ip, config.wt_port))
-            .with_identity(identity(config).await?)
-            .build();
+        let server_config = finish(
+            ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
+            identity(config).await?,
+            knobs,
+        )?;
         let endpoint = Endpoint::server(server_config)
             .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
         return Ok((endpoint, ip.to_string()));
     }
 
-    let dual = ServerConfig::builder()
-        .with_bind_default(config.wt_port)
-        .with_identity(identity(config).await?)
-        .build();
+    let dual = finish(
+        ServerConfig::builder().with_bind_default(config.wt_port),
+        identity(config).await?,
+        knobs,
+    )?;
     match Endpoint::server(dual) {
         Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
         Err(err) => {
             warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
-            let v4 = ServerConfig::builder()
-                .with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port)
-                .with_identity(identity(config).await?)
-                .build();
+            let v4 = finish(
+                ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
+                identity(config).await?,
+                knobs,
+            )?;
             let endpoint =
                 Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
             Ok((endpoint, "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string()))

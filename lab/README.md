@@ -23,6 +23,8 @@ cargo run -p cold-page-bench --release -- --study lab/fixtures/queue_large/queue
 lab/scripts/telemetry_bench_matrix.sh                       # → .local/measurements/telemetry-bench-*.jsonl
 SERVER_DEFAULT=… SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
   lab/scripts/telemetry_e2e_baseline.sh                     # → .local/measurements/telemetry-e2e-*.jsonl
+SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
+  lab/scripts/telemetry_kill_test.sh                        # SIGKILL mid-run: rows + timer summary survive
 ```
 
 Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.

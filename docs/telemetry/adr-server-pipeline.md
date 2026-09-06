@@ -1,6 +1,6 @@
 # ADR: server frame pipeline — product seam + lab wrapper
 
-**Status:** accepted (amended 2026-09-05) · **Tags:** telemetry, server  
+**Status:** accepted (amended 2026-09-05, 2026-09-06) · **Tags:** telemetry, server  
 **Supersedes:** inline `FrameSink` hook shape (`FrameSink` / `RecordedSink` retired);
 [`proposals-server-seam.md`](proposals-server-seam.md)  
 **Decides:** Decision C — lab wraps product **steps**, not call-site closures; story is a trait default
@@ -51,6 +51,22 @@ existing clone for `spawn_blocking` in `prepare`).
 
 Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (exact partition;
 absent stages count as 0 in the residual).
+
+## Amendment 2026-09-06 — peer acknowledgement as a step
+
+`FramePipeline` gained one step, `ack_hook(frame) -> AckHook`, defaulting to `None`, and `send`
+takes the hook as a third argument. `FrameOut::send_frame` hands it to the per-frame ack task,
+which calls it with the time since the last byte entered the send buffer once the peer has
+acknowledged the stream (`finish().await`, which in the pinned `quinn` resolves on full
+acknowledgement). `AckHook` is `Option<Box<dyn FnOnce(Duration) + Send>>`: the product passes
+`None` and neither allocates nor reads a clock; `RecordedPipeline` returns a closure that drops an
+`AckRecord` into the session's `AckInbox`, which rides the next batch. Shared mode never finishes a
+stream per frame, so the hook is dropped unused and `ack_us` is `null`.
+
+The Tap now batches rows (64 per channel send), streams every record to a fixed-width row file,
+and rewrites the JSON summary on a timer; see `README.md` and
+[`analysis-scale-and-serving-path-2026-09-06.md`](analysis-scale-and-serving-path-2026-09-06.md).
+Happy path in the lab build: the four `Instant` reads above plus one in `FrameOut` for the ack.
 
 ## Consequences
 

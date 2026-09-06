@@ -8,7 +8,7 @@
 //! See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::FrameStore;
-use crate::transport::frame_out::FrameOut;
+use crate::transport::frame_out::{AckHook, FrameOut};
 use crate::transport::wire::write_fod_msg;
 use anyhow::{Context, Error, Result};
 use fod::FodMsg;
@@ -46,7 +46,8 @@ pub(crate) trait FramePipeline: Send {
         };
 
         // Send failure: wire/session broken — do not refuse on control.
-        self.send(frame, bytes).await?;
+        let on_ack = self.ack_hook(frame);
+        self.send(frame, bytes, on_ack).await?;
         Ok(())
     }
 
@@ -71,8 +72,13 @@ pub(crate) trait FramePipeline: Send {
     /// `bytes` borrow `store`, which must outlive `send` (see default `serve_one`).
     fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]>;
 
-    /// Write the frame bytes on the media path.
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()>;
+    /// Who wants to hear when the peer acknowledges this frame. Product: nobody.
+    fn ack_hook(&mut self, _frame: u32) -> AckHook {
+        None
+    }
+
+    /// Write the frame bytes on the media path; `on_ack` rides to the ack task.
+    async fn send(&mut self, frame: u32, bytes: &[u8], on_ack: AckHook) -> Result<()>;
 
     async fn refuse(
         &mut self,
@@ -112,8 +118,8 @@ impl FramePipeline for ProductPipeline {
         store.frame_slice(frame)
     }
 
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
-        self.out.send_frame(frame, bytes).await
+    async fn send(&mut self, frame: u32, bytes: &[u8], on_ack: AckHook) -> Result<()> {
+        self.out.send_frame(frame, bytes, on_ack).await
     }
 
     async fn refuse(
@@ -184,10 +190,15 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         result
     }
 
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
+    fn ack_hook(&mut self, _frame: u32) -> AckHook {
+        // Captures the frame identity begun in `prepare`; `FrameOut` calls it on peer ack.
+        self.tap.ack_hook()
+    }
+
+    async fn send(&mut self, frame: u32, bytes: &[u8], on_ack: AckHook) -> Result<()> {
         self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + bytes.len();
-        match self.inner.send(frame, bytes).await {
+        match self.inner.send(frame, bytes, on_ack).await {
             Ok(()) => {
                 self.tap.emit_sent(envelope_len);
                 Ok(())

@@ -5,5 +5,5 @@ pub mod stream_mode;
 pub mod tls;
 pub mod wire;
 
-pub use server::{run_server, ServeConfig};
+pub use server::{run_server, ServeConfig, TransportKnobs};
 pub use stream_mode::StreamMode;

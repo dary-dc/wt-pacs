@@ -1,5 +1,5 @@
 use clap::Parser;
-use exact_server::{run_server, ServeConfig, StreamMode};
+use exact_server::{run_server, ServeConfig, StreamMode, TransportKnobs};
 use std::net::IpAddr;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
@@ -9,8 +9,9 @@ use tracing_subscriber::EnvFilter;
 struct Args {
     #[arg(long, default_value = "4433")]
     port: u16,
-    #[arg(long)]
-    study: PathBuf,
+    #[cfg_attr(feature = "telemetry", arg(long, required_unless_present = "telemetry_report"))]
+    #[cfg_attr(not(feature = "telemetry"), arg(long, required = true))]
+    study: Option<PathBuf>,
     #[arg(long, default_value = "server/dev-cert/cert.pem")]
     cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
@@ -22,6 +23,24 @@ struct Args {
     /// `0.0.0.0` when the host has no IPv6.
     #[arg(long)]
     bind: Option<IpAddr>,
+    /// QUIC send window per connection in bytes (unacknowledged data held). Default: library
+    /// default, 10 MB. Bounds memory under slow clients: N sessions × this value.
+    #[arg(long)]
+    send_window_bytes: Option<u64>,
+    /// QUIC per-stream receive window in bytes. Default: library default, 1.25 MB.
+    #[arg(long)]
+    stream_receive_window_bytes: Option<u32>,
+    /// QUIC idle timeout in milliseconds. Default: library default, 30 000.
+    #[arg(long)]
+    max_idle_timeout_ms: Option<u64>,
+    /// Lab builds: rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
+    #[cfg(feature = "telemetry")]
+    #[arg(long, value_name = "ROWS")]
+    telemetry_report: Option<PathBuf>,
+    /// Lab builds: where `--telemetry-report` writes (default: `<rows>.exact.json`).
+    #[cfg(feature = "telemetry")]
+    #[arg(long, value_name = "JSON")]
+    telemetry_report_out: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -35,13 +54,33 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
     let args = Args::parse();
+
+    #[cfg(feature = "telemetry")]
+    if let Some(rows) = &args.telemetry_report {
+        let out = args
+            .telemetry_report_out
+            .clone()
+            .unwrap_or_else(|| rows.with_extension("exact.json"));
+        exact_server::record::write_report_from_rows(rows, &out)?;
+        println!("telemetry_report={}", out.display());
+        return Ok(());
+    }
+
+    let study_path = args
+        .study
+        .ok_or_else(|| anyhow::anyhow!("--study is required"))?;
     let server = run_server(ServeConfig {
         wt_port: args.port,
-        study_path: args.study,
+        study_path,
         cert_pem: args.cert_pem,
         key_pem: args.key_pem,
         mode: args.stream_mode,
         bind: args.bind,
+        transport: TransportKnobs {
+            send_window_bytes: args.send_window_bytes,
+            stream_receive_window_bytes: args.stream_receive_window_bytes,
+            max_idle_timeout_ms: args.max_idle_timeout_ms,
+        },
     });
 
     tokio::select! {

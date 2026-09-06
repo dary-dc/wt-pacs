@@ -23,6 +23,10 @@ PORT="${PORT:-4433}"
 # Hosts without IPv6: BIND=127.0.0.1 HARNESS_IPV4=1
 BIND="${BIND:-}"
 HARNESS_IPV4="${HARNESS_IPV4:-0}"
+# Extra server flags (e.g. "--send-window-bytes 1000000") and a harness read pace (0 = unpaced).
+SERVER_EXTRA_ARGS="${SERVER_EXTRA_ARGS:-}"
+HARNESS_READ_BPS="${HARNESS_READ_BPS:-0}"
+LABEL_SUFFIX="${LABEL_SUFFIX:-}"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
 mkdir -p "$(dirname "$OUT")" "$WORK"
@@ -46,6 +50,8 @@ one_run() {
 
   local bind_args=()
   [[ -n "$BIND" ]] && bind_args=(--bind "$BIND")
+  # shellcheck disable=SC2206
+  [[ -n "$SERVER_EXTRA_ARGS" ]] && bind_args+=($SERVER_EXTRA_ARGS)
   local harness_args=()
   [[ "$HARNESS_IPV4" == "1" ]] && harness_args=(--ipv4)
   if [[ "$telemetry" == "1" ]]; then
@@ -62,7 +68,7 @@ one_run() {
   local pids=()
   for i in $(seq 1 "$n"); do
     "$HARNESS" --url "https://127.0.0.1:$PORT/" --mode saturate --depth "$DEPTH" \
-      --read-bps 0 --fill-dwell-ms "$DWELL_MS" --frame-count 20 \
+      --read-bps "$HARNESS_READ_BPS" --fill-dwell-ms "$DWELL_MS" --frame-count 20 \
       --stream-mode "$STREAM_MODE" --arm "s$i" --json "${harness_args[@]}" \
       > "$dir/harness-$i.json" 2> "$dir/harness-$i.err" &
     pids+=($!)
@@ -86,7 +92,7 @@ one_run() {
   kill "$spid" 2>/dev/null || true
   wait "$spid" 2>/dev/null || true
 
-  python3 - "$dir" "$label" "$telemetry" "$n" "$rep" "$DWELL_MS" "$utime" "$stime" "$CLK_TCK" "$vmhwm" "$vmrss" "$failed" "$report" "$server_alive" >> "$OUT" <<'PY'
+  python3 - "$dir" "$label$LABEL_SUFFIX" "$telemetry" "$n" "$rep" "$DWELL_MS" "$utime" "$stime" "$CLK_TCK" "$vmhwm" "$vmrss" "$failed" "$report" "$server_alive" >> "$OUT" <<'PY'
 import json, sys, glob, os
 d, label, tel, n, rep, dwell_ms, ut, st, tck, hwm, rss, failed, report, alive = sys.argv[1:]
 n=int(n); rep=int(rep); dwell_s=int(dwell_ms)/1000.0
@@ -115,9 +121,18 @@ if tel=="1":
         # schema server-pipeline-v1 (serve_us / send_us, may be null) or the pre-v1 names
         serve=s.get("serve_us") or s.get("server_serve_us") or {}
         send=s.get("send_us") or s.get("server_write_us") or {}
+        ack=s.get("ack_us") or {}
         run_end=r.get("run_end",{})
+        rows_file=os.path.join(d, r["rows_file"]) if r.get("rows_file") else None
         row["report"]={
           "schema":r.get("schema","pre-v1"),
+          "percentile_method":s.get("percentile_method"),
+          "sessions":s.get("sessions"),
+          "acks":s.get("acks"),
+          "ack_p50_us":ack.get("p50"),
+          "ack_p95_us":ack.get("p95"),
+          "ack_p99_us":ack.get("p99"),
+          "rows_file_bytes":os.path.getsize(rows_file) if rows_file and os.path.exists(rows_file) else None,
           "frame_count":s["frame_count"],
           "dropped_records":run_end.get("dropped_records", run_end.get("dropped_records_process_total")),
           "serve_p50_us":serve.get("p50"),
