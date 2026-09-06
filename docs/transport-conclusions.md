@@ -16,8 +16,8 @@ tablets and phones over **5G, satellite and WiFi**. Three stream-based candidate
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Keep one shared stream.** If per-frame is ever adopted, `send_fairness(false)` is a precondition |
-| **Fixed-N pool** | **Not dominated** (an earlier claim of mine was wrong) — but nothing beat shared, so there is no deficit for it to recover. **Do not build it for the demo** |
+| **Stream shape** | **Open — the rig could not produce the condition that decides it.** Nothing displaced the incumbent shared stream, but the client never let the transport fall behind, so head-of-line blocking was never generated (§2). Per-frame *without* `send_fairness(false)` is the one shape measured worse, repeatedly |
+| **Fixed-N pool** | **Untested, and untestable under this lane's constraint** — a pool is a server-side change and this lane may not modify `server/`. An earlier claim that it was strictly dominated was wrong (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95 |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte at every rate |
@@ -71,7 +71,10 @@ Cubic flows.
 
 ---
 
-## 2 · Stream shape — keep shared; the mechanism is scheduling, not head-of-line
+## 2 · Stream shape — **not decided.** The rig removed the deciding condition
+
+This is the question the lane was built to answer, and it is the one question it did not
+answer. The measurements below are real; what they measure is not the thing that decides.
 
 | condition | shared | per-frame | per-frame + FIFO |
 | --------- | ------ | --------- | ---------------- |
@@ -79,31 +82,75 @@ Cubic flows.
 | 5G, under Cubic | 454 ms | 820 ms *(worse, separated)* | 545 ms *(overlap)* |
 | Satellite, under BBR | 1202 ms | 1255 ms *(worse, separated)* | 1120 ms *(overlap)* |
 
-**Per-frame + FIFO never separates from shared, in any cell, under either controller.**
-Per-frame *without* FIFO is consistently worse — reproducing campaign v2's fair-sharing
-mechanism, and the one claim that survived all three reviews.
+### Why these rows cannot settle it
 
-From `quinn-proto` source: `send_fairness(false)` makes `reinsert_pending` drain a stream
-to completion before the next, and this server's session loop is serial, so pending order
-is ask order. With fairness *on*, N concurrent streams round-robin and every frame
-finishes late.
+A shared stream is worse than per-frame streams **only when the reader is stuck behind
+bytes it no longer wants** — one lost packet holding up delivery of everything queued
+behind it in the same stream. That requires the transport to fall behind the reader.
 
-**Keep the shared stream** — simplest of the three, and nothing beat it.
+**The harness client makes that impossible.** `run_windowed` walks the trace like this:
 
-### Fixed-N is not dominated, but is not needed
+```
+for each cursor:  sleep(step_interval) → emit_window(±D/2 around cursor) → wait_displayable(cursor)
+                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^
+                                                                          blocks until it arrives
+```
+
+followed by `wait_outstanding_below(D)`, which blocks again. The reader therefore advances
+**at the speed of the transport**, never faster. In-flight data is always data it still
+wants, because it refuses to move on until that data lands. Head-of-line blocking has no
+opportunity to occur, and a second-order effect — `window_frames` emits
+`center, +1, −1, +2, −2…`, so with `max_step: 1` a reversal is always already prefetched —
+suppresses what little remains.
+
+So every row above is a measurement of a rig in which **the mechanism under test was
+switched off**, and the correct reading is not "shared wins" but **"no shape was
+distinguishable, because nothing was being distinguished."** This is the same failure the
+three earlier reviews found three times (§7): the rig quietly removed the condition under
+test. It is recorded here rather than corrected in place, because an earlier draft of this
+document did print "Keep one shared stream", and that claim exceeded its evidence.
+
+**A real server does not fix this.** The defect is in the client, so it would reproduce
+unchanged over any network.
+
+### What does survive
+
+**Per-frame without `send_fairness(false)` is consistently worse** — four campaigns, and it
+matches the scheduler source: with fairness on, N concurrent streams round-robin and every
+frame finishes late; `reinsert_pending` (fairness off) drains a stream to completion before
+the next, and this server's session loop is serial, so pending order is ask order.
+`quinn-proto/src/connection/streams/state.rs:592-597`.
+
+That is a claim about **fairness**, not about shape, and it holds regardless of the above.
+If per-frame is ever adopted, `send_fairness(false)` is a precondition.
+
+### Fixed-N is untested, and an earlier claim about it was wrong
 
 An earlier draft argued a pool was strictly dominated because all three shapes are
-byte-identical under FIFO. **That was wrong.** `retransmit()` re-queues a stream to the
-**back** of its priority class regardless of the fairness setting, so under loss a
-per-frame stream awaiting retransmission waits behind every other stream's backlog, while
-a shared stream retransmits ahead of newer data. Two opposing effects in N — receive-side
-isolation improving, send-side retransmit deferral worsening — is the structure that
-produces an interior optimum.
+byte-identical under FIFO. **That is false.** `retransmit()` re-queues a stream to the
+**back** of its priority class regardless of the fairness setting (`state.rs:677`), so
+under loss a per-frame stream awaiting retransmission waits behind every other stream's
+backlog, while a shared stream retransmits ahead of newer data. Two opposing effects in N —
+receive-side isolation improving, send-side retransmit deferral worsening — is exactly the
+structure that produces an interior optimum, so a pool *could* beat both endpoints.
 
-So a pool *could* beat both endpoints. But per-frame+FIFO never beat shared anywhere
-measured, so there is no observed deficit to recover. **Do not build it for the demo.**
+It remains **unmeasured**: stream shape is chosen in `server/src/transport/server.rs`, and
+this lane is constrained not to modify `server/`. Adding a pool arm requires lifting that
+constraint.
 
----
+### What would settle it
+
+Named here so the next attempt is not improvised:
+
+1. **An open-loop reader** — advance on the trace's wall clock, not on arrival, so the
+   transport can fall behind and the reader can be stuck behind data it no longer wants.
+2. **A depth gate that caps in-flight asks without stalling the reader**, so the arms are
+   not silently serialised into identical behaviour.
+3. **Wants that go unmet must be counted, not dropped** — otherwise an arm that fails to
+   deliver loses its slow samples and wins on p95 by delivering less.
+4. **Loss on the path**, so receiver-side head-of-line blocking has something to block on.
+
+Progress against this list is tracked in [`lanes/L4-preregistration.md`](lanes/L4-preregistration.md) §8.
 
 ## 3 · Density — separate metric, separate rig, unchanged
 
@@ -152,7 +199,7 @@ wait on the transport**; the rest are cache hits. The levers above the transport
 | ---------- | -------- | ---------------------- |
 | Controller depends on loss regime | **strong** — both directions large and separated, regimes verified by counters | nothing; the *mix* is unknown, not the physics |
 | Which regime your links are in | **unknown** | client telemetry: loss vs queueing delay |
-| Keep shared stream | **moderate** | a cell where per-frame+FIFO separates; none found |
+| Keep shared stream | **withdrawn** — the rig suppressed head-of-line blocking by construction (§2) | not supported at any strength; needs re-measuring with an open-loop reader |
 | Per-frame without FIFO is worst | **strong** — four campaigns, matches scheduler source | — |
 | GSO cap worth 17 % | **strong** — externally corroborated | — |
 | Initial window is not a lever | **strong** — two independent measurements | — |
@@ -168,6 +215,9 @@ wait on the transport**; the rest are cache hits. The levers above the transport
   3.3 Mbps cell wearing a 40 Mbps label. Ignore it.
 - **No real data anywhere.** Fixtures are one repeated byte; every trace is synthetic,
   including those written for this campaign.
+- **The reader is closed-loop**, so the transport can never fall behind it. This voids the
+  stream-shape comparison outright (§2) and makes every absolute millisecond figure in this
+  document an underestimate of what a reader who keeps scrolling would see.
 - **Handovers, variable bandwidth and variable RTT are unmodelled**
   ([`transport-assumption-audit.md`](transport-assumption-audit.md) A1–A3). For a mobile
   reader these plausibly dominate everything measured here.
@@ -187,8 +237,8 @@ wait on the transport**; the rest are cache hits. The levers above the transport
 
 ## 7 · How this document was reached
 
-Three adversarial reviews, three sets of invalidated conclusions, and the same pattern
-every time: **the rig quietly removed the condition under test**, and the result flattered
+Four adversarial reviews, four sets of invalidated conclusions, and the same pattern every
+time: **the rig quietly removed the condition under test**, and the result flattered
 whichever arm had begun to look right.
 
 - **Review 1** — the path was never congested; the harness re-asked frames already in
@@ -199,7 +249,13 @@ whichever arm had begun to look right.
 - **Review 3** — the queue *arithmetically could not drop* at the chosen depth and frame
   size, so the controller comparison was a test BBR could not lose; failed runs were
   deleted rather than voided, biasing the survivors.
+- **Review 4, raised by the project owner and confirmed in source** — the reader is
+  closed-loop, so head-of-line blocking could not occur and the **stream-shape
+  recommendation was untestable on this rig**. It is withdrawn above rather than softened.
 
-Each guard added after a review caught the *previous* failure, never the next one. What
-finally worked was running both regimes side by side and **making each prove itself with a
-counter before its numbers were read**. That is the practice worth keeping.
+Each guard added after a review caught the *previous* failure, never the next one. Two
+practices are worth keeping. The first: run opposing regimes side by side and **make each
+prove itself with a counter before its numbers are read** — that is what finally settled
+the controller question. The second, from review 4: before trusting any comparison, **check
+that the rig can still produce the effect being compared**. Three reviews' worth of guards
+all watched the measurement and none of them watched the mechanism.
