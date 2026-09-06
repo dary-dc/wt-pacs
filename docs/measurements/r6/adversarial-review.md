@@ -238,10 +238,30 @@ reader can check the cell is where it claims to be.
 
 ### 3.5 · Remaining, unmitigated
 
-- **One trace shape.** Everything rests on `radiologist_review_500`. A second,
-  structurally different trace (`r6_scrub_500`, overrun stranding rather than displacement
-  stranding) is committed and generated but **not yet run** — it is the first thing to run
-  next, and a reversal under it would reopen the question.
+- **One trace shape — now partly addressed. No reversal, but no confirmation either.**
+  The decisive cell was re-run against `r6_scrub_500` (continuous scrolling; stranding by
+  overrun rather than displacement) as cell X3S, at its own seed-validated operating point.
+  All 9 rows admissible.
+
+  | | shared | per-frame + FIFO |
+  | --- | ------ | ---------------- |
+  | median | 673.5 ms | 1011.4 ms |
+  | paired, per repeat | — | **+29.3 %, +55.4 %, +4.8 %** |
+
+  Shared is better in **3/3 repeats**, but the ranges overlap (shared 207–965,
+  per-frame 268–1047) so **the pre-registered rule reports this as not a result**, and a
+  3/3 sign run is p = 0.25 two-sided — not significant on its own either.
+
+  What it does establish is that **nothing reverses**: no trace, cell or repeat anywhere in
+  R6 favours per-frame. And it narrows the claim usefully. The seed alone moves `shared` by
+  **4.7×** here, against 1.6× in the jump-trace version of the same cell, so the scroll
+  pattern is intrinsically noisier; and the effect is an order of magnitude smaller than the
+  jump trace's +250 %.
+
+  That size difference is what the mechanism predicts. Continuous scrolling issues asks
+  near-sequentially, so a retransmitting stream waits behind a small backlog; a jump fires
+  D asks at once, so it waits behind up to D−1 *full frames*. **The shared-stream advantage
+  is largest for jump-heavy reading** — which is the radiologist pattern the design targets.
 - **One fixture, one cache size, one depth.** 64 KB uniform frames, 64-frame LRU, depth 8.
 - **T2 throughout.** netsim, one host, constant bandwidth, constant RTT, no AQM, no ECN, no
   handovers, no cross-traffic. The real-path leg was blocked

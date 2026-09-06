@@ -143,6 +143,27 @@ That predicts the sign and roughly the magnitude of the 440–460 ms absolute pe
 measured in X3. **Receiver-side isolation is real, and sender-side retransmit deferral
 costs more.** The classic argument is right about the receiver and silent about the sender.
 
+### Robustness: a second reading pattern does not reverse it
+
+The decisive cell was re-run against a structurally different trace — continuous scrolling,
+where the window is stranded by **overrun** rather than by **displacement** — at its own
+seed-validated operating point (cell X3S, all 9 rows admissible).
+
+| | shared | per-frame + FIFO |
+| --- | ------ | ---------------- |
+| median | 673.5 ms | 1011.4 ms |
+| paired, per repeat | — | +29.3 %, +55.4 %, +4.8 % |
+
+Shared is better in **3/3 repeats**, but the ranges overlap, so by this lane's own rule
+**that is not a result** — and it is reported as one rather than promoted. What it
+establishes is that **nothing reverses**: no trace, cell or repeat in R6 favours per-frame.
+
+The effect is an order of magnitude smaller than the jump trace's, and that is what the
+mechanism predicts. Continuous scrolling issues asks near-sequentially, so a retransmitting
+stream waits behind a small backlog; a jump fires D asks at once and it waits behind up to
+D − 1 *full frames*. **The shared-stream advantage is largest for jump-heavy reading**,
+which is the pattern this design targets.
+
 ### Why X1 is a tie and not a weaker version of X3
 
 In X1 the **seed moves `shared` alone by 2.1×** (261 → 548 ms across repeats) while the
