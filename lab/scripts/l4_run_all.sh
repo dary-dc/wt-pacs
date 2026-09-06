@@ -88,4 +88,22 @@ r4() {
   bash lab/scripts/l4_campaign.sh "$R"
 }
 
+# R5 — the comparison the whole controller question turns on, and which has never been
+# run cleanly: the SAME two controllers in both loss regimes, with the fixed harness.
+#   R5a congestive: 0% injected loss, depth 16 (854 pkts > the 500-packet queue)
+#   R5b exogenous:  1% injected loss, depth 8  (427 pkts, queue cannot drop)
+# Assert qdrop > 0 in R5a and qdrop == 0 in R5b, or the regimes are not what they claim.
+r5a() {
+  EXP=r5a CELLS="Wc Sc" FIXTURE="$FIX" DEPTH=16 TRACE="$JUMP" LOSS_BURST=1 RUN_TIMEOUT=900 \
+  OUT="$OUTDIR/r5a_congestive.tsv" \
+  ARMS="cubic|ENV:QUINN_INITIAL_WINDOW=12000 --stream-mode shared --congestion cubic;bbr|ENV:QUINN_INITIAL_WINDOW=12000 --stream-mode shared --congestion bbr" \
+  bash lab/scripts/l4_campaign.sh "$R"
+}
+r5b() {
+  EXP=r5b CELLS="W S" FIXTURE="$FIX" DEPTH=8 TRACE="$JUMP" LOSS_BURST=5 RUN_TIMEOUT=900 \
+  OUT="$OUTDIR/r5b_exogenous.tsv" \
+  ARMS="cubic|ENV:QUINN_INITIAL_WINDOW=12000 --stream-mode shared --congestion cubic;bbr|ENV:QUINN_INITIAL_WINDOW=12000 --stream-mode shared --congestion bbr" \
+  bash lab/scripts/l4_campaign.sh "$R"
+}
+
 for e in "$@"; do "$e"; done
