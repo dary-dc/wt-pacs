@@ -1,13 +1,17 @@
 # ADR: instrument the browser clients from outside, not with an inline recorder
 
-**Status:** proposed · **Date:** 2026-08-30 · **Tags:** telemetry, client, lab
+**Status:** accepted (client Proxy G; Decision A decided 2026-09-06) · **Date:** 2026-08-30 ·
+**Tags:** telemetry, client, lab  
+**Decision A:** A4 — byte attribution (A1) for `firstByte` / `lastByte`, session-method wrapping (A2)
+for `gesture` / `delivered` / failures. See § Decision A below. Server Decision C is settled in
+[`adr-server-pipeline.md`](adr-server-pipeline.md).
 
-Plan that depends on this: [`client-frame-pipeline-telemetry-plan.md`](client-frame-pipeline-telemetry-plan.md).
+As-built module: [`README.md`](README.md).
 
 ## Context and Problem Statement
 
-The browser clients have no latency telemetry
-([`client-runtime-experiment-plan.md`](client-runtime-experiment-plan.md) §3 P3). The WASM-vs-TS
+The browser clients had no latency telemetry
+([`client-runtime-experiment-plan.md`](../client-runtime-experiment-plan.md) §3 P3). The WASM-vs-TS
 comparison cannot run without it, and its stated gate is that **both arms must stamp at identical
 points or the comparison is unmeasurable no matter how clean the shell is.**
 
@@ -67,7 +71,7 @@ different points, because it is the same code stamping.
 | **A** | Puts measurement in the product path of both shipped clients, permanently, and requires ~8 gated sites per client to prove absent. It is the right seam for the server (§ below) and the wrong one here |
 | **B** | A proxy sees only call entry and return. `ask`, `firstByte` and `lastByte` all occur inside the call, so B yields the total and nothing else — it cannot split wire time from copy time, which is the question being asked |
 | **C** | Correct and sufficient, but still edits `connect()` in both clients, and instruments each arm with separate code — reintroducing the identical-stamping risk G removes. **Retained as the fallback** if patching the global proves unworkable |
-| **D** | Gives true wire arrival and would fix the event-loop confound (plan §5.2). Rejected as a dependency: **the measurement environments cannot be guaranteed to have the flag**, and its timestamps are on a different clock, requiring an anchor. Kept as an optional one-off calibration |
+| **D** | Gives true wire arrival and would fix the event-loop confound. Rejected as a dependency: **the measurement environments cannot be guaranteed to have the flag**, and its timestamps are on a different clock, requiring an anchor. Kept as an optional one-off calibration |
 | **E** | No TypeScript equivalent exists, so the two arms would stamp through different mechanisms — defeating the one constraint that matters |
 | **F** | Same call sites as A, with indirection. Nothing but the tap would consume the events |
 
@@ -84,8 +88,8 @@ different points, because it is the same code stamping.
 ### Negative consequences
 
 - **Patching a global is action at a distance.** It is invisible at the point of use, and a reader of
-  `session.ts` has no indication that its `WebTransport` may not be the platform's. This ADR is the
-  mitigation; the plan's §3 is the other
+  `session.ts` has no indication that its `WebTransport` may not be the platform's. This ADR and
+  [`README.md`](README.md) are the mitigation
 - **Correctness depends on using `Proxy`, not a look-alike object.** `transport-wasm` does
   `dyn_into::<ReadableStreamDefaultReader>()`, an `instanceof` check that a substitute object fails.
   A `Proxy` forwards `getPrototypeOf` so `instanceof` passes. This is a standing trap and carries its
@@ -93,25 +97,49 @@ different points, because it is the same code stamping.
 - **`gesture` is still not covered.** It happens before the transport is called, so no object exists to
   wrap. The harness supplies it; where there is no harness, `queue` exports `null`
 - The tap sees bytes, not frames, so frame boundaries are recovered arithmetically from byte offsets
-  (plan §5.1). This is a partial length-prefix parser in telemetry code — reusing `wire.ts`'s exported
-  `parseLengthPrefixed`, which currently has no callers at all
+  (Decision A). This is a partial length-prefix parser in telemetry code — reusing `wire.ts`'s exported
+  `parseLengthPrefixed`
 - It does **not** fix the event-loop timing confound. Only D does, and D is not a dependency
 
-## The server keeps its inline seam — deliberately
+## Decision A — frame boundaries stay in byte attribution (2026-09-06)
 
-This ADR does not apply to `server/src/record/`, and the divergence is intentional rather than an
-oversight to be unified later.
+The open question was whether `firstByte` / `lastByte` should come from the reader Proxy plus
+byte-offset attribution (A1), from session-method totals only (A2), from stamps inside the
+product framing helpers (A3), or a hybrid (A4). **A4 as built: A1 + A2.**
 
-The server has no equivalent objects to wrap without cost. Its three recorder calls could map onto
-`read_fod_msg`, `FrameStore::frame_slice` and `SendStream::write_all`, but `RequestFrames` is one
-control message and *N* sends, so a wrapped Tap would have to correlate them **positionally** — a
-correctness assumption where `rec.ask(idx)` currently has none, in exactly the batch path whose ask
-ordinals the fill analysis depends on.
+| Criterion | A1 + A2 | A3 |
+| --- | --- | --- |
+| Stamp fidelity | `lastByte` at `read()` resolution before any copy; `delivered` at method return. An in-loop stamp sits in the same event-loop turn — nothing gained | same |
+| Arm parity | one JS patch, same bytes, same arithmetic — parity by construction | two implementations kept identical by review |
+| Invasiveness | zero product lines | ~8 sites per client, gated |
+| Default-build proof | never added | proven inert in two languages |
+| Batch correctness | deterministic byte arithmetic; ask identity from the FoD op | same |
+| Cost | measured: ~1 µs per read at 320 × 250 KB frames (`review-2026-09-06.md` §7) | small, paid in product code |
 
-More plainly: **the server's telemetry works, is tested, has a CI absence check, and produced the only
-trustworthy numbers in the tree.** Refactoring it buys elegance and risks a regression in the one
-component that can currently be believed. The client code is not written yet, so the better seam is
-free there.
+A1's one real weakness was the cost of the first attributor (quadratic per read); that was an
+implementation defect, fixed by the streaming attributor, not a property of the seam. A2 alone
+cannot split wire time from copy time, so it stays as the other half.
 
-If server invasiveness is revisited, the cheap 80% is wrapping `frame_slice` and `write_all` only,
-leaving `rec.ask(idx)` inline — it is the one call carrying information no wrapper can recover.
+**Amendments carried with the decision:**
+
+- The control **readable** is proxied too. A server `frame_error` closes its row as `refused`;
+  without it a refused frame left a row open and voided the run with no diagnosis.
+- The attributor must stay O(1) per read and retain no payload; the tap times its own read path
+  (`integrity.tap_read_cost_us`) so a regression here shows in every report.
+- `gesture` is first-write-wins: the shell stamps it when a step becomes due, and the session
+  wrapper's stamp at call time applies only when nothing is pending.
+
+**What would reopen it:** a wire change that breaks byte-offset attribution (multi-frame
+envelopes, compression), or a stage that can only be stamped inside `session.*`. Neither is
+planned.
+
+## The server pipeline — deliberately different from the browser
+
+**Updated 2026-09-02.** See [`adr-server-pipeline.md`](adr-server-pipeline.md).
+
+The browser keeps Proxy-on-`WebTransport` (option G). The server has no equivalent global.
+It uses `ProductPipeline` (product) and `RecordedPipeline` (lab wrapper + `Tap`) in
+`server/src/transport/pipeline.rs`. Wire writes go through `FrameOut` in `frame_out.rs`.
+The session loop calls only `serve_one` on a generic `FramePipeline`.
+
+The Tap report schema is unchanged; this ADR’s client decision is unchanged.

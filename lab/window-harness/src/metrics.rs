@@ -46,6 +46,8 @@ pub struct RunConfig {
     pub rtt_ms: u64,
     /// Must match the server's `--stream-mode`.
     pub stream_mode: StreamMode,
+    /// Bind the client socket IPv4-only (hosts without IPv6).
+    pub ipv4: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -274,9 +276,44 @@ fn wait_stats(samples: &[f64]) -> (f64, f64) {
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let mut sorted = samples.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let idx = ((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize;
-    let p95 = sorted[idx.min(sorted.len() - 1)];
-    (mean, p95)
+    (mean, nearest_rank(&sorted, 95.0))
+}
+
+/// Nearest-rank percentile: rank = ceil(p/100 × N) clamped to [1, N]; value = sorted[rank − 1].
+/// Same rule as `server/src/record/report.rs` and `client/record/percentiles.ts`,
+/// so a harness p95 can be read beside a telemetry p95.
+pub fn nearest_rank(sorted_asc: &[f64], p: f64) -> f64 {
+    let n = sorted_asc.len();
+    if n == 0 {
+        return 0.0;
+    }
+    let rank = ((p / 100.0) * n as f64).ceil() as usize;
+    sorted_asc[rank.clamp(1, n) - 1]
 }
 
 pub type SharedMetrics = Arc<Mutex<MetricsState>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Shared fixture with the client and server tests: N = 20, p95.
+    /// Nearest-rank → rank 19 → sorted[18] = 19. The old `ceil((N−1)·0.95)` rule gave sorted[19] = 100.
+    #[test]
+    fn p95_is_nearest_rank_on_the_shared_vector() {
+        let mut v: Vec<f64> = (1..=19).map(f64::from).collect();
+        v.push(100.0);
+        assert_eq!(nearest_rank(&v, 95.0), 19.0);
+        let old_idx = ((v.len() as f64 - 1.0) * 0.95).ceil() as usize;
+        assert_eq!(v[old_idx], 100.0, "the fixture must separate the two rules");
+        let (_, p95) = wait_stats(&v);
+        assert_eq!(p95, 19.0);
+    }
+
+    #[test]
+    fn nearest_rank_small_and_empty() {
+        assert_eq!(nearest_rank(&[], 95.0), 0.0);
+        assert_eq!(nearest_rank(&[7.0], 95.0), 7.0);
+        assert_eq!(nearest_rank(&[1.0, 2.0], 50.0), 1.0);
+    }
+}

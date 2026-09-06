@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>wt-pacs harness</title>
+  <link rel="icon" href="data:," />
+  <title>wt-pacs harness (WASM)</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 1rem; }
     #log { white-space: pre-wrap; font-size: 12px; background: #111; color: #0f0; padding: 1rem; }
@@ -14,37 +15,51 @@
   <p>
     <a href="/harness/ts.html">TypeScript harness</a>
     Frame timing logs — not clinical decode. Client uses <code>web_sys::WebTransport</code>.
+    The run itself lives in <code>shell.js</code>.
   </p>
   <button id="frame0">Frame 0</button>
   <button id="bulk">Bulk 0..2</button>
+  <button id="run">Run cell (from query)</button>
   <div id="log"></div>
   <script type="module">
-    import init, { TransportSessionHandle } from "/client/transport-wasm/pkg/transport_wasm.js";
+    import { bootShell } from "/harness/shell.js";
 
-    const logEl = document.getElementById("log");
-    function log(...a) {
-      logEl.textContent += a.join(" ") + "\n";
-    }
+    let wasm = null;
 
-    async function boot() {
-      await init();
-      const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
-      log("connect", cfg.wt_url);
-      const session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
-      document.getElementById("frame0").onclick = async () => {
-        const r = await session.requestExactFrame(0);
-        log("frame0 bytes", r.bytes.length, "wire ms", r.timing.lastChunkMs - r.timing.askMs);
-      };
-      document.getElementById("bulk").onclick = async () => {
-        const indices = Uint32Array.from([0, 1, 2]);
-        const askMs = session.startExactFrames(indices);
-        for (let i = 0; i < indices.length; i++) {
-          const r = await session.waitExactFrame(indices[i], askMs);
-          log("bulk", r.frameIndex, r.bytes.length);
+    bootShell({
+      arm: "transport-wasm",
+      async loadSession({ telemetry, streamMode, cfg }) {
+        let wrapSession = (s) => s;
+        if (telemetry) {
+          // Patch the WebTransport global before the WASM module loads (ADR option G).
+          const rec = await import("/client/record/dist/install.js");
+          rec.install({ arm: "transport-wasm", stream_mode: streamMode });
+          wrapSession = rec.wrapSession;
         }
-      };
-    }
-    boot().catch((e) => log("boot error", e));
+        const pkgCandidates = telemetry
+          ? [
+              "/client/transport-wasm/pkg-telemetry/transport_wasm.js",
+              "/client/transport-wasm/pkg/transport_wasm.js",
+            ]
+          : ["/client/transport-wasm/pkg/transport_wasm.js"];
+        let initMod = null;
+        for (const url of pkgCandidates) {
+          try {
+            initMod = await import(url);
+            break;
+          } catch {
+            /* try next */
+          }
+        }
+        if (!initMod) throw new Error("wasm pkg not found");
+        const { default: init, TransportSessionHandle } = initMod;
+        wasm = await init();
+        const session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
+        return wrapSession(session);
+      },
+      // Linear memory grows with the receive buffer; the TS arm has none (null).
+      memoryBytes: () => (wasm && wasm.memory ? wasm.memory.buffer.byteLength : null),
+    });
   </script>
 </body>
 </html>

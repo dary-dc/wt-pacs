@@ -38,6 +38,10 @@ struct Args {
     #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
     stream_mode: StreamMode,
 
+    /// Bind the client socket IPv4-only (hosts without IPv6).
+    #[arg(long, default_value_t = false)]
+    ipv4: bool,
+
     /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
     #[arg(long)]
     depth_sweep: Option<String>,
@@ -78,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
         warm_cache: args.warm_cache,
         rtt_ms: args.rtt_ms,
         stream_mode: args.stream_mode,
+        ipv4: args.ipv4,
     };
     if let Some(sweep) = &args.depth_sweep {
         let depths: Vec<u32> = sweep
