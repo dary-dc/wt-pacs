@@ -14,6 +14,7 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 | [`DEPTH.md`](DEPTH.md) | First lift of the depth-1 assumption. Superseded by [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md), which crosses depth with miss rate and adds the hybrid |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Read before shipping.** The fast path does not exist on overlayfs — i.e. inside a container — and the server degrades silently. `check-fastpath` answers it in one command |
 | [`RUN-ON-YOUR-HOST.md`](RUN-ON-YOUR-HOST.md) | Close risk **R1**: run the campaign on a second host and get HOLDS/WEAKENS/FLIPS. A local runbook, plus a one-click GitHub Actions workflow |
+| [`S5-CONTROL-ARM.md`](S5-CONTROL-ARM.md) | The next measurement: separates reader-loop shape from io_uring, before anyone buys a per-session ring (risk **R8**) |
 | [`later.md`](later.md) | Optional follow-ups only |
 
 **Serving rungs rather than whole frames?** Read [`PREFIX-READS.md`](PREFIX-READS.md) first —

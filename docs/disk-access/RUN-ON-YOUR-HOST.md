@@ -155,7 +155,8 @@ different disk. Only compare arms *within* a host, never across.
 | --- | ---: | --- | --- |
 | lab KVM guest (baseline, [`v10_campaign.tsv`](v10_campaign.tsv)) | 34 385 ns | — | 4 vCPU Xeon 2.1 GHz, ext4, read-ahead 8192 |
 | agent sandbox ([`v21_campaign_sandbox.tsv`](v21_campaign_sandbox.tsv)) | 26 275 ns (0.76×) | 20 HOLDS · 1 WEAKENS · **0 FLIPS** | **Same host class**, so a reproduction — not an independent host |
-| GitHub runner ([`v22_campaign_ci.tsv`](v22_campaign_ci.tsv)) | 23 648 ns (0.69×) | 13 HOLDS · 6 WEAKENS · 5 tie · **0 FLIPS** | **A real second host**: AMD EPYC 9V74, Azure kernel 6.17, **read-ahead 128 KiB** — different CPU vendor *and* the stock window. All eight `miss` rows hold (−44.6% to −76.3%, sign agreement 42/42, 68/68, 24/24). Five of the six WEAKENS are `mix` rows, where the smaller read-ahead window is the likely cause |
+| GitHub runner ([`v22_campaign_ci.tsv`](v22_campaign_ci.tsv)) | 23 648 ns (0.69×) | 13 HOLDS · 6 WEAKENS · 5 tie · **0 FLIPS** | AMD EPYC 9V74, Azure kernel 6.17, **read-ahead 128 KiB** — different CPU vendor *and* the stock window. All eight `miss` rows hold (−44.6% to −76.3%). Five of the six WEAKENS are `mix` rows, where the smaller read-ahead window is the likely cause |
+| Bare-metal laptop ([`v23_campaign_laptop-btrfs.tsv`](v23_campaign_laptop-btrfs.tsv)) | 24 470 ns (0.71×) | 11 HOLDS · 5 WEAKENS · 1 STRENGTHENS · **1 FLIPS** · 4 tie · 2 no-data | The quiet host. Intel i5-8250U, **btrfs-on-LUKS** (`RWF_NOWAIT` honoured — new), stock read-ahead. All eight `miss` rows at 4+ in flight hold. The one FLIPS is `hit/16/uring`, and it is **R8, not a read-path result**: `hit/16/hybrid` STRENGTHENS by the same amount at the same cell because both use the ring-shaped reader loop. Its btrfs mount has `compress=zstd:1` and the fixture is one repeated byte, so its cold magnitudes are host-specific |
 
 The sandbox row is worth exactly what it says: the pipeline works end to end and nothing
 flipped on a fresh instance. It is **not** a second host — same 4-vCPU Xeon, same ext4, same
@@ -167,5 +168,15 @@ and the hop tax that the whole argument rests on came back at 0.69× the lab's. 
 was the `mix` regime — unsurprising, since a 64× smaller read-ahead window changes which
 cells land in "5–50% miss" at all, so those rows are not strictly like-for-like.
 
-What is still missing is a **quiet** host: a shared CI runner cannot settle magnitudes. Run
-it on the machine you will deploy to and the remaining doubt goes with it.
+The laptop row closed that gap — a quiet, single-user bare-metal host on a third filesystem.
+**R1 is closed**: across four hosts, two CPU vendors, VM and bare metal, ext4 / btrfs, the
+`spawn_blocking` round trip is 24–34 µs and no `miss` row flipped anywhere.
+
+Two things are worth carrying forward from these runs rather than the hop tax:
+
+* **Read the `hit` rows as R8, not as a read-path result.** `pool` and `hybrid` reach a cache
+  hit through different reader loops, so that regime measures loop shape. `lab/scripts/loop_shape_control.py`
+  sizes it for any campaign TSV.
+* **Record the filesystem's compression setting.** btrfs with `compress=zstd` plus this
+  fixture's single repeated byte makes cold reads move almost no physical bytes. `check-fastpath`
+  reports the filesystem; the mount options belong in the host-facts file beside it.
