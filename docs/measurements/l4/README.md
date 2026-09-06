@@ -12,6 +12,23 @@ demand actually approaches cell capacity. Arms interleaved within each repeat.
 | ---- | ---------- |
 | `e12_iw_x_congestion.tsv` | initial window × congestion controller, at **matched windows** so the two are not confounded |
 | `e6_loss_burstiness.tsv` | the same two controllers at burst 1 / 5 / 20, mean loss held constant |
+| `r1_controller.tsv` | **R-series** — controller across four cells, corrected rig |
+| `r2_stream_shape.tsv` | three stream shapes under Cubic; every cell-S row voids because Cubic needs > 180 s there |
+| `r3_shape_x_controller.tsv` | three stream shapes under BBR, cells W and S |
+| `r4_cubic_satellite.tsv` | Cubic vs BBR at 600 ms RTT with a 900 s timeout |
+
+## The R-series supersedes everything above it
+
+Files `e*` were taken on a rig with defects that two adversarial reviews established:
+the path was never congested, the client re-asked frames already in flight (7.6–13.7×
+redundant load), `p95_wait_ms` was computed over cache-hit zeros, and an 80-frame series
+was wholly cached within seconds so no jump could miss. **Do not quote them.**
+
+The `r*` files use: a 500-frame series, a 64-frame LRU client cache, a jump-bearing trace
+(the only kind that produces a cold ask, since `window_frames` is symmetric), the
+in-flight re-ask fixed, `nz_p95` over waits that actually waited, per-row stop-condition
+verdicts in the `verdict` column, seeds varying per repeat, and `ns_qdrop` recorded so the
+queue's behaviour is visible.
 
 ## Read `e6_loss_burstiness.tsv` before quoting anything from `e12`
 
