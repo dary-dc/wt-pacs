@@ -9,6 +9,10 @@ conclusion-invalidating defects, and each is recorded rather than absorbed (§7)
 Target: **p95 time-to-displayable** first, **server density** second. Browser client on
 tablets and phones over **5G, satellite and WiFi**. Three stream-based candidates.
 
+**Stream shape was re-measured in R6** after review 4 found the rig could not produce
+head-of-line blocking. Pre-registration: [`lanes/R6-preregistration.md`](lanes/R6-preregistration.md);
+data and review: [`measurements/r6/`](measurements/r6/).
+
 ---
 
 ## The answer
@@ -16,8 +20,8 @@ tablets and phones over **5G, satellite and WiFi**. Three stream-based candidate
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Open — the rig could not produce the condition that decides it.** Nothing displaced the incumbent shared stream, but the client never let the transport fall behind, so head-of-line blocking was never generated (§2). Per-frame *without* `send_fairness(false)` is the one shape measured worse, repeatedly |
-| **Fixed-N pool** | **Untested, and untestable under this lane's constraint** — a pool is a server-side change and this lane may not modify `server/`. An earlier claim that it was strictly dominated was wrong (§2) |
+| **Stream shape** | **Keep one shared stream** — now measured on a rig that *can* produce head-of-line blocking, and won on a mechanism. Per-frame is **2.4× worse at 1 % loss** and never better anywhere. The textbook argument for per-frame is falsified: quinn re-queues a retransmitting stream to the **back** of the queue, so per-frame *defers* loss recovery behind other frames' backlogs (§2) |
+| **Fixed-N pool** | **Still untested** — a server-side change, and this lane may not modify `server/`. R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95 |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte at every rate |
@@ -71,86 +75,104 @@ Cubic flows.
 
 ---
 
-## 2 · Stream shape — **not decided.** The rig removed the deciding condition
+## 2 · Stream shape — **keep one shared stream.** Now for a mechanism, not by default
 
-This is the question the lane was built to answer, and it is the one question it did not
-answer. The measurements below are real; what they measure is not the thing that decides.
+The previous edition of this document withdrew a "keep one shared stream" recommendation
+because the rig could not produce head-of-line blocking. **R6 rebuilt the rig so it could,
+and the answer came back the same — but for the opposite reason to the one originally
+assumed, and against the hypothesis this project pre-registered.**
 
-| condition | shared | per-frame | per-frame + FIFO |
-| --------- | ------ | --------- | ---------------- |
-| 5G, under BBR | 263 ms | 263 ms *(overlap)* | 259 ms *(overlap)* |
-| 5G, under Cubic | 454 ms | 820 ms *(worse, separated)* | 545 ms *(overlap)* |
-| Satellite, under BBR | 1202 ms | 1255 ms *(worse, separated)* | 1120 ms *(overlap)* |
+Method and decision rules fixed in advance in
+[`lanes/R6-preregistration.md`](lanes/R6-preregistration.md). Data and review in
+[`measurements/r6/`](measurements/r6/).
 
-### Why these rows cannot settle it
+### The rig now generates the effect, which is new
 
-A shared stream is worse than per-frame streams **only when the reader is stuck behind
-bytes it no longer wants** — one lost packet holding up delivery of everything queued
-behind it in the same stream. That requires the transport to fall behind the reader.
+One cell, one server, only the reader mode differs:
 
-**The harness client makes that impossible.** `run_windowed` walks the trace like this:
+| reader | stranded bytes |
+| ------ | -------------- |
+| closed-loop (every campaign before R6) | **0.00 MB** |
+| open-loop | **18.31 MB** |
 
-```
-for each cursor:  sleep(step_interval) → emit_window(±D/2 around cursor) → wait_displayable(cursor)
-                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^
-                                                                          blocks until it arrives
-```
+Zero — structurally, not incidentally. The old client blocked until each frame arrived
+before advancing, so the transport could never fall behind and every byte in flight was a
+byte the reader still wanted.
 
-followed by `wait_outstanding_below(D)`, which blocks again. The reader therefore advances
-**at the speed of the transport**, never faster. In-flight data is always data it still
-wants, because it refuses to move on until that data lands. Head-of-line blocking has no
-opportunity to occur, and a second-order effect — `window_frames` emits
-`center, +1, −1, +2, −2…`, so with `max_step: 1` a reversal is always already prefetched —
-suppresses what little remains.
+### The result
 
-So every row above is a measurement of a rig in which **the mechanism under test was
-switched off**, and the correct reading is not "shared wins" but **"no shape was
-distinguishable, because nothing was being distinguished."** This is the same failure the
-three earlier reviews found three times (§7): the rig quietly removed the condition under
-test. It is recorded here rather than corrected in place, because an earlier draft of this
-document did print "Keep one shared stream", and that claim exceeded its evidence.
+p95 time-to-displayable, median of repeats, arms interleaved within each repeat.
+`per-frame + FIFO` is `--stream-mode per-frame --send-fairness false`.
 
-**A real server does not fix this.** The defect is in the client, so it would reproduce
-unchanged over any network.
+| cell | what it is | shared | per-frame + FIFO | verdict |
+| ---- | ---------- | ------ | ---------------- | ------- |
+| **N0** | control: no loss, reader keeps up | 79.5 ms | 79.5 ms | **tie (+0.1 %)** — the rig adds no artifact |
+| **X2** | stranding, no loss | 82.3 ms | 84.0 ms | **tie (+2 %)** |
+| **X1** | 0.1 % loss + stranding | 372.9 ms | 363.6 ms | **tie** — ranges overlap, sign flips per seed |
+| **X3** | **1 % loss** | **267.2 ms** | **637.1 ms** | **shared wins, +138 %, separated** |
 
-### What does survive
+### H4 — the classic argument for per-frame streams — is **falsified**
 
-**Per-frame without `send_fairness(false)` is consistently worse** — four campaigns, and it
-matches the scheduler source: with fairness on, N concurrent streams round-robin and every
-frame finishes late; `reinsert_pending` (fairness off) drains a stream to completion before
-the next, and this server's session loop is serial, so pending order is ask order.
-`quinn-proto/src/connection/streams/state.rs:592-597`.
+The pre-registered hypothesis was the textbook one: *under loss, a shared stream delays
+every frame queued behind a lost packet; per-frame streams confine the damage to one
+frame.* Prediction P4 was that per-frame beats shared once loss and stranding are both
+present.
 
-That is a claim about **fairness**, not about shape, and it holds regardless of the above.
-If per-frame is ever adopted, `send_fairness(false)` is a precondition.
+**It does not. At the loss level where the effect should be strongest, per-frame is 2.4×
+worse.**
 
-### Fixed-N is untested, and an earlier claim about it was wrong
+The mechanism is in quinn's scheduler, and it was verified in source before the campaign
+rather than invented to fit the result:
 
-An earlier draft argued a pool was strictly dominated because all three shapes are
-byte-identical under FIFO. **That is false.** `retransmit()` re-queues a stream to the
-**back** of its priority class regardless of the fairness setting (`state.rs:677`), so
-under loss a per-frame stream awaiting retransmission waits behind every other stream's
-backlog, while a shared stream retransmits ahead of newer data. Two opposing effects in N —
-receive-side isolation improving, send-side retransmit deferral worsening — is exactly the
-structure that produces an interior optimum, so a pool *could* beat both endpoints.
+- `retransmit()` re-queues a stream with **`push_pending`** — *"queued **after** any
+  already-queued streams for the priority"* — and it does so **regardless of the fairness
+  setting** (`quinn-proto-0.11.17` `state.rs:677`, `mod.rs:402`).
+- With **one** stream, a retransmission re-enters that stream and goes out ahead of newer
+  application data behind it. Recovery is immediate.
+- With **per-frame** streams, the stream that lost a packet goes to the **back of the
+  queue**, behind every other pending frame's full backlog. Under FIFO drain-to-completion
+  each of those drains entirely first — up to 7 × 64 KB ≈ 448 KB at depth 8, which is
+  ~180 ms per queued frame on a 20 Mbps link.
 
-It remains **unmeasured**: stream shape is chosen in `server/src/transport/server.rs`, and
-this lane is constrained not to modify `server/`. Adding a pool arm requires lifting that
-constraint.
+That predicts the sign and roughly the magnitude of the 370–430 ms absolute penalty
+measured in X3. **Receiver-side isolation is real, and sender-side retransmit deferral
+costs more.** The classic argument is right about the receiver and silent about the sender.
 
-### What would settle it
+### Why X1 is a tie and not a weaker version of X3
 
-Named here so the next attempt is not improvised:
+In X1 the **seed moves `shared` alone by 2.1×** (261 → 548 ms across repeats) while the
+arm difference flips sign (−37 %, −3 %, +14 %). The loss realisation dominates the stream
+shape completely. In X2, where there is no loss to realise, the seed effect is 1.0× and
+the arms agree to 2 %.
 
-1. **An open-loop reader** — advance on the trace's wall clock, not on arrival, so the
-   transport can fall behind and the reader can be stuck behind data it no longer wants.
-2. **A depth gate that caps in-flight asks without stalling the reader**, so the arms are
-   not silently serialised into identical behaviour.
-3. **Wants that go unmet must be counted, not dropped** — otherwise an arm that fails to
-   deliver loses its slow samples and wins on p95 by delivering less.
-4. **Loss on the path**, so receiver-side head-of-line blocking has something to block on.
+So: at low loss the shape does not matter; at high loss it matters and shared wins.
+There is no cell in which per-frame is better.
 
-Progress against this list is tracked in [`lanes/L4-preregistration.md`](lanes/L4-preregistration.md) §8.
+### `send_fairness(false)` is mandatory if per-frame is ever used
+
+`perframe_fair` is worse in **all four cells** — +88 %, +74 %, +23 %, +279 % — with a
+consistent sign in every repeat. That reproduces the finding of four earlier campaigns and
+matches quinn's own scheduler test (`state.rs:1528-1541`: fair yields `a,b,c,a,b,c`,
+unfair `a,a,a,b,b,b`).
+
+**But it is worse in the negative control too**, which means the campaign cannot attribute
+it to head-of-line blocking — fairness needs only concurrency, which every cell has. It is
+a scheduling penalty, full stop. See [`measurements/r6/adversarial-review.md`](measurements/r6/adversarial-review.md) §3.1
+for how this failed control narrows the campaign's scope.
+
+**P5 — my own pre-registered prediction that fairness-on would *beat* FIFO under stranding
+— is falsified.** It is recorded because it was written down in advance precisely so it
+could not be quietly dropped.
+
+### Fixed-N pool — still untested, and now less promising
+
+Unchanged in status: a pool is a server-side change and this lane may not modify `server/`.
+
+What R6 adds is a reason to expect less from it. The retransmit-deferral cost **grows with
+N**, because a recovering stream waits behind more backlogs; receive-side isolation also
+grows with N. Measured at N = 8 the cost dominates by 2.4×, and at N = 1 there is no cost
+at all. An interior optimum remains possible in principle, but the endpoint that wins is
+the one the incumbent already uses.
 
 ## 3 · Density — separate metric, separate rig, unchanged
 
@@ -199,7 +221,8 @@ wait on the transport**; the rest are cache hits. The levers above the transport
 | ---------- | -------- | ---------------------- |
 | Controller depends on loss regime | **strong** — both directions large and separated, regimes verified by counters | nothing; the *mix* is unknown, not the physics |
 | Which regime your links are in | **unknown** | client telemetry: loss vs queueing delay |
-| Keep shared stream | **withdrawn** — the rig suppressed head-of-line blocking by construction (§2) | not supported at any strength; needs re-measuring with an open-loop reader |
+| Keep shared stream | **strong** — re-measured on a rig that generates head-of-line blocking; separated 2.4× at 1 % loss, matches a source-verified scheduler mechanism, negative control clean to 0.1 % | a cell where per-frame+FIFO separates *in its favour*; none found |
+| Per-frame is worse *because of retransmit deferral* | **moderate** — mechanism is source-verified and predicts sign and magnitude, but was not directly instrumented | per-stream retransmit timing telemetry showing recovery is not deferred |
 | Per-frame without FIFO is worst | **strong** — four campaigns, matches scheduler source | — |
 | GSO cap worth 17 % | **strong** — externally corroborated | — |
 | Initial window is not a lever | **strong** — two independent measurements | — |
@@ -215,9 +238,13 @@ wait on the transport**; the rest are cache hits. The levers above the transport
   3.3 Mbps cell wearing a 40 Mbps label. Ignore it.
 - **No real data anywhere.** Fixtures are one repeated byte; every trace is synthetic,
   including those written for this campaign.
-- **The reader is closed-loop**, so the transport can never fall behind it. This voids the
-  stream-shape comparison outright (§2) and makes every absolute millisecond figure in this
-  document an underestimate of what a reader who keeps scrolling would see.
+- **The §1 controller figures were taken with a closed-loop reader**, so they remain
+  underestimates of what a reader who keeps scrolling would see. The regime *ordering* they
+  establish does not depend on reader mode, but their absolute values do — R6 measured p95
+  rising 11–13× between the two modes on the same path.
+- **The loss realisation can dominate the thing being compared.** In R6's X1 the seed alone
+  moved one arm by 2.1× while the arm difference flipped sign. Any single-seed comparison at
+  moderate loss is noise; this is why repeats resample loss rather than replaying it.
 - **Handovers, variable bandwidth and variable RTT are unmodelled**
   ([`transport-assumption-audit.md`](transport-assumption-audit.md) A1–A3). For a mobile
   reader these plausibly dominate everything measured here.
@@ -251,11 +278,24 @@ whichever arm had begun to look right.
   deleted rather than voided, biasing the survivors.
 - **Review 4, raised by the project owner and confirmed in source** — the reader is
   closed-loop, so head-of-line blocking could not occur and the **stream-shape
-  recommendation was untestable on this rig**. It is withdrawn above rather than softened.
+  recommendation was untestable on this rig**. It was withdrawn rather than softened, the
+  reader was rebuilt open-loop, and the question was re-run as R6 (§2).
+- **Review 5, on R6 itself** — the negative control failed for one arm of three. Fairness
+  needs only concurrency, which every cell has, so N0 could not isolate it from head-of-line
+  blocking. Recorded as a scope narrowing, with that arm's rows demoted, rather than the
+  control being redefined after the fact.
 
-Each guard added after a review caught the *previous* failure, never the next one. Two
-practices are worth keeping. The first: run opposing regimes side by side and **make each
-prove itself with a counter before its numbers are read** — that is what finally settled
-the controller question. The second, from review 4: before trusting any comparison, **check
-that the rig can still produce the effect being compared**. Three reviews' worth of guards
-all watched the measurement and none of them watched the mechanism.
+Each guard added after a review caught the *previous* failure, never the next one. Three
+practices are worth keeping.
+
+1. **Make each regime prove itself with a counter before its numbers are read.** That is
+   what finally settled the controller question.
+2. **Check that the rig can still produce the effect being compared** — review 4's lesson.
+   Three reviews' worth of guards all watched the measurement and none watched the
+   mechanism. R6 makes this an explicit gate: `stranded_bytes == 0` voids a row, so a rig
+   that has stopped generating the effect cannot report a comparison.
+3. **Write down the prediction that would embarrass you.** R6 pre-registered P5, that
+   fairness-on would *beat* FIFO under stranding — the opposite of what this project had
+   published. It was falsified. Recording it in advance is what made it impossible to
+   quietly drop, and the same discipline is what turned H4's falsification into the
+   campaign's main finding rather than an inconvenience.
