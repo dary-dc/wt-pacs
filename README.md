@@ -40,6 +40,8 @@ The WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
 
 - [`docs/transport-conclusions.md`](docs/transport-conclusions.md) — **the answer**: which
   approach wins for which case, and which to use here. Start here.
+- [`docs/transport-assumption-audit.md`](docs/transport-assumption-audit.md) — the premises
+  those conclusions rest on, and which ones would invalidate them. Read with the above.
 - [`docs/transport-optimization-spec.md`](docs/transport-optimization-spec.md) — how to
   apply it to a new server architecture, as invariants with acceptance tests.
 - [`docs/quic-transport-optimization.md`](docs/quic-transport-optimization.md) — the
