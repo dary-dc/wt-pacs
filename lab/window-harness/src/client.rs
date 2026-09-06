@@ -379,7 +379,7 @@ async fn run_windowed(
             tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
         }
         // Ask first so depth can pipeline; then measure wait for this cursor.
-        asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
+        asks_sent += emit_window(control_send, outstanding, metrics, cursor, d, n, cfg.rtt_ms).await?;
         // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
         // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
         // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
@@ -392,7 +392,7 @@ async fn run_windowed(
         let mut m = metrics.lock().expect("metrics lock");
         m.settle();
     }
-    asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
+    asks_sent += emit_window(control_send, outstanding, metrics, wanted, d, n, cfg.rtt_ms).await?;
     wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
@@ -403,7 +403,7 @@ async fn run_windowed(
         }
         let fill_deadline = std::time::Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
         while std::time::Instant::now() < fill_deadline {
-            asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
+            asks_sent += emit_window(control_send, outstanding, metrics, wanted, d, n, cfg.rtt_ms).await?;
             wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
@@ -446,6 +446,7 @@ fn window_frames(center: u32, d: u32, n: u32) -> Vec<u32> {
 async fn emit_window(
     control_send: &mut wtransport::stream::SendStream,
     outstanding: &Arc<Mutex<HashSet<u32>>>,
+    metrics: &SharedMetrics,
     center: u32,
     d: u32,
     n: u32,
@@ -454,6 +455,15 @@ async fn emit_window(
     let frames = window_frames(center, d, n);
     let mut sent = 0u32;
     for frame in frames {
+        // Never re-ask a frame we already hold. A viewer does not re-request an image
+        // it has already decoded, and without this the window re-emits its whole span
+        // on every step: a 190-step trace over 38 unique frames asked ~1600 times, 42x
+        // redundancy, which on a 20 Mbps link is 51 MB and 20 s of pure self-inflicted
+        // load. Any trace that revisits a frame — i.e. any trace with a reversal — is
+        // uninterpretable without this.
+        if metrics.lock().expect("metrics").cache.contains(&frame) {
+            continue;
+        }
         {
             let mut o = outstanding.lock().expect("outstanding");
             if o.len() as u32 >= d && !o.contains(&frame) {
