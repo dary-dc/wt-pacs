@@ -197,6 +197,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "check-fastpath"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "exact-server",
+ "libc",
+]
+
+[[package]]
 name = "clap"
 version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,13 @@
+[package]
+name = "check-fastpath"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "check-fastpath"
+path = "src/main.rs"
+
+[dependencies]
+exact-server = { path = "../../server" }
+anyhow.workspace = true
+libc = "0.2"
