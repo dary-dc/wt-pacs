@@ -14,7 +14,7 @@ client over the public internet, indefinitely; possibly thousands of viewers.
 | decision | verdict | why |
 | -------- | ------- | --- |
 | **Congestion controller** | **Keep Cubic. Do not switch to BBR.** | Under real (congestive) loss BBR is 66 % worse at high RTT and never better. It only wins under injected loss on an uncongested path |
-| **Stream shape** | **Keep one shared stream.** | Per-frame is 25–67 % worse. Per-frame + `send_fairness(false)` only ties. The pre-registered bar was not met |
+| **Stream shape** | **Shared stays — as the incumbent, not because it was shown better.** | The head-of-line question is **still unresolved**. See §2 |
 | **Initial congestion window** | **Leave at quinn's default.** | ≤ 7 %, ranges overlapping. My earlier "largest lever" claim was wrong |
 | **GSO segment cap 10 → 32** | **Do it — but it is a density change, not a latency one.** | +17 % throughput, −21 % CPU/byte. Zero effect on p95 (verified as a negative control) |
 | **Chunked send path** | **Keep** (already the default on this branch) | −6…−14 % CPU/byte at every rate |
@@ -68,33 +68,58 @@ make from real sessions; it is not guessable.
 
 ---
 
-## 2 · Stream shape — the question three campaigns failed to answer
+## 2 · Stream shape — still unresolved, and now I know why
 
-Measured at 0.5 % and 2 % loss, under both uniform and clustered loss:
+**This section previously said "keep shared, strong evidence". That was wrong**, for a
+reason worth stating: the trace it used was strictly sequential (0…79 then 79…0, one step
+at a time), which is the one demand pattern where head-of-line blocking **cannot cost
+anything by construction** — the frame the client wants next is always the next frame in
+stream order. `CAMPAIGN_V2_ANALYSIS.md` already said exactly this: *"for ordered demand,
+in-order delivery matches the request pattern; head-of-line blocking is alignment, not a
+defect."*
 
-| condition | per-frame | per-frame + `send_fairness(false)` |
-| --------- | --------- | ---------------------------------- |
-| 60 ms, uniform | +25 % worse *(separated)* | −1.9 % *(tie)* |
-| 60 ms, clustered | +67 % worse *(separated)* | +0.5 % *(tie)* |
-| 150 ms, uniform | +51 % worse *(separated)* | +2.6 % *(tie)* |
-| 150 ms, clustered | +56 % worse *(separated)* | **−39 % better *(separated)*** |
+Head-of-line only bites on a **reversal**: the client asked 40, 41, 42, 43, the reader
+scrolls back, and frame 39 is queued behind three frames nobody wants any more.
 
-**Per-frame without FIFO scheduling loses cleanly in every condition**, confirming
-campaign v2's mechanism: concurrent streams fair-share bandwidth, so all of them finish
-late. `send_fairness(false)` — one connection-level flag — recovers that deficit
-completely, and is cheaper than the per-stream `set_priority` bookkeeping campaign v2
-proposed.
+### The proper test, twice, and it does not discriminate
 
-**Decision rule D3 required per-frame to beat shared by > 15 % at 0.5 % loss. It does
-not.** Shared stays. The −39 % at 150 ms with clustered loss is a real, separated result
-and the one lead worth following, but it was not the pre-registered condition, so it is a
-lead and not a decision.
+`lab/traces/radiologist_read.json` — burst-scroll, pause, reverse; four reversals, 45 %
+dwell time, 30 fps as a burst rate rather than a sustained demand. Cell W (5G/WiFi:
+50 ms, 20 Mbps, 1 % loss in bursts of 5), n=4:
 
-Caveat: E3 ran at depth 4, i.e. the same 0.68 × BDP uncongested path as §1's middle rows.
-The per-frame vs shared mechanism is about scheduling *between* streams and is not obviously
-BDP-sensitive, but this should be re-run congested before the −39 % is acted on.
+| frames | metric | shared | per-frame | per-frame + FIFO | verdict |
+| ------ | ------ | ------ | --------- | ---------------- | ------- |
+| 32 KB, depth 16 | p95 | 164 ms | 201 ms | 136 ms | **all overlap** |
+| 250 KB, depth 8 | p95 | 2061 ms | 3325 ms | 2093 ms | **all overlap** |
+| 250 KB, depth 8 | mean | 650 ms | 605 ms | 615 ms | **all overlap** |
 
----
+The 250 KB cell is the maximum-stress case available: one frame is 100 ms of
+serialisation, so a reversal strands ~0.8 s of stale data ahead of the wanted frame, and
+p95 is ~2 s — the transport is unambiguously on the critical path. **Nothing separates.**
+
+### What the numbers hint at, below the noise
+
+At 250 KB, per-frame's **median** wait is 744 ms against shared's 1689 ms — less than
+half — while its **p95** is worse (3325 vs 2061). That is the shape you would expect if
+out-of-order arrival lets the wanted frame jump the queue while fair-sharing stretches the
+tail. It is a coherent story and it is **not a result**: ranges overlap at n=4.
+
+### Why this is hard to measure, which may be the real finding
+
+With a realistic read pattern, a working client cache and a prefetch window, **only ~18 of
+191 steps ever wait on the transport at all** at 32 KB. Stream shape cannot matter much
+when the transport is rarely what the reader is waiting on. The question only becomes
+live at large frame sizes, and there the variance swamps the effect.
+
+### Position
+
+**Shared stays because it is what ships and nothing displaced it — not because it won.**
+Anyone reopening this needs n ≈ 20 per cell or a lower-variance rig, and should measure
+median and tail separately, since the two appear to move in opposite directions.
+
+One thing that *is* established, from the earlier uncongested campaign and consistent with
+campaign v2: **per-frame without FIFO scheduling is the worst option** in every condition
+measured. If per-frame is ever chosen, `send_fairness(false)` goes with it.
 
 ## 3 · Initial congestion window — my own claim, retracted
 
@@ -156,7 +181,7 @@ The levers that do move p95 are above the transport:
 | conclusion | strength | what would overturn it |
 | ---------- | -------- | ---------------------- |
 | Keep Cubic | **strong** — corrected rig, congestion verified, n=4, ranges separated, matches known BBRv1 behaviour | client telemetry showing non-congestive loss |
-| Keep shared stream | **strong for per-frame**, **moderate for FIFO** | re-running E3 congested; the 150 ms clustered-loss cell |
+| Keep shared stream | **none — unresolved.** Incumbent by default | n ≈ 20 per cell, or a lower-variance rig |
 | Initial window is not a lever | **strong** — two independent measurements | — |
 | GSO cap is worth 17 % | **strong** — corroborated by an independent thesis and upstream issue #2201 | — |
 | Nothing matters on a clean path | **weak** — netsim's own 1.2 ms load-dependent latency is larger than the effect | a real network |
@@ -173,3 +198,10 @@ The levers that do move p95 are above the transport:
 - MTU is unpinned across arms.
 - Cell-A resolution is below the simulator's own noise floor.
 - Fairness between competing flows — the main BBR risk — is **not measured at all**.
+- The harness re-asked frames it already held until 2026-09-06, flooding its own link on
+  any trace with a reversal (42× redundancy). Results from before that fix are not
+  comparable with results after it.
+- The controller conclusion was measured on **wired-style congestive loss**. The stated
+  use case is 5G / satellite / WiFi, where loss is substantially **non-congestive** — the
+  regime that favours BBR. Cells W and S exist for this and the controller answer should
+  be re-taken in them before it is trusted for this deployment.
