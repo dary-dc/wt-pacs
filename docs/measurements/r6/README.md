@@ -36,6 +36,8 @@ difference between cells cannot be a difference of link.
 | X1 | 0.1 % | 2 | 152 frames | deployment case: both mechanisms live |
 | X2 | 0 % | 1 | 137 frames | H5 alone — zero loss makes H4 impossible by construction |
 | X3 | 1 % | 8 | 35 frames | loss-dominant, weak stranding |
+| X3L | 1 % | 32 | 33 frames | X3 at **250 KB** frames — tests whether the penalty scales with frame size |
+| X3S | 1 % | 7 | 27 frames | X3 under the **scroll** trace — stranding by overrun, not displacement |
 | N0 | 0 % | 8 | 0 frames | **negative control** — all arms must tie |
 
 Step-scale is the calibrated operating point from E0-R6b, chosen once per cell on the
@@ -56,7 +58,10 @@ A **fixed-N pool is not an arm**: it needs a server change and this lane may not
 
 | file | what |
 | ---- | ---- |
-| `r6.tsv` | every run, including VOID rows |
+| `r6.tsv` | the main campaign — every run, including VOID rows |
+| `r6_250k.tsv` | X3L: the decisive cell at 250 KB frames, testing the mechanism's prediction |
+| `r6scrub.tsv` | X3S: the decisive cell under the scroll trace |
+| `r6scrub_scale6_VOIDED.tsv` | the run that voided 4 of 9 rows — kept as the evidence for E0-R6c |
 | `E0-validation.md` | instrument validation and calibration |
 
 ## Reading the TSV

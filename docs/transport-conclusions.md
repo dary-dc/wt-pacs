@@ -20,7 +20,7 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Keep one shared stream** — now measured on a rig that *can* produce head-of-line blocking, and won on a mechanism. Per-frame is **3.5× worse at 1 % loss** and never better anywhere. The textbook argument for per-frame is falsified: quinn re-queues a retransmitting stream to the **back** of the queue, so per-frame *defers* loss recovery behind other frames' backlogs (§2) |
+| **Stream shape** | **Keep one shared stream** — measured on a rig that *can* produce head-of-line blocking, and won on a mechanism that then survived a falsifiable prediction. Per-frame is **3.5× worse at 64 KB and 8.5× worse at a realistic 250 KB** and never better anywhere. The textbook argument for per-frame is falsified: quinn re-queues a retransmitting stream to the **back** of the queue, so per-frame *defers* loss recovery behind other frames' backlogs (§2) |
 | **Fixed-N pool** | **Still untested** — a server-side change, and this lane may not modify `server/`. R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95 |
@@ -142,6 +142,42 @@ rather than invented to fit the result:
 That predicts the sign and roughly the magnitude of the 440–460 ms absolute penalty
 measured in X3. **Receiver-side isolation is real, and sender-side retransmit deferral
 costs more.** The classic argument is right about the receiver and silent about the sender.
+
+### The mechanism made a falsifiable prediction, and it survived
+
+If the penalty really is *"wait behind up to D−1 whole frames"*, it must scale with **frame
+size**. That is a claim the 64 KB campaigns cannot test on their own, and it was written
+down — with a number — before the run.
+
+The cell was re-run at **250 KB**, the size `transport-optimization-spec.md` uses for a CT
+slice throughout. Everything else was held: same depth, rate, loss, and an operating point
+chosen so the demand/achievable ratio (0.64 vs 0.66) and the measured stranding (33 vs 33–35
+frames) matched. All 9 rows admissible, zero censoring, every arm delivering the same 655
+frames.
+
+| | shared | per-frame + FIFO | ratio | penalty |
+| --- | ------ | ---------------- | ----- | ------- |
+| **64 KB** | 182.2 ms | 637.1 ms | 3.5× | 455 ms |
+| **250 KB** | **372.7 ms** | **3159.5 ms** | **8.5×** | **2787 ms** |
+
+**Prediction: the penalty grows 3.9× with frame size. Measured: 6.1×.**
+
+**The direction and order are confirmed; my point estimate was 57 % low, and the reason is
+instructive.** The simple model counted only the *size* of each deferral. It omitted that a
+larger frame is also *hit more often*: at 1 % loss a 64 KB frame is 44 packets and has a
+36 % chance of losing one, while a 250 KB frame is 172 packets and has an **82 %** chance.
+Multiplying both effects predicts 9.0×, an overestimate — a frame that loses two packets
+does not pay the deferral twice. Measured 6.1× sits between the two bounds, which is where
+the mechanism says it should.
+
+The practically important form of this result:
+
+- **shared degrades sub-linearly** — 2.0× slower for 3.9× the bytes
+- **per-frame degrades super-linearly** — 5.0× slower for 3.9× the bytes
+
+**So the 64 KB campaigns understated the case.** At the frame size this product actually
+ships, the shared stream is not 3.5× better but **8.5× better**, and the gap widens with
+every increase in frame size.
 
 ### Robustness: a second reading pattern does not reverse it
 
