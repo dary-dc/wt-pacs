@@ -281,6 +281,13 @@ function sliceRiver(
   assert(linear !== 100, "linear interpolation differs from nearest-rank on this vector");
 }
 
+// Shared fixture with server and window-harness: N = 20, p95 → sorted[18] = 19
+{
+  const v = [...Array(19).keys()].map((i) => i + 1);
+  v.push(100);
+  assertEq(nearestRank(v, 95), 19, "nearest-rank p95 on the N=20 shared vector");
+}
+
 // Null ≠ 0 and binding_term excludes transfer when chunks==1
 {
   const tap = new Tap(cfg());
