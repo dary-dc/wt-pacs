@@ -1,0 +1,34 @@
+R5 — does one ring per session reintroduce threads at scale?
+
+The risk as written: 'Enough concurrent rings would force io-wq punting and could
+reintroduce threads — the exact property claim 4 rests on.'
+
+Cell: 84 MB study under a 64 MB cgroup memory cap so misses stay high as readers rise
+(failcnt 2.86M / 2.75M — the cap bound hard). Cold, depth 4, 256 asks, 5 repeats,
+two runs of the same configuration. `threads` is /proc/self/status, which counts
+io-wq workers: if the ring punts, they appear here.
+
+ readers       arm  threads r1  threads r2  miss% r1  miss% r2   cpu/ask r1   cpu/ask r2
+       1      pool          12          11      96.9      97.3       73,144       78,269
+       1    hybrid           5           5      94.9      94.9       23,599       23,134
+       1     uring           5           5     100.0     100.0       20,472       21,896
+
+      16      pool          80          77      53.9      54.2       44,510       56,266
+      16    hybrid           5           5      53.6      53.5       30,457       36,510
+      16     uring           5           5     100.0     100.0       31,190       40,083
+
+      64      pool         265         246      63.3      71.2       65,881       53,705
+      64    hybrid           5           5      60.7      64.8       51,230       44,640
+      64     uring           5           5     100.0     100.0       47,870       51,929
+
+     128      pool         227         190      77.3      71.2       66,986       71,024
+     128    hybrid           5           5      72.8      79.2       77,649       62,613
+     128     uring           5           5     100.0     100.0       75,341       62,592
+
+Reading:
+* `hybrid` and `uring` hold thread count at 5 at every reader count, in both runs,
+  with 50-80% of reads missing. **No io-wq punting appeared at 128 concurrent rings.**
+* `pool` is the arm that grows threads: it is the blocking pool doing what it is for.
+* Thread count is a structural difference, not a percentage: it needs no drift rule.
+* CPU/ask under this much pressure is noisy and is NOT quoted as a result here; the
+  claim is about thread count only.
