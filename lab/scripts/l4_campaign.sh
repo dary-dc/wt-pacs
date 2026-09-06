@@ -37,14 +37,18 @@ cell_params() {
     D) echo "30 25 0.0" ;;
     E) echo "75 10 0.0" ;;
     # Wireless profiles: exogenous radio loss on a congested path.
-    W) echo "25 20 1.0" ;;   # 5G / good WiFi:  50 ms RTT, 20 Mbps, 1 % radio loss
-    S) echo "300 8 1.0" ;;   # GEO satellite:  600 ms RTT,  8 Mbps, 1 % radio loss
+    W) echo "25 20 1.0" ;;   # 5G / good WiFi:  50 ms RTT, 20 Mbps, 1 % radio loss   BDP 125 kB
+    S) echo "300 8 1.0" ;;   # GEO satellite:  600 ms RTT,  8 Mbps, 1 % radio loss   BDP 600 kB
+    # BDP-separating controls. Previously every cell had rate x RTT constant, so an RTT
+    # effect could not be told from a rate effect. These break the coupling deliberately.
+    L) echo "25 4 1.0" ;;    # low BDP:   50 ms,  4 Mbps, 1 %                          BDP  25 kB
+    H) echo "300 40 1.0" ;;  # high BDP: 600 ms, 40 Mbps, 1 %                          BDP 3.0 MB
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
 }
 
 mkdir -p "$(dirname "$OUT")"
-[ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tfixture\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tfill_rate\tpeak_outstanding\twait_samples\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\tbytes_on_wire\tframes_on_wire\tnz_n\tnz_p50\tnz_p95\tnz_p99\tnz_max\n' > "$OUT"
+[ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tfixture\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tfill_rate\tpeak_outstanding\twait_samples\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\tbytes_on_wire\tframes_on_wire\tnz_n\tnz_p50\tnz_p95\tnz_p99\tnz_max\tloss_burst\tns_qdrop\tverdict\n' > "$OUT"
 
 cpu_of() { awk -v t="$TICK" '{print ($14+$15)/t}' /proc/"$1"/stat 2>/dev/null || echo 0; }
 
@@ -72,7 +76,7 @@ for RUN in $(seq 1 "$REPEATS"); do
 
       "$NETSIM" --listen 127.0.0.1:"$NPORT" --upstream 127.0.0.1:"$SPORT" \
         --delay-ms "$DELAY" --rate-mbps "$RATE" --loss-pct "$LOSS" --queue-pkts 500 \
-        --loss-burst "${LOSS_BURST:-1}" --seed "$((RUN * 7919 + 13))" \
+        --loss-burst "${LOSS_BURST:-1}" --seed "$((RUN * 7919 + 13))" --stats true \
         > /tmp/l4_netsim.log 2>&1 &
       NS=$!; sleep 0.4
       QDROP_BEFORE=$(grep -c 'down_queue=[1-9]' /tmp/l4_netsim.log 2>/dev/null || echo 0)
@@ -97,11 +101,31 @@ for RUN in $(seq 1 "$REPEATS"); do
       W1=$(date +%s.%N); S1=$(cpu_of "$SRV"); N1=$(cpu_of "$NS")
       kill "$NS" "$SRV" 2>/dev/null || true; wait "$NS" "$SRV" 2>/dev/null || true
 
+      QDROP=$(grep -o 'down_queue=[0-9]*' /tmp/l4_netsim.log 2>/dev/null | tail -1 | cut -d= -f2)
       python3 - "$EXP" "$LABEL" "$CELL" "$((DELAY*2))" "$RATE" "$LOSS" "$FIXTURE" "$DEPTH" \
-               "$RUN" "$S0" "$S1" "$CLI_CPU" "$N0" "$N1" "$W0" "$W1" "$OUT" /tmp/l4_run.json <<'PYEOF'
+               "$RUN" "$S0" "$S1" "$CLI_CPU" "$N0" "$N1" "$W0" "$W1" "$OUT" /tmp/l4_run.json \
+               "${LOSS_BURST:-1}" "${QDROP:-0}" <<'PYEOF'
 import json, sys
 (exp, arm, cell, rtt, rate, loss, fx, depth, run,
- s0, s1, cli, n0, n1, w0, w1, out, jf) = sys.argv[1:19]
+ s0, s1, cli, n0, n1, w0, w1, out, jf, lb, qd) = sys.argv[1:21]
+
+
+def verdict(m, cli_cpu, wall, depth):
+    """Pre-registered stop conditions, evaluated per row so a void cannot be quoted.
+
+    Previously these lived only in the analyser, and three rows with p95 == 0 were
+    quoted as results anyway. A row now carries its own verdict."""
+    bad = []
+    if m["p95_wait_ms"] == 0.0:
+        bad.append("p95=0")
+    if m["peak_outstanding"] < depth:
+        bad.append("depth")
+    if wall > 0 and cli_cpu / wall >= 0.9:
+        bad.append("client-bound")
+    # A percentile over a thin tail is an outlier, not a percentile.
+    if len([x for x in m.get("wait_ms", []) if x > 0.0]) < 30:
+        bad.append("thin-tail")
+    return "VOID:" + "+".join(bad) if bad else "ok"
 try:
     m = json.load(open(jf))
 except Exception:
@@ -133,7 +157,8 @@ row = "\t".join([exp, arm, cell, rtt, rate, loss, fx, depth, run,
                  str(m["peak_outstanding"]), str(m["wait_samples"]),
                  "%.3f" % (float(s1)-float(s0)), "%.3f" % float(cli),
                  "%.3f" % (float(n1)-float(n0)), "%.2f" % wall,
-                 str(m["bytes_on_wire"]), str(m["frames_on_wire"])] + nz_stats(m))
+                 str(m["bytes_on_wire"]), str(m["frames_on_wire"])] + nz_stats(m)
+                + [lb, qd, verdict(m, float(cli), wall, int(depth))])
 print(row)
 open(out, "a").write(row + "\n")
 PYEOF
