@@ -199,6 +199,11 @@ def summarize(cell: dict) -> dict:
             "server_prepare_us_p50": pct([r["server"]["prepare_us"].get("p50", float("nan")) for r in rs], 50),
             "server_send_us_p50": pct([r["server"]["send_us"].get("p50", float("nan")) for r in rs], 50),
             "server_bytes": rs[0]["server_bytes"],
+            # The shaped link is only a control if it dropped the same on both arms.
+            "shim_down_drops": sum((r["shim"] or {}).get("down", {}).get("drops", 0) for r in rs)
+            if any(r["shim"] for r in rs) else None,
+            "shim_down_packets": sum((r["shim"] or {}).get("down", {}).get("packets", 0) for r in rs)
+            if any(r["shim"] for r in rs) else None,
             "js_heap_peak_median": pct([r["js_heap"]["peak"] for r in rs
                                         if r.get("js_heap") and r["js_heap"].get("peak")], 50)
             if any(r.get("js_heap") and r["js_heap"].get("peak") for r in rs) else None,
@@ -265,7 +270,10 @@ def render(res: dict) -> str:
                       ("server_send_us_p50", "{:.0f}"), ("server_bytes", "{:.0f}"),
                       ("mean_frame_bytes", "{:.0f}"), ("rows_usable", "{:.0f}"),
                       ("rows_total", "{:.0f}"), ("busy_rows_excluded", "{:.0f}"),
-                      ("long_tasks_in_window", "{:.0f}")):
+                      ("long_tasks_in_window", "{:.0f}"), ("shim_down_drops", "{:.0f}"),
+                      ("shim_down_packets", "{:.0f}")):
+        if any(res["groups"][n][key] is None for n in res["groups"]):
+            continue
         L.append(f"  {key:22s}" + "".join(f"{fmtd.format(res['groups'][n][key]):>16s}"
                                           for n in res["groups"]))
     L.append("")
