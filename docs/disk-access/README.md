@@ -5,6 +5,7 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 | Doc | What |
 | --- | --- |
 | **[`READ-PATH-DECISION.md`](READ-PATH-DECISION.md)** | **Start here.** Which read path for which case, from a 3 600-cell campaign over three independent runs. Supersedes the io_uring verdicts in the docs below |
+| [`SCOREBOARD.md`](SCOREBOARD.md) | The measurement table behind the decision: four arms × five metrics × three regimes, plus a **claim-by-claim evidence grading**, the ranked threats to validity, and the proposed next studies with abort conditions |
 | [`adr.md`](adr.md) | Accepted decision (`RWF_NOWAIT` streaming; pool only on the miss) |
 | [`RERUN.md`](RERUN.md) | Evidence: instrument, cells, TSVs here, and what the instrument cannot see |
 | [`SEND-BUDGET.md`](SEND-BUDGET.md) | What the per-frame number is *made of*, per-op io_uring vs `preadv2`, the send path over real quinn, and the frame cache |

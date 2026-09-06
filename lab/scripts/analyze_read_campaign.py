@@ -160,6 +160,69 @@ def section_surface(rows):
                       f"{verdict(med, max(agree, len(dc) - agree), len(dc)):>8}")
 
 
+def section_scoreboard(rows):
+    """Every arm against `pool` on every metric, per regime and in-flight count.
+
+    The surface answers "which arm"; this answers "by how much, on what, and at what cost
+    in threads" — the four numbers that have to be read together. An arm that wins CPU while
+    halving throughput has not won, and neither has one that wins both while holding 90 OS
+    threads, so all four are printed side by side rather than in separate sections.
+
+    Latency (`dp50`) is reported for completeness but is only comparable in the `miss`
+    regime: on the hit path the arms start their clocks at different points (see
+    READ-PATH-DECISION.md §Latency), which inflates the ring arms' warm p50.
+    """
+    cost = [r for r in rows if not r["phase"].startswith("E_")]
+    by = defaultdict(dict)
+    for r in cost:
+        k = (r["label"], r["temp"], r["shape"], r["size"], r["depth"], r["readers"],
+             r["prefetch"], r["repeat"])
+        by[k][r["arm"]] = r
+    def inflight(r):
+        n = r["depth"] * r["readers"]
+        return 1 if n == 1 else (4 if n <= 4 else (16 if n <= 16 else 64))
+    def bucket(m):
+        return "hit" if m < 5 else ("mix" if m < 50 else "miss")
+    agg = defaultdict(lambda: defaultdict(list))
+    for v in by.values():
+        p = v.get("pool")
+        if not p or not p["cpu_ns_per_ask"] or not p["asks_per_s"]:
+            continue
+        k = (bucket(p["miss_pct"]), inflight(p))
+        for arm in ("pool", "hybrid", "uring", "pooled_pread"):
+            a = v.get(arm)
+            if not a:
+                continue
+            g = agg[k + (arm,)]
+            g["abs"].append(a["cpu_ns_per_ask"])
+            g["th"].append(a["threads"])
+            if arm != "pool":
+                g["cpu"].append((a["cpu_ns_per_ask"] - p["cpu_ns_per_ask"])
+                                / p["cpu_ns_per_ask"] * 100.0)
+                g["tp"].append(a["asks_per_s"] / p["asks_per_s"])
+                g["p50"].append((a["p50_ns"] - p["p50_ns"]) / max(p["p50_ns"], 1) * 100.0)
+    print("\n" + "=" * 100)
+    print("SCOREBOARD — every arm vs pool, by regime x reads in flight")
+    print("regime = pool's miss rate: hit <5%, mix 5-50%, miss >=50%. tput >1 = more asks/s")
+    print("=" * 100)
+    print(f"{'reg':>4} {'inflt':>5} {'arm':>13} {'cpu_ns':>8} {'dCPU':>7} {'cheaper':>8} "
+          f"{'tput':>6} {'dp50':>8} {'thr med/max':>11} {'n':>5}")
+    for reg in ("hit", "mix", "miss"):
+        for inf in (1, 4, 16, 64):
+            for arm in ("pool", "hybrid", "uring", "pooled_pread"):
+                g = agg.get((reg, inf, arm))
+                if not g:
+                    continue
+                d = f"{statistics.median(g['cpu']):+.0f}%" if g["cpu"] else "base"
+                sg = (f"{sum(1 for x in g['cpu'] if x < 0)}/{len(g['cpu'])}"
+                      if g["cpu"] else "-")
+                t = f"{statistics.median(g['tp']):.2f}x" if g["tp"] else "-"
+                pp = f"{statistics.median(g['p50']):+.0f}%" if g["p50"] else "-"
+                print(f"{reg:>4} {inf:>5} {arm:>13} {statistics.median(g['abs']):>8.0f} "
+                      f"{d:>7} {sg:>8} {t:>6} {pp:>8} "
+                      f"{statistics.median(g['th']):>4.0f}/{max(g['th']):<6} {len(g['abs']):>5}")
+
+
 def section_worst_cases(rows):
     """The audit behind "never materially worse": the whole hybrid-vs-pool distribution.
 
@@ -427,7 +490,8 @@ def main():
     rows = load(sys.argv[1])
     print(f"loaded {len(rows)} cells from {sys.argv[1]}")
     want = set(sys.argv[2:]) or None
-    for name, fn in (("surface", section_surface), ("worst", section_worst_cases),
+    for name, fn in (("surface", section_surface), ("scoreboard", section_scoreboard),
+                     ("worst", section_worst_cases),
                      ("grid", section_grid),
                      ("prefetch", section_prefetch),
                      ("readers", section_readers), ("size", section_size),
