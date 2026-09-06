@@ -6,19 +6,29 @@ export type FodMsg =
   | { op: "end_session" }
   | { op: "frame_error"; frame_index: number; reason?: string };
 
+// One codec pair for the module. (Measured 2026-09-06: constructing a TextEncoder per call costs
+// nothing observable in Chromium 141 or Node 22 — this is tidiness, not speed.)
+const utf8Encoder = new TextEncoder();
+const utf8Decoder = new TextDecoder();
+
 export function encodeFodMsg(msg: FodMsg): Uint8Array {
-  const body = new TextEncoder().encode(JSON.stringify(msg));
+  const body = utf8Encoder.encode(JSON.stringify(msg));
   const out = new Uint8Array(4 + body.length);
   new DataView(out.buffer).setUint32(0, body.length, true);
   out.set(body, 4);
   return out;
 }
 
+/** Decode a framed message: `[4B LE len][JSON body]`. */
 export function decodeFodMsg(bytes: Uint8Array): FodMsg {
   if (bytes.length < 4) throw new Error("FodMsg too short");
   const len = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true);
-  const body = bytes.subarray(4, 4 + len);
-  return JSON.parse(new TextDecoder().decode(body)) as FodMsg;
+  return decodeFodBody(bytes.subarray(4, 4 + len));
+}
+
+/** Decode the JSON body alone — for a reader that has already consumed the length prefix. */
+export function decodeFodBody(body: Uint8Array): FodMsg {
+  return JSON.parse(utf8Decoder.decode(body)) as FodMsg;
 }
 
 /** Frame envelope: [4B BE display_index][codestream…] */

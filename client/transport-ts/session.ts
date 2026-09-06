@@ -4,7 +4,7 @@
  */
 
 import {
-  decodeFodMsg,
+  decodeFodBody,
   encodeFodMsg,
   hexToBytes,
   MAX_FRAME_LEN,
@@ -332,9 +332,5 @@ async function readFodFrom(
     if (done) throw new Error("control stream ended mid-message");
     if (value) buf.push(value);
   }
-  const body = buf.take(bodyLen);
-  const full = new Uint8Array(4 + bodyLen);
-  full.set(header, 0);
-  full.set(body, 4);
-  return decodeFodMsg(full);
+  return decodeFodBody(buf.take(bodyLen));
 }
