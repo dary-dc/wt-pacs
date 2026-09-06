@@ -49,4 +49,26 @@ e4() {
   done
 }
 
+# R-series: the campaigns after the second adversarial review. These use the jump-bearing
+# trace (the only one that can produce a head-of-line miss), the fixed harness (no
+# re-asking of in-flight frames), per-row stop-condition verdicts, and nz_p95 as the
+# metric. Everything before the R-series is superseded.
+JUMP="$ROOT/lab/traces/radiologist_jump.json"
+
+# R1 — controller, in the deployment's own regime. Cubic cannot congest a 1%-loss
+# wireless link (Mathis: 14% of 5G, 3% of satellite), so this is the operating point.
+r1() {
+  EXP=r1 CELLS="W S L H" FIXTURE=frames_32k DEPTH=8 TRACE="$JUMP" LOSS_BURST=5   OUT="$OUTDIR/r1_controller.tsv"   ARMS="cubic|ENV:QUINN_INITIAL_WINDOW=12000 --stream-mode shared --congestion cubic;bbr|ENV:QUINN_INITIAL_WINDOW=12000 --stream-mode shared --congestion bbr"   bash lab/scripts/l4_campaign.sh "$R"
+}
+
+# R2 — stream shape, with jumps and with the transport on the critical path.
+r2() {
+  EXP=r2 CELLS="W S" FIXTURE=frames_250k DEPTH=8 TRACE="$JUMP" LOSS_BURST=5   OUT="$OUTDIR/r2_stream_shape.tsv"   ARMS="shared|--stream-mode shared --congestion cubic;perframe|--stream-mode per-frame --congestion cubic;perframe_fifo|--stream-mode per-frame --congestion cubic --send-fairness false"   bash lab/scripts/l4_campaign.sh "$R"
+}
+
+# R3 — stream shape under the controller R1 selects, in case the two interact.
+r3() {
+  EXP=r3 CELLS="W" FIXTURE=frames_250k DEPTH=8 TRACE="$JUMP" LOSS_BURST=5   OUT="$OUTDIR/r3_shape_x_controller.tsv"   ARMS="shared_bbr|--stream-mode shared --congestion bbr;perframe_fifo_bbr|--stream-mode per-frame --congestion bbr --send-fairness false"   bash lab/scripts/l4_campaign.sh "$R"
+}
+
 for e in "$@"; do "$e"; done
