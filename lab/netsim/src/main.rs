@@ -223,6 +223,19 @@ async fn main() -> Result<()> {
     let down_counters = Arc::new(std::sync::Mutex::new(Counters::default()));
 
     // One upstream socket per client address, so the server sees distinct peers.
+    //
+    // LIMITATION, and it matters for one experiment in particular: each client also gets
+    // its OWN `pacer`, and therefore its own queue and its own rate limiter. Two clients
+    // through one netsim do **not** share a bottleneck — they get one each, at the full
+    // configured rate.
+    //
+    // So netsim cannot answer the competing-flow question ("does a BBR flow starve a Cubic
+    // neighbour?"). Run it here and both flows get full rate, which reads as "perfectly
+    // fair" when in truth they never competed. Use the Oracle rig, where `tc netem` on one
+    // egress interface is genuinely one shared queue — see
+    // docs/ORACLE-RIG-AGENT-GUIDE.md. Making netsim share a bottleneck across clients is
+    // possible but is a new instrument that would need its own validation before any
+    // fairness number from it could be believed.
     let mut clients: HashMap<SocketAddr, mpsc::Sender<(Vec<u8>, Option<SocketAddr>, Instant)>> =
         HashMap::new();
     let mut buf = vec![0u8; 65535];
