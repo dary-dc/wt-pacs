@@ -36,6 +36,17 @@ Both speak the same wire (FoD on bidi control + envelope on server uni streams).
 The WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
 
 
+## Transport performance
+
+- [`docs/transport-conclusions.md`](docs/transport-conclusions.md) — **the answer**: which
+  approach wins for which case, and which to use here. Start here.
+- [`docs/transport-assumption-audit.md`](docs/transport-assumption-audit.md) — the premises
+  those conclusions rest on, and which ones would invalidate them. Read with the above.
+- [`docs/transport-optimization-spec.md`](docs/transport-optimization-spec.md) — how to
+  apply it to a new server architecture, as invariants with acceptance tests.
+- [`docs/quic-transport-optimization.md`](docs/quic-transport-optimization.md) — the
+  measurement record behind it, including which of its own numbers not to trust.
+
 ## Provenance
 
 Public MIT extract of work that began in a private codebase. Names, license,
