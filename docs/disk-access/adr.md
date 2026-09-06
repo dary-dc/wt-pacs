@@ -5,6 +5,34 @@
 [`SEND-BUDGET.md`](SEND-BUDGET.md)
 **Supersedes:** the 2026-08-31 always-touch decision (`git show be78860:docs/disk-access/adr.md`)
 
+> ### Standing as of 2026-09-06 — read this before acting on the decision below
+>
+> **What ships is still right, and it is what this ADR says.** The decision below —
+> `RWF_NOWAIT` inline, `spawn_blocking` for the shortfall — is implemented in `server/` and is
+> the correct choice for the workload this ADR measured, which fixed the miss rate at **~0**.
+> Nothing here is withdrawn.
+>
+> **A better shape has since been measured, and it is conditional on one number.** The
+> read-path campaign ([`READ-PATH-DECISION.md`](READ-PATH-DECISION.md), four hosts, six runs)
+> finds io_uring on the *miss* path worth **−42% to −73% CPU per read, RESOLVED on every host
+> and every run**. The best shape is **`hybrid_lazyring`**: this ADR's path exactly, plus a
+> ring built on the *first miss* rather than at session start
+> ([`S5-CONTROL-ARM.md`](S5-CONTROL-ARM.md)). A session that never misses never builds one, so
+> it costs nothing on the warm workload this ADR is about.
+>
+> **The gate is the miss rate, and that is a layout decision nobody has taken yet.** The win
+> exists only where reads miss, and whether reads miss is set by how frames are laid out on
+> disk, not by study size ([`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md)): a strided layout steps
+> to 99% miss under pressure, a grouped one holds at 0.5%. Past that cliff the layout is worth
+> 17.6× and the read path 2–4×; before it the layout is worth 1.50×, and the read path is the
+> only lever left.
+>
+> **So:** keep this decision while the workload is warm-dominated. Adopt `hybrid_lazyring`
+> when the layout design lands and leaves reads missing — the arm is in
+> `lab/disk-access-bench`, and the split justifying it reruns with `lab/scripts/s5_split.py`.
+> The one thing not to do is read the two documents as disagreeing: they measured different
+> miss rates, and each is right at the one it measured.
+
 ## Context
 
 `FrameStore` serves immutable HTJ2K frames from an SBND file. Studies can exceed RAM (DBT).
