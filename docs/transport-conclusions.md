@@ -224,10 +224,22 @@ open quinn issue #2201.
 
 ---
 
-## 4 · What actually sets p95, and it is not a transport knob
+## 4 · The levers above the transport, which are still the bigger ones
 
-With a realistic read, a prefetch window and a working cache, **only ~8 % of steps ever
-wait on the transport**; the rest are cache hits. The levers above the transport dominate:
+**Correction.** An earlier edition said "only ~8 % of steps ever wait on the transport".
+That figure came from the closed-loop reader on the *easiest* cell, and it understated the
+transport's role. Re-measured open-loop, the share of steps that actually wait is:
+
+| cell | steps that waited |
+| ---- | ----------------- |
+| N0 — no loss, reader keeps up | 8 % |
+| X3 — 1 % loss, slow reader | 13 % |
+| X1 — 0.1 % loss, fast reader | 37 % |
+| X2 — no loss, fast reader | 52 % |
+
+So on anything resembling a real link, **a third to a half of steps wait on the network**,
+not 8 %. The transport is not a rounding error. The levers below still dominate, but they
+are now "bigger" rather than "everything":
 
 1. **Progressive delivery.** HTJ2K is progressive; a truncated resolution-ordered prefix
    is a viewable image. First-displayable becomes one round trip regardless of frame size,
