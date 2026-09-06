@@ -18,7 +18,14 @@ The rule is `RERUN.md` §Precision, applied mechanically: a difference counts on
 |median| >= 28.5% **and** sign agreement >= 0.8n **and** it keeps its sign across runs.
 Regime is read off `pool`'s miss rate so every arm in a cell is classified identically.
 
+**Compare campaigns only on a shared cell population.** A regime bucket is whatever cells
+land in it, so a campaign that includes `C_readers` and one that does not are not comparable
+bucket-for-bucket — v25's L-on-mix reads a flat tie with `C_readers` in and RESOLVED at -53%
+with it out, on the same runs. Pass `--phases` to restrict every file to the same phases;
+without it, a warning is printed whenever the files disagree about which phases they contain.
+
     lab/scripts/s5_split.py docs/disk-access/v24_s5_loop_vs_ring.tsv [more.tsv ...]
+    lab/scripts/s5_split.py --phases A_stride,A_sweep v25_*.tsv v28_*.tsv
 """
 import csv
 import math
@@ -35,12 +42,21 @@ def regime(miss_pct: float) -> str:
     return "hit" if miss_pct < 5 else ("miss" if miss_pct >= 50 else "mix")
 
 
-def load(path):
-    cells = {}
+def phase_of(label: str) -> str:
+    """`run1_A_stride` -> `A_stride`. The phase is what decides which cells exist."""
+    return label.split("_", 1)[1] if "_" in label else label
+
+
+def load(path, phases=None):
+    cells, seen = {}, set()
     with open(path, newline="") as fh:
         for r in csv.DictReader(fh, delimiter="\t"):
+            ph = phase_of(r["label"])
+            seen.add(ph)
+            if phases and ph not in phases:
+                continue
             cells.setdefault(tuple(r[k] for k in KEY), {})[r["arm"]] = r
-    return cells
+    return cells, seen
 
 
 def deltas(cells, a, b, run):
@@ -71,10 +87,26 @@ def verdict(vals):
 
 
 def main():
-    if len(sys.argv) < 2:
+    args = sys.argv[1:]
+    phases = None
+    if args and args[0] == "--phases":
+        phases = set(args[1].split(","))
+        args = args[2:]
+    if not args:
         sys.exit(__doc__)
-    for arg in sys.argv[1:]:
-        cells = load(Path(arg))
+
+    # Comparing buckets across files only means something if the same cells feed them.
+    if len(args) > 1 and phases is None:
+        present = {a: load(Path(a))[1] for a in args}
+        if len({frozenset(v) for v in present.values()}) > 1:
+            print("WARNING: these files do not contain the same phases, so their regime")
+            print("buckets are not comparable. Re-run with --phases <shared,phases>.")
+            for a, v in present.items():
+                print(f"  {Path(a).name}: {','.join(sorted(v))}")
+            print()
+
+    for arg in args:
+        cells, _ = load(Path(arg), phases)
         runs = sorted({k[0].split("_")[0] for k in cells})
         arms = {a for v in cells.values() for a in v}
         pairs = [

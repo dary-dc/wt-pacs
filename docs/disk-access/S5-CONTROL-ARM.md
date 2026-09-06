@@ -140,9 +140,24 @@ Against `hybrid` directly it is **−10.9 / −9.0% on hits** and a tie in mix a
 (−0.9/+7.1%, +1.9/+3.4%): **deferring construction costs nothing where the ring is needed,
 and saves the ring entirely where it is not.**
 
-This host has 4 vCPU, where the loop term is only a tie. On 8 CPU the loop resolves at
-−33.6%, so the lazy arm's hit-regime advantage should be **larger** there, not smaller — that
-is the one cell still to run.
+~~This host has 4 vCPU, where the loop term is only a tie. On 8 CPU the loop resolves at
+−33.6%, so the lazy arm's hit-regime advantage should be **larger** there, not smaller.~~
+
+**That prediction was wrong, and wrong structurally rather than by luck.** On 8 CPU the lazy
+arm's hit advantage is **−3.2 / −2.9%** against `hybrid`, *smaller* than the sandbox's
+−10.9 / −9.0% ([`v28_lazyring_laptop-btrfs.tsv`](v28_lazyring_laptop-btrfs.tsv)).
+
+`hybrid_lazyring` and `hybrid` share **both** the ring-shaped loop and the miss mechanism —
+the only difference between them is whether a ring is built when nothing misses. So their
+delta is the **idle-ring term alone**, which is R measured in the hit regime. The loop term L
+sits inside both arms and cannot widen the gap between them. "L resolves on 8 CPU" is true
+and irrelevant to this comparison; what governs it is the idle ring, which is simply cheaper
+on that host (**+5.4 / +4.6%** against the sandbox's **+17.5 / +14.2%**), so there is less to
+save.
+
+What does hold is the part that matters: deferring construction costs **nothing** where the
+ring is needed — mix −1.2 / +0.7%, miss +0.2 / +0.0%, tighter than the sandbox's
++1.9 / +3.4%. The design is free everywhere; it just buys less on some hosts.
 
 ## Cost and caveats
 

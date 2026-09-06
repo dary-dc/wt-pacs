@@ -11,12 +11,18 @@ been designed yet — how should the server read frame bytes?*
 > more strongly there; what changed is *why* we are miss-dominated, and how much the choice is
 > worth relative to the disk layout.
 
-> **The margin is confirmed on four hosts, and its attribution is now measured too.** `pool`
-> and `hybrid` reach a cache hit through two different reader loops, which raised the question
-> of whether the loop rather than io_uring was earning the win (**R8**). A control arm
-> settled it ([`S5-CONTROL-ARM.md`](S5-CONTROL-ARM.md), two runs): the **loop is a tie in
-> every regime**, the **ring is RESOLVED at −56% mix and −71% miss**. The recommendation below
-> stands, and now stands for the stated reason.
+> **The margin is confirmed on four hosts, and its attribution is measured — six runs across
+> two core counts.** `pool` and `hybrid` reach a cache hit through two different reader loops,
+> which raised whether the loop rather than io_uring earned the win (**R8**). A control arm
+> split it ([`S5-CONTROL-ARM.md`](S5-CONTROL-ARM.md)). **The ring is RESOLVED on misses on
+> every host and every run (−42 to −73%)** — that is the substance of the recommendation, and
+> it never wavered. **The loop is a second, smaller, core-dependent term**: nothing on 4 vCPU,
+> RESOLVED in mix on 8 CPU, and on hits straddling the 28.5% threshold (pooled median −28.8%
+> over four runs). `hybrid` already has the ring-shaped loop, so it collects that term
+> wherever it exists. **[`hybrid_lazyring`](S5-CONTROL-ARM.md) builds the ring on the first
+> miss instead of at session start** — measured free in mix and miss on both core counts, and
+> better on hits by the idle-ring cost (+4.6 to +17.5%, host-dependent). It is the recommended
+> shape.
 
 > **The measurement table, the evidence grading and the proposed next studies are in
 > [`SCOREBOARD.md`](SCOREBOARD.md).** This document argues the decision; that one shows the
