@@ -68,14 +68,18 @@ export class Tap {
     this.stopLongTasks = watchLongTasks((span) => this.longTaskSpans.push(span));
   }
 
-  /** Harness: intent to show one frame, or bulk T0 when frameIndex is omitted. */
+  /**
+   * Harness: intent to show one frame, or bulk T0 when frameIndex is omitted. First write wins:
+   * the shell stamps when the step became due; the session wrapper's later stamp at call time
+   * only applies when nothing is pending.
+   */
   gesture(frameIndex?: number) {
     const t = nowUs();
     if (frameIndex == null) {
       this.bulkGesture = t;
       return;
     }
-    this.pendingGestures.set(frameIndex, t);
+    if (!this.pendingGestures.has(frameIndex)) this.pendingGestures.set(frameIndex, t);
   }
 
   nextStreamId(): number {

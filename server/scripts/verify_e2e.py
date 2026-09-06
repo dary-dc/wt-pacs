@@ -69,6 +69,17 @@ def main() -> int:
         help="with --telemetry: which FoD ask cell to autorun",
     )
     parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--n", type=int, default=None, help="steps to run (default: one pass over the study)")
+    parser.add_argument("--depth", type=int, default=1, help="on-demand asks in flight (D); 1 is the control")
+    parser.add_argument("--trace", default=None, help="URL path of a lab trace, e.g. /lab/traces/x3_short_scroll.json")
+    parser.add_argument("--interval-ms", type=int, default=None, help="pacing between steps becoming due")
+    parser.add_argument("--frames", type=int, default=None, help="study frame count override (remote runs)")
+    parser.add_argument("--run-timeout-s", type=int, default=300)
+    parser.add_argument(
+        "--allow-void",
+        action="store_true",
+        help="keep going when a client report is not valid (written as telemetry-client.VOID.json)",
+    )
     parser.add_argument(
         "--interleave",
         action="store_true",
@@ -185,6 +196,8 @@ def main() -> int:
             if not server_bin.is_file():
                 raise SystemExit(f"exact-server binary not found under {env['CARGO_TARGET_DIR']}")
 
+        server_info: dict = {}
+
         def start_exact_server(server_env: dict) -> subprocess.Popen:
             cmd = [
                 "stdbuf",
@@ -217,7 +230,12 @@ def main() -> int:
                 if line:
                     out_buf += line
                     sys.stdout.write(f"[server] {line}")
-                    if "wt_url=" in line:
+                    if "=" in line:
+                        k, _, v = line.strip().partition("=")
+                        if k and " " not in k:
+                            server_info[k] = v
+                    # `telemetry=` is the last banner line; `frames=` and `bind=` precede it.
+                    if line.startswith("telemetry="):
                         return proc
                 if proc.poll() is not None:
                     raise SystemExit(f"exact-server exited early:\n{out_buf}")
@@ -326,6 +344,10 @@ def main() -> int:
             meas_root.mkdir(parents=True, exist_ok=True)
 
         study_slug = study.stem.replace(".sbnd", "") if study.suffix == ".sbnd" else study.stem
+        try:
+            git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        except Exception:  # noqa: BLE001 — a harvest outside a checkout still runs
+            git_sha = None
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -350,7 +372,7 @@ def main() -> int:
                     shape = "shaped50" if remote_wt else "local"
                     run_dir = (
                         meas_root
-                        / f"{stamp}-{study_slug}-{label}-{args.stream_mode}-{args.cell}-{shape}-r{rep}"
+                        / f"{stamp}-{study_slug}-{label}-{args.stream_mode}-{args.cell}-d{args.depth}-{shape}-r{rep}"
                     )
                     run_dir.mkdir(parents=True, exist_ok=True)
                     server_report = run_dir / "telemetry-server.json"
@@ -375,6 +397,16 @@ def main() -> int:
                     q.append("autorun=1")
                     q.append(f"cell={args.cell}")
                     q.append(f"stream_mode={args.stream_mode}")
+                    q.append(f"d={args.depth}")
+                    if args.n is not None:
+                        q.append(f"n={args.n}")
+                    frames = args.frames or (int(server_info["frames"]) if server_info.get("frames") else None)
+                    if frames:
+                        q.append(f"frames={frames}")
+                    if args.trace:
+                        q.append(f"trace={args.trace}")
+                    if args.interval_ms is not None:
+                        q.append(f"interval_ms={args.interval_ms}")
                 qs = ("?" + "&".join(q)) if q else ""
                 url = f"http://127.0.0.1:{args.port_http}{path}{qs}"
                 print(f"verify {label} rep={rep}: {url}")
@@ -397,42 +429,57 @@ def main() -> int:
                     raise SystemExit(f"{label} boot failed:\n{log}\npageerrors={errors}")
 
                 if args.telemetry:
-                    # Fill autorun logs "bulk <index> …" once per frame (0..2).
-                    if args.cell == "fill":
-                        wait_ms = 180_000 if remote_wt else 60_000
-                        page.wait_for_function(
-                            """() => {
-                              const t = document.getElementById('log')?.textContent || '';
-                              return t.split('\\n').filter((l) => l.startsWith('bulk ')).length >= 3;
-                            }""",
-                            timeout=wait_ms,
-                        )
-                    else:
-                        page.wait_for_function(
-                            """() => (document.getElementById('log')?.textContent || '').includes('frame0 bytes')""",
-                            timeout=60_000,
-                        )
+                    # The shell resolves __wtpacsDone after run_end + session.close().
+                    page.wait_for_function(
+                        "() => globalThis.__wtpacsDone === true || globalThis.__wtpacsError != null",
+                        timeout=args.run_timeout_s * 1000,
+                    )
                     log = page.locator("#log").inner_text()
-                    if args.cell == "fill" and log.count("bulk ") < 3:
-                        raise SystemExit(f"{label}: fill incomplete before harvest:\n{log}")
+                    if page.evaluate("() => globalThis.__wtpacsError ?? null"):
+                        raise SystemExit(f"{label}: shell error:\n{log}\npageerrors={errors}")
                     report = page.evaluate("() => window.__wtpacsTelemetry?.() ?? null")
                     if report is None:
                         raise SystemExit(
                             f"{label}: telemetry build expected but __wtpacsTelemetry absent"
                         )
+                    shell = page.evaluate("() => globalThis.__wtpacsShell ?? null")
                     assert run_dir is not None
-                    client_out = run_dir / "telemetry-client.json"
+                    integrity = report.get("summary", {}).get("integrity", {})
+                    valid = bool(integrity.get("valid"))
+                    client_out = run_dir / ("telemetry-client.json" if valid else "telemetry-client.VOID.json")
                     client_out.write_text(_json.dumps(report, indent=2) + "\n")
                     print(f"wrote {client_out}")
                     print(f"[{label}] after run:\n{log}")
                     if errors:
                         raise SystemExit(f"{label}: page errors: {errors}")
-                    opened = report.get("summary", {}).get("integrity", {}).get("rows_opened")
-                    closed = report.get("summary", {}).get("integrity", {}).get("rows_closed")
-                    if opened != closed:
-                        raise SystemExit(
-                            f"{label}: integrity rows_opened ({opened}) != rows_closed ({closed})"
-                        )
+                    # Independent facts about the run, so the two reports are never compared
+                    # across a cell, stream mode, depth, or tree by filename alone.
+                    manifest = {
+                        "arm": label,
+                        "stream_mode": args.stream_mode,
+                        "cell": args.cell,
+                        "depth": args.depth,
+                        "n": args.n,
+                        "trace": args.trace,
+                        "interval_ms": args.interval_ms,
+                        "study": str(study),
+                        "study_frames": frames,
+                        "repeat": rep,
+                        "remote_wt": remote_wt,
+                        "wt_url": wt_url,
+                        "git_sha": git_sha,
+                        "chromium": browser.version,
+                        "client_valid": valid,
+                        "client_invalid_reasons": integrity.get("invalid_reasons", []),
+                        "shell": shell,
+                        "server_banner": dict(server_info),
+                    }
+                    (run_dir / "run.json").write_text(_json.dumps(manifest, indent=2) + "\n")
+                    if not valid:
+                        msg = f"{label}: client report not valid: {integrity.get('invalid_reasons')}"
+                        if not args.allow_void:
+                            raise SystemExit(msg + " (pass --allow-void to keep going)")
+                        print("VOID:", msg)
                     page.close()
                     if not remote_wt:
                         server_out = run_dir / "telemetry-server.json"

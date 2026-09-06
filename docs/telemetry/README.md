@@ -54,13 +54,31 @@ Schema unification of client vs server stages is deferred.
 ## Harvest
 
 ```bash
-server/scripts/verify_e2e.py --telemetry --cell ondemand
+server/scripts/verify_e2e.py --telemetry --cell ondemand --depth 1 --n 320   # the control
+server/scripts/verify_e2e.py --telemetry --cell ondemand --trace /lab/traces/live_cell_scroll.json
 server/scripts/verify_e2e.py --telemetry --cell fill
 server/scripts/verify_e2e.py --telemetry --cell fill \
-  --wt-url wss://… --cert-sha256 <sha256>
+  --wt-url wss://… --cert-sha256 <sha256> --frames 320
 ```
 
-Flags: `--cell {ondemand,fill}`, `--harness {ts,wasm,both}`, `--repeats N`, `--interleave`.
+Flags: `--cell {ondemand,fill}`, `--depth D` (on-demand asks in flight; `1` is the control),
+`--n N` (steps; default one pass over the study), `--trace URL` (a `lab/traces/*.json`: its
+`steps[].frame` and `step_interval_ms`), `--interval-ms`, `--harness {ts,wasm,both}`,
+`--repeats N`, `--interleave`, `--allow-void`.
+
+**The shell** (`client/harness/shell.js`) is one implementation for both arms; the pages only
+supply `loadSession`. It stamps `gesture` when a step becomes due, keeps `D` asks in flight (never
+the same index twice), touches every 4 KiB of each codestream so the copy is real, and ends with
+`run_end`, `session.close()` and `window.__wtpacsDone` — which is what the harvest waits on.
+
+Each run folder holds `run.json` (arm, stream mode, cell, depth, schedule, study, git sha,
+Chromium version, the shell's heap and WASM-memory samples, the server banner) beside the two
+reports. A client report that is not `integrity.valid` is written as
+`telemetry-client.VOID.json` and fails the harvest unless `--allow-void`; a missing server report
+always fails it.
+
+`scripts/gate.sh` runs every check (unit tests, type-check, both absence checks); `--quick` skips
+the two release builds.
 
 Telemetry builds: TS `client/transport-ts/dist/session.telemetry.js`; WASM with
 `WTPACS_TELEMETRY_BUILD=1` (gitignored `pkg-telemetry/`).

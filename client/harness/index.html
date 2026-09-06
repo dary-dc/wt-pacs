@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
   <title>wt-pacs harness (WASM)</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 1rem; }
@@ -14,83 +15,51 @@
   <p>
     <a href="/harness/ts.html">TypeScript harness</a>
     Frame timing logs — not clinical decode. Client uses <code>web_sys::WebTransport</code>.
+    The run itself lives in <code>shell.js</code>.
   </p>
   <button id="frame0">Frame 0</button>
   <button id="bulk">Bulk 0..2</button>
+  <button id="run">Run cell (from query)</button>
   <div id="log"></div>
   <script type="module">
-    const params = new URLSearchParams(location.search);
-    const telemetry = params.get("telemetry") === "1";
-    const streamMode = params.get("stream_mode") || "shared";
-    const cell = params.get("cell") || "ondemand";
+    import { bootShell } from "/harness/shell.js";
 
-    const logEl = document.getElementById("log");
-    function log(...a) {
-      logEl.textContent += a.join(" ") + "\n";
-    }
+    let wasm = null;
 
-    async function boot() {
-      let wrapSession = (s) => s;
-      if (telemetry) {
-        globalThis.__wtpacsArm = "transport-wasm";
-        globalThis.__wtpacsStreamMode = streamMode;
-        const { install, wrapSession: wrap } = await import(
-          "/client/transport-ts/record/dist/install.js"
-        );
-        install({ arm: "transport-wasm", stream_mode: streamMode });
-        wrapSession = wrap;
-      }
-
-      const pkgCandidates = telemetry
-        ? [
-            "/client/transport-wasm/pkg-telemetry/transport_wasm.js",
-            "/client/transport-wasm/pkg/transport_wasm.js",
-          ]
-        : ["/client/transport-wasm/pkg/transport_wasm.js"];
-      let initMod = null;
-      for (const url of pkgCandidates) {
-        try {
-          initMod = await import(url);
-          break;
-        } catch {
-          /* try next */
+    bootShell({
+      arm: "transport-wasm",
+      async loadSession({ telemetry, streamMode, cfg }) {
+        let wrapSession = (s) => s;
+        if (telemetry) {
+          // Patch the WebTransport global before the WASM module loads (ADR option G).
+          const rec = await import("/client/transport-ts/record/dist/install.js");
+          rec.install({ arm: "transport-wasm", stream_mode: streamMode });
+          wrapSession = rec.wrapSession;
         }
-      }
-      if (!initMod) throw new Error("wasm pkg not found");
-      const { default: init, TransportSessionHandle } = initMod;
-      await init();
-      const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
-      log("connecting", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
-      let session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
-      session = wrapSession(session);
-      log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
-
-      const frame0 = async () => {
-        const r = await session.requestExactFrame(0);
-        log("frame0 bytes", r.bytes.length, "wire ms", r.timing.lastChunkMs - r.timing.askMs);
-      };
-      const bulk = async () => {
-        const indices = Uint32Array.from([0, 1, 2]);
-        const askMs = session.startExactFrames(indices);
-        for (let i = 0; i < indices.length; i++) {
-          const r = await session.waitExactFrame(indices[i], askMs);
-          log("bulk", r.frameIndex, r.bytes.length);
+        const pkgCandidates = telemetry
+          ? [
+              "/client/transport-wasm/pkg-telemetry/transport_wasm.js",
+              "/client/transport-wasm/pkg/transport_wasm.js",
+            ]
+          : ["/client/transport-wasm/pkg/transport_wasm.js"];
+        let initMod = null;
+        for (const url of pkgCandidates) {
+          try {
+            initMod = await import(url);
+            break;
+          } catch {
+            /* try next */
+          }
         }
-      };
-
-      document.getElementById("frame0").onclick = frame0;
-      document.getElementById("bulk").onclick = bulk;
-
-      if (telemetry && params.get("autorun") === "1") {
-        await (cell === "fill" ? bulk() : frame0());
-        // Close the session so the server ends it now and flushes its Tap — otherwise it only
-        // notices at the QUIC idle timeout (~30 s) and the harvest misses the server report.
-        session.close();
-        log("session closed");
-        globalThis.__wtpacsDone = true;
-      }
-    }
-    boot().catch((e) => log("boot error", e));
+        if (!initMod) throw new Error("wasm pkg not found");
+        const { default: init, TransportSessionHandle } = initMod;
+        wasm = await init();
+        const session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
+        return wrapSession(session);
+      },
+      // Linear memory grows with the receive buffer; the TS arm has none (null).
+      memoryBytes: () => (wasm && wasm.memory ? wasm.memory.buffer.byteLength : null),
+    });
   </script>
 </body>
 </html>
