@@ -34,7 +34,7 @@ fn js_buffer_from(src: &[u8]) -> Uint8Array {
 }
 
 fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return Err("cert hash hex length must be even".into());
     }
     (0..hex.len())
@@ -344,18 +344,7 @@ impl TransportSession {
             return Err("FoD request channel closed".into());
         }
 
-        let (bytes, received_ms) = match await_bytes(rx, frame_index).await {
-            Ok(d) => d,
-            Err(e) => {
-                let mut s = self.state.borrow_mut();
-                s.waiters.remove(&frame_index);
-                if let Some(reason) = s.errors.remove(&frame_index) {
-                    return Err(format!("frame {frame_index} unavailable: {reason}"));
-                }
-                return Err(e);
-            }
-        };
-        result_to_js(frame_index, ask_ms, bytes, received_ms)
+        self.settle(rx, frame_index, ask_ms).await
     }
 
     pub async fn request_frames(&self, indices: Vec<u32>) -> Result<JsValue, String> {
@@ -414,18 +403,27 @@ impl TransportSession {
             .borrow_mut()
             .remove(&frame_index)
             .ok_or_else(|| format!("wait_frame: no pending bulk waiter for {frame_index}"))?;
-        let (bytes, received_ms) = match await_bytes(rx, frame_index).await {
-            Ok(d) => d,
+        self.settle(rx, frame_index, ask_ms).await
+    }
+
+    /// Await one armed waiter; a refusal the server sent for this frame wins over the raw error.
+    async fn settle(
+        &self,
+        rx: oneshot::Receiver<(Uint8Array, f64)>,
+        frame_index: u32,
+        ask_ms: f64,
+    ) -> Result<JsValue, String> {
+        match await_bytes(rx, frame_index).await {
+            Ok((bytes, received_ms)) => result_to_js(frame_index, ask_ms, bytes, received_ms),
             Err(e) => {
                 let mut s = self.state.borrow_mut();
                 s.waiters.remove(&frame_index);
-                if let Some(reason) = s.errors.remove(&frame_index) {
-                    return Err(format!("frame {frame_index} unavailable: {reason}"));
+                match s.errors.remove(&frame_index) {
+                    Some(reason) => Err(format!("frame {frame_index} unavailable: {reason}")),
+                    None => Err(e),
                 }
-                return Err(e);
             }
-        };
-        result_to_js(frame_index, ask_ms, bytes, received_ms)
+        }
     }
 
     /// Close the WebTransport session now. Without this the server only notices the session is

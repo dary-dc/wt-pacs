@@ -168,14 +168,7 @@ export class TransportSession {
     const askMs = performance.now();
     const pending = this.armWaiter(frameIndex);
     await this.sendFod({ op: "request_frame", frame: frameIndex });
-    try {
-      const { bytes, receivedMs } = await pending;
-      return toResult(frameIndex, askMs, bytes, receivedMs);
-    } catch (e) {
-      const reason = this.errors.get(frameIndex);
-      if (reason) throw new Error(`frame ${frameIndex} unavailable: ${reason}`);
-      throw e;
-    }
+    return this.settle(frameIndex, askMs, pending);
   }
 
   startExactFrames(indices: number[]): number {
@@ -185,7 +178,10 @@ export class TransportSession {
     for (const frameIndex of indices) {
       this.bulkPending.set(frameIndex, this.armWaiter(frameIndex));
     }
-    void this.sendFod({ op: "request_frames", frames: [...indices] });
+    // A control write that fails would otherwise leave every waiter to the 15 s timeout.
+    this.sendFod({ op: "request_frames", frames: [...indices] }).catch((e) => {
+      for (const frameIndex of indices) this.failWaiter(frameIndex, `control write: ${e}`);
+    });
     return askMs;
   }
 
@@ -195,11 +191,21 @@ export class TransportSession {
     if (!pending) {
       throw new Error(`waitExactFrame: no pending bulk waiter for ${frameIndex}`);
     }
+    return this.settle(frameIndex, askMs, pending);
+  }
+
+  /** Await one armed waiter; a refusal the server sent for this frame wins over the raw error. */
+  private async settle(
+    frameIndex: number,
+    askMs: number,
+    pending: Promise<{ bytes: Uint8Array; receivedMs: number }>,
+  ): Promise<FrameResult> {
     try {
       const { bytes, receivedMs } = await pending;
       return toResult(frameIndex, askMs, bytes, receivedMs);
     } catch (e) {
       const reason = this.errors.get(frameIndex);
+      this.errors.delete(frameIndex);
       if (reason) throw new Error(`frame ${frameIndex} unavailable: ${reason}`);
       throw e;
     }
