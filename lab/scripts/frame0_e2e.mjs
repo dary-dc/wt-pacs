@@ -1,11 +1,14 @@
 // Regression: connect, requestExactFrame(0), then a bulk 0..2 on the harness page of one arm.
 // usage: node frame0_e2e.mjs <http-base> <ts|wasm>
-import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
+// Env: PLAYWRIGHT_MODULE (path to playwright's index.mjs), CHROME_BIN (Chromium binary).
+const PLAYWRIGHT = process.env.PLAYWRIGHT_MODULE ?? "/opt/node22/lib/node_modules/playwright/index.mjs";
+const CHROME = process.env.CHROME_BIN ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const { chromium } = await import(PLAYWRIGHT);
 
 const [httpBase, arm] = process.argv.slice(2);
 const path = arm === "wasm" ? "/harness/" : "/harness/ts.html";
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
   headless: true,
   args: ["--enable-features=WebTransport", "--no-sandbox"],
 });

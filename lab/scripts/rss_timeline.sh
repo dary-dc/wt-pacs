@@ -2,7 +2,7 @@
 # Server VmRSS over time while one harness saturates it in per-frame mode.
 # usage: rss_timeline.sh LABEL SERVER_TELEMETRY_BIN OUT.jsonl  (env: DWELL_MS=20000 MODE=per-frame FIXTURE=frames_32k PORT=4466)
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HARNESS="${HARNESS:-$ROOT/target/release/window-harness}"
 label=$1; bin=$2; out=$3
 DWELL_MS=${DWELL_MS:-20000}; MODE=${MODE:-per-frame}; FIXTURE=${FIXTURE:-frames_32k}; PORT=${PORT:-4466}

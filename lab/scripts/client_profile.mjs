@@ -1,6 +1,9 @@
 // CPU-profile one client arm through a harness fill/ondemand cell and print self time by function.
 // usage: node client_profile.mjs <http-base> <ts|wasm> <query e.g. "cell=fill&stream_mode=shared&frames=80"> <out.json> [timeout-s]
-import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
+// Env: PLAYWRIGHT_MODULE (path to playwright's index.mjs), CHROME_BIN (Chromium binary).
+const PLAYWRIGHT = process.env.PLAYWRIGHT_MODULE ?? "/opt/node22/lib/node_modules/playwright/index.mjs";
+const CHROME = process.env.CHROME_BIN ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const { chromium } = await import(PLAYWRIGHT);
 import { writeFileSync } from "node:fs";
 
 const [httpBase, arm, query, outPath, timeoutS = "120"] = process.argv.slice(2);
@@ -8,7 +11,7 @@ const path = arm === "wasm" ? "/harness/" : "/harness/ts.html";
 const url = `${httpBase}${path}?autorun=1&${query}`;
 
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
   headless: true,
   args: ["--enable-features=WebTransport", "--no-sandbox"],
 });

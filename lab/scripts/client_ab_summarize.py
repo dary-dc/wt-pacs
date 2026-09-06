@@ -3,7 +3,9 @@
 import glob, json, os, re, statistics as st, sys
 from collections import defaultdict
 
-d = sys.argv[1] if len(sys.argv) > 1 else "/tmp/claude-0/-home-user-wt-pacs/4388fb8e-14c3-5912-8315-3076f7ec068b/scratchpad/ab/prof"
+if len(sys.argv) < 2:
+    sys.exit("usage: client_ab_summarize.py <dir with <cell>-<before|after>-r<N>-<ts|wasm>.json>")
+d = sys.argv[1]
 KEYS = {
     "ts": ["take", "readLengthPrefixed", "encodeFodMsg", "sendFod", "heapBytes", "(program)", "(idle)", "(garbage collector)"],
     "wasm": ["__wbg_read", "__wbg_set", "decodeText", "__rdl_realloc", "push_chunk", "makeMutClosure", "heapBytes", "__wbg_write", "(program)", "(idle)", "(garbage collector)"],

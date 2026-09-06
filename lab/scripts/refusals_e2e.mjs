@@ -1,13 +1,15 @@
 // Drive client/harness/refusals.html for one arm and print the summary as JSON.
-// Playwright and Chromium paths are the ones on the Claude Code web runner; adjust locally.
 // usage: node refusals_e2e.mjs <http-base> <arm> <n> <wt-url> <cert-sha256> [timeout-s]
-import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
+// Env: PLAYWRIGHT_MODULE (path to playwright's index.mjs), CHROME_BIN (Chromium binary).
+const PLAYWRIGHT = process.env.PLAYWRIGHT_MODULE ?? "/opt/node22/lib/node_modules/playwright/index.mjs";
+const CHROME = process.env.CHROME_BIN ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const { chromium } = await import(PLAYWRIGHT);
 
 const [httpBase, arm, n, wt, hash, timeoutS = "60"] = process.argv.slice(2);
 const url = `${httpBase}/harness/refusals.html?arm=${arm}&n=${n}&wt=${encodeURIComponent(wt)}&hash=${hash}`;
 
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
   headless: true,
   args: ["--enable-features=WebTransport", "--no-sandbox"],
 });

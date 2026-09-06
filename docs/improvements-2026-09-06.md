@@ -2,7 +2,9 @@
 
 **Date:** 2026-09-06 · **Branch:** `claude/project-improvements-lab-pmohec` · **Status:** every
 item below is a candidate; nothing is accepted until reviewed. One commit per candidate so each
-can be taken or dropped alone.
+can be taken or dropped alone. The complete inventory of the session — landed, withdrawn,
+measured-null, proposed-not-taken, decisions open — is
+[`session-ledger-2026-09-06.md`](session-ledger-2026-09-06.md); this file is the evidence.
 
 **Scope rule.** Transport policy (stream mode, QUIC knobs, the session loop shape, the shaped rig)
 is lane L1 (`cursor/l1-loss-run-dbae`); disk access (prefault, `pread`, the read path) is
@@ -13,7 +15,8 @@ implemented on L1 and was withdrawn; two items sit next to a lane and say so.
 **Evidence tier.** Everything measured here is **T2-local**: one 4-core VM, localhost, no
 shaping, both sides sharing the CPU. Relative comparisons only; A/B runs interleave the two
 binaries in every cell so drift lands on both. Raw rows and the scripts are in
-[`measurements/improvements-2026-09-06/`](measurements/improvements-2026-09-06/).
+[`measurements/improvements-2026-09-06/`](measurements/improvements-2026-09-06/); the drivers that
+produced them live in `lab/scripts/` and `lab/bench/` (see `lab/README.md`).
 
 | # | Kind | Commit | Claim | Proof |
 | - | - | - | - | - |
@@ -41,8 +44,8 @@ mapping + `quinn::SendStream::write_all_chunks`). It was measured here at −27 
 already implemented on `cursor/l1-loss-run-dbae`** as `SendPath::Chunked`, the default there
 (`server/src/transport/tuning.rs`, `docs/send-path-copy-costs.md` on that branch). The commit was
 dropped from this branch to avoid a duplicate and a merge conflict; the independent measurement
-agrees with L1's direction and is recorded here only as corroboration. `sendpath_bench.sh` stays
-in `measurements/` because it is the generic A/B harness the other server items use.
+agrees with L1's direction and is recorded here only as corroboration. The A/B harness that
+measured it (`lab/scripts/sendpath_ab_bench.sh`) stays, as the generic server A/B driver.
 
 ---
 
@@ -71,7 +74,7 @@ After the fix (control loop owns the buffer; each message consumes exactly itsel
 | wasm | 64 | 64 | 0 | 9 ms |
 | ts | 64 | 64 | 0 | 6 ms |
 
-Raw: `wasm_control_coalescing_e2e.txt`; driver: `refusals_e2e.mjs`.
+Raw: `wasm_control_coalescing_e2e.txt`; driver: `lab/scripts/refusals_e2e.mjs`.
 
 **Second observation from the same run, not fixed here.** In the WASM arm the 15 s frame timeout
 starts when `waitExactFrame` is *called*, so a batch whose messages are lost times out one waiter
@@ -103,7 +106,7 @@ wanted instead, the check can log rather than fail.
 **Defect.** Every per-frame send spawned `finish().await` into a `JoinSet` that was drained only
 in `drain_acks` at session end. A finished task is not freed until it is joined.
 
-**Proof.** `rss_timeline.sh` samples the server's VmRSS once a second during a 20 s saturate
+**Proof.** `lab/scripts/rss_timeline.sh` samples the server's VmRSS once a second during a 20 s saturate
 session (telemetry build, `frames_32k`, D = 4):
 
 | mode | frames served | VmRSS start → end | VmHWM |
@@ -196,7 +199,7 @@ Asked after the first round: is that really all? Two profiles answer it, one per
 `exact-server` (release + debug info, HEAD `fb26f7d`, default features) ran under
 `valgrind --tool=callgrind` while one `window-harness --mode saturate --depth 4` session drove
 it for 6 s; three cells. Instruction counts, so CPU contention does not distort them
-(`callgrind_run.sh`; annotated output in `measurements/…/callgrind_*.txt`).
+(`lab/scripts/callgrind_run.sh`; annotated output in `measurements/…/callgrind_*.txt`).
 
 | share of all instructions | frames_32k / shared | frames_250k / shared | frames_32k / per-frame |
 | - | - | - | - |
@@ -224,7 +227,7 @@ the honest result of the deeper pass on the server is a null.
 
 ### Client: Chromium CPU profile, both arms
 
-`client_profile.mjs` drives a harness cell under the DevTools sampling profiler (200 µs
+`lab/scripts/client_profile.mjs` drives a harness cell under the DevTools sampling profiler (200 µs
 interval) and ranks self time per function. Three cells: 250 KB fill (shared), 32 KB on-demand
 D = 4 (shared), 250 KB fill (per-frame). Product builds; the WASM package is built with
 `wasm-pack --profiling` so Rust names survive. First reading (one run per cell, pre-change):
@@ -238,7 +241,8 @@ D = 4 (shared), 250 KB fill (per-frame). Product builds; the WASM package is bui
 | WASM, 250 KB per-frame | `read` 14 %, `set` 5 %, `makeMutClosure` 2.7 %, **`__rdl_realloc` 2.6 %**, `decodeText` 1.9 % | `heapBytes` 1.6 % |
 
 Four things came out of it, each then measured before/after on the same host with the two
-builds interleaved (`client_ab_profile.sh`, summary by `client_ab_summarize.py`):
+builds interleaved (`lab/scripts/client_ab_profile.sh`, summary by
+`lab/scripts/client_ab_summarize.py`):
 
 - **H1 (harness).** `performance.memory` was read after every delivered frame to track the
   JS-heap peak; each read walks the heap. Now sampled on a 100 ms timer. Lab code, but it sat on
@@ -250,7 +254,7 @@ builds interleaved (`client_ab_profile.sh`, summary by `client_ab_summarize.py`)
   (every stream in per-frame mode) grew by doubling — the `__rdl_realloc` line. Now reserves once
   the length prefix is known and copies into spare capacity (`copy_to_uninit`).
 - **T1 (TS) — null result, kept as tidiness only.** `encodeFodMsg` built a `TextEncoder` per
-  ask. Measured in isolation (`bench/textencoder.html`, Chromium 141: 8–11 µs per encode either
+  ask. Measured in isolation (`lab/bench/textencoder.html`, Chromium 141: 8–11 µs per encode either
   way; Node 22: 1.8 µs either way) the constructor costs nothing observable. The shared codec
   stays because it reads better and gives the TS client the same `decodeFodBody` shape the
   server got in C3, but no speed is claimed for it.
@@ -278,7 +282,7 @@ own `reader.read()` glue and the two `Uint8Array.set` copies (chunk → WASM mem
 heap; the TS arm's `ByteAccumulator.take` is its one copy), then `(program)` — Chromium
 internals. One more lever exists and is recorded, not taken: a **BYOB reader** on the receive
 stream would let the browser fill the frame's final buffer directly and delete the
-accumulator copy. Probed (`bench/byob_probe.html`, `byob_probe_result.txt`): Chromium 141
+accumulator copy. Probed (`lab/bench/byob_probe.html`, `byob_probe_result.txt`): Chromium 141
 accepts `getReader({ mode: "byob" })` on a WebTransport receive stream; 80 × 250 KB frames took
 610 reads (≈ 32 KB each) against 541 with the default reader, 191 ms vs 200 ms. The saving is
 bounded by `take` (≈ 8–10 % of client self time in a fill cell, less on demand), it rewrites the
@@ -299,18 +303,26 @@ that matters; not started here.
 
 ## How to re-run
 
+All drivers are in the lab; nothing under `docs/` executes.
+
 ```bash
-cargo build --release -p window-harness
+cargo build --release -p window-harness -p exact-server
 cargo build --release -p exact-server --features telemetry && cp target/release/exact-server /tmp/a
 git checkout <candidate> && cargo build --release -p exact-server --features telemetry && cp target/release/exact-server /tmp/b
-docs/measurements/improvements-2026-09-06/sendpath_bench.sh out.jsonl base /tmp/a cand /tmp/b   # any server A/B
-docs/measurements/improvements-2026-09-06/rss_timeline.sh before /tmp/a rss.jsonl
-# browser: server + server/dev-server.py, then
-node docs/measurements/improvements-2026-09-06/refusals_e2e.mjs http://127.0.0.1:8765 wasm 64 https://127.0.0.1:4433/ <cert-sha256>
-# server instruction profile (needs CARGO_PROFILE_RELEASE_DEBUG=1 build + valgrind)
-docs/measurements/improvements-2026-09-06/callgrind_run.sh head <exact-server-with-symbols> frames_250k shared
-# client CPU profile of one arm / cell (WASM: build the pkg with `wasm-pack --profiling` so names survive)
-node docs/measurements/improvements-2026-09-06/client_profile.mjs http://127.0.0.1:8765 wasm "cell=fill&stream_mode=shared&frames=320" out.json
-docs/measurements/improvements-2026-09-06/client_ab_profile.sh          # before/after, both arms, three cells
-python3 docs/measurements/improvements-2026-09-06/client_ab_summarize.py <dir-of-profiles>
+lab/scripts/sendpath_ab_bench.sh out.jsonl base /tmp/a cand /tmp/b   # any server A/B (telemetry builds)
+lab/scripts/rss_timeline.sh before /tmp/a rss.jsonl                  # server RSS over one session
+# browser (server + server/dev-server.py running):
+node lab/scripts/refusals_e2e.mjs http://127.0.0.1:8765 wasm 64 https://127.0.0.1:4433/ <cert-sha256>
+node lab/scripts/frame0_e2e.mjs http://127.0.0.1:8765 ts
+# server instruction profile (build with CARGO_PROFILE_RELEASE_DEBUG=1; needs valgrind)
+lab/scripts/callgrind_run.sh head <exact-server-with-symbols> frames_250k shared
+# client CPU profile of one arm / cell (WASM: `wasm-pack build --profiling` so names survive)
+node lab/scripts/client_profile.mjs http://127.0.0.1:8765 wasm "cell=fill&stream_mode=shared&frames=320" out.json
+lab/scripts/client_ab_profile.sh <artifacts-dir> [out-dir]           # before/after, both arms, three cells
+python3 lab/scripts/client_ab_summarize.py <out-dir>
+# micro-benchmarks / probes (any static host over lab/bench/):
+node lab/bench/run_page.mjs http://127.0.0.1:8799/textencoder.html
 ```
+
+Playwright and Chromium locations default to the Claude Code runner's; override with
+`PLAYWRIGHT_MODULE` and `CHROME_BIN`.
