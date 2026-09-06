@@ -9,11 +9,13 @@
 #   1. Actions -> read-path campaign -> Run workflow. **Only available once this file is on
 #      the repository's DEFAULT branch** — GitHub does not list `workflow_dispatch`
 #      workflows that live only on a feature branch.
-#   2. Push a tag matching `run-campaign-*` from any branch:
-#        git tag run-campaign-1 && git push origin run-campaign-1
-#      Tag pushes run the workflow file from the tagged commit, so this works today.
+#   2. Touch the trigger file on this branch and push:
+#        date -u >> .github/campaign-trigger
+#        git commit -am 'run the read-path campaign' && git push
+#      A push only starts this workflow when `.github/campaign-trigger` is in the diff, so
+#      ordinary commits to the branch never spend runner minutes.
 #
-# Never runs on an ordinary push. The campaign is ~30 s of compute; the build dominates.
+# The campaign is ~30 s of compute; the build dominates.
 #
 # A shared CI runner is noisy, so read this for *direction*, not for magnitudes: a ranking
 # that survives here is real, but an effect size measured here is not comparable to the lab's.
@@ -43,8 +45,10 @@ on:
         default: true
         type: boolean
   push:
-    tags:
-      - 'run-campaign-*'
+    branches:
+      - claude/disk-access-adr-validation-saz6m8
+    paths:
+      - .github/campaign-trigger
 
 # Two runs writing the same file to the same branch would race.
 concurrency:
