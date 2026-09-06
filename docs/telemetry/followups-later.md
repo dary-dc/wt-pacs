@@ -62,3 +62,20 @@ measurement that is wrong. Either drop `timing` from the product API or reduce i
 | `record/dist/` | `install.ts`, etc. | **No** — gitignored |
 
 Rebuild: `client/transport-ts/build.sh`.
+
+## 6 · Server telemetry at scale — pending after the 2026-09-06 track
+
+Review and numbers: [`analysis-scale-and-serving-path-2026-09-06.md`](analysis-scale-and-serving-path-2026-09-06.md).
+As-built: [`README.md`](README.md). Nothing below blocks a merge.
+
+| # | Item | What is needed | Owner / when |
+| --- | --- | --- | --- |
+| T7 | Shaped rig run, per-frame mode: `send_us` under real flow control; the only proof still owed | rig key (`cloud-rig-access.md`) | telemetry, when the rig is free |
+| S2 | Single UDP socket / endpoint driver ceiling (`build_endpoint`); `quinn` scales with several endpoints on `SO_REUSEPORT` sockets | aggregate Mbit/s vs *N* on a box where the clients are not the bottleneck; **unmeasured, do not change first** | telemetry + server |
+| S9 | Per-frame `spawn_blocking` prefault: 60–120 µs of `serve_us` per frame and about a fifth of default server CPU on a resident fixture; the blocking pool (512 threads) bounds cold reads at thousands of sessions | resident-page fast path, batched prefault (§3 P2) or overlap (§3 P1); evidence is the `prepare_us` column in the review §4.3 | disk track (`docs/disk-access/`) |
+| `ack_us` | Server-observed delivery stage, built and withdrawn; smallest shape recorded in the review §2 | only if a server-side delivery number is ever wanted; delivery timing comes from the client report and the native harness until then | product call |
+| Defaults | Set on 2026-09-06 without a product answer, changeable by env: summary rewrite `WTPACS_TELEMETRY_SUMMARY_MS=5000`; inline row cap `WTPACS_TELEMETRY_INLINE_CAP=1000000`; sampling `WTPACS_TELEMETRY_SAMPLE=1` (every session) | confirm or change | product call |
+| Hardening | Kept: FoD message length capped at 4 MiB (`MAX_FOD_LEN`); QUIC knobs `--send-window-bytes`, `--stream-receive-window-bytes`, `--max-idle-timeout-ms` with library defaults. A production `send_window` is a capacity decision from link BDP | pick production values when there is a deployment | product |
+| Schema | Client / server stage vocabulary unification stays deferred (README) | — | telemetry |
+| S10 | Admission control at accept | — | production hardening |
+
