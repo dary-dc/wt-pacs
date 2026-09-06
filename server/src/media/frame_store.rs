@@ -193,6 +193,39 @@ fn probe_nowait(file: &File, offset: u64) -> bool {
     std::io::Error::last_os_error().raw_os_error() == Some(libc::EAGAIN)
 }
 
+/// Does the filesystem holding `path` honour `RWF_NOWAIT`?
+///
+/// This is the same probe `FrameStore::open` runs, exposed so a deployment can be checked
+/// **before** a study is in place — `tools/check-fastpath` calls it. Keeping one
+/// implementation is the point: a separate copy could answer differently from the server
+/// and the check would be worse than none.
+///
+/// `path` may be an existing file (probed directly, nothing written) or a **directory**, in
+/// which case a temporary file is created inside it and removed before returning — that is
+/// the honest test, because support is a property of the mount, not of the file.
+pub fn nowait_supported_at(path: &Path) -> Result<bool> {
+    let meta = std::fs::metadata(path).with_context(|| format!("stat {}", path.display()))?;
+    if meta.is_dir() {
+        let probe = path.join(format!(".wtpacs-fastpath-probe.{}", std::process::id()));
+        let file = File::options()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&probe)
+            .with_context(|| format!("create probe file in {}", path.display()))?;
+        // A hole reads back as zeros without allocating; `RWF_NOWAIT` still reports whether
+        // the filesystem implements the flag at all, which is what is being asked.
+        let wrote = file.write_at(&[0u8; 4096], 0);
+        let answer = wrote.map(|_| probe_nowait(&file, 0));
+        drop(file);
+        let _ = std::fs::remove_file(&probe);
+        Ok(answer.with_context(|| format!("write probe file in {}", path.display()))?)
+    } else {
+        let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
+        Ok(probe_nowait(&file, 0))
+    }
+}
+
 /// Host page size from `sysconf(_SC_PAGESIZE)` (fallback 4096).
 pub fn host_page_size() -> usize {
     static PAGE: OnceLock<usize> = OnceLock::new();
@@ -248,6 +281,32 @@ mod tests {
         store.read_at_blocking(&mut buf, offset)?;
         assert_eq!(buf, f1);
         let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+
+    /// `check-fastpath` exists to answer, before a study is deployed, what the server will
+    /// decide once it opens one. That is only worth running if the two agree — so they share
+    /// `probe_nowait`, and this pins the agreement rather than trusting the sharing.
+    #[test]
+    fn the_standalone_probe_agrees_with_the_store() -> Result<()> {
+        let path = scratch("frame-store-probe-agrees");
+        write_bundle(&path, br#"{"frameCount":1}"#, &[b"x".as_slice()])?;
+        let store = FrameStore::open(&path)?;
+
+        assert_eq!(
+            nowait_supported_at(&path)?,
+            store.nowait_supported(),
+            "check-fastpath would report a different answer than the server acts on"
+        );
+        // A directory on the same filesystem must agree too — that is how the tool is meant
+        // to be used, against the study directory before any study is in it.
+        let dir = path.parent().expect("scratch dir");
+        assert_eq!(
+            nowait_supported_at(dir)?,
+            store.nowait_supported(),
+            "probing the directory disagrees with probing a file on the same mount"
+        );
+        let _ = std::fs::remove_file(&path);
         Ok(())
     }
 

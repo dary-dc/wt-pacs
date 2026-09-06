@@ -12,6 +12,7 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 | [`SEND-BUDGET.md`](SEND-BUDGET.md) | What the per-frame number is *made of*, per-op io_uring vs `preadv2`, the send path over real quinn, and the frame cache |
 | [`PREFIX-READS.md`](PREFIX-READS.md) | **Rung delivery strides the file and the fast path misses 319 of 320. Storing rungs contiguously puts it back to 3** |
 | [`DEPTH.md`](DEPTH.md) | First lift of the depth-1 assumption. Superseded by [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md), which crosses depth with miss rate and adds the hybrid |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Read before shipping.** The fast path does not exist on overlayfs — i.e. inside a container — and the server degrades silently. `check-fastpath` answers it in one command |
 | [`later.md`](later.md) | Optional follow-ups only |
 
 **Serving rungs rather than whole frames?** Read [`PREFIX-READS.md`](PREFIX-READS.md) first —
