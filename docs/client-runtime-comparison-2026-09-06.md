@@ -45,6 +45,62 @@ they would matter to a deployment:
 The per-frame question the plan set out to answer has a small answer. The interesting differences
 turned out to be elsewhere, and one of them (the timeout) runs the other way.
 
+### 1.1 Side by side
+
+Every criterion this campaign actually measured. "—" means the two arms did not separate. Cells:
+`L` = unshaped loopback, `S20/S60/S150` = shim at that nominal RTT, 10 Mbit. Per-run medians,
+exact permutation p. Positive delta = WASM slower / larger.
+
+| # | Criterion | `transport-wasm` | `transport-ts` | Delta | p | Better |
+| --- | --- | --- | --- | --- | --- | --- |
+| | **Per-frame receive path** | | | | | |
+| 1 | `deliver_us` median, 250 KB (S60) | 387.0 µs | 337.0 µs | +50.0 µs (1.15×) | 0.0079 | **TS** |
+| 2 | `deliver_us` median, 250 KB (L) | 310.0 µs | 275.8 µs | +34.2 µs (1.12×) | 0.0152 | **TS** |
+| 3 | `deliver_us` median, 32 KB (L) | 187.5 µs | 130.0 µs | +57.5 µs (1.44×) | 0.0022 | **TS** |
+| 4 | `deliver_us` p95, 250 KB (S60) | 520.0 µs | 459.0 µs | +61.0 µs | 0.0317 | **TS** |
+| 5 | Scales with frame size? | 7.8× the bytes → penalty *falls* (+57.5 → +34.2 µs) | | | | not byte-bound |
+| 6 | Scales with RTT? | +53.8 / +50.0 / +50.0 µs at 20 / 60 / 150 ms | | | | flat — it is CPU |
+| 7 | Size vs the A/A floor (6.7 µs) | 3.8–8.6× the noise | | | | effect is real |
+| | **End-to-end per frame** | | | | | |
+| 8 | `ask_to_complete` median (S150) | 356.295 ms | 356.269 ms | +26 µs | 0.57 | — |
+| 9 | `ask_to_complete` median (S60) | 266.941 ms | 266.814 ms | +127 µs | 0.0079 | TS, by 0.048 % |
+| 10 | `ask_to_complete` median (S20) | 227.428 ms | 227.555 ms | −128 µs | 0.66 | — |
+| 11 | `ask_to_complete` median (L, 250 KB) | 2.668 ms | 2.635 ms | +33 µs | 0.56 | — |
+| 12 | `ask_to_complete` median (L, 32 KB) | 1.503 ms | 1.380 ms | +123 µs | 0.16 | — |
+| 13 | Boundary cost as share of time-to-frame | 0.014 – 0.024 % shaped; 1.3 – 3.8 % on loopback | | | | negligible shaped |
+| | **Bulk / throughput** | | | | | |
+| 14 | Fill wall-clock, 10 MB (S60) | 8 370 ms | 8 372 ms | −2 ms | — | — |
+| 15 | Fill wall-clock, 20 MB (L) | 236 ms | 244 ms | −8 ms | — | — |
+| 16 | Fill `ask_to_complete` median (S60) | 8.315 s | 8.330 s | −14.3 ms | 0.064 | — (trend WASM) |
+| 17 | Fill `ask_to_complete` median (L) | 216.8 ms | 222.7 ms | −5.9 ms | 0.71 | — |
+| | **Startup, one-time** | | | | | |
+| 18 | First-load bytes (product build) | 270 292 B (242 290 wasm + 28 002 glue) | 8 812 B | +261 480 B (30.7×) | — | **TS** |
+| 19 | First-load bytes, gzip -9 | 108 869 B | 2 537 B | +106 332 B (42.9×) | — | **TS** |
+| 20 | Implied first-load transfer @ 10 / 100 Mbit | 216 / 22 ms | 7 / 0.7 ms | +209 / +21 ms | — | **TS** |
+| 21 | `connect_ms` — compile + instantiate | 24.4 ms (L) · 212.6 ms (S60) | 7.4 ms (L) · 194.9 ms (S60) | +16.6 to +18.8 ms, all 8 cells | — | **TS** |
+| 22 | Cold first frame (`first_ask_row` deliver) | 745 – 1 150 µs | 345 – 780 µs | +300 to +420 µs | — | **TS** |
+| | **Memory** | | | | | |
+| 23 | Peak footprint, fill 20 MB (L) | 50.8 MB heap + 23.8 MB linear = **74.6 MB** | 32.6 MB heap | +42.0 MB (2.3×) | — | **TS** |
+| 24 | Peak footprint, fill 10 MB (S60) | 28.6 MB heap + 17.1 MB linear = **45.7 MB** | 24.7 MB heap | +21.0 MB (1.9×) | — | **TS** |
+| 25 | Peak JS heap, paced on-demand | 14.5 – 72.2 MB | 17.8 – 70.7 MB | no consistent sign across 6 cells | — | — |
+| | **Robustness / behaviour** | | | | | |
+| 26 | 20 MB batch on a 10 Mbit link | **80 / 80 delivered**, 16.5 s | **51 / 80**, 29 timeouts at 15.002 s, report VOID | 5 repeats of 5 | — | **WASM** |
+| 27 | Where the frame deadline is armed | per await (`await_bytes:449`) | per batch, at ask (`armWaiter:77`) | same 15 s constant | — | **WASM** |
+| 28 | Frames lost on the wire in that cell | 0 | 0 — the bytes arrived, the deadline fired | | | |
+| | **Implementation shape (source, not timing)** | | | | | |
+| 29 | Full-frame passes per frame | 2 — `push_chunk` in, `js_buffer_from` out | 1 — `ByteAccumulator.take` | +1 pass | — | TS (but see #5) |
+| 30 | Reads per frame observed | 166 / 168 / 175 / 206 shaped; 6 (L) | 166 / 168 / 176 / 206 shaped; 6 (L) | identical in every paced cell | — | — |
+| | **Cross-cutting checks** | | | | | |
+| 31 | Replicates in `shared` stream mode? | 201.7 µs | 175.8 µs | +25.8 µs, p 0.0022 | | yes |
+| 32 | Server work induced, paced cells | `serve_us` p50 94 – 177 µs | 94 – 173 µs | ≤ 4 % — a clean control | — | — |
+| 33 | Server work induced, fill (L) | 318 µs | 257 µs | +24 % — server not independent under fill | — | n/a |
+| 34 | Link treated both arms alike? | drops 38 / 120 / 0 / 1 205 | 46 / 119 / 0 / 1 197 | balanced; `transfer` Δ 4 µs on 202 ms (p 0.94) | — | — |
+| 35 | Report integrity | valid in every reported run | valid except the 5 in #26 | 0 long tasks in window, 0 busy rows, all cells | — | — |
+
+**Reading it.** TS wins more rows, but the rows are not equal. Rows 1–4 are real and 0.02 % of what
+a reader waits for (row 13). Rows 18–24 are one-time or bulk-only. Row 26 is the one that would
+change a study on a slow link. Nothing here is a per-frame speed argument for either arm.
+
 ---
 
 ## 2 · What was held constant, what varied
