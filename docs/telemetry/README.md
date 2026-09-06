@@ -8,6 +8,12 @@ Lab-only frame-pipeline timing for wt-pacs clients and server. Default product b
 
 **Parked / deferred:** [`followups-later.md`](followups-later.md)
 
+**Scale review (open, not started):**
+[`analysis-scale-and-serving-path-2026-09-06.md`](analysis-scale-and-serving-path-2026-09-06.md) —
+the pipeline behind the seam and the serving path at thousands of viewers; baseline numbers in
+`docs/measurements/telemetry-pipeline-baseline-2026-09-06.json`; tools `lab/telemetry-bench`,
+`lab/scripts/telemetry_bench_matrix.sh`, `lab/scripts/telemetry_e2e_baseline.sh`.
+
 Completed tracks (stubs): [`plan-client-telemetry.md`](plan-client-telemetry.md) (C1–C4) ·
 [`plan-server-telemetry.md`](plan-server-telemetry.md) (S1–S5). Historical evidence:
 [`plan-readability-and-performance.md`](plan-readability-and-performance.md).
@@ -140,8 +146,8 @@ media readers; stamp per read. **`gesture`** comes from the harness shell when a
 Both seam decisions are settled: client Decision A = A4 (byte attribution + session wrapping),
 recorded in the client ADR; server Decision C in `adr-server-pipeline.md`. The review that
 closed A and drove the 2026-09-06 fixes — with the end-to-end evidence and a resolution table —
-is [`review-2026-09-06.md`](review-2026-09-06.md). Nothing is open in this module; parked items
-are in [`followups-later.md`](followups-later.md).
+is [`review-2026-09-06.md`](review-2026-09-06.md). Parked items are in [`followups-later.md`](followups-later.md); the scale review above is the one
+open track, and it does not reopen either seam.
 
 ---
 
