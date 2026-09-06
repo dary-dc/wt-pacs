@@ -33,6 +33,16 @@ N6 = ROOT / ".local" / "measurements" / "n6"
 OK_CLOSED = ("last_byte", "delivered", "batch_delivered")
 # ask -> delivered, summed from the stages the client actually timed.
 METRICS = ("deliver_us", "serve_plus_path_us", "transfer_us", "ask_to_complete_us", "total_us")
+# `transfer` is first_byte -> last_byte, which is identically 0 for a frame that arrived in one
+# read. The client report excludes those rows from its transfer distribution; so does this, or a
+# small-frame cell reports a transfer of 0 for both arms and says nothing.
+METRIC_FILTER = {"transfer_us": lambda f: (f.get("chunks") or 0) > 1}
+
+
+def metric_values(rows: list[dict], m: str) -> list[float]:
+    keep = METRIC_FILTER.get(m)
+    return [r[m] for r in rows
+            if r.get(m) is not None and (keep is None or keep(r))]
 
 
 def nearest_rank(sorted_asc: list[float], p: float) -> float:
@@ -159,8 +169,9 @@ def summarize(cell: dict) -> dict:
            "groups": {}, "compare": {}}
 
     for name, rs in groups.items():
-        pooled = {m: [row[m] for r in rs for row in r["rows"] if row.get(m) is not None]
-                  for m in METRICS}
+        all_rows = [row for r in rs for row in r["rows"]]
+        pooled = {m: metric_values(all_rows, m) for m in METRICS}
+        chunk_counts = [row["chunks"] for row in all_rows if row.get("chunks") is not None]
         g = {
             "runs": len(rs),
             "rows_usable": sum(r["n_rows"] for r in rs),
@@ -179,6 +190,10 @@ def summarize(cell: dict) -> dict:
                            "values": [r["connect_ms"] for r in rs]},
             "wall_ms": {"median": pct([r["wall_ms"] for r in rs if r["wall_ms"] is not None], 50)},
             "mean_frame_bytes": pct([r["mean_frame_bytes"] for r in rs], 50),
+            # Reads per frame. The WASM arm copies into linear memory once per read, so this
+            # says how much of its extra copying lands before `last_byte` rather than after.
+            "chunks_per_frame": {"p50": pct(chunk_counts, 50), "p95": pct(chunk_counts, 95),
+                                 "mean": round(fmean(chunk_counts), 2)} if chunk_counts else None,
             "copies_declared": rs[0]["copies_declared"],
             "server_serve_us_p50": pct([r["server"]["serve_us"].get("p50", float("nan")) for r in rs], 50),
             "server_prepare_us_p50": pct([r["server"]["prepare_us"].get("p50", float("nan")) for r in rs], 50),
@@ -200,7 +215,7 @@ def summarize(cell: dict) -> dict:
                                   "mean": round(fmean(vals), 1), "min": min(vals), "max": max(vals)}
             per_run_med, per_run_p95 = [], []
             for r in rs:
-                v = [row[m] for row in r["rows"] if row.get(m) is not None]
+                v = metric_values(r["rows"], m)
                 if v:
                     per_run_med.append(pct(v, 50))
                     per_run_p95.append(pct(v, 95))
@@ -259,6 +274,7 @@ def render(res: dict) -> str:
         L.append(f"  [{n}] runs={g['runs']} connect_ms_median={g['connect_ms']['median']} "
                  f"copies_declared={g['copies_declared']} "
                  f"js_heap_peak={g['js_heap_peak_median']} wasm_mem={g['wasm_memory_end_median']}")
+        L.append(f"       chunks_per_frame={g['chunks_per_frame']}")
         L.append(f"       one-time: first_ask_total_us={g['first_ask_total_us_median']} "
                  f"first_ask_deliver_us={g['first_ask_deliver_us_median']} "
                  f"long_tasks_outside_window={g['long_tasks_outside_window']} "
