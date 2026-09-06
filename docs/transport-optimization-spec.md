@@ -1,5 +1,12 @@
 # Transport optimisation — implementation spec
 
+> **§S1 was measured and is wrong.** It called the initial congestion window "the largest
+> lever" on arithmetic; measured, it is worth ≤ 7 % with overlapping ranges. It is demoted
+> below, per decision rule D1 fixed in advance. The controller question it raised was also
+> answered, and not the way §S1 implied — see
+> [`transport-conclusions.md`](transport-conclusions.md), which supersedes the ranking in
+> this document's §S9.
+
 **Architecture-independent.** Written to outlive the server it was measured on. Nothing
 below names a function, a module, or a stream mode; each item states an **invariant**, the
 **evidence tier** behind it, and an **acceptance test** you can run against whatever the
@@ -42,9 +49,21 @@ memory.** Items are numbered by priority, not by confidence.
 
 ---
 
-## S1 · Initial congestion window — the largest lever, and unmeasured
+## S1 · Initial congestion window — ~~the largest lever~~ **measured: not a lever**
 
-**Tier: T0 (arithmetic + source read). Nothing measured. Highest expected value.**
+**Tier: T2, measured. RETRACTED as a priority — see
+[`transport-conclusions.md`](transport-conclusions.md) §3.**
+
+> Measured across three deployment cells at matched controllers: **≤ 7 %, usually less,
+> ranges mostly overlapping.** Directly, at 150 ms RTT with 250 KB frames, IW
+> 2400 → 240 000 moved per-frame time only 800 → 615 ms — 4.10 round trips at a window
+> that should have carried the whole frame in one.
+>
+> The arithmetic below ignored three things: quinn **paces**, so a large window becomes a
+> rate rather than a burst; the window **restarts after idle**; and the **ask costs a round
+> trip** the window cannot touch. Keep quinn's default. The rest of this section is left
+> as the reasoning that was wrong, because the failure mode — deriving a priority from
+> arithmetic and not measuring it — is the reusable lesson.
 
 ### Invariant
 
@@ -354,9 +373,10 @@ Measured, mechanism understood, low risk. Not worth a campaign each.
 
 | # | item | why it might matter here | cost to find out |
 | - | ---- | ------------------------ | ---------------- |
-| 1 | **Initial congestion window (S1)** | hundreds of ms of p95 on every cold frame | one netem campaign |
-| 2 | **Congestion controller on a real path** | the loopback verdict against BBR does not transfer | same campaign as #1 |
-| 3 | **Loss dimension for stream shape (S3 / lane L1)** | the whole reason per-frame delivery exists | already specified in L1 |
+| ~~1~~ | ~~Initial congestion window~~ | **answered: not a lever (≤ 7 %)** | done |
+| ~~2~~ | ~~Congestion controller~~ | **answered: keep Cubic; BBR is 66 % worse under congestive loss** | done |
+| ~~3~~ | ~~Loss dimension for stream shape~~ | **answered: keep shared; per-frame is 25–67 % worse** | done |
+| 3b | **Re-run stream shape congested** | E3 ran uncongested; the one per-frame+FIFO win (−39 %, 150 ms clustered loss) needs confirming | one campaign |
 | 4 | **Per-connection memory at scale (S6)** | decides how many viewers a box holds | an afternoon, no netem needed |
 | 5 | **Multi-core scaling / `SO_REUSEPORT`** | one endpoint is one UDP socket; the recv path may bottleneck before the cores do | needs two machines to answer honestly |
 | 6 | **Connection setup cost** | thousands of handshakes is real CPU (ECDSA sign) and one RTT of p95 each. Session resumption / 0-RTT reachability from a browser is unverified | a day, plus a browser test |

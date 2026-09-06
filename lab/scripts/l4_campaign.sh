@@ -31,6 +31,11 @@ cell_params() {
     A) echo "15 50 0.0" ;;
     B) echo "30 25 0.5" ;;
     C) echo "75 10 2.0" ;;
+    # D and E carry NO injected loss. Every drop is the bottleneck queue overflowing,
+    # which is the only regime where a loss-based controller is reacting to real
+    # congestion and a rate-based one can be charged for the queue it builds.
+    D) echo "30 25 0.0" ;;
+    E) echo "75 10 0.0" ;;
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
 }
@@ -67,6 +72,7 @@ for RUN in $(seq 1 "$REPEATS"); do
         --loss-burst "${LOSS_BURST:-1}" --seed "$((RUN * 7919 + 13))" \
         > /tmp/l4_netsim.log 2>&1 &
       NS=$!; sleep 0.4
+      QDROP_BEFORE=$(grep -c 'down_queue=[1-9]' /tmp/l4_netsim.log 2>/dev/null || echo 0)
 
       # stream mode must match on both ends; take it from the arm flags
       SM=shared; case " ${KEEP[*]} " in *" per-frame "*) SM=per-frame ;; esac
