@@ -139,10 +139,16 @@ The pool is not a compromise for its own sake; it is the only one of the three w
 coupling and dilution are **decoupled from the ask-window depth**. Shared and per-frame
 both tie their behaviour to `D`, which the client varies at runtime.
 
-> ~~**Thesis T5.** There is an interior optimum in N.~~ **Does not hold — see §7.4.**
-> Under `send_fairness(false)` an N-pool is byte-identical to the shared stream for every
-> N, and the interior optimum survives only under fairness=true, the arm already known to
-> be worst. Original text kept below.
+> **Thesis T5 — retracted, then UN-retracted (2026-09-06).** §7.4 rejected it on the
+> grounds that an N-pool is byte-identical to shared under `send_fairness(false)`. A third
+> review showed that argument is false: `retransmit()` re-queues a stream to the **back**
+> of its priority class regardless of the fairness setting
+> (`quinn-proto` `streams/state.rs:677`), so under loss a per-frame stream awaiting
+> retransmission waits behind every other stream's backlog while a shared stream
+> retransmits ahead of newer data. Two opposing monotone effects in N — receive-side
+> isolation improving, send-side retransmit deferral worsening — is exactly the structure
+> that yields an interior optimum. **T5 stands.** Fixed-N is not dominated; it is simply
+> not needed, because nothing beat shared. See `transport-conclusions.md` §2.
 >
 > **Thesis T5 (as written, superseded).** There is an interior optimum in N. At N=1 the arm is shared and pays full
 > head-of-line coupling; at N=D it is per-frame and pays full dilution. Somewhere between,
