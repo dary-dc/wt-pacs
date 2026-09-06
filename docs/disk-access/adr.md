@@ -48,8 +48,10 @@ the default, and it costs no extra hop.
 
 ### Where the fast path does not exist
 
-`RWF_NOWAIT` is honoured on ext4 and refused (`EOPNOTSUPP`) on **overlayfs and tmpfs** —
-measured, not assumed, and the previous campaign's host was overlayfs. `FrameStore::open`
+`RWF_NOWAIT` is honoured on ext4 and on **btrfs** (including btrfs-on-LUKS with
+`compress=zstd`), and refused (`EOPNOTSUPP`) on **overlayfs and tmpfs** — measured, not
+assumed, and the previous campaign's host was overlayfs. Check any new host with
+`check-fastpath` ([`DEPLOYMENT.md`](DEPLOYMENT.md)) rather than inferring from this list. `FrameStore::open`
 probes once; when the answer is no, `read_window` returns the whole frame length so the
 loop degrades to exactly one pooled `pread` per frame (the previous ADR's escape hatch),
 never one pool round trip per window.
@@ -106,7 +108,7 @@ Numbers are the product runtime, warm `later_p50` / worst-cell neighbour p99 —
 | `pread` into a fresh `Vec` | **Rejected** | 149.2 µs — ~17 µs of allocation tax over pooled, no other difference |
 | WILLNEED on executor | **Rejected** | Fault still on the executor |
 | Ahead-N prefetch (`POSIX_FADV_WILLNEED` on the next ask) | **Measured, not landed** | Worth **4.6–4.9×** on a cold *strided* read (rung delivery): misses 319 → 6–56 per 320, ~half the CPU per ask, one syscall, no layout change. A **loss** on a cold sweeping read (108.9 vs 46.8 µs) — so it is a routed choice, and the routing depends on a layout design that does not exist yet ([`PREFIX-READS.md`](PREFIX-READS.md) Part 2) |
-| `io_uring` + `RWF_NOWAIT` hybrid *(best io_uring arm)* | **Rejected** | A tie bounded at ±5%: +2.5% and +2.4% against the accepted path in two pooled-sample runs, −4.5% in a `--monitors 0` cell. It **is** the accepted path on a page-cache hit — the ring only serves the miss — so it buys a ring, an eventfd and registered buffers per session for nothing that reproduces |
+| `io_uring` + `RWF_NOWAIT` hybrid *(best io_uring arm)* | **Rejected here; re-opened by the read-path campaign** | A tie bounded at ±5% *on this cell*: +2.5% and +2.4% against the accepted path in two pooled-sample runs, −4.5% in a `--monitors 0` cell. In the **product design** it is the accepted path on a page-cache hit — the ring only serves the miss — so on a ~100% warm workload it buys a ring, an eventfd and registered buffers per session for nothing. **That rejection is conditional on the miss rate**, which this ADR's cells fixed at ~0: [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md) measures the hybrid **38–79% cheaper once reads miss**, on four hosts. Two caveats before acting on that: how often reads miss is a *layout* decision ([`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md)), and part of the margin is reader-loop shape rather than the ring (**R8** in [`SCOREBOARD.md`](SCOREBOARD.md)) |
 | `io_uring` alone (registered file + fixed buffers, whole frame in one submit) | **Rejected** | Ties warm (82–88 µs), worst io_uring arm when reads miss: 224 parked completions on a cold random trace vs 59, and 408–437 µs on a cold reverse pass vs ~345. Batching a frame's windows means every window of a miss waits together |
 | `io_uring` pipelined (read n+1 during write n) | **Rejected** | The one thing only io_uring can do here, order-controlled at ~6% on a 100%-miss trace — while costing ~25% warm (108.6 vs 84.7 µs) and 2× session memory |
 | `io_uring` + `SQPOLL` | **Rejected** | 2.8× the CPU (287 vs 104 µs/ask) for worse latency: with a kernel submitter nothing completes inline, so every read parks |
