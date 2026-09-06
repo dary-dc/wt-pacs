@@ -466,7 +466,16 @@ async fn emit_window(
         }
         {
             let mut o = outstanding.lock().expect("outstanding");
-            if o.len() as u32 >= d && !o.contains(&frame) {
+            // Already asked and still in flight — do not ask again. The previous guard
+            // only rejected *new* frames once the window was full, so a frame in flight
+            // was re-asked on every step until it arrived. Measured from committed data,
+            // that was 7.6-13.7x redundant load, and it was self-reinforcing: a slower
+            // arm holds frames outstanding longer, gets re-asked more, and loads its own
+            // link more. Any arm comparison carrying it is contaminated.
+            if o.contains(&frame) {
+                continue;
+            }
+            if o.len() as u32 >= d {
                 continue;
             }
             o.insert(frame);

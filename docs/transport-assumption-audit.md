@@ -42,8 +42,11 @@ conclusions they would invalidate, not how wrong they are.
 | **A15** | **80-frame series** | Real CT/MR series run to hundreds or thousands of slices | Window depth, cache pressure and prefetch strategy all scale with series length | medium |
 | **A16** | **Synthetic incompressible frames** (fixtures are `0xAB` repeated) | Real codestreams have real entropy | Only matters if anything downstream compresses; currently nothing does. Listed for completeness | low |
 
-**A1–A5 are the ones that can invalidate the current conclusions.** The rest change
-magnitudes.
+~~**A1–A5 are the ones that can invalidate the current conclusions.**~~ **Wrong — see §7.**
+That sentence presupposed the conclusions were sound in their own regime and only a
+different regime could overturn them. In fact four of them fail on their own data, and
+three assumptions that implicate the *harness* rather than the world were missing from
+this table entirely. Severity corrections in §7.5; missing entries in §7.3.
 
 ---
 
@@ -72,8 +75,13 @@ during the transient?* **Neither controller has been tested on a moving bottlene
 
 Two things break when RTT is noisy, and both are in this system:
 
-- **BBR's RTprop** is a windowed minimum RTT. Under persistent queueing it can latch onto
-  a stale minimum and misestimate.
+- **BBR's RTprop.** ~~A windowed minimum that can latch onto a stale minimum under
+  persistent queueing.~~ **Wrong for this stack, and backwards** — see §7. quinn's
+  `RttEstimator.min` is a *lifetime* monotone minimum, never decayed, and `Bbr::min_rtt`
+  refreshes only on a 10-second timer gated on `!app_limited`. So the real failure is the
+  opposite: when true propagation delay *rises* — handover, satellite elevation — quinn's
+  BBR keeps a permanently too-small RTprop and under-shoots. On a trace with 44 % dwell it
+  is frequently app-limited, so `ProbeRtt` may never run.
 - **The client's own window formula** — `D = ceil(U × (1 + RTT/Tf))` from
   `L2-ask-policy.md` — takes a *median of the last 8* RTT samples. On a link where RTT
   swings 30→300 ms, that median is a lagging estimate of a quantity that has already
@@ -107,9 +115,13 @@ A 500-slice CT series at 250 KB is 125 MB. A tablet browser will evict. With evi
 reader scrolling back into evicted territory re-fetches — which is exactly the reversal
 case where head-of-line blocking bites, and exactly the case my rig made impossible.
 
-> **Thesis T4.** Head-of-line blocking is unmeasurable with an unbounded cache, because
-> the reversal that would expose it is served from memory. The stream-shape question can
-> only be answered with a realistically bounded cache.
+> ~~**Thesis T4.** Head-of-line blocking is unmeasurable with an unbounded cache…~~
+> **Right symptom, wrong cause — see §7.3.** `window_frames` is *symmetric*
+> (`center ± k`), so with `max_step: 1` a reversal is always already inside the window
+> emitted before the reader got there. Bounding the cache does not create the missing
+> event; a **jump-bearing trace** (displacement > D/2) does. The project already knew this:
+> `adr-reject-server-cancel.md` lists "jump affordance in the UI — traces with
+> `max_step = 1` cannot show that workload" as a flip condition.
 
 ---
 
@@ -127,7 +139,12 @@ The pool is not a compromise for its own sake; it is the only one of the three w
 coupling and dilution are **decoupled from the ask-window depth**. Shared and per-frame
 both tie their behaviour to `D`, which the client varies at runtime.
 
-> **Thesis T5.** There is an interior optimum in N. At N=1 the arm is shared and pays full
+> ~~**Thesis T5.** There is an interior optimum in N.~~ **Does not hold — see §7.4.**
+> Under `send_fairness(false)` an N-pool is byte-identical to the shared stream for every
+> N, and the interior optimum survives only under fairness=true, the arm already known to
+> be worst. Original text kept below.
+>
+> **Thesis T5 (as written, superseded).** There is an interior optimum in N. At N=1 the arm is shared and pays full
 > head-of-line coupling; at N=D it is per-frame and pays full dilution. Somewhere between,
 > a small N (2–4) captures most of the decoupling for a small fraction of the dilution.
 >
@@ -200,3 +217,101 @@ Items 1 and 3 are the ones that would let this stop guessing.
 This document exists because a reviewed, measured, written-up conclusion was invalidated
 by an unexamined premise. **Every future conclusion in this lane gets an adversarial
 review before it is written up, and the review is given this list to check against.**
+
+---
+
+## 7 · Adversarial review of this audit — it did not survive
+
+Reviewed by an independent agent given the audit, the conclusions, the pre-registration,
+the rig source and quinn-proto. Findings re-verified before acceptance. The audit was
+supposed to catch premises that invalidate conclusions; it missed several, and it missed
+them in a pattern.
+
+### 7.1 · Four errors in `transport-conclusions.md` the audit failed to catch
+
+All four verified directly; all four are now corrected in that document's banner.
+
+1. **The "Keep Cubic" verdict never passed the lane's own non-overlap rule** — the
+   analyser prints `overlap` for both congestive cells. It was rated "strong … ranges
+   separated", and the quoted numbers are not reproducible from the committed TSV.
+2. **`e7_congested_plus_exogenous.tsv` — the only deployment-shaped cell — is cited zero
+   times**, and shows Cubic **9× worse, 4/4 separated**.
+3. **`nz_p50` separates 4/4 in per-frame's favour** (549–839 vs 1525–1930 ms) and was
+   reported as "ranges overlap — not a result".
+4. **Three rows with `p95 = 0`** — pre-registered stop condition 1 — were quoted as
+   results without voiding.
+
+### 7.2 · The audit picked the wrong side of its own best idea
+
+The audit's instinct was right — the congestive/non-congestive axis is where this work
+keeps failing — but it accepted that the uncongested regime was a **rig defect to be
+voided**. Mathis at 1 % loss says otherwise:
+
+| target cell | Cubic's ceiling | as % of link |
+| ----------- | --------------- | ------------ |
+| 5G / WiFi, 50 ms, 20 Mbps | 2.85 Mbps | **14 %** |
+| GEO satellite, 600 ms, 8 Mbps | 0.24 Mbps | **3 %** |
+
+**Cubic cannot congest the target links.** The uncongested, exogenous-loss regime *is* this
+deployment's operating point, so the campaign that was voided was measuring the right
+thing and the "correction" moved away from it.
+
+### 7.3 · Missing assumptions, and the pattern in what was missing
+
+The three that implicate the **harness** were the three absent:
+
+- **In-flight ask redundancy.** `emit_window` re-asked frames already in flight on every
+  step: **7.6–13.7×** redundant load, arm-dependent and self-reinforcing. Fixed 2026-09-06.
+- **The reader is closed-loop.** `run_windowed` blocks until the cursor frame arrives, so
+  `wall_s` runs 20× the trace's nominal duration and the reader can never get ahead of the
+  transport — making stale-data-ahead-of-a-want impossible by construction.
+- **`window_frames` is symmetric** (`center ± k`), so with `max_step: 1` a reversal is
+  always already inside the emitted window. **This, not cache eviction, is why no trace in
+  the repo can produce a head-of-line miss.** Thesis T4 named the wrong cause, and step 1
+  of the work order (bounded cache) is therefore **not** the prerequisite claimed — the
+  real prerequisite is a **jump-bearing trace** (displacement > D/2).
+
+Also missing: per-stream flow control differs *between* the stream-shape arms by
+construction (shared is capped at one 1.25 MB stream window; per-frame gets D of them);
+effective buffer depth varies 0.71–5.31 BDP across cells, uncontrolled and unrecorded;
+`rate × RTT` is *still* constant in the "corrected" cells D and E; the loss-burst setting
+is not recorded in any output row; stop condition 4 remains unimplemented; and e7/e8/e9
+have no committed campaign script.
+
+### 7.4 · T5 does not hold
+
+With `send_fairness(false)` — the configuration the project has already chosen for any
+per-frame design — quinn drains streams in the order they became pending, and the server
+loop is strictly serial, so pending order *is* ask order and an N-pool is **byte-identical
+to the shared stream** for every N. The interior optimum exists only under fairness=true,
+which is the arm already known to be worst. **A5 is downgraded from critical to medium.**
+P5's zero-loss control is also non-diagnostic: it passes whether T5 is true or false.
+
+The audit's "1/N head-of-line coupling" and "streams to recover after an outage" columns
+are also wrong: loss detection, congestion control and pacing are connection-wide in QUIC,
+so stream count does not change recovery cost — and per-frame has an outage hazard shared
+does not, since `open_uni()` blocks on MAX_STREAMS until FINs are acknowledged.
+
+### 7.5 · Severity corrections
+
+`A7` buffer depth → **critical** (it is the parameter deciding Cubic vs BBR, and it varies
+7.5× across cells uncontrolled). `A11` uplink → **critical for satellite** (a lost ask
+costs a PTO before the frame is requested; quinn's `initial_rtt` is 333 ms). `A13`
+progressive frames → **critical** (if a truncated prefix is displayable, it dissolves the
+stream-shape, frame-size and initial-window questions at once). `A14` → **critical**: the
+metric is not merely arguable, it is broken — `p95_wait_ms` includes cache-hit zeros, so
+it is the ~76th percentile at 250 KB and roughly the median at 32 KB.
+
+### 7.6 · Work-order corrections
+
+Step 0 is a **jump-bearing trace** plus the re-ask fix. **Swap steps 4 and 5** — stream
+shape is currently scheduled before the controller is re-taken, but in cell W Cubic
+delivers ~14 % of the link, so every stream-shape arm was measured through a crippled
+controller. Bounded cache is demoted from prerequisite to ordinary experiment.
+
+### 7.7 · What survived
+
+One claim: **per-frame without `send_fairness(false)` is the worst option in every
+condition measured** — 4/4 separated in both cells and both loss regimes, consistent with
+quinn's actual scheduler, and the known defects all push toward *reducing* separation
+rather than manufacturing it.
