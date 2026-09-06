@@ -7,10 +7,9 @@ type SessionLike = {
   waitExactFrame(frameIndex: number, askMs: number): Promise<unknown>;
   startExactFrames(indices: ArrayLike<number>): number;
   requestExactFrames?(indices: ArrayLike<number>): Promise<unknown>;
-  [k: string]: unknown;
 };
 
-export function wrapSession<T extends SessionLike>(session: T): T {
+export function wrapSession<T extends object & SessionLike>(session: T): T {
   const handler: ProxyHandler<T> = {
     get(target, prop, receiver) {
       const v = Reflect.get(target, prop, receiver);
@@ -39,8 +38,9 @@ export function wrapSession<T extends SessionLike>(session: T): T {
         return async (indices: ArrayLike<number>) => {
           getTap()?.gesture();
           const result = await target.requestExactFrames!(indices);
+          // The whole batch has landed by now; rows say so rather than posing as per-frame.
           const list = Array.from(indices);
-          for (const i of list) getTap()?.onDelivered(i);
+          for (const i of list) getTap()?.onDelivered(i, "batch");
           return result;
         };
       }

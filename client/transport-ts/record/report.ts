@@ -1,16 +1,15 @@
 /** Assemble the harvested client telemetry report. */
 
 import { distributionStats } from "./percentiles.ts";
-import { askToCompleteUs } from "./rows.ts";
+import { askToCompleteUs, toClientFrame } from "./rows.ts";
 import type {
   ClientFrameRow,
   Integrity,
   IntegrityJudgement,
+  OpenRow,
   TapConfig,
   TelemetryReport,
 } from "./types.ts";
-
-const RING_CAPACITY = 4096;
 
 const DIST_ACCESSORS: {
   key: string;
@@ -18,7 +17,8 @@ const DIST_ACCESSORS: {
   /** Extra row filter (e.g. transfer excludes single-chunk). */
   include?: (f: ClientFrameRow) => boolean;
 }[] = [
-  { key: "queue", get: (f) => f.queue_us },
+  // Fill rows share one gesture and one ask stamp: their queue is a scalar, reported once.
+  { key: "queue", get: (f) => f.queue_us, include: (f) => f.kind === "interaction" },
   { key: "serve_plus_path", get: (f) => f.serve_plus_path_us },
   {
     key: "transfer",
@@ -58,8 +58,10 @@ export function judgeIntegrity(integrity: Integrity): IntegrityJudgement {
   if (integrity.first_write_conflicts > 0) {
     invalid_reasons.push(`first_write_conflicts ${integrity.first_write_conflicts}`);
   }
-  // marks_after_close is recorded but does not void: fill/preload closes at
-  // last_byte while the harness may still call onDelivered afterward.
+  if (integrity.ring_evictions > 0) {
+    invalid_reasons.push(`ring_evictions ${integrity.ring_evictions}`);
+  }
+  // marks_after_close is recorded but does not void: it now means a mark with no row at all.
   return { valid: invalid_reasons.length === 0, invalid_reasons };
 }
 
@@ -80,11 +82,24 @@ export function bindingRollup(
   return out;
 }
 
+/**
+ * The earliest ask of the run, by ask time. Warm-up (first stream, server cold pages, JIT)
+ * lands on it whatever its frame index; it is reported on its own and excluded from means.
+ */
+export function pickFirstAsk(rows: OpenRow[]): OpenRow | null {
+  let first: OpenRow | null = null;
+  for (const r of rows) {
+    if (r.ask_us == null) continue;
+    if (first == null || r.ask_us < (first.ask_us as number)) first = r;
+  }
+  return first;
+}
+
 export function assembleReport(args: {
   config: TapConfig;
   install_t0_ms: number;
   first_ask_ms: number | null;
-  closedRows: ClientFrameRow[];
+  closedRows: OpenRow[];
   integrity: Integrity;
 }): TelemetryReport {
   const judgement = judgeIntegrity(args.integrity);
@@ -94,14 +109,18 @@ export function assembleReport(args: {
     invalid_reasons: judgement.invalid_reasons,
   };
 
-  const frames = [...args.closedRows].sort(
-    (a, b) => a.frame_index - b.frame_index || a.ask_ordinal - b.ask_ordinal,
-  );
+  const firstAskOpen = pickFirstAsk(args.closedRows);
+  const converted = args.closedRows.map((r) => ({ open: r, row: toClientFrame(r) }));
+  const frames = converted
+    .map((c) => c.row)
+    .sort((a, b) => a.frame_index - b.frame_index || a.ask_ordinal - b.ask_ordinal);
+  const first_ask_row = converted.find((c) => c.open === firstAskOpen)?.row ?? null;
+  const usable = converted.filter((c) => c.open !== firstAskOpen).map((c) => c.row);
+
   const hasPreload = frames.some((f) => f.kind === "preload");
   const report_mode = hasPreload ? "fill" : "ondemand";
   const ask_granularity = hasPreload ? "request_frames_batch" : "request_frame";
 
-  const usable = frames.filter((f) => f.frame_index !== 0);
   const serve = usable
     .map((f) => f.serve_plus_path_us)
     .filter((v): v is number => v != null);
@@ -127,6 +146,12 @@ export function assembleReport(args: {
     distributions[key] = distributionStats(vals);
   }
 
+  // One number per fill: the first preload row's queue (they all share the stamps).
+  const firstPreload = converted
+    .filter((c) => c.open.kind === "preload" && c.row.queue_us != null)
+    .sort((a, b) => (a.open.ask_us ?? 0) - (b.open.ask_us ?? 0))[0];
+  const fill_queue_us = firstPreload ? firstPreload.row.queue_us : null;
+
   const meanBytes =
     usable.length === 0
       ? null
@@ -149,11 +174,14 @@ export function assembleReport(args: {
       stages_absent: ["decode_wait", "decode", "paint"],
       connect_ms,
       headline,
+      first_ask_row,
+      fill_queue_us,
       distributions,
       binding: bindingRollup(usable),
       copies: {
         mean_frame_bytes: meanBytes,
-        copies_per_frame: args.config.copies_per_frame,
+        copies_per_frame_declared: args.config.copies_per_frame_declared,
+        copies_source: args.config.copies_source,
       },
       preload_to_decode: null,
       cold_start: {
@@ -165,8 +193,8 @@ export function assembleReport(args: {
     run_end: {
       event: "run_end",
       written_records: frames.length,
-      dropped_records: integrity.rows_dropped,
-      ring_capacity: RING_CAPACITY,
+      dropped_records: integrity.rows_dropped + integrity.ring_evictions,
+      ring_capacity: args.config.ring_capacity,
     },
   };
 }

@@ -65,7 +65,8 @@ export function proxyReader(reader: ReadableStreamDefaultReader<Uint8Array>, str
           return reader.read().then((result) => {
             const tap = getTap();
             if (tap && result && !result.done && result.value) {
-              const v = result.value;
+              // BYOB readers can hand back other views; the tap wants bytes.
+              const v = result.value as ArrayBufferView;
               const bytes =
                 v instanceof Uint8Array
                   ? v

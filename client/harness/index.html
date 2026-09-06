@@ -37,7 +37,7 @@
         const { install, wrapSession: wrap } = await import(
           "/client/transport-ts/record/dist/install.js"
         );
-        install({ arm: "transport-wasm", stream_mode: streamMode, copies_per_frame: 2 });
+        install({ arm: "transport-wasm", stream_mode: streamMode });
         wrapSession = wrap;
       }
 

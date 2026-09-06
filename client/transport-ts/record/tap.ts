@@ -2,11 +2,11 @@
 
 import { StreamAttributor } from "./attribution.ts";
 import { nowUs, probeClockResolution, watchLongTasks } from "./clock.ts";
-import { parseFodFrames } from "./parse.ts";
+import { parseFodAsks } from "./parse.ts";
 import { assembleReport } from "./report.ts";
-import { createOpenRow, OpenRowIndex, toClientFrame } from "./rows.ts";
+import { createOpenRow, DeliveredLater, OpenRowIndex } from "./rows.ts";
 import type {
-  ClientFrameRow,
+  ClosedAt,
   Integrity,
   OpenRow,
   RowKind,
@@ -15,13 +15,17 @@ import type {
   Us,
 } from "./types.ts";
 
+export const DEFAULT_RING_CAPACITY = 4096;
+
 export class Tap {
   readonly config: TapConfig;
   private install_t0_ms: number;
   private first_ask_ms: number | null = null;
   private ordinals = new Map<number, number>();
   private openIndex = new OpenRowIndex();
-  private closedRows: ClientFrameRow[] = [];
+  private deliveredLater = new DeliveredLater();
+  /** Closed rows in close order; converted to report rows at finish() so late marks can land. */
+  private closedRows: OpenRow[] = [];
   private attributors = new Map<number, StreamAttributor>();
   private streamSeq = 0;
   private pendingGestures = new Map<number, Us>();
@@ -29,11 +33,14 @@ export class Tap {
   private report: TelemetryReport | null = null;
   private longTaskCount = 0;
   private stopLongTasks: () => void = () => {};
+  /** Wall cost of each onMediaRead, µs — the recorder timing itself. */
+  private readCosts: number[] = [];
 
   integrity: Integrity = {
     rows_opened: 0,
     rows_closed: 0,
     rows_dropped: 0,
+    ring_evictions: 0,
     marks_after_close: 0,
     first_write_conflicts: 0,
     byte_closure_ok: true,
@@ -41,6 +48,7 @@ export class Tap {
     clock_resolution_us: null,
     clock_probe_us: null,
     cross_origin_isolated: null,
+    tap_read_cost_us: null,
   };
 
   constructor(config: TapConfig) {
@@ -72,26 +80,24 @@ export class Tap {
     return id;
   }
 
+  /** `ask` = the control write was called. Stamp first; decoding the message is not the ask. */
   onControlWrite(chunk: Uint8Array) {
-    const frames = parseFodFrames(chunk);
-    if (!frames || frames.length === 0) return;
     const t = nowUs();
+    const asks = parseFodAsks(chunk);
+    if (asks.length === 0) return;
     if (this.first_ask_ms == null) {
       this.first_ask_ms = performance.now();
     }
-    const kind: RowKind = frames.length > 1 ? "preload" : "interaction";
-    for (const frame_index of frames) {
-      this.openRow(kind, frame_index, t);
+    for (const ask of asks) {
+      for (const frame_index of ask.frames) {
+        this.openRow(ask.kind, frame_index, t);
+      }
     }
   }
 
   onAskFlush() {
     const t = nowUs();
     for (const row of this.openIndex.rowsNeedingFlush()) {
-      if (row.ask_flush_us != null) {
-        this.integrity.first_write_conflicts += 1;
-        continue;
-      }
       row.ask_flush_us = t;
     }
   }
@@ -101,6 +107,7 @@ export class Tap {
     const attr = this.attributors.get(streamId);
     if (!attr) return;
     const t = nowUs();
+    const costStart = performance.now();
     const newly = attr.onRead(value, t);
     for (const f of newly) {
       this.applyWireTiming(f.frame_index, f.first_byte_us, f.last_byte_us, f.chunks, f.bytes);
@@ -108,6 +115,7 @@ export class Tap {
     if (attr.isBad) {
       this.integrity.byte_closure_ok = false;
     }
+    this.readCosts.push(Math.round((performance.now() - costStart) * 1000));
   }
 
   private applyWireTiming(
@@ -132,12 +140,17 @@ export class Tap {
     row.bytes = bytes;
     if (row.kind === "preload") {
       this.closeRow(row, "last_byte");
+      this.deliveredLater.expect(row);
     }
   }
 
-  onDelivered(frame_index: number) {
+  /**
+   * The app has the bytes. Interaction rows close here; a closed preload row takes the mark as
+   * its `deliver` stage. `via: "batch"` = the batch method marked it after the whole batch.
+   */
+  onDelivered(frame_index: number, via: "single" | "batch" = "single") {
     const t = nowUs();
-    const row = this.openIndex.findOpen(frame_index);
+    const row = this.openIndex.findOpen(frame_index) ?? this.deliveredLater.take(frame_index);
     if (!row) {
       this.integrity.marks_after_close += 1;
       return;
@@ -147,8 +160,8 @@ export class Tap {
       return;
     }
     row.delivered_us = t;
-    if (row.kind === "interaction") {
-      this.closeRow(row, "delivered");
+    if (!row.closed && row.kind === "interaction") {
+      this.closeRow(row, via === "batch" ? "batch_delivered" : "delivered");
     }
   }
 
@@ -168,7 +181,7 @@ export class Tap {
     return n;
   }
 
-  private closeRow(row: OpenRow, closed_at: "last_byte" | "delivered") {
+  private closeRow(row: OpenRow, closed_at: ClosedAt) {
     if (row.closed) {
       this.integrity.marks_after_close += 1;
       return;
@@ -177,7 +190,12 @@ export class Tap {
     row.closed_at = closed_at;
     this.openIndex.markClosed(row);
     this.integrity.rows_closed += 1;
-    this.closedRows.push(toClientFrame(row));
+    if (this.closedRows.length >= this.config.ring_capacity) {
+      // The ring is real: a run past capacity says so instead of silently reshaping its means.
+      this.integrity.ring_evictions += 1;
+      return;
+    }
+    this.closedRows.push(row);
   }
 
   /** Finalize and return the report. Idempotent. */
@@ -189,6 +207,7 @@ export class Tap {
     const probe = probeClockResolution();
     this.integrity.clock_resolution_us = probe.resolution_us;
     this.integrity.clock_probe_us = probe.probe_cost_us;
+    this.integrity.tap_read_cost_us = summarizeReadCosts(this.readCosts);
 
     for (const attr of this.attributors.values()) {
       if (!attr.closureOk()) {
@@ -214,6 +233,18 @@ export class Tap {
     this.integrity.invalid_reasons = this.report.summary.integrity.invalid_reasons;
     return this.report;
   }
+}
+
+function summarizeReadCosts(costs: number[]): Integrity["tap_read_cost_us"] {
+  if (costs.length === 0) return null;
+  const sorted = [...costs].sort((a, b) => a - b);
+  const rank = (p: number) => sorted[Math.min(sorted.length, Math.max(1, Math.ceil((p / 100) * sorted.length))) - 1];
+  return {
+    count: sorted.length,
+    p50_us: rank(50),
+    p99_us: rank(99),
+    max_us: sorted[sorted.length - 1],
+  };
 }
 
 let ACTIVE: Tap | null = null;

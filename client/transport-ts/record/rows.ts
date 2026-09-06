@@ -1,6 +1,6 @@
 /** Open-row lifecycle and per-row stage math. */
 
-import type { ClientFrameRow, OpenRow, RowKind, Us } from "./types.ts";
+import type { ClientFrameRow, ClosedAt, OpenRow, RowKind, Us } from "./types.ts";
 
 export function createOpenRow(
   kind: RowKind,
@@ -73,9 +73,35 @@ export class OpenRowIndex {
   }
 }
 
+/**
+ * Closed preload rows that have not yet seen `delivered`. Fill rows close at `last_byte`
+ * (paint has no site), but the app still receives the bytes later; that mark fills
+ * `deliver_us` on the closed row instead of being discarded as a mark after close.
+ */
+export class DeliveredLater {
+  private byFrame = new Map<number, OpenRow[]>();
+
+  expect(row: OpenRow) {
+    const q = this.byFrame.get(row.frame_index);
+    if (q) q.push(row);
+    else this.byFrame.set(row.frame_index, [row]);
+  }
+
+  /** Oldest closed preload row for this frame still awaiting `delivered`, removed. */
+  take(frame_index: number): OpenRow | undefined {
+    const q = this.byFrame.get(frame_index);
+    if (!q || q.length === 0) return undefined;
+    const row = q.shift();
+    if (q.length === 0) this.byFrame.delete(frame_index);
+    return row;
+  }
+}
+
 export function toClientFrame(row: OpenRow): ClientFrameRow {
   const queue_us =
     row.gesture_us != null && row.ask_us != null ? row.ask_us - row.gesture_us : null;
+  const ask_flush_us =
+    row.ask_us != null && row.ask_flush_us != null ? row.ask_flush_us - row.ask_us : null;
   const serve_plus_path_us =
     row.ask_us != null && row.first_byte_us != null
       ? row.first_byte_us - row.ask_us
@@ -128,6 +154,7 @@ export function toClientFrame(row: OpenRow): ClientFrameRow {
     ask_ordinal: row.ask_ordinal,
     source: "network",
     queue_us,
+    ask_flush_us,
     serve_plus_path_us,
     transfer_us,
     deliver_us,
@@ -136,12 +163,16 @@ export function toClientFrame(row: OpenRow): ClientFrameRow {
     paint_us: null,
     total_us,
     total_spans,
-    closed_at: row.closed_at ?? (row.kind === "preload" ? "last_byte" : "delivered"),
+    closed_at: row.closed_at ?? defaultClosedAt(row.kind),
     bytes: row.bytes ?? 0,
     chunks,
     stall: null,
     binding_term,
   };
+}
+
+function defaultClosedAt(kind: RowKind): ClosedAt {
+  return kind === "preload" ? "last_byte" : "delivered";
 }
 
 /** Match transfer distribution filter: only multi-chunk rows bind on transfer. */

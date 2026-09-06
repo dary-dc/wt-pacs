@@ -72,11 +72,22 @@ server/scripts/check_telemetry_absent.sh
 - **Units:** integers in **µs**
 - **Null ≠ 0:** absent stamps are `null`; a stage that ran with no measurable time is `0`
 - **Transfer:** `lastByte − firstByte`; `chunks == 1` frames excluded from transfer distributions
-- **Integrity:** `summary.integrity` — void on open/closed disagreement, byte-closure failure, or
-  first-write conflicts. `marks_after_close` is recorded but does not void alone.
+- **Integrity:** `summary.integrity` — void on open/closed disagreement, byte-closure failure,
+  first-write conflicts, or ring evictions. `marks_after_close` (a mark with no row at all) is
+  recorded but does not void alone. `tap_read_cost_us` is the recorder timing its own read path.
 - **Binding rollup:** `summary.binding` over usable frames
-- **Copies:** `mean_frame_bytes` is the mean of per-frame `bytes` (not a JS heap measure)
-- **Frame 0:** exclude from means or report separately (WASM instantiate lands on it)
+- **Copies:** `mean_frame_bytes` is the mean of per-frame `bytes` (not a JS heap measure);
+  `copies_per_frame_declared` + `copies_source` are a source read declared by the harness
+- **First ask:** the earliest ask of the run by ask time is `summary.first_ask_row` and is excluded
+  from every mean and headline, whatever its frame index (first stream, cold pages, JIT land on it)
+- **Fill `queue`:** one gesture and one ask stamp per fill, so `summary.fill_queue_us` is reported
+  once and `distributions.queue` covers interaction rows only
+- **Fill `deliver`:** preload rows close at `last_byte`; a later `delivered` mark fills their
+  `deliver_us` instead of being discarded
+- **Ring:** `run_end.ring_capacity` is enforced on closed rows (default 4096); evictions are counted
+  and void the run
+- **`closed_at`:** `last_byte` · `delivered` · `batch_delivered` (marked by the batch method after
+  the whole batch — not a per-frame delivery)
 - **Compare within a cell only:** on-demand ↔ on-demand, fill ↔ fill
 - **Absent here:** decode, paint, cache → `null`
 - **Stage `deliver`:** receive-side copy on the client path

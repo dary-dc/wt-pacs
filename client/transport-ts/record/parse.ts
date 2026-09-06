@@ -4,6 +4,7 @@
  */
 
 import { MAX_FRAME_LEN } from "../wire.ts";
+import type { RowKind } from "./types.ts";
 
 /** Parse consecutive `[4B BE len][4B BE index][codestream]` frames from a byte buffer. */
 export function parseFootprintsFromBytes(
@@ -29,18 +30,42 @@ export function parseFootprintsFromBytes(
   return { footprints, consumed: off };
 }
 
-/** Decode FoD body from a control write chunk (LE length + JSON). */
-export function parseFodFrames(chunk: Uint8Array): number[] | null {
-  if (chunk.length < 4) return null;
-  const bodyLen = new DataView(chunk.buffer, chunk.byteOffset, 4).getUint32(0, true);
-  if (4 + bodyLen > chunk.length) return null;
-  try {
-    const body = new TextDecoder().decode(chunk.subarray(4, 4 + bodyLen));
-    const msg = JSON.parse(body) as { op?: string; frame?: number; frames?: number[] };
-    if (msg.op === "request_frame" && typeof msg.frame === "number") return [msg.frame];
-    if (msg.op === "request_frames" && Array.isArray(msg.frames)) return msg.frames.map(Number);
-  } catch {
-    return null;
+export type FodAsk = { kind: RowKind; frames: number[] };
+
+/**
+ * Decode every FoD ask in one control write (LE length + JSON, possibly several back to back).
+ * Row kind comes from the op, not from how many frames the message carries: a
+ * `request_frames` of one is still the batch path on the server.
+ */
+export function parseFodAsks(chunk: Uint8Array): FodAsk[] {
+  const asks: FodAsk[] = [];
+  let off = 0;
+  const decoder = new TextDecoder();
+  while (off + 4 <= chunk.length) {
+    const bodyLen = new DataView(chunk.buffer, chunk.byteOffset + off, 4).getUint32(0, true);
+    if (off + 4 + bodyLen > chunk.length) break;
+    try {
+      const msg = JSON.parse(decoder.decode(chunk.subarray(off + 4, off + 4 + bodyLen))) as {
+        op?: string;
+        frame?: number;
+        frames?: number[];
+      };
+      if (msg.op === "request_frame" && typeof msg.frame === "number") {
+        asks.push({ kind: "interaction", frames: [msg.frame] });
+      } else if (msg.op === "request_frames" && Array.isArray(msg.frames)) {
+        asks.push({ kind: "preload", frames: msg.frames.map(Number) });
+      }
+    } catch {
+      break;
+    }
+    off += 4 + bodyLen;
   }
-  return null;
+  return asks;
+}
+
+/** @deprecated kept for callers that want a flat frame list; kind is lost. */
+export function parseFodFrames(chunk: Uint8Array): number[] | null {
+  const asks = parseFodAsks(chunk);
+  if (asks.length === 0) return null;
+  return asks.flatMap((a) => a.frames);
 }

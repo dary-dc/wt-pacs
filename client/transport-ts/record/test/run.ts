@@ -7,11 +7,11 @@
 import { StreamAttributor } from "../attribution.ts";
 import { attributeFrames } from "../offsets.ts";
 import { nearestRank, distributionStats } from "../percentiles.ts";
-import { parseFootprintsFromBytes } from "../parse.ts";
+import { parseFodAsks, parseFootprintsFromBytes } from "../parse.ts";
 import { judgeIntegrity, minOf, maxOf } from "../report.ts";
 import { pickBinding } from "../rows.ts";
 import { Tap } from "../tap.ts";
-import type { ChunkMark } from "../types.ts";
+import type { ChunkMark, TapConfig } from "../types.ts";
 
 let failed = 0;
 function assert(cond: boolean, msg: string) {
@@ -28,6 +28,51 @@ function assertEq(a: unknown, b: unknown, msg: string) {
   assert(ok, `${msg} (got ${JSON.stringify(a)}, want ${JSON.stringify(b)})`);
 }
 
+function cfg(over: Partial<TapConfig> = {}): TapConfig {
+  return {
+    arm: "transport-ts",
+    stream_mode: "shared",
+    copies_per_frame_declared: 1,
+    copies_source: "test",
+    ring_capacity: 4096,
+    ...over,
+  };
+}
+
+function fod(msg: object): Uint8Array {
+  const body = new TextEncoder().encode(JSON.stringify(msg));
+  const out = new Uint8Array(4 + body.length);
+  new DataView(out.buffer).setUint32(0, body.length, true);
+  out.set(body, 4);
+  return out;
+}
+
+function fodRequest(frame: number): Uint8Array {
+  return fod({ op: "request_frame", frame });
+}
+
+function fodBatch(frames: number[]): Uint8Array {
+  return fod({ op: "request_frames", frames });
+}
+
+/** One wire frame: `[len=4+n][index][n bytes]`. */
+function mediaFor(idx: number, n = 4): Uint8Array {
+  const m = new Uint8Array(8 + n);
+  new DataView(m.buffer).setUint32(0, 4 + n, false);
+  new DataView(m.buffer).setUint32(4, idx, false);
+  return m;
+}
+
+function concat(parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
+
 function mulberry32(seed: number) {
   return function () {
     let t = (seed += 0x6d2b79f5);
@@ -38,23 +83,7 @@ function mulberry32(seed: number) {
 }
 
 function buildRiver(frames: { index: number; codestreamLen: number }[]): Uint8Array {
-  const parts: Uint8Array[] = [];
-  for (const f of frames) {
-    const len = 4 + f.codestreamLen;
-    const buf = new Uint8Array(4 + len);
-    const dv = new DataView(buf.buffer);
-    dv.setUint32(0, len, false);
-    dv.setUint32(4, f.index, false);
-    parts.push(buf);
-  }
-  const n = parts.reduce((s, p) => s + p.length, 0);
-  const out = new Uint8Array(n);
-  let o = 0;
-  for (const p of parts) {
-    out.set(p, o);
-    o += p.length;
-  }
-  return out;
+  return concat(frames.map((f) => mediaFor(f.index, f.codestreamLen)));
 }
 
 function sliceRiver(
@@ -228,13 +257,8 @@ function sliceRiver(
   attr.onRead(river.subarray(0, 20), 1);
   assert(!attr.closureOk(), "truncated attributor not closed");
 
-  const tap = new Tap({ arm: "transport-ts", stream_mode: "shared", copies_per_frame: 1 });
-  const enc = new TextEncoder();
-  const body = enc.encode(JSON.stringify({ op: "request_frame", frame: 1 }));
-  const fod = new Uint8Array(4 + body.length);
-  new DataView(fod.buffer).setUint32(0, body.length, true);
-  fod.set(body, 4);
-  tap.onControlWrite(fod);
+  const tap = new Tap(cfg());
+  tap.onControlWrite(fodRequest(1));
   const sid = tap.nextStreamId();
   tap.onMediaRead(sid, river.subarray(0, 20));
   const report = tap.finish();
@@ -259,31 +283,22 @@ function sliceRiver(
 
 // Null ≠ 0 and binding_term excludes transfer when chunks==1
 {
-  const tap = new Tap({
-    arm: "transport-ts",
-    stream_mode: "shared",
-    copies_per_frame: 1,
-  });
+  const tap = new Tap(cfg());
   assertEq(tap.integrity.clock_resolution_us, null, "clock probe not run in constructor");
-  const frameIndex = 1;
-  const enc = new TextEncoder();
-  const body = enc.encode(JSON.stringify({ op: "request_frame", frame: frameIndex }));
-  const fod = new Uint8Array(4 + body.length);
-  new DataView(fod.buffer).setUint32(0, body.length, true);
-  fod.set(body, 4);
-  tap.gesture(frameIndex);
-  tap.onControlWrite(fod);
+  // Two asks so the second is usable (the first ask is always set aside).
+  tap.gesture(9);
+  tap.onControlWrite(fodRequest(9));
   tap.onAskFlush();
+  const sid0 = tap.nextStreamId();
+  tap.onMediaRead(sid0, mediaFor(9));
+  tap.onDelivered(9);
 
+  const frameIndex = 1;
+  tap.gesture(frameIndex);
+  tap.onControlWrite(fodRequest(frameIndex));
+  tap.onAskFlush();
   const sid = tap.nextStreamId();
-  const media = new Uint8Array(12);
-  new DataView(media.buffer).setUint32(0, 8, false);
-  new DataView(media.buffer).setUint32(4, frameIndex, false);
-  media[8] = 1;
-  media[9] = 2;
-  media[10] = 3;
-  media[11] = 4;
-  tap.onMediaRead(sid, media);
+  tap.onMediaRead(sid, mediaFor(frameIndex)); // single chunk → chunks==1, transfer==0
   tap.onDelivered(frameIndex);
   const report = tap.finish();
   const row = report.client_frames.find((r) => r.frame_index === frameIndex)!;
@@ -293,6 +308,7 @@ function sliceRiver(
   assertEq(row.chunks, 1, "single-chunk frame");
   assertEq(row.transfer_us, 0, "transfer is 0 when first==last");
   assert(row.binding_term !== "transfer", "transfer excluded from binding_term when chunks==1");
+  assert(row.ask_flush_us != null && row.ask_flush_us >= 0, "ask_flush_us exported per row");
   assert(report.summary.headline.ask_to_last_paint === null, "ask_to_last_paint stays null");
   assert(
     report.summary.headline.ask_to_last_frame_complete_us != null,
@@ -305,11 +321,16 @@ function sliceRiver(
     "transfer dist null when only chunks==1 frames",
   );
   assert(report.summary.copies.mean_frame_bytes != null, "mean_frame_bytes present");
+  assertEq(report.summary.copies.copies_per_frame_declared, 1, "copies declared, named so");
+  assertEq(report.summary.copies.copies_source, "test", "copies source carried");
   assert(report.summary.binding != null, "binding rollup present");
   assert(report.summary.integrity.clock_probe_us != null, "clock probe cost recorded at finish");
   assert(report.summary.integrity.clock_resolution_us != null, "clock resolution set at finish");
+  const cost = report.summary.integrity.tap_read_cost_us;
+  assert(cost != null && cost.count === 2 && cost.max_us >= cost.p50_us, "tap_read_cost_us summarised");
   assertEq(report.summary.integrity.valid, true, "clean run valid");
   assertEq(report.summary.integrity.invalid_reasons, [], "clean run no reasons");
+  assertEq(report.run_end.ring_capacity, 4096, "ring capacity reported is the configured one");
 }
 
 // pickBinding: chunks===0 must not select transfer
@@ -329,26 +350,8 @@ function sliceRiver(
 
 // Re-ask same index → ask_ordinal 0 then 1 in the report
 {
-  const tap = new Tap({
-    arm: "transport-ts",
-    stream_mode: "shared",
-    copies_per_frame: 1,
-  });
+  const tap = new Tap(cfg());
   const frameIndex = 5;
-  function fodRequest(frame: number): Uint8Array {
-    const enc = new TextEncoder();
-    const body = enc.encode(JSON.stringify({ op: "request_frame", frame }));
-    const fod = new Uint8Array(4 + body.length);
-    new DataView(fod.buffer).setUint32(0, body.length, true);
-    fod.set(body, 4);
-    return fod;
-  }
-  function mediaFor(idx: number): Uint8Array {
-    const m = new Uint8Array(12);
-    new DataView(m.buffer).setUint32(0, 8, false);
-    new DataView(m.buffer).setUint32(4, idx, false);
-    return m;
-  }
   for (let n = 0; n < 2; n++) {
     tap.gesture(frameIndex);
     tap.onControlWrite(fodRequest(frameIndex));
@@ -369,100 +372,134 @@ function sliceRiver(
   assertEq(distributionStats([]), null, "empty distributionStats is null");
 }
 
-// frame-0-only ondemand: rows present, distributions absent
+// First ask is set aside by ask ORDER, not by frame index 0
 {
-  const tap = new Tap({
-    arm: "transport-ts",
-    stream_mode: "shared",
-    copies_per_frame: 1,
-  });
-  const frameIndex = 0;
-  const enc = new TextEncoder();
-  const body = enc.encode(JSON.stringify({ op: "request_frame", frame: frameIndex }));
-  const fod = new Uint8Array(4 + body.length);
-  new DataView(fod.buffer).setUint32(0, body.length, true);
-  fod.set(body, 4);
-  tap.gesture(frameIndex);
-  tap.onControlWrite(fod);
+  const tap = new Tap(cfg());
+  // Ask frame 40 first, then frame 0.
+  for (const idx of [40, 0]) {
+    tap.gesture(idx);
+    tap.onControlWrite(fodRequest(idx));
+    const sid = tap.nextStreamId();
+    tap.onMediaRead(sid, mediaFor(idx));
+    tap.onDelivered(idx);
+  }
+  const report = tap.finish();
+  assertEq(report.client_frames.length, 2, "both rows kept in client_frames");
+  assertEq(report.summary.first_ask_row?.frame_index, 40, "first_ask_row is the earliest ask (frame 40)");
+  assertEq(report.summary.distributions.bytes?.count, 1, "one usable row after setting the first ask aside");
+  assertEq(report.summary.binding.none + report.summary.binding.serve_plus_path + report.summary.binding.deliver + report.summary.binding.queue + report.summary.binding.transfer, 1, "binding rollup counts one usable row");
+}
+
+// Single-ask on-demand run: the only row is the first ask → no usable sample, honestly null
+{
+  const tap = new Tap(cfg());
+  tap.gesture(0);
+  tap.onControlWrite(fodRequest(0));
   tap.onAskFlush();
   const sid = tap.nextStreamId();
-  const media = new Uint8Array(12);
-  new DataView(media.buffer).setUint32(0, 8, false);
-  new DataView(media.buffer).setUint32(4, frameIndex, false);
-  tap.onMediaRead(sid, media);
-  tap.onDelivered(frameIndex);
+  tap.onMediaRead(sid, mediaFor(0));
+  tap.onDelivered(0);
   const report = tap.finish();
-  assertEq(report.client_frames.length, 1, "frame0 row kept in client_frames");
-  assertEq(report.summary.distributions.queue, null, "frame0 excluded → queue dist null");
-  assertEq(report.summary.distributions.bytes, null, "frame0 excluded → bytes dist null");
+  assertEq(report.client_frames.length, 1, "single row kept in client_frames");
+  assertEq(report.summary.first_ask_row?.frame_index, 0, "first_ask_row present");
+  assertEq(report.summary.distributions.queue, null, "no usable rows → queue dist null");
   assertEq(report.summary.headline.ask_to_first_frame_complete_us, null, "headline null without usable");
-  assertEq(report.summary.binding.none, 0, "frame0 excluded from binding rollup");
 }
 
-// first write wins; mark after close increments → invalid
+// Marks with no row at all still count; a duplicate delivered is a first-write conflict
 {
-  const tap = new Tap({
-    arm: "transport-ts",
-    stream_mode: "per-frame",
-    copies_per_frame: 1,
-  });
+  const tap = new Tap(cfg({ stream_mode: "per-frame" }));
   const frameIndex = 2;
-  const enc = new TextEncoder();
-  const body = enc.encode(JSON.stringify({ op: "request_frame", frame: frameIndex }));
-  const fod = new Uint8Array(4 + body.length);
-  new DataView(fod.buffer).setUint32(0, body.length, true);
-  fod.set(body, 4);
-  tap.onControlWrite(fod);
+  tap.onControlWrite(fodRequest(frameIndex));
   const sid = tap.nextStreamId();
-  const media = new Uint8Array(12);
-  new DataView(media.buffer).setUint32(0, 8, false);
-  new DataView(media.buffer).setUint32(4, frameIndex, false);
-  tap.onMediaRead(sid, media);
+  tap.onMediaRead(sid, mediaFor(frameIndex));
   tap.onDelivered(frameIndex);
   const before = tap.integrity.marks_after_close;
-  tap.onDelivered(frameIndex);
-  assert(
-    tap.integrity.marks_after_close === before + 1,
-    "mark after close increments marks_after_close",
-  );
+  tap.onDelivered(77); // never asked
+  assert(tap.integrity.marks_after_close === before + 1, "mark with no row increments marks_after_close");
+  tap.onDelivered(frameIndex); // already closed and gone: a mark with no row
+  assert(tap.integrity.marks_after_close === before + 2, "second delivered on a closed interaction row is a mark with no row");
   const report = tap.finish();
   assertEq(report.summary.integrity.valid, true, "marks_after_close alone does not void");
-  assert(
-    report.summary.integrity.marks_after_close > 0,
-    "marks_after_close still recorded for the reader",
-  );
+  assert(report.summary.integrity.marks_after_close === 2, "marks_after_close still recorded for the reader");
 }
 
-// preload closes at last_byte without paint; interaction at delivered
+// Fill: preload rows close at last_byte, then take `delivered` as their deliver stage
 {
-  const tap = new Tap({
-    arm: "transport-ts",
-    stream_mode: "shared",
-    copies_per_frame: 1,
-  });
-  const enc = new TextEncoder();
-  const body = enc.encode(JSON.stringify({ op: "request_frames", frames: [3, 4] }));
-  const fod = new Uint8Array(4 + body.length);
-  new DataView(fod.buffer).setUint32(0, body.length, true);
-  fod.set(body, 4);
+  const tap = new Tap(cfg());
   tap.gesture();
-  tap.onControlWrite(fod);
+  tap.onControlWrite(fodBatch([3, 4, 5]));
   const sid = tap.nextStreamId();
-  function frameBytes(idx: number): Uint8Array {
-    const m = new Uint8Array(12);
-    new DataView(m.buffer).setUint32(0, 8, false);
-    new DataView(m.buffer).setUint32(4, idx, false);
-    return m;
-  }
-  tap.onMediaRead(sid, frameBytes(3));
-  tap.onMediaRead(sid, frameBytes(4));
+  tap.onMediaRead(sid, mediaFor(3));
+  tap.onMediaRead(sid, mediaFor(4));
+  tap.onMediaRead(sid, mediaFor(5));
+  // The harness's waitExactFrame marks each one after the row already closed.
+  tap.onDelivered(3);
+  tap.onDelivered(4);
+  tap.onDelivered(5);
   const report = tap.finish();
   assertEq(report.summary.report_mode, "fill", "preload → fill mode");
   for (const r of report.client_frames) {
     assertEq(r.kind, "preload", "row kind preload");
     assertEq(r.closed_at, "last_byte", "preload closed_at last_byte");
+    assert(r.deliver_us != null && r.deliver_us >= 0, `preload row ${r.frame_index} carries deliver_us`);
+    assertEq(r.total_spans, "gesture_to_last_byte", "preload total still spans to last_byte");
   }
+  assertEq(report.summary.integrity.marks_after_close, 0, "late delivered marks are not marks after close");
+  assert(report.summary.distributions.deliver != null && report.summary.distributions.deliver.count === 2, "fill has a deliver distribution over usable rows");
+  assert(report.summary.fill_queue_us != null, "fill_queue_us reported once");
+  assertEq(report.summary.distributions.queue, null, "queue distribution excludes preload rows");
   assertEq(report.summary.integrity.valid, true, "preload fill run valid");
+}
+
+// Row kind comes from the op: request_frames with ONE index is still preload
+{
+  const tap = new Tap(cfg());
+  tap.gesture();
+  tap.onControlWrite(fodBatch([6]));
+  const sid = tap.nextStreamId();
+  tap.onMediaRead(sid, mediaFor(6));
+  const report = tap.finish();
+  assertEq(report.client_frames[0].kind, "preload", "single-index request_frames is preload");
+  assertEq(report.summary.ask_granularity, "request_frames_batch", "granularity follows the op");
+}
+
+// Two FoD messages in one control write open two rows
+{
+  const tap = new Tap(cfg());
+  tap.onControlWrite(concat([fodRequest(1), fodRequest(2)]));
+  assertEq(tap.integrity.rows_opened, 2, "both asks in one write are rows");
+  const asks = parseFodAsks(concat([fodRequest(1), fodBatch([2, 3])]));
+  assertEq(asks.map((a) => a.kind), ["interaction", "preload"], "kinds per message");
+}
+
+// Batch-method delivery closes rows as batch_delivered
+{
+  const tap = new Tap(cfg());
+  tap.onControlWrite(fodRequest(8));
+  const sid = tap.nextStreamId();
+  tap.onMediaRead(sid, mediaFor(8));
+  tap.onDelivered(8, "batch");
+  const report = tap.finish();
+  assertEq(report.client_frames[0].closed_at, "batch_delivered", "batch delivery is named");
+}
+
+// Ring capacity is enforced and evictions void the run
+{
+  const tap = new Tap(cfg({ ring_capacity: 2 }));
+  for (const idx of [1, 2, 3]) {
+    tap.onControlWrite(fodRequest(idx));
+    const sid = tap.nextStreamId();
+    tap.onMediaRead(sid, mediaFor(idx));
+    tap.onDelivered(idx);
+  }
+  const report = tap.finish();
+  assertEq(report.client_frames.length, 2, "third closed row evicted");
+  assertEq(report.summary.integrity.ring_evictions, 1, "eviction counted");
+  assertEq(report.summary.integrity.rows_closed, 3, "rows_closed still counts the evicted row");
+  assertEq(report.run_end.dropped_records, 1, "run_end dropped_records includes evictions");
+  assertEq(report.run_end.ring_capacity, 2, "configured ring capacity reported");
+  assertEq(report.summary.integrity.valid, false, "evictions void the run");
 }
 
 // parse footprints
@@ -482,8 +519,8 @@ function sliceRiver(
 // distributionStats smoke + min/max helpers
 {
   const d = distributionStats([10, 20, 30, 40, 50]);
-  assert(d.count === 5, "dist count");
-  assert(d.p50 === nearestRank([10, 20, 30, 40, 50], 50), "p50 nearest-rank");
+  assert(d!.count === 5, "dist count");
+  assert(d!.p50 === nearestRank([10, 20, 30, 40, 50], 50), "p50 nearest-rank");
   assertEq(minOf([3, 1, 2]), 1, "minOf");
   assertEq(maxOf([3, 1, 2]), 3, "maxOf");
   assertEq(minOf([]), null, "minOf empty");
@@ -495,6 +532,7 @@ function sliceRiver(
     rows_opened: 2,
     rows_closed: 1,
     rows_dropped: 0,
+    ring_evictions: 0,
     marks_after_close: 0,
     first_write_conflicts: 0,
     byte_closure_ok: true,
@@ -502,6 +540,7 @@ function sliceRiver(
     clock_resolution_us: 5,
     clock_probe_us: 100,
     cross_origin_isolated: true,
+    tap_read_cost_us: null,
   });
   assertEq(j.valid, false, "judge: open!=closed invalid");
   assert(j.invalid_reasons[0].includes("rows_opened"), "judge: reason text");
