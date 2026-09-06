@@ -85,7 +85,7 @@ for RUN in $(seq 1 "$REPEATS"); do
       SM=shared; case " ${KEEP[*]} " in *" per-frame "*) SM=per-frame ;; esac
 
       S0=$(cpu_of "$SRV"); N0=$(cpu_of "$NS"); W0=$(date +%s.%N)
-      timeout 180 "$HARNESS" --url "https://127.0.0.1:$NPORT/" --mode trace --trace "$TRACE" \
+      timeout "${RUN_TIMEOUT:-180}" "$HARNESS" --url "https://127.0.0.1:$NPORT/" --mode trace --trace "$TRACE" \
         --read-bps 0 --depth "$DEPTH" --frame-count "$FRAME_COUNT" --stream-mode "$SM" \
         --bind 127.0.0.1 --cache-frames "${CACHE_FRAMES:-0}" --arm "$LABEL" --json > /tmp/l4_run.json 2>/dev/null &
       CLI=$!; CLI_CPU=0
