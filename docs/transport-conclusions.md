@@ -7,6 +7,12 @@ raw data in [`measurements/l4/`](measurements/l4/) and [`measurements/quic-opt/`
 Target profile: **p95 time-to-displayable** first, **server density** second; browser
 client over the public internet, indefinitely; possibly thousands of viewers.
 
+> **Read [`transport-assumption-audit.md`](transport-assumption-audit.md) alongside this.**
+> Every conclusion below rests on premises the rig holds constant. One of them — that loss
+> is congestive — already invalidated a headline here after it had been measured, reviewed
+> and written up. The audit lists the rest. Four are rated critical, and one of them
+> (**the client cache never evicts**) directly undermines §2's reasoning.
+
 ---
 
 ## The answer
