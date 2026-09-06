@@ -1,5 +1,41 @@
 # Transport optimisation — conclusions
 
+> # ⚠ THE CONTROLLER VERDICT BELOW IS WITHDRAWN (2026-09-06)
+>
+> A second adversarial review, run against this document and the assumption audit, broke
+> four things. Each was re-verified before being accepted. **Do not act on "Keep Cubic".**
+>
+> **1 · It never passed the lane's own test.** Running `l4_analyse.py` on the committed
+> `e8_pure_congestion.tsv` prints **`overlap`** for *both* congestive cells — BBR run 3 in
+> cell E is 729.10 ms, inside Cubic's 728.39–730.96. By the pre-registered non-overlap
+> rule, "Cubic beats BBR under congestion" **is not a result**. This document rated it
+> "strong … ranges separated". It also quoted 733/1218 ms where the committed medians are
+> 729.5/1178.6 — numbers not reproducible from the repo's own data.
+>
+> **2 · The deployment-shaped experiment was omitted.** `e7_congested_plus_exogenous.tsv`
+> is the only cell combining a congested path with wireless-style loss. It shows
+> **Cubic 3696 ms vs BBR 400 ms — Cubic 9× worse, 4/4 separated**, and cell C's Cubic arm
+> could not complete at all. It is cited **zero times** here. It points the opposite way
+> to the retained verdict.
+>
+> **3 · And Cubic cannot congest the target links anyway.** Mathis at 1 % loss:
+> 5G/WiFi (50 ms, 20 Mbps) → Cubic ceiling **2.85 Mbps = 14 % of link**; satellite
+> (600 ms, 8 Mbps) → **0.24 Mbps = 3 %**. So the "uncongested, all loss exogenous" regime
+> that §1 dismisses as a rig defect **is the operating point of this deployment for
+> Cubic**. E12's −72/−83 % for BBR was measured in the regime the target path actually
+> occupies. Dismissing it was the error, not producing it.
+>
+> **4 · Every latency number here is contaminated.** `emit_window`
+> (`lab/window-harness/src/client.rs`) skips frames in the *cache* but re-asks frames
+> already **in flight**, on every step until they arrive — 7.6–13.7× redundant load
+> measured from the committed TSVs. The e8 "2.7× BDP" run was carrying ~14× its useful
+> load, so it is a bulk-overload comparison, not latency under viewer demand.
+>
+> **Direction of the evidence for *this* use case: BBR, not Cubic.** That is not yet a
+> verdict — it needs re-measuring with the harness fixed — but it is the opposite of what
+> this document said. See [`transport-assumption-audit.md`](transport-assumption-audit.md)
+> §7 for the full review.
+
 **2026-09-06.** The short answer, then the evidence. Method, hypotheses and decision rules
 were fixed in advance in [`lanes/L4-preregistration.md`](lanes/L4-preregistration.md);
 raw data in [`measurements/l4/`](measurements/l4/) and [`measurements/quic-opt/`](measurements/quic-opt/).
@@ -19,7 +55,7 @@ client over the public internet, indefinitely; possibly thousands of viewers.
 
 | decision | verdict | why |
 | -------- | ------- | --- |
-| **Congestion controller** | **Keep Cubic. Do not switch to BBR.** | Under real (congestive) loss BBR is 66 % worse at high RTT and never better. It only wins under injected loss on an uncongested path |
+| **Congestion controller** | **WITHDRAWN — see banner.** Evidence now points to **BBR** for this use case | Cubic cannot congest a 1 %-loss wireless link (Mathis: 14 % of a 5G link, 3 % of satellite), so the "uncongested" regime is the real operating point. The congestive result that displaced BBR does not separate |
 | **Stream shape** | **Shared stays — as the incumbent, not because it was shown better.** | The head-of-line question is **still unresolved**. See §2 |
 | **Initial congestion window** | **Leave at quinn's default.** | ≤ 7 %, ranges overlapping. My earlier "largest lever" claim was wrong |
 | **GSO segment cap 10 → 32** | **Do it — but it is a density change, not a latency one.** | +17 % throughput, −21 % CPU/byte. Zero effect on p95 (verified as a negative control) |
@@ -95,7 +131,7 @@ dwell time, 30 fps as a burst rate rather than a sustained demand. Cell W (5G/Wi
 
 | frames | metric | shared | per-frame | per-frame + FIFO | verdict |
 | ------ | ------ | ------ | --------- | ---------------- | ------- |
-| 32 KB, depth 16 | p95 | 164 ms | 201 ms | 136 ms | **all overlap** |
+| 32 KB, depth 16 | p95 | 164 ms | 201 ms | 136 ms | **VOID** — three rows are `p95 = 0`, pre-registered stop condition 1, quoted here without voiding |
 | 250 KB, depth 8 | p95 | 2061 ms | 3325 ms | 2093 ms | **all overlap** |
 | 250 KB, depth 8 | mean | 650 ms | 605 ms | 615 ms | **all overlap** |
 
@@ -106,9 +142,18 @@ p95 is ~2 s — the transport is unambiguously on the critical path. **Nothing s
 ### What the numbers hint at, below the noise
 
 At 250 KB, per-frame's **median** wait is 744 ms against shared's 1689 ms — less than
-half — while its **p95** is worse (3325 vs 2061). That is the shape you would expect if
-out-of-order arrival lets the wanted frame jump the queue while fair-sharing stretches the
-tail. It is a coherent story and it is **not a result**: ranges overlap at n=4.
+half — while its **p95** is worse (3325 vs 2061).
+
+**Correction (2026-09-06).** The sentence that stood here said this was "not a result:
+ranges overlap at n=4". That is false, and false in the direction that protected the
+incumbent. The `nz_p50` ranges are **completely disjoint** — shared 1525–1930 ms,
+per-frame 549–839 ms, **4/4 separated**, which is a **BETTER** by the lane's own rule.
+"Ranges overlap" was true of the contaminated `p95_wait_ms` column and false of the median
+it quoted. `nz_p95` also separates, in per-frame's favour.
+
+So per-frame has a **real, separated median advantage** and an unclear tail. Both numbers
+still sit on top of the in-flight re-ask defect (banner item 4), so neither is final — but
+"no result" was wrong.
 
 ### Why this is hard to measure, which may be the real finding
 
@@ -186,7 +231,7 @@ The levers that do move p95 are above the transport:
 
 | conclusion | strength | what would overturn it |
 | ---------- | -------- | ---------------------- |
-| Keep Cubic | **strong** — corrected rig, congestion verified, n=4, ranges separated, matches known BBRv1 behaviour | client telemetry showing non-congestive loss |
+| ~~Keep Cubic~~ | **withdrawn** — does not separate on the lane's own rule; contradicted by the omitted E7; and Cubic cannot congest the target link | re-measure with the harness fixed |
 | Keep shared stream | **none — unresolved.** Incumbent by default | n ≈ 20 per cell, or a lower-variance rig |
 | Initial window is not a lever | **strong** — two independent measurements | — |
 | GSO cap is worth 17 % | **strong** — corroborated by an independent thesis and upstream issue #2201 | — |
