@@ -1,0 +1,68 @@
+S5 — does the reader loop or io_uring earn the hybrid's margin?
+Rule (RERUN.md Precision): |median| >= 28.5% AND sign agreement >= 0.8n, reproduced with the same sign.
+
+L  the loop alone           pool_ringloop - pool
+   hit   run1   -33.6%   99/113  RESOLVED run2   -32.9%  102/114  RESOLVED same sign
+   mix   run1    -2.6%   24/37   tie      run2    -2.5%   23/36   tie      same sign
+   miss  run1    -0.6%   29/54   tie      run2    -0.2%   28/54   tie      same sign
+
+R  the ring alone           hybrid - pool_ringloop
+   hit   run1    +8.2%   89/113  tie      run2    +6.3%   91/114  tie      same sign
+   mix   run1    -8.0%   28/37   tie      run2   -10.4%   26/36   tie      same sign
+   miss  run1   -43.1%   52/54   RESOLVED run2   -42.2%   54/54   RESOLVED same sign
+
+L+R what the campaign reports      hybrid - pool
+   hit   run1   -26.6%   95/113  tie      run2   -27.9%   98/114  tie      same sign
+   mix   run1   -21.3%   36/37   tie      run2   -18.0%   36/36   tie      same sign
+   miss  run1   -42.1%   53/54   RESOLVED run2   -44.4%   54/54   RESOLVED same sign
+
+Sanity check (required before the split means anything):
+  warm cells, miss_pct == 0.0% in 168/168 rows for pool, pool_ringloop and hybrid.
+  uring and pooled_pread read 100.0% on every warm row, here and in v24 alike: neither
+  arm has an inline RWF_NOWAIT path (uring sends every read to the ring, pooled_pread
+  every read to spawn_blocking), so their miss_pct is structural, not cache behaviour.
+  No read reached the ring in the three arms that carry the split.
+
+Conclusion: L RESOLVES in the hit regime on this host -- -33.6% / -32.9%, sign 99/113
+and 102/114, same sign in both runs. That is the result v24 could not produce: on the
+4-vCPU sandbox the same comparison was -17.1% / -13.2% and scored tie in every regime.
+The loop is worth something, and on cache hits it is worth more than the whole margin the
+campaign reports (L+R hit is -26.6% / -27.9% and scores tie), because the ring's idle cost
+works against it at +8.2% / +6.3%.
+
+In the miss regime -- the regime the S5 decision rule is written on -- the verdict is
+unchanged and firmer than the sandbox's: L is -0.6% / -0.2%, a flat tie, and R is
+-43.1% / -42.2% RESOLVED. |R| >> |L|, so the ring still earns its per-session cost on
+misses. R did not resolve in mix here (-8.0% / -10.4%) where it did on the sandbox
+(-56.9% / -56.0%); this host's 128 KiB read-ahead against the sandbox's 8 MiB changes
+which cells land in mix at all, the same effect already recorded for the CI runner in
+RUN-ON-YOUR-HOST.md.
+
+By the decision rule's own rows this is the third one, split by regime rather than
+straddling it: the loop change is free and it is worth a resolved ~33% on hits, so take
+it first; the ring keeps the miss regime and nothing here argues against it.
+
+Mechanism -- L by depth, hit regime, readers=1 (the core-count question S5 left open):
+
+           depth      1      2      4      8     16     32     64
+  8 cpu (this host)  -0.6  -11.4  -27.5  -42.2  -44.2  -45.7  -35.9
+  4 cpu (v24)        -8.6  -11.2  -23.1  -21.6  -18.0  -12.7   -4.4
+
+  Sign agreement on this host's resolved depths: 36/36, 35/35, 36/36, 24/24, 23/24.
+
+  reader_pool spawns `depth` Tokio tasks; reader_ring and pool_ringloop hold `depth`
+  slots in ONE task. On 4 vCPUs the extra tasks stop running concurrently once depth
+  passes the core count, so the per-task cost is masked by the queueing that would have
+  happened anyway -- L peaks at depth 4 and decays to nothing by 64. On 8 CPUs the
+  task-per-slot loop keeps paying scheduler and per-task heap cost against real
+  parallelism, so L grows to -45.7% at depth 32 and is still -35.9% at 64.
+
+  This is what S5 predicted -- "core count is precisely where a task-per-slot loop would
+  be expected to differ" -- and it is why one host was not enough to call the loop a tie.
+
+Caveats: same physical machine as v23 (btrfs-on-LUKS, compress=zstd:1, stock 128 KiB
+read-ahead), so this is a second host for S5's core-count question, not a third
+filesystem. The host was not idle -- a browser was running, load average 2.0 at start;
+arms interleave within each repeat (the `pos` column) so noise is spread across arms,
+and the two-run reproduction is the guard. readers was held at 1 for the depth table
+above, per S5's --readers caveat.
