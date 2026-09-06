@@ -5,6 +5,7 @@ How the server brings SBND frame bytes in without freezing the Tokio executor.
 | Doc | What |
 | --- | --- |
 | **[`READ-PATH-DECISION.md`](READ-PATH-DECISION.md)** | **Start here.** Which read path for which case, from a 3 600-cell campaign over three independent runs. Supersedes the io_uring verdicts in the docs below |
+| **[`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md)** | **What actually makes a read miss.** Real client ask schedules through candidate layouts, plus cache pressure on a 4 GB study. Corrects the premise that study size drives the miss rate: **sequentiality does**, and the layout is worth ~10× more than the read path |
 | [`SCOREBOARD.md`](SCOREBOARD.md) | The measurement table behind the decision: four arms × five metrics × three regimes, plus a **claim-by-claim evidence grading**, the ranked threats to validity, and the proposed next studies with abort conditions |
 | [`adr.md`](adr.md) | Accepted decision (`RWF_NOWAIT` streaming; pool only on the miss) |
 | [`RERUN.md`](RERUN.md) | Evidence: instrument, cells, TSVs here, and what the instrument cannot see |

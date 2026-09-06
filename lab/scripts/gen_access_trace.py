@@ -231,7 +231,12 @@ def characterise(reads: list[tuple[int, int]]) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--schedule", type=Path, required=True, help="lab/traces/*.json")
+    ap.add_argument("--schedule", type=Path, help="lab/traces/*.json")
+    ap.add_argument("--synth-scroll", type=int, default=0,
+                    help="instead of a trace file, synthesise a scroll of N unique frames "
+                         "with the same shape as live_cell_scroll (max_step 1, reversal at "
+                         "60%%). The repo's traces top out at 320 frames, which cannot build "
+                         "a working set larger than the page cache")
     ap.add_argument("--layout", choices=["frame-major", "rung-major"], default="frame-major")
     ap.add_argument("--mode", choices=["single", "progressive"], default="single")
     ap.add_argument("--frames", type=int, default=320)
@@ -258,7 +263,17 @@ def main() -> None:
     if not 1 <= a.device_rung <= len(rungs):
         raise SystemExit(f"--device-rung must be 1..{len(rungs)}")
 
-    schedule = load_schedule(a.schedule)
+    if a.synth_scroll:
+        n = a.synth_scroll
+        schedule = list(range(n))
+        f = n - 1
+        while len(schedule) < n * 5 // 3:
+            f = max(0, f - 1)
+            schedule.append(f)
+    elif a.schedule:
+        schedule = load_schedule(a.schedule)
+    else:
+        raise SystemExit("need --schedule or --synth-scroll")
     if max(schedule) >= a.frames:
         raise SystemExit(
             f"{a.schedule} asks frame {max(schedule)} but --frames is {a.frames}"
@@ -277,7 +292,8 @@ def main() -> None:
     st = characterise(reads)
 
     with a.out.open("w") as f:
-        f.write(f"# gen_access_trace · schedule={a.schedule.name} layout={a.layout} "
+        sched_name = f"synth_scroll_{a.synth_scroll}" if a.synth_scroll else a.schedule.name
+        f.write(f"# gen_access_trace · schedule={sched_name} layout={a.layout} "
                 f"mode={a.mode} device_rung={a.device_rung}/{len(rungs)} "
                 f"frames={a.frames} frame_bytes={a.frame_bytes} size_cv={a.size_cv}"
                 f"{' shuffled' if a.shuffle else ''}\n")
