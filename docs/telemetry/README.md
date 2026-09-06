@@ -90,7 +90,8 @@ Client seam: patch `globalThis.WebTransport`, proxy transport/writer/reader; sta
 
 **Decision A (client):** frame-level `firstByte`/`lastByte` keep byte attribution (A1),
 session-method totals only (A2), product framing edits (A3), or hybrid (A4). See the client ADR.
-Recommendation and the remaining gaps (harness cells, refusals, long-task windowing, harvest):
+Recommendation, plus what the pipeline does when driven end to end and the remaining gaps
+(harness cells, the server report lost to the QUIC idle timeout, refusals, long-task windowing):
 [`review-2026-09-06.md`](review-2026-09-06.md).
 
 ---
