@@ -127,6 +127,22 @@ pub struct HarnessMetrics {
     /// bytes_on_wire*8/step_loop_s as fraction of read_bps (A5).
     #[serde(default)]
     pub link_util_measured: f64,
+    /// Per step: ms the frame became displayable **after its scheduled display time**,
+    /// floored at 0. This is the reader-clock metric — `wait_ms` starts at the harness's
+    /// ask, so it cannot see a loop that has fallen behind its own cadence.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lateness_ms: Vec<f64>,
+    /// Mean of `lateness_ms`.
+    #[serde(default)]
+    pub late_mean_ms: f64,
+    /// Nearest-rank p95 of `lateness_ms`. Supported by every step, not just misses.
+    #[serde(default)]
+    pub late_p95_ms: f64,
+    #[serde(default)]
+    pub late_max_ms: f64,
+    /// Fraction of steps displayable within `ON_TIME_MS` of their scheduled time.
+    #[serde(default)]
+    pub on_time_rate: f64,
     /// Per FoD ask sent: `(frame_index, ask_ordinal)` for offline join with server Tap.
     /// Ordinals increment per `frame_index` within the session (same rule as server Tap).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -160,6 +176,8 @@ pub struct MetricsState {
     pub cache: HashSet<u32>,
     /// Per want: ms until displayable (0 on cache hit).
     pub wait_samples_ms: Vec<f64>,
+    /// Per want: ms past the step's scheduled display time (0 if on time).
+    pub lateness_samples_ms: Vec<f64>,
     /// Wall ms of the windowed step loop (set by client).
     pub step_loop_ms: f64,
 }
@@ -184,6 +202,7 @@ impl MetricsState {
             fill_started_at: None,
             cache: HashSet::new(),
             wait_samples_ms: Vec::new(),
+            lateness_samples_ms: Vec::new(),
             step_loop_ms: 0.0,
         }
     }
@@ -236,6 +255,12 @@ impl MetricsState {
         self.wait_samples_ms.push(ms);
     }
 
+    /// Lateness against the step's own scheduled display time. Only the trace step
+    /// loop has a schedule, so settle / dwell waits do not call this.
+    pub fn record_lateness_ms(&mut self, ms: f64) {
+        self.lateness_samples_ms.push(ms.max(0.0));
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn finalize(
         &self,
@@ -286,6 +311,18 @@ impl MetricsState {
         };
         let (miss_mean_wait_ms, miss_p95_wait_ms) = wait_stats(&misses);
         let (wait_h1_median_ms, wait_h2_median_ms) = half_medians(&self.wait_samples_ms);
+        let (late_mean_ms, late_p95_ms) = wait_stats(&self.lateness_samples_ms);
+        let late_max_ms = self
+            .lateness_samples_ms
+            .iter()
+            .copied()
+            .fold(0.0f64, f64::max);
+        let on_time_rate = if self.lateness_samples_ms.is_empty() {
+            0.0
+        } else {
+            self.lateness_samples_ms.iter().filter(|ms| **ms <= ON_TIME_MS).count() as f64
+                / self.lateness_samples_ms.len() as f64
+        };
         let link_util_measured = if self.step_loop_ms > 0.0 && read_bps > 0 {
             (self.bytes_on_wire as f64 * 8.0) / (self.step_loop_ms / 1000.0) / (read_bps as f64)
         } else {
@@ -331,10 +368,21 @@ impl MetricsState {
             wait_h1_median_ms,
             wait_h2_median_ms,
             link_util_measured,
+            lateness_ms: self.lateness_samples_ms.clone(),
+            late_mean_ms,
+            late_p95_ms,
+            late_max_ms,
+            on_time_rate,
             ask_join: crate::client::take_ask_join(),
         }
     }
 }
+
+/// A step displayable within this much of its scheduled time kept the reader's cadence.
+/// One frame interval at the cadences this lane runs is 31-32 ms, so 100 ms is ~3 steps:
+/// wide enough that scheduler jitter is not counted as lateness, narrow enough that a
+/// reader who actually waited is.
+pub const ON_TIME_MS: f64 = 100.0;
 
 /// Nearest-rank percentile (L2 brief / client telemetry contract).
 /// `rank = ceil(p/100 × N)` clamped to `[1, N]`; value = `sorted[rank - 1]`.
@@ -398,6 +446,58 @@ mod wait_stats_tests {
         assert_eq!(new, 19.0);
         let (_mean, p95) = wait_stats(&samples);
         assert_eq!(p95, 19.0);
+    }
+
+    #[test]
+    fn lateness_sees_a_backlog_that_wait_ms_cannot() {
+        // A loop that falls behind its cadence still reports short waits, because
+        // `wait_ms` starts at the ask: by the time the harness asks, the frame is
+        // close. Lateness is measured against the step's *scheduled* display time,
+        // so it reports the backlog. This is the v2 defect (L1_V2_ADVERSARIAL_REVIEW
+        // §B1) expressed as a test.
+        let mut m = super::MetricsState::new(0);
+        for i in 0..160 {
+            m.record_wait_ms(30.0);
+            // On schedule for 140 steps, then a backlog that grows and never drains.
+            m.record_lateness_ms(if i < 140 { 0.0 } else { (i - 139) as f64 * 100.0 });
+        }
+        let (_, p95_wait) = super::wait_stats(&m.wait_samples_ms);
+        let (_, p95_late) = super::wait_stats(&m.lateness_samples_ms);
+        assert_eq!(p95_wait, 30.0, "waits look healthy throughout");
+        assert_eq!(p95_late, 1_200.0, "lateness reports the backlog");
+        assert_eq!(m.lateness_samples_ms.len(), 160, "every step contributes, hit or miss");
+    }
+
+    #[test]
+    fn a_single_late_step_needs_late_max_not_late_p95() {
+        // Honest about the same tail-support limit that voided miss_p95: one late step
+        // in twenty sits above the p95 rank, so the percentile reads 0. `late_max_ms`
+        // is what catches it — report both, never the p95 alone.
+        let mut m = super::MetricsState::new(0);
+        for _ in 0..19 {
+            m.record_lateness_ms(0.0);
+        }
+        m.record_lateness_ms(2_000.0);
+        let (_, p95_late) = super::wait_stats(&m.lateness_samples_ms);
+        assert_eq!(p95_late, 0.0);
+        let max = m.lateness_samples_ms.iter().copied().fold(0.0f64, f64::max);
+        assert_eq!(max, 2_000.0);
+    }
+
+    #[test]
+    fn lateness_floors_at_zero_and_counts_on_time_steps() {
+        let mut m = super::MetricsState::new(0);
+        // A frame ready before its scheduled time is on time, not negatively late.
+        m.record_lateness_ms(-40.0);
+        m.record_lateness_ms(super::ON_TIME_MS - 1.0);
+        m.record_lateness_ms(super::ON_TIME_MS + 1.0);
+        assert_eq!(m.lateness_samples_ms[0], 0.0);
+        let on_time = m
+            .lateness_samples_ms
+            .iter()
+            .filter(|ms| **ms <= super::ON_TIME_MS)
+            .count();
+        assert_eq!(on_time, 2);
     }
 
     #[test]

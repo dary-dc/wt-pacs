@@ -26,7 +26,7 @@ else
 fi
 
 L1_DIRECTIONAL_BANNER="# DIRECTIONAL — NOT A DECISION"
-L1_SMALL_TSV_COLS="order_index	ts_iso	arm	rtt_label_ms	loss_pct	depth	run	regime	step_interval_ms	miss_p95_wait_ms	miss_mean_wait_ms	cache_misses	tail_at_p95	asks_sent	peak_outstanding	step_loop_ms	bytes_on_wire	frames_on_wire	wait_h1_median_ms	wait_h2_median_ms	cell_label	protocol_sha	cadence_sha	server_sha"
+L1_SMALL_TSV_COLS="order_index	ts_iso	arm	rtt_label_ms	loss_pct	depth	run	regime	step_interval_ms	miss_p95_wait_ms	miss_mean_wait_ms	cache_misses	tail_at_p95	asks_sent	peak_outstanding	step_loop_ms	bytes_on_wire	frames_on_wire	wait_h1_median_ms	wait_h2_median_ms	late_p95_ms	late_mean_ms	late_max_ms	on_time_rate	cell_label	protocol_sha	cadence_sha	server_sha"
 
 l1_require_study_trace() {
   [[ -f "$L1_STUDY" ]] || { echo "STOP: missing study $L1_STUDY" >&2; exit 1; }
@@ -75,30 +75,89 @@ print(f"frame_bytes_ok obs={obs:.1f} mean={mean:.1f}")
 PY
 }
 
-# A2 — honest miss-p95 tail mass.
-# Need enough positive waits to estimate p95, then ≥ min(L1_TAIL_MIN, ceil(0.05·n))
-# samples at/above that p95 (so clinical under-delivery with n≈50–80 is not an
-# automatic fail just because the upper 5% has fewer than 5 points).
-# Prints: miss_p95\ttail_n\tmiss_n\tneed\tok|FAIL ; exit 2 on FAIL.
+# A2 — honest miss-p95 tail mass (second review N2; stream-mode-remediation §R4).
+#
+# Nearest-rank p95 places ~5% of a run's positive waits at or above it, so a
+# L1_TAIL_MIN-sample tail needs ~20x L1_TAIL_MIN misses. Below that the "p95" is a
+# max estimator with a max's variance — the defect that voided v2 at 4-5 samples.
+#
+# This gate does NOT soften the requirement to fit the cell. A cell that cannot reach
+# the tail count has no usable p95, and says so: the row is still collected (the
+# lateness readout does not need a miss tail) but is stamped P95_UNSUPPORTED so that
+# no decision can quote its p95.
+#
+# Prints: miss_p95\ttail_n\tmiss_n\tneed\tok|p95_unsupported|FAIL
+# Exit 0 = ok · 3 = p95 unsupported (collect the row, do not decide on it) · 2 = FAIL.
 l1_tail_gate() {
   local json=$1
-  python3 - "$json" "$L1_TAIL_MIN" <<'PY'
-import json, math, sys
-path, floor = sys.argv[1], int(sys.argv[2])
+  python3 - "$json" "$L1_TAIL_MIN" <<'TAILPY'
+import json, sys
+path, need = sys.argv[1], int(sys.argv[2])
 m = json.load(open(path))
 waits = [float(w) for w in m.get("wait_ms") or [] if float(w) > 0]
 p95 = float(m.get("miss_p95_wait_ms") or 0)
 n = len(waits)
-if n < floor:
-    print(f"{p95:.6f}\t0\t{n}\t{floor}\tFAIL")
+if n == 0 or p95 <= 0:
+    print(f"{p95:.6f}\t0\t{n}\t{need}\tFAIL")
     raise SystemExit(2)
-need = min(floor, max(1, math.ceil(0.05 * n)))
-tail = sum(1 for w in waits if w + 1e-12 >= p95) if waits and p95 > 0 else 0
-ok = "ok" if tail >= need else "FAIL"
-print(f"{p95:.6f}\t{tail}\t{n}\t{need}\t{ok}")
-if ok != "ok":
-    raise SystemExit(2)
-PY
+tail = sum(1 for w in waits if w + 1e-12 >= p95)
+if tail < need:
+    print(f"{p95:.6f}\t{tail}\t{n}\t{need}\tp95_unsupported")
+    raise SystemExit(3)
+print(f"{p95:.6f}\t{tail}\t{n}\t{need}\tok")
+TAILPY
+}
+
+# N1 — the null gate must be at least as sharp as the claim it protects.
+#
+# A null cell that tolerates an arm gap of X% cannot certify an effect smaller than X%,
+# so the rule is an interval, not a point: the 95% CI on the null relative gap must
+# exclude the effect bar. A gate stated as "within 25%" (v2's D=1 control) or "within
+# 40%" (the first Phase C runner) permits a zero-effect discrepancy larger than the
+# effect the campaign exists to detect.
+#
+# Usage: l1_null_gate <tsv> [effect_bar_pct]  ·  exit 0 = pass, 3 = fail.
+l1_null_gate() {
+  local tsv=$1 bar=${2:-${L1_EFFECT_BAR:-15}}
+  python3 - "$tsv" "$bar" <<'NULLPY'
+import csv, random, statistics as st, sys
+from collections import defaultdict
+path, bar = sys.argv[1], float(sys.argv[2])
+by = defaultdict(list)
+with open(path) as f:
+    first = f.readline()
+    if not first.startswith("#"):
+        f.seek(0)
+    for r in csv.DictReader(f, delimiter="\t"):
+        if r.get("cell_label", "").split("+")[0] == "null" and float(r["loss_pct"]) == 0.0:
+            by[r["arm"]].append(float(r["miss_p95_wait_ms"]))
+if len(by) < 2:
+    print("null_gate: fewer than two arms — skip")
+    raise SystemExit(0)
+rng = random.Random(20260906)
+arms = sorted(by)
+fail = False
+for i, a in enumerate(arms):
+    for b in arms[i + 1:]:
+        A, B = by[a], by[b]
+        gaps = []
+        for _ in range(20000):
+            ma = st.median([rng.choice(A) for _ in A])
+            mb = st.median([rng.choice(B) for _ in B])
+            lo = min(ma, mb)
+            gaps.append(abs(ma - mb) / lo * 100 if lo > 0 else float("inf"))
+        gaps.sort()
+        hi = gaps[int(0.975 * len(gaps))]
+        obs_lo = min(st.median(A), st.median(B))
+        obs = abs(st.median(A) - st.median(B)) / obs_lo * 100 if obs_lo > 0 else float("inf")
+        ok = hi < bar
+        print(f"  {a} vs {b}: gap={obs:.1f}% CI_upper={hi:.1f}% bar={bar:.0f}% -> {'ok' if ok else 'FAIL'}")
+        fail |= not ok
+if fail:
+    print(f"STOP: the null cell cannot exclude a {bar:.0f}% arm gap, so it cannot certify a {bar:.0f}% effect.")
+    raise SystemExit(3)
+print("null_gate ok")
+NULLPY
 }
 
 # Phase B regime stamp (harness keys: wait_h1_median_ms, step_loop_ms).
@@ -159,8 +218,23 @@ print("\n".join(order))
 PY
 }
 
+# Starts a fresh directional TSV. Refuses to truncate one that already holds rows:
+# these files are tracked results, and a re-run (or a DRY_RUN) that silently empties a
+# published campaign destroys the only copy of data the rig cannot cheaply reproduce.
+# Set L1_OVERWRITE_TSV=1 to start a genuinely new campaign over an existing path.
 l1_write_directional_header() {
   local tsv=$1
+  if [[ -s "$tsv" && "${L1_OVERWRITE_TSV:-0}" != "1" ]]; then
+    local rows
+    rows=$(grep -vc '^#' "$tsv" || true)
+    if [[ "${rows:-0}" -gt 1 ]]; then
+      echo "STOP: $tsv already holds $((rows - 1)) data rows." >&2
+      echo "  Re-run with L1_OVERWRITE_TSV=1, or point OUT_TSV somewhere new." >&2
+      # `return`, not `exit`: callers run under `set -e` so a collect still aborts,
+      # while a checker can assert the refusal without killing its own process.
+      return 1
+    fi
+  fi
   {
     echo "$L1_DIRECTIONAL_BANNER"
     echo "$L1_SMALL_TSV_COLS"

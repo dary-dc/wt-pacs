@@ -144,6 +144,10 @@ async fn main() -> anyhow::Result<()> {
         println!("wait_h1_median_ms={:.2}", m.wait_h1_median_ms);
         println!("wait_h2_median_ms={:.2}", m.wait_h2_median_ms);
         println!("link_util_measured={:.4}", m.link_util_measured);
+        println!("late_mean_ms={:.2}", m.late_mean_ms);
+        println!("late_p95_ms={:.2}", m.late_p95_ms);
+        println!("late_max_ms={:.2}", m.late_max_ms);
+        println!("on_time_rate={:.4}", m.on_time_rate);
     }
     Ok(())
 }

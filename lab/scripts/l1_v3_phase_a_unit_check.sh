@@ -36,6 +36,36 @@ trc=$?
 set -e
 echo "tail_gate_exit=$trc"
 
+echo "== tail gate refuses to soften (B1) =="
+# 60 misses cannot support a 5-sample tail: exit 3, stamped, never silently ok.
+thin="$ROOT/docs/measurements/r2/raw/l1v3/small/S_rtt60_loss0_d4_r1.json"
+set +e; line="$(l1_tail_gate "$thin")"; trc=$?; set -e
+echo "thin=$line exit=$trc"
+[[ $trc -eq 3 ]] && grep -q 'p95_unsupported' <<<"$line"
+thick="$ROOT/docs/measurements/r2/raw/l1v3/small/S_rtt60_loss2_d4_r1.json"
+set +e; line="$(l1_tail_gate "$thick")"; trc=$?; set -e
+echo "thick=$line exit=$trc"
+[[ $trc -eq 0 ]]
+
+echo "== null gate is an interval, not a tolerance (B2) =="
+# Phase C's own null cell cannot exclude a 15% arm gap at n=10.
+set +e; l1_null_gate "$ROOT/docs/measurements/r2/l1_s_vs_q_loss_v3.small.tsv" 15; trc=$?; set -e
+echo "null_gate_exit=$trc"
+[[ $trc -eq 3 ]]
+# A wide bar the same cell can clear, so the gate is not simply always-fail.
+set +e; l1_null_gate "$ROOT/docs/measurements/r2/l1_s_vs_q_loss_v3.small.tsv" 500 >/dev/null; trc=$?; set -e
+echo "null_gate_wide_bar_exit=$trc"
+[[ $trc -eq 0 ]]
+
+echo "== directional header will not truncate tracked results (B4) =="
+set +e
+l1_write_directional_header "$ROOT/docs/measurements/r2/l1_s_vs_q_loss_v3.small.tsv" 2>/dev/null
+trc=$?
+set -e
+echo "overwrite_guard_exit=$trc"
+[[ $trc -ne 0 ]]
+[[ "$(grep -vc '^#' "$ROOT/docs/measurements/r2/l1_s_vs_q_loss_v3.small.tsv")" -eq 81 ]]
+
 echo "== precheck ratio (clinical 33ms @ 10Mbps/32k) =="
 l1_precheck_ratio 33 "unit_null"
 

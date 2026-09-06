@@ -24,8 +24,7 @@ REPEATS_NULL="${REPEATS_NULL:-10}"
 REPEATS_DOSE_LOW="${REPEATS_DOSE_LOW:-10}"
 REPEATS_DOSE_HIGH="${REPEATS_DOSE_HIGH:-10}"
 MAX_ASK_RATIO="${MAX_ASK_RATIO:-1.25}"
-NULL_REL_STOP="${NULL_REL_STOP:-0.40}"
-NULL_ABS_STOP_MS="${NULL_ABS_STOP_MS:-200}"
+L1_EFFECT_BAR="${L1_EFFECT_BAR:-15}"   # percent; the bar the null cell must exclude (N1)
 SKIP_BUILD="${SKIP_BUILD:-0}"
 WINDOW_SHAPE=forward
 READ_BPS=0
@@ -81,6 +80,11 @@ CADENCE_SHA="$(l1_cadence_sha "$CADENCE_JSON")"
 SERVER_SHA="$(sha256sum "$BIN_MAIN" | awk '{print $1}')"
 
 mkdir -p "$RAW_DIR" "$(dirname "$OUT_TSV")"
+# DRY_RUN is a gate rehearsal, so it must never write to the tracked results file.
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  OUT_TSV="$(mktemp -t l1v3-dryrun-XXXXXX.tsv)"
+  trap 'rm -f "$OUT_TSV"' EXIT
+fi
 l1_write_directional_header "$OUT_TSV"
 
 echo "=== L1 v3 small collect (DIRECTIONAL) $(date -Iseconds) ==="
@@ -313,10 +317,15 @@ run_one() {
   set +e
   tail_line="$(l1_tail_gate "$local_json")" trc=$?
   set -e
-  if [[ $trc -ne 0 ]]; then
-    echo "STOP: tail gate FAIL tag=$tag line=$tail_line" >&2
-    exit 2
-  fi
+  case $trc in
+    0) ;;
+    # The cell cannot support a p95. Keep the row — the lateness readout does not
+    # need a miss tail — but stamp it so no decision can quote its p95.
+    3) mark="${mark}+P95_UNSUPPORTED"
+       echo "  note: p95 unsupported for $tag ($tail_line)" >&2 ;;
+    *) echo "STOP: tail gate FAIL tag=$tag line=$tail_line" >&2
+       exit 2 ;;
+  esac
   tail_n="$(echo "$tail_line" | cut -f2)"
 
   python3 - "$local_json" "$ORDER_INDEX" "$ts_iso" "$arm" "$rtt" "$loss" "$depth" "$run" \
@@ -340,10 +349,20 @@ cols = [
     str(int(m["frames_on_wire"])),
     f"{float(m.get('wait_h1_median_ms') or 0):.6f}",
     f"{float(m.get('wait_h2_median_ms') or 0):.6f}",
+    # Reader-clock readout: lateness against each step's scheduled display time.
+    # Supported by every step, so it does not depend on a miss tail the way p95 does.
+    f"{float(m.get('late_p95_ms') or 0):.6f}",
+    f"{float(m.get('late_mean_ms') or 0):.6f}",
+    f"{float(m.get('late_max_ms') or 0):.6f}",
+    f"{float(m.get('on_time_rate') or 0):.6f}",
     mark, psha, csha, ssha,
 ]
 open(out, "a").write("\t".join(cols) + "\n")
-print(f"  ok arm={arm} run={run} regime={regime} miss_p95={m['miss_p95_wait_ms']:.1f} misses={m['cache_misses']} tail={tail_n} asks={m['asks_sent']} mark={mark}")
+print(
+    f"  ok arm={arm} run={run} regime={regime} late_p95={float(m.get('late_p95_ms') or 0):.1f} "
+    f"on_time={float(m.get('on_time_rate') or 0):.2f} miss_p95={m['miss_p95_wait_ms']:.1f} "
+    f"misses={m['cache_misses']} tail={tail_n} asks={m['asks_sent']} mark={mark}"
+)
 PY
 }
 
@@ -368,34 +387,11 @@ run_cell() {
   done
 }
 
+# N1 — the null cell must be able to exclude the effect bar, not merely be "close".
+# The old rel/abs form (40% / 200 ms) tolerated a zero-effect arm gap larger than the
+# effect under test; `l1_null_gate` states it as a CI instead.
 null_gap_check() {
-  python3 - "$OUT_TSV" "$NULL_REL_STOP" "$NULL_ABS_STOP_MS" <<'PY'
-import csv, statistics, sys
-from collections import defaultdict
-path, rel_stop, abs_stop = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
-by = defaultdict(list)
-with open(path) as f:
-    line = f.readline()
-    if not line.startswith("#"):
-        f.seek(0)
-    for r in csv.DictReader(f, delimiter="\t"):
-        if r.get("cell_label", "").startswith("null") and float(r["loss_pct"]) == 0.0:
-            by[r["arm"]].append(float(r["miss_p95_wait_ms"]))
-if len(by) < 2:
-    print("null_gap_check: insufficient arms — skip"); raise SystemExit(0)
-med = {a: statistics.median(v) for a, v in by.items()}
-print("null medians:", {a: round(m, 2) for a, m in med.items()})
-arms = sorted(med); worst = 0.0
-for i, a in enumerate(arms):
-    for b in arms[i+1:]:
-        lo, hi = min(med[a], med[b]), max(med[a], med[b])
-        abs_g, rel = hi - lo, (hi - lo) / lo if lo > 0 else float("inf")
-        print(f"  {a} vs {b}: abs={abs_g:.1f}ms rel={rel:.3f}")
-        worst = max(worst, rel)
-        if abs_g > abs_stop and rel > rel_stop:
-            raise SystemExit(f"STOP: null large unexplained gap {a} vs {b} abs={abs_g:.1f} rel={rel:.3f}")
-print(f"null_gap_ok worst_rel={worst:.3f}")
-PY
+  l1_null_gate "$OUT_TSV" "${L1_EFFECT_BAR:-15}"
 }
 
 write_summary() {
