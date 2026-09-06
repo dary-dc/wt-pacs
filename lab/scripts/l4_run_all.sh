@@ -69,8 +69,23 @@ r2() {
 }
 
 # R3 — stream shape under the controller R1 selects, in case the two interact.
+# R3 — stream shape under BBR, the only controller that completes at satellite RTT.
+# R2 ran the shapes under Cubic and every cell-S row voided for that reason, so the
+# high-RTT case — where loss isolation should matter most — was unmeasurable.
 r3() {
-  EXP=r3 CELLS="W" FIXTURE="$FIX" DEPTH=8 TRACE="$JUMP" LOSS_BURST=5   OUT="$OUTDIR/r3_shape_x_controller.tsv"   ARMS="shared_bbr|--stream-mode shared --congestion bbr;perframe_fifo_bbr|--stream-mode per-frame --congestion bbr --send-fairness false"   bash lab/scripts/l4_campaign.sh "$R"
+  EXP=r3 CELLS="W S" FIXTURE="$FIX" DEPTH=8 TRACE="$JUMP" LOSS_BURST=5 RUN_TIMEOUT=600 \
+  OUT="$OUTDIR/r3_shape_x_controller.tsv" \
+  ARMS="shared_bbr|--stream-mode shared --congestion bbr;perframe_bbr|--stream-mode per-frame --congestion bbr;perframe_fifo_bbr|--stream-mode per-frame --congestion bbr --send-fairness false" \
+  bash lab/scripts/l4_campaign.sh "$R"
+}
+
+# R4 — how long does Cubic ACTUALLY need at satellite RTT? R1/R2 established only
+# "more than 180 s". A number is worth more than a timeout.
+r4() {
+  EXP=r4 CELLS="S" FIXTURE="$FIX" DEPTH=8 TRACE="$JUMP" LOSS_BURST=5 RUN_TIMEOUT=900 \
+  OUT="$OUTDIR/r4_cubic_satellite.tsv" \
+  ARMS="cubic|ENV:QUINN_INITIAL_WINDOW=12000 --stream-mode shared --congestion cubic;bbr|ENV:QUINN_INITIAL_WINDOW=12000 --stream-mode shared --congestion bbr" \
+  bash lab/scripts/l4_campaign.sh "$R"
 }
 
 for e in "$@"; do "$e"; done
