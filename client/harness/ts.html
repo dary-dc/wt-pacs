@@ -44,11 +44,11 @@
       log("connecting", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
       const session = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
       log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
-      document.getElementById("frame0").onclick = async () => {
+      const frame0 = async () => {
         const r = await session.requestExactFrame(0);
         log("frame0 bytes", r.bytes.length, "wire ms", (r.timing.lastChunkMs - r.timing.askMs).toFixed(2));
       };
-      document.getElementById("bulk").onclick = async () => {
+      const bulk = async () => {
         const indices = [0, 1, 2];
         const askMs = session.startExactFrames(indices);
         for (const i of indices) {
@@ -57,9 +57,16 @@
         }
       };
 
+      document.getElementById("frame0").onclick = frame0;
+      document.getElementById("bulk").onclick = bulk;
+
       if (telemetry && params.get("autorun") === "1") {
-        if (cell === "fill") document.getElementById("bulk").click();
-        else document.getElementById("frame0").click();
+        await (cell === "fill" ? bulk() : frame0());
+        // Close the session so the server ends it now and flushes its Tap — otherwise it only
+        // notices at the QUIC idle timeout (~30 s) and the harvest misses the server report.
+        session.close();
+        log("session closed");
+        globalThis.__wtpacsDone = true;
       }
     }
     boot().catch((e) => log("boot error", e));

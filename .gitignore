@@ -25,3 +25,6 @@ client/transport-wasm/pkg-telemetry/
 lab/fixtures/frames_32k/*.sbnd
 lab/fixtures/frames_250k/*.sbnd
 lab/fixtures/frames_250k_live/*.sbnd
+
+# Python bytecode
+__pycache__/

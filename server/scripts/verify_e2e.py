@@ -100,8 +100,9 @@ def main() -> int:
     if not cert.is_file() or not key.is_file():
         subprocess.run([str(ROOT / "server/scripts/gen_dev_cert.sh")], check=True, cwd=ROOT)
 
+    want_wasm = args.harness in ("wasm", "both")
     pkg_js = ROOT / "client/transport-wasm/pkg/transport_wasm.js"
-    if not pkg_js.is_file():
+    if want_wasm and not pkg_js.is_file():
         subprocess.run([str(ROOT / "client/transport-wasm/build.sh")], check=True, cwd=ROOT)
 
     # transport-ts dist/ is gitignored — build product (and telemetry) bundles when needed.
@@ -115,7 +116,7 @@ def main() -> int:
             cwd=ROOT,
         )
 
-    if args.telemetry:
+    if args.telemetry and want_wasm:
         # Optional separate wasm out-dir; product wasm is identical.
         env_tel = os.environ.copy()
         env_tel["WTPACS_TELEMETRY_BUILD"] = "1"
@@ -435,21 +436,25 @@ def main() -> int:
                     page.close()
                     if not remote_wt:
                         server_out = run_dir / "telemetry-server.json"
-                        # Wait for Tap Drop on session end — do not SIGTERM yet.
-                        deadline = time.time() + 5
+                        # The harness closes the session at run end, so the Tap drops and the
+                        # sink flushes within milliseconds. Without that close the server only
+                        # notices at the QUIC idle timeout (~30 s) — never wait on that.
+                        deadline = time.time() + 10
                         while time.time() < deadline and not server_out.is_file():
                             time.sleep(0.1)
                         if server_proc in procs:
                             procs.remove(server_proc)
+                        # SIGTERM also flushes: telemetry builds install a handler.
                         stop_proc(server_proc)
-                        # Drain thread may finish writing on process exit as well.
-                        deadline = time.time() + 3
+                        deadline = time.time() + 5
                         while time.time() < deadline and not server_out.is_file():
                             time.sleep(0.1)
-                        if server_out.is_file():
-                            print(f"wrote {server_out}")
-                        else:
-                            print(f"WARN: missing {server_out} (server Tap did not flush)")
+                        if not server_out.is_file():
+                            raise SystemExit(
+                                f"{label}: missing {server_out} — the server Tap did not flush. "
+                                "Half a harvest is not written as one."
+                            )
+                        print(f"wrote {server_out}")
                         server_proc = start_exact_server(env)
                         procs.insert(0, server_proc)
                     print(f"OK {label} rep={rep}")

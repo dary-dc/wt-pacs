@@ -10,3 +10,6 @@ mod report;
 mod sink;
 #[cfg(feature = "telemetry")]
 pub mod tap;
+
+#[cfg(feature = "telemetry")]
+pub use sink::flush_on_exit;

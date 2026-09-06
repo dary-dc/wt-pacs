@@ -14,9 +14,12 @@ use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, warn};
+use wtransport::config::IpBindConfig;
+use wtransport::endpoint::endpoint_side;
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Endpoint, Identity, ServerConfig};
 
@@ -31,6 +34,9 @@ pub struct ServeConfig {
     pub cert_pem: PathBuf,
     pub key_pem: PathBuf,
     pub mode: StreamMode,
+    /// Explicit bind address. `None` binds dual-stack `[::]` and falls back to `0.0.0.0` on a
+    /// host with no IPv6 stack (containers commonly lack one).
+    pub bind: Option<IpAddr>,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -40,16 +46,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         .with_context(|| format!("read {}", config.key_pem.display()))?;
     let cert = load_pem_cert(&cert_pem, &key_pem)?;
 
-    let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
-        .await
-        .context("load wtransport identity")?;
-
-    let server_config = ServerConfig::builder()
-        .with_bind_default(config.wt_port)
-        .with_identity(identity)
-        .build();
-
-    let endpoint = Endpoint::server(server_config).context("wtransport endpoint")?;
+    let (endpoint, bound) = build_endpoint(&config).await?;
 
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
 
@@ -61,6 +58,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("frames={}", store.frame_count());
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
+    println!("bind={bound}");
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
     #[cfg(not(feature = "telemetry"))]
@@ -81,6 +79,44 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
                 warn!(%err, "session ended");
             }
         });
+    }
+}
+
+/// Open the QUIC endpoint. Dual-stack any is the default; a host without an IPv6 stack refuses
+/// that socket (`Address family not supported`), so fall back to IPv4 any rather than not starting.
+async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side::Server>, String)> {
+    async fn identity(config: &ServeConfig) -> Result<Identity> {
+        Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+            .await
+            .context("load wtransport identity")
+    }
+
+    if let Some(ip) = config.bind {
+        let server_config = ServerConfig::builder()
+            .with_bind_address(SocketAddr::new(ip, config.wt_port))
+            .with_identity(identity(config).await?)
+            .build();
+        let endpoint = Endpoint::server(server_config)
+            .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
+        return Ok((endpoint, ip.to_string()));
+    }
+
+    let dual = ServerConfig::builder()
+        .with_bind_default(config.wt_port)
+        .with_identity(identity(config).await?)
+        .build();
+    match Endpoint::server(dual) {
+        Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
+        Err(err) => {
+            warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
+            let v4 = ServerConfig::builder()
+                .with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port)
+                .with_identity(identity(config).await?)
+                .build();
+            let endpoint =
+                Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
+            Ok((endpoint, "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string()))
+        }
     }
 }
 

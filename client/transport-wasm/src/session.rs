@@ -210,7 +210,7 @@ struct SessionState {
 }
 
 pub struct TransportSession {
-    _transport: WebTransport,
+    transport: WebTransport,
     state: Rc<RefCell<SessionState>>,
     req_tx: mpsc::UnboundedSender<Vec<u8>>,
     bulk_rx: RefCell<HashMap<u32, oneshot::Receiver<(Uint8Array, f64)>>>,
@@ -309,7 +309,7 @@ impl TransportSession {
         });
 
         Ok(Self {
-            _transport: transport,
+            transport,
             state,
             req_tx,
             bulk_rx: RefCell::new(HashMap::new()),
@@ -419,6 +419,12 @@ impl TransportSession {
             }
         };
         result_to_js(frame_index, ask_ms, bytes, received_ms)
+    }
+
+    /// Close the WebTransport session now. Without this the server only notices the session is
+    /// gone at the QUIC idle timeout (~30 s), which is what the telemetry harvest used to wait on.
+    pub fn close(&self) {
+        self.transport.close();
     }
 
     pub fn stats(&self) -> Result<JsValue, String> {
