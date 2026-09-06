@@ -92,8 +92,13 @@ pub async fn run_harness(
         .install_default()
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
-    let client_cfg = ClientConfig::builder()
-        .with_bind_default()
+    let builder = ClientConfig::builder();
+    let builder = if cfg.ipv4 {
+        builder.with_bind_config(wtransport::config::IpBindConfig::InAddrAnyV4)
+    } else {
+        builder.with_bind_default()
+    };
+    let client_cfg = builder
         .with_no_cert_validation()
         .keep_alive_interval(Some(Duration::from_secs(3)))
         .build();

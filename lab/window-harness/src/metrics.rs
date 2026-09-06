@@ -46,6 +46,8 @@ pub struct RunConfig {
     pub rtt_ms: u64,
     /// Must match the server's `--stream-mode`.
     pub stream_mode: StreamMode,
+    /// Bind the client socket IPv4-only (hosts without IPv6).
+    pub ipv4: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
