@@ -48,6 +48,8 @@ pub struct RunConfig {
     pub stream_mode: StreamMode,
     /// Local bind IP for the client socket. `0.0.0.0` on hosts without an IPv6 stack.
     pub bind_ip: std::net::IpAddr,
+    /// Client display-cache capacity in frames; 0 = unbounded.
+    pub cache_frames: usize,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -124,6 +126,13 @@ pub struct MetricsState {
     pub fill_started_at: Option<Instant>,
     /// Client-side display cache: frame index is displayable once present.
     pub cache: HashSet<u32>,
+    /// LRU order for `cache`, most-recently-used last. Empty when the cache is unbounded.
+    pub cache_lru: Vec<u32>,
+    /// Max frames held, 0 = unbounded. A tablet browser cannot hold a whole CT series:
+    /// 500 slices at 250 KB is 125 MB. With an unbounded cache the client holds the
+    /// entire study within seconds and no jump can miss, which collapses the
+    /// informative sample count and makes head-of-line blocking unmeasurable.
+    pub cache_cap: usize,
     /// Per want: ms until displayable (0 on cache hit).
     pub wait_samples_ms: Vec<f64>,
 }
@@ -147,6 +156,8 @@ impl MetricsState {
             fill_bytes: 0,
             fill_started_at: None,
             cache: HashSet::new(),
+            cache_lru: Vec::new(),
+            cache_cap: 0,
             wait_samples_ms: Vec::new(),
         }
     }
@@ -169,10 +180,25 @@ impl MetricsState {
         self.fill_active = false;
     }
 
+    /// Insert `index` and evict least-recently-used frames beyond `cache_cap`.
+    pub fn touch_cache(&mut self, index: u32) {
+        if let Some(pos) = self.cache_lru.iter().position(|&x| x == index) {
+            self.cache_lru.remove(pos);
+        }
+        self.cache_lru.push(index);
+        self.cache.insert(index);
+        if self.cache_cap > 0 {
+            while self.cache_lru.len() > self.cache_cap {
+                let evicted = self.cache_lru.remove(0);
+                self.cache.remove(&evicted);
+            }
+        }
+    }
+
     pub fn on_envelope(&mut self, index: u32, nbytes: u64) {
         self.frames_on_wire += 1;
         self.bytes_on_wire += nbytes;
-        self.cache.insert(index);
+        self.touch_cache(index);
         if self.settled {
             self.frames_after_settle += 1;
             self.bytes_after_settle += nbytes;

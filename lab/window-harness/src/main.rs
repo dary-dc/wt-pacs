@@ -40,6 +40,9 @@ struct Args {
     /// Local bind IP. Use `::` for dual-stack; `0.0.0.0` on hosts without IPv6.
     #[arg(long, default_value = "0.0.0.0")]
     bind: std::net::IpAddr,
+    /// Client display-cache capacity in frames. 0 = unbounded (the old behaviour).
+    #[arg(long, default_value_t = 0)]
+    cache_frames: usize,
 
     /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
     #[arg(long)]
@@ -82,6 +85,7 @@ async fn main() -> anyhow::Result<()> {
         rtt_ms: args.rtt_ms,
         stream_mode: args.stream_mode,
         bind_ip: args.bind,
+        cache_frames: args.cache_frames,
     };
     if let Some(sweep) = &args.depth_sweep {
         let depths: Vec<u32> = sweep

@@ -87,7 +87,7 @@ for RUN in $(seq 1 "$REPEATS"); do
       S0=$(cpu_of "$SRV"); N0=$(cpu_of "$NS"); W0=$(date +%s.%N)
       timeout 180 "$HARNESS" --url "https://127.0.0.1:$NPORT/" --mode trace --trace "$TRACE" \
         --read-bps 0 --depth "$DEPTH" --frame-count "$FRAME_COUNT" --stream-mode "$SM" \
-        --bind 127.0.0.1 --arm "$LABEL" --json > /tmp/l4_run.json 2>/dev/null &
+        --bind 127.0.0.1 --cache-frames "${CACHE_FRAMES:-0}" --arm "$LABEL" --json > /tmp/l4_run.json 2>/dev/null &
       CLI=$!; CLI_CPU=0
       # `timeout` is the direct child; the harness is its child. Measuring $CLI would
       # measure `timeout` and always report ~0, silently disabling stop condition 3.
