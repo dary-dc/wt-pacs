@@ -1,14 +1,17 @@
 /** Assemble the harvested client telemetry report. */
 
+import { overlapUs, type LongTaskSpan } from "./clock.ts";
 import { distributionStats } from "./percentiles.ts";
-import { askToCompleteUs, toClientFrame } from "./rows.ts";
-import type {
-  ClientFrameRow,
-  Integrity,
-  IntegrityJudgement,
-  OpenRow,
-  TapConfig,
-  TelemetryReport,
+import { askToCompleteUs, rowEndUs, toClientFrame } from "./rows.ts";
+import {
+  OK_CLOSED_AT,
+  type ClientFrameRow,
+  type ClosedAt,
+  type Integrity,
+  type IntegrityJudgement,
+  type OpenRow,
+  type TapConfig,
+  type TelemetryReport,
 } from "./types.ts";
 
 const DIST_ACCESSORS: {
@@ -95,27 +98,91 @@ export function pickFirstAsk(rows: OpenRow[]): OpenRow | null {
   return first;
 }
 
+/** Long-task time inside a row's window [ask, end]. */
+export function rowBusyUs(row: OpenRow, spans: LongTaskSpan[]): number {
+  const end = rowEndUs(row);
+  if (row.ask_us == null || end == null) return 0;
+  let busy = 0;
+  for (const s of spans) busy += overlapUs(row.ask_us, end, s.start_us, s.end_us);
+  return busy;
+}
+
+/** Long tasks against the run window [first ask, last row end]: count, total overlap, outside. */
+export function windowLongTasks(
+  rows: OpenRow[],
+  spans: LongTaskSpan[],
+): { long_tasks: number; long_task_total_us: number; long_tasks_outside_window: number } {
+  const asks = rows.map((r) => r.ask_us).filter((v): v is number => v != null);
+  const ends = rows.map((r) => rowEndUs(r)).filter((v): v is number => v != null);
+  if (asks.length === 0 || ends.length === 0) {
+    return { long_tasks: 0, long_task_total_us: 0, long_tasks_outside_window: spans.length };
+  }
+  const w0 = Math.min(...asks);
+  const w1 = Math.max(...ends);
+  let inside = 0;
+  let total = 0;
+  for (const s of spans) {
+    const o = overlapUs(w0, w1, s.start_us, s.end_us);
+    if (o > 0) {
+      inside += 1;
+      total += o;
+    }
+  }
+  return {
+    long_tasks: inside,
+    long_task_total_us: total,
+    long_tasks_outside_window: spans.length - inside,
+  };
+}
+
 export function assembleReport(args: {
   config: TapConfig;
   install_t0_ms: number;
   first_ask_ms: number | null;
   closedRows: OpenRow[];
+  longTasks: LongTaskSpan[];
   integrity: Integrity;
 }): TelemetryReport {
-  const judgement = judgeIntegrity(args.integrity);
-  const integrity: Integrity = {
-    ...args.integrity,
-    valid: judgement.valid,
-    invalid_reasons: judgement.invalid_reasons,
-  };
-
+  const window = windowLongTasks(args.closedRows, args.longTasks);
   const firstAskOpen = pickFirstAsk(args.closedRows);
-  const converted = args.closedRows.map((r) => ({ open: r, row: toClientFrame(r) }));
+  const converted = args.closedRows.map((open) => ({
+    open,
+    busy: rowBusyUs(open, args.longTasks),
+    row: toClientFrame(open, rowBusyUs(open, args.longTasks)),
+  }));
   const frames = converted
     .map((c) => c.row)
     .sort((a, b) => a.frame_index - b.frame_index || a.ask_ordinal - b.ask_ordinal);
   const first_ask_row = converted.find((c) => c.open === firstAskOpen)?.row ?? null;
-  const usable = converted.filter((c) => c.open !== firstAskOpen).map((c) => c.row);
+
+  // Usable = not the first ask, ended on a stamp (not refused/timeout/error), stamps not
+  // shadowed by a long task.
+  const candidates = converted.filter(
+    (c) => c.open !== firstAskOpen && OK_CLOSED_AT.includes(c.row.closed_at),
+  );
+  const busy_rows_excluded = candidates.filter((c) => c.busy > 0).length;
+  const usable = candidates.filter((c) => c.busy === 0).map((c) => c.row);
+
+  const integrity: Integrity = {
+    ...args.integrity,
+    long_tasks: window.long_tasks,
+    long_task_total_us: window.long_task_total_us,
+    long_tasks_outside_window: window.long_tasks_outside_window,
+    busy_rows_excluded,
+  };
+  const judgement = judgeIntegrity(integrity);
+  integrity.valid = judgement.valid;
+  integrity.invalid_reasons = judgement.invalid_reasons;
+
+  const outcomes: Record<ClosedAt, number> = {
+    last_byte: 0,
+    delivered: 0,
+    batch_delivered: 0,
+    refused: 0,
+    timeout: 0,
+    error: 0,
+  };
+  for (const f of frames) outcomes[f.closed_at] += 1;
 
   const hasPreload = frames.some((f) => f.kind === "preload");
   const report_mode = hasPreload ? "fill" : "ondemand";
@@ -176,6 +243,7 @@ export function assembleReport(args: {
       headline,
       first_ask_row,
       fill_queue_us,
+      outcomes,
       distributions,
       binding: bindingRollup(usable),
       copies: {

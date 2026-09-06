@@ -103,6 +103,33 @@ export function proxyMediaStream(stream: ReadableStream<Uint8Array>) {
   });
 }
 
+/** Control downlink: the server's `frame_error` refusals arrive here. */
+export function proxyControlReader(reader: ReadableStreamDefaultReader<Uint8Array>) {
+  const base = bindGet(reader);
+  return new Proxy(reader, {
+    ...base,
+    get(t, prop, receiver) {
+      if (prop === "read") {
+        return () => {
+          return reader.read().then((result) => {
+            const tap = getTap();
+            if (tap && result && !result.done && result.value) {
+              const v = result.value as ArrayBufferView;
+              const bytes =
+                v instanceof Uint8Array
+                  ? v
+                  : new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+              tap.onControlRead(bytes);
+            }
+            return result;
+          });
+        };
+      }
+      return base.get!(t, prop, receiver);
+    },
+  });
+}
+
 export function proxyBidi(bidi: {
   readable: ReadableStream;
   writable: WritableStream;
@@ -111,6 +138,23 @@ export function proxyBidi(bidi: {
   return new Proxy(bidi as object, {
     ...base,
     get(t, prop, receiver) {
+      if (prop === "readable") {
+        const readable = bidi.readable;
+        return new Proxy(readable, {
+          ...bindGet(readable),
+          get(rt, rprop, rrecv) {
+            if (rprop === "getReader") {
+              return (...args: unknown[]) => {
+                const reader = (
+                  readable.getReader as (...a: unknown[]) => ReadableStreamDefaultReader
+                )(...args);
+                return proxyControlReader(reader as ReadableStreamDefaultReader<Uint8Array>);
+              };
+            }
+            return bindGet(readable).get!(rt, rprop, rrecv);
+          },
+        });
+      }
       if (prop === "writable") {
         const writable = bidi.writable;
         return new Proxy(writable, {

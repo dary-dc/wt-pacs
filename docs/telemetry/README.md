@@ -87,7 +87,15 @@ server/scripts/check_telemetry_absent.sh
 - **Ring:** `run_end.ring_capacity` is enforced on closed rows (default 4096); evictions are counted
   and void the run
 - **`closed_at`:** `last_byte` · `delivered` · `batch_delivered` (marked by the batch method after
-  the whole batch — not a per-frame delivery)
+  the whole batch — not a per-frame delivery) · `refused` (server `frame_error`, reason carried) ·
+  `timeout` · `error`. `summary.outcomes` counts rows by it. Failed rows have no stages and are
+  not usable; they still close their row, so a refusal does not void a run.
+- **Long tasks:** `integrity.long_tasks` counts only tasks overlapping [first ask, last row end]
+  (`long_tasks_outside_window` holds the rest — WASM compile lands there). Per row,
+  `main_thread_busy_us` is the overlap with [ask, close]; rows with any overlap are set aside
+  from distributions and headlines and counted in `busy_rows_excluded`. `stall` stays null.
+- **`integrity.open_rows`:** rows never closed, with the stamps they have — the diagnosis behind
+  a `rows_opened != rows_closed` void
 - **Compare within a cell only:** on-demand ↔ on-demand, fill ↔ fill
 - **Absent here:** decode, paint, cache → `null`
 - **Stage `deliver`:** receive-side copy on the client path

@@ -19,6 +19,8 @@ export function createOpenRow(
     first_byte_us: null,
     last_byte_us: null,
     delivered_us: null,
+    failed_us: null,
+    fail_reason: null,
     bytes: null,
     chunks: null,
     closed: false,
@@ -97,7 +99,28 @@ export class DeliveredLater {
   }
 }
 
-export function toClientFrame(row: OpenRow): ClientFrameRow {
+/** Which stamps a row has — the diagnostic for a row that never closed. */
+export function stampsPresent(row: OpenRow): string[] {
+  const have: string[] = [];
+  if (row.gesture_us != null) have.push("gesture");
+  if (row.ask_us != null) have.push("ask");
+  if (row.ask_flush_us != null) have.push("ask_flush");
+  if (row.first_byte_us != null) have.push("first_byte");
+  if (row.last_byte_us != null) have.push("last_byte");
+  if (row.delivered_us != null) have.push("delivered");
+  if (row.failed_us != null) have.push("failed");
+  return have;
+}
+
+/** The stamp that ends a row's window: the last thing that could have been late. */
+export function rowEndUs(row: OpenRow): Us | null {
+  const candidates = [row.last_byte_us, row.delivered_us, row.failed_us].filter(
+    (v): v is number => v != null,
+  );
+  return candidates.length === 0 ? null : Math.max(...candidates);
+}
+
+export function toClientFrame(row: OpenRow, main_thread_busy_us = 0): ClientFrameRow {
   const queue_us =
     row.gesture_us != null && row.ask_us != null ? row.ask_us - row.gesture_us : null;
   const ask_flush_us =
@@ -164,9 +187,11 @@ export function toClientFrame(row: OpenRow): ClientFrameRow {
     total_us,
     total_spans,
     closed_at: row.closed_at ?? defaultClosedAt(row.kind),
+    fail_reason: row.fail_reason,
     bytes: row.bytes ?? 0,
     chunks,
     stall: null,
+    main_thread_busy_us,
     binding_term,
   };
 }

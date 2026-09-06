@@ -36,24 +36,47 @@ export function probeClockResolution(iterations = 2_000): ClockProbe {
   };
 }
 
-/** Returns a disconnect function; no-op when longtask is unavailable. */
-export function watchLongTasks(onCount: (n: number) => void): () => void {
+/** One Long Task entry on the `performance.now()` clock, in µs. */
+export type LongTaskSpan = { start_us: Us; end_us: Us };
+
+function toSpan(entry: PerformanceEntry): LongTaskSpan {
+  return {
+    start_us: Math.round(entry.startTime * 1000),
+    end_us: Math.round((entry.startTime + entry.duration) * 1000),
+  };
+}
+
+/**
+ * Watch Long Tasks (main-thread tasks over 50 ms). A `read()` that resolves during one is
+ * stamped late by the browser being busy, not by the network — so each entry is kept with
+ * its span and matched against rows at finish. `stop()` collects entries the observer has
+ * not delivered yet (delivery is asynchronous) and disconnects.
+ */
+export function watchLongTasks(onSpan: (span: LongTaskSpan) => void): () => LongTaskSpan[] {
   try {
-    if (typeof PerformanceObserver === "undefined") return () => {};
-    let total = 0;
+    if (typeof PerformanceObserver === "undefined") return () => [];
     const observer = new PerformanceObserver((list) => {
-      total += list.getEntries().length;
-      onCount(total);
+      for (const entry of list.getEntries()) onSpan(toSpan(entry));
     });
     observer.observe({ type: "longtask", buffered: true } as PerformanceObserverInit);
     return () => {
+      let pending: LongTaskSpan[] = [];
       try {
+        pending = observer.takeRecords().map(toSpan);
         observer.disconnect();
       } catch {
         /* ignore */
       }
+      return pending;
     };
   } catch {
-    return () => {};
+    return () => [];
   }
+}
+
+/** Length of the overlap between two closed intervals, in µs (0 when disjoint). */
+export function overlapUs(a0: Us, a1: Us, b0: Us, b1: Us): Us {
+  const lo = Math.max(a0, b0);
+  const hi = Math.min(a1, b1);
+  return hi > lo ? hi - lo : 0;
 }

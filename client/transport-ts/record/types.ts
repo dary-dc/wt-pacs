@@ -4,8 +4,19 @@ export type Us = number; // integer microseconds
 
 export type RowKind = "preload" | "interaction";
 
-/** How a row was closed. `batch_delivered` = the batch method marked it after the whole batch. */
-export type ClosedAt = "last_byte" | "delivered" | "batch_delivered";
+/**
+ * How a row ended. The first three are the stamps that close a row; the rest are failures.
+ * `batch_delivered` = the batch method marked it after the whole batch landed.
+ */
+export type ClosedAt =
+  | "last_byte"
+  | "delivered"
+  | "batch_delivered"
+  | "refused"
+  | "timeout"
+  | "error";
+
+export const OK_CLOSED_AT: readonly ClosedAt[] = ["last_byte", "delivered", "batch_delivered"];
 
 export type ChunkMark = {
   t_us: Us;
@@ -32,6 +43,9 @@ export type OpenRow = {
   first_byte_us: Us | null;
   last_byte_us: Us | null;
   delivered_us: Us | null;
+  /** Stamp of a refusal / timeout / error close. */
+  failed_us: Us | null;
+  fail_reason: string | null;
   bytes: number | null;
   chunks: number | null;
   closed: boolean;
@@ -55,9 +69,17 @@ export type ClientFrameRow = {
   total_us: number | null;
   total_spans: string | null;
   closed_at: ClosedAt;
+  /** Server-supplied reason on `refused`; the client error text on `timeout` / `error`. */
+  fail_reason: string | null;
   bytes: number;
   chunks: number;
   stall: null;
+  /**
+   * Long-task time overlapping [ask, close] — main-thread busy while this row's stamps
+   * were pending. Non-zero means the stamps may be late by up to this much; the row is
+   * excluded from distributions and headlines.
+   */
+  main_thread_busy_us: number;
   binding_term: string | null;
 };
 
@@ -91,6 +113,14 @@ export type TapReadCost = {
   max_us: number;
 };
 
+/** A row still open at finish(): which stamps it has, so a void run can be diagnosed. */
+export type OpenRowDiag = {
+  kind: RowKind;
+  frame_index: number;
+  ask_ordinal: number;
+  have: string[];
+};
+
 export type Integrity = {
   rows_opened: number;
   rows_closed: number;
@@ -102,12 +132,19 @@ export type Integrity = {
   marks_after_close: number;
   first_write_conflicts: number;
   byte_closure_ok: boolean;
+  /** Long tasks overlapping [first ask, last close]. Compile before the first ask is not here. */
   long_tasks: number;
+  long_task_total_us: number;
+  long_tasks_outside_window: number;
+  /** Usable rows set aside because a long task overlapped their stamps. */
+  busy_rows_excluded: number;
   clock_resolution_us: number | null;
   /** Cost of the finish-time clock probe (µs); auditable, not on the connect path. */
   clock_probe_us: number | null;
   cross_origin_isolated: boolean | null;
   tap_read_cost_us: TapReadCost | null;
+  /** Rows never closed — the reason `rows_opened != rows_closed`, row by row. */
+  open_rows: OpenRowDiag[];
   /** Set at finish(): one place to see if the run is publishable. */
   valid?: boolean;
   invalid_reasons?: string[];
@@ -140,6 +177,8 @@ export type TelemetryReport = {
      * distribution. Reported here once; `distributions.queue` covers interaction rows only.
      */
     fill_queue_us: number | null;
+    /** Rows by how they ended (`closed_at`), over all rows including the first ask. */
+    outcomes: Record<ClosedAt, number>;
     distributions: Record<string, DistributionOrAbsent>;
     /** Rollup of per-row binding_term over usable frames (first ask excluded). */
     binding: Record<string, number>;

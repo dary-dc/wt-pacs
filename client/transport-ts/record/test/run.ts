@@ -7,7 +7,7 @@
 import { StreamAttributor } from "../attribution.ts";
 import { attributeFrames } from "../offsets.ts";
 import { nearestRank, distributionStats } from "../percentiles.ts";
-import { parseFodAsks, parseFootprintsFromBytes } from "../parse.ts";
+import { MessageAccumulator, parseFodAsks, parseFootprintsFromBytes } from "../parse.ts";
 import { judgeIntegrity, minOf, maxOf } from "../report.ts";
 import { pickBinding } from "../rows.ts";
 import { Tap } from "../tap.ts";
@@ -541,6 +541,10 @@ function sliceRiver(
     clock_probe_us: 100,
     cross_origin_isolated: true,
     tap_read_cost_us: null,
+    long_task_total_us: 0,
+    long_tasks_outside_window: 0,
+    busy_rows_excluded: 0,
+    open_rows: [],
   });
   assertEq(j.valid, false, "judge: open!=closed invalid");
   assert(j.invalid_reasons[0].includes("rows_opened"), "judge: reason text");
@@ -566,6 +570,112 @@ function sliceRiver(
   assert(attr.finished.length === 100, "bench: 100 frames attributed");
   assert(attr.closureOk(), "bench: closure ok");
   assert(ms < 100, `bench: streaming cost ${ms.toFixed(1)}ms < 100ms (was seconds with concat path)`);
+}
+
+
+// Refusal on the control downlink closes the row; the run stays whole
+{
+  const tap = new Tap(cfg());
+  tap.onControlWrite(fodRequest(1));
+  tap.onControlWrite(fodRequest(99));
+  const sid = tap.nextStreamId();
+  tap.onMediaRead(sid, mediaFor(1));
+  tap.onDelivered(1);
+  // Server: {op:"frame_error", frame_index:99, reason} — split across two reads.
+  const err = fod({ op: "frame_error", frame_index: 99, reason: "frame index 99 out of range (3)" });
+  tap.onControlRead(err.subarray(0, 7));
+  tap.onControlRead(err.subarray(7));
+  // The product then rejects the ask; the wrapper reports it — no open row, ignored.
+  tap.onAskFailed(99, "frame 99 unavailable: frame index 99 out of range (3)");
+  const report = tap.finish();
+  const refused = report.client_frames.find((r) => r.frame_index === 99)!;
+  assertEq(refused.closed_at, "refused", "refused row closed_at refused");
+  assert((refused.fail_reason ?? "").includes("out of range"), "refusal reason carried");
+  assertEq(refused.serve_plus_path_us, null, "refused row has no stages");
+  assertEq(report.summary.integrity.rows_opened, report.summary.integrity.rows_closed, "refusal closes its row");
+  assertEq(report.summary.integrity.marks_after_close, 0, "the wrapper's failure report is not a mark after close");
+  assertEq(report.summary.integrity.valid, true, "a refused frame does not void the run");
+  assertEq(report.summary.outcomes.refused, 1, "outcomes count the refusal");
+  assertEq(report.summary.outcomes.delivered, 1, "outcomes count the delivery");
+  assertEq(report.summary.distributions.bytes, null, "refused row not usable; the other is the first ask");
+}
+
+// A timeout rejection closes the row as timeout; another error as error
+{
+  const tap = new Tap(cfg());
+  tap.onControlWrite(fodRequest(5));
+  tap.onAskFailed(5, "timeout waiting for frame 5 after 15000 ms");
+  tap.onControlWrite(fodRequest(6));
+  tap.onAskFailed(6, "session closed");
+  const report = tap.finish();
+  assertEq(report.client_frames.map((r) => r.closed_at), ["timeout", "error"], "timeout and error named");
+  assertEq(report.summary.integrity.valid, true, "failures close rows; the run is whole");
+}
+
+// Rows still open at finish are listed with the stamps they have
+{
+  const tap = new Tap(cfg());
+  tap.gesture(3);
+  tap.onControlWrite(fodRequest(3));
+  tap.onAskFlush();
+  const report = tap.finish();
+  assertEq(report.summary.integrity.valid, false, "open row voids the run");
+  assertEq(report.summary.integrity.open_rows, [{ kind: "interaction", frame_index: 3, ask_ordinal: 0, have: ["gesture", "ask", "ask_flush"] }], "open_rows says which row and what it has");
+}
+
+// Long tasks: windowed to the run; overlapping rows are flagged and set aside
+{
+  const tap = new Tap(cfg());
+  const t0 = performance.now();
+  // A compile-like long task well before the first ask must not count.
+  tap.noteLongTask({ start_us: Math.round((t0 - 5000) * 1000), end_us: Math.round((t0 - 4900) * 1000) });
+  for (const idx of [1, 2, 3]) {
+    tap.gesture(idx);
+    tap.onControlWrite(fodRequest(idx));
+    const sid = tap.nextStreamId();
+    tap.onMediaRead(sid, mediaFor(idx));
+    tap.onDelivered(idx);
+  }
+  // A long task covering the whole run (all rows overlap it).
+  const tEnd = performance.now();
+  tap.noteLongTask({ start_us: Math.round((t0 - 1) * 1000), end_us: Math.round((tEnd + 1) * 1000) });
+  const report = tap.finish();
+  assertEq(report.summary.integrity.long_tasks, 1, "only the in-window long task counts");
+  assertEq(report.summary.integrity.long_tasks_outside_window, 1, "the pre-ask one is reported outside");
+  assert(report.summary.integrity.long_task_total_us > 0, "overlap total recorded");
+  assert(report.client_frames.every((r) => r.main_thread_busy_us > 0), "every row carries its busy overlap");
+  assertEq(report.summary.integrity.busy_rows_excluded, 2, "the two non-first rows are set aside");
+  assertEq(report.summary.distributions.bytes, null, "no usable rows remain");
+  assertEq(report.summary.integrity.valid, true, "busy rows do not void; they are excluded and counted");
+}
+
+// Long task disjoint from the run: nothing flagged
+{
+  const tap = new Tap(cfg());
+  for (const idx of [1, 2]) {
+    tap.onControlWrite(fodRequest(idx));
+    const sid = tap.nextStreamId();
+    tap.onMediaRead(sid, mediaFor(idx));
+    tap.onDelivered(idx);
+  }
+  const later = performance.now() + 10_000;
+  tap.noteLongTask({ start_us: Math.round(later * 1000), end_us: Math.round((later + 60) * 1000) });
+  const report = tap.finish();
+  assertEq(report.summary.integrity.long_tasks, 0, "disjoint long task not counted in window");
+  assertEq(report.summary.integrity.busy_rows_excluded, 0, "no rows set aside");
+  assertEq(report.summary.distributions.bytes?.count, 1, "the non-first row is usable");
+}
+
+// MessageAccumulator reassembles split control messages
+{
+  const acc = new MessageAccumulator();
+  const a = fod({ op: "frame_error", frame_index: 1, reason: "x" });
+  const b = fodRequest(2);
+  const all = concat([a, b]);
+  const first = acc.push(all.subarray(0, 5));
+  assertEq(first.length, 0, "partial message yields nothing");
+  const rest = acc.push(all.subarray(5));
+  assertEq(rest.map((m) => m.op), ["frame_error", "request_frame"], "both messages after the rest arrives");
 }
 
 if (failed > 0) {
