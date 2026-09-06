@@ -22,7 +22,7 @@ already in, so it is the answer *until* a layout exists, and a safety net after.
 
 ## Part 1 — the strided shape, and the layout that removes it · 2026-09-05
 
-[`adr.md`](adr.md) rests on one number: the `RWF_NOWAIT` fast path misses **6 of 320** asks
+[`adr.md`](../disk-access/adr.md) rests on one number: the `RWF_NOWAIT` fast path misses **6 of 320** asks
 on a cold sequential pass, and **0 of 320** warm. That is not a property of the flag. It is a
 property of *reading frames whole, in order*, which is what lets kernel read-ahead run in
 front of the loop.
@@ -98,14 +98,14 @@ is the opposite of that deployment.
    warm. What collapses under striding is not the arm, it is the hit rate the arm was
    advertised on. Under rung delivery on a cold study, the accepted path degrades to its own
    escape hatch — one pool round trip per ask — which is exactly what
-   [`adr.md`](adr.md) says it does, and it is now the common case rather than the reverse-trace
+   [`adr.md`](../disk-access/adr.md) says it does, and it is now the common case rather than the reverse-trace
    worst case.
 2. **io_uring does not help *at one read in flight*.** In both layouts the hybrid tracks the
    accepted path within noise (3 373 vs 3 456 ns cold striped; 95 400 vs 93 443 ns cold
    strided). ⚠️ **This is a depth-1 result and does not generalise** — every cell in this
    document serves one ask to completion before starting the next, mirroring `run_session`.
    With 2 or more reads in flight the ring costs 1.8–4× less CPU per ask and holds threads
-   flat: see [`DEPTH.md`](DEPTH.md), which corrects this row.
+   flat: see `DEPTH.md` (archived: `git show a330783:docs/disk-access/DEPTH.md`), which corrects this row.
 3. **One lever is the packer.** Nothing in `server/` can recover *implicit* read-ahead once
    the bytes are 234 KB apart — `pack-study` can, by writing rungs in stripes. But an
    explicit hint recovers most of it without any layout change at all; that is Part 2.
@@ -213,7 +213,7 @@ frame, so every row below 250 000 B **strides**; the 250 000 B row **sweeps**.
 4. **io_uring never wins outside noise, at any shape *measured here*.** Best p50 in 2 of 8
    cells, within a few percent of `nowait` in both, and behind on CPU/ask in 7 of 8.
    ⚠️ **Every cell holds one read in flight**, which is the one regime where a ring cannot
-   win. [`DEPTH.md`](DEPTH.md) lifts that and reverses the conclusion for cold reads at
+   win. `DEPTH.md` (archived: `git show a330783:docs/disk-access/DEPTH.md`) lifts that and reverses the conclusion for cold reads at
    depth ≥ 2. The shape axis and the depth axis are independent; this document varies only
    the first.
 
@@ -227,7 +227,7 @@ It needs the **next ask**, which the server does not always have:
   (direction of travel, `n+1`) would have to supply the hint, and a wrong guess costs one
   wasted syscall and some read-ahead the loop never consumes.
 
-This is [`later.md`](later.md)'s "ahead-N prefetch — needs a real ask window", now with a
+This is `later.md` (archived: `git show a330783:docs/disk-access/later.md`)'s "ahead-N prefetch — needs a real ask window", now with a
 measured value on the other side of the question.
 
 **Not landed in the product.** The mechanism is characterised; *when to switch it on* depends
@@ -262,6 +262,6 @@ lookahead in the ask loop.
 * **The payload sweep varies size, not layout.** It reads whole frames from a warm study, so
   it prices the connection, not the disk. The two halves are independent and were measured
   separately on purpose.
-* Every caveat in [`RERUN.md`](RERUN.md) §Limitations still applies, in particular:
+* Every caveat in [`RERUN.md`](../disk-access/RERUN.md) §Limitations still applies, in particular:
   order-control any *new* cold claim before believing it. This one rests on an exact count,
   which is why it is quotable.

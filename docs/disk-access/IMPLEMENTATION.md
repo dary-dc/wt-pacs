@@ -1,7 +1,7 @@
 # Implementing the read path — design
 
-**Decision:** [`adr.md`](adr.md) · **Evidence:** [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md) ·
-[`S5-CONTROL-ARM.md`](S5-CONTROL-ARM.md)
+**Decision:** [`adr.md`](adr.md) · **Evidence:** `READ-PATH-DECISION.md` (archived: `git show a330783:docs/disk-access/READ-PATH-DECISION.md`) ·
+`S5-CONTROL-ARM.md` (archived: `git show a330783:docs/disk-access/S5-CONTROL-ARM.md`)
 
 What ships today is `pool`: `preadv2(RWF_NOWAIT)` inline, `spawn_blocking` for the shortfall.
 This is the change to **`hybrid_lazyring`** — the same path, plus an io_uring built on the
@@ -12,7 +12,7 @@ session's *first miss* and used for the shortfall from then on.
 The obvious shape is a config flag choosing "optimised for hits" against "optimised
 generally". **The measurement says not to build one.** `hybrid_lazyring` already makes that
 choice per session, at runtime, from what the session actually does — and no arm is
-*established* better than it in any regime ([`v27_lazyring.tsv`](v27_lazyring.tsv), two runs,
+*established* better than it in any regime (`v27_lazyring.tsv` (archived: `git show a330783:docs/disk-access/v27_lazyring.tsv`), two runs,
 rule as always: |median| ≥ 28.5% **and** sign ≥ 0.8n **and** same sign in both runs):
 
 | Regime | Cheapest arm | `hybrid_lazyring` against it |
@@ -80,7 +80,7 @@ in flight when the ring does not yet exist, because every earlier ask was a hit.
 
 * **The wire.** Byte-for-byte identical; the existing envelope test still guards it.
 * **`READ_WINDOW` = 64 KiB**, and the `write_all` per window. Handing quinn owned buffers was
-  measured at −3.2% and rejected ([`SEND-BUDGET.md`](SEND-BUDGET.md) §5); nothing here revisits
+  measured at −3.2% and rejected (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §5); nothing here revisits
   it.
 * **The reclaim guarantee.** Bytes reaching quinn stay process-private — the ring reads into
   the session's own buffer, never a page-cache mapping.
@@ -108,6 +108,26 @@ already does through `FrameStore`, and confirm the shipped path lands where
    `RWF_NOWAIT` is refused, and identical warm everywhere.
 2. Run `check-fastpath` on the deployment host — it decides which of the three rows above you
    are on, and therefore whether this change is worth anything at all.
-3. Adopt only if the layout leaves reads missing ([`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md)).
-   On a warm-dominated workload the ring is never built and the change is inert by design —
-   which is the argument for landing it early rather than late.
+3. **Land it without waiting on the layout decision.**
+
+### The layout changes what this is worth, not which path wins
+
+Worth stating plainly, because the opposite is easy to assume. The disk layout decides
+**how often reads miss** ([`../disk-layout/ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md)):
+a strided layout steps to 99% miss under pressure, a grouped one holds at 0.5%. What it does
+**not** decide is which read path to build, because `hybrid_lazyring` is tied for cheapest in
+*every* regime — there is no layout under which some other arm becomes the right answer:
+
+| If the layout leaves reads… | Cheapest arm | `hybrid_lazyring` | What this change is worth |
+| --- | --- | --- | --- |
+| **hitting** (grouped, fits cache) | `pool_ringloop` | tie | **~nothing** — no ring is ever built, so it behaves like today's path |
+| **mixed** | `hybrid` | tie | ~2.7× against `pool` |
+| **missing** (strided, under pressure) | `uring` | tie | **~2.5×** against `pool` |
+
+So the layout decision moves the payoff between "nothing" and "2.5×". It never makes a
+different arm correct. That is the argument for landing this **before** the layout is
+settled rather than after: on a hit-dominated workload the ring is never constructed and the
+change is inert by design, and on a miss-dominated one it is already in place.
+
+Earlier drafts of this section said to "adopt only if the layout leaves reads missing". That
+was wrong — it confused *how much the change is worth* with *whether it is the right change*.

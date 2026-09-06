@@ -45,7 +45,7 @@ STRIDE_SEQ=16384
 echo "==> host facts (record these next to the results)" >&2
 # read_ahead_kb is not a footnote: the lab host ships 8192 (8 MiB) against Linux's 128 KiB
 # default, and that single knob moved every trace-replay miss rate by 2-15x
-# (docs/disk-access/ACCESS-PATTERNS.md). Record it before anything else.
+# (docs/disk-layout/ACCESS-PATTERNS.md). Record it before anything else.
 "${SSH[@]}" 'uname -srm; nproc; free -m | head -2; \
   lsblk -d -o NAME,ROTA,MODEL 2>/dev/null | head -5; \
   findmnt -no FSTYPE,SOURCE /home 2>/dev/null; \
