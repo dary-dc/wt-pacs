@@ -34,6 +34,12 @@ DEPTH="${DEPTH:-8}"
 # Slow enough that 50 clients do not saturate this 4-core box — beyond that the row
 # measures the load generator, not the server.
 STEP_SCALE="${STEP_SCALE:-12}"
+# Client drain rate. 0 = as fast as it can. A LOW value is the stress case for
+# flow-control windows: the server pushes faster than the client reads, so bytes pile up
+# in the server's send buffer and `send_window` becomes the thing that bounds them. With
+# READ_BPS=0 the client keeps up, nothing accumulates, and a default-vs-bounded comparison
+# measures nothing — which is exactly what the first sweep showed (+3.6 %, inside noise).
+READ_BPS="${READ_BPS:-0}"
 OUT="${OUT:-$ROOT/.local/measurements/mem/mem_per_connection.tsv}"
 
 # Bounded arm. send_window from the spec's own rule — target bandwidth x target RTT,
@@ -45,7 +51,7 @@ BOUNDED_FLAGS="--receive-window 2000000 --send-window 200000"
 ARMS="${ARMS:-default|;bounded|$BOUNDED_FLAGS}"
 
 mkdir -p "$(dirname "$OUT")"
-[ -s "$OUT" ] || printf 'arm\tclients\trun\trss_anon_kb\trss_total_kb\tvm_size_kb\tsrv_cpu_s\twall_s\tconnected\n' > "$OUT"
+[ -s "$OUT" ] || printf 'arm\tclients\trun\trss_anon_kb\trss_total_kb\tvm_size_kb\tsrv_cpu_s\twall_s\tconnected\tread_bps\tdepth\n' > "$OUT"
 
 anon_of() { awk '/^RssAnon:/{print $2}' /proc/"$1"/status 2>/dev/null || echo 0; }
 rss_of()  { awk '/^VmRSS:/{print $2}'   /proc/"$1"/status 2>/dev/null || echo 0; }
@@ -70,7 +76,7 @@ for RUN in $(seq 1 "$REPEATS"); do
       PIDS=()
       for _ in $(seq 1 "$N"); do
         timeout 200 "$HARNESS" --url "https://127.0.0.1:$PORT/" --mode trace --trace "$TRACE" \
-          --read-bps 0 --depth "$DEPTH" --frame-count "$FRAME_COUNT" --stream-mode shared \
+          --read-bps "$READ_BPS" --depth "$DEPTH" --frame-count "$FRAME_COUNT" --stream-mode shared \
           --bind 127.0.0.1 --cache-frames 64 --reader-mode open --step-scale "$STEP_SCALE" \
           --arm mem --json > /dev/null 2>&1 &
         PIDS+=($!)
@@ -97,9 +103,10 @@ for RUN in $(seq 1 "$REPEATS"); do
       wait "${PIDS[@]}" 2>/dev/null || true
       kill "$SRV" 2>/dev/null || true; wait "$SRV" 2>/dev/null || true
 
-      printf '%s\t%d\t%d\t%d\t%d\t%d\t%.3f\t%.2f\t%d\n' \
+      printf '%s\t%d\t%d\t%d\t%d\t%d\t%.3f\t%.2f\t%d\t%d\t%d\n' \
         "$LABEL" "$N" "$RUN" "$PEAK_ANON" "$PEAK_RSS" "$PEAK_VM" \
-        "$(echo "$C1 - $C0" | bc)" "$(echo "$W1 - $W0" | bc)" "$CONNECTED" | tee -a "$OUT"
+        "$(echo "$C1 - $C0" | bc)" "$(echo "$W1 - $W0" | bc)" "$CONNECTED" \
+        "$READ_BPS" "$DEPTH" | tee -a "$OUT"
     done
   done
 done
