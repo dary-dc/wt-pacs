@@ -266,9 +266,51 @@ reader can check the cell is where it claims to be.
   near-sequentially, so a retransmitting stream waits behind a small backlog; a jump fires
   D asks at once, so it waits behind up to D−1 *full frames*. **The shared-stream advantage
   is largest for jump-heavy reading** — which is the radiologist pattern the design targets.
-- **One fixture, one cache size, one depth.** 64 KB uniform frames, 64-frame LRU, depth 8.
+- **One cache size, one depth.** 64-frame LRU, depth 8. The **fixture** third is now
+  addressed: the decisive cell was re-run at 250 KB (X3L), the size the spec uses for a CT
+  slice, and the mechanism's prediction survived — see §3.6.
 - **T2 throughout.** netsim, one host, constant bandwidth, constant RTT, no AQM, no ECN, no
   handovers, no cross-traffic. The real-path leg was blocked
   ([`oracle-runbook.md`](oracle-runbook.md)).
 - **Eight comparisons at n = 3.** The two that separate do so by 74 % and 250 %, far outside
   the false-positive band; the ones reported as ties are reported as ties.
+
+### 3.6 · The mechanism made a falsifiable prediction and was not falsified
+
+The strongest thing available to a mechanism is a number it must produce before the data
+exists. The retransmit-deferral story says the penalty is *"wait behind up to D−1 whole
+frames"*, so it must scale with frame size. That was written into the fixture README and
+the campaign's cell definition **before** the run.
+
+| | shared | per-frame + FIFO | penalty |
+| --- | ------ | ---------------- | ------- |
+| 64 KB | 182.2 ms | 637.1 ms | 455 ms |
+| 250 KB | 372.7 ms | 3159.5 ms | **2787 ms** |
+
+**Predicted 3.9× growth. Measured 6.1×.** The prediction was **57 % low**, and that is
+recorded as a miss rather than smoothed over.
+
+The miss is explained by what the simple model omitted. It counted the *size* of each
+deferral but not its *frequency*: at 1 % loss a 64 KB frame is 44 packets with a 36 % chance
+of losing one, while a 250 KB frame is 172 packets with an **82 %** chance. Bigger frames
+are both deferred longer and hit more often. Multiplying the two gives 9.0×, an
+*over*estimate, because a frame that loses two packets does not pay the deferral twice.
+Measured 6.1× lies between the bounds.
+
+**What would have falsified it:** a flat or shrinking penalty. Neither occurred, and the
+9 rows are unanimous — every per-frame row exceeds every shared row by more than 7×.
+
+Two attacks on this result, both checked:
+
+- *"The operating point differs, so it is not the same experiment."* The scale changed
+  (8 → 32) because the reader's demand must be set against the achievable rate. But the
+  quantities that define the operating point were held: demand/achievable 0.64 against 0.66,
+  and measured stranding 33 against 33–35. The mechanism's prediction is about absolute ms
+  for a given depth and rate, which does not depend on reader speed.
+- *"An arm won by delivering less."* All three arms delivered **exactly 655 frames** in all
+  nine runs, with zero censoring.
+
+The practical consequence is larger than the methodological one: **the 64 KB campaigns
+understated the case.** shared degrades sub-linearly with frame size (2.0× for 3.9× the
+bytes) and per-frame super-linearly (5.0×), so at the size this product actually ships the
+gap is **8.5×**, not 3.5×.
