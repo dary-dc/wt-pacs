@@ -193,12 +193,18 @@ async fn write_all(writer: &WritableStreamDefaultWriter, bytes: &[u8]) -> Result
     Ok(())
 }
 
-async fn read_fod_msg(reader: &ReadableStreamDefaultReader) -> Result<FodMsg, String> {
-    let mut buf = RecvBuf::new();
-    read_exact(reader, &mut buf, 4).await?;
+/// Read one `[4B LE len][JSON]` control message. `buf` outlives the call: a browser read can
+/// carry several messages, and whatever follows this one must wait in the buffer for the next.
+async fn read_fod_msg(
+    reader: &ReadableStreamDefaultReader,
+    buf: &mut RecvBuf,
+) -> Result<FodMsg, String> {
+    read_exact(reader, buf, 4).await?;
     let len = u32::from_le_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
-    read_exact(reader, &mut buf, 4 + len).await?;
-    decode_fod_msg(buf.as_slice()).map_err(|e| format!("decode FoD: {e}"))
+    read_exact(reader, buf, 4 + len).await?;
+    let msg = decode_fod_msg(&buf.as_slice()[..4 + len]).map_err(|e| format!("decode FoD: {e}"));
+    buf.consume(4 + len);
+    msg
 }
 
 #[derive(Default)]
@@ -282,8 +288,9 @@ impl TransportSession {
         // FoD downlink — exceptions only (FrameError), length-prefixed on control stream.
         let st_ctl = Rc::clone(&state);
         spawn_local(async move {
+            let mut buf = RecvBuf::new();
             loop {
-                match read_fod_msg(&control_reader).await {
+                match read_fod_msg(&control_reader, &mut buf).await {
                     Ok(FodMsg::FrameError {
                         frame_index,
                         reason,
