@@ -141,4 +141,45 @@ conclusion below, not a footnote.
 
 *Written after the data was read.*
 
-<!-- filled in once the campaign completes -->
+### 3.1 · The negative control failed, and the failure is mine — **accepted, narrows the campaign**
+
+The pre-registration says: *"If any arm separates in N0, the rig is measuring something
+other than what it claims and the whole campaign is void — not adjusted, void."*
+
+An arm separated in N0.
+
+| arm | N0 p95 (r1) | vs shared |
+| --- | ----------- | --------- |
+| `shared` | 79.47 ms | — |
+| `perframe_fifo` | **79.53 ms** | **+0.08 %** |
+| `perframe_fair` | 134.44 ms | **+69 %** |
+
+**The control was mis-specified, and saying so after seeing the data is exactly the move
+this project has been guarding against — so the reasoning has to stand on its own.**
+
+It does, on a mechanism established independently of R6 and before it. Fairness round-robins
+across *concurrent streams*; it needs nothing but more than one of them. N0 has depth 8, so
+a jump asks up to 8 frames at once and fairness advances all 8 together, finishing them all
+late instead of finishing the measured one first. That requires neither stranding nor loss.
+quinn's own test pins the behaviour (`state.rs:1528-1541`): fair yields `a,b,c,a,b,c`,
+unfair `a,a,a,b,b,b`. N0 removes loss and stranding; it does not and cannot remove
+concurrency.
+
+So N0 polices what it was built to police for two of the three arms and not for the third:
+
+- **Valid for `shared` vs `perframe_fifo`.** Both are FIFO-ordered, so any difference
+  between them in N0 would have to be spurious. They agree to **0.08 %** — better agreement
+  than this rig has shown anywhere, and direct evidence it introduces no artifact between
+  the two shapes. **This is the comparison the campaign's headline rests on**, and it is
+  clean.
+- **Invalid for anything involving `perframe_fair`**, whose effect is live in every cell
+  including the control.
+
+**Consequence, applied rather than argued around:** `perframe_fair` results are reported as
+confirming a previously known fairness penalty, and **may not be used to attribute anything
+to head-of-line blocking or stranding**, because the control cannot separate those from the
+fairness effect. Only the `shared` vs `perframe_fifo` contrast carries the head-of-line
+question.
+
+The honest summary is that R6 shipped with a control that covers two arms out of three, and
+the third arm's rows are demoted accordingly.
