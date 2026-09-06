@@ -1,0 +1,99 @@
+
+== fill250k / ts  (median of repeats; ms of main-thread self time)
+metric                    before     after      delta
+wall_ms                    657.0     704.0      +47.0
+total_ms                   741.5     796.6      +55.0
+delivered                  320.0     320.0           
+failed                       0.0       0.0           
+take                        70.0      57.4      -12.5
+readLengthPrefixed          62.8      45.6      -17.2
+encodeFodMsg                 0.0       0.0       +0.0
+sendFod                      0.2       0.2       +0.0
+heapBytes                   31.6       0.7      -30.9
+(program)                  149.7     151.2       +1.5
+(idle)                     395.6     514.1     +118.4
+(garbage collector)          6.6       4.4       -2.3
+
+== fill250k / wasm  (median of repeats; ms of main-thread self time)
+metric                    before     after      delta
+wall_ms                    707.0     712.0       +5.0
+total_ms                   812.6     811.7       -0.9
+delivered                  320.0     320.0           
+failed                       0.0       0.0           
+__wbg_read                  77.4      67.4      -10.0
+__wbg_set                   59.3      59.6       +0.2
+decodeText                  10.6       0.0      -10.6
+__rdl_realloc                0.0       0.0       +0.0
+push_chunk                   5.5       0.0       -5.5
+makeMutClosure               2.7       5.6       +2.8
+heapBytes                   37.6       0.0      -37.6
+__wbg_write                  0.0       0.0       +0.0
+(program)                  189.4     194.8       +5.4
+(idle)                     331.6     388.8      +57.2
+(garbage collector)          7.9       6.6       -1.3
+
+== fill250k-perframe / ts  (median of repeats; ms of main-thread self time)
+metric                    before     after      delta
+wall_ms                   1698.5    1669.5      -29.0
+total_ms                  1782.1    1751.2      -30.9
+delivered                  320.0     320.0           
+failed                       0.0       0.0           
+take                       128.7     121.1       -7.6
+readLengthPrefixed         202.2     246.7      +44.6
+encodeFodMsg                 0.0       0.2       +0.2
+sendFod                      0.2       0.0       -0.2
+heapBytes                   21.0       1.4      -19.6
+(program)                  990.3     967.4      -22.9
+(idle)                     360.5     309.4      -51.1
+(garbage collector)         49.5      68.2      +18.8
+
+== fill250k-perframe / wasm  (median of repeats; ms of main-thread self time)
+metric                    before     after      delta
+wall_ms                   1574.0    1577.0       +3.0
+total_ms                  1664.6    1678.7      +14.1
+delivered                  320.0     320.0           
+failed                       0.0       0.0           
+__wbg_read                 241.8     206.4      -35.4
+__wbg_set                   66.2      67.3       +1.0
+decodeText                  19.3       0.0      -19.3
+__rdl_realloc               37.4       1.4      -35.9
+push_chunk                  11.4       0.0      -11.4
+makeMutClosure              43.3      37.7       -5.6
+heapBytes                   21.9       0.0      -21.9
+__wbg_write                  0.0       0.0       +0.0
+(program)                  861.3     906.0      +44.7
+(idle)                     143.8     214.0      +70.2
+(garbage collector)         73.3      62.5      -10.8
+
+== ondemand32k / ts  (median of repeats; ms of main-thread self time)
+metric                    before     after      delta
+wall_ms                    898.0     712.5     -185.5
+total_ms                   980.5     785.0     -195.5
+delivered                 2000.0    2000.0           
+failed                       0.0       0.0           
+take                        78.2      67.8      -10.4
+readLengthPrefixed          53.5      52.3       -1.2
+encodeFodMsg                33.7      28.1       -5.6
+sendFod                     40.7      37.5       -3.3
+heapBytes                  126.3       0.6     -125.8
+(program)                  195.2     172.7      -22.5
+(idle)                     394.7     372.5      -22.2
+(garbage collector)         16.8      11.8       -5.0
+
+== ondemand32k / wasm  (median of repeats; ms of main-thread self time)
+metric                    before     after      delta
+wall_ms                    938.5     761.5     -177.0
+total_ms                  1037.8     861.1     -176.7
+delivered                 2000.0    2000.0           
+failed                       0.0       0.0           
+__wbg_read                  50.3      39.8      -10.5
+__wbg_set                   67.4      53.3      -14.1
+decodeText                  21.3       0.0      -21.3
+__rdl_realloc                0.0       0.0       +0.0
+push_chunk                   5.3       0.0       -5.3
+makeMutClosure               5.6       6.5       +0.9
+heapBytes                   97.4       0.9      -96.5
+__wbg_write                 72.0      62.2       -9.8
+(program)                  219.0     207.5      -11.5
+(idle)                     322.3     309.4      -12.9
+(garbage collector)         17.8      16.6       -1.1

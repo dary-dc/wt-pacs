@@ -1,0 +1,151 @@
+{
+ "arm": "wasm",
+ "query": "cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80",
+ "shell": {
+  "arm": "transport-wasm",
+  "cell": "ondemand",
+  "depth": 4,
+  "interval_ms": 0,
+  "schedule": "cycle:2000/80",
+  "steps": 2000,
+  "asked": 2000,
+  "delivered": 2000,
+  "failed": 0,
+  "study_frames": 80,
+  "wall_ms": 756,
+  "checksum": 1228756736,
+  "js_heap_bytes": {
+   "start": 2802170,
+   "end": 24195463,
+   "peak": 62336292
+  },
+  "wasm_memory_bytes": {
+   "start": 1179648,
+   "end": 1900544
+  }
+ },
+ "total_us": 862825,
+ "top": [
+  [
+   "(idle)",
+   295302
+  ],
+  [
+   "(program)",
+   196441
+  ],
+  [
+   "__wbg_write_cb8e84e69d70b405 pkg/transport_wasm.js:366",
+   73493
+  ],
+  [
+   "__wbg_set_b9b5b5cb7b495037 pkg/transport_wasm.js:315",
+   55318
+  ],
+  [
+   "__wbg_read_ae34ffedeb11f034 pkg/transport_wasm.js:288",
+   40792
+  ],
+  [
+   "(garbage collector)",
+   18105
+  ],
+  [
+   "wasm-to-js",
+   17401
+  ],
+  [
+   "__wbg_new_with_length_3ffc1c56427c525c pkg/transport_wasm.js:255",
+   16880
+  ],
+  [
+   "queueMicrotask",
+   8799
+  ],
+  [
+   "setTimeout",
+   8536
+  ],
+  [
+   "__wbg_prototypesetcall_de8e0d9553586985 pkg/transport_wasm.js:274",
+   8220
+  ],
+  [
+   "makeMutClosure pkg/transport_wasm.js:587",
+   7015
+  ],
+  [
+   "clearTimeout",
+   6195
+  ],
+  [
+   "(anonymous) pkg/transport_wasm.js:308",
+   5373
+  ],
+  [
+   "memoryBytes harness/?autorun=1&cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80:61",
+   4941
+  ],
+  [
+   "dlmalloc::dlmalloc::Dlmalloc<A>::malloc::he97e96981fab807e pkg/transport_wasm_bg.wasm:1",
+   4363
+  ],
+  [
+   "core::hash::BuildHasher::hash_one::h289538a65e8d00fb pkg/transport_wasm_bg.wasm:1",
+   3474
+  ],
+  [
+   "__wbg_createBidirectionalStream_e46fa774db7fa2e8 pkg/transport_wasm.js:128",
+   3338
+  ],
+  [
+   "js_sys::futures::queue::QueueState::run_all::h64059c26de7d61d1 pkg/transport_wasm_bg.wasm:1",
+   2725
+  ],
+  [
+   "finish harness/shell.js:122",
+   2573
+  ],
+  [
+   "requestAnimationFrame",
+   2521
+  ],
+  [
+   "js-to-wasm",
+   2518
+  ],
+  [
+   "std::thread::local::LocalKey<T>::with::h6e3536b03729ab07 pkg/transport_wasm_bg.wasm:1",
+   2283
+  ],
+  [
+   "transport_wasm::session::TransportSession::settle::{{closure}}::h1a96fde3604f2ccf pkg/transport_wasm_bg.wasm:1",
+   2230
+  ],
+  [
+   "__wbg_now_2283802bfbda617e pkg/transport_wasm.js:263",
+   2108
+  ],
+  [
+   "real pkg/transport_wasm.js:589",
+   2103
+  ],
+  [
+   "transport_wasm::session::TransportSession::connect::{{closure}}::{{closure}}::h0c2a19a300ee7ea9 pkg/transport_wasm_bg.wasm:1",
+   1910
+  ],
+  [
+   "__wbg_performance_821a3767f0dce300 pkg/transport_wasm.js:267",
+   1821
+  ],
+  [
+   "js_sys::futures::future_to_promise::{{closure}}::{{closure}}::h180ab23a8ff04c98 pkg/transport_wasm_bg.wasm:1",
+   1701
+  ],
+  [
+   "pump harness/shell.js:102",
+   1654
+  ]
+ ],
+ "page_errors": []
+}

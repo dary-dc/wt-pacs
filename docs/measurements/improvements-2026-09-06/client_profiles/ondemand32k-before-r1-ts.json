@@ -1,0 +1,151 @@
+{
+ "arm": "ts",
+ "query": "cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80",
+ "shell": {
+  "arm": "transport-ts",
+  "cell": "ondemand",
+  "depth": 4,
+  "interval_ms": 0,
+  "schedule": "cycle:2000/80",
+  "steps": 2000,
+  "asked": 2000,
+  "delivered": 2000,
+  "failed": 0,
+  "study_frames": 80,
+  "wall_ms": 905,
+  "checksum": 1228756736,
+  "js_heap_bytes": {
+   "start": 1466447,
+   "end": 8029710,
+   "peak": 68789382
+  },
+  "wasm_memory_bytes": {
+   "start": null,
+   "end": null
+  }
+ },
+ "total_us": 990877,
+ "top": [
+  [
+   "(idle)",
+   404605
+  ],
+  [
+   "(program)",
+   198213
+  ],
+  [
+   "heapBytes harness/shell.js:39",
+   146941
+  ],
+  [
+   "take dist/session.js:244",
+   78313
+  ],
+  [
+   "readLengthPrefixed dist/session.js:215",
+   45931
+  ],
+  [
+   "sendFod dist/session.js:137",
+   36653
+  ],
+  [
+   "encodeFodMsg dist/session.js:2",
+   28231
+  ],
+  [
+   "(garbage collector)",
+   14578
+  ],
+  [
+   "setTimeout",
+   4441
+  ],
+  [
+   "loadSession harness/ts.html?autorun=1&cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80:29",
+   4258
+  ],
+  [
+   "(anonymous)",
+   3539
+  ],
+  [
+   "pump harness/shell.js:84",
+   2965
+  ],
+  [
+   "pumpFramedStream dist/session.js:107",
+   2630
+  ],
+  [
+   "requestAnimationFrame",
+   2312
+  ],
+  [
+   "requestExactFrame dist/session.js:140",
+   2039
+  ],
+  [
+   "clearTimeout",
+   1796
+  ],
+  [
+   "connect dist/session.js:44",
+   1463
+  ],
+  [
+   "InjectedScript",
+   966
+  ],
+  [
+   "unwrapEnvelope dist/session.js:15",
+   966
+  ],
+  [
+   "armWaiter dist/session.js:58",
+   950
+  ],
+  [
+   "finish harness/shell.js:104",
+   940
+  ],
+  [
+   "makeDue harness/shell.js:111",
+   883
+  ],
+  [
+   "settle dist/session.js:167",
+   659
+  ],
+  [
+   "fetch",
+   648
+  ],
+  [
+   "bootShell harness/shell.js:144",
+   624
+  ],
+  [
+   "evaluate",
+   608
+  ],
+  [
+   "(anonymous) dist/session.js:62",
+   596
+  ],
+  [
+   "close dist/session.js:193",
+   587
+  ],
+  [
+   "completeWaiter dist/session.js:70",
+   471
+  ],
+  [
+   "predicate",
+   380
+  ]
+ ],
+ "page_errors": []
+}

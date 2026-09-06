@@ -1,0 +1,4 @@
+# BYOB reader probe, Chromium 141, shared stream, 80 x 250 KB frames, localhost (bench/byob_probe.html)
+{"mode":"byob","reader":"ReadableStreamBYOBReader","byobSupported":true,"frames":80,"bytes":20000000,"reads":610,"ms":191}
+{"mode":"default","reader":"ReadableStreamDefaultReader","frames":80,"bytes":20000000,"reads":541,"ms":200}
+# per-frame mode: probe timed out (probe's stream hand-over, not investigated; shared is the decided architecture)

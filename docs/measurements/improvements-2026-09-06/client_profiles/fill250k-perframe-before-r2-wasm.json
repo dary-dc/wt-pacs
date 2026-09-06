@@ -1,0 +1,151 @@
+{
+ "arm": "wasm",
+ "query": "cell=fill&stream_mode=per-frame&frames=320",
+ "shell": {
+  "arm": "transport-wasm",
+  "cell": "fill",
+  "depth": 320,
+  "interval_ms": 0,
+  "schedule": "cycle:320/320",
+  "steps": 320,
+  "asked": 320,
+  "delivered": 320,
+  "failed": 0,
+  "study_frames": 320,
+  "wall_ms": 1473,
+  "checksum": 566633472,
+  "js_heap_bytes": {
+   "start": 2795200,
+   "end": 65967481,
+   "peak": 74933627
+  },
+  "wasm_memory_bytes": {
+   "start": 1179648,
+   "end": 22085632
+  }
+ },
+ "total_us": 1560714,
+ "top": [
+  [
+   "(program)",
+   840107
+  ],
+  [
+   "__wbg_read_ae34ffedeb11f034 pkg/transport_wasm.js:289",
+   233805
+  ],
+  [
+   "(idle)",
+   88294
+  ],
+  [
+   "(garbage collector)",
+   75884
+  ],
+  [
+   "__wbg_set_b9b5b5cb7b495037 pkg/transport_wasm.js:316",
+   67028
+  ],
+  [
+   "makeMutClosure pkg/transport_wasm.js:588",
+   41519
+  ],
+  [
+   "__rustc[16f1505adc47261a]::__rdl_realloc pkg/transport_wasm_bg.wasm:1",
+   39674
+  ],
+  [
+   "wasm-to-js",
+   19594
+  ],
+  [
+   "heapBytes harness/shell.js:39",
+   18892
+  ],
+  [
+   "decodeText pkg/transport_wasm.js:663",
+   15003
+  ],
+  [
+   "transport_wasm::session::read_exact::{{closure}}::h3005539c71fe2353 pkg/transport_wasm_bg.wasm:1",
+   13476
+  ],
+  [
+   "transport_wasm::session::reader_read_value::{{closure}}::h779c9c68f79d5309 pkg/transport_wasm_bg.wasm:1",
+   8596
+  ],
+  [
+   "transport_wasm::session::RecvBuf::push_chunk::hd15ea882b2c4e838 pkg/transport_wasm_bg.wasm:1",
+   7294
+  ],
+  [
+   "queueMicrotask",
+   6801
+  ],
+  [
+   "__externref_table_alloc pkg/transport_wasm_bg.wasm:1",
+   4817
+  ],
+  [
+   "js_sys::futures::queue::QueueState::run_all::h64059c26de7d61d1 pkg/transport_wasm_bg.wasm:1",
+   4736
+  ],
+  [
+   "real pkg/transport_wasm.js:590",
+   4494
+  ],
+  [
+   "__wbg_new_with_length_3ffc1c56427c525c pkg/transport_wasm.js:256",
+   4379
+  ],
+  [
+   "getArrayU8FromWasm0 pkg/transport_wasm.js:542",
+   4255
+  ],
+  [
+   "requestAnimationFrame",
+   4060
+  ],
+  [
+   "dlmalloc::dlmalloc::Dlmalloc<A>::malloc::he97e96981fab807e pkg/transport_wasm_bg.wasm:1",
+   3520
+  ],
+  [
+   "real._wbg_cb_unref pkg/transport_wasm.js:605",
+   2922
+  ],
+  [
+   "js-to-wasm:iin:ii",
+   2701
+  ],
+  [
+   "__wbg_prototypesetcall_de8e0d9553586985 pkg/transport_wasm.js:275",
+   2082
+  ],
+  [
+   "touch harness/shell.js:34",
+   1897
+  ],
+  [
+   "wasm_bindgen__convert__closures_____invoke__h6e2859008575ad36 pkg/transport_wasm.js:421",
+   1858
+  ],
+  [
+   "runFill harness/shell.js:127",
+   1590
+  ],
+  [
+   "(anonymous)",
+   1526
+  ],
+  [
+   "fetch",
+   1524
+  ],
+  [
+   "__wbg_get_971a0c45d172643f pkg/transport_wasm.js:156",
+   1398
+  ]
+ ],
+ "page_errors": []
+}

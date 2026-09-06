@@ -1,0 +1,151 @@
+{
+ "arm": "wasm",
+ "query": "cell=fill&stream_mode=shared&frames=320",
+ "shell": {
+  "arm": "transport-wasm",
+  "cell": "fill",
+  "depth": 320,
+  "interval_ms": 0,
+  "schedule": "cycle:320/320",
+  "steps": 320,
+  "asked": 320,
+  "delivered": 320,
+  "failed": 0,
+  "study_frames": 320,
+  "wall_ms": 674,
+  "checksum": 566633472,
+  "js_heap_bytes": {
+   "start": 2776049,
+   "end": 69262390,
+   "peak": 69262390
+  },
+  "wasm_memory_bytes": {
+   "start": 1179648,
+   "end": 1966080
+  }
+ },
+ "total_us": 772729,
+ "top": [
+  [
+   "(idle)",
+   343823
+  ],
+  [
+   "(program)",
+   201189
+  ],
+  [
+   "__wbg_read_ae34ffedeb11f034 pkg/transport_wasm.js:288",
+   68784
+  ],
+  [
+   "__wbg_set_b9b5b5cb7b495037 pkg/transport_wasm.js:315",
+   58784
+  ],
+  [
+   "wasm-to-js",
+   8564
+  ],
+  [
+   "(garbage collector)",
+   7104
+  ],
+  [
+   "__wbg_prototypesetcall_de8e0d9553586985 pkg/transport_wasm.js:274",
+   5633
+  ],
+  [
+   "__wbg_new_with_length_3ffc1c56427c525c pkg/transport_wasm.js:255",
+   5160
+  ],
+  [
+   "makeMutClosure pkg/transport_wasm.js:587",
+   4425
+  ],
+  [
+   "touch harness/shell.js:34",
+   4093
+  ],
+  [
+   "queueMicrotask",
+   3735
+  ],
+  [
+   "setTimeout",
+   3345
+  ],
+  [
+   "requestAnimationFrame",
+   3043
+  ],
+  [
+   "(anonymous) pkg/transport_wasm.js:308",
+   2384
+  ],
+  [
+   "js_sys::futures::queue::QueueState::run_all::h64059c26de7d61d1 pkg/transport_wasm_bg.wasm:1",
+   2306
+  ],
+  [
+   "js-to-wasm",
+   2251
+  ],
+  [
+   "real._wbg_cb_unref pkg/transport_wasm.js:604",
+   2074
+  ],
+  [
+   "runFill harness/shell.js:144",
+   1573
+  ],
+  [
+   "__externref_table_alloc pkg/transport_wasm_bg.wasm:1",
+   1490
+  ],
+  [
+   "transport_wasm::session::TransportSession::connect::{{closure}}::{{closure}}::{{closure}}::h3f6e6d7c71606e58 pkg/transport_wasm_bg.wasm:1",
+   1482
+  ],
+  [
+   "fetch",
+   1456
+  ],
+  [
+   "handleError pkg/transport_wasm.js:574",
+   1338
+  ],
+  [
+   "InjectedScript",
+   1261
+  ],
+  [
+   "js_sys::futures::future_to_promise::{{closure}}::{{closure}}::h93d49ffaa5d36ad8 pkg/transport_wasm_bg.wasm:1",
+   1246
+  ],
+  [
+   "set",
+   1242
+  ],
+  [
+   "transport_wasm::session::reader_read_value::{{closure}}::h6e2e9a6d24df6065 pkg/transport_wasm_bg.wasm:1",
+   1059
+  ],
+  [
+   "real pkg/transport_wasm.js:589",
+   1051
+  ],
+  [
+   "(anonymous)",
+   1001
+  ],
+  [
+   "__externref_table_dealloc pkg/transport_wasm_bg.wasm:1",
+   960
+  ],
+  [
+   "core::hash::BuildHasher::hash_one::h3b9d1bb01d603c57 pkg/transport_wasm_bg.wasm:1",
+   893
+  ]
+ ],
+ "page_errors": []
+}

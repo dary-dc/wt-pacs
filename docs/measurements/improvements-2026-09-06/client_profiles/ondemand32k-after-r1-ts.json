@@ -1,0 +1,151 @@
+{
+ "arm": "ts",
+ "query": "cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80",
+ "shell": {
+  "arm": "transport-ts",
+  "cell": "ondemand",
+  "depth": 4,
+  "interval_ms": 0,
+  "schedule": "cycle:2000/80",
+  "steps": 2000,
+  "asked": 2000,
+  "delivered": 2000,
+  "failed": 0,
+  "study_frames": 80,
+  "wall_ms": 704,
+  "checksum": 1228756736,
+  "js_heap_bytes": {
+   "start": 1452008,
+   "end": 13680841,
+   "peak": 67327041
+  },
+  "wasm_memory_bytes": {
+   "start": null,
+   "end": null
+  }
+ },
+ "total_us": 777522,
+ "top": [
+  [
+   "(idle)",
+   380022
+  ],
+  [
+   "(program)",
+   164181
+  ],
+  [
+   "take dist/session.js:243",
+   66553
+  ],
+  [
+   "readLengthPrefixed dist/session.js:214",
+   53528
+  ],
+  [
+   "sendFod dist/session.js:136",
+   35927
+  ],
+  [
+   "encodeFodMsg dist/session.js:4",
+   23876
+  ],
+  [
+   "(garbage collector)",
+   11337
+  ],
+  [
+   "setTimeout",
+   6946
+  ],
+  [
+   "requestExactFrame dist/session.js:139",
+   4055
+  ],
+  [
+   "clearTimeout",
+   3189
+  ],
+  [
+   "pump harness/shell.js:102",
+   2996
+  ],
+  [
+   "pumpFramedStream dist/session.js:106",
+   2723
+  ],
+  [
+   "requestAnimationFrame",
+   2518
+  ],
+  [
+   "(anonymous) harness/ts.html?autorun=1&cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80:24",
+   2270
+  ],
+  [
+   "finish harness/shell.js:122",
+   1892
+  ],
+  [
+   "(anonymous) dist/session.js:61",
+   1793
+  ],
+  [
+   "connect dist/session.js:43",
+   1607
+  ],
+  [
+   "armWaiter dist/session.js:57",
+   1401
+  ],
+  [
+   "(anonymous)",
+   1226
+  ],
+  [
+   "heapBytes harness/shell.js:39",
+   1140
+  ],
+  [
+   "touch harness/shell.js:34",
+   956
+  ],
+  [
+   "completeWaiter dist/session.js:69",
+   694
+  ],
+  [
+   "evaluate",
+   611
+  ],
+  [
+   "InjectedScript",
+   609
+  ],
+  [
+   "bootShell harness/shell.js:160",
+   523
+  ],
+  [
+   "makeDue harness/shell.js:128",
+   499
+  ],
+  [
+   "(anonymous) harness/shell.js:109",
+   456
+  ],
+  [
+   "log harness/shell.js:28",
+   397
+  ],
+  [
+   "pumpUni dist/session.js:88",
+   348
+  ],
+  [
+   "fetch",
+   316
+  ]
+ ],
+ "page_errors": []
+}

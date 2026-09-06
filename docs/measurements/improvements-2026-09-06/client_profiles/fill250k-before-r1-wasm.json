@@ -1,0 +1,151 @@
+{
+ "arm": "wasm",
+ "query": "cell=fill&stream_mode=shared&frames=320",
+ "shell": {
+  "arm": "transport-wasm",
+  "cell": "fill",
+  "depth": 320,
+  "interval_ms": 0,
+  "schedule": "cycle:320/320",
+  "steps": 320,
+  "asked": 320,
+  "delivered": 320,
+  "failed": 0,
+  "study_frames": 320,
+  "wall_ms": 678,
+  "checksum": 566633472,
+  "js_heap_bytes": {
+   "start": 2795191,
+   "end": 47912487,
+   "peak": 68931665
+  },
+  "wasm_memory_bytes": {
+   "start": 1179648,
+   "end": 2555904
+  }
+ },
+ "total_us": 775965,
+ "top": [
+  [
+   "(idle)",
+   288631
+  ],
+  [
+   "(program)",
+   168380
+  ],
+  [
+   "__wbg_read_ae34ffedeb11f034 pkg/transport_wasm.js:289",
+   98481
+  ],
+  [
+   "__wbg_set_b9b5b5cb7b495037 pkg/transport_wasm.js:316",
+   66508
+  ],
+  [
+   "heapBytes harness/shell.js:39",
+   45546
+  ],
+  [
+   "wasm-to-js",
+   11923
+  ],
+  [
+   "decodeText pkg/transport_wasm.js:663",
+   9659
+  ],
+  [
+   "(garbage collector)",
+   7694
+  ],
+  [
+   "__wbg_prototypesetcall_de8e0d9553586985 pkg/transport_wasm.js:275",
+   7422
+  ],
+  [
+   "transport_wasm::session::TransportSession::connect::{{closure}}::{{closure}}::{{closure}}::hb856ebc7384d5fc6 pkg/transport_wasm_bg.wasm:1",
+   4010
+  ],
+  [
+   "transport_wasm::session::RecvBuf::push_chunk::hd15ea882b2c4e838 pkg/transport_wasm_bg.wasm:1",
+   3792
+  ],
+  [
+   "makeMutClosure pkg/transport_wasm.js:588",
+   3108
+  ],
+  [
+   "__wbg_new_with_length_3ffc1c56427c525c pkg/transport_wasm.js:256",
+   3043
+  ],
+  [
+   "queueMicrotask",
+   3033
+  ],
+  [
+   "js-to-wasm",
+   2425
+  ],
+  [
+   "real pkg/transport_wasm.js:590",
+   2166
+  ],
+  [
+   "touch harness/shell.js:34",
+   2138
+  ],
+  [
+   "setTimeout",
+   1916
+  ],
+  [
+   "js_sys::futures::queue::QueueState::run_all::h64059c26de7d61d1 pkg/transport_wasm_bg.wasm:1",
+   1853
+  ],
+  [
+   "transport_wasm::session::read_exact::{{closure}}::h3005539c71fe2353 pkg/transport_wasm_bg.wasm:1",
+   1827
+  ],
+  [
+   "(anonymous)",
+   1529
+  ],
+  [
+   "transport_wasm::session::reader_read_value::{{closure}}::h779c9c68f79d5309 pkg/transport_wasm_bg.wasm:1",
+   1519
+  ],
+  [
+   "real._wbg_cb_unref pkg/transport_wasm.js:605",
+   1424
+  ],
+  [
+   "__wbg_performance_821a3767f0dce300 pkg/transport_wasm.js:268",
+   1109
+  ],
+  [
+   "runFill harness/shell.js:127",
+   1085
+  ],
+  [
+   "__externref_table_alloc pkg/transport_wasm_bg.wasm:1",
+   994
+  ],
+  [
+   "wasm_bindgen::convert::closures::_::invoke::h6e2859008575ad36 externref shim multivalue shim pkg/transport_wasm_bg.wasm:1",
+   958
+  ],
+  [
+   "handleError pkg/transport_wasm.js:575",
+   956
+  ],
+  [
+   "transport_wasm::session::result_to_js::h94f48bb60dc091d5 pkg/transport_wasm_bg.wasm:1",
+   951
+  ],
+  [
+   "loadSession harness/?autorun=1&cell=fill&stream_mode=shared&frames=320:31",
+   928
+  ]
+ ],
+ "page_errors": []
+}

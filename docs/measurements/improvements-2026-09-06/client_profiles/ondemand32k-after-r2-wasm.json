@@ -1,0 +1,151 @@
+{
+ "arm": "wasm",
+ "query": "cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80",
+ "shell": {
+  "arm": "transport-wasm",
+  "cell": "ondemand",
+  "depth": 4,
+  "interval_ms": 0,
+  "schedule": "cycle:2000/80",
+  "steps": 2000,
+  "asked": 2000,
+  "delivered": 2000,
+  "failed": 0,
+  "study_frames": 80,
+  "wall_ms": 767,
+  "checksum": 1228756736,
+  "js_heap_bytes": {
+   "start": 2764889,
+   "end": 24608899,
+   "peak": 64359745
+  },
+  "wasm_memory_bytes": {
+   "start": 1179648,
+   "end": 1900544
+  }
+ },
+ "total_us": 859359,
+ "top": [
+  [
+   "(idle)",
+   323494
+  ],
+  [
+   "(program)",
+   218591
+  ],
+  [
+   "__wbg_set_b9b5b5cb7b495037 pkg/transport_wasm.js:315",
+   51251
+  ],
+  [
+   "__wbg_write_cb8e84e69d70b405 pkg/transport_wasm.js:366",
+   50864
+  ],
+  [
+   "__wbg_read_ae34ffedeb11f034 pkg/transport_wasm.js:288",
+   38749
+  ],
+  [
+   "__wbg_new_with_length_3ffc1c56427c525c pkg/transport_wasm.js:255",
+   24621
+  ],
+  [
+   "(garbage collector)",
+   15158
+  ],
+  [
+   "wasm-to-js",
+   14639
+  ],
+  [
+   "setTimeout",
+   6952
+  ],
+  [
+   "__wbg_prototypesetcall_de8e0d9553586985 pkg/transport_wasm.js:274",
+   6457
+  ],
+  [
+   "makeMutClosure pkg/transport_wasm.js:587",
+   6044
+  ],
+  [
+   "(anonymous) pkg/transport_wasm.js:308",
+   5254
+  ],
+  [
+   "queueMicrotask",
+   4674
+  ],
+  [
+   "pump harness/shell.js:102",
+   4417
+  ],
+  [
+   "js-to-wasm",
+   3666
+  ],
+  [
+   "clearTimeout",
+   2989
+  ],
+  [
+   "js_sys::futures::queue::QueueState::run_all::h64059c26de7d61d1 pkg/transport_wasm_bg.wasm:1",
+   2623
+  ],
+  [
+   "std::thread::local::LocalKey<T>::with::h6e3536b03729ab07 pkg/transport_wasm_bg.wasm:1",
+   2235
+  ],
+  [
+   "__wbg_performance_821a3767f0dce300 pkg/transport_wasm.js:267",
+   2222
+  ],
+  [
+   "real pkg/transport_wasm.js:589",
+   1922
+  ],
+  [
+   "heapBytes harness/shell.js:39",
+   1834
+  ],
+  [
+   "js_sys::futures::future_to_promise::{{closure}}::{{closure}}::h180ab23a8ff04c98 pkg/transport_wasm_bg.wasm:1",
+   1779
+  ],
+  [
+   "__wbg_new_from_slice_3eea173078478cfe pkg/transport_wasm.js:233",
+   1753
+  ],
+  [
+   "dlmalloc::dlmalloc::Dlmalloc<A>::malloc::he97e96981fab807e pkg/transport_wasm_bg.wasm:1",
+   1644
+  ],
+  [
+   "addToExternrefTable0 pkg/transport_wasm.js:451",
+   1633
+  ],
+  [
+   "getArrayU8FromWasm0 pkg/transport_wasm.js:541",
+   1556
+  ],
+  [
+   "requestAnimationFrame",
+   1529
+  ],
+  [
+   "transport_wasm::session::result_to_js::h2edf00d1659011d0 pkg/transport_wasm_bg.wasm:1",
+   1326
+  ],
+  [
+   "dlmalloc::dlmalloc::Dlmalloc<A>::free::ha98daa4c6dd8ad86 pkg/transport_wasm_bg.wasm:1",
+   1311
+  ],
+  [
+   "(anonymous)",
+   1237
+  ]
+ ],
+ "page_errors": []
+}

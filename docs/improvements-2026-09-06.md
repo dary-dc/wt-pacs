@@ -25,6 +25,11 @@ binaries in every cell so drift lands on both. Raw rows and the scripts are in
 | C3 | code | `9144a0a` | FoD read path decodes without re-framing | tests + clippy clean |
 | C6/C7 | code | `a3b63e3` | client duplication removed; two small behaviour fixes | type-check, unit tests, e2e both arms |
 | M1 | metrics | — (proposal) | product `timing` object reports a transfer term that is structurally zero | source |
+| W1/W2 | performance | `20214f4` | WASM client: per-read string decoding, per-frame key encoding, buffer zero-fill and doubling removed | `decodeText` 10–21 ms → 0, `__rdl_realloc` 37 → 1.4 ms, `push_chunk` 5–11 → 0 ms (same-host A/B profile) |
+| H1 | lab fix | `0337e38` | harness read `performance.memory` after every frame; 3–11 % of every client harvest's main-thread time | 31–126 ms per run → < 1 ms |
+| T1 | code (null) | `2b007a8` | TS FoD codec tidied; the per-call TextEncoder was measured and found free | micro-benchmark, Chromium + Node |
+| — | analysis | — | server: app code < 0.3 % of instructions; 11.7 % is the copy L1 removes; the rest is QUIC + crypto | callgrind, three cells |
+| — | analysis | — | client: BYOB reader is supported and would delete the one accumulator copy; bounded, not taken | probe, 80 × 250 KB |
 
 ---
 
@@ -182,6 +187,107 @@ Not done here because it changes the client API surface.
 
 ---
 
+## Deeper pass — where the CPU actually goes
+
+Asked after the first round: is that really all? Two profiles answer it, one per side.
+
+### Server: instruction profile under callgrind
+
+`exact-server` (release + debug info, HEAD `fb26f7d`, default features) ran under
+`valgrind --tool=callgrind` while one `window-harness --mode saturate --depth 4` session drove
+it for 6 s; three cells. Instruction counts, so CPU contention does not distort them
+(`callgrind_run.sh`; annotated output in `measurements/…/callgrind_*.txt`).
+
+| share of all instructions | frames_32k / shared | frames_250k / shared | frames_32k / per-frame |
+| - | - | - | - |
+| ring AES-GCM (`_aesni_ctr32_ghash_6x` + helpers) | ≈ 32 % | ≈ 36 % | ≈ 31 % |
+| `memcpy` | 14.0 % | 15.3 % | 13.4 % |
+| quinn packet building, stream state, BTree bookkeeping | ≈ 10 % | ≈ 11 % | ≈ 10 % |
+| malloc / free | ≈ 1.5 % | ≈ 1 % | ≈ 2 % |
+| `exact_server::*` (session loop, pipeline, wire, frame store) | < 0.3 % | < 0.3 % | < 0.3 % |
+| serde_json (FoD asks) | 0.06 % | — | — |
+
+`memcpy` attributed to its callers (250 KB cell, `callgrind_memcpy_callers.txt`):
+
+| caller | share of all instructions |
+| - | - |
+| `quinn_proto … ByteSlice::pop_chunk` — the `write_all(&[u8])` copy into the send buffer | **11.7 %** |
+| `StreamsState::write_stream_frames` — send buffer → packet | 1.3 % |
+| BTree node moves (quinn range sets) | 1.1 % |
+
+**Reading it.** The server's own code is noise: 99.7 % of the instructions are the QUIC stack
+and its crypto, and the one large avoidable term — the copy `write_all` makes — is exactly what
+L1's `SendPath::Chunked` removes. This is instruction-level corroboration for L1's default and
+the reason P0 was withdrawn rather than kept. Nothing outside the transport lane (packetisation,
+GSO, MTU, crypto provider) and the disk lane (prefault) is left on the server worth a commit;
+the honest result of the deeper pass on the server is a null.
+
+### Client: Chromium CPU profile, both arms
+
+`client_profile.mjs` drives a harness cell under the DevTools sampling profiler (200 µs
+interval) and ranks self time per function. Three cells: 250 KB fill (shared), 32 KB on-demand
+D = 4 (shared), 250 KB fill (per-frame). Product builds; the WASM package is built with
+`wasm-pack --profiling` so Rust names survive. First reading (one run per cell, pre-change):
+
+| arm / cell | biggest product-code self time | harness self time |
+| - | - | - |
+| TS, 250 KB fill | `ByteAccumulator.take` 7 %, `readLengthPrefixed` 6 % — the one receive copy | `heapBytes` 4 % |
+| WASM, 250 KB fill | `reader.read` glue 6 %, `Uint8Array.set` (chunk → WASM, WASM → JS) 5 %, `decodeText` 1.6 % | `heapBytes` 3.5 % |
+| TS, 32 KB on-demand | `take` + `readLengthPrefixed` 14 %, `sendFod` 5 %, `encodeFodMsg` 5 % | **`heapBytes` 11 %** |
+| WASM, 32 KB on-demand | control `write` glue 8 %, `set` 7 %, `read` 5 %, `decodeText` 2 % | **`heapBytes` 9 %** |
+| WASM, 250 KB per-frame | `read` 14 %, `set` 5 %, `makeMutClosure` 2.7 %, **`__rdl_realloc` 2.6 %**, `decodeText` 1.9 % | `heapBytes` 1.6 % |
+
+Four things came out of it, each then measured before/after on the same host with the two
+builds interleaved (`client_ab_profile.sh`, summary by `client_ab_summarize.py`):
+
+- **H1 (harness).** `performance.memory` was read after every delivered frame to track the
+  JS-heap peak; each read walks the heap. Now sampled on a 100 ms timer. Lab code, but it sat on
+  the main thread of every client harvest, in both arms.
+- **W1 (WASM).** Every `reader.read()` result was unpacked with `Reflect::get(obj, "done")` /
+  `"value"`, which encodes those two strings across the boundary per chunk — the `decodeText`
+  line. Replaced with the typed `ReadableStreamReadResult` getters.
+- **W2 (WASM).** `RecvBuf::push_chunk` zero-filled then copied every chunk, and a fresh buffer
+  (every stream in per-frame mode) grew by doubling — the `__rdl_realloc` line. Now reserves once
+  the length prefix is known and copies into spare capacity (`copy_to_uninit`).
+- **T1 (TS) — null result, kept as tidiness only.** `encodeFodMsg` built a `TextEncoder` per
+  ask. Measured in isolation (`bench/textencoder.html`, Chromium 141: 8–11 µs per encode either
+  way; Node 22: 1.8 µs either way) the constructor costs nothing observable. The shared codec
+  stays because it reads better and gives the TS client the same `decodeFodBody` shape the
+  server got in C3, but no speed is claimed for it.
+
+**Result** (same host; the "before" artifacts rebuilt from `fb26f7d` into a side directory,
+the two builds swapped in per run; medians of two runs; ms of main-thread self time;
+`client_ab_summary.txt`, raw profiles in `client_profiles/`):
+
+| cell / arm | term | before | after |
+| - | - | - | - |
+| 250 KB fill / TS | harness `heapBytes` | 31.6 | 0.7 |
+| 250 KB fill / WASM | `decodeText` · `push_chunk` · harness `heapBytes` | 10.6 · 5.5 · 37.6 | 0.0 · 0.0 · 0.0 |
+| 32 KB on-demand / TS | harness `heapBytes` | 126.3 | 0.6 |
+| 32 KB on-demand / WASM | `decodeText` · `push_chunk` · harness `heapBytes` | 21.3 · 5.3 · 97.4 | 0.0 · 0.0 · 0.9 |
+| 250 KB fill, per-frame / TS | harness `heapBytes` | 21.0 | 1.4 |
+| 250 KB fill, per-frame / WASM | `decodeText` · `__rdl_realloc` · `push_chunk` · harness `heapBytes` | 19.3 · 37.4 · 11.4 · 21.9 | 0.0 · 1.4 · 0.0 · 0.0 |
+
+Wall time on localhost is dominated by transfer and moves inside its own noise in the fill
+cells (±50 ms on ~650); the on-demand cell, where the harness term was largest, ran
+90 ms / 60 ms faster (TS / WASM) in the interleaved pass. The terms above are the proof; the
+wall figures are consistent with them and nothing more.
+
+**What is left on the client, with numbers.** After these, the receive path is the browser's
+own `reader.read()` glue and the two `Uint8Array.set` copies (chunk → WASM memory, WASM → JS
+heap; the TS arm's `ByteAccumulator.take` is its one copy), then `(program)` — Chromium
+internals. One more lever exists and is recorded, not taken: a **BYOB reader** on the receive
+stream would let the browser fill the frame's final buffer directly and delete the
+accumulator copy. Probed (`bench/byob_probe.html`, `byob_probe_result.txt`): Chromium 141
+accepts `getReader({ mode: "byob" })` on a WebTransport receive stream; 80 × 250 KB frames took
+610 reads (≈ 32 KB each) against 541 with the default reader, 191 ms vs 200 ms. The saving is
+bounded by `take` (≈ 8–10 % of client self time in a fill cell, less on demand), it rewrites the
+frame loop in both arms, and it has to be checked against the telemetry Proxy, which attributes
+bytes per `read()`. A candidate for a later round if client CPU per frame becomes the metric
+that matters; not started here.
+
+---
+
 ## Also observed, not changed
 
 - `docs/telemetry/adr-server-pipeline.md` said the report schema is `server-pipeline-v1`; the code
@@ -201,4 +307,10 @@ docs/measurements/improvements-2026-09-06/sendpath_bench.sh out.jsonl base /tmp/
 docs/measurements/improvements-2026-09-06/rss_timeline.sh before /tmp/a rss.jsonl
 # browser: server + server/dev-server.py, then
 node docs/measurements/improvements-2026-09-06/refusals_e2e.mjs http://127.0.0.1:8765 wasm 64 https://127.0.0.1:4433/ <cert-sha256>
+# server instruction profile (needs CARGO_PROFILE_RELEASE_DEBUG=1 build + valgrind)
+docs/measurements/improvements-2026-09-06/callgrind_run.sh head <exact-server-with-symbols> frames_250k shared
+# client CPU profile of one arm / cell (WASM: build the pkg with `wasm-pack --profiling` so names survive)
+node docs/measurements/improvements-2026-09-06/client_profile.mjs http://127.0.0.1:8765 wasm "cell=fill&stream_mode=shared&frames=320" out.json
+docs/measurements/improvements-2026-09-06/client_ab_profile.sh          # before/after, both arms, three cells
+python3 docs/measurements/improvements-2026-09-06/client_ab_summarize.py <dir-of-profiles>
 ```

@@ -1,0 +1,151 @@
+{
+ "arm": "wasm",
+ "query": "cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80",
+ "shell": {
+  "arm": "transport-wasm",
+  "cell": "ondemand",
+  "depth": 4,
+  "interval_ms": 0,
+  "schedule": "cycle:2000/80",
+  "steps": 2000,
+  "asked": 2000,
+  "delivered": 2000,
+  "failed": 0,
+  "study_frames": 80,
+  "wall_ms": 894,
+  "checksum": 1228756736,
+  "js_heap_bytes": {
+   "start": 2762954,
+   "end": 14825111,
+   "peak": 71123877
+  },
+  "wasm_memory_bytes": {
+   "start": 1179648,
+   "end": 1572864
+  }
+ },
+ "total_us": 986595,
+ "top": [
+  [
+   "(idle)",
+   291728
+  ],
+  [
+   "(program)",
+   215345
+  ],
+  [
+   "heapBytes harness/shell.js:39",
+   101297
+  ],
+  [
+   "__wbg_write_cb8e84e69d70b405 pkg/transport_wasm.js:367",
+   74190
+  ],
+  [
+   "__wbg_set_b9b5b5cb7b495037 pkg/transport_wasm.js:316",
+   63530
+  ],
+  [
+   "__wbg_read_ae34ffedeb11f034 pkg/transport_wasm.js:289",
+   46874
+  ],
+  [
+   "decodeText pkg/transport_wasm.js:663",
+   22036
+  ],
+  [
+   "__wbg_new_with_length_3ffc1c56427c525c pkg/transport_wasm.js:256",
+   19526
+  ],
+  [
+   "wasm-to-js",
+   19518
+  ],
+  [
+   "(garbage collector)",
+   16758
+  ],
+  [
+   "setTimeout",
+   7170
+  ],
+  [
+   "(anonymous) pkg/transport_wasm.js:309",
+   6411
+  ],
+  [
+   "js_sys::futures::queue::QueueState::run_all::h64059c26de7d61d1 pkg/transport_wasm_bg.wasm:1",
+   6187
+  ],
+  [
+   "makeMutClosure pkg/transport_wasm.js:588",
+   5814
+  ],
+  [
+   "transport_wasm::session::RecvBuf::push_chunk::hd15ea882b2c4e838 pkg/transport_wasm_bg.wasm:1",
+   5234
+  ],
+  [
+   "queueMicrotask",
+   4475
+  ],
+  [
+   "clearTimeout",
+   3890
+  ],
+  [
+   "__wbg_prototypesetcall_de8e0d9553586985 pkg/transport_wasm.js:275",
+   3630
+  ],
+  [
+   "js_sys::futures::future_to_promise::{{closure}}::{{closure}}::h825288d532deb812 pkg/transport_wasm_bg.wasm:1",
+   3122
+  ],
+  [
+   "__wbg_performance_821a3767f0dce300 pkg/transport_wasm.js:268",
+   2487
+  ],
+  [
+   "js-to-wasm",
+   2453
+  ],
+  [
+   "dlmalloc::dlmalloc::Dlmalloc<A>::malloc::he97e96981fab807e pkg/transport_wasm_bg.wasm:1",
+   2310
+  ],
+  [
+   "transport_wasm::session::TransportSession::settle::{{closure}}::h9bc8e697e1879dfe pkg/transport_wasm_bg.wasm:1",
+   2084
+  ],
+  [
+   "handleError pkg/transport_wasm.js:575",
+   1930
+  ],
+  [
+   "requestAnimationFrame",
+   1866
+  ],
+  [
+   "real pkg/transport_wasm.js:590",
+   1743
+  ],
+  [
+   "(anonymous)",
+   1390
+  ],
+  [
+   "real._wbg_cb_unref pkg/transport_wasm.js:605",
+   1288
+  ],
+  [
+   "getUint8ArrayMemory0 pkg/transport_wasm.js:568",
+   1262
+  ],
+  [
+   "hashbrown::map::HashMap<K,V,S,A>::contains_key::h72fd9cee35731702 pkg/transport_wasm_bg.wasm:1",
+   1252
+  ]
+ ],
+ "page_errors": []
+}

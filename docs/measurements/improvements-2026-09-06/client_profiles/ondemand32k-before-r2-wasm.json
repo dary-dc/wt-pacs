@@ -1,0 +1,151 @@
+{
+ "arm": "wasm",
+ "query": "cell=ondemand&stream_mode=shared&d=4&n=2000&frames=80",
+ "shell": {
+  "arm": "transport-wasm",
+  "cell": "ondemand",
+  "depth": 4,
+  "interval_ms": 0,
+  "schedule": "cycle:2000/80",
+  "steps": 2000,
+  "asked": 2000,
+  "delivered": 2000,
+  "failed": 0,
+  "study_frames": 80,
+  "wall_ms": 983,
+  "checksum": 1228756736,
+  "js_heap_bytes": {
+   "start": 2802751,
+   "end": 17709492,
+   "peak": 68871717
+  },
+  "wasm_memory_bytes": {
+   "start": 1179648,
+   "end": 1572864
+  }
+ },
+ "total_us": 1088979,
+ "top": [
+  [
+   "(idle)",
+   352876
+  ],
+  [
+   "(program)",
+   222745
+  ],
+  [
+   "heapBytes harness/shell.js:39",
+   93451
+  ],
+  [
+   "__wbg_set_b9b5b5cb7b495037 pkg/transport_wasm.js:316",
+   71177
+  ],
+  [
+   "__wbg_write_cb8e84e69d70b405 pkg/transport_wasm.js:367",
+   69738
+  ],
+  [
+   "__wbg_read_ae34ffedeb11f034 pkg/transport_wasm.js:289",
+   53667
+  ],
+  [
+   "__wbg_new_with_length_3ffc1c56427c525c pkg/transport_wasm.js:256",
+   21806
+  ],
+  [
+   "decodeText pkg/transport_wasm.js:663",
+   20525
+  ],
+  [
+   "(garbage collector)",
+   18756
+  ],
+  [
+   "wasm-to-js",
+   18738
+  ],
+  [
+   "(anonymous) pkg/transport_wasm.js:309",
+   10548
+  ],
+  [
+   "setTimeout",
+   8752
+  ],
+  [
+   "clearTimeout",
+   6931
+  ],
+  [
+   "queueMicrotask",
+   6579
+  ],
+  [
+   "makeMutClosure pkg/transport_wasm.js:588",
+   5455
+  ],
+  [
+   "transport_wasm::session::RecvBuf::push_chunk::hd15ea882b2c4e838 pkg/transport_wasm_bg.wasm:1",
+   5405
+  ],
+  [
+   "js-to-wasm:ii:",
+   5175
+  ],
+  [
+   "__wbg_prototypesetcall_de8e0d9553586985 pkg/transport_wasm.js:275",
+   4302
+  ],
+  [
+   "real pkg/transport_wasm.js:590",
+   3985
+  ],
+  [
+   "js_sys::futures::queue::QueueState::run_all::h64059c26de7d61d1 pkg/transport_wasm_bg.wasm:1",
+   3267
+  ],
+  [
+   "js-to-wasm",
+   3107
+  ],
+  [
+   "__externref_table_alloc pkg/transport_wasm_bg.wasm:1",
+   3036
+  ],
+  [
+   "handleError pkg/transport_wasm.js:575",
+   2831
+  ],
+  [
+   "(anonymous) harness/shell.js:91",
+   2745
+  ],
+  [
+   "set",
+   2687
+  ],
+  [
+   "(anonymous)",
+   2179
+  ],
+  [
+   "real._wbg_cb_unref pkg/transport_wasm.js:605",
+   2083
+  ],
+  [
+   "finish harness/shell.js:104",
+   1909
+  ],
+  [
+   "transport_wasm::session::TransportSession::settle::{{closure}}::h9bc8e697e1879dfe pkg/transport_wasm_bg.wasm:1",
+   1887
+  ],
+  [
+   "__wbg_performance_821a3767f0dce300 pkg/transport_wasm.js:268",
+   1772
+  ]
+ ],
+ "page_errors": []
+}
