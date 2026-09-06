@@ -31,9 +31,9 @@ Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.
 
 ## Measurement drivers added 2026-09-06
 
-Evidence they produced: `docs/improvements-2026-09-06.md` and
-`docs/measurements/improvements-2026-09-06/`. Browser drivers need Node with Playwright and a
-Chromium; defaults point at the Claude Code runner, override with `PLAYWRIGHT_MODULE` / `CHROME_BIN`.
+Evidence they produced: `docs/improvements-2026-09-06.md` (raw rows in git history, `e274c26`).
+Outputs go under `.local/` (gitignored). Browser drivers need Node with Playwright and a Chromium;
+defaults point at the Claude Code runner, override with `PLAYWRIGHT_MODULE` / `CHROME_BIN`.
 
 | Driver | What |
 | ------ | ---- |

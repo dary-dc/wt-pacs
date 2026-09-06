@@ -1,7 +1,0 @@
-# memcpy callers, frames_250k shared (instructions, share of program total)
-29754361 (11.71%)  < core/src/ptr/mod.rs:<quinn_proto::connection::streams::send::ByteSlice as quinn_proto::connection::streams::send::BytesSource>::pop_chunk (366x)
- 3345353 ( 1.32%)  < core/src/ptr/mod.rs:quinn_proto::connection::streams::state::StreamsState::write_stream_frames (20806x)
- 2898943 ( 1.14%)  < core/src/ptr/mod.rs:alloc::collections::btree::remove::<impl alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::
-   368259 ( 0.14%)  < core/src/ptr/mod.rs:ring::aead::aes_gcm::seal_finish (20461x)
-   368259 ( 0.14%)  < ring-0.17.14/src/polyfill/sliceutil.rs:ring::aead::aes_gcm::seal_finish (20461x)
-   280560 ( 0.11%)  < quinn-proto-0.11.17/src/connection/mod.rs:quinn_proto::connection::Connection::handle_decode (9352x) [/tmp/claude-0/-home-user-wt-pacs/4388fb8e-14c3
