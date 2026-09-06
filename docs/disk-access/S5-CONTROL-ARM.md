@@ -1,5 +1,10 @@
 # S5 — separating the reader loop from the ring
 
+> **Ran, 2026-09-06. The ring earns the margin; the loop is a tie in every regime.**
+> Raw: [`v24_s5_loop_vs_ring.tsv`](v24_s5_loop_vs_ring.tsv) ·
+> [verdict](v24_s5_loop_vs_ring_verdict.txt) · [host](v24_s5_loop_vs_ring_host.txt).
+> Result and the correction to this document's own success criterion are in §Result.
+
 **Why:** risk **R8** in [`SCOREBOARD.md`](SCOREBOARD.md). `pool` and `hybrid` do not reach a
 cache hit through the same code, so part of what the campaign scores as "io_uring wins" is
 reader-loop shape. This is the measurement that says how much.
@@ -50,9 +55,19 @@ It shares the loop with `hybrid` and the miss mechanism with `pool`, so it compl
 | `hybrid` − `pool_ringloop` | **The ring alone.** Same structure, different miss mechanism |
 | `hybrid` − `pool` | What the campaign reports today — the sum of both |
 
-Run the existing phases; the `hit` regime should now read ~0% for `hybrid` − `pool_ringloop`,
-and that is the check that the arm is built right: with the same loop and no reads reaching
-the ring, the two must converge.
+~~Run the existing phases; the `hit` regime should now read ~0% for `hybrid` − `pool_ringloop`,
+and that is the check that the arm is built right.~~
+
+**That criterion was wrong, and the run disproved it before it disproved anything else.**
+`hybrid` − `pool_ringloop` came out **+13% to +22%** on a pure-hit cell — with `miss_pct`
+**0.0% in every arm**, so not one read reached the ring. Two arms that share a loop and
+never touch the ring do *not* converge, because the hybrid still pays to **construct and
+hold** a ring it never uses. That is a cost, not a defect.
+
+The correct check is the one the data supports: **`miss_pct` must be 0.0% in both arms** on a
+warm cell, which is what proves no read reached the ring. Any remaining gap is then the ring's
+fixed per-session cost — which is the thing [`adr.md`](adr.md) rejected the hybrid over, now
+with a number on it.
 
 ## Decision rule, set before the numbers exist
 
@@ -70,6 +85,34 @@ Apply the campaign's own rule to L and R: a difference counts only if it beats t
 drift threshold **and** keeps its sign across repeats
 ([`RERUN.md`](RERUN.md) §Precision).
 
+## Result
+
+Two runs of the same configuration, sandbox host, `--monitors 4`→0, 512 asks × 6 repeats,
+A_stride + A_sweep + C_readers. Rule applied as written: |median| ≥ 28.5% **and** sign
+agreement ≥ 0.8n, **and** the same sign in both runs.
+
+| | hit | mix | miss |
+| --- | ---: | ---: | ---: |
+| **L** — loop alone (`pool_ringloop` − `pool`) | −17.1 / −13.2% · tie | −2.0 / −1.3% · tie | +8.6 / +10.7% · tie |
+| **R** — ring alone (`hybrid` − `pool_ringloop`) | +7.9 / +10.0% · tie | **−56.9 / −56.0% · RESOLVED** | **−70.7 / −72.7% · RESOLVED** |
+| **L+R** — what the campaign reports (`hybrid` − `pool`) | −12.6 / −7.7% · tie | −61.0 / −53.8% · RESOLVED | −66.0 / −68.1% · RESOLVED |
+
+Sign agreement on the resolved rows: 39/40, 42/42, 66/66, 66/66.
+
+**By the decision rule set above, this is the first row: |R| ≫ |L|, so the ring earns its
+per-session cost.** The loop is a tie in all three regimes in both runs, and on misses it
+works slightly *against* the hybrid — R is larger than L+R because L is +8.6%.
+
+So R8 does not weaken the recommendation; it removes a doubt from it. What raised R8 was a
+hit-regime spread of up to −35% across hosts, and that spread never resolved under the 28.5%
+rule. It was read as signal before the rule was applied to it — the exact error the rule
+exists to prevent.
+
+One thing worth carrying: the ring's idle cost is measurable. On a cell where `miss_pct` is
+**0.0% for every arm**, the hybrid still costs **+7.9 / +10.0%** over the same loop without a
+ring. A tie by the rule, but it is the per-session price the ADR objected to, and it is not
+zero.
+
 ## Cost and caveats
 
 One arm in `lab/disk-access-bench/src/bin/read_campaign.rs`, reusing `reader_ring`'s slot
@@ -77,6 +120,10 @@ bookkeeping with the ring calls replaced by `spawn_blocking`. The campaign itsel
 the existing hosts can all re-run it ([`RUN-ON-YOUR-HOST.md`](RUN-ON-YOUR-HOST.md)).
 
 Two things this does **not** settle:
+
+* **One host.** The loop result is a tie on a 4-vCPU sandbox. Core count is precisely where a
+  task-per-slot loop would be expected to differ, so repeat it somewhere with a different core
+  count before treating "the loop is worth nothing" as settled.
 
 * **Session count.** These loops are compared inside one reader. The product runs one per
   session, and the per-session cost of a ring is exactly what the ADR objected to — that is

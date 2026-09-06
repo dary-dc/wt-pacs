@@ -177,7 +177,8 @@ removing if you cannot measure it.
 ### Landed — a bounded process-private frame cache (−20% CPU on a cine loop)
 
 The one thing that reaches that bound is not reading the frame again. `FrameCache`
-(`server/src/media/frame_cache.rs`, `--frame-cache-mb`, **default 0 = off**):
+(`lab/disk-access-bench/src/frame_cache.rs`, `--frame-cache-mb`, **default 0 = off**) — lab
+only, like everything in this investigation; `server/` is untouched:
 
 * A hit is a refcount bump handed to quinn with `write_chunk` — **no syscall, no copy into
   the connection, no pool hop**, and the bytes are process-private, which is the guarantee

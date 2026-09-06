@@ -1,0 +1,16 @@
+date            2026-09-06T19:22:17Z
+kernel          Linux 6.18.44-fc-v24 x86_64
+nproc           4
+cpu             Intel(R) Xeon(R) Processor @ 2.80GHz
+mem_mb          16075
+host            Claude Code agent sandbox (same class as the lab KVM guest)
+fs(workspace)   ext4   /dev/vda
+read_ahead_kb   vda = 8192
+read_ahead_kb   vdb = 8192
+read_ahead_kb   vdc = 128
+read_ahead_kb   vdd = 128
+read_ahead_kb   vde = 512
+read_ahead_kb   vdf = 512
+cell            A_stride + A_sweep + C_readers, 512 asks, 6 repeats, --monitors 0
+runs            run1 and run2, same configuration, for the reproduction check
+arms            pool, pool_ringloop (S5 control), hybrid, uring, pooled_pread
