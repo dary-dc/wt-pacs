@@ -16,10 +16,11 @@ step() { printf '\n== %s\n' "$*"; }
 
 step "client: build bundles + unit tests"
 bash client/transport-ts/build.sh >/dev/null
-node client/transport-ts/record/test/run.mjs | tail -1
+node client/record/test/run.mjs | tail -1
 
-step "client: type-check (product + record)"
+step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)
+(cd client/transport-ts && npx tsc -p ../record/tsconfig.json)
 
 step "server: tests, default features"
 cargo test -p exact-server --quiet

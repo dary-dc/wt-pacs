@@ -58,8 +58,8 @@ measurement that is wrong. Either drop `timing` from the product API or reduce i
 | Artifact | Source | In git? |
 | --- | --- | --- |
 | `dist/session.js` | `session.ts` | **No** — gitignored |
-| `dist/session.telemetry.js` | `record/session-telemetry.ts` | **No** — gitignored |
-| `record/dist/` | `install.ts`, etc. | **No** — gitignored |
+| `dist/session.telemetry.js` | `session-telemetry.ts` (+ `client/record/`) | **No** — gitignored |
+| `client/record/dist/` | `install.ts`, etc. | **No** — gitignored |
 
 Rebuild: `client/transport-ts/build.sh`.
 

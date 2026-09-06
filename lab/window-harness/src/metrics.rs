@@ -280,7 +280,7 @@ fn wait_stats(samples: &[f64]) -> (f64, f64) {
 }
 
 /// Nearest-rank percentile: rank = ceil(p/100 × N) clamped to [1, N]; value = sorted[rank − 1].
-/// The same rule as `server/src/record/report.rs` and `client/transport-ts/record/percentiles.ts`,
+/// Same rule as `server/src/record/report.rs` and `client/record/percentiles.ts`,
 /// so a harness p95 can be read beside a telemetry p95.
 pub fn nearest_rank(sorted_asc: &[f64], p: f64) -> f64 {
     let n = sorted_asc.len();

@@ -3,7 +3,7 @@
  * Semantics match offsets.ts attributeFrames(); keep that as the test oracle.
  */
 
-import { MAX_FRAME_LEN } from "../wire.ts";
+import { MAX_FRAME_LEN } from "../transport-ts/wire.ts";
 import type { FrameTiming } from "./offsets.ts";
 
 export type { FrameTiming };

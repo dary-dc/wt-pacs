@@ -16,8 +16,9 @@ client/dev-transport.json
 
 # Generated TypeScript client bundles (build with client/transport-ts/build.sh)
 client/transport-ts/dist/
-client/transport-ts/record/dist/
-client/transport-ts/record/test/run.mjs
+# Shared client recorder (both arms) — build via transport-ts/build.sh
+client/record/dist/
+client/record/test/run.mjs
 # Telemetry-only WASM out-dir — plan §8
 client/transport-wasm/pkg-telemetry/
 

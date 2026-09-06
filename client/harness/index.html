@@ -32,7 +32,7 @@
         let wrapSession = (s) => s;
         if (telemetry) {
           // Patch the WebTransport global before the WASM module loads (ADR option G).
-          const rec = await import("/client/transport-ts/record/dist/install.js");
+          const rec = await import("/client/record/dist/install.js");
           rec.install({ arm: "transport-wasm", stream_mode: streamMode });
           wrapSession = rec.wrapSession;
         }

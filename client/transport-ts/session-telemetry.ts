@@ -1,10 +1,10 @@
 /**
- * Telemetry build entry — install patch, then re-export a wrapped TransportSession.
- * Load order: install runs before session module evaluation.
+ * TS-arm telemetry entry — install the shared patch, then re-export a wrapped session.
+ * Load order: install runs before the product session module evaluates.
  */
 
-import { install } from "./install.ts";
-import { wrapSession } from "./wrap-session.ts";
+import { install } from "../record/install.ts";
+import { wrapSession } from "../record/wrap-session.ts";
 
 install({
   arm: (globalThis as unknown as { __wtpacsArm?: "transport-ts" | "transport-wasm" })
@@ -14,9 +14,9 @@ install({
       .__wtpacsStreamMode ?? "shared",
 });
 
-import { TransportSession as Inner } from "../session.ts";
+import { TransportSession as Inner } from "./session.ts";
 
-export type { FrameResult } from "../session.ts";
+export type { FrameResult } from "./session.ts";
 
 export class TransportSession {
   static async connect(wtUrl: string, certSha256: string) {

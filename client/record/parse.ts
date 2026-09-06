@@ -1,9 +1,9 @@
 /**
- * Length-prefix peek for media streams — reuses the same framing as wire.ts.
- * Kept local so the tap does not pull session.ts into the telemetry graph.
+ * Length-prefix peek for media streams — same framing constant as transport-ts/wire.ts.
+ * Shared recorder lives under client/record/ (both arms); does not pull session.ts.
  */
 
-import { MAX_FRAME_LEN } from "../wire.ts";
+import { MAX_FRAME_LEN } from "../transport-ts/wire.ts";
 import type { RowKind } from "./types.ts";
 
 /** Parse consecutive `[4B BE len][4B BE index][codestream]` frames from a byte buffer. */

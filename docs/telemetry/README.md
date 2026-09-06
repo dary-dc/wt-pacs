@@ -177,7 +177,8 @@ either seam.
 
 | Area | Path |
 | --- | --- |
-| Client install + Proxy | `client/transport-ts/record/` (`tap.ts`; `attribution.ts`, `clock.ts`, `rows.ts`, `report.ts`) |
+| Client install + Proxy | `client/record/` (`tap.ts`; `attribution.ts`, `clock.ts`, `rows.ts`, `report.ts`) — shared by TS and WASM |
+| TS telemetry entry | `client/transport-ts/session-telemetry.ts` |
 | Server app seam | `server/src/transport/pipeline.rs` (`FramePipeline`, `ProductPipeline`) |
 | Server lab wrapper | `server/src/transport/pipeline.rs` (`RecordedPipeline`) |
 | Server wire out | `server/src/transport/frame_out.rs` |
