@@ -1,0 +1,172 @@
+# Risk R1 (docs/disk-access/SCOREBOARD.md): every published read-path number comes from one
+# 4-vCPU KVM guest. Two constants of that host generate the result — a ~34 us
+# `spawn_blocking` round trip and an 8 MiB read-ahead window — and neither was shown to hold
+# anywhere else. This runs the same campaign on a GitHub-hosted runner, which is a genuinely
+# different machine, and prints `compare_hosts.py`'s HOLDS / WEAKENS / FLIPS per row.
+#
+# Manual dispatch only. The campaign is ~30 s of compute; the build dominates.
+#
+# A shared CI runner is noisy, so read this for *direction*, not for magnitudes: a ranking
+# that survives here is real, but an effect size measured here is not comparable to the lab's.
+name: read-path campaign
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: 'Run prefix — use run1 for the first run on a host, run2 for a repeat'
+        default: run1
+        type: string
+      asks:
+        description: 'Asks per cell'
+        default: '512'
+        type: string
+      repeats:
+        description: 'Repeats per cell (interleaved)'
+        default: '6'
+        type: string
+      commit_results:
+        description: 'Commit the TSV and comparison back to this branch'
+        default: true
+        type: boolean
+
+# Two runs writing the same file to the same branch would race.
+concurrency:
+  group: read-campaign-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  campaign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OUT: docs/disk-access/v22_campaign_ci.tsv
+      FACTS: docs/disk-access/v22_campaign_ci_host.txt
+      CMP: docs/disk-access/v22_campaign_ci_compare.txt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release -p disk-access-bench -p check-fastpath
+
+      # The two constants R1 is about, plus the filesystem the fast path depends on. Recorded
+      # before any measurement so the numbers are never separated from the host that made them.
+      - name: Record host facts
+        run: |
+          {
+            echo "date            $(date -u +%FT%TZ)"
+            echo "kernel          $(uname -srm)"
+            echo "nproc           $(nproc)"
+            echo "cpu             $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs)"
+            echo "mem_mb          $(free -m | awk '/^Mem:/{print $2}')"
+            echo "runner          ${{ runner.os }} / ${{ runner.arch }} / github-hosted"
+            echo "fs(workspace)   $(findmnt -no FSTYPE,SOURCE --target "$PWD" 2>/dev/null)"
+            # Loop and zram devices are noise; only real block devices carry a meaningful
+            # read-ahead window.
+            for q in /sys/block/*/queue/read_ahead_kb; do
+              d=$(basename $(dirname $(dirname "$q")))
+              case "$d" in loop*|zram*|ram*) continue;; esac
+              [ -r "$q" ] && echo "read_ahead_kb   $d = $(cat "$q")"
+            done
+            echo "--- check-fastpath on the study dir ---"
+            ./target/release/check-fastpath lab/fixtures 2>&1 | sed -n '1,6p' || true
+          } | tee "$FACTS"
+
+      - name: Generate fixture
+        run: NAME=frames_16k_big BYTES=16384 FRAMES=5120 ./lab/scripts/gen_live_cell_fixture.sh
+
+      # The `uring` and `hybrid` arms both need a working io_uring. If the runner's kernel or
+      # seccomp policy refuses it, two of the four arms would produce nothing and the
+      # comparison would be silently half a campaign — so fail here, loudly, instead.
+      - name: Preflight — io_uring and the fast path
+        run: |
+          ./target/release/check-fastpath lab/fixtures/frames_16k_big || \
+            echo "NOTE: RWF_NOWAIT unavailable here — the hybrid degrades to pooled pread on this runner"
+          ./target/release/read_campaign --study lab/fixtures/frames_16k_big/frames_16k_big.sbnd \
+            --label preflight --asks 8 --repeats 1 --arms pool,uring,hybrid \
+            --depths 1 --temps warm --stride 250000 --monitors 0 > /tmp/preflight.tsv
+          for arm in pool uring hybrid; do
+            grep -q "	$arm	" /tmp/preflight.tsv || { echo "::error::arm '$arm' produced no rows — io_uring is probably unavailable on this runner"; exit 1; }
+          done
+          echo "all arms produced rows"
+
+      - name: Run campaign
+        run: |
+          set -euo pipefail
+          BIN=./target/release/read_campaign
+          ST=lab/fixtures/frames_16k_big/frames_16k_big.sbnd
+          L='${{ inputs.run_label }}'
+          A='${{ inputs.asks }}'
+          R='${{ inputs.repeats }}'
+          : > "$OUT"; FIRST=1
+          run() {
+            local label="$1"; shift
+            local hdr=--no-header
+            [ "$FIRST" -eq 1 ] && { hdr=; FIRST=0; }
+            $BIN --study "$ST" --label "${L}_${label}" --asks "$A" --repeats "$R" $hdr "$@" >> "$OUT"
+            echo "  ok: $label"
+          }
+          run A_stride --arms pool,uring,hybrid,pooled_pread --depths 1,2,4,8,16,32,64 --temps cold,warm --stride 250000 --monitors 0
+          run A_sweep  --arms pool,uring,hybrid,pooled_pread --depths 1,2,4,8,16,32,64 --temps cold,warm --stride 16384  --monitors 0
+          run B_prefetch_stride --arms pool,hybrid,uring --prefetch off,on --depths 1,4,16 --temps cold --stride 250000 --monitors 0
+          run B_prefetch_sweep  --arms pool,hybrid,uring --prefetch off,on --depths 1,4,16 --temps cold --stride 16384  --monitors 0
+          run C_readers --arms pool,uring,hybrid --readers 1,4,16 --depths 1,4 --temps cold --stride 250000 --monitors 0
+          for sz in 4096 65536 250000; do
+            run "D_size${sz}" --arms pool,hybrid,uring --depths 1,16 --temps cold,warm --size "$sz" --stride 250000 --monitors 0
+          done
+          run E_safety --arms pool,uring,hybrid,pooled_pread --depths 1,16 --temps cold,warm --stride 250000 --monitors 1
+          echo "rows: $(wc -l < "$OUT")"
+
+      - name: Analyse and compare against the lab host
+        run: |
+          set -euo pipefail
+          python3 lab/scripts/analyze_read_campaign.py "$OUT" | tee -a "$CMP"
+          echo | tee -a "$CMP"
+          python3 lab/scripts/compare_hosts.py docs/disk-access/v10_campaign.tsv "$OUT" \
+            lab-kvm github-runner | tee -a "$CMP"
+
+      - name: Summary
+        if: always()
+        run: |
+          { echo '## Host facts'; echo '```'; cat "$FACTS"; echo '```'
+            echo '## Ranking vs the lab host'; echo '```'
+            sed -n '/DOES THE RANKING SURVIVE/,/^===/p' "$CMP" | head -40; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: read-campaign-${{ github.run_id }}
+          path: |
+            docs/disk-access/v22_campaign_ci*.tsv
+            docs/disk-access/v22_campaign_ci*.txt
+
+      - name: Commit results to this branch
+        if: ${{ inputs.commit_results }}
+        run: |
+          set -euo pipefail
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add "$OUT" "$FACTS" "$CMP"
+          git diff --cached --quiet && { echo "no change"; exit 0; }
+          git commit -m "lab(disk-access): read-path campaign on a GitHub runner (R1 second host)
+
+          Same campaign as docs/disk-access/v10_campaign.tsv, run on a github-hosted runner.
+          Host facts in $FACTS; HOLDS/WEAKENS/FLIPS in $CMP.
+
+          A shared CI runner is noisy — read the ranking, not the magnitudes."
+          # Another job may have pushed while this one measured.
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

@@ -1,0 +1,20 @@
+date            2026-09-06T15:43:31Z
+kernel          Linux 6.18.44-fc-v24 x86_64
+nproc           4
+cpu             Intel(R) Xeon(R) Processor @ 2.10GHz
+mem_mb          16075
+host            Claude Code agent sandbox (same class as the lab KVM guest)
+fs(workspace)   ext4   /dev/vda
+read_ahead_kb   vda = 8192
+read_ahead_kb   vdb = 8192
+read_ahead_kb   vdc = 128
+read_ahead_kb   vdd = 128
+read_ahead_kb   vde = 512
+read_ahead_kb   vdf = 512
+--- check-fastpath on the study dir ---
+path            lab/fixtures
+filesystem      ext2/ext3/ext4
+read_ahead_kb   8192
+RWF_NOWAIT      honoured
+
+PASS — the server gets its fast path here.
