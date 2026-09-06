@@ -49,6 +49,11 @@ enum Arm {
     /// shortfall. Its delta against `pool` is reader-loop shape alone; `hybrid` minus this
     /// is what io_uring is actually worth. See `docs/disk-access/S5-CONTROL-ARM.md`.
     PoolRingLoop,
+    /// **The synthesis S5 points at.** `hybrid`, but the ring is built on the *first miss*
+    /// rather than at session start. A session whose reads all hit never constructs one, so
+    /// it keeps the ring-shaped loop's win on hits without the idle ring's cost; a session
+    /// that misses pays construction once and is `hybrid` from then on.
+    HybridLazyRing,
 }
 
 impl Arm {
@@ -59,6 +64,7 @@ impl Arm {
             "hybrid" => Some(Self::Hybrid),
             "pooled_pread" => Some(Self::PooledPread),
             "pool_ringloop" => Some(Self::PoolRingLoop),
+            "hybrid_lazyring" => Some(Self::HybridLazyRing),
             _ => None,
         }
     }
@@ -69,10 +75,11 @@ impl Arm {
             Self::Hybrid => "hybrid",
             Self::PooledPread => "pooled_pread",
             Self::PoolRingLoop => "pool_ringloop",
+            Self::HybridLazyRing => "hybrid_lazyring",
         }
     }
     fn uses_ring(self) -> bool {
-        matches!(self, Self::Uring | Self::Hybrid)
+        matches!(self, Self::Uring | Self::Hybrid | Self::HybridLazyRing)
     }
 }
 
@@ -81,7 +88,7 @@ impl Arm {
 struct Args {
     #[arg(long)]
     study: PathBuf,
-    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop
+    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring
     #[arg(long, default_value = "pool,uring,hybrid")]
     arms: String,
     /// Comma-separated reads in flight per reader.
@@ -486,12 +493,26 @@ async fn reader_ring(
 ) -> Result<()> {
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
-    let hybrid = cell.arm == Arm::Hybrid;
+    let lazy = cell.arm == Arm::HybridLazyRing;
+    let hybrid = cell.arm == Arm::Hybrid || lazy;
     // Registered buffers are fixed-size, so they are sized to the longest read in the plan.
     // Variable-length traces then read into a prefix of the slot.
     let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
 
-    let mut ring = UringReader::new(&file, depth, cap, true, false)?;
+    // `lazy` defers construction to the first miss. Until then hits are served into local
+    // buffers of the same geometry, so the loop shape is identical and only the ring's
+    // existence differs. Nothing can be in flight before the ring exists — every earlier ask
+    // was a hit — so building it mid-loop is safe.
+    let mut ring: Option<UringReader> = if lazy {
+        None
+    } else {
+        Some(UringReader::new(&file, depth, cap, true, false)?)
+    };
+    let mut local: Vec<Vec<u8>> = if lazy {
+        (0..depth).map(|_| vec![0u8; cap]).collect()
+    } else {
+        Vec::new()
+    };
     let mut starts = vec![Instant::now(); depth];
     let mut busy = vec![false; depth];
     let mut mine = Vec::with_capacity(asks);
@@ -518,7 +539,10 @@ async fn reader_ring(
             // The hybrid's point: a page-cache hit is served inline and the ring never sees
             // it. Only the shortfall is submitted.
             let got = if hybrid {
-                store.read_at_nowait(&mut ring.buf_mut(slot)[..len], off)?
+                match ring.as_mut() {
+                    Some(r) => store.read_at_nowait(&mut r.buf_mut(slot)[..len], off)?,
+                    None => store.read_at_nowait(&mut local[slot][..len], off)?,
+                }
             } else {
                 0
             };
@@ -529,6 +553,15 @@ async fn reader_ring(
                 continue;
             }
             miss += 1;
+            // First miss on a lazy session: build the ring now, and carry the prefix the
+            // inline read already produced into the slot the ring will complete into, so no
+            // byte is read twice.
+            if ring.is_none() {
+                let mut r = UringReader::new(&file, depth, cap, true, false)?;
+                r.buf_mut(slot)[..got].copy_from_slice(&local[slot][..got]);
+                ring = Some(r);
+            }
+            let ring = ring.as_mut().expect("ring built above");
             ring.push_at(slot, got, &file, off + got as u64, len - got)?;
             busy[slot] = true;
             issued += 1;
@@ -536,7 +569,9 @@ async fn reader_ring(
             pushed += 1;
         }
         if pushed > 0 {
-            ring.submit()?;
+            ring.as_mut()
+                .expect("ring exists once anything is in flight")
+                .submit()?;
         }
         if in_flight == 0 {
             if issued >= asks {
@@ -545,7 +580,10 @@ async fn reader_ring(
             continue;
         }
         freed.clear();
-        ring.complete_into(1, &mut freed).await?;
+        ring.as_mut()
+            .expect("ring exists once anything is in flight")
+            .complete_into(1, &mut freed)
+            .await?;
         let done = Instant::now();
         for &slot in &freed {
             mine.push(done.duration_since(starts[slot]).as_nanos() as u64);

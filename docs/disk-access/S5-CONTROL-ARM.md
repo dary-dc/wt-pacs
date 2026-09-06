@@ -1,6 +1,9 @@
 # S5 — separating the reader loop from the ring
 
-> **Ran, 2026-09-06. The ring earns the margin; the loop is a tie in every regime.**
+> **Ran on two core counts, and the answer depends on the core count.** On 4 vCPU the loop is
+> a tie everywhere and the ring earns the margin. On **8 CPU the loop RESOLVES on hits** at
+> −33.6/−32.9%, growing with depth. Both terms are real, in different regimes — and the design
+> that takes both is **`hybrid_lazyring`**, measured in §The design this implies.
 > Raw: [`v24_s5_loop_vs_ring.tsv`](v24_s5_loop_vs_ring.tsv) ·
 > [verdict](v24_s5_loop_vs_ring_verdict.txt) · [host](v24_s5_loop_vs_ring_host.txt).
 > Result and the correction to this document's own success criterion are in §Result.
@@ -112,6 +115,34 @@ One thing worth carrying: the ring's idle cost is measurable. On a cell where `m
 **0.0% for every arm**, the hybrid still costs **+7.9 / +10.0%** over the same loop without a
 ring. A tie by the rule, but it is the per-session price the ADR objected to, and it is not
 zero.
+
+## The design this implies
+
+The split says: take the **ring-shaped loop** (worth up to −33.6% on hits where cores
+contend, ~0 on misses) and the **ring on the miss** (−42 to −73%, everywhere), and avoid the
+**idle ring** (+6 to +18% on hits — the hybrid builds one per session whether or not a read
+ever misses).
+
+`hybrid_lazyring` is `hybrid` with the ring built on the **first miss**. A session whose
+reads all hit never constructs one; a session that misses pays construction once, carries
+the prefix the inline read already produced into the ring's slot so no byte is read twice,
+and is `hybrid` from then on.
+
+Measured, two runs, 4 vCPU ([`v27_lazyring.tsv`](v27_lazyring.tsv) ·
+[verdict](v27_lazyring_verdict.txt)):
+
+| vs `pool` | hit | mix | miss |
+| --- | ---: | ---: | ---: |
+| `hybrid` | −9.6 / −5.4% · tie | −63.0 / −59.6% · RESOLVED | −62.8 / −65.4% · RESOLVED |
+| **`hybrid_lazyring`** | **−19.7 / −15.3% · tie** | **−63.2 / −57.4% · RESOLVED** | **−61.8 / −64.4% · RESOLVED** |
+
+Against `hybrid` directly it is **−10.9 / −9.0% on hits** and a tie in mix and miss
+(−0.9/+7.1%, +1.9/+3.4%): **deferring construction costs nothing where the ring is needed,
+and saves the ring entirely where it is not.**
+
+This host has 4 vCPU, where the loop term is only a tie. On 8 CPU the loop resolves at
+−33.6%, so the lazy arm's hit-regime advantage should be **larger** there, not smaller — that
+is the one cell still to run.
 
 ## Cost and caveats
 
