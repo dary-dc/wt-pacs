@@ -159,7 +159,6 @@ fn drain_loop(rx: Receiver<Batch>, json_path: PathBuf) {
         Ok(()) => info!(
             path = %json_path.display(),
             frames = live.frames,
-            acks = live.acks,
             sessions = live.sessions.len(),
             method = report.summary.percentile_method,
             "server telemetry report written"
@@ -208,7 +207,6 @@ mod tests {
             send_us: Some(30),
             serve_us: 41,
             overhead_us: 1,
-            ack_us: None,
             server_bytes_sent: 100,
             locate_outcome: 0,
             write_outcome: 0,

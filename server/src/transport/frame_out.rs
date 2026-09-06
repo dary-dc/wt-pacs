@@ -6,16 +6,10 @@
 use crate::transport::stream_mode::StreamMode;
 use anyhow::{Context, Result};
 use frame_envelope::ENVELOPE_LEN;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::task::JoinSet;
 use wtransport::stream::SendStream;
 use wtransport::Connection;
-
-/// Called once when the peer has acknowledged every byte of a per-frame stream, with the time
-/// since the last byte was accepted by the send buffer. `None` costs nothing and is all the
-/// product ever passes; the lab pipeline supplies one. Never called in shared mode, where no
-/// stream is finished per frame.
-pub(crate) type AckHook = Option<Box<dyn FnOnce(Duration) + Send + 'static>>;
 
 /// Outbound path chosen once per session.
 pub(crate) enum FrameOut {
@@ -52,12 +46,7 @@ impl FrameOut {
         }
     }
 
-    pub(crate) async fn send_frame(
-        &mut self,
-        idx: u32,
-        codestream: &[u8],
-        on_ack: AckHook,
-    ) -> Result<()> {
+    pub(crate) async fn send_frame(&mut self, idx: u32, codestream: &[u8]) -> Result<()> {
         let envelope_len = (ENVELOPE_LEN + codestream.len()) as u32;
         let len = envelope_len.to_be_bytes();
         let index = idx.to_be_bytes();
@@ -82,13 +71,8 @@ impl FrameOut {
                     .await
                     .context("write codestream")?;
 
-                // The clock is read only when someone asked to hear about the ack.
-                let sent_at = on_ack.as_ref().map(|_| Instant::now());
                 acks.spawn(async move {
                     let _ = uni.finish().await;
-                    if let (Some(hook), Some(t)) = (on_ack, sent_at) {
-                        hook(t.elapsed());
-                    }
                 });
             }
         }

@@ -2,17 +2,15 @@
 //!
 //! Sink/drain/report live in sibling modules. Hot path: build a `Copy` row and push it into a
 //! per-session batch; one `try_send` on an owned `SyncSender` clone per [`BATCH`] rows — no
-//! global lock, and no drain-thread wake per row. Peer acknowledgements arrive from
-//! `FrameOut`'s ack tasks through an [`AckInbox`] and ride the next batch.
+//! global lock, and no drain-thread wake per row.
 
 use crate::record::{LocateOutcome, WriteOutcome};
-use crate::transport::frame_out::AckHook;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{SyncSender, TrySendError};
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::sync::OnceLock;
+use std::time::Instant;
 
 use super::sink::{clone_sender, ensure_sink, shutdown_sink};
 
@@ -89,24 +87,10 @@ pub struct FrameRecord {
     pub serve_us: u32,
     /// `serve_us − prepare − locate − send` (saturating).
     pub overhead_us: u32,
-    /// Last byte accepted by the send buffer → peer acknowledged every byte of the stream.
-    /// Per-frame stream mode only; `null` in shared mode and until the ack arrives. Merged
-    /// into the row from the ack record when the report is built.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ack_us: Option<u32>,
     pub server_bytes_sent: u32,
     pub locate_outcome: u8,
     pub write_outcome: u8,
     pub dropped_since_last: u16,
-}
-
-/// Peer acknowledgement for one sent frame, emitted from the ack task.
-#[derive(Clone, Copy, Debug)]
-pub struct AckRecord {
-    pub session_id: u64,
-    pub frame_index: u32,
-    pub ask_ordinal: u32,
-    pub ack_us: u32,
 }
 
 /// One per session, emitted when the Tap drops. Carries the session's own integrity counters.
@@ -123,49 +107,22 @@ pub struct SessionRecord {
     pub rows_opened: u32,
     pub rows_closed: u32,
     pub rows_dropped: u32,
-    pub acks: u32,
 }
 
 /// What travels through the channel and into the row file.
 #[derive(Clone, Copy, Debug)]
 pub enum Record {
     Frame(FrameRecord),
-    Ack(AckRecord),
     Session(SessionRecord),
 }
 
 pub type Batch = Vec<Record>;
-
-/// Where ack tasks leave their records. While the session is open the Tap drains it into the
-/// next batch; after the Tap drops, late acks go straight to the sink.
-pub(super) struct AckInbox {
-    pending: Mutex<Vec<AckRecord>>,
-    closed: AtomicBool,
-    tx: Option<SyncSender<Batch>>,
-}
-
-impl AckInbox {
-    fn deliver(&self, rec: AckRecord) {
-        if !self.closed.load(Ordering::Acquire) {
-            if let Ok(mut p) = self.pending.lock() {
-                p.push(rec);
-                return;
-            }
-        }
-        if let Some(tx) = &self.tx {
-            if tx.try_send(vec![Record::Ack(rec)]).is_err() {
-                DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
-            }
-        }
-    }
-}
 
 pub struct Tap {
     session_id: u64,
     /// Owned clone of the process sink — emit without taking the global lock.
     tx: Option<SyncSender<Batch>>,
     batch: Batch,
-    inbox: Arc<AckInbox>,
     ordinals: HashMap<u32, u32>,
     frame_index: u32,
     ask_ordinal: u32,
@@ -188,7 +145,6 @@ pub struct Tap {
     rows_opened: u32,
     rows_closed: u32,
     rows_dropped: u32,
-    acks: u32,
 }
 
 /// `WTPACS_TELEMETRY_SAMPLE=K`: record one session in K. `seen` counts from 0.
@@ -225,11 +181,6 @@ impl Tap {
     fn new(session_id: u64, tx: Option<SyncSender<Batch>>) -> Self {
         Self {
             session_id,
-            inbox: Arc::new(AckInbox {
-                pending: Mutex::new(Vec::new()),
-                closed: AtomicBool::new(false),
-                tx: tx.clone(),
-            }),
             tx,
             batch: Vec::with_capacity(BATCH),
             ordinals: HashMap::new(),
@@ -252,7 +203,6 @@ impl Tap {
             rows_opened: 0,
             rows_closed: 0,
             rows_dropped: 0,
-            acks: 0,
         }
     }
 
@@ -311,22 +261,6 @@ impl Tap {
         if outcome == LocateOutcome::Ok {
             self.pending_bytes = usize_to_u32(byte_len);
         }
-    }
-
-    /// The hook `FrameOut` calls when the peer has acknowledged the frame being served.
-    /// Captures the current frame identity, so it must be taken after `begin_frame`.
-    pub(crate) fn ack_hook(&self) -> AckHook {
-        let inbox = Arc::clone(&self.inbox);
-        let (session_id, frame_index, ask_ordinal) =
-            (self.session_id, self.frame_index, self.ask_ordinal);
-        Some(Box::new(move |elapsed: Duration| {
-            inbox.deliver(AckRecord {
-                session_id,
-                frame_index,
-                ask_ordinal,
-                ack_us: elapsed.as_micros().min(u32::MAX as u128) as u32,
-            });
-        }))
     }
 
     pub(crate) fn emit_sent(&mut self, envelope_len: usize) {
@@ -390,7 +324,6 @@ impl Tap {
             send_us,
             serve_us,
             overhead_us,
-            ack_us: None,
             server_bytes_sent: self.pending_bytes,
             locate_outcome: self.pending_locate,
             write_outcome: write_outcome as u8,
@@ -407,20 +340,7 @@ impl Tap {
             WriteOutcome::Refused => self.refused = self.refused.saturating_add(1),
             WriteOutcome::WriteErr => {}
         }
-        self.drain_inbox();
         self.push(Record::Frame(row));
-    }
-
-    /// Acks that arrived since the last emit ride this batch.
-    fn drain_inbox(&mut self) {
-        let acks: Vec<AckRecord> = match self.inbox.pending.lock() {
-            Ok(mut p) => p.drain(..).collect(),
-            Err(_) => Vec::new(),
-        };
-        for a in acks {
-            self.acks = self.acks.saturating_add(1);
-            self.push(Record::Ack(a));
-        }
     }
 
     fn push(&mut self, rec: Record) {
@@ -471,16 +391,12 @@ impl Tap {
             rows_opened: self.rows_opened,
             rows_closed: self.rows_closed,
             rows_dropped: self.rows_dropped,
-            acks: self.acks,
         }
     }
 }
 
 impl Drop for Tap {
     fn drop(&mut self) {
-        // Late acks go straight to the sink from here on.
-        self.inbox.closed.store(true, Ordering::Release);
-        self.drain_inbox();
         // The session row is the last thing the session says; counters are final once the
         // batch before it is accounted for.
         self.flush_batch();
@@ -577,7 +493,6 @@ mod tests {
             send_us: send,
             serve_us: serve,
             overhead_us: overhead,
-            ack_us: None,
             server_bytes_sent: 100,
             locate_outcome: 0,
             write_outcome: 0,
@@ -864,54 +779,6 @@ mod tests {
         assert_eq!(rows[0].dropped_since_last as usize, BATCH);
     }
 
-    /// Acks left in the inbox ride the next batch and are counted on the session.
-    #[test]
-    fn ack_hook_delivers_into_next_batch() {
-        let (mut t, rx) = test_tap_with_channel(4);
-        t.begin_frame(11);
-        let hook = t.ack_hook().expect("lab hook");
-        t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 8);
-        t.boundary_locate_done();
-        t.emit_sent(12);
-        hook(Duration::from_micros(272_000));
-        serve_frame(&mut t, 12, 8);
-        t.flush_batch();
-        let records = drain_all(&rx);
-        let acks: Vec<AckRecord> = records
-            .iter()
-            .filter_map(|r| match r {
-                Record::Ack(a) => Some(*a),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(acks.len(), 1);
-        assert_eq!((acks[0].frame_index, acks[0].ask_ordinal, acks[0].ack_us), (11, 0, 272_000));
-        assert_eq!(t.acks, 1);
-        // Frame row first, ack after it (it arrived after that row's emit).
-        let pos_frame = records.iter().position(|r| matches!(r, Record::Frame(f) if f.frame_index == 11));
-        let pos_ack = records.iter().position(|r| matches!(r, Record::Ack(_)));
-        assert!(pos_frame < pos_ack);
-    }
-
-    /// After the Tap drops, a late ack goes straight to the sink instead of being lost.
-    #[test]
-    fn late_ack_after_drop_reaches_the_sink() {
-        let (mut t, rx) = test_tap_with_channel(4);
-        t.begin_frame(5);
-        let hook = t.ack_hook().expect("lab hook");
-        t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 8);
-        t.boundary_locate_done();
-        t.emit_sent(12);
-        drop(t);
-        let before: Vec<Record> = drain_all(&rx);
-        assert!(before.iter().any(|r| matches!(r, Record::Session(_))));
-        hook(Duration::from_micros(5));
-        let after = drain_all(&rx);
-        assert!(matches!(after.as_slice(), [Record::Ack(a)] if a.frame_index == 5));
-    }
-
     /// The session row is the last record of a session and carries its own integrity.
     #[test]
     fn drop_emits_session_row_last_with_counters() {
@@ -933,6 +800,7 @@ mod tests {
         assert_eq!(s.rows_dropped, 0);
         assert!(s.t_close_us >= s.t_open_us);
         assert_eq!(frames(&records).len(), 3);
+        assert!(records.iter().all(|r| matches!(r, Record::Frame(_) | Record::Session(_))));
     }
 
     #[test]

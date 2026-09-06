@@ -13,10 +13,9 @@
 
 use super::rows;
 use super::tap::{
-    run_meta, AckRecord, FrameRecord, Record, RunMeta, SessionRecord, BATCH, DROP_TOTAL,
-    RING_CAP, ROWS_CLOSED, ROWS_OPENED, SESSIONS_SEEN, SESSIONS_STARTED,
+    run_meta, FrameRecord, Record, RunMeta, SessionRecord, BATCH, DROP_TOTAL, RING_CAP,
+    ROWS_CLOSED, ROWS_OPENED, SESSIONS_SEEN, SESSIONS_STARTED,
 };
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
@@ -30,7 +29,7 @@ pub(super) const INLINE_CAP_DEFAULT: u64 = 1_000_000;
 pub(super) struct TelemetryReport {
     pub schema: &'static str,
     pub summary: RunSummary,
-    /// Frame rows, with `ack_us` merged in — empty above the inline cap and in timer rewrites.
+    /// Frame rows — empty above the inline cap and in timer rewrites.
     pub server_frames: Vec<FrameRecord>,
     pub server_sessions: Vec<SessionRecord>,
     /// Row file beside this report: every row, exact, whatever `server_frames` holds.
@@ -45,7 +44,7 @@ pub(super) struct RunEndMeta {
     pub event: &'static str,
     /// Frame rows recorded.
     pub written_records: u64,
-    /// Records in the row file (frames + acks + sessions).
+    /// Records in the row file (frames + sessions).
     pub rows_in_file: u64,
     pub frames_inlined: bool,
     /// Process-wide ring drops since process start (not per-run).
@@ -75,7 +74,6 @@ pub(super) struct RunSummary {
     pub run: Option<RunMeta>,
     pub frame_count: u32,
     pub sessions: u64,
-    pub acks: u64,
     pub percentile_method: &'static str,
     pub totals: SummaryTotals,
     /// Absent when no sample — JSON `null`, never a zero-filled stats object.
@@ -84,7 +82,6 @@ pub(super) struct RunSummary {
     pub send_us: Option<DistributionStats>,
     pub serve_us: Option<DistributionStats>,
     pub overhead_us: Option<DistributionStats>,
-    pub ack_us: Option<DistributionStats>,
     pub server_bytes_sent: Option<DistributionStats>,
     pub integrity: IntegrityBlock,
 }
@@ -96,7 +93,6 @@ pub(super) struct SummaryTotals {
     pub send_us: u64,
     pub serve_us: u64,
     pub overhead_us: u64,
-    pub ack_us: u64,
     pub server_bytes_sent: u64,
 }
 
@@ -124,7 +120,6 @@ pub(super) struct RunAccumulator {
     send: Vec<u32>,
     serve: Vec<u32>,
     overhead: Vec<u32>,
-    ack: Vec<u32>,
     bytes: Vec<u32>,
 }
 
@@ -140,16 +135,9 @@ impl RunAccumulator {
         if let Some(us) = row.send_us {
             self.send.push(us);
         }
-        if let Some(us) = row.ack_us {
-            self.ack.push(us);
-        }
         self.serve.push(row.serve_us);
         self.overhead.push(row.overhead_us);
         self.bytes.push(row.server_bytes_sent);
-    }
-
-    pub(super) fn push_ack(&mut self, ack_us: u32) {
-        self.ack.push(ack_us);
     }
 
     pub(super) fn build_summary(&self) -> RunSummary {
@@ -158,7 +146,6 @@ impl RunAccumulator {
             run: run_meta(),
             frame_count: self.serve.len() as u32,
             sessions: 0,
-            acks: self.ack.len() as u64,
             percentile_method: METHOD_EXACT,
             totals: SummaryTotals {
                 prepare_us: sum(&self.prepare),
@@ -166,7 +153,6 @@ impl RunAccumulator {
                 send_us: sum(&self.send),
                 serve_us: sum(&self.serve),
                 overhead_us: sum(&self.overhead),
-                ack_us: sum(&self.ack),
                 server_bytes_sent: sum(&self.bytes),
             },
             prepare_us: distribution_stats(&self.prepare),
@@ -174,7 +160,6 @@ impl RunAccumulator {
             send_us: distribution_stats(&self.send),
             serve_us: distribution_stats(&self.serve),
             overhead_us: distribution_stats(&self.overhead),
-            ack_us: distribution_stats(&self.ack),
             server_bytes_sent: distribution_stats(&self.bytes),
             integrity: IntegrityBlock::default(),
         }
@@ -318,7 +303,7 @@ impl Hist {
     }
 }
 
-/// Everything the drain keeps in memory while rows stream past: seven histograms, counters,
+/// Everything the drain keeps in memory while rows stream past: six histograms, counters,
 /// and the (small) list of session rows.
 pub(super) struct LiveSummary {
     prepare: Hist,
@@ -326,10 +311,8 @@ pub(super) struct LiveSummary {
     send: Hist,
     serve: Hist,
     overhead: Hist,
-    ack: Hist,
     bytes: Hist,
     pub(super) frames: u64,
-    pub(super) acks: u64,
     pub(super) records: u64,
     pub(super) sessions: Vec<SessionRecord>,
 }
@@ -342,10 +325,8 @@ impl LiveSummary {
             send: Hist::new(),
             serve: Hist::new(),
             overhead: Hist::new(),
-            ack: Hist::new(),
             bytes: Hist::new(),
             frames: 0,
-            acks: 0,
             records: 0,
             sessions: Vec::new(),
         }
@@ -369,10 +350,6 @@ impl LiveSummary {
                 self.overhead.record(f.overhead_us);
                 self.bytes.record(f.server_bytes_sent);
             }
-            Record::Ack(a) => {
-                self.acks += 1;
-                self.ack.record(a.ack_us);
-            }
             Record::Session(s) => self.sessions.push(*s),
         }
     }
@@ -382,7 +359,6 @@ impl LiveSummary {
             run: run_meta(),
             frame_count: self.frames.min(u32::MAX as u64) as u32,
             sessions: self.sessions.len() as u64,
-            acks: self.acks,
             percentile_method: METHOD_HIST,
             totals: SummaryTotals {
                 prepare_us: self.prepare.sum,
@@ -390,7 +366,6 @@ impl LiveSummary {
                 send_us: self.send.sum,
                 serve_us: self.serve.sum,
                 overhead_us: self.overhead.sum,
-                ack_us: self.ack.sum,
                 server_bytes_sent: self.bytes.sum,
             },
             prepare_us: self.prepare.dist(),
@@ -398,7 +373,6 @@ impl LiveSummary {
             send_us: self.send.dist(),
             serve_us: self.serve.dist(),
             overhead_us: self.overhead.dist(),
-            ack_us: self.ack.dist(),
             server_bytes_sent: self.bytes.dist(),
             integrity: IntegrityBlock::default(),
         }
@@ -472,11 +446,9 @@ pub(super) fn final_report(
     report
 }
 
-/// Exact report from a row file. Frames are inlined only when asked (`inline`), with each
-/// frame's `ack_us` merged from its ack record by (session, frame, ordinal).
+/// Exact report from a row file. Frames are inlined only when asked (`inline`).
 pub(super) fn exact_report_from_rows(rows_path: &Path, inline: bool) -> std::io::Result<TelemetryReport> {
     let mut frames: Vec<FrameRecord> = Vec::new();
-    let mut acks: HashMap<(u64, u32, u32), AckRecord> = HashMap::new();
     let mut sessions: Vec<SessionRecord> = Vec::new();
     let mut acc = RunAccumulator::default();
     let mut records = 0u64;
@@ -491,21 +463,10 @@ pub(super) fn exact_report_from_rows(rows_path: &Path, inline: bool) -> std::io:
                     frames.push(f);
                 }
             }
-            Record::Ack(a) => {
-                acks.insert((a.session_id, a.frame_index, a.ask_ordinal), a);
-            }
             Record::Session(s) => sessions.push(s),
         }
     }
-    for a in acks.values() {
-        acc.push_ack(a.ack_us);
-    }
     if inline {
-        for f in &mut frames {
-            if let Some(a) = acks.get(&(f.session_id, f.frame_index, f.ask_ordinal)) {
-                f.ack_us = Some(a.ack_us);
-            }
-        }
         frames.sort_by_key(|f| (f.session_id, f.t_ask_us, f.frame_index, f.ask_ordinal));
     }
     sessions.sort_by_key(|s| s.session_id);

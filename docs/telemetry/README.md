@@ -29,7 +29,6 @@ Completed tracks (stubs): [`plan-client-telemetry.md`](plan-client-telemetry.md)
 | `send_us` | media `write_all` |
 | `serve_us` | ask → row emit (total) |
 | `overhead_us` | residual (`serve − prepare − locate − send`) |
-| `ack_us` | last byte accepted by the send buffer → peer acknowledged every byte of the stream. **Per-frame mode only**; `null` in shared mode. Delivery to the peer's transport, not the app (ACK delay applies). Not evidence in the stream-mode question |
 
 Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (absent stages count as 0).
 Refused rows export absent stages as JSON `null`.
@@ -44,7 +43,13 @@ above it the summary comes from log-linear histograms (`summary.percentile_metho
 `exact-server --telemetry-report telemetry-server.rows` rebuilds the full exact JSON offline.
 
 `server_sessions[]`: one row per session (`t_open_us`, `t_close_us`, `frames`, `bytes`,
-`refused`, `acks`, and the session's own `rows_opened` / `rows_closed` / `rows_dropped`).
+`refused`, and the session's own `rows_opened` / `rows_closed` / `rows_dropped`).
+
+**Suggestion, not built:** a server-observed delivery stage `ack_us` (last byte → peer
+acknowledged the per-frame stream, from the `finish().await` the ack task already runs). It was
+implemented, measured, and withdrawn on 2026-09-06 to keep the product story untouched; the
+low-surface shape and the numbers are in
+[`analysis-scale-and-serving-path-2026-09-06.md`](analysis-scale-and-serving-path-2026-09-06.md) §2.4.
 `WTPACS_TELEMETRY_SAMPLE=K` records one session in K (default every session); unsampled
 sessions cost one branch per frame. Rows travel to the drain in batches of 64 on an owned
 sender — no lock and no drain wake per row; a full ring drops a batch and says so.
@@ -176,7 +181,7 @@ open track, and it does not reopen either seam.
 | Server app seam | `server/src/transport/pipeline.rs` (`FramePipeline`, `ProductPipeline`) |
 | Server lab wrapper | `server/src/transport/pipeline.rs` (`RecordedPipeline`) |
 | Server wire out | `server/src/transport/frame_out.rs` |
-| Server Tap (hot path, batches, ack inbox) | `server/src/record/tap.rs` |
+| Server Tap (hot path, batches) | `server/src/record/tap.rs` |
 | Server sink (row file, timer, drain) | `server/src/record/sink.rs` |
 | Server report (exact + histogram, offline) | `server/src/record/report.rs`, `rows.rs` |
 | E2e harvest | `server/scripts/verify_e2e.py` |

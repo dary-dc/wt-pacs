@@ -121,17 +121,12 @@ if tel=="1":
         # schema server-pipeline-v1 (serve_us / send_us, may be null) or the pre-v1 names
         serve=s.get("serve_us") or s.get("server_serve_us") or {}
         send=s.get("send_us") or s.get("server_write_us") or {}
-        ack=s.get("ack_us") or {}
         run_end=r.get("run_end",{})
         rows_file=os.path.join(d, r["rows_file"]) if r.get("rows_file") else None
         row["report"]={
           "schema":r.get("schema","pre-v1"),
           "percentile_method":s.get("percentile_method"),
           "sessions":s.get("sessions"),
-          "acks":s.get("acks"),
-          "ack_p50_us":ack.get("p50"),
-          "ack_p95_us":ack.get("p95"),
-          "ack_p99_us":ack.get("p99"),
           "rows_file_bytes":os.path.getsize(rows_file) if rows_file and os.path.exists(rows_file) else None,
           "frame_count":s["frame_count"],
           "dropped_records":run_end.get("dropped_records", run_end.get("dropped_records_process_total")),

@@ -7,7 +7,7 @@
 //! Layout: 16-byte header (`WTPR`, u16 version, u16 record size, u64 reserved) then records.
 //! Record: `tag: u8`, `flags: u8`, `pad: u16`, then tag-specific fields, little-endian.
 
-use super::tap::{AckRecord, FrameRecord, Record, SessionRecord};
+use super::tap::{FrameRecord, Record, SessionRecord};
 use std::fs::File;
 use std::io::{BufReader, Read, Result as IoResult};
 use std::path::Path;
@@ -18,7 +18,7 @@ pub(super) const RECORD_BYTES: usize = 64;
 pub(super) const HEADER_BYTES: usize = 16;
 
 const TAG_FRAME: u8 = 1;
-const TAG_ACK: u8 = 2;
+/// Tag 2 is reserved (a withdrawn per-frame acknowledgement record); readers skip it.
 const TAG_SESSION: u8 = 3;
 
 const FLAG_PREPARE: u8 = 1;
@@ -115,15 +115,6 @@ pub(super) fn encode(record: &Record) -> [u8; RECORD_BYTES] {
             w.u8(f.write_outcome);
             w.u16(f.dropped_since_last);
         }
-        Record::Ack(a) => {
-            w.u8(TAG_ACK);
-            w.u8(0);
-            w.u16(0);
-            w.u64(a.session_id);
-            w.u32(a.frame_index);
-            w.u32(a.ask_ordinal);
-            w.u32(a.ack_us);
-        }
         Record::Session(s) => {
             w.u8(TAG_SESSION);
             w.u8(0);
@@ -137,7 +128,6 @@ pub(super) fn encode(record: &Record) -> [u8; RECORD_BYTES] {
             w.u32(s.rows_opened);
             w.u32(s.rows_closed);
             w.u32(s.rows_dropped);
-            w.u32(s.acks);
         }
     }
     buf
@@ -178,19 +168,12 @@ pub(super) fn decode(buf: &[u8; RECORD_BYTES]) -> Option<Record> {
                 send_us: (flags & FLAG_SEND != 0).then_some(send),
                 serve_us,
                 overhead_us,
-                ack_us: None,
                 server_bytes_sent,
                 locate_outcome,
                 write_outcome,
                 dropped_since_last,
             }))
         }
-        TAG_ACK => Some(Record::Ack(AckRecord {
-            session_id: r.u64(),
-            frame_index: r.u32(),
-            ask_ordinal: r.u32(),
-            ack_us: r.u32(),
-        })),
         TAG_SESSION => Some(Record::Session(SessionRecord {
             kind: "server_session",
             session_id: r.u64(),
@@ -202,7 +185,6 @@ pub(super) fn decode(buf: &[u8; RECORD_BYTES]) -> Option<Record> {
             rows_opened: r.u32(),
             rows_closed: r.u32(),
             rows_dropped: r.u32(),
-            acks: r.u32(),
         })),
         _ => None,
     }
@@ -270,7 +252,6 @@ mod tests {
             send_us: Some(0),
             serve_us: 55,
             overhead_us: 45,
-            ack_us: None,
             server_bytes_sent: 250_004,
             locate_outcome: 1,
             write_outcome: 2,
@@ -290,16 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn ack_and_session_round_trip() {
-        let a = Record::Ack(AckRecord {
-            session_id: 3,
-            frame_index: 4,
-            ask_ordinal: 5,
-            ack_us: 272_000,
-        });
-        let Record::Ack(b) = decode(&encode(&a)).expect("ack") else { panic!("ack") };
-        assert_eq!((b.session_id, b.frame_index, b.ask_ordinal, b.ack_us), (3, 4, 5, 272_000));
-
+    fn session_round_trip() {
         let s = Record::Session(SessionRecord {
             kind: "server_session",
             session_id: 3,
@@ -311,13 +283,12 @@ mod tests {
             rows_opened: 21,
             rows_closed: 21,
             rows_dropped: 0,
-            acks: 19,
         });
         let Record::Session(t) = decode(&encode(&s)).expect("session") else { panic!("session") };
         assert_eq!(t.frames, 20);
         assert_eq!(t.bytes, 1_000_000);
         assert_eq!(t.t_close_us, 200_000);
-        assert_eq!(t.acks, 19);
+        assert_eq!(t.rows_opened, 21);
     }
 
     #[test]
@@ -338,12 +309,18 @@ mod tests {
             use std::io::Write;
             let mut f = File::create(&path).expect("create");
             f.write_all(&header()).expect("header");
-            for i in 0..3u32 {
-                f.write_all(&encode(&Record::Ack(AckRecord {
-                    session_id: 1,
-                    frame_index: i,
-                    ask_ordinal: 0,
-                    ack_us: i * 10,
+            for i in 0..3u64 {
+                f.write_all(&encode(&Record::Session(SessionRecord {
+                    kind: "server_session",
+                    session_id: i,
+                    t_open_us: 0,
+                    t_close_us: 10,
+                    frames: 1,
+                    bytes: 1,
+                    refused: 0,
+                    rows_opened: 1,
+                    rows_closed: 1,
+                    rows_dropped: 0,
                 })))
                 .expect("record");
             }
