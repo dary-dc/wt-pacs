@@ -1,0 +1,20 @@
+server VmRSS over one 20 s saturate session (D=4, frames_32k, localhost); telemetry build
+label   mode         t_s  vmrss_kb  served
+before  per-frame    0.0      7216       0
+before  per-frame    4.2     13916    7168
+before  per-frame    8.4     17724   14272
+before  per-frame   12.6     21572   21376
+before  per-frame   16.8     25416   28544
+before  per-frame    end     30768   35044   vmhwm_kb=33456
+before  shared       0.0      7184       0
+before  shared       4.2     10136    7424
+before  shared       8.4     10192   14784
+before  shared      12.6     10216   22080
+before  shared      16.8     10240   29504
+before  shared       end     12768   36225   vmhwm_kb=15356
+after   per-frame    0.0      6748       0
+after   per-frame    4.2     10000    7168
+after   per-frame    8.4     10020   14336
+after   per-frame   12.6     10048   21568
+after   per-frame   16.8     10056   28736
+after   per-frame    end     12544   35474   vmhwm_kb=15344
