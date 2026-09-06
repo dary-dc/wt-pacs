@@ -47,7 +47,7 @@ enum Arm {
     /// **The S5 control.** `hybrid`'s loop with `pool`'s miss mechanism: one task holding
     /// `depth` slots, `RWF_NOWAIT` inline, `spawn_blocking` — not a ring — for the
     /// shortfall. Its delta against `pool` is reader-loop shape alone; `hybrid` minus this
-    /// is what io_uring is actually worth. See `docs/disk-access/S5-CONTROL-ARM.md`.
+    /// is what io_uring is actually worth. See `docs/disk-access/EVIDENCE.md`.
     PoolRingLoop,
     /// **The synthesis S5 points at.** `hybrid`, but the ring is built on the *first miss*
     /// rather than at session start. A session whose reads all hit never constructs one, so

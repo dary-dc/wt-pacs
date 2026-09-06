@@ -49,7 +49,7 @@ separate.
 
 ---
 
-## Cell 1 — Arm comparison · [`v2_arms_multi.tsv`](v2_arms_multi.tsv) · [`v2_arms_current.tsv`](v2_arms_current.tsv)
+## Cell 1 — Arm comparison · `v2_arms_multi.tsv` (archived: `git show a330783:docs/disk-access/v2_arms_multi.tsv`) · `v2_arms_current.tsv` (archived: `git show a330783:docs/disk-access/v2_arms_current.tsv`)
 
 ```bash
 ./target/release/disk-access-bench --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
@@ -90,7 +90,7 @@ what the runtime decides — and the product's runtime is the expensive one.
 
 ---
 
-## Cell 2 — Memory pressure · [`c1_mempressure_multi.tsv`](c1_mempressure_multi.tsv) · [`c1_mempressure_current.tsv`](c1_mempressure_current.tsv)
+## Cell 2 — Memory pressure · [`c1_mempressure_multi.tsv`](c1_mempressure_multi.tsv) · `c1_mempressure_current.tsv` (archived: `git show a330783:docs/disk-access/c1_mempressure_current.tsv`)
 
 ```bash
 lab/scripts/run_disk_access_mempressure.sh 48M -- \
@@ -120,7 +120,7 @@ worst case of any arm measured.
 
 ---
 
-## Cell 3 — Neighbour safety · [`c2_multisession_bg-same.tsv`](c2_multisession_bg-same.tsv) · [`c2_multisession_bg-always-touch.tsv`](c2_multisession_bg-always-touch.tsv)
+## Cell 3 — Neighbour safety · `c2_multisession_bg-same.tsv` (archived: `git show a330783:docs/disk-access/c2_multisession_bg-same.tsv`) · `c2_multisession_bg-always-touch.tsv` (archived: `git show a330783:docs/disk-access/c2_multisession_bg-always-touch.tsv`)
 
 4 background sessions + 1 primary on 4 workers, 400 asks each. Median of 5, cold primary,
 **lead with other p99**:
@@ -142,7 +142,7 @@ rescues tasks off the faulting worker. Naive is still rejected; the reason is `g
 The all-sessions column is the one the previous ADR never ran. When neighbours pay the hop
 too, always-touch goes from "keeps neighbours near baseline" to the worst safe arm.
 
-## Cell 4 — Pressure *and* all sessions · [`c4_pressure_allsessions.tsv`](c4_pressure_allsessions.tsv)
+## Cell 4 — Pressure *and* all sessions · `c4_pressure_allsessions.tsv` (archived: `git show a330783:docs/disk-access/c4_pressure_allsessions.tsv`)
 
 128 MiB cgroup, 4 background sessions on the arm under test + cold primary — the closest
 cell to production. Median of 5:
@@ -155,7 +155,7 @@ cell to production. Median of 5:
 | pread_blocking_pooled | 467 µs | 953 µs | 1252 µs |
 | **pread_nowait_chunked** | **152 µs** | **166 µs** | **613 µs** |
 
-## Cell 5 — Non-sequential traces · [`v3_traces_multi.tsv`](v3_traces_multi.tsv)
+## Cell 5 — Non-sequential traces · `v3_traces_multi.tsv` (archived: `git show a330783:docs/disk-access/v3_traces_multi.tsv`)
 
 The nowait arm's low cold hop count comes from read-ahead, so it has to be shown on traces
 that defeat read-ahead. Cold, median of 5:
@@ -185,7 +185,7 @@ naive, because a strawman io_uring arm would prove nothing.
 
 | io_uring strength | Available here? |
 | --- | --- |
-| Deep queues, batched submission | **Barely — *as the server is written today*.** The session loop sends one frame to completion before reading the next ask, so queue depth is 1 and the only batch inside an ask is the frame's own four windows, which `uring_tuned` submits together. ⚠️ The client keeps `D` asks outstanding (`docs/adr-client-window-depth.md`); depth 1 at the disk is the server flattening that window, not a property of the workload. At depth ≥ 2 the ring costs 1.8–4× less CPU per ask on cold reads — see [`DEPTH.md`](DEPTH.md) |
+| Deep queues, batched submission | **Barely — *as the server is written today*.** The session loop sends one frame to completion before reading the next ask, so queue depth is 1 and the only batch inside an ask is the frame's own four windows, which `uring_tuned` submits together. ⚠️ The client keeps `D` asks outstanding (`docs/adr-client-window-depth.md`); depth 1 at the disk is the server flattening that window, not a property of the workload. At depth ≥ 2 the ring costs 1.8–4× less CPU per ask on cold reads — see `DEPTH.md` (archived: `git show a330783:docs/disk-access/DEPTH.md`) |
 | No thread pool for blocking I/O | **Yes** — this is the real opportunity, on the miss |
 | Registered files / fixed buffers | **Yes** — used by every tuned arm |
 | `SINGLE_ISSUER`, `DEFER_TASKRUN` | **No.** Tokio's multi-thread runtime resumes a task on whichever worker steals it, so a per-session ring is submitted from different threads. The kernel answers `EEXIST`; `uring_access.rs` has a test that pins this down rather than citing documentation. These are io_uring's two biggest knobs and a work-stealing runtime cannot have them |
@@ -197,7 +197,7 @@ blocking in `io_uring_enter` would reintroduce the exact executor stall this ADR
 That eventfd costs one extra `read` per *parked* completion, and parks are rare (0 warm,
 4 of 1280 window reads on a cold sequential pass), so it is not what limits these arms.
 
-### Arms · [`v4_uring_arms.tsv`](v4_uring_arms.tsv) · [`v4_uring_hybrid.tsv`](v4_uring_hybrid.tsv)
+### Arms · `v4_uring_arms.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_arms.tsv`) · `v4_uring_hybrid.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_hybrid.tsv`)
 
 Warm, 9 interleaved repeats, `--monitors 0`. `pread_nowait_chunked` appears in both cells at
 84.9 and 84.7 µs, which is what makes them comparable:
@@ -223,7 +223,7 @@ overlap built on `spawn_blocking` is the worst arm in the campaign, and in the m
 cell it reached **28–30 OS threads** and a 1.35 ms neighbour p99 by paying four pool hops
 per frame instead of one. Pipelining is only viable through a ring.
 
-### SQPOLL · [`v4_uring_sqpoll.tsv`](v4_uring_sqpoll.tsv)
+### SQPOLL · `v4_uring_sqpoll.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_sqpoll.tsv`)
 
 | Arm | Warm p50 | CPU/ask | Parked completions |
 | --- | ---: | ---: | ---: |
@@ -236,7 +236,7 @@ completes inline any more, so every read parks on the eventfd, and the `iou-sqp`
 spin is charged to the process. (`COOP_TASKRUN` is rejected alongside `SQPOLL` with
 `EINVAL` — with a kernel submitter there is no task work to defer.)
 
-### Neighbours · [`v4_uring_multisession.tsv`](v4_uring_multisession.tsv)
+### Neighbours · `v4_uring_multisession.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_multisession.tsv`)
 
 Five sessions, all on the arm under test, cold primary. Median of 5:
 
@@ -253,10 +253,10 @@ Five per-session rings did not multiply io-wq workers — the io_uring arms hold
 at 5. But so does the accepted path, for a simpler reason: it almost never hops.
 
 The hybrid was run in the same shape separately
-([`v4_uring_hybrid_multisession.tsv`](v4_uring_hybrid_multisession.tsv)): cold other p99
+(`v4_uring_hybrid_multisession.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_hybrid_multisession.tsv`)): cold other p99
 169.3 µs against the accepted path's 163.3 µs in that cell — a tie on neighbours too.
 
-### Where the reads all miss · [`v4_uring_miss.tsv`](v4_uring_miss.tsv)
+### Where the reads all miss · `v4_uring_miss.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_miss.tsv`)
 
 Cold random and cold reverse, median of 5 — the cell behind the ADR's parked-completion
 claim. `hop_count` is parked completions for the io_uring arms:
@@ -280,8 +280,8 @@ on its own.
 Cold cells first appeared to favour io_uring — 34% lower CPU and a 6.5× better p99. Both
 evaporated under an order control. Arms run round-robin, so each takes a turn creating its
 own 80 MB cold copy; re-running with the arm order reversed moved the penalty rather than
-keeping it with the arm ([`v4_order_control_forward_nowait_first.tsv`](v4_order_control_forward_nowait_first.tsv) ·
-[`v4_order_control_forward_uring_first.tsv`](v4_order_control_forward_uring_first.tsv), 25 repeats each):
+keeping it with the arm (`v4_order_control_forward_nowait_first.tsv` (archived: `git show a330783:docs/disk-access/v4_order_control_forward_nowait_first.tsv`) ·
+`v4_order_control_forward_uring_first.tsv` (archived: `git show a330783:docs/disk-access/v4_order_control_forward_uring_first.tsv`), 25 repeats each):
 
 | Arm | CPU/ask, listed first | CPU/ask, listed last |
 | --- | ---: | ---: |
@@ -294,8 +294,8 @@ everything. Any cold ranking here, in either direction, is noise.
 
 The one cold claim that did survive the control is the 100%-miss trace, where every arm does
 the same disk work and the mechanism is all that is left
-([`v4_order_control_reverse_nowait_first.tsv`](v4_order_control_reverse_nowait_first.tsv) ·
-[`v4_order_control_reverse_uring_first.tsv`](v4_order_control_reverse_uring_first.tsv), 9 repeats each,
+(`v4_order_control_reverse_nowait_first.tsv` (archived: `git show a330783:docs/disk-access/v4_order_control_reverse_nowait_first.tsv`) ·
+`v4_order_control_reverse_uring_first.tsv` (archived: `git show a330783:docs/disk-access/v4_order_control_reverse_uring_first.tsv`), 9 repeats each,
 cold reverse):
 
 | Arm | p50, order A | p50, order B |
@@ -309,7 +309,7 @@ on the warm path, which is the path a server spends its life on.
 
 ### Verdict
 
-**Scope correction (2026-09-05):** every cell below is depth 1. [`DEPTH.md`](DEPTH.md) shows
+**Scope correction (2026-09-05):** every cell below is depth 1. `DEPTH.md` (archived: `git show a330783:docs/disk-access/DEPTH.md`) shows
 the verdict holds only there — at 2 or more reads in flight io_uring costs 1.8–4× less CPU
 per ask on cold reads and keeps thread count flat, while `pread` keeps its 4× advantage on
 page-cache hits. Read what follows as "at one read in flight".
@@ -320,7 +320,7 @@ win — is either unresolvable on this host or worth single-digit percent. Again
 ring, an eventfd and registered buffers per session, a dependency, and the loss of
 `SINGLE_ISSUER`/`DEFER_TASKRUN`.
 
-Two conditions would make it worth revisiting, and both are in [`later.md`](later.md):
+Two conditions would make it worth revisiting, and both are in `later.md` (archived: `git show a330783:docs/disk-access/later.md`):
 
 1. **A thread-per-core runtime.** Pinning sessions to cores unlocks `SINGLE_ISSUER` +
    `DEFER_TASKRUN` and removes the eventfd. That is a server-wide architecture change, not
@@ -335,7 +335,7 @@ Two conditions would make it worth revisiting, and both are in [`later.md`](late
 ## Precision — what this instrument can separate
 
 Regenerate with `disk-access-bench --selftest`
-([`v5_instrument_selftest.txt`](v5_instrument_selftest.txt)):
+(`v5_instrument_selftest.txt` (archived: `git show a330783:docs/disk-access/v5_instrument_selftest.txt`)):
 
 ```
 clock_getres(CLOCK_MONOTONIC)       = 1 ns
@@ -433,7 +433,7 @@ Applied to this campaign:
 The archived campaign ran on overlayfs, where this decision's fast path would not have
 existed. `FrameStore::open` probes once and `read_window` collapses to the whole frame when
 the answer is no, so such a host pays one pooled `pread` per frame rather than one per
-window. Checking the deployment filesystem is the first item in [`later.md`](later.md).
+window. Checking the deployment filesystem is the first item in `later.md` (archived: `git show a330783:docs/disk-access/later.md`).
 
 ## Limitations
 
@@ -450,8 +450,8 @@ window. Checking the deployment filesystem is the first item in [`later.md`](lat
   claim before believing it.**
 - **The gap monitor changes the numbers it is not measuring.** It is a spin loop, so it
   keeps a core busy and its absence lets the host drop frequency: the same warm arm reads
-  46.9 µs with one monitor ([`v4_uring_gaps.tsv`](v4_uring_gaps.tsv)) and 84.7 µs with none
-  ([`v4_uring_hybrid.tsv`](v4_uring_hybrid.tsv)). Both are internally consistent — compare
+  46.9 µs with one monitor (`v4_uring_gaps.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_gaps.tsv`)) and 84.7 µs with none
+  (`v4_uring_hybrid.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_hybrid.tsv`)). Both are internally consistent — compare
   arms *within* a cell, never across cells with different `--monitors`.
 - **The gap monitor is one task.** On four workers it can be stolen off a stalled worker, so
   `gap_max` under `--runtime multi` understates a stall. Cells 3 and 4 — real sessions on
@@ -471,12 +471,12 @@ window. Checking the deployment filesystem is the first item in [`later.md`](lat
   so the server could not be driven over the wire here. Wire compatibility is covered by
   unit tests asserting the streamed bytes equal the `wrap()` envelope they replaced.
   **Partly closed 2026-09-05:** `wire_send_bench` drives the send path over real quinn on
-  IPv4 loopback and prices it — see [`SEND-BUDGET.md`](SEND-BUDGET.md) §4. It measures the
+  IPv4 loopback and prices it — see `SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §4. It measures the
   sender, not delivery: no propagation delay, no loss, and client and server share the four
   cores.
 - **Every number here is a per-frame *total*, not an I/O latency.** What it is made of —
   54% kernel copy, 13% copy into the connection, 28% scheduler — is in
-  [`SEND-BUDGET.md`](SEND-BUDGET.md) §2. None of it is device time, which is why the
+  `SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §2. None of it is device time, which is why the
   io_uring cell below could not find anything to win.
 - Prior campaigns (`git show be78860:docs/disk-access/`) are superseded by this one — the
   instrument differences above are not reconcilable cell by cell. Do not cite them.

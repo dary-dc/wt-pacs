@@ -2,7 +2,7 @@
 
 **This document changes a premise the read-path recommendation was resting on.**
 
-[`READ-PATH-DECISION.md`](READ-PATH-DECISION.md) says the miss rate decides which read path
+`READ-PATH-DECISION.md` (archived: `git show a330783:docs/disk-access/READ-PATH-DECISION.md`) says the miss rate decides which read path
 wins, and assumes our deployment sits in the miss-dominated square because *"tens-of-GB
 studies on cloud storage, so most reads miss"*. That assumption was never measured — every
 miss rate in the campaign came from a synthetic stride against an 84 MB fixture.
@@ -252,7 +252,7 @@ starting brief — with a quantified cliff to stay on the right side of, and a t
 ## 6. Review
 
 These results were attacked before publication, on the same terms as the campaign in
-[`READ-PATH-DECISION.md`](READ-PATH-DECISION.md) §Review: a written list of claims, the raw
+`READ-PATH-DECISION.md` (archived: `git show a330783:docs/disk-access/READ-PATH-DECISION.md`) §Review: a written list of claims, the raw
 data, the harness source, and a brief to break them. Three claims did not survive intact.
 
 | Claim as first written | What the attack showed | Corrected to |
@@ -296,7 +296,7 @@ Two findings that change nothing here but are traps for the next run:
   the `spawn_blocking` hop tax (median 34 µs) is an equally load-bearing constant that has not
   been measured anywhere else. `lab/scripts/run_read_campaign_cloud.sh` and
   `lab/scripts/compare_hosts.py` exist to close that and have not yet been run — see
-  [`SCOREBOARD.md`](SCOREBOARD.md) §R1.
+  `SCOREBOARD.md` (archived: `git show a330783:docs/disk-access/SCOREBOARD.md`) §R1.
 * **Rung fractions are assumed.** `[0.06, 0.12, 0.25, 0.50, 1.00]` is the shape of a
   geometric resolution ladder, not a measurement of real HTJ2K codestreams. The *shape* is
   what the geometry depends on; exact values would shift read lengths, not the ranking.

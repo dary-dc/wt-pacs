@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Does the read-path conclusion survive a change of host?
 
-Threat R1 in `docs/disk-access/SCOREBOARD.md`: every published number comes from one 4-vCPU
+Threat R1 in `docs/disk-access/EVIDENCE.md`: every published number comes from one 4-vCPU
 KVM guest, and that host's `spawn_blocking` round-trip cost is what generates the ring's
 advantage. This compares two campaign TSVs from different hosts and answers three questions
 in order:

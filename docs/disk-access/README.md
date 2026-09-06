@@ -1,81 +1,33 @@
-# Disk access
+# Disk access — how the server reads SBND frame bytes
 
-How the server brings SBND frame bytes in without freezing the Tokio executor.
+**Decided.** The read path is settled; what remains is implementing it.
 
 | Doc | What |
 | --- | --- |
-| **[`READ-PATH-DECISION.md`](READ-PATH-DECISION.md)** | **Start here.** Which read path for which case, from a 3 600-cell campaign over three independent runs. Supersedes the io_uring verdicts in the docs below |
-| **[`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md)** | **What actually makes a read miss.** Real client ask schedules through candidate layouts, plus cache pressure on a 4 GB study. Corrects the premise that study size drives the miss rate: **sequentiality does**, and the layout is worth ~10× more than the read path |
-| [`SCOREBOARD.md`](SCOREBOARD.md) | The measurement table behind the decision: four arms × five metrics × three regimes, plus a **claim-by-claim evidence grading**, the ranked threats to validity, and the proposed next studies with abort conditions |
-| [`adr.md`](adr.md) | Accepted decision (`RWF_NOWAIT` streaming; pool only on the miss) |
-| [`RERUN.md`](RERUN.md) | Evidence: instrument, cells, TSVs here, and what the instrument cannot see |
-| [`SEND-BUDGET.md`](SEND-BUDGET.md) | What the per-frame number is *made of*, per-op io_uring vs `preadv2`, the send path over real quinn, and the frame cache |
-| [`PREFIX-READS.md`](PREFIX-READS.md) | **Rung delivery strides the file and the fast path misses 319 of 320. Storing rungs contiguously puts it back to 3** |
-| [`DEPTH.md`](DEPTH.md) | First lift of the depth-1 assumption. Superseded by [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md), which crosses depth with miss rate and adds the hybrid |
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Read before shipping.** The fast path does not exist on overlayfs — i.e. inside a container — and the server degrades silently. `check-fastpath` answers it in one command |
-| [`RUN-ON-YOUR-HOST.md`](RUN-ON-YOUR-HOST.md) | Close risk **R1**: run the campaign on a second host and get HOLDS/WEAKENS/FLIPS. A local runbook, plus a one-click GitHub Actions workflow |
-| [`S5-CONTROL-ARM.md`](S5-CONTROL-ARM.md) | The next measurement: separates reader-loop shape from io_uring, before anyone buys a per-session ring (risk **R8**) |
-| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | How the decision becomes product code: the lazy ring, the container trap that must not be walked into, and why there is no tuning toggle |
-| [`later.md`](later.md) | Optional follow-ups only |
+| [`adr.md`](adr.md) | **The decision.** `RWF_NOWAIT` inline, `spawn_blocking` on the miss — and where it now stands against the campaign that followed |
+| [`EVIDENCE.md`](EVIDENCE.md) | **Every number the decision rests on**, in one file: candidates, hosts, risks, what was rejected and why |
+| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | How it becomes product code — the lazy ring, the container trap, why there is no tuning toggle |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Read before shipping.** The fast path does not exist on overlayfs, i.e. inside a container, and the server degrades silently. `check-fastpath` answers it in one command |
+| [`RERUN.md`](RERUN.md) | The instrument: what it can separate, and the precision rules every number obeys |
 
-**Serving rungs rather than whole frames?** Read [`PREFIX-READS.md`](PREFIX-READS.md) first —
-the ADR's hit rate is a property of reading frames whole and in order, and prefix delivery
-takes it away.
-
-**Reading a per-frame number for the first time?** Start with
-[`SEND-BUDGET.md`](SEND-BUDGET.md) §1. `later_p50` is one 250 KB frame, prepared and copied
-to the connection, on a page-cache hit — not a device I/O. Comparing it with a per-4 KiB
-NVMe latency is a category error, and in the citation's own unit this path reads 4 KiB in
-561 ns.
+The open question is **not** here — it is the disk layout, worth 17.6× against this path's
+2–4×: [`../disk-layout/`](../disk-layout/).
 
 ## The lab stays on the tip
 
-`lab/disk-access-bench` is a workspace member, not a git-history artifact. The 2026-08-31
-decision was wrong partly because re-running its harness meant restoring a crate from a
-named commit, and three defects in that harness went unnoticed for a campaign (see
-[`RERUN.md`](RERUN.md) §Instrument). Keeping it buildable is what let the 2026-09-04
-re-run find them.
-
-It also earns its place as a regression check: every arm reads through the product
-`FrameStore`, so the nowait arms time `read_at_nowait` / `read_at_blocking` as shipped
-rather than a lab copy of them.
+`lab/disk-access-bench` is a workspace member, not a git-history artifact, and
+`lab/scripts/{s5_split,compare_hosts,loop_shape_control}.py` re-derive the tables in
+[`EVIDENCE.md`](EVIDENCE.md). The 2026-08-31 decision was wrong partly because re-running its
+harness meant restoring a crate from a named commit, and three defects went unnoticed for a
+whole campaign as a result.
 
 ```bash
-./lab/scripts/gen_live_cell_fixture.sh          # 320 × 250 KB (~80 MB) primary fixture
-cargo build -p disk-access-bench --release
-./target/release/disk-access-bench --help
+NAME=frames_16k_big BYTES=16384 FRAMES=5120 ./lab/scripts/gen_live_cell_fixture.sh
+cargo build -p disk-access-bench -p check-fastpath --release
+./target/release/read_campaign --help
+./target/release/check-fastpath /path/to/studies
 ```
 
-`io-uring`, `quinn`, `rcgen` and `rustls` are dependencies of **this crate only** — the
-product links quinn through wtransport and does not link `io-uring` at all.
-
-Four more binaries live in the same crate:
-
-| Binary | What |
-| --- | --- |
-| `read_campaign` | The campaign behind [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md): arm × prefetch × in-flight × readers × temperature × access shape × ask size. Driven by `lab/scripts/run_read_campaign.sh`, analysed by `lab/scripts/analyze_read_campaign.py` |
-| `crossover_bench <study> [asks] [size] [stride] [repeats]` | Miss rate as a *controlled* variable — evict, then pre-warm a chosen fraction. `CROSSOVER_WARM` / `CROSSOVER_DEPTHS` narrow the sweep; `CROSSOVER_INLINE=1` reproduces the harness placement bug of §The harness disagreement |
-| `frame_budget <study> [ops\|uring\|ladder\|all] [monitors]` | Splits a frame into syscall, kernel copy, user copy and scheduler; prices one read op from 1 B to 250 KB against io_uring and `O_DIRECT`. Used by [`SEND-BUDGET.md`](SEND-BUDGET.md) |
-| `wire_send_bench <study> <mode> <frames> [repeats]` | The send path over real quinn on IPv4 loopback, client in its own process. Modes: `write_all` (product), `write_chunk`, `cache:<MB>` (product `FrameCache`), `preloaded` (ceiling). Used by [`SEND-BUDGET.md`](SEND-BUDGET.md) |
-
-`wire_send_bench` binds IPv4, so it runs where the product's `with_bind_default` (IPv6)
-cannot — which is how the campaign's "no live end-to-end run" gap got closed for the send
-path.
-
-Four flags decide whether a result means anything (see [`RERUN.md`](RERUN.md) §Precision):
-
-| Flag | Why |
-| --- | --- |
-| `--selftest` | Prints the instrument's resolution and overhead. Run it before quoting a number in the hundreds of nanoseconds |
-| `--samples <path>` | One row per ask, so percentiles pool across repeats and carry a bootstrap CI instead of resting on the 316th of 319 observations. Pool them with `lab/scripts/pool_samples_ci.py` |
-| `--monitors 0` | For CPU numbers. The gap monitor is a spin loop and changes the latency it is not measuring — the same warm arm reads 46.9 µs with one monitor and 84.7 µs with none |
-| reversed `--arm` order | Before believing any cold ranking. Arms take turns creating their own cold copy, and that alone produced a 34% "win" that reversed with the order |
-
-And one rule: re-running the same configuration moves a median, so a difference counts only
-if it beats that drift **and** reproduces with the same sign. The 7% figure quoted here
-before was measured on a handful of cells; across the 3 600-cell campaign the p50 drift is
-11% and the p90 is **28.5%**, which is the threshold
-[`READ-PATH-DECISION.md`](READ-PATH-DECISION.md) now applies.
-
-`lab/cold-page-bench` is the older E3 / one-pass-cold tool; it owns its own copy of the
-rejected pre-touch arm and is not part of this campaign.
+The raw artifacts kept here are the ones tooling depends on — `compare_hosts.py`'s baseline,
+the CI workflow's comparison, and the S5 split. The rest of the campaign's sixty-nine files
+are in git; [`EVIDENCE.md`](EVIDENCE.md) says where.

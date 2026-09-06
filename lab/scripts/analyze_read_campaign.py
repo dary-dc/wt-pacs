@@ -231,7 +231,7 @@ def section_scoreboard(rows):
 
     Latency (`dp50`) is reported for completeness but is only comparable in the `miss`
     regime: on the hit path the arms start their clocks at different points (see
-    READ-PATH-DECISION.md §Latency), which inflates the ring arms' warm p50.
+    EVIDENCE.md, and the archived READ-PATH-DECISION.md §Latency), which inflates the ring arms' warm p50.
     """
     cost = [r for r in rows if not r["phase"].startswith("E_")]
     by = defaultdict(dict)

@@ -1,4 +1,4 @@
-# Risk R1 (docs/disk-access/SCOREBOARD.md): every published read-path number comes from one
+# Risk R1 (docs/disk-access/EVIDENCE.md): every published read-path number comes from one
 # 4-vCPU KVM guest. Two constants of that host generate the result — a ~34 us
 # `spawn_blocking` round trip and an 8 MiB read-ahead window — and neither was shown to hold
 # anywhere else. This runs the same campaign on a GitHub-hosted runner, which is a genuinely

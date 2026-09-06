@@ -119,12 +119,12 @@ non-zero exit means the deployment is in the slow mode, whatever the manifest sa
 
 `check-fastpath` prints `read_ahead_kb` because it is not a footnote. The validation host
 ships **8192** (8 MiB) against Linux's **128 KiB** default, and that single knob moves every
-measured miss rate by 2–15× ([ACCESS-PATTERNS.md](ACCESS-PATTERNS.md) §4.1). Read-ahead is
+measured miss rate by 2–15× ([ACCESS-PATTERNS.md](../disk-layout/ACCESS-PATTERNS.md) §4.1). Read-ahead is
 what protects *sequential* access under cache pressure; a smaller window makes a
 sequential layout degrade much faster.
 
 If your host reports 128 and the published numbers matter to you, record that difference —
-it is one of the two constants behind risk **R1** in [SCOREBOARD.md](SCOREBOARD.md).
+it is one of the two constants behind risk **R1** in SCOREBOARD.md (archived: `git show a330783:docs/disk-access/SCOREBOARD.md`).
 
 ```bash
 cat /sys/block/<dev>/queue/read_ahead_kb          # read

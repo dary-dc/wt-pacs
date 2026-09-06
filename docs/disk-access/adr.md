@@ -2,7 +2,7 @@
 
 **Status:** Accepted · **2026-09-04** · Evidence: [`RERUN.md`](RERUN.md)
 **Amended 2026-09-05** with a bounded frame cache and a per-frame cost budget:
-[`SEND-BUDGET.md`](SEND-BUDGET.md)
+`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`)
 **Supersedes:** the 2026-08-31 always-touch decision (`git show be78860:docs/disk-access/adr.md`)
 
 > ### Standing as of 2026-09-06 — read this before acting on the decision below
@@ -13,16 +13,16 @@
 > Nothing here is withdrawn.
 >
 > **A better shape has since been measured, and it is conditional on one number.** The
-> read-path campaign ([`READ-PATH-DECISION.md`](READ-PATH-DECISION.md), four hosts, six runs)
+> read-path campaign (`READ-PATH-DECISION.md` (archived: `git show a330783:docs/disk-access/READ-PATH-DECISION.md`), four hosts, six runs)
 > finds io_uring on the *miss* path worth **−42% to −73% CPU per read, RESOLVED on every host
 > and every run**. The best shape is **`hybrid_lazyring`**: this ADR's path exactly, plus a
 > ring built on the *first miss* rather than at session start
-> ([`S5-CONTROL-ARM.md`](S5-CONTROL-ARM.md)). A session that never misses never builds one, so
+> (`S5-CONTROL-ARM.md` (archived: `git show a330783:docs/disk-access/S5-CONTROL-ARM.md`)). A session that never misses never builds one, so
 > it costs nothing on the warm workload this ADR is about.
 >
 > **The gate is the miss rate, and that is a layout decision nobody has taken yet.** The win
 > exists only where reads miss, and whether reads miss is set by how frames are laid out on
-> disk, not by study size ([`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md)): a strided layout steps
+> disk, not by study size ([`ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md)): a strided layout steps
 > to 99% miss under pressure, a grouped one holds at 0.5%. Past that cliff the layout is worth
 > 17.6× and the read path 2–4×; before it the layout is worth 1.50×, and the read path is the
 > only lever left.
@@ -65,7 +65,7 @@ The ask that earns a slot assembles the frame from the windows it is already str
 the fill costs one copy and no extra read, and the executor's uninterrupted copy stays
 bounded by `READ_WINDOW`. Measured **−20% server CPU and +15% throughput** on a cine loop
 whose working set fits the budget, **+4%** on a linear sweep that never re-asks a cached
-frame ([`SEND-BUDGET.md`](SEND-BUDGET.md) §5). Size it to the working set being scrubbed,
+frame (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §5). Size it to the working set being scrubbed,
 not to the study; leave it at `0` when there is no reuse.
 
 ### Guarantee
@@ -91,10 +91,10 @@ never one pool round trip per window.
 | **Good** | Warm asks take **no pool hop at all** (0 misses in every warm cell). **60 894 ns vs 152 295 ns** per frame against always-touch on the product runtime — 2.5×, from 2 871 pooled samples per arm with non-overlapping 95% CIs, reproduced across two independent runs. Across every warm cell in this campaign the same margin runs **2.1–2.5×** (Cell 1's nine-arm cell is the low end); the direction never varies. Neighbours under pressure see p99 **166 µs vs 702 µs**. Hard reclaim guarantee. 64 KiB per session instead of a 250 KB envelope allocated per frame. |
 | **Cost** | Two copies (kernel→window, window→quinn) where mmap would need one. Measured: the copy is cheaper than the hop it replaces, on every cell. |
 | **Cost** | Four `write_all` calls per 250 KB frame instead of one. Same bytes, same total copy. |
-| **Revisit** | The io_uring rejection below was measured at **one read in flight**, which is what today's serial `run_session` produces. If the server ever serves the client's ask window concurrently, [`DEPTH.md`](DEPTH.md) prices the ring at 1.8–4× less CPU per ask on cold reads with thread count flat at 5 instead of 89. Not a decision this evidence can make — a dependency the decision has. |
-| **Considered** | io_uring, in four tuned variants, is a measured tie at best — see [`RERUN.md`](RERUN.md) §io_uring, including the two conditions that would make it worth revisiting. Priced per operation it is *slower*: 852 ns vs 561 ns on a warm 4 KiB read, 5 of 5 runs ([`SEND-BUDGET.md`](SEND-BUDGET.md) §3). |
-| **Scale** | On the wire this whole decision is ~a fifth of a frame's server CPU; the rest is per-datagram QUIC work. The 2.5× is real and worth having, and it is not where a server's cycles mostly go ([`SEND-BUDGET.md`](SEND-BUDGET.md) §4). |
-| **Risk** | **The hit rate is access-shape-conditional.** "0 hops warm, 6 of 320 cold" assumes whole frames read in order, which is what lets kernel read-ahead run ahead of the loop. Serving rungs — a codestream *prefix* per frame — strides the file instead, and the fast path then misses **319 of 320** cold: the path degrades to its escape hatch on every ask. The read path is still the best arm; the fix is the packer, not the server ([`PREFIX-READS.md`](PREFIX-READS.md)). |
+| **Revisit** | The io_uring rejection below was measured at **one read in flight**, which is what today's serial `run_session` produces. If the server ever serves the client's ask window concurrently, `DEPTH.md` (archived: `git show a330783:docs/disk-access/DEPTH.md`) prices the ring at 1.8–4× less CPU per ask on cold reads with thread count flat at 5 instead of 89. Not a decision this evidence can make — a dependency the decision has. |
+| **Considered** | io_uring, in four tuned variants, is a measured tie at best — see [`RERUN.md`](RERUN.md) §io_uring, including the two conditions that would make it worth revisiting. Priced per operation it is *slower*: 852 ns vs 561 ns on a warm 4 KiB read, 5 of 5 runs (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §3). |
+| **Scale** | On the wire this whole decision is ~a fifth of a frame's server CPU; the rest is per-datagram QUIC work. The 2.5× is real and worth having, and it is not where a server's cycles mostly go (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §4). |
+| **Risk** | **The hit rate is access-shape-conditional.** "0 hops warm, 6 of 320 cold" assumes whole frames read in order, which is what lets kernel read-ahead run ahead of the loop. Serving rungs — a codestream *prefix* per frame — strides the file instead, and the fast path then misses **319 of 320** cold: the path degrades to its escape hatch on every ask. The read path is still the best arm; the fix is the packer, not the server ([`PREFIX-READS.md`](../disk-layout/PREFIX-READS.md)). |
 | **Risk** | The win is filesystem-conditional. On overlayfs/tmpfs the path is pooled `pread` — safe, and ~30 µs/frame worse than always-touch would have been. Confirm the deployment filesystem with `check-fastpath` before shipping — [`DEPLOYMENT.md`](DEPLOYMENT.md), which covers the container case, where the default answer is *no*. |
 
 ## Why the previous decision was overturned
@@ -107,7 +107,7 @@ Not because always-touch was mis-measured on its own terms, but because:
    shape and 103.4 µs on the product's.
 2. **The C2 cell never let neighbours pay the hop.** Background sessions always ran
    always-touch, so the hop tax could not appear in a neighbour number. With every session
-   on the arm under test (the cell [`later.md`](later.md) listed as a follow-up),
+   on the arm under test (the cell `later.md` (archived: `git show a330783:docs/disk-access/later.md`) listed as a follow-up),
    always-touch is the *worst* safe arm for neighbours, not the best.
 3. **`RWF_NOWAIT` was never in the alternatives table.** The ADR framed the choice as
    "fault safely off-thread (mmap) vs copy safely (pread)" and did not consider reading
@@ -135,13 +135,13 @@ Numbers are the product runtime, warm `later_p50` / worst-cell neighbour p99 —
 | Pooled `pread` (prior escape hatch) | **Kept, as the no-`RWF_NOWAIT` path** | 132.5 µs · 953 µs. Same guarantee, one hop per ask |
 | `pread` into a fresh `Vec` | **Rejected** | 149.2 µs — ~17 µs of allocation tax over pooled, no other difference |
 | WILLNEED on executor | **Rejected** | Fault still on the executor |
-| Ahead-N prefetch (`POSIX_FADV_WILLNEED` on the next ask) | **Measured, not landed** | Worth **4.6–4.9×** on a cold *strided* read (rung delivery): misses 319 → 6–56 per 320, ~half the CPU per ask, one syscall, no layout change. A **loss** on a cold sweeping read (108.9 vs 46.8 µs) — so it is a routed choice, and the routing depends on a layout design that does not exist yet ([`PREFIX-READS.md`](PREFIX-READS.md) Part 2) |
-| `io_uring` + `RWF_NOWAIT` hybrid *(best io_uring arm)* | **Rejected here; re-opened by the read-path campaign** | A tie bounded at ±5% *on this cell*: +2.5% and +2.4% against the accepted path in two pooled-sample runs, −4.5% in a `--monitors 0` cell. In the **product design** it is the accepted path on a page-cache hit — the ring only serves the miss — so on a ~100% warm workload it buys a ring, an eventfd and registered buffers per session for nothing. **That rejection is conditional on the miss rate**, which this ADR's cells fixed at ~0: [`READ-PATH-DECISION.md`](READ-PATH-DECISION.md) measures the hybrid **38–79% cheaper once reads miss**, on four hosts. Two caveats before acting on that: how often reads miss is a *layout* decision ([`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md)), and part of the margin is reader-loop shape rather than the ring (**R8** in [`SCOREBOARD.md`](SCOREBOARD.md)) |
+| Ahead-N prefetch (`POSIX_FADV_WILLNEED` on the next ask) | **Measured, not landed** | Worth **4.6–4.9×** on a cold *strided* read (rung delivery): misses 319 → 6–56 per 320, ~half the CPU per ask, one syscall, no layout change. A **loss** on a cold sweeping read (108.9 vs 46.8 µs) — so it is a routed choice, and the routing depends on a layout design that does not exist yet ([`PREFIX-READS.md`](../disk-layout/PREFIX-READS.md) Part 2) |
+| `io_uring` + `RWF_NOWAIT` hybrid *(best io_uring arm)* | **Rejected here; re-opened by the read-path campaign** | A tie bounded at ±5% *on this cell*: +2.5% and +2.4% against the accepted path in two pooled-sample runs, −4.5% in a `--monitors 0` cell. In the **product design** it is the accepted path on a page-cache hit — the ring only serves the miss — so on a ~100% warm workload it buys a ring, an eventfd and registered buffers per session for nothing. **That rejection is conditional on the miss rate**, which this ADR's cells fixed at ~0: `READ-PATH-DECISION.md` (archived: `git show a330783:docs/disk-access/READ-PATH-DECISION.md`) measures the hybrid **38–79% cheaper once reads miss**, on four hosts. Two caveats before acting on that: how often reads miss is a *layout* decision ([`ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md)), and part of the margin is reader-loop shape rather than the ring (**R8** in `SCOREBOARD.md` (archived: `git show a330783:docs/disk-access/SCOREBOARD.md`)) |
 | `io_uring` alone (registered file + fixed buffers, whole frame in one submit) | **Rejected** | Ties warm (82–88 µs), worst io_uring arm when reads miss: 224 parked completions on a cold random trace vs 59, and 408–437 µs on a cold reverse pass vs ~345. Batching a frame's windows means every window of a miss waits together |
 | `io_uring` pipelined (read n+1 during write n) | **Rejected** | The one thing only io_uring can do here, order-controlled at ~6% on a 100%-miss trace — while costing ~25% warm (108.6 vs 84.7 µs) and 2× session memory |
 | `io_uring` + `SQPOLL` | **Rejected** | 2.8× the CPU (287 vs 104 µs/ask) for worse latency: with a kernel submitter nothing completes inline, so every read parks |
 | `sendfile`/splice | **Rejected for this stack** | Userspace QUIC still copies |
-| **Bounded process-private frame cache** | **Accepted, opt-in** | −20% server CPU / +15% throughput at a 0.92 hit rate; +4% where nothing is re-asked. `--frame-cache-mb`, default off ([`SEND-BUDGET.md`](SEND-BUDGET.md) §5) |
+| **Bounded process-private frame cache** | **Accepted, opt-in** | −20% server CPU / +15% throughput at a 0.92 hit rate; +4% where nothing is re-asked. `--frame-cache-mb`, default off (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §5) |
 | Handing quinn owned windows (`write_chunk`) instead of copying into it | **Rejected** | The copy is provably removed, and worth −3.2% (9 of 12 paired rounds) — under the drift threshold. Costs `unsafe { set_len }` and the fixed 64 KiB/session bound |
 | `O_DIRECT` + SPDK / whole-study preload | **Rejected** | Wrong scale or scope. The *bounded* app cache above was in this row until it was measured; it is not any more |
 
@@ -158,4 +158,4 @@ codestream streams behind it. That is the copy reduction the previous ADR deferr
 
 ## Follow-ups
 
-[`later.md`](later.md) — the deployment-filesystem check is the one that matters.
+`later.md` (archived: `git show a330783:docs/disk-access/later.md`) — the deployment-filesystem check is the one that matters.
