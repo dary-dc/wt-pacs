@@ -1,7 +1,38 @@
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+/// How the reader advances through the trace.
+///
+/// This is the single most consequential setting in the harness. See
+/// `docs/transport-conclusions.md` §2: with `Closed`, no stream-shape or
+/// head-of-line-blocking question can be answered, because the reader travels at the
+/// speed of the transport and is never stuck behind data it no longer wants.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum ReaderMode {
+    /// Block for each cursor to become displayable before advancing.
+    ///
+    /// Models a viewer that refuses to scroll past a blank frame. Every prior campaign
+    /// ran this way. Retained so those results stay reproducible — **not** for
+    /// stream-shape work.
+    Closed,
+    /// Advance on the trace's own wall clock, whatever has arrived.
+    ///
+    /// Models a viewer dragging a scrollbar: the reader keeps moving, the transport
+    /// falls behind, and frames still in flight become frames nobody wants any more.
+    /// This is the only mode in which head-of-line blocking can occur.
+    Open,
+}
+
+impl ReaderMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Closed => "closed",
+            Self::Open => "open",
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum StreamMode {
@@ -60,6 +91,26 @@ pub struct RunConfig {
     pub step_interval_ms: Option<u64>,
     /// Optional QUIC per-stream receive window (bytes). None = stack default.
     pub stream_recv_window: Option<u64>,
+    /// Local bind IP for the client socket. `None` = wtransport's dual-stack default,
+    /// which is what every L1 row was collected with; set `0.0.0.0` on hosts without an
+    /// IPv6 stack, where the dual-stack bind fails with EAFNOSUPPORT.
+    pub bind_ip: Option<std::net::IpAddr>,
+    /// Client display-cache capacity in frames; 0 = unbounded.
+    pub cache_frames: usize,
+    /// Whether the reader waits for the transport or runs on its own clock.
+    pub reader_mode: ReaderMode,
+    /// Open-loop only: after the last step, keep resolving outstanding wants for this
+    /// long before declaring the remainder censored.
+    pub drain_ms: u64,
+    /// Multiplier on the trace's `step_interval_ms`. >1 slows the reader, <1 speeds it up.
+    ///
+    /// Exists because the reader's offered load must be set against the rate the link can
+    /// **achieve**, not the rate it is labelled with. At 1 % loss and 600 ms RTT, Cubic's
+    /// Mathis ceiling is 0.24 Mbps while a 30 fps reader over 64 KB frames demands ~15
+    /// Mbps — a 62× overload in which every arm simply collapses and nothing is
+    /// distinguished. Calibrated once per cell on a single reference arm, then frozen
+    /// across all arms so the operating point cannot be tuned per-arm.
+    pub step_scale: f64,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -147,6 +198,43 @@ pub struct HarnessMetrics {
     /// Ordinals increment per `frame_index` within the session (same rule as server Tap).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ask_join: Vec<AskJoinRow>,
+
+    // ---- open-loop reader instrumentation -------------------------------------------
+    /// `closed` or `open`. Results are not comparable across it.
+    #[serde(default)]
+    pub reader_mode: String,
+    /// Wants the run ended without ever satisfying, counted at the censoring bound.
+    ///
+    /// **Must be reported with every p95.** An arm that fails to deliver otherwise loses
+    /// its slowest samples and wins the comparison by delivering less — the exact bias
+    /// that made a closed-loop p95 look respectable.
+    #[serde(default)]
+    pub censored_waits: u32,
+    /// `censored_waits / wait_samples`. Above the campaign's void threshold the arm
+    /// collapsed and its p95 means nothing.
+    #[serde(default)]
+    pub censored_frac: f64,
+    /// How far behind its own clock the reader finished, in ms.
+    ///
+    /// Open-loop only, and the direct evidence that the reader was *able* to outrun the
+    /// transport: at 0 the reader kept its schedule and the run tested nothing that a
+    /// closed-loop run does not.
+    #[serde(default)]
+    pub reader_lag_ms: f64,
+    /// Bytes that arrived for a frame the reader had already scrolled away from.
+    ///
+    /// This is the head-of-line-blocking load itself. **If it is 0, no stream-shape
+    /// comparison from the run is admissible** — nothing was ever queued ahead of
+    /// something wanted.
+    #[serde(default)]
+    pub stranded_bytes: u64,
+    /// Frames counted in `stranded_bytes`.
+    #[serde(default)]
+    pub stranded_frames: u32,
+    /// Steps whose centre ask was suppressed by the hard outstanding ceiling.
+    /// Non-zero voids the run's p95 — see `client::center_asks_dropped`.
+    #[serde(default)]
+    pub center_asks_dropped: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -174,12 +262,37 @@ pub struct MetricsState {
     pub fill_started_at: Option<Instant>,
     /// Client-side display cache: frame index is displayable once present.
     pub cache: HashSet<u32>,
+    /// LRU order for `cache`, most-recently-used last. Empty when the cache is unbounded.
+    pub cache_lru: Vec<u32>,
+    /// Max frames held, 0 = unbounded. A tablet browser cannot hold a whole CT series:
+    /// 500 slices at 250 KB is 125 MB. With an unbounded cache the client holds the
+    /// entire study within seconds and no jump can miss, which collapses the
+    /// informative sample count and makes head-of-line blocking unmeasurable.
+    pub cache_cap: usize,
     /// Per want: ms until displayable (0 on cache hit).
     pub wait_samples_ms: Vec<f64>,
     /// Per want: ms past the step's scheduled display time (0 if on time).
     pub lateness_samples_ms: Vec<f64>,
     /// Wall ms of the windowed step loop (set by client).
     pub step_loop_ms: f64,
+
+    // ---- open-loop reader state -----------------------------------------------------
+    /// Instant each frame index most recently arrived.
+    ///
+    /// The open-loop reader resolves waits from these recorded instants rather than by
+    /// polling cache membership. That makes the measured wait independent of poll
+    /// granularity (the closed-loop path quantised every wait to its 2 ms sleep) and
+    /// immune to a frame arriving and being LRU-evicted between polls.
+    pub last_arrival: HashMap<u32, Instant>,
+    /// Frame indices the reader currently has on screen or in its prefetch window.
+    /// Anything arriving outside this set is stranded — see `stranded_bytes`.
+    pub live_window: HashSet<u32>,
+    pub stranded_bytes: u64,
+    pub stranded_frames: u32,
+    pub censored_waits: u32,
+    /// How far behind its own clock an open-loop reader finished, in ms. See
+    /// `HarnessMetrics::reader_lag_ms`.
+    pub reader_lag_ms: f64,
 }
 
 impl MetricsState {
@@ -201,9 +314,17 @@ impl MetricsState {
             fill_bytes: 0,
             fill_started_at: None,
             cache: HashSet::new(),
+            cache_lru: Vec::new(),
+            cache_cap: 0,
             wait_samples_ms: Vec::new(),
             lateness_samples_ms: Vec::new(),
             step_loop_ms: 0.0,
+            last_arrival: HashMap::new(),
+            live_window: HashSet::new(),
+            stranded_bytes: 0,
+            stranded_frames: 0,
+            censored_waits: 0,
+            reader_lag_ms: 0.0,
         }
     }
 
@@ -225,10 +346,33 @@ impl MetricsState {
         self.fill_active = false;
     }
 
+    /// Insert `index` and evict least-recently-used frames beyond `cache_cap`.
+    pub fn touch_cache(&mut self, index: u32) {
+        if let Some(pos) = self.cache_lru.iter().position(|&x| x == index) {
+            self.cache_lru.remove(pos);
+        }
+        self.cache_lru.push(index);
+        self.cache.insert(index);
+        if self.cache_cap > 0 {
+            while self.cache_lru.len() > self.cache_cap {
+                let evicted = self.cache_lru.remove(0);
+                self.cache.remove(&evicted);
+            }
+        }
+    }
+
     pub fn on_envelope(&mut self, index: u32, nbytes: u64) {
         self.frames_on_wire += 1;
         self.bytes_on_wire += nbytes;
-        self.cache.insert(index);
+        self.last_arrival.insert(index, Instant::now());
+        // A frame the reader has already scrolled past. Counted only once the reader has
+        // established a window at all, so the warm-cache prefetch is not miscounted as
+        // stranding.
+        if !self.live_window.is_empty() && !self.live_window.contains(&index) {
+            self.stranded_bytes += nbytes;
+            self.stranded_frames += 1;
+        }
+        self.touch_cache(index);
         if self.settled {
             self.frames_after_settle += 1;
             self.bytes_after_settle += nbytes;
@@ -274,6 +418,7 @@ impl MetricsState {
         warm_cache: bool,
         rtt_ms: u64,
         stream_mode: StreamMode,
+        reader_mode: ReaderMode,
     ) -> HarnessMetrics {
         let recovered_ms = match (self.reversal_at, self.first_byte_wanted_at) {
             (Some(r), Some(w)) => w.duration_since(r).as_secs_f64() * 1000.0,
@@ -374,6 +519,17 @@ impl MetricsState {
             late_max_ms,
             on_time_rate,
             ask_join: crate::client::take_ask_join(),
+            reader_mode: reader_mode.as_str().to_string(),
+            censored_waits: self.censored_waits,
+            censored_frac: if self.wait_samples_ms.is_empty() {
+                0.0
+            } else {
+                self.censored_waits as f64 / self.wait_samples_ms.len() as f64
+            },
+            reader_lag_ms: self.reader_lag_ms,
+            stranded_bytes: self.stranded_bytes,
+            stranded_frames: self.stranded_frames,
+            center_asks_dropped: crate::client::center_asks_dropped(),
         }
     }
 }

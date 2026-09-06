@@ -5,6 +5,8 @@ mod metrics;
 mod trace;
 mod wire;
 
-pub use client::{peak_outstanding, reset_peak_outstanding, run_depth_sweep, run_harness};
-pub use metrics::{HarnessMetrics, HarnessMode, RunConfig, StreamMode, WindowShape};
+pub use client::{
+    center_asks_dropped, peak_outstanding, reset_peak_outstanding, run_depth_sweep, run_harness,
+};
+pub use metrics::{HarnessMetrics, HarnessMode, ReaderMode, RunConfig, StreamMode, WindowShape};
 pub use trace::TraceSpec;

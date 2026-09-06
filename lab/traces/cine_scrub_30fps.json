@@ -1,0 +1,492 @@
+{
+  "name": "cine_scrub_30fps",
+  "max_step": 1,
+  "step_interval_ms": 33,
+  "settle_on": "last_asked",
+  "send_cancel_on_settle": false,
+  "steps": [
+    {
+      "frame": 0
+    },
+    {
+      "frame": 1
+    },
+    {
+      "frame": 2
+    },
+    {
+      "frame": 3
+    },
+    {
+      "frame": 4
+    },
+    {
+      "frame": 5
+    },
+    {
+      "frame": 6
+    },
+    {
+      "frame": 7
+    },
+    {
+      "frame": 8
+    },
+    {
+      "frame": 9
+    },
+    {
+      "frame": 10
+    },
+    {
+      "frame": 11
+    },
+    {
+      "frame": 12
+    },
+    {
+      "frame": 13
+    },
+    {
+      "frame": 14
+    },
+    {
+      "frame": 15
+    },
+    {
+      "frame": 16
+    },
+    {
+      "frame": 17
+    },
+    {
+      "frame": 18
+    },
+    {
+      "frame": 19
+    },
+    {
+      "frame": 20
+    },
+    {
+      "frame": 21
+    },
+    {
+      "frame": 22
+    },
+    {
+      "frame": 23
+    },
+    {
+      "frame": 24
+    },
+    {
+      "frame": 25
+    },
+    {
+      "frame": 26
+    },
+    {
+      "frame": 27
+    },
+    {
+      "frame": 28
+    },
+    {
+      "frame": 29
+    },
+    {
+      "frame": 30
+    },
+    {
+      "frame": 31
+    },
+    {
+      "frame": 32
+    },
+    {
+      "frame": 33
+    },
+    {
+      "frame": 34
+    },
+    {
+      "frame": 35
+    },
+    {
+      "frame": 36
+    },
+    {
+      "frame": 37
+    },
+    {
+      "frame": 38
+    },
+    {
+      "frame": 39
+    },
+    {
+      "frame": 40
+    },
+    {
+      "frame": 41
+    },
+    {
+      "frame": 42
+    },
+    {
+      "frame": 43
+    },
+    {
+      "frame": 44
+    },
+    {
+      "frame": 45
+    },
+    {
+      "frame": 46
+    },
+    {
+      "frame": 47
+    },
+    {
+      "frame": 48
+    },
+    {
+      "frame": 49
+    },
+    {
+      "frame": 50
+    },
+    {
+      "frame": 51
+    },
+    {
+      "frame": 52
+    },
+    {
+      "frame": 53
+    },
+    {
+      "frame": 54
+    },
+    {
+      "frame": 55
+    },
+    {
+      "frame": 56
+    },
+    {
+      "frame": 57
+    },
+    {
+      "frame": 58
+    },
+    {
+      "frame": 59
+    },
+    {
+      "frame": 60
+    },
+    {
+      "frame": 61
+    },
+    {
+      "frame": 62
+    },
+    {
+      "frame": 63
+    },
+    {
+      "frame": 64
+    },
+    {
+      "frame": 65
+    },
+    {
+      "frame": 66
+    },
+    {
+      "frame": 67
+    },
+    {
+      "frame": 68
+    },
+    {
+      "frame": 69
+    },
+    {
+      "frame": 70
+    },
+    {
+      "frame": 71
+    },
+    {
+      "frame": 72
+    },
+    {
+      "frame": 73
+    },
+    {
+      "frame": 74
+    },
+    {
+      "frame": 75
+    },
+    {
+      "frame": 76
+    },
+    {
+      "frame": 77
+    },
+    {
+      "frame": 78
+    },
+    {
+      "frame": 79
+    },
+    {
+      "frame": 79
+    },
+    {
+      "frame": 78
+    },
+    {
+      "frame": 77
+    },
+    {
+      "frame": 76
+    },
+    {
+      "frame": 75
+    },
+    {
+      "frame": 74
+    },
+    {
+      "frame": 73
+    },
+    {
+      "frame": 72
+    },
+    {
+      "frame": 71
+    },
+    {
+      "frame": 70
+    },
+    {
+      "frame": 69
+    },
+    {
+      "frame": 68
+    },
+    {
+      "frame": 67
+    },
+    {
+      "frame": 66
+    },
+    {
+      "frame": 65
+    },
+    {
+      "frame": 64
+    },
+    {
+      "frame": 63
+    },
+    {
+      "frame": 62
+    },
+    {
+      "frame": 61
+    },
+    {
+      "frame": 60
+    },
+    {
+      "frame": 59
+    },
+    {
+      "frame": 58
+    },
+    {
+      "frame": 57
+    },
+    {
+      "frame": 56
+    },
+    {
+      "frame": 55
+    },
+    {
+      "frame": 54
+    },
+    {
+      "frame": 53
+    },
+    {
+      "frame": 52
+    },
+    {
+      "frame": 51
+    },
+    {
+      "frame": 50
+    },
+    {
+      "frame": 49
+    },
+    {
+      "frame": 48
+    },
+    {
+      "frame": 47
+    },
+    {
+      "frame": 46
+    },
+    {
+      "frame": 45
+    },
+    {
+      "frame": 44
+    },
+    {
+      "frame": 43
+    },
+    {
+      "frame": 42
+    },
+    {
+      "frame": 41
+    },
+    {
+      "frame": 40
+    },
+    {
+      "frame": 39
+    },
+    {
+      "frame": 38
+    },
+    {
+      "frame": 37
+    },
+    {
+      "frame": 36
+    },
+    {
+      "frame": 35
+    },
+    {
+      "frame": 34
+    },
+    {
+      "frame": 33
+    },
+    {
+      "frame": 32
+    },
+    {
+      "frame": 31
+    },
+    {
+      "frame": 30
+    },
+    {
+      "frame": 29
+    },
+    {
+      "frame": 28
+    },
+    {
+      "frame": 27
+    },
+    {
+      "frame": 26
+    },
+    {
+      "frame": 25
+    },
+    {
+      "frame": 24
+    },
+    {
+      "frame": 23
+    },
+    {
+      "frame": 22
+    },
+    {
+      "frame": 21
+    },
+    {
+      "frame": 20
+    },
+    {
+      "frame": 19
+    },
+    {
+      "frame": 18
+    },
+    {
+      "frame": 17
+    },
+    {
+      "frame": 16
+    },
+    {
+      "frame": 15
+    },
+    {
+      "frame": 14
+    },
+    {
+      "frame": 13
+    },
+    {
+      "frame": 12
+    },
+    {
+      "frame": 11
+    },
+    {
+      "frame": 10
+    },
+    {
+      "frame": 9
+    },
+    {
+      "frame": 8
+    },
+    {
+      "frame": 7
+    },
+    {
+      "frame": 6
+    },
+    {
+      "frame": 5
+    },
+    {
+      "frame": 4
+    },
+    {
+      "frame": 3
+    },
+    {
+      "frame": 2
+    },
+    {
+      "frame": 1
+    },
+    {
+      "frame": 0
+    }
+  ],
+  "_design": {
+    "notes": "30 fps forward-then-reverse scrub over every frame in an 80-frame series. Demand is 30 frames/s; at 32 KB that is ~7.9 Mbps and at 250 KB ~62 Mbps, so the cells actually bind. Every want is a first visit on the forward pass, so p95 measures real transport wait rather than cache hits."
+  }
+}

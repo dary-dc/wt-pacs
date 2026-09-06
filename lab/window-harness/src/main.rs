@@ -1,7 +1,10 @@
 use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
-use window_harness::{peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RunConfig, StreamMode, TraceSpec, WindowShape};
+use window_harness::{
+    peak_outstanding, run_depth_sweep, run_harness, HarnessMode, ReaderMode, RunConfig, StreamMode,
+    TraceSpec, WindowShape,
+};
 
 #[derive(Parser)]
 #[command(name = "window-harness")]
@@ -37,6 +40,27 @@ struct Args {
     /// Must match the server's `--stream-mode`.
     #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
     stream_mode: StreamMode,
+    /// Local bind IP. Omit for wtransport's dual-stack default (what L1 used);
+    /// pass `0.0.0.0` on hosts without an IPv6 stack.
+    #[arg(long)]
+    bind: Option<std::net::IpAddr>,
+    /// Client display-cache capacity in frames. 0 = unbounded (the old behaviour).
+    #[arg(long, default_value_t = 0)]
+    cache_frames: usize,
+    /// `closed` = wait for each frame before advancing (every campaign before R6).
+    /// `open` = advance on the trace clock, letting the transport fall behind.
+    ///
+    /// Head-of-line blocking cannot occur in `closed`, so no stream-shape result from it
+    /// is admissible. Default stays `closed` so prior campaigns remain reproducible.
+    #[arg(long, value_enum, default_value_t = ReaderMode::Closed)]
+    reader_mode: ReaderMode,
+    /// Open-loop only: grace period after the last step before unmet wants are censored.
+    #[arg(long, default_value_t = 3_000)]
+    drain_ms: u64,
+    /// Multiplier on the trace's step interval. >1 slows the reader, <1 speeds it up.
+    /// Set the reader's demand against the rate the link can *achieve*, not its label.
+    #[arg(long, default_value_t = 1.0)]
+    step_scale: f64,
 
     /// Window shape around the cursor. Use `forward` for one-way traces.
     #[arg(long, value_enum, default_value_t = WindowShape::Symmetric)]
@@ -91,6 +115,11 @@ async fn main() -> anyhow::Result<()> {
         window_shape: args.window_shape,
         step_interval_ms: args.step_interval_ms,
         stream_recv_window: args.stream_recv_window,
+        bind_ip: args.bind,
+        cache_frames: args.cache_frames,
+        reader_mode: args.reader_mode,
+        drain_ms: args.drain_ms,
+        step_scale: args.step_scale,
     };
     if let Some(sweep) = &args.depth_sweep {
         let depths: Vec<u32> = sweep
@@ -148,6 +177,13 @@ async fn main() -> anyhow::Result<()> {
         println!("late_p95_ms={:.2}", m.late_p95_ms);
         println!("late_max_ms={:.2}", m.late_max_ms);
         println!("on_time_rate={:.4}", m.on_time_rate);
+        println!("reader_mode={}", m.reader_mode);
+        println!("reader_lag_ms={:.2}", m.reader_lag_ms);
+        println!("censored_waits={}", m.censored_waits);
+        println!("censored_frac={:.4}", m.censored_frac);
+        println!("stranded_frames={}", m.stranded_frames);
+        println!("stranded_bytes={}", m.stranded_bytes);
+        println!("center_asks_dropped={}", m.center_asks_dropped);
     }
     Ok(())
 }
