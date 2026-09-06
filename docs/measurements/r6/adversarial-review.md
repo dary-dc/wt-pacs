@@ -103,12 +103,16 @@ Two guards, both pre-registered: an effect must clear **15 %** as well as separa
 **N0 must show nothing**. A single unreplicated separation in one cell is not a result no
 matter how clean it looks.
 
-### 2.3 · "One trace, one fixture, one cache size" — **accepted, unmitigated**
+### 2.3 · "One trace, one fixture, one cache size" — **accepted; the trace third was later addressed, see §3.5**
 
 Every number comes from a single synthetic trace (`radiologist_review_500`, 681 steps, 59
 jumps ≥ 20 frames) over a fixture of one repeated byte, with a 64-frame LRU cache chosen
 rather than measured from a target device. A different jump distribution could reorder the
-arms. Nothing here rules that out.
+arms. Nothing *here* rules that out.
+
+**Follow-up:** the decisive cell was subsequently re-run against a structurally different
+reading pattern. It did not reverse — §3.5. The fixture and cache-size thirds remain
+unmitigated.
 
 ### 2.4 · "X3 is not the isolation it is named for" — **conceded in advance**
 
