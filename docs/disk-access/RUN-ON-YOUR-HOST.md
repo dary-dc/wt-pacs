@@ -12,8 +12,25 @@ There are two ways to get a second host. This doc is the second one.
 
 | | Runs where | Data quality | Setup |
 | --- | --- | --- | --- |
-| [`.github/workflows/read-campaign.yml`](../../.github/workflows/read-campaign.yml) | GitHub-hosted runner | Direction only — shared, noisy vCPU | Actions → Run workflow |
+| [`.github/workflows/read-campaign.yml`](../../.github/workflows/read-campaign.yml) | GitHub-hosted runner | Direction only — shared, noisy vCPU | push a tag (below) |
 | **This doc** | **Your machine or deployment host** | **Best — real hardware, quiet** | ~5 min |
+
+### Starting the CI run
+
+**Push a tag.** This works from any branch, today:
+
+```bash
+git tag run-campaign-1 && git push origin run-campaign-1
+```
+
+The run appears under **Actions** within a few seconds and commits its results back to
+`claude/disk-access-adr-validation-saz6m8`. Use a fresh tag name for each run
+(`run-campaign-2`, …) — a tag can only be pushed once.
+
+**Why not the "Run workflow" button?** GitHub only lists `workflow_dispatch` workflows that
+exist on the repository's **default branch**. While this file lives only on a feature branch
+it will not appear in the Actions sidebar and cannot be dispatched from the UI. Once the
+branch merges to `main` the button works and the tag becomes optional.
 
 The best host to run this on is **the one you will deploy to**. It answers R1 and the
 filesystem question at the same time.
