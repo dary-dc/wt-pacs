@@ -1,6 +1,12 @@
 # Plan: WASM vs TypeScript client, same wire
 
-**For:** wt-pacs implementer · 2026-08-29 · **Status:** planned — wire preconditions landed on this branch; still blocked on stream-mode remediation (§0) and shaped cells for N6
+**For:** wt-pacs implementer · 2026-08-29 · **Status:** **ran 2026-09-06** —
+results and interpretation in [`client-runtime-comparison-2026-09-06.md`](client-runtime-comparison-2026-09-06.md).
+The §2 prediction (one extra full-frame copy per frame) is **not confirmed**: the penalty is real
+but flat in frame size, so it is a fixed per-frame boundary cost, not a byte cost. §4's netem is
+not available on the measuring kernel and was replaced by a validated user-space link shim.
+(Originally: planned — wire preconditions landed on this branch; still blocked on stream-mode
+remediation (§0) and shaped cells for N6.)
 
 One question: **what does the WASM/JS boundary cost on the receive path?** Both clients in this repo
 talk to the same server over the same wire, so the transport is held constant and the runtime is the
@@ -26,7 +32,7 @@ Current experiment state, so this plan is not read as jumping the queue.
 | **X2** lossless mode comparison | **has data**, but the 18.2% gap at 150 ms RTT is **unexplained** |
 | **X3** loss decider | **INVALID.** Unequal depths (shared `D_min` 2, per-frame 8, both run at `D=4`), a control that failed unnoticed (92% gap at **zero** loss), an overridden stop gate, p95 over ~4 tail samples, and an unexplained `mild_cell` timeout |
 | Copy-cost knee sweep | **not started** (see [`WIRE.md`](WIRE.md) § Server send path) |
-| **This plan (N6)** | preconditions P1–P3 landed on branch; still blocked on §0 remediation + shaped campaign |
+| **This plan (N6)** | **has data** — 9 cells, 106 runs, A/A control clean. See [`client-runtime-comparison-2026-09-06.md`](client-runtime-comparison-2026-09-06.md). Ran without the §0 remediation: N6 holds stream mode constant per cell and tested both, so the campaign it was blocked on is not on N6's path |
 
 **Do this first, before N6** — see [`stream-mode-remediation.md`](stream-mode-remediation.md):
 

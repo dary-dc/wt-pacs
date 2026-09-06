@@ -1,0 +1,452 @@
+### VOID-shaped60-250k-fill-80f
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=per-frame cell=fill depth=1 n=80 interval_ms=None repeats=5 link=shim rtt=60.0ms rate=10.0mbit queue=100.0ms
+VOID runs: [{'dir': 'r00-s1-ts', 'why': 'no telemetry-client.json (VOID or failed)'}, {'dir': 'r01-s1-ts', 'why': 'no telemetry-client.json (VOID or failed)'}, {'dir': 'r02-s1-ts', 'why': 'no telemetry-client.json (VOID or failed)'}, {'dir': 'r03-s1-ts', 'why': 'no telemetry-client.json (VOID or failed)'}, {'dir': 'r04-s1-ts', 'why': 'no telemetry-client.json (VOID or failed)'}]
+
+controls (must match across arms — the server did the same work):
+                                    wasm
+  server_serve_us_p50                241
+  server_prepare_us_p50               32
+  server_send_us_p50                 202
+  server_bytes                  20000320
+  mean_frame_bytes                250000
+  rows_usable                        395
+  rows_total                         400
+  busy_rows_excluded                   0
+  long_tasks_in_window                 0
+  shim_down_drops                   1235
+  shim_down_packets                84764
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=5 connect_ms_median=212.805 copies_declared=2 js_heap_peak=52943884 wasm_mem=25624576
+       chunks_per_frame={'p50': 211, 'p95': 216, 'mean': 210.01}
+       one-time: first_ask_total_us=12465425 first_ask_deliver_us=1500 long_tasks_outside_window=0 wall_ms_median=16546
+    deliver_us             n=  395 p50=    12950 p90=   329450 p95=   400095 p99=   586870 mean=  105316.2
+    serve_plus_path_us     n=  395 p50=   246915 p90=  6953505 p95=  7775440 p99=  8396650 mean= 2413380.4
+    transfer_us            n=  395 p50= 12770855 p90= 13083105 p95= 13137595 p99= 13234500 mean=11945808.1
+    ask_to_complete_us     n=  395 p50= 13400190 p90= 16468280 p95= 16529980 p99= 16544170 mean=14359188.5
+    total_us               n=  395 p50= 13400970 p90= 16469165 p95= 16530615 p99= 16544950 mean=14359941.5
+
+
+### aa-local-250k-ondemand
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=per-frame cell=ondemand depth=1 n=400 interval_ms=20 repeats=6 link=direct loopback (rtt~0, unshaped)
+
+controls (must match across arms — the server did the same work):
+                                   ts#s0           ts#s1
+  server_serve_us_p50                169             170
+  server_prepare_us_p50              114             116
+  server_send_us_p50                  53              54
+  server_bytes                 100001600       100001600
+  mean_frame_bytes                250000          250000
+  rows_usable                       2394            2394
+  rows_total                        2400            2400
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+
+per-arm, pooled usable rows (nearest-rank):
+  [ts#s0] runs=6 connect_ms_median=6.825 copies_declared=1 js_heap_peak=70736854 wasm_mem=None
+       chunks_per_frame={'p50': 6, 'p95': 6, 'mean': 5.65}
+       one-time: first_ask_total_us=4010 first_ask_deliver_us=520 long_tasks_outside_window=0 wall_ms_median=8100
+    deliver_us             n= 2394 p50=      270 p90=      350 p95=      380 p99=      475 mean=     278.2
+    serve_plus_path_us     n= 2394 p50=     1260 p90=     1595 p95=     2130 p99=     2995 mean=    1352.6
+    transfer_us            n= 2296 p50=      965 p90=     1175 p95=     1340 p99=     1795 mean=     990.3
+    ask_to_complete_us     n= 2394 p50=     2505 p90=     2975 p95=     3220 p99=     4310 mean=    2580.6
+    total_us               n= 2394 p50=     2555 p90=     3020 p95=     3280 p99=     4385 mean=    2630.3
+  [ts#s1] runs=6 connect_ms_median=7.36 copies_declared=1 js_heap_peak=70739126 wasm_mem=None
+       chunks_per_frame={'p50': 6, 'p95': 6, 'mean': 5.68}
+       one-time: first_ask_total_us=4200 first_ask_deliver_us=450 long_tasks_outside_window=0 wall_ms_median=8103
+    deliver_us             n= 2394 p50=      265 p90=      335 p95=      365 p99=      520 mean=     273.7
+    serve_plus_path_us     n= 2394 p50=     1265 p90=     1610 p95=     2155 p99=     3105 mean=    1364.4
+    transfer_us            n= 2306 p50=      980 p90=     1260 p95=     1435 p99=     2135 mean=    1021.4
+    ask_to_complete_us     n= 2394 p50=     2520 p90=     3035 p95=     3340 p99=     4780 mean=    2622.0
+    total_us               n= 2394 p50=     2570 p90=     3095 p95=     3385 p99=     4825 mean=    2671.6
+
+per-run comparison (ts#s0 -> ts#s1), mean over runs of the per-run statistic:
+  metric                    stat        ts#s0        ts#s1   delta_us   ratio   p_perm
+  deliver_us              median        273.3        266.7       -6.7   0.976   0.3788
+  deliver_us                 p95        375.0        368.3       -6.7   0.982   0.6688
+  serve_plus_path_us      median       1257.5       1270.0       12.5   1.010   0.6234
+  serve_plus_path_us         p95       2078.3       2156.7       78.3   1.038   0.5844
+  transfer_us             median        967.5        982.5       15.0   1.016   0.3593
+  transfer_us                p95       1323.3       1409.2       85.8   1.065   0.1645
+  ask_to_complete_us      median       2509.2       2534.2       25.0   1.010   0.5368
+  ask_to_complete_us         p95       3198.3       3338.3      140.0   1.044   0.1905
+  total_us                median       2554.2       2580.0       25.8   1.010   0.5476
+  total_us                   p95       3245.8       3394.2      148.3   1.046   0.1818
+
+### local-250k-fill
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=per-frame cell=fill depth=1 n=80 interval_ms=None repeats=6 link=direct loopback (rtt~0, unshaped)
+
+controls (must match across arms — the server did the same work):
+                                    wasm              ts
+  server_serve_us_p50                318             257
+  server_prepare_us_p50               48              24
+  server_send_us_p50                 225             208
+  server_bytes                  20000320        20000320
+  mean_frame_bytes                250000          250000
+  rows_usable                        474             474
+  rows_total                         480             480
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=6 connect_ms_median=25.395 copies_declared=2 js_heap_peak=50848929 wasm_mem=23789568
+       chunks_per_frame={'p50': 57, 'p95': 77, 'mean': 53.39}
+       one-time: first_ask_total_us=156005 first_ask_deliver_us=1555 long_tasks_outside_window=0 wall_ms_median=236
+    deliver_us             n=  474 p50=     2955 p90=    19390 p95=    24940 p99=    33295 mean=    6667.7
+    serve_plus_path_us     n=  474 p50=    33870 p90=   126385 p95=   144725 p99=   169595 mean=   56711.3
+    transfer_us            n=  474 p50=   165710 p90=   201010 p95=   210015 p99=   237125 mean=  158020.4
+    ask_to_complete_us     n=  474 p50=   218525 p90=   245505 p95=   267600 p99=   279830 mean=  214731.7
+    total_us               n=  474 p50=   219235 p90=   246255 p95=   268350 p99=   280580 mean=  215485.9
+  [ts] runs=6 connect_ms_median=8.75 copies_declared=1 js_heap_peak=32606266 wasm_mem=None
+       chunks_per_frame={'p50': 108, 'p95': 134, 'mean': 100.02}
+       one-time: first_ask_total_us=193030 first_ask_deliver_us=895 long_tasks_outside_window=0 wall_ms_median=244
+    deliver_us             n=  474 p50=     1315 p90=    13600 p95=    21910 p99=    27390 mean=    4618.5
+    serve_plus_path_us     n=  474 p50=    32675 p90=   139215 p95=   154090 p99=   173560 mean=   58369.3
+    transfer_us            n=  474 p50=   170985 p90=   223205 p95=   230560 p99=   234290 mean=  167944.8
+    ask_to_complete_us     n=  474 p50=   224520 p90=   264535 p95=   293325 p99=   305715 mean=  226314.1
+    total_us               n=  474 p50=   225110 p90=   265005 p95=   293815 p99=   306205 mean=  226829.1
+
+per-run comparison (wasm -> ts), mean over runs of the per-run statistic:
+  metric                    stat         wasm           ts   delta_us   ratio   p_perm
+  deliver_us              median       4987.5       2506.7    -2480.8   0.503   0.2662
+  deliver_us                 p95      19159.2      13859.2    -5300.0   0.723   0.3766
+  serve_plus_path_us      median      33247.5      29585.0    -3662.5   0.890   0.2078
+  serve_plus_path_us         p95     138865.8     147170.8     8305.0   1.060   0.5022
+  transfer_us             median     171456.7     184228.3    12771.7   1.074   0.3528
+  transfer_us                p95     196073.3     203767.5     7694.2   1.039   0.6342
+  ask_to_complete_us      median     216766.7     222688.3     5921.7   1.027   0.7121
+  ask_to_complete_us         p95     242080.8     250752.5     8671.7   1.036   0.6320
+  total_us                median     217520.8     223203.3     5682.5   1.026   0.7208
+  total_us                   p95     242835.0     251267.5     8432.5   1.035   0.6450
+
+### local-250k-ondemand
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=per-frame cell=ondemand depth=1 n=400 interval_ms=20 repeats=6 link=direct loopback (rtt~0, unshaped)
+
+controls (must match across arms — the server did the same work):
+                                    wasm              ts
+  server_serve_us_p50                177             173
+  server_prepare_us_p50              119             118
+  server_send_us_p50                  54              54
+  server_bytes                 100001600       100001600
+  mean_frame_bytes                250000          250000
+  rows_usable                       2394            2394
+  rows_total                        2400            2400
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=6 connect_ms_median=24.445 copies_declared=2 js_heap_peak=70890160 wasm_mem=2097152
+       chunks_per_frame={'p50': 6, 'p95': 6, 'mean': 5.64}
+       one-time: first_ask_total_us=4900 first_ask_deliver_us=875 long_tasks_outside_window=0 wall_ms_median=8068
+    deliver_us             n= 2394 p50=      310 p90=      390 p95=      425 p99=      680 mean=     319.9
+    serve_plus_path_us     n= 2394 p50=     1345 p90=     1685 p95=     2240 p99=     3165 mean=    1432.0
+    transfer_us            n= 2304 p50=      995 p90=     1245 p95=     1420 p99=     2315 mean=    1037.8
+    ask_to_complete_us     n= 2394 p50=     2670 p90=     3160 p95=     3410 p99=     4705 mean=    2750.7
+    total_us               n= 2394 p50=     2740 p90=     3235 p95=     3495 p99=     4985 mean=    2830.4
+  [ts] runs=6 connect_ms_median=7.4 copies_declared=1 js_heap_peak=70721290 wasm_mem=None
+       chunks_per_frame={'p50': 6, 'p95': 6, 'mean': 5.69}
+       one-time: first_ask_total_us=4770 first_ask_deliver_us=545 long_tasks_outside_window=0 wall_ms_median=8102
+    deliver_us             n= 2394 p50=      270 p90=      350 p95=      380 p99=      565 mean=     285.2
+    serve_plus_path_us     n= 2394 p50=     1360 p90=     1705 p95=     2225 p99=     3205 mean=    1444.7
+    transfer_us            n= 2314 p50=      985 p90=     1270 p95=     1405 p99=     2190 mean=    1030.3
+    ask_to_complete_us     n= 2394 p50=     2640 p90=     3155 p95=     3480 p99=     4885 mean=    2725.8
+    total_us               n= 2394 p50=     2690 p90=     3210 p95=     3530 p99=     4925 mean=    2774.6
+
+per-run comparison (wasm -> ts), mean over runs of the per-run statistic:
+  metric                    stat         wasm           ts   delta_us   ratio   p_perm
+  deliver_us              median        310.0        275.8      -34.2   0.890   0.0152
+  deliver_us                 p95        425.8        376.7      -49.2   0.885   0.0108
+  serve_plus_path_us      median       1341.7       1360.0       18.3   1.014   0.6472
+  serve_plus_path_us         p95       2198.3       2153.3      -45.0   0.980   0.8030
+  transfer_us             median        994.2        988.3       -5.8   0.994   0.6775
+  transfer_us                p95       1413.3       1376.7      -36.7   0.974   0.5476
+  ask_to_complete_us      median       2668.3       2635.0      -33.3   0.988   0.5563
+  ask_to_complete_us         p95       3430.8       3454.2       23.3   1.007   0.9394
+  total_us                median       2741.7       2685.0      -56.7   0.979   0.3290
+  total_us                   p95       3507.5       3508.3        0.8   1.000   1.0000
+
+### local-250k-ondemand-shared
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=shared cell=ondemand depth=1 n=400 interval_ms=20 repeats=6 link=direct loopback (rtt~0, unshaped)
+
+controls (must match across arms — the server did the same work):
+                                    wasm              ts
+  server_serve_us_p50                160             161
+  server_prepare_us_p50              124             125
+  server_send_us_p50                  34              34
+  server_bytes                 100001600       100001600
+  mean_frame_bytes                250000          250000
+  rows_usable                       2394            2394
+  rows_total                        2400            2400
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=6 connect_ms_median=25.035 copies_declared=2 js_heap_peak=72233822 wasm_mem=1441792
+       chunks_per_frame={'p50': 7, 'p95': 7, 'mean': 6.35}
+       one-time: first_ask_total_us=5165 first_ask_deliver_us=875 long_tasks_outside_window=0 wall_ms_median=8072
+    deliver_us             n= 2394 p50=      200 p90=      270 p95=      310 p99=      575 mean=     218.4
+    serve_plus_path_us     n= 2394 p50=     1010 p90=     1295 p95=     1575 p99=     2365 mean=    1072.9
+    transfer_us            n= 2393 p50=      855 p90=     1100 p95=     1265 p99=     2150 mean=     885.7
+    ask_to_complete_us     n= 2394 p50=     2085 p90=     2515 p95=     2825 p99=     4510 mean=    2176.6
+    total_us               n= 2394 p50=     2160 p90=     2605 p95=     2915 p99=     4565 mean=    2254.1
+  [ts] runs=6 connect_ms_median=7.46 copies_declared=1 js_heap_peak=70571487 wasm_mem=None
+       chunks_per_frame={'p50': 7, 'p95': 7, 'mean': 6.44}
+       one-time: first_ask_total_us=4550 first_ask_deliver_us=455 long_tasks_outside_window=0 wall_ms_median=8111
+    deliver_us             n= 2394 p50=      175 p90=      230 p95=      255 p99=      380 mean=     191.9
+    serve_plus_path_us     n= 2394 p50=     1015 p90=     1285 p95=     1575 p99=     2360 mean=    1075.7
+    transfer_us            n= 2387 p50=      830 p90=     1070 p95=     1215 p99=     2020 mean=     856.8
+    ask_to_complete_us     n= 2394 p50=     2030 p90=     2445 p95=     2650 p99=     4425 mean=    2121.9
+    total_us               n= 2394 p50=     2080 p90=     2500 p95=     2705 p99=     4515 mean=    2172.7
+
+per-run comparison (wasm -> ts), mean over runs of the per-run statistic:
+  metric                    stat         wasm           ts   delta_us   ratio   p_perm
+  deliver_us              median        201.7        175.8      -25.8   0.872   0.0022
+  deliver_us                 p95        311.7        254.2      -57.5   0.816   0.0022
+  serve_plus_path_us      median       1010.0       1014.2        4.2   1.004   0.8636
+  serve_plus_path_us         p95       1618.3       1562.5      -55.8   0.965   0.5368
+  transfer_us             median        855.8        835.0      -20.8   0.976   0.1385
+  transfer_us                p95       1253.3       1222.5      -30.8   0.975   0.4675
+  ask_to_complete_us      median       2084.2       2030.8      -53.3   0.974   0.1515
+  ask_to_complete_us         p95       2824.2       2675.0     -149.2   0.947   0.1385
+  total_us                median       2157.5       2080.0      -77.5   0.964   0.0671
+  total_us                   p95       2918.3       2728.3     -190.0   0.935   0.0498
+
+### local-32k-ondemand
+study=lab/fixtures/frames_32k/frames_32k.sbnd frames=80 mode=per-frame cell=ondemand depth=1 n=400 interval_ms=10 repeats=6 link=direct loopback (rtt~0, unshaped)
+
+controls (must match across arms — the server did the same work):
+                                    wasm              ts
+  server_serve_us_p50                 94              94
+  server_prepare_us_p50               70              69
+  server_send_us_p50                  24              23
+  server_bytes                  12801600        12801600
+  mean_frame_bytes                 32000           32000
+  rows_usable                       2394            2394
+  rows_total                        2400            2400
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=6 connect_ms_median=26.465 copies_declared=2 js_heap_peak=20680530 wasm_mem=1179648
+       chunks_per_frame={'p50': 1, 'p95': 1, 'mean': 1.0}
+       one-time: first_ask_total_us=3830 first_ask_deliver_us=745 long_tasks_outside_window=0 wall_ms_median=4069
+    deliver_us             n= 2394 p50=      185 p90=      255 p95=      285 p99=      495 mean=     199.5
+    serve_plus_path_us     n= 2394 p50=     1315 p90=     1635 p95=     1745 p99=     2710 mean=    1359.9
+    transfer_us            n=    5 p50=       95 p90=      265 p95=      265 p99=      265 mean=     119.0
+    ask_to_complete_us     n= 2394 p50=     1505 p90=     1865 p95=     1990 p99=     3005 mean=    1559.6
+    total_us               n= 2394 p50=     1580 p90=     1940 p95=     2070 p99=     3230 mean=    1645.8
+  [ts] runs=6 connect_ms_median=7.715 copies_declared=1 js_heap_peak=20097662 wasm_mem=None
+       chunks_per_frame={'p50': 1, 'p95': 1, 'mean': 1.0}
+       one-time: first_ask_total_us=3265 first_ask_deliver_us=345 long_tasks_outside_window=0 wall_ms_median=4109
+    deliver_us             n= 2394 p50=      125 p90=      175 p95=      195 p99=      230 mean=     135.1
+    serve_plus_path_us     n= 2394 p50=     1240 p90=     1560 p95=     1650 p99=     2185 mean=    1279.2
+    transfer_us            n=    2 p50=       65 p90=       80 p95=       80 p99=       80 mean=      72.5
+    ask_to_complete_us     n= 2394 p50=     1375 p90=     1700 p95=     1810 p99=     2320 mean=    1414.3
+    total_us               n= 2394 p50=     1420 p90=     1750 p95=     1860 p99=     2360 mean=    1464.2
+
+per-run comparison (wasm -> ts), mean over runs of the per-run statistic:
+  metric                    stat         wasm           ts   delta_us   ratio   p_perm
+  deliver_us              median        187.5        130.0      -57.5   0.693   0.0022
+  deliver_us                 p95        279.2        190.8      -88.3   0.684   0.0022
+  serve_plus_path_us      median       1306.7       1246.7      -60.0   0.954   0.4459
+  serve_plus_path_us         p95       1720.8       1606.7     -114.2   0.934   0.1645
+  transfer_us             median        125.0         72.5      -52.5   0.580   0.6667
+  transfer_us                p95        130.0         72.5      -57.5   0.558   0.5333
+  ask_to_complete_us      median       1503.3       1380.0     -123.3   0.918   0.1623
+  ask_to_complete_us         p95       1959.2       1759.2     -200.0   0.898   0.0433
+  total_us                median       1576.7       1430.0     -146.7   0.907   0.0996
+  total_us                   p95       2036.7       1815.8     -220.8   0.892   0.0346
+
+### shaped150-250k-ondemand
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=per-frame cell=ondemand depth=1 n=80 interval_ms=420 repeats=4 link=shim rtt=150.0ms rate=10.0mbit queue=100.0ms
+
+controls (must match across arms — the server did the same work):
+                                    wasm              ts
+  server_serve_us_p50                165             172
+  server_prepare_us_p50               92              98
+  server_send_us_p50                  69              70
+  server_bytes                  20000320        20000320
+  mean_frame_bytes                250000          250000
+  rows_usable                        316             316
+  rows_total                         320             320
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+  shim_down_drops                      0               0
+  shim_down_packets                56408           56406
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=4 connect_ms_median=484.125 copies_declared=2 js_heap_peak=14472851 wasm_mem=1900544
+       chunks_per_frame={'p50': 168, 'p95': 173, 'mean': 167.1}
+       one-time: first_ask_total_us=853245 first_ask_deliver_us=1150 long_tasks_outside_window=0 wall_ms_median=33553
+    deliver_us             n=  316 p50=      395 p90=      475 p95=      520 p99=      580 mean=     393.6
+    serve_plus_path_us     n=  316 p50=   154270 p90=   154750 p95=   155005 p99=   155930 mean=  154356.3
+    transfer_us            n=  316 p50=   201585 p90=   202220 p95=   202485 p99=   239995 mean=  202188.7
+    ask_to_complete_us     n=  316 p50=   356310 p90=   356790 p95=   356970 p99=   394445 mean=  356938.7
+    total_us               n=  316 p50=   356460 p90=   384370 p95=   638695 p99=   830155 mean=  382438.7
+  [ts] runs=4 connect_ms_median=466.895 copies_declared=1 js_heap_peak=17807882 wasm_mem=None
+       chunks_per_frame={'p50': 168, 'p95': 173, 'mean': 166.77}
+       one-time: first_ask_total_us=854935 first_ask_deliver_us=780 long_tasks_outside_window=0 wall_ms_median=33564
+    deliver_us             n=  316 p50=      345 p90=      405 p95=      430 p99=      500 mean=     341.0
+    serve_plus_path_us     n=  316 p50=   154255 p90=   154685 p95=   154910 p99=   155390 mean=  154240.5
+    transfer_us            n=  316 p50=   201695 p90=   202390 p95=   202635 p99=   241825 mean=  202286.8
+    ask_to_complete_us     n=  316 p50=   356280 p90=   356700 p95=   356945 p99=   396470 mean=  356868.2
+    total_us               n=  316 p50=   356390 p90=   386510 p95=   640700 p99=   832605 mean=  382572.4
+
+per-run comparison (wasm -> ts), mean over runs of the per-run statistic:
+  metric                    stat         wasm           ts   delta_us   ratio   p_perm
+  deliver_us              median        392.5        342.5      -50.0   0.873   0.0286
+  deliver_us                 p95        513.8        432.5      -81.2   0.842   0.0286
+  serve_plus_path_us      median     154287.5     154256.2      -31.2   1.000   0.3429
+  serve_plus_path_us         p95     155117.5     154918.8     -198.8   0.999   0.2571
+  transfer_us             median     201583.8     201696.2      112.5   1.001   0.0571
+  transfer_us                p95     202518.8     202656.2      137.5   1.001   0.2286
+  ask_to_complete_us      median     356295.0     356268.8      -26.2   1.000   0.5714
+  ask_to_complete_us         p95     357067.5     356960.0     -107.5   1.000   0.2857
+  total_us                median     356480.0     356402.5      -77.5   1.000   0.1714
+  total_us                   p95     644743.8     646940.0     2196.2   1.003   0.6000
+
+### shaped20-250k-ondemand
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=per-frame cell=ondemand depth=1 n=80 interval_ms=300 repeats=4 link=shim rtt=20.0ms rate=10.0mbit queue=100.0ms
+
+controls (must match across arms — the server did the same work):
+                                    wasm              ts
+  server_serve_us_p50                162             165
+  server_prepare_us_p50               89              90
+  server_send_us_p50                  66              68
+  server_bytes                  20000320        20000320
+  mean_frame_bytes                250000          250000
+  rows_usable                        316             316
+  rows_total                         320             320
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+  shim_down_drops                    120             119
+  shim_down_packets                65399           68257
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=4 connect_ms_median=93.375 copies_declared=2 js_heap_peak=22920103 wasm_mem=1900544
+       chunks_per_frame={'p50': 175, 'p95': 180, 'mean': 173.09}
+       one-time: first_ask_total_us=249210 first_ask_deliver_us=955 long_tasks_outside_window=0 wall_ms_median=23945
+    deliver_us             n=  316 p50=      385 p90=      465 p95=      495 p99=      615 mean=     391.6
+    serve_plus_path_us     n=  316 p50=    24530 p90=    24860 p95=    25010 p99=    25250 mean=   24543.4
+    transfer_us            n=  316 p50=   202520 p90=   203420 p95=   222075 p99=   232820 mean=  204333.8
+    ask_to_complete_us     n=  316 p50=   227425 p90=   228525 p95=   246940 p99=   257845 mean=  229268.8
+    total_us               n=  316 p50=   227525 p90=   228635 p95=   247030 p99=   257940 mean=  229367.4
+  [ts] runs=4 connect_ms_median=75.32 copies_declared=1 js_heap_peak=20329831 wasm_mem=None
+       chunks_per_frame={'p50': 176, 'p95': 182, 'mean': 175.74}
+       one-time: first_ask_total_us=249000 first_ask_deliver_us=605 long_tasks_outside_window=0 wall_ms_median=23957
+    deliver_us             n=  316 p50=      330 p90=      410 p95=      440 p99=      485 mean=     331.4
+    serve_plus_path_us     n=  316 p50=    24455 p90=    24890 p95=    25095 p99=    26015 mean=   24518.5
+    transfer_us            n=  316 p50=   202745 p90=   203535 p95=   224150 p99=   239650 mean=  205243.6
+    ask_to_complete_us     n=  316 p50=   227550 p90=   228430 p95=   248710 p99=   264810 mean=  230093.6
+    total_us               n=  316 p50=   227640 p90=   228700 p95=   253805 p99=   265265 mean=  230406.4
+
+per-run comparison (wasm -> ts), mean over runs of the per-run statistic:
+  metric                    stat         wasm           ts   delta_us   ratio   p_perm
+  deliver_us              median        387.5        333.8      -53.8   0.861   0.0286
+  deliver_us                 p95        503.8        447.5      -56.2   0.888   0.0286
+  serve_plus_path_us      median      24513.8      24446.2      -67.5   0.997   0.4286
+  serve_plus_path_us         p95      25001.2      25057.5       56.2   1.002   0.6857
+  transfer_us             median     202521.2     202717.5      196.2   1.001   0.3143
+  transfer_us                p95     221746.2     228476.2     6730.0   1.030   0.0286
+  ask_to_complete_us      median     227427.5     227555.0      127.5   1.001   0.6571
+  ask_to_complete_us         p95     246522.5     253520.0     6997.5   1.028   0.0286
+  total_us                median     227521.2     227633.8      112.5   1.000   0.7714
+  total_us                   p95     246613.8     253678.8     7065.0   1.029   0.0286
+
+### shaped60-250k-fill
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=per-frame cell=fill depth=1 n=40 interval_ms=None repeats=5 link=shim rtt=60.0ms rate=10.0mbit queue=100.0ms
+
+controls (must match across arms — the server did the same work):
+                                    wasm              ts
+  server_serve_us_p50                196             198
+  server_prepare_us_p50               28              22
+  server_send_us_p50                 165             163
+  server_bytes                  10000160        10000160
+  mean_frame_bytes                250000          250000
+  rows_usable                        195             195
+  rows_total                         200             200
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+  shim_down_drops                   1205            1197
+  shim_down_packets                42144           42153
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=5 connect_ms_median=213.425 copies_declared=2 js_heap_peak=28572182 wasm_mem=17104896
+       chunks_per_frame={'p50': 206, 'p95': 211, 'mean': 206.39}
+       one-time: first_ask_total_us=7928520 first_ask_deliver_us=1245 long_tasks_outside_window=0 wall_ms_median=8370
+    deliver_us             n=  195 p50=    42040 p90=   186465 p95=   223860 p99=   316040 mean=   68361.9
+    serve_plus_path_us     n=  195 p50=   196670 p90=   228945 p95=   232295 p99=   233685 mean=  183178.5
+    transfer_us            n=  195 p50=  8132190 p90=  8208305 p95=  8219355 p99=  8237720 mean= 8111374.3
+    ask_to_complete_us     n=  195 p50=  8316815 p90=  8363410 p95=  8368485 p99=  8373955 mean= 8294552.8
+    total_us               n=  195 p50=  8317835 p90=  8364095 p95=  8369335 p99=  8374975 mean= 8295351.8
+  [ts] runs=5 connect_ms_median=196.525 copies_declared=1 js_heap_peak=24724317 wasm_mem=None
+       chunks_per_frame={'p50': 206, 'p95': 210, 'mean': 205.72}
+       one-time: first_ask_total_us=8014330 first_ask_deliver_us=1105 long_tasks_outside_window=0 wall_ms_median=8372
+    deliver_us             n=  195 p50=    35635 p90=   173100 p95=   204620 p99=   227090 mean=   62600.1
+    serve_plus_path_us     n=  195 p50=   198530 p90=   229780 p95=   232555 p99=   234070 mean=  184478.8
+    transfer_us            n=  195 p50=  8131005 p90=  8219550 p95=  8230795 p99=  8237320 mean= 8118989.5
+    ask_to_complete_us     n=  195 p50=  8330805 p90=  8366080 p95=  8368220 p99=  8370115 mean= 8303468.3
+    total_us               n=  195 p50=  8331300 p90=  8366515 p95=  8368700 p99=  8370565 mean= 8303929.3
+
+per-run comparison (wasm -> ts), mean over runs of the per-run statistic:
+  metric                    stat         wasm           ts   delta_us   ratio   p_perm
+  deliver_us              median      45175.0      38847.0    -6328.0   0.860   0.3889
+  deliver_us                 p95     226666.0     200592.0   -26074.0   0.885   0.4127
+  serve_plus_path_us      median     197068.0     198755.0     1687.0   1.009   0.1032
+  serve_plus_path_us         p95     231170.0     233082.0     1912.0   1.008   0.6190
+  transfer_us             median    8130964.0    8131958.0      994.0   1.000   0.9127
+  transfer_us                p95    8222972.0    8230537.0     7565.0   1.001   0.2381
+  ask_to_complete_us      median    8315373.0    8329663.0    14290.0   1.002   0.0635
+  ask_to_complete_us         p95    8368199.0    8368405.0      206.0   1.000   0.9603
+  total_us                median    8316172.0    8330124.0    13952.0   1.002   0.0714
+  total_us                   p95    8368998.0    8368866.0     -132.0   1.000   0.9683
+
+### shaped60-250k-ondemand
+study=lab/fixtures/frames_250k/frames_250k.sbnd frames=80 mode=per-frame cell=ondemand depth=1 n=80 interval_ms=350 repeats=5 link=shim rtt=60.0ms rate=10.0mbit queue=100.0ms
+
+controls (must match across arms — the server did the same work):
+                                    wasm              ts
+  server_serve_us_p50                165             162
+  server_prepare_us_p50               94              91
+  server_send_us_p50                  69              68
+  server_bytes                  20000320        20000320
+  mean_frame_bytes                250000          250000
+  rows_usable                        395             395
+  rows_total                         400             400
+  busy_rows_excluded                   0               0
+  long_tasks_in_window                 0               0
+  shim_down_drops                     38              46
+  shim_down_packets                70576           70571
+
+per-arm, pooled usable rows (nearest-rank):
+  [wasm] runs=5 connect_ms_median=212.565 copies_declared=2 js_heap_peak=15079738 wasm_mem=1900544
+       chunks_per_frame={'p50': 166, 'p95': 171, 'mean': 165.26}
+       one-time: first_ask_total_us=399975 first_ask_deliver_us=935 long_tasks_outside_window=0 wall_ms_median=27935
+    deliver_us             n=  395 p50=      390 p90=      475 p95=      515 p99=      645 mean=     393.2
+    serve_plus_path_us     n=  395 p50=    64935 p90=    65285 p95=    65365 p99=    65690 mean=   64825.7
+    transfer_us            n=  395 p50=   201680 p90=   202525 p95=   261455 p99=   285165 mean=  205674.3
+    ask_to_complete_us     n=  395 p50=   266950 p90=   267465 p95=   326210 p99=   350530 mean=  270893.2
+    total_us               n=  395 p50=   267080 p90=   267695 p95=   326335 p99=   350630 mean=  271639.4
+  [ts] runs=5 connect_ms_median=194.915 copies_declared=1 js_heap_peak=18348689 wasm_mem=None
+       chunks_per_frame={'p50': 166, 'p95': 172, 'mean': 166.03}
+       one-time: first_ask_total_us=398230 first_ask_deliver_us=635 long_tasks_outside_window=0 wall_ms_median=27946
+    deliver_us             n=  395 p50=      335 p90=      420 p95=      440 p99=      540 mean=     336.8
+    serve_plus_path_us     n=  395 p50=    64815 p90=    65255 p95=    65420 p99=    65595 mean=   64733.4
+    transfer_us            n=  395 p50=   201680 p90=   202525 p95=   260135 p99=   286040 mean=  206084.5
+    ask_to_complete_us     n=  395 p50=   266805 p90=   267295 p95=   324530 p99=   350800 mean=  271154.8
+    total_us               n=  395 p50=   266900 p90=   267495 p95=   327025 p99=   351450 mean=  272500.1
+
+per-run comparison (wasm -> ts), mean over runs of the per-run statistic:
+  metric                    stat         wasm           ts   delta_us   ratio   p_perm
+  deliver_us              median        387.0        337.0      -50.0   0.871   0.0079
+  deliver_us                 p95        520.0        459.0      -61.0   0.883   0.0317
+  serve_plus_path_us      median      64926.0      64803.0     -123.0   0.998   0.0079
+  serve_plus_path_us         p95      65370.0      65442.0       72.0   1.001   0.0317
+  transfer_us             median     201658.0     201662.0        4.0   1.000   0.9444
+  transfer_us                p95     275359.0     267878.0    -7481.0   0.973   0.2619
+  ask_to_complete_us      median     266941.0     266814.0     -127.0   1.000   0.0079
+  ask_to_complete_us         p95     340571.0     332991.0    -7580.0   0.978   0.2778
+  total_us                median     267076.0     266902.0     -174.0   0.999   0.0079
+  total_us                   p95     340685.0     336569.0    -4116.0   0.988   0.5317
+
+wrote docs/measurements/n6/n6_summary.tsv

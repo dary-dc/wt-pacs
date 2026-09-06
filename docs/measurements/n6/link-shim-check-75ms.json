@@ -1,0 +1,23 @@
+{
+  "asked": {
+    "rtt_ms": 150.0,
+    "rate_mbit": 10.0,
+    "queue_ms": 100.0
+  },
+  "rtt_ms": {
+    "n": 40,
+    "min": 152.911,
+    "median": 153.061,
+    "mean": 153.1,
+    "max": 153.435,
+    "stdev": 0.123
+  },
+  "blast": {
+    "sent": 800,
+    "received": 800,
+    "packet_bytes": 1350,
+    "span_s": 0.8634,
+    "goodput_mbit_one_way": 10.007
+  },
+  "shim_stats_line": "{\"listen_port\": 4598, \"server_port\": 4599, \"rtt_ms\": 150.0, \"rate_mbit\": 10.0, \"queue_ms\": 100.0, \"up\": {\"packets\": 840, \"bytes\": 1082560, \"drops\": 0, \"max_queue_ms\": 49.522}, \"down\": {\"packets\": 840, \"bytes\": 1082560, \"drops\": 0, \"max_queue_ms\": 2.382}}"
+}
