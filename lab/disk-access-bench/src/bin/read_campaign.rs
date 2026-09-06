@@ -44,6 +44,11 @@ enum Arm {
     Hybrid,
     /// The ADR's escape hatch: every read on the blocking pool, no fast path attempted.
     PooledPread,
+    /// **The S5 control.** `hybrid`'s loop with `pool`'s miss mechanism: one task holding
+    /// `depth` slots, `RWF_NOWAIT` inline, `spawn_blocking` — not a ring — for the
+    /// shortfall. Its delta against `pool` is reader-loop shape alone; `hybrid` minus this
+    /// is what io_uring is actually worth. See `docs/disk-access/S5-CONTROL-ARM.md`.
+    PoolRingLoop,
 }
 
 impl Arm {
@@ -53,6 +58,7 @@ impl Arm {
             "uring" => Some(Self::Uring),
             "hybrid" => Some(Self::Hybrid),
             "pooled_pread" => Some(Self::PooledPread),
+            "pool_ringloop" => Some(Self::PoolRingLoop),
             _ => None,
         }
     }
@@ -62,6 +68,7 @@ impl Arm {
             Self::Uring => "uring",
             Self::Hybrid => "hybrid",
             Self::PooledPread => "pooled_pread",
+            Self::PoolRingLoop => "pool_ringloop",
         }
     }
     fn uses_ring(self) -> bool {
@@ -74,7 +81,7 @@ impl Arm {
 struct Args {
     #[arg(long)]
     study: PathBuf,
-    /// Comma-separated: pool,uring,hybrid,pooled_pread
+    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop
     #[arg(long, default_value = "pool,uring,hybrid")]
     arms: String,
     /// Comma-separated reads in flight per reader.
@@ -382,6 +389,92 @@ async fn reader_pool(
     Ok(())
 }
 
+/// **S5 control**: `reader_ring`'s shape, `reader_pool`'s miss mechanism.
+///
+/// One task holding `depth` slots — not `depth` tasks sharing a cursor — with
+/// `RWF_NOWAIT` inline and `spawn_blocking` for the shortfall. No ring, no eventfd, no
+/// registered buffers.
+///
+/// It exists because `pool` and `hybrid` differ in **two** things at once (loop shape and
+/// miss mechanism), so neither of them isolates either. This arm holds the miss mechanism
+/// fixed against `pool` and the loop fixed against `hybrid`:
+///
+/// * `pool_ringloop` − `pool`   = the loop alone
+/// * `hybrid` − `pool_ringloop` = the ring alone
+///
+/// Correctness check: in the **hit** regime no read reaches a ring in either arm, so
+/// `hybrid` − `pool_ringloop` must come out ~0. If it does not, this arm is not built right.
+async fn reader_ringloop(
+    store: Arc<FrameStore>,
+    file: Arc<std::fs::File>,
+    cell: &Cell,
+    plan: Plan,
+    lat: Arc<Mutex<Vec<u64>>>,
+    misses: Arc<AtomicU64>,
+) -> Result<()> {
+    let (depth, prefetch) = (cell.depth, cell.prefetch);
+    let asks = plan.len();
+    // Same slot geometry as `reader_ring`: `depth` buffers sized to the longest read in the
+    // plan, so the two arms hold the same memory and differ only in how a miss is served.
+    let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
+    let mut slots: Vec<Vec<u8>> = (0..depth).map(|_| vec![0u8; cap]).collect();
+    let mut free: Vec<usize> = (0..depth).collect();
+    let mut inflight: tokio::task::JoinSet<Result<(usize, Vec<u8>, Instant)>> =
+        tokio::task::JoinSet::new();
+    let mut mine = Vec::with_capacity(asks);
+    let (mut issued, mut completed, mut miss) = (0usize, 0usize, 0u64);
+
+    while completed < asks {
+        while issued < asks {
+            let Some(slot) = free.pop() else { break };
+            let (off, len) = plan[issued];
+            let len = len as usize;
+            let started = Instant::now();
+            if prefetch {
+                if let Some(&(noff, nlen)) = plan.get(issued + depth) {
+                    hint_willneed(&file, noff, nlen as usize);
+                }
+            }
+            let mut buf = std::mem::take(&mut slots[slot]);
+            let got = store.read_at_nowait(&mut buf[..len], off).unwrap_or(0);
+            issued += 1;
+            if got == len {
+                // Hit: served inline, the slot never leaves this task — the same shape the
+                // hybrid has on a hit, which is what makes the two comparable there.
+                mine.push(started.elapsed().as_nanos() as u64);
+                slots[slot] = buf;
+                free.push(slot);
+                completed += 1;
+                continue;
+            }
+            miss += 1;
+            let s = Arc::clone(&store);
+            inflight.spawn(async move {
+                let buf = tokio::task::spawn_blocking(move || {
+                    s.read_at_blocking(&mut buf[got..len], off + got as u64)
+                        .map(|_| buf)
+                })
+                .await
+                .context("join blocking read")??;
+                Ok((slot, buf, started))
+            });
+        }
+        let Some(joined) = inflight.join_next().await else {
+            // No slot free and nothing in flight can only mean every ask is accounted for.
+            break;
+        };
+        let (slot, buf, started) = joined.context("reader task")??;
+        mine.push(started.elapsed().as_nanos() as u64);
+        slots[slot] = buf;
+        free.push(slot);
+        completed += 1;
+    }
+
+    lat.lock().unwrap().extend(mine);
+    misses.fetch_add(miss, Ordering::Relaxed);
+    Ok(())
+}
+
 /// One reader backed by its own ring — the per-session shape, `depth` slots in flight.
 async fn reader_ring(
     store: Arc<FrameStore>,
@@ -574,6 +667,8 @@ fn run_cell(
             set.spawn(async move {
                 if c.arm.uses_ring() {
                     reader_ring(store, file, &c, plan, lat, misses).await
+                } else if c.arm == Arm::PoolRingLoop {
+                    reader_ringloop(store, file, &c, plan, lat, misses).await
                 } else {
                     reader_pool(store, file, &c, plan, lat, misses).await
                 }

@@ -1,0 +1,20 @@
+S5 — does the reader loop or io_uring earn the hybrid's margin?
+Rule (RERUN.md Precision): |median| >= 28.5% AND sign agreement >= 0.8n, reproduced with the same sign.
+
+L  the loop alone      pool_ringloop - pool
+   hit   run1   -17.1%   85/98   tie      run2   -13.2%   78/96   tie      same sign
+   mix   run1    -2.0%   25/40   tie      run2    -1.3%   25/42   tie      same sign
+   miss  run1    +8.6%   56/66   tie      run2   +10.7%   57/66   tie      same sign
+
+R  the ring alone      hybrid - pool_ringloop
+   hit   run1    +7.9%   74/98   tie      run2   +10.0%   72/96   tie      same sign
+   mix   run1   -56.9%   39/40   RESOLVED run2   -56.0%   42/42   RESOLVED same sign
+   miss  run1   -70.7%   66/66   RESOLVED run2   -72.7%   66/66   RESOLVED same sign
+
+L+R what the campaign reports today   hybrid - pool
+   hit   run1   -12.6%   78/98   tie      run2    -7.7%   67/96   tie      same sign
+   mix   run1   -61.0%   40/40   RESOLVED run2   -53.8%   42/42   RESOLVED same sign
+   miss  run1   -66.0%   66/66   RESOLVED run2   -68.1%   66/66   RESOLVED same sign
+
+Conclusion: L is a tie in every regime in both runs. R is RESOLVED in mix and miss,
+reproduced. The hybrid's margin is io_uring, not the loop shape. R8 is answered.

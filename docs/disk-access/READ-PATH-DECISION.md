@@ -11,12 +11,12 @@ been designed yet — how should the server read frame bytes?*
 > more strongly there; what changed is *why* we are miss-dominated, and how much the choice is
 > worth relative to the disk layout.
 
-> **The margin is confirmed on four hosts; its *attribution* is not settled.** `pool` and
-> `hybrid` reach a cache hit through two different reader loops, so part of what is scored as
-> "the ring wins" is loop shape — **R8** in [`SCOREBOARD.md`](SCOREBOARD.md), sized by
-> `lab/scripts/loop_shape_control.py`. The miss-regime result survives it (where the loop
-> favours `pool`, the hybrid still wins by ~75%), but **S5** should run before buying a
-> per-session ring: a restructured pool reader might capture part of the win for free.
+> **The margin is confirmed on four hosts, and its attribution is now measured too.** `pool`
+> and `hybrid` reach a cache hit through two different reader loops, which raised the question
+> of whether the loop rather than io_uring was earning the win (**R8**). A control arm
+> settled it ([`S5-CONTROL-ARM.md`](S5-CONTROL-ARM.md), two runs): the **loop is a tie in
+> every regime**, the **ring is RESOLVED at −56% mix and −71% miss**. The recommendation below
+> stands, and now stands for the stated reason.
 
 > **The measurement table, the evidence grading and the proposed next studies are in
 > [`SCOREBOARD.md`](SCOREBOARD.md).** This document argues the decision; that one shows the
