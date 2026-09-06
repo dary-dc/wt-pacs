@@ -220,6 +220,12 @@ async fn run_session(
     // ask keeps the highest priority.
     let mut ask_seq: i32 = 0;
 
+    // Loss-regime sampler. Never spawned unless WTPACS_PATH_TELEMETRY is set, and it ends
+    // with the connection, so it cannot outlive what it describes. See
+    // `record::path` for why this lives on the server rather than in the browser client.
+    #[cfg(feature = "telemetry")]
+    let _path_sampler = tokio::spawn(crate::record::path::run(connection.clone()));
+
     info!(
         frames = store.frame_count(),
         shared = shared.is_some(),

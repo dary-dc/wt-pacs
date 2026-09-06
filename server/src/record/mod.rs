@@ -16,6 +16,13 @@ pub type Stamp = ();
 #[cfg(feature = "telemetry")]
 pub mod tap;
 
+/// Per-connection QUIC path sampling — the loss-regime diagnostic. Separate from `tap`
+/// because it answers a different question at a different rate: `tap` writes a row per
+/// frame and is a development tool, this writes a row per second and is the thing you
+/// would leave on in production.
+#[cfg(feature = "telemetry")]
+pub mod path;
+
 /// Zero-sized and fully inlined away in default builds — see `recorder_is_zero_sized`.
 #[derive(Default)]
 pub struct Recorder {
