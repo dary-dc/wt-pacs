@@ -72,9 +72,43 @@ approaches the ceiling cannot distinguish a high one from a low one. What they b
 worst case — a client that stops draining while the server keeps pushing — which is
 precisely the case that matters at scale and precisely the case the light workload omits.
 
-`mem_stress.tsv` is that case: the client drains at 2 Mbps against a server pushing at line
-rate with depth 32, so bytes accumulate in the send buffer and `send_window` becomes the
-thing that bounds them.
+### The stress case, run
+
+Client draining at 2 Mbps against a server pushing at line rate, depth 32, N = 2…16:
+
+| | per connection | fit |
+| --- | -------------- | --- |
+| quinn defaults | **162 KB** | r² 0.9985 |
+| bounded windows | **146 KB** | r² 0.9991 |
+
+**The effect is real: bounded used less memory in 12 of 12 paired runs**, and the gap grows
+with N (+4 KB at N=2, +472 KB at N=16), which is what a per-connection effect looks like.
+A 12/12 sign run is p ≈ 0.0005.
+
+**But the magnitude is ~16 KB per connection, and that is the finding.** Even with
+*unbounded* windows, per-connection memory under stress was 162 KB — three orders below the
+10 MB default `send_window` that the arithmetic worry is built on. The ceiling was never
+close to binding.
+
+The reason is that **the receiver's window bounds server buffering first**. A well-behaved
+client advertises its own `stream_receive_window` (1.25 MB by default) and drains, so the
+server never gets to fill a 10 MB send window no matter how large it is.
+
+**What would actually reach the ceiling is a client that asks for a lot and then stops
+reading entirely** — stalled, backgrounded, or hostile. This harness always reads, so it
+cannot produce that case, and this measurement therefore does **not** rule it out.
+
+### So: bound the windows, but for the right reason
+
+- **Not** as a memory optimisation. Measured, it saves ~16 KB per connection, which is
+  0.08 GB at 5 000 viewers against a total of 0.8 GB.
+- **Yes** as a bound on the pathological case, which is unmeasured here and is the case the
+  arithmetic was always about. `receive_window` unlimited is not a policy regardless of
+  what a well-behaved client does.
+
+Its status therefore moves from *"unmeasured"* to *"measured under two workloads, small in
+both; the case that motivates it remains unmeasured because the harness cannot produce a
+client that stops reading."*
 
 ---
 
