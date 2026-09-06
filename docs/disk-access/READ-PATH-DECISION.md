@@ -6,6 +6,10 @@ The question: *given what we know today — browser clients, tens-of-GB studies 
 storage, clients that cache every increment they receive, and a disk layout that has not
 been designed yet — how should the server read frame bytes?*
 
+> **The measurement table, the evidence grading and the proposed next studies are in
+> [`SCOREBOARD.md`](SCOREBOARD.md).** This document argues the decision; that one shows the
+> numbers it rests on and grades how well each claim is actually supported.
+
 > **Lab only.** Nothing here is implemented in `server/`. The product tree is untouched by
 > this investigation; `git diff` over `server/` against the branch point is empty. The
 > deliverable is the decision, not code.
