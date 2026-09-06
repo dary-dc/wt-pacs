@@ -79,8 +79,11 @@ State this now so a null result is informative and a large result is checked rat
 ## 3 · Preconditions
 
 **P1–P3 are landed on this branch** (verified by local e2e: both arms, shared and per-frame).
-**P4** is also fixed (WASM `RecvBuf` receive path). N6 is no longer blocked on client wire or
-telemetry plumbing — it is blocked on §0 stream-mode remediation and a shaped link cell.
+**P4** is also fixed (WASM `RecvBuf` receive path). The §1 shell exists as
+`client/harness/shell.js` (one implementation, both arms: on-demand at depth `D`, fill, lab
+traces with pacing, bytes touched, session closed at `run_end`), driven by
+`server/scripts/verify_e2e.py --telemetry`. N6 is no longer blocked on client wire, telemetry
+plumbing, or the shell — it is blocked on §0 stream-mode remediation and a shaped link cell.
 
 | | status |
 | --- | --- |

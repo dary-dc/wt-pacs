@@ -43,7 +43,17 @@ P1 and P2 are alternatives, not a sequence. Full-frame `wrap()` copy is already 
 
 ---
 
-## 4 · Build artifacts (reminder)
+## 4 · Product `timing` object on both clients
+
+**Status:** parked — product call.
+
+`FrameResult.timing` (`session.ts` `toResult`, `session.rs` `result_to_js`) still reports
+`chunks: 1` and `firstChunkMs === lastChunkMs`: a single stamp after the whole envelope was
+parsed, written to both chunk fields. With the external recorder it is product code emitting a
+measurement that is wrong. Either drop `timing` from the product API or reduce it to
+`receivedMs`. Not telemetry; the harness no longer prints it.
+
+## 5 · Build artifacts (reminder)
 
 | Artifact | Source | In git? |
 | --- | --- | --- |

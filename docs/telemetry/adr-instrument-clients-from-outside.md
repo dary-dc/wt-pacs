@@ -1,9 +1,10 @@
 # ADR: instrument the browser clients from outside, not with an inline recorder
 
-**Status:** accepted (client Proxy G) · **Date:** 2026-08-30 · **Tags:** telemetry, client, lab  
-**Open:** Decision A — whether frame-level `firstByte`/`lastByte` keep byte attribution (A1),
-session-method totals only (A2), product framing edits (A3), or a hybrid (A4). Server Decision C
-is settled in [`adr-server-pipeline.md`](adr-server-pipeline.md).
+**Status:** accepted (client Proxy G; Decision A decided 2026-09-06) · **Date:** 2026-08-30 ·
+**Tags:** telemetry, client, lab  
+**Decision A:** A4 — byte attribution (A1) for `firstByte` / `lastByte`, session-method wrapping (A2)
+for `gesture` / `delivered` / failures. See § Decision A below. Server Decision C is settled in
+[`adr-server-pipeline.md`](adr-server-pipeline.md).
 
 As-built module: [`README.md`](README.md).
 
@@ -99,6 +100,38 @@ different points, because it is the same code stamping.
   (Decision A). This is a partial length-prefix parser in telemetry code — reusing `wire.ts`'s exported
   `parseLengthPrefixed`
 - It does **not** fix the event-loop timing confound. Only D does, and D is not a dependency
+
+## Decision A — frame boundaries stay in byte attribution (2026-09-06)
+
+The open question was whether `firstByte` / `lastByte` should come from the reader Proxy plus
+byte-offset attribution (A1), from session-method totals only (A2), from stamps inside the
+product framing helpers (A3), or a hybrid (A4). **A4 as built: A1 + A2.**
+
+| Criterion | A1 + A2 | A3 |
+| --- | --- | --- |
+| Stamp fidelity | `lastByte` at `read()` resolution before any copy; `delivered` at method return. An in-loop stamp sits in the same event-loop turn — nothing gained | same |
+| Arm parity | one JS patch, same bytes, same arithmetic — parity by construction | two implementations kept identical by review |
+| Invasiveness | zero product lines | ~8 sites per client, gated |
+| Default-build proof | never added | proven inert in two languages |
+| Batch correctness | deterministic byte arithmetic; ask identity from the FoD op | same |
+| Cost | measured: ~1 µs per read at 320 × 250 KB frames (`review-2026-09-06.md` §7) | small, paid in product code |
+
+A1's one real weakness was the cost of the first attributor (quadratic per read); that was an
+implementation defect, fixed by the streaming attributor, not a property of the seam. A2 alone
+cannot split wire time from copy time, so it stays as the other half.
+
+**Amendments carried with the decision:**
+
+- The control **readable** is proxied too. A server `frame_error` closes its row as `refused`;
+  without it a refused frame left a row open and voided the run with no diagnosis.
+- The attributor must stay O(1) per read and retain no payload; the tap times its own read path
+  (`integrity.tap_read_cost_us`) so a regression here shows in every report.
+- `gesture` is first-write-wins: the shell stamps it when a step becomes due, and the session
+  wrapper's stamp at call time applies only when nothing is pending.
+
+**What would reopen it:** a wire change that breaks byte-offset attribution (multi-frame
+envelopes, compression), or a stage that can only be stamped inside `session.*`. Neither is
+planned.
 
 ## The server pipeline — deliberately different from the browser
 

@@ -129,18 +129,19 @@ server/scripts/check_telemetry_absent.sh
 - **Absent here:** decode, paint, cache → `null`
 - **Stage `deliver`:** receive-side copy on the client path
 
-Client seam: patch `globalThis.WebTransport`, proxy transport/writer/reader; stamp per read.
-**`gesture`** comes from the harness (no transport object yet).
+Client seam: patch `globalThis.WebTransport`, proxy transport / control writer / control reader /
+media readers; stamp per read. **`gesture`** comes from the harness shell when a step becomes due
+(no transport object exists yet); first write wins.
 
 ---
 
-## Open
+## Decisions
 
-**Decision A (client):** frame-level `firstByte`/`lastByte` keep byte attribution (A1),
-session-method totals only (A2), product framing edits (A3), or hybrid (A4). See the client ADR.
-Recommendation, plus what the pipeline does when driven end to end and the remaining gaps
-(harness cells, the server report lost to the QUIC idle timeout, refusals, long-task windowing):
-[`review-2026-09-06.md`](review-2026-09-06.md).
+Both seam decisions are settled: client Decision A = A4 (byte attribution + session wrapping),
+recorded in the client ADR; server Decision C in `adr-server-pipeline.md`. The review that
+closed A and drove the 2026-09-06 fixes — with the end-to-end evidence and a resolution table —
+is [`review-2026-09-06.md`](review-2026-09-06.md). Nothing is open in this module; parked items
+are in [`followups-later.md`](followups-later.md).
 
 ---
 
@@ -154,5 +155,6 @@ Recommendation, plus what the pipeline does when driven end to end and the remai
 | Server wire out | `server/src/transport/frame_out.rs` |
 | Server Tap | `server/src/record/tap.rs` |
 | E2e harvest | `server/scripts/verify_e2e.py` |
-| Harness import order | `client/harness/ts.html`, `client/harness/index.html` |
+| Harness shell (one run, two arms) | `client/harness/shell.js`; adapters `client/harness/ts.html`, `client/harness/index.html` |
 | Absence checks | `client/scripts/check_telemetry_absent.sh`, `server/scripts/check_telemetry_absent.sh` |
+| Gate (all checks) | `scripts/gate.sh` |
