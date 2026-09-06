@@ -119,6 +119,7 @@ pub async fn run_harness(
     };
 
     let metrics: SharedMetrics = Arc::new(Mutex::new(crate::metrics::MetricsState::new(wanted)));
+    metrics.lock().expect("metrics").cache_cap = cfg.cache_frames;
 
     let conn_uni = connection.clone();
     let metrics_uni = Arc::clone(&metrics);
