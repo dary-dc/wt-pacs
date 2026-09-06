@@ -227,6 +227,24 @@ async fn main() -> Result<()> {
         HashMap::new();
     let mut buf = vec![0u8; 65535];
 
+    if args.stats {
+        // Stop condition 4 needs these visible: without them a campaign cannot tell a
+        // congested link from a simulator that is itself the bottleneck.
+        let (u, d) = (Arc::clone(&up_counters), Arc::clone(&down_counters));
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(Duration::from_millis(500));
+            loop {
+                tick.tick().await;
+                let (u, d) = (u.lock().expect("up"), d.lock().expect("down"));
+                println!(
+                    "stats up_fwd={} up_loss={} up_queue={} down_fwd={} down_loss={} down_queue={}",
+                    u.forwarded, u.dropped_loss, u.dropped_queue,
+                    d.forwarded, d.dropped_loss, d.dropped_queue
+                );
+            }
+        });
+    }
+
     loop {
         let (n, from) = listen.recv_from(&mut buf).await.context("recv listen")?;
         let now = Instant::now();
