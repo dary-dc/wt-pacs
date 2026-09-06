@@ -1,4 +1,4 @@
-use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics, StreamMode};
+use crate::metrics::{HarnessMetrics, HarnessMode, ReaderMode, RunConfig, SharedMetrics, StreamMode};
 use crate::trace::TraceSpec;
 use crate::wire::{read_framed_paced, write_fod_msg, LinkPacer};
 use anyhow::{Context, Result};
@@ -28,6 +28,23 @@ pub fn peak_outstanding() -> u32 {
 
 pub fn reset_peak_outstanding() {
     PEAK_OUTSTANDING.store(0, Ordering::Relaxed);
+    CENTER_DROPPED.store(0, Ordering::Relaxed);
+}
+
+/// Steps whose centre ask was suppressed by the hard outstanding ceiling.
+///
+/// The centre is the frame whose wait is being measured. If its ask never went out, the
+/// step measured the harness's own ask policy, not the transport. **Any run with a
+/// non-zero count is void for p95 purposes**, and the campaign analyser must say so
+/// rather than quietly averaging it in.
+static CENTER_DROPPED: AtomicU32 = AtomicU32::new(0);
+
+fn note_center_dropped() {
+    CENTER_DROPPED.fetch_add(1, Ordering::Relaxed);
+}
+
+pub fn center_asks_dropped() -> u32 {
+    CENTER_DROPPED.load(Ordering::Relaxed)
 }
 
 /// Per-session ask ordinals for offline join with server `telemetry-server.json`.
@@ -221,6 +238,7 @@ pub async fn run_harness(
         cfg.warm_cache,
         cfg.rtt_ms,
         cfg.stream_mode,
+        cfg.reader_mode,
     ))
 }
 
@@ -375,18 +393,29 @@ async fn run_windowed(
         outstanding.lock().expect("outstanding").clear();
     }
 
-    for (i, &cursor) in schedule.iter().enumerate() {
-        if i > 0 {
-            tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
+    match cfg.reader_mode {
+        ReaderMode::Closed => {
+            for (i, &cursor) in schedule.iter().enumerate() {
+                if i > 0 {
+                    tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
+                }
+                // Ask first so depth can pipeline; then measure wait for this cursor.
+                asks_sent +=
+                    emit_window(control_send, outstanding, metrics, cursor, d, n, cfg.rtt_ms)
+                        .await?;
+                // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
+                // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
+                // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
+                // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
+                wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
+                wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
+            }
         }
-        // Ask first so depth can pipeline; then measure wait for this cursor.
-        asks_sent += emit_window(control_send, outstanding, metrics, cursor, d, n, cfg.rtt_ms).await?;
-        // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
-        // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
-        // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
-        // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
-        wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
-        wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
+        ReaderMode::Open => {
+            asks_sent +=
+                run_reader_open_loop(control_send, trace, cfg, schedule, metrics, outstanding)
+                    .await?;
+        }
     }
 
     {
@@ -415,6 +444,143 @@ async fn run_windowed(
     }
 
     Ok(asks_sent)
+}
+
+/// One outstanding want: the frame the reader is looking at, and when it asked for it.
+struct Want {
+    frame: u32,
+    wanted_at: std::time::Instant,
+}
+
+/// The reader advances on the trace's own wall clock and never waits for the transport.
+///
+/// This is the whole point of the mode. A closed-loop reader (`ReaderMode::Closed`) blocks
+/// on each cursor before advancing, so the transport can never fall behind it and every
+/// byte in flight is a byte the reader still wants. Under those conditions head-of-line
+/// blocking cannot occur and no stream-shape comparison means anything — which is how a
+/// "keep one shared stream" recommendation came to be written on evidence that could not
+/// support it (`docs/transport-conclusions.md` §2).
+///
+/// Three properties matter for the numbers this produces to be trustworthy:
+///
+/// 1. **Steps are absolute deadlines**, `t0 + i × step`, not `sleep(step)` per iteration.
+///    Per-iteration sleeps accumulate the ask-emission cost into the schedule, so a slower
+///    arm would silently get a slower reader — flattering exactly the arm under suspicion.
+/// 2. **Waits are resolved from recorded arrival instants**, not by polling cache
+///    membership. Poll granularity therefore cannot quantise a wait, and a frame that
+///    arrives and is LRU-evicted before the next poll is still scored as delivered.
+/// 3. **Unmet wants are censored, not dropped.** An arm that fails to deliver would
+///    otherwise lose its slowest samples and win on p95 by delivering less.
+async fn run_reader_open_loop(
+    control_send: &mut wtransport::stream::SendStream,
+    trace: &TraceSpec,
+    cfg: &RunConfig,
+    schedule: &[u32],
+    metrics: &SharedMetrics,
+    outstanding: &Arc<Mutex<HashSet<u32>>>,
+) -> Result<u32> {
+    let n = cfg.frame_count.max(1);
+    let d = cfg.depth;
+    let mut asks_sent = 0u32;
+    let mut pending: Vec<Want> = Vec::new();
+
+    let t0 = tokio::time::Instant::now();
+    let step = Duration::from_secs_f64(
+        (trace.step_interval_ms as f64 * cfg.step_scale.max(0.001)) / 1000.0,
+    );
+
+    for (i, &cursor) in schedule.iter().enumerate() {
+        // Absolute deadline. If emission overran the previous step this returns
+        // immediately and the reader is simply late — which is recorded, not hidden.
+        tokio::time::sleep_until(t0 + step * i as u32).await;
+
+        let frame = cursor % n;
+        let window = window_frames(cursor, d, n);
+        {
+            // Publish the window before asking, so a frame arriving for a position the
+            // reader has left is attributed as stranded from this instant on.
+            let mut m = metrics.lock().expect("metrics");
+            m.live_window = window.iter().copied().collect();
+        }
+
+        // Non-blocking: a full depth gate drops the prefetch rather than stalling the
+        // reader. `center_first` keeps the frame actually on screen exempt from that cap,
+        // which is what a viewer does and which stops the metric from measuring ask
+        // policy instead of transport.
+        asks_sent += emit_window(control_send, outstanding, metrics, cursor, d, n, cfg.rtt_ms)
+            .await?;
+
+        // Register the want, then resolve whatever has landed. A cache hit is a genuine
+        // zero: the reader had the frame the instant it wanted it.
+        let hit = {
+            let mut m = metrics.lock().expect("metrics");
+            if m.cache.contains(&frame) {
+                m.touch_cache(frame);
+                m.record_wait_ms(0.0);
+                true
+            } else {
+                false
+            }
+        };
+        if !hit {
+            pending.push(Want {
+                frame,
+                wanted_at: std::time::Instant::now(),
+            });
+        }
+        resolve_pending(&mut pending, metrics);
+    }
+
+    // Measured here, before the drain — `t0.elapsed()` after draining would add
+    // `drain_ms` to every run and report a lag the reader never had.
+    let lag_ms = reader_lag_ms(t0, schedule.len(), step);
+
+    // The reader has stopped scrolling. Give the transport a bounded chance to finish
+    // what it owes before anything is called censored.
+    let drain_deadline = tokio::time::Instant::now() + Duration::from_millis(cfg.drain_ms);
+    while !pending.is_empty() && tokio::time::Instant::now() < drain_deadline {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        resolve_pending(&mut pending, metrics);
+    }
+
+    // Anything still owed is censored at its bound — recorded as a slow sample and
+    // counted, never discarded.
+    {
+        let mut m = metrics.lock().expect("metrics");
+        for w in pending.drain(..) {
+            let ms = w.wanted_at.elapsed().as_secs_f64() * 1000.0;
+            m.record_wait_ms(ms);
+            m.censored_waits += 1;
+        }
+        m.reader_lag_ms = lag_ms;
+    }
+
+    Ok(asks_sent)
+}
+
+/// Move every want whose frame has arrived since it was wanted into the wait samples.
+///
+/// Uses the recorded arrival instant, so the sample is the true wait rather than the
+/// time this happened to be called.
+fn resolve_pending(pending: &mut Vec<Want>, metrics: &SharedMetrics) {
+    let mut m = metrics.lock().expect("metrics");
+    pending.retain(|w| match m.last_arrival.get(&w.frame).copied() {
+        Some(t) if t >= w.wanted_at => {
+            let ms = t.duration_since(w.wanted_at).as_secs_f64() * 1000.0;
+            m.record_wait_ms(ms);
+            false
+        }
+        _ => true,
+    });
+}
+
+/// How far behind its own clock an open-loop reader finished.
+///
+/// Zero means the reader kept its schedule, the transport never fell behind, and the run
+/// tested nothing a closed-loop run does not.
+fn reader_lag_ms(t0: tokio::time::Instant, schedule_len: usize, step: Duration) -> f64 {
+    let planned = step * schedule_len.saturating_sub(1) as u32;
+    t0.elapsed().saturating_sub(planned).as_secs_f64() * 1000.0
 }
 
 fn window_frames(center: u32, d: u32, n: u32) -> Vec<u32> {
@@ -455,7 +621,13 @@ async fn emit_window(
 ) -> Result<u32> {
     let frames = window_frames(center, d, n);
     let mut sent = 0u32;
-    for frame in frames {
+    for (slot, frame) in frames.into_iter().enumerate() {
+        // `window_frames` puts the centre — the frame actually on screen — at slot 0.
+        // It is exempt from the depth cap: a viewer prioritises what it is looking at,
+        // and without the exemption a full window silently drops the ask for the very
+        // frame whose wait is being measured, so the metric would score ask policy
+        // rather than the transport. Prefetch neighbours stay capped.
+        let is_center = slot == 0;
         // Never re-ask a frame we already hold. A viewer does not re-request an image
         // it has already decoded, and without this the window re-emits its whole span
         // on every step: a 190-step trace over 38 unique frames asked ~1600 times, 42x
@@ -483,7 +655,20 @@ async fn emit_window(
             if o.contains(&frame) {
                 continue;
             }
-            if o.len() as u32 >= d {
+            // Prefetch is capped at D. The centre may exceed it, but only to a hard
+            // ceiling of 2D: with an open-loop reader nothing retires an ask except the
+            // frame arriving, so an unconditionally exempt centre adds one ask per step
+            // forever, and a reader that outran the transport would flood its own link
+            // and self-congest. That would make every arm's result a measurement of the
+            // harness. `note_center_dropped` records the ceiling binding, because a
+            // dropped centre ask makes that step's wait uninterpretable.
+            if o.len() as u32 >= d.saturating_mul(2) {
+                if is_center {
+                    note_center_dropped();
+                }
+                continue;
+            }
+            if !is_center && o.len() as u32 >= d {
                 continue;
             }
             o.insert(frame);
