@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{SyncSender, TrySendError};
+use std::sync::OnceLock;
 use std::time::Instant;
 
 use super::sink::{clone_sender, ensure_sink, shutdown_sink};
@@ -21,6 +22,35 @@ pub(super) static ROWS_OPENED: AtomicU64 = AtomicU64::new(0);
 pub(super) static ROWS_CLOSED: AtomicU64 = AtomicU64::new(0);
 pub(super) static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
 
+/// Process clock origin for `t_ask_us` — set when the first Tap is created, so rows from every
+/// session in a run share one axis and can be laid beside the client file offline.
+static ORIGIN: OnceLock<Instant> = OnceLock::new();
+
+fn origin() -> Instant {
+    *ORIGIN.get_or_init(Instant::now)
+}
+
+/// What the server was serving — stamped into the report so a `telemetry-server.json` can be
+/// checked against the client file it sits beside (stream mode, fixture) without a filename.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct RunMeta {
+    pub stream_mode: &'static str,
+    pub study: String,
+    /// Frames in the study bundle (the summary's `frame_count` is rows recorded).
+    pub study_frames: u32,
+}
+
+static RUN_META: OnceLock<RunMeta> = OnceLock::new();
+
+/// Record run metadata once per process (first call wins).
+pub fn set_run_meta(meta: RunMeta) {
+    let _ = RUN_META.set(meta);
+}
+
+pub(super) fn run_meta() -> Option<RunMeta> {
+    RUN_META.get().cloned()
+}
+
 /// Fixed-width row — durations in µs; absent stages are `None` (JSON null).
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 pub struct FrameRecord {
@@ -28,6 +58,12 @@ pub struct FrameRecord {
     pub session_id: u64,
     pub frame_index: u32,
     pub ask_ordinal: u32,
+    /// Ask accepted, µs since the process telemetry origin (first Tap). Same axis across
+    /// sessions; inter-ask spacing and batch queueing are read from it.
+    pub t_ask_us: u64,
+    /// Position in a `RequestFrames` batch; `0` of `1` for a `RequestFrame`.
+    pub batch_position: u32,
+    pub batch_size: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prepare_us: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,6 +95,9 @@ pub struct Tap {
     serve_start: Option<Instant>,
     /// End of last closed stage = start of next (contiguous chain).
     stage_mark: Option<Instant>,
+    t_ask_us: u64,
+    batch_position: u32,
+    batch_size: u32,
 }
 
 impl Tap {
@@ -72,6 +111,9 @@ impl Tap {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("telemetry-server.json"));
         ensure_sink(path);
+        // Anchor the row clock at the first session's start, so the first row's `t_ask_us`
+        // is connect → first ask and later sessions share the axis.
+        let _ = origin();
         let tx = clone_sender();
         ACTIVE_TAPS.fetch_add(1, Ordering::Relaxed);
         SESSIONS_STARTED.fetch_add(1, Ordering::Relaxed);
@@ -88,6 +130,9 @@ impl Tap {
             drops_since_emit: 0,
             serve_start: None,
             stage_mark: None,
+            t_ask_us: 0,
+            batch_position: 0,
+            batch_size: 1,
         })
     }
 
@@ -98,9 +143,16 @@ impl Tap {
         n
     }
 
+    /// The next `begin_frame` is item `position` of a batch of `size`. Unset = `0` of `1`.
+    pub(crate) fn note_batch(&mut self, position: u32, size: u32) {
+        self.batch_position = position;
+        self.batch_size = size.max(1);
+    }
+
     pub(crate) fn begin_frame(&mut self, frame_index: u32) {
         ROWS_OPENED.fetch_add(1, Ordering::Relaxed);
         let t = Instant::now();
+        self.t_ask_us = t.duration_since(origin()).as_micros().min(u64::MAX as u128) as u64;
         self.serve_start = Some(t);
         self.stage_mark = Some(t);
         self.frame_index = frame_index;
@@ -193,6 +245,9 @@ impl Tap {
             session_id: self.session_id,
             frame_index: self.frame_index,
             ask_ordinal: self.ask_ordinal,
+            t_ask_us: self.t_ask_us,
+            batch_position: self.batch_position,
+            batch_size: self.batch_size,
             prepare_us: self.pending_prepare_us,
             locate_us: self.pending_locate_us,
             send_us,
@@ -203,6 +258,9 @@ impl Tap {
             write_outcome: write_outcome as u8,
             dropped_since_last: dropped,
         };
+        // A single ask that follows a batch is 0 of 1 again.
+        self.batch_position = 0;
+        self.batch_size = 1;
         let Some(tx) = self.tx.as_ref() else {
             return;
         };
@@ -268,6 +326,9 @@ mod tests {
             drops_since_emit: 0,
             serve_start: None,
             stage_mark: None,
+            t_ask_us: 0,
+            batch_position: 0,
+            batch_size: 1,
         }
     }
 
@@ -283,6 +344,9 @@ mod tests {
             session_id: 1,
             frame_index: 0,
             ask_ordinal: 0,
+            t_ask_us: 0,
+            batch_position: 0,
+            batch_size: 1,
             prepare_us: prepare,
             locate_us: locate,
             send_us: send,
@@ -393,6 +457,14 @@ mod tests {
         assert!((linear - 100.0).abs() > 1.0);
     }
 
+    /// Same vector as the harness and client tests: N = 20, p95 → sorted[18] = 19.
+    #[test]
+    fn p95_shared_vector_n20() {
+        let mut v: Vec<u32> = (1..=19).collect();
+        v.push(100);
+        assert_eq!(percentile(&v, 95.0), 19.0);
+    }
+
     #[test]
     fn run_summary_percentiles() {
         let mut acc = RunAccumulator::default();
@@ -483,6 +555,44 @@ mod tests {
             row.serve_us,
             row.prepare_us.unwrap_or(0) + row.locate_us.unwrap_or(0) + row.overhead_us
         );
+    }
+
+    #[test]
+    fn batch_position_is_stamped_then_resets_to_single() {
+        let (tx, rx) = sync_channel::<FrameRecord>(8);
+        let mut t = test_tap();
+        t.tx = Some(tx);
+        for (i, frame) in [4u32, 5, 6].iter().enumerate() {
+            t.note_batch(i as u32, 3);
+            t.begin_frame(*frame);
+            t.boundary_prepare_done();
+            t.note_locate(LocateOutcome::Ok, 8);
+            t.boundary_locate_done();
+            t.emit_sent(12);
+        }
+        // A plain RequestFrame afterwards.
+        t.begin_frame(7);
+        t.boundary_prepare_done();
+        t.note_locate(LocateOutcome::Ok, 8);
+        t.boundary_locate_done();
+        t.emit_sent(12);
+        let rows: Vec<FrameRecord> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        assert_eq!(rows.len(), 4);
+        assert_eq!(
+            rows.iter().map(|r| (r.batch_position, r.batch_size)).collect::<Vec<_>>(),
+            vec![(0, 3), (1, 3), (2, 3), (0, 1)]
+        );
+        assert!(rows.windows(2).all(|w| w[1].t_ask_us >= w[0].t_ask_us), "t_ask_us monotonic");
+    }
+
+    #[test]
+    fn t_ask_us_advances_between_asks() {
+        let mut t = test_tap();
+        t.begin_frame(1);
+        let a = t.t_ask_us;
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        t.begin_frame(2);
+        assert!(t.t_ask_us >= a + 1_000, "got {} then {}", a, t.t_ask_us);
     }
 
     #[test]

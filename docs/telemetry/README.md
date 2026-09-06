@@ -27,6 +27,17 @@ Completed tracks (stubs): [`plan-client-telemetry.md`](plan-client-telemetry.md)
 Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (absent stages count as 0).
 Refused rows export absent stages as JSON `null`.
 
+Pairing fields (no join product; these make the two files checkable side by side):
+
+| Field | Where | Meaning |
+| --- | --- | --- |
+| `stream_mode`, `study`, `study_frames` | summary | what was served |
+| `t_ask_us` | row | ask accepted, µs since the process telemetry origin — inter-ask spacing, batch queueing |
+| `batch_position`, `batch_size` | row | place in a `RequestFrames` batch; `0` of `1` for `RequestFrame` |
+
+Percentiles are nearest-rank in all three places that compute them (server report, client
+report, `lab/window-harness`); each carries the same N = 20 fixture test.
+
 Each harvest writes **two independent files** (no join):
 
 | File | Source |

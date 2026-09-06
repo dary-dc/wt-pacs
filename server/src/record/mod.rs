@@ -13,3 +13,5 @@ pub mod tap;
 
 #[cfg(feature = "telemetry")]
 pub use sink::flush_on_exit;
+#[cfg(feature = "telemetry")]
+pub use tap::{set_run_meta, RunMeta};

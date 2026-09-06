@@ -50,6 +50,20 @@ pub(crate) trait FramePipeline: Send {
         Ok(())
     }
 
+    /// `RequestFrames`: every frame before the next control read, in order. Written once here;
+    /// `note_batch` tells the step implementor where in the batch the next `serve_one` sits.
+    async fn serve_batch(&mut self, frames: &[u32], control: &mut SendStream) -> Result<()> {
+        let size = frames.len() as u32;
+        for (position, &frame) in frames.iter().enumerate() {
+            self.note_batch(position as u32, size);
+            self.serve_one(frame, control).await?;
+        }
+        Ok(())
+    }
+
+    /// Where the next `serve_one` sits in a batch. Product ignores it; the lab stamps it.
+    fn note_batch(&mut self, _position: u32, _size: u32) {}
+
     async fn prepare(&mut self, frame: u32) -> Result<()>;
 
     /// Return the frame bytes (real slice, not a validate-only check).
@@ -143,10 +157,15 @@ impl<P: FramePipeline> RecordedPipeline<P> {
 
 #[cfg(feature = "telemetry")]
 impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
-    // serve_one: default — not overridden
+    // serve_one / serve_batch: default — not overridden
 
     fn store(&self) -> &Arc<FrameStore> {
         self.inner.store()
+    }
+
+    fn note_batch(&mut self, position: u32, size: u32) {
+        self.tap.note_batch(position, size);
+        self.inner.note_batch(position, size);
     }
 
     async fn prepare(&mut self, frame: u32) -> Result<()> {

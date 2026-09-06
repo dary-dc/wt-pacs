@@ -1,6 +1,9 @@
 //! Report assembly — distributions, summary, JSON document (telemetry feature only).
 
-use super::tap::{FrameRecord, RING_CAP, ROWS_CLOSED, ROWS_OPENED, SESSIONS_STARTED, DROP_TOTAL};
+use super::tap::{
+    run_meta, FrameRecord, RunMeta, DROP_TOTAL, RING_CAP, ROWS_CLOSED, ROWS_OPENED,
+    SESSIONS_STARTED,
+};
 use std::sync::atomic::Ordering;
 
 pub(super) const SCHEMA: &str = "server-pipeline-v1";
@@ -60,6 +63,7 @@ impl RunAccumulator {
 
     pub(super) fn build_summary(&self) -> RunSummary {
         RunSummary {
+            run: run_meta(),
             frame_count: self.serve.len() as u32,
             totals: SummaryTotals {
                 prepare_us: self.prepare.iter().map(|&v| u64::from(v)).sum(),
@@ -80,6 +84,9 @@ impl RunAccumulator {
 
 #[derive(serde::Serialize)]
 pub(super) struct RunSummary {
+    /// What was being served — `None` only if the server never told the recorder.
+    #[serde(flatten)]
+    pub run: Option<RunMeta>,
     pub frame_count: u32,
     pub totals: SummaryTotals,
     /// Absent when no sample — JSON `null`, never a zero-filled stats object.

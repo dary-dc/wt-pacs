@@ -50,6 +50,15 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
 
+    // Lab builds: the report says what was served, so the two harvest files can be checked
+    // against each other without trusting a folder name.
+    #[cfg(feature = "telemetry")]
+    crate::record::set_run_meta(crate::record::RunMeta {
+        stream_mode: config.mode.as_str(),
+        study: config.study_path.display().to_string(),
+        study_frames: store.frame_count(),
+    });
+
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
     let cert_sha256 = cert.sha256_hex().to_string();
     println!("wt_url={wt_url}");
@@ -170,9 +179,7 @@ async fn run_session<P: FramePipeline>(
                 pipeline.serve_one(frame, &mut control_send).await?;
             }
             FodMsg::RequestFrames { frames } => {
-                for frame in frames {
-                    pipeline.serve_one(frame, &mut control_send).await?;
-                }
+                pipeline.serve_batch(&frames, &mut control_send).await?;
             }
             FodMsg::EndSession => break,
             other => {
