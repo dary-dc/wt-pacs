@@ -154,8 +154,18 @@ different disk. Only compare arms *within* a host, never across.
 | Host | Hop tax | Ranking | Note |
 | --- | ---: | --- | --- |
 | lab KVM guest (baseline, [`v10_campaign.tsv`](v10_campaign.tsv)) | 34 385 ns | — | 4 vCPU Xeon 2.1 GHz, ext4, read-ahead 8192 |
-| agent sandbox ([`v21_campaign_sandbox.tsv`](v21_campaign_sandbox.tsv)) | 26 275 ns (0.76×) | 20 HOLDS · 1 WEAKENS · **0 FLIPS** | **Same host class**, so a reproduction — not an independent host. R1 stays open |
+| agent sandbox ([`v21_campaign_sandbox.tsv`](v21_campaign_sandbox.tsv)) | 26 275 ns (0.76×) | 20 HOLDS · 1 WEAKENS · **0 FLIPS** | **Same host class**, so a reproduction — not an independent host |
+| GitHub runner ([`v22_campaign_ci.tsv`](v22_campaign_ci.tsv)) | 23 648 ns (0.69×) | 13 HOLDS · 6 WEAKENS · 5 tie · **0 FLIPS** | **A real second host**: AMD EPYC 9V74, Azure kernel 6.17, **read-ahead 128 KiB** — different CPU vendor *and* the stock window. All eight `miss` rows hold (−44.6% to −76.3%, sign agreement 42/42, 68/68, 24/24). Five of the six WEAKENS are `mix` rows, where the smaller read-ahead window is the likely cause |
 
 The sandbox row is worth exactly what it says: the pipeline works end to end and nothing
 flipped on a fresh instance. It is **not** a second host — same 4-vCPU Xeon, same ext4, same
-8 MiB read-ahead. R1 needs a machine that differs.
+8 MiB read-ahead.
+
+The GitHub-runner row **is** a host change, and the useful one: a different CPU vendor and
+the stock 128 KiB read-ahead rather than this campaign's 8 MiB. Nothing flipped there either,
+and the hop tax that the whole argument rests on came back at 0.69× the lab's. What shrank
+was the `mix` regime — unsurprising, since a 64× smaller read-ahead window changes which
+cells land in "5–50% miss" at all, so those rows are not strictly like-for-like.
+
+What is still missing is a **quiet** host: a shared CI runner cannot settle magnitudes. Run
+it on the machine you will deploy to and the remaining doubt goes with it.
