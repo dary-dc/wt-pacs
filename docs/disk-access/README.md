@@ -63,7 +63,7 @@ Four flags decide whether a result means anything (see [`RERUN.md`](RERUN.md) §
 | Flag | Why |
 | --- | --- |
 | `--selftest` | Prints the instrument's resolution and overhead. Run it before quoting a number in the hundreds of nanoseconds |
-| `--samples <path>` | One row per ask, so percentiles pool across repeats and carry a bootstrap CI instead of resting on the 316th of 319 observations |
+| `--samples <path>` | One row per ask, so percentiles pool across repeats and carry a bootstrap CI instead of resting on the 316th of 319 observations. Pool them with `lab/scripts/pool_samples_ci.py` |
 | `--monitors 0` | For CPU numbers. The gap monitor is a spin loop and changes the latency it is not measuring — the same warm arm reads 46.9 µs with one monitor and 84.7 µs with none |
 | reversed `--arm` order | Before believing any cold ranking. Arms take turns creating their own cold copy, and that alone produced a 34% "win" that reversed with the order |
 

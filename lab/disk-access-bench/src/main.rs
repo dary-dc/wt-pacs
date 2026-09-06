@@ -234,7 +234,9 @@ impl Temp {
 #[derive(Parser)]
 #[command(name = "disk-access-bench")]
 struct Args {
-    #[arg(long = "study", required = true)]
+    /// Study bundles to measure. Required for every mode except `--selftest`, which
+    /// measures the instrument itself and never opens a study.
+    #[arg(long = "study", required_unless_present = "selftest")]
     studies: Vec<PathBuf>,
     #[arg(long, value_enum)]
     arm: Option<Vec<Arm>>,
@@ -1436,17 +1438,30 @@ async fn serve_frame_async(
             let len = access_len(store, idx, access)?;
             let win = read_chunk.min(len).max(1);
             let windows = len.div_ceil(win);
-            let slots = match arm {
-                Arm::UringTuned => windows,
-                Arm::UringPipelined => 2,
-                // Hybrid and naive hold exactly one window, like `pread_nowait_chunked`.
-                _ => 1,
-            };
             if state.uring.is_none() {
+                // Registered buffers are allocated once and reused for every ask, so their
+                // geometry must cover the study's **longest** frame — not whichever frame
+                // was asked for first. HTJ2K frames are variable length; sizing from frame
+                // 0 reads past the buffer as soon as a longer frame arrives. The campaign
+                // fixture is fixed-size (320 x 250 000 B), which is why this never fired
+                // there: with `max_len == len` the geometry below is bit-identical to
+                // sizing from the first frame.
+                let mut max_len = len;
+                for i in 0..store.frame_count() {
+                    let (_, l) = store.frame_range(i)?;
+                    max_len = max_len.max(l as usize);
+                }
+                let (buf_len, batched_slots) = uring_access::ring_geometry(read_chunk, max_len);
+                let slots = match arm {
+                    Arm::UringTuned => batched_slots,
+                    Arm::UringPipelined => 2,
+                    // Hybrid and naive hold exactly one window, like `pread_nowait_chunked`.
+                    _ => 1,
+                };
                 state.uring = Some(uring_access::UringReader::new(
                     &ctx.file,
                     slots,
-                    win,
+                    buf_len,
                     arm != Arm::UringNaive,
                     uring_sqpoll,
                 )?);

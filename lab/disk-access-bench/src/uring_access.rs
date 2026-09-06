@@ -221,6 +221,22 @@ impl UringReader {
     }
 }
 
+/// Registered-buffer geometry for a study whose frames vary in length.
+///
+/// The buffers are allocated and registered once and then reused for every ask, so they
+/// have to cover the study's **longest** frame. Sizing them from whichever frame was asked
+/// for first reads past the buffer the moment a longer frame arrives — HTJ2K frames are
+/// variable length, so that is a matter of when, not whether. The campaign fixture is
+/// fixed-size (320 x 250 000 B), which is exactly why it never surfaced there.
+///
+/// Returns `(buf_len, slots)` for a frame batched window-by-window. Per frame the caller
+/// still computes `win = read_chunk.min(len).max(1)` and `windows = len.div_ceil(win)`;
+/// this upholds `win <= buf_len` and `windows <= slots` for every `len <= max_len`.
+pub fn ring_geometry(read_chunk: usize, max_len: usize) -> (usize, usize) {
+    let buf_len = read_chunk.min(max_len).max(1);
+    (buf_len, max_len.div_ceil(buf_len))
+}
+
 #[cfg(test)]
 mod tests {
     use io_uring::{opcode, IoUring};
@@ -267,5 +283,37 @@ mod tests {
              which rules the flag out for Tokio's work-stealing runtime on the strength of \
              this rejection"
         );
+    }
+
+    /// Ring buffers are sized once and reused, so the geometry must hold for *every* frame
+    /// in the study, not the first one served. A study of variable-length frames (real
+    /// HTJ2K; `lab/fixtures/queue_large` runs 41 000-61 000 B) used to panic here —
+    /// `range end index 52000 out of range for slice of length 48000` — because the ring
+    /// was built from frame 0. This asserts the invariant the fix restores.
+    #[test]
+    fn ring_geometry_covers_every_frame_not_just_the_first() {
+        for &read_chunk in &[1usize, 4096, 65536, 1 << 20] {
+            for &max_len in &[1usize, 41_000, 61_000, 250_000, 1 << 21] {
+                let (buf_len, slots) = super::ring_geometry(read_chunk, max_len);
+                assert!(buf_len > 0 && slots > 0, "degenerate geometry");
+                for &len in &[1usize, 41_000, 48_000, 52_000, 61_000, 250_000] {
+                    if len > max_len {
+                        continue;
+                    }
+                    let win = read_chunk.min(len).max(1);
+                    let windows = len.div_ceil(win);
+                    assert!(
+                        win <= buf_len,
+                        "window {win} overruns the {buf_len}-byte registered buffer \
+                         (read_chunk={read_chunk}, len={len}, max_len={max_len})"
+                    );
+                    assert!(
+                        windows <= slots,
+                        "{windows} windows need more than {slots} registered slots \
+                         (read_chunk={read_chunk}, len={len}, max_len={max_len})"
+                    );
+                }
+            }
+        }
     }
 }

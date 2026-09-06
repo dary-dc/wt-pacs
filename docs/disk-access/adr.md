@@ -58,7 +58,7 @@ never one pool round trip per window.
 
 | | |
 | --- | --- |
-| **Good** | Warm asks take **no pool hop at all** (0 misses in every warm cell). **60 894 ns vs 152 295 ns** per frame against always-touch on the product runtime — 2.5×, from 2 871 pooled samples per arm with non-overlapping 95% CIs, reproduced across two independent runs. Neighbours under pressure see p99 **166 µs vs 702 µs**. Hard reclaim guarantee. 64 KiB per session instead of a 250 KB envelope allocated per frame. |
+| **Good** | Warm asks take **no pool hop at all** (0 misses in every warm cell). **60 894 ns vs 152 295 ns** per frame against always-touch on the product runtime — 2.5×, from 2 871 pooled samples per arm with non-overlapping 95% CIs, reproduced across two independent runs. Across every warm cell in this campaign the same margin runs **2.1–2.5×** (Cell 1's nine-arm cell is the low end); the direction never varies. Neighbours under pressure see p99 **166 µs vs 702 µs**. Hard reclaim guarantee. 64 KiB per session instead of a 250 KB envelope allocated per frame. |
 | **Cost** | Two copies (kernel→window, window→quinn) where mmap would need one. Measured: the copy is cheaper than the hop it replaces, on every cell. |
 | **Cost** | Four `write_all` calls per 250 KB frame instead of one. Same bytes, same total copy. |
 | **Revisit** | The io_uring rejection below was measured at **one read in flight**, which is what today's serial `run_session` produces. If the server ever serves the client's ask window concurrently, [`DEPTH.md`](DEPTH.md) prices the ring at 1.8–4× less CPU per ask on cold reads with thread count flat at 5 instead of 89. Not a decision this evidence can make — a dependency the decision has. |
