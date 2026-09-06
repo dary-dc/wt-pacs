@@ -429,7 +429,7 @@ async fn run_windowed(
         // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
         // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
         // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
-        wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
+        wait_displayable(metrics, cursor % n, cfg.timeout_ms, Some(target)).await?;
     }
 
     {
@@ -448,7 +448,7 @@ async fn run_windowed(
         cfg.window_shape,
     )
     .await?;
-    wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
+    wait_displayable(metrics, wanted % n, cfg.timeout_ms, None).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
     if cfg.fill_dwell_ms > 0 {
@@ -604,16 +604,31 @@ async fn ask_frame(
     write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await
 }
 
+/// Waits until `frame` is displayable, recording two different clocks.
+///
+/// `wait_ms` runs from this call — i.e. from the harness's ask. `due` is the step's
+/// *scheduled* display time, fixed at `loop_start + i*interval` before any network
+/// work; lateness against it is what the reader felt. The two diverge exactly when
+/// the loop has fallen behind, which is the case `wait_ms` cannot report and which
+/// voided the v2 grid (`stream-mode-remediation.md` §R4, L1_V2_ADVERSARIAL_REVIEW §B1).
+/// `due` is `None` outside the trace step loop, where there is no schedule to miss.
 async fn wait_displayable(
     metrics: &SharedMetrics,
     frame: u32,
     timeout_ms: u64,
+    due: Option<std::time::Instant>,
 ) -> Result<f64> {
     let start = std::time::Instant::now();
+    let note = |m: &mut crate::metrics::MetricsState, wait_ms: f64, at: std::time::Instant| {
+        m.record_wait_ms(wait_ms);
+        if let Some(due) = due {
+            m.record_lateness_ms(at.saturating_duration_since(due).as_secs_f64() * 1000.0);
+        }
+    };
     {
         let mut m = metrics.lock().expect("metrics lock");
         if m.cache.contains(&frame) {
-            m.record_wait_ms(0.0);
+            note(&mut m, 0.0, start);
             return Ok(0.0);
         }
     }
@@ -622,14 +637,16 @@ async fn wait_displayable(
         {
             let mut m = metrics.lock().expect("metrics lock");
             if m.cache.contains(&frame) {
-                let ms = start.elapsed().as_secs_f64() * 1000.0;
-                m.record_wait_ms(ms);
+                let now = std::time::Instant::now();
+                let ms = now.duration_since(start).as_secs_f64() * 1000.0;
+                note(&mut m, ms, now);
                 return Ok(ms);
             }
         }
         if start.elapsed() >= deadline {
-            let ms = start.elapsed().as_secs_f64() * 1000.0;
-            metrics.lock().expect("metrics lock").record_wait_ms(ms);
+            let now = std::time::Instant::now();
+            let ms = now.duration_since(start).as_secs_f64() * 1000.0;
+            note(&mut metrics.lock().expect("metrics lock"), ms, now);
             anyhow::bail!("timeout waiting for displayable frame {frame}");
         }
         tokio::time::sleep(Duration::from_millis(2)).await;
