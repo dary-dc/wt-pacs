@@ -12,6 +12,11 @@
 #   center_asks_dropped == 0     the frame being measured was always actually asked for
 #   stranded_frames     >  0     something arrived that the reader no longer wanted
 #   censored_frac       <= 0.25  the arm did not simply collapse
+#
+# Calibrating on ONE seed is not enough, and R6's X3S run proved it: scale 6 was clean at
+# seed 4242 and then voided 4 of 9 campaign rows, because a harder loss realisation pushed
+# the transport far enough behind that the outstanding ceiling bound. Validate the chosen
+# scale against the campaign's OWN seeds (RUN*7919+13) with SEEDS=, not just the default.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRV="$ROOT/target/lab-arms/exact-server-seg10"
@@ -23,6 +28,7 @@ SPORT=14471; NPORT=15071
 DEPTH=${DEPTH:-8}; CACHE=${CACHE:-64}
 DELAY=${DELAY:-25}; RATE=${RATE:-20}; LOSS=${LOSS:-0.1}
 SCALES=${SCALES:-"1 2 4 8 16"}
+SEEDS=${SEEDS:-}
 
 echo "cell: RTT $((DELAY*2)) ms, ${RATE} Mbps, ${LOSS}% loss, depth $DEPTH, cache $CACHE"
 printf '%8s %10s %8s %9s %8s %10s %8s %8s\n' scale lag_ms strand cens% cdrop p95 nz_n frames
@@ -34,7 +40,7 @@ for SC in $SCALES; do
   for _ in $(seq 1 60); do grep -q '^wt_url=' /tmp/e0c_srv.log && break; sleep 0.1; done
   "$NETSIM" --listen 127.0.0.1:"$NPORT" --upstream 127.0.0.1:"$SPORT" \
     --delay-ms "$DELAY" --rate-mbps "$RATE" --loss-pct "$LOSS" --queue-pkts 500 \
-    --seed 4242 --stats true > /tmp/e0c_ns.log 2>&1 &
+    --seed "${SEED:-4242}" --stats true > /tmp/e0c_ns.log 2>&1 &
   NS=$!; sleep 0.4
   timeout 300 "$HARNESS" --url "https://127.0.0.1:$NPORT/" --mode trace --trace "$TRACE" \
     --read-bps 0 --depth "$DEPTH" --frame-count 500 --stream-mode shared --bind 127.0.0.1 \

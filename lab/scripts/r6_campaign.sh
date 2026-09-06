@@ -68,9 +68,13 @@ cell_params() {
     # Robustness check for adversarial review 3.5: the two traces strand by different
     # mechanisms (displacement vs overrun), so an X3 result that survives both is a much
     # stronger claim than one that holds under either. Scale 6 is its own calibrated
-    # operating point — 100 stranded frames, nz_n 177, no centre asks dropped; the jump
-    # trace's scale 8 strands only 6 frames here and is too thin to read.
-    X3S) echo "25 20 1.0 6" ;;
+    # operating point. Scale 6 was tried first and FAILED: clean at the calibration seed,
+    # it then voided 4 of 9 campaign rows on center-dropped, because a harder loss
+    # realisation pushed the transport far enough behind that the outstanding ceiling
+    # bound. Scale 7 is validated against all three campaign seeds (7932/15851/23770) and
+    # is admissible at each. The jump trace's scale 8 cannot be reused either — it strands
+    # only 6 frames here and is too thin to read a percentile from.
+    X3S) echo "25 20 1.0 7" ;;
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
 }
