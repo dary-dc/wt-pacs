@@ -16,6 +16,15 @@ demand actually approaches cell capacity. Arms interleaved within each repeat.
 | `r2_stream_shape.tsv` | three stream shapes under Cubic; every cell-S row voids because Cubic needs > 180 s there |
 | `r3_shape_x_controller.tsv` | three stream shapes under BBR, cells W and S |
 | `r4_cubic_satellite.tsv` | Cubic vs BBR at 600 ms RTT with a 900 s timeout |
+| **`r5a_congestive.tsv`** | **the decisive one** — controller with 0 % injected loss at depth 16, so queue overflow is the *only* loss. `ns_qdrop` > 0 in every row proves it |
+| **`r5b_exogenous.tsv`** | the same controllers with 1 % radio loss at depth 8, where the queue arithmetically cannot drop. `ns_qdrop` == 0 in every row proves it |
+
+**Read r5a and r5b together.** They are the only pair that isolates the two loss regimes
+on one rig, and they give opposite answers: Cubic wins under congestion (+63 % at 600 ms),
+BBR wins under radio loss (−44…−48 %). Every earlier controller result — including r1 and
+r4 — sat in one regime without establishing which, because at depth 8 with 64 KB frames
+the offered load is 427 packets against a 500-packet queue and the queue *cannot* drop.
+r1/r4 are therefore exogenous-regime results, and must be quoted as such.
 
 ## The R-series supersedes everything above it
 

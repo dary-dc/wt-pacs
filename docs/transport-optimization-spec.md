@@ -52,7 +52,7 @@ memory.** Items are numbered by priority, not by confidence.
 ## S1 · Initial congestion window — ~~the largest lever~~ **measured: not a lever**
 
 **Tier: T2, measured. RETRACTED as a priority — see
-[`transport-conclusions.md`](transport-conclusions.md) §3.**
+[`transport-conclusions.md`](transport-conclusions.md) — summary table.**
 
 > Measured across three deployment cells at matched controllers: **≤ 7 %, usually less,
 > ranges mostly overlapping.** Directly, at 150 ms RTT with 250 KB frames, IW
@@ -134,8 +134,16 @@ with log(frame size), the ramp is the mechanism and S1/S2 are the whole game.
 
 ## S3 · Loss recovery and stream shape
 
-**Tier: T2 for the lossless part, T0 for the loss part — the loss dimension is still
-unmeasured after three campaigns.**
+**Tier: T2, measured. ANSWERED — see [`transport-conclusions.md`](transport-conclusions.md)
+§2.**
+
+> **Keep one shared stream.** Per-frame + `send_fairness(false)` never separated from it
+> in any cell, under either controller, with a jump-bearing trace and a bounded client
+> cache. Per-frame *without* FIFO is consistently worse. A fixed-N pool is **not**
+> dominated — the byte-identity argument that said so is false, because `retransmit()`
+> re-queues to the back of the priority class regardless of fairness — but nothing beat
+> shared, so there is no deficit for a pool to recover. The reasoning below is kept
+> because its framing of the question is still right; its "unmeasured" status is not.
 
 ### Invariant
 
