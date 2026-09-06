@@ -96,7 +96,7 @@ struct Args {
     #[arg(long, default_value_t = 250_000)]
     stride: u64,
     /// Asks per reader per cell.
-    #[arg(long, default_value_t = 512)]
+    #[arg(long, default_value_t = DEFAULT_ASKS)]
     asks: usize,
     #[arg(long, default_value_t = 6)]
     repeats: usize,
@@ -117,7 +117,16 @@ struct Args {
     /// Print the header row (omit when appending to an existing file).
     #[arg(long)]
     no_header: bool,
+    /// Replay a read sequence from `lab/scripts/gen_access_trace.py` instead of a synthetic
+    /// stride. `--size` and `--stride` are then ignored; `--asks` defaults to the trace
+    /// length. The reported `shape` becomes `trace` and `size` the median read length.
+    #[arg(long)]
+    trace: Option<PathBuf>,
 }
+
+/// Sentinel so `--trace` can tell "the user asked for 512" from "the user said nothing" and
+/// default to replaying the whole trace.
+const DEFAULT_ASKS: usize = 512;
 
 fn cpu_ns() -> u64 {
     let mut ts = libc::timespec {
@@ -211,6 +220,74 @@ fn evict(path: &PathBuf) -> Result<f64> {
     Ok(resident)
 }
 
+/// The exact read sequence one reader will issue: `(offset, length)` per ask.
+///
+/// Synthetic cells derive it from base/stride/size. `--trace` replays a sequence produced by
+/// `lab/scripts/gen_access_trace.py`, which turns a real client ask schedule into disk reads
+/// under a chosen layout. Making the sequence *data* rather than a closure is what lets the
+/// same harness — same arms, same controls, same accounting — measure both without a second
+/// code path to keep honest.
+type Plan = Arc<Vec<(u64, u32)>>;
+
+/// Build reader `reader`'s share of the work.
+///
+/// The two sources interleave differently, on purpose:
+///
+/// * **Synthetic**: reader `r` of `n` takes every `n`-th slot of one shared sequence, so no
+///   reader trails another through pages it already warmed.
+/// * **Trace**: each reader walks the trace *in order* from its own starting position. The
+///   whole point of a trace cell is the pattern's local sequentiality — what kernel
+///   read-ahead can and cannot see — and interleaving would destroy exactly that.
+fn plan_for(
+    cell: &Cell,
+    base: u64,
+    span: u64,
+    reader: usize,
+    readers: usize,
+    trace: Option<&[(u64, u32)]>,
+) -> Plan {
+    let n = readers.max(1);
+    Arc::new(match trace {
+        Some(t) if !t.is_empty() => {
+            let start = reader * t.len() / n;
+            (0..cell.asks).map(|i| t[(start + i) % t.len()]).collect()
+        }
+        _ => (0..cell.asks)
+            .map(|i| {
+                let off = base
+                    + ((reader as u64 + i as u64 * n as u64).wrapping_mul(cell.stride)
+                        % span.max(1));
+                (off, cell.size as u32)
+            })
+            .collect(),
+    })
+}
+
+/// Read a `gen_access_trace.py` TSV: `offset<TAB>length`, `#` comments ignored.
+fn load_trace(path: &PathBuf) -> Result<Vec<(u64, u32)>> {
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {path:?}"))?;
+    let mut out = Vec::new();
+    for (n, line) in text.lines().enumerate() {
+        if line.starts_with('#') || line.trim().is_empty() {
+            continue;
+        }
+        let mut it = line.split('\t');
+        let off = it
+            .next()
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .with_context(|| format!("{path:?}:{}: bad offset", n + 1))?;
+        let len = it
+            .next()
+            .and_then(|v| v.trim().parse::<u32>().ok())
+            .with_context(|| format!("{path:?}:{}: bad length", n + 1))?;
+        out.push((off, len));
+    }
+    if out.is_empty() {
+        anyhow::bail!("{path:?} has no reads");
+    }
+    Ok(out)
+}
+
 struct Cell {
     arm: Arm,
     prefetch: bool,
@@ -233,40 +310,30 @@ struct Outcome {
     misses: u64,
 }
 
-/// One reader's worth of work: `asks` reads of `size`, `depth` of them in flight.
-#[allow(clippy::too_many_arguments)]
+/// One reader's worth of work: replay `plan`, `depth` reads in flight.
 async fn reader_pool(
     store: Arc<FrameStore>,
     file: Arc<std::fs::File>,
     cell: &Cell,
-    base: u64,
-    span: u64,
-    reader: usize,
-    readers: usize,
+    plan: Plan,
     lat: Arc<Mutex<Vec<u64>>>,
     misses: Arc<AtomicU64>,
 ) -> Result<()> {
-    let (depth, asks, size, stride, prefetch) =
-        (cell.depth, cell.asks, cell.size, cell.stride, cell.prefetch);
-    // Reader `r` of `readers` takes every `readers`-th slot of one shared sequence. The
-    // modulus is applied to the *whole* offset, so no reader can walk past the end of the
-    // file — an earlier version added a per-reader base to an already-wrapped offset, which
-    // put every reader but the first past EOF. Interleaving rather than trailing also stops
-    // later readers from simply re-reading what earlier ones warmed.
-    let offset_of = move |i: usize| {
-        base + ((reader as u64 + i as u64 * readers as u64).wrapping_mul(stride) % span.max(1))
-    };
+    let (depth, prefetch) = (cell.depth, cell.prefetch);
+    let asks = plan.len();
     let next = Arc::new(AtomicU64::new(0));
     let always_pool = cell.arm == Arm::PooledPread;
     let mut set = tokio::task::JoinSet::new();
+    let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
     for _ in 0..depth {
         let store = Arc::clone(&store);
         let file = Arc::clone(&file);
         let next = Arc::clone(&next);
         let lat = Arc::clone(&lat);
         let misses = Arc::clone(&misses);
+        let plan = Arc::clone(&plan);
         set.spawn(async move {
-            let mut buf = vec![0u8; size];
+            let mut buf = vec![0u8; cap];
             let mut mine = Vec::new();
             let mut miss = 0u64;
             loop {
@@ -274,23 +341,26 @@ async fn reader_pool(
                 if i >= asks {
                     break;
                 }
-                let off = offset_of(i);
+                let (off, len) = plan[i];
+                let len = len as usize;
                 let t = Instant::now();
                 if prefetch {
-                    // One round ahead: the asks this reader will take next.
-                    hint_willneed(&file, offset_of(i + depth), size);
+                    // One round ahead: the ask this reader will take next.
+                    if let Some(&(noff, nlen)) = plan.get(i + depth) {
+                        hint_willneed(&file, noff, nlen as usize);
+                    }
                 }
                 let got = if always_pool {
                     0
                 } else {
-                    store.read_at_nowait(&mut buf, off).unwrap_or(0)
+                    store.read_at_nowait(&mut buf[..len], off).unwrap_or(0)
                 };
-                if got < size {
+                if got < len {
                     miss += 1;
                     let s = Arc::clone(&store);
                     let mut owned = std::mem::take(&mut buf);
                     owned = tokio::task::spawn_blocking(move || {
-                        s.read_at_blocking(&mut owned[got..], off + got as u64)
+                        s.read_at_blocking(&mut owned[got..len], off + got as u64)
                             .map(|_| owned)
                     })
                     .await
@@ -313,26 +383,22 @@ async fn reader_pool(
 }
 
 /// One reader backed by its own ring — the per-session shape, `depth` slots in flight.
-#[allow(clippy::too_many_arguments)]
 async fn reader_ring(
     store: Arc<FrameStore>,
     file: Arc<std::fs::File>,
     cell: &Cell,
-    base: u64,
-    span: u64,
-    reader: usize,
-    readers: usize,
+    plan: Plan,
     lat: Arc<Mutex<Vec<u64>>>,
     misses: Arc<AtomicU64>,
 ) -> Result<()> {
-    let (depth, asks, size, stride, prefetch) =
-        (cell.depth, cell.asks, cell.size, cell.stride, cell.prefetch);
+    let (depth, prefetch) = (cell.depth, cell.prefetch);
+    let asks = plan.len();
     let hybrid = cell.arm == Arm::Hybrid;
-    let offset_of = move |i: usize| {
-        base + ((reader as u64 + i as u64 * readers as u64).wrapping_mul(stride) % span.max(1))
-    };
+    // Registered buffers are fixed-size, so they are sized to the longest read in the plan.
+    // Variable-length traces then read into a prefix of the slot.
+    let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
 
-    let mut ring = UringReader::new(&file, depth, size, true, false)?;
+    let mut ring = UringReader::new(&file, depth, cap, true, false)?;
     let mut starts = vec![Instant::now(); depth];
     let mut busy = vec![false; depth];
     let mut mine = Vec::with_capacity(asks);
@@ -348,26 +414,29 @@ async fn reader_ring(
             if busy[slot] {
                 continue;
             }
-            let off = offset_of(issued);
+            let (off, len) = plan[issued];
+            let len = len as usize;
             starts[slot] = Instant::now();
             if prefetch {
-                hint_willneed(&file, offset_of(issued + depth), size);
+                if let Some(&(noff, nlen)) = plan.get(issued + depth) {
+                    hint_willneed(&file, noff, nlen as usize);
+                }
             }
             // The hybrid's point: a page-cache hit is served inline and the ring never sees
             // it. Only the shortfall is submitted.
             let got = if hybrid {
-                store.read_at_nowait(&mut ring.buf_mut(slot)[..size], off)?
+                store.read_at_nowait(&mut ring.buf_mut(slot)[..len], off)?
             } else {
                 0
             };
-            if hybrid && got == size {
+            if hybrid && got == len {
                 mine.push(starts[slot].elapsed().as_nanos() as u64);
                 issued += 1;
                 completed += 1;
                 continue;
             }
             miss += 1;
-            ring.push_at(slot, got, &file, off + got as u64, size - got)?;
+            ring.push_at(slot, got, &file, off + got as u64, len - got)?;
             busy[slot] = true;
             issued += 1;
             in_flight += 1;
@@ -397,19 +466,60 @@ async fn reader_ring(
     Ok(())
 }
 
-fn run_cell(path: &PathBuf, cell: &Cell, workers: usize) -> Result<Outcome> {
+fn run_cell(
+    path: &PathBuf,
+    cell: &Cell,
+    workers: usize,
+    trace: Option<&[(u64, u32)]>,
+) -> Result<Outcome> {
     let store = Arc::new(FrameStore::open(path)?);
     let file = Arc::new(std::fs::File::open(path)?);
     let flen = file.metadata()?.len();
     let base = store.frame_range(0)?.0;
     let span = flen - base - cell.size as u64;
 
+    let partition = cell.partition;
+    let reader_span = if partition {
+        (span / cell.readers.max(1) as u64).max(cell.size as u64 * 2)
+    } else {
+        span
+    };
+    // Build every reader's plan up front: the warm phase has to touch exactly the bytes the
+    // cell will read, and with a trace those are not derivable from base/stride.
+    let plans: Vec<Plan> = (0..cell.readers)
+        .map(|r| {
+            let (rbase, rreader, rreaders) = if partition {
+                (
+                    base + (r as u64) * (span / cell.readers.max(1) as u64),
+                    0,
+                    1,
+                )
+            } else {
+                (base, r, cell.readers.max(1))
+            };
+            plan_for(cell, rbase, reader_span, rreader, rreaders, trace)
+        })
+        .collect();
+
+    // A read past EOF would short-read and be miscounted as a cache miss, so refuse the cell
+    // instead: a trace generated against a different fixture must fail loudly.
+    for p in &plans {
+        if let Some(&(off, len)) = p.iter().find(|(o, l)| o + *l as u64 > flen) {
+            anyhow::bail!("plan reads {off}+{len} past EOF ({flen}) — trace/fixture mismatch");
+        }
+    }
+
     if cell.warm {
-        let mut buf = vec![0u8; cell.size];
-        let total = cell.asks + cell.depth + 1;
-        for i in 0..total {
-            let off = base + ((i as u64 * cell.stride) % span.max(1));
-            store.read_at_blocking(&mut buf, off)?;
+        let cap = plans
+            .iter()
+            .flat_map(|p| p.iter().map(|(_, l)| *l as usize))
+            .max()
+            .unwrap_or(0);
+        let mut buf = vec![0u8; cap];
+        for p in &plans {
+            for &(off, len) in p.iter() {
+                store.read_at_blocking(&mut buf[..len as usize], off)?;
+            }
         }
     }
 
@@ -422,12 +532,6 @@ fn run_cell(path: &PathBuf, cell: &Cell, workers: usize) -> Result<Outcome> {
     let misses = Arc::new(AtomicU64::new(0));
     let gaps = Arc::new(Mutex::new(Vec::new()));
 
-    let partition = cell.partition;
-    let reader_span = if partition {
-        (span / cell.readers.max(1) as u64).max(cell.size as u64 * 2)
-    } else {
-        span
-    };
     let (wall_ns, cpu_ns_used, threads_max, reader_err) = rt.block_on(async {
         // Co-tenant monitor: an arm that stalls the executor shows up here and nowhere else.
         let stop = Arc::new(AtomicBool::new(false));
@@ -449,23 +553,12 @@ fn run_cell(path: &PathBuf, cell: &Cell, workers: usize) -> Result<Outcome> {
         let cpu0 = cpu_ns();
         let wall0 = Instant::now();
         let mut set = tokio::task::JoinSet::new();
-        for r in 0..cell.readers {
+        for reader_plan in &plans {
             let store = Arc::clone(&store);
             let file = Arc::clone(&file);
             let lat = Arc::clone(&lat);
             let misses = Arc::clone(&misses);
-            // Disjoint slices (`--partition`, "different studies") or one shared sequence
-            // that the readers interleave through ("same study"). Interleaving is done by
-            // phase inside the reader, not by a base offset, so no reader can run past EOF.
-            let (rbase, rreader, rreaders) = if partition {
-                (
-                    base + (r as u64) * (span / cell.readers.max(1) as u64),
-                    0usize,
-                    1usize,
-                )
-            } else {
-                (base, r, cell.readers.max(1))
-            };
+            let plan = Arc::clone(reader_plan);
             let c = Cell {
                 arm: cell.arm,
                 prefetch: cell.prefetch,
@@ -480,31 +573,9 @@ fn run_cell(path: &PathBuf, cell: &Cell, workers: usize) -> Result<Outcome> {
             };
             set.spawn(async move {
                 if c.arm.uses_ring() {
-                    reader_ring(
-                        store,
-                        file,
-                        &c,
-                        rbase,
-                        reader_span,
-                        rreader,
-                        rreaders,
-                        lat,
-                        misses,
-                    )
-                    .await
+                    reader_ring(store, file, &c, plan, lat, misses).await
                 } else {
-                    reader_pool(
-                        store,
-                        file,
-                        &c,
-                        rbase,
-                        reader_span,
-                        rreader,
-                        rreaders,
-                        lat,
-                        misses,
-                    )
-                    .await
+                    reader_pool(store, file, &c, plan, lat, misses).await
                 }
             });
         }
@@ -590,11 +661,43 @@ fn main() -> Result<()> {
              gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct"
         );
     }
-    let shape = if args.stride <= args.size as u64 {
-        "sweep"
-    } else {
-        "stride"
+    let trace = match &args.trace {
+        Some(p) => Some(load_trace(p)?),
+        None => None,
     };
+    let (shape, report_size, report_stride) = match &trace {
+        Some(t) => {
+            let mut lens: Vec<u32> = t.iter().map(|(_, l)| *l).collect();
+            lens.sort_unstable();
+            ("trace", lens[lens.len() / 2] as usize, 0u64)
+        }
+        None if args.stride <= args.size as u64 => ("sweep", args.size, args.stride),
+        None => ("stride", args.size, args.stride),
+    };
+    // Default to replaying the whole trace once per reader.
+    let asks = match (&trace, args.asks) {
+        (Some(t), a) if a == DEFAULT_ASKS => t.len(),
+        (_, a) => a,
+    };
+    // Registered ring buffers are sized from the plan, but `size` still bounds the synthetic
+    // span calculation, so give it the longest read a trace can produce.
+    let buf_size = match &trace {
+        Some(t) => t
+            .iter()
+            .map(|(_, l)| *l as usize)
+            .max()
+            .unwrap_or(args.size),
+        None => args.size,
+    };
+    if let (Some(t), Some(p)) = (&trace, &args.trace) {
+        eprintln!(
+            "# trace {}: {} reads, median {} B, max {} B",
+            p.display(),
+            t.len(),
+            report_size,
+            buf_size
+        );
+    }
 
     for &warm in &temps {
         for &readers_n in &readers {
@@ -623,15 +726,15 @@ fn main() -> Result<()> {
                                 partition: args.partition,
                                 depth,
                                 readers: readers_n,
-                                asks: args.asks,
-                                size: args.size,
+                                asks,
+                                size: buf_size,
                                 stride: args.stride,
                                 warm,
                                 monitors: args.monitors,
                             };
-                            let o = run_cell(&args.study, &cell, workers)?;
+                            let o = run_cell(&args.study, &cell, workers, trace.as_deref())?;
                             let n_asks = o.lat.len().max(1) as u64;
-                            let total = (args.asks * readers_n) as u64;
+                            let total = (asks * readers_n) as u64;
                             println!(
                                 "{}\t{}\t{}\t{}\t{shape}\t{}\t{}\t{depth}\t{readers_n}\t{repeat}\t{pos}\t\
                                  {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}",
@@ -639,8 +742,8 @@ fn main() -> Result<()> {
                                 arm.as_str(),
                                 if prefetch { "on" } else { "off" },
                                 if warm { "warm" } else { "cold" },
-                                args.size,
-                                args.stride,
+                                report_size,
+                                report_stride,
                                 o.lat.len(),
                                 pct(&o.lat, 0.50),
                                 pct(&o.lat, 0.90),

@@ -160,6 +160,67 @@ def section_surface(rows):
                       f"{verdict(med, max(agree, len(dc) - agree), len(dc)):>8}")
 
 
+def section_traces(rows):
+    """Trace-replay cells: what a *real* client ask schedule costs, per layout.
+
+    The synthetic campaign sets the miss rate with a stride; these cells inherit it from a
+    real schedule run through a candidate layout (`lab/scripts/gen_access_trace.py`). The
+    miss-rate column is therefore the headline, not a control: it says which square of the
+    decision surface each case actually lands in.
+    """
+    tr = [r for r in rows if r.get("shape") == "trace"]
+    if not tr:
+        return
+    by = defaultdict(dict)
+    for r in tr:
+        by[(r["label"], r["depth"], r["readers"], r["repeat"])][r["arm"]] = r
+    agg = defaultdict(lambda: defaultdict(list))
+    for k, v in by.items():
+        p = v.get("pool")
+        if not p or not p["cpu_ns_per_ask"] or not p["asks_per_s"]:
+            continue
+        g = agg[(k[0], k[1])]
+        g["miss"].append(p["miss_pct"])
+        g["pool_cpu"].append(p["cpu_ns_per_ask"])
+        g["reads"].append(p["asks"])
+        g["len"].append(p["size"])
+        for arm in ("hybrid", "uring", "pooled_pread"):
+            a = v.get(arm)
+            if a:
+                g[arm + "_c"].append(
+                    (a["cpu_ns_per_ask"] - p["cpu_ns_per_ask"]) / p["cpu_ns_per_ask"] * 100.0
+                )
+                g[arm + "_t"].append(a["asks_per_s"] / p["asks_per_s"])
+    print("\n" + "=" * 100)
+    print("TRACE REPLAY — real client ask schedules through candidate layouts")
+    print("verdict applies the campaign's own rule: |median| >= DRIFT and sign agreement >= 0.8n")
+    print("=" * 100)
+    print(f"{'case':>12} {'d':>2} {'reads':>6} {'medlen':>7} {'miss':>7} {'pool ns':>9} "
+          f"{'hybrid dCPU':>13} {'agree':>7} {'tput':>6} {'verdict':>8}  {'uring dCPU':>11} {'agree':>7}")
+    for key in sorted(agg, key=lambda k: (k[0], k[1])):
+        g = agg[key]
+        n = len(g["hybrid_c"])
+        if not n:
+            continue
+        hm = statistics.median(g["hybrid_c"])
+        ha = sum(1 for x in g["hybrid_c"] if x < 0)
+        um = statistics.median(g["uring_c"]) if g["uring_c"] else float("nan")
+        ua = sum(1 for x in g["uring_c"] if x < 0)
+        print(f"{key[0].replace('v15_', ''):>12} {key[1]:>2} "
+              f"{statistics.median(g['reads']):>6.0f} {statistics.median(g['len']):>7.0f} "
+              f"{statistics.median(g['miss']):>6.1f}% {statistics.median(g['pool_cpu']):>9,.0f} "
+              f"{hm:>+12.1f}% {ha:>3}/{n:<3} {statistics.median(g['hybrid_t']):>5.2f}x "
+              f"{verdict(hm, ha, n):>8}  {um:>+10.1f}% {ua:>3}/{n:<3}")
+    print("\nSpread on `pool` CPU per case (a wide one means the cell is not resolvable):")
+    for key in sorted(agg, key=lambda k: (k[0], k[1])):
+        v = sorted(agg[key]["pool_cpu"])
+        if len(v) < 4:
+            continue
+        print(f"  {key[0].replace('v15_', ''):>12} d{key[1]:<2} "
+              f"p10 {v[len(v)//10]:>9,}  median {statistics.median(v):>9,.0f}  "
+              f"p90 {v[9*len(v)//10]:>9,}  max/min {v[-1]/max(v[0],1):>5.1f}x")
+
+
 def section_scoreboard(rows):
     """Every arm against `pool` on every metric, per regime and in-flight count.
 
@@ -490,7 +551,8 @@ def main():
     rows = load(sys.argv[1])
     print(f"loaded {len(rows)} cells from {sys.argv[1]}")
     want = set(sys.argv[2:]) or None
-    for name, fn in (("surface", section_surface), ("scoreboard", section_scoreboard),
+    for name, fn in (("traces", section_traces),
+                     ("surface", section_surface), ("scoreboard", section_scoreboard),
                      ("worst", section_worst_cases),
                      ("grid", section_grid),
                      ("prefetch", section_prefetch),

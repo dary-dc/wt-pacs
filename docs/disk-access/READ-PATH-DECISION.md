@@ -447,10 +447,14 @@ the win.
 The review's own residual criticisms, which I have not resolved and which stand against this
 document:
 
-* **The hop tax is this host's.** `pooled_pread` prices a `spawn_blocking` round trip at
-  68–91 µs of process CPU on a near-idle 4-vCPU KVM guest. That constant is what produces the
-  2–3× ring win. Nothing here shows it holds on bare metal, on a loaded runtime, or at a
-  different worker count.
+* **The hop tax is this host's.** `pooled_pread` prices a `spawn_blocking` round trip at a
+  median **34 µs** of process CPU on a near-idle 4-vCPU KVM guest (p10 26 µs, p90 57 µs over
+  252 warm pairs; 59 µs at one read in flight, ~31 µs from four up —
+  `lab/scripts/compare_hosts.py` §1). That constant is what produces the 2–3× ring win.
+  Nothing here shows it holds on bare metal, on a loaded runtime, or at a different worker
+  count. *(An earlier draft of this bullet said 68–91 µs. That was `pooled_pread`'s absolute
+  CPU on some cells, not its excess over `pool`; the tool now measures the difference
+  directly.)*
 * **`pool` cannot hold depth > 4 warm.** A hit is a synchronous syscall, so the warm "depth
   64" cells for `pool`/`hybrid` are really 4-worker cells. **Followed up and it turned out to
   be worse than the reviewer said, then better:** warm, the *arms* do not even hold depth the
