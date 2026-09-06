@@ -252,6 +252,29 @@ Five sessions, all on the arm under test, cold primary. Median of 5:
 Five per-session rings did not multiply io-wq workers — the io_uring arms hold thread count
 at 5. But so does the accepted path, for a simpler reason: it almost never hops.
 
+The hybrid was run in the same shape separately
+([`v4_uring_hybrid_multisession.tsv`](v4_uring_hybrid_multisession.tsv)): cold other p99
+169.3 µs against the accepted path's 163.3 µs in that cell — a tie on neighbours too.
+
+### Where the reads all miss · [`v4_uring_miss.tsv`](v4_uring_miss.tsv)
+
+Cold random and cold reverse, median of 5 — the cell behind the ADR's parked-completion
+claim. `hop_count` is parked completions for the io_uring arms:
+
+| Arm | random p50 / parked | reverse p50 / parked |
+| --- | ---: | ---: |
+| **pread_nowait_chunked** | **62.6 µs / 59** | 357.8 µs / 320 |
+| uring_naive | 77.2 µs / 59 | 342.9 µs / 320 |
+| uring_pipelined | 77.7 µs / 59 | **329.7 µs** / 320 |
+| uring_tuned | 314.7 µs / **224** | 317.1 µs / 320 |
+| pread_blocking_pooled | 317.0 µs / 320 | 347.1 µs / 320 |
+
+`uring_tuned` submits a frame's four windows together, so one missing window parks all
+four — 224 parked completions on random where every other arm takes 59. That is the cost
+of batching a frame, and it is why the *tuned* ring is the worst io_uring arm exactly where
+io_uring was supposed to win. Read the reverse column against the order control below, not
+on its own.
+
 ### The cold path cannot be resolved on this host · order-controlled
 
 Cold cells first appeared to favour io_uring — 34% lower CPU and a 6.5× better p99. Both
@@ -336,27 +359,51 @@ The clock resolves a nanosecond and a sample costs 22 ns, so per-frame latencies
 
 A cell's `later_p99` is the 316th of 319 samples — nearly a single observation, which is
 how a tail can swing 10× on luck. `--samples` writes every ask, so a percentile pools
-across repeats (2 871 samples/arm at 9 repeats) and carries a bootstrap 95% CI
-([`v5_warm_pooled_ci.tsv`](v5_warm_pooled_ci.tsv), warm, product runtime, two independent
-runs of the same configuration):
+across repeats (2 871 samples/arm — 319 later asks × 9 repeats) and carries a bootstrap
+95% CI. Run the cell twice with `--samples`, then pool:
+
+```bash
+# per run: same configuration as Cell 1, plus --samples
+./target/release/disk-access-bench --study lab/fixtures/frames_250k_live/frames_250k_live.sbnd \
+  --arm mmap-naive --arm mmap-hybrid-mincore --arm mmap-blocking-touch \
+  --arm mmap-touch-in-place --arm pread-blocking-pooled --arm pread-nowait \
+  --arm pread-nowait-chunked --arm uring-nowait-hybrid \
+  --temp warm --trace forward --chunk 16384 --repeats 9 --runtime multi \
+  --read-chunk 65536 --samples run1_samples.tsv --out docs/disk-access/v5_warm_ci.tsv
+
+lab/scripts/pool_samples_ci.py --run 1 run1_samples.tsv --run 2 run2_samples.tsv \
+  --out docs/disk-access/v5_warm_pooled_ci.tsv
+```
+
+`v5_warm_ci.tsv` is the per-cell summary of run 1; the pooled table below is what the
+decision rests on. Ask ordinal 0 is dropped by both (it is `first_frame_ns`), and
+`pool_samples_ci.py` reuses the bench's own nearest-rank percentile rule so the two agree.
+Warm, product runtime, two independent runs of the same configuration
+([`v5_warm_pooled_ci.tsv`](v5_warm_pooled_ci.tsv)):
 
 | Arm | p50 (run 1) | 95% CI | p50 (run 2) | Shift |
 | --- | ---: | ---: | ---: | ---: |
-| mmap_naive | 43 147 ns | ±0.6% | 41 675 ns | −3.4% |
-| mmap_hybrid_mincore | 43 905 ns | ±0.5% | 42 850 ns | −2.4% |
-| **mmap_blocking_touch** *(prior ADR)* | **152 295 ns** | ±1.1% | 152 668 ns | +0.2% |
-| mmap_touch_in_place | 58 523 ns | ±0.4% | 60 180 ns | +2.8% |
-| pread_blocking_pooled | 170 607 ns | ±0.7% | 173 125 ns | +1.5% |
-| pread_nowait (whole frame) | 57 415 ns | ±0.5% | 61 560 ns | +7.2% |
-| **pread_nowait_chunked** *(accepted)* | **60 894 ns** | ±0.5% | 61 572 ns | +1.1% |
-| uring_nowait_hybrid | 62 424 ns | ±0.4% | 63 034 ns | +1.0% |
+| mmap_naive | 43 147 ns | ±1.2% | 41 675 ns | −3.4% |
+| mmap_hybrid_mincore | 43 905 ns | ±1.1% | 42 850 ns | −2.4% |
+| **mmap_blocking_touch** *(prior ADR)* | **152 295 ns** | ±2.2% | 152 668 ns | +0.2% |
+| mmap_touch_in_place | 58 523 ns | ±0.9% | 60 180 ns | +2.8% |
+| pread_blocking_pooled | 170 607 ns | ±1.3% | 173 125 ns | +1.5% |
+| pread_nowait (whole frame) | 57 415 ns | ±0.9% | 61 560 ns | +7.2% |
+| **pread_nowait_chunked** *(accepted)* | **60 894 ns** | ±0.9% | 61 572 ns | +1.1% |
+| uring_nowait_hybrid | 62 424 ns | ±0.8% | 63 034 ns | +1.0% |
+
+The `95% CI` column is the half-width of the bootstrap interval in
+[`v5_warm_pooled_ci.tsv`](v5_warm_pooled_ci.tsv) — `(ci_hi − ci_lo) / 2`, as a percent of
+the median. Half that figure is the standard error, which is *not* what a 95% interval
+means; quote this column, not the SE.
 
 ### The rule this produces
 
 **A within-run CI is not the error bar.** Re-running the *identical* configuration moves a
-median by up to 7.2% — five to ten times the ±0.5–1% bootstrap interval. The CI measures
-sampling noise inside one run; run-to-run drift on a shared cloud vCPU is larger and the
-bootstrap cannot see it. So:
+median by up to 7.2% — for `pread_nowait`, **eight times** its own ±0.9% interval, against
+bootstrap intervals that span only ±0.8–2.2% across the arms. The CI measures sampling
+noise inside one run; run-to-run drift on a shared cloud vCPU is larger and the bootstrap
+cannot see it. So:
 
 > A difference counts only if it is larger than run-to-run drift **and** reproduces with the
 > same sign across independent runs.
@@ -403,12 +450,23 @@ window. Checking the deployment filesystem is the first item in [`later.md`](lat
   claim before believing it.**
 - **The gap monitor changes the numbers it is not measuring.** It is a spin loop, so it
   keeps a core busy and its absence lets the host drop frequency: the same warm arm reads
-  46.9 µs with one monitor and 84.7 µs with none. Both are internally consistent — compare
+  46.9 µs with one monitor ([`v4_uring_gaps.tsv`](v4_uring_gaps.tsv)) and 84.7 µs with none
+  ([`v4_uring_hybrid.tsv`](v4_uring_hybrid.tsv)). Both are internally consistent — compare
   arms *within* a cell, never across cells with different `--monitors`.
 - **The gap monitor is one task.** On four workers it can be stolen off a stalled worker, so
   `gap_max` under `--runtime multi` understates a stall. Cells 3 and 4 — real sessions on
   every worker — are the sensitive neighbour instrument; `--monitors N` raises monitor count
   at the cost of pinning every core to a spin loop.
+- **The io_uring arms assumed fixed-length frames until 2026-09-06.** Their registered
+  buffers are allocated once and were sized from the *first* frame served, so a study whose
+  frames vary in length — real HTJ2K, and `lab/fixtures/queue_large` at 41 000-61 000 B —
+  panicked as soon as a longer frame arrived (`range end index 52000 out of range for slice
+  of length 48000`). The campaign fixture is fixed-size (320 x 250 000 B), so every
+  io_uring number above was taken with `max_len == len`, where the corrected geometry is
+  bit-identical: **the results stand as measured.** What the bug cost was the ability to
+  re-run these arms against a realistic study at all — which is exactly what condition 2 of
+  the io_uring verdict asks for. `uring_access::ring_geometry` now derives the geometry
+  from the study's longest frame, and a test pins the invariant.
 - **No live end-to-end run.** `with_bind_default` binds IPv6 and this container has no IPv6,
   so the server could not be driven over the wire here. Wire compatibility is covered by
   unit tests asserting the streamed bytes equal the `wrap()` envelope they replaced.
