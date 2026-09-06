@@ -18,7 +18,7 @@ SRV="$ROOT/target/lab-arms/exact-server-seg10"
 HARNESS="$ROOT/target/release/window-harness"
 NETSIM="$ROOT/target/release/netsim"
 STUDY="$ROOT/lab/fixtures/frames_500x64k/frames_500x64k.sbnd"
-TRACE="$ROOT/lab/traces/radiologist_review_500.json"
+TRACE="${TRACE:-$ROOT/lab/traces/radiologist_review_500.json}"
 SPORT=14471; NPORT=15071
 DEPTH=${DEPTH:-8}; CACHE=${CACHE:-64}
 DELAY=${DELAY:-25}; RATE=${RATE:-20}; LOSS=${LOSS:-0.1}

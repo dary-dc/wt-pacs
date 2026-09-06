@@ -14,7 +14,7 @@ HARNESS="$ROOT/target/release/window-harness"
 NETSIM="$ROOT/target/release/netsim"
 FIXTURE=frames_500x64k
 STUDY="$ROOT/lab/fixtures/$FIXTURE/$FIXTURE.sbnd"
-TRACE="$ROOT/lab/traces/radiologist_review_500.json"
+TRACE="${TRACE:-$ROOT/lab/traces/radiologist_review_500.json}"
 SPORT=14461; NPORT=15061
 DEPTH=${DEPTH:-8}; CACHE=${CACHE:-64}
 DELAY=${DELAY:-300}; RATE=${RATE:-8}; LOSS=${LOSS:-1.0}
