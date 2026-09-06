@@ -1,0 +1,28 @@
+# Characterisation of every (schedule x layout x mode x device rung) combination.
+# Produced by lab/scripts/gen_access_trace.py; `within_readahead_pct` is relative to
+# the host's read_ahead_kb, which was 8192 (8 MiB) here — see v17_readahead_ab.tsv.
+trace	schedule	layout	mode	device_rung	reads	total_bytes	unique_bytes	median_len	adjacent_pct	within_readahead_pct	backward_pct	median_gap	span_bytes
+live_cell_scroll_frame-major_progressive_r1	live_cell_scroll	frame-major	progressive	1	500	7500000	7500000	15000	0.0	0.0	40.1	235000	74765000
+live_cell_scroll_frame-major_progressive_r3	live_cell_scroll	frame-major	progressive	3	500	31250000	31250000	62500	0.0	0.0	40.1	187500	74812500
+live_cell_scroll_frame-major_progressive_r5	live_cell_scroll	frame-major	progressive	5	300	75000000	75000000	250000	100.0	100.0	0.0	0	75000000
+live_cell_scroll_frame-major_single_r1	live_cell_scroll	frame-major	single	1	300	4500000	4500000	15000	0.0	0.0	0.0	235000	74765000
+live_cell_scroll_frame-major_single_r3	live_cell_scroll	frame-major	single	3	300	18750000	18750000	62500	0.0	0.0	0.0	187500	74812500
+live_cell_scroll_frame-major_single_r5	live_cell_scroll	frame-major	single	5	300	75000000	75000000	250000	100.0	100.0	0.0	0	75000000
+live_cell_scroll_rung-major_progressive_r1	live_cell_scroll	rung-major	progressive	1	500	7500000	7500000	15000	59.9	59.9	39.9	0	9285000
+live_cell_scroll_rung-major_progressive_r3	live_cell_scroll	rung-major	progressive	3	1100	31250000	31250000	15000	0.0	0.0	45.3	5660000	38687500
+live_cell_scroll_rung-major_progressive_r5	live_cell_scroll	rung-major	progressive	5	1500	75000000	75000000	32500	0.0	0.0	19.9	14837500	77500000
+live_cell_scroll_rung-major_single_r1	live_cell_scroll	rung-major	single	1	300	4500000	4500000	15000	100.0	100.0	0.0	0	4500000
+live_cell_scroll_rung-major_single_r3	live_cell_scroll	rung-major	single	3	900	18750000	18750000	15000	0.0	0.0	33.3	7392500	19350000
+live_cell_scroll_rung-major_single_r5	live_cell_scroll	rung-major	single	5	1500	75000000	75000000	32500	0.0	0.0	19.9	14837500	77500000
+stripe320_frame-major_progressive_r1	stripe320	frame-major	progressive	1	320	4800000	4800000	15000	0.0	0.0	0.0	235000	79765000
+stripe320_frame-major_progressive_r3	stripe320	frame-major	progressive	3	320	20000000	20000000	62500	0.0	0.0	0.0	187500	79812500
+stripe320_frame-major_progressive_r5	stripe320	frame-major	progressive	5	320	80000000	80000000	250000	100.0	100.0	0.0	0	80000000
+stripe320_frame-major_single_r1	stripe320	frame-major	single	1	320	4800000	4800000	15000	0.0	0.0	0.0	235000	79765000
+stripe320_frame-major_single_r3	stripe320	frame-major	single	3	320	20000000	20000000	62500	0.0	0.0	0.0	187500	79812500
+stripe320_frame-major_single_r5	stripe320	frame-major	single	5	320	80000000	80000000	250000	100.0	100.0	0.0	0	80000000
+stripe320_rung-major_progressive_r1	stripe320	rung-major	progressive	1	320	4800000	4800000	15000	100.0	100.0	0.0	0	4800000
+stripe320_rung-major_progressive_r3	stripe320	rung-major	progressive	3	960	20000000	20000000	15000	0.0	0.0	33.3	7567500	20000000
+stripe320_rung-major_progressive_r5	stripe320	rung-major	progressive	5	1600	80000000	80000000	32500	0.0	0.0	19.9	15137500	80000000
+stripe320_rung-major_single_r1	stripe320	rung-major	single	1	320	4800000	4800000	15000	100.0	100.0	0.0	0	4800000
+stripe320_rung-major_single_r3	stripe320	rung-major	single	3	960	20000000	20000000	15000	0.0	0.0	33.3	7567500	20000000
+stripe320_rung-major_single_r5	stripe320	rung-major	single	5	1600	80000000	80000000	32500	0.0	0.0	19.9	15137500	80000000
