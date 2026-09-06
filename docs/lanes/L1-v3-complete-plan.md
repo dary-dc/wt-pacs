@@ -50,6 +50,8 @@ gate for early phases.
 | A1 pilots + `l1_v3_cadence.json` | First cadence draft — **not final** until Phase B |
 | `l1_one_way_160.json` + `frames_32k_160` | Exist; **not yet wired** into collect runners |
 | `PHASE=collect` refuses | Correct; stays refused until Phase C sign-off |
+| Phase C small collect + review | Directional rows exist; **their p95 readouts do not survive review** — see `L1_V3_PHASE_C_REVIEW.md` |
+| Reader-lateness metric in the harness | `late_p95_ms` / `on_time_rate` per run; 160 samples/run, no miss tail needed |
 
 ---
 
@@ -184,12 +186,19 @@ This plan does **not** authorize that merge by itself.
 ```
 [x] Phase A — A1…A6 methodology locks in runners/docs (helpers + collect scaffold; SSH body still gated)
 [x] Phase B — B1…B4 regime diagnosis + reader model (clinical_under_delivery 0.9); cadence annotated
-[ ] Review sign-off on A+B (adversarial OK to re-run here)
-[ ] Phase C — small directional collect (160-frame); interpret shape only
+[x] Phase C — small directional collect ran (80 rows, 160-frame, interleaved)
+[x] Review of A+B+C — docs/measurements/r2/L1_V3_PHASE_C_REVIEW.md
+[ ] Phase C readouts REDONE — the review's items 5–7 (metric, operating point, power)
 [ ] Phase D — large-frame track (as capacity allows)
-[ ] Phase E — powered collect + A4/A6 only if C is clean
+[ ] Phase E — powered collect + A4/A6, blocked on the line above
 [ ] Phase F — product decision from E, not from C
 ```
+
+**Phase C ran before its own sign-off.** The review is now in, and it does not clear Phase E: the
+primary metric is unsupported in the null and dose-low cells, the null cell cannot exclude a 15 %
+arm gap, and the "dose-like" shape reverses under the pooled estimator N11 asked for. Gate and
+harness fixes (review items 1–4) are landed; items 5–7 are design decisions and are what Phase E
+now waits on.
 
 `PHASE=collect` remains refused until Phase A+B signed and Phase C plan text matches this doc.
 
@@ -206,6 +215,7 @@ This plan does **not** authorize that merge by itself.
 
 ## 7 · References
 
+- [`../measurements/r2/L1_V3_PHASE_C_REVIEW.md`](../measurements/r2/L1_V3_PHASE_C_REVIEW.md) — review of A+B+C; what Phase E waits on
 - [`L1-v3-second-review.md`](L1-v3-second-review.md) — N1–N12  
 - [`L1-v3-small-collect-plan.md`](L1-v3-small-collect-plan.md) — prior smoke sketch (to be aligned to Phase C)  
 - [`L1-v3-action-plan.md`](L1-v3-action-plan.md) — C2 dose-response; A1–A7 background  
