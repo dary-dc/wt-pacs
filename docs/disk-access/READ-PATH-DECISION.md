@@ -6,6 +6,11 @@ The question: *given what we know today — browser clients, tens-of-GB studies 
 storage, clients that cache every increment they receive, and a disk layout that has not
 been designed yet — how should the server read frame bytes?*
 
+> **What actually makes a read miss is in [`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md)**, which
+> corrects a premise this document rested on. The recommendation below is unchanged and holds
+> more strongly there; what changed is *why* we are miss-dominated, and how much the choice is
+> worth relative to the disk layout.
+
 > **The measurement table, the evidence grading and the proposed next studies are in
 > [`SCOREBOARD.md`](SCOREBOARD.md).** This document argues the decision; that one shows the
 > numbers it rests on and grades how well each claim is actually supported.
@@ -43,8 +48,14 @@ What the campaign found:
 4. **Threads are the hidden ceiling.** Every simultaneous cache miss costs `pool` an OS
    thread — up to 96 in these runs. The ring arms held 5 throughout.
 
-Our deployment (tens-of-GB studies on cloud storage, so most reads miss) sits squarely in
-case 2. **The recommendation is the hybrid**, and it does not depend on the disk layout
+Our deployment sits in case 2 — but **not for the reason first assumed**. "Tens-of-GB studies,
+so most reads miss" turns out to be wrong: measured against a 4 GB study,
+[`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md) shows study size does not set the miss rate. What
+sets it is whether a session's access cycle fits the cache it has, and whether the access is
+sequential enough for read-ahead to cover it when it does not. The same client asks over the
+same bytes read at 0.5% miss under one layout and 99.6% under another. Case 2 is where a
+*strided* layout under cache pressure lands, and that is the layout rung delivery produces
+today. **The recommendation is the hybrid**, and it does not depend on the disk layout
 design or on rung size — those change *how much* it wins by, never *whether* it wins. The one
 input it does depend on is the one we already know: that concurrency comes from many
 independent sessions rather than deep pipelining inside one. If the server ever pipelines
@@ -282,7 +293,7 @@ explained rather than settled by counting cells.
 | **US stack, whole frames in order, study fits in RAM** | 0% | `pool` or `hybrid` — indistinguishable | Nothing to overlap. Don't add a ring for this alone. Equal on throughput too, *provided* the concurrency is one reader per session rather than many asks pipelined inside one ([`v14_warm_concurrency.tsv`](v14_warm_concurrency.tsv)) |
 | **US stack, whole frames in order, study exceeds RAM** | ~6% (median; read-ahead carries most of it) | **`hybrid`** | Just past the crossover. Free when it does not help, −45% or better when it does |
 | **Rung delivery from a frame-major layout** *(prefix of each frame, skip the rest)* | **91%** | **`hybrid`** | Read-ahead cannot see the pattern. **−69.6% CPU in 377 of 378 cells**, −25.6% p50 in 332 of 378 |
-| **Rung delivery from a layout that groups what is read together** | ~6% | **`hybrid`** | Grouping converts the case above into the case above that. Worth doing on its own merits, and the hybrid does not care either way |
+| **Rung delivery from a layout that groups what is read together** | ~1–5% | **`hybrid`** | Grouping is worth **17.6× once a session's cycle no longer fits the cache**, and only 1.5× before that ([`ACCESS-PATTERNS.md`](ACCESS-PATTERNS.md) §4.1). It is the bigger lever of the two, and the hybrid does not care either way |
 | **Many concurrent sessions, cold** | 60–92% | **`hybrid`** | −24% to −58% CPU, threads flat at 5 vs 82 ([`v12_readers_fixed.tsv`](v12_readers_fixed.tsv), re-run after the bug in §Review F1) |
 | **Filesystem without `RWF_NOWAIT`** (overlayfs, tmpfs) | 100% by definition | `pooled_pread` | The existing escape hatch. Unchanged |
 
