@@ -12,7 +12,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRV="$ROOT/target/lab-arms/exact-server-seg10"
 HARNESS="$ROOT/target/release/window-harness"
 NETSIM="$ROOT/target/release/netsim"
-FIXTURE=frames_500x64k
+FIXTURE="${FIXTURE:-frames_500x64k}"
 STUDY="$ROOT/lab/fixtures/$FIXTURE/$FIXTURE.sbnd"
 TRACE="${TRACE:-$ROOT/lab/traces/radiologist_review_500.json}"
 SPORT=14461; NPORT=15061

@@ -22,7 +22,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRV="$ROOT/target/lab-arms/exact-server-seg10"
 HARNESS="$ROOT/target/release/window-harness"
 NETSIM="$ROOT/target/release/netsim"
-STUDY="$ROOT/lab/fixtures/frames_500x64k/frames_500x64k.sbnd"
+FIXTURE="${FIXTURE:-frames_500x64k}"
+STUDY="$ROOT/lab/fixtures/$FIXTURE/$FIXTURE.sbnd"
 TRACE="${TRACE:-$ROOT/lab/traces/radiologist_review_500.json}"
 SPORT=14471; NPORT=15071
 DEPTH=${DEPTH:-8}; CACHE=${CACHE:-64}
@@ -42,7 +43,7 @@ for SC in $SCALES; do
     --delay-ms "$DELAY" --rate-mbps "$RATE" --loss-pct "$LOSS" --queue-pkts 500 \
     --seed "${SEED:-4242}" --stats true > /tmp/e0c_ns.log 2>&1 &
   NS=$!; sleep 0.4
-  timeout 300 "$HARNESS" --url "https://127.0.0.1:$NPORT/" --mode trace --trace "$TRACE" \
+  timeout "${RUN_TIMEOUT:-300}" "$HARNESS" --url "https://127.0.0.1:$NPORT/" --mode trace --trace "$TRACE" \
     --read-bps 0 --depth "$DEPTH" --frame-count 500 --stream-mode shared --bind 127.0.0.1 \
     --cache-frames "$CACHE" --reader-mode open --step-scale "$SC" --arm "cal_$SC" --json \
     > /tmp/e0c.json 2>/dev/null || true
