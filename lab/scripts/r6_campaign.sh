@@ -67,14 +67,25 @@ cell_params() {
     # X3S — X3's cell (1 % loss) driven by the SCROLL trace instead of the jump trace.
     # Robustness check for adversarial review 3.5: the two traces strand by different
     # mechanisms (displacement vs overrun), so an X3 result that survives both is a much
-    # stronger claim than one that holds under either. Scale 6 is its own calibrated
-    # operating point. Scale 6 was tried first and FAILED: clean at the calibration seed,
-    # it then voided 4 of 9 campaign rows on center-dropped, because a harder loss
-    # realisation pushed the transport far enough behind that the outstanding ceiling
-    # bound. Scale 7 is validated against all three campaign seeds (7932/15851/23770) and
-    # is admissible at each. The jump trace's scale 8 cannot be reused either — it strands
-    # only 6 frames here and is too thin to read a percentile from.
+    # stronger claim than one that holds under either.
+    #
+    # Scale 6 was tried first and FAILED: clean at the calibration seed, it then voided 4
+    # of 9 campaign rows on center-dropped, because a harder loss realisation pushed the
+    # transport far enough behind that the outstanding ceiling bound. Scale 7 is validated
+    # against all three campaign seeds (7932/15851/23770) and is admissible at each. The
+    # jump trace's scale 8 cannot be reused either — it strands only 6 frames under this
+    # trace and is too thin to read a percentile from.
     X3S) echo "25 20 1.0 7" ;;
+    # X3L — X3's cell driven by 250 KB frames instead of 64 KB. Tests a falsifiable
+    # prediction of the retransmit-deferral mechanism: the per-frame penalty is "wait
+    # behind up to D-1 whole frames", so it must scale with frame size. Measured 455 ms at
+    # 64 KB; 3.9x the frame size predicts ~1780 ms. A flat result falsifies the mechanism.
+    #
+    # Scale 32 keeps frame size the ONLY thing that changed: reader demand 1.82 Mbps
+    # against Cubic's 2.85 Mbps Mathis ceiling here is a ratio of 0.64, matching the 64 KB
+    # run's 0.66. Verified admissible at every campaign seed before being frozen.
+    # Requires FIXTURE=frames_500x250k.
+    X3L) echo "25 20 1.0 32" ;;
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
 }
