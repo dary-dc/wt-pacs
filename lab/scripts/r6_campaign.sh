@@ -64,6 +64,13 @@ cell_params() {
     # If any arm separates here the rig is measuring something other than what it claims
     # and the campaign is void — not adjusted, void.
     N0) echo "25 20 0.0 8" ;;
+    # X3S — X3's cell (1 % loss) driven by the SCROLL trace instead of the jump trace.
+    # Robustness check for adversarial review 3.5: the two traces strand by different
+    # mechanisms (displacement vs overrun), so an X3 result that survives both is a much
+    # stronger claim than one that holds under either. Scale 6 is its own calibrated
+    # operating point — 100 stranded frames, nz_n 177, no centre asks dropped; the jump
+    # trace's scale 8 strands only 6 frames here and is too thin to read.
+    X3S) echo "25 20 1.0 6" ;;
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
 }
