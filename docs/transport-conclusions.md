@@ -20,7 +20,7 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Keep one shared stream** — now measured on a rig that *can* produce head-of-line blocking, and won on a mechanism. Per-frame is **2.4× worse at 1 % loss** and never better anywhere. The textbook argument for per-frame is falsified: quinn re-queues a retransmitting stream to the **back** of the queue, so per-frame *defers* loss recovery behind other frames' backlogs (§2) |
+| **Stream shape** | **Keep one shared stream** — now measured on a rig that *can* produce head-of-line blocking, and won on a mechanism. Per-frame is **3.5× worse at 1 % loss** and never better anywhere. The textbook argument for per-frame is falsified: quinn re-queues a retransmitting stream to the **back** of the queue, so per-frame *defers* loss recovery behind other frames' backlogs (§2) |
 | **Fixed-N pool** | **Still untested** — a server-side change, and this lane may not modify `server/`. R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95 |
@@ -104,12 +104,17 @@ byte the reader still wanted.
 p95 time-to-displayable, median of repeats, arms interleaved within each repeat.
 `per-frame + FIFO` is `--stream-mode per-frame --send-fairness false`.
 
+n = 3 in every cell, all 36 rows admissible (no VOIDs).
+
 | cell | what it is | shared | per-frame + FIFO | verdict |
 | ---- | ---------- | ------ | ---------------- | ------- |
-| **N0** | control: no loss, reader keeps up | 79.5 ms | 79.5 ms | **tie (+0.1 %)** — the rig adds no artifact |
+| **N0** | control: no loss, reader keeps up | 79.4 ms | 79.3 ms | **tie (−0.1 %)** — the rig adds no artifact |
 | **X2** | stranding, no loss | 82.3 ms | 84.0 ms | **tie (+2 %)** |
 | **X1** | 0.1 % loss + stranding | 372.9 ms | 363.6 ms | **tie** — ranges overlap, sign flips per seed |
-| **X3** | **1 % loss** | **267.2 ms** | **637.1 ms** | **shared wins, +138 %, separated** |
+| **X3** | **1 % loss** | **182.2 ms** | **637.1 ms** | **shared wins, +250 %, separated 3/3** |
+
+The X3 margin replicates in every repeat — **3.34×, 2.38×, 3.88×** — with the arms
+interleaved inside each repeat, so the loss realisation is common-mode within a comparison.
 
 ### H4 — the classic argument for per-frame streams — is **falsified**
 
@@ -118,8 +123,8 @@ every frame queued behind a lost packet; per-frame streams confine the damage to
 frame.* Prediction P4 was that per-frame beats shared once loss and stranding are both
 present.
 
-**It does not. At the loss level where the effect should be strongest, per-frame is 2.4×
-worse.**
+**It does not. At the loss level where the effect should be strongest, per-frame is 3.5×
+worse**, and the direction is the same in all three repeats.
 
 The mechanism is in quinn's scheduler, and it was verified in source before the campaign
 rather than invented to fit the result:
@@ -134,24 +139,25 @@ rather than invented to fit the result:
   each of those drains entirely first — up to 7 × 64 KB ≈ 448 KB at depth 8, which is
   ~180 ms per queued frame on a 20 Mbps link.
 
-That predicts the sign and roughly the magnitude of the 370–430 ms absolute penalty
+That predicts the sign and roughly the magnitude of the 440–460 ms absolute penalty
 measured in X3. **Receiver-side isolation is real, and sender-side retransmit deferral
 costs more.** The classic argument is right about the receiver and silent about the sender.
 
 ### Why X1 is a tie and not a weaker version of X3
 
 In X1 the **seed moves `shared` alone by 2.1×** (261 → 548 ms across repeats) while the
-arm difference flips sign (−37 %, −3 %, +14 %). The loss realisation dominates the stream
-shape completely. In X2, where there is no loss to realise, the seed effect is 1.0× and
-the arms agree to 2 %.
+arm difference flips sign (−36.7 %, −2.5 %, +13.8 %). The loss realisation dominates the
+stream shape completely. In X2 and N0, where there is no loss to realise, the seed effect
+is 1.0× and the arms agree to within 2 % — so the overlap in X1 is genuine variance, not
+insufficient resolution.
 
 So: at low loss the shape does not matter; at high loss it matters and shared wins.
 There is no cell in which per-frame is better.
 
 ### `send_fairness(false)` is mandatory if per-frame is ever used
 
-`perframe_fair` is worse in **all four cells** — +88 %, +74 %, +23 %, +279 % — with a
-consistent sign in every repeat. That reproduces the finding of four earlier campaigns and
+`perframe_fair` is worse in **all four cells** — +74 %, +74 %, +23 %, +456 % — with a
+consistent sign in all twelve repeat-level comparisons. That reproduces the finding of four earlier campaigns and
 matches quinn's own scheduler test (`state.rs:1528-1541`: fair yields `a,b,c,a,b,c`,
 unfair `a,a,a,b,b,b`).
 
@@ -170,7 +176,7 @@ Unchanged in status: a pool is a server-side change and this lane may not modify
 
 What R6 adds is a reason to expect less from it. The retransmit-deferral cost **grows with
 N**, because a recovering stream waits behind more backlogs; receive-side isolation also
-grows with N. Measured at N = 8 the cost dominates by 2.4×, and at N = 1 there is no cost
+grows with N. Measured at N = 8 the cost dominates by 3.5×, and at N = 1 there is no cost
 at all. An interior optimum remains possible in principle, but the endpoint that wins is
 the one the incumbent already uses.
 
@@ -221,7 +227,7 @@ wait on the transport**; the rest are cache hits. The levers above the transport
 | ---------- | -------- | ---------------------- |
 | Controller depends on loss regime | **strong** — both directions large and separated, regimes verified by counters | nothing; the *mix* is unknown, not the physics |
 | Which regime your links are in | **unknown** | client telemetry: loss vs queueing delay |
-| Keep shared stream | **strong** — re-measured on a rig that generates head-of-line blocking; separated 2.4× at 1 % loss, matches a source-verified scheduler mechanism, negative control clean to 0.1 % | a cell where per-frame+FIFO separates *in its favour*; none found |
+| Keep shared stream | **strong** — re-measured on a rig that generates head-of-line blocking; separated 3.5× at 1 % loss, replicated 3/3, matches a source-verified scheduler mechanism, negative control clean to 0.1 % | a cell where per-frame+FIFO separates *in its favour*; none found |
 | Per-frame is worse *because of retransmit deferral* | **moderate** — mechanism is source-verified and predicts sign and magnitude, but was not directly instrumented | per-stream retransmit timing telemetry showing recovery is not deferred |
 | Per-frame without FIFO is worst | **strong** — four campaigns, matches scheduler source | — |
 | GSO cap worth 17 % | **strong** — externally corroborated | — |

@@ -183,3 +183,68 @@ question.
 
 The honest summary is that R6 shipped with a control that covers two arms out of three, and
 the third arm's rows are demoted accordingly.
+
+### 3.2 · "You found the answer you already believed" — **the sharpest attack, and it fails on the pre-registration**
+
+R6 returns the same recommendation — keep one shared stream — that this project published,
+withdrew, and then went to considerable trouble to re-test. That is exactly the shape of a
+result produced by motivated reasoning, and it deserves the strongest version of the
+objection.
+
+Three things make it survive:
+
+1. **The pre-registered hypothesis was the opposite, and it lost.** H4/P4 predicted
+   per-frame would *beat* shared under loss. It is falsified by 3.5× in the wrong
+   direction. A rig tuned to confirm the incumbent would not have been built around a
+   hypothesis that says the incumbent loses.
+2. **My own novel prediction also lost.** P5 said fairness-on would beat FIFO under
+   stranding. It is worse in all twelve repeat-level comparisons.
+3. **The mechanism was read out of quinn's source before the campaign ran**, in the course
+   of *retracting* a different claim (that fixed-N was strictly dominated). `push_pending`
+   putting a retransmitting stream behind every other stream's backlog was written down as
+   theory first and measured second. It predicts the sign, and 448 KB of backlog at 20 Mbps
+   is ~180 ms per queued frame against a measured 440–460 ms penalty.
+
+What changed between the withdrawn claim and this one is not the answer but its status:
+before, "nothing separated on a rig that could not separate anything"; now, "shared wins
+where the mechanism says it should, and ties where the mechanism says it should tie."
+
+### 3.3 · "X1 should have shown the X3 effect, and did not" — **accepted, and it bounds the claim**
+
+If shared beats per-frame by 3.5× at 1 % loss, why is X1 (0.1 % loss) a dead tie?
+
+Because at 0.1 % loss the **loss realisation itself dominates**: across repeats the seed
+alone moves `shared` from 261 to 548 ms (2.1×), while the arm difference flips sign
+(−36.7 %, −2.5 %, +13.8 %). In N0 and X2, which have no loss to realise, the seed effect is
+1.0× and the arms agree within 2 % — so X1's overlap is genuine variance, not a resolution
+limit.
+
+**This bounds the recommendation rather than supporting it.** Stream shape is worth
+choosing carefully only where loss is high enough for retransmit scheduling to matter. At
+0.1 % it is not measurable against seed variance at n = 3, and effort spent on it is effort
+not spent on the levers in §4 of the conclusions.
+
+### 3.4 · "Every row is `ok` — the void conditions never fired, so they are decorative" — **checked, they fired during calibration**
+
+All 36 campaign rows are admissible. That is not the guards failing to bite; it is the
+calibration having already done its job. During E0-R6b they voided a cell at 93 %
+censoring with 597 of 681 centre asks dropped, and rejected a degenerate cell where 0.1 %
+loss produced 79.6 ms against 79.5 ms without. The gates ran where gates are supposed to
+run — before the arms, not after them.
+
+The one condition that could not fire is `no-stranding` in X3 and N0, which are not
+stranding cells by design. `stranded_frames` is reported for them anyway (40 and 0) so the
+reader can check the cell is where it claims to be.
+
+### 3.5 · Remaining, unmitigated
+
+- **One trace shape.** Everything rests on `radiologist_review_500`. A second,
+  structurally different trace (`r6_scrub_500`, overrun stranding rather than displacement
+  stranding) is committed and generated but **not yet run** — it is the first thing to run
+  next, and a reversal under it would reopen the question.
+- **One fixture, one cache size, one depth.** 64 KB uniform frames, 64-frame LRU, depth 8.
+- **T2 throughout.** netsim, one host, constant bandwidth, constant RTT, no AQM, no ECN, no
+  handovers, no cross-traffic. The real-path leg was blocked
+  ([`oracle-runbook.md`](oracle-runbook.md)).
+- **Eight comparisons at n = 3.** The two that separate do so by 74 % and 250 %, far outside
+  the false-positive band; the ones reported as ties are reported as ties.
