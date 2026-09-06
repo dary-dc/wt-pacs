@@ -6,6 +6,12 @@
 > answered, and not the way §S1 implied — see
 > [`transport-conclusions.md`](transport-conclusions.md), which supersedes the ranking in
 > this document's §S9.
+>
+> **§S3 was answered and the answer has been withdrawn.** Every measurement behind "keep
+> one shared stream" used a client that blocked until each frame arrived before advancing,
+> so the transport could never fall behind the reader and head-of-line blocking could not
+> occur. The question is reopened, not softened. Anyone implementing against this document
+> should treat stream shape as **undecided** and read §S3 before choosing one.
 
 **Architecture-independent.** Written to outlive the server it was measured on. Nothing
 below names a function, a module, or a stream mode; each item states an **invariant**, the
@@ -134,16 +140,28 @@ with log(frame size), the ramp is the mechanism and S1/S2 are the whole game.
 
 ## S3 · Loss recovery and stream shape
 
-**Tier: T2, measured. ANSWERED — see [`transport-conclusions.md`](transport-conclusions.md)
-§2.**
+**Tier: T2. Previously marked ANSWERED — that was withdrawn. Being re-measured in
+[`lanes/R6-preregistration.md`](lanes/R6-preregistration.md).**
 
-> **Keep one shared stream.** Per-frame + `send_fairness(false)` never separated from it
-> in any cell, under either controller, with a jump-bearing trace and a bounded client
-> cache. Per-frame *without* FIFO is consistently worse. A fixed-N pool is **not**
-> dominated — the byte-identity argument that said so is false, because `retransmit()`
-> re-queues to the back of the priority class regardless of fairness — but nothing beat
-> shared, so there is no deficit for a pool to recover. The reasoning below is kept
-> because its framing of the question is still right; its "unmeasured" status is not.
+> **The "keep one shared stream" answer has been withdrawn**, along with the campaigns it
+> rested on. Every harness before R6 used a **closed-loop reader** that blocked until each
+> frame arrived before advancing, so the transport could never fall behind and every byte in
+> flight was a byte the reader still wanted. Head-of-line blocking — the mechanism this
+> section exists to decide — could not occur. Measured directly: in one cell with one
+> server, the closed-loop reader strands **0.00 MB** and the open-loop reader **18.31 MB**
+> ([`measurements/r6/E0-validation.md`](measurements/r6/E0-validation.md)).
+>
+> What survives is a claim about **fairness**, not shape: per-frame without
+> `send_fairness(false)` is worse across four campaigns, matching quinn's scheduler
+> (`quinn-proto` `state.rs:1528-1541` — fair re-queues a stream *after* its priority peers,
+> unfair *before* them).
+>
+> A fixed-N pool is **not** dominated — the byte-identity argument that said so is false,
+> because `retransmit()` re-queues with `push_pending`, to the back of the priority class,
+> regardless of fairness (`state.rs:677`). It is also **untested**: a pool is a server-side
+> change and the lab lane is constrained not to modify `server/`.
+>
+> The framing below is still right. Its "unmeasured" status is right again too.
 
 ### Invariant
 
@@ -383,8 +401,8 @@ Measured, mechanism understood, low risk. Not worth a campaign each.
 | - | ---- | ------------------------ | ---------------- |
 | ~~1~~ | ~~Initial congestion window~~ | **answered: not a lever (≤ 7 %)** | done |
 | ~~2~~ | ~~Congestion controller~~ | **answered: keep Cubic; BBR is 66 % worse under congestive loss** | done |
-| ~~3~~ | ~~Loss dimension for stream shape~~ | **answered: keep shared; per-frame is 25–67 % worse** | done |
-| 3b | **Re-run stream shape congested** | E3 ran uncongested; the one per-frame+FIFO win (−39 %, 150 ms clustered loss) needs confirming | one campaign |
+| 3 | **Stream shape** | **REOPENED.** The previous answer rested on a closed-loop reader that made head-of-line blocking structurally impossible — measured, 0.00 MB stranded against 18.31 MB with an open-loop reader. Being re-run as R6 | one campaign, in progress |
+| 3b | **Fixed-N stream pool** | untested and untestable in the lab lane: it is a server-side change and the lane may not modify `server/`. Not dominated — `retransmit()` re-queues to the back of the class regardless of fairness — so an interior optimum is possible | needs the server constraint lifted |
 | 4 | **Per-connection memory at scale (S6)** | decides how many viewers a box holds | an afternoon, no netem needed |
 | 5 | **Multi-core scaling / `SO_REUSEPORT`** | one endpoint is one UDP socket; the recv path may bottleneck before the cores do | needs two machines to answer honestly |
 | 6 | **Connection setup cost** | thousands of handshakes is real CPU (ECDSA sign) and one RTT of p95 each. Session resumption / 0-RTT reachability from a browser is unverified | a day, plus a browser test |
