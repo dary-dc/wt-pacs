@@ -3,6 +3,13 @@
 **Status:** small collect complete · **NOT A DECISION** · **Date:** 2026-09-05  
 **Artifacts:** `docs/measurements/r2/l1_s_vs_q_loss_v3.small.tsv`, `raw/l1v3/small/`, `DIRECTIONAL_SUMMARY.md`
 
+> **Reviewed 2026-09-06 — readouts 1–3 below do not survive re-estimation.**
+> See [`../measurements/r2/L1_V3_PHASE_C_REVIEW.md`](../measurements/r2/L1_V3_PHASE_C_REVIEW.md).
+> In short: the p95 in the null and dose-low cells rests on 3 tail samples; the dose-like rise
+> inverts under pooled miss samples (+2.7 / +14.6 / +1.5 %); and on the reader clock both arms keep
+> schedule at 0 and 0.5 % loss, so the 0.5 % cell has no reader-visible effect to power. The rows
+> and the regime stamps are sound — the interpretation is what changed.
+
 ## Shape (miss p95 medians, RTT60, 160-frame, clinical 0.9)
 
 | cell | S | P | Q | rel_gain Q vs S |
