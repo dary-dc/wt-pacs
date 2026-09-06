@@ -36,6 +36,9 @@ cell_params() {
     # congestion and a rate-based one can be charged for the queue it builds.
     D) echo "30 25 0.0" ;;
     E) echo "75 10 0.0" ;;
+    # Wireless profiles: exogenous radio loss on a congested path.
+    W) echo "25 20 1.0" ;;   # 5G / good WiFi:  50 ms RTT, 20 Mbps, 1 % radio loss
+    S) echo "300 8 1.0" ;;   # GEO satellite:  600 ms RTT,  8 Mbps, 1 % radio loss
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
 }
