@@ -462,8 +462,15 @@ async fn emit_window(
         // redundancy, which on a 20 Mbps link is 51 MB and 20 s of pure self-inflicted
         // load. Any trace that revisits a frame — i.e. any trace with a reversal — is
         // uninterpretable without this.
-        if metrics.lock().expect("metrics").cache.contains(&frame) {
-            continue;
+        {
+            // A hit must also refresh recency, or the cache is FIFO-by-arrival rather
+            // than LRU and evicts the frame the reader is currently looking at on the
+            // same schedule as one never displayed.
+            let mut m = metrics.lock().expect("metrics");
+            if m.cache.contains(&frame) {
+                m.touch_cache(frame);
+                continue;
+            }
         }
         {
             let mut o = outstanding.lock().expect("outstanding");

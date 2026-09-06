@@ -41,6 +41,12 @@ cell_params() {
     S) echo "300 8 1.0" ;;   # GEO satellite:  600 ms RTT,  8 Mbps, 1 % radio loss   BDP 600 kB
     # BDP-separating controls. Previously every cell had rate x RTT constant, so an RTT
     # effect could not be told from a rate effect. These break the coupling deliberately.
+    # Congestive twins of W and S: NO injected loss, so every drop is queue overflow.
+    # Must be run at depth 16 — at depth 8 the harness offers 8 x 64004 B = 427 packets
+    # against a 500-packet queue, so the queue arithmetically cannot drop and the cell
+    # silently becomes exogenous-only.
+    Wc) echo "25 20 0.0" ;;
+    Sc) echo "300 8 0.0" ;;
     L) echo "25 4 1.0" ;;    # low BDP:   50 ms,  4 Mbps, 1 %                          BDP  25 kB
     H) echo "300 40 1.0" ;;  # high BDP: 600 ms, 40 Mbps, 1 %                          BDP 3.0 MB
     *) echo "unknown cell $1" >&2; exit 1 ;;
@@ -129,7 +135,15 @@ def verdict(m, cli_cpu, wall, depth):
 try:
     m = json.load(open(jf))
 except Exception:
-    print("VOID %s %s %s run %s — harness produced no JSON" % (exp, arm, cell, run)); sys.exit(0)
+    # Emit a row rather than dropping it. A deleted run is invisible in the TSV and
+    # silently biases whatever survives — the failures are systematically the slowest
+    # runs, so dropping them flatters the arm that fails.
+    row = "\t".join([exp, arm, cell, rtt, rate, loss, fx, depth, run] +
+                    ["nan"] * 3 + ["0"] * 2 + ["nan"] * 3 + ["%.2f" % (float(w1) - float(w0))] +
+                    ["0", "0"] + ["nan"] * 5 + [lb, qd, "VOID:no-json"])
+    print(row)
+    open(out, "a").write(row + "\n")
+    sys.exit(0)
 wall = float(w1) - float(w0)
 
 
