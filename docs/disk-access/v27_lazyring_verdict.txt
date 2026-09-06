@@ -1,0 +1,33 @@
+=== v27_lazyring.tsv ===
+L   loop alone       pool_ringloop - pool
+   hit    run1   -20.9%   89/105  tie       run2   -14.0%   86/97   tie     
+   mix    run1    -3.6%   11/21   tie       run2   -10.6%   23/29   tie     
+   miss   run1   +19.4%   38/42   tie       run2   +20.1%   38/42   tie     
+
+R   ring alone       hybrid - pool_ringloop
+   hit    run1   +17.5%   78/105  tie       run2   +14.2%   79/97   tie     
+   mix    run1   -57.8%   19/21   RESOLVED  run2   -57.2%   29/29   RESOLVED
+   miss   run1   -68.9%   42/42   RESOLVED  run2   -72.6%   42/42   RESOLVED
+
+L+R campaign reports hybrid - pool
+   hit    run1    -9.6%   82/105  tie       run2    -5.4%   67/97   tie     
+   mix    run1   -63.0%   20/21   RESOLVED  run2   -59.6%   29/29   RESOLVED
+   miss   run1   -62.8%   42/42   RESOLVED  run2   -65.4%   42/42   RESOLVED
+
+Z   lazy ring        hybrid_lazyring - pool
+   hit    run1   -19.7%   89/105  tie       run2   -15.3%   82/97   tie     
+   mix    run1   -63.2%   21/21   RESOLVED  run2   -57.4%   29/29   RESOLVED
+   miss   run1   -61.8%   42/42   RESOLVED  run2   -64.4%   42/42   RESOLVED
+
+hybrid_lazyring - hybrid  (does deferring construction cost where the ring is needed?)
+  run1: hit  -10.9% (89/105, tie)   mix   -0.9% (11/21, tie)   miss   +1.9% (25/42, tie)
+  run2: hit   -9.0% (84/97, tie)   mix   +7.1% (20/29, tie)   miss   +3.4% (27/42, tie)
+
+Every regime a tie: deferring the ring costs nothing measurable where it is needed,
+and saves ~10% on hits by not building one at all.
+
+Absolute CPU per read (ns), both runs pooled:
+  regime              pool    pool_ringloop           hybrid  hybrid_lazyring            uring
+  hit                2,598            2,069            2,351            2,144            4,942
+  mix               14,004           12,146            5,068            5,298            5,312
+  miss              60,100           77,079           22,612           24,188           14,051
