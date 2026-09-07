@@ -4,8 +4,12 @@
 [`RERUN-miss.md`](RERUN-miss.md) · **Design:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md) ·
 **Before shipping:** [`DEPLOYMENT.md`](DEPLOYMENT.md)
 
-Written for an implementer picking this up cold. Five steps; the first is done and needs
-checking, the third is the only one that can still change the answer.
+Written for an implementer picking this up cold.
+
+**The investigation is closed.** The arm is chosen, the evidence is validated, and the one
+product defect it turned up is fixed. Four steps below, none of them research: verify what
+landed, re-derive the arm choice, implement, check the deployment host. What was left open is
+left open *on purpose* and is parked at the end with the conditions that would reopen it.
 
 ---
 
@@ -17,11 +21,12 @@ checking, the third is the only one that can still change the answer.
    28.5% bar, with **73 of 84 cells** agreeing on the sign — and on *expected CPU* it is the
    cheaper arm above a **22–34% miss rate**, which the rule never asked about.
 3. **That comparison has only ever been run at one frame size, one reader count, one phase**
-   — `A_stride`, 16 KB, 1 reader.
+   — `A_stride`, 16 KB, 1 reader. Deferred, not closed; see the end.
 4. **Frame size moves the ring's margin a lot**, and past 64 KiB it stops clearing the bar.
 5. **The shipped read path was not the `pool` arm** until 2026-09-07. It is now.
 
-Steps 1 and 2 are validation. Step 3 is the open question. Steps 4 and 5 are the change.
+Steps 1 and 2 are validation, 3 and 4 are the change. Nothing in the deferred section blocks
+any of them.
 
 ---
 
@@ -129,10 +134,65 @@ lab/scripts/pair_arms.py --pairs hybrid:pool --by size /tmp/v22_campaign_ci.tsv
 
 ---
 
-## Step 3 — the one open question, and it is the one that started this (½ day)
+## Step 3 — implement `hybrid_lazyring`
+
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md) is the design and it is complete: `ReadCtx`, the
+`nowait_supported()` gate, the kill switch, four tests, the sequencing. Two notes from this
+round that it predates:
+
+- **The shortfall branch now hands the pool the rest of the *frame*, not the rest of the
+  window.** The ring submission inherits that: submit the remainder of the frame in one
+  operation, not one per window. Windowed io_uring measures *worse* than whole-frame io_uring
+  by the same round-trip-count mechanism that beat the windowed pool path
+  ([`RERUN-miss.md`](RERUN-miss.md) M1) — do not reintroduce it inside the ring.
+- **Keep `write_all` at `READ_WINDOW`.** A bigger read must not become a bigger uninterrupted
+  executor copy; that is what keeps the warm co-tenant gap at 148 µs instead of 4.0 ms.
+
+Add one test beyond the four listed:
+
+| Test | Asserts |
+| --- | --- |
+| `ring_read_covers_the_rest_of_the_frame` | after a shortfall at window *k*, one ring operation returns bytes `k..len` — not `k..k+READ_WINDOW` |
+
+---
+
+## Step 4 — decide whether it was worth it, on the host that matters
+
+```bash
+./target/release/check-fastpath /path/to/studies    # DEPLOYMENT.md; answer this first
+```
+
+`RWF_NOWAIT` refused (any container serving studies from its own layer) means the ring is
+never built and this change is inert — and the deployment is on the ~2.5×-worse escape hatch,
+which is a bigger problem than the arm choice.
+
+Then the two numbers nobody has written down, both of which decide what the change is worth
+more than the arm choice does:
+
+1. **`read_ahead_kb` on the deployment host.** The lab is 8192, 64× the usual 128. It decides
+   how often reads miss far more than study size does — a sequential scroll through a study
+   ten times RAM still hops about once per 32 frames at 8 MB read-ahead
+   ([`RERUN-miss.md`](RERUN-miss.md) §2).
+2. **The delivered frame size.** Rungs make frames smaller and the ring worth more; native DBT
+   makes them larger and the ring worth less — measured, −62% at 4 KiB down to a tie at
+   250 KB. [`adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md)
+   is what sets it.
+
+The layout work in [`../disk-layout/`](../disk-layout/) sets the miss rate and is the larger
+lever (17.6× against this path's 2–4×). It does not change which arm is correct — see
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md) §The layout changes what this is worth.
+
+---
+
+## Deferred on purpose — and exactly what would reopen it
+
+**This is the question that started the session, and it is being left open deliberately
+rather than left unnoticed.** Nothing below blocks shipping `hybrid_lazyring`; all of it
+is upside on a path that is already decided. Read it when one of the triggers at the end
+fires, not before.
 
 **Everything in step 2's miss regime comes from cells at 16 KB frames and one reader.** All 84
-of them. Two facts make that worth closing rather than assuming:
+of them. Two facts are why it is worth writing down rather than forgetting:
 
 - `uring` vs `hybrid_lazyring` on misses is **−24.0%** — under the bar by 4.5 points.
 - Frame size demonstrably moves ring margins. `hybrid` vs `pool` runs −62% → −25% from 4 KiB
@@ -140,10 +200,10 @@ of them. Two facts make that worth closing rather than assuming:
 
 So the honest statement is: *the arm choice is validated at 16 KB and 1 reader, and
 extrapolated everywhere else.* If `uring`'s edge crosses 28.5% anywhere inside the box a real
-deployment occupies, the arm choice changes there.
+deployment occupies, the arm choice changes there — and nobody has looked.
 
-**The experiment.** `read_campaign` already has every arm and both axes; this is a sweep, not
-new code.
+**The experiment, if it is ever wanted.** `read_campaign` already has every arm and both axes;
+this is a sweep, not new code.
 
 ```bash
 ./target/release/read_campaign \
@@ -160,7 +220,7 @@ lab/scripts/pair_arms.py --pairs uring:hybrid_lazyring --by readers /tmp/v29_arm
 Check `read_campaign --help` for the exact flag spellings before running — this plan names
 the axes, not necessarily the syntax.
 
-**Write the decision rule down before looking at the output:**
+**If it is ever run, write the decision rule down before looking at the output:**
 
 | Outcome | What to do |
 | --- | --- |
@@ -216,10 +276,36 @@ The catch is exactly that re-probe: skipping the probe means not learning whethe
 would have hit, so the arm cannot detect its own regime change for free. Price `k` and `N`
 against the 2 799 ns hit penalty before building it.
 
-Add it to `read_campaign` as `hybrid_adaptive` and run it in the step 3 sweep. If it lands
-at `uring`'s miss cost and `hybrid_lazyring`'s hit cost, it dominates both and the arm
-question is closed for good. If the probe turns out to be mostly unavoidable partial-copy
-work, that is equally worth knowing — it explains the gap and closes the idea.
+### Why this is deferred rather than built
+
+The arithmetic is forgiving — a predictor only has to be right **21.6%** of the time in the
+state where it skips the probe, which a "k consecutive misses" rule in a genuinely
+miss-dominated session clears easily. So mispredicting is not really the risk.
+
+The risk is what it does to the shape of the decision. `k` and `N` are **tuning knobs**, and
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Why no performance toggle refused a tuning knob on
+purpose: `hybrid_lazyring` already adapts per session, at runtime, from what the session
+actually did, with nothing to set and nothing to get wrong. An adaptive probe trades that for
+two constants that must be chosen, tested across regimes, and defended when a session
+behaves oddly in production — and it buys, at most, the miss-regime gap, which has never
+been shown to clear the bar at any frame size.
+
+**A stateful optimisation whose upside is a −24.0% near miss is not worth a new tuning
+surface until that near miss is shown to be worth something.** That is the whole argument,
+and it is why the sweep above comes first if this is ever picked up: it is read-only, it
+costs half a day, and it decides whether there is anything here to build for.
+
+### Triggers — reopen if any of these becomes true
+
+| Trigger | Why it changes the answer |
+| --- | --- |
+| The layout work lands a design that leaves reads **missing most of the time** | Above ~22–34% misses `uring` is the cheaper arm on expected CPU, and the gap stops being academic |
+| Delivered frames get **smaller** (rung delivery, [`adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md)) | The ring's margin grows as frames shrink — −62% at 4 KiB against a tie at 250 KB |
+| The read path shows up as a **real share of server CPU** in a profile | Today it is ~a fifth of a frame's server cost; a 24% slice of one regime of that is not where the cycles are |
+| Storage gets much faster than ~1.25 GB/s | Thread scheduling rather than the device becomes the limit, and io_uring's 5-threads-against-44 starts converting ([`RERUN-miss.md`](RERUN-miss.md) M3) |
+
+Until one of those fires, the probe stays. It is one syscall on the path that a warm server
+spends its life on, and it is what makes `hybrid_lazyring` cheap on hits.
 
 **Second gap, cheaper to close:** `hybrid_lazyring` exists on two hosts (`v27` 8-CPU, `v28`
 btrfs laptop). `uring`'s hit penalty is +131–142% on one and +17–21% on the other. Nobody has
@@ -228,54 +314,6 @@ like a small deployment. Re-running `v27`'s configuration there is an hour and c
 the arm that actually ships.
 
 ---
-
-## Step 4 — implement `hybrid_lazyring`
-
-[`IMPLEMENTATION.md`](IMPLEMENTATION.md) is the design and it is complete: `ReadCtx`, the
-`nowait_supported()` gate, the kill switch, four tests, the sequencing. Two notes from this
-round that it predates:
-
-- **The shortfall branch now hands the pool the rest of the *frame*, not the rest of the
-  window.** The ring submission inherits that: submit the remainder of the frame in one
-  operation, not one per window. Windowed io_uring measures *worse* than whole-frame io_uring
-  by the same round-trip-count mechanism that beat the windowed pool path
-  ([`RERUN-miss.md`](RERUN-miss.md) M1) — do not reintroduce it inside the ring.
-- **Keep `write_all` at `READ_WINDOW`.** A bigger read must not become a bigger uninterrupted
-  executor copy; that is what keeps the warm co-tenant gap at 148 µs instead of 4.0 ms.
-
-Add one test beyond the four listed:
-
-| Test | Asserts |
-| --- | --- |
-| `ring_read_covers_the_rest_of_the_frame` | after a shortfall at window *k*, one ring operation returns bytes `k..len` — not `k..k+READ_WINDOW` |
-
----
-
-## Step 5 — decide whether it was worth it, on the host that matters
-
-```bash
-./target/release/check-fastpath /path/to/studies    # DEPLOYMENT.md; answer this first
-```
-
-`RWF_NOWAIT` refused (any container serving studies from its own layer) means the ring is
-never built and this change is inert — and the deployment is on the ~2.5×-worse escape hatch,
-which is a bigger problem than the arm choice.
-
-Then the two numbers nobody has written down, both of which decide what the change is worth
-more than the arm choice does:
-
-1. **`read_ahead_kb` on the deployment host.** The lab is 8192, 64× the usual 128. It decides
-   how often reads miss far more than study size does — a sequential scroll through a study
-   ten times RAM still hops about once per 32 frames at 8 MB read-ahead
-   ([`RERUN-miss.md`](RERUN-miss.md) §2).
-2. **The delivered frame size.** Rungs make frames smaller and the ring worth more; native DBT
-   makes them larger and the ring worth less — measured, −62% at 4 KiB down to a tie at
-   250 KB. [`adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md)
-   is what sets it.
-
-The layout work in [`../disk-layout/`](../disk-layout/) sets the miss rate and is the larger
-lever (17.6× against this path's 2–4×). It does not change which arm is correct — see
-[`IMPLEMENTATION.md`](IMPLEMENTATION.md) §The layout changes what this is worth.
 
 ---
 

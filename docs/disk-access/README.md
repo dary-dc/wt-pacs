@@ -10,7 +10,7 @@
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | How it becomes product code — the lazy ring, the container trap, why there is no tuning toggle |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Read before shipping.** The fast path does not exist on overlayfs, i.e. inside a container, and the server degrades silently. `check-fastpath` answers it in one command |
 | [`RERUN.md`](RERUN.md) | The instrument: what it can separate, and the precision rules every number obeys |
-| [`PLAN.md`](PLAN.md) | **What to do next, in order** — validate, close the one open question, implement. Start here if you are picking this up cold |
+| [`PLAN.md`](PLAN.md) | **What to do next, in order** — verify, validate, implement, check the host. Start here if you are picking this up cold. Ends with what was deferred and what would reopen it |
 
 The open question is **not** here — it is the disk layout, worth 17.6× against this path's
 2–4×: [`../disk-layout/`](../disk-layout/).
