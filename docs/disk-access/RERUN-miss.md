@@ -381,13 +381,43 @@ breakeven moves with it:
 queue depth.** Even a 99%-miss tile workload would buy 4–6% of read CPU, and pay 133–386% on
 whatever hits remain.
 
-### What would bring it back
+### It is a depth effect, not a lazy-ring quirk — control included
 
-Not a miss rate, and not a layout — **a queue depth**. If the server ever serves the client's
-ask window concurrently rather than one frame at a time, depth goes above 1 and the probe
-starts costing 25–43%. That is a server-architecture change, it is already flagged in
-[`adr.md`](adr.md) §Revisit, and it is the one condition under which a layout-routed
-`probe_inline` branch would earn its keep.
+On the same host, `uring` against **eager** `hybrid` splits by depth identically, and
+`hybrid_lazyring` against `hybrid` is a tie at every depth. So the probe, not the constructor,
+is what depth is acting on:
+
+| `v27`, misses, run1 / run2 | depth 1 | 2 | 4 | 8 | 16 | 32 | 64 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `uring` vs `hybrid` | −2.4 / −0.9% | +4.8 / −4.0% | **−42.9 / −30.9%** | **−38.2 / −41.6%** | **−40.9 / −37.0%** | −45.4 / −22.1% | −14.4 / −12.5% |
+| `hybrid_lazyring` vs `hybrid` | +1.0 / +2.7% | −1.2 / −0.1% | −2.3 / +3.8% | +10.3 / +9.7% | +2.2 / +2.1% | −10.1 / +11.5% | +17.6 / +12.5% |
+
+Magnitude is host-dependent — on `v22` / `v24` the same split runs −3 to −19%, all ties, and on
+`v28` it is absent — but the direction is consistent: **the probe gets more expensive as a
+session's in-flight depth rises.**
+
+### What brings it back: a queue depth, and the tile path is expected to have one
+
+Not a miss rate and not a layout. Today the session loop sends one frame to completion before
+reading the next ask (`docs/adr-reject-server-ordering.md`), so depth is 1 and the probe is
+free. **That is a property of today's loop, not of the product.** A viewport at zoom covers
+many tiles at once; serving them concurrently within a session puts that path at depth 4–16 —
+squarely in the band where the probe costs 30–43%.
+
+**How the fan-out is implemented decides whether it does.** The penalty comes from probes
+running serially *in front of a batched submission*:
+
+| Fan-out shape | Axis it lands on | Probe cost, misses |
+| --- | --- | ---: |
+| One task holding *N* slots, submitted together | `depth` | **−30 to −43%** at depth 4–16 (`v27`) |
+| *N* independent tasks, one read each | `readers` | −2 to −10%, ties at readers 1 and 4 |
+
+So a tile path that fans out as independent tasks keeps the probe cheap and stays on
+`hybrid_lazyring`; one that batches a viewport into a single submission does not, and wants the
+probe skipped. That is an implementation choice, it is available before the layout lands, and
+it is the thing to decide deliberately rather than discover.
+
+[`PLAN.md`](PLAN.md) carries the branch design for the batched case.
 
 ---
 
