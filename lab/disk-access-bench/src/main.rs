@@ -81,6 +81,13 @@ enum Arm {
     /// The synthesis: `RWF_NOWAIT` inline for the page-cache hit (no ring work at all on
     /// the common path), io_uring for the shortfall instead of `spawn_blocking`.
     UringNowaitHybrid,
+    /// `RWF_NOWAIT` for the **whole frame**, io_uring for the shortfall — the shape
+    /// `hybrid_lazyring` has in the read-path campaign, which `uring_nowait_hybrid` does
+    /// not, because that one probes per window.
+    ///
+    /// Against `uring_whole` this isolates the one thing a layout-routed branch would skip:
+    /// the inline probe.
+    UringNowaitWhole,
     /// Registered, one read for the **whole frame** — no windows at all.
     ///
     /// The windowed arms exist because `RWF_NOWAIT` needs a bounded executor copy. A ring
@@ -121,6 +128,7 @@ impl Arm {
             Self::UringTuned => "uring_tuned",
             Self::UringPipelined => "uring_pipelined",
             Self::UringNowaitHybrid => "uring_nowait_hybrid",
+            Self::UringNowaitWhole => "uring_nowait_whole",
             Self::UringWhole => "uring_whole",
             Self::UringBatchedStream => "uring_batched_stream",
         }
@@ -148,6 +156,7 @@ impl Arm {
             Self::UringTuned,
             Self::UringPipelined,
             Self::UringNowaitHybrid,
+            Self::UringNowaitWhole,
             Self::UringWhole,
             Self::UringBatchedStream,
         ]
@@ -805,6 +814,15 @@ struct FrameOutcome {
     /// way, never one per window" — true only while read-ahead serves the windows behind
     /// the first.
     hop_events: u32,
+    /// Time spent inside `read_at_nowait` on calls that **came up short**, and the bytes
+    /// those calls returned before giving up.
+    ///
+    /// The gap between an arm that probes and one that does not is supposed to be exactly
+    /// this. Measuring it directly says whether the probe is a wasted syscall (returns 0,
+    /// costs a syscall) or real work (returns a partial frame, and those bytes are kept) —
+    /// which is the difference between skipping it being worth 10 us and worth 2.
+    probe_ns: u64,
+    probe_got: u64,
 }
 
 /// Per-worker scratch that must survive across frames: reusing it is the difference
@@ -1238,6 +1256,8 @@ async fn serve_frame_async(
                 hop_ns: 0,
                 bytes_copied: 0,
                 hop_events: 0,
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::MmapBlockingTouch => {
@@ -1255,6 +1275,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: 0,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::MmapHybridMincore => {
@@ -1275,6 +1297,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: 0,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::MmapDedicatedPool => {
@@ -1290,6 +1314,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: 0,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::PreadBlocking => {
@@ -1312,6 +1338,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: len as u64,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::PreadBlockingPooled => {
@@ -1337,6 +1365,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: len as u64,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::MmapWillneed => {
@@ -1349,6 +1379,8 @@ async fn serve_frame_async(
                 hop_ns: 0,
                 bytes_copied: 0,
                 hop_events: 0,
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::MmapWillneedNext => {
@@ -1364,6 +1396,8 @@ async fn serve_frame_async(
                 hop_ns: 0,
                 bytes_copied: 0,
                 hop_events: 0,
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::MmapTouchInPlace => {
@@ -1381,6 +1415,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: 0,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::MmapPopulateRead => {
@@ -1398,6 +1434,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: 0,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::PreadNowait => {
@@ -1427,6 +1465,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: len as u64,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::PreadNowaitChunked => {
@@ -1472,6 +1512,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: len as u64,
                 hop_events,
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::PreadNowaitEscalate => {
@@ -1483,14 +1525,20 @@ async fn serve_frame_async(
             let mut buf = std::mem::take(&mut state.pread_pool);
             let mut hop = 0u64;
             let mut hop_events = 0u32;
+            let mut probe_ns = 0u64;
+            let mut probe_got = 0u64;
             let mut pos = 0usize;
             while pos < len {
                 let this = window.min(len - pos);
                 if buf.len() < this {
                     buf.resize(this, 0);
                 }
+                let tp = Instant::now();
                 let got = store.read_at_nowait(&mut buf[..this], offset + pos as u64)?;
+                let probe_this = tp.elapsed().as_nanos() as u64;
                 if got < this {
+                    probe_ns += probe_this;
+                    probe_got += got as u64;
                     // Miss. One round trip for everything still outstanding in this frame,
                     // not one per window — the pool is where a large read is free.
                     let rest = len - pos - got;
@@ -1535,6 +1583,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: len as u64,
                 hop_events,
+                probe_ns,
+                probe_got,
             })
         }
         Arm::PreadNowaitPrefetch => {
@@ -1588,6 +1638,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: len as u64,
                 hop_events,
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::PreadPipelinedPool => {
@@ -1642,18 +1694,21 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: len as u64,
                 hop_events,
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
         Arm::UringNaive
         | Arm::UringTuned
         | Arm::UringPipelined
         | Arm::UringNowaitHybrid
+        | Arm::UringNowaitWhole
         | Arm::UringWhole
         | Arm::UringBatchedStream => {
             let (offset, _) = store.frame_range(idx)?;
             let len = access_len(store, idx, access)?;
             // The whole-frame arm ignores `--read-chunk`: one read is the point of it.
-            let win = if arm == Arm::UringWhole {
+            let win = if matches!(arm, Arm::UringWhole | Arm::UringNowaitWhole) {
                 len.max(1)
             } else {
                 read_chunk.min(len).max(1)
@@ -1676,7 +1731,7 @@ async fn serve_frame_async(
                 // `uring_whole` reads a frame per submit, so its one buffer has to be the
                 // longest frame rather than a window of it.
                 let (buf_len, slots) = match arm {
-                    Arm::UringWhole => (max_len.max(1), 1),
+                    Arm::UringWhole | Arm::UringNowaitWhole => (max_len.max(1), 1),
                     Arm::UringTuned | Arm::UringBatchedStream => (win_len, batched_slots),
                     Arm::UringPipelined => {
                         (win_len, state.uring_depth.max(2).min(batched_slots.max(2)))
@@ -1697,6 +1752,8 @@ async fn serve_frame_async(
             let t0 = Instant::now();
             let mut hop = 0u64;
             let mut waited = 0usize;
+            let mut probe_ns = 0u64;
+            let mut probe_got = 0u64;
 
             match arm {
                 Arm::UringTuned => {
@@ -1756,6 +1813,22 @@ async fn serve_frame_async(
                         write_sim(&ring.buf(slot)[..this], chunk, &mut state.sink).await;
                         done += 1;
                     }
+                }
+                Arm::UringNowaitWhole => {
+                    // Probe the whole frame inline; the ring finishes whatever is missing.
+                    let tp = Instant::now();
+                    let got = store.read_at_nowait(&mut ring.buf_mut(0)[..len], offset)?;
+                    let probe_this = tp.elapsed().as_nanos() as u64;
+                    if got < len {
+                        probe_ns += probe_this;
+                        probe_got += got as u64;
+                        ring.push_at(0, got, file, offset + got as u64, len - got)?;
+                        ring.submit()?;
+                        let th = Instant::now();
+                        waited += ring.complete_slot(0).await?;
+                        hop += th.elapsed().as_nanos() as u64;
+                    }
+                    write_sim(&ring.buf(0)[..len], chunk, &mut state.sink).await;
                 }
                 Arm::UringWhole => {
                     ring.push(0, file, offset, len)?;
@@ -1824,6 +1897,8 @@ async fn serve_frame_async(
                 hop_ns: if waited > 0 { hop } else { 0 },
                 bytes_copied: len as u64,
                 hop_events: waited as u32,
+                probe_ns,
+                probe_got,
             })
         }
         Arm::MmapBlockingAhead2 => {
@@ -1847,6 +1922,8 @@ async fn serve_frame_async(
                 hop_ns: hop,
                 bytes_copied: 0,
                 hop_events: u32::from(hop > 0),
+                probe_ns: 0,
+                probe_got: 0,
             })
         }
     }
@@ -1877,6 +1954,10 @@ struct MixRow {
     /// Total pool/eventfd round trips, which `hop_count` (asks that hopped at all) hides:
     /// four 100 us window hops and one 400 us frame hop look identical there.
     hop_events: u64,
+    /// Median time in a `read_at_nowait` call that came up short, and the median bytes it
+    /// returned. Zero for arms that never probe. See `FrameOutcome::probe_ns`.
+    probe_ns_p50: u64,
+    probe_got_p50: u64,
     hop_p50_ns: u64,
     hop_p99_ns: u64,
     gap_p99_ns: u64,
@@ -1887,17 +1968,17 @@ struct MixRow {
     read_chunk: usize,
     uring_depth: usize,
     runtime: String,
-    samples: Vec<(u64, u64, u32)>,
+    samples: Vec<(u64, u64, u32, u64, u64)>,
 }
 
 fn mix_tsv_header() -> &'static str {
-    "arm\ttrace\trepeat\tconcurrency\tregion_start\tregion_frames\tregion_stride\tmix_target\tmix_achieved\thit_resident\tmiss_resident\tasks\twall_ns\tthroughput_fps\tp50_ns\tp90_ns\tp99_ns\tmax_ns\thop_count\thop_events\thop_p50_ns\thop_p99_ns\tgap_p99_ns\tgap_max_ns\tcpu_ns\tcpu_per_ask_ns\tthreads_max\tread_chunk\turing_depth\truntime"
+    "arm\ttrace\trepeat\tconcurrency\tregion_start\tregion_frames\tregion_stride\tmix_target\tmix_achieved\thit_resident\tmiss_resident\tasks\twall_ns\tthroughput_fps\tp50_ns\tp90_ns\tp99_ns\tmax_ns\thop_count\thop_events\tprobe_ns_p50\tprobe_got_p50\thop_p50_ns\thop_p99_ns\tgap_p99_ns\tgap_max_ns\tcpu_ns\tcpu_per_ask_ns\tthreads_max\tread_chunk\turing_depth\truntime"
 }
 
 impl MixRow {
     fn to_tsv(&self) -> String {
         format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{}\t{}\t{:.1}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{}\t{}\t{:.1}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             self.arm,
             self.trace,
             self.repeat,
@@ -1918,6 +1999,8 @@ impl MixRow {
             self.max_ns,
             self.hop_count,
             self.hop_events,
+            self.probe_ns_p50,
+            self.probe_got_p50,
             self.hop_p50_ns,
             self.hop_p99_ns,
             self.gap_p99_ns,
@@ -1966,7 +2049,10 @@ fn run_mix_cell(
 
     if matches!(
         arm,
-        Arm::PreadNowait | Arm::PreadNowaitChunked | Arm::PreadNowaitEscalate
+        Arm::PreadNowait
+            | Arm::PreadNowaitChunked
+            | Arm::PreadNowaitEscalate
+            | Arm::UringNowaitWhole
     ) && !store.nowait_supported()
     {
         anyhow::bail!(
@@ -2038,7 +2124,7 @@ fn run_mix_cell(
         // Sessions start together: a staggered start would measure the ramp, and the whole
         // question here is what happens when they are all on the miss path at once.
         let gate = Arc::new(tokio::sync::Barrier::new(n_sessions + 1));
-        let acc: Arc<Mutex<Vec<(u64, u64, u32)>>> = Arc::new(Mutex::new(Vec::new()));
+        let acc: Arc<Mutex<Vec<(u64, u64, u32, u64, u64)>>> = Arc::new(Mutex::new(Vec::new()));
         let mut handles = Vec::with_capacity(n_sessions);
         for part in partitions {
             let c = ctx.clone();
@@ -2046,7 +2132,7 @@ fn run_mix_cell(
             let acc = Arc::clone(&acc);
             handles.push(tokio::spawn(async move {
                 let mut state = ArmState::new(&cfg);
-                let mut mine: Vec<(u64, u64, u32)> = Vec::with_capacity(part.len());
+                let mut mine: Vec<(u64, u64, u32, u64, u64)> = Vec::with_capacity(part.len());
                 gate.wait().await;
                 for (i, &idx) in part.iter().enumerate() {
                     let next = part.get(i + 1).copied();
@@ -2054,7 +2140,13 @@ fn run_mix_cell(
                     let out =
                         serve_frame_async(arm, &c, idx, next, cfg.access, cfg.chunk, &mut state)
                             .await?;
-                    mine.push((t0.elapsed().as_nanos() as u64, out.hop_ns, out.hop_events));
+                    mine.push((
+                        t0.elapsed().as_nanos() as u64,
+                        out.hop_ns,
+                        out.hop_events,
+                        out.probe_ns,
+                        out.probe_got,
+                    ));
                 }
                 acc.lock().unwrap().extend(mine);
                 Ok::<(), anyhow::Error>(())
@@ -2078,15 +2170,26 @@ fn run_mix_cell(
 
     let cpu_ns = process_cpu_ns().saturating_sub(cpu0);
     let threads_max = process_threads();
-    let mut lats: Vec<u64> = per_ask.iter().map(|(l, _, _)| *l).collect();
+    let mut lats: Vec<u64> = per_ask.iter().map(|(l, ..)| *l).collect();
     lats.sort_unstable();
     let mut hops: Vec<u64> = per_ask
         .iter()
-        .map(|(_, h, _)| *h)
+        .map(|(_, h, ..)| *h)
         .filter(|h| *h > 0)
         .collect();
     hops.sort_unstable();
-    let hop_events: u64 = per_ask.iter().map(|(_, _, e)| u64::from(*e)).sum();
+    let hop_events: u64 = per_ask.iter().map(|(_, _, e, _, _)| u64::from(*e)).sum();
+    // Only asks that actually probed and came up short say anything about the probe.
+    let mut probe_ns: Vec<u64> = per_ask.iter().map(|(.., n, _)| *n).filter(|n| *n > 0).collect();
+    let mut probe_got: Vec<u64> = per_ask
+        .iter()
+        .filter(|(.., n, _)| *n > 0)
+        .map(|(.., g)| *g)
+        .collect();
+    probe_ns.sort_unstable();
+    probe_got.sort_unstable();
+    let probe_ns_p50 = percentile(&probe_ns, 0.50);
+    let probe_got_p50 = percentile(&probe_got, 0.50);
     let (_, gap_p99, gap_max, _) = summarize_gaps(&mut gaps);
     let asks = lats.len() as u32;
 
@@ -2115,6 +2218,8 @@ fn run_mix_cell(
         max_ns: lats.last().copied().unwrap_or(0),
         hop_count: hops.len() as u32,
         hop_events,
+        probe_ns_p50,
+        probe_got_p50,
         hop_p50_ns: percentile(&hops, 0.50),
         hop_p99_ns: percentile(&hops, 0.99),
         gap_p99_ns: gap_p99,
@@ -2320,12 +2425,12 @@ fn run_mix_campaign(
             std::fs::create_dir_all(parent)?;
         }
         let mut body = String::from(
-            "arm\ttrace\tmix_target\tconcurrency\trepeat\tordinal\tlatency_ns\thop_ns\thop_events\n",
+            "arm\ttrace\tmix_target\tconcurrency\trepeat\tordinal\tlatency_ns\thop_ns\thop_events\tprobe_ns\tprobe_got\n",
         );
         for r in &rows {
-            for (i, (lat, hop, ev)) in r.samples.iter().enumerate() {
+            for (i, (lat, hop, ev, pns, pgot)) in r.samples.iter().enumerate() {
                 body.push_str(&format!(
-                    "{}\t{}\t{:.2}\t{}\t{}\t{i}\t{lat}\t{hop}\t{ev}\n",
+                    "{}\t{}\t{:.2}\t{}\t{}\t{i}\t{lat}\t{hop}\t{ev}\t{pns}\t{pgot}\n",
                     r.arm, r.trace, r.mix_target, r.concurrency, r.repeat
                 ));
             }

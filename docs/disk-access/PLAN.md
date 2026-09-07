@@ -6,10 +6,11 @@
 
 Written for an implementer picking this up cold.
 
-**The investigation is closed.** The arm is chosen, the evidence is validated, and the one
-product defect it turned up is fixed. Four steps below, none of them research: verify what
-landed, re-derive the arm choice, implement, check the deployment host. What was left open is
-left open *on purpose* and is parked at the end with the conditions that would reopen it.
+**The investigation is closed.** The arm is chosen, the evidence is validated, the one product
+defect it turned up is fixed, and the question that kept it open — whether plain `uring` beats
+`hybrid_lazyring` once reads miss — is now answered rather than deferred. Four steps below,
+none of them research. One real gap remains, at the end, and it is about reader scale rather
+than arm choice.
 
 ---
 
@@ -17,16 +18,15 @@ left open *on purpose* and is parked at the end with the conditions that would r
 
 1. **`hybrid_lazyring` is the right arm.** Tied for cheapest in all three regimes; the only
    arm cheaper on misses (`uring`) is established **+131 to +142% worse on hits**.
-2. **The miss-regime tie is a near miss**, not a coin flip: `uring` is **−24.0%** against a
-   28.5% bar, with **73 of 84 cells** agreeing on the sign — and on *expected CPU* it is the
-   cheaper arm above a **22–34% miss rate**, which the rule never asked about.
-3. **That comparison has only ever been run at one frame size, one reader count, one phase**
-   — `A_stride`, 16 KB, 1 reader. Deferred, not closed; see the end.
-4. **Frame size moves the ring's margin a lot**, and past 64 KiB it stops clearing the bar.
-5. **The shipped read path was not the `pool` arm** until 2026-09-07. It is now.
+2. **The `uring` miss advantage is a queue-depth artefact.** −1.2/−1.9% at depth 1, −25 to
+   −43% only at depths 4–32. This server runs depth 1, where `uring` costs **+133 to +386% on
+   hits** and breakeven sits at a **65–84%** miss rate. Answered, not deferred — see the end.
+3. **Frame size moves the ring's margin a lot**, and past 64 KiB it stops clearing the bar.
+4. **The shipped read path was not the `pool` arm** until 2026-09-07. It is now.
+5. **Still open: reader scale.** Both lazyring datasets are `readers=1`, and the target is
+   thousands. `pool` reaches 381 threads at 128 readers; both ring arms stay at 5.
 
-Steps 1 and 2 are validation, 3 and 4 are the change. Nothing in the deferred section blocks
-any of them.
+Steps 1 and 2 are validation, 3 and 4 are the change.
 
 ---
 
@@ -184,136 +184,84 @@ lever (17.6× against this path's 2–4×). It does not change which arm is corr
 
 ---
 
-## Deferred on purpose — and exactly what would reopen it
+## Answered — the probe is free at this server's queue depth
 
-**This is the question that started the session, and it is being left open deliberately
-rather than left unnoticed.** Nothing below blocks shipping `hybrid_lazyring`; all of it
-is upside on a path that is already decided. Read it when one of the triggers at the end
-fires, not before.
+**This was the open question, and it is now closed with a measurement rather than a deferral.**
+Full working in [`RERUN-miss.md`](RERUN-miss.md) M10.
 
-**Everything in step 2's miss regime comes from cells at 16 KB frames and one reader.** All 84
-of them. Two facts are why it is worth writing down rather than forgetting:
+`hybrid_lazyring` is `uring` plus one inline `RWF_NOWAIT` before the ring read. The entire case
+for ever routing a study to plain `uring` was the −24.0% gap between them on misses. Three
+findings kill it:
 
-- `uring` vs `hybrid_lazyring` on misses is **−24.0%** — under the bar by 4.5 points.
-- Frame size demonstrably moves ring margins. `hybrid` vs `pool` runs −62% → −25% from 4 KiB
-  to 250 KB, and `uring` vs `hybrid` runs −5.9% at 16 KB but **−12.0% at 250 KB** on `v22`.
+1. **The probe returns 0 bytes** — it is a question, not hidden copy work. So the cost, whatever
+   it is, is genuinely avoidable and worth pricing.
+2. **Pricing it directly, the arms do not separate.** `uring_nowait_whole` vs `uring_whole` at
+   100% miss: −9.5/−5.5% (16 KB, 1 session), −3.8/**+35.9%** (16 KB, 8), −15.3/+0.3% (250 KB, 1),
+   +0.2/+3.0% (250 KB, 8). The sign flips under the order control in three of four cells.
+3. **The −24% is a queue-depth artefact.** Split by depth, it is **−1.2/−1.9% at depth 1** and
+   −25 to −43% only at depths 4–32, and only on one of two hosts. At depth > 1 the hybrid's
+   probes run serially on the executor before the ring can batch; at depth 1 there is nothing
+   to serialise.
 
-So the honest statement is: *the arm choice is validated at 16 KB and 1 reader, and
-extrapolated everywhere else.* If `uring`'s edge crosses 28.5% anywhere inside the box a real
-deployment occupies, the arm choice changes there — and nobody has looked.
+`docs/adr-reject-server-ordering.md` fixes the session loop at **depth 1** — one frame to
+completion before the next ask. Restricted to depth-1 cells:
 
-**The experiment, if it is ever wanted.** `read_campaign` already has every arm and both axes;
-this is a sweep, not new code.
+| CPU ns/read, depth 1 | `v27` hit | `v27` miss | `v28` hit | `v28` miss |
+| --- | ---: | ---: | ---: | ---: |
+| **`hybrid_lazyring`** | **2 030** | 36 817 | 4 250 | 50 256 |
+| `uring` | 9 858 | 35 300 | 9 910 | 47 177 |
+| | **+386%** | −4% | **+133%** | −6% |
 
-```bash
-./target/release/read_campaign \
-  --arms pool,hybrid,hybrid_lazyring,uring \
-  --sizes 16384,65536,250000 \
-  --readers 1,4,16 \
-  --phases A_stride \
-  --repeats <as v27 used> \
-  --out /tmp/v29_armchoice_size_readers.tsv
-lab/scripts/pair_arms.py --pairs uring:hybrid_lazyring --by size    /tmp/v29_armchoice_size_readers.tsv
-lab/scripts/pair_arms.py --pairs uring:hybrid_lazyring --by readers /tmp/v29_armchoice_size_readers.tsv
-```
+**Breakeven moves from a 21.6% miss rate to 65–84%**, and past it `uring` wins by 4–6%. A
+99%-miss tile workload would buy 4–6% of read CPU and pay 133–386% on whatever hits remain.
 
-Check `read_campaign --help` for the exact flag spellings before running — this plan names
-the axes, not necessarily the syntax.
+### So: do not build the `probe_inline` branch yet
 
-**If it is ever run, write the decision rule down before looking at the output:**
+The branch's whole value is skipping the probe, and at depth 1 the probe is free. Building it
+now would add a routing decision, a layout dependency and a config surface to buy 4–6% of one
+regime — and only in the corner where the workload is almost all misses.
 
-| Outcome | What to do |
-| --- | --- |
-| `uring` vs `hybrid_lazyring` stays a tie at every size and reader count | Ship `hybrid_lazyring`. The question is closed and the extrapolation was safe |
-| It becomes RESOLVED in a corner the deployment does not occupy | Ship `hybrid_lazyring`, record the corner in [`EVIDENCE.md`](EVIDENCE.md) |
-| It becomes RESOLVED where the deployment *does* live, **and** the hit penalty is still RESOLVED there | Still `hybrid_lazyring` — a static flag cannot know a session's miss rate, which is the argument in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Why no performance toggle |
-| It becomes RESOLVED there **and** the hit penalty collapses to a tie | **Reopen the arm choice.** This is the only branch where plain `uring` wins outright, and it is what the original concern was about |
-| `hybrid_adaptive` reaches `uring` on misses and `hybrid_lazyring` on hits | **Ship that instead.** It dominates both and needs no miss-rate assumption |
-
-Two things not to skip:
-
-- **Reverse the arm order and re-run.** Every cold ranking in this repo's history that was not
-  order-controlled has reversed at least once ([`RERUN.md`](RERUN.md) §Limitations).
-- **Report `hop_events` per ask, not just CPU.** If it is not ~1.00 for the whole-frame arms
-  the cell is not miss-dominated and the comparison is void.
-
-### The number that reframes the tie: breakeven ~22–34% misses
-
-"Tie" answers *is this difference established?* It does not answer *is it worth acting on?*
-Those come apart here, and the second question has never been asked. From the same pooled
-medians:
-
-* `uring` costs **+2 799 ns per hit** against `hybrid_lazyring` (4 942 vs 2 144)
-* `uring` saves **−10 136 ns per miss** (14 051 vs 24 188)
-
-Expected CPU per read therefore favours `uring` **above a 21.6% miss rate** on pooled
-medians, or **33.7%** using the paired deltas (+136% hit / −24% miss) — call it a quarter to
-a third. [`../disk-layout/ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md) says a
-strided layout under pressure steps to **99% miss**. So there is a real region of the
-workload space where plain `uring` is the cheaper arm, and the campaign never priced it
-because the rule it applied tests resolution, not expected cost.
-
-**This does not mean ship `uring`.** A static arm cannot know a session's miss rate, and the
-hit penalty is RESOLVED — the argument in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Why no
-performance toggle stands. It means the *third* option is worth a measurement:
-
-### The arm nobody has built: skip the probe when the session is clearly missing
-
-On a miss, `hybrid_lazyring` pays the inline `RWF_NOWAIT` **and then** the ring read.
-`uring` pays only the ring read. That difference is the entire miss-regime gap — **10 136 ns
-on this host**, which is far more than a failed syscall should cost and is itself worth
-understanding before acting (`RWF_NOWAIT` can return a *partial* read, so the probe may be
-doing real copy work before giving up; confirm with `strace -c` or a counter before assuming
-it is waste).
-
-If most of it is avoidable, an adaptive probe gets `uring`'s miss cost **and**
-`hybrid_lazyring`'s hit cost:
-
-> after *k* consecutive misses, stop probing and go straight to the ring; re-probe every
-> *N*th read so a session that warms up is noticed.
-
-The catch is exactly that re-probe: skipping the probe means not learning whether the read
-would have hit, so the arm cannot detect its own regime change for free. Price `k` and `N`
-against the 2 799 ns hit penalty before building it.
-
-### Why this is deferred rather than built
-
-The arithmetic is forgiving — a predictor only has to be right **21.6%** of the time in the
-state where it skips the probe, which a "k consecutive misses" rule in a genuinely
-miss-dominated session clears easily. So mispredicting is not really the risk.
-
-The risk is what it does to the shape of the decision. `k` and `N` are **tuning knobs**, and
-[`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Why no performance toggle refused a tuning knob on
-purpose: `hybrid_lazyring` already adapts per session, at runtime, from what the session
-actually did, with nothing to set and nothing to get wrong. An adaptive probe trades that for
-two constants that must be chosen, tested across regimes, and defended when a session
-behaves oddly in production — and it buys, at most, the miss-regime gap, which has never
-been shown to clear the bar at any frame size.
-
-**A stateful optimisation whose upside is a −24.0% near miss is not worth a new tuning
-surface until that near miss is shown to be worth something.** That is the whole argument,
-and it is why the sweep above comes first if this is ever picked up: it is read-only, it
-costs half a day, and it decides whether there is anything here to build for.
-
-### Triggers — reopen if any of these becomes true
+**The trigger is not a miss rate or a layout. It is a queue depth.**
 
 | Trigger | Why it changes the answer |
 | --- | --- |
-| The layout work lands a design that leaves reads **missing most of the time** | Above ~22–34% misses `uring` is the cheaper arm on expected CPU, and the gap stops being academic |
-| Delivered frames get **smaller** (rung delivery, [`adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md)) | The ring's margin grows as frames shrink — −62% at 4 KiB against a tie at 250 KB |
-| The read path shows up as a **real share of server CPU** in a profile | Today it is ~a fifth of a frame's server cost; a 24% slice of one regime of that is not where the cycles are |
-| Storage gets much faster than ~1.25 GB/s | Thread scheduling rather than the device becomes the limit, and io_uring's 5-threads-against-44 starts converting ([`RERUN-miss.md`](RERUN-miss.md) M3) |
+| **The server starts serving the client's ask window concurrently** (depth > 1) | The probe stops being one syscall and becomes a serial prologue in front of a batch — worth 25–43%. This is the live one, and it is already flagged in [`adr.md`](adr.md) §Revisit |
+| The read path shows up as a real share of server CPU in a profile | Today it is ~a fifth of a frame's cost; 4–6% of one regime of that is not where the cycles are |
+| Storage gets much faster than ~1.25 GB/s | Scheduling rather than the device becomes the limit ([`RERUN-miss.md`](RERUN-miss.md) M3) |
 
-Until one of those fires, the probe stays. It is one syscall on the path that a warm server
-spends its life on, and it is what makes `hybrid_lazyring` cheap on hits.
+If depth ever goes above 1, the branch is the right shape and this section is the brief for it:
+one `probe_inline` bool on `ReadCtx`, default `true`, set from a layout kind the packer stamped
+— never from a runtime guess.
 
-**Second gap, cheaper to close:** `hybrid_lazyring` exists on two hosts (`v27` 8-CPU, `v28`
-btrfs laptop). `uring`'s hit penalty is +131–142% on one and +17–21% on the other. Nobody has
-run the lazyring arm on the 4 vCPU sandbox or the GitHub runner, which are the two hosts most
-like a small deployment. Re-running `v27`'s configuration there is an hour and closes R1 for
-the arm that actually ships.
+### What is still genuinely open: reader scale
 
----
+Both `hybrid_lazyring` datasets (`v27`, `v28`) are **`readers=1`**. The recommended arm has
+never been measured with more than one concurrent session, and the deployment target is
+thousands. The reader-scale evidence tops out at 128 readers and does not include it:
+
+| readers | `pool` threads | `hybrid` | `uring` |
+| ---: | ---: | ---: | ---: |
+| 1 | 11–12 | 5 | 5 |
+| 16 | 77–82 | 5 | 5 |
+| 64 | 160–265 | 5 | 5 |
+| 128 | 227–381 | 5 | 5 |
+
+Two readings. **Thread growth separates ring-from-`pool`, not the two ring arms** — so scale is
+an argument for shipping the ring at all, not for the branch. And `pool` at 381 threads for 128
+readers is the number that should decide the schedule: at thousands of concurrent sessions the
+arm that ships today is the one that does not hold up.
+
+Closing it is cheap and worth doing before rollout, not before implementation:
+
+```bash
+./target/release/read_campaign --arms pool,hybrid,hybrid_lazyring,uring \
+  --readers 1,16,64,128 --depth 1 --out /tmp/v29_lazyring_readers.tsv
+lab/scripts/pair_arms.py --pairs hybrid_lazyring:hybrid,uring:hybrid_lazyring \
+  --by readers /tmp/v29_lazyring_readers.tsv
+```
+
+Expect ties throughout — `hybrid_lazyring` is `hybrid` with a lazier constructor, and `hybrid`
+is already measured to 128. A surprise there is the only thing that would change the arm.
 
 ---
 
@@ -327,7 +275,9 @@ Reproduce all of it with `lab/scripts/pair_arms.py` on the archived TSVs.
 | **Verified** | `uring` vs `hybrid` is a tie on misses on 4 datasets and 6 runs, −2.3 to −8.3% |
 | **Verified** | The ring's margin over the pool decays with frame size and stops clearing the bar past 64 KiB |
 | **Found** | The candidate table's statistic is not the rule's. −41.9% against −24.0% on the same cells. Annotated in [`EVIDENCE.md`](EVIDENCE.md) |
-| **Found** | The arm-choice comparison rests on one phase, one frame size, one reader count. Step 3 |
+| **Found** | The arm-choice comparison rests on one phase, one frame size, one reader count |
+| **Answered** | That comparison's −24.0% is a queue-depth artefact: −1.2/−1.9% at depth 1, where this server runs. Plain `uring` is not a candidate here — +133 to +386% on hits, breakeven at 65–84% misses |
+| **Still open** | Both `hybrid_lazyring` datasets are `readers=1`; the target is thousands. Threads separate ring-from-`pool` (5 vs 381 at 128 readers), not the two ring arms |
 | **Found** | The shipped `stream_codestream` was not the `pool` arm for frames > 64 KiB. Fixed |
 | **Corrected** | [`RERUN-miss.md`](RERUN-miss.md) claimed the two campaigns had never been run at the same frame size. `v22` has `D_size250000` cells |
 | **Corrected** | Its size-scaling claim was written as a prediction. It was already answered by `v22`, and it holds |

@@ -306,6 +306,91 @@ escape hatch; it never degrades below it" — on its instrument, it does.
 
 ---
 
+## Cell M10 — the inline probe, priced; and where the −24% actually lives
+
+[`x10_probe_16k_order_a.tsv`](x10_probe_16k_order_a.tsv) ·
+[`x10_probe_16k_order_b.tsv`](x10_probe_16k_order_b.tsv) ·
+[`x11_probe_250k_order_a.tsv`](x11_probe_250k_order_a.tsv) ·
+[`x11_probe_250k_order_b.tsv`](x11_probe_250k_order_b.tsv)
+
+`hybrid_lazyring` is `uring` plus one thing: an inline `RWF_NOWAIT` before the ring read.
+[`EVIDENCE.md`](EVIDENCE.md)'s candidate table puts the gap between them at −41.9% on misses
+(−24.0% paired), and that gap is the *entire* case for ever routing a study to plain `uring`.
+So: what does the probe cost?
+
+**It returns nothing, and it is not hidden copy work.** A new `probe_got` column records what
+a failed `read_at_nowait` handed back. It is **0 in every cell, at both frame sizes, at 1 and
+8 concurrent sessions.** The probe is a question, not a partial read — which rules out the
+benign explanation and makes the cost, whatever it is, genuinely avoidable.
+
+**But the arms do not separate.** `uring_nowait_whole` (probe, then ring) against `uring_whole`
+(ring only), 100% miss, 7 repeats, both arm orders:
+
+| cell | order A | order B |
+| --- | ---: | ---: |
+| 16 KB, 1 session | −9.5% | −5.5% |
+| 16 KB, 8 sessions | −3.8% | **+35.9%** |
+| 250 KB, 1 session | −15.3% | +0.3% |
+| 250 KB, 8 sessions | +0.2% | +3.0% |
+
+Sign flips under the order control in three of four cells. Nothing here is a −24% effect.
+
+### The −24% is a queue-depth artefact
+
+Splitting the read-path campaign's own comparison by `depth` — reads in flight per reader —
+says where it lives (`pair_arms.py --pairs uring:hybrid_lazyring --by depth`):
+
+| `uring` vs `hybrid_lazyring`, misses | depth 1 | 2 | 4 | 8 | 16 | 32 | 64 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `v27` run1 | **−1.2%** | +8.7% | −41.6% | −42.8% | −41.8% | −28.5% | −25.6% |
+| `v27` run2 | **−1.9%** | −2.6% | −25.6% | −40.5% | −40.8% | −29.5% | −17.6% |
+| `v28` (btrfs) | **+4.0%** | −1.5% | +2.0% | −1.6% | −6.4% | +4.1% | −3.4% |
+
+**At depth 1 the two arms are a tie — −1.2% and −1.9%.** The whole signal lives at depths 4–32,
+and only on one of the two hosts. Pooling depths 1…64 into a single "miss" bucket is what
+produced −24.0%.
+
+The mechanism is plain once seen: at depth > 1 the hybrid's probes run **serially on the
+executor before the ring can batch anything**, converting a parallel submission into a serial
+prologue. At depth 1 there is nothing to serialise, so the probe costs one syscall and the
+arms converge.
+
+### What the candidate table looks like at the depth the product runs
+
+`docs/adr-reject-server-ordering.md` has the session loop send one frame to completion before
+reading the next ask — **queue depth 1**. Restricted to those cells:
+
+| CPU ns/read, depth 1 | `v27` hit | `v27` miss | `v28` hit | `v28` miss |
+| --- | ---: | ---: | ---: | ---: |
+| `pool` | 2 726 | 80 292 | 4 214 | 61 240 |
+| `hybrid` | 2 256 | 35 678 | 4 150 | 45 948 |
+| **`hybrid_lazyring`** | **2 030** | 36 817 | 4 250 | 50 256 |
+| `uring` | **9 858** | 35 300 | **9 910** | 47 177 |
+
+At depth 1 `uring`'s hit penalty is **+386%** on `v27` and **+133%** on `v28` — worse than the
++131/+142% the pooled table reports — while its miss advantage collapses to **4–6%**. The
+breakeven moves with it:
+
+| | breakeven miss rate | and then wins by |
+| --- | ---: | ---: |
+| pooled over depths 1…64 *(what §Reconciliation used)* | 21.6% | 42% |
+| **depth 1, `v27`** | **84%** | 4% |
+| **depth 1, `v28`** | **65%** | 6% |
+
+**So the case for routing a study to plain `uring` does not survive contact with the product's
+queue depth.** Even a 99%-miss tile workload would buy 4–6% of read CPU, and pay 133–386% on
+whatever hits remain.
+
+### What would bring it back
+
+Not a miss rate, and not a layout — **a queue depth**. If the server ever serves the client's
+ask window concurrently rather than one frame at a time, depth goes above 1 and the probe
+starts costing 25–43%. That is a server-architecture change, it is already flagged in
+[`adr.md`](adr.md) §Revisit, and it is the one condition under which a layout-routed
+`probe_inline` branch would earn its keep.
+
+---
+
 ## Reconciliation — why this and the read-path campaign both hold
 
 [`EVIDENCE.md`](EVIDENCE.md) measures the ring at **−42 to −73% CPU per read on misses,
@@ -369,7 +454,8 @@ Two things this campaign does add to that decision:
 | **Settled** | At 250 KB frames on ~1.25 GB/s storage, whole-frame `io_uring` and whole-frame `spawn_blocking` are a tie on throughput and latency |
 | **Not settled here** | Whether `hybrid_lazyring` is worth adopting. That rests on CPU per read at the frame sizes and miss rates a deployment actually has — [`EVIDENCE.md`](EVIDENCE.md)'s question, not this one |
 | **Settled after all** | The size scaling above. `v22`'s `D_size` cells had it all along; it did not need a new run |
-| **Deferred, not settled** | Whether `uring`'s edge over `hybrid_lazyring` grows with frame size or reader count. That pair has only ever been run at 16 KB, one reader, one phase — and it lands at −24.0% against a 28.5% bar. Left open on purpose: [`PLAN.md`](PLAN.md) §Deferred has the experiment and the triggers |
+| **Settled, M10** | `uring`'s edge over `hybrid_lazyring` on misses is a **queue-depth artefact**: −1.2/−1.9% at depth 1, −25 to −43% at depths 4–32, and the product runs depth 1. At depth 1 the breakeven miss rate is 65–84%, not 22–34% |
+| **Not settled** | Both lazyring datasets are **`readers=1`** — the recommended arm has never been measured with more than one concurrent session. The reader-scale evidence (`v25_r5`, to 128 readers) does not include it |
 
 ## Limitations
 

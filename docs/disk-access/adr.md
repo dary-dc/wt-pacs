@@ -58,6 +58,13 @@
 > **Do the escalation first regardless.** It has no dependency, no ring, and it is the
 > prerequisite for a lazy ring to be worth what it measures — on 250 KB frames the ring would
 > otherwise be making two *unnecessary* round trips cheaper.
+>
+> **And the `uring`-vs-`hybrid_lazyring` gap is a queue-depth artefact.** Split by depth it is
+> **−1.2/−1.9% at depth 1** and −25 to −43% only at depths 4–32, on one of two hosts. This
+> server runs depth 1 (`adr-reject-server-ordering.md`), where `uring`'s hit penalty is
+> **+386%/+133%** and its miss advantage **4–6%** — breakeven at a **65–84%** miss rate rather
+> than the 21.6% the pooled numbers imply. Plain `uring` is not a candidate for this product at
+> this depth, whatever the layout does. [`RERUN-miss.md`](RERUN-miss.md) M10.
 
 ## Context
 

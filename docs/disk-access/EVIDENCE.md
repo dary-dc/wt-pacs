@@ -65,14 +65,28 @@ is established better than it anywhere; `uring`, the only arm cheaper on misses,
 established **+141.7 / +131.0% worse on hits**. That is why there is no tuning toggle —
 see [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
 
-**The miss-regime tie is a near miss, and it rests on one cell shape.** −24.0% against a
-28.5% bar with 73 of 84 cells agreeing on the sign is not a coin flip; it is a difference
-that did not clear the bar. And every one of those 84 cells is the same phase, frame size
-and reader count — `A_stride`, **16 KB**, **1 reader**. Frame size demonstrably moves the
-ring's margin (see below), and nobody has swept it for *this* pair.
-[`PLAN.md`](PLAN.md) §Deferred carries the experiment that would settle it, and the triggers
-that would make it worth running. It is deliberately not on the critical path: the upside is
-bounded by a near miss that has never been shown to clear the bar at any frame size.
+**The miss-regime tie is a queue-depth artefact, and it disappears at the depth the product
+runs.** Splitting the same 84 cells by `depth` ([`RERUN-miss.md`](RERUN-miss.md) M10):
+
+| `uring` vs `hybrid_lazyring`, misses | depth 1 | 4 | 8 | 16 | 32 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `v27` run1 / run2 | **−1.2 / −1.9%** | −41.6 / −25.6% | −42.8 / −40.5% | −41.8 / −40.8% | −28.5 / −29.5% |
+| `v28` (btrfs) | **+4.0 / −0.8%** | +2.0 / +1.8% | −1.6 / −0.8% | −6.4 / −4.7% | +4.1 / +3.0% |
+
+At depth > 1 the hybrid's inline probes run serially on the executor before the ring can
+batch, turning a parallel submission into a serial prologue. **At depth 1 there is nothing to
+serialise and the arms tie.** `docs/adr-reject-server-ordering.md` fixes the session loop at
+**depth 1**, so the −24.0% never applied to this product. Restricted to depth-1 cells,
+`uring`'s hit penalty is **+386%** (`v27`) / **+133%** (`v28`) and its miss advantage is
+**4–6%**, moving the breakeven miss rate from 21.6% to **65–84%**.
+
+Reproduce: `lab/scripts/pair_arms.py --pairs uring:hybrid_lazyring --by depth /tmp/v27_lazyring.tsv`.
+
+**What is still open** is not that comparison but its coverage: both lazyring datasets are
+**`readers=1`**, so the recommended arm has never run with more than one concurrent session.
+The reader-scale evidence (`v25_r5`, to 128 readers) does not include it — though it does show
+`hybrid` and `uring` both flat at **5 OS threads** where `pool` reaches **381**, so thread
+growth separates ring-from-`pool`, not the two ring arms.
 
 ## Where the margin comes from
 
