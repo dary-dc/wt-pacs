@@ -1,7 +1,8 @@
 # Read-path evidence — the whole campaign in one file
 
 **Decision:** [`adr.md`](adr.md) · **Implementation:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md) ·
-**Deployment:** [`DEPLOYMENT.md`](DEPLOYMENT.md) · **Reproduce:** [`RERUN.md`](RERUN.md)
+**Deployment:** [`DEPLOYMENT.md`](DEPLOYMENT.md) · **Reproduce:** [`RERUN.md`](RERUN.md) ·
+**How much a miss reads:** [`RERUN-miss.md`](RERUN-miss.md)
 
 Self-contained on purpose. The full campaign — thirteen documents, sixty-nine raw artifacts —
 is in git at **`a330783`** and its ancestors; this file carries every number the decision rests
@@ -90,6 +91,34 @@ miss-regime row flipped on any host.
 | **R8** loop vs ring attribution | **Closed** — split above |
 | **R2** cold is guest-cold | Open, direction known and **favourable** — it understates the ring. Not worth closing |
 | **R7** one read per ask | Open, affects all arms equally. Not worth closing |
+
+## What this campaign did not vary: how much a miss reads
+
+Every arm above reads a **whole frame per round trip** — `read_campaign` calls
+`read_at_nowait(&mut buf[..len])` for the frame's full length. The shipped
+`stream_codestream` did not: until 2026-09-07 it windowed the *pool* read too, and paid 2–3
+round trips per 250 KB frame instead of one. So `pool` above is a fair pool-vs-ring control
+and was never the shipped loop.
+
+[`RERUN-miss.md`](RERUN-miss.md) measures that separately, at 250 KB frames on an 8 GB
+fixture, and it changed the product. Two numbers from it belong here:
+
+| | |
+| --- | --- |
+| Escalating the pool read to the rest of the frame | **2.1×** throughput at one reader, **3.0–3.2×** at 8/16/32, on 100% misses. Identical warm. Landed |
+| Whole-frame `io_uring` vs whole-frame `spawn_blocking`, 250 KB frames | **A tie** on throughput and latency at 1/2/4/8/16/32 readers, both arm orders |
+
+The tie does not contradict the −42/−73% above. The hop tax is a roughly fixed **24–34 µs
+per round trip** (§Hosts) while the rest of a read scales with its bytes: that is most of a
+16 KB read and under 8% of a 250 KB one — inside the drift threshold, which is why one
+campaign resolves it and the other cannot. **The ring's margin should therefore fall with
+frame size**, which is a prediction this campaign can test and neither has.
+
+The thread-count finding agrees across both: 5 OS threads against 44 at 32 concurrent
+missing readers, with no `iou-wrk` worker visible under tight-loop `/proc` sampling (R5
+here). On ~1.25 GB/s storage it converts into nothing — capping Tokio's blocking pool at
+**four** threads costs the pool arms nothing at 32 readers, because the device saturates
+first.
 
 ## Rejected, with the reason
 
