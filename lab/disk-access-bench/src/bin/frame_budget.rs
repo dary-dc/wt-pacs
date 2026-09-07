@@ -16,7 +16,7 @@
 //!   something else is runnable.
 
 use anyhow::{Context, Result};
-use exact_server::media::frame_store::FrameStore;
+use exact_server::media::frame_store::{FrameSpan, FrameStore};
 use io_uring::{opcode, types, IoUring};
 use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
@@ -97,7 +97,7 @@ fn main() -> Result<()> {
     let fd = file.as_raw_fd();
     let flen = file.metadata()?.len();
     warm_file(fd, flen);
-    let (_, frame_len) = store.frame_range(0)?;
+    let frame_len = store.frame_span(0)?.len;
     let frame_len = frame_len as usize;
     let frames = store.frame_count();
     println!(
@@ -128,7 +128,7 @@ fn main() -> Result<()> {
 
 /// Offset of frame `i` in a forward pass, wrapping.
 fn frame_off(store: &FrameStore, frames: u32, i: usize) -> Result<(u64, usize)> {
-    let (off, len) = store.frame_range((i as u32) % frames)?;
+    let FrameSpan { offset: off, len } = store.frame_span((i as u32) % frames)?;
     Ok((off, len as usize))
 }
 

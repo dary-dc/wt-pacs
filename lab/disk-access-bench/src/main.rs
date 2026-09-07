@@ -12,8 +12,9 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use disk_access_bench::candidate_access::{hint_willneed, populate_read, unmap_pages};
+use disk_access_bench::study_map::{host_page_size, StudyMap};
 use disk_access_bench::{rejected_access, residency, uring_access};
-use exact_server::media::frame_store::{host_page_size, FrameStore};
+use exact_server::media::frame_store::{FrameSpan, FrameStore};
 use rejected_access::{advise_frame_willneed, frame_pages_resident, touch_frame_pages};
 use serde::Deserialize;
 use std::fs::File;
@@ -477,7 +478,7 @@ fn make_cold_copy(study: &Path) -> Result<ColdCopy> {
 /// Guest-cold is the level the decision needs (does a major fault land on the executor).
 /// It says nothing about the hypervisor's own cache, so absolute fault service time still
 /// varies run to run — read cold cells for shape (`gap_max`, hop count), not absolutes.
-fn data_residency(store: &FrameStore) -> Result<f64> {
+fn data_residency(store: &StudyMap) -> Result<f64> {
     let (resident, total) = page_residency(data_span(store)?)?;
     Ok(if total == 0 {
         0.0
@@ -487,7 +488,7 @@ fn data_residency(store: &FrameStore) -> Result<f64> {
 }
 
 /// The study's frame-data region as one contiguous slice of the mmap.
-fn data_span(store: &FrameStore) -> Result<&[u8]> {
+fn data_span(store: &StudyMap) -> Result<&[u8]> {
     let n = store.frame_count();
     if n == 0 {
         return Ok(&[]);
@@ -746,7 +747,7 @@ fn fault_tx() -> &'static Mutex<mpsc::Sender<FaultJob>> {
     })
 }
 
-async fn dedicated_fault_touch(store: Arc<FrameStore>, idx: u32, access: AccessMode) -> Result<()> {
+async fn dedicated_fault_touch(store: Arc<StudyMap>, idx: u32, access: AccessMode) -> Result<()> {
     let (done_tx, done_rx) = tokio::sync::oneshot::channel();
     {
         let tx = fault_tx().lock().expect("fault tx");
@@ -760,22 +761,22 @@ async fn dedicated_fault_touch(store: Arc<FrameStore>, idx: u32, access: AccessM
     Ok(())
 }
 
-fn touch_for_access(store: &FrameStore, idx: u32, _access: AccessMode) -> Result<()> {
+fn touch_for_access(store: &StudyMap, idx: u32, _access: AccessMode) -> Result<()> {
     touch_frame_pages(store, idx)
 }
 
-fn resident_for_access(store: &FrameStore, idx: u32, _access: AccessMode) -> Result<bool> {
+fn resident_for_access(store: &StudyMap, idx: u32, _access: AccessMode) -> Result<bool> {
     frame_pages_resident(store, idx)
 }
 
-fn access_len(store: &FrameStore, idx: u32, _access: AccessMode) -> Result<usize> {
-    let (_, len) = store.frame_range(idx)?;
+fn access_len(store: &StudyMap, idx: u32, _access: AccessMode) -> Result<usize> {
+    let len = store.frame_span(idx)?.len;
     Ok(served_len(len))
 }
 
 /// Hand one window buffer to the blocking pool and get it back with the bytes in it.
 fn spawn_window_read(
-    store: &Arc<FrameStore>,
+    store: &Arc<StudyMap>,
     slot: &mut Vec<u8>,
     offset: u64,
     window: usize,
@@ -859,7 +860,7 @@ impl ArmState {
 /// io_uring arms, which have no product counterpart to borrow one from.
 #[derive(Clone)]
 struct ServeCtx {
-    store: Arc<FrameStore>,
+    store: Arc<StudyMap>,
     file: Arc<File>,
     /// Kept so the mix cells can `fadvise` the same inode the arms read from.
     path: PathBuf,
@@ -868,7 +869,7 @@ struct ServeCtx {
 impl ServeCtx {
     fn open(path: &Path) -> Result<Self> {
         Ok(Self {
-            store: Arc::new(FrameStore::open(path)?),
+            store: Arc::new(StudyMap::open(path)?),
             file: Arc::new(
                 File::open(path)
                     .with_context(|| format!("open {} for io_uring", path.display()))?,
@@ -1052,7 +1053,7 @@ fn run_cell(
             touch_for_access(&store, idx, access)?;
             let len = access_len(&store, idx, access)?;
             let mut buf = vec![0u8; len];
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             store.read_at_blocking(&mut buf, offset)?;
         }
     }
@@ -1323,7 +1324,7 @@ async fn serve_frame_async(
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             let buf = tokio::task::spawn_blocking(move || {
                 let mut buf = vec![0u8; len];
                 s.read_at_blocking(&mut buf, offset)?;
@@ -1350,7 +1351,7 @@ async fn serve_frame_async(
             let th = Instant::now();
             let mut buf = std::mem::take(&mut state.pread_pool);
             buf.resize(len, 0);
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             let buf = tokio::task::spawn_blocking(move || {
                 s.read_at_blocking(&mut buf, offset)?;
                 Ok::<Vec<u8>, anyhow::Error>(buf)
@@ -1439,7 +1440,7 @@ async fn serve_frame_async(
             })
         }
         Arm::PreadNowait => {
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             let t0 = Instant::now();
             let mut buf = std::mem::take(&mut state.pread_pool);
@@ -1470,7 +1471,7 @@ async fn serve_frame_async(
             })
         }
         Arm::PreadNowaitChunked => {
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             let window = read_chunk.min(len).max(1);
             let t0 = Instant::now();
@@ -1518,7 +1519,7 @@ async fn serve_frame_async(
         }
         Arm::PreadNowaitEscalate => {
             // Window the executor's reads; do not window the pool's.
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             let window = read_chunk.min(len).max(1);
             let t0 = Instant::now();
@@ -1593,11 +1594,14 @@ async fn serve_frame_async(
             // one ask takes longer than one read-ahead, which is a property of the
             // deployment's storage, not of this code.
             if let Some(n) = next {
-                let (noff, nlen) = store.frame_range(n)?;
+                let FrameSpan {
+                    offset: noff,
+                    len: nlen,
+                } = store.frame_span(n)?;
                 hint_willneed(&ctx.file, noff, served_len(nlen));
             }
 
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             let window = read_chunk.min(len).max(1);
             let t0 = Instant::now();
@@ -1646,7 +1650,7 @@ async fn serve_frame_async(
             // Same pool hop as `pread_blocking_pooled`, but issued one window early so it
             // overlaps `write_sim` instead of preceding it. If pipelining is what helps,
             // this arm captures it without io_uring.
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             let win = read_chunk.min(len).max(1);
             let t0 = Instant::now();
@@ -1705,7 +1709,7 @@ async fn serve_frame_async(
         | Arm::UringNowaitWhole
         | Arm::UringWhole
         | Arm::UringBatchedStream => {
-            let (offset, _) = store.frame_range(idx)?;
+            let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             // The whole-frame arm ignores `--read-chunk`: one read is the point of it.
             let win = if matches!(arm, Arm::UringWhole | Arm::UringNowaitWhole) {
@@ -1724,7 +1728,7 @@ async fn serve_frame_async(
                 // sizing from the first frame.
                 let mut max_len = len;
                 for i in 0..store.frame_count() {
-                    let (_, l) = store.frame_range(i)?;
+                    let l = store.frame_span(i)?.len;
                     max_len = max_len.max(l as usize);
                 }
                 let (win_len, batched_slots) = uring_access::ring_geometry(read_chunk, max_len);

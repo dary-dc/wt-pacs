@@ -54,7 +54,9 @@ Two `disk-access-bench` flags exist for the miss cells (see
 | `--mix <f>` | The fraction of frames that must miss, set with `fadvise` and then **verified with `mincore`** — a cell that did not get the residency it asked for aborts instead of reporting under the wrong label |
 | `--region-stride <n>` | Frames between the frames a cell asks for. `read_ahead_kb` is 8192 on the lab host, so without a stride past it an evicted region is a read-ahead prefix and not a miss-dominated workload: a fully evicted 256-frame region costs **4** pool round trips, not 256 |
 
-`io-uring` is a dependency of **the lab crate only** — the product does not link it.
+`server/` links `io-uring`; it does **not** link `memmap2`. The mmap arms are the rejected
+comparison and keep their own mapping in `lab/disk-access-bench` (`study_map::StudyMap`), so
+they stay reproducible without an unused mapping in the product.
 
 `lab/cold-page-bench` is the older E3 / one-pass-cold tool; it owns its own copy of the
 rejected pre-touch arm and is not part of this campaign.

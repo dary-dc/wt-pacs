@@ -7,11 +7,11 @@
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
-use exact_server::media::frame_store::{host_page_size, FrameStore};
+use disk_access_bench::study_map::{host_page_size, StudyMap};
 
 /// Fault every page of `index` in. Lab-local since the product stopped pre-touching —
 /// this crate exists to measure that rejected arm. See `docs/disk-access/adr.md`.
-fn touch_frame_pages(store: &FrameStore, index: u32) -> anyhow::Result<()> {
+fn touch_frame_pages(store: &StudyMap, index: u32) -> anyhow::Result<()> {
     touch_pages(store.frame_slice(index)?);
     Ok(())
 }
@@ -102,7 +102,7 @@ fn consume_slice(slice: &[u8]) {
     touch_pages(slice);
 }
 
-fn bench_latencies_naive(store: &FrameStore, frames: &[u32]) -> Vec<u64> {
+fn bench_latencies_naive(store: &StudyMap, frames: &[u32]) -> Vec<u64> {
     let mut samples = Vec::with_capacity(frames.len());
     for &idx in frames {
         let t0 = Instant::now();
@@ -113,7 +113,7 @@ fn bench_latencies_naive(store: &FrameStore, frames: &[u32]) -> Vec<u64> {
     samples
 }
 
-fn bench_latencies_blocking(store: &Arc<FrameStore>, frames: &[u32]) -> (Vec<u64>, Vec<u64>) {
+fn bench_latencies_blocking(store: &Arc<StudyMap>, frames: &[u32]) -> (Vec<u64>, Vec<u64>) {
     let rt = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -141,11 +141,7 @@ fn bench_latencies_blocking(store: &Arc<FrameStore>, frames: &[u32]) -> (Vec<u64
 }
 
 /// Co-tenant yield gaps while a worker serves `frames` (product-shaped: await per frame).
-fn measure_executor_gaps(
-    store: &Arc<FrameStore>,
-    frames: &[u32],
-    arm: Arm,
-) -> (u64, u64, u64, u64) {
+fn measure_executor_gaps(store: &Arc<StudyMap>, frames: &[u32], arm: Arm) -> (u64, u64, u64, u64) {
     let rt = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -239,7 +235,7 @@ fn cold_frame_list(n: u32) -> Vec<u32> {
 }
 
 fn run_arm(arm: Arm, study: &std::path::Path, iterations: u32) -> anyhow::Result<()> {
-    let warm_store = Arc::new(FrameStore::open(study)?);
+    let warm_store = Arc::new(StudyMap::open(study)?);
     let n = warm_store.frame_count();
     for idx in 0..n {
         touch_frame_pages(&warm_store, idx)?;
@@ -264,7 +260,7 @@ fn run_arm(arm: Arm, study: &std::path::Path, iterations: u32) -> anyhow::Result
 
     let cold = make_cold_copy(study)?;
     let cold_frames = cold_frame_list(n);
-    let cold_store = Arc::new(FrameStore::open(&cold.path)?);
+    let cold_store = Arc::new(StudyMap::open(&cold.path)?);
     let (cold_p50, cold_p99) = match arm {
         Arm::Naive => {
             let mut cold_lat = bench_latencies_naive(&cold_store, &cold_frames);
@@ -277,7 +273,7 @@ fn run_arm(arm: Arm, study: &std::path::Path, iterations: u32) -> anyhow::Result
     };
     drop(cold_store);
     advise_dontneed(&cold.path)?;
-    let cold_store2 = Arc::new(FrameStore::open(&cold.path)?);
+    let cold_store2 = Arc::new(StudyMap::open(&cold.path)?);
     let (cold_gap_p50, cold_gap_p99, cold_gap_max, cold_gap_n) =
         measure_executor_gaps(&cold_store2, &cold_frames, arm);
 

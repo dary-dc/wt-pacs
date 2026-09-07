@@ -64,19 +64,28 @@ to `stream_codestream`. It becomes a small struct so the ring can live beside it
 lifetime:
 
 ```rust
-/// Per-session read state. One window buffer, and a ring that exists only after this
-/// session has actually missed.
 pub struct ReadCtx {
-    mode: ReadMode,
-    ring: Ring,       // Untried until the first shortfall; never Ready without RWF_NOWAIT
+    probe: bool,      // false only under the `uring` lever
+    ring: Ring,       // Off | Pending | Ready | Refused
     window: Vec<u8>,
 }
 ```
 
-`Ring` is a three-state enum rather than an `Option`, because a kernel that refuses io_uring
+**The mode is resolved once, in `ReadCtx::new`, so the read loop has no mode to branch on.**
+The three `WTPACS_READ_PATH` values become two independent facts — whether to try the page
+cache first, and whether a miss may use a ring — and every combination then runs the same
+code. That is why there is no `uring` special case in the loop: with `probe: false` the
+page-cache read is skipped, the read always comes up short, and the escalation reads the
+whole frame through the ring, which *is* the `uring` arm.
+
+`Ring` has four states rather than being an `Option`, because a kernel that refuses io_uring
 (an old one, a seccomp filter, `kernel.io_uring_disabled`) must not be retried on every
-subsequent miss — and must not fail the ask either. It records `Unavailable` and the pooled
-path serves.
+subsequent miss — and must not fail the ask either. It records `Refused` and the pooled path
+serves.
+
+`ReadCtx::read` returns the bytes that are ready rather than a count of them. A caller
+cannot then advance by the wrong number, which is the bug the escalation invites and which
+an earlier version of this code had.
 
 `stream_codestream`'s loop is unchanged except for the shortfall branch:
 

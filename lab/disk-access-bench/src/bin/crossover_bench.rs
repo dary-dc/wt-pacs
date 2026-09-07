@@ -257,7 +257,7 @@ fn main() -> Result<()> {
                     let store = Arc::new(FrameStore::open(&path)?);
                     let file = Arc::new(std::fs::File::open(&path)?);
                     let flen = file.metadata()?.len();
-                    let base = store.frame_range(0)?.0;
+                    let base = store.frame_span(0)?.offset;
                     let span = flen - base - size as u64;
                     let offsets: Arc<Vec<u64>> = Arc::new(
                         (0..asks)

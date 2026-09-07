@@ -3,5 +3,7 @@
 pub mod format;
 pub mod writer;
 
-pub use format::{parse_layout, ParsedLayout, HEADER_SIZE, INDEX_ENTRY_SIZE, MAGIC, VERSION};
+pub use format::{
+    parse_layout, read_layout, ParsedLayout, HEADER_SIZE, INDEX_ENTRY_SIZE, MAGIC, VERSION,
+};
 pub use writer::{write_bundle, BundleWriter};

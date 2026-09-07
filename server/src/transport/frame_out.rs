@@ -29,6 +29,10 @@ pub(crate) enum FrameOut {
         connection: Connection,
         acks: JoinSet<()>,
     },
+    /// No connection, for tests that build a session without a QUIC endpoint. Sending
+    /// through it panics; it exists so session *construction* can be tested.
+    #[cfg(test)]
+    Detached,
 }
 
 impl FrameOut {
@@ -85,6 +89,8 @@ impl FrameOut {
                     let _ = uni.finish().await;
                 });
             }
+            #[cfg(test)]
+            Self::Detached => unreachable!("a detached sink has no wire to write to"),
         }
         Ok(())
     }
@@ -111,10 +117,7 @@ fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
     head
 }
 
-/// Copy the codestream to the wire, refilling the session's window as it drains.
-///
-/// `store.read_window` decides the stride, so a filesystem that refuses `RWF_NOWAIT` gets
-/// whole-frame reads rather than a round trip per window.
+/// Read the codestream onto the wire, a window at a time.
 async fn stream_codestream(
     uni: &mut SendStream,
     store: &Arc<FrameStore>,
@@ -124,26 +127,18 @@ async fn stream_codestream(
     let stride = store.read_window(span.len);
     let mut pos = 0u32;
     while pos < span.len {
-        let remaining = (span.len - pos) as usize;
         let at = span.offset + u64::from(pos);
-        let ready = ctx.fill(store, at, stride, remaining).await?;
+        let ready = ctx
+            .read(store, at, stride, (span.len - pos) as usize)
+            .await?;
+        pos += ready.len() as u32;
 
-        // Still `stride` bytes per `write_all`: bounding the executor's uninterrupted copy
-        // is what the window is for, and a bigger *read* does not have to mean a bigger
-        // copy.
-        //
-        // `write_all` copies into the connection's send buffer, so the window is free to
-        // be refilled as soon as this returns — and the bytes quinn later puts on the wire
-        // are process-private, not page-cache pages that reclaim could take back.
-        let mut sent = 0usize;
-        while sent < ready {
-            let piece = stride.min(ready - sent);
-            uni.write_all(&ctx.window()[sent..sent + piece])
-                .await
-                .context("write codestream")?;
-            sent += piece;
+        // A read that missed returns more than one window, but the writes stay window-sized:
+        // the window exists to bound how long the executor copies without yielding, and a
+        // bigger read does not have to mean a bigger copy.
+        for piece in ready.chunks(stride) {
+            uni.write_all(piece).await.context("write codestream")?;
         }
-        pos += ready as u32;
     }
     Ok(())
 }
