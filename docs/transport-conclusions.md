@@ -25,7 +25,7 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95. **Not confirmed on real hardware** — on the rig the path, not the send path, is the ceiling ([`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.2) |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte at every rate |
-| **Flow-control windows** | Set them — for **memory** at thousands of viewers, not for speed |
+| **Flow-control windows** | **Depends on the send path, which matters more than the windows do.** On `chunked` + shared (this branch's defaults) a client that asks for 25 MB and stops reading costs **180 kB** — hygiene only. On `copy`/`split` + per-frame the same client costs **6.8 MB, 68 % of the 10 MB `send_window`**, and bounding is worth it for the original reason (§3.1) |
 
 ---
 
@@ -339,6 +339,72 @@ datagram-by-datagram and destroys GSO batching, so no CPU claim may pass through
 The GSO cap was re-run as a **negative control** in an RTT-bound cell and correctly showed
 nothing — evidence the latency rig measures what it claims.
 
+### 3.1 · The pathological client is measured, and the flow-control worry does not survive it
+
+`transport-conclusions.md` used to carry *"bound the windows … as a bound on the
+pathological case"* on arithmetic: quinn's `send_window` defaults to 10 MB per connection,
+and 10 MB × 5 000 viewers is 50 GB. The case was never produced, because every harness in
+this project reads. `window-harness --mode stall` produces it — asks 400 frames (25 MB, 2.5×
+the ceiling), then stops reading while holding the connection and every receive stream open.
+
+Data: [`measurements/mem/stall_client.tsv`](measurements/mem/stall_client.tsv), 48 rows,
+0 VOID, gated by `lab/scripts/e0_stall_validate.sh`.
+Full result: [`measurements/mem/stall-client.md`](measurements/mem/stall-client.md).
+
+| workload | server per connection |
+| --- | --- |
+| ordinary reading | 110 kB |
+| slow reader, 2 Mbps drain | 162 kB |
+| **stops reading entirely, shared stream** | **180 kB** |
+| stops reading entirely, per-frame | 370 kB |
+
+**A client that stops reading costs the server 11 % more than one that reads slowly, and
+sits 55× below the ceiling the recommendation was built on.** Bounding the windows moves it
+1.09× in shared mode and 1.62× in per-frame — real, ordered the right way in all three
+workloads, and not a lever.
+
+The reason is that the queue forms at the **other end**. A stalled client's stack still
+acknowledges at the transport layer, so the bytes leave the server and pile up in the
+client's receive buffers, where they stay because the application never reads them. The
+same client holds **2.20 MB against the server's 180 kB — twelve times as much.** What the
+server retains is connection and per-stream bookkeeping, not queued payload, which is
+exactly why bounding the payload windows barely moves it.
+
+**This is also an independent argument for one shared stream.** A per-frame server hands a
+non-reading client a fresh flow-control window per frame until the stream-concurrency limit
+stops it — 99 streams here, against quinn's default limit of 100 — so per-frame costs the
+server **2.05×** and the client **3.46×** what shared does. §2's case for the shared stream
+rests on head-of-line blocking under loss; this one is visible at zero loss and does not
+depend on the loss mechanism at all.
+
+### The send path decides this, and it is why the numbers above are small
+
+Everything above is on `--send-path chunked`, which moves a `Bytes` slice of the study
+mapping into quinn's send buffer without copying. `copy` and `split` leave quinn holding a
+private copy per connection instead, and the difference is not subtle
+([`measurements/mem/stall_send_path.tsv`](measurements/mem/stall_send_path.tsv);
+total RSS agrees with `RssAnon` in every arm, so this is a real saving and not a metric
+blind spot):
+
+| send path | shared | per-frame |
+| --- | --- | --- |
+| **chunked** | **198 kB** | **375 kB** |
+| copy | 1 299 kB | **6 990 kB (6.8 MB)** |
+| split | 1 292 kB | 6 807 kB |
+
+**`copy` + per-frame reaches 68 % of the 10 MB `send_window`** — ~34 GB at 5 000 stalled
+viewers. The flow-control worry was well founded for the send path this project used to
+ship; the chunked default is what removed it. `RssAnon` was checked against total RSS
+*within* each arm before this was believed: the two slopes agree to within 1 % everywhere,
+so nothing is hiding in file-backed pages.
+
+**So the chunked send path is a memory-containment property, not only a CPU one.** It was
+adopted for −6…−14 % CPU/byte; it also makes the pathological client **6.5× cheaper in
+shared mode and 18.6× cheaper in per-frame**. `main` has the copy path only, and is exposed
+to this in a way this branch is not.
+
+---
+
 **Never derive the cap from `max_gso_segments()`.** The binding limit is bytes: 65 527,
 i.e. 45 segments at a 1452-byte MTU. Exceeding it returns `EINVAL` and `quinn-udp` then
 disables offload **permanently for that socket** — a measured 91 % collapse. Use
@@ -388,6 +454,8 @@ are now "bigger" rather than "everything":
 | Per-frame without FIFO is worst | **strong** — four campaigns, matches scheduler source | — |
 | GSO cap worth 17 % | **strong** — externally corroborated | — |
 | Initial window is not a lever | **strong** — two independent measurements | — |
+| Flow-control ceilings are never approached **on the chunked send path** | **moderate** — 48 rows, 0 VOID, linear to r² ≥ 0.979, but T2 loopback and N ≤ 16 | a client that widens its own receive window on a high-BDP path, where the in-flight window rather than the peer's credit would bound the server |
+| The send path, not the windows, sets the pathological-case cost (6–17×) | **moderate** — n = 2 probe, but the effect is far outside what n = 2 could manufacture, and total RSS corroborates `RssAnon` | a copy-path arm that matches chunked once the sampler catches the true peak |
 
 ### Limits that stand
 

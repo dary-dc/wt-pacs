@@ -4,11 +4,14 @@
 much server memory does one cost, and do the flow-control windows need bounding?
 
 **Reproduce:** `lab/scripts/mem_per_connection.sh`, analysed by `lab/scripts/mem_analyse.py`.
+The pathological case is `lab/scripts/stall_client_campaign.sh` + `lab/scripts/stall_analyse.py`,
+gated by `lab/scripts/e0_stall_validate.sh`.
 
 | file | workload |
 | ---- | -------- |
 | `mem_light.tsv` | ordinary reading: fast client drain, depth 8, slow reader |
 | `mem_stress.tsv` | flow-control stress: client drains at 2 Mbps, depth 32, fast reader |
+| `stall_client.tsv` | **the pathological case**: asks 400 frames, then stops reading — [`stall-client.md`](stall-client.md) |
 
 ---
 
@@ -96,19 +99,58 @@ server never gets to fill a 10 MB send window no matter how large it is.
 
 **What would actually reach the ceiling is a client that asks for a lot and then stops
 reading entirely** — stalled, backgrounded, or hostile. This harness always reads, so it
-cannot produce that case, and this measurement therefore does **not** rule it out.
+cannot produce that case.
 
-### So: bound the windows, but for the right reason
+### The pathological case, now measured — and it does not reach the ceiling
 
-- **Not** as a memory optimisation. Measured, it saves ~16 KB per connection, which is
-  0.08 GB at 5 000 viewers against a total of 0.8 GB.
-- **Yes** as a bound on the pathological case, which is unmeasured here and is the case the
-  arithmetic was always about. `receive_window` unlimited is not a policy regardless of
-  what a well-behaved client does.
+`window-harness --mode stall` produces it. Full results:
+[`stall-client.md`](stall-client.md); data: [`stall_client.tsv`](stall_client.tsv), 48 rows,
+0 VOID, gated by `lab/scripts/e0_stall_validate.sh`.
 
-Its status therefore moves from *"unmeasured"* to *"measured under two workloads, small in
-both; the case that motivates it remains unmeasured because the harness cannot produce a
-client that stops reading."*
+| workload | server per connection |
+| --- | --- |
+| ordinary reading | 110 KB |
+| slow reader, 2 Mbps drain | 162 KB |
+| **stops reading entirely, shared stream** | **180 KB** |
+| stops reading entirely, per-frame | 370 KB |
+
+**A client that stops reading costs the server 11 % more than one that reads slowly** — not
+the 10 MB `send_window` the arithmetic was about, but 55× below it. The reason is that the
+withheld bytes queue at the *other* end: the same client holds **2.20 MB**, twelve times
+what the server does, because a stalled client's stack still ACKs and the server frees what
+is acknowledged. What the server retains is connection bookkeeping, not queued payload,
+which is why bounding the payload windows barely moves it (1.09× shared, 1.62× per-frame).
+
+### But that is the **chunked** send path, and the send path is the real variable
+
+Those figures are `--send-path chunked`, which queues refcounted slices of the study mmap
+rather than per-connection copies. On the other two paths the same stalled client costs far
+more ([`stall_send_path.tsv`](stall_send_path.tsv); total RSS corroborates `RssAnon`, so
+this is a real saving and not a blind spot in the metric):
+
+| send path | shared | per-frame |
+| --- | --- | --- |
+| **chunked** | **198 kB** | **375 kB** |
+| copy | 1 299 kB | **6 990 kB (6.8 MB)** |
+| split | 1 292 kB | 6 807 kB |
+
+**`copy` + per-frame reaches 68 % of the 10 MB ceiling.** The arithmetic worry was well
+founded for the send path the project used to ship; the chunked default is what removed it.
+`RssAnon` was checked against total RSS *within* each arm first — they agree to within 1 %
+everywhere, so the chunked figure is not a file-backed blind spot.
+
+### So: bound the windows — conditionally
+
+- **Not** as a memory optimisation. Measured, it saves ~16 KB per reading connection and
+  14 KB per stalled one — 0.07–0.08 GB at 5 000 viewers against a total near 0.9 GB.
+- **On `chunked` + shared, hygiene only.** The pathological case does not get within 55× of
+  the ceiling, so the knob is not what is protecting you — the send path is.
+- **On `copy`/`split` + per-frame, yes, and for the original reason.** 6.8 MB per stalled
+  connection, ~34 GB at 5 000 of them, is exactly what `send_window` exists to cap.
+
+Its status therefore moves from *"the case that motivates it remains unmeasured"* to
+**"measured; the ceiling is approached only on the copy/split send paths, and the chunked
+default is what keeps it 55× away"**.
 
 ---
 
@@ -122,4 +164,6 @@ client that stops reading."*
   `transport-conclusions.md` §3.
 - **The browser side.** This is server memory only. Client memory is bounded by the display
   cache, which is a client decision (`cache_frames`) and the largest single determinant of
-  the latency figures elsewhere in this project.
+  the latency figures elsewhere in this project. The one place client memory *is* measured
+  is [`stall-client.md`](stall-client.md), where it turns out to be where the pathological
+  case actually lands.

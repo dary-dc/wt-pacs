@@ -1,7 +1,11 @@
 # Handoff — transport optimisation, branch `cursor/l1-loss-run-dbae`
 
-**Written 2026-09-06** so a later session, a different agent, or a person can pick this up
-without reading the conversation that produced it.
+**Written 2026-09-06**, **amended 2026-09-07**, so a later session, a different agent, or a
+person can pick this up without reading the conversation that produced it.
+
+The 2026-09-07 pass closed §4.5's pathological client (§2, and
+[`measurements/mem/stall-client.md`](measurements/mem/stall-client.md)) and **corrected §1**,
+whose claim that `main` is a direct ancestor had gone stale.
 
 **Start here:** [`transport-conclusions.md`](transport-conclusions.md) is the answer sheet.
 This document is the *state of play* — what is settled, what is running, what is next, and
@@ -14,17 +18,34 @@ the traps that have already cost this project four invalidated campaigns.
 | | |
 | --- | --- |
 | Branch | `cursor/l1-loss-run-dbae` |
-| Relation to `main` | `main` is a **direct ancestor** — merge is conflict-free, nothing from main is lost |
+| Relation to `main` | **no longer a fast-forward — see the warning below** |
 | Contains | the L1 loss-run lane **plus** the R6 stream-shape lane, merged and reconciled |
-| Build | `cargo build --release --workspace` clean; 12 server tests pass |
+| Build | `cargo build --release --workspace` clean; 12 server tests + 8 harness tests pass |
 | PR | **not opened yet** |
 
-Verify the "nothing lost" claim yourself:
-
-```bash
-git rev-list origin/main --not HEAD          # must print nothing
-git diff origin/main..HEAD -- server/ | grep '^-[^-]'   # all 37 deletions; each is a rewrite
-```
+> **Corrected 2026-09-07.** This table used to claim `main` was a direct ancestor and that
+> `git rev-list origin/main --not HEAD` printed nothing. **That is no longer true.** The
+> fork point is `be78860` (2026-09-04) and **72 commits have since landed on `main`**,
+> including the client-frame-pipeline-telemetry PR, which rewrites
+> `server/src/transport/server.rs` and adds `server/src/transport/pipeline.rs`.
+>
+> A dry-run merge conflicts in **11 files**:
+>
+> ```bash
+> git merge-tree --write-tree origin/main HEAD      # exits 1; conflicts listed below
+> ```
+>
+> `.gitignore`, `Cargo.toml`, `docs/send-path-copy-costs.md`, `lab/README.md`,
+> `lab/window-harness/src/{client,main,metrics}.rs`, `server/src/main.rs`,
+> `server/src/record/mod.rs`, `server/src/transport/{mod,server}.rs`.
+>
+> **Reconciling this is a decision, not a chore** — `server.rs` is the file both sides
+> rewrote, and this branch's measurements were all taken against its version. Nobody has
+> made that call yet; it is deliberately left open rather than resolved in passing.
+>
+> Note also that a shallow clone makes this *look* worse than it is — `git merge-base`
+> reports no common ancestor at all until you `git fetch --unshallow`. Do that before
+> concluding anything about ancestry.
 
 ### The only two behaviour changes vs main
 
@@ -55,6 +76,8 @@ mechanical.
 | **Controller depends on loss regime.** Congestive → Cubic (BBR +63 %); exogenous → BBR (Cubic +48 %). **Default Cubic** | both directions separated, regimes verified by queue counters |
 | **GSO cap 10 → 32:** +17 % throughput, −21 % CPU/byte. Derive it from **bytes** (`min(platform, 65527/mtu)`), never `max_gso_segments()` — exceeding it disables offload *permanently* (91 % collapse) | externally corroborated |
 | **Memory is not the constraint:** ~110 KB/viewer, ~0.5 GB at 5 000 | r² 0.98–0.99 |
+| **The pathological client is bounded by the send path, not the windows.** A client that asks 25 MB and stops reading costs **180 KB/connection on `chunked` + shared** — the withheld bytes queue on the *client* (2.20 MB), not the server. On `copy`/`split` + per-frame the same client costs **6.8 MB, 68 % of the 10 MB `send_window`** | campaign 48 rows / 0 VOID / r² ≥ 0.979, E0-gated; send-path probe 48 rows / 0 VOID / r² ≥ 0.974, anon and total RSS agree within 1 %. T2 loopback, N ≤ 16 |
+| **`chunked` is a memory-containment property, not only a CPU one** — 6.5× cheaper than `copy` in shared, **18.6×** in per-frame, because the queue holds refcounted slices of one mapping instead of a private copy per connection. `main` has the copy path only | same probe |
 | **Initial congestion window is not a lever** (≤ 7 %) | two independent measurements |
 | **Loss-regime classifier works**, validated against constructed ground truth both directions | queue-drop witness agreed with each cell |
 
@@ -162,9 +185,21 @@ budgets.
 ### 4.5 · Cheap and unattended
 
 - **More repeats on X1** (n = 10). Variance is what stopped it separating. Pure machine time.
-- **The pathological client** — asks then stops reading. The case flow-control ceilings
-  exist for; the harness always reads, so it cannot produce it. Needs a `--stall-after-ms`
-  flag.
+- ~~**The pathological client**~~ — **done 2026-09-07.** `window-harness --mode stall`,
+  gated by `e0_stall_validate.sh`, measured in
+  [`measurements/mem/stall-client.md`](measurements/mem/stall-client.md). The answer is that
+  the ceiling is *not* approached: 180 KB per stalled connection against a 10 MB
+  `send_window`, and the withheld bytes queue on the client instead. `transport-conclusions.md`
+  §3.1 carries it. The recommendation is now **conditional on the send path**: hygiene on
+  `chunked` + shared, worth it for the original reason on `copy`/`split` + per-frame, where
+  the same client costs 6.8 MB — 68 % of the ceiling.
+  **What it opens:** the stalled client here uses stack-default windows. A client that
+  *widens* its own receive window first is a different threat model, and on this rig it does
+  not survive to be measured — the client's own quinn kills the connection with
+  `FLOW_CONTROL_ERROR "too many gaps in stream buffer"` before the server's `send_window`
+  can bind. `lab/scripts/stall_wide_window_probe.sh` sweeps it. Whether that holds on a
+  high-BDP path, where the in-flight window rather than the peer's credit bounds the server,
+  is unmeasured.
 
 ---
 
@@ -240,6 +275,11 @@ admission rule passed; Phase C retuned the admission rule until the workload pas
 | `lab/scripts/r6_analyse.py` | applies the pre-registered decision rules |
 | `lab/scripts/mem_per_connection.sh` | memory per viewer; takes `READ_BPS=` for the stress case |
 | `lab/scripts/classify_loss_regime.py` | offline regime classification |
+| `lab/scripts/e0_stall_validate.sh` | proves `--mode stall` really stops reading; gates the campaign below |
+| `lab/scripts/stall_client_campaign.sh` | the pathological-client campaign; samples **both** ends |
+| `lab/scripts/stall_analyse.py` | per-connection slopes, server and client |
+| `lab/scripts/stall_send_path_probe.sh` | rules out the chunked-send-path/`RssAnon` confound |
+| `lab/scripts/stall_wide_window_probe.sh` | the hostile variant: client widens its own window first |
 
 ---
 
