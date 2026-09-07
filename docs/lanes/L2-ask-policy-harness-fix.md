@@ -8,7 +8,10 @@
 > targeted — `window_frames()` walking a ring across the study boundary — accounts for the entire
 > v2 arm ranking. Work that review's 9-item list before the next campaign.
 
-**Status: Phases 1–6 + smoke + v2 grid ran on PR #9; the grid's conclusions are withdrawn.**
+**Status 2026-09-07: the review's nine items are implemented — scored in
+[`l2-ask-policy-design-2026-09-06.md`](../l2-ask-policy-design-2026-09-06.md) §6; next steps in
+[`L2-ask-policy-continuation.md`](L2-ask-policy-continuation.md). Earlier status kept below.**
+Phases 1–6 + smoke + v2 grid ran on PR #9; the grid's conclusions are withdrawn.
 Remaining gaps (path-RTT probe, loss axis) are tracked in
 [`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md). · Depends on
 [`l2_ask_policy_METHODOLOGY_REVIEW.md`](../measurements/r2/l2_ask_policy_METHODOLOGY_REVIEW.md)

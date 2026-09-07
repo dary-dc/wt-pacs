@@ -1,7 +1,9 @@
 # Lane L2 — ask policy: unbounded vs fixed vs dynamic
 
-**Status: harness v2 evidence landed — cite
-[`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md) only.**  
+**Status 2026-09-07: answered on T2-local evidence in
+[`l2-ask-policy-design-2026-09-06.md`](../l2-ask-policy-design-2026-09-06.md); the loss axis and
+the browser client are sequenced in [`L2-ask-policy-continuation.md`](L2-ask-policy-continuation.md).
+Cite [`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md) for the rig rows only.**  
 v1 rows remain withdrawn
 ([`l2_ask_policy_METHODOLOGY_REVIEW.md`](../measurements/r2/l2_ask_policy_METHODOLOGY_REVIEW.md)).  
 Next: fix path-RTT probe, then loss-axis expansion (plan in the evidence doc). · Harness only ·
