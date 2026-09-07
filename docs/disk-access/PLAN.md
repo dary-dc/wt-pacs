@@ -8,9 +8,9 @@ Written for an implementer picking this up cold.
 
 **The investigation is closed.** The arm is chosen, the evidence is validated, the one product
 defect it turned up is fixed, and the question that kept it open — whether plain `uring` beats
-`hybrid_lazyring` once reads miss — is now answered rather than deferred. Four steps below,
-none of them research. One real gap remains, at the end, and it is about reader scale rather
-than arm choice.
+`hybrid_lazyring` once reads miss — is now answered: **it depends on a session's in-flight
+depth, not on the miss rate.** Four steps below, none of them research. Two things at the end
+need a decision rather than a measurement: how the tile path fans out, and reader scale.
 
 ---
 
@@ -18,9 +18,10 @@ than arm choice.
 
 1. **`hybrid_lazyring` is the right arm.** Tied for cheapest in all three regimes; the only
    arm cheaper on misses (`uring`) is established **+131 to +142% worse on hits**.
-2. **The `uring` miss advantage is a queue-depth artefact.** −1.2/−1.9% at depth 1, −25 to
-   −43% only at depths 4–32. This server runs depth 1, where `uring` costs **+133 to +386% on
-   hits** and breakeven sits at a **65–84%** miss rate. Answered, not deferred — see the end.
+2. **The `uring` miss advantage is a queue-depth effect.** −1.2/−1.9% at depth 1, −30 to −43%
+   at depths 4–16. Today's loop is depth 1, where `uring` costs **+133 to +386% on hits** and
+   breakeven sits at a **65–84%** miss rate. **A tile viewport will not be depth 1** — see the
+   end, where the fan-out shape decides it.
 3. **Frame size moves the ring's margin a lot**, and past 64 KiB it stops clearing the bar.
 4. **The shipped read path was not the `pool` arm** until 2026-09-07. It is now.
 5. **Still open: reader scale.** Both lazyring datasets are `readers=1`, and the target is
@@ -215,23 +216,40 @@ completion before the next ask. Restricted to depth-1 cells:
 **Breakeven moves from a 21.6% miss rate to 65–84%**, and past it `uring` wins by 4–6%. A
 99%-miss tile workload would buy 4–6% of read CPU and pay 133–386% on whatever hits remain.
 
-### So: do not build the `probe_inline` branch yet
+### The branch is not needed for today's loop — and the tile path is expected to need it
 
-The branch's whole value is skipping the probe, and at depth 1 the probe is free. Building it
-now would add a routing decision, a layout dependency and a config surface to buy 4–6% of one
-regime — and only in the corner where the workload is almost all misses.
+The branch's whole value is skipping the probe, and **at depth 1 the probe is free**. Today's
+session loop is depth 1 by construction (`docs/adr-reject-server-ordering.md`: one frame to
+completion before the next ask), so for sequential serving — the US case, whether client-driven
+or pushed start-to-end — `hybrid_lazyring` is the answer and nothing else is needed.
 
-**The trigger is not a miss rate or a layout. It is a queue depth.**
+**The tile path is a different loop.** A viewport at zoom covers many tiles; serving them
+concurrently within a session puts that path at depth 4–16, where the probe costs **30–43%**
+([`RERUN-miss.md`](RERUN-miss.md) M10). That is not hypothetical — it is what a tile viewport
+does.
+
+**But the fan-out shape decides it, and that is a choice you make first:**
+
+| Fan-out | Axis | Probe cost on misses | Arm |
+| --- | --- | ---: | --- |
+| One task holding *N* slots, submitted together | `depth` | **−30 to −43%** | wants the branch |
+| *N* independent tasks, one read each | `readers` | −2 to −10%, ties | `hybrid_lazyring`, unchanged |
+
+So the decision to make before building tiles is **not** which read arm to use — it is whether
+the tile fan-out batches into one submission or spreads across tasks. Batching is what makes
+the probe a serial prologue. Spreading keeps it a syscall.
+
+**If you batch, build the branch:** one `probe_inline: bool` on `ReadCtx`, default `true`, set
+from the serving mode — not from a runtime guess and not from a human toggle. It is one field
+and one branch; `uring` and `hybrid_lazyring` share the ring, the buffers and the completion
+path, and differ only in whether the inline read is attempted.
+
+### Remaining triggers
 
 | Trigger | Why it changes the answer |
 | --- | --- |
-| **The server starts serving the client's ask window concurrently** (depth > 1) | The probe stops being one syscall and becomes a serial prologue in front of a batch — worth 25–43%. This is the live one, and it is already flagged in [`adr.md`](adr.md) §Revisit |
 | The read path shows up as a real share of server CPU in a profile | Today it is ~a fifth of a frame's cost; 4–6% of one regime of that is not where the cycles are |
 | Storage gets much faster than ~1.25 GB/s | Scheduling rather than the device becomes the limit ([`RERUN-miss.md`](RERUN-miss.md) M3) |
-
-If depth ever goes above 1, the branch is the right shape and this section is the brief for it:
-one `probe_inline` bool on `ReadCtx`, default `true`, set from a layout kind the packer stamped
-— never from a runtime guess.
 
 ### What is still genuinely open: reader scale
 

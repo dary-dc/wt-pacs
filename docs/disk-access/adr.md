@@ -59,12 +59,16 @@
 > prerequisite for a lazy ring to be worth what it measures — on 250 KB frames the ring would
 > otherwise be making two *unnecessary* round trips cheaper.
 >
-> **And the `uring`-vs-`hybrid_lazyring` gap is a queue-depth artefact.** Split by depth it is
-> **−1.2/−1.9% at depth 1** and −25 to −43% only at depths 4–32, on one of two hosts. This
-> server runs depth 1 (`adr-reject-server-ordering.md`), where `uring`'s hit penalty is
-> **+386%/+133%** and its miss advantage **4–6%** — breakeven at a **65–84%** miss rate rather
-> than the 21.6% the pooled numbers imply. Plain `uring` is not a candidate for this product at
-> this depth, whatever the layout does. [`RERUN-miss.md`](RERUN-miss.md) M10.
+> **And the `uring`-vs-`hybrid_lazyring` gap is a queue-depth effect, not a miss-rate one.**
+> Split by depth it is **−1.2/−1.9% at depth 1** and −30 to −43% at depths 4–16, with `uring`
+> vs eager `hybrid` splitting identically and `hybrid_lazyring` vs `hybrid` a tie throughout —
+> so it is the inline probe that depth acts on. Today's loop is depth 1
+> (`adr-reject-server-ordering.md`), where `uring`'s hit penalty is **+386%/+133%** and its miss
+> advantage **4–6%**: breakeven at a **65–84%** miss rate rather than the 21.6% the pooled
+> numbers imply. **A tile viewport served concurrently would not be depth 1**, and there the
+> probe is worth skipping — which makes the fan-out shape (one batched submission vs *N*
+> independent tasks) a decision to take deliberately. [`RERUN-miss.md`](RERUN-miss.md) M10,
+> [`PLAN.md`](PLAN.md).
 
 ## Context
 
