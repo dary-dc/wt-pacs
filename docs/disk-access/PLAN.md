@@ -14,7 +14,8 @@ checking, the third is the only one that can still change the answer.
 1. **`hybrid_lazyring` is the right arm.** Tied for cheapest in all three regimes; the only
    arm cheaper on misses (`uring`) is established **+131 to +142% worse on hits**.
 2. **The miss-regime tie is a near miss**, not a coin flip: `uring` is **−24.0%** against a
-   28.5% bar, with **73 of 84 cells** agreeing on the sign.
+   28.5% bar, with **73 of 84 cells** agreeing on the sign — and on *expected CPU* it is the
+   cheaper arm above a **22–34% miss rate**, which the rule never asked about.
 3. **That comparison has only ever been run at one frame size, one reader count, one phase**
    — `A_stride`, 16 KB, 1 reader.
 4. **Frame size moves the ring's margin a lot**, and past 64 KiB it stops clearing the bar.
@@ -166,7 +167,8 @@ the axes, not necessarily the syntax.
 | `uring` vs `hybrid_lazyring` stays a tie at every size and reader count | Ship `hybrid_lazyring`. The question is closed and the extrapolation was safe |
 | It becomes RESOLVED in a corner the deployment does not occupy | Ship `hybrid_lazyring`, record the corner in [`EVIDENCE.md`](EVIDENCE.md) |
 | It becomes RESOLVED where the deployment *does* live, **and** the hit penalty is still RESOLVED there | Still `hybrid_lazyring` — a static flag cannot know a session's miss rate, which is the argument in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Why no performance toggle |
-| It becomes RESOLVED there **and** the hit penalty collapses to a tie | **Reopen the arm choice.** This is the only branch where plain `uring` wins, and it is what the original concern was about |
+| It becomes RESOLVED there **and** the hit penalty collapses to a tie | **Reopen the arm choice.** This is the only branch where plain `uring` wins outright, and it is what the original concern was about |
+| `hybrid_adaptive` reaches `uring` on misses and `hybrid_lazyring` on hits | **Ship that instead.** It dominates both and needs no miss-rate assumption |
 
 Two things not to skip:
 
@@ -174,6 +176,50 @@ Two things not to skip:
   order-controlled has reversed at least once ([`RERUN.md`](RERUN.md) §Limitations).
 - **Report `hop_events` per ask, not just CPU.** If it is not ~1.00 for the whole-frame arms
   the cell is not miss-dominated and the comparison is void.
+
+### The number that reframes the tie: breakeven ~22–34% misses
+
+"Tie" answers *is this difference established?* It does not answer *is it worth acting on?*
+Those come apart here, and the second question has never been asked. From the same pooled
+medians:
+
+* `uring` costs **+2 799 ns per hit** against `hybrid_lazyring` (4 942 vs 2 144)
+* `uring` saves **−10 136 ns per miss** (14 051 vs 24 188)
+
+Expected CPU per read therefore favours `uring` **above a 21.6% miss rate** on pooled
+medians, or **33.7%** using the paired deltas (+136% hit / −24% miss) — call it a quarter to
+a third. [`../disk-layout/ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md) says a
+strided layout under pressure steps to **99% miss**. So there is a real region of the
+workload space where plain `uring` is the cheaper arm, and the campaign never priced it
+because the rule it applied tests resolution, not expected cost.
+
+**This does not mean ship `uring`.** A static arm cannot know a session's miss rate, and the
+hit penalty is RESOLVED — the argument in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Why no
+performance toggle stands. It means the *third* option is worth a measurement:
+
+### The arm nobody has built: skip the probe when the session is clearly missing
+
+On a miss, `hybrid_lazyring` pays the inline `RWF_NOWAIT` **and then** the ring read.
+`uring` pays only the ring read. That difference is the entire miss-regime gap — **10 136 ns
+on this host**, which is far more than a failed syscall should cost and is itself worth
+understanding before acting (`RWF_NOWAIT` can return a *partial* read, so the probe may be
+doing real copy work before giving up; confirm with `strace -c` or a counter before assuming
+it is waste).
+
+If most of it is avoidable, an adaptive probe gets `uring`'s miss cost **and**
+`hybrid_lazyring`'s hit cost:
+
+> after *k* consecutive misses, stop probing and go straight to the ring; re-probe every
+> *N*th read so a session that warms up is noticed.
+
+The catch is exactly that re-probe: skipping the probe means not learning whether the read
+would have hit, so the arm cannot detect its own regime change for free. Price `k` and `N`
+against the 2 799 ns hit penalty before building it.
+
+Add it to `read_campaign` as `hybrid_adaptive` and run it in the step 3 sweep. If it lands
+at `uring`'s miss cost and `hybrid_lazyring`'s hit cost, it dominates both and the arm
+question is closed for good. If the probe turns out to be mostly unavoidable partial-copy
+work, that is equally worth knowing — it explains the gap and closes the idea.
 
 **Second gap, cheaper to close:** `hybrid_lazyring` exists on two hosts (`v27` 8-CPU, `v28`
 btrfs laptop). `uring`'s hit penalty is +131–142% on one and +17–21% on the other. Nobody has
