@@ -1,5 +1,13 @@
 # X3L on the Oracle rig — run card
 
+> **Executed 2026-09-07. It separated — per-frame 5.76× worse.** Results, gates and the
+> deviations from this card: [`x3l-results.md`](x3l-results.md). Two things this card got
+> wrong, both corrected there: the step-scale is **32**, not ~16 (the "one step-scale easier"
+> rule was measured with GSO *on*, and turning GSO off halves the achievable rate), and the
+> §2 calibration command needs `--segmentation-offload false` too, or the operating point is
+> frozen in a condition the campaign never uses. The card is kept as written so the
+> corrections are legible against it.
+
 **One campaign, one sitting.** This is not a rig guide — `../../ORACLE-RIG-AGENT-GUIDE.md`
 is, and `oracle-runbook.md` covers the R6 campaign generally. This card covers only the run
 that is still missing, and exists because that run has three ways to fail silently that the
