@@ -219,18 +219,23 @@ it is worth more than everything this ADR decided.
 
 ## Product path
 
-`send_one_frame` → `write_frame` → `stream_codestream` in `server/src/transport/server.rs`.
-`FrameStore` exposes `read_at_nowait`, `read_at_blocking`, `read_window` and
-`nowait_supported`; the mmap pre-touch, `mincore` and WILLNEED arms live in
-`lab/disk-access-bench` because they are the comparison, not the product.
+`FramePipeline::locate` returns a `FrameSpan` (offset and length, no I/O);
+`FramePipeline::send` → `FrameOut::send_frame` → `stream_codestream` reads and writes it a
+window at a time. The read itself is `ReadCtx::fill` in `server/src/media/read_path.rs`, and
+the ring it escalates to is `server/src/media/uring_reader.rs`. `FrameStore` exposes
+`frame_span`, `read_at_nowait`, `read_at_blocking`, `read_window`, `nowait_supported` and
+`file`; the mmap pre-touch, `mincore` and WILLNEED arms live in `lab/disk-access-bench`
+because they are the comparison, not the product.
 
 The `wrap()` envelope allocation is gone with it: the header is 8 bytes on the stack and the
 codestream streams behind it. That is the copy reduction the previous ADR deferred to a
 "next version", delivered here.
 
-`stream_codestream` is generic over its sink, so `streaming_reassembles_every_frame_whatever_the_read_path`
-drives the real loop against an evicted `FrameStore` — for frame lengths on both sides of the
-window boundary — instead of only re-checking the byte layout.
+`locate` returns a span rather than a `&[u8]` because there is no whole-frame slice to
+borrow any more. That also made `ProductPipeline::prepare` — a `spawn_blocking` hop that
+pre-faulted the frame's pages — dead, and it is gone; `prepare` survives as a trait default
+no-op so the telemetry chain still measures the stage, and a trace showing it at ~0 is the
+evidence the hop went away.
 
 ## Follow-ups
 

@@ -13,8 +13,11 @@ name = "exact-server"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["uring"]
 telemetry = []
+# io_uring for the miss path (`hybrid_lazyring`). Optional so a build without it still
+# compiles, to the pre-change `pool` path -- see docs/disk-access/IMPLEMENTATION.md.
+uring = ["dep:io-uring"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -25,6 +28,7 @@ frame-envelope = { path = "../common/frame-envelope" }
 study-bundle = { path = "../ingest/study-bundle" }
 memmap2 = "0.9"
 libc = "0.2"
+io-uring = { version = "0.7", optional = true }
 rcgen = "0.13"
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12", "ring"] }
 rustls-pemfile = "2"

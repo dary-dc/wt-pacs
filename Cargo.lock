@@ -426,6 +426,7 @@ dependencies = [
  "clap",
  "fod",
  "frame-envelope",
+ "io-uring",
  "libc",
  "memmap2",
  "rcgen 0.13.2",

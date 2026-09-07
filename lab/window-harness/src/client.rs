@@ -7,6 +7,7 @@ use frame_envelope::unwrap;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
+use wtransport::config::IpBindConfig;
 use wtransport::{ClientConfig, Connection, Endpoint};
 
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -92,13 +93,29 @@ pub async fn run_harness(
         .install_default()
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
-    let client_cfg = ClientConfig::builder()
-        .with_bind_default()
-        .with_no_cert_validation()
-        .keep_alive_interval(Some(Duration::from_secs(3)))
-        .build();
-
-    let endpoint = Endpoint::client(client_cfg).context("wtransport client")?;
+    // Dual-stack any is the default, and a host without an IPv6 stack refuses that socket
+    // outright (`Address family not supported`) — so fall back to IPv4 any rather than not
+    // running at all. The server does the same thing for the same reason; a harness that
+    // cannot start on an IPv4-only host cannot verify one either.
+    let endpoint = {
+        let dual = ClientConfig::builder()
+            .with_bind_default()
+            .with_no_cert_validation()
+            .keep_alive_interval(Some(Duration::from_secs(3)))
+            .build();
+        match Endpoint::client(dual) {
+            Ok(ep) => ep,
+            Err(err) => {
+                eprintln!("dual-stack client bind refused ({err}); falling back to IPv4");
+                let v4 = ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_no_cert_validation()
+                    .keep_alive_interval(Some(Duration::from_secs(3)))
+                    .build();
+                Endpoint::client(v4).context("wtransport client (IPv4)")?
+            }
+        }
+    };
     let connection = endpoint
         .connect(cfg.wt_url.clone())
         .await
