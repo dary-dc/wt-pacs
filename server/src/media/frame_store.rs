@@ -83,6 +83,13 @@ impl FrameStore {
         self.nowait
     }
 
+    /// The study descriptor, for a reader that wants to register it with the kernel. The
+    /// same fd `read_at_nowait` and `read_at_blocking` use, so there is one open file per
+    /// study however many sessions are reading it.
+    pub fn file(&self) -> &File {
+        &self.file
+    }
+
     /// Cap what one `read_at_nowait` returns, producing a partial hit with real bytes in
     /// the front of the buffer and a genuine shortfall behind it.
     #[cfg(test)]

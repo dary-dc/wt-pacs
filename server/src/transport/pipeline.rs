@@ -9,6 +9,7 @@
 //! See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
+use crate::media::read_path::{ReadCtx, ReadMode};
 use crate::transport::frame_out::FrameOut;
 use crate::transport::wire::write_fod_msg;
 use anyhow::{Error, Result};
@@ -85,9 +86,9 @@ pub(crate) trait FramePipeline: Send {
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
     out: FrameOut,
-    /// One reusable read window for the whole session — not a buffer per frame, and not a
-    /// whole-frame envelope. `FrameStore::read_window` sizes it on first use.
-    window: Vec<u8>,
+    /// The session's read state: one reusable window, plus the ring if this session has
+    /// ever missed. See `crate::media::read_path`.
+    read: ReadCtx,
 }
 
 impl ProductPipeline {
@@ -95,7 +96,7 @@ impl ProductPipeline {
         Self {
             store,
             out,
-            window: Vec::new(),
+            read: ReadCtx::new(ReadMode::from_env()),
         }
     }
 }
@@ -113,7 +114,7 @@ impl FramePipeline for ProductPipeline {
 
     async fn send(&mut self, frame: u32, store: &Arc<FrameStore>, span: FrameSpan) -> Result<()> {
         self.out
-            .send_frame(frame, store, span, &mut self.window)
+            .send_frame(frame, store, span, &mut self.read)
             .await
     }
 

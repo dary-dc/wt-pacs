@@ -30,6 +30,12 @@ read has actually missed.
 the pre-change path. It is an operational escape from a ring misbehaving in production, and it
 costs nothing to keep because `pool` is the code that ships today.
 
+`WTPACS_READ_PATH=uring` is a third value and is **not a production mode**: it skips the
+inline probe entirely and reads every frame through the ring, which is the `uring` arm at
++131 to +142% CPU on hits. It exists so a tile-based layout can be experimented with against
+a genuinely miss-optimised path. An unrecognised value warns and falls back to `auto` —
+a kill switch that silently does nothing because of a typo is worse than no kill switch.
+
 ## The trap: never route a hit through the ring
 
 On a filesystem without `RWF_NOWAIT` — overlayfs, tmpfs, i.e. **any container that serves
@@ -53,18 +59,24 @@ The third row is not a degradation to accept quietly: it is ~2.5× worse per fra
 
 ## The change
 
-Per-session state today is one `Vec<u8>` window created in `handle_incoming` and threaded
-down to `stream_codestream`. It becomes a small struct so the ring can live beside it with the
-same lifetime:
+Per-session state today is one `Vec<u8>` window owned by `ProductPipeline` and threaded down
+to `stream_codestream`. It becomes a small struct so the ring can live beside it with the same
+lifetime:
 
 ```rust
 /// Per-session read state. One window buffer, and a ring that exists only after this
 /// session has actually missed.
 pub struct ReadCtx {
+    mode: ReadMode,
+    ring: Ring,       // Untried until the first shortfall; never Ready without RWF_NOWAIT
     window: Vec<u8>,
-    ring: Option<UringReader>,   // None until the first shortfall; None forever without RWF_NOWAIT
 }
 ```
+
+`Ring` is a three-state enum rather than an `Option`, because a kernel that refuses io_uring
+(an old one, a seccomp filter, `kernel.io_uring_disabled`) must not be retried on every
+subsequent miss — and must not fail the ask either. It records `Unavailable` and the pooled
+path serves.
 
 `stream_codestream`'s loop is unchanged except for the shortfall branch:
 
@@ -87,16 +99,46 @@ in flight when the ring does not yet exist, because every earlier ask was a hit.
 * **`server/` links io-uring for the first time.** Today it is a dependency of the lab crate
   only. Gate it behind a feature so a build without it still compiles to the `pool` path.
 
+## Two things that came out different, and why
+
+**Buffers are not registered.** The measured arm registered both the file and its buffers and
+used `ReadFixed`; the product registers the *file* and reads into the session's own window
+with `Read`. Registering buffers pins pages, and at thousands of concurrent sessions that is
+thousands of unreclaimable frame-sized allocations against `RLIMIT_MEMLOCK`. The difference
+lives in the submission path (sub-microsecond) and not the device path (~105 µs for a 64 KiB
+random read on the validation host), so it cannot move a miss-path result — but that is
+reasoning, not a measurement. **Confirm it when the bench next runs the product path as an
+arm.**
+
+**Cancellation needed handling the campaign never had to think about.** The kernel writes
+into the caller's buffer between submit and completion, so dropping the future in between
+hands the kernel freed memory. Session tasks are `tokio::spawn`ed and are dropped at their
+await point on runtime shutdown, so this is reachable. `UringReader::drain_in_flight` waits
+for the outstanding read, called both from its own `Drop` and from `ReadCtx::drop` — the
+latter because a struct's `Drop::drop` runs before any field is dropped, which makes the
+guarantee independent of field declaration order instead of one careless reorder away from
+memory corruption.
+
 ## Test plan
 
 Unit, alongside the existing `frame_store` tests:
 
 | Test | Asserts |
 | --- | --- |
-| `lazy_ring_is_not_built_when_every_read_hits` | `ctx.ring.is_none()` after a warm frame — the arm's whole point |
-| `lazy_ring_is_never_built_without_nowait` | with `nowait = false`, `ring` stays `None` and the pooled path serves — the container trap |
+| `lazy_ring_is_not_built_when_every_read_hits` | no ring after a warm frame — the arm's whole point |
+| `lazy_ring_is_never_built_without_nowait` | with `nowait = false`, no ring is built and the pooled path serves — the container trap |
 | `nowait_and_ring_compose_into_the_whole_frame` | prefix from the inline read + remainder from the ring equals the frame, mirroring the existing `spawn_blocking` composition test |
+| `a_frame_that_misses_costs_one_round_trip_not_one_per_window` | the escalation reads the rest of the *frame* — the ADR's claim as an assertion rather than a comment |
+| `the_uring_lever_serves_whole_frames_through_the_ring` | the lab lever really is the `uring` arm, so a layout experiment measures that and not a broken path |
+| `dropping_a_reader_mid_read_waits_for_the_kernel` | `Drop` reaps the outstanding read. The wait is counted, because a read served from the page cache lands before a missing wait could otherwise be observed |
 | `streamed_bytes_match_the_envelope_they_replaced` | unchanged, still passes |
+
+**Misses are forced through two test-only `FrameStore` levers** (`force_pool_reads`,
+`force_short_reads`) and not by evicting the page cache. Eviction is not a lever a test can
+rely on: `fadvise(DONTNEED)` will not evict a mapped page, and on the host these were written
+on it does not evict even before the mapping exists — which silently left an earlier version
+of the escalation test on the warm path, where it passed against a deliberately broken
+implementation.
 
 Then re-run the campaign with the product path as an arm, which is what `read_campaign`
 already does through `FrameStore`, and confirm the shipped path lands where
