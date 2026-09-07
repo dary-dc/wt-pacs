@@ -1,5 +1,17 @@
 # R6 on the Oracle rig — why it did not run here, and how to run it there
 
+> **It has since been run.** From a laptop with ordinary internet, against this rig.
+> Results: [`r6cloud-results.md`](r6cloud-results.md). Instrument:
+> [`real-path-notes.md`](real-path-notes.md).
+>
+> **The commands in §"Runbook" below are wrong and are kept only as the historical record.**
+> They name `cloud_netem.sh 25 20 0.1`, which does not parse (that script takes a named
+> profile and shapes whatever host runs it), and `e0_r6_reader_validate.sh` /
+> `e0_r6_calibrate.sh` / `r6_campaign.sh`, which are **localhost + `lab/netsim` only** and
+> would have measured the simulator while reporting a real-path result. The working
+> commands are in [`../../ORACLE-RIG-AGENT-GUIDE.md`](../../ORACLE-RIG-AGENT-GUIDE.md) and
+> use the `*_cloud.sh` variants.
+
 The intent was to repeat R6 over a real network path rather than a userspace simulator.
 **It could not run from this agent container.** This document records what was established
 about that, and gives the exact commands to execute the campaign from a host with ordinary

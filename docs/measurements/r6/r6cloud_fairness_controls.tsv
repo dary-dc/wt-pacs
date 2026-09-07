@@ -1,0 +1,12 @@
+# Solo controls for r6cloud_fairness.tsv. A competing-flow split means nothing unless each
+# flow can take the bottleneck when it is unopposed: without these rows, "TCP got 0.03 Mbps"
+# is indistinguishable from "TCP cannot work at a 20-packet queue".
+# Same rig, same shaping, one flow at a time. rate 5 Mbit, +25 ms one-way egress, 0% loss.
+flow	queue_pkts	run	mbps	note
+quic_cubic	500	1	4.66	instrument check emitted by r6_fairness_cloud.sh
+tcp_cubic	20	1	4.52	ssh bulk, netem without the port-22 bypass
+tcp_cubic	20	2	4.47	ssh bulk, netem without the port-22 bypass
+tcp_cubic	20	3	4.52	ssh bulk, netem without the port-22 bypass
+tcp_cubic	500	1	4.49	ssh bulk, netem without the port-22 bypass
+tcp_cubic	500	2	4.11	ssh bulk, netem without the port-22 bypass
+tcp_cubic	500	3	4.17	ssh bulk, netem without the port-22 bypass

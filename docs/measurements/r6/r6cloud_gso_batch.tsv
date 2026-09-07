@@ -1,0 +1,4 @@
+seg_cap	gso	loss_pct	datagrams	bytes	batch_drops	mean_bytes_per_dgram	implied_batch
+10	true	1.0	7067	10532836	21	1490	3.37
+10	false	1.0	3677	5469432	37	1487	0.99
+32	true	1.0	11100	16563351	19	1492	5.84

@@ -20,10 +20,10 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Keep one shared stream** — measured on a rig that *can* produce head-of-line blocking, and won on a mechanism that then survived a falsifiable prediction. Per-frame is **3.5× worse at 64 KB and 8.5× worse at a realistic 250 KB** and never better anywhere. The textbook argument for per-frame is falsified: quinn re-queues a retransmitting stream to the **back** of the queue, so per-frame *defers* loss recovery behind other frames' backlogs (§2) |
+| **Stream shape** | **Keep one shared stream.** In simulation, per-frame is **3.5× worse at 64 KB and 8.5× worse at 250 KB**, on a mechanism that survived a falsifiable prediction. On a **real network** the 64 KB cell is **noise-dominated and does not separate** (§2.6) — the loss realisation moves the reference arm by 4.3×, which is larger than the effect being looked for. Nothing on either rig ever favours per-frame, so the recommendation is unchanged; but the *real-path* evidence for it is currently four ties, and the 250 KB cell — where the predicted effect is far larger than the noise — **has not been run on the rig** (§2) |
 | **Fixed-N pool** | **Still untested** — a server-side change, and this lane may not modify `server/`. R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
-| **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95 |
+| **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95. **Not confirmed on real hardware** — on the rig the path, not the send path, is the ceiling ([`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.2) |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte at every rate |
 | **Flow-control windows** | Set them — for **memory** at thousands of viewers, not for speed |
 
@@ -72,6 +72,35 @@ queue-drop excess is inflicted on *other traffic sharing the link*, which the p9
 does not price and which matters with many viewers on one hospital uplink. quinn ships
 BBRv1, marked experimental, documented to take > 90 % of a shallow buffer from competing
 Cubic flows.
+
+### 1.1 · The neighbour cost is no longer a citation — it is measured
+
+That last sentence was carried from quinn's own documentation and had never been tested
+here. It has now been measured on the Oracle rig: two flows, one shared 5 Mbps bottleneck,
+and the buffer depth varied deliberately, because BBRv1's pathology is specific to shallow
+buffers. Data: [`measurements/r6/r6cloud_fairness.tsv`](measurements/r6/r6cloud_fairness.tsv);
+method and controls: [`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.1.
+
+| bottleneck buffer | our flow | competing TCP Cubic flow | our share |
+| --- | --- | --- | --- |
+| **shallow, ≈48 ms** | **QUIC BBR** | **0.03 Mbps** | **99.4 %** |
+| shallow, ≈48 ms | QUIC Cubic | 1.46 Mbps | 70.0 % |
+| deep, ≈1.2 s | QUIC BBR | 2.12 Mbps | 55.1 % |
+| deep, ≈1.2 s | QUIC Cubic | 1.07 Mbps | 76.8 % |
+
+The same TCP flow takes **4.5 Mbps** when it runs alone against the same shallow bottleneck,
+so the 0.03 Mbps figure is starvation — a **150× reduction** — and not a handicapped
+competitor.
+
+**This strengthens "default to Cubic" and gives it a number.** In a shallow buffer, which is
+what an access link has, BBR does not merely take more than its share: it takes essentially
+all of it. In a deep buffer BBR is the better-behaved of the two. Two further notes, both
+uncomfortable and both kept:
+
+- **Cubic is not innocent.** QUIC-with-Cubic still takes 70–77 % from a TCP flow that can
+  take 90 % alone. Some of the unfairness is ours regardless of controller.
+- **BBR's own 48 % latency win still stands** (§1). The case for Cubic is a case about
+  people who are not our users.
 
 ---
 
@@ -209,6 +238,64 @@ is 1.0× and the arms agree to within 2 % — so the overlap in X1 is genuine va
 insufficient resolution.
 
 So: at low loss the shape does not matter; at high loss it matters and shared wins.
+
+### 2.6 · **Amended by the real-path campaign — the 3.5× does not reproduce**
+
+Everything above §2.6 was measured through `lab/netsim`, a userspace path simulator on one
+host. R6 was subsequently repeated against the Oracle rig over a real internet path shaped
+by `sch_netem`, which is what
+[`measurements/r6/oracle-runbook.md`](measurements/r6/oracle-runbook.md) was written for.
+Full results, gates and adversarial review:
+[`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md).
+
+**Three cells of four agree. The cell carrying the conclusion does not.**
+
+| cell | netsim | real path |
+| --- | --- | --- |
+| N0 (control) | tie −0.1 % | tie +0.8 % — **the gate passes**, the rig adds no artifact |
+| X2 (stranding, no loss) | tie +2 % | tie −2.3 % |
+| X1 (0.1 % loss) | tie | tie −5.1 % |
+| **X3 (1 % loss)** | **shared wins +250 %, separated 3/3** | **not a result**: +266 %, +38 %, **−52 %** across repeats |
+
+In X3 on the real path the **loss realisation moves `shared` alone by 4.32×** (84.7 →
+365.8 ms) while the arm difference flips sign — exactly the regime §2's own "Why X1 is a tie"
+subsection describes, now reaching the 1 % cell as well.
+
+**Why the null is weak evidence against the mechanism — a power argument, not an excuse.**
+
+The effect this cell is looking for is netsim's 3.5×. The realisation noise on the real path
+is **4.32×**. The signal is smaller than the noise, so a null here is close to uninformative
+about the mechanism: this cell could not have detected the simulator's own effect at n = 3
+even if it were exactly right.
+
+That has a constructive consequence. The mechanism predicts — and netsim confirms — that the
+penalty **grows with frame size**: 8.5× at 250 KB against 3.5× at 64 KB. An **8.5× effect is
+comfortably larger than a 4.3× noise floor**, whereas a 3.5× one is not. So the real-path
+test with the power to succeed is **X3L on the rig**, and it has not been run. Until it is,
+"the mechanism is unconfirmed on real hardware" is the accurate statement, and "the mechanism
+is wrong" is not supported by anything here.
+
+**What this changes, and what it does not.**
+
+- The recommendation is unchanged: **keep one shared stream.** No cell, arm or repeat on
+  either rig favours per-frame.
+- Its *real-path* support is currently four ties. "Per-frame is 3.5× worse at 1 % loss" is a
+  **simulator result a real path could not resolve**, and should be quoted as such rather
+  than as a measured property of the transport.
+- **P5 lost again.** `send_fairness(true)` is worse than FIFO in all twelve real-path
+  repeat-level comparisons, on a rig sharing no code with the first. That finding is now
+  replicated and is the strongest thing R6 has.
+- The retransmit-deferral mechanism read out of quinn's source is **not** falsified — it
+  predicts an effect that a noisy 1 % cell at n = 3 cannot resolve. It is unconfirmed on real
+  hardware, not refuted.
+
+**A defect worth carrying forward.** The real-path campaign found that `sch_netem` draws
+loss **once per GSO batch, not per datagram**, and that the batch size differs by arm
+(6.87 datagrams for `shared` against ~4.3 for per-frame). At equal bytes the shared arm
+therefore absorbs ~1.5× fewer congestion events. This biases the comparison **toward** the
+incumbent — and the incumbent still failed to separate, which is why the null stands. Any
+future netem loss experiment comparing stream shapes must run with
+`--segmentation-offload false`.
 There is no cell in which per-frame is better.
 
 ### `send_fairness(false)` is mandatory if per-frame is ever used

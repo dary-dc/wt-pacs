@@ -70,24 +70,54 @@ So the order below is not bureaucracy. Steps 3 and 4 are the campaign.
 ### 1 · Deploy the server
 
 ```bash
-lab/scripts/deploy_exact_server_cloud.sh
+cargo build --release --workspace
+bash lab/scripts/quinn_lab_build.sh 10 32        # target/lab-arms/exact-server-seg{10,32}
 ```
+
+For R6 you do **not** need `deploy_exact_server_cloud.sh`: the `*_cloud.sh` scripts upload
+`target/lab-arms/exact-server-seg10` and the fixture themselves, and restart the server with
+each arm's flags. `deploy_exact_server_cloud.sh` ships `target/release/exact-server` and the
+250 KB *live* fixture, which is a different experiment.
+
+The `frames_500x64k` / `frames_500x250k` fixtures are gitignored — regenerate them before a
+first run (`lab/fixtures/frames_500x250k/README.md` records the generator).
 
 ### 2 · Shape the path with the real kernel, not the simulator
 
 ```bash
-lab/scripts/cloud_netem.sh 25 20 0.1     # one-way delay ms, rate Mbps, loss %
+lab/scripts/cloud_netem_exact.sh 25 20 0.1    # one-way delay ms, rate Mbps, loss %
 ```
+
+**Not `cloud_netem.sh`.** That script takes a named *profile* (`20|30|50|60|90|150|180`)
+with its delay and rate baked in, and it shapes **whatever machine it is run on** — invoked
+locally as `cloud_netem.sh 25 20 0.1` it parses `25` as an unknown profile and exits 1,
+having first deleted your laptop's root qdisc. `cloud_netem_exact.sh` is the
+explicit-parameter version, runs on the rig, and is pushed there for you by the `*_cloud.sh`
+scripts below.
 
 The rig exists *because* `sch_netem` loads on a VM and not in a container. Use it.
 `lab/netsim` is the userspace fallback and it forwards datagram-by-datagram, which destroys
 send-side GSO batching — **no CPU or throughput number may pass through netsim.**
 
+**But netem has a defect of its own, and it bites exactly this campaign.** It draws loss
+**once per GSO batch, not per datagram**, and the batch size depends on the sender — a
+shared stream packs ~6.9 datagrams per batch where per-frame streams pack ~4.3, so at equal
+bytes the shared arm absorbs ~1.5× fewer congestion events. Any loss cell comparing stream
+shapes must therefore also be run with the server started
+`--segmentation-offload false`, which forces batch = 1. Measured and quantified in
+[`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §3.2.
+
 ### 3 · Prove the instrument works on this path
 
 ```bash
-DELAY=25 RATE=20 LOSS=0.1 lab/scripts/e0_r6_reader_validate.sh
+DELAY=25 RATE=20 LOSS=0.1 lab/scripts/e0_r6_reader_validate_cloud.sh
 ```
+
+**Note the `_cloud` suffix, here and below.** `e0_r6_reader_validate.sh`,
+`e0_r6_calibrate.sh` and `r6_campaign.sh` are localhost + `lab/netsim` only: they start
+`exact-server` on `127.0.0.1` and shape with `target/release/netsim`. Running them on this
+machine measures the simulator and reports it as a real-path result. The `*_cloud.sh`
+variants beside them run the server on the rig behind `sch_netem`.
 
 Require: `closed` strands **0** bytes and `open` strands a large non-zero figure. This also
 doubles as the authoritative UDP test — if the harness completes a run, QUIC reached the
@@ -102,7 +132,7 @@ The step-scales baked into `r6_campaign.sh` were fitted to `netsim`'s achievable
 real path has a different one.
 
 ```bash
-DELAY=25 RATE=20 LOSS=0.1 SCALES="1 2 4 8" lab/scripts/e0_r6_calibrate.sh
+DELAY=25 RATE=20 LOSS=0.1 SCALES="1 2 4 8" lab/scripts/e0_r6_calibrate_cloud.sh
 ```
 
 Admissible band, fixed before any arm runs:
@@ -118,13 +148,16 @@ Calibrate on the **incumbent arm only** (`shared`), then **freeze** the scale ac
 arms — tuning it per-arm lets the rig be shaped to fit whichever answer starts looking
 right.
 
-**Then re-check the chosen scale at every seed the campaign will use:**
+**Then re-check the chosen scale under the campaign's own loss realisations:**
 
 ```bash
-for R in 1 2 3; do
-  SEED=$((R*7919+13)) SCALES="<chosen>" lab/scripts/e0_r6_calibrate.sh
-done
+DELAY=25 RATE=20 LOSS=0.1 SCALES="<chosen>" REPS=3 lab/scripts/e0_r6_calibrate_cloud.sh
 ```
+
+`sch_netem` has **no seed** — its loss comes from kernel randomness, so every run is already
+an independent realisation and `SEED=` has no analogue here. The guard survives the
+translation: re-run the chosen scale N times and require the band to hold in *every*
+repetition. Add `CONTROL=1` for N0, whose passing condition is `stranded == 0`.
 
 This step is not optional and is not theoretical: calibrating on one seed passed cleanly,
 then **voided 4 of 9 rows** on the campaign's own seeds. See
@@ -134,8 +167,9 @@ then **voided 4 of 9 rows** on the campaign's own seeds. See
 ### 5 · Run, analyse, review
 
 ```bash
-EXP=r6cloud CELLS="X1 X2 X3 N0" lab/scripts/r6_campaign.sh 3
+EXP=r6cloud CELLS="X1 X2 X3 N0" lab/scripts/r6_campaign_cloud.sh 3
 python3 lab/scripts/r6_analyse.py .local/measurements/r6/r6cloud.tsv
+python3 lab/scripts/r6_adversarial_checks.py .local/measurements/r6/r6cloud.tsv
 ```
 
 Three gates before any conclusion is written:
