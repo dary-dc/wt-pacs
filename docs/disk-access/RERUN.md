@@ -420,6 +420,23 @@ The `95% CI` column is the half-width of the bootstrap interval in
 the median. Half that figure is the standard error, which is *not* what a 95% interval
 means; quote this column, not the SE.
 
+### Check `read_ahead_kb` before believing a cold cell
+
+A cold cell measures what read-ahead leaves it. `RWF_NOWAIT` never populates the page cache
+— it returns `EAGAIN` — but the blocking read an arm escalates to does, and it pulls in a
+whole read-ahead window. At the campaign's usual 250 KB stride on a host reading ahead 8 MB,
+one miss warms the next ~33 asks and a fully evicted file measures **2% misses, not 99%**:
+
+| stride | miss_pct | p50 |
+| ---: | ---: | ---: |
+| 250 000 | **1.8%** | 92 µs |
+| 4 MiB | **99.8%** | 235 µs |
+| 16 MiB | 99.5% | 231 µs |
+
+Both rows are the same arm on the same fully evicted 8 GB fixture. Stride past the window,
+or the cell is a hit cell wearing a cold label. `cat /sys/block/<dev>/queue/read_ahead_kb`
+first — and note it is the *backing device*, not a loop device the study happens to sit on.
+
 ### Interleave the arms, or measure the machine instead
 
 The arms in a comparison must alternate **inside** each round. Running one arm to completion

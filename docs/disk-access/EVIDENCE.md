@@ -46,6 +46,13 @@ hit < 5%, mix 5–50%, miss ≥ 50%.
 | `uring` | every read through the ring | 4 942 | 5 312 | **14 051** |
 | `pooled_pread` | escape hatch — every read on the pool | 36 798 | 38 014 | 68 770 |
 
+**The shipped path has since been measured as an arm of its own** — `product` drives
+`server`'s `ReadCtx` rather than modelling it ([`v30_product.tsv`](v30_product.tsv), a
+different host and a different cell design, so read it against `hybrid_lazyring` in its own
+run and not against the column above). It ties the chosen arm and beats the path it replaced:
+−0.5% on hits, **+0.7% on 16 KiB misses**, **−45.4% RESOLVED against `pool`** there. See
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Validated.
+
 > **Read the column, then read the pair.** These are pooled medians per arm, and the rule
 > above is defined on **paired** per-cell deltas. The two disagree by about 2x on the one
 > comparison a reader most wants to make: `uring` against `hybrid_lazyring` on misses is

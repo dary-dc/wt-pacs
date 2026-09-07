@@ -29,6 +29,7 @@ use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::uring_access::UringReader;
 use exact_server::media::frame_store::FrameStore;
+use exact_server::media::read_path::{ReadCtx, ReadMode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -54,6 +55,14 @@ enum Arm {
     /// it keeps the ring-shaped loop's win on hits without the idle ring's cost; a session
     /// that misses pays construction once and is `hybrid` from then on.
     HybridLazyRing,
+    /// **The shipped path itself** — `server`'s `ReadCtx`, driven exactly as
+    /// `stream_codestream` drives it, rather than a lab reimplementation of its shape.
+    ///
+    /// Every other arm models a candidate. This one *is* the product, so its delta against
+    /// `hybrid_lazyring` answers the only question left after the arm was chosen: did the
+    /// thing that shipped land where the arm that won it did. `WTPACS_READ_PATH` selects
+    /// the product's own mode, so `pool` and `uring` are reachable here too.
+    Product,
 }
 
 impl Arm {
@@ -65,6 +74,7 @@ impl Arm {
             "pooled_pread" => Some(Self::PooledPread),
             "pool_ringloop" => Some(Self::PoolRingLoop),
             "hybrid_lazyring" => Some(Self::HybridLazyRing),
+            "product" => Some(Self::Product),
             _ => None,
         }
     }
@@ -76,6 +86,7 @@ impl Arm {
             Self::PooledPread => "pooled_pread",
             Self::PoolRingLoop => "pool_ringloop",
             Self::HybridLazyRing => "hybrid_lazyring",
+            Self::Product => "product",
         }
     }
     fn uses_ring(self) -> bool {
@@ -88,7 +99,7 @@ impl Arm {
 struct Args {
     #[arg(long)]
     study: PathBuf,
-    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring
+    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product
     #[arg(long, default_value = "pool,uring,hybrid")]
     arms: String,
     /// Comma-separated reads in flight per reader.
@@ -390,6 +401,70 @@ async fn reader_pool(
     }
     // Propagate a panicking task instead of counting it as success: a task that died still
     // spent CPU, and swallowing it would divide that CPU by the asks it never recorded.
+    while let Some(joined) = set.join_next().await {
+        joined.context("reader task")?;
+    }
+    Ok(())
+}
+
+/// The product path, driven the way `stream_codestream` drives it.
+///
+/// One `ReadCtx` per reader — the per-session state a real connection holds — and a frame is
+/// streamed in `read_window` pieces until it is done. No lab reimplementation: the loop
+/// below is `stream_codestream`'s, and everything under it is `server` code.
+///
+/// An ask here is a whole frame, as it is on the wire, so latency is per frame rather than
+/// per window. A frame counts as a miss when its first read escalates, which under the
+/// shipping mode happens at most once per frame by design.
+async fn reader_product(
+    store: Arc<FrameStore>,
+    cell: &Cell,
+    plan: Plan,
+    lat: Arc<Mutex<Vec<u64>>>,
+    misses: Arc<AtomicU64>,
+) -> Result<()> {
+    let depth = cell.depth;
+    let asks = plan.len();
+    let next = Arc::new(AtomicU64::new(0));
+    let mut set = tokio::task::JoinSet::new();
+    for _ in 0..depth {
+        let store = Arc::clone(&store);
+        let next = Arc::clone(&next);
+        let lat = Arc::clone(&lat);
+        let misses = Arc::clone(&misses);
+        let plan = Arc::clone(&plan);
+        set.spawn(async move {
+            let mut ctx = ReadCtx::new(ReadMode::from_env(), &store);
+            let mut mine = Vec::new();
+            let mut miss = 0u64;
+            loop {
+                let i = next.fetch_add(1, Ordering::Relaxed) as usize;
+                if i >= asks {
+                    break;
+                }
+                let (off, len) = plan[i];
+                let t = Instant::now();
+                let stride = store.read_window(len);
+                let mut pos = 0u32;
+                let mut first = true;
+                while pos < len {
+                    let remaining = (len - pos) as usize;
+                    let ready = ctx
+                        .read(&store, off + u64::from(pos), stride, remaining)
+                        .await
+                        .expect("product read");
+                    if first && ready.len() > stride.min(remaining) {
+                        miss += 1;
+                    }
+                    first = false;
+                    pos += ready.len() as u32;
+                }
+                mine.push(t.elapsed().as_nanos() as u64);
+            }
+            lat.lock().unwrap().extend(mine);
+            misses.fetch_add(miss, Ordering::Relaxed);
+        });
+    }
     while let Some(joined) = set.join_next().await {
         joined.context("reader task")?;
     }
@@ -703,7 +778,9 @@ fn run_cell(
                 monitors: 0,
             };
             set.spawn(async move {
-                if c.arm.uses_ring() {
+                if c.arm == Arm::Product {
+                    reader_product(store, &c, plan, lat, misses).await
+                } else if c.arm.uses_ring() {
                     reader_ring(store, file, &c, plan, lat, misses).await
                 } else if c.arm == Arm::PoolRingLoop {
                     reader_ringloop(store, file, &c, plan, lat, misses).await

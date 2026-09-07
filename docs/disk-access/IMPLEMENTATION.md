@@ -118,11 +118,12 @@ in flight when the ring does not yet exist, because every earlier ask was a hit.
 **Buffers are not registered.** The measured arm registered both the file and its buffers and
 used `ReadFixed`; the product registers the *file* and reads into the session's own window
 with `Read`. Registering buffers pins pages, and at thousands of concurrent sessions that is
-thousands of unreclaimable frame-sized allocations against `RLIMIT_MEMLOCK`. The difference
-lives in the submission path (sub-microsecond) and not the device path (~105 µs for a 64 KiB
-random read on the validation host), so it cannot move a miss-path result — but that is
-reasoning, not a measurement. **Confirm it when the bench next runs the product path as an
-arm.**
+thousands of unreclaimable frame-sized allocations against `RLIMIT_MEMLOCK`.
+
+**Now measured, and it costs nothing.** `product` against `hybrid_lazyring` on misses at
+16 KiB is **+0.7%, 5 of 10 same sign** — a tie with sign agreement at chance
+([`v30_product.tsv`](v30_product.tsv)). The reasoning that the difference lives in the
+submission path rather than the device path holds.
 
 **Cancellation needed handling the campaign never had to think about.** The kernel writes
 into the caller's buffer between submit and completion, so dropping the future in between
@@ -158,11 +159,36 @@ Then re-run the campaign with the product path as an arm, which is what `read_ca
 already does through `FrameStore`, and confirm the shipped path lands where
 `hybrid_lazyring` did.
 
+## Validated: the shipped path is the arm
+
+`read_campaign --arms product` drives `server`'s own `ReadCtx` the way `stream_codestream`
+drives it, so this is the product measured against the candidates rather than against a model
+of itself ([`v30_product.tsv`](v30_product.tsv),
+`lab/scripts/run_product_validation.sh`). Paired per-cell, the campaign's own rule:
+
+| `product` vs | hit | miss (16 KiB) | miss (250 KB) |
+| --- | ---: | ---: | ---: |
+| `hybrid_lazyring` — the chosen arm | −0.5%, tie | **+0.7%, tie** | +16.6%, tie |
+| `pool` — what shipped before | −0.6%, tie | **−45.4%, RESOLVED** | −6.3%, tie |
+
+The shipped path is indistinguishable from the arm that won, and established cheaper than the
+path it replaced where a miss is a whole 16 KiB read. It also reproduces the structural
+claim: at 8 readers on misses `pool` peaks at **18** OS threads and every ring arm, the
+product included, stays flat at **5**.
+
+The 250 KB miss column is the one to watch. −6.3% against `pool` is what the ADR predicts —
+the ring saves a roughly fixed per-round-trip cost, which is most of a 16 KiB read and under
+8% of a 250 KB one — so the product's real frame size is where this change is worth least.
+The +16.6% against `hybrid_lazyring` there does not clear the threshold and its sign
+agreement is 7 of 10, but it is the largest gap in the table and deserves a rerun with more
+repeats before it is dismissed.
+
 ## Before rollout: the one thing still unmeasured
 
-**Both `hybrid_lazyring` datasets are `readers=1`.** The chosen arm has never been measured
-with more than one concurrent session, and the deployment target is thousands. The
-reader-scale evidence tops out at 128 readers and does not include this arm:
+**The chosen arm was never measured above one concurrent session**, and the deployment target
+is thousands. `v30_product.tsv` extends it to **8 readers** — where the product still ties
+`hybrid_lazyring` and `pool` still grows threads — but 8 is not thousands. The reader-scale
+evidence tops out at 128 readers and does not include this arm:
 
 | readers | `pool` threads | `hybrid` | `uring` |
 | ---: | ---: | ---: | ---: |
