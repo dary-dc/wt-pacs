@@ -104,7 +104,9 @@ impl ReadCtx {
         }
     }
 
-    /// Bytes filled by the last [`fill`](Self::fill).
+    /// The session's read buffer. Only the first `n` bytes are meaningful, where `n` is
+    /// what the last [`fill`](Self::fill) returned — the buffer is sized to the largest
+    /// frame this session has escalated on, not to the frame in hand.
     pub fn window(&self) -> &[u8] {
         &self.window
     }
@@ -125,8 +127,9 @@ impl ReadCtx {
     /// (`docs/disk-access/RERUN-miss.md`). The axis is inside io_uring too — whole-frame
     /// ring reads beat windowed ones by the same mechanism.
     ///
-    /// Returns `stride.min(remaining)` on a hit and `remaining` on a miss, so **the caller
-    /// must advance by the return value, not by what it asked for.**
+    /// Returns `stride.min(remaining)` on a hit and `remaining` on a miss (and always
+    /// `remaining` under [`ReadMode::Uring`], which does not probe), so **the caller must
+    /// advance by the return value, not by what it asked for.**
     pub async fn fill(
         &mut self,
         store: &Arc<FrameStore>,
