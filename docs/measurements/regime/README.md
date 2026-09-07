@@ -11,6 +11,32 @@ used until it reproduces an answer already known.
 
 ---
 
+## What this validation could not have caught, and did not
+
+**The classifier's logic is validated by what follows. Its input path was not.**
+
+Both cells below run **one client**. On 2026-09-07 an adversarial review found that the
+sampler emitted each row as two `write` calls onto one append-mode file, so with more than
+one connection the rows interleaved — `{row A}{row B}` on one line, an empty line after it.
+Reproduced here at realistic concurrency: **at 32 connections only 1 842 of 6 400 rows
+survived intact, 29 %**, and `classify_loss_regime.py` skipped every damaged line in
+silence, so the series merely looked quieter.
+
+A single-client validation cannot exercise a concurrency bug. That is not a criticism of
+the test below — it is the reason this note exists beside it.
+
+**Nothing concluded so far is affected**, because the sampler has never been deployed
+against real multi-client traffic; §4.1 of the handoff still lists that as the outstanding
+work. The defect was found before the data it would have corrupted was ever collected,
+which is the only good time to find it.
+
+Fixed in `server/src/record/path.rs`: one `write` per row, with a `dropped_since_last`
+counter carried in the data the way `FrameRecord` already carries its own, plus a
+concurrency regression test. `classify_loss_regime.py` now counts unreadable lines, reports
+them, and **refuses to classify** a log that lost more than 2 %.
+
+---
+
 ## The test
 
 `netsim` can construct each regime **by construction**, which is what makes this a test

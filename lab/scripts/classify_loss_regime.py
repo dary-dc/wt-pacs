@@ -27,20 +27,67 @@ MIN_LOSS_EVENTS = 10
 
 
 def load(path):
+    """Read the sampler's JSONL, and REPORT what could not be read.
+
+    This used to `continue` past malformed and empty lines in silence. Combined with a
+    sampler that emitted each row as two `write` calls, that made concurrent damage
+    invisible: at 32 connections only 29 % of rows survived intact, and the rest vanished
+    here without a word, leaving a series that merely looked quiet. A classifier whose
+    output selects a congestion controller cannot be allowed to lose most of its input and
+    say nothing.
+
+    Damaged lines are still skipped — there is nothing to recover from half a row — but the
+    counts come back with the data so the caller can refuse to classify a shredded log.
+    """
     by_session = defaultdict(list)
+    stats = {"total": 0, "blank": 0, "malformed": 0, "no_session": 0, "kept": 0,
+             "dropped_by_sampler": 0}
     with open(path) as f:
         for line in f:
+            stats["total"] += 1
             line = line.strip()
             if not line:
+                stats["blank"] += 1
                 continue
             try:
                 r = json.loads(line)
             except json.JSONDecodeError:
+                stats["malformed"] += 1
                 continue
+            if "session_id" not in r or "t_ms" not in r:
+                stats["no_session"] += 1
+                continue
+            # The sampler counts rows it failed to write and carries the total in the next
+            # row it manages to write. Holes the reader cannot see from the file alone.
+            stats["dropped_by_sampler"] += int(r.get("dropped_since_last", 0) or 0)
+            stats["kept"] += 1
             by_session[r["session_id"]].append(r)
     for rows in by_session.values():
         rows.sort(key=lambda r: r["t_ms"])
-    return by_session
+    return by_session, stats
+
+
+def report_load(stats, path):
+    """Print what the log cost to read, and say plainly when it cannot be trusted."""
+    lost = stats["blank"] + stats["malformed"] + stats["no_session"]
+    print(f"log: {path}")
+    print(f"  lines {stats['total']}  kept {stats['kept']}  "
+          f"blank {stats['blank']}  malformed {stats['malformed']}  "
+          f"no-session {stats['no_session']}")
+    if stats["dropped_by_sampler"]:
+        print(f"  !! the sampler reports {stats['dropped_by_sampler']} row(s) it failed to "
+              f"write. The series has holes it cannot show you.")
+    if lost:
+        frac = lost / stats["total"] if stats["total"] else 0.0
+        print(f"  !! {lost} line(s) unreadable ({frac:.1%}).")
+        print("     Interleaved writes look exactly like this: empty lines paired with")
+        print("     lines carrying two concatenated objects. If this log predates the")
+        print("     one-write fix in server/src/record/path.rs, treat the classification")
+        print("     as unsafe and re-collect rather than reading a 29 % sample.")
+        if frac > 0.02:
+            print("     REFUSING to present this as a classification. Re-collect the log.")
+            return False
+    return True
 
 
 def classify(rows):
@@ -104,7 +151,10 @@ def main():
     ap.add_argument("--per-session", action="store_true")
     a = ap.parse_args()
 
-    by_session = load(a.path)
+    by_session, _load_stats = load(a.path)
+
+    if not report_load(_load_stats, a.path):
+        return 2
     if not by_session:
         sys.exit(f"no samples in {a.path}")
 
@@ -157,4 +207,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main() returns 2 when the log is too damaged to classify. Without propagating it, a
+    # refusal would print a warning and still exit 0, which is how a caller ends up acting
+    # on a classification the tool declined to make.
+    sys.exit(main() or 0)

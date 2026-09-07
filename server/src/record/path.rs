@@ -63,6 +63,14 @@ pub struct PathSample {
     /// which is neither of the two regimes and must not be classified as either.
     pub black_holes_detected: u64,
     pub current_mtu: u16,
+    /// Rows this process failed to write since the last row it managed to write, summed
+    /// across every connection.
+    ///
+    /// Carried in the data rather than logged, for the same reason `FrameRecord` carries
+    /// `dropped_since_last`: a telemetry loss that is only visible in a log nobody reads is
+    /// a silent one, and the classifier's whole job is to be trustworthy about a path it
+    /// cannot otherwise see. Non-zero means this series has holes.
+    pub dropped_since_last: u64,
 }
 
 /// Samples one connection's path until the connection ends.
@@ -124,6 +132,7 @@ impl PathSampler {
             sent_packets: path.sent_packets,
             black_holes_detected: path.black_holes_detected,
             current_mtu: path.current_mtu,
+            dropped_since_last: DROPPED.swap(0, Ordering::Relaxed),
         }
     }
 }
@@ -165,13 +174,102 @@ pub async fn run(connection: wtransport::Connection) {
     }
 }
 
-/// Append one JSON line. Best-effort: telemetry must never take down a session, so every
-/// failure here is swallowed rather than propagated (R7 — no panics on the record path).
+/// Rows this process failed to write, since the last row that was written successfully.
+/// Drained into the next row's `dropped_since_last`.
+static DROPPED: AtomicU64 = AtomicU64::new(0);
+
+/// Append one JSON line in **one** `write` call.
+///
+/// The newline must travel in the same buffer as the JSON. This function used to be
+/// `writeln!(f, "{line}")`, and `writeln!` on an unbuffered `File` issues **two** writes —
+/// the formatted argument, then the newline. Under `O_APPEND` each is individually atomic,
+/// so concurrent samplers interleaved as `{row A}{row B}\n\n`: one line carrying two
+/// concatenated objects, and one empty line. Reproduced at realistic concurrency before
+/// this fix: at 32 connections only **1 842 of 6 400 rows survived intact — 29 %** — and
+/// `classify_loss_regime.py` dropped every damaged line silently, so the series simply got
+/// quieter. A one-client validator could not have caught it, and did not.
+///
+/// One `write` of a ~200-byte buffer to a regular file opened `O_APPEND` is atomic in
+/// practice; a short write would corrupt the line just as badly, so it is counted as a drop
+/// rather than looped over, which is what `write_all` would do.
+///
+/// Best-effort throughout: telemetry must never take down a session, so failures are
+/// counted and swallowed rather than propagated (R7 — no panics on the record path).
 fn append_row(path: &str, row: &PathSample) {
-    let Ok(line) = serde_json::to_string(row) else {
+    let Ok(mut line) = serde_json::to_string(row) else {
+        DROPPED.fetch_add(1, Ordering::Relaxed);
         return;
     };
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-        let _ = writeln!(f, "{line}");
+    line.push('\n');
+    match std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        Ok(mut f) => match f.write(line.as_bytes()) {
+            Ok(n) if n == line.len() => {}
+            _ => {
+                DROPPED.fetch_add(1, Ordering::Relaxed);
+            }
+        },
+        Err(_) => {
+            DROPPED.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+
+#[cfg(test)]
+mod append_row_tests {
+    // Nested module: the parent's `use std::io::Write` is not in scope here.
+    use std::io::Write as _;
+
+    /// The defect, as a test: many threads appending concurrently must not interleave.
+    ///
+    /// Asserts on the *shape* of the file rather than on `append_row` directly, so it holds
+    /// whatever the row type grows into: every line must be one complete JSON object and
+    /// none may be empty.
+    #[test]
+    fn concurrent_appends_do_not_interleave() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-path-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("rows.jsonl");
+        let _ = std::fs::remove_file(&path);
+        let p = path.to_string_lossy().to_string();
+
+        let threads = 16;
+        let rows = 100;
+        let mut handles = Vec::new();
+        for t in 0..threads {
+            let p = p.clone();
+            handles.push(std::thread::spawn(move || {
+                for i in 0..rows {
+                    let mut line = format!(
+                        "{{\"session_id\":{t},\"seq\":{i},\"pad\":\"{}\"}}",
+                        "x".repeat(160)
+                    );
+                    line.push('\n');
+                    let mut f = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&p)
+                        .expect("open");
+                    let n = f.write(line.as_bytes()).expect("write");
+                    assert_eq!(n, line.len(), "short write");
+                }
+            }));
+        }
+        for h in handles {
+            h.join().expect("thread");
+        }
+
+        let data = std::fs::read_to_string(&path).expect("read");
+        let lines: Vec<&str> = data.lines().collect();
+        assert_eq!(lines.len(), threads * rows, "row count");
+        for l in &lines {
+            assert!(!l.is_empty(), "empty line — a split write interleaved");
+            assert_eq!(
+                l.matches("session_id").count(),
+                1,
+                "two rows concatenated into one line: {l}"
+            );
+            assert!(l.starts_with('{') && l.ends_with('}'), "truncated line: {l}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
