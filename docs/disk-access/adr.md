@@ -195,6 +195,28 @@ Numbers are the product runtime, warm `later_p50` / worst-cell neighbour p99 —
 | Handing quinn owned windows (`write_chunk`) instead of copying into it | **Rejected** | The copy is provably removed, and worth −3.2% (9 of 12 paired rounds) — under the drift threshold. Costs `unsafe { set_len }` and the fixed 64 KiB/session bound |
 | `O_DIRECT` + SPDK / whole-study preload | **Rejected** | Wrong scale or scope. The *bounded* app cache above was in this row until it was measured; it is not any more |
 
+## Levers outside this decision
+
+This ADR moves ~a fifth of a frame's server CPU; the rest is per-datagram QUIC work
+(`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §4).
+The bigger levers therefore live outside it, and they are recorded here so the read-path
+work does not quietly become the whole plan. **Measured** and **not measured** are marked,
+and they are not the same claim.
+
+| Lever | Worth | Blocker / cost | Status |
+| --- | --- | --- | --- |
+| **`max_udp_payload_size` 1472 → 4000 B** | **−35% CPU, +55% throughput** — the largest effect measured anywhere in this investigation, 10× the read path's copy | The **peer** must advertise the same ceiling, and the peer is a browser. Above 4000 B on the validation host, path discovery fails and the connection falls back to a 1200 B floor — *worse* than the default | **Measured, not taken.** Recheck what browsers actually advertise before designing around it |
+| GSO datagram batching | Already worth ~10× fewer `sendmsg` (18 syscalls for 179 datagrams) | — | **Already on** in quinn. This lever is spent |
+| Bounded frame cache | −20.2% CPU / +14.7% throughput at a 0.92 hit rate | Duplicates RAM the page cache already holds, and costs +4.2% where nothing is re-asked. Needs a real ask trace to size | **Lab only** (`--frame-cache-mb`). Not ported; revisit with a wire-driven trace |
+| `write_chunk` owned windows | −3.2%, under the drift bar | `unsafe { set_len }`, and replaces the fixed 64 KiB/session bound with "however many windows are unacked" — the wrong direction at thousands of sessions | **Rejected**, see the table above |
+| Congestion controller (quinn default vs BBR) | unknown | — | **Not measured** |
+| Stream / connection flow-control windows | unknown; plausibly matters for a start-to-end sequential push, where the window and not the disk sets the rate | — | **Not measured** |
+| AEAD choice (AES-GCM vs ChaCha20) | unknown; AES-NI presence decides it | — | **Not measured** |
+
+The three unmeasured rows are named so they are not mistaken for rejected ones. Nothing
+below the first row has been priced, and the first row is the one to price properly first:
+it is worth more than everything this ADR decided.
+
 ## Product path
 
 `send_one_frame` → `write_frame` → `stream_codestream` in `server/src/transport/server.rs`.
