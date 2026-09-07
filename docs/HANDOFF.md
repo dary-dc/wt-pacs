@@ -70,10 +70,10 @@ mechanical.
 
 | finding | strength |
 | ------- | -------- |
-| **Keep one shared stream.** Per-frame is 3.5× worse at 64 KB, **8.5× worse at a realistic 250 KB**, never better anywhere | 3/3 separated, two trace shapes, mechanism source-verified, prediction survived — **all of it in netsim.** On the real rig the 64 KB cell does not separate, and §3 explains why that is an underpowered test rather than a contradiction |
+| **Keep one shared stream** — *but `server/src/main.rs` still defaults to `per-frame`, as `main` does; the conclusion was never landed in code (`transport-conclusions.md` §2.7)*. Per-frame is 3.5× worse at 64 KB, **8.5× worse at a realistic 250 KB**, never better anywhere | 3/3 separated, two trace shapes, mechanism source-verified, prediction survived — **all of it in netsim.** On the real rig the 64 KB cell does not separate, and §3 explains why that is an underpowered test rather than a contradiction |
 | **Mechanism:** `retransmit()` re-queues with `push_pending` — back of the class, *regardless of fairness* (`state.rs:677`). Per-frame therefore **defers** loss recovery behind other frames' backlogs | source + a falsifiable prediction that held |
 | **`send_fairness(false)` is mandatory** if per-frame is ever used | worse in all 12 comparisons, 4 cells |
-| **Controller depends on loss regime.** Congestive → Cubic (BBR +63 %); exogenous → BBR (Cubic +48 %). **Default Cubic** | both directions separated, regimes verified by queue counters |
+| **Controller depends on loss regime.** Congestive → Cubic (BBR +63 %); exogenous → BBR (Cubic +48 %). **Default Cubic** | both directions separated, regimes verified by queue counters. **The congestive 600 ms cell is n = 2 for BBR** — one repeat produced no data — and the +63 % is `nz_p95`; separation is clean on both columns, but re-running that repeat is outstanding (`transport-conclusions.md` §1) |
 | **GSO cap 10 → 32:** +17 % throughput, −21 % CPU/byte. Derive it from **bytes** (`min(platform, 65527/mtu)`), never `max_gso_segments()` — exceeding it disables offload *permanently* (91 % collapse) | externally corroborated |
 | **Memory is not the constraint:** ~110 KB/viewer, ~0.5 GB at 5 000 | r² 0.98–0.99 |
 | **The pathological client is bounded by the send path, not the windows.** A client that asks 25 MB and stops reading costs **180 KB/connection on `chunked` + shared** — the withheld bytes queue on the *client* (2.20 MB), not the server. On `copy`/`split` + per-frame the same client costs **6.8 MB, 68 % of the 10 MB `send_window`** | campaign 48 rows / 0 VOID / r² ≥ 0.979, E0-gated; send-path probe 48 rows / 0 VOID / r² ≥ 0.974, anon and total RSS agree within 1 %. T2 loopback, N ≤ 16 |
@@ -191,6 +191,38 @@ Do it **after** 4.1, because real traces tell you whether it is worth it.
 64 frames and depth 8 were **chosen, not measured**. The cache is probably the single
 largest determinant of every millisecond figure in this project. Needs real device memory
 budgets.
+
+### 4.4a · Fallout from the 2026-09-07 adversarial review
+
+An external review of this branch traced ~40 quantitative claims to the committed TSVs
+through the committed analysers; all but a handful reproduce. What it found instead was
+paperwork, and the items below are what survived independent re-verification here.
+
+**Already fixed on this branch:**
+
+- `l4_analyse.py` kept VOID rows inside its comparison groups, never printed `n`, and scored
+  a different column from the one the documents quote. All three fixed; it now excludes and
+  lists void rows, prints `n` per arm, reports both columns, and implements stop condition 4
+  as a **declared** two-sided check (`--congestive`), because applying it literally would
+  void the entire congestive campaign, where queue drops at 0 % injected loss *are* the
+  regime.
+- `r6_cell_inputs.sh` was one-directional and let an ordinary cell ride a special
+  fixture/trace. Now bidirectional.
+- The congestive n = 2, the `n = 3` global claim, and the GSO confidence row are corrected
+  in `transport-conclusions.md`. The stream-mode gap is recorded as §2.7.
+
+**Still open, in priority order:**
+
+1. **Re-run BBR run 2 in the congestive 600 ms cell.** One run. It must be on the rig that
+   produced runs 1 and 3 — a replacement on different hardware is not comparable, which is
+   why it was not done from the cloud session that found it.
+2. **Decide the stream-mode default** (§2.7). A product decision, not a patch.
+3. **Not re-verified here, reported as the reviewer found them:** the loss-regime sampler
+   interleaving its own log under load (two writes per row, many tasks, one append-mode
+   file — it would invalidate §4.1's tooling, not its validation); the fairness split
+   measuring TCP and QUIC over different windows, which would move "Cubic still takes
+   70–77 %" by a few points without touching the 99.4 % starvation figure; and twelve minor
+   items. **Verify before acting.**
 
 ### 4.5 · Cheap and unattended
 

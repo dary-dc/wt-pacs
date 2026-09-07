@@ -20,7 +20,7 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Keep one shared stream.** In simulation, per-frame is **3.5× worse at 64 KB and 8.5× worse at 250 KB**, on a mechanism that survived a falsifiable prediction. On a **real network** the 64 KB cell is **noise-dominated and does not separate** (§2.6) — the loss realisation moves the reference arm by 4.3×, which is larger than the effect being looked for. Nothing on either rig ever favours per-frame, so the recommendation is unchanged; but the *real-path* evidence for it is currently four ties, and the 250 KB cell — where the predicted effect is far larger than the noise — **has not been run on the rig** (§2) |
+| **Stream shape** | **Keep one shared stream — a recommendation no code carries yet (§2.7).** In simulation, per-frame is **3.5× worse at 64 KB and 8.5× worse at 250 KB**, on a mechanism that survived a falsifiable prediction. On a **real network** the 64 KB cell is **noise-dominated and does not separate** (§2.6) — the loss realisation moves the reference arm by 4.3×, which is larger than the effect being looked for. Nothing on either rig ever favours per-frame, so the recommendation is unchanged; but the *real-path* evidence for it is currently four ties, and the 250 KB cell — where the predicted effect is far larger than the noise — **has not been run on the rig** (§2) |
 | **Fixed-N pool** | **Still untested** — a server-side change, and this lane may not modify `server/`. R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95. **Not confirmed on real hardware** — on the rig the path, not the send path, is the ceiling ([`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.2) |
@@ -41,7 +41,26 @@ assumed**.
 | cell | Cubic | BBR | queue drops, Cubic → BBR |
 | ---- | ----- | --- | ------------------------ |
 | 50 ms, 20 Mbps | 186 ms | 190 ms *(+1.9 %, inside the noise band)* | 77 → 6 589 |
-| **600 ms, 8 Mbps** | **941 ms** | **1535 ms** *(**+63 %**, separated)* | 218 → 9 128 |
+| **600 ms, 8 Mbps** | **941 ms** *(n = 3)* | **1535 ms** *(**n = 2**, +63 %, separated)* | 218 → 9 128 |
+
+> **The 600 ms row is n = 2 for BBR, and that was undisclosed until 2026-09-07.** Run 2 of
+> the BBR arm produced no JSON (`VOID:no-data` in
+> [`measurements/l4/r5a_congestive.tsv`](measurements/l4/r5a_congestive.tsv)), so 1535 ms is
+> the median of two repeats against Cubic's three. The figures are `nz_p95` — waits over
+> non-zero samples — which is the column an adversarial review found the analyser did not
+> then report; it reports both columns now, and prints `n` per arm precisely so this cannot
+> recur. Reproduce with:
+>
+> ```bash
+> python3 lab/scripts/l4_analyse.py docs/measurements/l4/r5a_congestive.tsv --congestive
+> ```
+>
+> **The direction survives the disclosure and the separation is clean**: Cubic's *worst*
+> repeat beats BBR's *best* on both columns (946 vs 1459 on `nz_p95`; 672 vs 972 on
+> `p95_wait_ms`). What n = 2 costs is the precision of "+63 %" — the same comparison on
+> `p95_wait_ms` is +45 % — not the ordering. **Re-running the missing repeat is the one
+> outstanding fix to this section**, and it must happen on the rig that produced runs 1 and
+> 3; a replacement measured on different hardware would not be comparable.
 
 **Cubic wins, and the margin is at high RTT.** BBR also drops **30–100× more packets at
 the bottleneck** — BBRv1 declining to treat loss as congestion and keeping the queue full.
@@ -298,6 +317,27 @@ future netem loss experiment comparing stream shapes must run with
 `--segmentation-offload false`.
 There is no cell in which per-frame is better.
 
+### 2.7 · The binary does not implement this recommendation
+
+`server/src/main.rs` defaults `--stream-mode` to **`per-frame`** — the arm this section
+argues against. So does `main`: the default is identical on both branches, which means this
+branch has not regressed anything. It has simply **never landed its own conclusion**.
+
+That distinction matters for what to do about it. This is not a bug to patch quietly; it is
+a product decision that has not been taken. Two honest options:
+
+1. **Change the default to `shared`.** The evidence in §2 supports it, and the negative
+   control is clean. The cost is that it changes behaviour for anyone relying on the current
+   default, and the real-path evidence is still four ties (§2.6).
+2. **Leave the default and say so here.** Defensible while §2.6 stands — but then "keep one
+   shared stream" is advice to operators, not a shipped default, and it must be written that
+   way everywhere it appears.
+
+**What is not acceptable is the current state**, where the answer sheet reads as a settled
+decision and anyone deploying either branch gets the arm measured 3.5–8.5× worse under loss.
+Found by adversarial review, 2026-09-07; recorded here rather than resolved unilaterally,
+because picking option 1 is a change to shipped behaviour.
+
 ### `send_fairness(false)` is mandatory if per-frame is ever used
 
 `perframe_fair` is worse in **all four cells** — +74 %, +74 %, +23 %, +456 % — with a
@@ -451,7 +491,9 @@ are now "bigger" rather than "everything":
 
 ## 5 · Confidence
 
-**T2 throughout** — one host, a userspace path simulator, no real network, n = 3.
+**T2 throughout** — one host, a userspace path simulator, no real network, n = 3 **except
+where a row says otherwise**. One arm is n = 2: BBR in the congestive 600 ms cell (§1). The
+campaign analysers print `n` per arm, and any figure quoted from them should carry it.
 
 | conclusion | strength | what would overturn it |
 | ---------- | -------- | ---------------------- |
@@ -460,7 +502,7 @@ are now "bigger" rather than "everything":
 | Keep shared stream | **strong** — re-measured on a rig that generates head-of-line blocking; separated 3.5× at 1 % loss, replicated 3/3, matches a source-verified scheduler mechanism, negative control clean to 0.1 % | a cell where per-frame+FIFO separates *in its favour*; none found |
 | Per-frame is worse *because of retransmit deferral* | **moderate** — mechanism is source-verified and predicts sign and magnitude, but was not directly instrumented | per-stream retransmit timing telemetry showing recovery is not deferred |
 | Per-frame without FIFO is worst | **strong** — four campaigns, matches scheduler source | — |
-| GSO cap worth 17 % | **strong** — externally corroborated | — |
+| GSO cap worth 17 % | **moderate** — loopback only, and **not confirmed on real hardware**: on the Oracle rig the path, not the send path, is the ceiling, so the cell is neither confirmation nor refutation. The external corroboration (ETH Zürich thesis, quinn #2201) is for the **byte cliff**, not for the +17 % | a real-hardware cell where the send path is the ceiling |
 | Initial window is not a lever | **strong** — two independent measurements | — |
 | Flow-control ceilings are never approached **on the chunked send path** | **moderate** — 48 rows, 0 VOID, linear to r² ≥ 0.979, but T2 loopback and N ≤ 16 | a client that widens its own receive window on a high-BDP path, where the in-flight window rather than the peer's credit would bound the server |
 | The send path, not the windows, sets the pathological-case cost (6–17×) | **moderate** — n = 2 probe, but the effect is far outside what n = 2 could manufacture, and total RSS corroborates `RssAnon` | a copy-path arm that matches chunked once the sampler catches the true peak |
