@@ -323,20 +323,30 @@ There is no cell in which per-frame is better.
 argues against. So does `main`: the default is identical on both branches, which means this
 branch has not regressed anything. It has simply **never landed its own conclusion**.
 
-That distinction matters for what to do about it. This is not a bug to patch quietly; it is
-a product decision that has not been taken. Two honest options:
+### The rule that decides it, so nobody has to adjudicate
 
-1. **Change the default to `shared`.** The evidence in §2 supports it, and the negative
-   control is clean. The cost is that it changes behaviour for anyone relying on the current
-   default, and the real-path evidence is still four ties (§2.6).
-2. **Leave the default and say so here.** Defensible while §2.6 stands — but then "keep one
-   shared stream" is advice to operators, not a shipped default, and it must be written that
-   way everywhere it appears.
+This is not a matter of taste, and it should not wait on someone's judgement. **X3L is the
+deciding measurement, and its outcome was pre-registered before it ran**
+([`measurements/r6/x3l-run-card.md`](measurements/r6/x3l-run-card.md)):
+
+| X3L on the real path | then |
+| --- | --- |
+| **`shared` separates**, stranding gate passing | **Flip the default to `shared`.** The mechanism is then confirmed on real hardware at the frame size the product ships, and the last reason to hold — "the real-path evidence is four ties" — is gone |
+| **Does not separate**, stranding gate passing | **Leave the default, and rewrite §2 as advice rather than a decision.** A null there puts the retransmit-deferral mechanism itself in question, and a default may not outrun its evidence |
+| Stranding gate fails | Not a result. Re-run; decide nothing |
+
+Two standing inputs sit alongside it, and neither is enough on its own:
+
+- **Nothing on either rig has ever favoured per-frame** — four real-path ties and every
+  netsim cell. The risk of flipping is bounded by that.
+- **Per-frame costs more at zero loss too**: §3.1 measures a stalled client at **2.05×** the
+  server cost and **3.46×** the client cost under per-frame, on a mechanism that owes nothing
+  to loss. That is an argument for `shared` that X3L cannot overturn.
 
 **What is not acceptable is the current state**, where the answer sheet reads as a settled
 decision and anyone deploying either branch gets the arm measured 3.5–8.5× worse under loss.
-Found by adversarial review, 2026-09-07; recorded here rather than resolved unilaterally,
-because picking option 1 is a change to shipped behaviour.
+Until X3L runs, §2 must read as advice to operators, not as a shipped default. Found by
+adversarial review, 2026-09-07.
 
 ### `send_fairness(false)` is mandatory if per-frame is ever used
 

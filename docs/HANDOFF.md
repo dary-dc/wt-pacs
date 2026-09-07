@@ -39,9 +39,16 @@ the traps that have already cost this project four invalidated campaigns.
 > `lab/window-harness/src/{client,main,metrics}.rs`, `server/src/main.rs`,
 > `server/src/record/mod.rs`, `server/src/transport/{mod,server}.rs`.
 >
-> **Reconciling this is a decision, not a chore** — `server.rs` is the file both sides
-> rewrote, and this branch's measurements were all taken against its version. Nobody has
-> made that call yet; it is deliberately left open rather than resolved in passing.
+> **Analysed 2026-09-07:
+> [`merge-with-main-analysis.md`](merge-with-main-analysis.md).** It is a *refactor meeting
+> features*, not two rewrites of the same code: `main` **extracted** the serving logic into
+> `pipeline.rs`/`frame_out.rs`, and its `serve_one` is `prepare → locate → send` — a seam
+> exactly where this branch's send paths belong. `main` has zero references to `send_path`,
+> `prefault` or `TransportTuning`, and `tuning.rs` does not exist there, so the work is a
+> **port onto a known target**, not an adjudication. `frame_store.rs` — the riskiest change
+> on this branch — merges clean. Of 823 conflicted lines, 477 are the one real file; 27 are
+> both-added trivia. The acceptance gate already exists:
+> `all_send_paths_are_the_same_wire`.
 >
 > Note also that a shallow clone makes this *look* worse than it is — `git merge-base`
 > reports no common ancestor at all until you `git fetch --unshallow`. Do that before
@@ -225,7 +232,10 @@ paperwork, and the items below are what survived independent re-verification her
 1. **Re-run BBR run 2 in the congestive 600 ms cell.** One run. It must be on the rig that
    produced runs 1 and 3 — a replacement on different hardware is not comparable, which is
    why it was not done from the cloud session that found it.
-2. **Decide the stream-mode default** (§2.7). A product decision, not a patch.
+2. **The stream-mode default is decided by X3L, not by opinion** (§2.7). The rule is
+   pre-registered: if X3L separates in `shared`'s favour with the stranding gate passing,
+   flip the default; if it does not, leave it and rewrite §2 as advice rather than a
+   decision. Until then §2 must not read as a shipped default.
 3. **The sampler log corruption is confirmed and fixed** — reproduced at 8, 32 and 64
    concurrent writers before the fix (29 % of rows intact at 32) and 100 % clean after, with
    a regression test in `server/src/record/path.rs` and a classifier that now refuses a
