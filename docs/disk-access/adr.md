@@ -51,7 +51,9 @@
 > round trip (the hop tax, 24–34 µs on four hosts), so it is most of a **16 KB** read and
 > under 8% of a **250 KB** one — which is why the read-path campaign resolves it at 16 KB
 > frames and the miss campaign cannot at 250 KB. Neither result overturns the other; frame
-> size is the variable that was different.
+> size is the variable that was different, and the read-path campaign's own `D_size` cells
+> confirm the scaling: `hybrid` vs `pool` on misses runs −62.2% / −58.2% / −45.9% / **−24.8%
+> (tie)** across 4 KiB / 16 KiB / 64 KiB / 250 KB.
 >
 > **Do the escalation first regardless.** It has no dependency, no ring, and it is the
 > prerequisite for a lazy ring to be worth what it measures — on 250 KB frames the ring would

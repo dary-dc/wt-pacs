@@ -2,7 +2,7 @@
 
 **Decision:** [`adr.md`](adr.md) · **Implementation:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md) ·
 **Deployment:** [`DEPLOYMENT.md`](DEPLOYMENT.md) · **Reproduce:** [`RERUN.md`](RERUN.md) ·
-**How much a miss reads:** [`RERUN-miss.md`](RERUN-miss.md)
+**How much a miss reads:** [`RERUN-miss.md`](RERUN-miss.md) · **Next steps:** [`PLAN.md`](PLAN.md)
 
 Self-contained on purpose. The full campaign — thirteen documents, sixty-nine raw artifacts —
 is in git at **`a330783`** and its ancestors; this file carries every number the decision rests
@@ -46,10 +46,31 @@ hit < 5%, mix 5–50%, miss ≥ 50%.
 | `uring` | every read through the ring | 4 942 | 5 312 | **14 051** |
 | `pooled_pread` | escape hatch — every read on the pool | 36 798 | 38 014 | 68 770 |
 
+> **Read the column, then read the pair.** These are pooled medians per arm, and the rule
+> above is defined on **paired** per-cell deltas. The two disagree by about 2x on the one
+> comparison a reader most wants to make: `uring` against `hybrid_lazyring` on misses is
+> **−41.9%** as a ratio of the medians in this table and **−24.0%** as the median of the
+> per-cell ratios. Both are arithmetically right on the same 84 cells; only the second is
+> what the threshold applies to. The table has been misread as a 42% win for plain io_uring
+> twice. Run `lab/scripts/pair_arms.py` before concluding anything from a row of it.
+
+| Pair, miss regime | ratio of medians here | **paired median (the rule)** | verdict |
+| --- | ---: | ---: | --- |
+| `uring` vs `hybrid_lazyring` | −41.9% | **−24.0%**, 73/84 same sign | **tie** — fails on magnitude, not consistency |
+| `uring` vs `hybrid` | −37.9% | **−26.5 / −16.7%** | tie |
+| `hybrid_lazyring` vs `pool` | −59.8% | **−61.8 / −64.4%** | RESOLVED |
+
 `hybrid_lazyring` is **tied for cheapest in all three regimes** under the rule above. No arm
 is established better than it anywhere; `uring`, the only arm cheaper on misses, is
 established **+141.7 / +131.0% worse on hits**. That is why there is no tuning toggle —
 see [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
+
+**The miss-regime tie is a near miss, and it rests on one cell shape.** −24.0% against a
+28.5% bar with 73 of 84 cells agreeing on the sign is not a coin flip; it is a difference
+that did not clear the bar. And every one of those 84 cells is the same phase, frame size
+and reader count — `A_stride`, **16 KB**, **1 reader**. Frame size demonstrably moves the
+ring's margin (see below), and nobody has swept it for *this* pair.
+[`PLAN.md`](PLAN.md) step 3 is the experiment that would settle it.
 
 ## Where the margin comes from
 
@@ -108,11 +129,20 @@ fixture, and it changed the product. Two numbers from it belong here:
 | Escalating the pool read to the rest of the frame | **2.1×** throughput at one reader, **3.0–3.2×** at 8/16/32, on 100% misses. Identical warm. Landed |
 | Whole-frame `io_uring` vs whole-frame `spawn_blocking`, 250 KB frames | **A tie** on throughput and latency at 1/2/4/8/16/32 readers, both arm orders |
 
-The tie does not contradict the −42/−73% above. The hop tax is a roughly fixed **24–34 µs
-per round trip** (§Hosts) while the rest of a read scales with its bytes: that is most of a
-16 KB read and under 8% of a 250 KB one — inside the drift threshold, which is why one
-campaign resolves it and the other cannot. **The ring's margin should therefore fall with
-frame size**, which is a prediction this campaign can test and neither has.
+The tie does not contradict the −42/−73% above, and **this campaign's own `D_size` cells
+show why**: the ring's margin over the pool decays monotonically with frame size, and stops
+clearing the bar at exactly the size the miss campaign used.
+
+| `hybrid` vs `pool`, miss regime | 4 KiB | 16 KiB | 64 KiB | 250 KB |
+| --- | ---: | ---: | ---: | ---: |
+| `v22_campaign_ci.tsv` | −62.2% | −58.2% | −45.9% | **−24.8% tie** |
+| `v10_campaign.tsv` | −63.9% | −66.8% | −45.3% | — |
+
+A round trip costs roughly what it costs; the rest of a read scales with its bytes, so the
+share the ring can remove shrinks as frames grow. **At 250 KB the whole ring benefit is
+already a tie** — which is the same conclusion the miss campaign reached on throughput, from
+the other direction. Reproduce with
+`lab/scripts/pair_arms.py --pairs hybrid:pool --by size docs/disk-access/v22_campaign_ci.tsv`.
 
 The thread-count finding agrees across both: 5 OS threads against 44 at 32 concurrent
 missing readers, with no `iou-wrk` worker visible under tight-loop `/proc` sampling (R5
