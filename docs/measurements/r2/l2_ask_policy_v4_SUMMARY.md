@@ -1,6 +1,11 @@
 # L2 ask-policy v4 — reduced cloud grid (RTT profile 60)
 
-**Date:** 2026-09-07 · **Branch:** `cursor/l2-harness-fix-plan-c999` · **Lab only**  
+> **VOID 2026-09-07.** `cloud_netem.sh stats` deleted the qdisc before reading it.
+> Every `netem_drops` call removed rate/delay/loss after the path-RTT probe. Bulk
+> ran at ~15 Mbps on a named 10 Mbit cap; all 182 `netem_drops` are 0. Do not cite
+> these rows for loss, shaping, or a cap. Fix and rerun: [`L2-ask-policy-v4-methodology-fix.md`](../../lanes/L2-ask-policy-v4-methodology-fix.md).
+
+**Date:** 2026-09-07 · **Branch:** `cursor/l2-harness-fix-plan-c999` · **Lab only** · **VOID**  
 **Script:** `SKIP_SMOKE=1 HARNESS_IPV4=--ipv4 RTTS=60 lab/scripts/l2_ask_policy_v4_cloud.sh`  
 **E0:** `lab/scripts/l2_e0_v4_profile.sh` — PASS (ens3 netem: 10 Mbit, delay 30 ms, limit 1000, loss 0 and 0.5 %).  
 **Raw:** `.local/l2/v4/` (gitignored). Summariser: `lab/scripts/l2_v4_summarize.py`.

@@ -138,10 +138,8 @@ lands second ports the other's flags; neither result depends on the difference.
 
 ## 7 · Evidence still owed
 
-- **Loss.** Reduced cloud v4 (netem profile 60) is in
-  [`measurements/r2/l2_ask_policy_v4_SUMMARY.md`](measurements/r2/l2_ask_policy_v4_SUMMARY.md):
-  182/182 rows, 0.5 % loss does not separate arms on p95, medians keep the local-grid order.
-  Full RTT 20/150 not run. `netem_drops` did not increment — do not cite that column.
+- **Loss.** The 2026-09-07 reduced cloud grid is **void** (`stats` wiped netem). See
+  [`lanes/L2-ask-policy-v4-methodology-fix.md`](lanes/L2-ask-policy-v4-methodology-fix.md).
 - **The browser clients.** The harness is a Rust client; the WASM and TS clients still bulk-ask.
   That stays true on purpose: this branch does not change product ask code. A later product PR can
   copy the lab policy once the evidence is accepted.

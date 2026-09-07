@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
-# L2 ask-policy v4 — the rig campaign the v2 adversarial review asked for.
-# Run lab/scripts/l2_e0_v4_profile.sh first (rate / delay / loss / limit). Then:
+# L2 ask-policy v4 — shaped-path campaign. Lab only.
+#
+# Pre-registered (docs/lanes/L2-ask-policy-v4-methodology-fix.md), do not switch:
+#   primary reader  = lateness_median_ms
+#   primary abandon = stranded_bytes
+#   p95_lateness_ms is diagnostic (warm-up on short traces)
+#
+# Packet e0 must pass first (shaper on path, stats read-only, drops increment):
+#   HARNESS_IPV4=--ipv4 lab/scripts/l2_e0_v4_profile.sh
+# Then:
 #   SKIP_SMOKE=1 HARNESS_IPV4=--ipv4 RTTS=60 lab/scripts/l2_ask_policy_v4_cloud.sh
-# See docs/l2-ask-policy-design-2026-09-06.md and docs/lanes/L2-ask-policy-continuation.md.
+#
+# Void: empty waits; bulk achieved_mbps > 12; a loss>0 run with netem_drops=0.
 #
 # What changed from v2:
 #   * two traces (scroll, jump) at a cadence the link can keep up with (40 ms), because the
@@ -45,7 +54,9 @@ RTTS=(${RTTS:-20 60 150})
 LOSSES=(${LOSSES:-0 0.5})
 REPEATS="${REPEATS:-3}"
 REPEATS_LOSS="${REPEATS_LOSS:-10}"
-ARMS=(control window adr bulk bounded dynpath dynclean)
+# window = same K as adr, no cap. dynfb = lane estimator (must be allowed to move D).
+# dynclean = hold-D control. dynpath omitted: it is adr plus noisy Tf.
+ARMS=(control window adr bulk dynfb dynclean)
 
 mkdir -p "$OUT/traces" "$RAW_DIR"
 PROBE_TRACE="$OUT/traces/one_frame.json"
@@ -98,8 +109,15 @@ trap cleanup EXIT
 
 deploy_server() {
   local remote_study="/home/ubuntu/wt-pacs/fixtures/$(basename "$STUDY")"
-  echo "==> deploy exact-server shared mode" >&2
-  "${SSH[@]}" 'pkill -x exact-server 2>/dev/null || true; sleep 1; mkdir -p /home/ubuntu/wt-pacs/{bin,cert,fixtures}'
+  echo "==> deploy exact-server shared mode on port $PORT" >&2
+  "${SSH[@]}" "bash -s" "$PORT" <<'REMOTE'
+set -euo pipefail
+PORT=$1
+pid=$(ss -ltnp 2>/dev/null | sed -n "s/.*:${PORT} .*pid=\\([0-9]*\\).*/\\1/p" | head -1)
+[[ -n "${pid:-}" ]] && kill "$pid" 2>/dev/null || true
+sleep 1
+mkdir -p /home/ubuntu/wt-pacs/{bin,cert,fixtures}
+REMOTE
   "${SCP[@]}" "$BIN_SERVER" "$REMOTE:/home/ubuntu/wt-pacs/bin/exact-server.new"
   "${SCP[@]}" "$CERT" "$KEY_PEM" "$REMOTE:/home/ubuntu/wt-pacs/cert/"
   "${SCP[@]}" "$STUDY" "$REMOTE:$remote_study"
@@ -125,6 +143,7 @@ run_one() {  # arm trace step rtt loss run path_rtt
     bulk)     depth=0;  prefetch=$((FRAME_COUNT - 1)) ;;
     bounded)  depth=$d; prefetch=$((FRAME_COUNT - 1)) ;;
     dynpath)  depth=$d; prefetch=$((d - 1)); extra=(--dynamic-depth --rtt-source path --path-rtt-ms "$path_rtt") ;;
+    dynfb)    depth=$d; prefetch=$((d - 1)); extra=(--dynamic-depth --rtt-source first-byte) ;;
     dynclean) depth=$d; prefetch=$((d - 1)); extra=(--dynamic-depth --rtt-source clean) ;;
   esac
   local label="v4_${arm}_${trace}_s${step}_rtt${rtt_nom}_loss${loss}_r${run}"
@@ -156,6 +175,10 @@ open(tsv, "a").write("\t".join(str(x) for x in row) + "\n")
 print(f"{'OK' if rc == '0' else 'FAIL rc=' + rc} {arm} {trace} rtt={rtt} loss={loss} run={run} p95_lat={g('p95_lateness_ms')} med={g('lateness_median_ms')} stranded={g('stranded_bytes')} D=[{g('d_min_observed')},{g('d_max_observed')}] drops={drops}")
 if rc == "0" and int(g("wait_samples") or 0) == 0:
     print("STOP: empty wait samples", file=sys.stderr); sys.exit(3)
+if arm == "bulk" and float(g("achieved_mbps") or 0) > 12:
+    print("STOP: bulk achieved_mbps > 12 — shaper not on path", file=sys.stderr); sys.exit(4)
+if float(loss) > 0 and int(drops) == 0 and int(g("asks_sent") or 0) >= 20:
+    print("STOP: loss>0 run with netem_drops=0 — stats still wiping or loss not on path", file=sys.stderr); sys.exit(5)
 PY
   local py_rc=$?
   [[ $py_rc -ge 3 ]] && { echo "campaign void rc=$py_rc" >&2; exit 2; }

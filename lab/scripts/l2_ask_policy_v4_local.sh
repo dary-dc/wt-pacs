@@ -2,9 +2,9 @@
 # L2 ask-policy v4 — local loss=0 grid on the reworked harness.
 # Lab only: measures window-harness arms. Does not touch product clients.
 #
-# Same arms and traces as l2_ask_policy_v4_cloud.sh, but RTT is the harness --rtt-ms
-# emulator (both halves of the round trip) and there is no loss axis. Use this to
-# decide the loss-free policy; the cloud script is for loss.
+# Same default arms as the cloud script. RTT is the harness --rtt-ms emulator
+# (userspace sleeps + LinkPacer). Mechanism check only — do not lock a cap or
+# "no dynamic" from this grid. See docs/lanes/L2-ask-policy-v4-methodology-fix.md.
 #
 # Needs exact-server on 4433 in shared mode with frames_32k:
 #   target/release/exact-server --port 4433 --study lab/fixtures/frames_32k/frames_32k.sbnd \
@@ -24,7 +24,7 @@ STEPS=(${STEPS:-40})
 TRACES=(${TRACES:-scroll jump})
 RTTS=(${RTTS:-20 60 150})
 REPEATS="${REPEATS:-3}"
-ARMS=(control window adr bulk bounded dynpath dynclean)
+ARMS=(control window adr bulk dynfb dynclean)
 
 mkdir -p "$OUT/traces" "$OUT/raw"
 [[ -x "$HARNESS" ]] || { echo "missing $HARNESS — cargo build -p window-harness --release" >&2; exit 1; }
@@ -60,6 +60,7 @@ run_one() {
     bulk)     depth=0;  prefetch=$((FRAME_COUNT - 1)) ;;
     bounded)  depth=$d; prefetch=$((FRAME_COUNT - 1)) ;;
     dynpath)  depth=$d; prefetch=$((d - 1)); extra=(--dynamic-depth --rtt-source path --path-rtt-ms "$rtt") ;;
+    dynfb)    depth=$d; prefetch=$((d - 1)); extra=(--dynamic-depth --rtt-source first-byte) ;;
     dynclean) depth=$d; prefetch=$((d - 1)); extra=(--dynamic-depth --rtt-source clean) ;;
   esac
   local label="v4loc_${arm}_${trace}_s${step}_rtt${rtt}_r${run}"

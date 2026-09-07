@@ -22,9 +22,8 @@ Canonical withdrawn outputs (audit only):
   docs/measurements/r2/l2_ask_policy.tsv
   docs/measurements/r2/l2_ask_policy_d_current/
 
-**Current (2026-09-07):** reworked-harness bake-offs —
-`l2_ask_policy_v4_local_SUMMARY.md` (loss 0, loopback) and
-`l2_ask_policy_v4_SUMMARY.md` (reduced cloud, netem 60, loss 0 and 0.5 %).
-v1–v3 rankings remain void; `l2_ask_policy_EVIDENCE.md` is history for those rows.
-**Next:** lab implements on-screen + forward K + fixed D. No product ask-path
-change. Full RTT 20/150 cloud grid not indicated (loss did not separate arms).
+**Current (2026-09-07 evening):** cloud v4 (182 rows) is **void** — `stats`
+wiped netem. Local v4 is an emulator check only, not a policy lock.
+See `L2-ask-policy-v4-methodology-fix.md`. v1–v3 rankings remain void.
+**Next:** packet e0, then a corrected cloud grid. Do not implement a cap
+or “no dynamic” from the void rows.

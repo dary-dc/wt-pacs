@@ -53,16 +53,11 @@ Bulk is the worst policy on every jump cell, by 4–6× on p95, and strands 768 
 
 Dynamic never beat `adr`. `dynpath` tracked the formula (`D` in `[formula−2, formula]`). `dynclean` held the warm-up value.
 
-## What this decides (lab)
+## What this can support (emulator only)
 
-These rows are from the fixed harness. They back the loss-free policy the lab should implement and measure:
+`--rtt-ms` is two sleeps plus a read pacer. `D=4` at 60 ms does not bind (`window ≈ adr`). Do **not** lock a cap or “no dynamic” from this table. It can support: forward prefetch vs none on scroll (medians 0 vs ~path delay); bulk strands 768 KB on every jump; `dynclean` holds `D`. The lane estimator (`dynfb`) was not in this grid — that is a defect, fixed in the next local run.
 
-1. **On-screen frame at once, forward prefetch `K`, fixed in-flight cap `D`.** `K = D − 1` with `D` from the ADR formula at the cell RTT (the `adr` arm), or simply `D = K` sized to `ceil((RTT + Tf) / step)`. Never wrap.
-2. **Not bulk** for any trace that can abandon work. Bulk stays a preload / end-to-end arm only.
-3. **Not “cap + prefetch everything.”** That is the `bounded` arm; it loses to `adr` on the jump.
-4. **Not dynamic.** Honest `path` and `clean` inputs do not beat `adr`. There is nothing to adapt to at loss 0.
-
-This is **not** an ADR lock and **not** a product diff. Loss is still unpaid — `l2_ask_policy_v4_cloud.sh` (reduced grid at RTT 60 first). Until that runs, `D` under loss is unknown.
+The 2026-09-07 cloud grid that was supposed to lock policy is **void** (`l2_ask_policy_v4_SUMMARY.md`).
 
 ## What we will not do on this branch
 

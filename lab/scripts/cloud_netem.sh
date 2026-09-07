@@ -52,11 +52,14 @@ EOF
   exit 1
 }
 
-$TC qdisc del dev "$IFACE" root 2>/dev/null || true
+# NEVER delete the qdisc here. The v4 campaign calls `stats` twice per run; a delete
+# before `case` wiped rate/delay/loss after the path-RTT probe and zeroed every
+# `netem_drops` cell (182 rows, 2026-09-07). Those rows are void.
 
 apply_netem() {
   local delay_ms="${1:-0}"
   local loss="${2:-0}"
+  $TC qdisc del dev "$IFACE" root 2>/dev/null || true
   $TC qdisc add dev "$IFACE" root handle 1: prio bands 3 \
     priomap 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
   local netem_args=(rate "$RATE" limit "$LIMIT_PKTS")
@@ -81,6 +84,7 @@ case "$PROFILE" in
     exit 0
     ;;
   off)
+    $TC qdisc del dev "$IFACE" root 2>/dev/null || true
     echo "netem off on $IFACE"
     ;;
   30)
