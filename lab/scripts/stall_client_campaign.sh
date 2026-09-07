@@ -107,30 +107,7 @@ for RUN in $(seq 1 "$REPEATS"); do
         kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null
 
         # Aggregate the clients' own gates. One failure voids the row.
-        read -r BYTES UNIS STALLED ALIVE VOID REASON < <(python3 - "$RESDIR" "$ASKS" <<'PY'
-import glob, json, sys
-d, asks = sys.argv[1], int(sys.argv[2])
-files = sorted(glob.glob(d + "/*.json"))
-bytes_read = unis = 0
-stalled = alive = True
-reasons = []
-if not files:
-    reasons.append("no-client-output")
-for f in files:
-    try:
-        o = json.load(open(f))
-    except Exception:
-        reasons.append("unparseable-client-output"); stalled = alive = False; continue
-    bytes_read += o["bytes_read"]; unis += o["uni_streams_opened"]
-    stalled &= o["stall_engaged"]; alive &= o["connection_alive_at_end"]
-    if not o["stall_engaged"]: reasons.append("stall-never-engaged")
-    if o["bytes_read"] == 0: reasons.append("no-bytes-read")
-    if not o["connection_alive_at_end"]: reasons.append("connection-died")
-    if o["asks_sent"] != asks: reasons.append("asks-truncated")
-void = 1 if reasons else 0
-print(bytes_read, unis, int(stalled), int(alive), void, ",".join(sorted(set(reasons))) or "-")
-PY
-)
+        read -r BYTES UNIS STALLED ALIVE VOID REASON < <(python3 "$ROOT/lab/scripts/stall_gate.py" "$RESDIR" "$ASKS")
         rm -rf "$RESDIR"
         printf '%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n' \
           "$LABEL" "$SM" "$N" "$RUN" "$PEAK_SRV" "$SRV_BASE" "$((PEAK_SRV - SRV_BASE))" \
