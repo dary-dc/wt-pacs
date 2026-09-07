@@ -70,7 +70,9 @@ see [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
 that did not clear the bar. And every one of those 84 cells is the same phase, frame size
 and reader count — `A_stride`, **16 KB**, **1 reader**. Frame size demonstrably moves the
 ring's margin (see below), and nobody has swept it for *this* pair.
-[`PLAN.md`](PLAN.md) step 3 is the experiment that would settle it.
+[`PLAN.md`](PLAN.md) §Deferred carries the experiment that would settle it, and the triggers
+that would make it worth running. It is deliberately not on the critical path: the upside is
+bounded by a near miss that has never been shown to clear the bar at any frame size.
 
 ## Where the margin comes from
 

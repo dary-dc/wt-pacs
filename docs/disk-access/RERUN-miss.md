@@ -369,7 +369,7 @@ Two things this campaign does add to that decision:
 | **Settled** | At 250 KB frames on ~1.25 GB/s storage, whole-frame `io_uring` and whole-frame `spawn_blocking` are a tie on throughput and latency |
 | **Not settled here** | Whether `hybrid_lazyring` is worth adopting. That rests on CPU per read at the frame sizes and miss rates a deployment actually has — [`EVIDENCE.md`](EVIDENCE.md)'s question, not this one |
 | **Settled after all** | The size scaling above. `v22`'s `D_size` cells had it all along; it did not need a new run |
-| **Not settled anywhere yet** | Whether `uring`'s edge over `hybrid_lazyring` grows with frame size or reader count. That pair has only ever been run at 16 KB, one reader, one phase — and it lands at −24.0% against a 28.5% bar. [`PLAN.md`](PLAN.md) step 3 |
+| **Deferred, not settled** | Whether `uring`'s edge over `hybrid_lazyring` grows with frame size or reader count. That pair has only ever been run at 16 KB, one reader, one phase — and it lands at −24.0% against a 28.5% bar. Left open on purpose: [`PLAN.md`](PLAN.md) §Deferred has the experiment and the triggers |
 
 ## Limitations
 
