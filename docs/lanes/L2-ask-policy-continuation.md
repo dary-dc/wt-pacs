@@ -57,29 +57,34 @@ The model has no loss term; this is the one question it cannot answer. The v2 lo
    `lab/scripts/l2_e0_v4_profile.sh` on the exact netem profile the campaign uses (rate, delay,
    loss, and the explicit `limit` the v4 script sets). A profile that does not validate does not
    run. (`e0_netem_validation.sh` is the older 250 KB live-cell check; it is not this grid.)
-2. Reduced grid first: `RTTS=60 lab/scripts/l2_ask_policy_v4_cloud.sh` — two traces at 40 ms,
-   seven arms, loss 0 and 0.5 %, n = 3 / 10, arms shuffled per run. **Ran 2026-09-07, 182/182
-   rows; see `docs/measurements/r2/l2_ask_policy_v4_SUMMARY.md`. Questions 2 and 3 were no —
-   full RTT 20/150 not indicated.**
-3. Write `lab/scripts/l2_v4_summarize.py`: group by (trace, RTT, loss, arm); median, IQR and p95
-   of `p95_lateness_ms`, `lateness_median_ms`, `stranded_bytes`, `netem_drops` across runs; next
-   to every loss-0 cell, the simulator's prediction at that run's `achieved_mbps`
-   (`l2_policy_sim.py --cell`). Flag any loss-0 cell more than 5 % from the model: that is the rig
-   telling you the model does not describe it, and it is reported, not smoothed.
-4. Read the three questions off the summary, in this order:
-   - at loss 0, does the rig reproduce the design doc's §3 ordering (bulk worst on the jump,
-     bounded ≈ ADR window, control worst on the scroll)?
-   - at loss 0.5 %, does any arm separate from the others beyond the IQR of its own runs?
-   - does depth interact with loss (bounded vs bulk under loss, relative to their loss-0 gap)?
-5. Full grid (RTT 20 / 60 / 150) only if question 2 or 3 is a yes at 60 ms.
-6. Deliverable: `docs/measurements/r2/l2_ask_policy_v4_SUMMARY.md` — one table per question,
-   the void rows counted, nothing raw. Append one dated line to `l2_ask_policy_STOP.txt` and
-   point `l2_ask_policy_EVIDENCE.md` at the summary.
+2. Reduced grid first: `RTTS=60 lab/scripts/l2_ask_policy_v4_cloud.sh` (writes
+   `.local/l2/v4-rerun/`). **The 2026-09-07 182-row run is void** (`stats` deleted
+   netem). Fix list:
+   [`L2-ask-policy-v4-methodology-fix.md`](L2-ask-policy-v4-methodology-fix.md).
+3. `lab/scripts/l2_v4_summarize.py` groups by (trace, RTT, loss, arm); median, IQR
+   and p95 of the **pre-registered** primaries `lateness_median_ms` and
+   `stranded_bytes`, plus diagnostic `p95_lateness_ms` and `netem_drops`. Next to
+   every loss-0 cell, the simulator's prediction at that run's `achieved_mbps`
+   (`l2_policy_sim.py --cell`). Flag any loss-0 cell more than 5 % from the model:
+   reported, not smoothed. Do not change the ranking metric after seeing the table.
+4. Read the questions off the summary, in this order, on the registered primaries:
+   - prefetch vs none on scroll median; bulk vs others on jump `stranded_bytes`
+   - `window` vs `adr` on jump median (does this `D` cost on a real path?)
+   - `dynfb` vs `adr`: does first-byte move `D`, and does that help or ratchet?
+   - `dynclean` must hold warm-up `D`
+   - at loss 0.5 %, only if `netem_drops` rose: does any arm separate beyond its IQR?
+5. Full grid (RTT 20 / 60 / 150) only if the loss cell is valid and an arm
+   separates on a registered primary.
+6. Deliverable: a **new** `docs/measurements/r2/l2_ask_policy_v4_SUMMARY.md` — do
+   not rehabilitate the void 182-row file. Append one dated line to
+   `l2_ask_policy_STOP.txt` and point `l2_ask_policy_EVIDENCE.md` at the summary.
 
-Stop rules: any run with `wait_samples = 0` or `run_rc ≠ 0` voids its cell until the cause is
-found; `netem_drops` rising in a loss-0 cell means the queue limit, not the policy, is being
-measured — raise `NETEM_LIMIT` and rerun the cell; a path-RTT probe more than 20 % off the named
-RTT voids the cell's formula depth.
+Stop rules: any run with `wait_samples = 0` or `run_rc ≠ 0` voids its cell until
+the cause is found; `netem_drops` rising in a loss-0 cell means the queue limit,
+not the policy, is being measured — raise `NETEM_LIMIT` and rerun the cell; bulk
+`achieved_mbps` > 12 or a loss>0 run with `netem_drops=0` voids the campaign.
+Do **not** void a WAN cell because `path_rtt_ms` is 20 % off the profile name —
+formula `D` uses the probe; label the cell with the measured path RTT.
 
 ### Phase 2 — Loss in the model (two days) — only if Phase 1 shows an effect
 

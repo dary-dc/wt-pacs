@@ -13,7 +13,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-OUT="${OUT:-$ROOT/.local/l2/v4-local}"
+# Fresh TSV: the 2026-09-07 local file used dynpath/bounded, not dynfb.
+OUT="${OUT:-$ROOT/.local/l2/v4-local-rerun}"
 HARNESS="${HARNESS:-$ROOT/target/release/window-harness}"
 URL="${URL:-https://127.0.0.1:4433/}"
 BPS="${BPS:-10000000}"

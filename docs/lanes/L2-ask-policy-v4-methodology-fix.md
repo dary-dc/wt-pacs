@@ -53,7 +53,10 @@ Cloud (only if packet e0 passes): `RTTS=60`, traces scroll+jump, 40 ms, loss 0 (
 
 `control window adr bulk dynfb dynclean`
 
+Writes `.local/l2/v4-rerun/` — do not append to the void `.local/l2/v4/` TSV.
+
 Local (mechanism): same arms, `--rtt-ms` 60, n=3, scroll+jump. Not a lock.
+Writes `.local/l2/v4-local-rerun/`.
 
 ## What we will allow ourselves to conclude
 

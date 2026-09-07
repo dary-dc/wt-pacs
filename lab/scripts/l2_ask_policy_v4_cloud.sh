@@ -10,6 +10,7 @@
 #   HARNESS_IPV4=--ipv4 lab/scripts/l2_e0_v4_profile.sh
 # Then:
 #   SKIP_SMOKE=1 HARNESS_IPV4=--ipv4 RTTS=60 lab/scripts/l2_ask_policy_v4_cloud.sh
+#   (writes .local/l2/v4-rerun/; refuses to append to the void .local/l2/v4/ TSV)
 #
 # Void: empty waits; bulk achieved_mbps > 12; a loss>0 run with netem_drops=0.
 #
@@ -29,7 +30,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}"
 source "$ROOT/lab/scripts/cloud_common.sh"
 
-OUT="${OUT:-$ROOT/.local/l2/v4}"
+# Never append to the void 2026-09-07 TSV in .local/l2/v4/.
+OUT="${OUT:-$ROOT/.local/l2/v4-rerun}"
 OUT_TSV="$OUT/l2_ask_policy_v4.tsv"
 RAW_DIR="$OUT/raw"
 LOG="$OUT/RUN.log"
@@ -57,6 +59,11 @@ REPEATS_LOSS="${REPEATS_LOSS:-10}"
 # window = same K as adr, no cap. dynfb = lane estimator (must be allowed to move D).
 # dynclean = hold-D control. dynpath omitted: it is adr plus noisy Tf.
 ARMS=(control window adr bulk dynfb dynclean)
+
+if [[ "$OUT_TSV" == *"/v4/l2_ask_policy_v4.tsv" ]] && [[ -f "$OUT_TSV" ]]; then
+  echo "refusing to append to the void TSV at $OUT_TSV — use OUT=.local/l2/v4-rerun" >&2
+  exit 1
+fi
 
 mkdir -p "$OUT/traces" "$RAW_DIR"
 PROBE_TRACE="$OUT/traces/one_frame.json"

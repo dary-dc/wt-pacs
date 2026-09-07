@@ -7,8 +7,8 @@ loss-0 cell, runs the FIFO simulator at that cell's median achieved_mbps and
 flags a >5 % miss.
 
 Usage:
-  python3 lab/scripts/l2_v4_summarize.py .local/l2/v4/l2_ask_policy_v4.tsv
-  python3 lab/scripts/l2_v4_summarize.py .local/l2/v4-local/l2_ask_policy_v4_local.tsv
+  python3 lab/scripts/l2_v4_summarize.py .local/l2/v4-rerun/l2_ask_policy_v4.tsv
+  python3 lab/scripts/l2_v4_summarize.py .local/l2/v4-local-rerun/l2_ask_policy_v4_local.tsv
 """
 import csv
 import math
@@ -20,7 +20,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SIM = os.path.join(ROOT, "lab/scripts/l2_policy_sim.py")
 TRACE_MAP = {"scroll": "v2", "v2": "v2", "jump": "jump", "reversal": "reversal"}
-ARM_ORDER = ["control", "window", "adr", "bulk", "bounded", "dynpath", "dynclean"]
+ARM_ORDER = ["control", "window", "adr", "bulk", "bounded", "dynfb", "dynpath", "dynclean"]
 
 
 def fnum(s, default=0.0):
