@@ -319,27 +319,58 @@ fn frame_head(idx: u32, codestream_len: u32) -> [u8; 4 + ENVELOPE_LEN] {
     head
 }
 
-/// Copy the codestream to the wire one `READ_WINDOW` at a time.
+/// Where `stream_codestream` puts bytes.
+///
+/// The loop it serves has arithmetic worth testing — a window that misses now reads the
+/// rest of the frame, so `pos` advances by more than one window — and testing it used to
+/// mean standing up a QUIC connection. It does not any more: a `Vec<u8>` is a sink.
+trait CodestreamSink {
+    fn write_all(&mut self, buf: &[u8]) -> impl std::future::Future<Output = Result<()>> + Send;
+}
+
+impl CodestreamSink for SendStream {
+    async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+        SendStream::write_all(self, buf)
+            .await
+            .context("write codestream")?;
+        Ok(())
+    }
+}
+
+/// Copy the codestream to the wire one `READ_WINDOW` at a time, **reading the rest of the
+/// frame in one go when a window misses**.
 ///
 /// Each window is taken from the page cache with `read_at_nowait`, which returns short
 /// instead of waiting on disk — so no ask can park this executor thread on I/O the way a
-/// major fault on an mmap'd slice does. Only the shortfall goes to the blocking pool, and
-/// the read-ahead that miss triggers usually keeps the following windows on the fast path
-/// (measured: 0 pool hops warm, 5–8 per 320-frame sequential cold pass, all 320 on a
-/// reverse pass — i.e. it degrades to plain pooled `pread`, never worse).
+/// major fault on an mmap'd slice does.
+///
+/// The window bounds how long the executor copies without yielding, and that argument
+/// applies only to the inline `RWF_NOWAIT` read — which happens on a *hit*. The blocking
+/// read runs on the pool, where a large read costs no more than a small one and a small
+/// one costs a whole extra round trip. So a miss escalates: everything still outstanding
+/// in the frame goes to the pool together, and the bytes come back to be written in
+/// `READ_WINDOW` pieces as before.
+///
+/// Measured on a fixture large enough that a miss is a real device read
+/// (`docs/disk-access/RERUN-miss.md`): windowing the pool read too costs 2–3 round trips
+/// per frame instead of 1, which is **2.1x the throughput at one session and 3.0–3.2x at
+/// 8, 16 and 32** once most asks miss — the windowed shape stops scaling at ~1 600 f/s
+/// while this one reaches the device. Warm it is unchanged, and its worst co-tenant gap is
+/// the lowest of any arm measured (148 µs, against 4.0 ms for reading a whole frame
+/// inline).
 /// See `docs/disk-access/adr.md`.
 ///
 /// `store.read_window` decides the stride, so a filesystem that refuses `RWF_NOWAIT` gets
 /// whole-frame pool reads rather than a round trip per window.
-async fn stream_codestream(
-    uni: &mut SendStream,
+async fn stream_codestream<W: CodestreamSink>(
+    uni: &mut W,
     store: &Arc<FrameStore>,
     offset: u64,
     len: u32,
     window: &mut Vec<u8>,
 ) -> Result<()> {
     // Whole frames where `RWF_NOWAIT` is refused (overlayfs, tmpfs), `READ_WINDOW` where
-    // it works: one pool round trip per frame either way, never one per window.
+    // it works.
     let stride = store.read_window(len);
     if window.len() < stride {
         window.resize(stride, 0);
@@ -349,24 +380,38 @@ async fn stream_codestream(
         let want = stride.min((len - pos) as usize);
         let at = offset + u64::from(pos);
         let got = store.read_at_nowait(&mut window[..want], at)?;
+        // Ready bytes to write before any pool round trip: `want` on a hit, and on a miss
+        // the whole rest of the frame, fetched in one go.
+        let mut ready = want;
         if got < want {
+            let rest = (len - pos) as usize - got;
+            if window.len() < got + rest {
+                window.resize(got + rest, 0);
+            }
             let store = Arc::clone(store);
             let mut owned = std::mem::take(window);
             owned = tokio::task::spawn_blocking(move || {
-                store.read_at_blocking(&mut owned[got..want], at + got as u64)?;
+                store.read_at_blocking(&mut owned[got..got + rest], at + got as u64)?;
                 Ok::<Vec<u8>, anyhow::Error>(owned)
             })
             .await
             .context("join frame read")??;
             *window = owned;
+            ready = got + rest;
         }
+        // Still `stride` bytes per `write_all`: bounding the executor's uninterrupted copy
+        // is what the window is for, and a bigger read does not have to mean a bigger copy.
+        //
         // `write_all` copies into the connection's send buffer, so the window is free to
         // be refilled as soon as this returns — and the bytes quinn later puts on the wire
         // are process-private, not page-cache pages that reclaim could take back.
-        uni.write_all(&window[..want])
-            .await
-            .context("write codestream")?;
-        pos += want as u32;
+        let mut sent = 0usize;
+        while sent < ready {
+            let piece = stride.min(ready - sent);
+            uni.write_all(&window[sent..sent + piece]).await?;
+            sent += piece;
+        }
+        pos += ready as u32;
     }
     Ok(())
 }
@@ -375,6 +420,103 @@ async fn stream_codestream(
 mod tests {
     use super::*;
     use frame_envelope::{unwrap, wrap};
+    use std::io::Write;
+
+    impl CodestreamSink for Vec<u8> {
+        async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+            self.extend_from_slice(buf);
+            Ok(())
+        }
+    }
+
+    /// A study bundle on disk with `frames` frames of `len` bytes, each filled with a
+    /// per-frame pattern so a mis-assembled frame cannot pass by accident.
+    fn write_bundle(dir: &std::path::Path, frames: u32, len: u32) -> std::path::PathBuf {
+        let meta = format!("{{\"frameCount\":{frames}}}");
+        let data_base = 16 + 12 * frames as usize + meta.len();
+        let path = dir.join("test.sbnd");
+        let mut f = std::fs::File::create(&path).expect("create bundle");
+        f.write_all(b"SBND").unwrap();
+        f.write_all(&1u32.to_le_bytes()).unwrap();
+        f.write_all(&(meta.len() as u32).to_le_bytes()).unwrap();
+        f.write_all(&frames.to_le_bytes()).unwrap();
+        for i in 0..frames {
+            f.write_all(&((data_base as u64) + u64::from(i) * u64::from(len)).to_le_bytes())
+                .unwrap();
+            f.write_all(&len.to_le_bytes()).unwrap();
+        }
+        f.write_all(meta.as_bytes()).unwrap();
+        for i in 0..frames {
+            f.write_all(&frame_pattern(i, len)).unwrap();
+        }
+        f.sync_all().unwrap();
+        path
+    }
+
+    /// Drop the bundle's pages so `read_at_nowait` returns short and the loop escalates.
+    /// Best effort — a filesystem that ignores the hint just leaves the test on the warm
+    /// path, which is still worth asserting.
+    fn evict(path: &std::path::Path) {
+        use std::os::unix::io::AsRawFd;
+        if let Ok(f) = std::fs::File::open(path) {
+            // SAFETY: `f` owns a live descriptor for the whole call.
+            unsafe { libc::posix_fadvise(f.as_raw_fd(), 0, 0, libc::POSIX_FADV_DONTNEED) };
+        }
+    }
+
+    fn frame_pattern(idx: u32, len: u32) -> Vec<u8> {
+        (0..len)
+            .map(|b| (b.wrapping_mul(31).wrapping_add(idx.wrapping_mul(7)) % 251) as u8)
+            .collect()
+    }
+
+    /// The streaming loop must reassemble every frame byte-for-byte whatever the read
+    /// path did — and since a miss now reads the rest of the frame in one go, `pos` can
+    /// jump by more than a window. Frame lengths straddle the window boundary on purpose.
+    #[test]
+    fn streaming_reassembles_every_frame_whatever_the_read_path() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-stream-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        for &len in &[
+            1u32,
+            (READ_WINDOW - 1) as u32,
+            READ_WINDOW as u32,
+            (READ_WINDOW + 1) as u32,
+            (READ_WINDOW * 3 + 17) as u32,
+        ] {
+            let path = write_bundle(&dir, 3, len);
+            let store = Arc::new(FrameStore::open(&path).expect("open store"));
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("rt");
+            for idx in 0..3u32 {
+                // Evict first: a bundle this test just wrote is entirely in the page
+                // cache, so without this the miss branch — the one that changed — never
+                // runs and the test proves only the warm path.
+                evict(&path);
+                let (offset, flen) = store.frame_range(idx).expect("range");
+                let mut window = Vec::new();
+                let mut out: Vec<u8> = Vec::new();
+                rt.block_on(stream_codestream(
+                    &mut out,
+                    &store,
+                    offset,
+                    flen,
+                    &mut window,
+                ))
+                .expect("stream");
+                assert_eq!(
+                    out,
+                    frame_pattern(idx, len),
+                    "frame {idx} of length {len} came back wrong"
+                );
+            }
+            std::fs::remove_file(&path).ok();
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     /// Streaming replaced `wrap()`, so the bytes on the wire have to be proven identical
     /// to what the envelope builder used to produce — clients parse this, not the code.

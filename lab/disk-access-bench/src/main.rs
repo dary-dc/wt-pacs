@@ -12,7 +12,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use disk_access_bench::candidate_access::{hint_willneed, populate_read, unmap_pages};
-use disk_access_bench::{rejected_access, uring_access};
+use disk_access_bench::{rejected_access, residency, uring_access};
 use exact_server::media::frame_store::{host_page_size, FrameStore};
 use rejected_access::{advise_frame_willneed, frame_pages_resident, touch_frame_pages};
 use serde::Deserialize;
@@ -46,7 +46,9 @@ enum Arm {
     /// `preadv2(RWF_NOWAIT)` on the executor; pool `pread` only on the miss. Pooled buffer.
     PreadNowait,
     /// Same, streamed through one small reusable window instead of a whole-frame buffer:
-    /// bounds both the executor's uninterrupted copy and per-session memory.
+    /// bounds both the executor's uninterrupted copy and per-session memory. **The shipped
+    /// shape until 2026-09-07**, kept because it is what every earlier number in
+    /// `docs/disk-access/` was measured against.
     PreadNowaitChunked,
     /// The accepted path plus one `POSIX_FADV_WILLNEED` for the *next* ask's range.
     ///
@@ -54,6 +56,17 @@ enum Arm {
     /// frame, which strides the file. Costs one syscall and no copy, needs no change to how
     /// the study is laid out, and only helps if the hint lands far enough ahead of the ask.
     PreadNowaitPrefetch,
+    /// `PreadNowaitChunked`, except that a window which misses sends **the rest of the
+    /// frame** to the pool rather than the rest of that window.
+    ///
+    /// The window exists to bound how long the executor copies without yielding. That
+    /// argument applies to the inline `RWF_NOWAIT` read, which only ever happens on a hit
+    /// — the blocking read runs on the pool, where a big read costs nothing extra and a
+    /// small one costs a whole round trip. Reading 64 KiB there buys nothing and pays
+    /// 2-3 device round trips per frame instead of one.
+    ///
+    /// **This is the shipped shape** — `stream_codestream` in `server/src/transport/`.
+    PreadNowaitEscalate,
     /// Control for the pipelined io_uring arms: the *next* window's pool read is issued
     /// before the current window is written, so the hop overlaps the wire instead of
     /// preceding it. Isolates "pipelining" from "io_uring".
@@ -68,6 +81,21 @@ enum Arm {
     /// The synthesis: `RWF_NOWAIT` inline for the page-cache hit (no ring work at all on
     /// the common path), io_uring for the shortfall instead of `spawn_blocking`.
     UringNowaitHybrid,
+    /// Registered, one read for the **whole frame** — no windows at all.
+    ///
+    /// The windowed arms exist because `RWF_NOWAIT` needs a bounded executor copy. A ring
+    /// read never runs on the executor, so it has no such reason to split a frame into
+    /// four, and splitting is not free when every read misses: four device round trips
+    /// where one would do.
+    UringWhole,
+    /// Registered, every window of the frame submitted together — but written **as each
+    /// one lands** instead of after all of them have.
+    ///
+    /// `uring_tuned` waits for the whole frame before writing a byte of it, which is why
+    /// it was the worst arm on a miss (224 parked completions on a cold random trace).
+    /// That is a property of that arm, not of io_uring: the ring can have every window in
+    /// flight at once *and* stream. This is what "plain io_uring" should be judged as.
+    UringBatchedStream,
 }
 
 impl Arm {
@@ -87,11 +115,14 @@ impl Arm {
             Self::PreadNowait => "pread_nowait",
             Self::PreadNowaitChunked => "pread_nowait_chunked",
             Self::PreadNowaitPrefetch => "pread_nowait_prefetch",
+            Self::PreadNowaitEscalate => "pread_nowait_escalate",
             Self::PreadPipelinedPool => "pread_pipelined_pool",
             Self::UringNaive => "uring_naive",
             Self::UringTuned => "uring_tuned",
             Self::UringPipelined => "uring_pipelined",
             Self::UringNowaitHybrid => "uring_nowait_hybrid",
+            Self::UringWhole => "uring_whole",
+            Self::UringBatchedStream => "uring_batched_stream",
         }
     }
 
@@ -111,11 +142,14 @@ impl Arm {
             Self::PreadNowait,
             Self::PreadNowaitChunked,
             Self::PreadNowaitPrefetch,
+            Self::PreadNowaitEscalate,
             Self::PreadPipelinedPool,
             Self::UringNaive,
             Self::UringTuned,
             Self::UringPipelined,
             Self::UringNowaitHybrid,
+            Self::UringWhole,
+            Self::UringBatchedStream,
         ]
     }
 
@@ -291,6 +325,58 @@ struct Args {
     /// syscall at all, at the price of a core spinning — check `cpu_us`, not just latency.
     #[arg(long, default_value_t = false)]
     uring_sqpoll: bool,
+    /// Windows `uring_pipelined` keeps in flight. 2 reproduces the first campaign's arm.
+    #[arg(long, default_value_t = 2)]
+    uring_depth: usize,
+    /// Cap Tokio's blocking pool (default: Tokio's own 512).
+    #[arg(long)]
+    max_blocking: Option<usize>,
+
+    // ---- miss-ratio campaign (`--mix`) ----
+    /// Fraction of a cell's frames that must **miss** the page cache, verified with
+    /// `mincore` before the cell runs. Repeatable to sweep.
+    ///
+    /// The first campaign had only warm (every ask hits) and cold (read-ahead decides).
+    /// Neither answers "what happens at 60% misses", and cold-forward is not even
+    /// miss-dominated: 6 of 320 asks paid a hop. Passing this switches the harness to the
+    /// mix campaign — `--temp` and the single-primary multi-session cell do not apply.
+    #[arg(long = "mix")]
+    mixes: Option<Vec<f64>>,
+    /// Sessions run **together**, all on the arm under test, all measured. The first
+    /// campaign's `--sessions` had warm background sessions around one cold primary, so no
+    /// cell ever had more than one session on the miss path. Repeatable to sweep.
+    #[arg(long = "concurrency")]
+    concurrencies: Option<Vec<u32>>,
+    /// Frames per mix cell, split evenly across the sessions.
+    ///
+    /// Each cell takes the **next** region of the study so the hypervisor's cache cannot
+    /// follow one arm around: an 80 MB study re-read runs 10x faster on the second pass
+    /// here, which is the effect that made the first campaign's cold cells unreadable.
+    #[arg(long, default_value_t = 256)]
+    region_frames: u32,
+    /// Pin every mix cell to the same region instead of rotating — the control that says
+    /// whether rotation is doing anything.
+    #[arg(long, default_value_t = false)]
+    region_fixed: bool,
+    /// Frames between the frames a cell asks for.
+    ///
+    /// 1 means a contiguous region, and on this host that is **not a miss-dominated cell
+    /// however cold it is**: read-ahead is 8 MB, so the first miss drags in the next ~32
+    /// frames and a fully evicted 256-frame region pays 4 hops, not 256. A stride past the
+    /// read-ahead window (>= 33 frames at 250 KB) is what makes an evicted frame an
+    /// isolated miss — which is what "the working set exceeds RAM" actually means for an
+    /// ask.
+    #[arg(long, default_value_t = 1)]
+    region_stride: u32,
+    /// Seed for which frames are chosen to miss.
+    #[arg(long, default_value_t = 0x5EED)]
+    mix_seed: u64,
+    /// Summary TSV for the mix campaign (one row per cell).
+    #[arg(long)]
+    mix_out: Option<PathBuf>,
+    /// One row per ask for the mix campaign, so percentiles pool across repeats.
+    #[arg(long)]
+    mix_samples: Option<PathBuf>,
     /// Abort unless this process is in a cgroup with memory limit ≤ this many bytes.
     /// Used by `run_disk_access_mempressure.sh` so a fake tmpfs "cgroup" cannot silently clear the gate.
     #[arg(long)]
@@ -582,6 +668,22 @@ fn selftest() {
             prev = c;
         }
     }
+    // Read-ahead is not an instrument property, but it decides how many asks miss — which
+    // is the axis the mix cells sweep. This host ships 8192 KB, 64x the usual 128, and at
+    // that size reading one 250 KB frame pulls in the next ~32.
+    let ra = std::fs::read_dir("/sys/block")
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let v = std::fs::read_to_string(e.path().join("queue/read_ahead_kb")).ok()?;
+            Some(format!("{}={}", e.file_name().to_string_lossy(), v.trim()))
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    println!("read_ahead_kb                      = {ra}");
+
     ticks.sort_unstable();
     if ticks.is_empty() {
         println!("process CPU clock step             = did not tick in 50 ms");
@@ -694,6 +796,15 @@ struct FrameOutcome {
     latency_ns: u64,
     hop_ns: u64,
     bytes_copied: u64,
+    /// Round trips this ask had to park on: `spawn_blocking` joins for the pool arms,
+    /// eventfd parks for the io_uring ones.
+    ///
+    /// `hop_ns` cannot distinguish one 400 us hop from four 100 us ones, and that is
+    /// exactly the difference between a whole-frame read and a windowed one when every
+    /// read misses. `stream_codestream` documents "one pool round trip per frame either
+    /// way, never one per window" — true only while read-ahead serves the windows behind
+    /// the first.
+    hop_events: u32,
 }
 
 /// Per-worker scratch that must survive across frames: reusing it is the difference
@@ -707,6 +818,7 @@ struct ArmState {
     uring: Option<uring_access::UringReader>,
     read_chunk: usize,
     uring_sqpoll: bool,
+    uring_depth: usize,
 }
 
 impl ArmState {
@@ -718,6 +830,7 @@ impl ArmState {
             uring: None,
             read_chunk: cfg.read_chunk,
             uring_sqpoll: cfg.uring_sqpoll,
+            uring_depth: cfg.uring_depth,
         }
     }
 }
@@ -730,6 +843,8 @@ impl ArmState {
 struct ServeCtx {
     store: Arc<FrameStore>,
     file: Arc<File>,
+    /// Kept so the mix cells can `fadvise` the same inode the arms read from.
+    path: PathBuf,
 }
 
 impl ServeCtx {
@@ -740,6 +855,7 @@ impl ServeCtx {
                 File::open(path)
                     .with_context(|| format!("open {} for io_uring", path.display()))?,
             ),
+            path: path.to_path_buf(),
         })
     }
 }
@@ -844,19 +960,32 @@ struct CellCfg {
     monitors: usize,
     read_chunk: usize,
     uring_sqpoll: bool,
+    /// Windows kept in flight by `uring_pipelined`. 2 is the arm the campaign measured.
+    uring_depth: usize,
+    /// Cap on Tokio's blocking pool. Tokio's default is 512, which is not a pool an
+    /// operator would run — and the cap is exactly what decides whether a miss-dominated
+    /// `spawn_blocking` path queues or just grows threads.
+    max_blocking: Option<usize>,
 }
 
 fn build_runtime(cfg: &CellCfg) -> Result<tokio::runtime::Runtime> {
     match cfg.runtime {
-        RuntimeKind::Current => Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .context("tokio current-thread rt"),
-        RuntimeKind::Multi => Builder::new_multi_thread()
-            .worker_threads(cfg.workers)
-            .enable_all()
-            .build()
-            .context("tokio multi-thread rt"),
+        RuntimeKind::Current => {
+            let mut b = Builder::new_current_thread();
+            b.enable_all();
+            if let Some(n) = cfg.max_blocking {
+                b.max_blocking_threads(n);
+            }
+            b.build().context("tokio current-thread rt")
+        }
+        RuntimeKind::Multi => {
+            let mut b = Builder::new_multi_thread();
+            b.worker_threads(cfg.workers).enable_all();
+            if let Some(n) = cfg.max_blocking {
+                b.max_blocking_threads(n);
+            }
+            b.build().context("tokio multi-thread rt")
+        }
     }
 }
 
@@ -1108,6 +1237,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: 0,
                 bytes_copied: 0,
+                hop_events: 0,
             })
         }
         Arm::MmapBlockingTouch => {
@@ -1124,6 +1254,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: 0,
+                hop_events: u32::from(hop > 0),
             })
         }
         Arm::MmapHybridMincore => {
@@ -1143,6 +1274,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: 0,
+                hop_events: u32::from(hop > 0),
             })
         }
         Arm::MmapDedicatedPool => {
@@ -1157,6 +1289,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: 0,
+                hop_events: u32::from(hop > 0),
             })
         }
         Arm::PreadBlocking => {
@@ -1178,6 +1311,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: len as u64,
+                hop_events: u32::from(hop > 0),
             })
         }
         Arm::PreadBlockingPooled => {
@@ -1202,6 +1336,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: len as u64,
+                hop_events: u32::from(hop > 0),
             })
         }
         Arm::MmapWillneed => {
@@ -1213,6 +1348,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: 0,
                 bytes_copied: 0,
+                hop_events: 0,
             })
         }
         Arm::MmapWillneedNext => {
@@ -1227,6 +1363,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: 0,
                 bytes_copied: 0,
+                hop_events: 0,
             })
         }
         Arm::MmapTouchInPlace => {
@@ -1243,6 +1380,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: 0,
+                hop_events: u32::from(hop > 0),
             })
         }
         Arm::MmapPopulateRead => {
@@ -1259,6 +1397,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: 0,
+                hop_events: u32::from(hop > 0),
             })
         }
         Arm::PreadNowait => {
@@ -1287,6 +1426,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: len as u64,
+                hop_events: u32::from(hop > 0),
             })
         }
         Arm::PreadNowaitChunked => {
@@ -1297,14 +1437,16 @@ async fn serve_frame_async(
             let mut buf = std::mem::take(&mut state.pread_pool);
             buf.resize(window, 0);
             let mut hop = 0u64;
+            let mut hop_events = 0u32;
             let mut pos = 0usize;
             while pos < len {
                 let this = window.min(len - pos);
                 let got = store.read_at_nowait(&mut buf[..this], offset + pos as u64)?;
                 if got < this {
-                    // Only the missing tail of this window goes to the pool; the readahead
-                    // it triggers usually keeps the following windows on the fast path.
-                    // This is exactly `stream_codestream` in the product, minus the wire.
+                    hop_events += 1;
+                    // Only the missing tail of *this window* goes to the pool. That was
+                    // `stream_codestream` until 2026-09-07; it now escalates to the rest of
+                    // the frame — see `PreadNowaitEscalate` and `docs/disk-access/RERUN-miss.md`.
                     let s = Arc::clone(store);
                     let at = offset + (pos + got) as u64;
                     let th = Instant::now();
@@ -1329,6 +1471,70 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: len as u64,
+                hop_events,
+            })
+        }
+        Arm::PreadNowaitEscalate => {
+            // Window the executor's reads; do not window the pool's.
+            let (offset, _) = store.frame_range(idx)?;
+            let len = access_len(store, idx, access)?;
+            let window = read_chunk.min(len).max(1);
+            let t0 = Instant::now();
+            let mut buf = std::mem::take(&mut state.pread_pool);
+            let mut hop = 0u64;
+            let mut hop_events = 0u32;
+            let mut pos = 0usize;
+            while pos < len {
+                let this = window.min(len - pos);
+                if buf.len() < this {
+                    buf.resize(this, 0);
+                }
+                let got = store.read_at_nowait(&mut buf[..this], offset + pos as u64)?;
+                if got < this {
+                    // Miss. One round trip for everything still outstanding in this frame,
+                    // not one per window — the pool is where a large read is free.
+                    let rest = len - pos - got;
+                    if buf.len() < got + rest {
+                        buf.resize(got + rest, 0);
+                    }
+                    let s = Arc::clone(store);
+                    let at = offset + (pos + got) as u64;
+                    let th = Instant::now();
+                    buf = tokio::task::spawn_blocking(move || {
+                        s.read_at_blocking(&mut buf[got..got + rest], at)?;
+                        Ok::<Vec<u8>, anyhow::Error>(buf)
+                    })
+                    .await
+                    .context("join")??;
+                    hop += th.elapsed().as_nanos() as u64;
+                    hop_events += 1;
+                    // Still write in `window` pieces: the executor's copy bound is the
+                    // point of the window, and it survives the bigger read.
+                    for piece in buf[..got + rest].chunks(window) {
+                        for c in piece.chunks(chunk) {
+                            sink.clear();
+                            sink.extend_from_slice(c);
+                            std::hint::black_box(sink.len());
+                            tokio::task::yield_now().await;
+                        }
+                    }
+                    pos = len;
+                    continue;
+                }
+                for c in buf[..this].chunks(chunk) {
+                    sink.clear();
+                    sink.extend_from_slice(c);
+                    std::hint::black_box(sink.len());
+                    tokio::task::yield_now().await;
+                }
+                pos += this;
+            }
+            state.pread_pool = buf;
+            Ok(FrameOutcome {
+                latency_ns: t0.elapsed().as_nanos() as u64,
+                hop_ns: hop,
+                bytes_copied: len as u64,
+                hop_events,
             })
         }
         Arm::PreadNowaitPrefetch => {
@@ -1348,14 +1554,15 @@ async fn serve_frame_async(
             let mut buf = std::mem::take(&mut state.pread_pool);
             buf.resize(window, 0);
             let mut hop = 0u64;
+            let mut hop_events = 0u32;
             let mut pos = 0usize;
             while pos < len {
                 let this = window.min(len - pos);
                 let got = store.read_at_nowait(&mut buf[..this], offset + pos as u64)?;
                 if got < this {
-                    // Only the missing tail of this window goes to the pool; the readahead
-                    // it triggers usually keeps the following windows on the fast path.
-                    // This is exactly `stream_codestream` in the product, minus the wire.
+                    hop_events += 1;
+                    // Only the missing tail of *this window* goes to the pool — the shape
+                    // `stream_codestream` had until 2026-09-07. See `PreadNowaitEscalate`.
                     let s = Arc::clone(store);
                     let at = offset + (pos + got) as u64;
                     let th = Instant::now();
@@ -1380,6 +1587,7 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: len as u64,
+                hop_events,
             })
         }
         Arm::PreadPipelinedPool => {
@@ -1391,6 +1599,7 @@ async fn serve_frame_async(
             let win = read_chunk.min(len).max(1);
             let t0 = Instant::now();
             let mut hop = 0u64;
+            let mut hop_events = 0u32;
             let mut slot = 0usize;
             let mut pos = 0usize;
             let first = win.min(len);
@@ -1405,6 +1614,7 @@ async fn serve_frame_async(
                 let th = Instant::now();
                 let buf = handle.await.context("join")??;
                 hop += th.elapsed().as_nanos() as u64;
+                hop_events += 1;
                 let this = win.min(len - pos);
                 let next_pos = pos + this;
                 if next_pos < len {
@@ -1431,12 +1641,23 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: len as u64,
+                hop_events,
             })
         }
-        Arm::UringNaive | Arm::UringTuned | Arm::UringPipelined | Arm::UringNowaitHybrid => {
+        Arm::UringNaive
+        | Arm::UringTuned
+        | Arm::UringPipelined
+        | Arm::UringNowaitHybrid
+        | Arm::UringWhole
+        | Arm::UringBatchedStream => {
             let (offset, _) = store.frame_range(idx)?;
             let len = access_len(store, idx, access)?;
-            let win = read_chunk.min(len).max(1);
+            // The whole-frame arm ignores `--read-chunk`: one read is the point of it.
+            let win = if arm == Arm::UringWhole {
+                len.max(1)
+            } else {
+                read_chunk.min(len).max(1)
+            };
             let windows = len.div_ceil(win);
             if state.uring.is_none() {
                 // Registered buffers are allocated once and reused for every ask, so their
@@ -1451,12 +1672,17 @@ async fn serve_frame_async(
                     let (_, l) = store.frame_range(i)?;
                     max_len = max_len.max(l as usize);
                 }
-                let (buf_len, batched_slots) = uring_access::ring_geometry(read_chunk, max_len);
-                let slots = match arm {
-                    Arm::UringTuned => batched_slots,
-                    Arm::UringPipelined => 2,
+                let (win_len, batched_slots) = uring_access::ring_geometry(read_chunk, max_len);
+                // `uring_whole` reads a frame per submit, so its one buffer has to be the
+                // longest frame rather than a window of it.
+                let (buf_len, slots) = match arm {
+                    Arm::UringWhole => (max_len.max(1), 1),
+                    Arm::UringTuned | Arm::UringBatchedStream => (win_len, batched_slots),
+                    Arm::UringPipelined => {
+                        (win_len, state.uring_depth.max(2).min(batched_slots.max(2)))
+                    }
                     // Hybrid and naive hold exactly one window, like `pread_nowait_chunked`.
-                    _ => 1,
+                    _ => (win_len, 1),
                 };
                 state.uring = Some(uring_access::UringReader::new(
                     &ctx.file,
@@ -1492,29 +1718,70 @@ async fn serve_frame_async(
                 }
                 Arm::UringPipelined => {
                     // Read window n+1 while window n is on the wire: the read latency hides
-                    // behind the write, which a synchronous `pread` cannot do.
-                    let mut slot = 0usize;
-                    ring.push(slot, file, offset, win.min(len))?;
+                    // behind the write, which a synchronous `pread` cannot do. `depth` is
+                    // how many windows may be in flight; 2 is the shape the first campaign
+                    // measured, and the flag exists because a miss-dominated cell is the
+                    // one place a deeper queue could pay for itself. It comes from the ring
+                    // rather than from this frame — the ring was sized for the study's
+                    // longest frame, and indexing past its slots would panic.
+                    let depth = ring.slots().max(2);
+                    let mut issued = 0usize;
+                    let mut done = 0usize;
+                    while issued < windows && issued < depth {
+                        let at = issued * win;
+                        ring.push(issued % depth, file, offset + at as u64, win.min(len - at))?;
+                        issued += 1;
+                    }
                     ring.submit()?;
-                    let mut pos = 0usize;
-                    while pos < len {
-                        let this = win.min(len - pos);
+                    while done < windows {
+                        let slot = done % depth;
+                        let at = done * win;
+                        let this = win.min(len - at);
                         let th = Instant::now();
-                        waited += ring.complete(1).await?;
+                        waited += ring.complete_slot(slot).await?;
                         hop += th.elapsed().as_nanos() as u64;
-                        let next_pos = pos + this;
-                        if next_pos < len {
+                        // Issue before writing, into a slot that is neither in flight nor
+                        // the one about to be written.
+                        if issued < windows && issued - done < depth {
+                            let nat = issued * win;
                             ring.push(
-                                1 - slot,
+                                issued % depth,
                                 file,
-                                offset + next_pos as u64,
-                                win.min(len - next_pos),
+                                offset + nat as u64,
+                                win.min(len - nat),
                             )?;
                             ring.submit()?;
+                            issued += 1;
                         }
                         write_sim(&ring.buf(slot)[..this], chunk, &mut state.sink).await;
-                        slot = 1 - slot;
-                        pos = next_pos;
+                        done += 1;
+                    }
+                }
+                Arm::UringWhole => {
+                    ring.push(0, file, offset, len)?;
+                    ring.submit()?;
+                    let th = Instant::now();
+                    waited += ring.complete_slot(0).await?;
+                    hop += th.elapsed().as_nanos() as u64;
+                    write_sim(&ring.buf(0)[..len], chunk, &mut state.sink).await;
+                }
+                Arm::UringBatchedStream => {
+                    // Every window in flight at once, like `uring_tuned` — but each one is
+                    // written the moment it lands instead of after the last one does. The
+                    // difference only shows when reads miss, which is the cell this arm was
+                    // added for.
+                    for w in 0..windows {
+                        let at = w * win;
+                        ring.push(w, file, offset + at as u64, win.min(len - at))?;
+                    }
+                    ring.submit()?;
+                    for w in 0..windows {
+                        let at = w * win;
+                        let this = win.min(len - at);
+                        let th = Instant::now();
+                        waited += ring.complete_slot(w).await?;
+                        hop += th.elapsed().as_nanos() as u64;
+                        write_sim(&ring.buf(w)[..this], chunk, &mut state.sink).await;
                     }
                 }
                 Arm::UringNowaitHybrid => {
@@ -1556,6 +1823,7 @@ async fn serve_frame_async(
                 // comparable with `spawn_blocking` round trips.
                 hop_ns: if waited > 0 { hop } else { 0 },
                 bytes_copied: len as u64,
+                hop_events: waited as u32,
             })
         }
         Arm::MmapBlockingAhead2 => {
@@ -1578,9 +1846,291 @@ async fn serve_frame_async(
                 latency_ns: t0.elapsed().as_nanos() as u64,
                 hop_ns: hop,
                 bytes_copied: 0,
+                hop_events: u32::from(hop > 0),
             })
         }
     }
+}
+
+/// One mix cell: `concurrency` sessions, each on its own slice of a region whose
+/// page-cache residency was set and verified before the cell started.
+struct MixRow {
+    arm: String,
+    trace: String,
+    repeat: u32,
+    concurrency: u32,
+    region_start: u32,
+    region_frames: u32,
+    region_stride: u32,
+    mix_target: f64,
+    mix_achieved: f64,
+    hit_resident: f64,
+    miss_resident: f64,
+    asks: u32,
+    wall_ns: u64,
+    throughput_fps: f64,
+    p50_ns: u64,
+    p90_ns: u64,
+    p99_ns: u64,
+    max_ns: u64,
+    hop_count: u32,
+    /// Total pool/eventfd round trips, which `hop_count` (asks that hopped at all) hides:
+    /// four 100 us window hops and one 400 us frame hop look identical there.
+    hop_events: u64,
+    hop_p50_ns: u64,
+    hop_p99_ns: u64,
+    gap_p99_ns: u64,
+    gap_max_ns: u64,
+    cpu_ns: u64,
+    cpu_per_ask_ns: u64,
+    threads_max: u32,
+    read_chunk: usize,
+    uring_depth: usize,
+    runtime: String,
+    samples: Vec<(u64, u64, u32)>,
+}
+
+fn mix_tsv_header() -> &'static str {
+    "arm\ttrace\trepeat\tconcurrency\tregion_start\tregion_frames\tregion_stride\tmix_target\tmix_achieved\thit_resident\tmiss_resident\tasks\twall_ns\tthroughput_fps\tp50_ns\tp90_ns\tp99_ns\tmax_ns\thop_count\thop_events\thop_p50_ns\thop_p99_ns\tgap_p99_ns\tgap_max_ns\tcpu_ns\tcpu_per_ask_ns\tthreads_max\tread_chunk\turing_depth\truntime"
+}
+
+impl MixRow {
+    fn to_tsv(&self) -> String {
+        format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{}\t{}\t{:.1}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            self.arm,
+            self.trace,
+            self.repeat,
+            self.concurrency,
+            self.region_start,
+            self.region_frames,
+            self.region_stride,
+            self.mix_target,
+            self.mix_achieved,
+            self.hit_resident,
+            self.miss_resident,
+            self.asks,
+            self.wall_ns,
+            self.throughput_fps,
+            self.p50_ns,
+            self.p90_ns,
+            self.p99_ns,
+            self.max_ns,
+            self.hop_count,
+            self.hop_events,
+            self.hop_p50_ns,
+            self.hop_p99_ns,
+            self.gap_p99_ns,
+            self.gap_max_ns,
+            self.cpu_ns,
+            self.cpu_per_ask_ns,
+            self.threads_max,
+            self.read_chunk,
+            self.uring_depth,
+            self.runtime
+        )
+    }
+}
+
+/// Everything a mix cell needs that is not the arm.
+#[derive(Clone, Copy)]
+struct MixCfg {
+    cell: CellCfg,
+    mix: f64,
+    concurrency: u32,
+    region_start: u32,
+    region_frames: u32,
+    region_stride: u32,
+    seed: u64,
+}
+
+/// Run one mix cell.
+///
+/// Shape, and why: every session is measured (there is no privileged "primary"), every
+/// session runs the arm under test, and the sessions share one `FrameStore` — which is
+/// also what the product does, so read-ahead state is shared between them exactly as it
+/// would be in production.
+fn run_mix_cell(
+    arm: Arm,
+    ctx: &ServeCtx,
+    mcfg: MixCfg,
+    trace: TraceKind,
+    repeat: u32,
+) -> Result<MixRow> {
+    let cfg = mcfg.cell;
+    let store = &ctx.store;
+    let stride = mcfg.region_stride.max(1);
+    let region: Vec<u32> = (0..mcfg.region_frames)
+        .map(|i| mcfg.region_start + i * stride)
+        .collect();
+
+    if matches!(
+        arm,
+        Arm::PreadNowait | Arm::PreadNowaitChunked | Arm::PreadNowaitEscalate
+    ) && !store.nowait_supported()
+    {
+        anyhow::bail!(
+            "RWF_NOWAIT unsupported on this study — the nowait arms are not themselves here"
+        );
+    }
+
+    // Residency is set per cell, not per campaign: reading the region is what warms it, so
+    // the arm that ran before this one left it warm.
+    let plan = residency::MixPlan::build(&region, mcfg.mix, mcfg.seed ^ u64::from(repeat) << 32);
+    let report = residency::apply(store, &ctx.path, data_span(store)?, &plan)?;
+    if (report.achieved - report.target).abs() > 0.05 {
+        anyhow::bail!(
+            "mix cell missed its target: asked {:.0}% misses, got {:.0}% (hit set {:.1}% resident, miss set {:.1}%)",
+            report.target * 100.0,
+            report.achieved * 100.0,
+            report.hit_resident * 100.0,
+            report.miss_resident * 100.0
+        );
+    }
+
+    let n_sessions = mcfg.concurrency.max(1) as usize;
+    let per = region.len() / n_sessions;
+    if per == 0 {
+        anyhow::bail!(
+            "--region-frames {} cannot be split across --concurrency {}",
+            mcfg.region_frames,
+            n_sessions
+        );
+    }
+    let mut partitions: Vec<Vec<u32>> = Vec::with_capacity(n_sessions);
+    for s in 0..n_sessions {
+        let mut part: Vec<u32> = region[s * per..(s + 1) * per].to_vec();
+        match trace {
+            TraceKind::Forward => {}
+            TraceKind::Reverse => part.reverse(),
+            TraceKind::Random => {
+                let mut state = mcfg.seed ^ (s as u64).wrapping_mul(0x9E37_79B9);
+                for i in (1..part.len()).rev() {
+                    state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    let j = (state >> 33) as usize % (i + 1);
+                    part.swap(i, j);
+                }
+            }
+        }
+        partitions.push(part);
+    }
+
+    let rt = build_runtime(&cfg)?;
+    let cpu0 = process_cpu_ns();
+    let (per_ask, wall_ns, mut gaps) = rt.block_on(async {
+        let stop = Arc::new(AtomicBool::new(false));
+        let gap_out: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
+        let mut mons = Vec::with_capacity(cfg.monitors);
+        for _ in 0..cfg.monitors {
+            let stop_m = Arc::clone(&stop);
+            let gaps_m = Arc::clone(&gap_out);
+            mons.push(tokio::spawn(async move {
+                let mut local = Vec::with_capacity(64_000);
+                while !stop_m.load(Ordering::Relaxed) {
+                    let t = Instant::now();
+                    tokio::task::yield_now().await;
+                    local.push(t.elapsed().as_nanos() as u64);
+                }
+                gaps_m.lock().unwrap().extend(local);
+            }));
+        }
+
+        // Sessions start together: a staggered start would measure the ramp, and the whole
+        // question here is what happens when they are all on the miss path at once.
+        let gate = Arc::new(tokio::sync::Barrier::new(n_sessions + 1));
+        let acc: Arc<Mutex<Vec<(u64, u64, u32)>>> = Arc::new(Mutex::new(Vec::new()));
+        let mut handles = Vec::with_capacity(n_sessions);
+        for part in partitions {
+            let c = ctx.clone();
+            let gate = Arc::clone(&gate);
+            let acc = Arc::clone(&acc);
+            handles.push(tokio::spawn(async move {
+                let mut state = ArmState::new(&cfg);
+                let mut mine: Vec<(u64, u64, u32)> = Vec::with_capacity(part.len());
+                gate.wait().await;
+                for (i, &idx) in part.iter().enumerate() {
+                    let next = part.get(i + 1).copied();
+                    let t0 = Instant::now();
+                    let out =
+                        serve_frame_async(arm, &c, idx, next, cfg.access, cfg.chunk, &mut state)
+                            .await?;
+                    mine.push((t0.elapsed().as_nanos() as u64, out.hop_ns, out.hop_events));
+                }
+                acc.lock().unwrap().extend(mine);
+                Ok::<(), anyhow::Error>(())
+            }));
+        }
+        gate.wait().await;
+        let wall0 = Instant::now();
+        for h in handles {
+            h.await.context("session join")??;
+        }
+        let wall = wall0.elapsed().as_nanos() as u64;
+        stop.store(true, Ordering::Relaxed);
+        tokio::task::yield_now().await;
+        for m in mons {
+            let _ = m.await;
+        }
+        let gaps = gap_out.lock().unwrap().clone();
+        let out = acc.lock().unwrap().clone();
+        Ok::<_, anyhow::Error>((out, wall, gaps))
+    })?;
+
+    let cpu_ns = process_cpu_ns().saturating_sub(cpu0);
+    let threads_max = process_threads();
+    let mut lats: Vec<u64> = per_ask.iter().map(|(l, _, _)| *l).collect();
+    lats.sort_unstable();
+    let mut hops: Vec<u64> = per_ask
+        .iter()
+        .map(|(_, h, _)| *h)
+        .filter(|h| *h > 0)
+        .collect();
+    hops.sort_unstable();
+    let hop_events: u64 = per_ask.iter().map(|(_, _, e)| u64::from(*e)).sum();
+    let (_, gap_p99, gap_max, _) = summarize_gaps(&mut gaps);
+    let asks = lats.len() as u32;
+
+    Ok(MixRow {
+        arm: arm.as_str().to_string(),
+        trace: trace.as_str().to_string(),
+        repeat,
+        concurrency: mcfg.concurrency,
+        region_start: mcfg.region_start,
+        region_frames: mcfg.region_frames,
+        region_stride: stride,
+        mix_target: report.target,
+        mix_achieved: report.achieved,
+        hit_resident: report.hit_resident,
+        miss_resident: report.miss_resident,
+        asks,
+        wall_ns,
+        throughput_fps: if wall_ns == 0 {
+            0.0
+        } else {
+            asks as f64 * 1e9 / wall_ns as f64
+        },
+        p50_ns: percentile(&lats, 0.50),
+        p90_ns: percentile(&lats, 0.90),
+        p99_ns: percentile(&lats, 0.99),
+        max_ns: lats.last().copied().unwrap_or(0),
+        hop_count: hops.len() as u32,
+        hop_events,
+        hop_p50_ns: percentile(&hops, 0.50),
+        hop_p99_ns: percentile(&hops, 0.99),
+        gap_p99_ns: gap_p99,
+        gap_max_ns: gap_max,
+        cpu_ns,
+        cpu_per_ask_ns: if asks == 0 {
+            0
+        } else {
+            cpu_ns / u64::from(asks)
+        },
+        threads_max,
+        read_chunk: cfg.read_chunk,
+        uring_depth: cfg.uring_depth,
+        runtime: cfg.runtime.as_str().to_string(),
+        samples: per_ask,
+    })
 }
 
 enum TraceSpec {
@@ -1672,6 +2222,137 @@ fn assert_cgroup_mem_limit(max_bytes: u64) -> Result<()> {
     anyhow::bail!("cgroup mem assert failed: no memory cgroup in /proc/self/cgroup:\n{cg}")
 }
 
+/// The miss-ratio / concurrency campaign.
+///
+/// Separate from the classic loop on purpose. That loop's unit is "one primary session on
+/// a whole study at one temperature"; this one's is "N sessions on a region whose miss
+/// ratio was chosen and verified", and folding the second into the first would have meant
+/// changing the instrument the accepted decision rests on.
+fn run_mix_campaign(
+    args: &Args,
+    arms: &[Arm],
+    chunks: &[usize],
+    repeats: u32,
+    workers: usize,
+    mixes: Vec<f64>,
+) -> Result<()> {
+    let concurrencies = args.concurrencies.clone().unwrap_or_else(|| vec![1]);
+    let traces = args
+        .trace
+        .clone()
+        .unwrap_or_else(|| vec![TraceKind::Forward]);
+    let mut rows: Vec<MixRow> = Vec::new();
+    println!("{}", mix_tsv_header());
+
+    for study in &args.studies {
+        let study = study.canonicalize().context("study")?;
+        let ctx = ServeCtx::open(&study)?;
+        let n = ctx.store.frame_count();
+        let region_frames = args.region_frames.max(1);
+        let stride = args.region_stride.max(1);
+        let span = region_frames * stride;
+        if span > n {
+            anyhow::bail!(
+                "--region-frames {region_frames} x --region-stride {stride} spans {span} frames, \
+                 past the study's {n}"
+            );
+        }
+        let regions = n / span;
+        eprintln!(
+            "study={} frames={n} region_frames={region_frames} stride={stride} regions={regions} \
+             nowait={} concurrency={:?} mixes={:?}",
+            study.display(),
+            ctx.store.nowait_supported(),
+            concurrencies,
+            mixes,
+        );
+        // Every cell takes the next region unless pinned. An 80 MB study re-read is 10x
+        // faster on its second pass here (442 ms then 31 ms) — the hypervisor caches it —
+        // so an arm that runs second on the same bytes is measuring the cache, not itself.
+        let mut cell = 0u32;
+        for &chunk in chunks {
+            for &mix in &mixes {
+                for &conc in &concurrencies {
+                    for &trace in &traces {
+                        for rep in 1..=repeats {
+                            for &arm in arms {
+                                let region_start = if args.region_fixed {
+                                    0
+                                } else {
+                                    (cell % regions) * span
+                                };
+                                cell += 1;
+                                let mcfg = MixCfg {
+                                    cell: CellCfg {
+                                        access: AccessMode::Full,
+                                        chunk,
+                                        sessions: 0,
+                                        session_asks: 0,
+                                        runtime: args.runtime,
+                                        workers,
+                                        bg_arm: args.bg_arm,
+                                        monitors: args.monitors,
+                                        read_chunk: args.read_chunk.max(1),
+                                        uring_sqpoll: args.uring_sqpoll,
+                                        uring_depth: args.uring_depth.max(2),
+                                        max_blocking: args.max_blocking,
+                                    },
+                                    mix,
+                                    concurrency: conc,
+                                    region_start,
+                                    region_frames,
+                                    region_stride: stride,
+                                    seed: args.mix_seed,
+                                };
+                                let row = run_mix_cell(arm, &ctx, mcfg, trace, rep)?;
+                                println!("{}", row.to_tsv());
+                                rows.push(row);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(path) = &args.mix_samples {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut body = String::from(
+            "arm\ttrace\tmix_target\tconcurrency\trepeat\tordinal\tlatency_ns\thop_ns\thop_events\n",
+        );
+        for r in &rows {
+            for (i, (lat, hop, ev)) in r.samples.iter().enumerate() {
+                body.push_str(&format!(
+                    "{}\t{}\t{:.2}\t{}\t{}\t{i}\t{lat}\t{hop}\t{ev}\n",
+                    r.arm, r.trace, r.mix_target, r.concurrency, r.repeat
+                ));
+            }
+        }
+        std::fs::write(path, body)?;
+        eprintln!(
+            "wrote {} ({} asks)",
+            path.display(),
+            rows.iter().map(|r| r.samples.len()).sum::<usize>()
+        );
+    }
+    if let Some(out) = &args.mix_out {
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut body = String::from(mix_tsv_header());
+        body.push('\n');
+        for r in &rows {
+            body.push_str(&r.to_tsv());
+            body.push('\n');
+        }
+        std::fs::write(out, body)?;
+        eprintln!("wrote {}", out.display());
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     if args.selftest {
@@ -1681,23 +2362,23 @@ fn main() -> Result<()> {
     if let Some(limit) = args.require_cgroup_mem_bytes {
         assert_cgroup_mem_limit(limit)?;
     }
-    let arms = if let Some(a) = args.arm {
+    let arms = if let Some(a) = args.arm.clone() {
         a
     } else if args.decision || args.realistic {
         Arm::decision().to_vec()
     } else {
         Arm::all().to_vec()
     };
-    let accesses = if let Some(a) = args.access {
+    let accesses = if let Some(a) = args.access.clone() {
         a
     } else {
         vec![AccessMode::Full]
     };
-    let temps = args.temp.unwrap_or_else(|| Temp::all().to_vec());
+    let temps = args.temp.clone().unwrap_or_else(|| Temp::all().to_vec());
     let chunks = if args.chunk.is_empty() {
         vec![16_384]
     } else {
-        args.chunk
+        args.chunk.clone()
     };
     let repeats = args.repeats.max(1);
     let workers = args
@@ -1721,6 +2402,10 @@ fn main() -> Result<()> {
         repeats,
         args.prefix
     );
+
+    if let Some(mixes) = args.mixes.clone() {
+        return run_mix_campaign(&args, &arms, &chunks, repeats, workers, mixes);
+    }
 
     let mut rows = Vec::new();
     println!("{}", tsv_header());
@@ -1766,6 +2451,8 @@ fn main() -> Result<()> {
                             monitors: args.monitors,
                             read_chunk: args.read_chunk.max(1),
                             uring_sqpoll: args.uring_sqpoll,
+                            uring_depth: args.uring_depth.max(2),
+                            max_blocking: args.max_blocking,
                         };
                         // Repeat is the OUTER loop: arms interleave round-robin so slow
                         // host drift lands on every arm instead of on whichever arm
@@ -1785,7 +2472,7 @@ fn main() -> Result<()> {
         }
     }
 
-    if let Some(path) = args.samples {
+    if let Some(path) = args.samples.clone() {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -1807,7 +2494,7 @@ fn main() -> Result<()> {
         );
     }
 
-    if let Some(out) = args.out {
+    if let Some(out) = args.out.clone() {
         if let Some(parent) = out.parent() {
             std::fs::create_dir_all(parent)?;
         }

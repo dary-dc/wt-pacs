@@ -14,12 +14,19 @@ use std::path::Path;
 use std::sync::OnceLock;
 use study_bundle::parse_layout;
 
-/// Bytes read per `read_at_nowait` call on the serving path.
+/// Bytes read per `read_at_nowait` call, and written per `write_all`, on the serving path.
 ///
 /// The window bounds two things at once: how long the executor copies without yielding,
-/// and how much memory a session holds. 64 KiB measured best on the validation host —
-/// 256 KiB (whole frame, one call) cut per-frame latency by ~10 µs but quadrupled the
-/// worst co-tenant gap; 16 KiB paid more syscalls for no further gap reduction.
+/// and how much memory a session holds while every ask hits. 64 KiB measured best on the
+/// validation host — 256 KiB (whole frame, one call) cut per-frame latency by ~10 µs but
+/// quadrupled the worst co-tenant gap (later measured at 4.0 ms against 148 µs, on a
+/// fixture where misses are real device reads); 16 KiB paid more syscalls for no further
+/// gap reduction.
+///
+/// It is deliberately **not** the size of the read that a miss issues. `stream_codestream`
+/// escalates there — see its docs and `docs/disk-access/RERUN-miss.md`: windowing the pool
+/// read as well costs 2–3 device round trips per frame instead of one, and 2.9–3.4x the
+/// throughput once most asks miss.
 pub const READ_WINDOW: usize = 64 * 1024;
 
 pub struct FrameStore {

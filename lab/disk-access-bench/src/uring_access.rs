@@ -99,6 +99,13 @@ impl UringReader {
         })
     }
 
+    /// How many slots this ring was built with. The pipelined arm needs it: the ring is
+    /// sized once, for the study's longest frame, and a depth taken from the frame in hand
+    /// could index past it.
+    pub fn slots(&self) -> usize {
+        self.bufs.len()
+    }
+
     pub fn buf(&self, slot: usize) -> &[u8] {
         assert!(
             !self.in_flight[slot],
@@ -155,6 +162,70 @@ impl UringReader {
         Ok(())
     }
 
+    /// Await the completion for one specific `slot`, draining anything else that lands
+    /// alongside it.
+    ///
+    /// `complete(n)` counts completions without caring which; that is enough for an arm
+    /// with one read outstanding, and wrong for one that submits a whole frame and wants
+    /// to write window 0 the moment window 0 arrives.
+    ///
+    /// Returns **1 if this read did not complete inline**, not the number of times it
+    /// parked — one read can take two trips round the eventfd before its CQE is visible,
+    /// and counting those would not compare with a `spawn_blocking` round trip, which is
+    /// what the campaign's hop column means.
+    pub async fn complete_slot(&mut self, slot: usize) -> Result<usize> {
+        let mut parked = false;
+        let mut freed = Vec::new();
+        while self.in_flight[slot] {
+            self.drain(&mut freed)?;
+            if !self.in_flight[slot] {
+                break;
+            }
+            parked = true;
+            self.park().await?;
+        }
+        Ok(usize::from(parked))
+    }
+
+    /// Reap every completion currently in the CQ, recording which slots came back.
+    fn drain(&mut self, freed: &mut Vec<usize>) -> Result<usize> {
+        self.ring.completion().sync();
+        let mut drained = 0usize;
+        while let Some(cqe) = self.ring.completion().next() {
+            if cqe.result() < 0 {
+                let e = std::io::Error::from_raw_os_error(-cqe.result());
+                bail!("io_uring read failed: {e}");
+            }
+            let slot = cqe.user_data() as usize;
+            self.in_flight[slot] = false;
+            freed.push(slot);
+            drained += 1;
+        }
+        Ok(drained)
+    }
+
+    /// Park on the registered eventfd. Never blocks in `io_uring_enter` — doing that would
+    /// reintroduce the executor stall the whole campaign is about.
+    async fn park(&mut self) -> Result<()> {
+        let mut guard = self
+            .eventfd
+            .readable_mut()
+            .await
+            .context("eventfd readable")?;
+        let _ = guard.try_io(|inner| {
+            let mut sink = [0u8; 8];
+            // SAFETY: 8-byte read from an eventfd into a live local buffer.
+            let n =
+                unsafe { libc::read(inner.get_ref().as_raw_fd(), sink.as_mut_ptr() as *mut _, 8) };
+            if n < 0 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        });
+        Ok(())
+    }
+
     /// One `io_uring_enter` for everything queued (zero syscalls under SQPOLL).
     pub fn submit(&mut self) -> Result<()> {
         self.ring.submit().context("io_uring submit")?;
@@ -180,42 +251,14 @@ impl UringReader {
         let mut done = 0usize;
         let mut waited = 0usize;
         while done < want {
-            self.ring.completion().sync();
-            let mut drained = 0usize;
-            while let Some(cqe) = self.ring.completion().next() {
-                if cqe.result() < 0 {
-                    let e = std::io::Error::from_raw_os_error(-cqe.result());
-                    bail!("io_uring read failed: {e}");
-                }
-                let slot = cqe.user_data() as usize;
-                self.in_flight[slot] = false;
-                freed.push(slot);
-                drained += 1;
-            }
-            done += drained;
+            done += self.drain(freed)?;
             if done >= want {
                 break;
             }
             // Nothing ready: the read went to an io-wq worker. Park on the eventfd instead
             // of spinning or blocking in `io_uring_enter`.
             waited += 1;
-            let mut guard = self
-                .eventfd
-                .readable_mut()
-                .await
-                .context("eventfd readable")?;
-            let _ = guard.try_io(|inner| {
-                let mut sink = [0u8; 8];
-                // SAFETY: 8-byte read from an eventfd into a live local buffer.
-                let n = unsafe {
-                    libc::read(inner.get_ref().as_raw_fd(), sink.as_mut_ptr() as *mut _, 8)
-                };
-                if n < 0 {
-                    Err(std::io::Error::last_os_error())
-                } else {
-                    Ok(())
-                }
-            });
+            self.park().await?;
         }
         Ok(waited)
     }

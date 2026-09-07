@@ -169,9 +169,17 @@ that defeat read-ahead. Cold, median of 5:
 
 A cold reverse pass is the honest worst case: every window misses, the arm becomes pooled
 `pread` exactly, and it lands within noise of it (421 vs 379 µs) with a *better* `gap_max`
-(176 vs 205 µs). **It degrades to the escape hatch; it never degrades below it.** Warm —
-which is the common case, and where the sequential result was never in doubt — it takes
-zero hops on random and reverse alike (42.5 µs, 42.5 µs).
+(176 vs 205 µs). Warm — which is the common case, and where the sequential result was never
+in doubt — it takes zero hops on random and reverse alike (42.5 µs, 42.5 µs).
+
+> **Corrected 2026-09-07.** This cell originally concluded "it degrades to the escape hatch;
+> it never degrades below it". **That is false, and this cell is why it looked true.** The
+> arm does not become pooled `pread`; it becomes pooled `pread` *per window*, which is 2–3
+> device round trips per frame instead of one. On this 80 MB fixture the hypervisor serves a
+> "miss" in ~12 µs, so the extra round trips cost 4% and vanish into the noise the sentence
+> above calls "within noise". On a fixture where a miss is a real device read the same
+> comparison is **3.2×** — see [`RERUN-miss.md`](RERUN-miss.md), which measures it and
+> amends the ADR. The rest of this cell stands.
 
 ---
 
@@ -330,6 +338,16 @@ Two conditions would make it worth revisiting, and both are in `later.md` (archi
    real ask window to prefetch against, is where pipelining and ahead-N would pay — and
    where this host's variance stopped being able to see.
 
+> **Both conditions were tested, by two campaigns, and they answer different halves.**
+> Condition 2 — a miss-dominated deployment — was measured twice. [`EVIDENCE.md`](EVIDENCE.md)
+> finds the ring worth **−42 to −73% CPU per read** at 16 KB frames on four hosts, which is
+> the strongest case io_uring has. [`RERUN-miss.md`](RERUN-miss.md) finds that at **250 KB**
+> frames the same fixed per-round-trip saving is under 8% of a read and below the drift
+> threshold, and that what dominates there is how many round trips a frame costs — the
+> ~6% cold-reverse advantage for `uring_pipelined` above becomes 13% *worse* once a miss
+> costs ~400 µs rather than ~12 µs. Neither overturns the other; frame size is the variable.
+> Condition 1 (a thread-per-core runtime) remains untested.
+
 ---
 
 ## Precision — what this instrument can separate
@@ -442,7 +460,11 @@ window. Checking the deployment filesystem is the first item in `later.md` (arch
   follows — a difference must beat drift *and* reproduce with the same sign.
 - **Cold means guest-cold, not device-cold, and cold cells do not resolve small
   differences.** Residency is asserted `< 0.1%` in the guest, but the hypervisor caches the
-  backing file: the same cold pass takes 25 ms on one repeat and 200 ms on another. At 25
+  backing file: the same cold pass takes 25 ms on one repeat and 200 ms on another.
+  (**2026-09-07:** the cause is that this fixture is 80 MB and fits in the host's cache —
+  442.7 ms on the first pass, then 31–45 ms for every pass after. An 8 GB fixture does not
+  behave this way and cold cells become resolvable on it. [`RERUN-miss.md`](RERUN-miss.md)
+  §Why.) At 25
   interleaved repeats an apparent 34% CPU difference between two arms reversed when the arm
   order was reversed (Cell 6). Large, mechanism-explained cold effects survive — naive
   mmap's millisecond stalls, the `mincore` gate under pressure, an arm that parks on 100% of

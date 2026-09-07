@@ -9,4 +9,5 @@
 pub mod candidate_access;
 pub mod frame_cache;
 pub mod rejected_access;
+pub mod residency;
 pub mod uring_access;
