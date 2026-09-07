@@ -134,7 +134,7 @@ run_one() {  # arm trace step rtt loss run path_rtt
   set +e
   "$HARNESS" --url "$CLOUD_URL" $HARNESS_IPV4 --trace "$(trace_at "$trace" "$step")" --read-bps 0 \
     --depth "$depth" --prefetch "$prefetch" "${extra[@]}" --frame-count "$FRAME_COUNT" --fill-dwell-ms 0 \
-    --mode trace --arm "$label" --stream-mode shared --json > "$json" 2> "$json.err"
+    --mode trace --arm "$label" --stream-mode shared --timeout-ms "${TIMEOUT_MS:-180000}" --json > "$json" 2> "$json.err"
   local rc=$?
   set -e
   drops1=$(netem_drops); drops1=${drops1:-0}
