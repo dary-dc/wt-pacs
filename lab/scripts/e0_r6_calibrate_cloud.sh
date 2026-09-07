@@ -22,6 +22,7 @@
 #
 # Usage: DELAY=25 RATE=20 LOSS=0.1 SCALES="1 2 4 8" lab/scripts/e0_r6_calibrate_cloud.sh
 #        DELAY=25 RATE=20 LOSS=1.0 SCALES="4" REPS=3 lab/scripts/e0_r6_calibrate_cloud.sh
+#        FIXTURE=frames_500x250k SRV_EXTRA="--segmentation-offload false" ... (X3L)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 source "$ROOT/lab/scripts/cloud_r6_common.sh"
@@ -37,6 +38,14 @@ REPS=${REPS:-1}
 # same asymmetry (STRANDING_CELLS = {X1, X2}); without this flag the control's own passing
 # rows print as NOT-ADMISSIBLE, which is exactly the kind of label that gets misread later.
 CONTROL=${CONTROL:-0}
+# Extra server flags for the calibration arm. The operating point is only frozen-and-valid
+# for the condition it was calibrated in, so whatever the campaign puts on BOTH arms has to
+# be here too. The case that forced this: X3L runs `--segmentation-offload false`, which
+# changes how sch_netem draws loss (per datagram instead of per GSO batch, see
+# docs/measurements/r6/r6cloud-results.md 3.2) and therefore changes the achievable rate the
+# reader is being set against. Calibrating with GSO on and running with it off is the same
+# "calibrated once, assumed to hold" mistake as carrying a scale across rigs.
+SRV_EXTRA="${SRV_EXTRA:-}"
 OUTDIR="${OUTDIR:-$ROOT/.local/measurements/r6/cal_cloud}"
 TSV="${TSV:-$OUTDIR/calibration.tsv}"
 mkdir -p "$OUTDIR"
@@ -52,10 +61,12 @@ r6_netem "$DELAY" "$RATE" "$LOSS" >/dev/null
 
 echo "cell: rig egress netem +${DELAY} ms one-way, ${RATE} Mbps, ${LOSS}% loss; base path RTT adds on top"
 echo "      depth $DEPTH, cache $CACHE, trace $(basename "$TRACE"), reps $REPS"
+echo "      fixture $FIXTURE, server extra flags: ${SRV_EXTRA:-<none>}"
 printf '%8s %5s %9s %8s %9s %8s %10s %8s %8s\n' scale rep lag_ms strand cens% cdrop p95 nz_n frames
 for SC in $SCALES; do
   for REP in $(seq 1 "$REPS"); do
-    r6_start_server "$STUDY" --stream-mode shared >/dev/null
+    read -r -a EXTRA <<< "$SRV_EXTRA"
+    r6_start_server "$STUDY" --stream-mode shared "${EXTRA[@]}" >/dev/null
     timeout "${RUN_TIMEOUT:-600}" "$HARNESS" --url "$CLOUD_URL" --mode trace --trace "$TRACE" \
       --read-bps 0 --depth "$DEPTH" --frame-count 500 --stream-mode shared \
       --cache-frames "$CACHE" --reader-mode open --step-scale "$SC" --arm "cal_$SC" --json \
