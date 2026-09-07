@@ -20,7 +20,7 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Keep one shared stream — a recommendation no code carries yet (§2.7).** In simulation, per-frame is **3.5× worse at 64 KB and 8.5× worse at 250 KB**, on a mechanism that survived a falsifiable prediction. On a **real network** the 64 KB cell is **noise-dominated and does not separate** (§2.6) — the loss realisation moves the reference arm by 4.3×, which is larger than the effect being looked for. Nothing on either rig ever favours per-frame, so the recommendation is unchanged; but the *real-path* evidence for it is currently four ties, and the 250 KB cell — where the predicted effect is far larger than the noise — **has not been run on the rig** (§2) |
+| **Stream shape** | **Keep one shared stream — a recommendation no code carries yet (§2.7).** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a **real network** the 64 KB cell is noise-dominated and does not separate (§2.6), but **the 250 KB cell does: per-frame is 5.76× worse, separated 3/3, and the absolute penalty the mechanism predicts reproduces to within 1.6 % of the simulator** (§2.6a). At the frame size this product ships, the recommendation is a **measured property of the transport on real hardware**, not a simulator result. Nothing on either rig, in any cell, ever favours per-frame |
 | **Fixed-N pool** | **Still untested** — a server-side change, and this lane may not modify `server/`. R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95. **Not confirmed on real hardware** — on the rig the path, not the send path, is the ceiling ([`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.2) |
@@ -293,23 +293,23 @@ even if it were exactly right.
 That has a constructive consequence. The mechanism predicts — and netsim confirms — that the
 penalty **grows with frame size**: 8.5× at 250 KB against 3.5× at 64 KB. An **8.5× effect is
 comfortably larger than a 4.3× noise floor**, whereas a 3.5× one is not. So the real-path
-test with the power to succeed is **X3L on the rig**, and it has not been run. Until it is,
-"the mechanism is unconfirmed on real hardware" is the accurate statement, and "the mechanism
-is wrong" is not supported by anything here.
+test with the power to succeed was **X3L on the rig**. It was run on 2026-09-07 and it
+separated — see **§2.6a**, which supersedes the "unconfirmed on real hardware" reading this
+section carried until then.
 
 **What this changes, and what it does not.**
 
 - The recommendation is unchanged: **keep one shared stream.** No cell, arm or repeat on
   either rig favours per-frame.
-- Its *real-path* support is currently four ties. "Per-frame is 3.5× worse at 1 % loss" is a
-  **simulator result a real path could not resolve**, and should be quoted as such rather
-  than as a measured property of the transport.
+- At 64 KB its *real-path* support is four ties. "Per-frame is 3.5× worse at 1 % loss **at
+  64 KB**" remains a simulator result a real path could not resolve, and should still be
+  quoted as such. The 250 KB claim is no longer in that position (§2.6a).
 - **P5 lost again.** `send_fairness(true)` is worse than FIFO in all twelve real-path
   repeat-level comparisons, on a rig sharing no code with the first. That finding is now
   replicated and is the strongest thing R6 has.
 - The retransmit-deferral mechanism read out of quinn's source is **not** falsified — it
-  predicts an effect that a noisy 1 % cell at n = 3 cannot resolve. It is unconfirmed on real
-  hardware, not refuted.
+  predicts an effect that a noisy 1 % cell at n = 3 cannot resolve at 64 KB. **At 250 KB, in
+  the cell built to have the power, it is confirmed on real hardware (§2.6a).**
 
 **A defect worth carrying forward.** The real-path campaign found that `sch_netem` draws
 loss **once per GSO batch, not per datagram**, and that the batch size differs by arm
@@ -319,6 +319,56 @@ incumbent — and the incumbent still failed to separate, which is why the null 
 future netem loss experiment comparing stream shapes must run with
 `--segmentation-offload false`.
 There is no cell in which per-frame is better.
+
+### 2.6a · **X3L on the rig — the mechanism is confirmed on real hardware**
+
+**Run 2026-09-07**, one sitting, on the Oracle rig. Data and full method:
+[`measurements/r6/x3l-results.md`](measurements/r6/x3l-results.md); the losing condition was
+written down and committed before calibration, in
+[`measurements/r6/x3l-prereg.md`](measurements/r6/x3l-prereg.md).
+
+§2.6 said the real-path test with the power to succeed was the 250 KB cell. This is it.
+**6 rows, 0 VOID**, both arms `--segmentation-offload false` so `sch_netem` draws loss per
+datagram rather than per GSO batch.
+
+| | `shared` | `perframe_fifo` | ratio |
+| --- | --- | --- | --- |
+| netsim, 64 KB | 182.2 ms | 637.1 ms | 3.5× |
+| netsim, 250 KB | 372.7 ms | 3159.5 ms | 8.5× |
+| real path, 64 KB | — | — | **not a result** (noise 4.32×) |
+| **real path, 250 KB** | **594.7 ms** | **3426.2 ms** | **5.76×** |
+
+Separated on the pre-registered rule (+476.1 % on `p95_wait_ms`, +271.3 % on `nz_p95`), same
+sign in all three repeats (+424.5 %, +452.9 %, +634.8 %), zero censoring, `bytes_on_wire`
+spread 0.10 %.
+
+**The mechanism's own prediction is about absolute milliseconds**, not a ratio — a lost frame
+waits behind up to D−1 whole frames at a given depth and rate. That is the quantity to
+compare across rigs, and it is the one that reproduces:
+
+| | absolute per-frame penalty |
+| --- | --- |
+| netsim, 250 KB | 2786.8 ms |
+| **real path, 250 KB** | **2831.5 ms** |
+
+**1.6 % apart**, across rigs differing in RTT, loss model, achievable rate and every layer
+between sender and receiver. The *ratio* differs (8.5× vs 5.76×) only because the baseline
+does — `shared` costs 594.7 ms here against netsim's 372.7 — which is exactly what a
+mechanism adding a fixed queueing delay should produce.
+
+**Why this cell resolved what X3 could not**, in one line: the realisation noise on `shared`
+is **1.11×** here against **4.32×** at 64 KB, while the effect is 5.76×. The signal is far
+above the noise instead of underneath it. That was established from four calibration
+realisations *before* the per-frame arm ran.
+
+**The null was live and did not occur.** The stranding gate passed in every row
+(10.8–29.0 MB stranded, `center_dropped` 0 throughout), so "per-frame does not separate at
+250 KB with stranding present" was readable and would have put retransmit deferral in
+trouble. It separated instead.
+
+**What it does not settle:** §2.7. The binary still defaults to `per-frame`. And GSO is off
+in both arms — necessary to make the loss model fair, but not how the server runs in
+production, so the GSO-on real-path condition at 250 KB is unmeasured.
 
 ### 2.7 · The binary does not implement this recommendation
 
@@ -346,10 +396,23 @@ Two standing inputs sit alongside it, and neither is enough on its own:
   server cost and **3.46×** the client cost under per-frame, on a mechanism that owes nothing
   to loss. That is an argument for `shared` that X3L cannot overturn.
 
+> ### The rule has fired — 2026-09-07
+>
+> **X3L ran, and `shared` separated with the stranding gate passing**: 594.7 ms against
+> `perframe_fifo`'s 3426.2 ms, **5.76×**, 6 rows, 0 VOID, same sign in all three repeats,
+> 10.8–29.0 MB stranded per row and `center_dropped` 0 throughout (§2.6a,
+> [`measurements/r6/x3l-results.md`](measurements/r6/x3l-results.md)).
+>
+> That is row 1 of the table above. **The pre-registered consequence is: flip the default to
+> `shared`.** It has deliberately *not* been flipped in the same pass that measured it —
+> changing a shipped default is a separate, announced act — but the decision is no longer
+> open, and the reason to hold is gone rather than outweighed.
+
+
 **What is not acceptable is the current state**, where the answer sheet reads as a settled
 decision and anyone deploying either branch gets the arm measured 3.5–8.5× worse under loss.
-Until X3L runs, §2 must read as advice to operators, not as a shipped default. Found by
-adversarial review, 2026-09-07.
+That was written while X3L was outstanding, and X3L has since run and decided it. Found by
+adversarial review, 2026-09-07; resolved by measurement the same day.
 
 ### `send_fairness(false)` is mandatory if per-frame is ever used
 

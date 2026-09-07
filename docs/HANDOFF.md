@@ -77,7 +77,7 @@ mechanical.
 
 | finding | strength |
 | ------- | -------- |
-| **Keep one shared stream** — *but `server/src/main.rs` still defaults to `per-frame`, as `main` does; the conclusion was never landed in code (`transport-conclusions.md` §2.7)*. Per-frame is 3.5× worse at 64 KB, **8.5× worse at a realistic 250 KB**, never better anywhere | 3/3 separated, two trace shapes, mechanism source-verified, prediction survived — **all of it in netsim.** On the real rig the 64 KB cell does not separate, and §3 explains why that is an underpowered test rather than a contradiction |
+| **Keep one shared stream** — *but `server/src/main.rs` still defaults to `per-frame`, as `main` does; the conclusion was never landed in code (`transport-conclusions.md` §2.7)*. Per-frame is 3.5× worse at 64 KB, **8.5× worse at a realistic 250 KB**, never better anywhere | 3/3 separated in netsim, two trace shapes, mechanism source-verified, prediction survived — **and now confirmed on the real rig at 250 KB: 5.76×, 3/3, absolute penalty within 1.6 % of netsim** (§3). The 64 KB real-path cell remains an underpowered tie, not a contradiction |
 | **Mechanism:** `retransmit()` re-queues with `push_pending` — back of the class, *regardless of fairness* (`state.rs:677`). Per-frame therefore **defers** loss recovery behind other frames' backlogs | source + a falsifiable prediction that held |
 | **`send_fairness(false)` is mandatory** if per-frame is ever used | worse in all 12 comparisons, 4 cells |
 | **Controller depends on loss regime.** Congestive → Cubic (BBR +63 %); exogenous → BBR (Cubic +48 %). **Default Cubic** | both directions separated, regimes verified by queue counters. **The congestive 600 ms cell is n = 2 for BBR** — one repeat produced no data — and the +63 % is `nz_p95`; separation is clean on both columns, but re-running that repeat is outstanding (`transport-conclusions.md` §1) |
@@ -109,10 +109,24 @@ realisation alone moves `shared` by **4.32×**. **The cell could not have detect
 own effect at n = 3 even if the mechanism is exactly right.** Do not cite this as evidence
 against the mechanism.
 
-**The run that would settle it is X3L on the rig** — 250 KB frames, where the mechanism
-predicts 8.5×, comfortably above a 4.3× noise floor. Not run: the residential path degraded
-51 → 9 Mbps mid-session and the comparison needs one sitting on a stable path. ~1 hour for
-two arms at n = 3, plus calibration. **This is now the highest-value run on the rig.**
+**The run that would settle it was X3L on the rig** — 250 KB frames, where the mechanism
+predicts 8.5×, comfortably above a 4.3× noise floor.
+
+> **Run 2026-09-07. It separated.** `shared` **594.7 ms** vs `perframe_fifo` **3426.2 ms** =
+> **5.76×**, 6 rows, 0 VOID, same sign in all three repeats, every gate passing and the path
+> stable start to end (28–29.8 → 27.9–29.5 ms RTT). The absolute per-frame penalty — which is
+> what the mechanism actually predicts — is **2831.5 ms against netsim's 2786.8 ms, 1.6 %
+> apart**. Realisation noise on `shared` is **1.11×** here against 4.32× at 64 KB, which is
+> why this cell could resolve what X3 could not.
+>
+> Data and deviations: [`measurements/r6/x3l-results.md`](measurements/r6/x3l-results.md).
+> Pre-registered null, committed before calibration:
+> [`measurements/r6/x3l-prereg.md`](measurements/r6/x3l-prereg.md). Reading:
+> `transport-conclusions.md` §2.6a.
+>
+> **The stream-shape recommendation is no longer a simulator result.** What remains open is
+> §2.7 — the binary still defaults to `per-frame` — which is a product decision, not a
+> measurement.
 
 **Run card: [`measurements/r6/x3l-run-card.md`](measurements/r6/x3l-run-card.md)** — written
 2026-09-07 after an audit found three ways this run fails *silently*. The worst: `FIXTURE`
@@ -122,7 +136,9 @@ to change left unchanged. `r6_campaign.sh` stated the requirement in a comment;
 `r6_campaign_cloud.sh` did not state it at all. Now enforced by
 `lab/scripts/r6_cell_inputs.sh`. `SCALE_X3L` also had a default of 16 — netsim's 32 halved
 by a rule of thumb measured at 64 KB — which is now removed, so the run cannot start on an
-inherited operating point.
+inherited operating point. **Removing it was load-bearing:** the rig calibration landed on
+**32**, and 16 would have run a cell delivering 463 of 655 frames while looking admissible.
+The halving rule was measured with GSO on, and GSO-off halves the achievable rate.
 
 Three other things came back, and two of them change how future runs must be done:
 
@@ -249,10 +265,13 @@ paperwork, and the items below are what survived independent re-verification her
    > all arms, n = 3, in one sitting on one machine — or leave the n = 2 disclosure
    > standing, which is honest and already written. Nobody should quietly append a fourth
    > row from a fourth machine.
-2. **The stream-mode default is decided by X3L, not by opinion** (§2.7). The rule is
-   pre-registered: if X3L separates in `shared`'s favour with the stranding gate passing,
-   flip the default; if it does not, leave it and rewrite §2 as advice rather than a
-   decision. Until then §2 must not read as a shipped default.
+2. **The stream-mode default is decided by X3L, not by opinion** (§2.7), and **X3L has now
+   run: the rule fires.** It separated in `shared`'s favour — 5.76×, 3/3, stranding gate
+   passing in every row (§3) — which is the pre-registered condition for **flipping the
+   default to `shared`**. The last objection, "the real-path evidence is four ties", is gone.
+   Deliberately **not** flipped in this pass: it is a change to shipped behaviour and the
+   session that measured it is not the right one to land it unannounced. It is now the most
+   consequential open item on the branch, and §2 may stop reading as advice once it lands.
 3. **The sampler log corruption is confirmed and fixed** — reproduced at 8, 32 and 64
    concurrent writers before the fix (29 % of rows intact at 32) and 100 % clean after, with
    a regression test in `server/src/record/path.rs` and a classifier that now refuses a
@@ -358,6 +377,7 @@ admission rule passed; Phase C retuned the admission rule until the workload pas
 | `lab/scripts/cloud_preflight.sh` | **run first** on any rig work; fails fast if the environment cannot reach it |
 | `lab/scripts/e0_r6_reader_validate.sh` | proves the rig can produce head-of-line blocking |
 | `lab/scripts/e0_r6_calibrate.sh` | finds the admissible operating point; takes `SEED=` |
+| `lab/scripts/e0_r6_calibrate_cloud.sh` | the rig variant; takes `REPS=` for E0-R6c and **`SRV_EXTRA=`**, so the operating point is calibrated in the condition the campaign actually runs |
 | `lab/scripts/e0_regime_validate.sh` | proves the loss-regime classifier on known ground truth |
 | `lab/scripts/r6_campaign.sh` | the stream-shape campaign |
 | `lab/scripts/r6_analyse.py` | applies the pre-registered decision rules |
@@ -374,9 +394,11 @@ admission rule passed; Phase C retuned the admission rule until the workload pas
 
 ## 8 · Housekeeping
 
-- **Rotate the Oracle rig SSH key.** It was pasted into a chat transcript. Never entered the
-  repository (verified), but it should be treated as compromised regardless of use — the
-  same reasoning that retired the previous one. See `cloud-rig-access.md`.
+- ~~**Rotate the Oracle rig SSH key.**~~ **Done 2026-09-07.** The exposed cloud-agent key
+  `SHA256:CAD0bvPh…` is replaced by `SHA256:qz/LiOLq…`, installed and verified before the old
+  one was removed, denial proven on `ubuntu`, and the `authorized_keys.bak.*` copies deleted
+  so it does not linger beside the live file. `root` and `opc` were re-checked and are still
+  empty. Record and scope: `cloud-rig-access.md`.
 - **Large fixtures are gitignored** (`frames_500x64k`, `frames_500x250k`). Regeneration
   recipes are in each fixture's README.
 - **The `telemetry` feature is off by default.** The lab-arms binaries are built without it,

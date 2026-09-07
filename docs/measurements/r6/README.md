@@ -85,7 +85,10 @@ stream shapes — netem draws loss per GSO batch, and the batch size differs by 
 | `r6cloud.tsv` | **real-path campaign**, 36 rows, 0 VOID |
 | `r6cloud-results.md` | real-path results, gates and adversarial review |
 | `real-path-notes.md` | the rig instrument, and four ways it is not netsim |
-| `x3l-run-card.md` | **the outstanding run** — X3L on the rig, and the three ways it fails silently |
+| `x3l-run-card.md` | the procedure for X3L on the rig, and the three ways it fails silently — **executed 2026-09-07** |
+| `x3l-prereg.md` | what an X3L null would have meant, committed **before** calibration |
+| `r6cloud_x3l.tsv` | **X3L on the real path**, 6 rows, 0 VOID — per-frame 5.76× worse at 250 KB |
+| `x3l-results.md` | **X3L results, gates and deviations** — the run that made the stream-shape finding a real-path result |
 | `r6cloud_calibration.tsv` | real-path E0-R6b/c sweep and per-realisation re-check |
 | `r6cloud_fairness.tsv` | competing-flow fairness, two flows on one bottleneck |
 | `r6cloud_fairness_controls.tsv` | each flow alone on the same bottleneck — the control that makes the split readable |

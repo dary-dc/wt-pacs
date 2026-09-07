@@ -352,6 +352,21 @@ path runs about one step-scale easier, so ~16. That is 681 × 33 ms × 16 ≈ **
 run**, or ~1 hour for `shared` vs `perframe_fifo` at n = 3, plus its own calibration. It also
 needs a *stable* path — see §3.3.
 
+> **Run on 2026-09-07 — and it separated.** `shared` 594.7 ms against `perframe_fifo`
+> 3426.2 ms, **5.76×**, 6 rows, 0 VOID, same sign in all three repeats. Data and method:
+> [`x3l-results.md`](x3l-results.md); the reading is in `../../transport-conclusions.md`
+> §2.6a. Two corrections to the sizing above, both worth carrying:
+>
+> - **The step-scale is 32, not ~16.** The "one step-scale easier" rule was measured at
+>   64 KB *with GSO on*. With `--segmentation-offload false` the achievable rate in this cell
+>   halves (measured: 6.00 → 3.50 Mbps median), which puts the rig back at netsim's own
+>   operating point. Scale 16 passes the admissibility band and is still the wrong cell — it
+>   delivers 463 frames against netsim's 655 and strands 407 against 33.
+> - **So it is ~12 minutes per run, not 6** — about 2 h 15 for calibration plus campaign.
+>
+> The realisation noise that defeated X3 does not survive the move to 250 KB: `shared` moves
+> by **1.11×** here against 4.32× at 64 KB.
+
 ---
 
 ## 5 · The other experiments this campaign should be followed by, and did not run
@@ -362,6 +377,14 @@ resulting congestion-event rate differs by ~1.5× in the shared arm's favour. Di
 forces batch = 1 and restores exactly the i.i.d. per-datagram loss that `lab/netsim` models,
 which makes it the one experiment that can separate "the simulator's result was an artifact
 of its loss model" from "the real path is simply noisier".
+
+> **Partly answered by X3L**, which ran GSO-off on both arms and separated 5.76×
+> ([`x3l-results.md`](x3l-results.md)). That rules out "the simulator's result was an
+> artifact of its loss model" at 250 KB. It also puts a number on what the flag costs:
+> measured achievable rate in this cell, shared arm, three runs each — GSO on
+> 9.50/6.00/4.50 Mbps, GSO off 3.50/3.50/2.25 Mbps. **Disabling GSO roughly halves the
+> achievable rate under 1 % netem loss**, which is §3.2's batching finding measured directly
+> rather than inferred. The 64 KB GSO-on/GSO-off pair below is still not run.
 
 It is **not run here**, for a stated reason rather than an omission: the residential path
 degraded from 51 Mbps to 9 Mbps during the session (§3.3). The corrected cell would need its
