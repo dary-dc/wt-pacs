@@ -79,6 +79,7 @@ stream shapes — netem draws loss per GSO batch, and the batch size differs by 
 | `r6.tsv` | the main netsim campaign — every run, including VOID rows |
 | `r6_250k.tsv` | X3L: the decisive cell at 250 KB frames, testing the mechanism's prediction |
 | `r6scrub.tsv` | X3S: the decisive cell under the scroll trace |
+| `x1n10.tsv` | X1 at n = 10 — 30 rows, 0 VOID; still a tie, and [`x1-n10.md`](x1-n10.md) shows why more repeats were the wrong question |
 | `r6scrub_scale6_VOIDED.tsv` | the run that voided 4 of 9 rows — kept as the evidence for E0-R6c |
 | `E0-validation.md` | netsim instrument validation and calibration |
 | `r6cloud.tsv` | **real-path campaign**, 36 rows, 0 VOID |
