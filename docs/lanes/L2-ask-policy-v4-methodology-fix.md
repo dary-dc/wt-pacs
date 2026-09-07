@@ -68,3 +68,21 @@ Writes `.local/l2/v4-local-rerun/`.
 - Loss: only if `netem_drops` rose on the 0.5 % cell.
 
 We will **not** write “lab implements fixed D” or “do not adapt” unless `dynfb` was in the grid and the cap still won on the registered primary.
+
+## Rerun status (2026-09-07)
+
+**Local** (`RTTS=60`, 36/36): [l2_ask_policy_v4_local_rerun_SUMMARY.md](../measurements/r2/l2_ask_policy_v4_local_rerun_SUMMARY.md).
+Prefetch vs none and bulk stranded-bytes hold. `window` ≈ `adr` (D=4 does not bind).
+`dynfb` moved D 4→3, did not ratchet to 16, matched `adr` on both primaries.
+`dynclean` held 4–4. Emulator only.
+
+**Cloud:** packet e0 and the reduced grid have **not** run after the `stats` fix.
+`ubuntu@168.138.130.163` rejects `id_ed25519_rig_agent`
+(`SHA256:CAD0bvPh5zni9qJ5mZhO3UUr+1Fwg7ZMS70O4blE90g`) for `ubuntu`, `root`, and `opc`.
+Re-authorize that pubkey, then:
+
+```bash
+export SSH_KEY=~/.ssh/id_ed25519_rig_agent
+HARNESS_IPV4=--ipv4 bash lab/scripts/l2_e0_v4_profile.sh
+SKIP_SMOKE=1 SKIP_BUILD=1 HARNESS_IPV4=--ipv4 RTTS=60 bash lab/scripts/l2_ask_policy_v4_cloud.sh
+```

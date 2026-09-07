@@ -11,9 +11,11 @@
 **Status: superseded as decision input · frozen 2026-09-02, reviewed 2026-09-04** · Branch tip:
 `cursor/l2-harness-fix-plan-c999` (PR #9)
 
-**2026-09-07:** do not use this file for the policy the lab now implements. Use
-[`l2_ask_policy_v4_local_SUMMARY.md`](l2_ask_policy_v4_local_SUMMARY.md) and
-[`l2_ask_policy_v4_SUMMARY.md`](l2_ask_policy_v4_SUMMARY.md). The v2 rankings below stay withdrawn.
+**2026-09-07:** do not use this file for a product policy. The cloud v4 summary is
+**void**. The local files are emulator checks only — cite
+[`l2_ask_policy_v4_local_rerun_SUMMARY.md`](l2_ask_policy_v4_local_rerun_SUMMARY.md)
+for the dynfb mechanism run. There is no locked ask policy on this branch. The v2
+rankings below stay withdrawn.
 
 This was the only document to be quoted when updating
 [`adr-client-window-depth.md`](../../adr-client-window-depth.md) or D26-style product

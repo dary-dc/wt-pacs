@@ -1,8 +1,13 @@
-# L2 ask-policy v4 local — loss=0 summary
+# L2 ask-policy v4 local — loss=0 summary (first file, no dynfb)
 
 **Date:** 2026-09-07 · **Branch:** `cursor/l2-harness-fix-plan-c999`  
 **What this is:** a fair bake-off on the *reworked* harness. Not a reading of the void v1–v3 rankings.  
 **Landing:** lab only (`lab/window-harness`, `lab/scripts/`). Product ask paths were not changed.
+
+> The pre-registered rerun with `dynfb` in the grid is
+> [`l2_ask_policy_v4_local_rerun_SUMMARY.md`](l2_ask_policy_v4_local_rerun_SUMMARY.md)
+> (`.local/l2/v4-local-rerun/`). This file is the earlier 20/60/150 emulator grid
+> (`dynpath` / `bounded`, no first-byte arm). Neither file locks a cap.
 
 Raw TSV and JSON: `.local/l2/v4-local/` (gitignored). Script: `lab/scripts/l2_ask_policy_v4_local.sh`.
 
@@ -55,7 +60,7 @@ Dynamic never beat `adr`. `dynpath` tracked the formula (`D` in `[formula−2, f
 
 ## What this can support (emulator only)
 
-`--rtt-ms` is two sleeps plus a read pacer. `D=4` at 60 ms does not bind (`window ≈ adr`). Do **not** lock a cap or “no dynamic” from this table. It can support: forward prefetch vs none on scroll (medians 0 vs ~path delay); bulk strands 768 KB on every jump; `dynclean` holds `D`. The lane estimator (`dynfb`) was not in this grid — that is a defect, fixed in the next local run.
+`--rtt-ms` is two sleeps plus a read pacer. `D=4` at 60 ms does not bind (`window ≈ adr`). Do **not** lock a cap or “no dynamic” from this table. It can support: forward prefetch vs none on scroll (medians 0 vs ~path delay); bulk strands 768 KB on every jump; `dynclean` holds `D`. The lane estimator (`dynfb`) was not in this grid — that is a defect, fixed in [`l2_ask_policy_v4_local_rerun_SUMMARY.md`](l2_ask_policy_v4_local_rerun_SUMMARY.md).
 
 The 2026-09-07 cloud grid that was supposed to lock policy is **void** (`l2_ask_policy_v4_SUMMARY.md`).
 
