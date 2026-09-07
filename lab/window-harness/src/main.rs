@@ -1,7 +1,10 @@
 use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
-use window_harness::{peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RunConfig, StreamMode, TraceSpec};
+use window_harness::{
+    peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RttSource, RunConfig, StreamMode,
+    TraceSpec, WindowShape,
+};
 
 #[derive(Parser)]
 #[command(name = "window-harness")]
@@ -14,13 +17,25 @@ struct Args {
     read_bps: u64,
     #[arg(long, default_value_t = 60_000)]
     timeout_ms: u64,
-    /// Outstanding-ask depth D. 0 = legacy fire-all schedule (trace mode).
-    /// With `--dynamic-depth`, this is the warm-up fixed value.
+    /// In-flight ask cap D. 0 = unbounded. The frame on screen is always asked; the cap bounds
+    /// prefetch. With `--dynamic-depth` this is the warm-up value.
     #[arg(long, default_value_t = 0)]
     depth: u32,
+    /// Frames wanted ahead of the one on screen, in the direction of travel.
+    #[arg(long, default_value_t = 0)]
+    prefetch: u32,
+    /// `forward` clamps at the study edges; `ring` is the v2 campaign's wrapping window.
+    #[arg(long, value_enum, default_value_t = WindowShape::Forward)]
+    window_shape: WindowShape,
     /// Adapt D live (L2 estimator). Requires `--depth` ≥ 1 as warm-up.
     #[arg(long, default_value_t = false)]
     dynamic_depth: bool,
+    /// What feeds the estimator's RTT term.
+    #[arg(long, value_enum, default_value_t = RttSource::FirstByte)]
+    rtt_source: RttSource,
+    /// Path RTT (ms) for `--rtt-source path`.
+    #[arg(long)]
+    path_rtt_ms: Option<u64>,
     /// Frame count in the study (for window / pipeline wrap).
     #[arg(long, default_value_t = 20)]
     frame_count: u32,
@@ -33,7 +48,8 @@ struct Args {
     /// E2 warm-cache control: prefetch before settle.
     #[arg(long, default_value_t = false)]
     warm_cache: bool,
-    /// Simulated RTT (ms). Userspace stand-in for netem (ask + return path).
+    /// Emulated path RTT (ms): half before each ask leaves, half before each frame is
+    /// displayable. Userspace stand-in for netem.
     #[arg(long, default_value_t = 0)]
     rtt_ms: u64,
     #[arg(long, default_value = "?")]
@@ -41,13 +57,12 @@ struct Args {
     /// Must match the server's `--stream-mode`.
     #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
     stream_mode: StreamMode,
-
+    /// Bind the client socket IPv4-only (hosts without IPv6).
+    #[arg(long, default_value_t = false)]
+    ipv4: bool,
     /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
     #[arg(long)]
     depth_sweep: Option<String>,
-    /// Path RTT (ms) for dynamic BDP formula (`--path-rtt-ms`).
-    #[arg(long)]
-    path_rtt_ms: Option<u64>,
     #[arg(long)]
     json: bool,
 }
@@ -67,11 +82,10 @@ async fn main() -> anyhow::Result<()> {
     if args.dynamic_depth && args.depth == 0 {
         anyhow::bail!("--dynamic-depth requires --depth N≥1 as the warm-up fixed value");
     }
-    let depth = if mode == HarnessMode::Saturate {
-        args.depth.max(1)
-    } else {
-        args.depth
-    };
+    if args.dynamic_depth && args.rtt_source == RttSource::Path && args.path_rtt_ms.is_none() {
+        anyhow::bail!("--rtt-source path requires --path-rtt-ms");
+    }
+    let depth = if mode == HarnessMode::Saturate { args.depth.max(1) } else { args.depth };
     let fill_dwell_ms = match mode {
         HarnessMode::Saturate => args.fill_dwell_ms.max(500),
         HarnessMode::Trace if depth > 0 => args.fill_dwell_ms,
@@ -82,13 +96,17 @@ async fn main() -> anyhow::Result<()> {
         read_bps: args.read_bps,
         timeout_ms: args.timeout_ms,
         depth,
+        prefetch: args.prefetch,
+        window_shape: args.window_shape,
         fill_dwell_ms,
         frame_count: args.frame_count,
         mode,
         warm_cache: args.warm_cache,
         rtt_ms: args.rtt_ms,
         stream_mode: args.stream_mode,
+        ipv4: args.ipv4,
         dynamic_depth: args.dynamic_depth,
+        rtt_source: args.rtt_source,
         path_rtt_ms: args.path_rtt_ms,
     };
     if let Some(sweep) = &args.depth_sweep {
@@ -122,13 +140,19 @@ async fn main() -> anyhow::Result<()> {
         println!("mode={}", m.mode);
         println!("arm={}", m.arm_label);
         println!("depth={}", m.depth);
+        println!("prefetch={}", m.prefetch);
+        println!("window_shape={}", m.window_shape);
+        println!("rtt_source={}", m.rtt_source);
         println!("peak_outstanding={}", peak_outstanding());
         println!("read_bps={}", m.read_bps);
         println!("wanted_frame={}", m.wanted_frame);
         println!("recovered_ms={:.2}", m.recovered_ms);
         println!("mean_wait_ms={:.2}", m.mean_wait_ms);
         println!("p95_wait_ms={:.2}", m.p95_wait_ms);
+        println!("lateness_median_ms={:.2}", m.lateness_median_ms);
+        println!("lateness_p75_ms={:.2}", m.lateness_p75_ms);
         println!("p95_lateness_ms={:.2}", m.p95_lateness_ms);
+        println!("lateness_max_ms={:.2}", m.lateness_max_ms);
         println!("mean_lateness_ms={:.2}", m.mean_lateness_ms);
         println!("frac_steps_late={:.4}", m.frac_steps_late);
         println!("median_ask_first_byte_ms={:.2}", m.median_ask_first_byte_ms);
@@ -136,6 +160,10 @@ async fn main() -> anyhow::Result<()> {
         println!("unique_frames_asked={}", m.unique_frames_asked);
         println!("duplicate_asks={}", m.duplicate_asks);
         println!("drain_incomplete={}", m.drain_incomplete);
+        println!("wall_ms={:.2}", m.wall_ms);
+        println!("achieved_mbps={:.3}", m.achieved_mbps);
+        println!("stranded_frames={}", m.stranded_frames);
+        println!("stranded_bytes={}", m.stranded_bytes);
         println!("fill_rate={:.2}", m.fill_rate);
         println!("link_util={:.4}", m.link_util);
         println!("fill_bytes={}", m.fill_bytes);

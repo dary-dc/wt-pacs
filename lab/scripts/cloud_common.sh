@@ -40,7 +40,13 @@ if ratio < 1.0:
 cloud_set_netem() {
   local profile=$1
   local loss=${2:-0}
-  "${SSH[@]}" "sudo -n /home/ubuntu/wt-pacs/scripts/cloud_netem.sh $profile $loss"
+  local limit=${3:-1000}
+  "${SSH[@]}" "sudo -n /home/ubuntu/wt-pacs/scripts/cloud_netem.sh $profile $loss $limit"
+}
+
+# "Sent N bytes M pkt (dropped D, overlimits O requeues R)" from the netem qdisc, or empty.
+cloud_netem_stats() {
+  "${SSH[@]}" "sudo -n /home/ubuntu/wt-pacs/scripts/cloud_netem.sh stats" 2>/dev/null || true
 }
 
 cloud_ensure_server() {
