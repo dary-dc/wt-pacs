@@ -12,7 +12,11 @@ Scripts read `SSH_KEY` and fall back to `$HOME/.ssh/id_ed25519` (`lab/scripts/cl
 | role | local file | fingerprint |
 | --- | --- | --- |
 | human / local runs | `~/.ssh/id_ed25519_rig` | `SHA256:c/5omAouR2HsRCK/YheXuT49ZrMjiRStlL9BfRI2YX0` |
-| cloud agent | `~/.ssh/id_ed25519_rig_agent` | `SHA256:CAD0bvPh5zni9qJ5mZhO3UUr+1Fwg7ZMS70O4blE90g` |
+| cloud agent | `~/.ssh/id_ed25519_rig_agent` | `SHA256:qz/LiOLq8/Bevhiogyuj9CgXZ9/e3nuUHi5Hicq1Pbc` |
+
+The cloud-agent row changed on **2026-09-07** — see the second rotation record below. The
+retired value was `SHA256:CAD0bvPh5zni9qJ5mZhO3UUr+1Fwg7ZMS70O4blE90g`; anything still
+quoting it is stale.
 
 ```bash
 export SSH_KEY=~/.ssh/id_ed25519_rig      # before any lab/scripts/*_cloud.sh
@@ -39,6 +43,34 @@ lockout window. After removal the old key is denied on all three accounts; both 
 
 An audit before rotation found exactly one authorized key per account, all expected — **no sign the
 exposure was used.**
+
+## Rotation record — 2026-09-07 (cloud-agent key)
+
+The cloud-agent key `SHA256:CAD0bvPh5zni9qJ5mZhO3UUr+1Fwg7ZMS70O4blE90g`
+(`wt-pacs-cloud-agent-2026-08-29`) was pasted into a chat transcript. It never entered the
+repository — verified — but it was rotated on the same reasoning that retired its
+predecessor: exposure, not evidence of use, is the trigger.
+
+Scope, established by testing rather than assumption:
+
+| target | was it authorized? |
+| --- | --- |
+| `ubuntu` on this rig | **yes** — confirmed by a successful login before rotation |
+| `root` on this rig | no — `/root/.ssh/authorized_keys` is 0 bytes |
+| `opc` on this rig | no — `/home/opc/.ssh/authorized_keys` is 0 bytes |
+
+Both non-`ubuntu` accounts were left empty by the 2026-08-29 rotation, so the "check every
+account" lesson below held: it was checked again rather than assumed.
+
+Replacement `SHA256:qz/LiOLq8/Bevhiogyuj9CgXZ9/e3nuUHi5Hicq1Pbc`
+(`wt-pacs-cloud-agent-2026-09-07`) was installed and **verified working, including
+passwordless `sudo`, before the old key was removed** — no lockout window. After removal the
+old key returns `Permission denied (publickey)` on `ubuntu`. `~/.ssh/authorized_keys.bak.*`
+was deleted too, so the retired key does not survive in a backup beside the live file. The
+human key was not touched and remained the recovery path throughout.
+
+`lab/scripts/cloud_preflight.sh` passed on the new key immediately afterwards, which is what
+proved the campaign could still reach the rig.
 
 ## The lesson worth keeping
 
