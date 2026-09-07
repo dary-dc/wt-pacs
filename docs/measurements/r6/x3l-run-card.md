@@ -106,12 +106,16 @@ Two arms are enough — `shared` and `perframe_fifo`. `perframe_fair` is already
 nothing here and costs a third of the rig time:
 
 ```bash
-ARMS='shared|--stream-mode shared;perframe_fifo|--stream-mode per-frame --send-fairness false'
+ARMS='shared|--stream-mode shared --segmentation-offload false;perframe_fifo|--stream-mode per-frame --send-fairness false --segmentation-offload false'
 ```
 
-**Set `--segmentation-offload false` on the netem qdisc.** The real-path campaign found
-`sch_netem` draws loss **once per GSO batch, not per datagram**, and the batch size differs
-by arm — 6.87 datagrams for `shared` against ~4.3 for per-frame, so shared absorbs ~1.5×
+Both arms, or the correction is itself a confound.
+
+**Add `--segmentation-offload false` to the server flags on both arms.** It is an
+`exact-server` flag, not a netem one — the batching happens on the *sender*, and turning
+quinn's UDP GSO off is what makes netem see one datagram at a time. The real-path campaign
+found `sch_netem` draws loss **once per GSO batch, not per datagram**, and the batch size
+differs by arm — 6.87 datagrams for `shared` against ~4.3 for per-frame, so shared absorbs ~1.5×
 fewer congestion events at equal bytes. The bias favours the incumbent. It did not matter
 when the incumbent failed to separate; **it matters now, because this run is expected to
 separate in the incumbent's favour** (`r6cloud-results.md` §3.2).

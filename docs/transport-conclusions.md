@@ -331,7 +331,7 @@ datagram-by-datagram and destroys GSO batching, so no CPU claim may pass through
 
 | item | effect |
 | ---- | ------ |
-| **GSO segment cap 10 → 32** | +17.2 % throughput, −20.9 % CPU/byte — best density lever |
+| **GSO segment cap 10 → 32** | +17.2 % throughput, −20.9 % CPU/byte — best density lever, **but not a flag** (see below) |
 | Chunked send path | −6…−14 % CPU/byte at every rate |
 | Per-frame prefault hop, warm cache | costs 10 % throughput, 14–34 % CPU/byte |
 | `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil |
@@ -404,6 +404,14 @@ shared mode and 18.6× cheaper in per-frame**. `main` has the copy path only, an
 to this in a way this branch is not.
 
 ---
+
+**The cap is not something the server can set.** `MAX_TRANSMIT_SEGMENTS` is a
+compile-time constant in `quinn`, not a `TransportConfig` knob, so every number in the row
+above was measured against a **patched quinn** — `lab/scripts/quinn_lab_build.sh` vendors
+the crate outside the tree and rebuilds one binary per value. Acting on this finding
+therefore means an upstream change or a vendored fork, not a configuration change, and that
+cost belongs in the decision. `--segmentation-offload true|false` *is* a server flag, but it
+turns GSO **off and on** — it does not move the cap.
 
 **Never derive the cap from `max_gso_segments()`.** The binding limit is bytes: 65 527,
 i.e. 45 segments at a 1452-byte MTU. Exceeding it returns `EINVAL` and `quinn-udp` then
