@@ -54,15 +54,41 @@ incumbent arm and frozen across arms.
 A **fixed-N pool is not an arm**: it needs a server change and this lane may not modify
 `server/`. It is recorded as untested rather than inferred about.
 
+## The real-path repeat
+
+R6 was re-run against the Oracle rig over a real internet path shaped by `sch_netem`, which
+is what [`oracle-runbook.md`](oracle-runbook.md) was written for and could not execute from
+a cloud agent container. **Three of the four cells agree with the simulator; the decisive
+one does not reproduce.**
+
+| | netsim | real path |
+| --- | --- | --- |
+| N0, X2, X1 | tie | tie |
+| **X3 (1 % loss)** | shared wins **+250 %**, separated 3/3 | **not a result** — ranges overlap, sign flips across repeats |
+
+Read [`r6cloud-results.md`](r6cloud-results.md) before quoting any stream-shape number, and
+[`real-path-notes.md`](real-path-notes.md) for how the two instruments differ. The real-path
+campaign also found a defect that applies to **any** netem-based loss experiment comparing
+stream shapes — netem draws loss per GSO batch, and the batch size differs by arm
+([`r6cloud-results.md`](r6cloud-results.md) §3.2).
+
 ## Files
 
 | file | what |
 | ---- | ---- |
-| `r6.tsv` | the main campaign — every run, including VOID rows |
+| `r6.tsv` | the main netsim campaign — every run, including VOID rows |
 | `r6_250k.tsv` | X3L: the decisive cell at 250 KB frames, testing the mechanism's prediction |
 | `r6scrub.tsv` | X3S: the decisive cell under the scroll trace |
 | `r6scrub_scale6_VOIDED.tsv` | the run that voided 4 of 9 rows — kept as the evidence for E0-R6c |
-| `E0-validation.md` | instrument validation and calibration |
+| `E0-validation.md` | netsim instrument validation and calibration |
+| `r6cloud.tsv` | **real-path campaign**, 36 rows, 0 VOID |
+| `r6cloud-results.md` | real-path results, gates and adversarial review |
+| `real-path-notes.md` | the rig instrument, and four ways it is not netsim |
+| `r6cloud_calibration.tsv` | real-path E0-R6b/c sweep and per-realisation re-check |
+| `r6cloud_fairness.tsv` | competing-flow fairness, two flows on one bottleneck |
+| `r6cloud_fairness_controls.tsv` | each flow alone on the same bottleneck — the control that makes the split readable |
+| `r6cloud_gso_cpu.tsv` | GSO segment cap: throughput and CPU per byte |
+| `r6cloud_gso_batch.tsv` | measured GSO batch size, and netem's per-batch loss draw |
 
 ## Reading the TSV
 
