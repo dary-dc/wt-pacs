@@ -20,8 +20,8 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Keep one shared stream — a recommendation no code carries yet (§2.7).** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a **real network** the 64 KB cell is noise-dominated and does not separate (§2.6), but **the 250 KB cell does: per-frame is 5.76× worse, separated 3/3, and the absolute penalty the mechanism predicts reproduces to within 1.6 % of the simulator** (§2.6a). At the frame size this product ships, the recommendation is a **measured property of the transport on real hardware**, not a simulator result. Nothing on either rig, in any cell, ever favours per-frame |
-| **Fixed-N pool** | **Still untested** — a server-side change, and this lane may not modify `server/`. R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
+| **Stream shape** | **Keep one shared stream — a recommendation no code carries yet (§2.7).** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a **real network** the 64 KB cell is noise-dominated and does not separate (§2.6), but **the 250 KB cell does: per-frame is 5.76× worse, separated 3/3, and the absolute penalty the mechanism predicts reproduces to within 1.6 % of the simulator** (§2.6a). At the frame size this product ships, the recommendation is a **measured property of the transport on real hardware**, not a simulator result. No cell on either rig separates in per-frame's favour |
+| **Fixed-N pool** | **Still untested** — a server-side change. (The "this lane may not modify `server/`" constraint this row used to cite has not held since the transport-knob work: eight server files are modified on this branch.) R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95. **Not confirmed on real hardware** — on the rig the path, not the send path, is the ceiling ([`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.2) |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte at every rate |
@@ -202,7 +202,9 @@ down — with a number — before the run.
 
 The cell was re-run at **250 KB**, the size `transport-optimization-spec.md` uses for a CT
 slice throughout. Everything else was held: same depth, rate, loss, and an operating point
-chosen so the demand/achievable ratio (0.64 vs 0.66) and the measured stranding (33 vs 33–35
+chosen so the demand/achievable ratio (0.64 vs 0.66) and the measured stranding (33/50/36 at
+64 KB against 33–35 at 250 KB — the 64 KB side spans more than the original "33 vs 33–35"
+suggested, D5
 frames) matched. All 9 rows admissible, zero censoring, every arm delivering the same 655
 frames.
 
@@ -243,7 +245,9 @@ seed-validated operating point (cell X3S, all 9 rows admissible).
 
 Shared is better in **3/3 repeats**, but the ranges overlap, so by this lane's own rule
 **that is not a result** — and it is reported as one rather than promoted. What it
-establishes is that **nothing reverses**: no trace, cell or repeat in R6 favours per-frame.
+establishes is that **nothing reverses for per-frame + FIFO**: no trace, cell or repeat in
+R6 favours it. `perframe_fair` beats `shared` in X3S run 3 (905.9 vs 965.1 ms) — one repeat,
+overlapping ranges, stated rather than rounded away (D4).
 
 The effect is an order of magnitude smaller than the jump trace's, and that is what the
 mechanism predicts. Continuous scrolling issues asks near-sequentially, so a retransmitting
@@ -300,7 +304,11 @@ section carried until then.
 **What this changes, and what it does not.**
 
 - The recommendation is unchanged: **keep one shared stream.** No cell, arm or repeat on
-  either rig favours per-frame.
+  either rig separates in per-frame's favour. At the level of individual repeats the picture
+  is less absolute than this document once claimed: `perframe_fifo` has the lower p95 in 8 of
+  12 paired real-path comparisons, and `perframe_fair` beats `shared` in X3S run 3. None of it
+  separates, so none of it is a result — but "ties" and "nothing favours per-frame" are
+  different sentences, and only the first is true (D4).
 - At 64 KB its *real-path* support is four ties. "Per-frame is 3.5× worse at 1 % loss **at
   64 KB**" remains a simulator result a real path could not resolve, and should still be
   quoted as such. The 250 KB claim is no longer in that position (§2.6a).
@@ -313,12 +321,26 @@ section carried until then.
 
 **A defect worth carrying forward.** The real-path campaign found that `sch_netem` draws
 loss **once per GSO batch, not per datagram**, and that the batch size differs by arm
-(6.87 datagrams for `shared` against ~4.3 for per-frame). At equal bytes the shared arm
+(reported as 6.87 datagrams for `shared` against ~4.3 for per-frame — see the caveat
+below). At equal bytes the shared arm
 therefore absorbs ~1.5× fewer congestion events. This biases the comparison **toward** the
 incumbent — and the incumbent still failed to separate, which is why the null stands. Any
 future netem loss experiment comparing stream shapes must run with
 `--segmentation-offload false`.
-There is no cell in which per-frame is better.
+
+> **The per-arm batch figures are unsourced, and the rule survives without them.**
+> `measurements/r6/r6cloud_gso_batch.tsv` is keyed by segment cap and GSO on/off, not by
+> arm, so "6.87 against ~4.3" exists only as a table typed into a markdown file. What the
+> committed data *does* support is the premise the rule rests on: turning GSO off drops the
+> implied batch from **3.37 to 0.99** datagrams, so batching demonstrably changes how netem
+> draws loss. Keep the rule; treat the per-arm ratio — and with it the "biases toward the
+> incumbent" reading — as unverified until the rows behind it are committed. Adversarial
+> review, 2026-09-07 (D3).
+
+There is no cell in which **per-frame + FIFO** is better. The `perframe_fair` arm does beat
+`shared` once, in X3S run 3 (905.9 ms against 965.1 ms) — one repeat inside a cell whose
+ranges overlap, so it changes nothing, but the absolute phrasing this paragraph used to
+carry was false and a reader checks that sentence first (D4).
 
 ### 2.6a · **X3L on the rig — the mechanism is confirmed on real hardware**
 
@@ -432,7 +454,9 @@ could not be quietly dropped.
 
 ### Fixed-N pool — still untested, and now less promising
 
-Unchanged in status: a pool is a server-side change and this lane may not modify `server/`.
+Unchanged in status: a pool is a server-side change, and no one has written it. The older
+phrasing — "this lane may not modify `server/`" — stopped being true once the transport-knob
+work landed; the branch modifies eight server files (D5).
 
 What R6 adds is a reason to expect less from it. The retransmit-deferral cost **grows with
 N**, because a recovering stream waits behind more backlogs; receive-side isolation also

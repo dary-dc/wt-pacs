@@ -46,7 +46,15 @@ DEADMAN_S="${DEADMAN_S:-900}"
 CELLS="${CELLS:-qcubic_qcubic qbbr_qbbr qcubic_tcp qbbr_tcp}"
 OUT="${OUT:-$ROOT/.local/measurements/r6/fairness.tsv}"
 mkdir -p "$(dirname "$OUT")"
-[ -s "$OUT" ] || printf 'cell\trep\trate_mbps\tdelay_ms\tloss_pct\tqueue_pkts\tdwell_ms\tflow_a\tflow_b\ta_bytes\tb_bytes\ta_mbps\tb_mbps\ta_share\tjain\n' > "$OUT"
+# a_window_s / b_window_s are the denominators each flow's rate was actually divided by.
+# They are NOT equal, and that is the point of recording them: the TCP flow is timed over a
+# window that starts 1.5 s late and ends 3 s early so ssh connect time cannot inflate it,
+# while the QUIC flow's bytes are divided by its *configured* dwell. QUIC therefore runs
+# unopposed at both ends of the window and books those bytes against the full denominator,
+# which overstates its share by a few points. Adversarial review, 2026-09-07 (S2).
+# Making both windows identical needs the harness to emit its measured fill span — see
+# docs/proposals/product-code-changes.md. Until then the asymmetry is at least visible.
+[ -s "$OUT" ] || printf 'cell\trep\trate_mbps\tdelay_ms\tloss_pct\tqueue_pkts\tdwell_ms\tflow_a\tflow_b\ta_bytes\tb_bytes\ta_window_s\tb_window_s\ta_mbps\tb_mbps\ta_share\tjain\n' > "$OUT"
 
 r6_sync_scripts
 r6_upload_server
@@ -218,6 +226,7 @@ def tcp(p):
     except Exception: return 0, d
 a,ad = quic("/tmp/fair_a.json")
 b,bd = (tcp("/tmp/fair_t.txt") if fb=="tcp_cubic" else quic("/tmp/fair_b.json"))
+# ad and bd are different windows by construction — see the header comment in the runner.
 am = a*8/ad/1e6 if ad else 0
 bm = b*8/bd/1e6 if bd else 0
 tot = am+bm
@@ -226,6 +235,7 @@ jain = (am+bm)**2/(2*(am**2+bm**2)) if (am or bm) else 0
 print(f"  {cell:<14} rep{rep}  {fa:<10} {am:6.2f} Mbps | {fb:<10} {bm:6.2f} Mbps  "
       f"A-share {share*100:5.1f}%  Jain {jain:.3f}")
 open(out,"a").write("\t".join([cell,rep,rate,delay,loss,queue,dwell,fa,fb,str(a),str(b),
+   f"{ad:.2f}",f"{bd:.2f}",
    f"{am:.3f}",f"{bm:.3f}",f"{share:.4f}",f"{jain:.4f}"])+"\n")
 PY
   done

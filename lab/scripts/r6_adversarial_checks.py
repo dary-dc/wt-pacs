@@ -19,6 +19,14 @@ from collections import defaultdict
 
 REF = sys.argv[2] if len(sys.argv) > 2 else "shared"
 
+# netsim seeds from the run number, so run N of two arms shares a loss realisation. The rig
+# has no seed: netem draws from kernel randomness, and all run N buys is that the arms ran
+# back to back. Detected from the filename rather than assumed, and printed beside every
+# paired figure so nobody reads rig adjacency as netsim pairing.
+_RIG = "cloud" in sys.argv[1]
+PAIRING = ("paired by adjacency — rig has no seed" if _RIG
+           else "paired by seed — run N is one realisation")
+
 
 def load(path):
     rows = [l.rstrip("\n").split("\t") for l in open(path) if l.strip()]
@@ -77,10 +85,17 @@ print(f"\n--- 3.3  arm effect vs realisation effect (metric p95_wait_ms, ref '{R
 for cell in sorted(cells):
     if REF not in cells[cell]:
         continue
+    # Pairing by run number means different things on the two rigs, and the output must
+    # say which. On netsim the seed is `RUN*7919+13`, identical across arms and different
+    # per repeat, so run N of two arms shares a loss realisation: a true paired comparison.
+    # On the rig netem has no seed and nothing is shared — what run N gives you is only
+    # that the arms ran back to back inside that repeat, so the path conditions were
+    # *similar*, not identical. Weaker, still worth having, and not the same claim.
     ref = {int(x["run"]): f(x["p95_wait_ms"]) for x in cells[cell][REF]}
     rv = sorted(ref.values())
     seed_span = rv[-1] / rv[0] if rv and rv[0] else float("nan")
-    print(f"  {cell:4s} realisation moves '{REF}' by {seed_span:.2f}x  ({rv[0]:.1f} -> {rv[-1]:.1f} ms)")
+    print(f"  {cell:4s} realisation moves '{REF}' by {seed_span:.2f}x  ({rv[0]:.1f} -> {rv[-1]:.1f} ms)"
+          f"   [{PAIRING}]")
     for arm, rs in sorted(cells[cell].items()):
         if arm == REF:
             continue

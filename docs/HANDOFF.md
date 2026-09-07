@@ -21,7 +21,7 @@ the traps that have already cost this project four invalidated campaigns.
 | Relation to `main` | **no longer a fast-forward — see the warning below** |
 | Contains | the L1 loss-run lane **plus** the R6 stream-shape lane, merged and reconciled |
 | Build | `cargo build --release --workspace` clean; 12 server tests + 8 harness tests pass |
-| PR | **not opened yet** |
+| PR | [**#5**](https://github.com/dary-dc/wt-pacs/pull/5), draft, open since 2026-08-30 — its description still covers L1 v3 Phase C only, two lanes out of date. The same server changes are also open as #12 |
 
 > **Corrected 2026-09-07.** This table used to claim `main` was a direct ancestor and that
 > `git rev-list origin/main --not HEAD` printed nothing. **That is no longer true.** The
@@ -143,8 +143,11 @@ The halving rule was measured with GSO on, and GSO-off halves the achievable rat
 Three other things came back, and two of them change how future runs must be done:
 
 - **`sch_netem` draws loss once per GSO batch, not per datagram**, and the batch size
-  **differs by arm** — 6.87 datagrams for `shared` against ~4.3 for per-frame, so the shared
-  arm absorbs ~1.5× fewer congestion events at equal bytes. Any netem loss experiment
+  **differs by arm** — reported as 6.87 datagrams for `shared` against ~4.3 for per-frame,
+  so the shared arm absorbs ~1.5× fewer congestion events at equal bytes. **Those per-arm
+  numbers have no committed data file** (`r6cloud_gso_batch.tsv` is keyed by segment cap, not
+  by arm); the rule stands on the measured GSO-on/off difference, 3.37 vs 0.99 datagrams per
+  batch. Adversarial review, 2026-09-07 (D3). Any netem loss experiment
   comparing stream shapes must run `--segmentation-offload false`. The bias favours the
   incumbent, which still failed to separate.
 - **The committed R6 scripts are localhost + netsim only.** `r6_campaign.sh`,

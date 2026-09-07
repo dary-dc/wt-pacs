@@ -13,6 +13,7 @@ collected, instead of needing a redeploy to change its mind.
 Usage:  classify_loss_regime.py telemetry-path.jsonl [--per-session]
 """
 import argparse
+import statistics as st
 import json
 import sys
 from collections import defaultdict
@@ -115,8 +116,19 @@ def classify(rows):
         else:
             exogenous += 1
 
-    # A black hole is a handover or a dead path, not a loss regime. Counting it as either
-    # would push a mobile viewer toward whichever controller the artefact favoured.
+    # `black_holes_detected` does NOT mean what this project's docs used to say it means.
+    #
+    # It was described as "the path stopped delivering entirely — a handover or a dead
+    # link", and an adversarial review asked why the verdict never consulted it. Reading
+    # quinn's source answers both at once: the counter increments from
+    # `path.mtud.black_hole_detected()` (quinn-proto 0.11.17, connection/mod.rs:1762), which
+    # is PLPMTUD noticing consecutive *large* packets lost. Under heavy congestive loss that
+    # is the expected outcome, not a handover — and indeed the committed CONG validation log
+    # carries 42 of them while being congestive by construction.
+    #
+    # So it is reported, and deliberately NOT used to disqualify a verdict: excluding rows
+    # on this counter would throw away exactly the congestive cells it is meant to protect.
+    # Detecting a real handover needs a signal this sampler does not currently collect.
     black_holes = rows[-1]["black_holes_detected"] - rows[0]["black_holes_detected"]
 
     total_sent = rows[-1]["sent_packets"] - rows[0]["sent_packets"]
@@ -131,7 +143,7 @@ def classify(rows):
         "loss_pct": round(loss_pct, 3),
         "black_holes": black_holes,
         "median_queue_ratio_at_loss": (
-            round(sorted(queue_at_loss)[len(queue_at_loss) // 2], 3) if queue_at_loss else None
+            round(st.median(queue_at_loss), 3) if queue_at_loss else None
         ),
     }
 
@@ -202,8 +214,9 @@ def main():
     print("   - Chrome sends the ACKs that shape these RTT samples; a busy client can add")
     print("     delay that looks like queueing. Cross-check against connections on wired")
     print("     links before acting.")
-    print("   - black_holes > 0 marks handovers, which are neither regime. Those")
-    print("     connections need the handover work, not a controller change.")
+    print("   - black_holes counts quinn's PLPMTUD black-hole detector, which also fires")
+    print("     under ordinary heavy loss. It is NOT a handover signal and is not used to")
+    print("     exclude anything — the committed congestive validation log carries 42.")
 
 
 if __name__ == "__main__":

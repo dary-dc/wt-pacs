@@ -16,10 +16,21 @@ Two rules do most of the work:
 VOID rows are excluded from comparisons but always counted and shown, because deleting
 failed runs biases the survivors: failures are systematically the slowest runs.
 """
+import statistics as st
 import sys
 from collections import defaultdict
 
 REFERENCE = "shared"
+# The control cell. Pre-registration §3: if any arm separates here, the rig is measuring
+# something other than what it claims and the campaign is void — not adjusted, void.
+CONTROL_CELL = "N0"
+# ...with one arm exempted, by a decision recorded before this script enforced anything.
+# `perframe_fair` does separate in N0, and `measurements/r6/adversarial-review.md` §3.1
+# already concedes that arm's control is invalid: fairness needs only concurrency, which
+# every cell has, so its separation is a scheduling penalty rather than evidence the rig is
+# broken. Naming the exemption here keeps it a declared exception instead of a silent one —
+# the same shape as `l4_analyse.py`'s `--congestive`.
+CONTROL_EXEMPT = {"perframe_fair"}
 # Below this, an effect is inside the n=3 false-positive band and is not a result even if
 # the ranges happen not to overlap. Carried from L4's D3 threshold.
 MATERIAL_PCT = 15.0
@@ -40,6 +51,44 @@ def fnum(x):
         return float("nan")
 
 
+def separated(vals, ref_vals):
+    """Pre-registered separation rule: min/max ranges must not overlap."""
+    return vals[0] > ref_vals[-1] or vals[-1] < ref_vals[0]
+
+
+def control_verdict(cells, metric):
+    """Pre-registration §3: an arm separating in the control voids the whole campaign.
+
+    Enforced here because it was not enforced anywhere. When `perframe_fair` separated in
+    N0, the demotion was done by hand in the adversarial review — which works exactly once,
+    and only when someone remembers. Returns (ok, lines_to_print).
+    """
+    arms = cells.get(CONTROL_CELL)
+    if not arms:
+        return True, [f"  (no {CONTROL_CELL} control cell in this file — gate not applied)"]
+    if REFERENCE not in arms:
+        return True, [f"  (control cell has no '{REFERENCE}' arm — gate not applied)"]
+
+    ref = sorted(fnum(r[metric]) for r in arms[REFERENCE])
+    out, offenders = [], []
+    for arm, rs in sorted(arms.items()):
+        if arm == REFERENCE:
+            continue
+        vals = sorted(fnum(r[metric]) for r in rs)
+        if not separated(vals, ref):
+            out.append(f"  {arm:15s} ties in {CONTROL_CELL} — as the control requires")
+            continue
+        pct = (st.median(vals) - st.median(ref)) / st.median(ref) * 100
+        if arm in CONTROL_EXEMPT:
+            out.append(f"  {arm:15s} separates in {CONTROL_CELL} ({pct:+.0f} %) — "
+                       f"EXEMPT by prior decision, see CONTROL_EXEMPT")
+        else:
+            offenders.append(arm)
+            out.append(f"  {arm:15s} SEPARATES in {CONTROL_CELL} ({pct:+.0f} %) — "
+                       f"the control was supposed to tie")
+    return not offenders, out
+
+
 def main(path, metric="p95_wait_ms"):
     rows = load(path)
     cells = defaultdict(lambda: defaultdict(list))
@@ -47,6 +96,16 @@ def main(path, metric="p95_wait_ms"):
     for r in rows:
         tgt = voids if r["verdict"] != "ok" else cells
         tgt[r["cell"]][r["arm"]].append(r)
+
+    control_ok, control_lines = control_verdict(cells, metric)
+    print(f"=== control gate ({CONTROL_CELL}) " + "=" * 44)
+    for line in control_lines:
+        print(line)
+    if not control_ok:
+        print()
+        print("  CAMPAIGN VOID. An arm separated in the control cell, so the rig is")
+        print("  measuring something other than what it claims. Nothing below is a result.")
+        print("  Fix the rig and re-run; do not adjust the numbers.")
 
     for cell in sorted(set(list(cells) + list(voids))):
         print(f"\n=== cell {cell} " + "=" * 52)
@@ -71,7 +130,7 @@ def main(path, metric="p95_wait_ms"):
             strand = sum(int(r["stranded_frames"]) for r in rs) / len(rs)
             cens = sum(fnum(r["censored_frac"]) for r in rs) / len(rs)
             stats[arm] = (vals, cens)
-            med = vals[len(vals) // 2]
+            med = st.median(vals)
             print(f"  {arm:15s} {len(vals):2d} {vals[0]:9.1f} {vals[-1]:9.1f} {med:9.1f} "
                   f"{strand:7.0f} {cens * 100:7.2f}")
 
@@ -79,14 +138,14 @@ def main(path, metric="p95_wait_ms"):
             print(f"\n  reference arm '{REFERENCE}' has no admissible rows — no comparison")
             continue
         ref_vals, ref_cens = stats[REFERENCE]
-        ref_med = ref_vals[len(ref_vals) // 2]
+        ref_med = st.median(ref_vals)
         print()
         for arm, (vals, cens) in sorted(stats.items()):
             if arm == REFERENCE:
                 continue
-            med = vals[len(vals) // 2]
+            med = st.median(vals)
             pct = (med - ref_med) / ref_med * 100 if ref_med else float("nan")
-            sep = vals[0] > ref_vals[-1] or vals[-1] < ref_vals[0]
+            sep = separated(vals, ref_vals)
             # Rule: censoring dominates. An arm delivering materially less cannot win.
             if cens - ref_cens > CENSOR_GAP:
                 note = (f"WORSE on censoring ({cens*100:.1f}% vs {ref_cens*100:.1f}%) "
@@ -100,6 +159,10 @@ def main(path, metric="p95_wait_ms"):
                 note = f"separated, {'worse' if pct > 0 else 'better'} by {abs(pct):.0f}%"
             print(f"  {arm:15s} vs {REFERENCE}: {pct:+7.1f}%  {note}")
 
+    return 0 if control_ok else 2
+
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "p95_wait_ms")
+    # A campaign voided by its own control must not exit 0: a caller that only checks the
+    # status would otherwise treat a void campaign as a clean one.
+    sys.exit(main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "p95_wait_ms") or 0)

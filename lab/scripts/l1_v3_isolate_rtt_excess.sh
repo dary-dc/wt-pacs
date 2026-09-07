@@ -216,9 +216,14 @@ for rate in 10mbit none; do
 done
 
 echo "==> Isolation B (WT_SERVE_TIMING=1, rate=10mbit, rtt=60, 1 run)"
+# Truncate BEFORE the server opens the log, not after. Truncating a file another process
+# already holds open leaves that process writing at its old offset, so the next line lands
+# past the end and the gap reads back as NUL. The committed S_serve_timing_rtt60.log opens
+# with exactly that: a 576-byte hole. The data after it is intact and reproduces, but the
+# fix is ordering, not tolerance. Adversarial review, 2026-09-07 (D6).
+"${SSH[@]}" 'truncate -s 0 /tmp/wt-pacs-exact-S.log' 2>/dev/null || true
 deploy_s 1
 set_netem 60 10mbit
-"${SSH[@]}" 'truncate -s 0 /tmp/wt-pacs-exact-S.log'
 run_cell timing60 60 1 >/tmp/isolate_b_line.txt || true
 "${SCP[@]}" "$REMOTE:/tmp/wt-pacs-exact-S.log" "$RAW_DIR/S_serve_timing_rtt60.log" 2>/dev/null || true
 B_LINE=$(cat /tmp/isolate_b_line.txt 2>/dev/null || echo "FAIL")

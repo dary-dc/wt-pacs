@@ -87,8 +87,17 @@ independent rig. P5 said fairness-on would *beat* FIFO under stranding. It does 
 it does not on a real network either.
 
 `shared` and `perframe_fifo` tie in three cells out of four and fail to separate in the
-fourth. **Nothing anywhere in this campaign favours per-frame streams over a shared stream,
-and nothing favours a shared stream over per-frame + FIFO either.**
+fourth. **No cell separates in either arm's favour** — which is the claim the pre-registered
+rule supports, and the only one that should be made from this campaign.
+
+> **Corrected 2026-09-07.** This paragraph used to read "nothing anywhere in this campaign
+> favours per-frame streams over a shared stream". At the level of individual repeats that
+> is false: `perframe_fifo` has the lower p95 in **8 of the 12** paired comparisons —
+> every repeat of X1 and X2, plus N0 run 3 and X3 run 3 — and the cell medians for X1
+> (−5.1 %) and X2 (−2.3 %) lean the same way. None of it separates, so none of it is a
+> result; but "ties" and "nothing favours per-frame" are different sentences and only the
+> first is true. An adversarial review caught the same overclaim in its netsim form (D4);
+> the real-path form is larger.
 
 ---
 
@@ -103,7 +112,8 @@ On a real path, at the same nominal 1 % loss and the same 64 KB frames:
 - the **3.5×** is not reproduced. The median gap is 1.46× and the ranges overlap. But the
   cell's noise floor is 4.32×, so **it could not have reproduced it either way** — see §4.3
   before drawing anything from this line.
-- **"never better anywhere" still holds** — no cell, arm or repeat favours per-frame — and on
+- **"never better anywhere" still holds for per-frame + FIFO** — no cell, arm or repeat
+  favours it; the `fair` arm's one exception is X3S run 3 on netsim (D4) — and on
   this rig it is supported by four ties rather than by one large separation.
 - the recommendation itself (**keep one shared stream**) is *not* overturned, and neither is
   the mechanism. What is missing is real-path *confirmation*: it has been sought at the one
@@ -372,7 +382,7 @@ needs a *stable* path — see §3.3.
 ## 5 · The other experiments this campaign should be followed by, and did not run
 
 **X3 with `--segmentation-offload false`.** §3.2 establishes that netem correlates loss with
-the sender's GSO batching, that the batch differs by arm (6.87 vs ~4.3), and that the
+the sender's GSO batching, that the batch differs by arm (6.87 vs ~4.3 — **unsourced, see the note below**), and that the
 resulting congestion-event rate differs by ~1.5× in the shared arm's favour. Disabling GSO
 forces batch = 1 and restores exactly the i.i.d. per-datagram loss that `lab/netsim` models,
 which makes it the one experiment that can separate "the simulator's result was an artifact
@@ -413,3 +423,9 @@ Two smaller follow-ups, in priority order:
   median gap is real needs a separately pre-registered run at n = 15–20 with a paired test,
   not more repeats bolted onto this one.
 - **A second rig on the same LAN**, to give the GSO cap a server-side bottleneck (§4.2).
+
+---
+
+## Note added 2026-09-07 — the per-arm batch sizes have no data file
+
+**The per-arm figures are unsourced.** `measurements/r6/r6cloud_gso_batch.tsv` is keyed by segment cap and GSO on/off, not by arm, so "6.87 against ~4.3" exists only as a table typed into a markdown file. What the committed data *does* support is the premise the rule rests on: turning GSO off drops the implied batch from 3.37 to 0.99 datagrams, so batching demonstrably changes how netem draws loss. Keep the rule — run `--segmentation-offload false` — and treat the per-arm ratio as unverified until the rows behind it are committed. Adversarial review, 2026-09-07 (D3).
