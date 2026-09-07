@@ -19,7 +19,11 @@ The earlier fix plan, [`L2-ask-policy-harness-fix.md`](L2-ask-policy-harness-fix
 - The v1–v3 rankings are void (`../measurements/r2/l2_ask_policy_STOP.txt`). Quote the v2 rows
   only through the model that explains them.
 - Product client code changes are proposed as a diff and approved for readability before they
-  land; the lab moves first.
+  land; the lab moves first. **This branch does not edit `client/transport-ts` or
+  `client/transport-wasm` ask paths.** If a product-shaped loop is needed, copy or overlay it
+  under `lab/` or `client/harness/` (Phase 3a).
+- Loss-free bake-off on this box: `lab/scripts/l2_ask_policy_v4_local.sh` (seven arms, `--rtt-ms`,
+  no netem). The cloud v4 script is for loss only.
 - The rig is shared with L1 (`lab/scripts/rig_lock.sh`). One netem at a time.
 
 ## 1 · Decisions that gate the phases

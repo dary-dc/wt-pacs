@@ -4,6 +4,12 @@
 Branch `cursor/l2-harness-fix-plan-c999`; the harness rework, the simulator and the probe are the
 three commits before this one.
 
+**Landing rule — lab only.** Any policy we adopt from this work is implemented in
+`lab/window-harness` and `lab/scripts/` (and the FIFO simulator). Product clients
+(`client/transport-wasm`, `client/transport-ts`, harness pages) stay as they are. If a product-shaped
+ask loop is needed to measure something, copy or overlay it under `lab/` — do not edit the shipping
+ask path until a separate product decision.
+
 The lane asked two questions ([`lanes/L2-ask-policy.md`](lanes/L2-ask-policy.md)): does bounding
 the ask depth help at all, and does adapting it live earn its complexity over a fixed constant?
 Three rig campaigns ([`measurements/r2/l2_ask_policy_EVIDENCE.md`](measurements/r2/l2_ask_policy_EVIDENCE.md),
@@ -136,8 +142,9 @@ lands second ports the other's flags; neither result depends on the difference.
   the campaign: two traces at 40 ms, seven arms, RTT 20/60/150, loss 0 and 0.5 %, n = 3 / 10, arms
   shuffled, drop counters per run. Prediction at loss 0 is the §3 table; at loss > 0 the model
   predicts nothing, and that is the point of running it.
-- **The browser clients.** The harness is a Rust client; the WASM and TS clients still bulk-ask. The
-  policy in §5 is a client change and needs its own approval round.
+- **The browser clients.** The harness is a Rust client; the WASM and TS clients still bulk-ask.
+  That stays true on purpose: this branch does not change product ask code. A later product PR can
+  copy the lab policy once the evidence is accepted.
 - **Reader traces.** 16 and 40 ms steps bracket the regime boundary for this fixture; a real scroll
   log would replace both.
 
@@ -156,6 +163,7 @@ lands second ports the other's flags; neither result depends on the difference.
 
 ## 9 · Decisions requested
 
-1. Adopt §5 as the ask policy the client work targets; drop the dynamic arm from the lane.
+1. Adopt §5 as the ask policy the **lab** implements (harness defaults / campaign arms); drop the
+   dynamic arm from the lane. Product clients are unchanged until a later decision.
 2. Run v4 for the loss question only, or close the lane without it.
 3. Where the harness rework lands relative to L1's (this branch, L1's, or a merge of both).
