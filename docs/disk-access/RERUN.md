@@ -347,6 +347,11 @@ Two conditions would make it worth revisiting, and both are in `later.md` (archi
 > ~6% cold-reverse advantage for `uring_pipelined` above becomes 13% *worse* once a miss
 > costs ~400 µs rather than ~12 µs. Neither overturns the other; frame size is the variable.
 > Condition 1 (a thread-per-core runtime) remains untested.
+>
+> **What shipped resolves this without choosing a side.** `hybrid_lazyring` builds a ring on
+> a session's *first miss* and never otherwise, so the tie above costs nothing where it holds
+> (no ring is constructed) and the −42/−73% is taken where it does. See
+> [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
 
 ---
 
