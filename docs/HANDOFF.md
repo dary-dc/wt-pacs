@@ -49,7 +49,7 @@ mechanical.
 
 | finding | strength |
 | ------- | -------- |
-| **Keep one shared stream.** Per-frame is 3.5× worse at 64 KB, **8.5× worse at a realistic 250 KB**, never better anywhere | 3/3 separated, two trace shapes, mechanism source-verified, prediction survived |
+| **Keep one shared stream.** Per-frame is 3.5× worse at 64 KB, **8.5× worse at a realistic 250 KB**, never better anywhere | 3/3 separated, two trace shapes, mechanism source-verified, prediction survived — **all of it in netsim.** On the real rig the 64 KB cell does not separate, and §3 explains why that is an underpowered test rather than a contradiction |
 | **Mechanism:** `retransmit()` re-queues with `push_pending` — back of the class, *regardless of fairness* (`state.rs:677`). Per-frame therefore **defers** loss recovery behind other frames' backlogs | source + a falsifiable prediction that held |
 | **`send_fairness(false)` is mandatory** if per-frame is ever used | worse in all 12 comparisons, 4 cells |
 | **Controller depends on loss regime.** Congestive → Cubic (BBR +63 %); exogenous → BBR (Cubic +48 %). **Default Cubic** | both directions separated, regimes verified by queue counters |
@@ -60,18 +60,45 @@ mechanical.
 
 ---
 
-## 3 · What is running elsewhere right now
+## 3 · The Oracle rig session — **it ran.** Read this before quoting a stream-shape number
 
-**A local Claude Code session on the Oracle rig.** Its brief is
-[`ORACLE-RIG-AGENT-GUIDE.md`](ORACLE-RIG-AGENT-GUIDE.md); it runs `cloud_preflight.sh`
-first and stops if that fails.
+Results: [`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md).
+Instrument: [`measurements/r6/real-path-notes.md`](measurements/r6/real-path-notes.md).
+36 rows, 0 VOID, all gates applied.
 
-**Expect it to commit into `docs/measurements/r6/`.** Anyone else working this branch should
-avoid that directory to prevent conflicts.
+**It neither confirmed nor contradicted the stream-shape finding. It could not.**
 
-Its result either confirms or contradicts the simulator's stream-shape finding. **A
-contradiction is a finding, not a problem** — the simulator is T2 and the rig is closer to
-truth.
+| cell | netsim | rig |
+| --- | --- | --- |
+| N0 (control) | tie | **tie +0.8 % — the gate passes** |
+| X2, X1 | tie | tie |
+| **X3, 1 % loss, 64 KB** | shared wins **+250 %**, 3/3 | **+266 %, +38 %, −52 %** — sign flips, not a result |
+
+The reason is arithmetic, not disagreement: the effect sought is 3.5×, and the loss
+realisation alone moves `shared` by **4.32×**. **The cell could not have detected netsim's
+own effect at n = 3 even if the mechanism is exactly right.** Do not cite this as evidence
+against the mechanism.
+
+**The run that would settle it is X3L on the rig** — 250 KB frames, where the mechanism
+predicts 8.5×, comfortably above a 4.3× noise floor. Not run: the residential path degraded
+51 → 9 Mbps mid-session and the comparison needs one sitting on a stable path. ~1 hour for
+two arms at n = 3, plus calibration. **This is now the highest-value run on the rig.**
+
+Three other things came back, and two of them change how future runs must be done:
+
+- **`sch_netem` draws loss once per GSO batch, not per datagram**, and the batch size
+  **differs by arm** — 6.87 datagrams for `shared` against ~4.3 for per-frame, so the shared
+  arm absorbs ~1.5× fewer congestion events at equal bytes. Any netem loss experiment
+  comparing stream shapes must run `--segmentation-offload false`. The bias favours the
+  incumbent, which still failed to separate.
+- **The committed R6 scripts are localhost + netsim only.** `r6_campaign.sh`,
+  `e0_r6_calibrate.sh` and `e0_r6_reader_validate.sh` start the server on `127.0.0.1` and
+  shape with `target/release/netsim`; running them on a laptop measures the simulator and
+  reports it as a real-path result. Use the `*_cloud.sh` variants. The runbook's
+  `cloud_netem.sh 25 20 0.1` never parsed — that script takes a named profile and shapes
+  whatever host runs it.
+- **The real path is one step-scale easier than netsim.** Recalibrate; never carry a
+  step-scale across rigs.
 
 ---
 
@@ -95,18 +122,30 @@ one verdict over both.
 Volume: ~200 bytes per connection per second. A 1 000-viewer hour is ~700 MB uncompressed —
 rotate it or raise `WTPACS_PATH_TELEMETRY_MS`.
 
-### 4.2 · Competing-flow fairness — **blocked here, and the reason matters**
+### 4.2 · Competing-flow fairness — **done, and the risk is real**
 
-BBR's main deployment risk. Never measured anywhere in this project.
+Measured on the rig, two flows through one shared `tc netem` band. Data:
+[`measurements/r6/r6cloud_fairness.tsv`](measurements/r6/r6cloud_fairness.tsv); method,
+controls and limits: [`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.1.
 
-**`netsim` cannot do it.** Each client gets its own pacer, hence its own queue and rate
-limiter, so two clients get one bottleneck *each* at full rate. Run it there and both flows
-get full rate, which reads as perfect fairness when they never competed. Comment is in
-`lab/netsim/src/main.rs` at the client map.
+| bottleneck buffer | our flow | competing TCP Cubic | our share |
+| --- | --- | --- | --- |
+| **shallow, ≈48 ms** | **QUIC BBR** | **0.03 Mbps** | **99.4 %** |
+| shallow | QUIC Cubic | 1.46 Mbps | 70.0 % |
+| deep, ≈1.2 s | QUIC BBR | 2.12 Mbps | 55.1 % |
+| deep | QUIC Cubic | 1.07 Mbps | 76.8 % |
 
-**Do it on the Oracle rig**, where `tc netem` on one egress interface is genuinely one
-shared queue. The arm that matters is **one Cubic flow against one BBR flow** — quinn's own
-docs say BBRv1 can take > 90 % of a shallow buffer.
+The same TCP flow takes **4.5 Mbps alone** at the same shallow bottleneck, so that is
+starvation — 150× — not a weak competitor. **`transport-conclusions.md` §1.1 now carries a
+measured number instead of a citation, and "default to Cubic" is stronger for it.** Note
+also that QUIC-with-Cubic still takes 70–77 %: some of the unfairness is ours regardless of
+controller.
+
+**One arm remains impossible on this rig:** QUIC-Cubic against QUIC-BBR. The congestion
+controller is a server-wide flag, so two QUIC flows with different controllers need two
+listeners, and the Oracle VCN admits exactly one UDP port (4435) plus TCP 22 — verified by a
+QUIC handshake that times out against a server confirmed listening on 4436. Opening a second
+UDP port at the VCN would unblock it.
 
 ### 4.3 · Progressive delivery — biggest potential win, biggest effort
 
