@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# L2 ask-policy v4 — the rig campaign the v2 adversarial review asked for. PREPARED, NOT RUN:
-# this box has no rig key and no netem. See docs/l2-ask-policy-design-2026-09-06.md for what the
-# grid is meant to decide and what the simulator predicts for every cell.
+# L2 ask-policy v4 — the rig campaign the v2 adversarial review asked for.
+# Run lab/scripts/l2_e0_v4_profile.sh first (rate / delay / loss / limit). Then:
+#   SKIP_SMOKE=1 HARNESS_IPV4=--ipv4 RTTS=60 lab/scripts/l2_ask_policy_v4_cloud.sh
+# See docs/l2-ask-policy-design-2026-09-06.md and docs/lanes/L2-ask-policy-continuation.md.
 #
 # What changed from v2:
 #   * two traces (scroll, jump) at a cadence the link can keep up with (40 ms), because the

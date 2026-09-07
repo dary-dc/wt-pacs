@@ -54,9 +54,9 @@ The model has no loss term; this is the one question it cannot answer. The v2 lo
 (n = 9 per arm, sd larger than the means) say nothing either way.
 
 1. Prerequisites: the rig key (`docs/cloud-rig-access.md`), `rig_lock_acquire` as `L2-v4`, and
-   `lab/scripts/e0_netem_validation.sh` on the exact netem profile the campaign uses (rate, delay,
+   `lab/scripts/l2_e0_v4_profile.sh` on the exact netem profile the campaign uses (rate, delay,
    loss, and the explicit `limit` the v4 script sets). A profile that does not validate does not
-   run.
+   run. (`e0_netem_validation.sh` is the older 250 KB live-cell check; it is not this grid.)
 2. Reduced grid first: `RTTS=60 lab/scripts/l2_ask_policy_v4_cloud.sh` — two traces at 40 ms,
    seven arms, loss 0 and 0.5 %, n = 3 / 10, arms shuffled per run. About 180 runs, 15 minutes.
 3. Write `lab/scripts/l2_v4_summarize.py`: group by (trace, RTT, loss, arm); median, IQR and p95
