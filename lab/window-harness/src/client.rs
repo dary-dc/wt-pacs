@@ -82,7 +82,7 @@ fn record_ask(frame_index: u32) {
 }
 
 
-fn build_client_config(
+pub(crate) fn build_client_config(
     stream_recv_window: Option<u64>,
     bind_ip: Option<std::net::IpAddr>,
 ) -> Result<ClientConfig> {

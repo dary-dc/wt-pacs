@@ -2,8 +2,8 @@ use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
 use window_harness::{
-    peak_outstanding, run_depth_sweep, run_harness, HarnessMode, ReaderMode, RunConfig, StreamMode,
-    TraceSpec, WindowShape,
+    peak_outstanding, run_depth_sweep, run_harness, run_stall_client, HarnessMode, ReaderMode,
+    RunConfig, StallConfig, StreamMode, TraceSpec, WindowShape,
 };
 
 #[derive(Parser)]
@@ -26,7 +26,14 @@ struct Args {
     /// Stationary dwell for fill_rate / link_util (ms).
     #[arg(long, default_value_t = 2000)]
     fill_dwell_ms: u64,
-    /// trace | saturate
+    /// trace | saturate | stall
+    ///
+    /// `stall` is the pathological client: it asks for `--stall-asks` frames, reads for
+    /// `--stall-after-ms` past the first byte, then stops reading entirely while holding
+    /// the connection and every receive stream open. It is the only mode that can reach
+    /// the flow-control ceilings — every other mode drains, so the ceiling never binds.
+    /// It emits `StallOutcome` JSON, not `HarnessMetrics`: no latency figure from a client
+    /// that refuses to read would mean anything.
     #[arg(long, default_value = "trace")]
     mode: String,
     /// E2 warm-cache control: prefetch before settle.
@@ -72,6 +79,20 @@ struct Args {
     #[arg(long)]
     stream_recv_window: Option<u64>,
 
+    /// `stall` mode: stop reading this long after the first byte arrives.
+    #[arg(long, default_value_t = 3_000)]
+    stall_after_ms: u64,
+    /// `stall` mode: asks issued back-to-back before the stall.
+    ///
+    /// Must commit the server to more bytes than the ceiling under test, or both arms sit
+    /// below both ceilings and the run reports the same null the draining workloads did.
+    /// At 64 KB frames, quinn's 10 MB default `send_window` needs ~160.
+    #[arg(long, default_value_t = 300)]
+    stall_asks: u32,
+    /// `stall` mode: hold the connection open and unread this long after stalling.
+    #[arg(long, default_value_t = 30_000)]
+    stall_hold_ms: u64,
+
     /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
     #[arg(long)]
     depth_sweep: Option<String>,
@@ -82,11 +103,14 @@ struct Args {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    let stall_mode = args.mode.eq_ignore_ascii_case("stall");
     let mode = match args.mode.to_ascii_lowercase().as_str() {
         "saturate" => HarnessMode::Saturate,
         _ => HarnessMode::Trace,
     };
     let trace = match (&mode, &args.trace) {
+        // `stall` never replays a trace: it asks a flat run of frames and then stops.
+        _ if stall_mode => None,
         (HarnessMode::Trace, Some(p)) => Some(TraceSpec::load(p).context("load trace")?),
         (HarnessMode::Trace, None) => anyhow::bail!("--trace required in trace mode"),
         (HarnessMode::Saturate, _) => None,
@@ -121,6 +145,32 @@ async fn main() -> anyhow::Result<()> {
         drain_ms: args.drain_ms,
         step_scale: args.step_scale,
     };
+    if stall_mode {
+        let stall = StallConfig {
+            stall_after_ms: args.stall_after_ms,
+            asks: args.stall_asks,
+            hold_ms: args.stall_hold_ms,
+        };
+        let out = run_stall_client(&cfg, &stall, &args.arm).await?;
+        if args.json {
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        } else {
+            println!("arm={}", out.arm);
+            println!("stream_mode={}", out.stream_mode);
+            println!("stall_after_ms={}", out.stall_after_ms);
+            println!("hold_ms={}", out.hold_ms);
+            println!("asks_requested={}", out.asks_requested);
+            println!("asks_sent={}", out.asks_sent);
+            println!("bytes_read={}", out.bytes_read);
+            println!("stall_engaged={}", out.stall_engaged);
+            println!("uni_streams_opened={}", out.uni_streams_opened);
+            println!("connection_alive_at_end={}", out.connection_alive_at_end);
+            println!("close_reason={}", out.close_reason);
+            println!("elapsed_ms={:.2}", out.elapsed_ms);
+        }
+        return Ok(());
+    }
+
     if let Some(sweep) = &args.depth_sweep {
         let depths: Vec<u32> = sweep
             .split(',')
