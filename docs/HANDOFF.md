@@ -142,6 +142,15 @@ Three other things came back, and two of them change how future runs must be don
 Settles the biggest open decision (Cubic vs BBR, ~50 % either way). Everything is built and
 validated; it needs **deployment, not development**.
 
+> **Do not deploy a build older than 2026-09-07.** The sampler emitted each row as two
+> `write` calls onto one append-mode file, so above one connection the rows interleaved and
+> the classifier dropped the damage silently — measured at **29 % of rows surviving at 32
+> connections**. Fixed (one write per row, a `dropped_since_last` counter in the data, a
+> concurrency regression test, and a classifier that refuses a log missing more than 2 %).
+> Nothing already concluded is affected, because the sampler had never been run at scale.
+> When you do deploy, **check the first log**: `dropped_since_last` should be 0 throughout
+> and the classifier's header should report zero unreadable lines.
+
 ```bash
 cargo build --release -p exact-server --features telemetry    # sampler is compiled out otherwise
 WTPACS_PATH_TELEMETRY=1 WTPACS_PATH_TELEMETRY_PATH=/var/log/wtpacs/path.jsonl exact-server ...
@@ -217,9 +226,11 @@ paperwork, and the items below are what survived independent re-verification her
    produced runs 1 and 3 — a replacement on different hardware is not comparable, which is
    why it was not done from the cloud session that found it.
 2. **Decide the stream-mode default** (§2.7). A product decision, not a patch.
-3. **Not re-verified here, reported as the reviewer found them:** the loss-regime sampler
-   interleaving its own log under load (two writes per row, many tasks, one append-mode
-   file — it would invalidate §4.1's tooling, not its validation); the fairness split
+3. **The sampler log corruption is confirmed and fixed** — reproduced at 8, 32 and 64
+   concurrent writers before the fix (29 % of rows intact at 32) and 100 % clean after, with
+   a regression test in `server/src/record/path.rs` and a classifier that now refuses a
+   shredded log. See `measurements/regime/README.md`.
+4. **Still not re-verified, reported as the reviewer found them:** the fairness split
    measuring TCP and QUIC over different windows, which would move "Cubic still takes
    70–77 %" by a few points without touching the 99.4 % starvation figure; and twelve minor
    items. **Verify before acting.**

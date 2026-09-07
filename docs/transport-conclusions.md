@@ -499,6 +499,7 @@ campaign analysers print `n` per arm, and any figure quoted from them should car
 | ---------- | -------- | ---------------------- |
 | Controller depends on loss regime | **strong** — both directions large and separated, regimes verified by counters | nothing; the *mix* is unknown, not the physics |
 | Which regime your links are in | **unknown** | client telemetry: loss vs queueing delay |
+| The loss-regime classifier reproduces a known answer | **strong for its logic, and its input path is now fixed** — validated against two constructed regimes with an independent queue-drop witness, but on **one client**, which could not exercise the concurrent-write defect found on 2026-09-07 (29 % of rows survived at 32 connections). Nothing concluded is affected: the sampler was never deployed at scale | a multi-client collection whose `dropped_since_last` is non-zero, or whose unreadable-line count is above 0 |
 | Keep shared stream | **strong** — re-measured on a rig that generates head-of-line blocking; separated 3.5× at 1 % loss, replicated 3/3, matches a source-verified scheduler mechanism, negative control clean to 0.1 % | a cell where per-frame+FIFO separates *in its favour*; none found |
 | Per-frame is worse *because of retransmit deferral* | **moderate** — mechanism is source-verified and predicts sign and magnitude, but was not directly instrumented | per-stream retransmit timing telemetry showing recovery is not deferred |
 | Per-frame without FIFO is worst | **strong** — four campaigns, matches scheduler source | — |
