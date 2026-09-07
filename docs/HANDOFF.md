@@ -237,7 +237,15 @@ paperwork, and the items below are what survived independent re-verification her
 
 ### 4.5 · Cheap and unattended
 
-- **More repeats on X1** (n = 10). Variance is what stopped it separating. Pure machine time.
+- ~~**More repeats on X1** (n = 10)~~ — **done 2026-09-07, and the answer is no.** X1 is
+  still a tie at n = 10 under the pre-registered rule, because the obstacle was never the
+  repeat count: `shared`'s own spread across loss realisations is **5.09×** against a
+  median arm difference of **4.1 %**, and min/max non-overlap cannot resolve that at any n.
+  The paired view (8/10, +8.8 % ± 13.2 %, p = 0.109, would need n ≈ 18) is reported in
+  [`measurements/r6/x1-n10.md`](measurements/r6/x1-n10.md) and **explicitly refused as
+  evidence**, because adopting a more powerful statistic after the blunt one returned a tie
+  is §5's own failure mode. **Recommendation: stop working on X1** — X3 carries the same
+  finding with a +220 % paired effect at n = 3, and 8.8 % at 0.1 % loss moves no decision.
 - ~~**The pathological client**~~ — **done 2026-09-07.** `window-harness --mode stall`,
   gated by `e0_stall_validate.sh`, measured in
   [`measurements/mem/stall-client.md`](measurements/mem/stall-client.md). The answer is that
