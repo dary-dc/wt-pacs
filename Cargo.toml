@@ -11,6 +11,7 @@ members = [
     "lab/disk-access-bench",
     "lab/window-harness",
     "lab/cold-page-bench",
+    "lab/telemetry-bench",
 ]
 resolver = "2"
 

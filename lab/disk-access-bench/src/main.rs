@@ -2180,7 +2180,11 @@ fn run_mix_cell(
     hops.sort_unstable();
     let hop_events: u64 = per_ask.iter().map(|(_, _, e, _, _)| u64::from(*e)).sum();
     // Only asks that actually probed and came up short say anything about the probe.
-    let mut probe_ns: Vec<u64> = per_ask.iter().map(|(.., n, _)| *n).filter(|n| *n > 0).collect();
+    let mut probe_ns: Vec<u64> = per_ask
+        .iter()
+        .map(|(.., n, _)| *n)
+        .filter(|n| *n > 0)
+        .collect();
     let mut probe_got: Vec<u64> = per_ask
         .iter()
         .filter(|(.., n, _)| *n > 0)

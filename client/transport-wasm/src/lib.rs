@@ -74,5 +74,7 @@ impl TransportSessionHandle {
     }
 
     #[wasm_bindgen(js_name = close)]
-    pub fn close(self) {}
+    pub fn close(self) {
+        self.inner.close();
+    }
 }

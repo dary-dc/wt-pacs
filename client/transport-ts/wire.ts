@@ -46,7 +46,7 @@ export function parseLengthPrefixed(
   return { payload: buf.subarray(4, total), consumed: total };
 }
 
-export function hexToBytes(hex: string): Uint8Array {
+export function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
   if (hex.length % 2 !== 0) throw new Error("hex length must be even");
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i++) {

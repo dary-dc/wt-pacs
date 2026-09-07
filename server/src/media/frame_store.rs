@@ -29,6 +29,14 @@ use study_bundle::parse_layout;
 /// throughput once most asks miss.
 pub const READ_WINDOW: usize = 64 * 1024;
 
+/// A frame's position in the study file. `Copy`, so locating a frame borrows nothing and
+/// the located value outlives the `&FrameStore` it came from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FrameSpan {
+    pub offset: u64,
+    pub len: u32,
+}
+
 pub struct FrameStore {
     file: File,
     mmap: Mmap,
@@ -37,6 +45,11 @@ pub struct FrameStore {
     data_base: usize,
     index: Vec<(u64, u32)>,
     nowait: bool,
+    /// Test-only ceiling on what one `read_at_nowait` will return, so a test can produce a
+    /// **partial** hit — the production case where the page cache holds the front of a
+    /// window and not the back. Absent from release builds entirely.
+    #[cfg(test)]
+    nowait_cap: Option<usize>,
 }
 
 impl FrameStore {
@@ -55,6 +68,8 @@ impl FrameStore {
             data_base: parsed.data_base,
             index: parsed.index,
             nowait,
+            #[cfg(test)]
+            nowait_cap: None,
         })
     }
 
@@ -66,6 +81,25 @@ impl FrameStore {
     /// See `read_window`.
     pub fn nowait_supported(&self) -> bool {
         self.nowait
+    }
+
+    /// Cap what one `read_at_nowait` returns, producing a partial hit with real bytes in
+    /// the front of the buffer and a genuine shortfall behind it.
+    #[cfg(test)]
+    pub(crate) fn force_short_reads(&mut self, cap: usize) {
+        self.nowait_cap = Some(cap);
+    }
+
+    /// Force the "filesystem refuses `RWF_NOWAIT`" path — every `read_at_nowait` reports a
+    /// miss without a syscall.
+    ///
+    /// Tests use it to exercise the escalation deterministically. The alternative, evicting
+    /// the page cache, is not a reliable lever: `fadvise(DONTNEED)` will not evict a page
+    /// that is still mapped, and on some hosts (measured here) it does not evict even
+    /// before the mapping exists.
+    #[cfg(test)]
+    pub(crate) fn force_pool_reads(&mut self) {
+        self.nowait = false;
     }
 
     /// Bytes to read per round of the serving loop for a frame of `frame_len`.
@@ -100,6 +134,16 @@ impl FrameStore {
             .with_context(|| format!("frame index {index} out of range ({})", self.frame_count))
     }
 
+    /// Where a frame's codestream lives — offset and length, and nothing else.
+    ///
+    /// This is what the pipeline's `locate` step returns. It is deliberately not a
+    /// `&[u8]`: the read path streams a frame a window at a time and never materialises
+    /// it, so there is no slice to hand on. `docs/disk-access/adr.md`.
+    pub fn frame_span(&self, index: u32) -> Result<FrameSpan> {
+        let (offset, len) = self.frame_range(index)?;
+        Ok(FrameSpan { offset, len })
+    }
+
     pub fn frame_slice(&self, index: u32) -> Result<&[u8]> {
         let (offset, length) = self.frame_range(index)?;
         let start = offset as usize;
@@ -126,6 +170,11 @@ impl FrameStore {
         if !self.nowait {
             return Ok(0);
         }
+        #[cfg(test)]
+        let buf = {
+            let end = self.nowait_cap.unwrap_or(buf.len()).min(buf.len());
+            &mut buf[..end]
+        };
         let mut done = 0usize;
         while done < buf.len() {
             let iov = libc::iovec {

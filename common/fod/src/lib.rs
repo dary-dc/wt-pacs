@@ -10,9 +10,13 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum FodMsg {
     /// Interactive / real-time path — one frame per message (depth = outstanding asks).
-    RequestFrame { frame: u32 },
+    RequestFrame {
+        frame: u32,
+    },
     /// Bulk / sequential testing path — server drains the whole batch before the next ask.
-    RequestFrames { frames: Vec<u32> },
+    RequestFrames {
+        frames: Vec<u32>,
+    },
     EndSession,
     FrameError {
         frame_index: u32,
