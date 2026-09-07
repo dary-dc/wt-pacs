@@ -93,11 +93,8 @@ pub(crate) struct ProductPipeline {
 
 impl ProductPipeline {
     pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut) -> Self {
-        Self {
-            store,
-            out,
-            read: ReadCtx::new(ReadMode::from_env()),
-        }
+        let read = ReadCtx::new(ReadMode::from_env(), &store);
+        Self { store, out, read }
     }
 }
 
@@ -205,5 +202,60 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
 
     async fn drain_acks(&mut self) {
         self.inner.drain_acks().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transport::stream_mode::StreamMode;
+    use std::io::Write;
+
+    fn one_frame_study(path: &std::path::Path) {
+        let meta = br#"{"frameCount":1}"#;
+        let mut f = std::fs::File::create(path).expect("create bundle");
+        f.write_all(b"SBND").unwrap();
+        f.write_all(&1u32.to_le_bytes()).unwrap();
+        f.write_all(&(meta.len() as u32).to_le_bytes()).unwrap();
+        f.write_all(&1u32.to_le_bytes()).unwrap();
+        f.write_all(&((16 + 12 + meta.len()) as u64).to_le_bytes())
+            .unwrap();
+        f.write_all(&4u32.to_le_bytes()).unwrap();
+        f.write_all(meta).unwrap();
+        f.write_all(b"abcd").unwrap();
+        f.sync_all().unwrap();
+    }
+
+    /// **One index per study, never per session.**
+    ///
+    /// The index is 12 bytes per frame — 384 KB for a 32 000-frame study — and it is
+    /// immutable after `open`. A session that opens its own store multiplies that by the
+    /// session count and buys nothing. Nothing in the type system prevents it, so this
+    /// pins the shape a session actually gets: a handle on the one shared store.
+    ///
+    /// `docs/disk-access/adr.md` §Invariants.
+    #[test]
+    fn sessions_share_one_store_rather_than_opening_their_own() {
+        let path = std::env::temp_dir().join(format!("wtpacs-share-{}.sbnd", std::process::id()));
+        one_frame_study(&path);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+
+        let sessions = 8;
+        let pipelines: Vec<ProductPipeline> = (0..sessions)
+            .map(|_| ProductPipeline::new(Arc::clone(&store), FrameOut::Detached))
+            .collect();
+
+        for (n, pipeline) in pipelines.iter().enumerate() {
+            assert!(
+                Arc::ptr_eq(pipeline.store(), &store),
+                "session {n} is reading through a store of its own"
+            );
+        }
+        assert_eq!(
+            Arc::strong_count(&store),
+            sessions + 1,
+            "one clone per session and the original, and nothing else"
+        );
+        let _ = std::fs::remove_file(&path);
     }
 }

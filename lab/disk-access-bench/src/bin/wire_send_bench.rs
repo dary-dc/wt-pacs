@@ -26,7 +26,7 @@
 use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
 use disk_access_bench::frame_cache::FrameCache;
-use exact_server::media::frame_store::FrameStore;
+use exact_server::media::frame_store::{FrameSpan, FrameStore};
 use quinn::{Endpoint, SendStream, ServerConfig, TransportConfig, VarInt};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
@@ -224,7 +224,7 @@ async fn main() -> Result<()> {
     {
         let mut buf = vec![0u8; 1 << 20];
         for i in 0..store.frame_count() {
-            let (off, len) = store.frame_range(i)?;
+            let FrameSpan { offset: off, len } = store.frame_span(i)?;
             store.read_at_blocking(&mut buf[..len as usize], off)?;
         }
     }
@@ -292,14 +292,14 @@ async fn main() -> Result<()> {
     let prefix = prefix_env();
     let shared_stream = shared_stream_env();
 
-    let window = store.read_window(store.frame_range(0)?.1);
+    let window = store.read_window(store.frame_span(0)?.len);
     // The ceiling arm holds every frame; the product-cache arm starts empty and fills
     // itself through `claim_fill`/`admit` exactly as the server does. Shared across
     // sessions, because a real server has one page cache and one frame cache, not N.
     let preloaded: Arc<Vec<Bytes>> = Arc::new(if mode == Mode::Preloaded {
         (0..frames)
             .map(|i| {
-                let (off, len) = store.frame_range(i)?;
+                let FrameSpan { offset: off, len } = store.frame_span(i)?;
                 let mut b = vec![0u8; len as usize];
                 store.read_at_blocking(&mut b, off)?;
                 Ok(Bytes::from(b))
@@ -454,7 +454,10 @@ async fn serve_session(conn: quinn::Connection, cfg: SessionCfg) -> Result<Sessi
 
     for _ in 0..repeats {
         for idx in 0..frames {
-            let (off, whole) = store.frame_range(idx)?;
+            let FrameSpan {
+                offset: off,
+                len: whole,
+            } = store.frame_span(idx)?;
             // Rung delivery: only the codestream prefix the viewport needs goes out.
             let len = prefix.map_or(whole, |p| p.min(whole));
             let t = Instant::now();

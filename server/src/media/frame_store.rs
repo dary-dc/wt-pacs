@@ -1,53 +1,42 @@
-//! Server-side SBND reader: one open study mapped for layout, read for serving.
+//! Server-side SBND reader.
 //!
-//! Frame bytes reach the executor through `read_at_nowait` (page-cache hit, no fault, no
-//! hop) with `read_at_blocking` on a blocking pool for the miss. See
-//! `docs/disk-access/adr.md` — the mapping is kept for the header/index and for the lab's
-//! mmap arms; the serving path never touches it.
+//! Frame bytes reach the executor through `read_at_nowait` — a page-cache hit with no
+//! thread-pool hop — and `read_at_blocking` on a blocking pool for the miss. Why this shape
+//! and not a memory mapping: `docs/disk-access/adr.md`.
 
-use anyhow::{bail, Context, Result};
-use memmap2::Mmap;
+use anyhow::{Context, Result};
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
-use std::sync::OnceLock;
-use study_bundle::parse_layout;
+use study_bundle::read_layout;
 
-/// Bytes read per `read_at_nowait` call, and written per `write_all`, on the serving path.
+/// Bytes per `read_at_nowait` call on the serving path.
 ///
-/// The window bounds two things at once: how long the executor copies without yielding,
-/// and how much memory a session holds while every ask hits. 64 KiB measured best on the
-/// validation host — 256 KiB (whole frame, one call) cut per-frame latency by ~10 µs but
-/// quadrupled the worst co-tenant gap (later measured at 4.0 ms against 148 µs, on a
-/// fixture where misses are real device reads); 16 KiB paid more syscalls for no further
-/// gap reduction.
-///
-/// It is deliberately **not** the size of the read that a miss issues. `stream_codestream`
-/// escalates there — see its docs and `docs/disk-access/RERUN-miss.md`: windowing the pool
-/// read as well costs 2–3 device round trips per frame instead of one, and 2.9–3.4x the
-/// throughput once most asks miss.
+/// Sized against the worst co-tenant gap, not against per-frame latency; the measurements
+/// behind 64 KiB are in `docs/disk-access/adr.md`. A read that *misses* is not bounded by
+/// this — see `media::read_path`.
 pub const READ_WINDOW: usize = 64 * 1024;
 
-/// A frame's position in the study file. `Copy`, so locating a frame borrows nothing and
-/// the located value outlives the `&FrameStore` it came from.
+/// Where a frame's codestream lives. `Copy`, so locating a frame borrows nothing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FrameSpan {
     pub offset: u64,
     pub len: u32,
 }
 
+/// One open study, shared by every session reading it.
+///
+/// **Open once per study, never per session.** The index is 12 bytes per frame and
+/// immutable after `open`; a per-session store multiplies it by the session count and buys
+/// nothing. `docs/disk-access/adr.md` §Invariants.
 pub struct FrameStore {
     file: File,
-    mmap: Mmap,
-    frame_count: u32,
-    metadata_len: u32,
-    data_base: usize,
     index: Vec<(u64, u32)>,
+    metadata: String,
     nowait: bool,
-    /// Test-only ceiling on what one `read_at_nowait` will return, so a test can produce a
-    /// **partial** hit — the production case where the page cache holds the front of a
-    /// window and not the back. Absent from release builds entirely.
+    /// Test-only ceiling on what one `read_at_nowait` returns, so a test can produce a
+    /// partial hit. Absent from release builds.
     #[cfg(test)]
     nowait_cap: Option<usize>,
 }
@@ -56,18 +45,13 @@ impl FrameStore {
     pub fn open(study_path: &Path) -> Result<Self> {
         let file = File::open(study_path)
             .with_context(|| format!("open study bundle {}", study_path.display()))?;
-        // SAFETY: `file` keeps the fd open; bundle must not be truncated while mapped.
-        let mmap = unsafe { Mmap::map(&file).context("mmap study bundle")? };
-        let parsed = parse_layout(&mmap)?;
-        let nowait = probe_nowait(&file, parsed.data_base as u64);
+        let layout = read_layout(&file)
+            .with_context(|| format!("read layout of {}", study_path.display()))?;
         Ok(Self {
+            nowait: probe_nowait(&file, layout.data_base as u64),
             file,
-            mmap,
-            frame_count: parsed.frame_count,
-            metadata_len: parsed.metadata_len,
-            data_base: parsed.data_base,
-            index: parsed.index,
-            nowait,
+            index: layout.index,
+            metadata: layout.metadata,
             #[cfg(test)]
             nowait_cap: None,
         })
@@ -75,104 +59,55 @@ impl FrameStore {
 
     /// Whether this study's filesystem honours `RWF_NOWAIT`.
     ///
-    /// ext4 does; **overlayfs and tmpfs answer `EOPNOTSUPP`** — measured, not assumed. On
-    /// those, `read_at_nowait` always reports a miss, so the caller must read whole frames
-    /// on the pool (one round trip) instead of streaming windows (one round trip *each*).
-    /// See `read_window`.
+    /// ext4 does; overlayfs and tmpfs answer `EOPNOTSUPP`, so every read there reports a
+    /// miss whether or not the bytes are cached. Callers that branch on a miss must gate on
+    /// this too — `docs/disk-access/IMPLEMENTATION.md` §The trap.
     pub fn nowait_supported(&self) -> bool {
         self.nowait
     }
 
-    /// The study descriptor, for a reader that wants to register it with the kernel. The
-    /// same fd `read_at_nowait` and `read_at_blocking` use, so there is one open file per
-    /// study however many sessions are reading it.
+    /// The study descriptor, for a reader that registers it with the kernel. One open file
+    /// per study, however many sessions read it.
     pub fn file(&self) -> &File {
         &self.file
     }
 
-    /// Cap what one `read_at_nowait` returns, producing a partial hit with real bytes in
-    /// the front of the buffer and a genuine shortfall behind it.
-    #[cfg(test)]
-    pub(crate) fn force_short_reads(&mut self, cap: usize) {
-        self.nowait_cap = Some(cap);
-    }
-
-    /// Force the "filesystem refuses `RWF_NOWAIT`" path — every `read_at_nowait` reports a
-    /// miss without a syscall.
-    ///
-    /// Tests use it to exercise the escalation deterministically. The alternative, evicting
-    /// the page cache, is not a reliable lever: `fadvise(DONTNEED)` will not evict a page
-    /// that is still mapped, and on some hosts (measured here) it does not evict even
-    /// before the mapping exists.
-    #[cfg(test)]
-    pub(crate) fn force_pool_reads(&mut self) {
-        self.nowait = false;
-    }
-
     /// Bytes to read per round of the serving loop for a frame of `frame_len`.
     ///
-    /// `READ_WINDOW` where the fast path exists; the whole frame where it does not, so an
-    /// unsupporting filesystem degrades to exactly one pooled `pread` per frame — the
-    /// hard-guarantee escape hatch — rather than one per window.
+    /// The whole frame where `RWF_NOWAIT` is refused, so such a host pays one pooled read
+    /// per frame rather than one per window.
     pub fn read_window(&self, frame_len: u32) -> usize {
-        if self.nowait {
-            READ_WINDOW.min(frame_len as usize).max(1)
+        let window = if self.nowait {
+            READ_WINDOW
         } else {
-            (frame_len as usize).max(1)
-        }
+            frame_len as usize
+        };
+        window.min(frame_len as usize).max(1)
     }
 
     pub fn frame_count(&self) -> u32 {
-        self.frame_count
+        self.index.len() as u32
     }
 
-    pub fn metadata_json(&self) -> Result<&str> {
-        let start = self.data_base - self.metadata_len as usize;
-        let end = self.data_base;
-        std::str::from_utf8(&self.mmap[start..end]).context("metadata JSON is not UTF-8")
+    pub fn metadata_json(&self) -> &str {
+        &self.metadata
     }
 
-    /// Byte offset and length of frame payload in the SBND file. No I/O — a refusal for an
-    /// out-of-range ask costs nothing and happens before any stream is opened.
-    pub fn frame_range(&self, index: u32) -> Result<(u64, u32)> {
+    /// Where frame `index` lives. No I/O, so an out-of-range ask is refused before any
+    /// stream is opened.
+    pub fn frame_span(&self, index: u32) -> Result<FrameSpan> {
         self.index
             .get(index as usize)
-            .copied()
-            .with_context(|| format!("frame index {index} out of range ({})", self.frame_count))
+            .map(|&(offset, len)| FrameSpan { offset, len })
+            .with_context(|| format!("frame index {index} out of range ({})", self.frame_count()))
     }
 
-    /// Where a frame's codestream lives — offset and length, and nothing else.
+    /// Bytes copied into `buf` without ever waiting on I/O — `preadv2(RWF_NOWAIT)`.
     ///
-    /// This is what the pipeline's `locate` step returns. It is deliberately not a
-    /// `&[u8]`: the read path streams a frame a window at a time and never materialises
-    /// it, so there is no slice to hand on. `docs/disk-access/adr.md`.
-    pub fn frame_span(&self, index: u32) -> Result<FrameSpan> {
-        let (offset, len) = self.frame_range(index)?;
-        Ok(FrameSpan { offset, len })
-    }
-
-    pub fn frame_slice(&self, index: u32) -> Result<&[u8]> {
-        let (offset, length) = self.frame_range(index)?;
-        let start = offset as usize;
-        let end = start + length as usize;
-        if end > self.mmap.len() {
-            bail!(
-                "frame {index} slice out of bounds ({start}..{end}, file {})",
-                self.mmap.len()
-            );
-        }
-        Ok(&self.mmap[start..end])
-    }
-
-    /// Bytes copied into `buf` **without ever waiting on I/O** — `preadv2(RWF_NOWAIT)`.
-    ///
-    /// Safe on the Tokio executor: where an mmap read would take a major fault (which is
-    /// not an `.await`, so it freezes every task on the thread), this returns short
-    /// instead. A return of `n < buf.len()` means the rest is not in the page cache and
-    /// must be read where blocking is allowed — see `read_at_blocking`.
-    ///
-    /// Returns `0` rather than an error when the filesystem has no `RWF_NOWAIT` support,
-    /// so such a host degrades to "always read on the pool" instead of failing asks.
+    /// Returns short rather than blocking, which is what makes it safe to call on the Tokio
+    /// executor. `n < buf.len()` means the rest is not in the page cache and must be read
+    /// where blocking is allowed. Returns `0` where the filesystem refuses the flag, so
+    /// such a host degrades to reading on the pool instead of failing asks.
     pub fn read_at_nowait(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
         if !self.nowait {
             return Ok(0);
@@ -220,19 +155,35 @@ impl FrameStore {
 
     /// Read exactly `buf.len()` bytes at `offset`, waiting on I/O if it must.
     ///
-    /// Call from a **blocking** pool (`spawn_blocking`), never the executor.
+    /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
     }
+
+    /// Cap what one `read_at_nowait` returns, producing a partial hit: real bytes at the
+    /// front of the buffer, a genuine shortfall behind them.
+    #[cfg(test)]
+    pub(crate) fn force_short_reads(&mut self, cap: usize) {
+        self.nowait_cap = Some(cap);
+    }
+
+    /// Make every `read_at_nowait` report a miss, as a filesystem refusing the flag does.
+    ///
+    /// Tests use this rather than evicting the page cache, which is not a lever a test can
+    /// rely on: `fadvise(DONTNEED)` will not evict a mapped page, and on some hosts it does
+    /// not evict at all.
+    #[cfg(test)]
+    pub(crate) fn force_pool_reads(&mut self) {
+        self.nowait = false;
+    }
 }
 
-/// One `RWF_NOWAIT` read at `offset` to learn whether the filesystem supports the flag.
+/// One `RWF_NOWAIT` read to learn whether the filesystem supports the flag.
 ///
-/// `EAGAIN` counts as support — it is the flag working on a cold byte. Only an outright
-/// refusal (`EOPNOTSUPP` on overlayfs and tmpfs, `EINVAL`/`ENOSYS` on kernels without
-/// `preadv2`) means the fast path does not exist here. Anything else unexpected is read as
+/// `EAGAIN` counts as support — that is the flag working on a cold byte. Only an outright
+/// refusal means the fast path does not exist here, and anything unexpected is read as
 /// "no fast path" so the serving loop takes the conservative route.
 fn probe_nowait(file: &File, offset: u64) -> bool {
     let mut byte = [0u8; 1];
@@ -258,48 +209,34 @@ fn probe_nowait(file: &File, offset: u64) -> bool {
 
 /// Does the filesystem holding `path` honour `RWF_NOWAIT`?
 ///
-/// This is the same probe `FrameStore::open` runs, exposed so a deployment can be checked
-/// **before** a study is in place — `tools/check-fastpath` calls it. Keeping one
-/// implementation is the point: a separate copy could answer differently from the server
-/// and the check would be worse than none.
+/// The same probe `FrameStore::open` runs, exposed so a deployment can be checked before a
+/// study is in place — `tools/check-fastpath` calls it. One implementation on purpose: a
+/// separate copy could answer differently from the server, which would make the check worse
+/// than none.
 ///
-/// `path` may be an existing file (probed directly, nothing written) or a **directory**, in
-/// which case a temporary file is created inside it and removed before returning — that is
-/// the honest test, because support is a property of the mount, not of the file.
+/// `path` may be a file, or a **directory**, in which case a temporary file is created
+/// inside it and removed before returning. Support is a property of the mount, not of the
+/// file.
 pub fn nowait_supported_at(path: &Path) -> Result<bool> {
     let meta = std::fs::metadata(path).with_context(|| format!("stat {}", path.display()))?;
-    if meta.is_dir() {
-        let probe = path.join(format!(".wtpacs-fastpath-probe.{}", std::process::id()));
-        let file = File::options()
-            .read(true)
-            .write(true)
-            .create_new(true)
-            .open(&probe)
-            .with_context(|| format!("create probe file in {}", path.display()))?;
-        // A hole reads back as zeros without allocating; `RWF_NOWAIT` still reports whether
-        // the filesystem implements the flag at all, which is what is being asked.
-        let wrote = file.write_at(&[0u8; 4096], 0);
-        let answer = wrote.map(|_| probe_nowait(&file, 0));
-        drop(file);
-        let _ = std::fs::remove_file(&probe);
-        Ok(answer.with_context(|| format!("write probe file in {}", path.display()))?)
-    } else {
+    if !meta.is_dir() {
         let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
-        Ok(probe_nowait(&file, 0))
+        return Ok(probe_nowait(&file, 0));
     }
-}
-
-/// Host page size from `sysconf(_SC_PAGESIZE)` (fallback 4096).
-pub fn host_page_size() -> usize {
-    static PAGE: OnceLock<usize> = OnceLock::new();
-    *PAGE.get_or_init(|| {
-        let n = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
-        if n > 0 {
-            n as usize
-        } else {
-            4096
-        }
-    })
+    let probe = path.join(format!(".wtpacs-fastpath-probe.{}", std::process::id()));
+    let file = File::options()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&probe)
+        .with_context(|| format!("create probe file in {}", path.display()))?;
+    // A hole reads back as zeros without allocating, and the flag still reports whether the
+    // filesystem implements it, which is the question.
+    let wrote = file.write_at(&[0u8; 4096], 0);
+    let answer = wrote.map(|_| probe_nowait(&file, 0));
+    drop(file);
+    let _ = std::fs::remove_file(&probe);
+    answer.with_context(|| format!("write probe file in {}", path.display()))
 }
 
 #[cfg(test)]
@@ -316,33 +253,31 @@ mod tests {
         std::env::temp_dir().join(format!("{name}-{stamp}.sbnd"))
     }
 
-    #[test]
-    fn host_page_size_is_power_of_two() {
-        let p = host_page_size();
-        assert!(p >= 4096, "page size {p}");
-        assert!(p.is_power_of_two(), "page size {p}");
-    }
-
+    /// Frames are variable-length, so every frame is found through the index and never by
+    /// arithmetic. Two frames of different lengths is the smallest case that would catch a
+    /// reader that assumed otherwise.
     #[test]
     fn round_trip_from_writer() -> Result<()> {
-        let meta = br#"{"frameCount":2}"#;
         let f0 = b"frame-0";
         let f1 = b"frame-1-longer";
         let path = scratch("frame-store");
-        write_bundle(&path, meta, &[f0.as_slice(), f1.as_slice()])?;
+        write_bundle(
+            &path,
+            br#"{"frameCount":2}"#,
+            &[f0.as_slice(), f1.as_slice()],
+        )?;
 
         let store = FrameStore::open(&path)?;
         assert_eq!(store.frame_count(), 2);
-        assert_eq!(store.metadata_json()?, r#"{"frameCount":2}"#);
-        assert_eq!(store.frame_slice(0)?, f0);
-        assert_eq!(store.frame_slice(1)?, f1);
-        assert!(store.frame_slice(99).is_err());
-        assert!(store.frame_range(99).is_err());
+        assert_eq!(store.metadata_json(), r#"{"frameCount":2}"#);
+        assert!(store.frame_span(99).is_err());
 
-        let (offset, len) = store.frame_range(1)?;
-        let mut buf = vec![0u8; len as usize];
-        store.read_at_blocking(&mut buf, offset)?;
-        assert_eq!(buf, f1);
+        for (index, want) in [(0u32, f0.as_slice()), (1, f1.as_slice())] {
+            let span = store.frame_span(index)?;
+            let mut buf = vec![0u8; span.len as usize];
+            store.read_at_blocking(&mut buf, span.offset)?;
+            assert_eq!(buf, want, "frame {index}");
+        }
         let _ = std::fs::remove_file(path);
         Ok(())
     }
@@ -409,13 +344,13 @@ mod tests {
         let path = scratch("frame-store-nowait");
         write_bundle(&path, br#"{"frameCount":1}"#, &[body.as_slice()])?;
         let store = FrameStore::open(&path)?;
-        let (offset, len) = store.frame_range(0)?;
+        let span = store.frame_span(0)?;
 
-        let mut out = vec![0u8; len as usize];
+        let mut out = vec![0u8; span.len as usize];
         let mut pos = 0usize;
         while pos < out.len() {
-            let want = store.read_window(len).min(out.len() - pos);
-            let at = offset + pos as u64;
+            let want = store.read_window(span.len).min(out.len() - pos);
+            let at = span.offset + pos as u64;
             let got = store.read_at_nowait(&mut out[pos..pos + want], at)?;
             assert!(got <= want, "nowait overran the window: {got} > {want}");
             if got < want {

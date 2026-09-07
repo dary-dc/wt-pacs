@@ -27,8 +27,9 @@
 //! (measured: 0.90 resident, then 0.63 after one pass and 0.63 after five). Prevent the
 //! read-ahead; do not try to undo it.
 
+use crate::study_map::{host_page_size, StudyMap};
 use anyhow::{Context, Result};
-use exact_server::media::frame_store::{host_page_size, FrameStore};
+use exact_server::media::frame_store::FrameSpan;
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
@@ -107,7 +108,7 @@ fn fadvise_range(fd: i32, offset: u64, len: u64) -> Result<()> {
 /// Fraction of a frame's pages resident in the page cache, via `mincore` on the study
 /// mapping. Reports the page cache, not our page tables — which is why step 1 unmapping
 /// the region does not blind it.
-fn frame_residency(store: &FrameStore, idx: u32) -> Result<f64> {
+fn frame_residency(store: &StudyMap, idx: u32) -> Result<f64> {
     let slice = store.frame_slice(idx)?;
     if slice.is_empty() {
         return Ok(0.0);
@@ -130,7 +131,7 @@ fn frame_residency(store: &FrameStore, idx: u32) -> Result<f64> {
 ///
 /// `unmap` is the mapping's whole data region (step 1) — the caller owns it because
 /// `data_span` needs the same reasoning the cold cell uses.
-pub fn apply(store: &FrameStore, path: &Path, unmap: &[u8], plan: &MixPlan) -> Result<MixReport> {
+pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Result<MixReport> {
     let page = host_page_size() as u64;
     crate::candidate_access::unmap_pages(unmap)?;
 
@@ -149,7 +150,7 @@ pub fn apply(store: &FrameStore, path: &Path, unmap: &[u8], plan: &MixPlan) -> R
     }
     let mut scratch = vec![0u8; 1 << 20];
     for &idx in &plan.hit {
-        let (offset, len) = store.frame_range(idx)?;
+        let FrameSpan { offset, len } = store.frame_span(idx)?;
         let len = len as usize;
         if scratch.len() < len {
             scratch.resize(len, 0);
@@ -163,7 +164,7 @@ pub fn apply(store: &FrameStore, path: &Path, unmap: &[u8], plan: &MixPlan) -> R
     // only the ends of a run pay the inward rounding.
     let mut runs: Vec<(u64, u64)> = Vec::new();
     for &idx in &plan.miss {
-        let (offset, len) = store.frame_range(idx)?;
+        let FrameSpan { offset, len } = store.frame_span(idx)?;
         let end = offset + len as u64;
         match runs.last_mut() {
             Some(last) if last.1 == offset => last.1 = end,

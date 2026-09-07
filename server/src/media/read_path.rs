@@ -1,26 +1,8 @@
-//! Per-session read state: one window, and a ring that exists only once this session has
-//! actually missed.
+//! How a session reads frame bytes: a page-cache read on the executor, escalating to a
+//! ring or the blocking pool when the bytes are not there.
 //!
-//! This is `hybrid_lazyring` — the arm the read-path campaign chose. On a page-cache hit it
-//! is exactly the path that shipped before it (`preadv2(RWF_NOWAIT)` inline, no ring work at
-//! all); on a miss it finishes the read through io_uring instead of a `spawn_blocking` round
-//! trip, which the campaign prices at **24–34 µs on four hosts**.
-//!
-//! A session that never misses never builds a ring, so the change is inert by design on a
-//! hit-dominated workload rather than by configuration. See
-//! `docs/disk-access/IMPLEMENTATION.md`.
-//!
-//! ## The trap this is shaped around
-//!
-//! On a filesystem that refuses `RWF_NOWAIT` — overlayfs, tmpfs, i.e. **any container
-//! serving studies from its own layer** (`docs/disk-access/DEPLOYMENT.md`) —
-//! `read_at_nowait` returns `0` for *every* read, hit or miss, because the flag is refused
-//! and not because the bytes are cold. A ring keyed naively on "the inline read came up
-//! short" would build one on the first ask and then serve **every warm read through it**.
-//! That is the `uring` arm, measured at **+131 to +142% on hits**: it would make the
-//! container case significantly worse than doing nothing.
-//!
-//! So the ring is gated on [`FrameStore::nowait_supported`], not on the shortfall alone.
+//! Why this shape, what it was measured against, and what the numbers were:
+//! `docs/disk-access/adr.md` and `docs/disk-access/IMPLEMENTATION.md`.
 
 use crate::media::frame_store::FrameStore;
 use anyhow::{Context, Result};
@@ -30,28 +12,23 @@ use tracing::warn;
 #[cfg(feature = "uring")]
 use crate::media::uring_reader::UringReader;
 
-/// Which read path a session takes, resolved once per process from `WTPACS_READ_PATH`.
+/// Which read path a session takes, from `WTPACS_READ_PATH`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ReadMode {
-    /// `hybrid_lazyring`: inline hit, ring on the miss where the filesystem and kernel
-    /// allow one. The shipping path.
+    /// Page cache first, ring on the miss. The shipping path.
     #[default]
     Auto,
-    /// **Kill switch.** The pre-change path: inline hit, `spawn_blocking` on the miss. An
-    /// operational escape from a ring misbehaving in production, and it costs nothing to
-    /// keep because it is the code that shipped before.
+    /// Kill switch: page cache first, blocking pool on the miss. Never a ring.
     Pool,
-    /// **Lab lever, not a production mode.** No inline probe at all: every read goes
-    /// through the ring, whole frame at a time. This is the `uring` arm, measured
-    /// **+131 to +142% CPU on hits** — it exists so tile-based layouts can be experimented
-    /// with against a genuinely miss-optimised path, and nothing routes traffic here.
+    /// Lab lever, not a production mode: no page-cache read at all, every frame through the
+    /// ring. Costs +131 to +142% CPU on hits; it exists to measure tile layouts against a
+    /// miss-optimised path.
     Uring,
 }
 
 impl ReadMode {
-    /// Read `WTPACS_READ_PATH`. An unset or unrecognised value is [`Auto`](Self::Auto); an
-    /// unrecognised one also warns, because a typo in a kill switch that silently does
-    /// nothing is the worst possible outcome for a kill switch.
+    /// An unrecognised value warns and falls back to `Auto` — a kill switch that silently
+    /// does nothing because of a typo is worse than no kill switch.
     pub fn from_env() -> Self {
         match std::env::var("WTPACS_READ_PATH").as_deref() {
             Ok("pool") => Self::Pool,
@@ -60,7 +37,7 @@ impl ReadMode {
             Ok(other) => {
                 warn!(
                     value = other,
-                    "WTPACS_READ_PATH is not one of auto|pool|uring; using auto"
+                    "WTPACS_READ_PATH is not auto|pool|uring; using auto"
                 );
                 Self::Auto
             }
@@ -68,114 +45,152 @@ impl ReadMode {
     }
 }
 
-/// A ring is built at most once per session, and never again if the kernel refuses.
+/// The session's ring, built on its first miss and never rebuilt.
 #[cfg(feature = "uring")]
 enum Ring {
-    Untried,
+    /// This session reads through the blocking pool.
+    Off,
+    /// A ring is wanted but the first miss has not happened yet.
+    Pending,
     Ready(Box<UringReader>),
-    /// io_uring is unavailable here — an old kernel, a seccomp filter, or
-    /// `kernel.io_uring_disabled`. Recorded so the next miss does not try again.
-    Unavailable,
+    /// The kernel refused a ring — old kernel, seccomp, or `kernel.io_uring_disabled`.
+    /// Recorded so the next miss falls back instead of trying again.
+    Refused,
 }
 
 /// One session's read state.
 pub struct ReadCtx {
-    /// Without the `uring` feature every mode reads through the pool, so nothing consults
-    /// this — which is the point: the kill switch cannot change behaviour that has only one
-    /// behaviour.
-    #[cfg_attr(not(feature = "uring"), allow(dead_code))]
-    mode: ReadMode,
-    /// Declared before `window` so the drop order reads correctly, though `Drop for
-    /// ReadCtx` is what actually guarantees it — see there.
+    /// Whether to try the page cache before escalating.
+    ///
+    /// False only under [`ReadMode::Uring`]. Where the filesystem refuses `RWF_NOWAIT` this
+    /// stays true and the read simply always comes up short, which is the same thing by a
+    /// different route.
+    probe: bool,
+    /// Declared before `window` so the drop order reads correctly, though [`Drop`] is what
+    /// guarantees it.
     #[cfg(feature = "uring")]
     ring: Ring,
-    /// One reusable buffer for the whole session — not a buffer per frame, and not a
-    /// whole-frame envelope. It grows to the largest frame this session escalates on.
+    /// One reusable buffer for the session. Grows to the largest frame it escalates on.
     window: Vec<u8>,
 }
 
+#[cfg(feature = "uring")]
+impl Ring {
+    /// The ring to escalate through, built here if this is the session's first miss.
+    ///
+    /// `None` where a ring is not wanted or the kernel refused one, so the caller falls
+    /// back to the pool rather than failing the ask. Building here is safe because nothing
+    /// can be in flight on a ring that does not exist yet.
+    fn reader(&mut self, store: &FrameStore) -> Option<&mut UringReader> {
+        if matches!(self, Self::Pending) {
+            *self = match UringReader::new(store.file()) {
+                Ok(reader) => Self::Ready(Box::new(reader)),
+                Err(err) => {
+                    warn!(%err, "io_uring unavailable; this session reads through the pool");
+                    Self::Refused
+                }
+            };
+        }
+        match self {
+            Self::Ready(reader) => Some(reader),
+            _ => None,
+        }
+    }
+}
+
 impl ReadCtx {
-    pub fn new(mode: ReadMode) -> Self {
+    /// Resolve the mode once, here, so the read loop has no mode to branch on.
+    ///
+    /// A ring is refused outright where the filesystem does not honour `RWF_NOWAIT`: there
+    /// every read reports a miss whether or not the bytes are cached, so a ring keyed on
+    /// the shortfall would serve every *warm* read. `IMPLEMENTATION.md` §The trap.
+    #[cfg_attr(not(feature = "uring"), allow(unused_variables))]
+    pub fn new(mode: ReadMode, store: &FrameStore) -> Self {
+        // Exhaustive on purpose: a new mode has to decide this rather than inherit it.
+        #[cfg(feature = "uring")]
+        let wants_ring = match mode {
+            ReadMode::Auto => store.nowait_supported(),
+            ReadMode::Uring => true,
+            ReadMode::Pool => false,
+        };
         Self {
-            mode,
+            probe: mode != ReadMode::Uring,
             #[cfg(feature = "uring")]
-            ring: Ring::Untried,
+            ring: if wants_ring { Ring::Pending } else { Ring::Off },
             window: Vec::new(),
         }
     }
 
-    /// The session's read buffer. Only the first `n` bytes are meaningful, where `n` is
-    /// what the last [`fill`](Self::fill) returned — the buffer is sized to the largest
-    /// frame this session has escalated on, not to the frame in hand.
-    pub fn window(&self) -> &[u8] {
-        &self.window
-    }
-
-    /// Fill the front of the window from the frame, and say how much is ready.
+    /// Read the next piece of a frame, and hand back the bytes that are ready.
     ///
-    /// The window is taken from the page cache with `read_at_nowait`, which returns short
-    /// instead of waiting on disk — so no ask can park this executor thread on I/O the way
-    /// a major fault on an mmap'd slice does.
-    ///
-    /// **A miss reads the rest of the frame, not the rest of the window.** The window
-    /// bounds how long the executor copies without yielding, and that argument applies only
-    /// to the inline read, which happens on a *hit*. The escalation runs off the executor,
-    /// where a large read costs no more than a small one and a small one costs a whole
-    /// extra round trip. Measured on a fixture where a miss is a real device read: windowing
-    /// the escalation too costs 2–3 round trips per 250 KB frame instead of one, which is
-    /// **2.1× the throughput at one session and 3.0–3.2× at 8, 16 and 32**
-    /// (`docs/disk-access/RERUN-miss.md`). The axis is inside io_uring too — whole-frame
-    /// ring reads beat windowed ones by the same mechanism.
-    ///
-    /// Returns `stride.min(remaining)` on a hit and `remaining` on a miss (and always
-    /// `remaining` under [`ReadMode::Uring`], which does not probe), so **the caller must
-    /// advance by the return value, not by what it asked for.**
-    pub async fn fill(
+    /// `stride` is what to attempt from the page cache; `remaining` is what is left of the
+    /// frame. On a hit the result is `stride` bytes. **On a miss it is the whole of
+    /// `remaining`** — escalating by the window instead of the frame costs a round trip per
+    /// window, and that is where the miss-path throughput goes (`RERUN-miss.md`).
+    pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         at: u64,
         stride: usize,
         remaining: usize,
-    ) -> Result<usize> {
-        // The lab lever: no inline probe, straight to the ring, whole frame at a time.
-        #[cfg(feature = "uring")]
-        if self.mode == ReadMode::Uring {
-            self.grow(remaining);
-            if self.read_through_ring(store, at, 0, remaining).await? {
-                return Ok(remaining);
-            }
-            // The ring is unavailable on this host; fall through to the measured path
-            // rather than failing the ask.
-        }
-
+    ) -> Result<&[u8]> {
         let want = stride.min(remaining);
         self.grow(want);
-        let got = store.read_at_nowait(&mut self.window[..want], at)?;
-        if got == want {
-            return Ok(want);
+        let hit = if self.probe {
+            store.read_at_nowait(&mut self.window[..want], at)?
+        } else {
+            0
+        };
+        if hit == want {
+            return Ok(&self.window[..want]);
         }
 
-        // Missed. Everything still outstanding in the frame is fetched together.
-        let rest = remaining - got;
-        self.grow(got + rest);
+        let rest = remaining - hit;
+        self.grow(hit + rest);
+        self.escalate(store, at + hit as u64, hit, rest).await?;
+        Ok(&self.window[..hit + rest])
+    }
 
+    /// Fetch `len` bytes into `window[from..from + len]` somewhere it is safe to block.
+    async fn escalate(
+        &mut self,
+        store: &Arc<FrameStore>,
+        at: u64,
+        from: usize,
+        len: usize,
+    ) -> Result<()> {
         #[cfg(feature = "uring")]
-        if self.ring_allowed(store) && self.read_through_ring(store, at, got, rest).await? {
-            return Ok(got + rest);
+        {
+            // Split the borrow: the ring writes into the window, so both are needed at once.
+            let Self { ring, window, .. } = self;
+            if let Some(reader) = ring.reader(store) {
+                return reader
+                    .read_exact_at(&mut window[from..from + len], at)
+                    .await;
+            }
         }
+        self.read_on_pool(store, at, from, len).await
+    }
 
-        // `spawn_blocking`: the pre-change path, the kill switch, and the fallback wherever
-        // a ring is not allowed or not available.
+    /// The window is moved to the blocking pool and back, because the read borrows it for
+    /// longer than this task holds `&mut self`.
+    async fn read_on_pool(
+        &mut self,
+        store: &Arc<FrameStore>,
+        at: u64,
+        from: usize,
+        len: usize,
+    ) -> Result<()> {
         let store = Arc::clone(store);
-        let mut owned = std::mem::take(&mut self.window);
-        owned = tokio::task::spawn_blocking(move || {
-            store.read_at_blocking(&mut owned[got..got + rest], at + got as u64)?;
-            Ok::<Vec<u8>, anyhow::Error>(owned)
+        let mut window = std::mem::take(&mut self.window);
+        window = tokio::task::spawn_blocking(move || {
+            store.read_at_blocking(&mut window[from..from + len], at)?;
+            Ok::<Vec<u8>, anyhow::Error>(window)
         })
         .await
         .context("join frame read")??;
-        self.window = owned;
-        Ok(got + rest)
+        self.window = window;
+        Ok(())
     }
 
     fn grow(&mut self, need: usize) {
@@ -184,50 +199,7 @@ impl ReadCtx {
         }
     }
 
-    /// May this session finish a miss through a ring?
-    ///
-    /// `nowait_supported` is the gate, not the shortfall: see the module header. `Pool` is
-    /// the kill switch, and `Uring` has already taken its own path above.
-    #[cfg(feature = "uring")]
-    fn ring_allowed(&self, store: &FrameStore) -> bool {
-        self.mode == ReadMode::Auto && store.nowait_supported()
-    }
-
-    /// Read `len` bytes at `at + skip` into `window[skip..skip + len]`, building the ring if
-    /// this session has not needed one yet.
-    ///
-    /// Returns `false` — having read nothing — when io_uring is unavailable on this host, so
-    /// the caller falls back instead of failing the ask. Constructing mid-frame is safe
-    /// because nothing can be in flight on a ring that does not exist yet.
-    #[cfg(feature = "uring")]
-    async fn read_through_ring(
-        &mut self,
-        store: &FrameStore,
-        at: u64,
-        skip: usize,
-        len: usize,
-    ) -> Result<bool> {
-        if matches!(self.ring, Ring::Untried) {
-            self.ring = match UringReader::new(store.file()) {
-                Ok(r) => Ring::Ready(Box::new(r)),
-                Err(err) => {
-                    // Not an error for the ask: an old kernel, a seccomp filter or
-                    // `kernel.io_uring_disabled` all land here, and the pooled path serves
-                    // correctly on every one of them.
-                    warn!(%err, "io_uring unavailable; this session reads through the pool");
-                    Ring::Unavailable
-                }
-            };
-        }
-        let Ring::Ready(ring) = &mut self.ring else {
-            return Ok(false);
-        };
-        ring.read_exact_at(&mut self.window[skip..skip + len], at + skip as u64)
-            .await?;
-        Ok(true)
-    }
-
-    /// Whether this session has a ring. Tests assert on it; nothing else should care.
+    /// Whether this session built a ring. Tests assert on it; nothing else should care.
     #[cfg(all(test, feature = "uring"))]
     pub(crate) fn has_ring(&self) -> bool {
         matches!(self.ring, Ring::Ready(_))
@@ -235,17 +207,13 @@ impl ReadCtx {
 }
 
 impl Drop for ReadCtx {
-    /// Finish any read the kernel is still performing into `window`.
+    /// Wait for any read the kernel is still performing into `window`.
     ///
-    /// A session task is `tokio::spawn`ed, so it is dropped at its await point when the
-    /// runtime shuts down — and the ring parks on exactly one await. Dropping there with a
-    /// read in flight would leave the kernel writing into a buffer about to be freed.
-    ///
-    /// This lives here, rather than relying on the ring's own `Drop` plus field order,
-    /// because a struct's `Drop::drop` runs **before any of its fields are dropped**. That
-    /// makes the guarantee independent of the order the fields happen to be declared in —
-    /// which is otherwise a silent, compiler-invisible correctness dependency sitting one
-    /// careless reorder away from memory corruption.
+    /// A session task is dropped at its await point when the runtime shuts down, and the
+    /// ring parks on exactly one await — so without this the kernel would be left writing
+    /// into a buffer about to be freed. It lives here rather than relying on the ring's own
+    /// `Drop` because a struct's `Drop::drop` runs before any of its fields are dropped,
+    /// which makes the guarantee independent of field declaration order.
     fn drop(&mut self) {
         #[cfg(feature = "uring")]
         if let Ring::Ready(ring) = &mut self.ring {
@@ -303,9 +271,9 @@ mod tests {
             .expect("rt")
     }
 
-    /// Run `stream_codestream`'s loop against a buffer, returning what came out and **how
-    /// many fills it took**. The loop is copied rather than shared: that duplication is what
-    /// lets this test the read path with no sink abstraction and no QUIC connection.
+    /// `stream_codestream`'s loop against a buffer instead of a stream: what came out, and
+    /// how many reads it took. Copied rather than shared, which is what lets this test the
+    /// read path with no QUIC connection.
     fn drain(
         rt: &tokio::runtime::Runtime,
         ctx: &mut ReadCtx,
@@ -316,19 +284,19 @@ mod tests {
         let span = store.frame_span(idx).expect("span");
         let mut out: Vec<u8> = Vec::new();
         let mut pos = 0u32;
-        let mut fills = 0usize;
+        let mut reads = 0usize;
         while pos < span.len {
             let remaining = (span.len - pos) as usize;
             let at = span.offset + u64::from(pos);
             let ready = rt
-                .block_on(ctx.fill(store, at, stride, remaining))
-                .expect("fill");
-            assert!(ready > 0, "a fill that returns 0 would spin forever");
-            fills += 1;
-            out.extend_from_slice(&ctx.window()[..ready]);
-            pos += ready as u32;
+                .block_on(ctx.read(store, at, stride, remaining))
+                .expect("read");
+            assert!(!ready.is_empty(), "an empty read would spin forever");
+            reads += 1;
+            out.extend_from_slice(ready);
+            pos += ready.len() as u32;
         }
-        (out, fills)
+        (out, reads)
     }
 
     const STRIDE: usize = 4096;
@@ -358,17 +326,17 @@ mod tests {
                     _ => store.force_short_reads(STRIDE / 3),
                 }
                 let store = Arc::new(store);
-                let mut ctx = ReadCtx::new(mode);
+                let mut ctx = ReadCtx::new(mode, &store);
                 for idx in 0..3u32 {
-                    let (out, fills) = drain(&rt, &mut ctx, &store, idx, STRIDE);
+                    let (out, reads) = drain(&rt, &mut ctx, &store, idx, STRIDE);
                     assert_eq!(
                         out,
                         frame_pattern(idx, LEN),
                         "frame {idx} came back wrong on a {shape} under {mode:?}"
                     );
                     assert_eq!(
-                        fills, 1,
-                        "frame {idx} is 6 windows long and took {fills} round trips on a \
+                        reads, 1,
+                        "frame {idx} is 6 windows long and took {reads} round trips on a \
                          {shape} under {mode:?}, not 1"
                     );
                 }
@@ -401,7 +369,7 @@ mod tests {
                         _ => store.force_short_reads(STRIDE / 3),
                     }
                     let store = Arc::new(store);
-                    let mut ctx = ReadCtx::new(mode);
+                    let mut ctx = ReadCtx::new(mode, &store);
                     for idx in 0..3u32 {
                         let (out, _) = drain(&rt, &mut ctx, &store, idx, STRIDE);
                         assert_eq!(
@@ -453,7 +421,7 @@ mod tests {
             return;
         }
         let rt = rt();
-        let mut ctx = ReadCtx::new(ReadMode::Auto);
+        let mut ctx = ReadCtx::new(ReadMode::Auto, &store);
         for idx in 0..3u32 {
             let (out, _) = drain(&rt, &mut ctx, &store, idx, STRIDE);
             assert_eq!(out, frame_pattern(idx, LEN));
@@ -479,7 +447,7 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let rt = rt();
-        let mut ctx = ReadCtx::new(ReadMode::Auto);
+        let mut ctx = ReadCtx::new(ReadMode::Auto, &store);
         for idx in 0..3u32 {
             let (out, _) = drain(&rt, &mut ctx, &store, idx, STRIDE);
             assert_eq!(out, frame_pattern(idx, LEN), "the pooled path still serves");
@@ -511,12 +479,12 @@ mod tests {
         store.force_short_reads(STRIDE / 3);
         let store = Arc::new(store);
         let rt = rt();
-        let mut ctx = ReadCtx::new(ReadMode::Auto);
+        let mut ctx = ReadCtx::new(ReadMode::Auto, &store);
         for idx in 0..3u32 {
-            let (out, fills) = drain(&rt, &mut ctx, &store, idx, STRIDE);
+            let (out, reads) = drain(&rt, &mut ctx, &store, idx, STRIDE);
             assert_eq!(out, frame_pattern(idx, LEN), "frame {idx} did not compose");
             assert_eq!(
-                fills, 1,
+                reads, 1,
                 "the ring read the rest of the frame, not the window"
             );
         }
@@ -534,11 +502,11 @@ mod tests {
         let path = write_bundle(&dir, 3, LEN);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         let rt = rt();
-        let mut ctx = ReadCtx::new(ReadMode::Uring);
+        let mut ctx = ReadCtx::new(ReadMode::Uring, &store);
         for idx in 0..3u32 {
-            let (out, fills) = drain(&rt, &mut ctx, &store, idx, STRIDE);
+            let (out, reads) = drain(&rt, &mut ctx, &store, idx, STRIDE);
             assert_eq!(out, frame_pattern(idx, LEN), "frame {idx} came back wrong");
-            assert_eq!(fills, 1, "the lever reads whole frames, not windows");
+            assert_eq!(reads, 1, "the lever reads whole frames, not windows");
         }
         assert!(ctx.has_ring(), "the lever never built a ring");
         std::fs::remove_dir_all(&dir).ok();

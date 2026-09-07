@@ -4,8 +4,8 @@
 //! `FrameStore::read_at_nowait` / `read_at_blocking`, so the lab times the shipped product
 //! path rather than a second implementation of it.
 
+use crate::study_map::host_page_size;
 use anyhow::{Context, Result};
-use exact_server::media::frame_store::host_page_size;
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
 

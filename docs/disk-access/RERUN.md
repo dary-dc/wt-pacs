@@ -420,6 +420,26 @@ The `95% CI` column is the half-width of the bootstrap interval in
 the median. Half that figure is the standard error, which is *not* what a 95% interval
 means; quote this column, not the SE.
 
+### Interleave the arms, or measure the machine instead
+
+The arms in a comparison must alternate **inside** each round. Running one arm to completion
+and then the other puts minutes between them, and machine drift over that gap reads as a
+difference — with *high* sign agreement, because the drift is systematic rather than random.
+
+Measured directly, on a refactor whose serving path was provably unchanged
+([`x13_refactor_ab.tsv`](x13_refactor_ab.tsv), `lab/scripts/pair_ab.py`):
+
+| design | 16 sessions | verdict |
+| --- | ---: | --- |
+| sequential — before run, then after run ~40 min later | **+8.1%**, 8/8 signs | would have been read as RESOLVED |
+| interleaved — both arms in every round | **−1.8%**, 5/8 signs | tie |
+
+The first number is the machine. Nothing about the code changed between them.
+
+For an A/B across a commit, build the older binary in a `git worktree` at the base commit
+rather than stashing — the working tree is never disturbed, and both binaries stay available
+for as many rounds as the comparison needs.
+
 ### The rule this produces
 
 **A within-run CI is not the error bar.** Re-running the *identical* configuration moves a

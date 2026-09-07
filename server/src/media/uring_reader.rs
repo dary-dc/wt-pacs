@@ -1,39 +1,17 @@
-//! io_uring for the **miss** path, and only the miss path.
+//! io_uring for the miss path, and only the miss path.
 //!
-//! A page-cache hit never touches this: it is served inline by `preadv2(RWF_NOWAIT)`, which
-//! is measurably *faster* per operation than a ring read (561 ns against 852 ns on a warm
-//! 4 KiB read, 5 of 5 runs — `docs/disk-access/adr.md`). What the ring removes is the
-//! `spawn_blocking` round trip a miss otherwise pays, measured at **24–34 µs on four hosts**.
+//! A page-cache hit never reaches here — it is served inline, and faster than a ring read
+//! would serve it. What the ring removes is the thread-pool round trip a *miss* would
+//! otherwise pay. The measurements, and why the buffers are deliberately not registered:
+//! `docs/disk-access/IMPLEMENTATION.md`.
 //!
-//! Three constraints shape this, and they are why it looks nothing like a typical io_uring
-//! example:
+//! Two constraints explain why this looks nothing like a typical io_uring example:
 //!
-//! * **`SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable.** Tokio's multi-thread runtime
-//!   migrates a task between workers across `.await`, so a per-session ring sees submissions
-//!   from different threads. Those are io_uring's two biggest throughput knobs, and a
-//!   work-stealing runtime cannot have them. `COOP_TASKRUN` is kept.
-//! * **Completions are awaited, never waited on.** Blocking in `io_uring_enter` would
-//!   reintroduce exactly the executor stall this whole decision exists to prevent, so the
-//!   ring registers an eventfd and parks on it through Tokio's `AsyncFd`.
-//! * **Buffers are not registered.** The measured arm registered them; this registers the
-//!   *file* only and reads into the session's own window. Registering buffers pins pages,
-//!   and at thousands of concurrent sessions that is thousands of unreclaimable
-//!   frame-sized allocations against `RLIMIT_MEMLOCK`. The difference lives in the
-//!   submission path (sub-microsecond) and not the device path (~105 µs for a 64 KiB random
-//!   read on the validation host), so it cannot move a miss-path result — but it is
-//!   **unmeasured**, and `docs/disk-access/IMPLEMENTATION.md` says to confirm it when the
-//!   bench next runs the product path as an arm.
-//!
-//! ## Cancellation
-//!
-//! The kernel writes into the caller's buffer between submit and completion, so dropping
-//! the future in between would hand the kernel freed memory. Session tasks are
-//! `tokio::spawn`ed and are dropped at their await point when the runtime shuts down, so
-//! this is reachable, not theoretical — and it is the kind of bug that compiles silently
-//! and corrupts memory later. [`UringReader`] therefore drains any in-flight read in
-//! `Drop`, which is what makes the `unsafe` in [`read_exact_at`](UringReader::read_exact_at)
-//! sound. See the note on field order in [`crate::media::read_path::ReadCtx`]: the ring must
-//! be dropped **before** the buffer it is writing into.
+//! * **`SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable.** Tokio migrates a task between
+//!   workers across `.await`, so a per-session ring sees submissions from several threads.
+//! * **Completions are awaited, never waited on.** Blocking in `io_uring_enter` would be
+//!   the executor stall this whole design exists to prevent, so the ring registers an
+//!   eventfd and parks on it.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
@@ -41,9 +19,10 @@ use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use tokio::io::unix::AsyncFd;
 
-/// How many drops had to wait for the kernel. Test-only: the wait is not otherwise
-/// observable, because a read that completes from the page cache lands before anything
-/// could notice it had not been waited for.
+/// How many drops had to wait for the kernel.
+///
+/// Test-only, and the only way the wait is observable: a read served from the page cache
+/// lands before a missing wait could be noticed.
 #[cfg(test)]
 pub(crate) static DRAINED_ON_DROP: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
@@ -57,8 +36,7 @@ pub struct UringReader {
 }
 
 impl UringReader {
-    /// Build a ring against `file`, registering the descriptor so submissions do not have
-    /// to resolve it each time.
+    /// Register `file` with the ring so submissions do not have to resolve it each time.
     pub fn new(file: &File) -> Result<Self> {
         // Eight entries is the smallest the kernel will round to and seven more than this
         // ever needs; the SQ is not where the memory goes.
@@ -88,15 +66,11 @@ impl UringReader {
         })
     }
 
-    /// Read `buf.len()` bytes at `offset` into `buf`, awaiting the completion.
+    /// Read `buf.len()` bytes at `offset`, re-submitting until the range is complete.
     ///
-    /// Short completions are re-submitted rather than reported: a caller finishing a frame
-    /// needs the whole range, and the loop here is the same one `read_at_blocking` runs for
-    /// the pooled path.
-    ///
-    /// **Cancel-safe.** If this future is dropped mid-read, `Drop` waits for the kernel to
-    /// finish with `buf` before the reader goes away — so a caller that owns `buf` beyond
-    /// this call must also drop the reader first. See the module header.
+    /// **Cancel-safe.** Dropping this future mid-read is safe because `Drop` waits for the
+    /// kernel to finish with `buf` — so a caller that owns `buf` beyond this call must drop
+    /// the reader before the buffer.
     pub async fn read_exact_at(&mut self, buf: &mut [u8], offset: u64) -> Result<()> {
         let mut done = 0usize;
         while done < buf.len() {
@@ -124,9 +98,8 @@ impl UringReader {
         Ok(())
     }
 
-    /// Submit a read and **do not** complete it, leaving the kernel mid-write.
-    ///
-    /// The only way to construct the state `Drop` exists for without racing a task abort.
+    /// Submit a read and do not complete it, leaving the kernel mid-write — the state
+    /// `Drop` exists for, without racing a task abort to reach it.
     ///
     /// # Safety
     /// Same contract as [`read_exact_at`](Self::read_exact_at): `buf` must outlive this
@@ -163,11 +136,8 @@ impl UringReader {
         Ok(())
     }
 
-    /// Await the outstanding read and return how many bytes it produced.
-    ///
-    /// A cached read is often already in the completion queue by the time this is called,
-    /// in which case it takes no await at all — the ring costs a park only when the read
-    /// really did go to the device.
+    /// Await the outstanding read and return how many bytes it produced. A read already in
+    /// the completion queue takes no await at all.
     async fn complete(&mut self) -> Result<usize> {
         loop {
             self.ring.completion().sync();
@@ -183,8 +153,7 @@ impl UringReader {
         }
     }
 
-    /// Park on the registered eventfd. Never blocks in `io_uring_enter` — doing that would
-    /// reintroduce the executor stall this exists to prevent.
+    /// Park on the registered eventfd rather than blocking in `io_uring_enter`.
     async fn park(&mut self) -> Result<()> {
         let mut guard = self
             .eventfd
@@ -209,23 +178,20 @@ impl UringReader {
 impl UringReader {
     /// Wait for the kernel to finish with the caller's buffer.
     ///
-    /// Without this, dropping the future between submit and completion — which happens
-    /// whenever a session task is dropped at its await point — leaves the kernel writing
-    /// into memory that is about to be freed. The wait is bounded by one device read, and
-    /// it only ever runs on the teardown path: a reader whose reads all completed normally
-    /// has nothing in flight and returns immediately.
+    /// Without this, dropping the future between submit and completion leaves the kernel
+    /// writing into memory about to be freed. Bounded by one device read, and only ever on
+    /// the teardown path: a reader that completed its reads has nothing in flight.
     ///
-    /// Idempotent, so the owner may call it early — [`ReadCtx`](crate::media::read_path)
-    /// does, from its own `Drop`, so that the guarantee does not depend on field order.
+    /// Idempotent, so an owner may call it early — [`ReadCtx`](crate::media::read_path)
+    /// does, from its own `Drop`, so the guarantee does not depend on field order.
     pub(crate) fn drain_in_flight(&mut self) {
         if !self.in_flight {
             return;
         }
         #[cfg(test)]
         DRAINED_ON_DROP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        // Blocking here is the one place this file permits it. The alternative is a
-        // use-after-free, and a hung wait means a hung device, which has stalled everything
-        // else already.
+        // The one place this file blocks. The alternative is a use-after-free, and a hung
+        // wait means a hung device, which has stalled everything else already.
         if self.ring.submitter().submit_and_wait(1).is_ok() {
             self.ring.completion().sync();
             while self.ring.completion().next().is_some() {}

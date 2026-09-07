@@ -251,6 +251,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "disk-access-bench",
  "exact-server",
  "libc",
  "tokio",
@@ -388,6 +389,7 @@ dependencies = [
  "exact-server",
  "io-uring",
  "libc",
+ "memmap2",
  "quinn",
  "rcgen 0.13.2",
  "rustls",
@@ -428,7 +430,6 @@ dependencies = [
  "frame-envelope",
  "io-uring",
  "libc",
- "memmap2",
  "rcgen 0.13.2",
  "rustls",
  "rustls-pemfile",

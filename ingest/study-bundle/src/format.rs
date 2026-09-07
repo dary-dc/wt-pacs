@@ -1,6 +1,8 @@
 //! Shared SBND layout constants and header/index parser.
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
+use std::fs::File;
+use std::os::unix::fs::FileExt;
 
 pub const MAGIC: &[u8; 4] = b"SBND";
 pub const VERSION: u32 = 1;
@@ -8,12 +10,14 @@ pub const VERSION: u32 = 1;
 pub const HEADER_SIZE: usize = 16;
 pub const INDEX_ENTRY_SIZE: usize = 12;
 
+/// Everything before the first frame: where each frame lives, and the study metadata.
 #[derive(Debug, Clone)]
 pub struct ParsedLayout {
-    pub frame_count: u32,
-    pub metadata_len: u32,
-    pub data_base: usize,
+    /// Byte offset and length of each frame, in frame order.
     pub index: Vec<(u64, u32)>,
+    pub metadata: String,
+    /// Offset of the first frame — where the header, index and metadata end.
+    pub data_base: usize,
 }
 
 pub fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
@@ -44,10 +48,35 @@ pub fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
         index.push((offset, length));
     }
 
+    let metadata = std::str::from_utf8(&bytes[header_bytes..data_base])
+        .context("metadata is not UTF-8")?
+        .to_owned();
+
     Ok(ParsedLayout {
-        frame_count,
-        metadata_len,
-        data_base,
         index,
+        metadata,
+        data_base,
     })
+}
+
+/// Read a bundle's layout straight from the file.
+///
+/// Two reads: the fixed header says how long the rest is, then the whole prefix is taken
+/// in one go.
+pub fn read_layout(file: &File) -> Result<ParsedLayout> {
+    let mut prefix = vec![0u8; HEADER_SIZE];
+    file.read_exact_at(&mut prefix, 0).context("read header")?;
+    prefix.resize(prefix_len(&prefix)?, 0);
+    file.read_exact_at(&mut prefix, 0).context("read index")?;
+    parse_layout(&prefix)
+}
+
+/// Bytes from the start of the file up to the first frame, read off the fixed header.
+fn prefix_len(header: &[u8]) -> Result<usize> {
+    if header.len() < HEADER_SIZE {
+        bail!("bundle too small");
+    }
+    let metadata_len = u32::from_le_bytes(header[8..12].try_into()?) as usize;
+    let frame_count = u32::from_le_bytes(header[12..16].try_into()?) as usize;
+    Ok(HEADER_SIZE + frame_count * INDEX_ENTRY_SIZE + metadata_len)
 }

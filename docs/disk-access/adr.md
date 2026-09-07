@@ -199,6 +199,39 @@ Numbers are the product runtime, warm `later_p50` / worst-cell neighbour p99 —
 | Handing quinn owned windows (`write_chunk`) instead of copying into it | **Rejected — and the case is stronger at scale, not weaker** | The copy is provably removed and worth −3.2% at one session, under the drift threshold. **At 16 and 32 concurrent sessions it is +14.6% and +19.1% CPU per frame, RESOLVED (5/5 and 4/4 signs)** — the copy it removes is L2-resident, and what replaces it is not: quinn holds each window until it is acked, so the buffer pool cannot recycle. At 16 sessions `write_chunk` allocates **3 840 buffers for 3 840 windows** — every window a fresh 64 KiB heap allocation — against **zero** for `write_all` ([`x12_send_sessions.tsv`](x12_send_sessions.tsv), `lab/scripts/pair_send_modes.py`) |
 | `O_DIRECT` + SPDK / whole-study preload | **Rejected** | Wrong scale or scope. The *bounded* app cache above was in this row until it was measured; it is not any more |
 
+## Invariants
+
+Properties the code depends on that nothing in the type system enforces. Each is pinned by
+a test, named here so the test's purpose survives a refactor of the test.
+
+### One index per study, never per session
+
+`FrameStore` is opened once and shared by `Arc`; every session gets a handle, not a store.
+The index is **12 bytes per frame** — 384 KB for a 32 000-frame study — and it is immutable
+after `open`, so a per-session store multiplies that by the session count and buys nothing.
+At a thousand concurrent readers that is 384 MB against 384 KB.
+
+Nothing prevents a future change from calling `FrameStore::open` inside the session path: it
+would compile, pass every other test, and serve correctly.
+`sessions_share_one_store_rather_than_opening_their_own` (`transport::pipeline`) is what
+catches it.
+
+This is a property of the *study*, not of the frame index specifically — it applies unchanged
+to whatever a tile map turns out to be.
+
+### The bytes quinn sends are process-private
+
+The read path copies into a session-owned buffer and never hands quinn a page-cache
+mapping, so reclaim cannot take bytes back mid-send. This is why `server/` has no memory
+mapping at all: the mmap arms are the rejected comparison and live in
+`lab/disk-access-bench` (`study_map::StudyMap`), not in the product.
+
+### A ring is never built where `RWF_NOWAIT` is refused
+
+Otherwise every *warm* read would be served through it — the `uring` arm, +131 to +142% CPU
+on hits. `ReadCtx::new` resolves this once per session;
+`lazy_ring_is_never_built_without_nowait` pins it.
+
 ## Levers outside this decision
 
 This ADR moves ~a fifth of a frame's server CPU; the rest is per-datagram QUIC work
@@ -234,10 +267,10 @@ datagrams (`max_udp_payload_size`, −35%).
 `FramePipeline::locate` returns a `FrameSpan` (offset and length, no I/O);
 `FramePipeline::send` → `FrameOut::send_frame` → `stream_codestream` reads and writes it a
 window at a time. The read itself is `ReadCtx::fill` in `server/src/media/read_path.rs`, and
-the ring it escalates to is `server/src/media/uring_reader.rs`. `FrameStore` exposes
-`frame_span`, `read_at_nowait`, `read_at_blocking`, `read_window`, `nowait_supported` and
-`file`; the mmap pre-touch, `mincore` and WILLNEED arms live in `lab/disk-access-bench`
-because they are the comparison, not the product.
+the ring it escalates to is `server/src/media/uring_reader.rs`. `FrameStore` exposes `frame_span`, `read_at_nowait`, `read_at_blocking`, `read_window`,
+`nowait_supported` and `file` — and no mapping at all. The mmap pre-touch, `mincore` and
+WILLNEED arms live in `lab/disk-access-bench` because they are the comparison, not the
+product.
 
 The `wrap()` envelope allocation is gone with it: the header is 8 bytes on the stack and the
 codestream streams behind it. That is the copy reduction the previous ADR deferred to a
