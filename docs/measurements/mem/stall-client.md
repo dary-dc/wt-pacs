@@ -53,12 +53,21 @@ holding the connection and every receive stream open.
 
 ### 1 · A stalled client costs the server about what a slow one does
 
-| workload | server per connection |
-| --- | --- |
-| ordinary reading (`mem_light.tsv`) | 110 kB |
-| slow reader, 2 Mbps drain (`mem_stress.tsv`) | 162 kB |
-| **stops reading entirely, shared** | **180 kB** |
-| stops reading entirely, per-frame | 370 kB |
+| workload | server per connection | binary |
+| --- | --- | --- |
+| ordinary reading (`mem_light.tsv`) | 110 kB | `lab-arms/exact-server-seg10` |
+| slow reader, 2 Mbps drain (`mem_stress.tsv`) | 162 kB | `lab-arms/exact-server-seg10` |
+| **stops reading entirely, shared** | **180 kB** | `target/release/exact-server` |
+| stops reading entirely, per-frame | 370 kB | `target/release/exact-server` |
+
+> **The top two rows and the bottom two ran different server binaries**, and this table
+> originally read as one experiment. Found by adversarial review, 2026-09-07.
+>
+> **Measured rather than argued away:** re-running the stall workload on both binaries at
+> N = 1 and N = 16 gives **215 kB/connection on the release build against 207 kB on
+> `seg10`** — 3.7 %, inside this campaign's own run-to-run spread (the same configuration
+> read 180 kB in the campaign and 198 kB in the send-path probe). The comparison stands; the
+> binary column stays so nobody rediscovers the question.
 
 **+11 % over the slow reader in shared mode.** The worry the ceilings exist for was
 `send_window` at 10 MB per connection. The measured exposure is **180 kB — 55× below it**,
@@ -108,6 +117,12 @@ An argument for one shared stream that does not depend on the loss mechanism at 
 | server per stalled connection | 180 kB | 370 kB | **2.05×** |
 | client per stalled connection | 2.20 MB | 7.60 MB | **3.46×** |
 
+> **The 2.05× is not attributable to flow-control windows alone.** Adversarial review noted
+> that per-frame mode also retains one completed task per frame in a `JoinSet` drained only at
+> session end, so up to ~100 finished task cells sit inside that slope too. Small beside
+> 370 kB, and it predates this branch — but the paragraph below credits the windows for all of
+> it, and should not.
+
 A per-frame server hands a non-reading client a fresh flow-control window for every frame
 it asks for, until the stream-concurrency limit stops it. A shared-stream server hands it
 one, once. [`transport-conclusions.md`](../../transport-conclusions.md) §2 recommends the
@@ -148,7 +163,8 @@ Quote §1's for the windows question and this table's for the send-path comparis
 all six arms were measured together.)
 
 **`RssAnon` is not blind here, and that had to be checked separately from the send-path
-question.** Within every arm the two slopes agree to within 1 %, so nothing is hiding in
+question.** Within every arm the two slopes agree to within 1.2 % — chunked per-frame is
+the widest, 374.9 against 379.5 kB — so nothing is hiding in
 file-backed pages — including on `chunked`, where it could have. The copy-vs-chunked gap is
 therefore a real difference in what the server *retains*, not a difference in what the
 metric can *see*. (Comparing `copy` against `chunked` cannot answer the blindness question;

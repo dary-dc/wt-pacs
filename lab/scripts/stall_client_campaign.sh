@@ -26,7 +26,13 @@
 #   stall_engaged            the deadline passed while the run was live
 #   bytes_read > 0           data was actually flowing, so refusing to read stranded some
 #   connection_alive_at_end  the connection survived; a dead one measures teardown
-#   asks_sent == requested   the server was committed to the full backlog
+#   asks_sent == requested   every ask reached the client's own send buffer
+#
+# That last one is weaker than it looks and is deliberately worded down: `asks_sent` counts
+# successful writes to the *client's* control stream, and those bytes may still be sitting in
+# the server's receive buffer. The server's serial loop stops reading asks the moment it
+# blocks writing a frame, so it has committed to nothing beyond what it already read. The
+# gate establishes that the client did its part, not that the server accepted the backlog.
 #
 # Failures are written to the TSV with void=1 rather than dropped. Deleting them would
 # flatter whichever arm fails more often — the exact bias this project has already

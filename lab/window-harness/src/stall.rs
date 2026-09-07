@@ -29,9 +29,19 @@
 //!    of the case under test. The streams are therefore parked in `_held`, unread and
 //!    undropped, until the run ends.
 //! 3. **The connection stays open.** No `EndSession`, no `close()`. A client that says
-//!    goodbye frees the server's state, which is again the opposite of the case. A real
-//!    stalled client — backgrounded tab, suspended laptop, hostile peer — says nothing at
-//!    all, and the server learns about it only when the idle timeout fires.
+//!    goodbye frees the server's state, which is the opposite of the case under test.
+//!
+//! # Which stalled client this is
+//!
+//! **This is the client that keeps its connection alive, not the one that goes silent**, and
+//! the distinction is a threat model rather than a detail. `build_client_config` sets
+//! `keep_alive_interval(3s)`, so the peer measured here is never quiet. A genuinely silent
+//! client — a suspended laptop — is reaped by quinn's 30 s idle timeout, so its cost is
+//! bounded by 30 seconds no matter how much it asked for.
+//!
+//! Only a peer that actively keeps the connection alive can hold the server's memory
+//! indefinitely. Both cost the same *per second*, so the per-connection figures are the same
+//! either way; what differs is for how long. Read §3.1's numbers as the sustained case.
 //!
 //! `connection_alive_at_end` is the gate on all three. A row where it is false measured a
 //! teardown, not a stall, and must be voided rather than averaged in.

@@ -381,7 +381,7 @@ datagram-by-datagram and destroys GSO batching, so no CPU claim may pass through
 
 | item | effect |
 | ---- | ------ |
-| **GSO segment cap 10 → 32** | +17.2 % throughput, −20.9 % CPU/byte — best density lever, **but not a flag** (see below) |
+| **GSO segment cap 10 → 32** | +17.2 % / −20.9 % CPU per byte **on the 250 KB fixture at n = 1**; the 32 KB fixture gives +5.1 % / −15.6 %, and the real-hardware re-run gives **−1.0 % / +8.1 % with overlapping ranges**. Not a flag either (see below) |
 | Chunked send path | −6…−14 % CPU/byte at every rate |
 | Per-frame prefault hop, warm cache | costs 10 % throughput, 14–34 % CPU/byte |
 | `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil |
@@ -513,7 +513,7 @@ campaign analysers print `n` per arm, and any figure quoted from them should car
 | Keep shared stream | **strong** — re-measured on a rig that generates head-of-line blocking; separated 3.5× at 1 % loss, replicated 3/3, matches a source-verified scheduler mechanism, negative control clean to 0.1 % | a cell where per-frame+FIFO separates *in its favour*; none found |
 | Per-frame is worse *because of retransmit deferral* | **moderate** — mechanism is source-verified and predicts sign and magnitude, but was not directly instrumented | per-stream retransmit timing telemetry showing recovery is not deferred |
 | Per-frame without FIFO is worst | **strong** — four campaigns, matches scheduler source | — |
-| GSO cap worth 17 % | **moderate** — loopback only, and **not confirmed on real hardware**: on the Oracle rig the path, not the send path, is the ceiling, so the cell is neither confirmation nor refutation. The external corroboration (ETH Zürich thesis, quinn #2201) is for the **byte cliff**, not for the +17 % | a real-hardware cell where the send path is the ceiling |
+| GSO cap worth 17 % | **weak** — loopback, **n = 1 on every one of the 24 rows**, and fixture-dependent: +17.2 % at 250 KB against +5.1 % at 32 KB. The real-hardware re-run reads **−1.0 % / +8.1 %, ranges overlapping**. The external corroboration (ETH Zürich thesis, quinn #2201) is for the **byte cliff**, not the gain | repeats at n ≥ 3, and a real-hardware cell where the send path is the ceiling |
 | Initial window is not a lever | **strong** — two independent measurements | — |
 | Flow-control ceilings are never approached **on the chunked send path** | **moderate** — 48 rows, 0 VOID, linear to r² ≥ 0.979, but T2 loopback and N ≤ 16 | a client that widens its own receive window on a high-BDP path, where the in-flight window rather than the peer's credit would bound the server |
 | The send path, not the windows, sets the pathological-case cost (6–17×) | **moderate** — n = 2 probe, but the effect is far outside what n = 2 could manufacture, and total RSS corroborates `RssAnon` | a copy-path arm that matches chunked once the sampler catches the true peak |
