@@ -372,6 +372,10 @@ admission rule passed; Phase C retuned the admission rule until the workload pas
 | [`measurements/regime/`](measurements/regime/) | loss-regime classifier and its ground-truth test |
 | [`measurements/mem/`](measurements/mem/) | memory per viewer, and the flow-control window question |
 | [`ORACLE-RIG-AGENT-GUIDE.md`](ORACLE-RIG-AGENT-GUIDE.md) | running campaigns on the real rig, gates first |
+| [`why-these-changes.md`](why-these-changes.md) | **why each decision on this branch exists** — fourteen entries, one per decision, and the place rationale belongs instead of in source comments |
+| [`code-style-and-comments.md`](code-style-and-comments.md) | what the code says and what the register says; the measured comment-to-code ratios that prompted it |
+| [`proposals/product-code-changes.md`](proposals/product-code-changes.md) | **nine proposed code changes, none applied** — including flipping the stream-mode default, whose pre-registered condition X3L has now met |
+| [`merge-with-main-analysis.md`](merge-with-main-analysis.md) | what actually collides with `main`, and why it is a port rather than an adjudication |
 
 ### Key scripts
 
