@@ -2,7 +2,7 @@
 
 What a miss should read, measured where a miss is a real device read. **Decision:**
 [`adr.md`](adr.md) · **Instrument:** [`RERUN.md`](RERUN.md) · **The other campaign:**
-[`EVIDENCE.md`](EVIDENCE.md)
+[`EVIDENCE.md`](EVIDENCE.md) · **Next steps:** [`PLAN.md`](PLAN.md)
 
 > **This is a different question from the read-path campaign, and the two agree.**
 > [`EVIDENCE.md`](EVIDENCE.md) asks *who submits the round trip* — pool or ring — and finds
@@ -329,8 +329,21 @@ inside this campaign's ~7–11% run-to-run drift, which is exactly what was obse
 readers: no sign that survives the rule).
 
 **So the ring's win shrinks as frames grow, and this campaign is where it stops being
-visible — not where it stops existing.** That is a prediction the read-path campaign can
-check: its margin should fall roughly as `hop_tax / (hop_tax + bytes × cost_per_byte)`.
+visible — not where it stops existing.** That was written here as a prediction. It is not a
+prediction: the read-path campaign's own `D_size` cells already contain the answer, and they
+confirm it.
+
+| `hybrid` vs `pool`, miss regime, paired | 4 KiB | 16 KiB | 64 KiB | 250 KB |
+| --- | ---: | ---: | ---: | ---: |
+| `v22_campaign_ci.tsv` | −62.2% | −58.2% | −45.9% | **−24.8% tie** |
+| `v10_campaign.tsv` | −63.9% | −66.8% | −45.3% | — |
+
+Monotone, and it crosses the 28.5% bar between 64 KiB and 250 KB — the size this campaign
+ran at. Reproduce with
+`lab/scripts/pair_arms.py --pairs hybrid:pool --by size docs/disk-access/v22_campaign_ci.tsv`.
+An earlier version of this section also said the two campaigns had never been run at the same
+frame size. That was wrong: `v22` has `D_size250000` cells, and they are the right-hand
+column above.
 
 Two things this campaign does add to that decision:
 
@@ -355,7 +368,8 @@ Two things this campaign does add to that decision:
 | **Settled** | A miss should read the rest of the frame, not the rest of the window. Independent of io_uring, measured in both arm orders, at 1/8/16/32 readers, on forward and random traces |
 | **Settled** | At 250 KB frames on ~1.25 GB/s storage, whole-frame `io_uring` and whole-frame `spawn_blocking` are a tie on throughput and latency |
 | **Not settled here** | Whether `hybrid_lazyring` is worth adopting. That rests on CPU per read at the frame sizes and miss rates a deployment actually has — [`EVIDENCE.md`](EVIDENCE.md)'s question, not this one |
-| **Not settled anywhere yet** | The two campaigns have never been run at the same frame size. Doing that is the single cheapest way to confirm the reconciliation above rather than infer it |
+| **Settled after all** | The size scaling above. `v22`'s `D_size` cells had it all along; it did not need a new run |
+| **Not settled anywhere yet** | Whether `uring`'s edge over `hybrid_lazyring` grows with frame size or reader count. That pair has only ever been run at 16 KB, one reader, one phase — and it lands at −24.0% against a 28.5% bar. [`PLAN.md`](PLAN.md) step 3 |
 
 ## Limitations
 
@@ -372,8 +386,9 @@ Two things this campaign does add to that decision:
 - **Frames are 250 KB, and frame size is the axis that reconciles this with the read-path
   campaign.** The windowed penalty is (frame ÷ window) round trips, so it grows with frame
   size — a 3 MB DBT frame at native resolution is 48 windows, not 4 — while the ring's
-  per-round-trip saving shrinks as a share of the read. Neither end of that was measured
-  here: 16 KB frames are the other campaign's, and nothing was run past 250 KB.
+  per-round-trip saving shrinks as a share of the read (measured, §Reconciliation). Nothing
+  here was run past 250 KB, and the mechanism says the windowed penalty gets worse there,
+  not better.
 - **`p50` at `--mix 0.5` is bimodal** and its bootstrap CI is correspondingly wide
   (232–754 µs in one cell). Read the 0.75 and 1.0 cells for separation, and throughput
   rather than p50 at 0.5.
