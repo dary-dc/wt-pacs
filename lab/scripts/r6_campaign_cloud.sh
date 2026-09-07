@@ -25,6 +25,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 source "$ROOT/lab/scripts/cloud_r6_common.sh"
+source "$ROOT/lab/scripts/r6_cell_inputs.sh"
 
 REPEATS="${1:-3}"
 EXP="${EXP:?set EXP}"
@@ -70,7 +71,15 @@ cell_params() {
     # netsim's campaign had the same property (both at scale 8).
     N0) echo "25 20 0.0 ${SCALE_N0:-4}" ;;
     X3S) echo "25 20 1.0 ${SCALE_X3S:-4}" ;; # X3's cell under the scroll trace
-    X3L) echo "25 20 1.0 ${SCALE_X3L:-16}" ;;# X3's cell at 250 KB frames
+    # X3L — X3 at 250 KB frames. NO DEFAULT STEP-SCALE ON PURPOSE.
+    #
+    # This used to default to 16, which is netsim's 32 halved by the "the real path
+    # is one step-scale easier" rule of thumb. That rule was measured for X1/X2/X3 at
+    # 64 KB and never checked at 250 KB, where the reader's demand and the achievable
+    # rate both move. Carrying it across was the same "calibrated once, assumed to
+    # hold" mistake that voided 4 of 9 rows in X3S (docs/HANDOFF.md §5).
+    # Calibrate on the rig first — see docs/measurements/r6/x3l-run-card.md.
+    X3L) echo "25 20 1.0 ${SCALE_X3L:?set SCALE_X3L from a rig calibration - see docs/measurements/r6/x3l-run-card.md - do not reuse the netsim scale or the old 16 default}" ;;
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
 }
@@ -79,6 +88,8 @@ mkdir -p "$(dirname "$OUT")" "$RAW"
 [ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tstep_scale\tdepth\tcache\trun\tp95_wait_ms\tmean_wait_ms\tpeak_outstanding\twait_samples\tnz_n\tnz_p50\tnz_p95\tnz_p99\tnz_max\treader_lag_ms\tstranded_frames\tstranded_bytes\tcensored\tcensored_frac\tcenter_dropped\tframes_on_wire\tbytes_on_wire\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\tns_qdrop\tverdict\n' > "$OUT"
 
 cpu_of() { awk -v t="$TICK" '{print ($14+$15)/t}' /proc/"$1"/stat 2>/dev/null || echo 0; }
+
+r6_require_cell_inputs
 
 r6_sync_scripts
 r6_upload_server
