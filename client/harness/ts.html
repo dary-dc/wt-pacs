@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
   <title>wt-pacs harness (TypeScript)</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 1rem; }
@@ -14,37 +15,30 @@
   <h1>wt-pacs harness (TypeScript)</h1>
   <p>
     <a href="/harness/">WASM harness</a>
-    Pure TS WebTransport client — same wire as WASM.
+    Pure TS WebTransport client — same wire as WASM. The run itself lives in <code>shell.js</code>.
   </p>
   <button id="frame0">Frame 0</button>
   <button id="bulk">Bulk 0..2</button>
+  <button id="run">Run cell (from query)</button>
   <div id="log"></div>
   <script type="module">
-    import { TransportSession } from "/client/transport-ts/dist/session.js";
+    import { bootShell } from "/harness/shell.js";
 
-    const logEl = document.getElementById("log");
-    function log(...a) {
-      logEl.textContent += a.join(" ") + "\n";
-    }
-
-    async function boot() {
-      const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
-      log("connect", cfg.wt_url);
-      const session = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
-      document.getElementById("frame0").onclick = async () => {
-        const r = await session.requestExactFrame(0);
-        log("frame0 bytes", r.bytes.length, "wire ms", (r.timing.lastChunkMs - r.timing.askMs).toFixed(2));
-      };
-      document.getElementById("bulk").onclick = async () => {
-        const indices = [0, 1, 2];
-        const askMs = session.startExactFrames(indices);
-        for (const i of indices) {
-          const r = await session.waitExactFrame(i, askMs);
-          log("bulk", r.frameIndex, r.bytes.length);
+    bootShell({
+      arm: "transport-ts",
+      async loadSession({ telemetry, streamMode, cfg }) {
+        if (telemetry) {
+          globalThis.__wtpacsArm = "transport-ts";
+          globalThis.__wtpacsStreamMode = streamMode;
         }
-      };
-    }
-    boot().catch((e) => log("boot error", e));
+        // The telemetry entry installs the WebTransport patch before the client module
+        // evaluates and returns a wrapped session; the product entry is the product.
+        const mod = telemetry
+          ? await import("/client/transport-ts/dist/session.telemetry.js")
+          : await import("/client/transport-ts/dist/session.js");
+        return mod.TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
+      },
+    });
   </script>
 </body>
 </html>

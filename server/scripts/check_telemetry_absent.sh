@@ -33,9 +33,16 @@ if [[ ! -f "$BIN" ]]; then
 fi
 
 echo "Checking $BIN …"
-if nm -C "$BIN" 2>/dev/null | grep -qE 'exact_server::record::tap|Tap::for_session|server_work_us'; then
+if nm -C "$BIN" 2>/dev/null | grep -qE 'exact_server::record::(tap|sink|report|rows)|Tap::for_session|LiveSummary|prepare_us|overhead_us|ack_us|server_work_us|write_report_from_rows|flush_on_exit'; then
   echo "FAIL: telemetry symbols found in default build" >&2
-  nm -C "$BIN" | grep -E 'record::tap|Tap::' || true
+  nm -C "$BIN" | grep -E 'record::(tap|sink|report|rows)|Tap::|overhead_us|ack_us' || true
+  exit 1
+fi
+
+# Report field names live in the data section as serializer literals and survive stripping.
+if grep -a -qE 'percentile_method|server_session|histogram-loglinear|rows_in_file|server-pipeline-v|WTPACS_TELEMETRY' "$BIN"; then
+  echo "FAIL: telemetry report literals found in default build" >&2
+  grep -a -oE 'percentile_method|server_session|histogram-loglinear|rows_in_file|server-pipeline-v[0-9]|WTPACS_TELEMETRY[A-Z_]*' "$BIN" | sort -u || true
   exit 1
 fi
 

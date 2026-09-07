@@ -24,3 +24,14 @@ Two WebTransport streams per session:
 Media-complete: frame completion is the envelope payload on a uni stream, not a separate control ack.
 
 Study bundles use on-disk **SBND** layout (see `docs/FIXTURES.md`).
+
+## Server send path (copy discipline)
+
+The server sends each media frame as **three `write_all` calls** on the uni stream: length prefix,
+4-byte display index, then the HTJ2K codestream slice from the mmap'd bundle. That matches the wire
+layout above without assembling a contiguous envelope in userspace.
+
+**One full-frame copy remains:** `wtransport` only exposes `write_all(&[u8])`, so QUIC copies the
+codestream into its send buffer for retransmission. `quinn`'s chunk/`Bytes` API could avoid that copy
+on a native path; browsers cannot. A copy-cost knee sweep (link rate vs memcpy time) is still open
+in [`client-runtime-experiment-plan.md`](client-runtime-experiment-plan.md) §0.

@@ -3,60 +3,81 @@
 //! Serial loop: read one ask, send it to completion, read the next.
 //! No server-side ask queue — see docs/adr-reject-server-ordering.md.
 //!
-//! Stream mode is resolved once per session in `handle_incoming` and carried as
-//! `Option<SendStream>`: `Some` = one shared stream for the session, `None` = one
-//! stream per frame. Nothing downstream branches on a flag.
+//! Per-frame work: [`pipeline::FramePipeline`] trait (product [`pipeline::ProductPipeline`] /
+//! lab [`pipeline::RecordedPipeline`]). See `docs/telemetry/adr-server-pipeline.md`.
 //!
-//! Frame bytes: streamed a window at a time straight from the page cache — see
-//! `docs/disk-access/adr.md`. Nothing is faulted on the executor and nothing is copied
-//! into a whole-frame envelope; the session's window buffer is the only per-session
-//! allocation.
-//!
-//! Recording: `crate::record::Recorder` — zero-sized unless `feature = "telemetry"`.
+//! Frame bytes: streamed a window at a time straight from the page cache, inside the
+//! pipeline's `send` step — see `docs/disk-access/adr.md`. Nothing is faulted on the
+//! executor and nothing is copied into a whole-frame envelope; the session's window buffer
+//! is the only per-session allocation.
 
 use crate::media::frame_store::FrameStore;
-#[cfg(test)]
-use crate::media::frame_store::READ_WINDOW;
-use crate::record::{LocateOutcome, Recorder, WriteOutcome};
+use crate::transport::frame_out::FrameOut;
+use crate::transport::pipeline::{FramePipeline, ProductPipeline};
+use crate::transport::stream_mode::StreamMode;
 use crate::transport::tls::load_pem_cert;
-use crate::transport::wire::{read_fod_msg, write_fod_msg};
+use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
-use frame_envelope::ENVELOPE_LEN;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::task::JoinSet;
 use tracing::{info, warn};
+use wtransport::config::{states, IpBindConfig, QuicTransportConfig, ServerConfigBuilder};
+use wtransport::endpoint::endpoint_side;
 use wtransport::stream::{RecvStream, SendStream};
-use wtransport::{Connection, Endpoint, Identity, ServerConfig};
+use wtransport::{Endpoint, Identity, ServerConfig};
 
-/// How frames reach the client. A process-wide configuration choice, resolved to an
-/// `Option<SendStream>` once per session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum StreamMode {
-    /// One uni stream for the whole session. Frames arrive strictly in ask order.
-    Shared,
-    /// One uni stream per frame. Independent delivery; allows `set_priority` and `reset`.
-    PerFrame,
-}
-
-impl StreamMode {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Shared => "shared",
-            Self::PerFrame => "per-frame",
-        }
-    }
-}
+#[cfg(feature = "telemetry")]
+use crate::record::tap::Tap;
+#[cfg(feature = "telemetry")]
+use crate::transport::pipeline::RecordedPipeline;
 
 pub struct ServeConfig {
     pub wt_port: u16,
     pub study_path: PathBuf,
     pub cert_pem: PathBuf,
     pub key_pem: PathBuf,
-    /// How frames reach the client for this process. See `StreamMode`.
     pub mode: StreamMode,
+    /// Explicit bind address. `None` binds dual-stack `[::]` and falls back to `0.0.0.0` on a
+    /// host with no IPv6 stack (containers commonly lack one).
+    pub bind: Option<IpAddr>,
+    /// QUIC transport knobs. Each `None` keeps the library default (send window 10 MB per
+    /// connection, stream receive window 1.25 MB, idle timeout 30 s). The send window is the
+    /// number that scales with slow clients: it bounds unacknowledged bytes held per connection.
+    pub transport: TransportKnobs,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TransportKnobs {
+    pub send_window_bytes: Option<u64>,
+    pub stream_receive_window_bytes: Option<u32>,
+    pub max_idle_timeout_ms: Option<u64>,
+}
+
+impl TransportKnobs {
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// One line for the startup banner.
+    pub fn describe(&self) -> String {
+        if self.is_default() {
+            return "default".to_string();
+        }
+        let mut parts = Vec::new();
+        if let Some(v) = self.send_window_bytes {
+            parts.push(format!("send_window={v}"));
+        }
+        if let Some(v) = self.stream_receive_window_bytes {
+            parts.push(format!("stream_receive_window={v}"));
+        }
+        if let Some(v) = self.max_idle_timeout_ms {
+            parts.push(format!("max_idle_timeout_ms={v}"));
+        }
+        parts.join(",")
+    }
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -66,18 +87,18 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         .with_context(|| format!("read {}", config.key_pem.display()))?;
     let cert = load_pem_cert(&cert_pem, &key_pem)?;
 
-    let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
-        .await
-        .context("load wtransport identity")?;
-
-    let server_config = ServerConfig::builder()
-        .with_bind_default(config.wt_port)
-        .with_identity(identity)
-        .build();
-
-    let endpoint = Endpoint::server(server_config).context("wtransport endpoint")?;
+    let (endpoint, bound) = build_endpoint(&config).await?;
 
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
+
+    // Lab builds: the report says what was served, so the two harvest files can be checked
+    // against each other without trusting a folder name.
+    #[cfg(feature = "telemetry")]
+    crate::record::set_run_meta(crate::record::RunMeta {
+        stream_mode: config.mode.as_str(),
+        study: config.study_path.display().to_string(),
+        study_frames: store.frame_count(),
+    });
 
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
     let cert_sha256 = cert.sha256_hex().to_string();
@@ -87,6 +108,8 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("frames={}", store.frame_count());
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
+    println!("bind={bound}");
+    println!("transport={}", config.transport.describe());
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
     #[cfg(not(feature = "telemetry"))]
@@ -110,6 +133,76 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     }
 }
 
+/// Open the QUIC endpoint. Dual-stack any is the default; a host without an IPv6 stack refuses
+/// that socket (`Address family not supported`), so fall back to IPv4 any rather than not starting.
+async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side::Server>, String)> {
+    async fn identity(config: &ServeConfig) -> Result<Identity> {
+        Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+            .await
+            .context("load wtransport identity")
+    }
+
+    /// Identity plus transport knobs, from whichever bind the builder was given.
+    fn finish(
+        builder: ServerConfigBuilder<states::WantsIdentity>,
+        identity: Identity,
+        knobs: TransportKnobs,
+    ) -> Result<ServerConfig> {
+        if knobs.is_default() {
+            return Ok(builder.with_identity(identity).build());
+        }
+        let mut transport = QuicTransportConfig::default();
+        if let Some(v) = knobs.send_window_bytes {
+            transport.send_window(v);
+        }
+        if let Some(v) = knobs.stream_receive_window_bytes {
+            transport.stream_receive_window(v.into());
+        }
+        let mut builder = builder.with_custom_transport(identity, transport);
+        if let Some(ms) = knobs.max_idle_timeout_ms {
+            builder = builder
+                .max_idle_timeout(Some(Duration::from_millis(ms)))
+                .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
+        }
+        Ok(builder.build())
+    }
+
+    let knobs = config.transport;
+
+    if let Some(ip) = config.bind {
+        let server_config = finish(
+            ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
+            identity(config).await?,
+            knobs,
+        )?;
+        let endpoint = Endpoint::server(server_config)
+            .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
+        return Ok((endpoint, ip.to_string()));
+    }
+
+    let dual = finish(
+        ServerConfig::builder().with_bind_default(config.wt_port),
+        identity(config).await?,
+        knobs,
+    )?;
+    match Endpoint::server(dual) {
+        Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
+        Err(err) => {
+            warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
+            let v4 = finish(
+                ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
+                identity(config).await?,
+                knobs,
+            )?;
+            let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
+            Ok((
+                endpoint,
+                "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
+            ))
+        }
+    }
+}
+
 async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
     store: Arc<FrameStore>,
@@ -123,44 +216,29 @@ async fn handle_incoming(
         .await
         .context("accept control bidi")?;
 
-    // The mode, resolved once. Everything downstream sees a value, not a flag.
-    let shared = match mode {
-        StreamMode::Shared => Some(
-            connection
-                .open_uni()
-                .await
-                .context("open shared uni")?
-                .await
-                .context("shared uni ready")?,
-        ),
-        StreamMode::PerFrame => None,
-    };
+    let out = FrameOut::open(mode, connection).await?;
+    let mut product = ProductPipeline::new(store, out);
 
-    run_session(connection, control_send, control_recv, store, shared).await
+    // Lab wrap only when env on — RecordedPipeline always holds a live Tap.
+    #[cfg(feature = "telemetry")]
+    if let Some(tap) = Tap::for_session() {
+        return run_session(
+            &mut RecordedPipeline::new(product, tap),
+            control_send,
+            control_recv,
+        )
+        .await;
+    }
+
+    run_session(&mut product, control_send, control_recv).await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
-async fn run_session(
-    connection: Connection,
+async fn run_session<P: FramePipeline>(
+    pipeline: &mut P,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
-    store: Arc<FrameStore>,
-    mut shared: Option<SendStream>,
 ) -> Result<()> {
-    let mut rec = Recorder::for_session();
-    // One reusable read window for the whole session, not a buffer per frame and not a
-    // whole-frame envelope. `FrameStore::read_window` sizes it.
-    let mut window = Vec::new();
-
-    info!(
-        frames = store.frame_count(),
-        shared = shared.is_some(),
-        "session opened"
-    );
-
-    // Per-frame mode only: holds the acknowledgement waits moved off this loop.
-    let mut acks = JoinSet::new();
-
     loop {
         let msg = match read_fod_msg(&mut control_recv).await {
             Ok(m) => m,
@@ -172,32 +250,10 @@ async fn run_session(
 
         match msg {
             FodMsg::RequestFrame { frame } => {
-                send_one_frame(
-                    &connection,
-                    &mut shared,
-                    &mut acks,
-                    &mut control_send,
-                    &store,
-                    frame,
-                    &mut window,
-                    &mut rec,
-                )
-                .await?;
+                pipeline.serve_one(frame, &mut control_send).await?;
             }
             FodMsg::RequestFrames { frames } => {
-                for frame in frames {
-                    send_one_frame(
-                        &connection,
-                        &mut shared,
-                        &mut acks,
-                        &mut control_send,
-                        &store,
-                        frame,
-                        &mut window,
-                        &mut rec,
-                    )
-                    .await?;
-                }
+                pipeline.serve_batch(&frames, &mut control_send).await?;
             }
             FodMsg::EndSession => break,
             other => {
@@ -206,350 +262,6 @@ async fn run_session(
         }
     }
 
-    // Let trailing frames finish acknowledging before the connection closes.
-    let _ = tokio::time::timeout(Duration::from_secs(2), async {
-        while acks.join_next().await.is_some() {}
-    })
-    .await;
+    pipeline.drain_acks().await;
     Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn send_one_frame(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    control_send: &mut SendStream,
-    store: &Arc<FrameStore>,
-    idx: u32,
-    window: &mut Vec<u8>,
-    rec: &mut Recorder,
-) -> Result<()> {
-    rec.ask(idx);
-
-    let t0 = rec.stamp();
-    // Index lookup only — no I/O, so a refusal costs nothing and happens before any
-    // stream is opened.
-    match store.frame_range(idx) {
-        Ok((offset, len)) => {
-            rec.located(t0, LocateOutcome::Ok, len as usize);
-
-            let t1 = rec.stamp();
-            match write_frame(connection, shared, acks, store, idx, offset, len, window).await {
-                Ok(sent) => rec.wrote(t1, WriteOutcome::Sent, sent),
-                Err(err) => {
-                    rec.wrote(t1, WriteOutcome::WriteErr, 0);
-                    return Err(err);
-                }
-            }
-        }
-        Err(err) => {
-            rec.located(t0, LocateOutcome::NotFound, 0);
-            warn!(frame = idx, %err, "frame refused");
-            write_fod_msg(
-                control_send,
-                &FodMsg::FrameError {
-                    frame_index: idx,
-                    reason: err.to_string(),
-                },
-            )
-            .await?;
-            let t1 = rec.stamp();
-            rec.wrote(t1, WriteOutcome::Refused, 0);
-        }
-    }
-    Ok(())
-}
-
-/// `Some` = append to the session's shared stream. `None` = one stream per frame.
-/// Both write `[4B BE len][4B BE index][codestream]`; the modes differ only in how long a
-/// stream lives. Returns the payload byte count (`[index][codestream]`).
-#[allow(clippy::too_many_arguments)]
-async fn write_frame(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    store: &Arc<FrameStore>,
-    idx: u32,
-    offset: u64,
-    len: u32,
-    window: &mut Vec<u8>,
-) -> Result<usize> {
-    let payload_len = ENVELOPE_LEN as u32 + len;
-    let head = frame_head(idx, len);
-
-    match shared {
-        Some(uni) => {
-            uni.write_all(&head).await.context("write shared head")?;
-            stream_codestream(uni, store, offset, len, window).await?;
-        }
-        None => {
-            let mut uni = connection
-                .open_uni()
-                .await
-                .context("open uni")?
-                .await
-                .context("open uni ready")?;
-            uni.write_all(&head).await.context("write head")?;
-            stream_codestream(&mut uni, store, offset, len, window).await?;
-
-            // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
-            // the peer's acknowledgement (~272 ms measured), which caps throughput at
-            // Tf/(Tf+RTT) when awaited inline. See docs/adr-frame-framing-and-loop-shape.md.
-            acks.spawn(async move {
-                let _ = uni.finish().await;
-            });
-        }
-    }
-    Ok(payload_len as usize)
-}
-
-/// `[4B BE payload len][4B BE frame index]` — the bytes that precede a codestream.
-///
-/// Length and index are both known before a single byte is read, so the header goes out
-/// ahead of the frame and the codestream streams behind it — no whole-frame envelope is
-/// ever built. Still never a combined `[len][payload]` buffer either: `write_all` copies
-/// into the connection's send buffer regardless, so building one only adds a copy.
-/// See docs/send-path-copy-costs.md — that fix has been reverted once, keep it.
-fn frame_head(idx: u32, codestream_len: u32) -> [u8; 4 + ENVELOPE_LEN] {
-    let payload_len = ENVELOPE_LEN as u32 + codestream_len;
-    let mut head = [0u8; 4 + ENVELOPE_LEN];
-    head[..4].copy_from_slice(&payload_len.to_be_bytes());
-    head[4..].copy_from_slice(&idx.to_be_bytes());
-    head
-}
-
-/// Where `stream_codestream` puts bytes.
-///
-/// The loop it serves has arithmetic worth testing — a window that misses now reads the
-/// rest of the frame, so `pos` advances by more than one window — and testing it used to
-/// mean standing up a QUIC connection. It does not any more: a `Vec<u8>` is a sink.
-trait CodestreamSink {
-    fn write_all(&mut self, buf: &[u8]) -> impl std::future::Future<Output = Result<()>> + Send;
-}
-
-impl CodestreamSink for SendStream {
-    async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
-        SendStream::write_all(self, buf)
-            .await
-            .context("write codestream")?;
-        Ok(())
-    }
-}
-
-/// Copy the codestream to the wire one `READ_WINDOW` at a time, **reading the rest of the
-/// frame in one go when a window misses**.
-///
-/// Each window is taken from the page cache with `read_at_nowait`, which returns short
-/// instead of waiting on disk — so no ask can park this executor thread on I/O the way a
-/// major fault on an mmap'd slice does.
-///
-/// The window bounds how long the executor copies without yielding, and that argument
-/// applies only to the inline `RWF_NOWAIT` read — which happens on a *hit*. The blocking
-/// read runs on the pool, where a large read costs no more than a small one and a small
-/// one costs a whole extra round trip. So a miss escalates: everything still outstanding
-/// in the frame goes to the pool together, and the bytes come back to be written in
-/// `READ_WINDOW` pieces as before.
-///
-/// Measured on a fixture large enough that a miss is a real device read
-/// (`docs/disk-access/RERUN-miss.md`): windowing the pool read too costs 2–3 round trips
-/// per frame instead of 1, which is **2.1x the throughput at one session and 3.0–3.2x at
-/// 8, 16 and 32** once most asks miss — the windowed shape stops scaling at ~1 600 f/s
-/// while this one reaches the device. Warm it is unchanged, and its worst co-tenant gap is
-/// the lowest of any arm measured (148 µs, against 4.0 ms for reading a whole frame
-/// inline).
-/// See `docs/disk-access/adr.md`.
-///
-/// `store.read_window` decides the stride, so a filesystem that refuses `RWF_NOWAIT` gets
-/// whole-frame pool reads rather than a round trip per window.
-async fn stream_codestream<W: CodestreamSink>(
-    uni: &mut W,
-    store: &Arc<FrameStore>,
-    offset: u64,
-    len: u32,
-    window: &mut Vec<u8>,
-) -> Result<()> {
-    // Whole frames where `RWF_NOWAIT` is refused (overlayfs, tmpfs), `READ_WINDOW` where
-    // it works.
-    let stride = store.read_window(len);
-    if window.len() < stride {
-        window.resize(stride, 0);
-    }
-    let mut pos = 0u32;
-    while pos < len {
-        let want = stride.min((len - pos) as usize);
-        let at = offset + u64::from(pos);
-        let got = store.read_at_nowait(&mut window[..want], at)?;
-        // Ready bytes to write before any pool round trip: `want` on a hit, and on a miss
-        // the whole rest of the frame, fetched in one go.
-        let mut ready = want;
-        if got < want {
-            let rest = (len - pos) as usize - got;
-            if window.len() < got + rest {
-                window.resize(got + rest, 0);
-            }
-            let store = Arc::clone(store);
-            let mut owned = std::mem::take(window);
-            owned = tokio::task::spawn_blocking(move || {
-                store.read_at_blocking(&mut owned[got..got + rest], at + got as u64)?;
-                Ok::<Vec<u8>, anyhow::Error>(owned)
-            })
-            .await
-            .context("join frame read")??;
-            *window = owned;
-            ready = got + rest;
-        }
-        // Still `stride` bytes per `write_all`: bounding the executor's uninterrupted copy
-        // is what the window is for, and a bigger read does not have to mean a bigger copy.
-        //
-        // `write_all` copies into the connection's send buffer, so the window is free to
-        // be refilled as soon as this returns — and the bytes quinn later puts on the wire
-        // are process-private, not page-cache pages that reclaim could take back.
-        let mut sent = 0usize;
-        while sent < ready {
-            let piece = stride.min(ready - sent);
-            uni.write_all(&window[sent..sent + piece]).await?;
-            sent += piece;
-        }
-        pos += ready as u32;
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use frame_envelope::{unwrap, wrap};
-    use std::io::Write;
-
-    impl CodestreamSink for Vec<u8> {
-        async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
-            self.extend_from_slice(buf);
-            Ok(())
-        }
-    }
-
-    /// A study bundle on disk with `frames` frames of `len` bytes, each filled with a
-    /// per-frame pattern so a mis-assembled frame cannot pass by accident.
-    fn write_bundle(dir: &std::path::Path, frames: u32, len: u32) -> std::path::PathBuf {
-        let meta = format!("{{\"frameCount\":{frames}}}");
-        let data_base = 16 + 12 * frames as usize + meta.len();
-        let path = dir.join("test.sbnd");
-        let mut f = std::fs::File::create(&path).expect("create bundle");
-        f.write_all(b"SBND").unwrap();
-        f.write_all(&1u32.to_le_bytes()).unwrap();
-        f.write_all(&(meta.len() as u32).to_le_bytes()).unwrap();
-        f.write_all(&frames.to_le_bytes()).unwrap();
-        for i in 0..frames {
-            f.write_all(&((data_base as u64) + u64::from(i) * u64::from(len)).to_le_bytes())
-                .unwrap();
-            f.write_all(&len.to_le_bytes()).unwrap();
-        }
-        f.write_all(meta.as_bytes()).unwrap();
-        for i in 0..frames {
-            f.write_all(&frame_pattern(i, len)).unwrap();
-        }
-        f.sync_all().unwrap();
-        path
-    }
-
-    /// Drop the bundle's pages so `read_at_nowait` returns short and the loop escalates.
-    /// Best effort — a filesystem that ignores the hint just leaves the test on the warm
-    /// path, which is still worth asserting.
-    fn evict(path: &std::path::Path) {
-        use std::os::unix::io::AsRawFd;
-        if let Ok(f) = std::fs::File::open(path) {
-            // SAFETY: `f` owns a live descriptor for the whole call.
-            unsafe { libc::posix_fadvise(f.as_raw_fd(), 0, 0, libc::POSIX_FADV_DONTNEED) };
-        }
-    }
-
-    fn frame_pattern(idx: u32, len: u32) -> Vec<u8> {
-        (0..len)
-            .map(|b| (b.wrapping_mul(31).wrapping_add(idx.wrapping_mul(7)) % 251) as u8)
-            .collect()
-    }
-
-    /// The streaming loop must reassemble every frame byte-for-byte whatever the read
-    /// path did — and since a miss now reads the rest of the frame in one go, `pos` can
-    /// jump by more than a window. Frame lengths straddle the window boundary on purpose.
-    #[test]
-    fn streaming_reassembles_every_frame_whatever_the_read_path() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-stream-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        for &len in &[
-            1u32,
-            (READ_WINDOW - 1) as u32,
-            READ_WINDOW as u32,
-            (READ_WINDOW + 1) as u32,
-            (READ_WINDOW * 3 + 17) as u32,
-        ] {
-            let path = write_bundle(&dir, 3, len);
-            let store = Arc::new(FrameStore::open(&path).expect("open store"));
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(2)
-                .enable_all()
-                .build()
-                .expect("rt");
-            for idx in 0..3u32 {
-                // Evict first: a bundle this test just wrote is entirely in the page
-                // cache, so without this the miss branch — the one that changed — never
-                // runs and the test proves only the warm path.
-                evict(&path);
-                let (offset, flen) = store.frame_range(idx).expect("range");
-                let mut window = Vec::new();
-                let mut out: Vec<u8> = Vec::new();
-                rt.block_on(stream_codestream(
-                    &mut out,
-                    &store,
-                    offset,
-                    flen,
-                    &mut window,
-                ))
-                .expect("stream");
-                assert_eq!(
-                    out,
-                    frame_pattern(idx, len),
-                    "frame {idx} of length {len} came back wrong"
-                );
-            }
-            std::fs::remove_file(&path).ok();
-        }
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// Streaming replaced `wrap()`, so the bytes on the wire have to be proven identical
-    /// to what the envelope builder used to produce — clients parse this, not the code.
-    #[test]
-    fn streamed_bytes_match_the_envelope_they_replaced() {
-        let codestream: Vec<u8> = (0..5000u32).map(|i| (i % 251) as u8).collect();
-        let idx = 7u32;
-
-        let old = wrap(idx, &codestream);
-        let mut old_wire = (old.len() as u32).to_be_bytes().to_vec();
-        old_wire.extend_from_slice(&old);
-
-        // What the streaming path writes: the head, then the codestream in windows.
-        let mut new_wire = frame_head(idx, codestream.len() as u32).to_vec();
-        for window in codestream.chunks(READ_WINDOW) {
-            new_wire.extend_from_slice(window);
-        }
-
-        assert_eq!(new_wire, old_wire, "wire bytes changed");
-        let (parsed_idx, body) = unwrap(&new_wire[4..]).expect("client can still parse");
-        assert_eq!(parsed_idx, idx);
-        assert_eq!(body, &codestream[..]);
-    }
-
-    /// A frame larger than one window still frames as a single payload.
-    #[test]
-    fn head_counts_the_whole_codestream_not_one_window() {
-        let len = (READ_WINDOW * 3 + 17) as u32;
-        let head = frame_head(1, len);
-        assert_eq!(
-            u32::from_be_bytes(head[..4].try_into().unwrap()),
-            ENVELOPE_LEN as u32 + len
-        );
-        assert_eq!(u32::from_be_bytes(head[4..].try_into().unwrap()), 1);
-    }
 }
