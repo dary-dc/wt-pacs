@@ -11,6 +11,10 @@
 **Status: superseded as decision input · frozen 2026-09-02, reviewed 2026-09-04** · Branch tip:
 `cursor/l2-harness-fix-plan-c999` (PR #9)
 
+**2026-09-07:** do not use this file for the policy the lab now implements. Use
+[`l2_ask_policy_v4_local_SUMMARY.md`](l2_ask_policy_v4_local_SUMMARY.md) and
+[`l2_ask_policy_v4_SUMMARY.md`](l2_ask_policy_v4_SUMMARY.md). The v2 rankings below stay withdrawn.
+
 This was the only document to be quoted when updating
 [`adr-client-window-depth.md`](../../adr-client-window-depth.md) or D26-style product
 policy from the L2 ask-policy campaign. Older TSVs and older PR tips are **withdrawn**; as of the

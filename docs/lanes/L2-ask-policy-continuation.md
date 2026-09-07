@@ -58,7 +58,9 @@ The model has no loss term; this is the one question it cannot answer. The v2 lo
    loss, and the explicit `limit` the v4 script sets). A profile that does not validate does not
    run. (`e0_netem_validation.sh` is the older 250 KB live-cell check; it is not this grid.)
 2. Reduced grid first: `RTTS=60 lab/scripts/l2_ask_policy_v4_cloud.sh` — two traces at 40 ms,
-   seven arms, loss 0 and 0.5 %, n = 3 / 10, arms shuffled per run. About 180 runs, 15 minutes.
+   seven arms, loss 0 and 0.5 %, n = 3 / 10, arms shuffled per run. **Ran 2026-09-07, 182/182
+   rows; see `docs/measurements/r2/l2_ask_policy_v4_SUMMARY.md`. Questions 2 and 3 were no —
+   full RTT 20/150 not indicated.**
 3. Write `lab/scripts/l2_v4_summarize.py`: group by (trace, RTT, loss, arm); median, IQR and p95
    of `p95_lateness_ms`, `lateness_median_ms`, `stranded_bytes`, `netem_drops` across runs; next
    to every loss-0 cell, the simulator's prediction at that run's `achieved_mbps`

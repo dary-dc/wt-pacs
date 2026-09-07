@@ -138,10 +138,10 @@ lands second ports the other's flags; neither result depends on the difference.
 
 ## 7 · Evidence still owed
 
-- **Loss.** The only question the model cannot answer. `lab/scripts/l2_ask_policy_v4_cloud.sh` is
-  the campaign: two traces at 40 ms, seven arms, RTT 20/60/150, loss 0 and 0.5 %, n = 3 / 10, arms
-  shuffled, drop counters per run. Prediction at loss 0 is the §3 table; at loss > 0 the model
-  predicts nothing, and that is the point of running it.
+- **Loss.** Reduced cloud v4 (netem profile 60) is in
+  [`measurements/r2/l2_ask_policy_v4_SUMMARY.md`](measurements/r2/l2_ask_policy_v4_SUMMARY.md):
+  182/182 rows, 0.5 % loss does not separate arms on p95, medians keep the local-grid order.
+  Full RTT 20/150 not run. `netem_drops` did not increment — do not cite that column.
 - **The browser clients.** The harness is a Rust client; the WASM and TS clients still bulk-ask.
   That stays true on purpose: this branch does not change product ask code. A later product PR can
   copy the lab policy once the evidence is accepted.

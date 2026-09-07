@@ -22,7 +22,9 @@ Canonical withdrawn outputs (audit only):
   docs/measurements/r2/l2_ask_policy.tsv
   docs/measurements/r2/l2_ask_policy_d_current/
 
-**Current:** l2_ask_policy_EVIDENCE.md + l2_ask_policy_v2.tsv (PR #9) for the old
-rig rows (rankings still void). Loss=0 bake-off on the reworked harness:
-`l2_ask_policy_v4_local_SUMMARY.md` (2026-09-07).
-**Next:** reduced cloud v4 at RTT 60 for the loss question. Lab only.
+**Current (2026-09-07):** reworked-harness bake-offs —
+`l2_ask_policy_v4_local_SUMMARY.md` (loss 0, loopback) and
+`l2_ask_policy_v4_SUMMARY.md` (reduced cloud, netem 60, loss 0 and 0.5 %).
+v1–v3 rankings remain void; `l2_ask_policy_EVIDENCE.md` is history for those rows.
+**Next:** lab implements on-screen + forward K + fixed D. No product ask-path
+change. Full RTT 20/150 cloud grid not indicated (loss did not separate arms).
