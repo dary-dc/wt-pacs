@@ -36,7 +36,8 @@ so its banner needs the nine-line `cert_sha256_hex` helper.
 | — | `fb26f7d` | docs | evidence report, first round; withdrawal of P0; ADR schema name v1 → v2; follow-ups table | — | — |
 | — | `e274c26` | docs | evidence report, deeper pass; measurements | — | — |
 | — | `00b15bd`, `864beaf` | docs / lab | drivers moved out of `docs/` into `lab/`; this ledger | — | — |
-| — | (next) | docs | raw measurement rows removed from `docs/`; they stay in history | — | — |
+| — | `fe56917` | docs | raw measurement rows removed from `docs/`; they stay in history | — | — |
+| L2 | — | lab + docs, **on the L2 branch** | the `cursor/l2-harness-fix-plan-c999` work was absorbed, reworked and taken to a conclusion here, then moved to that branch at the user's request and rolled back from this one (branch reset, force-pushed once): harness rework per the v2 review, a FIFO simulator validated on the v2 rig rows, a browser RTT probe, `docs/l2-ask-policy-design-2026-09-06.md` | on that branch: 12 unit tests, 10/10 smoke gates with a negative control, loopback within 0.3 % of the model | the decisions in that document (fixed window + cap, drop dynamic depth, run v4 for loss or close) |
 
 Also added with F1: `client/harness/refusals.html`, the regression page that reproduces it.
 
@@ -93,3 +94,4 @@ Also added with F1: `client/harness/refusals.html`, the regression page that rep
 1. Take or drop each commit in §1; F2's refuse-vs-serve policy; T1 as tidiness or drop.
 2. M1: which of the three shapes for `timing`.
 3. Whether the BYOB reader is worth a round when client CPU per frame becomes the metric.
+4. L2, on `cursor/l2-harness-fix-plan-c999`: the three decisions its design document ends with.
