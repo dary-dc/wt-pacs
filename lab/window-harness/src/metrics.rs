@@ -473,6 +473,8 @@ impl MetricsState {
 /// Nearest-rank percentile (L2 / client telemetry contract).
 ///
 /// `rank = ceil(p/100 × N)`, clamped to `[1, N]`; value = `sorted[rank - 1]`.
+/// Same rule as `server/src/record/report.rs` and `client/record/percentiles.ts`,
+/// so a harness p95 can be read beside a telemetry p95.
 pub fn nearest_rank_percentile(sorted_asc: &[f64], p: f64) -> f64 {
     if sorted_asc.is_empty() {
         return 0.0;
@@ -480,6 +482,11 @@ pub fn nearest_rank_percentile(sorted_asc: &[f64], p: f64) -> f64 {
     let n = sorted_asc.len();
     let rank = ((p / 100.0) * n as f64).ceil() as usize;
     sorted_asc[rank.clamp(1, n) - 1]
+}
+
+/// Same function as `nearest_rank_percentile`. Name matches `server/src/record` and `client/record`.
+pub fn nearest_rank(sorted_asc: &[f64], p: f64) -> f64 {
+    nearest_rank_percentile(sorted_asc, p)
 }
 
 fn wait_stats(samples: &[f64]) -> (f64, f64) {
@@ -514,6 +521,26 @@ mod tests {
     #[test]
     fn nearest_rank_n1() {
         assert_eq!(nearest_rank_percentile(&[42.0], 95.0), 42.0);
+    }
+
+    /// Shared fixture with the client and server tests: N = 20, p95.
+    /// Nearest-rank → rank 19 → sorted[18] = 19. The old `ceil((N−1)·0.95)` rule gave sorted[19] = 100.
+    #[test]
+    fn p95_is_nearest_rank_on_the_shared_vector() {
+        let mut v: Vec<f64> = (1..=19).map(f64::from).collect();
+        v.push(100.0);
+        assert_eq!(nearest_rank(&v, 95.0), 19.0);
+        let old_idx = ((v.len() as f64 - 1.0) * 0.95).ceil() as usize;
+        assert_eq!(v[old_idx], 100.0, "the fixture must separate the two rules");
+        let (_, p95) = wait_stats(&v);
+        assert_eq!(p95, 19.0);
+    }
+
+    #[test]
+    fn nearest_rank_small_and_empty() {
+        assert_eq!(nearest_rank(&[], 95.0), 0.0);
+        assert_eq!(nearest_rank(&[7.0], 95.0), 7.0);
+        assert_eq!(nearest_rank(&[1.0, 2.0], 50.0), 1.0);
     }
 
     /// Steps complete out of order (a cache hit resolves at once); the report is in step order.

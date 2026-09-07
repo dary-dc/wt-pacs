@@ -1,0 +1,15 @@
+[package]
+name = "telemetry-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Telemetry pipeline microbench — emit seams and drain shapes under synthetic load (lab scaffolding)"
+
+[[bin]]
+name = "telemetry-bench"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
