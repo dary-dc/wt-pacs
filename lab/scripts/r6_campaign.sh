@@ -84,11 +84,15 @@ cell_params() {
     # Scale 32 keeps frame size the ONLY thing that changed: reader demand 1.82 Mbps
     # against Cubic's 2.85 Mbps Mathis ceiling here is a ratio of 0.64, matching the 64 KB
     # run's 0.66. Verified admissible at every campaign seed before being frozen.
-    # Requires FIXTURE=frames_500x250k.
+    # Requires FIXTURE=frames_500x250k — enforced by r6_require_cell_inputs,
+    # after this comment alone failed to enforce it on the cloud rig.
     X3L) echo "25 20 1.0 32" ;;
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
 }
+
+source "$ROOT/lab/scripts/r6_cell_inputs.sh"
+r6_require_cell_inputs
 
 mkdir -p "$(dirname "$OUT")"
 [ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tstep_scale\tdepth\tcache\trun\tp95_wait_ms\tmean_wait_ms\tpeak_outstanding\twait_samples\tnz_n\tnz_p50\tnz_p95\tnz_p99\tnz_max\treader_lag_ms\tstranded_frames\tstranded_bytes\tcensored\tcensored_frac\tcenter_dropped\tframes_on_wire\tbytes_on_wire\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\tns_qdrop\tverdict\n' > "$OUT"

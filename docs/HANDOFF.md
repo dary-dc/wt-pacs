@@ -107,6 +107,16 @@ predicts 8.5×, comfortably above a 4.3× noise floor. Not run: the residential 
 51 → 9 Mbps mid-session and the comparison needs one sitting on a stable path. ~1 hour for
 two arms at n = 3, plus calibration. **This is now the highest-value run on the rig.**
 
+**Run card: [`measurements/r6/x3l-run-card.md`](measurements/r6/x3l-run-card.md)** — written
+2026-09-07 after an audit found three ways this run fails *silently*. The worst: `FIXTURE`
+is uploaded once per invocation, so `CELLS="X3L"` alone ran X3L's step-scale against the
+**64 KB** fixture and emitted nine admissible-looking rows with the one variable X3L exists
+to change left unchanged. `r6_campaign.sh` stated the requirement in a comment;
+`r6_campaign_cloud.sh` did not state it at all. Now enforced by
+`lab/scripts/r6_cell_inputs.sh`. `SCALE_X3L` also had a default of 16 — netsim's 32 halved
+by a rule of thumb measured at 64 KB — which is now removed, so the run cannot start on an
+inherited operating point.
+
 Three other things came back, and two of them change how future runs must be done:
 
 - **`sch_netem` draws loss once per GSO batch, not per datagram**, and the batch size
@@ -275,6 +285,7 @@ admission rule passed; Phase C retuned the admission rule until the workload pas
 | `lab/scripts/r6_analyse.py` | applies the pre-registered decision rules |
 | `lab/scripts/mem_per_connection.sh` | memory per viewer; takes `READ_BPS=` for the stress case |
 | `lab/scripts/classify_loss_regime.py` | offline regime classification |
+| `lab/scripts/r6_cell_inputs.sh` | refuses a campaign whose cells and fixture/trace disagree — X3L and X3S are *defined* by varying those |
 | `lab/scripts/e0_stall_validate.sh` | proves `--mode stall` really stops reading; gates the campaign below |
 | `lab/scripts/stall_client_campaign.sh` | the pathological-client campaign; samples **both** ends |
 | `lab/scripts/stall_analyse.py` | per-connection slopes, server and client |
