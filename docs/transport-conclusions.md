@@ -60,7 +60,10 @@ assumed**.
 > `p95_wait_ms`). What n = 2 costs is the precision of "+63 %" — the same comparison on
 > `p95_wait_ms` is +45 % — not the ordering. **Re-running the missing repeat is the one
 > outstanding fix to this section**, and it must happen on the rig that produced runs 1 and
-> 3; a replacement measured on different hardware would not be comparable.
+> 3; a replacement measured on different hardware would not be comparable. That rig was an
+> ephemeral agent sandbox and is probably gone, which may make the single repeat
+> unobtainable and the honest alternatives a whole-cell re-run or leaving this disclosure
+> standing — see [`HANDOFF.md`](HANDOFF.md) §4.4a item 1.
 
 **Cubic wins, and the margin is at high RTT.** BBR also drops **30–100× more packets at
 the bottleneck** — BBRv1 declining to treat loss as congestion and keeping the queue full.

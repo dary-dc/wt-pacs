@@ -232,6 +232,23 @@ paperwork, and the items below are what survived independent re-verification her
 1. **Re-run BBR run 2 in the congestive 600 ms cell.** One run. It must be on the rig that
    produced runs 1 and 3 — a replacement on different hardware is not comparable, which is
    why it was not done from the cloud session that found it.
+
+   > **2026-09-07: checked, and the local workstation is NOT that rig.** Establishing this
+   > cost twenty minutes, so it is recorded rather than left for the next session to redo.
+   > The branch first reached this machine at `2026-09-06 18:09 -0300`, about 15 h *after*
+   > `23b31ce` committed `r5a_congestive.tsv` at `2026-09-06 05:43 +0000`; the reflog has no
+   > entry creating that commit locally, so it arrived by fetch. Every R-series commit is
+   > authored `Claude <noreply@anthropic.com>` at `+0000` while this host is `-0300` and
+   > commits as `dary-dc`. And `measurements/l4/README.md` records the L4 rig as a kernel
+   > *without* `sch_netem`, where this one has it.
+   >
+   > **This may not be satisfiable at all.** `lanes/L4-preregistration.md` §5.5 justifies
+   > interleaving with *"this host has already been replaced twice mid-session"* — the L4
+   > rig was an ephemeral agent sandbox, so the machine that produced runs 1 and 3 probably
+   > no longer exists. If so the choice is not "one run" but: re-run the **whole** Sc cell,
+   > all arms, n = 3, in one sitting on one machine — or leave the n = 2 disclosure
+   > standing, which is honest and already written. Nobody should quietly append a fourth
+   > row from a fourth machine.
 2. **The stream-mode default is decided by X3L, not by opinion** (§2.7). The rule is
    pre-registered: if X3L separates in `shared`'s favour with the stranding gate passing,
    flip the default; if it does not, leave it and rewrite §2 as advice rather than a
