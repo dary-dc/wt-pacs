@@ -2,7 +2,7 @@
 
 What a miss should read, measured where a miss is a real device read. **Decision:**
 [`adr.md`](adr.md) · **Instrument:** [`RERUN.md`](RERUN.md) · **The other campaign:**
-[`EVIDENCE.md`](EVIDENCE.md) · **Next steps:** [`PLAN.md`](PLAN.md)
+[`EVIDENCE.md`](EVIDENCE.md) · **Shipping it:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md)
 
 > **This is a different question from the read-path campaign, and the two agree.**
 > [`EVIDENCE.md`](EVIDENCE.md) asks *who submits the round trip* — pool or ring — and finds
@@ -417,7 +417,8 @@ So a tile path that fans out as independent tasks keeps the probe cheap and stay
 probe skipped. That is an implementation choice, it is available before the layout lands, and
 it is the thing to decide deliberately rather than discover.
 
-[`PLAN.md`](PLAN.md) carries the branch design for the batched case.
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md) carries the shipped design; `WTPACS_READ_PATH=uring`
+is the lever for measuring the batched case against a miss-optimised path.
 
 ---
 

@@ -29,11 +29,12 @@
 > 17.6× and the read path 2–4×; before it the layout is worth 1.50×, and the read path is the
 > only lever left.
 >
-> **So:** keep this decision while the workload is warm-dominated. Adopt `hybrid_lazyring`
-> when the layout design lands and leaves reads missing — the arm is in
-> `lab/disk-access-bench`, and the split justifying it reruns with `lab/scripts/s5_split.py`.
-> The one thing not to do is read the two documents as disagreeing: they measured different
-> miss rates, and each is right at the one it measured.
+> **So:** `hybrid_lazyring` is now what ships — see [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
+> It did not wait on the layout, because the layout decides *how much this is worth*
+> (between nothing and ~2.5×) and never *which arm is right*: `hybrid_lazyring` is tied for
+> cheapest in every regime, and on a hit-dominated workload no ring is ever built, so the
+> change is inert by design. The one thing not to do is read the two documents as
+> disagreeing: they measured different miss rates, and each is right at the one it measured.
 
 > ### Amendment, 2026-09-07 — how much a miss reads, which is a separate question
 >
@@ -68,7 +69,7 @@
 > numbers imply. **A tile viewport served concurrently would not be depth 1**, and there the
 > probe is worth skipping — which makes the fan-out shape (one batched submission vs *N*
 > independent tasks) a decision to take deliberately. [`RERUN-miss.md`](RERUN-miss.md) M10,
-> [`PLAN.md`](PLAN.md).
+> [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
 
 ## Context
 
@@ -103,6 +104,9 @@ mapping stays for the header, index and metadata.
 **And where a frame is asked more than once, do not read it again.** `--frame-cache-mb`
 (default `0`, off) holds frames the session asked twice as process-private `Bytes`; a hit is
 handed to quinn with `write_chunk` — no syscall, no copy into the connection, no pool hop.
+(That use of `write_chunk` is not the one rejected below: a cache hit hands quinn the
+cache's own long-lived `Bytes`, so there is no per-window buffer for quinn to hold hostage
+and no allocation to churn.)
 The ask that earns a slot assembles the frame from the windows it is already streaming, so
 the fill costs one copy and no extra read, and the executor's uninterrupted copy stays
 bounded by `READ_WINDOW`. Measured **−20% server CPU and +15% throughput** on a cine loop
@@ -192,7 +196,7 @@ Numbers are the product runtime, warm `later_p50` / worst-cell neighbour p99 —
 | `io_uring` + `SQPOLL` | **Rejected** | 2.8× the CPU (287 vs 104 µs/ask) for worse latency: with a kernel submitter nothing completes inline, so every read parks |
 | `sendfile`/splice | **Rejected for this stack** | Userspace QUIC still copies |
 | **Bounded process-private frame cache** | **Accepted, opt-in** | −20% server CPU / +15% throughput at a 0.92 hit rate; +4% where nothing is re-asked. `--frame-cache-mb`, default off (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §5) |
-| Handing quinn owned windows (`write_chunk`) instead of copying into it | **Rejected** | The copy is provably removed, and worth −3.2% (9 of 12 paired rounds) — under the drift threshold. Costs `unsafe { set_len }` and the fixed 64 KiB/session bound |
+| Handing quinn owned windows (`write_chunk`) instead of copying into it | **Rejected — and the case is stronger at scale, not weaker** | The copy is provably removed and worth −3.2% at one session, under the drift threshold. **At 16 and 32 concurrent sessions it is +14.6% and +19.1% CPU per frame, RESOLVED (5/5 and 4/4 signs)** — the copy it removes is L2-resident, and what replaces it is not: quinn holds each window until it is acked, so the buffer pool cannot recycle. At 16 sessions `write_chunk` allocates **3 840 buffers for 3 840 windows** — every window a fresh 64 KiB heap allocation — against **zero** for `write_all` ([`x12_send_sessions.tsv`](x12_send_sessions.tsv), `lab/scripts/pair_send_modes.py`) |
 | `O_DIRECT` + SPDK / whole-study preload | **Rejected** | Wrong scale or scope. The *bounded* app cache above was in this row until it was measured; it is not any more |
 
 ## Levers outside this decision
@@ -208,14 +212,22 @@ and they are not the same claim.
 | **`max_udp_payload_size` 1472 → 4000 B** | **−35% CPU, +55% throughput** — the largest effect measured anywhere in this investigation, 10× the read path's copy | The **peer** must advertise the same ceiling, and the peer is a browser. Above 4000 B on the validation host, path discovery fails and the connection falls back to a 1200 B floor — *worse* than the default | **Measured, not taken.** Recheck what browsers actually advertise before designing around it |
 | GSO datagram batching | Already worth ~10× fewer `sendmsg` (18 syscalls for 179 datagrams) | — | **Already on** in quinn. This lever is spent |
 | Bounded frame cache | −20.2% CPU / +14.7% throughput at a 0.92 hit rate | Duplicates RAM the page cache already holds, and costs +4.2% where nothing is re-asked. Needs a real ask trace to size | **Lab only** (`--frame-cache-mb`). Not ported; revisit with a wire-driven trace |
-| `write_chunk` owned windows | −3.2%, under the drift bar | `unsafe { set_len }`, and replaces the fixed 64 KiB/session bound with "however many windows are unacked" — the wrong direction at thousands of sessions | **Rejected**, see the table above |
+| `write_chunk` owned windows | −3.2% at one session; **+14.6% / +19.1% at 16 / 32, RESOLVED** | The removed copy is L2-resident; its replacement is a fresh 64 KiB allocation per window, because quinn holds each until it is acked. 3 840 allocations for 3 840 windows at 16 sessions, against zero | **Rejected**, and the scale case is the *stronger* one against it |
 | Congestion controller (quinn default vs BBR) | unknown | — | **Not measured** |
 | Stream / connection flow-control windows | unknown; plausibly matters for a start-to-end sequential push, where the window and not the disk sets the rate | — | **Not measured** |
 | AEAD choice (AES-GCM vs ChaCha20) | unknown; AES-NI presence decides it | — | **Not measured** |
 
-The three unmeasured rows are named so they are not mistaken for rejected ones. Nothing
-below the first row has been priced, and the first row is the one to price properly first:
-it is worth more than everything this ADR decided.
+The three unmeasured rows are named so they are not mistaken for rejected ones, and
+`max_udp_payload_size` is the one to price properly first: it is worth more than everything
+this ADR decided.
+
+**Where scale actually binds.** The intuition that the copy into quinn will limit a server
+at scale is a reasonable one, and it is wrong here in both directions. The copy is ~11 µs of
+a ~675 µs frame — 1.6%, and L2-resident — so per-datagram QUIC work runs out of CPU roughly
+sixty times sooner than the copy runs out of memory bandwidth. And removing it makes things
+*worse* under concurrency, for the mechanical reason in the row above. The levers that do
+reach the bound are not doing the read at all (the frame cache, −20.2%) and sending fewer
+datagrams (`max_udp_payload_size`, −35%).
 
 ## Product path
 

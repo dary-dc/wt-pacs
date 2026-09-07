@@ -91,9 +91,14 @@ in flight when the ring does not yet exist, because every earlier ask was a hit.
 ## What does not change
 
 * **The wire.** Byte-for-byte identical; the existing envelope test still guards it.
-* **`READ_WINDOW` = 64 KiB**, and the `write_all` per window. Handing quinn owned buffers was
-  measured at −3.2% and rejected (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §5); nothing here revisits
-  it.
+* **`READ_WINDOW` = 64 KiB**, and the `write_all` per window. Handing quinn owned buffers
+  (`write_chunk`) was measured at −3.2% at one session and rejected as under the drift bar
+  (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §5). It
+  has since been measured across session counts and is **+14.6% / +19.1% at 16 / 32
+  concurrent sessions, RESOLVED** — quinn holds each window until it is acked, so the buffer
+  pool cannot recycle and every window becomes a fresh 64 KiB allocation. The rejection is
+  now stronger at scale than at one reader, which is the opposite of what was expected
+  ([`adr.md`](adr.md) §Levers).
 * **The reclaim guarantee.** Bytes reaching quinn stay process-private — the ring reads into
   the session's own buffer, never a page-cache mapping.
 * **`server/` links io-uring for the first time.** Today it is a dependency of the lab crate
@@ -143,6 +148,37 @@ implementation.
 Then re-run the campaign with the product path as an arm, which is what `read_campaign`
 already does through `FrameStore`, and confirm the shipped path lands where
 `hybrid_lazyring` did.
+
+## Before rollout: the one thing still unmeasured
+
+**Both `hybrid_lazyring` datasets are `readers=1`.** The chosen arm has never been measured
+with more than one concurrent session, and the deployment target is thousands. The
+reader-scale evidence tops out at 128 readers and does not include this arm:
+
+| readers | `pool` threads | `hybrid` | `uring` |
+| ---: | ---: | ---: | ---: |
+| 1 | 11–12 | 5 | 5 |
+| 16 | 77–82 | 5 | 5 |
+| 64 | 160–265 | 5 | 5 |
+| 128 | 227–381 | 5 | 5 |
+
+Two readings. **Thread growth separates ring-from-`pool`, not the two ring arms** — so scale
+is an argument for shipping a ring at all, not for choosing between them. And `pool` at 381
+threads for 128 readers is the number that should decide the schedule: at thousands of
+concurrent sessions, the arm that shipped before this change is the one that does not hold up.
+
+Closing it is cheap, and it belongs before rollout rather than before implementation:
+
+```bash
+./target/release/read_campaign --arms pool,hybrid,hybrid_lazyring,uring \
+  --readers 1,16,64,128 --depth 1 --out /tmp/v29_lazyring_readers.tsv
+lab/scripts/pair_arms.py --pairs hybrid_lazyring:hybrid,uring:hybrid_lazyring \
+  --by readers /tmp/v29_lazyring_readers.tsv
+```
+
+Expect ties throughout — `hybrid_lazyring` is `hybrid` with a lazier constructor, and
+`hybrid` is already measured to 128. A surprise there is the only thing that would change
+the arm.
 
 ## Sequencing
 

@@ -2,7 +2,7 @@
 
 **Decision:** [`adr.md`](adr.md) · **Implementation:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md) ·
 **Deployment:** [`DEPLOYMENT.md`](DEPLOYMENT.md) · **Reproduce:** [`RERUN.md`](RERUN.md) ·
-**How much a miss reads:** [`RERUN-miss.md`](RERUN-miss.md) · **Next steps:** [`PLAN.md`](PLAN.md)
+**How much a miss reads:** [`RERUN-miss.md`](RERUN-miss.md) · **Shipping it:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md)
 
 Self-contained on purpose. The full campaign — thirteen documents, sixty-nine raw artifacts —
 is in git at **`a330783`** and its ancestors; this file carries every number the decision rests
@@ -181,3 +181,15 @@ first.
 
 The read path is worth 2–4×. **The disk layout is worth 17.6×** on the same reads, and it is
 undecided — see [`../disk-layout/ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md).
+
+## Not established anywhere, by any campaign here
+
+Named so they are not mistaken for measured, and so a future run knows where to point.
+
+- **Storage faster than ~1.25 GB/s.** Every miss-regime conclusion here is device-bound. On
+  NVMe at several GB/s, thread scheduling could become the limit instead, and io_uring's
+  5 threads against 381 would start converting into something.
+- **Frames past 250 KB.** Native DBT is 3 MB, and the two mechanisms point opposite ways
+  there: windowing gets worse, the ring's per-round-trip saving gets less significant.
+- **`hybrid_lazyring` above one reader** — see IMPLEMENTATION.md, *Before rollout*.
+- **`hybrid_lazyring` on the 4 vCPU sandbox or the GitHub runner.**
