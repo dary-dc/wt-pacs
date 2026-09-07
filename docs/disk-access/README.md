@@ -1,16 +1,17 @@
 # Disk access — how the server reads SBND frame bytes
 
-**Decided.** The read path is settled; what remains is implementing it.
+**Decided and implemented.** `hybrid_lazyring` ships: `RWF_NOWAIT` inline on a hit, io_uring
+on the miss, no ring at all for a session that never misses. What remains is measuring it
+above one reader — [`IMPLEMENTATION.md`](IMPLEMENTATION.md), *Before rollout*.
 
 | Doc | What |
 | --- | --- |
 | [`adr.md`](adr.md) | **The decision.** `RWF_NOWAIT` inline, `spawn_blocking` on the miss — and where it now stands against the campaigns that followed |
 | [`EVIDENCE.md`](EVIDENCE.md) | **Every number the decision rests on**, in one file: candidates, hosts, risks, what was rejected and why |
 | [`RERUN-miss.md`](RERUN-miss.md) | **How much a miss reads**, measured on a fixture where a miss is a real device read. Independent of who submits it, and the reason `stream_codestream` now escalates. Also why the 80 MB fixture cannot see any of this |
-| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | How it becomes product code — the lazy ring, the container trap, why there is no tuning toggle |
+| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | **How it works, and what is left.** The lazy ring, the container trap, why there is no tuning toggle, what came out different from the measured arm, and the one thing still unmeasured before rollout |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Read before shipping.** The fast path does not exist on overlayfs, i.e. inside a container, and the server degrades silently. `check-fastpath` answers it in one command |
 | [`RERUN.md`](RERUN.md) | The instrument: what it can separate, and the precision rules every number obeys |
-| [`PLAN.md`](PLAN.md) | **What to do next, in order** — verify, validate, implement, check the host. Start here if you are picking this up cold. Ends with what was deferred and what would reopen it |
 
 The open question is **not** here — it is the disk layout, worth 17.6× against this path's
 2–4×: [`../disk-layout/`](../disk-layout/).

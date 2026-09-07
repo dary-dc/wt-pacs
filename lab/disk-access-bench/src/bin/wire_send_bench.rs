@@ -13,6 +13,15 @@
 //!
 //! Server and client are separate processes so `getrusage(RUSAGE_SELF)` on the parent is
 //! the server's CPU alone.
+//!
+//! **`WIRE_BENCH_SESSIONS=N` runs N concurrent sessions**, each its own connection and its
+//! own client process. It exists because the `write_chunk` verdict — −3.2%, under the drift
+//! bar — was taken at one session, and one session is the one place a *shared* cost cannot
+//! appear: memory bandwidth is not per-core, so a copy that is free when one sender owns the
+//! machine need not stay free when thirty do. The question the cell answers is whether the
+//! per-frame copy's cost grows with concurrency. If it does, the margin is a function of N
+//! and the single-session number was never the whole answer; if it does not, the copy is
+//! L2-resident as the budget says and the verdict holds at scale.
 
 use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
@@ -155,6 +164,16 @@ fn mtu_env() -> Option<u16> {
         .and_then(|v| v.parse().ok())
 }
 
+/// Concurrent sessions, each a separate connection and client process. Default 1, which is
+/// the shape every earlier run used.
+fn sessions_env() -> usize {
+    std::env::var("WIRE_BENCH_SESSIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|n| *n >= 1)
+        .unwrap_or(1)
+}
+
 fn cpu_ns() -> u64 {
     let mut ts = libc::timespec {
         tv_sec: 0,
@@ -189,6 +208,7 @@ async fn main() -> Result<()> {
     let mode = Mode::parse(&args[2]).context("unknown mode")?;
     let frames: u32 = args[3].parse()?;
     let repeats: usize = args.get(4).map(|s| s.parse()).transpose()?.unwrap_or(5);
+    let sessions = sessions_env();
 
     rustls::crypto::ring::default_provider()
         .install_default()
@@ -252,34 +272,31 @@ async fn main() -> Result<()> {
     };
     let port = endpoint.local_addr()?.port();
 
-    // The client is a separate process so this process's CPU is the server's alone.
+    // Clients are separate processes so this process's CPU is the server's alone — one per
+    // session, because a single client process reading N connections would put N receivers
+    // on one machine's worth of scheduler and make the *client* the contended resource.
     let exe = std::env::current_exe()?;
     let cert_path = std::env::temp_dir().join(format!("wire_send_bench_{port}.der"));
     std::fs::write(&cert_path, cert.cert.der())?;
-    let mut child = std::process::Command::new(exe)
-        .arg("--client")
-        .arg(port.to_string())
-        .arg((frames as usize * repeats).to_string())
-        .env("WIRE_BENCH_CERT", &cert_path)
-        .spawn()?;
+    let mut children = Vec::with_capacity(sessions);
+    for _ in 0..sessions {
+        children.push(
+            std::process::Command::new(&exe)
+                .arg("--client")
+                .arg(port.to_string())
+                .arg((frames as usize * repeats).to_string())
+                .env("WIRE_BENCH_CERT", &cert_path)
+                .spawn()?,
+        );
+    }
     let prefix = prefix_env();
     let shared_stream = shared_stream_env();
 
-    let conn = endpoint
-        .accept()
-        .await
-        .context("no incoming")?
-        .await
-        .context("handshake")?;
-
     let window = store.read_window(store.frame_range(0)?.1);
-    let mut lat: Vec<u64> = Vec::with_capacity(frames as usize * repeats);
-    let mut vec_window: Vec<u8> = vec![0u8; window];
-    let mut arena = WindowPool::new(window);
-    let mut acks = tokio::task::JoinSet::new();
     // The ceiling arm holds every frame; the product-cache arm starts empty and fills
-    // itself through `claim_fill`/`admit` exactly as the server does.
-    let preloaded: Vec<Bytes> = if mode == Mode::Preloaded {
+    // itself through `claim_fill`/`admit` exactly as the server does. Shared across
+    // sessions, because a real server has one page cache and one frame cache, not N.
+    let preloaded: Arc<Vec<Bytes>> = Arc::new(if mode == Mode::Preloaded {
         (0..frames)
             .map(|i| {
                 let (off, len) = store.frame_range(i)?;
@@ -290,8 +307,143 @@ async fn main() -> Result<()> {
             .collect::<Result<_>>()?
     } else {
         Vec::new()
+    });
+
+    // Accept every session before timing, so the handshakes are not inside the measurement
+    // and every sender starts against the same contended machine.
+    let mut conns = Vec::with_capacity(sessions);
+    for _ in 0..sessions {
+        conns.push(
+            endpoint
+                .accept()
+                .await
+                .context("no incoming")?
+                .await
+                .context("handshake")?,
+        );
+    }
+
+    let cpu0 = cpu_ns();
+    let wall0 = Instant::now();
+    let mut running = tokio::task::JoinSet::new();
+    for conn in conns.iter().cloned() {
+        let cfg = SessionCfg {
+            store: Arc::clone(&store),
+            cache: Arc::clone(&cache),
+            preloaded: Arc::clone(&preloaded),
+            mode,
+            window,
+            frames,
+            repeats,
+            prefix,
+            shared_stream,
+        };
+        running.spawn(async move { serve_session(conn, cfg).await });
+    }
+    let mut out = SessionOut::default();
+    while let Some(joined) = running.join_next().await {
+        out.merge(joined.context("join session")??);
+    }
+    let wall = wall0.elapsed();
+    let cpu = cpu_ns() - cpu0;
+
+    let st = conns[0].stats();
+    for conn in &conns {
+        conn.close(VarInt::from_u32(0), b"done");
+    }
+    endpoint.wait_idle().await;
+    for mut child in children {
+        let _ = child.wait();
+    }
+    let _ = std::fs::remove_file(&cert_path);
+
+    out.lat.sort_unstable();
+    let lat = &out.lat;
+    let n = lat.len() as u64;
+    let bytes = out.bytes;
+    println!(
+        "mode={}\tsessions={}\tframes={}\twindow={}\tp50_ns={}\tp90_ns={}\tp99_ns={}\t\
+         cpu_ns_per_frame={}\twall_ms={}\tMB_per_s={:.1}\tpool_allocs={}\t\
+         datagrams_per_frame={:.1}\tsendmsg_per_frame={:.1}\tmtu={}\thit_rate={:.2}\t\
+         cache_MB={:.1}\tpayload_B={}\tstream={}\tcpu_ns_per_MB={:.0}",
+        mode.label(),
+        sessions,
+        n,
+        window,
+        pct(lat, 0.50),
+        pct(lat, 0.90),
+        pct(lat, 0.99),
+        cpu / n.max(1),
+        wall.as_millis(),
+        bytes as f64 / wall.as_secs_f64() / 1e6,
+        out.allocs,
+        st.udp_tx.datagrams as f64 * sessions as f64 / n as f64,
+        st.udp_tx.ios as f64 * sessions as f64 / n as f64,
+        st.path.current_mtu,
+        out.hits as f64 / n as f64,
+        cache.stats().0 as f64 / 1e6,
+        bytes / n.max(1),
+        if shared_stream { "shared" } else { "per_frame" },
+        cpu as f64 / (bytes as f64 / 1e6),
+    );
+    Ok(())
+}
+
+/// Everything one session needs, so the sender loop is one function whatever N is.
+struct SessionCfg {
+    store: Arc<FrameStore>,
+    cache: Arc<FrameCache>,
+    preloaded: Arc<Vec<Bytes>>,
+    mode: Mode,
+    window: usize,
+    frames: u32,
+    repeats: usize,
+    prefix: Option<u32>,
+    shared_stream: bool,
+}
+
+/// What one session produced. Summed across sessions; CPU is not here because it is a
+/// process total measured around the whole fan-out, which is what makes it comparable.
+#[derive(Default)]
+struct SessionOut {
+    lat: Vec<u64>,
+    bytes: u64,
+    hits: u64,
+    allocs: u64,
+}
+
+impl SessionOut {
+    fn merge(&mut self, other: Self) {
+        self.lat.extend(other.lat);
+        self.bytes += other.bytes;
+        self.hits += other.hits;
+        self.allocs += other.allocs;
+    }
+}
+
+/// One session's send loop — the body every earlier single-session run measured, lifted out
+/// unchanged so that N of them can run at once.
+async fn serve_session(conn: quinn::Connection, cfg: SessionCfg) -> Result<SessionOut> {
+    let SessionCfg {
+        store,
+        cache,
+        preloaded,
+        mode,
+        window,
+        frames,
+        repeats,
+        prefix,
+        shared_stream,
+    } = cfg;
+    let mut out = SessionOut {
+        lat: Vec::with_capacity(frames as usize * repeats),
+        ..Default::default()
     };
+    let mut vec_window: Vec<u8> = vec![0u8; window];
+    let mut arena = WindowPool::new(window);
+    let mut acks = tokio::task::JoinSet::new();
     let mut hits = 0u64;
+    let mut bytes = 0u64;
 
     // Shared mode opens one stream for the whole run; per-frame mode opens one per frame.
     let mut shared: Option<SendStream> = if shared_stream {
@@ -300,9 +452,6 @@ async fn main() -> Result<()> {
         None
     };
 
-    let cpu0 = cpu_ns();
-    let wall0 = Instant::now();
-    let mut bytes = 0u64;
     for _ in 0..repeats {
         for idx in 0..frames {
             let (off, whole) = store.frame_range(idx)?;
@@ -381,7 +530,7 @@ async fn main() -> Result<()> {
                     }
                 },
             }
-            lat.push(t.elapsed().as_nanos() as u64);
+            out.lat.push(t.elapsed().as_nanos() as u64);
             bytes += u64::from(len) + head.len() as u64;
             if let Some(mut uni) = per_frame {
                 acks.spawn(async move {
@@ -399,42 +548,10 @@ async fn main() -> Result<()> {
         let _ = uni.stopped().await;
     }
     while acks.join_next().await.is_some() {}
-    let wall = wall0.elapsed();
-    let cpu = cpu_ns() - cpu0;
-
-    conn.close(VarInt::from_u32(0), b"done");
-    endpoint.wait_idle().await;
-    let _ = child.wait();
-    let _ = std::fs::remove_file(&cert_path);
-
-    lat.sort_unstable();
-    let n = lat.len() as u64;
-    let st = conn.stats();
-    println!(
-        "mode={}\tframes={}\twindow={}\tp50_ns={}\tp90_ns={}\tp99_ns={}\tcpu_ns_per_frame={}\t\
-         wall_ms={}\tMB_per_s={:.1}\tpool_allocs={}\tdatagrams_per_frame={:.1}\t\
-         sendmsg_per_frame={:.1}\tmtu={}\thit_rate={:.2}\tcache_MB={:.1}\tpayload_B={}\t\
-         stream={}\tcpu_ns_per_MB={:.0}",
-        mode.label(),
-        n,
-        window,
-        pct(&lat, 0.50),
-        pct(&lat, 0.90),
-        pct(&lat, 0.99),
-        cpu / n.max(1),
-        wall.as_millis(),
-        bytes as f64 / wall.as_secs_f64() / 1e6,
-        arena.allocs,
-        st.udp_tx.datagrams as f64 / n as f64,
-        st.udp_tx.ios as f64 / n as f64,
-        st.path.current_mtu,
-        hits as f64 / n as f64,
-        cache.stats().0 as f64 / 1e6,
-        bytes / n.max(1),
-        if shared_stream { "shared" } else { "per_frame" },
-        cpu as f64 / (bytes as f64 / 1e6),
-    );
-    Ok(())
+    out.bytes = bytes;
+    out.hits = hits;
+    out.allocs = arena.allocs;
+    Ok(out)
 }
 
 fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
