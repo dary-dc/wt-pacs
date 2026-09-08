@@ -33,6 +33,8 @@ export type FodAsk = { kind: RowKind; frames: number[] };
 export type FodMessage =
   | { op: "request_frame"; frame: number }
   | { op: "request_frames"; frames: number[] }
+  | { op: "stream_frames"; from?: number; to?: number }
+  | { op: "end_stream" }
   | { op: "frame_error"; frame_index: number; reason: string }
   | { op: "other"; raw: string };
 
@@ -52,6 +54,8 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
         op?: string;
         frame?: number;
         frames?: number[];
+        from?: number;
+        to?: number;
         frame_index?: number;
         reason?: string;
       };
@@ -59,6 +63,14 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
         messages.push({ op: "request_frame", frame: msg.frame });
       } else if (msg.op === "request_frames" && Array.isArray(msg.frames)) {
         messages.push({ op: "request_frames", frames: msg.frames.map(Number) });
+      } else if (msg.op === "stream_frames") {
+        messages.push({
+          op: "stream_frames",
+          from: typeof msg.from === "number" ? msg.from : undefined,
+          to: typeof msg.to === "number" ? msg.to : undefined,
+        });
+      } else if (msg.op === "end_stream") {
+        messages.push({ op: "end_stream" });
       } else if (msg.op === "frame_error" && typeof msg.frame_index === "number") {
         messages.push({ op: "frame_error", frame_index: msg.frame_index, reason: msg.reason ?? "" });
       } else {
@@ -77,6 +89,13 @@ export function parseFodAsks(chunk: Uint8Array): FodAsk[] {
   for (const m of parseFodMessages(chunk).messages) {
     if (m.op === "request_frame") asks.push({ kind: "interaction", frames: [m.frame] });
     else if (m.op === "request_frames") asks.push({ kind: "preload", frames: m.frames });
+    else if (m.op === "stream_frames") {
+      const from = m.from ?? 0;
+      asks.push({
+        kind: "preload",
+        frames: typeof m.to === "number" ? Array.from({ length: m.to - from + 1 }, (_, i) => from + i) : [],
+      });
+    }
   }
   return asks;
 }

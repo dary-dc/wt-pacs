@@ -111,15 +111,19 @@ Blind period, corrected:
 | as shipped today (per-frame + `finish`) | **272 ms, always** | worse |
 
 Splitting the loop into an ask reader and a sender joined by a bounded FIFO channel therefore buys
-**nothing under A on a healthy link**. It buys two things: headroom under congestion, which is when a
-redirect matters; and it is a *precondition* for B/C, since `set_priority` and `reset` are inert if the
-ask has not been read.
+**nothing under A on a healthy link** for on-demand asks. It buys two things there: headroom under
+congestion, which is when a redirect matters; and it is a *precondition* for B/C, since `set_priority`
+and `reset` are inert if the ask has not been read.
+
+**2026-09-08.** Fill (`StreamFrames`, §6c) needs the split even on a healthy shared stream: without a
+reader, `EndStream` is not seen until the recitation ends. That is why §6d recommends B. The ranking
+below still holds for the framing decision; it does not hold for fill.
 
 The channel is FIFO and preserves client ask order, so it is not the queue rejected in
 [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
 
-**Rank loop shape below the framing decision, not beside it.** Earlier framing of the split as a
-standing defect overstated it.
+**Rank loop shape below the framing decision, not beside it** — for on-demand. Fill ranks the split
+with the message, not under framing.
 
 ---
 
@@ -229,24 +233,24 @@ uses. 16 missing tiles: 1.14 ms → 0.62 ms.
 
 ## 6c · Server-driven streaming (not implemented)
 
-**Status: designed, not built. 2026-09-08.**
+**Status: designed, not built. 2026-09-08.** Messages and the loop:
+[`disk-access/READ-PATH-DESIGN.md`](disk-access/READ-PATH-DESIGN.md).
 
-For ultrasound and any study of small or medium frames, asking per frame is overhead the
-workload does not need. The intended mode: the client sends **one message** — the study is
-open, start loading — and the server streams frames start to end without being asked for
-indexes.
+This is the **fill** app mode. The client sends `StreamFrames` (empty = the whole study;
+optional `from` / `to` default to 0 and the last frame). Current use is start-to-end; `from`
+/ `to` stay on the type so a later range does not need a new message. The server recites its
+own index. `RequestFrames` is not it — it still names every index.
 
-Why it fits: sequential delivery needs no per-frame ask, no ask latency and no client-side
-scheduling; the server reads forward, which is the access pattern the page cache and
-read-ahead are best at. It is the opposite end of the axis from tiles, where the client must
-choose what it needs and the server cannot guess.
+Why it fits: sequential delivery needs no per-frame ask; the server reads forward, which is
+what the page cache and read-ahead are best at. On-demand (the client names tiles) stays on
+`RequestFrame` / `RequestFrames`.
 
-What it does **not** remove: the client still needs a way to stop, slow down or seek, or a
-fast reader outruns nothing and a slow one drowns. Flow control is the open question, not the
-streaming itself.
-
-Neither the message nor the server path exists yet. `RequestFrames` is the closest thing and
-is not it — it still names every index.
+Stop is `EndStream` at the next frame boundary — not session-wide, that is `EndSession`. Slow
+is QUIC: when the client stops reading, `write_all` waits and the read-ahead waits with it.
+`EndStream` is seen by the serving loop between frames; it does not queue behind generated
+indexes. A data request during a fill ends the fill and is then served: a second
+`StreamFrames` is a seek, a `RequestFrame` or `RequestFrames` puts the session back on demand
+([`disk-access/READ-PATH-DESIGN.md`](disk-access/READ-PATH-DESIGN.md) §2).
 
 ## 6d · The other half of §6b: `RequestFrame` is still depth 1
 
@@ -255,30 +259,30 @@ is not it — it still names every index.
 supplies that from `frames[i + 1]`. A stream of single `RequestFrame` asks supplies nothing,
 because `run_session` does not read the next ask until the current frame is on the wire.
 
-### First, the question that decides whether to build it at all
+### Why the loop change is not optional
 
-**Which clients pipeline `RequestFrame`?** The win is already available to any client that
-sends `RequestFrames`, and an interactive viewer that asks as the user moves has no next ask
-to name — its depth is 1 by nature, not by this bug. Worth answering before writing code:
+The two app modes are **fill** (`StreamFrames`) and **on-demand** (`RequestFrame` /
+`RequestFrames`). Fill needs the reader task so `EndStream` can arrive while the loop is
+reciting the study. On-demand that pipelines `RequestFrame` needs it so those asks become
+`upcoming`. An interactive viewer that asks as the user moves still has depth 1 by nature —
+there is no next ask to name.
 
-* `client/transport-wasm` uses `RequestFrames` for fill and `RequestFrame` for interaction.
-* `lab/window-harness` pipelines `RequestFrame` and holds `--depth` outstanding
-  (`client.rs:530`, `PEAK_OUTSTANDING`). **So the harness is both the client that would
-  benefit and the instrument that would measure it** — its `D` is client-side depth today,
-  which the server flattens to 1.
-
-If the answer is "only the harness", the honest fix may be to have those clients batch.
+`lab/window-harness` pipelines `RequestFrame` and holds `--depth` outstanding
+(`client.rs:530`, `PEAK_OUTSTANDING`). It is the instrument that would measure the on-demand
+half; its `D` is client-side depth today, which the server flattens to 1.
 
 ### Options
 
 | | shape | cost |
 | --- | --- | --- |
 | **A** | `select!` in `run_session` over a pinned `read_fod_msg` future and the in-flight `serve_one` | Every future pinned and re-created only on completion. `read_fod_msg` is **not cancel-safe** — it holds partial length/body state in locals (`wire.rs:22`) — so dropping it mid-message loses stream bytes. One misplaced re-creation is a protocol desync |
-| **B** | an ask-reader task owning `control_recv`, feeding a bounded (capacity 1) channel; the serving loop takes one and peeks the next | One task and one channel per session. Cancel-safety stops being a hazard because one owner reads the stream start to finish. §5 already wanted this shape for a second reason: it is the precondition for per-frame `set_priority` and `reset` |
-| **C** | do nothing; clients that want depth send `RequestFrames` | Free, and already true |
+| **B** | an ask-reader task owning `control_recv`, feeding a bounded (capacity **`W − 1`**) channel; the serving loop takes one and peeks the next | One task and one channel per session. Cancel-safety stops being a hazard because one owner reads the stream start to finish. §5 already wanted this shape for a second reason: it is the precondition for per-frame `set_priority` and `reset`. Fill needs it so `EndStream` can arrive while the loop is reciting |
+| **C** | do nothing; clients that want depth send `RequestFrames` | Free for on-demand batches. Does not give fill a message, and does not let `EndStream` in during a recitation |
 
-**Recommendation: answer the question above, then C or B — not A.** A buys nothing over B and
-puts a cancel-safety hazard in the session loop's hot path.
+**Recommendation: B, not A.** A buys nothing over B and puts a cancel-safety hazard in the
+session loop's hot path. C is not enough: the two app modes are fill (`StreamFrames`) and
+on-demand (`RequestFrame` / `RequestFrames`), and fill needs the reader task.
+[`disk-access/READ-PATH-DESIGN.md`](disk-access/READ-PATH-DESIGN.md).
 
 Note the owners' requirement is **depth 4 or more**, and C alone does not reach it for a
 client that asks per tile: `RequestFrames` gives depth 2 today, and widening past two is a
@@ -287,15 +291,21 @@ read-path change to make *after* the loop can keep more than one ask in flight.
 ### If B is built
 
 The peek is not a peek: `try_recv` removes the message, so the loop carries it as the next
-iteration's current ask.
+iteration's current ask. A fill does not enqueue indexes; it recites `from..to` and
+`try_recv`s between frames. Shape, not code:
 
-```rust
-let mut current = rx.recv().await;
-while let Some(ask) = current {
-    let next = rx.try_recv().ok();            // present only when the client pipelined
-    serve(ask, frame_of(next.as_ref())).await?;
-    current = match next { Some(m) => Some(m), None => rx.recv().await };
-}
+```
+current = recv()
+if current is StreamFrames { from, to }:          // missing from → 0; missing to → last
+    for i in from..=to:
+        try_recv → EndStream breaks; EndSession ends the session;
+                   any data request breaks and becomes current
+        serve(i, upcoming = i+1..=to)
+    current = recv()
+else:                                             // RequestFrame / RequestFrames
+    next = try_recv()                             // present only when the client pipelined
+    serve(current, upcoming from next)
+    current = next or recv()
 ```
 
 Invariants an implementation has to keep, each of which is a way to get this wrong:
@@ -303,11 +313,14 @@ Invariants an implementation has to keep, each of which is a way to get this wro
 1. **FIFO.** Asks are served in the order they were read. This is pipelining, not the
    reordering [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) rejects.
 2. **`EndSession` must not overtake queued asks** — it is a message in the same stream, so it
-   must be handled where it arrives in the sequence, not when it is read.
+   must be handled where it arrives in the sequence, not when it is read. **`EndStream` is
+   different:** it stops a fill. Generated indexes are not in the channel, so the loop must
+   `try_recv` between stream frames or `EndStream` waits until the study ends.
 3. **A closed channel ends the session**, and the reader task's error is the session's error —
    losing it turns a broken control stream into a silent hang.
-4. **Capacity 1, deliberately.** Two windows are what the read path has; a deeper queue would
-   buffer asks the server cannot start reading, which is latency with extra steps.
+4. **Capacity `W − 1`, tied to the read path.** The channel holds control messages, not
+   generated stream indexes. Deeper than `W − 1` would queue on-demand asks the read path
+   cannot start. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
    (`disk-access/NEXT.md`). `disk-access/v35_depth2.tsv` prices the rest: 2 → 4 is a further
    0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion

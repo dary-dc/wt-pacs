@@ -23,18 +23,13 @@ pub(crate) trait FramePipeline: Send {
     fn store(&self) -> &Arc<FrameStore>;
 
     /// `next` is the frame this session will be asked for after `frame`, where it is known.
-    async fn serve_one(
-        &mut self,
-        frame: u32,
-        next: Option<u32>,
-        control: &mut SendStream,
-    ) -> Result<()> {
+    async fn serve_one(&mut self, frame: u32, next: Option<u32>) -> Result<()> {
         self.prepare(frame);
 
         let store = Arc::clone(self.store());
         let span = match self.locate(&store, frame) {
             Ok(span) => span,
-            Err(err) => return self.refuse(control, frame, err).await,
+            Err(err) => return self.refuse(frame, err).await,
         };
         // Not `locate`: that step is stamped, and a bad look-ahead is not this frame's
         // failure — it is refused when the session asks for it.
@@ -47,11 +42,11 @@ pub(crate) trait FramePipeline: Send {
 
     /// Every frame before the next control read, in ask order, each knowing the next — so
     /// its read starts while this one is still in flight.
-    async fn serve_batch(&mut self, frames: &[u32], control: &mut SendStream) -> Result<()> {
+    async fn serve_batch(&mut self, frames: &[u32]) -> Result<()> {
         let size = frames.len() as u32;
         for (position, &frame) in frames.iter().enumerate() {
             self.note_batch(position as u32, size);
-            self.serve_one(frame, frames.get(position + 1).copied(), control)
+            self.serve_one(frame, frames.get(position + 1).copied())
                 .await?;
         }
         Ok(())
@@ -75,21 +70,36 @@ pub(crate) trait FramePipeline: Send {
         next: Option<FrameSpan>,
     ) -> Result<()>;
 
-    async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()>;
+    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()>;
 
     async fn drain_acks(&mut self);
+
+    fn note_fill(&mut self) {}
 }
 
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
     out: FrameOut,
     read: ReadCtx,
+    control: Option<SendStream>,
+    fills: u64,
 }
 
 impl ProductPipeline {
     pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut) -> Self {
         let read = ReadCtx::new(ReadMode::from_env(), &store);
-        Self { store, out, read }
+        Self {
+            store,
+            out,
+            read,
+            control: None,
+            fills: 0,
+        }
+    }
+
+    pub(crate) fn with_control(mut self, control: SendStream) -> Self {
+        self.control = Some(control);
+        self
     }
 }
 
@@ -114,9 +124,12 @@ impl FramePipeline for ProductPipeline {
             .await
     }
 
-    async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
+    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
         let reason = err.to_string();
         warn!(frame, %reason, "frame refused");
+        let Some(control) = self.control.as_mut() else {
+            return Ok(());
+        };
         write_fod_msg(
             control,
             &FodMsg::FrameError {
@@ -129,6 +142,10 @@ impl FramePipeline for ProductPipeline {
 
     async fn drain_acks(&mut self) {
         self.out.drain_acks().await;
+    }
+
+    fn note_fill(&mut self) {
+        self.fills += 1;
     }
 }
 
@@ -145,6 +162,7 @@ impl Drop for ProductPipeline {
             misses = stats.misses,
             miss_rate,
             ring = self.read.ring_built(),
+            fills = self.fills,
             "session reads"
         );
     }
@@ -211,13 +229,17 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         }
     }
 
-    async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
+    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
         self.tap.emit_refused(); // close open stage + emit
-        self.inner.refuse(control, frame, err).await
+        self.inner.refuse(frame, err).await
     }
 
     async fn drain_acks(&mut self) {
         self.inner.drain_acks().await;
+    }
+
+    fn note_fill(&mut self) {
+        self.inner.note_fill();
     }
 }
 
