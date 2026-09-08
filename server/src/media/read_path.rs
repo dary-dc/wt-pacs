@@ -11,7 +11,7 @@ use tracing::warn;
 use crate::media::uring_reader::UringReader;
 
 /// A window's index is also its ring slot, so a read never moves between them.
-const WINDOWS: usize = 2;
+pub const WINDOWS: usize = 2;
 
 /// Which read path a session takes, from `WTPACS_READ_PATH`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
