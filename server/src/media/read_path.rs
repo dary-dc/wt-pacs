@@ -1,8 +1,6 @@
-//! How a session reads frame bytes: a page-cache read on the executor, escalating to a
-//! ring or the blocking pool when the bytes are not there.
-//!
-//! Why this shape, what it was measured against, and what the numbers were:
-//! `docs/disk-access/adr.md` and `docs/disk-access/IMPLEMENTATION.md`.
+//! How a session reads frame bytes: a page-cache read on the executor, escalating to a ring
+//! or the blocking pool when the bytes are not there. Why this shape, and what it was
+//! measured against: `docs/disk-access/adr.md`, `docs/disk-access/IMPLEMENTATION.md`.
 
 use crate::media::frame_store::FrameStore;
 use anyhow::{Context, Result};
@@ -21,13 +19,12 @@ pub enum ReadMode {
     /// Kill switch: page cache first, blocking pool on the miss. Never a ring.
     Pool,
     /// Lab lever, not a production mode: no page-cache read at all, every frame through the
-    /// ring. Costs +131 to +142% CPU on hits; it exists to measure tile layouts against a
-    /// miss-optimised path.
+    /// ring. It exists to measure tile layouts against a miss-optimised path.
     Uring,
 }
 
 impl ReadMode {
-    /// An unrecognised value warns and falls back to `Auto` — a kill switch that silently
+    /// An unrecognised value warns and falls back to `Auto`: a kill switch that silently
     /// does nothing because of a typo is worse than no kill switch.
     pub fn from_env() -> Self {
         match std::env::var("WTPACS_READ_PATH").as_deref() {
@@ -60,11 +57,9 @@ enum Ring {
 
 /// One session's read state.
 pub struct ReadCtx {
-    /// Whether to try the page cache before escalating.
-    ///
-    /// False only under [`ReadMode::Uring`]. Where the filesystem refuses `RWF_NOWAIT` this
-    /// stays true and the read simply always comes up short, which is the same thing by a
-    /// different route.
+    /// Whether to try the page cache before escalating. False only under
+    /// [`ReadMode::Uring`]; a filesystem refusing `RWF_NOWAIT` leaves it true and simply
+    /// always comes up short.
     probe: bool,
     /// Declared before `window` so the drop order reads correctly, though [`Drop`] is what
     /// guarantees it.
@@ -76,11 +71,9 @@ pub struct ReadCtx {
 
 #[cfg(feature = "uring")]
 impl Ring {
-    /// The ring to escalate through, built here if this is the session's first miss.
-    ///
-    /// `None` where a ring is not wanted or the kernel refused one, so the caller falls
-    /// back to the pool rather than failing the ask. Building here is safe because nothing
-    /// can be in flight on a ring that does not exist yet.
+    /// The ring to escalate through, built here on the session's first miss — nothing can
+    /// be in flight on a ring that does not exist yet. `None` where one is not wanted or
+    /// the kernel refused it, so the caller falls back to the pool rather than failing.
     fn reader(&mut self, store: &FrameStore) -> Option<&mut UringReader> {
         if matches!(self, Self::Pending) {
             *self = match UringReader::new(store.file()) {
@@ -101,9 +94,9 @@ impl Ring {
 impl ReadCtx {
     /// Resolve the mode once, here, so the read loop has no mode to branch on.
     ///
-    /// A ring is refused outright where the filesystem does not honour `RWF_NOWAIT`: there
-    /// every read reports a miss whether or not the bytes are cached, so a ring keyed on
-    /// the shortfall would serve every *warm* read. `IMPLEMENTATION.md` §The trap.
+    /// A ring is refused where the filesystem does not honour `RWF_NOWAIT`, because there a
+    /// ring keyed on the shortfall would serve every *warm* read too.
+    /// `docs/disk-access/IMPLEMENTATION.md` §The trap.
     #[cfg_attr(not(feature = "uring"), allow(unused_variables))]
     pub fn new(mode: ReadMode, store: &FrameStore) -> Self {
         // Exhaustive on purpose: a new mode has to decide this rather than inherit it.
@@ -124,9 +117,9 @@ impl ReadCtx {
     /// Read the next piece of a frame, and hand back the bytes that are ready.
     ///
     /// `stride` is what to attempt from the page cache; `remaining` is what is left of the
-    /// frame. On a hit the result is `stride` bytes. **On a miss it is the whole of
-    /// `remaining`** — escalating by the window instead of the frame costs a round trip per
-    /// window, and that is where the miss-path throughput goes (`RERUN-miss.md`).
+    /// frame. On a hit the result is `stride` bytes; **on a miss it is the whole of
+    /// `remaining`**, because escalating by the window costs a round trip per window
+    /// (`docs/disk-access/RERUN-miss.md`).
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
@@ -172,8 +165,8 @@ impl ReadCtx {
         self.read_on_pool(store, at, from, len).await
     }
 
-    /// The window is moved to the blocking pool and back, because the read borrows it for
-    /// longer than this task holds `&mut self`.
+    /// The window moves to the blocking pool and back: the read borrows it for longer than
+    /// this task holds `&mut self`.
     async fn read_on_pool(
         &mut self,
         store: &Arc<FrameStore>,
@@ -207,13 +200,11 @@ impl ReadCtx {
 }
 
 impl Drop for ReadCtx {
-    /// Wait for any read the kernel is still performing into `window`.
+    /// Wait for any read the kernel is still performing into `window` — a session task is
+    /// dropped at its await point on shutdown, and the ring parks on exactly one await.
     ///
-    /// A session task is dropped at its await point when the runtime shuts down, and the
-    /// ring parks on exactly one await — so without this the kernel would be left writing
-    /// into a buffer about to be freed. It lives here rather than relying on the ring's own
-    /// `Drop` because a struct's `Drop::drop` runs before any of its fields are dropped,
-    /// which makes the guarantee independent of field declaration order.
+    /// Here rather than in the ring's own `Drop` because a struct's `Drop::drop` runs before
+    /// any field is dropped, which makes the guarantee independent of field order.
     fn drop(&mut self) {
         #[cfg(feature = "uring")]
         if let Ring::Ready(ring) = &mut self.ring {
@@ -227,8 +218,8 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    /// A study bundle on disk with `frames` frames of `len` bytes, each filled with a
-    /// per-frame pattern so a mis-assembled frame cannot pass by accident.
+    /// A study of `frames` frames of `len` bytes, each filled with a per-frame pattern so a
+    /// mis-assembled frame cannot pass by accident.
     fn write_bundle(dir: &std::path::Path, frames: u32, len: u32) -> std::path::PathBuf {
         let meta = format!("{{\"frameCount\":{frames}}}");
         let data_base = 16 + 12 * frames as usize + meta.len();
@@ -272,8 +263,7 @@ mod tests {
     }
 
     /// `stream_codestream`'s loop against a buffer instead of a stream: what came out, and
-    /// how many reads it took. Copied rather than shared, which is what lets this test the
-    /// read path with no QUIC connection.
+    /// how many reads it took. Copied, not shared, so this needs no QUIC connection.
     fn drain(
         rt: &tokio::runtime::Runtime,
         ctx: &mut ReadCtx,
@@ -302,17 +292,9 @@ mod tests {
     const STRIDE: usize = 4096;
     const LEN: u32 = (STRIDE * 5 + 17) as u32;
 
-    /// **The ADR's claim, as an assertion.** A window that misses reads to the end of the
-    /// *frame*, not the end of the window — so a frame that misses costs one round trip
-    /// however many windows long it is. Windowing the escalation too costs 2–3 per 250 KB
-    /// frame, and that is where the miss-path throughput went: 1 404–1 573 f/s against
-    /// 4 539–4 777 (`docs/disk-access/RERUN-miss.md`).
-    ///
-    /// Misses are forced through the store's test levers rather than by evicting the page
-    /// cache. Eviction is not a lever a test can rely on — `fadvise(DONTNEED)` will not
-    /// evict a mapped page, and on some hosts it does not evict even before the mapping
-    /// exists, which silently leaves a test like this on the warm path where it passes
-    /// against a deliberately broken implementation.
+    /// **The ADR's claim, as an assertion**: a window that misses reads to the end of the
+    /// *frame*, so a missing frame costs one round trip however many windows long it is.
+    /// `docs/disk-access/RERUN-miss.md` has what windowing the escalation cost instead.
     #[test]
     fn a_frame_that_misses_costs_one_round_trip_not_one_per_window() {
         let dir = scratch("trips");
@@ -386,8 +368,8 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// An unrecognised value must not silently become a mode nobody asked for — and must
-    /// not disable the kill switch either.
+    /// An unrecognised value must not become a mode nobody asked for, or disable the kill
+    /// switch.
     #[test]
     fn read_mode_parses_the_three_it_documents() {
         assert_eq!(ReadMode::default(), ReadMode::Auto);
@@ -398,8 +380,8 @@ mod tests {
             ("Pool", ReadMode::Auto),
             ("", ReadMode::Auto),
         ] {
-            // SAFETY-adjacent: this test owns the variable for its duration. It is the only
-            // test that touches it, and the others construct `ReadMode` directly.
+            // This test owns the variable: no other test reads it, and the rest construct
+            // `ReadMode` directly.
             std::env::set_var("WTPACS_READ_PATH", value);
             assert_eq!(ReadMode::from_env(), want, "WTPACS_READ_PATH={value:?}");
         }
@@ -407,8 +389,8 @@ mod tests {
         assert_eq!(ReadMode::from_env(), ReadMode::Auto, "unset");
     }
 
-    /// **The arm's whole point.** A session that never misses never builds a ring, so on a
-    /// hit-dominated workload this change is inert by design rather than by configuration.
+    /// **The arm's whole point**: a session that never misses never builds a ring, so on a
+    /// hit-dominated workload the change is inert by design rather than by configuration.
     #[test]
     #[cfg(feature = "uring")]
     fn lazy_ring_is_not_built_when_every_read_hits() {
@@ -433,11 +415,9 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// **The container trap.** Where `RWF_NOWAIT` is refused, every read reports a miss
-    /// because the flag is refused and not because the bytes are cold. A ring keyed on the
-    /// shortfall alone would be built on the first ask and then serve every *warm* read —
-    /// the `uring` arm, measured +131 to +142% on hits. The gate is `nowait_supported`, so
-    /// no ring appears here at all.
+    /// **The container trap**: where `RWF_NOWAIT` is refused every read reports a miss, so
+    /// a ring keyed on the shortfall alone would then serve every *warm* read. The gate is
+    /// `nowait_supported`, so no ring appears here at all.
     #[test]
     #[cfg(feature = "uring")]
     fn lazy_ring_is_never_built_without_nowait() {
@@ -460,9 +440,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// The prefix from the inline read plus the remainder from the ring is the frame —
-    /// mirroring the existing `spawn_blocking` composition test in `frame_store`, on the
-    /// path that replaces it.
+    /// The prefix from the inline read plus the remainder from the ring is the frame.
     #[test]
     #[cfg(feature = "uring")]
     fn nowait_and_ring_compose_into_the_whole_frame() {
@@ -474,8 +452,7 @@ mod tests {
             std::fs::remove_dir_all(&dir).ok();
             return;
         }
-        // A real partial hit: the front of each window arrives inline, the rest must come
-        // from the ring, and the seam between them is where the offset arithmetic lives.
+        // A real partial hit: the seam between the two is where the arithmetic lives.
         store.force_short_reads(STRIDE / 3);
         let store = Arc::new(store);
         let rt = rt();
@@ -492,9 +469,8 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// The lab lever skips the inline probe entirely and reads every frame through the
-    /// ring. It is not a production mode; this pins that it works, so a layout experiment
-    /// measures the `uring` arm and not a broken one.
+    /// The lab lever reads every frame through the ring, so a layout experiment measures
+    /// the `uring` arm and not a broken one.
     #[test]
     #[cfg(feature = "uring")]
     fn the_uring_lever_serves_whole_frames_through_the_ring() {

@@ -1,19 +1,15 @@
-//! Lab-only helpers for arms and cell controls the product does not need.
-//!
-//! The `RWF_NOWAIT` reader itself is **not** here: the nowait arms call
-//! `FrameStore::read_at_nowait` / `read_at_blocking`, so the lab times the shipped product
-//! path rather than a second implementation of it.
+//! Lab-only helpers for arms and cell controls the product does not need. The `RWF_NOWAIT`
+//! reader is deliberately **not** among them — the nowait arms call `FrameStore`'s own, so
+//! the lab times the shipped path rather than a second implementation of it.
 
 use crate::study_map::host_page_size;
 use anyhow::{Context, Result};
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
 
-/// One-syscall populate of a mapped range (Linux 5.14+). Faults like a byte-per-page touch
-/// loop, so it belongs on a blocking pool, but spends no user time walking the range.
-///
-/// `madvise` rejects an unaligned start with `EINVAL`, and frames start mid-page, so the
-/// range is widened to whole pages — the same rounding `mincore` needs.
+/// One-syscall populate of a mapped range (Linux 5.14+). Faults like a touch loop, so it
+/// belongs on a blocking pool. Frames start mid-page and `madvise` rejects an unaligned
+/// start, hence the widening.
 pub fn populate_read(bytes: &[u8]) -> Result<()> {
     if bytes.is_empty() {
         return Ok(());
@@ -31,12 +27,9 @@ pub fn populate_read(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// Drop this process's page-table entries for a mapped range (`MADV_DONTNEED` on a private
-/// file mapping does not touch the page cache, only our mapping of it).
-///
-/// Needed to make a cold cell honest: `fadvise(DONTNEED)` refuses to evict page-cache pages
-/// that are still mapped, and parsing the SBND header drags read-ahead into the first
-/// frames. Unmap first, evict second.
+/// Drop this process's page-table entries for a mapped range — the page cache keeps its
+/// copy. A cold cell needs this first, because `fadvise(DONTNEED)` will not evict a page
+/// that is still mapped: unmap first, evict second.
 pub fn unmap_pages(bytes: &[u8]) -> Result<()> {
     if bytes.is_empty() {
         return Ok(());
@@ -57,20 +50,9 @@ pub fn unmap_pages(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// Ask the kernel to start read-ahead on a byte range it would not have guessed.
-///
-/// The `RWF_NOWAIT` fast path is only fast because kernel read-ahead has already pulled the
-/// next pages in, and read-ahead only fires on a pattern it can see. A reader taking the
-/// first *N* bytes of each frame and skipping the rest presents no such pattern, so every
-/// ask misses. `POSIX_FADV_WILLNEED` states the pattern instead of implying it: it queues
-/// the I/O and returns without copying anything, so it is safe on the executor.
-///
-/// **Layout-independent by construction.** It works on whatever order the bytes are already
-/// in, which is the point — a packer that groups related bytes would make it unnecessary,
-/// and until that exists this is the only lever that does not need one.
-///
-/// Advisory: the kernel may ignore it, and a hint issued too late is simply a wasted
-/// syscall. Never an error the caller must handle.
+/// Ask the kernel to read ahead on a range it would not have guessed — a strided reader
+/// shows no pattern, so every ask misses. Queues the I/O without copying, and is advisory,
+/// so it never fails. `docs/disk-layout/ACCESS-PATTERNS.md`.
 pub fn hint_willneed(file: &File, offset: u64, len: usize) {
     if len == 0 {
         return;

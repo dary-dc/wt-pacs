@@ -1,17 +1,7 @@
-//! Does this host's storage give the server its fast read path?
+//! Does this host's storage give the server its fast read path? Run it against the
+//! directory studies will be served from, before deploying: `docs/disk-access/DEPLOYMENT.md`.
 //!
-//! The disk-access ADR (`docs/disk-access/adr.md`) streams frame bytes with
-//! `preadv2(RWF_NOWAIT)` so a cold read returns short instead of parking a Tokio worker.
-//! **ext4 honours the flag; overlayfs and tmpfs refuse it** (`EOPNOTSUPP`), and a container's
-//! own root filesystem *is* overlayfs. Where the flag is refused the server stays correct
-//! but falls back to one pooled `pread` per frame — measurably slower, and silently so.
-//!
-//! Run this against the directory studies will actually be served from, before deploying.
-//! Exit status is the answer, so it can gate a rollout:
-//!
-//!   0  fast path available
-//!   1  fast path NOT available (remedy printed)
-//!   2  could not determine (bad path, permissions)
+//! Exit status is the answer, so it can gate a rollout: 0 fast path, 1 fallback, 2 unknown.
 
 use anyhow::{Context, Result};
 use exact_server::media::frame_store::nowait_supported_at;
@@ -50,9 +40,7 @@ fn report(target: &Path) -> Result<bool> {
     println!("path            {}", target.display());
     println!("filesystem      {}", fstype.as_deref().unwrap_or("unknown"));
     if let Some(kb) = read_ahead_kb(target) {
-        // Not cosmetic: read-ahead is what protects sequential access under cache pressure,
-        // and the lab host's 8 MiB against Linux's 128 KiB default moved every measured
-        // miss rate (docs/disk-access/ACCESS-PATTERNS.md §4.1).
+        // Moves every measured miss rate: docs/disk-layout/ACCESS-PATTERNS.md §4.1.
         println!("read_ahead_kb   {kb}");
     }
     println!(
@@ -82,8 +70,8 @@ fn report(target: &Path) -> Result<bool> {
     Ok(supported)
 }
 
-/// Filesystem name for `path`, via `statfs` magic. Only the types this decision turns on are
-/// named; anything else is reported by its magic so it can be looked up rather than guessed.
+/// Filesystem name for `path`, via `statfs` magic. An unrecognised one is reported by its
+/// magic so it can be looked up rather than guessed.
 fn filesystem_type(path: &Path) -> Option<String> {
     use std::os::unix::ffi::OsStrExt;
     let c = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
@@ -92,9 +80,8 @@ fn filesystem_type(path: &Path) -> Option<String> {
     if unsafe { libc::statfs(c.as_ptr(), &mut buf) } != 0 {
         return None;
     }
-    // `f_type` is `__fsword_t` on glibc but a plain `u32` on musl and 32-bit targets, so the
-    // cast is what makes this compile everywhere — clippy only sees the one arch where it is
-    // already i64.
+    // `f_type` is `__fsword_t` on glibc but `u32` on musl and 32-bit targets; the cast is
+    // what makes this compile everywhere.
     #[allow(clippy::unnecessary_cast)]
     let magic = buf.f_type as i64;
     Some(match magic {
@@ -110,8 +97,8 @@ fn filesystem_type(path: &Path) -> Option<String> {
     })
 }
 
-/// `read_ahead_kb` for the block device behind `path`, if it has one (network and virtual
-/// filesystems do not). Best effort — its absence is not an error.
+/// `read_ahead_kb` for the block device behind `path`. Network and virtual filesystems have
+/// none, and that absence is not an error.
 fn read_ahead_kb(path: &Path) -> Option<String> {
     let meta = std::fs::metadata(path).ok()?;
     use std::os::unix::fs::MetadataExt;

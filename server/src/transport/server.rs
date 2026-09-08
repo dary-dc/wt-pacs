@@ -1,15 +1,9 @@
-//! FoD ask → envelope on server uni stream (Media-complete).
+//! FoD ask → envelope on a server uni stream.
 //!
-//! Serial loop: read one ask, send it to completion, read the next.
-//! No server-side ask queue — see docs/adr-reject-server-ordering.md.
-//!
-//! Per-frame work: [`pipeline::FramePipeline`] trait (product [`pipeline::ProductPipeline`] /
-//! lab [`pipeline::RecordedPipeline`]). See `docs/telemetry/adr-server-pipeline.md`.
-//!
-//! Frame bytes: streamed a window at a time straight from the page cache, inside the
-//! pipeline's `send` step — see `docs/disk-access/adr.md`. Nothing is faulted on the
-//! executor and nothing is copied into a whole-frame envelope; the session's window buffer
-//! is the only per-session allocation.
+//! Serial loop: read one ask, send it to completion, read the next. No server-side ask
+//! queue — `docs/adr-reject-server-ordering.md`. Per-frame work is the
+//! [`pipeline::FramePipeline`] trait; frame bytes are streamed a window at a time inside its
+//! `send` step, so the session's window is its only per-frame allocation.
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
@@ -40,12 +34,10 @@ pub struct ServeConfig {
     pub cert_pem: PathBuf,
     pub key_pem: PathBuf,
     pub mode: StreamMode,
-    /// Explicit bind address. `None` binds dual-stack `[::]` and falls back to `0.0.0.0` on a
-    /// host with no IPv6 stack (containers commonly lack one).
+    /// `None` binds dual-stack `[::]`, falling back to `0.0.0.0` where there is no IPv6.
     pub bind: Option<IpAddr>,
-    /// QUIC transport knobs. Each `None` keeps the library default (send window 10 MB per
-    /// connection, stream receive window 1.25 MB, idle timeout 30 s). The send window is the
-    /// number that scales with slow clients: it bounds unacknowledged bytes held per connection.
+    /// Each `None` keeps the library default: send window 10 MB per connection, stream
+    /// receive window 1.25 MB, idle timeout 30 s.
     pub transport: TransportKnobs,
 }
 
@@ -91,8 +83,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
 
-    // Lab builds: the report says what was served, so the two harvest files can be checked
-    // against each other without trusting a folder name.
+    // Lab builds: the report names what was served, so two harvest files can be matched up.
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
         stream_mode: config.mode.as_str(),
@@ -133,8 +124,8 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     }
 }
 
-/// Open the QUIC endpoint. Dual-stack any is the default; a host without an IPv6 stack refuses
-/// that socket (`Address family not supported`), so fall back to IPv4 any rather than not starting.
+/// Open the QUIC endpoint. A host without an IPv6 stack refuses the dual-stack socket, so
+/// fall back to IPv4 any rather than not starting.
 async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side::Server>, String)> {
     async fn identity(config: &ServeConfig) -> Result<Identity> {
         Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
@@ -219,7 +210,7 @@ async fn handle_incoming(
     let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out);
 
-    // Lab wrap only when env on — RecordedPipeline always holds a live Tap.
+    // Lab wrap only when the telemetry env is on — a RecordedPipeline always has a Tap.
     #[cfg(feature = "telemetry")]
     if let Some(tap) = Tap::for_session() {
         return run_session(
@@ -233,13 +224,10 @@ async fn handle_incoming(
     run_session(&mut product, control_send, control_recv).await
 }
 
-/// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
+/// Read one FoD ask → send that frame to completion → repeat. `EndSession` stops the loop.
 ///
-/// **One frame at a time, and that is the whole session's depth.** The next ask is not even
-/// read off the control stream until the current frame is on the wire, so a client that
-/// pipelines `RequestFrame` messages still gets served serially — its outstanding asks queue
-/// in the transport, not in the server. `RequestFrames` is the same shape by another route.
-/// See `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+/// **One frame at a time is the session's whole depth**: a client that pipelines asks still
+/// gets them served serially. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
 async fn run_session<P: FramePipeline>(
     pipeline: &mut P,
     mut control_send: SendStream,

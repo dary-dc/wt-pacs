@@ -1,20 +1,9 @@
-//! io_uring reader for the disk-access campaign.
-//!
-//! Three things make this workload awkward for io_uring, and the arms are shaped around
-//! them rather than around io_uring's usual benchmarks:
-//!
-//! * **Queue depth is 1 per session.** The session loop reads one ask and sends that frame
-//!   to completion before reading the next (`docs/adr-reject-server-ordering.md`), so there
-//!   is no natural batch. The only batching available inside one ask is the frame's own
-//!   windows — which is why `submit_frame` exists.
-//! * **`SINGLE_ISSUER` (and therefore `DEFER_TASKRUN`) is unusable.** Tokio's multi-thread
-//!   runtime migrates a task between workers across `.await`, so a per-session ring would
-//!   see submissions from different threads. Those are io_uring's two biggest throughput
-//!   knobs and a work-stealing runtime cannot have them. `COOP_TASKRUN` is kept; `SQPOLL`
-//!   is offered as a variant because it tolerates migration.
-//! * **Completions must be awaited, not waited on.** Blocking in `io_uring_enter` would
-//!   reintroduce exactly the executor stall the whole campaign is about, so the ring
-//!   registers an eventfd and the reader awaits it through Tokio's `AsyncFd`.
+//! io_uring reader for the disk-access campaign, shaped by three properties of this
+//! workload rather than by io_uring's usual benchmarks: serving depth is 1, so the only
+//! batch available is a frame's own windows (`submit_frame`); tokio migrates a task between
+//! workers, so `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable and `SQPOLL` is offered
+//! instead; and completions are awaited on an eventfd, never waited on in
+//! `io_uring_enter`. `docs/disk-access/IMPLEMENTATION.md`.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
@@ -22,11 +11,9 @@ use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use tokio::io::unix::AsyncFd;
 
-/// Registered buffer set plus the ring that reads into it.
-///
-/// Buffers are owned here so their addresses stay stable for `register_buffers`; the kernel
-/// writes into a buffer only between `submit_*` and the matching `complete`, and `buf()`
-/// refuses to hand out a slice while that is true.
+/// Registered buffer set plus the ring that reads into it. Buffers are owned here so their
+/// addresses stay stable for `register_buffers`, and `buf()` refuses to hand out a slice
+/// while the kernel owns one.
 pub struct UringReader {
     ring: IoUring,
     eventfd: AsyncFd<OwnedFd>,
@@ -38,7 +25,7 @@ pub struct UringReader {
 
 impl UringReader {
     /// `slots` buffers of `buf_len` bytes each. `fixed` registers the file and the buffers;
-    /// `sqpoll` starts a kernel submission thread so submits cost no syscall at all.
+    /// `sqpoll` starts a kernel submission thread so submits cost no syscall.
     pub fn new(
         file: &File,
         slots: usize,
@@ -49,10 +36,8 @@ impl UringReader {
         let entries = (slots.next_power_of_two() as u32).max(8);
         let mut builder = IoUring::builder();
         if sqpoll {
-            // Tolerates task migration where SINGLE_ISSUER does not, at the cost of a
-            // kernel thread spinning for `sq_thread_idle` after every submit. The kernel
-            // rejects COOP_TASKRUN alongside it (EINVAL) — with a kernel submitter there is
-            // no task work to defer — so the two knobs are mutually exclusive.
+            // The kernel rejects COOP_TASKRUN alongside SQPOLL (EINVAL), so the two knobs
+            // are mutually exclusive.
             builder.setup_sqpoll(200);
         } else {
             builder.setup_coop_taskrun();
@@ -99,9 +84,8 @@ impl UringReader {
         })
     }
 
-    /// How many slots this ring was built with. The pipelined arm needs it: the ring is
-    /// sized once, for the study's longest frame, and a depth taken from the frame in hand
-    /// could index past it.
+    /// How many slots this ring was built with — sized once for the study's longest frame,
+    /// so a depth taken from the frame in hand could index past it.
     pub fn slots(&self) -> usize {
         self.bufs.len()
     }
@@ -130,8 +114,7 @@ impl UringReader {
     }
 
     /// Queue a read into `slot` starting `at` bytes into the slot's buffer — how the hybrid
-    /// arm finishes a window that `RWF_NOWAIT` could only partly fill. A registered buffer
-    /// may be read into at any offset inside its registered range.
+    /// arm finishes a window that `RWF_NOWAIT` could only partly fill.
     pub fn push_at(
         &mut self,
         slot: usize,
@@ -163,16 +146,11 @@ impl UringReader {
     }
 
     /// Await the completion for one specific `slot`, draining anything else that lands
-    /// alongside it.
-    ///
-    /// `complete(n)` counts completions without caring which; that is enough for an arm
-    /// with one read outstanding, and wrong for one that submits a whole frame and wants
-    /// to write window 0 the moment window 0 arrives.
+    /// alongside it — what an arm that submits a whole frame needs, where `complete` is
+    /// enough for an arm with one read outstanding.
     ///
     /// Returns **1 if this read did not complete inline**, not the number of times it
-    /// parked — one read can take two trips round the eventfd before its CQE is visible,
-    /// and counting those would not compare with a `spawn_blocking` round trip, which is
-    /// what the campaign's hop column means.
+    /// parked, so the count compares with a `spawn_blocking` hop.
     pub async fn complete_slot(&mut self, slot: usize) -> Result<usize> {
         let mut parked = false;
         let mut freed = Vec::new();
@@ -204,8 +182,7 @@ impl UringReader {
         Ok(drained)
     }
 
-    /// Park on the registered eventfd. Never blocks in `io_uring_enter` — doing that would
-    /// reintroduce the executor stall the whole campaign is about.
+    /// Park on the registered eventfd rather than blocking in `io_uring_enter`.
     async fn park(&mut self) -> Result<()> {
         let mut guard = self
             .eventfd
@@ -232,21 +209,16 @@ impl UringReader {
         Ok(())
     }
 
-    /// Await `want` completions. Cached reads are usually already in the CQ when this is
-    /// called, so the common path takes no await at all.
-    ///
-    /// Returns the number of completions that had to wait on the eventfd — the io_uring
-    /// equivalent of a `spawn_blocking` hop, and the number the campaign compares.
+    /// Await `want` completions; a cached read is usually already in the CQ, so the common
+    /// path takes no await. Returns how many had to wait on the eventfd — the campaign's
+    /// equivalent of a `spawn_blocking` hop.
     pub async fn complete(&mut self, want: usize) -> Result<usize> {
         self.complete_into(want, &mut Vec::new()).await
     }
 
-    /// As [`complete`](Self::complete), but reports **which** slots came back.
-    ///
-    /// A caller holding several reads in flight needs this to refill a slot the moment its
-    /// read lands, instead of waiting for the whole batch. Draining in lockstep would make
-    /// every read in a batch appear to take as long as the slowest one, which measures the
-    /// caller's batching rather than the ring.
+    /// As [`complete`](Self::complete), but reports **which** slots came back, so a caller
+    /// holding several reads refills each as it lands. Draining in lockstep would measure
+    /// the caller's batching rather than the ring.
     pub async fn complete_into(&mut self, want: usize, freed: &mut Vec<usize>) -> Result<usize> {
         let mut done = 0usize;
         let mut waited = 0usize;
@@ -255,8 +227,7 @@ impl UringReader {
             if done >= want {
                 break;
             }
-            // Nothing ready: the read went to an io-wq worker. Park on the eventfd instead
-            // of spinning or blocking in `io_uring_enter`.
+            // Nothing ready: the read went to an io-wq worker.
             waited += 1;
             self.park().await?;
         }
@@ -264,17 +235,12 @@ impl UringReader {
     }
 }
 
-/// Registered-buffer geometry for a study whose frames vary in length.
+/// Registered-buffer geometry for a study whose frames vary in length: buffers are
+/// registered once and reused, so they must cover the study's **longest** frame, not the
+/// first one asked for.
 ///
-/// The buffers are allocated and registered once and then reused for every ask, so they
-/// have to cover the study's **longest** frame. Sizing them from whichever frame was asked
-/// for first reads past the buffer the moment a longer frame arrives — HTJ2K frames are
-/// variable length, so that is a matter of when, not whether. The campaign fixture is
-/// fixed-size (320 x 250 000 B), which is exactly why it never surfaced there.
-///
-/// Returns `(buf_len, slots)` for a frame batched window-by-window. Per frame the caller
-/// still computes `win = read_chunk.min(len).max(1)` and `windows = len.div_ceil(win)`;
-/// this upholds `win <= buf_len` and `windows <= slots` for every `len <= max_len`.
+/// Returns `(buf_len, slots)` for a frame batched window-by-window, upholding
+/// `win <= buf_len` and `windows <= slots` for every `len <= max_len`.
 pub fn ring_geometry(read_chunk: usize, max_len: usize) -> (usize, usize) {
     let buf_len = read_chunk.min(max_len).max(1);
     (buf_len, max_len.div_ceil(buf_len))
@@ -284,12 +250,9 @@ pub fn ring_geometry(read_chunk: usize, max_len: usize) -> (usize, usize) {
 mod tests {
     use io_uring::{opcode, IoUring};
 
-    /// `SINGLE_ISSUER` (and `DEFER_TASKRUN`, which requires it) are io_uring's two biggest
-    /// throughput knobs. Tokio's multi-thread runtime migrates a task between workers at
-    /// every `.await`, so a per-session ring is submitted from whichever worker resumed the
-    /// task. This test pins down what the kernel actually does about that — the campaign
-    /// claims the knobs are unavailable to a work-stealing runtime, and that claim should
-    /// come from the kernel, not from reading documentation.
+    /// The campaign claims io_uring's two biggest throughput knobs are unavailable to a
+    /// work-stealing runtime. That claim should come from the kernel, not from reading
+    /// documentation, so this submits from a migrated task and records what happens.
     #[test]
     fn single_issuer_and_a_second_submitting_thread() {
         let mut ring: IoUring = IoUring::builder()
@@ -328,11 +291,8 @@ mod tests {
         );
     }
 
-    /// Ring buffers are sized once and reused, so the geometry must hold for *every* frame
-    /// in the study, not the first one served. A study of variable-length frames (real
-    /// HTJ2K; `lab/fixtures/queue_large` runs 41 000-61 000 B) used to panic here —
-    /// `range end index 52000 out of range for slice of length 48000` — because the ring
-    /// was built from frame 0. This asserts the invariant the fix restores.
+    /// The geometry must hold for *every* frame in the study, not the first one served: a
+    /// ring built from frame 0 panicked on a study of variable-length frames.
     #[test]
     fn ring_geometry_covers_every_frame_not_just_the_first() {
         for &read_chunk in &[1usize, 4096, 65536, 1 << 20] {

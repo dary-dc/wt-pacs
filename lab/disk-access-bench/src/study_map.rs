@@ -1,9 +1,5 @@
-//! A study, plus the memory mapping the rejected mmap arms need.
-//!
-//! `server/` reads with `pread` and has no mapping, which is the decision
-//! `docs/disk-access/adr.md` records. The mmap arms are the comparison that produced that
-//! decision, so the mapping lives here — in the lab — where re-running the comparison is
-//! still possible without putting an unused mapping in the product.
+//! A study, plus the memory mapping the rejected mmap arms need. It lives here and not in
+//! `server/` because mmap lost: `docs/disk-access/adr.md`.
 
 use anyhow::{bail, Context, Result};
 use exact_server::media::frame_store::FrameStore;
@@ -12,10 +8,8 @@ use std::ops::Deref;
 use std::path::Path;
 use std::sync::OnceLock;
 
-/// A `FrameStore` with a mapping over the same file.
-///
-/// `Deref`s to the store, so every `pread` arm calls it exactly as the product does and
-/// only the mmap arms reach for `frame_slice`.
+/// A `FrameStore` with a mapping over the same file. `Deref`s to the store, so a `pread`
+/// arm calls it exactly as the product does and only the mmap arms reach for `frame_slice`.
 pub struct StudyMap {
     store: FrameStore,
     mmap: Mmap,
@@ -60,9 +54,7 @@ impl Deref for StudyMap {
     }
 }
 
-/// Host page size from `sysconf(_SC_PAGESIZE)`, fallback 4096.
-///
-/// Only the mmap arms need it — page alignment for `madvise`, `mincore` and friends.
+/// Host page size from `sysconf(_SC_PAGESIZE)`, fallback 4096. Only the mmap arms need it.
 pub fn host_page_size() -> usize {
     static PAGE: OnceLock<usize> = OnceLock::new();
     *PAGE.get_or_init(|| {

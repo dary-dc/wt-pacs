@@ -1,31 +1,9 @@
-//! Controlled page-cache residency — the instrument the miss-ratio cells need.
+//! Controlled page-cache residency — the instrument the miss-ratio cells need. A cell's
+//! miss set is chosen, applied and then *verified*, so a cell that did not achieve the mix
+//! it asked for aborts rather than reporting under the wrong label.
 //!
-//! The campaign this extends had two temperatures: warm (every ask hits) and cold (every
-//! page evicted, then read-ahead decides how many asks actually miss). Neither can answer
-//! "what happens at 60% misses", and cold-forward is not even miss-dominated — 6 of 320
-//! asks paid a hop, because read-ahead served the rest.
-//!
-//! Here the miss set is chosen, applied and then *verified*: a cell that did not achieve
-//! the mix it asked for aborts rather than reporting a number under the wrong label.
-//!
-//! Order matters, and each step exists because the one before it is not enough:
-//!
-//! 1. `MADV_DONTNEED` the mapping — `fadvise(DONTNEED)` will not evict a page that is
-//!    still mapped, and `FrameStore::open` maps the whole file.
-//! 2. `fadvise(DONTNEED)` the file — now everything is evictable, and evicted.
-//! 3. `pread` the hit set through a **`FADV_RANDOM`** descriptor — page cache only; our
-//!    mapping's PTEs stay absent, which is what the `pread`/io_uring arms under test
-//!    would see anyway. The hint is not cosmetic: this host reads ahead 8 MB
-//!    (`/sys/block/vda/queue/read_ahead_kb`, 64x the usual 128 KB), so warming one frame
-//!    drags in the next ~32 — enough to leave a 50% miss set 90% resident.
-//! 4. `fadvise(DONTNEED)` the miss set's byte ranges — belt and braces for whatever the
-//!    hint did not prevent.
-//! 5. `mincore` every frame and check the two sets separately.
-//!
-//! Step 4 alone is not a substitute for step 3: `fadvise(DONTNEED)` refuses to evict a
-//! good fraction of freshly read-ahead pages no matter how many times it is called
-//! (measured: 0.90 resident, then 0.63 after one pass and 0.63 after five). Prevent the
-//! read-ahead; do not try to undo it.
+//! The order of [`apply`] is load-bearing and each step is there because the one before it
+//! is not enough: `docs/disk-access/RERUN-miss.md` §The instrument.
 
 use crate::study_map::{host_page_size, StudyMap};
 use anyhow::{Context, Result};
@@ -41,9 +19,8 @@ pub struct MixPlan {
 }
 
 impl MixPlan {
-    /// Spread the miss set through the region rather than clustering it: a run of
-    /// consecutive misses is a read-ahead cell in disguise, and would flatter every arm
-    /// that streams windows.
+    /// Spread the miss set through the region: a run of consecutive misses is a read-ahead
+    /// cell in disguise, and flatters every arm that streams windows.
     pub fn build(frames: &[u32], mix: f64, seed: u64) -> Self {
         let mut order: Vec<u32> = frames.to_vec();
         let mut state = seed ^ 0x9E37_79B9_7F4A_7C15;
@@ -64,13 +41,10 @@ impl MixPlan {
     }
 }
 
-/// What the residency check actually found, so a cell can be judged on its achieved mix
-/// rather than the one it asked for.
-///
-/// `achieved` is counted from `mincore`, not from the plan: a frame counts as a miss when
-/// less than half of it is resident. `hit_resident` / `miss_resident` are the means of the
-/// two sets and are the real quality check — a miss set at 0.03 is the inward page
-/// rounding, a miss set at 0.4 means the eviction did not take and the cell is void.
+/// What the residency check found, so a cell is judged on its achieved mix and not the one
+/// it asked for. `achieved` is counted from `mincore`: a frame misses when less than half of
+/// it is resident. The two `_resident` means are the quality check — 0.03 on the miss set is
+/// the inward page rounding, 0.4 means the eviction did not take and the cell is void.
 pub struct MixReport {
     pub target: f64,
     pub achieved: f64,
@@ -78,12 +52,9 @@ pub struct MixReport {
     pub miss_resident: f64,
 }
 
-/// Page-aligned byte range of a frame, rounded **inward**.
-///
-/// A 250 000 B frame is 61.04 pages, so frames share boundary pages with their
-/// neighbours. Rounding inward when evicting is what keeps a miss frame from taking its
-/// hit neighbour's first page with it; the cost is that up to one page at each end of a
-/// run stays resident, which the report shows rather than hides.
+/// Page-aligned byte range of a frame, rounded **inward** — frames share boundary pages, so
+/// rounding outward would evict a hit neighbour's first page. The cost is up to one page at
+/// each end of a run staying resident, which the report shows rather than hides.
 fn inward(offset: u64, len: u64, page: u64) -> Option<(u64, u64)> {
     let start = offset.div_ceil(page) * page;
     let end = (offset + len) / page * page;
@@ -106,8 +77,7 @@ fn fadvise_range(fd: i32, offset: u64, len: u64) -> Result<()> {
 }
 
 /// Fraction of a frame's pages resident in the page cache, via `mincore` on the study
-/// mapping. Reports the page cache, not our page tables — which is why step 1 unmapping
-/// the region does not blind it.
+/// mapping. Reports the page cache and not our page tables, so unmapping does not blind it.
 fn frame_residency(store: &StudyMap, idx: u32) -> Result<f64> {
     let slice = store.frame_slice(idx)?;
     if slice.is_empty() {
@@ -127,10 +97,8 @@ fn frame_residency(store: &StudyMap, idx: u32) -> Result<f64> {
     Ok(vec.iter().filter(|b| *b & 1 != 0).count() as f64 / n as f64)
 }
 
-/// Put the study's page cache into the state `plan` describes, then prove it.
-///
-/// `unmap` is the mapping's whole data region (step 1) — the caller owns it because
-/// `data_span` needs the same reasoning the cold cell uses.
+/// Put the study's page cache into the state `plan` describes, then prove it. `unmap` is the
+/// mapping's whole data region.
 pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Result<MixReport> {
     let page = host_page_size() as u64;
     crate::candidate_access::unmap_pages(unmap)?;
@@ -139,10 +107,9 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
     let fd = file.as_raw_fd();
     fadvise_range(fd, 0, 0)?;
 
-    // Hit set: read it in through a descriptor of our own, hinted `RANDOM` so the kernel
-    // does not read ahead into the miss set. `pread` and not a mapped touch, because the
-    // arms under test read through a file descriptor and that is the cache state they
-    // will meet. The arms keep their own descriptors and their own default read-ahead.
+    // Hit set: read through a descriptor of our own, hinted `RANDOM` so the kernel does not
+    // read ahead into the miss set. Preventing that read-ahead is what makes the mix hold —
+    // evicting it afterwards does not work (`docs/disk-access/RERUN-miss.md`).
     let warm = std::fs::File::open(path).with_context(|| format!("open {}", path.display()))?;
     let rc = unsafe { libc::posix_fadvise(warm.as_raw_fd(), 0, 0, libc::POSIX_FADV_RANDOM) };
     if rc != 0 {
@@ -159,9 +126,8 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
             .with_context(|| format!("warm frame {idx}"))?;
     }
 
-    // Miss set: undo the read-ahead the hit set just dragged in. Consecutive miss frames
-    // are merged into one range first, so an interior boundary page is evicted too and
-    // only the ends of a run pay the inward rounding.
+    // Miss set: consecutive frames are merged into one range first, so an interior boundary
+    // page is evicted too and only the ends of a run pay the inward rounding.
     let mut runs: Vec<(u64, u64)> = Vec::new();
     for &idx in &plan.miss {
         let FrameSpan { offset, len } = store.frame_span(idx)?;
@@ -177,8 +143,7 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
         }
     }
 
-    // Count the achieved mix from `mincore`, not from the plan — the plan is the request,
-    // and the point of this step is that a request can fail silently.
+    // From `mincore`, not from the plan: the plan is a request, and it can fail silently.
     let survey = |set: &[u32]| -> Result<(f64, usize)> {
         let mut acc = 0.0;
         let mut cold = 0usize;
