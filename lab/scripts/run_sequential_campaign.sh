@@ -37,7 +37,7 @@ n=${#ARMS[@]}
 for ((r = 0; r < ROUNDS; r++)); do
   rot=(); for ((i = 0; i < n; i++)); do rot+=("${ARMS[$(( (i + r) % n ))]}"); done
   arms=$(IFS=,; echo "${rot[*]}")
-  L="x15r$r"
+  L="x15_r$r"
   # Every reader streams 8 MB per cell whatever the ask size, so cells compare bytes for bytes.
   emit "$STABLE"   "$L" --arms "$arms"  --size 16384  --stride 16384  --asks 512 --depths 1,4,16 --readers 1,8,64 --temps cold,warm
   emit "$UNSTABLE" "$L" --arms tokio_fs --size 16384  --stride 16384  --asks 512 --depths 1,4,16 --readers 1,8,64 --temps cold,warm
