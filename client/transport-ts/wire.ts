@@ -3,6 +3,8 @@
 export type FodMsg =
   | { op: "request_frame"; frame: number }
   | { op: "request_frames"; frames: number[] }
+  | { op: "stream_frames"; from?: number; to?: number }
+  | { op: "end_stream" }
   | { op: "end_session" }
   | { op: "frame_error"; frame_index: number; reason?: string };
 

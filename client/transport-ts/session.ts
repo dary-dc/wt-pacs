@@ -214,6 +214,27 @@ export class TransportSession {
     return out;
   }
 
+  /** `{}` on the wire is the whole study. `waitLast` arms waiters through that index. */
+  startStreamFrames(waitLast: number, range?: { from?: number; to?: number }): number {
+    if (this.bulkPending.size > 0) throw new Error("startStreamFrames: previous bulk still pending");
+    const from = range?.from ?? 0;
+    const last = range?.to ?? waitLast;
+    if (last < from) throw new Error("startStreamFrames: to < from");
+    const askMs = performance.now();
+    for (let i = from; i <= last; i++) {
+      this.bulkPending.set(i, this.armWaiter(i));
+    }
+    const msg: FodMsg = { op: "stream_frames" };
+    if (range?.from !== undefined) msg.from = range.from;
+    if (range?.to !== undefined) msg.to = range.to;
+    void this.sendFod(msg);
+    return askMs;
+  }
+
+  async endStream() {
+    await this.sendFod({ op: "end_stream" });
+  }
+
   stats() {
     return {
       inFlight: this.waiters.size,
