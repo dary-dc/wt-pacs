@@ -2,9 +2,13 @@
 
 **2026-09-08 · Proposed, not implemented.** The owners flagged `stream_codestream`
 (`server/src/transport/frame_out.rs`) and `ReadCtx::read` (`server/src/media/read_path.rs`)
-as badly shaped and asked whether the whole read path is. This is the answer: the fault is
-real and confined to that seam; the mechanism under it is small and measured. A reshaping is
-proposed below. Per `CLAUDE.md`, a structural change is proposed before it is built.
+as badly shaped and asked whether the whole read path is. The fault is real and confined to
+that seam; the mechanism under it is small and measured. Per `CLAUDE.md`, a structural change
+is proposed before it is built.
+
+Revised the same day after a second pass, which found that fault 1 has a live consequence,
+that the proposed call order loses the thing that was measured, and that the change is really
+two changes with different prerequisites.
 
 ## 1 · What is wrong, exactly
 
@@ -26,9 +30,16 @@ serve_batch ──for frame──▶ serve_one(frame, next) ──▶ send_frame
                           take_ahead = pos == 0 && ahead.span == span ◀─(4) intent decoded from coordinates
 ```
 
-1. **One value, two owners.** Both sides compute the window from the store. The transport
-   uses it to bound a write chunk, the read path to bound a read: two decisions, two reasons,
-   tied to one store property (`nowait`) that has nothing to do with writing.
+1. **One value, two owners — and it is a defect, not a smell.** Both sides compute the window
+   from the store. The transport uses it to bound a *write* chunk, the read path to bound a
+   *read*. They are two decisions with two reasons, and `read_window` answers only the
+   second: it returns the **whole frame** when `RWF_NOWAIT` is refused, deliberately, so a
+   container pays one pooled read per frame instead of one per window. The transport then
+   inherits that as its write chunk, so `ready.chunks(stride)` yields **one piece of the
+   whole frame** — a 250 KB uninterrupted executor copy, which is the shape
+   [`adr.md`](adr.md) rejected an arm for at **4.0 ms warm `gap_max`**. Unmeasured in the
+   server, reachable on exactly the deployment [`DEPLOYMENT.md`](DEPLOYMENT.md) already calls
+   the slow one.
 2. **One cursor, two owners.** The caller advances `pos`; the callee re-derives the offset and
    remainder from it. Neither layer owns the iteration over a frame, so neither reads alone.
 3. **Read-ahead threaded through every call.** `next` is an intent that applies once per
@@ -48,71 +59,133 @@ Below the seam:
    kernel writes into it; on the pool path the `Vec` is moved to the blocking thread and
    back. Same window, a different story depending on which fallback ran.
 
+Fixed since this was first written: `prepare()` carried an `async`, a `Result` and a refuse
+branch that no implementation could reach. It is now `fn prepare(&mut self, frame: u32)`.
+
 ## 2 · What is not wrong
 
 * **Efficiency.** A 16 KiB tile that hits is one `preadv2` and one `write_all`; a 250 KB frame
-  is four of each, deliberately — a whole-frame read measured a 4.0 ms executor gap. A miss is
-  one ring submission for the rest of the frame, and the bytes the probe already produced are
-  kept. The shipped path ties the lab arm on every column, is −45.4 % CPU against the pool on
-  16 KiB misses, and read-ahead by one added +73.8 % on missing tiles at a warm tie
-  ([`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Validated, `v36_readahead.tsv`). Nothing measured
-  is left on the table at this seam.
-* **The ring binding** (`uring_reader.rs`): ~200 lines, one job, a stated contract, a drop
-  that waits for the kernel, and two-slot completion demultiplexing that is right.
+  is four of each, deliberately. A miss is one ring submission for the rest of the frame, and
+  the bytes the probe already produced are kept. The shipped path ties the lab arm on every
+  column, is −45.4 % CPU against the pool on 16 KiB misses, and read-ahead by one added
+  +73.8 % on missing tiles at a warm tie ([`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Validated,
+  [`v36_readahead.tsv`](v36_readahead.tsv)). Nothing measured is left on the table here.
+* **The ring binding** (`uring_reader.rs`): one job, a stated contract, a drop that waits for
+  the kernel, and two-slot completion demultiplexing that is right.
 * **The store** (`frame_store.rs`): `read_at_nowait` and the `RWF_NOWAIT` probe are as simple
   as they should be.
 
 "The whole implementation is this bad" is not what the code shows. The problem is ~120 lines:
 one API and its one caller.
 
-## 3 · The proposal
+## 3 · Change A — the seam
 
-Move the loop into the read path; make the three intents explicit; let the transport know
-nothing about windows or cursors.
+**No `unsafe`, no ring change, and independent of P0**: the shape is the same whether the
+miss path is a ring or the pool, so this does not wait on the backend decision.
 
+Move the loop into the read path. The transport stops knowing about windows and cursors.
+
+```rust
+// server/src/media/read_path.rs
+impl ReadCtx {
+    /// Bytes of one frame, and the read of `next` started under them.
+    pub fn frame(&mut self, store: &Arc<FrameStore>, span: FrameSpan, next: Option<FrameSpan>)
+        -> FrameBytes<'_>;
+}
+
+impl FrameBytes<'_> {
+    /// The next piece, or `None` at the end of the frame. Each piece is at most one window.
+    pub async fn next(&mut self) -> Result<Option<&[u8]>>;
+}
 ```
-serve_batch ──for (frame, next)──▶ send_frame(span, next, ctx)
-                                       ctx.prefetch(next)                 ① once per frame, an explicit verb
-                                       write head
-                                       let mut frame = ctx.open(span)     ② takes the prefetched window if it is this frame
-                                       while let Some(piece) = frame.next().await? {
-                                           uni.write_all(piece).await?    ③ pieces arrive already window-sized
-                                       }
+
+```rust
+// server/src/transport/frame_out.rs
+uni.write_all(&head).await?;
+let mut bytes = ctx.frame(store, span, next);
+while let Some(piece) = bytes.next().await? {
+    uni.write_all(piece).await.context("write codestream")?;
+}
 ```
 
-* **`prefetch(next)`** replaces the `next` argument on every read. Called once, between
-  frames, where the batch loop already knows the next index. Keyed by frame index.
-* **`open(span)`** replaces `pos == 0`. It decides in one place whether the prefetched window
-  is this frame's, and abandons a wrong one there and nowhere else.
-* **`next()`** yields pieces until the frame is exhausted: one window on a hit; on a miss the
-  reader holds the rest of the frame and yields it window by window. The cursor lives inside
-  the frame reader only, and the transport never sees a read window size.
+Four notes an implementer needs, each of which is a way to get this wrong:
 
-One type owns a buffer and its slot, and its state says who holds it:
+* **`frame(span, next)`, not `prefetch(next)` then `open(span)`.** The +73.8 % came from this
+  order — adopt-or-start the current frame, *then* start the next, *then* wait — and calling
+  a separate `prefetch(next)` first inverts it, submitting the next frame's read ahead of the
+  one the client is waiting for. It also cannot compile the other way round: `FrameBytes`
+  borrows the `ReadCtx` for the loop, so nothing else can call into it in between. Both
+  problems disappear when the two intents arrive together, once per frame.
+* **Two chunk sizes, deliberately named.** Fault 1 is only fixed if the split is explicit:
+
+  | | today | after |
+  | --- | --- | --- |
+  | how much to ask the store for in one call | `stride` | whole frame where `RWF_NOWAIT` is refused — saves pool round trips |
+  | how much to hand the transport at a time | `stride` | always ≤ `READ_WINDOW` — bounds the executor copy |
+
+  Collapsing them again inside `FrameBytes` moves the defect rather than removing it.
+* **`next()` is a lending method, not a `Stream`.** `-> Result<Option<&[u8]>>` borrows the
+  reader for as long as the piece is used, which a `while let` loop satisfies and a `Stream`
+  impl cannot express without GATs. Do not try to make it one.
+* **The transport now accepts the reader's piece size**; it no longer chooses. That is one
+  owner rather than none, which is the point — but it does mean a future write path that
+  wants a different chunk (`write_chunk`, say) is a change in `FrameBytes`, not in the wire
+  loop.
+
+## 4 · Change B — the ownership
+
+**After P0**, and only if the ring survives it. One type owns a buffer and its slot, and its
+state says who holds it:
 
 ```
 Window { buf: Vec<u8>, slot: 0 | 1 }
 
    Idle(Window) ──start(ring or pool)──▶ InFlight(Window, Pending) ──settle──▶ Idle(Window)
-                                                  ▲
-                            the only state in which the kernel or the pool holds it;
-                            grow() exists only on Idle, so growing a busy window is a
-                            compile error rather than a SAFETY comment
 ```
 
-The pool path moves the whole `Window` to the blocking thread and back, so both fallbacks
-tell one ownership story; the ring's `start` takes the window, not an address. `WINDOWS` and
-`SLOTS` become one constant, because a window *is* its slot.
+The headline is not "fewer concepts". It is that two of the read path's safety obligations
+stop being obligations:
 
-## 4 · What it buys, what it costs, how it is checked
+* **`UringReader::start` stops being an `unsafe fn`.** Its contract today — "valid, unmoved,
+  unaliased until `finish`" — is pushed onto the caller and honoured by a comment. If the
+  ring takes the `Window` by value while the kernel holds it, ownership discharges the
+  contract; only the internal re-submit of a partial read stays unsafe.
+* **`ReadCtx::drop`'s explicit drain becomes unnecessary.** It exists so the guarantee does
+  not depend on field declaration order. A ring that owns its in-flight windows drops,
+  drains, and releases them in that order by construction.
+
+`grow()` exists only on `Idle`, so growing a busy window becomes a compile error rather than
+a `SAFETY` note. The pool path moves the whole `Window` to the blocking thread and back, so
+both fallbacks tell one ownership story. `WINDOWS` and `SLOTS` become one constant, because a
+window *is* its slot.
+
+## 5 · Cost, checks and collisions
 
 | | |
 | --- | --- |
-| Buys | fewer concepts; the read-ahead invariant visible in the API instead of a comment; one loop instead of one loop split across two modules; the busy-window rule enforced by the type |
-| Costs | a refactor of about the same line count; no new mechanism, no new measurement |
-| Check | the ten `read_path` tests and two `uring_reader` tests are the specification and stay; then `read_campaign --arms product,product_ahead` on the sweep and stride shapes, which must tie the current numbers |
-| Not touched | `frame_store.rs`, the ring's submit/reap/park, `pipeline.rs`, the wire format |
+| Buys (A) | one loop instead of one split across two modules; the read-ahead intent visible in the API; fault 1's container defect fixed by construction |
+| Buys (B) | one fewer `unsafe fn`, one fewer drop-order obligation, one constant instead of two |
+| Costs | roughly the same line count, no new mechanism, no new measurement |
+| Also moves | `lab/disk-access-bench/src/bin/read_campaign.rs` — the `product` and `product_ahead` arms call `ctx.read` directly, so the API change lands there too, and they are also the check |
+| Not touched | `frame_store.rs`, the wire format, `pipeline.rs` beyond its `next` translation |
 
-Status: **proposed**. Build it as one change against those tests, after P0 has said whether the
-ring stays — the seam is the same either way, but the ring branch of `Window` is not worth
-polishing the week before it might be deleted.
+**Checks, in order.** The ten `read_path` tests and two `uring_reader` tests are the
+specification: their assertions stay, their harness moves with the API. Then
+`a_batch_arrives_whole_and_in_ask_order` (the end-to-end wire test) and
+`streamed_bytes_match_the_envelope_they_replaced`, which together say the bytes did not
+change. One test to **add** with A: a 250 KB frame on a store with `force_pool_reads`,
+asserting every piece is ≤ `READ_WINDOW` — that pins fault 1 as fixed rather than
+fixed-by-accident.
+
+**Then measure, interleaved.** Build the pre-refactor binary in a `git worktree` and alternate
+arms within each round; a sequential before/after already produced a wrong answer in this
+project (+8.1 % on what was a tie). `read_campaign --arms product,product_ahead` on the sweep
+and stride shapes, paired with `lab/scripts/pair_arms.py`, must tie.
+
+**Two collisions to sequence.** P1 (park on the ring fd, drop the eventfd) rewrites the same
+file as B and was costed against today's binding — land them together or order them
+explicitly. And [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
+§6d, the session-loop change, is the other caller of this seam: doing A first leaves it one
+`ctx.frame(span, next)` call site to feed, whereas doing it second means redoing A against it.
+
+Status: **A is proposed and unblocked. B is proposed and waits for P0.**
