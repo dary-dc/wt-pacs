@@ -75,9 +75,8 @@ export type ClientFrameRow = {
   chunks: number;
   stall: null;
   /**
-   * Long-task time overlapping [ask, close] — main-thread busy while this row's stamps
-   * were pending. Non-zero means the stamps may be late by up to this much; the row is
-   * excluded from distributions and headlines.
+   * Long-task time overlapping [ask, close]: non-zero means the stamps may be late by up to
+   * this much, and the row is excluded from distributions and headlines.
    */
   main_thread_busy_us: number;
   binding_term: string | null;
@@ -167,15 +166,9 @@ export type TelemetryReport = {
       max_serve_plus_path_us: number | null;
       first_of_burst_serve_plus_path_us: number | null;
     };
-    /**
-     * The earliest ask of the run, by ask time — excluded from every mean and headline.
-     * Warm-up lands on it (first stream, server cold pages), whatever its frame index.
-     */
+    /** The run's earliest ask: warm-up lands on it, so no mean or headline includes it. */
     first_ask_row: ClientFrameRow | null;
-    /**
-     * Fill rows share one gesture and one ask stamp, so their `queue` is one number, not a
-     * distribution. Reported here once; `distributions.queue` covers interaction rows only.
-     */
+    /** Fill rows share one ask stamp, so their queue is one number, not a distribution. */
     fill_queue_us: number | null;
     /** Rows by how they ended (`closed_at`), over all rows including the first ask. */
     outcomes: Record<ClosedAt, number>;

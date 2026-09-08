@@ -13,11 +13,7 @@ export type ClockProbe = {
   probe_cost_us: number;
 };
 
-/**
- * Cheap resolution probe — running minimum, no sample array / sort.
- * Intended to run at finish() (or explicitly before install_t0), never in the
- * constructor on the connect path.
- */
+/** Running minimum, no sample array. Run it at finish(), never on the connect path. */
 export function probeClockResolution(iterations = 2_000): ClockProbe {
   const t0 = performance.now();
   let prev = t0;
@@ -47,10 +43,9 @@ function toSpan(entry: PerformanceEntry): LongTaskSpan {
 }
 
 /**
- * Watch Long Tasks (main-thread tasks over 50 ms). A `read()` that resolves during one is
- * stamped late by the browser being busy, not by the network — so each entry is kept with
- * its span and matched against rows at finish. `stop()` collects entries the observer has
- * not delivered yet (delivery is asynchronous) and disconnects.
+ * Watch Long Tasks: a `read()` resolving during one is stamped late by the browser, not by
+ * the network, so rows overlapping a span are excluded at finish. `stop()` also collects
+ * entries the observer has not delivered yet.
  */
 export function watchLongTasks(onSpan: (span: LongTaskSpan) => void): () => LongTaskSpan[] {
   try {

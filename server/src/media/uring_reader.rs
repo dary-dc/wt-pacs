@@ -1,17 +1,9 @@
-//! io_uring for the miss path, and only the miss path.
+//! io_uring for the miss path, and only the miss path — a page-cache hit is served inline.
 //!
-//! A page-cache hit never reaches here — it is served inline, and faster than a ring read
-//! would serve it. What the ring removes is the thread-pool round trip a *miss* would
-//! otherwise pay. The measurements, and why the buffers are deliberately not registered:
-//! `docs/disk-access/IMPLEMENTATION.md`.
-//!
-//! Two constraints explain why this looks nothing like a typical io_uring example:
-//!
-//! * **`SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable.** Tokio migrates a task between
-//!   workers across `.await`, so a per-session ring sees submissions from several threads.
-//! * **Completions are awaited, never waited on.** Blocking in `io_uring_enter` would be
-//!   the executor stall this whole design exists to prevent, so the ring registers an
-//!   eventfd and parks on it.
+//! Two constraints shape this and are easy to undo by accident: tokio migrates a task
+//! between workers across `.await`, so `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable; and
+//! blocking in `io_uring_enter` would be the executor stall the design exists to prevent, so
+//! completions are awaited on a registered eventfd. `docs/disk-access/IMPLEMENTATION.md`.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
@@ -19,16 +11,12 @@ use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use tokio::io::unix::AsyncFd;
 
-/// How many drops had to wait for the kernel.
-///
-/// Test-only, and the only way the wait is observable: a read served from the page cache
-/// lands before a missing wait could be noticed.
+/// Counts the drops that had to wait for the kernel — the only way that wait is observable.
 #[cfg(test)]
 pub(crate) static DRAINED_ON_DROP: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 
-/// One session's ring. Exactly one read is ever in flight: the session loop serves a frame
-/// to completion before reading the next ask, so there is no deeper queue to fill.
+/// One session's ring, carrying at most one read at a time.
 pub struct UringReader {
     ring: IoUring,
     eventfd: AsyncFd<OwnedFd>,
@@ -38,8 +26,6 @@ pub struct UringReader {
 impl UringReader {
     /// Register `file` with the ring so submissions do not have to resolve it each time.
     pub fn new(file: &File) -> Result<Self> {
-        // Eight entries is the smallest the kernel will round to and seven more than this
-        // ever needs; the SQ is not where the memory goes.
         let ring = IoUring::builder()
             .setup_coop_taskrun()
             .build(8)
@@ -125,8 +111,8 @@ impl UringReader {
             .offset(offset)
             .build()
             .user_data(0);
-        // SAFETY: the caller's contract above keeps the buffer alive and unaliased until
-        // the completion is reaped.
+        // SAFETY: the caller's contract keeps the buffer alive and unaliased until the
+        // completion is reaped.
         self.ring
             .submission()
             .push(&entry)
@@ -176,11 +162,8 @@ impl UringReader {
 }
 
 impl UringReader {
-    /// Wait for the kernel to finish with the caller's buffer.
-    ///
-    /// Without this, dropping the future between submit and completion leaves the kernel
-    /// writing into memory about to be freed. Bounded by one device read, and only ever on
-    /// the teardown path: a reader that completed its reads has nothing in flight.
+    /// Wait for the kernel to finish with the caller's buffer, without which a drop between
+    /// submit and completion leaves it writing into freed memory.
     ///
     /// Idempotent, so an owner may call it early — [`ReadCtx`](crate::media::read_path)
     /// does, from its own `Drop`, so the guarantee does not depend on field order.
@@ -190,8 +173,7 @@ impl UringReader {
         }
         #[cfg(test)]
         DRAINED_ON_DROP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        // The one place this file blocks. The alternative is a use-after-free, and a hung
-        // wait means a hung device, which has stalled everything else already.
+        // The one place this file blocks; the alternative is a use-after-free.
         if self.ring.submitter().submit_and_wait(1).is_ok() {
             self.ring.completion().sync();
             while self.ring.completion().next().is_some() {}
@@ -211,18 +193,10 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    /// **The cancellation hazard, deterministically.** A session dropped between submit and
-    /// completion must not leave the kernel writing into memory that is about to be freed.
-    ///
-    /// Racing a `task.abort()` cannot test this reliably — and an earlier attempt did not
-    /// even terminate, because a ring read that completes inline never reaches a yield point
-    /// for the abort to land on. So the mid-flight state is built directly instead.
-    ///
-    /// Without a sanitiser this cannot *prove* the absence of a use-after-free — a read
-    /// served from the page cache lands before anything could observe the missing wait. So
-    /// the wait is made observable instead: [`DRAINED_ON_DROP`] counts the drops that had to
-    /// perform one, and this asserts the count moved. Under
-    /// `RUSTFLAGS="-Zsanitizer=address"` on nightly it becomes a memory check as well.
+    /// The mid-flight state is built directly rather than by racing `task.abort()`, which
+    /// cannot reach it: a ring read that completes inline never yields for the abort to land
+    /// on. Without a sanitiser the wait itself is the only observable, hence
+    /// [`DRAINED_ON_DROP`]. `docs/disk-access/IMPLEMENTATION.md` §Test plan.
     #[test]
     fn dropping_a_reader_mid_read_waits_for_the_kernel() {
         let dir = std::env::temp_dir().join(format!("wtpacs-ring-drop-{}", std::process::id()));
@@ -248,16 +222,14 @@ mod tests {
             std::fs::remove_dir_all(&dir).ok();
             return;
         };
-        // `buf` is declared before `reader` in this scope, so it drops *after* it — the
-        // same ordering `ReadCtx` gets by field declaration order, and the ordering that
-        // makes `Drop`'s wait meaningful.
+        // `buf` is declared before `reader`, so it drops after it — the ordering that makes
+        // the wait meaningful.
         let mut buf = vec![0u8; body.len()];
         // SAFETY: `buf` outlives `reader`, which is what this function's contract requires.
         unsafe { reader.submit_without_completing(&mut buf, 0) }.expect("submit");
         assert!(reader.in_flight, "the read was not left in flight");
 
         let before = DRAINED_ON_DROP.load(std::sync::atomic::Ordering::SeqCst);
-        // The wait happens here. If it hangs or panics, this test does not finish.
         drop(reader);
         assert_eq!(
             DRAINED_ON_DROP.load(std::sync::atomic::Ordering::SeqCst),

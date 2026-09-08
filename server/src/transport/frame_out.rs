@@ -1,11 +1,6 @@
-//! Wire seam: session-scoped outbound media (`FrameOut`).
-//!
-//! Opens shared or per-frame uni streams and writes length-prefixed envelopes. The
-//! codestream is **streamed** behind its header a window at a time — never assembled into
-//! a whole-frame buffer — so the only per-session allocation is one read window.
-//! See `docs/disk-access/adr.md`.
-//!
-//! The per-frame app story lives in [`super::pipeline`]; see `docs/telemetry/adr-server-pipeline.md`.
+//! Wire seam: session-scoped outbound media. Opens shared or per-frame uni streams and
+//! writes length-prefixed envelopes, streaming the codestream behind its header a window at
+//! a time rather than assembling a whole-frame buffer. `docs/disk-access/adr.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::ReadCtx;
@@ -29,8 +24,7 @@ pub(crate) enum FrameOut {
         connection: Connection,
         acks: JoinSet<()>,
     },
-    /// No connection, for tests that build a session without a QUIC endpoint. Sending
-    /// through it panics; it exists so session *construction* can be tested.
+    /// No connection: sending panics, so a test can build a session but not serve on it.
     #[cfg(test)]
     Detached,
 }
@@ -57,11 +51,8 @@ impl FrameOut {
         }
     }
 
-    /// Envelope header, then the codestream read straight onto the wire.
-    ///
-    /// `ctx` is the session's read state — one reusable window, and the ring if this
-    /// session has ever missed. The caller owns it so a session allocates one read window
-    /// for its whole life, not one per frame.
+    /// Envelope header, then the codestream read straight onto the wire. `ctx` is owned by
+    /// the caller, so a session allocates one read window for its life, not one per frame.
     pub(crate) async fn send_frame(
         &mut self,
         idx: u32,
@@ -105,10 +96,8 @@ impl FrameOut {
     }
 }
 
-/// The 8 bytes ahead of a frame's codestream: length prefix, then frame index.
-///
-/// Byte-for-byte what `frame_envelope::wrap` produced before the codestream was streamed
-/// instead of assembled — clients parse this, so it is pinned by a test.
+/// The 8 bytes ahead of a frame's codestream: length prefix, then frame index. Clients parse
+/// this, so a test pins it byte-for-byte to what `frame_envelope::wrap` produced.
 fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
     let envelope_len = (ENVELOPE_LEN as u32).saturating_add(codestream_len);
     let mut head = [0u8; 8];
@@ -133,9 +122,8 @@ async fn stream_codestream(
             .await?;
         pos += ready.len() as u32;
 
-        // A read that missed returns more than one window, but the writes stay window-sized:
-        // the window exists to bound how long the executor copies without yielding, and a
-        // bigger read does not have to mean a bigger copy.
+        // A miss returns more than one window; the writes stay window-sized, because the
+        // window bounds how long the executor copies without yielding.
         for piece in ready.chunks(stride) {
             uni.write_all(piece).await.context("write codestream")?;
         }
@@ -149,8 +137,7 @@ mod tests {
     use crate::media::frame_store::READ_WINDOW;
     use frame_envelope::{unwrap, wrap};
 
-    /// Streaming replaced `wrap()`, so the bytes on the wire have to be proven identical
-    /// to what the envelope builder used to produce — clients parse this, not the code.
+    /// Streaming replaced `wrap()`, and clients parse the bytes, not the code.
     #[test]
     fn streamed_bytes_match_the_envelope_they_replaced() {
         let codestream: Vec<u8> = (0..5000u32).map(|i| (i % 251) as u8).collect();
