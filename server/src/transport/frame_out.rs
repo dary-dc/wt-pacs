@@ -52,19 +52,21 @@ impl FrameOut {
     }
 
     /// Envelope header, then the codestream read straight onto the wire. `ctx` is owned by
-    /// the caller, so a session allocates one read window for its life, not one per frame.
+    /// the caller, so a session allocates its read windows once, not once per frame; `next`
+    /// is the frame after this one where the caller knows it, so its read can start early.
     pub(crate) async fn send_frame(
         &mut self,
         idx: u32,
         store: &Arc<FrameStore>,
         span: FrameSpan,
+        next: Option<FrameSpan>,
         ctx: &mut ReadCtx,
     ) -> Result<()> {
         let head = frame_head(idx, span.len);
         match self {
             Self::Shared { uni, .. } => {
                 uni.write_all(&head).await.context("write shared head")?;
-                stream_codestream(uni, store, span, ctx).await?;
+                stream_codestream(uni, store, span, next, ctx).await?;
             }
             Self::PerFrame { connection, acks } => {
                 let mut uni = connection
@@ -74,7 +76,7 @@ impl FrameOut {
                     .await
                     .context("open uni ready")?;
                 uni.write_all(&head).await.context("write head")?;
-                stream_codestream(&mut uni, store, span, ctx).await?;
+                stream_codestream(&mut uni, store, span, next, ctx).await?;
 
                 acks.spawn(async move {
                     let _ = uni.finish().await;
@@ -111,15 +113,13 @@ async fn stream_codestream(
     uni: &mut SendStream,
     store: &Arc<FrameStore>,
     span: FrameSpan,
+    next: Option<FrameSpan>,
     ctx: &mut ReadCtx,
 ) -> Result<()> {
     let stride = store.read_window(span.len);
     let mut pos = 0u32;
     while pos < span.len {
-        let at = span.offset + u64::from(pos);
-        let ready = ctx
-            .read(store, at, stride, (span.len - pos) as usize)
-            .await?;
+        let ready = ctx.read(store, span, pos, next).await?;
         pos += ready.len() as u32;
 
         // A miss returns more than one window; the writes stay window-sized, because the

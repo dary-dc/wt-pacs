@@ -139,7 +139,10 @@ measuring.
 
 ## 6b · Serving depth: the loop is depth 1, and the protocol says otherwise
 
-**Status: known limitation, not yet fixed. 2026-09-08.**
+**Status: half fixed, 2026-09-08.** `RequestFrames` now reads ahead by one and is depth 2;
+`RequestFrame` is still depth 1, because the session loop does not read the next ask until
+the frame in hand is on the wire. The read path carries the depth — what is left is the
+loop. [`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md) §Read ahead by one.
 
 `FodMsg::RequestFrame` is documented as "one frame per message (**depth = outstanding
 asks**)". The server does not realise that depth. `run_session` reads one ask, serves it to
@@ -186,11 +189,13 @@ ask first, on the grounds that FIFO already carries the client's priority. Readi
 while frame *n* is on the wire preserves FIFO delivery exactly. That is **pipelining, not
 reordering**, and nothing in that ADR speaks against it.
 
-What stands in the way is state, in two places:
+What stood in the way was state, in two places:
 
-1. **The session loop** awaits `serve_one` before reading the next ask.
-2. **`ReadCtx` holds one window and its ring one in-flight slot**, so even a concurrent loop
-   would serialise on the buffer.
+1. **The session loop** awaits `serve_one` before reading the next ask. *Still true* — this
+   is what keeps `RequestFrame` at depth 1.
+2. **`ReadCtx` held one window and its ring one in-flight slot**, so even a concurrent loop
+   would have serialised on the buffer. **Fixed**: two windows, two slots, one per frame in
+   flight.
 
 ### The shape to build, when it is built
 
@@ -211,7 +216,16 @@ Anything else would rebuild the `uring` arm's +131% on hits
 
 **This does not change the read arm.** At depth 1 `hybrid_lazyring` and `uring` tie; the
 choice between them only becomes interesting once this is built
-([`disk-access/v33_cross.tsv`](disk-access/v33_cross.tsv)).
+([`disk-access/v33_cross.tsv`](disk-access/v33_cross.tsv)) — and now that a batch runs at
+depth 2, that question is open again on a host bigger than 4 vCPU.
+
+### What it measured, once built
+
+The shipped `ReadCtx` driven both ways by `read_campaign`, one session, 12 interleaved
+repeats ([`disk-access/v36_readahead.tsv`](disk-access/v36_readahead.tsv)): **+73.8% asks/s,
+12/12, RESOLVED** on cold 16 KiB, p50 per frame −53.4%, and a **tie warm** — the result the
+design had to produce, since a session whose reads hit must pay nothing for a depth it never
+uses. 16 missing tiles: 1.14 ms → 0.62 ms.
 
 ## 6c · Server-driven streaming (not implemented)
 
