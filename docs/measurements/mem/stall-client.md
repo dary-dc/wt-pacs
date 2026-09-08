@@ -69,6 +69,26 @@ holding the connection and every receive stream open.
 > read 180 kB in the campaign and 198 kB in the send-path probe). The comparison stands; the
 > binary column stays so nobody rediscovers the question.
 
+> ### Re-measured after the 2026-09-08 source-policy pass
+>
+> That pass rewrote `send_one_frame`'s dispatch, retired the `Payload` enum and moved both
+> non-default send paths behind `--features lab`. The chunked path's whole saving is that it
+> does not copy, and **no test can see that property** — the wire is identical either way —
+> so the campaign was re-run on the cleaned tree at the published configuration
+> (N = 1/4/8/16, 3 repeats, default arm). Data:
+> [`stall_client_postcleanup.tsv`](stall_client_postcleanup.tsv).
+>
+> | | published | after the pass |
+> | --- | ---: | ---: |
+> | server per connection, shared | 180 kB | **185.3 kB** (r² 0.986) |
+> | server per connection, per-frame | 370 kB | **382.3 kB** (r² 0.983) |
+> | client per connection, shared | 2.20 MB | **2.24 MB** |
+> | client ratio, per-frame ÷ shared | 3.46× | **3.48×** |
+>
+> All four inside the run-to-run spread this section already documents. A reintroduced copy
+> would read in **megabytes** per connection, not hundreds of kilobytes — see §5. The
+> chunked path still moves rather than copies.
+
 **+11 % over the slow reader in shared mode.** The worry the ceilings exist for was
 `send_window` at 10 MB per connection. The measured exposure is **180 kB — 55× below it**,
 and the client would have to be *fifty times* more pathological before the ceiling became
