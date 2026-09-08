@@ -2,21 +2,53 @@
 //! workload rather than by io_uring's usual benchmarks: serving depth is 1, so the only
 //! batch available is a frame's own windows (`submit_frame`); tokio migrates a task between
 //! workers, so `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable and `SQPOLL` is offered
-//! instead; and completions are awaited on an eventfd, never waited on in
-//! `io_uring_enter`. `docs/disk-access/IMPLEMENTATION.md`.
+//! instead; and completions are awaited, never waited on in `io_uring_enter` — on a
+//! registered eventfd, or on the ring's own fd under [`Completion::RingFd`], which is one fd
+//! per ring instead of two (the `x14` arms). `docs/disk-access/IMPLEMENTATION.md`.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
 use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use tokio::io::unix::AsyncFd;
+use tokio::io::Interest;
+
+/// How a parked reader learns that a completion landed. Both are awaited through Tokio's
+/// `AsyncFd`, so neither blocks in `io_uring_enter`; they differ in what the reactor watches.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Completion {
+    /// A registered eventfd. Two fds per ring. What the product ships.
+    Eventfd,
+    /// The ring's own fd. One fd per ring. `io_uring_poll` reports the ring readable whenever
+    /// its CQ has entries, and every CQ post wakes the poll queue (`io_cqring_wake` →
+    /// `io_poll_wq_wake`, `io_uring/io_uring.c`, 6.18). For a ring without `DEFER_TASKRUN`
+    /// that queue is active from setup (`io_ring_ctx_alloc`: `if (!ctx->task_complete)
+    /// ctx->poll_activated = true`). Tokio's own io_uring driver parks this way — it
+    /// registers the ring fd with mio (`runtime/io/driver/uring.rs`).
+    RingFd,
+}
+
+/// The ring's descriptor, borrowed so `AsyncFd` can register it without owning the ring.
+struct RingFd(RawFd);
+
+impl AsRawFd for RingFd {
+    fn as_raw_fd(&self) -> RawFd {
+        self.0
+    }
+}
+
+enum Parker {
+    Eventfd(AsyncFd<OwnedFd>),
+    RingFd(AsyncFd<RingFd>),
+}
 
 /// Registered buffer set plus the ring that reads into it. Buffers are owned here so their
 /// addresses stay stable for `register_buffers`, and `buf()` refuses to hand out a slice
 /// while the kernel owns one.
 pub struct UringReader {
+    /// Declared before `ring` so it deregisters from the reactor before the ring fd closes.
+    parker: Parker,
     ring: IoUring,
-    eventfd: AsyncFd<OwnedFd>,
     bufs: Vec<Box<[u8]>>,
     in_flight: Vec<bool>,
     /// `false` when the file/buffers are not registered (the naive arm).
@@ -32,6 +64,18 @@ impl UringReader {
         buf_len: usize,
         fixed: bool,
         sqpoll: bool,
+    ) -> Result<Self> {
+        Self::with_completion(file, slots, buf_len, fixed, sqpoll, Completion::Eventfd)
+    }
+
+    /// As [`new`](Self::new), choosing how a parked reader is woken.
+    pub fn with_completion(
+        file: &File,
+        slots: usize,
+        buf_len: usize,
+        fixed: bool,
+        sqpoll: bool,
+        completion: Completion,
     ) -> Result<Self> {
         let entries = (slots.next_power_of_two() as u32).max(8);
         let mut builder = IoUring::builder();
@@ -64,20 +108,32 @@ impl UringReader {
             unsafe { ring.submitter().register_buffers(&iovecs) }.context("register_buffers")?;
         }
 
-        // SAFETY: `eventfd` returns an owned fd or -1.
-        let raw: RawFd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
-        if raw < 0 {
-            return Err(std::io::Error::last_os_error()).context("eventfd");
-        }
-        // SAFETY: `raw` is a fresh fd owned by nobody else.
-        let owned = unsafe { OwnedFd::from_raw_fd(raw) };
-        ring.submitter()
-            .register_eventfd(owned.as_raw_fd())
-            .context("register_eventfd")?;
+        let parker = match completion {
+            Completion::Eventfd => {
+                // SAFETY: `eventfd` returns an owned fd or -1.
+                let raw: RawFd =
+                    unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
+                if raw < 0 {
+                    return Err(std::io::Error::last_os_error()).context("eventfd");
+                }
+                // SAFETY: `raw` is a fresh fd owned by nobody else.
+                let owned = unsafe { OwnedFd::from_raw_fd(raw) };
+                ring.submitter()
+                    .register_eventfd(owned.as_raw_fd())
+                    .context("register_eventfd")?;
+                Parker::Eventfd(AsyncFd::new(owned).context("AsyncFd(eventfd)")?)
+            }
+            // Readable interest only: a ring is also "writable" whenever its SQ has room,
+            // which is always here, and registering that would wake the reactor for nothing.
+            Completion::RingFd => Parker::RingFd(
+                AsyncFd::with_interest(RingFd(ring.as_raw_fd()), Interest::READABLE)
+                    .context("AsyncFd(ring)")?,
+            ),
+        };
 
         Ok(Self {
+            parker,
             ring,
-            eventfd: AsyncFd::new(owned).context("AsyncFd(eventfd)")?,
             in_flight: vec![false; slots],
             bufs,
             fixed,
@@ -182,24 +238,32 @@ impl UringReader {
         Ok(drained)
     }
 
-    /// Park on the registered eventfd rather than blocking in `io_uring_enter`.
+    /// Park until the kernel reports a completion, rather than blocking in `io_uring_enter`.
     async fn park(&mut self) -> Result<()> {
-        let mut guard = self
-            .eventfd
-            .readable_mut()
-            .await
-            .context("eventfd readable")?;
-        let _ = guard.try_io(|inner| {
-            let mut sink = [0u8; 8];
-            // SAFETY: 8-byte read from an eventfd into a live local buffer.
-            let n =
-                unsafe { libc::read(inner.get_ref().as_raw_fd(), sink.as_mut_ptr() as *mut _, 8) };
-            if n < 0 {
-                Err(std::io::Error::last_os_error())
-            } else {
-                Ok(())
+        match &mut self.parker {
+            Parker::Eventfd(eventfd) => {
+                let mut guard = eventfd.readable_mut().await.context("eventfd readable")?;
+                let _ = guard.try_io(|inner| {
+                    let mut sink = [0u8; 8];
+                    // SAFETY: 8-byte read from an eventfd into a live local buffer.
+                    let n = unsafe {
+                        libc::read(inner.get_ref().as_raw_fd(), sink.as_mut_ptr() as *mut _, 8)
+                    };
+                    if n < 0 {
+                        Err(std::io::Error::last_os_error())
+                    } else {
+                        Ok(())
+                    }
+                });
             }
-        });
+            Parker::RingFd(ring) => {
+                // Readiness is edge-triggered and cleared here; the caller drains the CQ next
+                // and parks again if the wake carried nothing, which `io_uring_poll` allows.
+                // Tokio's readiness tick means a CQE posted after this clear is never lost.
+                let mut guard = ring.readable_mut().await.context("ring fd readable")?;
+                guard.clear_ready();
+            }
+        }
         Ok(())
     }
 
@@ -249,6 +313,56 @@ pub fn ring_geometry(read_chunk: usize, max_len: usize) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use io_uring::{opcode, IoUring};
+    use std::os::fd::FromRawFd;
+
+    /// The `x14` arms rest on one kernel fact: a reader parked on the ring's **own** fd is
+    /// woken when a CQE lands, exactly as one parked on a registered eventfd is. This pins
+    /// it down deterministically — the read is from a pipe nobody has written to yet, so it
+    /// cannot complete inline, and the writer only writes after the reader has parked.
+    #[test]
+    fn ring_fd_completion_wakes_a_parked_reader() {
+        let mut fds = [0i32; 2];
+        // SAFETY: `pipe` fills two fds or fails.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe");
+        // SAFETY: fresh fds, owned here and nowhere else.
+        let (rd, wr) = unsafe {
+            (
+                std::fs::File::from_raw_fd(fds[0]),
+                std::fs::File::from_raw_fd(fds[1]),
+            )
+        };
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let waited = rt.block_on(async move {
+            let mut r = super::UringReader::with_completion(
+                &rd,
+                1,
+                64,
+                true,
+                false,
+                super::Completion::RingFd,
+            )
+            .expect("ring on the pipe");
+            r.push(0, &rd, 0, 64).expect("push");
+            r.submit().expect("submit");
+            let writer = std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                use std::io::Write;
+                (&wr).write_all(&[0x5A; 64]).expect("write");
+            });
+            let waited = r.complete(1).await.expect("complete");
+            writer.join().unwrap();
+            assert!(r.buf(0).iter().all(|&b| b == 0x5A), "pipe bytes");
+            waited
+        });
+        assert!(
+            waited >= 1,
+            "the read completed without parking — the test proved nothing"
+        );
+    }
 
     /// The campaign claims io_uring's two biggest throughput knobs are unavailable to a
     /// work-stealing runtime. That claim should come from the kernel, not from reading
