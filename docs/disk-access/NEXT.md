@@ -47,11 +47,11 @@ p50 −53.4 %, **warm a tie** ([`v36_readahead.tsv`](v36_readahead.tsv),
 
 **Not built, and it is the loop, not the read path:** `run_session` still does not read the
 next ask until the current frame is on the wire, so a client that pipelines `RequestFrame`
-gets depth 1. The design — three options, the recommendation, the invariants, and the harness
-run that would show whether it worked — is written out in
+gets depth 1, and a fill has no message that can stop it mid-study. The design is
+[`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) and
 [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) **§6d**.
-Answer the question at the top of it before writing code: the win is already available to any
-client that sends `RequestFrames`.
+Fill (`StreamFrames` + `EndStream`) is why the reader task is required; pipelined
+`RequestFrame` is the other half of the same split.
 
 **And depth 2 is a first step, not the requirement.** The owners asked for depth 4 or more.
 [`v35_depth2.tsv`](v35_depth2.tsv) prices the ladder on this host: depth 2 is +67.4 % over

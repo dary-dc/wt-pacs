@@ -19,7 +19,7 @@ above one reader — [`IMPLEMENTATION.md`](IMPLEMENTATION.md), *Before rollout*.
 | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) | **The answer, checked 2026-09-08:** keep `io-uring` direct. Every candidate verified against current releases and the 6.18 kernel; one change proposed (park on the ring fd, drop the eventfd — `x14`), and the implementation proposals ranked |
 | [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) | **The other use case:** which reader server-driven streaming should use. Every candidate measured on consecutive reads, including tokio's own `fs::File` on its io_uring driver (`x15`) |
 | [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) | **Design review of the read/write seam**, proposed not implemented: what is wrong in `stream_codestream` ↔ `ReadCtx::read`, what is not, and the reshaping — a frame as a stream of pieces, an explicit `prefetch`, a window that owns its slot |
-| [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) | **Design proposal for iteration**: depth as two quantities, `RequestFrame` kept, `StreamFrames` + `Stop`, the reader task, W per use case, and the order to build in — around the seam the review settles |
+| [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) | **Design proposal for iteration**: two app modes (fill / on-demand), why fill needs a reader task, `StreamFrames` + `EndStream`, W per use case, and the order to build in — around the seam the review settles |
 
 The open question is **not** here — it is the disk layout, worth 17.6× against this path's
 2–4×: [`../disk-layout/`](../disk-layout/).
