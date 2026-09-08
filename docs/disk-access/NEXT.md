@@ -44,6 +44,16 @@ see [`SCALE-RUN.md`](SCALE-RUN.md).
   real one needs a live QUIC stream. Low risk, but the two can drift.
 * **Server-driven streaming is unbuilt** —
   [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6c.
+  When it is built, re-weigh tokio's io_uring `File::read` for *that* path only: streaming is
+  a sequential cursor read, so the "no positional read" objection does not apply. Costs to
+  weigh then: `--cfg tokio_unstable` in a production build, and one fd per streaming session
+  instead of one shared for the whole study.
+* **Recheck the runtime alternatives with network access.** The `tokio-uring`, `glommio`,
+  `monoio` and `compio` rows in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Alternatives are from
+  prior knowledge, not verified — this sandbox has no crates.io. The argument that rules them
+  out is architectural (they bring their own runtime; `wtransport`/`quinn` need tokio's
+  multi-thread one) and does not depend on their versions, but if one has since gained
+  multi-thread tokio compatibility that row should be reopened.
 
 ## Not parked — settled on this branch
 
