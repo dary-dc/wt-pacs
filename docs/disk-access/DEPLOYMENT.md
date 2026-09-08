@@ -7,11 +7,20 @@ That depends on the filesystem implementing the flag.
 **It is not implemented on overlayfs — which is what a container's own filesystem is.**
 
 The server does not fail there. `FrameStore::open` probes once, and where the answer is no
-it falls back to one pooled `pread` per frame. Correct, safe, and **measurably slower with
-no error in the logs** — the fallback arm measures 132.5 µs per frame against the accepted
-path's 48.4 µs on the validation host ([RERUN.md](RERUN.md) Cell 1). This is not a
-hypothetical: the *previous* campaign reached the wrong conclusion partly because it ran on
-overlayfs.
+it falls back to one pooled `pread` per frame — correct, safe, and **measurably slower**:
+132.5 µs per frame against the accepted path's 48.4 µs on the validation host
+([RERUN.md](RERUN.md) Cell 1). This is not a hypothetical: the *previous* campaign reached
+the wrong conclusion partly because it ran on overlayfs.
+
+Since 2026-09-08 it is at least not silent. The startup banner carries the answer, and the
+bad one also logs a warning:
+
+```
+read_fast_path=preadv2        # or pooled_pread + WARN
+```
+
+That is a runtime confirmation, not a substitute for the check below — by the time a process
+prints it, it is deployed.
 
 ## Check before you ship
 
@@ -139,4 +148,4 @@ sudo blockdev --setra 16384 /dev/<dev>            # 8 MiB, non-persistent
 | **Do** | Run `check-fastpath` against the study directory, inside the container, as a deploy gate |
 | **Don't** | `COPY` studies into the image, or write them to the container's own layer |
 | **Don't** | Put studies on tmpfs or `emptyDir: {medium: Memory}` |
-| **Don't** | Assume — the server degrades silently, so the check is the only signal |
+| **Don't** | Assume — check before deploying, and confirm `read_fast_path=preadv2` in the log |

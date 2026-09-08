@@ -97,6 +97,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("cert_sha256={cert_sha256}");
     println!("study={}", config.study_path.display());
     println!("frames={}", store.frame_count());
+    println!("read_fast_path={}", read_fast_path(&store));
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
     println!("bind={bound}");
@@ -122,6 +123,20 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
             }
         });
     }
+}
+
+/// Whether this study's filesystem gives the server `preadv2(RWF_NOWAIT)`, warning where it
+/// does not: the fallback is correct and ~2.5x slower per frame, and used to be visible only
+/// by running `check-fastpath`. `docs/disk-access/DEPLOYMENT.md`.
+fn read_fast_path(store: &FrameStore) -> &'static str {
+    if store.nowait_supported() {
+        return "preadv2";
+    }
+    warn!(
+        "RWF_NOWAIT is refused here (overlayfs or tmpfs?); every frame costs a blocking-pool \
+         round trip. See docs/disk-access/DEPLOYMENT.md"
+    );
+    "pooled_pread"
 }
 
 /// Open the QUIC endpoint. A host without an IPv6 stack refuses the dual-stack socket, so
