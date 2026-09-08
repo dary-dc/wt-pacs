@@ -131,6 +131,7 @@ real workload.
 | [`RERUN.md`](RERUN.md) | the instrument and its precision rules |
 | [`SCALE-RUN.md`](SCALE-RUN.md) | running the campaign on a real machine; run once, traps recorded |
 | [`RESEARCH-io-backends.md`](RESEARCH-io-backends.md) | brief for an agent with web access |
+| [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) | **its answer (2026-09-08):** keep `io-uring` direct; every candidate verified; one change proposed — park on the ring fd, drop the eventfd (`x14`) — and the implementation proposals ranked |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | the fast path does not exist on overlayfs, and the server degrades silently |
 
 ## 9 · Not done
