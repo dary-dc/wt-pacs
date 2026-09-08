@@ -158,16 +158,26 @@ different route — `serve_batch` is a `for` loop with an `.await`.
 
 ### What it costs
 
-16 tiles of 16 KiB, all missing the page cache
-([`disk-access/v32_depth.tsv`](disk-access/v32_depth.tsv)):
+16 tiles of 16 KiB, all missing the page cache. Depths 1, 4 and 16 are
+[`disk-access/v32_depth.tsv`](disk-access/v32_depth.tsv); **depth 2 — the only depth the
+shape below reaches — was measured on 2026-09-08**,
+[`disk-access/v35_depth2.tsv`](disk-access/v35_depth2.tsv), 12 interleaved repeats, paired
+by repeat:
 
-| | time until the last tile is served |
-| --- | ---: |
-| serial (today) | **1.2 ms** |
-| overlapped (depth 16) | **0.4 ms** |
+| | time until the last tile is served | vs serial |
+| --- | ---: | ---: |
+| serial (today) | **1.33 ms** | — |
+| **read ahead by one (depth 2)** | **0.78 ms** | **+67.4% asks/s, 12/12, RESOLVED** |
+| depth 4 | 0.57 ms | +125.8% RESOLVED |
+| depth 16 | 0.45 ms | +184.4% RESOLVED |
 
 Small in absolute terms on a local NVMe-class device; on storage with millisecond latency
 the same 16 tiles become tens of milliseconds, which is a visible stall on a zoom.
+
+Two things the depth-2 row settles. It collects **62% of what depth 16 offers**, which is
+the argument for stopping at two. And it costs *less* CPU per ask (41.8 µs against 53.3),
+while warm cells tie at every depth — so a session whose reads hit pays nothing for a depth
+it never uses.
 
 ### It is not forbidden — it is unbuilt
 
@@ -185,10 +195,19 @@ What stands in the way is state, in two places:
 ### The shape to build, when it is built
 
 **Read ahead by one — a double buffer — not N slots.** Two windows and two ring slots let the
-read of frame *n+1* overlap the send of frame *n*, which is where the latency goes. A general
-*N*-deep design costs a slot table, a completion demultiplexer and a much harder invariant for
-no measured extra win: the depth-4 and depth-16 numbers differ by far less than depth 1 and
-depth 4 do. Start at two, measure, and only go further if the measurement asks for it.
+read of frame *n+1* overlap the read *and* send of frame *n*, which is where the latency
+goes. A general *N*-deep design costs a slot table, a completion demultiplexer and a much
+harder invariant; the measurement above says the first step is worth 0.55 ms of the 0.88 ms
+available and the whole rest of the ladder the other 0.33 ms.
+
+**The overlap has to be two reads in flight, not one read against one write.** Submitting
+frame *n+1* only after frame *n*'s read completes leaves the device at depth 1 and collects
+none of the table above — that number is device queueing, not wire time.
+
+**A page-cache hit still never touches the ring.** The read ahead probes with
+`RWF_NOWAIT` first, exactly as an on-demand read does, and only a shortfall is submitted.
+Anything else would rebuild the `uring` arm's +131% on hits
+([`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md) §The trap).
 
 **This does not change the read arm.** At depth 1 `hybrid_lazyring` and `uring` tie; the
 choice between them only becomes interesting once this is built
