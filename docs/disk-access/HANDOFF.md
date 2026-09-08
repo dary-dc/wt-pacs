@@ -3,7 +3,7 @@
 Pick this up cold. Everything below is checkable; where a claim is not, it says so.
 
 **Branch:** `claude/disk-access-adr-validation-saz6m8` · `git rev-list --count origin/main..HEAD`
-= 50, 0 behind · working tree clean · tests green on default, `telemetry` and
+= 68, 0 behind · working tree clean · tests green on default, `telemetry` and
 `--no-default-features`.
 
 Read next: [`NEXT.md`](NEXT.md) for what is parked and in what order — its ordering was set
@@ -159,11 +159,13 @@ medians, so "stop at two" is where the *evidence* stopped, not where the require
 | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) | **the backend answer (2026-09-08):** keep `io-uring` direct; every candidate verified at its pinned version; **P0** decides ring-vs-pool on the production target, **P1** parks on the ring fd and drops the eventfd (`x14`) |
 | [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) | which reader server-driven streaming should use — settled on the shipped one reading forward; tokio's `fs::File` measured and rejected (`x15`) |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | the fast path, and the two ulimits that decide whether a ring is built |
+| [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) | **proposed, not built:** the read/write seam — change **A** (the frame loop moves into the read path, P0-independent) and change **B** (a window owns its ring slot, after P0) |
+| [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) | **proposed, not built:** depth as two quantities, `RequestFrame` kept, `StreamFrames` + `Stop`, W per use case, and the order to build in. Overlaps the review — see [`NEXT.md`](NEXT.md) §7 |
 | [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) | framing, serving depth §6b, streaming §6c, the loop change §6d |
 
 ## 9 · Not done
 
-* **Not merged to `main`.** 50 commits ahead, 0 behind, tests green.
+* **Not merged to `main`.** 68 commits ahead, 0 behind, tests green.
 * **No PR opened** — none was asked for.
 * Two ring cells at `readers=256 depth 2/4` were refused by `RLIMIT_MEMLOCK` on the
   workstation and are absent from `v34_scale.tsv`.
@@ -172,3 +174,26 @@ medians, so "stop at two" is where the *evidence* stopped, not where the require
   copy is measured.
 * `serve_batch`'s one-line look-ahead (`frames.get(i + 1)`) has no test of its own: the read
   path's use of it is covered, the wiring is not.
+* **A live defect is recorded and not fixed:** where `RWF_NOWAIT` is refused, the transport's
+  write chunk collapses to the whole frame. [`NEXT.md`](NEXT.md) §7, first item — it is the one
+  thing on that list that is not an improvement.
+* **Two design proposals overlap** and are pending a fold into one:
+  [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) and [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md).
+
+## 10 · Before touching the seam — the four ways to get it wrong
+
+Written out where they were found; repeated here only as pointers, because an implementer who
+starts at this file will otherwise not meet them until after the fact.
+
+1. **Change B and P1 rewrite the same file.** P1 (park on the ring fd) was costed against
+   today's `uring_reader.rs`; B reshapes its ownership. Land them together or order them
+   explicitly — [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) §5.
+2. **The lab arms are part of the API.** `read_campaign`'s `product` and `product_ahead` call
+   `ctx.read` directly, so a seam change lands in `lab/` in the same commit — and they are also
+   how it is checked.
+3. **Measure interleaved, against a `git worktree` build of the pre-change binary.** A sequential
+   before/after already produced +8.1 % on a tie here (§6.1). A refactor claimed to cost nothing
+   still has to show the tie.
+4. **The session loop is the seam's other caller.**
+   [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6d. Change
+   A first leaves it one `ctx.frame(span, next)` call site to feed; A second means redoing it.

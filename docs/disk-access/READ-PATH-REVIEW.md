@@ -10,6 +10,11 @@ Revised the same day after a second pass, which found that fault 1 has a live co
 that the proposed call order loses the thing that was measured, and that the change is really
 two changes with different prerequisites.
 
+> The loop, the messages and the depth *around* this seam are proposed separately in
+> [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md), which builds on the changes below. **The two
+> overlap and are pending a fold into one** — [`NEXT.md`](NEXT.md) §7. Read both before
+> implementing either.
+
 ## 1 · What is wrong, exactly
 
 ```
