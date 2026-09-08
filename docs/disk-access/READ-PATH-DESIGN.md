@@ -64,11 +64,16 @@ cannot become 4.
 `StreamFrames {}` is the fill we will implement first: the whole study. `from` and `to` stay
 on the message so a later range does not need a new type — omitted `from` is 0, omitted `to`
 is the last frame. **Current use is start-to-end only.** When the type is added, one comment
-on it says that. Seek and mid-session mode switch (fill, then on-demand, or a second
-`StreamFrames`) are **not specified yet**; do not invent them in the loop.
+on it says that.
 
-`EndStream` is not session-wide — that is `EndSession`. It only stops the fill the loop is
-reciting. Seek, when specified, is `EndStream` then `StreamFrames { from, to }`.
+**One rule covers seek and mode switch: a data request during a fill ends the fill** at the
+next frame boundary and is then served. A `RequestFrame` or `RequestFrames` puts the session
+back on demand; a second `StreamFrames` is a seek. The newest request is what the server is
+doing — the simplest thing a client can reason about, and the only rule under which the
+channel never holds a message the loop will not consume.
+
+`EndStream` is not session-wide — that is `EndSession`. It stops the fill and sends nothing
+after it.
 
 `StreamFrames` is the server reciting its own index. The client sent a range (or the
 defaults), not every index. The read path starts frames from that range; it does not invent
@@ -122,7 +127,8 @@ loop:
     current = recv()
     if current is StreamFrames:
         upcoming = the study index from..to, one frame at a time
-        between frames: try_recv → EndStream ends the fill; EndSession ends the session
+        between frames: try_recv → EndStream ends the fill; EndSession ends the session;
+                        any data request ends the fill and becomes `current`
     else:
         upcoming = the rest of a batch, or RequestFrame asks waiting in the channel
         serve(current, upcoming)
@@ -167,35 +173,50 @@ buffer is as tall as one frame.
 1000 sessions                          =  500 MB
 ```
 
-We have not run a thousand fills. If 500 MB is too much, the later fix is: keep each buffer
-at 64 KiB and take several disk trips per frame. Do not build that until a run says the
+We have not run a thousand fills. If 500 MB is too much, the later fix is a **vectored read
+into fixed 64 KiB blocks in one round trip** (`preadv`, or `Readv` on the ring) — not several
+disk trips per frame, which is the windowed escalation measured at a third of the throughput
+and superseded on 2026-09-07 ([`adr.md`](adr.md) §3). Do not build it until a run says the
 500 MB bites.
 
 ## 6 · Order of work, and what each step solves
 
-The final shape is what matters; the steps are just the order that gets there without
-measuring the wrong thing.
+**Fill is built on the read path that ships.** The double buffer is already fill's W of 2,
+`serve_one(frame, next)` already reads ahead, and `x15` showed this reader ties every
+alternative on a sequential stream at the device's rate. Change A stays valuable as the step
+that makes W a parameter for tiles; it does not gate fill, and fill gets measured on code
+that was validated rather than on a refactor that was not.
 
-| Step | Solves | Leaves |
-| --- | --- | --- |
-| **1. Change A** (review §3), W parametric, `upcoming` an iterator | the seam; fault 1's container defect; W can become more than 2 | W stays 2; single asks still depth 1 |
-| **2. `StreamFrames` + `EndStream`**, the reader task and channel (§6d B) | fill; on-demand pipelined asks get `min(pipelined, W)`; `EndStream` seen between frames | the value of W for tiles |
-| **3. W for tiles, measured** with the harness at client depths 2, 4, 8 against batches of the same size | the number | — |
-| **4. P0**, then change B and P1 together | whether the ring stays; the ownership; the eventfd | — |
+| Step | Solves | Size | Leaves |
+| --- | --- | --- | --- |
+| **0. Fault 1** — bound the write chunk at `READ_WINDOW` in `stream_codestream`, with the review's test | a 250 KB uninterrupted executor copy on the default container deployment | one line, one test | — |
+| **1. The reader task and channel** (§6d B), no new messages | pipelined `RequestFrame` gets `min(pipelined, W)`; control seen between frames | ~15 lines | fill has no message yet |
+| **2. `StreamFrames` + `EndStream`** on that loop, reciting `from..=to` through `serve_one`, with the rule in §2 | fill, seek, mode switch | ~30 lines of loop, two variants, client support | W stays 2 everywhere |
+| **3. Change A** (review §3), W parametric, `upcoming` an iterator | the seam; W can become more than 2 | ~120 lines rewritten | the number |
+| **4. W for tiles, measured** with the harness at client depths 2, 4, 8 | the number | a run | — |
+| **5. P0**, then change B and P1 together | whether the ring stays; the ownership; the eventfd | | — |
 
-Step 1 first because it is the only one that makes W a parameter, and because the loop then
-has one `ctx.frame(...)` call site to feed. Step 3 before step 4 because W is worth measuring
-on the shipped mechanism, and P0 decides on the target, not on this host.
+Steps 0–2 are this week's, in that order. Step 3 waits until step 4 is wanted, because W
+above 2 is the only thing it unlocks. Step 5 decides on the target, not on this host.
 
 **Checks** are the review's: the twelve read-path and ring tests as the specification, the
 two wire tests for the bytes, one new test pinning the write chunk at `READ_WINDOW` on a
 `force_pool_reads` store, and every measurement interleaved against a worktree build.
 
+**Two measurements prove steps 1 and 2, and nothing else is measured this week.** The harness
+pipelining `RequestFrame` at depth 4 before and after step 1, interleaved: miss-dominated
+cells move toward the batch path's +73.8 % ([`v36_readahead.tsv`](v36_readahead.tsv)), warm
+cells tie. And a `StreamFrames` fill on the 1 GiB fixture against the campaign's `product`
+arm going forward: the reference is `x15`, ~3 µs per 16 KiB read at the device's rate
+([`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md)). Widening W, ring sizing and the pool-path
+cap belong to step 3 and wait for these two.
+
 ## 7 · Still open
 
 * **W for tiles**: 4, 8, or per link? The harness run in step 3 answers the first two.
-* **`EndStream` granularity**: the next frame boundary is ~1 ms at 250 KB. Is that enough, or
-  does a fill on per-frame uni streams also reset the frame in progress (§5 of the loop ADR)?
-* **Fill then on-demand on one session**, and a second `StreamFrames` after `EndStream`: not
-  specified.
-* **Memory at thousands of fills** (§5): measure before building the block pool.
+* **`EndStream` and the wire.** The server stops producing within one frame, but bytes
+  already handed to QUIC still drain, and on a slow link that is the client's receive window,
+  not the server. A fill client that wants a fast stop keeps that window small. Whether a
+  fill on per-frame uni streams should also reset the frame in progress (§5 of the loop ADR)
+  is open.
+* **Memory at thousands of fills** (§5): measure before building the block reads.
