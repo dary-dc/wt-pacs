@@ -1,13 +1,5 @@
-//! Packet-AEAD throughput at QUIC datagram sizes.
-//!
-//! Why this exists: swapping the rustls provider moved end-to-end throughput by only
-//! ~1–2% (`docs/quic-transport-optimization.md`, arm C). That is either a real result
-//! or a broken arm. This measures the AEAD alone, so the end-to-end number can be
-//! checked against the share of server CPU that crypto can possibly account for.
-//!
-//! Run both halves:
-//!   cargo run --release -p aead-bench --no-default-features --features ring
-//!   cargo run --release -p aead-bench --no-default-features --features aws-lc-rs
+//! Packet-AEAD throughput at QUIC datagram sizes — the ceiling on what arm C's ~1-2% could
+//! be. Run both halves: `--no-default-features --features ring`, then `--features aws-lc-rs`.
 
 #[cfg(all(feature = "ring", not(feature = "aws-lc-rs")))]
 use ring as provider;

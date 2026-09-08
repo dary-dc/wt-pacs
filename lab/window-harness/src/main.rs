@@ -26,14 +26,8 @@ struct Args {
     /// Stationary dwell for fill_rate / link_util (ms).
     #[arg(long, default_value_t = 2000)]
     fill_dwell_ms: u64,
-    /// trace | saturate | stall
-    ///
-    /// `stall` is the pathological client: it asks for `--stall-asks` frames, reads for
-    /// `--stall-after-ms` past the first byte, then stops reading entirely while holding
-    /// the connection and every receive stream open. It is the only mode that can reach
-    /// the flow-control ceilings — every other mode drains, so the ceiling never binds.
-    /// It emits `StallOutcome` JSON, not `HarnessMetrics`: no latency figure from a client
-    /// that refuses to read would mean anything.
+    /// trace | saturate | stall. `stall` is the pathological client — the only mode that
+    /// reaches the flow-control ceilings, and it emits `StallOutcome`, not `HarnessMetrics`.
     #[arg(long, default_value = "trace")]
     mode: String,
     /// E2 warm-cache control: prefetch before settle.
@@ -54,11 +48,8 @@ struct Args {
     /// Client display-cache capacity in frames. 0 = unbounded (the old behaviour).
     #[arg(long, default_value_t = 0)]
     cache_frames: usize,
-    /// `closed` = wait for each frame before advancing (every campaign before R6).
-    /// `open` = advance on the trace clock, letting the transport fall behind.
-    ///
-    /// Head-of-line blocking cannot occur in `closed`, so no stream-shape result from it
-    /// is admissible. Default stays `closed` so prior campaigns remain reproducible.
+    /// `closed` waits for each frame (every campaign before R6), `open` advances on the
+    /// trace clock. No stream-shape result from `closed` is admissible.
     #[arg(long, value_enum, default_value_t = ReaderMode::Closed)]
     reader_mode: ReaderMode,
     /// Open-loop only: grace period after the last step before unmet wants are censored.
@@ -82,11 +73,8 @@ struct Args {
     /// `stall` mode: stop reading this long after the first byte arrives.
     #[arg(long, default_value_t = 3_000)]
     stall_after_ms: u64,
-    /// `stall` mode: asks issued back-to-back before the stall.
-    ///
-    /// Must commit the server to more bytes than the ceiling under test, or both arms sit
-    /// below both ceilings and the run reports the same null the draining workloads did.
-    /// At 64 KB frames, quinn's 10 MB default `send_window` needs ~160.
+    /// `stall` mode: asks before the stall. Must commit the server to more bytes than the
+    /// ceiling under test — at 64 KB frames quinn's 10 MB `send_window` needs ~160.
     #[arg(long, default_value_t = 300)]
     stall_asks: u32,
     /// `stall` mode: hold the connection open and unread this long after stalling.

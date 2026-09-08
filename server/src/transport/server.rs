@@ -1,13 +1,4 @@
-//! FoD ask → envelope on server uni stream (Media-complete).
-//!
-//! Serial loop: read one ask, send it to completion, read the next.
-//! No server-side ask queue — see docs/adr-reject-server-ordering.md.
-//!
-//! Stream mode is resolved once per session in `handle_incoming` and carried as
-//! `Option<SendStream>`: `Some` = one shared stream for the session, `None` = one
-//! stream per frame. Nothing downstream branches on a flag.
-//!
-//! Recording: `crate::record::Recorder` — zero-sized unless `feature = "telemetry"`.
+//! FoD ask → envelope on a server uni stream, serially. docs/adr-reject-server-ordering.md.
 
 use crate::media::frame_store::FrameStore;
 use crate::record::{LocateOutcome, Recorder, WriteOutcome};
@@ -152,7 +143,7 @@ async fn handle_incoming(
         .await
         .context("accept control bidi")?;
 
-    // The mode, resolved once. Everything downstream sees a value, not a flag.
+    // Resolved once, so nothing downstream branches on the flag.
     let shared = match mode {
         StreamMode::Shared => Some(
             connection
@@ -186,9 +177,7 @@ async fn run_session(
     // ask keeps the highest priority.
     let mut ask_seq: i32 = 0;
 
-    // Loss-regime sampler. Never spawned unless WTPACS_PATH_TELEMETRY is set, and it ends
-    // with the connection, so it cannot outlive what it describes. See
-    // `record::path` for why this lives on the server rather than in the browser client.
+    // Ends with the connection, so it cannot outlive what it describes.
     #[cfg(feature = "telemetry")]
     let _path_sampler = tokio::spawn(crate::record::path::run(connection.clone()));
 
@@ -339,14 +328,8 @@ async fn send_one_frame(
     Ok(())
 }
 
-/// `Some` = append to the session's shared stream. `None` = one stream per frame.
-/// Both write `[4B BE len][envelope]`; the modes differ only in how long a stream lives.
-/// Open a per-frame uni stream, applying ask-order priority when the arm asks for it.
-///
-/// Extracted because all three send paths open a stream and both merged branches needed a
-/// hook right here — L1's `--ask-priority` arm and the copy/split/chunked split. Three
-/// copies of this would drift, and a priority applied on only some paths would silently
-/// make the arms incomparable.
+/// Open a per-frame uni stream. Shared by both send paths: a priority applied on only one
+/// of them would silently make the arms incomparable.
 async fn open_frame_uni(
     connection: &Connection,
     ask_priority: bool,
@@ -386,9 +369,7 @@ fn note_serve_timing(timing: Option<(u32, Instant)>, mode: &str, t_first: Instan
     }
 }
 
-/// The copy path: `wrap()` into a fresh Vec, then `write_all` — two full-frame copies.
-/// Reproduces `main`'s behaviour exactly, which is what `all_send_paths_are_the_same_wire`
-/// pins the chunked path against.
+/// The copy path: two full-frame copies, reproducing `main` exactly. The rollback hatch.
 #[cfg(feature = "lab")]
 #[allow(clippy::too_many_arguments)]
 async fn write_payload(
@@ -400,10 +381,8 @@ async fn write_payload(
     ask_seq: &mut i32,
     timing: Option<(u32, Instant)>,
 ) -> Result<()> {
-    // Two writes, not one buffer: building `[len][payload]` would copy the whole frame a
-    // second time (`wrap` already copied it once). `write_all` copies into the connection's
-    // send buffer either way, so the extra allocation buys nothing.
-    // See docs/send-path-copy-costs.md. This fix has been reverted once — keep it.
+    // Two writes, not one buffer: making `[len][payload]` contiguous copies the frame a
+    // third time. Reverted once already — keep it.
     let len = (payload.len() as u32).to_be_bytes();
     match shared {
         Some(uni) => {
@@ -419,9 +398,7 @@ async fn write_payload(
             uni.write_all(payload).await.context("write envelope")?;
             note_serve_timing(timing, "per-frame", t_first);
 
-            // `finish()` is MOVED off this loop, not deleted: wtransport's `finish()` awaits
-            // the peer's acknowledgement (~272 ms measured), which caps throughput at
-            // Tf/(Tf+RTT) when awaited inline. See docs/adr-frame-framing-and-loop-shape.md.
+            // Moved off this loop, not deleted: `finish()` awaits the peer's ack (~272 ms).
             acks.spawn(async move {
                 let _ = uni.finish().await;
             });
@@ -430,11 +407,8 @@ async fn write_payload(
     Ok(())
 }
 
-/// `[4B BE total_len][4B BE display_index]` — the first 8 bytes of a framed envelope.
-///
-/// Pinned against the copy path by `chunked_header_matches_copy_path`: the chunked
-/// writer must put exactly these bytes in front of the codestream, or the two send
-/// paths are not the same wire and no arm comparing them means anything.
+/// `[4B BE total_len][4B BE display_index]`, pinned against the copy path by
+/// `all_send_paths_are_the_same_wire`.
 fn envelope_header(idx: u32, codestream_len: usize) -> [u8; ENVELOPE_LEN * 2] {
     let wire_len = (ENVELOPE_LEN + codestream_len) as u32;
     let mut header = [0u8; ENVELOPE_LEN * 2];
@@ -443,14 +417,8 @@ fn envelope_header(idx: u32, codestream_len: usize) -> [u8; ENVELOPE_LEN * 2] {
     header
 }
 
-/// Same bytes on the wire as `write_payload`, without materialising them.
-///
-/// `[4B BE len][4B BE display_index]` is an 8-byte header chunk; the codestream is a
-/// `Bytes` slice of the study mapping. `quinn::SendStream::write_all_chunks` *moves*
-/// each `Bytes` into the connection's send buffer (`BytesArray::pop_chunk` is a
-/// `mem::take`), where `write_all(&[u8])` allocates and copies (`ByteSlice::pop_chunk`
-/// is `Bytes::from(data.to_owned())`). Reached through `quic_stream_mut()` because
-/// `wtransport::SendStream` exposes only the `&[u8]` writes.
+/// Same wire as `write_payload`, without materialising it: `write_all_chunks` moves each
+/// `Bytes` into the send buffer where `write_all(&[u8])` allocates and copies.
 #[allow(clippy::too_many_arguments)]
 async fn write_payload_chunked(
     connection: &Connection,

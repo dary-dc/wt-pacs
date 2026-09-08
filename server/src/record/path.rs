@@ -1,31 +1,4 @@
-//! Per-connection path sampling — the loss-regime diagnostic.
-//!
-//! This exists to settle the one open question that changes a deployed default by ~50 %:
-//! **is the loss our viewers see congestive or exogenous?**
-//!
-//! - **Congestive** (a queue somewhere fills, then overflows) → **Cubic** wins; quinn's BBR
-//!   measured 63 % worse and drives 30–100× more packets into the bottleneck.
-//! - **Exogenous** (radio bit errors, fades, handovers on an otherwise empty path) → **BBR**
-//!   wins by roughly half.
-//!
-//! Real 5G, WiFi and satellite links carry both, and the mix is unknown. See
-//! `docs/transport-conclusions.md` §1.
-//!
-//! ## Why this lives on the server
-//!
-//! The browser client is native WebTransport, not quinn. `WebTransport.getStats()` does
-//! expose `smoothedRtt` and `minRtt`, but its `packetsLost` counts the **browser's own
-//! sending** — the upstream direction. Frames flow downstream, so client-side loss counts
-//! the wrong direction entirely. quinn's `PathStats` on the server sees the direction that
-//! actually carries images.
-//!
-//! ## What it does and does not decide
-//!
-//! It emits counters and nothing else. Classification is offline
-//! (`lab/scripts/classify_loss_regime.py`), so the rule can be revised against data already
-//! collected rather than needing a redeploy. The one piece of state kept here is `min_rtt`,
-//! because it cannot be recovered from a sampled series: the true path minimum may occur
-//! between two samples.
+//! Path sampling: congestive or exogenous loss? Counters only — see why-these-changes.md §1.
 
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -35,50 +8,33 @@ use serde::Serialize;
 
 use super::tap::env_enabled;
 
-/// One sample of the QUIC path, as the sender sees it.
-///
-/// Counters are **cumulative**, exactly as quinn reports them. Differencing is left to the
-/// analyser: a sampler that emitted deltas would lose information the moment a sample was
-/// dropped, and would make a restarted sampler indistinguishable from a quiet path.
+/// One sample of the QUIC path. Counters are cumulative, as quinn reports them: deltas
+/// would make a dropped sample and a quiet path indistinguishable.
 #[derive(Debug, Clone, Serialize)]
 pub struct PathSample {
     pub session_id: u64,
-    /// Milliseconds since the sampler started, not wall clock — the series is only ever
-    /// read relative to itself, and a monotonic base cannot jump backwards.
+    /// Milliseconds since the sampler started. Monotonic, so it cannot jump backwards.
     pub t_ms: u64,
     /// quinn's current smoothed RTT estimate, microseconds.
     pub rtt_us: u64,
-    /// Smallest RTT seen on this connection so far, microseconds.
-    ///
-    /// `rtt_us - min_rtt_us` is the **queueing delay estimate**, and it is the whole
-    /// diagnostic: loss arriving while this is large is congestive, loss arriving while it
-    /// is near zero is exogenous.
+    /// Smallest RTT so far. `rtt_us - min_rtt_us` is the queueing delay — the diagnostic.
     pub min_rtt_us: u64,
     pub cwnd: u64,
     pub congestion_events: u64,
     pub lost_packets: u64,
     pub lost_bytes: u64,
     pub sent_packets: u64,
-    /// Non-zero means the path stopped delivering entirely — a handover or a dead link,
-    /// which is neither of the two regimes and must not be classified as either.
+    /// PLPMTUD losing consecutive large packets. Expected under congestive loss, so it is
+    /// not a handover signal and the classifier must not exclude on it.
     pub black_holes_detected: u64,
     pub current_mtu: u16,
-    /// Rows this process failed to write since the last row it managed to write, summed
-    /// across every connection.
-    ///
-    /// Carried in the data rather than logged, for the same reason `FrameRecord` carries
-    /// `dropped_since_last`: a telemetry loss that is only visible in a log nobody reads is
-    /// a silent one, and the classifier's whole job is to be trustworthy about a path it
-    /// cannot otherwise see. Non-zero means this series has holes.
+    /// Rows this process failed to write since the last one it did, across all connections.
+    /// Rides in the data, not a log: non-zero means this series has holes.
     pub dropped_since_last: u64,
 }
 
-/// Samples one connection's path until the connection ends.
-///
-/// Costs one timer wakeup per interval per connection and takes a short lock inside
-/// quinn to read the stats. At the default one-second interval that is negligible against
-/// a session that is moving megabytes; at thousands of connections, raise the interval
-/// rather than sampling a subset — a biased subset is worse than a coarser series.
+/// Samples one connection until it ends. At high connection counts raise the interval
+/// rather than sampling a subset: a biased subset is worse than a coarser series.
 pub struct PathSampler {
     session_id: u64,
     started: Instant,
@@ -86,11 +42,8 @@ pub struct PathSampler {
 }
 
 impl PathSampler {
-    /// Enabled when `WTPACS_PATH_TELEMETRY` is `1` / `true` / `yes`.
-    ///
-    /// Deliberately its own switch rather than riding on `WTPACS_TELEMETRY`: the frame tap
-    /// writes a row per frame and is a development tool, while this writes a row per second
-    /// and is the thing you would leave on in production to answer the controller question.
+    /// Enabled by `WTPACS_PATH_TELEMETRY`. Its own switch, not the frame tap's — see
+    /// `record::mod`.
     pub fn for_session(session_id: u64) -> Option<Self> {
         if !env_enabled("WTPACS_PATH_TELEMETRY") {
             return None;
@@ -114,9 +67,7 @@ impl PathSampler {
 
     /// Take one sample. `stats` is quinn's `ConnectionStats::path`.
     pub fn sample(&mut self, path: &wtransport::quinn::PathStats) -> PathSample {
-        // Tracked here rather than derived later: the true minimum may fall between two
-        // samples, so a per-sample running minimum is strictly better than the minimum of
-        // what happened to be sampled.
+        // Kept, not derived later: the true minimum may fall between two samples.
         if path.rtt < self.min_rtt {
             self.min_rtt = path.rtt;
         }
@@ -137,19 +88,11 @@ impl PathSampler {
     }
 }
 
-/// Session ids for path rows.
-///
-/// Its own counter rather than the frame tap's, because the two telemetry switches are
-/// independent: riding on the tap's id would stamp every path row with 0 whenever the
-/// frame tap is off, and sessions would be indistinguishable. The cost is that joining
-/// path rows to frame rows works only when both are enabled — which is stated rather than
-/// papered over.
+/// Its own counter, because the tap's would be 0 in every row whenever the tap is off.
+/// Joining path rows to frame rows therefore needs both switches on.
 static PATH_SESSION_IDS: AtomicU64 = AtomicU64::new(0);
 
 /// Sample `connection` until it closes, appending one JSON line per interval.
-///
-/// Spawned per session and ends when the connection does, so it cannot outlive what it is
-/// describing. No-op — and never spawned — when the env switch is unset.
 pub async fn run(connection: wtransport::Connection) {
     let Some(mut sampler) =
         PathSampler::for_session(PATH_SESSION_IDS.fetch_add(1, Ordering::Relaxed))
@@ -162,9 +105,7 @@ pub async fn run(connection: wtransport::Connection) {
 
     loop {
         tokio::time::sleep(interval).await;
-        // `closed()` would await; this is the non-blocking check that the connection is
-        // still alive. A sample taken after close would report a frozen path as a quiet
-        // one, which reads as "no loss" and biases the classifier toward exogenous.
+        // Sampling after close reports a frozen path as a quiet one, biasing toward exogenous.
         if connection.quic_connection().close_reason().is_some() {
             return;
         }
@@ -178,23 +119,8 @@ pub async fn run(connection: wtransport::Connection) {
 /// Drained into the next row's `dropped_since_last`.
 static DROPPED: AtomicU64 = AtomicU64::new(0);
 
-/// Append one JSON line in **one** `write` call.
-///
-/// The newline must travel in the same buffer as the JSON. This function used to be
-/// `writeln!(f, "{line}")`, and `writeln!` on an unbuffered `File` issues **two** writes —
-/// the formatted argument, then the newline. Under `O_APPEND` each is individually atomic,
-/// so concurrent samplers interleaved as `{row A}{row B}\n\n`: one line carrying two
-/// concatenated objects, and one empty line. Reproduced at realistic concurrency before
-/// this fix: at 32 connections only **1 842 of 6 400 rows survived intact — 29 %** — and
-/// `classify_loss_regime.py` dropped every damaged line silently, so the series simply got
-/// quieter. A one-client validator could not have caught it, and did not.
-///
-/// One `write` of a ~200-byte buffer to a regular file opened `O_APPEND` is atomic in
-/// practice; a short write would corrupt the line just as badly, so it is counted as a drop
-/// rather than looped over, which is what `write_all` would do.
-///
-/// Best-effort throughout: telemetry must never take down a session, so failures are
-/// counted and swallowed rather than propagated (R7 — no panics on the record path).
+/// Append one JSON line in ONE `write`: the newline must ride in the same buffer, because
+/// `writeln!` issues two writes and concurrent appenders interleave between them.
 fn append_row(path: &str, row: &PathSample) {
     let Ok(mut line) = serde_json::to_string(row) else {
         DROPPED.fetch_add(1, Ordering::Relaxed);
@@ -219,11 +145,7 @@ mod append_row_tests {
     // Nested module: the parent's `use std::io::Write` is not in scope here.
     use std::io::Write as _;
 
-    /// The defect, as a test: many threads appending concurrently must not interleave.
-    ///
-    /// Asserts on the *shape* of the file rather than on `append_row` directly, so it holds
-    /// whatever the row type grows into: every line must be one complete JSON object and
-    /// none may be empty.
+    /// Asserts the file's shape, not `append_row`, so it survives the row type changing.
     #[test]
     fn concurrent_appends_do_not_interleave() {
         let dir = std::env::temp_dir().join(format!("wtpacs-path-{}", std::process::id()));

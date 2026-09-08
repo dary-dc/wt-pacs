@@ -1,7 +1,5 @@
-//! Write-only recording — one concrete type, zero-sized unless `feature = "telemetry"`.
-//!
-//! The product path hands facts in and never reads state back (I2). `Tap` owns the
-//! clocks and the sink; `Recorder` is the only thing the session loop knows about.
+//! Write-only recording, zero-sized unless `feature = "telemetry"`. The session loop
+//! hands facts in and never reads state back (I2); `Recorder` is all it knows about.
 
 mod types;
 
@@ -16,10 +14,8 @@ pub type Stamp = ();
 #[cfg(feature = "telemetry")]
 pub mod tap;
 
-/// Per-connection QUIC path sampling — the loss-regime diagnostic. Separate from `tap`
-/// because it answers a different question at a different rate: `tap` writes a row per
-/// frame and is a development tool, this writes a row per second and is the thing you
-/// would leave on in production.
+/// Loss-regime sampling. Separate from `tap`: a row per second to leave on in production,
+/// against `tap`'s row per frame for development.
 #[cfg(feature = "telemetry")]
 pub mod path;
 

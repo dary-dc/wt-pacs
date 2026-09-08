@@ -3,25 +3,15 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// How the reader advances through the trace.
-///
-/// This is the single most consequential setting in the harness. See
-/// `docs/transport-conclusions.md` §2: with `Closed`, no stream-shape or
-/// head-of-line-blocking question can be answered, because the reader travels at the
-/// speed of the transport and is never stuck behind data it no longer wants.
+/// How the reader advances. The most consequential setting in the harness: `Closed` can
+/// answer no stream-shape question at all — `docs/why-these-changes.md` §3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum ReaderMode {
-    /// Block for each cursor to become displayable before advancing.
-    ///
-    /// Models a viewer that refuses to scroll past a blank frame. Every prior campaign
-    /// ran this way. Retained so those results stay reproducible — **not** for
-    /// stream-shape work.
+    /// Block on each cursor. Every prior campaign ran this way; kept for reproducibility,
+    /// NOT for stream-shape work.
     Closed,
-    /// Advance on the trace's own wall clock, whatever has arrived.
-    ///
-    /// Models a viewer dragging a scrollbar: the reader keeps moving, the transport
-    /// falls behind, and frames still in flight become frames nobody wants any more.
-    /// This is the only mode in which head-of-line blocking can occur.
+    /// Advance on the trace clock whatever has arrived — the only mode in which
+    /// head-of-line blocking can occur.
     Open,
 }
 
@@ -91,9 +81,7 @@ pub struct RunConfig {
     pub step_interval_ms: Option<u64>,
     /// Optional QUIC per-stream receive window (bytes). None = stack default.
     pub stream_recv_window: Option<u64>,
-    /// Local bind IP for the client socket. `None` = wtransport's dual-stack default,
-    /// which is what every L1 row was collected with; set `0.0.0.0` on hosts without an
-    /// IPv6 stack, where the dual-stack bind fails with EAFNOSUPPORT.
+    /// Local bind IP. `None` = the dual-stack default every L1 row was collected with.
     pub bind_ip: Option<std::net::IpAddr>,
     /// Client display-cache capacity in frames; 0 = unbounded.
     pub cache_frames: usize,
@@ -102,14 +90,8 @@ pub struct RunConfig {
     /// Open-loop only: after the last step, keep resolving outstanding wants for this
     /// long before declaring the remainder censored.
     pub drain_ms: u64,
-    /// Multiplier on the trace's `step_interval_ms`. >1 slows the reader, <1 speeds it up.
-    ///
-    /// Exists because the reader's offered load must be set against the rate the link can
-    /// **achieve**, not the rate it is labelled with. At 1 % loss and 600 ms RTT, Cubic's
-    /// Mathis ceiling is 0.24 Mbps while a 30 fps reader over 64 KB frames demands ~15
-    /// Mbps — a 62× overload in which every arm simply collapses and nothing is
-    /// distinguished. Calibrated once per cell on a single reference arm, then frozen
-    /// across all arms so the operating point cannot be tuned per-arm.
+    /// Multiplier on the trace's `step_interval_ms`. Calibrate ONCE per cell on one
+    /// reference arm and freeze it, or the operating point is tuned per-arm.
     pub step_scale: f64,
 }
 
@@ -178,8 +160,7 @@ pub struct HarnessMetrics {
     /// bytes_on_wire*8/step_loop_s as fraction of read_bps (A5).
     #[serde(default)]
     pub link_util_measured: f64,
-    /// Per step: ms the frame became displayable **after its scheduled display time**,
-    /// floored at 0. This is the reader-clock metric — `wait_ms` starts at the harness's
+    /// Ms past the step's SCHEDULED display time, floored at 0. `wait_ms` starts at the
     /// ask, so it cannot see a loop that has fallen behind its own cadence.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lateness_ms: Vec<f64>,
@@ -203,29 +184,20 @@ pub struct HarnessMetrics {
     /// `closed` or `open`. Results are not comparable across it.
     #[serde(default)]
     pub reader_mode: String,
-    /// Wants the run ended without ever satisfying, counted at the censoring bound.
-    ///
-    /// **Must be reported with every p95.** An arm that fails to deliver otherwise loses
-    /// its slowest samples and wins the comparison by delivering less — the exact bias
-    /// that made a closed-loop p95 look respectable.
+    /// Unsatisfied wants, at the censoring bound. MUST be reported with every p95, or an
+    /// arm that fails to deliver loses its slowest samples and wins by delivering less.
     #[serde(default)]
     pub censored_waits: u32,
     /// `censored_waits / wait_samples`. Above the campaign's void threshold the arm
     /// collapsed and its p95 means nothing.
     #[serde(default)]
     pub censored_frac: f64,
-    /// How far behind its own clock the reader finished, in ms.
-    ///
-    /// Open-loop only, and the direct evidence that the reader was *able* to outrun the
-    /// transport: at 0 the reader kept its schedule and the run tested nothing that a
-    /// closed-loop run does not.
+    /// Ms behind its own clock at the end. Open-loop only; 0 means the run tested nothing
+    /// a closed-loop run does not.
     #[serde(default)]
     pub reader_lag_ms: f64,
-    /// Bytes that arrived for a frame the reader had already scrolled away from.
-    ///
-    /// This is the head-of-line-blocking load itself. **If it is 0, no stream-shape
-    /// comparison from the run is admissible** — nothing was ever queued ahead of
-    /// something wanted.
+    /// Bytes arriving for a frame already scrolled past. 0 makes any stream-shape
+    /// comparison from the run INADMISSIBLE: nothing queued ahead of something wanted.
     #[serde(default)]
     pub stranded_bytes: u64,
     /// Frames counted in `stranded_bytes`.
@@ -264,10 +236,8 @@ pub struct MetricsState {
     pub cache: HashSet<u32>,
     /// LRU order for `cache`, most-recently-used last. Empty when the cache is unbounded.
     pub cache_lru: Vec<u32>,
-    /// Max frames held, 0 = unbounded. A tablet browser cannot hold a whole CT series:
-    /// 500 slices at 250 KB is 125 MB. With an unbounded cache the client holds the
-    /// entire study within seconds and no jump can miss, which collapses the
-    /// informative sample count and makes head-of-line blocking unmeasurable.
+    /// Max frames held, 0 = unbounded. Unbounded, the client holds the whole study within
+    /// seconds, no jump can miss, and head-of-line blocking becomes unmeasurable.
     pub cache_cap: usize,
     /// Per want: ms until displayable (0 on cache hit).
     pub wait_samples_ms: Vec<f64>,
@@ -277,12 +247,7 @@ pub struct MetricsState {
     pub step_loop_ms: f64,
 
     // ---- open-loop reader state -----------------------------------------------------
-    /// Instant each frame index most recently arrived.
-    ///
-    /// The open-loop reader resolves waits from these recorded instants rather than by
-    /// polling cache membership. That makes the measured wait independent of poll
-    /// granularity (the closed-loop path quantised every wait to its 2 ms sleep) and
-    /// immune to a frame arriving and being LRU-evicted between polls.
+    /// Arrival instants. Waits resolve from these, never by polling: polling quantises them.
     pub last_arrival: HashMap<u32, Instant>,
     /// Frame indices the reader currently has on screen or in its prefetch window.
     /// Anything arriving outside this set is stranded — see `stranded_bytes`.
@@ -365,9 +330,7 @@ impl MetricsState {
         self.frames_on_wire += 1;
         self.bytes_on_wire += nbytes;
         self.last_arrival.insert(index, Instant::now());
-        // A frame the reader has already scrolled past. Counted only once the reader has
-        // established a window at all, so the warm-cache prefetch is not miscounted as
-        // stranding.
+        // Counted only once a window exists, so warm-cache prefetch is not called stranding.
         if !self.live_window.is_empty() && !self.live_window.contains(&index) {
             self.stranded_bytes += nbytes;
             self.stranded_frames += 1;
@@ -534,10 +497,8 @@ impl MetricsState {
     }
 }
 
-/// A step displayable within this much of its scheduled time kept the reader's cadence.
-/// One frame interval at the cadences this lane runs is 31-32 ms, so 100 ms is ~3 steps:
-/// wide enough that scheduler jitter is not counted as lateness, narrow enough that a
-/// reader who actually waited is.
+/// Lateness tolerance: ~3 frame intervals, wide enough to absorb scheduler jitter and
+/// narrow enough to catch a reader that actually waited.
 pub const ON_TIME_MS: f64 = 100.0;
 
 /// Nearest-rank percentile (L2 brief / client telemetry contract).
@@ -608,11 +569,8 @@ mod wait_stats_tests {
 
     #[test]
     fn lateness_sees_a_backlog_that_wait_ms_cannot() {
-        // A loop that falls behind its cadence still reports short waits, because
-        // `wait_ms` starts at the ask: by the time the harness asks, the frame is
-        // close. Lateness is measured against the step's *scheduled* display time,
-        // so it reports the backlog. This is the v2 defect (L1_V2_ADVERSARIAL_REVIEW
-        // §B1) expressed as a test.
+        // The v2 defect as a test: `wait_ms` stays short while the loop falls behind,
+        // because it starts at the ask. Lateness measures the scheduled time instead.
         let mut m = super::MetricsState::new(0);
         for i in 0..160 {
             m.record_wait_ms(30.0);
@@ -628,9 +586,8 @@ mod wait_stats_tests {
 
     #[test]
     fn a_single_late_step_needs_late_max_not_late_p95() {
-        // Honest about the same tail-support limit that voided miss_p95: one late step
-        // in twenty sits above the p95 rank, so the percentile reads 0. `late_max_ms`
-        // is what catches it — report both, never the p95 alone.
+        // One late step in twenty sits above the p95 rank, so the percentile reads 0.
+        // Report `late_max_ms` too, never the p95 alone.
         let mut m = super::MetricsState::new(0);
         for _ in 0..19 {
             m.record_lateness_ms(0.0);

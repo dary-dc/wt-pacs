@@ -11,13 +11,8 @@ use std::sync::OnceLock;
 
 pub struct FrameStore {
     file: File,
-    /// The whole study, mapped once and held as a refcounted handle.
-    ///
-    /// `Bytes::from_owner` takes ownership of the `Mmap`, so `slice()` is a refcount
-    /// bump — no allocation, no copy — and the send path can hand frame bytes straight
-    /// to quinn. It is the *only* mapping on purpose: a second one would have
-    /// `touch_frame_pages` faulting pages the send path never reads, doubling both the
-    /// fault work and the resident set. See `docs/send-path-copy-costs.md`.
+    /// The whole study, mapped ONCE and refcounted: a second mapping would have
+    /// `touch_frame_pages` faulting pages the send path never reads.
     all: Bytes,
     frame_count: u32,
     metadata_len: u32,
@@ -75,10 +70,6 @@ impl FrameStore {
     }
 
     /// Frame payload as a refcounted slice of the mapping — no allocation, no copy.
-    ///
-    /// The counterpart of `frame_slice` for the chunked send path: `Bytes` can be handed
-    /// straight to `quinn::SendStream::write_all_chunks`, which moves it into the
-    /// connection's send buffer instead of copying it there.
     pub fn frame_bytes(&self, index: u32) -> Result<Bytes> {
         let (offset, length) = self.frame_range(index)?;
         let start = offset as usize;
@@ -93,22 +84,14 @@ impl FrameStore {
         Ok(self.all.slice(start..end))
     }
 
-    /// Fault every page of `index` into the page cache.
-    ///
-    /// Call this from a **blocking** pool (`spawn_blocking`), not on the async executor: a cold
-    /// fault is not an `.await`, so it stalls every task sharing the OS thread. After this returns,
-    /// `frame_slice` + `write_all` on the executor should not take major faults for that frame.
-    ///
-    /// One byte per host page (plus the last byte). No copy, no second mapping.
+    /// Fault every page of `index` in. Call from a BLOCKING pool: a cold fault is not an
+    /// `.await`, so on the executor it stalls every task sharing the OS thread.
     pub fn touch_frame_pages(&self, index: u32) -> Result<()> {
         touch_pages(self.frame_slice(index)?);
         Ok(())
     }
 
-    /// Read frame bytes with `pread` into `buf` (must be exactly frame length).
-    ///
-    /// Always copies into userspace. Escape hatch when a hard reclaim guarantee outweighs the
-    /// extra copy (see `docs/disk-access/adr.md`). Safe to call from a blocking pool.
+    /// `pread` into `buf` (exactly frame length). Always copies; see `docs/disk-access/adr.md`.
     pub fn pread_frame(&self, index: u32, buf: &mut [u8]) -> Result<()> {
         let (offset, length) = self.frame_range(index)?;
         if buf.len() != length as usize {
@@ -190,12 +173,8 @@ mod tests {
         Ok(())
     }
 
-    /// The chunked send path's whole saving is that this is a view, not a copy.
-    ///
-    /// `Bytes::slice` keeps the mapping's allocation, so the frame's pointer lies inside
-    /// it; `Bytes::copy_from_slice` would allocate elsewhere. Fails fast on the likely
-    /// accident. It cannot see a copy reintroduced further down the send path — the gate
-    /// for that is the stalled-client campaign, see `docs/merge-with-main-analysis.md`.
+    /// Fails fast if the frame body stops being a view of the mapping. It cannot see a copy
+    /// reintroduced further down the send path; that gate is in merge-with-main-analysis.md.
     #[test]
     fn frame_bytes_is_a_view_of_the_mapping() -> Result<()> {
         let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();

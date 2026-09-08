@@ -1,18 +1,5 @@
-//! Userspace UDP path simulator: one-way delay, loss, rate, finite queue.
-//!
-//! Exists because this kernel has no `sch_netem` (Firecracker, no loadable modules), and
-//! every congestion-control, initial-window and loss question is unanswerable without an
-//! RTT axis. `tbf` gives rate only.
-//!
-//! ```text
-//!   client ──▶ :listen ──[delay │ loss │ rate │ queue]──▶ upstream (server)
-//!   client ◀──         ◀─[delay │ loss │ rate │ queue]──  upstream
-//! ```
-//!
-//! **Valid for latency-domain questions only.** It forwards datagram-by-datagram in
-//! userspace, so it destroys the send-side GSO batching the server does and adds its own
-//! per-packet cost. Do not measure CPU or throughput ceilings through it; use the direct
-//! loopback rig for those. Its own accuracy and capacity are measured by `e0_netsim_validation.sh`.
+//! Userspace UDP path simulator standing in for `sch_netem`. LATENCY QUESTIONS ONLY:
+//! forwarding datagram-by-datagram destroys the server's GSO batching.
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -39,23 +26,15 @@ struct Args {
     /// Independent per-direction drop probability, percent.
     #[arg(long, default_value_t = 0.0)]
     loss_pct: f64,
-    /// Burst length: when a drop fires, drop this many packets in a row.
-    ///
-    /// 1 = independent Bernoulli loss, which is the *most favourable* model for a
-    /// rate-based controller and the least favourable for a loss-based one. Real paths
-    /// lose in bursts, so any controller comparison must be repeated with this > 1
-    /// before it is believed. Mean loss rate is held constant: the per-packet trigger
-    /// probability is divided by the burst length.
+    /// Packets dropped in a row when a drop fires. 1 = Bernoulli, which flatters
+    /// rate-based controllers; repeat any controller comparison with >1 before believing it.
     #[arg(long, default_value_t = 1)]
     loss_burst: u32,
     /// Per-direction rate limit in Mbit/s. 0 = unlimited.
     #[arg(long, default_value_t = 0.0)]
     rate_mbps: f64,
-    /// Bottleneck queue depth in packets, per direction. Tail-drop beyond it.
-    ///
-    /// A finite queue is not optional: with an infinite one a rate limit produces
-    /// unbounded buffering and a loss-based controller never sees a congestion signal,
-    /// which silently turns every congestion-control arm into a no-op.
+    /// Bottleneck queue depth per direction, tail-drop beyond it. Not optional: an
+    /// infinite queue buffers instead of dropping and every controller arm becomes a no-op.
     #[arg(long, default_value_t = 500)]
     queue_pkts: usize,
     /// Uniform jitter in ms, applied as delay ± jitter/2.
@@ -123,10 +102,8 @@ struct Counters {
     bytes: u64,
 }
 
-/// Drains one direction: applies delay, rate and queue limit, then sends.
-///
-/// A single task with a heap rather than a timer per packet — at WAN rates this is a few
-/// thousand packets a second and a task each would cost more than the path being simulated.
+/// Drains one direction. One task with a heap, not a timer per packet: at WAN rates a task
+/// each would cost more than the path being simulated.
 async fn pacer(
     mut rx: mpsc::Receiver<(Vec<u8>, Option<SocketAddr>, Instant)>,
     sock: Arc<UdpSocket>,
@@ -171,9 +148,8 @@ async fn pacer(
                     delay = delay.saturating_sub(Duration::from_micros(args.jitter_ms * 500));
                 }
 
-                // Serialisation: a packet cannot leave before the link has finished the
-                // one in front of it. This is what makes the queue fill and eventually
-                // tail-drop, which is the congestion signal the controllers need.
+                // Serialisation — what makes the queue fill and tail-drop, which is the
+                // congestion signal the controllers need.
                 let mut due = arrived + delay;
                 if bits_per_sec > 0.0 {
                     let serial = Duration::from_secs_f64((data.len() * 8) as f64 / bits_per_sec);
@@ -225,20 +201,8 @@ async fn main() -> Result<()> {
     let up_counters = Arc::new(std::sync::Mutex::new(Counters::default()));
     let down_counters = Arc::new(std::sync::Mutex::new(Counters::default()));
 
-    // One upstream socket per client address, so the server sees distinct peers.
-    //
-    // LIMITATION, and it matters for one experiment in particular: each client also gets
-    // its OWN `pacer`, and therefore its own queue and its own rate limiter. Two clients
-    // through one netsim do **not** share a bottleneck — they get one each, at the full
-    // configured rate.
-    //
-    // So netsim cannot answer the competing-flow question ("does a BBR flow starve a Cubic
-    // neighbour?"). Run it here and both flows get full rate, which reads as "perfectly
-    // fair" when in truth they never competed. Use the Oracle rig, where `tc netem` on one
-    // egress interface is genuinely one shared queue — see
-    // docs/ORACLE-RIG-AGENT-GUIDE.md. Making netsim share a bottleneck across clients is
-    // possible but is a new instrument that would need its own validation before any
-    // fairness number from it could be believed.
+    // One pacer, queue and rate limiter per client: they never share a bottleneck, so no
+    // fairness question can be answered here — both flows get full rate. Use the Oracle rig.
     let mut clients: HashMap<SocketAddr, ClientTx> = HashMap::new();
     let mut buf = vec![0u8; 65535];
 

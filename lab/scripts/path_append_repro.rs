@@ -2,18 +2,11 @@
 //
 //   rustc -O -o /tmp/repro lab/scripts/path_append_repro.rs && /tmp/repro
 //
-// `append_current` is the shape `server/src/record/path.rs::append_row` had before
-// 2026-09-07: `writeln!(f, "{line}")` on an unbuffered `File`, which issues TWO write
-// calls — the formatted argument, then the newline. Under O_APPEND each is individually
-// atomic, so concurrent samplers interleave as `{row A}{row B}\n\n`: one line carrying two
-// concatenated objects, one empty line.
+// `append_current` is the shape `append_row` had before the fix; `append_fixed` is the
+// shape it has now. Measured: 29-38 % of rows intact before, 100 % after.
 //
-// Measured before the fix: 8 threads 38 % intact, 32 threads 29 %, 64 threads 36 %.
-// `append_fixed` — the newline in the same buffer, one write — is 100 % intact at every
-// concurrency tested.
-//
-// Kept as a script rather than a test because it is the *evidence*, and because the
-// regression test that guards the fix lives in path.rs where it belongs. A single-client
+// A script rather than a test because it is the evidence; the guard lives in path.rs.
+// A single-client
 // validator could not have caught this, and did not: see docs/measurements/regime/README.md.
 
 use std::io::Write;

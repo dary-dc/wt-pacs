@@ -13,11 +13,8 @@ use wtransport::{ClientConfig, Connection, Endpoint};
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-/// Peak concurrent outstanding asks actually observed during a run.
-///
-/// Invariant check: if this never reaches the configured `D`, the harness is not
-/// producing the concurrency it claims and every number from the run is void.
-/// Two bugs violated exactly this and went undetected across three campaigns.
+/// Peak concurrent outstanding asks observed. Never reaching `D` VOIDS the run: the
+/// harness was not producing the concurrency it claims.
 pub(crate) static PEAK_OUTSTANDING: AtomicU32 = AtomicU32::new(0);
 
 fn note_outstanding(n: u32) {
@@ -33,12 +30,8 @@ pub fn reset_peak_outstanding() {
     CENTER_DROPPED.store(0, Ordering::Relaxed);
 }
 
-/// Steps whose centre ask was suppressed by the hard outstanding ceiling.
-///
-/// The centre is the frame whose wait is being measured. If its ask never went out, the
-/// step measured the harness's own ask policy, not the transport. **Any run with a
-/// non-zero count is void for p95 purposes**, and the campaign analyser must say so
-/// rather than quietly averaging it in.
+/// Steps whose centre ask was suppressed by the ceiling. Non-zero VOIDS the run for p95:
+/// the step measured the harness's ask policy, not the transport.
 static CENTER_DROPPED: AtomicU32 = AtomicU32::new(0);
 
 fn note_center_dropped() {
@@ -86,9 +79,7 @@ pub(crate) fn build_client_config(
     stream_recv_window: Option<u64>,
     bind_ip: Option<std::net::IpAddr>,
 ) -> Result<ClientConfig> {
-    // Default is wtransport's dual-stack bind, which is what every L1 row was collected
-    // with. An explicit address is needed only on hosts with no IPv6 stack, where the
-    // dual-stack bind fails with EAFNOSUPPORT.
+    // Every L1 row was collected on the dual-stack default; set this only where it fails.
     let builder = match bind_ip {
         None => ClientConfig::builder().with_bind_default(),
         Some(ip) => ClientConfig::builder().with_bind_address(std::net::SocketAddr::new(ip, 0)),
@@ -165,9 +156,7 @@ pub async fn run_harness(
         HarnessMode::Trace => {
             let t = trace_ref.context("trace required")?;
             let schedule = t.frame_schedule();
-            // Wrap like `window_frames` does. A trace whose cursor exceeds the study's frame
-            // count would otherwise set `wanted` to a frame that is never asked for and never
-            // arrives, so `wait_wanted` blocks for the whole timeout.
+            // Wrap as `window_frames` does, or a cursor past the study waits out the timeout.
             let wanted = *schedule.last().context("empty trace")? % cfg.frame_count.max(1);
             (schedule, wanted, t.name.clone())
         }
@@ -434,10 +423,7 @@ async fn run_windowed(
     let step_interval_ms = cfg.step_interval_ms.unwrap_or(trace.step_interval_ms);
     let step_loop_start = std::time::Instant::now();
     match cfg.reader_mode {
-        // L1's reader: advances on an absolute schedule and *measures* how late each frame
-        // is, but still blocks on the frame before moving on. Its own Phase C review found
-        // the consequence — BACKLOG on 9 of 20 rows — because a reader that blocks cannot
-        // fall behind by more than one frame at a time.
+        // L1's reader: keeps an absolute schedule but still blocks, so it cannot fall behind.
         ReaderMode::Closed => {
     for (i, &cursor) in schedule.iter().enumerate() {
         // Advance on the trace clock (absolute schedule). Miss waits that overrun
@@ -447,9 +433,7 @@ async fn run_windowed(
         if target > now {
             tokio::time::sleep(target - now).await;
         }
-        // Ask first so depth can pipeline; then measure wait for this cursor.
-        // C4: do NOT wait_outstanding_below here — that link-paces the reader.
-        // emit_window already caps concurrency via the outstanding set.
+        // Ask first so depth pipelines. No `wait_outstanding_below` here: it link-paces.
         asks_sent += emit_window(
             control_send,
             outstanding,
@@ -462,16 +446,11 @@ async fn run_windowed(
             false,
         )
         .await?;
-        // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
-        // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
-        // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
-        // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
+        // `window_frames` asks for `cursor % n`, so wait on the same frame, not the raw cursor.
         wait_displayable(metrics, cursor % n, cfg.timeout_ms, Some(target)).await?;
     }
         }
-        // R6's reader: never blocks, so the transport can fall behind by an unbounded
-        // amount and the reader is genuinely stuck behind data it no longer wants. This is
-        // the mode in which head-of-line blocking can occur at all.
+        // R6's reader: never blocks, which is the only mode where head-of-line blocking exists.
         ReaderMode::Open => {
             asks_sent +=
                 run_reader_open_loop(control_send, trace, cfg, schedule, metrics, outstanding)
@@ -536,25 +515,7 @@ struct Want {
     wanted_at: std::time::Instant,
 }
 
-/// The reader advances on the trace's own wall clock and never waits for the transport.
-///
-/// This is the whole point of the mode. A closed-loop reader (`ReaderMode::Closed`) blocks
-/// on each cursor before advancing, so the transport can never fall behind it and every
-/// byte in flight is a byte the reader still wants. Under those conditions head-of-line
-/// blocking cannot occur and no stream-shape comparison means anything — which is how a
-/// "keep one shared stream" recommendation came to be written on evidence that could not
-/// support it (`docs/transport-conclusions.md` §2).
-///
-/// Three properties matter for the numbers this produces to be trustworthy:
-///
-/// 1. **Steps are absolute deadlines**, `t0 + i × step`, not `sleep(step)` per iteration.
-///    Per-iteration sleeps accumulate the ask-emission cost into the schedule, so a slower
-///    arm would silently get a slower reader — flattering exactly the arm under suspicion.
-/// 2. **Waits are resolved from recorded arrival instants**, not by polling cache
-///    membership. Poll granularity therefore cannot quantise a wait, and a frame that
-///    arrives and is LRU-evicted before the next poll is still scored as delivered.
-/// 3. **Unmet wants are censored, not dropped.** An arm that fails to deliver would
-///    otherwise lose its slowest samples and win on p95 by delivering less.
+/// Advances on the trace's wall clock, never waiting for the transport. why-these-changes.md §3.
 async fn run_reader_open_loop(
     control_send: &mut wtransport::stream::SendStream,
     trace: &TraceSpec,
@@ -575,8 +536,7 @@ async fn run_reader_open_loop(
     let step = Duration::from_secs_f64((base_ms as f64 * cfg.step_scale.max(0.001)) / 1000.0);
 
     for (i, &cursor) in schedule.iter().enumerate() {
-        // Absolute deadline. If emission overran the previous step this returns
-        // immediately and the reader is simply late — which is recorded, not hidden.
+        // ABSOLUTE deadline: a per-iteration sleep would give a slower arm a slower reader.
         tokio::time::sleep_until(t0 + step * i as u32).await;
 
         let frame = cursor % n;
@@ -588,10 +548,7 @@ async fn run_reader_open_loop(
             m.live_window = window.iter().copied().collect();
         }
 
-        // Non-blocking: a full depth gate drops the prefetch rather than stalling the
-        // reader. `center_first` keeps the frame actually on screen exempt from that cap,
-        // which is what a viewer does and which stops the metric from measuring ask
-        // policy instead of transport.
+        // Non-blocking: a full depth gate drops the prefetch rather than stalling the reader.
         asks_sent += emit_window(
             control_send,
             outstanding,
@@ -653,10 +610,8 @@ async fn run_reader_open_loop(
     Ok(asks_sent)
 }
 
-/// Move every want whose frame has arrived since it was wanted into the wait samples.
-///
-/// Uses the recorded arrival instant, so the sample is the true wait rather than the
-/// time this happened to be called.
+/// Drain arrived wants into the wait samples, using the recorded arrival instant so the
+/// sample is the true wait rather than when this happened to be called.
 fn resolve_pending(pending: &mut Vec<Want>, metrics: &SharedMetrics) {
     let mut m = metrics.lock().expect("metrics");
     pending.retain(|w| match m.last_arrival.get(&w.frame).copied() {
@@ -669,10 +624,8 @@ fn resolve_pending(pending: &mut Vec<Want>, metrics: &SharedMetrics) {
     });
 }
 
-/// How far behind its own clock an open-loop reader finished.
-///
-/// Zero means the reader kept its schedule, the transport never fell behind, and the run
-/// tested nothing a closed-loop run does not.
+/// How far behind its own clock an open-loop reader finished. Zero means the run tested
+/// nothing a closed-loop run does not.
 fn reader_lag_ms(t0: tokio::time::Instant, schedule_len: usize, step: Duration) -> f64 {
     let planned = step * schedule_len.saturating_sub(1) as u32;
     t0.elapsed().saturating_sub(planned).as_secs_f64() * 1000.0
@@ -726,26 +679,13 @@ async fn emit_window(
     let frames = window_frames(center, d, n, shape);
     let mut sent = 0u32;
     for (slot, frame) in frames.into_iter().enumerate() {
-        // `window_frames` puts the centre — the frame actually on screen — at slot 0.
-        // Under an open-loop reader it is exempt from the depth cap, because a viewer
-        // prioritises what it is looking at and, without the exemption, a full window
-        // silently drops the ask for the very frame whose wait is being measured. Under
-        // the closed-loop reader the cap stays strict: L1's committed rows were collected
-        // that way and an exemption here would make them irreproducible.
+        // Open-loop exempts the centre from the depth cap; closed-loop must not, because
+        // L1's committed rows were collected with it strict.
         let is_center = center_exempt && slot == 0;
-        // Already displayable: re-asking re-sends a frame the client holds. On the shared arm
-        // those bytes queue ahead of frames the reader is waiting for — the exact head-of-line
-        // cost this lane exists to measure. Never manufacture it here. Measured from
-        // committed data, the missing guard was 7.6-13.7x redundant load, and it was
-        // self-reinforcing: a slower arm holds frames outstanding longer, gets re-asked
-        // more, and loads its own link more.
-        //
-        // LOCK ORDER: take `metrics`, drop it, THEN take `outstanding`. Never hold both:
-        // `on_frame_arrived` takes them in the opposite order and would deadlock.
+        // Never re-ask a held frame: it manufactures the head-of-line cost under measurement.
+        // LOCK ORDER: `metrics`, drop it, THEN `outstanding` — `on_frame_arrived` reverses it.
         {
-            // A hit must also refresh recency, or the bounded cache is FIFO-by-arrival
-            // rather than LRU and evicts the frame the reader is currently looking at on
-            // the same schedule as one never displayed. No-op when `cache_cap` is 0.
+            // A hit must refresh recency, or the bounded cache is FIFO-by-arrival, not LRU.
             let mut m = metrics.lock().expect("metrics lock");
             if m.cache.contains(&frame) {
                 m.touch_cache(frame);
@@ -759,13 +699,8 @@ async fn emit_window(
             if o.contains(&frame) {
                 continue;
             }
-            // Prefetch is capped at D. An exempt centre may exceed it, but only to a hard
-            // ceiling of 2D: with an open-loop reader nothing retires an ask except the
-            // frame arriving, so an unconditionally exempt centre adds one ask per step
-            // forever, and a reader that outran the transport would flood its own link
-            // and self-congest. That would make every arm's result a measurement of the
-            // harness. `note_center_dropped` records the ceiling binding, because a
-            // dropped centre ask makes that step's wait uninterpretable.
+            // The exempt centre still stops at 2D: nothing retires an ask but arrival, so an
+            // unconditional exemption lets a reader outrun the transport and self-congest.
             if o.len() as u32 >= d.saturating_mul(2) {
                 if is_center {
                     note_center_dropped();
@@ -813,13 +748,8 @@ async fn rtt_full(rtt_ms: u64) {
 }
 
 
-/// Writes the ask immediately. **Does not sleep.**
-///
-/// The ask half of simulated RTT used to be slept here, but every caller awaits
-/// `ask_frame` in a loop, so issuing D asks took `D × RTT/2` ms and the asks were
-/// never simultaneously in flight — depth became a counter with no wire meaning.
-/// The full RTT is now applied once on the return path, which models the same
-/// per-frame latency while leaving the issue loop free to pipeline.
+/// Writes the ask immediately and DOES NOT SLEEP: sleeping here serialises the issue loop,
+/// so depth stops meaning anything. The full RTT is applied once on the return path.
 async fn ask_frame(
     control_send: &mut wtransport::stream::SendStream,
     frame: u32,
@@ -829,14 +759,8 @@ async fn ask_frame(
     write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await
 }
 
-/// Waits until `frame` is displayable, recording two different clocks.
-///
-/// `wait_ms` runs from this call — i.e. from the harness's ask. `due` is the step's
-/// *scheduled* display time, fixed at `loop_start + i*interval` before any network
-/// work; lateness against it is what the reader felt. The two diverge exactly when
-/// the loop has fallen behind, which is the case `wait_ms` cannot report and which
-/// voided the v2 grid (`stream-mode-remediation.md` §R4, L1_V2_ADVERSARIAL_REVIEW §B1).
-/// `due` is `None` outside the trace step loop, where there is no schedule to miss.
+/// Two clocks: `wait_ms` from this call, `due` from the step's scheduled display time.
+/// They diverge exactly when the loop has fallen behind — the case `wait_ms` cannot report.
 async fn wait_displayable(
     metrics: &SharedMetrics,
     frame: u32,
@@ -916,10 +840,8 @@ async fn on_frame_arrived(
     m.on_envelope(index, wire_len);
 }
 
-/// One shared uni stream carrying `[4B BE envelope_len][envelope]` repeatedly.
-///
-/// Frames arrive strictly in order — that is the point of the architecture. Post-processing
-/// (RTT delay + metrics) is spawned so the read loop is never blocked by it.
+/// One shared uni stream of `[4B BE envelope_len][envelope]`. Post-processing is spawned so
+/// the read loop is never blocked by it.
 async fn shared_stream_loop(
     connection: Connection,
     metrics: SharedMetrics,
