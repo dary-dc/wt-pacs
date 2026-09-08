@@ -17,6 +17,14 @@ pub enum FodMsg {
     RequestFrames {
         frames: Vec<u32>,
     },
+    /// Current use is start-to-end (`{}`); `from` / `to` stay so a later range does not need a new type.
+    StreamFrames {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        from: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        to: Option<u32>,
+    },
+    EndStream,
     EndSession,
     FrameError {
         frame_index: u32,
@@ -61,5 +69,29 @@ mod tests {
         };
         let enc = encode_fod_msg(&msg).unwrap();
         assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
+    }
+
+    #[test]
+    fn stream_frames_empty_is_the_whole_study() {
+        let msg = FodMsg::StreamFrames {
+            from: None,
+            to: None,
+        };
+        let enc = encode_fod_msg(&msg).unwrap();
+        let body = &enc[4..];
+        assert_eq!(body, br#"{"op":"stream_frames"}"#);
+        assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
+    }
+
+    #[test]
+    fn stream_frames_range_and_end_stream_roundtrip() {
+        let msg = FodMsg::StreamFrames {
+            from: Some(2),
+            to: Some(9),
+        };
+        let enc = encode_fod_msg(&msg).unwrap();
+        assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
+        let stop = encode_fod_msg(&FodMsg::EndStream).unwrap();
+        assert_eq!(decode_fod_msg(&stop).unwrap(), FodMsg::EndStream);
     }
 }
