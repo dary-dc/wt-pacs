@@ -234,6 +234,12 @@ async fn handle_incoming(
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
+///
+/// **One frame at a time, and that is the whole session's depth.** The next ask is not even
+/// read off the control stream until the current frame is on the wire, so a client that
+/// pipelines `RequestFrame` messages still gets served serially — its outstanding asks queue
+/// in the transport, not in the server. `RequestFrames` is the same shape by another route.
+/// See `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
 async fn run_session<P: FramePipeline>(
     pipeline: &mut P,
     mut control_send: SendStream,

@@ -137,6 +137,84 @@ measuring.
 
 ---
 
+## 6b · Serving depth: the loop is depth 1, and the protocol says otherwise
+
+**Status: known limitation, not yet fixed. 2026-09-08.**
+
+`FodMsg::RequestFrame` is documented as "one frame per message (**depth = outstanding
+asks**)". The server does not realise that depth. `run_session` reads one ask, serves it to
+completion, and only then reads the next message:
+
+```rust
+loop {
+    let msg = read_fod_msg(&mut control_recv).await;   // next ask not read until…
+    match msg {
+        FodMsg::RequestFrame { frame } => pipeline.serve_one(frame, …).await?,  // …this finishes
+```
+
+So a client that pipelines asks gets them served **one at a time**; its outstanding asks
+queue in the transport, not in the server. `RequestFrames` reaches the same place by a
+different route — `serve_batch` is a `for` loop with an `.await`.
+
+### What it costs
+
+16 tiles of 16 KiB, all missing the page cache
+([`disk-access/v32_depth.tsv`](disk-access/v32_depth.tsv)):
+
+| | time until the last tile is served |
+| --- | ---: |
+| serial (today) | **1.2 ms** |
+| overlapped (depth 16) | **0.4 ms** |
+
+Small in absolute terms on a local NVMe-class device; on storage with millisecond latency
+the same 16 tiles become tens of milliseconds, which is a visible stall on a zoom.
+
+### It is not forbidden — it is unbuilt
+
+[`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) rejects serving the *newest*
+ask first, on the grounds that FIFO already carries the client's priority. Reading frame *n+1*
+while frame *n* is on the wire preserves FIFO delivery exactly. That is **pipelining, not
+reordering**, and nothing in that ADR speaks against it.
+
+What stands in the way is state, in two places:
+
+1. **The session loop** awaits `serve_one` before reading the next ask.
+2. **`ReadCtx` holds one window and its ring one in-flight slot**, so even a concurrent loop
+   would serialise on the buffer.
+
+### The shape to build, when it is built
+
+**Read ahead by one — a double buffer — not N slots.** Two windows and two ring slots let the
+read of frame *n+1* overlap the send of frame *n*, which is where the latency goes. A general
+*N*-deep design costs a slot table, a completion demultiplexer and a much harder invariant for
+no measured extra win: the depth-4 and depth-16 numbers differ by far less than depth 1 and
+depth 4 do. Start at two, measure, and only go further if the measurement asks for it.
+
+**This does not change the read arm.** At depth 1 `hybrid_lazyring` and `uring` tie; the
+choice between them only becomes interesting once this is built
+([`disk-access/v33_cross.tsv`](disk-access/v33_cross.tsv)).
+
+## 6c · Server-driven streaming (not implemented)
+
+**Status: designed, not built. 2026-09-08.**
+
+For ultrasound and any study of small or medium frames, asking per frame is overhead the
+workload does not need. The intended mode: the client sends **one message** — the study is
+open, start loading — and the server streams frames start to end without being asked for
+indexes.
+
+Why it fits: sequential delivery needs no per-frame ask, no ask latency and no client-side
+scheduling; the server reads forward, which is the access pattern the page cache and
+read-ahead are best at. It is the opposite end of the axis from tiles, where the client must
+choose what it needs and the server cannot guess.
+
+What it does **not** remove: the client still needs a way to stop, slow down or seek, or a
+fast reader outruns nothing and a slow one drowns. Flow control is the open question, not the
+streaming itself.
+
+Neither the message nor the server path exists yet. `RequestFrames` is the closest thing and
+is not it — it still names every index.
+
 ## 7 · Corrections owed
 
 - [`adr-client-window-depth.md`](adr-client-window-depth.md) — the architecture comparison must be

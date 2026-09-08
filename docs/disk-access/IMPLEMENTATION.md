@@ -242,6 +242,19 @@ The arm to avoid at scale is the one this change replaced.
 Treat the high end as directional: at 64 and 256 reads in flight a 4 vCPU host is the
 bottleneck, not the read path.
 
+### Why not tokio's own io_uring support
+
+Tokio 1.53 does have an `io-uring` feature. It does not fit this path, for two checked
+reasons:
+
+* It is gated behind `--cfg tokio_unstable` — `compile_error!` without it.
+* It routes **sequential** `File::read` through the ring. `tokio::fs` has no positional read
+  at all: no `read_at`, no `read_exact_at`. This path is positional everywhere — a frame is a
+  byte range at an offset, read out of order across a study.
+
+So it covers a different operation than the one the server performs. The `io-uring` crate,
+driven directly, is what gives a positional read with an offset.
+
 ### One in flight per session, by construction
 
 `UringReader` holds a single `in_flight: bool` and `ReadCtx` a single `window`, so **a session
