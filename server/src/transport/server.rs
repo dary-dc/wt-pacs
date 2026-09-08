@@ -1,15 +1,8 @@
-//! FoD ask → envelope on server uni stream (Media-complete).
+//! FoD ask → envelope on a server uni stream.
 //!
-//! Serial loop: read one ask, send it to completion, read the next.
-//! No server-side ask queue — see docs/adr-reject-server-ordering.md.
-//!
-//! Per-frame work: [`pipeline::FramePipeline`] trait (product [`pipeline::ProductPipeline`] /
-//! lab [`pipeline::RecordedPipeline`]). See `docs/telemetry/adr-server-pipeline.md`.
-//!
-//! Frame bytes: streamed a window at a time straight from the page cache, inside the
-//! pipeline's `send` step — see `docs/disk-access/adr.md`. Nothing is faulted on the
-//! executor and nothing is copied into a whole-frame envelope; the session's window buffer
-//! is the only per-session allocation.
+//! Serial loop: read one ask, send it to completion, read the next. No server-side ask
+//! queue — `docs/adr-reject-server-ordering.md`. Bytes are streamed in `send`:
+//! `docs/disk-access/adr.md`. Pipeline: [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
@@ -219,7 +212,7 @@ async fn handle_incoming(
     let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out);
 
-    // Lab wrap only when env on — RecordedPipeline always holds a live Tap.
+    // Lab wrap only when env on.
     #[cfg(feature = "telemetry")]
     if let Some(tap) = Tap::for_session() {
         return run_session(
@@ -233,13 +226,9 @@ async fn handle_incoming(
     run_session(&mut product, control_send, control_recv).await
 }
 
-/// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
-///
-/// **One frame at a time, and that is the whole session's depth.** The next ask is not even
-/// read off the control stream until the current frame is on the wire, so a client that
-/// pipelines `RequestFrame` messages still gets served serially — its outstanding asks queue
-/// in the transport, not in the server. `RequestFrames` is the same shape by another route.
-/// See `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+/// Read one FoD ask, serve it to completion, repeat. The next ask is not read until
+/// the current frame is on the wire.
+/// `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
 async fn run_session<P: FramePipeline>(
     pipeline: &mut P,
     mut control_send: SendStream,

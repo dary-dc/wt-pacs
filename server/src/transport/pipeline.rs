@@ -1,12 +1,8 @@
 //! Per-frame story: prepare → locate → send (or refuse).
 //!
-//! [`FramePipeline::serve_one`] is written once (trait default).
-//! Implementors override steps only. Lab wraps steps; it does not restate the story.
-//!
-//! `locate` returns a [`FrameSpan`] — where the frame is, not what it holds. The read
-//! path streams a frame a window at a time and never materialises it, so there is no slice
-//! to borrow and `send` does the reading. See `docs/disk-access/adr.md`.
-//! See `docs/telemetry/adr-server-pipeline.md`.
+//! [`FramePipeline::serve_one`] is the story, written once. Implementors override steps.
+//! `locate` returns a [`FrameSpan`] — where the frame is, not its bytes.
+//! `docs/disk-access/adr.md`, `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadCtx, ReadMode};
@@ -48,15 +44,8 @@ pub(crate) trait FramePipeline: Send {
         Ok(())
     }
 
-    /// `RequestFrames`: every frame before the next control read, in order. Written once here;
-    /// `note_batch` tells the step implementor where in the batch the next `serve_one` sits.
-    ///
-    /// **Serial, so a batch does not pipeline**: frame *n+1* is not read from disk until frame
-    /// *n* is on the wire. For a tile viewport that puts the whole batch's disk latency on the
-    /// critical path — measured at 1.2 ms for 16 missing tiles against 0.4 ms overlapped.
-    /// Overlapping them is *pipelining*, not reordering, so
-    /// `docs/adr-reject-server-ordering.md` does not forbid it; what stands in the way is that
-    /// a session holds one read window and one ring slot. See
+    /// `RequestFrames`: every frame, in order, before the next control read. Serial:
+    /// frame *n+1* is not read until *n* is on the wire.
     /// `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
     async fn serve_batch(&mut self, frames: &[u32], control: &mut SendStream) -> Result<()> {
         let size = frames.len() as u32;
@@ -70,16 +59,12 @@ pub(crate) trait FramePipeline: Send {
     /// Where the next `serve_one` sits in a batch. Product ignores it; the lab stamps it.
     fn note_batch(&mut self, _position: u32, _size: u32) {}
 
-    /// Work before the frame is located. **The product has none**: the disk-access ADR
-    /// of 2026-09-04 removed the pool hop that pre-faulted the frame's pages, and bytes are
-    /// now read inside `send`. Kept as a step because the telemetry chain measures it, and
-    /// a trace showing it at ~0 is the evidence that the hop is gone.
+    /// No-op in the product. Kept so the telemetry chain can show it at ~0.
     async fn prepare(&mut self, _frame: u32) -> Result<()> {
         Ok(())
     }
 
-    /// Where the frame is — offset and length. No I/O, so an out-of-range ask is refused
-    /// before any stream is opened.
+    /// Where the frame is. No I/O — out of range is refused before a stream opens.
     fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan>;
 
     /// Read the frame and write it on the media path, interleaved a window at a time.
@@ -94,8 +79,6 @@ pub(crate) trait FramePipeline: Send {
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
     out: FrameOut,
-    /// The session's read state: one reusable window, plus the ring if this session has
-    /// ever missed. See `crate::media::read_path`.
     read: ReadCtx,
 }
 
@@ -110,8 +93,6 @@ impl FramePipeline for ProductPipeline {
     fn store(&self) -> &Arc<FrameStore> {
         &self.store
     }
-
-    // prepare: trait default — the product has no pre-read step.
 
     fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
         store.frame_span(frame)
@@ -216,7 +197,6 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transport::stream_mode::StreamMode;
     use std::io::Write;
 
     fn one_frame_study(path: &std::path::Path) {
@@ -234,13 +214,7 @@ mod tests {
         f.sync_all().unwrap();
     }
 
-    /// **One index per study, never per session.**
-    ///
-    /// The index is 12 bytes per frame — 384 KB for a 32 000-frame study — and it is
-    /// immutable after `open`. A session that opens its own store multiplies that by the
-    /// session count and buys nothing. Nothing in the type system prevents it, so this
-    /// pins the shape a session actually gets: a handle on the one shared store.
-    ///
+    /// Pins that a session gets a handle on the shared store, not its own.
     /// `docs/disk-access/adr.md` §Invariants.
     #[test]
     fn sessions_share_one_store_rather_than_opening_their_own() {
