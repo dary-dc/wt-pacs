@@ -14,6 +14,9 @@ quick=0
 
 step() { printf '\n== %s\n' "$*"; }
 
+step "repo: comment budget"
+scripts/comment_budget.sh
+
 step "client: build bundles + unit tests"
 bash client/transport-ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
