@@ -7,6 +7,7 @@ type SessionLike = {
   waitExactFrame(frameIndex: number, askMs: number): Promise<unknown>;
   startExactFrames(indices: ArrayLike<number>): number;
   requestExactFrames?(indices: ArrayLike<number>): Promise<unknown>;
+  startStreamFrames?(waitLast: number, range?: { from?: number; to?: number }): number;
 };
 
 async function settle<T>(frameIndex: number, p: Promise<T>, via: "single" | "batch" = "single"): Promise<T> {
@@ -40,6 +41,12 @@ export function wrapSession<T extends object & SessionLike>(session: T): T {
         return (indices: ArrayLike<number>) => {
           getTap()?.gesture();
           return target.startExactFrames(indices);
+        };
+      }
+      if (prop === "startStreamFrames" && typeof target.startStreamFrames === "function") {
+        return (waitLast: number, range?: { from?: number; to?: number }) => {
+          getTap()?.gesture();
+          return target.startStreamFrames!(waitLast, range);
         };
       }
       if (prop === "requestExactFrames" && typeof target.requestExactFrames === "function") {
