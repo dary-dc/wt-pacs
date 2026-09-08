@@ -12,6 +12,9 @@ above one reader — [`IMPLEMENTATION.md`](IMPLEMENTATION.md), *Before rollout*.
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | **How it works, and what is left.** The lazy ring, the container trap, why there is no tuning toggle, what came out different from the measured arm, and the one thing still unmeasured before rollout |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Read before shipping.** The fast path does not exist on overlayfs, i.e. inside a container, and the server degrades silently. `check-fastpath` answers it in one command |
 | [`RERUN.md`](RERUN.md) | The instrument: what it can separate, and the precision rules every number obeys |
+| [`NEXT.md`](NEXT.md) | **What is parked**, in priority order, and what is settled |
+| [`SCALE-RUN.md`](SCALE-RUN.md) | Running the campaign on a machine with more than 4 cores |
+| [`RESEARCH-io-backends.md`](RESEARCH-io-backends.md) | Brief for an agent with web access: is there a better I/O backend than driving `io-uring` directly? |
 
 The open question is **not** here — it is the disk layout, worth 17.6× against this path's
 2–4×: [`../disk-layout/`](../disk-layout/).
