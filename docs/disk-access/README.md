@@ -16,6 +16,7 @@ above one reader — [`IMPLEMENTATION.md`](IMPLEMENTATION.md), *Before rollout*.
 | [`NEXT.md`](NEXT.md) | **What is parked**, in priority order, and what is settled |
 | [`SCALE-RUN.md`](SCALE-RUN.md) | Running the campaign on a machine with more than 4 cores |
 | [`RESEARCH-io-backends.md`](RESEARCH-io-backends.md) | Brief for an agent with web access: is there a better I/O backend than driving `io-uring` directly? |
+| [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) | **The answer, checked 2026-09-08:** keep `io-uring` direct. Every candidate verified against current releases and the 6.18 kernel; one change proposed (park on the ring fd, drop the eventfd — `x14`), and the implementation proposals ranked |
 
 The open question is **not** here — it is the disk layout, worth 17.6× against this path's
 2–4×: [`../disk-layout/`](../disk-layout/).

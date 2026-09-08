@@ -331,6 +331,12 @@ checked against current releases — this sandbox has no crates.io access. The r
 above does not depend on their versions, but if one of them has since gained multi-thread
 tokio compatibility, that row deserves rechecking before it is treated as closed.
 
+**Checked 2026-09-08** against crate source and the 6.18 kernel:
+[`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md). Every row holds — all four
+still bring their own runtime — and the search found nothing that replaces this binding. It
+did find one thing to change in it: the eventfd is unnecessary, because the ring fd is itself
+pollable (proposal P1 there, measured as `x14`).
+
 ### One in flight per session, by construction
 
 `UringReader` holds a single `in_flight: bool` and `ReadCtx` a single `window`, so **a session
