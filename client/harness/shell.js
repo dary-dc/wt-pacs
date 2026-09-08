@@ -8,7 +8,7 @@
  * Query parameters:
  *   telemetry=1        load the telemetry build and harvest via window.__wtpacsTelemetry
  *   stream_mode=…      shared | per-frame (must match the server; recorded in the report)
- *   cell=…             ondemand (one RequestFrame per step, `d` in flight) | fill (one RequestFrames)
+ *   cell=…             ondemand (one RequestFrame per step, `d` in flight) | fill (one StreamFrames)
  *   d=…                outstanding asks for on-demand (default 1 — the control)
  *   n=…                steps to run (default: one pass over the study)
  *   frames=…           study frame count (default: /study/metadata frameCount)
@@ -123,11 +123,11 @@ function runOndemand(session, steps, interval, stats) {
   });
 }
 
-/** Fill: one RequestFrames over the unique frames of the schedule, waited in order. */
+/** Fill: one StreamFrames {}, waited start to end through the schedule's last index. */
 async function runFill(session, steps, stats) {
-  const indices = Uint32Array.from(new Set(steps));
-  const askMs = session.startExactFrames(indices);
-  for (const i of indices) {
+  const last = Math.max(...steps);
+  const askMs = session.startStreamFrames(last);
+  for (let i = 0; i <= last; i++) {
     try {
       const r = await session.waitExactFrame(i, askMs);
       touch(r.bytes);
@@ -138,7 +138,7 @@ async function runFill(session, steps, stats) {
     }
     stats.heap_peak = Math.max(stats.heap_peak ?? 0, heapBytes() ?? 0);
   }
-  return indices.length;
+  return last + 1;
 }
 
 export async function bootShell({ arm, loadSession, memoryBytes }) {

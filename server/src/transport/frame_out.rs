@@ -1,7 +1,7 @@
 //! Session-scoped outbound media: length-prefixed envelopes on shared or per-frame uni
 //! streams, the codestream streamed a window at a time. `docs/disk-access/adr.md`.
 
-use crate::media::frame_store::{FrameSpan, FrameStore};
+use crate::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
 use crate::media::read_path::ReadCtx;
 use crate::transport::stream_mode::StreamMode;
 use anyhow::{Context, Result};
@@ -104,6 +104,10 @@ fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
     head
 }
 
+fn write_chunks(ready: &[u8]) -> impl Iterator<Item = &[u8]> {
+    ready.chunks(READ_WINDOW)
+}
+
 async fn stream_codestream(
     uni: &mut SendStream,
     store: &Arc<FrameStore>,
@@ -111,15 +115,13 @@ async fn stream_codestream(
     next: Option<FrameSpan>,
     ctx: &mut ReadCtx,
 ) -> Result<()> {
-    let stride = store.read_window(span.len);
     let mut pos = 0u32;
     while pos < span.len {
         let ready = ctx.read(store, span, pos, next).await?;
         pos += ready.len() as u32;
-
-        // A miss returns more than one window; writes stay window-sized, because the window
-        // bounds how long the executor copies without yielding.
-        for piece in ready.chunks(stride) {
+        // A miss returns the rest of the frame; the write chunk is not that size.
+        // `docs/disk-access/READ-PATH-REVIEW.md` fault 1.
+        for piece in write_chunks(ready) {
             uni.write_all(piece).await.context("write codestream")?;
         }
     }
@@ -129,8 +131,10 @@ async fn stream_codestream(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::frame_store::READ_WINDOW;
+    use crate::media::frame_store::FrameStore;
+    use crate::media::read_path::{ReadCtx, ReadMode};
     use frame_envelope::{unwrap, wrap};
+    use std::sync::Arc;
 
     /// Streaming replaced `wrap()`, and clients parse the bytes, not the code.
     #[test]
@@ -164,5 +168,63 @@ mod tests {
             ENVELOPE_LEN as u32 + len
         );
         assert_eq!(u32::from_be_bytes(head[4..].try_into().unwrap()), 1);
+    }
+
+    /// **Fault 1.** A pooled miss returns the whole frame; writes must still be window-sized,
+    /// or the executor copies 250 KB without yielding. `docs/disk-access/READ-PATH-REVIEW.md`.
+    #[test]
+    fn a_pooled_frame_is_written_in_read_windows_not_in_one_copy() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-write-chunk-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("frame.sbnd");
+        let len = 250_000u32;
+        let body: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
+        study_bundle::write_bundle(&path, br#"{"frameCount":1}"#, &[body.as_slice()])
+            .expect("write study");
+
+        let mut store = FrameStore::open(&path).expect("open");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let span = store.frame_span(0).expect("span");
+        assert_eq!(
+            store.read_window(span.len),
+            span.len as usize,
+            "precondition: the store hands the transport the whole frame"
+        );
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+        let mut ctx = ReadCtx::new(ReadMode::Pool, &store);
+        let mut pos = 0u32;
+        let mut pieces = 0usize;
+        while pos < span.len {
+            let ready = rt
+                .block_on(ctx.read(&store, span, pos, None))
+                .expect("read");
+            assert!(!ready.is_empty());
+            pos += ready.len() as u32;
+            assert!(
+                ready
+                    .chunks(store.read_window(span.len))
+                    .any(|p| p.len() > READ_WINDOW),
+                "precondition: chunking on read_window would copy more than one window"
+            );
+            for piece in write_chunks(ready) {
+                assert!(
+                    piece.len() <= READ_WINDOW,
+                    "write piece {} exceeds READ_WINDOW",
+                    piece.len()
+                );
+                pieces += 1;
+            }
+        }
+        assert!(
+            pieces > 1,
+            "a 250 KB pooled frame must be more than one write"
+        );
+        assert_eq!(pos, span.len);
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
