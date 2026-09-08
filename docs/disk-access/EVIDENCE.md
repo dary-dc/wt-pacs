@@ -72,6 +72,25 @@ is established better than it anywhere; `uring`, the only arm cheaper on misses,
 established **+141.7 / +131.0% worse on hits**. That is why there is no tuning toggle —
 see [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
 
+> **Re-measured 2026-09-08 on the product's own host** ([`v32_depth.tsv`](v32_depth.tsv)),
+> 16 KiB reads, misses forced past the read-ahead window. The depth effect reproduces in
+> direction but is **much smaller than published**: `uring` vs `hybrid_lazyring` on misses is
+> +0.1% at depth 1, **−14.9%** at depth 4 and **−9.7%** at depth 16 — all ties — against a
+> published −30 to −43% at those depths. Priced in absolute ns per ask, `uring`'s penalty on
+> a hit exceeds its saving on a miss at every depth, so it only pays above a **53–64% miss
+> rate**:
+>
+> | depth | `uring` hit penalty | `uring` miss saving | breakeven miss rate |
+> | ---: | ---: | ---: | ---: |
+> | 1 | +9 009 ns | −1 800 ns (worse) | never wins |
+> | 4 | +4 433 ns | +3 913 ns | **53%** |
+> | 16 | +1 575 ns | +890 ns | **64%** |
+>
+> Meanwhile the win that is established is `hybrid_lazyring` against `pool` on misses:
+> **−56 / −70 / −75% RESOLVED** at depths 1 / 4 / 16. The large gain is already taken; the
+> `uring` question is a 5–15% residual on top of it, and only in a deep, miss-dominated
+> regime.
+
 **The miss-regime tie is a queue-depth artefact, and it disappears at the depth the product
 runs.** Splitting the same 84 cells by `depth` ([`RERUN-miss.md`](RERUN-miss.md) M10):
 
