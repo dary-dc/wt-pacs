@@ -231,18 +231,75 @@ overlap built on `spawn_blocking` is the worst arm in the campaign, and in the m
 cell it reached **28–30 OS threads** and a 1.35 ms neighbour p99 by paying four pool hops
 per frame instead of one. Pipelining is only viable through a ring.
 
-### SQPOLL · `v4_uring_sqpoll.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_sqpoll.tsv`)
+### SQPOLL — evaluated and discarded
 
-| Arm | Warm p50 | CPU/ask | Parked completions |
-| --- | ---: | ---: | ---: |
-| pread_nowait_chunked | 83.9 µs | 126 µs | 0 |
-| uring_tuned + SQPOLL | 153.0 µs | **287 µs** | 320 |
-| uring_pipelined + SQPOLL | 134.2 µs | **297 µs** | 320 |
+**The record of why, so it is not tried again.** Rejected in
+[`adr.md`](adr.md) §Alternatives and [`EVIDENCE.md`](EVIDENCE.md) §Rejected; both point here.
+`v4_uring_sqpoll.tsv` (5 repeats) and `v4_uring_arms.tsv` (9 repeats), both archived at
+`git show a330783:docs/disk-access/<file>`. Medians per cell, CPU normalised per ask.
 
-A kernel submitter removes the submit syscall and takes far more than it gives: nothing
-completes inline any more, so every read parks on the eventfd, and the `iou-sqp` thread's
-spin is charged to the process. (`COOP_TASKRUN` is rejected alongside `SQPOLL` with
-`EINVAL` — with a kernel submitter there is no task work to defer.)
+The same two arms with the flag and without it. `parked` is completions that did not land
+inline, out of 320 asks:
+
+| Arm | cell | p50 | p99 | CPU/ask | parked | threads |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `uring_tuned` | warm | 82.1 µs | 140.7 µs | 103.7 µs | 0 | 5 |
+| `uring_tuned` **+ SQPOLL** | warm | 153.0 µs | 251.3 µs | **287.1 µs** | **320** | 6 |
+| `uring_pipelined` | warm | 103.0 µs | 171.3 µs | 136.1 µs | 0 | 5 |
+| `uring_pipelined` **+ SQPOLL** | warm | 134.2 µs | 245.0 µs | **296.7 µs** | **320** | 6 |
+| `uring_tuned` | cold | 92.8 µs | 863.6 µs | 119.6 µs | 4 | 5 |
+| `uring_tuned` **+ SQPOLL** | cold | 155.3 µs | **265.3 µs** | 297.3 µs | **320** | 6 |
+| `uring_pipelined` | cold | 106.1 µs | 308.4 µs | 165.7 µs | 3 | 5 |
+| `uring_pipelined` **+ SQPOLL** | cold | 127.7 µs | 235.2 µs | 287.3 µs | **320** | 6 |
+
+**Warm, it loses on every column**: +30 to +86 % median, +43 to +79 % tail, **2.2–2.8× the
+CPU**. That is the 2.8× quoted elsewhere — `uring_tuned` 103.7 → 287.1 µs per ask.
+
+**Cold, it splits.** Median still worse (+20 to +67 %) and CPU still ~1.7–2.5×, but the
+**tail improves**: `uring_tuned`'s cold p99 falls 863.6 → 265.3 µs. See the caveat below
+before quoting that.
+
+**The mechanism is the `parked` column.** `COOP_TASKRUN` is rejected alongside `SQPOLL` with
+`EINVAL` — with a kernel submitter there is no task work to defer — and `COOP_TASKRUN` is
+what lets a cached completion land inline. So every read parks on the eventfd instead of
+none, and the `iou-sqp` thread's spin is charged to the process. It removes the submit
+syscall and pays for it with a wakeup per read plus a spinning kernel thread.
+
+**Caveat, and it bounds what may be claimed.** The two files are separate campaigns, not
+interleaved, so this is not a paired comparison — the trap in Precision above. The shared
+control (`pread_nowait_chunked`) moved between them by −1.2 % warm p50, +17.5 % warm CPU and
+**+22.7 % cold p99**. The CPU verdict and the warm latency verdict clear that drift several
+times over. Of the two cold-tail results, only `uring_tuned`'s −69 % does; `uring_pipelined`'s
+−24 % is inside it. **Nobody has run SQPOLL paired against its own arm**, and the cold-tail
+mechanism is not established.
+
+### Why it is the wrong tool *here*, and where it is the right one
+
+SQPOLL trades a core for syscalls. It pays when three things hold at once:
+
+* **Few rings**, so one `iou-sqp` kernel thread is amortised across the process — one per
+  core, or one per database, which is how a storage engine uses it.
+* **A sustained submission rate**, so the poller stays inside its `sq_thread_idle` window. A
+  poller that sleeps has to be woken by a syscall, which is the cost it existed to remove.
+* **A core to spare**, and I/O that genuinely reaches the device — `O_DIRECT`, or a page
+  cache being deliberately bypassed — so the submit syscall is a real share of the work.
+
+This server has the inverse of all three. The ring is **one per session, built lazily on the
+first miss**, so thousands of sessions would mean thousands of poller threads; that
+disqualifies it before any latency number. The hit path deliberately never touches the ring
+([`IMPLEMENTATION.md`](IMPLEMENTATION.md) §The trap), so a ring's submission rate is near zero
+between misses — the poller sleeps and the wake syscall comes back. And the ring's measured
+win here is removing the **thread-pool hop**, not the submit syscall: the hop is 24–34 µs
+([`EVIDENCE.md`](EVIDENCE.md) §Hosts) against a submit that costs nothing measurable at this
+depth.
+
+**What would reopen it.** One shape only: `IORING_SETUP_ATTACH_WQ` shares the SQ poll thread
+between rings when both flags are set, so many session rings could share one poller. That is
+untested here, and it is worth testing only if a deployment first shows the problem
+`ATTACH_WQ` solves — io-wq threads growing with sessions, which R5 measured at zero for 128
+rings ([`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) §Kernel side, P6).
+A paired, interleaved re-run against the same arm would also settle the cold tail, which is
+the one number this campaign left open.
 
 ### Neighbours · `v4_uring_multisession.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_multisession.tsv`)
 

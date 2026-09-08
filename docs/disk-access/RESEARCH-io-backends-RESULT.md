@@ -163,7 +163,9 @@ P1 adopts.
   rings. The campaign measured 128 rings under pressure spawning no io-wq threads (buffered
   reads complete through task work), so there is nothing to share yet. If a deployment ever
   shows the `threads` column growing with sessions, this is the knob — P6.
-* **Unchanged:** `SQPOLL` costs 2.8× the CPU (measured); `SINGLE_ISSUER` still rejects a second
+* **Unchanged:** `SQPOLL` costs 2.8× the CPU and is worse warm on every column — the full
+  record, the cold-tail result it left open, and the `ATTACH_WQ` shape that would reopen it
+  are in [`RERUN.md`](RERUN.md) §SQPOLL. `SINGLE_ISSUER` still rejects a second
   submitting thread with `EEXIST` (the lab test `single_issuer_and_a_second_submitting_thread`
   still passes), so `DEFER_TASKRUN` stays out of reach on a work-stealing runtime.
 * **Newer than 6.18** (uapi header at master, "7.0"): `IORING_SETUP_SQE_MIXED`,

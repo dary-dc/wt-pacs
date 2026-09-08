@@ -83,7 +83,9 @@ earlier prose; this is the correction of record.
 * **A read ahead probes the page cache first**, exactly as an on-demand read does. Sending it
   straight to the ring would rebuild the `uring` arm's +131% on hits.
 * **mmap is out of the product**, and `O_DIRECT`, `sendfile`/`splice`, registered ring buffers
-  and `SQPOLL` are all measured-and-rejected. **Keep the direct `io-uring` binding** —
+  and `SQPOLL` are all measured-and-rejected — `SQPOLL` with its own record and its one
+  reopening condition in [`RERUN.md`](RERUN.md) §SQPOLL. **Keep the direct `io-uring`
+  binding** —
   [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) checked the alternatives
   with network access on 2026-09-08.
 * **A miss reads the rest of the *frame*, not the rest of the window.**
@@ -95,8 +97,9 @@ Now written down in [`../../CLAUDE.md`](../../CLAUDE.md) rather than only here:
 
 * **Essentialist and self-documenting.** At equal functionality, simplicity wins.
 * **Comments carry only what a reader needs at that line** — a `SAFETY` contract, an invariant
-  the types do not enforce, a one-line pointer. `scripts/comment_budget.sh` enforces 0.25
-  comment lines per code line per file and runs in `scripts/gate.sh`.
+  the types do not enforce, a unit, a one-line pointer. `scripts/comment_budget.sh` enforces
+  **0.18** per file, counting neither `SAFETY` blocks nor test modules, and runs in
+  `scripts/gate.sh`. Test doc comments are the exception and are not cut.
 * **Do not build for a future that may not arrive.**
 * **Docs lean, and placed where they belong** — extend the file that owns the subject.
 * **Propose before implementing** when the change is structural. The user reviews designs.

@@ -240,7 +240,7 @@ first.
 | mmap + pre-fault + zero-copy handoff | Hands quinn page-cache pages: reclaim can take them mid-send, and the refault lands inside quinn on the executor. Also one pool hop per ask |
 | Handing quinn owned buffers (`BytesMut`) | Measured **−3.2%, 9 of 12 same sign** — below drift, not landed. The copy is real and provable in quinn's source; it is not worth removing |
 | A read-path config toggle | `hybrid_lazyring` already chooses per session at runtime; a static flag can only be wrong |
-| `SQPOLL` | 2.8× the CPU for worse latency — nothing completes inline, so every read parks |
+| `SQPOLL` | 2.8× the CPU and +30 to +86% warm latency: `COOP_TASKRUN` is refused alongside it, so all 320 completions park instead of none, and a kernel poller thread spins **per session ring**. Evaluated and discarded in full, including the one cold-tail result that did not fit the headline: [`RERUN.md`](RERUN.md) §SQPOLL |
 | `sendfile` / splice | Userspace QUIC copies regardless |
 
 ## What is worth more than any of this
