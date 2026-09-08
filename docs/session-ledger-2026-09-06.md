@@ -95,3 +95,32 @@ Also added with F1: `client/harness/refusals.html`, the regression page that rep
 2. M1: which of the three shapes for `timing`.
 3. Whether the BYOB reader is worth a round when client CPU per frame becomes the metric.
 4. L2, on `cursor/l2-harness-fix-plan-c999`: the three decisions its design document ends with.
+
+---
+
+## 7 · Second pass, 2026-09-08 — analysis only, nothing landed as code
+
+Evidence: [`improvements-2026-09-08.md`](improvements-2026-09-08.md). Same brief, same lanes
+excluded, every item reproduced or measured on this runner before it was written down. Landed
+on the branch by this pass: that document, four lab drivers (`lab/README.md`), and the one-line
+fix of the dangling `e274c26` reference in `lab/README.md`.
+
+| # | Kind | What | Proof | Decision open |
+| - | - | - | - | - |
+| D1 | defect, telemetry | the second sequential session in one telemetry server process truncates `telemetry-server.rows`; session 1 is gone from disk and from the report (`integrity.rows_opened` 2 907 vs 1 441 rows in file) | two harness sessions, one process | fix shape: sink lives for the process |
+| D2 | defect, TS client (WASM by reading) | a single ask whose control write fails keeps its waiter for 15 s; the duplicate check orphans a rejected promise (unhandled rejection) | `lab/bench/ts_session_stub.mjs` | land in both arms |
+| D3 | defect, both clients | duplicate indices in a bulk ask: TS orphans a waiter and asks twice; WASM leaves the bulk path stuck on "previous bulk still pending" | same script; `session.rs` by reading | land in both arms |
+| D4 | dev tooling | `server/dev-server.py` serves `dev-cert/key.pem` and `.git/` | `curl` 200 | deny-list |
+| D5 | log hygiene | normal browser close = WARN; one WARN per refused frame | e2e server log | `EndSession` before `close()`; levels |
+| D6/D7 | lab nits | `refusals_e2e.mjs` needs `wt`/`hash`; dead Chromium path in `verify_e2e.py` | — | fix |
+| T1–T7 | tooling | no CI; gate skips four crates + clippy + fmt; `fmt --check` fails on one line; editor `tsconfig` reports TS5097; global `rustflags`; wasm prerequisites; two TS build recipes | — | CI workflow yes/no |
+| Docs | drift | `lab/README.md` commit ref (fixed), review G2 row stale, a v1 comment, no `docs/` index | — | index |
+| Tests | gap | product TS client has no tests; the stub-`WebTransport` runs in plain Node | the script | add `client/transport-ts/test/` |
+| P1 | performance, build | `lto = "fat"` + `codegen-units = 1`: server CPU per frame −5 to −8 % in all four cells, `send_us` p50 −8 to −20 %, binary −26 %, +36 s build | interleaved A/B, 3 repeats | adopt profile |
+| P2 | performance, WASM | package size and `init()` across profile variants with `wasm-opt` | sizes, Chromium timing | adopt profile |
+| P3 | metrics | the client recorder's own main-thread share, both arms | Chromium profile, on vs off | — |
+
+Verified on the tree before the pass: workspace build/test/clippy/fmt, TS build/type-check/unit
+tests/absence check, and in Chromium 141 both arms' frame0 + bulk and 64/64 refusals — with the
+WASM package through `wasm-opt` for the first time on this branch (`npm i -g wasm-pack binaryen`
+works on the runner).
