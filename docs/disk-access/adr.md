@@ -9,7 +9,7 @@ and what is validated
 
 §1 is the decision. §2 is what shaped it, including the numbers that are safe to quote and
 the claims that were retracted. §3 is how it got here. §4–5 are consequences and every
-alternative measured. §6 is where it silently does not apply. §7–9: invariants, the levers
+alternative measured. §6 is where it does not apply, and what to set. §7–9: invariants, the levers
 outside it, what is next.
 
 ## 1 · The decision, as it ships
@@ -196,7 +196,7 @@ under pressure, product runtime; "(miss)" rows are frames/s at 100 % misses, 8 s
 | Wider windows for streams (64 / 256 KiB) | Rejected | 20–30 % less CPU per byte, but escalations climb 1 % → 4 % → 13.5 % |
 | Depth above 2 per stream | Rejected | the wire is 200× slower than a warm read; at 64 sessions × depth 16 every arm queues on the device (p99 100–190 ms) |
 
-## 6 · Deployment: where the decision silently does not apply
+## 6 · Deployment: where the decision does not apply, and what to set
 
 Both fallbacks degrade to the pool **per session**, and since 2026-09-08 the server says so:
 `read_fast_path=` in the startup banner (WARN when it is `pooled_pread`) and `ring=` in every
