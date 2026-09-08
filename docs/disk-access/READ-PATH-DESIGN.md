@@ -199,3 +199,88 @@ two wire tests for the bytes, one new test pinning the write chunk at `READ_WIND
 * **Fill then on-demand on one session**, and a second `StreamFrames` after `EndStream`: not
   specified.
 * **Memory at thousands of fills** (§5): measure before building the block pool.
+
+## 8 · Review of this iteration — resolve each item, then delete this section
+
+Second pair of eyes on the 2026-09-08 iteration. Each item is a fix or a decision; none
+re-opens what §1–§7 settle. Facts checked against the code on the day.
+
+**Fixes — the text is wrong or inconsistent as written**
+
+1. **The `EndStream` hole reopens if any other message arrives during a fill.** The channel
+   holds every FoD message and has capacity `W − 1`. If a client sends a `RequestFrame`
+   during a fill, the loop's `try_recv` takes it (what does it do with it?), and the next one
+   fills the channel, so the reader task blocks and the `EndStream` behind it never enters.
+   §3's guarantee depends on the channel never being full of anything but what the loop
+   consumes. Decide one rule and write it: **a data request during a fill ends the fill**
+   (the client changed its mind; this also gives "fill then on-demand" and "seek" for free —
+   a second `StreamFrames` is a seek), or **a data request during a fill is refused** with
+   `FrameError`. Either keeps the channel draining. "Unspecified" is the one answer that does
+   not.
+2. **Which W sizes the channel?** §5 says W differs per mode and the session's mode is not
+   known when the channel is built. Capacity is therefore `W_tiles − 1`, the larger, and the
+   fill's 2 is the read path's per-mode cap on how many of `upcoming` it starts — two
+   numbers, not one, and §1's table should say so.
+3. **The memory fallback in §5 is the shape superseded on 2026-09-07.** "Keep each buffer at
+   64 KiB and take several disk trips per frame" is windowed escalation: 2–3 round trips per
+   250 KB frame, 1 404 vs 4 539 f/s ([`adr.md`](adr.md) §3). The fallback that keeps one
+   round trip is a **vectored read into fixed 64 KiB blocks** (`preadv`, or `Readv` on the
+   ring). Replace the sentence.
+4. **On-demand memory assumes 16 KiB tiles.** `RequestFrame` also serves whole frames, and a
+   window grows to what it escalates: at W = 8 and 250 KB frames a session that has missed
+   holds 2 MB, a thousand of them 2 GB. Give both numbers in §5; the tile number alone
+   decides W = 8 for the wrong workload.
+5. **The ring's queue is built for two slots.** `IoUring::builder().build(8)` and a partial
+   read re-submits, so W = 8 can hit the "io_uring SQ full" error path under load. Step 3
+   sizes entries at `2 × W`; the review's change B is where it lands.
+6. **§6d's shape takes one `next`; depth `W − 1` needs several.** To reach
+   `min(pipelined, W)` the loop drains the channel into a small local FIFO of asks (a
+   `RequestFrames` expands to its list) until `W − 1` frames are known or the channel is
+   empty; `upcoming` iterates that FIFO. `EndSession` found while draining is processed at
+   its place in the FIFO, which is invariant 2 restated for the drained form.
+
+**Decisions to take now — they change what gets built**
+
+7. **W on the pool path.** Where a session has no ring (`RWF_NOWAIT` refused, ring refused,
+   the `pool` kill switch), every read in flight is a blocking thread, and tokio caps those at
+   512 per process. W = 8 there is 64 missing sessions to the cap. Cap W at 2 whenever the
+   escalation is the pool, whatever the mode.
+8. **`EndStream` latency on a slow link is the QUIC send window, not the frame boundary.**
+   The loop stops producing within ~1 ms, but bytes already handed to QUIC still go out: up
+   to the stream's send window, which at quinn's defaults is on the order of a megabyte —
+   several 250 KB frames, seconds at 10 Mbps. The lever is the **client's** receive window
+   for a fill session, and on the server the existing `stream_receive_window_bytes` knob in
+   `server.rs`. Say which one bounds what; §7's "granularity" question is about this, not
+   about the frame boundary.
+9. **"No server memory grows with ask rate" is bounded, not zero.** When the channel is full,
+   asks accumulate in the control stream's QUIC receive buffer, up to its receive window —
+   at the default that is ~100 000 asks per session. Set the control stream's window small,
+   which the same knob does, and state the bound.
+10. **`upcoming` should carry frame indexes, not spans.** `store.frame_span` can fail, and an
+    out-of-range look-ahead is not this frame's failure (§6d already says so). Let the read
+    path resolve and skip. And write the two window rules the iterator implies: a frame
+    already held by a window is not started again; a window whose frame is neither current
+    nor in `upcoming` is released once its read settles.
+11. **`StreamFrames` validation.** `to` inclusive; require `from ≤ to < frame_count`; refuse
+    otherwise with `FrameError { frame_index: from }`. `EndStream` with no fill running is a
+    no-op, not an error.
+12. **Report the mode.** The per-session `session reads …` line gains the mode and W, or the
+    miss rate of a fill and of a tile session become indistinguishable in production.
+
+**Optimisations and simplifications**
+
+13. **Fix fault 1 now, before change A.** `ready.chunks(stride)` in `stream_codestream`
+    becomes `chunks(stride.min(READ_WINDOW))`: one line, plus the test the review names
+    (a 250 KB frame on a `force_pool_reads` store, every piece ≤ `READ_WINDOW`). It is a
+    defect on the deployment [`DEPLOYMENT.md`](DEPLOYMENT.md) calls the default, and nothing
+    in change A depends on it landing later.
+14. **Split step 2.** 2a: the reader task and channel alone — no new messages, and the harness
+    measures pipelined `RequestFrame` depth the same day. 2b: `StreamFrames` and `EndStream`,
+    which need the wire format and a client. Same end state, half the blast radius per step.
+15. **Head-of-line at W = 8 is inherent and bounded.** Reads land out of order, delivery is
+    FIFO, so a missed head frame delays landed frames by one device read. Keep FIFO; per-frame
+    streams do not change this without the reordering the ordering ADR rejects. Just say it.
+16. **Tests this iteration owes**, each mutated once: `EndStream` mid-fill stops within one
+    frame; `EndSession` mid-fill ends the session; the rule from item 1; pipelined
+    `RequestFrame` reaches `W − 1` in `upcoming`; a full channel still delivers `EndStream`
+    under item 1's rule; a bad `StreamFrames` range is refused; the fault-1 chunk bound.
