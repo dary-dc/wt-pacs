@@ -78,16 +78,13 @@ moot. If socket sizing is ever wanted, it returns with a campaign behind it.
 | path | evidence | verdict |
 | --- | --- | --- |
 | `chunked` | the default; every published number | **product** |
-| `copy` | `HANDOFF.md` §66 — `--send-path copy --prefault true` reproduces `main` exactly | **lab** — the rollback hatch, and the other half of the wire-equality test |
+| `copy` | `HANDOFF.md` §66 — `--send-path copy --prefault true` reproduces `main` exactly | **lab** — the rollback hatch, and one third of the wire-equality test |
+| `split` | three committed TSVs; the baseline chunked's knee is measured against; two rows of `stall-client.md` §5 | **lab** |
 
-Both paths now locate through `frame_bytes`, which is a refcount bump rather than an
-allocation, so the copy path wraps out of it making exactly the copies it made when it
-wrapped out of `frame_slice`. That removed the `Payload` enum, which existed only to carry
-two shapes.
-| `split` | **one occurrence repo-wide**, its own match arm | **delete** |
-
-`split` costs a `Payload` variant, `write_payload_split`, `envelope_header` and a third of
-`all_send_paths_are_the_same_wire`, and has never produced a measurement.
+All three now locate through `frame_bytes`, which is a refcount bump rather than an
+allocation: `copy` wraps out of it and `split` derefs it to `&[u8]`, each making exactly the
+copies it made when it started from `frame_slice`. That retired the `Payload` enum, which
+existed only to carry two shapes through one function.
 
 ## Instruments
 
@@ -103,16 +100,16 @@ two shapes.
 
 ## What we do about it
 
-Dead code is deleted. Lab arms move behind `--features lab`, following the convention the
-repository already uses for `telemetry`:
+Every arm moves behind `--features lab`, following the convention the repository already
+uses for `telemetry`. **Nothing is deleted** — see the correction above for why that matters.
 
 ```bash
-cargo build --release                 # product: 7 flags, each attached to a written conclusion
-cargo build --release --features lab  # every past campaign, byte for byte
+cargo build --release                 # product: 6 transport flags, each backed by a conclusion
+cargo build --release --features lab  # every arm this branch ever ran, byte for byte
 ```
 
 **Nothing becomes unreproducible.** A campaign that swept an arm still sweeps it; it asks for
-the lab binary, which the scripts already build via `l1_build_bins.sh`.
+the lab binary, and every lab script now builds with the feature.
 
 The shipped surface after this pass:
 

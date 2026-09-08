@@ -20,7 +20,7 @@ the traps that have already cost this project four invalidated campaigns.
 | Branch | `cursor/l1-loss-run-dbae` |
 | Relation to `main` | **no longer a fast-forward — see the warning below** |
 | Contains | the L1 loss-run lane **plus** the R6 stream-shape lane, merged and reconciled |
-| Build | `cargo build --release --workspace` clean; 12 server tests + 8 harness tests pass |
+| Build | `cargo build --release --workspace` clean. Tests: 13 server, 16 with `--features telemetry`, 7 harness — in every combination of `lab` and `telemetry`. Clippy 3, all in files this branch never touched |
 | PR | [**#5**](https://github.com/dary-dc/wt-pacs/pull/5), draft, open since 2026-08-30 — its description still covers L1 v3 Phase C only, two lanes out of date. The same server changes are also open as #12 |
 
 > **Corrected 2026-09-07.** This table used to claim `main` was a direct ancestor and that
