@@ -16,7 +16,7 @@ struct Args {
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
     /// How frames reach the client: one shared uni stream or one per frame.
-    #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
+    #[arg(long, value_enum, default_value_t = StreamMode::Shared)]
     stream_mode: StreamMode,
     /// Bind IP. Omit for dual-stack ANY; set (e.g. `127.0.0.1`) on hosts without IPv6.
     #[arg(long)]
