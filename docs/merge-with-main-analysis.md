@@ -1,6 +1,6 @@
 # Merging this branch with `main` — what actually collides, and what to do
 
-**2026-09-07.** `HANDOFF.md` §1 used to claim `main` was a direct ancestor and the merge was
+**2026-09-07, updated 2026-09-08.** `HANDOFF.md` §1 used to claim `main` was a direct ancestor and the merge was
 conflict-free. That went stale: the fork point is `be78860` (4 September) and **72 commits
 have landed on `main` since**, including the client-frame-pipeline-telemetry PR.
 
@@ -62,7 +62,7 @@ an adjudication.
 | file | hunks | lines | what it is |
 | --- | --- | --- | --- |
 | `server/src/transport/server.rs` | 9 | **477** | **The port.** Extraction vs features, as above |
-| `server/src/main.rs` | 3 | 151 | CLI: this branch's transport flags against `main`'s new ones |
+| `server/src/main.rs` | 3 | 151 | CLI: this branch's transport flags against `main`'s new ones. **Smaller since 2026-09-08** — a product build now exposes 6 transport flags rather than 13, the rest being behind `--features lab` ([`branch-source-audit.md`](branch-source-audit.md)) |
 | `server/src/record/mod.rs` | 1 | 93 | `main` split the recorder into sink/rows/report; this branch added `path.rs` beside it |
 | `lab/window-harness/src/metrics.rs` | 2 | 49 | Both added fields |
 | `lab/window-harness/src/client.rs` | 1 | 14 | Both added imports/config |
@@ -116,15 +116,46 @@ below leaves the tree building.
    wholesale, then implement this branch's send paths inside `Pipeline::send`, and thread
    `TransportTuning` through `build_endpoint`.
 
-### The acceptance gate already exists
+### The acceptance gate
 
-`all_send_paths_are_the_same_wire` is a committed test asserting the three send paths
-produce byte-identical output. **If it passes after the port, the port did not change the
-wire** — which is the property the whole send-path result rests on. Do not declare step 6
-done without it, and do not weaken it to make the port pass.
+**1 · The wire must not move.** `all_send_paths_are_the_same_wire` asserts the three send
+paths produce byte-identical output. If it passes after the port, the port did not change
+the wire — the property the whole send-path result rests on. Do not weaken it to make the
+port pass.
 
-Beyond that: `cargo build --release --workspace` clean, 12 server tests (15 with
-`--features telemetry`), 8 harness tests.
+**2 · The chunked path must still not copy.** This one is new, and it is the gate that
+matters most, because *nothing else can see this failure.* `main`'s seam passes `&[u8]`;
+`chunked` exists to hand quinn an owned refcounted slice so no full-frame copy happens. Push
+it through a `&[u8]` and the copy comes back — CPU per byte regresses 6–14 %, a stalled
+connection goes from 198 kB to ~7 MB, **and every test still passes**, the wire test
+included. The wire is identical either way; that is the point of the copy.
+
+Gate on the instrument that already measured it:
+
+```bash
+lab/scripts/stall_client_campaign.sh      # chunked arm; expect ~200 kB/connection
+```
+
+If it reads in megabytes, the copy is back. It does not care *where* the copy returned —
+allocator, seam, store — which is why it is the gate and not the tripwire below.
+
+`frame_bytes_is_a_view_of_the_mapping` (`frame_store.rs`) is the cheap fast-fail beside it:
+it asserts the frame body's pointer lies inside the study mapping, so `Bytes::copy_from_slice`
+in `frame_bytes` fails immediately rather than at gate time. It **cannot** see a copy
+reintroduced further down the send path, which is why it does not replace the campaign.
+
+**3 · Everything else builds and passes**, in all four feature combinations, because the
+experiment arms are behind `--features lab` now:
+
+```bash
+cargo build --release --workspace
+cargo test -p exact-server                          # 13
+cargo test -p exact-server --features lab           # 13
+cargo test -p exact-server --features telemetry     # 16
+cargo test -p exact-server --features lab,telemetry # 16
+cargo test -p window-harness                        # 7
+cargo clippy --workspace --all-targets              # 3, none in files this branch touched
+```
 
 ---
 
@@ -140,3 +171,30 @@ Nothing here reviews it — this branch's measurements were all taken against th
 structure, so after the port every performance number should be treated as pending
 re-confirmation until at least one campaign is re-run on the merged tree. The send-path CPU
 figures are the ones most exposed, since they are precisely what step 6 rewires.
+
+
+---
+
+## What changed on 2026-09-08, and what it does to this plan
+
+The source-policy pass and the comment lean both landed after this document was written.
+Neither changes the shape of the merge; both make step 6 smaller.
+
+**Step 5 (`main.rs`) shrinks.** A product build now carries `--stream-mode`, `--bind`,
+`--receive-window`, `--send-window`, `--congestion` and `--prefault`. Everything else is
+behind `--features lab`. So the CLI reconciliation is six additive flags against `main`'s
+three, not thirteen.
+
+**Step 6 (`server.rs`) shrinks too.** `send_one_frame` lost three arguments to a `Serving`
+struct carrying the per-session choices — which is the shape `main`'s `Pipeline` already
+holds, so the port inherits it rather than undoing it. The `Payload` enum is gone: both
+paths locate through `frame_bytes`, and `Bytes` derefs to `&[u8]` for the two that want one.
+
+**Three collisions this document did not name**, found by diffing the CLIs directly. All
+three are silent — no compile error, no failing test:
+
+| | |
+| --- | --- |
+| **Duplicate flags** | `main` has `--send-window-bytes` and `--stream-receive-window-bytes`; this branch has `--send-window` and `--stream-receive-window`. A naive merge ships both, and the last one applied wins. Merge `TransportKnobs` into `TransportTuning` and keep `main`'s names — they are the shipped ones |
+| **`--max-idle-timeout-ms` stops working** | `main` has it and this branch does not, and it is applied to the *builder* (`server.rs:157`), outside the `TransportConfig` our `to_transport_config()` builds from scratch. Route everything through `TransportTuning` and the flag parses, logs, and does nothing. **This is a regression to `main`.** Add the field, apply it at the builder |
+| **`StreamMode` forks** | Both sides define it; `main` exports it from `exact_server` (`lib.rs:5`) and has `stream_mode.rs`. Two enums means the `shared` default can land on the one nothing reads. Delete ours, keep `main`'s, flip there |

@@ -20,7 +20,7 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss your links have.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured (§1) |
-| **Stream shape** | **Keep one shared stream — a recommendation no code carries yet (§2.7).** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a **real network** the 64 KB cell is noise-dominated and does not separate (§2.6), but **the 250 KB cell does: per-frame is 5.76× worse, separated 3/3, and the absolute penalty the mechanism predicts reproduces to within 1.6 % of the simulator** (§2.6a). At the frame size this product ships, the recommendation is a **measured property of the transport on real hardware**, not a simulator result. No cell on either rig separates in per-frame's favour |
+| **Stream shape** | **Keep one shared stream — and the binary now defaults to it (§2.7).** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a **real network** the 64 KB cell is noise-dominated and does not separate (§2.6), but **the 250 KB cell does: per-frame is 5.76× worse, separated 3/3, and the absolute penalty the mechanism predicts reproduces to within 1.6 % of the simulator** (§2.6a). At the frame size this product ships, the recommendation is a **measured property of the transport on real hardware**, not a simulator result. No cell on either rig separates in per-frame's favour |
 | **Fixed-N pool** | **Still untested** — a server-side change. (The "this lane may not modify `server/`" constraint this row used to cite has not held since the transport-knob work: eight server files are modified on this branch.) R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
 | **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95. **Not confirmed on real hardware** — on the rig the path, not the send path, is the ceiling ([`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.2) |
@@ -392,11 +392,14 @@ trouble. It separated instead.
 in both arms — necessary to make the loss model fair, but not how the server runs in
 production, so the GSO-on real-path condition at 250 KB is unmeasured.
 
-### 2.7 · The binary does not implement this recommendation
+### 2.7 · The binary now implements this recommendation
 
-`server/src/main.rs` defaults `--stream-mode` to **`per-frame`** — the arm this section
-argues against. So does `main`: the default is identical on both branches, which means this
-branch has not regressed anything. It has simply **never landed its own conclusion**.
+**Landed 2026-09-08.** `server/src/main.rs` defaults `--stream-mode` to **`shared`**. The
+rule below decided it; the record of how is kept because the point of a pre-registered rule
+is that it can be checked afterwards.
+
+Until then the binary defaulted to `per-frame` — the arm this section argues against — as
+`main` still does. That was never a regression, only a conclusion the branch had not landed.
 
 ### The rule that decides it, so nobody has to adjudicate
 

@@ -230,3 +230,62 @@ rather than done in a documentation pass.
 
 The general form: **when a decision is contested, write the measurement that would settle it
 and commit to the outcome in advance.** It converts an argument into a run.
+
+---
+
+## The pass of 2026-09-08
+
+### 15 · A measurement rig and a shipped server want different things
+
+**Before.** Thirteen transport flags and three send paths reached a product build, because
+every variable a campaign swept had been given a knob and no one had asked which of them a
+hospital's server needs.
+
+**Forced by.** Reading the diff as a product change rather than as a campaign. A campaign
+needs a knob per swept variable; a server needs one only where a decision is genuinely open.
+Six flags pass that test — `--stream-mode`, `--send-window`, `--receive-window`,
+`--congestion`, `--bind`, `--prefault` — and each points at a section of
+`transport-conclusions.md`. The rest are arms, and now sit behind `--features lab`, which is
+the convention `telemetry` already established in this repository.
+
+**Alternative.** Delete them. Tried, and it was wrong — see below.
+
+**Falsified by.** A campaign that cannot be reproduced. Every arm is still reachable with
+`--features lab`, and the lab scripts build with it.
+
+### 16 · A usage count is only as wide as the places you looked
+
+**Before.** The audit for §15 counted usage with `grep` over `lab/scripts/` and `server/src/`
+and deleted five flags and the `split` send path as unreferenced.
+
+**Forced by.** Both readings being wrong, for one reason: **arms are not invoked from inside
+the scripts.** They arrive through `SRV_FLAGS`, and those command lines live in the
+*documents*. `quic-transport-optimization.md` §5 runs all five flags and reports a number for
+each; `split` has three committed TSVs and is the baseline the chunked path's knee is
+measured against. Grepping for `SendPath::Split` found the symbol, constructed in one place.
+It could never have found `--send-path split`.
+
+**Alternative.** Keep the deletion and accept that a committed results section no longer
+reproduces. Rejected: this project's whole claim is that its numbers can be re-derived.
+
+**Falsified by.** Nothing — it is a method error, recorded so the method changes. **A
+repository that keeps its invocations in prose cannot be audited by grepping its code.**
+
+### 17 · Rationale belongs where the results are, not in the file that produced them
+
+**Before.** 1 268 lines of multi-line comment across 55 files, at three times the house
+comment-to-code ratio. Much of it argued *why the project came to need the thing* — at the
+call site, where a reader is trying to follow what the code does.
+
+**Forced by.** The rule that a comment earns its place only when a competent reader would
+otherwise do the wrong thing. Applying it left every in-body comment at one or two lines and
+moved the argument to the document a reader of the results already has open: two new files
+under `measurements/r6/`, an appendix on `stall-client.md`, and this register.
+
+**Alternative.** Delete the rationale. Refused: this repository's credibility rests on
+recording what a normal codebase deletes — void rows, falsified predictions, why a threshold
+is what it is. **Essentialism is placement, not deletion.**
+
+**Falsified by.** A comment surviving the pass that could be deleted without a reader making
+a mistake, or a fact that now exists nowhere. Both are checkable; neither is a matter of
+taste.

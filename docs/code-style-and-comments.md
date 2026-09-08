@@ -113,16 +113,26 @@ as evidence rather than skimmed as preamble:
 
 ---
 
-## Proposed exit criteria
+## Exit criteria — applied 2026-09-08
 
-Not applied — this is a proposal, like
-[`proposals/product-code-changes.md`](proposals/product-code-changes.md).
+No longer a proposal. Where each landed:
 
-1. `cargo clippy --workspace --all-targets -- -D warnings` passes (21 warnings today).
-2. The four files above land within the house norm (~0.2×) with rationale moved, not cut.
-3. No new function exceeds ~40 lines or 7 arguments.
-4. Every comment surviving the pass would fail test 1 above if deleted.
+1. **Clippy: 21 → 3.** The three left are in `client/flight-registry`,
+   `client/transport-wasm` and `server/src/transport/wire.rs` — files this branch never
+   touched, and `main` has already rewritten the third. Fixing them would manufacture a
+   merge conflict to silence a style lint.
+2. **Done, and past the norm.** The four files land at 0.14–0.25× against a house norm of
+   ~0.2×; `client.rs` reaches 0.07×. Rationale moved to
+   [`why-these-changes.md`](why-these-changes.md) and to the measurement documents, not cut.
+3. **`send_one_frame` lost three arguments** to a `Serving` struct — the shape `main`'s
+   `Pipeline` carries, so the port inherits it. The full one-altitude split still waits for
+   the merge, for the reason below.
+4. **Every in-body comment is now one or two lines.** 157 multi-line blocks → 39, and all 39
+   are file headers: what it does, where the reasoning lives, how to run it. That is the one
+   place a one-line rule does not fit, and it is named rather than quietly excepted.
 
-**Do it as part of the merge, not before it.** `main`'s `pipeline.rs` already imposes the
-shape items 3 and the "one altitude" rule are asking for, so cleaning up first means doing
-it twice. See [`merge-with-main-analysis.md`](merge-with-main-analysis.md).
+`parse_length_prefixed` is gone.
+
+**The rest is still merge work.** `main`'s `pipeline.rs` imposes the shape the "one altitude"
+rule asks for, so restructuring `send_one_frame` further before the port means doing it
+twice. See [`merge-with-main-analysis.md`](merge-with-main-analysis.md).

@@ -1,6 +1,8 @@
 # Proposed code changes — for review, not applied
 
-**2026-09-07.** Everything here is a proposal. **No code in `server/` or
+**2026-09-07, updated 2026-09-08.** Items **1, 4, 5 and 9 have since been applied** — each is
+marked below with what actually landed, and none was applied by this document. Everything
+still marked *proposed* is a proposal. **No code in `server/` or
 `lab/window-harness/` was changed to produce this document**, and none should be until each
 item below is agreed. Analysis tooling under `lab/scripts/` and the documentation were
 fixed directly, because a wrong analyser silently corrupts results while a wrong proposal
@@ -14,7 +16,7 @@ Each item states **what is true now**, **what to change**, **why it is worth doi
 
 ---
 
-## 1 · Flip the default stream mode to `shared` — the rule that decides this has now fired
+## 1 · Flip the default stream mode to `shared` — **APPLIED 2026-09-08**
 
 **Now.** `server/src/main.rs:19` defaults `--stream-mode` to `PerFrame`. `main` has the
 identical default, so this branch regressed nothing; it never landed its own conclusion.
@@ -31,9 +33,10 @@ The condition is met. This is the one item here whose justification is already w
 and already satisfied; it is a proposal only because changing a shipped default is not
 something to do inside a documentation pass.
 
-**Verify.** `all_send_paths_are_the_same_wire` still passes; the harness's `--stream-mode`
-must be set explicitly in every campaign script already (it is), so no measurement changes
-meaning. Grep for callers relying on the old default before flipping.
+**Landed.** Commit `41db5a0`, on its own so a reviewer can read the whole argument in one
+`git show`. `all_send_paths_are_the_same_wire` passes. The grep found seven legacy scripts
+reading the old default rather than naming it; each now passes `--stream-mode per-frame`, so
+no committed measurement changes meaning.
 
 ---
 
@@ -78,7 +81,7 @@ it moves more, that itself is the finding.
 
 ---
 
-## 4 · Read `WT_SERVE_TIMING` once, not per frame (`P2`)
+## 4 · Read `WT_SERVE_TIMING` once, not per frame (`P2`) — **APPLIED 2026-09-08**
 
 **Now.** `send_one_frame` (`server.rs:314`) calls `std::env::var_os` on every frame, taking
 the process environment lock and scanning it, plus two `Instant::now()` reads.
@@ -90,11 +93,15 @@ a small non-zero cost on the measured path, paid by every arm — so it does not
 comparison, but it sits inside CPU-per-byte figures that are quoted to a tenth of a percent.
 Cheap to remove, and removing it makes the comment above `note_serve_timing` true.
 
-**Verify.** `cpu_s_per_gb` on an interleaved send-path run, before and after.
+**Landed.** A `OnceLock` in `serve_timing_enabled()`, and the whole mechanism is behind
+`--features lab`, so a product build does not read the variable at all. **The re-measurement
+in the original Verify line is still owed:** `cpu_s_per_gb` on an interleaved send-path run,
+before and after. The change can only make the number smaller, but "can only" is not a
+measurement.
 
 ---
 
-## 5 · Make the hand-built socket dual-stack explicitly (`P3`)
+## 5 · Make the hand-built socket dual-stack explicitly (`P3`) — **APPLIED 2026-09-08**
 
 **Now.** `bind_socket` (`server.rs:130`) binds `[::]:port` and never calls
 `set_only_v6(false)`. wtransport's own `with_bind_default` sets it (`config.rs:1186`).
@@ -106,8 +113,10 @@ Cheap to remove, and removing it makes the comment above `note_serve_timing` tru
 that claims one variable moving two. Latent on stock Linux, which is why it has not bitten;
 that is an argument for fixing it cheaply now rather than after a confusing result.
 
-**Verify.** `ss -lun` shows the socket accepting v4-mapped addresses; a socket-buffer arm
-still connects from an IPv4 client.
+**Landed.** `set_only_v6(false)` on the IPv6 socket, which is what wtransport's own bind
+does. The socket itself is now behind `--features lab`, since it exists only for the
+`--socket-*-buffer` arms. **Verify still owed:** `ss -lun` showing v4-mapped acceptance, and
+a socket-buffer arm connecting from an IPv4 client.
 
 ---
 
@@ -164,7 +173,7 @@ major faults on the driver thread. Belongs in the assumption audit either way.
 
 ---
 
-## 9 · Clippy: 21 warnings, 5 in the server (`G4`)
+## 9 · Clippy: 21 warnings, 5 in the server (`G4`) — **APPLIED 2026-09-08**
 
 `cargo clippy --workspace --all-targets` reports 21, of which the server's five are: one
 function with 8 arguments, three unit-value let-bindings, and one loop that should be
@@ -176,7 +185,12 @@ function with 8 arguments, three unit-value let-bindings, and one loop that shou
 also the one item 4 touches and the one the merge with `main` has to re-express as
 `Pipeline::send`. Clippy is pointing at the same place the architecture is.
 
-**Verify.** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+**Landed.** 21 → 3. The 8-argument `send_one_frame` lost three arguments to a `Serving`
+struct — the shape `main`'s `Pipeline` carries, so the port inherits it. The three that
+remain are in `client/flight-registry`, `client/transport-wasm` and
+`server/src/transport/wire.rs`; **this branch never touched any of those files**, and `main`
+has already rewritten `read_fod_msg`, which is what the server warning is about. Fixing them
+here would manufacture a merge conflict to silence a style lint.
 
 ---
 
