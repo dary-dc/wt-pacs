@@ -280,6 +280,10 @@ If the answer is "only the harness", the honest fix may be to have those clients
 **Recommendation: answer the question above, then C or B — not A.** A buys nothing over B and
 puts a cancel-safety hazard in the session loop's hot path.
 
+Note the owners' requirement is **depth 4 or more**, and C alone does not reach it for a
+client that asks per tile: `RequestFrames` gives depth 2 today, and widening past two is a
+read-path change to make *after* the loop can keep more than one ask in flight.
+
 ### If B is built
 
 The peek is not a peek: `try_recv` removes the message, so the loop carries it as the next
@@ -304,8 +308,11 @@ Invariants an implementation has to keep, each of which is a way to get this wro
    losing it turns a broken control stream into a silent hang.
 4. **Capacity 1, deliberately.** Two windows are what the read path has; a deeper queue would
    buffer asks the server cannot start reading, which is latency with extra steps.
-5. **Depth stays 2.** `disk-access/v35_depth2.tsv` prices depth 4 at a further 0.21 ms and
-   depth 16 at 0.12 ms beyond that, against a slot table and a completion demultiplexer.
+5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
+   (`disk-access/NEXT.md`). `disk-access/v35_depth2.tsv` prices the rest: 2 → 4 is a further
+   0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion
+   demultiplexer. Build the loop first — four asks in flight is worth nothing while the loop
+   supplies one — then widen the read path with that measurement in hand.
 
 ### How to know it worked
 
