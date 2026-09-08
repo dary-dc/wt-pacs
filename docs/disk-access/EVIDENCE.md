@@ -128,6 +128,31 @@ so `pool_ringloop` was added to hold each fixed and split them.
 core-dependent term — nothing on 4 vCPU, real on 8 — which `hybrid` already collects because it
 uses the same loop. The idle ring is what `hybrid_lazyring` removes.
 
+## What serving depth is worth — and what depth 2 buys
+
+The server serves one frame at a time ([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
+§6b). Earlier sweeps priced depth 1 against 4 and 16 and never measured **2**, which is the
+only depth the shape being proposed there can reach. Measured 2026-09-08,
+[`v35_depth2.tsv`](v35_depth2.tsv) + [`v35_depth2_host.txt`](v35_depth2_host.txt), 12
+interleaved repeats, `hybrid_lazyring`, cold 16 KiB, paired by repeat against depth 1:
+
+| depth | asks/s | vs depth 1 | signs | 16 missing tiles | CPU/ask |
+| ---: | ---: | ---: | :---: | ---: | ---: |
+| 1 | 12 041 | — | — | 1.33 ms | 53.3 µs |
+| **2** | **20 397** | **+67.4% RESOLVED** | 12/12 | **0.78 ms** | 41.8 µs |
+| 4 | 28 000 | +125.8% RESOLVED | 12/12 | 0.57 ms | 31.8 µs |
+| 16 | 35 767 | +184.4% RESOLVED | 12/12 | 0.45 ms | 23.0 µs |
+
+**Depth 2 collects 62% of everything depth 16 has to offer** (0.55 ms of the 0.88 ms between
+depth 1 and 16), for two buffers and two ring slots rather than a slot table. It also costs
+*less* CPU per ask, not more, and warm cells are a tie at every depth (+2.7%, 7/12) — a
+session whose reads hit pays nothing for a depth it never uses.
+
+That is the measurement `adr-frame-framing-and-loop-shape.md` §6b asked for before building
+the double buffer, and it supports building it. It does not support going past two: the
+step from 2 to 4 is worth a further 0.21 ms and the step from 4 to 16 another 0.12 ms, both
+against a much harder invariant.
+
 ## Hosts
 
 The whole campaign originally came from one machine, which was its largest risk.
@@ -219,3 +244,6 @@ Named so they are not mistaken for measured, and so a future run knows where to 
   there: windowing gets worse, the ring's per-round-trip saving gets less significant.
 - **`hybrid_lazyring` above one reader** — see IMPLEMENTATION.md, *Before rollout*.
 - **`hybrid_lazyring` on the 4 vCPU sandbox or the GitHub runner.**
+- **Serving depth on any host but the sandbox above.** The depth-2 table is one host, and it
+  reproduces the lab host's depth 1/4/16 shape ([`v32_depth.tsv`](v32_depth.tsv)) closely
+  enough to trust the ranking, not the magnitudes.

@@ -1,0 +1,15 @@
+date            2026-09-08T15:01:02Z
+kernel          Linux 6.18.44-fc-v24 x86_64
+nproc           4
+cpu             Intel(R) Xeon(R) Processor @ 2.80GHz
+mem_mb          16075
+host            Claude Code sandbox (KVM guest)
+fs(study)       ext4   /dev/vda
+read_ahead_kb   vda = 8192
+read_ahead_kb   vdb = 8192
+read_ahead_kb   vdc = 128
+read_ahead_kb   vdd = 128
+read_ahead_kb   vde = 512
+read_ahead_kb   vdf = 512
+fixture         lab/fixtures/frames_16k_big (5120 x 16384 B)
+command         read_campaign --arms hybrid_lazyring,product --depths 1,2,4,16 --temps cold,warm --size 16384 --stride 250000 --asks 256 --repeats 12 --monitors 0
