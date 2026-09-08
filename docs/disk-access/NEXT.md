@@ -35,6 +35,9 @@ trims tens of microseconds off each miss.
 
 ## 1 · Serving depth — half built, and the depth-4 requirement is not met
 
+> The design that takes this past two, with `RequestFrame` kept and the loop, seam and
+> numbers sequenced: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md).
+
 **Built:** read ahead by one. Two windows, each with its own ring slot, and a frame served in
 a `RequestFrames` batch names the one after it, so its read starts before this one is waited
 on. Measured on the shipped `ReadCtx`: **+73.8 % asks/s, 12/12, RESOLVED** on cold 16 KiB,
