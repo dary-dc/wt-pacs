@@ -248,6 +248,73 @@ streaming itself.
 Neither the message nor the server path exists yet. `RequestFrames` is the closest thing and
 is not it — it still names every index.
 
+## 6d · The other half of §6b: `RequestFrame` is still depth 1
+
+**Status: designed, not built. 2026-09-08.** The read path can carry depth 2 —
+`ReadCtx::read` takes the next frame and starts its read before waiting on this one. A batch
+supplies that from `frames[i + 1]`. A stream of single `RequestFrame` asks supplies nothing,
+because `run_session` does not read the next ask until the current frame is on the wire.
+
+### First, the question that decides whether to build it at all
+
+**Which clients pipeline `RequestFrame`?** The win is already available to any client that
+sends `RequestFrames`, and an interactive viewer that asks as the user moves has no next ask
+to name — its depth is 1 by nature, not by this bug. Worth answering before writing code:
+
+* `client/transport-wasm` uses `RequestFrames` for fill and `RequestFrame` for interaction.
+* `lab/window-harness` pipelines `RequestFrame` and holds `--depth` outstanding
+  (`client.rs:530`, `PEAK_OUTSTANDING`). **So the harness is both the client that would
+  benefit and the instrument that would measure it** — its `D` is client-side depth today,
+  which the server flattens to 1.
+
+If the answer is "only the harness", the honest fix may be to have those clients batch.
+
+### Options
+
+| | shape | cost |
+| --- | --- | --- |
+| **A** | `select!` in `run_session` over a pinned `read_fod_msg` future and the in-flight `serve_one` | Every future pinned and re-created only on completion. `read_fod_msg` is **not cancel-safe** — it holds partial length/body state in locals (`wire.rs:22`) — so dropping it mid-message loses stream bytes. One misplaced re-creation is a protocol desync |
+| **B** | an ask-reader task owning `control_recv`, feeding a bounded (capacity 1) channel; the serving loop takes one and peeks the next | One task and one channel per session. Cancel-safety stops being a hazard because one owner reads the stream start to finish. §5 already wanted this shape for a second reason: it is the precondition for per-frame `set_priority` and `reset` |
+| **C** | do nothing; clients that want depth send `RequestFrames` | Free, and already true |
+
+**Recommendation: answer the question above, then C or B — not A.** A buys nothing over B and
+puts a cancel-safety hazard in the session loop's hot path.
+
+### If B is built
+
+The peek is not a peek: `try_recv` removes the message, so the loop carries it as the next
+iteration's current ask.
+
+```rust
+let mut current = rx.recv().await;
+while let Some(ask) = current {
+    let next = rx.try_recv().ok();            // present only when the client pipelined
+    serve(ask, frame_of(next.as_ref())).await?;
+    current = match next { Some(m) => Some(m), None => rx.recv().await };
+}
+```
+
+Invariants an implementation has to keep, each of which is a way to get this wrong:
+
+1. **FIFO.** Asks are served in the order they were read. This is pipelining, not the
+   reordering [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) rejects.
+2. **`EndSession` must not overtake queued asks** — it is a message in the same stream, so it
+   must be handled where it arrives in the sequence, not when it is read.
+3. **A closed channel ends the session**, and the reader task's error is the session's error —
+   losing it turns a broken control stream into a silent hang.
+4. **Capacity 1, deliberately.** Two windows are what the read path has; a deeper queue would
+   buffer asks the server cannot start reading, which is latency with extra steps.
+5. **Depth stays 2.** `disk-access/v35_depth2.tsv` prices depth 4 at a further 0.21 ms and
+   depth 16 at 0.12 ms beyond that, against a slot table and a completion demultiplexer.
+
+### How to know it worked
+
+`window-harness --mode saturate --depth 4` against the same study, before and after,
+interleaved. Expect the miss-dominated cells to move by something like the batch path's
+**+73.8% asks/s** ([`disk-access/v36_readahead.tsv`](disk-access/v36_readahead.tsv)) and warm
+cells to tie. A warm regression means the look-ahead is reaching the ring on a hit, which is
+the one thing the read path is built not to do.
+
 ## 7 · Corrections owed
 
 - [`adr-client-window-depth.md`](adr-client-window-depth.md) — the architecture comparison must be

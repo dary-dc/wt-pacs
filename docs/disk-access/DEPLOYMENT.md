@@ -124,6 +124,44 @@ Ship the binary in the image (it is small and has no runtime deps beyond libc) a
 becomes a one-command answer at any time. It is also worth running as a startup gate: a
 non-zero exit means the deployment is in the slow mode, whatever the manifest says.
 
+## Limits: `ulimit -n` **and** `ulimit -l`
+
+A session that misses builds one io_uring plus one eventfd and keeps it for the session's
+life. Measured (`lab/disk-access-bench/src/bin/ring_scale.rs`):
+
+| per session that misses | |
+| --- | --- |
+| file descriptors | **2** (ring + eventfd) |
+| locked memory | **8.7 KiB** |
+| ring construction | 15.6 µs |
+
+Read-ahead-by-one did **not** change this: the second read in flight is a second slot in the
+same ring, not a second ring.
+
+**`RLIMIT_MEMLOCK` is the one that bit first on a real host.** An 8 MB default is about
+**940 rings** — two cells of the scale run were refused outright by it
+([`SCALE-RUN.md`](SCALE-RUN.md)). The failure mode is not a refused connection: the ring is
+refused, the session falls back to the blocking pool, and it just gets slower. Silent, again.
+
+```ini
+# systemd unit
+[Service]
+LimitNOFILE=65535
+LimitMEMLOCK=infinity      # or at least 16K x expected concurrent sessions
+```
+
+```bash
+# docker
+docker run --ulimit nofile=65535:65535 --ulimit memlock=-1 myserver
+```
+
+Kubernetes has **no per-pod ulimit field** — the limits come from the node's container runtime
+defaults. Check them on the node (`cat /proc/<pid>/limits` inside the running container)
+rather than assuming; that command is also the honest check anywhere else.
+
+Two sessions per fd pair means the descriptor budget is `2 x sessions + sockets + 1 study`.
+`nofile` is the easier of the two to size and the less likely to bite.
+
 ## Also worth recording: read-ahead
 
 `check-fastpath` prints `read_ahead_kb` because it is not a footnote. The validation host
@@ -149,3 +187,4 @@ sudo blockdev --setra 16384 /dev/<dev>            # 8 MiB, non-persistent
 | **Don't** | `COPY` studies into the image, or write them to the container's own layer |
 | **Don't** | Put studies on tmpfs or `emptyDir: {medium: Memory}` |
 | **Don't** | Assume — check before deploying, and confirm `read_fast_path=preadv2` in the log |
+| **Do** | Raise `LimitMEMLOCK` and `LimitNOFILE`: 2 fds and 8.7 KiB of locked memory per session that misses |

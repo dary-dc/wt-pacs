@@ -52,6 +52,14 @@ existing clone for `spawn_blocking` in `prepare`).
 Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (exact partition;
 absent stages count as 0 in the residual).
 
+**What `send_us` covers changed on 2026-09-08.** The read path reads and writes interleaved,
+so `send_us` was never separable into disk time and wire time. Since read-ahead-by-one it also
+carries the *start* of the next frame's read (a `RWF_NOWAIT` probe and, on a shortfall, one
+submit — no wait), and correspondingly excludes most of its own frame's read where that read
+was started by the frame before it. Within a `RequestFrames` batch, then, per-frame `send_us`
+is a pipeline stage and not a per-frame cost; the batch's total is still exact.
+`../adr-frame-framing-and-loop-shape.md` §6b.
+
 ## Considered 2026-09-06 — peer acknowledgement as a step: not taken
 
 A server-observed delivery stage (`ack_us`) is available from the per-frame `finish().await`
