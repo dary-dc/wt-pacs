@@ -242,18 +242,71 @@ The arm to avoid at scale is the one this change replaced.
 Treat the high end as directional: at 64 and 256 reads in flight a 4 vCPU host is the
 bottleneck, not the read path.
 
-### Why not tokio's own io_uring support
+### Alternatives considered, and why this one
 
-Tokio 1.53 does have an `io-uring` feature. It does not fit this path, for two checked
-reasons:
+The read path drives the `io-uring` crate directly. What else was on the table:
 
-* It is gated behind `--cfg tokio_unstable` — `compile_error!` without it.
-* It routes **sequential** `File::read` through the ring. `tokio::fs` has no positional read
-  at all: no `read_at`, no `read_exact_at`. This path is positional everywhere — a frame is a
-  byte range at an offset, read out of order across a study.
+| Option | Verdict | Why |
+| --- | --- | --- |
+| **`io-uring` crate, driven directly** | **chosen** | Positional reads at an offset, one shared fd, works on the multi-thread runtime the transport already needs |
+| `spawn_blocking` + `pread` | measured, replaced | The `pool` arm. Correct and simple, but −56 to −75% slower on misses and grows OS threads: 98 at 256 reads in flight |
+| `preadv2(RWF_NOWAIT)` inline | **kept — it is the hit path** | Not an alternative but the other half: a page-cache hit never reaches the ring |
+| mmap | rejected, measured | Faults freeze co-tenants (`gap_max` 1.5–4.2 ms); `mincore` gating unsafe 5/5 runs. See the table above |
+| `tokio::fs` + `io-uring` feature | rejected — see below | Sequential only; no positional read exists in `tokio::fs` |
+| `tokio-uring` crate | rejected | Current-thread runtime with its own driver — **unverified, see caveat** |
+| `glommio`, `monoio`, `compio` | rejected | Thread-per-core or completion-first runtimes — **unverified, see caveat** |
+| `O_DIRECT` + SPDK | rejected | Wrong scale for this workload |
+| `sendfile` / `splice` | rejected | Userspace QUIC copies anyway |
 
-So it covers a different operation than the one the server performs. The `io-uring` crate,
-driven directly, is what gives a positional read with an offset.
+#### The constraint that rules out four of them at once
+
+`wtransport` is built on `quinn`, which runs on **tokio's multi-thread runtime**
+(`quinn::TokioRuntime`). Any option that brings its own runtime — `tokio-uring`, `glommio`,
+`monoio`, `compio` — is not a read-path change but a **whole-server rewrite** of the transport
+too. That is a real option one day, and [`RERUN.md`](RERUN.md) already names "a thread-per-core
+runtime" as one of the two conditions that would reopen io_uring's ceiling. It is not a
+choice this ADR can make on its own.
+
+#### Why not tokio's own io_uring support
+
+Verified against the vendored source of tokio 1.53.1:
+
+* Gated behind `--cfg tokio_unstable` — `compile_error!` without it.
+* It routes **sequential** `File::read` through the ring.
+* **`tokio::fs` has no positional read at all** — no `read_at`, no `read_exact_at`.
+
+A frame is a byte range at an offset, read out of order across a study, so the operation
+tokio accelerates is not the one this path performs.
+
+There is a second, quieter reason, and it is the one that matters at thousands of sessions:
+**positional reads share one file descriptor; sequential reads cannot.** A cursor belongs to
+a handle, so every concurrently-reading session needs its own `File`. Today `FrameStore` holds
+**one** fd for the whole study however many sessions read it. Switching to cursor reads makes
+that one fd per session, on top of the 2 the ring already costs.
+
+#### …but for the streaming mode, sequential is the right shape
+
+Server-driven streaming (`../adr-frame-framing-and-loop-shape.md` §6c) reads a study start to
+end. That *is* a sequential cursor read, so the objection above does not apply to it, and
+tokio's uring path would fit. Two things to weigh when that mode is built rather than now:
+
+* **It is optimising the small half.** A sequential read is the page cache's best case; the
+  per-frame budget is ~675 µs of QUIC work against ~10 µs for a warm read. Making the read
+  faster moves ~1.5% of the frame.
+* **`tokio_unstable` in a production build** is the real cost — an unstable cfg can change
+  between minor releases, and this is a medical imaging server.
+
+The honest default for streaming is therefore the path that already exists — read forward
+with the same `ReadCtx`, which read-ahead serves well — and to measure before adding an
+unstable feature flag for 1.5% of a frame.
+
+#### Caveat on this table
+
+Only the tokio rows are verified: they were read out of the vendored crate source. The
+`tokio-uring`, `glommio`, `monoio` and `compio` rows are from prior knowledge and were **not**
+checked against current releases — this sandbox has no crates.io access. The runtime argument
+above does not depend on their versions, but if one of them has since gained multi-thread
+tokio compatibility, that row deserves rechecking before it is treated as closed.
 
 ### One in flight per session, by construction
 
