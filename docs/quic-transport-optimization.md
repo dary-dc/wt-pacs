@@ -385,7 +385,9 @@ than the `set_priority` bookkeeping the campaign proposed.
 ## 5 · Measured and rejected
 
 Every one of these was run at 250 KB and 32 KB, D=16, three repeats, against the same
-chunked-path baseline (1904.9 / 6352.3 Mbps):
+chunked-path baseline (1904.9 / 6352.3 Mbps). **All of these flags now require
+`cargo build -p exact-server --features lab`** — they are arms, not product knobs, and a
+shipped binary does not expose them ([`branch-source-audit.md`](branch-source-audit.md)):
 
 | arm | 250 KB | 32 KB | verdict |
 | --- | ------ | ----- | ------- |

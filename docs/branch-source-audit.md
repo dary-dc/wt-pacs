@@ -13,14 +13,32 @@ Evidence is usage counts across the repository at `e61d858`, not judgement.
 
 ## The finding
 
-**Five flags are used by nothing.** Not by a lab script, not by a test, not by a document.
-They were built for sweeps that were never run.
+**Thirteen transport flags and three send paths reach a shipped server; six flags and one
+send path have a reason to.** Everything else sweeps a variable whose answer is written
+down. The arm must stay reproducible; the binary a hospital runs does not need the knob.
 
-**One enum variant appears once in the whole repository** — in the match arm that constructs
-it. `SendPath::Split` has no caller, no campaign and no result.
-
-**Three flags are lab arms**: they sweep a variable whose answer is now written down. The arm
-must stay reproducible; the shipped binary does not need the knob.
+> ### A correction, and it is the interesting part
+>
+> The first version of this audit counted usage with `grep` over `lab/scripts/` and
+> `server/src/`, and concluded that **five flags were used by nothing** and that
+> `SendPath::Split` was **dead — one occurrence repo-wide**. On that basis they were
+> deleted.
+>
+> **Both conclusions were wrong, for the same reason.** Arms are not invoked from inside the
+> scripts; they are passed in from the command line through `SRV_FLAGS`, and those command
+> lines live in the *documents*. `quic-transport-optimization.md` §5 — titled *"Measured and
+> rejected"* — runs every one of those five flags and reports its result. `split` has three
+> committed TSVs (`sendpath_interleaved_{shaped,unshaped}.tsv`, `sendpath_multiclient.tsv`),
+> is the baseline the chunked path's knee is measured against, and supplies two rows of
+> `stall-client.md`'s memory table. Grepping for `SendPath::Split` found the symbol, which is
+> constructed in exactly one place; it never had a chance to find `--send-path split`.
+>
+> Deleting them would have made a committed results section irreproducible. **Every one is
+> now behind `--features lab` instead**, which is what the rest of this document already
+> said to do with an arm.
+>
+> The lesson generalises past this branch: *a usage count is only as wide as the places you
+> looked, and this repository deliberately keeps its invocations in prose.*
 
 ---
 
@@ -37,12 +55,16 @@ must stay reproducible; the shipped binary does not need the knob.
 | `--send-fairness` | 3 | **lab** — R6 arm; moot under `shared`, which has one stream |
 | `--segmentation-offload` | 2 | **lab** — R6/GSO arm |
 | `--ask-priority` | 3 | **lab** — L1 arm Q, never adopted |
-| `--stream-receive-window` | 0 | **delete** — `main` ships `--stream-receive-window-bytes` |
-| `--socket-send-buffer` | 0 | **delete** — never used by anything |
-| `--socket-recv-buffer` | 0 | **delete** — never used by anything |
-| `--initial-mtu` | 0 | **delete** — never used by anything |
-| `--mtu-discovery` | 0 | **delete** — never used by anything |
-| `--ack-frequency` | 0 | **delete** — never used by anything |
+| `--stream-receive-window` | §5 arm | **lab** — measured nil; `main` ships `--stream-receive-window-bytes` |
+| `--socket-send-buffer` | §5 arm | **lab** — measured nil (−2.1 % / +1.5 %) |
+| `--socket-recv-buffer` | §5 arm | **lab** — same arm |
+| `--initial-mtu` | §5 arm | **lab** — measured nil |
+| `--mtu-discovery` | §5 arm | **lab** — same arm |
+| `--ack-frequency` | §5 arm | **lab** — measured **+2.7 %** at 250 KB, called marginal |
+
+"§5 arm" means `quic-transport-optimization.md` §5 runs it through `SRV_FLAGS` and reports a
+number. `--ack-frequency` is the one to watch: it is the only "rejected" arm with a non-nil
+result, so it is the most likely of these to come back.
 
 `--prefault` reads as dead by the count and is not: it defaults to `true` and no script
 overrides it, which is what a decided default looks like. It stays until the merge is green,
@@ -113,10 +135,14 @@ port is green.
 
 | | before | after |
 | --- | ---: | ---: |
-| transport flags on a product build | 13 | **6** |
-| send paths in product source | 3 | **1** |
+| flags on a product build (`--help`) | 20 | **10** |
+| of those, transport knobs | 13 | **6** |
+| send paths a product build can select | 3 | **1** |
 | clippy warnings, workspace | 21 | **3** |
-| `server/src` dependencies | — | `socket2` dropped, unused once `bind_socket` went |
+| `socket2` | unconditional | **`lab`-only** (`dep:socket2`) |
+
+**Nothing was deleted.** Every arm this branch ever ran is still reachable with
+`--features lab`, and the lab scripts build with it.
 
 The three remaining clippy warnings are in `client/flight-registry`, `client/transport-wasm`
 and `server/src/transport/wire.rs`. **None is ours** — this branch never touched those files,
@@ -127,6 +153,7 @@ Two things also fell out, both open proposals:
 
 - **P2** (`WT_SERVE_TIMING` read per frame) — the env read is now a `OnceLock`, and absent
   entirely from a product build.
-- **P3** (hand-built socket not dual-stack) — moot. The socket was built only for the buffer
-  flags nothing used; with those gone, wtransport binds its own socket and sets `only_v6`
-  itself.
+- **P3** (hand-built socket not dual-stack) — **fixed**, not moot. The socket survives behind
+  `lab`, so the fix had to be made rather than deleted around: `set_only_v6(false)` now
+  matches what wtransport's own bind does, and the buffer arms no longer differ from their
+  control in two variables.

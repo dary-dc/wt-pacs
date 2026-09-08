@@ -77,10 +77,16 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         .to_transport_config()
         .context("build QUIC transport config")?;
 
-    let builder = match config.bind_ip {
-        Some(ip) => ServerConfig::builder()
+    #[cfg(feature = "lab")]
+    let hand_built = bind_socket(&config)?;
+    #[cfg(not(feature = "lab"))]
+    let hand_built: Option<std::net::UdpSocket> = None;
+
+    let builder = match (hand_built, config.bind_ip) {
+        (Some(socket), _) => ServerConfig::builder().with_bind_socket(socket),
+        (None, Some(ip)) => ServerConfig::builder()
             .with_bind_address(std::net::SocketAddr::new(ip, config.wt_port)),
-        None => ServerConfig::builder().with_bind_default(config.wt_port),
+        (None, None) => ServerConfig::builder().with_bind_default(config.wt_port),
     };
     let server_config = builder
         .with_custom_transport(identity, transport)
@@ -127,6 +133,40 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
             }
         });
     }
+}
+
+/// A UDP socket with explicit SO_SNDBUF / SO_RCVBUF, or `None` to let wtransport bind.
+/// Built only when a buffer size is requested, so the default path stays byte-identical.
+#[cfg(feature = "lab")]
+fn bind_socket(config: &ServeConfig) -> Result<Option<std::net::UdpSocket>> {
+    if config.tuning.socket_buffers_are_default() {
+        return Ok(None);
+    }
+    use socket2::{Domain, Protocol, Socket, Type};
+    let ip = config
+        .bind_ip
+        .unwrap_or(std::net::IpAddr::V6(std::net::Ipv6Addr::UNSPECIFIED));
+    let addr = std::net::SocketAddr::new(ip, config.wt_port);
+    let domain = if addr.is_ipv4() { Domain::IPV4 } else { Domain::IPV6 };
+    let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP)).context("udp socket")?;
+    // wtransport's own bind sets this; without it a v6 socket refuses v4-mapped peers and the
+    // buffer arms differ from their control in two variables, not one.
+    if domain == Domain::IPV6 {
+        socket.set_only_v6(false).context("IPV6_V6ONLY")?;
+    }
+    if let Some(n) = config.tuning.socket_send_buffer {
+        socket.set_send_buffer_size(n).context("SO_SNDBUF")?;
+    }
+    if let Some(n) = config.tuning.socket_recv_buffer {
+        socket.set_recv_buffer_size(n).context("SO_RCVBUF")?;
+    }
+    socket.bind(&addr.into()).with_context(|| format!("bind {addr}"))?;
+    info!(
+        send_buffer = socket.send_buffer_size().unwrap_or(0),
+        recv_buffer = socket.recv_buffer_size().unwrap_or(0),
+        "bound UDP socket with explicit buffer sizes"
+    );
+    Ok(Some(socket.into()))
 }
 
 async fn handle_incoming(
@@ -295,6 +335,13 @@ async fn send_one_frame(
                     write_payload(connection, shared, acks, &buf, serving.ask_priority, ask_seq, t_serve)
                         .await
                 }
+                #[cfg(feature = "lab")]
+                SendPath::Split => {
+                    write_payload_split(
+                        connection, shared, acks, idx, &body, serving.ask_priority, ask_seq, t_serve,
+                    )
+                    .await
+                }
                 SendPath::Chunked => {
                     write_payload_chunked(
                         connection, shared, acks, idx, body, serving.ask_priority, ask_seq, t_serve,
@@ -417,6 +464,47 @@ fn envelope_header(idx: u32, codestream_len: usize) -> [u8; ENVELOPE_LEN * 2] {
     header
 }
 
+/// `[len]`, `[index]`, codestream as three `&[u8]` writes: no contiguous buffer, but quinn
+/// still copies the codestream into its send buffer. One full-frame copy, not two.
+#[cfg(feature = "lab")]
+#[allow(clippy::too_many_arguments)]
+async fn write_payload_split(
+    connection: &Connection,
+    shared: &mut Option<SendStream>,
+    acks: &mut JoinSet<()>,
+    idx: u32,
+    codestream: &[u8],
+    ask_priority: bool,
+    ask_seq: &mut i32,
+    timing: Option<(u32, Instant)>,
+) -> Result<()> {
+    let header = envelope_header(idx, codestream.len());
+    let (len, index) = header.split_at(ENVELOPE_LEN);
+    match shared {
+        Some(uni) => {
+            let t_first = Instant::now();
+            uni.write_all(len).await.context("write shared len")?;
+            uni.write_all(index).await.context("write shared index")?;
+            uni.write_all(codestream)
+                .await
+                .context("write shared codestream")?;
+            note_serve_timing(timing, "shared", t_first);
+        }
+        None => {
+            let mut uni = open_frame_uni(connection, ask_priority, ask_seq).await?;
+            let t_first = Instant::now();
+            uni.write_all(len).await.context("write len")?;
+            uni.write_all(index).await.context("write index")?;
+            uni.write_all(codestream).await.context("write codestream")?;
+            note_serve_timing(timing, "per-frame", t_first);
+            acks.spawn(async move {
+                let _ = uni.finish().await;
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Same wire as `write_payload`, without materialising it: `write_all_chunks` moves each
 /// `Bytes` into the send buffer where `write_all(&[u8])` allocates and copies.
 #[allow(clippy::too_many_arguments)]
@@ -479,10 +567,18 @@ mod tests {
         ] {
             let copy_wire = length_prefixed(&frame_envelope::wrap(idx, body));
 
-            let mut chunked_wire = envelope_header(idx, body.len()).to_vec();
+            let header = envelope_header(idx, body.len());
+
+            let mut chunked_wire = header.to_vec();
             chunked_wire.extend_from_slice(body);
 
-            assert_eq!(copy_wire, chunked_wire, "idx {idx}, {} B", body.len());
+            let (len, index) = header.split_at(ENVELOPE_LEN);
+            let mut split_wire = len.to_vec();
+            split_wire.extend_from_slice(index);
+            split_wire.extend_from_slice(body);
+
+            assert_eq!(copy_wire, chunked_wire, "chunked, idx {idx}, {} B", body.len());
+            assert_eq!(copy_wire, split_wire, "split, idx {idx}, {} B", body.len());
         }
     }
 }

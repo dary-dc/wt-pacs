@@ -6,8 +6,9 @@ an agent container, so shaped-link experiments run here.
 
 ## Which key
 
-Scripts read `SSH_KEY` and fall back to `$HOME/.ssh/id_ed25519` (`lab/scripts/cloud_common.sh:12`).
-**That fallback is no longer the right key.** Use one of the two below, per role:
+Scripts read `SSH_KEY` and fall back to `$HOME/.ssh/id_ed25519_rig_agent`
+(`lab/scripts/cloud_common.sh:12`). The bare `id_ed25519` this used to name was rotated out
+and no longer opens the rig. Use one of the two below, per role:
 
 | role | local file | fingerprint |
 | --- | --- | --- |

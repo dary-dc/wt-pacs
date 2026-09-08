@@ -246,7 +246,45 @@ paperwork, and the items below are what survived independent re-verification her
 - The congestive n = 2, the `n = 3` global claim, and the GSO confidence row are corrected
   in `transport-conclusions.md`. The stream-mode gap is recorded as §2.7.
 
-**Still open, in priority order:**
+**Every finding, and where it stands.** The review was an artifact, not a repo document, so
+its register is transcribed here — all 25 IDs, so nothing survives only in a link. Severity is
+the reviewer's.
+
+| ID | sev | finding | status |
+| --- | --- | --- | --- |
+| G1 | blocking | PR unmergeable: 11 conflicts, `server.rs` rewritten by `main`, stale description | **analysed, not landed** — [`merge-with-main-analysis.md`](merge-with-main-analysis.md). Deliberate: the merge is not this session's to do |
+| D1 | material | Congestive 600 ms: BBR n = 2, undisclosed, on a column the analyser voids | **disclosed, probably permanent** — the L4 rig was an ephemeral sandbox (item 1 below) |
+| G2 | material | Product default is per-frame; the answer sheet says shared | **fixed** — X3L fired §2.7's rule; default is now `shared` |
+| P1 | material | Sampler writes two syscalls per JSONL row; rows interleave | **fixed** — one write, drop counter, regression test |
+| D2 | material | GSO +17 %/−21 % quoted without the real-hardware null | **fixed** — §3 and §2 now carry the null |
+| S1 | material | `l4_analyse.py` averages its own VOID rows; stop condition 4 absent | **fixed** — excludes and lists VOID, prints `n`, both columns, `--congestive` |
+| S2 | material | Fairness: TCP and QUIC timed over different windows | **open** — needs the harness to emit its measured fill span, [`proposals`](proposals/product-code-changes.md) §2 |
+| S3 | minor | Cell-input guard checks one direction only | **fixed** bidirectionally. **Second half open:** `ARMS` still accepts arbitrary per-arm flags and no column records them, so a row cannot prove which flags produced it |
+| S4 | minor | `vals[n//2]` is not a median; N0 campaign-void rule unenforced | **fixed** — `st.median`, `CONTROL_EXEMPT`, campaign exits 2 |
+| S5 | minor | Memory r² fitted over five means; peak-of-20 is a max statistic; two campaigns ran different binaries | **binary disclosed. Open:** the r²-over-means and peak-of-20 caveats are not written into `mem/README.md` |
+| S6 | note | Black-hole count never applied; rig data unseeded but paired by run | **fixed, and one half inverted** — applying the exclusion as documented would have voided the project's own congestive validation cell (42 black holes). quinn increments it from PLPMTUD. The claim was withdrawn, not implemented |
+| P2 | minor | `WT_SERVE_TIMING` read per frame on the measured path | **fixed** — `OnceLock`, and absent entirely from a product build |
+| P3 | minor | Hand-built socket omits `set_only_v6(false)` | **moot** — the socket existed only for `--socket-*-buffer`, which nothing used; both are deleted |
+| H1 | minor | Open-loop want time stamped after ask emission | **open** — [`proposals`](proposals/product-code-changes.md) §3 |
+| H2 | minor | `asks_sent == requested` cannot establish server commitment | **fixed** — the gate is worded down to what it proves |
+| D3 | minor | Per-arm GSO batch figures have no data file | **open** — the caveat is in §2.6; the rows are still uncommitted |
+| D4 | minor | "No repeat favours per-frame" is false for the fair arm | **fixed** — and it is larger than reported: 8 of 12 real-path paired comparisons favour per-frame at 64 KB |
+| P4 | note | Chunked path may re-fault pages inside the connection driver | **open, an investigation** — [`proposals`](proposals/product-code-changes.md) §8 |
+| P5 | note | Sampler keeps emitting rows after the session loop ends | **open** — rows with a zero sent-packet delta *should* be neutral to the classifier; unconfirmed |
+| P6 | note | Crypto features are not mutually exclusive | **open** — [`proposals`](proposals/product-code-changes.md) §6 |
+| P7 | note | Per-frame retains one finished ack task per frame | **open** — a confound in this branch's own per-frame memory figure, [`proposals`](proposals/product-code-changes.md) §7 |
+| H3 | note | The measured stall client keep-alives; a silent one is reaped at 30 s | **fixed** — §3.1 and `stall.rs` say which client this is |
+| D5 | note | Small drifts: stranding, "within 1 %", "may not modify server/", PR status, stale key doc | **all five fixed** — the last two (`1.2 %`, `cloud-rig-access.md`'s key fallback) closed 2026-09-08 |
+| D6 | note | Serve-timing log has a 576-byte NUL hole | **fixed** — the truncate now precedes `deploy_s`, which restarts the server |
+| G3 | note | Rig key rotation left as a to-do in a public repo | **fixed** — rotated at `1fbf108`, denial proven, backups deleted |
+| G4 | note | Clippy warnings; dead `parse_length_prefixed` | **fixed** — 21 → 3, and the 3 are in files this branch never touched |
+
+**Nine remain open.** Six are code proposals awaiting agreement
+([`proposals/product-code-changes.md`](proposals/product-code-changes.md) §2, §3, §6, §7, §8);
+three are recording gaps — S3's `ARMS` column, S5's two statistical caveats, D3's missing rows.
+None of them moves a published number in a direction the documents do not already admit.
+
+**The one that cannot be closed here, in priority order:**
 
 1. **Re-run BBR run 2 in the congestive 600 ms cell.** One run. It must be on the rig that
    produced runs 1 and 3 — a replacement on different hardware is not comparable, which is
@@ -268,21 +306,6 @@ paperwork, and the items below are what survived independent re-verification her
    > all arms, n = 3, in one sitting on one machine — or leave the n = 2 disclosure
    > standing, which is honest and already written. Nobody should quietly append a fourth
    > row from a fourth machine.
-2. **The stream-mode default is decided by X3L, not by opinion** (§2.7), and **X3L has now
-   run: the rule fires.** It separated in `shared`'s favour — 5.76×, 3/3, stranding gate
-   passing in every row (§3) — which is the pre-registered condition for **flipping the
-   default to `shared`**. The last objection, "the real-path evidence is four ties", is gone.
-   Deliberately **not** flipped in this pass: it is a change to shipped behaviour and the
-   session that measured it is not the right one to land it unannounced. It is now the most
-   consequential open item on the branch, and §2 may stop reading as advice once it lands.
-3. **The sampler log corruption is confirmed and fixed** — reproduced at 8, 32 and 64
-   concurrent writers before the fix (29 % of rows intact at 32) and 100 % clean after, with
-   a regression test in `server/src/record/path.rs` and a classifier that now refuses a
-   shredded log. See `measurements/regime/README.md`.
-4. **Still not re-verified, reported as the reviewer found them:** the fairness split
-   measuring TCP and QUIC over different windows, which would move "Cubic still takes
-   70–77 %" by a few points without touching the 99.4 % starvation figure; and twelve minor
-   items. **Verify before acting.**
 
 ### 4.5 · Cheap and unattended
 

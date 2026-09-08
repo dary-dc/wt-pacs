@@ -535,8 +535,9 @@ blind spot):
 **`copy` + per-frame reaches 68 % of the 10 MB `send_window`** — ~34 GB at 5 000 stalled
 viewers. The flow-control worry was well founded for the send path this project used to
 ship; the chunked default is what removed it. `RssAnon` was checked against total RSS
-*within* each arm before this was believed: the two slopes agree to within 1 % everywhere,
-so nothing is hiding in file-backed pages.
+*within* each arm before this was believed: the two slopes agree to within 1.2 % — the
+widest gap is chunked per-frame, 374.9 against 379.5 kB — so nothing is hiding in
+file-backed pages.
 
 **So the chunked send path is a memory-containment property, not only a CPU one.** It was
 adopted for −6…−14 % CPU/byte; it also makes the pathological client **6.5× cheaper in
