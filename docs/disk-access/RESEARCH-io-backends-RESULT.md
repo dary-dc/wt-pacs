@@ -248,6 +248,10 @@ count, so no new limit, but confirm on the `SCALE-RUN.md` host when P1 lands.
 
 ## 4 · Q2 — streaming reads forward with `ReadCtx`
 
+> The full evaluation of the sequential case, with every candidate measured on consecutive
+> reads — including tokio's `fs::File` on its io_uring driver — is
+> [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md). The paragraph below is the short form.
+
 Server-driven streaming ([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
 §6c) is unbuilt. When it is built:
 
