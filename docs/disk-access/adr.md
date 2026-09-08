@@ -1,287 +1,274 @@
 # ADR: how the server reads SBND frame bytes
 
-**Status:** Accepted · **2026-09-04** · Evidence: [`RERUN.md`](RERUN.md)
-**Amended 2026-09-05** with a bounded frame cache and a per-frame cost budget:
-`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`)
-**Amended 2026-09-07**: a window that misses reads the rest of the frame —
-[`RERUN-miss.md`](RERUN-miss.md)
-**Supersedes:** the 2026-08-31 always-touch decision (`git show be78860:docs/disk-access/adr.md`)
+**Status:** Accepted · current as of **2026-09-08** · supersedes the 2026-08-31 always-touch
+decision (provenance at the end)
+**Evidence:** [`EVIDENCE.md`](EVIDENCE.md) — every number · [`RERUN.md`](RERUN.md) — the
+instrument and its precision rules · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) — how it works
+and what is validated
+**What is parked, in order:** [`NEXT.md`](NEXT.md)
 
-> ### Standing as of 2026-09-06 — read this before acting on the decision below
->
-> **What ships is still right, and it is what this ADR says.** The decision below —
-> `RWF_NOWAIT` inline, `spawn_blocking` for the shortfall — is implemented in `server/` and is
-> the correct choice for the workload this ADR measured, which fixed the miss rate at **~0**.
-> Nothing here is withdrawn.
->
-> **A better shape has since been measured, and it is conditional on one number.** The
-> read-path campaign (`READ-PATH-DECISION.md` (archived: `git show a330783:docs/disk-access/READ-PATH-DECISION.md`), four hosts, six runs)
-> finds io_uring on the *miss* path worth **−42% to −73% CPU per read, RESOLVED on every host
-> and every run**. The best shape is **`hybrid_lazyring`**: this ADR's path exactly, plus a
-> ring built on the *first miss* rather than at session start
-> (`S5-CONTROL-ARM.md` (archived: `git show a330783:docs/disk-access/S5-CONTROL-ARM.md`)). A session that never misses never builds one, so
-> it costs nothing on the warm workload this ADR is about.
->
-> **The gate is the miss rate, and that is a layout decision nobody has taken yet.** The win
-> exists only where reads miss, and whether reads miss is set by how frames are laid out on
-> disk, not by study size ([`ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md)): a strided layout steps
-> to 99% miss under pressure, a grouped one holds at 0.5%. Past that cliff the layout is worth
-> 17.6× and the read path 2–4×; before it the layout is worth 1.50×, and the read path is the
-> only lever left.
->
-> **So:** `hybrid_lazyring` is now what ships — see [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
-> It did not wait on the layout, because the layout decides *how much this is worth*
-> (between nothing and ~2.5×) and never *which arm is right*: `hybrid_lazyring` is tied for
-> cheapest in every regime, and on a hit-dominated workload no ring is ever built, so the
-> change is inert by design. The one thing not to do is read the two documents as
-> disagreeing: they measured different miss rates, and each is right at the one it measured.
+§1 is the decision. §2 is what shaped it, including the numbers that are safe to quote and
+the claims that were retracted. §3 is how it got here. §4–5 are consequences and every
+alternative measured. §6 is where it silently does not apply. §7–9: invariants, the levers
+outside it, what is next.
 
-> ### Amendment, 2026-09-07 — how much a miss reads, which is a separate question
->
-> **Landed, and it is not about io_uring.** Step 4 below used to send only *the rest of the
-> window* to the pool. On a fixture large enough that a miss is a real device read, that
-> costs **2–3 pool round trips per 250 KB frame instead of one**, and the shipped shape then
-> stops scaling — flat at ~1 600 f/s from 8 concurrent readers to 32, where every arm that
-> reads a whole frame per round trip reaches the device's ~5 000. Sending the rest of the
-> *frame* is **2.1× at one reader and 3.0–3.2× at 8/16/32**, identical warm, and has the
-> lowest worst co-tenant gap of any arm measured. [`RERUN-miss.md`](RERUN-miss.md).
->
-> **It composes with the standing note above rather than competing with it.** The ring makes
-> a round trip cheaper; this makes there be one round trip instead of three. The two campaigns
-> agree once the units are lined up: the ring's saving is a roughly fixed ~25 µs of CPU per
-> round trip (the hop tax, 24–34 µs on four hosts), so it is most of a **16 KB** read and
-> under 8% of a **250 KB** one — which is why the read-path campaign resolves it at 16 KB
-> frames and the miss campaign cannot at 250 KB. Neither result overturns the other; frame
-> size is the variable that was different, and the read-path campaign's own `D_size` cells
-> confirm the scaling: `hybrid` vs `pool` on misses runs −62.2% / −58.2% / −45.9% / **−24.8%
-> (tie)** across 4 KiB / 16 KiB / 64 KiB / 250 KB.
->
-> **Do the escalation first regardless.** It has no dependency, no ring, and it is the
-> prerequisite for a lazy ring to be worth what it measures — on 250 KB frames the ring would
-> otherwise be making two *unnecessary* round trips cheaper.
->
-> **And the `uring`-vs-`hybrid_lazyring` gap is a queue-depth effect, not a miss-rate one.**
-> Split by depth it is **−1.2/−1.9% at depth 1** and −30 to −43% at depths 4–16, with `uring`
-> vs eager `hybrid` splitting identically and `hybrid_lazyring` vs `hybrid` a tie throughout —
-> so it is the inline probe that depth acts on. Today's loop is depth 1
-> (`adr-reject-server-ordering.md`), where `uring`'s hit penalty is **+386%/+133%** and its miss
-> advantage **4–6%**: breakeven at a **65–84%** miss rate rather than the 21.6% the pooled
-> numbers imply. **A tile viewport served concurrently would not be depth 1**, and there the
-> probe is worth skipping — which makes the fan-out shape (one batched submission vs *N*
-> independent tasks) a decision to take deliberately. [`RERUN-miss.md`](RERUN-miss.md) M10,
-> [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
+## 1 · The decision, as it ships
 
-## Context
+**Bytes come in three ways, chosen per session at runtime by what the session does.**
 
-`FrameStore` serves immutable HTJ2K frames from an SBND file. Studies can exceed RAM (DBT).
-The server runs on `#[tokio::main]` — a **multi-thread** runtime. A major page fault on an
-mmap'd slice is not an `.await`, so it freezes every task on that OS thread.
+1. **A page-cache hit is served inline.** Each 64 KiB window of a frame is read with
+   `preadv2(RWF_NOWAIT)` on the executor thread. It returns short instead of waiting on the
+   disk, so a cold frame can never park a worker, and a warm ask takes no thread hop at all.
+2. **A miss goes to a ring built for that session on its first miss.** io_uring, driven
+   through the `io-uring` crate directly: registered file, unregistered buffers, two slots —
+   one per window — and completions awaited through tokio's `AsyncFd`, never waited on. The ring
+   reads **the rest of the frame** in one round trip, never the rest of the window. A session
+   whose reads all hit never builds a ring, so on a warm workload the mechanism is inert.
+3. **The fallback is `spawn_blocking` + `pread`.** Where the filesystem refuses
+   `RWF_NOWAIT` (overlayfs, tmpfs) or the kernel refuses a ring (limits), the session takes
+   one pooled read per frame. Same guarantee, one hop per ask.
 
-Question: how should the server bring frame bytes into a state safe for `write_all`?
+**And a batch reads one frame ahead.** A session keeps two windows, each with its own ring
+slot; a frame served in a `RequestFrames` batch starts the read of the frame after it before
+the frame in hand is waited on, so the device carries two reads. The read-ahead probes
+`RWF_NOWAIT` first exactly as an on-demand read does and submits only the shortfall, which is
+why a warm session pays nothing for a depth it never uses. Where there is no ring the pool
+path reads ahead too. `RequestFrame` is still served at depth 1 — that is the session loop,
+not the read path (§4, Scale).
 
-## Decision
+The same reader serves both use cases: **tiles** (positional reads, out of order) and
+**sequential streaming** (the same reader going forward, one frame ahead — §5, group E).
 
-**Stream each frame to the wire in `READ_WINDOW` (64 KiB) pieces, taking each piece with
-`preadv2(RWF_NOWAIT)` on the executor — and when a piece misses, fetch the whole rest of
-the frame on `spawn_blocking` in one round trip.**
-
-1. `frame_range(i)` — index lookup, no I/O. A refusal costs nothing.
-2. Write `[4B BE payload len][4B BE index]`; both are known before any byte is read.
-3. Per window: `read_at_nowait`. It returns short rather than waiting on disk, so a cold
-   frame cannot park the executor thread.
-4. On a short read, `spawn_blocking(read_at_blocking)` for **everything still outstanding in
-   the frame**, not just the rest of that window. The window exists to bound the executor's
-   uninterrupted copy, and that argument applies only to the inline read — which happens on
-   a hit. On the pool a large read costs no more than a small one, and a small one costs a
-   whole extra round trip.
-5. `write_all` in `READ_WINDOW` pieces either way, so a bigger read never means a bigger
-   uninterrupted copy. Repeat into the same buffer.
-
-Do **not** pre-touch mmap pages on every ask. Do **not** build a whole-frame envelope. Do
-**not** use `mincore` as a gate. Do **not** serve frame bytes from the mapping at all — the
-mapping stays for the header, index and metadata.
-
-**And where a frame is asked more than once, do not read it again.** `--frame-cache-mb`
-(default `0`, off) holds frames the session asked twice as process-private `Bytes`; a hit is
-handed to quinn with `write_chunk` — no syscall, no copy into the connection, no pool hop.
-(That use of `write_chunk` is not the one rejected below: a cache hit hands quinn the
-cache's own long-lived `Bytes`, so there is no per-window buffer for quinn to hold hostage
-and no allocation to churn.)
-The ask that earns a slot assembles the frame from the windows it is already streaming, so
-the fill costs one copy and no extra read, and the executor's uninterrupted copy stays
-bounded by `READ_WINDOW`. Measured **−20% server CPU and +15% throughput** on a cine loop
-whose working set fits the budget, **+4%** on a linear sweep that never re-asks a cached
-frame (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §5). Size it to the working set being scrubbed,
-not to the study; leave it at `0` when there is no reuse.
-
-### Guarantee
-
-The bytes quinn puts on the wire are process-private, so reclaim cannot take them back
-mid-write. This is the hard guarantee the previous ADR kept as an escape hatch; here it is
-the default, and it costs no extra hop.
-
-### Where the fast path does not exist
-
-`RWF_NOWAIT` is honoured on ext4 and on **btrfs** (including btrfs-on-LUKS with
-`compress=zstd`), and refused (`EOPNOTSUPP`) on **overlayfs and tmpfs** — measured, not
-assumed, and the previous campaign's host was overlayfs. Check any new host with
-`check-fastpath` ([`DEPLOYMENT.md`](DEPLOYMENT.md)) rather than inferring from this list. `FrameStore::open`
-probes once; when the answer is no, `read_window` returns the whole frame length so the
-loop degrades to exactly one pooled `pread` per frame (the previous ADR's escape hatch),
-never one pool round trip per window.
-
-## Consequences
+What is *not* done: no memory mapping anywhere in `server/`; no whole-frame envelope; no
+`mincore` gate; no `SQPOLL`, no registered buffers, no cursor reads.
 
 | | |
 | --- | --- |
-| **Good** | Warm asks take **no pool hop at all** (0 misses in every warm cell). **60 894 ns vs 152 295 ns** per frame against always-touch on the product runtime — 2.5×, from 2 871 pooled samples per arm with non-overlapping 95% CIs, reproduced across two independent runs. Across every warm cell in this campaign the same margin runs **2.1–2.5×** (Cell 1's nine-arm cell is the low end); the direction never varies. Neighbours under pressure see p99 **166 µs vs 702 µs**. Hard reclaim guarantee. 64 KiB per session instead of a 250 KB envelope allocated per frame. |
-| **Good** | Under misses, escalating the pool read is **2.1× the throughput** of the windowed shape at one reader and **3.0–3.2×** at 8/16/32, and has the **lowest worst co-tenant gap of any arm measured** — 148 µs warm, against 326 µs windowed and 4.0 ms for reading a whole frame inline ([`RERUN-miss.md`](RERUN-miss.md) M5/M6). |
-| **Cost** | A reader that misses grows its window buffer to frame size and keeps it; one that only ever hits still holds `READ_WINDOW`. Untested past 250 KB frames. |
-| **Cost** | Two copies (kernel→window, window→quinn) where mmap would need one. Measured: the copy is cheaper than the hop it replaces, on every cell. |
-| **Cost** | Four `write_all` calls per 250 KB frame instead of one. Same bytes, same total copy. |
-| **Revisit** | The io_uring rejection below was measured at **one read in flight**, which is what today's serial `run_session` produces. If the server ever serves the client's ask window concurrently, `DEPTH.md` (archived: `git show a330783:docs/disk-access/DEPTH.md`) prices the ring at 1.8–4× less CPU per ask on cold reads with thread count flat at 5 instead of 89. Not a decision this evidence can make — a dependency the decision has. |
-| **Considered** | io_uring, in four tuned variants, is a measured tie at best — see [`RERUN.md`](RERUN.md) §io_uring, including the two conditions that would make it worth revisiting. Priced per operation it is *slower*: 852 ns vs 561 ns on a warm 4 KiB read, 5 of 5 runs (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §3). |
-| **Scale** | On the wire this whole decision is ~a fifth of a frame's server CPU; the rest is per-datagram QUIC work. The 2.5× is real and worth having, and it is not where a server's cycles mostly go (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §4). |
-| **Risk** | **The hit rate is access-shape-conditional.** "0 hops warm, 6 of 320 cold" assumes whole frames read in order, which is what lets kernel read-ahead run ahead of the loop. Serving rungs — a codestream *prefix* per frame — strides the file instead, and the fast path then misses **319 of 320** cold: the path degrades to its escape hatch on every ask. The read path is still the best arm; the fix is the packer, not the server ([`PREFIX-READS.md`](../disk-layout/PREFIX-READS.md)). |
-| **Risk** | The win is filesystem-conditional. On overlayfs/tmpfs the path is pooled `pread` — safe, and ~30 µs/frame worse than always-touch would have been. Confirm the deployment filesystem with `check-fastpath` before shipping — [`DEPLOYMENT.md`](DEPLOYMENT.md), which covers the container case, where the default answer is *no*. |
+| Where | `server/src/media/read_path.rs` (the choice and the read-ahead), `uring_reader.rs` (the ring, two slots), `transport/frame_out.rs` (the wire loop) |
+| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch) · `uring` (lab lever, every read through the ring) |
+| Feature | `uring`, on by default; `--no-default-features` compiles to the pool path |
+| Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… ring=…` per session, default build |
+| Validated | as the **product**: `read_campaign --arms product,product_ahead` drives the real `ReadCtx` and ties the lab arm that won |
 
-## Why the previous decision was overturned
+**Guarantee.** The bytes quinn puts on the wire are process-private — copied once into a
+session-owned buffer — so reclaim cannot take them back mid-write. This was the previous
+ADR's escape hatch; here it is the default and costs no extra hop.
 
-Not because always-touch was mis-measured on its own terms, but because:
+## 2 · What shaped it
 
-1. **The archived harness ran on `Builder::new_current_thread()`; the product runs
-   multi-thread.** A `spawn_blocking` round trip costs ~16 µs on one thread and ~21 µs plus
-   a cross-worker migration on four — always-touch measures 40.0 µs warm on the archived
-   shape and 103.4 µs on the product's.
-2. **The C2 cell never let neighbours pay the hop.** Background sessions always ran
-   always-touch, so the hop tax could not appear in a neighbour number. With every session
-   on the arm under test (the cell `later.md` (archived: `git show a330783:docs/disk-access/later.md`) listed as a follow-up),
-   always-touch is the *worst* safe arm for neighbours, not the best.
-3. **`RWF_NOWAIT` was never in the alternatives table.** The ADR framed the choice as
-   "fault safely off-thread (mmap) vs copy safely (pread)" and did not consider reading
-   only what is already cached, which needs neither.
+### The workload and the weights
 
-The archive's own C2 headline — cold naive inflating neighbour p99 ~3× — does not reproduce
-here: on four workers, naive's stall shows in `gap_max`, not in neighbour p99. Naive is
-still rejected, on `gap_max` (1.5–4.2 ms median depending on cell, 7.7 ms worst
-under pressure).
+Set with the owners on 2026-09-08. **Latency first; simplicity and clean code valued;
+thousands of sessions at depth 4 or more; studies far larger than RAM**, so misses are the
+common case, not the exception; **cloud for sure, Docker possibly, not decided**. Two use
+cases with opposite access shapes: a tile viewport asks for scattered frames out of order;
+streaming pushes a study start to end.
 
-## Alternatives considered
+### The constraints that ruled options out before any measurement
 
-Numbers are the product runtime, warm `later_p50` / worst-cell neighbour p99 — see
-[`RERUN.md`](RERUN.md). Rows marked **(miss)** carry a second figure from
-[`RERUN-miss.md`](RERUN-miss.md): frames/s at 100% misses, 8 concurrent sessions.
+* **Tokio's multi-thread runtime.** `wtransport` runs on `quinn::TokioRuntime`. Anything that
+  brings its own runtime is a transport rewrite, not a read-path change.
+* **Never block a worker.** A major page fault is not an `.await`; it freezes every task on
+  that OS thread. Measured on mmap: `gap_max` 1.5–4.2 ms cold, 7.7 ms under pressure.
+* **Positional reads, one fd per study.** Tiles read `(offset, len)` out of order. A cursor
+  API needs one open file per session and cannot express reads in flight.
+* **The page cache is shared** across every session on one study. `O_DIRECT` would throw
+  that away.
+* **`RWF_NOWAIT` is filesystem-conditional.** Honoured on ext4, xfs, btrfs; refused on
+  overlayfs and tmpfs. Measured, not assumed — §6.
+
+### Numbers that are safe to quote
+
+Paired inside each cell under the campaign's rule: a difference counts only if the median
+beats the resolution threshold **and** the signs agree on ≥ 80 % of cells. Everything else is
+a **tie**, which is a real answer.
+
+| Comparison | Result |
+| --- | --- |
+| Shipped reader vs the lab arm it implements (`product` vs `hybrid_lazyring`) | **tie** on p50, p99 and CPU at every depth and reader count, two hosts |
+| Shipped reader vs the pool it replaced, 16 KiB misses | **−45.4 % CPU per ask, RESOLVED** |
+| Ring-on-the-miss vs pool, misses, depth 1 / 4 / 16 | **−56 / −70 / −75 %**, RESOLVED |
+| Every-read-through-the-ring vs ring-on-the-miss | misses tie; **hits +106 % at depth 2, +298 % at depth 4** — why a hit must never touch a ring |
+| Warm, vs the 2026-08-31 always-touch path | **60.9 µs vs 152.3 µs per frame (2.5×)**; neighbours' p99 166 vs 702 µs |
+| A miss reading the rest of the frame vs the rest of the window, 100 % misses | **2.1× at one reader, 3.0–3.2× at 8–32** |
+| OS threads | ring readers **5** (sandbox) / 9 (workstation), flat to 256 in flight; pool 125–135 at 64 readers, capped at 512 by tokio |
+| Per session that misses | 2 fds, 8.7 KiB, 15.6 µs to build the ring; the second slot did not change the cost |
+| Read ahead by one, cold 16 KiB at 99.6 % misses, one session (`v36`) | **+73.8 % asks/s, 12/12, RESOLVED**, p50 −53.4 %; **warm a tie** — the load-bearing row; 16 missing tiles 1.14 → 0.62 ms |
+| The depth ladder on the shipped path (`v35`) | 1 → 2 is **+67.4 %** and collects 62 % of what depth 16 offers; from the medians 2 → 4 adds +37 %, 4 → 16 +28 % |
+| Where the hosts stop separating the arms | ~64 reads in flight: the sandbox on CPU, the workstation on the device (~840 MB/s at 0.42 of 8 cores). **Past it every arm ties by construction** |
+| Sequential streaming, 16 KiB, 8–64 sessions (`x15`) | shipped reader, pool and ring-on-miss **tie at ~3 µs per read**; `tokio::fs::File` 48–223 µs; the same on tokio's io_uring driver 141 µs–2.1 ms |
+
+### Claims that were made along the way and then measured to be wrong
+
+| Retracted | What is true |
+| --- | --- |
+| "`uring` has the better p99 at depth 4" | a 4-vCPU sandbox artefact; on the workstation misses tie at every depth |
+| "`uring` is 47–61 % worse on latency" | a one-reader p50; does not survive crossing depth with readers |
+| "throughput confirms the latency result" | throughput is depth ÷ latency; quoting both counts one measurement twice |
+| "`adr-reject-server-ordering.md` fixes the loop at depth 1" | it rejects *reordering*, not concurrency; pipelining reads keeps FIFO delivery |
+| "ring construction costs 82 µs" | that is 1 000 rings at once; one ring is 15.6 µs |
+| "the ring's per-miss latency win carries to production" | on cloud block storage a miss is device-bound; the ring's claim there is threads and CPU per miss, and P0 (§6) tests it |
+| "depth 4 and 16 differ by far less than 1 and 4" | not in throughput: in `v32` 1 → 4 is ×1.90 and 4 → 16 ×1.52. The case for building depth 2 first is `v35`, where 2 alone collects 62 % |
+| "`v36`'s 250 KB cold cell shows no win for read-ahead" | it reached only 4.7 % misses, so it shows no regression, not no win |
+
+## 3 · How the decision evolved
+
+| Date | Decision | What changed it |
+| --- | --- | --- |
+| 2026-08-31 | mmap, pages pre-touched on the blocking pool every ask | overturned: its harness ran a current-thread runtime while the product is multi-thread (a hop costs 40 µs there, 103 µs here); its neighbour cell never let neighbours pay the hop; `RWF_NOWAIT` was never in its table |
+| 2026-09-04 | `RWF_NOWAIT` inline, `spawn_blocking` for the shortfall | 2.5× warm against always-touch; io_uring a tie — at the ~0 % miss rate those cells fixed |
+| 2026-09-06 | the ring on the miss, built on the first miss | the read-path campaign, four hosts, six runs: **−42 to −73 % CPU per miss, RESOLVED everywhere**. Inert on warm workloads by construction, so it did not wait on the layout that decides the miss rate |
+| 2026-09-07 | a miss reads the rest of the frame | on a fixture where a miss is a real device read, windowing the escalation cost 2–3 round trips per 250 KB frame and stopped scaling at ~1 600 f/s where whole-frame arms reach ~5 000 |
+| 2026-09-08 | keep driving `io-uring` directly; **validate on the production target before any further backend change**; the sequential reader is the same reader forward; **read ahead by one built** for batches; **the server reports its own miss rate** | backend research with web access found no standard alternative (§5 C); the owners' weights and the container traps (§6) mean the ring's margin has to be shown on the target, not a laptop (`x14`, `x15`); read-ahead measured +73.8 % on missing tiles and a tie warm (`v36`); every threshold in this file is a miss rate, and the server could not report one |
+
+## 4 · Consequences
+
+| | |
+| --- | --- |
+| **Good** | Warm asks take no pool hop; a miss costs one round trip; OS threads stay flat at any session count; the reclaim guarantee holds; 64 KiB per session buffer instead of a 250 KB envelope per frame |
+| **Good** | The decision is per session and automatic: a session that never misses never pays for the ring, and the kill switch is a flag, not a rebuild |
+| **Cost** | ~800 lines of custom code with tests and 8 `unsafe` sites, on top of the `io-uring` crate — maintained, and tokio's own dependency. The glue is ours; the ring is not |
+| **Cost** | 2 fds and 8.7 KiB per session that misses, the latter charged against `RLIMIT_MEMLOCK` (§6) |
+| **Cost** | Two copies (kernel → window, window → quinn) where mmap needs one; measured cheaper than the hop it replaces on every cell. Four `write_all` calls per 250 KB frame. A reader that misses grows its buffer to frame size and keeps it |
+| **Conditional** | The win is on misses. On local NVMe the ring is 56–75 % of a miss; on cloud block storage a miss is device-bound and the ring's margin is threads and CPU per miss, not latency. That is the one thing P0 exists to measure |
+| **Conditional** | Where `RWF_NOWAIT` is refused or a ring is refused, the session runs the pool. The server now says which path it took, in the startup banner and per session; deployment (§6) is still part of the decision |
+| **Scale** | This decision moves about a fifth of a frame's server CPU; per-datagram QUIC work is the rest (§8). A `RequestFrames` batch serves at **depth 2**; `RequestFrame` is still depth 1 because `run_session` does not read the next ask until the frame is on the wire — the loop, not the read path, and its design is written ([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6d). The owners asked for 4; `v35` prices 2 → 4 at a further +37 % |
+| **Risk** | The hit rate is access-shape-conditional. Whole frames in order let read-ahead run ahead of the loop; serving a codestream *prefix* per frame strides the file and misses 319 of 320 cold. The fix is the packer, not the reader ([`../disk-layout/PREFIX-READS.md`](../disk-layout/PREFIX-READS.md)) |
+
+## 5 · Alternatives considered
+
+Every row below was measured unless marked otherwise. Numbers: warm p50 / neighbour p99
+under pressure, product runtime; "(miss)" rows are frames/s at 100 % misses, 8 sessions.
+
+**A — how a hit is served**
 
 | Option | Verdict | Why |
 | --- | --- | --- |
-| **`RWF_NOWAIT` streaming, escalating pool read (accepted)** | **Accepted** | 48.4 µs · 166 µs · **(miss) 4 539–4 777 f/s**. Zero hops warm, one per frame when it misses, and the lowest warm `gap_max` measured (148 µs) |
-| Same, but windowing the pool read too *(the 2026-09-04 shape)* | **Superseded** | Identical warm. **(miss) 1 404–1 573 f/s** — 2–3 round trips per frame instead of one, and it does not scale: flat at ~1 600 f/s from 8 sessions to 32 while every whole-frame arm reaches the device's ~5 000 |
-| Whole-frame `RWF_NOWAIT` (one read, one buffer) | **Rejected** | 43.9 µs and **(miss) 5 081–5 429 f/s** — the best miss throughput of any arm — but a 250 KB uninterrupted executor copy, and it costs a **4.0 ms** warm `gap_max` against 148 µs. Escalating gets within 6–10% of it without that |
-| mmap naive | **Rejected** | Faults freeze co-tenants: gap_max 1.5–4.2 ms cold (median by cell), 7.7 ms worst under pressure |
-| mmap + `mincore` gate | **Rejected** | Unsafe under pressure on **5/5** runs here (0.5–3.0 ms); residency ≠ lease |
-| mmap always-touch (prior ADR) | **Rejected as default** | 103.4 µs · 702 µs. Safe, but pays a pool hop on every ask including the ~100% warm case |
-| mmap touch via `block_in_place` | **Rejected** | 38.2 µs but the worst neighbour arm measured (p99 2.1 ms under pressure, worst cold gap 2.2 ms) — evacuating a worker under load is not free |
-| `madvise(POPULATE_READ)` on the pool | **Rejected** | Within noise of the touch loop (97.6 vs 103.4 µs) — the hop is the cost, not the touching |
-| Pooled `pread` (prior escape hatch) | **Kept, as the no-`RWF_NOWAIT` path** | 132.5 µs · 953 µs. Same guarantee, one hop per ask |
-| `pread` into a fresh `Vec` | **Rejected** | 149.2 µs — ~17 µs of allocation tax over pooled, no other difference |
-| WILLNEED on executor | **Rejected** | Fault still on the executor |
-| Ahead-N prefetch (`POSIX_FADV_WILLNEED` on the next ask) | **Measured, not landed** | Worth **4.6–4.9×** on a cold *strided* read (rung delivery): misses 319 → 6–56 per 320, ~half the CPU per ask, one syscall, no layout change. A **loss** on a cold sweeping read (108.9 vs 46.8 µs) — so it is a routed choice, and the routing depends on a layout design that does not exist yet ([`PREFIX-READS.md`](../disk-layout/PREFIX-READS.md) Part 2) |
-| Windowing the **pool** read too *(the shape shipped until 2026-09-07)* | **Superseded** | Identical warm. 2–3 device round trips per 250 KB frame instead of one: **1 404–1 573 f/s against 4 539–4 777** at 8 readers on 100% misses, and flat at ~1 600 from 8 readers to 32 ([`RERUN-miss.md`](RERUN-miss.md) M2/M5) |
-| A larger `READ_WINDOW` (128 / 256 KiB) | **Rejected** | Recovers the same miss-path gap on its own — 3 075 and 5 592 f/s against 1 660 at 64 KiB — but pays 12–25% of the warm throughput and widens the executor's uninterrupted copy. Escalating only the *pool* read gets it for nothing warm |
-| `io_uring`, whole frame per read | **Tie on this axis** | The strongest ring form for large frames, added for the miss campaign: 4 732–5 153 f/s against `spawn_blocking` doing the same-sized read, at 1/2/4/8/16/32 readers in both arm orders. Its real advantage is **5 OS threads against 44** — which on this device converts into nothing, because four blocking threads already saturate it. **This does not contradict the −42/−73% CPU above**: that saving is per *round trip*, and a 250 KB read is too big for it to show |
-| `io_uring`, windowed (`uring_tuned`, `uring_batched_stream`) | **Rejected** | 3 003–3 402 f/s — beaten by whole-frame io_uring by the same round-trip-count mechanism that beats the windowed `pread` path. The axis is inside io_uring too |
-| `io_uring` + `RWF_NOWAIT` hybrid *(best io_uring arm)* | **Rejected here; re-opened by the read-path campaign** | A tie bounded at ±5% *on this cell*: +2.5% and +2.4% against the accepted path in two pooled-sample runs, −4.5% in a `--monitors 0` cell. In the **product design** it is the accepted path on a page-cache hit — the ring only serves the miss — so on a ~100% warm workload it buys a ring, an eventfd and registered buffers per session for nothing. **That rejection is conditional on the miss rate**, which this ADR's cells fixed at ~0: `READ-PATH-DECISION.md` (archived: `git show a330783:docs/disk-access/READ-PATH-DECISION.md`) measures the hybrid **38–79% cheaper once reads miss**, on four hosts. Two caveats before acting on that: how often reads miss is a *layout* decision ([`ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md)), and part of the margin is reader-loop shape rather than the ring (**R8** in `SCOREBOARD.md` (archived: `git show a330783:docs/disk-access/SCOREBOARD.md`)) |
-| `io_uring` alone (registered file + fixed buffers, whole frame in one submit) | **Rejected** | Ties warm (82–88 µs), worst io_uring arm when reads miss: 224 parked completions on a cold random trace vs 59, and 408–437 µs on a cold reverse pass vs ~345. Batching a frame's windows means every window of a miss waits together |
-| `io_uring` pipelined (read n+1 during write n) | **Rejected** | The one thing only io_uring can do here, order-controlled at ~6% on a 100%-miss trace — while costing ~25% warm (108.6 vs 84.7 µs) and 2× session memory |
-| `io_uring` + `SQPOLL` | **Rejected** | 2.8× the CPU (287 vs 104 µs/ask) for worse latency: with a kernel submitter nothing completes inline, so every read parks |
-| `sendfile`/splice | **Rejected for this stack** | Userspace QUIC still copies |
-| **Bounded process-private frame cache** | **Accepted, opt-in** | −20% server CPU / +15% throughput at a 0.92 hit rate; +4% where nothing is re-asked. `--frame-cache-mb`, default off (`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §5) |
-| Handing quinn owned windows (`write_chunk`) instead of copying into it | **Rejected — and the case is stronger at scale, not weaker** | The copy is provably removed and worth −3.2% at one session, under the drift threshold. **At 16 and 32 concurrent sessions it is +14.6% and +19.1% CPU per frame, RESOLVED (5/5 and 4/4 signs)** — the copy it removes is L2-resident, and what replaces it is not: quinn holds each window until it is acked, so the buffer pool cannot recycle. At 16 sessions `write_chunk` allocates **3 840 buffers for 3 840 windows** — every window a fresh 64 KiB heap allocation — against **zero** for `write_all` ([`x12_send_sessions.tsv`](x12_send_sessions.tsv), `lab/scripts/pair_send_modes.py`) |
-| `O_DIRECT` + SPDK / whole-study preload | **Rejected** | Wrong scale or scope. The *bounded* app cache above was in this row until it was measured; it is not any more |
+| **`RWF_NOWAIT` inline, 64 KiB windows** | **Accepted** | 48.4 µs · 166 µs; zero hops warm; lowest warm `gap_max` measured (148 µs) |
+| Whole-frame `RWF_NOWAIT`, one read | Rejected | best miss throughput of any arm but a 250 KB uninterrupted executor copy: 4.0 ms warm `gap_max` |
+| A larger window (128 / 256 KiB) | Rejected | recovers the miss-path gap on its own but costs 12–25 % warm throughput; escalating the pool read gets it for nothing |
+| mmap, naive | Rejected | faults freeze co-tenants: `gap_max` 1.5–4.2 ms, 7.7 ms under pressure |
+| mmap + `mincore` gate | Rejected | unsafe under pressure 5/5 runs; residency is not a lease |
+| mmap + always-touch on the pool (prior ADR) | Rejected as default | 103.4 µs · 702 µs; pays a hop on every ask, including the ~100 % warm case |
+| mmap + touch via `block_in_place` | Rejected | 38.2 µs but the worst neighbour arm measured (p99 2.1 ms) |
+| `madvise(POPULATE_READ)` on the pool | Rejected | within noise of the touch loop; the hop is the cost |
 
-## Invariants
+**B — how a miss is served**
 
-Properties the code depends on that nothing in the type system enforces. Each is pinned by
-a test, named here so the test's purpose survives a refactor of the test.
+| Option | Verdict | Why |
+| --- | --- | --- |
+| **A ring per session, built on the first miss, whole rest of the frame** | **Accepted** | −56 to −75 % CPU per miss vs the pool at depth 1–16; 5 threads flat; nothing built on a warm session |
+| `spawn_blocking` + `pread` | **Kept as the fallback** | the simplest correct reader; identical on hits; a thread per miss in flight, 512 cap |
+| Escalating only the rest of the window | Superseded 2026-09-07 | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 |
+| Every read through the ring (`uring`) | Rejected as default, kept as a flag | hits +106 % / +298 % at depth 2 / 4; misses tie |
+| Ring pipelining (read *n+1* during write *n*) | Rejected | ~6 % on a 100 %-miss trace, −25 % warm, 2× session memory |
+| `SQPOLL` | Rejected | 2.8× the CPU; nothing completes inline, every read parks |
+| Registered buffers | Rejected | measured unnecessary; only the file is registered |
+| Ahead-N `POSIX_FADV_WILLNEED` | Measured, not landed | 4.6–4.9× on a cold *strided* read, a loss on a sweep; a routed choice waiting on a layout design |
+| Park on the ring's own fd instead of an eventfd (`x14`) | **Proposed, after P0** | one fd per session instead of two, two `unsafe` sites fewer; a tie on CPU everywhere — the gain is by construction, so it waits until the ring is validated on the target. `uring_reader.rs` now carries two slots and a per-slot pending state; re-read it before costing the change |
+| One shared ring per runtime (tokio's shape) | Not now | zero per-session cost, but one lock across every session's submissions: measured by tokio's own users at 1.36–1.45× slower than a ring per thread, and reproduced here on streams (`x15`) |
 
-### One index per study, never per session
+**C — standard and third-party readers, verified against current releases 2026-09-08**
+([`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md))
 
-`FrameStore` is opened once and shared by `Arc`; every session gets a handle, not a store.
-The index is **12 bytes per frame** — 384 KB for a 32 000-frame study — and it is immutable
-after `open`, so a per-session store multiplies that by the session count and buys nothing.
-At a thousand concurrent readers that is 384 MB against 384 KB.
+| Option | Verdict | Why |
+| --- | --- | --- |
+| `tokio-uring` 0.5.0 (2024-05) | Rejected | its own current-thread runtime; dormant; pins an older `io-uring` |
+| `glommio`, `monoio`, `compio` | Rejected | thread-per-core runtimes: a transport rewrite. `compio-quic` is the shape that rewrite would take |
+| tokio's own io_uring driver (`--cfg tokio_unstable`) | Rejected for tiles; **measured and rejected for streams** | no positional read; one ring per runtime behind one lock; unstable cfg in a medical build. On streams (`x15`): fast for one session, **2.1 ms per 16 KiB read at 64 sessions**, a third of the device's throughput, executor gaps 10× any other arm |
+| `tokio::fs::File`, plain | **Measured and rejected** | a thread hop and a copy per read: 48–56 µs per 16 KiB against 3; threads grow like the pool's |
+| `rio`, `ringbahn`, `nuclei`, `uring-fs`, `luring` and the other 90 dependents of `io-uring` | Rejected | soundness hole, dead, own runtime, cursor-only with a thread, or `LocalSet`-only. **Nothing on crates.io drives a ring on tokio's multi-thread runtime with positional reads** |
 
-Nothing prevents a future change from calling `FrameStore::open` inside the session path: it
-would compile, pass every other test, and serve correctly.
-`sessions_share_one_store_rather_than_opening_their_own` (`transport::pipeline`) is what
-catches it.
+**D — other**
 
-This is a property of the *study*, not of the frame index specifically — it applies unchanged
-to whatever a tile map turns out to be.
+| Option | Verdict | Why |
+| --- | --- | --- |
+| `sendfile` / `splice` | Rejected | userspace QUIC copies anyway |
+| `O_DIRECT` + SPDK, whole-study preload | Rejected | loses the page cache shared across sessions; wrong scale |
+| Bounded process-private frame cache | **Lab only, not ported** | −20.2 % CPU / +14.7 % throughput at a 0.92 hit rate, +4.2 % where nothing is re-asked; duplicates RAM the page cache holds; needs a real ask trace to size |
+| Handing quinn owned windows (`write_chunk`) | Rejected, and more so at scale | −3.2 % at one session, **+14.6 / +19.1 % at 16 / 32 sessions, RESOLVED**: quinn holds each window until acked, so every window becomes a fresh 64 KiB allocation |
 
-### The bytes quinn sends are process-private
+**E — the sequential reader** ([`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md), `x15`)
 
-The read path copies into a session-owned buffer and never hands quinn a page-cache
-mapping, so reclaim cannot take bytes back mid-send. This is why `server/` has no memory
-mapping at all: the mmap arms are the rejected comparison and live in
-`lab/disk-access-bench` (`study_map::StudyMap`), not in the product.
+| Option | Verdict | Why |
+| --- | --- | --- |
+| **The shipped reader going forward, frame-sized asks, one frame ahead** | **Accepted** | read-ahead makes 96–99 % of consecutive asks hits, so the three `RWF_NOWAIT` readers tie on every column; this one holds 5 threads and one fd per study |
+| Wider windows for streams (64 / 256 KiB) | Rejected | 20–30 % less CPU per byte, but escalations climb 1 % → 4 % → 13.5 % |
+| Depth above 2 per stream | Rejected | the wire is 200× slower than a warm read; at 64 sessions × depth 16 every arm queues on the device (p99 100–190 ms) |
 
-### A ring is never built where `RWF_NOWAIT` is refused
+## 6 · Deployment: where the decision silently does not apply
 
-Otherwise every *warm* read would be served through it — the `uring` arm, +131 to +142% CPU
-on hits. `ReadCtx::new` resolves this once per session;
-`lazy_ring_is_never_built_without_nowait` pins it.
+Both fallbacks degrade to the pool **per session**, and since 2026-09-08 the server says so:
+`read_fast_path=` in the startup banner (WARN when it is `pooled_pread`) and `ring=` in every
+session's `session reads` line. They still belong in the manifest, not in a post-mortem —
+[`DEPLOYMENT.md`](DEPLOYMENT.md) has the Docker, compose and Kubernetes snippets and the unit
+file lines (`LimitNOFILE=65535`, `LimitMEMLOCK=infinity` or at least 16 KiB × the sessions
+expected to miss at once).
 
-## Levers outside this decision
+* **overlayfs refuses `RWF_NOWAIT`** — and a container's own filesystem is overlayfs. A
+  study baked into the image never gets the fast path; a bind-mounted or block volume is the
+  host filesystem and does. `check-fastpath <study dir>` answers it in one command.
+* **Ring memory is charged against `RLIMIT_MEMLOCK`** unless the process holds
+  `CAP_IPC_LOCK` (kernel 6.18, `io_uring/memmap.c`, verified). 8.7 KiB per session that
+  misses: the 8 MB default is ~940 rings; container runtimes often set less. `LimitMEMLOCK`
+  and `LimitNOFILE`, or the capability, go in the unit file.
+* **P0 — validate on the production target before touching anything.** One campaign run on
+  the cloud instance, volume class and container image: `product` against `pool`, cold,
+  64–256 sessions at depth 4, `check-fastpath` on the study volume and `ulimit -l` recorded.
+  The rule is fixed in advance: a tie deletes the ring and ships the pool; a resolved margin
+  keeps it and folds in the ring-fd change. It can go either way there, because a cloud miss
+  is device-bound and the ring's remaining claim is threads and CPU per miss.
 
-This ADR moves ~a fifth of a frame's server CPU; the rest is per-datagram QUIC work
-(`SEND-BUDGET.md` (archived: `git show a330783:docs/disk-access/SEND-BUDGET.md`) §4).
-The bigger levers therefore live outside it, and they are recorded here so the read-path
-work does not quietly become the whole plan. **Measured** and **not measured** are marked,
-and they are not the same claim.
+## 7 · Invariants
+
+Properties the code depends on that the type system does not enforce; each is pinned by a
+named test.
+
+* **One index per study, never per session.** `FrameStore` is opened once and shared by
+  `Arc`; 12 B per frame, immutable after open. A per-session store would cost 384 MB instead
+  of 384 KB at a thousand readers. `sessions_share_one_store_rather_than_opening_their_own`.
+* **The bytes quinn sends are process-private.** The read path copies into a session-owned
+  buffer and never hands quinn a mapping — which is why `server/` has no mapping at all; the
+  mmap arms live in `lab/`. 
+* **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm read would
+  go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
+
+## 8 · Levers outside this decision
+
+This ADR moves about a fifth of a frame's server CPU. The rest is per-datagram QUIC work,
+and the bigger levers live there. Recorded so the read path does not quietly become the
+whole plan.
 
 | Lever | Worth | Blocker / cost | Status |
 | --- | --- | --- | --- |
-| **`max_udp_payload_size` 1472 → 4000 B** | **−35% CPU, +55% throughput** — the largest effect measured anywhere in this investigation, 10× the read path's copy | The **peer** must advertise the same ceiling, and the peer is a browser. Above 4000 B on the validation host, path discovery fails and the connection falls back to a 1200 B floor — *worse* than the default | **Measured, not taken.** Recheck what browsers actually advertise before designing around it |
-| GSO datagram batching | Already worth ~10× fewer `sendmsg` (18 syscalls for 179 datagrams) | — | **Already on** in quinn. This lever is spent |
-| Bounded frame cache | −20.2% CPU / +14.7% throughput at a 0.92 hit rate | Duplicates RAM the page cache already holds, and costs +4.2% where nothing is re-asked. Needs a real ask trace to size | **Lab only** (`--frame-cache-mb`). Not ported; revisit with a wire-driven trace |
-| `write_chunk` owned windows | −3.2% at one session; **+14.6% / +19.1% at 16 / 32, RESOLVED** | The removed copy is L2-resident; its replacement is a fresh 64 KiB allocation per window, because quinn holds each until it is acked. 3 840 allocations for 3 840 windows at 16 sessions, against zero | **Rejected**, and the scale case is the *stronger* one against it |
-| Congestion controller (quinn default vs BBR) | unknown | — | **Not measured** |
-| Stream / connection flow-control windows | unknown; plausibly matters for a start-to-end sequential push, where the window and not the disk sets the rate | — | **Not measured** |
-| AEAD choice (AES-GCM vs ChaCha20) | unknown; AES-NI presence decides it | — | **Not measured** |
+| **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — the largest effect measured anywhere in this investigation | the peer must advertise the same ceiling, and the peer is a browser; above 4000 B path discovery failed and fell back to 1200 B | **Measured, not taken.** Price it first |
+| **Serving depth ≥ 4** — read ahead by one is built for batches | **+73.8 % asks/s** on missing tiles, 1.14 → 0.62 ms on 16; 2 → 4 a further +37 % | the `RequestFrame` loop is still depth 1: a session-loop change with a written design | **Half built** ([`NEXT.md`](NEXT.md) §1, loop-shape ADR §6d) |
+| `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned ([`../disk-layout/`](../disk-layout/README.md)) |
+| Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
+| GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
+| `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
+| Congestion controller, flow-control windows, AEAD choice | unknown | — | **Not measured** — named so they are not mistaken for rejected |
 
-The three unmeasured rows are named so they are not mistaken for rejected ones, and
-`max_udp_payload_size` is the one to price properly first: it is worth more than everything
-this ADR decided.
+**Where scale actually binds.** The copy into quinn is ~11 µs of a ~675 µs frame, and
+L2-resident; per-datagram QUIC work runs out of CPU long before the copy runs out of memory
+bandwidth. The levers that reach the bound are sending fewer datagrams and not doing the
+read at all — not doing the read faster.
 
-**Where scale actually binds.** The intuition that the copy into quinn will limit a server
-at scale is a reasonable one, and it is wrong here in both directions. The copy is ~11 µs of
-a ~675 µs frame — 1.6%, and L2-resident — so per-datagram QUIC work runs out of CPU roughly
-sixty times sooner than the copy runs out of memory bandwidth. And removing it makes things
-*worse* under concurrency, for the mechanical reason in the row above. The levers that do
-reach the bound are not doing the read at all (the frame cache, −20.2%) and sending fewer
-datagrams (`max_udp_payload_size`, −35%).
+## 9 · What is next
 
-## Product path
+[`NEXT.md`](NEXT.md), ranked with the owners on 2026-09-08 and kept in that order as items
+close. The top of it: finish serving depth (the `RequestFrame` loop, then widening past two
+with `v35`'s ladder in hand), the transport lever above, P0 on the target, the deploy
+manifest. The miss rate is now observable, which is what lets every other item be checked
+against a real workload. The read-path items — the dependency bump, the ring-fd change — come
+after.
 
-`FramePipeline::locate` returns a `FrameSpan` (offset and length, no I/O);
-`FramePipeline::send` → `FrameOut::send_frame` → `stream_codestream` reads and writes it a
-window at a time. The read itself is `ReadCtx::fill` in `server/src/media/read_path.rs`, and
-the ring it escalates to is `server/src/media/uring_reader.rs`. `FrameStore` exposes `frame_span`, `read_at_nowait`, `read_at_blocking`, `read_window`,
-`nowait_supported` and `file` — and no mapping at all. The mmap pre-touch, `mincore` and
-WILLNEED arms live in `lab/disk-access-bench` because they are the comparison, not the
-product.
+## Provenance
 
-The `wrap()` envelope allocation is gone with it: the header is 8 bytes on the stack and the
-codestream streams behind it. That is the copy reduction the previous ADR deferred to a
-"next version", delivered here.
-
-`locate` returns a span rather than a `&[u8]` because there is no whole-frame slice to
-borrow any more. That also made `ProductPipeline::prepare` — a `spawn_blocking` hop that
-pre-faulted the frame's pages — dead, and it is gone; `prepare` survives as a trait default
-no-op so the telemetry chain still measures the stage, and a trace showing it at ~0 is the
-evidence the hop went away.
-
-## Follow-ups
-
-`later.md` (archived: `git show a330783:docs/disk-access/later.md`) — the deployment-filesystem check is the one that matters.
+Documents this ADR absorbed, readable from git: `git show a330783:docs/disk-access/<file>`
+for `SEND-BUDGET.md` (the per-frame budget, the frame cache, `write_chunk`),
+`READ-PATH-DECISION.md` (the four-host read-path campaign), `S5-CONTROL-ARM.md` (loop shape
+vs ring), `DEPTH.md`, `SCOREBOARD.md`, `later.md`; the 2026-08-31 decision at
+`git show be78860:docs/disk-access/adr.md`. Raw campaign data: the `v*.tsv` and `x*.tsv`
+files in this directory; the harness is `lab/disk-access-bench`, a workspace member so every
+number here can be re-run.

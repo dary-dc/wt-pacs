@@ -149,7 +149,7 @@ medians, so "stop at two" is where the *evidence* stopped, not where the require
 | [`../../CLAUDE.md`](../../CLAUDE.md) | the working rules, and the comment budget that checks one of them |
 | [`NEXT.md`](NEXT.md) | parked work, priority order |
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | how the read path works, read-ahead, reporting, alternatives, what is left before rollout |
-| [`adr.md`](adr.md) | the decision, the invariants, the levers outside it (incl. `max_udp_payload_size`, −35% CPU, unspent) |
+| [`adr.md`](adr.md) | **the decision as one current document** — what ships, what shaped it, how it evolved, every alternative, deployment, the levers outside it. Rewritten 2026-09-08 to be presentable on its own |
 | [`EVIDENCE.md`](EVIDENCE.md) | every number, and what is *not* established anywhere |
 | [`RERUN.md`](RERUN.md) | the instrument and its precision rules |
 | [`SCALE-RUN.md`](SCALE-RUN.md) | running the campaign on a real machine; run once, traps recorded |
