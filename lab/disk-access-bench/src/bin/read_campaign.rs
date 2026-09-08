@@ -27,7 +27,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
-use disk_access_bench::uring_access::UringReader;
+use disk_access_bench::uring_access::{Completion, UringReader};
 use exact_server::media::frame_store::FrameStore;
 use exact_server::media::read_path::{ReadCtx, ReadMode};
 use std::path::PathBuf;
@@ -55,6 +55,12 @@ enum Arm {
     /// it keeps the ring-shaped loop's win on hits without the idle ring's cost; a session
     /// that misses pays construction once and is `hybrid` from then on.
     HybridLazyRing,
+    /// `uring`, parked on the ring's own fd instead of a registered eventfd: one fd per
+    /// session instead of two. The loop is `uring`'s; only the wake differs (`x14`).
+    UringRingFd,
+    /// `hybrid_lazyring` with the same one-fd wake — the pair that decides whether the
+    /// product should drop its eventfd. See `docs/disk-access/RESEARCH-io-backends-RESULT.md`.
+    HybridLazyRingFd,
     /// **The shipped path itself** — `server`'s `ReadCtx`, driven exactly as
     /// `stream_codestream` drives it, rather than a lab reimplementation of its shape.
     ///
@@ -74,6 +80,8 @@ impl Arm {
             "pooled_pread" => Some(Self::PooledPread),
             "pool_ringloop" => Some(Self::PoolRingLoop),
             "hybrid_lazyring" => Some(Self::HybridLazyRing),
+            "uring_ringfd" => Some(Self::UringRingFd),
+            "hybrid_lazyring_ringfd" => Some(Self::HybridLazyRingFd),
             "product" => Some(Self::Product),
             _ => None,
         }
@@ -86,11 +94,26 @@ impl Arm {
             Self::PooledPread => "pooled_pread",
             Self::PoolRingLoop => "pool_ringloop",
             Self::HybridLazyRing => "hybrid_lazyring",
+            Self::UringRingFd => "uring_ringfd",
+            Self::HybridLazyRingFd => "hybrid_lazyring_ringfd",
             Self::Product => "product",
         }
     }
     fn uses_ring(self) -> bool {
-        matches!(self, Self::Uring | Self::Hybrid | Self::HybridLazyRing)
+        matches!(
+            self,
+            Self::Uring
+                | Self::Hybrid
+                | Self::HybridLazyRing
+                | Self::UringRingFd
+                | Self::HybridLazyRingFd
+        )
+    }
+    fn completion(self) -> Completion {
+        match self {
+            Self::UringRingFd | Self::HybridLazyRingFd => Completion::RingFd,
+            _ => Completion::Eventfd,
+        }
     }
 }
 
@@ -99,7 +122,8 @@ impl Arm {
 struct Args {
     #[arg(long)]
     study: PathBuf,
-    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product
+    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product,
+    /// uring_ringfd,hybrid_lazyring_ringfd
     #[arg(long, default_value = "pool,uring,hybrid")]
     arms: String,
     /// Comma-separated reads in flight per reader.
@@ -568,7 +592,7 @@ async fn reader_ring(
 ) -> Result<()> {
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
-    let lazy = cell.arm == Arm::HybridLazyRing;
+    let lazy = matches!(cell.arm, Arm::HybridLazyRing | Arm::HybridLazyRingFd);
     let hybrid = cell.arm == Arm::Hybrid || lazy;
     // Registered buffers are fixed-size, so they are sized to the longest read in the plan.
     // Variable-length traces then read into a prefix of the slot.
@@ -581,7 +605,14 @@ async fn reader_ring(
     let mut ring: Option<UringReader> = if lazy {
         None
     } else {
-        Some(UringReader::new(&file, depth, cap, true, false)?)
+        Some(UringReader::with_completion(
+            &file,
+            depth,
+            cap,
+            true,
+            false,
+            cell.arm.completion(),
+        )?)
     };
     let mut local: Vec<Vec<u8>> = if lazy {
         (0..depth).map(|_| vec![0u8; cap]).collect()
@@ -632,7 +663,14 @@ async fn reader_ring(
             // inline read already produced into the slot the ring will complete into, so no
             // byte is read twice.
             if ring.is_none() {
-                let mut r = UringReader::new(&file, depth, cap, true, false)?;
+                let mut r = UringReader::with_completion(
+                    &file,
+                    depth,
+                    cap,
+                    true,
+                    false,
+                    cell.arm.completion(),
+                )?;
                 r.buf_mut(slot)[..got].copy_from_slice(&local[slot][..got]);
                 ring = Some(r);
             }

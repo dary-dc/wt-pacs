@@ -21,6 +21,7 @@ twice. Pair before concluding.
     lab/scripts/pair_arms.py --pairs uring:hybrid_lazyring FILE.tsv
     lab/scripts/pair_arms.py --by size FILE.tsv       # split each regime by frame size
     lab/scripts/pair_arms.py --by readers FILE.tsv
+    lab/scripts/pair_arms.py --metric p50_ns --drift 7 --pairs uring_ringfd:uring FILE.tsv
 
 Archived campaign files come out of git:
 
@@ -59,8 +60,9 @@ def load(path: Path):
     return cells
 
 
-def deltas(cells, a, b, run=None, by=None):
-    """% change of `a` against `b`, paired inside each cell, bucketed by regime (and `by`).
+def deltas(cells, a, b, run=None, by=None, metric="cpu_ns_per_ask"):
+    """% change of `a` against `b` on `metric`, paired inside each cell, bucketed by regime
+    (and `by`).
 
     Regime is read off `pool`'s miss rate so every arm in a cell is classified identically —
     an arm that misses less would otherwise classify itself into an easier bucket.
@@ -71,10 +73,10 @@ def deltas(cells, a, b, run=None, by=None):
             continue
         if run and not key[0].startswith(run):
             continue
-        base = int(arms[b]["cpu_ns_per_ask"])
+        base = int(arms[b][metric])
         if not base:
             continue
-        got = int(arms[a]["cpu_ns_per_ask"])
+        got = int(arms[a][metric])
         bucket = regime(float(arms["pool"]["miss_pct"]))
         if by:
             bucket = (bucket, arms["pool"][by])
@@ -82,7 +84,7 @@ def deltas(cells, a, b, run=None, by=None):
     return out
 
 
-def verdict(vals):
+def verdict(vals, drift=DRIFT):
     """RESOLVED only if it beats drift **and** the sign is consistent. Otherwise a tie.
 
     A tie is not "no difference" — it is "not established". The margin and the sign count
@@ -92,7 +94,7 @@ def verdict(vals):
         return f"{'n/a (n=' + str(len(vals)) + ')':>26}"
     med, n = st.median(vals), len(vals)
     agree = max(sum(1 for v in vals if v < 0), sum(1 for v in vals if v > 0))
-    ok = abs(med) >= DRIFT and agree >= math.ceil(0.8 * n)
+    ok = abs(med) >= drift and agree >= math.ceil(0.8 * n)
     return f"{med:+7.1f}%  {agree:>4}/{n:<4} {'RESOLVED' if ok else 'tie':<8}"
 
 
@@ -102,6 +104,12 @@ def main():
     ap.add_argument("--pairs", help="comma-separated a:b pairs (default: the arm-choice set)")
     ap.add_argument("--by", choices=["size", "readers", "stride", "depth"],
                     help="split every regime by this column — frame size is the one that moves")
+    ap.add_argument("--metric", default="cpu_ns_per_ask",
+                    choices=["cpu_ns_per_ask", "p50_ns", "p90_ns", "p99_ns", "wall_ns"],
+                    help="column to pair on (default: CPU per ask, the campaign's rule)")
+    ap.add_argument("--drift", type=float, default=DRIFT,
+                    help=f"resolution threshold in %% (default {DRIFT}; RERUN.md gives 7 for a "
+                         "latency median re-run on one host)")
     a = ap.parse_args()
     pairs = DEFAULT_PAIRS
     if a.pairs:
@@ -111,22 +119,23 @@ def main():
         cells = load(Path(f))
         runs = sorted({k[0].split("_")[0] for k in cells})
         arms = {arm for v in cells.values() for arm in v}
-        print(f"=== {Path(f).name} — arms: {', '.join(sorted(arms))} ===")
+        print(f"=== {Path(f).name} — arms: {', '.join(sorted(arms))} — metric {a.metric}, drift {a.drift}% ===")
         for x, y in pairs:
             if x not in arms or y not in arms:
                 continue
             print(f"{x} vs {y}")
             if a.by:
                 for run in runs:
-                    d = deltas(cells, x, y, run, a.by)
+                    d = deltas(cells, x, y, run, a.by, a.metric)
                     for g in ["hit", "mix", "miss"]:
                         rows = sorted((k for k in d if k[0] == g), key=lambda k: int(k[1]))
                         for k in rows:
-                            print(f"   {run:>6} {g:5} {a.by}={k[1]:>7}  {verdict(d[k])}")
+                            print(f"   {run:>6} {g:5} {a.by}={k[1]:>7}  {verdict(d[k], a.drift)}")
             else:
                 for g in ["hit", "mix", "miss"]:
                     print(f"   {g:5}" + "".join(
-                        f"{r:>6} {verdict(deltas(cells, x, y, r).get(g, []))}" for r in runs))
+                        f"{r:>6} {verdict(deltas(cells, x, y, r, metric=a.metric).get(g, []), a.drift)}"
+                        for r in runs))
             print()
 
 
