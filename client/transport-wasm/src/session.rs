@@ -401,6 +401,54 @@ impl TransportSession {
         Ok(ask_ms)
     }
 
+    pub fn start_stream(&self, last: u32, from: Option<u32>, to: Option<u32>) -> Result<f64, String> {
+        let lo = from.unwrap_or(0);
+        let hi = to.unwrap_or(last);
+        if hi < lo {
+            return Err("start_stream: to < from".into());
+        }
+        if !self.bulk_rx.borrow().is_empty() {
+            return Err("start_stream: previous bulk still pending".into());
+        }
+        let ask_ms = perf_now_ms();
+        self.bulk_ask_ms.set(Some(ask_ms));
+        let indices: Vec<u32> = (lo..=hi).collect();
+        {
+            let mut s = self.state.borrow_mut();
+            let mut bulk_rx = self.bulk_rx.borrow_mut();
+            for &frame_index in &indices {
+                if s.waiters.contains_key(&frame_index) || bulk_rx.contains_key(&frame_index) {
+                    return Err(format!("frame {frame_index} already requested"));
+                }
+                let (tx, rx) = oneshot::channel();
+                s.waiters.insert(frame_index, tx);
+                bulk_rx.insert(frame_index, rx);
+            }
+        }
+        let payload = encode_fod_msg(&FodMsg::StreamFrames { from, to })
+            .map_err(|e| format!("encode FoD: {e}"))?;
+        if self.req_tx.unbounded_send(payload).is_err() {
+            let mut s = self.state.borrow_mut();
+            let mut bulk_rx = self.bulk_rx.borrow_mut();
+            for &frame_index in &indices {
+                s.waiters.remove(&frame_index);
+                bulk_rx.remove(&frame_index);
+            }
+            self.bulk_ask_ms.set(None);
+            return Err("FoD request channel closed".into());
+        }
+        Ok(ask_ms)
+    }
+
+    pub fn end_stream(&self) -> Result<(), String> {
+        let payload =
+            encode_fod_msg(&FodMsg::EndStream).map_err(|e| format!("encode FoD: {e}"))?;
+        if self.req_tx.unbounded_send(payload).is_err() {
+            return Err("FoD request channel closed".into());
+        }
+        Ok(())
+    }
+
     pub async fn wait_frame(&self, frame_index: u32, ask_ms: f64) -> Result<JsValue, String> {
         let rx = self
             .bulk_rx

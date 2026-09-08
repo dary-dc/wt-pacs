@@ -2,6 +2,7 @@
 //! `docs/adr-reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
+use crate::media::read_path::WINDOWS;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::stream_mode::StreamMode;
@@ -9,6 +10,7 @@ use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
+use tokio::sync::mpsc;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -228,38 +230,127 @@ async fn handle_incoming(
     run_session(&mut product, control_send, control_recv).await
 }
 
-/// **One frame at a time is the session's whole depth**: a client that pipelines asks still
-/// gets them served serially. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+/// The reader owns the control stream; the loop serves and peeks the next ask.
+/// `docs/disk-access/READ-PATH-DESIGN.md` §3, `docs/adr-frame-framing-and-loop-shape.md` §6d.
 async fn run_session<P: FramePipeline>(
     pipeline: &mut P,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
 ) -> Result<()> {
-    loop {
-        let msg = match read_fod_msg(&mut control_recv).await {
-            Ok(m) => m,
-            Err(err) => {
-                warn!(%err, "control read ended");
-                break;
+    let (tx, mut rx) = mpsc::channel(WINDOWS - 1);
+    let reader = tokio::spawn(async move {
+        loop {
+            match read_fod_msg(&mut control_recv).await {
+                Ok(msg) => {
+                    if tx.send(msg).await.is_err() {
+                        break;
+                    }
+                }
+                Err(err) => {
+                    warn!(%err, "control read ended");
+                    break;
+                }
             }
-        };
+        }
+    });
 
+    let mut current = rx.recv().await;
+    while let Some(msg) = current {
         match msg {
             FodMsg::RequestFrame { frame } => {
-                pipeline.serve_one(frame, None, &mut control_send).await?;
+                let peeked = rx.try_recv().ok();
+                pipeline
+                    .serve_one(frame, upcoming_index(peeked.as_ref()), &mut control_send)
+                    .await?;
+                current = match peeked {
+                    Some(m) => Some(m),
+                    None => rx.recv().await,
+                };
             }
             FodMsg::RequestFrames { frames } => {
                 pipeline.serve_batch(&frames, &mut control_send).await?;
+                current = rx.recv().await;
+            }
+            FodMsg::StreamFrames { from, to } => {
+                let (switch, end_session) =
+                    fill(pipeline, &mut rx, &mut control_send, from, to).await?;
+                if end_session {
+                    break;
+                }
+                current = match switch {
+                    Some(m) => Some(m),
+                    None => rx.recv().await,
+                };
+            }
+            FodMsg::EndStream => {
+                current = rx.recv().await;
             }
             FodMsg::EndSession => break,
             other => {
                 warn!(?other, "ask-only: ignoring unexpected FoD message");
+                current = rx.recv().await;
             }
         }
     }
 
+    reader.abort();
+    let _ = reader.await;
     pipeline.drain_acks().await;
     Ok(())
+}
+
+fn upcoming_index(msg: Option<&FodMsg>) -> Option<u32> {
+    match msg {
+        Some(FodMsg::RequestFrame { frame }) => Some(*frame),
+        Some(FodMsg::RequestFrames { frames }) => frames.first().copied(),
+        Some(FodMsg::StreamFrames { from, .. }) => Some(from.unwrap_or(0)),
+        _ => None,
+    }
+}
+
+fn is_data_request(msg: &FodMsg) -> bool {
+    matches!(
+        msg,
+        FodMsg::RequestFrame { .. } | FodMsg::RequestFrames { .. } | FodMsg::StreamFrames { .. }
+    )
+}
+
+/// Recite `from..=to`. A data request ends the fill and is returned to become `current`.
+/// `docs/disk-access/READ-PATH-DESIGN.md` §2.
+async fn fill<P: FramePipeline>(
+    pipeline: &mut P,
+    rx: &mut mpsc::Receiver<FodMsg>,
+    control_send: &mut SendStream,
+    from: Option<u32>,
+    to: Option<u32>,
+) -> Result<(Option<FodMsg>, bool)> {
+    let count = pipeline.store().frame_count();
+    if count == 0 {
+        return Ok((None, false));
+    }
+    let last = count - 1;
+    let from = from.unwrap_or(0);
+    let to = to.unwrap_or(last);
+    if from > to || from > last {
+        return Ok((None, false));
+    }
+    let to = to.min(last);
+
+    for i in from..=to {
+        match rx.try_recv() {
+            Ok(FodMsg::EndStream) => return Ok((None, false)),
+            Ok(FodMsg::EndSession) => return Ok((None, true)),
+            Ok(msg) if is_data_request(&msg) => return Ok((Some(msg), false)),
+            Ok(other) => {
+                warn!(?other, "ask-only: ignoring unexpected FoD message");
+            }
+            Err(mpsc::error::TryRecvError::Empty) => {}
+            Err(mpsc::error::TryRecvError::Disconnected) => return Ok((None, true)),
+        }
+        let next = (i < to).then_some(i + 1);
+        pipeline.serve_one(i, next, control_send).await?;
+    }
+    Ok((None, false))
 }
 
 #[cfg(test)]
@@ -351,6 +442,36 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_pipelined_request_frame_names_the_next_ask() {
+        assert_eq!(
+            upcoming_index(Some(&FodMsg::RequestFrame { frame: 3 })),
+            Some(3)
+        );
+        assert_eq!(
+            upcoming_index(Some(&FodMsg::RequestFrames {
+                frames: vec![4, 5]
+            })),
+            Some(4)
+        );
+        assert_eq!(upcoming_index(Some(&FodMsg::EndSession)), None);
+        assert_eq!(upcoming_index(None), None);
+        assert_eq!(
+            upcoming_index(Some(&FodMsg::StreamFrames {
+                from: Some(2),
+                to: None
+            })),
+            Some(2)
+        );
+        assert_eq!(
+            upcoming_index(Some(&FodMsg::StreamFrames {
+                from: None,
+                to: None
+            })),
+            Some(0)
+        );
+    }
+
     /// **`serve_batch` over the wire.** Every frame of a `RequestFrames` arrives whole and
     /// in ask order, with the read ahead running under it — the one path where a frame is
     /// served out of a window that was filled while the frame before it was still being
@@ -421,6 +542,267 @@ mod tests {
                         .expect("frame never arrived");
                 assert_eq!(idx, want, "frames arrived out of ask order");
                 assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
+            }
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Pipelined `RequestFrame`s reach the loop as `current` + `upcoming`, not one-at-a-time.
+    /// `docs/adr-frame-framing-and-loop-shape.md` §6d.
+    #[test]
+    fn pipelined_single_asks_arrive_whole_and_in_ask_order() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-pipe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let frames = 6u32;
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                wt_port: port,
+                study_path: study,
+                cert_pem,
+                key_pem,
+                mode: StreamMode::Shared,
+                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                transport: TransportKnobs::default(),
+            }));
+
+            let endpoint = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(
+                        cert_hash,
+                    )])
+                    .build(),
+            )
+            .expect("client endpoint");
+            let url = format!("https://127.0.0.1:{port}/");
+
+            let mut connection = None;
+            for _ in 0..50 {
+                match endpoint.connect(url.clone()).await {
+                    Ok(c) => {
+                        connection = Some(c);
+                        break;
+                    }
+                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                }
+            }
+            let connection = connection.expect("server never accepted a connection");
+
+            let (mut control, _control_recv) =
+                connection.open_bi().await.expect("open bi").await.expect("bi ready");
+            let asked: Vec<u32> = (0..frames).collect();
+            for &frame in &asked {
+                control
+                    .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrame { frame }).unwrap())
+                    .await
+                    .expect("ask");
+            }
+
+            let mut media = connection.accept_uni().await.expect("accept media uni");
+            for want in asked {
+                let (idx, codestream) =
+                    tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                        .await
+                        .expect("frame never arrived");
+                assert_eq!(idx, want, "frames arrived out of ask order");
+                assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
+            }
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    async fn connect_session(
+        study: PathBuf,
+        cert_pem: PathBuf,
+        key_pem: PathBuf,
+        cert_hash: [u8; 32],
+        port: u16,
+    ) -> (
+        tokio::task::JoinHandle<Result<()>>,
+        wtransport::Connection,
+        SendStream,
+        RecvStream,
+    ) {
+        let server = tokio::spawn(run_server(ServeConfig {
+            wt_port: port,
+            study_path: study,
+            cert_pem,
+            key_pem,
+            mode: StreamMode::Shared,
+            bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+            transport: TransportKnobs::default(),
+        }));
+        let endpoint = wtransport::Endpoint::client(
+            ClientConfig::builder()
+                .with_bind_config(IpBindConfig::InAddrAnyV4)
+                .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                .build(),
+        )
+        .expect("client endpoint");
+        let url = format!("https://127.0.0.1:{port}/");
+        let mut connection = None;
+        for _ in 0..50 {
+            match endpoint.connect(url.clone()).await {
+                Ok(c) => {
+                    connection = Some(c);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+            }
+        }
+        let connection = connection.expect("server never accepted a connection");
+        let (control, _control_recv) = connection
+            .open_bi()
+            .await
+            .expect("open bi")
+            .await
+            .expect("bi ready");
+        let media = connection.accept_uni().await.expect("accept media uni");
+        (server, connection, control, media)
+    }
+
+    /// `StreamFrames { from, to }` recites that range, nothing outside it.
+    #[test]
+    fn stream_frames_range_arrives_in_order() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-stream-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let frames = 6u32;
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        rt.block_on(async move {
+            let (server, _conn, mut control, mut media) =
+                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+            control
+                .write_all(
+                    &fod::encode_fod_msg(&FodMsg::StreamFrames {
+                        from: Some(1),
+                        to: Some(3),
+                    })
+                    .unwrap(),
+                )
+                .await
+                .expect("ask");
+            for want in 1..=3 {
+                let (idx, codestream) =
+                    tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                        .await
+                        .expect("frame never arrived");
+                assert_eq!(idx, want, "frames arrived out of fill order");
+                assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
+            }
+            let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
+            assert!(extra.is_err(), "fill sent a frame past `to`");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `StreamFrames {}` is the whole study. `EndStream` in the same write stops before
+    /// the recitation runs away. `docs/disk-access/READ-PATH-DESIGN.md` §2.
+    #[test]
+    fn empty_stream_frames_is_the_study_and_end_stream_stops_it() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-endstream-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let frames = 6u32;
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        rt.block_on(async move {
+            let (server, _conn, mut control, mut media) =
+                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+            let mut bytes = fod::encode_fod_msg(&FodMsg::StreamFrames {
+                from: None,
+                to: None,
+            })
+            .unwrap();
+            bytes.extend(fod::encode_fod_msg(&FodMsg::EndStream).unwrap());
+            control.write_all(&bytes).await.expect("ask");
+
+            let first = tokio::time::timeout(Duration::from_millis(400), read_envelope(&mut media)).await;
+            if let Ok((idx, codestream)) = first {
+                assert_eq!(idx, 0);
+                assert_eq!(codestream, pattern(0));
+            }
+            let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
+            if let Ok((idx, _)) = extra {
+                assert!(idx <= 1, "EndStream let the fill run to frame {idx}");
+            }
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A data request during a fill ends the fill and is then served.
+    #[test]
+    fn request_frame_during_fill_switches_to_on_demand() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-switch-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let frames = 6u32;
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        rt.block_on(async move {
+            let (server, _conn, mut control, mut media) =
+                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+            let mut bytes = fod::encode_fod_msg(&FodMsg::StreamFrames {
+                from: None,
+                to: None,
+            })
+            .unwrap();
+            bytes.extend(fod::encode_fod_msg(&FodMsg::RequestFrame { frame: 5 }).unwrap());
+            control.write_all(&bytes).await.expect("fill+switch");
+
+            let (first, _) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                .await
+                .expect("a frame");
+            assert!(
+                first == 0 || first == 5,
+                "first frame after a switch should be the fill head or the ask, not {first}"
+            );
+            if first == 0 {
+                let (second, body) =
+                    tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                        .await
+                        .expect("on-demand frame");
+                assert_eq!(second, 5, "fill kept reciting after the mode switch");
+                assert_eq!(body, pattern(5));
+            } else {
+                assert_eq!(first, 5);
             }
             server.abort();
         });
