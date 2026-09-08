@@ -195,6 +195,38 @@ The decision so far rests on cells at 1–8 readers and depth 1. The deployment 
 thousands of concurrent sessions, most asks missing. This is what has to be measured, in
 order, and what each step would decide.
 
+### The serving loop is serial, and that is a transport bug, not a read-path one
+
+`FramePipeline::serve_batch` is a `for` loop with an `.await`: a batch of *N* frames is *N*
+strictly sequential read-then-send cycles. For a tile viewport that is the whole latency
+budget spent in series. Measured on 16 tiles of 16 KiB, all missing:
+
+| | serial (today) | pipelined (depth 16) | |
+| --- | ---: | ---: | ---: |
+| `hybrid_lazyring` | 1.2 ms | 0.4 ms | **2.9×** |
+| `pool` | 1.9 ms | 0.5 ms | 3.9× |
+
+**`adr-reject-server-ordering.md` does not forbid this.** It rejects serving the *newest* ask
+first, on the grounds that FIFO already carries the client's priority. Reading frame *n+1*
+while frame *n* is on the wire preserves FIFO delivery exactly — it is pipelining, not
+reordering. The serial loop is an implementation choice, and for a real-time tile viewer on
+slower storage than this host it is the dominant cost.
+
+### …and pipelining still does not make `uring` the right arm
+
+The published `uring` advantage at depth is a **CPU** advantage, and CPU is not what a
+real-time viewer is short of. Paired per repeat, miss regime
+([`v32_depth.tsv`](v32_depth.tsv)):
+
+| depth | CPU per ask | p50 latency | throughput |
+| ---: | ---: | ---: | ---: |
+| 1 | +0.1% (3/6) | −0.3% (3/6) | −1.7% (4/6) |
+| 4 | **−14.9%** (6/6) | **+47.1%** (6/6) | **−10.5%** (6/6) |
+| 16 | **−9.7%** (5/6) | **+61.4%** (6/6) | **−20.3%** (6/6) |
+
+`uring` buys 10–15% CPU for 47–61% worse latency and 10–20% worse throughput, unanimously.
+For a batch of tiles a reader is waiting on, that is the wrong trade at every depth measured.
+
 ### First, the distinction that decides most of it
 
 **Thousands of users is `readers`, not `depth`.** The published `uring` advantage lives at
