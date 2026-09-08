@@ -28,16 +28,25 @@ better tail at depth 4 ([`v33_cross.tsv`](v33_cross.tsv)). Re-measure at whateve
 actually produces, on a host that is not 4 vCPU. `WTPACS_READ_PATH=uring` is already wired,
 so this is a restart, not a rebuild.
 
-### 4. Scale evidence tops out at 8 readers on a 4 vCPU host
+### 4. Scale is now device-bound, not CPU-bound — and still unresolved above ~64 in flight
 
-Per-session *cost* is measured to thousands (2 fds, 8.7 KiB, 15.6 µs setup). Per-session
-*speed* is not: past ~64 reads in flight this host is the bottleneck. Needs a bigger machine —
-see [`SCALE-RUN.md`](SCALE-RUN.md).
+[`SCALE-RUN.md`](SCALE-RUN.md) was run on an 8-thread workstation
+([`v34_scale.tsv`](v34_scale.tsv)). It settles the arm question — `uring` does not cross
+`hybrid_lazyring` at depth 2–4, and `product` tracks it everywhere — but it does not lift the
+concurrency ceiling: cold throughput plateaus at ~840 MB/s from ~64 reads in flight with CPU
+at 0.42 of 8 cores, so past that every arm queues on the same device and ties by construction.
+
+Closing it needs **faster storage**, not more cores — the "storage faster than ~1.25 GB/s"
+row in [`EVIDENCE.md`](EVIDENCE.md) that has never been established. Until then, no claim
+about arm behaviour past ~64 reads in flight is supportable on any host we have.
 
 ### 5. Smaller, still open
 
-* **`ulimit -n`.** 2 fds per missing session; a default of 1024 caps out near 500 users, and
-  fails into the slow path rather than refusing a connection. Belongs in the deploy checklist.
+* **`ulimit -n` *and* `ulimit -l`.** 2 fds and 8.7 KiB of locked memory per missing session.
+  `RLIMIT_MEMLOCK` is the one that bit first on a real host: an 8 MB default refused two cells
+  outright, which is ~940 rings. Both `LimitNOFILE` and `LimitMEMLOCK` belong in the deploy
+  checklist, and the failure mode is a refused ring falling back to the slow path, not a
+  refused connection.
 * **The 250 KB miss cell cannot resolve differences under ~2×** — the same arm varies 12.5×
   between repeats. Any 250 KB conclusion needs many more asks per cell, or a quieter device.
 * **The bench copies `stream_codestream`'s 5-line loop** rather than calling it, because the
