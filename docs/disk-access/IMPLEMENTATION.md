@@ -189,6 +189,81 @@ difference — the cell cannot measure one** ([`v31_gap250k.tsv`](v31_gap250k.ts
 resolvable here. Resolving it needs many more asks per cell to average the device tail, or a
 quieter device; it is not a question more repeats will answer.
 
+## Measuring the arm at thousands of sessions
+
+The decision so far rests on cells at 1–8 readers and depth 1. The deployment target is
+thousands of concurrent sessions, most asks missing. This is what has to be measured, in
+order, and what each step would decide.
+
+### First, the distinction that decides most of it
+
+**Thousands of users is `readers`, not `depth`.** The published `uring` advantage lives at
+depth > 1 — several reads in flight *inside one session* — because the inline probes then run
+serially on the executor before the ring can batch. A thousand sessions each doing one read
+per ask is a thousand instances of depth 1, where there is nothing to serialise: measured at
+depth 1 `uring` **ties on misses and is 3× worse on hits**
+([`v32_depth.tsv`](v32_depth.tsv)).
+
+The depth axis only opens if the session loop serves several asks from one session
+concurrently, which `adr-reject-server-ordering.md` currently forbids. So Phase 3 below is
+conditional on that design changing.
+
+### Phase 0 — make the miss rate observable (prerequisite)
+
+Every threshold below is a miss rate, and the server cannot currently report its own. Until a
+session can say how often it escalated, none of the phases can be evaluated against
+production. This is the only item that blocks the rest.
+
+### Phase 1 — per-session ring cost (done)
+
+Both ring arms build one io_uring plus one eventfd per session that misses
+(`lab/disk-access-bench/src/bin/ring_scale.rs`):
+
+| | measured |
+| --- | --- |
+| File descriptors | **2 per session** that misses |
+| Resident memory | **8.7 KiB per ring** |
+| Construction, steady state | **15.6 µs** — pays back on the first miss against a ~29 µs pool hop |
+| Construction, mass creation (1 000–4 000 at once) | 82–100 µs, p99 0.5–1.2 ms |
+| Ceiling | 4 000 rings created without failure |
+
+**The operational consequence is the descriptors.** At 1 000 missing sessions that is 2 000
+fds on top of the sockets; a host left at the common `ulimit -n` of 1024 caps out near 500
+sessions, and the failure is a refused ring, not a refused connection. Raise `LimitNOFILE`
+before this matters — and note the mass-creation row: a restart with a thundering herd pays
+~5× the steady-state construction cost, on the executor.
+
+### Phase 2 — the readers sweep, which decides the arm
+
+`read_campaign --arms pool,hybrid_lazyring,uring --depths 1 --readers 1,8,32,64,128,256`,
+cold, stride past the read-ahead window. Six repeats, arms rotated per repeat.
+
+Read three columns, not one: `cpu_ns_per_ask`, `threads`, and `asks_per_s`. The question is
+not only which arm is cheapest but **which curve bends first** — `pool` grows threads (18 at
+8 readers already), the ring arms grow descriptors.
+
+* **Decides:** whether `hybrid_lazyring` holds its −56 to −75% against `pool` as readers
+  climb, and whether `uring` ever crosses it at depth 1.
+* **Caveat that must be stated in the result:** on a 4 vCPU host, a few hundred reader tasks
+  measure the host, not the arm. Report where the host saturates and stop claiming anything
+  past it.
+
+### Phase 3 — depth × readers, only if the session loop changes
+
+If a tile viewport is served with several asks in flight, rerun Phase 2 at depths 1 and 4
+crossed with readers 1, 32, 128. Then apply the breakeven from
+[`EVIDENCE.md`](EVIDENCE.md): `uring` pays above a **53–64% miss rate** at depth 4–16 and
+never at depth 1.
+
+* **Decides:** whether `WTPACS_READ_PATH=uring` should become a supported production mode
+  rather than a lab lever.
+
+### Phase 4 — the arithmetic that turns it into a decision
+
+With Phase 0 giving a real miss rate `m` and Phase 2/3 giving hit penalty `P` and miss saving
+`S` in ns per ask, `uring` wins when `m·S > (1−m)·P`. Nothing else about the choice needs
+arguing once those three numbers exist.
+
 ## Before rollout: the one thing still unmeasured
 
 **The chosen arm was never measured above one concurrent session**, and the deployment target
