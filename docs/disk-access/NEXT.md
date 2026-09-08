@@ -29,7 +29,7 @@ struck through in place rather than removed, so the order is still readable as t
 | 10 | **P1 — park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, no latency change | after P0 keeps the ring. `uring_reader.rs` now carries two slots and a per-slot `Pending`, so re-read it before costing the change | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) P1 |
 
 Everything below the table was found or written after that ordering was set, so nothing there
-reorders it — but §7's first item is a **defect**, not an improvement.
+reorders it.
 
 Items 1 and 3 move more than everything else combined, and neither is a read-path change.
 With studies far larger than RAM, latency is miss count × miss cost: 6 sets the count, the
@@ -123,17 +123,18 @@ Closing it needs **faster storage**, not more cores — the "storage faster than
 row in [`EVIDENCE.md`](EVIDENCE.md). On cloud block storage the plateau arrives earlier, which
 is the whole reason P0 runs there.
 
-## 7 · Smaller, still open — and one defect
+## 7 · Smaller, still open
 
-* **Live defect: the write chunk collapses to the whole frame where `RWF_NOWAIT` is refused.**
-  `stream_codestream` takes its *write* chunk from `store.read_window(span.len)`, which answers a
-  *read* question and deliberately returns the whole frame when the probe is refused
-  (`frame_store.rs`). On overlayfs — the deployment [`DEPLOYMENT.md`](DEPLOYMENT.md) already calls
-  the slow one — `ready.chunks(stride)` therefore yields one piece of the whole frame, and the
-  comment above it ("writes stay window-sized") is false there. That is the uninterrupted 250 KB
-  executor copy [`adr.md`](adr.md) rejected an arm for at 4.0 ms warm `gap_max`. **Unmeasured in
-  the server and untested.** Change A in [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) §3 fixes it
-  by construction and carries the test that pins it; until that lands it is live.
+* ~~**Live defect: the write chunk collapses to the whole frame where `RWF_NOWAIT` is
+  refused.**~~ **Fixed 2026-09-08** (`259e25f`). `stream_codestream` took its *write* chunk from
+  `store.read_window(span.len)`, which answers a *read* question and deliberately returns the
+  whole frame when the probe is refused — so on overlayfs, the deployment
+  [`DEPLOYMENT.md`](DEPLOYMENT.md) already calls the slow one, every 250 KB frame was one
+  uninterrupted executor copy, the shape [`adr.md`](adr.md) rejected an arm for at 4.0 ms warm
+  `gap_max`. The write chunk is now `READ_WINDOW` outright (`write_chunks` in `frame_out.rs`),
+  pinned by `a_pooled_frame_is_written_in_read_windows_not_in_one_copy`. Kept here because it
+  was live for the length of this branch and is [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md)
+  fault 1: change A must not reintroduce it by collapsing the two sizes back into one.
 * **Two proposal documents cover the same ~120 lines.**
   [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) — the seam, changes A and B — and
   [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) — depth, messages and the loop around it — were
@@ -152,7 +153,10 @@ is the whole reason P0 runs there.
   WebTransport connection), so a break in the product would be caught — but only the copy is
   measured, and the two can still drift.
 * **`serve_batch`'s look-ahead has no test of its own.** `frames.get(position + 1)` is one
-  line; the read path's use of it is covered from both ends, the wiring is not.
+  line; the read path's use of it is covered from both ends, the wiring is not. The fill loop's
+  equivalent now is — `a_fill_recites_from_to_inclusive_in_order` asserts the `(frame, next)`
+  pairs against a `RecordingPipeline` — so closing this is one test of that shape driving
+  `RequestFrames`.
 * **P1 — park on the ring's own fd.** Measured in the lab as `x14` (the `uring_ringfd` and
   `hybrid_lazyring_ringfd` arms): a tie on CPU everywhere, the gain by construction. ~30 lines
   in `uring_reader.rs`; re-run the `product` arm after it lands. Only after P0 keeps the ring.

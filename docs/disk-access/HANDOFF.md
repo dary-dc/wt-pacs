@@ -3,7 +3,7 @@
 Pick this up cold. Everything below is checkable; where a claim is not, it says so.
 
 **Branch:** `claude/disk-access-adr-validation-saz6m8` · `git rev-list --count origin/main..HEAD`
-= 68, 0 behind · working tree clean · tests green on default, `telemetry` and
+= 80, 0 behind · working tree clean · tests green on default, `telemetry` and
 `--no-default-features`.
 
 Read next: [`NEXT.md`](NEXT.md) for what is parked and in what order — its ordering was set
@@ -32,6 +32,13 @@ miss, and no ring at all for a session that never misses. **Plus read-ahead by o
 
 Also on the branch: `memmap2` is gone from `server/` entirely, `study-bundle` gained
 `read_layout`, and `CLAUDE.md` + `scripts/comment_budget.sh` make the comment rule checkable.
+
+**Landed later the same day, after this section was first written:** the ask-reader task and
+the `StreamFrames` / `EndStream` fill on the session loop, and the fix for
+[`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) fault 1 — the write chunk is `READ_WINDOW`
+outright, no longer whatever `read_window` returns. The read path's mechanism is untouched by
+both; [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) is the design they follow. This file's
+numbers predate them and none of them is measured yet.
 
 ## 2 · Numbers that are safe to quote
 
@@ -165,7 +172,7 @@ medians, so "stop at two" is where the *evidence* stopped, not where the require
 
 ## 9 · Not done
 
-* **Not merged to `main`.** 68 commits ahead, 0 behind, tests green.
+* **Not merged to `main`.** 80 commits ahead, 0 behind, tests green.
 * **No PR opened** — none was asked for.
 * Two ring cells at `readers=256 depth 2/4` were refused by `RLIMIT_MEMLOCK` on the
   workstation and are absent from `v34_scale.tsv`.
@@ -174,9 +181,6 @@ medians, so "stop at two" is where the *evidence* stopped, not where the require
   copy is measured.
 * `serve_batch`'s one-line look-ahead (`frames.get(i + 1)`) has no test of its own: the read
   path's use of it is covered, the wiring is not.
-* **A live defect is recorded and not fixed:** where `RWF_NOWAIT` is refused, the transport's
-  write chunk collapses to the whole frame. [`NEXT.md`](NEXT.md) §7, first item — it is the one
-  thing on that list that is not an improvement.
 * **Two design proposals overlap** and are pending a fold into one:
   [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) and [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md).
 
@@ -194,6 +198,7 @@ starts at this file will otherwise not meet them until after the fact.
 3. **Measure interleaved, against a `git worktree` build of the pre-change binary.** A sequential
    before/after already produced +8.1 % on a tie here (§6.1). A refactor claimed to cost nothing
    still has to show the tie.
-4. **The session loop is the seam's other caller.**
-   [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6d. Change
-   A first leaves it one `ctx.frame(span, next)` call site to feed; A second means redoing it.
+4. **The session loop is the seam's other caller, and it landed first.** The ask-reader task
+   and the fill shipped before change A, so the sequencing this said to prefer is spent: A now
+   lands against `serve_one`/`serve_batch`/`fill` as built, not the other way round. Read
+   `server/src/transport/server.rs` before costing it.
