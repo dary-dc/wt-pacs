@@ -26,8 +26,14 @@ pub(crate) trait FramePipeline: Send {
     /// Study handle used by the default story (cloned once per frame for locate).
     fn store(&self) -> &Arc<FrameStore>;
 
-    /// prepare → locate → send, or refuse on control.
-    async fn serve_one(&mut self, frame: u32, control: &mut SendStream) -> Result<()> {
+    /// prepare → locate → send, or refuse on control. `next` is the frame the session will
+    /// be asked for after this one, where that is already known.
+    async fn serve_one(
+        &mut self,
+        frame: u32,
+        next: Option<u32>,
+        control: &mut SendStream,
+    ) -> Result<()> {
         if let Err(err) = self.prepare(frame).await {
             return self.refuse(control, frame, err).await;
         }
@@ -38,21 +44,26 @@ pub(crate) trait FramePipeline: Send {
             Ok(span) => span,
             Err(err) => return self.refuse(control, frame, err).await,
         };
+        // Not `locate`: that step is stamped, and an out-of-range look-ahead is not this
+        // frame's failure — it is refused when the session actually asks for it.
+        let next = next.and_then(|frame| store.frame_span(frame).ok());
 
         // Send failure: wire/session broken — do not refuse on control.
-        self.send(frame, &store, span).await?;
+        self.send(frame, &store, span, next).await?;
         Ok(())
     }
 
     /// `RequestFrames`: every frame before the next control read, in order.
     ///
-    /// **Serial, so a batch does not pipeline** — frame *n+1* is not read from disk until
-    /// frame *n* is on the wire. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+    /// **Read ahead by one**: each frame is served knowing the next one, so its read starts
+    /// while this one is still in flight. Delivery stays in ask order, which is what
+    /// `docs/adr-reject-server-ordering.md` protects.
     async fn serve_batch(&mut self, frames: &[u32], control: &mut SendStream) -> Result<()> {
         let size = frames.len() as u32;
         for (position, &frame) in frames.iter().enumerate() {
             self.note_batch(position as u32, size);
-            self.serve_one(frame, control).await?;
+            self.serve_one(frame, frames.get(position + 1).copied(), control)
+                .await?;
         }
         Ok(())
     }
@@ -70,7 +81,13 @@ pub(crate) trait FramePipeline: Send {
     fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan>;
 
     /// Read the frame and write it on the media path, interleaved a window at a time.
-    async fn send(&mut self, frame: u32, store: &Arc<FrameStore>, span: FrameSpan) -> Result<()>;
+    async fn send(
+        &mut self,
+        frame: u32,
+        store: &Arc<FrameStore>,
+        span: FrameSpan,
+        next: Option<FrameSpan>,
+    ) -> Result<()>;
 
     async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()>;
 
@@ -104,9 +121,15 @@ impl FramePipeline for ProductPipeline {
         store.frame_span(frame)
     }
 
-    async fn send(&mut self, frame: u32, store: &Arc<FrameStore>, span: FrameSpan) -> Result<()> {
+    async fn send(
+        &mut self,
+        frame: u32,
+        store: &Arc<FrameStore>,
+        span: FrameSpan,
+        next: Option<FrameSpan>,
+    ) -> Result<()> {
         self.out
-            .send_frame(frame, store, span, &mut self.read)
+            .send_frame(frame, store, span, next, &mut self.read)
             .await
     }
 
@@ -191,11 +214,18 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         result
     }
 
-    async fn send(&mut self, frame: u32, store: &Arc<FrameStore>, span: FrameSpan) -> Result<()> {
-        // `send_us` covers read and write together: the streaming loop interleaves them.
+    async fn send(
+        &mut self,
+        frame: u32,
+        store: &Arc<FrameStore>,
+        span: FrameSpan,
+        next: Option<FrameSpan>,
+    ) -> Result<()> {
+        // `send_us` covers read and write together — the streaming loop interleaves them —
+        // and, in a batch, the start of the next frame's read.
         self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + span.len as usize;
-        match self.inner.send(frame, store, span).await {
+        match self.inner.send(frame, store, span, next).await {
             Ok(()) => {
                 self.tap.emit_sent(envelope_len);
                 Ok(())

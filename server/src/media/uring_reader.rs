@@ -16,11 +16,29 @@ use tokio::io::unix::AsyncFd;
 pub(crate) static DRAINED_ON_DROP: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 
-/// One session's ring, carrying at most one read at a time.
+/// Reads a session may have in flight at once: the frame being served, and the one being
+/// read ahead. Two, not *n* — `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+pub const SLOTS: usize = 2;
+
+/// A submitted read: the range the kernel is writing into, and how much of it is done.
+///
+/// The buffer is held as an address rather than a pointer so the reader stays `Send` — the
+/// session task owning both may move between workers. What keeps the address valid is the
+/// caller's contract on [`UringReader::start`], not its type.
+struct Pending {
+    addr: usize,
+    len: usize,
+    done: usize,
+    offset: u64,
+    /// The kernel owns `addr + done .. addr + len` right now.
+    submitted: bool,
+}
+
+/// One session's ring, carrying at most [`SLOTS`] reads at a time.
 pub struct UringReader {
     ring: IoUring,
     eventfd: AsyncFd<OwnedFd>,
-    in_flight: bool,
+    slots: [Option<Pending>; SLOTS],
 }
 
 impl UringReader {
@@ -48,95 +66,97 @@ impl UringReader {
         Ok(Self {
             ring,
             eventfd: AsyncFd::new(owned).context("AsyncFd(eventfd)")?,
-            in_flight: false,
+            slots: [const { None }; SLOTS],
         })
     }
 
-    /// Read `buf.len()` bytes at `offset`, re-submitting until the range is complete.
+    /// Submit a read of `buf` into `slot` and return without waiting for it.
     ///
-    /// **Cancel-safe.** Dropping this future mid-read is safe because `Drop` waits for the
-    /// kernel to finish with `buf` — so a caller that owns `buf` beyond this call must drop
-    /// the reader before the buffer.
-    pub async fn read_exact_at(&mut self, buf: &mut [u8], offset: u64) -> Result<()> {
-        let mut done = 0usize;
-        while done < buf.len() {
-            // SAFETY: `done <= buf.len()`, so the pointer is inside `buf`. `buf` is
-            // exclusively borrowed for the whole call, and the kernel's window on it ends
-            // before the borrow does: either `complete` reaps the CQE, or — if this future
-            // is dropped first — `Drop` waits for it.
-            let n = unsafe {
-                self.submit_at(
-                    buf.as_mut_ptr().add(done),
-                    buf.len() - done,
-                    offset + done as u64,
-                )
+    /// # Safety
+    /// `buf` must stay valid, allocated where it is, and unaliased until the matching
+    /// [`finish`](Self::finish) returns — or until this reader is dropped, which waits.
+    /// Growing the buffer behind it is the way to break this.
+    pub(crate) unsafe fn start(&mut self, slot: usize, buf: &mut [u8], offset: u64) -> Result<()> {
+        debug_assert!(self.slots[slot].is_none(), "slot {slot} already has a read");
+        self.slots[slot] = Some(Pending {
+            addr: buf.as_mut_ptr() as usize,
+            len: buf.len(),
+            done: 0,
+            offset,
+            submitted: false,
+        });
+        self.submit(slot)
+    }
+
+    /// Await the read in `slot`, re-submitting until its whole range is read.
+    pub(crate) async fn finish(&mut self, slot: usize) -> Result<()> {
+        loop {
+            self.reap()?;
+            let Some(pending) = &self.slots[slot] else {
+                return Ok(());
             };
-            n?;
-            let got = self.complete().await?;
-            if got == 0 {
+            if pending.done == pending.len {
+                self.slots[slot] = None;
+                return Ok(());
+            }
+            if pending.submitted {
+                self.park().await?;
+            } else {
+                self.submit(slot)?;
+            }
+        }
+    }
+
+    /// Hand the unread remainder of `slot` to the kernel.
+    fn submit(&mut self, slot: usize) -> Result<()> {
+        let (addr, len, done, offset) = {
+            let pending = self.slots[slot].as_ref().expect("submit without a read");
+            (pending.addr, pending.len, pending.done, pending.offset)
+        };
+        let entry = opcode::Read::new(types::Fixed(0), (addr + done) as *mut u8, (len - done) as u32)
+            .offset(offset + done as u64)
+            .build()
+            .user_data(slot as u64);
+        // SAFETY: the buffer stays valid and unaliased until `finish` reaps this completion
+        // or `Drop` waits for it — the contract `start` places on its caller.
+        unsafe { self.ring.submission().push(&entry) }
+            .map_err(|_| anyhow::anyhow!("io_uring SQ full"))?;
+        self.ring.submit().context("io_uring submit")?;
+        self.slots[slot].as_mut().expect("still pending").submitted = true;
+        Ok(())
+    }
+
+    /// Take every completion the kernel has posted, crediting each to its own slot.
+    ///
+    /// Reads for both slots complete into the same queue, so a wait for one reaps the other
+    /// as a side effect; that is what lets the read ahead land while the frame in hand is
+    /// still being waited on.
+    fn reap(&mut self) -> Result<()> {
+        self.ring.completion().sync();
+        while let Some(cqe) = self.ring.completion().next() {
+            let Some(pending) = self
+                .slots
+                .get_mut(cqe.user_data() as usize)
+                .and_then(Option::as_mut)
+            else {
+                continue;
+            };
+            pending.submitted = false;
+            if cqe.result() < 0 {
+                let err = std::io::Error::from_raw_os_error(-cqe.result());
+                return Err(err).context("io_uring read");
+            }
+            if cqe.result() == 0 {
                 bail!(
-                    "io_uring read hit EOF {done} of {} bytes into the frame at {offset}",
-                    buf.len()
+                    "io_uring read hit EOF {} of {} bytes at {}",
+                    pending.done,
+                    pending.len,
+                    pending.offset
                 );
             }
-            done += got;
+            pending.done += cqe.result() as usize;
         }
         Ok(())
-    }
-
-    /// Submit a read and do not complete it, leaving the kernel mid-write — the state
-    /// `Drop` exists for, without racing a task abort to reach it.
-    ///
-    /// # Safety
-    /// Same contract as [`read_exact_at`](Self::read_exact_at): `buf` must outlive this
-    /// reader, because only the reader's `Drop` ends the kernel's window on it.
-    #[cfg(test)]
-    pub(crate) unsafe fn submit_without_completing(
-        &mut self,
-        buf: &mut [u8],
-        offset: u64,
-    ) -> Result<()> {
-        // SAFETY: forwarded to the caller by this function's own contract.
-        unsafe { self.submit_at(buf.as_mut_ptr(), buf.len(), offset) }
-    }
-
-    /// Queue one read and hand it to the kernel.
-    ///
-    /// # Safety
-    /// `ptr` must be valid for writes of `len` bytes, and must stay valid and unaliased
-    /// until the matching [`complete`](Self::complete) returns.
-    unsafe fn submit_at(&mut self, ptr: *mut u8, len: usize, offset: u64) -> Result<()> {
-        debug_assert!(!self.in_flight, "submitted with a read already in flight");
-        let entry = opcode::Read::new(types::Fixed(0), ptr, len as u32)
-            .offset(offset)
-            .build()
-            .user_data(0);
-        // SAFETY: the caller's contract keeps the buffer alive and unaliased until the
-        // completion is reaped.
-        self.ring
-            .submission()
-            .push(&entry)
-            .map_err(|_| anyhow::anyhow!("io_uring SQ full"))?;
-        self.in_flight = true;
-        self.ring.submit().context("io_uring submit")?;
-        Ok(())
-    }
-
-    /// Await the outstanding read and return how many bytes it produced. A read already in
-    /// the completion queue takes no await at all.
-    async fn complete(&mut self) -> Result<usize> {
-        loop {
-            self.ring.completion().sync();
-            if let Some(cqe) = self.ring.completion().next() {
-                self.in_flight = false;
-                if cqe.result() < 0 {
-                    let e = std::io::Error::from_raw_os_error(-cqe.result());
-                    return Err(e).context("io_uring read");
-                }
-                return Ok(cqe.result() as usize);
-            }
-            self.park().await?;
-        }
     }
 
     /// Park on the registered eventfd rather than blocking in `io_uring_enter`.
@@ -162,23 +182,29 @@ impl UringReader {
 }
 
 impl UringReader {
-    /// Wait for the kernel to finish with the caller's buffer, without which a drop between
-    /// submit and completion leaves it writing into freed memory.
+    /// Wait for the kernel to finish with every buffer it holds, without which a drop
+    /// between submit and completion leaves it writing into freed memory.
     ///
     /// Idempotent, so an owner may call it early — [`ReadCtx`](crate::media::read_path)
     /// does, from its own `Drop`, so the guarantee does not depend on field order.
     pub(crate) fn drain_in_flight(&mut self) {
-        if !self.in_flight {
+        let outstanding = self
+            .slots
+            .iter()
+            .filter(|slot| slot.as_ref().is_some_and(|p| p.submitted))
+            .count();
+        if outstanding == 0 {
+            self.slots = [const { None }; SLOTS];
             return;
         }
         #[cfg(test)]
         DRAINED_ON_DROP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         // The one place this file blocks; the alternative is a use-after-free.
-        if self.ring.submitter().submit_and_wait(1).is_ok() {
+        if self.ring.submitter().submit_and_wait(outstanding).is_ok() {
             self.ring.completion().sync();
             while self.ring.completion().next().is_some() {}
         }
-        self.in_flight = false;
+        self.slots = [const { None }; SLOTS];
     }
 }
 
@@ -193,6 +219,16 @@ mod tests {
     use super::*;
     use std::io::Write;
 
+    fn blob(dir: &std::path::Path, len: usize) -> (std::fs::File, Vec<u8>) {
+        std::fs::create_dir_all(dir).expect("tmpdir");
+        let body: Vec<u8> = (0..len as u32).map(|i| (i % 251) as u8).collect();
+        let path = dir.join("blob");
+        let mut f = std::fs::File::create(&path).expect("create");
+        f.write_all(&body).unwrap();
+        f.sync_all().unwrap();
+        (std::fs::File::open(&path).expect("open"), body)
+    }
+
     /// The mid-flight state is built directly rather than by racing `task.abort()`, which
     /// cannot reach it: a ring read that completes inline never yields for the abort to land
     /// on. Without a sanitiser the wait itself is the only observable, hence
@@ -200,15 +236,7 @@ mod tests {
     #[test]
     fn dropping_a_reader_mid_read_waits_for_the_kernel() {
         let dir = std::env::temp_dir().join(format!("wtpacs-ring-drop-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let path = dir.join("blob");
-        let body: Vec<u8> = (0..64u32 * 1024).map(|i| (i % 251) as u8).collect();
-        {
-            let mut f = std::fs::File::create(&path).expect("create");
-            f.write_all(&body).unwrap();
-            f.sync_all().unwrap();
-        }
-        let file = std::fs::File::open(&path).expect("open");
+        let (file, body) = blob(&dir, 64 * 1024);
 
         // `AsyncFd` needs a reactor, and so does dropping one — the guard covers both.
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -225,9 +253,9 @@ mod tests {
         // `buf` is declared before `reader`, so it drops after it — the ordering that makes
         // the wait meaningful.
         let mut buf = vec![0u8; body.len()];
-        // SAFETY: `buf` outlives `reader`, which is what this function's contract requires.
-        unsafe { reader.submit_without_completing(&mut buf, 0) }.expect("submit");
-        assert!(reader.in_flight, "the read was not left in flight");
+        // SAFETY: `buf` outlives `reader`, which is what `start` requires of its caller.
+        unsafe { reader.start(0, &mut buf, 0) }.expect("submit");
+        assert!(reader.slots[0].is_some(), "the read was not left in flight");
 
         let before = DRAINED_ON_DROP.load(std::sync::atomic::Ordering::SeqCst);
         drop(reader);
@@ -240,6 +268,45 @@ mod tests {
             buf, body,
             "the kernel's write did not land before the wait returned"
         );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **The read-ahead invariant.** Two reads are submitted before either is awaited, and
+    /// each has to come back into its own buffer — a completion credited to the wrong slot
+    /// would serve one frame's bytes as another's.
+    #[test]
+    fn two_reads_in_flight_land_in_their_own_slots() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-ring-two-{}", std::process::id()));
+        let (file, body) = blob(&dir, 128 * 1024);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _guard = rt.enter();
+
+        let Ok(mut reader) = UringReader::new(&file) else {
+            eprintln!("skipped: io_uring is unavailable on this host");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        };
+        let (first, second) = (0u64, 64 * 1024u64);
+        let mut a = vec![0u8; 64 * 1024];
+        let mut b = vec![0u8; 64 * 1024];
+        // Timed, because the way this breaks is a completion credited to the wrong slot,
+        // and the symptom of that is a wait that never ends.
+        rt.block_on(async {
+            // SAFETY: both buffers outlive the reader and are not touched until `finish`.
+            unsafe { reader.start(0, &mut a, first) }.expect("start a");
+            unsafe { reader.start(1, &mut b, second) }.expect("start b");
+            tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                reader.finish(1).await.expect("finish b");
+                reader.finish(0).await.expect("finish a");
+            })
+            .await
+            .expect("a completion never arrived at the slot that was waiting for it");
+        });
+        assert_eq!(a, body[..64 * 1024], "slot 0 got the wrong bytes");
+        assert_eq!(b, body[64 * 1024..], "slot 1 got the wrong bytes");
         std::fs::remove_dir_all(&dir).ok();
     }
 }

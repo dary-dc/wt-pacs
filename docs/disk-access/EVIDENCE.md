@@ -153,6 +153,21 @@ the double buffer, and it supports building it. It does not support going past t
 step from 2 to 4 is worth a further 0.21 ms and the step from 4 to 16 another 0.12 ms, both
 against a much harder invariant.
 
+**Built, and measured as the product.** `product` against `product_ahead` — the shipped
+`ReadCtx` driven with and without the look-ahead, one session, depth 1, 12 repeats
+([`v36_readahead.tsv`](v36_readahead.tsv)):
+
+| cell | asks/s | signs | p50 | CPU/ask |
+| --- | ---: | :---: | ---: | ---: |
+| cold 16 KiB (99.6% miss) | **+73.8% RESOLVED** | 12/12 | −53.4% | −18.9% (tie) |
+| warm 16 KiB | −3.8% tie | 5/12 | +5.6% | +1.1% tie |
+| 250 KB, 4.7% miss | +7.2% tie | 9/12 | +3.5% | +1.3% |
+
+The product collects slightly more than the arm's +67.4%, and the warm tie is the load-bearing
+row: read-ahead costs a hit-only session nothing. The 250 KB cell never went miss-dominated —
+`--stride 250000` against an 8 MiB read-ahead window is a hit cell in disguise — so it shows
+no regression rather than no win.
+
 ## Hosts
 
 The whole campaign originally came from one machine, which was its largest risk.

@@ -132,6 +132,67 @@ an earlier version of this code had.
 Constructing mid-loop is safe for the same reason it is safe in the lab arm: nothing can be
 in flight when the ring does not yet exist, because every earlier ask was a hit.
 
+## Read ahead by one
+
+**Built 2026-09-08**, for `RequestFrames`. A session keeps **two windows**, each with its own
+ring slot, and a frame served as part of a batch names the frame after it. That next frame's
+first read starts *before* the frame in hand is waited on, so the device carries two reads,
+which is where the win is — see below, and
+[`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6b for
+why two and not *n*.
+
+```
+read(span, pos, next):
+  take the window `next`'s read already landed in, or start this frame's read      (no wait)
+  start `next`'s first read in the other window                                    (no wait)
+  wait for this frame's bytes
+```
+
+Four properties this keeps, each of which a simpler version loses:
+
+* **A hit never touches the ring.** The read ahead probes `RWF_NOWAIT` first, exactly as an
+  on-demand read does, and submits only the shortfall. A read ahead that went straight to the
+  ring would rebuild the `uring` arm's +131% on hits (§The trap).
+* **The pool path reads ahead too.** Where there is no ring, the window goes to
+  `spawn_blocking` and the `JoinHandle` is held instead of awaited. Nothing is ring-specific
+  except which mechanism carries the read.
+* **A window is never grown or reused while the kernel owns it.** A slot is started only when
+  it is idle, and the abandon path *waits* for a read the caller never asked for rather than
+  dropping it. `UringReader::start` states the contract; `ReadCtx::drop` is the backstop.
+* **Delivery stays in ask order.** Reading frame *n+1* early is pipelining, not reordering —
+  `../adr-reject-server-ordering.md` does not speak against it.
+
+### What it is worth
+
+`product` against `product_ahead`, the shipped `ReadCtx` driven both ways by
+`read_campaign`, one session, depth 1, 12 interleaved repeats
+([`v36_readahead.tsv`](v36_readahead.tsv)):
+
+| cell | asks/s | p50 | p99 | CPU/ask |
+| --- | ---: | ---: | ---: | ---: |
+| cold 16 KiB, 99.6% miss | **+73.8%, 12/12 RESOLVED** | −53.4% | −16.0% | −18.9% (10/12, tie) |
+| warm 16 KiB | −3.8%, 5/12 — **tie** | +5.6% | +8.6% | +1.1%, 6/12 — tie |
+| 250 KB | +7.2%, 9/12 — tie | | | |
+
+16 missing tiles go from **1.14 ms to 0.62 ms**. The warm row is the one that had to be a
+tie: a session whose reads hit pays nothing for a depth it never uses.
+
+The 250 KB row says less than it looks: at `--stride 250000` on a device that reads ahead
+8 MiB the cell only reached 4.7% misses, so it is a hit cell in disguise and shows no
+regression rather than no win. Resolving 250 KB misses needs a fixture large enough to stride
+past the read-ahead window.
+
+### What it does not do
+
+`RequestFrame` is **still depth 1**. The look-ahead comes from the batch, and a client that
+pipelines single asks still has them served one at a time, because `run_session` does not read
+the next ask until the current frame is on the wire. That is the remaining half of
+[`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6b and it
+is a loop change, not a read-path one.
+
+Two smaller edges, both by design: the first frame of a batch overlaps nothing, and the last
+frame names no successor.
+
 ## What does not change
 
 * **The wire.** Byte-for-byte identical; the existing envelope test still guards it.

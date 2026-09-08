@@ -38,6 +38,17 @@ pub async fn write_fod_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
     Ok(())
 }
 
+async fn read_exact(recv: &mut RecvStream, out: &mut [u8]) -> Result<()> {
+    let mut filled = 0;
+    while filled < out.len() {
+        match recv.read(&mut out[filled..]).await? {
+            Some(n) => filled += n,
+            None => anyhow::bail!("stream ended before {} bytes", out.len()),
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,15 +61,4 @@ mod tests {
         assert!(check_fod_len(MAX_FOD_LEN + 1).is_err());
         assert!(check_fod_len(u32::MAX as usize).is_err(), "a 4 GB length prefix is refused");
     }
-}
-
-async fn read_exact(recv: &mut RecvStream, out: &mut [u8]) -> Result<()> {
-    let mut filled = 0;
-    while filled < out.len() {
-        match recv.read(&mut out[filled..]).await? {
-            Some(n) => filled += n,
-            None => anyhow::bail!("stream ended before {} bytes", out.len()),
-        }
-    }
-    Ok(())
 }

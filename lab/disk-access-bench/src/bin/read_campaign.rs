@@ -28,7 +28,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::uring_access::UringReader;
-use exact_server::media::frame_store::FrameStore;
+use exact_server::media::frame_store::{FrameSpan, FrameStore};
 use exact_server::media::read_path::{ReadCtx, ReadMode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -63,6 +63,11 @@ enum Arm {
     /// thing that shipped land where the arm that won it did. `WTPACS_READ_PATH` selects
     /// the product's own mode, so `pool` and `uring` are reachable here too.
     Product,
+    /// **The product serving a batch.** `product`, plus the one thing `serve_batch` does
+    /// that a single ask cannot: name the next frame, so its read starts before this one is
+    /// waited on. Its delta against `product` at the same depth is what read-ahead-by-one
+    /// is worth. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+    ProductAhead,
 }
 
 impl Arm {
@@ -75,6 +80,7 @@ impl Arm {
             "pool_ringloop" => Some(Self::PoolRingLoop),
             "hybrid_lazyring" => Some(Self::HybridLazyRing),
             "product" => Some(Self::Product),
+            "product_ahead" => Some(Self::ProductAhead),
             _ => None,
         }
     }
@@ -87,6 +93,7 @@ impl Arm {
             Self::PoolRingLoop => "pool_ringloop",
             Self::HybridLazyRing => "hybrid_lazyring",
             Self::Product => "product",
+            Self::ProductAhead => "product_ahead",
         }
     }
     fn uses_ring(self) -> bool {
@@ -99,7 +106,7 @@ impl Arm {
 struct Args {
     #[arg(long)]
     study: PathBuf,
-    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product
+    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product,product_ahead
     #[arg(long, default_value = "pool,uring,hybrid")]
     arms: String,
     /// Comma-separated reads in flight per reader.
@@ -288,6 +295,11 @@ fn plan_for(
     })
 }
 
+/// The frame at plan position `i`, as the product locates it.
+fn span_at(plan: &Plan, i: usize) -> Option<FrameSpan> {
+    plan.get(i).map(|&(offset, len)| FrameSpan { offset, len })
+}
+
 /// Read a `gen_access_trace.py` TSV: `offset<TAB>length`, `#` comments ignored.
 fn load_trace(path: &PathBuf) -> Result<Vec<(u64, u32)>> {
     let text = std::fs::read_to_string(path).with_context(|| format!("read {path:?}"))?;
@@ -414,14 +426,17 @@ async fn reader_pool(
 /// below is `stream_codestream`'s, and everything under it is `server` code.
 ///
 /// An ask here is a whole frame, as it is on the wire, so latency is per frame rather than
-/// per window. A frame counts as a miss when its first read escalates, which under the
-/// shipping mode happens at most once per frame by design.
+/// per window. Misses come from `ReadCtx`'s own counter — the number the server reports in
+/// production — so the instrument cannot disagree with the thing it measures.
+///
+/// With `look_ahead`, each ask names the one after it, which is what `serve_batch` does.
 async fn reader_product(
     store: Arc<FrameStore>,
     cell: &Cell,
     plan: Plan,
     lat: Arc<Mutex<Vec<u64>>>,
     misses: Arc<AtomicU64>,
+    look_ahead: bool,
 ) -> Result<()> {
     let depth = cell.depth;
     let asks = plan.len();
@@ -442,24 +457,25 @@ async fn reader_product(
                 if i >= asks {
                     break;
                 }
-                let (off, len) = plan[i];
+                let span = span_at(&plan, i).expect("ask in range");
+                // Readers take asks off a shared cursor, so `depth` along is this reader's
+                // next ask exactly at depth 1 — the case this arm exists to measure — and a
+                // guess above it, where a wrong guess is abandoned rather than served.
+                let ahead = look_ahead.then(|| span_at(&plan, i + depth)).flatten();
                 let t = Instant::now();
-                let stride = store.read_window(len);
+                let escalations = ctx.stats().misses;
                 let mut pos = 0u32;
-                let mut first = true;
-                while pos < len {
-                    let remaining = (len - pos) as usize;
+                while pos < span.len {
                     let ready = ctx
-                        .read(&store, off + u64::from(pos), stride, remaining)
+                        .read(&store, span, pos, ahead)
                         .await
                         .expect("product read");
-                    if first && ready.len() > stride.min(remaining) {
-                        miss += 1;
-                    }
-                    first = false;
                     pos += ready.len() as u32;
                 }
                 mine.push(t.elapsed().as_nanos() as u64);
+                if ctx.stats().misses > escalations {
+                    miss += 1;
+                }
             }
             lat.lock().unwrap().extend(mine);
             misses.fetch_add(miss, Ordering::Relaxed);
@@ -778,8 +794,9 @@ fn run_cell(
                 monitors: 0,
             };
             set.spawn(async move {
-                if c.arm == Arm::Product {
-                    reader_product(store, &c, plan, lat, misses).await
+                if matches!(c.arm, Arm::Product | Arm::ProductAhead) {
+                    let ahead = c.arm == Arm::ProductAhead;
+                    reader_product(store, &c, plan, lat, misses, ahead).await
                 } else if c.arm.uses_ring() {
                     reader_ring(store, file, &c, plan, lat, misses).await
                 } else if c.arm == Arm::PoolRingLoop {
