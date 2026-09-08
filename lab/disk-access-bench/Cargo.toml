@@ -8,6 +8,14 @@ description = "Compare study disk-access arms (mmap / pread / madvise) with shar
 name = "disk-access-bench"
 path = "src/main.rs"
 
+[features]
+# tokio's io_uring file driver, for the `tokio_fs` arm only. Needs `RUSTFLAGS="--cfg tokio_unstable"`
+# as well — the feature alone does not compile it in. Never a product feature.
+tokio-uring = ["tokio/io-uring"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }

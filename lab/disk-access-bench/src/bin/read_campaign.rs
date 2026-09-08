@@ -27,7 +27,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
-use disk_access_bench::uring_access::UringReader;
+use disk_access_bench::uring_access::{Completion, UringReader};
 use exact_server::media::frame_store::{FrameSpan, FrameStore};
 use exact_server::media::read_path::{ReadCtx, ReadMode};
 use std::path::PathBuf;
@@ -55,6 +55,20 @@ enum Arm {
     /// it keeps the ring-shaped loop's win on hits without the idle ring's cost; a session
     /// that misses pays construction once and is `hybrid` from then on.
     HybridLazyRing,
+    /// `uring`, parked on the ring's own fd instead of a registered eventfd: one fd per
+    /// session instead of two. The loop is `uring`'s; only the wake differs (`x14`).
+    UringRingFd,
+    /// `hybrid_lazyring` with the same one-fd wake — the pair that decides whether the
+    /// product should drop its eventfd. See `docs/disk-access/RESEARCH-io-backends-RESULT.md`.
+    HybridLazyRingFd,
+    /// **The standard-library candidate for a sequential reader.** One `tokio::fs::File`
+    /// cursor per stream, `read_exact` per ask in plan order, `seek` only when the plan jumps.
+    /// It has no positional read, so it is only meaningful on the sweep shape. A cursor holds
+    /// one position, so depth cannot mean "reads in flight": at depth *d* the plan is split
+    /// into *d* contiguous streams with a cursor each — the most a cursor API can do. Built
+    /// with `--cfg tokio_unstable` and tokio's `io-uring` feature the same code runs on
+    /// tokio's io_uring driver and reports itself as `tokio_fs_uring`.
+    TokioFs,
     /// **The shipped path itself** — `server`'s `ReadCtx`, driven exactly as
     /// `stream_codestream` drives it, rather than a lab reimplementation of its shape.
     ///
@@ -79,6 +93,9 @@ impl Arm {
             "pooled_pread" => Some(Self::PooledPread),
             "pool_ringloop" => Some(Self::PoolRingLoop),
             "hybrid_lazyring" => Some(Self::HybridLazyRing),
+            "uring_ringfd" => Some(Self::UringRingFd),
+            "hybrid_lazyring_ringfd" => Some(Self::HybridLazyRingFd),
+            "tokio_fs" => Some(Self::TokioFs),
             "product" => Some(Self::Product),
             "product_ahead" => Some(Self::ProductAhead),
             _ => None,
@@ -92,12 +109,29 @@ impl Arm {
             Self::PooledPread => "pooled_pread",
             Self::PoolRingLoop => "pool_ringloop",
             Self::HybridLazyRing => "hybrid_lazyring",
+            Self::UringRingFd => "uring_ringfd",
+            Self::HybridLazyRingFd => "hybrid_lazyring_ringfd",
+            Self::TokioFs if cfg!(tokio_unstable) => "tokio_fs_uring",
+            Self::TokioFs => "tokio_fs",
             Self::Product => "product",
             Self::ProductAhead => "product_ahead",
         }
     }
     fn uses_ring(self) -> bool {
-        matches!(self, Self::Uring | Self::Hybrid | Self::HybridLazyRing)
+        matches!(
+            self,
+            Self::Uring
+                | Self::Hybrid
+                | Self::HybridLazyRing
+                | Self::UringRingFd
+                | Self::HybridLazyRingFd
+        )
+    }
+    fn completion(self) -> Completion {
+        match self {
+            Self::UringRingFd | Self::HybridLazyRingFd => Completion::RingFd,
+            _ => Completion::Eventfd,
+        }
     }
 }
 
@@ -106,7 +140,8 @@ impl Arm {
 struct Args {
     #[arg(long)]
     study: PathBuf,
-    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product,product_ahead
+    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product,
+    /// product_ahead,uring_ringfd,hybrid_lazyring_ringfd,tokio_fs (sweep shape only)
     #[arg(long, default_value = "pool,uring,hybrid")]
     arms: String,
     /// Comma-separated reads in flight per reader.
@@ -584,7 +619,7 @@ async fn reader_ring(
 ) -> Result<()> {
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
-    let lazy = cell.arm == Arm::HybridLazyRing;
+    let lazy = matches!(cell.arm, Arm::HybridLazyRing | Arm::HybridLazyRingFd);
     let hybrid = cell.arm == Arm::Hybrid || lazy;
     // Registered buffers are fixed-size, so they are sized to the longest read in the plan.
     // Variable-length traces then read into a prefix of the slot.
@@ -597,7 +632,14 @@ async fn reader_ring(
     let mut ring: Option<UringReader> = if lazy {
         None
     } else {
-        Some(UringReader::new(&file, depth, cap, true, false)?)
+        Some(UringReader::with_completion(
+            &file,
+            depth,
+            cap,
+            true,
+            false,
+            cell.arm.completion(),
+        )?)
     };
     let mut local: Vec<Vec<u8>> = if lazy {
         (0..depth).map(|_| vec![0u8; cap]).collect()
@@ -648,7 +690,14 @@ async fn reader_ring(
             // inline read already produced into the slot the ring will complete into, so no
             // byte is read twice.
             if ring.is_none() {
-                let mut r = UringReader::new(&file, depth, cap, true, false)?;
+                let mut r = UringReader::with_completion(
+                    &file,
+                    depth,
+                    cap,
+                    true,
+                    false,
+                    cell.arm.completion(),
+                )?;
                 r.buf_mut(slot)[..got].copy_from_slice(&local[slot][..got]);
                 ring = Some(r);
             }
@@ -685,6 +734,61 @@ async fn reader_ring(
     }
     lat.lock().unwrap().extend(mine);
     misses.fetch_add(miss, Ordering::Relaxed);
+    Ok(())
+}
+
+/// See [`Arm::TokioFs`]. Misses are not observable through a cursor, so this arm reports
+/// none; regimes are classified from `pool`'s miss rate in the same cell, as everywhere.
+async fn reader_tokio_fs(
+    path: PathBuf,
+    cell: &Cell,
+    plan: Plan,
+    lat: Arc<Mutex<Vec<u64>>>,
+) -> Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+    if cell.stride > cell.size as u64 {
+        anyhow::bail!("tokio_fs is a cursor reader: it needs the sweep shape (stride == size)");
+    }
+    let depth = cell.depth.max(1);
+    let asks = plan.len();
+    let chunk = asks.div_ceil(depth);
+    let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
+    let mut set = tokio::task::JoinSet::new();
+    for d in 0..depth {
+        let (lo, hi) = (d * chunk, ((d + 1) * chunk).min(asks));
+        if lo >= hi {
+            break;
+        }
+        let path = path.clone();
+        let plan = Arc::clone(&plan);
+        let lat = Arc::clone(&lat);
+        set.spawn(async move {
+            let mut f = tokio::fs::File::open(&path)
+                .await
+                .context("tokio::fs::File::open")?;
+            let mut buf = vec![0u8; cap];
+            let mut mine = Vec::with_capacity(hi - lo);
+            let mut pos = u64::MAX;
+            for &(off, len) in &plan[lo..hi] {
+                let t = Instant::now();
+                if off != pos {
+                    f.seek(std::io::SeekFrom::Start(off))
+                        .await
+                        .context("seek")?;
+                }
+                f.read_exact(&mut buf[..len as usize])
+                    .await
+                    .context("read_exact")?;
+                pos = off + len as u64;
+                mine.push(t.elapsed().as_nanos() as u64);
+            }
+            lat.lock().unwrap().extend(mine);
+            anyhow::Ok(())
+        });
+    }
+    while let Some(joined) = set.join_next().await {
+        joined.context("reader task")??;
+    }
     Ok(())
 }
 
@@ -793,10 +897,13 @@ fn run_cell(
                 warm: cell.warm,
                 monitors: 0,
             };
+            let path = path.clone();
             set.spawn(async move {
                 if matches!(c.arm, Arm::Product | Arm::ProductAhead) {
                     let ahead = c.arm == Arm::ProductAhead;
                     reader_product(store, &c, plan, lat, misses, ahead).await
+                } else if c.arm == Arm::TokioFs {
+                    reader_tokio_fs(path, &c, plan, lat).await
                 } else if c.arm.uses_ring() {
                     reader_ring(store, file, &c, plan, lat, misses).await
                 } else if c.arm == Arm::PoolRingLoop {

@@ -6,8 +6,13 @@ Pick this up cold. Everything below is checkable; where a claim is not, it says 
 = 50, 0 behind · working tree clean · tests green on default, `telemetry` and
 `--no-default-features`.
 
-Read next: [`NEXT.md`](NEXT.md) for what is parked and in what order. This file is the
-context around it — what shipped, what was decided, and the traps.
+Read next: [`NEXT.md`](NEXT.md) for what is parked and in what order — its ordering was set
+**with the owners** on 2026-09-08 and outranks any ordering derived from measurement alone.
+This file is the context around it: what shipped, what was decided, and the traps.
+
+Two sessions worked this branch on 2026-09-08 and their work is merged, not layered: one
+built read-ahead-by-one and the miss-rate reporting, the other verified the I/O backends
+against current releases and the 6.18 kernel and measured the `x14` / `x15` arms.
 
 ---
 
@@ -47,7 +52,8 @@ signs agree on ≥ 0.8n. Everything else is a **tie**, which is a real answer.
 
 Raw: `v30_product.tsv`, `v31_gap250k.tsv`, `v32_depth.tsv`, `v33_cross.tsv` (sandbox),
 `v34_scale.tsv` + `v34_scale_host.txt` (workstation), `v35_depth2.tsv` +
-`v35_depth2_host.txt`, `v36_readahead.tsv`.
+`v35_depth2_host.txt`, `v36_readahead.tsv`, `x14_ringfd*` (eventfd against ring fd),
+`x15_sequential*` (the streaming readers).
 
 ## 3 · Claims that were retracted — do not re-quote them
 
@@ -71,8 +77,9 @@ earlier prose; this is the correction of record.
   better anywhere. `uring` is kept as a flag, not a mode.
 * **No tuning toggle.** The arm chooses per session at runtime from what the session does; a
   static flag cannot know a miss rate in advance. The flag that exists is a kill switch.
-* **Read ahead by one, not *n*.** Two windows and two ring slots. Depth 2 collects 62% of
-  what depth 16 offers; the rest costs a slot table and a completion demultiplexer.
+* **Read ahead by one *first*, not *n* at once.** Two windows and two ring slots ship; depth 2
+  collects 62% of what depth 16 offers, and the rest costs a slot table and a completion
+  demultiplexer. This is a first step, not a ceiling — the owners asked for depth ≥ 4.
 * **A read ahead probes the page cache first**, exactly as an on-demand read does. Sending it
   straight to the ring would rebuild the `uring` arm's +131% on hits.
 * **mmap is out of the product**, and `O_DIRECT`, `sendfile`/`splice`, registered ring buffers
@@ -114,9 +121,15 @@ Breaking any of these has already produced a wrong answer in this project. Short
 7. **Say where the host saturates and claim nothing past it.** Both hosts stop separating the
    arms at ~64 reads in flight — the sandbox on CPU, the workstation on device.
 
-## 7 · The open item that blocks the most
+## 7 · The open items that block the most
 
-**`RequestFrame` is still depth 1.** The read path carries depth 2 and a batch feeds it; a
+**P0: the backend has not been decided on the production target.** One campaign run on the
+real instance type, volume class and container image decides whether ~800 lines of ring stay
+or the pool ships — with the decision rule fixed in advance, a tie deleting the ring.
+[`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) §Decision, and it is
+[`NEXT.md`](NEXT.md)'s item 4. Nothing in the read path should be touched before it.
+
+**`RequestFrame` is still depth 1**, and the owners want depth ≥ 4. The read path carries depth 2 and a batch feeds it; a
 stream of single asks does not, because `run_session` will not read the next ask until the
 current frame is on the wire. Designed, not built, with the options and the invariants
 written out: [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
@@ -124,7 +137,10 @@ written out: [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and
 client that sends `RequestFrames`.
 
 The other item that blocked this list — the server not being able to report its own miss
-rate — is closed: it reports one per session, in the default build.
+rate — is closed: it reports one per session, in the default build. Depth 2 is built for
+`RequestFrames`; **the owners' requirement is depth 4 or more**, and
+[`v35_depth2.tsv`](v35_depth2.tsv) prices the step from 2 to 4 at a further +37% on the
+medians, so "stop at two" is where the *evidence* stopped, not where the requirement does.
 
 ## 8 · Where things are
 
@@ -137,7 +153,8 @@ rate — is closed: it reports one per session, in the default build.
 | [`EVIDENCE.md`](EVIDENCE.md) | every number, and what is *not* established anywhere |
 | [`RERUN.md`](RERUN.md) | the instrument and its precision rules |
 | [`SCALE-RUN.md`](SCALE-RUN.md) | running the campaign on a real machine; run once, traps recorded |
-| [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) | keep the direct `io-uring` binding, and the four things that would change that |
+| [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) | **the backend answer (2026-09-08):** keep `io-uring` direct; every candidate verified at its pinned version; **P0** decides ring-vs-pool on the production target, **P1** parks on the ring fd and drops the eventfd (`x14`) |
+| [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) | which reader server-driven streaming should use — settled on the shipped one reading forward; tokio's `fs::File` measured and rejected (`x15`) |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | the fast path, and the two ulimits that decide whether a ring is built |
 | [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) | framing, serving depth §6b, streaming §6c, the loop change §6d |
 

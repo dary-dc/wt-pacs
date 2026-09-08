@@ -1,0 +1,28 @@
+date            2026-09-08T14:15:39Z
+kernel          Linux 6.18.44-fc-v24 x86_64
+nproc           4
+cpu             Intel(R) Xeon(R) Processor @ 2.80GHz (4 vCPU)
+mem_mb          16075
+runner          Claude Code remote sandbox (Firecracker VM, 4 vCPU); no drop_caches, cold = fadvise(DONTNEED) + residency check
+fs(workspace)   ext4   /dev/vda
+mount opts      rw,relatime,resv_strict,resuid=65534,resgid=65534
+read_ahead_kb   vda = 8192
+ulimit -n       20000
+ulimit -l       8192 KB
+io_uring        0 (io_uring_disabled)
+hypervisor      hypervisor — cold cells are guest-cold, hypervisor-warm (see RERUN.md §Limitations)
+--- check-fastpath on the study dir ---
+path            lab/fixtures/frames_16k_seq
+filesystem      ext2/ext3/ext4
+read_ahead_kb   8192
+RWF_NOWAIT      honoured
+
+PASS — the server gets its fast path here.
+       Warm asks take no thread-pool hop; cold reads return short instead
+       of parking an executor thread.
+
+--- builds ---
+stable          target/release/read_campaign  (cargo build -p disk-access-bench --release)
+tokio io_uring  target/unstable/release/read_campaign  (RUSTFLAGS="--cfg tokio_unstable" cargo build -p disk-access-bench --release --features tokio-uring --bin read_campaign --target-dir target/unstable)
+ring probe      1 io_uring fd + 1 eventfd held by the tokio_fs_uring process at t=3 s (tokio's runtime-wide ring); 0 in the stable build
+fixture         lab/fixtures/frames_16k_seq (65536 × 16 KiB = 1 GiB), sessions on disjoint slices (--partition), 8 MB streamed per session per cell
