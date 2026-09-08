@@ -215,17 +215,34 @@ slower storage than this host it is the dominant cost.
 ### …and pipelining still does not make `uring` the right arm
 
 The published `uring` advantage at depth is a **CPU** advantage, and CPU is not what a
-real-time viewer is short of. Paired per repeat, miss regime
-([`v32_depth.tsv`](v32_depth.tsv)):
+real-time viewer is short of. `uring` is cheaper in CPU and slower in wall-clock at the same
+time — not a contradiction, because the ring does less work per read but reaps completions in
+batches behind an eventfd wakeup, so each read lands later.
 
-| depth | CPU per ask | p50 latency | throughput |
-| ---: | ---: | ---: | ---: |
-| 1 | +0.1% (3/6) | −0.3% (3/6) | −1.7% (4/6) |
-| 4 | **−14.9%** (6/6) | **+47.1%** (6/6) | **−10.5%** (6/6) |
-| 16 | **−9.7%** (5/6) | **+61.4%** (6/6) | **−20.3%** (6/6) |
+Paired per repeat, **99.2–100% miss in every cell** ([`v32_depth.tsv`](v32_depth.tsv)):
 
-`uring` buys 10–15% CPU for 47–61% worse latency and 10–20% worse throughput, unanimously.
-For a batch of tiles a reader is waiting on, that is the wrong trade at every depth measured.
+| depth | CPU per ask | p50 latency |
+| ---: | ---: | ---: |
+| 1 | +0.1% (3/6) | −0.3% (3/6) |
+| 4 | **−14.9%** (6/6) | **+47.1%** (6/6) |
+| 16 | **−9.7%** (5/6) | **+61.4%** (6/6) |
+
+Throughput is deliberately not a third column: it is `depth / latency` to within 0.66–0.97
+here (Little's law), so quoting it beside latency counts one measurement twice.
+
+The tail is what a viewer feels, and it widens the gap rather than narrowing it — cold, 100%
+miss:
+
+| arm | depth | p50 | p90 | p99 |
+| --- | ---: | ---: | ---: | ---: |
+| `hybrid_lazyring` | 16 | 275 µs | 347 µs | **407 µs** |
+| `uring` | 16 | 466 µs | 584 µs | **632 µs** |
+| `pool` | 16 | 385 µs | 685 µs | **1 205 µs** |
+| `hybrid_lazyring` | 4 | 110 µs | 156 µs | **226 µs** |
+| `uring` | 4 | 173 µs | 217 µs | **266 µs** |
+
+`hybrid_lazyring` is best at every percentile at depth 4 and 16; at depth 1 the two tie. The
+regime is not the explanation — these cells have essentially no hits in them.
 
 ### First, the distinction that decides most of it
 
