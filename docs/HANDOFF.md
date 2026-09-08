@@ -1,15 +1,58 @@
 # Handoff — transport optimisation, branch `cursor/l1-loss-run-dbae`
 
-**Written 2026-09-06**, **amended 2026-09-07**, so a later session, a different agent, or a
-person can pick this up without reading the conversation that produced it.
-
-The 2026-09-07 pass closed §4.5's pathological client (§2, and
-[`measurements/mem/stall-client.md`](measurements/mem/stall-client.md)) and **corrected §1**,
-whose claim that `main` is a direct ancestor had gone stale.
+**Written 2026-09-06**, amended **2026-09-07** and **2026-09-08**, so a later session, a
+different agent, or a person can pick this up without reading the conversation that produced
+it.
 
 **Start here:** [`transport-conclusions.md`](transport-conclusions.md) is the answer sheet.
-This document is the *state of play* — what is settled, what is running, what is next, and
-the traps that have already cost this project four invalidated campaigns.
+This document is the *state of play* — what is settled, what is next, and the traps that have
+already cost this project four invalidated campaigns.
+
+---
+
+## 0 · If you are picking this up cold
+
+The branch is **green, pushed, and not merged**. Nothing is half-applied; there is no
+in-flight edit to reconstruct.
+
+```bash
+git fetch --unshallow origin            # ancestry is wrong without this — see §1
+git checkout cursor/l1-loss-run-dbae
+cargo test --workspace && cargo clippy --workspace --all-targets
+```
+
+Expect 13 server tests (16 with `--features telemetry`), 7 harness, and **3 clippy warnings —
+all in files this branch never touched** (`client/flight-registry`, `client/transport-wasm`,
+`server/src/transport/wire.rs`, the last of which `main` has already rewritten).
+
+**The one thing to know before touching `server/`:** experiment arms live behind
+`--features lab`. A product build has 10 flags and one send path; the lab build has 20 and
+three. Lab scripts build with the feature already. See
+[`branch-source-audit.md`](branch-source-audit.md).
+
+**The next piece of work is the port onto `main`'s `pipeline.rs`** — planned in
+[`merge-with-main-analysis.md`](merge-with-main-analysis.md), including an acceptance gate
+and three silent regressions to `main` that a naive merge would introduce. It is the only
+item that blocks everything else, and the user has not authorised it: **do not merge without
+being asked.**
+
+### What the 2026-09-08 pass changed
+
+| | |
+| --- | --- |
+| **Shipped the conclusion** | `--stream-mode` now defaults to `shared`; §2.7's pre-registered rule fired when X3L separated |
+| **Separated rig from product** | 13 transport flags → 6 on a product build, 3 send paths → 1; every arm behind `--features lab`, nothing deleted |
+| **Leaned the comments** | 157 multi-line blocks → 39, all file headers; every in-body comment is one or two lines, rationale moved to the measurement documents |
+| **Closed the review** | all 25 findings transcribed into §4.4a with status — the artifact it lived in can be retired. Nine remain open |
+| **Re-measured** | the stalled-client campaign re-run on the cleaned tree: 185.3 / 382.3 kB against a published 180 / 370, ratio 3.48× against 3.46× |
+| **Clippy** | 21 → 3 |
+
+**One thing it got wrong, and the correction matters more than the pass.** The audit deleted
+five flags and the `split` send path as unreferenced, having counted usage with `grep` over
+`lab/scripts/` and `server/src/`. Both readings were wrong for one reason: **arms are not
+invoked from inside the scripts** — they arrive through `SRV_FLAGS`, and those command lines
+live in the *documents*. All were restored behind `lab`. A repository that keeps its
+invocations in prose cannot be audited by grepping its code (§5, trap 6).
 
 ---
 
@@ -54,18 +97,20 @@ the traps that have already cost this project four invalidated campaigns.
 > reports no common ancestor at all until you `git fetch --unshallow`. Do that before
 > concluding anything about ancestry.
 
-### The only two behaviour changes vs main
+### The three behaviour changes vs main
 
-Every transport knob defaults to `None` = quinn's own value. Two defaults differ:
+Every transport knob defaults to `None` = quinn's own value. Three defaults differ:
 
 ```rust
+mode: StreamMode::Shared,       // 2026-09-08. main still defaults to per-frame.
 send_path: SendPath::Chunked,   // main had the copy path only. −6…−14 % CPU/byte.
 prefault: true,                 // faults frame pages in off the executor.
 ```
 
-`--send-path copy --prefault true` reproduces main's behaviour exactly, and the test
-`all_send_paths_are_the_same_wire` (server.rs:613) fails if the three paths ever diverge on
-the wire. To land the knobs without the default changes, flip those two lines.
+`--stream-mode per-frame --send-path copy --prefault true` reproduces main's behaviour
+exactly — **the middle flag needs `--features lab`**. `all_send_paths_are_the_same_wire`
+fails if the three paths ever diverge on the wire. To land the knobs without the default
+changes, flip those three lines.
 
 **The one change worth reading carefully** is `frame_store.rs`: `Mmap` → `Bytes` holding the
 same mapping, so slices can be refcounted instead of copied. Small, tested, but not
@@ -77,13 +122,13 @@ mechanical.
 
 | finding | strength |
 | ------- | -------- |
-| **Keep one shared stream** — *but `server/src/main.rs` still defaults to `per-frame`, as `main` does; the conclusion was never landed in code (`transport-conclusions.md` §2.7)*. Per-frame is 3.5× worse at 64 KB, **8.5× worse at a realistic 250 KB**, never better anywhere | 3/3 separated in netsim, two trace shapes, mechanism source-verified, prediction survived — **and now confirmed on the real rig at 250 KB: 5.76×, 3/3, absolute penalty within 1.6 % of netsim** (§3). The 64 KB real-path cell remains an underpowered tie, not a contradiction |
+| **Keep one shared stream** — **and since 2026-09-08 the binary defaults to it** (`transport-conclusions.md` §2.7); `main` still defaults to `per-frame`. Per-frame is 3.5× worse at 64 KB, **8.5× worse at a realistic 250 KB**, never better anywhere | 3/3 separated in netsim, two trace shapes, mechanism source-verified, prediction survived — **and now confirmed on the real rig at 250 KB: 5.76×, 3/3, absolute penalty within 1.6 % of netsim** (§3). The 64 KB real-path cell remains an underpowered tie, not a contradiction |
 | **Mechanism:** `retransmit()` re-queues with `push_pending` — back of the class, *regardless of fairness* (`state.rs:677`). Per-frame therefore **defers** loss recovery behind other frames' backlogs | source + a falsifiable prediction that held |
 | **`send_fairness(false)` is mandatory** if per-frame is ever used | worse in all 12 comparisons, 4 cells |
 | **Controller depends on loss regime.** Congestive → Cubic (BBR +63 %); exogenous → BBR (Cubic +48 %). **Default Cubic** | both directions separated, regimes verified by queue counters. **The congestive 600 ms cell is n = 2 for BBR** — one repeat produced no data — and the +63 % is `nz_p95`; separation is clean on both columns, but re-running that repeat is outstanding (`transport-conclusions.md` §1) |
 | **GSO cap 10 → 32:** +17 % throughput, −21 % CPU/byte. Derive it from **bytes** (`min(platform, 65527/mtu)`), never `max_gso_segments()` — exceeding it disables offload *permanently* (91 % collapse) | externally corroborated |
 | **Memory is not the constraint:** ~110 KB/viewer, ~0.5 GB at 5 000 | r² 0.98–0.99 |
-| **The pathological client is bounded by the send path, not the windows.** A client that asks 25 MB and stops reading costs **180 KB/connection on `chunked` + shared** — the withheld bytes queue on the *client* (2.20 MB), not the server. On `copy`/`split` + per-frame the same client costs **6.8 MB, 68 % of the 10 MB `send_window`** | campaign 48 rows / 0 VOID / r² ≥ 0.979, E0-gated; send-path probe 48 rows / 0 VOID / r² ≥ 0.974, anon and total RSS agree within 1 %. T2 loopback, N ≤ 16 |
+| **The pathological client is bounded by the send path, not the windows.** A client that asks 25 MB and stops reading costs **180 KB/connection on `chunked` + shared** — the withheld bytes queue on the *client* (2.20 MB), not the server. On `copy`/`split` + per-frame the same client costs **6.8 MB, 68 % of the 10 MB `send_window`** | campaign 48 rows / 0 VOID / r² ≥ 0.979, E0-gated; send-path probe 48 rows / 0 VOID / r² ≥ 0.974, anon and total RSS agree within 1.2 %. T2 loopback, N ≤ 16. **Re-run 2026-09-08 on the cleaned tree: 185.3 / 382.3 kB, ratio 3.48× — inside the documented spread** |
 | **`chunked` is a memory-containment property, not only a CPU one** — 6.5× cheaper than `copy` in shared, **18.6×** in per-frame, because the queue holds refcounted slices of one mapping instead of a private copy per connection. `main` has the copy path only | same probe |
 | **Initial congestion window is not a lever** (≤ 7 %) | two independent measurements |
 | **Loss-regime classifier works**, validated against constructed ground truth both directions | queue-drop witness agreed with each cell |
@@ -162,6 +207,30 @@ Three other things came back, and two of them change how future runs must be don
 ---
 
 ## 4 · Next, in priority order
+
+### 4.0 · Port onto `main`'s `pipeline.rs` — blocks everything else
+
+**Not started, and not authorised.** The plan, the conflict inventory and the acceptance gate
+are in [`merge-with-main-analysis.md`](merge-with-main-analysis.md). Three things a new
+session should know before opening it:
+
+1. **It is a port, not an adjudication.** `main` *extracted* the serving logic; its
+   `serve_one` is `prepare → locate → send`, and this branch's send paths are an
+   implementation of the third step. `frame_store.rs` — the riskiest change here — merges
+   clean.
+2. **Three regressions to `main` are silent** — no compile error, no failing test: duplicate
+   flags for one quinn setting, `--max-idle-timeout-ms` dropped on the floor, and a forked
+   `StreamMode`. Each is named with its fix.
+3. **The gate is a campaign, not a test.** `chunked`'s saving is that it does not copy, and
+   the wire is byte-identical either way — so `all_send_paths_are_the_same_wire` cannot see a
+   reintroduced copy and neither can anything else. Re-run
+   `lab/scripts/stall_client_campaign.sh` and expect ~200 kB/connection. Megabytes means the
+   copy is back. `frame_bytes_is_a_view_of_the_mapping` is the cheap fast-fail beside it.
+
+The five remaining code proposals (§2, §3, §6, §7, §8 of
+[`proposals/product-code-changes.md`](proposals/product-code-changes.md)) mostly live inside
+`send_one_frame`, which the port rewrites. **Fold them into the port rather than doing them
+in parallel**, or you will resolve your own conflicts.
 
 ### 4.1 · Deploy the loss-regime sampler — highest value, smallest change
 
@@ -336,10 +405,11 @@ None of them moves a published number in a direction the documents do not alread
 
 ---
 
-## 5 · Traps — five instances of the same failure
+## 5 · Traps
 
-**A guard checked once and assumed to hold.** Every invalidated campaign in this project was
-this, in a new costume:
+### Five instances of one failure: a guard checked once and assumed to hold
+
+Every invalidated campaign in this project was this, in a new costume:
 
 1. **L4** — the path was never congested, so every loss was exogenous
 2. **L4** — p95 computed over cache-hit structural zeros
@@ -349,6 +419,19 @@ this, in a new costume:
 
 L1's own review named it independently: *"v2 retuned the workload until the metric's
 admission rule passed; Phase C retuned the admission rule until the workload passed."*
+
+### And a sixth, which is a different failure
+
+6. **2026-09-08** — an audit counted flag usage by grepping `lab/scripts/` and `server/src/`,
+   found five flags and `SendPath::Split` unreferenced, and deleted them. **Arms are not
+   invoked from inside the scripts.** They arrive through `SRV_FLAGS`, and the command lines
+   that supply them live in `quic-transport-optimization.md` §5 and `lab/README.md`. `split`
+   had three committed TSVs the whole time. Caught before it was pushed, restored behind
+   `--features lab`.
+
+   The practice this adds: **a usage count is only as wide as the places you looked.** In
+   this repository, invocations are documentation. Grep the docs too, or grep the TSVs for
+   the arm label.
 
 ### The practices that catch it
 
@@ -395,10 +478,13 @@ admission rule passed; Phase C retuned the admission rule until the workload pas
 | [`measurements/regime/`](measurements/regime/) | loss-regime classifier and its ground-truth test |
 | [`measurements/mem/`](measurements/mem/) | memory per viewer, and the flow-control window question |
 | [`ORACLE-RIG-AGENT-GUIDE.md`](ORACLE-RIG-AGENT-GUIDE.md) | running campaigns on the real rig, gates first |
-| [`why-these-changes.md`](why-these-changes.md) | **why each decision on this branch exists** — fourteen entries, one per decision, and the place rationale belongs instead of in source comments |
+| [`why-these-changes.md`](why-these-changes.md) | **why each decision on this branch exists** — seventeen entries, one per decision, and the place rationale belongs instead of in source comments |
 | [`code-style-and-comments.md`](code-style-and-comments.md) | what the code says and what the register says; the measured comment-to-code ratios that prompted it |
-| [`proposals/product-code-changes.md`](proposals/product-code-changes.md) | **nine proposed code changes, none applied** — including flipping the stream-mode default, whose pre-registered condition X3L has now met |
-| [`merge-with-main-analysis.md`](merge-with-main-analysis.md) | what actually collides with `main`, and why it is a port rather than an adjudication |
+| [`proposals/product-code-changes.md`](proposals/product-code-changes.md) | nine proposed code changes. **Four applied 2026-09-08** (1, 4, 5, 9), each marked with what landed and what re-measurement it still owes; five remain proposals |
+| [`merge-with-main-analysis.md`](merge-with-main-analysis.md) | what actually collides with `main`, why it is a port rather than an adjudication, the acceptance gate, and three silent regressions a naive merge introduces |
+| [`branch-source-audit.md`](branch-source-audit.md) | **what this branch put in `server/` and what belongs there** — every flag and send path classified with its usage evidence, and the correction that came of auditing prose-invoked arms by grepping code |
+| [`measurements/r6/step-scale-calibration.md`](measurements/r6/step-scale-calibration.md) | every cell's operating point, the admissible band, and the multi-seed guard |
+| [`measurements/r6/fairness-instrument.md`](measurements/r6/fairness-instrument.md) | what the Oracle rig's two open ports let the fairness experiment pose, the four traps, and the known denominator bias |
 
 ### Key scripts
 
@@ -433,3 +519,8 @@ admission rule passed; Phase C retuned the admission rule until the workload pas
   recipes are in each fixture's README.
 - **The `telemetry` feature is off by default.** The lab-arms binaries are built without it,
   which is why the sampler sat unexercised until `e0_regime_validate.sh` ran it.
+- **The `lab` feature is off by default too, and every experiment arm is behind it** —
+  `--send-path`, `--send-fairness`, `--segmentation-offload`, `--ask-priority`, the MTU / ACK
+  / socket-buffer knobs, `WT_SERVE_TIMING`. Lab scripts already pass
+  `--features lab`; a bare `cargo build` produces a server that cannot select an arm by
+  accident. If a campaign suddenly reports "unexpected argument", that is the cause.
