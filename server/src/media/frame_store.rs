@@ -189,4 +189,28 @@ mod tests {
         let _ = std::fs::remove_file(path);
         Ok(())
     }
+
+    /// The chunked send path's whole saving is that this is a view, not a copy.
+    ///
+    /// `Bytes::slice` keeps the mapping's allocation, so the frame's pointer lies inside
+    /// it; `Bytes::copy_from_slice` would allocate elsewhere. Fails fast on the likely
+    /// accident. It cannot see a copy reintroduced further down the send path — the gate
+    /// for that is the stalled-client campaign, see `docs/merge-with-main-analysis.md`.
+    #[test]
+    fn frame_bytes_is_a_view_of_the_mapping() -> Result<()> {
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+        let path = std::env::temp_dir().join(format!("frame-view-{stamp}.sbnd"));
+        write_bundle(&path, br#"{"frameCount":1}"#, &[[7u8; 4096].as_slice()])?;
+
+        let store = FrameStore::open(&path)?;
+        let map = store.all.as_ptr_range();
+        let frame = store.frame_bytes(0)?;
+        assert!(
+            map.contains(&frame.as_ptr()),
+            "frame body is a copy, not a view of the study mapping"
+        );
+
+        let _ = std::fs::remove_file(path);
+        Ok(())
+    }
 }

@@ -29,7 +29,7 @@ STRESS_STEP_MS="${STRESS_STEP_MS:-15}"
 MODE="${MODE:-shared}"
 
 [[ -x "$HARNESS" && -x "$SERVER" ]] || {
-  echo "build first: cargo build -p window-harness -p exact-server --release" >&2
+  echo "build first: cargo build -p exact-server -p window-harness --release --features lab" >&2
   exit 1
 }
 [[ -f "$STUDY" ]] || bash "$ROOT/lab/scripts/gen_tf_fixtures.sh" >/dev/null

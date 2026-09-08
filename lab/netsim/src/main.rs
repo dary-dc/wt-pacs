@@ -205,6 +205,9 @@ async fn pacer(
     }
 }
 
+/// Datagram, reply address, and the instant it was received.
+type ClientTx = mpsc::Sender<(Vec<u8>, Option<SocketAddr>, Instant)>;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -236,8 +239,7 @@ async fn main() -> Result<()> {
     // docs/ORACLE-RIG-AGENT-GUIDE.md. Making netsim share a bottleneck across clients is
     // possible but is a new instrument that would need its own validation before any
     // fairness number from it could be believed.
-    let mut clients: HashMap<SocketAddr, mpsc::Sender<(Vec<u8>, Option<SocketAddr>, Instant)>> =
-        HashMap::new();
+    let mut clients: HashMap<SocketAddr, ClientTx> = HashMap::new();
     let mut buf = vec![0u8; 65535];
 
     if args.stats {

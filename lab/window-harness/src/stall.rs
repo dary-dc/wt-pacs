@@ -241,23 +241,13 @@ async fn accept_and_read(
         }
         // A stream per frame. Each is read until the deadline and then parked, so the
         // server sees a peer that opened many streams and drained none of them.
-        StreamMode::PerFrame => loop {
-            match connection.accept_uni().await {
-                Ok(mut recv) => {
-                    streams_opened.fetch_add(1, Ordering::Relaxed);
-                    read_until_stall(
-                        &mut recv,
-                        stall_after_ms,
-                        &deadline,
-                        &stalled,
-                        &bytes_read,
-                    )
-                    .await;
-                    held.push(recv);
-                }
-                Err(_) => break,
+        StreamMode::PerFrame => {
+            while let Ok(mut recv) = connection.accept_uni().await {
+                streams_opened.fetch_add(1, Ordering::Relaxed);
+                read_until_stall(&mut recv, stall_after_ms, &deadline, &stalled, &bytes_read).await;
+                held.push(recv);
             }
-        },
+        }
     }
 
     // Park forever. The task is aborted from the caller once the hold has elapsed, which

@@ -17,7 +17,7 @@ use crate::transport::wire::{read_fod_msg, write_fod_msg};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use fod::FodMsg;
-use frame_envelope::{wrap, ENVELOPE_LEN};
+use frame_envelope::ENVELOPE_LEN;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -45,6 +45,14 @@ impl StreamMode {
     }
 }
 
+/// How a session serves frames, resolved once from `ServeConfig`.
+#[derive(Clone, Copy)]
+struct Serving {
+    ask_priority: bool,
+    send_path: SendPath,
+    prefault: bool,
+}
+
 pub struct ServeConfig {
     pub wt_port: u16,
     pub study_path: PathBuf,
@@ -52,8 +60,8 @@ pub struct ServeConfig {
     pub key_pem: PathBuf,
     /// How frames reach the client for this process. See `StreamMode`.
     pub mode: StreamMode,
-    /// When true and `mode` is `PerFrame`, assign decreasing QUIC stream priorities
-    /// in ask order (earliest ask → highest priority). Ignored for `Shared`.
+    /// Per-frame only: decreasing QUIC stream priority in ask order. L1 arm Q.
+    #[cfg(feature = "lab")]
     pub ask_priority: bool,
     /// Bind IP. `None` = dual-stack ANY (the default). Set it where the host has no
     /// IPv6 stack, which is where the dual-stack bind fails with EAFNOSUPPORT.
@@ -78,13 +86,10 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         .to_transport_config()
         .context("build QUIC transport config")?;
 
-    let builder = ServerConfig::builder();
-    let builder = match bind_socket(&config)? {
-        Some(socket) => builder.with_bind_socket(socket),
-        None => match config.bind_ip {
-            Some(ip) => builder.with_bind_address(std::net::SocketAddr::new(ip, config.wt_port)),
-            None => builder.with_bind_default(config.wt_port),
-        },
+    let builder = match config.bind_ip {
+        Some(ip) => ServerConfig::builder()
+            .with_bind_address(std::net::SocketAddr::new(ip, config.wt_port)),
+        None => ServerConfig::builder().with_bind_default(config.wt_port),
     };
     let server_config = builder
         .with_custom_transport(identity, transport)
@@ -114,58 +119,30 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     );
 
     let mode = config.mode;
-    let ask_priority = config.ask_priority;
-    let send_path = config.tuning.send_path;
-    let prefault = config.tuning.prefault;
+    let serving = Serving {
+        #[cfg(feature = "lab")]
+        ask_priority: config.ask_priority,
+        #[cfg(not(feature = "lab"))]
+        ask_priority: false,
+        send_path: config.tuning.send_path,
+        prefault: config.tuning.prefault,
+    };
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
         tokio::spawn(async move {
-            if let Err(err) = handle_incoming(incoming, store, mode, ask_priority, send_path, prefault).await {
+            if let Err(err) = handle_incoming(incoming, store, mode, serving).await {
                 warn!(%err, "session ended");
             }
         });
     }
 }
 
-/// A UDP socket with explicit SO_SNDBUF / SO_RCVBUF, or `None` to let wtransport bind.
-///
-/// Only built when a buffer size is actually requested — the default path must stay
-/// exactly what it was, so an arm that changes nothing measures nothing.
-fn bind_socket(config: &ServeConfig) -> Result<Option<std::net::UdpSocket>> {
-    if config.tuning.socket_buffers_are_default() {
-        return Ok(None);
-    }
-    use socket2::{Domain, Protocol, Socket, Type};
-    let ip = config
-        .bind_ip
-        .unwrap_or(std::net::IpAddr::V6(std::net::Ipv6Addr::UNSPECIFIED));
-    let addr = std::net::SocketAddr::new(ip, config.wt_port);
-    let domain = if addr.is_ipv4() { Domain::IPV4 } else { Domain::IPV6 };
-    let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP)).context("udp socket")?;
-    if let Some(n) = config.tuning.socket_send_buffer {
-        socket.set_send_buffer_size(n).context("SO_SNDBUF")?;
-    }
-    if let Some(n) = config.tuning.socket_recv_buffer {
-        socket.set_recv_buffer_size(n).context("SO_RCVBUF")?;
-    }
-    socket.bind(&addr.into()).with_context(|| format!("bind {addr}"))?;
-    info!(
-        send_buffer = socket.send_buffer_size().unwrap_or(0),
-        recv_buffer = socket.recv_buffer_size().unwrap_or(0),
-        "bound UDP socket with explicit buffer sizes"
-    );
-    Ok(Some(socket.into()))
-}
-
-#[allow(clippy::too_many_arguments)]
 async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
     store: Arc<FrameStore>,
     mode: StreamMode,
-    ask_priority: bool,
-    send_path: SendPath,
-    prefault: bool,
+    mut serving: Serving,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     let connection = session_request.accept().await.context("accept session")?;
@@ -188,20 +165,11 @@ async fn handle_incoming(
         StreamMode::PerFrame => None,
     };
 
-    run_session(
-        connection,
-        control_send,
-        control_recv,
-        store,
-        shared,
-        // Priority ordering is a per-frame-stream mechanism; with one shared stream there
-        // is nothing to order, so the flag is resolved to false here rather than checked
-        // again at every write.
-        ask_priority && matches!(mode, StreamMode::PerFrame),
-        send_path,
-        prefault,
-    )
-    .await
+    // With one shared stream there is nothing to order, so this is resolved once here
+    // rather than checked again at every write.
+    serving.ask_priority &= matches!(mode, StreamMode::PerFrame);
+
+    run_session(connection, control_send, control_recv, store, shared, serving).await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
@@ -211,9 +179,7 @@ async fn run_session(
     mut control_recv: RecvStream,
     store: Arc<FrameStore>,
     mut shared: Option<SendStream>,
-    ask_priority: bool,
-    send_path: SendPath,
-    prefault: bool,
+    serving: Serving,
 ) -> Result<()> {
     let mut rec = Recorder::for_session();
     // Ask ordinal within the session; priority decreases as it grows, so the earliest
@@ -254,10 +220,8 @@ async fn run_session(
                     &store,
                     frame,
                     &mut rec,
-                    ask_priority,
+                    serving,
                     &mut ask_seq,
-                    send_path,
-                    prefault,
                 )
                 .await?;
             }
@@ -271,10 +235,8 @@ async fn run_session(
                         &store,
                         frame,
                         &mut rec,
-                        ask_priority,
+                        serving,
                         &mut ask_seq,
-                        send_path,
-                        prefault,
                     )
                     .await?;
                 }
@@ -294,7 +256,9 @@ async fn run_session(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+// `rec.stamp()` is `()` unless `feature = "telemetry"`, which is what the zero-sized
+// recorder is for; clippy sees only the disabled shape.
+#[allow(clippy::too_many_arguments, clippy::let_unit_value)]
 async fn send_one_frame(
     connection: &Connection,
     shared: &mut Option<SendStream>,
@@ -303,21 +267,19 @@ async fn send_one_frame(
     store: &Arc<FrameStore>,
     idx: u32,
     rec: &mut Recorder,
-    ask_priority: bool,
+    serving: Serving,
     ask_seq: &mut i32,
-    send_path: SendPath,
-    prefault: bool,
 ) -> Result<()> {
     rec.ask(idx);
-    // Isolation B: wall clock from ask-handled → first/last write_all into quinn.
-    // Enable with WT_SERVE_TIMING=1 (stderr lines `serve_timing ...`).
-    let timing = std::env::var_os("WT_SERVE_TIMING").is_some();
-    let t_ask = Instant::now();
+    #[cfg(feature = "lab")]
+    let t_serve = serve_timing_enabled().then(|| (idx, Instant::now()));
+    #[cfg(not(feature = "lab"))]
+    let t_serve: Option<(u32, Instant)> = None;
 
     let t0 = rec.stamp();
     // Prefault off the executor — a major fault is not an `.await`.
     // TODO(readability): hide Arc (inner FrameStore handle or block_in_place); perf unchanged.
-    let touch = if prefault {
+    let touch = if serving.prefault {
         let store_touch = Arc::clone(store);
         tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
             .await
@@ -326,37 +288,27 @@ async fn send_one_frame(
         Ok(())
     };
 
-    let located = touch.and_then(|_| match send_path {
-        SendPath::Copy | SendPath::Split => store.frame_slice(idx).map(Payload::Borrowed),
-        SendPath::Chunked => store.frame_bytes(idx).map(Payload::Owned),
-    });
+    let located = touch.and_then(|_| store.frame_bytes(idx));
 
     match located {
-        Ok(payload) => {
-            let codestream_len = payload.len();
+        Ok(body) => {
+            let codestream_len = body.len();
             rec.located(t0, LocateOutcome::Ok, codestream_len);
             let wire_len = ENVELOPE_LEN + codestream_len;
 
-            // Both copies the copy path makes happen inside the write region, as they
-            // did before the chunked path existed — `located` still means "found", not
-            // "found and materialised".
+            // The copy path's copies happen inside the write region, as they did before
+            // the chunked path existed: `located` means "found", not "materialised".
             let t1 = rec.stamp();
-            let t_serve = timing.then_some((idx, t_ask));
-            let result = match payload {
-                Payload::Borrowed(bytes) if send_path == SendPath::Copy => {
-                    let buf = wrap(idx, bytes);
-                    write_payload(connection, shared, acks, &buf, ask_priority, ask_seq, t_serve)
+            let result = match serving.send_path {
+                #[cfg(feature = "lab")]
+                SendPath::Copy => {
+                    let buf = frame_envelope::wrap(idx, &body);
+                    write_payload(connection, shared, acks, &buf, serving.ask_priority, ask_seq, t_serve)
                         .await
                 }
-                Payload::Borrowed(bytes) => {
-                    write_payload_split(
-                        connection, shared, acks, idx, bytes, ask_priority, ask_seq, t_serve,
-                    )
-                    .await
-                }
-                Payload::Owned(body) => {
+                SendPath::Chunked => {
                     write_payload_chunked(
-                        connection, shared, acks, idx, body, ask_priority, ask_seq, t_serve,
+                        connection, shared, acks, idx, body, serving.ask_priority, ask_seq, t_serve,
                     )
                     .await
                 }
@@ -417,9 +369,13 @@ async fn open_frame_uni(
 }
 
 /// `serve_timing` line for offline join with the client's ask ordinals.
-///
-/// Gated by `WT_SERVE_TIMING`; `timing` is `None` when it is unset, so this is a no-op on
-/// the measured path.
+/// `WT_SERVE_TIMING`, read once. Reading it per frame takes the process environment lock.
+#[cfg(feature = "lab")]
+fn serve_timing_enabled() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("WT_SERVE_TIMING").is_some())
+}
+
 fn note_serve_timing(timing: Option<(u32, Instant)>, mode: &str, t_first: Instant) {
     if let Some((idx, t_ask)) = timing {
         let ask_to_first_ms = t_first.duration_since(t_ask).as_secs_f64() * 1000.0;
@@ -430,6 +386,10 @@ fn note_serve_timing(timing: Option<(u32, Instant)>, mode: &str, t_first: Instan
     }
 }
 
+/// The copy path: `wrap()` into a fresh Vec, then `write_all` — two full-frame copies.
+/// Reproduces `main`'s behaviour exactly, which is what `all_send_paths_are_the_same_wire`
+/// pins the chunked path against.
+#[cfg(feature = "lab")]
 #[allow(clippy::too_many_arguments)]
 async fn write_payload(
     connection: &Connection,
@@ -470,26 +430,6 @@ async fn write_payload(
     Ok(())
 }
 
-/// The located codestream, in the shape the chosen send path wants.
-///
-/// `SendPath` is resolved to one of these per frame, so the write below matches on a
-/// value rather than re-reading the flag — the same shape `StreamMode` uses.
-enum Payload<'a> {
-    /// Copy path control: mapped bytes, wrapped and copied at write time.
-    Borrowed(&'a [u8]),
-    /// Chunked path: a refcounted slice of the mapping, written without a copy.
-    Owned(Bytes),
-}
-
-impl Payload<'_> {
-    fn len(&self) -> usize {
-        match self {
-            Self::Borrowed(b) => b.len(),
-            Self::Owned(b) => b.len(),
-        }
-    }
-}
-
 /// `[4B BE total_len][4B BE display_index]` — the first 8 bytes of a framed envelope.
 ///
 /// Pinned against the copy path by `chunked_header_matches_copy_path`: the chunked
@@ -501,50 +441,6 @@ fn envelope_header(idx: u32, codestream_len: usize) -> [u8; ENVELOPE_LEN * 2] {
     header[..ENVELOPE_LEN].copy_from_slice(&wire_len.to_be_bytes());
     header[ENVELOPE_LEN..].copy_from_slice(&idx.to_be_bytes());
     header
-}
-
-/// `[len]`, `[index]`, codestream as three separate `&[u8]` writes.
-///
-/// Drops `wrap()`'s allocation — nothing is ever made contiguous — but each
-/// `write_all(&[u8])` still reaches `ByteSlice::pop_chunk`, which allocates and copies
-/// into the send buffer. So the codestream is copied once, not twice. This is the
-/// current best shape and the baseline the chunked path is measured against.
-#[allow(clippy::too_many_arguments)]
-async fn write_payload_split(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    idx: u32,
-    codestream: &[u8],
-    ask_priority: bool,
-    ask_seq: &mut i32,
-    timing: Option<(u32, Instant)>,
-) -> Result<()> {
-    let header = envelope_header(idx, codestream.len());
-    let (len, index) = header.split_at(ENVELOPE_LEN);
-    match shared {
-        Some(uni) => {
-            let t_first = Instant::now();
-            uni.write_all(len).await.context("write shared len")?;
-            uni.write_all(index).await.context("write shared index")?;
-            uni.write_all(codestream)
-                .await
-                .context("write shared codestream")?;
-            note_serve_timing(timing, "shared", t_first);
-        }
-        None => {
-            let mut uni = open_frame_uni(connection, ask_priority, ask_seq).await?;
-            let t_first = Instant::now();
-            uni.write_all(len).await.context("write len")?;
-            uni.write_all(index).await.context("write index")?;
-            uni.write_all(codestream).await.context("write codestream")?;
-            note_serve_timing(timing, "per-frame", t_first);
-            acks.spawn(async move {
-                let _ = uni.finish().await;
-            });
-        }
-    }
-    Ok(())
 }
 
 /// Same bytes on the wire as `write_payload`, without materialising them.
@@ -603,12 +499,8 @@ mod tests {
     use super::*;
     use crate::transport::wire::length_prefixed;
 
-    /// All three send paths must put identical bytes on the wire.
-    ///
-    /// `copy` builds `length_prefixed(wrap(..))`; `split` writes the two header halves
-    /// then the codestream; `chunked` writes the 8-byte header then the codestream. If
-    /// these ever diverge, the arms are measuring different protocols and every number
-    /// in `docs/quic-transport-optimization.md` is void.
+    /// Both send paths must put identical bytes on the wire, or every arm comparing
+    /// them is comparing two protocols. This is the acceptance gate for the merge port.
     #[test]
     fn all_send_paths_are_the_same_wire() {
         for (idx, body) in [
@@ -617,19 +509,12 @@ mod tests {
             (7, b"htj2k-codestream-bytes"),
             (u32::MAX, &[0xAB; 4096]),
         ] {
-            let copy_wire = length_prefixed(&wrap(idx, body));
-            let header = envelope_header(idx, body.len());
+            let copy_wire = length_prefixed(&frame_envelope::wrap(idx, body));
 
-            let mut chunked_wire = header.to_vec();
+            let mut chunked_wire = envelope_header(idx, body.len()).to_vec();
             chunked_wire.extend_from_slice(body);
 
-            let (len, index) = header.split_at(ENVELOPE_LEN);
-            let mut split_wire = len.to_vec();
-            split_wire.extend_from_slice(index);
-            split_wire.extend_from_slice(body);
-
-            assert_eq!(copy_wire, chunked_wire, "chunked, idx {idx}, {} B", body.len());
-            assert_eq!(copy_wire, split_wire, "split, idx {idx}, {} B", body.len());
+            assert_eq!(copy_wire, chunked_wire, "idx {idx}, {} B", body.len());
         }
     }
 }

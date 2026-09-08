@@ -62,7 +62,7 @@ PATCH
 
 for n in "${SEGMENTS[@]}"; do
   echo "building segments=$n ($((n * 1452)) B per sendmsg at a 1452-byte MTU)"
-  QUINN_MAX_TRANSMIT_SEGMENTS="$n" cargo build --release -p exact-server --target-dir "$ROOT/target/gso" >/dev/null
+  QUINN_MAX_TRANSMIT_SEGMENTS="$n" cargo build --release --features lab -p exact-server --target-dir "$ROOT/target/gso" >/dev/null
   cp "$ROOT/target/gso/release/exact-server" "$OUT_DIR/exact-server-$n"
   touch "$ROOT/server/src/main.rs"   # force a rebuild; the env var is not a fingerprint input
 done

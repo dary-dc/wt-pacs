@@ -30,7 +30,7 @@ FRAME_COUNT_DEFAULT="${FRAME_COUNT:-80}"
 mkdir -p "$(dirname "$OUT")"
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh"
 [[ -f "$ROOT/lab/fixtures/frames_32k/frames_32k.sbnd" ]] || bash "$ROOT/lab/scripts/gen_tf_fixtures.sh"
-cargo build -p exact-server -p window-harness --release >/dev/null
+cargo build -p exact-server -p window-harness --release --features lab >/dev/null
 
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
@@ -90,6 +90,7 @@ run_one() {
   kill "$spid" 2>/dev/null || true
   wait "$spid" 2>/dev/null || true
   "$SERVER" --port "$PORT" --study "$study_path" \
+    --stream-mode per-frame \
     --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   spid=$!
   sleep 1.0

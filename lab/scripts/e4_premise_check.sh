@@ -45,7 +45,7 @@ IFS=',' read -ra RTT_ARR <<< "$RTTS_MS"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-  cargo build -p exact-server -p window-harness --release >/dev/null
+  cargo build -p exact-server -p window-harness --release --features lab >/dev/null
 else
   [[ -x "$SERVER" && -x "$HARNESS" ]] || {
     echo "SKIP_BUILD=1 but missing $SERVER or $HARNESS" >&2
@@ -93,7 +93,8 @@ set_rtt() {
 start_server() {
   kill "$spid" 2>/dev/null || true
   wait "$spid" 2>/dev/null || true
-  "$SERVER" --port "$PORT" --study "$STUDY" --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
+  "$SERVER" --port "$PORT" --study "$STUDY" --stream-mode per-frame \
+    --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   spid=$!
   sleep 1.0
 }

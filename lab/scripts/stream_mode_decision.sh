@@ -31,7 +31,7 @@ mkdir -p "$RAW_DIR"
 [[ -f "$STUDY_250" ]] || bash "$ROOT/lab/scripts/gen_tf_fixtures.sh"
 
 echo "Building binaries…"
-cargo build -p exact-server -p window-harness --release >/dev/null
+cargo build -p exact-server -p window-harness --release --features lab >/dev/null
 
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"

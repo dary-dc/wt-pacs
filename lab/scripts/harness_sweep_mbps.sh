@@ -21,7 +21,7 @@ STEP_HIGH="${STEP_HIGH:-5}"
 
 mkdir -p "$(dirname "$OUT")"
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh"
-cargo build -p exact-server -p window-harness --release >/dev/null
+cargo build -p exact-server -p window-harness --release --features lab >/dev/null
 
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
@@ -47,6 +47,7 @@ run_one() {
   local mbps=$1
   local bps=$((mbps * 1000000))
   "$SERVER" --port 4433 --study "$STUDY" \
+    --stream-mode per-frame \
     --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   local sp=$!
   sleep 1.0

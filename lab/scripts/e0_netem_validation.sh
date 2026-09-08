@@ -33,7 +33,7 @@ mkdir -p "$OUT_DIR"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-  cargo build -p exact-server -p window-harness --release >/dev/null
+  cargo build -p exact-server -p window-harness --release --features lab >/dev/null
 else
   [[ -x "$SERVER" && -x "$HARNESS" ]] || {
     echo "SKIP_BUILD=1 but missing $SERVER or $HARNESS" >&2
@@ -74,6 +74,7 @@ fi
 
 echo "=== E0 step 2: local netem/sim at RTT=${MEASURED_RTT_MS}ms bps=${MEASURED_READ_BPS} ===" >&2
 "$SERVER" --port "$LOCAL_PORT" --study "$STUDY" \
+  --stream-mode per-frame \
   --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
 spid=$!
 sleep 1.0

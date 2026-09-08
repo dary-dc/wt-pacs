@@ -585,6 +585,8 @@ fn wait_stats(samples: &[f64]) -> (f64, f64) {
     (mean, p95)
 }
 
+pub type SharedMetrics = Arc<Mutex<MetricsState>>;
+
 #[cfg(test)]
 mod wait_stats_tests {
     use super::{percentile_nearest_rank, wait_stats};
@@ -670,5 +672,3 @@ mod wait_stats_tests {
         assert_eq!(miss_p95, 100.0);
     }
 }
-
-pub type SharedMetrics = Arc<Mutex<MetricsState>>;
