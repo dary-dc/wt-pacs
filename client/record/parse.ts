@@ -1,7 +1,4 @@
-/**
- * Length-prefix peek for media streams — same framing constant as transport-ts/wire.ts.
- * Shared recorder lives under client/record/ (both arms); does not pull session.ts.
- */
+/** Same framing constant as transport-ts/wire.ts; shared by both arms, pulls no session. */
 
 import { MAX_FRAME_LEN } from "../transport-ts/wire.ts";
 import type { RowKind } from "./types.ts";
@@ -39,11 +36,8 @@ export type FodMessage =
   | { op: "frame_error"; frame_index: number; reason: string }
   | { op: "other"; raw: string };
 
-/**
- * Decode every complete FoD message from the front of `buf` (LE length + JSON, possibly several
- * back to back). Returns the messages and how many bytes they consumed; a trailing partial
- * message is left for the next read.
- */
+/** LE length + JSON, possibly several back to back. Returns the messages and the bytes they
+ * consumed; a trailing partial message is left for the next read. */
 export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; consumed: number } {
   const messages: FodMessage[] = [];
   const decoder = new TextDecoder();
@@ -77,10 +71,7 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
   return { messages, consumed: off };
 }
 
-/**
- * Asks in one control write. Row kind comes from the op, not from how many frames the
- * message carries: a `request_frames` of one is still the batch path on the server.
- */
+/** Kind comes from the op, not the frame count: a `request_frames` of one is still a batch. */
 export function parseFodAsks(chunk: Uint8Array): FodAsk[] {
   const asks: FodAsk[] = [];
   for (const m of parseFodMessages(chunk).messages) {

@@ -1,9 +1,8 @@
-//! io_uring for the miss path, and only the miss path — a page-cache hit is served inline.
+//! io_uring for the miss path only; a page-cache hit is served inline.
 //!
-//! Two constraints shape this and are easy to undo by accident: tokio migrates a task
-//! between workers across `.await`, so `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable; and
-//! blocking in `io_uring_enter` would be the executor stall the design exists to prevent, so
-//! completions are awaited on a registered eventfd. `docs/disk-access/IMPLEMENTATION.md`.
+//! Two constraints are easy to undo by accident: tokio migrates a task between workers, so
+//! `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable, and blocking in `io_uring_enter` would
+//! be the stall this exists to prevent. `docs/disk-access/IMPLEMENTATION.md`.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
@@ -11,20 +10,17 @@ use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use tokio::io::unix::AsyncFd;
 
-/// Counts the drops that had to wait for the kernel — the only way that wait is observable.
+/// Test-only: the wait is otherwise unobservable, since a cached read lands before it.
 #[cfg(test)]
 pub(crate) static DRAINED_ON_DROP: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 
-/// Reads a session may have in flight at once: the frame being served, and the one being
-/// read ahead. Two, not *n* — `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+/// The frame being served and the one being read ahead — two, not *n*.
+/// `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
 pub const SLOTS: usize = 2;
 
-/// A submitted read: the range the kernel is writing into, and how much of it is done.
-///
-/// The buffer is held as an address rather than a pointer so the reader stays `Send` — the
-/// session task owning both may move between workers. What keeps the address valid is the
-/// caller's contract on [`UringReader::start`], not its type.
+/// An address, not a pointer, so the reader stays `Send`. Validity comes from the caller's
+/// contract on [`UringReader::start`], not from the type.
 struct Pending {
     addr: usize,
     len: usize,
@@ -34,7 +30,6 @@ struct Pending {
     submitted: bool,
 }
 
-/// One session's ring, carrying at most [`SLOTS`] reads at a time.
 pub struct UringReader {
     ring: IoUring,
     eventfd: AsyncFd<OwnedFd>,
@@ -42,7 +37,7 @@ pub struct UringReader {
 }
 
 impl UringReader {
-    /// Register `file` with the ring so submissions do not have to resolve it each time.
+    /// Registers `file`, so a submission does not have to resolve it.
     pub fn new(file: &File) -> Result<Self> {
         let ring = IoUring::builder()
             .setup_coop_taskrun()
@@ -70,11 +65,9 @@ impl UringReader {
         })
     }
 
-    /// Submit a read of `buf` into `slot` and return without waiting for it.
-    ///
     /// # Safety
-    /// `buf` must stay valid, allocated where it is, and unaliased until the matching
-    /// [`finish`](Self::finish) returns — or until this reader is dropped, which waits.
+    /// `buf` must stay valid, unmoved and unaliased until the matching
+    /// [`finish`](Self::finish) returns, or until this reader is dropped, which waits.
     /// Growing the buffer behind it is the way to break this.
     pub(crate) unsafe fn start(&mut self, slot: usize, buf: &mut [u8], offset: u64) -> Result<()> {
         debug_assert!(self.slots[slot].is_none(), "slot {slot} already has a read");
@@ -126,11 +119,8 @@ impl UringReader {
         Ok(())
     }
 
-    /// Take every completion the kernel has posted, crediting each to its own slot.
-    ///
-    /// Reads for both slots complete into the same queue, so a wait for one reaps the other
-    /// as a side effect; that is what lets the read ahead land while the frame in hand is
-    /// still being waited on.
+    /// Both slots complete into one queue, so waiting on either reaps the other — which is
+    /// what lets a read ahead land while the frame in hand is still being waited on.
     fn reap(&mut self) -> Result<()> {
         self.ring.completion().sync();
         while let Some(cqe) = self.ring.completion().next() {
@@ -182,11 +172,8 @@ impl UringReader {
 }
 
 impl UringReader {
-    /// Wait for the kernel to finish with every buffer it holds, without which a drop
-    /// between submit and completion leaves it writing into freed memory.
-    ///
-    /// Idempotent, so an owner may call it early — [`ReadCtx`](crate::media::read_path)
-    /// does, from its own `Drop`, so the guarantee does not depend on field order.
+    /// Without this, a drop between submit and completion leaves the kernel writing into
+    /// freed memory. Idempotent, so [`ReadCtx`](crate::media::read_path) calls it early.
     pub(crate) fn drain_in_flight(&mut self) {
         let outstanding = self
             .slots

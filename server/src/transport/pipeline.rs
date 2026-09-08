@@ -1,8 +1,5 @@
 //! Per-frame story: prepare → locate → send, or refuse. Written once as trait defaults;
 //! implementors override steps, never the story. `docs/telemetry/adr-server-pipeline.md`.
-//!
-//! `locate` returns a [`FrameSpan`] — where the frame is, not what it holds — because the
-//! read path streams a frame a window at a time and never materialises it.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadCtx, ReadMode};
@@ -23,29 +20,24 @@ use frame_envelope::ENVELOPE_LEN;
 
 /// Implementors override **steps**, never [`serve_one`](Self::serve_one).
 pub(crate) trait FramePipeline: Send {
-    /// Study handle used by the default story (cloned once per frame for locate).
     fn store(&self) -> &Arc<FrameStore>;
 
-    /// prepare → locate → send, or refuse on control. `next` is the frame the session will
-    /// be asked for after this one, where that is already known.
+    /// `next` is the frame this session will be asked for after `frame`, where it is known.
     async fn serve_one(
         &mut self,
         frame: u32,
         next: Option<u32>,
         control: &mut SendStream,
     ) -> Result<()> {
-        if let Err(err) = self.prepare(frame).await {
-            return self.refuse(control, frame, err).await;
-        }
+        self.prepare(frame);
 
-        // Cloned once per frame: `send` reads through it, off this borrow of `self`.
         let store = Arc::clone(self.store());
         let span = match self.locate(&store, frame) {
             Ok(span) => span,
             Err(err) => return self.refuse(control, frame, err).await,
         };
-        // Not `locate`: that step is stamped, and an out-of-range look-ahead is not this
-        // frame's failure — it is refused when the session actually asks for it.
+        // Not `locate`: that step is stamped, and a bad look-ahead is not this frame's
+        // failure — it is refused when the session asks for it.
         let next = next.and_then(|frame| store.frame_span(frame).ok());
 
         // Send failure: wire/session broken — do not refuse on control.
@@ -53,11 +45,8 @@ pub(crate) trait FramePipeline: Send {
         Ok(())
     }
 
-    /// `RequestFrames`: every frame before the next control read, in order.
-    ///
-    /// **Read ahead by one**: each frame is served knowing the next one, so its read starts
-    /// while this one is still in flight. Delivery stays in ask order, which is what
-    /// `docs/adr-reject-server-ordering.md` protects.
+    /// Every frame before the next control read, in ask order, each knowing the next — so
+    /// its read starts while this one is still in flight.
     async fn serve_batch(&mut self, frames: &[u32], control: &mut SendStream) -> Result<()> {
         let size = frames.len() as u32;
         for (position, &frame) in frames.iter().enumerate() {
@@ -68,19 +57,16 @@ pub(crate) trait FramePipeline: Send {
         Ok(())
     }
 
-    /// Where the next `serve_one` sits in a batch. Product ignores it; the lab stamps it.
+    /// Product ignores it; the lab stamps it.
     fn note_batch(&mut self, _position: u32, _size: u32) {}
 
-    /// Work before the frame is located. **The product has none** — bytes are read inside
-    /// `send`. The step survives because a trace showing it at ~0 is the evidence of that.
-    async fn prepare(&mut self, _frame: u32) -> Result<()> {
-        Ok(())
-    }
+    /// The frame begins. The product does nothing here; the lab starts its clock.
+    fn prepare(&mut self, _frame: u32) {}
 
-    /// Where the frame is. No I/O, so an out-of-range ask is refused before a stream opens.
+    /// No I/O, so an out-of-range ask is refused before a stream opens.
     fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan>;
 
-    /// Read the frame and write it on the media path, interleaved a window at a time.
+    /// Reads and writes interleaved, a window at a time.
     async fn send(
         &mut self,
         frame: u32,
@@ -94,12 +80,9 @@ pub(crate) trait FramePipeline: Send {
     async fn drain_acks(&mut self);
 }
 
-/// Product pipeline — application work only.
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
     out: FrameOut,
-    /// The session's read state: one reusable window, plus the ring if this session has
-    /// ever missed. See `crate::media::read_path`.
     read: ReadCtx,
 }
 
@@ -114,8 +97,6 @@ impl FramePipeline for ProductPipeline {
     fn store(&self) -> &Arc<FrameStore> {
         &self.store
     }
-
-    // prepare: trait default — the product has no pre-read step.
 
     fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
         store.frame_span(frame)
@@ -152,9 +133,8 @@ impl FramePipeline for ProductPipeline {
 }
 
 impl Drop for ProductPipeline {
-    /// The session's read summary. In `Drop` because a session ends in several ways — a
-    /// clean `EndSession`, a broken wire, runtime shutdown — and a miss rate that only some
-    /// of them report is worse than none. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
+    /// In `Drop` because a session ends several ways, and a miss rate only some of them
+    /// report is worse than none. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
     fn drop(&mut self) {
         let stats = self.read.stats();
         let Some(miss_rate) = stats.miss_rate() else {
@@ -170,8 +150,7 @@ impl Drop for ProductPipeline {
     }
 }
 
-/// Lab wrapper: stamp at method entry (contiguous chain), delegate, emit. Generic so it
-/// cannot reach product fields.
+/// Stamps at method entry, delegates, emits. Generic so it cannot reach product fields.
 #[cfg(feature = "telemetry")]
 pub(crate) struct RecordedPipeline<P> {
     inner: P,
@@ -187,8 +166,6 @@ impl<P: FramePipeline> RecordedPipeline<P> {
 
 #[cfg(feature = "telemetry")]
 impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
-    // serve_one / serve_batch: default — not overridden
-
     fn store(&self) -> &Arc<FrameStore> {
         self.inner.store()
     }
@@ -198,10 +175,9 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         self.inner.note_batch(position, size);
     }
 
-    async fn prepare(&mut self, frame: u32) -> Result<()> {
-        self.tap.begin_frame(frame); // serve_start = mark = now
-        self.inner.prepare(frame).await
-        // Prepare Err → serve_one calls refuse; emit_refused closes prepare.
+    fn prepare(&mut self, frame: u32) {
+        self.tap.begin_frame(frame);
+        self.inner.prepare(frame);
     }
 
     fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
@@ -210,7 +186,6 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         if let Ok(span) = &result {
             self.tap.note_locate(LocateOutcome::Ok, span.len as usize);
         }
-        // Locate Err → refuse; emit_refused closes locate + notes NotFound.
         result
     }
 
@@ -221,8 +196,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         span: FrameSpan,
         next: Option<FrameSpan>,
     ) -> Result<()> {
-        // `send_us` covers read and write together — the streaming loop interleaves them —
-        // and, in a batch, the start of the next frame's read.
+        // `send_us` covers read and write together, plus the next frame's read starting.
         self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + span.len as usize;
         match self.inner.send(frame, store, span, next).await {

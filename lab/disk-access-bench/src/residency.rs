@@ -1,9 +1,6 @@
-//! Controlled page-cache residency — the instrument the miss-ratio cells need. A cell's
-//! miss set is chosen, applied and then *verified*, so a cell that did not achieve the mix
-//! it asked for aborts rather than reporting under the wrong label.
-//!
-//! The order of [`apply`] is load-bearing and each step is there because the one before it
-//! is not enough: `docs/disk-access/RERUN-miss.md` §The instrument.
+//! Controlled page-cache residency: a cell's miss set is chosen, applied and then
+//! *verified*, so one that missed its mix aborts rather than reporting under the wrong
+//! label. The order of [`apply`] is load-bearing — `docs/disk-access/RERUN-miss.md`.
 
 use crate::study_map::{host_page_size, StudyMap};
 use anyhow::{Context, Result};
@@ -12,15 +9,14 @@ use std::os::unix::fs::FileExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
-/// Which frames of a cell's region are to miss, and which are to hit.
+/// Which frames of a region are to miss, and which are to hit.
 pub struct MixPlan {
     pub miss: Vec<u32>,
     pub hit: Vec<u32>,
 }
 
 impl MixPlan {
-    /// Spread the miss set through the region: a run of consecutive misses is a read-ahead
-    /// cell in disguise, and flatters every arm that streams windows.
+    /// Spread, because a run of consecutive misses is a read-ahead cell in disguise.
     pub fn build(frames: &[u32], mix: f64, seed: u64) -> Self {
         let mut order: Vec<u32> = frames.to_vec();
         let mut state = seed ^ 0x9E37_79B9_7F4A_7C15;
@@ -41,10 +37,9 @@ impl MixPlan {
     }
 }
 
-/// What the residency check found, so a cell is judged on its achieved mix and not the one
-/// it asked for. `achieved` is counted from `mincore`: a frame misses when less than half of
-/// it is resident. The two `_resident` means are the quality check — 0.03 on the miss set is
-/// the inward page rounding, 0.4 means the eviction did not take and the cell is void.
+/// `achieved` is counted from `mincore`, not from the plan; a frame misses when less than
+/// half of it is resident. The `_resident` means are the quality check: 0.03 on the miss set
+/// is the inward page rounding, 0.4 means the eviction did not take and the cell is void.
 pub struct MixReport {
     pub target: f64,
     pub achieved: f64,
@@ -52,9 +47,8 @@ pub struct MixReport {
     pub miss_resident: f64,
 }
 
-/// Page-aligned byte range of a frame, rounded **inward** — frames share boundary pages, so
-/// rounding outward would evict a hit neighbour's first page. The cost is up to one page at
-/// each end of a run staying resident, which the report shows rather than hides.
+/// Rounded **inward**: frames share boundary pages, so rounding outward would evict a hit
+/// neighbour's first page.
 fn inward(offset: u64, len: u64, page: u64) -> Option<(u64, u64)> {
     let start = offset.div_ceil(page) * page;
     let end = (offset + len) / page * page;
@@ -76,8 +70,7 @@ fn fadvise_range(fd: i32, offset: u64, len: u64) -> Result<()> {
     Ok(())
 }
 
-/// Fraction of a frame's pages resident in the page cache, via `mincore` on the study
-/// mapping. Reports the page cache and not our page tables, so unmapping does not blind it.
+/// Reports the page cache, not our page tables, so unmapping does not blind it.
 fn frame_residency(store: &StudyMap, idx: u32) -> Result<f64> {
     let slice = store.frame_slice(idx)?;
     if slice.is_empty() {
@@ -97,7 +90,7 @@ fn frame_residency(store: &StudyMap, idx: u32) -> Result<f64> {
     Ok(vec.iter().filter(|b| *b & 1 != 0).count() as f64 / n as f64)
 }
 
-/// Put the study's page cache into the state `plan` describes, then prove it. `unmap` is the
+/// Puts the page cache into the state `plan` describes, then proves it. `unmap` is the
 /// mapping's whole data region.
 pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Result<MixReport> {
     let page = host_page_size() as u64;
@@ -107,9 +100,8 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
     let fd = file.as_raw_fd();
     fadvise_range(fd, 0, 0)?;
 
-    // Hit set: read through a descriptor of our own, hinted `RANDOM` so the kernel does not
-    // read ahead into the miss set. Preventing that read-ahead is what makes the mix hold —
-    // evicting it afterwards does not work (`docs/disk-access/RERUN-miss.md`).
+    // Hinted `RANDOM` so the kernel does not read ahead into the miss set. Preventing that
+    // is what makes the mix hold; evicting it afterwards does not work.
     let warm = std::fs::File::open(path).with_context(|| format!("open {}", path.display()))?;
     let rc = unsafe { libc::posix_fadvise(warm.as_raw_fd(), 0, 0, libc::POSIX_FADV_RANDOM) };
     if rc != 0 {
@@ -126,8 +118,7 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
             .with_context(|| format!("warm frame {idx}"))?;
     }
 
-    // Miss set: consecutive frames are merged into one range first, so an interior boundary
-    // page is evicted too and only the ends of a run pay the inward rounding.
+    // Merged into runs first, so only the ends of a run pay the inward rounding.
     let mut runs: Vec<(u64, u64)> = Vec::new();
     for &idx in &plan.miss {
         let FrameSpan { offset, len } = store.frame_span(idx)?;
@@ -143,7 +134,7 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
         }
     }
 
-    // From `mincore`, not from the plan: the plan is a request, and it can fail silently.
+    // From `mincore`, not the plan: a request can fail silently.
     let survey = |set: &[u32]| -> Result<(f64, usize)> {
         let mut acc = 0.0;
         let mut cold = 0usize;

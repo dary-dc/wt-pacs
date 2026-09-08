@@ -1,40 +1,15 @@
-//! Bounded, process-private frame cache — **a lab arm, not product code**.
-//!
-//! `docs/disk-access/adr.md` decided *how* to bring frame bytes in; this measures *whether
-//! bringing them in again is worth avoiding*. On the wire the whole read path (four
-//! `preadv2` calls plus the copy into the connection) is ~19% of a frame's server CPU — see
-//! `docs/disk-access/SEND-BUDGET.md`. A hit removes all of it: no syscall, no copy into
-//! quinn, no pool hop, and the bytes are already process-private, which is the guarantee
-//! the ADR streams windows to obtain.
-//!
-//! It lives here because a client that caches every increment it receives sends each frame
-//! once per user (`later.md`), which leaves this paying only where several users read one
-//! study at once — a case no cell here has measured. Nothing in `server/` depends on it.
-//!
-//! Three properties keep it safe on a study that exceeds RAM:
-//!
-//! * **Bounded.** A byte budget, enforced on admission by LRU eviction. Zero disables it.
-//! * **Admission on the second ask.** A single linear pass over a huge study never
-//!   populates the cache; a cine loop or a scrub — where the same frames are asked over and
-//!   over — populates it immediately.
-//! * **Filled from bytes already in hand.** The ask that earns a slot assembles the frame
-//!   from the windows it is streaming anyway — one extra copy, no extra read, no pool hop,
-//!   and evicted allocations are recycled so the copy does not drag page faults with it.
+//! Bounded, process-private frame cache — **a lab arm**; nothing in `server/` uses it. A
+//! byte budget with LRU eviction, admission on the *second* ask, and fills from bytes the
+//! caller already holds. What it is worth: `docs/disk-access/adr.md` §Levers.
 
 use bytes::{Bytes, BytesMut};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
-/// Admission history is bounded too: a study can have far more frames than the cache can
-/// ever hold, and remembering every index asked once is a slow leak. Clearing it costs at
-/// most one extra ask before a hot frame is admitted again.
+/// Bounded too: remembering every index asked once is a slow leak on a large study.
 const MAX_SEEN: usize = 1 << 16;
 
-/// Evicted allocations kept for the next admission. A cached frame has to own its memory,
-/// and fresh anonymous memory costs a minor fault per page on first touch — ~61 of them
-/// for a 250 KB frame, which is more than the copy that fills it. Recycling evicted
-/// buffers keeps those pages mapped, so a cache that is churning does not pay for new
-/// memory on every admission.
+/// Recycled so a churning cache does not pay a minor fault per page on every admission.
 const MAX_SPARE: usize = 8;
 
 struct Entry {
@@ -45,9 +20,9 @@ struct Entry {
 #[derive(Default)]
 struct Inner {
     resident: HashMap<u32, Entry>,
-    /// Asked at least once. Second ask is what earns a slot.
+    /// Asked once. The second ask earns a slot.
     seen: HashSet<u32>,
-    /// Fills in flight, so concurrent sessions asking the same frame read it once.
+    /// In flight, so concurrent sessions asking one frame read it once.
     filling: HashSet<u32>,
     bytes: usize,
     clock: u64,
@@ -60,7 +35,7 @@ pub struct FrameCache {
 }
 
 impl FrameCache {
-    /// `budget` is a hard ceiling on resident frame bytes. Zero disables every path here.
+    /// A hard ceiling on resident frame bytes; zero disables every path here.
     pub fn new(budget: usize) -> Self {
         Self {
             budget,
@@ -72,7 +47,7 @@ impl FrameCache {
         self.budget > 0
     }
 
-    /// Frame bytes if resident. A hit is a refcount bump — no syscall, no copy.
+    /// A hit is a refcount bump — no syscall, no copy.
     pub fn get(&self, index: u32) -> Option<Bytes> {
         if !self.enabled() {
             return None;
@@ -85,11 +60,8 @@ impl FrameCache {
         Some(entry.bytes.clone())
     }
 
-    /// `true` when this ask earned `index` a slot and this caller owns the fill.
-    ///
-    /// The first ask for a frame only records it. That is what keeps one linear pass over a
-    /// study larger than the budget from evicting a working set that is actually being
-    /// re-asked.
+    /// `true` when this caller owns the fill. A first ask only records the index, so one
+    /// linear pass over a huge study cannot evict a working set that is being re-asked.
     pub fn claim_fill(&self, index: u32, len: usize) -> bool {
         if !self.enabled() || len > self.budget {
             return false;
@@ -110,10 +82,8 @@ impl FrameCache {
         true
     }
 
-    /// A buffer to assemble a frame into — an evicted allocation where one is free.
-    ///
-    /// Returned buffers are empty with capacity for at least `len`; a caller that fills
-    /// fewer bytes than it asked for must not admit the result.
+    /// Empty, with capacity for at least `len`. A caller that fills fewer bytes than it
+    /// asked for must not admit the result.
     pub fn assembly_buffer(&self, len: usize) -> BytesMut {
         if let Ok(mut inner) = self.inner.lock() {
             if let Some(pos) = inner.spare.iter().position(|b| b.capacity() >= len) {
@@ -125,7 +95,7 @@ impl FrameCache {
         BytesMut::with_capacity(len)
     }
 
-    /// Store a filled frame, evicting least-recently-used entries to stay inside budget.
+    /// Evicts least-recently-used entries to stay inside budget.
     pub fn admit(&self, index: u32, bytes: Bytes) {
         if !self.enabled() {
             return;
@@ -163,17 +133,14 @@ impl FrameCache {
         inner.resident.insert(index, Entry { bytes, last_used });
     }
 
-    /// A fill that failed: release the claim so a later ask can try again.
+    /// Releases the claim so a later ask can try again.
     pub fn abandon_fill(&self, index: u32) {
         if let Ok(mut inner) = self.inner.lock() {
             inner.filling.remove(&index);
         }
     }
 
-    /// Resident bytes and frame count — for logs and tests, not for the serving path.
-    ///
-    /// Recycled buffers are not counted: they are the cache's own working memory, bounded
-    /// by `MAX_SPARE` frames.
+    /// Recycled buffers are not counted: they are the cache's own working memory.
     pub fn stats(&self) -> (usize, usize) {
         match self.inner.lock() {
             Ok(inner) => (inner.bytes, inner.resident.len()),

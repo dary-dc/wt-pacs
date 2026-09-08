@@ -1,5 +1,3 @@
-/** Clock helpers for the client recorder. */
-
 import type { Us } from "./types.ts";
 
 export function nowUs(): Us {
@@ -42,11 +40,8 @@ function toSpan(entry: PerformanceEntry): LongTaskSpan {
   };
 }
 
-/**
- * Watch Long Tasks: a `read()` resolving during one is stamped late by the browser, not by
- * the network, so rows overlapping a span are excluded at finish. `stop()` also collects
- * entries the observer has not delivered yet.
- */
+/** A `read()` resolving during one is stamped late by the browser, not the network, so rows
+ * overlapping a span are excluded at finish. `stop()` also drains undelivered entries. */
 export function watchLongTasks(onSpan: (span: LongTaskSpan) => void): () => LongTaskSpan[] {
   try {
     if (typeof PerformanceObserver === "undefined") return () => [];

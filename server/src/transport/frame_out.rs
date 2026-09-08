@@ -1,6 +1,5 @@
-//! Wire seam: session-scoped outbound media. Opens shared or per-frame uni streams and
-//! writes length-prefixed envelopes, streaming the codestream behind its header a window at
-//! a time rather than assembling a whole-frame buffer. `docs/disk-access/adr.md`.
+//! Session-scoped outbound media: length-prefixed envelopes on shared or per-frame uni
+//! streams, the codestream streamed a window at a time. `docs/disk-access/adr.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::ReadCtx;
@@ -13,7 +12,6 @@ use tokio::task::JoinSet;
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
-/// Outbound path chosen once per session.
 pub(crate) enum FrameOut {
     Shared {
         uni: SendStream,
@@ -51,9 +49,8 @@ impl FrameOut {
         }
     }
 
-    /// Envelope header, then the codestream read straight onto the wire. `ctx` is owned by
-    /// the caller, so a session allocates its read windows once, not once per frame; `next`
-    /// is the frame after this one where the caller knows it, so its read can start early.
+    /// `ctx` is the caller's, so a session allocates its windows once; `next`, where the
+    /// caller knows it, lets that frame's read start early.
     pub(crate) async fn send_frame(
         &mut self,
         idx: u32,
@@ -98,8 +95,7 @@ impl FrameOut {
     }
 }
 
-/// The 8 bytes ahead of a frame's codestream: length prefix, then frame index. Clients parse
-/// this, so a test pins it byte-for-byte to what `frame_envelope::wrap` produced.
+/// Length prefix, then frame index. Clients parse it, so a test pins it byte-for-byte.
 fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
     let envelope_len = (ENVELOPE_LEN as u32).saturating_add(codestream_len);
     let mut head = [0u8; 8];
@@ -108,7 +104,6 @@ fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
     head
 }
 
-/// Read the codestream onto the wire, a window at a time.
 async fn stream_codestream(
     uni: &mut SendStream,
     store: &Arc<FrameStore>,
@@ -122,8 +117,8 @@ async fn stream_codestream(
         let ready = ctx.read(store, span, pos, next).await?;
         pos += ready.len() as u32;
 
-        // A miss returns more than one window; the writes stay window-sized, because the
-        // window bounds how long the executor copies without yielding.
+        // A miss returns more than one window; writes stay window-sized, because the window
+        // bounds how long the executor copies without yielding.
         for piece in ready.chunks(stride) {
             uni.write_all(piece).await.context("write codestream")?;
         }

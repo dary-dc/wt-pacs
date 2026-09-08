@@ -1,6 +1,4 @@
-//! Server-side SBND reader: `read_at_nowait` for a page-cache hit, `read_at_blocking` on a
-//! blocking pool for the miss. Why this shape and not a memory mapping:
-//! `docs/disk-access/adr.md`.
+//! Server-side SBND reader. Why `pread` and not a memory mapping: `docs/disk-access/adr.md`.
 
 use anyhow::{Context, Result};
 use std::fs::File;
@@ -9,28 +7,23 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use study_bundle::read_layout;
 
-/// Bytes per `read_at_nowait` call on the serving path. A read that *misses* is not bounded
-/// by this — see `media::read_path`. Why 64 KiB: `docs/disk-access/adr.md`.
+/// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
 pub const READ_WINDOW: usize = 64 * 1024;
 
-/// Where a frame's codestream lives. `Copy`, so locating a frame borrows nothing.
+/// Where a frame's codestream lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FrameSpan {
     pub offset: u64,
     pub len: u32,
 }
 
-/// One open study, shared by every session reading it.
-///
-/// **Open once per study, never per session** — the index is 12 bytes per frame, immutable
-/// after `open`. `docs/disk-access/adr.md` §Invariants.
+/// **Open once per study, never per session.** `docs/disk-access/adr.md` §Invariants.
 pub struct FrameStore {
     file: File,
     index: Vec<(u64, u32)>,
     metadata: String,
     nowait: bool,
-    /// Test-only ceiling on what one `read_at_nowait` returns, so a test can force a
-    /// partial hit.
+    /// Test-only ceiling on one `read_at_nowait`, for forcing a partial hit.
     #[cfg(test)]
     nowait_cap: Option<usize>,
 }
@@ -51,20 +44,18 @@ impl FrameStore {
         })
     }
 
-    /// Whether this study's filesystem honours `RWF_NOWAIT`. Where it does not, every read
-    /// reports a miss whether or not the bytes are cached, so a caller that branches on a
-    /// miss must gate on this too — `docs/disk-access/IMPLEMENTATION.md` §The trap.
+    /// Where this is false every read reports a miss, cached or not, so a caller that
+    /// branches on a miss must gate on it — `docs/disk-access/IMPLEMENTATION.md` §The trap.
     pub fn nowait_supported(&self) -> bool {
         self.nowait
     }
 
-    /// The study descriptor, for a reader that registers it with the kernel.
     pub fn file(&self) -> &File {
         &self.file
     }
 
-    /// Bytes to read per round of the serving loop — the whole frame where `RWF_NOWAIT` is
-    /// refused, so such a host pays one pooled read per frame rather than one per window.
+    /// The whole frame where `RWF_NOWAIT` is refused, so such a host pays one pooled read
+    /// per frame rather than one per window.
     pub fn read_window(&self, frame_len: u32) -> usize {
         let window = if self.nowait {
             READ_WINDOW
@@ -82,8 +73,7 @@ impl FrameStore {
         &self.metadata
     }
 
-    /// Where frame `index` lives. No I/O, so an out-of-range ask is refused before any
-    /// stream is opened.
+    /// No I/O, so an out-of-range ask is refused before a stream is opened.
     pub fn frame_span(&self, index: u32) -> Result<FrameSpan> {
         self.index
             .get(index as usize)
@@ -91,11 +81,8 @@ impl FrameStore {
             .with_context(|| format!("frame index {index} out of range ({})", self.frame_count()))
     }
 
-    /// Bytes copied into `buf` without ever waiting on I/O — `preadv2(RWF_NOWAIT)`, which
-    /// is what makes this safe on the Tokio executor.
-    ///
-    /// `n < buf.len()` means the rest must be read where blocking is allowed. `0` where the
-    /// filesystem refuses the flag, so such a host degrades rather than failing asks.
+    /// Never waits, which is what makes it safe on the executor. A short return means the
+    /// rest must be read where blocking is allowed; `0` also means the flag was refused.
     pub fn read_at_nowait(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
         if !self.nowait {
             return Ok(0);
@@ -141,32 +128,29 @@ impl FrameStore {
         Ok(done)
     }
 
-    /// Read exactly `buf.len()` bytes at `offset`. Call from a blocking pool, never the
-    /// executor.
+    /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
     }
 
-    /// Force a partial hit: real bytes at the front of the buffer, a shortfall behind them.
+    /// Force a partial hit: real bytes at the front, a shortfall behind them.
     #[cfg(test)]
     pub(crate) fn force_short_reads(&mut self, cap: usize) {
         self.nowait_cap = Some(cap);
     }
 
-    /// Make every `read_at_nowait` report a miss, as a filesystem refusing the flag does.
-    /// Tests force misses this way because eviction is not a lever they can rely on —
-    /// CLAUDE.md#measurement.
+    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test
+    /// can rely on — CLAUDE.md#measurement.
     #[cfg(test)]
     pub(crate) fn force_pool_reads(&mut self) {
         self.nowait = false;
     }
 }
 
-/// One `RWF_NOWAIT` read to learn whether the filesystem supports the flag. `EAGAIN` counts
-/// as support — that is the flag working on a cold byte — and anything unexpected is read as
-/// "no fast path" so the serving loop takes the conservative route.
+/// `EAGAIN` counts as support — the flag working on a cold byte. Anything unexpected reads
+/// as no fast path, so the serving loop takes the conservative route.
 fn probe_nowait(file: &File, offset: u64) -> bool {
     let mut byte = [0u8; 1];
     let iov = libc::iovec {
@@ -189,12 +173,9 @@ fn probe_nowait(file: &File, offset: u64) -> bool {
     std::io::Error::last_os_error().raw_os_error() == Some(libc::EAGAIN)
 }
 
-/// Does the filesystem holding `path` honour `RWF_NOWAIT`? The same probe `FrameStore::open`
-/// runs — one implementation on purpose, so `tools/check-fastpath` cannot answer differently
-/// from the server.
-///
-/// `path` may be a **directory**, in which case a temporary file is created inside it and
-/// removed before returning: support is a property of the mount, not of the file.
+/// The same probe `FrameStore::open` runs, so `tools/check-fastpath` cannot answer
+/// differently from the server. `path` may be a **directory** — support is a property of the
+/// mount — in which case a probe file is created inside it and removed.
 pub fn nowait_supported_at(path: &Path) -> Result<bool> {
     let meta = std::fs::metadata(path).with_context(|| format!("stat {}", path.display()))?;
     if !meta.is_dir() {
@@ -208,7 +189,6 @@ pub fn nowait_supported_at(path: &Path) -> Result<bool> {
         .create_new(true)
         .open(&probe)
         .with_context(|| format!("create probe file in {}", path.display()))?;
-    // A hole reads back as zeros without allocating, and still answers the question.
     let wrote = file.write_at(&[0u8; 4096], 0);
     let answer = wrote.map(|_| probe_nowait(&file, 0));
     drop(file);

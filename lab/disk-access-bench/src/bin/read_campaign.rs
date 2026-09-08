@@ -1,28 +1,7 @@
-//! Read-path campaign harness: every factor that changes the answer, on one axis each.
-//!
-//! The disk-access question has more than one dimension, and earlier cells varied one at a
-//! time and generalised the result. This runs the cross:
-//!
-//! | Factor | Values | Why it changes the answer |
-//! | --- | --- | --- |
-//! | `arm` | pool · uring · hybrid · pooled_pread | how concurrency is held, and where a miss goes |
-//! | `prefetch` | off · on | `POSIX_FADV_WILLNEED` for the asks one round ahead |
-//! | `depth` | 1…64 | reads in flight per reader; a ring has nothing to do at 1 |
-//! | `readers` | 1…N | independent readers, i.e. sessions; R×D is total in flight |
-//! | `temp` | cold · warm | a cached read has nothing to wait for |
-//! | `stride` | = size (sweep) · > size (stride) | whether kernel read-ahead can see a pattern |
-//! | `size` | 4 KiB…250 KB | rung size |
-//!
-//! Controls, because a benchmark that only measures what it hoped to find is not evidence:
-//!
-//! * **Arm order rotates** per repeat, so host drift cannot settle on one arm.
-//! * **Cold cells assert residency** below 1% and abort otherwise — `fadvise(DONTNEED)` is
-//!   advisory and silently does nothing on a mapped page.
-//! * **A co-tenant monitor** spins `yield_now` and records the gaps, so an arm that buys
-//!   throughput by stalling the executor is visible rather than invisible. This is the
-//!   property the ADR was chosen for, and it is not a latency number.
-//! * **Per-cell CPU, wall, thread high-water and miss count** are reported together: an arm
-//!   that wins latency while doubling CPU or thread count has not won.
+//! Read-path campaign harness: arm × prefetch × depth × readers × temp × stride × size, one
+//! factor per axis. The controls that make a cell evidence rather than a hope — rotated arm
+//! order, asserted cold residency, a co-tenant monitor, and CPU and threads reported beside
+//! latency — are in `docs/disk-access/RERUN.md`.
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -45,15 +24,10 @@ enum Arm {
     Hybrid,
     /// The ADR's escape hatch: every read on the blocking pool, no fast path attempted.
     PooledPread,
-    /// **The S5 control.** `hybrid`'s loop with `pool`'s miss mechanism: one task holding
-    /// `depth` slots, `RWF_NOWAIT` inline, `spawn_blocking` — not a ring — for the
-    /// shortfall. Its delta against `pool` is reader-loop shape alone; `hybrid` minus this
-    /// is what io_uring is actually worth. See `docs/disk-access/EVIDENCE.md`.
+    /// **The S5 control**: `hybrid`'s loop with `pool`'s miss mechanism, so the delta
+    /// against `pool` is loop shape alone. `docs/disk-access/EVIDENCE.md`.
     PoolRingLoop,
-    /// **The synthesis S5 points at.** `hybrid`, but the ring is built on the *first miss*
-    /// rather than at session start. A session whose reads all hit never constructs one, so
-    /// it keeps the ring-shaped loop's win on hits without the idle ring's cost; a session
-    /// that misses pays construction once and is `hybrid` from then on.
+    /// `hybrid`, but the ring is built on the *first miss* rather than at session start.
     HybridLazyRing,
     /// `uring`, parked on the ring's own fd instead of a registered eventfd: one fd per
     /// session instead of two. The loop is `uring`'s; only the wake differs (`x14`).
@@ -61,26 +35,16 @@ enum Arm {
     /// `hybrid_lazyring` with the same one-fd wake — the pair that decides whether the
     /// product should drop its eventfd. See `docs/disk-access/RESEARCH-io-backends-RESULT.md`.
     HybridLazyRingFd,
-    /// **The standard-library candidate for a sequential reader.** One `tokio::fs::File`
-    /// cursor per stream, `read_exact` per ask in plan order, `seek` only when the plan jumps.
-    /// It has no positional read, so it is only meaningful on the sweep shape. A cursor holds
-    /// one position, so depth cannot mean "reads in flight": at depth *d* the plan is split
-    /// into *d* contiguous streams with a cursor each — the most a cursor API can do. Built
-    /// with `--cfg tokio_unstable` and tokio's `io-uring` feature the same code runs on
-    /// tokio's io_uring driver and reports itself as `tokio_fs_uring`.
+    /// One `tokio::fs::File` cursor per stream — no positional read, so it is meaningful
+    /// only on the sweep shape, and depth splits the plan into that many cursors rather than
+    /// reads in flight. Under `--cfg tokio_unstable` it reports as `tokio_fs_uring`.
+    /// `docs/disk-access/SEQUENTIAL-READER.md`.
     TokioFs,
-    /// **The shipped path itself** — `server`'s `ReadCtx`, driven exactly as
-    /// `stream_codestream` drives it, rather than a lab reimplementation of its shape.
-    ///
-    /// Every other arm models a candidate. This one *is* the product, so its delta against
-    /// `hybrid_lazyring` answers the only question left after the arm was chosen: did the
-    /// thing that shipped land where the arm that won it did. `WTPACS_READ_PATH` selects
-    /// the product's own mode, so `pool` and `uring` are reachable here too.
+    /// **The shipped path itself** — `server`'s `ReadCtx`, not a model of it. Every other
+    /// arm models a candidate. `WTPACS_READ_PATH` selects its mode here too.
     Product,
-    /// **The product serving a batch.** `product`, plus the one thing `serve_batch` does
-    /// that a single ask cannot: name the next frame, so its read starts before this one is
-    /// waited on. Its delta against `product` at the same depth is what read-ahead-by-one
-    /// is worth. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+    /// `product`, plus the one thing `serve_batch` does that a single ask cannot: name the
+    /// next frame. Its delta against `product` is what read-ahead-by-one is worth.
     ProductAhead,
 }
 
@@ -170,12 +134,8 @@ struct Args {
     /// Co-tenant `yield_now` monitors. 0 disables (and removes their CPU from the totals).
     #[arg(long, default_value_t = 1)]
     monitors: usize,
-    /// Give each reader a disjoint slice of the file instead of letting readers overlap.
-    ///
-    /// Overlapping readers model several sessions on the *same* study, where sharing the
-    /// page cache is real and a later reader legitimately hits what an earlier one pulled
-    /// in. Disjoint readers model sessions on *different* studies, where nothing is shared.
-    /// Both are real; conflating them is what is not.
+    /// Disjoint readers model sessions on *different* studies; overlapping ones model
+    /// sessions on the same study, which legitimately share the page cache. Both are real.
     #[arg(long)]
     partition: bool,
     /// Tag written into every row, so phases can share one file.
@@ -224,14 +184,9 @@ fn pct(sorted: &[u64], p: f64) -> u64 {
     sorted[(((sorted.len() - 1) as f64) * p).round() as usize]
 }
 
-/// Evict the file from the page cache, retrying until it takes, and report what fraction
-/// stayed resident.
-///
-/// The check is the point: `fadvise(DONTNEED)` is advisory, so a cell that trusted it could
-/// silently measure warm reads and label them cold. It is also not instantaneous — after a
-/// warm phase some pages are briefly un-evictable, so one attempt can leave a few percent
-/// behind. Retry, then report; the caller decides what to do with a cell that would not go
-/// cold, and records the number either way rather than hiding it.
+/// Evict, retrying, and report what stayed resident — the report is the point, because
+/// `fadvise(DONTNEED)` is advisory and a cell that trusted it could measure warm reads under
+/// a cold label.
 fn evict_retry(path: &PathBuf) -> Result<f64> {
     let mut resident = f64::NAN;
     for attempt in 0..8 {
@@ -287,24 +242,13 @@ fn evict(path: &PathBuf) -> Result<f64> {
     Ok(resident)
 }
 
-/// The exact read sequence one reader will issue: `(offset, length)` per ask.
-///
-/// Synthetic cells derive it from base/stride/size. `--trace` replays a sequence produced by
-/// `lab/scripts/gen_access_trace.py`, which turns a real client ask schedule into disk reads
-/// under a chosen layout. Making the sequence *data* rather than a closure is what lets the
-/// same harness — same arms, same controls, same accounting — measure both without a second
-/// code path to keep honest.
+/// `(offset, length)` per ask. Data rather than a closure, so a synthetic cell and a
+/// `--trace` replay run through one harness with one set of controls.
 type Plan = Arc<Vec<(u64, u32)>>;
 
-/// Build reader `reader`'s share of the work.
-///
-/// The two sources interleave differently, on purpose:
-///
-/// * **Synthetic**: reader `r` of `n` takes every `n`-th slot of one shared sequence, so no
-///   reader trails another through pages it already warmed.
-/// * **Trace**: each reader walks the trace *in order* from its own starting position. The
-///   whole point of a trace cell is the pattern's local sequentiality — what kernel
-///   read-ahead can and cannot see — and interleaving would destroy exactly that.
+/// The two sources interleave differently on purpose: synthetic readers take every *n*-th
+/// slot so none trails another through warmed pages, while trace readers walk in order,
+/// because local sequentiality is the whole point of a trace cell.
 fn plan_for(
     cell: &Cell,
     base: u64,
@@ -454,17 +398,9 @@ async fn reader_pool(
     Ok(())
 }
 
-/// The product path, driven the way `stream_codestream` drives it.
-///
-/// One `ReadCtx` per reader — the per-session state a real connection holds — and a frame is
-/// streamed in `read_window` pieces until it is done. No lab reimplementation: the loop
-/// below is `stream_codestream`'s, and everything under it is `server` code.
-///
-/// An ask here is a whole frame, as it is on the wire, so latency is per frame rather than
-/// per window. Misses come from `ReadCtx`'s own counter — the number the server reports in
-/// production — so the instrument cannot disagree with the thing it measures.
-///
-/// With `look_ahead`, each ask names the one after it, which is what `serve_batch` does.
+/// The product path: one `ReadCtx` per reader, `stream_codestream`'s loop copied, everything
+/// under it `server` code. An ask is a whole frame, so latency is per frame, and misses come
+/// from `ReadCtx`'s own counter. `look_ahead` names the next ask, as `serve_batch` does.
 async fn reader_product(
     store: Arc<FrameStore>,
     cell: &Cell,
@@ -522,21 +458,9 @@ async fn reader_product(
     Ok(())
 }
 
-/// **S5 control**: `reader_ring`'s shape, `reader_pool`'s miss mechanism.
-///
-/// One task holding `depth` slots — not `depth` tasks sharing a cursor — with
-/// `RWF_NOWAIT` inline and `spawn_blocking` for the shortfall. No ring, no eventfd, no
-/// registered buffers.
-///
-/// It exists because `pool` and `hybrid` differ in **two** things at once (loop shape and
-/// miss mechanism), so neither of them isolates either. This arm holds the miss mechanism
-/// fixed against `pool` and the loop fixed against `hybrid`:
-///
-/// * `pool_ringloop` − `pool`   = the loop alone
-/// * `hybrid` − `pool_ringloop` = the ring alone
-///
-/// Correctness check: in the **hit** regime no read reaches a ring in either arm, so
-/// `hybrid` − `pool_ringloop` must come out ~0. If it does not, this arm is not built right.
+/// **S5 control**: `reader_ring`'s shape, `reader_pool`'s miss mechanism, so
+/// `pool_ringloop − pool` is the loop alone and `hybrid − pool_ringloop` is the ring alone.
+/// In the hit regime the second must come out ~0, or this arm is not built right.
 async fn reader_ringloop(
     store: Arc<FrameStore>,
     file: Arc<std::fs::File>,
@@ -625,10 +549,8 @@ async fn reader_ring(
     // Variable-length traces then read into a prefix of the slot.
     let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
 
-    // `lazy` defers construction to the first miss. Until then hits are served into local
-    // buffers of the same geometry, so the loop shape is identical and only the ring's
-    // existence differs. Nothing can be in flight before the ring exists — every earlier ask
-    // was a hit — so building it mid-loop is safe.
+    // Until the first miss, hits are served into local buffers of the same geometry, so only
+    // the ring's existence differs. Nothing is in flight before it exists.
     let mut ring: Option<UringReader> = if lazy {
         None
     } else {

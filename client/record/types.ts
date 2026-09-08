@@ -4,10 +4,7 @@ export type Us = number; // integer microseconds
 
 export type RowKind = "preload" | "interaction";
 
-/**
- * How a row ended. The first three are the stamps that close a row; the rest are failures.
- * `batch_delivered` = the batch method marked it after the whole batch landed.
- */
+/** The first three close a row; the rest are failures. */
 export type ClosedAt =
   | "last_byte"
   | "delivered"
@@ -25,7 +22,7 @@ export type ChunkMark = {
 
 export type FrameFootprint = {
   frame_index: number;
-  /** Absolute byte offset of frame start in the stream. */
+  /** Absolute offset of frame start in the stream. */
   start: number;
   /** Absolute byte offset of frame end (exclusive). */
   end: number;
@@ -74,10 +71,7 @@ export type ClientFrameRow = {
   bytes: number;
   chunks: number;
   stall: null;
-  /**
-   * Long-task time overlapping [ask, close]: non-zero means the stamps may be late by up to
-   * this much, and the row is excluded from distributions and headlines.
-   */
+  /** Non-zero means the stamps may be late by this much; the row is then excluded. */
   main_thread_busy_us: number;
   binding_term: string | null;
 };
@@ -112,7 +106,7 @@ export type TapReadCost = {
   max_us: number;
 };
 
-/** A row still open at finish(): which stamps it has, so a void run can be diagnosed. */
+/** Open at finish(): which stamps it has, so a void run can be diagnosed. */
 export type OpenRowDiag = {
   kind: RowKind;
   frame_index: number;
@@ -123,15 +117,15 @@ export type OpenRowDiag = {
 export type Integrity = {
   rows_opened: number;
   rows_closed: number;
-  /** Media for a frame with no open row (late or unasked). */
+  /** Media for a frame with no open row. */
   rows_dropped: number;
   /** Closed rows discarded because the ring was full — voids the run. */
   ring_evictions: number;
-  /** Marks that matched no row at all (open or closed). */
+  /** Marks that matched no row at all. */
   marks_after_close: number;
   first_write_conflicts: number;
   byte_closure_ok: boolean;
-  /** Long tasks overlapping [first ask, last close]. Compile before the first ask is not here. */
+  /** Overlapping [first ask, last close]; compile before the first ask is not here. */
   long_tasks: number;
   long_task_total_us: number;
   long_tasks_outside_window: number;
@@ -170,10 +164,10 @@ export type TelemetryReport = {
     first_ask_row: ClientFrameRow | null;
     /** Fill rows share one ask stamp, so their queue is one number, not a distribution. */
     fill_queue_us: number | null;
-    /** Rows by how they ended (`closed_at`), over all rows including the first ask. */
+    /** By `closed_at`, over all rows including the first ask. */
     outcomes: Record<ClosedAt, number>;
     distributions: Record<string, DistributionOrAbsent>;
-    /** Rollup of per-row binding_term over usable frames (first ask excluded). */
+    /** Over usable frames; the first ask is excluded. */
     binding: Record<string, number>;
     copies: {
       /** Mean of per-frame `bytes` — not a measured JS heap figure. */
