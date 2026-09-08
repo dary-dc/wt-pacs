@@ -8,8 +8,8 @@ and what is validated
 **What is parked, in order:** [`NEXT.md`](NEXT.md)
 
 §1 is the decision. §2 is what shaped it, including the numbers that are safe to quote and
-the claims that were retracted. §3 is how it got here. §4–5 are consequences and every
-alternative measured. §6 is where it does not apply, and what to set. §7–9: invariants, the levers
+the claims that were retracted. §3 is how it got here. §4 is consequences and §5 every
+candidate in one table. §6 is where it does not apply, and what to set. §7–9: invariants, the levers
 outside it, what is next.
 
 ## 1 · The decision, as it ships
@@ -135,66 +135,48 @@ a **tie**, which is a real answer.
 | **Scale** | This decision moves about a fifth of a frame's server CPU; per-datagram QUIC work is the rest (§8). A `RequestFrames` batch serves at **depth 2**; `RequestFrame` is still depth 1 because `run_session` does not read the next ask until the frame is on the wire — the loop, not the read path, and its design is written ([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6d). The owners asked for 4; `v35` prices 2 → 4 at a further +37 % |
 | **Risk** | The hit rate is access-shape-conditional. Whole frames in order let read-ahead run ahead of the loop; serving a codestream *prefix* per frame strides the file and misses 319 of 320 cold. The fix is the packer, not the reader ([`../disk-layout/PREFIX-READS.md`](../disk-layout/PREFIX-READS.md)) |
 
-## 5 · Alternatives considered
+## 5 · Every candidate, one table
 
-Every row below was measured unless marked otherwise. Numbers: warm p50 / neighbour p99
-under pressure, product runtime; "(miss)" rows are frames/s at 100 % misses, 8 sessions.
+Scored on the owners' three criteria. **Latency** is p50 on the regime named; **scale** is what
+the option costs at thousands of sessions with several reads in flight — OS threads, fds,
+CPU per miss; **simplicity** is code owned and risk carried. Numbers are measured unless a row
+says otherwise; "tie" is the campaign's rule (median under the resolution threshold, or signs
+at chance), and it is a real answer. Serves: **T** tiles (positional, out of order), **S**
+sequential streaming, **B** both.
 
-**A — how a hit is served**
-
-| Option | Verdict | Why |
-| --- | --- | --- |
-| **`RWF_NOWAIT` inline, 64 KiB windows** | **Accepted** | 48.4 µs · 166 µs; zero hops warm; lowest warm `gap_max` measured (148 µs) |
-| Whole-frame `RWF_NOWAIT`, one read | Rejected | best miss throughput of any arm but a 250 KB uninterrupted executor copy: 4.0 ms warm `gap_max` |
-| A larger window (128 / 256 KiB) | Rejected | recovers the miss-path gap on its own but costs 12–25 % warm throughput; escalating the pool read gets it for nothing |
-| mmap, naive | Rejected | faults freeze co-tenants: `gap_max` 1.5–4.2 ms, 7.7 ms under pressure |
-| mmap + `mincore` gate | Rejected | unsafe under pressure 5/5 runs; residency is not a lease |
-| mmap + always-touch on the pool (prior ADR) | Rejected as default | 103.4 µs · 702 µs; pays a hop on every ask, including the ~100 % warm case |
-| mmap + touch via `block_in_place` | Rejected | 38.2 µs but the worst neighbour arm measured (p99 2.1 ms) |
-| `madvise(POPULATE_READ)` on the pool | Rejected | within noise of the touch loop; the hop is the cost |
-
-**B — how a miss is served**
-
-| Option | Verdict | Why |
-| --- | --- | --- |
-| **A ring per session, built on the first miss, whole rest of the frame** | **Accepted** | −56 to −75 % CPU per miss vs the pool at depth 1–16; 5 threads flat; nothing built on a warm session |
-| `spawn_blocking` + `pread` | **Kept as the fallback** | the simplest correct reader; identical on hits; a thread per miss in flight, 512 cap |
-| Escalating only the rest of the window | Superseded 2026-09-07 | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 |
-| Every read through the ring (`uring`) | Rejected as default, kept as a flag | hits +106 % / +298 % at depth 2 / 4; misses tie |
-| Ring pipelining (read *n+1* during write *n*) | Rejected | ~6 % on a 100 %-miss trace, −25 % warm, 2× session memory |
-| `SQPOLL` | Rejected | 2.8× the CPU; nothing completes inline, every read parks |
-| Registered buffers | Rejected | measured unnecessary; only the file is registered |
-| Ahead-N `POSIX_FADV_WILLNEED` | Measured, not landed | 4.6–4.9× on a cold *strided* read, a loss on a sweep; a routed choice waiting on a layout design |
-| Park on the ring's own fd instead of an eventfd (`x14`) | **Proposed, after P0** | one fd per session instead of two, two `unsafe` sites fewer; a tie on CPU everywhere — the gain is by construction, so it waits until the ring is validated on the target. `uring_reader.rs` now carries two slots and a per-slot pending state; re-read it before costing the change |
-| One shared ring per runtime (tokio's shape) | Not now | zero per-session cost, but one lock across every session's submissions: measured by tokio's own users at 1.36–1.45× slower than a ring per thread, and reproduced here on streams (`x15`) |
-
-**C — standard and third-party readers, verified against current releases 2026-09-08**
-([`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md))
-
-| Option | Verdict | Why |
-| --- | --- | --- |
-| `tokio-uring` 0.5.0 (2024-05) | Rejected | its own current-thread runtime; dormant; pins an older `io-uring` |
-| `glommio`, `monoio`, `compio` | Rejected | thread-per-core runtimes: a transport rewrite. `compio-quic` is the shape that rewrite would take |
-| tokio's own io_uring driver (`--cfg tokio_unstable`) | Rejected for tiles; **measured and rejected for streams** | no positional read; one ring per runtime behind one lock; unstable cfg in a medical build. On streams (`x15`): fast for one session, **2.1 ms per 16 KiB read at 64 sessions**, a third of the device's throughput, executor gaps 10× any other arm |
-| `tokio::fs::File`, plain | **Measured and rejected** | a thread hop and a copy per read: 48–56 µs per 16 KiB against 3; threads grow like the pool's |
-| `rio`, `ringbahn`, `nuclei`, `uring-fs`, `luring` and the other 90 dependents of `io-uring` | Rejected | soundness hole, dead, own runtime, cursor-only with a thread, or `LocalSet`-only. **Nothing on crates.io drives a ring on tokio's multi-thread runtime with positional reads** |
-
-**D — other**
-
-| Option | Verdict | Why |
-| --- | --- | --- |
-| `sendfile` / `splice` | Rejected | userspace QUIC copies anyway |
-| `O_DIRECT` + SPDK, whole-study preload | Rejected | loses the page cache shared across sessions; wrong scale |
-| Bounded process-private frame cache | **Lab only, not ported** | −20.2 % CPU / +14.7 % throughput at a 0.92 hit rate, +4.2 % where nothing is re-asked; duplicates RAM the page cache holds; needs a real ask trace to size |
-| Handing quinn owned windows (`write_chunk`) | Rejected, and more so at scale | −3.2 % at one session, **+14.6 / +19.1 % at 16 / 32 sessions, RESOLVED**: quinn holds each window until acked, so every window becomes a fresh 64 KiB allocation |
-
-**E — the sequential reader** ([`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md), `x15`)
-
-| Option | Verdict | Why |
-| --- | --- | --- |
-| **The shipped reader going forward, frame-sized asks, one frame ahead** | **Accepted** | read-ahead makes 96–99 % of consecutive asks hits, so the three `RWF_NOWAIT` readers tie on every column; this one holds 5 threads and one fd per study |
-| Wider windows for streams (64 / 256 KiB) | Rejected | 20–30 % less CPU per byte, but escalations climb 1 % → 4 % → 13.5 % |
-| Depth above 2 per stream | Rejected | the wire is 200× slower than a warm read; at 64 sessions × depth 16 every arm queues on the device (p99 100–190 ms) |
+| Candidate | Serves | Latency | Scale: threads · fds · CPU per miss | Simplicity · risk | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| **`RWF_NOWAIT` inline for hits, 64 KiB windows** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
+| **Ring per session, built on the first miss, whole rest of the frame** | B | misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16; ties the lab arm on p50, p99, CPU | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted** — conditional on P0 |
+| **Read ahead by one (two slots)** | B | **+73.8 % asks/s** on missing tiles, warm a tie; 16 tiles 1.14 → 0.62 ms | second slot costs nothing extra per session | the slot bookkeeping is the part of the code to reshape ([`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md)) | **Accepted**, batches only; `RequestFrame` still depth 1 |
+| `spawn_blocking` + `pread` for the miss | B | identical on hits; on 16 KiB misses the shipped reader is −45.4 % CPU against it, and its tail widens with depth | **125–135 threads at 64 readers, 512 cap** (517 seen at 64 × 16); 0 fds | the simplest correct reader; zero `unsafe` beyond `preadv2` | **Kept as fallback**; ships if P0 ties |
+| Escalate only the rest of the window | B | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 | flat at ~1 600 f/s from 8 to 32 readers | — | Superseded 2026-09-07 |
+| Every read through the ring (`uring`) | B | hits **+106 % / +298 %** at depth 2 / 4; streams +143–190 % at 8–64 sessions; misses tie | 5 threads; lowest CPU per miss | one path, but a hit must never touch a ring | Rejected as default; kept as a lab flag |
+| Ring pipelining (read *n+1* during write *n*) | T | ~6 % on a 100 %-miss trace, −25 % warm | 2× session memory | — | Rejected |
+| `SQPOLL` | B | worse: nothing completes inline | **2.8× CPU** | a kernel thread per ring | Rejected |
+| Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
+| Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
+| Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 |
+| One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
+| Whole-frame `RWF_NOWAIT`, one read | B | best miss throughput of any arm | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected |
+| Larger window (128 / 256 KiB) | B | −12–25 % warm throughput | — | wider executor copy | Rejected |
+| mmap, naive | B | faults freeze co-tenants: `gap_max` 1.5–4.2 ms, 7.7 ms under pressure | — | no copy, no safety | Rejected |
+| mmap + `mincore` gate | B | unsafe under pressure 5/5 runs | — | residency is not a lease | Rejected |
+| mmap + always-touch on the pool (2026-08-31) | B | 103 µs/frame, 702 µs neighbour p99: a hop on every ask | a thread per ask | safe, slow | Rejected as default |
+| mmap + touch via `block_in_place` | B | 38 µs but worst neighbour p99 (2.1 ms) | evacuates a worker | — | Rejected |
+| `madvise(POPULATE_READ)` | B | within noise of the touch loop | — | — | Rejected |
+| `tokio-uring` 0.5.0 | T | — | — | own current-thread runtime; last release 2024-05, last commit 2025-07 | Rejected — transport rewrite |
+| `glommio` · `monoio` · `compio` | T | — | — | thread-per-core runtimes; `compio-quic` is the rewrite's shape | Rejected — transport rewrite |
+| tokio's own io_uring driver | S (no positional read) | one session 6 µs; **2.1 ms per 16 KiB at 64 sessions**, ⅓ of the device; executor gaps 10× any other arm | one locked ring per runtime; one fd per session | `--cfg tokio_unstable` in a medical build | Rejected — measured |
+| `tokio::fs::File`, plain | S | **48–223 µs per 16 KiB** vs 3 (a thread hop and a copy per read) | threads grow like the pool's, 517 at 64 × 16 | the standard answer, and 15× slower | Rejected — measured |
+| `rio` · `ringbahn` · `nuclei` · `uring-fs` · `luring` and 90 other dependents | T | — | — | soundness hole, dead, own runtime, cursor + thread, `LocalSet`-only | Rejected — none drives a ring on multi-thread tokio with positional reads |
+| `sendfile` / `splice` | B | — | — | userspace QUIC copies anyway | Rejected |
+| `O_DIRECT` + SPDK, whole-study preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
+| Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
+| `write_chunk` owned windows to quinn | B | −3.2 % at one session; **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | Rejected, more so at scale |
+| Sequential: the shipped reader forward, one frame ahead | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; read-ahead makes 96–99 % of asks hits | 5 threads; one fd per study | no new reader | **Accepted** ([`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md)) |
+| Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
+| Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
 
 ## 6 · Deployment: where the decision does not apply, and what to set
 
