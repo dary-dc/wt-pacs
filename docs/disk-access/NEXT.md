@@ -28,6 +28,9 @@ struck through in place rather than removed, so the order is still readable as t
 | 9 | **Bounded frame cache** | −20.2 % CPU at a 0.92 hit rate, lab only | needs a real ask trace to size | [`adr.md`](adr.md) §Levers |
 | 10 | **P1 — park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, no latency change | after P0 keeps the ring. `uring_reader.rs` now carries two slots and a per-slot `Pending`, so re-read it before costing the change | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) P1 |
 
+Everything below the table was found or written after that ordering was set, so nothing there
+reorders it — but §7's first item is a **defect**, not an improvement.
+
 Items 1 and 3 move more than everything else combined, and neither is a read-path change.
 With studies far larger than RAM, latency is miss count × miss cost: 6 sets the count, the
 volume class sets the cost, 1 hides one miss behind the previous send. The backend (4, 8, 10)
@@ -120,14 +123,29 @@ Closing it needs **faster storage**, not more cores — the "storage faster than
 row in [`EVIDENCE.md`](EVIDENCE.md). On cloud block storage the plateau arrives earlier, which
 is the whole reason P0 runs there.
 
-## 7 · Smaller, still open
+## 7 · Smaller, still open — and one defect
 
+* **Live defect: the write chunk collapses to the whole frame where `RWF_NOWAIT` is refused.**
+  `stream_codestream` takes its *write* chunk from `store.read_window(span.len)`, which answers a
+  *read* question and deliberately returns the whole frame when the probe is refused
+  (`frame_store.rs`). On overlayfs — the deployment [`DEPLOYMENT.md`](DEPLOYMENT.md) already calls
+  the slow one — `ready.chunks(stride)` therefore yields one piece of the whole frame, and the
+  comment above it ("writes stay window-sized") is false there. That is the uninterrupted 250 KB
+  executor copy [`adr.md`](adr.md) rejected an arm for at 4.0 ms warm `gap_max`. **Unmeasured in
+  the server and untested.** Change A in [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) §3 fixes it
+  by construction and carries the test that pins it; until that lands it is live.
+* **Two proposal documents cover the same ~120 lines.**
+  [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) — the seam, changes A and B — and
+  [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) — depth, messages and the loop around it — were
+  written in two sessions and cross-reference each other, but an implementer who reads one alone
+  gets half the design. Fold them into one, per [`../../CLAUDE.md`](../../CLAUDE.md) §Docs.
 * **The 250 KB miss cell cannot resolve differences under ~2×** — the same arm varies 12.5×
   between repeats. Any 250 KB conclusion needs many more asks per cell, or a quieter device.
   **And check that the cell misses at all**: at `--size 250000 --stride 250000` against 8 MiB
   of read-ahead, `v36`'s cold cell reached **4.7 %** misses — a hit cell wearing a cold label.
   Isolating 250 KB misses needs ≥ 8 MiB between asks, so a fixture of ~2 GB for 256 distinct
-  positions.
+  positions. Every fixture is gitignored and regenerates with `lab/scripts/gen_live_cell_fixture.sh`
+  ([`README.md`](README.md)) — a fresh checkout has none of them.
 * **The bench copies `stream_codestream`'s loop** rather than calling it, because the real one
   needs a live QUIC stream. Four lines now, and the real loop gained an end-to-end test
   (`a_batch_arrives_whole_and_in_ask_order`, the first here to drive the server over a real

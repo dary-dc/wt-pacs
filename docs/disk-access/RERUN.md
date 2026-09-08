@@ -252,6 +252,11 @@ inline, out of 320 asks:
 | `uring_pipelined` | cold | 106.1 µs | 308.4 µs | 165.7 µs | 3 | 5 |
 | `uring_pipelined` **+ SQPOLL** | cold | 127.7 µs | 235.2 µs | 287.3 µs | **320** | 6 |
 
+**Measured at `setup_sqpoll(200)`** (`lab/disk-access-bench/src/uring_access.rs`) — a 200 ms
+poller idle. Asks are continuous inside a cell, so the poller stays inside its window either
+way, and a longer idle spins *more*, not less: the CPU column is not an artefact of a short
+timer.
+
 **Warm, it loses on every column**: +30 to +86 % median, +43 to +79 % tail, **2.2–2.8× the
 CPU**. That is the 2.8× quoted elsewhere — `uring_tuned` 103.7 → 287.1 µs per ask.
 
@@ -278,7 +283,10 @@ mechanism is not established.
 SQPOLL trades a core for syscalls. It pays when three things hold at once:
 
 * **Few rings**, so one `iou-sqp` kernel thread is amortised across the process — one per
-  core, or one per database, which is how a storage engine uses it.
+  core, or one per database, which is how a storage engine uses it. Turso is the worked
+  example: one ring per `UringIO`, `ENTRIES = 512`, `SQPOLL_IDLE = 1000` ms, and a plain
+  `IoUring::new` if setup is refused (`core/io/io_uring.rs`, read 2026-09-08). One poller per
+  database I/O context; this server would have one per session.
 * **A sustained submission rate**, so the poller stays inside its `sq_thread_idle` window. A
   poller that sleeps has to be woken by a syscall, which is the cost it existed to remove.
 * **A core to spare**, and I/O that genuinely reaches the device — `O_DIRECT`, or a page
