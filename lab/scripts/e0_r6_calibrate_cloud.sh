@@ -1,28 +1,8 @@
 #!/usr/bin/env bash
-# E0-R6b on the REAL PATH — find the reader speed at which a stream-shape comparison is
-# admissible in a given cell, on the rig rather than in netsim.
-#
-# The operating point is not a free parameter to be chosen after seeing arm results. It is
-# calibrated ONCE per cell on the incumbent arm (shared stream) and then FROZEN across
-# every arm. Tuning it per-arm would let the rig be shaped to fit whichever answer had
-# started to look right — which is how three previous campaigns went wrong.
-#
-# Admissible band, fixed in docs/lanes/R6-preregistration.md before any arm runs:
-#   center_asks_dropped == 0     the frame being measured was always actually asked for
-#   stranded_frames     >  0     something arrived that the reader no longer wanted
-#   censored_frac       <= 0.25  the arm did not simply collapse
-#   nz_n                >= 30    there is a tail to take a percentile of
-#
-# E0-R6c, TRANSLATED FOR THIS INSTRUMENT. Under netsim the lesson was "re-check the chosen
-# scale at every campaign SEED", because netsim's loss is a seeded PRNG and scale 6 was
-# clean at seed 4242 and then voided 4 of 9 campaign rows. sch_netem has no seed: its loss
-# is drawn from kernel randomness and every run is already an independent realisation. The
-# guard therefore becomes REPS — re-run the chosen scale N times and require the band to
-# hold in EVERY repetition, not just the first. Same guard, same failure it catches.
-#
-# Usage: DELAY=25 RATE=20 LOSS=0.1 SCALES="1 2 4 8" lab/scripts/e0_r6_calibrate_cloud.sh
-#        DELAY=25 RATE=20 LOSS=1.0 SCALES="4" REPS=3 lab/scripts/e0_r6_calibrate_cloud.sh
-#        FIXTURE=frames_500x250k SRV_EXTRA="--segmentation-offload false" ... (X3L)
+# E0-R6b on the real path: find the reader speed at which a comparison is admissible.
+# The band, the REPS guard and why SRV_EXTRA must match the campaign:
+# docs/measurements/r6/step-scale-calibration.md.
+# Usage: DELAY=25 RATE=20 LOSS=0.1 SCALES="1 2 4 8" [REPS=3] e0_r6_calibrate_cloud.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 source "$ROOT/lab/scripts/cloud_r6_common.sh"
@@ -33,18 +13,10 @@ DEPTH=${DEPTH:-8}; CACHE=${CACHE:-64}
 DELAY=${DELAY:-25}; RATE=${RATE:-20}; LOSS=${LOSS:-0.1}
 SCALES=${SCALES:-"1 2 4 8"}
 REPS=${REPS:-1}
-# N0 is the negative control: its whole job is that the reader does NOT outrun the link,
-# so `stranded_frames > 0` is inverted there rather than dropped. r6_row.py encodes the
-# same asymmetry (STRANDING_CELLS = {X1, X2}); without this flag the control's own passing
-# rows print as NOT-ADMISSIBLE, which is exactly the kind of label that gets misread later.
+# N0 inverts `stranded_frames > 0`, as r6_row.py's STRANDING_CELLS does.
 CONTROL=${CONTROL:-0}
-# Extra server flags for the calibration arm. The operating point is only frozen-and-valid
-# for the condition it was calibrated in, so whatever the campaign puts on BOTH arms has to
-# be here too. The case that forced this: X3L runs `--segmentation-offload false`, which
-# changes how sch_netem draws loss (per datagram instead of per GSO batch, see
-# docs/measurements/r6/r6cloud-results.md 3.2) and therefore changes the achievable rate the
-# reader is being set against. Calibrating with GSO on and running with it off is the same
-# "calibrated once, assumed to hold" mistake as carrying a scale across rigs.
+# Must carry whatever the campaign puts on BOTH arms, or the frozen point is not valid
+# for the condition it will be used in.
 SRV_EXTRA="${SRV_EXTRA:-}"
 OUTDIR="${OUTDIR:-$ROOT/.local/measurements/r6/cal_cloud}"
 TSV="${TSV:-$OUTDIR/calibration.tsv}"

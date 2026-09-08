@@ -1,25 +1,8 @@
 #!/usr/bin/env bash
-# E0-REGIME — does the loss-regime classifier get a known answer right?
-#
-# The classifier's output selects a congestion controller, and the two answers are
-# opposite: congestive -> Cubic (BBR measured 63 % worse), exogenous -> BBR (Cubic measured
-# 48 % worse). A classifier that is confidently wrong is worse than none at all, so it does
-# not get used until it reproduces an answer we already know.
-#
-# `netsim` can construct each regime BY CONSTRUCTION, which is what makes this a real test
-# rather than a demonstration:
-#
-#   EXO   1 % injected loss, offered load well under the link rate.
-#         The bottleneck queue never fills, so `down_queue` stays 0 and EVERY lost packet
-#         was injected on an empty path. Ground truth: exogenous.
-#
-#   CONG  0 % injected loss, offered load far above the link rate.
-#         Nothing is injected, so every lost packet is the queue overflowing.
-#         Ground truth: congestive.
-#
-# netsim's own `down_queue` counter is the independent witness: it must be 0 in EXO and
-# large in CONG, or the cell did not build the regime it claims and the row proves nothing
-# about the classifier.
+# E0-REGIME — does the classifier reproduce an answer we already know? It picks a controller
+# and the two answers are opposite, so it is not used until it does.
+# EXO: 1% injected loss under the rate, so every loss is injected. CONG: 0% injected far above
+# the rate, so every loss is queue overflow. netsim's down_queue is the independent witness.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # Must be built with --features telemetry, or the sampler is compiled out entirely.

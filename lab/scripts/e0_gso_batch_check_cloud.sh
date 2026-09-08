@@ -1,28 +1,6 @@
 #!/usr/bin/env bash
-# E0 — how many datagrams does the server actually put in one GSO batch, and what does
-# that do to the loss model?
-#
-# Two facts about Linux qdisc accounting make this measurable without touching the server:
-#
-#   * the `pkt` counter is GSO-aware. bstats_update() charges
-#     `skb_is_gso(skb) ? skb_shinfo(skb)->gso_segs : 1`, so `Sent ... pkt` counts DATAGRAMS.
-#   * the `dropped` counter is not. qdisc_qstats_drop() adds 1 per dropped skb, and netem
-#     draws its loss once per skb — so `dropped` counts BATCHES.
-#
-# Divide them and the GSO batch size falls out:
-#
-#     batch = (datagrams x loss_fraction) / batch_drops
-#
-# Two things follow, and both matter for reading R6:
-#
-#   1. It says whether raising quinn's MAX_TRANSMIT_SEGMENTS from 10 to 32 does anything at
-#      all on this hardware, which is the premise of the density claim in
-#      docs/transport-conclusions.md. A cap that is never reached is a no-op.
-#   2. It says netem's loss is NOT i.i.d. per datagram. One draw kills a whole batch, so a
-#      "0.1 % loss" cell loses ~0.1 % of datagrams IN BURSTS of a batch, where lab/netsim
-#      loses them independently (its `loss_burst` defaults to 1). That is a real difference
-#      in the loss process between the two campaigns, not a rounding detail.
-#
+# E0 — how many datagrams go in one GSO batch, and what that does to the loss model.
+# The qdisc accounting this rests on: docs/measurements/r6/r6cloud-results.md 3.2.
 # Usage: LOSS=1.0 lab/scripts/e0_gso_batch_check_cloud.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

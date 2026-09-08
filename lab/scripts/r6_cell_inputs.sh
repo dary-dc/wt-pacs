@@ -1,37 +1,8 @@
 #!/usr/bin/env bash
-# Which fixture and trace each R6 cell is defined by — as a CHECK, not a comment.
-#
-# `FIXTURE` and `TRACE` are chosen once per invocation, but two cells are *defined* by
-# varying one of them:
-#
-#   X3L  is X3 at 250 KB frames        -> frames_500x250k
-#   X3S  is X3 under the scroll trace  -> r6_scrub_500
-#
-# Every other cell is defined by the defaults. That is the part the first version of this
-# file got wrong, and an adversarial review caught: it only checked that a *special* cell
-# had its special input, so `CELLS="X3" TRACE=.../r6_scrub_500.json` was allowed and ran
-# cell X3 on the scroll trace under the name X3 — the same silent mislabelling the guard
-# exists to prevent, just pointing the other way. `CELLS="X3" FIXTURE=frames_500x250k`
-# had the same hole, and is X3L recorded as X3.
-#
-# So the rule is stated in both directions now: **every cell names the fixture and trace it
-# requires, and the invocation must match.** A cell without special needs requires the
-# defaults, explicitly, rather than by omission.
-#
-# Why this is a hard stop rather than a warning. Before any of this existed,
-# `CELLS="X3L" r6_campaign_cloud.sh 3` ran to completion against the 64 KB fixture, emitted
-# nine admissible-looking rows, and left unchanged the one variable X3L exists to vary.
-# Nothing downstream could catch it: the TSV has no frame-size or trace column, every
-# verdict reads ADM, and the p95 values look plausible. That is the failure this project
-# has already made five times in different costumes (`docs/HANDOFF.md` §5) — the rig
-# quietly removing the condition under test. A guard that is a comment is not a guard, and
-# a guard that only checks one direction is half a guard.
-#
-# Deliberate exploration is still possible: set `R6_ALLOW_NONSTANDARD_INPUTS=1`. It has to
-# be typed, so it appears in the shell history and in whatever the run is written up from.
-#
-# Sourced by `r6_campaign.sh` and `r6_campaign_cloud.sh`. Call `r6_require_cell_inputs`
-# after FIXTURE/TRACE/CELLS are set and *before* anything is uploaded or started.
+# Which fixture and trace each R6 cell is defined by, as a CHECK rather than a comment.
+# Both directions: a cell without special needs requires the defaults, explicitly.
+# Why it is a hard stop: docs/why-these-changes.md §6 and §7.
+# Source this, then call r6_require_cell_inputs BEFORE anything is uploaded or started.
 
 R6_DEFAULT_FIXTURE="frames_500x64k"
 R6_DEFAULT_TRACE="radiologist_review_500"
@@ -52,10 +23,7 @@ r6_cell_trace() {
   esac
 }
 
-# r6_require_cell_inputs — refuse to run unless CELLS, FIXTURE and TRACE agree.
-#
-# Reads CELLS, FIXTURE, TRACE from the environment. Exits 2 on mismatch: a hard stop, not
-# a warning, because the whole point is that the resulting rows would look fine.
+# Refuse to run unless CELLS, FIXTURE and TRACE agree. Exits 2: the rows would look fine.
 r6_require_cell_inputs() {
   if [[ "${R6_ALLOW_NONSTANDARD_INPUTS:-0}" == "1" ]]; then
     echo "WARNING: R6_ALLOW_NONSTANDARD_INPUTS=1 — cell/fixture/trace agreement not checked." >&2

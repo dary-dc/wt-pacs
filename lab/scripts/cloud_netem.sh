@@ -1,17 +1,8 @@
 #!/usr/bin/env bash
-# Server-side tc shaping for wt-pacs cloud measurements.
-# Run ON the cloud box (root/sudo). SSH port bypass keeps the rig reachable.
-#
+# Server-side tc shaping, run ON the cloud box. The SSH port bypass keeps the rig reachable.
 # Usage: cloud_netem.sh {off|20|30|50|60|90|150|180}
-#
-# Legacy profiles target TOTAL RTT including ~30 ms base WAN path:
-#   30  — 10 Mbps cap only (no added delay)
-#   50  — +10 ms one-way delay (~+20 ms RTT)
-#   90  — +30 ms one-way
-#   180 — +75 ms one-way
-#
-# Campaign profiles 20/60/150 use one-way delay = N/2 ms (named RTT), rate 10mbit.
-# WAN RTT adds on top equally for every arm.
+# Legacy profiles 30/50/90/180 name TOTAL RTT including the ~30 ms base WAN path; campaign
+# profiles 20/60/150 use one-way delay = N/2 ms at 10mbit, with WAN RTT on top equally.
 set -euo pipefail
 
 PROFILE="${1:-}"

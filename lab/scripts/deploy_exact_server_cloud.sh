@@ -7,9 +7,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SERVER="${SERVER:-ubuntu@168.138.130.163}"
-# docs/cloud-rig-access.md: the bare id_ed25519 fallback is NOT the rig key any more, and
-# has been rotated. Default to the agent key it names; SSH_KEY is honoured so this agrees
-# with cloud_common.sh and the *_cloud.sh scripts rather than silently differing from them.
+# The bare id_ed25519 fallback is NOT the rig key any more; default to the agent key
+# docs/cloud-rig-access.md names, and honour SSH_KEY as cloud_common.sh does.
 KEY="${KEY:-${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}}"
 SSH=(ssh -i "$KEY" -o BatchMode=yes "$SERVER")
 SCP=(scp -i "$KEY")

@@ -1,31 +1,7 @@
 #!/usr/bin/env bash
 # Does the send path change what a stalled client costs the server?
-#
-# `stall_client_campaign.sh` reports server RssAnon, and finds it almost unmoved. That
-# result has a confound serious enough to need its own experiment, because it could be an
-# artefact of the two choices interacting:
-#
-#   * The default send path is `chunked`, which *moves* a `Bytes` slice of the study
-#     mapping into quinn's send buffer without copying (`server.rs:553`).
-#   * The campaign reports **RssAnon**, which by construction excludes file-backed pages.
-#
-# So bytes queued for a stalled client on the chunked path are refcounted slices of an
-# mmap — file-backed, and invisible to the metric watching for them. A flat server line
-# would then mean "the instrument cannot see this" rather than "the server does not pay".
-#
-# THE PREDICTION THIS EXISTS TO TEST, written before it ran:
-#
-#   `copy` queues a private heap copy of every frame, which is anonymous. If the flat
-#   chunked line is an artefact, `copy` must show a per-connection cost that grows with
-#   the stalled backlog — and the gap between the two paths is the size of the artefact.
-#   If instead `copy` is also flat, the server genuinely is not accumulating, and the
-#   chunked result stands on its own.
-#
-# Total RSS is recorded beside RssAnon for the same reason: it is the only column that can
-# show file-backed growth. It is *not* a per-connection figure — every connection maps the
-# same study file, so those pages are shared and the total is bounded by the fixture size
-# however many clients stall. It is here to be watched, not divided.
-#
+# The confound this exists to rule out, and the prediction written before it ran:
+# docs/measurements/mem/stall-client.md §5.
 # Usage: [REPEATS=2] [NS="1 4 8 16"] stall_send_path_probe.sh
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

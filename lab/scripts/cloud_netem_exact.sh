@@ -1,22 +1,8 @@
 #!/usr/bin/env bash
-# Explicit-parameter server-side netem for real-path campaigns. Runs ON the rig.
-#
-# Why this exists alongside cloud_netem.sh: that script takes named PROFILES (20|30|50|
-# 60|90|150|180) whose delay and rate are baked in, and its rate comes from a $RATE env
-# default of 10mbit. R6's cells need arbitrary (one-way delay, rate, loss) triples, and
-# the runbook's documented `cloud_netem.sh 25 20 0.1` does not parse as a profile at all —
-# it is read as PROFILE=25 (unknown), LOSS=20, MODEL=0.1 and exits non-zero. This script
-# is that documented interface, actually implemented.
-#
-# Usage: cloud_netem_exact.sh off
-#        cloud_netem_exact.sh <one_way_delay_ms> <rate_mbps> <loss_pct> [limit_pkts]
-#
-# Shaping is EGRESS-ONLY: it applies to server->client traffic. The client->server ask
-# path is unshaped. This differs from lab/netsim, which applies delay, loss, rate and
-# queue independently in BOTH directions — see docs/measurements/r6/real-path-notes.md.
-#
-# Port 22 is filtered into an unshaped band. Without that, shaping the default route with
-# loss and a 20 Mbit cap makes the rig's own SSH unusable and there is no console.
+# Explicit-parameter server-side netem, run ON the rig — the interface the runbook documents,
+# which cloud_netem.sh's named profiles cannot express. EGRESS-ONLY, unlike netsim.
+# Port 22 is filtered into an unshaped band, or shaping locks the rig out; there is no console.
+# Usage: cloud_netem_exact.sh off | <one_way_delay_ms> <rate_mbps> <loss_pct> [limit_pkts]
 set -euo pipefail
 
 IFACE="${IFACE:-$(ip route show default | awk '{print $5}' | head -1)}"

@@ -213,3 +213,80 @@ in a way this branch is not.
 - **The send-path probe is n = 2, not n = 3**, and is a probe rather than a campaign. The
   effect it reports is 6–17×, far outside anything n = 2 could manufacture, but the
   *magnitudes* in §5 are less firm than those in §1–§4.
+
+---
+
+## Appendix · How the instrument is gated
+
+Moved out of `stall_client_campaign.sh` and `e0_stall_validate.sh`, which now carry the
+checks rather than the argument for them.
+
+### Both ends are sampled, always
+
+Server `RssAnon` alone cannot answer the question. The bytes a stalled client refuses to read
+do not evaporate — they queue somewhere, and **which end holds them is the whole finding**. A
+sweep watching only the server sees a flat line and cannot tell "the ceiling bounds the
+server" from "the bytes went to the client instead". So every row carries both, and
+`cli_anon_kb` sums over all client processes.
+
+`RssAnon`, not RSS: the study file is mmapped, so RSS counts file-backed pages that are the
+fixture rather than the connection, and they would swamp the effect.
+
+### Row gates
+
+A row failing any of these measured something other than a stalled client, and is written with
+`void=1` rather than dropped — deleting failures flatters whichever arm fails more often.
+
+| gate | what it establishes |
+| --- | --- |
+| `stall_engaged` | the deadline passed while the run was live |
+| `bytes_read > 0` | data was flowing, so refusing to read stranded some |
+| `connection_alive_at_end` | a stall, not a teardown |
+| `asks_sent == requested` | every ask reached the client's own send buffer |
+
+The last is **deliberately worded down**. `asks_sent` counts successful writes to the
+*client's* control stream; those bytes may still be sitting in the server's receive buffer,
+because the server's serial loop stops reading asks the moment it blocks on a frame write. The
+gate establishes that the client did its part, not that the server accepted the backlog.
+
+`ASKS=400` because the run must commit the server to more bytes than the ceiling under test:
+at 64 KB frames quinn's 10 MB `send_window` needs ~160, and 400 is 25 MB.
+
+The bounded arm is the same one `mem_per_connection.sh` uses, so the two sweeps are directly
+comparable: `send_window` from the spec's own rule (10 Mbps × 150 ms ≈ 190 KB) and a finite
+`receive_window`, because *"unlimited is not a policy"*.
+
+### E0-STALL — does `--mode stall` actually stop reading?
+
+A failure here voids the campaign before it runs, and the question is whether the client does
+what its name claims, not whether the numbers look good. A run that quietly read everything
+and a run whose connection died on the first blocked write **both produce a flat
+server-memory line and both look like a null result.**
+
+Two-sided contrast, one binary, one code path, one flag:
+
+| arm | flag | |
+| --- | --- | --- |
+| PARKED | `--stall-after-ms 0` | stalls on the first byte |
+| READING | `--stall-after-ms 60000` | deadline outside the run, so it never stalls |
+
+The known answer is READING's byte count, **derived before the run rather than read off it**:
+the client asks for exactly `ASKS` frames of exactly 64 000 bytes and the wire adds an 8-byte
+envelope, so a client reading to completion must read exactly `ASKS × 64008` bytes.
+
+Five rules, all of which must hold:
+
+1. READING reads exactly `ASKS × 64008` bytes — the instrument reads when told to.
+2. PARKED reads less than one frame — the stall actually engages.
+3. Both keep the connection alive to the end — a stall, not a teardown.
+4. PARKED sits on far more memory than it read — bytes arrived and were withheld.
+5. READING reads far more than it sits on — its buffers are transient, not held.
+
+**Rules 4 and 5 are ratios against each run's own byte count, never an absolute threshold.**
+An absolute threshold silently encodes the window size: in `shared` a single 1.25 MB stream
+receive window caps what can be withheld at all, so a ">1 MB stranded" rule fails a perfectly
+good stall for a reason unrelated to the client's behaviour. It did, on this gate's first run.
+
+The harness is launched **without a `timeout` wrapper**, so `$!` is the harness itself.
+Wrapping it makes `$!` the wrapper's pid, and sampling `/proc` for that reports the wrapper's
+few hundred kB — which is how this gate first reported an identical 0.10 MB for both arms.

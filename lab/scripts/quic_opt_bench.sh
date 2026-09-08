@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Loopback throughput rig for the QUIC send-path / crypto / transport-config arms.
-#
-# One server process per (arm, fixture, depth) cell; harness in --mode saturate with
-# --read-bps 0 so no userspace pacer competes with the measurement. Reports Mbps
-# (harness fill_rate) and server CPU seconds over the dwell.
-#
+# Loopback throughput rig for the send-path / crypto / transport-config arms. One server per
+# (arm, fixture, depth); harness in --mode saturate --read-bps 0 so no pacer competes.
 # Usage: quic_opt_bench.sh <arm-label> <server-bin> [fixture] [depths] [repeats]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

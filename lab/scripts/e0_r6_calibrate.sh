@@ -1,22 +1,8 @@
 #!/usr/bin/env bash
-# E0-R6 calibration — find the reader speed at which a stream-shape comparison is
-# admissible in a given cell.
-#
-# The operating point is not a free parameter to be chosen after seeing arm results.
-# It is calibrated ONCE per cell on a single reference arm (shared stream, the incumbent)
-# and then FROZEN across every arm. Tuning it per-arm would let the rig be shaped to fit
-# whichever answer had started to look right — which is how three previous campaigns went
-# wrong.
-#
-# Admissible band, fixed here before any arm runs:
-#   center_asks_dropped == 0     the frame being measured was always actually asked for
-#   stranded_frames     >  0     something arrived that the reader no longer wanted
-#   censored_frac       <= 0.25  the arm did not simply collapse
-#
-# Calibrating on ONE seed is not enough, and R6's X3S run proved it: scale 6 was clean at
-# seed 4242 and then voided 4 of 9 campaign rows, because a harder loss realisation pushed
-# the transport far enough behind that the outstanding ceiling bound. Validate the chosen
-# scale against the campaign's OWN seeds (RUN*7919+13) with SEEDS=, not just the default.
+# E0-R6 calibration — the reader speed at which a stream-shape comparison is admissible.
+# Calibrated ONCE on the incumbent arm and frozen; the band and the multi-seed guard are
+# in docs/measurements/r6/step-scale-calibration.md.
+# Validate the chosen scale against the campaign's OWN seeds via SEEDS=, not the default.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRV="$ROOT/target/lab-arms/exact-server-seg10"

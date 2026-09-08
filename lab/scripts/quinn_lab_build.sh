@@ -1,16 +1,9 @@
 #!/usr/bin/env bash
-# Build `exact-server` against a quinn/quinn-proto patched to expose two knobs the
-# product does not: the congestion controller's initial window, and the GSO segment cap.
-#
-# Both are upstream constants, not server code. This vendors the crates OUTSIDE the tree
-# and patches them through a temporary `[patch.crates-io]`, so nothing in `server/` is
-# touched and no fork is committed. Cargo.toml/Cargo.lock are restored on exit.
-#
-#   QUINN_INITIAL_WINDOW   bytes, read at RUNTIME (so one binary serves every arm)
-#   QUINN_MAX_TRANSMIT_SEGMENTS  compile-time, so one binary per value
-#
-# Usage: quinn_lab_build.sh [segments...]     default: just 10 (upstream)
-#   -> target/lab-arms/exact-server-seg<N>
+# Build exact-server against a quinn patched to expose two upstream constants: the initial
+# window (QUINN_INITIAL_WINDOW, read at runtime) and the GSO cap
+# (QUINN_MAX_TRANSMIT_SEGMENTS, compile-time, so one binary per value). Vendored outside the
+# tree; Cargo.toml and Cargo.lock are restored on exit.
+# Usage: quinn_lab_build.sh [segments...]  ->  target/lab-arms/exact-server-seg<N>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="${WORK:-${TMPDIR:-/tmp}/wt-pacs-quinn-lab}"

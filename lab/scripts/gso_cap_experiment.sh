@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# Rebuild `exact-server` against a quinn whose GSO segment cap is settable.
-#
-# quinn hard-codes `MAX_TRANSMIT_SEGMENTS = 10` — the number of datagrams it will pack
-# into one `sendmsg` — with the comment "benchmarks have shown that numbers around 10 are
-# a good compromise". On this host the kernel reports 64, and 32 measures 17% faster at
-# 250 KB frames for 21% less CPU. See docs/quic-transport-optimization.md §2.
-#
-# This vendors quinn OUTSIDE the tree and patches it via a temporary `[patch.crates-io]`,
-# because a forked quinn is not something to ship. Nothing here is left behind.
-#
-# Usage: gso_cap_experiment.sh <segments...>      e.g. gso_cap_experiment.sh 10 32 44
-#   Writes ./target/gso-arms/exact-server-<n> for each value.
+# Rebuild exact-server against a quinn whose GSO segment cap is settable. Upstream hard-codes
+# MAX_TRANSMIT_SEGMENTS = 10; this host reports 64 and 32 measures +17% for -21% CPU.
+# Vendors quinn OUTSIDE the tree via a temporary [patch.crates-io]; nothing is left behind.
+# Usage: gso_cap_experiment.sh <segments...>  ->  ./target/gso-arms/exact-server-<n>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="${WORK:-${TMPDIR:-/tmp}/wt-pacs-gso}"

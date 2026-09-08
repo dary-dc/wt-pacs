@@ -1,19 +1,8 @@
 #!/usr/bin/env bash
-# Does a *hostile* stalled client — one that widens its own receive window first — reach
-# the server's `send_window`?
-#
-# The main campaign (`stall_client_campaign.sh`) uses a stalled client with stack-default
-# windows and finds the server unmoved. That result has an obvious objection: the client's
-# own 1.25 MB `stream_receive_window` is what bounds the server, so a client that simply
-# advertises a larger one should be able to push the server further — and quinn's 10 MB
-# default `send_window` is the ceiling `transport-conclusions.md` recommends bounding.
-#
-# This sweeps that window and reports where the arrangement gives out. It is a probe, not
-# a campaign: n = 1 per point, no repeats, and its output is a *shape*, not a number.
-#
-# Read `alive` first. A row where the connection died measured a teardown, and the memory
-# figures beside it describe the moments before one — reportable as the failure mode, never
-# as a per-connection cost.
+# Does a HOSTILE stalled client — one that widens its own receive window — reach the
+# server's send_window? A probe, not a campaign: n=1 per point, and the output is a shape.
+# Read `alive` first: a row where the connection died measured a teardown.
+# Usage: [ARMS=...] lab/scripts/stall_wide_window_probe.sh
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRV="${SRV_BIN:-$ROOT/target/release/exact-server}"

@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-# Rate-shaped variant of quic_opt_bench.sh.
-#
-# The unshaped loopback rig answers CPU questions (copies, crypto, GSO). It cannot
-# answer bandwidth-sharing questions, because fair queuing across streams costs
-# nothing when there is no scarcity. This one puts a TBF token bucket on `lo` inside
-# a private netns so the arms compete for a fixed rate.
-#
-# No netem on this kernel, so there is no RTT or loss axis here: rate only.
-#
+# Rate-shaped variant of quic_opt_bench.sh: a TBF bucket on `lo` in a private netns, so the
+# arms compete for a fixed rate. Fair queuing costs nothing without scarcity, which is why
+# the unshaped rig cannot answer bandwidth-sharing questions. No netem here: rate only.
 # Usage: RATE=200mbit quic_opt_shaped.sh <arm> <server-bin> <fixture> <depths> <repeats>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

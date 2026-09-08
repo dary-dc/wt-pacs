@@ -15,19 +15,8 @@ import sys
 (exp, arm, cell, rtt, rate, loss, scale, depth, cache, run,
  s0, s1, cli, n0, n1, w0, w1, out, jf, qd) = sys.argv[1:21]
 
-# Cells whose whole purpose is that the reader outruns the transport. A row from one of
-# these that stranded nothing did not produce the condition under test, and its arm
-# comparison is not admissible. N0 is the opposite: it is *supposed* to strand nothing, so
-# stranding there is not required.
-#
-# X3L is here and its 64 KB sibling X3 is not, which looks inconsistent and is deliberate.
-# X3 is loss-dominant with weak stranding, and was read as a loss result. X3L exists to
-# test one thing — that per-frame's penalty is deferral behind D-1 whole frames, so it
-# grows with frame size — and that mechanism can only show up if frames are actually
-# stranded. A null from an X3L row that stranded nothing is a rig failure, not evidence
-# against the mechanism, and the difference matters because a null here is a result the
-# project would act on (docs/measurements/r6/x3l-run-card.md 4.1, x3l-prereg.md). Putting
-# the gate on the row rather than in the reader's head is this file's whole premise.
+# Cells that must strand: one that stranded nothing did not produce the condition under test.
+# N0 inverts this; X3L is here and X3 is not, per x3l-run-card.md 4.1.
 STRANDING_CELLS = {"X1", "X2", "X3L"}
 
 
@@ -84,9 +73,7 @@ wall = float(w1) - float(w0)
 try:
     m = json.load(open(jf))
 except Exception:
-    # Emit a row rather than dropping it. A deleted run is invisible in the TSV and
-    # silently biases whatever survives — failures are systematically the slowest runs, so
-    # dropping them flatters the arm that fails. This happened once already, in R2.
+    # Emit, never drop: failures are the slowest runs, so dropping flatters the failing arm.
     row = "\t".join(head + ["nan"] * 2 + ["0"] * 2 + ["nan"] * 5 + ["nan"] + ["0"] * 2 +
                     ["0", "nan", "0"] + ["0", "0"] + ["nan"] * 4 + [qd, "VOID:no-json"])
     print(row)

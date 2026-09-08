@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
-# R6 — stream shape, measured on a rig that can actually produce head-of-line blocking.
-#
-# Pre-registration: docs/lanes/R6-preregistration.md. Everything here that looks like a
-# judgement call was fixed in writing there before this ran.
-#
-# Differences from l4_campaign.sh, each one a scar from a previous review:
-#   - the reader is OPEN-loop, so the transport can fall behind it (review 4)
-#   - --step-scale is calibrated per cell on the incumbent arm and frozen across arms,
-#     so the operating point cannot be tuned to fit an arm
-#   - rows carry stranded / censored / center-dropped counters, and a row that failed to
-#     produce the condition under test is VOID rather than quietly averaged in (review 3)
-#   - failed runs are written as VOID rows, never dropped: failures are systematically the
-#     slowest runs, so deleting them flatters whichever arm fails (review 3)
-#   - arms are interleaved within each repeat, because host drift is not common-mode
-#     and has already produced one wrong answer in this work (review 1)
-#
+# R6 stream shape on netsim. Method: docs/lanes/R6-preregistration.md.
 # Usage: EXP=x1 CELLS="X1" r6_campaign.sh <repeats>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -34,18 +19,11 @@ STUDY="$ROOT/lab/fixtures/$FIXTURE/$FIXTURE.sbnd"
 FRAME_COUNT=$(python3 -c "import json;print(json.load(open('$ROOT/lab/fixtures/$FIXTURE/metadata.json'))['frameCount'])")
 TICK=$(getconf CLK_TCK)
 
-# The three shapes this lane may test. A fixed-N pool would need a server change and this
-# lane is constrained not to modify server/ — it stays untested, and is recorded as
-# untested rather than inferred about.
+# The three shapes this lane may test. A fixed-N pool is untested, not inferred about.
 ARMS="${ARMS:-shared|--stream-mode shared;perframe_fair|--stream-mode per-frame;perframe_fifo|--stream-mode per-frame --send-fairness false}"
 
-# cell -> one-way delay ms, rate Mbps, per-direction loss %, step-scale
-#
-# The step-scale column is the calibrated operating point from E0-R6b, frozen. It is what
-# makes each cell sit where it claims to: the reader's offered load has to be set against
-# the rate the link can ACHIEVE, not the rate it is labelled with. At 1 % loss and 600 ms
-# RTT Cubic's Mathis ceiling is 0.24 Mbps against a 30 fps reader's ~15 Mbps demand, and
-# every arm collapses identically at 93 % censoring.
+# cell -> one-way delay ms, rate Mbps, per-direction loss %, step-scale.
+# Every scale is frozen from E0-R6b: docs/measurements/r6/step-scale-calibration.md.
 cell_params() {
   case "$1" in
     # loss AND stranding — the deployment case, and the only cell where both mechanisms
@@ -54,38 +32,14 @@ cell_params() {
     # stranding, no loss: nothing to retransmit, so any arm difference here is SENDER-side
     # scheduling (H5) and cannot be receiver-side head-of-line blocking (H4).
     X2) echo "25 20 0.0 1" ;;
-    # loss-DOMINANT, weak stranding. Not "loss without stranding": no such point exists on
-    # this trace, because loss lowers achievable throughput and that itself causes
-    # stranding. Measured at scale 8: 1 % loss strands 35 frames where 0 % strands 0.
-    # 1 % rather than 0.1 % because at 0.1 % and this reader speed the cell is degenerate —
-    # p95 79.6 ms with loss against 79.5 ms without, i.e. no effect to attribute.
+    # loss-DOMINANT, weak stranding. There is no loss-without-stranding point on this trace.
     X3) echo "25 20 1.0 8" ;;
-    # NEGATIVE CONTROL: no loss, reader cannot outrun the link. All arms must tie.
-    # If any arm separates here the rig is measuring something other than what it claims
-    # and the campaign is void — not adjusted, void.
+    # NEGATIVE CONTROL: all arms must tie. Any arm separating here VOIDS the campaign.
     N0) echo "25 20 0.0 8" ;;
-    # X3S — X3's cell (1 % loss) driven by the SCROLL trace instead of the jump trace.
-    # Robustness check for adversarial review 3.5: the two traces strand by different
-    # mechanisms (displacement vs overrun), so an X3 result that survives both is a much
-    # stronger claim than one that holds under either.
-    #
-    # Scale 6 was tried first and FAILED: clean at the calibration seed, it then voided 4
-    # of 9 campaign rows on center-dropped, because a harder loss realisation pushed the
-    # transport far enough behind that the outstanding ceiling bound. Scale 7 is validated
-    # against all three campaign seeds (7932/15851/23770) and is admissible at each. The
-    # jump trace's scale 8 cannot be reused either — it strands only 6 frames under this
-    # trace and is too thin to read a percentile from.
+    # X3S — X3's cell on the SCROLL trace, which strands by a different mechanism.
     X3S) echo "25 20 1.0 7" ;;
-    # X3L — X3's cell driven by 250 KB frames instead of 64 KB. Tests a falsifiable
-    # prediction of the retransmit-deferral mechanism: the per-frame penalty is "wait
-    # behind up to D-1 whole frames", so it must scale with frame size. Measured 455 ms at
-    # 64 KB; 3.9x the frame size predicts ~1780 ms. A flat result falsifies the mechanism.
-    #
-    # Scale 32 keeps frame size the ONLY thing that changed: reader demand 1.82 Mbps
-    # against Cubic's 2.85 Mbps Mathis ceiling here is a ratio of 0.64, matching the 64 KB
-    # run's 0.66. Verified admissible at every campaign seed before being frozen.
-    # Requires FIXTURE=frames_500x250k — enforced by r6_require_cell_inputs,
-    # after this comment alone failed to enforce it on the cloud rig.
+    # X3L — X3's cell at 250 KB frames. Needs FIXTURE=frames_500x250k, which
+    # r6_require_cell_inputs enforces because this comment once did not.
     X3L) echo "25 20 1.0 32" ;;
     *) echo "unknown cell $1" >&2; exit 1 ;;
   esac
@@ -114,9 +68,7 @@ for RUN in $(seq 1 "$REPEATS"); do
       for _ in $(seq 1 60); do grep -q '^wt_url=' /tmp/r6_server.log && break; sleep 0.1; done
       kill -0 "$SRV" 2>/dev/null || { echo "server died: $(tail -3 /tmp/r6_server.log)" >&2; exit 1; }
 
-      # Seed varies per repeat so repeats resample loss instead of replaying an identical
-      # sequence — with a constant seed the reported ranges measure host jitter only, and
-      # the non-overlap rule fires on noise (review 2).
+      # Varies per repeat, or the ranges measure host jitter and non-overlap fires on noise.
       "$NETSIM" --listen 127.0.0.1:"$NPORT" --upstream 127.0.0.1:"$SPORT" \
         --delay-ms "$DELAY" --rate-mbps "$RATE" --loss-pct "$LOSS" --queue-pkts 500 \
         --seed "$((RUN * 7919 + 13))" --stats true > /tmp/r6_netsim.log 2>&1 &

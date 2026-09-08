@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Shared helpers for running R6 (stream shape) against the Oracle rig instead of netsim.
-#
-# The committed R6 toolchain (r6_campaign.sh, e0_r6_*.sh) is localhost + lab/netsim only:
-# it starts exact-server on 127.0.0.1 and shapes with target/release/netsim. The rig
-# variants live in *_cloud.sh files beside them and reuse this file so the deploy, the
-# shaping and the CPU accounting are identical across all three.
+# Shared helpers for running R6 against the Oracle rig. The *_cloud.sh variants beside the
+# netsim scripts all source this, so deploy, shaping and CPU accounting stay identical.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -22,9 +18,7 @@ SSH_KNOWN_HOSTS="${SSH_KNOWN_HOSTS:-$ROOT/.local/r2/known_hosts}"
 mkdir -p "$(dirname "$SSH_KNOWN_HOSTS")" "$ROOT/.local/r6cloud"
 [[ -f "$SSH_KNOWN_HOSTS" ]] || ssh-keyscan -H "$CLOUD_HOST" >>"$SSH_KNOWN_HOSTS" 2>/dev/null || true
 
-# A campaign row needs 2-4 ssh round trips (restart the arm, read CPU before and after).
-# At ~35 ms RTT a fresh TCP+auth handshake each time costs more than the measurement
-# gap it is measuring, so multiplex over one connection.
+# Multiplexed: a fresh handshake per round trip costs more than the gap being measured.
 SSH_CTL="$ROOT/.local/r6cloud/cm-%r@%h:%p"
 SSH_OPTS=(-i "$SSH_KEY" -o BatchMode=yes -o IdentitiesOnly=yes
   -o UserKnownHostsFile="$SSH_KNOWN_HOSTS" -o StrictHostKeyChecking=yes
@@ -56,10 +50,8 @@ r6_netem_reset_stats() {
   "${SSH[@]}" "sudo -n tc -s qdisc show dev $iface >/dev/null 2>&1 || true"
 }
 
-# Packets netem dropped on the shaped band, cumulative since the qdisc was installed.
-# This is both the loss model's own drops and queue overflow at the 500-packet bottleneck
-# — the rig's analogue of netsim's `down_queue=` counter, and the only way to tell a cell
-# that lost what it was told to lose from one whose queue collapsed.
+# netem's drops on the shaped band, cumulative — the rig's analogue of netsim's down_queue,
+# and the only way to tell a cell that lost what it was told from one whose queue collapsed.
 r6_netem_drops() {
   "${SSH[@]}" "tc -s -j qdisc show dev \$(ip route show default | awk '{print \$5}' | head -1) 2>/dev/null" \
     | python3 -c "
@@ -99,9 +91,7 @@ r6_upload_fixture() {
 # Restarts exact-server with this arm's flags and returns its pid on stdout.
 r6_start_server() {
   local study="$1"; shift
-  # ssh flattens argv into one string for the remote login shell, so the arm's flags must
-  # carry their own quoting or "--stream-mode shared" arrives as two arguments and the
-  # server exits on a missing value. printf %q quotes for the remote shell, not this one.
+  # printf %q, because ssh flattens argv and the remote shell resplits it.
   local flags="$*"
   "${SSH[@]}" "bash -s $(printf '%q %q %q' "$CLOUD_PORT" "$study" "$flags")" <<'REMOTE'
 set -euo pipefail
@@ -123,9 +113,7 @@ REMOTE
 
 r6_stop_server() { "${SSH[@]}" 'pkill -x exact-server 2>/dev/null || true' ; }
 
-# Server CPU seconds (utime+stime) for the remote pid — the rig-side analogue of
-# r6_campaign.sh's local cpu_of(). This is what makes CPU-per-byte answerable here and
-# not under netsim.
+# Remote utime+stime — what makes CPU-per-byte answerable here and not under netsim.
 r6_srv_cpu() {
   local pid="$1"
   "${SSH[@]}" "awk -v t=\$(getconf CLK_TCK) '{print (\$14+\$15)/t}' /proc/$pid/stat 2>/dev/null || echo 0"

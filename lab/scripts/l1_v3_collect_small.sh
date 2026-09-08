@@ -387,9 +387,8 @@ run_cell() {
   done
 }
 
-# N1 — the null cell must be able to exclude the effect bar, not merely be "close".
-# The old rel/abs form (40% / 200 ms) tolerated a zero-effect arm gap larger than the
-# effect under test; `l1_null_gate` states it as a CI instead.
+# N1 — the null cell must EXCLUDE the effect bar, not merely be close: the old 40% / 200 ms
+# form tolerated a zero-effect gap larger than the effect under test.
 null_gap_check() {
   l1_null_gate "$OUT_TSV" "${L1_EFFECT_BAR:-15}"
 }

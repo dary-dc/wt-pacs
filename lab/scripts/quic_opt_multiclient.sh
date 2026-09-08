@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
-# Multi-client rig: N concurrent harness sessions against one server.
-#
-# Why it exists: one harness saturates ~0.93 of a core and caps a single session at
-# ~1.4 Gbps on this box, while the server is still at 1.3 of 4 cores. Every
-# single-client throughput number is therefore a *client* ceiling. Aggregate over two
-# clients is 1.92x one, so the server is not the limit until at least there.
-#
-# Three clients + one server exceeds 4 cores on this host, so N=2 is the default:
-# enough to move the bottleneck to the server, not so much that the clients starve it.
-#
-# Usage: [N=2] [FIXTURE=frames_250k] [DEPTH=16] quic_opt_multiclient.sh <arm> <server-bin> <repeats>
+# N concurrent harness sessions against one server. One harness saturates ~0.93 of a core, so
+# every single-client throughput number is a CLIENT ceiling; two aggregate to 1.92x one.
+# N=2 by default: three clients plus the server exceed this host's 4 cores.
+# Usage: [N=2] [FIXTURE=frames_250k] [DEPTH=16] quic_opt_multiclient.sh <arm> <bin> <repeats>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ARM="${1:?arm label}"; SERVER_BIN="${2:?server binary}"; REPEATS="${3:-3}"

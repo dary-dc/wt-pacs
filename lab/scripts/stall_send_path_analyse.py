@@ -71,13 +71,8 @@ def main(path):
               f"   (r2 anon {ar:.3f} / rss {tr:.3f})")
     print()
 
-    # Two different questions, and they must not be run together.
-    #
-    # (a) IS RssAnon BLIND? Compare anon against total RSS *within* each arm. If the
-    #     chunked path were hiding queued bytes in the mmap, its RSS slope would exceed
-    #     its anon slope. Nothing about the copy arm can answer this.
-    # (b) DOES THE SEND PATH MATTER? Compare copy against chunked, in whichever measure
-    #     (a) has shown to be trustworthy.
+    # TWO questions, never run together: is RssAnon blind (anon vs RSS WITHIN an arm), and does
+    # the send path matter (copy vs chunked, in whichever measure the first showed trustworthy).
     print("=== (a) is RssAnon blind? anon vs total RSS slope, within each arm " + "=" * 3)
     blind = False
     for key in sorted(fits):

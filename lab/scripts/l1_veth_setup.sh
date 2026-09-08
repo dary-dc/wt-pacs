@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# L1 v3 S4 — shaped veth pair between root-ns servers and wt-cli harness.
-# Idempotent. Run on the rig (needs sudo -n).
-#
-# Topology:
-#   root ns: exact-server* on 10.77.0.1:{4435,4436,4437}  ·  veth-srv
-#   wt-cli:  window-harness → https://10.77.0.1:PORT/      ·  veth-cli @ 10.77.0.2
+# L1 v3 S4 — shaped veth pair between root-ns servers and the wt-cli harness. Idempotent,
+# run on the rig with sudo -n. root ns: exact-server* on 10.77.0.1:{4435,4436,4437} via
+# veth-srv; wt-cli: window-harness -> https://10.77.0.1:PORT/ via veth-cli @ 10.77.0.2.
 set -euo pipefail
 
 NS="${NS:-wt-cli}"

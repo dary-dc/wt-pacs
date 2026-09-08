@@ -18,9 +18,8 @@ import json
 import sys
 from collections import defaultdict
 
-# A loss interval counts as congestive when the queueing delay estimate at that moment is
-# at least this fraction of the connection's own min RTT. Relative rather than absolute
-# because 20 ms of standing queue is decisive on a 20 ms path and noise on a 600 ms one.
+# Relative to the connection's own min RTT: 20 ms of queue is decisive at 20 ms and noise
+# at 600 ms.
 CONGESTIVE_RATIO = 0.25
 # Below this, a connection has not lost enough to classify. Two or three loss events are a
 # coin flip, not a regime.
@@ -116,19 +115,8 @@ def classify(rows):
         else:
             exogenous += 1
 
-    # `black_holes_detected` does NOT mean what this project's docs used to say it means.
-    #
-    # It was described as "the path stopped delivering entirely — a handover or a dead
-    # link", and an adversarial review asked why the verdict never consulted it. Reading
-    # quinn's source answers both at once: the counter increments from
-    # `path.mtud.black_hole_detected()` (quinn-proto 0.11.17, connection/mod.rs:1762), which
-    # is PLPMTUD noticing consecutive *large* packets lost. Under heavy congestive loss that
-    # is the expected outcome, not a handover — and indeed the committed CONG validation log
-    # carries 42 of them while being congestive by construction.
-    #
-    # So it is reported, and deliberately NOT used to disqualify a verdict: excluding rows
-    # on this counter would throw away exactly the congestive cells it is meant to protect.
-    # Detecting a real handover needs a signal this sampler does not currently collect.
+    # black_holes_detected is PLPMTUD, NOT a handover: excluding on it would throw away the
+    # congestive cells it was meant to protect. why-these-changes.md §10.
     black_holes = rows[-1]["black_holes_detected"] - rows[0]["black_holes_detected"]
 
     total_sent = rows[-1]["sent_packets"] - rows[0]["sent_packets"]
@@ -220,7 +208,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # main() returns 2 when the log is too damaged to classify. Without propagating it, a
-    # refusal would print a warning and still exit 0, which is how a caller ends up acting
-    # on a classification the tool declined to make.
+    # Propagate: without this a refusal prints a warning and still exits 0.
     sys.exit(main() or 0)

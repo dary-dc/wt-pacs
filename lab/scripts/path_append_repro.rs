@@ -1,13 +1,7 @@
-// Standalone reproduction of the loss-regime sampler's concurrent-append defect.
-//
+// Standalone reproduction of the sampler's concurrent-append defect. `append_current` is the
+// shape `append_row` had before the fix, `append_fixed` the shape it has now: 29-38 % of rows
+// intact before, 100 % after. Evidence, not a test — the guard lives in path.rs.
 //   rustc -O -o /tmp/repro lab/scripts/path_append_repro.rs && /tmp/repro
-//
-// `append_current` is the shape `append_row` had before the fix; `append_fixed` is the
-// shape it has now. Measured: 29-38 % of rows intact before, 100 % after.
-//
-// A script rather than a test because it is the evidence; the guard lives in path.rs.
-// A single-client
-// validator could not have caught this, and did not: see docs/measurements/regime/README.md.
 
 use std::io::Write;
 use std::thread;

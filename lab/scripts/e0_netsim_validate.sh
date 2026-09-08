@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# E0 — validate the lab instruments before any arm is run.
-#
-# Three checks, each of which would silently void the campaign if it failed:
-#   1. netsim delay is real and accurate      (measured RTT tracks configured RTT)
-#   2. netsim loss is real and at the set rate (counters, and the wire notices)
-#   3. QUINN_INITIAL_WINDOW is live, not a no-op (monotonic response to the knob)
+# E0 — validate the lab instruments before any arm runs. Three checks, each of which would
+# silently void the campaign: netsim delay is accurate, netsim loss is real and at the set
+# rate, and QUINN_INITIAL_WINDOW is live rather than a no-op.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRV="${SRV:-$ROOT/target/lab-arms/exact-server-seg10}"

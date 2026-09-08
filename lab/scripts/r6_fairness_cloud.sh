@@ -1,33 +1,6 @@
 #!/usr/bin/env bash
-# Competing-flow fairness on one real bottleneck — unmeasured everywhere in this project,
-# and named in docs/transport-conclusions.md §1 as BBR's main deployment risk:
-#
-#   "quinn ships BBRv1, marked experimental, documented to take > 90 % of a shallow buffer
-#    from competing Cubic flows"
-#
-# That is a claim about what happens to a NEIGHBOUR, so it needs two flows and one shared
-# bottleneck. lab/netsim gives each flow its own pipe and cannot pose the question at all.
-#
-# WHAT THE RIG PERMITS, AND WHAT IT DOES NOT
-# The Oracle VCN admits exactly two ports: UDP 4435 and TCP 22. UDP 4436/4437 are open in
-# the host's iptables but blocked upstream at the VCN, verified by a QUIC handshake that
-# times out against a server confirmed listening. Two consequences:
-#
-#   * Both QUIC flows must share ONE server on 4435, so both get that server's congestion
-#     controller. `bbr vs cubic` between two QUIC flows is therefore NOT constructible here.
-#   * The only other transport that can reach the rig is TCP on port 22 — which
-#     cloud_netem_exact.sh deliberately files into an UNSHAPED band precisely so shaping
-#     cannot lock the rig out. For the cross-protocol cells, and only those, that bypass is
-#     removed so ssh shares the bottleneck, and a deadman timer on the rig restores the
-#     qdisc unconditionally after DEADMAN_S seconds. Recovery does not depend on the
-#     network still working.
-#
-# Cells:
-#   qcubic_qcubic  QUIC Cubic vs QUIC Cubic   self-fairness control, expect ~50/50
-#   qbbr_qbbr      QUIC BBR   vs QUIC BBR     does BBR share with itself?
-#   qcubic_tcp     QUIC Cubic vs TCP Cubic    cross-protocol control
-#   qbbr_tcp       QUIC BBR   vs TCP Cubic    THE deployment risk from §1
-#
+# Competing-flow fairness: two flows, ONE bottleneck. What the rig can and cannot pose,
+# and the four traps that each cost a run: docs/measurements/r6/fairness-instrument.md.
 # Usage: REPS=3 DWELL_MS=30000 lab/scripts/r6_fairness_cloud.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -38,39 +11,26 @@ REPS="${REPS:-3}"
 DWELL_MS="${DWELL_MS:-30000}"   # long enough that ~1 s of start-up skew is <4 %
 DEPTH="${DEPTH:-8}"
 RATE="${RATE:-20}"; DELAY="${DELAY:-25}"; LOSS="${LOSS:-0.0}"
-# Queue depth matters more than any other knob here. quinn's BBRv1 warning is specifically
-# about a SHALLOW buffer; a 500-packet queue at 5 Mbps is 1.2 s of buffering, which is the
-# case BBR handles politely. QUEUE=20 (~48 ms at 5 Mbps) is the case it is warned about.
+# SHALLOW on purpose: ~48 ms at 5 Mbps is the case quinn's BBRv1 is warned about.
 QUEUE="${QUEUE:-500}"
 DEADMAN_S="${DEADMAN_S:-900}"
 CELLS="${CELLS:-qcubic_qcubic qbbr_qbbr qcubic_tcp qbbr_tcp}"
 OUT="${OUT:-$ROOT/.local/measurements/r6/fairness.tsv}"
 mkdir -p "$(dirname "$OUT")"
-# a_window_s / b_window_s are the denominators each flow's rate was actually divided by.
-# They are NOT equal, and that is the point of recording them: the TCP flow is timed over a
-# window that starts 1.5 s late and ends 3 s early so ssh connect time cannot inflate it,
-# while the QUIC flow's bytes are divided by its *configured* dwell. QUIC therefore runs
-# unopposed at both ends of the window and books those bytes against the full denominator,
-# which overstates its share by a few points. Adversarial review, 2026-09-07 (S2).
-# Making both windows identical needs the harness to emit its measured fill span — see
-# docs/proposals/product-code-changes.md. Until then the asymmetry is at least visible.
+# The two denominators are NOT equal, which is why both are recorded — the bias and its
+# fix are in docs/measurements/r6/fairness-instrument.md.
 [ -s "$OUT" ] || printf 'cell\trep\trate_mbps\tdelay_ms\tloss_pct\tqueue_pkts\tdwell_ms\tflow_a\tflow_b\ta_bytes\tb_bytes\ta_window_s\tb_window_s\ta_mbps\tb_mbps\ta_share\tjain\n' > "$OUT"
 
 r6_sync_scripts
 r6_upload_server
 STUDY=$(r6_upload_fixture "$ROOT/lab/fixtures/$FIXTURE/$FIXTURE.sbnd")
 
-# A dedicated, NON-multiplexed ssh for the TCP competitor: the control channel is a
-# ControlMaster session and a bulk transfer down it would share one TCP flow with the
-# orchestration, which is not the flow we mean to measure.
+# NON-multiplexed on purpose: down the ControlMaster it would share the orchestration's flow.
 SSH_BULK=(ssh -i "$SSH_KEY" -o BatchMode=yes -o IdentitiesOnly=yes
   -o UserKnownHostsFile="$SSH_KNOWN_HOSTS" -o StrictHostKeyChecking=yes
   -o ControlPath=none "$REMOTE")
 
-# The deadman is addressed by PID FILE, never by `pkill -f <name>`. ssh hands the remote
-# sshd a command line that CONTAINS the pattern, so a pattern-matching pkill matches its
-# own shell, kills it, and ssh returns 255 — which is exactly how the first version of this
-# script both failed to arm the timer and then died claiming success.
+# By PID FILE, never `pkill -f`: the pattern appears in ssh's own remote command line.
 DEADMAN_PID=/tmp/wt-pacs-netem-deadman.pid
 
 arm_deadman() {
@@ -131,19 +91,14 @@ quic_flow() { # quic_flow <outfile>
 }
 
 tcp_flow() {  # tcp_flow <outfile>
-  # The QUIC flow does not start filling until its handshake completes, so a competitor
-  # started at the same instant owns the link for that first second and its rate is
-  # inflated. Start late, stop early: this window sits strictly inside the QUIC dwell.
+  # Start late, stop early, so this window sits strictly inside the QUIC dwell.
   trap - EXIT
   local secs bytes t0 t1
   secs=$(python3 -c "print(max(1,$DWELL_MS/1000 - 3))")
   sleep 1.5
   t0=$(date +%s.%N)
-  # `timeout` ALWAYS exits 124 here — the blob is 400 MB and the window is seconds, so
-  # being cut off is the design, not a failure. Under `set -o pipefail` that 124 becomes
-  # the pipeline's status and `set -e` then kills this subshell after the byte count has
-  # been captured but before it is written, which is precisely how six runs came back
-  # reporting a competitor that moved 0.00 Mbps. Swallow it inside the pipeline.
+  # `timeout` ALWAYS exits 124 here by design; swallow it or pipefail kills the subshell
+  # after the byte count is captured but before it is written.
   bytes=$( { timeout "$secs" "${SSH_BULK[@]}" 'dd if=/home/ubuntu/wt-pacs/www/blob.bin bs=1M status=none' 2>/dev/null || true; } | wc -c )
   t1=$(date +%s.%N)
   echo "$bytes $(python3 -c "print($t1-$t0)")" > "$1"
@@ -154,13 +109,8 @@ tcp_flow() {  # tcp_flow <outfile>
 echo "bottleneck: rig egress netem +${DELAY} ms, ${RATE} Mbps, ${LOSS}% loss, ${QUEUE}p queue — SHARED"
 echo "dwell ${DWELL_MS} ms, ${REPS} repeats, cells: $CELLS"
 
-# THE GUARD THIS EXPERIMENT CANNOT RUN WITHOUT.
-# "Two flows, one bottleneck" is only a measurement if the bottleneck is the one we
-# installed. A residential path is not a constant: this link delivered 51 Mbps at the start
-# of the session and 9 Mbps three hours later, at which point a 20 Mbit netem cap was no
-# longer binding and both flows were sharing an UNCONTROLLED bottleneck of unknown queue
-# depth. The split was still measurable and still meaningless. So: prove a single flow can
-# reach the cap before putting two flows through it.
+# THE GUARD: prove one flow reaches the cap before putting two through it. Below the cap they
+# share an uncontrolled bottleneck and the split is measurable and meaningless.
 r6_netem "$DELAY" "$RATE" "$LOSS" "$QUEUE" >/dev/null
 start_quic_server cubic
 SOLO=$(timeout 120 "$HARNESS" --url "$CLOUD_URL" --mode saturate --fill-dwell-ms 10000 \

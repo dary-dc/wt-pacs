@@ -49,10 +49,8 @@ e4() {
   done
 }
 
-# R-series: the campaigns after the second adversarial review. These use the jump-bearing
-# trace (the only one that can produce a head-of-line miss), the fixed harness (no
-# re-asking of in-flight frames), per-row stop-condition verdicts, and nz_p95 as the
-# metric. Everything before the R-series is superseded.
+# R-series: jump-bearing trace, fixed harness, per-row verdicts, nz_p95. Everything before it
+# is superseded.
 JUMP="$ROOT/lab/traces/radiologist_review_500.json"
 FIX="${FIX:-frames_500x64k}"          # 500 frames; 80 caches entirely in seconds
 export CACHE_FRAMES="${CACHE_FRAMES:-64}"   # ~4 MB, a plausible tablet budget
@@ -68,10 +66,8 @@ r2() {
   EXP=r2 CELLS="W S" FIXTURE="$FIX" DEPTH=8 TRACE="$JUMP" LOSS_BURST=5   OUT="$OUTDIR/r2_stream_shape.tsv"   ARMS="shared|--stream-mode shared --congestion cubic;perframe|--stream-mode per-frame --congestion cubic;perframe_fifo|--stream-mode per-frame --congestion cubic --send-fairness false"   bash lab/scripts/l4_campaign.sh "$R"
 }
 
-# R3 — stream shape under the controller R1 selects, in case the two interact.
-# R3 — stream shape under BBR, the only controller that completes at satellite RTT.
-# R2 ran the shapes under Cubic and every cell-S row voided for that reason, so the
-# high-RTT case — where loss isolation should matter most — was unmeasurable.
+# R3 — stream shape under BBR, the only controller that completes at satellite RTT. R2 ran
+# the shapes under Cubic and every cell-S row voided, leaving the high-RTT case unmeasured.
 r3() {
   EXP=r3 CELLS="W S" FIXTURE="$FIX" DEPTH=8 TRACE="$JUMP" LOSS_BURST=5 RUN_TIMEOUT=600 \
   OUT="$OUTDIR/r3_shape_x_controller.tsv" \
@@ -88,11 +84,8 @@ r4() {
   bash lab/scripts/l4_campaign.sh "$R"
 }
 
-# R5 — the comparison the whole controller question turns on, and which has never been
-# run cleanly: the SAME two controllers in both loss regimes, with the fixed harness.
-#   R5a congestive: 0% injected loss, depth 16 (854 pkts > the 500-packet queue)
-#   R5b exogenous:  1% injected loss, depth 8  (427 pkts, queue cannot drop)
-# Assert qdrop > 0 in R5a and qdrop == 0 in R5b, or the regimes are not what they claim.
+# R5 — the same two controllers in both loss regimes, with the fixed harness. R5a congestive:
+# 0% loss, depth 16. R5b exogenous: 1% loss, depth 8. Assert qdrop > 0 in R5a and 0 in R5b.
 r5a() {
   EXP=r5a CELLS="Wc Sc" FIXTURE="$FIX" DEPTH=16 TRACE="$JUMP" LOSS_BURST=1 RUN_TIMEOUT=900 \
   OUT="$OUTDIR/r5a_congestive.tsv" \

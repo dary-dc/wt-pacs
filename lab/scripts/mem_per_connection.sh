@@ -1,23 +1,6 @@
 #!/usr/bin/env bash
-# Server memory per concurrent viewer — and whether bounding the flow-control windows
-# actually buys anything.
-#
-# Answers the question the deployment target raises directly ("possibly thousands of
-# simultaneous viewers") and measures a claim the conclusions document currently carries as
-# arithmetic only: *"Flow-control windows — set them, for memory at thousands of viewers,
-# not for speed."* That was derived from quinn's defaults on paper and never measured.
-#
-# THE MEASUREMENT DECISION THAT MATTERS: this reports **RssAnon**, not RSS.
-#
-# `FrameStore` mmaps the study file, so total RSS grows as frames are touched and would
-# attribute the study mapping to "per-connection cost". At 500 x 64 KB that is 32 MB of
-# file-backed pages arriving over the run — larger than the entire effect being measured,
-# and it would be counted twice over as clients touch more of the series. RssAnon counts
-# only anonymous (heap/stack) pages, which is where connection state actually lives.
-#
-# The per-connection figure is the **slope** of RssAnon against N, not RssAnon/N: the
-# intercept is fixed server cost and dividing it in would inflate small-N rows.
-#
+# Server memory per concurrent viewer, and whether bounding the windows buys anything.
+# Why RssAnon and not RSS, and why the slope and not the ratio: measurements/mem/README.md.
 # Usage: [REPEATS=3] [NS="1 5 10 25 50"] mem_per_connection.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -34,18 +17,12 @@ DEPTH="${DEPTH:-8}"
 # Slow enough that 50 clients do not saturate this 4-core box — beyond that the row
 # measures the load generator, not the server.
 STEP_SCALE="${STEP_SCALE:-12}"
-# Client drain rate. 0 = as fast as it can. A LOW value is the stress case for
-# flow-control windows: the server pushes faster than the client reads, so bytes pile up
-# in the server's send buffer and `send_window` becomes the thing that bounds them. With
-# READ_BPS=0 the client keeps up, nothing accumulates, and a default-vs-bounded comparison
-# measures nothing — which is exactly what the first sweep showed (+3.6 %, inside noise).
+# LOW is the stress case: at 0 the client keeps up and nothing accumulates to bound.
 READ_BPS="${READ_BPS:-0}"
 OUT="${OUT:-$ROOT/.local/measurements/mem/mem_per_connection.tsv}"
 
-# Bounded arm. send_window from the spec's own rule — target bandwidth x target RTT,
-# 10 Mbps x 150 ms ~ 190 KB — and a finite receive_window, because "unlimited is not a
-# policy". stream_receive_window left at quinn's default so this isolates the two knobs
-# the spec says are unbounded by default.
+# Bounded arm from the spec's own rule, 10 Mbps x 150 ms. stream_receive_window stays at
+# quinn's default so this isolates the two knobs the spec says are unbounded.
 BOUNDED_FLAGS="--receive-window 2000000 --send-window 200000"
 
 ARMS="${ARMS:-default|;bounded|$BOUNDED_FLAGS}"

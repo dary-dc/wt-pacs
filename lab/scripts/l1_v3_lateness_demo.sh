@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-# L1 v3 — why the decision metric moves to reader lateness.
-#
-# Two runs of the same arm, same fixture, same link cap, differing only in how fast
-# the reader steps. Unshaped loopback: the point is not the absolute numbers, it is
-# that `miss_p95_wait_ms` barely moves while the reader falls seconds behind.
-#
-#   clinical reader  — steps under the delivery rate; the window absorbs the waits
-#   stress reader    — steps faster than the link; a backlog builds and never drains
-#
-# `miss_p95_wait_ms` is timed from the harness's ask, which happens after the loop
-# has already slipped, so it cannot see the backlog. `late_p95_ms` / `on_time_rate`
-# are timed against each step's scheduled display time and do.
-#
-#   bash lab/scripts/l1_v3_lateness_demo.sh
+# L1 v3 — why the decision metric moves to reader lateness. Two runs of one arm differing only
+# in reader speed: miss_p95_wait_ms barely moves while the reader falls seconds behind, because
+# it is timed from the ask, after the loop has slipped. late_p95_ms is timed from the schedule.
+# Usage: bash lab/scripts/l1_v3_lateness_demo.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

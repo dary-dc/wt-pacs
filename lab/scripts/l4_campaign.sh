@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
-# L4 — p95 time-to-displayable across deployment cells, through `netsim`.
-#
-# Pre-registration: docs/lanes/L4-preregistration.md. Arms are interleaved WITHIN each
-# repeat (not run one arm at a time) because host drift has already produced one wrong
-# answer in this work. Records the stop-condition instruments alongside every row:
-# peak_outstanding, client CPU, netsim CPU.
-#
-# Usage: EXP=e1 ARMS="a|flags;b|flags" CELLS="A B C" FIXTURE=frames_32k l4_campaign.sh <repeats>
+# L4 — p95 time-to-displayable across cells, through netsim. docs/lanes/L4-preregistration.md.
+# Arms interleaved WITHIN each repeat: host drift has produced one wrong answer already.
+# Usage: EXP=e1 ARMS="a|flags;b|flags" CELLS="A B C" FIXTURE=frames_32k l4_campaign.sh <reps>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 REPEATS="${1:-3}"
@@ -31,20 +26,14 @@ cell_params() {
     A) echo "15 50 0.0" ;;
     B) echo "30 25 0.5" ;;
     C) echo "75 10 2.0" ;;
-    # D and E carry NO injected loss. Every drop is the bottleneck queue overflowing,
-    # which is the only regime where a loss-based controller is reacting to real
-    # congestion and a rate-based one can be charged for the queue it builds.
+    # NO injected loss: every drop is queue overflow, the only genuinely congestive regime.
     D) echo "30 25 0.0" ;;
     E) echo "75 10 0.0" ;;
     # Wireless profiles: exogenous radio loss on a congested path.
     W) echo "25 20 1.0" ;;   # 5G / good WiFi:  50 ms RTT, 20 Mbps, 1 % radio loss   BDP 125 kB
     S) echo "300 8 1.0" ;;   # GEO satellite:  600 ms RTT,  8 Mbps, 1 % radio loss   BDP 600 kB
-    # BDP-separating controls. Previously every cell had rate x RTT constant, so an RTT
-    # effect could not be told from a rate effect. These break the coupling deliberately.
-    # Congestive twins of W and S: NO injected loss, so every drop is queue overflow.
-    # Must be run at depth 16 — at depth 8 the harness offers 8 x 64004 B = 427 packets
-    # against a 500-packet queue, so the queue arithmetically cannot drop and the cell
-    # silently becomes exogenous-only.
+    # BDP-separating controls: rate x RTT is no longer constant, so an RTT effect is separable
+    # from a rate effect. DEPTH 16 is required — at 8 the offered bytes cannot fill the queue.
     Wc) echo "25 20 0.0" ;;
     Sc) echo "300 8 0.0" ;;
     L) echo "25 4 1.0" ;;    # low BDP:   50 ms,  4 Mbps, 1 %                          BDP  25 kB
@@ -135,9 +124,7 @@ def verdict(m, cli_cpu, wall, depth):
 try:
     m = json.load(open(jf))
 except Exception:
-    # Emit a row rather than dropping it. A deleted run is invisible in the TSV and
-    # silently biases whatever survives — the failures are systematically the slowest
-    # runs, so dropping them flatters the arm that fails.
+    # Emit, never drop: failures are the slowest runs, so dropping flatters the failing arm.
     row = "\t".join([exp, arm, cell, rtt, rate, loss, fx, depth, run] +
                     ["nan"] * 3 + ["0"] * 2 + ["nan"] * 3 + ["%.2f" % (float(w1) - float(w0))] +
                     ["0", "0"] + ["nan"] * 5 + [lb, qd, "VOID:no-json"])

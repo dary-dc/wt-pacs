@@ -231,9 +231,8 @@ def main() -> int:
         s = sorted(xs)
         return s[int(0.9 * (len(s) - 1))]
 
-    # (label, per-run selector, across-run summary, is_lateness)
-    # `is_lateness` marks the readings where a sub-100 ms value means "the reader kept
-    # its cadence" — a ratio between two of those is arithmetic on jitter, so say so.
+    # (label, per-run selector, across-run summary, is_lateness). `is_lateness` marks readings
+    # where sub-100 ms means the reader kept cadence, so a ratio between two is jitter arithmetic.
     readings = [
         ("median-of-run p95 (as reported)", lambda v: [r["miss_p95_wait_ms"] for r in v], median, False),
         ("BACKLOG excluded (l1_v3_analyze rule)",

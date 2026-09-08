@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # Stream-mode decision campaign (docs/stream-mode-decision-experiments.md).
-# Must run inside: unshare --user --map-root-user --net -- bash
-#
-# Usage:
-#   unshare --user --map-root-user --net -- bash lab/scripts/stream_mode_decision.sh
+# Run inside: unshare --user --map-root-user --net -- bash lab/scripts/stream_mode_decision.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

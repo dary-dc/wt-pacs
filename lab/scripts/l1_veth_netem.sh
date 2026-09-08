@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
-# L1 v3 — netem on the S4 veth pair (not ens3).
-# Forward path (veth-srv → client) carries delay + optional rate + loss.
-# Return path (veth-cli → server) carries delay + optional rate only.
-#
-# usage: l1_veth_netem.sh {off|RTT_ms} [loss_pct] [loss_model]
-#   loss_model: iid (default) | gemodel   (C5; GE_P/GE_R, defaults 0.07 / 14)
-#   RATE env:   10mbit (default) | none|off  → delay-only (Isolation A for D=1 excess)
+# L1 v3 — netem on the S4 veth pair, not ens3. Forward path carries delay + rate + loss;
+# the return path carries delay + rate only.
+# Usage: l1_veth_netem.sh {off|RTT_ms} [loss_pct] [iid|gemodel]   RATE=10mbit|none
 set -euo pipefail
 
 PROFILE="${1:-}"

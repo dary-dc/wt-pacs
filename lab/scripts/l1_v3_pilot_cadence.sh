@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
-# L1 v3 Phase 6 — A1 cadence pilots (S arm only).
-# For each cell: 3 runs at --step-interval-ms 0 → f_cell → freeze
-#   step_interval_ms = round(1000 / (0.9 × median_f_cell))
-#
-# Does NOT collect decision rows. Output:
-#   docs/measurements/r2/l1_v3_cadence.json
-#   docs/measurements/r2/l1_s_vs_q_loss_v3.pilot.tsv
-#   docs/measurements/r2/raw/l1v3/pilot/
+# L1 v3 Phase 6 — A1 cadence pilots, S arm only. Three runs per cell at --step-interval-ms 0,
+# then freeze step_interval_ms = round(1000 / (0.9 * median_f_cell)).
+# Collects NO decision rows. Writes docs/measurements/r2/l1_v3_cadence.json and .pilot.tsv.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

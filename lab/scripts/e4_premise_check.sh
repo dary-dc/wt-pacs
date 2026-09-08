@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-# E4 premise gate — random D vs oracle D on fly_and_settle, under non-zero RTT.
-#
-# Decision metric (fixed in advance): oracle must beat random by ≥ 100 ms at p95.
-# Report mean_wait_ms too; do not decide on mean (cache hits dilute stalls).
-#
-# RTT=0 is a floor control only (pipelining cannot help; oracle→D=1 is expected).
-# The gate is answered only at RTT ∈ {20,60,150} ms.
-#
-# Default RTT path (no privileges): window-harness --rtt-ms (userspace: RTT/2 before
-# each ask, RTT/2 after each uni read before cache). Same BDP question as netem for
-# this gate; label results as sim-rtt.
-#
-# Optional: USE_NETEM=1 applies tc netem on lo (needs CAP_NET_ADMIN). Prefer a
-# container with --cap-add=NET_ADMIN over host sudo if you want real qdisc delay.
+# E4 premise gate — random D vs oracle D on fly_and_settle under non-zero RTT. Decision metric,
+# fixed in advance: oracle beats random by >= 100 ms at p95; report mean_wait_ms, never decide
+# on it. RTT=0 is a floor control; the gate is answered at RTT in {20,60,150} ms. The default
+# path is the harness's userspace --rtt-ms (label it sim-rtt); USE_NETEM=1 needs CAP_NET_ADMIN.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

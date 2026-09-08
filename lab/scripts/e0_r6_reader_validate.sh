@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# E0-R6 — does the open-loop reader actually produce the condition under test?
-#
-# A failure here voids campaign R6 before it runs. The question is not "are the numbers
-# good" but "can this rig still generate head-of-line blocking at all". Three campaigns'
-# worth of guards all watched the measurement and none watched the mechanism.
-#
-# Passes only if, in the same cell, `--reader-mode open` shows reader lag and stranded
-# bytes where `--reader-mode closed` shows neither.
+# E0-R6 — can this rig still generate head-of-line blocking at all? A failure voids R6 before
+# it runs; three campaigns' guards watched the measurement and none watched the mechanism.
+# Passes only if, in one cell, --reader-mode open shows lag and stranded bytes where closed
+# shows neither.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRV="$ROOT/target/lab-arms/exact-server-seg10"

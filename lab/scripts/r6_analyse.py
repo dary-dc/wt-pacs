@@ -24,12 +24,8 @@ REFERENCE = "shared"
 # The control cell. Pre-registration §3: if any arm separates here, the rig is measuring
 # something other than what it claims and the campaign is void — not adjusted, void.
 CONTROL_CELL = "N0"
-# ...with one arm exempted, by a decision recorded before this script enforced anything.
-# `perframe_fair` does separate in N0, and `measurements/r6/adversarial-review.md` §3.1
-# already concedes that arm's control is invalid: fairness needs only concurrency, which
-# every cell has, so its separation is a scheduling penalty rather than evidence the rig is
-# broken. Naming the exemption here keeps it a declared exception instead of a silent one —
-# the same shape as `l4_analyse.py`'s `--congestive`.
+# perframe_fair separates in N0 and its control was already conceded invalid
+# (adversarial-review.md §3.1). Declared, like l4_analyse.py's --congestive, never silent.
 CONTROL_EXEMPT = {"perframe_fair"}
 # Below this, an effect is inside the n=3 false-positive band and is not a result even if
 # the ranges happen not to overlap. Carried from L4's D3 threshold.

@@ -1,16 +1,7 @@
 #!/usr/bin/env bash
-# E0-R6a on the REAL PATH — does the open-loop reader produce head-of-line blocking here?
-#
-# Rig variant of e0_r6_reader_validate.sh. That script is localhost + lab/netsim; this one
-# runs exact-server on the Oracle rig behind sch_netem, with the harness on this machine.
-#
-# A failure here voids the campaign before it runs. The question is not "are the numbers
-# good" but "can this path still generate the effect the arms are about to be compared
-# on". Its absence invalidated four campaigns.
-#
-# Passes only if, in the same cell, --reader-mode open shows reader lag and stranded bytes
-# where --reader-mode closed shows neither.
-#
+# E0-R6a on the real path — can this path still generate head-of-line blocking? Its absence
+# invalidated four campaigns, so a failure voids the campaign before it runs. Passes only if,
+# in one cell, --reader-mode open shows lag and stranded bytes where closed shows neither.
 # Usage: DELAY=25 RATE=20 LOSS=0.1 lab/scripts/e0_r6_reader_validate_cloud.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

@@ -1,22 +1,8 @@
 #!/usr/bin/env bash
-# GSO segment cap on real hardware — the measurement netsim voids by construction.
-#
-# docs/transport-conclusions.md records "+17 % throughput, -21 % CPU/byte" for raising
-# quinn's MAX_TRANSMIT_SEGMENTS from 10 to 32, with the caveat that it is density and not
-# latency. netsim forwards datagram-by-datagram in userspace, which destroys send-side GSO
-# batching, so that number could not be taken through it. This script takes it on the rig,
-# where the server writes to a real NIC through a real kernel UDP stack.
-#
-# Two binaries, identical but for the compile-time cap (lab/scripts/quinn_lab_build.sh):
-#   target/lab-arms/exact-server-seg10   upstream default
-#   target/lab-arms/exact-server-seg32   the proposed value
-#
-# Shaping is OFF by default. A 20 Mbit netem cap is far below the rate at which batching
-# matters, so both arms would sit at the cap and the comparison would be empty. The cost
-# of that choice is that the path, not the server, may set the ceiling — which is why the
-# script reports server CPU as a fraction of wall time: if that is well under 1.0 the
-# throughput half of the claim is not testable here and only CPU/byte is.
-#
+# GSO segment cap on real hardware — netsim voids this by construction. Two binaries from
+# quinn_lab_build.sh differing only in the compile-time cap. Shaping OFF, or both arms sit
+# at the cap; the cost is that the path may set the ceiling, so server CPU / wall is
+# reported and the throughput half is untestable below 1.0.
 # Usage: REPS=5 DWELL_MS=15000 lab/scripts/r6_gso_cpu_cloud.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -38,9 +24,7 @@ STUDY_LOCAL="$ROOT/lab/fixtures/$FIXTURE/$FIXTURE.sbnd"
 
 if [[ "$SHAPE" == "off" ]]; then r6_netem off >/dev/null; else r6_netem $SHAPE >/dev/null; fi
 
-# Interleave the two caps within each repeat rather than running all of one then all of
-# the other: the rig is a shared VM and host drift is not common-mode. This is the same
-# scar r6_campaign.sh carries from review 1.
+# Interleaved within each repeat: the rig is a shared VM and host drift is not common-mode.
 for REP in $(seq 1 "$REPS"); do
   for SEG in $SEGS; do
     r6_upload_server "$ROOT/target/lab-arms/exact-server-seg$SEG"

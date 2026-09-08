@@ -33,9 +33,7 @@ l1_require_study_trace() {
   [[ -f "$L1_TRACE" ]] || { echo "STOP: missing trace $L1_TRACE" >&2; exit 1; }
 }
 
-# A4 — demand/supply diagnostic.
-# clinical_under_delivery (default): expect demand/supply in [0.55, 0.98]
-# stress_over_delivery: expect demand/supply >= 1.0
+# A4 — demand/supply: clinical_under_delivery [0.55, 0.98], stress_over_delivery >= 1.0.
 l1_precheck_ratio() {
   local step_ms=$1 label=${2:-cell}
   local mode="${L1_READER_MODE:-clinical_under_delivery}"
@@ -75,19 +73,8 @@ print(f"frame_bytes_ok obs={obs:.1f} mean={mean:.1f}")
 PY
 }
 
-# A2 — honest miss-p95 tail mass (second review N2; stream-mode-remediation §R4).
-#
-# Nearest-rank p95 places ~5% of a run's positive waits at or above it, so a
-# L1_TAIL_MIN-sample tail needs ~20x L1_TAIL_MIN misses. Below that the "p95" is a
-# max estimator with a max's variance — the defect that voided v2 at 4-5 samples.
-#
-# This gate does NOT soften the requirement to fit the cell. A cell that cannot reach
-# the tail count has no usable p95, and says so: the row is still collected (the
-# lateness readout does not need a miss tail) but is stamped P95_UNSUPPORTED so that
-# no decision can quote its p95.
-#
-# Prints: miss_p95\ttail_n\tmiss_n\tneed\tok|p95_unsupported|FAIL
-# Exit 0 = ok · 3 = p95 unsupported (collect the row, do not decide on it) · 2 = FAIL.
+# A2 — miss-p95 tail mass. Too small a tail is stamped P95_UNSUPPORTED, never softened.
+# Exit 0 = ok, 3 = unsupported (collect the row, do not decide on it), 2 = FAIL.
 l1_tail_gate() {
   local json=$1
   python3 - "$json" "$L1_TAIL_MIN" <<'TAILPY'
@@ -108,15 +95,8 @@ print(f"{p95:.6f}\t{tail}\t{n}\t{need}\tok")
 TAILPY
 }
 
-# N1 — the null gate must be at least as sharp as the claim it protects.
-#
-# A null cell that tolerates an arm gap of X% cannot certify an effect smaller than X%,
-# so the rule is an interval, not a point: the 95% CI on the null relative gap must
-# exclude the effect bar. A gate stated as "within 25%" (v2's D=1 control) or "within
-# 40%" (the first Phase C runner) permits a zero-effect discrepancy larger than the
-# effect the campaign exists to detect.
-#
-# Usage: l1_null_gate <tsv> [effect_bar_pct]  ·  exit 0 = pass, 3 = fail.
+# N1 — the null's 95% CI must EXCLUDE the effect bar: a gate that tolerates X% cannot
+# certify an effect smaller than X%. Usage: l1_null_gate <tsv> [effect_bar_pct].
 l1_null_gate() {
   local tsv=$1 bar=${2:-${L1_EFFECT_BAR:-15}}
   python3 - "$tsv" "$bar" <<'NULLPY'
@@ -218,10 +198,7 @@ print("\n".join(order))
 PY
 }
 
-# Starts a fresh directional TSV. Refuses to truncate one that already holds rows:
-# these files are tracked results, and a re-run (or a DRY_RUN) that silently empties a
-# published campaign destroys the only copy of data the rig cannot cheaply reproduce.
-# Set L1_OVERWRITE_TSV=1 to start a genuinely new campaign over an existing path.
+# Refuses to truncate a TSV that already holds rows; L1_OVERWRITE_TSV=1 to start over.
 l1_write_directional_header() {
   local tsv=$1
   if [[ -s "$tsv" && "${L1_OVERWRITE_TSV:-0}" != "1" ]]; then

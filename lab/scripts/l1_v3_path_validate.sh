@@ -275,9 +275,8 @@ done
 python3 - "$OUT_TSV" <<'PY'
 import csv, statistics, sys
 path = sys.argv[1]
-# Gate S4b: at D=1 the ask crosses the return path (RTT/2) and the body crosses
-# the forward path (RTT/2 + Tf). Expected ≈ 1.5·RTT + Tf (Tf=25.6 ms @ 32 KiB / 10 Mbit).
-# Accept ±15% around that (tighter than v2's uncontrolled path, looser than ideal RTT+Tf).
+# Gate S4b: at D=1 the ask crosses the return path and the body the forward path, so expect
+# ~1.5*RTT + Tf (Tf = 25.6 ms at 32 KiB / 10 Mbit). Accept +/-15%.
 tf = 25.6
 bands = {
     "60": (0.85 * (1.5 * 60 + tf), 1.15 * (1.5 * 60 + tf)),   # ≈ 98–133

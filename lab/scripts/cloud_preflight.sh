@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
-# Preflight for any agent (local Claude Code, Cursor, a laptop shell) that wants to run a
-# campaign on the Oracle rig.
-#
-# Run this FIRST and stop if it fails. It exists because a cloud agent container cannot
-# reach the rig at all — no raw TCP, no UDP — and the failure shows up as a timeout deep
-# inside a campaign rather than as a clear "you cannot get there from here". Twenty
-# seconds here saves an hour of confusing output.
-#
-# Usage:  lab/scripts/cloud_preflight.sh
-# Exit:   0 = good to go, 1 = a check failed (the message says which and what to do)
+# Preflight before any Oracle-rig campaign. Run FIRST and stop if it fails: a cloud agent
+# container cannot reach the rig at all, and without this the failure surfaces as a timeout
+# deep inside a campaign.
+# Usage: lab/scripts/cloud_preflight.sh   Exit: 0 = good to go, 1 = a check failed
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -49,8 +43,7 @@ else
 fi
 
 # ---- 3 · the check a cloud agent container fails ---------------------------------------
-# Plain TCP to port 22. In an agent sandbox behind an HTTPS CONNECT proxy this times out,
-# and no amount of campaign scripting will fix it.
+# Plain TCP to 22: in a sandbox behind an HTTPS CONNECT proxy this times out.
 if timeout 12 bash -c "</dev/tcp/$CLOUD_HOST/22" 2>/dev/null; then
   ok "TCP $CLOUD_HOST:22 reachable"
 else
@@ -64,10 +57,7 @@ fi
 # ---- 4 · UDP, which is what the measurement actually needs ------------------------------
 # QUIC is UDP. An SSH tunnel would not help: CONNECT tunnels TCP only.
 if command -v nc >/dev/null 2>&1; then
-  # `nc -u -z` reports success whenever no ICMP unreachable came back, which is also what
-  # a silently blackholed datagram looks like. It is therefore NOT evidence that UDP works
-  # and must never be printed as `ok` — a false green here is exactly the misleading signal
-  # this script exists to prevent.
+  # `nc -u -z` cannot distinguish success from a blackhole, so it must NEVER print ok.
   timeout 8 nc -u -z -w 5 "$CLOUD_HOST" "$CLOUD_PORT" >/dev/null 2>&1
   note "UDP probe is INCONCLUSIVE by construction (connectionless: silence looks like success)."
   note "The authoritative UDP test is a real QUIC handshake - runbook step 3."
