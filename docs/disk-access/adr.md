@@ -153,7 +153,7 @@ sequential streaming, **B** both.
 | Escalate only the rest of the window | B | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 | flat at ~1 600 f/s from 8 to 32 readers | — | Superseded 2026-09-07 |
 | Every read through the ring (`uring`) | B | hits **+106 % / +298 %** at depth 2 / 4; streams +143–190 % at 8–64 sessions; misses tie | 5 threads; lowest CPU per miss | one path, but a hit must never touch a ring | Rejected as default; kept as a lab flag |
 | Ring pipelining (read *n+1* during write *n*) | T | ~6 % on a 100 %-miss trace, −25 % warm | 2× session memory | — | Rejected |
-| `SQPOLL` | B | worse: nothing completes inline | **2.8× CPU** | a kernel thread per ring | Rejected |
+| `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected** — the full record, and the one shape that would reopen it: [`RERUN.md`](RERUN.md) §SQPOLL |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
 | Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
 | Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 |
