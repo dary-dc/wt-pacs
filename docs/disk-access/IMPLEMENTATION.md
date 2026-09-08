@@ -179,9 +179,15 @@ product included, stays flat at **5**.
 The 250 KB miss column is the one to watch. −6.3% against `pool` is what the ADR predicts —
 the ring saves a roughly fixed per-round-trip cost, which is most of a 16 KiB read and under
 8% of a 250 KB one — so the product's real frame size is where this change is worth least.
-The +16.6% against `hybrid_lazyring` there does not clear the threshold and its sign
-agreement is 7 of 10, but it is the largest gap in the table and deserves a rerun with more
-repeats before it is dismissed.
+
+**The +16.6% against `hybrid_lazyring` there was rerun at 15 repeats and is not a
+difference — the cell cannot measure one** ([`v31_gap250k.tsv`](v31_gap250k.tsv)). It fell to
+**+6.7% with 16 of 30 signs**, agreement at chance. The reason is the cell, not the arms: a
+250 KB cold read on this device varies **2× to 12.5× between repeats of the same arm**
+(CV 0.23–1.16), and the control — `hybrid` against `hybrid_lazyring`, which differ only in
+*when* the ring is built — is itself at 12.5× spread. Nothing smaller than about 2× is
+resolvable here. Resolving it needs many more asks per cell to average the device tail, or a
+quieter device; it is not a question more repeats will answer.
 
 ## Before rollout: the one thing still unmeasured
 
