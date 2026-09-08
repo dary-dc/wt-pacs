@@ -212,7 +212,45 @@ while frame *n* is on the wire preserves FIFO delivery exactly — it is pipelin
 reordering. The serial loop is an implementation choice, and for a real-time tile viewer on
 slower storage than this host it is the dominant cost.
 
-### …and pipelining still does not make `uring` the right arm
+### Crossed depth × readers — where the arm choice actually stands
+
+Earlier cells varied depth at one reader, or readers at depth 1, and **never crossed them**.
+Crossed, 100% miss, `uring` minus `hybrid_lazyring` in microseconds — negative means `uring`
+is faster ([`v33_cross.tsv`](v33_cross.tsv)):
+
+| depth | readers | in flight | p50 | p99 |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1 | 1 | −13 | −37 |
+| 1 | 4 | 4 | +8 | +27 |
+| 1 | 16 | 16 | +29 | +166 |
+| 4 | 1 | 4 | +28 | **−87** |
+| 4 | 4 | 16 | +88 | **−224** |
+| 4 | 16 | 64 | +97 | **−1 468** |
+| 16 | 1 | 16 | +192 | +111 |
+| 16 | 4 | 64 | +128 | **−72** |
+| 16 | 16 | 256 | +519 | +7 772 |
+
+**`hybrid_lazyring` has the better median almost everywhere; `uring` has the better tail at
+depth 4.** Both statements are true at once, and neither generalises from a single row — an
+earlier version of this section claimed `uring` was 47–61% worse on latency, which was a p50
+result taken at one reader and does not survive the cross.
+
+What does not change with load is which arm is structurally safe: `pool` reaches **98 OS
+threads** at 256 reads in flight and a 15.6 ms p99; both ring arms stay flat at **5** threads.
+The arm to avoid at scale is the one this change replaced.
+
+Treat the high end as directional: at 64 and 256 reads in flight a 4 vCPU host is the
+bottleneck, not the read path.
+
+### One in flight per session, by construction
+
+`UringReader` holds a single `in_flight: bool` and `ReadCtx` a single `window`, so **a session
+can have exactly one read outstanding**. That is correct for today's serial `serve_batch`, and
+it is the thing that has to change first if frames are ever served concurrently within a
+session — pipelining is not a matter of spawning tasks around the existing `ReadCtx`, because
+they would contend for one buffer and one ring slot.
+
+### …and the depth argument for `uring` is about the tail, not the median
 
 The published `uring` advantage at depth is a **CPU** advantage, and CPU is not what a
 real-time viewer is short of. `uring` is cheaper in CPU and slower in wall-clock at the same
