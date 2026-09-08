@@ -104,8 +104,8 @@ Every arm moves behind `--features lab`, following the convention the repository
 uses for `telemetry`. **Nothing is deleted** — see the correction above for why that matters.
 
 ```bash
-cargo build --release                 # product: 6 transport flags, each backed by a conclusion
-cargo build --release --features lab  # every arm this branch ever ran, byte for byte
+cargo build --release                 # product: 10 flags, 6 transport, each backed by a conclusion
+cargo build --release --features lab  # 20 flags; every arm this branch ever ran, byte for byte
 ```
 
 **Nothing becomes unreproducible.** A campaign that swept an arm still sweeps it; it asks for

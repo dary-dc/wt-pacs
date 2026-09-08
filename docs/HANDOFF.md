@@ -41,7 +41,7 @@ being asked.**
 | | |
 | --- | --- |
 | **Shipped the conclusion** | `--stream-mode` now defaults to `shared`; §2.7's pre-registered rule fired when X3L separated |
-| **Separated rig from product** | 13 transport flags → 6 on a product build, 3 send paths → 1; every arm behind `--features lab`, nothing deleted |
+| **Separated rig from product** | product `--help` is 10 flags, 6 of them transport (`--stream-mode --bind --receive-window --send-window --congestion --prefault`); lab adds 10 more. One send path on a product build; every experiment arm behind `--features lab`, nothing deleted |
 | **Leaned the comments** | 157 multi-line blocks → 39, all file headers; every in-body comment is one or two lines, rationale moved to the measurement documents |
 | **Closed the review** | all 25 findings transcribed into §4.4a with status — the artifact it lived in can be retired. Nine remain open |
 | **Re-measured** | the stalled-client campaign re-run on the cleaned tree: 185.3 / 382.3 kB against a published 180 / 370, ratio 3.48× against 3.46× |
@@ -64,7 +64,7 @@ invocations in prose cannot be audited by grepping its code (§5, trap 6).
 | Relation to `main` | **no longer a fast-forward — see the warning below** |
 | Contains | the L1 loss-run lane **plus** the R6 stream-shape lane, merged and reconciled |
 | Build | `cargo build --release --workspace` clean. Tests: 13 server, 16 with `--features telemetry`, 7 harness — in every combination of `lab` and `telemetry`. Clippy 3, all in files this branch never touched |
-| PR | [**#5**](https://github.com/dary-dc/wt-pacs/pull/5), draft, open since 2026-08-30 — its description still covers L1 v3 Phase C only, two lanes out of date. The same server changes are also open as #12 |
+| PR | [**#5**](https://github.com/dary-dc/wt-pacs/pull/5), draft, open since 2026-08-30. #12 was an earlier segment of the same lineage and has been closed as absorbed (39/39 commits by patch-id; every committed `.tsv` byte-identical) |
 
 > **Corrected 2026-09-07.** This table used to claim `main` was a direct ancestor and that
 > `git rev-list origin/main --not HEAD` printed nothing. **That is no longer true.** The
@@ -169,9 +169,9 @@ predicts 8.5×, comfortably above a 4.3× noise floor.
 > [`measurements/r6/x3l-prereg.md`](measurements/r6/x3l-prereg.md). Reading:
 > `transport-conclusions.md` §2.6a.
 >
-> **The stream-shape recommendation is no longer a simulator result.** What remains open is
-> §2.7 — the binary still defaults to `per-frame` — which is a product decision, not a
-> measurement.
+> **The stream-shape recommendation is no longer a simulator result.** §2.7 has
+> landed: the binary defaults to `shared` as of 2026-09-08. `main` still defaults
+> to `per-frame`.
 
 **Run card: [`measurements/r6/x3l-run-card.md`](measurements/r6/x3l-run-card.md)** — written
 2026-09-07 after an audit found three ways this run fails *silently*. The worst: `FIXTURE`
@@ -227,10 +227,11 @@ session should know before opening it:
    `lab/scripts/stall_client_campaign.sh` and expect ~200 kB/connection. Megabytes means the
    copy is back. `frame_bytes_is_a_view_of_the_mapping` is the cheap fast-fail beside it.
 
-The five remaining code proposals (§2, §3, §6, §7, §8 of
-[`proposals/product-code-changes.md`](proposals/product-code-changes.md)) mostly live inside
-`send_one_frame`, which the port rewrites. **Fold them into the port rather than doing them
-in parallel**, or you will resolve your own conflicts.
+Of the five remaining code proposals
+([`proposals/product-code-changes.md`](proposals/product-code-changes.md)), only §7 (drain
+the per-frame ack `JoinSet`) lives in the session loop the port rewrites — fold that one
+in. §2 and §3 are harness; §6 is crypto-feature exclusivity; §8 is a post-port
+measurement. Doing those in parallel with the port does not create send-path conflicts.
 
 ### 4.1 · Deploy the loss-regime sampler — highest value, smallest change
 
@@ -348,9 +349,10 @@ the reviewer's.
 | G3 | note | Rig key rotation left as a to-do in a public repo | **fixed** — rotated at `bebf358`, denial proven, backups deleted |
 | G4 | note | Clippy warnings; dead `parse_length_prefixed` | **fixed** — 21 → 3, and the 3 are in files this branch never touched |
 
-**Nine remain open.** Six are code proposals awaiting agreement
-([`proposals/product-code-changes.md`](proposals/product-code-changes.md) §2, §3, §6, §7, §8);
-three are recording gaps — S3's `ARMS` column, S5's two statistical caveats, D3's missing rows.
+**Nine remain open.** Five code proposals
+([`proposals/product-code-changes.md`](proposals/product-code-changes.md) §2, §3, §6, §7, §8)
+plus P5; three recording gaps — S3's `ARMS` column, S5's two statistical caveats, D3's
+per-arm GSO rows (the committed `r6cloud_gso_batch.tsv` is keyed by segment cap, not arm).
 None of them moves a published number in a direction the documents do not already admit.
 
 **The one that cannot be closed here, in priority order:**
@@ -363,10 +365,11 @@ None of them moves a published number in a direction the documents do not alread
    > cost twenty minutes, so it is recorded rather than left for the next session to redo.
    > The branch first reached this machine at `2026-09-06 18:09 -0300`, about 15 h *after*
    > `6640ff4` committed `r5a_congestive.tsv` at `2026-09-06 05:43 +0000`; the reflog has no
-   > entry creating that commit locally, so it arrived by fetch. Every R-series commit is
-   > authored `Claude <noreply@anthropic.com>` at `+0000` while this host is `-0300` and
-   > commits as `dary-dc`. And `measurements/l4/README.md` records the L4 rig as a kernel
-   > *without* `sch_netem`, where this one has it.
+   > entry creating that commit locally, so it arrived by fetch. The R-series commits are
+   > timestamped `+0000` while this host is `-0300`. (An author rewrite later set those
+   > commits to `dary-dc`; authorship is no longer a distinguishing signal.) And
+   > `measurements/l4/README.md` records the L4 rig as a kernel *without* `sch_netem`,
+   > where this one has it.
    >
    > **This may not be satisfiable at all.** `lanes/L4-preregistration.md` §5.5 justifies
    > interleaving with *"this host has already been replaced twice mid-session"* — the L4

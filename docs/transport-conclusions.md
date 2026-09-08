@@ -388,9 +388,9 @@ realisations *before* the per-frame arm ran.
 250 KB with stranding present" was readable and would have put retransmit deferral in
 trouble. It separated instead.
 
-**What it does not settle:** §2.7. The binary still defaults to `per-frame`. And GSO is off
-in both arms — necessary to make the loss model fair, but not how the server runs in
-production, so the GSO-on real-path condition at 250 KB is unmeasured.
+**What it does not settle:** the GSO-on real-path condition at 250 KB. GSO is off in both
+arms — necessary to make the loss model fair, but not how the server runs in production.
+§2.7 (the default) has since landed: the binary defaults to `shared`.
 
 ### 2.7 · The binary now implements this recommendation
 

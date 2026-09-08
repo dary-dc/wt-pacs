@@ -214,9 +214,9 @@ passing* — **did not occur**, and it was a live possibility: the gate passed (
 stranded per row, `center_dropped` 0 throughout), so a null would have been readable and
 would have put the retransmit-deferral mechanism in trouble.
 
-What it does **not** settle is §2.7, the gap between the recommendation and the code:
-`server/src/main.rs` still defaults to `per-frame`. That is a product decision, and this run
-makes the cost of leaving it alone measurable rather than simulated.
+What it does **not** settle is the GSO-on real-path condition at 250 KB. §2.7 has since
+landed: `server/src/main.rs` defaults to `shared` as of 2026-09-08. This run made the cost
+of leaving the old default measurable rather than simulated.
 
 ---
 
