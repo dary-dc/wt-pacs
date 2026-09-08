@@ -2,6 +2,7 @@
 //! `docs/adr-reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
+use crate::media::read_path::WINDOWS;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::stream_mode::StreamMode;
@@ -9,6 +10,7 @@ use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
+use tokio::sync::mpsc;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -228,38 +230,63 @@ async fn handle_incoming(
     run_session(&mut product, control_send, control_recv).await
 }
 
-/// **One frame at a time is the session's whole depth**: a client that pipelines asks still
-/// gets them served serially. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+/// The reader owns the control stream; the loop serves and peeks the next ask.
+/// `docs/disk-access/READ-PATH-DESIGN.md` §3, `docs/adr-frame-framing-and-loop-shape.md` §6d.
 async fn run_session<P: FramePipeline>(
     pipeline: &mut P,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
 ) -> Result<()> {
-    loop {
-        let msg = match read_fod_msg(&mut control_recv).await {
-            Ok(m) => m,
-            Err(err) => {
-                warn!(%err, "control read ended");
-                break;
+    let (tx, mut rx) = mpsc::channel(WINDOWS - 1);
+    let reader = tokio::spawn(async move {
+        loop {
+            match read_fod_msg(&mut control_recv).await {
+                Ok(msg) => {
+                    if tx.send(msg).await.is_err() {
+                        break;
+                    }
+                }
+                Err(err) => {
+                    warn!(%err, "control read ended");
+                    break;
+                }
             }
-        };
+        }
+    });
 
+    let mut current = rx.recv().await;
+    while let Some(msg) = current {
         match msg {
             FodMsg::RequestFrame { frame } => {
-                pipeline.serve_one(frame, None, &mut control_send).await?;
+                let peeked = rx.try_recv().ok();
+                pipeline
+                    .serve_one(frame, upcoming_index(peeked.as_ref()), &mut control_send)
+                    .await?;
+                current = match peeked {
+                    Some(m) => Some(m),
+                    None => rx.recv().await,
+                };
             }
             FodMsg::RequestFrames { frames } => {
                 pipeline.serve_batch(&frames, &mut control_send).await?;
+                current = rx.recv().await;
             }
             FodMsg::EndSession => break,
             other => {
                 warn!(?other, "ask-only: ignoring unexpected FoD message");
+                current = rx.recv().await;
             }
         }
     }
 
+    reader.abort();
+    let _ = reader.await;
     pipeline.drain_acks().await;
     Ok(())
+}
+
+fn upcoming_index(_msg: Option<&FodMsg>) -> Option<u32> {
+    None
 }
 
 #[cfg(test)]
@@ -351,6 +378,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_pipelined_request_frame_names_the_next_ask() {
+        assert_eq!(
+            upcoming_index(Some(&FodMsg::RequestFrame { frame: 3 })),
+            Some(3)
+        );
+        assert_eq!(
+            upcoming_index(Some(&FodMsg::RequestFrames {
+                frames: vec![4, 5]
+            })),
+            Some(4)
+        );
+        assert_eq!(upcoming_index(Some(&FodMsg::EndSession)), None);
+        assert_eq!(upcoming_index(None), None);
+    }
+
     /// **`serve_batch` over the wire.** Every frame of a `RequestFrames` arrives whole and
     /// in ask order, with the read ahead running under it — the one path where a frame is
     /// served out of a window that was filled while the frame before it was still being
@@ -412,6 +455,82 @@ mod tests {
                 .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrames { frames: asked.clone() }).unwrap())
                 .await
                 .expect("ask");
+
+            let mut media = connection.accept_uni().await.expect("accept media uni");
+            for want in asked {
+                let (idx, codestream) =
+                    tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                        .await
+                        .expect("frame never arrived");
+                assert_eq!(idx, want, "frames arrived out of ask order");
+                assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
+            }
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Pipelined `RequestFrame`s reach the loop as `current` + `upcoming`, not one-at-a-time.
+    /// `docs/adr-frame-framing-and-loop-shape.md` §6d.
+    #[test]
+    fn pipelined_single_asks_arrive_whole_and_in_ask_order() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-pipe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let frames = 6u32;
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                wt_port: port,
+                study_path: study,
+                cert_pem,
+                key_pem,
+                mode: StreamMode::Shared,
+                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                transport: TransportKnobs::default(),
+            }));
+
+            let endpoint = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(
+                        cert_hash,
+                    )])
+                    .build(),
+            )
+            .expect("client endpoint");
+            let url = format!("https://127.0.0.1:{port}/");
+
+            let mut connection = None;
+            for _ in 0..50 {
+                match endpoint.connect(url.clone()).await {
+                    Ok(c) => {
+                        connection = Some(c);
+                        break;
+                    }
+                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                }
+            }
+            let connection = connection.expect("server never accepted a connection");
+
+            let (mut control, _control_recv) =
+                connection.open_bi().await.expect("open bi").await.expect("bi ready");
+            let asked: Vec<u32> = (0..frames).collect();
+            for &frame in &asked {
+                control
+                    .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrame { frame }).unwrap())
+                    .await
+                    .expect("ask");
+            }
 
             let mut media = connection.accept_uni().await.expect("accept media uni");
             for want in asked {
