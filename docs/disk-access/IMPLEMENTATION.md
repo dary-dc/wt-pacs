@@ -372,27 +372,37 @@ The read path drives the `io-uring` crate directly. What else was on the table:
 | `preadv2(RWF_NOWAIT)` inline | **kept — it is the hit path** | Not an alternative but the other half: a page-cache hit never reaches the ring |
 | mmap | rejected, measured | Faults freeze co-tenants (`gap_max` 1.5–4.2 ms); `mincore` gating unsafe 5/5 runs. See the table above |
 | `tokio::fs` + `io-uring` feature | rejected — see below | Sequential only; no positional read exists in `tokio::fs` |
-| `tokio-uring` crate | rejected | Current-thread runtime with its own driver — **unverified, see caveat** |
-| `glommio`, `monoio`, `compio` | rejected | Thread-per-core or completion-first runtimes — **unverified, see caveat** |
+| `tokio-uring` crate | rejected | Current-thread runtime with its own driver. **Verified 2026-09-08**: 0.5.0, no release since 2024-05 |
+| `glommio`, `monoio`, `compio` | rejected | Thread-per-core or completion-first runtimes. **Verified 2026-09-08**; `compio` is the live one |
+| `uring-fs` — "any async runtime" | rejected | The wrapper this list assumed did not exist. It spawns a reaper thread, has no positional read, and its author flags possible undefined behaviour |
 | `O_DIRECT` + SPDK | rejected | Wrong scale for this workload |
 | `sendfile` / `splice` | rejected | Userspace QUIC copies anyway |
 
 #### The constraint that rules out four of them at once
 
-`wtransport` is built on `quinn`, which runs on **tokio's multi-thread runtime**
-(`quinn::TokioRuntime`). Any option that brings its own runtime — `tokio-uring`, `glommio`,
-`monoio`, `compio` — is not a read-path change but a **whole-server rewrite** of the transport
-too. That is a real option one day, and [`RERUN.md`](RERUN.md) already names "a thread-per-core
+Any option that brings its own runtime — `tokio-uring`, `glommio`, `monoio`, `compio` — is not
+a read-path change but a **whole-server rewrite** of the transport too.
+
+**And the constraint belongs to `wtransport`, not to QUIC.** Corrected 2026-09-08: quinn
+0.11.11 has a public `Runtime` trait with `TokioRuntime`, `SmolRuntime` and `AsyncStdRuntime`
+shipped; it is `wtransport 0.7.2` that hardcodes `Arc::new(TokioRuntime)`
+(`endpoint.rs:132`, `:186`). Another runtime would still have to implement `quinn::Runtime`
+over its own UDP and timers, so this is a lead rather than an opening —
+[`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md). That is a real option one day, and [`RERUN.md`](RERUN.md) already names "a thread-per-core
 runtime" as one of the two conditions that would reopen io_uring's ceiling. It is not a
 choice this ADR can make on its own.
 
 #### Why not tokio's own io_uring support
 
-Verified against the vendored source of tokio 1.53.1:
+Verified against the vendored source of tokio 1.53.1 (re-checked 2026-09-08):
 
-* Gated behind `--cfg tokio_unstable` — `compile_error!` without it.
-* It routes **sequential** `File::read` through the ring.
-* **`tokio::fs` has no positional read at all** — no `read_at`, no `read_exact_at`.
+* Gated behind `cfg(all(tokio_unstable, feature = "io-uring", "rt", "fs", linux))`.
+* It routes **sequential** reads through the ring, and has done since 1.52.0 implemented
+  `AsyncRead for File` over io_uring — more than this section originally claimed.
+* **The public `tokio::fs::File` still has no positional read** — no `read_at`, no
+  `read_exact_at`. Internally `src/io/uring/read.rs:102` has a `pub(crate) read_at`, so the
+  gap is an API boundary rather than missing machinery, and a public one appearing is the
+  event that reopens this row.
 
 A frame is a byte range at an offset, read out of order across a study, so the operation
 tokio accelerates is not the one this path performs.
