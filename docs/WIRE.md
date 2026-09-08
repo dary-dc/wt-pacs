@@ -25,6 +25,27 @@ Media-complete: frame completion is the envelope payload on a uni stream, not a 
 
 Study bundles use on-disk **SBND** layout (see `docs/FIXTURES.md`).
 
+## Ask messages, and what the server actually does with them
+
+| Message | Documented intent | What the server does today |
+| --- | --- | --- |
+| `RequestFrame { frame }` | interactive path, *depth = outstanding asks* | **serves one at a time** — the next ask is not read until the current frame is on the wire |
+| `RequestFrames { frames }` | bulk path, batch drained before the next ask | serves the batch serially, frame *n+1* not read until *n* is sent |
+| `EndSession` | stop | stop |
+
+The depth in `RequestFrame`'s intent is the **client's** — how many asks it may have
+outstanding. The server flattens it to one. That is a known limitation with a measured cost
+and a proposed shape, not a protocol decision:
+[`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §6b.
+
+### Missing: a server-driven streaming mode
+
+For ultrasound and other small/medium-frame studies the client should not have to name
+indexes at all — one "study open, start loading" message, then the server streams frames in
+order until told otherwise. **Not implemented**, and `RequestFrames` is not a substitute
+because it still enumerates every index. Design notes and the open question (flow control) in
+[`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §6c.
+
 ## Server send path (copy discipline)
 
 The server sends each media frame as **three `write_all` calls** on the uni stream: length prefix,

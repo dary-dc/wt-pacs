@@ -50,6 +50,14 @@ pub(crate) trait FramePipeline: Send {
 
     /// `RequestFrames`: every frame before the next control read, in order. Written once here;
     /// `note_batch` tells the step implementor where in the batch the next `serve_one` sits.
+    ///
+    /// **Serial, so a batch does not pipeline**: frame *n+1* is not read from disk until frame
+    /// *n* is on the wire. For a tile viewport that puts the whole batch's disk latency on the
+    /// critical path — measured at 1.2 ms for 16 missing tiles against 0.4 ms overlapped.
+    /// Overlapping them is *pipelining*, not reordering, so
+    /// `docs/adr-reject-server-ordering.md` does not forbid it; what stands in the way is that
+    /// a session holds one read window and one ring slot. See
+    /// `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
     async fn serve_batch(&mut self, frames: &[u32], control: &mut SendStream) -> Result<()> {
         let size = frames.len() as u32;
         for (position, &frame) in frames.iter().enumerate() {
