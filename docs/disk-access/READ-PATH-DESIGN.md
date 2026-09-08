@@ -220,3 +220,190 @@ cap belong to step 3 and wait for these two.
   fill on per-frame uni streams should also reset the frame in progress (§5 of the loop ADR)
   is open.
 * **Memory at thousands of fills** (§5): measure before building the block reads.
+
+## 8 · Proposed implementation — steps 0 to 2
+
+Written against the code as it stood when this design was agreed, not against anything
+landed since; shape, not final code. Everything here is `server/` plus two message variants
+and one client call. Change A (step 3) is sketched at the end only as far as its signatures.
+
+### Step 0 · Bound the write chunk
+
+`stream_codestream` keeps `stride = store.read_window(span.len)` for how much to ask the
+store for — the whole frame where `RWF_NOWAIT` is refused, which is what saves the pool round
+trips — and bounds what it hands the wire:
+
+```rust
+for piece in ready.chunks(stride.min(READ_WINDOW)) {
+    uni.write_all(piece).await.context("write codestream")?;
+}
+```
+
+To test it, `stream_codestream` takes `uni: &mut impl AsyncWrite + Unpin` (wtransport's
+`SendStream` is one); the test drives it with a sink that records every `poll_write` length
+against a store under `force_pool_reads()` and a frame of `3 × READ_WINDOW + 17` bytes, and
+asserts no write exceeds `READ_WINDOW` and the concatenation is the frame. Mutate by removing
+the `.min`.
+
+### Step 1 · The ask reader and the channel
+
+One task owns the control stream for the session's life. The channel carries what it read,
+errors included, so a broken control stream ends the session instead of hanging it.
+
+```rust
+/// Asks the loop may hold beyond the frame in hand: one per window the read path can start.
+const LOOKAHEAD: usize = read_path::WINDOWS - 1;
+
+fn spawn_ask_reader(mut control_recv: RecvStream) -> mpsc::Receiver<Result<FodMsg>> {
+    let (tx, rx) = mpsc::channel(LOOKAHEAD);
+    tokio::spawn(async move {
+        loop {
+            match read_fod_msg(&mut control_recv).await {
+                Ok(Some(msg)) => if tx.send(Ok(msg)).await.is_err() { break },
+                Ok(None) => break,
+                Err(err) => { let _ = tx.send(Err(err)).await; break }
+            }
+        }
+    });
+    rx
+}
+```
+
+`read_fod_msg` is untouched: it is still the only reader of the stream, start to finish, so
+its non-cancel-safety stops mattering. `WINDOWS` becomes `pub(crate)` so the two halves of
+depth share one constant.
+
+The loop takes one message, looks for the next without waiting, and serves. `EndSession` is
+handled where it sits in the sequence, never earlier.
+
+```rust
+async fn run_session<P: FramePipeline>(
+    pipeline: &mut P,
+    mut control_send: SendStream,
+    control_recv: RecvStream,
+) -> Result<()> {
+    let mut asks = spawn_ask_reader(control_recv);
+    let mut current = asks.recv().await;
+    while let Some(msg) = current {
+        current = match msg? {
+            FodMsg::EndSession => break,
+            FodMsg::RequestFrame { frame } => {
+                let next = asks.try_recv().ok();
+                pipeline.serve_one(frame, first_frame(&next), &mut control_send).await?;
+                match next { Some(m) => Some(m), None => asks.recv().await }
+            }
+            FodMsg::RequestFrames { frames } => {
+                pipeline.serve_batch(&frames, &mut control_send).await?;
+                asks.recv().await
+            }
+            FodMsg::StreamFrames { from, to } => {
+                fill(pipeline, &mut asks, from, to, &mut control_send).await?
+            }
+            FodMsg::EndStream => asks.recv().await,
+            FodMsg::FrameError { .. } => asks.recv().await,
+        };
+    }
+    pipeline.drain_acks().await;
+    Ok(())
+}
+
+/// The frame a pipelined message would ask for first, so the frame in hand can read ahead.
+fn first_frame(next: &Option<Result<FodMsg>>) -> Option<u32> {
+    match next {
+        Some(Ok(FodMsg::RequestFrame { frame })) => Some(*frame),
+        Some(Ok(FodMsg::RequestFrames { frames })) => frames.first().copied(),
+        _ => None,
+    }
+}
+```
+
+`serve_one(frame, next, control)` and `serve_batch` are the existing calls; nothing below the
+pipeline changes in this step. A client that pipelines two `RequestFrame`s now gets the same
+read-ahead a two-element batch gets, and `EndStream` without a fill is a no-op.
+
+### Step 2 · Fill
+
+Two variants and one function. The loop's rule is in the one `match`: whatever is found in the
+channel between frames ends the fill, and everything except `EndStream` becomes the next
+`current`.
+
+```rust
+// common/fod
+StreamFrames {
+    #[serde(default)] from: Option<u32>,   // None → 0
+    #[serde(default)] to: Option<u32>,     // None → the last frame; inclusive
+},
+EndStream,
+```
+
+```rust
+/// Recite `from..=to` through the ordinary per-frame path, looking at the channel between
+/// frames. Returns the message that ends the fill, or the next one read when it completes.
+async fn fill<P: FramePipeline>(
+    pipeline: &mut P,
+    asks: &mut mpsc::Receiver<Result<FodMsg>>,
+    from: Option<u32>,
+    to: Option<u32>,
+    control: &mut SendStream,
+) -> Result<Option<Result<FodMsg>>> {
+    let last = pipeline.store().frame_count().saturating_sub(1);
+    let (from, to) = (from.unwrap_or(0), to.unwrap_or(last));
+    if from > to || to > last {
+        pipeline.refuse(control, from, anyhow!("StreamFrames {from}..={to} outside 0..={last}")).await?;
+        return Ok(asks.recv().await);
+    }
+    for frame in from..=to {
+        match asks.try_recv() {
+            Ok(Ok(FodMsg::EndStream)) => return Ok(asks.recv().await),
+            Ok(msg) => return Ok(Some(msg)),
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => return Ok(None),
+        }
+        pipeline.serve_one(frame, (frame < to).then(|| frame + 1), control).await?;
+    }
+    Ok(asks.recv().await)
+}
+```
+
+That is the whole of fill: `serve_one` already reads the next frame ahead, so a fill runs at
+depth 2 with the double buffer that ships, and QUIC paces it because `write_all` waits when
+the client stops reading. An empty study refuses with `from`. The per-session summary line
+gains `fills=N` so a fill's miss rate is not read as a tile session's.
+
+Client: `transport-wasm` gains `stream_frames(from, to)` and `end_stream()`, both one
+`encode_fod_msg` each; the harness gains `--mode fill` so the measurement in §6 can run.
+
+### Tests, each mutated once
+
+Unit tests drive `run_session` and `fill` with a test `FramePipeline` that records what it
+was asked to serve, over a channel pre-loaded with the messages of the case, so nothing
+depends on timing.
+
+| Test | Claim |
+| --- | --- |
+| `pipelined_asks_supply_the_next_frame` | two `RequestFrame`s in the channel: the first is served with `next` = the second |
+| `a_batch_after_a_single_ask_supplies_its_first_frame` | `RequestFrame` then `RequestFrames`: `next` is the batch's first |
+| `a_fill_recites_from_to_inclusive_in_order` | `StreamFrames { 3, 7 }` serves 3, 4, 5, 6, 7, each with the next named |
+| `end_stream_stops_a_fill_before_the_next_frame` | `EndStream` in the channel at frame *k*: nothing after *k* is served, the session continues |
+| `a_data_request_during_a_fill_ends_it_and_is_served_next` | `RequestFrame { 9 }` found mid-fill: the fill stops and 9 is served |
+| `end_session_during_a_fill_ends_the_session` | `EndSession` mid-fill: nothing more is served, `run_session` returns |
+| `a_bad_range_is_refused_with_from` | `from > to`, or `to` past the study: `refuse` with `from`, no frame served |
+| `a_reader_error_is_the_session_error` | an `Err` in the channel makes `run_session` return it |
+| `every_write_is_at_most_one_window_where_nowait_is_refused` | step 0 |
+
+The existing end-to-end batch test stays as the proof that bytes did not change, and a
+second one sends `StreamFrames {}` over the wire and receives the whole study in order.
+
+### Step 3, only as far as its signatures
+
+When W above 2 is wanted, change A replaces `ReadCtx::read(span, pos, next)` with:
+
+```rust
+pub fn frame(&mut self, store: &Arc<FrameStore>, span: FrameSpan,
+             upcoming: impl Iterator<Item = u32>) -> FrameBytes<'_>;
+impl FrameBytes<'_> { pub async fn next(&mut self) -> Result<Option<&[u8]>>; }
+```
+
+`windows: Vec<Window>` sized by W, `upcoming` consumed for at most `W − 1` frames not already
+held, and `LOOKAHEAD` follows W. The loop above does not change: `first_frame` becomes the
+frames the channel holds, `fill` passes `frame + 1..=to`. Nothing in steps 0–2 is undone.
