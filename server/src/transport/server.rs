@@ -269,8 +269,12 @@ async fn drive<P: FramePipeline>(
         current = match msg? {
             FodMsg::EndSession => break,
             FodMsg::RequestFrame { frame } => {
-                pipeline.serve_one(frame, None).await?;
-                asks.recv().await
+                let next = asks.try_recv().ok();
+                pipeline.serve_one(frame, first_frame(&next)).await?;
+                match next {
+                    Some(m) => Some(m),
+                    None => asks.recv().await,
+                }
             }
             FodMsg::RequestFrames { frames } => {
                 pipeline.serve_batch(&frames).await?;
@@ -282,6 +286,15 @@ async fn drive<P: FramePipeline>(
     }
     pipeline.drain_acks().await;
     Ok(())
+}
+
+/// The frame a pipelined message would ask for first, so the frame in hand can read ahead.
+fn first_frame(next: &Option<Result<FodMsg>>) -> Option<u32> {
+    match next {
+        Some(Ok(FodMsg::RequestFrame { frame })) => Some(*frame),
+        Some(Ok(FodMsg::RequestFrames { frames })) => frames.first().copied(),
+        _ => None,
+    }
 }
 
 /// Recite `from..=to`. Anything in the channel ends the fill; `EndStream` is not replayed.
@@ -489,6 +502,44 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let store = Arc::new(FrameStore::open(&write_study(&dir, frames)).expect("open"));
         (store, dir)
+    }
+
+    /// Two `RequestFrame`s in the channel: the first is served with `next` = the second.
+    #[test]
+    fn pipelined_asks_supply_the_next_frame() {
+        let (store, dir) = recording_store(4);
+        let mut p = RecordingPipeline::new(store);
+        block_on(drive_queued(
+            &mut p,
+            vec![
+                Ok(FodMsg::RequestFrame { frame: 1 }),
+                Ok(FodMsg::RequestFrame { frame: 2 }),
+                Ok(FodMsg::EndSession),
+            ],
+        ))
+        .expect("drive");
+        assert_eq!(p.served, vec![(1, Some(2)), (2, None)]);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `RequestFrame` then `RequestFrames`: `next` is the batch's first.
+    #[test]
+    fn a_batch_after_a_single_ask_supplies_its_first_frame() {
+        let (store, dir) = recording_store(6);
+        let mut p = RecordingPipeline::new(store);
+        block_on(drive_queued(
+            &mut p,
+            vec![
+                Ok(FodMsg::RequestFrame { frame: 1 }),
+                Ok(FodMsg::RequestFrames {
+                    frames: vec![4, 5],
+                }),
+                Ok(FodMsg::EndSession),
+            ],
+        ))
+        .expect("drive");
+        assert_eq!(p.served, vec![(1, Some(4)), (4, Some(5)), (5, None)]);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     async fn drive_queued(
