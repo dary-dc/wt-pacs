@@ -345,7 +345,7 @@ the reviewer's.
 | H3 | note | The measured stall client keep-alives; a silent one is reaped at 30 s | **fixed** — §3.1 and `stall.rs` say which client this is |
 | D5 | note | Small drifts: stranding, "within 1 %", "may not modify server/", PR status, stale key doc | **all five fixed** — the last two (`1.2 %`, `cloud-rig-access.md`'s key fallback) closed 2026-09-08 |
 | D6 | note | Serve-timing log has a 576-byte NUL hole | **fixed** — the truncate now precedes `deploy_s`, which restarts the server |
-| G3 | note | Rig key rotation left as a to-do in a public repo | **fixed** — rotated at `1fbf108`, denial proven, backups deleted |
+| G3 | note | Rig key rotation left as a to-do in a public repo | **fixed** — rotated at `bebf358`, denial proven, backups deleted |
 | G4 | note | Clippy warnings; dead `parse_length_prefixed` | **fixed** — 21 → 3, and the 3 are in files this branch never touched |
 
 **Nine remain open.** Six are code proposals awaiting agreement
@@ -362,7 +362,7 @@ None of them moves a published number in a direction the documents do not alread
    > **2026-09-07: checked, and the local workstation is NOT that rig.** Establishing this
    > cost twenty minutes, so it is recorded rather than left for the next session to redo.
    > The branch first reached this machine at `2026-09-06 18:09 -0300`, about 15 h *after*
-   > `23b31ce` committed `r5a_congestive.tsv` at `2026-09-06 05:43 +0000`; the reflog has no
+   > `6640ff4` committed `r5a_congestive.tsv` at `2026-09-06 05:43 +0000`; the reflog has no
    > entry creating that commit locally, so it arrived by fetch. Every R-series commit is
    > authored `Claude <noreply@anthropic.com>` at `+0000` while this host is `-0300` and
    > commits as `dary-dc`. And `measurements/l4/README.md` records the L4 rig as a kernel

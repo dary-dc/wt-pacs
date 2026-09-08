@@ -8,7 +8,7 @@ Inputs: [`../measurements/r2/L1_V2_ADVERSARIAL_REVIEW.md`](../measurements/r2/L1
 (why v2 is void) · [`../l1-loss-literature-review.md`](../l1-loss-literature-review.md) (what the
 mechanism requires, and the loss-model finding).
 
-Everything below was checked against the tree at `d5bb193`: `lab/window-harness/src/{client,metrics,main,trace}.rs`,
+Everything below was checked against the tree at `2a8f20d`: `lab/window-harness/src/{client,metrics,main,trace}.rs`,
 `lab/scripts/{l1_loss_run_v2_cloud.sh,l1_build_bins.sh,cloud_netem.sh,cloud_common.sh,gen_tf_fixtures.sh}`,
 `server/src/transport/server.rs`, and the pinned `quinn-proto 0.11.17` / `wtransport 0.7.2` sources.
 

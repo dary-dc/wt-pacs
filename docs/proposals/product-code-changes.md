@@ -33,7 +33,7 @@ The condition is met. This is the one item here whose justification is already w
 and already satisfied; it is a proposal only because changing a shipped default is not
 something to do inside a documentation pass.
 
-**Landed.** Commit `41db5a0`, on its own so a reviewer can read the whole argument in one
+**Landed.** Commit `cce4019`, on its own so a reviewer can read the whole argument in one
 `git show`. `all_send_paths_are_the_same_wire` passes. The grep found seven legacy scripts
 reading the old default rather than naming it; each now passes `--stream-mode per-frame`, so
 no committed measurement changes meaning.

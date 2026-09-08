@@ -1,7 +1,7 @@
 # L1 v3 Phase C — adversarial review
 
 **Date:** 2026-09-06 · **Branch:** `cursor/l1-loss-run-dbae`
-**Scope:** Phases A–C as they stand at `699cedc` — `lab/scripts/l1_v3_{common,collect_small}.sh`,
+**Scope:** Phases A–C as they stand at `2aadc95` — `lab/scripts/l1_v3_{common,collect_small}.sh`,
 `lab/window-harness/src/{client,metrics}.rs`, `docs/lanes/L1-v3-{complete-plan,phase-b-regime-reader,phase-c-directional-note}.md`,
 and the 80 rows in `l1_s_vs_q_loss_v3.small.tsv` with their committed `raw/l1v3/small/*.json`.
 **Reproduce every number below:** `python3 lab/scripts/l1_v3_phase_c_review.py`

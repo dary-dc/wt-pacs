@@ -4,7 +4,7 @@
 tidy, but the measurement's own noise floor is larger than the decision threshold it was
 built to test, and the rig biases the result toward the arm that won.
 
-Reviewed: 120 rows, `docs/measurements/r2/l1_s_vs_q_loss_v2.tsv` @ `fd3ac9c`.
+Reviewed: 120 rows, `docs/measurements/r2/l1_s_vs_q_loss_v2.tsv` @ `afa490b`.
 Decision rule under test: **Q beats S by > 15 % on `miss_p95_wait_ms` at 0.5 % loss.**
 
 ## 1 · What the numbers say
@@ -89,7 +89,7 @@ difference (1.4 ms, p = 0.007) in a regime where none should exist.
 
 ## 4 · The rig was not exclusive, and one decision cell straddles the breach
 
-`9e45f59`: *"Integrity assert caught foreign delay 10ms during Q@150/0.5 r6."* The netem lock
+`b15b5c1`: *"Integrity assert caught foreign delay 10ms during Q@150/0.5 r6."* The netem lock
 is advisory and this runner **displaces** foreign holders by design; `assert_netem` runs
 *before* a cell only, so a steal mid-cell is invisible. The S@150/0.5 block was collected in
 the window immediately before the detected steal and cannot be shown clean.
@@ -102,7 +102,7 @@ block split by a known contamination event.
 ## 5 · The protocol moved while data was being taken
 
 **5.1 · The workload was retuned until the integrity gate passed.** At 21:05, 19 rows in,
-`step_interval_ms` went 185 → 50 and nine collected rows were deleted (`1a07f26`). The trace
+`step_interval_ms` went 185 → 50 and nine collected rows were deleted (`f06c1d1`). The trace
 file states the reason: *"step_interval_ms=50 so display outruns D=4/7 prefetch enough to keep
 cache_misses above the integrity gate."* The gate exists to protect the metric; the workload
 was changed until it passed. The discarded rows (hit rates 0.43–0.96, miss_p95 41–534 ms) show

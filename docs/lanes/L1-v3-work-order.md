@@ -325,7 +325,7 @@ currently warns and takes the lock must refuse instead:
 
 **S7b — assert netem after the harness returns, not only before.** v2's `assert_netem` ran
 pre-cell only, so a steal *during* a cell was invisible — and one happened
-(`9e45f59`, foreign `delay 10ms` mid-campaign). In `run_cell`, after the harness exits 0 and
+(`b15b5c1`, foreign `delay 10ms` mid-campaign). In `run_cell`, after the harness exits 0 and
 **before** `append_row`:
 
 ```bash

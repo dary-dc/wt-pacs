@@ -7,7 +7,7 @@ A measurement needs a knob for every variable it sweeps. A product needs a knob 
 decision is genuinely open. The branch built the first and is about to merge into the second,
 so every addition is classified below against one test: **does a shipped server need this?**
 
-Evidence is usage counts across the repository at `e61d858`, not judgement.
+Evidence is usage counts across the repository at `6d56b33`, not judgement.
 
 ---
 

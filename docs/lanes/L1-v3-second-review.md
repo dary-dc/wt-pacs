@@ -83,9 +83,9 @@ that already existed would have caught v2 before the first row.**
 
 ### 3.2 · The protocol change kept its own control rows
 
-At `1a07f26` the step interval went 185 → 50 ms and nine D=4 rows were deleted. The commit message
+At `f06c1d1` the step interval went 185 → 50 ms and nine D=4 rows were deleted. The commit message
 says "keep only D=1 control rows after the methodology tweak." Those ten rtt-60 D=1 rows are
-byte-identical to `a2201e6` (verified) and shipped in the final file, taken at 185 ms — while the
+byte-identical to `54e766e` (verified) and shipped in the final file, taken at 185 ms — while the
 rtt-150 controls were taken at 50 ms. **The two halves of the grid had controls from different
 protocols, and the TSV had no column that could reveal it.**
 
