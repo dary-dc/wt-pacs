@@ -46,6 +46,8 @@ about arm behaviour past ~64 reads in flight is supportable on any host we have.
 ### 5. Smaller, still open
 
 * **`ulimit -n` *and* `ulimit -l`.** 2 fds and 8.7 KiB of locked memory per missing session.
+  Ring memory is charged against `RLIMIT_MEMLOCK` unless the process holds `CAP_IPC_LOCK`
+  (`io_uring/memmap.c`, v6.18 — verified 2026-09-08), so a container's limit applies.
   `RLIMIT_MEMLOCK` is the one that bit first on a real host: an 8 MB default refused two cells
   outright, which is ~940 rings. Both `LimitNOFILE` and `LimitMEMLOCK` belong in the deploy
   checklist, and the failure mode is a refused ring falling back to the slow path, not a
@@ -60,12 +62,16 @@ about arm behaviour past ~64 reads in flight is supportable on any host we have.
   a sequential cursor read, so the "no positional read" objection does not apply. Costs to
   weigh then: `--cfg tokio_unstable` in a production build, and one fd per streaming session
   instead of one shared for the whole study.
-* **Drop the eventfd: park on the ring's own fd.** The one change the backend research
-  found worth making — one fd per missing session instead of two, and the eventfd `read` per
-  park goes with it. Measured in the lab as `x14` (the `uring_ringfd` and
-  `hybrid_lazyring_ringfd` arms); the product change is proposal **P1** in
-  [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) and is ~30 lines in
-  `uring_reader.rs`. Re-run the `product` arm after it lands.
+* **Validate the ring on the production target before changing anything (P0).** Cloud
+  instance, volume class, container image: `product` against `pool`, cold, readers 64–256,
+  depth 4, with `check-fastpath` on the study volume and `ulimit -l` recorded. Decision rule
+  fixed in advance: a tie deletes the ring and ships the pool; a resolved margin keeps it.
+  [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) §Decision.
+* **Drop the eventfd: park on the ring's own fd (P1) — only after P0 keeps the ring.** One
+  fd per missing session instead of two, and the eventfd `read` per park goes with it.
+  Measured in the lab as `x14` (the `uring_ringfd` and `hybrid_lazyring_ringfd` arms): a tie
+  on CPU everywhere, the gain by construction. ~30 lines in `uring_reader.rs`; re-run the
+  `product` arm after it lands.
 * ~~Recheck the I/O backend alternatives with network access.~~ **Closed 2026-09-08** —
   [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md). Every row in
   [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Alternatives holds against current releases;

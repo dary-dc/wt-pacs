@@ -7,6 +7,69 @@ repository's commit feed. The sandbox could reach the crates.io index and API, c
 static.crates.io, GitHub pages and raw files; it could not reach docs.rs, lib.rs, man7.org,
 lwn.net or kernel.org, so nothing below cites those.
 
+## Decision, aligned with the owners — 2026-09-08
+
+Four answers set the weights: production is **cloud for sure, Docker possibly, not decided**;
+**studies are far larger than RAM**, so misses are the common case; the code budget is **a
+small measured binding now**, "whatever is fastest" once it is shown to pay; and the design
+must hold at **thousands of sessions with depth 4 or more**. Latency is the main metric,
+simplicity and clean code are valued. Under those weights the answer below stands, with one
+change of timing and one reframing.
+
+**Do not change the read path now, in either direction.** What ships is measured, tested, and
+degrades to `spawn_blocking` on its own when a ring is refused. P1 is a reduction, not an
+addition — but it is still a change with no measured gain, and it has not run in production.
+It waits behind P0.
+
+**P0 — decide on the target, not on a laptop.** One campaign run on the actual cloud
+instance, volume class and container image: `product` against `pool`, cold, readers 64–256 at
+depth 4, with `check-fastpath` on the study **volume** and `ulimit -l` inside the container
+recorded beside the TSV. Decision rule, fixed now: if the ring's margin over `pool` on misses
+does not beat the resolution rule on that host, **delete the ring** (~800 lines with its
+tests) and ship the pool — the simplest option wins on a tie. If it holds, keep the ring, fold
+P1 into the same change as the deploy limits, and re-run the `product` arm.
+
+Why the answer might go either way there, which it would not on a workstation:
+
+* **A miss on cloud block storage is device-bound.** The ring removes a thread hop of tens of
+  microseconds from each miss. On local NVMe that was −56 to −75 % of a miss; on a network
+  volume whose read costs hundreds of microseconds to milliseconds it is a few percent, and
+  [`SCALE-RUN.md`](SCALE-RUN.md) already showed every arm tying once the device saturates
+  (~64 reads in flight on that host). The x14 grid says the same: CPU per miss differs by
+  0–30 µs between arms, against ~675 µs of QUIC work per frame. **The backend decides ≤ 5 % of
+  a frame's CPU and a few percent of a miss's latency.**
+* **Two container traps, both silent.** (1) `RWF_NOWAIT` is refused on overlayfs, so a study on
+  the image layer never builds a ring and runs the pool anyway — a bind-mounted or block
+  volume is the host filesystem and is fine; `check-fastpath` on the study path answers it.
+  (2) Every ring's memory is charged against `RLIMIT_MEMLOCK` unless the process holds
+  `CAP_IPC_LOCK` (`io_uring/memmap.c` `io_create_region` → `__io_account_mem`, which checks
+  `rlimit(RLIMIT_MEMLOCK)` — `v6.18`). At 8.7 KiB a ring, the 8 MB default is ~940 missing
+  sessions; container runtimes often set far less. A refused ring falls back to the pool, per
+  session, without a log line. Thousands of sessions therefore need either the limit raised
+  or the capability, and that has to be in the deploy manifest, not discovered.
+* **What "thousands at depth 4" costs each option.** The pool holds one blocking thread per
+  miss in flight, capped at 512 by tokio: 128 missing sessions at depth 4 fill it, and further
+  misses queue behind it (a queue, not a failure — and the device is usually the narrower
+  funnel). The ring holds no thread per miss: 5 OS threads flat at 256 in flight where the
+  pool reached 110. That is the ring's real claim at scale — thread count and CPU per miss,
+  not per-miss latency — and it is the claim P0 must test on the target.
+
+**Where latency is actually won when studies exceed RAM:** fewer misses, then a faster
+device, then overlap — the backend last. Layout and read-ahead
+([`../disk-layout/`](../disk-layout/README.md)) set the miss rate; the volume class sets what a
+miss costs; read-ahead by one ([`NEXT.md`](NEXT.md) §1) hides one miss behind the previous
+send. None of these is a backend change, and each moves more than any option in this file.
+
+**On the asymmetry the owners raised** — rejecting crates for being dormant while keeping a
+custom binding: the rejections were on hard constraints, not maintenance. Four candidates
+bring their own runtime, which `wtransport` cannot use; two have no positional read; one has a
+soundness hole. Maintenance was a secondary note. The single standard alternative, tokio's
+own io_uring path, needs `--cfg tokio_unstable` — a flag that may break between minor
+releases — and that is a larger maintenance liability for a medical server than ~270 lines of
+glue over the `io-uring` crate tokio itself depends on. The custom part is the glue, not an
+io_uring implementation. The owners' other point stands unreduced: it has not run in
+production at scale, and P0 is how that gets answered before anything else is touched.
+
 ## The answer
 
 **Keep driving `io-uring` directly.** Nothing on crates.io drives a ring on tokio's
@@ -20,7 +83,7 @@ registered eventfd is unnecessary. Parking on the ring fd instead gives **one fd
 session instead of two**, removes the eventfd `read` from every park, and removes two of the
 binding's `unsafe` sites. Tokio's own io_uring driver parks this way. Measured in the lab as
 `x14` (§3): it ties the eventfd on CPU in every regime and costs nothing this host can see; the
-gain is by construction. That is proposal **P1** (§5).
+gain is by construction. That is proposal **P1** (§5) — timed behind P0, see above.
 
 **Streaming (Q2):** read forward with the existing `ReadCtx`. Do not adopt tokio's io_uring
 feature for it (§4).
@@ -206,7 +269,14 @@ Server-driven streaming ([`../adr-frame-framing-and-loop-shape.md`](../adr-frame
 Nothing here is applied to `server/`. Each proposal names the change, what it buys, what it
 risks, and how the lab validates it.
 
-**P1 — Park on the ring fd; drop the eventfd.** *Recommended.*
+**P0 — Validate on the target before touching anything.** *First.*
+The campaign's `product` and `pool` arms on the production instance type, volume class and
+container image, cold, readers 64–256, depth 4; `check-fastpath` on the study volume and
+`ulimit -l` in the container recorded with the run. The decision rule is written above and
+does not move after the numbers arrive. Everything below is conditional on it.
+
+**P1 — Park on the ring fd; drop the eventfd.** *Recommended once P0 keeps the ring; not
+before.*
 `server/src/media/uring_reader.rs`: replace `eventfd: AsyncFd<OwnedFd>` with an
 `AsyncFd` over the ring's own descriptor (`IoUring: AsRawFd`) registered with
 `Interest::READABLE` only, delete the `eventfd(2)` call, `register_eventfd` and the 8-byte
