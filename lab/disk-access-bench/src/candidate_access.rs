@@ -1,15 +1,13 @@
-//! Lab-only helpers for arms and cell controls the product does not need. The `RWF_NOWAIT`
-//! reader is deliberately **not** among them — the nowait arms call `FrameStore`'s own, so
-//! the lab times the shipped path rather than a second implementation of it.
+//! Helpers for arms and cell controls the product does not need. The `RWF_NOWAIT` reader is
+//! deliberately not among them: the nowait arms call `FrameStore`'s own.
 
 use crate::study_map::host_page_size;
 use anyhow::{Context, Result};
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
 
-/// One-syscall populate of a mapped range (Linux 5.14+). Faults like a touch loop, so it
-/// belongs on a blocking pool. Frames start mid-page and `madvise` rejects an unaligned
-/// start, hence the widening.
+/// Faults like a touch loop, so it belongs on a blocking pool. `madvise` rejects an
+/// unaligned start and frames begin mid-page, hence the widening.
 pub fn populate_read(bytes: &[u8]) -> Result<()> {
     if bytes.is_empty() {
         return Ok(());
@@ -27,9 +25,7 @@ pub fn populate_read(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// Drop this process's page-table entries for a mapped range — the page cache keeps its
-/// copy. A cold cell needs this first, because `fadvise(DONTNEED)` will not evict a page
-/// that is still mapped: unmap first, evict second.
+/// A cold cell needs this first: `fadvise(DONTNEED)` will not evict a mapped page.
 pub fn unmap_pages(bytes: &[u8]) -> Result<()> {
     if bytes.is_empty() {
         return Ok(());
@@ -50,9 +46,8 @@ pub fn unmap_pages(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// Ask the kernel to read ahead on a range it would not have guessed — a strided reader
-/// shows no pattern, so every ask misses. Queues the I/O without copying, and is advisory,
-/// so it never fails. `docs/disk-layout/ACCESS-PATTERNS.md`.
+/// A strided reader shows no pattern for read-ahead to see, so every ask misses. Advisory,
+/// and it copies nothing. `docs/disk-layout/ACCESS-PATTERNS.md`.
 pub fn hint_willneed(file: &File, offset: u64, len: usize) {
     if len == 0 {
         return;

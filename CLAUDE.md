@@ -16,19 +16,28 @@ and no more of it.
 
 ## Comments
 
-A comment carries only what a reader needs *at that line* to avoid writing a bug:
+**Write none, then add back only what a reader needs at that line to avoid writing a bug:**
 
 * a `SAFETY` contract,
 * an invariant the types do not enforce,
+* a unit or a framing constant the type cannot carry,
 * a one-line pointer to the document that explains why.
 
 Everything else — numbers, rationale, measurement narrative, the history of what was tried —
-belongs in `docs/`, where it can be corrected without touching code. A name that needs a
-sentence should be a better name; a function that needs a paragraph is probably two functions.
+belongs in `docs/`, where it can be corrected without touching code. A comment that restates
+its function's name is worse than none: it is a second thing to keep true. A name that needs
+a sentence should be a better name; a function that needs a paragraph is probably two.
 
-`scripts/comment_budget.sh` enforces this at **0.25 comment lines per code line** per file,
-with a floor of 12 lines so a small file can still carry a header. It runs in
-`scripts/gate.sh`. Going over is a signal about the code, not a reason to raise the budget.
+**One line, in the common case.** Two is a smell, three wants a reason. Most of what used to
+be a paragraph here is a clause and a `docs/` pointer.
+
+**Tests are the exception.** A test's doc comment states the claim the test makes, which is
+worth more than its name alone — those are not counted and should not be cut.
+
+`scripts/comment_budget.sh` enforces **0.18 comment lines per code line** per file, floor 10,
+counting neither `SAFETY` blocks nor anything from `mod tests {` down. It runs in
+`scripts/gate.sh`. The product sits at 0.10–0.18; going over is a signal about the code, not
+a reason to raise the budget.
 
 ## Docs
 

@@ -1,9 +1,8 @@
 //! How media frames leave the server for a session (process-wide CLI choice).
 
-/// One shared uni for the session, or one uni per frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum StreamMode {
-    /// Frames arrive strictly in ask order on one long-lived uni stream.
+    /// One long-lived uni: frames arrive strictly in ask order.
     Shared,
     /// Independent delivery per frame; allows `set_priority` and `reset`.
     PerFrame,

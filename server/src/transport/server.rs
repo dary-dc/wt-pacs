@@ -1,9 +1,5 @@
-//! FoD ask → envelope on a server uni stream.
-//!
-//! Serial loop: read one ask, send it to completion, read the next. No server-side ask
-//! queue — `docs/adr-reject-server-ordering.md`. Per-frame work is the
-//! [`pipeline::FramePipeline`] trait; frame bytes are streamed a window at a time inside its
-//! `send` step, so the session's window is its only per-frame allocation.
+//! FoD ask → envelope on a server uni stream. No server-side ask queue —
+//! `docs/adr-reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
@@ -36,8 +32,7 @@ pub struct ServeConfig {
     pub mode: StreamMode,
     /// `None` binds dual-stack `[::]`, falling back to `0.0.0.0` where there is no IPv6.
     pub bind: Option<IpAddr>,
-    /// Each `None` keeps the library default: send window 10 MB per connection, stream
-    /// receive window 1.25 MB, idle timeout 30 s.
+    /// Each `None` keeps the library default.
     pub transport: TransportKnobs,
 }
 
@@ -53,7 +48,6 @@ impl TransportKnobs {
         *self == Self::default()
     }
 
-    /// One line for the startup banner.
     pub fn describe(&self) -> String {
         if self.is_default() {
             return "default".to_string();
@@ -83,7 +77,6 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
 
-    // Lab builds: the report names what was served, so two harvest files can be matched up.
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
         stream_mode: config.mode.as_str(),
@@ -125,9 +118,8 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     }
 }
 
-/// Whether this study's filesystem gives the server `preadv2(RWF_NOWAIT)`, warning where it
-/// does not: the fallback is correct and ~2.5x slower per frame, and used to be visible only
-/// by running `check-fastpath`. `docs/disk-access/DEPLOYMENT.md`.
+/// Warns where the fast path is absent: the fallback is correct and ~2.5x slower per frame.
+/// `docs/disk-access/DEPLOYMENT.md`.
 fn read_fast_path(store: &FrameStore) -> &'static str {
     if store.nowait_supported() {
         return "preadv2";
@@ -139,8 +131,7 @@ fn read_fast_path(store: &FrameStore) -> &'static str {
     "pooled_pread"
 }
 
-/// Open the QUIC endpoint. A host without an IPv6 stack refuses the dual-stack socket, so
-/// fall back to IPv4 any rather than not starting.
+/// A host without an IPv6 stack refuses the dual-stack socket, so fall back to IPv4 any.
 async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side::Server>, String)> {
     async fn identity(config: &ServeConfig) -> Result<Identity> {
         Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
@@ -148,7 +139,6 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
             .context("load wtransport identity")
     }
 
-    /// Identity plus transport knobs, from whichever bind the builder was given.
     fn finish(
         builder: ServerConfigBuilder<states::WantsIdentity>,
         identity: Identity,
@@ -225,7 +215,6 @@ async fn handle_incoming(
     let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out);
 
-    // Lab wrap only when the telemetry env is on — a RecordedPipeline always has a Tap.
     #[cfg(feature = "telemetry")]
     if let Some(tap) = Tap::for_session() {
         return run_session(
@@ -239,8 +228,6 @@ async fn handle_incoming(
     run_session(&mut product, control_send, control_recv).await
 }
 
-/// Read one FoD ask → send that frame to completion → repeat. `EndSession` stops the loop.
-///
 /// **One frame at a time is the session's whole depth**: a client that pipelines asks still
 /// gets them served serially. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
 async fn run_session<P: FramePipeline>(

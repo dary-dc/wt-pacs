@@ -1,15 +1,9 @@
-//! Lab-only helpers for arms the product ADR rejected as defaults.
-//!
-//! Kept here so `exact-server::FrameStore` stays essentialist — it exposes only what the
-//! accepted path needs (`read_at_nowait` + `read_at_blocking`). The mmap pre-touch arms
-//! (`touch_frame_pages`), the `mincore` gate and WILLNEED all live here now: they are the
-//! comparison, not the product.
+//! Arms the ADR rejected as defaults. Here rather than in `FrameStore`, which exposes only
+//! what the accepted path needs.
 
 use crate::study_map::{host_page_size, StudyMap};
 use anyhow::{Context, Result};
 
-/// Fault every page of `index` into the page cache — the L3 v1 always-touch arm.
-///
 /// Belongs on a blocking pool: a cold fault is not an `.await`, so on the executor it
 /// stalls every task sharing the OS thread.
 pub fn touch_frame_pages(store: &StudyMap, index: u32) -> Result<()> {
@@ -30,13 +24,13 @@ pub fn touch_pages(bytes: &[u8]) {
     std::hint::black_box(acc);
 }
 
-/// `mincore` residency probe — safe on the executor (does not fault pages in).
+/// Safe on the executor: does not fault pages in.
 pub fn frame_pages_resident(store: &StudyMap, index: u32) -> Result<bool> {
     let slice = store.frame_slice(index)?;
     Ok(pages_resident(slice).unwrap_or(false))
 }
 
-/// `madvise(WILLNEED)` over one frame's mapped range. Advisory; kernel may ignore.
+/// Advisory; the kernel may ignore it.
 pub fn advise_frame_willneed(store: &StudyMap, index: u32) -> Result<()> {
     let slice = store.frame_slice(index)?;
     if slice.is_empty() {

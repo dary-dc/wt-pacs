@@ -7,13 +7,17 @@
 # A file that needs more than this is either doing too much or is being explained in the
 # wrong place. CLAUDE.md#comments says where the explanation goes instead.
 #
-# `SAFETY:` / `# Safety` blocks do not count: they are contracts the compiler cannot express,
-# and no budget should argue for dropping one.
+# Two exemptions, and only two:
+#   `SAFETY:` / `# Safety` blocks — contracts the compiler cannot express, and no budget
+#   should argue for dropping one.
+#   Everything from `mod tests {` to the end of the file — a test's doc comment states the
+#   claim the test makes, which is worth more than the test's name alone. Clippy's
+#   `items_after_test_module` keeps that module last, so the tail is the whole of it.
 set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 
-RATIO=${RATIO:-0.25}
-FLOOR=${FLOOR:-12}   # what any file may spend regardless of size: header and pointers
+RATIO=${RATIO:-0.18}
+FLOOR=${FLOOR:-10}   # what any file may spend regardless of size: header and pointers
 list=0
 [[ "${1:-}" == "--list" ]] && list=1
 
@@ -21,8 +25,10 @@ files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' | grep -v -e '/node_modules/' 
 
 # shellcheck disable=SC2086
 awk -v ratio="$RATIO" -v floor="$FLOOR" -v list="$list" '
-  FNR == 1                                 { order[++n] = FILENAME; safety = 0 }
-  /^[[:space:]]*$/                         { next }
+  FNR == 1                                 { order[++n] = FILENAME; safety = 0; tests = 0 }
+  /^[[:space:]]*mod tests[[:space:]]*\{/    { tests = 1 }
+  tests                                     { next }
+  /^[[:space:]]*$/                          { next }
   /^[[:space:]]*(\/\/|\/\*|\*[ \t\/]|\*$)/ {
     if (/SAFETY|# Safety/) safety = 1
     if (!safety) comment[FILENAME]++
@@ -44,7 +50,7 @@ awk -v ratio="$RATIO" -v floor="$FLOOR" -v list="$list" '
     if (list) exit 0
     if (over) {
       printf "\n%d file(s) over budget: %.2f comment lines per code line, floor %d.\n", over, ratio, floor
-      printf "Move the narrative to docs/ and leave a one-line pointer. CLAUDE.md#comments\n"
+      printf "Cut the comment, or move it to docs/ and leave a pointer. CLAUDE.md#comments\n"
       exit 1
     }
     print "comment budget ok"

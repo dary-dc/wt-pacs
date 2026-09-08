@@ -1,6 +1,5 @@
-//! How a session reads frame bytes: a page-cache read on the executor, escalating to a ring
-//! or the blocking pool when the bytes are not there. Why this shape, and what it was
-//! measured against: `docs/disk-access/adr.md`, `docs/disk-access/IMPLEMENTATION.md`.
+//! A page-cache read on the executor, escalating to a ring or the blocking pool when the
+//! bytes are not there. `docs/disk-access/adr.md`, `docs/disk-access/IMPLEMENTATION.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use anyhow::{Context, Result};
@@ -11,26 +10,20 @@ use tracing::warn;
 #[cfg(feature = "uring")]
 use crate::media::uring_reader::UringReader;
 
-/// Windows a session keeps: the one being served, and the one a read ahead lands in. A
-/// window's index is also its ring slot, so a read never moves between them.
+/// A window's index is also its ring slot, so a read never moves between them.
 const WINDOWS: usize = 2;
 
 /// Which read path a session takes, from `WTPACS_READ_PATH`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ReadMode {
-    /// Page cache first, ring on the miss. The shipping path.
     #[default]
     Auto,
-    /// Kill switch: page cache first, blocking pool on the miss. Never a ring.
     Pool,
-    /// Lab lever, not a production mode: no page-cache read at all, every frame through the
-    /// ring. It exists to measure tile layouts against a miss-optimised path.
+    /// Lab lever, not a production mode: every frame through the ring, hits included.
     Uring,
 }
 
 impl ReadMode {
-    /// An unrecognised value warns and falls back to `Auto`: a kill switch that silently
-    /// does nothing because of a typo is worse than no kill switch.
     pub fn from_env() -> Self {
         match std::env::var("WTPACS_READ_PATH").as_deref() {
             Ok("pool") => Self::Pool,
@@ -50,70 +43,48 @@ impl ReadMode {
 /// The session's ring, built on its first miss and never rebuilt.
 #[cfg(feature = "uring")]
 enum Ring {
-    /// This session reads through the blocking pool.
     Off,
-    /// A ring is wanted but the first miss has not happened yet.
     Pending,
     Ready(Box<UringReader>),
-    /// The kernel refused a ring — old kernel, seccomp, or `kernel.io_uring_disabled`.
-    /// Recorded so the next miss falls back instead of trying again.
+    /// Remembered, so a kernel that refused once is not asked again on every miss.
     Refused,
 }
 
-/// What a session's reads did. The miss rate is the quantity every read-path threshold is
-/// expressed in, and without this it is invisible outside the lab.
+/// Counted per read, not per frame. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ReadStats {
-    /// Reads the page cache served whole, with no wait.
     pub hits: u64,
-    /// Reads that had to escalate to the ring or the pool. Counted per read, not per frame:
-    /// a frame longer than one window can hit some of its windows and miss others.
     pub misses: u64,
 }
 
 impl ReadStats {
-    /// `None` before the first read, so a session that served nothing reports nothing
-    /// rather than 0%.
     pub fn miss_rate(&self) -> Option<f64> {
         let total = self.hits + self.misses;
         (total > 0).then(|| self.misses as f64 / total as f64)
     }
 }
 
-/// How the bytes for one read arrive.
+/// How the bytes for one read arrive. `Ring` writes into the window of its own index.
 enum Pending {
-    /// The page cache served them inline; there is nothing to wait for.
     Ready,
-    /// The kernel is writing into the window through the ring slot of the same index.
     #[cfg(feature = "uring")]
     Ring,
-    /// The blocking pool holds the window and hands it back with the join.
     Pool(JoinHandle<Result<Vec<u8>>>),
 }
 
-/// A read started for a frame the caller has not asked for yet. Always in the window the
-/// caller is not being served from.
+/// A read started early, in the window not being served. Only `span`'s first read takes it.
 struct Ahead {
-    /// The frame it covers: only that frame's first read may take it.
     span: FrameSpan,
-    /// What the window will hold once it lands.
     len: usize,
     pending: Pending,
 }
 
-/// One session's read state.
 pub struct ReadCtx {
-    /// Whether to try the page cache before escalating. False only under
-    /// [`ReadMode::Uring`]; a filesystem refusing `RWF_NOWAIT` leaves it true and simply
-    /// always comes up short.
+    /// Try the page cache before escalating. False only under [`ReadMode::Uring`].
     probe: bool,
-    /// Declared before the windows so the drop order reads correctly, though [`Drop`] is
-    /// what guarantees it.
     #[cfg(feature = "uring")]
     ring: Ring,
-    /// Two reusable buffers, each growing to the largest frame it escalates on.
     windows: [Vec<u8>; WINDOWS],
-    /// Which window holds the bytes being served.
     cur: usize,
     ahead: Option<Ahead>,
     stats: ReadStats,
@@ -121,9 +92,7 @@ pub struct ReadCtx {
 
 #[cfg(feature = "uring")]
 impl Ring {
-    /// The ring to escalate through, built here on the session's first miss — nothing can
-    /// be in flight on a ring that does not exist yet. `None` where one is not wanted or
-    /// the kernel refused it, so the caller falls back to the pool rather than failing.
+    /// Built on the first miss: safe because nothing is in flight on a ring that is absent.
     fn reader(&mut self, store: &FrameStore) -> Option<&mut UringReader> {
         if matches!(self, Self::Pending) {
             *self = match UringReader::new(store.file()) {
@@ -142,14 +111,10 @@ impl Ring {
 }
 
 impl ReadCtx {
-    /// Resolve the mode once, here, so the read loop has no mode to branch on.
-    ///
-    /// A ring is refused where the filesystem does not honour `RWF_NOWAIT`, because there a
-    /// ring keyed on the shortfall would serve every *warm* read too.
-    /// `docs/disk-access/IMPLEMENTATION.md` §The trap.
+    /// Without `RWF_NOWAIT` a ring keyed on the shortfall would serve every *warm* read
+    /// too — `docs/disk-access/IMPLEMENTATION.md` §The trap.
     #[cfg_attr(not(feature = "uring"), allow(unused_variables))]
     pub fn new(mode: ReadMode, store: &FrameStore) -> Self {
-        // Exhaustive on purpose: a new mode has to decide this rather than inherit it.
         #[cfg(feature = "uring")]
         let wants_ring = match mode {
             ReadMode::Auto => store.nowait_supported(),
@@ -167,18 +132,10 @@ impl ReadCtx {
         }
     }
 
-    /// Read the next piece of `span` from `pos`, and hand back the bytes that are ready.
+    /// One window on a hit; **the rest of the frame on a miss**.
     ///
-    /// On a hit the result is one window; **on a miss it is the rest of the frame**, because
-    /// escalating by the window costs a round trip per window
-    /// (`docs/disk-access/RERUN-miss.md`).
-    ///
-    /// `next` is the frame this session will be asked for after `span`, where the caller
-    /// knows it — from a batch, say. Its first read is started here **before this one is
-    /// waited on**, so the device carries both; that overlap is worth +67% on missing tiles
-    /// and is the whole point of the second window
-    /// (`docs/adr-frame-framing-and-loop-shape.md` §Serving depth). A caller that does not
-    /// know the next frame passes `None` and gets the serial path.
+    /// `next`, where the caller knows it, is started before this read is waited on, so the
+    /// device carries both. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
@@ -190,8 +147,6 @@ impl ReadCtx {
         let at = span.offset + u64::from(pos);
         let remaining = (span.len - pos) as usize;
 
-        // A read ahead is a promise about one frame's first window, so only that frame's
-        // first read may take it — a later window of the frame in hand leaves it alone.
         let take_ahead = pos == 0 && matches!(&self.ahead, Some(a) if a.span == span);
         let (pending, len) = if take_ahead {
             let ahead = self.ahead.take().expect("matched just above");
@@ -218,9 +173,7 @@ impl ReadCtx {
         Ok(&self.windows[self.cur][..len])
     }
 
-    /// Probe the page cache for `want` bytes at `at` into window `slot`, escalating the
-    /// shortfall without waiting for it. Returns how the bytes arrive and how many there
-    /// will be.
+    /// Probe for `want` bytes into `slot` and escalate the shortfall without waiting.
     fn begin(
         &mut self,
         store: &Arc<FrameStore>,
@@ -244,7 +197,6 @@ impl ReadCtx {
         Ok((pending, hit + rest))
     }
 
-    /// Start the first read of `span` in the window the caller is not being served from.
     fn begin_ahead(&mut self, store: &Arc<FrameStore>, span: FrameSpan) -> Result<()> {
         let slot = self.cur ^ 1;
         let remaining = span.len as usize;
@@ -254,8 +206,7 @@ impl ReadCtx {
         Ok(())
     }
 
-    /// Give up on a read ahead the caller never asked for — waiting for it first, because
-    /// the kernel or the pool is still writing into that window.
+    /// Waits before discarding: the kernel or the pool is still writing into that window.
     async fn abandon_ahead(&mut self) -> Result<()> {
         let Some(ahead) = self.ahead.take() else {
             return Ok(());
@@ -263,8 +214,7 @@ impl ReadCtx {
         self.settle(ahead.pending, self.cur ^ 1).await
     }
 
-    /// Ask for `len` bytes into `windows[slot][from..]` somewhere it is safe to block, and
-    /// return before they arrive.
+    /// Ask for `len` bytes into `windows[slot][from..]`, returning before they arrive.
     fn escalate(
         &mut self,
         store: &Arc<FrameStore>,
@@ -275,7 +225,6 @@ impl ReadCtx {
     ) -> Result<Pending> {
         #[cfg(feature = "uring")]
         {
-            // Split the borrow: the ring writes into the window, so both are needed at once.
             let Self { ring, windows, .. } = self;
             if let Some(reader) = ring.reader(store) {
                 // SAFETY: `windows[slot]` is this session's own buffer. It is neither grown
@@ -287,8 +236,7 @@ impl ReadCtx {
             }
         }
         let store = Arc::clone(store);
-        // The window is moved to the blocking pool and back: the read borrows it for longer
-        // than this task holds `&mut self`.
+        // The pool borrows the window for longer than this task holds `&mut self`.
         let mut window = std::mem::take(&mut self.windows[slot]);
         Ok(Pending::Pool(tokio::task::spawn_blocking(move || {
             store.read_at_blocking(&mut window[from..from + len], at)?;
@@ -296,7 +244,6 @@ impl ReadCtx {
         })))
     }
 
-    /// Wait for a started read to land in window `slot`.
     async fn settle(&mut self, pending: Pending, slot: usize) -> Result<()> {
         match pending {
             Pending::Ready => Ok(()),
@@ -312,8 +259,7 @@ impl ReadCtx {
         }
     }
 
-    /// Never called on a window whose slot is busy — that would move the buffer out from
-    /// under the kernel. `escalate` states the invariant.
+    /// Never called on a busy window — that would move the buffer out from under the kernel.
     fn grow(&mut self, slot: usize, need: usize) {
         if self.windows[slot].len() < need {
             self.windows[slot].resize(need, 0);
@@ -324,21 +270,19 @@ impl ReadCtx {
         self.stats
     }
 
-    /// The frame a read ahead is outstanding for. Tests assert on it; nothing else can see
-    /// whether the overlap happened, because a correct serial path returns the same bytes.
+    /// Test-only: a correct serial path returns the same bytes, so the overlap is
+    /// otherwise unobservable.
     #[cfg(test)]
     pub(crate) fn ahead_for(&self) -> Option<FrameSpan> {
         self.ahead.as_ref().map(|a| a.span)
     }
 
-    /// Which of the two windows is being served — it flips when a read ahead is taken.
     #[cfg(test)]
     pub(crate) fn serving_window(&self) -> usize {
         self.cur
     }
 
-    /// Whether this session built a ring — the read path it actually took, which on a host
-    /// without `RWF_NOWAIT` or without io_uring is not the one that was configured.
+    /// The path actually taken, which is not always the one configured.
     pub fn ring_built(&self) -> bool {
         #[cfg(feature = "uring")]
         return matches!(self.ring, Ring::Ready(_));
@@ -348,11 +292,8 @@ impl ReadCtx {
 }
 
 impl Drop for ReadCtx {
-    /// Wait for any read the kernel is still performing into a window — a session task is
-    /// dropped at its await point on shutdown, and the ring parks on exactly one await.
-    ///
-    /// Here rather than in the ring's own `Drop` because a struct's `Drop::drop` runs before
-    /// any field is dropped, which makes the guarantee independent of field order.
+    /// Waits for the kernel before the windows are freed. Here rather than in the ring's own
+    /// `Drop` because `Drop::drop` runs before any field is, so field order cannot break it.
     fn drop(&mut self) {
         #[cfg(feature = "uring")]
         if let Ring::Ready(ring) = &mut self.ring {

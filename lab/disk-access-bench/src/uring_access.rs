@@ -1,10 +1,6 @@
-//! io_uring reader for the disk-access campaign, shaped by three properties of this
-//! workload rather than by io_uring's usual benchmarks: serving depth is 1, so the only
-//! batch available is a frame's own windows (`submit_frame`); tokio migrates a task between
-//! workers, so `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable and `SQPOLL` is offered
-//! instead; and completions are awaited, never waited on in `io_uring_enter` — on a
-//! registered eventfd, or on the ring's own fd under [`Completion::RingFd`], which is one fd
-//! per ring instead of two (the `x14` arms). `docs/disk-access/IMPLEMENTATION.md`.
+//! io_uring reader for the campaign. Three properties of this workload shape it rather than
+//! io_uring's usual benchmarks — serving depth 1, a task that migrates between workers, and
+//! completions awaited rather than waited on. `docs/disk-access/IMPLEMENTATION.md`.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
@@ -13,22 +9,17 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use tokio::io::unix::AsyncFd;
 use tokio::io::Interest;
 
-/// How a parked reader learns that a completion landed. Both are awaited through Tokio's
-/// `AsyncFd`, so neither blocks in `io_uring_enter`; they differ in what the reactor watches.
+/// What the reactor watches. Both go through `AsyncFd`; neither blocks in `io_uring_enter`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Completion {
-    /// A registered eventfd. Two fds per ring. What the product ships.
+    /// Two fds per ring. What the product ships.
     Eventfd,
-    /// The ring's own fd. One fd per ring. `io_uring_poll` reports the ring readable whenever
-    /// its CQ has entries, and every CQ post wakes the poll queue (`io_cqring_wake` →
-    /// `io_poll_wq_wake`, `io_uring/io_uring.c`, 6.18). For a ring without `DEFER_TASKRUN`
-    /// that queue is active from setup (`io_ring_ctx_alloc`: `if (!ctx->task_complete)
-    /// ctx->poll_activated = true`). Tokio's own io_uring driver parks this way — it
-    /// registers the ring fd with mio (`runtime/io/driver/uring.rs`).
+    /// One fd per ring, and how tokio's own driver parks. Why a `COOP_TASKRUN` ring is
+    /// pollable from setup: `docs/disk-access/RESEARCH-io-backends-RESULT.md` §Kernel side.
     RingFd,
 }
 
-/// The ring's descriptor, borrowed so `AsyncFd` can register it without owning the ring.
+/// Borrowed, so `AsyncFd` can register it without owning the ring.
 struct RingFd(RawFd);
 
 impl AsRawFd for RingFd {
@@ -42,9 +33,8 @@ enum Parker {
     RingFd(AsyncFd<RingFd>),
 }
 
-/// Registered buffer set plus the ring that reads into it. Buffers are owned here so their
-/// addresses stay stable for `register_buffers`, and `buf()` refuses to hand out a slice
-/// while the kernel owns one.
+/// Buffers are owned here so their addresses stay stable for `register_buffers`; `buf()`
+/// refuses to hand one out while the kernel owns it.
 pub struct UringReader {
     /// Declared before `ring` so it deregisters from the reactor before the ring fd closes.
     parker: Parker,
@@ -56,8 +46,7 @@ pub struct UringReader {
 }
 
 impl UringReader {
-    /// `slots` buffers of `buf_len` bytes each. `fixed` registers the file and the buffers;
-    /// `sqpoll` starts a kernel submission thread so submits cost no syscall.
+    /// `fixed` registers the file and buffers; `sqpoll` starts a kernel submission thread.
     pub fn new(
         file: &File,
         slots: usize,
@@ -140,8 +129,8 @@ impl UringReader {
         })
     }
 
-    /// How many slots this ring was built with — sized once for the study's longest frame,
-    /// so a depth taken from the frame in hand could index past it.
+    /// Sized once for the study's longest frame, so a depth from the frame in hand can
+    /// index past it.
     pub fn slots(&self) -> usize {
         self.bufs.len()
     }
@@ -154,8 +143,7 @@ impl UringReader {
         &self.bufs[slot]
     }
 
-    /// Fill part of a slot from outside the ring (the hybrid arm's inline `RWF_NOWAIT`
-    /// read). Only legal while the kernel does not own the slot.
+    /// Only legal while the kernel does not own the slot.
     pub fn buf_mut(&mut self, slot: usize) -> &mut [u8] {
         assert!(
             !self.in_flight[slot],
@@ -164,13 +152,12 @@ impl UringReader {
         &mut self.bufs[slot]
     }
 
-    /// Queue one window read into `slot`. Nothing reaches the kernel until `submit`.
+    /// Nothing reaches the kernel until `submit`.
     pub fn push(&mut self, slot: usize, file: &File, offset: u64, len: usize) -> Result<()> {
         self.push_at(slot, 0, file, offset, len)
     }
 
-    /// Queue a read into `slot` starting `at` bytes into the slot's buffer — how the hybrid
-    /// arm finishes a window that `RWF_NOWAIT` could only partly fill.
+    /// How the hybrid arm finishes a window `RWF_NOWAIT` could only partly fill.
     pub fn push_at(
         &mut self,
         slot: usize,
@@ -201,12 +188,8 @@ impl UringReader {
         Ok(())
     }
 
-    /// Await the completion for one specific `slot`, draining anything else that lands
-    /// alongside it — what an arm that submits a whole frame needs, where `complete` is
-    /// enough for an arm with one read outstanding.
-    ///
-    /// Returns **1 if this read did not complete inline**, not the number of times it
-    /// parked, so the count compares with a `spawn_blocking` hop.
+    /// Awaits one `slot`, draining whatever lands alongside it. Returns **1 if the read did
+    /// not complete inline**, not the number of parks, so it compares with a pool hop.
     pub async fn complete_slot(&mut self, slot: usize) -> Result<usize> {
         let mut parked = false;
         let mut freed = Vec::new();
@@ -221,7 +204,7 @@ impl UringReader {
         Ok(usize::from(parked))
     }
 
-    /// Reap every completion currently in the CQ, recording which slots came back.
+    /// Reaps the whole CQ, recording which slots came back.
     fn drain(&mut self, freed: &mut Vec<usize>) -> Result<usize> {
         self.ring.completion().sync();
         let mut drained = 0usize;
@@ -257,9 +240,8 @@ impl UringReader {
                 });
             }
             Parker::RingFd(ring) => {
-                // Readiness is edge-triggered and cleared here; the caller drains the CQ next
-                // and parks again if the wake carried nothing, which `io_uring_poll` allows.
-                // Tokio's readiness tick means a CQE posted after this clear is never lost.
+                // Edge-triggered and cleared here. A wake carrying nothing is allowed, and
+                // tokio's readiness tick means a CQE posted after the clear is not lost.
                 let mut guard = ring.readable_mut().await.context("ring fd readable")?;
                 guard.clear_ready();
             }
@@ -267,22 +249,20 @@ impl UringReader {
         Ok(())
     }
 
-    /// One `io_uring_enter` for everything queued (zero syscalls under SQPOLL).
+    /// One `io_uring_enter` for everything queued; none under SQPOLL.
     pub fn submit(&mut self) -> Result<()> {
         self.ring.submit().context("io_uring submit")?;
         Ok(())
     }
 
-    /// Await `want` completions; a cached read is usually already in the CQ, so the common
-    /// path takes no await. Returns how many had to wait on the eventfd — the campaign's
-    /// equivalent of a `spawn_blocking` hop.
+    /// Returns how many had to wait — the campaign's equivalent of a `spawn_blocking` hop.
+    /// A cached read is usually already in the CQ, so the common path takes no await.
     pub async fn complete(&mut self, want: usize) -> Result<usize> {
         self.complete_into(want, &mut Vec::new()).await
     }
 
-    /// As [`complete`](Self::complete), but reports **which** slots came back, so a caller
-    /// holding several reads refills each as it lands. Draining in lockstep would measure
-    /// the caller's batching rather than the ring.
+    /// Reports **which** slots came back, so a caller refills each as it lands; draining in
+    /// lockstep would measure its batching rather than the ring.
     pub async fn complete_into(&mut self, want: usize, freed: &mut Vec<usize>) -> Result<usize> {
         let mut done = 0usize;
         let mut waited = 0usize;
@@ -299,12 +279,8 @@ impl UringReader {
     }
 }
 
-/// Registered-buffer geometry for a study whose frames vary in length: buffers are
-/// registered once and reused, so they must cover the study's **longest** frame, not the
-/// first one asked for.
-///
-/// Returns `(buf_len, slots)` for a frame batched window-by-window, upholding
-/// `win <= buf_len` and `windows <= slots` for every `len <= max_len`.
+/// Buffers are registered once, so they must cover the study's **longest** frame, not the
+/// first one asked for. Upholds `win <= buf_len` and `windows <= slots` for every frame.
 pub fn ring_geometry(read_chunk: usize, max_len: usize) -> (usize, usize) {
     let buf_len = read_chunk.min(max_len).max(1);
     (buf_len, max_len.div_ceil(buf_len))
