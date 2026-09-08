@@ -19,7 +19,7 @@ decided.** Two use cases: tiles (random positional reads) and sequential serving
 | 4 | **P0 — validate ring vs pool on the production target**, both read modes | decides whether ~800 lines stay | one campaign run | §3 |
 | 5 | **Deploy manifest** — `LimitMEMLOCK`/`LimitNOFILE` or `CAP_IPC_LOCK`, `check-fastpath` on the study volume | without it the ring is silently off in a container | ops | §4 |
 | 6 | **`read_ahead_kb` and layout on the target** | miss rate moved 2–15× by that one knob | tuning | [`../disk-layout/`](../disk-layout/README.md) |
-| 7 | **Sequential reader for streaming mode** | evaluated: [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) | design input for §6c | §5 |
+| 7 | **Sequential reader for streaming mode** | **settled:** the shipped reader forward, one frame ahead; `tokio::fs` rejected on measurement — [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) | design input for §6c, no reader change | §5 |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | drop-in | dependency bump | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) P2 |
 | 9 | **Bounded frame cache** | −20.2 % CPU at a 0.92 hit rate, lab only | needs a real ask trace to size | [`adr.md`](adr.md) §Levers |
 | 10 | **P1 — park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, no latency change | after P0 keeps the ring | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) P1 |
@@ -78,9 +78,11 @@ failure mode of forgetting them is a slower server, not a refused connection.
 
 Server-driven streaming
 ([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6c) is
-unbuilt. Which reader it should use, with every candidate measured on consecutive reads
-across sizes, depths and session counts — including tokio's own `fs::File` on its io_uring
-driver, the one standard alternative: [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md).
+unbuilt. Which reader it should use is settled — [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md):
+the shipped `ReadCtx` reading forward, one frame ahead, frame-sized asks. On consecutive reads
+it ties the simplest reader on every column at 5 threads; tokio's `fs::File` is 15× slower per
+read, and on tokio's io_uring driver it serialises on one locked ring and collapses past a
+handful of sessions (`x15`). What §6c still has to design is flow control, not the reader.
 
 ## 6 · Scale is device-bound past ~64 reads in flight
 
