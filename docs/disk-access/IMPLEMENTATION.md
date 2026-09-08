@@ -57,6 +57,41 @@ So the ring is gated on `FrameStore::nowait_supported()`, not on the shortfall a
 The third row is not a degradation to accept quietly: it is ~2.5× worse per frame, and
 `check-fastpath` exists so a deployment finds out before it ships.
 
+## Reporting: what the server says about its own read path
+
+Every threshold in this investigation is a miss rate, and until 2026-09-08 the server could
+not report one. Two lines close that, both in the default build — this is not telemetry, and
+does not depend on the `telemetry` feature.
+
+**At startup**, one banner line and, where the answer is bad, a warning:
+
+```
+read_fast_path=preadv2        # or pooled_pread, plus a WARN naming DEPLOYMENT.md
+```
+
+[`DEPLOYMENT.md`](DEPLOYMENT.md) called the fallback "measurably slower with no error in the
+logs". It now says so itself; `check-fastpath` remains the pre-deploy gate, and this is the
+runtime confirmation that the deployed process got what the gate promised.
+
+**At the end of every session**, what that session's reads did:
+
+```
+INFO session reads hits=27 misses=0 miss_rate=0.0 ring=false
+```
+
+Three details worth knowing before quoting these numbers:
+
+* **A read, not a frame.** `ReadCtx::read` is called once per window, and a frame longer than
+  one window can hit some windows and miss others. At 16 KiB frames — the tile case — window
+  and frame coincide and the two readings are the same number; at 250 KB they are not.
+* **`ring=false` on a session with misses** means the ring was refused or the build has no
+  `uring` feature, and those misses went to the blocking pool.
+* **Emitted from `Drop`**, because a session ends in several ways — `EndSession`, a broken
+  wire, runtime shutdown — and a miss rate that only some of them report is worse than none.
+
+What this unblocks: the arm choice can be checked against a real workload rather than against
+the campaign's `--mix`, which is a number the lab sets rather than one production reports.
+
 ## The change
 
 Per-session state today is one `Vec<u8>` window owned by `ProductPipeline` and threaded down
@@ -384,11 +419,10 @@ The depth axis only opens if the session loop serves several asks from one sessi
 concurrently, which `adr-reject-server-ordering.md` currently forbids. So Phase 3 below is
 conditional on that design changing.
 
-### Phase 0 — make the miss rate observable (prerequisite)
+### Phase 0 — make the miss rate observable (done)
 
-Every threshold below is a miss rate, and the server cannot currently report its own. Until a
-session can say how often it escalated, none of the phases can be evaluated against
-production. This is the only item that blocks the rest.
+Every threshold below is a miss rate, and the server could not report its own. It now emits
+one per session, plus the read path it actually took at startup — §Reporting above.
 
 ### Phase 1 — per-session ring cost (done)
 

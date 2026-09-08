@@ -11,7 +11,7 @@ use crate::transport::wire::write_fod_msg;
 use anyhow::{Error, Result};
 use fod::FodMsg;
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{info, warn};
 use wtransport::stream::SendStream;
 
 #[cfg(feature = "telemetry")]
@@ -125,6 +125,25 @@ impl FramePipeline for ProductPipeline {
 
     async fn drain_acks(&mut self) {
         self.out.drain_acks().await;
+    }
+}
+
+impl Drop for ProductPipeline {
+    /// The session's read summary. In `Drop` because a session ends in several ways — a
+    /// clean `EndSession`, a broken wire, runtime shutdown — and a miss rate that only some
+    /// of them report is worse than none. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
+    fn drop(&mut self) {
+        let stats = self.read.stats();
+        let Some(miss_rate) = stats.miss_rate() else {
+            return;
+        };
+        info!(
+            hits = stats.hits,
+            misses = stats.misses,
+            miss_rate,
+            ring = self.read.ring_built(),
+            "session reads"
+        );
     }
 }
 

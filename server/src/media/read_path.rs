@@ -55,6 +55,26 @@ enum Ring {
     Refused,
 }
 
+/// What a session's reads did. The miss rate is the quantity every read-path threshold is
+/// expressed in, and without this it is invisible outside the lab.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReadStats {
+    /// Reads the page cache served whole, with no wait.
+    pub hits: u64,
+    /// Reads that had to escalate to the ring or the pool. Counted per read, not per frame:
+    /// a frame longer than one window can hit some of its windows and miss others.
+    pub misses: u64,
+}
+
+impl ReadStats {
+    /// `None` before the first read, so a session that served nothing reports nothing
+    /// rather than 0%.
+    pub fn miss_rate(&self) -> Option<f64> {
+        let total = self.hits + self.misses;
+        (total > 0).then(|| self.misses as f64 / total as f64)
+    }
+}
+
 /// One session's read state.
 pub struct ReadCtx {
     /// Whether to try the page cache before escalating. False only under
@@ -67,6 +87,7 @@ pub struct ReadCtx {
     ring: Ring,
     /// One reusable buffer for the session. Grows to the largest frame it escalates on.
     window: Vec<u8>,
+    stats: ReadStats,
 }
 
 #[cfg(feature = "uring")]
@@ -111,6 +132,7 @@ impl ReadCtx {
             #[cfg(feature = "uring")]
             ring: if wants_ring { Ring::Pending } else { Ring::Off },
             window: Vec::new(),
+            stats: ReadStats::default(),
         }
     }
 
@@ -135,8 +157,10 @@ impl ReadCtx {
             0
         };
         if hit == want {
+            self.stats.hits += 1;
             return Ok(&self.window[..want]);
         }
+        self.stats.misses += 1;
 
         let rest = remaining - hit;
         self.grow(hit + rest);
@@ -192,10 +216,17 @@ impl ReadCtx {
         }
     }
 
-    /// Whether this session built a ring. Tests assert on it; nothing else should care.
-    #[cfg(all(test, feature = "uring"))]
-    pub(crate) fn has_ring(&self) -> bool {
-        matches!(self.ring, Ring::Ready(_))
+    pub fn stats(&self) -> ReadStats {
+        self.stats
+    }
+
+    /// Whether this session built a ring — the read path it actually took, which on a host
+    /// without `RWF_NOWAIT` or without io_uring is not the one that was configured.
+    pub fn ring_built(&self) -> bool {
+        #[cfg(feature = "uring")]
+        return matches!(self.ring, Ring::Ready(_));
+        #[cfg(not(feature = "uring"))]
+        return false;
     }
 }
 
@@ -389,6 +420,44 @@ mod tests {
         assert_eq!(ReadMode::from_env(), ReadMode::Auto, "unset");
     }
 
+    /// The number every read-path threshold is expressed in, and the one the server could
+    /// not report about itself. Both ends are pinned: a session that only hits reports 0,
+    /// a session that only escalates reports 1, and one that read nothing reports neither.
+    #[test]
+    fn read_stats_report_the_session_miss_rate() {
+        let dir = scratch("stats");
+        let path = write_bundle(&dir, 3, LEN);
+        let rt = rt();
+
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let mut ctx = ReadCtx::new(ReadMode::Pool, &store);
+        assert_eq!(ctx.stats().miss_rate(), None, "nothing read, nothing to say");
+        for idx in 0..3u32 {
+            drain(&rt, &mut ctx, &store, idx, STRIDE);
+        }
+        let stats = ctx.stats();
+        assert_eq!(
+            (stats.hits, stats.misses, stats.miss_rate()),
+            (0, 3, Some(1.0)),
+            "every read escalated, and one read covered each frame"
+        );
+
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        if store.nowait_supported() {
+            let mut ctx = ReadCtx::new(ReadMode::Auto, &store);
+            for idx in 0..3u32 {
+                drain(&rt, &mut ctx, &store, idx, STRIDE);
+            }
+            let stats = ctx.stats();
+            assert_eq!(stats.misses, 0, "a warm session escalated");
+            assert_eq!(stats.miss_rate(), Some(0.0));
+            assert!(stats.hits >= 3, "windows read: {}", stats.hits);
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// **The arm's whole point**: a session that never misses never builds a ring, so on a
     /// hit-dominated workload the change is inert by design rather than by configuration.
     #[test]
@@ -409,7 +478,7 @@ mod tests {
             assert_eq!(out, frame_pattern(idx, LEN));
         }
         assert!(
-            !ctx.has_ring(),
+            !ctx.ring_built(),
             "a session that only ever hit the page cache built a ring anyway"
         );
         std::fs::remove_dir_all(&dir).ok();
@@ -433,7 +502,7 @@ mod tests {
             assert_eq!(out, frame_pattern(idx, LEN), "the pooled path still serves");
         }
         assert!(
-            !ctx.has_ring(),
+            !ctx.ring_built(),
             "a ring was built on a filesystem that refuses RWF_NOWAIT — every warm read \
              would now go through it"
         );
@@ -465,7 +534,7 @@ mod tests {
                 "the ring read the rest of the frame, not the window"
             );
         }
-        assert!(ctx.has_ring(), "the miss path never reached the ring");
+        assert!(ctx.ring_built(), "the miss path never reached the ring");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -484,7 +553,7 @@ mod tests {
             assert_eq!(out, frame_pattern(idx, LEN), "frame {idx} came back wrong");
             assert_eq!(reads, 1, "the lever reads whole frames, not windows");
         }
-        assert!(ctx.has_ring(), "the lever never built a ring");
+        assert!(ctx.ring_built(), "the lever never built a ring");
         std::fs::remove_dir_all(&dir).ok();
     }
 }
