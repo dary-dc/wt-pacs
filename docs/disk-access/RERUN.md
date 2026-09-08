@@ -293,13 +293,21 @@ win here is removing the **thread-pool hop**, not the submit syscall: the hop is
 ([`EVIDENCE.md`](EVIDENCE.md) §Hosts) against a submit that costs nothing measurable at this
 depth.
 
-**What would reopen it.** One shape only: `IORING_SETUP_ATTACH_WQ` shares the SQ poll thread
-between rings when both flags are set, so many session rings could share one poller. That is
-untested here, and it is worth testing only if a deployment first shows the problem
-`ATTACH_WQ` solves — io-wq threads growing with sessions, which R5 measured at zero for 128
-rings ([`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) §Kernel side, P6).
-A paired, interleaved re-run against the same arm would also settle the cold tail, which is
-the one number this campaign left open.
+**Status: closed, and not on the numbers.** One ring per session means one `iou-sqp` kernel
+thread per session. No measurement changes that, so no measurement reopens this. **Do not
+schedule a re-run.**
+
+**The cold tail is not a reason to.** It is a bound on what these docs may claim — the −69 %
+is unpaired and the mechanism is unestablished, so it is written as open rather than quoted
+as a win. Even if a paired run confirmed it, the per-session poller thread would still be
+there, and that is what decides.
+
+**What would be a different question.** If the read path ever stops holding one ring per
+session — a ring shared across sessions is P3 in
+[`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) §5 — then a small fixed
+number of rings is the shape SQPOLL is built for, and it would be worth evaluating **for that
+design**, with `IORING_SETUP_ATTACH_WQ` to share the poll thread. That is a new evaluation of
+a different architecture, not a retry of this one.
 
 ### Neighbours · `v4_uring_multisession.tsv` (archived: `git show a330783:docs/disk-access/v4_uring_multisession.tsv`)
 
