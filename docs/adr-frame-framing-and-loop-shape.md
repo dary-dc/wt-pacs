@@ -248,7 +248,9 @@ what the page cache and read-ahead are best at. On-demand (the client names tile
 Stop is `EndStream` at the next frame boundary — not session-wide, that is `EndSession`. Slow
 is QUIC: when the client stops reading, `write_all` waits and the read-ahead waits with it.
 `EndStream` is seen by the serving loop between frames; it does not queue behind generated
-indexes. Seek and switching modes on one session are not specified yet.
+indexes. A data request during a fill ends the fill and is then served: a second
+`StreamFrames` is a seek, a `RequestFrame` or `RequestFrames` puts the session back on demand
+([`disk-access/READ-PATH-DESIGN.md`](disk-access/READ-PATH-DESIGN.md) §2).
 
 ## 6d · The other half of §6b: `RequestFrame` is still depth 1
 
@@ -296,7 +298,8 @@ iteration's current ask. A fill does not enqueue indexes; it recites `from..to` 
 current = recv()
 if current is StreamFrames { from, to }:          // missing from → 0; missing to → last
     for i in from..=to:
-        try_recv → EndStream breaks; EndSession ends the session
+        try_recv → EndStream breaks; EndSession ends the session;
+                   any data request breaks and becomes current
         serve(i, upcoming = i+1..=to)
     current = recv()
 else:                                             // RequestFrame / RequestFrames
