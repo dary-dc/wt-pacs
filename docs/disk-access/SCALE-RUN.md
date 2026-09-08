@@ -1,5 +1,12 @@
 # Running the scale campaign on a real machine
 
+> **Run once, 2026-09-08**, on an 8-thread i5-8250U / btrfs-on-LUKS/NVMe:
+> [`v34_scale.tsv`](v34_scale.tsv), [`v34_scale_host.txt`](v34_scale_host.txt). It settled the
+> arm question and did **not** lift the concurrency ceiling — that host is device-bound from
+> ~64 reads in flight (~840 MB/s, CPU at 0.42 of 8 cores). A rerun needs **faster storage**,
+> not more cores. Two traps it found, fixed in step 2 below.
+
+
 Everything measured so far ran on a 4 vCPU sandbox. Past ~64 reads in flight that host is the
 bottleneck, not the read path, so the high-concurrency rows are directional at best. This is
 how to close that on a machine with more cores.
@@ -24,8 +31,16 @@ cargo build --release -p disk-access-bench -p check-fastpath
 # 1. The fast path must exist here, or every number is the fallback path's.
 ./target/release/check-fastpath .          # expect: PASS
 
-# 2. Read-ahead decides what a "cold" cell measures. Record it.
-cat /sys/block/$(lsblk -no PKNAME $(findmnt -no SOURCE .) | head -1)/queue/read_ahead_kb
+# 2. Read-ahead decides what a "cold" cell measures. MEASURE it, do not read one number.
+#    The block device is not always the operative value: on btrfs the filesystem installs its
+#    own bdi (4096 KB measured, against 128 KB on the block device underneath). Sweep the
+#    stride and watch miss_pct instead of trusting either:
+for st in 1048576 4194304 16777216; do
+  ./target/release/read_campaign --study <fixture> --arms pool --depths 1 --temps cold \
+    --repeats 2 --asks 256 --size 16384 --stride $st --monitors 0 --label ra | \
+    awk -F'\t' -v s=$st 'NR>1{print "stride="s" miss_pct="$22}'
+done
+#    Pick the smallest stride that reaches ~99% and use it below.
 
 # 3. Build the 8 GB fixture (~10 min).
 BYTES=250000 FRAMES=32000 NAME=frames_250k_deep ./lab/scripts/gen_live_cell_fixture.sh
@@ -54,6 +69,19 @@ Then:
 lab/scripts/pair_arms.py --by readers --pairs uring:hybrid_lazyring,product:hybrid_lazyring v34_scale.tsv
 lab/scripts/pair_arms.py --by depth   --pairs uring:hybrid_lazyring v34_scale.tsv
 ```
+
+### Two traps this kind of host sets
+
+* **Filesystem read-ahead can differ from the block device's.** See step 2. Reading
+  `/sys/block/*/queue/read_ahead_kb` alone gave 128 KB where the operative value was 4096 KB.
+* **Transparent compression makes a constant-byte fixture unreal.** `compress=zstd:1` turned
+  the generated fixture into 32:1 compressible data while `du` and `stat` both reported full
+  size — so the device was reading a fraction of what the numbers implied. Generate the
+  fixture with incompressible content, or mount the fixture directory with compression off,
+  and check `compsize` if it is available.
+* **`RLIMIT_MEMLOCK` is a real ceiling.** io_uring rings are accounted against it: an 8 MB
+  default refused the two largest ring cells outright (~940 rings at 8.7 KiB each). Raise
+  `ulimit -l` before the run, or those cells silently vanish from the campaign.
 
 ## What to read out of it
 

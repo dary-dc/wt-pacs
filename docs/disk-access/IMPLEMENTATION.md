@@ -230,17 +230,40 @@ is faster ([`v33_cross.tsv`](v33_cross.tsv)):
 | 16 | 4 | 64 | +128 | **−72** |
 | 16 | 16 | 256 | +519 | +7 772 |
 
-**`hybrid_lazyring` has the better median almost everywhere; `uring` has the better tail at
-depth 4.** Both statements are true at once, and neither generalises from a single row — an
-earlier version of this section claimed `uring` was 47–61% worse on latency, which was a p50
-result taken at one reader and does not survive the cross.
+On the sandbox this read as "`hybrid_lazyring` has the better median, `uring` the better tail
+at depth 4". **That did not reproduce on real hardware and should not be relied on** — see the
+next section. The sandbox is 4 vCPU and runs out of CPU at ~64 reads in flight, so its
+high-concurrency rows measure the host.
 
-What does not change with load is which arm is structurally safe: `pool` reaches **98 OS
-threads** at 256 reads in flight and a 15.6 ms p99; both ring arms stay flat at **5** threads.
-The arm to avoid at scale is the one this change replaced.
+What does hold on both hosts is which arm is structurally safe: `pool` grows OS threads
+without bound while every ring arm stays flat. The arm to avoid at scale is the one this
+change replaced.
 
-Treat the high end as directional: at 64 and 256 reads in flight a 4 vCPU host is the
-bottleneck, not the read path.
+### The scale run: device-bound, and the arms tie on misses
+
+An 8-thread workstation (i5-8250U, btrfs on LUKS/NVMe), 528 cells, arms interleaved, all 264
+cold cells verified 0.0000% resident ([`v34_scale.tsv`](v34_scale.tsv),
+[`v34_scale_host.txt`](v34_scale_host.txt)).
+
+It does not lift the ceiling it was written to lift — it moves it. The sandbox ran out of
+**CPU** at ~64 reads in flight; this host runs out of **disk** at the same place: cold
+throughput plateaus at ~51k asks/s (~840 MB/s) with system CPU at 0.42 of 8 cores. Past that
+every arm sits in the same full device queue, so every pair ties by construction.
+[`EVIDENCE.md`](EVIDENCE.md) already names "storage faster than ~1.25 GB/s" as never
+established; this run does not establish it either.
+
+What it does settle:
+
+| | |
+| --- | --- |
+| **`uring` does not cross `hybrid_lazyring` at depth 2–4** | misses tie at every depth (CPU −3.1 / −3.9 / −1.9%); hits lose harder with depth (p50 +106% at depth 2, +298% at depth 4, RESOLVED) |
+| **`product` still tracks `hybrid_lazyring`** | every pair a tie — p50, p99 and CPU — at every depth and reader count |
+| **`pool` bends at 64 readers** | 125–135 blocking threads, 25–32k asks/s against ~43k, p99 9.6–13.4 ms against 3.2–7.1 ms, 6 of 6 repeats. Threads cap at 521 (tokio's 512 + runtime) |
+| **Ring arms hold 9 threads flat** everywhere, and grow ring fds instead | `hybrid_lazyring` one per session; at 1 024 sessions that is 1 024 rings |
+
+**`RLIMIT_MEMLOCK` refused two cells** on that host — 8 MB hard, no root. At 8.7 KiB per ring
+that is roughly 940 rings. So the deployment limit is not only `LimitNOFILE`: **`LimitMEMLOCK`
+binds first on a host with the common 8 MB default.**
 
 ### Alternatives considered, and why this one
 
