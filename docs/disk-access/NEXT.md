@@ -1,5 +1,8 @@
 # Read path — what is parked, and in what order
 
+> Context for a cold start — what ships, what was decided, what was retracted, and the
+> measurement traps: [`HANDOFF.md`](HANDOFF.md).
+
 Written 2026-09-08, mid-flight. The read path is implemented, validated against the lab arms
 and merged-ready; these are the threads left open when the conversation turned to the serving
 loop. Nothing here blocks the branch.
