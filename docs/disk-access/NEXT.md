@@ -60,14 +60,18 @@ about arm behaviour past ~64 reads in flight is supportable on any host we have.
   a sequential cursor read, so the "no positional read" objection does not apply. Costs to
   weigh then: `--cfg tokio_unstable` in a production build, and one fd per streaming session
   instead of one shared for the whole study.
-* **Recheck the I/O backend alternatives with network access.** The `tokio-uring`, `glommio`,
-  `monoio` and `compio` rows in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Alternatives are from
-  prior knowledge, not verified — this sandbox has no crates.io. The argument that rules them
-  out is architectural (they bring their own runtime; `wtransport`/`quinn` need tokio's
-  multi-thread one) and does not depend on their versions, but if one has since gained
-  multi-thread tokio compatibility that row should be reopened.
-  **Brief written:** [`RESEARCH-io-backends.md`](RESEARCH-io-backends.md) — hand it to an agent
-  with web access; the answer lands in `RESEARCH-io-backends-RESULT.md`.
+* **Drop the eventfd: park on the ring's own fd.** The one change the backend research
+  found worth making — one fd per missing session instead of two, and the eventfd `read` per
+  park goes with it. Measured in the lab as `x14` (the `uring_ringfd` and
+  `hybrid_lazyring_ringfd` arms); the product change is proposal **P1** in
+  [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) and is ~30 lines in
+  `uring_reader.rs`. Re-run the `product` arm after it lands.
+* ~~Recheck the I/O backend alternatives with network access.~~ **Closed 2026-09-08** —
+  [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md). Every row in
+  [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Alternatives holds against current releases;
+  nothing on crates.io drives a ring on tokio's multi-thread runtime with positional reads
+  and less than this binding. Verdict: keep driving `io-uring` directly. What would reopen
+  it is listed there.
 
 ## Not parked — settled on this branch
 
