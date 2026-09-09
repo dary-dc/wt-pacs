@@ -2420,6 +2420,32 @@ Miss columns are depth 1 · 4 · 16 from [`x17_depth.tsv`](x17_depth.tsv), 10 re
 Medians behind the percentages, warm depth 4: `product` 2.2 µs p50, `pool` 2.0, `uring` 22.1,
 `pooled_pread` 30.3.
 
+**The same cells as medians, because a ratio is not a number anyone can picture.** p50 per
+ask, median of 12 repeats of 256 asks ([`x17_arms.tsv`](x17_arms.tsv)); the cold ladder is
+10 repeats ([`x17_depth.tsv`](x17_depth.tsv)):
+
+| arm | warm p50 | warm p99 | warm CPU/ask | cold p50 | cold CPU/ask |
+| --- | --- | --- | --- | --- | --- |
+| | *depth 1 · depth 4* | *depth 1 · depth 4* | *depth 1 · depth 4* | *depth 1 · 4 · 16* | *depth 1 · 4 · 16* |
+| **`product`** — what ships | **2.0 · 2.2 µs** | 3.5 · 8.0 µs | 0.4 · 2.6 µs | 95 · 133 · 282 µs | 147 · 79 · 57 µs |
+| `hybrid_lazyring` | 1.9 · 1.7 µs | 3.6 · 3.4 µs | 0.4 · 0.4 µs | — | — |
+| `pool` | 2.1 · 2.0 µs | 3.3 · 3.9 µs | 0.3 · 2.4 µs | 92 · 151 · 327 µs | 117 · 94 · 78 µs |
+| `uring` | 3.1 · **22.1 µs** | 21.9 · 44.7 µs | 8.4 · 1.9 µs | 100 · 162 · 397 µs | 148 · **57 · 30 µs** |
+| `pooled_pread` | **29.3 · 30.3 µs** | 69.1 · 296.4 µs | 42.1 · 38.5 µs | 110 · 160 · 326 µs | 171 · 105 · 89 µs |
+
+`uring` reports `miss_pct` 100 even warm: `ReadMode::Uring` sets `probe = false`, so every read
+is an escalation by construction. That is the lab lever, not a measurement of the cache.
+
+Dividing these medians very nearly reproduces the paired percentages above — `product` against
+`pool` on cold CPU at depth 16 is 57 / 78 = −27 % against the paired −29.8 %. **That agreement
+is a property of this dataset, not a rule**: [`pair_arms.py`](../../lab/scripts/pair_arms.py)
+exists because the two statistics once differed by 42 % against 24 % on the same cells, and
+the paired one is what the threshold is defined on. Where they disagree here they disagree
+loudly — `product` against `hybrid_lazyring` on warm CPU at depth 4 is 2.6 µs against 0.4,
+which reads as 6×, and pairs at 14/24 signs: **not established, and the medians are the
+misleading half.** Two runs of the same cell also differ by ~5 % (`product` cold depth 1 p50
+is 99.7 µs in one file and 95.2 in the other), which is this host's floor.
+
 Three things follow, and only the first is new.
 
 **The `RWF_NOWAIT` fast path is worth what the ADR says.** Against `pooled_pread` — the escape
