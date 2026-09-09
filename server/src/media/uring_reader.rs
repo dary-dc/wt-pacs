@@ -3,6 +3,7 @@
 //! Two constraints are easy to undo by accident: tokio migrates a task between workers, so
 //! `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable, and blocking in `io_uring_enter` would
 //! be the stall this exists to prevent. `docs/disk-access/IMPLEMENTATION.md`.
+//! Thin wrapper: `docs/disk-access/READ-PATH-DESIGN.md` §11 cut 6.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
@@ -15,25 +16,10 @@ use tokio::io::unix::AsyncFd;
 pub(crate) static DRAINED_ON_DROP: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 
-/// The frame being served and the one being read ahead — two, not *n*.
-/// `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
-pub const SLOTS: usize = 2;
-
-/// An address, not a pointer, so the reader stays `Send`. Validity comes from the caller's
-/// contract on [`UringReader::start`], not from the type.
-struct Pending {
-    addr: usize,
-    len: usize,
-    done: usize,
-    offset: u64,
-    /// The kernel owns `addr + done .. addr + len` right now.
-    submitted: bool,
-}
-
 pub struct UringReader {
     ring: IoUring,
     eventfd: AsyncFd<OwnedFd>,
-    slots: [Option<Pending>; SLOTS],
+    in_flight: usize,
 }
 
 impl UringReader {
@@ -61,96 +47,41 @@ impl UringReader {
         Ok(Self {
             ring,
             eventfd: AsyncFd::new(owned).context("AsyncFd(eventfd)")?,
-            slots: [const { None }; SLOTS],
+            in_flight: 0,
         })
     }
 
     /// # Safety
-    /// `buf` must stay valid, unmoved and unaliased until the matching
-    /// [`finish`](Self::finish) returns, or until this reader is dropped, which waits.
-    /// Growing the buffer behind it is the way to break this.
-    pub(crate) unsafe fn start(&mut self, slot: usize, buf: &mut [u8], offset: u64) -> Result<()> {
-        debug_assert!(self.slots[slot].is_none(), "slot {slot} already has a read");
-        self.slots[slot] = Some(Pending {
-            addr: buf.as_mut_ptr() as usize,
-            len: buf.len(),
-            done: 0,
-            offset,
-            submitted: false,
-        });
-        self.submit(slot)
-    }
-
-    /// Await the read in `slot`, re-submitting until its whole range is read.
-    pub(crate) async fn finish(&mut self, slot: usize) -> Result<()> {
-        loop {
-            self.reap()?;
-            let Some(pending) = &self.slots[slot] else {
-                return Ok(());
-            };
-            if pending.done == pending.len {
-                self.slots[slot] = None;
-                return Ok(());
-            }
-            if pending.submitted {
-                self.park().await?;
-            } else {
-                self.submit(slot)?;
-            }
-        }
-    }
-
-    /// Hand the unread remainder of `slot` to the kernel.
-    fn submit(&mut self, slot: usize) -> Result<()> {
-        let (addr, len, done, offset) = {
-            let pending = self.slots[slot].as_ref().expect("submit without a read");
-            (pending.addr, pending.len, pending.done, pending.offset)
-        };
-        let entry = opcode::Read::new(types::Fixed(0), (addr + done) as *mut u8, (len - done) as u32)
-            .offset(offset + done as u64)
+    /// `buf` stays valid, unmoved and unaliased until `reap` reports `slot` or this reader is
+    /// dropped, which waits.
+    pub(crate) unsafe fn submit(&mut self, slot: usize, buf: &mut [u8], offset: u64) -> Result<()> {
+        let entry = opcode::Read::new(types::Fixed(0), buf.as_mut_ptr(), buf.len() as u32)
+            .offset(offset)
             .build()
             .user_data(slot as u64);
-        // SAFETY: the buffer stays valid and unaliased until `finish` reaps this completion
-        // or `Drop` waits for it — the contract `start` places on its caller.
-        unsafe { self.ring.submission().push(&entry) }
-            .map_err(|_| anyhow::anyhow!("io_uring SQ full"))?;
+        unsafe { self.ring.submission().push(&entry) }.map_err(|_| anyhow::anyhow!("io_uring SQ full"))?;
         self.ring.submit().context("io_uring submit")?;
-        self.slots[slot].as_mut().expect("still pending").submitted = true;
+        self.in_flight += 1;
         Ok(())
     }
 
-    /// Both slots complete into one queue, so waiting on either reaps the other — which is
-    /// what lets a read ahead land while the frame in hand is still being waited on.
-    fn reap(&mut self) -> Result<()> {
+    /// Every completion landed so far: `(slot, bytes)`. A short read is the caller's to resubmit.
+    pub(crate) fn reap(&mut self) -> Result<Vec<(usize, usize)>> {
         self.ring.completion().sync();
-        while let Some(cqe) = self.ring.completion().next() {
-            let Some(pending) = self
-                .slots
-                .get_mut(cqe.user_data() as usize)
-                .and_then(Option::as_mut)
-            else {
-                continue;
-            };
-            pending.submitted = false;
-            if cqe.result() < 0 {
-                let err = std::io::Error::from_raw_os_error(-cqe.result());
-                return Err(err).context("io_uring read");
+        let mut landed = Vec::new();
+        for cqe in self.ring.completion() {
+            self.in_flight = self.in_flight.saturating_sub(1);
+            match cqe.result() {
+                n if n > 0 => landed.push((cqe.user_data() as usize, n as usize)),
+                0 => bail!("io_uring read hit EOF"),
+                e => return Err(std::io::Error::from_raw_os_error(-e)).context("io_uring read"),
             }
-            if cqe.result() == 0 {
-                bail!(
-                    "io_uring read hit EOF {} of {} bytes at {}",
-                    pending.done,
-                    pending.len,
-                    pending.offset
-                );
-            }
-            pending.done += cqe.result() as usize;
         }
-        Ok(())
+        Ok(landed)
     }
 
     /// Park on the registered eventfd rather than blocking in `io_uring_enter`.
-    async fn park(&mut self) -> Result<()> {
+    pub(crate) async fn park(&mut self) -> Result<()> {
         let mut guard = self
             .eventfd
             .readable_mut()
@@ -169,29 +100,19 @@ impl UringReader {
         });
         Ok(())
     }
-}
 
-impl UringReader {
-    /// Without this, a drop between submit and completion leaves the kernel writing into
-    /// freed memory. Idempotent, so [`ReadCtx`](crate::media::read_path) calls it early.
+    /// The one place this file blocks; the alternative is a use-after-free.
     pub(crate) fn drain_in_flight(&mut self) {
-        let outstanding = self
-            .slots
-            .iter()
-            .filter(|slot| slot.as_ref().is_some_and(|p| p.submitted))
-            .count();
-        if outstanding == 0 {
-            self.slots = [const { None }; SLOTS];
+        if self.in_flight == 0 {
             return;
         }
         #[cfg(test)]
         DRAINED_ON_DROP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        // The one place this file blocks; the alternative is a use-after-free.
-        if self.ring.submitter().submit_and_wait(outstanding).is_ok() {
+        if self.ring.submitter().submit_and_wait(self.in_flight).is_ok() {
             self.ring.completion().sync();
             while self.ring.completion().next().is_some() {}
         }
-        self.slots = [const { None }; SLOTS];
+        self.in_flight = 0;
     }
 }
 
@@ -225,7 +146,6 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("wtpacs-ring-drop-{}", std::process::id()));
         let (file, body) = blob(&dir, 64 * 1024);
 
-        // `AsyncFd` needs a reactor, and so does dropping one — the guard covers both.
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -237,12 +157,10 @@ mod tests {
             std::fs::remove_dir_all(&dir).ok();
             return;
         };
-        // `buf` is declared before `reader`, so it drops after it — the ordering that makes
-        // the wait meaningful.
         let mut buf = vec![0u8; body.len()];
-        // SAFETY: `buf` outlives `reader`, which is what `start` requires of its caller.
-        unsafe { reader.start(0, &mut buf, 0) }.expect("submit");
-        assert!(reader.slots[0].is_some(), "the read was not left in flight");
+        // SAFETY: `buf` outlives `reader`, which is what `submit` requires of its caller.
+        unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
+        assert!(reader.in_flight > 0, "the read was not left in flight");
 
         let before = DRAINED_ON_DROP.load(std::sync::atomic::Ordering::SeqCst);
         drop(reader);
@@ -279,15 +197,32 @@ mod tests {
         let (first, second) = (0u64, 64 * 1024u64);
         let mut a = vec![0u8; 64 * 1024];
         let mut b = vec![0u8; 64 * 1024];
-        // Timed, because the way this breaks is a completion credited to the wrong slot,
-        // and the symptom of that is a wait that never ends.
+        let mut filled = [0usize; 2];
         rt.block_on(async {
-            // SAFETY: both buffers outlive the reader and are not touched until `finish`.
-            unsafe { reader.start(0, &mut a, first) }.expect("start a");
-            unsafe { reader.start(1, &mut b, second) }.expect("start b");
+            // SAFETY: both buffers outlive the reader and are not touched until reaped.
+            unsafe { reader.submit(0, &mut a, first) }.expect("start a");
+            unsafe { reader.submit(1, &mut b, second) }.expect("start b");
             tokio::time::timeout(std::time::Duration::from_secs(10), async {
-                reader.finish(1).await.expect("finish b");
-                reader.finish(0).await.expect("finish a");
+                while filled[0] < a.len() || filled[1] < b.len() {
+                    for (slot, n) in reader.reap().expect("reap") {
+                        filled[slot] += n;
+                        if slot == 0 && filled[0] < a.len() {
+                            unsafe {
+                                reader.submit(0, &mut a[filled[0]..], first + filled[0] as u64)
+                            }
+                            .expect("resubmit a");
+                        }
+                        if slot == 1 && filled[1] < b.len() {
+                            unsafe {
+                                reader.submit(1, &mut b[filled[1]..], second + filled[1] as u64)
+                            }
+                            .expect("resubmit b");
+                        }
+                    }
+                    if filled[0] < a.len() || filled[1] < b.len() {
+                        reader.park().await.expect("park");
+                    }
+                }
             })
             .await
             .expect("a completion never arrived at the slot that was waiting for it");
