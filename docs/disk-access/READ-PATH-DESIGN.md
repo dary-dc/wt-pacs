@@ -1149,12 +1149,12 @@ Mutate every new or rewritten test once and watch it fail (`CLAUDE.md`).
 ### 13.5 · The lab
 
 `read_campaign.rs`'s `product` and `product_ahead` arms call `ctx.read` directly and change
-with its signature in commit 1a — they are also the check. The lab implements
-`FramePipeline` for its timing stamps (`prepare`, `note_fill`), so the trait stays with one
-serving method; it is not a mock. `note_batch(position, size)` loses its caller with cut 1,
-since the loop no longer sees batches. **Recommendation: delete it** — the harness knows its
-own asks. If a lab metric needs it, that metric is the reason to keep batch identity on
-`Ask::Frame`, and that is a decision for the owners, not the implementer.
+with its signature in commit 1a — they are also the check. The lab does **not** implement
+`FramePipeline`; that trait's only implementors are `ProductPipeline`, `RecordedPipeline`
+and the two test recorders in `server/` (§16, §18). `note_batch(position, size)` loses its
+caller with cut 1, since the loop no longer sees batches. **Recommendation: delete it** — the
+harness knows its own asks. If a lab metric needs it, that metric is the reason to keep batch
+identity on `Ask::Frame`, and that is a decision for the owners, not the implementer.
 
 ### 13.6 · Documents to correct when it lands
 
@@ -1734,10 +1734,10 @@ the vacuous `EndStream` wire test, and the `server.rs` test preamble.
 These decide whether that run's answer can be trusted. All three are small.
 
 **P1 · `session reads` should say how far the planner reached, and how many reads were in
-flight.** §16.4 had to *infer* that the seam was live by timing two binaries against each
-other. Nothing — in the lab or in production — reports it directly, so `W = 4` cannot be
-confirmed to engage on a real study, and the A/B cannot prove the base used two windows and
-HEAD used four rather than infer it from a 20 % p50 move.
+flight. Landed** with P7; recipe in §18.1. §16.4 had to *infer* that the seam was live by
+timing two binaries against each other. Nothing — in the lab or in production — reports it
+directly, so `W = 4` cannot be confirmed to engage on a real study, and the A/B cannot prove
+the base used two windows and HEAD used four rather than infer it from a 20 % p50 move.
 
 Two counters on `ReadStats`, both maxima, both set in `read`:
 
@@ -1805,12 +1805,13 @@ not rediscovered.
 
 ### 17.3 · Costs deferred until the warm cells rule (§15.5)
 
-None of these should land before `server_ab.sh` says the product warm cells lose. Costed here
-so the decision is one reading rather than five investigations.
+P7 landed with P1 because they share a hunk. The rest should not land before `server_ab.sh`
+says the product warm cells lose. Costed here so the decision is one reading rather than
+four investigations.
 
 | # | cost | where | change |
 | --- | --- | --- | --- |
-| P7 | one `Vec` allocation per **64 KiB read** | `read_path.rs` `read` | `wanted` becomes `[(FrameSpan, u32); WINDOWS]` with a length |
+| P7 | one `Vec` allocation per **64 KiB read** | `read_path.rs` `read` | **landed with P1** — `wanted` is `[(FrameSpan, u32); WINDOWS]` with a length |
 | P8 | `free_window` rescans all W windows against `wanted`, O(W²) per read | `read_path.rs` | compute each `holding` once and reuse it |
 | P9 | up to 5 wasted `frame_span` lookups and two oversized `Vec`s **per frame** | `planner.rs`, `pipeline.rs` | the planner names up to `ASKS_AHEAD` = 8; `read` uses `WINDOWS − 1` = 3. Cap `upcoming` at `WINDOWS − 1`. Trade-off: naming more survives an upcoming frame that fails to locate (§13.3), so the cap costs a little resilience for a smaller allocation |
 | P10 | one `Vec` per ring wake | `uring_reader.rs` `reap` | `[_; WINDOWS]`; §14.1 already has this row |
@@ -1845,15 +1846,17 @@ target. No proposal here substitutes for any of them.
 
 ## 18 · §17 as code — for the implementer
 
-**2026-09-09.** Each proposal below was written, compiled and tested in this tree, then
-reverted: the code is verified, not sketched. Every diff is small — 185 lines added and 95
-removed across all nine — and each is independent of the others except where said.
+**2026-09-09.** Each proposal below was written, compiled and tested in this tree. **P1 and
+P7 landed** — they share a hunk, and P1 is what turns `server_ab.sh 580e312` from a timing
+inference into an assertion. The rest wait here as verified recipes: **P2, P3, P4, P6,
+P9–P13**. **P8 is withdrawn.**
 
-Every one passes `cargo test -p exact-server` on default, `--no-default-features` and
-`telemetry`, `cargo check -p disk-access-bench --all-targets`, and the comment budget.
-New tests were mutated; the mutation that must fail is given with each.
+Every remaining proposal was reverted after verification. Diffs are small, and each is
+independent of the others except where said. Recipes stay so they can land later without
+being rediscovered.
 
-Order matters in one place only: **P1 before the run**. The rest can land in any order.
+Order that remains: **P1 is in**; run `server_ab.sh 580e312` on the workstation next. The
+waiting proposals can land in any order after that.
 
 Two corrections to §17 first, both found while writing the code:
 
@@ -1862,12 +1865,9 @@ Two corrections to §17 first, both found while writing the code:
   the loop, so a cached map would be stale by the second iteration. The only sound version is
   fusing `holding` and `free_window` into one pass, which saves four comparisons at W = 4 and
   is not worth a line.
-* **§13.5 is stale.** It says the lab implements `FramePipeline` for its timing stamps. It
-  does not — `read_campaign` drives `ReadCtx` directly. The trait's only implementors are
-  `ProductPipeline`, `RecordedPipeline` and the two test recorders §16 added, all in
-  `server/`. That is what makes P11 cheap.
+* **§13.5 was stale** (the lab does not implement `FramePipeline`). Corrected in place.
 
-### 18.1 · P1 · the session line says how far the planner reached
+### 18.1 · P1 · the session line says how far the planner reached — landed
 
 **Why:** §16.4 needed two binaries and eight interleaved rounds to infer that the seam was
 live. This makes it one log line, on a real study, in production.
@@ -1926,11 +1926,12 @@ current frame is waited:
 That last row is the whole argument for this proposal: what §16.4 read off a 20 % p50 move
 across eight rounds, the log says outright.
 
-**Harness half.** `server_ab` gains a `named` column (a `-` the runner fills, as it does
-`miss_pct`); `miss_from_log` generalises to `field_from_log <key>`; the runner refuses any
-on-demand cell at depth ≥ 2 that named fewer than two frames, and the analysis prints the
-per-arm median at cold depth 4 — which is where `before` showing 2 and `after` showing 4
-proves the arms differ in the way §13 claims, without reference to any timing.
+**Harness half — landed.** `server_ab` has a `named` column (a `-` the runner fills, as it
+does `miss_pct`); `field_from_log <key>` is ANSI-tolerant. The runner refuses any **after**
+on-demand cell at depth ≥ 2 that named fewer than two frames (`580e312` has no field, so
+before is not held to it), and the analysis prints the per-arm median at cold depth 4 —
+which is where `before` showing 2 and `after` showing 4 proves the arms differ in the way
+§13 claims, without reference to any timing.
 
 ### 18.2 · P2 · a cold cell is one session
 
@@ -2086,7 +2087,7 @@ that is already getting `FrameError` per frame.
 **Cost:** this couples `transport` to `media::read_path::WINDOWS`. `pipeline.rs` already
 depends on `ReadCtx`, so the crate graph does not change.
 
-### 18.7 · P7 · `wanted` stops allocating
+### 18.7 · P7 · `wanted` stops allocating — landed
 
 **Why:** one `Vec` per **64 KiB read**, so once per window of every frame.
 
@@ -2212,18 +2213,18 @@ frame will not show against 65 µs of read and 6.5 ms of wire (§9.1).
 
 | # | lands in | + / − | independent | test |
 | --- | --- | --- | --- | --- |
-| **P1** | `read_path.rs`, `pipeline.rs`, `server_ab.rs`, `server_ab.sh` | 48 / 9 | yes | extends the order test; the runner gains a gate |
+| **P1** | `read_path.rs`, `pipeline.rs`, `server_ab.rs`, `server_ab.sh` | 48 / 9 | yes | **landed** with P7 |
 | P2 | `server_ab.rs` | 6 / 0 | yes | the binary refuses the cell |
 | P3 | `server_ab.rs`, `server_ab.sh` | 4 / 1 | yes | — |
 | P4 | `read_path.rs` | 53 / 3 | yes | new, mutated |
 | P6 | `server.rs` | 10 / 15 | yes | existing wire tests |
 | P9 | `planner.rs` | 17 / 2 | yes | new, mutated |
-| P7 | `read_path.rs` | 10 / 6 | **shares a hunk with P1** | existing |
+| **P7** | `read_path.rs` | 10 / 6 | **shares a hunk with P1** | **landed** with P1 |
 | P10 | `uring_reader.rs`, `read_path.rs` | 17 / 7 | yes | existing ring test moves |
 | P11 | `pipeline.rs`, `server.rs` | 20 / 52 | yes | existing |
 
-**P1 lands before `server_ab.sh 580e312` runs** — it is what turns that run's cold-depth-4
-cell from a timing inference into an assertion. P7, P9, P10 and P11 are §17.3's deferred
+**P1 and P7 landed.** `server_ab.sh 580e312` on the workstation is next — the cold-depth-4
+`named` column is the assertion, not a timing inference. P9, P10 and P11 are §17.3's deferred
 bucket: they are written here so the warm-cell decision is one reading, and none of them
 should land on their own evidence. P2, P3, P4 and P6 are free of that rule — they are a
 guard, a sentence, an invariant and a simplification.

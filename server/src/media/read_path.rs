@@ -57,6 +57,10 @@ enum Ring {
 pub struct ReadStats {
     pub hits: u64,
     pub misses: u64,
+    /// Most frames named at once: `1 + min(upcoming, WINDOWS - 1)`, the planner's reach.
+    pub peak_named: u16,
+    /// Most windows with a read outstanding at once — what the device saw.
+    pub peak_in_flight: u16,
 }
 
 impl ReadStats {
@@ -165,16 +169,23 @@ impl ReadCtx {
         pos: u32,
         upcoming: impl IntoIterator<Item = FrameSpan>,
     ) -> Result<&[u8]> {
-        let wanted: Vec<(FrameSpan, u32)> = std::iter::once((span, pos))
-            .chain(upcoming.into_iter().take(WINDOWS - 1).map(|s| (s, 0)))
-            .collect();
-        for &(s, p) in &wanted {
+        let mut named = [(span, pos); WINDOWS];
+        let mut count = 1;
+        for s in upcoming.into_iter().take(WINDOWS - 1) {
+            named[count] = (s, 0);
+            count += 1;
+        }
+        let wanted = &named[..count];
+        self.stats.peak_named = self.stats.peak_named.max(count as u16);
+        for &(s, p) in wanted {
             if self.holding(s, p).is_none() {
-                let w = self.free_window(&wanted);
+                let w = self.free_window(wanted);
                 self.wait(w).await?;
                 self.begin(store, w, s, p)?;
             }
         }
+        let started = self.windows.iter().filter(|w| w.read.is_some()).count() as u16;
+        self.stats.peak_in_flight = self.stats.peak_in_flight.max(started);
         let w = self.holding(span, pos).expect("started above");
         self.wait(w).await?;
         self.last = w;
@@ -852,6 +863,11 @@ mod tests {
             WINDOWS - 1,
             "{} upcoming reads should still be in flight",
             WINDOWS - 1
+        );
+        assert_eq!(
+            (ctx.stats().peak_named, ctx.stats().peak_in_flight),
+            (WINDOWS as u16, WINDOWS as u16),
+            "the session line would not show W engaging"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
