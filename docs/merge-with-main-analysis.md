@@ -1,6 +1,21 @@
 # Merging this branch with `main` — what actually collides, and what to do
 
-**2026-09-07, updated 2026-09-08.** `HANDOFF.md` §1 used to claim `main` was a direct ancestor and the merge was
+**2026-09-07, updated 2026-09-08, port applied 2026-09-09** on
+`cursor/port-onto-main-d27c` (PR #20). The analysis below is what the port followed.
+
+**What landed.** `origin/main` (`07a070f`) merged in. `locate`/`send` carry `Bytes`.
+`TransportKnobs` is gone; `TransportTuning` is the one knob struct. CLI keeps `main`'s
+shipped names (`--send-window-bytes`, `--stream-receive-window-bytes`, `--max-idle-timeout-ms`)
+and aliases the lab-script names (`--send-window`, `--stream-receive-window`). Idle timeout
+is applied on the wtransport builder. `StreamMode` is `main`'s module, default `shared`.
+Per-frame ack tasks are reaped as they complete (proposal §7). The loss-regime sampler is
+re-attached beside `main`'s record split.
+
+**Still owed.** `lab/scripts/stall_client_campaign.sh` — the only instrument that can see a
+reintroduced copy. Unit tests: 8 / 8 / 36 / 36 across the four `lab`×`telemetry` combos;
+`all_send_paths_are_the_same_wire` and `frame_bytes_is_a_view_of_the_mapping` pass.
+
+`HANDOFF.md` §1 used to claim `main` was a direct ancestor and the merge was
 conflict-free. That went stale: the fork point is `be78860` (4 September) and **72 commits
 have landed on `main` since**, including the client-frame-pipeline-telemetry PR.
 

@@ -11,6 +11,7 @@ members = [
     "lab/cold-page-bench",
     "lab/aead-bench",
     "lab/netsim",
+    "lab/telemetry-bench",
 ]
 resolver = "2"
 

@@ -9,7 +9,12 @@ use frame_envelope::ENVELOPE_LEN;
 
 /// Copy path: `wrap` then length-prefix. Two full-frame copies on the write path.
 pub fn assemble_copy(idx: u32, body: &[u8]) -> Vec<u8> {
-    crate::transport::wire::length_prefixed(&frame_envelope::wrap(idx, body))
+    let payload = frame_envelope::wrap(idx, body);
+    let len = payload.len().min(u32::MAX as usize) as u32;
+    let mut out = Vec::with_capacity(4 + payload.len());
+    out.extend_from_slice(&len.to_be_bytes());
+    out.extend_from_slice(&payload);
+    out
 }
 
 /// Split path writes these three slices. Built from the index and length, not
@@ -40,7 +45,10 @@ pub fn envelope_header(idx: u32, codestream_len: usize) -> [u8; ENVELOPE_LEN * 2
 
 /// Chunked path: header as one `Bytes`, codestream as the other. No full-frame copy.
 pub fn chunked_chunks(idx: u32, body: Bytes) -> [Bytes; 2] {
-    [Bytes::copy_from_slice(&envelope_header(idx, body.len())), body]
+    [
+        Bytes::copy_from_slice(&envelope_header(idx, body.len())),
+        body,
+    ]
 }
 
 pub fn assemble_chunked(idx: u32, body: &[u8]) -> Vec<u8> {

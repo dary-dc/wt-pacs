@@ -21,27 +21,27 @@ git checkout cursor/l1-loss-run-dbae
 cargo test --workspace && cargo clippy --workspace --all-targets
 ```
 
-Expect 13 server tests (16 with `--features telemetry`), 7 harness, and **3 clippy warnings —
-all in files this branch never touched** (`client/flight-registry`, `client/transport-wasm`,
-`server/src/transport/wire.rs`, the last of which `main` has already rewritten).
+Expect 8 server tests (36 with `--features telemetry` — `main`'s tap/rows/sink suite plus
+the path-sampler concurrency test), 7 harness. Clippy on the server is the one warning
+`main` left in `server/src/transport/wire.rs` (`items_after_test_module`).
 
 **The one thing to know before touching `server/`:** experiment arms live behind
-`--features lab`. A product build has 10 flags and one send path; the lab build has 20 and
+`--features lab`. A product build has 12 flags and one send path; the lab build has 21 and
 three. Lab scripts build with the feature already. See
 [`branch-source-audit.md`](branch-source-audit.md).
 
-**The next piece of work is the port onto `main`'s `pipeline.rs`** — planned in
-[`merge-with-main-analysis.md`](merge-with-main-analysis.md), including an acceptance gate
-and three silent regressions to `main` that a naive merge would introduce. It is the only
-item that blocks everything else, and the user has not authorised it: **do not merge without
-being asked.**
+**The port onto `main`'s `pipeline.rs` is on [`cursor/port-onto-main-d27c`](https://github.com/dary-dc/wt-pacs/pull/20)**
+— plan in [`merge-with-main-analysis.md`](merge-with-main-analysis.md). `locate`/`send`
+carry `Bytes`; the write paths call the assemblers; `--max-idle-timeout-ms` is applied on
+the wtransport builder. The stall campaign (~200 kB/connection on `chunked`) is still the
+copy gate and has not been re-run on the merged tree.
 
 ### What the 2026-09-08 pass changed
 
 | | |
 | --- | --- |
 | **Shipped the conclusion** | `--stream-mode` now defaults to `shared`; §2.7's pre-registered rule fired when X3L separated |
-| **Separated rig from product** | product `--help` is 10 flags, 6 of them transport (`--stream-mode --bind --receive-window --send-window --congestion --prefault`); lab adds 10 more. One send path on a product build; every experiment arm behind `--features lab`, nothing deleted |
+| **Separated rig from product** | product `--help` is 12 flags, 8 of them transport (`--stream-mode --bind --receive-window --send-window-bytes` (alias `--send-window`) `--stream-receive-window-bytes` (alias `--stream-receive-window`) `--max-idle-timeout-ms --congestion --prefault`); lab adds 9 more. One send path on a product build; every experiment arm behind `--features lab`, nothing deleted. The two extra product knobs are `main`'s shipped names, kept so the port does not drop them |
 | **Leaned the comments** | 157 multi-line blocks → 39, all file headers; every in-body comment is one or two lines, rationale moved to the measurement documents |
 | **Closed the review** | all 25 findings transcribed into §4.4a with status — the artifact it lived in can be retired. Nine remain open |
 | **Re-measured** | the stalled-client campaign re-run on the cleaned tree: 185.3 / 382.3 kB against a published 180 / 370, ratio 3.48× against 3.46× |
@@ -60,11 +60,11 @@ invocations in prose cannot be audited by grepping its code (§5, trap 6).
 
 | | |
 | --- | --- |
-| Branch | `cursor/l1-loss-run-dbae` |
-| Relation to `main` | **no longer a fast-forward — see the warning below** |
-| Contains | the L1 loss-run lane **plus** the R6 stream-shape lane, merged and reconciled |
-| Build | `cargo build --release --workspace` clean. Tests: 13 server, 16 with `--features telemetry`, 7 harness — in every combination of `lab` and `telemetry`. Clippy 3, all in files this branch never touched |
-| PR | [**#5**](https://github.com/dary-dc/wt-pacs/pull/5), draft, open since 2026-08-30. #12 was an earlier segment of the same lineage and has been closed as absorbed (39/39 commits by patch-id; every committed `.tsv` byte-identical) |
+| Branch | `cursor/l1-loss-run-dbae` (lineage); port is `cursor/port-onto-main-d27c` |
+| Relation to `main` | **port in progress** — see §4.0 and the warning below |
+| Contains | the L1 loss-run lane **plus** the R6 stream-shape lane, merged and reconciled, plus `main`'s pipeline extraction |
+| Build | On the port branch: 8 server tests, 36 with `--features telemetry`, 7 harness — in every combination of `lab` and `telemetry`. Server clippy: `main`'s `wire.rs` warning |
+| PR | Lineage [**#5**](https://github.com/dary-dc/wt-pacs/pull/5) (draft). Port [**#20**](https://github.com/dary-dc/wt-pacs/pull/20) (draft, into #5's branch). #12 was an earlier segment of the same lineage and has been closed as absorbed |
 
 > **Corrected 2026-09-07.** This table used to claim `main` was a direct ancestor and that
 > `git rev-list origin/main --not HEAD` printed nothing. **That is no longer true.** The
@@ -208,30 +208,26 @@ Three other things came back, and two of them change how future runs must be don
 
 ## 4 · Next, in priority order
 
-### 4.0 · Port onto `main`'s `pipeline.rs` — blocks everything else
+### 4.0 · Port onto `main`'s `pipeline.rs` — **landed on PR #20, 2026-09-09**
 
-**Not started, and not authorised.** The plan, the conflict inventory and the acceptance gate
-are in [`merge-with-main-analysis.md`](merge-with-main-analysis.md). Three things a new
-session should know before opening it:
+Applied on `cursor/port-onto-main-d27c`. The plan and the three silent regressions are in
+[`merge-with-main-analysis.md`](merge-with-main-analysis.md). What actually landed:
 
-1. **It is a port, not an adjudication.** `main` *extracted* the serving logic; its
-   `serve_one` is `prepare → locate → send`, and this branch's send paths are an
-   implementation of the third step. `frame_store.rs` — the riskiest change here — merges
-   clean.
-2. **Three regressions to `main` are silent** — no compile error, no failing test: duplicate
-   flags for one quinn setting, `--max-idle-timeout-ms` dropped on the floor, and a forked
-   `StreamMode`. Each is named with its fix.
-3. **The gate is a campaign, not a test.** `chunked`'s saving is that it does not copy, and
-   the wire is byte-identical either way — so `all_send_paths_are_the_same_wire` cannot see a
-   reintroduced copy and neither can anything else. Re-run
-   `lab/scripts/stall_client_campaign.sh` and expect ~200 kB/connection. Megabytes means the
-   copy is back. `frame_bytes_is_a_view_of_the_mapping` is the cheap fast-fail beside it.
+1. **`main`'s structure, this branch's behaviour.** `serve_one` is still
+   `prepare → locate → send`. `locate` returns `Bytes` (a view of the mapping); `FrameOut`
+   dispatches `chunked` / lab `copy` / lab `split` through the assemblers.
+2. **The three silent regressions were avoided.** One flag per quinn setting (`--send-window-bytes`
+   aliases `--send-window`; `--stream-receive-window-bytes` aliases `--stream-receive-window`);
+   `--max-idle-timeout-ms` is applied on the wtransport builder; `StreamMode` is `main`'s
+   module, default `shared`.
+3. **Proposal §7** (reap the per-frame ack `JoinSet` as tasks complete) is folded in.
+   §2 / §3 / §6 / §8 were not.
 
-Of the five remaining code proposals
-([`proposals/product-code-changes.md`](proposals/product-code-changes.md)), only §7 (drain
-the per-frame ack `JoinSet`) lives in the session loop the port rewrites — fold that one
-in. §2 and §3 are harness; §6 is crypto-feature exclusivity; §8 is a post-port
-measurement. Doing those in parallel with the port does not create send-path conflicts.
+**Still owed:** `lab/scripts/stall_client_campaign.sh` on the merged tree (~200 kB/connection
+on `chunked`; megabytes means the copy is back). The unit tests cannot see that failure.
+`frame_bytes_is_a_view_of_the_mapping` is the cheap fast-fail beside it. Do not merge #20
+or #5 onto `main` until that campaign has been run, or the user accepts the unit-test gate
+alone.
 
 ### 4.1 · Deploy the loss-regime sampler — highest value, smallest change
 

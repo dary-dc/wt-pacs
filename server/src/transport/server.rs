@@ -1,67 +1,49 @@
-//! FoD ask → envelope on a server uni stream, serially. docs/adr-reject-server-ordering.md.
+//! FoD ask → envelope on server uni stream (Media-complete).
+//!
+//! Serial loop: read one ask, send it to completion, read the next.
+//! No server-side ask queue — see docs/adr-reject-server-ordering.md.
+//!
+//! Per-frame work: [`pipeline::FramePipeline`] trait (product [`pipeline::ProductPipeline`] /
+//! lab [`pipeline::RecordedPipeline`]). See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::FrameStore;
-use crate::record::{LocateOutcome, Recorder, WriteOutcome};
-#[cfg(feature = "lab")]
-use crate::transport::assemble::{assemble_copy, split_parts};
-use crate::transport::assemble::chunked_chunks;
+use crate::transport::frame_out::FrameOut;
+use crate::transport::pipeline::{FramePipeline, ProductPipeline};
+use crate::transport::stream_mode::StreamMode;
 use crate::transport::tls::load_pem_cert;
 use crate::transport::tuning::{SendPath, TransportTuning};
-use crate::transport::wire::{read_fod_msg, write_fod_msg};
+use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
-use bytes::Bytes;
 use fod::FodMsg;
-use frame_envelope::ENVELOPE_LEN;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::task::JoinSet;
+use std::time::Duration;
 use tracing::{info, warn};
+use wtransport::config::{states, IpBindConfig, ServerConfigBuilder};
+use wtransport::endpoint::endpoint_side;
 use wtransport::stream::{RecvStream, SendStream};
-use wtransport::{Connection, Endpoint, Identity, ServerConfig};
+use wtransport::{Endpoint, Identity, ServerConfig};
 
-/// How frames reach the client. A process-wide configuration choice, resolved to an
-/// `Option<SendStream>` once per session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum StreamMode {
-    /// One uni stream for the whole session. Frames arrive strictly in ask order.
-    Shared,
-    /// One uni stream per frame. Independent delivery; allows `set_priority` and `reset`.
-    PerFrame,
-}
-
-impl StreamMode {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Shared => "shared",
-            Self::PerFrame => "per-frame",
-        }
-    }
-}
-
-/// How a session serves frames, resolved once from `ServeConfig`.
-#[derive(Clone, Copy)]
-struct Serving {
-    ask_priority: bool,
-    send_path: SendPath,
-    prefault: bool,
-}
+#[cfg(feature = "telemetry")]
+use crate::record::tap::Tap;
+#[cfg(feature = "telemetry")]
+use crate::transport::pipeline::RecordedPipeline;
 
 pub struct ServeConfig {
     pub wt_port: u16,
     pub study_path: PathBuf,
     pub cert_pem: PathBuf,
     pub key_pem: PathBuf,
-    /// How frames reach the client for this process. See `StreamMode`.
     pub mode: StreamMode,
+    /// Explicit bind address. `None` binds dual-stack `[::]` and falls back to `0.0.0.0` on a
+    /// host with no IPv6 stack (containers commonly lack one).
+    pub bind: Option<IpAddr>,
+    /// QUIC transport knobs. Unset fields keep the library default.
+    pub tuning: TransportTuning,
     /// Per-frame only: decreasing QUIC stream priority in ask order. L1 arm Q.
     #[cfg(feature = "lab")]
     pub ask_priority: bool,
-    /// Bind IP. `None` = dual-stack ANY (the default). Set it where the host has no
-    /// IPv6 stack, which is where the dual-stack bind fails with EAFNOSUPPORT.
-    pub bind_ip: Option<std::net::IpAddr>,
-    /// QUIC transport knobs. `Default` reproduces quinn's own configuration.
-    pub tuning: TransportTuning,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -71,33 +53,18 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         .with_context(|| format!("read {}", config.key_pem.display()))?;
     let cert = load_pem_cert(&cert_pem, &key_pem)?;
 
-    let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
-        .await
-        .context("load wtransport identity")?;
-
-    let transport = config
-        .tuning
-        .to_transport_config()
-        .context("build QUIC transport config")?;
-
-    #[cfg(feature = "lab")]
-    let hand_built = bind_socket(&config)?;
-    #[cfg(not(feature = "lab"))]
-    let hand_built: Option<std::net::UdpSocket> = None;
-
-    let builder = match (hand_built, config.bind_ip) {
-        (Some(socket), _) => ServerConfig::builder().with_bind_socket(socket),
-        (None, Some(ip)) => ServerConfig::builder()
-            .with_bind_address(std::net::SocketAddr::new(ip, config.wt_port)),
-        (None, None) => ServerConfig::builder().with_bind_default(config.wt_port),
-    };
-    let server_config = builder
-        .with_custom_transport(identity, transport)
-        .build();
-
-    let endpoint = Endpoint::server(server_config).context("wtransport endpoint")?;
+    let (endpoint, bound) = build_endpoint(&config).await?;
 
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
+
+    // Lab builds: the report says what was served, so the two harvest files can be checked
+    // against each other without trusting a folder name.
+    #[cfg(feature = "telemetry")]
+    crate::record::set_run_meta(crate::record::RunMeta {
+        stream_mode: config.mode.as_str(),
+        study: config.study_path.display().to_string(),
+        study_frames: store.frame_count(),
+    });
 
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
     let cert_sha256 = cert.sha256_hex().to_string();
@@ -107,6 +74,8 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("frames={}", store.frame_count());
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
+    println!("bind={bound}");
+    println!("transport={}", config.tuning.describe());
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
     #[cfg(not(feature = "telemetry"))]
@@ -119,22 +88,100 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     );
 
     let mode = config.mode;
-    let serving = Serving {
-        #[cfg(feature = "lab")]
-        ask_priority: config.ask_priority,
-        #[cfg(not(feature = "lab"))]
-        ask_priority: false,
-        send_path: config.tuning.send_path,
-        prefault: config.tuning.prefault,
-    };
+    let send_path = config.tuning.send_path;
+    let prefault = config.tuning.prefault;
+    #[cfg(feature = "lab")]
+    let ask_priority = config.ask_priority && matches!(mode, StreamMode::PerFrame);
+    #[cfg(not(feature = "lab"))]
+    let ask_priority = false;
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
         tokio::spawn(async move {
-            if let Err(err) = handle_incoming(incoming, store, mode, serving).await {
+            if let Err(err) =
+                handle_incoming(incoming, store, mode, send_path, prefault, ask_priority).await
+            {
                 warn!(%err, "session ended");
             }
         });
+    }
+}
+
+/// Open the QUIC endpoint. Dual-stack any is the default; a host without an IPv6 stack refuses
+/// that socket (`Address family not supported`), so fall back to IPv4 any rather than not starting.
+async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side::Server>, String)> {
+    async fn identity(config: &ServeConfig) -> Result<Identity> {
+        Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+            .await
+            .context("load wtransport identity")
+    }
+
+    /// Identity plus transport knobs, from whichever bind the builder was given.
+    fn finish(
+        builder: ServerConfigBuilder<states::WantsIdentity>,
+        identity: Identity,
+        tuning: &TransportTuning,
+    ) -> Result<ServerConfig> {
+        if tuning.quic_is_library_default() {
+            return Ok(builder.with_identity(identity).build());
+        }
+        let transport = tuning.to_transport_config()?;
+        let mut builder = builder.with_custom_transport(identity, transport);
+        if let Some(ms) = tuning.max_idle_timeout_ms {
+            builder = builder
+                .max_idle_timeout(Some(Duration::from_millis(ms)))
+                .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
+        }
+        Ok(builder.build())
+    }
+
+    #[cfg(feature = "lab")]
+    if let Some(socket) = bind_socket(config)? {
+        let label = socket
+            .local_addr()
+            .map(|a| a.to_string())
+            .unwrap_or_else(|_| "hand-built socket".to_string());
+        let server_config = finish(
+            ServerConfig::builder().with_bind_socket(socket),
+            identity(config).await?,
+            &config.tuning,
+        )?;
+        let endpoint = Endpoint::server(server_config)
+            .with_context(|| format!("wtransport endpoint on {label}"))?;
+        return Ok((endpoint, label));
+    }
+
+    if let Some(ip) = config.bind {
+        let server_config = finish(
+            ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
+            identity(config).await?,
+            &config.tuning,
+        )?;
+        let endpoint = Endpoint::server(server_config)
+            .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
+        return Ok((endpoint, ip.to_string()));
+    }
+
+    let dual = finish(
+        ServerConfig::builder().with_bind_default(config.wt_port),
+        identity(config).await?,
+        &config.tuning,
+    )?;
+    match Endpoint::server(dual) {
+        Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
+        Err(err) => {
+            warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
+            let v4 = finish(
+                ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
+                identity(config).await?,
+                &config.tuning,
+            )?;
+            let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
+            Ok((
+                endpoint,
+                "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
+            ))
+        }
     }
 }
 
@@ -147,10 +194,14 @@ fn bind_socket(config: &ServeConfig) -> Result<Option<std::net::UdpSocket>> {
     }
     use socket2::{Domain, Protocol, Socket, Type};
     let ip = config
-        .bind_ip
-        .unwrap_or(std::net::IpAddr::V6(std::net::Ipv6Addr::UNSPECIFIED));
-    let addr = std::net::SocketAddr::new(ip, config.wt_port);
-    let domain = if addr.is_ipv4() { Domain::IPV4 } else { Domain::IPV6 };
+        .bind
+        .unwrap_or(IpAddr::V6(std::net::Ipv6Addr::UNSPECIFIED));
+    let addr = SocketAddr::new(ip, config.wt_port);
+    let domain = if addr.is_ipv4() {
+        Domain::IPV4
+    } else {
+        Domain::IPV6
+    };
     let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP)).context("udp socket")?;
     // wtransport's own bind sets this; without it a v6 socket refuses v4-mapped peers and the
     // buffer arms differ from their control in two variables, not one.
@@ -163,7 +214,9 @@ fn bind_socket(config: &ServeConfig) -> Result<Option<std::net::UdpSocket>> {
     if let Some(n) = config.tuning.socket_recv_buffer {
         socket.set_recv_buffer_size(n).context("SO_RCVBUF")?;
     }
-    socket.bind(&addr.into()).with_context(|| format!("bind {addr}"))?;
+    socket
+        .bind(&addr.into())
+        .with_context(|| format!("bind {addr}"))?;
     info!(
         send_buffer = socket.send_buffer_size().unwrap_or(0),
         recv_buffer = socket.recv_buffer_size().unwrap_or(0),
@@ -176,63 +229,45 @@ async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
     store: Arc<FrameStore>,
     mode: StreamMode,
-    mut serving: Serving,
+    send_path: SendPath,
+    prefault: bool,
+    ask_priority: bool,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     let connection = session_request.accept().await.context("accept session")?;
+
+    // Before FrameOut::open consumes the connection.
+    #[cfg(feature = "telemetry")]
+    tokio::spawn(crate::record::path::run(connection.clone()));
 
     let (control_send, control_recv) = connection
         .accept_bi()
         .await
         .context("accept control bidi")?;
 
-    // Resolved once, so nothing downstream branches on the flag.
-    let shared = match mode {
-        StreamMode::Shared => Some(
-            connection
-                .open_uni()
-                .await
-                .context("open shared uni")?
-                .await
-                .context("shared uni ready")?,
-        ),
-        StreamMode::PerFrame => None,
-    };
+    let out = FrameOut::open(mode, connection).await?;
+    let mut product = ProductPipeline::new(store, out, send_path, prefault, ask_priority);
 
-    // With one shared stream there is nothing to order, so this is resolved once here
-    // rather than checked again at every write.
-    serving.ask_priority &= matches!(mode, StreamMode::PerFrame);
+    // Lab wrap only when env on — RecordedPipeline always holds a live Tap.
+    #[cfg(feature = "telemetry")]
+    if let Some(tap) = Tap::for_session() {
+        return run_session(
+            &mut RecordedPipeline::new(product, tap),
+            control_send,
+            control_recv,
+        )
+        .await;
+    }
 
-    run_session(connection, control_send, control_recv, store, shared, serving).await
+    run_session(&mut product, control_send, control_recv).await
 }
 
 /// Read one FoD ask → send that frame to completion → repeat. EndSession stops the loop.
-async fn run_session(
-    connection: Connection,
+async fn run_session<P: FramePipeline>(
+    pipeline: &mut P,
     mut control_send: SendStream,
     mut control_recv: RecvStream,
-    store: Arc<FrameStore>,
-    mut shared: Option<SendStream>,
-    serving: Serving,
 ) -> Result<()> {
-    let mut rec = Recorder::for_session();
-    // Ask ordinal within the session; priority decreases as it grows, so the earliest
-    // ask keeps the highest priority.
-    let mut ask_seq: i32 = 0;
-
-    // Ends with the connection, so it cannot outlive what it describes.
-    #[cfg(feature = "telemetry")]
-    let _path_sampler = tokio::spawn(crate::record::path::run(connection.clone()));
-
-    info!(
-        frames = store.frame_count(),
-        shared = shared.is_some(),
-        "session opened"
-    );
-
-    // Per-frame mode only: holds the acknowledgement waits moved off this loop.
-    let mut acks = JoinSet::new();
-
     loop {
         let msg = match read_fod_msg(&mut control_recv).await {
             Ok(m) => m,
@@ -244,34 +279,10 @@ async fn run_session(
 
         match msg {
             FodMsg::RequestFrame { frame } => {
-                send_one_frame(
-                    &connection,
-                    &mut shared,
-                    &mut acks,
-                    &mut control_send,
-                    &store,
-                    frame,
-                    &mut rec,
-                    serving,
-                    &mut ask_seq,
-                )
-                .await?;
+                pipeline.serve_one(frame, &mut control_send).await?;
             }
             FodMsg::RequestFrames { frames } => {
-                for frame in frames {
-                    send_one_frame(
-                        &connection,
-                        &mut shared,
-                        &mut acks,
-                        &mut control_send,
-                        &store,
-                        frame,
-                        &mut rec,
-                        serving,
-                        &mut ask_seq,
-                    )
-                    .await?;
-                }
+                pipeline.serve_batch(&frames, &mut control_send).await?;
             }
             FodMsg::EndSession => break,
             other => {
@@ -280,265 +291,6 @@ async fn run_session(
         }
     }
 
-    // Let trailing frames finish acknowledging before the connection closes.
-    let _ = tokio::time::timeout(Duration::from_secs(2), async {
-        while acks.join_next().await.is_some() {}
-    })
-    .await;
+    pipeline.drain_acks().await;
     Ok(())
 }
-
-// `rec.stamp()` is `()` unless `feature = "telemetry"`, which is what the zero-sized
-// recorder is for; clippy sees only the disabled shape.
-#[allow(clippy::too_many_arguments, clippy::let_unit_value)]
-async fn send_one_frame(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    control_send: &mut SendStream,
-    store: &Arc<FrameStore>,
-    idx: u32,
-    rec: &mut Recorder,
-    serving: Serving,
-    ask_seq: &mut i32,
-) -> Result<()> {
-    rec.ask(idx);
-    #[cfg(feature = "lab")]
-    let t_serve = serve_timing_enabled().then(|| (idx, Instant::now()));
-    #[cfg(not(feature = "lab"))]
-    let t_serve: Option<(u32, Instant)> = None;
-
-    let t0 = rec.stamp();
-    // Prefault off the executor — a major fault is not an `.await`.
-    // TODO(readability): hide Arc (inner FrameStore handle or block_in_place); perf unchanged.
-    let touch = if serving.prefault {
-        let store_touch = Arc::clone(store);
-        tokio::task::spawn_blocking(move || store_touch.touch_frame_pages(idx))
-            .await
-            .context("join frame page touch")?
-    } else {
-        Ok(())
-    };
-
-    let located = touch.and_then(|_| store.frame_bytes(idx));
-
-    match located {
-        Ok(body) => {
-            let codestream_len = body.len();
-            rec.located(t0, LocateOutcome::Ok, codestream_len);
-            let wire_len = ENVELOPE_LEN + codestream_len;
-
-            // The copy path's copies happen inside the write region, as they did before
-            // the chunked path existed: `located` means "found", not "materialised".
-            let t1 = rec.stamp();
-            let result = match serving.send_path {
-                #[cfg(feature = "lab")]
-                SendPath::Copy => {
-                    write_payload(
-                        connection, shared, acks, idx, &body, serving.ask_priority, ask_seq, t_serve,
-                    )
-                    .await
-                }
-                #[cfg(feature = "lab")]
-                SendPath::Split => {
-                    write_payload_split(
-                        connection, shared, acks, idx, &body, serving.ask_priority, ask_seq, t_serve,
-                    )
-                    .await
-                }
-                SendPath::Chunked => {
-                    write_payload_chunked(
-                        connection, shared, acks, idx, body, serving.ask_priority, ask_seq, t_serve,
-                    )
-                    .await
-                }
-            };
-            match result {
-                Ok(()) => rec.wrote(t1, WriteOutcome::Sent, wire_len),
-                Err(err) => {
-                    rec.wrote(t1, WriteOutcome::WriteErr, 0);
-                    return Err(err);
-                }
-            }
-        }
-        Err(err) => {
-            rec.located(t0, LocateOutcome::NotFound, 0);
-            warn!(frame = idx, %err, "frame refused");
-            write_fod_msg(
-                control_send,
-                &FodMsg::FrameError {
-                    frame_index: idx,
-                    reason: err.to_string(),
-                },
-            )
-            .await?;
-            let t1 = rec.stamp();
-            rec.wrote(t1, WriteOutcome::Refused, 0);
-        }
-    }
-    Ok(())
-}
-
-/// Open a per-frame uni stream. Shared by both send paths: a priority applied on only one
-/// of them would silently make the arms incomparable.
-async fn open_frame_uni(
-    connection: &Connection,
-    ask_priority: bool,
-    ask_seq: &mut i32,
-) -> Result<SendStream> {
-    // `set_priority` takes `&self`, so no `mut` is needed here; the callers bind it
-    // mutably because `write_all` does.
-    let uni = connection
-        .open_uni()
-        .await
-        .context("open uni")?
-        .await
-        .context("open uni ready")?;
-    // Higher priority transmits first (wtransport/quinn). Earliest ask wins.
-    if ask_priority {
-        uni.set_priority(i32::MAX.saturating_sub(*ask_seq));
-        *ask_seq = ask_seq.saturating_add(1);
-    }
-    Ok(uni)
-}
-
-/// `serve_timing` line for offline join with the client's ask ordinals.
-/// `WT_SERVE_TIMING`, read once. Reading it per frame takes the process environment lock.
-#[cfg(feature = "lab")]
-fn serve_timing_enabled() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var_os("WT_SERVE_TIMING").is_some())
-}
-
-fn note_serve_timing(timing: Option<(u32, Instant)>, mode: &str, t_first: Instant) {
-    if let Some((idx, t_ask)) = timing {
-        let ask_to_first_ms = t_first.duration_since(t_ask).as_secs_f64() * 1000.0;
-        let ask_to_last_ms = t_ask.elapsed().as_secs_f64() * 1000.0;
-        eprintln!(
-            "serve_timing frame={idx} mode={mode} ask_to_first_ms={ask_to_first_ms:.3} ask_to_last_ms={ask_to_last_ms:.3}"
-        );
-    }
-}
-
-/// The copy path: two full-frame copies, reproducing `main` exactly. The rollback hatch.
-#[cfg(feature = "lab")]
-#[allow(clippy::too_many_arguments)]
-async fn write_payload(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    idx: u32,
-    body: &[u8],
-    ask_priority: bool,
-    ask_seq: &mut i32,
-    timing: Option<(u32, Instant)>,
-) -> Result<()> {
-    // Two writes, not one buffer: making `[len][payload]` contiguous copies the frame a
-    // third time. Reverted once already — keep it.
-    let wire = assemble_copy(idx, body);
-    let (len, payload) = wire.split_at(4);
-    match shared {
-        Some(uni) => {
-            let t_first = Instant::now();
-            uni.write_all(len).await.context("write shared len")?;
-            uni.write_all(payload).await.context("write shared frame")?;
-            note_serve_timing(timing, "shared", t_first);
-        }
-        None => {
-            let mut uni = open_frame_uni(connection, ask_priority, ask_seq).await?;
-            let t_first = Instant::now();
-            uni.write_all(len).await.context("write len")?;
-            uni.write_all(payload).await.context("write envelope")?;
-            note_serve_timing(timing, "per-frame", t_first);
-
-            // Moved off this loop, not deleted: `finish()` awaits the peer's ack (~272 ms).
-            acks.spawn(async move {
-                let _ = uni.finish().await;
-            });
-        }
-    }
-    Ok(())
-}
-
-/// `[len]`, `[index]`, codestream as three `&[u8]` writes: no contiguous buffer, but quinn
-/// still copies the codestream into its send buffer. One full-frame copy, not two.
-#[cfg(feature = "lab")]
-#[allow(clippy::too_many_arguments)]
-async fn write_payload_split(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    idx: u32,
-    codestream: &[u8],
-    ask_priority: bool,
-    ask_seq: &mut i32,
-    timing: Option<(u32, Instant)>,
-) -> Result<()> {
-    let (len, index, codestream) = split_parts(idx, codestream);
-    match shared {
-        Some(uni) => {
-            let t_first = Instant::now();
-            uni.write_all(&len).await.context("write shared len")?;
-            uni.write_all(&index).await.context("write shared index")?;
-            uni.write_all(codestream)
-                .await
-                .context("write shared codestream")?;
-            note_serve_timing(timing, "shared", t_first);
-        }
-        None => {
-            let mut uni = open_frame_uni(connection, ask_priority, ask_seq).await?;
-            let t_first = Instant::now();
-            uni.write_all(&len).await.context("write len")?;
-            uni.write_all(&index).await.context("write index")?;
-            uni.write_all(codestream).await.context("write codestream")?;
-            note_serve_timing(timing, "per-frame", t_first);
-            acks.spawn(async move {
-                let _ = uni.finish().await;
-            });
-        }
-    }
-    Ok(())
-}
-
-/// Same wire as `write_payload`, without materialising it: `write_all_chunks` moves each
-/// `Bytes` into the send buffer where `write_all(&[u8])` allocates and copies.
-#[allow(clippy::too_many_arguments)]
-async fn write_payload_chunked(
-    connection: &Connection,
-    shared: &mut Option<SendStream>,
-    acks: &mut JoinSet<()>,
-    idx: u32,
-    body: Bytes,
-    ask_priority: bool,
-    ask_seq: &mut i32,
-    timing: Option<(u32, Instant)>,
-) -> Result<()> {
-    let mut chunks = chunked_chunks(idx, body);
-
-    match shared {
-        Some(uni) => {
-            let t_first = Instant::now();
-            uni.quic_stream_mut()
-                .write_all_chunks(&mut chunks)
-                .await
-                .context("write shared frame chunks")?;
-            note_serve_timing(timing, "shared", t_first);
-        }
-        None => {
-            let mut uni = open_frame_uni(connection, ask_priority, ask_seq).await?;
-            let t_first = Instant::now();
-            uni.quic_stream_mut()
-                .write_all_chunks(&mut chunks)
-                .await
-                .context("write frame chunks")?;
-            note_serve_timing(timing, "per-frame", t_first);
-            // Same reason as the copy path: `finish()` awaits the peer acknowledgement,
-            // which caps throughput at Tf/(Tf+RTT) when awaited inline.
-            acks.spawn(async move {
-                let _ = uni.finish().await;
-            });
-        }
-    }
-    Ok(())
-}
-

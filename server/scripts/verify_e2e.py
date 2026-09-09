@@ -57,7 +57,49 @@ def main() -> int:
         help="exact-server --stream-mode",
     )
     parser.add_argument("--keep", action="store_true", help="leave servers running")
+    parser.add_argument(
+        "--telemetry",
+        action="store_true",
+        help="load telemetry builds and harvest window.__wtpacsTelemetry",
+    )
+    parser.add_argument(
+        "--cell",
+        choices=("ondemand", "fill"),
+        default="ondemand",
+        help="with --telemetry: which FoD ask cell to autorun",
+    )
+    parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--n", type=int, default=None, help="steps to run (default: one pass over the study)")
+    parser.add_argument("--depth", type=int, default=1, help="on-demand asks in flight (D); 1 is the control")
+    parser.add_argument("--trace", default=None, help="URL path of a lab trace, e.g. /lab/traces/x3_short_scroll.json")
+    parser.add_argument("--interval-ms", type=int, default=None, help="pacing between steps becoming due")
+    parser.add_argument("--frames", type=int, default=None, help="study frame count override (remote runs)")
+    parser.add_argument("--run-timeout-s", type=int, default=300)
+    parser.add_argument(
+        "--allow-void",
+        action="store_true",
+        help="keep going when a client report is not valid (written as telemetry-client.VOID.json)",
+    )
+    parser.add_argument(
+        "--interleave",
+        action="store_true",
+        help="with --telemetry and harness=both: alternate arms per repeat",
+    )
+    parser.add_argument(
+        "--wt-url",
+        default=None,
+        help="override WebTransport URL (e.g. shaped cloud rig). Skips local exact-server.",
+    )
+    parser.add_argument(
+        "--cert-sha256",
+        default=None,
+        help="cert pin for --wt-url (hex). Required with --wt-url.",
+    )
     args = parser.parse_args()
+
+    if (args.wt_url is None) ^ (args.cert_sha256 is None):
+        raise SystemExit("--wt-url and --cert-sha256 must be passed together")
+    remote_wt = args.wt_url is not None
 
     chrome = find_chrome(args.chrome)
     study = Path(args.study)
@@ -69,9 +111,32 @@ def main() -> int:
     if not cert.is_file() or not key.is_file():
         subprocess.run([str(ROOT / "server/scripts/gen_dev_cert.sh")], check=True, cwd=ROOT)
 
+    want_wasm = args.harness in ("wasm", "both")
     pkg_js = ROOT / "client/transport-wasm/pkg/transport_wasm.js"
-    if not pkg_js.is_file():
+    if want_wasm and not pkg_js.is_file():
         subprocess.run([str(ROOT / "client/transport-wasm/build.sh")], check=True, cwd=ROOT)
+
+    # transport-ts dist/ is gitignored — build product (and telemetry) bundles when needed.
+    ts_js = ROOT / "client/transport-ts/dist/session.js"
+    ts_tel = ROOT / "client/transport-ts/dist/session.telemetry.js"
+    need_ts = not ts_js.is_file() or (args.telemetry and not ts_tel.is_file())
+    if need_ts:
+        subprocess.run(
+            ["bash", str(ROOT / "client/transport-ts/build.sh")],
+            check=True,
+            cwd=ROOT,
+        )
+
+    if args.telemetry and want_wasm:
+        # Optional separate wasm out-dir; product wasm is identical.
+        env_tel = os.environ.copy()
+        env_tel["WTPACS_TELEMETRY_BUILD"] = "1"
+        subprocess.run(
+            ["bash", str(ROOT / "client/transport-wasm/build.sh")],
+            check=False,
+            cwd=ROOT,
+            env=env_tel,
+        )
 
     # Prefer a local target dir inside the repo for predictability.
     env = os.environ.copy()
@@ -90,78 +155,106 @@ def main() -> int:
 
     try:
         # Avoid colliding with other local WebTransport demos.
-        for port in (args.port_http,):
+        from shutil import which as _which
+
+        if _which("fuser"):
+            for port in (args.port_http,):
+                subprocess.run(
+                    ["fuser", "-k", f"{port}/tcp"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             subprocess.run(
-                ["fuser", "-k", f"{port}/tcp"],
+                ["fuser", "-k", f"{args.port_wt}/udp"],
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        subprocess.run(
-            ["fuser", "-k", f"{args.port_wt}/udp"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        time.sleep(0.5)
+            time.sleep(0.5)
 
-        print("building exact-server…")
-        subprocess.run(
-            ["cargo", "build", "--release", "-p", "exact-server"],
-            cwd=ROOT,
-            env=env,
-            check=True,
-        )
-        server_bin = Path(env["CARGO_TARGET_DIR"]) / "release" / "exact-server"
-        if not server_bin.is_file():
-            # Fallback when cargo ignores CARGO_TARGET_DIR overrides.
-            server_bin = ROOT / "target" / "release" / "exact-server"
-        if not server_bin.is_file():
-            raise SystemExit(f"exact-server binary not found under {env['CARGO_TARGET_DIR']}")
-
-        print("starting exact-server…")
-        server_cmd = [
-            "stdbuf",
-            "-oL",
-            "-eL",
-            str(server_bin),
-            "--port",
-            str(args.port_wt),
-            "--study",
-            str(study),
-            "--cert-pem",
-            str(cert),
-            "--key-pem",
-            str(key),
-            "--stream-mode",
-            args.stream_mode,
-        ]
-        procs.append(
-            subprocess.Popen(
-                server_cmd,
+        if remote_wt:
+            print(f"remote WebTransport: {args.wt_url} (skip local exact-server)")
+            server_proc = None
+        else:
+            print("building exact-server…")
+            build_cmd = ["cargo", "build", "--release", "-p", "exact-server"]
+            if args.telemetry:
+                # Existing server Tap (feature-gated). No product-path rewrite — ADR.
+                build_cmd.append("--features")
+                build_cmd.append("telemetry")
+            subprocess.run(
+                build_cmd,
                 cwd=ROOT,
                 env=env,
+                check=True,
+            )
+            server_bin = Path(env["CARGO_TARGET_DIR"]) / "release" / "exact-server"
+            if not server_bin.is_file():
+                # Fallback when cargo ignores CARGO_TARGET_DIR overrides.
+                server_bin = ROOT / "target" / "release" / "exact-server"
+            if not server_bin.is_file():
+                raise SystemExit(f"exact-server binary not found under {env['CARGO_TARGET_DIR']}")
+
+        server_info: dict = {}
+
+        def start_exact_server(server_env: dict) -> subprocess.Popen:
+            cmd = [
+                "stdbuf",
+                "-oL",
+                "-eL",
+                str(server_bin),
+                "--port",
+                str(args.port_wt),
+                "--study",
+                str(study),
+                "--cert-pem",
+                str(cert),
+                "--key-pem",
+                str(key),
+                "--stream-mode",
+                args.stream_mode,
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                cwd=ROOT,
+                env=server_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
             )
-        )
-        # Wait until server prints wt_url=
-        deadline = time.time() + 30
-        out_buf = ""
-        while time.time() < deadline:
-            line = procs[0].stdout.readline() if procs[0].stdout else ""
-            if line:
-                out_buf += line
-                sys.stdout.write(f"[server] {line}")
-                if "wt_url=" in line:
-                    break
-            if procs[0].poll() is not None:
-                raise SystemExit(f"exact-server exited early:\n{out_buf}")
-            time.sleep(0.05)
-        else:
+            deadline = time.time() + 30
+            out_buf = ""
+            while time.time() < deadline:
+                line = proc.stdout.readline() if proc.stdout else ""
+                if line:
+                    out_buf += line
+                    sys.stdout.write(f"[server] {line}")
+                    if "=" in line:
+                        k, _, v = line.strip().partition("=")
+                        if k and " " not in k:
+                            server_info[k] = v
+                    # `telemetry=` is the last banner line; `frames=` and `bind=` precede it.
+                    if line.startswith("telemetry="):
+                        return proc
+                if proc.poll() is not None:
+                    raise SystemExit(f"exact-server exited early:\n{out_buf}")
+                time.sleep(0.05)
             raise SystemExit(f"timeout waiting for exact-server ready:\n{out_buf}")
 
+        def stop_proc(proc: subprocess.Popen | None) -> None:
+            if proc is None or proc.poll() is not None:
+                return
+            proc.send_signal(signal.SIGTERM)
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+        if not remote_wt:
+            print("starting exact-server…")
+            server_proc = start_exact_server(env)
+            procs.append(server_proc)
         print("starting static host…")
         http_log = open("/tmp/wt-verify-http.log", "w")
         procs.append(
@@ -186,23 +279,28 @@ def main() -> int:
                 f"static host exited early:\n{Path('/tmp/wt-verify-http.log').read_text()}"
             )
 
-        # Keep cert pin in sync with the cert we just loaded.
+        # Keep cert pin in sync with the cert we just loaded (or remote override).
         import json
         import hashlib
 
-        der = subprocess.check_output(
-            ["openssl", "x509", "-in", str(cert), "-outform", "DER"]
-        )
-        pin = hashlib.sha256(der).hexdigest()
+        if remote_wt:
+            pin = args.cert_sha256.lower().replace(":", "")
+            wt_url = args.wt_url
+        else:
+            der = subprocess.check_output(
+                ["openssl", "x509", "-in", str(cert), "-outform", "DER"]
+            )
+            pin = hashlib.sha256(der).hexdigest()
+            wt_url = f"https://127.0.0.1:{args.port_wt}/"
         (ROOT / "client" / "dev-transport.json").write_text(
             json.dumps(
-                {"wt_url": f"https://127.0.0.1:{args.port_wt}/", "cert_sha256": pin},
+                {"wt_url": wt_url, "cert_sha256": pin},
                 indent=2,
             )
             + "\n",
             encoding="utf-8",
         )
-        print(f"dev-transport.json cert_sha256={pin}")
+        print(f"dev-transport.json wt_url={wt_url} cert_sha256={pin}")
 
         # Playwright may not be installed; install into .venv if needed.
         try:
@@ -229,6 +327,28 @@ def main() -> int:
         if args.harness in ("ts", "both"):
             paths.append(("/harness/ts.html", "ts"))
 
+        if args.telemetry and args.interleave and len(paths) > 1:
+            # Alternate arms across repeats: (r0 arm0), (r0 arm1), (r1 arm0), ...
+            schedule: list[tuple[str, str, int]] = []
+            for rep in range(args.repeats):
+                for path, label in paths:
+                    schedule.append((path, label, rep))
+        else:
+            schedule = []
+            for path, label in paths:
+                for rep in range(args.repeats):
+                    schedule.append((path, label, rep))
+
+        meas_root = ROOT / ".local" / "measurements"
+        if args.telemetry:
+            meas_root.mkdir(parents=True, exist_ok=True)
+
+        study_slug = study.stem.replace(".sbnd", "") if study.suffix == ".sbnd" else study.stem
+        try:
+            git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        except Exception:  # noqa: BLE001 — a harvest outside a checkout still runs
+            git_sha = None
+
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 executable_path=chrome,
@@ -238,26 +358,156 @@ def main() -> int:
                     "--no-sandbox",
                 ],
             )
-            for path, label in paths:
-                url = f"http://127.0.0.1:{args.port_http}{path}"
-                print(f"verify {label}: {url}")
+            for path, label, rep in schedule:
+                run_dir = None
+                if args.telemetry:
+                    # Independent pieces in one run folder (no join file):
+                    #   <stamp>-<study>-<arm>-<stream>-<cell>-rN/
+                    #     telemetry-client.json
+                    #     telemetry-server.json
+                    from datetime import datetime, timezone
+                    import json as _json
+
+                    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                    shape = "shaped50" if remote_wt else "local"
+                    run_dir = (
+                        meas_root
+                        / f"{stamp}-{study_slug}-{label}-{args.stream_mode}-{args.cell}-d{args.depth}-{shape}-r{rep}"
+                    )
+                    run_dir.mkdir(parents=True, exist_ok=True)
+                    server_report = run_dir / "telemetry-server.json"
+                    # Restart local server so this run gets its own server Tap report.
+                    if not remote_wt:
+                        if server_proc in procs:
+                            procs.remove(server_proc)
+                        stop_proc(server_proc)
+                        time.sleep(0.4)
+                        senv = env.copy()
+                        senv["WTPACS_TELEMETRY"] = "1"
+                        senv["WTPACS_TELEMETRY_PATH"] = str(server_report)
+                        print(f"starting exact-server (telemetry → {server_report})…")
+                        server_proc = start_exact_server(senv)
+                        procs.insert(0, server_proc)
+                    else:
+                        print("remote WT: client-only harvest (cloud server Tap not in this path)")
+
+                q = []
+                if args.telemetry:
+                    q.append("telemetry=1")
+                    q.append("autorun=1")
+                    q.append(f"cell={args.cell}")
+                    q.append(f"stream_mode={args.stream_mode}")
+                    q.append(f"d={args.depth}")
+                    if args.n is not None:
+                        q.append(f"n={args.n}")
+                    frames = args.frames or (int(server_info["frames"]) if server_info.get("frames") else None)
+                    if frames:
+                        q.append(f"frames={frames}")
+                    if args.trace:
+                        q.append(f"trace={args.trace}")
+                    if args.interval_ms is not None:
+                        q.append(f"interval_ms={args.interval_ms}")
+                qs = ("?" + "&".join(q)) if q else ""
+                url = f"http://127.0.0.1:{args.port_http}{path}{qs}"
+                print(f"verify {label} rep={rep}: {url}")
                 page = browser.new_page()
                 errors: list[str] = []
                 page.on("pageerror", lambda e: errors.append(str(e)))
                 page.on("console", lambda m: print(f"[{label}/console] {m.type}: {m.text}"))
 
                 page.goto(url, wait_until="networkidle", timeout=30_000)
-                # Wait for connect log
+                # Wait until TransportSession.connect finished (not the pre-await "connecting" line).
                 page.wait_for_function(
                     """() => {
                       const t = document.getElementById('log')?.textContent || '';
-                      return t.includes('connect') || t.includes('boot error');
+                      return /(^|\\n)connect /.test(t) || t.includes('boot error');
                     }""",
-                    timeout=15_000,
+                    timeout=60_000 if remote_wt else 15_000,
                 )
                 log = page.locator("#log").inner_text()
                 if "boot error" in log:
                     raise SystemExit(f"{label} boot failed:\n{log}\npageerrors={errors}")
+
+                if args.telemetry:
+                    # The shell resolves __wtpacsDone after run_end + session.close().
+                    page.wait_for_function(
+                        "() => globalThis.__wtpacsDone === true || globalThis.__wtpacsError != null",
+                        timeout=args.run_timeout_s * 1000,
+                    )
+                    log = page.locator("#log").inner_text()
+                    if page.evaluate("() => globalThis.__wtpacsError ?? null"):
+                        raise SystemExit(f"{label}: shell error:\n{log}\npageerrors={errors}")
+                    report = page.evaluate("() => window.__wtpacsTelemetry?.() ?? null")
+                    if report is None:
+                        raise SystemExit(
+                            f"{label}: telemetry build expected but __wtpacsTelemetry absent"
+                        )
+                    shell = page.evaluate("() => globalThis.__wtpacsShell ?? null")
+                    assert run_dir is not None
+                    integrity = report.get("summary", {}).get("integrity", {})
+                    valid = bool(integrity.get("valid"))
+                    client_out = run_dir / ("telemetry-client.json" if valid else "telemetry-client.VOID.json")
+                    client_out.write_text(_json.dumps(report, indent=2) + "\n")
+                    print(f"wrote {client_out}")
+                    print(f"[{label}] after run:\n{log}")
+                    if errors:
+                        raise SystemExit(f"{label}: page errors: {errors}")
+                    # Independent facts about the run, so the two reports are never compared
+                    # across a cell, stream mode, depth, or tree by filename alone.
+                    manifest = {
+                        "arm": label,
+                        "stream_mode": args.stream_mode,
+                        "cell": args.cell,
+                        "depth": args.depth,
+                        "n": args.n,
+                        "trace": args.trace,
+                        "interval_ms": args.interval_ms,
+                        "study": str(study),
+                        "study_frames": frames,
+                        "repeat": rep,
+                        "remote_wt": remote_wt,
+                        "wt_url": wt_url,
+                        "git_sha": git_sha,
+                        "chromium": browser.version,
+                        "client_valid": valid,
+                        "client_invalid_reasons": integrity.get("invalid_reasons", []),
+                        "shell": shell,
+                        "server_banner": dict(server_info),
+                        # Every server row, exact, beside the JSON summary (schema v2).
+                        "telemetry_server_rows": "telemetry-server.rows",
+                    }
+                    (run_dir / "run.json").write_text(_json.dumps(manifest, indent=2) + "\n")
+                    if not valid:
+                        msg = f"{label}: client report not valid: {integrity.get('invalid_reasons')}"
+                        if not args.allow_void:
+                            raise SystemExit(msg + " (pass --allow-void to keep going)")
+                        print("VOID:", msg)
+                    page.close()
+                    if not remote_wt:
+                        server_out = run_dir / "telemetry-server.json"
+                        # The harness closes the session at run end, so the Tap drops and the
+                        # sink flushes within milliseconds. Without that close the server only
+                        # notices at the QUIC idle timeout (~30 s) — never wait on that.
+                        deadline = time.time() + 10
+                        while time.time() < deadline and not server_out.is_file():
+                            time.sleep(0.1)
+                        if server_proc in procs:
+                            procs.remove(server_proc)
+                        # SIGTERM also flushes: telemetry builds install a handler.
+                        stop_proc(server_proc)
+                        deadline = time.time() + 5
+                        while time.time() < deadline and not server_out.is_file():
+                            time.sleep(0.1)
+                        if not server_out.is_file():
+                            raise SystemExit(
+                                f"{label}: missing {server_out} — the server Tap did not flush. "
+                                "Half a harvest is not written as one."
+                            )
+                        print(f"wrote {server_out}")
+                        server_proc = start_exact_server(env)
+                        procs.insert(0, server_proc)
+                    print(f"OK {label} rep={rep}")
+                    continue
 
                 page.click("#frame0")
                 page.wait_for_function(
@@ -265,14 +515,13 @@ def main() -> int:
                     timeout=20_000,
                 )
                 log = page.locator("#log").inner_text()
-                print(f"[{label}] after frame0:\n{log}")
+                print(f"[{label}] after run:\n{log}")
                 if "frame0 bytes" not in log:
                     raise SystemExit(f"{label}: frame0 did not complete")
                 if errors:
                     raise SystemExit(f"{label}: page errors: {errors}")
                 page.close()
-                print(f"OK {label}")
-
+                print(f"OK {label} rep={rep}")
             browser.close()
 
         print("PASS e2e")

@@ -114,11 +114,13 @@ the lab binary, and every lab script now builds with the feature.
 The shipped surface after this pass:
 
 ```
---stream-mode --send-window --receive-window --congestion --bind --prefault
+--stream-mode --bind --receive-window --send-window-bytes --stream-receive-window-bytes
+--max-idle-timeout-ms --congestion --prefault
 ```
 
-Six transport flags, from thirteen. Each one points at a section of
-`transport-conclusions.md`. A product build always sends `chunked`.
+Eight transport flags after the port onto `main` (the last two window/idle names are
+`main`'s shipped ones; `--send-window` and `--stream-receive-window` remain as aliases so
+lab scripts keep working). A product build always sends `chunked`.
 
 ## What this deliberately does not do
 

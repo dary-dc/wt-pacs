@@ -17,7 +17,7 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def translate_path(self, path: str) -> str:
-        path = unquote(path)
+        path = unquote(path.split("?", 1)[0])
         if path.startswith("/study/metadata"):
             p = ROOT / "fixtures" / self.study_name / "metadata.json"
             return str(p)
@@ -29,6 +29,9 @@ class Handler(SimpleHTTPRequestHandler):
             if not rel or rel == "/":
                 rel = "/index.html"
             return str(ROOT / "client" / "harness" / rel.lstrip("/"))
+        if path.startswith("/client/transport-wasm/pkg-telemetry/"):
+            rel = path[len("/client/transport-wasm/pkg-telemetry/") :]
+            return str(ROOT / "client" / "transport-wasm" / "pkg-telemetry" / rel)
         if path.startswith("/client/transport-wasm/pkg/"):
             rel = path[len("/client/transport-wasm/pkg/") :]
             return str(ROOT / "client" / "transport-wasm" / "pkg" / rel)
@@ -38,7 +41,10 @@ class Handler(SimpleHTTPRequestHandler):
         return super().translate_path(path)
 
     def end_headers(self):
-        # Allow SharedArrayBuffer later; COOP/COEP optional for now.
+        # Cross-origin isolation → performance.now() at 5 µs (plan §11).
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         super().end_headers()
 
     def guess_type(self, path):

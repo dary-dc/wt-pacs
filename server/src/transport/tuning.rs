@@ -13,6 +13,16 @@ pub enum Congestion {
     NewReno,
 }
 
+impl Congestion {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Cubic => "cubic",
+            Self::Bbr => "bbr",
+            Self::NewReno => "new-reno",
+        }
+    }
+}
+
 /// How frame bytes reach the connection's send buffer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, clap::ValueEnum)]
 pub enum SendPath {
@@ -27,15 +37,28 @@ pub enum SendPath {
     Chunked,
 }
 
+impl SendPath {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            #[cfg(feature = "lab")]
+            Self::Copy => "copy",
+            #[cfg(feature = "lab")]
+            Self::Split => "split",
+            Self::Chunked => "chunked",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct TransportTuning {
     /// Connection-wide receive window. quinn default: unlimited.
     pub receive_window: Option<u64>,
     /// Per-stream flow-control window. quinn default: 1_250_000.
-    #[cfg(feature = "lab")]
     pub stream_receive_window: Option<u64>,
     /// Cap on buffered unacknowledged send bytes. quinn default: 10_000_000.
     pub send_window: Option<u64>,
+    /// Idle timeout. Applied on the wtransport builder, not inside `TransportConfig`.
+    pub max_idle_timeout_ms: Option<u64>,
     pub congestion: Congestion,
     /// Round-robin between same-priority streams. quinn default: true. Moot under `shared`.
     #[cfg(feature = "lab")]
@@ -67,9 +90,9 @@ impl Default for TransportTuning {
     fn default() -> Self {
         Self {
             receive_window: None,
-            #[cfg(feature = "lab")]
             stream_receive_window: None,
             send_window: None,
+            max_idle_timeout_ms: None,
             congestion: Congestion::Cubic,
             #[cfg(feature = "lab")]
             send_fairness: None,
@@ -103,12 +126,12 @@ impl TransportTuning {
         if let Some(v) = self.send_window {
             tc.send_window(v);
         }
+        if let Some(v) = self.stream_receive_window {
+            tc.stream_receive_window(varint(v, "stream-receive-window")?);
+        }
         #[cfg(feature = "lab")]
         {
             use wtransport::quinn::{AckFrequencyConfig, MtuDiscoveryConfig};
-            if let Some(v) = self.stream_receive_window {
-                tc.stream_receive_window(varint(v, "stream-receive-window")?);
-            }
             if let Some(v) = self.send_fairness {
                 tc.send_fairness(v);
             }
@@ -140,6 +163,53 @@ impl TransportTuning {
     pub fn socket_buffers_are_default(&self) -> bool {
         self.socket_send_buffer.is_none() && self.socket_recv_buffer.is_none()
     }
+
+    /// QUIC stack is still the library default — use `with_identity`, not a custom transport.
+    pub fn quic_is_library_default(&self) -> bool {
+        let windows = self.receive_window.is_none()
+            && self.send_window.is_none()
+            && self.stream_receive_window.is_none()
+            && self.max_idle_timeout_ms.is_none()
+            && matches!(self.congestion, Congestion::Cubic);
+        #[cfg(feature = "lab")]
+        {
+            windows
+                && self.send_fairness.is_none()
+                && self.segmentation_offload
+                && self.initial_mtu.is_none()
+                && self.mtu_discovery
+                && !self.ack_frequency
+        }
+        #[cfg(not(feature = "lab"))]
+        windows
+    }
+
+    pub fn describe(&self) -> String {
+        if self.quic_is_library_default() {
+            return "default".to_string();
+        }
+        let mut parts = Vec::new();
+        if let Some(v) = self.send_window {
+            parts.push(format!("send_window={v}"));
+        }
+        if let Some(v) = self.receive_window {
+            parts.push(format!("receive_window={v}"));
+        }
+        if let Some(v) = self.stream_receive_window {
+            parts.push(format!("stream_receive_window={v}"));
+        }
+        if let Some(v) = self.max_idle_timeout_ms {
+            parts.push(format!("max_idle_timeout_ms={v}"));
+        }
+        if !matches!(self.congestion, Congestion::Cubic) {
+            parts.push(format!("congestion={}", self.congestion.as_str()));
+        }
+        if parts.is_empty() {
+            "default".to_string()
+        } else {
+            parts.join(",")
+        }
+    }
 }
 
 fn varint(v: u64, what: &str) -> Result<wtransport::quinn::VarInt> {
@@ -160,9 +230,9 @@ mod tests {
     fn every_knob_builds() {
         let t = TransportTuning {
             receive_window: Some(64 << 20),
-            #[cfg(feature = "lab")]
             stream_receive_window: Some(8 << 20),
             send_window: Some(32 << 20),
+            max_idle_timeout_ms: Some(60_000),
             congestion: Congestion::Bbr,
             #[cfg(feature = "lab")]
             send_fairness: Some(false),

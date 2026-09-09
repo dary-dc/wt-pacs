@@ -11,6 +11,7 @@ and Q2 (head-of-line). **No product crate depends on these.**
 | `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
 | `aead-bench` | Per-packet AEAD throughput, ring vs aws-lc-rs (QUIC datagram sizes) |
 | `netsim` | Userspace UDP path simulator — delay, loss, rate, finite queue. Stands in for `sch_netem`, which this kernel does not have |
+| `telemetry-bench` | Telemetry pipeline microbench: emit seams under contention, drain shapes at scale — no network, no product crate. See `docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md` §5 |
 
 ## Run
 
@@ -19,6 +20,13 @@ and Q2 (head-of-line). **No product crate depends on these.**
 ./lab/scripts/e1_saturation_sweep.sh      # → .local/measurements/E1_SATURATION.tsv
 ./lab/scripts/e2_miss_cost_sweep.sh       # → .local/measurements/E2_MISS_COST.tsv
 cargo run -p cold-page-bench --release -- --study lab/fixtures/queue_large/queue_large.sbnd
+
+# Server telemetry pipeline baseline (docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md §5)
+lab/scripts/telemetry_bench_matrix.sh                       # → .local/measurements/telemetry-bench-*.jsonl
+SERVER_DEFAULT=… SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
+  lab/scripts/telemetry_e2e_baseline.sh                     # → .local/measurements/telemetry-e2e-*.jsonl
+SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
+  lab/scripts/telemetry_kill_test.sh                        # SIGKILL mid-run: rows + timer summary survive
 ```
 
 Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.

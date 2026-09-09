@@ -1,6 +1,6 @@
 # Proposed code changes — for review, not applied
 
-**2026-09-07, updated 2026-09-08.** Items **1, 4, 5 and 9 have since been applied** — each is
+**2026-09-07, updated 2026-09-08, §7 applied 2026-09-09 with the port.** Items **1, 4, 5, 7 and 9 have since been applied** — each is
 marked below with what actually landed, and none was applied by this document. Everything
 still marked *proposed* is a proposal. **No code in `server/` or
 `lab/window-harness/` was changed to produce this document**, and none should be until each
@@ -135,10 +135,11 @@ providers could measure the same one twice and show a satisfying 0 % difference.
 
 ---
 
-## 7 · Drain the per-frame ack `JoinSet` as it completes (`P7`, pre-existing)
+## 7 · Drain the per-frame ack `JoinSet` as it completes (`P7`, pre-existing) — **APPLIED 2026-09-09 with the port**
 
-**Now.** The `acks` `JoinSet` (`server.rs:236`) is drained only at session end, so tokio
-keeps each completed task's cell allocated until then — up to the stream-concurrency cap.
+**Now.** The `acks` `JoinSet` is reaped with `try_join_next` after each per-frame spawn
+(`frame_out.rs`); the 2 s `drain_acks` at session end remains. **Verify still owed:**
+re-run the stalled-client campaign per-frame arm on the merged tree.
 
 **Change.** Reap completed tasks as they finish.
 
