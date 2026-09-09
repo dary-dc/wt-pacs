@@ -34,12 +34,12 @@ enum Arm {
     /// session instead of two. The loop is `uring`'s; only the wake differs (`x14`).
     UringRingFd,
     /// `hybrid_lazyring` with the same one-fd wake — the pair that decides whether the
-    /// product should drop its eventfd. See `docs/disk-access/RESEARCH-io-backends-RESULT.md`.
+    /// product should drop its eventfd. `docs/disk-access/NEXT.md`.
     HybridLazyRingFd,
     /// One `tokio::fs::File` cursor per stream — no positional read, so it is meaningful
     /// only on the sweep shape, and depth splits the plan into that many cursors rather than
     /// reads in flight. Under `--cfg tokio_unstable` it reports as `tokio_fs_uring`.
-    /// `docs/disk-access/SEQUENTIAL-READER.md`.
+    /// Sequential cursor only; rejected as a product reader. `docs/disk-access/adr.md` §5.
     TokioFs,
     /// **The shipped path itself** — `server`'s `ReadCtx`, not a model of it. Every other
     /// arm models a candidate. `WTPACS_READ_PATH` selects its mode here too.

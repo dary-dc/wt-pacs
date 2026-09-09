@@ -226,7 +226,7 @@ async fn handle_incoming(
 }
 
 /// The reader owns the control stream; the planner decides; the pipeline serves.
-/// `docs/disk-access/READ-PATH-DESIGN.md` §11 cuts 1, 2 and 5.
+/// `docs/disk-access/IMPLEMENTATION.md`.
 async fn run_session<P: FramePipeline>(pipeline: &mut P, control_recv: RecvStream) -> Result<()> {
     let (reader, mut asks) = spawn_ask_reader(control_recv);
     let result = drive(pipeline, &mut asks).await;
@@ -348,7 +348,7 @@ mod tests {
 
     /// **The loop's own line.** `Step::Serve`'s `upcoming` reaches `serve`; a fill names
     /// `FILL_AHEAD` and is counted once. No QUIC — the seam below `serve` is
-    /// `pipeline.rs`'s. `docs/disk-access/READ-PATH-DESIGN.md` §15.4.
+    /// `pipeline.rs`'s. `docs/disk-access/IMPLEMENTATION.md`.
     #[test]
     fn the_loop_hands_serve_the_frames_the_planner_named() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drive-{}", std::process::id()));
@@ -652,7 +652,7 @@ mod tests {
     }
 
     /// `StreamFrames {}` recites the whole study, in order, and nothing past it.
-    /// `docs/disk-access/READ-PATH-DESIGN.md` §13.4.
+    /// `docs/disk-access/IMPLEMENTATION.md`.
     #[test]
     fn empty_stream_frames_is_the_whole_study() {
         let frames = 4u32;

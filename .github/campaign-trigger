@@ -1,5 +1,0 @@
-# Touch this file and push to start .github/workflows/read-campaign.yml.
-# A push only triggers the campaign when this file is in the diff, so ordinary
-# commits to the branch never spend runner minutes. One line per run.
-
-2026-09-06T16:35:01Z  run 1 — first campaign on a GitHub-hosted runner (risk R1)

@@ -168,7 +168,7 @@ different route — `serve_batch` is a `for` loop with an `.await`.
 16 tiles of 16 KiB, all missing the page cache. Depths 1, 4 and 16 are
 [`disk-access/v32_depth.tsv`](disk-access/v32_depth.tsv); **depth 2 — the only depth the
 shape below reaches — was measured on 2026-09-08**,
-[`disk-access/v35_depth2.tsv`](disk-access/v35_depth2.tsv), 12 interleaved repeats, paired
+`v35_depth2.tsv` at tag `read-path-evidence-2026-09-09`, 12 interleaved repeats, paired
 by repeat:
 
 | | time until the last tile is served | vs serial |
@@ -220,21 +220,21 @@ Anything else would rebuild the `uring` arm's +131% on hits
 
 **This does not change the read arm.** At depth 1 `hybrid_lazyring` and `uring` tie; the
 choice between them only becomes interesting once this is built
-([`disk-access/v33_cross.tsv`](disk-access/v33_cross.tsv)) — and now that a batch runs at
+(depth × readers, evidence tag `v33_cross.tsv`) — and now that a batch runs at
 depth 2, that question is open again on a host bigger than 4 vCPU.
 
 ### What it measured, once built
 
 The shipped `ReadCtx` driven both ways by `read_campaign`, one session, 12 interleaved
-repeats ([`disk-access/v36_readahead.tsv`](disk-access/v36_readahead.tsv)): **+73.8% asks/s,
+repeats: **+73.8% asks/s,
 12/12, RESOLVED** on cold 16 KiB, p50 per frame −53.4%, and a **tie warm** — the result the
 design had to produce, since a session whose reads hit must pay nothing for a depth it never
 uses. 16 missing tiles: 1.14 ms → 0.62 ms.
 
-## 6c · Server-driven streaming (not implemented)
+## 6c · Server-driven streaming
 
-**Status: designed, not built. 2026-09-08.** Messages and the loop:
-[`disk-access/READ-PATH-DESIGN.md`](disk-access/READ-PATH-DESIGN.md).
+**Status: built 2026-09-09.** Messages and the loop: [`disk-access/adr.md`](disk-access/adr.md),
+[`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
 
 This is the **fill** app mode. The client sends `StreamFrames` (empty = the whole study;
 optional `from` / `to` default to 0 and the last frame). Current use is start-to-end; `from`
@@ -250,11 +250,11 @@ is QUIC: when the client stops reading, `write_all` waits and the read-ahead wai
 `EndStream` is seen by the serving loop between frames; it does not queue behind generated
 indexes. A data request during a fill ends the fill and is then served: a second
 `StreamFrames` is a seek, a `RequestFrame` or `RequestFrames` puts the session back on demand
-([`disk-access/READ-PATH-DESIGN.md`](disk-access/READ-PATH-DESIGN.md) §2).
+([`disk-access/adr.md`](disk-access/adr.md)).
 
 ## 6d · The other half of §6b: `RequestFrame` is still depth 1
 
-**Status: designed, not built. 2026-09-08.** The read path can carry depth 2 —
+**Status: built 2026-09-09.** The read path carries W = 4 —
 `ReadCtx::read` takes the next frame and starts its read before waiting on this one. A batch
 supplies that from `frames[i + 1]`. A stream of single `RequestFrame` asks supplies nothing,
 because `run_session` does not read the next ask until the current frame is on the wire.
@@ -282,7 +282,7 @@ half; its `D` is client-side depth today, which the server flattens to 1.
 **Recommendation: B, not A.** A buys nothing over B and puts a cancel-safety hazard in the
 session loop's hot path. C is not enough: the two app modes are fill (`StreamFrames`) and
 on-demand (`RequestFrame` / `RequestFrames`), and fill needs the reader task.
-[`disk-access/READ-PATH-DESIGN.md`](disk-access/READ-PATH-DESIGN.md).
+[`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
 
 Note the owners' requirement is **depth 4 or more**, and C alone does not reach it for a
 client that asks per tile: `RequestFrames` gives depth 2 today, and widening past two is a
@@ -322,7 +322,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
    generated stream indexes. The read path takes at most `WINDOWS − 1` of what the planner
    names. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
-   (`disk-access/NEXT.md`). `disk-access/v35_depth2.tsv` prices the rest: 2 → 4 is a further
+   ([`disk-access/NEXT.md`](disk-access/NEXT.md)). Depth 2 → 4 is a further
    0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion
    demultiplexer. Build the loop first — four asks in flight is worth nothing while the loop
    supplies one — then widen the read path with that measurement in hand.
@@ -331,7 +331,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
 
 `window-harness --mode saturate --depth 4` against the same study, before and after,
 interleaved. Expect the miss-dominated cells to move by something like the batch path's
-**+73.8% asks/s** ([`disk-access/v36_readahead.tsv`](disk-access/v36_readahead.tsv)) and warm
+**+73.8% asks/s** and warm
 cells to tie. A warm regression means the look-ahead is reaching the ring on a hit, which is
 the one thing the read path is built not to do.
 

@@ -43,12 +43,11 @@ a reason to raise the budget.
 
 Lean, and placed where they belong — extend the file that owns the subject rather than adding
 one per finding. A claim that is not measured says so. A retracted claim is corrected in
-place, not quietly dropped: `docs/disk-access/HANDOFF.md` §3 is the model.
+place, not quietly dropped: `docs/disk-access/adr.md` §2 is the model.
 
 ## Measurement
 
 The rules below have each already produced a wrong answer here when broken.
-`docs/disk-access/HANDOFF.md` §6 has the full list and the evidence.
 
 * **Interleave the arms.** Sequential before/after measured +8.1% on code that was a tie.
 * **Mutate every new test** — break the code on purpose and watch the test fail.

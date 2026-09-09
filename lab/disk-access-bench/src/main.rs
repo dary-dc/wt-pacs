@@ -1487,7 +1487,7 @@ async fn serve_frame_async(
                     hop_events += 1;
                     // Only the missing tail of *this window* goes to the pool. That was
                     // `stream_codestream` until 2026-09-07; it now escalates to the rest of
-                    // the frame — see `PreadNowaitEscalate` and `docs/disk-access/RERUN-miss.md`.
+                    // the frame. The product escalates the rest of the frame (`PreadNowaitEscalate`).
                     let s = Arc::clone(store);
                     let at = offset + (pos + got) as u64;
                     let th = Instant::now();

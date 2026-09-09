@@ -1,4 +1,4 @@
-//! What to serve next, decided without I/O. `docs/disk-access/READ-PATH-DESIGN.md` §11 cut 2.
+//! What to serve next, decided without I/O. `docs/disk-access/IMPLEMENTATION.md`.
 
 use anyhow::Result;
 use std::collections::VecDeque;

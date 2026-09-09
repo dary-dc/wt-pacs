@@ -1,11 +1,9 @@
 # ADR: how the server reads SBND frame bytes
 
-**Status:** Accepted · current as of **2026-09-08** · supersedes the 2026-08-31 always-touch
+**Status:** Accepted · current as of **2026-09-09** · supersedes the 2026-08-31 always-touch
 decision (provenance at the end)
-**Evidence:** [`EVIDENCE.md`](EVIDENCE.md) — every number · [`RERUN.md`](RERUN.md) — the
-instrument and its precision rules · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) — how it works
-and what is validated
-**What is parked, in order:** [`NEXT.md`](NEXT.md)
+**Evidence:** [`EVIDENCE.md`](EVIDENCE.md) — every number · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) — how it works
+**What is still open:** [`NEXT.md`](NEXT.md)
 
 §1 is the decision. §2 is what shaped it, including the numbers that are safe to quote and
 the claims that were retracted. §3 is how it got here. §4 is consequences and §5 every
@@ -45,7 +43,7 @@ What is *not* done: no memory mapping anywhere in `server/`; no whole-frame enve
 | Where | `server/src/media/read_path.rs` (W windows), `uring_reader.rs` (thin ring), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the wire loop) |
 | Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch) · `uring` (lab lever, every read through the ring) |
 | Feature | `uring`, on by default; `--no-default-features` compiles to the pool path |
-| Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… ring=…` per session, default build |
+| Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build |
 | Validated | as the **product**: `read_campaign --arms product,product_ahead` drives the real `ReadCtx` and ties the lab arm that won |
 
 **Guarantee.** The bytes quinn puts on the wire are process-private — copied once into a
@@ -130,8 +128,8 @@ a **tie**, which is a real answer.
 | **Cost** | Two copies (kernel → window, window → quinn) where mmap needs one; measured cheaper than the hop it replaces on every cell. Four `write_all` calls per 250 KB frame. A reader that misses grows its buffer to frame size and keeps it |
 | **Conditional** | The win is on misses. On local NVMe the ring is 56–75 % of a miss; on cloud block storage a miss is device-bound and the ring's margin is threads and CPU per miss, not latency. That is the one thing P0 exists to measure |
 | **Conditional** | Where `RWF_NOWAIT` is refused or a ring is refused, the session runs the pool. The server now says which path it took, in the startup banner and per session; deployment (§6) is still part of the decision |
-| **Scale** | This decision moves about a fifth of a frame's server CPU; per-datagram QUIC work is the rest (§8). Tiles serve at **W = 4**; fill names one frame ahead. The loop is a planner over a channel of `Ask` ([`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13). `v35` priced 2 → 4 at +37 % on this host |
-| **Risk** | The hit rate is access-shape-conditional. Whole frames in order let read-ahead run ahead of the loop; serving a codestream *prefix* per frame strides the file and misses 319 of 320 cold. The fix is the packer, not the reader ([`../disk-layout/PREFIX-READS.md`](../disk-layout/PREFIX-READS.md)) |
+| **Scale** | This decision moves about a fifth of a frame's server CPU; per-datagram QUIC work is the rest (§8). Tiles serve at **W = 4**; fill names one frame ahead. The loop is a planner over a channel of `Ask`. Depth 2 → 4 was +37 % on the sandbox host |
+| **Risk** | The hit rate is access-shape-conditional. Whole frames in order let read-ahead run ahead of the loop; serving a codestream *prefix* per frame strides the file and misses 319 of 320 cold. The fix is the packer, not the reader |
 
 ## 5 · Every candidate, one table
 
@@ -148,8 +146,7 @@ never touch a ring", and mmap's co-tenant freeze all reproduce; the **ring again
 on the miss path resolves only at depth 16** on that host, which is P0's question and why
 that row says *conditional*. **And it is size-dependent as well as depth-dependent**: at
 250 kB cold the pool beats the ring at both depths, so P0 must run both frame sizes.
-**The measured tables are [`EVIDENCE.md`](EVIDENCE.md) §The candidates, re-measured**; the
-method and the paired verdicts are [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §20.
+**The measured tables are [`EVIDENCE.md`](EVIDENCE.md).**
 
 | Candidate | Serves | Latency | Scale: threads · fds · CPU per miss | Simplicity · risk | Verdict |
 | --- | --- | --- | --- | --- | --- |
@@ -160,7 +157,7 @@ method and the paired verdicts are [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) 
 | Escalate only the rest of the window | B | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 | flat at ~1 600 f/s from 8 to 32 readers | — | Superseded 2026-09-07 |
 | Every read through the ring (`uring`) | B | hits **+106 % / +298 %** at depth 2 / 4; streams +143–190 % at 8–64 sessions; misses tie | 5 threads; lowest CPU per miss | one path, but a hit must never touch a ring | Rejected as default; kept as a lab flag |
 | Ring pipelining (read *n+1* during write *n*) | T | ~6 % on a 100 %-miss trace, −25 % warm | 2× session memory | — | Rejected |
-| `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural, not on the numbers; a re-run does not reopen it: [`RERUN.md`](RERUN.md) §SQPOLL |
+| `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural: `COOP_TASKRUN` is refused alongside it |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
 | Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
 | Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 |
@@ -181,7 +178,7 @@ method and the paired verdicts are [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) 
 | `O_DIRECT` + SPDK, whole-study preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
 | Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
 | `write_chunk` owned windows to quinn | B | −3.2 % at one session; **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | Rejected, more so at scale |
-| Sequential: the shipped reader forward, one frame ahead | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; read-ahead makes 96–99 % of asks hits | 5 threads; one fd per study | no new reader | **Accepted** ([`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md)) |
+| Sequential: the shipped reader forward, one frame ahead | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; read-ahead makes 96–99 % of asks hits | 5 threads; one fd per study | no new reader | **Accepted** |
 | Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
 | Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
 
@@ -232,8 +229,8 @@ whole plan.
 | Lever | Worth | Blocker / cost | Status |
 | --- | --- | --- | --- |
 | **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — the largest effect measured anywhere in this investigation | the peer must advertise the same ceiling, and the peer is a browser; above 4000 B path discovery failed and fell back to 1200 B | **Measured, not taken.** Price it first |
-| **Serving depth ≥ 4** — W = 4 for tiles, fill names one ahead | **+73.8 % asks/s** on missing tiles at W = 2; 2 → 4 a further +37 % on this host | the throttled-link cell (§9.4 of the design) and P0's depth ladder | **Built** ([`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13); unmeasured on the default link |
-| `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned ([`../disk-layout/`](../disk-layout/README.md)) |
+| **Serving depth ≥ 4** — W = 4 for tiles, fill names one ahead | **+73.8 % asks/s** on missing tiles at W = 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
+| `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
 | GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
@@ -246,19 +243,13 @@ read at all — not doing the read faster.
 
 ## 9 · What is next
 
-[`NEXT.md`](NEXT.md), ranked with the owners on 2026-09-08 and kept in that order as items
-close. Serving depth is built (W = 4 for tiles, fill names one ahead; unmeasured on the
-default link). The top of what remains: the transport lever above, P0 on the target, the
-deploy manifest. The miss rate is now observable, which is what lets every other item be
-checked against a real workload. The read-path items — the dependency bump, the ring-fd
-change — come after.
+[`NEXT.md`](NEXT.md). Serving depth is built. The top of what remains: P0 on the target,
+the workstation A/B, the transport lever above, the deploy manifest.
 
 ## Provenance
 
-Documents this ADR absorbed, readable from git: `git show a330783:docs/disk-access/<file>`
-for `SEND-BUDGET.md` (the per-frame budget, the frame cache, `write_chunk`),
-`READ-PATH-DECISION.md` (the four-host read-path campaign), `S5-CONTROL-ARM.md` (loop shape
-vs ring), `DEPTH.md`, `SCOREBOARD.md`, `later.md`; the 2026-08-31 decision at
-`git show be78860:docs/disk-access/adr.md`. Raw campaign data: the `v*.tsv` and `x*.tsv`
-files in this directory; the harness is `lab/disk-access-bench`, a workspace member so every
-number here can be re-run.
+Earlier campaign documents: `git show a330783:docs/disk-access/<file>` for
+`SEND-BUDGET.md`, `READ-PATH-DECISION.md`, `S5-CONTROL-ARM.md`, `SCOREBOARD.md`.
+The 2026-08-31 decision: `git show be78860:docs/disk-access/adr.md`.
+This branch's tables and design diary: `git show read-path-evidence-2026-09-09:docs/disk-access/`.
+The harness is `lab/disk-access-bench`, a workspace member.

@@ -47,7 +47,7 @@ pub fn unmap_pages(bytes: &[u8]) -> Result<()> {
 }
 
 /// A strided reader shows no pattern for read-ahead to see, so every ask misses. Advisory,
-/// and it copies nothing. `docs/disk-layout/ACCESS-PATTERNS.md`.
+/// and it copies nothing.
 pub fn hint_willneed(file: &File, offset: u64, len: usize) {
     if len == 0 {
         return;

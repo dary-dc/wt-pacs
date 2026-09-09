@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Interleaved A/B of the product read path: HEAD against a worktree at <base-commit>.
 # A sequential before/after already read +8.1 % on a tie here; this alternates inside
-# each round. `docs/disk-access/READ-PATH-DESIGN.md` §12.
+# each round. `docs/disk-access/IMPLEMENTATION.md`.
 #
 #   lab/scripts/read_path_ab.sh <base-commit>
 #

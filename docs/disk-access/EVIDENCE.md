@@ -1,25 +1,17 @@
-# Read-path evidence — the whole campaign in one file
+# Read-path evidence — every number the decision rests on
 
 **Decision:** [`adr.md`](adr.md) · **Implementation:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md) ·
-**Deployment:** [`DEPLOYMENT.md`](DEPLOYMENT.md) · **Reproduce:** [`RERUN.md`](RERUN.md) ·
-**How much a miss reads:** [`RERUN-miss.md`](RERUN-miss.md) · **Shipping it:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md)
+**Deployment:** [`DEPLOYMENT.md`](DEPLOYMENT.md)
 
-Self-contained on purpose. The full campaign — thirteen documents, sixty-nine raw artifacts —
-is in git at **`a330783`** and its ancestors; this file carries every number the decision rests
-on so it survives a squash merge, when `git show` against that history would not.
+This file carries the numbers so they survive a squash. Raw TSVs and the design diary:
 
 ```bash
-git show a330783:docs/disk-access/READ-PATH-DECISION.md   # the argument, long form
-git show a330783:docs/disk-access/SCOREBOARD.md           # risk register + evidence grading
-git show a330783:docs/disk-access/S5-CONTROL-ARM.md       # loop vs ring, the control arm
-git show a330783:docs/disk-access/SEND-BUDGET.md          # where a frame's microseconds go
-git show a330783 --stat                                    # every raw TSV
+git show read-path-evidence-2026-09-09:docs/disk-access/     # this branch's tables
+git show a330783:docs/disk-access/READ-PATH-DECISION.md      # 2026-09-04 campaign, long form
 ```
 
-The lab that produced it stays on the tip on purpose: `lab/disk-access-bench` is a workspace
-member, and `lab/scripts/{s5_split,compare_hosts,loop_shape_control}.py` re-derive the tables
-below. The 2026-08-31 decision was wrong partly because re-running its harness meant restoring
-a crate from a named commit, and three defects went unnoticed for a whole campaign as a result.
+`lab/disk-access-bench` stays on the tip. `lab/scripts/s5_split.py` and `pair_arms.py`
+apply the rule below to a TSV checked out from the tag.
 
 ## The rule every number below obeys
 
@@ -47,7 +39,7 @@ hit < 5%, mix 5–50%, miss ≥ 50%.
 | `pooled_pread` | escape hatch — every read on the pool | 36 798 | 38 014 | 68 770 |
 
 **The shipped path has since been measured as an arm of its own** — `product` drives
-`server`'s `ReadCtx` rather than modelling it ([`v30_product.tsv`](v30_product.tsv), a
+`server`'s `ReadCtx` rather than modelling it (`v30_product.tsv` at the evidence tag, a
 different host and a different cell design, so read it against `hybrid_lazyring` in its own
 run and not against the column above). It ties the chosen arm and beats the path it replaced:
 −0.5% on hits, **+0.7% on 16 KiB misses**, **−45.4% RESOLVED against `pool`** there. See
@@ -72,7 +64,7 @@ is established better than it anywhere; `uring`, the only arm cheaper on misses,
 established **+141.7 / +131.0% worse on hits**. That is why there is no tuning toggle —
 see [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
 
-> **Re-measured 2026-09-08 on the product's own host** ([`v32_depth.tsv`](v32_depth.tsv)),
+> **Re-measured 2026-09-08 on the product's own host** (`v32_depth.tsv` at the evidence tag),
 > 16 KiB reads, misses forced past the read-ahead window. The depth effect reproduces in
 > direction but is **much smaller than published**: `uring` vs `hybrid_lazyring` on misses is
 > +0.1% at depth 1, **−14.9%** at depth 4 and **−9.7%** at depth 16 — all ties — against a
@@ -92,7 +84,7 @@ see [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
 > regime.
 
 **The miss-regime tie is a queue-depth artefact, and it disappears at the depth the product
-runs.** Splitting the same 84 cells by `depth` ([`RERUN-miss.md`](RERUN-miss.md) M10):
+runs.** Splitting the same 84 cells by `depth`:
 
 | `uring` vs `hybrid_lazyring`, misses | depth 1 | 4 | 8 | 16 | 32 |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -117,12 +109,9 @@ growth separates ring-from-`pool`, not the two ring arms.
 ## The candidates, re-measured on the code that ships · 2026-09-09
 
 The table above was taken before the read path was reshaped (`WINDOWS`, the planner, the thin
-ring — [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13) and its verdicts were inherited, not
-re-checked. They were re-checked on 2026-09-09, at **two frame sizes**, through
-`read_campaign`'s **`product` arm — the shipped `ReadCtx` itself, not a model of it**.
-Raw: [`x18_sizes.tsv`](x18_sizes.tsv), [`x18_mmap.tsv`](x18_mmap.tsv),
-[`x17_arms.tsv`](x17_arms.tsv), [`x17_depth.tsv`](x17_depth.tsv), [`x17_host.txt`](x17_host.txt).
-Method and the paired verdicts: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §20.
+ring) and its verdicts were inherited, not re-checked. They were re-checked on 2026-09-09, at
+**two frame sizes**, through `read_campaign`'s **`product` arm — the shipped `ReadCtx`
+itself, not a model of it**. Raw TSVs (`x17_*`, `x18_*`) are at the evidence tag.
 
 **Two harnesses, and they do not share a scale.** `read_campaign` times a read;
 `disk-access-bench` times a read **plus a quinn-shaped copy into a write buffer** — its
@@ -233,7 +222,7 @@ uses the same loop. The idle ring is what `hybrid_lazyring` removes.
 The server serves one frame at a time ([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
 §6b). Earlier sweeps priced depth 1 against 4 and 16 and never measured **2**, which is the
 only depth the shape being proposed there can reach. Measured 2026-09-08,
-[`v35_depth2.tsv`](v35_depth2.tsv) + [`v35_depth2_host.txt`](v35_depth2_host.txt), 12
+`v35_depth2.tsv` at the evidence tag, 12
 interleaved repeats, `hybrid_lazyring`, cold 16 KiB, paired by repeat against depth 1:
 
 | depth | asks/s | vs depth 1 | signs | 16 missing tiles | CPU/ask |
@@ -255,7 +244,7 @@ against a much harder invariant.
 
 **Built, and measured as the product.** `product` against `product_ahead` — the shipped
 `ReadCtx` driven with and without the look-ahead, one session, depth 1, 12 repeats
-([`v36_readahead.tsv`](v36_readahead.tsv)):
+(`v36_readahead.tsv` at the evidence tag):
 
 | cell | asks/s | signs | p50 | CPU/ask |
 | --- | ---: | :---: | ---: | ---: |
@@ -287,7 +276,7 @@ miss-regime row flipped on any host.
 | | Verdict |
 | --- | --- |
 | **R1** single host | **Closed** — three further hosts, table above |
-| **R3** synthetic fixture | **Closed** — real ask schedules, 4 GB fixture ([`../disk-layout/ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md)) |
+| **R3** synthetic fixture | **Closed** — real ask schedules, 4 GB fixture (layout study at the evidence tag) |
 | **R4** force-evicted not pressure-evicted | **Closed** — cgroup cap, verified by `failcnt` |
 | **R5** ring count at scale | **Closed** — 128 concurrent rings under 53–79% miss spawn **no** io-wq workers; `pool` reaches 265 OS threads at 64 readers |
 | **R6** filesystem support | **Closed operationally** — `check-fastpath` per host; ext4 and btrfs honour `RWF_NOWAIT`, overlayfs and tmpfs refuse it |
@@ -303,8 +292,8 @@ Every arm above reads a **whole frame per round trip** — `read_campaign` calls
 round trips per 250 KB frame instead of one. So `pool` above is a fair pool-vs-ring control
 and was never the shipped loop.
 
-[`RERUN-miss.md`](RERUN-miss.md) measures that separately, at 250 KB frames on an 8 GB
-fixture, and it changed the product. Two numbers from it belong here:
+A separate miss-size run, at 250 KB frames on an 8 GB fixture, changed the product. Two
+numbers from it belong here:
 
 | | |
 | --- | --- |
@@ -317,14 +306,14 @@ clearing the bar at exactly the size the miss campaign used.
 
 | `hybrid` vs `pool`, miss regime | 4 KiB | 16 KiB | 64 KiB | 250 KB |
 | --- | ---: | ---: | ---: | ---: |
-| `v22_campaign_ci.tsv` | −62.2% | −58.2% | −45.9% | **−24.8% tie** |
-| `v10_campaign.tsv` | −63.9% | −66.8% | −45.3% | — |
+| `v22` (evidence tag) | −62.2% | −58.2% | −45.9% | **−24.8% tie** |
+| `v10` (evidence tag) | −63.9% | −66.8% | −45.3% | — |
 
 A round trip costs roughly what it costs; the rest of a read scales with its bytes, so the
 share the ring can remove shrinks as frames grow. **At 250 KB the whole ring benefit is
 already a tie** — which is the same conclusion the miss campaign reached on throughput, from
 the other direction. Reproduce with
-`lab/scripts/pair_arms.py --pairs hybrid:pool --by size docs/disk-access/v22_campaign_ci.tsv`.
+`git show read-path-evidence-2026-09-09:docs/disk-access/v22_campaign_ci.tsv`.
 
 The thread-count finding agrees across both: 5 OS threads against 44 at 32 concurrent
 missing readers, with no `iou-wrk` worker visible under tight-loop `/proc` sampling (R5
@@ -340,7 +329,7 @@ first.
 | mmap + pre-fault + zero-copy handoff | Hands quinn page-cache pages: reclaim can take them mid-send, and the refault lands inside quinn on the executor. Also one pool hop per ask |
 | Handing quinn owned buffers (`BytesMut`) | Measured **−3.2%, 9 of 12 same sign** — below drift, not landed. The copy is real and provable in quinn's source; it is not worth removing |
 | A read-path config toggle | `hybrid_lazyring` already chooses per session at runtime; a static flag can only be wrong |
-| `SQPOLL` | 2.8× the CPU and +30 to +86% warm latency: `COOP_TASKRUN` is refused alongside it, so all 320 completions park instead of none, and a kernel poller thread spins **per session ring**. Evaluated and discarded in full, including the one cold-tail result that did not fit the headline: [`RERUN.md`](RERUN.md) §SQPOLL |
+| `SQPOLL` | 2.8× the CPU and +30 to +86% warm latency: `COOP_TASKRUN` is refused alongside it, so all 320 completions park instead of none, and a kernel poller thread spins **per session ring**. Structural; a re-run does not reopen it |
 | mmap, any variant | Faster on p50 and cheaper on CPU — and its **p99 is 3 276–3 914 µs at 250 kB cold against 1 036**, with a co-tenant `gap max` of 3 991 µs. The variants that make the fault safe (`populate_read`, `blocking_touch`) are 2–3× slower at 1.5–2× the CPU. Re-measured 2026-09-09 |
 | mmap + `mincore` gate | Residency is not a lease: a page `mincore` calls resident can be evicted before the touch. Unsafe under pressure 5/5 runs — structural, and the 2026-09-09 run does not test it |
 | `sendfile` / splice | Userspace QUIC copies regardless |
@@ -348,7 +337,7 @@ first.
 ## What is worth more than any of this
 
 The read path is worth 2–4×. **The disk layout is worth 17.6×** on the same reads, and it is
-undecided — see [`../disk-layout/ACCESS-PATTERNS.md`](../disk-layout/ACCESS-PATTERNS.md).
+undecided — study at the evidence tag, `docs/disk-layout/`.
 
 ## Not established anywhere, by any campaign here
 
@@ -361,8 +350,40 @@ Named so they are not mistaken for measured, and so a future run knows where to 
   predicted: at 250 kB cold the `pool` beats the ring at both depths (514 µs against 623, at
   less CPU), where at 16 KiB the ring was ahead from depth 4. Still open **past** 250 kB —
   native DBT is 3 MB, and windowing gets worse from here.
-- **`hybrid_lazyring` above one reader** — see IMPLEMENTATION.md, *Before rollout*.
+- **`hybrid_lazyring` above one reader** — [`NEXT.md`](NEXT.md) P0.
 - **`hybrid_lazyring` on the 4 vCPU sandbox or the GitHub runner.**
 - **Serving depth on any host but the sandbox above.** The depth-2 table is one host, and it
-  reproduces the lab host's depth 1/4/16 shape ([`v32_depth.tsv`](v32_depth.tsv)) closely
+  reproduces the lab host's depth 1/4/16 shape (`v32_depth.tsv` at the evidence tag) closely
   enough to trust the ranking, not the magnitudes.
+
+## Against the double-buffer server (`580e312`) · 2026-09-09
+
+The base already peeks one ask and holds two windows. Fill and client depth 2 are the same
+shape on both arms — they must tie. Depth 4 is the claim.
+
+**Bytes.** A 512-frame fixture whose frames differ in content and length (37 B to 128 KiB).
+Digest over `(index, length, body)` in delivery order, computed from the `.sbnd` and from
+the wire. Match on both binaries, fill and on-demand, warm and cold, with the ring carrying
+part of the traffic.
+
+**`read_path_ab.sh`:** every cell ties, exit 0. The window table costs the isolated read
+path nothing against the `Ahead` flip it replaced.
+
+**`server_ab.sh`**, 16 interleaved rounds, 256 asks, cold miss 0.984–1.000:
+
+| cell | p50 Δ | signs | CPU/ask Δ | signs | asks/s Δ |
+| --- | ---: | :---: | ---: | :---: | ---: |
+| cold d1 | +0.6 % | 8/16 | +2.6 % | 10/16 | −0.5 % |
+| cold d2 | +2.3 % | 10/16 | +0.0 % | 8/16 | −2.2 % |
+| **cold d4** | **−19.1 %** | **15/16** | **−28.0 %** | **16/16** | **+20.7 %** |
+| warm d1 | −1.3 % | 9/16 | +0.4 % | 9/16 | +2.4 % |
+| warm d4 | −9.6 % | 14/16 | −8.9 % | 14/16 | +10.2 % |
+| fill | +1.6 % | 9/16 | +0.7 % | 8/16 | −0.2 % |
+
+Sandbox, ~7 k asks/s against a workstation's ~50 k. Directions and sign counts, not
+magnitudes. The script's 28.5 % wait bar does not clear on p50 here; CPU/ask does. Re-run
+on the workstation ([`NEXT.md`](NEXT.md)). After P1 the session line reports `named=1/2/4`
+at those depths and `named=2` on a fill.
+
+Per-session RSS, fresh server per cell: **+39 to +49 KiB**, not the +32 the design guessed.
+TSVs at the evidence tag (`server_ab.tsv`, `read_path_ab.tsv`).

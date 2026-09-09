@@ -1,4 +1,4 @@
-//! Whole-file page-cache eviction. `docs/disk-access/READ-PATH-DESIGN.md` §15.4b.
+//! Whole-file page-cache eviction. `docs/disk-access/IMPLEMENTATION.md`.
 
 use anyhow::{bail, Context, Result};
 use disk_access_bench::residency::evict_retry;

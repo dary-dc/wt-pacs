@@ -15,7 +15,7 @@ pub enum Completion {
     /// Two fds per ring. What the product ships.
     Eventfd,
     /// One fd per ring, and how tokio's own driver parks. Why a `COOP_TASKRUN` ring is
-    /// pollable from setup: `docs/disk-access/RESEARCH-io-backends-RESULT.md` §Kernel side.
+    /// pollable from setup. `docs/disk-access/NEXT.md`.
     RingFd,
 }
 

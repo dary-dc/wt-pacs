@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Interleaved A/B of exact-server: HEAD against a worktree at <base-commit>.
 # The driver is a client; both servers stay up for the whole run.
-# `docs/disk-access/READ-PATH-DESIGN.md` §15.4.
+# `docs/disk-access/IMPLEMENTATION.md`.
 #
 #   lab/scripts/server_ab.sh <base-commit>
 #

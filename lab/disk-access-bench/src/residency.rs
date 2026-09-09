@@ -1,6 +1,6 @@
 //! Controlled page-cache residency: a cell's miss set is chosen, applied and then
 //! *verified*, so one that missed its mix aborts rather than reporting under the wrong
-//! label. The order of [`apply`] is load-bearing — `docs/disk-access/RERUN-miss.md`.
+//! label. The order of [`apply`] is load-bearing.
 
 use crate::study_map::{host_page_size, StudyMap};
 use anyhow::{Context, Result};
