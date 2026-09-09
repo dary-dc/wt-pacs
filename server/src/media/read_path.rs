@@ -350,6 +350,7 @@ mod tests {
     use super::*;
     use crate::media::frame_store::READ_WINDOW;
     use std::io::Write;
+    use std::time::{Duration, Instant};
 
     /// A study of `frames` frames of `len` bytes, each filled with a per-frame pattern so a
     /// mis-assembled frame cannot pass by accident.
@@ -790,29 +791,60 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// Naming W − 1 upcoming frames starts W − 1 reads before the first is waited on.
+    fn wait_until(mut pred: impl FnMut() -> bool, timeout: Duration) {
+        let start = Instant::now();
+        while !pred() {
+            assert!(
+                start.elapsed() < timeout,
+                "timed out waiting for pooled reads to start"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// Naming W − 1 upcoming frames starts W reads before the current one can finish.
     #[test]
-    fn w_named_frames_put_w_reads_in_flight() {
-        let dir = scratch("inflight");
+    fn w_named_frames_start_before_the_current_read_finishes() {
+        let dir = scratch("startwait");
         let path = write_bundle(&dir, WINDOWS as u32, LEN);
         let mut store = FrameStore::open(&path).expect("open");
         store.force_pool_reads();
         let store = Arc::new(store);
-        let rt = rt();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(1)
+            .enable_all()
+            .build()
+            .expect("rt");
         let mut ctx = ReadCtx::new(ReadMode::Pool, &store);
         let span = store.frame_span(0).unwrap();
         let upcoming: Vec<FrameSpan> = (1..WINDOWS as u32)
             .map(|i| store.frame_span(i).unwrap())
             .collect();
         store.reset_pool_starts();
-        rt.block_on(ctx.read(&store, span, 0, upcoming))
-            .expect("read");
-        assert_eq!(
-            store.pool_starts(),
-            WINDOWS,
-            "started {} pooled reads, not {WINDOWS}",
-            store.pool_starts()
-        );
+
+        let (held_tx, held_rx) = std::sync::mpsc::channel();
+        let (gate_tx, gate_rx) = std::sync::mpsc::channel();
+        rt.spawn_blocking(move || {
+            let _ = held_tx.send(());
+            gate_rx.recv().unwrap();
+        });
+        held_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("gate never took the blocking pool");
+
+        let store2 = Arc::clone(&store);
+        let task = rt.spawn(async move {
+            let bytes = ctx
+                .read(&store2, span, 0, upcoming)
+                .await
+                .map(<[u8]>::to_vec);
+            (ctx, bytes)
+        });
+        wait_until(|| store.pool_starts() == WINDOWS, Duration::from_secs(5));
+        gate_tx.send(()).unwrap();
+        let (ctx, bytes) = rt.block_on(task).expect("join");
+        bytes.expect("read");
         assert_eq!(
             ctx.pending_windows(),
             WINDOWS - 1,
