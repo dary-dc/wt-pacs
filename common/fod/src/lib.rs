@@ -29,12 +29,18 @@ pub fn encode_fod_msg(msg: &FodMsg) -> Result<Vec<u8>> {
     Ok(out)
 }
 
+/// Decode a framed message: `[4B LE len][JSON body]`.
 pub fn decode_fod_msg(bytes: &[u8]) -> Result<FodMsg> {
     if bytes.len() < 4 {
         bail!("FodMsg too short");
     }
     let len = u32::from_le_bytes(bytes[0..4].try_into()?) as usize;
     let body = bytes.get(4..4 + len).context("FodMsg truncated")?;
+    decode_fod_body(body)
+}
+
+/// Decode the JSON body alone — for a reader that has already consumed the length prefix.
+pub fn decode_fod_body(body: &[u8]) -> Result<FodMsg> {
     serde_json::from_slice(body).context("deserialize FodMsg")
 }
 

@@ -47,7 +47,7 @@ full-frame copy. Cost: one atomic refcount bump per frame (plus the existing clo
 
 ## Report schema
 
-`telemetry-server.json` uses `schema: "server-pipeline-v1"` with stages `prepare_us`,
+`telemetry-server.json` uses `schema: "server-pipeline-v2"` with stages `prepare_us`,
 `locate_us`, `send_us`, `serve_us`, `overhead_us` (µs). Refused paths export absent stages as `null`.
 
 Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (exact partition;

@@ -10,7 +10,6 @@ use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::stream_mode::StreamMode;
-use crate::transport::tls::load_pem_cert;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
@@ -44,11 +43,10 @@ pub struct ServeConfig {
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
-    let cert_pem = std::fs::read_to_string(&config.cert_pem)
-        .with_context(|| format!("read {}", config.cert_pem.display()))?;
-    let key_pem = std::fs::read_to_string(&config.key_pem)
-        .with_context(|| format!("read {}", config.key_pem.display()))?;
-    let cert = load_pem_cert(&cert_pem, &key_pem)?;
+    let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+        .await
+        .with_context(|| format!("load TLS identity from {}", config.cert_pem.display()))?;
+    let cert_sha256 = cert_sha256_hex(&identity)?;
 
     let (endpoint, bound) = build_endpoint(&config).await?;
 
@@ -64,7 +62,6 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     });
 
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
-    let cert_sha256 = cert.sha256_hex().to_string();
     println!("wt_url={wt_url}");
     println!("cert_sha256={cert_sha256}");
     println!("study={}", config.study_path.display());
@@ -95,6 +92,17 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
             }
         });
     }
+}
+
+/// Lower-case hex SHA-256 of the leaf certificate — the value a browser pins through
+/// `serverCertificateHashes`, printed in the banner for the harness and `dev-transport.json`.
+fn cert_sha256_hex(identity: &Identity) -> Result<String> {
+    let leaf = identity
+        .certificate_chain()
+        .as_slice()
+        .first()
+        .context("certificate PEM holds no certificate")?;
+    Ok(leaf.hash().as_ref().iter().map(|b| format!("{b:02x}")).collect())
 }
 
 /// Open the QUIC endpoint. Dual-stack any is the default; a host without an IPv6 stack refuses

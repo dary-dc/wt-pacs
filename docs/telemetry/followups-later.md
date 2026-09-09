@@ -32,12 +32,13 @@ the same win. **Do not redesign now.**
 then consider overlapping prefault with send (the only item that changes the serial pipeline story
 in the server ADR).
 
-| # | Change | Risk |
-| --- | --- | --- |
-| **P3** | One 8-byte header write instead of two 4-byte awaits | Low |
-| **P4** | Reap acks incrementally each send (`try_join_next`) | Low |
-| **P2** | Batch prefault for one `RequestFrames` (one `spawn_blocking`) | Low — measure |
-| **P1** | Overlap prefault(k+1) with send(k) | Medium — ADR story change |
+| # | Change | Risk | Status |
+| --- | --- | --- | --- |
+| **P0** | Codestream as a `Bytes` handle over the mapping, one `write_all_chunks` — no full-frame copy | Low | **on `cursor/l1-loss-run-dbae`** as `SendPath::Chunked` (default there); measured independently in [`../improvements/2026-09-06.md`](../improvements/2026-09-06.md) |
+| **P3** | One 8-byte header write instead of two 4-byte awaits | Low | covered by L1's chunked path (the header is one chunk) |
+| **P4** | Reap acks incrementally each send (`try_join_next`) | Low | **done 2026-09-06**, candidate for review |
+| **P2** | Batch prefault for one `RequestFrames` (one `spawn_blocking`) | Low — measure | disk track |
+| **P1** | Overlap prefault(k+1) with send(k) | Medium — ADR story change | disk track |
 
 P1 and P2 are alternatives, not a sequence. Full-frame `wrap()` copy is already gone.
 

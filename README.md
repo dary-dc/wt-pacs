@@ -35,6 +35,9 @@ Open in Chrome:
 Both speak the same wire (FoD on bidi control + envelope on server uni streams).
 The WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
 
+Open product/lab work outside the transport and disk lanes lives in
+[`docs/improvements/`](docs/improvements/README.md).
+
 
 ## Transport performance
 
