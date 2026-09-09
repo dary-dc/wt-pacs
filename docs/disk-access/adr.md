@@ -146,9 +146,11 @@ sequential streaming, **B** both.
 after most of these rows were taken: the fast path against the pool fallback, "a hit must
 never touch a ring", and mmap's co-tenant freeze all reproduce; the **ring against the pool
 on the miss path resolves only at depth 16** on that host, which is P0's question and why
-that row says *conditional*. [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §20, with
-[`x17_arms.tsv`](x17_arms.tsv), [`x17_depth.tsv`](x17_depth.tsv) and
-[`x17_mmap.tsv`](x17_mmap.tsv).
+that row says *conditional*. **And it is size-dependent as well as depth-dependent**: at
+250 kB cold the pool beats the ring at both depths, so P0 must run both frame sizes.
+[`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §20, with [`x17_arms.tsv`](x17_arms.tsv),
+[`x17_depth.tsv`](x17_depth.tsv), [`x17_mmap.tsv`](x17_mmap.tsv),
+[`x18_sizes.tsv`](x18_sizes.tsv) and [`x18_mmap.tsv`](x18_mmap.tsv).
 
 | Candidate | Serves | Latency | Scale: threads · fds · CPU per miss | Simplicity · risk | Verdict |
 | --- | --- | --- | --- | --- | --- |

@@ -20,3 +20,15 @@ and sign counts are what these files establish; magnitudes are this host's.
 
 x17_confirm.tsv  the same arms repeated at 44781fb, after P1 and P7
                  landed (4d6b1ce), 8 repeats. No verdict moves — §20.4.
+
+x18_sizes.tsv  read_campaign, both frame sizes: 16 KiB over frames_16k_big (84 MB) strided
+               250 kB, and 250 kB over frames_250k_big (512 MB) strided 2 MB. Five arms,
+               warm and cold, depths 1 and 4, 8 repeats, monitors on.
+x18_mmap.tsv   disk-access-bench over the same two studies, forward and random traces, warm
+               and cold, 7 repeats, --chunk 16384, --runtime multi. First column is the
+               frame size, prefixed by the runner.
+
+Cold thresholds, measured on this host (read_ahead_kb 8192):
+  16 KiB asks   stride 16 kB -> 1.6 % misses; stride 262 kB -> 100 %
+  250 kB asks   stride 250 kB -> 2.3 % misses; stride 500 kB -> 97.7 %; 2 MB -> 99.2 %
+A contiguous stride is a hit cell wearing a cold label at both sizes (§14.4, §16.2a).
