@@ -3,7 +3,8 @@
 **2026-09-08 · Proposed. 2026-09-09 · §13 landed; §15 is the plan to fix it, §16 the review
 of that plan as applied and the first product-level numbers, §17 the proposals §16 left
 open, §18 those proposals as code an implementer can apply, §19 the verification against
-`580e312` — it works, and it optimises at client depth 4.** Assembled
+`580e312` — it works, and it optimises at client depth 4 — and §20 the alternatives (the
+other rings, the pool, mmap) re-measured against the code that ships.** Assembled
 from what was agreed on the day. Steps 0–2 and the four §13 commits (W = 4, planner, thin
 ring) are in the tree ([`HANDOFF.md`](HANDOFF.md) §1) — **unmeasured**: §13.2's A/B gate was
 never run, and §15.1 has what a mutation pass found. §9 records why the loop and W are not
@@ -2366,9 +2367,9 @@ to spare and does not depend on the sample size.
 
 * **Magnitudes.** ~7 k asks/s here against ~50 k on the workstation. Every number above is a
   direction with a sign count; the percentages are the sandbox's.
-* **That the planner named four frames.** `cold_d4` shows it by its cost. Nothing reports it
-  directly, because §18's P1 is not on the branch — which is P1's whole argument, and the
-  reason to land it before this run is repeated on the workstation.
+* ~~**That the planner named four frames.**~~ **Closed** — §18's P1 landed as `4d6b1ce`, and
+  the session line now says it outright (§20.4). `cold_d4` showed it by its cost; it is an
+  observable now.
 * **The default link.** §9.4's throttled cell (20 Mbps, 50 ms, 1 % loss) is still unrun, and
   §9.1's arithmetic says the loop and W will tie there. The +20.7 % at depth 4 is a
   loopback number; on wireless the wire is three orders of magnitude larger than the read.
@@ -2387,3 +2388,145 @@ to spare and does not depend on the sample size.
 | warm does not regress | **verified**; the `+17 %` CPU that §15.5 was built around is not reproduced |
 | the cost is 32 KiB per session | **corrected** — +39 to +49 KiB measured |
 | `server_ab.sh` is a usable gate | **now**; it was not, and §19.5 is why |
+
+## 20 · The alternatives, re-measured on the code that ships
+
+**2026-09-09.** Asked after §19: *does this prove the approach superior to the other rings, and
+to mmap?* **§19 does not, and cannot.** §19 compared the branch with `580e312` — the same
+mechanism in a different shape — and answers "did the rewrite cost anything, and did W = 4 buy
+anything". Arm-versus-arm superiority is a different question, settled in [`adr.md`](adr.md) §5
+and [`EVIDENCE.md`](EVIDENCE.md) on the **pre-§13 shape**. Since §13 reshaped the code, those
+verdicts were inherited, not re-checked.
+
+So they were re-checked. `read_campaign`'s `product` arm is the shipped `ReadCtx` itself, so
+this is the alternatives against the code that ships, today.
+[`x17_arms.tsv`](x17_arms.tsv), [`x17_depth.tsv`](x17_depth.tsv),
+[`x17_mmap.tsv`](x17_mmap.tsv), [`x17_host.txt`](x17_host.txt).
+
+### 20.1 · Against the other ring shapes and the pool
+
+12 repeats, 16 KiB, stride 250 kB, depths 1 and 4, warm and cold, arm order rotated per repeat,
+paired under the campaign's rule (|median| ≥ 28.5 %, signs ≥ 0.8n). Negative favours the
+shipped path.
+
+| shipped `product` against | hits, depth 1 | hits, depth 4 | misses, by depth (CPU/ask) |
+| --- | --- | --- | --- |
+| **`pooled_pread`** — every read on the blocking pool | **−93.2 %, 12/12 RESOLVED** | **−92.6 %, 12/12 RESOLVED** | −19.7 % · **−29.6 % RESOLVED** · **−37.7 % RESOLVED** |
+| **`uring`** — every read through the ring | **−33.0 %, 11/12 RESOLVED** | **−89.9 %, 12/12 RESOLVED** | −3.4 % · **+38.0 % RESOLVED** · **+86.6 % RESOLVED** |
+| **`pool`** — `RWF_NOWAIT` inline, pool on the miss | −2.5 %, 8/12 tie | +9.4 %, 10/12 tie | +24.0 % · −20.3 % · **−29.8 %, 10/10 RESOLVED** |
+| **`hybrid_lazyring`** — the lab's model of what ships | +3.9 %, 7/12 tie | +21.7 %, 11/12 tie | tie at every depth |
+
+Miss columns are depth 1 · 4 · 16 from [`x17_depth.tsv`](x17_depth.tsv), 10 repeats, cold.
+Medians behind the percentages, warm depth 4: `product` 2.2 µs p50, `pool` 2.0, `uring` 22.1,
+`pooled_pread` 30.3.
+
+Three things follow, and only the first is new.
+
+**The `RWF_NOWAIT` fast path is worth what the ADR says.** Against `pooled_pread` — the escape
+hatch that ships if P0 goes the other way — the shipped path is **93 % faster on a hit, 12/12,
+at both depths**, and better on misses from depth 4. That is the largest single margin in the
+tree and it is not close.
+
+**A hit must never touch a ring, and the cost of getting that wrong grows with depth.**
+`uring` is 33 % worse on hits at depth 1 and **90 % worse at depth 4** — 22.1 µs against 2.2.
+It is genuinely *better* on CPU per miss (+38 % at depth 4, +87 % at 16), which is why it stays
+as a lab flag: on a workload that never hits it would be the right arm. Real ones hit, which is
+what `miss_rate=` in the session line exists to check.
+
+**Against `pool`, the ring is still only conditionally better — and this host says so.** Hits
+tie, as they must (the same inline `preadv2`); the miss margin is +24 % at depth 1, −20 % at 4,
+and resolves only at **depth 16 (−29.8 %, 10/10)**. `adr.md` §5 claims −56 / −70 / −75 % at
+depth 1 / 4 / 16 from the campaign hosts. **The shape reproduces; the magnitude does not.**
+§16.4 found the same thing end to end — ring against pool tied on latency through the product
+server. This is exactly the question [`NEXT.md`](NEXT.md) §3's **P0** exists to settle on the
+production volume, where a miss costs ~1 ms rather than 65 µs, and it is why `adr.md` says
+*Accepted — conditional on P0* rather than Accepted. Nothing here changes that status.
+
+### 20.2 · Against mmap
+
+`disk-access-bench` still carries every mmap arm. It has no arm that is today's `ReadCtx`; its
+`pread_nowait_chunked` is the 2026-09-07 shape of the same mechanism — inline `RWF_NOWAIT`,
+escalate the shortfall — and that is the bridge between the two harnesses. **Stated as an
+assumption**, because it is one.
+
+Multi-thread runtime, forward trace, 16 KiB, 9 repeats, co-tenant monitor on. `gap_max` is what
+a co-tenant task waited while a worker was busy — the column mmap is rejected on:
+
+| arm | warm p50 | warm gap max | cold p50 | **cold gap max** |
+| --- | --- | --- | --- | --- |
+| **`pread_nowait_chunked`** — the shipped mechanism | 3.5 µs | 93 µs | 3.1 µs | **289 µs** |
+| `uring_nowait_whole` | 3.5 µs | 252 µs | 3.1 µs | 282 µs |
+| `mmap_naive` | **2.1 µs** | 78 µs | **1.9 µs** | **2 095 µs** |
+| `mmap_hybrid_mincore` | 2.8 µs | 74 µs | 2.7 µs | 164 µs |
+| `mmap_touch_in_place` | 19.5 µs | 656 µs | 19.3 µs | 654 µs |
+| `mmap_populate_read` | 37.2 µs | 150 µs | 32.9 µs | 193 µs |
+| `mmap_blocking_touch` | 34.5 µs | 134 µs | 34.8 µs | 198 µs |
+| `pread_blocking_pooled` | 31.7 µs | 151 µs | 35.0 µs | 192 µs |
+
+**mmap is faster than the shipped path on the frame being read, and that is not the trade.**
+`mmap_naive` is 2.1 µs against 3.5 warm and 1.9 against 3.1 cold — genuinely quicker, because
+there is no copy. Then a page is missing, the executor thread faults, and **every co-tenant on
+that worker waits 2.1 ms**: `gap_max` 2 095 µs against the shipped path's 289. That is
+`adr.md` §5's *"faults freeze co-tenants: gap_max 1.5–4.2 ms"*, reproduced on this host, on
+today's tree, at 2.1 ms. A PACS server is co-tenanted by construction — one runtime, many
+sessions — so a 2 ms freeze charged to whichever session happens to share the worker is not a
+latency profile anyone can reason about.
+
+Every mmap arm that makes the fault **safe** pays for it: `blocking_touch` and `populate_read`
+move the fault to the pool and land at 33–37 µs, ten times the shipped path;
+`touch_in_place` keeps it on the worker via `block_in_place` and has the worst tail of anything
+measured (p99 538 µs warm, `gap_max` 656 µs). `mmap_hybrid_mincore` looks fine in this table
+and is rejected on a ground this run does not test: residency is not a lease, so a page
+`mincore` calls resident can be evicted before the touch — `adr.md` records it unsafe under
+memory pressure in 5 of 5 runs. **That rejection is structural and stands independently of
+these numbers.**
+
+### 20.3 · What this establishes, and what it does not
+
+| claim | status |
+| --- | --- |
+| the shipped path beats the always-pool fallback | **RESOLVED**, −93 % on hits, 12/12, both depths |
+| a hit must not go through a ring | **RESOLVED**, `uring` −33 % / −90 % on hits at depth 1 / 4 |
+| `uring` is better on CPU per miss at depth | **RESOLVED** — and irrelevant while workloads hit; it stays a lab flag |
+| the ring beats the pool on the miss path | **shape reproduced, magnitude not**: resolves at depth 16 only, on this host. **P0's question, unchanged** |
+| mmap freezes co-tenants | **reproduced**: `gap_max` 2 095 µs cold against 289 µs |
+| safe mmap is 10× slower | **reproduced**: 33–37 µs against 3.1–3.5 µs |
+| `mmap + mincore` is unsafe under pressure | **not tested here** — structural, from `adr.md`; this run has no memory pressure |
+| the §13 rewrite preserved any of this | **inferred**, not measured per arm: §19.2 shows today's read path ties `580e312`'s, and `product` ties `hybrid_lazyring` here |
+
+And the standing caveat: 4 cores, ~7 k asks/s against ~50 k on the workstation. Directions and
+sign counts are what these files establish. **The one verdict that would move on a better host
+is the ring against the pool — which is the one already marked conditional.**
+
+### 20.4 · Confirmed after P1 and P7 landed, and the mechanism read off the wire
+
+The runs above were taken at `4239f5a`, before §18's **P1** (the session line reports the
+planner's reach) and **P7** (`wanted` on the stack) landed as `4d6b1ce`. Both change `read`
+on the hit path, so the arm comparison was repeated on the merged tree, 8 repeats, same cells:
+
+| shipped `product` against | hits, depth 1 | hits, depth 4 | verdict |
+| --- | --- | --- | --- |
+| `pooled_pread` | −83.4 %, 8/8 | −86.6 %, 8/8 | RESOLVED, unchanged |
+| `uring` | −76.0 %, 8/8 | −86.7 %, 8/8 | RESOLVED, unchanged |
+| `pool` | +6.3 %, 7/8 | +1.3 %, 6/8 | tie, unchanged |
+| `hybrid_lazyring` | +7.6 %, 6/8 | +18.2 %, 7/8 | tie, unchanged |
+
+**No verdict moves.** Magnitudes shift inside this host's noise; the margins that resolve are
+an order of magnitude clear of the rule, which is why they survive a change to `read`.
+
+P1 also closes the one mechanism claim §19 could only infer. Cold 16 KiB tiles, strided,
+through the product server, reading the session line rather than the clock:
+
+| what the client did | `session reads` |
+| --- | --- |
+| depth 1 | `miss_rate=0.996 named=1 in_flight=1 ring=true` |
+| depth 2 | `miss_rate=0.992 named=2 in_flight=2 ring=true` |
+| **depth 4** | `miss_rate=0.996 **named=4 in_flight=4** ring=true` |
+| **one `StreamFrames {}`** | `miss_rate=0.009 **named=2 in_flight=2** ring=true fills=1` |
+
+`named` tracks client depth to `WINDOWS`, `in_flight` with it — **four device reads
+outstanding at client depth 4**, which is what §19.3's −19.1 % p50 and −28.0 % CPU were
+paying for. And the fill row is §9.3's decision as a fact rather than an inference:
+`FILL_AHEAD = 1`, so a fill uses **two** windows however wide W is. *Tiles widen, fill does
+not* — no longer argued, reported.
+
