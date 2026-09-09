@@ -142,6 +142,14 @@ says otherwise; "tie" is the campaign's rule (median under the resolution thresh
 at chance), and it is a real answer. Serves: **T** tiles (positional, out of order), **S**
 sequential streaming, **B** both.
 
+**Re-measured 2026-09-09 against the code that ships**, because the read path was reshaped
+after most of these rows were taken: the fast path against the pool fallback, "a hit must
+never touch a ring", and mmap's co-tenant freeze all reproduce; the **ring against the pool
+on the miss path resolves only at depth 16** on that host, which is P0's question and why
+that row says *conditional*. [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §20, with
+[`x17_arms.tsv`](x17_arms.tsv), [`x17_depth.tsv`](x17_depth.tsv) and
+[`x17_mmap.tsv`](x17_mmap.tsv).
+
 | Candidate | Serves | Latency | Scale: threads · fds · CPU per miss | Simplicity · risk | Verdict |
 | --- | --- | --- | --- | --- | --- |
 | **`RWF_NOWAIT` inline for hits, 64 KiB windows** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
