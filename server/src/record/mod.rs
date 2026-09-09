@@ -13,6 +13,11 @@ mod sink;
 #[cfg(feature = "telemetry")]
 pub mod tap;
 
+/// Loss-regime sampling. Separate from `tap`: a row per second to leave on in
+/// production, against `tap`'s row per frame for development.
+#[cfg(feature = "telemetry")]
+pub mod path;
+
 #[cfg(feature = "telemetry")]
 pub use report::write_report_from_rows;
 #[cfg(feature = "telemetry")]

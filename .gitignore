@@ -33,6 +33,9 @@ lab/fixtures/frames_250k_deep/*.sbnd
 lab/fixtures/frames_16k_deep/*.sbnd
 lab/fixtures/frames_16k_seq/*.sbnd
 lab/fixtures/frames_250k_big/*.sbnd
+# Large lab fixture, regenerate with the snippet in its README
+lab/fixtures/frames_500x64k/*.sbnd
+lab/fixtures/frames_500x250k/*.sbnd
 
 # Python bytecode from lab analysis scripts
 __pycache__/

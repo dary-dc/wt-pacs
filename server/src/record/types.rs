@@ -20,4 +20,3 @@ pub enum WriteOutcome {
 pub enum Refusal {
     NotFound = 0,
 }
-

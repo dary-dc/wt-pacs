@@ -7,7 +7,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SERVER="${SERVER:-ubuntu@168.138.130.163}"
-KEY="${KEY:-$HOME/.ssh/id_ed25519}"
+# The bare id_ed25519 fallback is NOT the rig key any more; default to the agent key
+# docs/cloud-rig-access.md names, and honour SSH_KEY as cloud_common.sh does.
+KEY="${KEY:-${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}}"
 SSH=(ssh -i "$KEY" -o BatchMode=yes "$SERVER")
 SCP=(scp -i "$KEY")
 PORT="${CLOUD_PORT:-4435}"
@@ -43,6 +45,7 @@ chmod +x "$REMOTE/bin/exact-server"
 > /tmp/wt-pacs-exact.log
 setsid env RUST_LOG=info nohup "$REMOTE/bin/exact-server" \
   --port "$PORT" \
+  --stream-mode "${STREAM_MODE:-per-frame}" \
   --study "$REMOTE/fixtures/frames_250k_live.sbnd" \
   --cert-pem "$REMOTE/cert/cert.pem" \
   --key-pem "$REMOTE/cert/key.pem" \

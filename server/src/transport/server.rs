@@ -6,7 +6,7 @@ use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{Ask, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
-use crate::transport::tls::load_pem_cert;
+use crate::transport::tuning::TransportTuning;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{anyhow, Context, Result};
 use fod::FodMsg;
@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
-use wtransport::config::{states, IpBindConfig, QuicTransportConfig, ServerConfigBuilder};
+use wtransport::config::{states, IpBindConfig, ServerConfigBuilder};
 use wtransport::endpoint::endpoint_side;
 use wtransport::stream::RecvStream;
 use wtransport::{Endpoint, Identity, ServerConfig};
@@ -34,46 +34,15 @@ pub struct ServeConfig {
     pub mode: StreamMode,
     /// `None` binds dual-stack `[::]`, falling back to `0.0.0.0` where there is no IPv6.
     pub bind: Option<IpAddr>,
-    /// Each `None` keeps the library default.
-    pub transport: TransportKnobs,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct TransportKnobs {
-    pub send_window_bytes: Option<u64>,
-    pub stream_receive_window_bytes: Option<u32>,
-    pub max_idle_timeout_ms: Option<u64>,
-}
-
-impl TransportKnobs {
-    pub fn is_default(&self) -> bool {
-        *self == Self::default()
-    }
-
-    pub fn describe(&self) -> String {
-        if self.is_default() {
-            return "default".to_string();
-        }
-        let mut parts = Vec::new();
-        if let Some(v) = self.send_window_bytes {
-            parts.push(format!("send_window={v}"));
-        }
-        if let Some(v) = self.stream_receive_window_bytes {
-            parts.push(format!("stream_receive_window={v}"));
-        }
-        if let Some(v) = self.max_idle_timeout_ms {
-            parts.push(format!("max_idle_timeout_ms={v}"));
-        }
-        parts.join(",")
-    }
+    /// QUIC transport knobs. Unset fields keep the library default.
+    pub tuning: TransportTuning,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
-    let cert_pem = std::fs::read_to_string(&config.cert_pem)
-        .with_context(|| format!("read {}", config.cert_pem.display()))?;
-    let key_pem = std::fs::read_to_string(&config.key_pem)
-        .with_context(|| format!("read {}", config.key_pem.display()))?;
-    let cert = load_pem_cert(&cert_pem, &key_pem)?;
+    let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+        .await
+        .with_context(|| format!("load TLS identity from {}", config.cert_pem.display()))?;
+    let cert_sha256 = cert_sha256_hex(&identity)?;
 
     let (endpoint, bound) = build_endpoint(&config).await?;
 
@@ -87,7 +56,6 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     });
 
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
-    let cert_sha256 = cert.sha256_hex().to_string();
     println!("wt_url={wt_url}");
     println!("cert_sha256={cert_sha256}");
     println!("study={}", config.study_path.display());
@@ -96,7 +64,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
     println!("bind={bound}");
-    println!("transport={}", config.transport.describe());
+    println!("transport={}", config.tuning.describe());
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
     #[cfg(not(feature = "telemetry"))]
@@ -118,6 +86,22 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
             }
         });
     }
+}
+
+/// Lower-case hex SHA-256 of the leaf certificate — the value a browser pins through
+/// `serverCertificateHashes`, printed in the banner for the harness and `dev-transport.json`.
+fn cert_sha256_hex(identity: &Identity) -> Result<String> {
+    let leaf = identity
+        .certificate_chain()
+        .as_slice()
+        .first()
+        .context("certificate PEM holds no certificate")?;
+    Ok(leaf
+        .hash()
+        .as_ref()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect())
 }
 
 /// Warns where the fast path is absent: the fallback is correct and ~2.5x slower per frame.
@@ -144,20 +128,14 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
     fn finish(
         builder: ServerConfigBuilder<states::WantsIdentity>,
         identity: Identity,
-        knobs: TransportKnobs,
+        tuning: &TransportTuning,
     ) -> Result<ServerConfig> {
-        if knobs.is_default() {
+        if tuning.quic_is_library_default() {
             return Ok(builder.with_identity(identity).build());
         }
-        let mut transport = QuicTransportConfig::default();
-        if let Some(v) = knobs.send_window_bytes {
-            transport.send_window(v);
-        }
-        if let Some(v) = knobs.stream_receive_window_bytes {
-            transport.stream_receive_window(v.into());
-        }
+        let transport = tuning.to_transport_config()?;
         let mut builder = builder.with_custom_transport(identity, transport);
-        if let Some(ms) = knobs.max_idle_timeout_ms {
+        if let Some(ms) = tuning.max_idle_timeout_ms {
             builder = builder
                 .max_idle_timeout(Some(Duration::from_millis(ms)))
                 .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
@@ -165,13 +143,11 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
         Ok(builder.build())
     }
 
-    let knobs = config.transport;
-
     if let Some(ip) = config.bind {
         let server_config = finish(
             ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
             identity(config).await?,
-            knobs,
+            &config.tuning,
         )?;
         let endpoint = Endpoint::server(server_config)
             .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
@@ -181,7 +157,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
     let dual = finish(
         ServerConfig::builder().with_bind_default(config.wt_port),
         identity(config).await?,
-        knobs,
+        &config.tuning,
     )?;
     match Endpoint::server(dual) {
         Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
@@ -190,7 +166,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
             let v4 = finish(
                 ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
                 identity(config).await?,
-                knobs,
+                &config.tuning,
             )?;
             let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
             Ok((
@@ -208,6 +184,9 @@ async fn handle_incoming(
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     let connection = session_request.accept().await.context("accept session")?;
+
+    #[cfg(feature = "telemetry")]
+    tokio::spawn(crate::record::path::run(connection.clone()));
 
     let (control_send, control_recv) = connection
         .accept_bi()
@@ -571,7 +550,7 @@ mod tests {
             key_pem,
             mode: StreamMode::Shared,
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-            transport: TransportKnobs::default(),
+            tuning: TransportTuning::default(),
         }));
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()

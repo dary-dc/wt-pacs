@@ -5,7 +5,6 @@ members = [
     "ingest/study-bundle",
     "server",
     "client/transport-wasm",
-    "client/flight-registry",
     "tools/pack-study",
     "tools/check-fastpath",
     "lab/disk-access-bench",

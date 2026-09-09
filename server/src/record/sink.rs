@@ -7,7 +7,9 @@
 //! written when the last session's `Tap` drops (normal end) or when [`flush_on_exit`] is called
 //! from the signal handler; it is exact from the row file when the rows fit the inline cap.
 
-use super::report::{final_report, progress_report, LiveSummary, TelemetryReport, INLINE_CAP_DEFAULT};
+use super::report::{
+    final_report, progress_report, LiveSummary, TelemetryReport, INLINE_CAP_DEFAULT,
+};
 use super::rows;
 use super::tap::{env_u64, Batch, BATCH, RING_CAP};
 use std::fs::File;

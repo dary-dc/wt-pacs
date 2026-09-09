@@ -437,7 +437,9 @@ pub(super) fn final_report(
         if live.frames <= inline_cap {
             match exact_report_from_rows(path, true) {
                 Ok(report) => return report,
-                Err(err) => tracing::warn!(%err, "telemetry: exact report from rows failed; using live summary"),
+                Err(err) => {
+                    tracing::warn!(%err, "telemetry: exact report from rows failed; using live summary")
+                }
             }
         }
     }
@@ -447,7 +449,10 @@ pub(super) fn final_report(
 }
 
 /// Exact report from a row file. Frames are inlined only when asked (`inline`).
-pub(super) fn exact_report_from_rows(rows_path: &Path, inline: bool) -> std::io::Result<TelemetryReport> {
+pub(super) fn exact_report_from_rows(
+    rows_path: &Path,
+    inline: bool,
+) -> std::io::Result<TelemetryReport> {
     let mut frames: Vec<FrameRecord> = Vec::new();
     let mut sessions: Vec<SessionRecord> = Vec::new();
     let mut acc = RunAccumulator::default();
@@ -512,7 +517,19 @@ mod tests {
 
     #[test]
     fn hist_bucket_low_never_exceeds_value() {
-        for v in [0u32, 1, 1023, 1024, 1025, 2047, 2048, 4095, 65_537, 1_000_000, u32::MAX] {
+        for v in [
+            0u32,
+            1,
+            1023,
+            1024,
+            1025,
+            2047,
+            2048,
+            4095,
+            65_537,
+            1_000_000,
+            u32::MAX,
+        ] {
             let b = Hist::bucket(v);
             let low = Hist::bucket_low(b);
             assert!(low <= v, "v={v} low={low}");
@@ -548,7 +565,11 @@ mod tests {
         assert_eq!(hd.total, exact.total);
         assert_eq!(hd.min, exact.min);
         assert_eq!(hd.max, exact.max);
-        for (e, hv) in [(exact.p50, hd.p50), (exact.p95, hd.p95), (exact.p99, hd.p99)] {
+        for (e, hv) in [
+            (exact.p50, hd.p50),
+            (exact.p95, hd.p95),
+            (exact.p99, hd.p99),
+        ] {
             assert!(hv <= e, "hist never above exact");
             assert!((e - hv) / e <= 1.0 / 1024.0 + 1e-9, "exact={e} hist={hv}");
         }

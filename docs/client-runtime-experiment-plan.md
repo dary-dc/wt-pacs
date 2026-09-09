@@ -1,6 +1,6 @@
 # Plan: WASM vs TypeScript client, same wire
 
-**For:** wt-pacs implementer · 2026-08-29 · **Status:** planned — wire preconditions landed on this branch; still blocked on stream-mode remediation (§0) and shaped cells for N6
+**For:** wt-pacs implementer · 2026-08-29 · **Status:** N6 ran 2026-09-06 (PR #13). Full tree on tag `archive/n6-wasm-vs-ts-2026-09`; pointer [`measurements/n6/ARCHIVE.md`](measurements/n6/ARCHIVE.md). `deliver_us` figures are pre–W1/W2.
 
 One question: **what does the WASM/JS boundary cost on the receive path?** Both clients in this repo
 talk to the same server over the same wire, so the transport is held constant and the runtime is the
@@ -26,7 +26,7 @@ Current experiment state, so this plan is not read as jumping the queue.
 | **X2** lossless mode comparison | **has data**, but the 18.2% gap at 150 ms RTT is **unexplained** |
 | **X3** loss decider | **INVALID.** Unequal depths (shared `D_min` 2, per-frame 8, both run at `D=4`), a control that failed unnoticed (92% gap at **zero** loss), an overridden stop gate, p95 over ~4 tail samples, and an unexplained `mild_cell` timeout |
 | Copy-cost knee sweep | **not started** (see [`WIRE.md`](WIRE.md) § Server send path) |
-| **This plan (N6)** | preconditions P1–P3 landed on branch; still blocked on §0 remediation + shaped campaign |
+| **This plan (N6)** | **ran** 2026-09-06 — archive [`measurements/n6/ARCHIVE.md`](measurements/n6/ARCHIVE.md); do not quote `deliver_us` as current |
 
 **Do this first, before N6** — see [`stream-mode-remediation.md`](stream-mode-remediation.md):
 
@@ -82,8 +82,8 @@ State this now so a null result is informative and a large result is checked rat
 **P4** is also fixed (WASM `RecvBuf` receive path). The §1 shell exists as
 `client/harness/shell.js` (one implementation, both arms: on-demand at depth `D`, fill, lab
 traces with pacing, bytes touched, session closed at `run_end`), driven by
-`server/scripts/verify_e2e.py --telemetry`. N6 is no longer blocked on client wire, telemetry
-plumbing, or the shell — it is blocked on §0 stream-mode remediation and a shaped link cell.
+`server/scripts/verify_e2e.py --telemetry`. N6 ran on 2026-09-06 (PR #13); the campaign
+tree is archived — [`measurements/n6/ARCHIVE.md`](measurements/n6/ARCHIVE.md).
 
 | | status |
 | --- | --- |

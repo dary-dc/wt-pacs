@@ -1,7 +1,10 @@
 use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
-use window_harness::{peak_outstanding, run_depth_sweep, run_harness, HarnessMode, RunConfig, StreamMode, TraceSpec};
+use window_harness::{
+    peak_outstanding, run_depth_sweep, run_harness, run_stall_client, HarnessMode, ReaderMode,
+    RunConfig, StallConfig, StreamMode, TraceSpec, WindowShape,
+};
 
 #[derive(Parser)]
 #[command(name = "window-harness")]
@@ -23,7 +26,8 @@ struct Args {
     /// Stationary dwell for fill_rate / link_util (ms).
     #[arg(long, default_value_t = 2000)]
     fill_dwell_ms: u64,
-    /// trace | saturate
+    /// trace | saturate | stall. `stall` is the pathological client — the only mode that
+    /// reaches the flow-control ceilings, and it emits `StallOutcome`, not `HarnessMetrics`.
     #[arg(long, default_value = "trace")]
     mode: String,
     /// E2 warm-cache control: prefetch before settle.
@@ -37,6 +41,45 @@ struct Args {
     /// Must match the server's `--stream-mode`.
     #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
     stream_mode: StreamMode,
+    /// Local bind IP. Omit for wtransport's dual-stack default (what L1 used);
+    /// pass `0.0.0.0` on hosts without an IPv6 stack.
+    #[arg(long)]
+    bind: Option<std::net::IpAddr>,
+    /// Client display-cache capacity in frames. 0 = unbounded (the old behaviour).
+    #[arg(long, default_value_t = 0)]
+    cache_frames: usize,
+    /// `closed` waits for each frame (every campaign before R6), `open` advances on the
+    /// trace clock. No stream-shape result from `closed` is admissible.
+    #[arg(long, value_enum, default_value_t = ReaderMode::Closed)]
+    reader_mode: ReaderMode,
+    /// Open-loop only: grace period after the last step before unmet wants are censored.
+    #[arg(long, default_value_t = 3_000)]
+    drain_ms: u64,
+    /// Multiplier on the trace's step interval. >1 slows the reader, <1 speeds it up.
+    /// Set the reader's demand against the rate the link can *achieve*, not its label.
+    #[arg(long, default_value_t = 1.0)]
+    step_scale: f64,
+
+    /// Window shape around the cursor. Use `forward` for one-way traces.
+    #[arg(long, value_enum, default_value_t = WindowShape::Symmetric)]
+    window_shape: WindowShape,
+    /// Override the trace step interval (ms).
+    #[arg(long)]
+    step_interval_ms: Option<u64>,
+    /// Optional QUIC per-stream receive window (bytes). Diagnostic / equalisation.
+    #[arg(long)]
+    stream_recv_window: Option<u64>,
+
+    /// `stall` mode: stop reading this long after the first byte arrives.
+    #[arg(long, default_value_t = 3_000)]
+    stall_after_ms: u64,
+    /// `stall` mode: asks before the stall. Must commit the server to more bytes than the
+    /// ceiling under test — at 64 KB frames quinn's 10 MB `send_window` needs ~160.
+    #[arg(long, default_value_t = 300)]
+    stall_asks: u32,
+    /// `stall` mode: hold the connection open and unread this long after stalling.
+    #[arg(long, default_value_t = 30_000)]
+    stall_hold_ms: u64,
 
     /// Run depths serially in one process (comma-separated, e.g. 1,2,3,4,5,6,7,8).
     #[arg(long)]
@@ -48,11 +91,14 @@ struct Args {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    let stall_mode = args.mode.eq_ignore_ascii_case("stall");
     let mode = match args.mode.to_ascii_lowercase().as_str() {
         "saturate" => HarnessMode::Saturate,
         _ => HarnessMode::Trace,
     };
     let trace = match (&mode, &args.trace) {
+        // `stall` never replays a trace: it asks a flat run of frames and then stops.
+        _ if stall_mode => None,
         (HarnessMode::Trace, Some(p)) => Some(TraceSpec::load(p).context("load trace")?),
         (HarnessMode::Trace, None) => anyhow::bail!("--trace required in trace mode"),
         (HarnessMode::Saturate, _) => None,
@@ -78,7 +124,41 @@ async fn main() -> anyhow::Result<()> {
         warm_cache: args.warm_cache,
         rtt_ms: args.rtt_ms,
         stream_mode: args.stream_mode,
+        window_shape: args.window_shape,
+        step_interval_ms: args.step_interval_ms,
+        stream_recv_window: args.stream_recv_window,
+        bind_ip: args.bind,
+        cache_frames: args.cache_frames,
+        reader_mode: args.reader_mode,
+        drain_ms: args.drain_ms,
+        step_scale: args.step_scale,
     };
+    if stall_mode {
+        let stall = StallConfig {
+            stall_after_ms: args.stall_after_ms,
+            asks: args.stall_asks,
+            hold_ms: args.stall_hold_ms,
+        };
+        let out = run_stall_client(&cfg, &stall, &args.arm).await?;
+        if args.json {
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        } else {
+            println!("arm={}", out.arm);
+            println!("stream_mode={}", out.stream_mode);
+            println!("stall_after_ms={}", out.stall_after_ms);
+            println!("hold_ms={}", out.hold_ms);
+            println!("asks_requested={}", out.asks_requested);
+            println!("asks_sent={}", out.asks_sent);
+            println!("bytes_read={}", out.bytes_read);
+            println!("stall_engaged={}", out.stall_engaged);
+            println!("uni_streams_opened={}", out.uni_streams_opened);
+            println!("connection_alive_at_end={}", out.connection_alive_at_end);
+            println!("close_reason={}", out.close_reason);
+            println!("elapsed_ms={:.2}", out.elapsed_ms);
+        }
+        return Ok(());
+    }
+
     if let Some(sweep) = &args.depth_sweep {
         let depths: Vec<u32> = sweep
             .split(',')
@@ -93,7 +173,11 @@ async fn main() -> anyhow::Result<()> {
             for m in &results {
                 println!(
                     "depth={} peak_outstanding={} mean={:.2} p95={:.2} waits={}",
-                    m.depth, m.peak_outstanding, m.mean_wait_ms, m.p95_wait_ms, m.wait_ms.len()
+                    m.depth,
+                    m.peak_outstanding,
+                    m.mean_wait_ms,
+                    m.p95_wait_ms,
+                    m.wait_ms.len()
                 );
             }
         }
@@ -113,6 +197,11 @@ async fn main() -> anyhow::Result<()> {
         println!("recovered_ms={:.2}", m.recovered_ms);
         println!("mean_wait_ms={:.2}", m.mean_wait_ms);
         println!("p95_wait_ms={:.2}", m.p95_wait_ms);
+        println!("miss_mean_wait_ms={:.2}", m.miss_mean_wait_ms);
+        println!("miss_p95_wait_ms={:.2}", m.miss_p95_wait_ms);
+        println!("cache_hits={}", m.cache_hits);
+        println!("cache_misses={}", m.cache_misses);
+        println!("cache_hit_rate={:.4}", m.cache_hit_rate);
         println!("wait_samples={}", m.wait_samples);
         println!("fill_rate={:.2}", m.fill_rate);
         println!("link_util={:.4}", m.link_util);
@@ -122,6 +211,21 @@ async fn main() -> anyhow::Result<()> {
         println!("wanted_received={}", m.wanted_received);
         println!("warm_cache={}", m.warm_cache);
         println!("rtt_ms={}", m.rtt_ms);
+        println!("step_loop_ms={:.2}", m.step_loop_ms);
+        println!("wait_h1_median_ms={:.2}", m.wait_h1_median_ms);
+        println!("wait_h2_median_ms={:.2}", m.wait_h2_median_ms);
+        println!("link_util_measured={:.4}", m.link_util_measured);
+        println!("late_mean_ms={:.2}", m.late_mean_ms);
+        println!("late_p95_ms={:.2}", m.late_p95_ms);
+        println!("late_max_ms={:.2}", m.late_max_ms);
+        println!("on_time_rate={:.4}", m.on_time_rate);
+        println!("reader_mode={}", m.reader_mode);
+        println!("reader_lag_ms={:.2}", m.reader_lag_ms);
+        println!("censored_waits={}", m.censored_waits);
+        println!("censored_frac={:.4}", m.censored_frac);
+        println!("stranded_frames={}", m.stranded_frames);
+        println!("stranded_bytes={}", m.stranded_bytes);
+        println!("center_asks_dropped={}", m.center_asks_dropped);
     }
     Ok(())
 }

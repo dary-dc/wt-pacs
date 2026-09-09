@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# E0 — does netem tell the truth? window-saturation-experiment.md §3d
-#
-# Run BEFORE the emulated grid. Compares cloud (real path) vs local netem (matched RTT/bps).
-#
-# Does not modify E1/E3 tooling. Uses live-cell trace + fixture by default.
+# E0 — does netem tell the truth? Compares the real cloud path against local netem at matched
+# RTT/bps. Run BEFORE the emulated grid. docs/window-saturation-experiment.md §3d.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -74,6 +71,7 @@ fi
 
 echo "=== E0 step 2: local netem/sim at RTT=${MEASURED_RTT_MS}ms bps=${MEASURED_READ_BPS} ===" >&2
 "$SERVER" --port "$LOCAL_PORT" --study "$STUDY" \
+  --stream-mode per-frame \
   --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
 spid=$!
 sleep 1.0

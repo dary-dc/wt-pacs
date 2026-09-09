@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs harness — back-to-back refusals</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre-wrap; font-size: 12px; background: #111; color: #0f0; padding: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Back-to-back refusals</h1>
+  <p>
+    One <code>RequestFrames</code> whose every index is out of range, so the server answers with
+    <code>n</code> <code>FrameError</code> messages back to back on the control stream. Every
+    waiter must reject promptly with the server's reason; a waiter that only ends on the
+    15 s client timeout means a control message was lost.
+  </p>
+  <p>
+    Query: <code>arm=ts|wasm</code> · <code>n=64</code> (refused asks) ·
+    <code>wt=</code>/<code>hash=</code> override <code>/wt/dev-transport.json</code>.
+  </p>
+  <div id="log"></div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const arm = params.get("arm") || "ts";
+    const n = Number(params.get("n") || 64);
+    const logEl = document.getElementById("log");
+    const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; };
+
+    async function loadSession(cfg) {
+      if (arm === "wasm") {
+        const { default: init, TransportSessionHandle } =
+          await import("/client/transport-wasm/pkg/transport_wasm.js");
+        await init();
+        return TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
+      }
+      const { TransportSession } = await import("/client/transport-ts/dist/session.js");
+      return TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
+    }
+
+    try {
+      const cfg = params.get("wt")
+        ? { wt_url: params.get("wt"), cert_sha256: params.get("hash") }
+        : await fetch("/wt/dev-transport.json").then((r) => r.json());
+      const session = await loadSession(cfg);
+      log("connect", arm, cfg.wt_url, "n", n);
+
+      // Indices far past any study: every one is refused.
+      const indices = Uint32Array.from({ length: n }, (_, i) => 1_000_000 + i);
+      const t0 = performance.now();
+      const askMs = session.startExactFrames(indices);
+      const results = [];
+      for (const frame of indices) {
+        let outcome;
+        try {
+          await session.waitExactFrame(frame, askMs);
+          outcome = { frame, ms: null, delivered: true };
+        } catch (err) {
+          outcome = { frame, ms: Math.round(performance.now() - t0), message: String(err?.message ?? err) };
+        }
+        results.push(outcome);
+        log(JSON.stringify(outcome));
+      }
+      const summary = {
+        arm,
+        n,
+        wall_ms: Math.round(performance.now() - t0),
+        refused_with_reason: results.filter((r) => /unavailable/.test(r.message || "")).length,
+        timed_out: results.filter((r) => /timeout/.test(r.message || "")).length,
+        other: results.filter((r) => !/unavailable|timeout/.test(r.message || "")).length,
+        stats: session.stats(),
+        results,
+      };
+      globalThis.__wtpacsRefusals = summary;
+      log("summary", JSON.stringify({ ...summary, results: undefined }));
+      session.close();
+      globalThis.__wtpacsDone = true;
+    } catch (e) {
+      log("boot error", e && e.stack ? e.stack : e);
+      globalThis.__wtpacsError = String(e);
+    }
+  </script>
+</body>
+</html>

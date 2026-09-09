@@ -1,4 +1,6 @@
-use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics, StreamMode};
+use crate::metrics::{
+    HarnessMetrics, HarnessMode, ReaderMode, RunConfig, SharedMetrics, StreamMode, WindowShape,
+};
 use crate::trace::TraceSpec;
 use crate::wire::{read_framed_paced, write_fod_msg, LinkPacer};
 use anyhow::{Context, Result};
@@ -7,16 +9,12 @@ use frame_envelope::unwrap;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
-use wtransport::config::IpBindConfig;
 use wtransport::{ClientConfig, Connection, Endpoint};
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-/// Peak concurrent outstanding asks actually observed during a run.
-///
-/// Invariant check: if this never reaches the configured `D`, the harness is not
-/// producing the concurrency it claims and every number from the run is void.
-/// Two bugs violated exactly this and went undetected across three campaigns.
+/// Peak concurrent outstanding asks observed. Never reaching `D` VOIDS the run: the
+/// harness was not producing the concurrency it claims.
 pub(crate) static PEAK_OUTSTANDING: AtomicU32 = AtomicU32::new(0);
 
 fn note_outstanding(n: u32) {
@@ -29,11 +27,25 @@ pub fn peak_outstanding() -> u32 {
 
 pub fn reset_peak_outstanding() {
     PEAK_OUTSTANDING.store(0, Ordering::Relaxed);
+    CENTER_DROPPED.store(0, Ordering::Relaxed);
+}
+
+/// Steps whose centre ask was suppressed by the ceiling. Non-zero VOIDS the run for p95:
+/// the step measured the harness's ask policy, not the transport.
+static CENTER_DROPPED: AtomicU32 = AtomicU32::new(0);
+
+fn note_center_dropped() {
+    CENTER_DROPPED.fetch_add(1, Ordering::Relaxed);
+}
+
+pub fn center_asks_dropped() -> u32 {
+    CENTER_DROPPED.load(Ordering::Relaxed)
 }
 
 /// Per-session ask ordinals for offline join with server `telemetry-server.json`.
 /// Rule: increment per `frame_index` (0-based), same as server Tap `take_ordinal`.
-static ASK_ORDINALS: LazyLock<Mutex<HashMap<u32, u32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static ASK_ORDINALS: LazyLock<Mutex<HashMap<u32, u32>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 static ASK_JOIN: LazyLock<Mutex<Vec<crate::metrics::AskJoinRow>>> =
     LazyLock::new(|| Mutex::new(Vec::new()));
 
@@ -61,6 +73,43 @@ fn record_ask(frame_index: u32) {
             frame_index,
             ask_ordinal: ordinal,
         });
+}
+
+pub(crate) fn build_client_config(
+    stream_recv_window: Option<u64>,
+    bind_ip: Option<std::net::IpAddr>,
+) -> Result<ClientConfig> {
+    // Every L1 row was collected on the dual-stack default; set this only where it fails.
+    let builder = match bind_ip {
+        None => ClientConfig::builder().with_bind_default(),
+        Some(ip) => ClientConfig::builder().with_bind_address(std::net::SocketAddr::new(ip, 0)),
+    };
+    match stream_recv_window {
+        None => Ok(builder
+            .with_no_cert_validation()
+            .keep_alive_interval(Some(Duration::from_secs(3)))
+            .build()),
+        Some(bytes) => {
+            // A3: same insecure TLS as the default path, with a custom stream receive window.
+            use rustls::RootCertStore;
+            use std::sync::Arc;
+            use wtransport::config::QuicTransportConfig;
+            use wtransport::tls::client::{build_default_tls_config, NoServerVerification};
+
+            let tls = build_default_tls_config(
+                Arc::new(RootCertStore::empty()),
+                Some(Arc::new(NoServerVerification::new())),
+            );
+            let mut transport = QuicTransportConfig::default();
+            let window = wtransport::quinn::VarInt::from_u64(bytes)
+                .map_err(|_| anyhow::anyhow!("stream_recv_window {bytes} out of VarInt range"))?;
+            transport.stream_receive_window(window);
+            Ok(builder
+                .with_custom_tls_and_transport(tls, transport)
+                .keep_alive_interval(Some(Duration::from_secs(3)))
+                .build())
+        }
+    }
 }
 
 /// One process, serial depth sweep — fresh session per D, no shell between depths.
@@ -93,28 +142,19 @@ pub async fn run_harness(
         .install_default()
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
-    // Dual-stack any is the default, and a host without an IPv6 stack refuses that socket
-    // outright (`Address family not supported`) — so fall back to IPv4 any rather than not
-    // running at all. The server does the same thing for the same reason; a harness that
-    // cannot start on an IPv4-only host cannot verify one either.
-    let endpoint = {
-        let dual = ClientConfig::builder()
-            .with_bind_default()
-            .with_no_cert_validation()
-            .keep_alive_interval(Some(Duration::from_secs(3)))
-            .build();
-        match Endpoint::client(dual) {
-            Ok(ep) => ep,
-            Err(err) => {
-                eprintln!("dual-stack client bind refused ({err}); falling back to IPv4");
-                let v4 = ClientConfig::builder()
-                    .with_bind_config(IpBindConfig::InAddrAnyV4)
-                    .with_no_cert_validation()
-                    .keep_alive_interval(Some(Duration::from_secs(3)))
-                    .build();
-                Endpoint::client(v4).context("wtransport client (IPv4)")?
-            }
+    let client_cfg = build_client_config(cfg.stream_recv_window, cfg.bind_ip)?;
+
+    let endpoint = match Endpoint::client(client_cfg) {
+        Ok(ep) => ep,
+        Err(err) if cfg.bind_ip.is_none() => {
+            eprintln!("dual-stack client bind refused ({err}); falling back to IPv4");
+            let v4 = build_client_config(
+                cfg.stream_recv_window,
+                Some(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)),
+            )?;
+            Endpoint::client(v4).context("wtransport client (IPv4)")?
         }
+        Err(err) => return Err(err).context("wtransport client"),
     };
     let connection = endpoint
         .connect(cfg.wt_url.clone())
@@ -127,15 +167,14 @@ pub async fn run_harness(
         HarnessMode::Trace => {
             let t = trace_ref.context("trace required")?;
             let schedule = t.frame_schedule();
-            // Wrap like `window_frames` does. A trace whose cursor exceeds the study's frame
-            // count would otherwise set `wanted` to a frame that is never asked for and never
-            // arrives, so `wait_wanted` blocks for the whole timeout.
+            // Wrap as `window_frames` does, or a cursor past the study waits out the timeout.
             let wanted = *schedule.last().context("empty trace")? % cfg.frame_count.max(1);
             (schedule, wanted, t.name.clone())
         }
     };
 
     let metrics: SharedMetrics = Arc::new(Mutex::new(crate::metrics::MetricsState::new(wanted)));
+    metrics.lock().expect("metrics").cache_cap = cfg.cache_frames;
 
     let conn_uni = connection.clone();
     let metrics_uni = Arc::clone(&metrics);
@@ -186,9 +225,7 @@ pub async fn run_harness(
         .context("open bi ready")?;
 
     let asks_sent = match cfg.mode {
-        HarnessMode::Saturate => {
-            run_saturate(&mut control_send, cfg, &metrics, &in_flight).await?
-        }
+        HarnessMode::Saturate => run_saturate(&mut control_send, cfg, &metrics, &in_flight).await?,
         HarnessMode::Trace => {
             let t = trace_ref.context("trace required")?;
             if cfg.depth > 0 {
@@ -203,15 +240,7 @@ pub async fn run_harness(
                 )
                 .await?
             } else {
-                run_legacy_schedule(
-                    &mut control_send,
-                    t,
-                    cfg,
-                    &schedule,
-                    wanted,
-                    &metrics,
-                )
-                .await?
+                run_legacy_schedule(&mut control_send, t, cfg, &schedule, wanted, &metrics).await?
             }
         }
     };
@@ -237,6 +266,7 @@ pub async fn run_harness(
         cfg.warm_cache,
         cfg.rtt_ms,
         cfg.stream_mode,
+        cfg.reader_mode,
     ))
 }
 
@@ -391,26 +421,63 @@ async fn run_windowed(
         outstanding.lock().expect("outstanding").clear();
     }
 
-    for (i, &cursor) in schedule.iter().enumerate() {
-        if i > 0 {
-            tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
+    let step_interval_ms = cfg.step_interval_ms.unwrap_or(trace.step_interval_ms);
+    let step_loop_start = std::time::Instant::now();
+    match cfg.reader_mode {
+        // L1's reader: keeps an absolute schedule but still blocks, so it cannot fall behind.
+        ReaderMode::Closed => {
+            for (i, &cursor) in schedule.iter().enumerate() {
+                // Advance on the trace clock (absolute schedule). Miss waits that overrun
+                // the interval stretch the loop — that is the backlog C4 / A2 detect.
+                let target = step_loop_start
+                    + Duration::from_millis(step_interval_ms.saturating_mul(i as u64));
+                let now = std::time::Instant::now();
+                if target > now {
+                    tokio::time::sleep(target - now).await;
+                }
+                // Ask first so depth pipelines. No `wait_outstanding_below` here: it link-paces.
+                asks_sent += emit_window(
+                    control_send,
+                    outstanding,
+                    metrics,
+                    cursor,
+                    d,
+                    n,
+                    cfg.rtt_ms,
+                    cfg.window_shape,
+                    false,
+                )
+                .await?;
+                // `window_frames` asks for `cursor % n`, so wait on the same frame, not the raw cursor.
+                wait_displayable(metrics, cursor % n, cfg.timeout_ms, Some(target)).await?;
+            }
         }
-        // Ask first so depth can pipeline; then measure wait for this cursor.
-        asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
-        // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
-        // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
-        // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
-        // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
-        wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
-        wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
+        // R6's reader: never blocks, which is the only mode where head-of-line blocking exists.
+        ReaderMode::Open => {
+            asks_sent +=
+                run_reader_open_loop(control_send, trace, cfg, schedule, metrics, outstanding)
+                    .await?;
+        }
     }
 
     {
         let mut m = metrics.lock().expect("metrics lock");
+        m.step_loop_ms = step_loop_start.elapsed().as_secs_f64() * 1000.0;
         m.settle();
     }
-    asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
-    wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
+    asks_sent += emit_window(
+        control_send,
+        outstanding,
+        metrics,
+        wanted,
+        d,
+        n,
+        cfg.rtt_ms,
+        cfg.window_shape,
+        false,
+    )
+    .await?;
+    wait_displayable(metrics, wanted % n, cfg.timeout_ms, None).await?;
     wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
 
     if cfg.fill_dwell_ms > 0 {
@@ -420,8 +487,19 @@ async fn run_windowed(
         }
         let fill_deadline = std::time::Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
         while std::time::Instant::now() < fill_deadline {
-            asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
-            wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
+            asks_sent += emit_window(
+                control_send,
+                outstanding,
+                metrics,
+                wanted,
+                d,
+                n,
+                cfg.rtt_ms,
+                cfg.window_shape,
+                false,
+            )
+            .await?;
+            wait_outstanding_below(outstanding, d.saturating_sub(1), 2_000).await?;
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         {
@@ -433,9 +511,137 @@ async fn run_windowed(
     Ok(asks_sent)
 }
 
-fn window_frames(center: u32, d: u32, n: u32) -> Vec<u32> {
+/// One outstanding want: the frame the reader is looking at, and when it asked for it.
+struct Want {
+    frame: u32,
+    wanted_at: std::time::Instant,
+}
+
+/// Advances on the trace's wall clock, never waiting for the transport. docs/transport/why-these-changes.md §3.
+async fn run_reader_open_loop(
+    control_send: &mut wtransport::stream::SendStream,
+    trace: &TraceSpec,
+    cfg: &RunConfig,
+    schedule: &[u32],
+    metrics: &SharedMetrics,
+    outstanding: &Arc<Mutex<HashSet<u32>>>,
+) -> Result<u32> {
+    let n = cfg.frame_count.max(1);
+    let d = cfg.depth;
+    let mut asks_sent = 0u32;
+    let mut pending: Vec<Want> = Vec::new();
+
+    let t0 = tokio::time::Instant::now();
+    // Both knobs apply: L1's absolute override picks the cadence, R6's multiplier moves
+    // the operating point relative to it.
+    let base_ms = cfg.step_interval_ms.unwrap_or(trace.step_interval_ms);
+    let step = Duration::from_secs_f64((base_ms as f64 * cfg.step_scale.max(0.001)) / 1000.0);
+
+    for (i, &cursor) in schedule.iter().enumerate() {
+        // ABSOLUTE deadline: a per-iteration sleep would give a slower arm a slower reader.
+        tokio::time::sleep_until(t0 + step * i as u32).await;
+
+        let frame = cursor % n;
+        let window = window_frames(cursor, d, n, cfg.window_shape);
+        {
+            // Publish the window before asking, so a frame arriving for a position the
+            // reader has left is attributed as stranded from this instant on.
+            let mut m = metrics.lock().expect("metrics");
+            m.live_window = window.iter().copied().collect();
+        }
+
+        // Non-blocking: a full depth gate drops the prefetch rather than stalling the reader.
+        asks_sent += emit_window(
+            control_send,
+            outstanding,
+            metrics,
+            cursor,
+            d,
+            n,
+            cfg.rtt_ms,
+            cfg.window_shape,
+            true,
+        )
+        .await?;
+
+        // Register the want, then resolve whatever has landed. A cache hit is a genuine
+        // zero: the reader had the frame the instant it wanted it.
+        let hit = {
+            let mut m = metrics.lock().expect("metrics");
+            if m.cache.contains(&frame) {
+                m.touch_cache(frame);
+                m.record_wait_ms(0.0);
+                true
+            } else {
+                false
+            }
+        };
+        if !hit {
+            pending.push(Want {
+                frame,
+                wanted_at: std::time::Instant::now(),
+            });
+        }
+        resolve_pending(&mut pending, metrics);
+    }
+
+    // Measured here, before the drain — `t0.elapsed()` after draining would add
+    // `drain_ms` to every run and report a lag the reader never had.
+    let lag_ms = reader_lag_ms(t0, schedule.len(), step);
+
+    // The reader has stopped scrolling. Give the transport a bounded chance to finish
+    // what it owes before anything is called censored.
+    let drain_deadline = tokio::time::Instant::now() + Duration::from_millis(cfg.drain_ms);
+    while !pending.is_empty() && tokio::time::Instant::now() < drain_deadline {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        resolve_pending(&mut pending, metrics);
+    }
+
+    // Anything still owed is censored at its bound — recorded as a slow sample and
+    // counted, never discarded.
+    {
+        let mut m = metrics.lock().expect("metrics");
+        for w in pending.drain(..) {
+            let ms = w.wanted_at.elapsed().as_secs_f64() * 1000.0;
+            m.record_wait_ms(ms);
+            m.censored_waits += 1;
+        }
+        m.reader_lag_ms = lag_ms;
+    }
+
+    Ok(asks_sent)
+}
+
+/// Drain arrived wants into the wait samples, using the recorded arrival instant so the
+/// sample is the true wait rather than when this happened to be called.
+fn resolve_pending(pending: &mut Vec<Want>, metrics: &SharedMetrics) {
+    let mut m = metrics.lock().expect("metrics");
+    pending.retain(|w| match m.last_arrival.get(&w.frame).copied() {
+        Some(t) if t >= w.wanted_at => {
+            let ms = t.duration_since(w.wanted_at).as_secs_f64() * 1000.0;
+            m.record_wait_ms(ms);
+            false
+        }
+        _ => true,
+    });
+}
+
+/// How far behind its own clock an open-loop reader finished. Zero means the run tested
+/// nothing a closed-loop run does not.
+fn reader_lag_ms(t0: tokio::time::Instant, schedule_len: usize, step: Duration) -> f64 {
+    let planned = step * schedule_len.saturating_sub(1) as u32;
+    t0.elapsed().saturating_sub(planned).as_secs_f64() * 1000.0
+}
+
+fn window_frames(center: u32, d: u32, n: u32, shape: WindowShape) -> Vec<u32> {
     let mut out = Vec::with_capacity(d as usize);
     if d == 0 || n == 0 {
+        return out;
+    }
+    if shape == WindowShape::Forward {
+        for r in 0..d.min(n) {
+            out.push(center.wrapping_add(r) % n);
+        }
         return out;
     }
     out.push(center % n);
@@ -460,20 +666,50 @@ fn window_frames(center: u32, d: u32, n: u32) -> Vec<u32> {
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn emit_window(
     control_send: &mut wtransport::stream::SendStream,
     outstanding: &Arc<Mutex<HashSet<u32>>>,
+    metrics: &SharedMetrics,
     center: u32,
     d: u32,
     n: u32,
     rtt_ms: u64,
+    shape: WindowShape,
+    center_exempt: bool,
 ) -> Result<u32> {
-    let frames = window_frames(center, d, n);
+    let frames = window_frames(center, d, n, shape);
     let mut sent = 0u32;
-    for frame in frames {
+    for (slot, frame) in frames.into_iter().enumerate() {
+        // Open-loop exempts the centre from the depth cap; closed-loop must not, because
+        // L1's committed rows were collected with it strict.
+        let is_center = center_exempt && slot == 0;
+        // Never re-ask a held frame: it manufactures the head-of-line cost under measurement.
+        // LOCK ORDER: `metrics`, drop it, THEN `outstanding` — `on_frame_arrived` reverses it.
+        {
+            // A hit must refresh recency, or the bounded cache is FIFO-by-arrival, not LRU.
+            let mut m = metrics.lock().expect("metrics lock");
+            if m.cache.contains(&frame) {
+                m.touch_cache(frame);
+                continue;
+            }
+        }
         {
             let mut o = outstanding.lock().expect("outstanding");
-            if o.len() as u32 >= d && !o.contains(&frame) {
+            // Already in flight: do not re-ask. Re-asking is what produced v2's
+            // ~6× ask inflation and is exactly what S3 polices.
+            if o.contains(&frame) {
+                continue;
+            }
+            // The exempt centre still stops at 2D: nothing retires an ask but arrival, so an
+            // unconditional exemption lets a reader outrun the transport and self-congest.
+            if o.len() as u32 >= d.saturating_mul(2) {
+                if is_center {
+                    note_center_dropped();
+                }
+                continue;
+            }
+            if !is_center && o.len() as u32 >= d {
                 continue;
             }
             o.insert(frame);
@@ -505,22 +741,14 @@ async fn wait_outstanding_below(
     }
 }
 
-
-
 async fn rtt_full(rtt_ms: u64) {
     if rtt_ms > 0 {
         tokio::time::sleep(Duration::from_millis(rtt_ms)).await;
     }
 }
 
-
-/// Writes the ask immediately. **Does not sleep.**
-///
-/// The ask half of simulated RTT used to be slept here, but every caller awaits
-/// `ask_frame` in a loop, so issuing D asks took `D × RTT/2` ms and the asks were
-/// never simultaneously in flight — depth became a counter with no wire meaning.
-/// The full RTT is now applied once on the return path, which models the same
-/// per-frame latency while leaving the issue loop free to pipeline.
+/// Writes the ask immediately and DOES NOT SLEEP: sleeping here serialises the issue loop,
+/// so depth stops meaning anything. The full RTT is applied once on the return path.
 async fn ask_frame(
     control_send: &mut wtransport::stream::SendStream,
     frame: u32,
@@ -530,16 +758,25 @@ async fn ask_frame(
     write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await
 }
 
+/// Two clocks: `wait_ms` from this call, `due` from the step's scheduled display time.
+/// They diverge exactly when the loop has fallen behind — the case `wait_ms` cannot report.
 async fn wait_displayable(
     metrics: &SharedMetrics,
     frame: u32,
     timeout_ms: u64,
+    due: Option<std::time::Instant>,
 ) -> Result<f64> {
     let start = std::time::Instant::now();
+    let note = |m: &mut crate::metrics::MetricsState, wait_ms: f64, at: std::time::Instant| {
+        m.record_wait_ms(wait_ms);
+        if let Some(due) = due {
+            m.record_lateness_ms(at.saturating_duration_since(due).as_secs_f64() * 1000.0);
+        }
+    };
     {
         let mut m = metrics.lock().expect("metrics lock");
         if m.cache.contains(&frame) {
-            m.record_wait_ms(0.0);
+            note(&mut m, 0.0, start);
             return Ok(0.0);
         }
     }
@@ -548,14 +785,16 @@ async fn wait_displayable(
         {
             let mut m = metrics.lock().expect("metrics lock");
             if m.cache.contains(&frame) {
-                let ms = start.elapsed().as_secs_f64() * 1000.0;
-                m.record_wait_ms(ms);
+                let now = std::time::Instant::now();
+                let ms = now.duration_since(start).as_secs_f64() * 1000.0;
+                note(&mut m, ms, now);
                 return Ok(ms);
             }
         }
         if start.elapsed() >= deadline {
-            let ms = start.elapsed().as_secs_f64() * 1000.0;
-            metrics.lock().expect("metrics lock").record_wait_ms(ms);
+            let now = std::time::Instant::now();
+            let ms = now.duration_since(start).as_secs_f64() * 1000.0;
+            note(&mut metrics.lock().expect("metrics lock"), ms, now);
             anyhow::bail!("timeout waiting for displayable frame {frame}");
         }
         tokio::time::sleep(Duration::from_millis(2)).await;
@@ -600,10 +839,8 @@ async fn on_frame_arrived(
     m.on_envelope(index, wire_len);
 }
 
-/// One shared uni stream carrying `[4B BE envelope_len][envelope]` repeatedly.
-///
-/// Frames arrive strictly in order — that is the point of the architecture. Post-processing
-/// (RTT delay + metrics) is spawned so the read loop is never blocked by it.
+/// One shared uni stream of `[4B BE envelope_len][envelope]`. Post-processing is spawned so
+/// the read loop is never blocked by it.
 async fn shared_stream_loop(
     connection: Connection,
     metrics: SharedMetrics,
@@ -683,4 +920,26 @@ async fn accept_uni_loop(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod window_shape_tests {
+    use super::window_frames;
+    use crate::metrics::WindowShape;
+
+    #[test]
+    fn forward_window_never_looks_back() {
+        assert_eq!(
+            window_frames(40, 7, 80, WindowShape::Forward),
+            vec![40, 41, 42, 43, 44, 45, 46]
+        );
+    }
+
+    #[test]
+    fn symmetric_window_is_unchanged() {
+        assert_eq!(
+            window_frames(40, 7, 80, WindowShape::Symmetric),
+            vec![40, 41, 39, 42, 38, 43, 37]
+        );
+    }
 }
