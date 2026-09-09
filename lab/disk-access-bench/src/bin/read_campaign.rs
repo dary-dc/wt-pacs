@@ -170,6 +170,21 @@ fn cpu_ns() -> u64 {
     ts.tv_sec as u64 * 1_000_000_000 + ts.tv_nsec as u64
 }
 
+fn rss_kib() -> u64 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines().find_map(|l| {
+                l.strip_prefix("VmRSS:")?
+                    .split_whitespace()
+                    .next()?
+                    .parse()
+                    .ok()
+            })
+        })
+        .unwrap_or(0)
+}
+
 fn threads() -> usize {
     std::fs::read_to_string("/proc/self/status")
         .ok()
@@ -274,6 +289,9 @@ struct Outcome {
     /// `ReadCtx`'s own reach and concurrency. Zero on arms that hold no `ReadCtx`.
     peak_named: u64,
     peak_in_flight: u64,
+    /// Resident growth across the cell, and how many sessions ended holding a ring.
+    rss_kib: u64,
+    rings_built: u64,
 }
 
 /// One reader's worth of work: replay `plan`, `depth` reads in flight.
@@ -362,6 +380,7 @@ async fn reader_product(
     look_ahead: bool,
     peak_named: Arc<AtomicU64>,
     peak_in_flight: Arc<AtomicU64>,
+    rings_built: Arc<AtomicU64>,
 ) -> Result<()> {
     let asks = plan.len();
     let named = cell.depth - 1 + usize::from(look_ahead);
@@ -392,6 +411,7 @@ async fn reader_product(
     let st = ctx.stats();
     peak_named.fetch_max(st.peak_named as u64, Ordering::Relaxed);
     peak_in_flight.fetch_max(st.peak_in_flight as u64, Ordering::Relaxed);
+    rings_built.fetch_add(u64::from(ctx.ring_built()), Ordering::Relaxed);
     lat.lock().unwrap().extend(mine);
     misses.fetch_add(miss, Ordering::Relaxed);
     Ok(())
@@ -779,7 +799,7 @@ fn run_cell(
     let misses = Arc::new(AtomicU64::new(0));
     let gaps = Arc::new(Mutex::new(Vec::new()));
 
-    let (wall_ns, cpu_ns_used, threads_max, reader_err, named_max, in_flight_max) =
+    let (wall_ns, cpu_ns_used, threads_max, reader_err, named_max, in_flight_max, rss_grown, rings) =
         rt.block_on(async {
             // Co-tenant monitor: an arm that stalls the executor shows up here and nowhere else.
             let stop = Arc::new(AtomicBool::new(false));
@@ -802,6 +822,8 @@ fn run_cell(
             let wall0 = Instant::now();
             let peak_named = Arc::new(AtomicU64::new(0));
             let peak_in_flight = Arc::new(AtomicU64::new(0));
+            let rings_built = Arc::new(AtomicU64::new(0));
+            let rss0 = rss_kib();
             let mut set = tokio::task::JoinSet::new();
             for reader_plan in &plans {
                 let store = Arc::clone(&store);
@@ -811,6 +833,7 @@ fn run_cell(
                 let plan = Arc::clone(reader_plan);
                 let pn = Arc::clone(&peak_named);
                 let pif = Arc::clone(&peak_in_flight);
+                let rb = Arc::clone(&rings_built);
                 let c = Cell {
                     arm: cell.arm,
                     prefetch: cell.prefetch,
@@ -827,7 +850,7 @@ fn run_cell(
                 set.spawn(async move {
                     if matches!(c.arm, Arm::Product | Arm::ProductAhead) {
                         let ahead = c.arm == Arm::ProductAhead;
-                        reader_product(store, &c, plan, lat, misses, ahead, pn, pif).await
+                        reader_product(store, &c, plan, lat, misses, ahead, pn, pif, rb).await
                     } else if c.arm == Arm::ProductSessions {
                         reader_product_sessions(store, &c, plan, lat, misses, false).await
                     } else if c.arm == Arm::TokioFs {
@@ -869,6 +892,8 @@ fn run_cell(
                 reader_err,
                 peak_named.load(Ordering::Relaxed),
                 peak_in_flight.load(Ordering::Relaxed),
+                rss_kib().saturating_sub(rss0),
+                rings_built.load(Ordering::Relaxed),
             )
         });
 
@@ -901,6 +926,8 @@ fn run_cell(
         misses: misses.load(Ordering::Relaxed),
         peak_named: named_max,
         peak_in_flight: in_flight_max,
+        rss_kib: rss_grown,
+        rings_built: rings,
     })
 }
 
@@ -929,7 +956,7 @@ fn main() -> Result<()> {
         println!(
             "label\tarm\tprefetch\ttemp\tshape\tsize\tstride\tdepth\treaders\trepeat\tpos\t\
              asks\tp50_ns\tp90_ns\tp99_ns\tcpu_ns_per_ask\twall_ns\tasks_per_s\tthreads\t\
-             gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct\tpeak_named\tpeak_in_flight"
+             gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct\tpeak_named\tpeak_in_flight\trss_kib\trings_built"
         );
     }
     let trace = match &args.trace {
@@ -1008,7 +1035,7 @@ fn main() -> Result<()> {
                             let total = (asks * readers_n) as u64;
                             println!(
                                 "{}\t{}\t{}\t{}\t{shape}\t{}\t{}\t{depth}\t{readers_n}\t{repeat}\t{pos}\t\
-                                 {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}\t{}\t{}",
+                                 {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}\t{}\t{}\t{}\t{}",
                                 args.label,
                                 arm.as_str(),
                                 if prefetch { "on" } else { "off" },
@@ -1029,6 +1056,8 @@ fn main() -> Result<()> {
                                 resident * 100.0,
                                 o.peak_named,
                                 o.peak_in_flight,
+                                o.rss_kib,
+                                o.rings_built,
                             );
                         }
                     }
