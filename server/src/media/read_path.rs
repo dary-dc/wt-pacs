@@ -1,8 +1,10 @@
 //! A page-cache read on the executor, escalating to a ring or the blocking pool when the
 //! bytes are not there. `docs/disk-access/adr.md`, `docs/disk-access/IMPLEMENTATION.md`.
+//! Windows: `docs/disk-access/READ-PATH-DESIGN.md` §11 cuts 3 and 4.
 
-use crate::media::frame_store::{FrameSpan, FrameStore};
+use crate::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
 use anyhow::{Context, Result};
+use std::mem;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::warn;
@@ -43,11 +45,11 @@ impl ReadMode {
 /// The session's ring, built on its first miss and never rebuilt.
 #[cfg(feature = "uring")]
 enum Ring {
+    /// Never wanted, or refused once — both mean the pool.
     Off,
-    Pending,
-    Ready(Box<UringReader>),
-    /// Remembered, so a kernel that refused once is not asked again on every miss.
-    Refused,
+    /// Built on the first miss.
+    Wanted,
+    Built(Box<UringReader>),
 }
 
 /// Counted per read, not per frame. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
@@ -64,19 +66,43 @@ impl ReadStats {
     }
 }
 
-/// How the bytes for one read arrive. `Ring` writes into the window of its own index.
-enum Pending {
-    Ready,
+/// A buffer, whose bytes it holds, and the one read at most still landing in it.
+struct Window {
+    /// The frame and the position in it these bytes start at.
+    key: Option<(FrameSpan, u32)>,
+    buf: Vec<u8>,
+    at: u64,
+    len: usize,
+    filled: usize,
+    miss: bool,
+    read: Option<InFlight>,
+}
+
+enum InFlight {
     #[cfg(feature = "uring")]
     Ring,
     Pool(JoinHandle<Result<Vec<u8>>>),
 }
 
-/// A read started early, in the window not being served. Only `span`'s first read takes it.
-struct Ahead {
-    span: FrameSpan,
-    len: usize,
-    pending: Pending,
+impl Window {
+    fn new() -> Self {
+        Self {
+            key: None,
+            buf: Vec::new(),
+            at: 0,
+            len: 0,
+            filled: 0,
+            miss: false,
+            read: None,
+        }
+    }
+
+    /// Never on a window with a read in flight — `begin` waits first.
+    fn fit(&mut self, need: usize) {
+        if self.buf.len() < need {
+            self.buf.resize(need, 0);
+        }
+    }
 }
 
 pub struct ReadCtx {
@@ -84,27 +110,26 @@ pub struct ReadCtx {
     probe: bool,
     #[cfg(feature = "uring")]
     ring: Ring,
-    windows: [Vec<u8>; WINDOWS],
-    cur: usize,
-    ahead: Option<Ahead>,
+    windows: [Window; WINDOWS],
+    last: usize,
     stats: ReadStats,
 }
 
 #[cfg(feature = "uring")]
 impl Ring {
     /// Built on the first miss: safe because nothing is in flight on a ring that is absent.
-    fn reader(&mut self, store: &FrameStore) -> Option<&mut UringReader> {
-        if matches!(self, Self::Pending) {
+    fn build_on_first_miss(&mut self, store: &FrameStore) -> Option<&mut UringReader> {
+        if matches!(self, Self::Wanted) {
             *self = match UringReader::new(store.file()) {
-                Ok(reader) => Self::Ready(Box::new(reader)),
+                Ok(reader) => Self::Built(Box::new(reader)),
                 Err(err) => {
                     warn!(%err, "io_uring unavailable; this session reads through the pool");
-                    Self::Refused
+                    Self::Off
                 }
             };
         }
         match self {
-            Self::Ready(reader) => Some(reader),
+            Self::Built(reader) => Some(reader),
             _ => None,
         }
     }
@@ -124,145 +149,135 @@ impl ReadCtx {
         Self {
             probe: mode != ReadMode::Uring,
             #[cfg(feature = "uring")]
-            ring: if wants_ring { Ring::Pending } else { Ring::Off },
-            windows: [Vec::new(), Vec::new()],
-            cur: 0,
-            ahead: None,
+            ring: if wants_ring { Ring::Wanted } else { Ring::Off },
+            windows: std::array::from_fn(|_| Window::new()),
+            last: 0,
             stats: ReadStats::default(),
         }
     }
 
-    /// One window on a hit; **the rest of the frame on a miss**.
-    ///
-    /// `next`, where the caller knows it, is started before this read is waited on, so the
-    /// device carries both. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+    /// Bytes of `span` from `pos`; reads of `upcoming` started underneath, one window each.
+    /// Current first, then upcoming that fit, then wait — the measured order.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         pos: u32,
-        next: Option<FrameSpan>,
+        upcoming: impl IntoIterator<Item = FrameSpan>,
     ) -> Result<&[u8]> {
-        let stride = store.read_window(span.len);
-        let at = span.offset + u64::from(pos);
-        let remaining = (span.len - pos) as usize;
-
-        let take_ahead = pos == 0 && matches!(&self.ahead, Some(a) if a.span == span);
-        let (pending, len) = if take_ahead {
-            let ahead = self.ahead.take().expect("matched just above");
-            self.cur ^= 1;
-            (ahead.pending, ahead.len)
+        let wanted: Vec<(FrameSpan, u32)> = std::iter::once((span, pos))
+            .chain(upcoming.into_iter().take(WINDOWS - 1).map(|s| (s, 0)))
+            .collect();
+        for &(s, p) in &wanted {
+            if self.holding(s, p).is_none() {
+                let w = self.free_window(&wanted);
+                self.wait(w).await?;
+                self.begin(store, w, s, p)?;
+            }
+        }
+        let w = self.holding(span, pos).expect("started above");
+        self.wait(w).await?;
+        self.last = w;
+        if self.windows[w].miss {
+            self.stats.misses += 1;
         } else {
-            if pos == 0 {
-                self.abandon_ahead().await?;
-            }
-            self.begin(store, self.cur, at, stride.min(remaining), remaining)?
-        };
-
-        if self.ahead.is_none() {
-            if let Some(span) = next {
-                self.begin_ahead(store, span)?;
-            }
+            self.stats.hits += 1;
         }
-
-        match pending {
-            Pending::Ready => self.stats.hits += 1,
-            _ => self.stats.misses += 1,
-        }
-        self.settle(pending, self.cur).await?;
-        Ok(&self.windows[self.cur][..len])
+        Ok(&self.windows[w].buf[..self.windows[w].len])
     }
 
-    /// Probe for `want` bytes into `slot` and escalate the shortfall without waiting.
+    fn holding(&self, span: FrameSpan, pos: u32) -> Option<usize> {
+        self.windows.iter().position(|w| w.key == Some((span, pos)))
+    }
+
+    fn free_window(&self, wanted: &[(FrameSpan, u32)]) -> usize {
+        self.windows
+            .iter()
+            .position(|w| !w.key.is_some_and(|k| wanted.contains(&k)))
+            .expect("at most W wanted, W windows")
+    }
+
+    /// Probe one window without waiting; on a shortfall ask for the rest of the frame.
     fn begin(
         &mut self,
         store: &Arc<FrameStore>,
-        slot: usize,
-        at: u64,
-        want: usize,
-        remaining: usize,
-    ) -> Result<(Pending, usize)> {
-        self.grow(slot, want);
+        w: usize,
+        span: FrameSpan,
+        pos: u32,
+    ) -> Result<()> {
+        let at = span.offset + u64::from(pos);
+        let remaining = (span.len - pos) as usize;
+        let want = READ_WINDOW.min(remaining);
+        self.windows[w].fit(want);
         let hit = if self.probe {
-            store.read_at_nowait(&mut self.windows[slot][..want], at)?
+            store.read_at_nowait(&mut self.windows[w].buf[..want], at)?
         } else {
             0
         };
+        let win = &mut self.windows[w];
+        win.key = Some((span, pos));
+        win.at = at;
+        win.filled = hit;
+        win.len = hit;
+        win.miss = hit != want;
         if hit == want {
-            return Ok((Pending::Ready, want));
+            return Ok(());
         }
-        let rest = remaining - hit;
-        self.grow(slot, hit + rest);
-        let pending = self.escalate(store, slot, at + hit as u64, hit, rest)?;
-        Ok((pending, hit + rest))
-    }
-
-    fn begin_ahead(&mut self, store: &Arc<FrameStore>, span: FrameSpan) -> Result<()> {
-        let slot = self.cur ^ 1;
-        let remaining = span.len as usize;
-        let want = store.read_window(span.len).min(remaining);
-        let (pending, len) = self.begin(store, slot, span.offset, want, remaining)?;
-        self.ahead = Some(Ahead { span, len, pending });
+        win.len = remaining;
+        win.fit(remaining);
+        let pending = self.escalate(store, w)?;
+        self.windows[w].read = Some(pending);
         Ok(())
     }
 
-    /// Waits before discarding: the kernel or the pool is still writing into that window.
-    async fn abandon_ahead(&mut self) -> Result<()> {
-        let Some(ahead) = self.ahead.take() else {
-            return Ok(());
-        };
-        self.settle(ahead.pending, self.cur ^ 1).await
-    }
-
-    /// Ask for `len` bytes into `windows[slot][from..]`, returning before they arrive.
-    fn escalate(
-        &mut self,
-        store: &Arc<FrameStore>,
-        slot: usize,
-        at: u64,
-        from: usize,
-        len: usize,
-    ) -> Result<Pending> {
+    /// The ring if this session has one, the pool otherwise. Neither is waited on here.
+    fn escalate(&mut self, store: &Arc<FrameStore>, w: usize) -> Result<InFlight> {
         #[cfg(feature = "uring")]
         {
             let Self { ring, windows, .. } = self;
-            if let Some(reader) = ring.reader(store) {
-                // SAFETY: `windows[slot]` is this session's own buffer. It is neither grown
-                // nor read while its slot is busy — a slot is only started when it is idle,
-                // and `settle` is what makes it idle again — and `Drop` waits for the kernel
-                // if this session ends first.
-                unsafe { reader.start(slot, &mut windows[slot][from..from + len], at) }?;
-                return Ok(Pending::Ring);
+            if let Some(reader) = ring.build_on_first_miss(store) {
+                let win = &mut windows[w];
+                // SAFETY: `win.buf` is neither grown, read nor dropped while `win.read` is
+                // `Some`; `wait` clears it, and `Drop` drains the ring before the windows go.
+                unsafe {
+                    reader.start(
+                        w,
+                        &mut win.buf[win.filled..win.len],
+                        win.at + win.filled as u64,
+                    )
+                }?;
+                return Ok(InFlight::Ring);
             }
         }
+        #[cfg(test)]
+        store.account_pool_start();
         let store = Arc::clone(store);
-        // The pool borrows the window for longer than this task holds `&mut self`.
-        let mut window = std::mem::take(&mut self.windows[slot]);
-        Ok(Pending::Pool(tokio::task::spawn_blocking(move || {
-            store.read_at_blocking(&mut window[from..from + len], at)?;
-            Ok(window)
+        let win = &mut self.windows[w];
+        let (from, len, at) = (win.filled, win.len, win.at);
+        let mut buf = mem::take(&mut win.buf);
+        Ok(InFlight::Pool(tokio::task::spawn_blocking(move || {
+            store.read_at_blocking(&mut buf[from..len], at + from as u64)?;
+            Ok(buf)
         })))
     }
 
-    async fn settle(&mut self, pending: Pending, slot: usize) -> Result<()> {
-        match pending {
-            Pending::Ready => Ok(()),
-            #[cfg(feature = "uring")]
-            Pending::Ring => match &mut self.ring {
-                Ring::Ready(reader) => reader.finish(slot).await,
-                _ => unreachable!("a ring read outlived its ring"),
-            },
-            Pending::Pool(join) => {
-                self.windows[slot] = join.await.context("join frame read")??;
+    async fn wait(&mut self, w: usize) -> Result<()> {
+        match self.windows[w].read.take() {
+            None => Ok(()),
+            Some(InFlight::Pool(join)) => {
+                self.windows[w].buf = join.await.context("join frame read")??;
+                self.windows[w].filled = self.windows[w].len;
                 Ok(())
             }
-        }
-    }
-
-    /// Never called on a busy window — that would move the buffer out from under the kernel.
-    fn grow(&mut self, slot: usize, need: usize) {
-        if self.windows[slot].len() < need {
-            self.windows[slot].resize(need, 0);
+            #[cfg(feature = "uring")]
+            Some(InFlight::Ring) => match &mut self.ring {
+                Ring::Built(reader) => {
+                    reader.finish(w).await?;
+                    self.windows[w].filled = self.windows[w].len;
+                    Ok(())
+                }
+                _ => unreachable!("a ring read outlived its ring"),
+            },
         }
     }
 
@@ -270,22 +285,25 @@ impl ReadCtx {
         self.stats
     }
 
-    /// Test-only: a correct serial path returns the same bytes, so the overlap is
-    /// otherwise unobservable.
     #[cfg(test)]
-    pub(crate) fn ahead_for(&self) -> Option<FrameSpan> {
-        self.ahead.as_ref().map(|a| a.span)
+    pub(crate) fn holds(&self, span: FrameSpan, pos: u32) -> bool {
+        self.holding(span, pos).is_some()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pending_windows(&self) -> usize {
+        self.windows.iter().filter(|w| w.read.is_some()).count()
     }
 
     #[cfg(test)]
     pub(crate) fn serving_window(&self) -> usize {
-        self.cur
+        self.last
     }
 
     /// The path actually taken, which is not always the one configured.
     pub fn ring_built(&self) -> bool {
         #[cfg(feature = "uring")]
-        return matches!(self.ring, Ring::Ready(_));
+        return matches!(self.ring, Ring::Built(_));
         #[cfg(not(feature = "uring"))]
         return false;
     }
@@ -296,7 +314,7 @@ impl Drop for ReadCtx {
     /// `Drop` because `Drop::drop` runs before any field is, so field order cannot break it.
     fn drop(&mut self) {
         #[cfg(feature = "uring")]
-        if let Ring::Ready(ring) = &mut self.ring {
+        if let Ring::Built(ring) = &mut self.ring {
             ring.drain_in_flight();
         }
     }
@@ -479,13 +497,13 @@ mod tests {
             }
             let store = Arc::new(store);
             let mut ctx = ReadCtx::new(ReadMode::Auto, &store);
+            let span1 = store.frame_span(1).unwrap();
 
             let served = ctx.serving_window();
             let (out, _) = drain(&rt, &mut ctx, &store, 0, Some(1));
             assert_eq!(out, frame_pattern(0, LEN), "frame 0 on a {shape}");
-            assert_eq!(
-                ctx.ahead_for(),
-                Some(store.frame_span(1).unwrap()),
+            assert!(
+                ctx.holds(span1, 0),
                 "frame 1's read was never started on a {shape}"
             );
             assert_eq!(
@@ -494,15 +512,31 @@ mod tests {
                 "the frame in hand moved windows on a {shape}"
             );
 
-            let (out, _) = drain(&rt, &mut ctx, &store, 1, None);
-            assert_eq!(out, frame_pattern(1, LEN), "frame 1 on a {shape}");
-            assert_eq!(
+            let first = rt
+                .block_on(ctx.read(&store, span1, 0, None))
+                .expect("frame 1 first window")
+                .to_vec();
+            assert_ne!(
                 ctx.serving_window(),
-                served ^ 1,
+                served,
                 "frame 1 was re-read instead of taken from the window it landed in \
                  on a {shape}"
             );
-            assert_eq!(ctx.ahead_for(), None, "an unasked-for read is still pending");
+            let mut assembled = first;
+            let mut pos = assembled.len() as u32;
+            while pos < span1.len {
+                let ready = rt
+                    .block_on(ctx.read(&store, span1, pos, None))
+                    .expect("frame 1");
+                pos += ready.len() as u32;
+                assembled.extend_from_slice(ready);
+            }
+            assert_eq!(assembled, frame_pattern(1, LEN), "frame 1 on a {shape}");
+            assert_eq!(
+                ctx.pending_windows(),
+                0,
+                "an unasked-for read is still pending"
+            );
         }
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -524,12 +558,11 @@ mod tests {
             }
             let store = Arc::new(store);
             let mut ctx = ReadCtx::new(ReadMode::Auto, &store);
+            let span1 = store.frame_span(1).unwrap();
 
             drain(&rt, &mut ctx, &store, 0, Some(1));
-            assert!(ctx.ahead_for().is_some(), "nothing to abandon on a {shape}");
+            assert!(ctx.holds(span1, 0), "nothing to abandon on a {shape}");
 
-            // Frame 2, not the hinted 1 — and hinting again, so the abandoned read's window
-            // and ring slot have to be free by now rather than still owned by the kernel.
             let (out, _) = drain(&rt, &mut ctx, &store, 2, Some(0));
             assert_eq!(
                 out,
@@ -542,7 +575,11 @@ mod tests {
                 frame_pattern(0, LEN),
                 "the window that held the abandoned read serves the wrong bytes on a {shape}"
             );
-            assert_eq!(ctx.ahead_for(), None, "the abandoned read is still recorded");
+            assert_eq!(
+                ctx.pending_windows(),
+                0,
+                "the abandoned read is still recorded"
+            );
         }
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -669,7 +706,6 @@ mod tests {
             std::fs::remove_dir_all(&dir).ok();
             return;
         }
-        // A real partial hit: the seam between the two is where the arithmetic lives.
         store.force_short_reads(SHORT);
         let store = Arc::new(store);
         let rt = rt();
@@ -702,6 +738,84 @@ mod tests {
             assert_eq!(reads, 1, "the lever reads whole frames, not windows");
         }
         assert!(ctx.ring_built(), "the lever never built a ring");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Where nowait is refused a frame is one pooled read, not one per window. Cut 4:
+    /// `read_window` is gone; the miss size lives in `begin`.
+    #[test]
+    fn read_window_collapses_to_the_frame_without_nowait() {
+        let dir = scratch("collapse");
+        let path = write_bundle(&dir, 1, 250_000);
+        let mut store = FrameStore::open(&path).expect("open");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let mut ctx = ReadCtx::new(ReadMode::Auto, &store);
+        store.reset_pool_starts();
+        let (out, reads) = drain(&rt, &mut ctx, &store, 0, None);
+        assert_eq!(out, frame_pattern(0, 250_000));
+        assert_eq!(reads, 1, "a pooled frame took {reads} reads, not 1");
+        assert_eq!(
+            store.pool_starts(),
+            1,
+            "a pooled 250 KB frame started {} blocking reads",
+            store.pool_starts()
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Naming W − 1 upcoming frames starts W − 1 reads before the first is waited on.
+    #[test]
+    fn w_named_frames_put_w_reads_in_flight() {
+        let dir = scratch("inflight");
+        let path = write_bundle(&dir, WINDOWS as u32, LEN);
+        let mut store = FrameStore::open(&path).expect("open");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let mut ctx = ReadCtx::new(ReadMode::Pool, &store);
+        let span = store.frame_span(0).unwrap();
+        let upcoming: Vec<FrameSpan> = (1..WINDOWS as u32)
+            .map(|i| store.frame_span(i).unwrap())
+            .collect();
+        store.reset_pool_starts();
+        rt.block_on(ctx.read(&store, span, 0, upcoming))
+            .expect("read");
+        assert_eq!(
+            store.pool_starts(),
+            WINDOWS,
+            "started {} pooled reads, not {WINDOWS}",
+            store.pool_starts()
+        );
+        assert_eq!(
+            ctx.pending_windows(),
+            WINDOWS - 1,
+            "{} upcoming reads should still be in flight",
+            WINDOWS - 1
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A hit never touches the ring; the trap in `IMPLEMENTATION.md`, pinned.
+    #[test]
+    #[cfg(feature = "uring")]
+    fn a_hit_never_touches_the_ring() {
+        let dir = scratch("hithole");
+        let path = write_bundle(&dir, 3, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open"));
+        if !store.nowait_supported() {
+            eprintln!("skipped: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        let rt = rt();
+        let mut ctx = ReadCtx::new(ReadMode::Auto, &store);
+        for idx in 0..3u32 {
+            drain(&rt, &mut ctx, &store, idx, None);
+        }
+        assert!(!ctx.ring_built(), "a warm frame built a ring");
+        assert_eq!(ctx.stats().misses, 0, "a warm frame reported a miss");
         std::fs::remove_dir_all(&dir).ok();
     }
 }

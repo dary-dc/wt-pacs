@@ -186,11 +186,6 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let span = store.frame_span(0).expect("span");
-        assert_eq!(
-            store.read_window(span.len),
-            span.len as usize,
-            "precondition: the store hands the transport the whole frame"
-        );
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -206,10 +201,8 @@ mod tests {
             assert!(!ready.is_empty());
             pos += ready.len() as u32;
             assert!(
-                ready
-                    .chunks(store.read_window(span.len))
-                    .any(|p| p.len() > READ_WINDOW),
-                "precondition: chunking on read_window would copy more than one window"
+                ready.len() > READ_WINDOW,
+                "precondition: a pooled miss returns more than one write chunk"
             );
             for piece in write_chunks(ready) {
                 assert!(
