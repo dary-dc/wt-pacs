@@ -2510,8 +2510,13 @@ these numbers.**
 ### 20.3 · Everything in one place, at both frame sizes
 
 §20.1 and §20.2 are two harnesses answering two questions and never meet. They are put side by
-side here, with the frame size added, because the interesting behaviour is where the two sizes
+side with the frame size added, because the interesting behaviour is where the two sizes
 disagree. [`x18_sizes.tsv`](x18_sizes.tsv), [`x18_mmap.tsv`](x18_mmap.tsv).
+
+> **The durable copy of the tables below, and of §20.4's findings, is
+> [`EVIDENCE.md`](EVIDENCE.md) § *The candidates, re-measured on the code that ships*.**
+> That file's job is every number the decision rests on; this one is a design proposal and is
+> a fold-or-delete candidate. If the two ever disagree, EVIDENCE is right.
 
 **What is comparable, and what is not.** `read_campaign` times a read; `disk-access-bench`
 times a read **plus a quinn-shaped copy into a write buffer** — that is its `bytes_copied`
