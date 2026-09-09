@@ -184,35 +184,23 @@ and superseded on 2026-09-07 ([`adr.md`](adr.md) §3). Do not build it until a r
 
 ## 6 · Order of work, and what each step solves
 
-**Fill is built on the read path that ships.** The double buffer is already fill's W of 2,
-`serve_one(frame, next)` already reads ahead, and `x15` showed this reader ties every
-alternative on a sequential stream at the device's rate. Change A stays valuable as the step
-that makes W a parameter for tiles; it does not gate fill, and fill gets measured on code
-that was validated rather than on a refactor that was not.
+**Fill is built on the read path that ships.** Steps 0–2 landed 2026-09-09. The four commits
+in §13 replace steps 3–4: window table at W = 2, thin ring, planner, then `WINDOWS = 4`.
+Change A (`frame()` + `FrameBytes`) is deferred. P0 then change B-as-was is subsumed; P1
+waits for P0.
 
 | Step | Solves | Size | Leaves |
 | --- | --- | --- | --- |
-| **0. Fault 1** — bound the write chunk at `READ_WINDOW` in `stream_codestream`, with the review's test | a 250 KB uninterrupted executor copy on the default container deployment | one line, one test | — |
-| **1. The reader task and channel** (§6d B), no new messages | pipelined `RequestFrame` gets `min(pipelined, W)`; control seen between frames | ~15 lines | fill has no message yet |
-| **2. `StreamFrames` + `EndStream`** on that loop, reciting `from..=to` through `serve_one`, with the rule in §2 | fill, seek, mode switch | ~30 lines of loop, two variants, client support | W stays 2 everywhere |
-| **3. Change A** (review §3), W parametric, `upcoming` an iterator | the seam; W can become more than 2 | ~120 lines rewritten | the number |
-| **4. W for tiles, measured** with the harness at client depths 2, 4, 8 | the number | a run | — |
-| **5. P0**, then change B and P1 together | whether the ring stays; the ownership; the eventfd | | — |
-
-Steps 0–2 are this week's, in that order. Step 3 waits until step 4 is wanted, because W
-above 2 is the only thing it unlocks. Step 5 decides on the target, not on this host.
+| **0–2.** Fault 1, ask-reader, `StreamFrames` + `EndStream` | fill, seek, pipelined `RequestFrame` | landed | — |
+| **§13 commits 0–3.** A/B script, cuts 3–6, planner, W = 4 | tiles at W = 4, fill at 2, one serve path | landed | the throttled-link cell, P0 |
+| **5. P0**, then P1 | whether the ring stays; the eventfd | | — |
 
 **Checks** are the review's: the twelve read-path and ring tests as the specification, the
 two wire tests for the bytes, one new test pinning the write chunk at `READ_WINDOW` on a
 `force_pool_reads` store, and every measurement interleaved against a worktree build.
 
-**Two measurements prove steps 1 and 2, and nothing else is measured this week.** The harness
-pipelining `RequestFrame` at depth 4 before and after step 1, interleaved: miss-dominated
-cells move toward the batch path's +73.8 % ([`v36_readahead.tsv`](v36_readahead.tsv)), warm
-cells tie. And a `StreamFrames` fill on the 1 GiB fixture against the campaign's `product`
-arm going forward: the reference is `x15`, ~3 µs per 16 KiB read at the device's rate
-([`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md)). Widening W, ring sizing and the pool-path
-cap belong to step 3 and wait for these two.
+**The interleaved A/B is `lab/scripts/read_path_ab.sh`.** Run it for changes under
+`server/src/media/`. The throttled-link cell is §9.4, after this landing.
 
 ## 7 · Still open
 
