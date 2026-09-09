@@ -1,7 +1,7 @@
 //! Length-prefixed FoD read/write on WebTransport streams.
 
 use anyhow::{Context, Result};
-use fod::{decode_fod_msg, encode_fod_msg, FodMsg};
+use fod::{decode_fod_body, encode_fod_msg, FodMsg};
 use wtransport::stream::{RecvStream, SendStream};
 
 /// Largest FoD message the server will read. Asks are small; a `RequestFrames` of 700 k
@@ -26,10 +26,7 @@ pub async fn read_fod_msg(recv: &mut RecvStream) -> Result<FodMsg> {
     check_fod_len(len)?;
     let mut body = vec![0u8; len];
     read_exact(recv, &mut body).await?;
-    let mut full = Vec::with_capacity(4 + len);
-    full.extend_from_slice(&len_buf);
-    full.extend_from_slice(&body);
-    decode_fod_msg(&full)
+    decode_fod_body(&body)
 }
 
 pub async fn write_fod_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
@@ -59,6 +56,9 @@ mod tests {
         assert!(check_fod_len(1).is_ok());
         assert!(check_fod_len(MAX_FOD_LEN).is_ok());
         assert!(check_fod_len(MAX_FOD_LEN + 1).is_err());
-        assert!(check_fod_len(u32::MAX as usize).is_err(), "a 4 GB length prefix is refused");
+        assert!(
+            check_fod_len(u32::MAX as usize).is_err(),
+            "a 4 GB length prefix is refused"
+        );
     }
 }

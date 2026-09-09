@@ -41,13 +41,17 @@ pub fn encode_fod_msg(msg: &FodMsg) -> Result<Vec<u8>> {
     Ok(out)
 }
 
+pub fn decode_fod_body(body: &[u8]) -> Result<FodMsg> {
+    serde_json::from_slice(body).context("deserialize FodMsg")
+}
+
 pub fn decode_fod_msg(bytes: &[u8]) -> Result<FodMsg> {
     if bytes.len() < 4 {
         bail!("FodMsg too short");
     }
     let len = u32::from_le_bytes(bytes[0..4].try_into()?) as usize;
     let body = bytes.get(4..4 + len).context("FodMsg truncated")?;
-    serde_json::from_slice(body).context("deserialize FodMsg")
+    decode_fod_body(body)
 }
 
 #[cfg(test)]
@@ -93,5 +97,38 @@ mod tests {
         assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
         let stop = encode_fod_msg(&FodMsg::EndStream).unwrap();
         assert_eq!(decode_fod_msg(&stop).unwrap(), FodMsg::EndStream);
+    }
+
+    /// The length-prefixed decoder and the body decoder agree on every variant.
+    #[test]
+    fn decode_fod_body_agrees_with_decode_fod_msg_on_every_variant() {
+        let msgs = [
+            FodMsg::RequestFrame { frame: 7 },
+            FodMsg::RequestFrames {
+                frames: vec![1, 2, 3],
+            },
+            FodMsg::StreamFrames {
+                from: None,
+                to: None,
+            },
+            FodMsg::StreamFrames {
+                from: Some(2),
+                to: Some(9),
+            },
+            FodMsg::EndStream,
+            FodMsg::EndSession,
+            FodMsg::FrameError {
+                frame_index: 9,
+                reason: "out of range".into(),
+            },
+        ];
+        for msg in msgs {
+            let enc = encode_fod_msg(&msg).unwrap();
+            let n = u32::from_le_bytes(enc[0..4].try_into().unwrap()) as usize;
+            let via_full = decode_fod_msg(&enc).unwrap();
+            let via_body = decode_fod_body(&enc[4..4 + n]).unwrap();
+            assert_eq!(via_full, via_body, "{msg:?}");
+            assert_eq!(via_body, msg);
+        }
     }
 }
