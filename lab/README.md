@@ -9,8 +9,8 @@ and Q2 (head-of-line). **No product crate depends on these.**
 | ----- | ------- |
 | `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2) |
 | `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
-| `aead-bench` | Per-packet AEAD throughput, ring vs aws-lc-rs (QUIC datagram sizes) |
-| `netsim` | Userspace UDP path simulator — delay, loss, rate, finite queue. Stands in for `sch_netem`, which this kernel does not have |
+| `aead-bench` | Per-packet AEAD — now under [`transport/aead-bench`](transport/aead-bench/) |
+| `netsim` | Userspace path simulator — now under [`transport/netsim`](transport/netsim/) |
 | `telemetry-bench` | Telemetry pipeline microbench: emit seams under contention, drain shapes at scale — no network, no product crate. See `docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md` §5 |
 
 ## Run
@@ -31,19 +31,21 @@ SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
 
 Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.
 
-## QUIC transport arms
+## QUIC transport arms / L4 / R6 / stall
 
-Measurements: [`docs/quic-transport-optimization.md`](../docs/quic-transport-optimization.md).
-Implementation spec (portable across the server rewrite, ranked for p95):
-[`docs/transport-optimization-spec.md`](../docs/transport-optimization-spec.md).
+Moved to [`transport/`](transport/). Write-up: [`docs/transport/`](../docs/transport/).
+
+Measurements: [`docs/transport/quic-transport-optimization.md`](../docs/transport/quic-transport-optimization.md).
+Implementation spec:
+[`docs/transport/transport-optimization-spec.md`](../docs/transport/transport-optimization-spec.md).
 
 ```bash
 # unshaped loopback — the CPU-bound regime (copies, crypto, GSO)
-SRV_FLAGS="--send-path chunked" ./lab/scripts/quic_opt_bench.sh chunked \
+SRV_FLAGS="--send-path chunked" ./lab/transport/scripts/quic_opt_bench.sh chunked \
   target/release/exact-server frames_250k 4,16 3
 
 # rate-shaped, in a private netns (needs iproute2; tbf only, no netem)
-RATE=1600mbit ./lab/scripts/quic_opt_shaped.sh chunked \
+RATE=1600mbit ./lab/transport/scripts/quic_opt_shaped.sh chunked \
   target/release/exact-server frames_250k 16 3
 
 cargo run --release -p aead-bench --no-default-features --features ring
@@ -52,17 +54,17 @@ cargo run --release -p aead-bench --no-default-features --features aws-lc-rs
 
 ```bash
 # multi-client — use this for server-side arms; one harness caps a session at ~1.4 Gbps
-SRV_FLAGS="--send-path chunked" ./lab/scripts/quic_opt_multiclient.sh chunked \
+SRV_FLAGS="--send-path chunked" ./lab/transport/scripts/quic_opt_multiclient.sh chunked \
   target/release/exact-server 4
 
 # GSO segment cap arms (patches quinn outside the tree)
-./lab/scripts/gso_cap_experiment.sh 10 32 44
+./lab/transport/scripts/gso_cap_experiment.sh 10 32 44
 ```
 
 **Build the server with `--features lab`.** Every experiment arm — `--send-path`,
 `--send-fairness`, `--segmentation-offload`, `--ask-priority`, the MTU / ACK / socket-buffer
 knobs and `WT_SERVE_TIMING` — is behind that feature, so a product build cannot select one by
-accident. See [`../docs/branch-source-audit.md`](../docs/branch-source-audit.md).
+accident. See [`../docs/transport/branch-source-audit.md`](../docs/transport/branch-source-audit.md).
 
 `SRV_FLAGS` passes arm-specific flags to `exact-server`; unset knobs keep quinn's own
 defaults, so an arm that changes nothing measures nothing. **Interleave arms within each
@@ -82,18 +84,18 @@ for those.
 
 ```bash
 # validate the instruments first — a failure here voids the campaign
-./lab/scripts/e0_netsim_validate.sh
+./lab/transport/scripts/e0_netsim_validate.sh
 
 # build server arms with knobs the product does not expose (initial window, GSO cap).
 # Patches quinn OUTSIDE the tree; `server/` is never modified and no fork is committed.
-./lab/scripts/quinn_lab_build.sh 10 32
+./lab/transport/scripts/quinn_lab_build.sh 10 32
 
 # the campaign, then the summary
-REPEATS=3 ./lab/scripts/l4_run_all.sh e12 e3 e4 e5
-python3 lab/scripts/l4_analyse.py .local/measurements/l4/e12.tsv cubic_iw12k
+REPEATS=3 ./lab/transport/scripts/l4_run_all.sh e12 e3 e4 e5
+python3 lab/transport/scripts/l4_analyse.py .local/measurements/l4/e12.tsv cubic_iw12k
 ```
 
-Deployment cells are fixed in [`docs/lanes/L4-preregistration.md`](../docs/lanes/L4-preregistration.md):
+Deployment cells are fixed in [`docs/transport/lanes/L4-preregistration.md`](../docs/transport/lanes/L4-preregistration.md):
 **A** 30 ms / 50 Mbps / 0 %, **B** 60 ms / 25 Mbps / 0.5 %, **C** 150 ms / 10 Mbps / 2 %.
 `l4_analyse.py` enforces the pre-registered stop conditions and marks offending rows VOID;
 it reports medians and ranges rather than means, because three repeats do not support more.

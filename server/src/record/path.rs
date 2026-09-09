@@ -1,4 +1,4 @@
-//! Path sampling: congestive or exogenous loss? Counters only — see why-these-changes.md §1.
+//! Path sampling: congestive or exogenous loss? Counters only — see docs/transport/why-these-changes.md §1.
 
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};

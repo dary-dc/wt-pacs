@@ -86,7 +86,7 @@ struct Args {
     #[cfg(feature = "lab")]
     #[arg(long)]
     socket_recv_buffer: Option<usize>,
-    /// How frame bytes reach the send buffer. See `docs/quic-transport-optimization.md`.
+    /// How frame bytes reach the send buffer. See `docs/transport/quic-transport-optimization.md`.
     #[cfg(feature = "lab")]
     #[arg(long, value_enum, default_value_t = exact_server::SendPath::Chunked)]
     send_path: exact_server::SendPath,

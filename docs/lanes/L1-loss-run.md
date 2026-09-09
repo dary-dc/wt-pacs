@@ -60,7 +60,7 @@ Oracle São Paulo (`cloud-rig-access.md`). Round-robin with L2.
 
 ## Report
 
-TSV: `docs/measurements/r2/l1_s_vs_q_loss_v2.tsv`
+TSV: `docs/transport/measurements/r2/l1_s_vs_q_loss_v2.tsv`
 
 Columns: `arm, fixture, rtt_ms, loss_pct, depth, run, miss_p95_wait_ms, miss_mean_wait_ms,
 p95_wait_ms, mean_wait_ms, cache_hit_rate, cache_misses, asks_sent, peak_outstanding`
@@ -69,4 +69,4 @@ Raw rows. No interpretation in the agent report.
 
 ## Runner
 
-`lab/scripts/l1_loss_run_v2_cloud.sh`
+`lab/transport/scripts/l1_loss_run_v2_cloud.sh`

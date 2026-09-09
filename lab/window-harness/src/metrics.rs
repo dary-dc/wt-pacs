@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 /// How the reader advances. The most consequential setting in the harness: `Closed` can
-/// answer no stream-shape question at all — `docs/why-these-changes.md` §3.
+/// answer no stream-shape question at all — `docs/transport/why-these-changes.md` §3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum ReaderMode {
     /// Block on each cursor. Every prior campaign ran this way; kept for reproducibility,

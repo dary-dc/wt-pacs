@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# L4 — p95 time-to-displayable across cells, through netsim. docs/transport/lanes/L4-preregistration.md.
+# Arms interleaved WITHIN each repeat: host drift has produced one wrong answer already.
+# Usage: EXP=e1 ARMS="a|flags;b|flags" CELLS="A B C" FIXTURE=frames_32k l4_campaign.sh <reps>
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPEATS="${1:-3}"
+EXP="${EXP:?set EXP}"
+ARMS="${ARMS:?set ARMS as 'label|server flags;label|server flags'}"
+CELLS="${CELLS:-A B C}"
+FIXTURE="${FIXTURE:-frames_32k}"
+DEPTH="${DEPTH:-4}"
+TRACE="${TRACE:-$ROOT/lab/traces/x3_short_scroll.json}"
+OUT="${OUT:-$ROOT/.local/measurements/l4/$EXP.tsv}"
+SRV_BIN="${SRV_BIN:-$ROOT/target/lab-arms/exact-server-seg10}"
+HARNESS="$ROOT/target/release/window-harness"
+NETSIM="$ROOT/target/release/netsim"
+SPORT="${SPORT:-14433}"; NPORT="${NPORT:-15000}"
+STUDY="$ROOT/lab/fixtures/$FIXTURE/$FIXTURE.sbnd"
+FRAME_COUNT=$(python3 -c "import json;print(json.load(open('$ROOT/lab/fixtures/$FIXTURE/metadata.json'))['frameCount'])")
+TICK=$(getconf CLK_TCK)
+
+# cell -> one-way delay ms, rate Mbps, per-direction loss %
+cell_params() {
+  case "$1" in
+    A) echo "15 50 0.0" ;;
+    B) echo "30 25 0.5" ;;
+    C) echo "75 10 2.0" ;;
+    # NO injected loss: every drop is queue overflow, the only genuinely congestive regime.
+    D) echo "30 25 0.0" ;;
+    E) echo "75 10 0.0" ;;
+    # Wireless profiles: exogenous radio loss on a congested path.
+    W) echo "25 20 1.0" ;;   # 5G / good WiFi:  50 ms RTT, 20 Mbps, 1 % radio loss   BDP 125 kB
+    S) echo "300 8 1.0" ;;   # GEO satellite:  600 ms RTT,  8 Mbps, 1 % radio loss   BDP 600 kB
+    # BDP-separating controls: rate x RTT is no longer constant, so an RTT effect is separable
+    # from a rate effect. DEPTH 16 is required — at 8 the offered bytes cannot fill the queue.
+    Wc) echo "25 20 0.0" ;;
+    Sc) echo "300 8 0.0" ;;
+    L) echo "25 4 1.0" ;;    # low BDP:   50 ms,  4 Mbps, 1 %                          BDP  25 kB
+    H) echo "300 40 1.0" ;;  # high BDP: 600 ms, 40 Mbps, 1 %                          BDP 3.0 MB
+    *) echo "unknown cell $1" >&2; exit 1 ;;
+  esac
+}
+
+mkdir -p "$(dirname "$OUT")"
+[ -s "$OUT" ] || printf 'exp\tarm\tcell\trtt_ms\trate_mbps\tloss_pct\tfixture\tdepth\trun\tp95_wait_ms\tmean_wait_ms\tfill_rate\tpeak_outstanding\twait_samples\tsrv_cpu_s\tcli_cpu_s\tns_cpu_s\twall_s\tbytes_on_wire\tframes_on_wire\tnz_n\tnz_p50\tnz_p95\tnz_p99\tnz_max\tloss_burst\tns_qdrop\tverdict\n' > "$OUT"
+
+cpu_of() { awk -v t="$TICK" '{print ($14+$15)/t}' /proc/"$1"/stat 2>/dev/null || echo 0; }
+
+for RUN in $(seq 1 "$REPEATS"); do
+  for CELL in $CELLS; do
+    read -r DELAY RATE LOSS <<< "$(cell_params "$CELL")"
+    # Interleave arms inside the repeat so host drift is common-mode.
+    IFS=';' read -r -a ARM_LIST <<< "$ARMS"
+    for SPEC in "${ARM_LIST[@]}"; do
+      LABEL="${SPEC%%|*}"; FLAGS="${SPEC#*|}"
+      read -r -a SRV_FLAGS <<< "$FLAGS"
+
+      # env-prefixed flags of the form ENV:NAME=VAL are lifted out of the flag list
+      ENVS=(); KEEP=()
+      for f in "${SRV_FLAGS[@]}"; do
+        case "$f" in ENV:*) ENVS+=("${f#ENV:}") ;; *) KEEP+=("$f") ;; esac
+      done
+
+      env "${ENVS[@]}" "$SRV_BIN" --port "$SPORT" --study "$STUDY" --bind 127.0.0.1 \
+        --cert-pem "$ROOT/server/dev-cert/cert.pem" --key-pem "$ROOT/server/dev-cert/key.pem" \
+        "${KEEP[@]}" > /tmp/l4_server.log 2>&1 &
+      SRV=$!
+      for _ in $(seq 1 60); do grep -q '^wt_url=' /tmp/l4_server.log && break; sleep 0.1; done
+      kill -0 "$SRV" 2>/dev/null || { echo "server died: $(tail -3 /tmp/l4_server.log)" >&2; exit 1; }
+
+      "$NETSIM" --listen 127.0.0.1:"$NPORT" --upstream 127.0.0.1:"$SPORT" \
+        --delay-ms "$DELAY" --rate-mbps "$RATE" --loss-pct "$LOSS" --queue-pkts 500 \
+        --loss-burst "${LOSS_BURST:-1}" --seed "$((RUN * 7919 + 13))" --stats true \
+        > /tmp/l4_netsim.log 2>&1 &
+      NS=$!; sleep 0.4
+      QDROP_BEFORE=$(grep -c 'down_queue=[1-9]' /tmp/l4_netsim.log 2>/dev/null || echo 0)
+
+      # stream mode must match on both ends; take it from the arm flags
+      SM=shared; case " ${KEEP[*]} " in *" per-frame "*) SM=per-frame ;; esac
+
+      S0=$(cpu_of "$SRV"); N0=$(cpu_of "$NS"); W0=$(date +%s.%N)
+      timeout "${RUN_TIMEOUT:-180}" "$HARNESS" --url "https://127.0.0.1:$NPORT/" --mode trace --trace "$TRACE" \
+        --read-bps 0 --depth "$DEPTH" --frame-count "$FRAME_COUNT" --stream-mode "$SM" \
+        --bind 127.0.0.1 --cache-frames "${CACHE_FRAMES:-0}" --arm "$LABEL" --json > /tmp/l4_run.json 2>/dev/null &
+      CLI=$!; CLI_CPU=0
+      # `timeout` is the direct child; the harness is its child. Measuring $CLI would
+      # measure `timeout` and always report ~0, silently disabling stop condition 3.
+      HPID=""
+      while kill -0 "$CLI" 2>/dev/null; do
+        [ -n "$HPID" ] || HPID=$(pgrep -P "$CLI" 2>/dev/null | head -1)
+        [ -n "$HPID" ] && CLI_CPU=$(cpu_of "$HPID")
+        sleep 0.15
+      done
+      wait "$CLI" || true
+      W1=$(date +%s.%N); S1=$(cpu_of "$SRV"); N1=$(cpu_of "$NS")
+      kill "$NS" "$SRV" 2>/dev/null || true; wait "$NS" "$SRV" 2>/dev/null || true
+
+      QDROP=$(grep -o 'down_queue=[0-9]*' /tmp/l4_netsim.log 2>/dev/null | tail -1 | cut -d= -f2)
+      python3 - "$EXP" "$LABEL" "$CELL" "$((DELAY*2))" "$RATE" "$LOSS" "$FIXTURE" "$DEPTH" \
+               "$RUN" "$S0" "$S1" "$CLI_CPU" "$N0" "$N1" "$W0" "$W1" "$OUT" /tmp/l4_run.json \
+               "${LOSS_BURST:-1}" "${QDROP:-0}" <<'PYEOF'
+import json, sys
+(exp, arm, cell, rtt, rate, loss, fx, depth, run,
+ s0, s1, cli, n0, n1, w0, w1, out, jf, lb, qd) = sys.argv[1:21]
+
+
+def verdict(m, cli_cpu, wall, depth):
+    """Pre-registered stop conditions, evaluated per row so a void cannot be quoted.
+
+    Previously these lived only in the analyser, and three rows with p95 == 0 were
+    quoted as results anyway. A row now carries its own verdict."""
+    bad = []
+    if m["p95_wait_ms"] == 0.0:
+        bad.append("p95=0")
+    if m["peak_outstanding"] < depth:
+        bad.append("depth")
+    if wall > 0 and cli_cpu / wall >= 0.9:
+        bad.append("client-bound")
+    # A percentile over a thin tail is an outlier, not a percentile.
+    if len([x for x in m.get("wait_ms", []) if x > 0.0]) < 30:
+        bad.append("thin-tail")
+    return "VOID:" + "+".join(bad) if bad else "ok"
+try:
+    m = json.load(open(jf))
+except Exception:
+    # Emit, never drop: failures are the slowest runs, so dropping flatters the failing arm.
+    row = "\t".join([exp, arm, cell, rtt, rate, loss, fx, depth, run] +
+                    ["nan"] * 3 + ["0"] * 2 + ["nan"] * 3 + ["%.2f" % (float(w1) - float(w0))] +
+                    ["0", "0"] + ["nan"] * 5 + [lb, qd, "VOID:no-json"])
+    print(row)
+    open(out, "a").write(row + "\n")
+    sys.exit(0)
+wall = float(w1) - float(w0)
+
+
+def nz_stats(m):
+    """Percentiles over waits that actually waited.
+
+    The trace visits each frame twice (forward, then reverse over a cache that never
+    evicts), so roughly half of every sample set is a structural zero. A p95 taken over
+    all samples is therefore about the 89th percentile of the informative ones, and in an
+    easy cell it can be near their median. These columns quantile the non-zero waits, and
+    `nz_n` says how many there were — if that is small, no percentile from the row means
+    much."""
+    xs = sorted(x for x in m.get("wait_ms", []) if x > 0.0)
+    if not xs:
+        return ["0", "0", "0", "0", "0"]
+
+    def q(p):
+        # nearest-rank, the rule the client telemetry contract uses
+        import math
+        return xs[min(len(xs) - 1, max(0, math.ceil(p / 100 * len(xs)) - 1))]
+
+    return [str(len(xs)), "%.2f" % q(50), "%.2f" % q(95), "%.2f" % q(99), "%.2f" % xs[-1]]
+row = "\t".join([exp, arm, cell, rtt, rate, loss, fx, depth, run,
+                 "%.2f" % m["p95_wait_ms"], "%.2f" % m["mean_wait_ms"], "%.2f" % m["fill_rate"],
+                 str(m["peak_outstanding"]), str(m["wait_samples"]),
+                 "%.3f" % (float(s1)-float(s0)), "%.3f" % float(cli),
+                 "%.3f" % (float(n1)-float(n0)), "%.2f" % wall,
+                 str(m["bytes_on_wire"]), str(m["frames_on_wire"])] + nz_stats(m)
+                + [lb, qd, verdict(m, float(cli), wall, int(depth))])
+print(row)
+open(out, "a").write(row + "\n")
+PYEOF
+    done
+  done
+done
