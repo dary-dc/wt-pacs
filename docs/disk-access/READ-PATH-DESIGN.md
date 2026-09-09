@@ -2368,7 +2368,7 @@ to spare and does not depend on the sample size.
 * **Magnitudes.** ~7 k asks/s here against ~50 k on the workstation. Every number above is a
   direction with a sign count; the percentages are the sandbox's.
 * ~~**That the planner named four frames.**~~ **Closed** — §18's P1 landed as `4d6b1ce`, and
-  the session line now says it outright (§20.4). `cold_d4` showed it by its cost; it is an
+  the session line now says it outright (§20.5). `cold_d4` showed it by its cost; it is an
   observable now.
 * **The default link.** §9.4's throttled cell (20 Mbps, 50 ms, 1 % loss) is still unrun, and
   §9.1's arithmetic says the loop and W will tie there. The +20.7 % at depth 4 is a
@@ -2507,24 +2507,103 @@ and is rejected on a ground this run does not test: residency is not a lease, so
 memory pressure in 5 of 5 runs. **That rejection is structural and stands independently of
 these numbers.**
 
-### 20.3 · What this establishes, and what it does not
+### 20.3 · Everything in one place, at both frame sizes
 
-| claim | status |
-| --- | --- |
-| the shipped path beats the always-pool fallback | **RESOLVED**, −93 % on hits, 12/12, both depths |
-| a hit must not go through a ring | **RESOLVED**, `uring` −33 % / −90 % on hits at depth 1 / 4 |
-| `uring` is better on CPU per miss at depth | **RESOLVED** — and irrelevant while workloads hit; it stays a lab flag |
-| the ring beats the pool on the miss path | **shape reproduced, magnitude not**: resolves at depth 16 only, on this host. **P0's question, unchanged** |
-| mmap freezes co-tenants | **reproduced**: `gap_max` 2 095 µs cold against 289 µs |
-| safe mmap is 10× slower | **reproduced**: 33–37 µs against 3.1–3.5 µs |
-| `mmap + mincore` is unsafe under pressure | **not tested here** — structural, from `adr.md`; this run has no memory pressure |
-| the §13 rewrite preserved any of this | **inferred**, not measured per arm: §19.2 shows today's read path ties `580e312`'s, and `product` ties `hybrid_lazyring` here |
+§20.1 and §20.2 are two harnesses answering two questions and never meet. They are put side by
+side here, with the frame size added, because the interesting behaviour is where the two sizes
+disagree. [`x18_sizes.tsv`](x18_sizes.tsv), [`x18_mmap.tsv`](x18_mmap.tsv).
 
-And the standing caveat: 4 cores, ~7 k asks/s against ~50 k on the workstation. Directions and
-sign counts are what these files establish. **The one verdict that would move on a better host
-is the ring against the pool — which is the one already marked conditional.**
+**What is comparable, and what is not.** `read_campaign` times a read; `disk-access-bench`
+times a read **plus a quinn-shaped copy into a write buffer** — that is its `bytes_copied`
+column, and it is why the same mechanism reads 1.6 µs in one harness and 3.6 µs in the other.
+**Compare arms within a block, never across the rule.** The bridge is that
+`pread_nowait_chunked` is the 2026-09-07 shape of what `product` is now.
 
-### 20.4 · Confirmed after P1 and P7 landed, and the mechanism read off the wire
+Depth 4, median of 8 (`read_campaign`) or 7 (`disk-access-bench`) repeats. Latency is
+**p50 · p90 · p99** per ask; `p90` is a mean in the lower block, which is all that harness
+reports. `gap max` is the longest a co-tenant task waited.
+
+#### 16 KiB frames
+
+| arm | warm p50 · p90 · p99 | warm CPU/ask | warm gap max | cold p50 · p90 · p99 | cold CPU/ask | cold gap max | copied/ask | cold miss |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **`product`** | **1.6 · 1.9 · 5.7 µs** | 2.0 µs | 224 µs | **125 · 171 · 233 µs** | 69 µs | 261 µs | — | 99.4 % |
+| `hybrid_lazyring` | 1.5 · 1.7 · 2.3 µs | 1.5 µs | 518 µs | 117 · 166 · 250 µs | 48 µs | 1 590 µs | — | 99.2 % |
+| `pool` | 1.6 · 1.8 · 3.2 µs | 1.7 µs | 170 µs | 141 · 228 · **473 µs** | 94 µs | 512 µs | — | 98.8 % |
+| `uring` | **20.4** · 23.6 · 49.2 µs | 2.8 µs | 1 552 µs | 133 · 174 · 229 µs | **39 µs** | 212 µs | — | 100 % |
+| `pooled_pread` | **22.4** · 98.7 · **276 µs** | 32 µs | 360 µs | 146 · 237 · 461 µs | 93 µs | 285 µs | — | 100 % |
+| *— the copying harness —* | | | | | | | | |
+| `pread_nowait_chunked` | 3.6 · 4.4 · 26.3 µs | 9.9 µs | 80 µs | 20.0 · 48.8 · 191 µs | 66 µs | 771 µs | 16 KiB | — |
+| `uring_nowait_whole` | 3.3 · 4.2 · 24.9 µs | 9.2 µs | 130 µs | 16.5 · 49.6 · 197 µs | 78 µs | 547 µs | 16 KiB | — |
+| `mmap_naive` | **1.9** · 2.4 · 21.3 µs | **5.4 µs** | 76 µs | **2.2** · 10.7 · 27.6 µs | **11 µs** | **4 158 µs** | **0** | — |
+| `mmap_hybrid_mincore` | 2.7 · 3.5 · 23.1 µs | 7.7 µs | 80 µs | 3.0 · 12.5 · 29.6 µs | 22 µs | 118 µs | **0** | — |
+| `mmap_touch_in_place` | 19.2 · 44.7 · 182 µs | 71 µs | 829 µs | 19.3 · 53.2 · **1 067 µs** | 84 µs | 530 µs | **0** | — |
+| `mmap_populate_read` | 37.8 · 40.5 · 78.4 µs | 57 µs | 137 µs | 42.8 · 49.3 · 94.2 µs | 70 µs | 202 µs | **0** | — |
+| `mmap_blocking_touch` | 34.1 · 40.0 · 81.0 µs | 54 µs | 128 µs | 35.6 · 47.5 · 84.2 µs | 67 µs | 140 µs | **0** | — |
+| `pread_blocking_pooled` | 32.8 · 37.4 · 80.8 µs | 54 µs | 132 µs | 48.5 · 78.1 · 234 µs | 122 µs | 235 µs | 16 KiB | — |
+
+#### 250 kB frames
+
+| arm | warm p50 · p90 · p99 | warm CPU/ask | warm gap max | cold p50 · p90 · p99 | cold CPU/ask | cold gap max | copied/ask | cold miss |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **`product`** | **39.6 · 49.3 · 90.0 µs** | 39 µs | 2 329 µs | 623 · 745 · 877 µs | 261 µs | 300 µs | — | 99.5 % |
+| `hybrid_lazyring` | 41.7 · 50.2 · 92.4 µs | 42 µs | 8 819 µs | 611 · 732 · 901 µs | 270 µs | 6 133 µs | — | 99.5 % |
+| `pool` | 38.9 · 46.9 · 77.8 µs | 35 µs | 2 387 µs | **514 · 616 · 776 µs** | **238 µs** | 398 µs | — | 99.5 % |
+| `uring` | **262 · 290 · 335 µs** | 68 µs | 13 726 µs | 693 · 807 · **1 407 µs** | 258 µs | 1 330 µs | — | 100 % |
+| `pooled_pread` | 82.4 · 210 · 467 µs | 95 µs | 381 µs | 563 · 700 · 1 007 µs | 268 µs | 285 µs | — | 100 % |
+| *— the copying harness —* | | | | | | | | |
+| `pread_nowait_chunked` | 52.5 · 58.7 · 115 µs | 128 µs | 173 µs | 72.1 · 199 · **1 036 µs** | 315 µs | 516 µs | 244 KiB | — |
+| `uring_nowait_whole` | 50.6 · 57.3 · 115 µs | 128 µs | 318 µs | 262 · 252 · 989 µs | 415 µs | 622 µs | 244 KiB | — |
+| `mmap_naive` | **33.0** · 38.3 · 87.1 µs | **85 µs** | **92 µs** | **45.3** · 155 · **3 276 µs** | 262 µs | **3 991 µs** | **0** | — |
+| `mmap_hybrid_mincore` | 35.1 · 42.5 · 94.8 µs | 96 µs | 94 µs | 50.1 · 169 · **3 364 µs** | 291 µs | 436 µs | **0** | — |
+| `mmap_touch_in_place` | 54.7 · 62.5 · 158 µs | 138 µs | 612 µs | 99.2 · 239 · **3 654 µs** | 388 µs | 724 µs | **0** | — |
+| `mmap_populate_read` | 137 · 142 · 288 µs | 207 µs | 129 µs | 155 · 270 · **3 668 µs** | 397 µs | 1 269 µs | **0** | — |
+| `mmap_blocking_touch` | 130 · 137 · 271 µs | 193 µs | 134 µs | 160 · 277 · **3 914 µs** | 413 µs | 246 µs | **0** | — |
+| `pread_blocking_pooled` | 163 · 169 · 320 µs | 284 µs | 133 µs | 289 · 312 · 1 107 µs | 509 µs | 571 µs | 244 KiB | — |
+
+### 20.4 · What the two sizes say that one did not
+
+**The `uring` penalty is a hit penalty, and it scales with the frame.** Every read through the
+ring costs 20.4 µs at 16 KiB against `product`'s 1.6, and **262 µs at 250 kB against 39.6** —
+6.6× either way, but 222 µs of absolute latency per frame at the size a viewer actually pulls.
+Its `gap max` warm at 250 kB is **13.7 ms**. Whatever the ring is for, it is not for hits, and
+the bigger the frame the more that is true.
+
+**mmap does not copy, and it does show — in CPU, not in latency.** Within the copying harness,
+`mmap_naive` against `pread_nowait_chunked`: warm 16 KiB **5.4 µs against 9.9**, warm 250 kB
+**85 µs against 128**. A third to a half less CPU per ask, exactly the 16 KiB / 244 KiB the
+`copied/ask` column says it never moves. On p50 it is ahead too — 1.9 against 3.6, 33.0
+against 52.5.
+
+**And then the tail.** At 250 kB cold, every mmap arm sits at **p99 3 276–3 914 µs** against
+`pread_nowait_chunked`'s 1 036 — three to four times worse, on the percentile a viewer feels
+as a stall. `mmap_naive`'s co-tenant `gap max` is **3 991 µs**: a frame that faults holds the
+worker, and whichever *other* session shares it waits 4 ms. That is `adr.md` §5's rejection,
+and 250 kB frames make it worse than 16 KiB ones did (4 158 µs there, but off a p99 of only
+27.6 µs — at 250 kB the tail is bad *and* the median it hides behind is gone).
+
+**The safe mmap variants pay the whole saving back.** `populate_read` and `blocking_touch`
+move the fault to the pool and land at 130–160 µs against `pread_nowait_chunked`'s 52.5–72.1 —
+two to three times slower, at 1.5–2× the CPU. There is no mmap arm here that is both quick and
+safe.
+
+**`pool` beats the ring at 250 kB cold.** 514 µs against `product`'s 623, at less CPU (238
+against 261), and it holds at both depths. At 16 KiB the ring was ahead from depth 4. So the
+ring's worth is not only depth-dependent (§20.1) but **size-dependent**, and at the size the
+ADR's live cell uses it is behind on this host. That sharpens P0's question rather than
+answering it: P0 must run both sizes.
+
+**One caveat that changes how the mmap block reads.** `disk-access-bench` reports no residency
+or miss control — `read_campaign` has `miss_pct` and `resident_pct`, and it is how the upper
+block can say 99.5 %. Measured, the lower block's cold cells are only partly cold, and the
+arms differ in *how* cold: p50 cold ÷ p50 warm is **5.3× for `pread_nowait_chunked` at 16 KiB
+but 1.1× for `mmap_naive`**. mmap's fault-around pulls in neighbours a 64 KiB `pread` window
+does not, so on a walk it converts misses to hits more aggressively. That is a real property
+and a real advantage — and it is also why its cold median flatters it: **it is not doing the
+same I/O faster, it is doing less of it.** The asks that do reach the device are the 3–4 ms
+p99 above.
+
+### 20.5 · Confirmed after P1 and P7 landed, and the mechanism read off the wire
 
 The runs above were taken at `4239f5a`, before §18's **P1** (the session line reports the
 planner's reach) and **P7** (`wanted` on the stack) landed as `4d6b1ce`. Both change `read`
@@ -2556,3 +2635,25 @@ paying for. And the fill row is §9.3's decision as a fact rather than an infere
 `FILL_AHEAD = 1`, so a fill uses **two** windows however wide W is. *Tiles widen, fill does
 not* — no longer argued, reported.
 
+
+### 20.6 · What this establishes, and what it does not
+
+| claim | status |
+| --- | --- |
+| the shipped path beats the always-pool fallback | **RESOLVED**, −93 % on hits, 12/12, both depths |
+| a hit must not go through a ring | **RESOLVED**, `uring` −33 % / −90 % on hits at depth 1 / 4 |
+| `uring` is better on CPU per miss at depth | **RESOLVED** — and irrelevant while workloads hit; it stays a lab flag |
+| the ring beats the pool on the miss path | **shape reproduced, magnitude not**: resolves at depth 16 only, on this host. **P0's question, unchanged** |
+| mmap freezes co-tenants | **reproduced**: `gap_max` 2 095 µs cold against 289 µs |
+| safe mmap is 10× slower | **reproduced**: 33–37 µs against 3.1–3.5 µs |
+| `mmap + mincore` is unsafe under pressure | **not tested here** — structural, from `adr.md`; this run has no memory pressure |
+| mmap saves the copy, and it shows | **measured**: 5.4 µs against 9.9 warm at 16 KiB, 85 against 128 at 250 kB — a third to a half less CPU per ask, and `copied/ask` 0 against 16 / 244 KiB |
+| mmap's tail is where it loses, and 250 kB frames make it worse | **measured**: p99 3 276–3 914 µs against 1 036 at 250 kB cold, every mmap arm |
+| a safe mmap variant is both quick and safe | **refuted** — `populate_read` and `blocking_touch` are 2–3× slower at 1.5–2× the CPU |
+| the ring's worth is depth-dependent only | **refuted — it is size-dependent too**: at 250 kB cold, `pool` beats `product` (514 µs against 623, at less CPU) at both depths. **P0 must run both sizes** |
+| the §13 rewrite preserved any of this | **inferred**, not measured per arm: §19.2 shows today's read path ties `580e312`'s, and `product` ties `hybrid_lazyring` here |
+
+And the standing caveat: 4 cores, ~7 k asks/s against ~50 k on the workstation. Directions and
+sign counts are what these files establish. **The one verdict that would move on a better host
+is the ring against the pool — which is the one already marked conditional, and which §20.4
+now shows is also the one that flips with frame size.**
