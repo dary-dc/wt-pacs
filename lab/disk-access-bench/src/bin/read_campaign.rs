@@ -8,7 +8,7 @@ use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
-use exact_server::media::frame_store::{FrameSpan, FrameStore};
+use exact_server::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
 use exact_server::media::read_path::{ReadCtx, ReadMode, WINDOWS};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -25,6 +25,9 @@ enum Arm {
     Hybrid,
     /// The ADR's escape hatch: every read on the blocking pool, no fast path attempted.
     PooledPread,
+    /// `pool` with its probe capped at `READ_WINDOW`, which is the one thing `ReadCtx`
+    /// does that no other arm does. The positive control for `read_path.rs:221`.
+    PoolCappedProbe,
     /// **The S5 control**: `hybrid`'s loop with `pool`'s miss mechanism, so the delta
     /// against `pool` is loop shape alone. `docs/disk-access/EVIDENCE.md`.
     PoolRingLoop,
@@ -58,6 +61,7 @@ impl Arm {
             "uring" => Some(Self::Uring),
             "hybrid" => Some(Self::Hybrid),
             "pooled_pread" => Some(Self::PooledPread),
+            "pool_capped_probe" => Some(Self::PoolCappedProbe),
             "pool_ringloop" => Some(Self::PoolRingLoop),
             "hybrid_lazyring" => Some(Self::HybridLazyRing),
             "uring_ringfd" => Some(Self::UringRingFd),
@@ -75,6 +79,7 @@ impl Arm {
             Self::Uring => "uring",
             Self::Hybrid => "hybrid",
             Self::PooledPread => "pooled_pread",
+            Self::PoolCappedProbe => "pool_capped_probe",
             Self::PoolRingLoop => "pool_ringloop",
             Self::HybridLazyRing => "hybrid_lazyring",
             Self::UringRingFd => "uring_ringfd",
@@ -312,6 +317,11 @@ async fn reader_pool(
     let asks = plan.len();
     let next = Arc::new(AtomicU64::new(0));
     let always_pool = cell.arm == Arm::PooledPread;
+    let probe_cap = if cell.arm == Arm::PoolCappedProbe {
+        READ_WINDOW
+    } else {
+        usize::MAX
+    };
     let mut set = tokio::task::JoinSet::new();
     let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
     for _ in 0..depth {
@@ -342,7 +352,9 @@ async fn reader_pool(
                 let got = if always_pool {
                     0
                 } else {
-                    store.read_at_nowait(&mut buf[..len], off).unwrap_or(0)
+                    store
+                        .read_at_nowait(&mut buf[..len.min(probe_cap)], off)
+                        .unwrap_or(0)
                 };
                 if got < len {
                     miss += 1;
