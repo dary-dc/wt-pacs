@@ -90,11 +90,11 @@ async fn run(args: Args) -> Result<()> {
     if !args.no_header {
         println!(
             "label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\t\
-             asks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct"
+             asks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed"
         );
     }
     println!(
-        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t-",
+        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t-\t-",
         args.label,
         args.arm,
         args.temp,
