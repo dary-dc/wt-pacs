@@ -5,12 +5,12 @@
 #
 # usage: client_ab_profile.sh ARTIFACTS_DIR [OUT_DIR]      (variants: ARTIFACTS_DIR/{before,after})
 # env: SERVER (default target/release/exact-server), HTTP_PORT=8765, WT_PORT=4433, REPEATS=2
-# Summarise with: python3 lab/scripts/client_ab_summarize.py OUT_DIR
+# Summarise with: python3 lab/improvements/scripts/client_ab_summarize.py OUT_DIR
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"; cd "$ROOT"
 ART=$1; OUT=${2:-$ROOT/.local/client-ab-profiles}; mkdir -p "$OUT"
 SERVER=${SERVER:-$ROOT/target/release/exact-server}; HTTP_PORT=${HTTP_PORT:-8765}; WT_PORT=${WT_PORT:-4433}; REPEATS=${REPEATS:-2}
-PROFILE=$ROOT/lab/scripts/client_profile.mjs
+PROFILE=$ROOT/lab/improvements/scripts/client_profile.mjs
 swap() { cp "$ART/$1/shell.js" client/harness/shell.js; cp "$ART/$1/session.js" client/transport-ts/dist/session.js; rm -rf client/transport-wasm/pkg; cp -r "$ART/$1/pkg" client/transport-wasm/pkg; }
 restore() { git checkout -q -- client/harness/shell.js 2>/dev/null || true; bash client/transport-ts/build.sh >/dev/null; (cd client/transport-wasm && bash build.sh >/dev/null 2>&1) || true; }
 python3 server/dev-server.py --port "$HTTP_PORT" --study us_cine_smoke > "$OUT/http.log" 2>&1 & HPID=$!; sleep 0.5

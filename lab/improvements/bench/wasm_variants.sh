@@ -2,9 +2,9 @@
 # Build client/transport-wasm under several release-profile variants (all through wasm-opt, as
 # wasm-pack does by default) into .local/wasm-variants/<name>/ and print the sizes.
 # Needs wasm-pack and wasm-opt on PATH (npm i -g wasm-pack binaryen) and the wasm32 target.
-# usage: lab/bench/wasm_variants.sh            (env: OUT=.local/wasm-variants)
+# usage: lab/improvements/bench/wasm_variants.sh            (env: OUT=.local/wasm-variants)
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 OUT="${OUT:-$ROOT/.local/wasm-variants}"; mkdir -p "$OUT"
 cd "$ROOT/client/transport-wasm"
 export RUSTFLAGS="--cfg=web_sys_unstable_apis"

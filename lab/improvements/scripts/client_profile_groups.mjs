@@ -1,5 +1,5 @@
 // CPU-profile one harness cell and group main-thread self time by source file (not just top-30 functions).
-// usage: node lab/scripts/client_profile_groups.mjs <http-base> <ts|wasm> <query> <out.json> [timeout-s]
+// usage: node lab/improvements/scripts/client_profile_groups.mjs <http-base> <ts|wasm> <query> <out.json> [timeout-s]
 const PLAYWRIGHT = process.env.PLAYWRIGHT_MODULE ?? "/opt/node22/lib/node_modules/playwright/index.mjs";
 const CHROME = process.env.CHROME_BIN ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const { chromium } = await import(PLAYWRIGHT);

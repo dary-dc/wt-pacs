@@ -1,5 +1,5 @@
 // Measure WASM fetch+compile+instantiate (init()) time per package variant in Chromium.
-// usage: node lab/bench/wasm_init_time.mjs <http-base> <pkg-url-path> [runs]   (pkg-url-path: a directory the static host serves, holding transport_wasm.js)
+// usage: node lab/improvements/bench/wasm_init_time.mjs <http-base> <pkg-url-path> [runs]   (pkg-url-path: a directory the static host serves, holding transport_wasm.js)
 const PLAYWRIGHT = process.env.PLAYWRIGHT_MODULE ?? "/opt/node22/lib/node_modules/playwright/index.mjs";
 const CHROME = process.env.CHROME_BIN ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const { chromium } = await import(PLAYWRIGHT);

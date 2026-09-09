@@ -3,7 +3,7 @@
 # usage: callgrind_run.sh LABEL SERVER_PROF_BIN FIXTURE MODE [DWELL_MS]
 # SERVER_PROF_BIN: exact-server built with CARGO_PROFILE_RELEASE_DEBUG=1. env: HARNESS, WORK, PORT
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 HARNESS="${HARNESS:-$ROOT/target/release/window-harness}"
 label=$1; bin=$2; fixture=$3; mode=$4; dwell=${5:-4000}; port=${PORT:-4477}
 dir="${WORK:-$ROOT/.local/callgrind}/$label-$fixture-$mode"; rm -rf "$dir"; mkdir -p "$dir"

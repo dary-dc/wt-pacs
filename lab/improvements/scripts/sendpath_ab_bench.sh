@@ -6,7 +6,7 @@
 # env: FIXTURES="frames_32k frames_250k" MODES="shared per-frame" REPEATS=3 DWELL_MS=4000 DEPTH=4
 #      SESSIONS=1 READ_BPS=0 PORT=4433
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 OUT=$1; LA=$2; BA=$3; LB=${4:-}; BB=${5:-}
 FIXTURES="${FIXTURES:-frames_32k frames_250k}"
 MODES="${MODES:-shared per-frame}"
