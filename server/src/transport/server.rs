@@ -10,15 +10,16 @@ use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::stream_mode::StreamMode;
+use crate::transport::tuning::TransportTuning;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{info, warn};
 use std::time::Duration;
-use wtransport::config::{states, IpBindConfig, QuicTransportConfig, ServerConfigBuilder};
+use tracing::{info, warn};
+use wtransport::config::{states, IpBindConfig, ServerConfigBuilder};
 use wtransport::endpoint::endpoint_side;
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{Endpoint, Identity, ServerConfig};
@@ -37,41 +38,8 @@ pub struct ServeConfig {
     /// Explicit bind address. `None` binds dual-stack `[::]` and falls back to `0.0.0.0` on a
     /// host with no IPv6 stack (containers commonly lack one).
     pub bind: Option<IpAddr>,
-    /// QUIC transport knobs. Each `None` keeps the library default (send window 10 MB per
-    /// connection, stream receive window 1.25 MB, idle timeout 30 s). The send window is the
-    /// number that scales with slow clients: it bounds unacknowledged bytes held per connection.
-    pub transport: TransportKnobs,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct TransportKnobs {
-    pub send_window_bytes: Option<u64>,
-    pub stream_receive_window_bytes: Option<u32>,
-    pub max_idle_timeout_ms: Option<u64>,
-}
-
-impl TransportKnobs {
-    pub fn is_default(&self) -> bool {
-        *self == Self::default()
-    }
-
-    /// One line for the startup banner.
-    pub fn describe(&self) -> String {
-        if self.is_default() {
-            return "default".to_string();
-        }
-        let mut parts = Vec::new();
-        if let Some(v) = self.send_window_bytes {
-            parts.push(format!("send_window={v}"));
-        }
-        if let Some(v) = self.stream_receive_window_bytes {
-            parts.push(format!("stream_receive_window={v}"));
-        }
-        if let Some(v) = self.max_idle_timeout_ms {
-            parts.push(format!("max_idle_timeout_ms={v}"));
-        }
-        parts.join(",")
-    }
+    /// QUIC transport knobs. Unset fields keep the library default.
+    pub tuning: TransportTuning,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -101,7 +69,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode.as_str());
     println!("bind={bound}");
-    println!("transport={}", config.transport.describe());
+    println!("transport={}", config.tuning.describe());
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
     #[cfg(not(feature = "telemetry"))]
@@ -114,11 +82,12 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     );
 
     let mode = config.mode;
+    let prefault = config.tuning.prefault;
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
         tokio::spawn(async move {
-            if let Err(err) = handle_incoming(incoming, store, mode).await {
+            if let Err(err) = handle_incoming(incoming, store, mode, prefault).await {
                 warn!(%err, "session ended");
             }
         });
@@ -149,20 +118,14 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
     fn finish(
         builder: ServerConfigBuilder<states::WantsIdentity>,
         identity: Identity,
-        knobs: TransportKnobs,
+        tuning: &TransportTuning,
     ) -> Result<ServerConfig> {
-        if knobs.is_default() {
+        if tuning.quic_is_library_default() {
             return Ok(builder.with_identity(identity).build());
         }
-        let mut transport = QuicTransportConfig::default();
-        if let Some(v) = knobs.send_window_bytes {
-            transport.send_window(v);
-        }
-        if let Some(v) = knobs.stream_receive_window_bytes {
-            transport.stream_receive_window(v.into());
-        }
+        let transport = tuning.to_transport_config()?;
         let mut builder = builder.with_custom_transport(identity, transport);
-        if let Some(ms) = knobs.max_idle_timeout_ms {
+        if let Some(ms) = tuning.max_idle_timeout_ms {
             builder = builder
                 .max_idle_timeout(Some(Duration::from_millis(ms)))
                 .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
@@ -170,13 +133,11 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
         Ok(builder.build())
     }
 
-    let knobs = config.transport;
-
     if let Some(ip) = config.bind {
         let server_config = finish(
             ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
             identity(config).await?,
-            knobs,
+            &config.tuning,
         )?;
         let endpoint = Endpoint::server(server_config)
             .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
@@ -186,7 +147,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
     let dual = finish(
         ServerConfig::builder().with_bind_default(config.wt_port),
         identity(config).await?,
-        knobs,
+        &config.tuning,
     )?;
     match Endpoint::server(dual) {
         Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
@@ -195,11 +156,13 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
             let v4 = finish(
                 ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
                 identity(config).await?,
-                knobs,
+                &config.tuning,
             )?;
-            let endpoint =
-                Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
-            Ok((endpoint, "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string()))
+            let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
+            Ok((
+                endpoint,
+                "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
+            ))
         }
     }
 }
@@ -208,9 +171,14 @@ async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
     store: Arc<FrameStore>,
     mode: StreamMode,
+    prefault: bool,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     let connection = session_request.accept().await.context("accept session")?;
+
+    // Before FrameOut::open consumes the connection.
+    #[cfg(feature = "telemetry")]
+    tokio::spawn(crate::record::path::run(connection.clone()));
 
     let (control_send, control_recv) = connection
         .accept_bi()
@@ -218,7 +186,7 @@ async fn handle_incoming(
         .context("accept control bidi")?;
 
     let out = FrameOut::open(mode, connection).await?;
-    let mut product = ProductPipeline::new(store, out);
+    let mut product = ProductPipeline::new(store, out, prefault);
 
     // Lab wrap only when env on — RecordedPipeline always holds a live Tap.
     #[cfg(feature = "telemetry")]

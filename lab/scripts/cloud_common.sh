@@ -9,12 +9,18 @@ CLOUD_HOST="${CLOUD_HOST:-168.138.130.163}"
 CLOUD_USER="${CLOUD_USER:-ubuntu}"
 CLOUD_PORT="${CLOUD_PORT:-4435}"
 CLOUD_URL="${CLOUD_URL:-https://${CLOUD_HOST}:${CLOUD_PORT}/}"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}"
 REMOTE="${CLOUD_USER}@${CLOUD_HOST}"
 REMOTE_WT="$REMOTE:/home/ubuntu/wt-pacs"
+# Prefer workspace known_hosts (cloud agents often lack ~/.ssh/known_hosts entry).
+SSH_KNOWN_HOSTS="${SSH_KNOWN_HOSTS:-$ROOT/.local/r2/known_hosts}"
+mkdir -p "$(dirname "$SSH_KNOWN_HOSTS")"
+[[ -f "$SSH_KNOWN_HOSTS" ]] || ssh-keyscan -H "$CLOUD_HOST" >>"$SSH_KNOWN_HOSTS" 2>/dev/null || true
 
-SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes "$REMOTE")
-SCP=(scp -i "$SSH_KEY")
+SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes -o IdentitiesOnly=yes
+  -o UserKnownHostsFile="$SSH_KNOWN_HOSTS" -o StrictHostKeyChecking=yes "$REMOTE")
+SCP=(scp -i "$SSH_KEY" -o BatchMode=yes -o IdentitiesOnly=yes
+  -o UserKnownHostsFile="$SSH_KNOWN_HOSTS" -o StrictHostKeyChecking=yes)
 
 # Harness: no client-side shaping — wire cap is on the server via cloud_netem.sh
 HARNESS_READ_BPS="${HARNESS_READ_BPS:-1000000000}"
@@ -38,8 +44,12 @@ if ratio < 1.0:
 }
 
 cloud_set_netem() {
+  # Args: profile [loss_pct] [loss_model]
+  # loss_model: iid (default) | gemodel  (C5; gemodel uses GE_P/GE_R on the rig)
   local profile=$1
-  "${SSH[@]}" "sudo -n /home/ubuntu/wt-pacs/scripts/cloud_netem.sh $profile"
+  local loss=${2:-0}
+  local model=${3:-iid}
+  "${SSH[@]}" "GE_P=${GE_P:-0.07} GE_R=${GE_R:-14} sudo -n -E /home/ubuntu/wt-pacs/scripts/cloud_netem.sh $profile $loss $model"
 }
 
 cloud_ensure_server() {

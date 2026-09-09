@@ -12,7 +12,7 @@ KEY="$ROOT/server/dev-cert/key.pem"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
 mkdir -p "$(dirname "$OUT")"
-cargo build -p window-harness -p exact-server --release >/dev/null
+cargo build -p exact-server -p window-harness --release >/dev/null
 
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
@@ -31,6 +31,7 @@ SERVER="$CARGO_TARGET_DIR/release/exact-server"
 run_h() {
   local trace=$1
   "$SERVER" --port 4433 --study "$STUDY" \
+    --stream-mode per-frame \
     --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   local sp=$!
   sleep 1.2

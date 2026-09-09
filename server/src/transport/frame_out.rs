@@ -1,11 +1,13 @@
 //! Wire seam: session-scoped outbound media (`FrameOut`).
 //!
 //! Opens shared or per-frame uni streams and writes length-prefixed envelopes.
-//! The per-frame app story lives in [`super::pipeline`]; see `docs/telemetry/adr-server-pipeline.md`.
+//! The write path is chunked (`Bytes` + `write_all_chunks`). The per-frame app
+//! story lives in [`super::pipeline`].
 
+use crate::transport::assemble::chunked_chunks;
 use crate::transport::stream_mode::StreamMode;
 use anyhow::{Context, Result};
-use frame_envelope::ENVELOPE_LEN;
+use bytes::Bytes;
 use std::time::Duration;
 use tokio::task::JoinSet;
 use wtransport::stream::SendStream;
@@ -46,37 +48,22 @@ impl FrameOut {
         }
     }
 
-    pub(crate) async fn send_frame(&mut self, idx: u32, codestream: &[u8]) -> Result<()> {
-        let envelope_len = (ENVELOPE_LEN + codestream.len()) as u32;
-        let len = envelope_len.to_be_bytes();
-        let index = idx.to_be_bytes();
+    pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes) -> Result<()> {
+        let mut chunks = chunked_chunks(idx, body);
         match self {
             Self::Shared { uni, .. } => {
-                uni.write_all(&len).await.context("write shared len")?;
-                uni.write_all(&index).await.context("write shared index")?;
-                uni.write_all(codestream)
+                uni.quic_stream_mut()
+                    .write_all_chunks(&mut chunks)
                     .await
-                    .context("write shared codestream")?;
+                    .context("write shared frame chunks")?;
             }
             Self::PerFrame { connection, acks } => {
-                let mut uni = connection
-                    .open_uni()
+                let mut uni = open_frame_uni(connection).await?;
+                uni.quic_stream_mut()
+                    .write_all_chunks(&mut chunks)
                     .await
-                    .context("open uni")?
-                    .await
-                    .context("open uni ready")?;
-                uni.write_all(&len).await.context("write len")?;
-                uni.write_all(&index).await.context("write index")?;
-                uni.write_all(codestream)
-                    .await
-                    .context("write codestream")?;
-
-                acks.spawn(async move {
-                    let _ = uni.finish().await;
-                });
-                // Finished ack tasks stay in the set until joined; reap them here so a long
-                // session does not accumulate one dead task per frame until it ends.
-                while acks.try_join_next().is_some() {}
+                    .context("write frame chunks")?;
+                spawn_ack(acks, uni);
             }
         }
         Ok(())
@@ -90,4 +77,21 @@ impl FrameOut {
             .await;
         }
     }
+}
+
+async fn open_frame_uni(connection: &Connection) -> Result<SendStream> {
+    connection
+        .open_uni()
+        .await
+        .context("open uni")?
+        .await
+        .context("open uni ready")
+}
+
+/// Move `finish()` off the serve loop, then reap cells that have already completed (§7).
+fn spawn_ack(acks: &mut JoinSet<()>, mut uni: SendStream) {
+    acks.spawn(async move {
+        let _ = uni.finish().await;
+    });
+    while acks.try_join_next().is_some() {}
 }

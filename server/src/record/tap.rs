@@ -419,7 +419,7 @@ fn usize_to_u32(n: usize) -> u32 {
     n.min(u32::MAX as usize) as u32
 }
 
-fn env_enabled(name: &str) -> bool {
+pub(super) fn env_enabled(name: &str) -> bool {
     std::env::var(name)
         .map(|v| {
             let s = v.to_ascii_lowercase();

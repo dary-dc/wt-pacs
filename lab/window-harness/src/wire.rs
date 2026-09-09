@@ -97,34 +97,8 @@ pub async fn read_framed_paced(
     Ok(payload)
 }
 
-/// Returns `(payload, consumed_bytes)` when a full frame is present.
-pub fn parse_length_prefixed(buf: &[u8]) -> Option<(&[u8], usize)> {
-    if buf.len() < 4 {
-        return None;
-    }
-    let len = u32::from_be_bytes(buf[..4].try_into().ok()?) as usize;
-    if len == 0 || len > MAX_FRAME_LEN {
-        return None;
-    }
-    let total = 4 + len;
-    if buf.len() < total {
-        return None;
-    }
-    Some((&buf[4..total], total))
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
 
-    #[test]
-    fn parse_length_prefixed_round_trip() {
-        let payload = b"hello";
-        let mut framed = Vec::new();
-        framed.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-        framed.extend_from_slice(payload);
-        let (got, n) = parse_length_prefixed(&framed).unwrap();
-        assert_eq!(got, payload);
-        assert_eq!(n, framed.len());
-    }
 }

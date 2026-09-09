@@ -3,14 +3,14 @@
 //! [`FramePipeline::serve_one`] is written once (trait default).
 //! Implementors override steps only. Lab wraps steps; it does not restate the story.
 //!
-//! `serve_one` clones the study [`Arc`] so located bytes borrow that clone, not `self`,
-//! which lets `send(&mut self, bytes)` compile for wrappers.
-//! See `docs/telemetry/adr-server-pipeline.md`.
+//! `locate` returns [`Bytes`] — a refcounted view of the study mapping — so `send` can
+//! take the chunked path without a full-frame copy. See `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::wire::write_fod_msg;
 use anyhow::{Context, Error, Result};
+use bytes::Bytes;
 use fod::FodMsg;
 use std::sync::Arc;
 use tracing::warn;
@@ -29,16 +29,11 @@ pub(crate) trait FramePipeline: Send {
     fn store(&self) -> &Arc<FrameStore>;
 
     /// prepare → locate → send, or refuse on control.
-    async fn serve_one(
-        &mut self,
-        frame: u32,
-        control: &mut SendStream,
-    ) -> Result<()> {
+    async fn serve_one(&mut self, frame: u32, control: &mut SendStream) -> Result<()> {
         if let Err(err) = self.prepare(frame).await {
             return self.refuse(control, frame, err).await;
         }
 
-        // Clone so `bytes` borrow this Arc, not `self`.
         let store = Arc::clone(self.store());
         let bytes = match self.locate(&store, frame) {
             Ok(bytes) => bytes,
@@ -66,20 +61,13 @@ pub(crate) trait FramePipeline: Send {
 
     async fn prepare(&mut self, frame: u32) -> Result<()>;
 
-    /// Return the frame bytes (real slice, not a validate-only check).
-    ///
-    /// `bytes` borrow `store`, which must outlive `send` (see default `serve_one`).
-    fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]>;
+    /// Frame payload as a refcounted view of the mapping — no allocation, no copy.
+    fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<Bytes>;
 
     /// Write the frame bytes on the media path.
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()>;
+    async fn send(&mut self, frame: u32, bytes: Bytes) -> Result<()>;
 
-    async fn refuse(
-        &mut self,
-        control: &mut SendStream,
-        frame: u32,
-        err: Error,
-    ) -> Result<()>;
+    async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()>;
 
     async fn drain_acks(&mut self);
 }
@@ -88,11 +76,16 @@ pub(crate) trait FramePipeline: Send {
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
     out: FrameOut,
+    prefault: bool,
 }
 
 impl ProductPipeline {
-    pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut) -> Self {
-        Self { store, out }
+    pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut, prefault: bool) -> Self {
+        Self {
+            store,
+            out,
+            prefault,
+        }
     }
 }
 
@@ -102,26 +95,24 @@ impl FramePipeline for ProductPipeline {
     }
 
     async fn prepare(&mut self, frame: u32) -> Result<()> {
+        if !self.prefault {
+            return Ok(());
+        }
         let store = Arc::clone(&self.store);
         tokio::task::spawn_blocking(move || store.touch_frame_pages(frame))
             .await
             .context("join frame page touch")?
     }
 
-    fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
-        store.frame_slice(frame)
+    fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<Bytes> {
+        store.frame_bytes(frame)
     }
 
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
+    async fn send(&mut self, frame: u32, bytes: Bytes) -> Result<()> {
         self.out.send_frame(frame, bytes).await
     }
 
-    async fn refuse(
-        &mut self,
-        control: &mut SendStream,
-        frame: u32,
-        err: Error,
-    ) -> Result<()> {
+    async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
         let reason = err.to_string();
         warn!(frame, %reason, "frame refused");
         write_fod_msg(
@@ -174,7 +165,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         // Prepare Err → serve_one calls refuse; emit_refused closes prepare.
     }
 
-    fn locate<'a>(&mut self, store: &'a FrameStore, frame: u32) -> Result<&'a [u8]> {
+    fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<Bytes> {
         self.tap.boundary_prepare_done(); // entry: close prepare
         let result = self.inner.locate(store, frame);
         if let Ok(bytes) = &result {
@@ -184,7 +175,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         result
     }
 
-    async fn send(&mut self, frame: u32, bytes: &[u8]) -> Result<()> {
+    async fn send(&mut self, frame: u32, bytes: Bytes) -> Result<()> {
         self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + bytes.len();
         match self.inner.send(frame, bytes).await {
@@ -199,12 +190,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         }
     }
 
-    async fn refuse(
-        &mut self,
-        control: &mut SendStream,
-        frame: u32,
-        err: Error,
-    ) -> Result<()> {
+    async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {
         self.tap.emit_refused(); // close open stage + emit
         self.inner.refuse(control, frame, err).await
     }

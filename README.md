@@ -39,6 +39,16 @@ Open product/lab work outside the transport and disk lanes lives in
 [`docs/improvements/`](docs/improvements/README.md).
 
 
+## Transport performance
+
+Front door: [`docs/transport/`](docs/transport/).
+
+- [`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) — **the answer**
+- [`docs/transport/why-these-changes.md`](docs/transport/why-these-changes.md) — why each decision exists
+
+Campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`.
+
+
 ## Provenance
 
 Public MIT extract of work that began in a private codebase. Names, license,

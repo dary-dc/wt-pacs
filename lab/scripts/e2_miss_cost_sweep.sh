@@ -34,6 +34,7 @@ run_one() {
   local pred
   pred=$(python3 -c "print(f'{max(0, $depth - 1) * $FRAME_BYTES * 8 / $BPS * 1000:.2f}')")
   "$SERVER" --port "$PORT" --study "$STUDY" \
+    --stream-mode per-frame \
     --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   local sp=$!
   sleep 1.0

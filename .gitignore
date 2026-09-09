@@ -22,10 +22,15 @@ client/record/test/run.mjs
 # Telemetry-only WASM out-dir — plan §8
 client/transport-wasm/pkg-telemetry/
 
-# Generated Tf-axis fixtures (regenerate with lab/scripts/gen_tf_fixtures.sh)
+# Generated Tf-axis fixtures (regenerate with the snippet in its README)
 lab/fixtures/frames_32k/*.sbnd
+lab/fixtures/frames_32k_160/*.sbnd
 lab/fixtures/frames_250k/*.sbnd
 lab/fixtures/frames_250k_live/*.sbnd
+
+# Large lab fixture, regenerate with the snippet in its README
+lab/fixtures/frames_500x64k/*.sbnd
+lab/fixtures/frames_500x250k/*.sbnd
 
 # Python bytecode
 __pycache__/
