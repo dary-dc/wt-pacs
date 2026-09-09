@@ -215,7 +215,7 @@ cap belong to step 3 and wait for these two.
 
 ## 7 · Still open
 
-* **W for tiles**: ~~4, 8, or per link?~~ **4, decided — §9.3.** §10 Cut 6 is why there is no sweep.
+* **W for tiles**: ~~4, 8, or per link?~~ **4 on the lab numbers — §9.3, §9.5.** P0's depth ladder on the target is what could move it to 8 or 16.
 * **`EndStream` and the wire.** The server stops producing within one frame, but bytes
   already handed to QUIC still drain, and on a slow link that is the client's receive window,
   not the server. A fill client that wants a fast stop keeps that window small. Whether a
@@ -493,7 +493,7 @@ the default link cannot show it.** Fill does not, because there the same change 
 | **call** | **yes**, at step 3 | **no** |
 
 The scalability cost the owners named is the fill column, and it is why W stays two numbers
-(§5) rather than one. §10 Cut 5 is the way to make it one.
+(§5) rather than one.
 
 ### 9.4 · The one cell to run, and what it can show
 
@@ -504,58 +504,107 @@ is server time, and §9.2 says by how much. A tie is the result this section pre
 the record that the loop and W were checked on the link that matters. P0 then supplies the
 miss cost on the production volume, the one number that scales W's worth.
 
-## 10 · Simplification proposals — six cuts, to choose from
+### 9.5 · Why 4 and not 16 for tiles
 
-Written 2026-09-09 from the design as agreed, deliberately without reading the code landed
-in steps 0–2. Each cut says what it removes, what it costs, how it is checked and when to
-take it. They are independent unless marked. The intent is that the owners analyse them,
-choose, and the chosen one is reviewed against the code before it is built.
+`v35` also priced depth 16, and the owners asked whether latency wants it. W for tiles is the
+number of a client's asks the server reads at once, so it can only help a burst larger than
+itself. Cold 16 KiB tiles, one session, the lab NVMe, `product` arm, medians of 12:
 
-| cut | removes | costs | take it when |
+| W (= asks in flight) | 1 | 2 | 4 | 16 |
+| --- | --- | --- | --- | --- |
+| 16-tile burst, server side | 1.37 ms | 0.86 ms | 0.69 ms | 0.45 ms |
+| 4-tile burst, server side | 0.34 ms | 0.22 ms | 0.17 ms | 0.17 ms — a 4-tile ask cannot use 16 |
+| per tile, steady state, p50 / p99 | 80 / 167 µs | 93 / 237 µs | 154 / 330 µs | 325 / 1221 µs |
+| memory per session, per thousand | 16 KiB, 16 MB | 32 KiB, 32 MB | 64 KiB, 64 MB | 256 KiB, 256 MB |
+
+**What 16 buys over 4: 0.24 ms on a 16-tile cold burst, nothing on a smaller one.** Against
+the wire for those 16 tiles that is 0.2 % at 20 Mbps, 1 % at 100 Mbps, 11 % at 1 Gbps. In
+steady state each tile waits behind 15 others instead of 3, which is the p50 doubling — the
+burst ends sooner and every tile in it arrives later than it would alone.
+
+**At scale, 16 makes the busy case worse for everyone.** `v34` on the workstation: cold
+throughput is flat at ~50 k asks/s from 64 reads in flight, and from there every extra read
+in flight is queue, not throughput — p50 4.9 ms at 256 in flight, 15 ms at 1024. A thousand
+sessions can put 4 000 reads in flight at W = 4 and 16 000 at W = 16; at the plateau that is
+80 ms against 320 ms of queue if they all burst at once. W bounds how much of the device one
+session can take, and 4 is the bound that costs a quiet session 0.24 ms.
+
+**The one place 16 could matter is unmeasured.** On a cloud volume with ~1 ms misses that
+parallelise, a 16-tile burst is ~4 ms at W = 4 and ~1–2 ms at W = 16 — 2–3 ms, 2–3 % of the
+20 Mbps wire, 10–14 % at 100 Mbps. That is P0's depth ladder to measure on the target, so P0
+runs depths 2, 4, 8 and 16, not 4 alone. Until it does, **4 stands**, and W stays one
+constant so moving it is one line.
+
+## 10 · Simplification proposals — the shape of the code, every capability kept
+
+Written 2026-09-09 from the design as agreed and the code as it stood before steps 0–2,
+deliberately without reading what landed. The brief is `CLAUDE.md`'s: essentialist, simple,
+readable by a junior — **and nothing lost**: `RequestFrame`, `RequestFrames`, `StreamFrames`
+with `EndStream`, read-ahead, the ring with the pool behind it, `RWF_NOWAIT` hits, the
+defensive cap, ask-order delivery and the miss reporting all stay. Each cut says what it
+removes, what it keeps and how it is checked. The owners analyse, choose, and the chosen
+cut is reviewed against the code before it is built.
+
+*The first version of this section, the same day, listed six cuts that traded capability or
+measured behaviour for lines (delete the ring, A-lite, windows that never grow, no W sweep
+among them). Withdrawn; the ring question stays P0's rule in [`NEXT.md`](NEXT.md) §3.*
+
+**Already proposed, restated here so the list is complete in one place.** Change **A**
+([`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) §3): one frame loop instead of one split across
+two modules, `frame(span, upcoming)` and `FrameBytes::next()`, the read-ahead intent visible
+once per frame. Change **B** (§4 there): a window owns its ring slot — one `unsafe fn` fewer,
+one drop-order obligation fewer, `SLOTS` and `WINDOWS` become one number, after P0. **P1**
+([`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md)): park on the ring's own
+fd — one fd per session instead of two, ~30 lines fewer, after P0.
+
+| cut | removes | keeps | checked by |
 | --- | --- | --- | --- |
-| **1** delete the ring, ship the pool | ~800 lines, 8 `unsafe`, 2 fds + 8.7 KiB per missing session, both container traps, P1 and change B | +45.4 % CPU per 16 KiB miss (RESOLVED); 125–135 pool threads at 64 readers where the ring holds 5; nothing a client sees on the default link | P0 ties on the target — the rule is already fixed in [`NEXT.md`](NEXT.md) §3 |
-| **2** one ask unit, one serve path | `serve_batch` and its untested look-ahead; the batch-versus-pipelined distinction in the loop | the channel holds frames, not messages; a long batch blocks the reader task on backpressure, which QUIC absorbs | with step 3, when `upcoming` becomes "what the channel holds" for both |
-| **3** a fixed channel capacity | the `W − 1` coupling between transport and read path | one constant to name (8); bytes of memory | any time |
-| **4** step 3 as A-lite | the `FrameBytes` lending iterator and the seam move; the lab arms keep their API | review faults 2–4 stay: two cursor owners, `next` per call, intent from coordinates | W = 4 is wanted before the seam is, or the seam is never wanted |
-| **5** windows never grow; one W for both modes | the growth on the first miss, "W per use case", §5's 500 MB and its vectored-read future | on the pool path a missed fill frame is 4 reads instead of 1 — the shape measured at a third of the throughput on *tiles*; for a 96–99 % hit sequential stream the cost is bounded and **unmeasured** | an `x15`-shaped fill on capped against uncapped windows ties |
-| **6** no W sweep, no per-link W | step 4's campaign and one design dimension | on a LAN with a slow volume, 8 may be worth +28 % of server time over 4; measure then | now — §9 says W only matters where the server is the slow stage |
+| **1** one ask unit, one serve path | `serve_batch`, its untested look-ahead, the batch-versus-pipelined distinction in the loop | `RequestFrames` on the wire, unchanged; ask order; one `refuse` per bad frame | §8's tests less the batch one, `a_batch_arrives_whole_and_in_ask_order` |
+| **2** the loop is a planner; the transport is not mocked | the test-only `FramePipeline` and the pre-loaded-channel harness; timing from every loop test | every row of §8's test table, as planner tests | the same claims on the planner; the two wire tests for the transport |
+| **3** one `Window` type, W of them, no `Ahead` | `Ahead`, `begin_ahead`, `abandon_ahead`, the take-ahead decode; the flip that cannot become 4 | nowait, ring and pool inside `Pending`; read-ahead as a property of "a window already holds that span" | the twelve read-path and ring tests, `v36` interleaved |
+| **4** sizes have one owner each | `FrameStore::read_window` and the policy hidden in it | the whole-frame pooled read where nowait is refused; the ≤ `READ_WINDOW` write chunk | `a_pooled_frame_is_written_in_read_windows_not_in_one_copy` and the ring tests |
+| **5** a named channel capacity | the `W − 1` coupling | the defensive cap; backpressure | one constant, no test change |
 
-**Cut 1** is the largest and is already scheduled; it is listed so the trade is visible next
-to the others.
-
-**Cut 2.** The ask reader expands `RequestFrames { frames }` into one channel item per
-frame. The loop then has one serve call, `serve_one(frame, upcoming)`, and two sources of
+**Cut 1.** The ask reader expands `RequestFrames { frames }` into one channel item per frame,
+so the loop serves frames from one call, `serve_one(frame, upcoming)`, with two sources of
 frame numbers: the channel on demand, the recited range in a fill. A batch and a pipelined
-run of `RequestFrame` become the same thing to the loop, which is what they are on the wire;
-`RequestFrames` itself is unchanged. `EndSession` behind a long batch is seen after it,
-today's order. Check: §8's tests minus the batch-specific one, plus
-`a_batch_arrives_whole_and_in_ask_order`.
+run of `RequestFrame` become the same thing to the loop, which is what they are on the wire.
+A batch longer than the channel blocks the reader task on backpressure, which QUIC absorbs;
+`EndSession` behind it is seen after it, today's order. Pairs with cut 3, where `upcoming`
+is "what the channel holds" in both modes.
 
-**Cut 3.** `W − 1` makes the server's defensive cap a side-effect of a read-path constant. A
-named capacity of 8 says what it is — how many asks the server holds ahead — and the read
-path takes what fits. One sentence of explanation disappears.
+**Cut 2.** Split "what to serve next" from "serve it". The first is a small state machine
+with no I/O — the current source (channel or range), a `poll` that yields the next control
+message if one is waiting, and one method returning the next step: serve this frame with
+these upcoming, refuse this range, end. The second is the transport, which only does what
+the step says. Every claim in §8's test table is then a test on the state machine with a
+`Vec` of messages, and the transport keeps the two wire tests as its proof. Removes the
+mock, the channel from the tests, and the question of whether a test depends on timing.
 
-**Cut 4.** Change A rewrites ~120 lines to move the frame loop behind `FrameBytes`. If step 3
-is for W = 4 (§9.3), the smaller change keeps `ReadCtx::read` and only generalises `Ahead`
-to `windows: [Window; W]` fed by `upcoming`. The slot table and the completion demultiplexer
-are needed either way ([`NEXT.md`](NEXT.md) §1); A-lite skips the API move. Fault 1 is
-already fixed (`259e25f`). Check: the twelve read-path and ring tests unchanged, `v36` re-run
-interleaved.
+**Cut 3.** The read path today has a current window and one `Ahead`, with the take-ahead
+decision decoded from coordinates (review fault 4). Make it `windows: [Window; W]`, each
+`{ span, buf, state: Idle | Reading(Pending) | Ready }`, and one rule: *for each wanted span
+not already held, start it in a free window; wait on the window holding the current span; a
+window whose span is no longer wanted is free.* "Ahead" stops being a concept — it is a window
+that holds a span nobody has asked to wait on yet — so `abandon_ahead` has nothing to
+abandon. The `RWF_NOWAIT` probe runs inside `Window::start` and either fills the buffer
+(`Ready`) or hands back a ring or pool `Pending`; `Pending::Ready` goes. This is the slot
+table step 3 needs whichever seam shape is chosen, and with B each window carries its slot.
 
-**Cut 5.** Fill memory is 2 × frame because a window grows to the rest of the frame on its
-first miss and stays. Cap windows at 64 KiB always and the memory story is one line — W ×
-64 KiB per session, 256 KiB at W = 4, 256 MB per thousand fills — with one W for both modes
-and no growth logic. The cost lands on the pool path only, where a missed frame is 4 pooled
-reads instead of 1; the ring submits per window cheaply. Whether a sequential fill notices
-at its 1–4 % miss rate is the measurement. **Combines with §9.3 into one W = 4.**
+**Cut 4.** `read_window(len)` on the store answers a read-path question — it returns the
+whole frame when the probe is refused, which is a policy, not a property. Let the store say
+one thing, whether nowait works on this file, and let the read path own how much to read per
+call and the transport own how much to write per call. Two sizes, two owners, both named at
+the one place each is decided. This is the review's "two chunk sizes" note done fully.
 
-**Cut 6.** §7's "4, 8, or per link?" closes by §9: per-link W is pointless because W only
-matters where the server is the slow stage, and 4 against 8 is +28 % of server time that
-the wire hides. Take 4, run §9.4 once, stop.
+**Cut 5.** `W − 1` makes the server's cap on asks held ahead a side-effect of a read-path
+constant. Name it — `ASKS_AHEAD`, in the loop — and let the read path take what fits. One
+sentence of explanation disappears and the two constants can move independently.
 
 **Not proposed, because measured against** — listed so they are not proposed again: every
 read through the ring (hits +106 % / +298 % at depth 2 / 4, [`adr.md`](adr.md) §5); SQPOLL
 (2.2–2.8× CPU warm, [`RERUN.md`](RERUN.md)); `tokio::fs::File` (15× per read, `x15`); mmap
 with pre-touch (a hop per ask, [`adr.md`](adr.md) §5); per-frame streams (5.76× under loss,
 the loss-run branch); server-side reordering
-([`../adr-reject-server-ordering.md`](../adr-reject-server-ordering.md)).
+([`../adr-reject-server-ordering.md`](../adr-reject-server-ordering.md)); deleting the ring
+outright (P0's rule, not a shape choice).

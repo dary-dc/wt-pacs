@@ -52,7 +52,8 @@ p50 −53.4 %, **warm a tie** ([`v36_readahead.tsv`](v36_readahead.tsv),
 gives a pipelined `RequestFrame` its next; [`HANDOFF.md`](HANDOFF.md) §1), unmeasured. Why the
 loop and W are not where latency is lost on the owners' default link, the call to widen tiles to
 W = 4 anyway and keep fill at 2, and the one cell to run: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md)
-§9. The simplification cuts to choose from before step 3: §10 there. The paragraph below is
+§9, with §9.5 on why tiles take 4 and not 16 until P0's depth ladder says otherwise. The
+shape-only simplification cuts to choose from before step 3: §10 there. The paragraph below is
 kept as the state that ordering was set against.
 
 **Not built, and it is the loop, not the read path:** `run_session` still does not read the
@@ -83,7 +84,8 @@ layout claim checkable against a real workload rather than against the campaign'
 ## 3 · P0 — decide the backend on the target, and the arm question at depth > 1
 
 One campaign run on the production instance type, volume class and container image:
-`product` against `pool`, cold, readers 64–256, depth 4, with `check-fastpath` on the study
+`product` against `pool`, cold, readers 64–256, depths 2, 4, 8 and 16 (the ladder decides W for
+tiles on the target — [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §9.5), with `check-fastpath` on the study
 **volume** and `ulimit -l` inside the container recorded beside the TSV. Decision rule fixed
 in advance: a tie on the resolution rule deletes the ring and ships the pool; a resolved
 margin keeps it and folds in P1. Why it can go either way there, and not on a workstation:
