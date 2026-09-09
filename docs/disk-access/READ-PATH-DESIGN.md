@@ -1,7 +1,9 @@
 # Read path — design proposal: depth, messages, and the loop around the seam
 
 **2026-09-08 · Proposed, not implemented. For iteration.** Assembled from what was agreed on
-the day. It builds on three documents and repeats none of them:
+the day. **2026-09-09:** steps 0–2 landed ([`HANDOFF.md`](HANDOFF.md) §1, unmeasured); §9 records
+why the loop and W are not where latency is lost on the default link, and the owners' call on
+W; §10 lists the simplification cuts to choose from. It builds on three documents and repeats none of them:
 
 * [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) — the seam. Change **A** moves the frame loop
   into the read path behind `ctx.frame(...)`; change **B** makes a window own its ring slot,
@@ -213,7 +215,7 @@ cap belong to step 3 and wait for these two.
 
 ## 7 · Still open
 
-* **W for tiles**: 4, 8, or per link? The harness run in step 3 answers the first two.
+* **W for tiles**: ~~4, 8, or per link?~~ **4, decided — §9.3.** §10 Cut 6 is why there is no sweep.
 * **`EndStream` and the wire.** The server stops producing within one frame, but bytes
   already handed to QUIC still drain, and on a slow link that is the client's receive window,
   not the server. A fill client that wants a fast stop keeps that window small. Whether a
@@ -407,3 +409,153 @@ impl FrameBytes<'_> { pub async fn next(&mut self) -> Result<Option<&[u8]>>; }
 `windows: Vec<Window>` sized by W, `upcoming` consumed for at most `W − 1` frames not already
 held, and `LOOKAHEAD` follows W. The loop above does not change: `first_frame` becomes the
 frames the channel holds, `fill` passes `frame + 1..=to`. Nothing in steps 0–2 is undone.
+
+## 9 · Latency on the default link — what the loop and W can and cannot buy
+
+**2026-09-09, after steps 0–2 landed.** The owners' default link is medium-to-bad wireless.
+The loss-run branch (`cursor/l1-loss-run-dbae`, its `docs/transport-conclusions.md`) measured
+on two profiles, **50 ms / 20 Mbps** and **600 ms / 8 Mbps**, and settled two things this
+design inherits: **one shared stream** — per-frame streams are 5.76× worse at 250 KB under
+1 % loss on real hardware, and no cell on either rig favours them — and Cubic by default.
+What follows is arithmetic on those rates against read costs the lab measured. None of it is
+an end-to-end measurement; §9.4 names the one to run. It is written down because its
+conclusion — **the loop and W are not where latency is lost on this link** — is the kind
+that gets forgotten and re-argued.
+
+### 9.1 · Why the serial loop does not hurt here
+
+An ask passes three stages in series: the read on the server, QUIC's send buffer, the wire.
+On one shared stream delivery is FIFO whatever the server does, so serving asks in parallel
+on the server can only help when the server is the slowest stage. On the default link it is
+not, by two to four orders of magnitude:
+
+| per 16 KiB tile | time |
+| --- | --- |
+| wire at 20 Mbps | 6.5 ms |
+| wire at 8 Mbps | 16 ms |
+| server, hit (`v36` warm p50) | 2 µs |
+| server, miss on the lab NVMe (`v36` cold p50) | 65 µs |
+| server, miss on a cloud volume | **unmeasured** — ~1 ms is the usual figure, and P0's job |
+
+A 250 KB frame is 100 ms of wire at 20 Mbps and 250 ms at 8 Mbps.
+
+The loop as landed reads the next ask while the current frame is written (step 1's peek), so
+the read of ask *n + 1* overlaps the write of ask *n*. That is all the parallelism the wire
+can use: QUIC's send buffer holds more than one window, and a 65 µs read never drains it.
+
+**Where latency is lost on this link is the queue in front of a new ask, not the loop.**
+After a change of direction the newest ask waits behind every byte already handed to QUIC:
+100 ms per 250 KB frame queued ahead at 20 Mbps, 250 ms at 8 Mbps. No server-side
+parallelism shortens that — the stream is FIFO, and per-frame streams, which could, lost the
+loss run. What shortens it is queueing less: the **client's cap on asks in flight, chosen per
+link**, and the server's send window. Both are client-protocol and transport levers, not
+read-path ones, and the client cap is the one lever on this link that moves latency at all.
+
+### 9.2 · What W = 2 covers
+
+W = 2 is one window written while the next is read. The wire idles only when a read takes
+longer than the wire needs to drain one window:
+
+| link | wire per 64 KiB window | over a 65 µs lab miss | over a ~1 ms cloud miss |
+| --- | --- | --- | --- |
+| 8 Mbps | 66 ms | 1000× | 66× |
+| 20 Mbps | 26 ms | 400× | 26× |
+| 100 Mbps | 5 ms | 80× | 5× |
+| 1 Gbps | 0.5 ms | 8× | **server-bound** |
+
+* **Fill on wireless: covered.** Sequential and wire-bound at every rate above; read-ahead
+  by one never falls behind.
+* **On-demand tiles on wireless: covered.** What W changes is server time only. 16 cold
+  tiles on the lab NVMe take 0.86 ms at depth 2 and 0.68 ms at depth 4 (`v35` medians,
+  16 ÷ asks/s). That 0.2 ms sits against 105 ms of wire for the same tiles at 20 Mbps.
+* **At scale the device gets its depth from the session count.** A thousand sessions at
+  W = 2 is far past the ~64 reads in flight where the host stops separating arms
+  ([`NEXT.md`](NEXT.md) §6). Widening W per session adds nothing there.
+
+W = 2 is not enough in two places. A **fast link** — at 1 Gbps the same 16 tiles are 2 ms of
+wire, so the 0.2 ms is 10 %, and `v35` prices depth 2 → 4 at +26 to +37 % cold throughput
+(`product` and `hybrid_lazyring` arms). And a **cloud volume**, where a miss is ~15× the
+lab's and W's worth scales with it — unmeasured, which is what P0 is for.
+
+### 9.3 · Decision: tiles go to W = 4, fill stays at 2
+
+The owners' call, 2026-09-09, with the return stated so it is not re-argued: **latency is
+the first metric and the cost for tiles is 32 KiB per session, so tiles widen even though
+the default link cannot show it.** Fill does not, because there the same change is pure cost.
+
+| | tiles, W 2 → 4 | fill, W 2 → 4 |
+| --- | --- | --- |
+| worth on the default link | none measurable: ~0.2 ms on a 16-tile cold burst against 105 ms of wire | none: the wire sets the pace |
+| worth elsewhere | LAN, and cloud-volume misses: +26 to +37 % cold throughput (`v35`), scaled by the volume's miss cost | only if a miss exceeds one window of wire — 26 ms at 20 Mbps — which no volume class does |
+| memory per session | 32 → 64 KiB | after a miss, 2 → 4 frames: 500 KB → 1 MB; a thousand fills 500 MB → 1 GB |
+| ring slots | 2 → 4 | 2 → 4 |
+| reads that can go unwanted | none: on demand every read is an ask already sent | up to 3 frames past an `EndStream` |
+| **call** | **yes**, at step 3 | **no** |
+
+The scalability cost the owners named is the fill column, and it is why W stays two numbers
+(§5) rather than one. §10 Cut 5 is the way to make it one.
+
+### 9.4 · The one cell to run, and what it can show
+
+Before and after step 3, interleaved against a worktree build: the harness on a throttled
+link — **20 Mbps, 50 ms, 1 % loss, cold tiles, client depth 4, W = 2 against W = 4**.
+Expected: a tie on first byte and on time to the last tile; the only quantity that can move
+is server time, and §9.2 says by how much. A tie is the result this section predicts, and
+the record that the loop and W were checked on the link that matters. P0 then supplies the
+miss cost on the production volume, the one number that scales W's worth.
+
+## 10 · Simplification proposals — six cuts, to choose from
+
+Written 2026-09-09 from the design as agreed, deliberately without reading the code landed
+in steps 0–2. Each cut says what it removes, what it costs, how it is checked and when to
+take it. They are independent unless marked. The intent is that the owners analyse them,
+choose, and the chosen one is reviewed against the code before it is built.
+
+| cut | removes | costs | take it when |
+| --- | --- | --- | --- |
+| **1** delete the ring, ship the pool | ~800 lines, 8 `unsafe`, 2 fds + 8.7 KiB per missing session, both container traps, P1 and change B | +45.4 % CPU per 16 KiB miss (RESOLVED); 125–135 pool threads at 64 readers where the ring holds 5; nothing a client sees on the default link | P0 ties on the target — the rule is already fixed in [`NEXT.md`](NEXT.md) §3 |
+| **2** one ask unit, one serve path | `serve_batch` and its untested look-ahead; the batch-versus-pipelined distinction in the loop | the channel holds frames, not messages; a long batch blocks the reader task on backpressure, which QUIC absorbs | with step 3, when `upcoming` becomes "what the channel holds" for both |
+| **3** a fixed channel capacity | the `W − 1` coupling between transport and read path | one constant to name (8); bytes of memory | any time |
+| **4** step 3 as A-lite | the `FrameBytes` lending iterator and the seam move; the lab arms keep their API | review faults 2–4 stay: two cursor owners, `next` per call, intent from coordinates | W = 4 is wanted before the seam is, or the seam is never wanted |
+| **5** windows never grow; one W for both modes | the growth on the first miss, "W per use case", §5's 500 MB and its vectored-read future | on the pool path a missed fill frame is 4 reads instead of 1 — the shape measured at a third of the throughput on *tiles*; for a 96–99 % hit sequential stream the cost is bounded and **unmeasured** | an `x15`-shaped fill on capped against uncapped windows ties |
+| **6** no W sweep, no per-link W | step 4's campaign and one design dimension | on a LAN with a slow volume, 8 may be worth +28 % of server time over 4; measure then | now — §9 says W only matters where the server is the slow stage |
+
+**Cut 1** is the largest and is already scheduled; it is listed so the trade is visible next
+to the others.
+
+**Cut 2.** The ask reader expands `RequestFrames { frames }` into one channel item per
+frame. The loop then has one serve call, `serve_one(frame, upcoming)`, and two sources of
+frame numbers: the channel on demand, the recited range in a fill. A batch and a pipelined
+run of `RequestFrame` become the same thing to the loop, which is what they are on the wire;
+`RequestFrames` itself is unchanged. `EndSession` behind a long batch is seen after it,
+today's order. Check: §8's tests minus the batch-specific one, plus
+`a_batch_arrives_whole_and_in_ask_order`.
+
+**Cut 3.** `W − 1` makes the server's defensive cap a side-effect of a read-path constant. A
+named capacity of 8 says what it is — how many asks the server holds ahead — and the read
+path takes what fits. One sentence of explanation disappears.
+
+**Cut 4.** Change A rewrites ~120 lines to move the frame loop behind `FrameBytes`. If step 3
+is for W = 4 (§9.3), the smaller change keeps `ReadCtx::read` and only generalises `Ahead`
+to `windows: [Window; W]` fed by `upcoming`. The slot table and the completion demultiplexer
+are needed either way ([`NEXT.md`](NEXT.md) §1); A-lite skips the API move. Fault 1 is
+already fixed (`259e25f`). Check: the twelve read-path and ring tests unchanged, `v36` re-run
+interleaved.
+
+**Cut 5.** Fill memory is 2 × frame because a window grows to the rest of the frame on its
+first miss and stays. Cap windows at 64 KiB always and the memory story is one line — W ×
+64 KiB per session, 256 KiB at W = 4, 256 MB per thousand fills — with one W for both modes
+and no growth logic. The cost lands on the pool path only, where a missed frame is 4 pooled
+reads instead of 1; the ring submits per window cheaply. Whether a sequential fill notices
+at its 1–4 % miss rate is the measurement. **Combines with §9.3 into one W = 4.**
+
+**Cut 6.** §7's "4, 8, or per link?" closes by §9: per-link W is pointless because W only
+matters where the server is the slow stage, and 4 against 8 is +28 % of server time that
+the wire hides. Take 4, run §9.4 once, stop.
+
+**Not proposed, because measured against** — listed so they are not proposed again: every
+read through the ring (hits +106 % / +298 % at depth 2 / 4, [`adr.md`](adr.md) §5); SQPOLL
+(2.2–2.8× CPU warm, [`RERUN.md`](RERUN.md)); `tokio::fs::File` (15× per read, `x15`); mmap
+with pre-touch (a hop per ask, [`adr.md`](adr.md) §5); per-frame streams (5.76× under loss,
+the loss-run branch); server-side reordering
+([`../adr-reject-server-ordering.md`](../adr-reject-server-ordering.md)).

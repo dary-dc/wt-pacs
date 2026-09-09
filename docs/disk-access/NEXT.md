@@ -17,7 +17,7 @@ struck through in place rather than removed, so the order is still readable as t
 
 | # | Item | Measured worth | What kind of change | Detail |
 | --- | --- | --- | --- | --- |
-| 1 | **Serving depth ≥ 4** — read ahead by one **is built for `RequestFrames`**; `RequestFrame` is still depth 1 | +73.8 % asks/s on missing tiles, measured on the shipped path; 1.14 ms → 0.62 ms on 16 | **half done**: the read path carries depth 2, the session loop does not feed it | §1 |
+| 1 | **Serving depth ≥ 4** — read ahead by one **is built for `RequestFrames`**; `RequestFrame` is still depth 1 | +73.8 % asks/s on missing tiles, measured on the shipped path; 1.14 ms → 0.62 ms on 16 | **loop landed 2026-09-09, unmeasured**; W above 2 waits on step 3 — tiles go to 4, fill stays 2 ([`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §9.3) | §1 |
 | 2 | ~~**Miss rate observable in production**~~ **Done** | every threshold below can now be checked against a real workload | `session reads …` per session, default build | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Reporting |
 | 3 | **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput — the largest effect measured anywhere | transport; blocked on what browsers advertise | [`adr.md`](adr.md) §Levers |
 | 4 | **P0 — validate ring vs pool on the production target**, both read modes | decides whether ~800 lines stay | one campaign run | §3 |
@@ -47,6 +47,13 @@ on. Measured on the shipped `ReadCtx`: **+73.8 % asks/s, 12/12, RESOLVED** on co
 p50 −53.4 %, **warm a tie** ([`v36_readahead.tsv`](v36_readahead.tsv),
 [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Read ahead by one). 16 missing tiles: 1.14 →
 0.62 ms.
+
+**2026-09-09 — the loop landed** (ask-reader task, `StreamFrames` + `EndStream`, the peek that
+gives a pipelined `RequestFrame` its next; [`HANDOFF.md`](HANDOFF.md) §1), unmeasured. Why the
+loop and W are not where latency is lost on the owners' default link, the call to widen tiles to
+W = 4 anyway and keep fill at 2, and the one cell to run: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md)
+§9. The simplification cuts to choose from before step 3: §10 there. The paragraph below is
+kept as the state that ordering was set against.
 
 **Not built, and it is the loop, not the read path:** `run_session` still does not read the
 next ask until the current frame is on the wire, so a client that pipelines `RequestFrame`
