@@ -85,7 +85,7 @@ First pass, 2026-09-06. One commit per row. Evidence: [`2026-09-06.md`](2026-09-
 | T1 | `1e1495f` | TS FoD codec parity with C3; `TextEncoder` reuse measured as a null |
 
 Withdrawn (do not re-derive): zero-copy send **P0** and coalesced header write **P3** already live
-on L1 as `SendPath::Chunked`. L2 harness/ask-policy work moved to
+on L1 as the chunked send path (the only send path there now). L2 harness/ask-policy work moved to
 `cursor/l2-harness-fix-plan-c999`.
 
 ---

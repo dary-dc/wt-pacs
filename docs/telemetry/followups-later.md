@@ -34,7 +34,7 @@ in the server ADR).
 
 | # | Change | Risk | Status |
 | --- | --- | --- | --- |
-| **P0** | Codestream as a `Bytes` handle over the mapping, one `write_all_chunks` — no full-frame copy | Low | **on `cursor/l1-loss-run-dbae`** as `SendPath::Chunked` (default there); measured independently in [`../improvements/2026-09-06.md`](../improvements/2026-09-06.md) |
+| **P0** | Codestream as a `Bytes` handle over the mapping, one `write_all_chunks` — no full-frame copy | Low | **on `cursor/l1-loss-run-dbae`** as the only send path; measured independently in [`../improvements/2026-09-06.md`](../improvements/2026-09-06.md) |
 | **P3** | One 8-byte header write instead of two 4-byte awaits | Low | covered by L1's chunked path (the header is one chunk) |
 | **P4** | Reap acks incrementally each send (`try_join_next`) | Low | **done 2026-09-06**, candidate for review |
 | **P2** | Batch prefault for one `RequestFrames` (one `spawn_blocking`) | Low — measure | disk track |

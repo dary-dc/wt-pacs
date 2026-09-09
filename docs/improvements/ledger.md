@@ -13,10 +13,9 @@ restored from tag `archive/improvements-lab-2026-09` (`lab/improvements/`;
 prove every performance or metrics claim before it is accepted; code changes wait for approval
 because readability is a requirement.
 
-**Where the files sit.** Neither lane branch touches the files changed here (each adds a
-workspace member in `Cargo.toml`). Two merge notes for whoever lands L1 after this branch: L1 does
-not reap per-frame ack tasks, so P4 applies to it too; L1 still calls the TLS module C2 deletes,
-so its banner needs the nine-line `cert_sha256_hex` helper.
+**Where the files sit.** Neither lane branch originally touched the files changed here (each adds a
+workspace member in `Cargo.toml`). The two L1 merge notes this ledger used to carry are done:
+`cursor/l1-loss-run-dbae` already contains `main` (ack reap, cert hash from wtransport).
 
 ---
 
@@ -46,7 +45,7 @@ Also added with F1: `client/harness/refusals.html`, the regression page that rep
 
 | # | What | Why | Where it lives now |
 | - | - | - | - |
-| P0 | zero-copy send path: `Bytes::from_owner` over the mapping + `quinn::SendStream::write_all_chunks`; `locate(frame) -> Bytes` seam | built and measured here (`send_us` p50 −27 % at 32 KB, −55 % at 250 KB, shared mode), then found already implemented on L1 as `SendPath::Chunked`, the default there | L1 (`server/src/transport/tuning.rs`, `docs/send-path-copy-costs.md` on that branch); the commit was rebased out of this branch and the branch force-pushed once |
+| P0 | zero-copy send path: `Bytes::from_owner` over the mapping + `quinn::SendStream::write_all_chunks`; `locate(frame) -> Bytes` seam | built and measured here (`send_us` p50 −27 % at 32 KB, −55 % at 250 KB, shared mode), then found already implemented on L1 as the chunked send path (the only send path there now; the old `SendPath::Chunked` enum is gone) | L1 (`server/src/transport/assemble.rs`); the commit was rebased out of this branch and the branch force-pushed once |
 | P3 | one 8-byte header write instead of two 4-byte awaits | subsumed by the chunked path (the header is one chunk) | L1 |
 
 ## 3 · Measured and found to be nothing (kept so nobody re-derives it)

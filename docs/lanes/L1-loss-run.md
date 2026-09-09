@@ -1,6 +1,11 @@
 # Lane L1 — the loss run (v2 methodology)
 
-**Status: ready for cloud agent.** · Round-robin the Oracle São Paulo rig with L2  
+**Status: closed.** The stream-shape question this work order posed is decided: one shared
+stream, `--stream-mode` default `shared`. See
+[`../transport/transport-conclusions.md`](../transport/transport-conclusions.md).
+TSV and runner are on tag `archive/transport-lab-2026-09`. The grid below is the
+work order as written, not a job to run again.
+
 Supersedes the v1 grid in `l1_s_vs_q_loss.tsv` (metric polluted by cache-hit zeros).
 
 ## Purpose
