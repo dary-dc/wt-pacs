@@ -1,6 +1,7 @@
 # Read path — design proposal: depth, messages, and the loop around the seam
 
-**2026-09-08 · Proposed. 2026-09-09 · §13 landed; §15 is the plan to fix it.** Assembled
+**2026-09-08 · Proposed. 2026-09-09 · §13 landed; §15 is the plan to fix it, §16 the review
+of that plan as applied and the first product-level numbers.** Assembled
 from what was agreed on the day. Steps 0–2 and the four §13 commits (W = 4, planner, thin
 ring) are in the tree ([`HANDOFF.md`](HANDOFF.md) §1) — **unmeasured**: §13.2's A/B gate was
 never run, and §15.1 has what a mutation pass found. §9 records why the loop and W are not
@@ -1379,6 +1380,8 @@ pacer would sit between the server and the clock. Reuse its connect block, not i
   `server_ab` once — the *same* driver drives both arms;
 * one dev cert, two ports, **both servers up for the whole run** so idle RSS baselines stay
   comparable; rotate which one goes first each round;
+* per cell: stride the plan so consecutive asks clear the kernel's read-ahead — without it a
+  cold cell reports 1.6 % misses, measured (§16.2a);
 * per cell: evict the study and assert residency < 2 %, exactly as `read_campaign` does — move
   `evict` / `evict_retry` out of `read_campaign.rs` into `residency.rs` and add a small
   `evict` bin, so there is one eviction implementation and not two (§14.4's "hit cell wearing
@@ -1531,3 +1534,182 @@ the product driver too, but after step 3, not with it. The client's cap on asks 
 (§14.2), which is the one lever that moves latency on the default link and is client
 protocol. `WINDOWS`, `FILL_AHEAD` and `ASKS_AHEAD` keep their §13.1 values; 15.4's run is
 what could argue for moving one, and it has not run yet.
+
+## 16 · Review of §15 as applied — the harness, and what the read path is now known to do
+
+**2026-09-09, after §15's first four commits.** §15.3, §15.4a–b, §15.6 and §15.7 landed. This
+section reviews them, records the defects found in the new harness, and answers the question
+§15 could not: **is the disk-reading approach that ships still the one the lab measured?**
+
+### 16.1 · The product changes hold, and now fail when broken
+
+Every new test was mutated. All four kill their mutant, and two seam lines that §15.1 found
+uncovered are covered now:
+
+| mutation | before this review | now |
+| --- | --- | --- |
+| drop the `in_hand` cap in `Planner::next` | — | `the_loop_holds_no_more_than_asks_ahead` fails at 799 |
+| `filter_map` instead of `take_while` on `upcoming` | — | `upcoming_stops_at_the_first_ask_that_is_not_a_frame` fails |
+| `note_fill` on accept rather than on the first `Serve` | — | `a_fill_stopped_before_its_first_frame_is_not_counted` fails |
+| wait the current frame before starting any upcoming | 38/38 green | `w_named_frames_start_before_the_current_read_finishes` times out and fails |
+| **`serve` never turns `upcoming` into spans** | 41/41 green | `serve_hands_every_named_frame_to_the_read_path_as_a_span` fails |
+| **`run_session` passes `&[]` to `serve`** | 41/41 green | `the_loop_hands_serve_the_frames_the_planner_named` fails |
+| an upcoming frame out of range is not dropped | 41/41 green | `an_upcoming_frame_out_of_range_is_dropped_not_refused` fails |
+
+The last three are this review's additions. §14.4 called the naming line "not observable on
+the wire" and left it to a campaign; it is observable one layer down, without a clock. Two
+unit tests own it now:
+
+* `pipeline.rs` — `FramePipeline::serve`'s **default body** is product code; the test
+  implements the trait's sink to see what reaches it, and `locate` stays the store's. The
+  loop above it is not mocked, and neither is the read path below.
+* `server.rs` — the loop is extracted as `drive(pipeline, asks)`, so a `Vec` of `Ask` drives
+  planner → `serve` with no QUIC. Fill order, `FILL_AHEAD` and `fills=N` come with it.
+
+`drive` is the one structural change here: six lines moved out of `run_session`, which keeps
+the reader task's lifetime. It is §11 cut 2's own rule — the loop tested without the
+transport — applied one level up.
+
+### 16.2 · The harness had two defects that would have produced a wrong answer
+
+Both were measured, not reasoned. **Neither is theoretical: together they would have filled
+`server_ab.tsv` with cold cells that were 98 % hits, and said nothing.**
+
+**a · the cold cell was not cold.** The driver walked `frame = i % frames` — consecutive
+16 KiB frames, so kernel read-ahead served 7 of every 8. Measured on the shipped driver
+against a live server, one cold cell of 64 asks after `evict`:
+
+| frames between asks | bytes between asks | server-reported `miss_rate` |
+| --- | --- | --- |
+| **1 (as written)** | 16 384 | **0.016** |
+| 8 | 131 072 | 1.00 |
+| 16 | 262 144 | 1.00 |
+| 32, on a 1024-frame study | 524 288 | 0.50 — the plan wrapped and re-read warm frames |
+
+This is §14.4's trap, reintroduced: *"at 8 MiB of read-ahead the cold cell reached 4.7 %
+misses — a hit cell wearing a cold label"*. `read_campaign` strides 250 kB for exactly this
+reason. **Fixed:** `server_ab --step`, and the runner derives it as
+`ceil(250000 / FRAME_BYTES)` — 16 for 16 KiB tiles — then refuses to start unless
+`asks × step ≤ frames`, which is what the 0.50 row above costs when it is not checked.
+
+**b · the control that would have caught (a) could not read its own input.** The runner
+grepped `miss_rate=[0-9.]+` out of the server log, but `tracing_subscriber` emits ANSI
+between the field name and the `=` even when stdout is a file, so the pattern never matched:
+`miss` fell back to `-`, the `≥ 0.99` gate was skipped, and the row recorded `-`. **Fixed:**
+`NO_COLOR=1` on both servers, a separator-tolerant pattern, and a missing `session reads`
+line is now a hard failure rather than a `-`.
+
+Two more, from reading rather than running:
+
+* **the fill cell was held to the 99 % miss floor.** A fill is sequential; read-ahead turning
+  it into hits is the design working (measured: `miss_rate=0.0029`, `fills=1`, whole study).
+  The floor now applies to on-demand cells only.
+* **`cpu_ns_per_ask` came from `stat`'s utime+stime — clock ticks, 10 ms here.** A 256-ask
+  cell is one or two ticks. It reads `/proc/<pid>/task/*/schedstat` now: nanoseconds, summed
+  over the server's threads.
+
+And three smaller ones, all fixed: the driver never checked that envelope *n* answered ask
+*n* (it does now, and the pairing is the whole timing model); `--asks` above the study's
+frame count made a fill hang on a stream that had ended (`asks.min(frames)`); `rss_kib` was
+one sample taken after the sessions had gone, so it is a baseline-to-peak delta from a
+2 ms sampler now, and the runner has the `--sessions 64` cell §15.4d asked for.
+
+**c · the lab did not compile, and `gate.sh` could not see it.** `UringReader::new` gained an
+`entries` argument; `lab/disk-access-bench/src/bin/ring_scale.rs` still called it with one.
+HANDOFF §10.2 says the lab arms are part of the API — so `gate.sh` now runs
+`cargo check -p disk-access-bench --all-targets`, which is where this would have surfaced.
+
+`ring_scale` re-run at `build(WINDOWS)`, 200 rings: **2.0 fds, 8.7 KiB, setup p50 17.9 µs**.
+Unchanged from the `build(8)` figures in HANDOFF §2 — io_uring's per-ring memory is page
+granularity, not four SQEs against eight — so [`DEPLOYMENT.md`](DEPLOYMENT.md)'s memlock
+arithmetic stands as written.
+
+### 16.3 · The A/B expected a base that does not exist
+
+`server_ab.sh` wanted cold depth 2 to be a **win** for HEAD, "if the old loop was serial".
+It is not: `9200c02` landed one-ask look-ahead before `580e312`, so the base peeks one ask
+(`try_recv` once) and holds `WINDOWS = 2`. At client depth 2 both arms name one frame ahead
+and use two windows — **the same shape**. The cells that can separate them are:
+
+| cell | base at `580e312` | HEAD | can it separate? |
+| --- | --- | --- | --- |
+| cold depth 1 | names nothing | names nothing | no — tie is the control |
+| cold depth 2 | 1 ahead, 2 windows | 1 ahead, 2 windows | no — **tie**, not a win |
+| cold depth 4 | 1 ahead, 2 windows | 3 ahead, 4 windows | **yes** — this is the cell §13 is claiming |
+| warm | one window per read | W-window table, `wanted` per read | only as cost |
+| fill | 1 ahead, 2 windows | 1 ahead, 2 windows (`FILL_AHEAD`) | no — tie |
+
+`WANT` is corrected to `cold_d2: tie`, `cold_d4: win`. The round's whole claim now rests on
+one cell, which is the honest reading of §9.3: **tiles widen, fill does not.**
+
+### 16.4 · What the read path is now known to do, end to end
+
+Two interleaved A/Bs through the product server, 8 rounds, cold 16 KiB tiles at
+`step 16` with `miss_rate ≥ 0.94` on every row, shared stream, loopback.
+**Sandbox, not the workstation:** ~2.4–4.8 k asks/s against the workstation's ~50 k plateau
+([`NEXT.md`](NEXT.md) §6), so nothing below resolves the 28.5 % rule. These are mechanism
+checks — is the path taken, and which way does it move. Files:
+[`x16_seam_ab.tsv`](x16_seam_ab.tsv), [`x16_ringpool_ab.tsv`](x16_ringpool_ab.tsv),
+[`x16_host.txt`](x16_host.txt).
+
+**HEAD against a build with the seam severed** (`serve` never turns `upcoming` into spans —
+same binary otherwise):
+
+| cell | p50 Δ | signs | verdict | severed | HEAD |
+| --- | --- | --- | --- | --- | --- |
+| cold depth 1 | −2.3 % | 5/8 | tie | 360 µs | 364 µs |
+| cold depth 4 | **−20.6 %** | **7/8** | tie (under 28.5 %) | 742 µs | 608 µs |
+| ladder d1 → d4 | HEAD **+101 %** asks/s | | | severed **+71 %** | |
+
+Depth 1 ties, which is the control: with nothing named, the two builds are the same code.
+Depth 4 moves in one direction 7 times out of 8. **The seam is live in the product.** And the
+split is the useful part: of the ~101 % that client depth 4 buys, about 30 points are the
+read-ahead and about 71 are the client pipelining hiding the round trip. That is §9.1's
+argument — *"the loop and W are not where latency is lost on this link"* — measured rather
+than reasoned, for the first time.
+
+**The same binary, ring against pool** (`WTPACS_READ_PATH=auto` against `=pool`):
+
+| cell | p50 Δ | signs | verdict | pool | ring |
+| --- | --- | --- | --- | --- | --- |
+| cold depth 1 | −13.1 % | 6/8 | tie | 396 µs | 348 µs |
+| cold depth 4 | −12.6 % | 6/8 | tie | 689 µs | 620 µs |
+
+The kill switch works — `ring=false` under `pool`, `ring=true` after the first miss under
+`auto`. End-to-end **latency** is a tie, which is what [`adr.md`](adr.md) claims: the ring's
+resolved result is **CPU per miss** (−42 to −73 %) and thread count, not latency, and §9.1
+says the wire swamps a 65 µs read. Nothing here contradicts the ADR; it is the first time the
+ADR's silence about end-to-end latency has been checked instead of assumed.
+
+### 16.5 · Is the shipped read path the one the lab measured?
+
+**The mechanism: yes.** `preadv2(RWF_NOWAIT)` inline on the executor, a ring built on the
+first miss and never on a hit, the blocking pool where there is no ring, one read for the
+rest of the frame on a miss. Every `hybrid_lazyring` claim in
+[`EVIDENCE.md`](EVIDENCE.md) and [`adr.md`](adr.md) is about that mechanism, and it is
+still the one taken: `read_fast_path=preadv2` in the banner, `ring=false` on a warm session
+and after `WTPACS_READ_PATH=pool`, `ring=true` after the first miss, `miss_rate=1.0` on a
+strided cold cell, `a_hit_never_touches_the_ring` and the two lazy-ring tests green.
+
+**The implementation: no, and that has not changed since §15.1.** The numbers were taken at
+`WINDOWS = 2` with the `Ahead` flip, a ring with its own slot table and `build(8)`. §13
+replaced all three, §13.2 required each commit to tie against a worktree build, and no such
+run is committed. `server_ab.sh` and `read_path_ab.sh` against `580e312` are still the two
+runs that would close it, and neither has been made on a host that can resolve them.
+
+**One translation gap, now closed.** §9.5 priced W against *reads in flight in the lab*, which
+is `read_campaign`'s `--depths`. In the product, reads in flight are `min(client depth − 1,
+W − 1) + 1` — the planner cannot name what the client has not asked for. So `W = 4` earns
+nothing until a client pipelines four asks, and the lab's "depth 4: +26 to +37 %" is a
+statement about client depth 4, not about the server alone. §16.4's ladder is that mapping
+measured: the same +101 % against +71 % is the read path's share of it.
+
+**What is still unmeasured, in order:**
+
+1. `server_ab.sh <580e312>` on the workstation — the six cells, with `cold_d4` as the one
+   that can separate the arms. The gate §15.4 was built for.
+2. `read_path_ab.sh <580e312>` — the read path's own cost after the §13 rewrite, which is
+   the commit-by-commit tie §13.2 asked for and never got.
+3. P0 on the target: the ring against the pool where a miss costs ~1 ms rather than 65 µs.
+   §16.4 says the ring is not a latency lever *here*; the volume class is what decides
+   whether it is one there.

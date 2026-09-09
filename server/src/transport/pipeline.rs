@@ -243,6 +243,101 @@ mod tests {
         f.sync_all().unwrap();
     }
 
+    /// A study of `frames` frames, each a different length, so a span cannot match by luck.
+    fn study(path: &std::path::Path, frames: u32) {
+        let bodies: Vec<Vec<u8>> = (0..frames).map(|i| vec![i as u8; 4 + i as usize]).collect();
+        let refs: Vec<&[u8]> = bodies.iter().map(|b| b.as_slice()).collect();
+        study_bundle::write_bundle(
+            path,
+            format!("{{\"frameCount\":{frames}}}").as_bytes(),
+            &refs,
+        )
+        .expect("write study");
+    }
+
+    /// Records what reaches the read path. `locate` is the product's; only the sink is the
+    /// test's, because the sink is the observation point.
+    struct SeamRecorder {
+        store: Arc<FrameStore>,
+        seen: Vec<(u32, Vec<FrameSpan>)>,
+    }
+
+    impl FramePipeline for SeamRecorder {
+        fn store(&self) -> &Arc<FrameStore> {
+            &self.store
+        }
+
+        fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
+            store.frame_span(frame)
+        }
+
+        async fn send(
+            &mut self,
+            frame: u32,
+            _store: &Arc<FrameStore>,
+            _span: FrameSpan,
+            ahead: &[FrameSpan],
+        ) -> Result<()> {
+            self.seen.push((frame, ahead.to_vec()));
+            Ok(())
+        }
+
+        async fn refuse(&mut self, _frame: u32, _err: Error) -> Result<()> {
+            Ok(())
+        }
+
+        async fn drain_acks(&mut self) {}
+    }
+
+    fn recorder(tag: &str, frames: u32) -> (std::path::PathBuf, SeamRecorder) {
+        let path = std::env::temp_dir().join(format!("wtpacs-{tag}-{}.sbnd", std::process::id()));
+        study(&path, frames);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        (
+            path,
+            SeamRecorder {
+                store,
+                seen: Vec::new(),
+            },
+        )
+    }
+
+    /// **The seam.** `serve`'s default body turns the planner's frame indexes into the spans
+    /// the read path starts on. Nothing on the wire and no other test can see that line, so
+    /// this one owns it. `docs/disk-access/READ-PATH-DESIGN.md` §15.4.
+    #[test]
+    fn serve_hands_every_named_frame_to_the_read_path_as_a_span() {
+        let (path, mut rec) = recorder("seam", 4);
+        let want: Vec<FrameSpan> = [1u32, 2, 3]
+            .iter()
+            .map(|&f| rec.store.frame_span(f).unwrap())
+            .collect();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("rt");
+        rt.block_on(rec.serve(0, &[1, 2, 3])).expect("serve");
+        assert_eq!(
+            rec.seen,
+            vec![(0, want)],
+            "the planner's names did not reach the read path"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// An upcoming frame outside the study is dropped from `ahead`, never an error for the
+    /// frame being served. §13.3.
+    #[test]
+    fn an_upcoming_frame_out_of_range_is_dropped_not_refused() {
+        let (path, mut rec) = recorder("seam-oob", 2);
+        let want = vec![rec.store.frame_span(1).unwrap()];
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("rt");
+        rt.block_on(rec.serve(0, &[1, 99])).expect("serve");
+        assert_eq!(rec.seen, vec![(0, want)], "a bad name broke the good one");
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// **One index per study, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
     /// `docs/disk-access/adr.md` §Invariants.

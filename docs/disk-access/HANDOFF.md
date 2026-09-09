@@ -54,12 +54,15 @@ signs agree on ≥ 0.8n. Everything else is a **tie**, which is a real answer.
 | **Read ahead by one, warm** | **tie** (−3.8%, 5/12) — a hit-only session pays nothing |
 | Serving depth, the arm | 1 → 2 is +67.4% paired; from the medians 2 → 4 adds +37% and 4 → 16 +28% |
 | Threads | ring arms flat (5 sandbox / 9 workstation); `pool` reaches 125–135 at 64 readers, capping at 521 |
-| Per session that misses | 2 fds, 8.7 KiB, 15.6 µs ring construction — **unchanged by the second slot** |
+| Per session that misses | 2 fds, 8.7 KiB, 15.6 µs ring construction — **unchanged by the second slot**, and unchanged by `build(8)` → `build(WINDOWS)` (`ring_scale`, §16.2c) |
+| **Read-ahead through the product server** | cold tiles, client depth 4: **−20.6 % p50, 7/8** against the same binary with the seam severed; the depth 1 → 4 ladder is **+101 %** asks/s against **+71 %** severed. Sandbox, a tie under the 28.5 % rule — a mechanism check, not a verdict ([`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §16.4) |
+| **Ring against pool, end to end** | cold tiles, depth 1 and 4: **tie** on p50 (−13 %, 6/8). The ADR's resolved claim is CPU per miss, not latency; §9.1 says the wire swamps a 65 µs read |
 
 Raw: `v30_product.tsv`, `v31_gap250k.tsv`, `v32_depth.tsv`, `v33_cross.tsv` (sandbox),
 `v34_scale.tsv` + `v34_scale_host.txt` (workstation), `v35_depth2.tsv` +
 `v35_depth2_host.txt`, `v36_readahead.tsv`, `x14_ringfd*` (eventfd against ring fd),
-`x15_sequential*` (the streaming readers).
+`x15_sequential*` (the streaming readers), `x16_seam_ab.tsv` + `x16_ringpool_ab.tsv` +
+`x16_host.txt` (the product server, sandbox).
 
 ## 3 · Claims that were retracted — do not re-quote them
 

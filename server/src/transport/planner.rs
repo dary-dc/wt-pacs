@@ -342,10 +342,10 @@ mod tests {
         let Step::Serve { frame, upcoming } = plan.next(|| None).unwrap() else {
             panic!()
         };
-        assert_eq!(frame, 5);
-        assert!(
-            !upcoming.contains(&9),
-            "fill is queued; 9 is not the next frame to read: {upcoming:?}"
+        assert_eq!(
+            (frame, upcoming),
+            (5, vec![]),
+            "a fill is queued, so 9 is not the next frame to read"
         );
     }
 
