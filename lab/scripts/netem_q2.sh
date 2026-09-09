@@ -22,7 +22,7 @@ sudo tc qdisc add dev "$IFACE" root netem loss "$LOSS"
 
 STUDY="$ROOT/fixtures/us_cine_smoke/us_cine_smoke.sbnd"
 cargo run -p exact-server --release -- \
-  --port 4433 --study "$STUDY" &
+  --port 4433 --study "$STUDY" --stream-mode per-frame &
 spid=$!
 sleep 1.5
 

@@ -47,6 +47,7 @@ run_one() {
   local mbps=$1
   local bps=$((mbps * 1000000))
   "$SERVER" --port 4433 --study "$STUDY" \
+    --stream-mode per-frame \
     --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   local sp=$!
   sleep 1.0

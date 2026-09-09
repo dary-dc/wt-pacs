@@ -7,7 +7,7 @@ and Q2 (head-of-line). **No product crate depends on these.**
 
 | Crate | Purpose |
 | ----- | ------- |
-| `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2) |
+| `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2), `--mode stall` (pathological client). Stream-shape cells need `--reader-mode open` |
 | `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
 | `telemetry-bench` | Telemetry pipeline microbench: emit seams under contention, drain shapes at scale — no network, no product crate. See `docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md` §5 |
 
@@ -28,3 +28,6 @@ SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
 ```
 
 Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.
+
+This lane's campaign drivers (`lab/transport/`, extra fixtures/traces) are on tag
+`archive/transport-lab-2026-09`. Restore: see [`docs/transport/README.md`](../docs/transport/README.md).

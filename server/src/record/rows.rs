@@ -258,7 +258,9 @@ mod tests {
             dropped_since_last: 7,
         };
         let back = decode(&encode(&Record::Frame(f))).expect("decode");
-        let Record::Frame(g) = back else { panic!("frame") };
+        let Record::Frame(g) = back else {
+            panic!("frame")
+        };
         assert_eq!(g.session_id, 9);
         assert_eq!(g.frame_index, 1234);
         assert_eq!(g.t_ask_us, 5_000_000_001);
@@ -284,7 +286,9 @@ mod tests {
             rows_closed: 21,
             rows_dropped: 0,
         });
-        let Record::Session(t) = decode(&encode(&s)).expect("session") else { panic!("session") };
+        let Record::Session(t) = decode(&encode(&s)).expect("session") else {
+            panic!("session")
+        };
         assert_eq!(t.frames, 20);
         assert_eq!(t.bytes, 1_000_000);
         assert_eq!(t.t_close_us, 200_000);

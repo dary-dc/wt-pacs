@@ -1,7 +1,28 @@
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+/// How the reader advances. The most consequential setting in the harness: `Closed` can
+/// answer no stream-shape question at all — `docs/transport/why-these-changes.md` §3.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum ReaderMode {
+    /// Block on each cursor. Every prior campaign ran this way; kept for reproducibility,
+    /// NOT for stream-shape work.
+    Closed,
+    /// Advance on the trace clock whatever has arrived — the only mode in which
+    /// head-of-line blocking can occur.
+    Open,
+}
+
+impl ReaderMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Closed => "closed",
+            Self::Open => "open",
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum StreamMode {
@@ -18,6 +39,14 @@ impl StreamMode {
             Self::PerFrame => "per-frame",
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum WindowShape {
+    /// (c, c+1, c-1, c+2, c-2, …) — for traces that reverse.
+    Symmetric,
+    /// (c, c+1, c+2, …) — for strictly forward traces.
+    Forward,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,6 +75,24 @@ pub struct RunConfig {
     pub rtt_ms: u64,
     /// Must match the server's `--stream-mode`.
     pub stream_mode: StreamMode,
+    /// Window shape around the cursor. `Forward` for one-way traces.
+    pub window_shape: WindowShape,
+    /// Override trace step interval (ms). None = use the trace file.
+    pub step_interval_ms: Option<u64>,
+    /// Optional QUIC per-stream receive window (bytes). None = stack default.
+    pub stream_recv_window: Option<u64>,
+    /// Local bind IP. `None` = the dual-stack default every L1 row was collected with.
+    pub bind_ip: Option<std::net::IpAddr>,
+    /// Client display-cache capacity in frames; 0 = unbounded.
+    pub cache_frames: usize,
+    /// Whether the reader waits for the transport or runs on its own clock.
+    pub reader_mode: ReaderMode,
+    /// Open-loop only: after the last step, keep resolving outstanding wants for this
+    /// long before declaring the remainder censored.
+    pub drain_ms: u64,
+    /// Multiplier on the trace's `step_interval_ms`. Calibrate ONCE per cell on one
+    /// reference arm and freeze it, or the operating point is tuned per-arm.
+    pub step_scale: f64,
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -66,8 +113,18 @@ pub struct HarnessMetrics {
     pub recovered_ms: f64,
     /// Mean time from reader-wants to displayable; cache hits count as 0.
     pub mean_wait_ms: f64,
-    /// p95 of the same wait samples.
+    /// p95 of the same wait samples (includes cache-hit zeros).
     pub p95_wait_ms: f64,
+    /// Mean of positive waits only (network misses). 0 if no misses.
+    pub miss_mean_wait_ms: f64,
+    /// Nearest-rank p95 of positive waits only. 0 if no misses.
+    pub miss_p95_wait_ms: f64,
+    /// Steps that were already displayable (wait recorded as 0).
+    pub cache_hits: u32,
+    /// Steps that waited on the network (wait > 0).
+    pub cache_misses: u32,
+    /// cache_hits / wait_samples.
+    pub cache_hit_rate: f64,
     /// Raw per-step waits (ms); cache hits are 0. For derived random arm offline.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub wait_ms: Vec<f64>,
@@ -91,10 +148,65 @@ pub struct HarnessMetrics {
     pub warm_cache: bool,
     /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
+    /// Wall time of the trace step loop (ms).
+    #[serde(default)]
+    pub step_loop_ms: f64,
+    /// Median wait in the first half of step-loop samples (ms).
+    #[serde(default)]
+    pub wait_h1_median_ms: f64,
+    /// Median wait in the second half of step-loop samples (ms).
+    #[serde(default)]
+    pub wait_h2_median_ms: f64,
+    /// bytes_on_wire*8/step_loop_s as fraction of read_bps (A5).
+    #[serde(default)]
+    pub link_util_measured: f64,
+    /// Ms past the step's SCHEDULED display time, floored at 0. `wait_ms` starts at the
+    /// ask, so it cannot see a loop that has fallen behind its own cadence.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lateness_ms: Vec<f64>,
+    /// Mean of `lateness_ms`.
+    #[serde(default)]
+    pub late_mean_ms: f64,
+    /// Nearest-rank p95 of `lateness_ms`. Supported by every step, not just misses.
+    #[serde(default)]
+    pub late_p95_ms: f64,
+    #[serde(default)]
+    pub late_max_ms: f64,
+    /// Fraction of steps displayable within `ON_TIME_MS` of their scheduled time.
+    #[serde(default)]
+    pub on_time_rate: f64,
     /// Per FoD ask sent: `(frame_index, ask_ordinal)` for offline join with server Tap.
     /// Ordinals increment per `frame_index` within the session (same rule as server Tap).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ask_join: Vec<AskJoinRow>,
+
+    // ---- open-loop reader instrumentation -------------------------------------------
+    /// `closed` or `open`. Results are not comparable across it.
+    #[serde(default)]
+    pub reader_mode: String,
+    /// Unsatisfied wants, at the censoring bound. MUST be reported with every p95, or an
+    /// arm that fails to deliver loses its slowest samples and wins by delivering less.
+    #[serde(default)]
+    pub censored_waits: u32,
+    /// `censored_waits / wait_samples`. Above the campaign's void threshold the arm
+    /// collapsed and its p95 means nothing.
+    #[serde(default)]
+    pub censored_frac: f64,
+    /// Ms behind its own clock at the end. Open-loop only; 0 means the run tested nothing
+    /// a closed-loop run does not.
+    #[serde(default)]
+    pub reader_lag_ms: f64,
+    /// Bytes arriving for a frame already scrolled past. 0 makes any stream-shape
+    /// comparison from the run INADMISSIBLE: nothing queued ahead of something wanted.
+    #[serde(default)]
+    pub stranded_bytes: u64,
+    /// Frames counted in `stranded_bytes`.
+    #[serde(default)]
+    pub stranded_frames: u32,
+    /// Steps whose centre ask was suppressed by the hard outstanding ceiling.
+    /// Non-zero voids the run's p95 — see `client::center_asks_dropped`.
+    #[serde(default)]
+    pub center_asks_dropped: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -122,8 +234,30 @@ pub struct MetricsState {
     pub fill_started_at: Option<Instant>,
     /// Client-side display cache: frame index is displayable once present.
     pub cache: HashSet<u32>,
+    /// LRU order for `cache`, most-recently-used last. Empty when the cache is unbounded.
+    pub cache_lru: Vec<u32>,
+    /// Max frames held, 0 = unbounded. Unbounded, the client holds the whole study within
+    /// seconds, no jump can miss, and head-of-line blocking becomes unmeasurable.
+    pub cache_cap: usize,
     /// Per want: ms until displayable (0 on cache hit).
     pub wait_samples_ms: Vec<f64>,
+    /// Per want: ms past the step's scheduled display time (0 if on time).
+    pub lateness_samples_ms: Vec<f64>,
+    /// Wall ms of the windowed step loop (set by client).
+    pub step_loop_ms: f64,
+
+    // ---- open-loop reader state -----------------------------------------------------
+    /// Arrival instants. Waits resolve from these, never by polling: polling quantises them.
+    pub last_arrival: HashMap<u32, Instant>,
+    /// Frame indices the reader currently has on screen or in its prefetch window.
+    /// Anything arriving outside this set is stranded — see `stranded_bytes`.
+    pub live_window: HashSet<u32>,
+    pub stranded_bytes: u64,
+    pub stranded_frames: u32,
+    pub censored_waits: u32,
+    /// How far behind its own clock an open-loop reader finished, in ms. See
+    /// `HarnessMetrics::reader_lag_ms`.
+    pub reader_lag_ms: f64,
 }
 
 impl MetricsState {
@@ -145,7 +279,17 @@ impl MetricsState {
             fill_bytes: 0,
             fill_started_at: None,
             cache: HashSet::new(),
+            cache_lru: Vec::new(),
+            cache_cap: 0,
             wait_samples_ms: Vec::new(),
+            lateness_samples_ms: Vec::new(),
+            step_loop_ms: 0.0,
+            last_arrival: HashMap::new(),
+            live_window: HashSet::new(),
+            stranded_bytes: 0,
+            stranded_frames: 0,
+            censored_waits: 0,
+            reader_lag_ms: 0.0,
         }
     }
 
@@ -167,10 +311,31 @@ impl MetricsState {
         self.fill_active = false;
     }
 
+    /// Insert `index` and evict least-recently-used frames beyond `cache_cap`.
+    pub fn touch_cache(&mut self, index: u32) {
+        if let Some(pos) = self.cache_lru.iter().position(|&x| x == index) {
+            self.cache_lru.remove(pos);
+        }
+        self.cache_lru.push(index);
+        self.cache.insert(index);
+        if self.cache_cap > 0 {
+            while self.cache_lru.len() > self.cache_cap {
+                let evicted = self.cache_lru.remove(0);
+                self.cache.remove(&evicted);
+            }
+        }
+    }
+
     pub fn on_envelope(&mut self, index: u32, nbytes: u64) {
         self.frames_on_wire += 1;
         self.bytes_on_wire += nbytes;
-        self.cache.insert(index);
+        self.last_arrival.insert(index, Instant::now());
+        // Counted only once a window exists, so warm-cache prefetch is not called stranding.
+        if !self.live_window.is_empty() && !self.live_window.contains(&index) {
+            self.stranded_bytes += nbytes;
+            self.stranded_frames += 1;
+        }
+        self.touch_cache(index);
         if self.settled {
             self.frames_after_settle += 1;
             self.bytes_after_settle += nbytes;
@@ -197,6 +362,13 @@ impl MetricsState {
         self.wait_samples_ms.push(ms);
     }
 
+    /// Lateness against the step's own scheduled display time. Only the trace step
+    /// loop has a schedule, so settle / dwell waits do not call this.
+    pub fn record_lateness_ms(&mut self, ms: f64) {
+        self.lateness_samples_ms.push(ms.max(0.0));
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn finalize(
         &self,
         trace: &str,
@@ -209,6 +381,7 @@ impl MetricsState {
         warm_cache: bool,
         rtt_ms: u64,
         stream_mode: StreamMode,
+        reader_mode: ReaderMode,
     ) -> HarnessMetrics {
         let recovered_ms = match (self.reversal_at, self.first_byte_wanted_at) {
             (Some(r), Some(w)) => w.duration_since(r).as_secs_f64() * 1000.0,
@@ -231,6 +404,41 @@ impl MetricsState {
             0.0
         };
         let (mean_wait_ms, p95_wait_ms) = wait_stats(&self.wait_samples_ms);
+        let misses: Vec<f64> = self
+            .wait_samples_ms
+            .iter()
+            .copied()
+            .filter(|ms| *ms > 0.0)
+            .collect();
+        let cache_misses = misses.len() as u32;
+        let cache_hits = self.wait_samples_ms.len() as u32 - cache_misses;
+        let cache_hit_rate = if self.wait_samples_ms.is_empty() {
+            0.0
+        } else {
+            cache_hits as f64 / self.wait_samples_ms.len() as f64
+        };
+        let (miss_mean_wait_ms, miss_p95_wait_ms) = wait_stats(&misses);
+        let (wait_h1_median_ms, wait_h2_median_ms) = half_medians(&self.wait_samples_ms);
+        let (late_mean_ms, late_p95_ms) = wait_stats(&self.lateness_samples_ms);
+        let late_max_ms = self
+            .lateness_samples_ms
+            .iter()
+            .copied()
+            .fold(0.0f64, f64::max);
+        let on_time_rate = if self.lateness_samples_ms.is_empty() {
+            0.0
+        } else {
+            self.lateness_samples_ms
+                .iter()
+                .filter(|ms| **ms <= ON_TIME_MS)
+                .count() as f64
+                / self.lateness_samples_ms.len() as f64
+        };
+        let link_util_measured = if self.step_loop_ms > 0.0 && read_bps > 0 {
+            (self.bytes_on_wire as f64 * 8.0) / (self.step_loop_ms / 1000.0) / (read_bps as f64)
+        } else {
+            0.0
+        };
         HarnessMetrics {
             trace: trace.to_string(),
             mode: mode.to_string(),
@@ -244,6 +452,11 @@ impl MetricsState {
             recovered_ms,
             mean_wait_ms,
             p95_wait_ms,
+            miss_mean_wait_ms,
+            miss_p95_wait_ms,
+            cache_hits,
+            cache_misses,
+            cache_hit_rate,
             wait_ms: self.wait_samples_ms.clone(),
             wait_samples: self.wait_samples_ms.len() as u32,
             fill_rate,
@@ -262,9 +475,66 @@ impl MetricsState {
             bytes_before_settle: self.bytes_on_wire.saturating_sub(self.bytes_after_settle),
             warm_cache,
             rtt_ms,
+            step_loop_ms: self.step_loop_ms,
+            wait_h1_median_ms,
+            wait_h2_median_ms,
+            link_util_measured,
+            lateness_ms: self.lateness_samples_ms.clone(),
+            late_mean_ms,
+            late_p95_ms,
+            late_max_ms,
+            on_time_rate,
             ask_join: crate::client::take_ask_join(),
+            reader_mode: reader_mode.as_str().to_string(),
+            censored_waits: self.censored_waits,
+            censored_frac: if self.wait_samples_ms.is_empty() {
+                0.0
+            } else {
+                self.censored_waits as f64 / self.wait_samples_ms.len() as f64
+            },
+            reader_lag_ms: self.reader_lag_ms,
+            stranded_bytes: self.stranded_bytes,
+            stranded_frames: self.stranded_frames,
+            center_asks_dropped: crate::client::center_asks_dropped(),
         }
     }
+}
+
+/// Lateness tolerance: ~3 frame intervals, wide enough to absorb scheduler jitter and
+/// narrow enough to catch a reader that actually waited.
+pub const ON_TIME_MS: f64 = 100.0;
+
+/// Nearest-rank percentile (L2 brief / client telemetry contract).
+/// `rank = ceil(p/100 × N)` clamped to `[1, N]`; value = `sorted[rank - 1]`.
+fn percentile_nearest_rank(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let n = sorted.len();
+    let rank = ((p / 100.0) * n as f64).ceil() as usize;
+    let rank = rank.clamp(1, n);
+    sorted[rank - 1]
+}
+
+fn half_medians(samples: &[f64]) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+    let mid = samples.len() / 2;
+    let (a, b) = if mid == 0 {
+        (samples, &[][..])
+    } else {
+        (&samples[..mid], &samples[mid..])
+    };
+    let med = |xs: &[f64]| -> f64 {
+        if xs.is_empty() {
+            return 0.0;
+        }
+        let mut v = xs.to_vec();
+        v.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+        v[v.len() / 2]
+    };
+    (med(a), med(b))
 }
 
 fn wait_stats(samples: &[f64]) -> (f64, f64) {
@@ -274,9 +544,98 @@ fn wait_stats(samples: &[f64]) -> (f64, f64) {
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let mut sorted = samples.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let idx = ((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize;
-    let p95 = sorted[idx.min(sorted.len() - 1)];
+    let p95 = percentile_nearest_rank(&sorted, 95.0);
     (mean, p95)
 }
 
 pub type SharedMetrics = Arc<Mutex<MetricsState>>;
+
+#[cfg(test)]
+mod wait_stats_tests {
+    use super::{percentile_nearest_rank, wait_stats};
+
+    #[test]
+    fn nearest_rank_disagrees_with_old_index_formula() {
+        // N=20: old idx = ceil((19)*0.95)=19 → sorted[19]; nearest-rank rank=ceil(0.95*20)=19 → sorted[18].
+        let samples: Vec<f64> = (1..=20).map(|i| i as f64).collect();
+        let mut sorted = samples.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let old_idx = (((sorted.len() as f64 - 1.0) * 0.95).ceil() as usize).min(sorted.len() - 1);
+        let old = sorted[old_idx];
+        let new = percentile_nearest_rank(&sorted, 95.0);
+        assert_ne!(old, new, "fixture must disagree: old={old} new={new}");
+        assert_eq!(new, 19.0);
+        let (_mean, p95) = wait_stats(&samples);
+        assert_eq!(p95, 19.0);
+    }
+
+    #[test]
+    fn lateness_sees_a_backlog_that_wait_ms_cannot() {
+        // The v2 defect as a test: `wait_ms` stays short while the loop falls behind,
+        // because it starts at the ask. Lateness measures the scheduled time instead.
+        let mut m = super::MetricsState::new(0);
+        for i in 0..160 {
+            m.record_wait_ms(30.0);
+            // On schedule for 140 steps, then a backlog that grows and never drains.
+            m.record_lateness_ms(if i < 140 {
+                0.0
+            } else {
+                (i - 139) as f64 * 100.0
+            });
+        }
+        let (_, p95_wait) = super::wait_stats(&m.wait_samples_ms);
+        let (_, p95_late) = super::wait_stats(&m.lateness_samples_ms);
+        assert_eq!(p95_wait, 30.0, "waits look healthy throughout");
+        assert_eq!(p95_late, 1_200.0, "lateness reports the backlog");
+        assert_eq!(
+            m.lateness_samples_ms.len(),
+            160,
+            "every step contributes, hit or miss"
+        );
+    }
+
+    #[test]
+    fn a_single_late_step_needs_late_max_not_late_p95() {
+        // One late step in twenty sits above the p95 rank, so the percentile reads 0.
+        // Report `late_max_ms` too, never the p95 alone.
+        let mut m = super::MetricsState::new(0);
+        for _ in 0..19 {
+            m.record_lateness_ms(0.0);
+        }
+        m.record_lateness_ms(2_000.0);
+        let (_, p95_late) = super::wait_stats(&m.lateness_samples_ms);
+        assert_eq!(p95_late, 0.0);
+        let max = m.lateness_samples_ms.iter().copied().fold(0.0f64, f64::max);
+        assert_eq!(max, 2_000.0);
+    }
+
+    #[test]
+    fn lateness_floors_at_zero_and_counts_on_time_steps() {
+        let mut m = super::MetricsState::new(0);
+        // A frame ready before its scheduled time is on time, not negatively late.
+        m.record_lateness_ms(-40.0);
+        m.record_lateness_ms(super::ON_TIME_MS - 1.0);
+        m.record_lateness_ms(super::ON_TIME_MS + 1.0);
+        assert_eq!(m.lateness_samples_ms[0], 0.0);
+        let on_time = m
+            .lateness_samples_ms
+            .iter()
+            .filter(|ms| **ms <= super::ON_TIME_MS)
+            .count();
+        assert_eq!(on_time, 2);
+    }
+
+    #[test]
+    fn miss_only_ignores_cache_hit_zeros() {
+        // 19 zeros + one 100ms miss → all-sample nearest-rank p95 is 0; miss-only p95 is 100.
+        let mut samples = vec![0.0; 19];
+        samples.push(100.0);
+        let (mean_all, p95_all) = wait_stats(&samples);
+        assert_eq!(p95_all, 0.0);
+        assert!((mean_all - 5.0).abs() < 1e-9);
+        let misses: Vec<f64> = samples.into_iter().filter(|ms| *ms > 0.0).collect();
+        let (miss_mean, miss_p95) = wait_stats(&misses);
+        assert_eq!(miss_mean, 100.0);
+        assert_eq!(miss_p95, 100.0);
+    }
+}

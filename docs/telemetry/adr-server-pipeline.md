@@ -34,10 +34,11 @@ not Err closes inside prepare/locate.
 **Clock model:** stamp at method entry; contiguous mark chain; emit closes the last stage.
 Happy path: ~4 `Instant::now` reads. Units stay integer µs.
 
-**Arc clone in default `serve_one`:** before `locate`, clone the study `Arc` so returned bytes
-borrow that clone (not `self`). That lets `send(&mut self, bytes)` compile for wrappers without
-double-slicing or restating the story. Cost: one atomic refcount bump per frame (plus the
-existing clone for `spawn_blocking` in `prepare`).
+**Arc clone in default `serve_one`:** before `locate`, clone the study `Arc` so locate uses a
+handle that is not `self`. **Amended 2026-09-09:** `locate` returns [`Bytes`](https://docs.rs/bytes)
+(a refcounted view of the mapping), not `&[u8]`, so `send` can take the chunked path without a
+full-frame copy. Cost: one atomic refcount bump per frame (plus the existing clone for
+`spawn_blocking` in `prepare` when `--prefault` is on).
 
 - Prefault lives in `ProductPipeline::prepare` (see `docs/disk-access/adr.md`).
 - Send failures abort the session (no `FrameError` on control); prepare/locate failures call `refuse`.
@@ -46,7 +47,7 @@ existing clone for `spawn_blocking` in `prepare`).
 
 ## Report schema
 
-`telemetry-server.json` uses `schema: "server-pipeline-v1"` with stages `prepare_us`,
+`telemetry-server.json` uses `schema: "server-pipeline-v2"` with stages `prepare_us`,
 `locate_us`, `send_us`, `serve_us`, `overhead_us` (µs). Refused paths export absent stages as `null`.
 
 Invariant: `serve_us == prepare_us + locate_us + send_us + overhead_us` (exact partition;

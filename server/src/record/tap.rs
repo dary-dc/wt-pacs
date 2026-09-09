@@ -411,16 +411,14 @@ impl Drop for Tap {
 }
 
 fn duration_us(start: Instant, end: Instant) -> u32 {
-    end.duration_since(start)
-        .as_micros()
-        .min(u32::MAX as u128) as u32
+    end.duration_since(start).as_micros().min(u32::MAX as u128) as u32
 }
 
 fn usize_to_u32(n: usize) -> u32 {
     n.min(u32::MAX as usize) as u32
 }
 
-fn env_enabled(name: &str) -> bool {
+pub(super) fn env_enabled(name: &str) -> bool {
     std::env::var(name)
         .map(|v| {
             let s = v.to_ascii_lowercase();
@@ -453,7 +451,9 @@ mod tests {
 
     /// Everything queued so far, flattened.
     fn drain_all(rx: &Receiver<Batch>) -> Vec<Record> {
-        std::iter::from_fn(|| rx.try_recv().ok()).flatten().collect()
+        std::iter::from_fn(|| rx.try_recv().ok())
+            .flatten()
+            .collect()
     }
 
     fn frames(records: &[Record]) -> Vec<FrameRecord> {
@@ -571,7 +571,10 @@ mod tests {
         let row = sample_row(Some(20), Some(1), Some(40), 65, 4);
         assert_eq!(
             row.serve_us,
-            row.prepare_us.unwrap() + row.locate_us.unwrap() + row.send_us.unwrap() + row.overhead_us
+            row.prepare_us.unwrap()
+                + row.locate_us.unwrap()
+                + row.send_us.unwrap()
+                + row.overhead_us
         );
     }
 
@@ -676,10 +679,7 @@ mod tests {
         assert!(row.send_us.is_none());
         assert_eq!(row.locate_outcome, LocateOutcome::NotFound as u8);
         assert_eq!(row.write_outcome, WriteOutcome::Refused as u8);
-        assert_eq!(
-            row.serve_us,
-            row.prepare_us.unwrap_or(0) + row.overhead_us
-        );
+        assert_eq!(row.serve_us, row.prepare_us.unwrap_or(0) + row.overhead_us);
         assert_eq!(t.refused, 1);
     }
 
@@ -782,7 +782,9 @@ mod tests {
         assert_eq!(s.rows_dropped, 0);
         assert!(s.t_close_us >= s.t_open_us);
         assert_eq!(frames(&records).len(), 3);
-        assert!(records.iter().all(|r| matches!(r, Record::Frame(_) | Record::Session(_))));
+        assert!(records
+            .iter()
+            .all(|r| matches!(r, Record::Frame(_) | Record::Session(_))));
     }
 
     #[test]

@@ -213,7 +213,10 @@ mod tests {
             let mut buf = vec![0u8; 64];
             // SAFETY: `buf` outlives `reader` and is untouched until reaped.
             unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
-            assert!(reader.reap().expect("reap").is_empty(), "the pipe was not empty");
+            assert!(
+                reader.reap().expect("reap").is_empty(),
+                "the pipe was not empty"
+            );
             let writer = std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(50));
                 (&wr).write_all(&[0x5A; 64]).expect("write");

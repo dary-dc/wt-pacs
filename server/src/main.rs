@@ -1,5 +1,5 @@
 use clap::Parser;
-use exact_server::{run_server, ServeConfig, StreamMode, TransportKnobs};
+use exact_server::{run_server, Congestion, ServeConfig, StreamMode, TransportTuning};
 use std::net::IpAddr;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
@@ -9,7 +9,10 @@ use tracing_subscriber::EnvFilter;
 struct Args {
     #[arg(long, default_value = "4433")]
     port: u16,
-    #[cfg_attr(feature = "telemetry", arg(long, required_unless_present = "telemetry_report"))]
+    #[cfg_attr(
+        feature = "telemetry",
+        arg(long, required_unless_present = "telemetry_report")
+    )]
     #[cfg_attr(not(feature = "telemetry"), arg(long, required = true))]
     study: Option<PathBuf>,
     #[arg(long, default_value = "server/dev-cert/cert.pem")]
@@ -17,30 +20,51 @@ struct Args {
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
     /// How frames reach the client: one shared uni stream or one per frame.
-    #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
+    #[arg(long, value_enum, default_value_t = StreamMode::Shared)]
     stream_mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to
     /// `0.0.0.0` when the host has no IPv6.
     #[arg(long)]
     bind: Option<IpAddr>,
+    /// Connection-wide receive window in bytes (quinn default: unlimited).
+    #[arg(long)]
+    receive_window: Option<u64>,
     /// QUIC send window per connection in bytes (unacknowledged data held). Default: library
     /// default, 10 MB. Bounds memory under slow clients: N sessions × this value.
-    #[arg(long)]
+    /// `--send-window` is the name lab scripts already pass.
+    #[arg(long, visible_alias = "send-window")]
     send_window_bytes: Option<u64>,
     /// QUIC per-stream receive window in bytes. Default: library default, 1.25 MB.
-    #[arg(long)]
-    stream_receive_window_bytes: Option<u32>,
+    #[arg(long, visible_alias = "stream-receive-window")]
+    stream_receive_window_bytes: Option<u64>,
     /// QUIC idle timeout in milliseconds. Default: library default, 30 000.
     #[arg(long)]
     max_idle_timeout_ms: Option<u64>,
-    /// Lab builds: rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
+    #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
+    congestion: Congestion,
+    /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
+    #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
+    prefault: bool,
+    /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
     #[cfg(feature = "telemetry")]
     #[arg(long, value_name = "ROWS")]
     telemetry_report: Option<PathBuf>,
-    /// Lab builds: where `--telemetry-report` writes (default: `<rows>.exact.json`).
+    /// Where `--telemetry-report` writes (default: `<rows>.exact.json`).
     #[cfg(feature = "telemetry")]
     #[arg(long, value_name = "JSON")]
     telemetry_report_out: Option<PathBuf>,
+}
+
+/// Install the rustls provider selected at compile time (`crypto-ring` by default).
+fn install_crypto_provider() -> anyhow::Result<()> {
+    #[cfg(feature = "crypto-aws-lc-rs")]
+    let provider = rustls::crypto::aws_lc_rs::default_provider();
+    #[cfg(not(feature = "crypto-aws-lc-rs"))]
+    let provider = rustls::crypto::ring::default_provider();
+
+    provider
+        .install_default()
+        .map_err(|_| anyhow::anyhow!("rustls crypto provider already installed"))
 }
 
 #[tokio::main]
@@ -49,9 +73,7 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::from_default_env().add_directive("exact_server=info".parse()?))
         .init();
 
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
+    install_crypto_provider()?;
 
     let args = Args::parse();
 
@@ -76,10 +98,13 @@ async fn main() -> anyhow::Result<()> {
         key_pem: args.key_pem,
         mode: args.stream_mode,
         bind: args.bind,
-        transport: TransportKnobs {
-            send_window_bytes: args.send_window_bytes,
-            stream_receive_window_bytes: args.stream_receive_window_bytes,
+        tuning: TransportTuning {
+            receive_window: args.receive_window,
+            stream_receive_window: args.stream_receive_window_bytes,
+            send_window: args.send_window_bytes,
             max_idle_timeout_ms: args.max_idle_timeout_ms,
+            congestion: args.congestion,
+            prefault: args.prefault,
         },
     });
 

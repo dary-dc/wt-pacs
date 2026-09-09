@@ -41,6 +41,24 @@ function heapBytes() {
   return m && typeof m.usedJSHeapSize === "number" ? m.usedJSHeapSize : null;
 }
 
+/**
+ * Track the JS-heap peak on a timer, not per delivered frame: `performance.memory` walks the
+ * heap and cost ~45 µs per call, which put 3–11 % of the run's main-thread time into the
+ * harness itself (Chromium 141 profile, 2026-09-06). 100 ms keeps the peak within a few
+ * frames of the truth at any rate this harness runs at.
+ */
+function heapPeakSampler(stats) {
+  const sample = () => {
+    stats.heap_peak = Math.max(stats.heap_peak ?? 0, heapBytes() ?? 0);
+  };
+  sample();
+  const timer = setInterval(sample, 100);
+  return () => {
+    clearInterval(timer);
+    sample();
+  };
+}
+
 async function studyFrameCount() {
   const p = params.get("frames");
   if (p) return Number(p);
@@ -104,7 +122,6 @@ function runOndemand(session, steps, interval, stats) {
     const finish = (frame) => {
       inflight.delete(frame);
       settled += 1;
-      stats.heap_peak = Math.max(stats.heap_peak ?? 0, heapBytes() ?? 0);
       if (settled === steps.length) resolve();
       else pump();
     };
@@ -136,7 +153,6 @@ async function runFill(session, steps, stats) {
       stats.failed += 1;
       log("frame", i, "failed:", err && err.message ? err.message : String(err));
     }
-    stats.heap_peak = Math.max(stats.heap_peak ?? 0, heapBytes() ?? 0);
   }
   return last + 1;
 }
@@ -169,11 +185,13 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
       const heapStart = heapBytes();
       const wasmStart = memoryBytes ? memoryBytes() : null;
       log("run", cell, "steps", steps.length, "frames", frames, "d", depth, "interval_ms", interval, "schedule", name);
+      const stopHeapSampler = heapPeakSampler(stats);
       const t0 = performance.now();
       let asked = steps.length;
       if (cell === "fill") asked = await runFill(session, steps, stats);
       else await runOndemand(session, steps, interval, stats);
       const wallMs = performance.now() - t0;
+      stopHeapSampler();
       const summary = {
         arm,
         cell,

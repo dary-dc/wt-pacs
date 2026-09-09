@@ -78,6 +78,7 @@ impl FrameOut {
                 acks.spawn(async move {
                     let _ = uni.finish().await;
                 });
+                while acks.try_join_next().is_some() {}
             }
             #[cfg(test)]
             Self::Detached => unreachable!("a detached sink has no wire to write to"),

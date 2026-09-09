@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# E1 — does D_min saturate the link? docs/window-saturation-experiment.md §1
-#
-# Pass condition (fixed in advance): measured D_min — smallest depth reaching
-# 95% of the D=64 ceiling util — is within ±1 of
-#   pred = ceil(U × (1 + RTT/Tf)),  U=0.95, Tf = frame_bytes*8/read_bps
-#
-# RTT≈0 is a floor control only (pred collapses to 1). Real test is RTT>0.
-# Default RTT path: harness --rtt-ms (userspace). USE_NETEM=1 for tc (needs CAP_NET_ADMIN).
+# E1 — does D_min saturate the link? docs/window-saturation-experiment.md §1.
+# Pass condition, fixed in advance: measured D_min (smallest depth reaching 95% of the D=64
+# ceiling) within +/-1 of ceil(U * (1 + RTT/Tf)), U=0.95, Tf = frame_bytes*8/read_bps.
+# RTT~0 is a floor control only. USE_NETEM=1 for tc; needs CAP_NET_ADMIN.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -90,6 +86,7 @@ run_one() {
   kill "$spid" 2>/dev/null || true
   wait "$spid" 2>/dev/null || true
   "$SERVER" --port "$PORT" --study "$study_path" \
+    --stream-mode per-frame \
     --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   spid=$!
   sleep 1.0

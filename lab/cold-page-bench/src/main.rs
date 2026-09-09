@@ -1,9 +1,6 @@
-//! Warm vs cold SBND timings and **executor availability** — naive mmap vs blocking pre-touch (E3 / L3).
-//!
-//! Instrument (evidence review §6):
-//! - Co-tenant `yield_now` gap monitor (ns), not sleep heartbeat
-//! - Cold = **one pass** over frames `0..n` (never `i % n` revisits)
-//! - Both arms consume frame bytes (touch / write-shaped read), not `black_box(len)`
+//! Warm vs cold SBND timings and executor availability: naive mmap against blocking
+//! pre-touch (E3 / L3). Cold means ONE pass over frames 0..n, never `i % n` revisits, and
+//! both arms consume the frame bytes rather than `black_box(len)`.
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};

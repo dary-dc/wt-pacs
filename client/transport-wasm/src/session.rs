@@ -14,8 +14,9 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::{
-    ReadableStream, ReadableStreamDefaultReader, WebTransport, WebTransportCongestionControl,
-    WebTransportHash, WebTransportOptions, WritableStreamDefaultWriter,
+    ReadableStream, ReadableStreamDefaultReader, ReadableStreamReadResult, WebTransport,
+    WebTransportCongestionControl, WebTransportHash, WebTransportOptions,
+    WritableStreamDefaultWriter,
 };
 
 const FRAME_TIMEOUT_MS: u32 = 15_000;
@@ -34,7 +35,7 @@ fn js_buffer_from(src: &[u8]) -> Uint8Array {
 }
 
 fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return Err("cert hash hex length must be even".into());
     }
     (0..hex.len())
@@ -46,17 +47,19 @@ fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
         .collect()
 }
 
+/// One `reader.read()`; `None` at end of stream.
+///
+/// The result is read through the typed `ReadableStreamReadResult` getters: a `Reflect::get`
+/// with a fresh `JsValue::from_str("done")` would encode that key across the boundary on
+/// every read, which showed up as `decodeText` in the browser profile (one read per chunk).
 async fn reader_read_value(
     reader: &ReadableStreamDefaultReader,
 ) -> Result<Option<JsValue>, JsValue> {
-    let obj = JsFuture::from(reader.read()).await?;
-    let done = Reflect::get(&obj, &JsValue::from_str("done"))?
-        .as_bool()
-        .unwrap_or(false);
-    if done {
+    let result: ReadableStreamReadResult = JsFuture::from(reader.read()).await?.unchecked_into();
+    if result.get_done().unwrap_or(false) {
         return Ok(None);
     }
-    Ok(Some(Reflect::get(&obj, &JsValue::from_str("value"))?))
+    Ok(Some(result.get_value()))
 }
 
 async fn reader_read_bytes(
@@ -103,11 +106,22 @@ impl RecvBuf {
         }
     }
 
+    /// Room for a frame whose length is now known: one allocation instead of a doubling
+    /// sequence (16 → 32 → … KB, each step a copy) for every fresh buffer.
+    fn reserve_for(&mut self, total: usize) {
+        let have = self.data.len() - self.pos;
+        if total > have {
+            self.data.reserve(total - have);
+        }
+    }
+
     fn push_chunk(&mut self, chunk: &Uint8Array) {
         let n = chunk.length() as usize;
-        let start = self.data.len();
-        self.data.resize(start + n, 0);
-        chunk.copy_to(&mut self.data[start..]);
+        self.data.reserve(n);
+        let filled = chunk.copy_to_uninit(&mut self.data.spare_capacity_mut()[..n]).len();
+        // SAFETY: `copy_to_uninit` initialised exactly `filled` (= `n`) bytes of the spare
+        // capacity it was given, contiguous with the initialised prefix.
+        unsafe { self.data.set_len(self.data.len() + filled) };
     }
 }
 
@@ -146,6 +160,7 @@ async fn read_length_prefixed_frame(
     if len == 0 || len > MAX_FRAME_LEN {
         return Err(format!("invalid frame length {len}"));
     }
+    buf.reserve_for(4 + len);
     read_exact(reader, buf, 4 + len).await?;
     let envelope = &buf.as_slice()[4..4 + len];
     let (index, codestream) = unwrap_envelope(envelope).map_err(|e| format!("envelope: {e}"))?;
@@ -193,12 +208,18 @@ async fn write_all(writer: &WritableStreamDefaultWriter, bytes: &[u8]) -> Result
     Ok(())
 }
 
-async fn read_fod_msg(reader: &ReadableStreamDefaultReader) -> Result<FodMsg, String> {
-    let mut buf = RecvBuf::new();
-    read_exact(reader, &mut buf, 4).await?;
+/// Read one `[4B LE len][JSON]` control message. `buf` outlives the call: a browser read can
+/// carry several messages, and whatever follows this one must wait in the buffer for the next.
+async fn read_fod_msg(
+    reader: &ReadableStreamDefaultReader,
+    buf: &mut RecvBuf,
+) -> Result<FodMsg, String> {
+    read_exact(reader, buf, 4).await?;
     let len = u32::from_le_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
-    read_exact(reader, &mut buf, 4 + len).await?;
-    decode_fod_msg(buf.as_slice()).map_err(|e| format!("decode FoD: {e}"))
+    read_exact(reader, buf, 4 + len).await?;
+    let msg = decode_fod_msg(&buf.as_slice()[..4 + len]).map_err(|e| format!("decode FoD: {e}"));
+    buf.consume(4 + len);
+    msg
 }
 
 #[derive(Default)]
@@ -282,8 +303,9 @@ impl TransportSession {
         // FoD downlink — exceptions only (FrameError), length-prefixed on control stream.
         let st_ctl = Rc::clone(&state);
         spawn_local(async move {
+            let mut buf = RecvBuf::new();
             loop {
-                match read_fod_msg(&control_reader).await {
+                match read_fod_msg(&control_reader, &mut buf).await {
                     Ok(FodMsg::FrameError {
                         frame_index,
                         reason,
@@ -337,18 +359,7 @@ impl TransportSession {
             return Err("FoD request channel closed".into());
         }
 
-        let (bytes, received_ms) = match await_bytes(rx, frame_index).await {
-            Ok(d) => d,
-            Err(e) => {
-                let mut s = self.state.borrow_mut();
-                s.waiters.remove(&frame_index);
-                if let Some(reason) = s.errors.remove(&frame_index) {
-                    return Err(format!("frame {frame_index} unavailable: {reason}"));
-                }
-                return Err(e);
-            }
-        };
-        result_to_js(frame_index, ask_ms, bytes, received_ms)
+        self.settle(rx, frame_index, ask_ms).await
     }
 
     pub async fn request_frames(&self, indices: Vec<u32>) -> Result<JsValue, String> {
@@ -455,18 +466,27 @@ impl TransportSession {
             .borrow_mut()
             .remove(&frame_index)
             .ok_or_else(|| format!("wait_frame: no pending bulk waiter for {frame_index}"))?;
-        let (bytes, received_ms) = match await_bytes(rx, frame_index).await {
-            Ok(d) => d,
+        self.settle(rx, frame_index, ask_ms).await
+    }
+
+    /// Await one armed waiter; a refusal the server sent for this frame wins over the raw error.
+    async fn settle(
+        &self,
+        rx: oneshot::Receiver<(Uint8Array, f64)>,
+        frame_index: u32,
+        ask_ms: f64,
+    ) -> Result<JsValue, String> {
+        match await_bytes(rx, frame_index).await {
+            Ok((bytes, received_ms)) => result_to_js(frame_index, ask_ms, bytes, received_ms),
             Err(e) => {
                 let mut s = self.state.borrow_mut();
                 s.waiters.remove(&frame_index);
-                if let Some(reason) = s.errors.remove(&frame_index) {
-                    return Err(format!("frame {frame_index} unavailable: {reason}"));
+                match s.errors.remove(&frame_index) {
+                    Some(reason) => Err(format!("frame {frame_index} unavailable: {reason}")),
+                    None => Err(e),
                 }
-                return Err(e);
             }
-        };
-        result_to_js(frame_index, ask_ms, bytes, received_ms)
+        }
     }
 
     /// Close the WebTransport session now. Without this the server only notices the session is
@@ -518,15 +538,32 @@ fn result_to_js(
 
     let result = Object::new();
     set(&result, "frameIndex", &JsValue::from(frame_index))?;
-    set(&result, "tier", &JsValue::from_str("exact"))?;
-    set(&result, "codec", &JsValue::from_str("htj2k"))?;
+    set(&result, "tier", &js_string("exact"))?;
+    set(&result, "codec", &js_string("htj2k"))?;
     set(&result, "bytes", &bytes)?;
     set(&result, "timing", &timing)?;
     Ok(result.into())
 }
 
-fn set(target: &Object, key: &str, value: &JsValue) -> Result<(), String> {
-    Reflect::set(target, &JsValue::from_str(key), value)
+thread_local! {
+    /// The JS strings this module writes as keys or constant values, encoded once per thread.
+    /// `JsValue::from_str` re-encodes its argument across the boundary on every call, and at
+    /// twelve strings per delivered frame that was the `decodeText` line of the browser profile.
+    static JS_STRINGS: RefCell<HashMap<&'static str, JsValue>> = RefCell::new(HashMap::new());
+}
+
+fn js_string(text: &'static str) -> JsValue {
+    JS_STRINGS.with(|cache| {
+        cache
+            .borrow_mut()
+            .entry(text)
+            .or_insert_with(|| JsValue::from_str(text))
+            .clone()
+    })
+}
+
+fn set(target: &Object, key: &'static str, value: &JsValue) -> Result<(), String> {
+    Reflect::set(target, &js_string(key), value)
         .map(|_| ())
         .map_err(|_| format!("set {key}"))
 }

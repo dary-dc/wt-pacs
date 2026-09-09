@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# E4 premise gate on cloud — 8 runs (one RTT, depths 1–8). Random arm derived from oracle waits.
-#
-# Gate cell: mild (185 ms/step, ratio ~1.1). Default RTT=90 ms only — formula predicts D=2
-# for the entire 30–180 ms range at 250 KB / 10 Mbps (Tf≈205 ms); sweeping 4 RTTs repeats
-# the same prediction.
+# E4 premise gate on cloud — 8 runs, one RTT, depths 1-8; the random arm derives from oracle
+# waits. RTT=90 only: the formula predicts D=2 across 30-180 ms at 250 KB / 10 Mbps.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
