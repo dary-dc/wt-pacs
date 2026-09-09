@@ -19,12 +19,12 @@ against current releases and the 6.18 kernel and measured the `x14` / `x15` arms
 ## 1 · What ships on this branch
 
 **`hybrid_lazyring`**: `preadv2(RWF_NOWAIT)` inline on a page-cache hit, io_uring for the
-miss, and no ring at all for a session that never misses. **Plus read-ahead by one**: a
-`RequestFrames` batch serves at depth 2.
+miss, and no ring at all for a session that never misses. **W = 4 windows** for tiles; a fill
+names one frame ahead. The loop is a planner over a channel of `Ask`.
 
 | | |
 | --- | --- |
-| Where | `server/src/media/read_path.rs` (the logic), `uring_reader.rs` (the ring, two slots), `frame_out.rs` (the wire loop), `pipeline.rs` (the seam) |
+| Where | `server/src/media/read_path.rs` (W windows), `uring_reader.rs` (thin ring), `transport/planner.rs` (the loop), `frame_out.rs` (the wire loop), `pipeline.rs` (serve) |
 | Flag | `WTPACS_READ_PATH` = `auto` (default) \| `pool` (kill switch) \| `uring` (lab lever). Unknown values warn and fall back to `auto` |
 | Feature | `uring`, on by default. `--no-default-features` compiles to the pool path |
 | Reports | `read_fast_path=` in the startup banner; `session reads hits=… misses=… miss_rate=… ring=…` per session |
@@ -33,12 +33,8 @@ miss, and no ring at all for a session that never misses. **Plus read-ahead by o
 Also on the branch: `memmap2` is gone from `server/` entirely, `study-bundle` gained
 `read_layout`, and `CLAUDE.md` + `scripts/comment_budget.sh` make the comment rule checkable.
 
-**Landed later the same day, after this section was first written:** the ask-reader task and
-the `StreamFrames` / `EndStream` fill on the session loop, and the fix for
-[`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) fault 1 — the write chunk is `READ_WINDOW`
-outright, no longer whatever `read_window` returns. The read path's mechanism is untouched by
-both; [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) is the design they follow. This file's
-numbers predate them and none of them is measured yet.
+**Landed 2026-09-09:** the §13 cuts — W windows, thin ring, planner, `WINDOWS = 4`. Numbers
+in this file that predate them are still the W = 2 measurements.
 
 ## 2 · Numbers that are safe to quote
 
@@ -137,20 +133,10 @@ Breaking any of these has already produced a wrong answer in this project. Short
 real instance type, volume class and container image decides whether ~800 lines of ring stay
 or the pool ships — with the decision rule fixed in advance, a tie deleting the ring.
 [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) §Decision, and it is
-[`NEXT.md`](NEXT.md)'s item 4. Nothing in the read path should be touched before it.
+[`NEXT.md`](NEXT.md)'s item 4.
 
-**`RequestFrame` is still depth 1**, and the owners want depth ≥ 4. The read path carries depth 2 and a batch feeds it; a
-stream of single asks does not, because `run_session` will not read the next ask until the
-current frame is on the wire. Designed, not built, with the options and the invariants
-written out: [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
-§6d. **Start with the investigation, not the code** — the win is already available to any
-client that sends `RequestFrames`.
-
-The other item that blocked this list — the server not being able to report its own miss
-rate — is closed: it reports one per session, in the default build. Depth 2 is built for
-`RequestFrames`; **the owners' requirement is depth 4 or more**, and
-[`v35_depth2.tsv`](v35_depth2.tsv) prices the step from 2 to 4 at a further +37% on the
-medians, so "stop at two" is where the *evidence* stopped, not where the requirement does.
+**Serving depth is W = 4 for tiles**, fill names one ahead. The loop is a planner. Unmeasured
+on the default link — §9.4 of the design. P0's depth ladder is what could move W.
 
 ## 8 · Where things are
 
@@ -166,8 +152,8 @@ medians, so "stop at two" is where the *evidence* stopped, not where the require
 | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) | **the backend answer (2026-09-08):** keep `io-uring` direct; every candidate verified at its pinned version; **P0** decides ring-vs-pool on the production target, **P1** parks on the ring fd and drops the eventfd (`x14`) |
 | [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) | which reader server-driven streaming should use — settled on the shipped one reading forward; tokio's `fs::File` measured and rejected (`x15`) |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | the fast path, and the two ulimits that decide whether a ring is built |
-| [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) | **proposed, not built:** the read/write seam — change **A** (the frame loop moves into the read path, P0-independent) and change **B** (a window owns its ring slot, after P0) |
-| [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) | **proposed, not built:** depth as two quantities, `RequestFrame` kept, `StreamFrames` + `Stop`, W per use case, and the order to build in. Overlaps the review — see [`NEXT.md`](NEXT.md) §7 |
+| [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) | Change **A** deferred; **B** subsumed (window index is the slot). P1 after P0 |
+| [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) | depth, messages, the loop, the cuts. §13 landed. Remaining: the throttled-link cell, P0 |
 | [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) | framing, serving depth §6b, streaming §6c, the loop change §6d |
 
 ## 9 · Not done
@@ -179,8 +165,7 @@ medians, so "stop at two" is where the *evidence* stopped, not where the require
 * The bench copies `stream_codestream`'s loop rather than calling it. The real loop now has an
   end-to-end test, so a drift would at least not go unnoticed in the product — but only the
   copy is measured.
-* `serve_batch`'s one-line look-ahead (`frames.get(i + 1)`) has no test of its own: the read
-  path's use of it is covered, the wiring is not.
+* ~~`serve_batch`'s one-line look-ahead~~ **Closed** — `serve_batch` is gone.
 * **Two design proposals overlap** and are pending a fold into one:
   [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) and [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md).
 
@@ -198,7 +183,6 @@ starts at this file will otherwise not meet them until after the fact.
 3. **Measure interleaved, against a `git worktree` build of the pre-change binary.** A sequential
    before/after already produced +8.1 % on a tie here (§6.1). A refactor claimed to cost nothing
    still has to show the tie.
-4. **The session loop is the seam's other caller, and it landed first.** The ask-reader task
-   and the fill shipped before change A, so the sequencing this said to prefer is spent: A now
-   lands against `serve_one`/`serve_batch`/`fill` as built, not the other way round. Read
-   `server/src/transport/server.rs` before costing it.
+4. **The session loop is a planner** (`planner.rs`) over `Ask`; `serve_batch` is gone. Change A
+   (`frame()` + `FrameBytes`) is still deferred. Read `server/src/transport/server.rs` and
+   `planner.rs` before costing a seam change.
