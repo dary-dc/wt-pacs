@@ -2,9 +2,9 @@
 //! `docs/adr-reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
-use crate::media::read_path::WINDOWS;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
+use crate::transport::planner::{Ask, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::read_fod_msg;
@@ -225,14 +225,36 @@ async fn handle_incoming(
     run_session(&mut product, control_recv).await
 }
 
-/// The reader owns the control stream; the loop serves and, during a fill, looks at the
-/// channel between frames. `docs/disk-access/READ-PATH-DESIGN.md` §8.
+/// The reader owns the control stream; the planner decides; the pipeline serves.
+/// `docs/disk-access/READ-PATH-DESIGN.md` §11 cuts 1, 2 and 5.
 async fn run_session<P: FramePipeline>(
     pipeline: &mut P,
     control_recv: RecvStream,
 ) -> Result<()> {
-    let (reader, asks) = spawn_ask_reader(control_recv);
-    let result = drive(pipeline, asks).await;
+    let (reader, mut asks) = spawn_ask_reader(control_recv);
+    let result = async {
+        let mut plan = Planner::new(pipeline.store().frame_count());
+        loop {
+            let step = plan.next(|| asks.try_recv().ok())?;
+            if plan.take_noted_fill() {
+                pipeline.note_fill();
+            }
+            match step {
+                Step::Serve { frame, upcoming } => pipeline.serve(frame, &upcoming).await?,
+                Step::Refuse { frame, reason } => {
+                    pipeline.refuse(frame, anyhow!(reason)).await?;
+                }
+                Step::Wait => match asks.recv().await {
+                    Some(ask) => plan.push(ask),
+                    None => break,
+                },
+                Step::End => break,
+            }
+        }
+        pipeline.drain_acks().await;
+        Ok(())
+    }
+    .await;
     reader.abort();
     let _ = reader.await;
     result
@@ -240,19 +262,28 @@ async fn run_session<P: FramePipeline>(
 
 fn spawn_ask_reader(
     mut control_recv: RecvStream,
-) -> (tokio::task::JoinHandle<()>, mpsc::Receiver<Result<FodMsg>>) {
-    let (tx, rx) = mpsc::channel(WINDOWS - 1);
+) -> (tokio::task::JoinHandle<()>, mpsc::Receiver<Ask>) {
+    let (tx, rx) = mpsc::channel(ASKS_AHEAD);
     let reader = tokio::spawn(async move {
         loop {
-            match read_fod_msg(&mut control_recv).await {
-                Ok(msg) => {
-                    if tx.send(Ok(msg)).await.is_err() {
-                        break;
-                    }
+            let asks = match read_fod_msg(&mut control_recv).await {
+                Ok(FodMsg::RequestFrame { frame }) => vec![Ask::Frame(frame)],
+                Ok(FodMsg::RequestFrames { frames }) => {
+                    frames.into_iter().map(Ask::Frame).collect()
                 }
-                Err(err) => {
-                    let _ = tx.send(Err(err)).await;
-                    break;
+                Ok(FodMsg::StreamFrames { from, to }) => vec![Ask::Fill { from, to }],
+                Ok(FodMsg::EndStream) => vec![Ask::EndStream],
+                Ok(FodMsg::EndSession) => vec![Ask::EndSession],
+                Ok(FodMsg::FrameError { .. }) => continue,
+                Err(err) => vec![Ask::Failed(err)],
+            };
+            for ask in asks {
+                let failed = matches!(ask, Ask::Failed(_));
+                if tx.send(ask).await.is_err() {
+                    return;
+                }
+                if failed {
+                    return;
                 }
             }
         }
@@ -260,80 +291,9 @@ fn spawn_ask_reader(
     (reader, rx)
 }
 
-async fn drive<P: FramePipeline>(
-    pipeline: &mut P,
-    mut asks: mpsc::Receiver<Result<FodMsg>>,
-) -> Result<()> {
-    let mut current = asks.recv().await;
-    while let Some(msg) = current {
-        current = match msg? {
-            FodMsg::EndSession => break,
-            FodMsg::RequestFrame { frame } => {
-                let next = asks.try_recv().ok();
-                pipeline.serve_one(frame, first_frame(&next)).await?;
-                match next {
-                    Some(m) => Some(m),
-                    None => asks.recv().await,
-                }
-            }
-            FodMsg::RequestFrames { frames } => {
-                pipeline.serve_batch(&frames).await?;
-                asks.recv().await
-            }
-            FodMsg::StreamFrames { from, to } => fill(pipeline, &mut asks, from, to).await?,
-            FodMsg::EndStream | FodMsg::FrameError { .. } => asks.recv().await,
-        };
-    }
-    pipeline.drain_acks().await;
-    Ok(())
-}
-
-/// The frame a pipelined message would ask for first, so the frame in hand can read ahead.
-fn first_frame(next: &Option<Result<FodMsg>>) -> Option<u32> {
-    match next {
-        Some(Ok(FodMsg::RequestFrame { frame })) => Some(*frame),
-        Some(Ok(FodMsg::RequestFrames { frames })) => frames.first().copied(),
-        _ => None,
-    }
-}
-
-/// Recite `from..=to`. Anything in the channel ends the fill; `EndStream` is not replayed.
-/// `docs/disk-access/READ-PATH-DESIGN.md` §8.
-async fn fill<P: FramePipeline>(
-    pipeline: &mut P,
-    asks: &mut mpsc::Receiver<Result<FodMsg>>,
-    from: Option<u32>,
-    to: Option<u32>,
-) -> Result<Option<Result<FodMsg>>> {
-    let count = pipeline.store().frame_count();
-    let last = count.saturating_sub(1);
-    let from = from.unwrap_or(0);
-    let to = to.unwrap_or(last);
-    if count == 0 || from > to || to > last {
-        pipeline
-            .refuse(from, anyhow!("StreamFrames {from}..={to} outside 0..={last}"))
-            .await?;
-        return Ok(asks.recv().await);
-    }
-    pipeline.note_fill();
-    for frame in from..=to {
-        match asks.try_recv() {
-            Ok(Ok(FodMsg::EndStream)) => return Ok(asks.recv().await),
-            Ok(msg) => return Ok(Some(msg)),
-            Err(mpsc::error::TryRecvError::Empty) => {}
-            Err(mpsc::error::TryRecvError::Disconnected) => return Ok(None),
-        }
-        pipeline
-            .serve_one(frame, (frame < to).then_some(frame + 1))
-            .await?;
-    }
-    Ok(asks.recv().await)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::frame_store::FrameSpan;
     use fod::FodMsg;
     use wtransport::stream::SendStream;
     use frame_envelope::unwrap;
@@ -421,288 +381,9 @@ mod tests {
         }
     }
 
-    struct RecordingPipeline {
-        store: Arc<FrameStore>,
-        served: Vec<(u32, Option<u32>)>,
-        refused: Vec<u32>,
-        tx: Option<mpsc::Sender<Result<FodMsg>>>,
-        inject_after: Option<usize>,
-        inject: Option<Result<FodMsg>>,
-        close_after: Option<usize>,
-    }
-
-    impl RecordingPipeline {
-        fn new(store: Arc<FrameStore>) -> Self {
-            Self {
-                store,
-                served: Vec::new(),
-                refused: Vec::new(),
-                tx: None,
-                inject_after: None,
-                inject: None,
-                close_after: None,
-            }
-        }
-    }
-
-    impl FramePipeline for RecordingPipeline {
-        fn store(&self) -> &Arc<FrameStore> {
-            &self.store
-        }
-
-        async fn serve_one(&mut self, frame: u32, next: Option<u32>) -> Result<()> {
-            self.served.push((frame, next));
-            if Some(self.served.len()) == self.inject_after {
-                if let (Some(tx), Some(msg)) = (self.tx.take(), self.inject.take()) {
-                    let _ = tx.try_send(msg);
-                }
-            }
-            if Some(self.served.len()) == self.close_after {
-                self.tx.take();
-            }
-            Ok(())
-        }
-
-        fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
-            store.frame_span(frame)
-        }
-
-        async fn send(
-            &mut self,
-            _frame: u32,
-            _store: &Arc<FrameStore>,
-            _span: FrameSpan,
-            _next: Option<FrameSpan>,
-        ) -> Result<()> {
-            Ok(())
-        }
-
-        async fn refuse(&mut self, frame: u32, _err: anyhow::Error) -> Result<()> {
-            self.refused.push(frame);
-            Ok(())
-        }
-
-        async fn drain_acks(&mut self) {}
-    }
-
-    fn block_on<F: std::future::Future>(f: F) -> F::Output {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("rt")
-            .block_on(f)
-    }
-
-    fn recording_store(frames: u32) -> (Arc<FrameStore>, std::path::PathBuf) {
-        let dir = std::env::temp_dir().join(format!(
-            "wtpacs-rec-{}-{}",
-            std::process::id(),
-            frames
-        ));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let store = Arc::new(FrameStore::open(&write_study(&dir, frames)).expect("open"));
-        (store, dir)
-    }
-
-    /// Two `RequestFrame`s in the channel: the first is served with `next` = the second.
-    #[test]
-    fn pipelined_asks_supply_the_next_frame() {
-        let (store, dir) = recording_store(4);
-        let mut p = RecordingPipeline::new(store);
-        block_on(drive_queued(
-            &mut p,
-            vec![
-                Ok(FodMsg::RequestFrame { frame: 1 }),
-                Ok(FodMsg::RequestFrame { frame: 2 }),
-                Ok(FodMsg::EndSession),
-            ],
-        ))
-        .expect("drive");
-        assert_eq!(p.served, vec![(1, Some(2)), (2, None)]);
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// `RequestFrame` then `RequestFrames`: `next` is the batch's first.
-    #[test]
-    fn a_batch_after_a_single_ask_supplies_its_first_frame() {
-        let (store, dir) = recording_store(6);
-        let mut p = RecordingPipeline::new(store);
-        block_on(drive_queued(
-            &mut p,
-            vec![
-                Ok(FodMsg::RequestFrame { frame: 1 }),
-                Ok(FodMsg::RequestFrames {
-                    frames: vec![4, 5],
-                }),
-                Ok(FodMsg::EndSession),
-            ],
-        ))
-        .expect("drive");
-        assert_eq!(p.served, vec![(1, Some(4)), (4, Some(5)), (5, None)]);
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    async fn drive_queued(
-        pipeline: &mut RecordingPipeline,
-        queued: Vec<Result<FodMsg>>,
-    ) -> Result<()> {
-        let (tx, rx) = mpsc::channel(queued.len().max(8));
-        for msg in queued {
-            tx.try_send(msg).expect("preload");
-        }
-        pipeline.tx = Some(tx);
-        drive(pipeline, rx).await
-    }
-
-    /// A fill recites `from..=to` inclusive, each frame naming the next.
-    #[test]
-    fn a_fill_recites_from_to_inclusive_in_order() {
-        let (store, dir) = recording_store(8);
-        let mut p = RecordingPipeline::new(store);
-        p.close_after = Some(5);
-        block_on(drive_queued(
-            &mut p,
-            vec![Ok(FodMsg::StreamFrames {
-                from: Some(3),
-                to: Some(7),
-            })],
-        ))
-        .expect("drive");
-        assert_eq!(
-            p.served,
-            vec![
-                (3, Some(4)),
-                (4, Some(5)),
-                (5, Some(6)),
-                (6, Some(7)),
-                (7, None),
-            ]
-        );
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// `EndStream` in the channel at frame *k*: nothing after *k* is served.
-    #[test]
-    fn end_stream_stops_a_fill_before_the_next_frame() {
-        let (store, dir) = recording_store(6);
-        let mut p = RecordingPipeline::new(store);
-        p.inject_after = Some(2);
-        p.inject = Some(Ok(FodMsg::EndStream));
-        block_on(drive_queued(
-            &mut p,
-            vec![Ok(FodMsg::StreamFrames {
-                from: Some(0),
-                to: Some(5),
-            })],
-        ))
-        .expect("drive");
-        assert_eq!(p.served, vec![(0, Some(1)), (1, Some(2))]);
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// A data request found mid-fill ends the fill and is then served.
-    #[test]
-    fn a_data_request_during_a_fill_ends_it_and_is_served_next() {
-        let (store, dir) = recording_store(6);
-        let mut p = RecordingPipeline::new(store);
-        p.inject_after = Some(2);
-        p.inject = Some(Ok(FodMsg::RequestFrame { frame: 9 }));
-        block_on(drive_queued(
-            &mut p,
-            vec![Ok(FodMsg::StreamFrames {
-                from: Some(0),
-                to: Some(5),
-            })],
-        ))
-        .expect("drive");
-        assert_eq!(
-            p.served,
-            vec![(0, Some(1)), (1, Some(2)), (9, None)]
-        );
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// `EndSession` mid-fill: nothing more is served.
-    #[test]
-    fn end_session_during_a_fill_ends_the_session() {
-        let (store, dir) = recording_store(6);
-        let mut p = RecordingPipeline::new(store);
-        p.inject_after = Some(2);
-        p.inject = Some(Ok(FodMsg::EndSession));
-        block_on(drive_queued(
-            &mut p,
-            vec![Ok(FodMsg::StreamFrames {
-                from: Some(0),
-                to: Some(5),
-            })],
-        ))
-        .expect("drive");
-        assert_eq!(p.served, vec![(0, Some(1)), (1, Some(2))]);
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// `from > to`, or `to` past the study: `refuse` with `from`, no frame served.
-    #[test]
-    fn a_bad_range_is_refused_with_from() {
-        let (store, dir) = recording_store(4);
-        for (from, to) in [(Some(7), Some(3)), (Some(0), Some(9))] {
-            let mut p = RecordingPipeline::new(Arc::clone(&store));
-            block_on(drive_queued(
-                &mut p,
-                vec![
-                    Ok(FodMsg::StreamFrames { from, to }),
-                    Ok(FodMsg::EndSession),
-                ],
-            ))
-            .expect("drive");
-            assert!(p.served.is_empty(), "served {:?}", p.served);
-            assert_eq!(p.refused, vec![from.unwrap_or(0)]);
-        }
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// An empty study refuses `StreamFrames {}` with `from` 0.
-    #[test]
-    fn an_empty_study_is_refused_with_from() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-empty-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let path = dir.join("batch.sbnd");
-        study_bundle::write_bundle(&path, br#"{"frameCount":0}"#, &[]).expect("empty study");
-        let mut p = RecordingPipeline::new(Arc::new(FrameStore::open(&path).expect("open")));
-        block_on(drive_queued(
-            &mut p,
-            vec![
-                Ok(FodMsg::StreamFrames {
-                    from: None,
-                    to: None,
-                }),
-                Ok(FodMsg::EndSession),
-            ],
-        ))
-        .expect("drive");
-        assert!(p.served.is_empty());
-        assert_eq!(p.refused, vec![0]);
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// An `Err` in the channel makes `drive` return it.
-    #[test]
-    fn a_reader_error_is_the_session_error() {
-        let (store, dir) = recording_store(2);
-        let mut p = RecordingPipeline::new(store);
-        let err = block_on(drive_queued(
-            &mut p,
-            vec![Err(anyhow!("control broke"))],
-        ));
-        assert!(err.is_err(), "reader error was swallowed");
-        assert!(p.served.is_empty());
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// **`serve_batch` over the wire.** Every frame of a `RequestFrames` arrives whole and
-    /// in ask order, with the read ahead running under it — the one path where a frame is
-    /// served out of a window that was filled while the frame before it was still being
-    /// sent. `docs/adr-frame-framing-and-loop-shape.md` §Serving depth.
+    /// **`RequestFrames` over the wire.** Every frame arrives whole and in ask order, with
+    /// the read ahead running under it — the one path where a frame is served out of a
+    /// window that was filled while the frame before it was still being sent.
     #[test]
     fn a_batch_arrives_whole_and_in_ask_order() {
         let dir = std::env::temp_dir().join(format!("wtpacs-batch-{}", std::process::id()));
