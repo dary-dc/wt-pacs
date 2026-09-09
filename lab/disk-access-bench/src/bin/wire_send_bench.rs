@@ -1,6 +1,6 @@
 //! The send path over a real QUIC stack, so the copy into the connection can be priced.
 //!
-//! `docs/disk-access/RERUN.md` lists "no live end-to-end run" as a limitation: the product
+//! `docs/disk-access/EVIDENCE.md` lists "no live end-to-end run" as a limitation: the product
 //! binds IPv6 and the validation container has none. This binds quinn — the stack
 //! wtransport is built on — to IPv4 loopback instead, which needs no product change and
 //! exercises the same `SendStream`.

@@ -14,9 +14,13 @@ named/in_flight on the session line) are not listed.
 | 4 | **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput — the largest lever measured anywhere. Blocked on what browsers advertise. [`adr.md`](adr.md) §8 |
 | 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the study volume. Snippets are in [`DEPLOYMENT.md`](DEPLOYMENT.md); they are not in a unit file yet. |
 | 6 | **`read_ahead_kb` and study layout on the target** | Miss rate moved 2–15× by that knob. Tuning, not a code change. |
-| 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. Only after P0 keeps the ring. |
+| 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. Now also the *only* way to cut the eventfd's per-hit cost: `REGISTER_EVENTFD_ASYNC` never signals on a `COOP_TASKRUN` ring, so the parked reader hangs. [`EVIDENCE.md`](EVIDENCE.md) §Short io_uring completions. Only after P0 keeps the ring. |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0. |
 | 9 | **Bounded frame cache** | −20.2 % CPU at a 0.92 hit rate, lab only. Needs a real ask trace to size. |
+| 10 | **A frame wider than `READ_WINDOW` with an empty `upcoming`** | 250 kB is four serial `ctx.read()` calls where `pool` issues one; +32 to +88 % RESOLVED, and naming one frame ahead turns it into −33 % over `pool`. The *rest of the current frame* is known with certainty — no speculation is needed to overlap it. The unpipelined `RequestFrame` is the case that pays. [`EVIDENCE.md`](EVIDENCE.md) §Where the 250 kB penalty lives |
+| 11 | **`WINDOWS > 4`** | `read()` takes `upcoming.take(WINDOWS - 1)`, so one session tops out at **4 reads in flight** — `peak_in_flight` reads 4 at `--depths 16`. The owners' weighting is "thousands of sessions at depth 4 or more"; depth above 4 on one session is currently unreachable and untested. |
+| 12 | **A ring per session that misses once** | `rings_built` is **1.00 per session** at 1, 16 and 64 readers, including a 16 KiB fill that misses 1.6 % of its reads — 2 fds and ~8.7 KiB held for the session's life to serve about one read in sixty, a ~941-session ceiling on an 8 MiB `memlock`. Whether a fill should build one at all is open. |
+| 13 | **Short io_uring completions on a regular file** | The lab's `drain` used to credit them whole; it now resubmits the tail and `short_reads()` counts them. Incidence in the published cells is unmeasured, and it is size-dependent by construction. |
 
 `tokio::fs` as a sequential reader is **rejected** (15× slower; tokio’s io_uring driver
 serialises). Fill uses the shipped reader, one frame ahead. Not reopened.

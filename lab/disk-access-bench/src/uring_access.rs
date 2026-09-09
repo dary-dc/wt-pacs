@@ -33,6 +33,16 @@ enum Parker {
     RingFd(AsyncFd<RingFd>),
 }
 
+/// What the kernel still owes an in-flight slot, so a short completion is finished rather
+/// than credited whole. `docs/disk-access/EVIDENCE.md` §Short io_uring completions.
+#[derive(Clone, Copy, Default)]
+struct Owed {
+    at: usize,
+    offset: u64,
+    len: usize,
+    fd: RawFd,
+}
+
 /// Buffers are owned here so their addresses stay stable for `register_buffers`; `buf()`
 /// refuses to hand one out while the kernel owns it.
 pub struct UringReader {
@@ -41,6 +51,8 @@ pub struct UringReader {
     ring: IoUring,
     bufs: Vec<Box<[u8]>>,
     in_flight: Vec<bool>,
+    owed: Vec<Owed>,
+    short_reads: usize,
     /// `false` when the file/buffers are not registered (the naive arm).
     fixed: bool,
 }
@@ -107,6 +119,8 @@ impl UringReader {
                 }
                 // SAFETY: `raw` is a fresh fd owned by nobody else.
                 let owned = unsafe { OwnedFd::from_raw_fd(raw) };
+                // Not `_async`: it signals only from an io-wq worker, and a `COOP_TASKRUN`
+                // ring completes in the submitter's context, so the park would never wake.
                 ring.submitter()
                     .register_eventfd(owned.as_raw_fd())
                     .context("register_eventfd")?;
@@ -124,6 +138,8 @@ impl UringReader {
             parker,
             ring,
             in_flight: vec![false; slots],
+            owed: vec![Owed::default(); slots],
+            short_reads: 0,
             bufs,
             fixed,
         })
@@ -167,16 +183,31 @@ impl UringReader {
         len: usize,
     ) -> Result<()> {
         assert!(at + len <= self.bufs[slot].len());
-        // SAFETY: `at + len` is inside the slot's allocation, checked above.
-        let ptr = unsafe { self.bufs[slot].as_mut_ptr().add(at) };
+        self.owed[slot] = Owed {
+            at,
+            offset,
+            len,
+            fd: file.as_raw_fd(),
+        };
+        self.enqueue(slot)?;
+        self.in_flight[slot] = true;
+        Ok(())
+    }
+
+    /// Queues whatever `owed[slot]` still names.
+    fn enqueue(&mut self, slot: usize) -> Result<()> {
+        let o = self.owed[slot];
+        // SAFETY: `at + len` is inside the slot's allocation, checked in `push_at`, and a
+        // resubmitted tail only shrinks it.
+        let ptr = unsafe { self.bufs[slot].as_mut_ptr().add(o.at) };
         let entry = if self.fixed {
-            opcode::ReadFixed::new(types::Fixed(0), ptr, len as u32, slot as u16)
-                .offset(offset)
+            opcode::ReadFixed::new(types::Fixed(0), ptr, o.len as u32, slot as u16)
+                .offset(o.offset)
                 .build()
                 .user_data(slot as u64)
         } else {
-            opcode::Read::new(types::Fd(file.as_raw_fd()), ptr, len as u32)
-                .offset(offset)
+            opcode::Read::new(types::Fd(o.fd), ptr, o.len as u32)
+                .offset(o.offset)
                 .build()
                 .user_data(slot as u64)
         };
@@ -184,8 +215,12 @@ impl UringReader {
         // nothing else reads or moves it while the kernel writes.
         unsafe { self.ring.submission().push(&entry) }
             .map_err(|_| anyhow::anyhow!("io_uring SQ full"))?;
-        self.in_flight[slot] = true;
         Ok(())
+    }
+
+    /// Completions that came back short of the bytes asked for, over this reader's life.
+    pub fn short_reads(&self) -> usize {
+        self.short_reads
     }
 
     /// Awaits one `slot`, draining whatever lands alongside it. Returns **1 if the read did
@@ -204,19 +239,43 @@ impl UringReader {
         Ok(usize::from(parked))
     }
 
-    /// Reaps the whole CQ, recording which slots came back.
+    /// Reaps the whole CQ, recording which slots came back **whole**. A short completion is
+    /// resubmitted for its tail: freeing the slot would credit an arm for bytes the kernel
+    /// never delivered.
     fn drain(&mut self, freed: &mut Vec<usize>) -> Result<usize> {
         self.ring.completion().sync();
-        let mut drained = 0usize;
+        let mut landed = Vec::new();
         while let Some(cqe) = self.ring.completion().next() {
-            if cqe.result() < 0 {
-                let e = std::io::Error::from_raw_os_error(-cqe.result());
-                bail!("io_uring read failed: {e}");
+            match cqe.result() {
+                n if n > 0 => landed.push((cqe.user_data() as usize, n as usize)),
+                0 => bail!("io_uring read hit EOF"),
+                e => {
+                    let err = std::io::Error::from_raw_os_error(-e);
+                    bail!("io_uring read failed: {err}");
+                }
             }
-            let slot = cqe.user_data() as usize;
+        }
+        let (mut drained, mut tails) = (0usize, 0usize);
+        for (slot, got) in landed {
+            let o = self.owed[slot];
+            if got < o.len {
+                self.owed[slot] = Owed {
+                    at: o.at + got,
+                    offset: o.offset + got as u64,
+                    len: o.len - got,
+                    fd: o.fd,
+                };
+                self.enqueue(slot)?;
+                self.short_reads += 1;
+                tails += 1;
+                continue;
+            }
             self.in_flight[slot] = false;
             freed.push(slot);
             drained += 1;
+        }
+        if tails > 0 {
+            self.ring.submit().context("io_uring submit")?;
         }
         Ok(drained)
     }
@@ -290,6 +349,60 @@ pub fn ring_geometry(read_chunk: usize, max_len: usize) -> (usize, usize) {
 mod tests {
     use io_uring::{opcode, IoUring};
     use std::os::fd::FromRawFd;
+
+    /// **A short completion is not a finished read.** The writer delivers the 64 bytes in
+    /// two halves, so the kernel completes the first 32 and the tail has to be resubmitted.
+    /// Before `drain` compared bytes landed against bytes asked, the slot was freed on the
+    /// first CQE and the arm was credited a whole ask for half a buffer.
+    #[test]
+    fn a_short_completion_is_resubmitted_for_its_tail() {
+        let mut fds = [0i32; 2];
+        // SAFETY: `pipe` fills two fds or fails.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe");
+        // SAFETY: fresh fds, owned here and nowhere else.
+        let (rd, wr) = unsafe {
+            (
+                std::fs::File::from_raw_fd(fds[0]),
+                std::fs::File::from_raw_fd(fds[1]),
+            )
+        };
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async move {
+            let mut r = super::UringReader::with_completion(
+                &rd,
+                1,
+                64,
+                true,
+                false,
+                super::Completion::Eventfd,
+            )
+            .expect("ring on the pipe");
+            r.push(0, &rd, 0, 64).expect("push");
+            r.submit().expect("submit");
+            let writer = std::thread::spawn(move || {
+                use std::io::Write;
+                for byte in [0x5Au8, 0xA5] {
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                    (&wr).write_all(&[byte; 32]).expect("write");
+                }
+            });
+            tokio::time::timeout(std::time::Duration::from_secs(10), r.complete(1))
+                .await
+                .expect("the tail was never resubmitted")
+                .expect("complete");
+            writer.join().unwrap();
+            assert_eq!(r.short_reads(), 1, "the first completion was not short");
+            assert!(
+                r.buf(0)[..32].iter().all(|&b| b == 0x5A)
+                    && r.buf(0)[32..].iter().all(|&b| b == 0xA5),
+                "the slot was freed before the kernel filled it"
+            );
+        });
+    }
 
     /// The `x14` arms rest on one kernel fact: a reader parked on the ring's **own** fd is
     /// woken when a CQE lands, exactly as one parked on a registered eventfd is. This pins
@@ -375,7 +488,7 @@ mod tests {
             from_other,
             Err(Some(libc::EEXIST)),
             "kernel accepted a second submitting task under SINGLE_ISSUER \
-             (got {from_other:?}) — if this ever passes, revisit docs/disk-access/RERUN.md, \
+             (got {from_other:?}) — if this ever passes, revisit docs/disk-access/adr.md, \
              which rules the flag out for Tokio's work-stealing runtime on the strength of \
              this rejection"
         );
