@@ -3,14 +3,6 @@
 version = 4
 
 [[package]]
-name = "aead-bench"
-version = "0.1.0"
-dependencies = [
- "aws-lc-rs",
- "ring",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -878,15 +870,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "netsim"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "tokio",
 ]
 
 [[package]]

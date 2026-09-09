@@ -1,17 +1,20 @@
 # Transport optimisation — conclusions
 
-**2026-09-06.** Method, hypotheses and decision rules fixed in advance in
-[`lanes/L4-preregistration.md`](lanes/L4-preregistration.md). Raw data in
-[`measurements/l4/`](measurements/l4/) — **R-series only**; the e-series is superseded and
-marked so in that directory's README. Three adversarial reviews; each found
+Campaign evidence (TSVs, lane plans, HANDOFF) is on tag
+`archive/transport-lab-2026-09`. Paths below that name `measurements/` or `lanes/`
+resolve there: `git show archive/transport-lab-2026-09:docs/transport/<path>`.
+
+**2026-09-06.** Method, hypotheses and decision rules were fixed in advance in
+`lanes/L4-preregistration.md`. Raw data in `measurements/l4/` — **R-series only**;
+the e-series is superseded. Three adversarial reviews; each found
 conclusion-invalidating defects, and each is recorded rather than absorbed (§7).
 
 Target: **p95 time-to-displayable** first, **server density** second. Browser client on
 tablets and phones over **5G, satellite and WiFi**. Three stream-based candidates.
 
 **Stream shape was re-measured in R6** after review 4 found the rig could not produce
-head-of-line blocking. Pre-registration: [`lanes/R6-preregistration.md`](lanes/R6-preregistration.md);
-data and review: [`measurements/r6/`](measurements/r6/).
+head-of-line blocking. Pre-registration: `lanes/R6-preregistration.md`;
+data and review: `measurements/r6/` (both on the archive tag).
 
 ---
 
@@ -23,7 +26,7 @@ data and review: [`measurements/r6/`](measurements/r6/).
 | **Stream shape** | **Keep one shared stream — and the binary now defaults to it (§2.7).** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a **real network** the 64 KB cell is noise-dominated and does not separate (§2.6), but **the 250 KB cell does: per-frame is 5.76× worse, separated 3/3, and the absolute penalty the mechanism predicts reproduces to within 1.6 % of the simulator** (§2.6a). At the frame size this product ships, the recommendation is a **measured property of the transport on real hardware**, not a simulator result. No cell on either rig separates in per-frame's favour |
 | **Fixed-N pool** | **Still untested** — a server-side change. (The "this lane may not modify `server/`" constraint this row used to cite has not held since the transport-knob work: eight server files are modified on this branch.) R6 makes it *less* promising: the retransmit-deferral cost grows with N, and the winning endpoint is N = 1 (§2) |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
-| **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95. **Not confirmed on real hardware** — on the rig the path, not the send path, is the ceiling ([`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.2) |
+| **GSO segment cap 10 → 32** | Worth doing, but it is **density, not latency**: +17 % throughput, −21 % CPU/byte, **zero** effect on p95. **Not confirmed on real hardware** — on the rig the path, not the send path, is the ceiling (`measurements/r6/r6cloud-results.md` §4.2) |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte at every rate |
 | **Flow-control windows** | **Depends on the send path, which matters more than the windows do.** On `chunked` + shared (this branch's defaults) a client that asks for 25 MB and stops reading costs **180 kB** — hygiene only. On `copy`/`split` + per-frame the same client costs **6.8 MB, 68 % of the 10 MB `send_window`**, and bounding is worth it for the original reason (§3.1) |
 
@@ -45,7 +48,7 @@ assumed**.
 
 > **The 600 ms row is n = 2 for BBR, and that was undisclosed until 2026-09-07.** Run 2 of
 > the BBR arm produced no JSON (`VOID:no-data` in
-> [`measurements/l4/r5a_congestive.tsv`](measurements/l4/r5a_congestive.tsv)), so 1535 ms is
+> `measurements/l4/r5a_congestive.tsv`), so 1535 ms is
 > the median of two repeats against Cubic's three. The figures are `nz_p95` — waits over
 > non-zero samples — which is the column an adversarial review found the analyser did not
 > then report; it reports both columns now, and prints `n` per arm precisely so this cannot
@@ -63,7 +66,7 @@ assumed**.
 > 3; a replacement measured on different hardware would not be comparable. That rig was an
 > ephemeral agent sandbox and is probably gone, which may make the single repeat
 > unobtainable and the honest alternatives a whole-cell re-run or leaving this disclosure
-> standing — see [`HANDOFF.md`](HANDOFF.md) §4.4a item 1.
+> standing — see `HANDOFF.md` §4.4a item 1.
 
 **Cubic wins, and the margin is at high RTT.** BBR also drops **30–100× more packets at
 the bottleneck** — BBRv1 declining to treat loss as congestion and keeping the queue full.
@@ -100,8 +103,8 @@ Cubic flows.
 That last sentence was carried from quinn's own documentation and had never been tested
 here. It has now been measured on the Oracle rig: two flows, one shared 5 Mbps bottleneck,
 and the buffer depth varied deliberately, because BBRv1's pathology is specific to shallow
-buffers. Data: [`measurements/r6/r6cloud_fairness.tsv`](measurements/r6/r6cloud_fairness.tsv);
-method and controls: [`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md) §4.1.
+buffers. Data: `measurements/r6/r6cloud_fairness.tsv`;
+method and controls: `measurements/r6/r6cloud-results.md` §4.1.
 
 | bottleneck buffer | our flow | competing TCP Cubic flow | our share |
 | --- | --- | --- | --- |
@@ -134,8 +137,8 @@ and the answer came back the same — but for the opposite reason to the one ori
 assumed, and against the hypothesis this project pre-registered.**
 
 Method and decision rules fixed in advance in
-[`lanes/R6-preregistration.md`](lanes/R6-preregistration.md). Data and review in
-[`measurements/r6/`](measurements/r6/).
+`lanes/R6-preregistration.md`. Data and review in
+`measurements/r6/`.
 
 ### The rig now generates the effect, which is new
 
@@ -270,9 +273,9 @@ So: at low loss the shape does not matter; at high loss it matters and shared wi
 Everything above §2.6 was measured through `lab/transport/netsim`, a userspace path simulator on one
 host. R6 was subsequently repeated against the Oracle rig over a real internet path shaped
 by `sch_netem`, which is what
-[`measurements/r6/oracle-runbook.md`](measurements/r6/oracle-runbook.md) was written for.
+`measurements/r6/oracle-runbook.md` was written for.
 Full results, gates and adversarial review:
-[`measurements/r6/r6cloud-results.md`](measurements/r6/r6cloud-results.md).
+`measurements/r6/r6cloud-results.md`.
 
 **Three cells of four agree. The cell carrying the conclusion does not.**
 
@@ -345,9 +348,9 @@ carry was false and a reader checks that sentence first (D4).
 ### 2.6a · **X3L on the rig — the mechanism is confirmed on real hardware**
 
 **Run 2026-09-07**, one sitting, on the Oracle rig. Data and full method:
-[`measurements/r6/x3l-results.md`](measurements/r6/x3l-results.md); the losing condition was
+`measurements/r6/x3l-results.md`; the losing condition was
 written down and committed before calibration, in
-[`measurements/r6/x3l-prereg.md`](measurements/r6/x3l-prereg.md).
+`measurements/r6/x3l-prereg.md`.
 
 §2.6 said the real-path test with the power to succeed was the 250 KB cell. This is it.
 **6 rows, 0 VOID**, both arms `--segmentation-offload false` so `sch_netem` draws loss per
@@ -405,7 +408,7 @@ Until then the binary defaulted to `per-frame` — the arm this section argues a
 
 This is not a matter of taste, and it should not wait on someone's judgement. **X3L is the
 deciding measurement, and its outcome was pre-registered before it ran**
-([`measurements/r6/x3l-run-card.md`](measurements/r6/x3l-run-card.md)):
+(`measurements/r6/x3l-run-card.md`):
 
 | X3L on the real path | then |
 | --- | --- |
@@ -426,7 +429,7 @@ Two standing inputs sit alongside it, and neither is enough on its own:
 > **X3L ran, and `shared` separated with the stranding gate passing**: 594.7 ms against
 > `perframe_fifo`'s 3426.2 ms, **5.76×**, 6 rows, 0 VOID, same sign in all three repeats,
 > 10.8–29.0 MB stranded per row and `center_dropped` 0 throughout (§2.6a,
-> [`measurements/r6/x3l-results.md`](measurements/r6/x3l-results.md)).
+> `measurements/r6/x3l-results.md`).
 >
 > That is row 1 of the table above. **The pre-registered consequence is: flip the default to
 > `shared`.** It has deliberately *not* been flipped in the same pass that measured it —
@@ -448,7 +451,7 @@ unfair `a,a,a,b,b,b`).
 
 **But it is worse in the negative control too**, which means the campaign cannot attribute
 it to head-of-line blocking — fairness needs only concurrency, which every cell has. It is
-a scheduling penalty, full stop. See [`measurements/r6/adversarial-review.md`](measurements/r6/adversarial-review.md) §3.1
+a scheduling penalty, full stop. See `measurements/r6/adversarial-review.md` §3.1
 for how this failed control narrows the campaign's scope.
 
 **P5 — my own pre-registered prediction that fairness-on would *beat* FIFO under stranding
@@ -490,9 +493,9 @@ and 10 MB × 5 000 viewers is 50 GB. The case was never produced, because every 
 this project reads. `window-harness --mode stall` produces it — asks 400 frames (25 MB, 2.5×
 the ceiling), then stops reading while holding the connection and every receive stream open.
 
-Data: [`measurements/mem/stall_client.tsv`](measurements/mem/stall_client.tsv), 48 rows,
+Data: `measurements/mem/stall_client.tsv`, 48 rows,
 0 VOID, gated by `lab/transport/scripts/e0_stall_validate.sh`.
-Full result: [`measurements/mem/stall-client.md`](measurements/mem/stall-client.md).
+Full result: `measurements/mem/stall-client.md`.
 
 | workload | server per connection |
 | --- | --- |
@@ -525,7 +528,7 @@ depend on the loss mechanism at all.
 Everything above is on `--send-path chunked`, which moves a `Bytes` slice of the study
 mapping into quinn's send buffer without copying. `copy` and `split` leave quinn holding a
 private copy per connection instead, and the difference is not subtle
-([`measurements/mem/stall_send_path.tsv`](measurements/mem/stall_send_path.tsv);
+(`measurements/mem/stall_send_path.tsv`;
 total RSS agrees with `RssAnon` in every arm, so this is a real saving and not a metric
 blind spot):
 
@@ -631,7 +634,7 @@ campaign analysers print `n` per arm, and any figure quoted from them should car
   moved one arm by 2.1× while the arm difference flipped sign. Any single-seed comparison at
   moderate loss is noise; this is why repeats resample loss rather than replaying it.
 - **Handovers, variable bandwidth and variable RTT are unmodelled**
-  ([`transport-assumption-audit.md`](transport-assumption-audit.md) A1–A3). For a mobile
+  (`transport-assumption-audit.md` A1–A3). For a mobile
   reader these plausibly dominate everything measured here.
 
 ---

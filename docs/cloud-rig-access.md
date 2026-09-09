@@ -70,7 +70,7 @@ old key returns `Permission denied (publickey)` on `ubuntu`. `~/.ssh/authorized_
 was deleted too, so the retired key does not survive in a backup beside the live file. The
 human key was not touched and remained the recovery path throughout.
 
-`lab/transport/scripts/cloud_preflight.sh` passed on the new key immediately afterwards, which is what
+`lab/transport/scripts/cloud_preflight.sh` (now on tag `archive/transport-lab-2026-09`) passed on the new key immediately afterwards, which is what
 proved the campaign could still reach the rig.
 
 ## The lesson worth keeping

@@ -42,8 +42,8 @@ Front door: [`docs/transport/`](docs/transport/).
 
 - [`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) — **the answer**
 - [`docs/transport/why-these-changes.md`](docs/transport/why-these-changes.md) — why each decision exists
-- [`docs/transport/transport-assumption-audit.md`](docs/transport/transport-assumption-audit.md) — premises
-- [`docs/transport/transport-optimization-spec.md`](docs/transport/transport-optimization-spec.md) — how to apply it
+
+Campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`.
 
 
 ## Provenance

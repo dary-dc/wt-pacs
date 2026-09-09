@@ -10,9 +10,9 @@ elsewhere.
 **This file, not the code, is where "why" belongs.** A comment earns its place only when a
 competent reader would otherwise do the wrong thing: the note in `stall.rs` that dropping a
 `RecvStream` sends `STOP_SENDING` prevents a real mistake and stays. The history of how the
-stalled client came to exist is here instead. Anything that reads like archaeology in a
-source file is a candidate for deletion — see
-[`code-style-and-comments.md`](code-style-and-comments.md).
+stalled client came to exist is here instead.
+
+Campaign evidence named below lives on tag `archive/transport-lab-2026-09`.
 
 Format: **what was true before → what forced the change → what else we could have done →
 what would show it was wrong.**

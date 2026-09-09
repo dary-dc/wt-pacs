@@ -9,8 +9,6 @@ members = [
     "tools/pack-study",
     "lab/window-harness",
     "lab/cold-page-bench",
-    "lab/transport/aead-bench",
-    "lab/transport/netsim",
     "lab/telemetry-bench",
 ]
 resolver = "2"

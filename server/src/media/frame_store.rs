@@ -174,7 +174,7 @@ mod tests {
     }
 
     /// Fails fast if the frame body stops being a view of the mapping. It cannot see a copy
-    /// reintroduced further down the send path; that gate is in docs/transport/merge-with-main-analysis.md.
+    /// reintroduced further down the send path; `chunked_writes_the_envelope` is the wire check.
     #[test]
     fn frame_bytes_is_a_view_of_the_mapping() -> Result<()> {
         let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
