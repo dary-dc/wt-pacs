@@ -10,4 +10,4 @@ Product and ADRs stay here. This lane's campaign write-ups are on tag
 | [`lanes/`](lanes/) / [`measurements/`](measurements/) | Stream-mode / L2 material already on `main` — not moved |
 | [`telemetry/`](telemetry/) | Server/client telemetry (from `main`) |
 | [`disk-access/`](disk-access/) | How frames are brought in |
-| [`transport/`](transport/) | This lane's conclusions and why. Evidence/lab on tag `archive/transport-lab-2026-09` |
+| [`transport/`](transport/) | This lane: conclusions, why, and the window-defaults ADR. Evidence/lab on tag `archive/transport-lab-2026-09` |

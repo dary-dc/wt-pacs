@@ -2,8 +2,8 @@
 
 **Status:** accepted · **Date:** 2026-09-04 ·
 **Context:** L1 S vs Q (shared uni vs per-frame uni) under loss ·
-**Related:** [`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md),
-[`adr-client-window-depth.md`](adr-client-window-depth.md)
+**Related:** [`adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md),
+[`adr-client-window-depth.md`](../adr-client-window-depth.md)
 
 ---
 
@@ -65,4 +65,5 @@ Equalise only if that knob moves the gap; that answers a different question (“
 
 - L1 runners leave harness `--stream-recv-window` unset unless running the optional diagnostic.
 - Plans / work orders may point here; this ADR survives after lane plans are deleted.
-- Does not change server CLI; no FoD “receive window” API.
+- The server may expose `--stream-receive-window-bytes` at the library default. Do not change
+  that default to make lab arms symmetric. No FoD “receive window” API.
