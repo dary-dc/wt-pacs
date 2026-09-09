@@ -626,10 +626,55 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// `StreamFrames {}` is the whole study. `EndStream` in the same write stops before
-    /// the recitation runs away. `docs/disk-access/READ-PATH-DESIGN.md` §2.
+    /// `StreamFrames {}` recites the whole study, in order, and nothing past it.
+    /// `docs/disk-access/READ-PATH-DESIGN.md` §13.4.
     #[test]
-    fn empty_stream_frames_is_the_study_and_end_stream_stops_it() {
+    fn empty_stream_frames_is_the_whole_study() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-fill-all-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let frames = 4u32;
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        rt.block_on(async move {
+            let (server, _conn, mut control, mut media) =
+                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+            control
+                .write_all(
+                    &fod::encode_fod_msg(&FodMsg::StreamFrames {
+                        from: None,
+                        to: None,
+                    })
+                    .unwrap(),
+                )
+                .await
+                .expect("ask");
+            for want in 0..frames {
+                let (idx, codestream) =
+                    tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                        .await
+                        .expect("frame never arrived");
+                assert_eq!(idx, want, "frames arrived out of fill order");
+                assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
+            }
+            let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
+            assert!(extra.is_err(), "fill sent a frame past the study");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `EndStream` in the same write as `StreamFrames {}` stops the fill before the end.
+    /// Does not pin the last frame delivered — QUIC may already hold one. §13.4.
+    #[test]
+    fn end_stream_stops_a_fill_on_the_wire() {
         let dir = std::env::temp_dir().join(format!("wtpacs-endstream-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let frames = 6u32;
@@ -654,15 +699,14 @@ mod tests {
             bytes.extend(fod::encode_fod_msg(&FodMsg::EndStream).unwrap());
             control.write_all(&bytes).await.expect("ask");
 
-            let first = tokio::time::timeout(Duration::from_millis(400), read_envelope(&mut media)).await;
-            if let Ok((idx, codestream)) = first {
-                assert_eq!(idx, 0);
-                assert_eq!(codestream, pattern(0));
+            let mut got = 0u32;
+            while tokio::time::timeout(Duration::from_millis(400), read_envelope(&mut media))
+                .await
+                .is_ok()
+            {
+                got += 1;
             }
-            let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
-            if let Ok((idx, _)) = extra {
-                assert!(idx <= 1, "EndStream let the fill run to frame {idx}");
-            }
+            assert!(got < frames, "EndStream let the fill run to the end ({got}/{frames})");
             server.abort();
         });
         std::fs::remove_dir_all(&dir).ok();

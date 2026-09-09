@@ -220,12 +220,6 @@ impl Tap {
         n
     }
 
-    /// The next `begin_frame` is item `position` of a batch of `size`. Unset = `0` of `1`.
-    pub(crate) fn note_batch(&mut self, position: u32, size: u32) {
-        self.batch_position = position;
-        self.batch_size = size.max(1);
-    }
-
     pub(crate) fn begin_frame(&mut self, frame_index: u32) {
         ROWS_OPENED.fetch_add(1, Ordering::Relaxed);
         self.rows_opened = self.rows_opened.saturating_add(1);
@@ -706,25 +700,6 @@ mod tests {
             row.serve_us,
             row.prepare_us.unwrap_or(0) + row.locate_us.unwrap_or(0) + row.overhead_us
         );
-    }
-
-    #[test]
-    fn batch_position_is_stamped_then_resets_to_single() {
-        let (mut t, rx) = test_tap_with_channel(8);
-        for (i, frame) in [4u32, 5, 6].iter().enumerate() {
-            t.note_batch(i as u32, 3);
-            serve_frame(&mut t, *frame, 8);
-        }
-        // A plain RequestFrame afterwards.
-        serve_frame(&mut t, 7, 8);
-        t.flush_batch();
-        let rows = frames(&drain_all(&rx));
-        assert_eq!(rows.len(), 4);
-        assert_eq!(
-            rows.iter().map(|r| (r.batch_position, r.batch_size)).collect::<Vec<_>>(),
-            vec![(0, 3), (1, 3), (2, 3), (0, 1)]
-        );
-        assert!(rows.windows(2).all(|w| w[1].t_ask_us >= w[0].t_ask_us), "t_ask_us monotonic");
     }
 
     #[test]

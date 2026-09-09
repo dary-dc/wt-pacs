@@ -94,15 +94,14 @@ the campaign's `--mix`, which is a number the lab sets rather than one productio
 
 ## The change
 
-Per-session state today is one `Vec<u8>` window owned by `ProductPipeline` and threaded down
-to `stream_codestream`. It becomes a small struct so the ring can live beside it with the same
-lifetime:
+Per-session state is `ReadCtx`: W windows and a ring built on the first miss. The window
+index is the ring slot ([`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13).
 
 ```rust
 pub struct ReadCtx {
     probe: bool,      // false only under the `uring` lever
-    ring: Ring,       // Off | Pending | Ready | Refused
-    window: Vec<u8>,
+    ring: Ring,       // Off | Wanted | Built — Refused folded into Off
+    windows: [Window; WINDOWS],
 }
 ```
 
@@ -113,10 +112,9 @@ code. That is why there is no `uring` special case in the loop: with `probe: fal
 page-cache read is skipped, the read always comes up short, and the escalation reads the
 whole frame through the ring, which *is* the `uring` arm.
 
-`Ring` has four states rather than being an `Option`, because a kernel that refuses io_uring
-(an old one, a seccomp filter, `kernel.io_uring_disabled`) must not be retried on every
-subsequent miss — and must not fail the ask either. It records `Refused` and the pooled path
-serves.
+`Ring` is not an `Option`, because a kernel that refuses io_uring (an old one, a seccomp
+filter, `kernel.io_uring_disabled`) must not be retried on every subsequent miss — and must
+not fail the ask either. `Off` is both "never wanted" and "refused"; the pooled path serves.
 
 `ReadCtx::read` returns the bytes that are ready rather than a count of them. A caller
 cannot then advance by the wrong number, which is the bug the escalation invites and which
@@ -177,14 +175,12 @@ past the read-ahead window.
 
 ### What it does not do
 
-`RequestFrame` is **still depth 1**. The look-ahead comes from the batch, and a client that
-pipelines single asks still has them served one at a time, because `run_session` does not read
-the next ask until the current frame is on the wire. That is the remaining half of
-[`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6b and it
-is a loop change, not a read-path one.
+A client that pipelines `RequestFrame`s gets the same look-ahead a batch does: the planner
+names the frames already in hand. What remains of
+[`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6b is the
+client's cap on asks in flight per link, not the server loop.
 
-Two smaller edges, both by design: the first frame of a batch overlaps nothing, and the last
-frame names no successor.
+The last frame of a run names no successor. The first names every later ask that fits.
 
 ## What does not change
 
@@ -284,11 +280,12 @@ The decision so far rests on cells at 1–8 readers and depth 1. The deployment 
 thousands of concurrent sessions, most asks missing. This is what has to be measured, in
 order, and what each step would decide.
 
-### The serving loop is serial, and that is a transport bug, not a read-path one
+### The serving loop sends one frame at a time; the reads underneath do not
 
-`FramePipeline::serve_batch` is a `for` loop with an `.await`: a batch of *N* frames is *N*
-strictly sequential read-then-send cycles. For a tile viewport that is the whole latency
-budget spent in series. Measured on 16 tiles of 16 KiB, all missing:
+The session still `serve`s one frame, then the next. Pipelining is the upcoming windows, not
+concurrent `serve`s — `serve_batch` is gone. For a tile viewport the serial *sends* are the
+latency budget; overlapping the *reads* is what W buys. Measured on 16 tiles of 16 KiB, all
+missing:
 
 | | serial (today) | pipelined (depth 16) | |
 | --- | ---: | ---: | ---: |
@@ -436,13 +433,12 @@ still bring their own runtime — and the search found nothing that replaces thi
 did find one thing to change in it: the eventfd is unnecessary, because the ring fd is itself
 pollable (proposal P1 there, measured as `x14`).
 
-### One in flight per session, by construction
+### W reads in flight per session
 
-`UringReader` holds a single `in_flight: bool` and `ReadCtx` a single `window`, so **a session
-can have exactly one read outstanding**. That is correct for today's serial `serve_batch`, and
-it is the thing that has to change first if frames are ever served concurrently within a
-session — pipelining is not a matter of spawning tasks around the existing `ReadCtx`, because
-they would contend for one buffer and one ring slot.
+`ReadCtx` holds `WINDOWS` buffers and the ring tracks `in_flight: usize`. Naming W − 1
+upcoming frames starts W reads before the first is waited on —
+`w_named_frames_put_w_reads_in_flight`. Concurrent `serve`s inside one session are still not
+a thing: one `serve` at a time, W reads underneath it.
 
 ### …and the depth argument for `uring` is about the tail, not the median
 

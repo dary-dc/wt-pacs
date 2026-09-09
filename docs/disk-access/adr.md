@@ -238,11 +238,11 @@ read at all — not doing the read faster.
 ## 9 · What is next
 
 [`NEXT.md`](NEXT.md), ranked with the owners on 2026-09-08 and kept in that order as items
-close. The top of it: finish serving depth (the `RequestFrame` loop, then widening past two
-with `v35`'s ladder in hand), the transport lever above, P0 on the target, the deploy
-manifest. The miss rate is now observable, which is what lets every other item be checked
-against a real workload. The read-path items — the dependency bump, the ring-fd change — come
-after.
+close. Serving depth is built (W = 4 for tiles, fill names one ahead; unmeasured on the
+default link). The top of what remains: the transport lever above, P0 on the target, the
+deploy manifest. The miss rate is now observable, which is what lets every other item be
+checked against a real workload. The read-path items — the dependency bump, the ring-fd
+change — come after.
 
 ## Provenance
 
