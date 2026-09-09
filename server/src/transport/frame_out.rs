@@ -74,6 +74,9 @@ impl FrameOut {
                 acks.spawn(async move {
                     let _ = uni.finish().await;
                 });
+                // Finished ack tasks stay in the set until joined; reap them here so a long
+                // session does not accumulate one dead task per frame until it ends.
+                while acks.try_join_next().is_some() {}
             }
         }
         Ok(())
