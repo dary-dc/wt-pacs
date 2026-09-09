@@ -240,7 +240,7 @@ impl ReadCtx {
                 // SAFETY: `win.buf` is neither grown, read nor dropped while `win.read` is
                 // `Some`; `wait` clears it, and `Drop` drains the ring before the windows go.
                 unsafe {
-                    reader.start(
+                    reader.submit(
                         w,
                         &mut win.buf[win.filled..win.len],
                         win.at + win.filled as u64,
@@ -270,14 +270,39 @@ impl ReadCtx {
                 Ok(())
             }
             #[cfg(feature = "uring")]
-            Some(InFlight::Ring) => match &mut self.ring {
-                Ring::Built(reader) => {
-                    reader.finish(w).await?;
-                    self.windows[w].filled = self.windows[w].len;
-                    Ok(())
+            Some(InFlight::Ring) => {
+                self.windows[w].read = Some(InFlight::Ring);
+                let Self {
+                    ring: Ring::Built(ring),
+                    windows,
+                    ..
+                } = self
+                else {
+                    unreachable!("a ring read outlived its ring")
+                };
+                while windows[w].read.is_some() {
+                    for (slot, landed) in ring.reap()? {
+                        let win = &mut windows[slot];
+                        win.filled += landed;
+                        if win.filled == win.len {
+                            win.read = None;
+                        } else {
+                            // SAFETY: as in `escalate`; the same window, its unread tail.
+                            unsafe {
+                                ring.submit(
+                                    slot,
+                                    &mut win.buf[win.filled..win.len],
+                                    win.at + win.filled as u64,
+                                )
+                            }?;
+                        }
+                    }
+                    if windows[w].read.is_some() {
+                        ring.park().await?;
+                    }
                 }
-                _ => unreachable!("a ring read outlived its ring"),
-            },
+                Ok(())
+            }
         }
     }
 
