@@ -393,58 +393,8 @@ mod tests {
     /// window that was filled while the frame before it was still being sent.
     #[test]
     fn a_batch_arrives_whole_and_in_ask_order() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-batch-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
         let frames = 6u32;
-        let study = write_study(&dir, frames);
-        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
-        let port = free_port();
-
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _ = rustls::crypto::ring::default_provider().install_default();
-
-        rt.block_on(async move {
-            let server = tokio::spawn(run_server(ServeConfig {
-                wt_port: port,
-                study_path: study,
-                cert_pem,
-                key_pem,
-                mode: StreamMode::Shared,
-                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                transport: TransportKnobs::default(),
-            }));
-
-            let endpoint = wtransport::Endpoint::client(
-                ClientConfig::builder()
-                    .with_bind_config(IpBindConfig::InAddrAnyV4)
-                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
-                    .build(),
-            )
-            .expect("client endpoint");
-            let url = format!("https://127.0.0.1:{port}/");
-
-            let mut connection = None;
-            for _ in 0..50 {
-                match endpoint.connect(url.clone()).await {
-                    Ok(c) => {
-                        connection = Some(c);
-                        break;
-                    }
-                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-                }
-            }
-            let connection = connection.expect("server never accepted a connection");
-
-            let (mut control, _control_recv) = connection
-                .open_bi()
-                .await
-                .expect("open bi")
-                .await
-                .expect("bi ready");
+        wire_test(frames, |mut control, mut media| async move {
             let asked: Vec<u32> = (0..frames).collect();
             control
                 .write_all(
@@ -455,8 +405,6 @@ mod tests {
                 )
                 .await
                 .expect("ask");
-
-            let mut media = connection.accept_uni().await.expect("accept media uni");
             for want in asked {
                 let (idx, codestream) =
                     tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
@@ -465,67 +413,15 @@ mod tests {
                 assert_eq!(idx, want, "frames arrived out of ask order");
                 assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
             }
-            server.abort();
         });
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Pipelined `RequestFrame`s reach the loop as `current` + `upcoming`, not one-at-a-time.
     /// `docs/adr-frame-framing-and-loop-shape.md` §6d.
     #[test]
     fn pipelined_single_asks_arrive_whole_and_in_ask_order() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-pipe-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
         let frames = 6u32;
-        let study = write_study(&dir, frames);
-        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
-        let port = free_port();
-
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _ = rustls::crypto::ring::default_provider().install_default();
-
-        rt.block_on(async move {
-            let server = tokio::spawn(run_server(ServeConfig {
-                wt_port: port,
-                study_path: study,
-                cert_pem,
-                key_pem,
-                mode: StreamMode::Shared,
-                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                transport: TransportKnobs::default(),
-            }));
-
-            let endpoint = wtransport::Endpoint::client(
-                ClientConfig::builder()
-                    .with_bind_config(IpBindConfig::InAddrAnyV4)
-                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
-                    .build(),
-            )
-            .expect("client endpoint");
-            let url = format!("https://127.0.0.1:{port}/");
-
-            let mut connection = None;
-            for _ in 0..50 {
-                match endpoint.connect(url.clone()).await {
-                    Ok(c) => {
-                        connection = Some(c);
-                        break;
-                    }
-                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-                }
-            }
-            let connection = connection.expect("server never accepted a connection");
-
-            let (mut control, _control_recv) = connection
-                .open_bi()
-                .await
-                .expect("open bi")
-                .await
-                .expect("bi ready");
+        wire_test(frames, |mut control, mut media| async move {
             let asked: Vec<u32> = (0..frames).collect();
             for &frame in &asked {
                 control
@@ -533,8 +429,6 @@ mod tests {
                     .await
                     .expect("ask");
             }
-
-            let mut media = connection.accept_uni().await.expect("accept media uni");
             for want in asked {
                 let (idx, codestream) =
                     tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
@@ -543,9 +437,7 @@ mod tests {
                 assert_eq!(idx, want, "frames arrived out of ask order");
                 assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
             }
-            server.abort();
         });
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     async fn connect_session(
@@ -598,12 +490,15 @@ mod tests {
         (server, connection, control, media)
     }
 
-    /// `StreamFrames { from, to }` recites that range, nothing outside it.
-    #[test]
-    fn stream_frames_range_arrives_in_order() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-stream-{}", std::process::id()));
+    fn wire_test<F, Fut>(frames: u32, body: F)
+    where
+        F: FnOnce(SendStream, RecvStream) -> Fut,
+        Fut: std::future::Future<Output = ()>,
+    {
+        static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("wtpacs-wire-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let frames = 6u32;
         let study = write_study(&dir, frames);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
@@ -613,10 +508,19 @@ mod tests {
             .build()
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
-
         rt.block_on(async move {
-            let (server, _conn, mut control, mut media) =
+            let (server, _conn, control, media) =
                 connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+            body(control, media).await;
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `StreamFrames { from, to }` recites that range, nothing outside it.
+    #[test]
+    fn stream_frames_range_arrives_in_order() {
+        wire_test(6, |mut control, mut media| async move {
             control
                 .write_all(
                     &fod::encode_fod_msg(&FodMsg::StreamFrames {
@@ -638,31 +542,15 @@ mod tests {
             let extra =
                 tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
             assert!(extra.is_err(), "fill sent a frame past `to`");
-            server.abort();
         });
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// `StreamFrames {}` recites the whole study, in order, and nothing past it.
     /// `docs/disk-access/READ-PATH-DESIGN.md` §13.4.
     #[test]
     fn empty_stream_frames_is_the_whole_study() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-fill-all-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
         let frames = 4u32;
-        let study = write_study(&dir, frames);
-        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
-        let port = free_port();
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _ = rustls::crypto::ring::default_provider().install_default();
-
-        rt.block_on(async move {
-            let (server, _conn, mut control, mut media) =
-                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+        wire_test(frames, |mut control, mut media| async move {
             control
                 .write_all(
                     &fod::encode_fod_msg(&FodMsg::StreamFrames {
@@ -684,40 +572,33 @@ mod tests {
             let extra =
                 tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
             assert!(extra.is_err(), "fill sent a frame past the study");
-            server.abort();
         });
-        std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// `EndStream` in the same write as `StreamFrames {}` stops the fill before the end.
+    /// `EndStream` after the fill has started stops it before the study ends.
     /// Does not pin the last frame delivered — QUIC may already hold one. §13.4.
     #[test]
     fn end_stream_stops_a_fill_on_the_wire() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-endstream-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let frames = 6u32;
-        let study = write_study(&dir, frames);
-        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
-        let port = free_port();
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _ = rustls::crypto::ring::default_provider().install_default();
-
-        rt.block_on(async move {
-            let (server, _conn, mut control, mut media) =
-                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
-            let mut bytes = fod::encode_fod_msg(&FodMsg::StreamFrames {
-                from: None,
-                to: None,
-            })
-            .unwrap();
-            bytes.extend(fod::encode_fod_msg(&FodMsg::EndStream).unwrap());
-            control.write_all(&bytes).await.expect("ask");
-
-            let mut got = 0u32;
+        let frames = 64u32;
+        wire_test(frames, |mut control, mut media| async move {
+            control
+                .write_all(
+                    &fod::encode_fod_msg(&FodMsg::StreamFrames {
+                        from: None,
+                        to: None,
+                    })
+                    .unwrap(),
+                )
+                .await
+                .expect("ask");
+            tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                .await
+                .expect("at least one frame arrived");
+            control
+                .write_all(&fod::encode_fod_msg(&FodMsg::EndStream).unwrap())
+                .await
+                .expect("end");
+            let mut got = 1u32;
             while tokio::time::timeout(Duration::from_millis(400), read_envelope(&mut media))
                 .await
                 .is_ok()
@@ -728,30 +609,13 @@ mod tests {
                 got < frames,
                 "EndStream let the fill run to the end ({got}/{frames})"
             );
-            server.abort();
         });
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// A data request during a fill ends the fill and is then served.
     #[test]
     fn request_frame_during_fill_switches_to_on_demand() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-switch-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let frames = 6u32;
-        let study = write_study(&dir, frames);
-        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
-        let port = free_port();
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _ = rustls::crypto::ring::default_provider().install_default();
-
-        rt.block_on(async move {
-            let (server, _conn, mut control, mut media) =
-                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+        wire_test(6, |mut control, mut media| async move {
             let mut bytes = fod::encode_fod_msg(&FodMsg::StreamFrames {
                 from: None,
                 to: None,
@@ -778,8 +642,6 @@ mod tests {
             } else {
                 assert_eq!(first, 5);
             }
-            server.abort();
         });
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

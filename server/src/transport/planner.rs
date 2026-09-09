@@ -41,6 +41,7 @@ pub struct Planner {
     fill: Option<(u32, u32)>,
     frames: u32,
     note_fill: bool,
+    count_this_fill: bool,
 }
 
 impl Planner {
@@ -50,6 +51,7 @@ impl Planner {
             fill: None,
             frames,
             note_fill: false,
+            count_this_fill: false,
         }
     }
 
@@ -57,7 +59,7 @@ impl Planner {
         self.in_hand.push_back(ask);
     }
 
-    /// True once after a `Fill` is accepted, so the session can count `fills=N`.
+    /// True once after a fill's first frame is served, so the session can count `fills=N`.
     pub fn take_noted_fill(&mut self) -> bool {
         std::mem::take(&mut self.note_fill)
     }
@@ -78,9 +80,14 @@ impl Planner {
                 if self.in_hand.is_empty() {
                     self.fill = (frame < to).then_some((frame + 1, to));
                     let upcoming = (frame + 1..=to).take(FILL_AHEAD).collect();
+                    if self.count_this_fill {
+                        self.note_fill = true;
+                        self.count_this_fill = false;
+                    }
                     return Ok(Step::Serve { frame, upcoming });
                 }
                 self.fill = None;
+                self.count_this_fill = false;
                 if matches!(self.in_hand.front(), Some(Ask::EndStream)) {
                     self.in_hand.pop_front();
                 }
@@ -93,7 +100,7 @@ impl Planner {
                 Some(Ask::Fill { from, to }) => match fill_range(from, to, self.frames) {
                     Ok(range) => {
                         self.fill = Some(range);
-                        self.note_fill = true;
+                        self.count_this_fill = true;
                         continue;
                     }
                     Err(reason) => {
@@ -122,7 +129,9 @@ pub fn fill_range(from: Option<u32>, to: Option<u32>, frames: u32) -> Result<(u3
     let last = frames.saturating_sub(1);
     let from = from.unwrap_or(0);
     let to = to.unwrap_or(last);
-    if frames == 0 || from > to || to >= frames {
+    if frames == 0 {
+        Err("study is empty".into())
+    } else if from > to || to >= frames {
         Err(format!("StreamFrames {from}..={to} outside 0..={last}"))
     } else {
         Ok((from, to))
@@ -173,13 +182,20 @@ mod tests {
             to: Some(7),
         });
         let mut served = Vec::new();
+        let mut noted = 0u32;
         loop {
             match plan.next(|| None).unwrap() {
-                Step::Serve { frame, upcoming } => served.push((frame, upcoming)),
+                Step::Serve { frame, upcoming } => {
+                    if plan.take_noted_fill() {
+                        noted += 1;
+                    }
+                    served.push((frame, upcoming));
+                }
                 Step::Wait => break,
                 other => panic!("{other:?}"),
             }
         }
+        assert_eq!(noted, 1, "a fill that served frames was not counted once");
         assert_eq!(
             served,
             vec![
@@ -267,9 +283,28 @@ mod tests {
             to: None,
         });
         match plan.next(|| None).unwrap() {
-            Step::Refuse { frame, .. } => assert_eq!(frame, 0),
+            Step::Refuse { frame, reason } => {
+                assert_eq!(frame, 0);
+                assert!(reason.contains("empty"), "empty study refused as {reason}");
+            }
             other => panic!("{other:?}"),
         }
+    }
+
+    /// `EndStream` before the first fill frame is not a fill that served anything.
+    #[test]
+    fn a_fill_stopped_before_its_first_frame_is_not_counted() {
+        let mut plan = Planner::new(10);
+        plan.push(Ask::Fill {
+            from: None,
+            to: None,
+        });
+        plan.push(Ask::EndStream);
+        assert!(matches!(plan.next(|| None).unwrap(), Step::Wait));
+        assert!(
+            !plan.take_noted_fill(),
+            "a fill that never served a frame was counted"
+        );
     }
 
     /// A flood of asks does not grow `in_hand` past `ASKS_AHEAD`; the rest stay in `poll`.

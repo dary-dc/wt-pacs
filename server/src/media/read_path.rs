@@ -120,7 +120,7 @@ impl Ring {
     /// Built on the first miss: safe because nothing is in flight on a ring that is absent.
     fn build_on_first_miss(&mut self, store: &FrameStore) -> Option<&mut UringReader> {
         if matches!(self, Self::Wanted) {
-            *self = match UringReader::new(store.file()) {
+            *self = match UringReader::new(store.file(), WINDOWS as u32) {
                 Ok(reader) => Self::Built(Box::new(reader)),
                 Err(err) => {
                     warn!(%err, "io_uring unavailable; this session reads through the pool");
@@ -411,9 +411,7 @@ mod tests {
         let mut pos = 0u32;
         let mut reads = 0usize;
         while pos < span.len {
-            let ready = rt
-                .block_on(ctx.read(store, span, pos, next))
-                .expect("read");
+            let ready = rt.block_on(ctx.read(store, span, pos, next)).expect("read");
             assert!(!ready.is_empty(), "an empty read would spin forever");
             reads += 1;
             out.extend_from_slice(ready);
@@ -644,7 +642,11 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let mut ctx = ReadCtx::new(ReadMode::Pool, &store);
-        assert_eq!(ctx.stats().miss_rate(), None, "nothing read, nothing to say");
+        assert_eq!(
+            ctx.stats().miss_rate(),
+            None,
+            "nothing read, nothing to say"
+        );
         for idx in 0..3u32 {
             drain(&rt, &mut ctx, &store, idx, None);
         }

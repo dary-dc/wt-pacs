@@ -212,7 +212,7 @@ named test.
   mmap arms live in `lab/`. 
 * **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm read would
   go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
-* **The window index is the ring slot.** There is no `SLOTS`. `w_named_frames_put_w_reads_in_flight`.
+* **The window index is the ring slot.** There is no `SLOTS`. `w_named_frames_start_before_the_current_read_finishes`.
 
 ## 8 · Levers outside this decision
 

@@ -276,7 +276,7 @@ half; its `D` is client-side depth today, which the server flattens to 1.
 | | shape | cost |
 | --- | --- | --- |
 | **A** | `select!` in `run_session` over a pinned `read_fod_msg` future and the in-flight `serve_one` | Every future pinned and re-created only on completion. `read_fod_msg` is **not cancel-safe** — it holds partial length/body state in locals (`wire.rs:22`) — so dropping it mid-message loses stream bytes. One misplaced re-creation is a protocol desync |
-| **B** | an ask-reader task owning `control_recv`, feeding a bounded (capacity **`W − 1`**) channel; the serving loop takes one and peeks the next | One task and one channel per session. Cancel-safety stops being a hazard because one owner reads the stream start to finish. §5 already wanted this shape for a second reason: it is the precondition for per-frame `set_priority` and `reset`. Fill needs it so `EndStream` can arrive while the loop is reciting |
+| **B** | an ask-reader task owning `control_recv`, feeding a bounded (capacity **`ASKS_AHEAD`**) channel; the serving loop takes one and peeks the next | One task and one channel per session. Cancel-safety stops being a hazard because one owner reads the stream start to finish. §5 already wanted this shape for a second reason: it is the precondition for per-frame `set_priority` and `reset`. Fill needs it so `EndStream` can arrive while the loop is reciting |
 | **C** | do nothing; clients that want depth send `RequestFrames` | Free for on-demand batches. Does not give fill a message, and does not let `EndStream` in during a recitation |
 
 **Recommendation: B, not A.** A buys nothing over B and puts a cancel-safety hazard in the
@@ -318,9 +318,9 @@ Invariants an implementation has to keep, each of which is a way to get this wro
    `try_recv` between stream frames or `EndStream` waits until the study ends.
 3. **A closed channel ends the session**, and the reader task's error is the session's error —
    losing it turns a broken control stream into a silent hang.
-4. **Capacity `W − 1`, tied to the read path.** The channel holds control messages, not
-   generated stream indexes. Deeper than `W − 1` would queue on-demand asks the read path
-   cannot start. A running fill is not sized by this queue.
+4. **Capacity `ASKS_AHEAD`, shared with `in_hand`.** The channel holds control messages, not
+   generated stream indexes. The read path takes at most `WINDOWS − 1` of what the planner
+   names. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
    (`disk-access/NEXT.md`). `disk-access/v35_depth2.tsv` prices the rest: 2 → 4 is a further
    0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion
