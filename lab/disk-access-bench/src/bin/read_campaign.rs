@@ -9,7 +9,7 @@ use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
 use exact_server::media::frame_store::{FrameSpan, FrameStore};
-use exact_server::media::read_path::{ReadCtx, ReadMode};
+use exact_server::media::read_path::{ReadCtx, ReadMode, WINDOWS};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -46,6 +46,9 @@ enum Arm {
     Product,
     /// `product`, plus naming the next ask so the read path can start it underneath.
     ProductAhead,
+    /// **Session count, not read depth**: `depth` readers, each with its own `ReadCtx`. What
+    /// `product` measured before 2026-09-10. `docs/disk-access/EVIDENCE.md`.
+    ProductSessions,
 }
 
 impl Arm {
@@ -62,6 +65,7 @@ impl Arm {
             "tokio_fs" => Some(Self::TokioFs),
             "product" => Some(Self::Product),
             "product_ahead" => Some(Self::ProductAhead),
+            "product_sessions" => Some(Self::ProductSessions),
             _ => None,
         }
     }
@@ -79,6 +83,7 @@ impl Arm {
             Self::TokioFs => "tokio_fs",
             Self::Product => "product",
             Self::ProductAhead => "product_ahead",
+            Self::ProductSessions => "product_sessions",
         }
     }
     fn uses_ring(self) -> bool {
@@ -266,6 +271,9 @@ struct Outcome {
     cpu_ns: u64,
     threads_max: usize,
     misses: u64,
+    /// `ReadCtx`'s own reach and concurrency. Zero on arms that hold no `ReadCtx`.
+    peak_named: u64,
+    peak_in_flight: u64,
 }
 
 /// One reader's worth of work: replay `plan`, `depth` reads in flight.
@@ -340,10 +348,59 @@ async fn reader_pool(
     Ok(())
 }
 
-/// The product path: one `ReadCtx` per reader, `stream_codestream`'s loop copied, everything
-/// under it `server` code. An ask is a whole frame, so latency is per frame, and misses come
-/// from `ReadCtx`'s own counter. `look_ahead` names the next ask.
+/// The product path: **one** `ReadCtx` for the session, asks served one at a time with the
+/// next `depth - 1` frames named as `upcoming` — the shape `pipeline::serve` drives. Depth is
+/// reads in flight on one session, not sessions. `ReadCtx` holds `WINDOWS` windows, so a
+/// session names at most `WINDOWS` frames however deep the client asks.
+#[allow(clippy::too_many_arguments)]
 async fn reader_product(
+    store: Arc<FrameStore>,
+    cell: &Cell,
+    plan: Plan,
+    lat: Arc<Mutex<Vec<u64>>>,
+    misses: Arc<AtomicU64>,
+    look_ahead: bool,
+    peak_named: Arc<AtomicU64>,
+    peak_in_flight: Arc<AtomicU64>,
+) -> Result<()> {
+    let asks = plan.len();
+    let named = cell.depth - 1 + usize::from(look_ahead);
+    let mut ctx = ReadCtx::new(ReadMode::from_env(), &store);
+    let mut mine = Vec::with_capacity(asks);
+    let mut miss = 0u64;
+    for i in 0..asks {
+        let span = span_at(&plan, i).expect("ask in range");
+        let upcoming: Vec<FrameSpan> = (1..=named)
+            .filter_map(|k| span_at(&plan, i + k))
+            .take(WINDOWS - 1)
+            .collect();
+        let t = Instant::now();
+        let before = ctx.stats().misses;
+        let mut pos = 0u32;
+        while pos < span.len {
+            let ready = ctx
+                .read(&store, span, pos, upcoming.iter().copied())
+                .await
+                .expect("product read");
+            pos += ready.len() as u32;
+        }
+        mine.push(t.elapsed().as_nanos() as u64);
+        if ctx.stats().misses > before {
+            miss += 1;
+        }
+    }
+    let st = ctx.stats();
+    peak_named.fetch_max(st.peak_named as u64, Ordering::Relaxed);
+    peak_in_flight.fetch_max(st.peak_in_flight as u64, Ordering::Relaxed);
+    lat.lock().unwrap().extend(mine);
+    misses.fetch_add(miss, Ordering::Relaxed);
+    Ok(())
+}
+
+/// `depth` independent sessions, one `ReadCtx` each — what `product` measured until
+/// 2026-09-10. At depth 1 it is identical to `reader_product`; above it, it prices session
+/// count. `docs/disk-access/EVIDENCE.md`.
+async fn reader_product_sessions(
     store: Arc<FrameStore>,
     cell: &Cell,
     plan: Plan,
@@ -722,84 +779,98 @@ fn run_cell(
     let misses = Arc::new(AtomicU64::new(0));
     let gaps = Arc::new(Mutex::new(Vec::new()));
 
-    let (wall_ns, cpu_ns_used, threads_max, reader_err) = rt.block_on(async {
-        // Co-tenant monitor: an arm that stalls the executor shows up here and nowhere else.
-        let stop = Arc::new(AtomicBool::new(false));
-        let mut mons = Vec::new();
-        for _ in 0..cell.monitors {
-            let stop = Arc::clone(&stop);
-            let gaps = Arc::clone(&gaps);
-            mons.push(tokio::spawn(async move {
-                let mut local = Vec::with_capacity(1 << 16);
-                while !stop.load(Ordering::Relaxed) {
-                    let t = Instant::now();
-                    tokio::task::yield_now().await;
-                    local.push(t.elapsed().as_nanos() as u64);
-                }
-                gaps.lock().unwrap().extend(local);
-            }));
-        }
+    let (wall_ns, cpu_ns_used, threads_max, reader_err, named_max, in_flight_max) =
+        rt.block_on(async {
+            // Co-tenant monitor: an arm that stalls the executor shows up here and nowhere else.
+            let stop = Arc::new(AtomicBool::new(false));
+            let mut mons = Vec::new();
+            for _ in 0..cell.monitors {
+                let stop = Arc::clone(&stop);
+                let gaps = Arc::clone(&gaps);
+                mons.push(tokio::spawn(async move {
+                    let mut local = Vec::with_capacity(1 << 16);
+                    while !stop.load(Ordering::Relaxed) {
+                        let t = Instant::now();
+                        tokio::task::yield_now().await;
+                        local.push(t.elapsed().as_nanos() as u64);
+                    }
+                    gaps.lock().unwrap().extend(local);
+                }));
+            }
 
-        let cpu0 = cpu_ns();
-        let wall0 = Instant::now();
-        let mut set = tokio::task::JoinSet::new();
-        for reader_plan in &plans {
-            let store = Arc::clone(&store);
-            let file = Arc::clone(&file);
-            let lat = Arc::clone(&lat);
-            let misses = Arc::clone(&misses);
-            let plan = Arc::clone(reader_plan);
-            let c = Cell {
-                arm: cell.arm,
-                prefetch: cell.prefetch,
-                partition: cell.partition,
-                depth: cell.depth,
-                readers: 1,
-                asks: cell.asks,
-                size: cell.size,
-                stride: cell.stride,
-                warm: cell.warm,
-                monitors: 0,
-            };
-            let path = path.clone();
-            set.spawn(async move {
-                if matches!(c.arm, Arm::Product | Arm::ProductAhead) {
-                    let ahead = c.arm == Arm::ProductAhead;
-                    reader_product(store, &c, plan, lat, misses, ahead).await
-                } else if c.arm == Arm::TokioFs {
-                    reader_tokio_fs(path, &c, plan, lat).await
-                } else if c.arm.uses_ring() {
-                    reader_ring(store, file, &c, plan, lat, misses).await
-                } else if c.arm == Arm::PoolRingLoop {
-                    reader_ringloop(store, file, &c, plan, lat, misses).await
-                } else {
-                    reader_pool(store, file, &c, plan, lat, misses).await
-                }
-            });
-        }
-        let mut peak = threads();
-        let mut reader_err: Option<String> = None;
-        while let Some(joined) = set.join_next().await {
-            peak = peak.max(threads());
-            match joined {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => {
-                    reader_err.get_or_insert(format!("{e:#}"));
-                }
-                Err(e) => {
-                    reader_err.get_or_insert(format!("reader panicked: {e}"));
+            let cpu0 = cpu_ns();
+            let wall0 = Instant::now();
+            let peak_named = Arc::new(AtomicU64::new(0));
+            let peak_in_flight = Arc::new(AtomicU64::new(0));
+            let mut set = tokio::task::JoinSet::new();
+            for reader_plan in &plans {
+                let store = Arc::clone(&store);
+                let file = Arc::clone(&file);
+                let lat = Arc::clone(&lat);
+                let misses = Arc::clone(&misses);
+                let plan = Arc::clone(reader_plan);
+                let pn = Arc::clone(&peak_named);
+                let pif = Arc::clone(&peak_in_flight);
+                let c = Cell {
+                    arm: cell.arm,
+                    prefetch: cell.prefetch,
+                    partition: cell.partition,
+                    depth: cell.depth,
+                    readers: 1,
+                    asks: cell.asks,
+                    size: cell.size,
+                    stride: cell.stride,
+                    warm: cell.warm,
+                    monitors: 0,
+                };
+                let path = path.clone();
+                set.spawn(async move {
+                    if matches!(c.arm, Arm::Product | Arm::ProductAhead) {
+                        let ahead = c.arm == Arm::ProductAhead;
+                        reader_product(store, &c, plan, lat, misses, ahead, pn, pif).await
+                    } else if c.arm == Arm::ProductSessions {
+                        reader_product_sessions(store, &c, plan, lat, misses, false).await
+                    } else if c.arm == Arm::TokioFs {
+                        reader_tokio_fs(path, &c, plan, lat).await
+                    } else if c.arm.uses_ring() {
+                        reader_ring(store, file, &c, plan, lat, misses).await
+                    } else if c.arm == Arm::PoolRingLoop {
+                        reader_ringloop(store, file, &c, plan, lat, misses).await
+                    } else {
+                        reader_pool(store, file, &c, plan, lat, misses).await
+                    }
+                });
+            }
+            let mut peak = threads();
+            let mut reader_err: Option<String> = None;
+            while let Some(joined) = set.join_next().await {
+                peak = peak.max(threads());
+                match joined {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => {
+                        reader_err.get_or_insert(format!("{e:#}"));
+                    }
+                    Err(e) => {
+                        reader_err.get_or_insert(format!("reader panicked: {e}"));
+                    }
                 }
             }
-        }
-        let wall = wall0.elapsed().as_nanos() as u64;
-        let cpu = cpu_ns() - cpu0;
-        stop.store(true, Ordering::Relaxed);
-        tokio::task::yield_now().await;
-        for m in mons {
-            let _ = m.await;
-        }
-        (wall, cpu, peak.max(threads()), reader_err)
-    });
+            let wall = wall0.elapsed().as_nanos() as u64;
+            let cpu = cpu_ns() - cpu0;
+            stop.store(true, Ordering::Relaxed);
+            tokio::task::yield_now().await;
+            for m in mons {
+                let _ = m.await;
+            }
+            (
+                wall,
+                cpu,
+                peak.max(threads()),
+                reader_err,
+                peak_named.load(Ordering::Relaxed),
+                peak_in_flight.load(Ordering::Relaxed),
+            )
+        });
 
     if let Some(e) = reader_err {
         anyhow::bail!("reader failed: {e}");
@@ -828,6 +899,8 @@ fn run_cell(
         cpu_ns: cpu_ns_used,
         threads_max,
         misses: misses.load(Ordering::Relaxed),
+        peak_named: named_max,
+        peak_in_flight: in_flight_max,
     })
 }
 
@@ -856,7 +929,7 @@ fn main() -> Result<()> {
         println!(
             "label\tarm\tprefetch\ttemp\tshape\tsize\tstride\tdepth\treaders\trepeat\tpos\t\
              asks\tp50_ns\tp90_ns\tp99_ns\tcpu_ns_per_ask\twall_ns\tasks_per_s\tthreads\t\
-             gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct"
+             gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct\tpeak_named\tpeak_in_flight"
         );
     }
     let trace = match &args.trace {
@@ -935,7 +1008,7 @@ fn main() -> Result<()> {
                             let total = (asks * readers_n) as u64;
                             println!(
                                 "{}\t{}\t{}\t{}\t{shape}\t{}\t{}\t{depth}\t{readers_n}\t{repeat}\t{pos}\t\
-                                 {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}",
+                                 {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}\t{}\t{}",
                                 args.label,
                                 arm.as_str(),
                                 if prefetch { "on" } else { "off" },
@@ -954,6 +1027,8 @@ fn main() -> Result<()> {
                                 o.gaps.last().copied().unwrap_or(0),
                                 100.0 * o.misses as f64 / total as f64,
                                 resident * 100.0,
+                                o.peak_named,
+                                o.peak_in_flight,
                             );
                         }
                     }
