@@ -2,7 +2,7 @@
 
 **2026-09-08 · Proposed. 2026-09-09 · §13 landed; §15 is the plan to fix it, §16 the review
 of that plan as applied and the first product-level numbers, §17 the proposals §16 left
-open.** Assembled
+open, §18 those proposals as code an implementer can apply.** Assembled
 from what was agreed on the day. Steps 0–2 and the four §13 commits (W = 4, planner, thin
 ring) are in the tree ([`HANDOFF.md`](HANDOFF.md) §1) — **unmeasured**: §13.2's A/B gate was
 never run, and §15.1 has what a mutation pass found. §9 records why the loop and W are not
@@ -1834,8 +1834,396 @@ formatted by hand in §16; `client/`, `lab/window-harness/`, `server/src/record/
 mechanical `cargo fmt` commit across the workspace first, and that commit should land on its
 own so it never sits inside a diff anyone has to read.
 
+§18 is every proposal above as verified code. Where the two disagree, §18 is right: it was
+written against the compiler.
+
 ### 17.5 · Not a proposal — the measurement backlog
 
 Unchanged from §16.5 and repeated only so this section is not read as the whole of what is
 left: `server_ab.sh 580e312` on the workstation, `read_path_ab.sh 580e312`, then P0 on the
 target. No proposal here substitutes for any of them.
+
+## 18 · §17 as code — for the implementer
+
+**2026-09-09.** Each proposal below was written, compiled and tested in this tree, then
+reverted: the code is verified, not sketched. Every diff is small — 185 lines added and 95
+removed across all nine — and each is independent of the others except where said.
+
+Every one passes `cargo test -p exact-server` on default, `--no-default-features` and
+`telemetry`, `cargo check -p disk-access-bench --all-targets`, and the comment budget.
+New tests were mutated; the mutation that must fail is given with each.
+
+Order matters in one place only: **P1 before the run**. The rest can land in any order.
+
+Two corrections to §17 first, both found while writing the code:
+
+* **§17.3's P8 is wrong and is withdrawn.** It proposed computing each window's `holding`
+  once and reusing it. That cannot be done: `begin` changes which window holds what *inside*
+  the loop, so a cached map would be stale by the second iteration. The only sound version is
+  fusing `holding` and `free_window` into one pass, which saves four comparisons at W = 4 and
+  is not worth a line.
+* **§13.5 is stale.** It says the lab implements `FramePipeline` for its timing stamps. It
+  does not — `read_campaign` drives `ReadCtx` directly. The trait's only implementors are
+  `ProductPipeline`, `RecordedPipeline` and the two test recorders §16 added, all in
+  `server/`. That is what makes P11 cheap.
+
+### 18.1 · P1 · the session line says how far the planner reached
+
+**Why:** §16.4 needed two binaries and eight interleaved rounds to infer that the seam was
+live. This makes it one log line, on a real study, in production.
+
+`server/src/media/read_path.rs`:
+
+```rust
+pub struct ReadStats {
+    pub hits: u64,
+    pub misses: u64,
+    /// Most frames named at once: `1 + min(upcoming, WINDOWS - 1)`, the planner's reach.
+    pub peak_named: u16,
+    /// Most windows with a read outstanding at once — what the device saw.
+    pub peak_in_flight: u16,
+}
+```
+
+Two lines in `read`, one after the plan is built and one after the start loop, before the
+current frame is waited:
+
+```rust
+        self.stats.peak_named = self.stats.peak_named.max(wanted.len() as u16);
+        for &(s, p) in &wanted { /* unchanged */ }
+        let started = self.windows.iter().filter(|w| w.read.is_some()).count() as u16;
+        self.stats.peak_in_flight = self.stats.peak_in_flight.max(started);
+```
+
+`server/src/transport/pipeline.rs`, in `Drop for ProductPipeline`:
+
+```rust
+            named = stats.peak_named,
+            in_flight = stats.peak_in_flight,
+```
+
+**Test:** extend `w_named_frames_start_before_the_current_read_finishes`:
+
+```rust
+        assert_eq!(
+            (ctx.stats().peak_named, ctx.stats().peak_in_flight),
+            (WINDOWS as u16, WINDOWS as u16),
+            "the session line would not show W engaging"
+        );
+```
+
+**Mutate:** make `read` ignore `upcoming`. Fails.
+
+**Measured against a live server** on the tile fixture, cold, 64 asks per cell:
+
+| client depth | `session reads` |
+| --- | --- |
+| 1 | `miss_rate=1.0 named=1 in_flight=1 ring=true` |
+| 2 | `miss_rate=1.0 named=2 in_flight=2 ring=true` |
+| 4 | `miss_rate=1.0 named=4 in_flight=4 ring=true` |
+| 4, **seam severed** | `miss_rate=1.0 named=1 in_flight=1 ring=true` |
+
+That last row is the whole argument for this proposal: what §16.4 read off a 20 % p50 move
+across eight rounds, the log says outright.
+
+**Harness half.** `server_ab` gains a `named` column (a `-` the runner fills, as it does
+`miss_pct`); `miss_from_log` generalises to `field_from_log <key>`; the runner refuses any
+on-demand cell at depth ≥ 2 that named fewer than two frames, and the analysis prints the
+per-arm median at cold depth 4 — which is where `before` showing 2 and `after` showing 4
+proves the arms differ in the way §13 claims, without reference to any timing.
+
+### 18.2 · P2 · a cold cell is one session
+
+**Why:** all sessions walk the same plan, so the first warms the study for the rest.
+Latent — only the warm RSS cell uses `N > 1` — and one `ensure!` closes it.
+
+`lab/disk-access-bench/src/bin/server_ab.rs`, first statement of `run`:
+
+```rust
+    anyhow::ensure!(
+        args.sessions <= 1 || args.temp != "cold",
+        "{} sessions cannot share a cold cell: the first warms the study for the rest",
+        args.sessions
+    );
+```
+
+**Verified:** `--sessions 64 --temp cold` now exits with that message.
+
+### 18.3 · P3 · say what `rss_kib` is
+
+**Why:** measured, 64 warm sessions at depth 4 grew the server by 14.7 MiB — 230 KiB per
+session against 64 KiB of windows. QUIC's per-connection buffers are most of it.
+
+Module header of `server_ab.rs`:
+
+```rust
+//! `rss_kib` is the server process's whole RSS growth, QUIC's per-connection buffers
+//! included — read it as a difference between the two arms, never as the cost of a window.
+```
+
+and the runner's line becomes `… KiB/session (the arm difference; QUIC cancels)`.
+
+### 18.4 · P4 · a window that could not start its read does not claim the frame
+
+**Why:** `begin` sets `key` and `len = remaining`, then `escalate` can fail. The window is
+then keyed as holding bytes no read ever wrote, and `holding` is what every later read
+trusts. Unreachable today because `read`'s error ends the session; it is still the invariant
+the window table rests on.
+
+`server/src/media/read_path.rs`, the tail of `begin`:
+
+```rust
+        win.len = remaining;
+        win.fit(remaining);
+        match self.escalate(store, w) {
+            Ok(pending) => {
+                self.windows[w].read = Some(pending);
+                Ok(())
+            }
+            // A keyed window promises the bytes it claims; one with no read landing in it
+            // cannot keep that, so it goes back to being free.
+            Err(err) => {
+                self.windows[w].key = None;
+                Err(err)
+            }
+        }
+```
+
+The test needs a failure it can cause, so `ReadCtx` gains one, alongside `force_pool_reads`
+and `account_pool_start`:
+
+```rust
+pub struct ReadCtx {
+    /* … */
+    #[cfg(test)]
+    fail_escalate: bool,
+}
+
+    fn escalate(&mut self, store: &Arc<FrameStore>, w: usize) -> Result<InFlight> {
+        #[cfg(test)]
+        if std::mem::take(&mut self.fail_escalate) {
+            anyhow::bail!("test: escalation refused");
+        }
+        /* … */
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_escalation(&mut self) {
+        self.fail_escalate = true;
+    }
+```
+
+**Test** `a_window_whose_read_could_not_start_does_not_claim_the_frame`: fail one escalation,
+assert `read` returns `Err`, assert `!ctx.holds(span, 0)`, then drain the frame normally and
+assert the bytes are right — the window has to be reusable, not just unkeyed.
+
+**Mutate:** drop the `key = None`. Fails with *"the window still claims bytes no read ever
+wrote"*.
+
+### 18.5 · P6 · `read_asks` returns a bool
+
+**Why:** `Result<(), ()>` with `map_err(|_| ())?` three times says "the loop has gone" three
+times. Ten lines in, fifteen out.
+
+`server/src/transport/server.rs`:
+
+```rust
+/// False once there is nothing more to read: the loop has gone, or the stream failed.
+async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> bool {
+    let ask = match read_fod_msg(control_recv).await {
+        Ok(FodMsg::RequestFrame { frame }) => Ask::Frame(frame),
+        Ok(FodMsg::RequestFrames { frames }) => {
+            for frame in frames {
+                if tx.send(Ask::Frame(frame)).await.is_err() {
+                    return false;
+                }
+            }
+            return true;
+        }
+        Ok(FodMsg::StreamFrames { from, to }) => Ask::Fill { from, to },
+        Ok(FodMsg::EndStream) => Ask::EndStream,
+        Ok(FodMsg::EndSession) => Ask::EndSession,
+        Ok(FodMsg::FrameError { .. }) => return true,
+        Err(err) => Ask::Failed(err),
+    };
+    let failed = matches!(ask, Ask::Failed(_));
+    tx.send(ask).await.is_ok() && !failed
+}
+```
+
+with the caller becoming `if !read_asks(&mut control_recv, &tx).await { return; }`. Behaviour
+is unchanged; the existing wire tests cover it.
+
+### 18.6 · P9 · the planner names what a read can start
+
+**Why:** it names up to `ASKS_AHEAD` = 8, `serve` locates all eight, and `read` uses three.
+Five wasted `frame_span` lookups and two oversized `Vec`s per frame.
+
+`server/src/transport/planner.rs`:
+
+```rust
+use crate::media::read_path::WINDOWS;
+
+                    let upcoming = self
+                        .in_hand
+                        .iter()
+                        .take_while(|a| matches!(a, Ask::Frame(_) | Ask::EndStream))
+                        .filter_map(Ask::frame)
+                        .take(WINDOWS - 1)
+                        .collect();
+```
+
+`ASKS_AHEAD` keeps its meaning as the channel's and `in_hand`'s cap; its doc comment loses
+the claim that it is also the naming cap.
+
+**Test** `upcoming_never_exceeds_what_a_read_can_start`: push `ASKS_AHEAD` frames, assert
+`upcoming.len() == WINDOWS - 1`. **Mutate:** back to `take(ASKS_AHEAD)`.
+
+**The trade-off, stated so it is a decision:** naming eight survives an upcoming frame that
+fails to locate (§13.3 drops those from `ahead`), so the cap trades a little resilience
+against a client asking for out-of-range frames for a smaller allocation. A client that does
+that is already getting `FrameError` per frame.
+
+**Cost:** this couples `transport` to `media::read_path::WINDOWS`. `pipeline.rs` already
+depends on `ReadCtx`, so the crate graph does not change.
+
+### 18.7 · P7 · `wanted` stops allocating
+
+**Why:** one `Vec` per **64 KiB read**, so once per window of every frame.
+
+`server/src/media/read_path.rs`, the head of `read` — this is the same hunk P1 touches, so
+land them together or rebase:
+
+```rust
+        let mut named = [(span, pos); WINDOWS];
+        let mut count = 1;
+        for s in upcoming.into_iter().take(WINDOWS - 1) {
+            named[count] = (s, 0);
+            count += 1;
+        }
+        let wanted = &named[..count];
+        self.stats.peak_named = self.stats.peak_named.max(count as u16);
+        for &(s, p) in wanted {
+            if self.holding(s, p).is_none() {
+                let w = self.free_window(wanted);
+                self.wait(w).await?;
+                self.begin(store, w, s, p)?;
+            }
+        }
+```
+
+`free_window` already takes a slice. No test changes; the whole read-path suite covers it.
+
+### 18.8 · P10 · `reap` fills a caller's array
+
+**Why:** one `Vec` per ring wake. §14.1 has this row as *"only if it shows in a profile"* —
+it is the least justified of the nine, and it is here so the decision is one reading.
+
+`server/src/media/uring_reader.rs`:
+
+```rust
+    /// Fills `landed` with `(slot, bytes)` and returns how many. A short read is the
+    /// caller's to resubmit. `landed` must hold one entry per read this ring can have in
+    /// flight, which is one per window.
+    pub(crate) fn reap(&mut self, landed: &mut [(usize, usize)]) -> Result<usize> {
+        self.ring.completion().sync();
+        let mut n = 0;
+        for cqe in self.ring.completion() {
+            self.in_flight = self.in_flight.saturating_sub(1);
+            match cqe.result() {
+                bytes if bytes > 0 => {
+                    let slot = landed.get_mut(n).context("more completions than windows")?;
+                    *slot = (cqe.user_data() as usize, bytes as usize);
+                    n += 1;
+                }
+                0 => bail!("io_uring read hit EOF"),
+                e => return Err(std::io::Error::from_raw_os_error(-e)).context("io_uring read"),
+            }
+        }
+        Ok(n)
+    }
+```
+
+`get_mut` rather than an index: more completions than windows cannot happen — one submission
+per window, resubmitted only after its own completion — and a panic inside the ring path is
+not the way to find out otherwise.
+
+`ReadCtx::wait`'s ring arm becomes:
+
+```rust
+                let mut reaped = [(0usize, 0usize); WINDOWS];
+                while windows[w].read.is_some() {
+                    let got = ring.reap(&mut reaped)?;
+                    for &(slot, landed) in &reaped[..got] {
+```
+
+`two_reads_in_flight_land_in_their_own_slots` drives `reap` directly and moves with it.
+
+### 18.9 · P11 · the store leaves the trait's signatures
+
+**Why:** `serve` clones the `Arc` once per frame purely to break a borrow — `self.store()`
+borrows `self`, and `locate`/`send` take `&mut self`. Two atomics per frame. **Twenty lines
+in, fifty-two out**, which is the real reason to take it.
+
+`server/src/transport/pipeline.rs`:
+
+```rust
+    fn locate(&mut self, frame: u32) -> Result<FrameSpan>;
+
+    async fn send(&mut self, frame: u32, span: FrameSpan, ahead: &[FrameSpan]) -> Result<()>;
+
+    async fn serve(&mut self, frame: u32, upcoming: &[u32]) -> Result<()> {
+        self.prepare(frame);
+
+        let span = match self.locate(frame) {
+            Ok(span) => span,
+            Err(err) => return self.refuse(frame, err).await,
+        };
+        let ahead: Vec<FrameSpan> = upcoming
+            .iter()
+            .filter_map(|&frame| self.store().frame_span(frame).ok())
+            .collect();
+
+        self.send(frame, span, &ahead).await?;
+        Ok(())
+    }
+```
+
+`ProductPipeline` then reads its own fields, which is what the clone was standing in for:
+
+```rust
+    fn locate(&mut self, frame: u32) -> Result<FrameSpan> {
+        self.store.frame_span(frame)
+    }
+
+    async fn send(&mut self, frame: u32, span: FrameSpan, ahead: &[FrameSpan]) -> Result<()> {
+        let Self { store, out, read, .. } = self;
+        out.send_frame(frame, store, span, ahead, read).await
+    }
+```
+
+Four implementors change, all in `server/`: `ProductPipeline`, `RecordedPipeline` (delegation
+only), and the two test recorders. `FrameOut::send_frame` is untouched. **Verified on
+`telemetry` as well as default**, which is the one that could have broken.
+
+**Recommendation: take it for the fifty-two lines, not for the atomics.** Two atomics per
+frame will not show against 65 µs of read and 6.5 ms of wire (§9.1).
+
+### 18.10 · Order, and what each costs
+
+| # | lands in | + / − | independent | test |
+| --- | --- | --- | --- | --- |
+| **P1** | `read_path.rs`, `pipeline.rs`, `server_ab.rs`, `server_ab.sh` | 48 / 9 | yes | extends the order test; the runner gains a gate |
+| P2 | `server_ab.rs` | 6 / 0 | yes | the binary refuses the cell |
+| P3 | `server_ab.rs`, `server_ab.sh` | 4 / 1 | yes | — |
+| P4 | `read_path.rs` | 53 / 3 | yes | new, mutated |
+| P6 | `server.rs` | 10 / 15 | yes | existing wire tests |
+| P9 | `planner.rs` | 17 / 2 | yes | new, mutated |
+| P7 | `read_path.rs` | 10 / 6 | **shares a hunk with P1** | existing |
+| P10 | `uring_reader.rs`, `read_path.rs` | 17 / 7 | yes | existing ring test moves |
+| P11 | `pipeline.rs`, `server.rs` | 20 / 52 | yes | existing |
+
+**P1 lands before `server_ab.sh 580e312` runs** — it is what turns that run's cold-depth-4
+cell from a timing inference into an assertion. P7, P9, P10 and P11 are §17.3's deferred
+bucket: they are written here so the warm-cell decision is one reading, and none of them
+should land on their own evidence. P2, P3, P4 and P6 are free of that rule — they are a
+guard, a sentence, an invariant and a simplification.
