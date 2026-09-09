@@ -1,13 +1,15 @@
 # Lane L2 — continuation plan (2026-09-07)
 
-**Where the branch stands.** `main` is merged in. The harness measures depth and prefetch
+**Closed 2026-09-09.** Do not execute further phases on this branch. Conclusions:
+[`L2-ask-policy-CLOSED.md`](L2-ask-policy-CLOSED.md). The rest of this file is the
+plan as written, including the void 182-row cloud run.
+
+**Where the branch stood when this plan was written.** `main` is merged in. The harness measures depth and prefetch
 separately, emulates a path RTT, and reports lateness by step; ten smoke gates pass on loopback.
 A FIFO simulator reproduces the v2 rig rows within 1.2 %. The design document,
-[`../l2-ask-policy-design-2026-09-06.md`](../l2-ask-policy-design-2026-09-06.md), answers the
-lane's two questions on T2-local evidence: bounding depth matters only when a large lookahead
-meets a jump, and dynamic depth has nothing left to adapt to. What remains is the loss axis, the
-policy in a browser, and closing the lane. This plan sequences that work and names what each
-phase must produce before the next one starts.
+[`../l2-ask-policy-design-2026-09-06.md`](../l2-ask-policy-design-2026-09-06.md), then answered the
+lane's two questions more strongly than a fair campaign supports. Loss and a shaped-path
+cap ranking were never measured with the shaper on.
 
 The earlier fix plan, [`L2-ask-policy-harness-fix.md`](L2-ask-policy-harness-fix.md), is done
 (design doc §6 scores it item by item). Do not reopen it.
@@ -147,9 +149,8 @@ it. Until then, every number is conditional on the synthetic cadence, and the do
 
 ### Phase 6 — Close the lane (one hour)
 
-Update the status line of `L2-ask-policy.md` to the design doc's answer plus the v4 summary if
-it ran; the EVIDENCE file cites those two and nothing older; the campaign scripts for v1–v3 stay
-as the record and are marked as predating the flags in their header comments.
+**Done 2026-09-09.** [`L2-ask-policy-CLOSED.md`](L2-ask-policy-CLOSED.md). Not the
+design doc’s §5 lock plus a live v4 summary — cloud v4 is void and §5 is not a lock.
 
 ## 3 · What not to do
 

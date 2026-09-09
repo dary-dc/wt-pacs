@@ -22,13 +22,8 @@ Canonical withdrawn outputs (audit only):
   docs/measurements/r2/l2_ask_policy.tsv
   docs/measurements/r2/l2_ask_policy_d_current/
 
-**Current (2026-09-07 evening):** cloud v4 (182 rows) is **void** — `stats`
-wiped netem. Local v4 first file is an emulator check only, not a policy lock.
-Local rerun with `dynfb` (36/36, `--rtt-ms 60`):
-`l2_ask_policy_v4_local_rerun_SUMMARY.md`. first-byte moved D 4→3 and did not
-ratchet; window≈adr (D=4 does not bind); bulk still strands 768 KB.
-See `L2-ask-policy-v4-methodology-fix.md`. v1–v3 rankings remain void.
-**Cloud rerun blocked:** agent key
-`SHA256:CAD0bvPh5zni9qJ5mZhO3UUr+1Fwg7ZMS70O4blE90g` is rejected by the rig.
-Packet e0 and `.local/l2/v4-rerun/` cannot start until that pubkey is
-re-authorized. Do not implement a cap or “no dynamic” from the void rows.
+**CLOSED 2026-09-09:** conclusions in `docs/lanes/L2-ask-policy-CLOSED.md`.
+v1–v3 rankings void. Cloud v4 (182 rows) void (`stats` wiped netem). Local
+rerun is emulator-only (prefetch helps; bulk strands 768 KB; window≈adr;
+dynfb moved 4→3 and did not ratchet). No product lock. No further campaign
+on this branch.

@@ -11,11 +11,10 @@
 **Status: superseded as decision input · frozen 2026-09-02, reviewed 2026-09-04** · Branch tip:
 `cursor/l2-harness-fix-plan-c999` (PR #9)
 
-**2026-09-07:** do not use this file for a product policy. The cloud v4 summary is
-**void**. The local files are emulator checks only — cite
-[`l2_ask_policy_v4_local_rerun_SUMMARY.md`](l2_ask_policy_v4_local_rerun_SUMMARY.md)
-for the dynfb mechanism run. There is no locked ask policy on this branch. The v2
-rankings below stay withdrawn.
+**2026-09-09:** investigation closed. Cite
+[`../../lanes/L2-ask-policy-CLOSED.md`](../../lanes/L2-ask-policy-CLOSED.md).
+This file is the withdrawn v2 freeze only. Cloud v4 is void. Local rerun is an
+emulator check, not a policy. No v2 cell may be cited in an ADR.
 
 This was the only document to be quoted when updating
 [`adr-client-window-depth.md`](../../adr-client-window-depth.md) or D26-style product

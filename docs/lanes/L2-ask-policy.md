@@ -1,16 +1,10 @@
 # Lane L2 — ask policy: unbounded vs fixed vs dynamic
 
-**Status 2026-09-07:** v2 rankings withdrawn. Hypothesis in
-[`l2-ask-policy-design-2026-09-06.md`](../l2-ask-policy-design-2026-09-06.md); work sequence in
-[`L2-ask-policy-continuation.md`](L2-ask-policy-continuation.md). Next is a fair measurement on
-the reworked harness. Loss=0 local:
-[`l2_ask_policy_v4_local_SUMMARY.md`](../measurements/r2/l2_ask_policy_v4_local_SUMMARY.md).
-Reduced cloud (netem 60, loss 0 / 0.5 %):
-[`l2_ask_policy_v4_SUMMARY.md`](../measurements/r2/l2_ask_policy_v4_SUMMARY.md).
-Cite
-[`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md) for the
-old rig rows only. · **Lab only — do not change product ask code** ·
-Round-robin the Oracle São Paulo rig with L1
+**Status 2026-09-09: CLOSED.** Conclusions:
+[`L2-ask-policy-CLOSED.md`](L2-ask-policy-CLOSED.md).
+v1–v3 rankings and the 182-row cloud v4 file are **void**. Local rerun is an emulator
+check only. Product ask code was not changed. The text below is the original brief;
+do not treat it as the result.
 
 ## Purpose
 

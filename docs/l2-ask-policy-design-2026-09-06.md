@@ -1,8 +1,9 @@
 # L2 ask policy — what the design should be, and why
 
-**Status: analysis complete on T2-local evidence; one rig campaign prepared, not run.**
-Branch `cursor/l2-harness-fix-plan-c999`; the harness rework, the simulator and the probe are the
-three commits before this one.
+**Status 2026-09-09: superseded as a lock.** The investigation is closed in
+[`lanes/L2-ask-policy-CLOSED.md`](lanes/L2-ask-policy-CLOSED.md). §5 (fixed cap, no
+dynamic) is a design preference given a missing transport RTT, not a fair
+shaped-path result. Cloud v4 is void. This note stays as the model write-up.
 
 **Landing rule — lab only.** Any policy we adopt from this work is implemented in
 `lab/window-harness` and `lab/scripts/` (and the FIFO simulator). Product clients

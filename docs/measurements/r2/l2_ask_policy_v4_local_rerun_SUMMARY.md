@@ -70,7 +70,6 @@ smoothed. Rank on the primaries above, not on that gap.
 - “Do not adapt.” `dynfb` was in the grid and did not lose on a registered primary.
 - The void 182-row cloud file.
 
-The cloud rerun (packet e0, then `RTTS=60` into `.local/l2/v4-rerun/`) is still required for
-whether this `D` costs on a real path and whether 0.5 % loss separates anyone. That run is
-blocked until the agent key is re-authorized on the rig (see
-[`L2-ask-policy-v4-methodology-fix.md`](../../lanes/L2-ask-policy-v4-methodology-fix.md)).
+A shaped-path rerun would still be required to rank `window` vs `adr` or to talk about
+loss. The investigation closed without it:
+[`L2-ask-policy-CLOSED.md`](../../lanes/L2-ask-policy-CLOSED.md).

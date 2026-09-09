@@ -69,6 +69,12 @@ Writes `.local/l2/v4-local-rerun/`.
 
 We will **not** write “lab implements fixed D” or “do not adapt” unless `dynfb` was in the grid and the cap still won on the registered primary.
 
+## Rerun status (2026-09-09: investigation closed)
+
+Investigation closed without a shaped-path rerun. Conclusions:
+[L2-ask-policy-CLOSED.md](L2-ask-policy-CLOSED.md). Do not start e0 or the
+cloud grid as a continuation of *this* branch.
+
 ## Rerun status (2026-09-07)
 
 **Local** (`RTTS=60`, 36/36): [l2_ask_policy_v4_local_rerun_SUMMARY.md](../measurements/r2/l2_ask_policy_v4_local_rerun_SUMMARY.md).
