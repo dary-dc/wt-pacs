@@ -2,6 +2,9 @@
 
 use crate::media::frame_store::FrameStore;
 use crate::record::{LocateOutcome, Recorder, WriteOutcome};
+#[cfg(feature = "lab")]
+use crate::transport::assemble::{assemble_copy, split_parts};
+use crate::transport::assemble::chunked_chunks;
 use crate::transport::tls::load_pem_cert;
 use crate::transport::tuning::{SendPath, TransportTuning};
 use crate::transport::wire::{read_fod_msg, write_fod_msg};
@@ -331,9 +334,10 @@ async fn send_one_frame(
             let result = match serving.send_path {
                 #[cfg(feature = "lab")]
                 SendPath::Copy => {
-                    let buf = frame_envelope::wrap(idx, &body);
-                    write_payload(connection, shared, acks, &buf, serving.ask_priority, ask_seq, t_serve)
-                        .await
+                    write_payload(
+                        connection, shared, acks, idx, &body, serving.ask_priority, ask_seq, t_serve,
+                    )
+                    .await
                 }
                 #[cfg(feature = "lab")]
                 SendPath::Split => {
@@ -423,25 +427,27 @@ async fn write_payload(
     connection: &Connection,
     shared: &mut Option<SendStream>,
     acks: &mut JoinSet<()>,
-    payload: &[u8],
+    idx: u32,
+    body: &[u8],
     ask_priority: bool,
     ask_seq: &mut i32,
     timing: Option<(u32, Instant)>,
 ) -> Result<()> {
     // Two writes, not one buffer: making `[len][payload]` contiguous copies the frame a
     // third time. Reverted once already — keep it.
-    let len = (payload.len() as u32).to_be_bytes();
+    let wire = assemble_copy(idx, body);
+    let (len, payload) = wire.split_at(4);
     match shared {
         Some(uni) => {
             let t_first = Instant::now();
-            uni.write_all(&len).await.context("write shared len")?;
+            uni.write_all(len).await.context("write shared len")?;
             uni.write_all(payload).await.context("write shared frame")?;
             note_serve_timing(timing, "shared", t_first);
         }
         None => {
             let mut uni = open_frame_uni(connection, ask_priority, ask_seq).await?;
             let t_first = Instant::now();
-            uni.write_all(&len).await.context("write len")?;
+            uni.write_all(len).await.context("write len")?;
             uni.write_all(payload).await.context("write envelope")?;
             note_serve_timing(timing, "per-frame", t_first);
 
@@ -452,16 +458,6 @@ async fn write_payload(
         }
     }
     Ok(())
-}
-
-/// `[4B BE total_len][4B BE display_index]`, pinned against the copy path by
-/// `all_send_paths_are_the_same_wire`.
-fn envelope_header(idx: u32, codestream_len: usize) -> [u8; ENVELOPE_LEN * 2] {
-    let wire_len = (ENVELOPE_LEN + codestream_len) as u32;
-    let mut header = [0u8; ENVELOPE_LEN * 2];
-    header[..ENVELOPE_LEN].copy_from_slice(&wire_len.to_be_bytes());
-    header[ENVELOPE_LEN..].copy_from_slice(&idx.to_be_bytes());
-    header
 }
 
 /// `[len]`, `[index]`, codestream as three `&[u8]` writes: no contiguous buffer, but quinn
@@ -478,13 +474,12 @@ async fn write_payload_split(
     ask_seq: &mut i32,
     timing: Option<(u32, Instant)>,
 ) -> Result<()> {
-    let header = envelope_header(idx, codestream.len());
-    let (len, index) = header.split_at(ENVELOPE_LEN);
+    let (len, index, codestream) = split_parts(idx, codestream);
     match shared {
         Some(uni) => {
             let t_first = Instant::now();
-            uni.write_all(len).await.context("write shared len")?;
-            uni.write_all(index).await.context("write shared index")?;
+            uni.write_all(&len).await.context("write shared len")?;
+            uni.write_all(&index).await.context("write shared index")?;
             uni.write_all(codestream)
                 .await
                 .context("write shared codestream")?;
@@ -493,8 +488,8 @@ async fn write_payload_split(
         None => {
             let mut uni = open_frame_uni(connection, ask_priority, ask_seq).await?;
             let t_first = Instant::now();
-            uni.write_all(len).await.context("write len")?;
-            uni.write_all(index).await.context("write index")?;
+            uni.write_all(&len).await.context("write len")?;
+            uni.write_all(&index).await.context("write index")?;
             uni.write_all(codestream).await.context("write codestream")?;
             note_serve_timing(timing, "per-frame", t_first);
             acks.spawn(async move {
@@ -518,10 +513,7 @@ async fn write_payload_chunked(
     ask_seq: &mut i32,
     timing: Option<(u32, Instant)>,
 ) -> Result<()> {
-    let mut chunks = [
-        Bytes::copy_from_slice(&envelope_header(idx, body.len())),
-        body,
-    ];
+    let mut chunks = chunked_chunks(idx, body);
 
     match shared {
         Some(uni) => {
@@ -550,35 +542,3 @@ async fn write_payload_chunked(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::transport::wire::length_prefixed;
-
-    /// Both send paths must put identical bytes on the wire, or every arm comparing
-    /// them is comparing two protocols. This is the acceptance gate for the merge port.
-    #[test]
-    fn all_send_paths_are_the_same_wire() {
-        for (idx, body) in [
-            (0u32, b"".as_slice()),
-            (1, b"x"),
-            (7, b"htj2k-codestream-bytes"),
-            (u32::MAX, &[0xAB; 4096]),
-        ] {
-            let copy_wire = length_prefixed(&frame_envelope::wrap(idx, body));
-
-            let header = envelope_header(idx, body.len());
-
-            let mut chunked_wire = header.to_vec();
-            chunked_wire.extend_from_slice(body);
-
-            let (len, index) = header.split_at(ENVELOPE_LEN);
-            let mut split_wire = len.to_vec();
-            split_wire.extend_from_slice(index);
-            split_wire.extend_from_slice(body);
-
-            assert_eq!(copy_wire, chunked_wire, "chunked, idx {idx}, {} B", body.len());
-            assert_eq!(copy_wire, split_wire, "split, idx {idx}, {} B", body.len());
-        }
-    }
-}

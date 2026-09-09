@@ -1,3 +1,4 @@
+pub mod assemble;
 pub mod server;
 pub mod tls;
 pub mod tuning;
