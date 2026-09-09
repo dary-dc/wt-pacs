@@ -114,7 +114,7 @@ The reader-scale evidence (`v25_r5`, to 128 readers) does not include it — tho
 `hybrid` and `uring` both flat at **5 OS threads** where `pool` reaches **381**, so thread
 growth separates ring-from-`pool`, not the two ring arms.
 
-## The candidates, re-measured on the code that ships · 2026-09-09
+## The candidates, re-measured on the code that ships · 2026-09-09 (4 vCPU sandbox)
 
 The table above was taken before the read path was reshaped (`WINDOWS`, the planner, the thin
 ring — [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13) and its verdicts were inherited, not
@@ -201,6 +201,11 @@ ring was ahead from depth 4 and resolved at 16 (−29.8 %, 10/10). This is the *
 significant as the frame grows, and by 250 kB it is already negative on this host.** P0 must
 run both frame sizes, not only both depths.
 
+> **Confirmed on the workstation, where it clears the rule** — `product` against `pool` at
+> 250 kB cold is **+38.5 % / +42.3 % RESOLVED** at depths 1 and 4 on p50, CPU agreeing. What
+> that run also found is that the penalty is **`product`'s and not the ring's**: at 250 kB
+> `hybrid_lazyring` ties `pool` at every depth. See *The same candidates on the workstation*.
+
 > **The lower block's cold cells are only partly cold, and the arms differ in how.**
 > `disk-access-bench` reports no residency or miss control — `read_campaign` has `miss_pct`
 > and `resident_pct`, which is how the upper block can say 99.5 %. Cold p50 ÷ warm p50 is
@@ -208,11 +213,188 @@ run both frame sizes, not only both depths.
 > pulls in neighbours a 64 KiB `pread` window does not, so on a walk it converts misses to
 > hits more aggressively. That is a real advantage — and it is also why its cold median
 > flatters it. **It is not doing the same I/O faster, it is doing less of it.** The asks that
-> do reach the device are the 3–4 ms p99 above.
+> do reach the device are the 3–4 ms p99 above. **The workstation widens this gap**: 14.9×
+> for `uring_nowait_whole` against 1.8× for `mmap_naive` in the one cell that is properly
+> cold there (250 kB random), and its forward-trace cells are barely cold at all (1.1–1.6×
+> for every arm).
 
 Cold thresholds on that host (`read_ahead_kb` 8192), because a contiguous stride is a hit cell
 wearing a cold label at both sizes: 16 KiB asks miss 1.6 % at a 16 kB stride and 100 % at
 262 kB; 250 kB asks miss 2.3 % at a 250 kB stride, 97.7 % at 500 kB and 99.2 % at 2 MB.
+
+**The workstation's thresholds are different and had to be re-derived** (`read_ahead_kb` 4096
+on the btrfs bdi, *not* the block device's 128): 16 KiB asks miss **0.8–2.3 %** at a 16 kB
+stride, 93.0 % at 32 kB, 96.1 % at 64 kB and 98.4–99.2 % at 250 kB; 250 kB asks miss
+**3.1–12.5 %** at a 250 kB stride and 99.2 % from 500 kB up. Full sweep in
+[`w1_host.txt`](w1_host.txt). A stride calibrated on one host is not portable to another.
+
+
+## The same candidates on the workstation · 2026-09-09
+
+Everything above this heading is the 4 vCPU sandbox. This section is the **8-thread
+workstation** — Intel i5-8250U, btrfs-on-LUKS over NVMe, `read_ahead_kb` 4096 (the btrfs bdi,
+*not* the block device's 128) — the same machine as [`v34_scale_host.txt`](v34_scale_host.txt).
+Raw: [`w1_server_ab.tsv`](w1_server_ab.tsv), [`w1_read_path_ab.tsv`](w1_read_path_ab.tsv),
+[`w1_16k_arms.tsv`](w1_16k_arms.tsv), [`w1_250k_arms.tsv`](w1_250k_arms.tsv),
+[`w1_16k_mmap.tsv`](w1_16k_mmap.tsv), [`w1_250k_mmap.tsv`](w1_250k_mmap.tsv),
+[`w1_host.txt`](w1_host.txt).
+
+**This is not P0.** P0 is one run on the production instance type, volume class and container
+image ([`NEXT.md`](NEXT.md) §3), and
+[`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) §Decision says it can go
+either way there and not on a workstation. Nothing here is labelled P0.
+
+**Two preconditions this host could not meet, recorded because they bound the magnitudes.**
+The desktop session stayed up (~82 % CPU idle, loadavg 1.28), and `powersave` + turbo could
+not be pinned without root. Arms are interleaved per repeat and the A/Bs rotate binary order
+per round, so the paired deltas absorb drift; the absolute microseconds carry it.
+
+### Cold depth 4 resolves here, and it did not on the sandbox
+
+`server_ab.sh` against `580e312`, 16 interleaved rounds, the shipped server driven by a
+client. This is the §13 round's whole claim:
+
+| cell | n | p50 Δ | signs | verdict | sandbox |
+| --- | ---: | ---: | :---: | --- | --- |
+| cold depth 1 | 16 | +2.8 % | 10/16 | tie | tie |
+| cold depth 2 | 16 | −0.2 % | 8/16 | tie | tie |
+| **cold depth 4** | 16 | **−42.1 %** | **16/16** | **RESOLVED** | −19.1 %, 15/16 — **failed** |
+| warm depth 1 | 16 | +0.5 % | 10/16 | tie | tie |
+| warm depth 4 | 16 | −5.3 % | 11/16 | tie | tie |
+| fill | 16 | +9.2 % | 11/16 | tie | tie |
+
+816.6 µs → 470.6 µs, every one of 16 rounds the same sign. The sandbox managed −19.1 % against
+a 28.5 % threshold and could not resolve it; on a host whose misses are real device reads it
+clears the bar by half again. `named` = 4 on `after` and absent on `580e312`, so W is engaging.
+Depth ladder on HEAD: 2 831 → 4 813 (+70.0 %) → 7 710 asks/s (+60.2 %). Per-session RSS cost of
+the window table, 64 sessions: **+46.8 KiB/session**.
+
+`read_path_ab.sh` ties every cell — cold 16 KiB at depth 1 (−0.7 %) and at W (−0.3 %), warm
+(+0.9 %), and the 1 GiB sequential cell (+0.8 %). **The read path is unchanged; the depth-4 win
+belongs to the serving shape, not to the reader.**
+
+> **The `seq1g` cell is not a device cell on this host.** 256 asks × 16 KiB contiguous spans
+> 4 MB against a 4096 KB read-ahead window, so it reads **0.0–0.8 % misses** at a 2.6–2.8 µs
+> p50 — about 6.2 GB/s, roughly 4× this host's own 1.5–1.6 GB/s cold ceiling below (and 7×
+> v34's scattered 840 MB/s). The tie is a real answer for the
+> read-ahead-served sequential path. It is not the 1 GiB of I/O the cell's name suggests, and
+> P0 should not be told it was.
+
+### The ring still loses to the pool at 250 kB cold — and here it is RESOLVED
+
+The sandbox saw `pool` ahead of `product` at 250 kB cold (514 µs against 623) and reported it
+as an observation. On the workstation it clears the rule, on **both** metrics, at the depths
+the device does not dominate:
+
+| `product` vs `pool`, 250 kB cold | p50 | CPU/ask |
+| --- | --- | --- |
+| depth 1 | **+38.5 % RESOLVED**, 11/12 | **+36.5 % RESOLVED**, 11/12 |
+| depth 4 | **+42.3 % RESOLVED**, 11/12 | **+33.2 % RESOLVED**, 11/12 |
+| depth 16 | +3.7 % tie | +7.3 % tie — *past saturation, see below* |
+
+At 16 KiB the same pair ties at every depth (+4.3 / +1.2 / −6.6 %). **The size-dependence is
+confirmed and P0 must run both frame sizes.**
+
+> **New here, and it corrects a standing claim: `product` no longer tracks `hybrid_lazyring`
+> at 250 kB.** The sandbox had them within 2 % (623 against 611, a tie), which is why
+> [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Validated says the shipped path *is* the arm. On
+> this host, 250 kB cold: **+34.5 % p50 (12/12) at depth 1 and +38.4 % (10/12) at depth 4,
+> RESOLVED**, CPU agreeing (+37.7 %, +29.0 %). Meanwhile `hybrid_lazyring` against `pool` at
+> 250 kB cold is a **tie at every depth** (+1.6 / +1.6 / −2.0 %). So the 250 kB penalty is the
+> shipped `ReadCtx`'s, not the ring mechanism's — the arm it was modelled on does not pay it.
+> `product` is 783 µs against `hybrid_lazyring`'s 578 and `pool`'s 571 at depth 1. **The claim
+> that `product` ties the arm holds at 16 KiB and is retracted at 250 kB.**
+
+`uring`'s hit penalty reproduces and scales hard with depth: **+59.9 / +345.6 / +1571.5 %** at
+16 KiB and **+29.8 / +430.0 / +1985.0 %** at 250 kB, 12/12 throughout. Nothing here disturbs
+the reason there is no tuning toggle.
+
+### Where this host saturates, and which cells are past it
+
+Cold throughput, median of 12, `hybrid_lazyring`:
+
+| | depth 1 | depth 4 | depth 16 | d1→d4 | d4→d16 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 16 KiB | 4 952/s · 81 MB/s | 15 566/s · 255 MB/s | 35 266/s · 578 MB/s | ×3.14 | ×2.27 |
+| 250 kB | 1 709/s · 427 MB/s | 5 612/s · 1 403 MB/s | 6 102/s · 1 525 MB/s | ×3.28 | **×1.09** |
+
+**250 kB at depth 16 is past saturation** — ×1.09 for a 4× depth increase, and all five arms
+inside **5.3 %** of each other (6 046–6 366 asks/s). Every 250 kB depth-16 comparison in this
+run is a tie *by construction*; no arm claim may be made there, and the +3.7 % row above is
+that, not an equivalence. **16 KiB at depth 16 is not saturated** — ×2.27 and still climbing,
+arms spread 10.9 %.
+
+The ceiling seen here is ~1.5–1.6 GB/s against v34's ~840 MB/s **on the same machine**. Those
+do not conflict: v34 walked an 8 GB fixture at an 8 MiB stride, this run walks 512 MB at a
+500 kB stride, two frames apart. Scattered gets 840 MB/s, semi-sequential gets 1.5 GB/s.
+**Caveat, and it cuts against the larger number:** 512 MB can sit inside a consumer NVMe's own
+cache, which `mincore` residency (99.6 % miss) cannot see. Treat 1.5–1.6 GB/s as an upper
+bound and v34's 8 GB figure as the safer device claim. The warm rows (4.0–5.0 GB/s at 16 KiB,
+5.8–8.3 GB/s at 250 kB) are the page-cache ceiling and not a device measurement at all.
+
+### The tables
+
+#### The same arms on the workstation — 16 KiB, depth 4
+
+| arm | warm p50 · p90 · p99 | warm CPU/ask | warm gap max | cold p50 · p90 · p99 | cold CPU/ask | cold gap max | cold miss | cold ÷ warm |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **`product`** | 3.9 · 4.9 · 7.2 µs | 4.5 µs | 302 µs | 249.9 · 331.2 · 395.0 µs | 116 µs | 141 µs | 99.6 % | 64× |
+| `hybrid_lazyring` | 2.8 · 3.3 · 4.7 µs | 5.1 µs | 372 µs | 246.0 · 328.5 · 391.0 µs | 109 µs | 128 µs | 99.2 % | 89× |
+| `pool` | 3.6 · 4.7 · 9.3 µs | 4.7 µs | 284 µs | 244.1 · 327.5 · 390.6 µs | 115 µs | 99 µs | 99.6 % | 67× |
+| `uring` | 13.0 · 15.6 · 25.0 µs | 4.8 µs | 980 µs | 250.6 · 336.1 · 393.0 µs | 113 µs | 100 µs | 100.0 % | 19× |
+| `pooled_pread` | 12.1 · 47.9 · 162.8 µs | 28.9 µs | 143 µs | 256.2 · 338.6 · 410.4 µs | 139 µs | 67 µs | 100.0 % | 21× |
+
+#### The same arms on the workstation — 250 kB, depth 4
+
+| arm | warm p50 · p90 · p99 | warm CPU/ask | warm gap max | cold p50 · p90 · p99 | cold CPU/ask | cold gap max | cold miss | cold ÷ warm |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **`product`** | 48.6 · 65.5 · 79.1 µs | 53.8 µs | 3424 µs | 958.8 · 1055.9 · 1184.0 µs | 411 µs | 289 µs | 99.6 % | 20× |
+| `hybrid_lazyring` | 31.4 · 35.0 · 47.7 µs | 33.2 µs | 8257 µs | 690.5 · 789.7 · 882.3 µs | 319 µs | 492 µs | 99.6 % | 22× |
+| `pool` | 50.3 · 62.7 · 74.1 µs | 52.2 µs | 3361 µs | 681.5 · 776.6 · 931.1 µs | 308 µs | 308 µs | 99.6 % | 14× |
+| `uring` | 168.8 · 194.0 · 223.6 µs | 46.8 µs | 10673 µs | 696.0 · 803.7 · 1537.8 µs | 315 µs | 630 µs | 100.0 % | 4× |
+| `pooled_pread` | 59.6 · 78.6 · 230.4 µs | 88.8 µs | 151 µs | 708.7 · 816.5 · 1028.6 µs | 434 µs | 108 µs | 100.0 % | 12× |
+
+#### The copying harness on the workstation — 16 KiB, forward
+
+| arm | warm p50 · p99 | warm CPU/ask | cold p50 · p99 | cold CPU/ask | cold gap max | copied/ask | cold ÷ warm |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `mmap_naive` | 1.5 · 4.2 µs | 4.9 µs | 2.3 · 14.8 µs | 26 µs | 2187 µs | 0 KiB | 1.6× |
+| `mmap_hybrid_mincore` | 2.9 · 6.8 µs | 9.0 µs | 4.5 · 16.5 µs | 29 µs | 57 µs | 0 KiB | 1.6× |
+| `mmap_touch_in_place` | 5.2 · 12.7 µs | 19.0 µs | 6.6 · 23.8 µs | 40 µs | 83 µs | 0 KiB | **1.3×** |
+| `mmap_populate_read` | 11.2 · 20.7 µs | 26.3 µs | 14.1 · 43.4 µs | 46 µs | 59 µs | 0 KiB | **1.3×** |
+| `mmap_blocking_touch` | 9.4 · 17.2 µs | 21.7 µs | 11.8 · 33.5 µs | 41 µs | 43 µs | 0 KiB | **1.3×** |
+| `pread_blocking_pooled` | 12.7 · 22.5 µs | 30.4 µs | 14.4 · 53.6 µs | 47 µs | 96 µs | 16 KiB | **1.1×** |
+| `pread_nowait_chunked` | 3.4 · 6.8 µs | 10.1 µs | 4.5 · 13.9 µs | 28 µs | 233 µs | 16 KiB | **1.3×** |
+| `uring_nowait_whole` | 3.5 · 7.1 µs | 10.5 µs | 4.9 · 15.0 µs | 26 µs | 301 µs | 16 KiB | **1.4×** |
+
+#### The copying harness on the workstation — 250 kB, random
+
+| arm | warm p50 · p99 | warm CPU/ask | cold p50 · p99 | cold CPU/ask | cold gap max | copied/ask | cold ÷ warm |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `mmap_naive` | 26.7 · 44.9 µs | 71.9 µs | 48.7 · 4439.5 µs | 629 µs | 3683 µs | 0 KiB | 1.8× |
+| `mmap_hybrid_mincore` | 28.8 · 47.6 µs | 77.8 µs | 53.1 · 4582.1 µs | 648 µs | 542 µs | 0 KiB | 1.8× |
+| `mmap_touch_in_place` | 28.8 · 50.3 µs | 81.6 µs | 67.2 · 4608.5 µs | 665 µs | 137 µs | 0 KiB | 2.3× |
+| `mmap_populate_read` | 52.2 · 93.2 µs | 119.2 µs | 77.5 · 4573.9 µs | 673 µs | 153 µs | 0 KiB | **1.5×** |
+| `mmap_blocking_touch` | 43.8 · 81.3 µs | 97.7 µs | 70.2 · 4583.4 µs | 649 µs | 139 µs | 0 KiB | 1.6× |
+| `pread_blocking_pooled` | 64.1 · 103.0 µs | 155.6 µs | 654.7 · 1575.3 µs | 1000 µs | 128 µs | 244 KiB | 10.2× |
+| `pread_nowait_chunked` | 42.8 · 69.4 µs | 117.6 µs | 68.3 · 2253.3 µs | 830 µs | 1001 µs | 244 KiB | 1.6× |
+| `uring_nowait_whole` | 43.5 · 71.2 µs | 124.0 µs | 646.8 · 1579.2 µs | 897 µs | 926 µs | 244 KiB | 14.9× |
+
+> **`disk-access-bench` has no miss control, and on this host its cold cells are weak.**
+> The `cold ÷ warm` column is the substitute. On the **forward** trace at 16 KiB *every* arm
+> sits at **1.1–1.6×** — a contiguous walk against a 4096 KB read-ahead window is barely cold
+> at all, the same trap the stride calibration exists to avoid. Only **250 kB random**
+> separates the arms, and there the asymmetry the sandbox warned about is much larger than the
+> sandbox saw: **`uring_nowait_whole` 14.9× and `pread_blocking_pooled` 10.2× against
+> `mmap_naive`'s 1.8× and `mmap_hybrid_mincore`'s 1.8×**. In that one cell mmap looks 13×
+> quicker (48.7 µs against 646.8) — but it is 6–8× less cold. **It is not doing the same I/O
+> faster, it is doing less of it**, exactly as the sandbox concluded, and the gap between the
+> two readings is wider here, not narrower.
+>
+> The co-tenant freeze reproduces and is the column mmap is still rejected on: `mmap_naive`
+> holds a worker for **2 187 µs** at 16 KiB forward, **3 699 µs** at 16 KiB random and
+> **3 683 µs** at 250 kB random, against `pread_nowait_chunked`'s 233 / 791 / 1 001 µs. That is
+> [`adr.md`](adr.md) §5's *"faults freeze co-tenants: 1.5–4.2 ms"*, on a third host.
 
 ## Where the margin comes from
 
@@ -281,6 +463,11 @@ The whole campaign originally came from one machine, which was its largest risk.
 
 Two CPU vendors, VM and bare metal, three filesystems: **24–34 µs everywhere**, and no
 miss-regime row flipped on any host.
+
+> The "bare-metal laptop" row, [`v34_scale_host.txt`](v34_scale_host.txt)'s "workstation" and
+> the 2026-09-09 workstation section above are the **same machine** — an 8-thread i5-8250U on
+> btrfs-on-LUKS/NVMe. It is the campaign's only bare-metal host; a claim needing a second one
+> is still unmet.
 
 ## Risks, as closed
 
@@ -356,13 +543,18 @@ Named so they are not mistaken for measured, and so a future run knows where to 
 
 - **Storage faster than ~1.25 GB/s.** Every miss-regime conclusion here is device-bound. On
   NVMe at several GB/s, thread scheduling could become the limit instead, and io_uring's
-  5 threads against 381 would start converting into something.
+  5 threads against 381 would start converting into something. *Partly probed 2026-09-09*: the
+  workstation reached **1.5–1.6 GB/s** on a semi-sequential 250 kB walk and the arms collapsed
+  to a 5.3 % spread there — device-bound, not scheduler-bound, so nothing converted. That
+  figure may be flattered by the NVMe's own cache on a 512 MB fixture; the row stays open.
 - ~~**Frames past 250 KB.**~~ **250 kB measured 2026-09-09** and it went the way this row
-  predicted: at 250 kB cold the `pool` beats the ring at both depths (514 µs against 623, at
-  less CPU), where at 16 KiB the ring was ahead from depth 4. Still open **past** 250 kB —
-  native DBT is 3 MB, and windowing gets worse from here.
+  predicted: at 250 kB cold the `pool` beats the ring at both depths — sandbox 514 µs against
+  623, workstation **+38.5 / +42.3 % RESOLVED** — where at 16 KiB the ring was ahead from
+  depth 4. Still open **past** 250 kB — native DBT is 3 MB, and windowing gets worse from here.
 - **`hybrid_lazyring` above one reader** — see IMPLEMENTATION.md, *Before rollout*.
 - **`hybrid_lazyring` on the 4 vCPU sandbox or the GitHub runner.**
-- **Serving depth on any host but the sandbox above.** The depth-2 table is one host, and it
-  reproduces the lab host's depth 1/4/16 shape ([`v32_depth.tsv`](v32_depth.tsv)) closely
-  enough to trust the ranking, not the magnitudes.
+- ~~**Serving depth on any host but the sandbox above.**~~ **Closed 2026-09-09 on the
+  workstation**: the shipped server's cold depth-4 win against `580e312` is **−42.1 %, 16/16,
+  RESOLVED** there where the sandbox managed −19.1 % and could not resolve it, and the HEAD
+  depth ladder reads 2 831 → 4 813 → 7 710 asks/s. Ranking *and* magnitude now hold on a second
+  host. Still one bare-metal host, and untested on the production instance type.
