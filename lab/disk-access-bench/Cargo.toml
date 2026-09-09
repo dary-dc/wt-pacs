@@ -8,6 +8,14 @@ description = "Compare study disk-access arms (mmap / pread / madvise) with shar
 name = "disk-access-bench"
 path = "src/main.rs"
 
+[[bin]]
+name = "server_ab"
+path = "src/bin/server_ab.rs"
+
+[[bin]]
+name = "evict"
+path = "src/bin/evict.rs"
+
 [features]
 # tokio's io_uring file driver, for the `tokio_fs` arm only. Needs `RUSTFLAGS="--cfg tokio_unstable"`
 # as well — the feature alone does not compile it in. Never a product feature.
@@ -20,6 +28,8 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 exact-server = { path = "../../server" }
+fod = { path = "../../common/fod" }
+frame-envelope = { path = "../../common/frame-envelope" }
 bytes = { workspace = true }
 io-uring = "0.7"
 memmap2 = "0.9"
@@ -30,3 +40,4 @@ libc = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring", "dangerous-configuration"] }

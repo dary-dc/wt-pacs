@@ -6,6 +6,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
+use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
 use exact_server::media::frame_store::{FrameSpan, FrameStore};
 use exact_server::media::read_path::{ReadCtx, ReadMode};
@@ -43,8 +44,7 @@ enum Arm {
     /// **The shipped path itself** — `server`'s `ReadCtx`, not a model of it. Every other
     /// arm models a candidate. `WTPACS_READ_PATH` selects its mode here too.
     Product,
-    /// `product`, plus the one thing `serve_batch` does that a single ask cannot: name the
-    /// next frame. Its delta against `product` is what read-ahead-by-one is worth.
+    /// `product`, plus naming the next ask so the read path can start it underneath.
     ProductAhead,
 }
 
@@ -182,64 +182,6 @@ fn pct(sorted: &[u64], p: f64) -> u64 {
         return 0;
     }
     sorted[(((sorted.len() - 1) as f64) * p).round() as usize]
-}
-
-/// Evict, retrying, and report what stayed resident — the report is the point, because
-/// `fadvise(DONTNEED)` is advisory and a cell that trusted it could measure warm reads under
-/// a cold label.
-fn evict_retry(path: &PathBuf) -> Result<f64> {
-    let mut resident = f64::NAN;
-    for attempt in 0..8 {
-        resident = evict(path)?;
-        // NaN means mincore failed; treat that as "cannot verify" and stop retrying rather
-        // than looping on a number that will never compare true.
-        if resident.is_nan() || resident <= 0.005 {
-            return Ok(resident);
-        }
-        std::thread::sleep(std::time::Duration::from_millis(20 * (attempt + 1)));
-    }
-    Ok(resident)
-}
-
-fn evict(path: &PathBuf) -> Result<f64> {
-    use std::os::unix::io::AsRawFd;
-    let file = std::fs::File::open(path)?;
-    let len = file.metadata()?.len();
-    // SAFETY: advisory call on an open fd; touches no user memory.
-    unsafe {
-        libc::posix_fadvise(
-            file.as_raw_fd(),
-            0,
-            len as libc::off_t,
-            libc::POSIX_FADV_DONTNEED,
-        );
-    }
-    // SAFETY: read-only shared mapping of a file held open here; unmapped below.
-    let addr = unsafe {
-        libc::mmap(
-            std::ptr::null_mut(),
-            len as usize,
-            libc::PROT_READ,
-            libc::MAP_SHARED,
-            file.as_raw_fd(),
-            0,
-        )
-    };
-    if addr == libc::MAP_FAILED {
-        return Ok(f64::NAN);
-    }
-    let pages = (len as usize).div_ceil(4096);
-    let mut vec = vec![0u8; pages];
-    // SAFETY: `addr` maps `len` bytes; `vec` holds one byte per page of that range.
-    let rc = unsafe { libc::mincore(addr, len as usize, vec.as_mut_ptr()) };
-    let resident = if rc == 0 {
-        vec.iter().filter(|b| *b & 1 != 0).count() as f64 / pages as f64
-    } else {
-        f64::NAN
-    };
-    // SAFETY: unmapping exactly what was mapped above.
-    unsafe { libc::munmap(addr, len as usize) };
-    Ok(resident)
 }
 
 /// `(offset, length)` per ask. Data rather than a closure, so a synthetic cell and a
@@ -400,7 +342,7 @@ async fn reader_pool(
 
 /// The product path: one `ReadCtx` per reader, `stream_codestream`'s loop copied, everything
 /// under it `server` code. An ask is a whole frame, so latency is per frame, and misses come
-/// from `ReadCtx`'s own counter. `look_ahead` names the next ask, as `serve_batch` does.
+/// from `ReadCtx`'s own counter. `look_ahead` names the next ask.
 async fn reader_product(
     store: Arc<FrameStore>,
     cell: &Cell,

@@ -477,7 +477,7 @@ the default link cannot show it.** Fill does not, because there the same change 
 | --- | --- | --- |
 | worth on the default link | none measurable: ~0.2 ms on a 16-tile cold burst against 105 ms of wire | none: the wire sets the pace |
 | worth elsewhere | LAN, and cloud-volume misses: +26 to +37 % cold throughput (`v35`), scaled by the volume's miss cost | only if a miss exceeds one window of wire — 26 ms at 20 Mbps — which no volume class does |
-| memory per session | 32 → 64 KiB | after a miss, 2 → 4 frames: 500 KB → 1 MB; a thousand fills 500 MB → 1 GB |
+| memory per session | 32 → 64 KiB on hits; a miss grows each window to frame size, so 250 KB frames are W × 250 KB, not 64 KiB | after a miss, 2 → 4 frames: 500 KB → 1 MB; a thousand fills 500 MB → 1 GB |
 | ring slots | 2 → 4 | 2 → 4 |
 | reads that can go unwanted | none: on demand every read is an ask already sent | up to 3 frames past an `EndStream` |
 | **call** | **yes**, at step 3 | **no** |
@@ -1047,17 +1047,24 @@ nothing and the interleaved run read the tie. Make it one command so it is run r
 remembered:
 
 ```
+lab/scripts/server_ab.sh <base-commit>
+    builds `exact-server --release` from a worktree at <base-commit> and from HEAD,
+    drives both with the same `server_ab` client, alternating who goes first:
+    cold tiles at depth 1, 2 and 4 · warm tiles at 1 and 4 · fill,
+    pairs them on **p50** with the 28.5 % rule and `MIN_N = 5`.
+    Gates `server/src/transport/` and `server/src/media/`.
+
 lab/scripts/read_path_ab.sh <base-commit>
     builds `read_campaign` from a worktree at <base-commit> and from HEAD,
-    runs, alternating arms within each round: warm 16 KiB · cold 16 KiB at depth 1 and W ·
-    the 1 GiB sequential fixture,
-    pairs them, prints tie / RESOLVED per cell with the 28.5 % rule.
+    runs the lab arms: warm 16 KiB · cold 16 KiB at depth 1 and W · the 1 GiB sequential
+    fixture (a P0 I/O cell, not a product verdict),
+    pairs them on **p50** with the 28.5 % rule. Gates P0 (ring vs pool).
 ```
 
-Run it for every change under `server/src/media/` and commit the TSV beside the others; the
-rule for a refactor is that every cell ties. That is the performance test: on demand, on
-the host that can resolve it, with the decision rule fixed before the run. In production,
-the `session reads … miss_rate=…` line and `check-fastpath` are the running check that the
+Run `server_ab.sh` for every change under `server/src/transport/` or `server/src/media/`
+and commit the TSV beside the others, on the host that can resolve it. A number from the
+sandbox is not evidence (§14.4). `read_path_ab.sh` stays for P0. In production, the
+`session reads … miss_rate=…` line and `check-fastpath` are the running check that the
 mechanism the tests pin is the one actually taken.
 
 ## 13 · Handoff to the implementer
