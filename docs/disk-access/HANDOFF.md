@@ -28,13 +28,16 @@ names one frame ahead. The loop is a planner over a channel of `Ask`.
 | Flag | `WTPACS_READ_PATH` = `auto` (default) \| `pool` (kill switch) \| `uring` (lab lever). Unknown values warn and fall back to `auto` |
 | Feature | `uring`, on by default. `--no-default-features` compiles to the pool path |
 | Reports | `read_fast_path=` in the startup banner; `session reads hits=… misses=… miss_rate=… ring=…` per session |
-| Validated | as the **product**, not a model of it — `read_campaign --arms product,product_ahead` drives the real `ReadCtx` |
+| Validated | the **read path** as the product — `read_campaign --arms product,product_ahead` drives the real `ReadCtx`. The **session loop** is not: the lab copies `stream_codestream`'s loop, so the planner, `upcoming` and W are outside every A/B run so far. [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §15 |
 
 Also on the branch: `memmap2` is gone from `server/` entirely, `study-bundle` gained
 `read_layout`, and `CLAUDE.md` + `scripts/comment_budget.sh` make the comment rule checkable.
 
 **Landed 2026-09-09:** the §13 cuts — W windows, thin ring, planner, `WINDOWS = 4`. Numbers
-in this file that predate them are still the W = 2 measurements.
+in this file that predate them are still the W = 2 measurements. **They landed unmeasured:**
+§13.2 gave each commit "every A/B cell ties" as its pass condition and no such run was ever
+committed. What that leaves unverified, and the plan to close it, is
+[`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §15.
 
 ## 2 · Numbers that are safe to quote
 

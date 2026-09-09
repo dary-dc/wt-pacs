@@ -17,7 +17,7 @@ struck through in place rather than removed, so the order is still readable as t
 
 | # | Item | Measured worth | What kind of change | Detail |
 | --- | --- | --- | --- | --- |
-| 1 | ~~**Serving depth ≥ 4**~~ **Done 2026-09-09** — W = 4 for tiles, fill names one ahead | +73.8 % asks/s on missing tiles at W = 2; `v35` prices 2 → 4 at +37 % on this host | four commits in [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13; unmeasured on the default link (§9.4) | §1 |
+| 1 | ~~**Serving depth ≥ 4**~~ **Built 2026-09-09, unmeasured** — W = 4 for tiles, fill names one ahead; the product A/B is [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §15 | +73.8 % asks/s on missing tiles at W = 2; `v35` prices 2 → 4 at +37 % on this host | four commits in [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13; unmeasured on the default link (§9.4) | §1 |
 | 2 | ~~**Miss rate observable in production**~~ **Done** | every threshold below can now be checked against a real workload | `session reads …` per session, default build | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Reporting |
 | 3 | **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput — the largest effect measured anywhere | transport; blocked on what browsers advertise | [`adr.md`](adr.md) §Levers |
 | 4 | **P0 — validate ring vs pool on the production target**, both read modes | decides whether ~800 lines stay | one campaign run | §3 |
@@ -44,7 +44,10 @@ trims tens of microseconds off each miss.
 on the shipped `ReadCtx`: **+73.8 % asks/s, 12/12, RESOLVED** on cold 16 KiB, p50 −53.4 %,
 **warm a tie** ([`v36_readahead.tsv`](v36_readahead.tsv)). 16 missing tiles: 1.14 → 0.62 ms.
 W = 4 on the default link is predicted to tie (§9.4); the harness cell and P0's depth ladder
-are what remain. `v35` priced 2 → 4 at +37 % and 4 → 16 at +28 % on this host; 16 is not
+are what remain. **Built is not measured:** every number above comes from the lab's *copy* of
+the serving loop, so the planner, `upcoming` and W have never been timed through
+`run_session`. [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §15 is the product-server A/B
+that closes that, and the four defects a mutation pass found. `v35` priced 2 → 4 at +37 % and 4 → 16 at +28 % on this host; 16 is not
 taken until P0 says otherwise (§9.5). Everything the four commits do not deliver is
 [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §14.
 
