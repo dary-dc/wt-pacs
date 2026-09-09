@@ -268,9 +268,62 @@ confirmed, and P0 must run both frame sizes, not only both depths.**
 > `ReadCtx`'s, not the ring mechanism's — 783 µs against `hybrid_lazyring`'s 578 and `pool`'s
 > 571 at depth 1. **The claim holds at 16 KiB and is retracted at 250 kB.**
 
-`uring`'s hit penalty reproduces and scales with depth: **+59.9 / +345.6 / +1571.5 %** at
-16 KiB and **+29.8 / +430.0 / +1985.0 %** at 250 kB, 12/12 throughout. Nothing here disturbs
-the reason there is no tuning toggle.
+### Correction — `uring`'s depth-scaled hit penalty was queue depth
+
+> This section published `uring`'s hit penalty as **+59.9 / +345.6 / +1571.5 %** at 16 KiB
+> and **+29.8 / +430.0 / +1985.0 %** at 250 kB, depths 1 / 4 / 16, and read "scales with
+> depth" as confirmation. That scaling is the artefact.
+>
+> The figures are `p50_ns`, and the two arms do not run at the same depth. `hybrid_lazyring`
+> serves a hit inline and never submits (`read_campaign.rs`, `reader_ring`'s `got == len`
+> arm), so its effective depth is 1 at every `--depth`, while `uring` holds `depth` reads in
+> flight. Latency is depth divided by throughput, so comparing 16-in-flight against
+> 1-in-flight and reporting the ratio restates `depth`. `reader_ring` compounds it by taking
+> one completion timestamp per batch drain and charging it to every slot freed.
+>
+> The columns that do not carry depth, same cells, same rule:
+>
+> | hits, `uring` vs `hybrid_lazyring` | depth 1 | depth 4 | depth 16 |
+> | --- | ---: | ---: | ---: |
+> | 16 KiB `p50_ns` | +59.9 % RESOLVED | +345.6 % RESOLVED | +1571.5 % RESOLVED |
+> | 16 KiB `wall_ns` | **+71.3 % RESOLVED** | **+23.1 % tie** | **+12.2 % tie** |
+> | 16 KiB `cpu_ns_per_ask` | **+224.3 % RESOLVED** | **+12.4 % tie** | **+26.2 % tie** |
+> | 250 kB `wall_ns` | +35.2 % RESOLVED | +31.4 % RESOLVED | +29.6 % RESOLVED |
+> | 250 kB `cpu_ns_per_ask` | +55.9 % tie | +35.4 % RESOLVED | +37.9 % tie |
+>
+> **What survives.** At depth 1 there is no queue and every metric agrees: a hit through the
+> ring costs **+224 % CPU per ask**. At 250 kB the throughput cost holds near +30 % at every
+> depth. **"A hit must never touch a ring" stands, and so does the reason there is no tuning
+> toggle.** What is retracted is the magnitude — at 16 KiB above depth 1 the arms tie on both
+> throughput and CPU, and a path 4.5× or 16.7× slower could not tie on either.
+>
+> This is the house rule in `CLAUDE.md` — *quote latency or throughput, not both* — broken
+> across two arms with different effective depths rather than within one.
+> Reproduce: `lab/scripts/pair_arms.py --pairs uring:hybrid_lazyring --by depth --metric
+> cpu_ns_per_ask docs/disk-access/w1_16k_arms.tsv`.
+
+### Short io_uring completions, and why the eventfd cannot be made cheaper
+
+**The lab's ring arms were credited for bytes the kernel did not deliver.** `uring_access.rs`
+`drain` freed a slot on any `cqe.result() >= 0`, discarding the byte count, and `reader_ring`
+counted the ask complete. The product has always resubmitted the tail, and so does `pool`
+through `read_exact_at` — so on a short completion `hybrid_lazyring` and `uring` finished
+early while `product` paid a round trip they did not, and the effect grows with frame size.
+`drain` now compares bytes landed against bytes asked and resubmits the tail;
+`UringReader::short_reads()` counts how often that happens, and
+`a_short_completion_is_resubmitted_for_its_tail` pins the behaviour on a pipe delivering
+64 bytes in two halves. **Whether it ever fired on a regular file in the published cells is
+unmeasured** — that is the first thing the next campaign should report.
+
+**`IORING_REGISTER_EVENTFD_ASYNC` is unavailable to this design.** It signals the eventfd only
+for completions posted from an io-wq worker, which on a `COOP_TASKRUN` ring is none of them,
+so a reader parked on the eventfd is never woken. Applied to the product it hangs every
+escalated read — and the server's suite passed anyway, because every test there reads a
+page-cached file where the completion lands before anything awaits it. The park path had no
+coverage at all. `a_read_that_cannot_complete_inline_wakes_the_parked_reader` closes it:
+10 s timeout against `_async`, 0.05 s against `register_eventfd`. The eventfd's per-hit cost
+is therefore not tunable, and [`NEXT.md`](NEXT.md) item 7 — park on the ring fd — is the only
+way to remove it.
 
 ### Where this host saturates, and which cells are past it
 

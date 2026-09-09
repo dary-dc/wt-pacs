@@ -39,6 +39,8 @@ impl UringReader {
         }
         // SAFETY: `raw` is a fresh fd owned by nobody else.
         let owned = unsafe { OwnedFd::from_raw_fd(raw) };
+        // Not `_async`: it signals only from an io-wq worker, and a `COOP_TASKRUN` ring
+        // completes in the submitter's context, so the park would never wake.
         ring.submitter()
             .register_eventfd(owned.as_raw_fd())
             .context("register_eventfd")?;
@@ -180,6 +182,55 @@ mod tests {
             "the kernel's write did not land before the wait returned"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **The park path.** Every other test here reads a page-cached file, where the
+    /// completion lands before anything awaits it, so `park` is never entered — a reader
+    /// that could never be woken passed the whole suite. The read is from a pipe nobody has
+    /// written to yet, so it cannot complete inline.
+    #[test]
+    fn a_read_that_cannot_complete_inline_wakes_the_parked_reader() {
+        let mut fds = [0i32; 2];
+        // SAFETY: `pipe` fills two fds or fails.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe");
+        // SAFETY: fresh fds, owned here and nowhere else.
+        let (rd, wr) = unsafe {
+            (
+                std::fs::File::from_raw_fd(fds[0]),
+                std::fs::File::from_raw_fd(fds[1]),
+            )
+        };
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        rt.block_on(async move {
+            let Ok(mut reader) = UringReader::new(&rd, WINDOWS as u32) else {
+                eprintln!("skipped: io_uring is unavailable on this host");
+                return;
+            };
+            let mut buf = vec![0u8; 64];
+            // SAFETY: `buf` outlives `reader` and is untouched until reaped.
+            unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
+            assert!(reader.reap().expect("reap").is_empty(), "the pipe was not empty");
+            let writer = std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                (&wr).write_all(&[0x5A; 64]).expect("write");
+            });
+            tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                loop {
+                    reader.park().await.expect("park");
+                    if !reader.reap().expect("reap").is_empty() {
+                        break;
+                    }
+                }
+            })
+            .await
+            .expect("the parked reader was never woken");
+            writer.join().unwrap();
+            assert!(buf.iter().all(|&b| b == 0x5A), "the wake carried no bytes");
+        });
     }
 
     /// **The read-ahead invariant.** Two reads are submitted before either is awaited, and

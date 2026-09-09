@@ -84,7 +84,7 @@ a **tie**, which is a real answer.
 | Shipped reader vs the lab arm it implements (`product` vs `hybrid_lazyring`) | **tie** on p50, p99 and CPU at every depth and reader count, two hosts |
 | Shipped reader vs the pool it replaced, 16 KiB misses | **−45.4 % CPU per ask, RESOLVED** |
 | Ring-on-the-miss vs pool, misses, depth 1 / 4 / 16 | **−56 / −70 / −75 %**, RESOLVED |
-| Every-read-through-the-ring vs ring-on-the-miss | misses tie; **hits +106 % at depth 2, +298 % at depth 4** — why a hit must never touch a ring |
+| Every-read-through-the-ring vs ring-on-the-miss | misses tie; hits **+224.3 % CPU per ask at depth 1, RESOLVED** — why a hit must never touch a ring. The depth-scaled latency figures this row used to carry are retracted: [EVIDENCE](EVIDENCE.md) §Correction |
 | Warm, vs the 2026-08-31 always-touch path | **60.9 µs vs 152.3 µs per frame (2.5×)**; neighbours' p99 166 vs 702 µs |
 | A miss reading the rest of the frame vs the rest of the window, 100 % misses | **2.1× at one reader, 3.0–3.2× at 8–32** |
 | OS threads | ring readers **5** (sandbox) / 9 (workstation), flat to 256 in flight; pool 125–135 at 64 readers, capped at 512 by tokio |
@@ -155,7 +155,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | **Read ahead (W windows)** | B | **+73.8 % asks/s** on missing tiles at W = 2, warm a tie; 16 tiles 1.14 → 0.62 ms; W = 4 for tiles, fill stays 2 | four windows, 64 KiB tiles / two frames after a fill miss | one constant; the ring has no slot table | **Accepted** |
 | `spawn_blocking` + `pread` for the miss | B | identical on hits; on 16 KiB misses the shipped reader is −45.4 % CPU against it, and its tail widens with depth | **125–135 threads at 64 readers, 512 cap** (517 seen at 64 × 16); 0 fds | the simplest correct reader; zero `unsafe` beyond `preadv2` | **Kept as fallback**; ships if P0 ties |
 | Escalate only the rest of the window | B | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 | flat at ~1 600 f/s from 8 to 32 readers | — | Superseded 2026-09-07 |
-| Every read through the ring (`uring`) | B | hits **+106 % / +298 %** at depth 2 / 4; streams +143–190 % at 8–64 sessions; misses tie | 5 threads; lowest CPU per miss | one path, but a hit must never touch a ring | Rejected as default; kept as a lab flag |
+| Every read through the ring (`uring`) | B | hits **+224 % CPU at depth 1, RESOLVED**; above depth 1 a 16 KiB tie on CPU and throughput, ~+30 % throughput at 250 kB; streams +143–190 % at 8–64 sessions; misses tie | 5 threads; lowest CPU per miss | one path, but a hit must never touch a ring | Rejected as default; kept as a lab flag |
 | Ring pipelining (read *n+1* during write *n*) | T | ~6 % on a 100 %-miss trace, −25 % warm | 2× session memory | — | Rejected |
 | `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural: `COOP_TASKRUN` is refused alongside it |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |

@@ -120,7 +120,6 @@ async fn stream_codestream(
         let ready = ctx.read(store, span, pos, ahead.iter().copied()).await?;
         pos += ready.len() as u32;
         // A miss returns the rest of the frame; the write chunk is not that size.
-        // `docs/disk-access/READ-PATH-REVIEW.md` fault 1.
         for piece in write_chunks(ready) {
             uni.write_all(piece).await.context("write codestream")?;
         }
@@ -170,8 +169,8 @@ mod tests {
         assert_eq!(u32::from_be_bytes(head[4..].try_into().unwrap()), 1);
     }
 
-    /// **Fault 1.** A pooled miss returns the whole frame; writes must still be window-sized,
-    /// or the executor copies 250 KB without yielding. `docs/disk-access/READ-PATH-REVIEW.md`.
+    /// A pooled miss returns the whole frame; writes must still be window-sized, or the
+    /// executor copies 250 KB without yielding.
     #[test]
     fn a_pooled_frame_is_written_in_read_windows_not_in_one_copy() {
         let dir = std::env::temp_dir().join(format!("wtpacs-write-chunk-{}", std::process::id()));

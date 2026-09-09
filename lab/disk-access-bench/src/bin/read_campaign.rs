@@ -1,7 +1,7 @@
 //! Read-path campaign harness: arm × prefetch × depth × readers × temp × stride × size, one
 //! factor per axis. The controls that make a cell evidence rather than a hope — rotated arm
 //! order, asserted cold residency, a co-tenant monitor, and CPU and threads reported beside
-//! latency — are in `docs/disk-access/RERUN.md`.
+//! latency — are in `docs/disk-access/EVIDENCE.md` §The rule every number below obeys.
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -559,6 +559,7 @@ async fn reader_ring(
     plan: Plan,
     lat: Arc<Mutex<Vec<u64>>>,
     misses: Arc<AtomicU64>,
+    peak_in_flight: Arc<AtomicU64>,
 ) -> Result<()> {
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
@@ -666,6 +667,7 @@ async fn reader_ring(
             .complete_into(1, &mut freed)
             .await?;
         let done = Instant::now();
+        peak_in_flight.fetch_max(in_flight as u64, Ordering::Relaxed);
         for &slot in &freed {
             mine.push(done.duration_since(starts[slot]).as_nanos() as u64);
             busy[slot] = false;
@@ -856,7 +858,7 @@ fn run_cell(
                     } else if c.arm == Arm::TokioFs {
                         reader_tokio_fs(path, &c, plan, lat).await
                     } else if c.arm.uses_ring() {
-                        reader_ring(store, file, &c, plan, lat, misses).await
+                        reader_ring(store, file, &c, plan, lat, misses, pif).await
                     } else if c.arm == Arm::PoolRingLoop {
                         reader_ringloop(store, file, &c, plan, lat, misses).await
                     } else {
@@ -950,13 +952,23 @@ fn main() -> Result<()> {
         .collect();
     let temps: Vec<bool> = args.temps.split(',').map(|s| s.trim() == "warm").collect();
     let prefetches: Vec<bool> = args.prefetch.split(',').map(|s| s.trim() == "on").collect();
+    // `ReadCtx` has no `hint_willneed`, so an `on` cell would compare a prefetching pool
+    // against a product that silently ignored the axis.
+    if prefetches.contains(&true)
+        && arms
+            .iter()
+            .any(|a| matches!(a, Arm::Product | Arm::ProductAhead | Arm::ProductSessions))
+    {
+        anyhow::bail!("--prefetch on is not implemented for the product arms");
+    }
     let workers = std::thread::available_parallelism().map_or(4, |n| n.get());
 
     if !args.no_header {
         println!(
             "label\tarm\tprefetch\ttemp\tshape\tsize\tstride\tdepth\treaders\trepeat\tpos\t\
              asks\tp50_ns\tp90_ns\tp99_ns\tcpu_ns_per_ask\twall_ns\tasks_per_s\tthreads\t\
-             gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct\tpeak_named\tpeak_in_flight\trss_kib\trings_built"
+             gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct\tpeak_named\tpeak_in_flight\trss_kib\trings_built\t\
+             monitors"
         );
     }
     let trace = match &args.trace {
@@ -1035,7 +1047,7 @@ fn main() -> Result<()> {
                             let total = (asks * readers_n) as u64;
                             println!(
                                 "{}\t{}\t{}\t{}\t{shape}\t{}\t{}\t{depth}\t{readers_n}\t{repeat}\t{pos}\t\
-                                 {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}\t{}\t{}\t{}\t{}",
+                                 {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}\t{}\t{}\t{}\t{}\t{}",
                                 args.label,
                                 arm.as_str(),
                                 if prefetch { "on" } else { "off" },
@@ -1058,6 +1070,7 @@ fn main() -> Result<()> {
                                 o.peak_in_flight,
                                 o.rss_kib,
                                 o.rings_built,
+                                args.monitors,
                             );
                         }
                     }
