@@ -26,7 +26,7 @@
 use anyhow::{Context, Result};
 use bytes::{Bytes, BytesMut};
 use disk_access_bench::frame_cache::FrameCache;
-use exact_server::media::frame_store::{FrameSpan, FrameStore};
+use exact_server::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
 use quinn::{Endpoint, SendStream, ServerConfig, TransportConfig, VarInt};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
@@ -292,7 +292,7 @@ async fn main() -> Result<()> {
     let prefix = prefix_env();
     let shared_stream = shared_stream_env();
 
-    let window = store.read_window(store.frame_span(0)?.len);
+    let window = READ_WINDOW;
     // The ceiling arm holds every frame; the product-cache arm starts empty and fills
     // itself through `claim_fill`/`admit` exactly as the server does. Shared across
     // sessions, because a real server has one page cache and one frame cache, not N.

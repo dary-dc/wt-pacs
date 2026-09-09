@@ -7,6 +7,9 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use study_bundle::read_layout;
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 /// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
 pub const READ_WINDOW: usize = 64 * 1024;
 
@@ -26,6 +29,8 @@ pub struct FrameStore {
     /// Test-only ceiling on one `read_at_nowait`, for forcing a partial hit.
     #[cfg(test)]
     nowait_cap: Option<usize>,
+    #[cfg(test)]
+    pool_starts: AtomicUsize,
 }
 
 impl FrameStore {
@@ -41,6 +46,8 @@ impl FrameStore {
             metadata: layout.metadata,
             #[cfg(test)]
             nowait_cap: None,
+            #[cfg(test)]
+            pool_starts: AtomicUsize::new(0),
         })
     }
 
@@ -52,17 +59,6 @@ impl FrameStore {
 
     pub fn file(&self) -> &File {
         &self.file
-    }
-
-    /// The whole frame where `RWF_NOWAIT` is refused, so such a host pays one pooled read
-    /// per frame rather than one per window.
-    pub fn read_window(&self, frame_len: u32) -> usize {
-        let window = if self.nowait {
-            READ_WINDOW
-        } else {
-            frame_len as usize
-        };
-        window.min(frame_len as usize).max(1)
     }
 
     pub fn frame_count(&self) -> u32 {
@@ -146,6 +142,21 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn force_pool_reads(&mut self) {
         self.nowait = false;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn account_pool_start(&self) {
+        self.pool_starts.fetch_add(1, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pool_starts(&self) -> usize {
+        self.pool_starts.load(Ordering::SeqCst)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn reset_pool_starts(&self) {
+        self.pool_starts.store(0, Ordering::SeqCst);
     }
 }
 
@@ -262,34 +273,6 @@ mod tests {
         Ok(())
     }
 
-    /// Without `RWF_NOWAIT` the loop must ask for whole frames, paying one pool round trip
-    /// per frame instead of one per window.
-    #[test]
-    fn read_window_collapses_to_the_frame_without_nowait() -> Result<()> {
-        let body = vec![7u8; 200_000];
-        let path = scratch("frame-store-window");
-        write_bundle(&path, br#"{"frameCount":1}"#, &[body.as_slice()])?;
-        let mut store = FrameStore::open(&path)?;
-
-        store.nowait = true;
-        assert_eq!(store.read_window(200_000), READ_WINDOW);
-        assert_eq!(
-            store.read_window(1_000),
-            1_000,
-            "never over-read a short frame"
-        );
-
-        store.nowait = false;
-        assert_eq!(store.read_window(200_000), 200_000);
-        assert_eq!(
-            store.read_at_nowait(&mut [0u8; 16], 0)?,
-            0,
-            "no syscall, all miss"
-        );
-        let _ = std::fs::remove_file(path);
-        Ok(())
-    }
-
     /// The serving path is only correct if `read_at_blocking` can complete a short
     /// `read_at_nowait` at the offset it stopped at.
     #[test]
@@ -303,7 +286,7 @@ mod tests {
         let mut out = vec![0u8; span.len as usize];
         let mut pos = 0usize;
         while pos < out.len() {
-            let want = store.read_window(span.len).min(out.len() - pos);
+            let want = READ_WINDOW.min(out.len() - pos);
             let at = span.offset + pos as u64;
             let got = store.read_at_nowait(&mut out[pos..pos + want], at)?;
             assert!(got <= want, "nowait overran the window: {got} > {want}");
