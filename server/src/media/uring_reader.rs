@@ -24,10 +24,10 @@ pub struct UringReader {
 
 impl UringReader {
     /// Registers `file`, so a submission does not have to resolve it.
-    pub fn new(file: &File) -> Result<Self> {
+    pub fn new(file: &File, entries: u32) -> Result<Self> {
         let ring = IoUring::builder()
             .setup_coop_taskrun()
-            .build(8)
+            .build(entries)
             .context("io_uring setup")?;
         ring.submitter()
             .register_files(&[file.as_raw_fd()])
@@ -59,7 +59,8 @@ impl UringReader {
             .offset(offset)
             .build()
             .user_data(slot as u64);
-        unsafe { self.ring.submission().push(&entry) }.map_err(|_| anyhow::anyhow!("io_uring SQ full"))?;
+        unsafe { self.ring.submission().push(&entry) }
+            .map_err(|_| anyhow::anyhow!("io_uring SQ full"))?;
         self.ring.submit().context("io_uring submit")?;
         self.in_flight += 1;
         Ok(())
@@ -108,7 +109,12 @@ impl UringReader {
         }
         #[cfg(test)]
         DRAINED_ON_DROP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        if self.ring.submitter().submit_and_wait(self.in_flight).is_ok() {
+        if self
+            .ring
+            .submitter()
+            .submit_and_wait(self.in_flight)
+            .is_ok()
+        {
             self.ring.completion().sync();
             while self.ring.completion().next().is_some() {}
         }
@@ -125,6 +131,7 @@ impl Drop for UringReader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::media::read_path::WINDOWS;
     use std::io::Write;
 
     fn blob(dir: &std::path::Path, len: usize) -> (std::fs::File, Vec<u8>) {
@@ -152,7 +159,7 @@ mod tests {
             .expect("rt");
         let _guard = rt.enter();
 
-        let Ok(mut reader) = UringReader::new(&file) else {
+        let Ok(mut reader) = UringReader::new(&file, WINDOWS as u32) else {
             eprintln!("skipped: io_uring is unavailable on this host");
             std::fs::remove_dir_all(&dir).ok();
             return;
@@ -189,7 +196,7 @@ mod tests {
             .expect("rt");
         let _guard = rt.enter();
 
-        let Ok(mut reader) = UringReader::new(&file) else {
+        let Ok(mut reader) = UringReader::new(&file, WINDOWS as u32) else {
             eprintln!("skipped: io_uring is unavailable on this host");
             std::fs::remove_dir_all(&dir).ok();
             return;

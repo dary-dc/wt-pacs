@@ -12,7 +12,8 @@ on three documents and repeats none of them:
   after P0. Both stand as written there.
 * [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6d — the
   session loop. Option **B** there, an ask-reader task feeding a bounded channel, stands too.
-  Channel capacity is **`W − 1`**, not 1.
+  Channel capacity is **`ASKS_AHEAD`**, shared with `in_hand`; the read path takes at
+  most `WINDOWS − 1`.
 * [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) — the sequential reader is the same reader
   going forward, one frame ahead.
 
@@ -33,7 +34,7 @@ app modes, why fill needs a second task, the numbers per use case, and the order
 | --- | --- | --- |
 | Meaning | work the server has in hand beyond the frame being served | device reads outstanding at once |
 | Comes from | **On-demand:** `RequestFrames` — the rest of the list; `RequestFrame` — other asks already in the channel. **Fill:** `StreamFrames` — the server's own index, produced by the loop, not the channel | the read path: one window and one ring slot per read |
-| Cap | channel capacity `W − 1` (control messages only) | **W**, a parameter of the read path |
+| Cap | channel and `in_hand` share `ASKS_AHEAD` (control messages only) | **W**, a parameter of the read path |
 | Effective in flight | | `min(what is named or generated, W)` |
 
 The **channel holds control messages** — every FoD message the client sent that the loop has
@@ -59,7 +60,7 @@ cannot become 4.
 
 | Message | Status | What the read path is told is coming | Reads in flight |
 | --- | --- | --- | --- |
-| `RequestFrame { frame }` | **kept** | other asks already in the channel, up to `W − 1` | `min(pipelined, W)` |
+| `RequestFrame { frame }` | **kept** | other asks already in the channel, up to `ASKS_AHEAD` | `min(pipelined, W)` |
 | `RequestFrames { frames }` | kept | the rest of the list | `min(len, W)` |
 | `StreamFrames { from?, to? }` | **new** | the server's index from `from` through `to` | **2**, by construction |
 | `EndStream` | **new** | ends the current fill at the next frame boundary | |
@@ -123,10 +124,10 @@ to batch (`RequestFrames`) is the on-demand path we already have; it is not fill
 
 ## 4 · The loop, the seam, the reader
 
-**The loop** is §6d option B. Channel capacity is `W − 1`.
+**The loop** is §6d option B. Channel and `in_hand` share `ASKS_AHEAD`; the read path takes at most `WINDOWS − 1`.
 
 ```
-reader task:  control stream ──▶ channel(W − 1)     // FoD messages only
+reader task:  control stream ──▶ channel(ASKS_AHEAD)     // FoD messages only
 loop:
     current = recv()
     if current is StreamFrames:
@@ -149,7 +150,7 @@ pub fn frame(&mut self, store: &Arc<FrameStore>, span: FrameSpan, upcoming: impl
 
 The order inside is the one that was measured: adopt or start the current frame, then start
 what fits, then wait. `upcoming` is an iterator so a fill can say "through `to`" without
-building a `Vec`. The read path takes at most `W − 1` from it.
+building a `Vec`. The read path takes at most `WINDOWS − 1` from it.
 
 **The reader** is the shipped mechanism. `RWF_NOWAIT` inline for a hit, the ring built on the
 first miss for the rest of the frame, the pool as fallback. Change B reshapes its ownership
@@ -1031,7 +1032,7 @@ cuts open:
 
 | test | claim |
 | --- | --- |
-| `w_named_frames_put_w_reads_in_flight` | on a `force_pool_reads` store, naming W − 1 upcoming frames starts W − 1 reads before the first is waited on: count blocking reads started against reads finished |
+| `w_named_frames_start_before_the_current_read_finishes` | on a gated one-thread blocking pool, naming W − 1 upcoming frames starts W pooled reads before the current one can finish |
 | `a_hit_never_touches_the_ring` | a warm frame at `ReadMode::Auto` leaves `ring_built()` false and `stats.misses` at 0 — the trap in `IMPLEMENTATION.md`, pinned |
 
 Mutate each once, per `CLAUDE.md`.
@@ -1132,7 +1133,7 @@ when `frames == 0`, `from > to`, or `to ≥ frames`.
 | a hit is one window; a miss is one read for the rest of the frame | `a_frame_that_misses_costs_one_round_trip_not_one_per_window` — unchanged |
 | where nowait is refused, a frame is one pooled read | `read_window_collapses_to_the_frame_without_nowait` **moves** from `frame_store.rs` to `read_path.rs`, same claim on a `force_pool_reads` store |
 | a hit never touches the ring; the ring is built once, on the first miss | `lazy_ring_is_not_built_when_every_read_hits`, `lazy_ring_is_never_built_without_nowait` — unchanged; **add** `a_hit_never_touches_the_ring` (§12) |
-| naming W − 1 frames puts W − 1 reads in flight | **add** `w_named_frames_put_w_reads_in_flight` (§12) |
+| naming W − 1 frames puts W − 1 reads in flight | **add** `w_named_frames_start_before_the_current_read_finishes` (§12, §15.6) |
 | reuse waits: a window with a read in flight is never grown, read or overwritten | `a_read_ahead_nobody_asked_for_is_waited_for_before_its_window_is_reused` (harness rewritten) |
 | drop drains the ring before the windows go | `dropping_a_reader_mid_read_waits_for_the_kernel` — unchanged, `DRAINED_ON_DROP` stays |
 | two ring reads land in their own windows, short reads resubmitted | `two_reads_in_flight_land_in_their_own_slots` (rewritten against `submit` / `reap`) |
@@ -1222,7 +1223,7 @@ it.
 | **Interleave, against a worktree build** | sequential before/after read +8.1 % on a tie (`x13`) | every A/B, §12's script | [`HANDOFF.md`](HANDOFF.md) §6 |
 | **The 250 KB miss cell** | the same arm varies 12.5× between repeats, and at 8 MiB of read-ahead the "cold" cell reached 4.7 % misses — a hit cell wearing a cold label; isolating 250 KB misses needs ≥ 8 MiB between asks, a ~2 GB fixture | before any 250 KB conclusion | [`NEXT.md`](NEXT.md) §7 |
 | **The bench copies `stream_codestream`'s loop** | four lines, measured instead of the product's; they can drift | when the loop changes (commit 2), re-check the copy | [`NEXT.md`](NEXT.md) §7 |
-| **The upcoming-naming line is not observable on the wire** | the read path's use of `upcoming` is tested from both ends; the loop's naming of it is one line the wire tests cannot see | `w_named_frames_put_w_reads_in_flight` covers the read path; the loop's line is covered by the harness depth measurement in commit 2 | §12, §13.4 |
+| **The upcoming-naming line is not observable on the wire** | the read path's use of `upcoming` is tested from both ends; the loop's naming of it is one line the wire tests cannot see | `w_named_frames_start_before_the_current_read_finishes` covers the read path; the loop's line is covered by `server_ab.sh` depth cells | §12, §13.4, §15.4 |
 | **Say where the host saturates** | ~64 reads in flight on the workstation, ~840 MB/s; the sandbox on CPU; past it every arm ties by construction | every claim quotes its plateau | [`NEXT.md`](NEXT.md) §6 |
 | **Quote latency or throughput, not both** | one is the other divided by depth | every table | `CLAUDE.md` |
 

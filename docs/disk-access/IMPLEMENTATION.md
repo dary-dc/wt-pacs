@@ -437,7 +437,7 @@ pollable (proposal P1 there, measured as `x14`).
 
 `ReadCtx` holds `WINDOWS` buffers and the ring tracks `in_flight: usize`. Naming W − 1
 upcoming frames starts W reads before the first is waited on —
-`w_named_frames_put_w_reads_in_flight`. Concurrent `serve`s inside one session are still not
+`w_named_frames_start_before_the_current_read_finishes`. Concurrent `serve`s inside one session are still not
 a thing: one `serve` at a time, W reads underneath it.
 
 ### …and the depth argument for `uring` is about the tail, not the median
