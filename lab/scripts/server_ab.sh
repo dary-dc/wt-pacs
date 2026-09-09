@@ -125,11 +125,11 @@ read_fast_path_after=$(banner_val "$after_log" read_fast_path)
 
 printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\n' > "$OUT"
 
-# Tracing may ANSI-color keys. A field is digits after "key=" with optional CSI between.
+# CSI-stripped `key=number`; `[^0-9]*` after the key would read the 0 in `[0m`.
 field_from_log() {
   local key="$1" log="$2" off="$3"
-  tail -c +"$((off + 1))" "$log" | grep -oE "${key}[^0-9]*[0-9.eE+-]+" | tail -1 |
-    grep -oE '[0-9.eE+-]+$' || true
+  tail -c +"$((off + 1))" "$log" | sed $'s/\x1b\\[[0-9;]*[A-Za-z]//g' |
+    grep -oE "${key}=[0-9.eE+-]+" | tail -1 | grep -oE '[0-9.eE+-]+$' || true
 }
 
 drive() {
