@@ -30,8 +30,8 @@ the path-sampler concurrency test), 7 harness. Clippy on the server is the one w
 three. Lab scripts build with the feature already. See
 [`branch-source-audit.md`](branch-source-audit.md).
 
-**The port onto `main`'s `pipeline.rs` is on [`cursor/port-onto-main-d27c`](https://github.com/dary-dc/wt-pacs/pull/20)**
-— plan in [`merge-with-main-analysis.md`](merge-with-main-analysis.md). `locate`/`send`
+**The port onto `main`'s `pipeline.rs` is on this branch** — [#20](https://github.com/dary-dc/wt-pacs/pull/20)
+merged here 2026-09-09. This branch is **0 behind `main`** and **146 ahead**. `locate`/`send`
 carry `Bytes`; the write paths call the assemblers; `--max-idle-timeout-ms` is applied on
 the wtransport builder. The stall campaign (~200 kB/connection on `chunked`) is still the
 copy gate and has not been re-run on the merged tree.
@@ -60,11 +60,11 @@ invocations in prose cannot be audited by grepping its code (§5, trap 6).
 
 | | |
 | --- | --- |
-| Branch | `cursor/l1-loss-run-dbae` (lineage); port is `cursor/port-onto-main-d27c` |
-| Relation to `main` | **port in progress** — see §4.0 and the warning below |
-| Contains | the L1 loss-run lane **plus** the R6 stream-shape lane, merged and reconciled, plus `main`'s pipeline extraction |
-| Build | On the port branch: 8 server tests, 36 with `--features telemetry`, 7 harness — in every combination of `lab` and `telemetry`. Server clippy: `main`'s `wire.rs` warning |
-| PR | Lineage [**#5**](https://github.com/dary-dc/wt-pacs/pull/5) (draft). Port [**#20**](https://github.com/dary-dc/wt-pacs/pull/20) (draft, into #5's branch). #12 was an earlier segment of the same lineage and has been closed as absorbed |
+| Branch | `cursor/l1-loss-run-dbae` |
+| Relation to `main` | **contains `main`** (0 behind, 146 ahead) — port landed via #20, see §4.0 |
+| Contains | the L1 / R6 lineage **plus** `main`'s pipeline extraction and this branch's send paths on that seam |
+| Build | 8 server tests, 36 with `--features telemetry`, 7 harness — in every combination of `lab` and `telemetry`. Server clippy: `main`'s `wire.rs` warning |
+| PR | [**#5**](https://github.com/dary-dc/wt-pacs/pull/5) (draft, into `main`). #20 (port) and #17 (docs) are merged into this branch. #12 was an earlier segment of the same lineage and has been closed as absorbed |
 
 > **Corrected 2026-09-07.** This table used to claim `main` was a direct ancestor and that
 > `git rev-list origin/main --not HEAD` printed nothing. **That is no longer true.** The
@@ -208,9 +208,10 @@ Three other things came back, and two of them change how future runs must be don
 
 ## 4 · Next, in priority order
 
-### 4.0 · Port onto `main`'s `pipeline.rs` — **landed on PR #20, 2026-09-09**
+### 4.0 · Port onto `main`'s `pipeline.rs` — **on this branch (via #20, 2026-09-09)**
 
-Applied on `cursor/port-onto-main-d27c`. The plan and the three silent regressions are in
+[#20](https://github.com/dary-dc/wt-pacs/pull/20) fast-forwarded into `cursor/l1-loss-run-dbae`.
+The plan and the three silent regressions are in
 [`merge-with-main-analysis.md`](merge-with-main-analysis.md). What actually landed:
 
 1. **`main`'s structure, this branch's behaviour.** `serve_one` is still
@@ -225,8 +226,8 @@ Applied on `cursor/port-onto-main-d27c`. The plan and the three silent regressio
 
 **Still owed:** `lab/scripts/stall_client_campaign.sh` on the merged tree (~200 kB/connection
 on `chunked`; megabytes means the copy is back). The unit tests cannot see that failure.
-`frame_bytes_is_a_view_of_the_mapping` is the cheap fast-fail beside it. Do not merge #20
-or #5 onto `main` until that campaign has been run, or the user accepts the unit-test gate
+`frame_bytes_is_a_view_of_the_mapping` is the cheap fast-fail beside it. Do not merge #5
+onto `main` until that campaign has been run, or the user accepts the unit-test gate
 alone.
 
 ### 4.1 · Deploy the loss-regime sampler — highest value, smallest change

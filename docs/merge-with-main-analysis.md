@@ -1,7 +1,8 @@
 # Merging this branch with `main` — what actually collides, and what to do
 
 **2026-09-07, updated 2026-09-08, port applied 2026-09-09** on
-`cursor/port-onto-main-d27c` (PR #20). The analysis below is what the port followed.
+`cursor/port-onto-main-d27c` (PR #20), **merged into this branch the same day**.
+The analysis below is what the port followed. This branch is now 0 behind `main`.
 
 **What landed.** `origin/main` (`07a070f`) merged in. `locate`/`send` carry `Bytes`.
 `TransportKnobs` is gone; `TransportTuning` is the one knob struct. CLI keeps `main`'s
