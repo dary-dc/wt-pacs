@@ -7,7 +7,7 @@ above one reader — [`IMPLEMENTATION.md`](IMPLEMENTATION.md), *Before rollout*.
 | Doc | What |
 | --- | --- |
 | [`adr.md`](adr.md) | **The decision, as one current document (2026-09-08) — present this.** What ships and why, what shaped it, the numbers safe to quote and the claims retracted, how it evolved, every alternative measured, where it silently does not apply |
-| [`EVIDENCE.md`](EVIDENCE.md) | **Every number the decision rests on**, in one file: candidates, hosts, risks, what was rejected and why |
+| [`EVIDENCE.md`](EVIDENCE.md) | **Every number the decision rests on**, in one file: candidates, hosts, risks, what was rejected and why. Includes the **2026-09-09 re-measurement against the code that ships** — every arm and every mmap variant, at 16 KiB *and* 250 kB, with p50 · p90 · p99, CPU per ask, the co-tenant `gap max` and bytes copied |
 | [`RERUN-miss.md`](RERUN-miss.md) | **How much a miss reads**, measured on a fixture where a miss is a real device read. Independent of who submits it, and the reason `stream_codestream` now escalates. Also why the 80 MB fixture cannot see any of this |
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | **How it works, and what is left.** The lazy ring, the container trap, why there is no tuning toggle, what came out different from the measured arm, and the one thing still unmeasured before rollout |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Read before shipping.** The fast path does not exist on overlayfs, i.e. inside a container, and the server degrades silently. `check-fastpath` answers it in one command |
@@ -34,6 +34,7 @@ whole campaign as a result.
 
 ```bash
 NAME=frames_16k_big BYTES=16384 FRAMES=5120 ./lab/scripts/gen_live_cell_fixture.sh
+NAME=frames_250k_big BYTES=250000 FRAMES=2048 ./lab/scripts/gen_live_cell_fixture.sh
 BYTES=250000 FRAMES=32000 NAME=frames_250k_deep ./lab/scripts/gen_live_cell_fixture.sh
 cargo build -p disk-access-bench -p check-fastpath --release
 ./target/release/read_campaign --help

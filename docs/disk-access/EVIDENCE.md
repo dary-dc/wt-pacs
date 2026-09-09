@@ -114,6 +114,106 @@ The reader-scale evidence (`v25_r5`, to 128 readers) does not include it — tho
 `hybrid` and `uring` both flat at **5 OS threads** where `pool` reaches **381**, so thread
 growth separates ring-from-`pool`, not the two ring arms.
 
+## The candidates, re-measured on the code that ships · 2026-09-09
+
+The table above was taken before the read path was reshaped (`WINDOWS`, the planner, the thin
+ring — [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13) and its verdicts were inherited, not
+re-checked. They were re-checked on 2026-09-09, at **two frame sizes**, through
+`read_campaign`'s **`product` arm — the shipped `ReadCtx` itself, not a model of it**.
+Raw: [`x18_sizes.tsv`](x18_sizes.tsv), [`x18_mmap.tsv`](x18_mmap.tsv),
+[`x17_arms.tsv`](x17_arms.tsv), [`x17_depth.tsv`](x17_depth.tsv), [`x17_host.txt`](x17_host.txt).
+Method and the paired verdicts: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §20.
+
+**Two harnesses, and they do not share a scale.** `read_campaign` times a read;
+`disk-access-bench` times a read **plus a quinn-shaped copy into a write buffer** — its
+`copied/ask` column. The same mechanism reads 1.6 µs in one and 3.6 µs in the other.
+**Compare arms within a block, never across the rule.** `pread_nowait_chunked` is the bridge:
+the 2026-09-07 shape of what `product` is now.
+
+Depth 4, median of 8 (`read_campaign`) or 7 (`disk-access-bench`) repeats, 4 vCPU sandbox.
+Latency is **p50 · p90 · p99** per ask; the lower block reports a mean where the upper reports
+p90. `gap max` is the longest a co-tenant task waited — the column mmap is rejected on.
+
+#### 16 KiB frames
+
+| arm | warm p50 · p90 · p99 | warm CPU/ask | warm gap max | cold p50 · p90 · p99 | cold CPU/ask | cold gap max | copied/ask | cold miss |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **`product`** | **1.6 · 1.9 · 5.7 µs** | 2.0 µs | 224 µs | **125 · 171 · 233 µs** | 69 µs | 261 µs | — | 99.4 % |
+| `hybrid_lazyring` | 1.5 · 1.7 · 2.3 µs | 1.5 µs | 518 µs | 117 · 166 · 250 µs | 48 µs | 1 590 µs | — | 99.2 % |
+| `pool` | 1.6 · 1.8 · 3.2 µs | 1.7 µs | 170 µs | 141 · 228 · **473 µs** | 94 µs | 512 µs | — | 98.8 % |
+| `uring` | **20.4** · 23.6 · 49.2 µs | 2.8 µs | 1 552 µs | 133 · 174 · 229 µs | **39 µs** | 212 µs | — | 100 % |
+| `pooled_pread` | **22.4** · 98.7 · **276 µs** | 32 µs | 360 µs | 146 · 237 · 461 µs | 93 µs | 285 µs | — | 100 % |
+| *— the copying harness —* | | | | | | | | |
+| `pread_nowait_chunked` | 3.6 · 4.4 · 26.3 µs | 9.9 µs | 80 µs | 20.0 · 48.8 · 191 µs | 66 µs | 771 µs | 16 KiB | — |
+| `uring_nowait_whole` | 3.3 · 4.2 · 24.9 µs | 9.2 µs | 130 µs | 16.5 · 49.6 · 197 µs | 78 µs | 547 µs | 16 KiB | — |
+| `mmap_naive` | **1.9** · 2.4 · 21.3 µs | **5.4 µs** | 76 µs | **2.2** · 10.7 · 27.6 µs | **11 µs** | **4 158 µs** | **0** | — |
+| `mmap_hybrid_mincore` | 2.7 · 3.5 · 23.1 µs | 7.7 µs | 80 µs | 3.0 · 12.5 · 29.6 µs | 22 µs | 118 µs | **0** | — |
+| `mmap_touch_in_place` | 19.2 · 44.7 · 182 µs | 71 µs | 829 µs | 19.3 · 53.2 · **1 067 µs** | 84 µs | 530 µs | **0** | — |
+| `mmap_populate_read` | 37.8 · 40.5 · 78.4 µs | 57 µs | 137 µs | 42.8 · 49.3 · 94.2 µs | 70 µs | 202 µs | **0** | — |
+| `mmap_blocking_touch` | 34.1 · 40.0 · 81.0 µs | 54 µs | 128 µs | 35.6 · 47.5 · 84.2 µs | 67 µs | 140 µs | **0** | — |
+| `pread_blocking_pooled` | 32.8 · 37.4 · 80.8 µs | 54 µs | 132 µs | 48.5 · 78.1 · 234 µs | 122 µs | 235 µs | 16 KiB | — |
+
+#### 250 kB frames
+
+| arm | warm p50 · p90 · p99 | warm CPU/ask | warm gap max | cold p50 · p90 · p99 | cold CPU/ask | cold gap max | copied/ask | cold miss |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **`product`** | **39.6 · 49.3 · 90.0 µs** | 39 µs | 2 329 µs | 623 · 745 · 877 µs | 261 µs | 300 µs | — | 99.5 % |
+| `hybrid_lazyring` | 41.7 · 50.2 · 92.4 µs | 42 µs | 8 819 µs | 611 · 732 · 901 µs | 270 µs | 6 133 µs | — | 99.5 % |
+| `pool` | 38.9 · 46.9 · 77.8 µs | 35 µs | 2 387 µs | **514 · 616 · 776 µs** | **238 µs** | 398 µs | — | 99.5 % |
+| `uring` | **262 · 290 · 335 µs** | 68 µs | 13 726 µs | 693 · 807 · **1 407 µs** | 258 µs | 1 330 µs | — | 100 % |
+| `pooled_pread` | 82.4 · 210 · 467 µs | 95 µs | 381 µs | 563 · 700 · 1 007 µs | 268 µs | 285 µs | — | 100 % |
+| *— the copying harness —* | | | | | | | | |
+| `pread_nowait_chunked` | 52.5 · 58.7 · 115 µs | 128 µs | 173 µs | 72.1 · 199 · **1 036 µs** | 315 µs | 516 µs | 244 KiB | — |
+| `uring_nowait_whole` | 50.6 · 57.3 · 115 µs | 128 µs | 318 µs | 262 · 252 · 989 µs | 415 µs | 622 µs | 244 KiB | — |
+| `mmap_naive` | **33.0** · 38.3 · 87.1 µs | **85 µs** | **92 µs** | **45.3** · 155 · **3 276 µs** | 262 µs | **3 991 µs** | **0** | — |
+| `mmap_hybrid_mincore` | 35.1 · 42.5 · 94.8 µs | 96 µs | 94 µs | 50.1 · 169 · **3 364 µs** | 291 µs | 436 µs | **0** | — |
+| `mmap_touch_in_place` | 54.7 · 62.5 · 158 µs | 138 µs | 612 µs | 99.2 · 239 · **3 654 µs** | 388 µs | 724 µs | **0** | — |
+| `mmap_populate_read` | 137 · 142 · 288 µs | 207 µs | 129 µs | 155 · 270 · **3 668 µs** | 397 µs | 1 269 µs | **0** | — |
+| `mmap_blocking_touch` | 130 · 137 · 271 µs | 193 µs | 134 µs | 160 · 277 · **3 914 µs** | 413 µs | 246 µs | **0** | — |
+| `pread_blocking_pooled` | 163 · 169 · 320 µs | 284 µs | 133 µs | 289 · 312 · 1 107 µs | 509 µs | 571 µs | 244 KiB | — |
+
+### What the second frame size settled
+
+**`uring`'s penalty is a hit penalty, and it scales with the frame.** 20.4 µs against
+`product`'s 1.6 at 16 KiB; **262 against 39.6 at 250 kB** — 6.6× either way, but 222 µs of
+absolute latency per frame at the size a viewer pulls, and a **13.7 ms warm `gap max`**.
+
+**mmap does not copy, and it shows — in CPU, not in latency.** Within the copying harness,
+`mmap_naive` against `pread_nowait_chunked`: **5.4 µs against 9.9** warm at 16 KiB, **85
+against 128** at 250 kB. A third to a half less CPU per ask, exactly the 16 KiB / 244 KiB the
+`copied/ask` column says it never moves.
+
+**And then the tail, which 250 kB frames make worse.** Every mmap arm sits at
+**p99 3 276–3 914 µs** at 250 kB cold against `pread_nowait_chunked`'s 1 036, and
+`mmap_naive` holds a worker for **3 991 µs** — whichever *other* session shares it waits 4 ms.
+At 16 KiB the freeze was there too (4 158 µs) but hid behind a p99 of 27.6 µs; at 250 kB the
+tail is bad **and** the median it hid behind is gone. This is [`adr.md`](adr.md) §5's
+*"faults freeze co-tenants: 1.5–4.2 ms"*, reproduced on the current tree.
+
+**No mmap arm is both quick and safe.** `populate_read` and `blocking_touch` move the fault to
+the pool and land at 130–160 µs against 52.5–72.1 — 2–3× slower at 1.5–2× the CPU. The whole
+saving, paid back.
+
+**The ring's worth is size-dependent, not only depth-dependent.** At 250 kB cold, `pool` beats
+`product` at both depths — **514 µs against 623, at less CPU (238 against 261)**. At 16 KiB the
+ring was ahead from depth 4 and resolved at 16 (−29.8 %, 10/10). This is the *"Frames past
+250 KB"* row below, arriving early: **the ring's per-round-trip saving does get less
+significant as the frame grows, and by 250 kB it is already negative on this host.** P0 must
+run both frame sizes, not only both depths.
+
+> **The lower block's cold cells are only partly cold, and the arms differ in how.**
+> `disk-access-bench` reports no residency or miss control — `read_campaign` has `miss_pct`
+> and `resident_pct`, which is how the upper block can say 99.5 %. Cold p50 ÷ warm p50 is
+> **5.3× for `pread_nowait_chunked` at 16 KiB but 1.1× for `mmap_naive`**: mmap's fault-around
+> pulls in neighbours a 64 KiB `pread` window does not, so on a walk it converts misses to
+> hits more aggressively. That is a real advantage — and it is also why its cold median
+> flatters it. **It is not doing the same I/O faster, it is doing less of it.** The asks that
+> do reach the device are the 3–4 ms p99 above.
+
+Cold thresholds on that host (`read_ahead_kb` 8192), because a contiguous stride is a hit cell
+wearing a cold label at both sizes: 16 KiB asks miss 1.6 % at a 16 kB stride and 100 % at
+262 kB; 250 kB asks miss 2.3 % at a 250 kB stride, 97.7 % at 500 kB and 99.2 % at 2 MB.
+
 ## Where the margin comes from
 
 `pool` and `hybrid` differ in two things at once — the reader loop and the miss mechanism —
@@ -241,6 +341,8 @@ first.
 | Handing quinn owned buffers (`BytesMut`) | Measured **−3.2%, 9 of 12 same sign** — below drift, not landed. The copy is real and provable in quinn's source; it is not worth removing |
 | A read-path config toggle | `hybrid_lazyring` already chooses per session at runtime; a static flag can only be wrong |
 | `SQPOLL` | 2.8× the CPU and +30 to +86% warm latency: `COOP_TASKRUN` is refused alongside it, so all 320 completions park instead of none, and a kernel poller thread spins **per session ring**. Evaluated and discarded in full, including the one cold-tail result that did not fit the headline: [`RERUN.md`](RERUN.md) §SQPOLL |
+| mmap, any variant | Faster on p50 and cheaper on CPU — and its **p99 is 3 276–3 914 µs at 250 kB cold against 1 036**, with a co-tenant `gap max` of 3 991 µs. The variants that make the fault safe (`populate_read`, `blocking_touch`) are 2–3× slower at 1.5–2× the CPU. Re-measured 2026-09-09 |
+| mmap + `mincore` gate | Residency is not a lease: a page `mincore` calls resident can be evicted before the touch. Unsafe under pressure 5/5 runs — structural, and the 2026-09-09 run does not test it |
 | `sendfile` / splice | Userspace QUIC copies regardless |
 
 ## What is worth more than any of this
@@ -255,8 +357,10 @@ Named so they are not mistaken for measured, and so a future run knows where to 
 - **Storage faster than ~1.25 GB/s.** Every miss-regime conclusion here is device-bound. On
   NVMe at several GB/s, thread scheduling could become the limit instead, and io_uring's
   5 threads against 381 would start converting into something.
-- **Frames past 250 KB.** Native DBT is 3 MB, and the two mechanisms point opposite ways
-  there: windowing gets worse, the ring's per-round-trip saving gets less significant.
+- ~~**Frames past 250 KB.**~~ **250 kB measured 2026-09-09** and it went the way this row
+  predicted: at 250 kB cold the `pool` beats the ring at both depths (514 µs against 623, at
+  less CPU), where at 16 KiB the ring was ahead from depth 4. Still open **past** 250 kB —
+  native DBT is 3 MB, and windowing gets worse from here.
 - **`hybrid_lazyring` above one reader** — see IMPLEMENTATION.md, *Before rollout*.
 - **`hybrid_lazyring` on the 4 vCPU sandbox or the GitHub runner.**
 - **Serving depth on any host but the sandbox above.** The depth-2 table is one host, and it
