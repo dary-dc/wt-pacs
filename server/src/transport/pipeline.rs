@@ -18,12 +18,12 @@ use crate::record::LocateOutcome;
 #[cfg(feature = "telemetry")]
 use frame_envelope::ENVELOPE_LEN;
 
-/// Implementors override **steps**, never [`serve_one`](Self::serve_one).
+/// Implementors override **steps**, never [`serve`](Self::serve).
 pub(crate) trait FramePipeline: Send {
     fn store(&self) -> &Arc<FrameStore>;
 
-    /// `next` is the frame this session will be asked for after `frame`, where it is known.
-    async fn serve_one(&mut self, frame: u32, next: Option<u32>) -> Result<()> {
+    /// `upcoming` are the frames this session will be asked for after `frame`, where known.
+    async fn serve(&mut self, frame: u32, upcoming: &[u32]) -> Result<()> {
         self.prepare(frame);
 
         let store = Arc::clone(self.store());
@@ -31,29 +31,14 @@ pub(crate) trait FramePipeline: Send {
             Ok(span) => span,
             Err(err) => return self.refuse(frame, err).await,
         };
-        // Not `locate`: that step is stamped, and a bad look-ahead is not this frame's
-        // failure — it is refused when the session asks for it.
-        let next = next.and_then(|frame| store.frame_span(frame).ok());
+        let ahead: Vec<FrameSpan> = upcoming
+            .iter()
+            .filter_map(|&frame| store.frame_span(frame).ok())
+            .collect();
 
-        // Send failure: wire/session broken — do not refuse on control.
-        self.send(frame, &store, span, next).await?;
+        self.send(frame, &store, span, &ahead).await?;
         Ok(())
     }
-
-    /// Every frame before the next control read, in ask order, each knowing the next — so
-    /// its read starts while this one is still in flight.
-    async fn serve_batch(&mut self, frames: &[u32]) -> Result<()> {
-        let size = frames.len() as u32;
-        for (position, &frame) in frames.iter().enumerate() {
-            self.note_batch(position as u32, size);
-            self.serve_one(frame, frames.get(position + 1).copied())
-                .await?;
-        }
-        Ok(())
-    }
-
-    /// Product ignores it; the lab stamps it.
-    fn note_batch(&mut self, _position: u32, _size: u32) {}
 
     /// The frame begins. The product does nothing here; the lab starts its clock.
     fn prepare(&mut self, _frame: u32) {}
@@ -67,7 +52,7 @@ pub(crate) trait FramePipeline: Send {
         frame: u32,
         store: &Arc<FrameStore>,
         span: FrameSpan,
-        next: Option<FrameSpan>,
+        ahead: &[FrameSpan],
     ) -> Result<()>;
 
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()>;
@@ -117,10 +102,10 @@ impl FramePipeline for ProductPipeline {
         frame: u32,
         store: &Arc<FrameStore>,
         span: FrameSpan,
-        next: Option<FrameSpan>,
+        ahead: &[FrameSpan],
     ) -> Result<()> {
         self.out
-            .send_frame(frame, store, span, next, &mut self.read)
+            .send_frame(frame, store, span, ahead, &mut self.read)
             .await
     }
 
@@ -188,11 +173,6 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         self.inner.store()
     }
 
-    fn note_batch(&mut self, position: u32, size: u32) {
-        self.tap.note_batch(position, size);
-        self.inner.note_batch(position, size);
-    }
-
     fn prepare(&mut self, frame: u32) {
         self.tap.begin_frame(frame);
         self.inner.prepare(frame);
@@ -212,12 +192,12 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         frame: u32,
         store: &Arc<FrameStore>,
         span: FrameSpan,
-        next: Option<FrameSpan>,
+        ahead: &[FrameSpan],
     ) -> Result<()> {
         // `send_us` covers read and write together, plus the next frame's read starting.
         self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + span.len as usize;
-        match self.inner.send(frame, store, span, next).await {
+        match self.inner.send(frame, store, span, ahead).await {
             Ok(()) => {
                 self.tap.emit_sent(envelope_len);
                 Ok(())

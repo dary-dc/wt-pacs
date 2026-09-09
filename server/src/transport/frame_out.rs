@@ -49,21 +49,21 @@ impl FrameOut {
         }
     }
 
-    /// `ctx` is the caller's, so a session allocates its windows once; `next`, where the
-    /// caller knows it, lets that frame's read start early.
+    /// `ctx` is the caller's, so a session allocates its windows once; `ahead`, where the
+    /// caller knows it, lets those frames' reads start early.
     pub(crate) async fn send_frame(
         &mut self,
         idx: u32,
         store: &Arc<FrameStore>,
         span: FrameSpan,
-        next: Option<FrameSpan>,
+        ahead: &[FrameSpan],
         ctx: &mut ReadCtx,
     ) -> Result<()> {
         let head = frame_head(idx, span.len);
         match self {
             Self::Shared { uni, .. } => {
                 uni.write_all(&head).await.context("write shared head")?;
-                stream_codestream(uni, store, span, next, ctx).await?;
+                stream_codestream(uni, store, span, ahead, ctx).await?;
             }
             Self::PerFrame { connection, acks } => {
                 let mut uni = connection
@@ -73,7 +73,7 @@ impl FrameOut {
                     .await
                     .context("open uni ready")?;
                 uni.write_all(&head).await.context("write head")?;
-                stream_codestream(&mut uni, store, span, next, ctx).await?;
+                stream_codestream(&mut uni, store, span, ahead, ctx).await?;
 
                 acks.spawn(async move {
                     let _ = uni.finish().await;
@@ -112,12 +112,12 @@ async fn stream_codestream(
     uni: &mut SendStream,
     store: &Arc<FrameStore>,
     span: FrameSpan,
-    next: Option<FrameSpan>,
+    ahead: &[FrameSpan],
     ctx: &mut ReadCtx,
 ) -> Result<()> {
     let mut pos = 0u32;
     while pos < span.len {
-        let ready = ctx.read(store, span, pos, next).await?;
+        let ready = ctx.read(store, span, pos, ahead.iter().copied()).await?;
         pos += ready.len() as u32;
         // A miss returns the rest of the frame; the write chunk is not that size.
         // `docs/disk-access/READ-PATH-REVIEW.md` fault 1.
