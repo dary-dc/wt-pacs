@@ -17,7 +17,7 @@ struck through in place rather than removed, so the order is still readable as t
 
 | # | Item | Measured worth | What kind of change | Detail |
 | --- | --- | --- | --- | --- |
-| 1 | ~~**Serving depth ≥ 4**~~ **Built 2026-09-09, unmeasured** — W = 4 for tiles, fill names one ahead; the product A/B is [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §15 | +73.8 % asks/s on missing tiles at W = 2; `v35` prices 2 → 4 at +37 % on this host | four commits in [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13; unmeasured on the default link (§9.4) | §1 |
+| 1 | ~~**Serving depth ≥ 4**~~ **Done 2026-09-09** — W = 4 for tiles, fill names one ahead; measured against `580e312` on the product server, [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §19. Remaining: the same run on the workstation, and §9.4's throttled cell | +73.8 % asks/s on missing tiles at W = 2; `v35` prices 2 → 4 at +37 % on this host | four commits in [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13; unmeasured on the default link (§9.4) | §1 |
 | 2 | ~~**Miss rate observable in production**~~ **Done** | every threshold below can now be checked against a real workload | `session reads …` per session, default build | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Reporting |
 | 3 | **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput — the largest effect measured anywhere | transport; blocked on what browsers advertise | [`adr.md`](adr.md) §Levers |
 | 4 | **P0 — validate ring vs pool on the production target**, both read modes | decides whether ~800 lines stay | one campaign run | §3 |
