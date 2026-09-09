@@ -1,9 +1,0 @@
-clock_getres(CLOCK_MONOTONIC)      = 1 ns
-clock_getres(PROCESS_CPUTIME)      = 1 ns
-Instant::now()+elapsed() overhead  = p50 22 ns · p99 33 ns · min 21 ns
-smallest non-zero delta observed   = 21 ns
-back-to-back Instant::now() step    = p50 28 ns · p99 50 ns
-idle yield_now gap floor [current ]  = p50 497 ns · p99 955 ns · max 104743 ns
-idle yield_now gap floor [multi(4)]  = p50 44 ns · p99 64 ns · max 153987 ns
-read_ahead_kb                      = loop1=128 vdf=512 vdd=128 loop6=128 vdb=8192 loop4=128 loop2=128 loop0=128 vde=512 loop7=128 vdc=128 zram0=128 loop5=128 vda=8192 loop3=128
-process CPU clock step             = p50 413 ns · min 392 ns (10000 ticks)

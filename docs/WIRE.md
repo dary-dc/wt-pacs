@@ -38,14 +38,11 @@ outstanding. The server flattens it to one. That is a known limitation with a me
 and a proposed shape, not a protocol decision:
 [`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §6b.
 
-### Missing: fill mode (`StreamFrames`)
+### Fill mode (`StreamFrames`)
 
-For ultrasound and other small/medium-frame studies the client should not have to name
-indexes. **Not implemented.** The design is `StreamFrames { from?, to? }` (empty = the whole
+The client does not name every index. `StreamFrames { from?, to? }` (empty = the whole
 study; omitted `from` → 0, omitted `to` → last frame) and `EndStream` at the next frame
-boundary — not `EndSession`, and not a `Stop` that could be read as session-wide. Current use
-is start-to-end; `from` / `to` are on the type for later. `RequestFrames` is not a substitute:
-it still enumerates every index. [`disk-access/READ-PATH-DESIGN.md`](disk-access/READ-PATH-DESIGN.md),
+boundary — not `EndSession`. A data request during a fill ends the fill and is served next.
 [`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §6c.
 
 ## Server send path (copy discipline)

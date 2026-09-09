@@ -8,8 +8,8 @@ That depends on the filesystem implementing the flag.
 
 The server does not fail there. `FrameStore::open` probes once, and where the answer is no
 it falls back to one pooled `pread` per frame — correct, safe, and **measurably slower**:
-132.5 µs per frame against the accepted path's 48.4 µs on the validation host
-([RERUN.md](RERUN.md) Cell 1). This is not a hypothetical: the *previous* campaign reached
+132.5 µs per frame against the accepted path's 48.4 µs on the validation host.
+This is not a hypothetical: the *previous* campaign reached
 the wrong conclusion partly because it ran on overlayfs.
 
 Since 2026-09-08 it is at least not silent. The startup banner carries the answer, and the
@@ -139,8 +139,8 @@ Read-ahead-by-one did **not** change this: the second read in flight is a second
 same ring, not a second ring.
 
 **`RLIMIT_MEMLOCK` is the one that bit first on a real host.** An 8 MB default is about
-**940 rings** — two cells of the scale run were refused outright by it
-([`SCALE-RUN.md`](SCALE-RUN.md)). The failure mode is not a refused connection: the ring is
+**940 rings** — two cells of a scale run were refused outright by it.
+The failure mode is not a refused connection: the ring is
 refused, the session falls back to the blocking pool, and it just gets slower. Silent, again.
 
 ```ini
@@ -166,7 +166,7 @@ Two sessions per fd pair means the descriptor budget is `2 x sessions + sockets 
 
 `check-fastpath` prints `read_ahead_kb` because it is not a footnote. The validation host
 ships **8192** (8 MiB) against Linux's **128 KiB** default, and that single knob moves every
-measured miss rate by 2–15× ([ACCESS-PATTERNS.md](../disk-layout/ACCESS-PATTERNS.md) §4.1). Read-ahead is
+measured miss rate by 2–15×. Read-ahead is
 what protects *sequential* access under cache pressure; a smaller window makes a
 sequential layout degrade much faster.
 

@@ -40,7 +40,7 @@ fn report(target: &Path) -> Result<bool> {
     println!("path            {}", target.display());
     println!("filesystem      {}", fstype.as_deref().unwrap_or("unknown"));
     if let Some(kb) = read_ahead_kb(target) {
-        // Moves every measured miss rate: docs/disk-layout/ACCESS-PATTERNS.md §4.1.
+        // Moves every measured miss rate; record it beside a campaign. `docs/disk-access/DEPLOYMENT.md`.
         println!("read_ahead_kb   {kb}");
     }
     println!(

@@ -306,7 +306,7 @@ mod tests {
 
     /// **The seam.** `serve`'s default body turns the planner's frame indexes into the spans
     /// the read path starts on. Nothing on the wire and no other test can see that line, so
-    /// this one owns it. `docs/disk-access/READ-PATH-DESIGN.md` §15.4.
+    /// this one owns it. `docs/disk-access/IMPLEMENTATION.md`.
     #[test]
     fn serve_hands_every_named_frame_to_the_read_path_as_a_span() {
         let (path, mut rec) = recorder("seam", 4);

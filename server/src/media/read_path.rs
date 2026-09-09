@@ -1,6 +1,6 @@
 //! A page-cache read on the executor, escalating to a ring or the blocking pool when the
 //! bytes are not there. `docs/disk-access/adr.md`, `docs/disk-access/IMPLEMENTATION.md`.
-//! Windows: `docs/disk-access/READ-PATH-DESIGN.md` §11 cuts 3 and 4.
+//! Windows: `docs/disk-access/adr.md`, `docs/disk-access/IMPLEMENTATION.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
 use anyhow::{Context, Result};
@@ -437,7 +437,7 @@ mod tests {
 
     /// **The ADR's claim, as an assertion**: a window that misses reads to the end of the
     /// *frame*, so a missing frame costs one round trip however many windows long it is.
-    /// `docs/disk-access/RERUN-miss.md` has what windowing the escalation cost instead.
+    /// Windowing the escalation cost 2–3 trips per 250 kB frame; `docs/disk-access/EVIDENCE.md`.
     #[test]
     fn a_frame_that_misses_costs_one_round_trip_not_one_per_window() {
         let dir = scratch("trips");

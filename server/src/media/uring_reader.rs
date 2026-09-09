@@ -3,7 +3,6 @@
 //! Two constraints are easy to undo by accident: tokio migrates a task between workers, so
 //! `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable, and blocking in `io_uring_enter` would
 //! be the stall this exists to prevent. `docs/disk-access/IMPLEMENTATION.md`.
-//! Thin wrapper: `docs/disk-access/READ-PATH-DESIGN.md` §11 cut 6.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
