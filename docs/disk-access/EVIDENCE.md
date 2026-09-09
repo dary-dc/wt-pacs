@@ -291,11 +291,28 @@ confirmed, and P0 must run both frame sizes, not only both depths.**
 > | 250 kB `wall_ns` | +35.2 % RESOLVED | +31.4 % RESOLVED | +29.6 % RESOLVED |
 > | 250 kB `cpu_ns_per_ask` | +55.9 % tie | +35.4 % RESOLVED | +37.9 % tie |
 >
+> Dividing `uring`'s p50 by its in-flight depth and leaving `hybrid_lazyring`'s alone, since
+> its in-flight depth is 1 whatever `--depth` says, gives the per-hit residual the ratio was
+> hiding:
+>
+> | residual, `uring` p50/depth vs `hybrid_lazyring` p50 | depth 1 | depth 4 | depth 16 |
+> | --- | ---: | ---: | ---: |
+> | 16 KiB | +71 % | +16 % | +2 % |
+> | 250 kB | +31 % | +34 % | +34 % |
+>
+> At 250 kB the residual is **flat across a 16× depth range** — that is what a real per-hit
+> penalty looks like. At 16 KiB it collapses, because one `io_uring_enter` amortises over the
+> batch. So neither +1571 % nor "no penalty at all" is the answer; the penalty is real and
+> roughly a third at 250 kB.
+>
 > **What survives.** At depth 1 there is no queue and every metric agrees: a hit through the
 > ring costs **+224 % CPU per ask**. At 250 kB the throughput cost holds near +30 % at every
 > depth. **"A hit must never touch a ring" stands, and so does the reason there is no tuning
 > toggle.** What is retracted is the magnitude — at 16 KiB above depth 1 the arms tie on both
-> throughput and CPU, and a path 4.5× or 16.7× slower could not tie on either.
+> throughput and CPU, and a path 4.5× or 16.7× slower could not tie on either. One caveat on
+> that tie: `pool` runs the same warm 16 KiB depth-16 cell at 827 714 asks/s against both ring
+> arms' ~231–246 k, so the two agreeing with each other is not by itself evidence that either
+> is fast.
 >
 > This is the house rule in `CLAUDE.md` — *quote latency or throughput, not both* — broken
 > across two arms with different effective depths rather than within one.
