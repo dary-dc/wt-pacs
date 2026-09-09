@@ -1,10 +1,10 @@
 # Read path — design proposal: depth, messages, and the loop around the seam
 
-**2026-09-08 · Proposed, not implemented. For iteration.** Assembled from what was agreed on
-the day. **2026-09-09:** steps 0–2 landed ([`HANDOFF.md`](HANDOFF.md) §1, unmeasured); §9 records
-why the loop and W are not where latency is lost on the default link, and the owners' call on
-W; §10 lists the simplification cuts. **§11 was chosen on 2026-09-09; §13 is the handoff to
-the implementer.** It builds on three documents and repeats none of them:
+**2026-09-08 · Proposed. 2026-09-09 · §13 landed.** Assembled from what was agreed on the
+day. Steps 0–2 and the four §13 commits (W = 4, planner, thin ring) are in the tree
+([`HANDOFF.md`](HANDOFF.md) §1). §9 records why the loop and W are not where latency is lost
+on the default link; remaining: the throttled-link cell, P0. It builds on three documents
+and repeats none of them:
 
 * [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) — the seam. Change **A** moves the frame loop
   into the read path behind `ctx.frame(...)`; change **B** makes a window own its ring slot,
