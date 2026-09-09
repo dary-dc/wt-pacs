@@ -6,6 +6,7 @@
 This file carries the numbers so they survive a squash. Raw TSVs and the design diary:
 
 ```bash
+git show read-path-w3-2026-09-10:docs/disk-access/           # line 221 bracketed (w3_*)
 git show read-path-w2-2026-09-10:docs/disk-access/           # the reader re-open (w2_*)
 git show read-path-workstation-2026-09-09:docs/disk-access/  # the workstation run (w1_*)
 git show read-path-evidence-2026-09-09:docs/disk-access/     # this branch's tables
@@ -522,17 +523,25 @@ EAGAIN is cheap at any length, so the candidate is not the probe's own cost but 
 behind: `preadv2` primes the descriptor's read-ahead state for the length it was asked for
 before deciding to refuse, and `product` is the only arm whose short probe and whole-frame
 read share one descriptor — `hybrid_lazyring` escalates on `run_cell`'s second `File::open`,
-which its probe never touched. **Unverified.** `WTPACS_READ_PATH=uring` sets `probe = false`
-(`read_path.rs:154`) and is the third A/B cell that settles it: `w2_readmode_ab.tsv` ran
-`auto` and `pool`, and both probe.
+which its probe never touched.
 
-**Naming removes it — but that is depth, not the window.** `product_ahead` against `product`
-is **−50 to −58 % on p50 and wall at every size**, 11–12/12 RESOLVED, and at 250 kB turns the
-deficit into **−33.3 % p50 / −31.4 % wall** over `pool`. It is **−47.2 % at 16 KiB too**, where
-there is one window and nothing to serialise, so the win is not the window: `peak_in_flight`
-goes 1 → 2 and this is depth 2 against depth 1, which the campaign already prices at +67.4 %
-(`v35`). Neither `pool` nor `hybrid_lazyring` has been run at `--depths 2`, so
-"look-ahead wins" and "depth 2 wins" are currently the same number.
+> **Verified 2026-09-10, from both sides — see *Line 221, bracketed* below.** Removing the
+> probe removes the penalty (`WTPACS_READ_PATH=uring`, +2.1 % wall, 6/12, a coin flip); adding
+> nothing but a capped probe to `pool` reproduces it (+83.4 % and +53.5 %, 12/12 RESOLVED).
+> `product` against `pool_capped_probe` is a tie at every size.
+
+**~~Naming removes it~~ — naming *is* depth 2, and it does not remove it.** `product_ahead`
+against `product` is −50 to −58 % at every size, but `peak_in_flight` goes 1 → 2, so that
+compares depth 2 against depth 1.
+
+> **Retracted: "at 250 kB it turns the deficit into a −33.3 % win over `pool`".** That set
+> `product_ahead` at 2 in flight against `pool` at 1. Run at equal depth 2026-09-10,
+> `product_ahead@d1` and `product@d2` are a **tie at every size** (+2.6 / +5.4 / +6.3 / +7.6 %
+> wall, 7–9/12) — the same thing measured twice — and depth 2 buys `pool` and
+> `hybrid_lazyring` exactly what it buys `product` (**−47.7 to −58.4 %, 12/12** for all three).
+> Compared at equal depth the penalty is **still there and larger**: `product@d2` against
+> `pool@d2` is **+106.1 % at 128 KiB and +63.2 % at 250 kB**, 11–12/12 RESOLVED, and ties at
+> 16 KiB and 64 KiB — the same size boundary the probe draws.
 
 ### Fill at scale: CPU ties, the ring is the cost
 
@@ -579,6 +588,102 @@ is built on, both pairs are ties: `product` vs `hybrid_lazyring` **+40.7 %, 9/12
 and vs `pool` **+13.0 %, 12/12** (fails 28.5 %). Re-measured with `--monitors 0` the three arms
 read **34.4 / 34.6 / 34.8 µs**. Every warm CPU figure in `w1_*_arms.tsv` carries this; the cold
 cells do not (their spread is tight, 1279–1390 ns/ask at 250 kB depth 1).
+
+
+
+## Line 221, bracketed · 2026-09-10
+
+Same workstation. Four campaigns, one at a time, 12 repeats, **`--monitors 0` throughout**.
+Raw at the `read-path-w3-2026-09-10` tag: `w3_a1_readmode.tsv`, `w3_a2_capped_probe.tsv`,
+`w3_b_depth2.tsv`, `w3_c_warm16k.tsv`, `w3_d_shortreads.tsv`, `w3_host.txt`.
+
+`reads_per_ask` is **1.00–1.01 for every `product` row at every size**, so the section above
+is right that a missing frame is one `ctx.read()` and window count was never the variable.
+
+### The probe is the cause, from both sides
+
+`read_path.rs:221` is `let want = READ_WINDOW.min(remaining)` — the only line whose behaviour
+changes with ask size. Two campaigns bracket it.
+
+**Take the probe away and the penalty goes.** `WTPACS_READ_PATH=uring` is the only mode with
+`probe = false`. Third readmode A/B, 250 kB cold depth 1, 12 rounds, process-level interleave
+with the order rotated, `pool` and `hybrid_lazyring` riding along as within-process controls
+the env var cannot reach. `product` against them, on **wall**:
+
+| mode | probe | vs `pool` | vs `hybrid_lazyring` |
+| --- | --- | --- | --- |
+| `auto` | on | **+53.1 %**, 12/12 RESOLVED | **+39.0 %**, 12/12 RESOLVED |
+| `pool` | on | **+38.0 %**, 11/12 RESOLVED | +28.3 %, 12/12 tie |
+| `uring` | **off** | **+2.1 %, 6/12 tie** | **+1.8 %, 7/12 tie** |
+
+Both probe-on modes carry it while their **miss mechanisms differ**; the probe-off mode does
+not carry it at all.
+
+**Give the probe to `pool` and the penalty arrives.** `pool_capped_probe` is `pool` with its
+probe capped at `READ_WINDOW` and nothing else changed — the positive control. Four sizes,
+cold, depth 1, **wall**:
+
+| size | probe covers | `pool_capped_probe` vs `pool` | `product` vs `pool_capped_probe` |
+| ---: | --- | --- | --- |
+| 16 KiB | the whole frame | +2.6 %, 7/12 tie | +2.3 %, 7/12 tie |
+| 64 KiB | the whole frame | +16.5 %, 8/12 tie | +4.5 %, 7/12 tie |
+| 128 KiB | **half** | **+83.4 %, 12/12 RESOLVED** | −5.7 %, 7/12 tie |
+| 250 kB | **a quarter** | **+53.5 %, 12/12 RESOLVED** | −2.6 %, 7/12 tie |
+
+The penalty appears exactly where the probe stops covering the frame, and **once `pool`
+carries the capped probe it is indistinguishable from the shipped reader at all four sizes** —
+four coin flips.
+
+> **`read_path.rs:221` is the cause.** Removing it loses the penalty; adding it gains the
+> penalty; with it, `pool` *is* `product`. What the line costs is not the syscall — an
+> `RWF_NOWAIT` probe that returns `EAGAIN` is cheap at any length — but what it leaves behind
+> on a descriptor the whole-frame read then reuses. **The mechanism is still inferred; only
+> the location is now measured.**
+
+### Depth 2 is not the fix, and look-ahead was never a separate thing
+
+`pool` and `hybrid_lazyring` at `--depths 1,2` for the first time, beside `product` and
+`product_ahead`, four sizes, cold. `peak_in_flight` makes it honest: `product@d1` = 1,
+`product@d2` = `product_ahead@d1` = 2, `product_ahead@d2` = 3, `hybrid_lazyring` 1 and 2,
+`pool` 0 at both. Only equal-in-flight pairs below.
+
+| | 16 KiB | 64 KiB | 128 KiB | 250 kB |
+| --- | --- | --- | --- | --- |
+| `product_ahead@d1` vs `product@d2`, wall | +2.6 % tie | +5.4 % tie | +6.3 % tie | +7.6 % tie |
+| depth 2 vs 1, wall — `product` | −48.4 % RES | −56.2 % RES | −49.4 % RES | −49.0 % RES |
+| depth 2 vs 1, wall — `pool` | −47.7 % RES | −56.0 % RES | −55.6 % RES | −53.3 % RES |
+| depth 2 vs 1, wall — `hybrid_lazyring` | −49.2 % RES | −58.4 % RES | −51.8 % RES | −52.2 % RES |
+| **`product@d2` vs `pool@d2`, wall** | −1.1 % tie | +3.2 % tie | **+106.1 % RES** | **+63.2 % RES** |
+
+Look-ahead and depth 2 are **the same measurement** — a tie at every size, 7–9/12. Depth 2 is
+worth −48 to −58 % to *all three* arms, so it is a property of serving two frames at once and
+not of the shipped reader. And at equal depth the probe penalty is **still there and larger**,
+ties turning to RESOLVED at exactly the 128 KiB boundary the probe draws.
+
+### The warm cells, re-run clean
+
+Seven arms, 16 KiB warm, depths 1/4/16, `--monitors 0` — the cell the one surviving `uring`
+number came from. **No arm has a single CPU outlier above twice its own minimum** (`product`
+3.3–4.2 µs, where the 250 kB warm cell under `--monitors 1` recorded 28.5–118.0). The monitor
+was the whole of that contamination.
+
+| `uring` vs `hybrid_lazyring`, CPU/ask | depth 1 | depth 4 | depth 16 |
+| --- | --- | --- | --- |
+| measured clean | **+164.8 %**, 12/12 RES | +38.5 %, 12/12 RES | +31.5 %, 12/12 RES |
+| as published (`--monitors 1`) | +224.3 % | — | — |
+
+**The hit penalty survives and stays RESOLVED, about a quarter smaller than published.**
+Against `pool` it is +154.1 % at depth 1 and a **tie** at both higher depths. `peak_in_flight`
+is **0** for every probing arm on every warm cell — a hit is served inline and no window is
+ever outstanding — against `uring`'s 1/4/16, so depth is nominal for those arms here and no
+p50 is quoted across that boundary.
+
+### `short_reads`: zero everywhere
+
+`uring`, `hybrid_lazyring`, `uring_ringfd` and `hybrid_lazyring_ringfd`, 250 kB cold, depths 1
+and 4, 99.6–100 % miss: **0 short reads, on every row**. Across all five w3 campaigns —
+**1 032 rows** — the total is **0**. The ring resubmit path is not being exercised on this
+host, and no published ring number needs re-running on that account.
 
 
 ## Where the margin comes from
