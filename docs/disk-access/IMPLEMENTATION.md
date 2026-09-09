@@ -132,20 +132,15 @@ an earlier version of this code had.
 Constructing mid-loop is safe for the same reason it is safe in the lab arm: nothing can be
 in flight when the ring does not yet exist, because every earlier ask was a hit.
 
-## Read ahead by one
+## Read ahead
 
-**Built 2026-09-08**, for `RequestFrames`. A session keeps **two windows**, each with its own
-ring slot, and a frame served as part of a batch names the frame after it. That next frame's
-first read starts *before* the frame in hand is waited on, so the device carries two reads,
-which is where the win is — see below, and
-[`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6b for
-why two and not *n*.
+**Built 2026-09-08 as two windows; W = 4 as of 2026-09-09** ([`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §9.3, §13). A session keeps **W windows**. On-demand names up to W − 1 upcoming frames; a fill names one (`FILL_AHEAD = 1`), so fill still uses two of the four. The ring is a thin submit/reap/park wrapper; the window index is the slot.
 
 ```
-read(span, pos, next):
-  take the window `next`'s read already landed in, or start this frame's read      (no wait)
-  start `next`'s first read in the other window                                    (no wait)
-  wait for this frame's bytes
+read(span, pos, upcoming):
+  start current if not held
+  start upcoming that fit
+  wait current
 ```
 
 Four properties this keeps, each of which a simpler version loses:
@@ -156,9 +151,7 @@ Four properties this keeps, each of which a simpler version loses:
 * **The pool path reads ahead too.** Where there is no ring, the window goes to
   `spawn_blocking` and the `JoinHandle` is held instead of awaited. Nothing is ring-specific
   except which mechanism carries the read.
-* **A window is never grown or reused while the kernel owns it.** A slot is started only when
-  it is idle, and the abandon path *waits* for a read the caller never asked for rather than
-  dropping it. `UringReader::start` states the contract; `ReadCtx::drop` is the backstop.
+* **A window is never grown or reused while the kernel owns it.** Reuse waits. `UringReader::submit` states the contract; `ReadCtx::drop` is the backstop.
 * **Delivery stays in ask order.** Reading frame *n+1* early is pipelining, not reordering —
   `../adr-reject-server-ordering.md` does not speak against it.
 

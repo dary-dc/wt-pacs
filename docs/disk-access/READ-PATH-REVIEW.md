@@ -198,4 +198,4 @@ task and the `StreamFrames` fill are built
 [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md)), so A now lands against `serve_one`,
 `serve_batch` and `fill` as they are, rather than leaving them one call site to feed.
 
-Status: **A is proposed and unblocked. B is proposed and waits for P0.**
+Status: **A is deferred** (`read(span, pos, upcoming)` ships instead of `frame()` + `FrameBytes`). **B is subsumed:** the window index is the slot, the ring has no slot table. P1 still waits for P0.

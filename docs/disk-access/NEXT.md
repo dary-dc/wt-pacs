@@ -17,7 +17,7 @@ struck through in place rather than removed, so the order is still readable as t
 
 | # | Item | Measured worth | What kind of change | Detail |
 | --- | --- | --- | --- | --- |
-| 1 | **Serving depth ≥ 4** — read ahead by one **is built for `RequestFrames`**; `RequestFrame` is still depth 1 | +73.8 % asks/s on missing tiles, measured on the shipped path; 1.14 ms → 0.62 ms on 16 | **loop landed 2026-09-09, unmeasured**; W above 2 waits on step 3 — tiles go to 4, fill stays 2 ([`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §9.3) | §1 |
+| 1 | ~~**Serving depth ≥ 4**~~ **Done 2026-09-09** — W = 4 for tiles, fill names one ahead | +73.8 % asks/s on missing tiles at W = 2; `v35` prices 2 → 4 at +37 % on this host | four commits in [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §13; unmeasured on the default link (§9.4) | §1 |
 | 2 | ~~**Miss rate observable in production**~~ **Done** | every threshold below can now be checked against a real workload | `session reads …` per session, default build | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Reporting |
 | 3 | **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput — the largest effect measured anywhere | transport; blocked on what browsers advertise | [`adr.md`](adr.md) §Levers |
 | 4 | **P0 — validate ring vs pool on the production target**, both read modes | decides whether ~800 lines stay | one campaign run | §3 |
@@ -26,7 +26,7 @@ struck through in place rather than removed, so the order is still readable as t
 | 7 | **Sequential reader for streaming mode** | **settled:** the shipped reader forward, one frame ahead; `tokio::fs` rejected on measurement — [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) | design input for §6c, no reader change | §5 |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | drop-in | dependency bump | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) P2 |
 | 9 | **Bounded frame cache** | −20.2 % CPU at a 0.92 hit rate, lab only | needs a real ask trace to size | [`adr.md`](adr.md) §Levers |
-| 10 | **P1 — park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, no latency change | after P0 keeps the ring. `uring_reader.rs` now carries two slots and a per-slot `Pending`, so re-read it before costing the change | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) P1 |
+| 10 | **P1 — park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, no latency change | after P0 keeps the ring. Re-read `uring_reader.rs`: it is now submit/reap/park/drain, no slot table | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) P1 |
 
 Everything below the table was found or written after that ordering was set, so nothing there
 reorders it.
@@ -36,41 +36,17 @@ With studies far larger than RAM, latency is miss count × miss cost: 6 sets the
 volume class sets the cost, 1 hides one miss behind the previous send. The backend (4, 8, 10)
 trims tens of microseconds off each miss.
 
-## 1 · Serving depth — half built, and the depth-4 requirement is not met
+## 1 · Serving depth — W = 4 for tiles
 
-> The design that takes this past two, with `RequestFrame` kept and the loop, seam and
-> numbers sequenced: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md).
+> The design: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §9, §13.
 
-**Built:** read ahead by one. Two windows, each with its own ring slot, and a frame served in
-a `RequestFrames` batch names the one after it, so its read starts before this one is waited
-on. Measured on the shipped `ReadCtx`: **+73.8 % asks/s, 12/12, RESOLVED** on cold 16 KiB,
-p50 −53.4 %, **warm a tie** ([`v36_readahead.tsv`](v36_readahead.tsv),
-[`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Read ahead by one). 16 missing tiles: 1.14 →
-0.62 ms.
-
-**2026-09-09 — the loop landed** (ask-reader task, `StreamFrames` + `EndStream`, the peek that
-gives a pipelined `RequestFrame` its next; [`HANDOFF.md`](HANDOFF.md) §1), unmeasured. Why the
-loop and W are not where latency is lost on the owners' default link, the call to widen tiles to
-W = 4 anyway and keep fill at 2, and the one cell to run: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md)
-§9, with §9.5 on why tiles take 4 and not 16 until P0's depth ladder says otherwise. The
-shape-only simplification cuts: §10 there; **§11 chosen 2026-09-09, §13 is the handoff** — four
-commits, each measured, W = 4 last; **§14 there registers everything raised that the four commits
-do not deliver**, each row pointing back to the file that owns it. The paragraph below is
-kept as the state that ordering was set against.
-
-**Not built, and it is the loop, not the read path:** `run_session` still does not read the
-next ask until the current frame is on the wire, so a client that pipelines `RequestFrame`
-gets depth 1, and a fill has no message that can stop it mid-study. The design is
-[`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) and
-[`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) **§6d**.
-Fill (`StreamFrames` + `EndStream`) is why the reader task is required; pipelined
-`RequestFrame` is the other half of the same split.
-
-**And depth 2 is a first step, not the requirement.** The owners asked for depth 4 or more.
-[`v35_depth2.tsv`](v35_depth2.tsv) prices the ladder on this host: depth 2 is +67.4 % over
-depth 1 and collects 62 % of what depth 16 offers; from the medians, 2 → 4 adds a further
-+37 % and 4 → 16 +28 %. Widening past two costs a slot table and a completion demultiplexer,
-so it is worth doing only once the loop can actually keep four asks in flight.
+**Built:** W = 4 windows, a planner over `Ask`, fill names one frame ahead. Measured at W = 2
+on the shipped `ReadCtx`: **+73.8 % asks/s, 12/12, RESOLVED** on cold 16 KiB, p50 −53.4 %,
+**warm a tie** ([`v36_readahead.tsv`](v36_readahead.tsv)). 16 missing tiles: 1.14 → 0.62 ms.
+W = 4 on the default link is predicted to tie (§9.4); the harness cell and P0's depth ladder
+are what remain. `v35` priced 2 → 4 at +37 % and 4 → 16 at +28 % on this host; 16 is not
+taken until P0 says otherwise (§9.5). Everything the four commits do not deliver is
+[`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §14.
 
 ## 2 · The server reports its own miss rate — done
 
@@ -163,11 +139,7 @@ is the whole reason P0 runs there.
   (`a_batch_arrives_whole_and_in_ask_order`, the first here to drive the server over a real
   WebTransport connection), so a break in the product would be caught — but only the copy is
   measured, and the two can still drift.
-* **`serve_batch`'s look-ahead has no test of its own.** `frames.get(position + 1)` is one
-  line; the read path's use of it is covered from both ends, the wiring is not. The fill loop's
-  equivalent now is — `a_fill_recites_from_to_inclusive_in_order` asserts the `(frame, next)`
-  pairs against a `RecordingPipeline` — so closing this is one test of that shape driving
-  `RequestFrames`.
+* ~~**`serve_batch`'s look-ahead has no test of its own.**~~ **Closed** — `serve_batch` is gone; `pipelined_asks_supply_the_upcoming_frames` is the planner test.
 * **P1 — park on the ring's own fd.** Measured in the lab as `x14` (the `uring_ringfd` and
   `hybrid_lazyring_ringfd` arms): a tie on CPU everywhere, the gain by construction. ~30 lines
   in `uring_reader.rs`; re-run the `product` arm after it lands. Only after P0 keeps the ring.
