@@ -22,6 +22,7 @@ FRAME_BYTES="${FRAME_BYTES:-16384}"
 # a cold label (§14.4). `read_campaign` strides 250 kB for the same reason.
 STEP="${STEP:-$(( (250000 + FRAME_BYTES - 1) / FRAME_BYTES ))}"
 RSS_SESSIONS="${RSS_SESSIONS:-64}"
+RSS_ROUNDS="${RSS_ROUNDS:-6}"
 WT="${WT:-$(mktemp -d /tmp/server-ab-XXXX)}"
 CERT="${CERT:-$ROOT/server/dev-cert/cert.pem}"
 KEY="${KEY:-$ROOT/server/dev-cert/key.pem}"
@@ -127,8 +128,9 @@ printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tas
 
 miss_from_log() {
   local log="$1" off="$2"
+  # `|| true`: no match yet is what the caller retries on, not a reason to end the run.
   tail -c +"$((off + 1))" "$log" | grep -oE 'miss_rate[^0-9]*[0-9.eE+-]+' | tail -1 |
-    grep -oE '[0-9.eE+-]+$'
+    grep -oE '[0-9.eE+-]+$' || true
 }
 
 drive() {
@@ -168,37 +170,58 @@ emit() {
   if [[ "$temp" == cold && "$mode" == on-demand ]]; then
     python3 - "$miss" "$label" <<'PY'
 import sys
+# A stray hit is not a warm cell: measured, a cold cell reads 0.98-1.00 and the failure this
+# guards against -- a stride inside the kernel's read-ahead -- reads 0.02-0.05. §16.2a.
 m, label = float(sys.argv[1]), sys.argv[2]
-if m < 0.99:
-    sys.stderr.write(f"cold cell {label} miss_rate={m} < 0.99 -- raise STEP\n")
+if m < 0.95:
+    sys.stderr.write(f"cold cell {label} miss_rate={m} < 0.95 -- raise STEP\n")
     sys.exit(1)
 PY
   fi
 }
 
-url_before="https://127.0.0.1:${PORT_BEFORE}/"
-url_after="https://127.0.0.1:${PORT_AFTER}/"
+# Keyed by arm, not packed into one string: a URL has colons in it.
+declare -A ARM_PID=([before]="$before_pid" [after]="$after_pid")
+declare -A ARM_URL=([before]="https://127.0.0.1:${PORT_BEFORE}/" [after]="https://127.0.0.1:${PORT_AFTER}/")
+declare -A ARM_LOG=([before]="$before_log" [after]="$after_log")
 
 for ((r = 0; r < REPEATS; r++)); do
-  if (( r % 2 == 0 )); then
-    order=("before:$before_pid:$url_before:$before_log" "after:$after_pid:$url_after:$after_log")
-  else
-    order=("after:$after_pid:$url_after:$after_log" "before:$before_pid:$url_before:$before_log")
-  fi
-  for spec in "${order[@]}"; do
-    arm="${spec%%:*}"; rest="${spec#*:}"
-    pid="${rest%%:*}"; rest="${rest#*:}"
-    url="${rest%%:*}"; log="${rest#*:}"
+  if (( r % 2 == 0 )); then order=(before after); else order=(after before); fi
+  for arm in "${order[@]}"; do
+    pid="${ARM_PID[$arm]}"; url="${ARM_URL[$arm]}"; log="${ARM_LOG[$arm]}"
     emit "$pid" "$url" "$log" "$arm" "cold_d1" cold on-demand 1
     emit "$pid" "$url" "$log" "$arm" "cold_d2" cold on-demand 2
     emit "$pid" "$url" "$log" "$arm" "cold_d4" cold on-demand 4
     emit "$pid" "$url" "$log" "$arm" "warm_d1" warm on-demand 1
     emit "$pid" "$url" "$log" "$arm" "warm_d4" warm on-demand 4
     emit "$pid" "$url" "$log" "$arm" "fill"    cold fill 1
-    emit "$pid" "$url" "$log" "$arm" "rss_d4"  warm on-demand 4 "$RSS_SESSIONS"
   done
   echo "  round $r done $(date -u +%T)" >&2
 done
+
+# Per-session memory needs an untouched heap, so each measurement gets its own server.
+kill "$before_pid" "$after_pid" 2>/dev/null || true
+before_pid="" ; after_pid=""
+declare -A ARM_BIN=([before]="$BEFORE" [after]="$AFTER")
+for ((r = 0; r < RSS_ROUNDS; r++)); do
+  if (( r % 2 == 0 )); then order=(before after); else order=(after before); fi
+  for arm in "${order[@]}"; do
+    port=$((PORT_BEFORE + 100 + r * 2 + ${#arm}))
+    log="$LOGDIR/rss_${arm}_$r.log" ; : >"$log"
+    NO_COLOR=1 RUST_LOG=exact_server=info "${ARM_BIN[$arm]}" \
+      --port "$port" --study "$TILE" --stream-mode shared --bind 127.0.0.1 \
+      --cert-pem "$CERT" --key-pem "$KEY" >"$log" 2>&1 &
+    pid=$!
+    wait_banner "$log"
+    "$DRIVER" --url "https://127.0.0.1:$port/" --server-pid "$pid" --arm "$arm" \
+      --label "rss_d4_r$r" --temp warm --mode on-demand --depth 4 --asks "$ASKS" \
+      --sessions "$RSS_SESSIONS" --frames "$frames" --step "$STEP" --no-header |
+      awk 'BEGIN{FS=OFS="\t"} { $NF="-"; print }' >> "$OUT"
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  done
+done
+echo "  rss phase done $(date -u +%T)" >&2
 
 python3 - "$OUT" "$RSS_SESSIONS" <<'PY'
 import csv, collections, math, statistics as st, sys

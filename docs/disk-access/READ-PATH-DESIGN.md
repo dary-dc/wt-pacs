@@ -2,7 +2,8 @@
 
 **2026-09-08 · Proposed. 2026-09-09 · §13 landed; §15 is the plan to fix it, §16 the review
 of that plan as applied and the first product-level numbers, §17 the proposals §16 left
-open, §18 those proposals as code an implementer can apply.** Assembled
+open, §18 those proposals as code an implementer can apply, §19 the verification against
+`580e312` — it works, and it optimises at client depth 4.** Assembled
 from what was agreed on the day. Steps 0–2 and the four §13 commits (W = 4, planner, thin
 ring) are in the tree ([`HANDOFF.md`](HANDOFF.md) §1) — **unmeasured**: §13.2's A/B gate was
 never run, and §15.1 has what a mutation pass found. §9 records why the loop and W are not
@@ -1107,6 +1108,9 @@ interleaved against a worktree build of the previous commit (§12's script, writ
 Commit 1a is the one that can go wrong silently: it changes shape while claiming no change,
 which is exactly what `x13` caught. Do not merge 1a on a tie that was measured sequentially.
 
+**The "every A/B cell ties" condition was met on 2026-09-09, after the fact and for all four
+commits at once: §19.2.**
+
 ### 13.3 · The seam, end to end, after commit 3
 
 ```
@@ -1451,6 +1455,10 @@ product warm cells exist.**
 
 Either way the verdict and its TSV go into §12, so the number stops being spoken and starts
 being written down.
+
+**Resolved 2026-09-09 (§19.3): the product warm cells tie** — depth 1 flat on p50, CPU and
+asks/s, depth 4 running 14/16 *toward* the branch, and the lab's own `warm16_d1` at −8.5 %.
+The `+17 %` is not reproduced. `read` is not to be touched for it.
 
 ### 15.6 · Change 4 · pin start-then-wait
 
@@ -2227,3 +2235,153 @@ cell from a timing inference into an assertion. P7, P9, P10 and P11 are §17.3's
 bucket: they are written here so the warm-cell decision is one reading, and none of them
 should land on their own evidence. P2, P3, P4 and P6 are free of that rule — they are a
 guard, a sentence, an invariant and a simplification.
+
+## 19 · Verification — does the branch work, and does it optimise as expected?
+
+**2026-09-09.** Asked before landing on `main`. Answered against `580e312`, the pre-cut base,
+with the branch exactly as it ships — §18's proposals are **not** applied. Files:
+[`server_ab.tsv`](server_ab.tsv), [`read_path_ab.tsv`](read_path_ab.tsv),
+[`server_ab_host.txt`](server_ab_host.txt).
+
+**Short answers.** It works: byte-exact against an independently computed digest, on both
+binaries, warm and cold. It optimises as expected: **at client depth 4 and nowhere else**,
+which is what §9.3 and §9.5 predicted. Every capability-preserving cell ties. Nothing
+regressed — warm included, which settles §15.5.
+
+### 19.1 · It works — bytes, not timings
+
+A 512-frame fixture whose frames differ from one another in both content and length — 37 B,
+65 535, 65 536, 65 537, 131 089 and 16 384, plus the index, so frames straddle `READ_WINDOW`
+in every direction and a mis-assembled, misordered or mis-windowed frame cannot pass. The
+digest is `sha256` over `(index, length, body)` in delivery order, computed independently
+from the `.sbnd` file in Python and compared with what each server put on the wire.
+
+| binary | fill (whole study) | on-demand depth 1 | on-demand depth 4 |
+| --- | --- | --- | --- |
+| base `580e312` | match | match | match |
+| **branch** | **match** | **match** | **match** |
+
+Repeated cold, with the file evicted first, so the escalation path and the ring carried part
+of the traffic — both arms reported `ring=true`, and both still matched. Base and branch also
+did the same number of reads per frame at depth 1 (`hits=935 misses=2` on both).
+
+### 19.2 · The read path alone ties — §13.2's gate, met at last
+
+`lab/scripts/read_path_ab.sh 580e312`, two `read_campaign` binaries interleaved, 8 rounds,
+256 asks, p50 with `MIN_N = 5`:
+
+| cell | p50 Δ | signs | verdict |
+| --- | --- | --- | --- |
+| `cold16_d1` | −0.9 % | 5/8 | tie |
+| `cold16_dW` | +0.4 % | 4/8 | tie |
+| `warm16_d1` | −8.5 % | 7/8 | tie |
+| `seq1g_d1` (here an 84 MB sweep) | +17.0 % | 5/8 | tie, and exempt — a P0 I/O cell |
+
+**Exit 0.** This is the condition §13.2 attached to each of the four §13 commits — *every A/B
+cell ties* — and it is the first time it has been run. The window table, the thin ring and
+`WINDOWS = 4` cost the read path nothing against the `Ahead` flip they replaced.
+
+### 19.3 · The product server — where the win is, and where it is not
+
+`lab/scripts/server_ab.sh 580e312`, both binaries up together, order rotated each round, 16
+rounds, 256 asks, cold cells evicted and asserted, 16 KiB tiles strided 16 frames.
+
+| cell | p50 Δ | signs | CPU/ask Δ | signs | asks/s Δ | miss control |
+| --- | --- | --- | --- | --- | --- | --- |
+| cold, depth 1 | +0.6 % | 8/16 | +2.6 % | 10/16 | −0.5 % | 0.984–1.000 |
+| cold, depth 2 | +2.3 % | 10/16 | +0.0 % | 8/16 | −2.2 % | 0.984–1.000 |
+| **cold, depth 4** | **−19.1 %** | **15/16** | **−28.0 %** | **16/16** | **+20.7 %** | 0.984–1.000 |
+| warm, depth 1 | −1.3 % | 9/16 | +0.4 % | 9/16 | +2.4 % | 0.000 |
+| warm, depth 4 | −9.6 % | 14/16 | −8.9 % | 14/16 | +10.2 % | 0.000 |
+| fill | +1.6 % | 9/16 | +0.7 % | 8/16 | −0.2 % | 0.010–0.019 |
+
+Read the sign column first. **Depth 1 is 8/16 — a coin flip on p50, +0.6 %.** That is the
+control the whole run rests on: with no frame named, the two binaries are the same code, and
+the instrument says so. Depth 2 is a tie too, and it should be: `9200c02` gave the base
+one-ask look-ahead before `580e312`, so at client depth 2 both arms name one frame ahead and
+use two windows. §16.3 predicted exactly this, and corrected the script's expectation to
+match; the run confirms it.
+
+**Depth 4 is where the four windows can show, and they do:** 15/16 on latency, **16/16 on
+server CPU per ask**, +20.7 % throughput. Under a null of no effect, 16/16 is one run in
+32 768. The CPU figure is −28.0 % against a threshold of 28.5 % — the cleanest metric lands
+on the line, which is what a sandbox that tops out at ~7 k asks/s against the workstation's
+~50 k plateau can be expected to do with a difference the wire dilutes.
+
+**The script reports `cold_d4` as a failure, and it is right to.** Its `WANT` says *win*,
+meaning RESOLVED under the 28.5 % rule, and this host cannot deliver that. Do not relax the
+rule to make the run green: run it on the workstation, where the server is a much larger
+share of each ask.
+
+**Warm did not regress, on any metric.** Depth 1 is flat on all three; depth 4 is 14/16
+*toward* the branch. Together with `warm16_d1` in §19.2 (−8.5 %, 7/8), the **`+17 %` warm CPU
+that §15.5 was written around is not reproduced anywhere on the product path.** §15.5's rule
+was: *product warm ties → ignore the CPU, do not micro-optimise `read`.* It ties. §18's P7
+and P8 are therefore not justified by evidence, and P8 was already withdrawn as unsound.
+
+**Fill ties**, as §9.3 says it must — fill names one frame ahead on both arms. It is worth
+recording that an 8-round run beforehand read −22.0 % at 7/8 on this cell and the next read
++13.2 % at 5/8: a sign that flips between runs is noise, and the 16-round run reads +1.6 % at
+9/16. Quoting the first of those three would have been a wrong answer.
+
+**The depth ladder on the branch**: 2 992 → 4 772 asks/s (+59.5 %) → 6 812 (+42.7 %). §9.5
+priced the lab equivalent at +59 % and +26 %.
+
+### 19.4 · Memory — §9.3's row is a third short
+
+Per-session RSS needs an untouched heap, so each measurement starts its own server (§19.5).
+48 sessions, depth 4, warm 16 KiB tiles, interleaved:
+
+| measurement | rounds | branch − base, per session |
+| --- | --- | --- |
+| standalone | 6 | **+42.6 KiB** |
+| `server_ab.sh`, 8 rounds | 6 | **+39.4 KiB** |
+| `server_ab.sh`, 16 rounds | 8 | **+49.0 KiB** |
+
+**§9.3 predicts +32 KiB for tiles at W 2 → 4; the measurement is +39 to +49.** Two more
+16 KiB windows are 32 KiB of buffer; the rest is allocator and page granularity. At a
+thousand sessions the row's 32 MB is really ~43 MB. Total per-session server RSS is 228 KiB
+on base and 271 KiB on the branch — QUIC's per-connection buffers are most of it, which is
+why the number is only meaningful as a difference between arms (§17.3 P3).
+
+### 19.5 · Three harness bugs, found only by running it
+
+`server_ab.sh` had never been executed end to end. It does not survive first contact:
+
+| bug | what happens | fix |
+| --- | --- | --- |
+| arm state packed as `arm:pid:url:log` | a URL contains colons, so `url` parsed as `https` and the run died at round 0 with `//127.0.0.1:14433/…: No such file or directory` | keyed by arm in three associative arrays; no delimiter at all |
+| `miss_from_log` under `pipefail` | a log line not yet flushed makes `grep` exit 1, which `set -e` turns into an aborted run — **the 30-try retry loop the author wrote can never execute.** It survived two runs on timing luck and killed the third mid-flight, silently | `\|\| true` on the pipeline; the caller's retry now works |
+| the RSS cell ran against a server that had already served the round's other cells | a warm heap absorbs a new session, so the cell reported **+1.8 KiB per session against a true +42.6** — a 24× under-read | the RSS cell leaves the round loop into its own phase, one fresh server per measurement |
+
+One threshold also needed correcting: the cold floor of `miss_rate ≥ 0.99` is not expressible
+below ~200 asks, and aborted a run on 63/64 misses. Measured, a cold cell reads 0.98–1.00 and
+the failure the floor guards against — a stride inside the kernel's read-ahead — reads
+0.02–0.05 (§16.2a). The floor is **0.95**, which separates them with two orders of magnitude
+to spare and does not depend on the sample size.
+
+### 19.6 · What this does not establish
+
+* **Magnitudes.** ~7 k asks/s here against ~50 k on the workstation. Every number above is a
+  direction with a sign count; the percentages are the sandbox's.
+* **That the planner named four frames.** `cold_d4` shows it by its cost. Nothing reports it
+  directly, because §18's P1 is not on the branch — which is P1's whole argument, and the
+  reason to land it before this run is repeated on the workstation.
+* **The default link.** §9.4's throttled cell (20 Mbps, 50 ms, 1 % loss) is still unrun, and
+  §9.1's arithmetic says the loop and W will tie there. The +20.7 % at depth 4 is a
+  loopback number; on wireless the wire is three orders of magnitude larger than the read.
+* **P0.** The ring against the pool where a miss costs ~1 ms rather than 65 µs. §16.4 found
+  them tied on end-to-end latency here, consistent with the ADR claiming CPU per miss.
+
+### 19.7 · Verdict
+
+| claim | status |
+| --- | --- |
+| the branch serves the study exactly, warm and cold, fill and on-demand | **verified**, byte-exact against an independent digest |
+| the §13 rewrite costs the read path nothing | **verified** — every `read_path_ab.sh` cell ties, exit 0 |
+| depth 1 and 2 are unchanged against the base | **verified** — 8/16 and 10/16 signs, ±2 % |
+| `WINDOWS = 4` buys something at client depth 4 | **verified in direction**: 15/16 on p50, 16/16 on CPU/ask, −28.0 % — at the resolution limit of this host, not past it |
+| fill is unchanged | **verified** — 9/16, +1.6 % |
+| warm does not regress | **verified**; the `+17 %` CPU that §15.5 was built around is not reproduced |
+| the cost is 32 KiB per session | **corrected** — +39 to +49 KiB measured |
+| `server_ab.sh` is a usable gate | **now**; it was not, and §19.5 is why |

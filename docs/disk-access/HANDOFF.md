@@ -34,10 +34,12 @@ Also on the branch: `memmap2` is gone from `server/` entirely, `study-bundle` ga
 `read_layout`, and `CLAUDE.md` + `scripts/comment_budget.sh` make the comment rule checkable.
 
 **Landed 2026-09-09:** the §13 cuts — W windows, thin ring, planner, `WINDOWS = 4`. Numbers
-in this file that predate them are still the W = 2 measurements. **They landed unmeasured:**
-§13.2 gave each commit "every A/B cell ties" as its pass condition and no such run was ever
-committed. What that leaves unverified, and the plan to close it, is
-[`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §15.
+in this file that predate them are still the W = 2 measurements. They landed unmeasured, and
+were **measured against `580e312` on 2026-09-09**: the read path ties every cell, the product
+server ties at client depth 1 and 2 and wins at depth 4, warm does not regress, and the
+delivered bytes are exact. [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §19, with
+[`server_ab.tsv`](server_ab.tsv) and [`read_path_ab.tsv`](read_path_ab.tsv). Magnitudes are
+the sandbox's; the workstation run is what resolves them.
 
 ## 2 · Numbers that are safe to quote
 
@@ -55,6 +57,8 @@ signs agree on ≥ 0.8n. Everything else is a **tie**, which is a real answer.
 | Serving depth, the arm | 1 → 2 is +67.4% paired; from the medians 2 → 4 adds +37% and 4 → 16 +28% |
 | Threads | ring arms flat (5 sandbox / 9 workstation); `pool` reaches 125–135 at 64 readers, capping at 521 |
 | Per session that misses | 2 fds, 8.7 KiB, 15.6 µs ring construction — **unchanged by the second slot**, and unchanged by `build(8)` → `build(WINDOWS)` (`ring_scale`, §16.2c) |
+| **The §13 rewrite against `580e312`** | read path: every cell ties (§19.2). Product server: depth 1 **8/16 signs, +0.6 %** and depth 2 **10/16, +2.3 %** — unchanged; depth 4 **−19.1 % p50 (15/16)**, **−28.0 % CPU/ask (16/16)**, **+20.7 % asks/s**; warm and fill tie; bytes byte-exact. Sandbox — directions, not magnitudes (§19) |
+| **W 2 → 4, memory** | **+39 to +49 KiB per session** across three interleaved measurements, against the +32 KiB §9.3 predicts (§19.4) |
 | **Read-ahead through the product server** | cold tiles, client depth 4: **−20.6 % p50, 7/8** against the same binary with the seam severed; the depth 1 → 4 ladder is **+101 %** asks/s against **+71 %** severed. Sandbox, a tie under the 28.5 % rule — a mechanism check, not a verdict ([`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md) §16.4) |
 | **Ring against pool, end to end** | cold tiles, depth 1 and 4: **tie** on p50 (−13 %, 6/8). The ADR's resolved claim is CPU per miss, not latency; §9.1 says the wire swamps a 65 µs read |
 
