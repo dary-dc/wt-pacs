@@ -158,7 +158,7 @@ emit() {
   row=$(drive "$pid" "$url" "$arm" "$label" "$temp" "$mode" "$depth" "$sessions")
   miss=""
   named=""
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 200); do
     miss=$(field_from_log miss_rate "$log" "$off")
     named=$(field_from_log named "$log" "$off")
     [[ -n "$miss" ]] && break
