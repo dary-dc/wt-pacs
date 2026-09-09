@@ -124,13 +124,14 @@ read_fast_path_after=$(banner_val "$after_log" read_fast_path)
   echo "frames $frames  step $STEP  asks $ASKS"
 } | tee -a "$HOST"
 
-printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\n' > "$OUT"
+printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\n' > "$OUT"
 
-miss_from_log() {
-  local log="$1" off="$2"
-  # `|| true`: no match yet is what the caller retries on, not a reason to end the run.
-  tail -c +"$((off + 1))" "$log" | grep -oE 'miss_rate[^0-9]*[0-9.eE+-]+' | tail -1 |
-    grep -oE '[0-9.eE+-]+$' || true
+# CSI-stripped `key=number`; `[^0-9]*` after the key would read the 0 in `[0m`.
+# `|| true`: no match yet is what the caller retries on, not a reason to end the run.
+field_from_log() {
+  local key="$1" log="$2" off="$3"
+  tail -c +"$((off + 1))" "$log" | sed $'s/\x1b\\[[0-9;]*[A-Za-z]//g' |
+    grep -oE "${key}=[0-9.eE+-]+" | tail -1 | grep -oE '[0-9.eE+-]+$' || true
 }
 
 drive() {
@@ -146,7 +147,7 @@ emit() {
   local pid="$1" url="$2" log="$3" arm="$4" kind="$5" temp="$6" mode="$7" depth="$8"
   local sessions="${9:-1}"
   local label="${kind}_r${r}"
-  local off row miss
+  local off row miss named
   off=$(wc -c <"$log")
   if [[ "$temp" == warm ]]; then
     drive "$pid" "$url" "$arm" "${kind}_warm_discard" "$temp" "$mode" "$depth" "$sessions" >/dev/null
@@ -156,8 +157,10 @@ emit() {
   fi
   row=$(drive "$pid" "$url" "$arm" "$label" "$temp" "$mode" "$depth" "$sessions")
   miss=""
+  named=""
   for _ in $(seq 1 30); do
-    miss=$(miss_from_log "$log" "$off")
+    miss=$(field_from_log miss_rate "$log" "$off")
+    named=$(field_from_log named "$log" "$off")
     [[ -n "$miss" ]] && break
     sleep 0.1
   done
@@ -165,7 +168,7 @@ emit() {
     echo "no session-reads line for $label ($arm): the cold control is unreadable" >&2
     exit 1
   }
-  row=$(printf '%s\n' "$row" | awk -v m="$miss" 'BEGIN{FS=OFS="\t"} { $NF=m; print }')
+  row=$(printf '%s\n' "$row" | awk -v m="$miss" -v n="${named:--}" 'BEGIN{FS=OFS="\t"} { $(NF-1)=m; $NF=n; print }')
   printf '%s\n' "$row" >> "$OUT"
   if [[ "$temp" == cold && "$mode" == on-demand ]]; then
     python3 - "$miss" "$label" <<'PY'
@@ -175,6 +178,22 @@ import sys
 m, label = float(sys.argv[1]), sys.argv[2]
 if m < 0.95:
     sys.stderr.write(f"cold cell {label} miss_rate={m} < 0.95 -- raise STEP\n")
+    sys.exit(1)
+PY
+  fi
+  # HEAD logs named; 580e312 does not. Missing named on before is expected.
+  # After at depth ≥ 2 must name at least two frames or W is not engaging.
+  if [[ "$arm" == after && "$mode" == on-demand && "$depth" -ge 2 ]]; then
+    python3 - "${named:--}" "$label" <<'PY'
+import sys
+raw, label = sys.argv[1], sys.argv[2]
+try:
+    n = float(raw)
+except ValueError:
+    sys.stderr.write(f"after cell {label} named={raw!r} (need >=2)\n")
+    sys.exit(1)
+if n < 2:
+    sys.stderr.write(f"after cell {label} named={n} < 2 — W is not engaging\n")
     sys.exit(1)
 PY
   fi
@@ -300,6 +319,21 @@ if rss.get("before") and rss.get("after"):
     n = int(sys.argv[2]) if len(sys.argv) > 2 else 64
     print(f"rss_d4  {n} sessions  before {b:.0f} KiB  after {a:.0f} KiB  "
           f"delta {(a - b) / n:+.1f} KiB/session")
+
+# Peak named at cold depth 4: before=2 after=4 is the §13 claim, without clocks.
+print("named at cold depth=4 (median; before=2 after=4 is the §13 claim)")
+named_d4 = collections.defaultdict(list)
+with open(path, newline="") as fh:
+    for r in csv.DictReader(fh, delimiter="\t"):
+        if r.get("temp") != "cold" or r.get("mode") != "on-demand" or r.get("depth") != "4":
+            continue
+        try:
+            named_d4[r["arm"]].append(int(float(r["named"])))
+        except (TypeError, ValueError, KeyError):
+            pass
+for arm in ("before", "after"):
+    xs = named_d4.get(arm) or []
+    print(f"{arm}  cold_d4_named={st.median(xs) if xs else '-'}")
 
 print(f"tsv: {path}")
 sys.exit(1 if fail else 0)

@@ -146,6 +146,8 @@ impl Drop for ProductPipeline {
             hits = stats.hits,
             misses = stats.misses,
             miss_rate,
+            named = stats.peak_named,
+            in_flight = stats.peak_in_flight,
             ring = self.read.ring_built(),
             fills = self.fills,
             "session reads"
