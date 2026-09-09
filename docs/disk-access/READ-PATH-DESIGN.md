@@ -1,7 +1,8 @@
 # Read path — design proposal: depth, messages, and the loop around the seam
 
 **2026-09-08 · Proposed. 2026-09-09 · §13 landed; §15 is the plan to fix it, §16 the review
-of that plan as applied and the first product-level numbers.** Assembled
+of that plan as applied and the first product-level numbers, §17 the proposals §16 left
+open.** Assembled
 from what was agreed on the day. Steps 0–2 and the four §13 commits (W = 4, planner, thin
 ring) are in the tree ([`HANDOFF.md`](HANDOFF.md) §1) — **unmeasured**: §13.2's A/B gate was
 never run, and §15.1 has what a mutation pass found. §9 records why the loop and W are not
@@ -1713,3 +1714,128 @@ measured: the same +101 % against +71 % is the read path's share of it.
 3. P0 on the target: the ring against the pool where a miss costs ~1 ms rather than 65 µs.
    §16.4 says the ring is not a latency lever *here*; the volume class is what decides
    whether it is one there.
+
+Everything §16 found and did not change is §17.
+
+## 17 · Fix proposals — what §16 found and did not change
+
+**2026-09-09.** §16 fixed the harness where it would have produced a wrong answer and closed
+the two uncovered seam lines. What follows is everything else it found, as proposals rather
+than commits, because each is either a product change (`CLAUDE.md`: propose before
+implementing) or a cost that §15.5 says must wait for the warm cells. Ranked by what blocks
+the run that decides this round.
+
+§15.7's leftovers are **done** and are not repeated here: `note_fill`, `build(WINDOWS)`, the
+`W − 1` sentences in §1/§2/§4 and §6d, the `serve_batch` comments, the empty-study message,
+the vacuous `EndStream` wire test, and the `server.rs` test preamble.
+
+### 17.1 · Before `server_ab.sh 580e312` runs
+
+These decide whether that run's answer can be trusted. All three are small.
+
+**P1 · `session reads` should say how far the planner reached, and how many reads were in
+flight.** §16.4 had to *infer* that the seam was live by timing two binaries against each
+other. Nothing — in the lab or in production — reports it directly, so `W = 4` cannot be
+confirmed to engage on a real study, and the A/B cannot prove the base used two windows and
+HEAD used four rather than infer it from a 20 % p50 move.
+
+Two counters on `ReadStats`, both maxima, both set in `read`:
+
+```rust
+pub struct ReadStats {
+    pub hits: u64,
+    pub misses: u64,
+    /// Most frames named at once — the planner's reach, `1 + min(upcoming, W − 1)`.
+    pub peak_named: u16,
+    /// Most windows with a read outstanding at once — what the device actually saw.
+    pub peak_in_flight: u16,
+}
+```
+
+`peak_named` is `wanted.len()` after the plan is built; `peak_in_flight` is the count of
+windows with `read.is_some()` after the start loop, before the current one is waited. Both
+join the `session reads` line beside `miss_rate` and `ring`. Six lines of product code.
+
+This is the same argument that added miss-rate reporting — [`adr.md`](adr.md) §Reporting:
+*the server could not report about itself*. With it, `server_ab.sh` asserts `peak_named` per
+cell the way it already asserts `miss_rate ≥ 0.99`, and a severed seam fails the run instead
+of showing up as a tie. Test: extend `w_named_frames_start_before_the_current_read_finishes`
+to assert `(peak_named, peak_in_flight) == (WINDOWS, WINDOWS)`; mutate by dropping `upcoming`.
+
+**P2 · `--sessions > 1` with `--temp cold` is not a cold cell.** All sessions walk the same
+plan, so the first warms the study for the rest — `read_campaign` has `--partition` for
+exactly this. Only the warm RSS cell uses `N > 1` today, so this is latent, not live. The
+cheap fix is a refusal in `server_ab`'s argument parsing; partitioning the plan per session is
+the other option and is only worth it when a cold multi-session cell is actually wanted.
+
+**P3 · say what `rss_kib` is.** It is the server process's whole RSS growth over the session —
+QUIC's per-connection buffers dominate it. Measured here: 64 warm sessions at depth 4 grew the
+server by 14.7 MiB, **230 KiB per session**, against 64 KiB of windows. It is meaningful only
+as a *difference between the two arms*, where the QUIC part cancels and the remainder is the
+W = 2 → 4 window delta; the script already divides by the session count and must say so. One
+line in the driver's header comment and one in the script's output. Without it the column will
+be quoted as "the per-session cost of W = 4", which it is not.
+
+### 17.2 · Product invariants
+
+**P4 · `begin` keys a window before the read that fills it can fail.** `win.key = Some(...)`
+and `win.len = remaining` are set, then `escalate` runs and can return `Err` (`io_uring SQ
+full`, a failed `submit`). The window is then keyed as holding `remaining` bytes of which only
+`hit` are real, and `holding` — which every later read trusts — would hand them out. It is not
+reachable today: `read` propagates the error and the session ends. It is still the one
+invariant the window table rests on, broken on a path nobody checks. Set the key after
+`escalate` returns, or clear it on the error path; two lines. Test: a store lever that fails
+the escalation once, then assert the window is not `holding` that span.
+
+**P5 · a window never shrinks, and §9.3 understates it.** `fit` grows and never releases, and
+a miss grows the window to the whole frame. A session that serves one 250 KB frame keeps
+W × 250 KB = **1 MB** for its lifetime. §9.3's memory row reads "tiles, W 2 → 4: 32 → 64 KiB
+per session", which is true only for 16 KiB tiles that hit; §14.1's "memory at thousands of
+fills" covers the fill case at two windows, not the on-demand case at four.
+
+**Proposal: correct the row, do not add shrinking.** The bound is `W × largest frame this
+session served`, and the fix if it ever bites is §14.1's vectored read into fixed 64 KiB
+blocks — already costed there. Adding an idle-shrink heuristic now is building for a future
+that may not arrive. Measure it instead: run §15.4d's RSS cell once against the 250 KB fixture
+as well as the tile one, and quote both.
+
+**P6 · `read_asks` returns `Result<(), ()>`.** `map_err(|_| ())?` three times to say "the
+receiver is gone, stop". `ControlFlow`, or a `bool`, says it once. Cosmetic; listed so it is
+not rediscovered.
+
+### 17.3 · Costs deferred until the warm cells rule (§15.5)
+
+None of these should land before `server_ab.sh` says the product warm cells lose. Costed here
+so the decision is one reading rather than five investigations.
+
+| # | cost | where | change |
+| --- | --- | --- | --- |
+| P7 | one `Vec` allocation per **64 KiB read** | `read_path.rs` `read` | `wanted` becomes `[(FrameSpan, u32); WINDOWS]` with a length |
+| P8 | `free_window` rescans all W windows against `wanted`, O(W²) per read | `read_path.rs` | compute each `holding` once and reuse it |
+| P9 | up to 5 wasted `frame_span` lookups and two oversized `Vec`s **per frame** | `planner.rs`, `pipeline.rs` | the planner names up to `ASKS_AHEAD` = 8; `read` uses `WINDOWS − 1` = 3. Cap `upcoming` at `WINDOWS − 1`. Trade-off: naming more survives an upcoming frame that fails to locate (§13.3), so the cap costs a little resilience for a smaller allocation |
+| P10 | one `Vec` per ring wake | `uring_reader.rs` `reap` | `[_; WINDOWS]`; §14.1 already has this row |
+| P11 | one atomic pair per frame | `pipeline.rs` `serve` | `Arc::clone(self.store())` exists to satisfy the borrow checker; a restructure removes it |
+
+P9 is the only one of the five that is also a correctness-of-intent point: §13.3 says
+`upcoming` is "the frames this session will be asked for after `frame`", and naming five the
+read path throws away is not that. It is still a cost question, not a bug.
+
+### 17.4 · Owner decisions
+
+**P12 · `exact-server` defaults to `--stream-mode per-frame`.** §9.1's standing decision is one
+shared stream — per-frame is 5.76× worse at 250 KB under 1 % loss on real hardware, and no cell
+on either rig favours it. The wire tests, the harness and both A/B scripts all pin `shared`
+explicitly, so the default is the one configuration nothing measures and nobody wants. Changing
+it is a wire-behaviour change, not a read-path one, and the clients would need checking first.
+
+**P13 · `gate.sh` has no `cargo fmt --check`.** The four server files this branch touched were
+formatted by hand in §16; `client/`, `lab/window-harness/`, `server/src/record/` and
+`tools/pack-study/` are still drifted, so adding the check repo-wide fails today. It needs one
+mechanical `cargo fmt` commit across the workspace first, and that commit should land on its
+own so it never sits inside a diff anyone has to read.
+
+### 17.5 · Not a proposal — the measurement backlog
+
+Unchanged from §16.5 and repeated only so this section is not read as the whole of what is
+left: `server_ab.sh 580e312` on the workstation, `read_path_ab.sh 580e312`, then P0 on the
+target. No proposal here substitutes for any of them.
