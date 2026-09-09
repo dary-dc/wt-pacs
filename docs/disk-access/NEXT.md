@@ -54,7 +54,8 @@ loop and W are not where latency is lost on the owners' default link, the call t
 W = 4 anyway and keep fill at 2, and the one cell to run: [`READ-PATH-DESIGN.md`](READ-PATH-DESIGN.md)
 §9, with §9.5 on why tiles take 4 and not 16 until P0's depth ladder says otherwise. The
 shape-only simplification cuts: §10 there; **§11 chosen 2026-09-09, §13 is the handoff** — four
-commits, each measured, W = 4 last. The paragraph below is
+commits, each measured, W = 4 last; **§14 there registers everything raised that the four commits
+do not deliver**, each row pointing back to the file that owns it. The paragraph below is
 kept as the state that ordering was set against.
 
 **Not built, and it is the loop, not the read path:** `run_session` still does not read the
