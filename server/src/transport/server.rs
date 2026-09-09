@@ -10,11 +10,11 @@ use crate::transport::tls::load_pem_cert;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{anyhow, Context, Result};
 use fod::FodMsg;
-use tokio::sync::mpsc;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tracing::{info, warn};
 use wtransport::config::{states, IpBindConfig, QuicTransportConfig, ServerConfigBuilder};
 use wtransport::endpoint::endpoint_side;
@@ -227,10 +227,7 @@ async fn handle_incoming(
 
 /// The reader owns the control stream; the planner decides; the pipeline serves.
 /// `docs/disk-access/READ-PATH-DESIGN.md` §11 cuts 1, 2 and 5.
-async fn run_session<P: FramePipeline>(
-    pipeline: &mut P,
-    control_recv: RecvStream,
-) -> Result<()> {
+async fn run_session<P: FramePipeline>(pipeline: &mut P, control_recv: RecvStream) -> Result<()> {
     let (reader, mut asks) = spawn_ask_reader(control_recv);
     let result = async {
         let mut plan = Planner::new(pipeline.store().frame_count());
@@ -266,38 +263,48 @@ fn spawn_ask_reader(
     let (tx, rx) = mpsc::channel(ASKS_AHEAD);
     let reader = tokio::spawn(async move {
         loop {
-            let asks = match read_fod_msg(&mut control_recv).await {
-                Ok(FodMsg::RequestFrame { frame }) => vec![Ask::Frame(frame)],
-                Ok(FodMsg::RequestFrames { frames }) => {
-                    frames.into_iter().map(Ask::Frame).collect()
-                }
-                Ok(FodMsg::StreamFrames { from, to }) => vec![Ask::Fill { from, to }],
-                Ok(FodMsg::EndStream) => vec![Ask::EndStream],
-                Ok(FodMsg::EndSession) => vec![Ask::EndSession],
-                Ok(FodMsg::FrameError { .. }) => continue,
-                Err(err) => vec![Ask::Failed(err)],
-            };
-            for ask in asks {
-                let failed = matches!(ask, Ask::Failed(_));
-                if tx.send(ask).await.is_err() {
-                    return;
-                }
-                if failed {
-                    return;
-                }
+            if read_asks(&mut control_recv, &tx).await.is_err() {
+                return;
             }
         }
     });
     (reader, rx)
 }
 
+async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+    let ask = match read_fod_msg(control_recv).await {
+        Ok(FodMsg::RequestFrame { frame }) => {
+            tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
+            return Ok(());
+        }
+        Ok(FodMsg::RequestFrames { frames }) => {
+            for frame in frames {
+                tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
+            }
+            return Ok(());
+        }
+        Ok(FodMsg::StreamFrames { from, to }) => Ask::Fill { from, to },
+        Ok(FodMsg::EndStream) => Ask::EndStream,
+        Ok(FodMsg::EndSession) => Ask::EndSession,
+        Ok(FodMsg::FrameError { .. }) => return Ok(()),
+        Err(err) => Ask::Failed(err),
+    };
+    let failed = matches!(ask, Ask::Failed(_));
+    tx.send(ask).await.map_err(|_| ())?;
+    if failed {
+        Err(())
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use fod::FodMsg;
-    use wtransport::stream::SendStream;
     use frame_envelope::unwrap;
     use std::io::Write;
+    use wtransport::stream::SendStream;
     use wtransport::ClientConfig;
 
     /// A study of `frames` frames, each a different length and pattern, so a batch served
@@ -414,9 +421,7 @@ mod tests {
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
                     .with_bind_config(IpBindConfig::InAddrAnyV4)
-                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(
-                        cert_hash,
-                    )])
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
                     .build(),
             )
             .expect("client endpoint");
@@ -434,11 +439,20 @@ mod tests {
             }
             let connection = connection.expect("server never accepted a connection");
 
-            let (mut control, _control_recv) =
-                connection.open_bi().await.expect("open bi").await.expect("bi ready");
+            let (mut control, _control_recv) = connection
+                .open_bi()
+                .await
+                .expect("open bi")
+                .await
+                .expect("bi ready");
             let asked: Vec<u32> = (0..frames).collect();
             control
-                .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrames { frames: asked.clone() }).unwrap())
+                .write_all(
+                    &fod::encode_fod_msg(&FodMsg::RequestFrames {
+                        frames: asked.clone(),
+                    })
+                    .unwrap(),
+                )
                 .await
                 .expect("ask");
 
@@ -488,9 +502,7 @@ mod tests {
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
                     .with_bind_config(IpBindConfig::InAddrAnyV4)
-                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(
-                        cert_hash,
-                    )])
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
                     .build(),
             )
             .expect("client endpoint");
@@ -508,8 +520,12 @@ mod tests {
             }
             let connection = connection.expect("server never accepted a connection");
 
-            let (mut control, _control_recv) =
-                connection.open_bi().await.expect("open bi").await.expect("bi ready");
+            let (mut control, _control_recv) = connection
+                .open_bi()
+                .await
+                .expect("open bi")
+                .await
+                .expect("bi ready");
             let asked: Vec<u32> = (0..frames).collect();
             for &frame in &asked {
                 control
@@ -619,7 +635,8 @@ mod tests {
                 assert_eq!(idx, want, "frames arrived out of fill order");
                 assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
             }
-            let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
+            let extra =
+                tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
             assert!(extra.is_err(), "fill sent a frame past `to`");
             server.abort();
         });
@@ -664,7 +681,8 @@ mod tests {
                 assert_eq!(idx, want, "frames arrived out of fill order");
                 assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
             }
-            let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
+            let extra =
+                tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
             assert!(extra.is_err(), "fill sent a frame past the study");
             server.abort();
         });
@@ -706,7 +724,10 @@ mod tests {
             {
                 got += 1;
             }
-            assert!(got < frames, "EndStream let the fill run to the end ({got}/{frames})");
+            assert!(
+                got < frames,
+                "EndStream let the fill run to the end ({got}/{frames})"
+            );
             server.abort();
         });
         std::fs::remove_dir_all(&dir).ok();
@@ -739,9 +760,10 @@ mod tests {
             bytes.extend(fod::encode_fod_msg(&FodMsg::RequestFrame { frame: 5 }).unwrap());
             control.write_all(&bytes).await.expect("fill+switch");
 
-            let (first, _) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
-                .await
-                .expect("a frame");
+            let (first, _) =
+                tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                    .await
+                    .expect("a frame");
             assert!(
                 first == 0 || first == 5,
                 "first frame after a switch should be the fill head or the ask, not {first}"

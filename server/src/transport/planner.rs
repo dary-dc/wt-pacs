@@ -62,9 +62,15 @@ impl Planner {
         std::mem::take(&mut self.note_fill)
     }
 
+    #[cfg(test)]
+    fn in_hand_len(&self) -> usize {
+        self.in_hand.len()
+    }
+
     /// `poll` yields asks that arrived since the last step; a fill checks it between frames.
     pub fn next(&mut self, mut poll: impl FnMut() -> Option<Ask>) -> Result<Step> {
-        while let Some(ask) = poll() {
+        while self.in_hand.len() < ASKS_AHEAD {
+            let Some(ask) = poll() else { break };
             self.in_hand.push_back(ask);
         }
         loop {
@@ -101,6 +107,7 @@ impl Planner {
                     let upcoming = self
                         .in_hand
                         .iter()
+                        .take_while(|a| matches!(a, Ask::Frame(_) | Ask::EndStream))
                         .filter_map(Ask::frame)
                         .take(ASKS_AHEAD)
                         .collect();
@@ -198,10 +205,7 @@ mod tests {
             Step::Serve { frame: 3, .. }
         ));
         let mut arrived = Some(Ask::EndStream);
-        assert!(matches!(
-            plan.next(|| arrived.take()).unwrap(),
-            Step::Wait
-        ));
+        assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::Wait));
     }
 
     /// A data request found mid-fill ends the fill and is then served.
@@ -236,10 +240,7 @@ mod tests {
             Step::Serve { frame: 0, .. }
         ));
         let mut arrived = Some(Ask::EndSession);
-        assert!(matches!(
-            plan.next(|| arrived.take()).unwrap(),
-            Step::End
-        ));
+        assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::End));
         assert!(matches!(plan.next(|| None).unwrap(), Step::Wait));
     }
 
@@ -269,6 +270,48 @@ mod tests {
             Step::Refuse { frame, .. } => assert_eq!(frame, 0),
             other => panic!("{other:?}"),
         }
+    }
+
+    /// A flood of asks does not grow `in_hand` past `ASKS_AHEAD`; the rest stay in `poll`.
+    #[test]
+    fn the_loop_holds_no_more_than_asks_ahead() {
+        let mut plan = Planner::new(1000);
+        let mut offered = 0u32;
+        let mut poll = || {
+            if offered >= 800 {
+                return None;
+            }
+            offered += 1;
+            Some(Ask::Frame(offered - 1))
+        };
+        for _ in 0..100 {
+            let _ = plan.next(&mut poll).unwrap();
+            assert!(
+                plan.in_hand_len() <= ASKS_AHEAD,
+                "in_hand grew to {} past ASKS_AHEAD {ASKS_AHEAD}",
+                plan.in_hand_len()
+            );
+        }
+    }
+
+    /// A queued `Fill` is next; a frame behind it is not named as upcoming.
+    #[test]
+    fn upcoming_stops_at_the_first_ask_that_is_not_a_frame() {
+        let mut plan = Planner::new(10);
+        plan.push(Ask::Frame(5));
+        plan.push(Ask::Fill {
+            from: Some(7),
+            to: Some(9),
+        });
+        plan.push(Ask::Frame(9));
+        let Step::Serve { frame, upcoming } = plan.next(|| None).unwrap() else {
+            panic!()
+        };
+        assert_eq!(frame, 5);
+        assert!(
+            !upcoming.contains(&9),
+            "fill is queued; 9 is not the next frame to read: {upcoming:?}"
+        );
     }
 
     /// An `Err` in hand makes `next` return it.
