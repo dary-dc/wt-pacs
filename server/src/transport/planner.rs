@@ -28,10 +28,24 @@ impl Ask {
 }
 
 /// The next thing to do. Decided without I/O, so it is tested with a `Vec`.
+/// Which reader serves a frame: a fill knows what comes next, an on-demand ask does not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Fill,
+    OnDemand,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Step {
-    Serve { frame: u32, upcoming: Vec<u32> },
-    Refuse { frame: u32, reason: String },
+    Serve {
+        frame: u32,
+        upcoming: Vec<u32>,
+        mode: Mode,
+    },
+    Refuse {
+        frame: u32,
+        reason: String,
+    },
     Wait,
     End,
 }
@@ -84,7 +98,11 @@ impl Planner {
                         self.note_fill = true;
                         self.count_this_fill = false;
                     }
-                    return Ok(Step::Serve { frame, upcoming });
+                    return Ok(Step::Serve {
+                        frame,
+                        upcoming,
+                        mode: Mode::Fill,
+                    });
                 }
                 self.fill = None;
                 self.count_this_fill = false;
@@ -118,7 +136,11 @@ impl Planner {
                         .filter_map(Ask::frame)
                         .take(ASKS_AHEAD)
                         .collect();
-                    return Ok(Step::Serve { frame, upcoming });
+                    return Ok(Step::Serve {
+                        frame,
+                        upcoming,
+                        mode: Mode::OnDemand,
+                    });
                 }
             }
         }
@@ -149,7 +171,10 @@ mod tests {
         for frame in [4, 5, 6] {
             plan.push(Ask::Frame(frame));
         }
-        let Step::Serve { frame, upcoming } = plan.next(|| None).unwrap() else {
+        let Step::Serve {
+            frame, upcoming, ..
+        } = plan.next(|| None).unwrap()
+        else {
             panic!()
         };
         assert_eq!((frame, upcoming), (4, vec![5, 6]));
@@ -163,11 +188,17 @@ mod tests {
         for frame in [4, 5] {
             plan.push(Ask::Frame(frame));
         }
-        let Step::Serve { frame, upcoming } = plan.next(|| None).unwrap() else {
+        let Step::Serve {
+            frame, upcoming, ..
+        } = plan.next(|| None).unwrap()
+        else {
             panic!()
         };
         assert_eq!((frame, upcoming), (1, vec![4, 5]));
-        let Step::Serve { frame, upcoming } = plan.next(|| None).unwrap() else {
+        let Step::Serve {
+            frame, upcoming, ..
+        } = plan.next(|| None).unwrap()
+        else {
             panic!()
         };
         assert_eq!((frame, upcoming), (4, vec![5]));
@@ -185,7 +216,9 @@ mod tests {
         let mut noted = 0u32;
         loop {
             match plan.next(|| None).unwrap() {
-                Step::Serve { frame, upcoming } => {
+                Step::Serve {
+                    frame, upcoming, ..
+                } => {
                     if plan.take_noted_fill() {
                         noted += 1;
                     }
@@ -237,7 +270,10 @@ mod tests {
             Step::Serve { frame: 0, .. }
         ));
         let mut arrived = Some(Ask::Frame(9));
-        let Step::Serve { frame, upcoming } = plan.next(|| arrived.take()).unwrap() else {
+        let Step::Serve {
+            frame, upcoming, ..
+        } = plan.next(|| arrived.take()).unwrap()
+        else {
             panic!()
         };
         assert_eq!((frame, upcoming), (9, vec![]));
@@ -339,7 +375,10 @@ mod tests {
             to: Some(9),
         });
         plan.push(Ask::Frame(9));
-        let Step::Serve { frame, upcoming } = plan.next(|| None).unwrap() else {
+        let Step::Serve {
+            frame, upcoming, ..
+        } = plan.next(|| None).unwrap()
+        else {
             panic!()
         };
         assert_eq!(

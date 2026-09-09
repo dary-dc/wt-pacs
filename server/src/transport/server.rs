@@ -244,7 +244,11 @@ async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask
             pipeline.note_fill();
         }
         match step {
-            Step::Serve { frame, upcoming } => pipeline.serve(frame, &upcoming).await?,
+            Step::Serve {
+                frame,
+                upcoming,
+                mode,
+            } => pipeline.serve(frame, &upcoming, mode).await?,
             Step::Refuse { frame, reason } => {
                 pipeline.refuse(frame, anyhow!(reason)).await?;
             }
@@ -304,6 +308,7 @@ async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Res
 mod tests {
     use super::*;
     use crate::media::frame_store::FrameSpan;
+    use crate::transport::planner::Mode;
     use fod::FodMsg;
     use frame_envelope::unwrap;
     use std::io::Write;
@@ -330,10 +335,11 @@ mod tests {
             _store: &Arc<FrameStore>,
             _span: FrameSpan,
             _ahead: &[FrameSpan],
+            _mode: Mode,
         ) -> Result<()> {
             Ok(())
         }
-        async fn serve(&mut self, frame: u32, upcoming: &[u32]) -> Result<()> {
+        async fn serve(&mut self, frame: u32, upcoming: &[u32], _mode: Mode) -> Result<()> {
             self.seen.push((frame, upcoming.to_vec()));
             Ok(())
         }

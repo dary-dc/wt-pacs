@@ -2,8 +2,9 @@
 //! implementors override steps, never the story. `docs/telemetry/adr-server-pipeline.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
-use crate::media::read_path::{ReadCtx, ReadMode};
+use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
 use crate::transport::frame_out::FrameOut;
+use crate::transport::planner::Mode;
 use crate::transport::wire::write_fod_msg;
 use anyhow::{Error, Result};
 use fod::FodMsg;
@@ -23,7 +24,7 @@ pub(crate) trait FramePipeline: Send {
     fn store(&self) -> &Arc<FrameStore>;
 
     /// `upcoming` are the frames this session will be asked for after `frame`, where known.
-    async fn serve(&mut self, frame: u32, upcoming: &[u32]) -> Result<()> {
+    async fn serve(&mut self, frame: u32, upcoming: &[u32], mode: Mode) -> Result<()> {
         self.prepare(frame);
 
         let store = Arc::clone(self.store());
@@ -36,7 +37,7 @@ pub(crate) trait FramePipeline: Send {
             .filter_map(|&frame| store.frame_span(frame).ok())
             .collect();
 
-        self.send(frame, &store, span, &ahead).await?;
+        self.send(frame, &store, span, &ahead, mode).await?;
         Ok(())
     }
 
@@ -46,13 +47,14 @@ pub(crate) trait FramePipeline: Send {
     /// No I/O, so an out-of-range ask is refused before a stream opens.
     fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan>;
 
-    /// Reads and writes interleaved, a window at a time.
+    /// Read the frame with the reader `mode` names, then write it.
     async fn send(
         &mut self,
         frame: u32,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         ahead: &[FrameSpan],
+        mode: Mode,
     ) -> Result<()>;
 
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()>;
@@ -65,18 +67,23 @@ pub(crate) trait FramePipeline: Send {
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
     out: FrameOut,
-    read: ReadCtx,
+    /// Built on the first frame of its kind, so a session pays for neither reader it
+    /// does not use. `docs/disk-access/adr.md`.
+    seq: Option<SeqReader>,
+    tile: Option<TileReader>,
+    mode: ReadMode,
     control: Option<SendStream>,
     fills: u64,
 }
 
 impl ProductPipeline {
     pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut) -> Self {
-        let read = ReadCtx::new(ReadMode::from_env(), &store);
         Self {
             store,
             out,
-            read,
+            seq: None,
+            tile: None,
+            mode: ReadMode::from_env(),
             control: None,
             fills: 0,
         }
@@ -103,10 +110,28 @@ impl FramePipeline for ProductPipeline {
         store: &Arc<FrameStore>,
         span: FrameSpan,
         ahead: &[FrameSpan],
+        mode: Mode,
     ) -> Result<()> {
-        self.out
-            .send_frame(frame, store, span, ahead, &mut self.read)
-            .await
+        let Self {
+            out,
+            seq,
+            tile,
+            mode: read_mode,
+            ..
+        } = self;
+        let body = match mode {
+            Mode::Fill => {
+                seq.get_or_insert_with(SeqReader::new)
+                    .read(store, span, ahead.first().copied())
+                    .await?
+            }
+            Mode::OnDemand => {
+                tile.get_or_insert_with(|| TileReader::new(*read_mode, store, TILE_SLOTS))
+                    .read(store, span, ahead)
+                    .await?
+            }
+        };
+        out.send_frame(frame, body).await
     }
 
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
@@ -138,17 +163,27 @@ impl Drop for ProductPipeline {
     /// In `Drop` because a session ends several ways, and a miss rate only some of them
     /// report is worse than none. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
     fn drop(&mut self) {
-        let stats = self.read.stats();
-        let Some(miss_rate) = stats.miss_rate() else {
+        let seq = self.seq.as_ref().map(SeqReader::stats).unwrap_or_default();
+        let tile = self
+            .tile
+            .as_ref()
+            .map(TileReader::stats)
+            .unwrap_or_default();
+        let (hits, misses) = (seq.hits + tile.hits, seq.misses + tile.misses);
+        if hits + misses == 0 {
             return;
-        };
+        }
         info!(
-            hits = stats.hits,
-            misses = stats.misses,
-            miss_rate,
-            named = stats.peak_named,
-            in_flight = stats.peak_in_flight,
-            ring = self.read.ring_built(),
+            hits,
+            misses,
+            miss_rate = misses as f64 / (hits + misses) as f64,
+            fill_hits = seq.hits,
+            fill_misses = seq.misses,
+            tile_hits = tile.hits,
+            tile_misses = tile.misses,
+            named = tile.peak_named.max(seq.peak_named),
+            in_flight = tile.peak_in_flight.max(seq.peak_in_flight),
+            ring = self.tile.as_ref().is_some_and(TileReader::ring_built),
             fills = self.fills,
             "session reads"
         );
@@ -195,11 +230,12 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         store: &Arc<FrameStore>,
         span: FrameSpan,
         ahead: &[FrameSpan],
+        mode: Mode,
     ) -> Result<()> {
         // `send_us` covers read and write together, plus the next frame's read starting.
         self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + span.len as usize;
-        match self.inner.send(frame, store, span, ahead).await {
+        match self.inner.send(frame, store, span, ahead, mode).await {
             Ok(()) => {
                 self.tap.emit_sent(envelope_len);
                 Ok(())
@@ -261,7 +297,7 @@ mod tests {
     /// test's, because the sink is the observation point.
     struct SeamRecorder {
         store: Arc<FrameStore>,
-        seen: Vec<(u32, Vec<FrameSpan>)>,
+        seen: Vec<(u32, Vec<FrameSpan>, Mode)>,
     }
 
     impl FramePipeline for SeamRecorder {
@@ -279,8 +315,9 @@ mod tests {
             _store: &Arc<FrameStore>,
             _span: FrameSpan,
             ahead: &[FrameSpan],
+            mode: Mode,
         ) -> Result<()> {
-            self.seen.push((frame, ahead.to_vec()));
+            self.seen.push((frame, ahead.to_vec(), mode));
             Ok(())
         }
 
@@ -317,10 +354,11 @@ mod tests {
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .expect("rt");
-        rt.block_on(rec.serve(0, &[1, 2, 3])).expect("serve");
+        rt.block_on(rec.serve(0, &[1, 2, 3], Mode::OnDemand))
+            .expect("serve");
         assert_eq!(
             rec.seen,
-            vec![(0, want)],
+            vec![(0, want, Mode::OnDemand)],
             "the planner's names did not reach the read path"
         );
         let _ = std::fs::remove_file(&path);
@@ -335,8 +373,13 @@ mod tests {
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .expect("rt");
-        rt.block_on(rec.serve(0, &[1, 99])).expect("serve");
-        assert_eq!(rec.seen, vec![(0, want)], "a bad name broke the good one");
+        rt.block_on(rec.serve(0, &[1, 99], Mode::OnDemand))
+            .expect("serve");
+        assert_eq!(
+            rec.seen,
+            vec![(0, want, Mode::OnDemand)],
+            "a bad name broke the good one"
+        );
         let _ = std::fs::remove_file(&path);
     }
 

@@ -7,6 +7,8 @@
 #
 # Prints tie / RESOLVED per cell under the campaign's 28.5 % rule on p50.
 # A refactor of the read path is expected to tie every product cell; seq1g is P0.
+# The base must know `product_fill` and `product_tile`: the readers split at the commit that
+# separated fill from on-demand, and a base before it has neither arm.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -48,7 +50,7 @@ emit() { # bin arm label extra args...
   local bin="$1" arm="$2" label="$3"; shift 3
   local hdr=()
   [[ $first -eq 1 ]] || hdr=(--no-header)
-  "$bin" --arms product --label "$label" --repeats 1 --monitors 0 --asks "$ASKS" \
+  "$bin" --arms product_fill,product_tile --label "$label" --repeats 1 --monitors 0 --asks "$ASKS" \
     "${hdr[@]}" "$@" | awk -v arm="$arm" 'BEGIN{FS=OFS="\t"}
       NR==1 && $1=="label" {print; next}
       { $2=arm; print }' >> "$OUT"

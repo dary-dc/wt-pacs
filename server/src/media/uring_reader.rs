@@ -132,7 +132,7 @@ impl Drop for UringReader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::read_path::WINDOWS;
+    use crate::media::read_path::TILE_SLOTS;
     use std::io::Write;
 
     fn blob(dir: &std::path::Path, len: usize) -> (std::fs::File, Vec<u8>) {
@@ -160,7 +160,7 @@ mod tests {
             .expect("rt");
         let _guard = rt.enter();
 
-        let Ok(mut reader) = UringReader::new(&file, WINDOWS as u32) else {
+        let Ok(mut reader) = UringReader::new(&file, TILE_SLOTS as u32) else {
             eprintln!("skipped: io_uring is unavailable on this host");
             std::fs::remove_dir_all(&dir).ok();
             return;
@@ -206,14 +206,17 @@ mod tests {
             .build()
             .expect("rt");
         rt.block_on(async move {
-            let Ok(mut reader) = UringReader::new(&rd, WINDOWS as u32) else {
+            let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
                 eprintln!("skipped: io_uring is unavailable on this host");
                 return;
             };
             let mut buf = vec![0u8; 64];
             // SAFETY: `buf` outlives `reader` and is untouched until reaped.
             unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
-            assert!(reader.reap().expect("reap").is_empty(), "the pipe was not empty");
+            assert!(
+                reader.reap().expect("reap").is_empty(),
+                "the pipe was not empty"
+            );
             let writer = std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(50));
                 (&wr).write_all(&[0x5A; 64]).expect("write");
@@ -246,7 +249,7 @@ mod tests {
             .expect("rt");
         let _guard = rt.enter();
 
-        let Ok(mut reader) = UringReader::new(&file, WINDOWS as u32) else {
+        let Ok(mut reader) = UringReader::new(&file, TILE_SLOTS as u32) else {
             eprintln!("skipped: io_uring is unavailable on this host");
             std::fs::remove_dir_all(&dir).ok();
             return;

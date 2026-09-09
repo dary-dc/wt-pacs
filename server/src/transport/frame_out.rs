@@ -1,12 +1,10 @@
 //! Session-scoped outbound media: length-prefixed envelopes on shared or per-frame uni
 //! streams, the codestream streamed a window at a time. `docs/disk-access/adr.md`.
 
-use crate::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
-use crate::media::read_path::ReadCtx;
+use crate::media::frame_store::READ_WINDOW;
 use crate::transport::stream_mode::StreamMode;
 use anyhow::{Context, Result};
 use frame_envelope::ENVELOPE_LEN;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinSet;
 use wtransport::stream::SendStream;
@@ -49,21 +47,14 @@ impl FrameOut {
         }
     }
 
-    /// `ctx` is the caller's, so a session allocates its windows once; `ahead`, where the
-    /// caller knows it, lets those frames' reads start early.
-    pub(crate) async fn send_frame(
-        &mut self,
-        idx: u32,
-        store: &Arc<FrameStore>,
-        span: FrameSpan,
-        ahead: &[FrameSpan],
-        ctx: &mut ReadCtx,
-    ) -> Result<()> {
-        let head = frame_head(idx, span.len);
+    /// `body` is the whole codestream: the reader returns a frame in one call, and the
+    /// write is chunked so a wide frame does not copy without yielding.
+    pub(crate) async fn send_frame(&mut self, idx: u32, body: &[u8]) -> Result<()> {
+        let head = frame_head(idx, body.len() as u32);
         match self {
             Self::Shared { uni, .. } => {
                 uni.write_all(&head).await.context("write shared head")?;
-                stream_codestream(uni, store, span, ahead, ctx).await?;
+                write_body(uni, body).await?;
             }
             Self::PerFrame { connection, acks } => {
                 let mut uni = connection
@@ -73,7 +64,7 @@ impl FrameOut {
                     .await
                     .context("open uni ready")?;
                 uni.write_all(&head).await.context("write head")?;
-                stream_codestream(&mut uni, store, span, ahead, ctx).await?;
+                write_body(&mut uni, body).await?;
 
                 acks.spawn(async move {
                     let _ = uni.finish().await;
@@ -108,21 +99,9 @@ fn write_chunks(ready: &[u8]) -> impl Iterator<Item = &[u8]> {
     ready.chunks(READ_WINDOW)
 }
 
-async fn stream_codestream(
-    uni: &mut SendStream,
-    store: &Arc<FrameStore>,
-    span: FrameSpan,
-    ahead: &[FrameSpan],
-    ctx: &mut ReadCtx,
-) -> Result<()> {
-    let mut pos = 0u32;
-    while pos < span.len {
-        let ready = ctx.read(store, span, pos, ahead.iter().copied()).await?;
-        pos += ready.len() as u32;
-        // A miss returns the rest of the frame; the write chunk is not that size.
-        for piece in write_chunks(ready) {
-            uni.write_all(piece).await.context("write codestream")?;
-        }
+async fn write_body(uni: &mut SendStream, body: &[u8]) -> Result<()> {
+    for piece in write_chunks(body) {
+        uni.write_all(piece).await.context("write codestream")?;
     }
     Ok(())
 }
@@ -131,7 +110,7 @@ async fn stream_codestream(
 mod tests {
     use super::*;
     use crate::media::frame_store::FrameStore;
-    use crate::media::read_path::{ReadCtx, ReadMode};
+    use crate::media::read_path::SeqReader;
     use frame_envelope::{unwrap, wrap};
     use std::sync::Arc;
 
@@ -190,32 +169,30 @@ mod tests {
             .enable_all()
             .build()
             .expect("rt");
-        let mut ctx = ReadCtx::new(ReadMode::Pool, &store);
-        let mut pos = 0u32;
+        let mut seq = SeqReader::new();
+        let ready = rt
+            .block_on(seq.read(&store, span, None))
+            .expect("read")
+            .to_vec();
+        assert_eq!(
+            ready.len(),
+            span.len as usize,
+            "precondition: a pooled miss returns the whole frame in one call"
+        );
         let mut pieces = 0usize;
-        while pos < span.len {
-            let ready = rt
-                .block_on(ctx.read(&store, span, pos, None))
-                .expect("read");
-            assert!(!ready.is_empty());
-            pos += ready.len() as u32;
+        for piece in write_chunks(&ready) {
             assert!(
-                ready.len() > READ_WINDOW,
-                "precondition: a pooled miss returns more than one write chunk"
+                piece.len() <= READ_WINDOW,
+                "write piece {} exceeds READ_WINDOW",
+                piece.len()
             );
-            for piece in write_chunks(ready) {
-                assert!(
-                    piece.len() <= READ_WINDOW,
-                    "write piece {} exceeds READ_WINDOW",
-                    piece.len()
-                );
-                pieces += 1;
-            }
+            pieces += 1;
         }
         assert!(
             pieces > 1,
             "a 250 KB pooled frame must be more than one write"
         );
+        let pos = ready.len() as u32;
         assert_eq!(pos, span.len);
         std::fs::remove_dir_all(&dir).ok();
     }

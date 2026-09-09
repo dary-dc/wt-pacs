@@ -9,7 +9,7 @@ use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
 use exact_server::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
-use exact_server::media::read_path::{ReadCtx, ReadMode, WINDOWS};
+use exact_server::media::read_path::{ReadMode, SeqReader, TileReader};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -44,14 +44,11 @@ enum Arm {
     /// reads in flight. Under `--cfg tokio_unstable` it reports as `tokio_fs_uring`.
     /// Sequential cursor only; rejected as a product reader. `docs/disk-access/adr.md` §5.
     TokioFs,
-    /// **The shipped path itself** — `server`'s `ReadCtx`, not a model of it. Every other
-    /// arm models a candidate. `WTPACS_READ_PATH` selects its mode here too.
-    Product,
-    /// `product`, plus naming the next ask so the read path can start it underneath.
-    ProductAhead,
-    /// **Session count, not read depth**: `depth` readers, each with its own `ReadCtx`. What
-    /// `product` measured before 2026-09-10. `docs/disk-access/EVIDENCE.md`.
-    ProductSessions,
+    /// **The shipped fill reader itself** — `server`'s `SeqReader`, not a model of it.
+    ProductFill,
+    /// **The shipped tile reader itself** — `server`'s `TileReader`, `depth` slots.
+    /// `WTPACS_READ_PATH` selects its escalation here too.
+    ProductTile,
 }
 
 impl Arm {
@@ -67,9 +64,8 @@ impl Arm {
             "uring_ringfd" => Some(Self::UringRingFd),
             "hybrid_lazyring_ringfd" => Some(Self::HybridLazyRingFd),
             "tokio_fs" => Some(Self::TokioFs),
-            "product" => Some(Self::Product),
-            "product_ahead" => Some(Self::ProductAhead),
-            "product_sessions" => Some(Self::ProductSessions),
+            "product_fill" => Some(Self::ProductFill),
+            "product_tile" => Some(Self::ProductTile),
             _ => None,
         }
     }
@@ -86,9 +82,8 @@ impl Arm {
             Self::HybridLazyRingFd => "hybrid_lazyring_ringfd",
             Self::TokioFs if cfg!(tokio_unstable) => "tokio_fs_uring",
             Self::TokioFs => "tokio_fs",
-            Self::Product => "product",
-            Self::ProductAhead => "product_ahead",
-            Self::ProductSessions => "product_sessions",
+            Self::ProductFill => "product_fill",
+            Self::ProductTile => "product_tile",
         }
     }
     fn uses_ring(self) -> bool {
@@ -382,117 +377,89 @@ async fn reader_pool(
     }
     Ok(())
 }
-
-/// The product path: **one** `ReadCtx` for the session, asks served one at a time with the
-/// next `depth - 1` frames named as `upcoming` — the shape `pipeline::serve` drives. Depth is
-/// reads in flight on one session, not sessions. `ReadCtx` holds `WINDOWS` windows, so a
-/// session names at most `WINDOWS` frames however deep the client asks.
+/// The shipped fill reader: one `SeqReader`, the next ask named. Depth is not a lever here
+/// — a sequential reader holds one read at a time by construction.
 #[allow(clippy::too_many_arguments)]
-async fn reader_product(
+async fn reader_product_fill(
+    store: Arc<FrameStore>,
+    plan: Plan,
+    lat: Arc<Mutex<Vec<u64>>>,
+    misses: Arc<AtomicU64>,
+    peak_named: Arc<AtomicU64>,
+    peak_in_flight: Arc<AtomicU64>,
+    reads: Arc<AtomicU64>,
+) -> Result<()> {
+    let asks = plan.len();
+    let mut seq = SeqReader::new();
+    let mut mine = Vec::with_capacity(asks);
+    let mut miss = 0u64;
+    for i in 0..asks {
+        let span = span_at(&plan, i).expect("ask in range");
+        let next = span_at(&plan, i + 1);
+        let t = Instant::now();
+        let before = seq.stats().misses;
+        let mut pos = 0u32;
+        while pos < span.len {
+            let ready = seq.read(&store, span, next).await.expect("fill read");
+            pos += ready.len() as u32;
+        }
+        mine.push(t.elapsed().as_nanos() as u64);
+        if seq.stats().misses > before {
+            miss += 1;
+        }
+    }
+    let st = seq.stats();
+    reads.fetch_add(st.hits + st.misses, Ordering::Relaxed);
+    peak_named.fetch_max(u64::from(st.peak_named), Ordering::Relaxed);
+    peak_in_flight.fetch_max(u64::from(st.peak_in_flight), Ordering::Relaxed);
+    lat.lock().unwrap().extend(mine);
+    misses.fetch_add(miss, Ordering::Relaxed);
+    Ok(())
+}
+
+/// The shipped tile reader: one `TileReader` with `depth` slots, the next `depth - 1` asks
+/// named. `depth` is the session's reads in flight, which is what the slot count buys.
+#[allow(clippy::too_many_arguments)]
+async fn reader_product_tile(
     store: Arc<FrameStore>,
     cell: &Cell,
     plan: Plan,
     lat: Arc<Mutex<Vec<u64>>>,
     misses: Arc<AtomicU64>,
-    look_ahead: bool,
     peak_named: Arc<AtomicU64>,
     peak_in_flight: Arc<AtomicU64>,
     rings_built: Arc<AtomicU64>,
     reads: Arc<AtomicU64>,
 ) -> Result<()> {
     let asks = plan.len();
-    let named = cell.depth - 1 + usize::from(look_ahead);
-    let mut ctx = ReadCtx::new(ReadMode::from_env(), &store);
+    let slots = cell.depth.max(1);
+    let mut tile = TileReader::new(ReadMode::from_env(), &store, slots);
     let mut mine = Vec::with_capacity(asks);
     let mut miss = 0u64;
+    let mut upcoming: Vec<FrameSpan> = Vec::with_capacity(slots);
     for i in 0..asks {
         let span = span_at(&plan, i).expect("ask in range");
-        let upcoming: Vec<FrameSpan> = (1..=named)
-            .filter_map(|k| span_at(&plan, i + k))
-            .take(WINDOWS - 1)
-            .collect();
+        upcoming.clear();
+        upcoming.extend((1..slots).filter_map(|k| span_at(&plan, i + k)));
         let t = Instant::now();
-        let before = ctx.stats().misses;
+        let before = tile.stats().misses;
         let mut pos = 0u32;
         while pos < span.len {
-            let ready = ctx
-                .read(&store, span, pos, upcoming.iter().copied())
-                .await
-                .expect("product read");
+            let ready = tile.read(&store, span, &upcoming).await.expect("tile read");
             pos += ready.len() as u32;
         }
         mine.push(t.elapsed().as_nanos() as u64);
-        if ctx.stats().misses > before {
+        if tile.stats().misses > before {
             miss += 1;
         }
     }
-    let st = ctx.stats();
+    let st = tile.stats();
     reads.fetch_add(st.hits + st.misses, Ordering::Relaxed);
-    peak_named.fetch_max(st.peak_named as u64, Ordering::Relaxed);
-    peak_in_flight.fetch_max(st.peak_in_flight as u64, Ordering::Relaxed);
-    rings_built.fetch_add(u64::from(ctx.ring_built()), Ordering::Relaxed);
+    peak_named.fetch_max(u64::from(st.peak_named), Ordering::Relaxed);
+    peak_in_flight.fetch_max(u64::from(st.peak_in_flight), Ordering::Relaxed);
+    rings_built.fetch_add(u64::from(tile.ring_built()), Ordering::Relaxed);
     lat.lock().unwrap().extend(mine);
     misses.fetch_add(miss, Ordering::Relaxed);
-    Ok(())
-}
-
-/// `depth` independent sessions, one `ReadCtx` each — what `product` measured until
-/// 2026-09-10. At depth 1 it is identical to `reader_product`; above it, it prices session
-/// count. `docs/disk-access/EVIDENCE.md`.
-async fn reader_product_sessions(
-    store: Arc<FrameStore>,
-    cell: &Cell,
-    plan: Plan,
-    lat: Arc<Mutex<Vec<u64>>>,
-    misses: Arc<AtomicU64>,
-    look_ahead: bool,
-) -> Result<()> {
-    let depth = cell.depth;
-    let asks = plan.len();
-    let next = Arc::new(AtomicU64::new(0));
-    let mut set = tokio::task::JoinSet::new();
-    for _ in 0..depth {
-        let store = Arc::clone(&store);
-        let next = Arc::clone(&next);
-        let lat = Arc::clone(&lat);
-        let misses = Arc::clone(&misses);
-        let plan = Arc::clone(&plan);
-        set.spawn(async move {
-            let mut ctx = ReadCtx::new(ReadMode::from_env(), &store);
-            let mut mine = Vec::new();
-            let mut miss = 0u64;
-            loop {
-                let i = next.fetch_add(1, Ordering::Relaxed) as usize;
-                if i >= asks {
-                    break;
-                }
-                let span = span_at(&plan, i).expect("ask in range");
-                // Readers take asks off a shared cursor, so `depth` along is this reader's
-                // next ask exactly at depth 1 — the case this arm exists to measure — and a
-                // guess above it, where a wrong guess is abandoned rather than served.
-                let ahead = look_ahead.then(|| span_at(&plan, i + depth)).flatten();
-                let t = Instant::now();
-                let escalations = ctx.stats().misses;
-                let mut pos = 0u32;
-                while pos < span.len {
-                    let ready = ctx
-                        .read(&store, span, pos, ahead)
-                        .await
-                        .expect("product read");
-                    pos += ready.len() as u32;
-                }
-                mine.push(t.elapsed().as_nanos() as u64);
-                if ctx.stats().misses > escalations {
-                    miss += 1;
-                }
-            }
-            lat.lock().unwrap().extend(mine);
-            misses.fetch_add(miss, Ordering::Relaxed);
-        });
-    }
-    while let Some(joined) = set.join_next().await {
-        joined.context("reader task")?;
-    }
     Ok(())
 }
 
@@ -703,8 +670,6 @@ async fn reader_ring(
     Ok(())
 }
 
-/// See [`Arm::TokioFs`]. Misses are not observable through a cursor, so this arm reports
-/// none; regimes are classified from `pool`'s miss rate in the same cell, as everywhere.
 async fn reader_tokio_fs(
     path: PathBuf,
     cell: &Cell,
@@ -887,11 +852,10 @@ fn run_cell(
             };
             let path = path.clone();
             set.spawn(async move {
-                if matches!(c.arm, Arm::Product | Arm::ProductAhead) {
-                    let ahead = c.arm == Arm::ProductAhead;
-                    reader_product(store, &c, plan, lat, misses, ahead, pn, pif, rb, rd).await
-                } else if c.arm == Arm::ProductSessions {
-                    reader_product_sessions(store, &c, plan, lat, misses, false).await
+                if c.arm == Arm::ProductFill {
+                    reader_product_fill(store, plan, lat, misses, pn, pif, rd).await
+                } else if c.arm == Arm::ProductTile {
+                    reader_product_tile(store, &c, plan, lat, misses, pn, pif, rb, rd).await
                 } else if c.arm == Arm::TokioFs {
                     reader_tokio_fs(path, &c, plan, lat).await
                 } else if c.arm.uses_ring() {
@@ -998,7 +962,7 @@ fn main() -> Result<()> {
     if prefetches.contains(&true)
         && arms
             .iter()
-            .any(|a| matches!(a, Arm::Product | Arm::ProductAhead | Arm::ProductSessions))
+            .any(|a| matches!(a, Arm::ProductFill | Arm::ProductTile))
     {
         anyhow::bail!("--prefetch on is not implemented for the product arms");
     }

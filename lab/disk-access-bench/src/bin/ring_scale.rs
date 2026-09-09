@@ -8,7 +8,7 @@
 //!     ring_scale <study.sbnd> <count>
 
 use anyhow::{Context, Result};
-use exact_server::media::read_path::WINDOWS;
+use exact_server::media::read_path::TILE_SLOTS;
 use exact_server::media::uring_reader::UringReader;
 use std::time::Instant;
 
@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
     let t0 = Instant::now();
     for i in 0..count {
         let t = Instant::now();
-        match UringReader::new(&file, WINDOWS as u32) {
+        match UringReader::new(&file, TILE_SLOTS as u32) {
             Ok(r) => rings.push(r),
             Err(err) => {
                 println!(
