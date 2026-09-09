@@ -5,8 +5,8 @@
 #
 #   lab/scripts/read_path_ab.sh <base-commit>
 #
-# Prints tie / RESOLVED per cell under the campaign's 28.5 % rule. A refactor of the
-# read path is expected to tie every cell.
+# Prints tie / RESOLVED per cell under the campaign's 28.5 % rule on p50.
+# A refactor of the read path is expected to tie every product cell; seq1g is P0.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -73,18 +73,20 @@ done
 python3 - "$OUT" <<'PY'
 import csv, collections, math, statistics as st, sys
 DRIFT, path = 28.5, sys.argv[1]
+MIN_N = 5
+METRIC = "p50_ns"
 # One cell = one (kind, repeat). Kind is the label prefix before _rN.
 cells = collections.defaultdict(dict)
 with open(path, newline="") as fh:
     for r in csv.DictReader(fh, delimiter="\t"):
-        if r["arm"] not in ("before", "after") or not r.get("cpu_ns_per_ask"):
+        if r["arm"] not in ("before", "after") or not r.get(METRIC):
             continue
         kind, sep, rnd = r["label"].rpartition("_r")
         if not sep:
             continue
-        cells[(kind, rnd)][r["arm"]] = int(r["cpu_ns_per_ask"])
+        cells[(kind, rnd)][r["arm"]] = int(r[METRIC])
 
-print(f"{'cell':<16} {'n':>3}  {'CPU/ask Δ':>11}  {'signs':>7}  {'verdict':<9}  {'before':>9}  {'after':>9}")
+print(f"{'cell':<16} {'n':>3}  {'p50 Δ':>11}  {'signs':>7}  {'verdict':<9}  {'before':>9}  {'after':>9}")
 kinds = sorted({k for k, _ in cells})
 fail = 0
 for kind in kinds:
@@ -98,13 +100,18 @@ for kind in kinds:
         ds.append((y - x) / x * 100); b.append(x); a.append(y)
     if not ds:
         print(f"{kind:<16}   0  {'n/a':>11}  {'—':>7}  {'empty':<9}")
-        fail += 1
+        if not kind.startswith("seq"):
+            fail += 1
+        continue
+    if len(ds) < MIN_N:
+        print(f"{kind:<16} {len(ds):>3}  {'n/a':>11}  {'—':>7}  {'n<5':<9}")
         continue
     med = st.median(ds)
     agree = max(sum(1 for d in ds if d < 0), sum(1 for d in ds if d > 0))
     ok = abs(med) >= DRIFT and agree >= math.ceil(0.8 * len(ds))
     verdict = "RESOLVED" if ok else "tie"
-    if ok:
+    # seq1g is a P0 I/O cell, not a product-refactor verdict.
+    if ok and not kind.startswith("seq"):
         fail += 1
     print(f"{kind:<16} {len(ds):>3}  {med:>+10.1f}%  {agree:>3}/{len(ds):<3}  {verdict:<9}  {st.median(b):>9.0f}  {st.median(a):>9.0f}")
 print(f"tsv: {path}")

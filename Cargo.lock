@@ -387,6 +387,8 @@ dependencies = [
  "bytes",
  "clap",
  "exact-server",
+ "fod",
+ "frame-envelope",
  "io-uring",
  "libc",
  "memmap2",
@@ -396,6 +398,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "wtransport",
 ]
 
 [[package]]

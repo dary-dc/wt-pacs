@@ -172,3 +172,58 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
         miss_resident,
     })
 }
+
+/// Evict, retrying, and report what stayed resident — the report is the point, because
+/// `fadvise(DONTNEED)` is advisory and a cell that trusted it could measure warm reads under
+/// a cold label.
+pub fn evict_retry(path: &Path) -> Result<f64> {
+    let mut resident = f64::NAN;
+    for attempt in 0..8 {
+        resident = evict(path)?;
+        if resident.is_nan() || resident <= 0.005 {
+            return Ok(resident);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20 * (attempt + 1)));
+    }
+    Ok(resident)
+}
+
+pub fn evict(path: &Path) -> Result<f64> {
+    let file = std::fs::File::open(path)?;
+    let len = file.metadata()?.len();
+    // SAFETY: advisory call on an open fd; touches no user memory.
+    unsafe {
+        libc::posix_fadvise(
+            file.as_raw_fd(),
+            0,
+            len as libc::off_t,
+            libc::POSIX_FADV_DONTNEED,
+        );
+    }
+    // SAFETY: read-only shared mapping of a file held open here; unmapped below.
+    let addr = unsafe {
+        libc::mmap(
+            std::ptr::null_mut(),
+            len as usize,
+            libc::PROT_READ,
+            libc::MAP_SHARED,
+            file.as_raw_fd(),
+            0,
+        )
+    };
+    if addr == libc::MAP_FAILED {
+        return Ok(f64::NAN);
+    }
+    let pages = (len as usize).div_ceil(4096);
+    let mut vec = vec![0u8; pages];
+    // SAFETY: `addr` maps `len` bytes; `vec` holds one byte per page of that range.
+    let rc = unsafe { libc::mincore(addr, len as usize, vec.as_mut_ptr()) };
+    let resident = if rc == 0 {
+        vec.iter().filter(|b| *b & 1 != 0).count() as f64 / pages as f64
+    } else {
+        f64::NAN
+    };
+    // SAFETY: unmapping exactly what was mapped above.
+    unsafe { libc::munmap(addr, len as usize) };
+    Ok(resident)
+}
