@@ -1,5 +1,5 @@
 // Drive the product TypeScript client in plain Node against a stub WebTransport — no browser,
-// no server. Two scenarios from docs/improvements-2026-09-08.md (D2, D3):
+// no server. Two scenarios from docs/improvements/2026-09-08.md (D2, D3):
 //   1. the control writer rejects every write: a single ask must not leave its waiter armed;
 //   2. a bulk ask with a duplicate index must not orphan a waiter or ask the server twice.
 // usage: node lab/bench/ts_session_stub.mjs client/transport-ts/dist/session.js
