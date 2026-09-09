@@ -1170,3 +1170,70 @@ deferred, B subsumed), and §6 of this document (steps 3–4 are the four commit
 The client's cap on asks in flight per link (§9.1) — client protocol. P0 and P1. Change A.
 The throttled-link cell (§9.4) — after commit 3. The loop shape without a reader task
 (discussed 2026-09-09, not chosen; would add `tokio-util`).
+
+## 14 · Not to forget — everything raised that §13's four commits do not deliver
+
+A register, 2026-09-09, of every point and optimisation raised while this design was made
+that is not one of the four commits. Each row says what it is, the number or evidence behind
+it, what triggers doing it, and the document that owns it — the row here is the reminder, the
+pointer is the detail. [`NEXT.md`](NEXT.md) keeps the owners' ranking; nothing here reorders
+it.
+
+### 14.1 · Read path, after commit 3
+
+| item | evidence | do it when | owner |
+| --- | --- | --- | --- |
+| **P0 — ring against pool on the production target**, depths 2, 4, 8, 16, both read modes | decides whether ~800 lines stay; a tie deletes the ring; the depth ladder is where W = 8 or 16 could earn its place (§9.5) | first thing on the target; `check-fastpath` and `ulimit -l` recorded beside the TSV | [`NEXT.md`](NEXT.md) §3, [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) §Decision |
+| **P1 — park on the ring's own fd, drop the eventfd** | `x14`: tie on CPU, gain by construction; 1 fd per session instead of 2; ~30 lines fewer, now all inside `park` | after P0 keeps the ring | [`RESEARCH-io-backends-RESULT.md`](RESEARCH-io-backends-RESULT.md) P1 |
+| **P2 — `io-uring` 0.7.14 → 0.7.15** | drop-in | next dependency pass | same, P2 |
+| **P6 — `IORING_SETUP_ATTACH_WQ` across session rings** | one kernel worker pool instead of one per ring; unmeasured | only if P0 shows per-ring kernel workers cost at thousands of sessions | same, P6 |
+| **Ring entries follow W** | `build(8)` today; the ring never holds more than W reads per session | with commit 3, or when W moves | §11 cut 6 |
+| **`reap`'s `Vec` → fixed `[_; WINDOWS]`** | one small allocation per wake | only if it shows in a profile | §11 cut 6 |
+| **Memory at thousands of fills** | 2 windows × frame size after a miss: 500 MB per thousand fills at 250 KB frames | measure before building; the fix is a vectored read into fixed 64 KiB blocks in one round trip, not the windowed escalation measured at a third of the throughput | §5 |
+| **`posix_fadvise(SEQUENTIAL)` per fill session** | cheap, unmeasured | a fill campaign on the target, interleaved | [`SEQUENTIAL-READER.md`](SEQUENTIAL-READER.md) S3 |
+| **Bounded frame cache** | −20.2 % CPU at a 0.92 hit rate, lab only | needs a real ask trace to size; not before one exists | [`adr.md`](adr.md) §8 |
+| **`read_ahead_kb` and study layout on the target** | miss rate moved 2–15× by that one knob; with studies far larger than RAM, latency is miss count × miss cost and this sets the count | with P0, on the study volume | [`NEXT.md`](NEXT.md) §6, [`../disk-layout/`](../disk-layout/README.md) |
+| **Change A — the frame loop behind `frame()` / `FrameBytes`** | review faults 2 and 3; ~20 lines over `read` after §11 | when the seam is wanted for its own sake; not for W | [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) §3 |
+| **One session in both modes** | unspecified today: fill is start-to-end, tiles are on demand; the window table serves both, the numbers were argued per mode | when a client does it | §5 |
+
+### 14.2 · Transport and link — where latency actually goes on the default link
+
+| item | evidence | do it when | owner |
+| --- | --- | --- | --- |
+| **Client cap on asks in flight, per link** | the one lever that moves latency on wireless: a new ask waits behind every queued byte, 100 ms per 250 KB frame at 20 Mbps, 250 ms at 8 Mbps | client protocol; design it with the viewer, the server's `ASKS_AHEAD` is only the defensive side | §9.1 |
+| **Server `send_window` bounded** | the same queue from the server's side; the knob exists (`send_window_bytes`) | set with the client cap, measured on the throttled cell | §9.1, [`../transport-conclusions.md`] on `cursor/l1-loss-run-dbae` §3.1 |
+| **Keep one shared stream** | per-frame streams 5.76× worse at 250 KB under 1 % loss on real hardware; no cell favours them | standing decision; reopen only with a new mechanism, not a re-run | the loss-run branch §2 |
+| **Congestion controller: Cubic default, BBR where loss is radio** | congestive 600 ms / 8 Mbps: Cubic 941 ms vs BBR 1535 ms; exogenous 1 % loss: BBR −48 % / −44 %; BBRv1 takes 99 % of a shallow buffer from a competing flow | needs client telemetry to tell the regimes apart (loss with RTT flat = radio); until then Cubic | the loss-run branch §1 |
+| **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput — the largest effect measured anywhere | blocked on what browsers advertise; price it first | [`adr.md`](adr.md) §8 |
+| **GSO segment cap 10 → 32** | +17 % throughput, −21 % CPU per byte, zero effect on p95 — density, not latency | not confirmed on real hardware; a density run | the loss-run branch, summary table |
+| **`EndStream` and the wire** | the server stops within one frame, but bytes already handed to QUIC drain at the link's pace; a fast stop needs a small client receive window | client side, with the cap above; whether a fill should also reset a frame in progress is open | §7 |
+| **`RequestFrame` against `RequestFrames` for a reactive viewer** | argued both ways, never measured; both stay | a harness campaign with a real ask trace, if the viewer team wants the number | §2 |
+| **Throttled-link cell** | 20 Mbps / 50 ms / 1 % loss, cold tiles, client depth 4, W = 2 against 4; predicted tie | after commit 3; the record that W was checked on the link that matters | §9.4 |
+
+### 14.3 · Deployment — the silent fallbacks
+
+| item | evidence | do it when | owner |
+| --- | --- | --- | --- |
+| **`RLIMIT_MEMLOCK` or `CAP_IPC_LOCK`** | 8.7 KiB of ring memory charged per missing session; the 8 MB default is ~940 rings; a refused ring falls back to the pool per session without a log line | in the manifest before the first container deployment | [`NEXT.md`](NEXT.md) §4, [`DEPLOYMENT.md`](DEPLOYMENT.md) |
+| **`RLIMIT_NOFILE`** | 2 fds per missing session, 1 after P1 | same | same |
+| **`RWF_NOWAIT` on the study path** | refused on overlayfs and tmpfs: a study on the image layer never builds a ring and runs the pool; a bind mount or block volume is fine | `check-fastpath` on the study volume at deploy; the startup banner says which path was taken | same |
+| **Cloud miss cost** | unmeasured; ~1 ms is the usual figure, 15× the lab's; it scales W's worth and P0's answer | P0 | §9.1 |
+
+### 14.4 · Measurement and lab — traps already fallen into once
+
+| item | evidence | do it when | owner |
+| --- | --- | --- | --- |
+| **Interleave, against a worktree build** | sequential before/after read +8.1 % on a tie (`x13`) | every A/B, §12's script | [`HANDOFF.md`](HANDOFF.md) §6 |
+| **The 250 KB miss cell** | the same arm varies 12.5× between repeats, and at 8 MiB of read-ahead the "cold" cell reached 4.7 % misses — a hit cell wearing a cold label; isolating 250 KB misses needs ≥ 8 MiB between asks, a ~2 GB fixture | before any 250 KB conclusion | [`NEXT.md`](NEXT.md) §7 |
+| **The bench copies `stream_codestream`'s loop** | four lines, measured instead of the product's; they can drift | when the loop changes (commit 2), re-check the copy | [`NEXT.md`](NEXT.md) §7 |
+| **The upcoming-naming line is not observable on the wire** | the read path's use of `upcoming` is tested from both ends; the loop's naming of it is one line the wire tests cannot see | `w_named_frames_put_w_reads_in_flight` covers the read path; the loop's line is covered by the harness depth measurement in commit 2 | §12, §13.4 |
+| **Say where the host saturates** | ~64 reads in flight on the workstation, ~840 MB/s; the sandbox on CPU; past it every arm ties by construction | every claim quotes its plateau | [`NEXT.md`](NEXT.md) §6 |
+| **Quote latency or throughput, not both** | one is the other divided by depth | every table | `CLAUDE.md` |
+
+### 14.5 · Documents
+
+| item | do it when | owner |
+| --- | --- | --- |
+| **Fold [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) into this document** | when commit 3 lands, since A is then the only thing left in it | [`NEXT.md`](NEXT.md) §7 |
+| **Correct the six documents in §13.6** | as each commit lands, not after | §13.6 |
+| **`adr.md` §2 "numbers safe to quote"** | add the commit-3 depth number and the throttled-cell tie once measured | [`adr.md`](adr.md) |
