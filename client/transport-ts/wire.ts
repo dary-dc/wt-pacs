@@ -8,8 +8,6 @@ export type FodMsg =
   | { op: "end_session" }
   | { op: "frame_error"; frame_index: number; reason?: string };
 
-// One codec pair for the module. (Measured 2026-09-06: constructing a TextEncoder per call costs
-// nothing observable in Chromium 141 or Node 22 — this is tidiness, not speed.)
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder();
 

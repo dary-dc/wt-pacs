@@ -10,13 +10,11 @@ pub const VERSION: u32 = 1;
 pub const HEADER_SIZE: usize = 16;
 pub const INDEX_ENTRY_SIZE: usize = 12;
 
-/// Everything before the first frame: where each frame lives, and the study metadata.
+/// Header, index and metadata — everything before the first frame.
 #[derive(Debug, Clone)]
 pub struct ParsedLayout {
-    /// Byte offset and length of each frame, in frame order.
     pub index: Vec<(u64, u32)>,
     pub metadata: String,
-    /// Offset of the first frame — where the header, index and metadata end.
     pub data_base: usize,
 }
 
@@ -26,10 +24,7 @@ impl ParsedLayout {
     }
 }
 
-/// Parse a layout from bytes that already contain the prefix (header, index, metadata).
-///
-/// `file_len` is the study file's size. Index entries are checked against that, not
-/// `bytes.len()`, so `read_layout` can pass only the prefix.
+/// `bytes` is the prefix; `file_len` is the study file, which the index is checked against.
 fn parse_layout_checked(bytes: &[u8], file_len: u64) -> Result<ParsedLayout> {
     if bytes.len() < HEADER_SIZE {
         bail!("bundle too small");
@@ -50,8 +45,6 @@ fn parse_layout_checked(bytes: &[u8], file_len: u64) -> Result<ParsedLayout> {
         bail!("bundle header/metadata extends past file end");
     }
 
-    // Every frame must lie inside the data region. Checked once here so a corrupt bundle is
-    // refused when it is opened, not discovered frame by frame while it is being served.
     let mut index = Vec::with_capacity(frame_count as usize);
     for i in 0..frame_count as usize {
         let base = HEADER_SIZE + i * INDEX_ENTRY_SIZE;
@@ -84,10 +77,7 @@ pub fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
     parse_layout_checked(bytes, bytes.len() as u64)
 }
 
-/// Read a bundle's layout straight from the file.
-///
-/// Two reads: the fixed header says how long the rest is, then the whole prefix is taken
-/// in one go. Index entries are checked against the file's length, not the prefix.
+/// Two preads: the fixed header, then the whole prefix. Index entries use the file length.
 pub fn read_layout(file: &File) -> Result<ParsedLayout> {
     let file_len = file.metadata().context("stat bundle")?.len();
     let mut prefix = vec![0u8; HEADER_SIZE];

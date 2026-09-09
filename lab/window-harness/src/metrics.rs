@@ -3,15 +3,12 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// How the reader advances. The most consequential setting in the harness: `Closed` can
-/// answer no stream-shape question at all — `docs/transport/why-these-changes.md` §3.
+/// How the reader advances. `Closed` cannot answer a stream-shape question — `docs/transport/why-these-changes.md` §3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum ReaderMode {
-    /// Block on each cursor. Every prior campaign ran this way; kept for reproducibility,
-    /// NOT for stream-shape work.
+    /// Block on each cursor. Prior campaigns; not for stream-shape work.
     Closed,
-    /// Advance on the trace clock whatever has arrived — the only mode in which
-    /// head-of-line blocking can occur.
+    /// Advance on the trace clock — the only mode in which HoL can occur.
     Open,
 }
 
