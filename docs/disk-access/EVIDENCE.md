@@ -6,6 +6,7 @@
 This file carries the numbers so they survive a squash. Raw TSVs and the design diary:
 
 ```bash
+git show read-path-w2-2026-09-10:docs/disk-access/           # the reader re-open (w2_*)
 git show read-path-workstation-2026-09-09:docs/disk-access/  # the workstation run (w1_*)
 git show read-path-evidence-2026-09-09:docs/disk-access/     # this branch's tables
 git show a330783:docs/disk-access/READ-PATH-DECISION.md      # 2026-09-04 campaign, long form
@@ -192,7 +193,9 @@ significant as the frame grows, and by 250 kB it is already negative on this hos
 run both frame sizes, not only both depths.
 
 > **Confirmed on the workstation, where it clears the rule** — `product` against `pool` at
-> 250 kB cold is **+38.5 % / +42.3 % RESOLVED** at depths 1 and 4 on p50, CPU agreeing. That
+> 250 kB cold is **+38.5 % RESOLVED** at depth 1 on p50, CPU agreeing (the depth-4 figure
+> first published here was measured on the wrong arm — see *The reader question, re-opened*).
+> That
 > run also found the penalty is **`product`'s and not the ring's**: `hybrid_lazyring` ties
 > `pool` at 250 kB at every depth. See *The same candidates on the workstation*.
 
@@ -243,11 +246,18 @@ device does not dominate:
 | `product` vs `pool`, 250 kB cold | p50 | CPU/ask |
 | --- | --- | --- |
 | depth 1 | **+38.5 % RESOLVED**, 11/12 | **+36.5 % RESOLVED**, 11/12 |
-| depth 4 | **+42.3 % RESOLVED**, 11/12 | **+33.2 % RESOLVED**, 11/12 |
-| depth 16 | +3.7 % tie | +7.3 % tie — *past saturation, below* |
+| ~~depth 4~~ | ~~+42.3 %~~ **wrong arm — see below** | ~~+33.2 %~~ |
+| ~~depth 16~~ | ~~+3.7 % tie~~ **not a comparison** | ~~+7.3 % tie~~ |
 
 At 16 KiB the same pair ties at every depth (+4.3 / +1.2 / −6.6 %). **The size-dependence is
 confirmed, and P0 must run both frame sizes, not only both depths.**
+
+> **The depth 4 and 16 rows were measured on the wrong arm and are corrected below**
+> (*The reader question, re-opened*). `read_campaign`'s `product` modelled depth by spawning
+> `depth` readers each with **its own `ReadCtx`**, so those rows priced *session count*, not
+> reads in flight. Depth 1 is one session either way and stands as published. The corrected
+> arm still trails `pool` at depth 4 — by **more** than +42.3 %, and on throughput and CPU
+> rather than p50.
 
 > **This retracts a standing claim: `product` no longer tracks `hybrid_lazyring` at 250 kB.**
 > The sandbox had them within 2 % (623 against 611, a tie), which is why
@@ -344,6 +354,140 @@ larger number:** 512 MB can sit inside a consumer NVMe's own cache, which `minco
 > `mmap_naive` holds a worker for **2 187 µs** at 16 KiB forward, **3 699 µs** at 16 KiB random
 > and **3 683 µs** at 250 kB random, against `pread_nowait_chunked`'s 233 / 791 / 1 001 µs.
 > That is [`adr.md`](adr.md)'s *"faults freeze co-tenants: 1.5–4.2 ms"*, on a third host.
+
+
+
+## The reader question, re-opened · 2026-09-10
+
+Same workstation as the 2026-09-09 section. Raw at the `read-path-w2-2026-09-10` tag:
+`w2_250k_depth.tsv`, `w2_readmode_ab.tsv`, `w2_size_curve.tsv`, `w2_fill_scale.tsv`,
+`w2_fill_ring.tsv`, `w2_monitor_control.tsv`, `w2_host.txt`.
+
+### A harness defect: `product` depth was session count
+
+`read_campaign`'s `reader_product` spawned `depth` tasks, **each constructing its own
+`ReadCtx`**; `reader_ring` builds one ring with `depth` slots in one task. So at 250 kB depth 4
+the campaign compared 4 `ReadCtx`s / 4 io_urings / 4 MB of buffers against 1 ring / 4 slots /
+1 MB. In the product, one session is one `ReadCtx` is one ring, and client depth D means D
+frames named to that one context.
+
+`product` is now the shape `pipeline::serve` drives: one `ReadCtx`, asks served one at a time,
+the next D − 1 frames named as `upcoming`. The old behaviour is kept as **`product_sessions`**,
+which is what it always measured. Two new columns make it auditable rather than asserted:
+`peak_named` and `peak_in_flight`, straight off `ReadCtx::stats`.
+
+> **A session cannot be deeper than its windows.** `ReadCtx` holds `WINDOWS = 4`, and `read()`
+> takes `upcoming.take(WINDOWS - 1)`. At `--depths 16` the corrected arm reports
+> `peak_in_flight` **4**, not 16. Depth 16 on one session is not a thing the product can do,
+> so the depth-16 row is not a comparison against arms that really do run 16 in flight.
+
+### What survives of the published +42.3 %
+
+250 kB cold, 12 interleaved repeats, stride 500000, miss 99.6 %.
+
+| pair | depth 1 | depth 4 | depth 16 |
+| --- | --- | --- | --- |
+| `product_sessions` vs `pool`, p50 | +38.0 % RES | **+43.7 % RES** | +2.7 % tie |
+| `product` vs `pool`, p50 | **+38.6 % RES** | −66.7 % *(artefact)* | −91.3 % *(n/c)* |
+| `product` vs `pool`, **wall** | **+35.2 % RES** | **+47.3 % RES** | +55.6 % *(n/c)* |
+| `product` vs `pool`, **CPU/ask** | +27.6 % tie | **+41.7 % RES** | +45.7 % *(n/c)* |
+
+**Depth 1 is unmoved**: +38.6 % against the published +38.5 %. It was one session either way.
+
+**Depth 4: the old arm reproduces the published number** (+43.7 % against +42.3 %), confirming
+what was measured. The corrected arm reads **−66.7 % on p50, and that is not a win.** Its named
+reads start in an *earlier* `serve` call, outside the measured interval, so `product`'s
+throughput is ≈ 1/p50 while `pool`'s is depth/p50 — the two arms have different effective
+depths and p50 is not comparable across them above depth 1. On the metrics that survive the
+shift the penalty is **larger** than published: **+47.3 % wall and +41.7 % CPU, both RESOLVED**.
+
+So the conclusion stands and strengthens; only the metric and the magnitude change. `pool`
+serves 250 kB cold better than the shipped path at depth 1 **and** depth 4.
+
+### Where the 250 kB penalty lives — it is not the ring
+
+Three cells, 250 kB cold, 12 repeats.
+
+**It is not the miss mechanism.** `WTPACS_READ_PATH=pool` on the `product` arm, interleaved at
+process level with the harness's own `pool` as a within-process control:
+
+| | vs `pool`, same process | p50 | wall | CPU/ask |
+| --- | --- | ---: | ---: | ---: |
+| `product@auto` — ring on the miss | | +56.5 % | +49.4 % | +37.0 % |
+| `product@pool` — pool on the miss | | **+56.0 %** | **+49.9 %** | +32.2 % |
+
+Identical. Swapping the miss mechanism changes nothing, so the cost is **structural in
+`ReadCtx`**.
+
+**It tracks window count, not bytes.** `READ_WINDOW` is 64 KiB, so a frame is served in
+`ceil(size / 64 KiB)` sequential `ctx.read()` calls where `pool` issues one whole-frame read.
+Constant stride, only `--size` varying:
+
+| size | windows | `product` vs `pool` p50 | wall |
+| ---: | ---: | --- | --- |
+| 16 KiB | 1 | +11.0 % tie | +11.9 % tie |
+| 64 KiB | 1 | +25.7 % tie | +26.2 % tie |
+| 128 KiB | **2** | **+88.2 % RES** | **+97.0 % RES** |
+| 250 kB | **4** | **+32.0 % RES** | **+36.9 % RES** |
+
+A tie at one window at both sizes that fit in one; RESOLVED as soon as a frame needs two. It is
+largest at two windows and narrows at four, where the kernel's own read-ahead begins serving
+the later windows of the same frame.
+
+**Naming removes it.** `product_ahead` against `product`: **−50 to −58 % on p50 and wall at
+every size**, 11–12/12 RESOLVED. And at 250 kB it turns the deficit into a win over `pool` —
+**−33.3 % p50, −31.4 % wall, 12/12 RESOLVED**.
+
+> **The penalty is a frame larger than one `READ_WINDOW` served with an empty `upcoming`.**
+> Not the ring, not the pool, not read-ahead. The planner supplies `upcoming` whenever the
+> client pipelines, so this is the **unpipelined depth-1** case specifically — and it is the
+> case a single-frame `RequestFrame` produces.
+
+### Fill at scale: CPU ties, the ring is the cost
+
+Fill shape (contiguous walk), warm, 1 / 16 / 64 readers, 12 repeats, both sizes. CPU per ask is
+the verdict column; p50 is reported but not decided on.
+
+`product`, `hybrid_lazyring` and `pool` **tie on CPU/ask at every reader count and both sizes**
+— worst |median| 10.9 %, no cell reaching 0.8n — and all three hold **9 OS threads** from 1 to
+64 readers. `pooled_pread` is the only arm that loses: **+501 / +289 / +213 %** at 16 KiB and
+**+69 / +61 / +163 %** at 250 kB, all RESOLVED, growing to **151 and 206 threads**. On CPU at
+scale there is nothing to choose between the three.
+
+**The cost that does separate them is the ring, and it is paid by sessions that barely miss.**
+`rings_built` says every `product` session ends holding one — **1.00 per session at 1, 16 and
+64 readers, both sizes** — including the 16 KiB fill that misses **1.6 %** of its reads. Two fds
+and ~8.7 KiB carried for the session's whole life to serve about one read in sixty.
+
+| | |
+| --- | --- |
+| memlock ceiling on this host | 8192 KiB hard, no root → **~941 sessions** at 8.7 KiB each |
+| lab ring arm, 64 readers × 250 kB | **fails**: `register_buffers: Cannot allocate memory` at 15.3 MiB |
+| shipped `ReadCtx` | registers **no** buffers and falls back to the pool on refusal — it runs the cell the lab arm cannot |
+
+That asymmetry is worth keeping straight: the memlock ceiling binds the *lab ring arms*, not
+the product.
+
+### An instrument defect that reaches the 2026-09-09 warm numbers
+
+`--monitors 1` counts the co-tenant monitor's **own CPU** in `cpu_ns_per_ask` — documented
+("0 disables *and removes their CPU from the totals*"), but on a warm cell finishing in
+milliseconds it is a large, intermittent addend. Interleaved control, 250 kB warm depth 1:
+
+| | `product` | `hybrid_lazyring` | `pool` | outliers |
+| --- | --- | --- | --- | --- |
+| `--monitors 0` | 38.7–44.6 µs | 36.2–43.4 µs | 37.0–40.6 µs | **0 each** |
+| `--monitors 1` | 38.7–**129.0** | 35.1–**129.3** | 34.4–**101.8** | 2–3 of 12 each |
+
+**This retracts a reading of the 2026-09-09 warm table.** Its 250 kB warm depth-1 CPU column
+(`product` 54.4 µs, `hybrid_lazyring` 28.9, `pool` 29.2) looks like a 1.9× gap, and it is not
+one. Those per-repeat values are bimodal — `product` ran 28.5–33.1 six times and 75.7–118.0 six
+times — so **54.4 µs is a value the arm never produced**, a median falling in the empty gap
+between two modes while `hybrid_lazyring`'s lands inside its low mode. Under the rule this file
+is built on, both pairs are ties: `product` vs `hybrid_lazyring` **+40.7 %, 9/12** (fails 0.8n)
+and vs `pool` **+13.0 %, 12/12** (fails 28.5 %). Re-measured with `--monitors 0` the three arms
+read **34.4 / 34.6 / 34.8 µs**. Every warm CPU figure in `w1_*_arms.tsv` carries this; the cold
+cells do not (their spread is tight, 1279–1390 ns/ask at 250 kB depth 1).
 
 
 ## Where the margin comes from
@@ -498,7 +642,8 @@ Named so they are not mistaken for measured, and so a future run knows where to 
   figure may be flattered by the NVMe's own cache on a 512 MB fixture; the row stays open.
 - ~~**Frames past 250 KB.**~~ **250 kB measured 2026-09-09** and it went the way this row
   predicted: at 250 kB cold the `pool` beats the ring at both depths — sandbox 514 µs against
-  623, workstation **+38.5 / +42.3 % RESOLVED** — where at 16 KiB the ring was ahead from
+  623, workstation **+38.5 % RESOLVED at depth 1** (the depth-4 figure was re-measured; see
+  *The reader question, re-opened*) — where at 16 KiB the ring was ahead from
   depth 4. Still open **past** 250 kB — native DBT is 3 MB, and windowing gets worse from
   here.
 - **`hybrid_lazyring` above one reader** — [`NEXT.md`](NEXT.md) P0.
