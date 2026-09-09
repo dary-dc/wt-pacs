@@ -3,7 +3,8 @@
 **2026-09-08 · Proposed, not implemented. For iteration.** Assembled from what was agreed on
 the day. **2026-09-09:** steps 0–2 landed ([`HANDOFF.md`](HANDOFF.md) §1, unmeasured); §9 records
 why the loop and W are not where latency is lost on the default link, and the owners' call on
-W; §10 lists the simplification cuts to choose from. It builds on three documents and repeats none of them:
+W; §10 lists the simplification cuts. **§11 was chosen on 2026-09-09; §13 is the handoff to
+the implementer.** It builds on three documents and repeats none of them:
 
 * [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) — the seam. Change **A** moves the frame loop
   into the read path behind `ctx.frame(...)`; change **B** makes a window own its ring slot,
@@ -638,6 +639,8 @@ enum Ask {
 
 /// How many asks the server holds beyond the frame being served (cut 5).
 const ASKS_AHEAD: usize = 8;
+/// A fill reads one frame ahead: two windows, §9.3. Tiles are bounded by `WINDOWS` instead.
+const FILL_AHEAD: usize = 1;
 
 fn spawn_ask_reader(mut control: RecvStream) -> mpsc::Receiver<Ask> {
     let (tx, rx) = mpsc::channel(ASKS_AHEAD);
@@ -698,7 +701,7 @@ impl Planner {
             if let Some((frame, to)) = self.fill {
                 if self.in_hand.is_empty() {
                     self.fill = (frame < to).then_some((frame + 1, to));
-                    let upcoming = (frame + 1..=to).take(ASKS_AHEAD).collect();
+                    let upcoming = (frame + 1..=to).take(FILL_AHEAD).collect();
                     return Ok(Step::Serve { frame, upcoming });
                 }
                 self.fill = None; // whatever arrived ends the fill; a data request is served next
@@ -855,7 +858,10 @@ impl ReadCtx {
         let win = &mut self.windows[w];
         win.fit(want);
         let hit = if self.probe { store.read_at_nowait(&mut win.buf[..want], at)? } else { 0 };
-        *win = Window { key: Some((span, pos)), at, len: hit, filled: hit, read: None, ..mem::take(win) };
+        win.key = Some((span, pos));
+        win.at = at;
+        win.len = hit;
+        win.filled = hit;
         if hit == want {
             self.stats.hits += 1;
             return Ok(());
@@ -1064,3 +1070,103 @@ rule for a refactor is that every cell ties. That is the performance test: on de
 the host that can resolve it, with the decision rule fixed before the run. In production,
 the `session reads … miss_rate=…` line and `check-fastpath` are the running check that the
 mechanism the tests pin is the one actually taken.
+
+## 13 · Handoff to the implementer
+
+§11 was chosen on 2026-09-09: the ask reader and channel (cut 1), the planner (cut 2), the
+read path as W windows with a thin ring (cuts 3, 4, 6), the named capacity (cut 5). This
+section is what §11 leaves unsaid. An implementer who has read §11 and this should not need
+to ask a question; where one remains it is listed as such.
+
+### 13.1 · Decisions fixed here, so they are not re-decided in code
+
+| | value | why |
+| --- | --- | --- |
+| `WINDOWS` | **4** | §9.3, §9.5. One constant in `read_path.rs`; the lab and the loop read it from there |
+| `FILL_AHEAD` | **1** | fill stays at two windows (§9.3); the loop names one frame ahead and the read path uses two of its four |
+| `ASKS_AHEAD` | **8** | the channel's capacity and the planner's look-ahead; the read path takes at most `WINDOWS − 1` of it |
+| `READ_WINDOW` | 64 KiB, unchanged | the probe size and the write chunk |
+| change **A** (`frame()` + `FrameBytes`) | **not part of this**; optional later, ~20 lines over `read` | §11 keeps `read(span, pos, upcoming)`; review faults 2 and 3 stay, made harmless by the `holding` check |
+| change **B** | subsumed: the window index is the slot, the ring has no slot table | the one `unsafe fn` stays, at `submit` |
+| **P1** | after P0, unchanged | `park` is the one method P1 replaces |
+| `Ring::Refused` | folded into `Off` | both mean "the pool"; `ring_built()` reports `Built` |
+
+### 13.2 · Order of work — four commits, each with its own check
+
+Every commit passes `scripts/gate.sh` and the comment budget, and every measurement is
+interleaved against a worktree build of the previous commit (§12's script, written
+**first**, as commit 0).
+
+| # | lands | files | passes when |
+| --- | --- | --- | --- |
+| 0 | `lab/scripts/read_path_ab.sh` (§12) | `lab/scripts/` | it runs both binaries and prints tie/RESOLVED per cell |
+| 1a | cuts 3 and 4 at **`WINDOWS = 2`**: the window table replaces `Ahead`; `read_window` deleted; `read(span, pos, upcoming)`; `stream_codestream` passes `next.into_iter()`; lab arms updated | `read_path.rs`, `frame_store.rs`, `frame_out.rs`, `read_campaign.rs` | the tests in 13.4 green; **every A/B cell ties** |
+| 1b | cut 6: the ring as `submit` / `reap` / `park` / `drain_in_flight`; `SLOTS` gone | `uring_reader.rs`, `read_path.rs` | the two ring tests green; every cell ties |
+| 2 | cuts 1, 2 and 5 at `WINDOWS = 2`: `Ask`, the reader, `Planner`, `serve(frame, upcoming)`; `serve_batch` and the recording pipeline gone | `server.rs`, `pipeline.rs`, `frame_out.rs` | planner tests and the two wire tests green; harness pipelining `RequestFrame` at client depth 2: cold moves toward `v36`'s +73.8 %, warm ties |
+| 3 | `WINDOWS = 4` | one line | harness at client depth 4, cold tiles: +26 to +37 % asks/s expected (§9.5), warm ties, fill ties; RSS per session +32 KiB at most |
+
+Commit 1a is the one that can go wrong silently: it changes shape while claiming no change,
+which is exactly what `x13` caught. Do not merge 1a on a tie that was measured sequentially.
+
+### 13.3 · The seam, end to end, after commit 3
+
+```
+FodMsg ──ask reader──▶ Ask ──channel(ASKS_AHEAD)──▶ Planner::next ──▶ Step::Serve { frame, upcoming: Vec<u32> }
+   ▶ FramePipeline::serve(frame, &upcoming)          // default method, one implementation each for product and lab
+       span = locate(frame)?                          // refuse before a stream opens, as today
+       ahead: Vec<FrameSpan> = upcoming.iter().filter_map(|&f| store.frame_span(f).ok()).collect()
+       send(frame, store, span, &ahead)
+   ▶ stream_codestream(uni, store, span, ahead: &[FrameSpan], ctx)
+       loop over pos: ready = ctx.read(store, span, pos, ahead.iter().copied()).await?
+                      write ready in pieces ≤ READ_WINDOW
+   ▶ ReadCtx::read: start current if not held · start ahead that fit · wait current
+```
+
+An upcoming frame that fails to locate is dropped from `ahead`, never an error for the frame
+being served. `send`'s `next: Option<FrameSpan>` becomes `ahead: &[FrameSpan]`; the lab's
+`look_ahead` becomes a one-element slice. `Ask::frame()` is `Some(f)` for `Ask::Frame(f)`.
+`fill_range(from, to, frames)` resolves `from` to 0 and `to` to `frames − 1`, and refuses
+when `frames == 0`, `from > to`, or `to ≥ frames`.
+
+### 13.4 · What must still be true, and the test that says so
+
+| holds | pinned by |
+| --- | --- |
+| inside `read`: current first, then upcoming that fit, then wait — the measured order | `naming_the_next_frame_starts_its_read_and_serves_it_from_the_other_window` (harness rewritten: assert a window holds the next span with a read in flight before the current is waited) |
+| a hit is one window; a miss is one read for the rest of the frame | `a_frame_that_misses_costs_one_round_trip_not_one_per_window` — unchanged |
+| where nowait is refused, a frame is one pooled read | `read_window_collapses_to_the_frame_without_nowait` **moves** from `frame_store.rs` to `read_path.rs`, same claim on a `force_pool_reads` store |
+| a hit never touches the ring; the ring is built once, on the first miss | `lazy_ring_is_not_built_when_every_read_hits`, `lazy_ring_is_never_built_without_nowait` — unchanged; **add** `a_hit_never_touches_the_ring` (§12) |
+| naming W − 1 frames puts W − 1 reads in flight | **add** `w_named_frames_put_w_reads_in_flight` (§12) |
+| reuse waits: a window with a read in flight is never grown, read or overwritten | `a_read_ahead_nobody_asked_for_is_waited_for_before_its_window_is_reused` (harness rewritten) |
+| drop drains the ring before the windows go | `dropping_a_reader_mid_read_waits_for_the_kernel` — unchanged, `DRAINED_ON_DROP` stays |
+| two ring reads land in their own windows, short reads resubmitted | `two_reads_in_flight_land_in_their_own_slots` (rewritten against `submit` / `reap`) |
+| bytes and order on the wire unchanged | `a_batch_arrives_whole_and_in_ask_order`, `streamed_bytes_match_the_envelope_they_replaced`, `a_pooled_frame_is_written_in_read_windows_not_in_one_copy` — unchanged |
+| every loop rule in §8's table | one planner test per row, the two in §11 as the model; the recording-pipeline tests that landed with steps 1–2 are **replaced** by these, claim for claim |
+| a fill delivers the study in order and stops on `EndStream` | **add** the fill wire test (`StreamFrames {}` whole study in order) and `end_stream_stops_a_fill_on_the_wire` (asserts it stopped before the end, not at frame *k* — §12) |
+| miss reporting unchanged | `read_stats_report_the_session_miss_rate` — unchanged |
+
+Mutate every new or rewritten test once and watch it fail (`CLAUDE.md`).
+
+### 13.5 · The lab
+
+`read_campaign.rs`'s `product` and `product_ahead` arms call `ctx.read` directly and change
+with its signature in commit 1a — they are also the check. The lab implements
+`FramePipeline` for its timing stamps (`prepare`, `note_fill`), so the trait stays with one
+serving method; it is not a mock. `note_batch(position, size)` loses its caller with cut 1,
+since the loop no longer sees batches. **Recommendation: delete it** — the harness knows its
+own asks. If a lab metric needs it, that metric is the reason to keep batch identity on
+`Ask::Frame`, and that is a decision for the owners, not the implementer.
+
+### 13.6 · Documents to correct when it lands
+
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md) §Mechanism (the window table replaces the two-window
+flip; the ring section), [`adr.md`](adr.md) §1 and §7 (`SLOTS` is gone; W is 4 for tiles, 2
+for fill), [`HANDOFF.md`](HANDOFF.md) §1 and §10 item 4, [`NEXT.md`](NEXT.md) §1 (item 1
+closes when commit 3 lands), [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) status line (A
+deferred, B subsumed), and §6 of this document (steps 3–4 are the four commits above).
+
+### 13.7 · Out of scope, on purpose
+
+The client's cap on asks in flight per link (§9.1) — client protocol. P0 and P1. Change A.
+The throttled-link cell (§9.4) — after commit 3. The loop shape without a reader task
+(discussed 2026-09-09, not chosen; would add `tokio-util`).
