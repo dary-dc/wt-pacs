@@ -9,4 +9,4 @@ pub mod wire;
 
 pub use server::{run_server, ServeConfig};
 pub use stream_mode::StreamMode;
-pub use tuning::{Congestion, SendPath, TransportTuning};
+pub use tuning::{Congestion, TransportTuning};

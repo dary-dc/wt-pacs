@@ -16,9 +16,8 @@ E1/E2 sweeps, …) remain in [`lab/scripts/`](../scripts/).
 
 Write-up: [`docs/transport/`](../../docs/transport/).
 
-To restore this folder after a later lean (tag first, then drop from the tip):
-
-```bash
-git checkout archive/transport-lab-2026-09 -- lab/transport
-# and put the two workspace members back in Cargo.toml
-```
+This folder is self-contained for the campaigns that still run against the **product**
+binary (`--stream-mode`, `--congestion`, `--prefault`, windows). Rejected send paths
+(`copy` / `split`) and the old experiment knobs were not copied back into here — those
+decisions are closed. Scripts that still pass `--send-path` or `--features lab` are
+historical; they will not build or run against current `exact-server`.

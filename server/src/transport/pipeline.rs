@@ -8,7 +8,6 @@
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
-use crate::transport::tuning::SendPath;
 use crate::transport::wire::write_fod_msg;
 use anyhow::{Context, Error, Result};
 use bytes::Bytes;
@@ -77,27 +76,15 @@ pub(crate) trait FramePipeline: Send {
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
     out: FrameOut,
-    send_path: SendPath,
     prefault: bool,
-    ask_priority: bool,
-    ask_seq: i32,
 }
 
 impl ProductPipeline {
-    pub(crate) fn new(
-        store: Arc<FrameStore>,
-        out: FrameOut,
-        send_path: SendPath,
-        prefault: bool,
-        ask_priority: bool,
-    ) -> Self {
+    pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut, prefault: bool) -> Self {
         Self {
             store,
             out,
-            send_path,
             prefault,
-            ask_priority,
-            ask_seq: 0,
         }
     }
 }
@@ -122,15 +109,7 @@ impl FramePipeline for ProductPipeline {
     }
 
     async fn send(&mut self, frame: u32, bytes: Bytes) -> Result<()> {
-        self.out
-            .send_frame(
-                frame,
-                bytes,
-                self.send_path,
-                self.ask_priority,
-                &mut self.ask_seq,
-            )
-            .await
+        self.out.send_frame(frame, bytes).await
     }
 
     async fn refuse(&mut self, control: &mut SendStream, frame: u32, err: Error) -> Result<()> {

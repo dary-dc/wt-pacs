@@ -29,10 +29,10 @@ Expect 8 server tests (36 with `--features telemetry` — `main`'s tap/rows/sink
 the path-sampler concurrency test), 7 harness. Clippy on the server is the one warning
 `main` left in `server/src/transport/wire.rs` (`items_after_test_module`).
 
-**The one thing to know before touching `server/`:** experiment arms live behind
-`--features lab`. A product build has 12 flags and one send path; the lab build has 21 and
-three. Lab scripts build with the feature already. See
-[`branch-source-audit.md`](branch-source-audit.md).
+**The one thing to know before touching `server/`:** there is no `--features lab`.
+Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) were
+removed from the product crate. One send path (chunked). `--stream-mode per-frame`
+stays as a product flag. Campaign drivers live under `lab/transport/`.
 
 **The port onto `main`'s `pipeline.rs` is on this branch** — [#20](https://github.com/dary-dc/wt-pacs/pull/20)
 merged here 2026-09-09. This branch is **0 behind `main`** and **146 ahead**. `locate`/`send`

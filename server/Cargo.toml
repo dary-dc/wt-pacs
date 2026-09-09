@@ -15,9 +15,6 @@ path = "src/main.rs"
 [features]
 default = ["crypto-ring"]
 telemetry = []
-# Experiment arms: knobs a campaign sweeps but a shipped server does not need.
-# See docs/transport/branch-source-audit.md.
-lab = ["dep:socket2"]
 # rustls/quinn crypto provider. `aws-lc-rs` uses AWS-LC's vectorised AES-GCM
 # (VAES/AVX-512 where the CPU has it); `ring` is the historical default.
 crypto-ring = ["rustls/ring", "wtransport/ring"]
@@ -26,7 +23,6 @@ crypto-aws-lc-rs = ["rustls/aws-lc-rs", "wtransport/aws-lc-rs"]
 [dependencies]
 anyhow = { workspace = true }
 bytes = { workspace = true }
-socket2 = { version = "0.6", optional = true }
 clap = { version = "4", features = ["derive"] }
 fod = { path = "../common/fod" }
 frame-envelope = { path = "../common/frame-envelope" }

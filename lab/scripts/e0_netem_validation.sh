@@ -30,7 +30,7 @@ mkdir -p "$OUT_DIR"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-  cargo build -p exact-server -p window-harness --release --features lab >/dev/null
+  cargo build -p exact-server -p window-harness --release >/dev/null
 else
   [[ -x "$SERVER" && -x "$HARNESS" ]] || {
     echo "SKIP_BUILD=1 but missing $SERVER or $HARNESS" >&2

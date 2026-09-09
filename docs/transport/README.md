@@ -12,10 +12,10 @@ this folder is the write-up.
 | **Prefault** | Fault frame pages off the executor (`--prefault true`) |
 | **Cubic default** | Congestive loss → Cubic; radio loss → BBR. Default Cubic until the mix is measured |
 | **Windows** | Left at quinn defaults. Memory is bounded by the send path, not `send_window` |
-| **Lab arms** | `copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs: `--features lab` only |
 
-GSO 10 → 32 and a larger initial window were **measured, not applied**. GSO is a density
-win on loopback and a no-op on the real path; initial window moved nothing.
+Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are **not in
+`server/`**. GSO 10 → 32 and a larger initial window were measured, not applied: GSO is a
+density win on loopback and a no-op on the real path; the cap lives in quinn, not here.
 
 ## Read next
 

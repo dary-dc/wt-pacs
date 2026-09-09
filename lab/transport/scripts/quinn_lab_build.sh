@@ -83,8 +83,8 @@ PATCH
 
 for n in "${SEGMENTS[@]}"; do
   echo "building seg=$n"
-  QUINN_MAX_TRANSMIT_SEGMENTS="$n" cargo build --release --features lab -p exact-server --target-dir "$ROOT/target/lab" >/dev/null 2>&1 \
-    || { QUINN_MAX_TRANSMIT_SEGMENTS="$n" cargo build --release --features lab -p exact-server --target-dir "$ROOT/target/lab"; exit 1; }
+  QUINN_MAX_TRANSMIT_SEGMENTS="$n" cargo build --release -p exact-server --target-dir "$ROOT/target/lab" >/dev/null 2>&1 \
+    || { QUINN_MAX_TRANSMIT_SEGMENTS="$n" cargo build --release -p exact-server --target-dir "$ROOT/target/lab"; exit 1; }
   cp "$ROOT/target/lab/release/exact-server" "$OUT_DIR/exact-server-seg$n"
   touch "$ROOT/server/src/main.rs"
 done

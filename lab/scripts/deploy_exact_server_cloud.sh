@@ -19,7 +19,7 @@ KEY_PEM="${KEY_PEM:-$ROOT/server/dev-cert/key.pem}"
 BIN="${BIN:-$ROOT/target/release/exact-server}"
 REMOTE=/home/ubuntu/wt-pacs
 
-[[ -x "$BIN" ]] || { echo "missing $BIN — cargo build -p exact-server --features lab --release" >&2; exit 1; }
+[[ -x "$BIN" ]] || { echo "missing $BIN — cargo build -p exact-server --release" >&2; exit 1; }
 [[ -f "$STUDY" ]] || { echo "missing study $STUDY" >&2; exit 1; }
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh"
 

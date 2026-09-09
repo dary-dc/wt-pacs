@@ -61,15 +61,15 @@ SRV_FLAGS="--send-path chunked" ./lab/transport/scripts/quic_opt_multiclient.sh 
 ./lab/transport/scripts/gso_cap_experiment.sh 10 32 44
 ```
 
-**Build the server with `--features lab`.** Every experiment arm — `--send-path`,
-`--send-fairness`, `--segmentation-offload`, `--ask-priority`, the MTU / ACK / socket-buffer
-knobs and `WT_SERVE_TIMING` — is behind that feature, so a product build cannot select one by
-accident. See [`../docs/transport/branch-source-audit.md`](../docs/transport/branch-source-audit.md).
+`exact-server` is the product binary: one send path (chunked), no experiment arms.
+Historical scripts that pass `--send-path` / `--ask-priority` / MTU / socket knobs no
+longer match that CLI. The measurements those arms produced stay under
+[`docs/transport/`](../docs/transport/).
 
-`SRV_FLAGS` passes arm-specific flags to `exact-server`; unset knobs keep quinn's own
-defaults, so an arm that changes nothing measures nothing. **Interleave arms within each
-repeat** — running one arm to completion then the next let host drift land on one arm and
-produced a wrong answer once already.
+`SRV_FLAGS` used to pass arm-specific flags. Unset knobs keep quinn's own defaults, so an
+arm that changes nothing measures nothing. **Interleave arms within each repeat** — running
+one arm to completion then the next let host drift land on one arm and produced a wrong
+answer once already.
 
 ## Latency campaigns (L4) — RTT, loss and p95
 

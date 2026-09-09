@@ -250,8 +250,12 @@ the convention `telemetry` already established in this repository.
 
 **Alternative.** Delete them. Tried, and it was wrong — see below.
 
-**Falsified by.** A campaign that cannot be reproduced. Every arm is still reachable with
-`--features lab`, and the lab scripts build with it.
+**Falsified by.** A campaign that cannot be reproduced. *(While the campaigns were open,
+every arm stayed reachable with `--features lab`.)*
+
+**2026-09-09.** The campaigns closed. The rejected arms were then deleted from `server/`,
+not copied into `lab/`. Reproduction of `copy` / `split` / `--ask-priority` is git
+history, not a feature flag. Product source keeps only what shipped.
 
 ### 16 · A usage count is only as wide as the places you looked
 

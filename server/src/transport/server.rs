@@ -11,7 +11,7 @@ use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tls::load_pem_cert;
-use crate::transport::tuning::{SendPath, TransportTuning};
+use crate::transport::tuning::TransportTuning;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
@@ -41,9 +41,6 @@ pub struct ServeConfig {
     pub bind: Option<IpAddr>,
     /// QUIC transport knobs. Unset fields keep the library default.
     pub tuning: TransportTuning,
-    /// Per-frame only: decreasing QUIC stream priority in ask order. L1 arm Q.
-    #[cfg(feature = "lab")]
-    pub ask_priority: bool,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -88,19 +85,12 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     );
 
     let mode = config.mode;
-    let send_path = config.tuning.send_path;
     let prefault = config.tuning.prefault;
-    #[cfg(feature = "lab")]
-    let ask_priority = config.ask_priority && matches!(mode, StreamMode::PerFrame);
-    #[cfg(not(feature = "lab"))]
-    let ask_priority = false;
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
         tokio::spawn(async move {
-            if let Err(err) =
-                handle_incoming(incoming, store, mode, send_path, prefault, ask_priority).await
-            {
+            if let Err(err) = handle_incoming(incoming, store, mode, prefault).await {
                 warn!(%err, "session ended");
             }
         });
@@ -133,22 +123,6 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
                 .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
         }
         Ok(builder.build())
-    }
-
-    #[cfg(feature = "lab")]
-    if let Some(socket) = bind_socket(config)? {
-        let label = socket
-            .local_addr()
-            .map(|a| a.to_string())
-            .unwrap_or_else(|_| "hand-built socket".to_string());
-        let server_config = finish(
-            ServerConfig::builder().with_bind_socket(socket),
-            identity(config).await?,
-            &config.tuning,
-        )?;
-        let endpoint = Endpoint::server(server_config)
-            .with_context(|| format!("wtransport endpoint on {label}"))?;
-        return Ok((endpoint, label));
     }
 
     if let Some(ip) = config.bind {
@@ -185,53 +159,11 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
     }
 }
 
-/// A UDP socket with explicit SO_SNDBUF / SO_RCVBUF, or `None` to let wtransport bind.
-/// Built only when a buffer size is requested, so the default path stays byte-identical.
-#[cfg(feature = "lab")]
-fn bind_socket(config: &ServeConfig) -> Result<Option<std::net::UdpSocket>> {
-    if config.tuning.socket_buffers_are_default() {
-        return Ok(None);
-    }
-    use socket2::{Domain, Protocol, Socket, Type};
-    let ip = config
-        .bind
-        .unwrap_or(IpAddr::V6(std::net::Ipv6Addr::UNSPECIFIED));
-    let addr = SocketAddr::new(ip, config.wt_port);
-    let domain = if addr.is_ipv4() {
-        Domain::IPV4
-    } else {
-        Domain::IPV6
-    };
-    let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP)).context("udp socket")?;
-    // wtransport's own bind sets this; without it a v6 socket refuses v4-mapped peers and the
-    // buffer arms differ from their control in two variables, not one.
-    if domain == Domain::IPV6 {
-        socket.set_only_v6(false).context("IPV6_V6ONLY")?;
-    }
-    if let Some(n) = config.tuning.socket_send_buffer {
-        socket.set_send_buffer_size(n).context("SO_SNDBUF")?;
-    }
-    if let Some(n) = config.tuning.socket_recv_buffer {
-        socket.set_recv_buffer_size(n).context("SO_RCVBUF")?;
-    }
-    socket
-        .bind(&addr.into())
-        .with_context(|| format!("bind {addr}"))?;
-    info!(
-        send_buffer = socket.send_buffer_size().unwrap_or(0),
-        recv_buffer = socket.recv_buffer_size().unwrap_or(0),
-        "bound UDP socket with explicit buffer sizes"
-    );
-    Ok(Some(socket.into()))
-}
-
 async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
     store: Arc<FrameStore>,
     mode: StreamMode,
-    send_path: SendPath,
     prefault: bool,
-    ask_priority: bool,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     let connection = session_request.accept().await.context("accept session")?;
@@ -246,7 +178,7 @@ async fn handle_incoming(
         .context("accept control bidi")?;
 
     let out = FrameOut::open(mode, connection).await?;
-    let mut product = ProductPipeline::new(store, out, send_path, prefault, ask_priority);
+    let mut product = ProductPipeline::new(store, out, prefault);
 
     // Lab wrap only when env on — RecordedPipeline always holds a live Tap.
     #[cfg(feature = "telemetry")]

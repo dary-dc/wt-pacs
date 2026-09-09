@@ -12,7 +12,7 @@ KEY="$ROOT/server/dev-cert/key.pem"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
 mkdir -p "$(dirname "$OUT")"
-cargo build -p exact-server -p window-harness --release --features lab >/dev/null
+cargo build -p exact-server -p window-harness --release >/dev/null
 
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"

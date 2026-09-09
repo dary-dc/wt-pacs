@@ -15,7 +15,7 @@ cargo build -p window-harness --release
 cp -f "$CARGO_TARGET_DIR/release/window-harness" "$OUT/window-harness"
 
 echo "==> exact-server (this tree; S/P/Q via --stream-mode / --ask-priority)"
-cargo build -p exact-server --features lab --release
+cargo build -p exact-server --release
 cp -f "$CARGO_TARGET_DIR/release/exact-server" "$OUT/bin-main-exact-server"
 # Same binary as main — kept for scripts that still SCP a distinct Q path.
 cp -f "$CARGO_TARGET_DIR/release/exact-server" "$OUT/bin-q-exact-server"
