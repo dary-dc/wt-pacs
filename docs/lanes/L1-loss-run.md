@@ -31,7 +31,7 @@ different hit rates were incomparable.
 | RTT | 60 and 150 ms |
 | Depth | **formula** `D = ceil(0.95 × (1 + RTT/Tf))` with Tf = frame_bits / 10e6 — **not** saturate `D_min` |
 | Fixture | `frames_32k` |
-| Trace | `lab/traces/l1_one_way_80.json` — **80 unique frames, no revisits**, `step_interval_ms=50` |
+| Trace | `lab/traces/l1_one_way_80.json` on tag `archive/transport-lab-2026-09` — **80 unique frames, no revisits**, `step_interval_ms=50` |
 | Repeats | **10** on loss > 0; **5** on lossless (incl. D=1 control) |
 
 Formula depths for 32 KB @ 10 Mbit: **D(60)=4**, **D(150)=7**.

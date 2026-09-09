@@ -41,5 +41,9 @@ git checkout archive/transport-lab-2026-09 -- docs/transport lab/transport \
 # put lab/transport/aead-bench and lab/transport/netsim back in Cargo.toml
 ```
 
+Checking out `docs/transport` from the tag overwrites these lean face files. Prefer
+`git show archive/transport-lab-2026-09:docs/transport/<path>` to read evidence without
+replacing the tip.
+
 `docs/lanes/L1-loss-run.md`, `docs/lanes/L2-ask-policy.md`, and `docs/measurements/r2/`
 (CAMPAIGN / TASK / ARCHIVE) stay on `main`'s paths.

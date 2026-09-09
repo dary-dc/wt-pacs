@@ -1,6 +1,7 @@
 # Docs
 
-Product and ADRs stay here. Campaign write-ups live under the lane that produced them.
+Product and ADRs stay here. This lane's campaign write-ups are on tag
+`archive/transport-lab-2026-09`, not under `docs/transport/` on the tip.
 
 | Path | What |
 | ---- | ---- |

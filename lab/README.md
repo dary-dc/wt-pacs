@@ -7,7 +7,7 @@ and Q2 (head-of-line). **No product crate depends on these.**
 
 | Crate | Purpose |
 | ----- | ------- |
-| `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2) |
+| `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2), `--mode stall` (pathological client). Stream-shape cells need `--reader-mode open` |
 | `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
 | `telemetry-bench` | Telemetry pipeline microbench: emit seams under contention, drain shapes at scale — no network, no product crate. See `docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md` §5 |
 
