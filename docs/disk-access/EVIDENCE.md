@@ -472,29 +472,50 @@ process level with the harness's own `pool` as a within-process control:
 Identical. Swapping the miss mechanism changes nothing, so the cost is **structural in
 `ReadCtx`**.
 
-**It tracks window count, not bytes.** `READ_WINDOW` is 64 KiB, so a frame is served in
-`ceil(size / 64 KiB)` sequential `ctx.read()` calls where `pool` issues one whole-frame read.
-Constant stride, only `--size` varying:
+**It tracks the size of the probe.** Constant stride, only `--size` varying, and paired
+against `hybrid_lazyring` rather than `pool` so the miss mechanism is controlled out — both
+escalate to a ring, and the two differ only in `ReadCtx`:
 
-| size | windows | `product` vs `pool` p50 | wall |
-| ---: | ---: | --- | --- |
-| 16 KiB | 1 | +11.0 % tie | +11.9 % tie |
-| 64 KiB | 1 | +25.7 % tie | +26.2 % tie |
-| 128 KiB | **2** | **+88.2 % RES** | **+97.0 % RES** |
-| 250 kB | **4** | **+32.0 % RES** | **+36.9 % RES** |
+| size | probe = `READ_WINDOW.min(remaining)` | vs `pool` wall | vs `hybrid_lazyring` p50 | wall |
+| ---: | --- | --- | --- | --- |
+| 16 KiB | 16 384 — the whole frame | +11.9 % tie | **−0.8 %, 6/12 tie** | +0.6 %, 6/12 tie |
+| 64 KiB | 65 536 — the whole frame | +26.2 % tie | **+3.0 %, 8/12 tie** | +0.9 %, 6/12 tie |
+| 128 KiB | 65 536 — **half** the frame | **+97.0 % RES** | **+81.7 %, 12/12 RES** | +90.7 %, 12/12 RES |
+| 250 kB | 65 536 — **a quarter** | **+36.9 % RES** | **+55.3 %, 12/12 RES** | +49.3 %, 12/12 RES |
 
-A tie at one window at both sizes that fit in one; RESOLVED as soon as a frame needs two. It is
-largest at two windows and narrows at four, where the kernel's own read-ahead begins serving
-the later windows of the same frame.
+Against the arm that shares its miss mechanism the shipped reader is **exactly a tie — 6/12,
+a coin flip — wherever the probe covers the frame**, and resolves as soon as it does not. That
+is a one-to-one match with `read_path.rs:221`, the only line in the read path whose behaviour
+changes with ask size.
 
-**Naming removes it.** `product_ahead` against `product`: **−50 to −58 % on p50 and wall at
-every size**, 11–12/12 RESOLVED. And at 250 kB it turns the deficit into a win over `pool` —
-**−33.3 % p50, −31.4 % wall, 12/12 RESOLVED**.
+> **Retracted: "it tracks window count."** This section first read the same curve as
+> `ceil(size / READ_WINDOW)` serial `ctx.read()` calls. That is not what these cells ran.
+> On a miss `begin` sets `win.len = remaining` and escalates the **whole rest of the frame**
+> (`read_path.rs:237-238`), so `read()` returns it all and `while pos < span.len` exits after
+> one iteration — pinned by the product's own
+> `a_frame_that_misses_costs_one_round_trip_not_one_per_window`. At 99.6 % misses a frame is
+> **one** `ctx.read()` at every size, so window count cannot be the variable. The curve says so
+> too: it is non-monotonic in windows (+97.0 % at two, +36.9 % at four), and 64 KiB — one
+> window, no splitting possible — already carries +26.2 %. The four-window path is real but
+> **warm**, where 250 kB depth 1 is a tie (29.3 µs against `pool`'s 28.2).
+> `reads_per_ask` is now a campaign column so the next run reports this rather than argues it.
 
-> **The penalty is a frame larger than one `READ_WINDOW` served with an empty `upcoming`.**
-> Not the ring, not the pool, not read-ahead. The planner supplies `upcoming` whenever the
-> client pipelines, so this is the **unpipelined depth-1** case specifically — and it is the
-> case a single-frame `RequestFrame` produces.
+**What a bigger probe would cost is not the syscall.** An `RWF_NOWAIT` probe that returns
+EAGAIN is cheap at any length, so the candidate is not the probe's own cost but what it leaves
+behind: `preadv2` primes the descriptor's read-ahead state for the length it was asked for
+before deciding to refuse, and `product` is the only arm whose short probe and whole-frame
+read share one descriptor — `hybrid_lazyring` escalates on `run_cell`'s second `File::open`,
+which its probe never touched. **Unverified.** `WTPACS_READ_PATH=uring` sets `probe = false`
+(`read_path.rs:154`) and is the third A/B cell that settles it: `w2_readmode_ab.tsv` ran
+`auto` and `pool`, and both probe.
+
+**Naming removes it — but that is depth, not the window.** `product_ahead` against `product`
+is **−50 to −58 % on p50 and wall at every size**, 11–12/12 RESOLVED, and at 250 kB turns the
+deficit into **−33.3 % p50 / −31.4 % wall** over `pool`. It is **−47.2 % at 16 KiB too**, where
+there is one window and nothing to serialise, so the win is not the window: `peak_in_flight`
+goes 1 → 2 and this is depth 2 against depth 1, which the campaign already prices at +67.4 %
+(`v35`). Neither `pool` nor `hybrid_lazyring` has been run at `--depths 2`, so
+"look-ahead wins" and "depth 2 wins" are currently the same number.
 
 ### Fill at scale: CPU ties, the ring is the cost
 

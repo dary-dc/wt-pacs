@@ -292,6 +292,11 @@ struct Outcome {
     /// Resident growth across the cell, and how many sessions ended holding a ring.
     rss_kib: u64,
     rings_built: u64,
+    /// io_uring completions that came back short of the bytes asked for, and were resubmitted.
+    short_reads: u64,
+    /// `ctx.read` calls per ask: 1.0 means a frame was served in one call, 4.0 that it
+    /// was split into `READ_WINDOW` pieces. A miss returns the rest of the frame.
+    reads: u64,
 }
 
 /// One reader's worth of work: replay `plan`, `depth` reads in flight.
@@ -381,6 +386,7 @@ async fn reader_product(
     peak_named: Arc<AtomicU64>,
     peak_in_flight: Arc<AtomicU64>,
     rings_built: Arc<AtomicU64>,
+    reads: Arc<AtomicU64>,
 ) -> Result<()> {
     let asks = plan.len();
     let named = cell.depth - 1 + usize::from(look_ahead);
@@ -409,6 +415,7 @@ async fn reader_product(
         }
     }
     let st = ctx.stats();
+    reads.fetch_add(st.hits + st.misses, Ordering::Relaxed);
     peak_named.fetch_max(st.peak_named as u64, Ordering::Relaxed);
     peak_in_flight.fetch_max(st.peak_in_flight as u64, Ordering::Relaxed);
     rings_built.fetch_add(u64::from(ctx.ring_built()), Ordering::Relaxed);
@@ -560,6 +567,7 @@ async fn reader_ring(
     lat: Arc<Mutex<Vec<u64>>>,
     misses: Arc<AtomicU64>,
     peak_in_flight: Arc<AtomicU64>,
+    short_reads: Arc<AtomicU64>,
 ) -> Result<()> {
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
@@ -674,6 +682,9 @@ async fn reader_ring(
             in_flight -= 1;
             completed += 1;
         }
+    }
+    if let Some(r) = ring.as_ref() {
+        short_reads.fetch_add(r.short_reads() as u64, Ordering::Relaxed);
     }
     lat.lock().unwrap().extend(mine);
     misses.fetch_add(miss, Ordering::Relaxed);
@@ -801,103 +812,119 @@ fn run_cell(
     let misses = Arc::new(AtomicU64::new(0));
     let gaps = Arc::new(Mutex::new(Vec::new()));
 
-    let (wall_ns, cpu_ns_used, threads_max, reader_err, named_max, in_flight_max, rss_grown, rings) =
-        rt.block_on(async {
-            // Co-tenant monitor: an arm that stalls the executor shows up here and nowhere else.
-            let stop = Arc::new(AtomicBool::new(false));
-            let mut mons = Vec::new();
-            for _ in 0..cell.monitors {
-                let stop = Arc::clone(&stop);
-                let gaps = Arc::clone(&gaps);
-                mons.push(tokio::spawn(async move {
-                    let mut local = Vec::with_capacity(1 << 16);
-                    while !stop.load(Ordering::Relaxed) {
-                        let t = Instant::now();
-                        tokio::task::yield_now().await;
-                        local.push(t.elapsed().as_nanos() as u64);
-                    }
-                    gaps.lock().unwrap().extend(local);
-                }));
-            }
+    let (
+        wall_ns,
+        cpu_ns_used,
+        threads_max,
+        reader_err,
+        named_max,
+        in_flight_max,
+        rss_grown,
+        rings,
+        shorts,
+        reads,
+    ) = rt.block_on(async {
+        // Co-tenant monitor: an arm that stalls the executor shows up here and nowhere else.
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut mons = Vec::new();
+        for _ in 0..cell.monitors {
+            let stop = Arc::clone(&stop);
+            let gaps = Arc::clone(&gaps);
+            mons.push(tokio::spawn(async move {
+                let mut local = Vec::with_capacity(1 << 16);
+                while !stop.load(Ordering::Relaxed) {
+                    let t = Instant::now();
+                    tokio::task::yield_now().await;
+                    local.push(t.elapsed().as_nanos() as u64);
+                }
+                gaps.lock().unwrap().extend(local);
+            }));
+        }
 
-            let cpu0 = cpu_ns();
-            let wall0 = Instant::now();
-            let peak_named = Arc::new(AtomicU64::new(0));
-            let peak_in_flight = Arc::new(AtomicU64::new(0));
-            let rings_built = Arc::new(AtomicU64::new(0));
-            let rss0 = rss_kib();
-            let mut set = tokio::task::JoinSet::new();
-            for reader_plan in &plans {
-                let store = Arc::clone(&store);
-                let file = Arc::clone(&file);
-                let lat = Arc::clone(&lat);
-                let misses = Arc::clone(&misses);
-                let plan = Arc::clone(reader_plan);
-                let pn = Arc::clone(&peak_named);
-                let pif = Arc::clone(&peak_in_flight);
-                let rb = Arc::clone(&rings_built);
-                let c = Cell {
-                    arm: cell.arm,
-                    prefetch: cell.prefetch,
-                    partition: cell.partition,
-                    depth: cell.depth,
-                    readers: 1,
-                    asks: cell.asks,
-                    size: cell.size,
-                    stride: cell.stride,
-                    warm: cell.warm,
-                    monitors: 0,
-                };
-                let path = path.clone();
-                set.spawn(async move {
-                    if matches!(c.arm, Arm::Product | Arm::ProductAhead) {
-                        let ahead = c.arm == Arm::ProductAhead;
-                        reader_product(store, &c, plan, lat, misses, ahead, pn, pif, rb).await
-                    } else if c.arm == Arm::ProductSessions {
-                        reader_product_sessions(store, &c, plan, lat, misses, false).await
-                    } else if c.arm == Arm::TokioFs {
-                        reader_tokio_fs(path, &c, plan, lat).await
-                    } else if c.arm.uses_ring() {
-                        reader_ring(store, file, &c, plan, lat, misses, pif).await
-                    } else if c.arm == Arm::PoolRingLoop {
-                        reader_ringloop(store, file, &c, plan, lat, misses).await
-                    } else {
-                        reader_pool(store, file, &c, plan, lat, misses).await
-                    }
-                });
-            }
-            let mut peak = threads();
-            let mut reader_err: Option<String> = None;
-            while let Some(joined) = set.join_next().await {
-                peak = peak.max(threads());
-                match joined {
-                    Ok(Ok(())) => {}
-                    Ok(Err(e)) => {
-                        reader_err.get_or_insert(format!("{e:#}"));
-                    }
-                    Err(e) => {
-                        reader_err.get_or_insert(format!("reader panicked: {e}"));
-                    }
+        let cpu0 = cpu_ns();
+        let wall0 = Instant::now();
+        let peak_named = Arc::new(AtomicU64::new(0));
+        let peak_in_flight = Arc::new(AtomicU64::new(0));
+        let rings_built = Arc::new(AtomicU64::new(0));
+        let short_reads = Arc::new(AtomicU64::new(0));
+        let reads = Arc::new(AtomicU64::new(0));
+        let rss0 = rss_kib();
+        let mut set = tokio::task::JoinSet::new();
+        for reader_plan in &plans {
+            let store = Arc::clone(&store);
+            let file = Arc::clone(&file);
+            let lat = Arc::clone(&lat);
+            let misses = Arc::clone(&misses);
+            let plan = Arc::clone(reader_plan);
+            let pn = Arc::clone(&peak_named);
+            let pif = Arc::clone(&peak_in_flight);
+            let rb = Arc::clone(&rings_built);
+            let sr = Arc::clone(&short_reads);
+            let rd = Arc::clone(&reads);
+            let c = Cell {
+                arm: cell.arm,
+                prefetch: cell.prefetch,
+                partition: cell.partition,
+                depth: cell.depth,
+                readers: 1,
+                asks: cell.asks,
+                size: cell.size,
+                stride: cell.stride,
+                warm: cell.warm,
+                monitors: 0,
+            };
+            let path = path.clone();
+            set.spawn(async move {
+                if matches!(c.arm, Arm::Product | Arm::ProductAhead) {
+                    let ahead = c.arm == Arm::ProductAhead;
+                    reader_product(store, &c, plan, lat, misses, ahead, pn, pif, rb, rd).await
+                } else if c.arm == Arm::ProductSessions {
+                    reader_product_sessions(store, &c, plan, lat, misses, false).await
+                } else if c.arm == Arm::TokioFs {
+                    reader_tokio_fs(path, &c, plan, lat).await
+                } else if c.arm.uses_ring() {
+                    reader_ring(store, file, &c, plan, lat, misses, pif, sr).await
+                } else if c.arm == Arm::PoolRingLoop {
+                    reader_ringloop(store, file, &c, plan, lat, misses).await
+                } else {
+                    reader_pool(store, file, &c, plan, lat, misses).await
+                }
+            });
+        }
+        let mut peak = threads();
+        let mut reader_err: Option<String> = None;
+        while let Some(joined) = set.join_next().await {
+            peak = peak.max(threads());
+            match joined {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    reader_err.get_or_insert(format!("{e:#}"));
+                }
+                Err(e) => {
+                    reader_err.get_or_insert(format!("reader panicked: {e}"));
                 }
             }
-            let wall = wall0.elapsed().as_nanos() as u64;
-            let cpu = cpu_ns() - cpu0;
-            stop.store(true, Ordering::Relaxed);
-            tokio::task::yield_now().await;
-            for m in mons {
-                let _ = m.await;
-            }
-            (
-                wall,
-                cpu,
-                peak.max(threads()),
-                reader_err,
-                peak_named.load(Ordering::Relaxed),
-                peak_in_flight.load(Ordering::Relaxed),
-                rss_kib().saturating_sub(rss0),
-                rings_built.load(Ordering::Relaxed),
-            )
-        });
+        }
+        let wall = wall0.elapsed().as_nanos() as u64;
+        let cpu = cpu_ns() - cpu0;
+        stop.store(true, Ordering::Relaxed);
+        tokio::task::yield_now().await;
+        for m in mons {
+            let _ = m.await;
+        }
+        (
+            wall,
+            cpu,
+            peak.max(threads()),
+            reader_err,
+            peak_named.load(Ordering::Relaxed),
+            peak_in_flight.load(Ordering::Relaxed),
+            rss_kib().saturating_sub(rss0),
+            rings_built.load(Ordering::Relaxed),
+            short_reads.load(Ordering::Relaxed),
+            reads.load(Ordering::Relaxed),
+        )
+    });
 
     if let Some(e) = reader_err {
         anyhow::bail!("reader failed: {e}");
@@ -930,6 +957,8 @@ fn run_cell(
         peak_in_flight: in_flight_max,
         rss_kib: rss_grown,
         rings_built: rings,
+        short_reads: shorts,
+        reads,
     })
 }
 
@@ -968,7 +997,7 @@ fn main() -> Result<()> {
             "label\tarm\tprefetch\ttemp\tshape\tsize\tstride\tdepth\treaders\trepeat\tpos\t\
              asks\tp50_ns\tp90_ns\tp99_ns\tcpu_ns_per_ask\twall_ns\tasks_per_s\tthreads\t\
              gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct\tpeak_named\tpeak_in_flight\trss_kib\trings_built\t\
-             monitors"
+             monitors\tshort_reads\treads_per_ask"
         );
     }
     let trace = match &args.trace {
@@ -1047,7 +1076,7 @@ fn main() -> Result<()> {
                             let total = (asks * readers_n) as u64;
                             println!(
                                 "{}\t{}\t{}\t{}\t{shape}\t{}\t{}\t{depth}\t{readers_n}\t{repeat}\t{pos}\t\
-                                 {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}\t{}\t{}\t{}\t{}\t{}",
+                                 {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.2}",
                                 args.label,
                                 arm.as_str(),
                                 if prefetch { "on" } else { "off" },
@@ -1071,6 +1100,8 @@ fn main() -> Result<()> {
                                 o.rss_kib,
                                 o.rings_built,
                                 args.monitors,
+                                o.short_reads,
+                                o.reads as f64 / n_asks as f64,
                             );
                         }
                     }
