@@ -289,6 +289,7 @@ confirmed, and P0 must run both frame sizes, not only both depths.**
 > | 16 KiB `p50_ns` | +59.9 % RESOLVED | +345.6 % RESOLVED | +1571.5 % RESOLVED |
 > | 16 KiB `wall_ns` | **+71.3 % RESOLVED** | **+23.1 % tie** | **+12.2 % tie** |
 > | 16 KiB `cpu_ns_per_ask` | **+224.3 % RESOLVED** | **+12.4 % tie** | **+26.2 % tie** |
+> | 16 KiB `cpu_ns_per_ask`, re-run at `--monitors 0` | **+164.8 % RESOLVED** | +38.5 % RESOLVED | +31.5 % RESOLVED |
 > | 250 kB `wall_ns` | +35.2 % RESOLVED | +31.4 % RESOLVED | +29.6 % RESOLVED |
 > | 250 kB `cpu_ns_per_ask` | +55.9 % tie | +35.4 % RESOLVED | +37.9 % tie |
 >
@@ -307,7 +308,8 @@ confirmed, and P0 must run both frame sizes, not only both depths.**
 > roughly a third at 250 kB.
 >
 > **What survives.** At depth 1 there is no queue and every metric agrees: a hit through the
-> ring costs **+224 % CPU per ask**. At 250 kB the throughput cost holds near +30 % at every
+> ring costs **+165 % CPU per ask** — the `--monitors 0` re-run below, which supersedes the
+> +224.3 % this table published from a contaminated warm column. At 250 kB the throughput cost holds near +30 % at every
 > depth. **"A hit must never touch a ring" stands, and so does the reason there is no tuning
 > toggle.** What is retracted is the magnitude — at 16 KiB above depth 1 the arms tie on both
 > throughput and CPU, and a path 4.5× or 16.7× slower could not tie on either. One caveat on

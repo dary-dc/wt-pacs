@@ -84,7 +84,7 @@ a **tie**, which is a real answer.
 | Shipped reader vs the lab arm it implements (`product` vs `hybrid_lazyring`) | **tie** on p50, p99 and CPU at every depth and reader count, two hosts |
 | Shipped reader vs the pool it replaced, 16 KiB misses | **−45.4 % CPU per ask, RESOLVED** |
 | Ring-on-the-miss vs pool, misses, depth 1 / 4 / 16 | **−56 / −70 / −75 %**, RESOLVED |
-| Every-read-through-the-ring vs ring-on-the-miss | misses tie; hits **+224.3 % CPU per ask at depth 1, RESOLVED** — why a hit must never touch a ring. The depth-scaled latency figures this row used to carry are retracted: [EVIDENCE](EVIDENCE.md) §Correction |
+| Every-read-through-the-ring vs ring-on-the-miss | misses tie; hits **+164.8 % CPU per ask at depth 1, RESOLVED** (`--monitors 0`) — why a hit must never touch a ring. The depth-scaled latency figures this row used to carry are retracted: [EVIDENCE](EVIDENCE.md) §Correction |
 | Warm, vs the 2026-08-31 always-touch path | **60.9 µs vs 152.3 µs per frame (2.5×)**; neighbours' p99 166 vs 702 µs |
 | A miss reading the rest of the frame vs the rest of the window, 100 % misses | **2.1× at one reader, 3.0–3.2× at 8–32** |
 | OS threads | ring readers **5** (sandbox) / 9 (workstation), flat to 256 in flight; pool 125–135 at 64 readers, capped at 512 by tokio |
