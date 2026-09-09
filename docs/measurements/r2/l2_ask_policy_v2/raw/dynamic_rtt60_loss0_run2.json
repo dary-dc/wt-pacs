@@ -1,0 +1,687 @@
+{
+  "trace": "l2_ask_policy_scroll",
+  "mode": "trace",
+  "read_bps": 0,
+  "depth": 16,
+  "stream_mode": "shared",
+  "peak_outstanding": 16,
+  "arm_label": "L2v2_dynamic_rtt60_loss0_r2",
+  "wanted_frame": 40,
+  "asks_sent": 80,
+  "recovered_ms": 0.0,
+  "mean_wait_ms": 243.34225602521005,
+  "p95_wait_ms": 496.072689,
+  "p95_lateness_ms": 1744.621663,
+  "mean_lateness_ms": 1015.3059801092436,
+  "frac_steps_late": 0.7478991596638656,
+  "lateness_ms": [
+    531.040034,
+    608.160579,
+    774.330044,
+    876.886093,
+    946.777508,
+    976.637003,
+    1016.1302750000001,
+    1055.100316,
+    1099.1982950000001,
+    1110.844527,
+    1119.7934730000002,
+    1127.8870539999998,
+    1146.924675,
+    1146.741676,
+    1169.771363,
+    1180.74482,
+    1189.500865,
+    1190.6736680000001,
+    1214.14741,
+    1215.6548300000002,
+    1234.578977,
+    1242.631922,
+    1253.947212,
+    1259.0571100000002,
+    1269.061045,
+    1277.705866,
+    1289.7914369999999,
+    1299.891262,
+    1312.2745730000001,
+    1322.9877700000002,
+    1334.8861869999998,
+    1346.1759319999999,
+    1356.966451,
+    1369.6718190000001,
+    1378.509318,
+    1389.3958880000002,
+    1400.3076219999998,
+    1411.559703,
+    1422.9492480000001,
+    1433.7830179999999,
+    1444.390901,
+    1455.493105,
+    1465.699562,
+    1477.509676,
+    1487.778498,
+    1498.709464,
+    1509.764484,
+    1522.648016,
+    1534.689164,
+    1543.221352,
+    1554.386139,
+    1564.751225,
+    1575.193813,
+    1586.689999,
+    1600.2438479999998,
+    1610.693218,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1621.6312099999998,
+    927.7657849999999,
+    1632.834039,
+    1641.6440369999998,
+    970.912889,
+    1014.3983219999999,
+    1656.477502,
+    1057.200291,
+    1665.210569,
+    1100.37418,
+    1676.377818,
+    1686.067483,
+    1142.073284,
+    1698.586669,
+    1186.591949,
+    1711.639567,
+    1231.6457990000001,
+    1272.5267900000001,
+    1720.530031,
+    1731.735649,
+    1315.741173,
+    1744.621663,
+    1360.626369,
+    1403.3710290000001,
+    1755.3750109999999,
+    1765.8137570000001,
+    1445.817976,
+    1774.197923,
+    1486.2007150000002,
+    1530.175236,
+    1786.175922,
+    1798.064274,
+    1574.06739
+  ],
+  "wait_ms": [
+    531.0379200000001,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    723.694162,
+    655.4614359999999,
+    565.1328629999999,
+    530.431428,
+    496.072689,
+    468.76444499999997,
+    452.693871,
+    434.617863,
+    423.87220599999995,
+    445.365272,
+    432.95156000000003,
+    442.352598,
+    434.961281,
+    438.705414,
+    428.94041500000003,
+    425.75142900000003,
+    422.731863,
+    424.80501399999997,
+    426.925419,
+    421.345985,
+    428.982587,
+    421.148801,
+    420.14260199999995,
+    422.385152,
+    433.908952,
+    420.132811,
+    429.752724,
+    421.71795000000003,
+    424.711758,
+    423.926288,
+    430.720259,
+    431.189715,
+    430.275573,
+    431.89681,
+    430.243757,
+    431.500623,
+    431.598241,
+    430.75897000000003,
+    431.373604,
+    434.28179500000005,
+    430.874859,
+    429.731042,
+    431.234556,
+    428.53294600000004,
+    430.04281100000003,
+    432.19637700000004,
+    433.33687599999996,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    430.988361,
+    0.0,
+    431.077172,
+    431.690126,
+    0.0,
+    0.0,
+    434.932638,
+    0.0,
+    432.348845,
+    0.0,
+    433.64207100000004,
+    432.278366,
+    0.0,
+    431.943219,
+    0.0,
+    432.769868,
+    0.0,
+    0.0,
+    432.228348,
+    431.134367,
+    0.0,
+    435.857916,
+    0.0,
+    0.0,
+    432.615401,
+    435.093733,
+    0.0,
+    429.939062,
+    0.0,
+    0.0,
+    433.287715,
+    432.687687,
+    0.0
+  ],
+  "wait_samples": 119,
+  "duplicate_asks": 823,
+  "unique_frames_asked": 80,
+  "drain_incomplete": false,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
+  "fill_dwell_ms": 0,
+  "link_util": 0.0,
+  "wasted_bytes": 0,
+  "commitment_depth": 0,
+  "wanted_received": true,
+  "frames_on_wire": 80,
+  "bytes_on_wire": 2560320,
+  "frames_after_settle": 0,
+  "bytes_after_settle": 0,
+  "frames_before_settle": 80,
+  "bytes_before_settle": 2560320,
+  "warm_cache": false,
+  "rtt_ms": 0,
+  "ask_join": [
+    {
+      "frame_index": 0,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 1,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 79,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 2,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 78,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 3,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 77,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 76,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 75,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 74,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 73,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 9,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 14,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 17,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 22,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 27,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 28,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 30,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 34,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 37,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 38,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 42,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 43,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 44,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 46,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 47,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 48,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 49,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 50,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 51,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 52,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 53,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 54,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 55,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 56,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 57,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 58,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 59,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 60,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 61,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 62,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 63,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 64,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 65,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 66,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 67,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 68,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 69,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 70,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 71,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 72,
+      "ask_ordinal": 0
+    }
+  ],
+  "d_min_observed": 16,
+  "d_max_observed": 16,
+  "d_current": [
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16
+  ],
+  "depth_oscillating": false,
+  "depth_saturated": true
+}

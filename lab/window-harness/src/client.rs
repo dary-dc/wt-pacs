@@ -1,22 +1,31 @@
-use crate::metrics::{HarnessMetrics, HarnessMode, RunConfig, SharedMetrics, StreamMode};
+//! The harness client: a reader that walks a trace on its own clock, an ask policy (a prefetch
+//! window bounded by an in-flight cap), and the receive side that feeds the metrics.
+
+use crate::depth::DepthController;
+use crate::metrics::{
+    DepthReport, HarnessMetrics, HarnessMode, MetricsState, RunConfig, SharedMetrics, StreamMode,
+    WindowShape,
+};
 use crate::trace::TraceSpec;
 use crate::wire::{read_framed_paced, write_fod_msg, LinkPacer};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use frame_envelope::unwrap;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, Notify};
 use wtransport::{ClientConfig, Connection, Endpoint};
 
-use std::sync::atomic::{AtomicU32, Ordering};
+// ----------------------------------------------------------------------------- process counters
 
 /// Peak concurrent outstanding asks actually observed during a run.
 ///
 /// Invariant check: if this never reaches the configured `D`, the harness is not
 /// producing the concurrency it claims and every number from the run is void.
 /// Two bugs violated exactly this and went undetected across three campaigns.
-pub(crate) static PEAK_OUTSTANDING: AtomicU32 = AtomicU32::new(0);
+static PEAK_OUTSTANDING: AtomicU32 = AtomicU32::new(0);
 
 fn note_outstanding(n: u32) {
     PEAK_OUTSTANDING.fetch_max(n, Ordering::Relaxed);
@@ -35,17 +44,29 @@ pub fn reset_peak_outstanding() {
 static ASK_ORDINALS: LazyLock<Mutex<HashMap<u32, u32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 static ASK_JOIN: LazyLock<Mutex<Vec<crate::metrics::AskJoinRow>>> =
     LazyLock::new(|| Mutex::new(Vec::new()));
+/// `(decided_at, in_flight_at_ask)` per ask, oldest first.
+type AskQueue = VecDeque<(Instant, u32)>;
+/// FIFO ask instants per frame index, paired with the first byte of the answer. A queue, not a
+/// slot: a re-ask must not overwrite the earlier timestamp.
+static ASK_AT: LazyLock<Mutex<HashMap<u32, AskQueue>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn reset_ask_join() {
     ASK_ORDINALS.lock().expect("ask ordinals").clear();
     ASK_JOIN.lock().expect("ask join").clear();
+    ASK_AT.lock().expect("ask at").clear();
 }
 
 pub fn take_ask_join() -> Vec<crate::metrics::AskJoinRow> {
     ASK_JOIN.lock().expect("ask join").clone()
 }
 
-fn record_ask(frame_index: u32) {
+fn record_ask(frame_index: u32, decided_at: Instant, in_flight_at_ask: u32) {
+    ASK_AT
+        .lock()
+        .expect("ask at")
+        .entry(frame_index)
+        .or_default()
+        .push_back((decided_at, in_flight_at_ask));
     let ordinal = {
         let mut map = ASK_ORDINALS.lock().expect("ask ordinals");
         let entry = map.entry(frame_index).or_insert(0);
@@ -56,11 +77,124 @@ fn record_ask(frame_index: u32) {
     ASK_JOIN
         .lock()
         .expect("ask join")
-        .push(crate::metrics::AskJoinRow {
-            frame_index,
-            ask_ordinal: ordinal,
-        });
+        .push(crate::metrics::AskJoinRow { frame_index, ask_ordinal: ordinal });
 }
+
+/// Pair the oldest unmatched ask for `frame_index` with the instant its first byte was seen.
+fn take_ask_rtt_ms(frame_index: u32, first_byte_at: Instant) -> Option<(f64, u32)> {
+    let (at, in_flight) = ASK_AT
+        .lock()
+        .expect("ask at")
+        .get_mut(&frame_index)?
+        .pop_front()?;
+    Some((first_byte_at.saturating_duration_since(at).as_secs_f64() * 1000.0, in_flight))
+}
+
+// ----------------------------------------------------------------------------- the ask path
+
+enum AskCmd {
+    Frame { frame: u32, decided_at: Instant },
+    End,
+}
+
+/// The control stream, written by one task so asks leave in order and — when an RTT is
+/// emulated — one-way delay after the reader decided on them. The reader never blocks on a
+/// write, so issuing `D` asks takes no longer than issuing one.
+struct AskPath {
+    tx: mpsc::UnboundedSender<AskCmd>,
+    task: Mutex<Option<tokio::task::JoinHandle<Result<()>>>>,
+}
+
+impl AskPath {
+    fn spawn(mut send: wtransport::stream::SendStream, one_way: Duration) -> Self {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let task = tokio::spawn(async move {
+            while let Some(cmd) = rx.recv().await {
+                match cmd {
+                    AskCmd::Frame { frame, decided_at } => {
+                        sleep_until(decided_at + one_way).await;
+                        write_fod_msg(&mut send, &FodMsg::RequestFrame { frame }).await?;
+                    }
+                    AskCmd::End => {
+                        write_fod_msg(&mut send, &FodMsg::EndSession).await?;
+                        break;
+                    }
+                }
+            }
+            Ok(())
+        });
+        Self { tx, task: Mutex::new(Some(task)) }
+    }
+
+    /// Queue an ask; returns the instant the reader decided on it.
+    fn ask(&self, frame: u32) -> Result<Instant> {
+        let decided_at = Instant::now();
+        self.tx
+            .send(AskCmd::Frame { frame, decided_at })
+            .map_err(|_| anyhow::anyhow!("ask path closed"))?;
+        Ok(decided_at)
+    }
+
+    async fn finish(&self) -> Result<()> {
+        let _ = self.tx.send(AskCmd::End);
+        let task = self.task.lock().expect("ask path task").take();
+        match task {
+            Some(t) => t.await.context("ask path task")?,
+            None => Ok(()),
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------- shared state
+
+/// What the reader, the ask path and the receive loops share.
+struct Shared {
+    metrics: SharedMetrics,
+    /// Frames asked and not yet arrived.
+    outstanding: Mutex<HashSet<u32>>,
+    /// Asks not yet answered, counted (saturate mode re-asks the same frame).
+    in_flight: Mutex<u32>,
+    /// Signalled on every arrival so a deferred prefetch can take the freed slot.
+    arrived: Notify,
+    asks: AskPath,
+    depth_ctl: Option<Mutex<DepthController>>,
+    /// Half the emulated RTT — the return-path delay.
+    one_way: Duration,
+}
+
+impl Shared {
+    /// The in-flight cap in force now.
+    fn cap(&self, cfg: &RunConfig) -> u32 {
+        match &self.depth_ctl {
+            Some(ctl) => ctl.lock().expect("depth ctl").current_d(),
+            None => cfg.max_in_flight(),
+        }
+    }
+
+    fn depth_report(&self, cfg: &RunConfig) -> DepthReport {
+        match &self.depth_ctl {
+            Some(ctl) => {
+                let c = ctl.lock().expect("depth ctl");
+                DepthReport {
+                    depth: c.current_d(),
+                    d_min_observed: c.d_min_observed,
+                    d_max_observed: c.d_max_observed,
+                    d_current: c.d_trajectory.clone(),
+                    oscillating: c.oscillating,
+                    saturated: c.saturated,
+                }
+            }
+            None => DepthReport {
+                depth: cfg.depth,
+                d_min_observed: cfg.depth,
+                d_max_observed: cfg.depth,
+                ..DepthReport::default()
+            },
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------- entry points
 
 /// One process, serial depth sweep — fresh session per D, no shell between depths.
 pub async fn run_depth_sweep(
@@ -71,8 +205,6 @@ pub async fn run_depth_sweep(
 ) -> Result<Vec<HarnessMetrics>> {
     let mut out = Vec::with_capacity(depths.len());
     for &depth in depths {
-        reset_peak_outstanding();
-        reset_ask_join();
         let mut run_cfg = cfg.clone();
         run_cfg.depth = depth;
         let label = format!("{arm_prefix}_d{depth}");
@@ -88,9 +220,8 @@ pub async fn run_harness(
 ) -> Result<HarnessMetrics> {
     reset_peak_outstanding();
     reset_ask_join();
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
+    // A second run in the same process finds the provider already installed; that is fine.
+    let _ = rustls::crypto::ring::default_provider().install_default();
 
     let builder = ClientConfig::builder();
     let builder = if cfg.ipv4 {
@@ -102,109 +233,71 @@ pub async fn run_harness(
         .with_no_cert_validation()
         .keep_alive_interval(Some(Duration::from_secs(3)))
         .build();
-
     let endpoint = Endpoint::client(client_cfg).context("wtransport client")?;
-    let connection = endpoint
-        .connect(cfg.wt_url.clone())
-        .await
-        .context("connect")?;
+    let connection = endpoint.connect(cfg.wt_url.clone()).await.context("connect")?;
 
-    let trace_ref = trace.as_ref();
+    let n = cfg.frame_count.max(1);
     let (schedule, wanted, trace_name) = match cfg.mode {
         HarnessMode::Saturate => (Vec::new(), 0u32, "saturate".to_string()),
         HarnessMode::Trace => {
-            let t = trace_ref.context("trace required")?;
+            let t = trace.context("trace required")?;
             let schedule = t.frame_schedule();
-            // Wrap like `window_frames` does. A trace whose cursor exceeds the study's frame
-            // count would otherwise set `wanted` to a frame that is never asked for and never
-            // arrives, so `wait_wanted` blocks for the whole timeout.
-            let wanted = *schedule.last().context("empty trace")? % cfg.frame_count.max(1);
+            // A cursor past the study's frame count wraps, as the window does, so `wanted` is a
+            // frame that can arrive.
+            let wanted = *schedule.last().context("empty trace")? % n;
             (schedule, wanted, t.name.clone())
         }
     };
+    let wanted_frames = match cfg.mode {
+        HarnessMode::Trace => Some(schedule.iter().map(|f| f % n).collect()),
+        HarnessMode::Saturate => None,
+    };
 
-    let metrics: SharedMetrics = Arc::new(Mutex::new(crate::metrics::MetricsState::new(wanted)));
-
-    let conn_uni = connection.clone();
-    let metrics_uni = Arc::clone(&metrics);
-    let read_bps = cfg.read_bps;
-    let pacer = LinkPacer::new(read_bps);
-    let outstanding: Arc<Mutex<HashSet<u32>>> = Arc::new(Mutex::new(HashSet::new()));
-    let in_flight: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
-    let outstanding_uni = Arc::clone(&outstanding);
-    let in_flight_uni = Arc::clone(&in_flight);
-    let pacer_uni = Arc::clone(&pacer);
-    let rtt_ms = cfg.rtt_ms;
-    let stream_mode = cfg.stream_mode;
-    let uni_task = tokio::spawn(async move {
-        let r = match stream_mode {
-            StreamMode::Shared => {
-                shared_stream_loop(
-                    conn_uni,
-                    metrics_uni,
-                    outstanding_uni,
-                    in_flight_uni,
-                    pacer_uni,
-                    rtt_ms,
-                )
-                .await
-            }
-            StreamMode::PerFrame => {
-                accept_uni_loop(
-                    conn_uni,
-                    metrics_uni,
-                    outstanding_uni,
-                    in_flight_uni,
-                    pacer_uni,
-                    rtt_ms,
-                )
-                .await
-            }
-        };
-        if let Err(err) = r {
-            eprintln!("uni loop ended: {err:#}");
-        }
-    });
-
-    let (mut control_send, _control_recv) = connection
+    let (control_send, _control_recv) = connection
         .open_bi()
         .await
         .context("open bi")?
         .await
         .context("open bi ready")?;
+    let one_way = Duration::from_secs_f64(cfg.rtt_ms as f64 / 2000.0);
+    let shared = Arc::new(Shared {
+        metrics: Arc::new(Mutex::new(MetricsState::new(wanted, wanted_frames))),
+        outstanding: Mutex::new(HashSet::new()),
+        in_flight: Mutex::new(0),
+        arrived: Notify::new(),
+        asks: AskPath::spawn(control_send, one_way),
+        depth_ctl: cfg.dynamic_depth.then(|| {
+            Mutex::new(DepthController::new(
+                cfg.depth.max(1),
+                cfg.rtt_source,
+                cfg.path_rtt_ms.map(|v| v as f64),
+            ))
+        }),
+        one_way,
+    });
 
-    let asks_sent = match cfg.mode {
-        HarnessMode::Saturate => {
-            run_saturate(&mut control_send, cfg, &metrics, &in_flight).await?
-        }
-        HarnessMode::Trace => {
-            let t = trace_ref.context("trace required")?;
-            if cfg.depth > 0 {
-                run_windowed(
-                    &mut control_send,
-                    t,
-                    cfg,
-                    &schedule,
-                    wanted,
-                    &metrics,
-                    &outstanding,
-                )
-                .await?
-            } else {
-                run_legacy_schedule(
-                    &mut control_send,
-                    t,
-                    cfg,
-                    &schedule,
-                    wanted,
-                    &metrics,
-                )
-                .await?
+    let pacer = LinkPacer::new(cfg.read_bps);
+    let uni_task = {
+        let shared = Arc::clone(&shared);
+        let connection = connection.clone();
+        let stream_mode = cfg.stream_mode;
+        tokio::spawn(async move {
+            let r = match stream_mode {
+                StreamMode::Shared => shared_stream_loop(connection, shared, pacer).await,
+                StreamMode::PerFrame => accept_uni_loop(connection, shared, pacer).await,
+            };
+            if let Err(err) = r {
+                eprintln!("uni loop ended: {err:#}");
             }
-        }
+        })
     };
 
-    write_fod_msg(&mut control_send, &FodMsg::EndSession).await?;
+    let asks_sent = match cfg.mode {
+        HarnessMode::Saturate => run_saturate(&shared, cfg)?,
+        HarnessMode::Trace => run_reader(&shared, trace.context("trace required")?, cfg, &schedule, wanted).await?,
+    };
+
+    shared.asks.finish().await?;
     tokio::time::sleep(Duration::from_millis(50)).await;
     connection.close(0u32.into(), b"harness done");
     let _ = tokio::time::timeout(Duration::from_secs(1), uni_task).await;
@@ -213,399 +306,367 @@ pub async fn run_harness(
         HarnessMode::Saturate => "saturate",
         HarnessMode::Trace => "trace",
     };
-    let m = metrics.lock().expect("metrics lock");
-    Ok(m.finalize(
-        &trace_name,
-        mode,
-        cfg.read_bps,
-        cfg.depth,
-        arm_label,
-        asks_sent,
-        cfg.fill_dwell_ms,
-        cfg.warm_cache,
-        cfg.rtt_ms,
-        cfg.stream_mode,
-    ))
+    let depth_report = shared.depth_report(cfg);
+    let m = shared.metrics.lock().expect("metrics lock");
+    Ok(m.finalize(cfg, &trace_name, mode, arm_label, asks_sent, &depth_report))
 }
 
-async fn run_saturate(
-    control_send: &mut wtransport::stream::SendStream,
-    cfg: &RunConfig,
-    metrics: &SharedMetrics,
-    in_flight: &Arc<Mutex<u32>>,
-) -> Result<u32> {
+// ----------------------------------------------------------------------------- saturate mode
+
+/// Keep `D` asks in flight for the dwell, cycling through the study (E1: link fill).
+fn run_saturate(shared: &Shared, cfg: &RunConfig) -> Result<u32> {
     let n = cfg.frame_count.max(1);
     let d = cfg.depth.max(1);
-    let dwell = cfg.fill_dwell_ms.max(500);
+    let dwell = Duration::from_millis(cfg.fill_dwell_ms.max(500));
     let mut asks_sent = 0u32;
-    let mut next_ask = 0u32;
+    let mut next = 0u32;
 
-    // Count-based outstanding (same frame may be re-asked while in flight).
-    while *in_flight.lock().expect("in_flight") < d {
-        {
-            let mut c = in_flight.lock().expect("in_flight");
-            *c += 1;
-            note_outstanding(*c);
-        }
-        let frame = next_ask % n;
-        next_ask = next_ask.wrapping_add(1);
-        match tokio::time::timeout(
-            Duration::from_millis(cfg.rtt_ms + 10_000),
-            ask_frame(control_send, frame, cfg.rtt_ms),
-        )
-        .await
-        {
-            Ok(Ok(())) => asks_sent += 1,
-            Ok(Err(err)) => return Err(err),
-            Err(_) => {
-                let mut c = in_flight.lock().expect("in_flight");
-                *c = c.saturating_sub(1);
-                break;
-            }
-        }
-    }
-
-    {
-        let mut m = metrics.lock().expect("metrics lock");
-        m.start_fill();
-        m.wanted_received = true;
-        m.first_byte_wanted_at = Some(std::time::Instant::now());
-    }
-
-    let fill_deadline = std::time::Instant::now() + Duration::from_millis(dwell);
-    while std::time::Instant::now() < fill_deadline {
-        while *in_flight.lock().expect("in_flight") < d {
-            if std::time::Instant::now() >= fill_deadline {
-                break;
-            }
-            {
-                let mut c = in_flight.lock().expect("in_flight");
+    let mut top_up = |shared: &Shared| -> Result<()> {
+        loop {
+            let at_ask = {
+                let mut c = shared.in_flight.lock().expect("in_flight");
+                if *c >= d {
+                    return Ok(());
+                }
+                let cur = *c;
                 *c += 1;
                 note_outstanding(*c);
-            }
-            let frame = next_ask % n;
-            next_ask = next_ask.wrapping_add(1);
-            // Bound each ask so a blocked control write cannot outlive the dwell.
-            match tokio::time::timeout(
-                Duration::from_millis(dwell + cfg.rtt_ms + 5_000),
-                ask_frame(control_send, frame, cfg.rtt_ms),
-            )
-            .await
-            {
-                Ok(Ok(())) => asks_sent += 1,
-                Ok(Err(err)) => return Err(err),
-                Err(_) => {
-                    let mut c = in_flight.lock().expect("in_flight");
-                    *c = c.saturating_sub(1);
-                    break;
-                }
-            }
+                cur
+            };
+            let frame = next % n;
+            next = next.wrapping_add(1);
+            let decided_at = shared.asks.ask(frame)?;
+            record_ask(frame, decided_at, at_ask);
+            shared.metrics.lock().expect("metrics lock").note_ask(decided_at);
+            asks_sent += 1;
         }
-        tokio::time::sleep(Duration::from_millis(1)).await;
-    }
+    };
 
+    top_up(shared)?;
     {
-        let mut m = metrics.lock().expect("metrics lock");
-        m.stop_fill();
+        let mut m = shared.metrics.lock().expect("metrics lock");
+        m.start_fill();
+        m.wanted_received = true;
+        m.first_byte_wanted_at = Some(Instant::now());
     }
+    let deadline = Instant::now() + dwell;
+    while Instant::now() < deadline {
+        top_up(shared)?;
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    shared.metrics.lock().expect("metrics lock").stop_fill();
     Ok(asks_sent)
 }
 
-async fn run_legacy_schedule(
-    control_send: &mut wtransport::stream::SendStream,
+// ----------------------------------------------------------------------------- trace mode
+
+/// Walk the trace on its own clock. At each step the reader asks for the frame on screen (always)
+/// and for the prefetch window ahead of it (while the in-flight cap allows); between steps, every
+/// arrival re-offers the window so a deferred prefetch takes the freed slot.
+async fn run_reader(
+    shared: &Arc<Shared>,
     trace: &TraceSpec,
     cfg: &RunConfig,
     schedule: &[u32],
     wanted: u32,
-    metrics: &SharedMetrics,
-) -> Result<u32> {
-    let mut asks_sent = 0u32;
-    for (i, &frame) in schedule.iter().enumerate() {
-        if i > 0 {
-            tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
-        }
-        ask_frame(control_send, frame, cfg.rtt_ms).await?;
-        asks_sent += 1;
-    }
-
-    {
-        let mut m = metrics.lock().expect("metrics lock");
-        m.settle();
-    }
-
-    wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
-    Ok(asks_sent)
-}
-
-async fn run_windowed(
-    control_send: &mut wtransport::stream::SendStream,
-    trace: &TraceSpec,
-    cfg: &RunConfig,
-    schedule: &[u32],
-    wanted: u32,
-    metrics: &SharedMetrics,
-    outstanding: &Arc<Mutex<HashSet<u32>>>,
 ) -> Result<u32> {
     let n = cfg.frame_count.max(1);
-    let d = cfg.depth;
     let mut asks_sent = 0u32;
 
     if cfg.warm_cache {
-        // Prefetch every unique frame once so settle is a cache hit.
-        let mut seen = HashSet::new();
-        for &frame in schedule {
-            if seen.insert(frame) {
-                ask_frame(control_send, frame, cfg.rtt_ms).await?;
-                asks_sent += 1;
-                outstanding.lock().expect("outstanding").insert(frame);
-            }
-        }
-        // Wait until all unique frames arrived.
-        let need = seen.len() as u32;
-        let start = std::time::Instant::now();
-        loop {
-            let got = {
-                let m = metrics.lock().expect("metrics lock");
-                m.frames_on_wire
-            };
-            if got >= need {
-                break;
-            }
-            if start.elapsed() >= Duration::from_millis(cfg.timeout_ms) {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
-        outstanding.lock().expect("outstanding").clear();
+        asks_sent += warm_cache(shared, cfg, schedule).await?;
     }
+
+    let trace_start = Instant::now();
+    shared.metrics.lock().expect("metrics lock").trace_start = Some(trace_start);
+    let step = Duration::from_millis(trace.step_interval_ms);
+    let mut direction: i64 = 1;
+    let mut wait_tasks = Vec::with_capacity(schedule.len());
 
     for (i, &cursor) in schedule.iter().enumerate() {
+        let scheduled_at = trace_start + step * i as u32;
         if i > 0 {
-            tokio::time::sleep(Duration::from_millis(trace.step_interval_ms)).await;
+            let prev = schedule[i - 1];
+            loop {
+                tokio::select! {
+                    _ = sleep_until(scheduled_at) => break,
+                    _ = shared.arrived.notified() => {
+                        asks_sent += emit_window(shared, cfg, prev, direction, n)?.sent;
+                    }
+                }
+            }
+            if cursor != prev {
+                direction = if cursor > prev { 1 } else { -1 };
+            }
         }
-        // Ask first so depth can pipeline; then measure wait for this cursor.
-        asks_sent += emit_window(control_send, outstanding, cursor, d, n, cfg.rtt_ms).await?;
-        // `window_frames` asks for `cursor % n`, so wait for the same frame. Waiting on the
-        // raw cursor hangs for the full timeout on any trace whose cursor exceeds the study's
-        // frame count - which is how mild_cell_scroll (300 frames) "timed out" against an
-        // 80-frame fixture. See docs/measurements/r2/TASK_B.md.
-        wait_displayable(metrics, cursor % n, cfg.timeout_ms).await?;
-        wait_outstanding_below(outstanding, d, cfg.timeout_ms).await?;
+        let issued = emit_window(shared, cfg, cursor, direction, n)?;
+        asks_sent += issued.sent;
+        wait_tasks.push(tokio::spawn(wait_step_displayable(
+            Arc::clone(shared),
+            i,
+            cursor % n,
+            scheduled_at,
+            issued.centre_ask_at,
+            cfg.timeout_ms,
+        )));
     }
 
+    for task in wait_tasks {
+        task.await.context("wait task join")??;
+    }
+
+    let drain_ok = wait_frames_on_wire(&shared.metrics, asks_sent, cfg.timeout_ms).await;
+    let _ = wait_outstanding_below(&shared.outstanding, 0, cfg.timeout_ms).await;
     {
-        let mut m = metrics.lock().expect("metrics lock");
+        let mut m = shared.metrics.lock().expect("metrics lock");
+        if !drain_ok {
+            m.drain_incomplete = true;
+        }
         m.settle();
     }
-    asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
-    wait_displayable(metrics, wanted % n, cfg.timeout_ms).await?;
-    wait_wanted(metrics, cfg.timeout_ms, wanted).await?;
+    wait_wanted(&shared.metrics, cfg.timeout_ms, wanted).await?;
 
     if cfg.fill_dwell_ms > 0 {
-        {
-            let mut m = metrics.lock().expect("metrics lock");
-            m.start_fill();
-        }
-        let fill_deadline = std::time::Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
-        while std::time::Instant::now() < fill_deadline {
-            asks_sent += emit_window(control_send, outstanding, wanted, d, n, cfg.rtt_ms).await?;
-            wait_outstanding_below(outstanding, d.saturating_sub(1).max(0), 2_000).await?;
+        shared.metrics.lock().expect("metrics lock").start_fill();
+        let fill_deadline = Instant::now() + Duration::from_millis(cfg.fill_dwell_ms);
+        while Instant::now() < fill_deadline {
+            asks_sent += emit_window(shared, cfg, wanted, direction, n)?.sent;
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
-        {
-            let mut m = metrics.lock().expect("metrics lock");
-            m.stop_fill();
-        }
+        shared.metrics.lock().expect("metrics lock").stop_fill();
     }
 
     Ok(asks_sent)
 }
 
-fn window_frames(center: u32, d: u32, n: u32) -> Vec<u32> {
-    let mut out = Vec::with_capacity(d as usize);
-    if d == 0 || n == 0 {
-        return out;
+/// E2 warm-cache control: every frame of the schedule is in the cache before the trace starts.
+async fn warm_cache(shared: &Shared, cfg: &RunConfig, schedule: &[u32]) -> Result<u32> {
+    let n = cfg.frame_count.max(1);
+    let mut asks_sent = 0u32;
+    let mut seen = HashSet::new();
+    for &frame in schedule {
+        if seen.insert(frame % n) && try_ask_frame(shared, frame % n, u32::MAX, true)?.is_some() {
+            asks_sent += 1;
+        }
     }
-    out.push(center % n);
-    let mut radius = 1u32;
-    while out.len() < d as usize {
-        let plus = center.wrapping_add(radius) % n;
-        if !out.contains(&plus) {
-            out.push(plus);
-            if out.len() >= d as usize {
-                break;
+    wait_frames_on_wire(&shared.metrics, seen.len() as u32, cfg.timeout_ms).await;
+    shared.outstanding.lock().expect("outstanding").clear();
+    *shared.in_flight.lock().expect("in_flight") = 0;
+    Ok(asks_sent)
+}
+
+struct Issued {
+    sent: u32,
+    /// When the frame on screen was asked for at this step; `None` if it was cached or in flight.
+    centre_ask_at: Option<Instant>,
+}
+
+/// Offer the window around `cursor`: the centre always, the prefetch while the cap allows.
+fn emit_window(shared: &Shared, cfg: &RunConfig, cursor: u32, direction: i64, n: u32) -> Result<Issued> {
+    let centre = cursor % n;
+    let cap = shared.cap(cfg);
+    let mut out = Issued { sent: 0, centre_ask_at: None };
+    for frame in window_frames(centre, direction, cfg.prefetch, n, cfg.window_shape) {
+        let exempt = frame == centre;
+        if let Some(at) = try_ask_frame(shared, frame, cap, exempt)? {
+            out.sent += 1;
+            if exempt {
+                out.centre_ask_at = Some(at);
             }
         }
-        let minus = center.wrapping_add(n).wrapping_sub(radius % n) % n;
-        if !out.contains(&minus) {
-            out.push(minus);
+    }
+    Ok(out)
+}
+
+/// The frames a step wants, in ask order.
+fn window_frames(centre: u32, direction: i64, prefetch: u32, n: u32, shape: WindowShape) -> Vec<u32> {
+    let want = 1 + prefetch as usize;
+    let mut out = Vec::with_capacity(want.min(n as usize));
+    if n == 0 {
+        return out;
+    }
+    match shape {
+        WindowShape::Forward => {
+            let mut f = i64::from(centre % n);
+            while out.len() < want && (0..i64::from(n)).contains(&f) {
+                out.push(f as u32);
+                f += direction;
+            }
         }
-        radius += 1;
-        if radius > n {
-            break;
+        WindowShape::Ring => {
+            out.push(centre % n);
+            let mut radius = 1u32;
+            while out.len() < want && radius <= n {
+                let plus = centre.wrapping_add(radius) % n;
+                if !out.contains(&plus) {
+                    out.push(plus);
+                    if out.len() >= want {
+                        break;
+                    }
+                }
+                let minus = centre.wrapping_add(n).wrapping_sub(radius % n) % n;
+                if !out.contains(&minus) {
+                    out.push(minus);
+                }
+                radius += 1;
+            }
         }
     }
     out
 }
 
-async fn emit_window(
-    control_send: &mut wtransport::stream::SendStream,
-    outstanding: &Arc<Mutex<HashSet<u32>>>,
-    center: u32,
-    d: u32,
-    n: u32,
-    rtt_ms: u64,
-) -> Result<u32> {
-    let frames = window_frames(center, d, n);
-    let mut sent = 0u32;
-    for frame in frames {
-        {
-            let mut o = outstanding.lock().expect("outstanding");
-            if o.len() as u32 >= d && !o.contains(&frame) {
-                continue;
-            }
-            o.insert(frame);
-            note_outstanding(o.len() as u32);
-        }
-        ask_frame(control_send, frame, rtt_ms).await?;
-        sent += 1;
+/// Ask unless cached, already in flight, or (for a non-exempt frame) at the cap. Returns the
+/// instant the ask was decided on when one went out.
+fn try_ask_frame(shared: &Shared, frame: u32, cap: u32, exempt: bool) -> Result<Option<Instant>> {
+    if shared.metrics.lock().expect("metrics lock").cache.contains(&frame) {
+        return Ok(None);
     }
-    Ok(sent)
+    if shared.outstanding.lock().expect("outstanding").contains(&frame) {
+        return Ok(None);
+    }
+    let at_ask = {
+        let mut c = shared.in_flight.lock().expect("in_flight");
+        if !exempt && *c >= cap {
+            return Ok(None);
+        }
+        let cur = *c;
+        *c += 1;
+        note_outstanding(*c);
+        cur
+    };
+    shared.outstanding.lock().expect("outstanding").insert(frame);
+    let decided_at = shared.asks.ask(frame)?;
+    record_ask(frame, decided_at, at_ask);
+    shared.metrics.lock().expect("metrics lock").note_ask(decided_at);
+    Ok(Some(decided_at))
 }
 
-async fn wait_outstanding_below(
-    outstanding: &Arc<Mutex<HashSet<u32>>>,
-    max: u32,
+/// Wait until step `index`'s frame is displayable; record its lateness against the schedule.
+async fn wait_step_displayable(
+    shared: Arc<Shared>,
+    index: usize,
+    frame: u32,
+    scheduled_at: Instant,
+    ask_at: Option<Instant>,
     timeout_ms: u64,
 ) -> Result<()> {
-    let start = std::time::Instant::now();
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     loop {
-        {
-            let o = outstanding.lock().expect("outstanding");
-            if (o.len() as u32) <= max {
-                return Ok(());
-            }
-        }
-        if start.elapsed() >= Duration::from_millis(timeout_ms) {
+        let arrived = {
+            let m = shared.metrics.lock().expect("metrics lock");
+            m.arrived_at(frame)
+        };
+        if let Some(arrived_at) = arrived {
+            // A frame that landed before its step was displayable on time.
+            let displayable_at = arrived_at.max(scheduled_at);
+            let lateness_ms = displayable_at.duration_since(scheduled_at).as_secs_f64() * 1000.0;
+            let wait_ms = ask_at
+                .map(|a| displayable_at.saturating_duration_since(a).as_secs_f64() * 1000.0)
+                .unwrap_or(0.0);
+            shared
+                .metrics
+                .lock()
+                .expect("metrics lock")
+                .record_step(index, lateness_ms, wait_ms, displayable_at);
             return Ok(());
+        }
+        if Instant::now() >= deadline {
+            anyhow::bail!("timeout waiting for displayable frame {frame} (step {index})");
         }
         tokio::time::sleep(Duration::from_millis(2)).await;
     }
 }
 
-
-
-async fn rtt_full(rtt_ms: u64) {
-    if rtt_ms > 0 {
-        tokio::time::sleep(Duration::from_millis(rtt_ms)).await;
-    }
+async fn sleep_until(deadline: Instant) {
+    tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)).await;
 }
 
-
-/// Writes the ask immediately. **Does not sleep.**
-///
-/// The ask half of simulated RTT used to be slept here, but every caller awaits
-/// `ask_frame` in a loop, so issuing D asks took `D × RTT/2` ms and the asks were
-/// never simultaneously in flight — depth became a counter with no wire meaning.
-/// The full RTT is now applied once on the return path, which models the same
-/// per-frame latency while leaving the issue loop free to pipeline.
-async fn ask_frame(
-    control_send: &mut wtransport::stream::SendStream,
-    frame: u32,
-    _rtt_ms: u64,
-) -> Result<()> {
-    record_ask(frame);
-    write_fod_msg(control_send, &FodMsg::RequestFrame { frame }).await
-}
-
-async fn wait_displayable(
-    metrics: &SharedMetrics,
-    frame: u32,
-    timeout_ms: u64,
-) -> Result<f64> {
-    let start = std::time::Instant::now();
-    {
-        let mut m = metrics.lock().expect("metrics lock");
-        if m.cache.contains(&frame) {
-            m.record_wait_ms(0.0);
-            return Ok(0.0);
-        }
-    }
-    let deadline = Duration::from_millis(timeout_ms);
+async fn wait_outstanding_below(outstanding: &Mutex<HashSet<u32>>, max: usize, timeout_ms: u64) -> bool {
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     loop {
-        {
-            let mut m = metrics.lock().expect("metrics lock");
-            if m.cache.contains(&frame) {
-                let ms = start.elapsed().as_secs_f64() * 1000.0;
-                m.record_wait_ms(ms);
-                return Ok(ms);
-            }
+        if outstanding.lock().expect("outstanding").len() <= max {
+            return true;
         }
-        if start.elapsed() >= deadline {
-            let ms = start.elapsed().as_secs_f64() * 1000.0;
-            metrics.lock().expect("metrics lock").record_wait_ms(ms);
-            anyhow::bail!("timeout waiting for displayable frame {frame}");
+        if Instant::now() >= deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
+}
+
+/// Wait until `frames_on_wire >= min_frames`. False on timeout.
+async fn wait_frames_on_wire(metrics: &SharedMetrics, min_frames: u32, timeout_ms: u64) -> bool {
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    loop {
+        if metrics.lock().expect("metrics lock").frames_on_wire >= min_frames {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
         }
         tokio::time::sleep(Duration::from_millis(2)).await;
     }
 }
 
 async fn wait_wanted(metrics: &SharedMetrics, timeout_ms: u64, wanted: u32) -> Result<()> {
-    let deadline = Duration::from_millis(timeout_ms);
-    let start = std::time::Instant::now();
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     loop {
-        {
-            let m = metrics.lock().expect("metrics lock");
-            if m.wanted_received {
-                return Ok(());
-            }
+        if metrics.lock().expect("metrics lock").wanted_received {
+            return Ok(());
         }
-        if start.elapsed() >= deadline {
+        if Instant::now() >= deadline {
             anyhow::bail!("timeout waiting for wanted frame {wanted}");
         }
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
 }
 
-async fn on_frame_arrived(
-    index: u32,
-    wire_len: u64,
-    metrics: &SharedMetrics,
-    outstanding: &Arc<Mutex<HashSet<u32>>>,
-    in_flight: &Arc<Mutex<u32>>,
-    rtt_ms: u64,
-) {
-    rtt_full(rtt_ms).await;
-    {
-        let mut o = outstanding.lock().expect("outstanding");
-        o.remove(&index);
+// ----------------------------------------------------------------------------- receive side
+
+/// A frame has been read in full; `first_byte_at` is when its length prefix arrived.
+async fn on_frame_arrived(shared: &Shared, index: u32, wire_len: u64, first_byte_at: Instant) {
+    // The emulated path delivers the first byte one-way later; the ask→first-byte sample is
+    // measured from the instant the reader decided to ask, so it carries the whole RTT.
+    let ask_rtt = take_ask_rtt_ms(index, first_byte_at + shared.one_way);
+    if let Some((rtt, _)) = ask_rtt {
+        shared.metrics.lock().expect("metrics lock").record_ask_first_byte_ms(rtt);
     }
+    if !shared.one_way.is_zero() {
+        tokio::time::sleep(shared.one_way).await;
+    }
+    shared.outstanding.lock().expect("outstanding").remove(&index);
     {
-        let mut c = in_flight.lock().expect("in_flight");
+        let mut c = shared.in_flight.lock().expect("in_flight");
         *c = c.saturating_sub(1);
     }
-    let mut m = metrics.lock().expect("metrics lock");
-    m.on_envelope(index, wire_len);
+    shared.metrics.lock().expect("metrics lock").on_envelope(index, wire_len);
+    if let Some(ctl) = &shared.depth_ctl {
+        let (rtt, in_flight_at_ask) = match ask_rtt {
+            Some((rtt, at)) => (Some(rtt), at),
+            None => (None, u32::MAX),
+        };
+        ctl.lock()
+            .expect("depth ctl")
+            .on_frame_completed(rtt, wire_len, in_flight_at_ask, Instant::now());
+    }
+    shared.arrived.notify_one();
 }
 
 /// One shared uni stream carrying `[4B BE envelope_len][envelope]` repeatedly.
 ///
 /// Frames arrive strictly in order — that is the point of the architecture. Post-processing
-/// (RTT delay + metrics) is spawned so the read loop is never blocked by it.
+/// (emulated delay + metrics) is spawned so the read loop is never blocked by it.
 async fn shared_stream_loop(
     connection: Connection,
-    metrics: SharedMetrics,
-    outstanding: Arc<Mutex<HashSet<u32>>>,
-    in_flight: Arc<Mutex<u32>>,
+    shared: Arc<Shared>,
     pacer: Arc<tokio::sync::Mutex<LinkPacer>>,
-    rtt_ms: u64,
 ) -> Result<()> {
     let mut recv = match connection.accept_uni().await {
         Ok(s) => s,
         Err(_) => return Ok(()),
     };
     loop {
-        let payload = match read_framed_paced(&mut recv, &pacer).await {
+        let (payload, first_byte_at) = match read_framed_paced(&mut recv, &pacer).await {
             Ok(p) => p,
             Err(_) => break,
         };
@@ -617,35 +678,26 @@ async fn shared_stream_loop(
             }
         };
         let wire_len = (4 + body.len()) as u64;
-        let metrics = Arc::clone(&metrics);
-        let outstanding = Arc::clone(&outstanding);
-        let in_flight = Arc::clone(&in_flight);
-        tokio::spawn(async move {
-            on_frame_arrived(index, wire_len, &metrics, &outstanding, &in_flight, rtt_ms).await;
-        });
+        let shared = Arc::clone(&shared);
+        tokio::spawn(async move { on_frame_arrived(&shared, index, wire_len, first_byte_at).await });
     }
     Ok(())
 }
 
 async fn accept_uni_loop(
     connection: Connection,
-    metrics: SharedMetrics,
-    outstanding: Arc<Mutex<HashSet<u32>>>,
-    in_flight: Arc<Mutex<u32>>,
+    shared: Arc<Shared>,
     pacer: Arc<tokio::sync::Mutex<LinkPacer>>,
-    rtt_ms: u64,
 ) -> Result<()> {
     loop {
         let mut recv = match connection.accept_uni().await {
             Ok(s) => s,
             Err(_) => break,
         };
-        let metrics = Arc::clone(&metrics);
-        let outstanding = Arc::clone(&outstanding);
-        let in_flight = Arc::clone(&in_flight);
+        let shared = Arc::clone(&shared);
         let pacer = Arc::clone(&pacer);
         tokio::spawn(async move {
-            let payload = match read_framed_paced(&mut recv, &pacer).await {
+            let (payload, first_byte_at) = match read_framed_paced(&mut recv, &pacer).await {
                 Ok(p) => p,
                 Err(err) => {
                     eprintln!("uni read error: {err:#}");
@@ -659,16 +711,36 @@ async fn accept_uni_loop(
                     return;
                 }
             };
-            on_frame_arrived(
-                index,
-                (4 + body.len()) as u64,
-                &metrics,
-                &outstanding,
-                &in_flight,
-                rtt_ms,
-            )
-            .await;
+            on_frame_arrived(&shared, index, (4 + body.len()) as u64, first_byte_at).await;
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The ask order the v2 review asked to pin: ahead in the direction of travel, never past
+    /// the study's edges, never wrapping.
+    #[test]
+    fn forward_window_follows_travel_and_stops_at_the_edges() {
+        assert_eq!(window_frames(0, 1, 3, 80, WindowShape::Forward), vec![0, 1, 2, 3]);
+        assert_eq!(window_frames(40, -1, 3, 80, WindowShape::Forward), vec![40, 39, 38, 37]);
+        assert_eq!(window_frames(78, 1, 5, 80, WindowShape::Forward), vec![78, 79]);
+        assert_eq!(window_frames(1, -1, 5, 80, WindowShape::Forward), vec![1, 0]);
+        assert_eq!(window_frames(7, 1, 0, 80, WindowShape::Forward), vec![7]);
+    }
+
+    /// The v2 artefact, kept reproducible: at the study start the ring asks for its last frames.
+    #[test]
+    fn ring_window_wraps_at_the_study_start() {
+        assert_eq!(window_frames(0, 1, 6, 80, WindowShape::Ring), vec![0, 1, 79, 2, 78, 3, 77]);
+    }
+
+    #[test]
+    fn window_never_exceeds_the_study() {
+        assert_eq!(window_frames(2, 1, 100, 4, WindowShape::Forward), vec![2, 3]);
+        assert_eq!(window_frames(2, 1, 100, 4, WindowShape::Ring).len(), 4);
+    }
 }

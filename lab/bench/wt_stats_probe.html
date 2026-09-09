@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<title>WebTransport getStats() RTT probe</title>
+<pre id="out"></pre>
+<script type="module">
+// Query: wt=<url> hash=<sha256 hex> n=<frames to ask, default 32>
+// Does the browser expose the connection's own RTT estimate (smoothedRtt / minRtt) to a page?
+// If it does, a product ask-depth estimator has a path-RTT input that no ask→first-byte sample can
+// give it, because those samples sit behind the client's own queue.
+const q = new URLSearchParams(location.search);
+const wtUrl = q.get("wt"); const hash = q.get("hash"); const n = Number(q.get("n") || 32);
+const rows = []; globalThis.__rows = rows;
+const out = (o) => { rows.push(o); document.getElementById("out").textContent += JSON.stringify(o) + "\n"; };
+const hex = (h) => Uint8Array.from(h.match(/../g).map((b) => parseInt(b, 16)));
+const enc = new TextEncoder();
+function fod(msg) { const b = enc.encode(JSON.stringify(msg)); const o = new Uint8Array(4 + b.length); new DataView(o.buffer).setUint32(0, b.length, true); o.set(b, 4); return o; }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const pick = (s) => ({ smoothedRtt: s.smoothedRtt, minRtt: s.minRtt, rttVariation: s.rttVariation,
+  estimatedSendRate: s.estimatedSendRate, bytesReceived: s.bytesReceived, packetsLost: s.packetsLost });
+
+try {
+  const t = new WebTransport(wtUrl, { serverCertificateHashes: [{ algorithm: "sha-256", value: hex(hash) }] });
+  await t.ready;
+  out({ phase: "api", hasGetStats: typeof t.getStats === "function", ua: navigator.userAgent });
+  if (typeof t.getStats !== "function") throw new Error("getStats missing");
+  for (let i = 0; i < 5; i++) { out({ phase: "idle", i, ...pick(await t.getStats()) }); await sleep(100); }
+
+  // Put n frames behind one another on the shared stream, sample while they drain.
+  const bi = await t.createBidirectionalStream();
+  const w = bi.writable.getWriter();
+  let drained = 0;
+  const drain = (async () => {
+    const unis = t.incomingUnidirectionalStreams.getReader();
+    const { value: stream } = await unis.read();
+    const r = stream.getReader();
+    for (;;) { const { value, done } = await r.read(); if (done) break; drained += value.byteLength; }
+  })();
+  const t0 = performance.now();
+  for (let f = 0; f < n; f++) await w.write(fod({ op: "request_frame", frame: f }));
+  for (let i = 0; i < 8; i++) { out({ phase: "loaded", i, ms: Math.round(performance.now() - t0), drained, ...pick(await t.getStats()) }); await sleep(100); }
+  await w.write(fod({ op: "end_session" }));
+  await Promise.race([drain, sleep(2000)]);
+  out({ phase: "done", drained });
+} catch (e) { out({ error: String(e) }); }
+globalThis.__done = true;
+</script>

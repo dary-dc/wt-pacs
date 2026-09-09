@@ -1,0 +1,687 @@
+{
+  "trace": "l2_ask_policy_scroll",
+  "mode": "trace",
+  "read_bps": 0,
+  "depth": 16,
+  "stream_mode": "shared",
+  "peak_outstanding": 16,
+  "arm_label": "L2v2_dynamic_rtt150_loss0.5_r1",
+  "wanted_frame": 40,
+  "asks_sent": 80,
+  "recovered_ms": 0.0,
+  "mean_wait_ms": 221.41551365546218,
+  "p95_wait_ms": 758.047112,
+  "p95_lateness_ms": 2215.73243,
+  "mean_lateness_ms": 1291.573128008403,
+  "frac_steps_late": 0.7478991596638656,
+  "lateness_ms": [
+    570.4266289999999,
+    741.392971,
+    957.820435,
+    1044.547781,
+    1152.325008,
+    1213.127469,
+    1254.106972,
+    1305.9638909999999,
+    1351.506148,
+    1359.439095,
+    1367.385806,
+    1375.323603,
+    1390.0305349999999,
+    1407.242516,
+    1411.837657,
+    1419.930672,
+    1433.346928,
+    1450.839696,
+    1454.147073,
+    1465.5708439999999,
+    1479.3955859999999,
+    1488.417825,
+    1501.130768,
+    1506.043854,
+    1517.110769,
+    1528.414524,
+    1539.643647,
+    1550.440386,
+    1560.021941,
+    1573.969695,
+    1584.794942,
+    1594.2048550000002,
+    1606.404116,
+    1616.6546899999998,
+    1628.581346,
+    1639.8220380000002,
+    1648.460036,
+    1659.651761,
+    1886.575611,
+    2078.576803,
+    1934.577076,
+    1982.5773390000002,
+    2030.5775910000002,
+    1966.5779510000002,
+    1854.5782100000001,
+    1918.5784820000001,
+    2014.578732,
+    1950.579151,
+    1902.5793330000001,
+    1998.579542,
+    1838.5798260000001,
+    1870.580034,
+    2046.580246,
+    2062.580476,
+    2079.509186,
+    2087.347206,
+    2095.538149,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    2122.923453,
+    1419.992051,
+    2124.368078,
+    1453.428568,
+    1490.8487690000002,
+    2133.074733,
+    1530.643693,
+    2138.647575,
+    1582.7260760000001,
+    2158.728777,
+    2167.7850799999997,
+    1623.790005,
+    1663.7809510000002,
+    2175.785118,
+    2183.784717,
+    1703.7901319999999,
+    1756.3968009999999,
+    2204.400322,
+    2206.4644200000002,
+    1790.467465,
+    2215.73243,
+    1831.7354300000002,
+    1878.898704,
+    2230.901458,
+    2238.825401,
+    1918.8303819999999,
+    1961.991953,
+    2249.9926609999998,
+    2008.641666,
+    2264.6420689999995,
+    2046.028722,
+    2270.029121
+  ],
+  "wait_ms": [
+    570.424779,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    932.888925,
+    770.025888,
+    633.8315100000001,
+    592.089568,
+    569.0110860000001,
+    541.8994329999999,
+    485.87454099999997,
+    472.90457299999997,
+    453.796935,
+    448.897068,
+    448.00462400000004,
+    449.13921899999997,
+    424.916743,
+    435.044525,
+    422.177176,
+    421.43253000000004,
+    424.856074,
+    429.933789,
+    431.159758,
+    424.488767,
+    422.65383099999997,
+    426.668321,
+    431.55717100000004,
+    428.987609,
+    419.714721,
+    430.31613000000004,
+    428.905299,
+    423.86856,
+    424.791179,
+    515.4156210000001,
+    833.329495,
+    596.251021,
+    678.4627559999999,
+    758.047112,
+    648.435858,
+    462.070056,
+    568.011358,
+    732.5593500000001,
+    624.4762029999999,
+    541.799535,
+    704.1724459999999,
+    434.87462999999997,
+    486.635051,
+    785.335855,
+    812.41014,
+    256.77690600000005,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    426.440714,
+    0.0,
+    433.279838,
+    0.0,
+    429.401848
+  ],
+  "wait_samples": 119,
+  "duplicate_asks": 887,
+  "unique_frames_asked": 80,
+  "drain_incomplete": false,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
+  "fill_dwell_ms": 0,
+  "link_util": 0.0,
+  "wasted_bytes": 0,
+  "commitment_depth": 0,
+  "wanted_received": true,
+  "frames_on_wire": 80,
+  "bytes_on_wire": 2560320,
+  "frames_after_settle": 0,
+  "bytes_after_settle": 0,
+  "frames_before_settle": 80,
+  "bytes_before_settle": 2560320,
+  "warm_cache": false,
+  "rtt_ms": 0,
+  "ask_join": [
+    {
+      "frame_index": 0,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 1,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 79,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 2,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 78,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 3,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 77,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 76,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 75,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 74,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 73,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 9,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 14,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 17,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 22,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 27,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 28,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 30,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 34,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 37,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 38,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 42,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 43,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 44,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 46,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 47,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 48,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 49,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 50,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 51,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 52,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 53,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 54,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 55,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 56,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 57,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 58,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 59,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 60,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 61,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 62,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 63,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 64,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 65,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 66,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 67,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 68,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 69,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 70,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 71,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 72,
+      "ask_ordinal": 0
+    }
+  ],
+  "d_min_observed": 16,
+  "d_max_observed": 16,
+  "d_current": [
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16
+  ],
+  "depth_oscillating": false,
+  "depth_saturated": true
+}

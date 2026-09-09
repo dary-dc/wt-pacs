@@ -60,12 +60,14 @@ impl LinkPacer {
 }
 
 /// Read exactly `buf.len()` bytes, pacing against the shared link budget as they arrive.
+/// Returns the `Instant` of the first byte observed in this call (L2 ask→first-byte).
 pub async fn read_exact_paced(
     recv: &mut RecvStream,
     buf: &mut [u8],
     pacer: &Arc<Mutex<LinkPacer>>,
-) -> Result<()> {
+) -> Result<Instant> {
     let mut filled = 0usize;
+    let mut first_byte_at: Option<Instant> = None;
     while filled < buf.len() {
         let n = recv
             .read(&mut buf[filled..])
@@ -75,56 +77,31 @@ pub async fn read_exact_paced(
         if n == 0 {
             anyhow::bail!("stream ended early");
         }
+        if first_byte_at.is_none() {
+            first_byte_at = Some(Instant::now());
+        }
         filled += n;
         LinkPacer::consume_bytes(pacer, n).await;
     }
-    Ok(())
+    Ok(first_byte_at.expect("filled > 0"))
 }
 
 /// Read one length-prefixed envelope: `[4B BE len][payload]`.
+///
+/// Returns `(payload, first_byte_at)` where `first_byte_at` is when the first byte of
+/// this frame's length prefix arrived — ask→first-byte for the L2 estimator, not
+/// ask→last-byte after the full body has been drained.
 pub async fn read_framed_paced(
     recv: &mut RecvStream,
     pacer: &Arc<Mutex<LinkPacer>>,
-) -> Result<Vec<u8>> {
+) -> Result<(Vec<u8>, Instant)> {
     let mut len_buf = [0u8; 4];
-    read_exact_paced(recv, &mut len_buf, pacer).await?;
+    let first_byte_at = read_exact_paced(recv, &mut len_buf, pacer).await?;
     let len = u32::from_be_bytes(len_buf) as usize;
     if len == 0 || len > MAX_FRAME_LEN {
         anyhow::bail!("invalid frame length {len}");
     }
     let mut payload = vec![0u8; len];
-    read_exact_paced(recv, &mut payload, pacer).await?;
-    Ok(payload)
-}
-
-/// Returns `(payload, consumed_bytes)` when a full frame is present.
-pub fn parse_length_prefixed(buf: &[u8]) -> Option<(&[u8], usize)> {
-    if buf.len() < 4 {
-        return None;
-    }
-    let len = u32::from_be_bytes(buf[..4].try_into().ok()?) as usize;
-    if len == 0 || len > MAX_FRAME_LEN {
-        return None;
-    }
-    let total = 4 + len;
-    if buf.len() < total {
-        return None;
-    }
-    Some((&buf[4..total], total))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_length_prefixed_round_trip() {
-        let payload = b"hello";
-        let mut framed = Vec::new();
-        framed.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-        framed.extend_from_slice(payload);
-        let (got, n) = parse_length_prefixed(&framed).unwrap();
-        assert_eq!(got, payload);
-        assert_eq!(n, framed.len());
-    }
+    let _ = read_exact_paced(recv, &mut payload, pacer).await?;
+    Ok((payload, first_byte_at))
 }

@@ -1,6 +1,16 @@
 # Lane L2 — ask policy: unbounded vs fixed vs dynamic
 
-**Status: ready for cloud agent.** · Harness only · Round-robin the Oracle São Paulo rig with L1
+**Status 2026-09-07:** v2 rankings withdrawn. Hypothesis in
+[`l2-ask-policy-design-2026-09-06.md`](../l2-ask-policy-design-2026-09-06.md); work sequence in
+[`L2-ask-policy-continuation.md`](L2-ask-policy-continuation.md). Next is a fair measurement on
+the reworked harness. Loss=0 local:
+[`l2_ask_policy_v4_local_SUMMARY.md`](../measurements/r2/l2_ask_policy_v4_local_SUMMARY.md).
+Reduced cloud (netem 60, loss 0 / 0.5 %):
+[`l2_ask_policy_v4_SUMMARY.md`](../measurements/r2/l2_ask_policy_v4_SUMMARY.md).
+Cite
+[`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md) for the
+old rig rows only. · **Lab only — do not change product ask code** ·
+Round-robin the Oracle São Paulo rig with L1
 
 ## Purpose
 
@@ -67,7 +77,7 @@ outcome.
 | Loss | 0 and 0.5 % |
 | Fixture | `frames_32k` |
 | Mode | `--mode trace` |
-| Metric | **p95 time-to-displayable**; also report bytes on the wire |
+| Metric | **`p95_lateness_ms`** (primary); also report `p95_wait_ms` diagnostic + bytes on the wire |
 | Repeats | 3, all rows reported |
 
 `--read-bps 0`. `cargo build --release` first.
@@ -86,12 +96,11 @@ processes.
 
 ## Report
 
-TSV to `docs/measurements/r2/`. Columns: `arm, rtt_ms, loss_pct, run, p95_wait_ms, mean_wait_ms,
-bytes_on_wire, asks_sent, d_min_observed, d_max_observed`.
+**Canonical interpretation:** [`l2_ask_policy_EVIDENCE.md`](../measurements/r2/l2_ask_policy_EVIDENCE.md).
 
-Plus the per-frame `d_current` trace for the dynamic arm, as a separate file.
+TSV: `docs/measurements/r2/l2_ask_policy_v2.tsv` (v1 `l2_ask_policy.tsv` withdrawn).
 
-Raw rows. No interpretation — **especially** do not conclude whether dynamic "wins."
+Raw rows stay in git; decisions go through the evidence freeze only.
 
 ## Stop conditions
 

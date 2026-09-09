@@ -1,0 +1,605 @@
+{
+  "trace": "l2_ask_policy_scroll",
+  "mode": "trace",
+  "read_bps": 0,
+  "depth": 16,
+  "stream_mode": "shared",
+  "peak_outstanding": 16,
+  "arm_label": "L2v2_fixed_rtt20_loss0_r1",
+  "wanted_frame": 40,
+  "asks_sent": 80,
+  "recovered_ms": 0.0,
+  "mean_wait_ms": 240.66130230252097,
+  "p95_wait_ms": 463.204686,
+  "p95_lateness_ms": 1616.9941159999998,
+  "mean_lateness_ms": 921.4962462857143,
+  "frac_steps_late": 0.7478991596638656,
+  "lateness_ms": [
+    466.98027199999996,
+    542.681677,
+    666.2339489999999,
+    765.1460030000001,
+    814.100575,
+    856.9622489999999,
+    894.6938610000001,
+    928.2460599999999,
+    973.397741,
+    984.7053980000001,
+    997.52646,
+    1003.6850049999999,
+    1009.706056,
+    1028.4683850000001,
+    1032.70174,
+    1051.589277,
+    1060.601823,
+    1066.73946,
+    1077.6632280000001,
+    1089.075894,
+    1104.5448179999999,
+    1117.9752119999998,
+    1120.10213,
+    1128.8345689999999,
+    1140.6878410000002,
+    1151.601717,
+    1161.755538,
+    1172.877054,
+    1183.7058789999999,
+    1196.2889519999999,
+    1206.889828,
+    1218.0749070000002,
+    1230.232566,
+    1240.86152,
+    1252.634523,
+    1262.254702,
+    1273.270261,
+    1285.202962,
+    1296.155659,
+    1307.2488469999998,
+    1316.2456040000002,
+    1330.467114,
+    1339.4807369999999,
+    1350.4795119999999,
+    1362.148182,
+    1372.954942,
+    1381.790286,
+    1393.1813710000001,
+    1404.6612579999999,
+    1415.6702,
+    1426.594049,
+    1439.474422,
+    1449.9838249999998,
+    1461.643954,
+    1473.404336,
+    1482.451231,
+    1493.896508,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1505.2162469999998,
+    802.283199,
+    842.725861,
+    1517.314871,
+    1527.219585,
+    887.2249169999999,
+    931.293767,
+    1539.2979,
+    1548.0002819999997,
+    972.0091480000001,
+    1017.535262,
+    1561.5370520000001,
+    1573.571737,
+    1061.586886,
+    1103.4208780000001,
+    1583.4221790000001,
+    1145.5411259999998,
+    1593.542725,
+    1189.684876,
+    1605.688789,
+    1232.991234,
+    1616.9941159999998,
+    1625.124178,
+    1273.1308649999999,
+    1317.739839,
+    1637.746847,
+    1361.6424519999998,
+    1649.6437859999999,
+    1658.265577,
+    1404.7880109999999,
+    1669.6167269999999,
+    1445.6202600000001
+  ],
+  "wait_ms": [
+    466.978572,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    659.29089,
+    598.7292180000001,
+    516.2715089999999,
+    503.345399,
+    463.204686,
+    445.106647,
+    435.837082,
+    439.768485,
+    436.231754,
+    428.733259,
+    431.934881,
+    435.661958,
+    440.798293,
+    430.267514,
+    420.751005,
+    423.170794,
+    422.784297,
+    417.827497,
+    425.07474499999995,
+    429.978576,
+    423.642544,
+    431.62541,
+    422.193002,
+    424.53930499999996,
+    428.90232299999997,
+    430.95509,
+    428.121625,
+    424.596056,
+    422.012471,
+    434.428193,
+    432.20993200000004,
+    432.067535,
+    434.74505600000003,
+    432.489443,
+    432.363846,
+    432.190266,
+    434.03068,
+    429.711772,
+    429.915317,
+    429.173926,
+    431.205966,
+    431.423839,
+    433.06911599999995,
+    432.561555,
+    432.321419,
+    433.126419,
+    429.99305799999996,
+    433.569103,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    430.628954,
+    0.0,
+    0.0,
+    431.551205,
+    430.515663,
+    0.0,
+    0.0,
+    433.141679,
+    431.027962,
+    0.0,
+    0.0,
+    434.496999,
+    433.950289,
+    0.0,
+    0.0,
+    433.67242,
+    0.0,
+    434.015673,
+    0.0,
+    435.068859,
+    0.0,
+    432.42958500000003,
+    432.475068,
+    0.0,
+    0.0,
+    431.988079,
+    0.0,
+    433.70057699999995,
+    430.57104000000004,
+    0.0,
+    430.52959400000003,
+    0.0
+  ],
+  "wait_samples": 119,
+  "duplicate_asks": 823,
+  "unique_frames_asked": 80,
+  "drain_incomplete": false,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
+  "fill_dwell_ms": 0,
+  "link_util": 0.0,
+  "wasted_bytes": 0,
+  "commitment_depth": 0,
+  "wanted_received": true,
+  "frames_on_wire": 80,
+  "bytes_on_wire": 2560320,
+  "frames_after_settle": 0,
+  "bytes_after_settle": 0,
+  "frames_before_settle": 80,
+  "bytes_before_settle": 2560320,
+  "warm_cache": false,
+  "rtt_ms": 0,
+  "ask_join": [
+    {
+      "frame_index": 0,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 1,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 79,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 2,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 78,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 3,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 77,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 76,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 75,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 74,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 73,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 9,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 14,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 17,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 22,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 27,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 28,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 30,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 34,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 37,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 38,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 42,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 43,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 44,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 46,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 47,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 48,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 49,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 50,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 51,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 52,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 53,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 54,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 55,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 56,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 57,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 58,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 59,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 60,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 61,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 62,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 63,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 64,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 65,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 66,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 67,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 68,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 69,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 70,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 71,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 72,
+      "ask_ordinal": 0
+    }
+  ],
+  "d_min_observed": 16,
+  "d_max_observed": 16,
+  "depth_oscillating": false,
+  "depth_saturated": false
+}

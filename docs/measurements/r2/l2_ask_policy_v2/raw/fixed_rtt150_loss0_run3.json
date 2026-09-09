@@ -1,0 +1,605 @@
+{
+  "trace": "l2_ask_policy_scroll",
+  "mode": "trace",
+  "read_bps": 0,
+  "depth": 16,
+  "stream_mode": "shared",
+  "peak_outstanding": 16,
+  "arm_label": "L2v2_fixed_rtt150_loss0_r3",
+  "wanted_frame": 40,
+  "asks_sent": 80,
+  "recovered_ms": 0.0,
+  "mean_wait_ms": 250.23501078991592,
+  "p95_wait_ms": 552.2387010000001,
+  "p95_lateness_ms": 2005.772442,
+  "mean_lateness_ms": 1208.4774268067226,
+  "frac_steps_late": 0.7478991596638656,
+  "lateness_ms": [
+    661.8227330000001,
+    752.395142,
+    962.526595,
+    1093.258706,
+    1157.392937,
+    1218.4777849999998,
+    1284.700838,
+    1317.505647,
+    1356.374679,
+    1372.744836,
+    1383.417909,
+    1398.320579,
+    1402.883983,
+    1420.0814950000001,
+    1430.6955249999999,
+    1433.5498,
+    1446.448392,
+    1457.724273,
+    1470.4548399999999,
+    1477.12877,
+    1491.5529190000002,
+    1509.824764,
+    1517.468507,
+    1520.540446,
+    1531.538415,
+    1542.5007389999998,
+    1554.964213,
+    1567.191245,
+    1576.7339379999999,
+    1585.534523,
+    1597.850513,
+    1609.959315,
+    1622.047967,
+    1632.337138,
+    1640.693789,
+    1654.336967,
+    1666.414509,
+    1674.929125,
+    1687.254059,
+    1698.3100800000002,
+    1708.789886,
+    1719.354536,
+    1731.596192,
+    1740.152519,
+    1751.936717,
+    1764.429832,
+    1774.395394,
+    1786.175312,
+    1797.389388,
+    1806.3805889999999,
+    1818.373813,
+    1830.758143,
+    1839.438795,
+    1851.455755,
+    1862.75781,
+    1875.305096,
+    1883.319131,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1897.698116,
+    1193.7053349999999,
+    1905.522509,
+    1236.9284810000001,
+    1916.4734640000001,
+    1276.479748,
+    1927.46564,
+    1319.4717309999999,
+    1939.8210259999998,
+    1363.8279790000001,
+    1950.854933,
+    1406.8581920000001,
+    1449.778579,
+    1961.7811789999998,
+    1972.825381,
+    1492.829489,
+    1535.9022919999998,
+    1983.903709,
+    1578.874908,
+    1994.878345,
+    2005.772442,
+    1621.775692,
+    2016.879239,
+    1664.8830449999998,
+    2028.2963220000001,
+    1708.298476,
+    1751.443319,
+    2039.4451189999997,
+    1794.446112,
+    2050.447379,
+    2061.6716739999997,
+    1837.676392
+  ],
+  "wait_ms": [
+    661.821014,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    854.8031510000001,
+    774.905748,
+    662.202224,
+    597.1911399999999,
+    552.2387010000001,
+    516.382644,
+    489.07230899999996,
+    480.903393,
+    460.19271499999996,
+    459.905177,
+    431.54063599999995,
+    429.287972,
+    437.685739,
+    437.312794,
+    431.298508,
+    431.047577,
+    425.64085800000004,
+    427.387589,
+    423.675287,
+    431.190291,
+    421.395419,
+    423.03977999999995,
+    432.338879,
+    431.446954,
+    429.41332900000003,
+    426.110732,
+    432.01426100000003,
+    431.081591,
+    418.914983,
+    423.21797399999997,
+    432.53693300000003,
+    432.035532,
+    432.72679200000005,
+    432.407417,
+    431.558053,
+    431.079723,
+    434.841369,
+    432.41121100000004,
+    432.09743499999996,
+    431.228542,
+    429.935261,
+    432.299293,
+    432.44854799999996,
+    432.57714000000004,
+    432.507209,
+    431.35919900000005,
+    431.806127,
+    430.404398,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    434.23229299999997,
+    0.0,
+    430.120493,
+    0.0,
+    432.26104,
+    0.0,
+    430.33337900000004,
+    0.0,
+    433.76687000000004,
+    0.0,
+    432.336756,
+    0.0,
+    0.0,
+    430.38719399999997,
+    431.320116,
+    0.0,
+    0.0,
+    433.36331700000005,
+    0.0,
+    432.328279,
+    430.901367,
+    0.0,
+    433.307451,
+    0.0,
+    431.65313399999997,
+    0.0,
+    0.0,
+    433.868728,
+    0.0,
+    432.595271,
+    434.271045,
+    0.0
+  ],
+  "wait_samples": 119,
+  "duplicate_asks": 823,
+  "unique_frames_asked": 80,
+  "drain_incomplete": false,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
+  "fill_dwell_ms": 0,
+  "link_util": 0.0,
+  "wasted_bytes": 0,
+  "commitment_depth": 0,
+  "wanted_received": true,
+  "frames_on_wire": 80,
+  "bytes_on_wire": 2560320,
+  "frames_after_settle": 0,
+  "bytes_after_settle": 0,
+  "frames_before_settle": 80,
+  "bytes_before_settle": 2560320,
+  "warm_cache": false,
+  "rtt_ms": 0,
+  "ask_join": [
+    {
+      "frame_index": 0,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 1,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 79,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 2,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 78,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 3,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 77,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 76,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 75,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 74,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 73,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 9,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 14,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 17,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 22,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 27,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 28,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 30,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 34,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 37,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 38,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 42,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 43,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 44,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 46,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 47,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 48,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 49,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 50,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 51,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 52,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 53,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 54,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 55,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 56,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 57,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 58,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 59,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 60,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 61,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 62,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 63,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 64,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 65,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 66,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 67,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 68,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 69,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 70,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 71,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 72,
+      "ask_ordinal": 0
+    }
+  ],
+  "d_min_observed": 16,
+  "d_max_observed": 16,
+  "depth_oscillating": false,
+  "depth_saturated": false
+}
