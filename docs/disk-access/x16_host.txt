@@ -1,0 +1,18 @@
+host vm
+date 2026-09-09T13:51:13Z
+HEAD a205ae2 plus the working tree of this review
+kernel 6.18.44-fc-v24
+cores 4   mem 16075 MiB
+study lab/fixtures/frames_16k_ab (1024 frames x 16384 B, generated, not committed)
+stream_mode shared   bind 127.0.0.1 (loopback)
+plan cold on-demand, step 16 frames = 262144 B between asks, 64 asks, 8 interleaved rounds
+check-fastpath RWF_NOWAIT honoured (preadv2)
+ring_scale 200 rings at build(WINDOWS): fds_per_ring=2.0 rss_kib_per_ring=8.7 setup_p50=17.9us
+
+Sandbox, not the workstation. Throughput here tops out at ~4.8 k asks/s against the
+workstation's ~50 k plateau (NEXT.md section 6), so nothing in these files resolves the
+campaign's 28.5 % rule. They are mechanism checks: does the named path get taken, and in
+which direction does it move. READ-PATH-DESIGN.md section 16.
+
+x16_seam_ab.tsv       HEAD against a build with FramePipeline::serve's ahead severed
+x16_ringpool_ab.tsv   the same binary at WTPACS_READ_PATH=auto against =pool

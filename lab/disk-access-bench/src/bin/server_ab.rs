@@ -4,6 +4,8 @@ use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use fod::{encode_fod_msg, FodMsg};
 use frame_envelope::unwrap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wtransport::config::IpBindConfig;
 use wtransport::stream::{RecvStream, SendStream};
@@ -32,6 +34,10 @@ struct Args {
     sessions: usize,
     #[arg(long, default_value_t = 1)]
     frames: u32,
+    /// Frames between consecutive asks. `step * frame_bytes` must clear the kernel's
+    /// read-ahead or a cold cell is a hit cell wearing a cold label — §14.4.
+    #[arg(long, default_value_t = 1)]
+    step: u32,
     #[arg(long, default_value = "")]
     label: String,
     #[arg(long, default_value = "")]
@@ -54,6 +60,9 @@ fn main() -> Result<()> {
 async fn run(args: Args) -> Result<()> {
     let endpoint = client_endpoint()?;
     let cpu0 = proc_cpu(args.server_pid)?;
+    let rss0 = proc_rss_kib(args.server_pid)?;
+    let peak = Arc::new(AtomicU64::new(rss0));
+    let sampler = tokio::spawn(sample_rss(args.server_pid, Arc::clone(&peak)));
     let wall = Instant::now();
     let mut conns = Vec::with_capacity(args.sessions.max(1));
     for _ in 0..args.sessions.max(1) {
@@ -62,17 +71,20 @@ async fn run(args: Args) -> Result<()> {
     let mut set = tokio::task::JoinSet::new();
     for conn in conns {
         let (mode, depth, asks, frames) = (args.mode, args.depth, args.asks, args.frames.max(1));
-        set.spawn(async move { session(conn, mode, depth, asks, frames).await });
+        let step = args.step.max(1);
+        set.spawn(async move { session(conn, mode, depth, asks, frames, step).await });
     }
     let mut lats = Vec::new();
     while let Some(joined) = set.join_next().await {
         lats.extend(joined.context("session join")??);
     }
-    drop(endpoint);
     let wall_ns = wall.elapsed().as_nanos() as u64;
-    let cpu_ticks = proc_cpu(args.server_pid)?.saturating_sub(cpu0);
+    let cpu_ns = proc_cpu(args.server_pid)?.saturating_sub(cpu0);
+    sampler.abort();
+    let rss_kib = peak.load(Ordering::Relaxed).saturating_sub(rss0);
+    drop(endpoint);
     let n = lats.len().max(1) as u64;
-    let cpu_ns_per_ask = ticks_to_ns(cpu_ticks) / n;
+    let cpu_ns_per_ask = (cpu_ns / u128::from(n)) as u64;
     let asks_per_s = n as f64 * 1e9 / wall_ns.max(1) as f64;
     lats.sort_unstable();
     if !args.no_header {
@@ -98,7 +110,7 @@ async fn run(args: Args) -> Result<()> {
         wall_ns,
         asks_per_s,
         cpu_ns_per_ask,
-        proc_rss_kib(args.server_pid)?,
+        rss_kib,
     );
     Ok(())
 }
@@ -143,6 +155,7 @@ async fn session(
     depth: u32,
     asks: usize,
     frames: u32,
+    step: u32,
 ) -> Result<Vec<u64>> {
     let (mut control, _recv) = connection
         .open_bi()
@@ -152,8 +165,10 @@ async fn session(
         .context("bi ready")?;
     let mut media = connection.accept_uni().await.context("accept media uni")?;
     match mode {
-        Mode::OnDemand => on_demand(&mut control, &mut media, depth.max(1), asks, frames).await,
-        Mode::Fill => fill(&mut control, &mut media, asks).await,
+        Mode::OnDemand => {
+            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step).await
+        }
+        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize)).await,
     }
 }
 
@@ -163,21 +178,31 @@ async fn on_demand(
     depth: u32,
     asks: usize,
     frames: u32,
+    step: u32,
 ) -> Result<Vec<u64>> {
+    let plan = |i: usize| (i as u32).wrapping_mul(step) % frames;
     let mut sent = Vec::with_capacity(asks);
     let mut lats = Vec::with_capacity(asks);
     let mut next_send = 0usize;
     let mut next_recv = 0usize;
     while next_recv < asks {
         while next_send < asks && (next_send - next_recv) < depth as usize {
-            let frame = (next_send as u32) % frames;
             control
-                .write_all(&encode_fod_msg(&FodMsg::RequestFrame { frame })?)
+                .write_all(&encode_fod_msg(&FodMsg::RequestFrame {
+                    frame: plan(next_send),
+                })?)
                 .await?;
             sent.push(Instant::now());
             next_send += 1;
         }
-        read_envelope(media).await?;
+        // Pairing envelope n with ask n is the whole timing model; check it rather than assume.
+        let (idx, _) = read_envelope(media).await?;
+        anyhow::ensure!(
+            idx == plan(next_recv),
+            "envelope {idx} answered ask {} ({})",
+            next_recv,
+            plan(next_recv)
+        );
         lats.push(sent[next_recv].elapsed().as_nanos() as u64);
         next_recv += 1;
     }
@@ -186,13 +211,13 @@ async fn on_demand(
 
 async fn fill(control: &mut SendStream, media: &mut RecvStream, asks: usize) -> Result<Vec<u64>> {
     let mut lats = Vec::with_capacity(asks);
-    let mut prev = Instant::now();
     control
         .write_all(&encode_fod_msg(&FodMsg::StreamFrames {
             from: None,
             to: None,
         })?)
         .await?;
+    let mut prev = Instant::now();
     for _ in 0..asks {
         read_envelope(media).await?;
         let now = Instant::now();
@@ -229,18 +254,31 @@ fn pct(sorted: &[u64], p: f64) -> u64 {
     sorted[(((sorted.len() - 1) as f64) * p).round() as usize]
 }
 
+/// Nanoseconds on cpu, summed over the server's threads. `stat`'s utime/stime are clock
+/// ticks — 10 ms here, which a 256-ask cell cannot resolve.
 fn proc_cpu(pid: u32) -> Result<u128> {
-    let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).context("read stat")?;
-    let rest = text.rsplit_once(')').context("stat comm")?.1;
-    let f: Vec<&str> = rest.split_whitespace().collect();
-    let utime: u64 = f.get(11).context("utime")?.parse()?;
-    let stime: u64 = f.get(12).context("stime")?.parse()?;
-    Ok(u128::from(utime) + u128::from(stime))
+    let mut total = 0u128;
+    for task in std::fs::read_dir(format!("/proc/{pid}/task")).context("read task dir")? {
+        let path = task?.path().join("schedstat");
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        total += text
+            .split_whitespace()
+            .next()
+            .context("schedstat")?
+            .parse::<u128>()?;
+    }
+    Ok(total)
 }
 
-fn ticks_to_ns(ticks: u128) -> u64 {
-    let hz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) }.max(1) as u128;
-    (ticks.saturating_mul(1_000_000_000) / hz) as u64
+async fn sample_rss(pid: u32, peak: Arc<AtomicU64>) {
+    loop {
+        if let Ok(kib) = proc_rss_kib(pid) {
+            peak.fetch_max(kib, Ordering::Relaxed);
+        }
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
 }
 
 fn proc_rss_kib(pid: u32) -> Result<u64> {

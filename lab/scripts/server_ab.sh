@@ -17,6 +17,11 @@ ASKS="${ASKS:-256}"
 OUT="${OUT:-$ROOT/docs/disk-access/server_ab.tsv}"
 HOST="${HOST:-$ROOT/docs/disk-access/server_ab_host.txt}"
 TILE="${TILE:-$ROOT/lab/fixtures/frames_16k_big/frames_16k_big.sbnd}"
+FRAME_BYTES="${FRAME_BYTES:-16384}"
+# Consecutive asks must clear the kernel read-ahead, or a cold cell is a hit cell wearing
+# a cold label (§14.4). `read_campaign` strides 250 kB for the same reason.
+STEP="${STEP:-$(( (250000 + FRAME_BYTES - 1) / FRAME_BYTES ))}"
+RSS_SESSIONS="${RSS_SESSIONS:-64}"
 WT="${WT:-$(mktemp -d /tmp/server-ab-XXXX)}"
 CERT="${CERT:-$ROOT/server/dev-cert/cert.pem}"
 KEY="${KEY:-$ROOT/server/dev-cert/key.pem}"
@@ -74,7 +79,7 @@ EVICT="$ROOT/target/release/evict"
 
 start_server() {
   local bin="$1" port="$2" log="$3"
-  RUST_LOG=exact_server=info "$bin" \
+  NO_COLOR=1 RUST_LOG=exact_server=info "$bin" \
     --port "$port" --study "$TILE" --stream-mode shared --bind 127.0.0.1 \
     --cert-pem "$CERT" --key-pem "$KEY" >"$log" 2>&1 &
   echo $!
@@ -106,55 +111,66 @@ wait_banner "$before_log"
 wait_banner "$after_log"
 
 frames=$(banner_val "$after_log" frames)
+(( ASKS * STEP <= frames )) || {
+  echo "asks $ASKS x step $STEP exceeds $frames frames: the plan would revisit warm frames" >&2
+  exit 1
+}
 read_fast_path_before=$(banner_val "$before_log" read_fast_path)
 read_fast_path_after=$(banner_val "$after_log" read_fast_path)
 {
   echo "before_pid $before_pid  read_fast_path=$read_fast_path_before"
   echo "after_pid $after_pid  read_fast_path=$read_fast_path_after"
-  echo "frames $frames"
+  echo "frames $frames  step $STEP  asks $ASKS"
 } | tee -a "$HOST"
 
 printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\n' > "$OUT"
 
 miss_from_log() {
   local log="$1" off="$2"
-  tail -c +"$((off + 1))" "$log" | grep -oE 'miss_rate=[0-9.eE+-]+' | tail -1 | cut -d= -f2
+  tail -c +"$((off + 1))" "$log" | grep -oE 'miss_rate[^0-9]*[0-9.eE+-]+' | tail -1 |
+    grep -oE '[0-9.eE+-]+$'
 }
 
 drive() {
   local pid="$1" url="$2" arm="$3" label="$4" temp="$5" mode="$6" depth="$7" sessions="${8:-1}"
   "$DRIVER" --url "$url" --server-pid "$pid" --arm "$arm" --label "$label" \
     --temp "$temp" --mode "$mode" --depth "$depth" --asks "$ASKS" \
-    --sessions "$sessions" --frames "$frames" --no-header
+    --sessions "$sessions" --frames "$frames" --step "$STEP" --no-header
 }
 
+# A fill is sequential, so read-ahead turns it into hits by design: it is evicted like a
+# cold cell but not held to the miss floor. Only the on-demand cells are.
 emit() {
   local pid="$1" url="$2" log="$3" arm="$4" kind="$5" temp="$6" mode="$7" depth="$8"
+  local sessions="${9:-1}"
   local label="${kind}_r${r}"
   local off row miss
   off=$(wc -c <"$log")
   if [[ "$temp" == warm ]]; then
-    drive "$pid" "$url" "$arm" "${kind}_warm_discard" "$temp" "$mode" "$depth" >/dev/null
+    drive "$pid" "$url" "$arm" "${kind}_warm_discard" "$temp" "$mode" "$depth" "$sessions" >/dev/null
     off=$(wc -c <"$log")
   else
     "$EVICT" "$TILE" >/dev/null
   fi
-  row=$(drive "$pid" "$url" "$arm" "$label" "$temp" "$mode" "$depth")
+  row=$(drive "$pid" "$url" "$arm" "$label" "$temp" "$mode" "$depth" "$sessions")
   miss=""
-  for _ in $(seq 1 20); do
+  for _ in $(seq 1 30); do
     miss=$(miss_from_log "$log" "$off")
     [[ -n "$miss" ]] && break
     sleep 0.1
   done
-  [[ -n "$miss" ]] || miss="-"
+  [[ -n "$miss" ]] || {
+    echo "no session-reads line for $label ($arm): the cold control is unreadable" >&2
+    exit 1
+  }
   row=$(printf '%s\n' "$row" | awk -v m="$miss" 'BEGIN{FS=OFS="\t"} { $NF=m; print }')
   printf '%s\n' "$row" >> "$OUT"
-  if [[ "$temp" == cold && "$miss" != "-" ]]; then
+  if [[ "$temp" == cold && "$mode" == on-demand ]]; then
     python3 - "$miss" "$label" <<'PY'
 import sys
 m, label = float(sys.argv[1]), sys.argv[2]
 if m < 0.99:
-    sys.stderr.write(f"cold cell {label} miss_rate={m} < 0.99\n")
+    sys.stderr.write(f"cold cell {label} miss_rate={m} < 0.99 -- raise STEP\n")
     sys.exit(1)
 PY
   fi
@@ -179,17 +195,18 @@ for ((r = 0; r < REPEATS; r++)); do
     emit "$pid" "$url" "$log" "$arm" "warm_d1" warm on-demand 1
     emit "$pid" "$url" "$log" "$arm" "warm_d4" warm on-demand 4
     emit "$pid" "$url" "$log" "$arm" "fill"    cold fill 1
+    emit "$pid" "$url" "$log" "$arm" "rss_d4"  warm on-demand 4 "$RSS_SESSIONS"
   done
   echo "  round $r done $(date -u +%T)" >&2
 done
 
-python3 - "$OUT" <<'PY'
+python3 - "$OUT" "$RSS_SESSIONS" <<'PY'
 import csv, collections, math, statistics as st, sys
 DRIFT, MIN_N, path = 28.5, 5, sys.argv[1]
 WANT = {
     "cold_d1": "tie",
-    "cold_d2": "win",
-    "cold_d4": "win_or_tie",
+    "cold_d2": "tie",
+    "cold_d4": "win",
     "warm_d1": "tie",
     "warm_d4": "tie",
     "fill": "tie",
@@ -248,6 +265,18 @@ if all(len(ladder[k]) >= 1 for k in ("cold_d1", "cold_d2", "cold_d4")):
     r2 = (d2 / d1 - 1) * 100 if d1 else 0
     r4 = (d4 / d2 - 1) * 100 if d2 else 0
     print(f"ladder after  d1={d1:.0f}/s  d2={d2:.0f}/s ({r2:+.1f}%)  d4={d4:.0f}/s ({r4:+.1f}% vs d2)")
+
+# RSS: per-session window memory only shows against many sessions (§15.4d).
+rss = collections.defaultdict(list)
+with open(path, newline="") as fh:
+    for r in csv.DictReader(fh, delimiter="\t"):
+        if r["label"].startswith("rss_d4_r") and r.get("rss_kib"):
+            rss[r["arm"]].append(int(r["rss_kib"]))
+if rss.get("before") and rss.get("after"):
+    b, a = st.median(rss["before"]), st.median(rss["after"])
+    n = int(sys.argv[2]) if len(sys.argv) > 2 else 64
+    print(f"rss_d4  {n} sessions  before {b:.0f} KiB  after {a:.0f} KiB  "
+          f"delta {(a - b) / n:+.1f} KiB/session")
 
 print(f"tsv: {path}")
 sys.exit(1 if fail else 0)

@@ -229,32 +229,34 @@ async fn handle_incoming(
 /// `docs/disk-access/READ-PATH-DESIGN.md` §11 cuts 1, 2 and 5.
 async fn run_session<P: FramePipeline>(pipeline: &mut P, control_recv: RecvStream) -> Result<()> {
     let (reader, mut asks) = spawn_ask_reader(control_recv);
-    let result = async {
-        let mut plan = Planner::new(pipeline.store().frame_count());
-        loop {
-            let step = plan.next(|| asks.try_recv().ok())?;
-            if plan.take_noted_fill() {
-                pipeline.note_fill();
-            }
-            match step {
-                Step::Serve { frame, upcoming } => pipeline.serve(frame, &upcoming).await?,
-                Step::Refuse { frame, reason } => {
-                    pipeline.refuse(frame, anyhow!(reason)).await?;
-                }
-                Step::Wait => match asks.recv().await {
-                    Some(ask) => plan.push(ask),
-                    None => break,
-                },
-                Step::End => break,
-            }
-        }
-        pipeline.drain_acks().await;
-        Ok(())
-    }
-    .await;
+    let result = drive(pipeline, &mut asks).await;
     reader.abort();
     let _ = reader.await;
     result
+}
+
+/// The loop over `Ask`, with no stream in it, so a test can drive it without QUIC.
+async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
+    let mut plan = Planner::new(pipeline.store().frame_count());
+    loop {
+        let step = plan.next(|| asks.try_recv().ok())?;
+        if plan.take_noted_fill() {
+            pipeline.note_fill();
+        }
+        match step {
+            Step::Serve { frame, upcoming } => pipeline.serve(frame, &upcoming).await?,
+            Step::Refuse { frame, reason } => {
+                pipeline.refuse(frame, anyhow!(reason)).await?;
+            }
+            Step::Wait => match asks.recv().await {
+                Some(ask) => plan.push(ask),
+                None => break,
+            },
+            Step::End => break,
+        }
+    }
+    pipeline.drain_acks().await;
+    Ok(())
 }
 
 fn spawn_ask_reader(
@@ -301,11 +303,115 @@ async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::media::frame_store::FrameSpan;
     use fod::FodMsg;
     use frame_envelope::unwrap;
     use std::io::Write;
     use wtransport::stream::SendStream;
     use wtransport::ClientConfig;
+
+    /// Records what the loop hands the pipeline: the frame and the names that go with it.
+    struct LoopRecorder {
+        store: Arc<FrameStore>,
+        seen: Vec<(u32, Vec<u32>)>,
+        fills: u32,
+    }
+
+    impl FramePipeline for LoopRecorder {
+        fn store(&self) -> &Arc<FrameStore> {
+            &self.store
+        }
+        fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
+            store.frame_span(frame)
+        }
+        async fn send(
+            &mut self,
+            _frame: u32,
+            _store: &Arc<FrameStore>,
+            _span: FrameSpan,
+            _ahead: &[FrameSpan],
+        ) -> Result<()> {
+            Ok(())
+        }
+        async fn serve(&mut self, frame: u32, upcoming: &[u32]) -> Result<()> {
+            self.seen.push((frame, upcoming.to_vec()));
+            Ok(())
+        }
+        async fn refuse(&mut self, _frame: u32, _err: anyhow::Error) -> Result<()> {
+            Ok(())
+        }
+        async fn drain_acks(&mut self) {}
+        fn note_fill(&mut self) {
+            self.fills += 1;
+        }
+    }
+
+    /// **The loop's own line.** `Step::Serve`'s `upcoming` reaches `serve`; a fill names
+    /// `FILL_AHEAD` and is counted once. No QUIC — the seam below `serve` is
+    /// `pipeline.rs`'s. `docs/disk-access/READ-PATH-DESIGN.md` §15.4.
+    #[test]
+    fn the_loop_hands_serve_the_frames_the_planner_named() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-drive-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 4);
+        let store = Arc::new(FrameStore::open(&study).expect("open store"));
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("rt");
+
+        let mut rec = LoopRecorder {
+            store,
+            seen: Vec::new(),
+            fills: 0,
+        };
+        let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
+        for ask in [Ask::Frame(0), Ask::Frame(2), Ask::Frame(3), Ask::EndSession] {
+            tx.try_send(ask).expect("queue ask");
+        }
+        rt.block_on(drive(&mut rec, &mut rx)).expect("drive");
+        assert_eq!(
+            rec.seen,
+            vec![(0, vec![2, 3]), (2, vec![3]), (3, vec![])],
+            "the planner's names did not reach serve"
+        );
+
+        let mut rec = LoopRecorder {
+            store: Arc::clone(rec.store()),
+            seen: Vec::new(),
+            fills: 0,
+        };
+        let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
+        tx.try_send(Ask::Fill {
+            from: Some(1),
+            to: Some(3),
+        })
+        .expect("queue fill");
+        tx.try_send(Ask::EndSession).expect("queue end");
+        drop(tx);
+        rt.block_on(drive(&mut rec, &mut rx)).expect("drive fill");
+        assert_eq!(rec.fills, 0, "a fill cancelled by EndSession was counted");
+
+        let mut rec = LoopRecorder {
+            store: Arc::clone(rec.store()),
+            seen: Vec::new(),
+            fills: 0,
+        };
+        let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
+        tx.try_send(Ask::Fill {
+            from: Some(1),
+            to: Some(3),
+        })
+        .expect("queue fill");
+        drop(tx);
+        rt.block_on(drive(&mut rec, &mut rx)).expect("drive fill");
+        assert_eq!(
+            rec.seen,
+            vec![(1, vec![2]), (2, vec![3]), (3, vec![])],
+            "a fill did not name one frame ahead"
+        );
+        assert_eq!(rec.fills, 1, "a fill that served was not counted once");
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     /// A study of `frames` frames, each a different length and pattern, so a batch served
     /// out of the wrong window or the wrong order cannot pass.

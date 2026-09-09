@@ -31,6 +31,8 @@ step "server: tests, telemetry feature"
 cargo test -p exact-server --features telemetry --quiet
 step "lab: window-harness tests"
 cargo test -p window-harness --quiet
+step "lab: disk-access-bench compiles (the arms are part of the API)"
+cargo check -p disk-access-bench --all-targets --quiet
 
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"
