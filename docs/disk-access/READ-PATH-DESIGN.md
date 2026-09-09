@@ -564,6 +564,7 @@ fd — one fd per session instead of two, ~30 lines fewer, after P0.
 | **3** one `Window` type, W of them, no `Ahead` | `Ahead`, `begin_ahead`, `abandon_ahead`, the take-ahead decode; the flip that cannot become 4 | nowait, ring and pool inside `Pending`; read-ahead as a property of "a window already holds that span" | the twelve read-path and ring tests, `v36` interleaved |
 | **4** sizes have one owner each | `FrameStore::read_window` and the policy hidden in it | the whole-frame pooled read where nowait is refused; the ≤ `READ_WINDOW` write chunk | `a_pooled_frame_is_written_in_read_windows_not_in_one_copy` and the ring tests |
 | **5** a named channel capacity | the `W − 1` coupling | the defensive cap; backpressure | one constant, no test change |
+| **6** the ring keeps no state the window already has | the ring's own `Pending`, its slot table, `SLOTS`, `finish`'s loop; `Ring::Refused` | the ring on misses, short-read resubmission, drain on drop, the eventfd until P1 | the two ring tests and the ring rows of the read-path tests, `v36` interleaved |
 
 **Cut 1.** The ask reader expands `RequestFrames { frames }` into one channel item per frame,
 so the loop serves frames from one call, `serve_one(frame, upcoming)`, with two sources of
@@ -597,6 +598,13 @@ one thing, whether nowait works on this file, and let the read path own how much
 call and the transport own how much to write per call. Two sizes, two owners, both named at
 the one place each is decided. This is the review's "two chunk sizes" note done fully.
 
+**Cut 6.** `uring_reader.rs` keeps, per slot, the address, length, progress and offset of a
+read whose buffer, length and offset the window in `read_path.rs` already knows. Make the
+ring a thin wrapper — submit, reap, park, drain — and let the window track its own progress.
+One source of truth for what is being read into where, no slot table, one constant instead
+of two, and `Ring::Refused` folds into `Off` since both mean "use the pool". §11 has the
+code; the honest expectation is fewer pieces at about the same line count.
+
 **Cut 5.** `W − 1` makes the server's cap on asks held ahead a side-effect of a read-path
 constant. Name it — `ASKS_AHEAD`, in the loop — and let the read path take what fits. One
 sentence of explanation disappears and the two constants can move independently.
@@ -608,3 +616,451 @@ with pre-touch (a hop per ask, [`adr.md`](adr.md) §5); per-frame streams (5.76�
 the loss-run branch); server-side reordering
 ([`../adr-reject-server-ordering.md`](../adr-reject-server-ordering.md)); deleting the ring
 outright (P0's rule, not a shape choice).
+
+## 11 · The cuts as code
+
+Shape, not final code: written against the design and the read path as it stands, without
+the loop that landed in steps 1–2, so the loop sketches are checked against
+`server/src/transport/server.rs` when a cut is chosen. Each block is what a reader would
+find in the file afterwards.
+
+### Cut 1 · one ask unit, one serve path
+
+```rust
+/// What the loop consumes: one item per frame, whichever message carried it.
+enum Ask {
+    Frame(u32),
+    Fill { from: Option<u32>, to: Option<u32> },
+    EndStream,
+    EndSession,
+    Failed(anyhow::Error),
+}
+
+/// How many asks the server holds beyond the frame being served (cut 5).
+const ASKS_AHEAD: usize = 8;
+
+fn spawn_ask_reader(mut control: RecvStream) -> mpsc::Receiver<Ask> {
+    let (tx, rx) = mpsc::channel(ASKS_AHEAD);
+    tokio::spawn(async move {
+        loop {
+            let asks = match read_fod_msg(&mut control).await {
+                Ok(FodMsg::RequestFrame { frame }) => vec![Ask::Frame(frame)],
+                Ok(FodMsg::RequestFrames { frames }) => frames.into_iter().map(Ask::Frame).collect(),
+                Ok(FodMsg::StreamFrames { from, to }) => vec![Ask::Fill { from, to }],
+                Ok(FodMsg::EndStream) => vec![Ask::EndStream],
+                Ok(FodMsg::EndSession) => vec![Ask::EndSession],
+                Ok(FodMsg::FrameError { .. }) => continue,
+                Err(err) => vec![Ask::Failed(err)],
+            };
+            for ask in asks {
+                if tx.send(ask).await.is_err() {
+                    return;
+                }
+            }
+        }
+    });
+    rx
+}
+```
+
+`serve_batch` is gone; a batch is frames in the channel, and a pipelined `RequestFrame` is
+the same. `FramePipeline` keeps one serving method, `serve(frame, upcoming: &[u32])`, which
+is `serve_one` with its `next` widened. The loop that consumes `Ask` is cut 2.
+
+### Cut 2 · the loop is a planner; the transport is not mocked
+
+```rust
+/// The next thing to do. Decided without I/O, so it is tested with a `Vec`.
+enum Step {
+    Serve { frame: u32, upcoming: Vec<u32> },
+    Refuse { frame: u32, reason: String },
+    Wait,
+    End,
+}
+
+struct Planner {
+    in_hand: VecDeque<Ask>,
+    fill: Option<(u32, u32)>, // next frame to recite, last frame
+    frames: u32,
+}
+
+impl Planner {
+    fn push(&mut self, ask: Ask) {
+        self.in_hand.push_back(ask);
+    }
+
+    /// `poll` yields asks that arrived since the last step; a fill checks it between frames.
+    fn next(&mut self, mut poll: impl FnMut() -> Option<Ask>) -> Result<Step> {
+        while let Some(ask) = poll() {
+            self.in_hand.push_back(ask);
+        }
+        loop {
+            if let Some((frame, to)) = self.fill {
+                if self.in_hand.is_empty() {
+                    self.fill = (frame < to).then_some((frame + 1, to));
+                    let upcoming = (frame + 1..=to).take(ASKS_AHEAD).collect();
+                    return Ok(Step::Serve { frame, upcoming });
+                }
+                self.fill = None; // whatever arrived ends the fill; a data request is served next
+                if matches!(self.in_hand.front(), Some(Ask::EndStream)) {
+                    self.in_hand.pop_front();
+                }
+            }
+            return match self.in_hand.pop_front() {
+                None => Ok(Step::Wait),
+                Some(Ask::EndSession) => Ok(Step::End),
+                Some(Ask::Failed(err)) => Err(err),
+                Some(Ask::EndStream) => continue,
+                Some(Ask::Fill { from, to }) => match fill_range(from, to, self.frames) {
+                    Ok(range) => {
+                        self.fill = Some(range);
+                        continue;
+                    }
+                    Err(reason) => Ok(Step::Refuse { frame: from.unwrap_or(0), reason }),
+                },
+                Some(Ask::Frame(frame)) => {
+                    let upcoming = self.in_hand.iter().filter_map(Ask::frame).take(ASKS_AHEAD).collect();
+                    Ok(Step::Serve { frame, upcoming })
+                }
+            };
+        }
+    }
+}
+
+async fn run_session<P: FramePipeline>(p: &mut P, mut asks: mpsc::Receiver<Ask>) -> Result<()> {
+    let mut plan = Planner::new(p.store().frame_count());
+    loop {
+        match plan.next(|| asks.try_recv().ok())? {
+            Step::Serve { frame, upcoming } => p.serve(frame, &upcoming).await?,
+            Step::Refuse { frame, reason } => p.refuse(frame, anyhow!(reason)).await?,
+            Step::Wait => match asks.recv().await {
+                Some(ask) => plan.push(ask),
+                None => break,
+            },
+            Step::End => break,
+        }
+    }
+    p.drain_acks().await;
+    Ok(())
+}
+```
+
+Every row of §8's test table is a test on `Planner` with no runtime, no channel and no
+timing. Two of them, to show the shape:
+
+```rust
+/// `EndStream` found between two frames of a fill stops it; the session goes on.
+#[test]
+fn end_stream_stops_a_fill_before_the_next_frame() {
+    let mut plan = Planner::new(10);
+    plan.push(Ask::Fill { from: Some(3), to: Some(7) });
+    assert!(matches!(plan.next(|| None).unwrap(), Step::Serve { frame: 3, .. }));
+    let mut arrived = Some(Ask::EndStream);
+    assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::Wait));
+}
+
+/// Asks already in hand are what the frame in hand is told is coming.
+#[test]
+fn pipelined_asks_supply_the_upcoming_frames() {
+    let mut plan = Planner::new(10);
+    for frame in [4, 5, 6] {
+        plan.push(Ask::Frame(frame));
+    }
+    let Step::Serve { frame, upcoming } = plan.next(|| None).unwrap() else { panic!() };
+    assert_eq!((frame, upcoming), (4, vec![5, 6]));
+}
+```
+
+The transport implements `serve`, `refuse` and `drain_acks` once, for real, and keeps
+`a_batch_arrives_whole_and_in_ask_order` and the fill wire test as its proof. There is no
+second implementation.
+
+### Cuts 3, 4 and 6 · the read path with W windows, and a ring that keeps no state
+
+Today `read_path.rs` has a current window, one `Ahead`, a flip (`cur ^= 1`), a take-ahead
+decision decoded from `pos == 0 && ahead.span == span`, and `begin` / `begin_ahead` /
+`abandon_ahead` / `escalate` / `settle` / `grow`; `uring_reader.rs` has its own `Pending`
+per slot (address, length, progress, offset, submitted) and a `SLOTS` that must equal
+`WINDOWS`. The essential work is the nowait probe, two ways to wait for a miss, short-read
+resubmission and drop safety; everything else is duplication or a special case of "a window
+holds a span". Afterwards:
+
+```rust
+pub const WINDOWS: usize = 4;
+
+/// A buffer, whose bytes it holds, and the one read at most still landing in it.
+struct Window {
+    key: Option<(FrameSpan, u32)>, // the frame and the position in it these bytes start at
+    buf: Vec<u8>,
+    at: u64,                       // file offset of `buf[0]`
+    len: usize,                    // bytes valid once `read` is `None`
+    filled: usize,                 // bytes landed so far, for a short read
+    read: Option<InFlight>,
+}
+
+enum InFlight {
+    #[cfg(feature = "uring")]
+    Ring, // the ring's slot is this window's index
+    Pool(JoinHandle<Result<Vec<u8>>>),
+}
+
+#[cfg(feature = "uring")]
+enum Ring {
+    Off,    // never wanted, or refused once — both mean the pool
+    Wanted, // built on the first miss
+    Built(Box<UringReader>),
+}
+
+pub struct ReadCtx {
+    probe: bool,
+    #[cfg(feature = "uring")]
+    ring: Ring,
+    windows: [Window; WINDOWS],
+    stats: ReadStats,
+}
+
+impl ReadCtx {
+    /// Bytes of `span` from `pos`; reads of `upcoming` started underneath, one window each.
+    pub async fn read(
+        &mut self,
+        store: &Arc<FrameStore>,
+        span: FrameSpan,
+        pos: u32,
+        upcoming: impl Iterator<Item = FrameSpan>,
+    ) -> Result<&[u8]> {
+        let wanted: Vec<(FrameSpan, u32)> =
+            iter::once((span, pos)).chain(upcoming.take(WINDOWS - 1).map(|s| (s, 0))).collect();
+        for &(s, p) in &wanted {
+            if self.holding(s, p).is_none() {
+                let w = self.windows.iter().position(|w| !w.key.is_some_and(|k| wanted.contains(&k)))
+                    .expect("at most W wanted, W windows");
+                self.wait(w).await?; // a read nobody wants still lands before its buffer is reused
+                self.begin(store, w, s, p)?;
+            }
+        }
+        let w = self.holding(span, pos).expect("started above");
+        self.wait(w).await?;
+        Ok(&self.windows[w].buf[..self.windows[w].len])
+    }
+
+    fn holding(&self, span: FrameSpan, pos: u32) -> Option<usize> {
+        self.windows.iter().position(|w| w.key == Some((span, pos)))
+    }
+
+    /// Probe one window without waiting; on a shortfall ask for the rest of the frame.
+    fn begin(&mut self, store: &Arc<FrameStore>, w: usize, span: FrameSpan, pos: u32) -> Result<()> {
+        let at = span.offset + u64::from(pos);
+        let remaining = (span.len - pos) as usize;
+        let want = READ_WINDOW.min(remaining); // cut 4: the read size is decided here, nowhere else
+        let win = &mut self.windows[w];
+        win.fit(want);
+        let hit = if self.probe { store.read_at_nowait(&mut win.buf[..want], at)? } else { 0 };
+        *win = Window { key: Some((span, pos)), at, len: hit, filled: hit, read: None, ..mem::take(win) };
+        if hit == want {
+            self.stats.hits += 1;
+            return Ok(());
+        }
+        self.stats.misses += 1;
+        win.len = remaining;
+        win.fit(remaining);
+        win.read = Some(self.escalate(store, w)?);
+        Ok(())
+    }
+
+    /// The ring if this session has one, the pool otherwise. Neither is waited on here.
+    fn escalate(&mut self, store: &Arc<FrameStore>, w: usize) -> Result<InFlight> {
+        #[cfg(feature = "uring")]
+        if let Some(ring) = self.ring.build_on_first_miss(store) {
+            let win = &mut self.windows[w];
+            // SAFETY: `win.buf` is neither grown, read nor dropped while `win.read` is `Some`;
+            // `wait` clears it, and `Drop` drains the ring before the windows go.
+            unsafe { ring.submit(w, &mut win.buf[win.filled..win.len], win.at + win.filled as u64) }?;
+            return Ok(InFlight::Ring);
+        }
+        let store = Arc::clone(store);
+        let win = &mut self.windows[w];
+        let (from, len, at) = (win.filled, win.len, win.at);
+        let mut buf = mem::take(&mut win.buf);
+        Ok(InFlight::Pool(tokio::task::spawn_blocking(move || {
+            store.read_at_blocking(&mut buf[from..len], at + from as u64)?;
+            Ok(buf)
+        })))
+    }
+
+    async fn wait(&mut self, w: usize) -> Result<()> {
+        match self.windows[w].read.take() {
+            None => Ok(()),
+            Some(InFlight::Pool(join)) => {
+                self.windows[w].buf = join.await.context("join frame read")??;
+                Ok(())
+            }
+            #[cfg(feature = "uring")]
+            Some(InFlight::Ring) => {
+                self.windows[w].read = Some(InFlight::Ring);
+                let Self { ring: Ring::Built(ring), windows, .. } = self else { unreachable!("a ring read outlived its ring") };
+                while windows[w].read.is_some() {
+                    for (slot, landed) in ring.reap()? {
+                        let win = &mut windows[slot];
+                        win.filled += landed;
+                        if win.filled == win.len {
+                            win.read = None;
+                        } else {
+                            // SAFETY: as in `escalate`; the same window, its unread tail.
+                            unsafe { ring.submit(slot, &mut win.buf[win.filled..win.len], win.at + win.filled as u64) }?;
+                        }
+                    }
+                    if windows[w].read.is_some() {
+                        ring.park().await?;
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl Window {
+    /// Never on a window with a read in flight — `begin` and `wait` are the only callers.
+    fn fit(&mut self, need: usize) {
+        if self.buf.len() < need {
+            self.buf.resize(need, 0);
+        }
+    }
+}
+```
+
+What was removed: `Ahead`, `cur`, the flip, the take-ahead decode, `begin_ahead`,
+`abandon_ahead` (reuse waits — that is the whole rule), `settle` (now `wait`), `grow`
+(now `fit`), `Pending::Ready`, `Ring::Pending` versus `Refused`, and `read_window` on the
+store. What is parametric: W. What stays and is not smaller: the probe, the two escalations,
+the short-read loop, drop safety.
+
+`uring_reader.rs` after cut 6 — four operations and a count:
+
+```rust
+pub struct UringReader {
+    ring: IoUring,
+    eventfd: AsyncFd<OwnedFd>, // P1 parks on the ring's own fd instead
+    in_flight: usize,
+}
+
+impl UringReader {
+    pub fn new(file: &File) -> Result<Self> { /* as today: build, register the file, the eventfd */ }
+
+    /// # Safety
+    /// `buf` stays valid, unmoved and unaliased until `reap` reports `slot` or this reader is
+    /// dropped, which waits.
+    pub(crate) unsafe fn submit(&mut self, slot: usize, buf: &mut [u8], offset: u64) -> Result<()> {
+        let entry = opcode::Read::new(types::Fixed(0), buf.as_mut_ptr(), buf.len() as u32)
+            .offset(offset)
+            .build()
+            .user_data(slot as u64);
+        unsafe { self.ring.submission().push(&entry) }.map_err(|_| anyhow!("io_uring SQ full"))?;
+        self.ring.submit().context("io_uring submit")?;
+        self.in_flight += 1;
+        Ok(())
+    }
+
+    /// Every completion landed so far: `(slot, bytes)`. A short read is the caller's to resubmit.
+    pub(crate) fn reap(&mut self) -> Result<Vec<(usize, usize)>> {
+        self.ring.completion().sync();
+        let mut landed = Vec::new();
+        for cqe in self.ring.completion() {
+            self.in_flight -= 1;
+            match cqe.result() {
+                n if n > 0 => landed.push((cqe.user_data() as usize, n as usize)),
+                0 => bail!("io_uring read hit EOF"),
+                e => return Err(io::Error::from_raw_os_error(-e)).context("io_uring read"),
+            }
+        }
+        Ok(landed)
+    }
+
+    pub(crate) async fn park(&mut self) -> Result<()> { /* as today */ }
+
+    /// The one place this file blocks; the alternative is a use-after-free.
+    pub(crate) fn drain_in_flight(&mut self) {
+        if self.in_flight > 0 && self.ring.submitter().submit_and_wait(self.in_flight).is_ok() {
+            self.ring.completion().sync();
+            while self.ring.completion().next().is_some() {}
+        }
+        self.in_flight = 0;
+    }
+}
+```
+
+`Pending`, `slots`, `SLOTS`, `finish` and `submitted` are gone; the ring knows how many reads
+are out, not what they are. The `Vec` in `reap` is one small allocation per wake and can be
+a fixed `[_; WINDOWS]` if it ever shows.
+
+### Cut 4 · sizes have one owner each
+
+The store answers one question:
+
+```rust
+impl FrameStore {
+    /// False where `RWF_NOWAIT` is refused (overlayfs, tmpfs); every read is then a miss.
+    pub fn nowait_supported(&self) -> bool { self.nowait }
+}
+```
+
+`read_window` is deleted. The read size is `READ_WINDOW.min(remaining)` in `begin` above,
+the miss size is the rest of the frame there too, and the write size is `READ_WINDOW` in
+`frame_out.rs`. Where nowait is refused the probe returns 0 and the miss reads the whole
+rest of the frame in one pooled read, which is what `read_window` used to arrange from the
+other side. `read_window_collapses_to_the_frame_without_nowait` becomes a read-path test:
+on a `force_pool_reads` store a 250 KB frame costs one blocking read.
+
+### Cut 5 · a named channel capacity
+
+```rust
+/// Asks the server holds beyond the frame being served. The read path takes what fits (W − 1).
+const ASKS_AHEAD: usize = 8;
+let (tx, rx) = mpsc::channel(ASKS_AHEAD);
+```
+
+That is the whole cut. `WINDOWS` and `ASKS_AHEAD` move independently, and the sentence
+explaining why the channel is `W − 1` is not needed.
+
+## 12 · Performance tests — what a test can hold, and what only a campaign can
+
+Asked 2026-09-09: should there be performance tests so the read path keeps meeting its
+numbers? Yes for the mechanism, no for the clock.
+
+**A test can pin the mechanism the numbers come from**, deterministically, through the
+store's levers (`force_short_reads`, `force_pool_reads`) and by counting. Three already do:
+`a_frame_that_misses_costs_one_round_trip_not_one_per_window`,
+`naming_the_next_frame_starts_its_read_and_serves_it_from_the_other_window`,
+`a_pooled_frame_is_written_in_read_windows_not_in_one_copy`. Two more close the gaps the
+cuts open:
+
+| test | claim |
+| --- | --- |
+| `w_named_frames_put_w_reads_in_flight` | on a `force_pool_reads` store, naming W − 1 upcoming frames starts W − 1 reads before the first is waited on: count blocking reads started against reads finished |
+| `a_hit_never_touches_the_ring` | a warm frame at `ReadMode::Auto` leaves `ring_built()` false and `stats.misses` at 0 — the trap in `IMPLEMENTATION.md`, pinned |
+
+Mutate each once, per `CLAUDE.md`.
+
+**A test cannot pin time here.** This sandbox is ~10× slower than the workstation; `v36`'s
+250 KB cell varied 12.5× between repeats of the same arm; resolving a 28.5 % difference took
+12 interleaved repeats and a paired sign rule. A threshold in `cargo test` is either flaky or
+loose enough to mean nothing, and a flaky test gets deleted.
+
+**What holds the numbers is the interleaved A/B**, which already exists: `pair_ab.py` and the
+`x13` precedent, where a sequential before/after read +8.1 % on a refactor that changed
+nothing and the interleaved run read the tie. Make it one command so it is run rather than
+remembered:
+
+```
+lab/scripts/read_path_ab.sh <base-commit>
+    builds `read_campaign` from a worktree at <base-commit> and from HEAD,
+    runs, alternating arms within each round: warm 16 KiB · cold 16 KiB at depth 1 and W ·
+    the 1 GiB sequential fixture,
+    pairs them, prints tie / RESOLVED per cell with the 28.5 % rule.
+```
+
+Run it for every change under `server/src/media/` and commit the TSV beside the others; the
+rule for a refactor is that every cell ties. That is the performance test: on demand, on
+the host that can resolve it, with the decision rule fixed before the run. In production,
+the `session reads … miss_rate=…` line and `check-fastpath` are the running check that the
+mechanism the tests pin is the one actually taken.
