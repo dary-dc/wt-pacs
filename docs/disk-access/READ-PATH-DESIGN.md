@@ -1,10 +1,11 @@
 # Read path — design proposal: depth, messages, and the loop around the seam
 
-**2026-09-08 · Proposed. 2026-09-09 · §13 landed.** Assembled from what was agreed on the
-day. Steps 0–2 and the four §13 commits (W = 4, planner, thin ring) are in the tree
-([`HANDOFF.md`](HANDOFF.md) §1). §9 records why the loop and W are not where latency is lost
-on the default link; remaining: the throttled-link cell, P0. It builds on three documents
-and repeats none of them:
+**2026-09-08 · Proposed. 2026-09-09 · §13 landed; §15 is the plan to fix it.** Assembled
+from what was agreed on the day. Steps 0–2 and the four §13 commits (W = 4, planner, thin
+ring) are in the tree ([`HANDOFF.md`](HANDOFF.md) §1) — **unmeasured**: §13.2's A/B gate was
+never run, and §15.1 has what a mutation pass found. §9 records why the loop and W are not
+where latency is lost on the default link; remaining: the throttled-link cell, P0. It builds
+on three documents and repeats none of them:
 
 * [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) — the seam. Change **A** moves the frame loop
   into the read path behind `ctx.frame(...)`; change **B** makes a window own its ring slot,
@@ -1224,4 +1225,301 @@ it.
 | --- | --- | --- |
 | **Fold [`READ-PATH-REVIEW.md`](READ-PATH-REVIEW.md) into this document** | when commit 3 lands, since A is then the only thing left in it | [`NEXT.md`](NEXT.md) §7 |
 | **Correct the six documents in §13.6** | as each commit lands, not after | §13.6 |
+| **§15 supersedes this register where they overlap** | §15 is the plan for the round after §13; rows here it takes on (ring entries follow W, `reap`'s `Vec`) say so | §15 |
 | **`adr.md` §2 "numbers safe to quote"** | add the commit-3 depth number and the throttled-cell tie once measured | [`adr.md`](adr.md) |
+
+## 15 · Fix and optimise what §13 landed — the plan
+
+**2026-09-09, after the four §13 commits.** §13 landed W = 4, the planner, the thin ring and
+the two fill wire tests. This section is the evaluation of what landed and the plan to
+correct it. It does not reopen a §13 decision; `WINDOWS = 4`, `FILL_AHEAD = 1`,
+`ASKS_AHEAD = 8` and change **A** deferred all stand.
+
+One thing has to be said first, because everything below depends on it. §13.2 gave every one
+of the four commits the same pass condition — *every A/B cell ties*, measured interleaved
+against a worktree build. **No such run exists.** `lab/scripts/read_path_ab.sh` was written
+as commit 0 and never run to a committed TSV; the branch has `x13_refactor_ab.tsv` from the
+previous refactor and nothing since. So the four commits are unmeasured, and the warm
+`+17 %` CPU figure quoted in conversation has no file behind it. `CLAUDE.md` says a number
+lives in `docs/`; this one does not, and until §15.4's run it is not a number.
+
+### 15.1 · What was checked, and how
+
+Every row was run in this tree on 2026-09-09. The mutations are the `CLAUDE.md` rule applied
+to code that already shipped: break it on purpose, see whether anything fails.
+
+| claim | how it was checked | result |
+| --- | --- | --- |
+| `Planner::next` bounds what it holds | temporary planner test: offer 800 `Ask::Frame`, call `next` 100 times | **high-water 799** against `ASKS_AHEAD` 8 |
+| `w_named_frames_put_w_reads_in_flight` pins start-then-wait | mutate `read` to wait the current frame before `begin`ning any upcoming | **all 38 tests pass** |
+| the planner → read path seam is covered | mutate `FramePipeline::serve` so `ahead` is always empty | **all 38 tests pass** |
+| read ahead exists at all | mutate `read` to ignore `upcoming` entirely | 3 tests fail — *naming starts a read* is pinned, the order is not |
+| `fills=N` counts fills that served a frame | planner probe: `StreamFrames {}` and `EndStream` in one write | `Step::Wait`, `note_fill = true` — **`fills=1`, nothing served** |
+| the §13.2 A/B gate was met | search the whole branch history for a committed `read_path_ab.tsv` | **none** — the script, never a run |
+
+Green as it stands: 38 tests default, 31 `--no-default-features`, 64 `telemetry`; clippy
+clean; comment budget ok. `cargo fmt --check` is dirty on the four server files this branch
+touched (the rest of the repo is drifted too, and `gate.sh` has no fmt step).
+
+The third row is the one that matters. **The feature the four commits exist to deliver — a
+frame's read starting while the frame before it is still on the wire — can be severed at the
+seam and the suite stays green.** §14.4 predicted half of this ("the loop's naming of
+`upcoming` is one line the wire tests cannot see") and pointed at "the harness depth
+measurement in commit 2" to cover it. That measurement was never made. So the naming line,
+the seam that carries it and the order inside `read` are all unverified, and the only
+evidence for read-ahead-by-one is `v36`, taken through the lab's *copy* of the serving loop.
+
+### 15.2 · The defects, ranked
+
+| # | defect | where | severity |
+| --- | --- | --- | --- |
+| 1 | `in_hand` grows with ask rate; §1's backpressure invariant does not hold | `planner.rs` | **the one bug**: unbounded per-session memory a client controls |
+| 2 | the A/B gate measures a lab copy of the read loop, not the product's | `read_path_ab.sh`, §12 | the landed work has no gate |
+| 3 | nothing fails when the planner's names are dropped before the read path | tests | the feature is untested end to end |
+| 4 | nothing fails when the read path waits before it starts | tests | the order §13.4 names is not pinned |
+| 5 | small leftovers | §15.7 | each one line |
+
+### 15.3 · Change 1 · bound what the loop holds
+
+`Planner::next` drains the channel into `in_hand` on every call and pops one. A client that
+stays ahead moves the whole channel into the deque, refills it, and the deque grows without
+limit. §1 says the opposite: the ask reader stops pulling when the channel is full and QUIC
+holds the rest.
+
+Four edits, one invariant — **no per-session memory grows with ask rate**:
+
+**a · stop polling at the cap.** One condition in `Planner::next`:
+
+```rust
+while self.in_hand.len() < ASKS_AHEAD {
+    let Some(ask) = poll() else { break };
+    self.in_hand.push_back(ask);
+}
+```
+
+Peak becomes `ASKS_AHEAD` in the deque and `ASKS_AHEAD` in the channel — 16 frame indexes.
+The rest stay in QUIC. `Planner::push` keeps no cap: `run_session` calls it only on the
+`Step::Wait` path, where `in_hand` is empty by construction.
+
+Test `the_loop_holds_no_more_than_asks_ahead`: flood 100 `Ask::Frame`, assert `in_hand.len()
+<= ASKS_AHEAD` after every `next`. Mutate by removing the condition — measured at 799.
+
+**b · the ask reader streams a batch instead of collecting it.** `spawn_ask_reader` builds a
+`Vec<Ask>` per message; for `RequestFrames` that copies the decoded message into a second
+allocation — 700 k asks at the 4 MiB cap, 11 MiB of `Ask`. Replace the fan-out with a free
+`async fn read_asks(control_recv, tx)` that sends per message and iterates `frames` directly,
+so backpressure applies mid-batch and nothing is duplicated.
+
+**c · `read_fod_msg` stops copying the body twice.** It reads `body` (up to 4 MiB), then
+builds `full = len ++ body` (another 4 MiB) only so `decode_fod_msg` can re-read a length it
+already has. Add `fod::decode_fod_body(&[u8])`, keep `decode_fod_msg` as a wrapper over it,
+and call the body form. Peak on a max-size ask drops from ~12 MiB to ~8 MiB per session.
+Test in `common/fod`: the two decoders agree on every `FodMsg` variant.
+
+**d · `upcoming` stops naming past a `Fill` or `EndSession`.** `filter_map(Ask::frame)` walks
+the whole deque, so `[Frame(5), Fill{..}, Frame(9)]` names 9 as what follows 5. It does not:
+the fill runs first. The read path then spends a window and a device read on a frame that is
+not next. `EndStream` is a no-op and must still be skipped:
+
+```rust
+let upcoming = self.in_hand.iter()
+    .take_while(|a| matches!(a, Ask::Frame(_) | Ask::EndStream))
+    .filter_map(Ask::frame)
+    .take(ASKS_AHEAD)
+    .collect();
+```
+
+Test `upcoming_stops_at_the_first_ask_that_is_not_a_frame`. This corrects §11 cut 2's code as
+well as the tree; §13.3 already says `upcoming` means "the frames this session will be asked
+for after `frame`".
+
+### 15.4 · Change 2 · the A/B measures the product server
+
+`read_path_ab.sh` times two `read_campaign` binaries. `read_campaign`'s `product` arm calls
+`ReadCtx::read` directly through **a copy of `stream_codestream`'s loop** — §14.4 lists that
+copy as a known trap, and HANDOFF §9 admits it. Upcoming, W, fill and pipelined
+`RequestFrame` live in `run_session` → `Planner` → `serve` → `stream_codestream`. The lab
+runs none of that. Teaching `product_ahead` to name W − 1 frames would not fix it: that would
+still be a lab policy standing in for the planner's.
+
+**The binary under test is `exact-server`. The driver is a client.**
+
+**a · `lab/disk-access-bench/src/bin/server_ab.rs`**, ~250 lines, a WebTransport client and
+nothing else:
+
+* connect (dual-stack, IPv4 fallback, `with_no_cert_validation`) — the same connect path the
+  wire tests and `window-harness` use;
+* open the bi control stream, accept the shared media uni;
+* on demand: keep D `RequestFrame`s in flight. The shared stream is FIFO and the server
+  serves in ask order, so envelope *n* answers ask *n*; record `recv − sent[n]`;
+* fill: one `StreamFrames {}`, read `frames` envelopes, record inter-arrival;
+* emit one TSV row: `label arm temp mode depth asks p50_ns p90_ns p99_ns wall_ns asks_per_s
+  cpu_ns_per_ask rss_kib miss_pct`. **`cpu_ns_per_ask` and `rss_kib` are the server's**, read
+  from `/proc/<server-pid>/stat` (utime + stime) and `/proc/<server-pid>/statm` around the
+  session — the driver's own CPU is not the quantity, and `read_campaign`'s process clock has
+  no equivalent once the work is in another process.
+
+**Depth is client asks in flight**, not harness reader tasks. That is the whole difference
+from the lab, and it is what makes the cells able to see the planner.
+
+Not `window-harness`: it is a trace / link-pacer / simulated-RTT rig, and its `--read-bps`
+pacer would sit between the server and the clock. Reuse its connect block, not its loop.
+
+**b · `lab/scripts/server_ab.sh <base-commit>`**, the runner:
+
+* `git worktree add --detach` at `<base>`; build `exact-server --release` in both trees, and
+  `server_ab` once — the *same* driver drives both arms;
+* one dev cert, two ports, **both servers up for the whole run** so idle RSS baselines stay
+  comparable; rotate which one goes first each round;
+* per cell: evict the study and assert residency < 2 %, exactly as `read_campaign` does — move
+  `evict` / `evict_retry` out of `read_campaign.rs` into `residency.rs` and add a small
+  `evict` bin, so there is one eviction implementation and not two (§14.4's "hit cell wearing
+  a cold label");
+* warm cells: one discarded pass in a **separate session**, then measure — a warm-up inside
+  the measured session would leave the server's windows holding bytes;
+* after each session ends, read the server's `session reads … miss_rate=… ring=…` line off
+  its stderr into the row, and **abort a cold cell whose miss rate is below 0.99**;
+* preconditions recorded beside the TSV: `check-fastpath` on the study volume (without
+  `RWF_NOWAIT` every read reports a miss and the warm cell means nothing),
+  `read_fast_path=` from both banners, `--stream-mode shared` pinned on both servers, no
+  co-tenant load.
+
+**c · the cells, and which number decides each.** Two questions, two metrics:
+
+| cell | what the client does | compared with | metric | passes when |
+| --- | --- | --- | --- | --- |
+| cold tiles, depth 1 | one `RequestFrame`, wait, repeat | base binary, same depth | p50 | **tie** — capability preserving |
+| cold tiles, depth 2 | two in flight | base binary, same depth | p50 | HEAD **wins** if the old loop was serial |
+| cold tiles, depth 4 | four in flight | base binary, same depth | p50 | win or tie |
+| warm tiles, depth 1 and 4 | same, cached | base binary, same depth | p50 | **tie** |
+| fill | one `StreamFrames {}` | base binary | p50 per frame | **tie** — fill still names one ahead |
+| depth ladder 1 → 2 → 4 | HEAD only | HEAD against itself | **asks/s** | toward `v36`'s +73.8 % at 2; modest gain or tie at 4 (§9.5) |
+
+The split is not a detail. **p50 per ask rises with depth by construction** — §9.5 measures
+80 µs at depth 1 and 154 µs at depth 4 on the same code, because each tile waits behind three
+others. A ladder read on p50 reads a regression that is not there. A/B cells hold depth fixed
+on both sides, so p50 is right there, and latency is the metric §9.3 put first. `asks_per_s`,
+`cpu_ns_per_ask` and `rss_kib` ride in the TSV as columns; only the one named above is the
+verdict. Pairing rule unchanged: |median| ≥ 28.5 %, signs agree on ≥ 0.8n, and
+`pair_arms.py`'s `MIN_N = 5` — which `read_path_ab.sh` does not enforce and should.
+
+**This is also how the planner is known to have named upcoming.** If it did not, cold depth 4
+matches cold depth 1. No lab hook, no wire timing assertion.
+
+**d · RSS.** +32 KiB per session is below what one session's process RSS can separate. Run
+the RSS cell at `--sessions 64`, depth 4, on the tile fixture, and quote the delta divided by
+the session count — ~+2 MiB total against W = 2. **Tiles only.** A window grows to the whole
+frame on a miss and never shrinks, so at 250 KB frames the figure is W × frame size, not
+32 KiB; §9.3's memory row should say so.
+
+**e · what happens to `read_path_ab.sh`.** It stays, as the **P0 and arm-vs-arm** driver over
+`read_campaign` — the right tool for *ring against pool*, which is what P0 asks. Two fixes
+while it stays: verdict on `p50_ns` with `cpu_ns_per_ask` kept as a column (§12 never named a
+metric, and CPU alone is how an unpaired warm figure came to look like a verdict), and
+`MIN_N = 5`. The 1 GiB sequential cell leaves the product verdict path and stays there as a
+P0 I/O cell. §12 gains one line saying which script gates what: `server_ab.sh` for
+`server/src/transport/` and `server/src/media/`, `read_path_ab.sh` for P0.
+
+Neither script can run in the sandbox and mean anything — it is ~10× slower than the
+workstation and CPU-bound (§14.4). The run belongs on the workstation, with its host file
+beside the TSV.
+
+### 15.5 · Change 3 · warm CPU — read the product cells, then decide
+
+The `+17 %` was `ReadCtx` in the lab, with no matching p50 or asks/s move, and no committed
+file. It may be real hit-path overhead — the W = 4 window table, a `wanted` `Vec` built on
+every `read`, so once per 64 KiB — or it may be lab noise. **Do not touch `read` until the
+product warm cells exist.**
+
+* product warm depth 1 **ties** on p50 → ignore the CPU, or trim later as taste;
+* product warm **loses** on p50 → cut the per-`read` allocation (`wanted` becomes
+  `[(FrameSpan, u32); WINDOWS]` with a length, no heap) and compute each window's `holding`
+  once instead of rescanning in `free_window`. Both inside `read_path.rs`, no signature
+  change, existing tests cover the result.
+
+Either way the verdict and its TSV go into §12, so the number stops being spoken and starts
+being written down.
+
+### 15.6 · Change 4 · pin start-then-wait
+
+`w_named_frames_put_w_reads_in_flight` asserts `pool_starts() == WINDOWS` and
+`pending_windows() == WINDOWS − 1` **after** `read` returns. Both are equally true of a `read`
+that waited for the current frame first and then started the upcoming ones — verified: that
+mutant passes the test and the other 37.
+
+Rewrite it as `w_named_frames_start_before_the_current_read_finishes`, on a runtime whose
+blocking pool has exactly one thread, occupied:
+
+```rust
+let rt = Builder::new_multi_thread().worker_threads(2).max_blocking_threads(1).enable_all().build()?;
+rt.spawn_blocking(move || gate_rx.recv().unwrap());     // the one blocking thread, held
+let task = rt.spawn(async move {
+    let bytes = ctx.read(&store2, span, 0, upcoming).await.map(<[u8]>::to_vec);
+    (ctx, bytes)                                        // the borrow ends at the await
+});
+wait_until(|| store.pool_starts() == WINDOWS, 5s);      // deadline, so a bug fails rather than hangs
+gate_tx.send(()).unwrap();
+let (ctx, bytes) = rt.block_on(task).expect("join");
+bytes.expect("read");
+assert_eq!(ctx.pending_windows(), WINDOWS - 1);
+```
+
+`account_pool_start` runs at *spawn* time in `escalate`, and the pool is gated, so
+`pool_starts() == WINDOWS` while the gate is held **is** "W reads started before the current
+one could finish". No new product hook — `force_pool_reads`, `pool_starts` and
+`reset_pool_starts` already exist; `ReadMode::Pool` keeps the ring out of it. This is cleaner
+than latching inside the store, which would need a new test-only field on `FrameStore`.
+
+Mutate by waiting the current frame before `begin`ning any upcoming — the mutant that passes
+today. `naming_the_next_frame_…` keeps its "served from the other window" claim; this test
+owns the order.
+
+Still a unit test of the product `ReadCtx`. That is the right layer for an order the wire
+cannot see.
+
+### 15.7 · Change 5 · the leftovers
+
+| item | change | pinned by |
+| --- | --- | --- |
+| `fills=1` when `EndStream` arrives before the first fill frame | set `note_fill` when `next` returns the first `Serve` of that fill, not when `Fill` is accepted | `a_fill_stopped_before_its_first_frame_is_not_counted` |
+| ring `build(8)` at W = 4 | `build(WINDOWS as u32)` — §14.1 asked; the ring never holds more than W. Not a performance lever | the two ring tests, unchanged |
+| §1, §2, §4, §5 here and [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6d still say the channel is `W − 1` | correct to: the channel and `in_hand` share `ASKS_AHEAD`; the read path takes at most `WINDOWS − 1`. After 15.3 lands | — |
+| `serve_batch` in two `read_campaign.rs` comments | strike — the lab should not describe a product method that is gone | — |
+| HANDOFF §1 "Validated as the **product**"; NEXT §1 "Done" | **corrected with this section**, in place: the **read path** is validated as the product, the **session loop** is not until 15.4's run | — |
+| an empty study refuses with `StreamFrames 0..=0 outside 0..=0` | say the study is empty | extend `an_empty_study_is_refused_with_from` |
+| `end_stream_stops_a_fill_on_the_wire` can pass vacuously — on a slow host the 400 ms read times out before frame 1 | assert at least one frame arrived *and* `got < frames`; raise the study to 64 frames so the race window is wide | mutate: make `EndStream` a no-op |
+| `cargo fmt` drift on the four files this branch touched | run `cargo fmt` on those files only | — |
+| 470 of `server.rs`'s 763 lines are tests, the runtime / cert / port / connect preamble repeated 6× and `connect_session` unused by two of them | one `wire_test(frames, body)` helper taking a closure over `(control, media)`, every claim unchanged | the existing wire tests |
+| Change **A** | still deferred, not this round | §13.1 |
+
+Noted, not changed: `read_mode_parses_the_three_it_documents` sets a process-wide env var
+while other tests construct a `ReadCtx`. Harmless today — no concurrent test asserts on the
+mode — and Rust 2024 will make `set_var` unsafe. If it ever bites, split parsing into a
+`from_str` the test calls directly and keep one env test.
+
+Out of this round, for the owners: `exact-server` defaults to `--stream-mode per-frame`,
+while §9.1's standing decision is one shared stream (per-frame is 5.76× worse at 250 KB under
+1 % loss). The A/B pins `shared` on both arms; whether the binary's default should follow the
+decision is a wire question, not a read-path one.
+
+### 15.8 · Order of work
+
+| # | lands | passes when |
+| --- | --- | --- |
+| 1 | 15.3 — bound `in_hand`, stream the batch, drop the double copy, stop `upcoming` at a non-frame | its three new tests green, each mutated once; `gate.sh` green. No measurement of its own: nothing here changes which bytes are served |
+| 2 | 15.4a–b — `server_ab` and its runner | both binaries drive, tie/RESOLVED printed per cell, cold cells assert ≥ 99 % misses |
+| 3 | **the run**: HEAD (with 1) against `580e312`, the six cells, on the workstation | `docs/disk-access/server_ab.tsv` + a host file committed. This is the run the four §13 commits never had, and one run covers them and change 1 together |
+| 4 | 15.5 — `read` only if the **server** warm cell loses | the same cells, re-run interleaved, warm back to a tie |
+| 5 | 15.6 — the gated-pool order test | the wait-first mutant fails it |
+| 6 | 15.7 — `note_fill`, the ring's entries, the documents, the test-harness cleanup | `gate.sh` green; §1's channel sentence agrees with `planner.rs` |
+
+Nothing in that list makes the lab a better product. The lab is not in the verdict path for
+this work; after step 2 it is not in the gate path either.
+
+### 15.9 · What this round does not do
+
+P0 and P1. Change **A**. The throttled-link cell (§9.4) — it is a transport cell and wants
+the product driver too, but after step 3, not with it. The client's cap on asks in flight
+(§14.2), which is the one lever that moves latency on the default link and is client
+protocol. `WINDOWS`, `FILL_AHEAD` and `ASKS_AHEAD` keep their §13.1 values; 15.4's run is
+what could argue for moving one, and it has not run yet.
