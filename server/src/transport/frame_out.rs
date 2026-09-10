@@ -10,7 +10,7 @@ use tokio::task::JoinSet;
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
-enum SharedUni {
+pub(crate) enum SharedUni {
     Opening(tokio::task::JoinHandle<Result<SendStream>>),
     Ready(SendStream),
 }
@@ -126,13 +126,6 @@ impl FrameOut {
             #[cfg(test)]
             Self::Detached => unreachable!("a detached sink has no wire to write to"),
         }
-    }
-
-    /// `body` is the whole codestream: the reader returns a frame in one call, and the
-    /// write is chunked so a wide frame does not copy without yielding.
-    pub(crate) async fn send_frame(&mut self, idx: u32, body: &[u8]) -> Result<()> {
-        self.write_head(idx, body.len() as u32).await?;
-        self.write_codestream(body).await
     }
 
     pub(crate) async fn drain_acks(&mut self) {
