@@ -9,7 +9,7 @@ use crate::transport::wire::write_fod_msg;
 use anyhow::{Error, Result};
 use fod::FodMsg;
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{debug, info};
 use wtransport::stream::SendStream;
 
 #[cfg(feature = "telemetry")]
@@ -136,7 +136,7 @@ impl FramePipeline for ProductPipeline {
 
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
         let reason = err.to_string();
-        warn!(frame, %reason, "frame refused");
+        debug!(frame, %reason, "frame refused");
         let Some(control) = self.control.as_mut() else {
             return Ok(());
         };

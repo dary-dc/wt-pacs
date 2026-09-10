@@ -14,6 +14,13 @@ members = [
 ]
 resolver = "2"
 
+# Cross-crate inlining of quinn + rustls. Measured −5–8 % server CPU/frame,
+# −8–20 % send_us p50, −26 % binary; incremental release rebuild ~3 s → ~37 s.
+# See docs/improvements/2026-09-08.md §P1.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
