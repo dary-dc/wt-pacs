@@ -16,7 +16,7 @@ Two tables per campaign: measured, then analysed without a metric.
 | --- | --- | --- |
 | **`SeqReader`** — probe, pool on miss, one frame named | Ties every serious arm on a contiguous sweep; **0 rings**. On tiles: **+62 % wall / +133 % CPU, 6/6** worse at 16 KiB | **Accepted** for fill |
 | **`TileReader`** — probe, lazy ring on first miss, `slots` frames | 1st or tied on tiles; beats every pool arm **RESOLVED** on wall and CPU at 16 KiB cold; ties other ring arms. A 0.4 %-miss fill would still build a ring — that is why fill is a different reader | **Accepted** for tiles |
-| **`pool`** — `RWF_NOWAIT` + `spawn_blocking` | 16 KiB misses: shipped reader **−45.4 % CPU** against it. 250 kB cold, workstation depth 1: pool **beats** the ring (`product` vs `pool` **+38.5 % p50, RESOLVED**). Threads 125–135 at 64 readers | **Fallback**; P0 on the production target can still delete the ring |
+| **`pool`** — `RWF_NOWAIT` + `spawn_blocking` | 16 KiB misses: shipped reader **−45.4 % CPU** against it. At 250 kB cold, `hybrid_lazyring` vs pool is a **tie at every depth**; the old unified `ReadCtx` trailed (`product` vs pool **+38.5 % p50** at depth 1) because the probe was capped at `READ_WINDOW`, not because of the ring. Both readers now probe the whole frame. Threads 125–135 at 64 readers | **Fallback**; P0 on the production target can still delete the ring |
 | **`uring`** — every read through the ring | Hits **+164.8 % CPU at depth 1, RESOLVED**. Misses tie at depth 1; residual 5–15 % only when deep and miss-dominated. Hit penalty scales with frame size (20.4 vs 1.6 µs at 16 KiB; **262 vs 39.6 µs at 250 kB**) | **Rejected** as default; lab flag |
 | **Serving depth 1 → 2** | Cold 16 KiB: **+67.4 %** (lab) / **+73.8 %** (product) asks/s, 12/12; warm a tie. Depth 2 collects 62 % of what 16 offers | **Accepted** (`FILL_AHEAD = 1`, `TILE_SLOTS` default 4) |
 | **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — largest effect in this investigation. Peer must advertise the same ceiling | Measured, **not taken** |
@@ -82,7 +82,7 @@ Emulator only (10 Mbps, `--rtt-ms 60`). Not a product lock. Rank **median latene
 
 | Candidate | Latest result | Verdict |
 | --- | --- | --- |
-| **Batches of 64 on an owned sender** | Busy 16 producers: **23 ns**/emit (was 7–12 µs under a global lock). Serving CPU **+0.3–2.1 %** with telemetry on | **Shipped** |
+| **Batches of 64 on an owned sender** | Busy 16 producers: **23 ns**/emit (was 7–12 µs under a global lock, 4–64 producers). Serving CPU **+0.3–2.1 %** with telemetry on | **Shipped** |
 | **Streaming rows + histograms** | 1 M rows: 3.8 MB RSS / 0.12 s exit vs 75 MB / 0.98 s for in-memory JSON. Exact rebuild from the file | **Shipped** |
 | **`ack_us`** — stamp `finish().await` | Built and measured; every shape puts a telemetry token on the product send path | **Withdrawn** |
 | **Client Proxy** on `WebTransport` | Both arms, one shell. Own cost **25–30 µs** main-thread/frame in the interactive cell (improvements P3) | **Shipped** (lab-only builds) |
