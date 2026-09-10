@@ -186,22 +186,36 @@ is the driver's ask-to-envelope round trip; a fill's is the inter-arrival:
 | 250 KB fill | 527 → 314 µs per frame (**−40 %**, 6/6) | +54 % (6/6) | −53 % (6/6) | 24 → 0.3 |
 | 32 KB fill | 52 → 11 µs per frame (6/6); p99 374 → 503 (4/6 higher) | +12 % (5/6) | −39 % (6/6) | 3.8 → 0.2 |
 
-Where the box saturates — the same four vCPUs shared with a 16-session driver, depth 4:
+Where the box saturates — 16 and 32 sessions at depth 4, one client socket per session
+(`server_ab` opens one per session now; `--one-socket` is the old behaviour), six repeats
+paired. First the server pinned to two cores with the driver on the other two, then all four
+shared:
 
-| cell | asks / s | CPU per ask | p99 | p50 |
+| cell | asks / s | CPU per ask | p50 | p99 |
 | ---- | -------: | ----------: | --: | --: |
-| 250 KB, 4 sessions | −1.8 % (4/6 lower) — tie | −33 % (6/6) | −70 % (6/6) | +18 % (5/6 higher) |
-| 250 KB, 16 sessions | **−9 % (5/6)** | −29 % (6/6) | −36 % (6/6) | +124 % (6/6) |
-| 32 KB, 16 sessions | **−8 % (5/6)** | −31 % (6/6) | +1 % — tie | +224 % (6/6) |
+| 250 KB, 16 sessions, server on 2 cores | −3.6 % (4/6 lower) — tie | −5 % (4/6) — tie | +20 % (6/6) | −5 % (4/6) |
+| 32 KB, 16 sessions, server on 2 cores | **+9 % (6/6)** | −22 % (6/6) | −19 % (6/6) | −2.5 % (4/6) |
+| 250 KB, 32 sessions, server on 2 cores | +8 % (4/6) | −13 % (6/6) | +3 % — tie | −53 % (4/6) |
+| 32 KB, 32 sessions, server on 2 cores | **+17 % (6/6)** | −23 % (6/6) | −9 % (6/6) | −42 % (4/6) |
+| 250 KB, 16 sessions, 4 cores shared | +10 % (4/6) | −12 % (6/6) | −19 % (6/6) | +1.5 % — tie |
+| 32 KB, 16 sessions, 4 cores shared | **+12 % (6/6)** | −21 % (6/6) | −32 % (6/6) | +23 % (6/6 higher) |
+| 250 KB, 4 sessions at depth 4, 4 cores shared | +8 % (5/6) | −16 % (6/6) | −10 % (6/6) | −3 % — tie |
+| 250 KB, 4 sessions at depth 1, 4 cores shared | **+15 % (6/6)** | −24 % (6/6) | −17 % (6/6) | −14 % (6/6) |
 
-Reading: with 64 asks in flight and the same throughput, Little's law fixes the mean, so the
-median rising while p99 falls is the tail closing — sessions hashed onto one endpoint are
-served evenly, where work stealing let some starve. The one cost measured is throughput at
-saturation, −8 to −9 % (5/6), on a box where the driver holds most of the four cores; server
-CPU per ask is 29–33 % lower there, which is throughput on a box where the clients are not the
-bottleneck (S2's condition in the telemetry review). Not measured: thousands of sessions, where
-the hash balances; two or three heavy sessions hashed onto one endpoint, where it does not and
-work stealing would.
+Reading: busy, the multi-thread runtime wastes fewer wake-ups — there is no parked worker to
+notify — so the saving per ask shrinks from 40–64 % at one session to 5–24 % here, and
+throughput follows it: +8 to +17 % on six of eight cells, a tie on the two 250 KB
+sixteen-session cells. The one column against is the 32 KB tail on four shared cores
+(+23 %, 6/6): sixteen sessions hash unevenly onto four endpoints and the busiest thread's
+sessions wait longest. Not measured: thousands of sessions on many cores with the clients off
+the box, which is P0's rig; the hash evens out with count, while a few heavy sessions landing
+on one endpoint is the case work stealing handled and this does not.
+
+**One socket, one thread.** The first run of these cells read −31 to −41 % throughput (6/6):
+the driver had opened every session from a single client socket, so they shared one 4-tuple
+and the kernel hashed all of them onto one endpoint thread while the others idled. A browser
+opens a socket per session and a fleet of viewers has as many addresses; a UDP proxy or load
+balancer that forwards every session from one source port would do the same to the product.
 
 **To a browser.** The same A/B driven by the product TypeScript client in headless Chromium 141
 on this VM (`lab/scripts/browser_cell.py`; one session, six interleaved repeats, wall per frame):
@@ -239,9 +253,10 @@ per-core shape is what quinn's own docs give for scaling out.
 
 **Costs.** A client whose 4-tuple changes mid-session (NAT rebinding, a Wi-Fi to cellular move)
 hashes to another endpoint, which does not know the connection and answers with a stateless
-reset: the session drops and the client reconnects. `--workers 1` keeps one endpoint. Two
-servers of one user started on one port share it silently; a single-endpoint server keeps the
-exclusive bind. Yielding the serving loop after every frame (`yield_now`), so the driver
+reset: the session drops and the client reconnects. A front that forwards many sessions from
+one source port puts them all on one thread (−31 to −41 % throughput at 16–32 sessions,
+above); a per-flow port on the front, or `--workers 1`, avoids it. `--workers 1` also keeps
+the exclusive bind: two servers of one user started on one port otherwise share it silently. Yielding the serving loop after every frame (`yield_now`), so the driver
 sends before the next ask is read, was measured on this shape and rejected: +7 % p50 and −9 %
 asks/s at 32 KB depth 1 (6/6), a tie at 250 KB depth 4; it only smooths a fill's inter-arrival
 (p99 −63 %), which no reader waits on.
@@ -258,6 +273,9 @@ git worktree add /tmp/base main && (cd /tmp/base && cargo build --release -p exa
 lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 200 1 6 \
   base /tmp/base-target/release/exact-server -- new target/release/exact-server > rt.tsv
 lab/scripts/runtime_ab_pair.py rt.tsv base new
+# saturation: 16 sessions at depth 4, 100 asks each; SERVER_CPUS / CLIENT_CPUS pin the two sides
+SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_32k/frames_32k.sbnd \
+  on-demand 4 200 16 6 base /tmp/base-target/release/exact-server -- new target/release/exact-server
 # the browser cells: static host, TS bundle, then one server per run
 python3 server/dev-server.py --port 8765 &
 bash client/transport-ts/build.sh

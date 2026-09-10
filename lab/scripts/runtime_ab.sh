@@ -6,6 +6,7 @@
 #     <label-a> <bin-a> [server args...] -- <label-b> <bin-b> [server args...] [-- ...]
 #
 # One row per run, `server_ab`'s columns plus the server's context switches per ask.
+# SERVER_CPUS / CLIENT_CPUS pin the two sides (taskset lists) so a saturated cell is the server's.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 fx=$1; mode=$2; depth=$3; asks=$4; sessions=$5; reps=$6; shift 6
@@ -20,7 +21,8 @@ for i in "${!arms[@]}"; do
   port=$(python3 -c 'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(("127.0.0.1",0));print(s.getsockname()[1])')
   log=$(mktemp)
   # shellcheck disable=SC2086
-  NO_COLOR=1 RUST_LOG=exact_server=warn "${bins[$i]}" --port "$port" --study "$fx" --stream-mode shared \
+  NO_COLOR=1 RUST_LOG=exact_server=warn ${SERVER_CPUS:+taskset -c "$SERVER_CPUS"} "${bins[$i]}" \
+    --port "$port" --study "$fx" --stream-mode shared \
     --bind 127.0.0.1 --cert-pem "$ROOT/server/dev-cert/cert.pem" --key-pem "$ROOT/server/dev-cert/key.pem" \
     ${args[$i]} >"$log" 2>&1 &
   pids+=($!); ports+=("$port"); logs+=("$log")
@@ -34,7 +36,8 @@ ctx() { awk '/ctxt_switches/ {s+=$2} END {print s+0}' "/proc/$1/task/"*/status; 
 run() {
   local i=$1 r=$2 c0 c1 row
   c0=$(ctx "${pids[$i]}")
-  row=$("$ROOT/target/release/server_ab" --url "https://127.0.0.1:${ports[$i]}/" --server-pid "${pids[$i]}" \
+  row=$(${CLIENT_CPUS:+taskset -c "$CLIENT_CPUS"} "$ROOT/target/release/server_ab" \
+    --url "https://127.0.0.1:${ports[$i]}/" --server-pid "${pids[$i]}" \
     --mode "$mode" --depth "$depth" --asks "$asks" --sessions "$sessions" --frames "$frames" \
     --label "r$r" --arm "${arms[$i]}" --temp warm --no-header)
   c1=$(ctx "${pids[$i]}")
