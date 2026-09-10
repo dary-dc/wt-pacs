@@ -36,6 +36,7 @@ export type FodMessage =
   | { op: "stream_frames"; from?: number; to?: number }
   | { op: "end_stream" }
   | { op: "frame_error"; frame_index: number; reason: string }
+  | { op: "study"; frames: number }
   | { op: "other"; raw: string };
 
 /** LE length + JSON, possibly several back to back. Returns the messages and the bytes they
@@ -53,7 +54,7 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
       const msg = JSON.parse(text) as {
         op?: string;
         frame?: number;
-        frames?: number[];
+        frames?: number[] | number;
         from?: number;
         to?: number;
         frame_index?: number;
@@ -73,6 +74,8 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
         messages.push({ op: "end_stream" });
       } else if (msg.op === "frame_error" && typeof msg.frame_index === "number") {
         messages.push({ op: "frame_error", frame_index: msg.frame_index, reason: msg.reason ?? "" });
+      } else if (msg.op === "study" && typeof msg.frames === "number") {
+        messages.push({ op: "study", frames: msg.frames });
       } else {
         messages.push({ op: "other", raw: text });
       }

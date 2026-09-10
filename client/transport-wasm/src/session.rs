@@ -228,6 +228,7 @@ struct SessionState {
     dropped_early: u64,
     errors: HashMap<u32, String>,
     frame_errors: u64,
+    study_frames: Option<u32>,
 }
 
 pub struct TransportSession {
@@ -314,6 +315,9 @@ impl TransportSession {
                         s.errors.insert(frame_index, reason);
                         s.frame_errors += 1;
                         s.waiters.remove(&frame_index);
+                    }
+                    Ok(FodMsg::Study { frames }) => {
+                        st_ctl.borrow_mut().study_frames = Some(frames);
                     }
                     Ok(_) => continue,
                     Err(_) => break,
@@ -493,6 +497,10 @@ impl TransportSession {
     /// gone at the QUIC idle timeout (~30 s), which is what the telemetry harvest used to wait on.
     pub fn close(&self) {
         self.transport.close();
+    }
+
+    pub fn study_frames(&self) -> Option<u32> {
+        self.state.borrow().study_frames
     }
 
     pub fn stats(&self) -> Result<JsValue, String> {

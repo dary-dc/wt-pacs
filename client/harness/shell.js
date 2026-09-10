@@ -11,7 +11,7 @@
  *   cell=…             ondemand (one RequestFrame per step, `d` in flight) | fill (one StreamFrames)
  *   d=…                outstanding asks for on-demand (default 1 — the control)
  *   n=…                steps to run (default: one pass over the study)
- *   frames=…           study frame count (default: /study/metadata frameCount)
+ *   frames=…           study frame count (default: control `study`, else /study/metadata)
  *   trace=…            URL of a lab trace (steps[].frame, step_interval_ms) instead of n/frames
  *   interval_ms=…      pacing between steps becoming due (default: the trace's, else 0)
  *   autorun=1          run the cell on load, then close the session and set window.__wtpacsDone
@@ -59,17 +59,24 @@ function heapPeakSampler(stats) {
   };
 }
 
-async function studyFrameCount() {
+async function studyFrameCount(session) {
   const p = params.get("frames");
   if (p) return Number(p);
+  if (session && typeof session.studyFrames === "function") {
+    for (let i = 0; i < 40; i++) {
+      const n = session.studyFrames();
+      if (n != null) return Number(n);
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  }
   const meta = await fetch("/study/metadata").then((r) => r.json());
   return Number(meta.frameCount);
 }
 
 /** Step list and pacing: a lab trace, or `n` steps cycling over the study. */
-async function schedule() {
+async function schedule(session) {
   const traceUrl = params.get("trace");
-  const frames = await studyFrameCount();
+  const frames = await studyFrameCount(session);
   let steps;
   let interval = 0;
   let name;
@@ -180,7 +187,7 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
     };
 
     const runCell = async () => {
-      const { steps, interval, frames, name } = await schedule();
+      const { steps, interval, frames, name } = await schedule(session);
       const stats = { delivered: 0, failed: 0, heap_peak: heapBytes() };
       const heapStart = heapBytes();
       const wasmStart = memoryBytes ? memoryBytes() : null;

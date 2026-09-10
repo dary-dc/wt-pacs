@@ -42,6 +42,7 @@ export class TransportSession {
   private bulkPending = new Map<number, Promise<{ bytes: Uint8Array; receivedMs: number }>>();
   private droppedEarly = 0;
   private frameErrors = 0;
+  private frames: number | null = null;
 
   private constructor(
     transport: WebTransport,
@@ -151,7 +152,9 @@ export class TransportSession {
     try {
       for (;;) {
         const msg = await readFodFrom(reader, buf);
-        if (msg.op === "frame_error") {
+        if (msg.op === "study") {
+          this.frames = msg.frames;
+        } else if (msg.op === "frame_error") {
           this.failWaiter(msg.frame_index, msg.reason ?? "frame error");
         }
       }
@@ -239,6 +242,10 @@ export class TransportSession {
 
   async endStream() {
     await this.sendFod({ op: "end_stream" });
+  }
+
+  studyFrames(): number | null {
+    return this.frames;
   }
 
   stats() {

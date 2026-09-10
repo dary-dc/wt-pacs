@@ -31,6 +31,11 @@ pub enum FodMsg {
         #[serde(default)]
         reason: String,
     },
+    /// Catalog: how many instances the study holds. Pushed once after accept.
+    /// `docs/WIRE.md`.
+    Study {
+        frames: u32,
+    },
 }
 
 pub fn encode_fod_msg(msg: &FodMsg) -> Result<Vec<u8>> {
@@ -101,6 +106,14 @@ mod tests {
         assert_eq!(decode_fod_msg(&stop).unwrap(), FodMsg::EndStream);
     }
 
+    /// The catalog is a small JSON object so a client can learn `frames` without HTTP.
+    #[test]
+    fn study_pins_the_wire_bytes() {
+        let enc = encode_fod_msg(&FodMsg::Study { frames: 3 }).unwrap();
+        assert_eq!(&enc[4..], br#"{"op":"study","frames":3}"#);
+        assert_eq!(decode_fod_msg(&enc).unwrap(), FodMsg::Study { frames: 3 });
+    }
+
     /// The length-prefixed decoder and the body decoder agree on every variant.
     #[test]
     fn decode_fod_body_agrees_with_decode_fod_msg_on_every_variant() {
@@ -123,6 +136,7 @@ mod tests {
                 frame_index: 9,
                 reason: "out of range".into(),
             },
+            FodMsg::Study { frames: 3 },
         ];
         for msg in msgs {
             let enc = encode_fod_msg(&msg).unwrap();

@@ -6,7 +6,8 @@ export type FodMsg =
   | { op: "stream_frames"; from?: number; to?: number }
   | { op: "end_stream" }
   | { op: "end_session" }
-  | { op: "frame_error"; frame_index: number; reason?: string };
+  | { op: "frame_error"; frame_index: number; reason?: string }
+  | { op: "study"; frames: number };
 
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder();

@@ -84,6 +84,11 @@ impl TransportSessionHandle {
         self.inner.stats().map_err(|e| JsValue::from_str(&e))
     }
 
+    #[wasm_bindgen(js_name = studyFrames)]
+    pub fn study_frames(&self) -> Option<u32> {
+        self.inner.study_frames()
+    }
+
     #[wasm_bindgen(js_name = close)]
     pub fn close(self) {
         self.inner.close();

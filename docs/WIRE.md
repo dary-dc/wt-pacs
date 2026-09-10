@@ -3,7 +3,9 @@
 Two WebTransport streams per session:
 
 1. **Control (bidirectional)** — length-prefixed FoD JSON (`RequestFrame`, `RequestFrames`,
-   `EndSession`). Server may write `FrameError` on the same stream for immediate refusal.
+   `EndSession`). After the bidi is accepted the server writes one `Study { frames }` so the
+   client learns how many instances exist without a sidecar GET. It may also write `FrameError`
+   for an immediate refusal.
 
    **Ask granularity matters.** The **real-time path uses one `RequestFrame` per message.**
    An ask-reader task owns the control stream and feeds a planner; pipelined `RequestFrame`s
@@ -29,9 +31,16 @@ Study bundles use on-disk **SBND** layout (see `docs/FIXTURES.md`).
 
 | Message | Documented intent | What the server does today |
 | --- | --- | --- |
+| `Study { frames }` | catalog: how many instances the opened study holds | written once, pre-encoded at process start, as the first control message after accept |
 | `RequestFrame { frame }` | interactive path, *depth = outstanding asks* | ask-reader + planner: this frame is served with any already-queued asks as `upcoming` |
 | `RequestFrames { frames }` | bulk path, several indexes in one message | flattened to one `Ask::Frame` per index; the same planner, the same upcoming |
 | `EndSession` | stop | stop |
+
+`Study` is the QIDO/WADO-metadata analogue on this wire: JSON, no pixels. The bytes are
+`{"op":"study","frames":N}`. A client that already has the bidi does not need
+`GET /study/metadata` to learn `frameCount`. Measured on this host, interleaved, 8 pairs,
+after the session is up: control-catalog p50 vs sidecar HTTP GET p50 is recorded with the
+test `catalog_on_control_is_faster_than_a_sidecar_get` (run it; the gap is host-local).
 
 The depth in `RequestFrame`'s intent is the **client's** — how many asks it may have
 outstanding. The server keeps up to `ASKS_AHEAD` of them in hand and the tile reader

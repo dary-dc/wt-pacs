@@ -9,7 +9,7 @@ use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{anyhow, Context, Result};
-use fod::FodMsg;
+use fod::{encode_fod_msg, FodMsg};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -47,6 +47,9 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     let (endpoint, bound) = build_endpoint(&config).await?;
 
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
+    let study_fod = Arc::<[u8]>::from(encode_fod_msg(&FodMsg::Study {
+        frames: store.frame_count(),
+    })?);
 
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
@@ -80,8 +83,9 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
+        let study_fod = Arc::clone(&study_fod);
         tokio::spawn(async move {
-            if let Err(err) = handle_incoming(incoming, store, mode).await {
+            if let Err(err) = handle_incoming(incoming, store, study_fod, mode).await {
                 warn!(%err, "session ended");
             }
         });
@@ -180,6 +184,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
 async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
     store: Arc<FrameStore>,
+    study_fod: Arc<[u8]>,
     mode: StreamMode,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
@@ -188,10 +193,15 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let (control_send, control_recv) = connection
+    let (mut control_send, control_recv) = connection
         .accept_bi()
         .await
         .context("accept control bidi")?;
+    // Catalog, once, before any ask. `docs/WIRE.md`.
+    control_send
+        .write_all(&study_fod)
+        .await
+        .context("write study")?;
 
     let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out).with_control(control_send);
@@ -271,7 +281,7 @@ async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Res
         Ok(FodMsg::StreamFrames { from, to }) => Ask::Fill { from, to },
         Ok(FodMsg::EndStream) => Ask::EndStream,
         Ok(FodMsg::EndSession) => Ask::EndSession,
-        Ok(FodMsg::FrameError { .. }) => return Ok(()),
+        Ok(FodMsg::FrameError { .. }) | Ok(FodMsg::Study { .. }) => return Ok(()),
         Err(err) => Ask::Failed(err),
     };
     let failed = matches!(ask, Ask::Failed(_));
@@ -288,9 +298,11 @@ mod tests {
     use super::*;
     use crate::media::frame_store::FrameSpan;
     use crate::transport::planner::Mode;
+    use crate::transport::wire::read_fod_msg;
     use fod::FodMsg;
     use frame_envelope::unwrap;
-    use std::io::Write;
+    use std::io::{Read, Write};
+    use std::time::Instant;
     use wtransport::stream::SendStream;
     use wtransport::ClientConfig;
 
@@ -542,6 +554,7 @@ mod tests {
         wtransport::Connection,
         SendStream,
         RecvStream,
+        RecvStream,
     ) {
         let server = tokio::spawn(run_server(ServeConfig {
             wt_port: port,
@@ -571,14 +584,14 @@ mod tests {
             }
         }
         let connection = connection.expect("server never accepted a connection");
-        let (control, _control_recv) = connection
+        let (control, control_recv) = connection
             .open_bi()
             .await
             .expect("open bi")
             .await
             .expect("bi ready");
         let media = connection.accept_uni().await.expect("accept media uni");
-        (server, connection, control, media)
+        (server, connection, control, control_recv, media)
     }
 
     fn wire_test<F, Fut>(frames: u32, body: F)
@@ -600,11 +613,191 @@ mod tests {
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
-            let (server, _conn, control, media) =
+            let (server, _conn, control, _control_in, media) =
                 connect_session(study, cert_pem, key_pem, cert_hash, port).await;
             body(control, media).await;
             server.abort();
         });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    async fn open_client(
+        cert_hash: [u8; 32],
+        port: u16,
+    ) -> (wtransport::Connection, SendStream, RecvStream, RecvStream) {
+        let endpoint = wtransport::Endpoint::client(
+            ClientConfig::builder()
+                .with_bind_config(IpBindConfig::InAddrAnyV4)
+                .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                .build(),
+        )
+        .expect("client endpoint");
+        let url = format!("https://127.0.0.1:{port}/");
+        let connection = endpoint.connect(url).await.expect("connect");
+        let (control, control_recv) = connection
+            .open_bi()
+            .await
+            .expect("open bi")
+            .await
+            .expect("bi ready");
+        let media = connection.accept_uni().await.expect("accept media uni");
+        (connection, control, control_recv, media)
+    }
+
+    async fn catalog_from_control(control_in: &mut RecvStream) -> (u32, Duration) {
+        let t0 = Instant::now();
+        let msg = tokio::time::timeout(Duration::from_secs(5), read_fod_msg(control_in))
+            .await
+            .expect("study never arrived")
+            .expect("study decode");
+        let dt = t0.elapsed();
+        match msg {
+            FodMsg::Study { frames } => (frames, dt),
+            other => panic!("first control message was {other:?}, not study"),
+        }
+    }
+
+    fn sidecar_get(port: u16) -> (u32, Duration) {
+        let t0 = Instant::now();
+        let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).expect("sidecar");
+        s.set_read_timeout(Some(Duration::from_secs(2)))
+            .expect("timeout");
+        s.write_all(b"GET /study/metadata HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
+            .expect("write get");
+        let mut buf = Vec::new();
+        s.read_to_end(&mut buf).expect("read body");
+        let text = String::from_utf8_lossy(&buf);
+        let body = text.split("\r\n\r\n").nth(1).expect("http body");
+        let v: serde_json::Value = serde_json::from_str(body.trim()).expect("json");
+        (
+            v["frameCount"].as_u64().expect("frameCount") as u32,
+            t0.elapsed(),
+        )
+    }
+
+    fn spawn_sidecar(body: Vec<u8>) -> (u16, std::thread::JoinHandle<()>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind sidecar");
+        let port = listener.local_addr().expect("addr").port();
+        let handle = std::thread::spawn(move || {
+            listener.set_nonblocking(true).expect("nonblocking");
+            let start = Instant::now();
+            while start.elapsed() < Duration::from_secs(30) {
+                match listener.accept() {
+                    Ok((mut s, _)) => {
+                        let mut req = [0u8; 256];
+                        let _ = s.read(&mut req);
+                        let head = format!(
+                            "HTTP/1.0 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = s.write_all(head.as_bytes());
+                        let _ = s.write_all(&body);
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        (port, handle)
+    }
+
+    fn median_us(samples: &mut [u32]) -> u32 {
+        samples.sort_unstable();
+        samples[samples.len() / 2]
+    }
+
+    /// The catalog is the first control message, and it names the study the store opened.
+    #[test]
+    fn the_study_descriptor_is_the_first_control_message() {
+        let frames = 5u32;
+        let dir = std::env::temp_dir().join(format!("wtpacs-study-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let (server, _conn, mut control, mut control_in, mut media) =
+                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+            let (got, _) = catalog_from_control(&mut control_in).await;
+            assert_eq!(got, frames, "catalog named a different study");
+            control
+                .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrame { frame: 0 }).unwrap())
+                .await
+                .expect("ask");
+            let (idx, _) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                .await
+                .expect("frame");
+            assert_eq!(idx, 0, "a catalog write blocked the first ask");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Catalog latency after the bidi is up: control `study` vs a sidecar HTTP GET.
+    /// Interleaved; the claim is the FoD already in the receive buffer, not a second RTT.
+    #[test]
+    fn catalog_on_control_is_faster_than_a_sidecar_get() {
+        let frames = 4u32;
+        let dir = std::env::temp_dir().join(format!("wtpacs-catalog-ab-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let wt_port = free_port();
+        let meta = format!("{{\"frameCount\":{frames}}}").into_bytes();
+        let (http_port, sidecar) = spawn_sidecar(meta);
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let (mut study_us, mut http_us) = rt.block_on(async move {
+            let (server, _conn, _c, mut control_in, _m) =
+                connect_session(study, cert_pem, key_pem, cert_hash, wt_port).await;
+            let mut study_us = Vec::new();
+            let mut http_us = Vec::new();
+            for i in 0..8 {
+                let http_first = i % 2 == 0;
+                if http_first {
+                    let (n, dt) = sidecar_get(http_port);
+                    assert_eq!(n, frames);
+                    http_us.push(dt.as_micros() as u32);
+                }
+                if i == 0 {
+                    let (n, dt) = catalog_from_control(&mut control_in).await;
+                    assert_eq!(n, frames);
+                    study_us.push(dt.as_micros() as u32);
+                } else {
+                    let (_conn, _c, mut cin, _m) = open_client(cert_hash, wt_port).await;
+                    let (n, dt) = catalog_from_control(&mut cin).await;
+                    assert_eq!(n, frames);
+                    study_us.push(dt.as_micros() as u32);
+                }
+                if !http_first {
+                    let (n, dt) = sidecar_get(http_port);
+                    assert_eq!(n, frames);
+                    http_us.push(dt.as_micros() as u32);
+                }
+            }
+            server.abort();
+            (study_us, http_us)
+        });
+        let study_p50 = median_us(&mut study_us);
+        let http_p50 = median_us(&mut http_us);
+        eprintln!("catalog p50: study={study_p50} us sidecar_http={http_p50} us");
+        assert!(
+            study_p50 < http_p50,
+            "control catalog p50 {study_p50} us was not below sidecar HTTP {http_p50} us"
+        );
+        drop(sidecar);
         std::fs::remove_dir_all(&dir).ok();
     }
 
