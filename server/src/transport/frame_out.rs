@@ -127,10 +127,6 @@ fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
     head
 }
 
-fn write_chunks(ready: &[u8]) -> impl Iterator<Item = &[u8]> {
-    ready.chunks(READ_WINDOW)
-}
-
 fn first_body(body: &[u8]) -> &[u8] {
     body.get(..READ_WINDOW.min(body.len())).unwrap_or(&[])
 }
@@ -220,7 +216,7 @@ mod tests {
             "precondition: a pooled miss returns the whole frame in one call"
         );
         let mut pieces = 0usize;
-        for piece in write_chunks(&ready) {
+        for piece in ready.chunks(READ_WINDOW) {
             assert!(
                 piece.len() <= READ_WINDOW,
                 "write piece {} exceeds READ_WINDOW",
