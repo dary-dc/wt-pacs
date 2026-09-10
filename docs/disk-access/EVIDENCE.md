@@ -690,6 +690,119 @@ and 4, 99.6–100 % miss: **0 short reads, on every row**. Across all five w3 ca
 host, and no published ring number needs re-running on that account.
 
 
+## The two readers, every arm · 2026-09-10 (agent container)
+
+> **Host first.** This ran in the agent container, not on the workstation: shared vCPU,
+> unknown storage class, `--repeats 6`. Its noise floor is measured below rather than assumed,
+> and it is large. **These cells establish direction and shape, not magnitude.** The
+> workstation run in [`NEXT.md`](NEXT.md) item 10 replaces them.
+
+Twelve arms — every candidate `read_campaign` carries — on both access shapes, cold, depth 1,
+one reader, `--monitors 0`, six interleaved repeats. `product_fill` drives `SeqReader` and
+`product_tile` drives `TileReader` themselves; they are the shipped readers, not models of
+them. A ring costs its session **2 fds and ~8.7 KiB of memlock for the session's whole life**,
+so `rings` is the scale column. `miss %` is measured only for arms that probe: `uring`,
+`uring_ringfd`, `pooled_pread` and `pool_capped_probe` report 100.0, and `tokio_fs` 0.0, **by
+construction**.
+
+### The noise floor, measured rather than assumed
+
+`pool_capped_probe` is `pool` with the probe capped at `READ_WINDOW`, so **at a 16 KiB ask the
+two are the same code path**. They read **-6.0 %** apart on the tile cells and **+23.5 %** on
+the fill cells. Nothing under ~24 % on this host means anything - which is what the 28.5 %
+rule exists for. Only the **RESOLVED** rows below are claims.
+
+#### Tile shape — strided, ~99 % miss, 16 KiB
+
+| arm | p50 | p90 | p99 | asks/s | CPU/ask | thr | rings | miss % | vs reader, wall | vs reader, CPU |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `uring` | 59.9 µs | 79.6 | 148.2 | 14570 | 45.7 µs | 5 | 1.00 | 100.0 | -10.1 % 4/6 tie | -0.7 % 3/6 tie |
+| **`product_tile`** | 64.9 µs | 85.5 | 140.4 | 13606 | 45.3 µs | 5 | 1.00 | 99.2 | — | — |
+| `hybrid` | 66.4 µs | 86.4 | 188.0 | 13588 | 47.8 µs | 5 | 1.00 | 99.2 | -1.7 % 4/6 tie | +3.0 % 4/6 tie |
+| `hybrid_lazyring` | 66.1 µs | 90.7 | 168.2 | 13229 | 47.2 µs | 5 | 1.00 | 99.2 | +2.9 % 5/6 tie | +4.4 % 5/6 tie |
+| `hybrid_lazyring_ringfd` | 65.7 µs | 86.5 | 221.3 | 13161 | 47.0 µs | 5 | 1.00 | 99.2 | +3.0 % 5/6 tie | -0.6 % 3/6 tie |
+| `uring_ringfd` | 69.4 µs | 96.4 | 227.9 | 12453 | 44.6 µs | 5 | 1.00 | 100.0 | +5.7 % 5/6 tie | -1.7 % 3/6 tie |
+| `pool_capped_probe` | 104.0 µs | 129.1 | 192.8 | 9156 | 101.6 µs | 6 | 0.00 | 99.2 | +46.8 % 6/6 **RESOLVED** | +121.7 % 6/6 **RESOLVED** |
+| `pool_ringloop` | 108.4 µs | 121.3 | 176.8 | 8997 | 107.4 µs | 6 | 0.00 | 98.8 | +65.3 % 6/6 **RESOLVED** | +137.7 % 6/6 **RESOLVED** |
+| `pool` | 109.0 µs | 137.7 | 192.4 | 8586 | 112.5 µs | 6 | 0.00 | 98.8 | +66.7 % 6/6 **RESOLVED** | +134.4 % 6/6 **RESOLVED** |
+| `product_fill` | 117.8 µs | 144.6 | 195.9 | 8296 | 107.5 µs | 6 | 0.00 | 99.2 | +62.0 % 6/6 **RESOLVED** | +133.0 % 6/6 **RESOLVED** |
+| `pooled_pread` | 115.6 µs | 144.3 | 218.1 | 8086 | 94.6 µs | 6 | 0.00 | 100.0 | +73.0 % 6/6 **RESOLVED** | +106.3 % 6/6 **RESOLVED** |
+
+#### Tile shape — strided, ~99 % miss, 250 kB
+
+| arm | p50 | p90 | p99 | asks/s | CPU/ask | thr | rings | miss % | vs reader, wall | vs reader, CPU |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| **`product_tile`** | 225.1 µs | 277.0 | 397.4 | 4320 | 106.0 µs | 5 | 1.00 | 98.4 | — | — |
+| `hybrid_lazyring_ringfd` | 230.3 µs | 273.5 | 400.2 | 4185 | 107.8 µs | 5 | 1.00 | 98.4 | -3.8 % 3/6 tie | +3.2 % 3/6 tie |
+| `uring_ringfd` | 237.5 µs | 289.3 | 715.3 | 4072 | 104.7 µs | 5 | 1.00 | 100.0 | +6.7 % 4/6 tie | +4.9 % 5/6 tie |
+| `uring` | 208.5 µs | 273.7 | 769.7 | 3924 | 120.4 µs | 5 | 1.00 | 100.0 | +5.2 % 4/6 tie | +16.3 % 4/6 tie |
+| `hybrid_lazyring` | 257.0 µs | 304.3 | 402.5 | 3798 | 113.4 µs | 5 | 1.00 | 98.4 | +14.8 % 4/6 tie | +15.6 % 4/6 tie |
+| `hybrid` | 262.9 µs | 317.4 | 426.2 | 3674 | 111.0 µs | 5 | 1.00 | 98.4 | +17.0 % 5/6 tie | +8.1 % 5/6 tie |
+| `pool` | 250.4 µs | 307.7 | 414.6 | 3543 | 151.8 µs | 6 | 0.00 | 98.4 | +17.5 % 5/6 tie | +51.7 % 6/6 **RESOLVED** |
+| `pooled_pread` | 293.2 µs | 369.0 | 444.9 | 3361 | 155.7 µs | 6 | 0.00 | 100.0 | +31.9 % 5/6 **RESOLVED** | +54.6 % 6/6 **RESOLVED** |
+| `pool_ringloop` | 289.4 µs | 365.2 | 515.6 | 3323 | 166.4 µs | 6 | 0.00 | 98.4 | +32.3 % 6/6 **RESOLVED** | +60.2 % 6/6 **RESOLVED** |
+| `product_fill` | 269.7 µs | 355.7 | 973.6 | 3162 | 201.4 µs | 6 | 0.00 | 98.4 | +45.3 % 6/6 **RESOLVED** | +110.2 % 6/6 **RESOLVED** |
+| `pool_capped_probe` | 296.9 µs | 357.2 | 434.4 | 3124 | 184.4 µs | 6 | 0.00 | 100.0 | +39.1 % 6/6 **RESOLVED** | +92.4 % 6/6 **RESOLVED** |
+
+#### Fill shape — contiguous sweep, 16 KiB
+
+| arm | p50 | p90 | p99 | asks/s | CPU/ask | thr | rings | miss % | vs reader, wall | vs reader, CPU |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `hybrid_lazyring` | 1.8 µs | 2.3 | 32.1 | 110306 | 2.9 µs | 5 | 1.00 | 0.4 | -0.2 % 3/6 tie | -6.3 % 4/6 tie |
+| **`product_fill`** | 1.8 µs | 2.6 | 51.2 | 108844 | 3.6 µs | 6 | 0.00 | 0.4 | — | — |
+| `product_tile` | 1.8 µs | 3.2 | 45.1 | 108087 | 3.7 µs | 5 | 1.00 | 0.4 | -2.8 % 4/6 tie | -4.3 % 4/6 tie |
+| `pool_ringloop` | 1.8 µs | 2.3 | 41.9 | 107486 | 3.2 µs | 6 | 0.00 | 0.4 | +2.5 % 3/6 tie | +1.3 % 3/6 tie |
+| `uring` | 2.5 µs | 3.3 | 24.8 | 105810 | 4.0 µs | 5 | 1.00 | 100.0 | +0.6 % 3/6 tie | +12.2 % 4/6 tie |
+| `uring_ringfd` | 2.7 µs | 3.3 | 30.7 | 104680 | 4.2 µs | 5 | 1.00 | 100.0 | -1.7 % 3/6 tie | +7.5 % 3/6 tie |
+| `pool` | 1.8 µs | 2.4 | 63.4 | 90365 | 5.3 µs | 6 | 0.00 | 0.4 | +0.1 % 3/6 tie | +1.0 % 3/6 tie |
+| `pool_capped_probe` | 1.9 µs | 36.2 | 71.2 | 79164 | 8.5 µs | 6 | 0.00 | 0.4 | +1.7 % 4/6 tie | +6.0 % 3/6 tie |
+| `hybrid` | 1.9 µs | 3.1 | 73.9 | 48864 | 8.2 µs | 5 | 1.00 | 0.4 | +52.1 % 3/6 tie | +20.8 % 3/6 tie |
+| `hybrid_lazyring_ringfd` | 1.9 µs | 73.5 | 126.7 | 32600 | 24.2 µs | 5 | 1.00 | 0.4 | +132.8 % 4/6 tie | +294.6 % 4/6 tie |
+| `tokio_fs` | 54.0 µs | 68.3 | 123.8 | 16042 | 67.7 µs | 7 | 0.00 | 0.0 | +513.9 % 6/6 **RESOLVED** | +1871.7 % 6/6 **RESOLVED** |
+| `pooled_pread` | 55.6 µs | 122.9 | 158.9 | 14642 | 73.4 µs | 7 | 0.00 | 100.0 | +483.7 % 6/6 **RESOLVED** | +1734.4 % 6/6 **RESOLVED** |
+
+#### Fill shape — contiguous sweep, 250 kB
+
+| arm | p50 | p90 | p99 | asks/s | CPU/ask | thr | rings | miss % | vs reader, wall | vs reader, CPU |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `pool_ringloop` | 31.3 µs | 45.7 | 4034.4 | 8589 | 40.4 µs | 6 | 0.00 | 2.7 | -0.5 % 3/6 tie | -4.6 % 4/6 tie |
+| `product_tile` | 29.1 µs | 44.7 | 4338.8 | 8526 | 37.7 µs | 5 | 1.00 | 2.7 | -13.0 % 4/6 tie | -10.1 % 6/6 tie |
+| `uring` | 33.3 µs | 56.9 | 4087.1 | 8452 | 52.3 µs | 5 | 1.00 | 100.0 | -21.4 % 4/6 tie | +2.9 % 3/6 tie |
+| `pool` | 30.5 µs | 60.9 | 4082.6 | 7549 | 51.2 µs | 6 | 0.00 | 2.7 | -18.9 % 4/6 tie | -19.0 % 4/6 tie |
+| `hybrid_lazyring` | 28.7 µs | 48.2 | 4046.6 | 7388 | 41.0 µs | 5 | 1.00 | 2.7 | -5.4 % 4/6 tie | -7.0 % 5/6 tie |
+| `uring_ringfd` | 44.8 µs | 77.5 | 4157.1 | 7200 | 69.5 µs | 5 | 1.00 | 100.0 | -0.2 % 3/6 tie | +28.3 % 5/6 tie |
+| `hybrid_lazyring_ringfd` | 28.3 µs | 53.3 | 3425.1 | 7102 | 48.6 µs | 5 | 1.00 | 2.7 | -13.6 % 5/6 tie | -16.1 % 5/6 tie |
+| `pool_capped_probe` | 86.8 µs | 127.1 | 1390.6 | 6722 | 116.6 µs | 6 | 0.00 | 100.0 | +7.7 % 4/6 tie | +153.8 % 4/6 tie |
+| **`product_fill`** | 32.8 µs | 70.0 | 3784.7 | 6188 | 52.2 µs | 6 | 0.00 | 2.7 | — | — |
+| `hybrid` | 29.2 µs | 77.0 | 3302.7 | 6151 | 88.0 µs | 5 | 1.00 | 2.7 | -5.9 % 4/6 tie | +40.3 % 3/6 tie |
+| `pooled_pread` | 81.7 µs | 125.4 | 1896.5 | 6122 | 104.5 µs | 6 | 0.00 | 100.0 | +8.9 % 4/6 tie | +130.6 % 4/6 tie |
+| `tokio_fs` | 112.0 µs | 156.2 | 283.9 | 5796 | 156.9 µs | 6 | 0.00 | 0.0 | +25.1 % 4/6 tie | +283.9 % 4/6 tie |
+
+### What the four tables say
+
+**Each reader is first-or-tied on its own shape and RESOLVED worse on the other.** That
+diagonal is the case for splitting them, and it is the only thing here clearing the floor on
+both metrics at 6/6:
+
+| | on the tile shape | on the fill shape |
+| --- | --- | --- |
+| `TileReader` (`product_tile`) | **1st at 250 kB, 2nd at 16 KiB** - beats all five pool arms RESOLVED on wall *and* CPU, ties all five ring arms | ties, but builds a ring for a 0.4 %-miss workload |
+| `SeqReader` (`product_fill`) | **+62.0 % wall / +133.0 % CPU, 6/6 RESOLVED worse** at 16 KiB | ties everything serious, and is the **only arm that builds no ring** |
+
+Nothing beat either reader on its own shape: every arm above them is a tie, and every RESOLVED
+row runs against the other arm.
+
+**The `rings` column is the fill result.** `product_fill` reads **0.00 per session** on a cold
+sweep at both sizes, where the reader it replaced read 1.00 per session at 1, 16 and 64
+readers. That is the ~941-session `memlock` ceiling removed at no measured cost in latency.
+
+**`tokio_fs` and `pooled_pread` stay rejected**, by more than before: **+514 %** and **+484 %**
+wall, **+1872 %** and **+1734 %** CPU against `SeqReader` on the 16 KiB fill, 6/6.
+
+**What these cells do not cover:** depth above 1, more than one reader, RSS, warm cells, and
+the co-tenant gap. The **fill 250 kB cell resolves nothing in either direction** - every arm's
+p99 there is 3.3-4.3 ms and the device dominates.
+
 ## Where the margin comes from
 
 `pool` and `hybrid` differ in two things at once — the reader loop and the miss mechanism —
@@ -757,6 +870,9 @@ The whole campaign originally came from one machine, which was its largest risk.
 
 Two CPU vendors, VM and bare metal, three filesystems: **24–34 µs everywhere**, and no
 miss-regime row flipped on any host.
+
+> The 2026-09-10 arm sweep ran in the **agent container** - shared vCPU, unknown storage, a
+> measured noise floor up to 24 %. It is a shape check, not a host in this table.
 
 > The "bare-metal laptop" row and the 2026-09-09 workstation section are the **same machine**
 > — an 8-thread i5-8250U on btrfs-on-LUKS/NVMe. It is the campaign's only bare-metal host; a
