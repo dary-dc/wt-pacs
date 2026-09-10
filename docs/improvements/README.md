@@ -10,7 +10,7 @@ This folder is the front door. The dated files are evidence, not the queue.
 | File | What it is |
 | ---- | ---------- |
 | **this page** | ranked open work, then what already landed on the branch |
-| [`2026-09-10.md`](2026-09-10.md) | third pass: P1 re-measured and landed; the crypto provider measured a tie or a loss; the remaining server levers and what each needs |
+| [`2026-09-10.md`](2026-09-10.md) | third pass: P1 re-measured and landed; the crypto provider a tie or a loss; the UDP payload lever closed against Chromium; a per-session path line; the remaining server levers and what each needs |
 | [`2026-09-08.md`](2026-09-08.md) | second pass: every open item below, reproduced or measured, **no product code** |
 | [`2026-09-06.md`](2026-09-06.md) | first pass: the commits already on the branch, plus withdrawn / null / parked |
 | [`ledger.md`](ledger.md) | one inventory of both passes |
@@ -75,8 +75,12 @@ Not coded on purpose. Numbers in [`2026-09-06.md`](2026-09-06.md) and [`ledger.m
 | - | ---- | -------- |
 | P1 | workspace `[profile.release] lto = "fat"`, `codegen-units = 1`: server CPU per frame −4 to −8 % in every cell, `send_us` p95 −3 to −9 %, binary −26 %; release rebuild 10 s → 39 s | [`2026-09-10.md`](2026-09-10.md) |
 
-Measured in the same run and **not** taken: `aws-lc-rs` as the crypto provider, +3–5 % CPU at
-32 KB, a tie at 250 KB, +10–18 % peak RSS, on a CPU with VAES.
+| path | one INFO line per session from quinn's counters: `session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…` | [`2026-09-10.md`](2026-09-10.md) |
+
+Measured in the same pass and **not** taken: `aws-lc-rs` as the crypto provider, +3–5 % CPU at
+32 KB, a tie at 250 KB, +10–18 % peak RSS, on a CPU with VAES; and the UDP payload lever,
+**closed for browser clients** — Chromium 141 advertises `max_udp_payload_size` 1 472, so no
+server setting sends it a larger datagram.
 
 ### 2026-09-06, `claude/project-improvements-lab-pmohec` — all ten are on `main`
 

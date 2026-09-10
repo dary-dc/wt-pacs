@@ -138,7 +138,9 @@ agree") was gone; it was re-measured against the code that ships before it was l
 | - | - | - | - | - |
 | P1 | performance, build — **landed** | workspace `[profile.release] lto = "fat"`, `codegen-units = 1` | interleaved A/B, 4 arms × 4 cells × 4 repeats, order reversed each repeat: server CPU per frame −8.4 / −7.0 / −8.4 / −3.7 %, 4/4 and no overlap in every cell; `send_us` p95 −3 to −9 %; throughput inside noise; binary −26 %; release rebuild 10 s → 39 s | — |
 | crypto | performance, measured, **not taken** | `aws-lc-rs` for `ring`, on a CPU with VAES / AVX-512 | same run: +3.2 / +5.4 % CPU at 32 KB (4/4), −0.5 / −1.4 % at 250 KB (tie), +10–18 % VmHWM every cell, binary +2.2 MB | none — `crypto-ring` stays |
-| map | analysis | the server levers still open, each with the measurement or decision it needs: UDP payload ceiling, P0, ring fd, `send_window`, frame cache, S2, `read_ahead_kb`, D5 | [`2026-09-10.md`](2026-09-10.md) §What would move the server further | the owners' calls named there |
+| MTU | measured, **closed** | `max_udp_payload_size` 1472 → 4000 against a real browser | Chromium 141 through a UDP relay with the server's bound at 4 000 and 8 972: no datagram above 1 472 in 85 k — the browser advertises 1 472 and quinn takes the smaller bound | none — reopen only for a native peer |
+| path | product, **landed** | `session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…` once per session, from quinn's counters | the relay runs: it caught the black-hole reset to 1 200 that the histogram alone could not explain | — |
+| map | analysis | the server levers still open, each with the measurement or decision it needs: P0, ring fd, `send_window`, frame cache, S2, `read_ahead_kb`, D5 | [`2026-09-10.md`](2026-09-10.md) §What would move the server further | the owners' calls named there |
 
 Corrected in place: `docs/transport/transport-conclusions.md` §3 (the `aws-lc-rs` row now
 carries the VAES re-measurement) and `docs/disk-access/adr.md` §8 (AEAD choice moved from

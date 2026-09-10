@@ -233,7 +233,7 @@ whole plan.
 
 | Lever | Worth | Blocker / cost | Status |
 | --- | --- | --- | --- |
-| **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — the largest effect measured anywhere in this investigation | the peer must advertise the same ceiling, and the peer is a browser; above 4000 B path discovery failed and fell back to 1200 B | **Measured, not taken.** Price it first |
+| **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** with a quinn peer — the largest effect measured anywhere in this investigation | the peer caps it, and the peer is a browser: **Chromium 141 advertises 1 472**. Measured 2026-09-10 through a UDP relay with the server's bound at 4 000 and 8 972 — no datagram above 1 472 in 85 k | **Closed for browser clients** — [`improvements/2026-09-10.md`](../improvements/2026-09-10.md) |
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |

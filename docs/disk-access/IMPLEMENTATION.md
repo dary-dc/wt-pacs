@@ -57,6 +57,19 @@ INFO session reads hits=… misses=… miss_rate=… fill_hits=… fill_misses=�
   has no `uring` feature. A fill-only session is `ring=false` because `SeqReader` has
   no ring to build.
 
+Also at end of session, from quinn's own counters:
+
+```
+INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…
+```
+
+* `mtu` is the largest UDP payload the path carries *now*. `1200` after a long session
+  means quinn's black-hole detection reset it on loss, not that discovery never ran.
+  Against Chromium it tops out at 1 472 whatever the server is told
+  (`docs/improvements/2026-09-10.md`).
+* `lost` against `sent`, with `congestion_events`, is the server-side half of the
+  loss-regime question in `docs/transport/transport-conclusions.md` §1.
+
 ## How a read works
 
 The planner’s `Mode` picks the reader. Each is built on the first frame of its kind, so
