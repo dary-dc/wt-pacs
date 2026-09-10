@@ -319,14 +319,17 @@ impl TileReader {
         self.slots.iter().position(|s| s.key == Some(span))
     }
 
+    /// Prefers a slot with no read landing in it, so an abandoned read never delays a wanted one.
     fn free_slot(&self, span: FrameSpan, upcoming: &[FrameSpan]) -> usize {
         let reach = self.slots.len() - 1;
+        let unnamed = |s: &Slot| match s.key {
+            None => true,
+            Some(k) => k != span && !upcoming.iter().take(reach).any(|&u| u == k),
+        };
         self.slots
             .iter()
-            .position(|s| match s.key {
-                None => true,
-                Some(k) => k != span && !upcoming.iter().take(reach).any(|&u| u == k),
-            })
+            .position(|s| unnamed(s) && s.read.is_none())
+            .or_else(|| self.slots.iter().position(unnamed))
             .expect("at most one slot per named frame")
     }
 
@@ -715,6 +718,32 @@ mod tests {
             tile.serving_slot(),
             0,
             "the first slot serves the asked frame"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **A jump must not queue behind the prefetch it abandons.** The read for the frame the
+    /// client asked for is issued while the abandoned one is still in flight, not after it.
+    #[test]
+    fn an_abandoned_tile_prefetch_does_not_delay_the_frame_that_replaces_it() {
+        let dir = scratch("tilejump");
+        let path = write_bundle(&dir, 4, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let [first, named, jump, behind] = spans(&store, &[0, 1, 2, 3])[..] else {
+            unreachable!("four frames")
+        };
+
+        let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
+        rt.block_on(tile.read(&store, first, &[named])).expect("first");
+        // Frame 1 was named and is in flight; the session jumps to 2, naming 3 behind it.
+        rt.block_on(tile.read(&store, jump, &[behind])).expect("jump");
+        assert_eq!(
+            tile.stats().peak_in_flight,
+            3,
+            "the abandoned read-ahead was awaited before the jumped-to frames were started"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
