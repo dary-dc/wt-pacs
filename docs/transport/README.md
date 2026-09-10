@@ -12,6 +12,7 @@ default `shared`, `--prefault true`, Cubic default.
 | **Prefault** | Fault frame pages off the executor (`--prefault true`) |
 | **Cubic default** | Congestive loss → Cubic; radio loss → BBR. Default Cubic until the mix is measured |
 | **Windows** | Left at quinn defaults. Memory is bounded by the send path, not `send_window` |
+| **Runtime shape** | `--workers` defaults to one endpoint per core, each on its own single-threaded runtime over an `SO_REUSEPORT` socket. A session never changes thread |
 
 Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are not in
 `server/`. GSO 10 → 32 was measured, not applied: the cap lives in quinn, and on the

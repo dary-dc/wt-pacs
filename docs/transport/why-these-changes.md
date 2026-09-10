@@ -143,6 +143,127 @@ git checkout archive/transport-lab-2026-09 -- docs/transport lab/transport
 
 (Checking out `docs/transport` from the tag overwrites these lean face files.)
 
+### 8 · One endpoint per core, each on a single-threaded runtime
+
+**Before.** One QUIC endpoint on tokio's multi-thread runtime, a worker per core. A frame
+crosses five tasks — I/O driver, endpoint driver, connection driver, ask reader, serving loop,
+and the connection driver again to send — and tokio hands a woken task to whichever worker is
+idle. At depth 1 every hop was a cross-thread wake: **28 context switches per 250 KB frame**,
+and the server spent more CPU on a frame (790 µs) than the whole round trip took (630 µs).
+Three passes on the read path and the build had left `serve_us` at 15 µs of that round trip.
+
+**Forced by.** Holding everything but the worker count. 4 vCPU VM, warm page cache, the native
+driver (`server_ab`) pinned to CPUs 2–3, the server to CPUs 0–1, depth 1, p50 of 200–300 asks,
+three repeats each, ranges never overlapping:
+
+| frame | 2 workers | 1 worker | round trip | CPU / frame | ctx switches / frame |
+| ----- | --------: | -------: | ---------: | ----------: | -------------------: |
+| 100 B | 83–96 µs | 57–62 µs | **−35 %** | −55 % | 4.2 → 1.2 |
+| 32 KB | 152–155 | 115–121 | **−23 %** | −45 % | 5.3 → 1.6 |
+| 250 KB | 577–613 | 368–376 | **−37 %** | −50 % | 20 → 1.6 |
+
+One worker on four CPUs reads the same as one worker on two: the cost is the hand-offs, not
+the cores.
+
+**What shipped.** `--workers N`, default one per core: N OS threads, each a `current_thread`
+runtime owning its own endpoint on an `SO_REUSEPORT` socket. The kernel hashes a client's
+4-tuple to one socket, so a session's packets, connection driver, ask reader, serving loop and
+blocking-pool returns all stay on one thread, and every core still serves. `--workers 1` is
+one endpoint on an exclusive bind, as before. The blocking pool and the tile ring (`AsyncFd`)
+run unchanged on the per-thread runtime — the disk ADR's "a hop costs 40 µs on current-thread,
+103 µs here" was this all along.
+
+Interleaved A/B on the same VM, `main` against this branch, both servers up, arm order
+reversed every repeat, six repeats paired per repeat, client unpinned as a user runs it. p50
+is the driver's ask-to-envelope round trip; a fill's is the inter-arrival:
+
+| cell | p50, base → new | asks / s | CPU per ask | ctx / ask |
+| ---- | --------------- | -------: | ----------: | --------: |
+| 100 B, depth 1 | 93.5 → 58.1 µs (**−37 %**, 6/6) | +60 % (6/6) | −64 % (6/6) | 5.0 → 1.1 |
+| 32 KB, depth 1 | 138 → 107 µs (**−23 %**, 6/6) | +29 % (6/6) | −48 % (6/6) | 5.9 → 1.5 |
+| 250 KB, depth 1 | 629 → 408 µs (**−34 %**, 6/6) | +47 % (6/6) | −58 % (6/6) | 29 → 2.0 |
+| 250 KB, depth 4 | 2 194 → 1 352 µs (**−40 %**, 6/6) | +58 % (6/6) | −56 % (6/6) | 27 → 0.2 |
+| 250 KB fill | 527 → 314 µs per frame (**−40 %**, 6/6) | +54 % (6/6) | −53 % (6/6) | 24 → 0.3 |
+| 32 KB fill | 52 → 11 µs per frame (6/6); p99 374 → 503 (4/6 higher) | +12 % (5/6) | −39 % (6/6) | 3.8 → 0.2 |
+
+Where the box saturates — the same four vCPUs shared with a 16-session driver, depth 4:
+
+| cell | asks / s | CPU per ask | p99 | p50 |
+| ---- | -------: | ----------: | --: | --: |
+| 250 KB, 4 sessions | −1.8 % (4/6 lower) — tie | −33 % (6/6) | −70 % (6/6) | +18 % (5/6 higher) |
+| 250 KB, 16 sessions | **−9 % (5/6)** | −29 % (6/6) | −36 % (6/6) | +124 % (6/6) |
+| 32 KB, 16 sessions | **−8 % (5/6)** | −31 % (6/6) | +1 % — tie | +224 % (6/6) |
+
+Reading: with 64 asks in flight and the same throughput, Little's law fixes the mean, so the
+median rising while p99 falls is the tail closing — sessions hashed onto one endpoint are
+served evenly, where work stealing let some starve. The one cost measured is throughput at
+saturation, −8 to −9 % (5/6), on a box where the driver holds most of the four cores; server
+CPU per ask is 29–33 % lower there, which is throughput on a box where the clients are not the
+bottleneck (S2's condition in the telemetry review). Not measured: thousands of sessions, where
+the hash balances; two or three heavy sessions hashed onto one endpoint, where it does not and
+work stealing would.
+
+**To a browser.** The same A/B driven by the product TypeScript client in headless Chromium 141
+on this VM (`lab/scripts/browser_cell.py`; one session, six interleaved repeats, wall per frame):
+
+| cell | base | new | paired |
+| ---- | ---: | --: | ------ |
+| 32 KB, depth 1, 1 500 asks | 442 µs | 445 µs | +1.8 % (2/6 lower) — tie |
+| 32 KB fill, 2 000 frames | 179 | 170 | −5.2 % (4/6) — tie |
+| 250 KB, depth 1, 320 asks | 1 777 | 1 694 | −4.3 % (4/6) |
+| 250 KB fill, 320 frames | 1 202 | 1 278 | +4.4 % (3/6) — tie |
+| no media (`cell=refuse`: 1 500 asks past the study, each refused on the control stream) | 268 | 200 | **−25 % (6/6)** |
+
+Reading: with no media in the round trip the browser sees the server's change whole — 268 to
+200 µs, 6/6. Put 32 KB of media in it and the cell is a tie: that ask costs the native driver
+107 µs end to end and Chromium 442 µs, and the ~240 µs Chromium adds for the bytes (decrypt in
+the network process, the Mojo hop, the copy into the renderer) is untouched by anything the
+server does. At 250 KB that path is 1.7 ms per frame — about 150 MB/s — and is the ceiling.
+**On a browser client the server's whole slice of a depth-1 round trip is about a quarter at
+32 KB, and this change removes most of what was left in it.** That is why three passes of
+server work did not move the workstation numbers: the rest of the round trip is Chromium, and
+the levers that reach it are the client's prefetch depth
+([`../adr-client-window-depth.md`](../adr-client-window-depth.md)) and per-frame priority
+([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §4),
+which change what the reader waits *for*, not how fast one frame is served.
+
+Named, not measured: on the workstation (`intel_pstate`/`powersave`) the cross-core wakes this
+removes also crossed C-states, so the saving there may read larger than on this VM; the depth-1
+cell with the governor at `performance` would price the rest of it. The native driver and the
+browser are both multi-threaded clients and pay the same kind of hand-off on their side.
+
+**Alternative.** One endpoint on its own thread handing accepted connections to per-core
+runtimes keeps the endpoint-to-connection hop, half the cost, and quinn's endpoint driver stays
+one core (S2). One worker in total is the same latency and no scale. Neither was measured; the
+per-core shape is what quinn's own docs give for scaling out.
+
+**Costs.** A client whose 4-tuple changes mid-session (NAT rebinding, a Wi-Fi to cellular move)
+hashes to another endpoint, which does not know the connection and answers with a stateless
+reset: the session drops and the client reconnects. `--workers 1` keeps one endpoint. Two
+servers of one user started on one port share it silently; a single-endpoint server keeps the
+exclusive bind. Yielding the serving loop after every frame (`yield_now`), so the driver
+sends before the next ask is read, was measured on this shape and rejected: +7 % p50 and −9 %
+asks/s at 32 KB depth 1 (6/6), a tie at 250 KB depth 4; it only smooths a fill's inter-arrival
+(p99 −63 %), which no reader waits on.
+
+**Falsified by.** A cell where per-core endpoints lose on wall or CPU per ask with the clients
+off the box (P0's target, 64–256 sessions), or a deployment whose sessions migrate. Re-run:
+
+```bash
+bash server/scripts/gen_dev_cert.sh
+FRAMES=80 bash lab/scripts/gen_tf_fixtures.sh
+NAME=frames_tiny BYTES=100 FRAMES=80 bash lab/scripts/gen_live_cell_fixture.sh
+cargo build --release -p exact-server -p disk-access-bench
+git worktree add /tmp/base main && (cd /tmp/base && cargo build --release -p exact-server --target-dir /tmp/base-target)
+lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 200 1 6 \
+  base /tmp/base-target/release/exact-server -- new target/release/exact-server > rt.tsv
+lab/scripts/runtime_ab_pair.py rt.tsv base new
+# the browser cells: static host, TS bundle, then one server per run
+python3 server/dev-server.py --port 8765 &
+bash client/transport-ts/build.sh
+lab/scripts/browser_cell.py new target/release/exact-server lab/fixtures/frames_32k_big/frames_32k_big.sbnd ondemand 1500 1 6
+```
+
 ---
 
 ## Campaign instruments (on the tag)

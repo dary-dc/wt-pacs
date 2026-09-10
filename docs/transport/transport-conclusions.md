@@ -23,6 +23,7 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 | **GSO segment cap 10 → 32** | Density, not latency: +17 % throughput / −21 % CPU/byte on loopback at n = 1; **not confirmed on real hardware** (−1.0 % / +8.1 %, overlapping). **Not applied.** The cap is `quinn`'s `MAX_TRANSMIT_SEGMENTS`, not a server flag |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte, and it is what contains a stalled client (below). The only send path in `server/` |
 | **Flow-control windows** | Hygiene on this send path. A client that asks for 25 MB and stops reading costs **180 kB**. Left at quinn defaults |
+| **Runtime shape** | **One endpoint per core, each on a single-threaded runtime (`--workers`, default one per core).** Cross-worker hand-offs were 28 context switches per 250 KB frame; removing them is **−23 to −40 % on the depth-1 round trip and −40 to −64 % CPU per frame**, 6/6 in every single-session cell. At saturation with the driver on the same cores, throughput −8 to −9 % (5/6) against −29 to −33 % CPU per ask. [`why-these-changes.md` §8](why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime) |
 
 Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are not in
 `server/`. `--stream-mode per-frame` stays a product flag.
@@ -147,6 +148,7 @@ congestive 600 ms cell.
 | Per-frame is worse because of retransmit deferral | Strong — absolute penalty reproduced to 1.6 % across rigs |
 | GSO cap worth 17 % | Weak — loopback, n = 1, fixture-dependent; real path overlapping |
 | Windows never approached on chunked | Moderate — 48 rows, T2 loopback, N ≤ 16 |
+| One endpoint per core beats the shared multi-thread runtime | Strong for one session (6/6 per cell, 5 cells, two independent measurements); T2 loopback, 4 vCPU. Weak at saturation: the −8 to −9 % throughput cell has the driver on the server's cores |
 
 What would overturn the shipped defaults: a cell where per-frame + FIFO separates in its
 favour (none found), or client telemetry showing the loss mix is overwhelmingly radio

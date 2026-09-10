@@ -8,7 +8,7 @@
  * Query parameters:
  *   telemetry=1        load the telemetry build and harvest via window.__wtpacsTelemetry
  *   stream_mode=…      shared | per-frame (must match the server; recorded in the report)
- *   cell=…             ondemand (one RequestFrame per step, `d` in flight) | fill (one StreamFrames)
+ *   cell=…             ondemand (one RequestFrame per step, `d` in flight) | fill (one StreamFrames) | refuse (ondemand past the study: no media)
  *   d=…                outstanding asks for on-demand (default 1 — the control)
  *   n=…                steps to run (default: one pass over the study)
  *   frames=…           study frame count (default: /study/metadata frameCount)
@@ -113,7 +113,7 @@ function runOndemand(session, steps, interval, stats) {
           },
           (err) => {
             stats.failed += 1;
-            log("frame", frame, "failed:", err && err.message ? err.message : String(err));
+            if (cell !== "refuse") log("frame", frame, "failed:", err && err.message ? err.message : String(err));
             finish(frame);
           },
         );
@@ -180,7 +180,8 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
     };
 
     const runCell = async () => {
-      const { steps, interval, frames, name } = await schedule();
+      const { steps: due, interval, frames, name } = await schedule();
+      const steps = cell === "refuse" ? due.map((_, i) => 1_000_000 + i) : due;
       const stats = { delivered: 0, failed: 0, heap_peak: heapBytes() };
       const heapStart = heapBytes();
       const wasmStart = memoryBytes ? memoryBytes() : null;

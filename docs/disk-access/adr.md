@@ -237,6 +237,7 @@ whole plan.
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
+| **One endpoint per core on single-threaded runtimes** (`--workers`) | **−23 to −40 % on the depth-1 round trip, −40 to −64 % CPU per frame**, 6/6 per cell: the multi-thread runtime's cross-worker hand-offs were 28 context switches per 250 KB frame | throughput −8 to −9 % (5/6) at saturation with the driver on the same cores; a migrating client reconnects | **Landed 2026-09-10**, [`transport/why-these-changes.md` §8](../transport/why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime) |
 | GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
 | Congestion controller, flow-control windows, AEAD choice | unknown | — | **Not measured** — named so they are not mistaken for rejected |
