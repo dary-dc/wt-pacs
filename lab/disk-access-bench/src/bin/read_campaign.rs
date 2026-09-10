@@ -547,6 +547,7 @@ async fn reader_ring(
     misses: Arc<AtomicU64>,
     peak_in_flight: Arc<AtomicU64>,
     short_reads: Arc<AtomicU64>,
+    rings_built: Arc<AtomicU64>,
 ) -> Result<()> {
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
@@ -665,6 +666,7 @@ async fn reader_ring(
     if let Some(r) = ring.as_ref() {
         short_reads.fetch_add(r.short_reads() as u64, Ordering::Relaxed);
     }
+    rings_built.fetch_add(u64::from(ring.is_some()), Ordering::Relaxed);
     lat.lock().unwrap().extend(mine);
     misses.fetch_add(miss, Ordering::Relaxed);
     Ok(())
@@ -859,7 +861,7 @@ fn run_cell(
                 } else if c.arm == Arm::TokioFs {
                     reader_tokio_fs(path, &c, plan, lat).await
                 } else if c.arm.uses_ring() {
-                    reader_ring(store, file, &c, plan, lat, misses, pif, sr).await
+                    reader_ring(store, file, &c, plan, lat, misses, pif, sr, rb).await
                 } else if c.arm == Arm::PoolRingLoop {
                     reader_ringloop(store, file, &c, plan, lat, misses).await
                 } else {
