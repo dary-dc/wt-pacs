@@ -5,12 +5,18 @@
 //! whose misses are rare, and a ring for tiles, whose queue would otherwise be OS threads.
 //! `docs/disk-access/adr.md`.
 
-use crate::media::frame_store::{FrameSpan, FrameStore};
+use crate::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
 use anyhow::{Context, Result};
 use std::mem;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::warn;
+
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[cfg(test)]
+static PROBE_YIELDS: AtomicUsize = AtomicUsize::new(0);
 
 #[cfg(feature = "uring")]
 use crate::media::uring_reader::UringReader;
@@ -68,11 +74,30 @@ fn fit(buf: &mut Vec<u8>, need: usize) {
     }
 }
 
-/// Probe the page cache for the whole frame; hand any shortfall to the blocking pool.
-fn start_pooled(store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>) -> Result<Ahead> {
+/// One `READ_WINDOW` per nowait, then yield. Shortfall stops; rest of frame escalates.
+/// `docs/disk-access/adr.md` §5.
+async fn probe_windows(store: &FrameStore, buf: &mut [u8], offset: u64) -> Result<usize> {
+    let mut done = 0usize;
+    while done < buf.len() {
+        let chunk = READ_WINDOW.min(buf.len() - done);
+        let got = store.read_at_nowait(&mut buf[done..done + chunk], offset + done as u64)?;
+        done += got;
+        if got < chunk {
+            break;
+        }
+        if done < buf.len() {
+            #[cfg(test)]
+            PROBE_YIELDS.fetch_add(1, Ordering::SeqCst);
+            tokio::task::yield_now().await;
+        }
+    }
+    Ok(done)
+}
+
+async fn start_pooled(store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>) -> Result<Ahead> {
     let len = span.len as usize;
     fit(&mut buf, len);
-    let hit = store.read_at_nowait(&mut buf[..len], span.offset)?;
+    let hit = probe_windows(store, &mut buf[..len], span.offset).await?;
     if hit == len {
         return Ok(Ahead::Ready { span, buf });
     }
@@ -84,12 +109,40 @@ fn start_pooled(store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>) -> R
         span,
         join: tokio::task::spawn_blocking(move || {
             store.read_at_blocking(&mut buf[hit..len], at)?;
-            Ok(buf)
+            Ok((buf, true))
         }),
     })
 }
 
-/// A frame's read: parked, landed inline, or still with the pool.
+fn start_ahead(store: &Arc<FrameStore>, span: FrameSpan, buf: Vec<u8>) -> Result<Ahead> {
+    if !store.nowait_supported() {
+        let len = span.len as usize;
+        let mut buf = buf;
+        fit(&mut buf, len);
+        #[cfg(test)]
+        store.account_pool_start();
+        let store = Arc::clone(store);
+        return Ok(Ahead::InFlight {
+            span,
+            join: tokio::task::spawn_blocking(move || {
+                store.read_at_blocking(&mut buf[..len], span.offset)?;
+                Ok((buf, true))
+            }),
+        });
+    }
+    let store = Arc::clone(store);
+    Ok(Ahead::InFlight {
+        span,
+        join: tokio::spawn(async move {
+            match start_pooled(&store, span, buf).await? {
+                Ahead::Ready { buf, .. } => Ok((buf, false)),
+                Ahead::InFlight { join, .. } => join.await.context("join ahead miss")?,
+                Ahead::Idle(buf) => Ok((buf, false)),
+            }
+        }),
+    })
+}
+
 enum Ahead {
     Idle(Vec<u8>),
     Ready {
@@ -98,7 +151,7 @@ enum Ahead {
     },
     InFlight {
         span: FrameSpan,
-        join: JoinHandle<Result<Vec<u8>>>,
+        join: JoinHandle<Result<(Vec<u8>, bool)>>,
     },
 }
 
@@ -142,9 +195,9 @@ impl SeqReader {
             }
             _ => {
                 let buf = mem::take(&mut self.cur);
-                let (buf, missed) = match start_pooled(store, span, buf)? {
+                let (buf, missed) = match start_pooled(store, span, buf).await? {
                     Ahead::Ready { buf, .. } => (buf, false),
-                    Ahead::InFlight { join, .. } => (join.await.context("join frame read")??, true),
+                    Ahead::InFlight { join, .. } => join.await.context("join frame read")??,
                     Ahead::Idle(buf) => (buf, false),
                 };
                 self.count(missed);
@@ -153,14 +206,16 @@ impl SeqReader {
             }
         };
         self.ahead = match next {
-            Some(next) => start_pooled(store, next, spare)?,
+            Some(next) => start_ahead(store, next, spare)?,
             None => Ahead::Idle(spare),
         };
         self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
-        self.stats.peak_in_flight = self
-            .stats
-            .peak_in_flight
-            .max(u16::from(matches!(self.ahead, Ahead::InFlight { .. })));
+        if !store.nowait_supported() {
+            self.stats.peak_in_flight = self
+                .stats
+                .peak_in_flight
+                .max(u16::from(matches!(self.ahead, Ahead::InFlight { .. })));
+        }
         Ok(&self.cur[..span.len as usize])
     }
 
@@ -172,7 +227,8 @@ impl SeqReader {
                 Ahead::Idle(buf) => (None, buf),
                 Ahead::Ready { span, buf } => (Some((span, false)), buf),
                 Ahead::InFlight { span, join } => {
-                    (Some((span, true)), join.await.context("join read-ahead")??)
+                    let (buf, missed) = join.await.context("join read-ahead")??;
+                    (Some((span, missed)), buf)
                 }
             },
         )
@@ -181,6 +237,7 @@ impl SeqReader {
     fn count(&mut self, missed: bool) {
         if missed {
             self.stats.misses += 1;
+            self.stats.peak_in_flight = self.stats.peak_in_flight.max(1);
         } else {
             self.stats.hits += 1;
         }
@@ -328,7 +385,7 @@ impl TileReader {
         }
         let w = self.free_slot(current, upcoming);
         self.wait(w).await?;
-        self.begin(store, w, want)
+        self.begin(store, w, want).await
     }
 
     fn holding(&self, span: FrameSpan) -> Option<usize> {
@@ -346,12 +403,11 @@ impl TileReader {
             .expect("at most one slot per named frame")
     }
 
-    /// Probe the whole frame without waiting; on a shortfall ask for what is missing.
-    fn begin(&mut self, store: &Arc<FrameStore>, w: usize, span: FrameSpan) -> Result<()> {
+    async fn begin(&mut self, store: &Arc<FrameStore>, w: usize, span: FrameSpan) -> Result<()> {
         let len = span.len as usize;
         fit(&mut self.slots[w].buf, len);
         let hit = if self.probe {
-            store.read_at_nowait(&mut self.slots[w].buf[..len], span.offset)?
+            probe_windows(store, &mut self.slots[w].buf[..len], span.offset).await?
         } else {
             0
         };
@@ -812,6 +868,71 @@ mod tests {
             (tile.stats().peak_named, tile.stats().peak_in_flight),
             (1, 0),
             "a hit started upcoming or went to the pool"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+
+    /// A warm fill must not probe the next frame on this task before this one
+    /// is returned. Mutant: `start_pooled` for `next` on this task.
+    #[test]
+    fn a_fill_does_not_probe_the_next_frame_before_returning_this_one() {
+        let dir = scratch("fillhol");
+        let path = write_bundle(&dir, 2, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        if !store.nowait_supported() {
+            eprintln!("skipped: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+        let [first, second] = spans(&store, &[0, 1])[..] else {
+            unreachable!("two frames")
+        };
+        store.reset_nowait_calls();
+        let mut seq = SeqReader::new();
+        let out = rt
+            .block_on(seq.read(&store, first, Some(second)))
+            .expect("read")
+            .to_vec();
+        assert_eq!(out, frame_pattern(0, LEN), "frame 0 came back wrong");
+        let windows = (LEN as usize + READ_WINDOW - 1) / READ_WINDOW;
+        assert_eq!(
+            store.nowait_calls(),
+            windows,
+            "the next frame was probed before this one was returned"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A frame wider than one window yields between nowait chunks. Mutant:
+    /// drop `yield_now`; `PROBE_YIELDS` stays 0.
+    #[test]
+    fn a_wide_hit_probe_yields_between_windows() {
+        let dir = scratch("yields");
+        let path = write_bundle(&dir, 1, 250_000);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        if !store.nowait_supported() {
+            eprintln!("skipped: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+        let span = store.frame_span(0).expect("span");
+        PROBE_YIELDS.store(0, Ordering::SeqCst);
+        let mut seq = SeqReader::new();
+        rt.block_on(seq.read(&store, span, None)).expect("read");
+        let want = (250_000 + READ_WINDOW - 1) / READ_WINDOW - 1;
+        assert_eq!(
+            PROBE_YIELDS.load(Ordering::SeqCst),
+            want,
+            "a 250 kB hit did not yield between windows"
         );
         std::fs::remove_dir_all(&dir).ok();
     }

@@ -31,6 +31,8 @@ pub struct FrameStore {
     nowait_cap: Option<usize>,
     #[cfg(test)]
     pool_starts: AtomicUsize,
+    #[cfg(test)]
+    nowait_calls: AtomicUsize,
 }
 
 impl FrameStore {
@@ -48,6 +50,8 @@ impl FrameStore {
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
+            #[cfg(test)]
+            nowait_calls: AtomicUsize::new(0),
         })
     }
 
@@ -83,6 +87,8 @@ impl FrameStore {
         if !self.nowait {
             return Ok(0);
         }
+        #[cfg(test)]
+        self.nowait_calls.fetch_add(1, Ordering::SeqCst);
         #[cfg(test)]
         let buf = {
             let end = self.nowait_cap.unwrap_or(buf.len()).min(buf.len());
@@ -157,6 +163,16 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn reset_pool_starts(&self) {
         self.pool_starts.store(0, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn nowait_calls(&self) -> usize {
+        self.nowait_calls.load(Ordering::SeqCst)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn reset_nowait_calls(&self) {
+        self.nowait_calls.store(0, Ordering::SeqCst);
     }
 }
 
