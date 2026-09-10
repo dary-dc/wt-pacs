@@ -17,6 +17,8 @@ use crate::media::uring_reader::UringReader;
 
 /// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
 pub const TILE_SLOTS: usize = 4;
+/// Bytes past the named frame a fill asks the kernel to have ready. `docs/disk-access/adr.md`.
+pub const FILL_WINDOW: u64 = 4 << 20;
 
 /// Which escalation a tile session takes, from `WTPACS_READ_PATH`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -108,6 +110,8 @@ enum Ahead {
 pub struct SeqReader {
     cur: Vec<u8>,
     ahead: Ahead,
+    /// End of what the kernel has been asked for; a walk extends it, a seek restarts it.
+    advised_to: u64,
     stats: ReadStats,
 }
 
@@ -122,6 +126,7 @@ impl SeqReader {
         Self {
             cur: Vec::new(),
             ahead: Ahead::Idle(Vec::new()),
+            advised_to: 0,
             stats: ReadStats::default(),
         }
     }
@@ -153,7 +158,11 @@ impl SeqReader {
             }
         };
         self.ahead = match next {
-            Some(next) => start_pooled(store, next, spare)?,
+            Some(next) => {
+                let ahead = start_pooled(store, next, spare)?;
+                self.advise(store, next);
+                ahead
+            }
             None => Ahead::Idle(spare),
         };
         self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
@@ -176,6 +185,22 @@ impl SeqReader {
                 }
             },
         )
+    }
+
+    /// Extended a quarter window at a time, so the syscall is per megabyte of walk and not
+    /// per frame; a seek past the window restarts it.
+    fn advise(&mut self, store: &FrameStore, next: FrameSpan) {
+        let end = next.offset + u64::from(next.len);
+        let want = end + FILL_WINDOW;
+        if (end..=want).contains(&self.advised_to) {
+            if want - self.advised_to < FILL_WINDOW / 4 {
+                return;
+            }
+            store.advise_ahead(self.advised_to, want - self.advised_to);
+        } else {
+            store.advise_ahead(end, FILL_WINDOW);
+        }
+        self.advised_to = want;
     }
 
     fn count(&mut self, missed: bool) {
@@ -648,6 +673,59 @@ mod tests {
             "a fill queued more than one read; its threads no longer scale with sessions"
         );
         assert_eq!(seq.stats().misses, 8, "precondition: every frame missed");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A fill asks the kernel for `FILL_WINDOW` past the named frame, extends it only once a
+    /// quarter window has been walked, and restarts it on a seek past it. Without the
+    /// advice a 250 kB fill at the stock 128 KiB read-ahead misses six frames in ten —
+    /// `docs/disk-access/EVIDENCE.md`.
+    #[test]
+    fn a_fill_tells_the_kernel_what_follows_the_named_frame() {
+        let dir = scratch("advise");
+        let path = write_bundle(&dir, 24, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let rt = rt();
+        let all = spans(&store, &(0..24u32).collect::<Vec<_>>());
+        let end = |s: FrameSpan| s.offset + u64::from(s.len);
+
+        let mut seq = SeqReader::new();
+        rt.block_on(seq.read(&store, all[0], Some(all[1]))).expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[1]), FILL_WINDOW)],
+            "the first frame asks for one whole window past the named frame"
+        );
+        let mut walked = 0u64;
+        for i in 1..20u32 {
+            rt.block_on(seq.read(&store, all[i as usize], Some(all[i as usize + 1])))
+                .expect("read");
+            walked += u64::from(all[i as usize + 1].len);
+            let advice = store.take_advice();
+            if walked < FILL_WINDOW / 4 {
+                assert!(advice.is_empty(), "frame {i}: advised again inside a quarter window");
+            } else {
+                assert_eq!(
+                    advice,
+                    vec![(end(all[1]) + FILL_WINDOW, walked)],
+                    "frame {i}: the extension does not start where the window ended"
+                );
+                break;
+            }
+        }
+        assert!(walked >= FILL_WINDOW / 4, "the walk never extended the window");
+        rt.block_on(seq.read(&store, all[20], Some(all[21]))).expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[21]), FILL_WINDOW)],
+            "a seek past the window restarts it"
+        );
+        rt.block_on(seq.read(&store, all[3], Some(all[4]))).expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[4]), FILL_WINDOW)],
+            "a seek back before the window restarts it"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

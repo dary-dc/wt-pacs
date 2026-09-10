@@ -80,11 +80,20 @@ after this one (`FILL_AHEAD = 1`), and its pooled read is running by the time `r
 returns. `peak_in_flight` is 1: the current frame has already landed, and only the
 named one may still be with the pool. No ring, no extra fd.
 
+The device's queue is the kernel's, not a thread's: after starting `next`, the reader
+tells the kernel (`posix_fadvise(WILLNEED)`) to have `FILL_WINDOW` (4 MiB) past it in
+the page cache, extended a quarter window at a time so the syscall lands once per
+megabyte walked, restarted on a seek. Frames sit in index order in the bundle, so the
+bytes after `next` are the frames after it. Without it a 250 kB fill at the stock
+128 KiB `read_ahead_kb` misses six frames in ten, one blocking read each
+([`EVIDENCE.md`](EVIDENCE.md) §Fill against on-demand, cold).
+
 ```
 read(span, next):
   settle whatever the last call started
   serve span from that, or start it now
   start next on the spare buffer
+  advise the kernel past next, a quarter window at a time
 ```
 
 **Tiles — `TileReader`.** `slots` frames (default `TILE_SLOTS = 4`); `slots` is a
@@ -144,6 +153,7 @@ misses.
 | Both readers reassemble every frame | `both_readers_reassemble_every_frame` |
 | A named fill frame is not read twice | `a_named_fill_frame_is_read_before_it_is_asked_for` |
 | A fill holds one read at a time | `a_fill_never_holds_more_than_one_read_at_once` |
+| A fill advises a window past the named frame, per quarter window, restarted on a seek | `a_fill_tells_the_kernel_what_follows_the_named_frame` |
 | An abandoned read-ahead is settled before reuse | `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused` |
 | Named tiles start before the current wait | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
 | Slot count is a constructor argument | `a_tile_reader_holds_as_many_frames_as_it_was_given_slots` |

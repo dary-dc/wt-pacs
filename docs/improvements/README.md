@@ -76,6 +76,7 @@ Not coded on purpose. Numbers in [`2026-09-06.md`](2026-09-06.md) and [`ledger.m
 | P1 | workspace `[profile.release] lto = "fat"`, `codegen-units = 1`: server CPU per frame −4 to −8 % in every cell, `send_us` p95 −3 to −9 %, binary −26 %; release rebuild 10 s → 39 s | [`2026-09-10.md`](2026-09-10.md) |
 
 | path | one INFO line per session from quinn's counters: `session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…` | [`2026-09-10.md`](2026-09-10.md) |
+| fill | a cold fill missed 60 % of 250 kB frames at the stock read-ahead, one read in flight — slower than on-demand; `SeqReader` now advises the kernel `FILL_WINDOW` ahead: ~1 % misses, warm a tie | [`disk-access/EVIDENCE.md`](../disk-access/EVIDENCE.md) §Fill against on-demand |
 
 Measured in the same pass and **not** taken: `aws-lc-rs` as the crypto provider, +3–5 % CPU at
 32 KB, a tie at 250 KB, +10–18 % peak RSS, on a CPU with VAES; and the UDP payload lever,
