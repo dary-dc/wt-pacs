@@ -46,6 +46,9 @@ struct Args {
     temp: String,
     #[arg(long)]
     no_header: bool,
+    /// Ask on the bidi before accepting the media uni — the product client shape.
+    #[arg(long, default_value_t = false)]
+    ask_first: bool,
 }
 
 fn main() -> Result<()> {
@@ -72,7 +75,8 @@ async fn run(args: Args) -> Result<()> {
     for conn in conns {
         let (mode, depth, asks, frames) = (args.mode, args.depth, args.asks, args.frames.max(1));
         let step = args.step.max(1);
-        set.spawn(async move { session(conn, mode, depth, asks, frames, step).await });
+        let ask_first = args.ask_first;
+        set.spawn(async move { session(conn, mode, depth, asks, frames, step, ask_first).await });
     }
     let mut lats = Vec::new();
     while let Some(joined) = set.join_next().await {
@@ -156,6 +160,7 @@ async fn session(
     asks: usize,
     frames: u32,
     step: u32,
+    ask_first: bool,
 ) -> Result<Vec<u64>> {
     let (mut control, _recv) = connection
         .open_bi()
@@ -163,28 +168,57 @@ async fn session(
         .context("open bi")?
         .await
         .context("bi ready")?;
-    let mut media = connection.accept_uni().await.context("accept media uni")?;
     match mode {
         Mode::OnDemand => {
-            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step).await
+            on_demand(
+                &connection,
+                &mut control,
+                depth.max(1),
+                asks,
+                frames,
+                step,
+                ask_first,
+            )
+            .await
         }
-        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize)).await,
+        Mode::Fill => {
+            fill(
+                &connection,
+                &mut control,
+                asks.min(frames as usize),
+                ask_first,
+            )
+            .await
+        }
     }
 }
 
 async fn on_demand(
+    connection: &Connection,
     control: &mut SendStream,
-    media: &mut RecvStream,
     depth: u32,
     asks: usize,
     frames: u32,
     step: u32,
+    ask_first: bool,
 ) -> Result<Vec<u64>> {
     let plan = |i: usize| (i as u32).wrapping_mul(step) % frames;
     let mut sent = Vec::with_capacity(asks);
     let mut lats = Vec::with_capacity(asks);
     let mut next_send = 0usize;
     let mut next_recv = 0usize;
+    if ask_first {
+        while next_send < asks && next_send < depth as usize {
+            control
+                .write_all(&encode_fod_msg(&FodMsg::RequestFrame {
+                    frame: plan(next_send),
+                })?)
+                .await?;
+            sent.push(Instant::now());
+            next_send += 1;
+        }
+    }
+    let mut media = connection.accept_uni().await.context("accept media uni")?;
     while next_recv < asks {
         while next_send < asks && (next_send - next_recv) < depth as usize {
             control
@@ -196,7 +230,7 @@ async fn on_demand(
             next_send += 1;
         }
         // Pairing envelope n with ask n is the whole timing model; check it rather than assume.
-        let (idx, _) = read_envelope(media).await?;
+        let (idx, _) = read_envelope(&mut media).await?;
         anyhow::ensure!(
             idx == plan(next_recv),
             "envelope {idx} answered ask {} ({})",
@@ -209,17 +243,33 @@ async fn on_demand(
     Ok(lats)
 }
 
-async fn fill(control: &mut SendStream, media: &mut RecvStream, asks: usize) -> Result<Vec<u64>> {
+async fn fill(
+    connection: &Connection,
+    control: &mut SendStream,
+    asks: usize,
+    ask_first: bool,
+) -> Result<Vec<u64>> {
     let mut lats = Vec::with_capacity(asks);
-    control
-        .write_all(&encode_fod_msg(&FodMsg::StreamFrames {
-            from: None,
-            to: None,
-        })?)
-        .await?;
+    if ask_first {
+        control
+            .write_all(&encode_fod_msg(&FodMsg::StreamFrames {
+                from: None,
+                to: None,
+            })?)
+            .await?;
+    }
+    let mut media = connection.accept_uni().await.context("accept media uni")?;
+    if !ask_first {
+        control
+            .write_all(&encode_fod_msg(&FodMsg::StreamFrames {
+                from: None,
+                to: None,
+            })?)
+            .await?;
+    }
     let mut prev = Instant::now();
     for _ in 0..asks {
-        read_envelope(media).await?;
+        read_envelope(&mut media).await?;
         let now = Instant::now();
         lats.push(now.duration_since(prev).as_nanos() as u64);
         prev = now;

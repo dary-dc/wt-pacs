@@ -10,9 +10,27 @@ use tokio::task::JoinSet;
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
+pub(crate) enum SharedUni {
+    Opening(tokio::task::JoinHandle<Result<SendStream>>),
+    Ready(SendStream),
+}
+
+impl SharedUni {
+    async fn ready(&mut self) -> Result<&mut SendStream> {
+        if let Self::Opening(join) = self {
+            let uni = join.await.context("shared uni task")??;
+            *self = Self::Ready(uni);
+        }
+        match self {
+            Self::Ready(uni) => Ok(uni),
+            Self::Opening(_) => unreachable!("just settled"),
+        }
+    }
+}
+
 pub(crate) enum FrameOut {
     Shared {
-        uni: SendStream,
+        uni: SharedUni,
         /// Keeps the QUIC connection alive for the session-scoped uni.
         _connection: Connection,
     },
@@ -26,24 +44,30 @@ pub(crate) enum FrameOut {
 }
 
 impl FrameOut {
-    pub(crate) async fn open(mode: StreamMode, connection: Connection) -> Result<Self> {
+    /// Starts the shared uni; the first [`send_frame`] waits for it.
+    /// `docs/improvements/2026-09-10.md`.
+    pub(crate) fn begin(mode: StreamMode, connection: Connection) -> Self {
         match mode {
             StreamMode::Shared => {
-                let uni = connection
-                    .open_uni()
-                    .await
-                    .context("open shared uni")?
-                    .await
-                    .context("shared uni ready")?;
-                Ok(Self::Shared {
-                    uni,
+                let opener = connection.clone();
+                let opening = tokio::spawn(async move {
+                    let uni = opener
+                        .open_uni()
+                        .await
+                        .context("open shared uni")?
+                        .await
+                        .context("shared uni ready")?;
+                    Ok(uni)
+                });
+                Self::Shared {
+                    uni: SharedUni::Opening(opening),
                     _connection: connection,
-                })
+                }
             }
-            StreamMode::PerFrame => Ok(Self::PerFrame {
+            StreamMode::PerFrame => Self::PerFrame {
                 connection,
                 acks: JoinSet::new(),
-            }),
+            },
         }
     }
 
@@ -53,6 +77,7 @@ impl FrameOut {
         let head = frame_head(idx, body.len() as u32);
         match self {
             Self::Shared { uni, .. } => {
+                let uni = uni.ready().await?;
                 uni.write_all(&head).await.context("write shared head")?;
                 write_body(uni, body).await?;
             }
@@ -83,6 +108,18 @@ impl FrameOut {
                 while acks.join_next().await.is_some() {}
             })
             .await;
+        }
+    }
+}
+
+impl Drop for FrameOut {
+    fn drop(&mut self) {
+        if let Self::Shared {
+            uni: SharedUni::Opening(join),
+            ..
+        } = self
+        {
+            join.abort();
         }
     }
 }

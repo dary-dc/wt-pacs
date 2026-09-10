@@ -125,3 +125,15 @@ Verified on the tree before the pass: workspace build/test/clippy/fmt, TS build/
 tests/absence check, and in Chromium 141 both arms' frame0 + bulk and 64/64 refusals — with the
 WASM package through `wasm-opt` for the first time on this branch (`npm i -g wasm-pack binaryen`
 works on the runner).
+
+---
+
+## 8 · Third pass, 2026-09-10 — first-byte wait (`cursor/latency-real-computer-093d`)
+
+Evidence: [`2026-09-10.md`](2026-09-10.md). The CPU / LTO / crypto / MTU / warm-`fadvise`
+path is **closed** by `claude/serene-rubin-wakfg7` on a real workstation; not retried.
+
+| # | Kind | What | Proof |
+| - | - | - | - |
+| S1 | product | shared uni starts at session accept; first `send_frame` waits; ask + first read do not | `shared_uni_arrives_before_the_client_opens_control` (mutated: serial `accept_bi` first → 5 s timeout) |
+| C8 | product, TS | media uni uses BYOB so the envelope is the stream buffer | `read-media.test.ts` (mutated: short view → `length 63`) |
