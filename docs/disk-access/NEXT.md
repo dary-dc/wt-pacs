@@ -9,7 +9,9 @@ path, sliding `FILL_WINDOW` after naming `next`, first-miss WILLNEED) are not li
 Closed on 2026-09-10 by the split: the probe is the whole frame, look-ahead *is* depth 2,
 tile depth is a constructor argument, and a fill does not build a ring. Naive nowait
 overlap and every-miss 4 MiB `FILL_PREFETCH` stacked on the window are retracted in
-[`adr.md`](adr.md) §2; magnitude is [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap.
+[`adr.md`](adr.md) §2; combo magnitude is [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap
+(250 kB cold miss 35 % → 7 % and p50 −68.9 %, 12/12; 16 KiB force-pool hop kept;
+warm p50 a tie; p99 and 16 KiB cold wall are worse — named there).
 
 | # | Item | Why it is still open |
 | --- | --- | --- |

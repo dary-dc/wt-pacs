@@ -703,6 +703,7 @@ mod tests {
         let mut store = FrameStore::open(&path).expect("open store");
         store.force_pool_reads();
         let store = Arc::new(store);
+        store.stall_pool_reads(2_000_000);
         let rt = rt();
         let mut seq = SeqReader::new();
         store.reset_pool_starts();

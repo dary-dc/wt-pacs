@@ -38,6 +38,8 @@ pub struct FrameStore {
     #[cfg(test)]
     peak_pool_in_flight: AtomicUsize,
     #[cfg(test)]
+    pool_block_ns: AtomicUsize,
+    #[cfg(test)]
     advised: Mutex<Vec<(u64, u64)>>,
 }
 
@@ -60,6 +62,8 @@ impl FrameStore {
             pool_in_flight: AtomicUsize::new(0),
             #[cfg(test)]
             peak_pool_in_flight: AtomicUsize::new(0),
+            #[cfg(test)]
+            pool_block_ns: AtomicUsize::new(0),
             #[cfg(test)]
             advised: Mutex::new(Vec::new()),
         })
@@ -158,6 +162,13 @@ impl FrameStore {
 
     /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
+        #[cfg(test)]
+        {
+            let ns = self.pool_block_ns.load(Ordering::SeqCst);
+            if ns > 0 {
+                std::thread::sleep(std::time::Duration::from_nanos(ns as u64));
+            }
+        }
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
@@ -207,6 +218,12 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
         std::mem::take(&mut *self.advised.lock().unwrap())
+    }
+
+    /// Hold each pooled read so a test can observe two in flight. Eviction is not the lever.
+    #[cfg(test)]
+    pub(crate) fn stall_pool_reads(&self, ns: u64) {
+        self.pool_block_ns.store(ns as usize, Ordering::SeqCst);
     }
 }
 
