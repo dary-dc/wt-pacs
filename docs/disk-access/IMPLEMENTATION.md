@@ -50,8 +50,8 @@ INFO session reads hits=… misses=… miss_rate=… fill_hits=… fill_misses=�
 
 * A **read** is a frame. The reader returns the whole codestream; `READ_WINDOW` chunks
   the write, not the read.
-* `named` / `in_flight` are the peaks across both readers. A fill reports `named=2` and
-  `in_flight=2` on a miss walk (current + named), `in_flight=0` when every probe hits.
+* `named` / `in_flight` are the peaks across both readers. A fill reports `named=2`;
+  `in_flight` is 2 on a no-nowait miss walk, 1 on a nowait miss, 0 when every probe hits.
   A tile session at client depth 1 / 2 / 4 reports `named` 1 / 2 / 4;
   `in_flight` is how many of those actually missed (a hit is served inline).
 * `ring=false` on a tile session with misses means the ring was refused or the build
@@ -64,14 +64,20 @@ The planner’s `Mode` picks the reader. Each is built on the first frame of its
 a session pays for neither reader it does not use.
 
 **Fill — `SeqReader`.** Two buffers. `next` is the frame the planner will ask for
-after this one (`FILL_AHEAD = 1`). Its pooled read is started **before** a miss of
-`span` is awaited, so a cold walk is device depth 2. `peak_in_flight` is 2 when both
-miss, 0 on a hit (inline `RWF_NOWAIT`). No ring, no extra fd.
+after this one (`FILL_AHEAD = 1`). A miss whose filesystem refuses `RWF_NOWAIT`
+starts `next` **before** awaiting `span` — device depth 2, `peak_in_flight` 2. A
+miss that can still probe issues `POSIX_FADV_WILLNEED` for `FILL_PREFETCH` (1 MiB)
+during the wait and starts `next` after — overlapping nowait probes doubled the
+cold miss rate. `peak_in_flight` is 0 on a hit. No ring, no extra fd.
+[`EVIDENCE.md`](EVIDENCE.md) §Fill overlap.
 
 ```
 read(span, next):
-  if the last call already holds span: start next on the spare, then wait for span
-  else: start span, start next, then wait for span
+  if last call holds span as a hit: start next, return
+  if last call holds span as a miss:
+    if nowait: WILLNEED 1 MiB at next, await span, start next
+    else: start next, await span
+  else: start span; then the same
 ```
 
 **Tiles — `TileReader`.** `slots` frames (default `TILE_SLOTS = 4`); `slots` is a
@@ -131,7 +137,8 @@ misses.
 | A miss is one pooled read however wide the frame | `a_missing_frame_costs_one_round_trip_however_wide_it_is` |
 | Both readers reassemble every frame | `both_readers_reassemble_every_frame` |
 | A named fill frame is not read twice | `a_named_fill_frame_is_read_before_it_is_asked_for` |
-| A fill starts the named read before awaiting the current miss | `a_fill_starts_the_named_read_before_the_current_miss_is_awaited` |
+| A no-nowait fill starts the named read before awaiting the current miss | `a_fill_starts_the_named_read_before_the_current_miss_is_awaited` |
+| A nowait fill miss does not overlap pooled reads | `a_nowait_fill_does_not_overlap_pooled_reads` |
 | A fill holds at most current + named | `a_fill_holds_at_most_the_current_miss_and_the_named_one` |
 | An abandoned read-ahead is settled before reuse | `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused` |
 | Named tiles start before the current wait | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |

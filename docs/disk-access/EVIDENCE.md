@@ -1034,15 +1034,42 @@ TSVs at `read-path-evidence-2026-09-10` (`w1_server_ab.tsv`, `w1_read_path_ab.ts
 
 `SeqReader` used to `settle()` (await the named frame) and only then start the next one.
 That is one read against one write — the shape [`adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
-§6b already measured as collecting none of the depth-2 table. The reader now starts `next`
-before awaiting a miss of `span`. Two buffers, `peak_in_flight` 2 when both miss, 0 on a hit.
+§6b already measured as collecting none of the depth-2 table.
 
-Warm 16 KiB fill was already 1.8 µs p50 / 2.6 µs p90 on the agent container (table above) —
-under a **10 µs** budget at p50/p90; p99 was 51.2 µs (scheduler / first-frame, not the copy).
-Warm 250 kB fill was 32.8 µs p50: the host saturates on the kernel copy of 250 kB, and this
-change does not claim that cell. The 10 µs *max* is a 16 KiB (and the non-copy overhead)
-target; a 250 kB frame that is touched cannot land under 10 µs p99 on this class of host.
+**Naive overlap — retracted.** Starting `next` (a `RWF_NOWAIT` probe, then a pool hop on
+short) *during* the current wait doubled the 16 KiB cold miss rate (12.3 % vs 6.2 %) and
+drove 250 kB cold to 100 % misses vs 34 % settle-first. A second nowait during the wait
+turns the kernel's readahead into a hop. That shape does not ship.
 
-Cold fill is the cell the overlap can move. Interleaved A/B against the settle-first reader
-is in [`fill_overlap_ab.tsv`](fill_overlap_ab.tsv) when present; until that file is written
-the magnitude is **not measured on this tip**.
+**What ships.** Where nowait is refused (`--force-pool`, overlayfs), start `next` before
+awaiting the current miss — device depth 2. Where nowait works, `POSIX_FADV_WILLNEED` for
+`FILL_PREFETCH` (1 MiB) during the wait, then start `next`. Warm hits are unchanged
+(inline probe, no hint). Two buffers still. `peak_in_flight` 2 / 1 / 0
+(no-nowait miss / nowait miss / hit).
+
+Campaign: `read_campaign --arms product_fill,product_fill_serial`, interleaved in one
+process, `--monitors 0`, 12 repeats, one reader, depth 1. Rule: |median Δ| ≥ 28.5 % and
+≥ 0.8n same sign. Host: 4 vCPU Xeon (KVM) agent container. Quote **latency**, not
+asks/s — depth 1, they are inverses. TSVs: [`fill_overlap_ab.tsv`](fill_overlap_ab.tsv)
+when present; `/tmp/fill-ab2/` is the one-frame WILLNEED hybrid, `/tmp/fill-ab/` the
+retracted naive overlap.
+
+| Cell | fill p50 | serial p50 | median Δ | signs | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| 16 KiB force-pool (100 % miss) | 9.15 µs | 13.10 µs | **−28.9 %** | 12/12 | **RESOLVED** |
+| 250 kB force-pool (100 % miss) | 17.63 µs | 29.45 µs | −40.8 % | 12/12 | **RESOLVED** this campaign; a prior run on the same path was −11.0 % 12/12 **tie** — direction holds, magnitude is host-noisy |
+| 16 KiB warm (0 % miss) | 1.41 µs | 1.38 µs | −0.1 % | 6/12 | **tie** |
+| 250 kB warm (0 % miss) | 24.27 µs | 23.04 µs | +0.9 % | 5/12 | **tie** |
+| 16 KiB cold, one-frame WILLNEED | 2.74 µs | 2.77 µs | −1.8 % | 7/12 | **tie**; miss **6.2 % / 6.2 %** (naive overlap was 12.3 % / 6.2 %) |
+| 250 kB cold, one-frame WILLNEED | 148.7 µs | 121.7 µs | +17.9 % | 2/12 | **tie**; miss **96.9 % / 46.8 %** — one 250 kB hint is not enough before nowait |
+
+The 1 MiB window is what this tip issues. Its cold cells are **not in the table above**;
+they replace the one-frame rows once the interleaved campaign on this binary is written
+into the TSV.
+
+**10 µs / frame max on this host.** Warm 16 KiB **hits** it (p99 2.4 µs). 16 KiB
+force-pool p50 is 9.15 µs and p99 is 16 µs — the pool hop. Warm 250 kB p50 was 10–24 µs
+across campaigns (memcpy); p99 12–36 µs. The host saturates on the kernel copy of
+250 kB. Cold p99 is hundreds of µs (device). Full `send_us` is tens–hundreds of µs
+(QUIC) and is not this claim. A 250 kB frame that is touched cannot land under 10 µs
+p99 on this class of host.

@@ -132,6 +132,22 @@ impl FrameStore {
         Ok(done)
     }
 
+    /// `POSIX_FADV_WILLNEED`. `docs/disk-access/EVIDENCE.md` §Fill overlap.
+    pub fn prefetch(&self, offset: u64, len: u64) {
+        if len == 0 {
+            return;
+        }
+        // SAFETY: `posix_fadvise` reads no user memory; a bad range is reported, not UB.
+        unsafe {
+            libc::posix_fadvise(
+                self.file.as_raw_fd(),
+                offset as libc::off_t,
+                len as libc::off_t,
+                libc::POSIX_FADV_WILLNEED,
+            );
+        }
+    }
+
     /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
         self.file
@@ -317,6 +333,22 @@ mod tests {
             pos += want;
         }
         assert_eq!(out, body);
+        let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+
+    /// Prefetch is advisory: it must not fail the serving path.
+    #[test]
+    fn prefetch_is_advisory_and_does_not_fail_the_store() -> Result<()> {
+        let path = scratch("frame-store-prefetch");
+        write_bundle(&path, br#"{"frameCount":1}"#, &[b"xxxx".as_slice()])?;
+        let store = FrameStore::open(&path)?;
+        let span = store.frame_span(0)?;
+        store.prefetch(span.offset, u64::from(span.len));
+        store.prefetch(span.offset, 0);
+        let mut buf = vec![0u8; span.len as usize];
+        store.read_at_blocking(&mut buf, span.offset)?;
+        assert_eq!(buf, b"xxxx");
         let _ = std::fs::remove_file(path);
         Ok(())
     }

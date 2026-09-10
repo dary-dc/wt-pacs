@@ -18,6 +18,9 @@ use crate::media::uring_reader::UringReader;
 /// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
 pub const TILE_SLOTS: usize = 4;
 
+/// 1 MiB WILLNEED window. `docs/disk-access/EVIDENCE.md` §Fill overlap.
+pub const FILL_PREFETCH: u64 = 1 << 20;
+
 /// Which escalation a tile session takes, from `WTPACS_READ_PATH`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ReadMode {
@@ -105,8 +108,8 @@ enum Ahead {
 }
 
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
-/// and no ring: a sequential walk is read-ahead's best case and misses about one read in
-/// sixty. The named frame starts before a current miss is awaited — device depth 2.
+/// and no ring. A pool miss starts `next` first (device depth 2). A nowait miss issues
+/// WILLNEED during the wait instead — overlapping nowait reads doubled the miss rate.
 /// `docs/disk-access/adr.md` §1.
 pub struct SeqReader {
     cur: Vec<u8>,
@@ -130,8 +133,7 @@ impl SeqReader {
     }
 
     /// The whole of `span`. `next` is the frame the planner will ask for after it.
-    /// A miss of `span` is awaited only after `next` has been started, so the device
-    /// sees both — `docs/disk-access/adr.md` §1.
+    /// `docs/disk-access/adr.md` §1.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
@@ -148,10 +150,7 @@ impl SeqReader {
             }
             Ahead::InFlight { span: held, join } if held == span => {
                 let spare = mem::take(&mut self.cur);
-                self.kick_next(store, next, spare)?;
-                self.note_peaks(next, true);
-                self.cur = join.await.context("join frame read")??;
-                self.count(true);
+                self.finish_miss(store, next, spare, join).await?;
             }
             prev => {
                 let current = start_pooled(store, span, mem::take(&mut self.cur))?;
@@ -159,18 +158,44 @@ impl SeqReader {
                     Ahead::Idle(buf) | Ahead::Ready { buf, .. } => buf,
                     Ahead::InFlight { join, .. } => join.await.context("join read-ahead")??,
                 };
-                self.kick_next(store, next, spare)?;
-                let missed = matches!(current, Ahead::InFlight { .. });
-                self.note_peaks(next, missed);
-                let buf = match current {
-                    Ahead::Ready { buf, .. } | Ahead::Idle(buf) => buf,
-                    Ahead::InFlight { join, .. } => join.await.context("join frame read")??,
-                };
-                self.count(missed);
-                self.cur = buf;
+                match current {
+                    Ahead::InFlight { join, .. } => {
+                        self.finish_miss(store, next, spare, join).await?;
+                    }
+                    Ahead::Ready { buf, .. } | Ahead::Idle(buf) => {
+                        self.kick_next(store, next, spare)?;
+                        self.note_peaks(next, false);
+                        self.count(false);
+                        self.cur = buf;
+                    }
+                }
             }
         }
         Ok(&self.cur[..span.len as usize])
+    }
+
+    async fn finish_miss(
+        &mut self,
+        store: &Arc<FrameStore>,
+        next: Option<FrameSpan>,
+        spare: Vec<u8>,
+        join: JoinHandle<Result<Vec<u8>>>,
+    ) -> Result<()> {
+        if store.nowait_supported() {
+            if let Some(n) = next {
+                store.prefetch(n.offset, FILL_PREFETCH);
+            }
+            self.cur = join.await.context("join frame read")??;
+            self.count(true);
+            self.kick_next(store, next, spare)?;
+            self.note_peaks(next, false);
+        } else {
+            self.kick_next(store, next, spare)?;
+            self.note_peaks(next, true);
+            self.cur = join.await.context("join frame read")??;
+            self.count(true);
+        }
+        Ok(())
     }
 
     fn kick_next(
@@ -645,9 +670,9 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// **The fill overlap.** Naming the next frame starts its pooled read before the
-    /// current miss is awaited, so a cold walk is device depth 2. Two buffers still bound
-    /// the session — never three. `docs/disk-access/adr.md` §1.
+    /// **The no-nowait fill overlap.** Where `RWF_NOWAIT` is refused, naming the next
+    /// frame starts its pooled read before the current miss is awaited — device depth 2.
+    /// Two buffers still bound the session. `docs/disk-access/adr.md` §1.
     #[test]
     fn a_fill_starts_the_named_read_before_the_current_miss_is_awaited() {
         let dir = scratch("overlap");
@@ -673,6 +698,43 @@ mod tests {
             store.peak_pool_in_flight(),
             2,
             "the store never saw two pooled reads at once; kick_next ran after the join"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **The nowait fill.** A miss that can still probe issues WILLNEED during the wait
+    /// and does not start a second pooled read — overlapping nowait reads doubled the
+    /// miss rate. `docs/disk-access/adr.md` §1.
+    #[test]
+    fn a_nowait_fill_does_not_overlap_pooled_reads() {
+        let dir = scratch("nowait-no-overlap");
+        let path = write_bundle(&dir, 8, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        if !store.nowait_supported() {
+            eprintln!("skipped: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        store.force_short_reads(SHORT);
+        let store = Arc::new(store);
+        let rt = rt();
+        let mut seq = SeqReader::new();
+        store.reset_pool_starts();
+        for idx in 0..8u32 {
+            let span = store.frame_span(idx).expect("span");
+            let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1).expect("next"));
+            rt.block_on(seq.read(&store, span, next)).expect("read");
+        }
+        assert_eq!(seq.stats().misses, 8, "precondition: every short probe missed");
+        assert_eq!(
+            seq.stats().peak_in_flight,
+            1,
+            "a second pooled read started before the current miss landed"
+        );
+        assert_eq!(
+            store.peak_pool_in_flight(),
+            1,
+            "WILLNEED was replaced by a second spawn_blocking"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
