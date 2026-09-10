@@ -159,9 +159,10 @@ reopened ([`disk-access/IMPLEMENTATION.md`](../disk-access/IMPLEMENTATION.md)).
 theatre, it is a first packet the client cannot decode. Combining head + first window is
 one extra copy of at most 64 KiB per frame, then the usual copy into quinn.
 
-**Falsified by.** A localhost A/B where ask→first payload byte does not move, or a
-16-session cell where the extra copy shows up in `send_us`. Numbers:
-[`transport-conclusions.md`](transport-conclusions.md) §3.
+**Falsified by.** A localhost A/B where ask→complete does not move on a multi-window
+frame, or a 16-session cell where the extra copy shows up in `send_us`. This host:
+32 KB tie; 250 KB −4.0 % p50, 8/8. First payload byte, and any real path, **not
+measured**. [`transport-conclusions.md`](transport-conclusions.md) §3a.
 
 ---
 

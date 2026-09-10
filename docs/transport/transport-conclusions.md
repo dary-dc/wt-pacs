@@ -107,7 +107,7 @@ and destroys GSO batching).
 | ---- | ------ |
 | GSO cap 10 → 32 | +17.2 % / −20.9 % CPU/byte at 250 KB, n = 1; real-hardware re-run −1.0 % / +8.1 %, overlapping. Not applied |
 | Chunked send path | −6…−14 % CPU/byte at every rate. Only path in `server/` |
-| Head + first window, one `write_all` | First application write carries payload so the multi-thread driver cannot emit an 8-byte first packet. Localhost A/B is in §3a; a real-path first-byte claim is **not measured** |
+| Head + first window, one `write_all` | First application write carries payload. Localhost ask→complete: 32 KB tie (+0.9 %, 3/8); 250 KB **−4.0 % p50, 8/8**. Real-path first-byte **not measured**. §3a |
 | Per-frame prefault hop, warm cache | costs 10 % throughput, 14–34 % CPU/byte |
 | `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil |
 
@@ -123,10 +123,21 @@ property, not only a CPU one. Windows stay at quinn defaults.
 
 ### 3a · Headed first window, this host
 
-T2-local, `server_ab` on-demand depth 1, arms interleaved, ask→envelope-complete (not
-first payload byte). A real-path first-byte figure is **not measured**.
+T2-local (4 vCPU KVM, localhost, no shaping). `server_ab` on-demand depth 1, warm,
+shared stream, arms interleaved, order reversed each repeat, n = 8. Metric is
+ask→envelope-complete — not first payload byte. A real-path first-byte figure is
+**not measured**.
 
-*(table filled after the interleaved A/B)*
+| cell | before p50 | after p50 | paired Δ | signs |
+| ---- | ---------: | --------: | -------: | ----- |
+| 32 KB × 80 | 70 µs | 70 µs | **+0.9 %** | 3/8 faster |
+| 250 KB × 40 | 344 µs | 321 µs | **−4.0 %** | 8/8 faster |
+
+32 KB is a tie (the frame is one window; two writes vs one stays inside run-to-run).
+250 KB drops one `write_all` (five → four) and the paired median is −4.0 %, every
+repeat the same sign. That is not the 28.5 % disk-access bar; it is the sign of
+one fewer wakeup on a frame that already spans several windows. The extra copy of
+the first 64 KiB did not show up as a 32 KB regression.
 
 ---
 
