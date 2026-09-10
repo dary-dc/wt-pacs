@@ -52,10 +52,7 @@ impl FrameOut {
     pub(crate) async fn send_frame(&mut self, idx: u32, body: &[u8]) -> Result<()> {
         let head = frame_head(idx, body.len() as u32);
         match self {
-            Self::Shared { uni, .. } => {
-                uni.write_all(&head).await.context("write shared head")?;
-                write_body(uni, body).await?;
-            }
+            Self::Shared { uni, .. } => write_frame(uni, &head, body).await,
             Self::PerFrame { connection, acks } => {
                 let mut uni = connection
                     .open_uni()
@@ -63,18 +60,17 @@ impl FrameOut {
                     .context("open uni")?
                     .await
                     .context("open uni ready")?;
-                uni.write_all(&head).await.context("write head")?;
-                write_body(&mut uni, body).await?;
+                write_frame(&mut uni, &head, body).await?;
 
                 acks.spawn(async move {
                     let _ = uni.finish().await;
                 });
                 while acks.try_join_next().is_some() {}
+                Ok(())
             }
             #[cfg(test)]
             Self::Detached => unreachable!("a detached sink has no wire to write to"),
         }
-        Ok(())
     }
 
     pub(crate) async fn drain_acks(&mut self) {
@@ -100,8 +96,19 @@ fn write_chunks(ready: &[u8]) -> impl Iterator<Item = &[u8]> {
     ready.chunks(READ_WINDOW)
 }
 
-async fn write_body(uni: &mut SendStream, body: &[u8]) -> Result<()> {
-    for piece in write_chunks(body) {
+/// One write: head + first window. `docs/transport/why-these-changes.md`
+fn headed_window<'a>(head: &'a [u8; 8], body: &'a [u8]) -> (Vec<u8>, &'a [u8]) {
+    let n = body.len().min(READ_WINDOW);
+    let mut first = Vec::with_capacity(8 + n);
+    first.extend_from_slice(head);
+    first.extend_from_slice(&body[..n]);
+    (first, &body[n..])
+}
+
+async fn write_frame(uni: &mut SendStream, head: &[u8; 8], body: &[u8]) -> Result<()> {
+    let (first, rest) = headed_window(head, body);
+    uni.write_all(&first).await.context("write frame")?;
+    for piece in write_chunks(rest) {
         uni.write_all(piece).await.context("write codestream")?;
     }
     Ok(())
@@ -125,11 +132,11 @@ mod tests {
         let mut old_wire = (old.len() as u32).to_be_bytes().to_vec();
         old_wire.extend_from_slice(&old);
 
-        // What the streaming path writes: the head, then the codestream in windows.
-        let mut new_wire = frame_head(idx, codestream.len() as u32).to_vec();
-        for window in codestream.chunks(READ_WINDOW) {
-            new_wire.extend_from_slice(window);
-        }
+        // What the streaming path writes: headed first window, then the rest.
+        let head = frame_head(idx, codestream.len() as u32);
+        let (first, rest) = headed_window(&head, &codestream);
+        let mut new_wire = first;
+        new_wire.extend_from_slice(rest);
 
         assert_eq!(new_wire, old_wire, "wire bytes changed");
         let (parsed_idx, body) = unwrap(&new_wire[4..]).expect("client can still parse");
@@ -196,5 +203,40 @@ mod tests {
         let pos = ready.len() as u32;
         assert_eq!(pos, span.len);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **The first write carries payload.** An 8-byte head write lets the multi-thread
+    /// QUIC driver emit a useless first packet; the headed window is head + up to
+    /// `READ_WINDOW` of body, remainder intact. `docs/transport/why-these-changes.md`
+    #[test]
+    fn the_first_write_is_the_head_and_the_first_window() {
+        let body: Vec<u8> = (0..(READ_WINDOW as u32 * 2 + 17))
+            .map(|i| (i % 251) as u8)
+            .collect();
+        let head = frame_head(4, body.len() as u32);
+        let (first, rest) = headed_window(&head, &body);
+        assert_eq!(&first[..8], &head, "first write dropped the envelope head");
+        assert_eq!(
+            first.len(),
+            8 + READ_WINDOW,
+            "first write was not head + one window"
+        );
+        assert_eq!(
+            &first[8..],
+            &body[..READ_WINDOW],
+            "first window bytes moved"
+        );
+        assert_eq!(rest, &body[READ_WINDOW..], "the remainder is not the tail");
+        assert!(first.len() > 8, "first write was the 8-byte head alone");
+
+        let short = [7u8; 13];
+        let head = frame_head(0, short.len() as u32);
+        let (first, rest) = headed_window(&head, &short);
+        assert_eq!(first.len(), 8 + short.len());
+        assert!(rest.is_empty(), "a short frame left a remainder");
+        let mut wire = first;
+        wire.extend_from_slice(rest);
+        assert_eq!(&wire[..8], &head);
+        assert_eq!(&wire[8..], &short);
     }
 }

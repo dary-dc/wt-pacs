@@ -107,6 +107,7 @@ and destroys GSO batching).
 | ---- | ------ |
 | GSO cap 10 → 32 | +17.2 % / −20.9 % CPU/byte at 250 KB, n = 1; real-hardware re-run −1.0 % / +8.1 %, overlapping. Not applied |
 | Chunked send path | −6…−14 % CPU/byte at every rate. Only path in `server/` |
+| Head + first window, one `write_all` | First application write carries payload so the multi-thread driver cannot emit an 8-byte first packet. Localhost A/B is in §3a; a real-path first-byte claim is **not measured** |
 | Per-frame prefault hop, warm cache | costs 10 % throughput, 14–34 % CPU/byte |
 | `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil |
 
@@ -119,6 +120,13 @@ returns `EINVAL` and `quinn-udp` disables offload permanently for that socket.
 asks 400 frames (25 MB) then stops reading. On chunked + shared the server holds **180 kB**.
 On the old `copy` + per-frame path the same client cost **6.8 MB**. Chunked is a memory
 property, not only a CPU one. Windows stay at quinn defaults.
+
+### 3a · Headed first window, this host
+
+T2-local, `server_ab` on-demand depth 1, arms interleaved, ask→envelope-complete (not
+first payload byte). A real-path first-byte figure is **not measured**.
+
+*(table filled after the interleaved A/B)*
 
 ---
 

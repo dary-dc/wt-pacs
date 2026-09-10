@@ -143,6 +143,26 @@ git checkout archive/transport-lab-2026-09 -- docs/transport lab/transport
 
 (Checking out `docs/transport` from the tag overwrites these lean face files.)
 
+### 8 · First write is the head and the first window
+
+**Before.** Each frame was `write_all(8-byte head)` then `write_all` of each `READ_WINDOW`.
+The product runtime is multi-thread tokio. `write` wakes quinn's driver; on another worker
+that can transmit before the body reaches the send buffer, so the first packet of a frame
+can be eight bytes and no HTJ2K.
+
+**Forced by.** That is the first-stream-byte path this hunt owns. P3 (two 4-byte writes →
+one 8-byte write) already landed; it does not put payload in the first write.
+`write_all_chunks` of owned windows was measured worse at 16–32 sessions and is not
+reopened ([`disk-access/IMPLEMENTATION.md`](../disk-access/IMPLEMENTATION.md)).
+
+**Alternative.** Leave the two writes. Rejected: the 8-byte packet is not throughput
+theatre, it is a first packet the client cannot decode. Combining head + first window is
+one extra copy of at most 64 KiB per frame, then the usual copy into quinn.
+
+**Falsified by.** A localhost A/B where ask→first payload byte does not move, or a
+16-session cell where the extra copy shows up in `send_us`. Numbers:
+[`transport-conclusions.md`](transport-conclusions.md) §3.
+
 ---
 
 ## Campaign instruments (on the tag)

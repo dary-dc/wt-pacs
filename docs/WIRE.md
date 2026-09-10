@@ -47,10 +47,12 @@ boundary — not `EndSession`. A data request during a fill ends the fill and is
 
 ## Server send path (copy discipline)
 
-The server sends each media frame as an 8-byte head (`write_all`) and then the HTJ2K
-codestream in `READ_WINDOW` (64 KiB) pieces. The bytes come from a session-owned buffer
-(`SeqReader` or `TileReader`), not a mapping — `server/` has no mmap. That matches the
-wire layout above without assembling a contiguous envelope in userspace.
+The server sends each media frame as one `write_all` of the 8-byte head plus the first
+`READ_WINDOW` (64 KiB) of the HTJ2K codestream, then the rest in `READ_WINDOW` pieces.
+A lone 8-byte head write lets the multi-thread QUIC driver emit a first packet with no
+payload. The bytes come from a session-owned buffer (`SeqReader` or `TileReader`), not a
+mapping — `server/` has no mmap. That matches the wire layout above without assembling a
+contiguous envelope in userspace.
 
 **One full-frame copy remains:** `wtransport` only exposes `write_all(&[u8])`, so QUIC copies the
 codestream into its send buffer for retransmission. `quinn`'s chunk/`Bytes` API could avoid that copy
