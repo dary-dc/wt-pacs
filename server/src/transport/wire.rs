@@ -143,6 +143,7 @@ impl FodParse {
         decode_fod_body(&body).map(Some)
     }
 
+    #[cfg(test)]
     fn push(&mut self, mut bytes: &[u8]) -> Result<Vec<FodMsg>> {
         let mut out = Vec::new();
         while !bytes.is_empty() {
