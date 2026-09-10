@@ -157,11 +157,24 @@ async function runFill(session, steps, stats) {
   return last + 1;
 }
 
+export function openWebTransport(wtUrl, certSha256) {
+  if (certSha256.length % 2 !== 0) throw new Error("hex length must be even");
+  const hash = new Uint8Array(certSha256.length / 2);
+  for (let i = 0; i < hash.length; i++) {
+    hash[i] = parseInt(certSha256.slice(i * 2, i * 2 + 2), 16);
+  }
+  return new WebTransport(wtUrl, {
+    serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
+    congestionControl: "low-latency",
+  });
+}
+
 export async function bootShell({ arm, loadSession, memoryBytes }) {
   try {
-    const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
-    log("connecting", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
-    const session = await loadSession({ telemetry, streamMode, cfg });
+    const cfgP = fetch("/wt/dev-transport.json").then((r) => r.json());
+    const schedP = autorun ? schedule() : null;
+    const session = await loadSession({ telemetry, streamMode, cfgP, openWebTransport });
+    const cfg = await cfgP;
     log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
 
     const frame0 = async () => {
@@ -179,8 +192,8 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
       }
     };
 
-    const runCell = async () => {
-      const { steps, interval, frames, name } = await schedule();
+    const runCell = async (pre) => {
+      const { steps, interval, frames, name } = pre ?? (await schedule());
       const stats = { delivered: 0, failed: 0, heap_peak: heapBytes() };
       const heapStart = heapBytes();
       const wasmStart = memoryBytes ? memoryBytes() : null;
@@ -218,7 +231,7 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
     document.getElementById("run").onclick = () => runCell().catch((e) => log("error", e));
 
     if (autorun) {
-      await runCell();
+      await runCell(await schedP);
       // Close the session so the server ends it now and flushes its Tap — otherwise it only
       // notices at the QUIC idle timeout (~30 s) and the harvest misses the server report.
       session.close();

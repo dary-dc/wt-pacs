@@ -12,4 +12,5 @@ npx esbuild session.ts --bundle --format=esm --outfile=dist/session.js --platfor
 npx esbuild session-telemetry.ts --bundle --format=esm --outfile=dist/session.telemetry.js --platform=browser --target=es2022
 npx esbuild ../record/install.ts --bundle --format=esm --outfile=../record/dist/install.js --platform=browser --target=es2022
 npx esbuild ../record/test/run.ts --bundle --format=esm --outfile=../record/test/run.mjs --platform=node --target=node20
-echo "wrote dist/session.js dist/session.telemetry.js ../record/dist/install.js ../record/test/run.mjs"
+npx esbuild test/session.test.ts --bundle --format=esm --outfile=test/session.mjs --platform=node --target=node20
+echo "wrote dist/session.js dist/session.telemetry.js ../record/dist/install.js ../record/test/run.mjs test/session.mjs"

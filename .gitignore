@@ -19,6 +19,7 @@ client/transport-ts/dist/
 # Shared client recorder (both arms) — build via transport-ts/build.sh
 client/record/dist/
 client/record/test/run.mjs
+client/transport-ts/test/session.mjs
 # Telemetry-only WASM out-dir — plan §8
 client/transport-wasm/pkg-telemetry/
 

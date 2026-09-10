@@ -19,8 +19,8 @@ import { TransportSession as Inner } from "./session.ts";
 export type { FrameResult } from "./session.ts";
 
 export class TransportSession {
-  static async connect(wtUrl: string, certSha256: string) {
-    const s = await Inner.connect(wtUrl, certSha256);
+  static async connect(wtUrl: string, certSha256: string, transport?: WebTransport) {
+    const s = await Inner.connect(wtUrl, certSha256, transport);
     return wrapSession(s);
   }
 }

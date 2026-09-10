@@ -39,7 +39,10 @@ export class TransportSession {
   private controlWriter: WritableStreamDefaultWriter<Uint8Array>;
   private waiters = new Map<number, Waiter>();
   private errors = new Map<number, string>();
-  private bulkPending = new Map<number, Promise<{ bytes: Uint8Array; receivedMs: number }>>();
+  private arrived = new Map<number, { bytes: Uint8Array; receivedMs: number }>();
+  private bulkHeld = new Set<number>();
+  private bulkRange: { from: number; to: number } | null = null;
+  private bulkWaited = new Set<number>();
   private droppedEarly = 0;
   private frameErrors = 0;
 
@@ -51,27 +54,59 @@ export class TransportSession {
     this.controlWriter = controlWriter;
   }
 
-  static async connect(wtUrl: string, certSha256: string): Promise<TransportSession> {
-    const hash = hexToBytes(certSha256);
-    const transport = new WebTransport(wtUrl, {
-      serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
-      congestionControl: "low-latency",
-    });
-    await transport.ready;
-
-    const bi = await transport.createBidirectionalStream();
+  static async connect(
+    wtUrl: string,
+    certSha256: string,
+    transport?: WebTransport,
+  ): Promise<TransportSession> {
+    const wt =
+      transport ??
+      new WebTransport(wtUrl, {
+        serverCertificateHashes: [{ algorithm: "sha-256", value: hexToBytes(certSha256) }],
+        congestionControl: "low-latency",
+      });
+    const bi = await wt.createBidirectionalStream();
     const controlWriter = bi.writable.getWriter();
-    const session = new TransportSession(transport, controlWriter);
+    const session = new TransportSession(wt, controlWriter);
 
-    session.pumpUni(transport.incomingUnidirectionalStreams);
+    session.pumpUni(wt.incomingUnidirectionalStreams);
     session.pumpControl(bi.readable);
 
     return session;
   }
 
+  private bulkBusy() {
+    return this.bulkHeld.size > 0 || this.bulkRange !== null;
+  }
+
+  private expects(frameIndex: number) {
+    if (this.bulkHeld.has(frameIndex)) return true;
+    const r = this.bulkRange;
+    return r !== null && frameIndex >= r.from && frameIndex <= r.to;
+  }
+
+  private takeBulk(frameIndex: number): boolean {
+    if (this.bulkHeld.delete(frameIndex)) return true;
+    const r = this.bulkRange;
+    if (r && frameIndex >= r.from && frameIndex <= r.to && !this.bulkWaited.has(frameIndex)) {
+      this.bulkWaited.add(frameIndex);
+      if (this.bulkWaited.size === r.to - r.from + 1) {
+        this.bulkRange = null;
+        this.bulkWaited.clear();
+      }
+      return true;
+    }
+    return false;
+  }
+
   private armWaiter(frameIndex: number): Promise<{ bytes: Uint8Array; receivedMs: number }> {
     if (this.waiters.has(frameIndex)) {
       return Promise.reject(new Error(`frame ${frameIndex} already requested`));
+    }
+    const early = this.arrived.get(frameIndex);
+    if (early) {
+      this.arrived.delete(frameIndex);
+      return Promise.resolve(early);
     }
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -85,7 +120,8 @@ export class TransportSession {
   private completeWaiter(frameIndex: number, bytes: Uint8Array, receivedMs: number) {
     const w = this.waiters.get(frameIndex);
     if (!w) {
-      this.droppedEarly += 1;
+      if (this.expects(frameIndex)) this.arrived.set(frameIndex, { bytes, receivedMs });
+      else this.droppedEarly += 1;
       return;
     }
     clearTimeout(w.timer);
@@ -97,6 +133,7 @@ export class TransportSession {
     const w = this.waiters.get(frameIndex);
     this.errors.set(frameIndex, reason);
     this.frameErrors += 1;
+    this.arrived.delete(frameIndex);
     if (!w) return;
     clearTimeout(w.timer);
     this.waiters.delete(frameIndex);
@@ -173,12 +210,17 @@ export class TransportSession {
 
   startExactFrames(indices: number[]): number {
     if (indices.length === 0) throw new Error("startExactFrames: empty index list");
-    if (this.bulkPending.size > 0) throw new Error("startExactFrames: previous bulk still pending");
-    const askMs = performance.now();
+    if (this.bulkBusy()) throw new Error("startExactFrames: previous bulk still pending");
+    const seen = new Set<number>();
     for (const frameIndex of indices) {
-      this.bulkPending.set(frameIndex, this.armWaiter(frameIndex));
+      if (seen.has(frameIndex) || this.waiters.has(frameIndex)) {
+        throw new Error(`frame ${frameIndex} already requested`);
+      }
+      seen.add(frameIndex);
     }
-    // A control write that fails would otherwise leave every waiter to the 15 s timeout.
+    const askMs = performance.now();
+    for (const frameIndex of indices) this.bulkHeld.add(frameIndex);
+    // docs/CLIENTS.md § Ask before waiters — write is queued before any timer is armed.
     this.sendFod({ op: "request_frames", frames: [...indices] }).catch((e) => {
       for (const frameIndex of indices) this.failWaiter(frameIndex, `control write: ${e}`);
     });
@@ -186,12 +228,15 @@ export class TransportSession {
   }
 
   async waitExactFrame(frameIndex: number, askMs: number): Promise<FrameResult> {
-    const pending = this.bulkPending.get(frameIndex);
-    this.bulkPending.delete(frameIndex);
-    if (!pending) {
+    if (!this.takeBulk(frameIndex)) {
       throw new Error(`waitExactFrame: no pending bulk waiter for ${frameIndex}`);
     }
-    return this.settle(frameIndex, askMs, pending);
+    const reason = this.errors.get(frameIndex);
+    if (reason) {
+      this.errors.delete(frameIndex);
+      throw new Error(`frame ${frameIndex} unavailable: ${reason}`);
+    }
+    return this.settle(frameIndex, askMs, this.armWaiter(frameIndex));
   }
 
   /** Await one armed waiter; a refusal the server sent for this frame wins over the raw error. */
@@ -220,16 +265,14 @@ export class TransportSession {
     return out;
   }
 
-  /** `{}` on the wire is the whole study. `waitLast` arms waiters through that index. */
+  /** `{}` on the wire is the whole study. `waitLast` is the last index the caller will wait. */
   startStreamFrames(waitLast: number, range?: { from?: number; to?: number }): number {
-    if (this.bulkPending.size > 0) throw new Error("startStreamFrames: previous bulk still pending");
+    if (this.bulkBusy()) throw new Error("startStreamFrames: previous bulk still pending");
     const from = range?.from ?? 0;
     const last = range?.to ?? waitLast;
     if (last < from) throw new Error("startStreamFrames: to < from");
     const askMs = performance.now();
-    for (let i = from; i <= last; i++) {
-      this.bulkPending.set(i, this.armWaiter(i));
-    }
+    this.bulkRange = { from, to: last };
     const msg: FodMsg = { op: "stream_frames" };
     if (range?.from !== undefined) msg.from = range.from;
     if (range?.to !== undefined) msg.to = range.to;
@@ -250,6 +293,11 @@ export class TransportSession {
   }
 
   close() {
+    this.droppedEarly += this.arrived.size;
+    this.arrived.clear();
+    this.bulkHeld.clear();
+    this.bulkRange = null;
+    this.bulkWaited.clear();
     try {
       this.transport.close();
     } catch {

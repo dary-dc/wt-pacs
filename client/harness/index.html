@@ -28,7 +28,7 @@
 
     bootShell({
       arm: "transport-wasm",
-      async loadSession({ telemetry, streamMode, cfg }) {
+      async loadSession({ telemetry, streamMode, cfgP, openWebTransport }) {
         let wrapSession = (s) => s;
         if (telemetry) {
           // Patch the WebTransport global before the WASM module loads (ADR option G).
@@ -42,19 +42,21 @@
               "/client/transport-wasm/pkg/transport_wasm.js",
             ]
           : ["/client/transport-wasm/pkg/transport_wasm.js"];
-        let initMod = null;
-        for (const url of pkgCandidates) {
-          try {
-            initMod = await import(url);
-            break;
-          } catch {
-            /* try next */
+        const modP = (async () => {
+          for (const url of pkgCandidates) {
+            try {
+              return await import(url);
+            } catch {
+              /* try next */
+            }
           }
-        }
-        if (!initMod) throw new Error("wasm pkg not found");
-        const { default: init, TransportSessionHandle } = initMod;
+          throw new Error("wasm pkg not found");
+        })();
+        const cfg = await cfgP;
+        const wt = openWebTransport(cfg.wt_url, cfg.cert_sha256);
+        const { default: init, TransportSessionHandle } = await modP;
         wasm = await init();
-        const session = await TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
+        const session = await TransportSessionHandle.connectWithTransport(wt);
         return wrapSession(session);
       },
       // Linear memory grows with the receive buffer; the TS arm has none (null).
