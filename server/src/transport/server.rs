@@ -39,12 +39,7 @@ pub struct ServeConfig {
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
-    let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
-        .await
-        .with_context(|| format!("load TLS identity from {}", config.cert_pem.display()))?;
-    let cert_sha256 = cert_sha256_hex(&identity)?;
-
-    let (endpoint, bound) = build_endpoint(&config).await?;
+    let (endpoint, bound, cert_sha256) = build_endpoint(&config).await?;
 
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
 
@@ -118,11 +113,13 @@ fn read_fast_path(store: &FrameStore) -> &'static str {
 }
 
 /// A host without an IPv6 stack refuses the dual-stack socket, so fall back to IPv4 any.
-async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side::Server>, String)> {
-    async fn identity(config: &ServeConfig) -> Result<Identity> {
+async fn build_endpoint(
+    config: &ServeConfig,
+) -> Result<(Endpoint<endpoint_side::Server>, String, String)> {
+    async fn load_identity(config: &ServeConfig) -> Result<Identity> {
         Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
             .await
-            .context("load wtransport identity")
+            .with_context(|| format!("load TLS identity from {}", config.cert_pem.display()))
     }
 
     fn finish(
@@ -144,34 +141,41 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
     }
 
     if let Some(ip) = config.bind {
+        let identity = load_identity(config).await?;
+        let cert_sha256 = cert_sha256_hex(&identity)?;
         let server_config = finish(
             ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
-            identity(config).await?,
+            identity,
             &config.tuning,
         )?;
         let endpoint = Endpoint::server(server_config)
             .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
-        return Ok((endpoint, ip.to_string()));
+        return Ok((endpoint, ip.to_string(), cert_sha256));
     }
 
+    let identity = load_identity(config).await?;
+    let cert_sha256 = cert_sha256_hex(&identity)?;
     let dual = finish(
         ServerConfig::builder().with_bind_default(config.wt_port),
-        identity(config).await?,
+        identity,
         &config.tuning,
     )?;
     match Endpoint::server(dual) {
-        Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
+        Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string(), cert_sha256)),
         Err(err) => {
             warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
+            let identity = load_identity(config).await?;
+            let cert_sha256 = cert_sha256_hex(&identity)?;
             let v4 = finish(
                 ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
-                identity(config).await?,
+                identity,
                 &config.tuning,
             )?;
             let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
             Ok((
                 endpoint,
                 "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
+                cert_sha256,
             ))
         }
     }
