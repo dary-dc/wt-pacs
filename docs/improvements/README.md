@@ -12,7 +12,8 @@ This folder is the front door. The dated files are evidence, not the queue.
 | **this page** | ranked open work, then what already landed on the branch |
 | [`2026-09-08.md`](2026-09-08.md) | second pass: every open item below, reproduced or measured, **no product code** |
 | [`2026-09-06.md`](2026-09-06.md) | first pass: the commits already on the branch, plus withdrawn / null / parked |
-| [`ledger.md`](ledger.md) | one inventory of both passes |
+| [`2026-09-10-latency-concurrency.md`](2026-09-10-latency-concurrency.md) | fourth latency pass: **three small code changes, no numbers taken** — why the arms tie, the levers now closed, why more write concurrency is a regression, and the A/B a quiet box must run |
+| [`ledger.md`](ledger.md) | one inventory of all passes |
 
 Lab measurement drivers are **not on this tip** (they must not land on `main`). Restore:
 [`#restore-the-lab-drivers`](#restore-the-lab-drivers).

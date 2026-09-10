@@ -125,3 +125,22 @@ Verified on the tree before the pass: workspace build/test/clippy/fmt, TS build/
 tests/absence check, and in Chromium 141 both arms' frame0 + bulk and 64/64 refusals — with the
 WASM package through `wasm-opt` for the first time on this branch (`npm i -g wasm-pack binaryen`
 works on the runner).
+
+---
+
+## 8 · Fourth latency pass, 2026-09-10 — three code changes, no numbers taken
+
+Branch `cursor/latency-max-concurrency-1676`. Evidence and protocol:
+[`2026-09-10-latency-concurrency.md`](2026-09-10-latency-concurrency.md). Brief: "minimize latency
+as much as we can", at "the highest amount of concurrency possible". Three changes landed, each
+argued from an ordering or an RFC. **Nothing was measured on this host** — a 4 vCPU VM with four
+agents building concurrently, where the same binary spreads 1.86× at the median — so no change
+below carries a number, and the document says so.
+
+| # | Kind | What changed | Basis | Decision open |
+| - | - | - | - | - |
+| 1 | fix, product | `TileReader::free_slot` prefers a slot with no read in flight, so a jump out of the named window no longer awaits an abandoned prefetch before the wanted frame's read | ordering, pinned by `an_abandoned_tile_prefetch_does_not_delay_the_frame_that_replaces_it` (mutated: 2 reads in flight against 3) | price it on a rig that can miss |
+| 2 | perf, transport | `send_fairness(false)`; Cubic/NewReno `initial_window` 12 000 → 14 720 B; `keep_alive_interval` a third of the idle timeout; `initial_rtt` exposed as `--initial-rtt-ms`, default unchanged | FIFO service makes a per-frame stream's completion its own, not the batch's; RFC 9002 §7.2 at the real 1 472-byte datagram; RFC 9000 §10.1 | interleaved A/B, per-frame cell, wall time |
+| 3 | perf, transport | session setup joins the control-bidi accept and the media-uni open under `tokio::try_join!` | independent awaits; local stream creation, so the saving is microseconds | none; stated as small |
+| — | rejected | concurrent frame writes | serving is already read/write concurrent; N writes divide one congestion window N ways, so the frame the decoder waits on completes *later*; and it re-orders against the client's ask, which [`../adr-reject-server-ordering.md`](../adr-reject-server-ordering.md) rejects | none |
+| — | correction | the "~20 % p50 from planner read-ahead reach, written and reverted" claim is **retracted**: `83dc813` is docs-only, P1 landed in `4d6b1ce` and is telemetry, and §16.4 labels that cell a tie | [§4 of the pass document](2026-09-10-latency-concurrency.md#why-the-number-has-not-moved) | none |
