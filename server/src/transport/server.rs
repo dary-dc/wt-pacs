@@ -188,12 +188,12 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
+    // First send waits for the uni; the ask and the first read do not. docs/improvements/2026-09-10.md
+    let out = FrameOut::begin(mode, connection.clone());
     let (control_send, control_recv) = connection
         .accept_bi()
         .await
         .context("accept control bidi")?;
-
-    let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out).with_control(control_send);
 
     #[cfg(feature = "telemetry")]
@@ -734,5 +734,83 @@ mod tests {
                 assert_eq!(first, 5);
             }
         });
+    }
+
+    /// Product clients ask as soon as the bidi exists, before they accept the media uni.
+    /// The first frame must still arrive. `docs/improvements/2026-09-10.md`.
+    #[test]
+    fn an_ask_before_the_media_uni_is_accepted_is_still_served() {
+        let dir = std::env::temp_dir().join(format!(
+            "wtpacs-ask-first-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 2);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                wt_port: port,
+                study_path: study,
+                cert_pem,
+                key_pem,
+                mode: StreamMode::Shared,
+                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                tuning: TransportTuning::default(),
+            }));
+            let endpoint = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(
+                        cert_hash,
+                    )])
+                    .build(),
+            )
+            .expect("client endpoint");
+            let url = format!("https://127.0.0.1:{port}/");
+            let mut connection = None;
+            for _ in 0..50 {
+                match endpoint.connect(url.clone()).await {
+                    Ok(c) => {
+                        connection = Some(c);
+                        break;
+                    }
+                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                }
+            }
+            let connection = connection.expect("server never accepted");
+            let (mut control, _control_recv) = connection
+                .open_bi()
+                .await
+                .expect("open bi")
+                .await
+                .expect("bi ready");
+            control
+                .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrame { frame: 0 }).unwrap())
+                .await
+                .expect("ask before uni");
+            let mut media = tokio::time::timeout(Duration::from_secs(5), connection.accept_uni())
+                .await
+                .expect("media uni never opened")
+                .expect("accept media uni");
+            let (idx, body) =
+                tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                    .await
+                    .expect("frame never arrived");
+            assert_eq!(idx, 0, "the ask-first frame was not frame 0");
+            assert_eq!(body, pattern(0), "ask-first body was wrong");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

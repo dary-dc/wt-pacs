@@ -125,3 +125,13 @@ Verified on the tree before the pass: workspace build/test/clippy/fmt, TS build/
 tests/absence check, and in Chromium 141 both arms' frame0 + bulk and 64/64 refusals — with the
 WASM package through `wasm-opt` for the first time on this branch (`npm i -g wasm-pack binaryen`
 works on the runner).
+
+---
+
+## 8 · Third pass, 2026-09-10 — `cursor/latency-cpu-hotpath-093d`
+
+Evidence: [`2026-09-10.md`](2026-09-10.md). The brief was the CPU / copy / parse / encode
+hot path. **Abandoned without retry:** `claude/serene-rubin-wakfg7` already showed app code
+< 0.3 % of instructions, LTO moving CPU but not workstation e2e latency, and 99 %+ of
+`serve_us` in `send`. Pivot: the shared media uni no longer blocks the first ask or the
+first read. Measurement on this host is in that file.
