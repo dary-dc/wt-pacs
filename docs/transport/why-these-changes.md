@@ -282,6 +282,91 @@ bash client/transport-ts/build.sh
 lab/scripts/browser_cell.py new target/release/exact-server lab/fixtures/frames_32k_big/frames_32k_big.sbnd ondemand 1500 1 6
 ```
 
+### 9 · CPU per byte: segments per `sendmsg`, a profile-guided build, one copy fewer
+
+**Before.** After §8 a 250 KB frame still cost about 340 µs of CPU under load — some 2 µs per
+1452-byte datagram, spread over AES-GCM, quinn's packet assembly, four copies of every byte
+(page cache to buffer, buffer into quinn, quinn into the packet, packet into the kernel) and
+the kernel's per-segment work. quinn sends at most 10 datagrams per `sendmsg`, a constant its
+authors call "a good compromise"; the transport lane had measured 10 → 32 at −21 % CPU per
+byte on loopback, n = 1, and left it because its real-hardware cell was path-bound. Nothing
+here is a lever a lossy link cares about; every item is sessions per core.
+
+**Forced by.** Four candidates built as separate binaries and run against the tree in one
+interleaved A/B: server pinned to two cores, the driver to the other two, one client socket per
+session, six repeats paired per repeat. CPU per ask, then asks per second:
+
+| cell | segments 44 | PGO | mimalloc | pooled hand-off |
+| ---- | ----------: | --: | -------: | --------------: |
+| 100 B, depth 1 | −13 % (5/6) · +8 % | **−26 % (6/6)** · +20 % | −9 % (6/6) · +12 % | −8 % (5/6) · +5 % |
+| 32 KB, depth 1 | **−18 % (6/6)** · +3 % | −13 % (6/6) · +2 % | +3 % · −6 % | 0 % · −2 % |
+| 250 KB, depth 1 | **−21 % (6/6)** · +2 % | −15 % (6/6) · +15 % | −2 % · +2 % | −7 % (6/6) · +4 % |
+| 250 KB fill, 80 frames | **−20 % (6/6)** · +19 % (6/6) | −10 % (5/6) · +9 % | +9 % · −9 % | −10 % (5/6) · +9 % (5/6) |
+| 250 KB, 16 sessions, depth 4 | **−16 % (6/6)** · +7 % (5/6) | −9 % (6/6) · +12 % (4/6) | +4 % · −6 % | −3 % (5/6) · −1 % |
+| 32 KB, 16 sessions, depth 4 | **−17 % (6/6)** · +29 % (6/6) | −11 % (5/6) · −1 % | −3 % · +3 % | −2 % (5/6) · +4 % |
+
+The 32 KB fill of 80 frames is 6 ms per run and read worse for every arm, the tree's own
+included; it resolves nothing and is not quoted. mimalloc ties or loses everywhere but the
+100-byte cell and is not taken. The other three are independent mechanisms, so they were then
+built into one binary and profiled on that source:
+
+| cell | CPU per ask | asks / s | p50 | p99 |
+| ---- | ----------: | -------: | --: | --: |
+| 100 B, depth 1 | −11 % (5/6) | +2.5 % — tie | −3 % (6/6) | tie |
+| 32 KB, depth 1 | **−24 % (6/6)** | +6 % (4/6) | −6 % (4/6) | −10 % (5/6) |
+| 250 KB, depth 1 | **−30 % (6/6)** | **−15 % (5/6)** | −3.5 % (4/6) | +13 % (5/6) |
+| 32 KB fill, 2 000 frames | **−30 % (6/6)** | **+40 % (6/6)** | −50 % (6/6) | −46 % (6/6) |
+| 250 KB fill, 320 frames | **−32 % (6/6)** | **+39 % (6/6)** | −18 % (6/6) | −35 % (6/6) |
+| 32 KB, 4 sessions, depth 4 | **−35 % (6/6)** | **+46 % (6/6)** | −32 % (6/6) | −39 % (6/6) |
+| 32 KB, 16 sessions, depth 4 | **−29 % (6/6)** | **+25 % (5/6)** | −21 % (5/6) | −5 % (4/6) |
+| 250 KB, 16 sessions, depth 4 | **−33 % (6/6)** | **+44 % (6/6)** | −29 % (6/6) | −12 % (5/6) |
+
+The three add up, near enough: −24 to −35 % CPU per ask and +25 to +46 % throughput wherever
+the pipe is full. The one cell against is 250 KB at depth 1 with one session: the median holds
+and the mean rises (throughput −15 %, 5/6; p99 +13 %) while CPU falls 30 %. A serial session
+overlapped the server encrypting batch *n* + 1 with the client decrypting batch *n*; at 44
+packets a batch there is less of that overlap, and nothing else is running to fill it. At
+depth 2 or two sessions the pipe is full and the cell joins the others. That is the lab's
+regime, not the product's, and the segment count is one constant in `third_party/quinn` if a
+target ever wants to sweep it.
+
+**What shipped.**
+
+- **`third_party/quinn`** — quinn 0.11.11, one change: the segments per `sendmsg` follow the
+  MTU (44 at 1452 bytes, under the kernel's 65 527-byte GSO payload) instead of the constant
+  10, and the driver sends up to 64 datagrams per poll instead of 20. The workspace
+  `[patch.crates-io]` points every `quinn` dependency, wtransport's included, at it. The cost
+  is a crate to refresh by hand on a quinn upgrade; the upstream shape would be a
+  `TransportConfig` knob.
+- **`scripts/pgo_build.sh`** — instrument, train on the cells this file measures (fill, depth 4
+  with 4 and 16 sessions, depth 1, three frame sizes), rebuild with the profile. A profile is
+  bound to the source it was taken from, so the script runs per release build and
+  `cargo build --release` stays the plain build; a stale profile is worse than none.
+- **`media/frame_pool.rs`** — both readers hand the frame off as `Bytes` over their own buffer
+  and take the next buffer from a per-thread pool; `FrameOut` gives quinn head and body with
+  `write_all_chunks`, and the buffer comes back when quinn drops it after acknowledgement.
+  One copy of four gone, and the 64 KiB write chunking with it. This corrects the disk ADR's
+  §5 row: the 2026-09 attempt was rejected for a fresh 64 KiB allocation per window, which was
+  the allocation, not the hand-off.
+
+**Costs.** A 64 KB batch holds the connection lock about 30 µs longer than a 14 KB one, which
+is where a fill's inter-arrival p99 widens (+68 % on the short 32 KB cell, n = 80; the 320-frame
+fill below is the one to read). quinn now holds the reader's buffer until the peer acknowledges
+it: memory per session is unchanged in total, since quinn held a copy before, and the pool keeps
+at most 64 buffers per thread. PGO doubles the release build.
+
+**Falsified by.** A CPU-bound cell on the production target where the combined binary does not
+beat the plain one on CPU per ask; a quinn upgrade that moves the batching itself. Re-run:
+
+```bash
+cargo build --release -p exact-server -p disk-access-bench     # the tree: patched quinn + pool
+scripts/pgo_build.sh                                             # → target/pgo/release/exact-server
+git worktree add /tmp/before <commit-before-§9> && (cd /tmp/before && cargo build --release -p exact-server --target-dir /tmp/before-target)
+SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 4 100 16 6 \
+  base /tmp/before-target/release/exact-server -- tree target/release/exact-server -- pgo target/pgo/release/exact-server > rt.tsv
+lab/scripts/runtime_ab_pair.py rt.tsv base tree pgo
+```
+
 ---
 
 ## Campaign instruments (on the tag)

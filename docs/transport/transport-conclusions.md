@@ -20,7 +20,7 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 | **Stream shape** | **One shared stream — the binary defaults to it.** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a real path the 64 KB cell is noise-dominated; the 250 KB cell separates: per-frame is **5.76× worse**, 3/3, and the absolute penalty matches the simulator to 1.6 %. No cell on either rig separates in per-frame's favour |
 | **Fixed-N pool** | Untested. R6 makes it less promising: retransmit-deferral cost grows with N, and the winning endpoint is N = 1 |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
-| **GSO segment cap 10 → 32** | Density, not latency: +17 % throughput / −21 % CPU/byte on loopback at n = 1; **not confirmed on real hardware** (−1.0 % / +8.1 %, overlapping). **Not applied.** The cap is `quinn`'s `MAX_TRANSMIT_SEGMENTS`, not a server flag |
+| **GSO segment cap 10 → 44** | **Applied 2026-09-10** through `third_party/quinn`: −16 to −21 % CPU per ask, 6/6 in six of seven pinned cells, +19 to +29 % throughput where the pipe is full. The earlier real-hardware cell was path-bound, so it could not show a CPU lever. [`why-these-changes.md` §9](why-these-changes.md#9--cpu-per-byte-segments-per-sendmsg-a-profile-guided-build-one-copy-fewer) |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte, and it is what contains a stalled client (below). The only send path in `server/` |
 | **Flow-control windows** | Hygiene on this send path. A client that asks for 25 MB and stops reading costs **180 kB**. Left at quinn defaults |
 | **Runtime shape** | **One endpoint per core, each on a single-threaded runtime (`--workers`, default one per core).** Cross-worker hand-offs were 28 context switches per 250 KB frame; removing them is **−23 to −40 % on the depth-1 round trip and −40 to −64 % CPU per frame**, 6/6 in every single-session cell. At saturation (16–32 sessions at depth 4, one socket per session) throughput +8 to +17 % on six of eight cells and a tie on two, CPU per ask −5 to −24 %. [`why-these-changes.md` §8](why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime) |
@@ -149,6 +149,7 @@ congestive 600 ms cell.
 | GSO cap worth 17 % | Weak — loopback, n = 1, fixture-dependent; real path overlapping |
 | Windows never approached on chunked | Moderate — 48 rows, T2 loopback, N ≤ 16 |
 | One endpoint per core beats the shared multi-thread runtime | Strong for one session (6/6 per cell, 5 cells, two independent measurements); T2 loopback, 4 vCPU. Moderate at saturation: 16–32 sessions, six of eight cells up, two ties; thousands of sessions with clients off the box unmeasured |
+| Segments per `sendmsg`, PGO and the pooled hand-off cut CPU per byte | Strong on this VM: −24 to −35 % combined, 6/6 in seven of eight pinned cells, two independent runs; one lab cell (250 KB, depth 1, one session) loses 15 % throughput. Not run on the target |
 
 What would overturn the shipped defaults: a cell where per-frame + FIFO separates in its
 favour (none found), or client telemetry showing the loss mix is overwhelmingly radio

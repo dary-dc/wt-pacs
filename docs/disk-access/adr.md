@@ -181,7 +181,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | `sendfile` / `splice` | B | — | — | userspace QUIC copies anyway | Rejected |
 | `O_DIRECT` + SPDK, whole-study preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
 | Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
-| `write_chunk` owned windows to quinn | B | −3.2 % at one session; **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | Rejected, more so at scale |
+| `write_chunk` owned windows to quinn | B | the 2026-09 arm: −3.2 % at one session, **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | **Corrected 2026-09-10:** the allocation was the cost, not the hand-off. Whole frames handed off over pooled buffers are −7 to −10 % CPU per ask at 250 KB (5–6/6), a tie at 32 KB — `media/frame_pool.rs`, [`transport/why-these-changes.md` §9](../transport/why-these-changes.md#9--cpu-per-byte-segments-per-sendmsg-a-profile-guided-build-one-copy-fewer) |
 | Sequential: `SeqReader`, one frame ahead, pool only | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; read-ahead makes 96–99 % of asks hits | 5 threads; one fd per study; no ring | its own reader, because a fill that builds a ring pays 2 fds for one miss in sixty | **Accepted** |
 | Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
 | Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
@@ -238,7 +238,7 @@ whole plan.
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
 | **One endpoint per core on single-threaded runtimes** (`--workers`) | **−23 to −40 % on the depth-1 round trip, −40 to −64 % CPU per frame**, 6/6 per cell: the multi-thread runtime's cross-worker hand-offs were 28 context switches per 250 KB frame | at saturation +8 to +17 % throughput on six of eight cells, two ties; a front that funnels sessions through one source port puts them on one thread; a migrating client reconnects | **Landed 2026-09-10**, [`transport/why-these-changes.md` §8](../transport/why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime) |
-| GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
+| GSO datagram batching, 10 → 44 segments per `sendmsg` | **−16 to −21 % CPU per ask** (6/6), +19 to +29 % throughput where the pipe is full | a vendored quinn to refresh on upgrade; 250 KB at depth 1 with one session loses the encrypt/decrypt overlap (−15 % throughput there) | **Landed 2026-09-10**, `third_party/quinn` |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
 | Congestion controller, flow-control windows, AEAD choice | unknown | — | **Not measured** — named so they are not mistaken for rejected |
 

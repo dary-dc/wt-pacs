@@ -15,6 +15,7 @@ for name, (ci, k) in cols.items():
     line = f"{name:16}" + "".join(f"{statistics.median(float(r[ci]) * k for r in by[a].values()):16.1f}" for a in arms)
     for b in arms[1:]:
         common = sorted(set(by[arms[0]]) & set(by[b]))
-        d = [(float(by[b][l][ci]) - float(by[arms[0]][l][ci])) / float(by[arms[0]][l][ci]) * 100 for l in common]
-        line += f"{statistics.median(d):+10.1f}% {sum(x < 0 for x in d)}/{len(d)} lower"
+        pairs = [(float(by[b][l][ci]), float(by[arms[0]][l][ci])) for l in common]
+        d = [(n - o) / o * 100 for n, o in pairs if o != 0]
+        line += f"{statistics.median(d):+10.1f}% {sum(x < 0 for x in d)}/{len(d)} lower" if d else f"{'n/a':>24}"
     print(line)
