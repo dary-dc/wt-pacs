@@ -107,9 +107,8 @@ Four properties a simpler version loses:
 A miss escalates **the rest of the frame**, not the rest of a 64 KiB window. Windowing
 the pool read cost 2–3 device round trips per 250 kB frame.
 
-The planner bounds `in_hand` at `ASKS_AHEAD`. The session task streams `RequestFrames`
+The planner bounds `in_hand` at `ASKS_AHEAD`. The ask reader streams `RequestFrames`
 instead of collecting the batch. Upcoming stops at the first `Fill` or `EndSession`.
-The ask-reader *task* is gone; `docs/adr-frame-framing-and-loop-shape.md` §6d.
 
 ## What does not change
 

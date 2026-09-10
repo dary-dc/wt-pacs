@@ -6,10 +6,10 @@ Two WebTransport streams per session:
    `EndSession`). Server may write `FrameError` on the same stream for immediate refusal.
 
    **Ask granularity matters.** The **real-time path uses one `RequestFrame` per message.**
-   The session task reads the control stream through a cancel-safe FoD reader and feeds a
-   planner; pipelined `RequestFrame`s become `current` + `upcoming`, not one-at-a-time.
-   `RequestFrames` flattens to the same `Ask::Frame` per index. Start-to-end delivery
-   without naming every index is `StreamFrames`, not a large batch. Client window depth
+   An ask-reader task owns the control stream and feeds a planner; pipelined `RequestFrame`s
+   become `current` + `upcoming`, not one-at-a-time. `RequestFrames` flattens to the same
+   `Ask::Frame` per index. Start-to-end delivery without naming every index is `StreamFrames`,
+   not a large batch. Client window depth
    ([`adr-client-window-depth.md`](adr-client-window-depth.md)) is the client's outstanding
    asks; the server realises up to `TILE_SLOTS` of them on one session.
 
@@ -29,7 +29,7 @@ Study bundles use on-disk **SBND** layout (see `docs/FIXTURES.md`).
 
 | Message | Documented intent | What the server does today |
 | --- | --- | --- |
-| `RequestFrame { frame }` | interactive path, *depth = outstanding asks* | session-task reader + planner: this frame is served with any already-queued asks as `upcoming` |
+| `RequestFrame { frame }` | interactive path, *depth = outstanding asks* | ask-reader + planner: this frame is served with any already-queued asks as `upcoming` |
 | `RequestFrames { frames }` | bulk path, several indexes in one message | flattened to one `Ask::Frame` per index; the same planner, the same upcoming |
 | `EndSession` | stop | stop |
 

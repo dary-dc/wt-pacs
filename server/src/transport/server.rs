@@ -4,13 +4,12 @@
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
-use crate::transport::planner::{Ask, Planner, Step};
+use crate::transport::planner::{Ask, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
-use crate::transport::wire::FodReader;
+use crate::transport::wire::read_fod_msg;
 use anyhow::{anyhow, Context, Result};
 use fod::FodMsg;
-use std::collections::VecDeque;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -205,17 +204,21 @@ async fn handle_incoming(
     run_session(&mut product, control_recv).await
 }
 
-/// The session task reads asks; the planner decides; the pipeline serves.
-/// `docs/adr-frame-framing-and-loop-shape.md` §6d.
+/// The reader owns the control stream; the planner decides; the pipeline serves.
+/// `docs/disk-access/IMPLEMENTATION.md`.
 async fn run_session<P: FramePipeline>(pipeline: &mut P, control_recv: RecvStream) -> Result<()> {
-    drive(pipeline, &mut FodAskSource::new(control_recv)).await
+    let (reader, mut asks) = spawn_ask_reader(control_recv);
+    let result = drive(pipeline, &mut asks).await;
+    reader.abort();
+    let _ = reader.await;
+    result
 }
 
 /// The loop over `Ask`, with no stream in it, so a test can drive it without QUIC.
-async fn drive<P: FramePipeline, S: AskSrc>(pipeline: &mut P, asks: &mut S) -> Result<()> {
+async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
     let mut plan = Planner::new(pipeline.store().frame_count());
     loop {
-        let step = plan.next(|| asks.try_recv())?;
+        let step = plan.next(|| asks.try_recv().ok())?;
         if plan.take_noted_fill() {
             pipeline.note_fill();
         }
@@ -239,78 +242,44 @@ async fn drive<P: FramePipeline, S: AskSrc>(pipeline: &mut P, asks: &mut S) -> R
     Ok(())
 }
 
-trait AskSrc: Send {
-    fn try_recv(&mut self) -> Option<Ask>;
-    fn recv(&mut self) -> impl std::future::Future<Output = Option<Ask>> + Send;
-}
-
-impl AskSrc for mpsc::Receiver<Ask> {
-    fn try_recv(&mut self) -> Option<Ask> {
-        mpsc::Receiver::try_recv(self).ok()
-    }
-    async fn recv(&mut self) -> Option<Ask> {
-        mpsc::Receiver::recv(self).await
-    }
-}
-
-struct FodAskSource {
-    reader: FodReader,
-    pending: VecDeque<Ask>,
-}
-
-impl FodAskSource {
-    fn new(recv: RecvStream) -> Self {
-        Self {
-            reader: FodReader::new(recv),
-            pending: VecDeque::new(),
-        }
-    }
-
-    fn enqueue(&mut self, msg: FodMsg) {
-        match msg {
-            FodMsg::RequestFrame { frame } => self.pending.push_back(Ask::Frame(frame)),
-            FodMsg::RequestFrames { frames } => {
-                self.pending.extend(frames.into_iter().map(Ask::Frame));
-            }
-            FodMsg::StreamFrames { from, to } => self.pending.push_back(Ask::Fill { from, to }),
-            FodMsg::EndStream => self.pending.push_back(Ask::EndStream),
-            FodMsg::EndSession => self.pending.push_back(Ask::EndSession),
-            FodMsg::FrameError { .. } => {}
-        }
-    }
-}
-
-impl AskSrc for FodAskSource {
-    fn try_recv(&mut self) -> Option<Ask> {
+fn spawn_ask_reader(
+    mut control_recv: RecvStream,
+) -> (tokio::task::JoinHandle<()>, mpsc::Receiver<Ask>) {
+    let (tx, rx) = mpsc::channel(ASKS_AHEAD);
+    let reader = tokio::spawn(async move {
         loop {
-            if let Some(ask) = self.pending.pop_front() {
-                return Some(ask);
-            }
-            match self.reader.try_recv_msg()? {
-                Ok(FodMsg::FrameError { .. }) => continue,
-                Ok(msg) => {
-                    self.enqueue(msg);
-                    return self.pending.pop_front();
-                }
-                Err(err) => return Some(Ask::Failed(err)),
+            if read_asks(&mut control_recv, &tx).await.is_err() {
+                return;
             }
         }
-    }
+    });
+    (reader, rx)
+}
 
-    async fn recv(&mut self) -> Option<Ask> {
-        loop {
-            if let Some(ask) = self.pending.pop_front() {
-                return Some(ask);
-            }
-            match self.reader.recv_msg().await {
-                Ok(FodMsg::FrameError { .. }) => continue,
-                Ok(msg) => {
-                    self.enqueue(msg);
-                    return self.pending.pop_front();
-                }
-                Err(err) => return Some(Ask::Failed(err)),
-            }
+async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+    let ask = match read_fod_msg(control_recv).await {
+        Ok(FodMsg::RequestFrame { frame }) => {
+            tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
+            return Ok(());
         }
+        Ok(FodMsg::RequestFrames { frames }) => {
+            for frame in frames {
+                tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
+            }
+            return Ok(());
+        }
+        Ok(FodMsg::StreamFrames { from, to }) => Ask::Fill { from, to },
+        Ok(FodMsg::EndStream) => Ask::EndStream,
+        Ok(FodMsg::EndSession) => Ask::EndSession,
+        Ok(FodMsg::FrameError { .. }) => return Ok(()),
+        Err(err) => Ask::Failed(err),
+    };
+    let failed = matches!(ask, Ask::Failed(_));
+    tx.send(ask).await.map_err(|_| ())?;
+    if failed {
+        Err(())
+    } else {
+        Ok(())
     }
 }
 
@@ -318,7 +287,7 @@ impl AskSrc for FodAskSource {
 mod tests {
     use super::*;
     use crate::media::frame_store::FrameSpan;
-    use crate::transport::planner::{Mode, ASKS_AHEAD};
+    use crate::transport::planner::Mode;
     use fod::FodMsg;
     use frame_envelope::unwrap;
     use std::io::Write;

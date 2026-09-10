@@ -115,10 +115,9 @@ Splitting the loop into an ask reader and a sender joined by a bounded FIFO chan
 congestion, which is when a redirect matters; and it is a *precondition* for B/C, since `set_priority`
 and `reset` are inert if the ask has not been read.
 
-**2026-09-08.** Fill (`StreamFrames`, §6c) needs a `try_recv` between frames even on a healthy
-shared stream: without it, `EndStream` is not seen until the recitation ends. That poll does
-not need a second task — §6d shipped D. The ranking below still holds for the framing
-decision; it does not hold for fill.
+**2026-09-08.** Fill (`StreamFrames`, §6c) needs the split even on a healthy shared stream: without a
+reader, `EndStream` is not seen until the recitation ends. That is why §6d recommends B. The ranking
+below still holds for the framing decision; it does not hold for fill.
 
 The channel is FIFO and preserves client ask order, so it is not the queue rejected in
 [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
@@ -144,13 +143,10 @@ measuring.
 
 ## 6b · Serving depth: the loop was depth 1, and the protocol said otherwise
 
-**Status: built 2026-09-09; hop removed 2026-09-10.** A cancel-safe `FodReader` on the
-session task owns `control_recv` and feeds a planner; `RequestFrame` and `RequestFrames`
-are the same `Ask::Frame` to the loop. The reader *task* + channel is gone — that hop sat
-on idle→first-byte. EndStream still lands between fill frames via `try_recv` on the
-parser, not via a second task. The read path split on 2026-09-10 (`SeqReader` /
-`TileReader`). Historical cost of depth 1 is the table below.
-[`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
+**Status: built 2026-09-09.** Option B shipped: an ask-reader task owns `control_recv` and
+feeds a planner; `RequestFrame` and `RequestFrames` are the same `Ask::Frame` to the loop.
+The read path split on 2026-09-10 (`SeqReader` / `TileReader`). Historical cost of depth 1
+is the table below. [`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
 
 Until then, `FodMsg::RequestFrame` was documented as "one frame per message (**depth =
 outstanding asks**)" and the server did not realise that depth. `run_session` read one
@@ -200,7 +196,7 @@ reordering**, and nothing in that ADR speaks against it.
 What stood in the way was state, in two places:
 
 1. **The session loop** awaited `serve_one` before reading the next ask. **Fixed**: the
-   planner plus a cancel-safe FoD reader on the same task.
+   ask-reader task plus planner.
 2. **The reader held one window and its ring one in-flight slot**, so even a concurrent
    loop would have serialised on the buffer. **Fixed**: `TileReader` holds `TILE_SLOTS`
    frames; `SeqReader` is the double buffer.
@@ -266,9 +262,8 @@ peeks what is already in hand. `SeqReader` names one frame ahead (`FILL_AHEAD`).
 ### Why the loop change is not optional
 
 The two app modes are **fill** (`StreamFrames`) and **on-demand** (`RequestFrame` /
-`RequestFrames`). Fill needs a `try_recv` between frames so `EndStream` can arrive while
-the loop is reciting the study — that poll is on the stream parser, not a reader task.
-On-demand that pipelines `RequestFrame` needs the same poll so those asks become
+`RequestFrames`). Fill needs the reader task so `EndStream` can arrive while the loop is
+reciting the study. On-demand that pipelines `RequestFrame` needs it so those asks become
 `upcoming`. An interactive viewer that asks as the user moves still has depth 1 by nature —
 there is no next ask to name.
 
@@ -280,25 +275,22 @@ there is no next ask to name.
 
 | | shape | cost |
 | --- | --- | --- |
-| **A** | `select!` in `run_session` over a pinned `read_fod_msg` future and the in-flight `serve_one` | Every future pinned and re-created only on completion. The old `read_fod_msg` was **not cancel-safe** — it held partial length/body state in locals — so dropping it mid-message lost stream bytes |
-| **B** | an ask-reader task owning `control_recv`, feeding a bounded (capacity **`ASKS_AHEAD`**) channel; the serving loop takes one and peeks the next | One task and one channel per session. Cancel-safe by isolation. The extra hop is on idle→first-byte |
+| **A** | `select!` in `run_session` over a pinned `read_fod_msg` future and the in-flight `serve_one` | Every future pinned and re-created only on completion. `read_fod_msg` is **not cancel-safe** — it holds partial length/body state in locals (`wire.rs:22`) — so dropping it mid-message loses stream bytes. One misplaced re-creation is a protocol desync |
+| **B** | an ask-reader task owning `control_recv`, feeding a bounded (capacity **`ASKS_AHEAD`**) channel; the serving loop takes one and peeks the next | One task and one channel per session. Cancel-safety stops being a hazard because one owner reads the stream start to finish. §5 already wanted this shape for a second reason: it is the precondition for per-frame `set_priority` and `reset`. Fill needs it so `EndStream` can arrive while the loop is reciting |
 | **C** | do nothing; clients that want depth send `RequestFrames` | Free for on-demand batches. Does not give fill a message, and does not let `EndStream` in during a recitation |
-| **D** | cancel-safe `FodReader` on the session task; `try_recv` between frames; `recv` on `Wait` | No task hop. Partial bytes live on the reader, so a dropped poll is not a desync. Fill still sees `EndStream` between frames. Pipelined singles in one chunk become `upcoming` |
+| **D** | cancel-safe FoD parser on the session task; no reader task | Removes the idle→first-byte hop. **Tried 2026-09-10; not shipped** (§6e) |
 
-**Shipped: D.** B was built 2026-09-09 because A was unsafe. D is A with the state moved
-out of the future — the reason B existed — without B's hop. C is still not enough.
+**Recommendation: B, not A.** A buys nothing over B and puts a cancel-safety hazard in the
+session loop's hot path. C is not enough: the two app modes are fill (`StreamFrames`) and
+on-demand (`RequestFrame` / `RequestFrames`), and fill needs the reader task. D is the
+hop hunt; it did not move ask-to-first-byte the right way.
 [`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
-
-The hop sits before `serve_us` starts, so a `send_us` / `serve_us` cell cannot see it —
-quote ask-to-first-byte (or on-demand depth-1 wall). Unmeasured on this box; the claim
-is the hop is gone, not a µs number. Do not retry serene-rubin's fat LTO, `aws-lc-rs`,
-UDP 4000, or fill `WILLNEED`: those did not move wall time on a real computer.
 
 Note the owners' requirement is **depth 4 or more**, and C alone does not reach it for a
 client that asks per tile: `RequestFrames` gives depth 2 today, and widening past two is a
 read-path change to make *after* the loop can keep more than one ask in flight.
 
-### If D is built
+### If B is built
 
 The peek is not a peek: `try_recv` removes the message, so the loop carries it as the next
 iteration's current ask. A fill does not enqueue indexes; it recites `from..to` and
@@ -326,12 +318,11 @@ Invariants an implementation has to keep, each of which is a way to get this wro
    must be handled where it arrives in the sequence, not when it is read. **`EndStream` is
    different:** it stops a fill. Generated indexes are not in the channel, so the loop must
    `try_recv` between stream frames or `EndStream` waits until the study ends.
-3. **A closed control stream ends the session**, and the reader's error is the session's
-   error — losing it turns a broken control stream into a silent hang.
-4. **Capacity `ASKS_AHEAD`, shared with `in_hand`.** The planner holds control messages, not
+3. **A closed channel ends the session**, and the reader task's error is the session's error —
+   losing it turns a broken control stream into a silent hang.
+4. **Capacity `ASKS_AHEAD`, shared with `in_hand`.** The channel holds control messages, not
    generated stream indexes. The tile reader takes at most `slots − 1` of what the planner
-   names; a fill takes `FILL_AHEAD`. A running fill is not sized by this queue. A leftover
-   `RequestFrames` batch sits on the reader's pending queue, same bound as the old channel.
+   names; a fill takes `FILL_AHEAD`. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
    ([`disk-access/NEXT.md`](disk-access/NEXT.md)). Depth 2 → 4 is a further
    0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion
@@ -345,6 +336,31 @@ interleaved. Expect the miss-dominated cells to move by something like the batch
 **+73.8% asks/s** and warm
 cells to tie. A warm regression means the look-ahead is reaching the ring on a hit, which is
 the one thing the read path is built not to do.
+
+### 6e · Folding the reader task back into the session — negative
+
+Tried 2026-09-10 on `cursor/latency-sched-hops-3a29`. A cancel-safe parser on the session
+task deletes the spawned reader + `mpsc` hop (option D). Tests passed, including
+EndStream-during-fill. The hop sits **before** `serve_us`, so the cell is ask-to-first-byte.
+
+Interleaved `server_ab --mode on-demand --depth 1`, 16 KiB warm, 32 asks, 10 repeats,
+arm order reversed each repeat, both servers up, `miss_rate=0`. Quote p50 of
+ask→envelope, not throughput.
+
+| | before (B) | after (D) |
+| --- | ---: | ---: |
+| p50 median across repeats | 53.0 µs | 63.0 µs |
+| paired median (after − before) / before | | **+10.7 %** |
+| signs after worse | | **9/10** |
+
+Run-to-run overlap is large (46–81 µs). The sign test still leans against D. During
+`serve`, D does not poll the control stream, so a pipelined ask waits for the write to
+finish; B's reader task does that work on the other hop. On this box that cost is visible
+and the saved wake is not.
+
+**Not shipped.** B stays. Do not retry D without a cell where the reader is already
+blocked on the next ask *during* `write_all`. Do not retry serene-rubin's fat LTO,
+`aws-lc-rs`, UDP 4000, or fill `WILLNEED`: those did not move wall time on a real computer.
 
 ## 7 · Corrections owed
 
