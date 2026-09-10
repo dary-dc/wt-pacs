@@ -1,6 +1,6 @@
 # ADR: how the server reads SBND frame bytes
 
-**Status:** Accepted · current as of **2026-09-09** · supersedes the 2026-08-31 always-touch
+**Status:** Accepted · current as of **2026-09-10** · supersedes the 2026-08-31 always-touch
 decision (provenance at the end)
 **Evidence:** [`EVIDENCE.md`](EVIDENCE.md) — every number · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) — how it works
 **What is still open:** [`NEXT.md`](NEXT.md)
@@ -12,39 +12,41 @@ outside it, what is next.
 
 ## 1 · The decision, as it ships
 
-**Bytes come in three ways, chosen per session at runtime by what the session does.**
+**Two readers, chosen by what the session is doing.** A fill knows the next frame; a tile
+ask does not. That difference picks the escalation.
 
-1. **A page-cache hit is served inline.** Each 64 KiB window of a frame is read with
+1. **A page-cache hit is served inline.** The whole frame is probed with
    `preadv2(RWF_NOWAIT)` on the executor thread. It returns short instead of waiting on the
    disk, so a cold frame can never park a worker, and a warm ask takes no thread hop at all.
-2. **A miss goes to a ring built for that session on its first miss.** io_uring, driven
-   through the `io-uring` crate directly: registered file, unregistered buffers, one slot per
-   window (`WINDOWS = 4`), and completions awaited through tokio's `AsyncFd`, never waited on. The ring
-   reads **the rest of the frame** in one round trip, never the rest of the window. A session
-   whose reads all hit never builds a ring, so on a warm workload the mechanism is inert.
-3. **The fallback is `spawn_blocking` + `pread`.** Where the filesystem refuses
-   `RWF_NOWAIT` (overlayfs, tmpfs) or the kernel refuses a ring (limits), the session takes
-   one pooled read per frame. Same guarantee, one hop per ask.
+2. **A fill (`SeqReader`) stays on the pool.** Two buffers, the next frame named
+   (`FILL_AHEAD = 1`), one `spawn_blocking` + `pread` for a miss. No ring, no extra fd.
+   `peak_in_flight` is 1. A sequential walk is read-ahead's best case (~one miss in sixty).
+3. **A tile miss goes to a ring built on that session's first miss.** `TileReader` holds
+   `slots` frames (default `TILE_SLOTS = 4`; a constructor argument, so a campaign can sweep
+   depth). io_uring through the `io-uring` crate: registered file, unregistered buffers, one
+   slot per named frame, completions awaited through tokio's `AsyncFd`. The ring reads **the
+   rest of the frame** in one round trip. A tile session whose reads all hit never builds a
+   ring. A fill session never builds one at all.
+4. **The fallback is `spawn_blocking` + `pread`.** Where the filesystem refuses
+   `RWF_NOWAIT` (overlayfs, tmpfs) or the kernel refuses a ring (limits), tiles take one
+   pooled read per frame. Same guarantee, one hop per ask. A fill is already on this path.
 
-**And the read path is told what is coming.** A session keeps W = 4 windows. On-demand names
-up to three upcoming frames; a fill names one, so fill stays two windows deep. The read-ahead
-probes `RWF_NOWAIT` first exactly as an on-demand read does and submits only the shortfall.
-`RequestFrame` and `RequestFrames` are the same thing to the loop: one `Ask::Frame` per index.
-The ring has no slot table; `SLOTS` is gone.
-
-The same reader serves both use cases: **tiles** (positional reads, out of order) and
-**sequential streaming** (the same reader going forward, one frame ahead — §5, group E).
+**And the read path is told what is coming.** On-demand names up to `slots − 1` upcoming
+frames; a fill names one. The tile read-ahead probes `RWF_NOWAIT` first and submits only the
+shortfall. `RequestFrame` and `RequestFrames` are the same thing to the loop: one
+`Ask::Frame` per index, fed by an ask-reader task into a planner. `READ_WINDOW` (64 KiB)
+chunks the **write**, not the read — the reader returns a whole frame.
 
 What is *not* done: no memory mapping anywhere in `server/`; no whole-frame envelope; no
 `mincore` gate; no `SQPOLL`, no registered buffers, no cursor reads.
 
 | | |
 | --- | --- |
-| Where | `server/src/media/read_path.rs` (W windows), `uring_reader.rs` (thin ring), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the wire loop) |
-| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch) · `uring` (lab lever, every read through the ring) |
-| Feature | `uring`, on by default; `--no-default-features` compiles to the pool path |
-| Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build |
-| Validated | as the **product**: `read_campaign --arms product,product_ahead` drives the real `ReadCtx` and ties the lab arm that won |
+| Where | `server/src/media/read_path.rs` (`SeqReader`, `TileReader`), `uring_reader.rs` (thin ring), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the write) |
+| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles) · `uring` (lab lever, every tile through the ring) |
+| Feature | `uring`, on by default; the pool path is `--no-default-features --features crypto-ring` |
+| Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build, with fill/tile hits split |
+| Validated | as the **product**: `read_campaign --arms product_fill,product_tile` drives the real readers |
 
 **Guarantee.** The bytes quinn puts on the wire are process-private — copied once into a
 session-owned buffer — so reclaim cannot take them back mid-write. This was the previous
@@ -128,7 +130,7 @@ a **tie**, which is a real answer.
 | **Cost** | Two copies (kernel → window, window → quinn) where mmap needs one; measured cheaper than the hop it replaces on every cell. Four `write_all` calls per 250 KB frame. A reader that misses grows its buffer to frame size and keeps it |
 | **Conditional** | The win is on misses. On local NVMe the ring is 56–75 % of a miss; on cloud block storage a miss is device-bound and the ring's margin is threads and CPU per miss, not latency. That is the one thing P0 exists to measure |
 | **Conditional** | Where `RWF_NOWAIT` is refused or a ring is refused, the session runs the pool. The server now says which path it took, in the startup banner and per session; deployment (§6) is still part of the decision |
-| **Scale** | This decision moves about a fifth of a frame's server CPU; per-datagram QUIC work is the rest (§8). Tiles serve at **W = 4**; fill names one frame ahead. The loop is a planner over a channel of `Ask`. Depth 2 → 4 was +37 % on the sandbox host |
+| **Scale** | This decision moves about a fifth of a frame's server CPU; per-datagram QUIC work is the rest (§8). Tiles serve at **`TILE_SLOTS` = 4**; fill names one frame ahead and never builds a ring. The loop is a planner over a channel of `Ask`. Depth 2 → 4 was +37 % on the sandbox host |
 | **Risk** | The hit rate is access-shape-conditional. Whole frames in order let read-ahead run ahead of the loop; serving a codestream *prefix* per frame strides the file and misses 319 of 320 cold. The fix is the packer, not the reader |
 
 ## 5 · Every candidate, one table
@@ -152,7 +154,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | --- | --- | --- | --- | --- | --- |
 | **`RWF_NOWAIT` inline for hits, 64 KiB windows** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
 | **Ring per session, built on the first miss, whole rest of the frame** | B | misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16; ties the lab arm on p50, p99, CPU | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted** — conditional on P0 |
-| **Read ahead (W windows)** | B | **+73.8 % asks/s** on missing tiles at W = 2, warm a tie; 16 tiles 1.14 → 0.62 ms; W = 4 for tiles, fill stays 2 | four windows, 64 KiB tiles / two frames after a fill miss | one constant; the ring has no slot table | **Accepted** |
+| **Read ahead (`TILE_SLOTS` / `FILL_AHEAD`)** | B | **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms; tiles default to 4 slots, fill stays one ahead | four tile slots / two fill buffers after a miss | `slots` is a constructor argument; a fill has no ring | **Accepted** |
 | `spawn_blocking` + `pread` for the miss | B | identical on hits; on 16 KiB misses the shipped reader is −45.4 % CPU against it, and its tail widens with depth | **125–135 threads at 64 readers, 512 cap** (517 seen at 64 × 16); 0 fds | the simplest correct reader; zero `unsafe` beyond `preadv2` | **Kept as fallback**; ships if P0 ties |
 | Escalate only the rest of the window | B | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 | flat at ~1 600 f/s from 8 to 32 readers | — | Superseded 2026-09-07 |
 | Every read through the ring (`uring`) | B | hits **+224 % CPU at depth 1, RESOLVED**; above depth 1 a 16 KiB tie on CPU and throughput, ~+30 % throughput at 250 kB; streams +143–190 % at 8–64 sessions; misses tie | 5 threads; lowest CPU per miss | one path, but a hit must never touch a ring | Rejected as default; kept as a lab flag |
@@ -178,7 +180,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | `O_DIRECT` + SPDK, whole-study preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
 | Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
 | `write_chunk` owned windows to quinn | B | −3.2 % at one session; **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | Rejected, more so at scale |
-| Sequential: the shipped reader forward, one frame ahead | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; read-ahead makes 96–99 % of asks hits | 5 threads; one fd per study | no new reader | **Accepted** |
+| Sequential: `SeqReader`, one frame ahead, pool only | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; read-ahead makes 96–99 % of asks hits | 5 threads; one fd per study; no ring | its own reader, because a fill that builds a ring pays 2 fds for one miss in sixty | **Accepted** |
 | Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
 | Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
 
@@ -216,9 +218,10 @@ named test.
 * **The bytes quinn sends are process-private.** The read path copies into a session-owned
   buffer and never hands quinn a mapping — which is why `server/` has no mapping at all; the
   mmap arms live in `lab/`. 
-* **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm read would
+* **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm tile would
   go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
-* **The window index is the ring slot.** There is no `SLOTS`. `w_named_frames_start_before_the_current_read_finishes`.
+* **A fill never builds a ring.** `SeqReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
+* **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
 
 ## 8 · Levers outside this decision
 
@@ -229,7 +232,7 @@ whole plan.
 | Lever | Worth | Blocker / cost | Status |
 | --- | --- | --- | --- |
 | **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — the largest effect measured anywhere in this investigation | the peer must advertise the same ceiling, and the peer is a browser; above 4000 B path discovery failed and fell back to 1200 B | **Measured, not taken.** Price it first |
-| **Serving depth ≥ 4** — W = 4 for tiles, fill names one ahead | **+73.8 % asks/s** on missing tiles at W = 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
+| **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
 | GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
@@ -252,4 +255,5 @@ Earlier campaign documents: `git show a330783:docs/disk-access/<file>` for
 `SEND-BUDGET.md`, `READ-PATH-DECISION.md`, `S5-CONTROL-ARM.md`, `SCOREBOARD.md`.
 The 2026-08-31 decision: `git show be78860:docs/disk-access/adr.md`.
 This branch's tables and design diary: `git show read-path-evidence-2026-09-09:docs/disk-access/`.
+The w1–w3 dumps: `git show read-path-evidence-2026-09-10:docs/disk-access/`.
 The harness is `lab/disk-access-bench`, a workspace member.

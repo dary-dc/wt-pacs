@@ -15,7 +15,7 @@ use tracing::warn;
 #[cfg(feature = "uring")]
 use crate::media::uring_reader::UringReader;
 
-/// Frames a tile session holds at once, and its ring depth. `docs/disk-access/NEXT.md`.
+/// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
 pub const TILE_SLOTS: usize = 4;
 
 /// Which escalation a tile session takes, from `WTPACS_READ_PATH`.
@@ -720,7 +720,7 @@ mod tests {
     }
 
     /// Slots are a constructor argument, so the depth a tile session runs at is a number the
-    /// campaign can sweep rather than a constant. `docs/disk-access/NEXT.md` item 11.
+    /// campaign can sweep rather than a constant. `docs/disk-access/adr.md` §1.
     #[test]
     fn a_tile_reader_holds_as_many_frames_as_it_was_given_slots() {
         let dir = scratch("slots");

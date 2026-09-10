@@ -1,24 +1,31 @@
 # Disk access — how the server reads SBND frame bytes
 
-**Decided and implemented.** A page-cache hit is `preadv2(RWF_NOWAIT)` on the executor. A
-miss goes to a per-session io_uring built on the first miss. A session that never misses
-never builds a ring. Tiles keep four windows; a fill names one frame ahead.
+**Decided and implemented.** A page-cache hit is `preadv2(RWF_NOWAIT)` on the executor.
+A fill (`SeqReader`) names one frame ahead and stays on the blocking pool — no ring.
+A tile ask (`TileReader`) keeps `TILE_SLOTS` frames and builds a per-session io_uring
+on its first miss. A session that never misses never builds a ring.
 
 | Doc | What |
 | --- | --- |
 | [`adr.md`](adr.md) | **The decision.** What ships, what is rejected, numbers that are safe to quote |
 | [`EVIDENCE.md`](EVIDENCE.md) | **The numbers** the ADR may quote, including the 2026-09-09 re-measurement |
-| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | **How the code works** — windows, ring, planner, what the server reports |
+| [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | **How the code works** — the two readers, the ring, the planner, what the server reports |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | **Before shipping.** overlayfs refuses the fast path; `check-fastpath` answers it |
 | [`NEXT.md`](NEXT.md) | **What is still open** — P0 on the target, workstation A/B, transport levers |
 
-Campaign tables, the design diary, and the layout study are not in this tree. They live at
-tag [`read-path-evidence-2026-09-09`](https://github.com/dary-dc/wt-pacs/tree/read-path-evidence-2026-09-09):
+Campaign tables, the design diary, the layout study, and the w1–w3 dumps are not in
+this tree. They live at two pins:
 
 ```bash
+# w1–w3 TSVs (workstation A/B, the reader re-open, line 221)
+git show read-path-evidence-2026-09-10:docs/disk-access/
+# campaign tables and design diary
+git show read-path-evidence-2026-09-09:docs/disk-access/
 git show read-path-evidence-2026-09-09:docs/disk-access/READ-PATH-DESIGN.md
-git show read-path-evidence-2026-09-09:docs/disk-access/   # TSVs
 ```
+
+Do not move `read-path-evidence-2026-09-09`. The later pin is the tree that still
+held the dumps; this tip dropped them.
 
 ## The lab stays on the tip
 
@@ -32,13 +39,13 @@ BYTES=250000 FRAMES=32000 NAME=frames_250k_deep ./lab/scripts/gen_live_cell_fixt
 cargo build -p disk-access-bench -p check-fastpath --release
 ./target/release/check-fastpath /path/to/studies
 lab/scripts/server_ab.sh <base-commit>     # product server A/B
-lab/scripts/read_path_ab.sh <base-commit>  # ReadCtx only
+lab/scripts/read_path_ab.sh <base-commit>  # SeqReader / TileReader
 ```
 
-`server/` does not link `memmap2`. mmap arms live in the lab crate so they stay reproducible
-without a mapping in the product.
+`server/` does not link `memmap2`. mmap arms live in the lab crate so they stay
+reproducible without a mapping in the product.
 
-**Use a fixture larger than the host cache for anything about misses.** An 80 MB study fits
-in the hypervisor; a “miss” there is ~12 µs and hides every miss-path effect. The 8 GB
-`frames_250k_deep` is the miss fixture. Consecutive asks must stride past `read_ahead_kb` or
-a cold cell is a hit cell wearing a cold label.
+**Use a fixture larger than the host cache for anything about misses.** An 80 MB study
+fits in the hypervisor; a “miss” there is ~12 µs and hides every miss-path effect. The
+8 GB `frames_250k_deep` is the miss fixture. Consecutive asks must stride past
+`read_ahead_kb` or a cold cell is a hit cell wearing a cold label.

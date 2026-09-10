@@ -3,9 +3,9 @@
 use anyhow::Result;
 use std::collections::VecDeque;
 
-/// Asks the server holds beyond the frame being served. The read path takes what fits (W − 1).
+/// Asks the server holds beyond the frame being served. A tile reader takes what fits (`slots − 1`).
 pub const ASKS_AHEAD: usize = 8;
-/// A fill reads one frame ahead: two windows, §9.3.
+/// A fill reads one frame ahead: two buffers, pool only. `docs/disk-access/adr.md`.
 pub const FILL_AHEAD: usize = 1;
 
 /// What the loop consumes: one item per frame, whichever message carried it.

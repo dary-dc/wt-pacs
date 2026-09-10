@@ -25,8 +25,8 @@ enum Arm {
     Hybrid,
     /// The ADR's escape hatch: every read on the blocking pool, no fast path attempted.
     PooledPread,
-    /// `pool` with its probe capped at `READ_WINDOW`, which is the one thing `ReadCtx`
-    /// does that no other arm does. The positive control for `read_path.rs:221`.
+    /// `pool` with its probe capped at `READ_WINDOW`, which is the one thing the old
+    /// `ReadCtx` did that no other arm did. The positive control for that cap.
     PoolCappedProbe,
     /// **The S5 control**: `hybrid`'s loop with `pool`'s miss mechanism, so the delta
     /// against `pool` is loop shape alone. `docs/disk-access/EVIDENCE.md`.
@@ -109,8 +109,8 @@ impl Arm {
 struct Args {
     #[arg(long)]
     study: PathBuf,
-    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product,
-    /// product_ahead,uring_ringfd,hybrid_lazyring_ringfd,tokio_fs (sweep shape only)
+    /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product_fill,
+    /// product_tile,uring_ringfd,hybrid_lazyring_ringfd,tokio_fs (sweep shape only)
     #[arg(long, default_value = "pool,uring,hybrid")]
     arms: String,
     /// Comma-separated reads in flight per reader.
@@ -286,7 +286,7 @@ struct Outcome {
     cpu_ns: u64,
     threads_max: usize,
     misses: u64,
-    /// `ReadCtx`'s own reach and concurrency. Zero on arms that hold no `ReadCtx`.
+    /// The product readers' own reach and concurrency. Zero on arms that hold neither.
     peak_named: u64,
     peak_in_flight: u64,
     /// Resident growth across the cell, and how many sessions ended holding a ring.
@@ -294,7 +294,7 @@ struct Outcome {
     rings_built: u64,
     /// io_uring completions that came back short of the bytes asked for, and were resubmitted.
     short_reads: u64,
-    /// `ctx.read` calls per ask: 1.0 means a frame was served in one call, 4.0 that it
+    /// Reader `read` calls per ask: 1.0 means a frame was served in one call, 4.0 that it
     /// was split into `READ_WINDOW` pieces. A miss returns the rest of the frame.
     reads: u64,
 }

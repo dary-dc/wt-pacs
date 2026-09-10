@@ -6,12 +6,12 @@ Two WebTransport streams per session:
    `EndSession`). Server may write `FrameError` on the same stream for immediate refusal.
 
    **Ask granularity matters.** The **real-time path uses one `RequestFrame` per message.**
-   `RequestFrames` is served as a batch — every frame in it is sent before the next control message is
-   read — which makes it a **bulk / sequential path for testing** (start-to-end sends where latency is
-   not under test). A batch of `N` produces an effective outstanding depth of `N` regardless of the
-   depth the client computed, so client window depth
-   ([`adr-client-window-depth.md`](adr-client-window-depth.md)) **does not apply to it** and its
-   latency numbers are not comparable to the interactive path.
+   An ask-reader task owns the control stream and feeds a planner; pipelined `RequestFrame`s
+   become `current` + `upcoming`, not one-at-a-time. `RequestFrames` flattens to the same
+   `Ask::Frame` per index. Start-to-end delivery without naming every index is `StreamFrames`,
+   not a large batch. Client window depth
+   ([`adr-client-window-depth.md`](adr-client-window-depth.md)) is the client's outstanding
+   asks; the server realises up to `TILE_SLOTS` of them on one session.
 
 `CancelFrames`, `generation`, and `RequestPath` were removed — see
 [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) and
@@ -29,14 +29,14 @@ Study bundles use on-disk **SBND** layout (see `docs/FIXTURES.md`).
 
 | Message | Documented intent | What the server does today |
 | --- | --- | --- |
-| `RequestFrame { frame }` | interactive path, *depth = outstanding asks* | **serves one at a time** — the next ask is not read until the current frame is on the wire |
-| `RequestFrames { frames }` | bulk path, batch drained before the next ask | serves the batch serially, frame *n+1* not read until *n* is sent |
+| `RequestFrame { frame }` | interactive path, *depth = outstanding asks* | ask-reader + planner: this frame is served with any already-queued asks as `upcoming` |
+| `RequestFrames { frames }` | bulk path, several indexes in one message | flattened to one `Ask::Frame` per index; the same planner, the same upcoming |
 | `EndSession` | stop | stop |
 
 The depth in `RequestFrame`'s intent is the **client's** — how many asks it may have
-outstanding. The server flattens it to one. That is a known limitation with a measured cost
-and a proposed shape, not a protocol decision:
-[`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §6b.
+outstanding. The server keeps up to `ASKS_AHEAD` of them in hand and the tile reader
+starts as many as fit in `TILE_SLOTS`. The shape:
+[`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §6d.
 
 ### Fill mode (`StreamFrames`)
 
@@ -47,9 +47,10 @@ boundary — not `EndSession`. A data request during a fill ends the fill and is
 
 ## Server send path (copy discipline)
 
-The server sends each media frame as **three `write_all` calls** on the uni stream: length prefix,
-4-byte display index, then the HTJ2K codestream slice from the mmap'd bundle. That matches the wire
-layout above without assembling a contiguous envelope in userspace.
+The server sends each media frame as an 8-byte head (`write_all`) and then the HTJ2K
+codestream in `READ_WINDOW` (64 KiB) pieces. The bytes come from a session-owned buffer
+(`SeqReader` or `TileReader`), not a mapping — `server/` has no mmap. That matches the
+wire layout above without assembling a contiguous envelope in userspace.
 
 **One full-frame copy remains:** `wtransport` only exposes `write_all(&[u8])`, so QUIC copies the
 codestream into its send buffer for retransmission. `quinn`'s chunk/`Bytes` API could avoid that copy

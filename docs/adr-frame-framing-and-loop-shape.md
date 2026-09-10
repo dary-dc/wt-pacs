@@ -141,16 +141,16 @@ measuring.
 
 ---
 
-## 6b · Serving depth: the loop is depth 1, and the protocol says otherwise
+## 6b · Serving depth: the loop was depth 1, and the protocol said otherwise
 
-**Status: half fixed, 2026-09-08.** `RequestFrames` now reads ahead by one and is depth 2;
-`RequestFrame` is still depth 1, because the session loop does not read the next ask until
-the frame in hand is on the wire. The read path carries the depth — what is left is the
-loop. [`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md) §Read ahead by one.
+**Status: built 2026-09-09.** Option B shipped: an ask-reader task owns `control_recv` and
+feeds a planner; `RequestFrame` and `RequestFrames` are the same `Ask::Frame` to the loop.
+The read path split on 2026-09-10 (`SeqReader` / `TileReader`). Historical cost of depth 1
+is the table below. [`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
 
-`FodMsg::RequestFrame` is documented as "one frame per message (**depth = outstanding
-asks**)". The server does not realise that depth. `run_session` reads one ask, serves it to
-completion, and only then reads the next message:
+Until then, `FodMsg::RequestFrame` was documented as "one frame per message (**depth =
+outstanding asks**)" and the server did not realise that depth. `run_session` read one
+ask, served it to completion, and only then read the next message:
 
 ```rust
 loop {
@@ -159,9 +159,9 @@ loop {
         FodMsg::RequestFrame { frame } => pipeline.serve_one(frame, …).await?,  // …this finishes
 ```
 
-So a client that pipelines asks gets them served **one at a time**; its outstanding asks
-queue in the transport, not in the server. `RequestFrames` reaches the same place by a
-different route — `serve_batch` is a `for` loop with an `.await`.
+A client that pipelined asks got them served **one at a time**; its outstanding asks
+queued in the transport, not in the server. `RequestFrames` reached the same place by a
+different route — `serve_batch` was a `for` loop with an `.await`.
 
 ### What it costs
 
@@ -195,11 +195,11 @@ reordering**, and nothing in that ADR speaks against it.
 
 What stood in the way was state, in two places:
 
-1. **The session loop** awaits `serve_one` before reading the next ask. *Still true* — this
-   is what keeps `RequestFrame` at depth 1.
-2. **`ReadCtx` held one window and its ring one in-flight slot**, so even a concurrent loop
-   would have serialised on the buffer. **Fixed**: two windows, two slots, one per frame in
-   flight.
+1. **The session loop** awaited `serve_one` before reading the next ask. **Fixed**: the
+   ask-reader task plus planner.
+2. **The reader held one window and its ring one in-flight slot**, so even a concurrent
+   loop would have serialised on the buffer. **Fixed**: `TileReader` holds `TILE_SLOTS`
+   frames; `SeqReader` is the double buffer.
 
 ### The shape to build, when it is built
 
@@ -225,7 +225,7 @@ depth 2, that question is open again on a host bigger than 4 vCPU.
 
 ### What it measured, once built
 
-The shipped `ReadCtx` driven both ways by `read_campaign`, one session, 12 interleaved
+The shipped reader driven both ways by `read_campaign`, one session, 12 interleaved
 repeats: **+73.8% asks/s,
 12/12, RESOLVED** on cold 16 KiB, p50 per frame −53.4%, and a **tie warm** — the result the
 design had to produce, since a session whose reads hit must pay nothing for a depth it never
@@ -254,10 +254,10 @@ indexes. A data request during a fill ends the fill and is then served: a second
 
 ## 6d · The other half of §6b: `RequestFrame` is still depth 1
 
-**Status: built 2026-09-09.** The read path carries W = 4 —
-`ReadCtx::read` takes the next frame and starts its read before waiting on this one. A batch
-supplies that from `frames[i + 1]`. A stream of single `RequestFrame` asks supplies nothing,
-because `run_session` does not read the next ask until the current frame is on the wire.
+**Status: built 2026-09-09; readers split 2026-09-10.** `TileReader::read` starts upcoming
+frames that fit before waiting on this one. A batch supplies that from `frames[i + 1]`. A
+stream of single `RequestFrame` asks supplies it from the ask-reader channel — the planner
+peeks what is already in hand. `SeqReader` names one frame ahead (`FILL_AHEAD`).
 
 ### Why the loop change is not optional
 
@@ -268,8 +268,8 @@ reciting the study. On-demand that pipelines `RequestFrame` needs it so those as
 there is no next ask to name.
 
 `lab/window-harness` pipelines `RequestFrame` and holds `--depth` outstanding
-(`client.rs:530`, `PEAK_OUTSTANDING`). It is the instrument that would measure the on-demand
-half; its `D` is client-side depth today, which the server flattens to 1.
+(`client.rs:530`, `PEAK_OUTSTANDING`). The server now keeps those asks as `upcoming`;
+`TileReader` starts as many as fit in `TILE_SLOTS`.
 
 ### Options
 
@@ -319,8 +319,8 @@ Invariants an implementation has to keep, each of which is a way to get this wro
 3. **A closed channel ends the session**, and the reader task's error is the session's error —
    losing it turns a broken control stream into a silent hang.
 4. **Capacity `ASKS_AHEAD`, shared with `in_hand`.** The channel holds control messages, not
-   generated stream indexes. The read path takes at most `WINDOWS − 1` of what the planner
-   names. A running fill is not sized by this queue.
+   generated stream indexes. The tile reader takes at most `slots − 1` of what the planner
+   names; a fill takes `FILL_AHEAD`. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
    ([`disk-access/NEXT.md`](disk-access/NEXT.md)). Depth 2 → 4 is a further
    0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion

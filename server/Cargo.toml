@@ -15,8 +15,8 @@ path = "src/main.rs"
 [features]
 default = ["uring", "crypto-ring"]
 telemetry = []
-# io_uring for the miss path (`hybrid_lazyring`). Optional so a build without it still
-# compiles, to the pre-change `pool` path -- see docs/disk-access/IMPLEMENTATION.md.
+# io_uring for a tile miss. Optional so a build without it still compiles, to the
+# pool path -- see docs/disk-access/IMPLEMENTATION.md.
 uring = ["dep:io-uring"]
 # rustls/quinn crypto provider. `aws-lc-rs` uses AWS-LC's vectorised AES-GCM
 # (VAES/AVX-512 where the CPU has it); `ring` is the historical default.

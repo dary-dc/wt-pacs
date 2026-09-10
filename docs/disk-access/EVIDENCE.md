@@ -3,13 +3,15 @@
 **Decision:** [`adr.md`](adr.md) · **Implementation:** [`IMPLEMENTATION.md`](IMPLEMENTATION.md) ·
 **Deployment:** [`DEPLOYMENT.md`](DEPLOYMENT.md)
 
+**2026-09-10.** The cells below drove a single `ReadCtx` (`WINDOWS = 4`, `product` /
+`product_ahead`). The code now splits: `SeqReader` (fill, pool only) and `TileReader`
+(`TILE_SLOTS`, lazy ring). Campaign tables are not rewritten.
+
 This file carries the numbers so they survive a squash. Raw TSVs and the design diary:
 
 ```bash
-git show read-path-w3-2026-09-10:docs/disk-access/           # line 221 bracketed (w3_*)
-git show read-path-w2-2026-09-10:docs/disk-access/           # the reader re-open (w2_*)
-git show read-path-workstation-2026-09-09:docs/disk-access/  # the workstation run (w1_*)
-git show read-path-evidence-2026-09-09:docs/disk-access/     # this branch's tables
+git show read-path-evidence-2026-09-10:docs/disk-access/     # w1–w3 dumps (workstation, re-open, line 221)
+git show read-path-evidence-2026-09-09:docs/disk-access/     # campaign tables and design diary
 git show a330783:docs/disk-access/READ-PATH-DECISION.md      # 2026-09-04 campaign, long form
 ```
 
@@ -910,4 +912,4 @@ shape. **Caveat on `seq1g`:** 256 asks × 16 KiB contiguous spans 4 MB against a
 read-ahead window, so it reads 0.0–0.8 % misses at 2.6–2.8 µs — roughly 4× this host's own
 cold ceiling. The tie is real for the read-ahead-served path; it is not 1 GiB of I/O.
 
-TSVs at the workstation tag (`w1_server_ab.tsv`, `w1_read_path_ab.tsv`, `w1_host.txt`).
+TSVs at `read-path-evidence-2026-09-10` (`w1_server_ab.tsv`, `w1_read_path_ab.tsv`, `w1_host.txt`).
