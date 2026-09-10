@@ -7,6 +7,9 @@ below, so nothing here exercises the read path — these are send-path and stati
 
 ## The two cells
 
+Each is run two ways, and **the driver is part of the measurement** — see §The client changes
+the server's own number.
+
 | cell | ask shape | server path |
 | ---- | --------- | ----------- |
 | on-demand | `RequestFrame` ×10, depth 1 | `TileReader` |
@@ -45,6 +48,29 @@ the same.** A depth ladder on one interleaved batch, `serve_us` p50 against wall
 `serve_us` climbs 10× while wall per frame falls. Fill lands on the depth-87 rung. The endpoints
 hold 10/10 paired within-repeat; the intermediate rungs order correctly only 6/10 and are noise.
 
+## The client changes the server's own number
+
+`send_us` covers the read plus `write_all` into the wtransport `SendStream`
+([`transport/frame_out.rs`](../server/src/transport/frame_out.rs)), which returns when the send
+buffer accepts the bytes and awaits only on flow control. **Flow control is the peer's**, so how
+much of a transfer lands inside `serve_us` is a property of the client, not only the server.
+
+Same server, same cell, same study — only the driver changes:
+
+| driver | fill `totals.serve_us` p10 | µs/frame |
+| ------ | ------------------------: | -------: |
+| native (`server_ab`, lab) | 12 846 | 147.7 |
+| browser (product WASM client, Chromium) | **5 881** | 67.6 |
+
+**2.18× lower under the browser**, on identical server code. The 3.59 MB study fits the send
+window a browser advertises, so `write_all` rarely blocks and the serve spans close before
+delivery finishes; the native driver's smaller window pushes that wait inside the span. Neither
+number is time-on-wire, and the mechanism above is inferred from the two measurements plus the
+source — it has not been isolated.
+
+**A `serve_us` figure is meaningless without naming its client.** Browser-driven runs are also
+much tighter (fill median/p10 1.23 against the native 1.84), so they need fewer repeats.
+
 ## Which statistic survives, and which does not
 
 **The percentiles above are across runs, not inside a run.** Each run reports exactly one
@@ -75,6 +101,8 @@ in one batch and 339 µs in another — 26 % apart. The p10 stability above was 
 
 Paired per repeat, arm order reversed each repeat, sign-tested against a fair coin:
 
+**Native driver:**
+
 | cell | paired median | signs | P(≥k \| null) | verdict |
 | ---- | ------------: | ----: | ------------: | ------- |
 | on-demand, 10 frames | +13.5 % | 46/80 worse | 0.109 | indistinguishable |
@@ -82,7 +110,19 @@ Paired per repeat, arm order reversed each repeat, sign-tested against a fair co
 | on-demand, 87 frames | −7.0 % | 15/40 worse | 0.077 | indistinguishable |
 | on-demand, 87 frames, `serve_us` p50 | −15.8 % | 12/40 worse | 0.008 | **branch faster** |
 
-**No regression on either cell.** The two short cells lean worse and the long one better; only
+**Browser-driven (e2e), 25 repeats:**
+
+| cell | paired median | signs | P(≥k \| null) | verdict |
+| ---- | ------------: | ----: | ------------: | ------- |
+| on-demand, 10 frames | +4.1 % | 16/25 worse | 0.115 | indistinguishable |
+| fill, 87 frames | **+7.5 %** | 18/25 worse | **0.022** | **branch slower** |
+
+The e2e fill result is the one cell where the branch is measurably behind, and it is the
+expected shape: `advise_ahead` issues `posix_fadvise` on a study already wholly in page cache,
+so it buys nothing and costs syscalls. It is the same direction as every other warm measurement
+taken here. Treat P = 0.022 with the usual caution for one result among several cells.
+
+**No regression under the native driver; a ~7.5 % fill cost under a browser.** The two short cells lean worse and the long one better; only
 the 87-frame p50 clears a sign test, and it favours the branch — consistent with the release
 profile, the one change on that branch reaching the on-demand reader. `advise_ahead` is called
 from `SeqReader` alone; `TileReader` never calls it, so the fill fix cannot touch this cell.
@@ -92,6 +132,8 @@ has nothing to prefetch. Its measured worth is in the cold 250 kB regime — see
 [`disk-access/EVIDENCE.md`](disk-access/EVIDENCE.md).
 
 ## Re-running
+
+Native driver:
 
 ```bash
 cargo build --release -p exact-server --bin exact-server --features telemetry
@@ -103,6 +145,17 @@ server_ab --mode fill --asks 87            # fill cell
 server_ab --mode on-demand --depth 1 --asks 10   # on-demand cell
 ```
 
+Browser (e2e), which needs no npm because the client recorder stays off — the harness page
+drives itself and sets `window.__wtpacsDone`:
+
+```bash
+bash server/scripts/gen_dev_cert.sh    # Chromium rejects a cert older than ~14 days
+python server/dev-server.py --port 8765 &
+# server started as above, then Chromium at:
+#   http://127.0.0.1:8765/harness/?autorun=1&stream_mode=shared&frames=87&cell=fill
+#   …&cell=ondemand&d=1&n=10
+```
+
 Read `summary.totals.serve_us` from each run's JSON and take the percentile **across runs**.
 Alternate the arms every repeat; a batch of one arm followed by a batch of the other is not a
-comparison.
+comparison. State which driver produced any number quoted.
