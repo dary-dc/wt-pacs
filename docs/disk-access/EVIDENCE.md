@@ -1038,38 +1038,36 @@ That is one read against one write — the shape [`adr-frame-framing-and-loop-sh
 
 **Naive overlap — retracted.** Starting `next` (a `RWF_NOWAIT` probe, then a pool hop on
 short) *during* the current wait doubled the 16 KiB cold miss rate (12.3 % vs 6.2 %) and
-drove 250 kB cold to 100 % misses vs 34 % settle-first. A second nowait during the wait
+drove 250 kB cold to 100 % misses vs ~34 % settle-first. A second nowait during the wait
 turns the kernel's readahead into a hop. That shape does not ship.
+
+**One-frame WILLNEED — not enough.** The same hybrid with `WILLNEED` of `next.len` only
+left 250 kB cold at 96.9 % misses vs 46.8 % settle-first (p50 +17.9 %, tie). 16 KiB cold
+miss matched (6.2 % / 6.2 %). The window that ships is 4 MiB — this host's
+`read_ahead_kb`.
 
 **What ships.** Where nowait is refused (`--force-pool`, overlayfs), start `next` before
 awaiting the current miss — device depth 2. Where nowait works, `POSIX_FADV_WILLNEED` for
-`FILL_PREFETCH` (1 MiB) during the wait, then start `next`. Warm hits are unchanged
+`FILL_PREFETCH` (4 MiB) during the wait, then start `next`. Warm hits are unchanged
 (inline probe, no hint). Two buffers still. `peak_in_flight` 2 / 1 / 0
 (no-nowait miss / nowait miss / hit).
 
-Campaign: `read_campaign --arms product_fill,product_fill_serial`, interleaved in one
-process, `--monitors 0`, 12 repeats, one reader, depth 1. Rule: |median Δ| ≥ 28.5 % and
-≥ 0.8n same sign. Host: 4 vCPU Xeon (KVM) agent container. Quote **latency**, not
-asks/s — depth 1, they are inverses. TSVs: [`fill_overlap_ab.tsv`](fill_overlap_ab.tsv)
-when present; `/tmp/fill-ab2/` is the one-frame WILLNEED hybrid, `/tmp/fill-ab/` the
-retracted naive overlap.
+Campaign on this tip: `read_campaign --arms product_fill,product_fill_serial`, interleaved
+in one process, `--monitors 0`, 12 repeats, one reader, depth 1. Rule: |median Δ| ≥ 28.5 %
+and ≥ 0.8n same sign. Host: 4 vCPU Xeon (KVM) agent container. Quote **latency**, not
+asks/s — depth 1, they are inverses. TSV: [`fill_overlap_ab.tsv`](fill_overlap_ab.tsv).
 
 | Cell | fill p50 | serial p50 | median Δ | signs | Verdict |
 | --- | --- | --- | --- | --- | --- |
-| 16 KiB force-pool (100 % miss) | 9.15 µs | 13.10 µs | **−28.9 %** | 12/12 | **RESOLVED** |
-| 250 kB force-pool (100 % miss) | 17.63 µs | 29.45 µs | −40.8 % | 12/12 | **RESOLVED** this campaign; a prior run on the same path was −11.0 % 12/12 **tie** — direction holds, magnitude is host-noisy |
-| 16 KiB warm (0 % miss) | 1.41 µs | 1.38 µs | −0.1 % | 6/12 | **tie** |
-| 250 kB warm (0 % miss) | 24.27 µs | 23.04 µs | +0.9 % | 5/12 | **tie** |
-| 16 KiB cold, one-frame WILLNEED | 2.74 µs | 2.77 µs | −1.8 % | 7/12 | **tie**; miss **6.2 % / 6.2 %** (naive overlap was 12.3 % / 6.2 %) |
-| 250 kB cold, one-frame WILLNEED | 148.7 µs | 121.7 µs | +17.9 % | 2/12 | **tie**; miss **96.9 % / 46.8 %** — one 250 kB hint is not enough before nowait |
+| 16 KiB force-pool (100 % miss) | 8.73 µs | 13.24 µs | **−34.9 %** | 12/12 | **RESOLVED** (four campaigns −28.6 to −34.9 %, all 12/12) |
+| 250 kB force-pool (100 % miss) | 22.49 µs | 32.27 µs | −27.7 % | 12/12 | **tie** this campaign (under 28.5 %); direction 12/12 on every run, magnitude −11 to −42 % |
+| 16 KiB warm (0 % miss) | 1.50 µs | 1.49 µs | +3.5 % | 3/12 | **tie** |
+| 250 kB warm (0 % miss) | 19.80 µs | 20.30 µs | −3.8 % | 8/12 | **tie** |
+| 16 KiB cold, 4 MiB WILLNEED | 3.21 µs | 2.91 µs | +7.6 % | 1/12 | **tie**; miss **2.3 % / 6.2 %** |
+| 250 kB cold, 4 MiB WILLNEED | 81.37 µs | 129.57 µs | **−41.3 %** | 12/12 | **RESOLVED**; miss **28.9 % / 49.2 %**. A prior 4 MiB run was −25.4 % 12/12 **tie** (fill miss still 28.9 %) — direction holds |
 
-The 1 MiB window is what this tip issues. Its cold cells are **not in the table above**;
-they replace the one-frame rows once the interleaved campaign on this binary is written
-into the TSV.
-
-**10 µs / frame max on this host.** Warm 16 KiB **hits** it (p99 2.4 µs). 16 KiB
-force-pool p50 is 9.15 µs and p99 is 16 µs — the pool hop. Warm 250 kB p50 was 10–24 µs
-across campaigns (memcpy); p99 12–36 µs. The host saturates on the kernel copy of
-250 kB. Cold p99 is hundreds of µs (device). Full `send_us` is tens–hundreds of µs
-(QUIC) and is not this claim. A 250 kB frame that is touched cannot land under 10 µs
-p99 on this class of host.
+**10 µs / frame max on this host.** Warm 16 KiB **hits** it (p99 2.1 µs). 16 KiB
+force-pool p50 is 8.73 µs and p99 is 19 µs — the pool hop. Warm 250 kB p50 is ~20 µs
+(memcpy); p99 44 µs. The host saturates on the kernel copy of 250 kB. Cold p99 is
+hundreds of µs (device). Full `send_us` is tens–hundreds of µs (QUIC) and is not this
+claim. A 250 kB frame that is touched cannot land under 10 µs p99 on this class of host.

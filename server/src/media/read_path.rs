@@ -18,8 +18,8 @@ use crate::media::uring_reader::UringReader;
 /// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
 pub const TILE_SLOTS: usize = 4;
 
-/// 1 MiB WILLNEED window. `docs/disk-access/EVIDENCE.md` §Fill overlap.
-pub const FILL_PREFETCH: u64 = 1 << 20;
+/// 4 MiB WILLNEED window. `docs/disk-access/EVIDENCE.md` §Fill overlap.
+pub const FILL_PREFETCH: u64 = 4 << 20;
 
 /// Which escalation a tile session takes, from `WTPACS_READ_PATH`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

@@ -25,7 +25,7 @@ ask does not. That difference picks the escalation.
    awaited — device depth 2, the overlap [`adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
    §6b already required. Where nowait works, a second probe during that wait turned
    kernel readahead into a pool hop (16 KiB cold miss 12 % vs 6 %); that path issues
-   `POSIX_FADV_WILLNEED` for `FILL_PREFETCH` (1 MiB) during the wait and starts `next`
+   `POSIX_FADV_WILLNEED` for `FILL_PREFETCH` (4 MiB) during the wait and starts `next`
    after. `peak_in_flight` is 2 on a no-nowait miss walk, 1 on a nowait miss, 0 on a
    hit. A sequential walk is still read-ahead's best case (~one miss in sixty) once
    the cache fills. Numbers: [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap.
@@ -117,6 +117,7 @@ a **tie**, which is a real answer.
 | "depth 4 and 16 differ by far less than 1 and 4" | not in throughput: in `v32` 1 → 4 is ×1.90 and 4 → 16 ×1.52. The case for building depth 2 first is `v35`, where 2 alone collects 62 % |
 | "`v36`'s 250 KB cold cell shows no win for read-ahead" | it reached only 4.7 % misses, so it shows no regression, not no win |
 | "Start the named fill read before awaiting every miss" | On a nowait filesystem that doubled the 16 KiB cold miss rate (12 % vs 6 %) and drove 250 kB cold to ~100 % misses vs ~34–47 % settle-first. Overlap stays on the no-nowait path. The nowait path issues WILLNEED during the wait. [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap |
+| "WILLNEED of the named frame is enough" | 250 kB cold stayed at 97 % miss. `FILL_PREFETCH` is 4 MiB — this host's `read_ahead_kb` |
 
 ## 3 · How the decision evolved
 
@@ -127,7 +128,7 @@ a **tie**, which is a real answer.
 | 2026-09-06 | the ring on the miss, built on the first miss | the read-path campaign, four hosts, six runs: **−42 to −73 % CPU per miss, RESOLVED everywhere**. Inert on warm workloads by construction, so it did not wait on the layout that decides the miss rate |
 | 2026-09-07 | a miss reads the rest of the frame | on a fixture where a miss is a real device read, windowing the escalation cost 2–3 round trips per 250 KB frame and stopped scaling at ~1 600 f/s where whole-frame arms reach ~5 000 |
 | 2026-09-08 | keep driving `io-uring` directly; **validate on the production target before any further backend change**; the sequential reader is the same reader forward; **read ahead by one built** for batches; **the server reports its own miss rate** | backend research with web access found no standard alternative (§5 C); the owners' weights and the container traps (§6) mean the ring's margin has to be shown on the target, not a laptop (`x14`, `x15`); read-ahead measured +73.8 % on missing tiles and a tie warm (`v36`); every threshold in this file is a miss rate, and the server could not report one |
-| 2026-09-10 | fill overlap on the no-nowait miss; WILLNEED on the nowait miss | settle-first collected none of the depth-2 table. Starting `next` before every wait resolved the forced-miss walk (−28.9 % p50 at 16 KiB, 12/12) and doubled cold nowait misses. Hybrid as §1. |
+| 2026-09-10 | fill overlap on the no-nowait miss; 4 MiB WILLNEED on the nowait miss | settle-first collected none of the depth-2 table. Starting `next` before every wait resolved the 16 KiB forced-miss walk and doubled cold nowait misses. One-frame WILLNEED left 250 kB cold at 97 % miss. Hybrid as §1. |
 
 ## 4 · Consequences
 
@@ -165,7 +166,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | **`RWF_NOWAIT` inline for hits, 64 KiB windows** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
 | **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
 | **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool arm **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring arm, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | the old `ReadCtx` minus the window cap and the mode machine | **Accepted** |
-| **`SeqReader` — probe, pool on the miss, one frame named; overlap only when nowait is off** | S | warm 16 KiB **tie** vs settle-first (1.4 µs p50); no-nowait miss walk **−28.9 % p50, 12/12 RESOLVED**; naive nowait overlap retracted (§2). [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table; one `posix_fadvise` | **Accepted** |
+| **`SeqReader` — probe, pool on the miss, one frame named; overlap only when nowait is off** | S | warm 16 KiB **tie** vs settle-first (1.5 µs p50); no-nowait 16 KiB **−34.9 % p50, 12/12 RESOLVED**; 250 kB cold + 4 MiB WILLNEED **−41.3 % p50, 12/12 RESOLVED**. Naive nowait overlap retracted (§2). [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table; one `posix_fadvise` | **Accepted** |
 | **Read ahead (`TILE_SLOTS` / `FILL_AHEAD`)** | B | tiles name up to `slots − 1`, a fill names one; look-ahead **is** depth 2, not a separate effect ([EVIDENCE](EVIDENCE.md)) | four tile slots / two fill buffers | `slots` is a constructor argument, so a campaign sweeps depth | **Accepted** |
 | `spawn_blocking` + `pread` for the miss | B | identical on hits; on 16 KiB misses the shipped reader is −45.4 % CPU against it, and its tail widens with depth | **125–135 threads at 64 readers, 512 cap** (517 seen at 64 × 16); 0 fds | the simplest correct reader; zero `unsafe` beyond `preadv2` | **Kept as fallback**; ships if P0 ties |
 | Escalate only the rest of the window | B | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 | flat at ~1 600 f/s from 8 to 32 readers | — | Superseded 2026-09-07 |

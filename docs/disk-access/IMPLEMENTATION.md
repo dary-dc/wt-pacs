@@ -66,7 +66,7 @@ a session pays for neither reader it does not use.
 **Fill — `SeqReader`.** Two buffers. `next` is the frame the planner will ask for
 after this one (`FILL_AHEAD = 1`). A miss whose filesystem refuses `RWF_NOWAIT`
 starts `next` **before** awaiting `span` — device depth 2, `peak_in_flight` 2. A
-miss that can still probe issues `POSIX_FADV_WILLNEED` for `FILL_PREFETCH` (1 MiB)
+miss that can still probe issues `POSIX_FADV_WILLNEED` for `FILL_PREFETCH` (4 MiB)
 during the wait and starts `next` after — overlapping nowait probes doubled the
 cold miss rate. `peak_in_flight` is 0 on a hit. No ring, no extra fd.
 [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap.
@@ -75,7 +75,7 @@ cold miss rate. `peak_in_flight` is 0 on a hit. No ring, no extra fd.
 read(span, next):
   if last call holds span as a hit: start next, return
   if last call holds span as a miss:
-    if nowait: WILLNEED 1 MiB at next, await span, start next
+    if nowait: WILLNEED 4 MiB at next, await span, start next
     else: start next, await span
   else: start span; then the same
 ```
