@@ -10,15 +10,54 @@ use tokio::task::JoinSet;
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
+enum SharedUni {
+    Opening(tokio::task::JoinHandle<Result<SendStream>>),
+    Ready(SendStream),
+}
+
+impl SharedUni {
+    fn start(connection: Connection) -> Self {
+        Self::Opening(tokio::spawn(async move {
+            let uni = connection
+                .open_uni()
+                .await
+                .context("open shared uni")?
+                .await
+                .context("shared uni ready")?;
+            Ok(uni)
+        }))
+    }
+
+    async fn get(&mut self) -> Result<&mut SendStream> {
+        if let Self::Opening(join) = self {
+            let uni = join.await.context("shared uni task")??;
+            *self = Self::Ready(uni);
+        }
+        match self {
+            Self::Ready(uni) => Ok(uni),
+            Self::Opening(_) => unreachable!("just settled"),
+        }
+    }
+}
+
+impl Drop for SharedUni {
+    fn drop(&mut self) {
+        if let Self::Opening(join) = self {
+            join.abort();
+        }
+    }
+}
+
 pub(crate) enum FrameOut {
     Shared {
-        uni: SendStream,
+        uni: SharedUni,
         /// Keeps the QUIC connection alive for the session-scoped uni.
         _connection: Connection,
     },
     PerFrame {
         connection: Connection,
         acks: JoinSet<()>,
+        pending: Option<SendStream>,
     },
     /// No connection: sending panics, so a test can build a session but not serve on it.
     #[cfg(test)]
@@ -26,37 +65,37 @@ pub(crate) enum FrameOut {
 }
 
 impl FrameOut {
-    pub(crate) async fn open(mode: StreamMode, connection: Connection) -> Result<Self> {
+    /// Opens the shared uni without waiting. `docs/transport/why-these-changes.md`.
+    pub(crate) fn begin(mode: StreamMode, connection: Connection) -> Self {
         match mode {
-            StreamMode::Shared => {
-                let uni = connection
-                    .open_uni()
-                    .await
-                    .context("open shared uni")?
-                    .await
-                    .context("shared uni ready")?;
-                Ok(Self::Shared {
-                    uni,
-                    _connection: connection,
-                })
-            }
-            StreamMode::PerFrame => Ok(Self::PerFrame {
+            StreamMode::Shared => Self::Shared {
+                uni: SharedUni::start(connection.clone()),
+                _connection: connection,
+            },
+            StreamMode::PerFrame => Self::PerFrame {
                 connection,
                 acks: JoinSet::new(),
-            }),
+                pending: None,
+            },
         }
     }
 
-    /// `body` is the whole codestream: the reader returns a frame in one call, and the
-    /// write is chunked so a wide frame does not copy without yielding.
-    pub(crate) async fn send_frame(&mut self, idx: u32, body: &[u8]) -> Result<()> {
-        let head = frame_head(idx, body.len() as u32);
+    /// Length is from locate (`span.len`). The body must match or the client hangs.
+    pub(crate) async fn write_head(&mut self, idx: u32, codestream_len: u32) -> Result<()> {
+        let head = frame_head(idx, codestream_len);
         match self {
             Self::Shared { uni, .. } => {
-                uni.write_all(&head).await.context("write shared head")?;
-                write_body(uni, body).await?;
+                uni.get()
+                    .await?
+                    .write_all(&head)
+                    .await
+                    .context("write shared head")
             }
-            Self::PerFrame { connection, acks } => {
+            Self::PerFrame {
+                connection,
+                pending,
+                ..
+            } => {
                 let mut uni = connection
                     .open_uni()
                     .await
@@ -64,17 +103,36 @@ impl FrameOut {
                     .await
                     .context("open uni ready")?;
                 uni.write_all(&head).await.context("write head")?;
-                write_body(&mut uni, body).await?;
-
-                acks.spawn(async move {
-                    let _ = uni.finish().await;
-                });
-                while acks.try_join_next().is_some() {}
+                *pending = Some(uni);
+                Ok(())
             }
             #[cfg(test)]
             Self::Detached => unreachable!("a detached sink has no wire to write to"),
         }
-        Ok(())
+    }
+
+    pub(crate) async fn write_codestream(&mut self, body: &[u8]) -> Result<()> {
+        match self {
+            Self::Shared { uni, .. } => write_body(uni.get().await?, body).await,
+            Self::PerFrame { pending, acks, .. } => {
+                let mut uni = pending.take().context("write_head before write_codestream")?;
+                write_body(&mut uni, body).await?;
+                acks.spawn(async move {
+                    let _ = uni.finish().await;
+                });
+                while acks.try_join_next().is_some() {}
+                Ok(())
+            }
+            #[cfg(test)]
+            Self::Detached => unreachable!("a detached sink has no wire to write to"),
+        }
+    }
+
+    /// `body` is the whole codestream: the reader returns a frame in one call, and the
+    /// write is chunked so a wide frame does not copy without yielding.
+    pub(crate) async fn send_frame(&mut self, idx: u32, body: &[u8]) -> Result<()> {
+        self.write_head(idx, body.len() as u32).await?;
+        self.write_codestream(body).await
     }
 
     pub(crate) async fn drain_acks(&mut self) {
@@ -135,6 +193,19 @@ mod tests {
         let (parsed_idx, body) = unwrap(&new_wire[4..]).expect("client can still parse");
         assert_eq!(parsed_idx, idx);
         assert_eq!(body, &codestream[..]);
+    }
+
+    /// An early head uses locate's length. A first-window length would under-count.
+    #[test]
+    fn early_head_uses_locate_length_not_the_first_window() {
+        let span_len = (READ_WINDOW * 2 + 9) as u32;
+        let head = frame_head(3, span_len);
+        let short = frame_head(3, READ_WINDOW as u32);
+        assert_ne!(head, short, "a first-window head would lie about the envelope");
+        assert_eq!(
+            u32::from_be_bytes(head[..4].try_into().unwrap()),
+            ENVELOPE_LEN as u32 + span_len
+        );
     }
 
     /// A frame larger than one window still frames as a single payload.

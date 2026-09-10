@@ -143,6 +143,23 @@ git checkout archive/transport-lab-2026-09 -- docs/transport lab/transport
 
 (Checking out `docs/transport` from the tag overwrites these lean face files.)
 
+### 8 · First write vs first read, and when the shared uni opens
+
+**Before.** `handle_incoming` awaited `open_uni` through ready, then started the ask reader.
+`send` awaited the whole frame from the reader, then wrote the 8-byte head. Product clients
+ask as soon as the control bidi exists.
+
+**Forced by.** The remaining transport-adjacent latency thesis after
+`claude/serene-rubin-wakfg7` closed MTU, LTO-for-e2e, and crypto: first-byte / stream setup /
+header-before-pixels, not disk. `FrameOut::begin` starts the uni at accept; `write_head`
+uses locate's length and runs in `join` with the read.
+
+**Alternative.** Leave the waits. They are one handshake and 8 bytes.
+
+**Falsified by.** An interleaved `server_ab` A/B on this host where p50 ask→envelope and
+one-ask session wall do not separate from `main`. Numbers go in
+[`transport-conclusions.md`](transport-conclusions.md) §3 once the run finishes.
+
 ---
 
 ## Campaign instruments (on the tag)
