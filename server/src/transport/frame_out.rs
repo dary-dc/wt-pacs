@@ -51,6 +51,7 @@ impl FrameOut {
 
     /// `body` is the whole codestream: the reader returns a frame in one call, and the
     /// write is chunked so a wide frame does not copy without yielding.
+    #[allow(dead_code)]
     pub(crate) async fn send_frame(&mut self, idx: u32, body: &[u8]) -> Result<()> {
         self.send_first(idx, body).await?;
         self.send_rest(body).await

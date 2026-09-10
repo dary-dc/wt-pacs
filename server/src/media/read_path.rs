@@ -657,9 +657,10 @@ mod tests {
         };
 
         let mut seq = SeqReader::new();
-        rt.block_on(seq.read(&store, first, Some(second)))
-            .expect("first");
-        seq.prime(&store).expect("prime");
+        rt.block_on(async {
+            seq.read(&store, first, Some(second)).await.expect("first");
+            seq.prime(&store).expect("prime");
+        });
         store.reset_pool_starts();
         let out = rt.block_on(seq.read(&store, second, None)).expect("second");
         assert_eq!(
@@ -721,8 +722,10 @@ mod tests {
         for idx in 0..8u32 {
             let span = store.frame_span(idx).expect("span");
             let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1).expect("next"));
-            rt.block_on(seq.read(&store, span, next)).expect("read");
-            seq.prime(&store).expect("prime");
+            rt.block_on(async {
+                seq.read(&store, span, next).await.expect("read");
+                seq.prime(&store).expect("prime");
+            });
         }
         assert_eq!(
             seq.stats().peak_in_flight,
@@ -748,9 +751,10 @@ mod tests {
         };
 
         let mut seq = SeqReader::new();
-        rt.block_on(seq.read(&store, first, Some(second)))
-            .expect("first");
-        seq.prime(&store).expect("prime");
+        rt.block_on(async {
+            seq.read(&store, first, Some(second)).await.expect("first");
+            seq.prime(&store).expect("prime");
+        });
         // Frame 1 was named and is in flight; the session asks for 2 instead.
         let out = rt.block_on(seq.read(&store, third, None)).expect("third");
         assert_eq!(
@@ -845,8 +849,10 @@ mod tests {
             let mut tile = TileReader::new(ReadMode::Pool, &store, slots);
             let all = spans(&store, &(0..9u32).collect::<Vec<_>>());
             let (span, upcoming) = all.split_first().expect("frames");
-            rt.block_on(tile.read(&store, *span, upcoming))
-                .expect("read");
+            rt.block_on(async {
+                tile.read(&store, *span, upcoming).await.expect("read");
+                tile.prime(&store, *span, upcoming).await.expect("prime");
+            });
             assert_eq!(
                 tile.stats().peak_named as usize,
                 slots,
