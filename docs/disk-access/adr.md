@@ -95,6 +95,7 @@ a **tie**, which is a real answer.
 | The depth ladder on the shipped path (`v35`) | 1 → 2 is **+67.4 %** and collects 62 % of what depth 16 offers; from the medians 2 → 4 adds +37 %, 4 → 16 +28 % |
 | Where the hosts stop separating the arms | ~64 reads in flight: the sandbox on CPU, the workstation on the device (~840 MB/s at 0.42 of 8 cores). **Past it every arm ties by construction** |
 | Sequential streaming, 16 KiB, 8–64 sessions (`x15`) | shipped reader, pool and ring-on-miss **tie at ~3 µs per read**; `tokio::fs::File` 48–223 µs; the same on tokio's io_uring driver 141 µs–2.1 ms |
+| Whole-frame e2e on a 4 vCPU virtio host (2026-09-10) | guest-evicted 250 kB fill **+11.0 % p50 vs warm, 6/6 — tie** under the 28.5 % bar (miss 14–34 %). 16 KiB tiles, depth 4: stride past read-ahead **+199.6 % vs sequential cold, 6/6 RESOLVED**. [EVIDENCE](EVIDENCE.md) §Store path vs e2e |
 
 ### Claims that were made along the way and then measured to be wrong
 
@@ -108,6 +109,7 @@ a **tie**, which is a real answer.
 | "the ring's per-miss latency win carries to production" | on cloud block storage a miss is device-bound; the ring's claim there is threads and CPU per miss, and P0 (§6) tests it |
 | "depth 4 and 16 differ by far less than 1 and 4" | not in throughput: in `v32` 1 → 4 is ×1.90 and 4 → 16 ×1.52. The case for building depth 2 first is `v35`, where 2 alone collects 62 % |
 | "`v36`'s 250 KB cold cell shows no win for read-ahead" | it reached only 4.7 % misses, so it shows no regression, not no win |
+| "the wait the client sees is store/disk on the whole-frame path" | a fill already names one frame ahead. On NVMe (`claude/serene-rubin-wakfg7`) that look-ahead beats the device (`fill_misses=0` after eviction) and 99 %+ of `serve_us` is send. On this virtio box the fill still misses 14–34 % and e2e still ties warm. I/O moves e2e only when the ask **strides** past `read_ahead_kb` |
 
 ## 3 · How the decision evolved
 
@@ -235,7 +237,7 @@ whole plan.
 | --- | --- | --- | --- |
 | **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — the largest effect measured anywhere in this investigation | the peer must advertise the same ceiling, and the peer is a browser; above 4000 B path discovery failed and fell back to 1200 B | **Measured, not taken.** Price it first |
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
-| `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
+| `read_ahead_kb` and layout | miss rates moved **2–15×**; e2e tile p50 **+199.6 %** when the same 16 KiB asks stride vs walk (6/6) | packer / delivery shape; rung-major is structural and blocked on prefix delivery | **Priced on e2e 2026-09-10.** No reader change; [EVIDENCE](EVIDENCE.md) §Store path vs e2e |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
 | GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |

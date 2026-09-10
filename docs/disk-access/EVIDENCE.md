@@ -1029,3 +1029,69 @@ read-ahead window, so it reads 0.0–0.8 % misses at 2.6–2.8 µs — roughly 4
 cold ceiling. The tie is real for the read-ahead-served path; it is not 1 GiB of I/O.
 
 TSVs at `read-path-evidence-2026-09-10` (`w1_server_ab.tsv`, `w1_read_path_ab.tsv`, `w1_host.txt`).
+
+## Store path vs e2e · 2026-09-10 (this 4 vCPU virtio host)
+
+Thesis: the wait the client sees may be store/disk — not another CPU micro-opt. Tested
+with the product server and `server_ab` (native driver), **latency p50**, arms interleaved
+and order reversed each repeat. Guest eviction is the lab `evict` binary
+(`posix_fadvise(DONTNEED)` + `mincore`), not `drop_caches`. `read_ahead_kb` 128, ext4 on
+`vdc`, `read_fast_path=preadv2`. n = 6.
+
+`claude/serene-rubin-wakfg7` already reported no e2e movement on a real NVMe box
+(`fill_misses=0` after eviction; 99 %+ of `serve_us` is send). That branch's
+`FILL_WINDOW` / `posix_fadvise(WILLNEED)` and [PR #28](https://github.com/dary-dc/wt-pacs/pull/28)'s
+fill overlap are **not repeated**.
+
+### Whole-frame fill: I/O misses, e2e still a tie
+
+80 frames × 250 kB (`frames_250k_live`), `StreamFrames`. Medians of six; deltas paired
+per repeat against the warm arm.
+
+| cell | p50 | p90 | miss | `fill_misses` | named | in_flight |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| fill warm | 253 µs | 532 µs | 0.00 | 0 | 2 | 0 |
+| fill cold | 274 µs | 697 µs | 0.27 | 22.5 | 2 | 1 |
+
+Paired cold vs warm: **+11.0 % p50, 6/6 cold slower** (0.7 / 1.7 / 6.9 / 15.1 / 21.6 /
+24.6 %). Under the 28.5 % bar: **tie**. Look-ahead does not beat this disk (14–34 %
+misses) and the client still does not wait on it.
+
+### Tiles: I/O is the wait only when the ask strides
+
+128 asks × 16 KiB (`frames_16k_big`), depth 4, `named=4`. First table is warm vs
+guest-evicted at the campaign stride (step 16, past the 128 KiB window). Second is
+**the same cold file**, step 1 vs step 16, interleaved.
+
+| cell | p50 | miss | tile misses / 128 |
+| --- | ---: | ---: | ---: |
+| tile warm, step 16 | 108 µs | 0.00 | 0 |
+| tile cold, step 16 | 214 µs | 1.00 | 128 |
+| tile cold, step 1 | 138 µs | 0.05 | 7 |
+| tile cold, step 16 (re-run) | 424 µs | 1.00 | 128 |
+
+Paired: cold stride vs warm **+91.3 %, 6/6**; cold stride vs cold sequential
+**+199.6 %, 6/6**. Both clear the bar. `TILE_SLOTS` already names the in-flight asks,
+so a `WILLNEED` on those spans is a second opinion on IO the ring has already
+submitted. The 17.6× layout study (`git show read-path-evidence-2026-09-09:docs/disk-layout/`)
+is the remaining store lever: put what is read together, together. Rung-major SBND is
+structural and blocked on prefix delivery
+([`adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md)).
+Not coded here.
+
+### What was not done
+
+Index lookup is already no I/O (`FrameStore::frame_span`). The study fd is opened once.
+No `fsync` on the read path. Buffer reuse is the two fill buffers / tile slots. Those
+were checked in the source, not re-derived.
+
+### Re-run
+
+```bash
+NAME=frames_16k_big BYTES=16384 FRAMES=5120 ./lab/scripts/gen_live_cell_fixture.sh
+NAME=frames_250k_live BYTES=250000 FRAMES=320 ./lab/scripts/gen_live_cell_fixture.sh
+cargo build --release -p exact-server --bin exact-server \
+  -p disk-access-bench --bin server_ab --bin evict
+# one server process per cell; evict before each cold drive; reverse arm order each repeat
+```
+
