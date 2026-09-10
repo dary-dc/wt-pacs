@@ -148,6 +148,9 @@ misses.
 | A hit never builds a ring | `lazy_ring_is_not_built_when_every_read_hits` |
 | No ring where `RWF_NOWAIT` is refused | `lazy_ring_is_never_built_without_nowait` |
 | One store per study | `sessions_share_one_store_rather_than_opening_their_own` |
+| New packs start every frame on a page | `a_new_bundle_starts_every_frame_on_a_page`, `a_new_store_starts_every_frame_on_a_page` |
+| Tight-packed studies still serve | `a_tight_packed_study_still_serves` |
+| Opening advice is one window from the first frame | `opening_advice_is_the_first_window_from_the_first_frame` |
 | `in_hand` cannot grow with ask rate | `the_loop_holds_no_more_than_asks_ahead` |
 | Upcoming stops at Fill | `upcoming_stops_at_the_first_ask_that_is_not_a_frame` |
 | The write stays windowed | `a_pooled_frame_is_written_in_read_windows_not_in_one_copy` |
