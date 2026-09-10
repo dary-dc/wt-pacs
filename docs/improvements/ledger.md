@@ -125,3 +125,24 @@ Verified on the tree before the pass: workspace build/test/clippy/fmt, TS build/
 tests/absence check, and in Chromium 141 both arms' frame0 + bulk and 64/64 refusals — with the
 WASM package through `wasm-opt` for the first time on this branch (`npm i -g wasm-pack binaryen`
 works on the runner).
+
+---
+
+## 8 · Third pass, 2026-09-10 — the release profile lands
+
+Branch `claude/serene-rubin-wakfg7`. Evidence: [`2026-09-10.md`](2026-09-10.md). Brief: reduce
+server latency and resources. Both lanes were on `main`, so P1's blocker ("the lanes should
+agree") was gone; it was re-measured against the code that ships before it was landed.
+
+| # | Kind | What | Proof | Decision open |
+| - | - | - | - | - |
+| P1 | performance, build — **landed** | workspace `[profile.release] lto = "fat"`, `codegen-units = 1` | interleaved A/B, 4 arms × 4 cells × 4 repeats, order reversed each repeat: server CPU per frame −8.4 / −7.0 / −8.4 / −3.7 %, 4/4 and no overlap in every cell; `send_us` p95 −3 to −9 %; throughput inside noise; binary −26 %; release rebuild 10 s → 39 s | — |
+| crypto | performance, measured, **not taken** | `aws-lc-rs` for `ring`, on a CPU with VAES / AVX-512 | same run: +3.2 / +5.4 % CPU at 32 KB (4/4), −0.5 / −1.4 % at 250 KB (tie), +10–18 % VmHWM every cell, binary +2.2 MB | none — `crypto-ring` stays |
+| MTU | measured, **closed** | `max_udp_payload_size` 1472 → 4000 against a real browser | Chromium 141 through a UDP relay with the server's bound at 4 000 and 8 972: no datagram above 1 472 in 85 k — the browser advertises 1 472 and quinn takes the smaller bound | none — reopen only for a native peer |
+| path | product, **landed** | `session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…` once per session, from quinn's counters | the relay runs: it caught the black-hole reset to 1 200 that the histogram alone could not explain | — |
+| fill | defect, product, **fixed** | a cold fill at the stock `read_ahead_kb` missed 59–66 % of 250 kB frames with one read in flight, slower than on-demand at depth 4 on any device with latency | evicted 8 GB study, before/after interleaved: misses → 0.7–1.1 % (3/3), 8 MB read-ahead burst tail −62 %, warm a tie at 16 KiB and 250 kB | — |
+| map | analysis | the server levers still open, each with the measurement or decision it needs: P0, ring fd, `send_window`, frame cache, S2, `read_ahead_kb`, D5 | [`2026-09-10.md`](2026-09-10.md) §What would move the server further | the owners' calls named there |
+
+Corrected in place: `docs/transport/transport-conclusions.md` §3 (the `aws-lc-rs` row now
+carries the VAES re-measurement) and `docs/disk-access/adr.md` §8 (AEAD choice moved from
+"not measured" to measured; the profile added as a landed lever).

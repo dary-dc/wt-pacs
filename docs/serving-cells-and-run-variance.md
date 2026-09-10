@@ -1,0 +1,216 @@
+# Two serving cells, and which statistic to quote
+
+Measured 2026-09-10 on the 8-core workstation (`intel_pstate`/`powersave`, NVMe, btrfs on
+LUKS, Linux 7.1.13). The study is a bundle of **87 frames of ~41.3 KB**, 3.59 MB total, held
+outside the repo. It is small enough to stay in page cache: `miss_rate=0.0` in all 240 runs
+below, so nothing here exercises the read path — these are send-path and statistics results.
+
+## The two cells
+
+Each is run two ways, and **the driver is part of the measurement** — see §The client changes
+the server's own number.
+
+| cell | ask shape | server path |
+| ---- | --------- | ----------- |
+| on-demand | `RequestFrame` ×10, depth 1 | `TileReader` |
+| fill | `StreamFrames` | `SeqReader`, the sequential reader |
+
+Natural conditions: no eviction, no warm-up pass. The access pattern decides hits and misses,
+which is why the miss rate reads 0.0 rather than being forced.
+
+## Serve against session wall
+
+`summary.totals.serve_us` is the sum of per-frame serve spans; the session wall is
+`server_sessions[].t_close_us − t_open_us`. Both come from the server's own report — neither is
+re-derived here. Same percentile in each row: reading one percentile of the total against
+another of the wall means nothing.
+
+| cell | statistic | serve total | session wall | serve / wall |
+| ---- | --------- | ----------: | -----------: | -----------: |
+| fill | p10 across runs | 13 129 | 14 032 | 0.94 |
+| fill | median across runs | 24 149 | 25 375 | 0.95 |
+| on-demand | p10 across runs | 322 | 2 982 | 0.11 |
+| on-demand | median across runs | 605 | 7 140 | 0.08 |
+
+At depth 1 the serve spans are a ninth of the session, because the wire is idle between asks and
+the frame's transmission happens while the client waits — outside the span. In fill the pipe is
+always full, so the wait lands inside it. `serve_total ≤ wall` held in 80/80 fill runs (ratio
+0.82–0.98).
+
+**This is why a fill frame's `serve_us` reads higher than an on-demand frame's while the work is
+the same.** A depth ladder on one interleaved batch, `serve_us` p50 against wall per frame:
+
+| depth | 1 | 2 | 4 | 8 | 87 | fill |
+| ----- | -: | -: | -: | -: | -: | ---: |
+| `serve_us` p50 (µs) | 15.0 | 23.8 | 48.5 | 43.0 | 156.5 | 139.5 |
+| wall per frame (µs) | 276.6 | 229.7 | 223.1 | 226.9 | 221.1 | 196.3 |
+
+`serve_us` climbs 10× while wall per frame falls. Fill lands on the depth-87 rung. The endpoints
+hold 10/10 paired within-repeat; the intermediate rungs order correctly only 6/10 and are noise.
+
+## The client changes the server's own number
+
+`send_us` covers the read plus `write_all` into the wtransport `SendStream`
+([`transport/frame_out.rs`](../server/src/transport/frame_out.rs)), which returns when the send
+buffer accepts the bytes and awaits only on flow control. **Flow control is the peer's**, so how
+much of a transfer lands inside `serve_us` is a property of the client, not only the server.
+
+Same server, same cell, same study — only the driver changes:
+
+| driver | fill `totals.serve_us` p10 | µs/frame |
+| ------ | ------------------------: | -------: |
+| native (`server_ab`, lab) | 12 846 | 147.7 |
+| browser (product WASM client, Chromium) | **5 881** | 67.6 |
+
+**2.18× lower under the browser**, on identical server code. The 3.59 MB study fits the send
+window a browser advertises, so `write_all` rarely blocks and the serve spans close before
+delivery finishes; the native driver's smaller window pushes that wait inside the span. Neither
+number is time-on-wire, and the mechanism above is inferred from the two measurements plus the
+source — it has not been isolated.
+
+**A `serve_us` figure is meaningless without naming its client.** Browser-driven runs are also
+much tighter (fill median/p10 1.23 against the native 1.84), so they need fewer repeats.
+
+## Which statistic survives, and which does not
+
+**The percentiles above are across runs, not inside a run.** Each run reports exactly one
+`totals.serve_us`; a cell run 80 times yields 80 totals, and those have a distribution.
+
+Contention only ever makes a run slower, so the low decile measures the server and the median
+measures how busy the box was. Across four independent batches of the same cell and binary:
+
+| statistic | spread across batches |
+| --------- | --------------------: |
+| min | 1.10× |
+| **p10** | **1.05×** |
+| p25 | 1.28× |
+| median | 1.86× |
+
+The same binary on the same cell measured 13 474 µs in one batch and 25 083 µs in another —
+1.86× apart with no code change. **Quoting a median from one batch against a median from
+another is the sequential-arms error**, and it produced a false 30 %-versus-43 % "improvement"
+here before it was caught. Interleave the arms and quote p10, or quote the whole distribution.
+
+`median / p10 = 1.84×` within a cell is run-to-run spread. It says nothing about a single run.
+
+Small cells resist this. A 10-frame cell's `totals.serve_us` is ~300 µs, and its p10 read 270 µs
+in one batch and 339 µs in another — 26 % apart. The p10 stability above was established on the
+87-frame cell and does not carry to cells an eighth the size.
+
+## `claude/serene-rubin-wakfg7` against `main`
+
+Paired per repeat, arm order reversed each repeat, sign-tested against a fair coin:
+
+**Native driver:**
+
+| cell | paired median | signs | P(≥k \| null) | verdict |
+| ---- | ------------: | ----: | ------------: | ------- |
+| on-demand, 10 frames | +13.5 % | 46/80 worse | 0.109 | indistinguishable |
+| fill, 87 frames | +9.9 % | 24/40 worse | 0.134 | indistinguishable |
+| on-demand, 87 frames | −7.0 % | 15/40 worse | 0.077 | indistinguishable |
+| on-demand, 87 frames, `serve_us` p50 | −15.8 % | 12/40 worse | 0.008 | **branch faster** |
+
+**Browser-driven (e2e), 25 repeats:**
+
+| cell | paired median | signs | P(≥k \| null) | verdict |
+| ---- | ------------: | ----: | ------------: | ------- |
+| on-demand, 10 frames | +4.1 % | 16/25 worse | 0.115 | indistinguishable |
+| fill, 87 frames | **+7.5 %** | 18/25 worse | **0.022** | **branch slower** |
+
+The e2e fill result is the one cell where the branch is measurably behind, and it is the
+expected shape: `advise_ahead` issues `posix_fadvise` on a study already wholly in page cache,
+so it buys nothing and costs syscalls. It is the same direction as every other warm measurement
+taken here. Treat P = 0.022 with the usual caution for one result among several cells.
+
+**No regression under the native driver; a ~7.5 % fill cost under a browser.** The two short cells lean worse and the long one better; only
+the 87-frame p50 clears a sign test, and it favours the branch — consistent with the release
+profile, the one change on that branch reaching the on-demand reader. `advise_ahead` is called
+from `SeqReader` alone; `TileReader` never calls it, so the fill fix cannot touch this cell.
+
+Neither branch change can show here in any case: the study is fully page-cached, so the fadvise
+has nothing to prefetch. Its measured worth is in the cold 250 kB regime — see
+[`disk-access/EVIDENCE.md`](disk-access/EVIDENCE.md).
+
+## Re-running
+
+Native driver:
+
+```bash
+cargo build --release -p exact-server --bin exact-server --features telemetry
+cargo build --release -p disk-access-bench --bin server_ab
+
+# one server process per run, one session per run
+WTPACS_TELEMETRY=1 WTPACS_TELEMETRY_PATH=<json> exact-server --stream-mode shared --bind 127.0.0.1 …
+server_ab --mode fill --asks 87            # fill cell
+server_ab --mode on-demand --depth 1 --asks 10   # on-demand cell
+```
+
+Browser (e2e), which needs no npm because the client recorder stays off — the harness page
+drives itself and sets `window.__wtpacsDone`:
+
+```bash
+bash server/scripts/gen_dev_cert.sh    # Chromium rejects a cert older than ~14 days
+python server/dev-server.py --port 8765 &
+# server started as above, then Chromium at:
+#   http://127.0.0.1:8765/harness/?autorun=1&stream_mode=shared&frames=87&cell=fill
+#   …&cell=ondemand&d=1&n=10
+```
+
+Read `summary.totals.serve_us` from each run's JSON and take the percentile **across runs**.
+Alternate the arms every repeat; a batch of one arm followed by a batch of the other is not a
+comparison. State which driver produced any number quoted.
+
+## Browser-free: the same cells against a reference implementation
+
+Measured 2026-09-10. The rig above drives the product client in a real browser, which paces
+everything: the same server that fills a 61 MB study in **184 ms** natively was credited with
+**677 ms** of `serve_us` under the browser, because the server sits inside `send` while the page
+decodes. For a server-to-server question the browser has to go.
+
+These runs use native drivers on both sides — connect, ask, drain, end, no decode — against a
+**reference implementation of the same protocol shape** (same study bytes, same two cells). Study
+is 237 frames of ~259 KB (61.18 MB), evicted to residency **0** before every run and verified per
+run; all 30 runs served 237 frames.
+
+| cell | arm | reps | wall ms | MB/s | `serve_us` | µs/frame | wall min–max |
+| ---- | --- | ---: | ------: | ---: | ---------: | -------: | -----------: |
+| fill | reference | 5 | 215.3 | 284.2 | 213 127 | 899 | 208–220 |
+| fill | `main` | 5 | 234.7 | 260.7 | 224 478 | 947 | 203–286 |
+| fill | branch | 5 | 223.3 | 273.9 | 213 942 | 903 | 206–281 |
+| on-demand | reference | 5 | 243.1 | 251.6 | 38 976 | 164 | 233–285 |
+| on-demand | `main` | 5 | 265.5 | 230.4 | 56 096 | 237 | 207–339 |
+| on-demand | branch | 5 | 271.3 | 225.5 | 45 569 | 192 | 206–275 |
+
+Paired on wall time, nothing resolves: `main` vs branch +1.5 % (3/5, P=0.50) on fill and +2.2 %
+(3/5, P=0.50) on on-demand; reference vs `main` +7.4 % (4/5, P=0.19) on fill. **One arm's own
+run-to-run range is wider than every median gap**, so this rig cannot separate the three.
+
+### Why it cannot, and what that rules out
+
+* **Cold does not stall the reader.** On a fully evicted 61 MB study the session line still reads
+  `fill_hits=237 fill_misses=0`. On NVMe the one-frame look-ahead completes before the reader
+  needs it, so eviction moves the read earlier without ever blocking. Eviction is real —
+  residency measured 1.0 → 0 → 1.0 across evict and run — it simply has nothing to bite on.
+* **The send path is the ceiling.** `locate` and `prepare` are ~0 and 99 %+ of `serve_us` is
+  `send`, and all three arms land in 225–284 MB/s. Both stacks are paying the same QUIC cost.
+* **`serve_us` is not a speed.** The branch reads consistently closer to the reference than
+  `main` does (fill 213 942 vs 224 478) while wall time shows no difference: that is where each
+  server draws its span, not how fast it serves. Compare wall time.
+
+### The other read path, for whoever picks this up
+
+The reference server takes a different approach, and it is the interesting variable:
+
+| | reference | this server |
+| --- | --------- | ----------- |
+| bytes | `mmap`, `frame_slice` returns a borrowed `&[u8]` | `preadv2` with `RWF_NOWAIT`, escalating to a blocking pool on a miss |
+| where the read happens | **page fault, inline on the async executor thread** — no `spawn_blocking` anywhere in its serving path | probe on the executor, miss goes to the pool ([`disk-access/adr.md`](disk-access/adr.md)) |
+| look-ahead | kernel read-ahead only | explicit windowed reader, one frame named ahead |
+| per-frame cost | none — the slice is a pointer | one window read per frame |
+
+That contrast is what a follow-up should attack. Faulting inline on the reactor is the thing this
+server deliberately does not do, and on hardware where a major fault costs milliseconds it should
+lose badly — but this box never produces one. **A rig that cannot make the reader miss cannot
+price either design.** Candidates: slower storage, a study far past RAM, or a reduced
+`read_ahead_kb` ([`disk-access/NEXT.md`](disk-access/NEXT.md) #6, where the knob is already
+recorded as moving miss rate 2–15×).

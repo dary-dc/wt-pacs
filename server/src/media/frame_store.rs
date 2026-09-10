@@ -9,6 +9,8 @@ use study_bundle::read_layout;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
+use std::sync::Mutex;
 
 /// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
 pub const READ_WINDOW: usize = 64 * 1024;
@@ -31,6 +33,8 @@ pub struct FrameStore {
     nowait_cap: Option<usize>,
     #[cfg(test)]
     pool_starts: AtomicUsize,
+    #[cfg(test)]
+    advised: Mutex<Vec<(u64, u64)>>,
 }
 
 impl FrameStore {
@@ -48,6 +52,8 @@ impl FrameStore {
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
+            #[cfg(test)]
+            advised: Mutex::new(Vec::new()),
         })
     }
 
@@ -124,6 +130,22 @@ impl FrameStore {
         Ok(done)
     }
 
+    /// Advisory: ask the kernel to bring `len` bytes from `offset` into the page cache. It
+    /// copies nothing and never fails a read, so the result is not checked.
+    pub fn advise_ahead(&self, offset: u64, len: u64) {
+        #[cfg(test)]
+        self.advised.lock().unwrap().push((offset, len));
+        // SAFETY: `posix_fadvise` reads no user memory; a bad range is an errno, not UB.
+        unsafe {
+            libc::posix_fadvise(
+                self.file.as_raw_fd(),
+                offset as libc::off_t,
+                len as libc::off_t,
+                libc::POSIX_FADV_WILLNEED,
+            );
+        }
+    }
+
     /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
         self.file
@@ -157,6 +179,11 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn reset_pool_starts(&self) {
         self.pool_starts.store(0, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut *self.advised.lock().unwrap())
     }
 }
 

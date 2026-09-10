@@ -18,9 +18,12 @@ ask does not. That difference picks the escalation.
 1. **A page-cache hit is served inline.** The whole frame is probed with
    `preadv2(RWF_NOWAIT)` on the executor thread. It returns short instead of waiting on the
    disk, so a cold frame can never park a worker, and a warm ask takes no thread hop at all.
-2. **A fill (`SeqReader`) stays on the pool.** Two buffers, the next frame named
-   (`FILL_AHEAD = 1`), one `spawn_blocking` + `pread` for a miss. No ring, no extra fd.
-   `peak_in_flight` is 1. A sequential walk is read-ahead's best case (~one miss in sixty).
+2. **A fill (`SeqReader`) stays on the pool, and tells the kernel what comes next.** Two
+   buffers, the next frame named (`FILL_AHEAD = 1`), one `spawn_blocking` + `pread` for a
+   miss. No ring, no extra fd. `peak_in_flight` is 1. The device's queue depth comes from
+   `posix_fadvise(WILLNEED)` over `FILL_WINDOW` (4 MiB) past the named frame, issued a
+   quarter window at a time — since 2026-09-10, because the kernel's own read-ahead only
+   makes a sequential walk a hit walk when its window exceeds the frame (§2, retracted).
 3. **A tile miss goes to a ring built on that session's first miss.** `TileReader` holds
    `slots` frames (default `TILE_SLOTS = 4`; a constructor argument, so a campaign can sweep
    depth). io_uring through the `io-uring` crate: registered file, unregistered buffers, one
@@ -95,6 +98,7 @@ a **tie**, which is a real answer.
 | The depth ladder on the shipped path (`v35`) | 1 → 2 is **+67.4 %** and collects 62 % of what depth 16 offers; from the medians 2 → 4 adds +37 %, 4 → 16 +28 % |
 | Where the hosts stop separating the arms | ~64 reads in flight: the sandbox on CPU, the workstation on the device (~840 MB/s at 0.42 of 8 cores). **Past it every arm ties by construction** |
 | Sequential streaming, 16 KiB, 8–64 sessions (`x15`) | shipped reader, pool and ring-on-miss **tie at ~3 µs per read**; `tokio::fs::File` 48–223 µs; the same on tokio's io_uring driver 141 µs–2.1 ms |
+| A cold 250 kB fill at the stock 128 KiB `read_ahead_kb` (2026-09-10) | **59–66 % misses at one read in flight** before `FILL_WINDOW`; **0.7–1.1 %** after, 3/3; where read-ahead is 8 MB the 3.8 ms p99 bursts go (−62 %, +5.6 % 3/3); warm a tie at both frame sizes. [EVIDENCE](EVIDENCE.md) §Fill against on-demand |
 
 ### Claims that were made along the way and then measured to be wrong
 
@@ -108,6 +112,7 @@ a **tie**, which is a real answer.
 | "the ring's per-miss latency win carries to production" | on cloud block storage a miss is device-bound; the ring's claim there is threads and CPU per miss, and P0 (§6) tests it |
 | "depth 4 and 16 differ by far less than 1 and 4" | not in throughput: in `v32` 1 → 4 is ×1.90 and 4 → 16 ×1.52. The case for building depth 2 first is `v35`, where 2 alone collects 62 % |
 | "`v36`'s 250 KB cold cell shows no win for read-ahead" | it reached only 4.7 % misses, so it shows no regression, not no win |
+| "a sequential walk is read-ahead's best case (~one miss in sixty)" | only while the kernel's window exceeds the frame. At 250 kB frames and the stock 128 KiB `read_ahead_kb` a cold fill missed six frames in ten with one read in flight — slower than on-demand at depth 4 on any device with real latency. The fill now advises its own window (§1.2) |
 
 ## 3 · How the decision evolved
 
@@ -117,6 +122,7 @@ a **tie**, which is a real answer.
 | 2026-09-04 | `RWF_NOWAIT` inline, `spawn_blocking` for the shortfall | 2.5× warm against always-touch; io_uring a tie — at the ~0 % miss rate those cells fixed |
 | 2026-09-06 | the ring on the miss, built on the first miss | the read-path campaign, four hosts, six runs: **−42 to −73 % CPU per miss, RESOLVED everywhere**. Inert on warm workloads by construction, so it did not wait on the layout that decides the miss rate |
 | 2026-09-07 | a miss reads the rest of the frame | on a fixture where a miss is a real device read, windowing the escalation cost 2–3 round trips per 250 KB frame and stopped scaling at ~1 600 f/s where whole-frame arms reach ~5 000 |
+| 2026-09-10 | **the fill advises the kernel `FILL_WINDOW` past the named frame**, a quarter window at a time | a fill reported slower than on-demand; measured cold at the stock read-ahead: 60 % misses at one read in flight, against depth 4 on demand. `WILLNEED` takes it to ~1 % with no thread and no ring and removes the 8 MB read-ahead's burst tail; per frame the syscall cost −8.7 % at 16 KiB, per quarter window nothing |
 | 2026-09-08 | keep driving `io-uring` directly; **validate on the production target before any further backend change**; the sequential reader is the same reader forward; **read ahead by one built** for batches; **the server reports its own miss rate** | backend research with web access found no standard alternative (§5 C); the owners' weights and the container traps (§6) mean the ring's margin has to be shown on the target, not a laptop (`x14`, `x15`); read-ahead measured +73.8 % on missing tiles and a tie warm (`v36`); every threshold in this file is a miss rate, and the server could not report one |
 
 ## 4 · Consequences
@@ -164,6 +170,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural: `COOP_TASKRUN` is refused alongside it |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
 | Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
+| **`WILLNEED` window ahead of a fill (`FILL_WINDOW`)** | S | misses **60 % → ~1 %** at the stock read-ahead, 3/3; p99 −62 % where read-ahead is 8 MB; warm a tie once per quarter window (per frame it cost −8.7 % at 16 KiB) | one syscall per MiB walked; no thread, no fd, no buffer | ~15 lines, one test | **Accepted** 2026-09-10 |
 | Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 |
 | One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
 | Whole-frame `RWF_NOWAIT`, one read | B | best miss throughput of any arm | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected |
@@ -182,7 +189,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | `O_DIRECT` + SPDK, whole-study preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
 | Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
 | `write_chunk` owned windows to quinn | B | −3.2 % at one session; **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | Rejected, more so at scale |
-| Sequential: `SeqReader`, one frame ahead, pool only | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; read-ahead makes 96–99 % of asks hits | 5 threads; one fd per study; no ring | its own reader, because a fill that builds a ring pays 2 fds for one miss in sixty | **Accepted** |
+| Sequential: `SeqReader`, one frame ahead, pool only | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; the kernel's read-ahead made 96–99 % of asks hits **at 16 KiB** — at 250 kB and the stock window it did not (60 % misses), which is what `FILL_WINDOW` now supplies | 5 threads; one fd per study; no ring | its own reader, because a fill that builds a ring pays 2 fds for one miss in sixty | **Accepted** |
 | Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
 | Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
 
@@ -223,6 +230,7 @@ named test.
 * **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm tile would
   go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
 * **A fill never builds a ring.** `SeqReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
+* **A fill keeps `FILL_WINDOW` advised past the named frame.** Otherwise its depth on the device is one blocking read. `a_fill_tells_the_kernel_what_follows_the_named_frame`.
 * **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
 
 ## 8 · Levers outside this decision
@@ -233,13 +241,15 @@ whole plan.
 
 | Lever | Worth | Blocker / cost | Status |
 | --- | --- | --- | --- |
-| **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — the largest effect measured anywhere in this investigation | the peer must advertise the same ceiling, and the peer is a browser; above 4000 B path discovery failed and fell back to 1200 B | **Measured, not taken.** Price it first |
+| **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** with a quinn peer — the largest effect measured anywhere in this investigation | the peer caps it, and the peer is a browser: **Chromium 141 advertises 1 472**. Measured 2026-09-10 through a UDP relay with the server's bound at 4 000 and 8 972 — no datagram above 1 472 in 85 k | **Closed for browser clients** — [`improvements/2026-09-10.md`](../improvements/2026-09-10.md) |
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
 | GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
-| Congestion controller, flow-control windows, AEAD choice | unknown | — | **Not measured** — named so they are not mistaken for rejected |
+| Congestion controller, flow-control windows | unknown | — | **Not measured** — named so they are not mistaken for rejected |
+| AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | — | **Measured 2026-09-10, not taken** ([`improvements/2026-09-10.md`](../improvements/2026-09-10.md)) |
+| Release profile: `lto = "fat"`, `codegen-units = 1` | −4 to −8 % CPU per frame, every cell | 4× longer release rebuild | **Landed 2026-09-10** (same file) |
 
 **Where scale actually binds.** The copy into quinn is ~11 µs of a ~675 µs frame, and
 L2-resident; per-datagram QUIC work runs out of CPU long before the copy runs out of memory
