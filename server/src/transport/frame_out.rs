@@ -19,6 +19,7 @@ pub(crate) enum FrameOut {
     PerFrame {
         connection: Connection,
         acks: JoinSet<()>,
+        pending: Option<SendStream>,
     },
     /// No connection: sending panics, so a test can build a session but not serve on it.
     #[cfg(test)]
@@ -43,6 +44,7 @@ impl FrameOut {
             StreamMode::PerFrame => Ok(Self::PerFrame {
                 connection,
                 acks: JoinSet::new(),
+                pending: None,
             }),
         }
     }
@@ -50,13 +52,26 @@ impl FrameOut {
     /// `body` is the whole codestream: the reader returns a frame in one call, and the
     /// write is chunked so a wide frame does not copy without yielding.
     pub(crate) async fn send_frame(&mut self, idx: u32, body: &[u8]) -> Result<()> {
+        self.send_first(idx, body).await?;
+        self.send_rest(body).await
+    }
+
+    /// Head and first window, so the send buffer is armed before look-ahead starts. `docs/WIRE.md`.
+    pub(crate) async fn send_first(&mut self, idx: u32, body: &[u8]) -> Result<()> {
         let head = frame_head(idx, body.len() as u32);
+        let first = first_body(body);
         match self {
             Self::Shared { uni, .. } => {
                 uni.write_all(&head).await.context("write shared head")?;
-                write_body(uni, body).await?;
+                if !first.is_empty() {
+                    uni.write_all(first).await.context("write first window")?;
+                }
             }
-            Self::PerFrame { connection, acks } => {
+            Self::PerFrame {
+                connection,
+                pending,
+                ..
+            } => {
                 let mut uni = connection
                     .open_uni()
                     .await
@@ -64,8 +79,23 @@ impl FrameOut {
                     .await
                     .context("open uni ready")?;
                 uni.write_all(&head).await.context("write head")?;
-                write_body(&mut uni, body).await?;
+                if !first.is_empty() {
+                    uni.write_all(first).await.context("write first window")?;
+                }
+                *pending = Some(uni);
+            }
+            #[cfg(test)]
+            Self::Detached => unreachable!("a detached sink has no wire to write to"),
+        }
+        Ok(())
+    }
 
+    pub(crate) async fn send_rest(&mut self, body: &[u8]) -> Result<()> {
+        match self {
+            Self::Shared { uni, .. } => write_rest(uni, body).await?,
+            Self::PerFrame { acks, pending, .. } => {
+                let mut uni = pending.take().context("send_rest without send_first")?;
+                write_rest(&mut uni, body).await?;
                 acks.spawn(async move {
                     let _ = uni.finish().await;
                 });
@@ -100,8 +130,16 @@ fn write_chunks(ready: &[u8]) -> impl Iterator<Item = &[u8]> {
     ready.chunks(READ_WINDOW)
 }
 
-async fn write_body(uni: &mut SendStream, body: &[u8]) -> Result<()> {
-    for piece in write_chunks(body) {
+fn first_body(body: &[u8]) -> &[u8] {
+    body.get(..READ_WINDOW.min(body.len())).unwrap_or(&[])
+}
+
+fn rest_chunks(body: &[u8]) -> impl Iterator<Item = &[u8]> {
+    body.get(READ_WINDOW..).unwrap_or(&[]).chunks(READ_WINDOW)
+}
+
+async fn write_rest(uni: &mut SendStream, body: &[u8]) -> Result<()> {
+    for piece in rest_chunks(body) {
         uni.write_all(piece).await.context("write codestream")?;
     }
     Ok(())
@@ -196,5 +234,29 @@ mod tests {
         let pos = ready.len() as u32;
         assert_eq!(pos, span.len);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// First write is one window; the rest reconstruct the body. Mutate `first_body` to
+    /// return the whole slice and this fails.
+    #[test]
+    fn first_write_is_one_window_and_the_rest_follow() {
+        let body: Vec<u8> = (0..(READ_WINDOW * 2 + 9))
+            .map(|i| (i % 251) as u8)
+            .collect();
+        assert_eq!(first_body(&body).len(), READ_WINDOW);
+        let rest: Vec<&[u8]> = rest_chunks(&body).collect();
+        assert_eq!(
+            rest.len(),
+            2,
+            "a 2-window-plus body must be two rest writes"
+        );
+        let mut wired = first_body(&body).to_vec();
+        for piece in rest {
+            wired.extend_from_slice(piece);
+        }
+        assert_eq!(wired, body, "first+rest changed the wire body");
+        let small = [1u8, 2, 3];
+        assert_eq!(first_body(&small), &small);
+        assert_eq!(rest_chunks(&small).count(), 0);
     }
 }

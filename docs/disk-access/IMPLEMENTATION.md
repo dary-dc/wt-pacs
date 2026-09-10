@@ -63,27 +63,34 @@ The planner’s `Mode` picks the reader. Each is built on the first frame of its
 a session pays for neither reader it does not use.
 
 **Fill — `SeqReader`.** Two buffers. `next` is the frame the planner will ask for
-after this one (`FILL_AHEAD = 1`), and its pooled read is running by the time `read`
-returns. `peak_in_flight` is 1: the current frame has already landed, and only the
-named one may still be with the pool. No ring, no extra fd.
+after this one (`FILL_AHEAD = 1`). `read` returns the current frame; `prime` starts
+`next` on the spare buffer. The serving hop calls `prime` after the first write so
+first-byte does not wait on that probe. `peak_in_flight` is 1 once primed: the current
+frame has already landed, and only the named one may still be with the pool. No ring,
+no extra fd.
 
 ```
 read(span, next):
   settle whatever the last call started
   serve span from that, or start it now
+  name next; do not start it
+prime(store):                          // after send_first
   start next on the spare buffer
 ```
 
 **Tiles — `TileReader`.** `slots` frames (default `TILE_SLOTS = 4`); `slots` is a
-constructor argument so a campaign can sweep depth. Current first, then upcoming that
-fit, then wait — the measured order. The probe is the whole frame. A shortfall goes to
+constructor argument so a campaign can sweep depth. A **miss** still starts upcoming
+before the wait — the measured device-depth order. A **hit** leaves upcoming for
+`prime`, after the first write. The probe is the whole frame. A shortfall goes to
 the ring on the first miss, or to the pool where the ring is refused.
 
 ```
 read(span, upcoming):
   start span if not held
-  start upcoming that fit (at most slots − 1)
+  if span missed: start upcoming that fit (at most slots − 1)
   wait span
+prime(store, span, upcoming):          // after send_first; no-op if already started
+  start upcoming that fit
 ```
 
 `WTPACS_READ_PATH` is resolved once in `TileReader::new`. The loop does not branch on
@@ -130,9 +137,11 @@ misses.
 | A miss is one pooled read however wide the frame | `a_missing_frame_costs_one_round_trip_however_wide_it_is` |
 | Both readers reassemble every frame | `both_readers_reassemble_every_frame` |
 | A named fill frame is not read twice | `a_named_fill_frame_is_read_before_it_is_asked_for` |
+| Fill look-ahead waits for `prime` | `fill_does_not_start_the_next_frame_until_prime` |
 | A fill holds one read at a time | `a_fill_never_holds_more_than_one_read_at_once` |
 | An abandoned read-ahead is settled before reuse | `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused` |
 | Named tiles start before the current wait | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
+| A hit does not start upcoming before `prime` | `a_hit_does_not_start_upcoming_tiles_until_prime` |
 | Slot count is a constructor argument | `a_tile_reader_holds_as_many_frames_as_it_was_given_slots` |
 | A hit never builds a ring | `lazy_ring_is_not_built_when_every_read_hits` |
 | No ring where `RWF_NOWAIT` is refused | `lazy_ring_is_never_built_without_nowait` |
@@ -140,6 +149,7 @@ misses.
 | `in_hand` cannot grow with ask rate | `the_loop_holds_no_more_than_asks_ahead` |
 | Upcoming stops at Fill | `upcoming_stops_at_the_first_ask_that_is_not_a_frame` |
 | The write stays windowed | `a_pooled_frame_is_written_in_read_windows_not_in_one_copy` |
+| First write is one window | `first_write_is_one_window_and_the_rest_follow` |
 | Fill and EndStream on the wire | `empty_stream_frames_is_the_whole_study`, `end_stream_stops_a_fill_on_the_wire` |
 
 Mutate every new test (`CLAUDE.md`).

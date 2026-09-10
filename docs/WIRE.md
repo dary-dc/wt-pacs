@@ -52,7 +52,20 @@ codestream in `READ_WINDOW` (64 KiB) pieces. The bytes come from a session-owned
 (`SeqReader` or `TileReader`), not a mapping — `server/` has no mmap. That matches the
 wire layout above without assembling a contiguous envelope in userspace.
 
+**First-byte order.** `locate` already knows `span.len`, but the body must land before the
+length prefix is written — a failed read after that prefix would desynchronise the shared
+uni. What *can* move is the next-frame probe. `read` returns the current frame; `send_first`
+puts the head and the first window into the QUIC send buffer; **then** `prime` starts the
+named look-ahead; then `send_rest` writes the remaining windows. A miss still starts
+upcoming tiles *before* the current wait (device depth, measured). A hit does not: those
+probes are memcpy on the executor, and they used to sit in front of the first write.
+
+`claude/serene-rubin-wakfg7` spent the hop on LTO, an MTU Chromium will not take, and a
+fill `fadvise` that was a warm regression under a browser. This change is the serving-hop
+wait, not those. **No real-computer first-byte move is claimed** — the tests pin the order;
+an interleaved client-visible cell has not been run.
+
 **One full-frame copy remains:** `wtransport` only exposes `write_all(&[u8])`, so QUIC copies the
-codestream into its send buffer for retransmission. `quinn`'s chunk/`Bytes` API could avoid that copy
-on a native path; browsers cannot. A copy-cost knee sweep (link rate vs memcpy time) is still open
-in [`client-runtime-experiment-plan.md`](client-runtime-experiment-plan.md) §0.
+codestream into its send buffer for retransmission. Handing quinn owned `Bytes` was measured
+worse at 16 and 32 sessions and is not reopened. A copy-cost knee sweep (link rate vs memcpy
+time) is still open in [`client-runtime-experiment-plan.md`](client-runtime-experiment-plan.md) §0.

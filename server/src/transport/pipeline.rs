@@ -119,19 +119,29 @@ impl FramePipeline for ProductPipeline {
             mode: read_mode,
             ..
         } = self;
-        let body = match mode {
+        match mode {
             Mode::Fill => {
-                seq.get_or_insert_with(SeqReader::new)
-                    .read(store, span, ahead.first().copied())
-                    .await?
+                let seq = seq.get_or_insert_with(SeqReader::new);
+                {
+                    let body = seq.read(store, span, ahead.first().copied()).await?;
+                    out.send_first(frame, body).await?;
+                }
+                let primed = seq.prime(store);
+                let sent = out.send_rest(seq.body()).await;
+                primed.and(sent)
             }
             Mode::OnDemand => {
-                tile.get_or_insert_with(|| TileReader::new(*read_mode, store, TILE_SLOTS))
-                    .read(store, span, ahead)
-                    .await?
+                let tile =
+                    tile.get_or_insert_with(|| TileReader::new(*read_mode, store, TILE_SLOTS));
+                {
+                    let body = tile.read(store, span, ahead).await?;
+                    out.send_first(frame, body).await?;
+                }
+                let primed = tile.prime(store, span, ahead).await;
+                let sent = out.send_rest(tile.body()).await;
+                primed.and(sent)
             }
-        };
-        out.send_frame(frame, body).await
+        }
     }
 
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {

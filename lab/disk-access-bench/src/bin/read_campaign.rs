@@ -402,6 +402,7 @@ async fn reader_product_fill(
         while pos < span.len {
             let ready = seq.read(&store, span, next).await.expect("fill read");
             pos += ready.len() as u32;
+            seq.prime(&store).expect("fill prime");
         }
         mine.push(t.elapsed().as_nanos() as u64);
         if seq.stats().misses > before {
@@ -447,6 +448,9 @@ async fn reader_product_tile(
         while pos < span.len {
             let ready = tile.read(&store, span, &upcoming).await.expect("tile read");
             pos += ready.len() as u32;
+            tile.prime(&store, span, &upcoming)
+                .await
+                .expect("tile prime");
         }
         mine.push(t.elapsed().as_nanos() as u64);
         if tile.stats().misses > before {

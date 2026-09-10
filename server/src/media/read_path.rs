@@ -107,7 +107,10 @@ enum Ahead {
 /// sixty. `docs/disk-access/EVIDENCE.md` §Fill at scale.
 pub struct SeqReader {
     cur: Vec<u8>,
+    cur_len: usize,
     ahead: Ahead,
+    pending: Option<FrameSpan>,
+    spare: Option<Vec<u8>>,
     stats: ReadStats,
 }
 
@@ -121,20 +124,28 @@ impl SeqReader {
     pub fn new() -> Self {
         Self {
             cur: Vec::new(),
+            cur_len: 0,
             ahead: Ahead::Idle(Vec::new()),
+            pending: None,
+            spare: None,
             stats: ReadStats::default(),
         }
     }
 
-    /// The whole of `span`. `next` is the frame the planner will ask for after it, and its
-    /// read is running by the time this returns.
+    /// The whole of `span`. `next` is started by [`Self::prime`], after the first write.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         next: Option<FrameSpan>,
     ) -> Result<&[u8]> {
-        let (held, spare) = self.settle().await?;
+        self.pending = None;
+        let (held, mut spare) = self.settle().await?;
+        if let Some(held_spare) = self.spare.take() {
+            if spare.is_empty() {
+                spare = held_spare;
+            }
+        }
         let spare = match held {
             Some((s, missed)) if s == span => {
                 self.count(missed);
@@ -152,16 +163,29 @@ impl SeqReader {
                 spare
             }
         };
-        self.ahead = match next {
+        self.cur_len = span.len as usize;
+        self.pending = next;
+        self.spare = Some(spare);
+        self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
+        Ok(&self.cur[..self.cur_len])
+    }
+
+    /// Start the frame last `read` named. After the first write, not before. `docs/WIRE.md`.
+    pub fn prime(&mut self, store: &Arc<FrameStore>) -> Result<()> {
+        let spare = self.spare.take().unwrap_or_default();
+        self.ahead = match self.pending.take() {
             Some(next) => start_pooled(store, next, spare)?,
             None => Ahead::Idle(spare),
         };
-        self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
         self.stats.peak_in_flight = self
             .stats
             .peak_in_flight
             .max(u16::from(matches!(self.ahead, Ahead::InFlight { .. })));
-        Ok(&self.cur[..span.len as usize])
+        Ok(())
+    }
+
+    pub fn body(&self) -> &[u8] {
+        &self.cur[..self.cur_len]
     }
 
     /// Awaits whatever the last call started, so its buffer can be reused whether or not
@@ -284,8 +308,7 @@ impl TileReader {
         }
     }
 
-    /// The whole of `span`; reads of `upcoming` that fit are started underneath. Current
-    /// first, then upcoming, then wait — the measured order.
+    /// The whole of `span`. A miss starts `upcoming` before the wait; a hit leaves them for [`Self::prime`].
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
@@ -294,17 +317,17 @@ impl TileReader {
     ) -> Result<&[u8]> {
         let named = 1 + upcoming.len().min(self.slots.len() - 1);
         self.stats.peak_named = self.stats.peak_named.max(named as u16);
-        for i in 0..named {
-            let want = if i == 0 { span } else { upcoming[i - 1] };
-            if self.holding(want).is_none() {
-                let w = self.free_slot(span, upcoming);
-                self.wait(w).await?;
-                self.begin(store, w, want)?;
-            }
+        if self.holding(span).is_none() {
+            let w = self.free_slot(span, upcoming);
+            self.wait(w).await?;
+            self.begin(store, w, span)?;
+        }
+        let w = self.holding(span).expect("started above");
+        if self.slots[w].miss {
+            self.prime(store, span, upcoming).await?;
         }
         let started = self.slots.iter().filter(|s| s.read.is_some()).count() as u16;
         self.stats.peak_in_flight = self.stats.peak_in_flight.max(started);
-        let w = self.holding(span).expect("started above");
         self.wait(w).await?;
         self.last = w;
         if self.slots[w].miss {
@@ -313,6 +336,31 @@ impl TileReader {
             self.stats.hits += 1;
         }
         Ok(&self.slots[w].buf[..self.slots[w].len])
+    }
+
+    /// Start `upcoming` not already in flight. After the first write on a hit. `docs/WIRE.md`.
+    pub async fn prime(
+        &mut self,
+        store: &Arc<FrameStore>,
+        span: FrameSpan,
+        upcoming: &[FrameSpan],
+    ) -> Result<()> {
+        let named = 1 + upcoming.len().min(self.slots.len().saturating_sub(1));
+        for i in 1..named {
+            let want = upcoming[i - 1];
+            if self.holding(want).is_none() {
+                let w = self.free_slot(span, upcoming);
+                self.wait(w).await?;
+                self.begin(store, w, want)?;
+            }
+        }
+        let started = self.slots.iter().filter(|s| s.read.is_some()).count() as u16;
+        self.stats.peak_in_flight = self.stats.peak_in_flight.max(started);
+        Ok(())
+    }
+
+    pub fn body(&self) -> &[u8] {
+        &self.slots[self.last].buf[..self.slots[self.last].len]
     }
 
     fn holding(&self, span: FrameSpan) -> Option<usize> {
@@ -594,8 +642,8 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// **The fill reader's whole point.** Naming the next frame starts its read now, so the
-    /// call that asks for it does not start one.
+    /// **The fill reader's whole point.** After `prime`, the named frame is already read, so
+    /// the call that asks for it does not start one.
     #[test]
     fn a_named_fill_frame_is_read_before_it_is_asked_for() {
         let dir = scratch("readahead");
@@ -611,6 +659,7 @@ mod tests {
         let mut seq = SeqReader::new();
         rt.block_on(seq.read(&store, first, Some(second)))
             .expect("first");
+        seq.prime(&store).expect("prime");
         store.reset_pool_starts();
         let out = rt.block_on(seq.read(&store, second, None)).expect("second");
         assert_eq!(
@@ -622,6 +671,38 @@ mod tests {
             store.pool_starts(),
             0,
             "the named frame was read again instead of being served from the read-ahead"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `read` names the next frame and does not start it. First-byte must not wait on that probe.
+    #[test]
+    fn fill_does_not_start_the_next_frame_until_prime() {
+        let dir = scratch("late-prime");
+        let path = write_bundle(&dir, 2, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let [first, second] = spans(&store, &[0, 1])[..] else {
+            unreachable!("two frames")
+        };
+
+        let mut seq = SeqReader::new();
+        rt.block_on(seq.read(&store, first, Some(second)))
+            .expect("first");
+        assert_eq!(
+            seq.stats().peak_in_flight,
+            0,
+            "read started the next frame before the first write"
+        );
+        store.reset_pool_starts();
+        let out = rt.block_on(seq.read(&store, second, None)).expect("second");
+        assert_eq!(out, frame_pattern(1, LEN));
+        assert_eq!(
+            store.pool_starts(),
+            1,
+            "the named frame was served from a look-ahead read never started"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -641,6 +722,7 @@ mod tests {
             let span = store.frame_span(idx).expect("span");
             let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1).expect("next"));
             rt.block_on(seq.read(&store, span, next)).expect("read");
+            seq.prime(&store).expect("prime");
         }
         assert_eq!(
             seq.stats().peak_in_flight,
@@ -668,6 +750,7 @@ mod tests {
         let mut seq = SeqReader::new();
         rt.block_on(seq.read(&store, first, Some(second)))
             .expect("first");
+        seq.prime(&store).expect("prime");
         // Frame 1 was named and is in flight; the session asks for 2 instead.
         let out = rt.block_on(seq.read(&store, third, None)).expect("third");
         assert_eq!(
@@ -715,6 +798,37 @@ mod tests {
             tile.serving_slot(),
             0,
             "the first slot serves the asked frame"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A hit is already in hand. Starting the next tiles before the first write is a wait
+    /// on the first-byte path, not device depth.
+    #[test]
+    fn a_hit_does_not_start_upcoming_tiles_until_prime() {
+        let dir = scratch("tile-hit-prime");
+        let path = write_bundle(&dir, TILE_SLOTS as u32, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        if !store.nowait_supported() {
+            eprintln!("skipped: this filesystem refuses RWF_NOWAIT, so every read reports a miss");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        let rt = rt();
+        let all = spans(&store, &(0..TILE_SLOTS as u32).collect::<Vec<_>>());
+        let (span, upcoming) = all.split_first().expect("one frame at least");
+        let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
+        rt.block_on(tile.read(&store, *span, upcoming))
+            .expect("read");
+        assert!(
+            !tile.holds(upcoming[0]),
+            "a hit started the next tile before the first write"
+        );
+        rt.block_on(tile.prime(&store, *span, upcoming))
+            .expect("prime");
+        assert!(
+            tile.holds(upcoming[0]),
+            "prime did not start the named upcoming tile"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
