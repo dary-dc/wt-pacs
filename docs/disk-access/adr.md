@@ -240,6 +240,7 @@ whole plan.
 | GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
 | Congestion controller, flow-control windows, AEAD choice | unknown | — | **Not measured** — named so they are not mistaken for rejected |
+| FoD parse, `frame_head`, per-frame `upcoming`/`ahead` alloc (CPU before disk) | compose **160 ns** / ask vs ~140–200 µs CPU/frame at 32 KB; hand-rolled FoD saves 70 ns | — | **Measured 2026-09-10, not taken.** Header-before-read unsafe on the shared uni. [`improvements/2026-09-06.md`](../improvements/2026-09-06.md) §2026-09-10 addendum |
 
 **Where scale actually binds.** The copy into quinn is ~11 µs of a ~675 µs frame, and
 L2-resident; per-datagram QUIC work runs out of CPU long before the copy runs out of memory

@@ -53,6 +53,7 @@ Also added with F1: `client/harness/refusals.html`, the regression page that rep
 | What | Method | Result |
 | - | - | - |
 | Server app code as a hotspot | callgrind, three cells (32 KB shared, 250 KB shared, 32 KB per-frame), `lab/scripts/callgrind_run.sh` | `exact_server::*` < 0.3 % of instructions; `serde_json` 0.06 %; ring AES-GCM ≈ 31–36 %, `memcpy` 13–15 %, quinn ≈ 10 %. The one avoidable term, 11.7 %, is the `write_all` copy L1 removes. Nothing outside the two lanes is left on the server |
+| CPU / parse / header **before or beside disk** (2026-09-10, `cursor/latency-hotpath-cpu-3a29`) | interleaved microbench, 4 repeats, arm order reversed; FoD decode, `frame_head`, `upcoming`/`ahead` collect, FoD body alloc | compose **160 ns** / ask (serde 116, head 0.4, ahead 22, body alloc 12). A hand-rolled `RequestFrame` scan is 47 ns — 70 ns saved, not a latency change. Header-before-read not taken: unsafe on the shared uni. Did not retry serene-rubin's LTO / `aws-lc-rs` / UDP 4000 / fill `WILLNEED`. Evidence: [`2026-09-06.md`](2026-09-06.md) §2026-09-10 addendum |
 | `new TextEncoder()` per FoD ask (T1) | `lab/bench/textencoder.html` in Chromium 141; Node micro-benchmark | 8–11 µs per encode either way in Chromium, 1.8 µs either way in Node; the constructor is free |
 | Zero-fill of WASM receive chunks in shared mode | Chromium profile | `push_chunk` 5.5 ms per 320 × 250 KB frames — real but small; it mattered in per-frame mode (11 ms + 37 ms of realloc), which W2 fixed |
 
