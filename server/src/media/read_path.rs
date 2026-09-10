@@ -18,8 +18,9 @@ use crate::media::uring_reader::UringReader;
 /// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
 pub const TILE_SLOTS: usize = 4;
 
-/// 4 MiB WILLNEED window. `docs/disk-access/EVIDENCE.md` §Fill overlap.
-pub const FILL_PREFETCH: u64 = 4 << 20;
+/// Bytes past the named frame. First miss uses the same width from `next`.
+/// `docs/disk-access/EVIDENCE.md` §Fill overlap.
+pub const FILL_WINDOW: u64 = 4 << 20;
 
 /// Which escalation a tile session takes, from `WTPACS_READ_PATH`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -107,13 +108,13 @@ enum Ahead {
     },
 }
 
-/// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
-/// and no ring. A pool miss starts `next` first (device depth 2). A nowait miss issues
-/// WILLNEED during the wait instead — overlapping nowait reads doubled the miss rate.
-/// `docs/disk-access/adr.md` §1.
+/// **The fill reader.** Two buffers, no ring. Pool-miss overlap and a sliding WILLNEED
+/// window: `docs/disk-access/adr.md` §1.
 pub struct SeqReader {
     cur: Vec<u8>,
     ahead: Ahead,
+    /// End of what the kernel has been asked for; a walk extends it, a seek restarts it.
+    advised_to: u64,
     stats: ReadStats,
 }
 
@@ -128,6 +129,7 @@ impl SeqReader {
         Self {
             cur: Vec::new(),
             ahead: Ahead::Idle(Vec::new()),
+            advised_to: 0,
             stats: ReadStats::default(),
         }
     }
@@ -182,8 +184,9 @@ impl SeqReader {
         join: JoinHandle<Result<Vec<u8>>>,
     ) -> Result<()> {
         if store.nowait_supported() {
-            if let Some(n) = next {
-                store.prefetch(n.offset, FILL_PREFETCH);
+            if let (0, Some(n)) = (self.advised_to, next) {
+                store.advise_ahead(n.offset, FILL_WINDOW);
+                self.advised_to = n.offset + FILL_WINDOW;
             }
             self.cur = join.await.context("join frame read")??;
             self.count(true);
@@ -205,10 +208,30 @@ impl SeqReader {
         spare: Vec<u8>,
     ) -> Result<()> {
         self.ahead = match next {
-            Some(next) => start_pooled(store, next, spare)?,
+            Some(next) => {
+                let ahead = start_pooled(store, next, spare)?;
+                self.advise(store, next);
+                ahead
+            }
             None => Ahead::Idle(spare),
         };
         Ok(())
+    }
+
+    /// `FILL_WINDOW` past `next`, a quarter window at a time; a seek restarts it.
+    /// `docs/disk-access/adr.md` §1.
+    fn advise(&mut self, store: &FrameStore, next: FrameSpan) {
+        let end = next.offset + u64::from(next.len);
+        let want = end + FILL_WINDOW;
+        if (end..=want).contains(&self.advised_to) {
+            if want - self.advised_to < FILL_WINDOW / 4 {
+                return;
+            }
+            store.advise_ahead(self.advised_to, want - self.advised_to);
+        } else {
+            store.advise_ahead(end, FILL_WINDOW);
+        }
+        self.advised_to = want;
     }
 
     fn note_peaks(&mut self, next: Option<FrameSpan>, current_in_flight: bool) {
@@ -702,9 +725,8 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// **The nowait fill.** A miss that can still probe issues WILLNEED during the wait
-    /// and does not start a second pooled read — overlapping nowait reads doubled the
-    /// miss rate. `docs/disk-access/adr.md` §1.
+    /// **The nowait fill.** A miss that can still probe does not start a second pooled
+    /// read — overlapping nowait reads doubled the miss rate. `docs/disk-access/adr.md` §1.
     #[test]
     fn a_nowait_fill_does_not_overlap_pooled_reads() {
         let dir = scratch("nowait-no-overlap");
@@ -735,6 +757,105 @@ mod tests {
             store.peak_pool_in_flight(),
             1,
             "WILLNEED was replaced by a second spawn_blocking"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **First-miss backstop.** The sliding window starts after `next` is named, so a
+    /// nowait miss with no window yet WILLNEEDs `FILL_WINDOW` from `next` during the wait,
+    /// and does not repeat that full-width hint on later misses. `docs/disk-access/adr.md` §1.
+    #[test]
+    fn a_nowait_first_miss_asks_once_from_the_named_frame() {
+        let dir = scratch("first-miss");
+        let path = write_bundle(&dir, 8, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        if !store.nowait_supported() {
+            eprintln!("skipped: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        store.force_short_reads(SHORT);
+        let store = Arc::new(store);
+        let rt = rt();
+        let all = spans(&store, &(0..8u32).collect::<Vec<_>>());
+        let mut seq = SeqReader::new();
+        rt.block_on(seq.read(&store, all[0], Some(all[1])))
+            .expect("first");
+        let first = store.take_advice();
+        assert!(
+            first.iter().any(|&(off, len)| off == all[1].offset && len == FILL_WINDOW),
+            "the first miss did not WILLNEED {FILL_WINDOW} from the named frame: {first:?}"
+        );
+        rt.block_on(seq.read(&store, all[1], Some(all[2])))
+            .expect("second");
+        let later = store.take_advice();
+        assert!(
+            !later
+                .iter()
+                .any(|&(off, len)| off == all[2].offset && len == FILL_WINDOW),
+            "a later miss re-issued a full window from next: {later:?}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A fill asks the kernel for `FILL_WINDOW` past the named frame, extends it only once a
+    /// quarter window has been walked, and restarts it on a seek past it. Without the
+    /// advice a 250 kB fill at the stock 128 KiB read-ahead misses six frames in ten —
+    /// `docs/disk-access/EVIDENCE.md` §Fill overlap.
+    #[test]
+    fn a_fill_tells_the_kernel_what_follows_the_named_frame() {
+        let dir = scratch("advise");
+        let path = write_bundle(&dir, 24, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let rt = rt();
+        let all = spans(&store, &(0..24u32).collect::<Vec<_>>());
+        let end = |s: FrameSpan| s.offset + u64::from(s.len);
+
+        let mut seq = SeqReader::new();
+        rt.block_on(seq.read(&store, all[0], Some(all[1])))
+            .expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[1]), FILL_WINDOW)],
+            "the first frame asks for one whole window past the named frame"
+        );
+        let mut walked = 0u64;
+        for i in 1..20u32 {
+            rt.block_on(seq.read(&store, all[i as usize], Some(all[i as usize + 1])))
+                .expect("read");
+            walked += u64::from(all[i as usize + 1].len);
+            let advice = store.take_advice();
+            if walked < FILL_WINDOW / 4 {
+                assert!(
+                    advice.is_empty(),
+                    "frame {i}: advised again inside a quarter window"
+                );
+            } else {
+                assert_eq!(
+                    advice,
+                    vec![(end(all[1]) + FILL_WINDOW, walked)],
+                    "frame {i}: the extension does not start where the window ended"
+                );
+                break;
+            }
+        }
+        assert!(
+            walked >= FILL_WINDOW / 4,
+            "the walk never extended the window"
+        );
+        rt.block_on(seq.read(&store, all[20], Some(all[21])))
+            .expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[21]), FILL_WINDOW)],
+            "a seek past the window restarts it"
+        );
+        rt.block_on(seq.read(&store, all[3], Some(all[4])))
+            .expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[4]), FILL_WINDOW)],
+            "a seek back before the window restarts it"
         );
         std::fs::remove_dir_all(&dir).ok();
     }

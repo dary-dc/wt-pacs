@@ -9,6 +9,8 @@ use study_bundle::read_layout;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
+use std::sync::Mutex;
 
 /// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
 pub const READ_WINDOW: usize = 64 * 1024;
@@ -35,6 +37,8 @@ pub struct FrameStore {
     pool_in_flight: AtomicUsize,
     #[cfg(test)]
     peak_pool_in_flight: AtomicUsize,
+    #[cfg(test)]
+    advised: Mutex<Vec<(u64, u64)>>,
 }
 
 impl FrameStore {
@@ -56,6 +60,8 @@ impl FrameStore {
             pool_in_flight: AtomicUsize::new(0),
             #[cfg(test)]
             peak_pool_in_flight: AtomicUsize::new(0),
+            #[cfg(test)]
+            advised: Mutex::new(Vec::new()),
         })
     }
 
@@ -133,10 +139,12 @@ impl FrameStore {
     }
 
     /// `POSIX_FADV_WILLNEED`. `docs/disk-access/EVIDENCE.md` §Fill overlap.
-    pub fn prefetch(&self, offset: u64, len: u64) {
+    pub fn advise_ahead(&self, offset: u64, len: u64) {
         if len == 0 {
             return;
         }
+        #[cfg(test)]
+        self.advised.lock().unwrap().push((offset, len));
         // SAFETY: `posix_fadvise` reads no user memory; a bad range is reported, not UB.
         unsafe {
             libc::posix_fadvise(
@@ -194,6 +202,11 @@ impl FrameStore {
         self.pool_starts.store(0, Ordering::SeqCst);
         self.pool_in_flight.store(0, Ordering::SeqCst);
         self.peak_pool_in_flight.store(0, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut *self.advised.lock().unwrap())
     }
 }
 
@@ -339,13 +352,18 @@ mod tests {
 
     /// Prefetch is advisory: it must not fail the serving path.
     #[test]
-    fn prefetch_is_advisory_and_does_not_fail_the_store() -> Result<()> {
-        let path = scratch("frame-store-prefetch");
+    fn advise_ahead_is_advisory_and_does_not_fail_the_store() -> Result<()> {
+        let path = scratch("frame-store-advise");
         write_bundle(&path, br#"{"frameCount":1}"#, &[b"xxxx".as_slice()])?;
         let store = FrameStore::open(&path)?;
         let span = store.frame_span(0)?;
-        store.prefetch(span.offset, u64::from(span.len));
-        store.prefetch(span.offset, 0);
+        store.advise_ahead(span.offset, u64::from(span.len));
+        store.advise_ahead(span.offset, 0);
+        assert_eq!(
+            store.take_advice(),
+            vec![(span.offset, u64::from(span.len))],
+            "a zero-length hint was recorded, or the issued range was not"
+        );
         let mut buf = vec![0u8; span.len as usize];
         store.read_at_blocking(&mut buf, span.offset)?;
         assert_eq!(buf, b"xxxx");

@@ -2,8 +2,9 @@
 
 **Decided and implemented.** A page-cache hit is `preadv2(RWF_NOWAIT)` on the executor.
 A fill (`SeqReader`) names one frame ahead and stays on the blocking pool — no ring.
-A no-nowait miss starts that read before the wait; a nowait miss issues WILLNEED
-instead.
+A no-nowait miss starts that read before the wait. After naming `next`, a sliding
+`FILL_WINDOW` WILLNEED covers what follows; a nowait first miss is the only
+full-width backstop.
 A tile ask (`TileReader`) keeps `TILE_SLOTS` frames and builds a per-session io_uring
 on its first miss. A session that never misses never builds a ring.
 

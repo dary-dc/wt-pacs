@@ -1046,11 +1046,23 @@ left 250 kB cold at 96.9 % misses vs 46.8 % settle-first (p50 +17.9 %, tie). 16 
 miss matched (6.2 % / 6.2 %). The window that ships is 4 MiB — this host's
 `read_ahead_kb`.
 
-**What ships.** Where nowait is refused (`--force-pool`, overlayfs), start `next` before
-awaiting the current miss — device depth 2. Where nowait works, `POSIX_FADV_WILLNEED` for
-`FILL_PREFETCH` (4 MiB) during the wait, then start `next`. Warm hits are unchanged
-(inline probe, no hint). Two buffers still. `peak_in_flight` 2 / 1 / 0
-(no-nowait miss / nowait miss / hit).
+**What shipped on the prior tip (overlap + every-miss 4 MiB).** Where nowait is refused
+(`--force-pool`, overlayfs), start `next` before awaiting the current miss — device
+depth 2. Where nowait works, `POSIX_FADV_WILLNEED` for 4 MiB from `next` **on every
+miss** during the wait, then start `next`. Warm hits unchanged (inline probe, no hint).
+That every-miss hint is **not** what ships now.
+
+**What ships (combo).** Keep the no-nowait overlap. After naming `next`, a sliding
+`FILL_WINDOW` (4 MiB past the named frame's end, quarter-window extend, restart on
+seek). A nowait miss WILLNEEDs 4 MiB from `next` **only while `advised_to` is 0**
+(first-miss backstop). Hits stay inline; no per-hit WILLNEED. `peak_in_flight` 2 / 1 / 0.
+Every-miss 4 MiB stacked on the window was not taken — the window already covers that
+range after `next` is named; restacking it on every miss is the same syscall the
+quarter-window threshold exists to avoid.
+
+The combined campaign against settle-first is **not in the table below**. That table
+is the prior tip. Combo cells, host, and verdict: the subsection after it. A claim
+that is not measured says so.
 
 Campaign on this tip: `read_campaign --arms product_fill,product_fill_serial`, interleaved
 in one process, `--monitors 0`, 12 repeats, one reader, depth 1. Rule: |median Δ| ≥ 28.5 %
@@ -1071,3 +1083,12 @@ force-pool p50 is 8.73 µs and p99 is 19 µs — the pool hop. Warm 250 kB p50 i
 (memcpy); p99 44 µs. The host saturates on the kernel copy of 250 kB. Cold p99 is
 hundreds of µs (device). Full `send_us` is tens–hundreds of µs (QUIC) and is not this
 claim. A 250 kB frame that is touched cannot land under 10 µs p99 on this class of host.
+
+### Combined fill (overlap + sliding window + first-miss) — not yet a number here
+
+The table above is the prior tip. The combo is implemented on this branch
+(`FILL_WINDOW` after naming `next`; first-miss-only backstop). Interleaved
+`product_fill` vs `product_fill_serial`, 12 repeats, `--monitors 0`: **not
+measured in this paragraph.** Required cells: 250 kB cold miss rate, 16 KiB
+warm, 16 KiB force-pool, 250 kB warm, 16 KiB cold if cheap. Do not quote the
+prior-tip −41.3 % as the combo.
