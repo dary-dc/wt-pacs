@@ -9,6 +9,8 @@ use study_bundle::read_layout;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
+use std::sync::Mutex;
 
 /// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
 pub const READ_WINDOW: usize = 64 * 1024;
@@ -31,6 +33,14 @@ pub struct FrameStore {
     nowait_cap: Option<usize>,
     #[cfg(test)]
     pool_starts: AtomicUsize,
+    #[cfg(test)]
+    pool_in_flight: AtomicUsize,
+    #[cfg(test)]
+    peak_pool_in_flight: AtomicUsize,
+    #[cfg(test)]
+    pool_block_ns: AtomicUsize,
+    #[cfg(test)]
+    advised: Mutex<Vec<(u64, u64)>>,
 }
 
 impl FrameStore {
@@ -48,6 +58,14 @@ impl FrameStore {
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
+            #[cfg(test)]
+            pool_in_flight: AtomicUsize::new(0),
+            #[cfg(test)]
+            peak_pool_in_flight: AtomicUsize::new(0),
+            #[cfg(test)]
+            pool_block_ns: AtomicUsize::new(0),
+            #[cfg(test)]
+            advised: Mutex::new(Vec::new()),
         })
     }
 
@@ -124,8 +142,33 @@ impl FrameStore {
         Ok(done)
     }
 
+    /// `POSIX_FADV_WILLNEED`. `docs/disk-access/EVIDENCE.md` §Fill overlap.
+    pub fn advise_ahead(&self, offset: u64, len: u64) {
+        if len == 0 {
+            return;
+        }
+        #[cfg(test)]
+        self.advised.lock().unwrap().push((offset, len));
+        // SAFETY: `posix_fadvise` reads no user memory; a bad range is reported, not UB.
+        unsafe {
+            libc::posix_fadvise(
+                self.file.as_raw_fd(),
+                offset as libc::off_t,
+                len as libc::off_t,
+                libc::POSIX_FADV_WILLNEED,
+            );
+        }
+    }
+
     /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
+        #[cfg(test)]
+        {
+            let ns = self.pool_block_ns.load(Ordering::SeqCst);
+            if ns > 0 {
+                std::thread::sleep(std::time::Duration::from_nanos(ns as u64));
+            }
+        }
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
@@ -138,15 +181,21 @@ impl FrameStore {
     }
 
     /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test
-    /// can rely on — CLAUDE.md#measurement.
-    #[cfg(test)]
-    pub(crate) fn force_pool_reads(&mut self) {
+    /// can rely on — CLAUDE.md#measurement. The campaign uses this too (`--force-pool`).
+    pub fn force_pool_reads(&mut self) {
         self.nowait = false;
     }
 
     #[cfg(test)]
     pub(crate) fn account_pool_start(&self) {
         self.pool_starts.fetch_add(1, Ordering::SeqCst);
+        let n = self.pool_in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+        self.peak_pool_in_flight.fetch_max(n, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn account_pool_done(&self) {
+        self.pool_in_flight.fetch_sub(1, Ordering::SeqCst);
     }
 
     #[cfg(test)]
@@ -155,8 +204,26 @@ impl FrameStore {
     }
 
     #[cfg(test)]
+    pub(crate) fn peak_pool_in_flight(&self) -> usize {
+        self.peak_pool_in_flight.load(Ordering::SeqCst)
+    }
+
+    #[cfg(test)]
     pub(crate) fn reset_pool_starts(&self) {
         self.pool_starts.store(0, Ordering::SeqCst);
+        self.pool_in_flight.store(0, Ordering::SeqCst);
+        self.peak_pool_in_flight.store(0, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut *self.advised.lock().unwrap())
+    }
+
+    /// Hold each pooled read so a test can observe two in flight. Eviction is not the lever.
+    #[cfg(test)]
+    pub(crate) fn stall_pool_reads(&self, ns: u64) {
+        self.pool_block_ns.store(ns as usize, Ordering::SeqCst);
     }
 }
 
@@ -296,6 +363,27 @@ mod tests {
             pos += want;
         }
         assert_eq!(out, body);
+        let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+
+    /// Prefetch is advisory: it must not fail the serving path.
+    #[test]
+    fn advise_ahead_is_advisory_and_does_not_fail_the_store() -> Result<()> {
+        let path = scratch("frame-store-advise");
+        write_bundle(&path, br#"{"frameCount":1}"#, &[b"xxxx".as_slice()])?;
+        let store = FrameStore::open(&path)?;
+        let span = store.frame_span(0)?;
+        store.advise_ahead(span.offset, u64::from(span.len));
+        store.advise_ahead(span.offset, 0);
+        assert_eq!(
+            store.take_advice(),
+            vec![(span.offset, u64::from(span.len))],
+            "a zero-length hint was recorded, or the issued range was not"
+        );
+        let mut buf = vec![0u8; span.len as usize];
+        store.read_at_blocking(&mut buf, span.offset)?;
+        assert_eq!(buf, b"xxxx");
         let _ = std::fs::remove_file(path);
         Ok(())
     }

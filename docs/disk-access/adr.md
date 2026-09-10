@@ -1,6 +1,8 @@
 # ADR: how the server reads SBND frame bytes
 
-**Status:** Accepted · current as of **2026-09-10** · supersedes the 2026-08-31 always-touch
+**Status:** Accepted · current as of **2026-09-10** (fill: pool-miss overlap + sliding
+`FILL_WINDOW`; every-miss `FILL_PREFETCH` first-miss-only; naive nowait overlap
+retracted) · supersedes the 2026-08-31 always-touch
 decision (provenance at the end)
 **Evidence:** [`EVIDENCE.md`](EVIDENCE.md) — every number · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) — how it works
 **What is still open:** [`NEXT.md`](NEXT.md)
@@ -20,7 +22,17 @@ ask does not. That difference picks the escalation.
    disk, so a cold frame can never park a worker, and a warm ask takes no thread hop at all.
 2. **A fill (`SeqReader`) stays on the pool.** Two buffers, the next frame named
    (`FILL_AHEAD = 1`), one `spawn_blocking` + `pread` for a miss. No ring, no extra fd.
-   `peak_in_flight` is 1. A sequential walk is read-ahead's best case (~one miss in sixty).
+   Where `RWF_NOWAIT` is refused, the named read starts **before** the current miss is
+   awaited — device depth 2, the overlap [`adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
+   §6b already required. Where nowait works, a second probe during that wait turned
+   kernel readahead into a pool hop (16 KiB cold miss 12 % vs 6 %); that path does
+   **not** start a second pooled or nowait read. After naming `next`, `advise()`
+   issues `POSIX_FADV_WILLNEED` for `FILL_WINDOW` (4 MiB) **past the named frame's
+   end**, extended a quarter window at a time (~1 MiB of walk), restarted on seek.
+   A nowait miss with no window yet WILLNEEDs the same width from `next` during the
+   wait (first-miss backstop). Hits stay inline; no per-hit WILLNEED. `peak_in_flight`
+   is 2 on a no-nowait miss walk, 1 on a nowait miss, 0 on a hit. Numbers:
+   [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap.
 3. **A tile miss goes to a ring built on that session's first miss.** `TileReader` holds
    `slots` frames (default `TILE_SLOTS = 4`; a constructor argument, so a campaign can sweep
    depth). io_uring through the `io-uring` crate: registered file, unregistered buffers, one
@@ -108,6 +120,10 @@ a **tie**, which is a real answer.
 | "the ring's per-miss latency win carries to production" | on cloud block storage a miss is device-bound; the ring's claim there is threads and CPU per miss, and P0 (§6) tests it |
 | "depth 4 and 16 differ by far less than 1 and 4" | not in throughput: in `v32` 1 → 4 is ×1.90 and 4 → 16 ×1.52. The case for building depth 2 first is `v35`, where 2 alone collects 62 % |
 | "`v36`'s 250 KB cold cell shows no win for read-ahead" | it reached only 4.7 % misses, so it shows no regression, not no win |
+| "Start the named fill read before awaiting every miss" | On a nowait filesystem that doubled the 16 KiB cold miss rate (12 % vs 6 %) and drove 250 kB cold to ~100 % misses vs ~34–47 % settle-first. Overlap stays on the no-nowait path. The nowait path uses the sliding window after naming `next`, plus a first-miss WILLNEED. [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap |
+| "WILLNEED of the named frame is enough" | 250 kB cold stayed at 97 % miss. The window that ships is `FILL_WINDOW` (4 MiB) past the named frame, not `next.len` |
+| "WILLNEED every named frame" | Per-frame WILLNEED cost the 16 KiB warm fill −8.7 % (4/4). The syscall is per quarter window |
+| "Run every-miss 4 MiB `FILL_PREFETCH` and the sliding window at full width together" | Not taken. The window covers what follows `next` after it is named; every-miss 4 MiB during the wait would restack the same range. First-miss-only backstop: one `FILL_WINDOW` from `next` while `advised_to` is still 0 |
 
 ## 3 · How the decision evolved
 
@@ -118,6 +134,7 @@ a **tie**, which is a real answer.
 | 2026-09-06 | the ring on the miss, built on the first miss | the read-path campaign, four hosts, six runs: **−42 to −73 % CPU per miss, RESOLVED everywhere**. Inert on warm workloads by construction, so it did not wait on the layout that decides the miss rate |
 | 2026-09-07 | a miss reads the rest of the frame | on a fixture where a miss is a real device read, windowing the escalation cost 2–3 round trips per 250 KB frame and stopped scaling at ~1 600 f/s where whole-frame arms reach ~5 000 |
 | 2026-09-08 | keep driving `io-uring` directly; **validate on the production target before any further backend change**; the sequential reader is the same reader forward; **read ahead by one built** for batches; **the server reports its own miss rate** | backend research with web access found no standard alternative (§5 C); the owners' weights and the container traps (§6) mean the ring's margin has to be shown on the target, not a laptop (`x14`, `x15`); read-ahead measured +73.8 % on missing tiles and a tie warm (`v36`); every threshold in this file is a miss rate, and the server could not report one |
+| 2026-09-10 | fill overlap on the no-nowait miss; sliding `FILL_WINDOW` after naming `next`; first-miss WILLNEED only | settle-first collected none of the depth-2 table. Starting `next` before every wait resolved the 16 KiB forced-miss walk and doubled cold nowait misses. One-frame WILLNEED left 250 kB cold at 97 % miss. Every-miss 4 MiB `FILL_PREFETCH` is not stacked on the window. Combined as §1. |
 
 ## 4 · Consequences
 
@@ -130,7 +147,7 @@ a **tie**, which is a real answer.
 | **Cost** | Two copies (kernel → window, window → quinn) where mmap needs one; measured cheaper than the hop it replaces on every cell. Four `write_all` calls per 250 KB frame. A reader that misses grows its buffer to frame size and keeps it |
 | **Conditional** | The win is on misses. On local NVMe the ring is 56–75 % of a miss; on cloud block storage a miss is device-bound and the ring's margin is threads and CPU per miss, not latency. That is the one thing P0 exists to measure |
 | **Conditional** | Where `RWF_NOWAIT` is refused or a ring is refused, the session runs the pool. The server now says which path it took, in the startup banner and per session; deployment (§6) is still part of the decision |
-| **Scale** | This decision moves about a fifth of a frame's server CPU; per-datagram QUIC work is the rest (§8). Tiles serve at **`TILE_SLOTS` = 4**; fill names one frame ahead and never builds a ring. The loop is a planner over a channel of `Ask`. Depth 2 → 4 was +37 % on the sandbox host |
+| **Scale** | This decision moves about a fifth of a frame's server CPU; per-datagram QUIC work is the rest (§8). Tiles serve at **`TILE_SLOTS` = 4**; fill names one frame ahead, overlaps that read only when nowait is off, slides `FILL_WINDOW` past it, and never builds a ring. The loop is a planner over a channel of `Ask`. Depth 2 → 4 was +37 % on the sandbox host |
 | **Risk** | The hit rate is access-shape-conditional. Whole frames in order let read-ahead run ahead of the loop; serving a codestream *prefix* per frame strides the file and misses 319 of 320 cold. The fix is the packer, not the reader |
 
 ## 5 · Every candidate, one table
@@ -155,7 +172,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | **`RWF_NOWAIT` inline for hits, 64 KiB windows** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
 | **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
 | **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool arm **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring arm, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | the old `ReadCtx` minus the window cap and the mode machine | **Accepted** |
-| **`SeqReader` — probe, pool on the miss, one frame named** | S | ties every serious arm on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
+| **`SeqReader` — probe, pool on the miss, one frame named; overlap only when nowait is off; sliding `FILL_WINDOW`** | S | combo vs settle-first, n=12: 16 KiB force-pool **−59.2 % p50, 12/12 RESOLVED**; 250 kB cold miss **35 % → 7 %** and p50 **−68.9 %, 12/12 RESOLVED** (wall a tie; p99 worse). Warm 16 KiB / 250 kB **p50 tie**. Naive nowait overlap retracted (§2). [`EVIDENCE.md`](EVIDENCE.md) §Fill overlap | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table; `posix_fadvise` per quarter window | **Accepted** |
 | **Read ahead (`TILE_SLOTS` / `FILL_AHEAD`)** | B | tiles name up to `slots − 1`, a fill names one; look-ahead **is** depth 2, not a separate effect ([EVIDENCE](EVIDENCE.md)) | four tile slots / two fill buffers | `slots` is a constructor argument, so a campaign sweeps depth | **Accepted** |
 | `spawn_blocking` + `pread` for the miss | B | identical on hits; on 16 KiB misses the shipped reader is −45.4 % CPU against it, and its tail widens with depth | **125–135 threads at 64 readers, 512 cap** (517 seen at 64 × 16); 0 fds | the simplest correct reader; zero `unsafe` beyond `preadv2` | **Kept as fallback**; ships if P0 ties |
 | Escalate only the rest of the window | B | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 | flat at ~1 600 f/s from 8 to 32 readers | — | Superseded 2026-09-07 |
@@ -222,7 +239,14 @@ named test.
   mmap arms live in `lab/`. 
 * **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm tile would
   go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
-* **A fill never builds a ring.** `SeqReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
+* **A fill never builds a ring.** `SeqReader` has two buffers and the pool. A no-nowait
+  miss starts the named read before the current wait (`peak_in_flight` 2); a nowait miss
+  does not overlap pooled reads (`peak_in_flight` 1). After naming `next`, the kernel
+  is told `FILL_WINDOW` past that frame's end. A third read is never outstanding.
+  `a_fill_starts_the_named_read_before_the_current_miss_is_awaited`,
+  `a_nowait_fill_does_not_overlap_pooled_reads`,
+  `a_fill_tells_the_kernel_what_follows_the_named_frame`,
+  `a_nowait_first_miss_asks_once_from_the_named_frame`.
 * **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
 
 ## 8 · Levers outside this decision

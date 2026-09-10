@@ -1029,3 +1029,98 @@ read-ahead window, so it reads 0.0–0.8 % misses at 2.6–2.8 µs — roughly 4
 cold ceiling. The tie is real for the read-ahead-served path; it is not 1 GiB of I/O.
 
 TSVs at `read-path-evidence-2026-09-10` (`w1_server_ab.tsv`, `w1_read_path_ab.tsv`, `w1_host.txt`).
+
+## Fill overlap · 2026-09-10
+
+`SeqReader` used to `settle()` (await the named frame) and only then start the next one.
+That is one read against one write — the shape [`adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
+§6b already measured as collecting none of the depth-2 table.
+
+**Naive overlap — retracted.** Starting `next` (a `RWF_NOWAIT` probe, then a pool hop on
+short) *during* the current wait doubled the 16 KiB cold miss rate (12.3 % vs 6.2 %) and
+drove 250 kB cold to 100 % misses vs ~34 % settle-first. A second nowait during the wait
+turns the kernel's readahead into a hop. That shape does not ship.
+
+**One-frame WILLNEED — not enough.** The same hybrid with `WILLNEED` of `next.len` only
+left 250 kB cold at 96.9 % misses vs 46.8 % settle-first (p50 +17.9 %, tie). 16 KiB cold
+miss matched (6.2 % / 6.2 %). The window that ships is 4 MiB — this host's
+`read_ahead_kb`.
+
+**What shipped on the prior tip (overlap + every-miss 4 MiB).** Where nowait is refused
+(`--force-pool`, overlayfs), start `next` before awaiting the current miss — device
+depth 2. Where nowait works, `POSIX_FADV_WILLNEED` for 4 MiB from `next` **on every
+miss** during the wait, then start `next`. Warm hits unchanged (inline probe, no hint).
+That every-miss hint is **not** what ships now.
+
+**What ships (combo).** Keep the no-nowait overlap. After naming `next`, a sliding
+`FILL_WINDOW` (4 MiB past the named frame's end, quarter-window extend, restart on
+seek). A nowait miss WILLNEEDs 4 MiB from `next` **only while `advised_to` is 0**
+(first-miss backstop). Hits stay inline; no per-hit WILLNEED. `peak_in_flight` 2 / 1 / 0.
+Every-miss 4 MiB stacked on the window was not taken — the window already covers that
+range after `next` is named; restacking it on every miss is the same syscall the
+quarter-window threshold exists to avoid.
+
+The combined campaign against settle-first is **not in the table below**. That table
+is the prior tip. Combo cells, host, and verdict: the subsection after it. A claim
+that is not measured says so.
+
+Campaign on this tip: `read_campaign --arms product_fill,product_fill_serial`, interleaved
+in one process, `--monitors 0`, 12 repeats, one reader, depth 1. Rule: |median Δ| ≥ 28.5 %
+and ≥ 0.8n same sign. Host: 4 vCPU Xeon (KVM) agent container. Quote **latency**, not
+asks/s — depth 1, they are inverses. TSV: [`fill_overlap_ab.tsv`](fill_overlap_ab.tsv).
+
+| Cell | fill p50 | serial p50 | median Δ | signs | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| 16 KiB force-pool (100 % miss) | 8.73 µs | 13.24 µs | **−34.9 %** | 12/12 | **RESOLVED** (four campaigns −28.6 to −34.9 %, all 12/12) |
+| 250 kB force-pool (100 % miss) | 22.49 µs | 32.27 µs | −27.7 % | 12/12 | **tie** this campaign (under 28.5 %); direction 12/12 on every run, magnitude −11 to −42 % |
+| 16 KiB warm (0 % miss) | 1.50 µs | 1.49 µs | +3.5 % | 3/12 | **tie** |
+| 250 kB warm (0 % miss) | 19.80 µs | 20.30 µs | −3.8 % | 8/12 | **tie** |
+| 16 KiB cold, 4 MiB WILLNEED | 3.21 µs | 2.91 µs | +7.6 % | 1/12 | **tie**; miss **2.3 % / 6.2 %** |
+| 250 kB cold, 4 MiB WILLNEED | 81.37 µs | 129.57 µs | **−41.3 %** | 12/12 | **RESOLVED**; miss **28.9 % / 49.2 %**. A prior 4 MiB run was −25.4 % 12/12 **tie** (fill miss still 28.9 %) — direction holds |
+
+**10 µs / frame max on this host.** Warm 16 KiB **hits** it (p99 2.1 µs). 16 KiB
+force-pool p50 is 8.73 µs and p99 is 19 µs — the pool hop. Warm 250 kB p50 is ~20 µs
+(memcpy); p99 44 µs. The host saturates on the kernel copy of 250 kB. Cold p99 is
+hundreds of µs (device). Full `send_us` is tens–hundreds of µs (QUIC) and is not this
+claim. A 250 kB frame that is touched cannot land under 10 µs p99 on this class of host.
+
+### Combined fill — overlap + sliding `FILL_WINDOW` + first-miss · 2026-09-10
+
+Same harness as the table above: `read_campaign --arms product_fill,product_fill_serial`,
+interleaved in one process per cell, `--monitors 0`, 12 repeats, one reader, depth 1.
+Rule: |median Δ| ≥ 28.5 % and ≥ 0.8n same sign. Quote **one** of latency or miss
+rate as the claim — they are not independent (depth 1; fewer misses move p50).
+Host: 4 vCPU KVM, `read_ahead_kb` **128** (stock), 15 GiB RAM. A miss here can
+still be a hypervisor hit (~12 µs class); do not read 31 µs as a device round
+trip. TSV: [`fill_combo_ab.tsv`](fill_combo_ab.tsv). Do not compare these
+microseconds to the prior-tip table or to PR #27's 81 µs / 583 µs — different
+harness, different `read_ahead_kb`.
+
+**Chosen backstop.** Every-miss 4 MiB `FILL_PREFETCH` is **not** stacked on the
+window. First-miss-only: one `FILL_WINDOW` from `next` while `advised_to` is 0.
+The window already covers that range after `next` is named.
+
+| Cell | fill p50 | serial p50 | median Δ | signs | fill miss / serial miss | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 KiB force-pool (100 % miss) | 5.07 µs | 11.94 µs | **−59.2 %** | 12/12 | 100 / 100 | **RESOLVED** — hop-overlap class kept (`peak_in_flight` 2 vs 1). Window did not steal it |
+| 250 kB cold | 31.5 µs | 99.4 µs | **−68.9 %** | 12/12 | **7.0 % / 35.2 %** | **RESOLVED** on miss rate (**−81.6 %**, 12/12) and on p50. **Not** a wall win (+27.2 %, 11/12 **tie**). p90 / p99 **worse** (+120 % / +97 %, RESOLVED) |
+| 16 KiB warm (0 % miss) | 1.63 µs | 1.60 µs | +2.0 % | 10/12 | 0 / 0 | **p50 / CPU / wall tie** — not the −8.7 % per-frame WILLNEED tax. p99 **+80.1 %**, 12/12 RESOLVED (4.4 vs 2.4 µs; both still under 10 µs) |
+| 250 kB warm (0 % miss) | 17.3 µs | 17.3 µs | +0.7 % | 9/12 | 0 / 0 | **p50 tie**. Host saturates on the kernel copy of 250 kB (~17 µs). p99 +65 %, 10/12 RESOLVED (33 vs 19 µs) |
+| 16 KiB cold | 2.70 µs | 2.51 µs | −0.4 % | 6/12 | 4.7 % / 6.2 % | **p50 tie**. Miss −20.3 %, 12/12, under the bar. **wall +76 % / CPU +40 %, RESOLVED worse** — the 4 MiB window is a cost on a 16 KiB walk |
+| 250 kB force-pool (100 % miss) | 19.2 µs | 28.1 µs | **−34.7 %** | 12/12 | 100 / 100 | **RESOLVED** (prior tip −27.7 % was a tie). `peak_in_flight` 2 vs 1 |
+
+**Verdict.** The combo is a **real gain** on the window's cell (250 kB cold miss
+rate, and p50) and **keeps** the 16 KiB force-pool hop-overlap win. Warm p50 is
+a tie. It is **not** a wall/throughput win, and p99 is worse on the cold 250 kB
+cell and on both warm cells. 16 KiB cold wall is a resolved loss. Those tails
+are named so they are not mistaken for unmeasured.
+
+**10 µs / frame.** Warm 16 KiB **hits** stay under it (p99 4.4 µs). 16 KiB
+force-pool p50 is 5.1 µs and p99 is 21 µs — the pool hop. Warm 250 kB p50 is
+17 µs (memcpy); the host saturates on the kernel copy. Cold p99 is 0.6–1.2 ms
+on this KVM. Full `send_us` is QUIC and is not this claim.
+
+PR #27's 59–66 % → 0.7–1.1 % at stock 128 KiB RA used `server_ab` on an evicted
+8 GB study (n=3). This campaign is `read_campaign`, n=12, same 8 GB fixture,
+guest-evicted: **35 % → 7 %**. Same direction, not the same magnitude, not the
+same harness. Their n=3 is not this file's evidence.

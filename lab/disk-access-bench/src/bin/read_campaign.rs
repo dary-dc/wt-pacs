@@ -46,6 +46,9 @@ enum Arm {
     TokioFs,
     /// **The shipped fill reader itself** — `server`'s `SeqReader`, not a model of it.
     ProductFill,
+    /// Settle-first fill: await the current miss, then start `next`. The control for
+    /// `product_fill`'s overlap. `docs/disk-access/EVIDENCE.md` §Fill overlap.
+    ProductFillSerial,
     /// **The shipped tile reader itself** — `server`'s `TileReader`, `depth` slots.
     /// `WTPACS_READ_PATH` selects its escalation here too.
     ProductTile,
@@ -65,6 +68,7 @@ impl Arm {
             "hybrid_lazyring_ringfd" => Some(Self::HybridLazyRingFd),
             "tokio_fs" => Some(Self::TokioFs),
             "product_fill" => Some(Self::ProductFill),
+            "product_fill_serial" => Some(Self::ProductFillSerial),
             "product_tile" => Some(Self::ProductTile),
             _ => None,
         }
@@ -83,6 +87,7 @@ impl Arm {
             Self::TokioFs if cfg!(tokio_unstable) => "tokio_fs_uring",
             Self::TokioFs => "tokio_fs",
             Self::ProductFill => "product_fill",
+            Self::ProductFillSerial => "product_fill_serial",
             Self::ProductTile => "product_tile",
         }
     }
@@ -154,6 +159,9 @@ struct Args {
     /// length. The reported `shape` becomes `trace` and `size` the median read length.
     #[arg(long)]
     trace: Option<PathBuf>,
+    /// Campaign lever: every `RWF_NOWAIT` probe reports a miss. Eviction is not a lever.
+    #[arg(long)]
+    force_pool: bool,
 }
 
 /// Sentinel so `--trace` can tell "the user asked for 512" from "the user said nothing" and
@@ -277,6 +285,7 @@ struct Cell {
     stride: u64,
     warm: bool,
     monitors: usize,
+    force_pool: bool,
 }
 
 struct Outcome {
@@ -378,7 +387,7 @@ async fn reader_pool(
     Ok(())
 }
 /// The shipped fill reader: one `SeqReader`, the next ask named. Depth is not a lever here
-/// — a sequential reader holds one read at a time by construction.
+/// — a sequential reader holds the current miss and one named read (device depth 2).
 #[allow(clippy::too_many_arguments)]
 async fn reader_product_fill(
     store: Arc<FrameStore>,
@@ -412,6 +421,111 @@ async fn reader_product_fill(
     reads.fetch_add(st.hits + st.misses, Ordering::Relaxed);
     peak_named.fetch_max(u64::from(st.peak_named), Ordering::Relaxed);
     peak_in_flight.fetch_max(u64::from(st.peak_in_flight), Ordering::Relaxed);
+    lat.lock().unwrap().extend(mine);
+    misses.fetch_add(miss, Ordering::Relaxed);
+    Ok(())
+}
+
+/// The settle-first fill: await `span`, then start `next` without waiting for it.
+/// That is the reader `product_fill` replaced. `docs/disk-access/EVIDENCE.md` §Fill overlap.
+#[allow(clippy::too_many_arguments)]
+async fn reader_product_fill_serial(
+    store: Arc<FrameStore>,
+    plan: Plan,
+    lat: Arc<Mutex<Vec<u64>>>,
+    misses: Arc<AtomicU64>,
+    peak_named: Arc<AtomicU64>,
+    peak_in_flight: Arc<AtomicU64>,
+    reads: Arc<AtomicU64>,
+) -> Result<()> {
+    enum Ahead {
+        Idle(Vec<u8>),
+        Ready {
+            span: FrameSpan,
+            buf: Vec<u8>,
+        },
+        InFlight {
+            span: FrameSpan,
+            join: tokio::task::JoinHandle<Result<Vec<u8>>>,
+        },
+    }
+    let start = |store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>| -> Result<Ahead> {
+        let len = span.len as usize;
+        if buf.len() < len {
+            buf.resize(len, 0);
+        }
+        let hit = store.read_at_nowait(&mut buf[..len], span.offset)?;
+        if hit == len {
+            return Ok(Ahead::Ready { span, buf });
+        }
+        let store = Arc::clone(store);
+        let at = span.offset + hit as u64;
+        Ok(Ahead::InFlight {
+            span,
+            join: tokio::task::spawn_blocking(move || {
+                store.read_at_blocking(&mut buf[hit..len], at)?;
+                Ok(buf)
+            }),
+        })
+    };
+
+    let asks = plan.len();
+    let mut cur = Vec::new();
+    let mut ahead = Ahead::Idle(Vec::new());
+    let mut mine = Vec::with_capacity(asks);
+    let mut miss = 0u64;
+    let mut named = 0u16;
+    let mut inflight = 0u16;
+    let mut hits = 0u64;
+    for i in 0..asks {
+        let span = span_at(&plan, i).expect("ask in range");
+        let next = span_at(&plan, i + 1);
+        named = named.max(1 + u16::from(next.is_some()));
+        let t = Instant::now();
+        let prev = std::mem::replace(&mut ahead, Ahead::Idle(Vec::new()));
+        let (held, spare) = match prev {
+            Ahead::Idle(buf) => (None, buf),
+            Ahead::Ready { span: s, buf } => (Some((s, false)), buf),
+            Ahead::InFlight { span: s, join } => {
+                (Some((s, true)), join.await.context("join serial ahead")??)
+            }
+        };
+        let spare = match held {
+            Some((s, missed)) if s == span => {
+                if missed {
+                    miss += 1;
+                } else {
+                    hits += 1;
+                }
+                std::mem::replace(&mut cur, spare)
+            }
+            _ => {
+                let (buf, missed) = match start(&store, span, std::mem::take(&mut cur))? {
+                    Ahead::Ready { buf, .. } => (buf, false),
+                    Ahead::InFlight { join, .. } => {
+                        (join.await.context("join serial frame")??, true)
+                    }
+                    Ahead::Idle(buf) => (buf, false),
+                };
+                if missed {
+                    miss += 1;
+                } else {
+                    hits += 1;
+                }
+                cur = buf;
+                spare
+            }
+        };
+        ahead = match next {
+            Some(n) => start(&store, n, spare)?,
+            None => Ahead::Idle(spare),
+        };
+        inflight = inflight.max(u16::from(matches!(ahead, Ahead::InFlight { .. })));
+        mine.push(t.elapsed().as_nanos() as u64);
+    }
+    reads.fetch_add(hits + miss, Ordering::Relaxed);
+    peak_named.fetch_max(u64::from(named), Ordering::Relaxed);
+    peak_in_flight.fetch_max(u64::from(inflight), Ordering::Relaxed);
     lat.lock().unwrap().extend(mine);
     misses.fetch_add(miss, Ordering::Relaxed);
     Ok(())
@@ -731,7 +845,11 @@ fn run_cell(
     workers: usize,
     trace: Option<&[(u64, u32)]>,
 ) -> Result<Outcome> {
-    let store = Arc::new(FrameStore::open(path)?);
+    let mut opened = FrameStore::open(path)?;
+    if cell.force_pool {
+        opened.force_pool_reads();
+    }
+    let store = Arc::new(opened);
     let file = Arc::new(std::fs::File::open(path)?);
     let flen = file.metadata()?.len();
     let base = store.frame_span(0)?.offset;
@@ -851,11 +969,14 @@ fn run_cell(
                 stride: cell.stride,
                 warm: cell.warm,
                 monitors: 0,
+                force_pool: cell.force_pool,
             };
             let path = path.clone();
             set.spawn(async move {
                 if c.arm == Arm::ProductFill {
                     reader_product_fill(store, plan, lat, misses, pn, pif, rd).await
+                } else if c.arm == Arm::ProductFillSerial {
+                    reader_product_fill_serial(store, plan, lat, misses, pn, pif, rd).await
                 } else if c.arm == Arm::ProductTile {
                     reader_product_tile(store, &c, plan, lat, misses, pn, pif, rb, rd).await
                 } else if c.arm == Arm::TokioFs {
@@ -964,7 +1085,7 @@ fn main() -> Result<()> {
     if prefetches.contains(&true)
         && arms
             .iter()
-            .any(|a| matches!(a, Arm::ProductFill | Arm::ProductTile))
+            .any(|a| matches!(a, Arm::ProductFill | Arm::ProductFillSerial | Arm::ProductTile))
     {
         anyhow::bail!("--prefetch on is not implemented for the product arms");
     }
@@ -1048,6 +1169,7 @@ fn main() -> Result<()> {
                                 stride: args.stride,
                                 warm,
                                 monitors: args.monitors,
+                                force_pool: args.force_pool,
                             };
                             let o = run_cell(&args.study, &cell, workers, trace.as_deref())?;
                             let n_asks = o.lat.len().max(1) as u64;
