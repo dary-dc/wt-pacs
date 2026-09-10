@@ -378,7 +378,7 @@ async fn reader_pool(
     Ok(())
 }
 /// The shipped fill reader: one `SeqReader`, the next ask named. Depth is not a lever here
-/// — a sequential reader holds one read at a time by construction.
+/// — a sequential reader holds the current miss and one named read (device depth 2).
 #[allow(clippy::too_many_arguments)]
 async fn reader_product_fill(
     store: Arc<FrameStore>,

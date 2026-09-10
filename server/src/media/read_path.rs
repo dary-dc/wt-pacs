@@ -83,8 +83,10 @@ fn start_pooled(store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>) -> R
     Ok(Ahead::InFlight {
         span,
         join: tokio::task::spawn_blocking(move || {
-            store.read_at_blocking(&mut buf[hit..len], at)?;
-            Ok(buf)
+            let result = store.read_at_blocking(&mut buf[hit..len], at).map(|()| buf);
+            #[cfg(test)]
+            store.account_pool_done();
+            result
         }),
     })
 }
@@ -104,7 +106,8 @@ enum Ahead {
 
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
 /// and no ring: a sequential walk is read-ahead's best case and misses about one read in
-/// sixty. `docs/disk-access/EVIDENCE.md` §Fill at scale.
+/// sixty. The named frame starts before a current miss is awaited — device depth 2.
+/// `docs/disk-access/adr.md` §1.
 pub struct SeqReader {
     cur: Vec<u8>,
     ahead: Ahead,
@@ -126,56 +129,68 @@ impl SeqReader {
         }
     }
 
-    /// The whole of `span`. `next` is the frame the planner will ask for after it, and its
-    /// read is running by the time this returns.
+    /// The whole of `span`. `next` is the frame the planner will ask for after it.
+    /// A miss of `span` is awaited only after `next` has been started, so the device
+    /// sees both — `docs/disk-access/adr.md` §1.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         next: Option<FrameSpan>,
     ) -> Result<&[u8]> {
-        let (held, spare) = self.settle().await?;
-        let spare = match held {
-            Some((s, missed)) if s == span => {
-                self.count(missed);
-                mem::replace(&mut self.cur, spare)
+        let prev = mem::replace(&mut self.ahead, Ahead::Idle(Vec::new()));
+        match prev {
+            Ahead::Ready { span: held, buf } if held == span => {
+                self.count(false);
+                let spare = mem::replace(&mut self.cur, buf);
+                self.kick_next(store, next, spare)?;
+                self.note_peaks(next, false);
             }
-            _ => {
-                let buf = mem::take(&mut self.cur);
-                let (buf, missed) = match start_pooled(store, span, buf)? {
-                    Ahead::Ready { buf, .. } => (buf, false),
-                    Ahead::InFlight { join, .. } => (join.await.context("join frame read")??, true),
-                    Ahead::Idle(buf) => (buf, false),
+            Ahead::InFlight { span: held, join } if held == span => {
+                let spare = mem::take(&mut self.cur);
+                self.kick_next(store, next, spare)?;
+                self.note_peaks(next, true);
+                self.cur = join.await.context("join frame read")??;
+                self.count(true);
+            }
+            prev => {
+                let current = start_pooled(store, span, mem::take(&mut self.cur))?;
+                let spare = match prev {
+                    Ahead::Idle(buf) | Ahead::Ready { buf, .. } => buf,
+                    Ahead::InFlight { join, .. } => join.await.context("join read-ahead")??,
+                };
+                self.kick_next(store, next, spare)?;
+                let missed = matches!(current, Ahead::InFlight { .. });
+                self.note_peaks(next, missed);
+                let buf = match current {
+                    Ahead::Ready { buf, .. } | Ahead::Idle(buf) => buf,
+                    Ahead::InFlight { join, .. } => join.await.context("join frame read")??,
                 };
                 self.count(missed);
                 self.cur = buf;
-                spare
             }
-        };
+        }
+        Ok(&self.cur[..span.len as usize])
+    }
+
+    fn kick_next(
+        &mut self,
+        store: &Arc<FrameStore>,
+        next: Option<FrameSpan>,
+        spare: Vec<u8>,
+    ) -> Result<()> {
         self.ahead = match next {
             Some(next) => start_pooled(store, next, spare)?,
             None => Ahead::Idle(spare),
         };
-        self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
-        self.stats.peak_in_flight = self
-            .stats
-            .peak_in_flight
-            .max(u16::from(matches!(self.ahead, Ahead::InFlight { .. })));
-        Ok(&self.cur[..span.len as usize])
+        Ok(())
     }
 
-    /// Awaits whatever the last call started, so its buffer can be reused whether or not
-    /// this frame is the one it holds.
-    async fn settle(&mut self) -> Result<(Option<(FrameSpan, bool)>, Vec<u8>)> {
-        Ok(
-            match mem::replace(&mut self.ahead, Ahead::Idle(Vec::new())) {
-                Ahead::Idle(buf) => (None, buf),
-                Ahead::Ready { span, buf } => (Some((span, false)), buf),
-                Ahead::InFlight { span, join } => {
-                    (Some((span, true)), join.await.context("join read-ahead")??)
-                }
-            },
-        )
+    fn note_peaks(&mut self, next: Option<FrameSpan>, current_in_flight: bool) {
+        self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
+        let n = u16::from(current_in_flight)
+            + u16::from(matches!(self.ahead, Ahead::InFlight { .. }));
+        self.stats.peak_in_flight = self.stats.peak_in_flight.max(n);
     }
 
     fn count(&mut self, missed: bool) {
@@ -380,8 +395,12 @@ impl TileReader {
         let (from, len, at) = (slot.filled, slot.len, slot.at);
         let mut buf = mem::take(&mut slot.buf);
         Ok(InFlight::Pool(tokio::task::spawn_blocking(move || {
-            store.read_at_blocking(&mut buf[from..len], at + from as u64)?;
-            Ok(buf)
+            let result = store
+                .read_at_blocking(&mut buf[from..len], at + from as u64)
+                .map(|()| buf);
+            #[cfg(test)]
+            store.account_pool_done();
+            result
         })))
     }
 
@@ -626,11 +645,42 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// A fill holds **one** read at a time whatever it names, which is what bounds its
-    /// blocking threads at scale. `docs/disk-access/EVIDENCE.md` §Fill at scale.
+    /// **The fill overlap.** Naming the next frame starts its pooled read before the
+    /// current miss is awaited, so a cold walk is device depth 2. Two buffers still bound
+    /// the session — never three. `docs/disk-access/adr.md` §1.
     #[test]
-    fn a_fill_never_holds_more_than_one_read_at_once() {
-        let dir = scratch("onedeep");
+    fn a_fill_starts_the_named_read_before_the_current_miss_is_awaited() {
+        let dir = scratch("overlap");
+        let path = write_bundle(&dir, 8, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let mut seq = SeqReader::new();
+        store.reset_pool_starts();
+        for idx in 0..8u32 {
+            let span = store.frame_span(idx).expect("span");
+            let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1).expect("next"));
+            rt.block_on(seq.read(&store, span, next)).expect("read");
+        }
+        assert_eq!(seq.stats().misses, 8, "precondition: every frame missed");
+        assert_eq!(
+            seq.stats().peak_in_flight,
+            2,
+            "the named frame was started only after the current miss landed — device depth 1"
+        );
+        assert_eq!(
+            store.peak_pool_in_flight(),
+            2,
+            "the store never saw two pooled reads at once; kick_next ran after the join"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Two buffers, not a queue: a fill never has a third read outstanding.
+    #[test]
+    fn a_fill_holds_at_most_the_current_miss_and_the_named_one() {
+        let dir = scratch("twodeep");
         let path = write_bundle(&dir, 8, LEN);
         let mut store = FrameStore::open(&path).expect("open store");
         store.force_pool_reads();
@@ -642,12 +692,11 @@ mod tests {
             let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1).expect("next"));
             rt.block_on(seq.read(&store, span, next)).expect("read");
         }
-        assert_eq!(
-            seq.stats().peak_in_flight,
-            1,
-            "a fill queued more than one read; its threads no longer scale with sessions"
+        assert!(
+            seq.stats().peak_in_flight <= 2,
+            "a fill queued {} reads; its threads no longer scale with sessions",
+            seq.stats().peak_in_flight
         );
-        assert_eq!(seq.stats().misses, 8, "precondition: every frame missed");
         std::fs::remove_dir_all(&dir).ok();
     }
 

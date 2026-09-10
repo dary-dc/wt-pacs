@@ -4,9 +4,12 @@ Order set with the owners: **latency first; simplicity; thousands of sessions at
 more; studies far larger than RAM; cloud, possibly Docker.**
 
 Nothing here blocks the code that ships. Items already built (the two readers, `TILE_SLOTS`,
-miss reporting, fill, named/in_flight on the session line) are not listed. Closed on
-2026-09-10 by the split: the probe is the whole frame, look-ahead *is* depth 2, tile depth
-is a constructor argument, and a fill does not build a ring.
+miss reporting, fill, named/in_flight on the session line, fill overlap at device depth 2)
+are not listed. Closed on 2026-09-10 by the split: the probe is the whole frame, look-ahead
+*is* depth 2, tile depth is a constructor argument, and a fill does not build a ring.
+The fill reader now starts the named frame before awaiting the current miss — the overlap
+the framing ADR already required; magnitude on this host is [`EVIDENCE.md`](EVIDENCE.md)
+§Fill overlap.
 
 | # | Item | Why it is still open |
 | --- | --- | --- |

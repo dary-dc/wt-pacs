@@ -31,6 +31,10 @@ pub struct FrameStore {
     nowait_cap: Option<usize>,
     #[cfg(test)]
     pool_starts: AtomicUsize,
+    #[cfg(test)]
+    pool_in_flight: AtomicUsize,
+    #[cfg(test)]
+    peak_pool_in_flight: AtomicUsize,
 }
 
 impl FrameStore {
@@ -48,6 +52,10 @@ impl FrameStore {
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
+            #[cfg(test)]
+            pool_in_flight: AtomicUsize::new(0),
+            #[cfg(test)]
+            peak_pool_in_flight: AtomicUsize::new(0),
         })
     }
 
@@ -147,6 +155,13 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn account_pool_start(&self) {
         self.pool_starts.fetch_add(1, Ordering::SeqCst);
+        let n = self.pool_in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+        self.peak_pool_in_flight.fetch_max(n, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn account_pool_done(&self) {
+        self.pool_in_flight.fetch_sub(1, Ordering::SeqCst);
     }
 
     #[cfg(test)]
@@ -155,8 +170,15 @@ impl FrameStore {
     }
 
     #[cfg(test)]
+    pub(crate) fn peak_pool_in_flight(&self) -> usize {
+        self.peak_pool_in_flight.load(Ordering::SeqCst)
+    }
+
+    #[cfg(test)]
     pub(crate) fn reset_pool_starts(&self) {
         self.pool_starts.store(0, Ordering::SeqCst);
+        self.pool_in_flight.store(0, Ordering::SeqCst);
+        self.peak_pool_in_flight.store(0, Ordering::SeqCst);
     }
 }
 

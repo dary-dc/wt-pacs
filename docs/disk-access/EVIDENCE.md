@@ -1029,3 +1029,20 @@ read-ahead window, so it reads 0.0–0.8 % misses at 2.6–2.8 µs — roughly 4
 cold ceiling. The tie is real for the read-ahead-served path; it is not 1 GiB of I/O.
 
 TSVs at `read-path-evidence-2026-09-10` (`w1_server_ab.tsv`, `w1_read_path_ab.tsv`, `w1_host.txt`).
+
+## Fill overlap · 2026-09-10
+
+`SeqReader` used to `settle()` (await the named frame) and only then start the next one.
+That is one read against one write — the shape [`adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md)
+§6b already measured as collecting none of the depth-2 table. The reader now starts `next`
+before awaiting a miss of `span`. Two buffers, `peak_in_flight` 2 when both miss, 0 on a hit.
+
+Warm 16 KiB fill was already 1.8 µs p50 / 2.6 µs p90 on the agent container (table above) —
+under a **10 µs** budget at p50/p90; p99 was 51.2 µs (scheduler / first-frame, not the copy).
+Warm 250 kB fill was 32.8 µs p50: the host saturates on the kernel copy of 250 kB, and this
+change does not claim that cell. The 10 µs *max* is a 16 KiB (and the non-copy overhead)
+target; a 250 kB frame that is touched cannot land under 10 µs p99 on this class of host.
+
+Cold fill is the cell the overlap can move. Interleaved A/B against the settle-first reader
+is in [`fill_overlap_ab.tsv`](fill_overlap_ab.tsv) when present; until that file is written
+the magnitude is **not measured on this tip**.
