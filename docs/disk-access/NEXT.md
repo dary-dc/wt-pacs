@@ -11,7 +11,7 @@ is a constructor argument, and a fill does not build a ring.
 | # | Item | Why it is still open |
 | --- | --- | --- |
 | 1 | **P0 — ring vs pool on the production target** | Sandbox and workstation miss costs differ. A tie on the 28.5 % / 0.8n rule deletes the ring and ships the pool; a resolved margin keeps it. Run `product_tile` against `pool`, cold, both frame sizes, depths 2 / 4 / 8 / 16, `check-fastpath` on the study volume, `ulimit -l` recorded. [`adr.md`](adr.md) §6 |
-| 2 | **`server_ab.sh` on the workstation** | Sandbox cold depth 4 won on direction (−19 % p50, −28 % CPU/ask) but missed the 28.5 % wait bar. Magnitudes are not evidence until this host. Named is now on the session line (`named=4` at depth 4). |
+| 2 | **`server_ab.sh` on the workstation** | Sandbox cold depth 4 won on direction (−19 % p50, −28 % CPU/ask) but missed the 28.5 % wait bar. Magnitudes are not evidence until this host. Named is on the session line (`named=4` at a depth-4 *miss*; a hit session reports `named=1`). |
 | 3 | **Throttled link** (20 Mbps, 50 ms, 1 % loss, cold tiles, client depth 4) | Predicted tie: the wire hides the 0.2 ms depth 2 → 4 saving. Unmeasured. |
 | 4 | **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput — the largest lever measured anywhere. Blocked on what browsers advertise. [`adr.md`](adr.md) §8 |
 | 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the study volume. Snippets are in [`DEPLOYMENT.md`](DEPLOYMENT.md); they are not in a unit file yet. |

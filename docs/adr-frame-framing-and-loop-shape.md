@@ -255,8 +255,10 @@ indexes. A data request during a fill ends the fill and is then served: a second
 ## 6d · The other half of §6b: `RequestFrame` is still depth 1
 
 **Status: built 2026-09-09; readers split 2026-09-10.** `TileReader::read` starts upcoming
-frames that fit before waiting on this one. A batch supplies that from `frames[i + 1]`. A
-stream of single `RequestFrame` asks supplies it from the ask-reader channel — the planner
+frames that fit before waiting on this one **when this one missed**. A hit returns without
+those probes — otherwise a depth-4 warm ask copied `slots − 1` extra frames before the
+first write. Unmeasured on a shaped link. A batch supplies names from `frames[i + 1]`. A
+stream of single `RequestFrame` asks supplies them from the ask-reader channel — the planner
 peeks what is already in hand. `SeqReader` names one frame ahead (`FILL_AHEAD`).
 
 ### Why the loop change is not optional
