@@ -110,6 +110,17 @@ the pool read cost 2–3 device round trips per 250 kB frame.
 The planner bounds `in_hand` at `ASKS_AHEAD`. The ask reader streams `RequestFrames`
 instead of collecting the batch. Upcoming stops at the first `Fill` or `EndSession`.
 
+## Opening window, and why it is not per-frame
+
+`FrameStore::advise_opening` issues one `posix_fadvise(WILLNEED)` for `OPEN_ADVISE` (4 MiB)
+from the first frame, at session accept, before the control stream is up. That is the
+miss look-ahead cannot hide. A competing attempt advised every fill frame and **did not
+move a real computer** — look-ahead already finishes on NVMe, and the extra syscalls made
+a warm browser fill slower. [`adr.md`](adr.md) §2.
+
+New packs page-align each frame start (`FRAME_ALIGN` = 4096). Tight-packed studies still
+open; the index is the layout.
+
 ## What does not change
 
 * The wire bytes. The envelope test still guards them.

@@ -38,7 +38,12 @@ shortfall. `RequestFrame` and `RequestFrames` are the same thing to the loop: on
 chunks the **write**, not the read — the reader returns a whole frame.
 
 What is *not* done: no memory mapping anywhere in `server/`; no whole-frame envelope; no
-`mincore` gate; no `SQPOLL`, no registered buffers, no cursor reads.
+`mincore` gate; no `SQPOLL`, no registered buffers, no cursor reads; no per-frame fill
+`fadvise` (that did not move a real computer — §2).
+
+New packs page-align each frame (`FRAME_ALIGN` = 4096). At accept the store issues one
+`OPEN_ADVISE` (4 MiB) so the first miss overlaps the control-stream RTT. Both unmeasured
+on a campaign.
 
 | | |
 | --- | --- |
@@ -108,6 +113,7 @@ a **tie**, which is a real answer.
 | "the ring's per-miss latency win carries to production" | on cloud block storage a miss is device-bound; the ring's claim there is threads and CPU per miss, and P0 (§6) tests it |
 | "depth 4 and 16 differ by far less than 1 and 4" | not in throughput: in `v32` 1 → 4 is ×1.90 and 4 → 16 ×1.52. The case for building depth 2 first is `v35`, where 2 alone collects 62 % |
 | "`v36`'s 250 KB cold cell shows no win for read-ahead" | it reached only 4.7 % misses, so it shows no regression, not no win |
+| "per-frame fill `posix_fadvise(WILLNEED)` cuts cold fill latency on a real computer" | on an evicted 8 GB / 250 kB / 128 KiB-RA cell it dropped misses 60 % → ~1 %; on a real NVMe box a fully evicted 61 MB study still reads `fill_misses=0` (look-ahead beats the device) and a warm browser fill was **+7.5 % slower**. Not taken. The first miss, and extra pages on an unaligned frame, are what a cold disk still feels |
 
 ## 3 · How the decision evolved
 
@@ -163,7 +169,9 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | Ring pipelining (read *n+1* during write *n*) | T | ~6 % on a 100 %-miss trace, −25 % warm | 2× session memory | — | Rejected |
 | `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural: `COOP_TASKRUN` is refused alongside it |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
-| Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
+| Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | tiles already *read* the named frames (`TILE_SLOTS`); per-frame fill advice failed on a real computer (§2) | Rejected as a per-frame fill; one `OPEN_ADVISE` at accept is what remains |
+| Page-aligned frame starts (`FRAME_ALIGN` = 4096) | B | **unmeasured** on a campaign. A 16 KiB miss that starts mid-page is 5 pages instead of 4 | ≤ 4 KiB pad per frame | writer only; tight-packed studies still serve | **Accepted for new packs** |
+| One `OPEN_ADVISE` (4 MiB) at session accept | B | **unmeasured**. Overlaps `accept_bi` + uni-open; per-frame fill advice is the thing that did not move | one syscall per session | first-window only; a tile that starts far into the file does not use it | **Accepted** — the first miss look-ahead cannot hide |
 | Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 |
 | One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
 | Whole-frame `RWF_NOWAIT`, one read | B | best miss throughput of any arm | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected |

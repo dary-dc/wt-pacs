@@ -11,6 +11,9 @@ frame_table[frame_count]: offset u64 · length u32
 [concatenated HTJ2K codestreams]
 ```
 
+New packs pad so each frame starts at a 4096-byte boundary (`FRAME_ALIGN`). Tight-packed
+studies remain valid; the index, not arithmetic, is the layout.
+
 Pack with `cargo run -p pack-study -- --metadata … --frames … --output ….sbnd`.
 
 Smoke fixture: `fixtures/us_cine_smoke/` (metadata + optional frame files).

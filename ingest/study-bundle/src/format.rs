@@ -9,6 +9,24 @@ pub const VERSION: u32 = 1;
 
 pub const HEADER_SIZE: usize = 16;
 pub const INDEX_ENTRY_SIZE: usize = 12;
+/// Page size a miss is billed in. New packs start every frame here. `docs/disk-access/adr.md`.
+pub const FRAME_ALIGN: u64 = 4096;
+
+pub fn align_up(n: u64, align: u64) -> u64 {
+    debug_assert!(align.is_power_of_two());
+    n.div_ceil(align) * align
+}
+
+/// File offset of each frame when the writer page-aligns. Tight-packed studies remain valid.
+pub fn aligned_frame_starts(data_base: u64, lengths: &[u32]) -> Vec<u64> {
+    let mut at = align_up(data_base, FRAME_ALIGN);
+    let mut out = Vec::with_capacity(lengths.len());
+    for &len in lengths {
+        out.push(at);
+        at = align_up(at + u64::from(len), FRAME_ALIGN);
+    }
+    out
+}
 
 /// Header, index and metadata — everything before the first frame.
 #[derive(Debug, Clone)]

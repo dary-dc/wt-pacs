@@ -9,9 +9,13 @@ use study_bundle::read_layout;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
+use std::sync::Mutex;
 
 /// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
 pub const READ_WINDOW: usize = 64 * 1024;
+/// First-window hint at session accept, not per frame. `docs/disk-access/adr.md`.
+pub const OPEN_ADVISE: u64 = 4 << 20;
 
 /// Where a frame's codestream lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,6 +35,8 @@ pub struct FrameStore {
     nowait_cap: Option<usize>,
     #[cfg(test)]
     pool_starts: AtomicUsize,
+    #[cfg(test)]
+    advised: Mutex<Vec<(u64, u64)>>,
 }
 
 impl FrameStore {
@@ -48,6 +54,8 @@ impl FrameStore {
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
+            #[cfg(test)]
+            advised: Mutex::new(Vec::new()),
         })
     }
 
@@ -131,6 +139,37 @@ impl FrameStore {
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
     }
 
+    /// Advisory: copies nothing and never fails a read, so the result is not checked.
+    pub fn advise_ahead(&self, offset: u64, len: u64) {
+        if len == 0 {
+            return;
+        }
+        #[cfg(test)]
+        self.advised.lock().expect("advise log").push((offset, len));
+        // SAFETY: `posix_fadvise` reads no user memory; a bad range is an errno, not UB.
+        unsafe {
+            libc::posix_fadvise(
+                self.file.as_raw_fd(),
+                offset as libc::off_t,
+                len as libc::off_t,
+                libc::POSIX_FADV_WILLNEED,
+            );
+        }
+    }
+
+    /// Issued once at session accept so the first miss overlaps the control-stream RTT.
+    pub fn advise_opening(&self) {
+        let Some(&(offset, _)) = self.index.first() else {
+            return;
+        };
+        let end = self
+            .index
+            .last()
+            .map(|&(o, l)| o.saturating_add(u64::from(l)))
+            .unwrap_or(offset);
+        self.advise_ahead(offset, end.saturating_sub(offset).min(OPEN_ADVISE));
+    }
+
     /// Force a partial hit: real bytes at the front, a shortfall behind them.
     #[cfg(test)]
     pub(crate) fn force_short_reads(&mut self, cap: usize) {
@@ -157,6 +196,11 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn reset_pool_starts(&self) {
         self.pool_starts.store(0, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut *self.advised.lock().expect("advise log"))
     }
 }
 
@@ -210,6 +254,7 @@ pub fn nowait_supported_at(path: &Path) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
     use study_bundle::write_bundle;
 
@@ -297,6 +342,97 @@ mod tests {
         }
         assert_eq!(out, body);
         let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+
+    /// New packs start every frame on a page so a miss does not pull the neighbour page.
+    #[test]
+    fn a_new_store_starts_every_frame_on_a_page() -> Result<()> {
+        let f0 = vec![7u8; 100];
+        let f1 = vec![9u8; 16 * 1024];
+        let path = scratch("frame-store-aligned");
+        write_bundle(
+            &path,
+            br#"{"frameCount":2}"#,
+            &[f0.as_slice(), f1.as_slice()],
+        )?;
+        let store = FrameStore::open(&path)?;
+        for i in 0..2u32 {
+            let span = store.frame_span(i)?;
+            assert_eq!(
+                span.offset % study_bundle::FRAME_ALIGN,
+                0,
+                "frame {i} starts mid-page"
+            );
+        }
+        let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+
+    /// Studies packed before page-alignment still open; the index, not arithmetic, is the
+    /// layout.
+    #[test]
+    fn a_tight_packed_study_still_serves() -> Result<()> {
+        let f0 = b"frame-0";
+        let f1 = b"frame-1-longer";
+        let meta = br#"{"frameCount":2}"#;
+        let data_base = 16 + 12 * 2 + meta.len();
+        let path = scratch("frame-store-legacy-tight");
+        let mut f = std::fs::File::create(&path)?;
+        f.write_all(b"SBND")?;
+        f.write_all(&1u32.to_le_bytes())?;
+        f.write_all(&(meta.len() as u32).to_le_bytes())?;
+        f.write_all(&2u32.to_le_bytes())?;
+        f.write_all(&(data_base as u64).to_le_bytes())?;
+        f.write_all(&(f0.len() as u32).to_le_bytes())?;
+        f.write_all(&((data_base + f0.len()) as u64).to_le_bytes())?;
+        f.write_all(&(f1.len() as u32).to_le_bytes())?;
+        f.write_all(meta)?;
+        f.write_all(f0)?;
+        f.write_all(f1)?;
+        drop(f);
+
+        let store = FrameStore::open(&path)?;
+        assert_eq!(
+            store.frame_span(0)?.offset % 4096,
+            (data_base as u64) % 4096
+        );
+        for (index, want) in [(0u32, f0.as_slice()), (1, f1.as_slice())] {
+            let span = store.frame_span(index)?;
+            let mut buf = vec![0u8; span.len as usize];
+            store.read_at_blocking(&mut buf, span.offset)?;
+            assert_eq!(buf, want, "frame {index}");
+        }
+        let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+
+    /// One hint at accept, from the first frame, capped at `OPEN_ADVISE` — not per frame.
+    #[test]
+    fn opening_advice_is_the_first_window_from_the_first_frame() -> Result<()> {
+        let small = scratch("frame-store-advise-small");
+        write_bundle(
+            &small,
+            br#"{"frameCount":2}"#,
+            &[b"aa".as_slice(), b"bb".as_slice()],
+        )?;
+        let store = FrameStore::open(&small)?;
+        store.advise_opening();
+        let first = store.frame_span(0)?;
+        let last = store.frame_span(1)?;
+        let whole = last.offset + u64::from(last.len) - first.offset;
+        assert_eq!(store.take_advice(), vec![(first.offset, whole)]);
+
+        let frames: Vec<Vec<u8>> = (0..300).map(|i| vec![i as u8; 16 * 1024]).collect();
+        let refs: Vec<&[u8]> = frames.iter().map(|f| f.as_slice()).collect();
+        let big = scratch("frame-store-advise-big");
+        write_bundle(&big, br#"{"frameCount":300}"#, &refs)?;
+        let store = FrameStore::open(&big)?;
+        store.advise_opening();
+        let first = store.frame_span(0)?;
+        assert_eq!(store.take_advice(), vec![(first.offset, OPEN_ADVISE)]);
+        let _ = std::fs::remove_file(small);
+        let _ = std::fs::remove_file(big);
         Ok(())
     }
 }
