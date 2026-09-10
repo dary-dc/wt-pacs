@@ -25,7 +25,7 @@ The ADRs remain the decision records. This file does not reopen them.
 
 | Campaign | PRs | Question | Latest face |
 | --- | --- | --- | --- |
-| [Disk access](#1--disk-access--how-the-server-reads-frame-bytes) | [#4](https://github.com/dary-dc/wt-pacs/pull/4) (overturned), [#11](https://github.com/dary-dc/wt-pacs/pull/11), [#22](https://github.com/dary-dc/wt-pacs/pull/22) | How to bring SBND bytes off disk without freezing the executor | [`docs/disk-access/`](disk-access/) · evidence tags `read-path-evidence-2026-09-09` / `-10` |
+| [Disk access](#1--disk-access--how-the-server-reads-frame-bytes) | [#4](https://github.com/dary-dc/wt-pacs/pull/4) (overturned), [#11](https://github.com/dary-dc/wt-pacs/pull/11), [#18](https://github.com/dary-dc/wt-pacs/pull/18), [#19](https://github.com/dary-dc/wt-pacs/pull/19), [#22](https://github.com/dary-dc/wt-pacs/pull/22) | How to bring SBND bytes off disk without freezing the executor | [`docs/disk-access/`](disk-access/) · evidence tags `read-path-evidence-2026-09-09` / `-10` |
 | [Transport](#2--transport--stream-shape-congestion-send-path) | [#5](https://github.com/dary-dc/wt-pacs/pull/5) (carrier); absorbed [#12](https://github.com/dary-dc/wt-pacs/pull/12), [#17](https://github.com/dary-dc/wt-pacs/pull/17), [#20](https://github.com/dary-dc/wt-pacs/pull/20), [#23](https://github.com/dary-dc/wt-pacs/pull/23), [#24](https://github.com/dary-dc/wt-pacs/pull/24). Related closed: [#1](https://github.com/dary-dc/wt-pacs/pull/1), [#2](https://github.com/dary-dc/wt-pacs/pull/2), [#10](https://github.com/dary-dc/wt-pacs/pull/10) | Shared vs per-frame, Cubic vs BBR, send path, windows | [`docs/transport/transport-conclusions.md`](transport/transport-conclusions.md) · tag `archive/transport-lab-2026-09` |
 | [L2 ask policy](#3--l2-ask-policy) | Archive [#6](https://github.com/dary-dc/wt-pacs/pull/6), [#7](https://github.com/dary-dc/wt-pacs/pull/7), [#8](https://github.com/dary-dc/wt-pacs/pull/8); close-out [#9](https://github.com/dary-dc/wt-pacs/pull/9) (open, do not merge) | Bound in-flight asks? Adapt the bound live? | PR #9 `L2-ask-policy-CLOSED.md` |
 | [Telemetry](#4--telemetry) | [#3](https://github.com/dary-dc/wt-pacs/pull/3) | Instrument clients and server without touching the product path | [`docs/telemetry/`](telemetry/) |
@@ -43,8 +43,8 @@ keeps `TILE_SLOTS` frames and builds a per-session io_uring on its first miss.
 
 PR #4 shipped mmap + always-touch (2026-08-31). That decision is **overturned**: its harness
 ran a current-thread runtime while the product is multi-thread, and `RWF_NOWAIT` was never in
-its table. PR #11 is the path that ships. PR #22 only reports planner reach (`named` /
-`in_flight`) and stacks `wanted`.
+its table. PR #11 is the path that ships. PR #22 only reports planner reach on the session
+line (`peak_named` / `peak_in_flight`).
 
 ### Metrics of interest
 
@@ -71,12 +71,12 @@ harness defect corrected. Full tables: [`disk-access/EVIDENCE.md`](disk-access/E
 | --- | --- | --- | --- |
 | **`SeqReader` (`product_fill`)** | Probe, pool on miss, one frame named | Ties every serious arm on a contiguous sweep; **0 rings**. On the tile shape: **+62 % wall / +133 % CPU, 6/6 RESOLVED worse** at 16 KiB | **Accepted** for fill |
 | **`TileReader` (`product_tile`)** | Probe, lazy ring, `slots` frames named | 1st or tied on the tile shape; beats every pool arm **RESOLVED** on wall **and** CPU at 16 KiB cold; ties every ring arm. Builds a ring for a 0.4 %-miss fill | **Accepted** for tiles |
-| `hybrid_lazyring` | The lab arm the tile reader implements | Tie with `product_tile` on 16 KiB. At 250 kB cold on the workstation, `hybrid_lazyring` vs `pool` is a **tie at every depth**; the shipped `ReadCtx` **trailed** it — that penalty was serial window round trips (`read_path.rs:221`), not the ring | Lab model; product now splits the two readers |
+| `hybrid_lazyring` | The lab arm the tile reader implements | Tie with `product_tile` on 16 KiB. At 250 kB cold on the workstation, `hybrid_lazyring` vs `pool` is a **tie at every depth**; the shipped `ReadCtx` **trailed** it — that penalty was the probe capped at `READ_WINDOW`, not the ring | Lab model; product now splits the two readers |
 | `pool` (`RWF_NOWAIT` + `spawn_blocking`) | Fallback, and the 2026-09-04 default | 16 KiB misses: shipped reader **−45.4 % CPU, RESOLVED**. 250 kB cold: **pool can beat the ring** (workstation depth 1: `product` vs `pool` **+38.5 % p50, RESOLVED**). Threads: 125–135 at 64 readers, 512 cap | **Kept as fallback**; P0 decides if it becomes the default |
 | `uring` (every read through the ring) | One path | Hits **+164.8 % CPU at depth 1, RESOLVED** (`--monitors 0`). Misses tie at depth 1; residual 5–15 % only in a deep miss-dominated regime. Hit penalty scales with frame size (20.4 vs 1.6 µs at 16 KiB; **262 vs 39.6 µs at 250 kB**) | **Rejected as default**; lab flag |
-| `pooled_pread` | Every read on the pool | Warm 16 KiB fill vs `SeqReader`: **+484 % wall / +1734 % CPU, 6/6** | Rejected |
-| `tokio::fs::File` | Standard sequential reader | **+514 % wall / +1872 % CPU** vs `SeqReader` at 16 KiB fill, 6/6. Same on tokio's io_uring driver: 141 µs–**2.1 ms** per 16 KiB at 64 sessions | Rejected |
-| mmap, naive | Mapping, fault in place | Faster p50 and cheaper CPU (no copy). **p99 3 276–3 914 µs at 250 kB cold** vs ~1 036; `gap_max` **3 991–4 158 µs** — freezes co-tenants | Rejected |
+| `pooled_pread` | Every read on the pool | 16 KiB fill sweep vs `SeqReader`: **+484 % wall / +1734 % CPU, 6/6** | Rejected |
+| `tokio::fs::File` | Standard sequential reader | **+514 % wall / +1872 % CPU** vs `SeqReader` at 16 KiB fill, 6/6. Same on tokio's io_uring driver: 141 µs–**2.1 ms** per 16 KiB across 8–64 sessions | Rejected |
+| mmap, naive | Mapping, fault in place | Faster p50 and cheaper CPU (no copy). **p99 3 276 µs at 250 kB cold** vs ~1 036 — every mmap arm lands in 3 276–3 914; `gap_max` **3 991–4 158 µs** (250 kB / 16 KiB) — freezes co-tenants | Rejected |
 | mmap + always-touch (PR #4) | Hop every ask | Warm **60.9 µs vs 152.3 µs** (2.5×) for inline nowait; neighbour p99 166 vs 702 µs | Overturned 2026-09-04 |
 | mmap + `mincore` gate | Touch only if resident | Unsafe under pressure **5/5** — residency is not a lease | Rejected |
 | mmap + `populate_read` / `blocking_touch` | Fault on the pool | 2–3× slower at 1.5–2× the CPU — the whole mmap saving, paid back | Rejected |
@@ -122,7 +122,8 @@ campaign cell.
 | --- | --- |
 | "`uring` has the better p99 at depth 4" | 4-vCPU sandbox artefact; on the workstation misses tie at every depth |
 | "`uring` is 47–61 % worse on latency" | A one-reader p50; does not survive crossing depth with readers |
-| "`product` tracks `hybrid_lazyring` at 250 kB" | Retracted on the workstation; the 250 kB penalty was serial window probes, not the ring |
+| "`product` tracks `hybrid_lazyring` at 250 kB" | Retracted on the workstation; the 250 kB penalty was the probe capped at `READ_WINDOW`, not the ring |
+| "the 250 kB penalty tracks window count" | Retracted in place: `reads_per_ask` is 1.00–1.01 at every size, so a missing frame is **one** `ctx.read()` and window count was never the variable. One short probe, bracketed from both sides; the mechanism is inferred, only the location was measured. The 2026-09-10 reader split removed the cap — both readers now probe the whole frame |
 | Depth-4/16 `product` vs `pool` rows first published 2026-09-09 | Harness modelled depth as **session count**, not reads in flight. Depth 1 stands |
 | "`v36`'s 250 KB cold cell shows no win for read-ahead" | It reached only 4.7 % misses — no regression, not no win |
 | "ring construction costs 82 µs" | That is 1 000 rings at once; one ring is 15.6 µs |
@@ -130,8 +131,11 @@ campaign cell.
 ### Still open
 
 P0 — ring vs pool on the **production** instance, volume class, and container image — is the
-one measurement that can delete the ring. Fill overlap (pool-miss interleave, 4 MiB
-`WILLNEED`) is an open follow-on: [PR #28](https://github.com/dary-dc/wt-pacs/pull/28).
+one measurement that can delete the ring. The two readers have never met the full arm set on
+the workstation ([`NEXT.md`](disk-access/NEXT.md) item 10): the table above is the container
+run, so its magnitudes are replaced by that re-run, not confirmed by it. Fill overlap
+(pool-miss interleave, 4 MiB `WILLNEED`) is an open follow-on:
+[PR #28](https://github.com/dary-dc/wt-pacs/pull/28).
 
 ---
 
@@ -291,7 +295,7 @@ Scale review 2026-09-06: [`telemetry/analysis-scale-and-serving-path-2026-09-06.
 
 | Candidate | What it is | Latest result | Verdict |
 | --- | --- | --- | --- |
-| Global lock per emit (`64e2c0a`) | Pre-S2 | 7–12 µs busy at 16–64 producers; +11–14 % serving CPU | Replaced |
+| Global lock per emit (`64e2c0a`) | Pre-S2 | 7–12 µs busy at 4–64 producers; **+4–14 %** serving CPU (+14 % at one session, +4 % at 32) | Replaced |
 | Own sender, one `try_send` per row | Head `78537c5` | Lock gone; remaining cost is the **drain wake** (12–35 µs) | Replaced by batching |
 | **Batches of 64 on an owned sender** | T1/T2/T4 | Busy 16 producers: **23 ns**. Paced 150 k rows/s: 0.24–0.5 µs. Serving CPU **+0.3–2.1 %**; throughput inside spread | **Shipped** |
 | In-memory drain, pretty JSON at exit | Current-at-review | 1 M rows: 75 MB RSS, 0.98 s exit, 327 MB JSON | Replaced |
@@ -389,7 +393,6 @@ Second pass (analysis only): [`improvements/2026-09-08.md`](improvements/2026-09
 | Coalesced 8-byte header write | Two 4-byte awaits → one | Subsumed by chunked (header is one chunk) | **Withdrawn** |
 | Server app code as hotspot | Callgrind, three cells | `exact_server::*` **< 0.3 %** of instructions; ring AES-GCM 31–36 %, `memcpy` 13–15 %, quinn ~10 %. Avoidable term 11.7 % is the `write_all` copy L1 removes | **Null** — nothing left outside the two lanes |
 | Per-call `TextEncoder` (T1) | TS FoD codec | 8–11 µs either way in Chromium; constructor is free | **Null** (tidiness only) |
-| **`aws-lc-rs`** for ring (same run as P1) | Crypto crate | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % peak RSS | **Not taken** |
 | **BYOB reader** | `getReader({ mode: "byob" })` | Probe: 80 × 250 KB in 610 vs 541 reads, 191 vs 200 ms. Saving bounded by `take` ≈ 8–10 % of client self time in a fill cell | Parked — rewrites both frame loops |
 | Defects D1–D5, D2/D3 waiters, D4 key leak | Correctness | Reproduced on the runner; not coded on the second pass | Open queue on [`improvements/README.md`](improvements/README.md) |
 
@@ -449,7 +452,7 @@ Not in the campaign bodies. Listed so a later revision can fold them in or drop 
 | [#9](https://github.com/dary-dc/wt-pacs/pull/9) | L2 close-out + harness | Investigation **closed**. Do not merge onto `main` |
 | [#26](https://github.com/dary-dc/wt-pacs/pull/26) | Rebase leftover mmap work off `SeqReader`/`TileReader` | Not a new investigation |
 | [#27](https://github.com/dary-dc/wt-pacs/pull/27) | Land improvements P1 (fat LTO) | Same numbers as [§6](#6--improvements-lab) |
-| [#28](https://github.com/dary-dc/wt-pacs/pull/28) | Fill: overlap pool misses; 4 MiB `WILLNEED` on nowait | Latest claimed: vs settle-first, 16 KiB force-pool **−34.9 % p50, 12/12**; 250 kB cold **−41.3 %, 12/12**; warm **tie**. Naive overlap and one-frame WILLNEED **retracted**. 10 µs max **hit** on warm 16 KiB — not a `send_us` claim |
+| [#28](https://github.com/dary-dc/wt-pacs/pull/28) | Fill: overlap pool misses; 4 MiB `WILLNEED` on nowait | Latest claimed: vs settle-first, 16 KiB force-pool **−34.9 % p50, 12/12**; 250 kB cold **−41.3 %, 12/12**; warm **tie**. Naive overlap **retracted**; one-frame WILLNEED **not enough** (250 kB cold +17.9 %, tie). 10 µs max **hit** on warm 16 KiB — not a `send_us` claim |
 
 ---
 
