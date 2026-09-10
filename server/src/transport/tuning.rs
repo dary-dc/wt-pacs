@@ -110,12 +110,6 @@ impl TransportTuning {
         Duration::from_millis((idle / 3).max(1))
     }
 
-    /// Always false: the product defaults themselves deviate from the stock stack now, so the
-    /// `with_identity` shortcut in `server.rs` would drop them.
-    pub fn quic_is_library_default(&self) -> bool {
-        false
-    }
-
     pub fn describe(&self) -> String {
         let mut parts = Vec::new();
         if let Some(v) = self.send_window {

@@ -130,9 +130,6 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
         identity: Identity,
         tuning: &TransportTuning,
     ) -> Result<ServerConfig> {
-        if tuning.quic_is_library_default() {
-            return Ok(builder.with_identity(identity).build());
-        }
         let transport = tuning.to_transport_config()?;
         let mut builder = builder.with_custom_transport(identity, transport);
         if let Some(ms) = tuning.max_idle_timeout_ms {
@@ -188,12 +185,9 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let (control_send, control_recv) = connection
-        .accept_bi()
-        .await
-        .context("accept control bidi")?;
-
-    let out = FrameOut::open(mode, connection).await?;
+    let media = FrameOut::open(mode, connection.clone());
+    let control = async { connection.accept_bi().await.context("accept control bidi") };
+    let ((control_send, control_recv), out) = tokio::try_join!(control, media)?;
     let mut product = ProductPipeline::new(store, out).with_control(control_send);
 
     #[cfg(feature = "telemetry")]
