@@ -1029,3 +1029,52 @@ read-ahead window, so it reads 0.0–0.8 % misses at 2.6–2.8 µs — roughly 4
 cold ceiling. The tie is real for the read-ahead-served path; it is not 1 GiB of I/O.
 
 TSVs at `read-path-evidence-2026-09-10` (`w1_server_ab.tsv`, `w1_read_path_ab.tsv`, `w1_host.txt`).
+
+## Store / single-request hunt · 2026-09-10
+
+`cursor/latency-store-read-3a29`. Open, the miss path, alignment, and parallelism that
+would cut **one ask's** latency — not throughput. **No product change.** The floor is
+already in this file. The mechanisms below were refused because a real host already
+priced them, or because they cannot move a single ask past that floor. A claim that
+is not measured says so.
+
+PR #27 (`claude/serene-rubin-wakfg7`) and PR #28 (`cursor/fill-overlap-latency-f9c2`)
+are the report. Numbers stay theirs; this section records the refusal.
+
+### Already tried — not retried
+
+| Idea | Where | Real-host result |
+| --- | --- | --- |
+| `POSIX_FADV_WILLNEED` `FILL_WINDOW` 4 MiB on a fill | PR #27 | 250 kB cold miss 59–66 % → ~1 % (n=3, evicted 8 GB). Warm a tie. Browser fill on a cached 3.59 MB study **+7.5 %** `serve_us` (18/25, P=0.022) — under this file's 28.5 % bar; the sign is the syscall on a hit. Native cells indistinguishable. Same box: evicted 61 MB still `fill_misses=0` (look-ahead finishes before the reader). One arm's run-to-run range was wider than every median gap, so that box cannot price the miss path |
+| `[profile.release] lto = "fat"` / `aws-lc-rs` / `max_udp_payload_size` 4000 B | PR #27 | not a store lever. LTO landed there (−4 to −8 % CPU/frame). Crypto a tie or a loss on VAES. Chromium advertises 1 472, so the UDP lever is closed for browser clients |
+| Naive nowait overlap of the named fill | PR #28 | **retracted**: 16 KiB cold miss 6.2 % → 12.3 %; 250 kB cold went to 100 % miss. A second nowait during the wait turns readahead into a hop |
+| One-frame WILLNEED | PR #28 | 250 kB cold still 96.9 % miss vs 46.8 % settle-first |
+| Every-miss 4 MiB WILLNEED | PR #28 | not shipped — restacks the syscall the quarter-window threshold exists to avoid |
+| Combo: no-nowait overlap + sliding 4 MiB + first-miss WILLNEED | PR #28 | 250 kB cold miss 35 % → 7 % and p50 **−68.9 %**, 12/12; **wall a tie**; p99 worse; 16 KiB cold wall **+76 % RESOLVED**. Warm p50 a tie |
+| Ahead-N WILLNEED on tiles | [`adr.md`](adr.md) §5 | 4.6–4.9× on a cold strided read; a loss on a sweep. Not landed |
+| Probe capped at `READ_WINDOW` | this file, line 221 | the 250 kB penalty. The shipped probe is the whole frame |
+| mmap · `mincore` · `SQPOLL` · registered buffers · `O_DIRECT` · every read through the ring · serial windows · look-ahead as something other than depth 2 | [`adr.md`](adr.md) §5 | already rejected |
+
+### Considered, not built
+
+Unmeasured. None was argued to move real-host single-ask latency on the hosts above.
+
+* **`FADV_SEQUENTIAL` / `FADV_RANDOM` on a second fd.** Weaker than the 4 MiB WILLNEED
+  already priced. The workstation's btrfs `read_ahead_kb` is already 4 MB; PR #27's
+  evicted 61 MB fill still recorded zero misses.
+* **A second `File::open` for the miss.** The inferred cause of the old short probe
+  (`hybrid_lazyring` opened a fresh fd). Whole-frame probe already shipped;
+  `product_tile` ties that arm at 250 kB.
+* **Intra-frame parallel `pread` of one 250 kB miss.** Structural. At depth 1 the
+  workstation already ties ring and pool; a cloud miss is device-bound (P0).
+* **Skip `RWF_NOWAIT` after consecutive misses.** A failed probe is cheap at any
+  length; the miss is hundreds of µs.
+* **Skip zero-fill of the I/O `Vec`.** First frame of a session only; tens of µs
+  against QUIC's hundreds.
+* **4 KiB-align frames in the packer.** One extra page on an unaligned 250 kB
+  frame. Layout is the packer's job, not the reader's ([`adr.md`](adr.md) §4).
+
+**Floor, already measured.** Warm hit: inline whole-frame `RWF_NOWAIT` (memcpy).
+Cold miss at depth 1: the device; ring vs pool is a tie on the workstation.
+Fill: kernel readahead; WILLNEED's remaining cost is the warm syscall. Open is
+once per study.

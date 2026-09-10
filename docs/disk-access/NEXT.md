@@ -6,7 +6,10 @@ more; studies far larger than RAM; cloud, possibly Docker.**
 Nothing here blocks the code that ships. Items already built (the two readers, `TILE_SLOTS`,
 miss reporting, fill, named/in_flight on the session line) are not listed. Closed on
 2026-09-10 by the split: the probe is the whole frame, look-ahead *is* depth 2, tile depth
-is a constructor argument, and a fill does not build a ring.
+is a constructor argument, and a fill does not build a ring. A later store / single-request
+hunt (`cursor/latency-store-read-3a29`) closed with **no product change** — the WILLNEED /
+overlap / LTO / second-fd ideas were already priced on a real host or cannot move one ask
+past the floor. [`EVIDENCE.md`](EVIDENCE.md) §Store / single-request hunt.
 
 | # | Item | Why it is still open |
 | --- | --- | --- |

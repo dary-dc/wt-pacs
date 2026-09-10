@@ -108,6 +108,7 @@ a **tie**, which is a real answer.
 | "the ring's per-miss latency win carries to production" | on cloud block storage a miss is device-bound; the ring's claim there is threads and CPU per miss, and P0 (§6) tests it |
 | "depth 4 and 16 differ by far less than 1 and 4" | not in throughput: in `v32` 1 → 4 is ×1.90 and 4 → 16 ×1.52. The case for building depth 2 first is `v35`, where 2 alone collects 62 % |
 | "`v36`'s 250 KB cold cell shows no win for read-ahead" | it reached only 4.7 % misses, so it shows no regression, not no win |
+| "WILLNEED 4 MiB on a fill is free once the miss rate drops" | a cached study still pays the syscall: PR #27 browser fill **+7.5 %** `serve_us` (does not clear this file's 28.5 % bar; the sign is the reason). PR #28's combo cut 250 kB cold misses and p50, then lost on wall, p99, and 16 KiB cold wall. **Not landed.** [`EVIDENCE.md`](EVIDENCE.md) §Store / single-request hunt |
 
 ## 3 · How the decision evolved
 
@@ -164,6 +165,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural: `COOP_TASKRUN` is refused alongside it |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
 | Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
+| Fill `POSIX_FADV_WILLNEED` (`FILL_WINDOW` 4 MiB) and miss-overlap | S | PR #27: 250 kB cold miss 59–66 % → ~1 % (n=3); warm p50 a tie; browser fill on a cached study +7.5 %. PR #28 combo: miss 35 % → 7 % and p50 −68.9 % (12/12); wall a tie; p99 worse; 16 KiB cold wall +76 % RESOLVED. Naive nowait overlap retracted (miss rate doubled) | one syscall per quarter window | the warm/p99 tax is the load-bearing row | **Not landed** — [`EVIDENCE.md`](EVIDENCE.md) §Store / single-request hunt |
 | Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 |
 | One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
 | Whole-frame `RWF_NOWAIT`, one read | B | best miss throughput of any arm | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected |
