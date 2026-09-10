@@ -12,7 +12,7 @@ This folder is the front door. The dated files are evidence, not the queue.
 | **this page** | ranked open work, then what already landed on the branch |
 | [`2026-09-08.md`](2026-09-08.md) | second pass: every open item below, reproduced or measured, **no product code** |
 | [`2026-09-06.md`](2026-09-06.md) | first pass: the commits already on the branch, plus withdrawn / null / parked |
-| [`ledger.md`](ledger.md) | one inventory of both passes |
+| [`ledger.md`](ledger.md) | one inventory of both passes; §8 is the 2026-09-10 hop-latency close |
 
 Lab measurement drivers are **not on this tip** (they must not land on `main`). Restore:
 [`#restore-the-lab-drivers`](#restore-the-lab-drivers).
@@ -36,13 +36,14 @@ From the 2026-09-08 pass unless noted. Size is the proposed change, not the writ
 | **D3** | defect, clients | duplicate indices in a bulk ask: TS orphans a waiter and asks twice; WASM sticks on “previous bulk still pending” | ~6 lines each arm, validate before arming | [§D3](2026-09-08.md#d3--duplicate-indices-in-a-bulk-ask) |
 | **Tests** | gap | product TypeScript client has no tests; a stub `WebTransport` already drives it in Node | `client/transport-ts/test/` from `lab/improvements/bench/ts_session_stub.mjs` (after restore) | [Tests](2026-09-08.md#tests--gaps) |
 | **T1 / T2** | tooling | no CI; `gate.sh` skips four crates, clippy, and fmt | one workflow + `cargo test --workspace` | [§T](2026-09-08.md#t--tooling) |
-| **P1** | perf, build | `lto = "fat"` + `codegen-units = 1`: server CPU/frame −5–8 %, `send_us` p50 −8–20 %, binary −26 %, rebuild 3 s → 37 s | workspace `[profile.release]` | [§P1](2026-09-08.md#p1--server-release-profile-lto--fat-codegen-units--1) |
+| **P1** | perf, build | `lto = "fat"` + `codegen-units = 1`: server CPU/frame −5–8 %, binary −26 %, rebuild 3 s → 37 s. **Not a wall-latency lever** — workstation cells in PR #27 were a wash ([ledger §8](ledger.md#8--serving-path-latency-2026-09-10--no-product-change)) | workspace `[profile.release]` | [§P1](2026-09-08.md#p1--server-release-profile-lto--fat-codegen-units--1) |
 | **P2** | perf, WASM | `opt-level = "s"` + LTO: package −12 % gzip, no speed or `init()` change | per-crate or workspace profile | [§P2](2026-09-08.md#p2--wasm-package-release-profile-variants-all-through-wasm-opt) |
 
 D4 is first because it is the README quick-start host serving a private key. D1 is data loss in
 the telemetry contract. D2/D3 are product waiter bugs; the TS test gap is what would pin them.
 
-P1/P2 are real, measured, and need the lanes to agree (they change every binary's build).
+P1/P2 are real **CPU / package** effects and need the lanes to agree (they change every
+binary's build). P1 did not move request/response wall on the workstation that priced it.
 
 ### Smaller, still open
 
@@ -97,7 +98,7 @@ From [`ledger.md`](ledger.md) §6–7 and [`2026-09-08.md`](2026-09-08.md) close
 1. Take or drop each first-pass commit; F2's refuse-vs-serve policy; T1 as tidiness or drop.
 2. Land D1 (process-lived sink vs per-run files), D2+D3 in both arms, D4, D5?
 3. CI workflow — yes/no; clippy `-D warnings` once lane warnings are gone.
-4. Adopt P1 / P2 release profiles?
+4. Adopt P1 / P2 release profiles? (P1 is CPU and binary size, not wall latency — ledger §8)
 5. M1 timing shape; whether BYOB is worth a round later.
 
 ---

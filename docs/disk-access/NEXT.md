@@ -13,7 +13,7 @@ is a constructor argument, and a fill does not build a ring.
 | 1 | **P0 — ring vs pool on the production target** | Sandbox and workstation miss costs differ. A tie on the 28.5 % / 0.8n rule deletes the ring and ships the pool; a resolved margin keeps it. Run `product_tile` against `pool`, cold, both frame sizes, depths 2 / 4 / 8 / 16, `check-fastpath` on the study volume, `ulimit -l` recorded. [`adr.md`](adr.md) §6 |
 | 2 | **`server_ab.sh` on the workstation** | Sandbox cold depth 4 won on direction (−19 % p50, −28 % CPU/ask) but missed the 28.5 % wait bar. Magnitudes are not evidence until this host. Named is now on the session line (`named=4` at depth 4). |
 | 3 | **Throttled link** (20 Mbps, 50 ms, 1 % loss, cold tiles, client depth 4) | Predicted tie: the wire hides the 0.2 ms depth 2 → 4 saving. Unmeasured. |
-| 4 | **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput — the largest lever measured anywhere. Blocked on what browsers advertise. [`adr.md`](adr.md) §8 |
+| 4 | **`max_udp_payload_size` 1472 → 4000 B** | −35 % CPU, +55 % throughput with a quinn peer. **Closed for browser clients:** Chromium 141 advertises 1472; raising the server bound to 4000 or 8972 left the largest datagram at 1472 (`claude/serene-rubin-wakfg7`). A native peer would reopen it. [`adr.md`](adr.md) §8 |
 | 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the study volume. Snippets are in [`DEPLOYMENT.md`](DEPLOYMENT.md); they are not in a unit file yet. |
 | 6 | **`read_ahead_kb` and study layout on the target** | Miss rate moved 2–15× by that knob. Tuning, not a code change. |
 | 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. Now also the *only* way to cut the eventfd's per-hit cost: `REGISTER_EVENTFD_ASYNC` never signals on a `COOP_TASKRUN` ring, so the parked reader hangs. [`EVIDENCE.md`](EVIDENCE.md) §Short io_uring completions. Only after P0 keeps the ring. |
@@ -24,6 +24,13 @@ is a constructor argument, and a fill does not build a ring.
 
 `tokio::fs` as a sequential reader is **rejected** (15× slower; tokio’s io_uring driver
 serialises). Fill is `SeqReader`, one frame ahead, pool only. Not reopened.
+
+**Hop-code latency is not an open item.** LTO, fill `WILLNEED`, `aws-lc-rs`, and the MTU
+raise were measured on a real workstation and did not move wall (fill `WILLNEED` cost ~7.5 %
+under a browser on a warm study). Fill overlap (PR #28) moved lab p50 and not wall. The
+next latency numbers that can change a ship/no-ship decision are #1, #2, and #10 on that
+host — not another edit of `serve` / `send_frame`.
+[`improvements/ledger.md`](../improvements/ledger.md) §8.
 
 Frames past 250 kB (native DBT is ~3 MB) and storage faster than ~1.25 GB/s are **not
 established**. Named so they are not quoted as measured.

@@ -1,15 +1,14 @@
 # Transport
 
 What this lane decided. Product source is the chunked send path, `--stream-mode`
-default `shared`, `--prefault true`, Cubic default.
+default `shared`, Cubic default. `--prefault` is a no-op flag kept for lab scripts.
 
 **Start here:** [`transport-conclusions.md`](transport-conclusions.md).
 
 | Decision | What shipped |
 | -------- | ------------ |
 | **One shared stream** | `--stream-mode` defaults to `shared`. `per-frame` stays a product flag |
-| **Chunked send** | `Bytes` view of the study mapping + `write_all_chunks` — no full-frame copy |
-| **Prefault** | Fault frame pages off the executor (`--prefault true`) |
+| **Chunked send** | `write_all` of the reader buffer in `READ_WINDOW` pieces (`frame_out.rs`). The study mapping is gone; `server/` has no mmap. `--prefault` still parses and does nothing |
 | **Cubic default** | Congestive loss → Cubic; radio loss → BBR. Default Cubic until the mix is measured |
 | **Windows** | Left at quinn defaults. Memory is bounded by the send path, not `send_window` |
 

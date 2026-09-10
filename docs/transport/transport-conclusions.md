@@ -1,7 +1,8 @@
 # Transport optimisation — conclusions
 
 What this lane decided. Product source is the chunked send path, `--stream-mode`
-default `shared`, `--prefault true`, Cubic default, windows at quinn defaults.
+default `shared`, Cubic default, windows at quinn defaults. `--prefault` still
+parses and does nothing — page-touch was a mapping path.
 
 The full campaign write-up (method, reviews, TSVs, reproduce commands) is on tag
 `archive/transport-lab-2026-09` at this same path:
@@ -123,6 +124,12 @@ property, not only a CPU one. Windows stay at quinn defaults.
 ---
 
 ## 4 · Larger levers, still above this layer
+
+**2026-09-10.** Server-hop micro-opts under this layer (fat LTO, fill `posix_fadvise`,
+`aws-lc-rs` on VAES, raising `max_udp_payload_size` against Chromium) were priced on an
+8-core NVMe workstation and **did not move request/response wall**. The send path was the
+ceiling at 225–284 MB/s; past it every arm ties. That is a measurement on that host, not a
+re-run here. [`improvements/ledger.md`](../improvements/ledger.md) §8.
 
 On a real-looking link a third to a half of steps wait on the network. These still
 dominate the absolute millisecond figures:

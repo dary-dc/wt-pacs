@@ -125,3 +125,53 @@ Verified on the tree before the pass: workspace build/test/clippy/fmt, TS build/
 tests/absence check, and in Chromium 141 both arms' frame0 + bulk and 64/64 refusals — with the
 WASM package through `wasm-opt` for the first time on this branch (`npm i -g wasm-pack binaryen`
 works on the runner).
+
+---
+
+## 8 · Serving-path latency, 2026-09-10 — no product change
+
+**Branch:** `cursor/latency-measured-hotpath-2287`. The hop is
+`drive` → `Planner` → `ProductPipeline::serve` → `SeqReader` / `TileReader` →
+`FrameOut::send_frame` (`write_all` of the 8-byte head, then `READ_WINDOW` body chunks).
+This pass did not re-run the workstation cells. It reads the hop against the branches that
+already did, and does not ship a change those cells could not resolve.
+
+### What `claude/serene-rubin-wakfg7` (PR #27) changed and measured
+
+| Change | Lab (4 vCPU, localhost, interleaved) | 8-core workstation (NVMe, interleaved) |
+| --- | --- | --- |
+| `[profile.release] lto = "fat"`, `codegen-units = 1` | CPU/frame **−4 to −8 %**, 4/4, no overlap; `send_us` p95 −3 to −9 % | wall **indistinguishable** (native); on-demand `serve_us` p50 leaned faster on one long cell |
+| `SeqReader` `posix_fadvise(WILLNEED)` 4 MiB past the named frame | cold 250 kB fill misses 60 % → ~1 % | study already in page cache (`miss_rate=0.0`); browser fill **+7.5 % worse**, 18/25 |
+| `aws-lc-rs` vs `ring` on VAES | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | not taken |
+| `max_udp_payload_size` 1472 → 4000/8972 | −35 % CPU with a quinn peer | Chromium 141 advertises **1472**; largest datagram stayed 1472. Closed for browser clients |
+
+Workstation method and the sequential-arms false 30-vs-43 %: that branch's
+`docs/serving-cells-and-run-variance.md` (not on `main`). Quote: p10 across interleaved
+runs, name the client, do not quote `serve_us` as wall. Host saturation there was the
+**send path** at **225–284 MB/s** — `locate`/`prepare` ~0, 99 %+ of `serve_us` is `send`.
+Past that every arm ties. The disk-access ADR already names the other ceiling: ~64 reads
+in flight (sandbox on CPU; workstation device ~840 MB/s at 0.42 of 8 cores).
+
+**Why it was a wash.** The 87-frame study stayed in page cache, so fadvise bought nothing
+and cost syscalls. LTO's CPU win does not move wall when the hop is transfer-bound.
+`exact_server::*` is still < 0.3 % of instructions (callgrind, §3). A rig that cannot make
+the reader miss cannot price mmap-vs-`pread` either — on that NVMe, look-ahead finished
+before the next ask (`fill_hits=237 fill_misses=0` on a fully evicted 61 MB study).
+
+### Other hops already tried — do not re-derive
+
+| Attempt | Result |
+| --- | --- |
+| mmap / `mincore` / always-touch ([`adr.md`](../disk-access/adr.md) §5) | rejected: `gap_max` 1.5–7.7 ms; co-tenant freeze |
+| Zero-copy `Bytes::from_owner` + `write_all_chunks` (P0, §2) | withdrawn: L1's chunked path is the send path; mmap is out of `server/` |
+| Fill pool-miss overlap + sliding 4 MiB window (`cursor/fill-overlap-latency-f9c2`, PR #28) | lab p50 wins on force-pool / 250 kB cold; **wall not a win** (250 kB cold wall +27 % tie, p99 worse; 16 KiB cold wall **+76 %**). Warm a tie. Per-frame WILLNEED retracted (−8.7 % warm) |
+| GSO 10 → 32, ACK frequency, socket buffers ([`transport-conclusions.md`](../transport/transport-conclusions.md) §3) | loopback density only; real hardware overlapping |
+| TLS identity loaded twice (`C2b`) | startup, not the hop |
+| Combining the 8-byte head with the first body `write_all`; dropping the per-frame `ahead` `Vec` | sit inside the 0.3 %; not a wall lever |
+| Re-deriving mmap + `write_all_chunks` because [`transport/README.md`](../transport/README.md) still said that | stale face file; product send is `write_all` of the window buffer. Corrected in place |
+
+### This pass
+
+No `server/` change. Remaining latency work is measurement on the production target
+([`NEXT.md`](../disk-access/NEXT.md) #1, #2, #10), not another hop edit. P1 stays a
+**CPU and binary** candidate, not a wall-latency one.
