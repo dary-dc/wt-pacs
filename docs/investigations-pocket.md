@@ -42,7 +42,7 @@ Two tables per campaign: measured, then analysed without a metric.
 | **Cubic vs BBR** | Congestive (queue overflow): Cubic wins, margin at high RTT (**941 vs 1535 ms** at 600 ms / 8 Mbps); BBR drops 30–100× more and starves competing TCP in a shallow buffer. Radio 1 % loss, queue never drops: BBR **−48 % / −44 %** | **Cubic default** until the mix is measured; BBR is the other answer |
 | **Chunked send** | −6…−14 % CPU/byte. Stall (ask 25 MB, stop reading): server holds **180 kB** vs **6.8 MB** on the old copy path | **Only send path** |
 | **GSO cap 10 → 32** | Loopback n = 1: +17.2 % throughput / −20.9 % CPU/byte at 250 KB. Real path: **−1.0 % / +8.1 %, overlapping**. Zero effect on p95. Cap lives in quinn, not a server flag | **Not applied** |
-| **Flow-control windows** | On chunked + shared the stall costs **180 kB** — 50× below quinn’s 10 MB `send_window` | Left at quinn defaults |
+| **Flow-control windows** | On chunked + shared the stall costs **180 kB** — ~57× below quinn’s 10 MB `send_window`, which it never approaches | Left at quinn defaults |
 | **Prefault** | Fault pages off the executor. A hop on every warm ask costs ~10 % throughput | **Shipped** (`--prefault true`) |
 
 ### Without a metric
@@ -83,7 +83,7 @@ Emulator only (10 Mbps, `--rtt-ms 60`). Not a product lock. Rank **median latene
 | Candidate | Latest result | Verdict |
 | --- | --- | --- |
 | **Batches of 64 on an owned sender** | Busy 16 producers: **23 ns**/emit (was 7–12 µs under a global lock, 4–64 producers). Serving CPU **+0.3–2.1 %** with telemetry on | **Shipped** |
-| **Streaming rows + histograms** | 1 M rows: 3.8 MB RSS / 0.12 s exit vs 75 MB / 0.98 s for in-memory JSON. Exact rebuild from the file | **Shipped** |
+| **Streaming rows + histograms** | 1 M rows: 3.8 MB RSS / 0.12 s exit vs 75 MB / 0.98 s for in-memory JSON. Exact rebuild from the file under the inline cap | **Shipped** |
 | **`ack_us`** — stamp `finish().await` | Built and measured; every shape puts a telemetry token on the product send path | **Withdrawn** |
 | **Client Proxy** on `WebTransport` | Both arms, one shell. Own cost **25–30 µs** main-thread/frame in the interactive cell (improvements P3) | **Shipped** (lab-only builds) |
 
