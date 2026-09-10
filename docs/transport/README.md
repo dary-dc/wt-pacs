@@ -13,9 +13,10 @@ default `shared`, `--prefault true`, Cubic default.
 | **Cubic default** | Congestive loss → Cubic; radio loss → BBR. Default Cubic until the mix is measured |
 | **Windows** | Left at quinn defaults. Memory is bounded by the send path, not `send_window` |
 
-Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are not in
-`server/`. GSO 10 → 32 was measured, not applied: the cap lives in quinn, and on the
-real path it did not move the needle.
+Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs, early uni /
+head-during-read, unchunked `write_all`) are not in `server/`. GSO 10 → 32 was measured,
+not applied: the cap lives in quinn, and on the real path it did not move the needle.
+The 2026-09-10 first-byte bets are in [`transport-conclusions.md`](transport-conclusions.md) §3.
 
 ## Read next
 

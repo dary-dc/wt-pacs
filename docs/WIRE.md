@@ -52,10 +52,6 @@ codestream in `READ_WINDOW` (64 KiB) pieces. The bytes come from a session-owned
 (`SeqReader` or `TileReader`), not a mapping — `server/` has no mmap. That matches the
 wire layout above without assembling a contiguous envelope in userspace.
 
-The shared uni is opened as soon as the session is accepted, in parallel with the control
-bidi and the first read. The head uses locate's length and may go out while that read is
-still in flight. `docs/transport/why-these-changes.md`.
-
 **One full-frame copy remains:** `wtransport` only exposes `write_all(&[u8])`, so QUIC copies the
 codestream into its send buffer for retransmission. `quinn`'s chunk/`Bytes` API could avoid that copy
 on a native path; browsers cannot. A copy-cost knee sweep (link rate vs memcpy time) is still open

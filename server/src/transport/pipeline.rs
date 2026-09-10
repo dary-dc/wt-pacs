@@ -119,26 +119,19 @@ impl FramePipeline for ProductPipeline {
             mode: read_mode,
             ..
         } = self;
-        match mode {
+        let body = match mode {
             Mode::Fill => {
-                let seq = seq.get_or_insert_with(SeqReader::new);
-                let (body, head) = tokio::join!(
-                    seq.read(store, span, ahead.first().copied()),
-                    out.write_head(frame, span.len),
-                );
-                head?;
-                finish_frame(out, body?, span.len).await
+                seq.get_or_insert_with(SeqReader::new)
+                    .read(store, span, ahead.first().copied())
+                    .await?
             }
             Mode::OnDemand => {
-                let tile = tile.get_or_insert_with(|| TileReader::new(*read_mode, store, TILE_SLOTS));
-                let (body, head) = tokio::join!(
-                    tile.read(store, span, ahead),
-                    out.write_head(frame, span.len),
-                );
-                head?;
-                finish_frame(out, body?, span.len).await
+                tile.get_or_insert_with(|| TileReader::new(*read_mode, store, TILE_SLOTS))
+                    .read(store, span, ahead)
+                    .await?
             }
-        }
+        };
+        out.send_frame(frame, body).await
     }
 
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
@@ -164,16 +157,6 @@ impl FramePipeline for ProductPipeline {
     fn note_fill(&mut self) {
         self.fills += 1;
     }
-}
-
-async fn finish_frame(out: &mut FrameOut, body: &[u8], expect: u32) -> Result<()> {
-    if body.len() as u32 != expect {
-        anyhow::bail!(
-            "read returned {} bytes for a {expect}-byte span",
-            body.len()
-        );
-    }
-    out.write_codestream(body).await
 }
 
 impl Drop for ProductPipeline {

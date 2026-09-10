@@ -24,8 +24,9 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 | **Chunked send path** | Keep. −6…−14 % CPU/byte, and it is what contains a stalled client (below). The only send path in `server/` |
 | **Flow-control windows** | Hygiene on this send path. A client that asks for 25 MB and stops reading costs **180 kB**. Left at quinn defaults |
 
-Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are not in
-`server/`. `--stream-mode per-frame` stays a product flag.
+Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs, early uni /
+head-during-read, unchunked `write_all`) are not in `server/`. `--stream-mode per-frame`
+stays a product flag.
 
 ---
 
@@ -109,6 +110,8 @@ and destroys GSO batching).
 | Chunked send path | −6…−14 % CPU/byte at every rate. Only path in `server/` |
 | Per-frame prefault hop, warm cache | costs 10 % throughput, 14–34 % CPU/byte |
 | `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil |
+| Open uni at accept + head `join` the read | **No e2e move.** n = 8, 32/250 KB, on-demand d1 / fill / one-ask. 32 KB fill p50 looked −24 % until the raw pairs showed both arms bimodal (≈4 µs or ≈23 µs). One-ask p50 +42 % (5/8 worse) on n = 1 samples. Reverted |
+| One `write_all` of the body (no 64 KiB yield) | **No resolved move.** n = 6. 250 KB on-demand p50 −4.3 %, 6/6, 12–28 µs absolute. Fill and 32 KB tie. Below the 28.5 % resolve bar; this host is localhost and saturates on the transfer. Kept the windowed write |
 
 **The GSO cap is not a server flag.** `MAX_TRANSMIT_SEGMENTS` is a compile-time constant
 in quinn. The lab numbers were taken against a patched crate *outside this tree*. Never
