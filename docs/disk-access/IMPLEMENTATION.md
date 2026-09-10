@@ -51,8 +51,9 @@ INFO session reads hits=… misses=… miss_rate=… fill_hits=… fill_misses=�
 * A **read** is a frame. The reader returns the whole codestream; `READ_WINDOW` chunks
   the write, not the read.
 * `named` / `in_flight` are the peaks across both readers. A fill reports `named=2` and
-  `in_flight=1`. A tile session at client depth 1 / 2 / 4 reports `named` 1 / 2 / 4;
-  `in_flight` is how many of those actually missed (a hit is served inline).
+  `in_flight=1`. A tile miss at client depth 1 / 2 / 4 reports `named` 1 / 2 / 4; a hit
+  reports `named=1` (upcoming stay unprobed so the send is not behind those copies).
+  `in_flight` is how many of the started frames actually missed.
 * `ring=false` on a tile session with misses means the ring was refused or the build
   has no `uring` feature. A fill-only session is `ring=false` because `SeqReader` has
   no ring to build.
@@ -75,14 +76,17 @@ read(span, next):
 ```
 
 **Tiles — `TileReader`.** `slots` frames (default `TILE_SLOTS = 4`); `slots` is a
-constructor argument so a campaign can sweep depth. Current first, then upcoming that
-fit, then wait — the measured order. The probe is the whole frame. A shortfall goes to
-the ring on the first miss, or to the pool where the ring is refused.
+constructor argument so a campaign can sweep depth. Current first. Upcoming that fit
+start only when current missed, then wait. A hit send is not queued behind `slots − 1`
+whole-frame `RWF_NOWAIT` copies — those copies are the 4 ms `gap_max` the ADR rejected
+as a serve path, and at depth 4 they sat in front of the first write. Unmeasured on a
+shaped link; the pin is `a_hit_does_not_probe_upcoming_tiles_before_the_current_send`.
+A shortfall goes to the ring on the first miss, or to the pool where the ring is refused.
 
 ```
 read(span, upcoming):
   start span if not held
-  start upcoming that fit (at most slots − 1)
+  if span missed: start upcoming that fit (at most slots − 1)
   wait span
 ```
 
@@ -132,7 +136,8 @@ misses.
 | A named fill frame is not read twice | `a_named_fill_frame_is_read_before_it_is_asked_for` |
 | A fill holds one read at a time | `a_fill_never_holds_more_than_one_read_at_once` |
 | An abandoned read-ahead is settled before reuse | `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused` |
-| Named tiles start before the current wait | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
+| Named tiles start before the current wait, on a miss | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
+| A hit does not probe upcoming before the send | `a_hit_does_not_probe_upcoming_tiles_before_the_current_send` |
 | Slot count is a constructor argument | `a_tile_reader_holds_as_many_frames_as_it_was_given_slots` |
 | A hit never builds a ring | `lazy_ring_is_not_built_when_every_read_hits` |
 | No ring where `RWF_NOWAIT` is refused | `lazy_ring_is_never_built_without_nowait` |

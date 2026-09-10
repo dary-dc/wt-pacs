@@ -284,35 +284,51 @@ impl TileReader {
         }
     }
 
-    /// The whole of `span`; reads of `upcoming` that fit are started underneath. Current
-    /// first, then upcoming, then wait — the measured order.
+    /// The whole of `span`. Upcoming starts only on a miss of `span`. `docs/disk-access/IMPLEMENTATION.md`.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         upcoming: &[FrameSpan],
     ) -> Result<&[u8]> {
-        let named = 1 + upcoming.len().min(self.slots.len() - 1);
-        self.stats.peak_named = self.stats.peak_named.max(named as u16);
-        for i in 0..named {
-            let want = if i == 0 { span } else { upcoming[i - 1] };
-            if self.holding(want).is_none() {
-                let w = self.free_slot(span, upcoming);
-                self.wait(w).await?;
-                self.begin(store, w, want)?;
+        self.start_one(store, span, span, upcoming).await?;
+        let cur = self.holding(span).expect("started above");
+        if self.slots[cur].miss {
+            for want in upcoming
+                .iter()
+                .copied()
+                .take(self.slots.len().saturating_sub(1))
+            {
+                self.start_one(store, want, span, upcoming).await?;
             }
         }
+        let named = self.slots.iter().filter(|s| s.key.is_some()).count() as u16;
+        self.stats.peak_named = self.stats.peak_named.max(named);
         let started = self.slots.iter().filter(|s| s.read.is_some()).count() as u16;
         self.stats.peak_in_flight = self.stats.peak_in_flight.max(started);
-        let w = self.holding(span).expect("started above");
-        self.wait(w).await?;
-        self.last = w;
-        if self.slots[w].miss {
+        self.wait(cur).await?;
+        self.last = cur;
+        if self.slots[cur].miss {
             self.stats.misses += 1;
         } else {
             self.stats.hits += 1;
         }
-        Ok(&self.slots[w].buf[..self.slots[w].len])
+        Ok(&self.slots[cur].buf[..self.slots[cur].len])
+    }
+
+    async fn start_one(
+        &mut self,
+        store: &Arc<FrameStore>,
+        want: FrameSpan,
+        current: FrameSpan,
+        upcoming: &[FrameSpan],
+    ) -> Result<()> {
+        if self.holding(want).is_some() {
+            return Ok(());
+        }
+        let w = self.free_slot(current, upcoming);
+        self.wait(w).await?;
+        self.begin(store, w, want)
     }
 
     fn holding(&self, span: FrameSpan) -> Option<usize> {
@@ -721,11 +737,14 @@ mod tests {
 
     /// Slots are a constructor argument, so the depth a tile session runs at is a number the
     /// campaign can sweep rather than a constant. `docs/disk-access/adr.md` §1.
+    /// Forced misses: on a hit the reader would start only the current frame.
     #[test]
     fn a_tile_reader_holds_as_many_frames_as_it_was_given_slots() {
         let dir = scratch("slots");
         let path = write_bundle(&dir, 9, LEN);
-        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
         let rt = rt();
         for slots in [2usize, 8] {
             let mut tile = TileReader::new(ReadMode::Pool, &store, slots);
@@ -746,6 +765,54 @@ mod tests {
                 "held more frames than it has slots"
             );
         }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **A hit send is not queued behind upcoming probes.** Naming three neighbours of a
+    /// resident frame must not copy them before the current one is ready to write.
+    /// Mutant: start upcoming unconditionally — `holds(1)` becomes true.
+    #[test]
+    fn a_hit_does_not_probe_upcoming_tiles_before_the_current_send() {
+        let dir = scratch("hithol");
+        let path = write_bundle(&dir, TILE_SLOTS as u32, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        if !store.nowait_supported() {
+            eprintln!("skipped: this filesystem refuses RWF_NOWAIT, so every read reports a miss");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        let rt = rt();
+        let all = spans(&store, &(0..TILE_SLOTS as u32).collect::<Vec<_>>());
+        let (span, upcoming) = all.split_first().expect("one frame at least");
+        {
+            let mut warm = TileReader::new(ReadMode::Auto, &store, 1);
+            for held in &all {
+                rt.block_on(warm.read(&store, *held, &[])).expect("warm");
+            }
+        }
+
+        let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
+        let out = rt
+            .block_on(tile.read(&store, *span, upcoming))
+            .expect("read");
+        assert_eq!(
+            out,
+            frame_pattern(0, LEN),
+            "the served frame came back wrong"
+        );
+        assert!(tile.holds(*span), "the hit is not held");
+        for later in upcoming {
+            assert!(
+                !tile.holds(*later),
+                "upcoming {} was probed in front of a hit send",
+                later.offset
+            );
+        }
+        assert_eq!(
+            (tile.stats().peak_named, tile.stats().peak_in_flight),
+            (1, 0),
+            "a hit started upcoming or went to the pool"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

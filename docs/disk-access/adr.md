@@ -32,8 +32,10 @@ ask does not. That difference picks the escalation.
    pooled read per frame. Same guarantee, one hop per ask. A fill is already on this path.
 
 **And the read path is told what is coming.** On-demand names up to `slots − 1` upcoming
-frames; a fill names one. The tile read-ahead probes `RWF_NOWAIT` first and submits only the
-shortfall. `RequestFrame` and `RequestFrames` are the same thing to the loop: one
+frames; a fill names one. Upcoming tile reads start only when the current frame missed:
+a hit send is not queued behind `slots − 1` whole-frame probes (the copies the ADR already
+priced at 4 ms `gap_max` for one 250 kB nowait). Unmeasured on a shaped link. The tile
+read-ahead probes `RWF_NOWAIT` first and submits only the shortfall. `RequestFrame` and `RequestFrames` are the same thing to the loop: one
 `Ask::Frame` per index, fed by an ask-reader task into a planner. `READ_WINDOW` (64 KiB)
 chunks the **write**, not the read — the reader returns a whole frame.
 
@@ -223,7 +225,7 @@ named test.
 * **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm tile would
   go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
 * **A fill never builds a ring.** `SeqReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
-* **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
+* **Tile depth is `slots`, default `TILE_SLOTS`, and only a miss uses it.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`, `a_hit_does_not_probe_upcoming_tiles_before_the_current_send`.
 
 ## 8 · Levers outside this decision
 
