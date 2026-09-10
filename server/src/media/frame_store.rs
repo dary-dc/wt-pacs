@@ -146,9 +146,8 @@ impl FrameStore {
     }
 
     /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test
-    /// can rely on — CLAUDE.md#measurement.
-    #[cfg(test)]
-    pub(crate) fn force_pool_reads(&mut self) {
+    /// can rely on — CLAUDE.md#measurement. The campaign uses this too (`--force-pool`).
+    pub fn force_pool_reads(&mut self) {
         self.nowait = false;
     }
 
