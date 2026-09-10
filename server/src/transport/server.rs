@@ -679,25 +679,16 @@ mod tests {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind sidecar");
         let port = listener.local_addr().expect("addr").port();
         let handle = std::thread::spawn(move || {
-            listener.set_nonblocking(true).expect("nonblocking");
-            let start = Instant::now();
-            while start.elapsed() < Duration::from_secs(30) {
-                match listener.accept() {
-                    Ok((mut s, _)) => {
-                        let mut req = [0u8; 256];
-                        let _ = s.read(&mut req);
-                        let head = format!(
-                            "HTTP/1.0 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                            body.len()
-                        );
-                        let _ = s.write_all(head.as_bytes());
-                        let _ = s.write_all(&body);
-                    }
-                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        std::thread::sleep(Duration::from_millis(1));
-                    }
-                    Err(_) => break,
-                }
+            for stream in listener.incoming() {
+                let Ok(mut s) = stream else { break };
+                let mut req = [0u8; 256];
+                let _ = s.read(&mut req);
+                let head = format!(
+                    "HTTP/1.0 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = s.write_all(head.as_bytes());
+                let _ = s.write_all(&body);
             }
         });
         (port, handle)

@@ -31,8 +31,7 @@ pub enum FodMsg {
         #[serde(default)]
         reason: String,
     },
-    /// Catalog: how many instances the study holds. Pushed once after accept.
-    /// `docs/WIRE.md`.
+    /// Catalog (`frames` only). Pushed once after accept. `docs/WIRE.md`.
     Study {
         frames: u32,
     },
