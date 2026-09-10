@@ -1029,3 +1029,39 @@ read-ahead window, so it reads 0.0–0.8 % misses at 2.6–2.8 µs — roughly 4
 cold ceiling. The tie is real for the read-ahead-served path; it is not 1 GiB of I/O.
 
 TSVs at `read-path-evidence-2026-09-10` (`w1_server_ab.tsv`, `w1_read_path_ab.tsv`, `w1_host.txt`).
+
+## Why the 2026-09-10 real-computer pass did not move wall · and what this tip changes
+
+`claude/serene-rubin-wakfg7` (PR #27) measured LTO and a fill `WILLNEED` on an 8-core
+workstation with an 87 × 41 KB study wholly in page cache (`miss_rate=0.0` in 240 runs).
+LTO moved server CPU/frame −4 to −8 % on a saturate harness and did **not** separate
+session wall under a native driver; the browser fill cell was **+7.5 % slower** (the
+advise on a warm study). `aws-lc-rs` was a tie or a loss. Chromium advertises 1 472 B
+UDP payloads, so the ADR's 1472 → 4000 B lever is closed for browser clients. App code
+was already < 0.3 % of instructions. **Do not retry LTO, a crypto-provider swap, a
+browser MTU raise, or warm-path `posix_fadvise` as a latency fix.**
+
+That pass also compared a reference mmap server on a 61 MB cold study: wall 225–284 MB/s
+across three arms, one arm's own range wider than every median gap. The send path was
+the ceiling; eviction never stalled the reader on that NVMe. A single-session warm cell
+cannot price a neighbor stall.
+
+What this tip changes, and what is not claimed:
+
+* **A tile hit does not start upcoming probes** — those were `slots − 1` whole-frame
+  copies in front of the first write. Pin:
+  `a_hit_does_not_probe_upcoming_tiles_before_the_current_send`. Unmeasured on a
+  shaped link.
+* **A fill starts the next frame off this task** — a warm next-frame `preadv2` no
+  longer sits in front of `write_all`. Pin:
+  `a_fill_does_not_probe_the_next_frame_before_returning_this_one`. Session wall on a
+  real workstation is **unmeasured**.
+* **The hit probe is `READ_WINDOW` with `yield_now` between windows.** The ADR already
+  priced whole-frame nowait at 4.0 ms warm `gap_max` and rejected it; the product had
+  grown that copy back when the miss was changed to "rest of the frame." The miss still
+  escalates the rest of the frame in one hop (windowing *that* was the 2–3 RT penalty).
+  Pin: `a_wide_hit_probe_yields_between_windows`. Neighbor `gap_max` after the yield is
+  **unmeasured on a workstation**.
+
+PR #28's sliding 4 MiB `WILLNEED` + pool-miss overlap is a different change: it moved
+p50 on force-pool / 250 kB cold and made 16 KiB cold wall **worse**. Not taken here.

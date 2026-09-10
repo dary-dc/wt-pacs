@@ -4,9 +4,11 @@ Order set with the owners: **latency first; simplicity; thousands of sessions at
 more; studies far larger than RAM; cloud, possibly Docker.**
 
 Nothing here blocks the code that ships. Items already built (the two readers, `TILE_SLOTS`,
-miss reporting, fill, named/in_flight on the session line) are not listed. Closed on
-2026-09-10 by the split: the probe is the whole frame, look-ahead *is* depth 2, tile depth
-is a constructor argument, and a fill does not build a ring.
+miss reporting, fill, named/in_flight on the session line, windowed hit probe with yield,
+fill-ahead off the send task) are not listed. Closed on 2026-09-10 by the split: look-ahead
+*is* depth 2, tile depth is a constructor argument, and a fill does not build a ring. The
+hit probe is `READ_WINDOW` with yield again — whole-frame nowait without yield stays the
+rejected 4 ms `gap_max` row. Neighbor `gap_max` after that yield is unmeasured here.
 
 | # | Item | Why it is still open |
 | --- | --- | --- |

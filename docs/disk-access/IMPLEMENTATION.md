@@ -49,7 +49,8 @@ INFO session reads hits=… misses=… miss_rate=… fill_hits=… fill_misses=�
 ```
 
 * A **read** is a frame. The reader returns the whole codestream; `READ_WINDOW` chunks
-  the write, not the read.
+  the write and the hit probe (yield between windows). A miss still reads the rest of
+  the frame in one hop.
 * `named` / `in_flight` are the peaks across both readers. A fill reports `named=2` and
   `in_flight=1`. A tile miss at client depth 1 / 2 / 4 reports `named` 1 / 2 / 4; a hit
   reports `named=1` (upcoming stay unprobed so the send is not behind those copies).
@@ -64,15 +65,16 @@ The planner’s `Mode` picks the reader. Each is built on the first frame of its
 a session pays for neither reader it does not use.
 
 **Fill — `SeqReader`.** Two buffers. `next` is the frame the planner will ask for
-after this one (`FILL_AHEAD = 1`), and its pooled read is running by the time `read`
-returns. `peak_in_flight` is 1: the current frame has already landed, and only the
-named one may still be with the pool. No ring, no extra fd.
+after this one (`FILL_AHEAD = 1`). Its read is *started* by the time `read` returns,
+on another task — the next frame's `RWF_NOWAIT` must not sit in front of this send.
+`peak_in_flight` is 1 on a miss (the named frame with the pool). A hit ahead is not
+a device read. No ring, no extra fd.
 
 ```
 read(span, next):
   settle whatever the last call started
   serve span from that, or start it now
-  start next on the spare buffer
+  start next on another task (spare buffer)
 ```
 
 **Tiles — `TileReader`.** `slots` frames (default `TILE_SLOTS = 4`); `slots` is a
@@ -138,6 +140,8 @@ misses.
 | An abandoned read-ahead is settled before reuse | `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused` |
 | Named tiles start before the current wait, on a miss | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
 | A hit does not probe upcoming before the send | `a_hit_does_not_probe_upcoming_tiles_before_the_current_send` |
+| A fill does not probe the next frame before returning this one | `a_fill_does_not_probe_the_next_frame_before_returning_this_one` |
+| A wide hit probe yields between windows | `a_wide_hit_probe_yields_between_windows` |
 | Slot count is a constructor argument | `a_tile_reader_holds_as_many_frames_as_it_was_given_slots` |
 | A hit never builds a ring | `lazy_ring_is_not_built_when_every_read_hits` |
 | No ring where `RWF_NOWAIT` is refused | `lazy_ring_is_never_built_without_nowait` |

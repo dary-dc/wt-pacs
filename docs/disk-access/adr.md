@@ -15,12 +15,15 @@ outside it, what is next.
 **Two readers, chosen by what the session is doing.** A fill knows the next frame; a tile
 ask does not. That difference picks the escalation.
 
-1. **A page-cache hit is served inline.** The whole frame is probed with
-   `preadv2(RWF_NOWAIT)` on the executor thread. It returns short instead of waiting on the
-   disk, so a cold frame can never park a worker, and a warm ask takes no thread hop at all.
+1. **A page-cache hit is served inline.** The frame is probed in `READ_WINDOW` chunks
+   with `preadv2(RWF_NOWAIT)` on the executor, yielding between windows. A short return
+   means wait on disk somewhere else, so a cold frame can never park a worker, and a
+   warm ask takes no thread hop. One uninterrupted 250 kB nowait was the rejected 4 ms
+   `gap_max` (table below); the miss still escalates the rest of the frame in one hop.
 2. **A fill (`SeqReader`) stays on the pool.** Two buffers, the next frame named
-   (`FILL_AHEAD = 1`), one `spawn_blocking` + `pread` for a miss. No ring, no extra fd.
-   `peak_in_flight` is 1. A sequential walk is read-ahead's best case (~one miss in sixty).
+   (`FILL_AHEAD = 1`) and started off this task, one `spawn_blocking` + `pread` for a
+   miss. No ring, no extra fd. `peak_in_flight` is 1 on a miss. A sequential walk is
+   read-ahead's best case (~one miss in sixty).
 3. **A tile miss goes to a ring built on that session's first miss.** `TileReader` holds
    `slots` frames (default `TILE_SLOTS = 4`; a constructor argument, so a campaign can sweep
    depth). io_uring through the `io-uring` crate: registered file, unregistered buffers, one
@@ -37,7 +40,7 @@ a hit send is not queued behind `slots − 1` whole-frame probes (the copies the
 priced at 4 ms `gap_max` for one 250 kB nowait). Unmeasured on a shaped link. The tile
 read-ahead probes `RWF_NOWAIT` first and submits only the shortfall. `RequestFrame` and `RequestFrames` are the same thing to the loop: one
 `Ask::Frame` per index, fed by an ask-reader task into a planner. `READ_WINDOW` (64 KiB)
-chunks the **write**, not the read — the reader returns a whole frame.
+chunks the write and the hit probe; a miss still returns a whole frame in one hop.
 
 What is *not* done: no memory mapping anywhere in `server/`; no whole-frame envelope; no
 `mincore` gate; no `SQPOLL`, no registered buffers, no cursor reads.
@@ -154,7 +157,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 
 | Candidate | Serves | Latency | Scale: threads · fds · CPU per miss | Simplicity · risk | Verdict |
 | --- | --- | --- | --- | --- | --- |
-| **`RWF_NOWAIT` inline for hits, 64 KiB windows** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
+| **`RWF_NOWAIT` inline for hits, 64 KiB windows, yield between** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit. Whole-frame nowait without yield was the rejected 4.0 ms `gap_max` row below; the shipped probe is windowed again. Neighbor `gap_max` after the yield is **unmeasured on a workstation** | no thread per hit; 0 fds | one `preadv2` per window; filesystem-conditional (§6) | **Accepted** |
 | **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
 | **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool arm **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring arm, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | the old `ReadCtx` minus the window cap and the mode machine | **Accepted** |
 | **`SeqReader` — probe, pool on the miss, one frame named** | S | ties every serious arm on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
