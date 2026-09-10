@@ -40,6 +40,10 @@ struct Args {
     /// QUIC idle timeout in milliseconds. Default: library default, 30 000.
     #[arg(long)]
     max_idle_timeout_ms: Option<u64>,
+    /// RTT assumed before the first sample, in milliseconds. Times handshake loss recovery only.
+    /// Default: library default, 333.
+    #[arg(long)]
+    initial_rtt_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
@@ -103,6 +107,7 @@ async fn main() -> anyhow::Result<()> {
             stream_receive_window: args.stream_receive_window_bytes,
             send_window: args.send_window_bytes,
             max_idle_timeout_ms: args.max_idle_timeout_ms,
+            initial_rtt_ms: args.initial_rtt_ms,
             congestion: args.congestion,
             prefault: args.prefault,
         },
