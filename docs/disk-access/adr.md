@@ -239,7 +239,9 @@ whole plan.
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
 | GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
-| Congestion controller, flow-control windows, AEAD choice | unknown | — | **Not measured** — named so they are not mistaken for rejected |
+| Congestion controller, flow-control windows | unknown | — | **Not measured** — named so they are not mistaken for rejected |
+| AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | — | **Measured 2026-09-10, not taken** ([`improvements/2026-09-10.md`](../improvements/2026-09-10.md)) |
+| Release profile: `lto = "fat"`, `codegen-units = 1` | −4 to −8 % CPU per frame, every cell | 4× longer release rebuild | **Landed 2026-09-10** (same file) |
 
 **Where scale actually binds.** The copy into quinn is ~11 µs of a ~675 µs frame, and
 L2-resident; per-datagram QUIC work runs out of CPU long before the copy runs out of memory

@@ -108,7 +108,7 @@ and destroys GSO batching).
 | GSO cap 10 → 32 | +17.2 % / −20.9 % CPU/byte at 250 KB, n = 1; real-hardware re-run −1.0 % / +8.1 %, overlapping. Not applied |
 | Chunked send path | −6…−14 % CPU/byte at every rate. Only path in `server/` |
 | Per-frame prefault hop, warm cache | costs 10 % throughput, 14–34 % CPU/byte |
-| `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil |
+| `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil. `aws-lc-rs` re-measured 2026-09-10 on VAES / AVX-512 hardware: +3–5 % CPU at 32 KB, a tie at 250 KB, +10–18 % peak RSS — [`improvements/2026-09-10.md`](../improvements/2026-09-10.md) |
 
 **The GSO cap is not a server flag.** `MAX_TRANSMIT_SEGMENTS` is a compile-time constant
 in quinn. The lab numbers were taken against a patched crate *outside this tree*. Never
