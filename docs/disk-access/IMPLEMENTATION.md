@@ -72,17 +72,20 @@ read(span, next):
   settle whatever the last call started
   serve span from that, or start it now
   start next on the spare buffer
+  on a miss: readahead one frame past next
 ```
 
 **Tiles — `TileReader`.** `slots` frames (default `TILE_SLOTS = 4`); `slots` is a
 constructor argument so a campaign can sweep depth. Current first, then upcoming that
-fit, then wait — the measured order. The probe is the whole frame. A shortfall goes to
-the ring on the first miss, or to the pool where the ring is refused.
+already have a free slot, then wait for current. An upcoming frame whose only slot is
+still in flight is not awaited — `readahead` covers it. The probe is the whole frame.
+A shortfall goes to the ring on the first miss, or to the pool where the ring is refused.
 
 ```
 read(span, upcoming):
-  start span if not held
-  start upcoming that fit (at most slots − 1)
+  start span if not held (may wait for a buffer)
+  start upcoming only on a slot that is free now
+  readahead any named frame that did not get a slot
   wait span
 ```
 
@@ -133,6 +136,9 @@ misses.
 | A fill holds one read at a time | `a_fill_never_holds_more_than_one_read_at_once` |
 | An abandoned read-ahead is settled before reuse | `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused` |
 | Named tiles start before the current wait | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
+| A fill miss readaheads one frame past `next` | `a_fill_miss_readaheads_one_frame_past_the_named_one` |
+| A warm fill issues no readahead | `a_warm_fill_issues_no_readahead` |
+| A tile jump does not wait for stale prefetch | `a_tile_jump_does_not_wait_for_stale_prefetch` |
 | Slot count is a constructor argument | `a_tile_reader_holds_as_many_frames_as_it_was_given_slots` |
 | A hit never builds a ring | `lazy_ring_is_not_built_when_every_read_hits` |
 | No ring where `RWF_NOWAIT` is refused | `lazy_ring_is_never_built_without_nowait` |

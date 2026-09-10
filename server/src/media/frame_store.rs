@@ -9,6 +9,10 @@ use study_bundle::read_layout;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
+use std::sync::Mutex;
+#[cfg(test)]
+use std::time::Duration;
 
 /// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
 pub const READ_WINDOW: usize = 64 * 1024;
@@ -31,6 +35,10 @@ pub struct FrameStore {
     nowait_cap: Option<usize>,
     #[cfg(test)]
     pool_starts: AtomicUsize,
+    #[cfg(test)]
+    advised: Mutex<Vec<(u64, u64)>>,
+    #[cfg(test)]
+    pool_delay: Mutex<Vec<Duration>>,
 }
 
 impl FrameStore {
@@ -48,6 +56,10 @@ impl FrameStore {
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
+            #[cfg(test)]
+            advised: Mutex::new(Vec::new()),
+            #[cfg(test)]
+            pool_delay: Mutex::new(Vec::new()),
         })
     }
 
@@ -131,6 +143,23 @@ impl FrameStore {
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
     }
 
+    /// `readahead(2)`, not `POSIX_FADV_WILLNEED`. `docs/disk-access/adr.md`.
+    pub fn advise_readahead(&self, offset: u64, len: u64) {
+        #[cfg(test)]
+        self.advised.lock().expect("advise log").push((offset, len));
+        if len == 0 {
+            return;
+        }
+        // SAFETY: `readahead` reads no user memory; a bad range is an errno, not UB.
+        let _ = unsafe {
+            libc::readahead(
+                self.file.as_raw_fd(),
+                offset as libc::off64_t,
+                len as libc::size_t,
+            )
+        };
+    }
+
     /// Force a partial hit: real bytes at the front, a shortfall behind them.
     #[cfg(test)]
     pub(crate) fn force_short_reads(&mut self, cap: usize) {
@@ -145,8 +174,8 @@ impl FrameStore {
     }
 
     #[cfg(test)]
-    pub(crate) fn account_pool_start(&self) {
-        self.pool_starts.fetch_add(1, Ordering::SeqCst);
+    pub(crate) fn account_pool_start(&self) -> usize {
+        self.pool_starts.fetch_add(1, Ordering::SeqCst)
     }
 
     #[cfg(test)]
@@ -157,6 +186,34 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn reset_pool_starts(&self) {
         self.pool_starts.store(0, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_advised(&self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut *self.advised.lock().expect("advise log"))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn delay_pool_start(&self, i: usize, delay: Duration) {
+        let mut delays = self.pool_delay.lock().expect("pool delay");
+        if delays.len() <= i {
+            delays.resize(i + 1, Duration::ZERO);
+        }
+        delays[i] = delay;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn wait_pool_start(&self, start: usize) {
+        let delay = self
+            .pool_delay
+            .lock()
+            .expect("pool delay")
+            .get(start)
+            .copied()
+            .unwrap_or(Duration::ZERO);
+        if !delay.is_zero() {
+            std::thread::sleep(delay);
+        }
     }
 }
 

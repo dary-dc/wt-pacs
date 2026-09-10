@@ -1029,3 +1029,32 @@ read-ahead window, so it reads 0.0–0.8 % misses at 2.6–2.8 µs — roughly 4
 cold ceiling. The tie is real for the read-ahead-served path; it is not 1 GiB of I/O.
 
 TSVs at `read-path-evidence-2026-09-10` (`w1_server_ab.tsv`, `w1_read_path_ab.tsv`, `w1_host.txt`).
+
+## Fill `readahead` and tile demand-before-stale · 2026-09-10
+
+Not a campaign cell. Invocation is pinned by tests; a miss-rate or p50 delta is **not
+claimed**. Page-cache eviction is not a lever (`CLAUDE.md`).
+
+**Why this and not `claude/serene-rubin-wakfg7`.** That branch shipped `lto = fat` (CPU,
+not I/O) and a sliding 4 MiB `POSIX_FADV_WILLNEED` on every fill walk. Their own later
+notes: a fully evicted study on NVMe still logged `fill_misses=0` because look-ahead beat
+the device, 99 %+ of `serve_us` was send, and the browser round found fill **+7.5 %**
+(18/25) on a resident study — the hint syscall on the warm path. PR #28 (`fill-overlap`)
+kept the 4 MiB window and added pool-miss overlap; 16 KiB cold wall was worse. This change
+does neither.
+
+**Fill.** Stock deploy `read_ahead_kb` is 128 ([`DEPLOYMENT.md`](DEPLOYMENT.md)). A 250 kB
+frame is larger than that window, so a positional fill with one read in flight misses the
+second half of the next frame — the 59–66 % miss train in the serene-rubin fill notes, at
+the same 128 KiB setting. On a miss, `readahead(2)` covers one frame past the named `next`.
+Hits issue no syscall. `peak_in_flight` stays 1. Unmeasured here: whether that collapses
+the miss train on a 128 KiB host. Inert on a 4–8 MiB readahead host by construction.
+
+**Tiles.** `read` used to `wait` an evictable slot before starting each upcoming frame, so
+a viewport jump could sit on leftover prefetch I/O before returning the new current frame.
+Upcoming now start only on a slot whose `read` is already `None`; a still-in-flight stale
+slot is skipped and `readahead`'d. The first-ask path is unchanged (every slot is free).
+The wait is a store-gate test, not a dropped cache.
+
+Do not quote a latency number from this section. The workstation cells above are a
+different change (serving depth 4). This host's saturation point is unchanged.

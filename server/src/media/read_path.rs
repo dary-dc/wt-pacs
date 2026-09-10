@@ -77,12 +77,14 @@ fn start_pooled(store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>) -> R
         return Ok(Ahead::Ready { span, buf });
     }
     #[cfg(test)]
-    store.account_pool_start();
+    let start = store.account_pool_start();
     let store = Arc::clone(store);
     let at = span.offset + hit as u64;
     Ok(Ahead::InFlight {
         span,
         join: tokio::task::spawn_blocking(move || {
+            #[cfg(test)]
+            store.wait_pool_start(start);
             store.read_at_blocking(&mut buf[hit..len], at)?;
             Ok(buf)
         }),
@@ -135,27 +137,32 @@ impl SeqReader {
         next: Option<FrameSpan>,
     ) -> Result<&[u8]> {
         let (held, spare) = self.settle().await?;
-        let spare = match held {
-            Some((s, missed)) if s == span => {
-                self.count(missed);
-                mem::replace(&mut self.cur, spare)
+        let (spare, missed) = match held {
+            Some((s, was_miss)) if s == span => {
+                self.count(was_miss);
+                (mem::replace(&mut self.cur, spare), was_miss)
             }
             _ => {
                 let buf = mem::take(&mut self.cur);
-                let (buf, missed) = match start_pooled(store, span, buf)? {
+                let (buf, was_miss) = match start_pooled(store, span, buf)? {
                     Ahead::Ready { buf, .. } => (buf, false),
                     Ahead::InFlight { join, .. } => (join.await.context("join frame read")??, true),
                     Ahead::Idle(buf) => (buf, false),
                 };
-                self.count(missed);
+                self.count(was_miss);
                 self.cur = buf;
-                spare
+                (spare, was_miss)
             }
         };
         self.ahead = match next {
             Some(next) => start_pooled(store, next, spare)?,
             None => Ahead::Idle(spare),
         };
+        if missed || matches!(self.ahead, Ahead::InFlight { .. }) {
+            if let Some(n) = next {
+                store.advise_readahead(n.offset + u64::from(n.len), u64::from(n.len));
+            }
+        }
         self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
         self.stats.peak_in_flight = self
             .stats
@@ -251,6 +258,8 @@ pub struct TileReader {
     slots: Vec<Slot>,
     last: usize,
     stats: ReadStats,
+    #[cfg(test)]
+    inflight_waits: usize,
 }
 
 impl TileReader {
@@ -281,11 +290,13 @@ impl TileReader {
                 .collect(),
             last: 0,
             stats: ReadStats::default(),
+            #[cfg(test)]
+            inflight_waits: 0,
         }
     }
 
-    /// The whole of `span`; reads of `upcoming` that fit are started underneath. Current
-    /// first, then upcoming, then wait — the measured order.
+    /// Current first. Upcoming only on a slot that is free now; else `readahead`.
+    /// `docs/disk-access/adr.md`.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
@@ -296,10 +307,17 @@ impl TileReader {
         self.stats.peak_named = self.stats.peak_named.max(named as u16);
         for i in 0..named {
             let want = if i == 0 { span } else { upcoming[i - 1] };
-            if self.holding(want).is_none() {
+            if self.holding(want).is_some() {
+                continue;
+            }
+            if i == 0 {
                 let w = self.free_slot(span, upcoming);
                 self.wait(w).await?;
                 self.begin(store, w, want)?;
+            } else if let Some(w) = self.ready_slot(span, upcoming) {
+                self.begin(store, w, want)?;
+            } else {
+                store.advise_readahead(want.offset, u64::from(want.len));
             }
         }
         let started = self.slots.iter().filter(|s| s.read.is_some()).count() as u16;
@@ -319,13 +337,27 @@ impl TileReader {
         self.slots.iter().position(|s| s.key == Some(span))
     }
 
-    fn free_slot(&self, span: FrameSpan, upcoming: &[FrameSpan]) -> usize {
+    fn evictable(slot: &Slot, span: FrameSpan, upcoming: &[FrameSpan], reach: usize) -> bool {
+        match slot.key {
+            None => true,
+            Some(k) => k != span && !upcoming.iter().take(reach).any(|&u| u == k),
+        }
+    }
+
+    fn ready_slot(&self, span: FrameSpan, upcoming: &[FrameSpan]) -> Option<usize> {
         let reach = self.slots.len() - 1;
         self.slots
             .iter()
-            .position(|s| match s.key {
-                None => true,
-                Some(k) => k != span && !upcoming.iter().take(reach).any(|&u| u == k),
+            .position(|s| s.read.is_none() && Self::evictable(s, span, upcoming, reach))
+    }
+
+    fn free_slot(&self, span: FrameSpan, upcoming: &[FrameSpan]) -> usize {
+        let reach = self.slots.len() - 1;
+        self.ready_slot(span, upcoming)
+            .or_else(|| {
+                self.slots
+                    .iter()
+                    .position(|s| Self::evictable(s, span, upcoming, reach))
             })
             .expect("at most one slot per named frame")
     }
@@ -374,18 +406,24 @@ impl TileReader {
             }
         }
         #[cfg(test)]
-        store.account_pool_start();
+        let start = store.account_pool_start();
         let store = Arc::clone(store);
         let slot = &mut self.slots[w];
         let (from, len, at) = (slot.filled, slot.len, slot.at);
         let mut buf = mem::take(&mut slot.buf);
         Ok(InFlight::Pool(tokio::task::spawn_blocking(move || {
+            #[cfg(test)]
+            store.wait_pool_start(start);
             store.read_at_blocking(&mut buf[from..len], at + from as u64)?;
             Ok(buf)
         })))
     }
 
     async fn wait(&mut self, w: usize) -> Result<()> {
+        #[cfg(test)]
+        if self.slots[w].read.is_some() {
+            self.inflight_waits += 1;
+        }
         match self.slots[w].read.take() {
             None => Ok(()),
             Some(InFlight::Pool(join)) => {
@@ -455,6 +493,11 @@ impl TileReader {
     #[cfg(test)]
     pub(crate) fn serving_slot(&self) -> usize {
         self.last
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_inflight_waits(&mut self) -> usize {
+        std::mem::take(&mut self.inflight_waits)
     }
 }
 
@@ -715,6 +758,121 @@ mod tests {
             tile.serving_slot(),
             0,
             "the first slot serves the asked frame"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A miss asks the kernel for one frame past the named one, via `readahead`. Not
+    /// `POSIX_FADV_WILLNEED`, not 4 MiB — `docs/disk-access/adr.md`.
+    #[test]
+    fn a_fill_miss_readaheads_one_frame_past_the_named_one() {
+        let dir = scratch("fill-ra");
+        let path = write_bundle(&dir, 6, LEN);
+        let mut store = FrameStore::open(&path).expect("open");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let all = spans(&store, &[0, 1, 2, 3, 4, 5]);
+        let mut seq = SeqReader::new();
+        rt.block_on(seq.read(&store, all[0], Some(all[1])))
+            .expect("first");
+        let first = store.take_advised();
+        assert_eq!(
+            first,
+            vec![(
+                all[1].offset + u64::from(all[1].len),
+                u64::from(all[1].len)
+            )],
+            "the first miss did not readahead exactly one frame past the named one: {first:?}"
+        );
+        rt.block_on(seq.read(&store, all[1], Some(all[2])))
+            .expect("second");
+        assert_eq!(
+            store.take_advised(),
+            vec![(
+                all[2].offset + u64::from(all[2].len),
+                u64::from(all[2].len)
+            )],
+            "a continuing miss walk stopped advising"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Hits issue no hint. `claude/serene-rubin-wakfg7` taxed a resident fill with
+    /// always-on `WILLNEED` (+7.5 % serve_us in their browser round).
+    #[test]
+    fn a_warm_fill_issues_no_readahead() {
+        let dir = scratch("fill-warm-ra");
+        let path = write_bundle(&dir, 4, LEN);
+        let store = FrameStore::open(&path).expect("open");
+        if !store.nowait_supported() {
+            eprintln!("skipped: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        for i in 0..4u32 {
+            let span = store.frame_span(i).expect("span");
+            let mut buf = vec![0u8; span.len as usize];
+            store
+                .read_at_blocking(&mut buf, span.offset)
+                .expect("warm");
+        }
+        let store = Arc::new(store);
+        store.take_advised();
+        let rt = rt();
+        let mut seq = SeqReader::new();
+        for idx in 0..4u32 {
+            let span = store.frame_span(idx).expect("span");
+            let next = (idx + 1 < 4).then(|| store.frame_span(idx + 1).expect("next"));
+            rt.block_on(seq.read(&store, span, next)).expect("read");
+        }
+        assert_eq!(seq.stats().misses, 0, "precondition: the walk hit");
+        assert!(
+            store.take_advised().is_empty(),
+            "a hit walk issued readahead"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **Demand is not behind stale prefetch.** After a full-depth start, a jump
+    /// returns without awaiting leftover in-flight slots. The store gate parks those
+    /// leftovers — eviction is not a lever. `docs/disk-access/adr.md`.
+    #[test]
+    fn a_tile_jump_does_not_wait_for_stale_prefetch() {
+        let dir = scratch("tile-jump");
+        let n = (TILE_SLOTS * 2) as u32;
+        let path = write_bundle(&dir, n, LEN);
+        let mut store = FrameStore::open(&path).expect("open");
+        store.force_pool_reads();
+        let stale = std::time::Duration::from_secs(2);
+        store.delay_pool_start(1, stale);
+        store.delay_pool_start(2, stale);
+        store.delay_pool_start(3, stale);
+        let store = Arc::new(store);
+        let rt = rt();
+        let all = spans(&store, &(0..n).collect::<Vec<_>>());
+        let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
+        rt.block_on(tile.read(&store, all[0], &all[1..TILE_SLOTS]))
+            .expect("first");
+        assert_eq!(
+            tile.take_inflight_waits(),
+            1,
+            "the first ask should wait only for its own miss"
+        );
+        rt.block_on(tile.read(&store, all[TILE_SLOTS], &all[TILE_SLOTS + 1..]))
+            .expect("jump");
+        assert_eq!(
+            tile.take_inflight_waits(),
+            1,
+            "the jumped frame waited for stale prefetch"
+        );
+        let advised = store.take_advised();
+        let skipped = all[TILE_SLOTS + 1];
+        assert!(
+            advised
+                .iter()
+                .any(|&(off, len)| off == skipped.offset && len == u64::from(skipped.len)),
+            "skipped upcoming were not readahead: {advised:?}"
         );
         std::fs::remove_dir_all(&dir).ok();
     }

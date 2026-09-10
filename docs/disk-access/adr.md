@@ -21,12 +21,18 @@ ask does not. That difference picks the escalation.
 2. **A fill (`SeqReader`) stays on the pool.** Two buffers, the next frame named
    (`FILL_AHEAD = 1`), one `spawn_blocking` + `pread` for a miss. No ring, no extra fd.
    `peak_in_flight` is 1. A sequential walk is read-ahead's best case (~one miss in sixty).
+   On a miss it also issues `readahead(2)` for **one frame past the named one**. Hits issue
+   no hint. Not `POSIX_FADV_WILLNEED`, not a 4 MiB window — those were tried on
+   `claude/serene-rubin-wakfg7` and did not move end-to-end latency on a real machine
+   (resident fill +7.5 %; NVMe already hitting).
 3. **A tile miss goes to a ring built on that session's first miss.** `TileReader` holds
    `slots` frames (default `TILE_SLOTS = 4`; a constructor argument, so a campaign can sweep
    depth). io_uring through the `io-uring` crate: registered file, unregistered buffers, one
    slot per named frame, completions awaited through tokio's `AsyncFd`. The ring reads **the
    rest of the frame** in one round trip. A tile session whose reads all hit never builds a
-   ring. A fill session never builds one at all.
+   ring. A fill session never builds one at all. Upcoming starts only on a slot that is
+   already free; a leftover in-flight slot is not awaited on the demand path — `readahead`
+   covers that frame instead.
 4. **The fallback is `spawn_blocking` + `pread`.** Where the filesystem refuses
    `RWF_NOWAIT` (overlayfs, tmpfs) or the kernel refuses a ring (limits), tiles take one
    pooled read per frame. Same guarantee, one hop per ask. A fill is already on this path.
@@ -163,7 +169,8 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | Ring pipelining (read *n+1* during write *n*) | T | ~6 % on a 100 %-miss trace, −25 % warm | 2× session memory | — | Rejected |
 | `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural: `COOP_TASKRUN` is refused alongside it |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
-| Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
+| Ahead-N `POSIX_FADV_WILLNEED` | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed — not this change |
+| Miss-only `readahead(2)` one frame past a fill `next`; tile `readahead` of upcoming that have no free slot | B | **Unmeasured on a host in this window.** Targets the stock `read_ahead_kb` 128 vs 250 kB frame miss train (59–66 % in the serene-rubin fill notes) without their warm-path syscall, and removes a demand-path wait behind stale tile prefetch | one non-blocking syscall on a miss / skipped slot | no window, no `WILLNEED`, `peak_in_flight` still 1 on a fill | **Accepted** — invocation pinned; miss-rate delta is not claimed |
 | Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 |
 | One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
 | Whole-frame `RWF_NOWAIT`, one read | B | best miss throughput of any arm | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected |
