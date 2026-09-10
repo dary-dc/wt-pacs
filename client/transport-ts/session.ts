@@ -11,7 +11,6 @@ import {
   unwrapEnvelope,
   type FodMsg,
 } from "./wire.ts";
-import { readLengthPrefixedByob } from "./read-media.ts";
 
 const FRAME_TIMEOUT_MS = 15_000;
 
@@ -127,30 +126,6 @@ export class TransportSession {
 
   /** Read length-prefixed envelopes until the uni stream ends. */
   private async pumpFramedStream(stream: ReadableStream<Uint8Array>) {
-    let byob: ReadableStreamBYOBReader | undefined;
-    try {
-      byob = stream.getReader({ mode: "byob" });
-    } catch {
-      byob = undefined;
-    }
-    if (byob) {
-      try {
-        for (;;) {
-          const envelope = await readLengthPrefixedByob(byob);
-          if (!envelope) break;
-          const receivedMs = performance.now();
-          try {
-            const { index, codestream } = unwrapEnvelope(envelope);
-            this.completeWaiter(index, codestream, receivedMs);
-          } catch {
-            /* ignore bad envelope */
-          }
-        }
-      } catch {
-        /* stream ended */
-      }
-      return;
-    }
     const reader = stream.getReader();
     const buf = new ByteAccumulator();
     try {

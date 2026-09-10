@@ -135,5 +135,5 @@ path is **closed** by `claude/serene-rubin-wakfg7` on a real workstation; not re
 
 | # | Kind | What | Proof |
 | - | - | - | - |
-| S1 | product | shared uni starts at session accept; first `send_frame` waits; ask + first read do not | `shared_uni_arrives_before_the_client_opens_control` (mutated: serial `accept_bi` first → 5 s timeout) |
-| C8 | product, TS | media uni uses BYOB so the envelope is the stream buffer | `read-media.test.ts` (mutated: short view → `length 63`) |
+| S1 | product | shared uni starts at session accept; first `send_frame` waits; ask + first read do not | `shared_uni_arrives_before_the_client_opens_control` (mutated: serial `accept_bi` first → 5 s timeout). Native `--ask-first` 1-ask p50 −12.5 % (13/16); p10 and wall **tie**. |
+| C8 | measured, not kept | TS BYOB media pump | Chromium fill 80 × 250 KB wall paired median **0 %** (3/4/3); transfer-bound. Reverted. |

@@ -10,7 +10,7 @@ This folder is the front door. The dated files are evidence, not the queue.
 | File | What it is |
 | ---- | ---------- |
 | **this page** | ranked open work, then what already landed on the branch |
-| [`2026-09-10.md`](2026-09-10.md) | third pass: first-byte uni wait + TS BYOB; CPU/LTO/MTU/`fadvise` **not repeated** |
+| [`2026-09-10.md`](2026-09-10.md) | third pass: shared uni starts at accept; BYOB fill wall a **tie** (not kept); CPU/LTO/MTU/`fadvise` **not repeated** |
 | [`2026-09-08.md`](2026-09-08.md) | second pass: every open item below, reproduced or measured, **no product code** |
 | [`2026-09-06.md`](2026-09-06.md) | first pass: the commits already on the branch, plus withdrawn / null / parked |
 | [`ledger.md`](ledger.md) | one inventory of both passes |
