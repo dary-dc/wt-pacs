@@ -1,71 +1,13 @@
-# Investigation report
+# Investigation report — pocket (candidates only)
 
-**Status:** first draft for iteration · **2026-09-10** · docs only
-
-A map of what wt-pacs investigated, grouped by **campaign** (a collection of PRs that asked
-one product question), not by experiment. Numbers here are the **latest** each campaign still
-stands on. Earlier grids that used the wrong metric, the wrong reader, a closed-loop harness,
-or a dead cell are named so they are not re-quoted.
-
-**Pocket (candidate tables only):** [`investigations-pocket.md`](investigations-pocket.md).
-
-The ADRs remain the decision records. This file does not reopen them.
-
-## How to read it
-
-- Two tables per campaign: **measured candidates** (metric + latest result) and **analysed
-  without a metric** (why discarded before, or instead of, a bake-off).
-- **Tie** is a real answer under that campaign's rule, not a missing result. Disk-access
-  quotes a difference only if the median beats 28.5 % **and** signs agree on ≥ 80 % of cells.
-- Quote **latency or throughput, not both** — one is the other divided by depth.
-- Say where the host saturates and claim nothing past it.
-- Open PRs are in [In flight](#in-flight), not in the campaign bodies.
-
-## Index
-
-| Campaign | PRs | Question | Latest face |
-| --- | --- | --- | --- |
-| [Disk access](#1--disk-access--how-the-server-reads-frame-bytes) | [#4](https://github.com/dary-dc/wt-pacs/pull/4) (overturned), [#11](https://github.com/dary-dc/wt-pacs/pull/11), [#22](https://github.com/dary-dc/wt-pacs/pull/22) | How to bring SBND bytes off disk without freezing the executor | [`docs/disk-access/`](disk-access/) · evidence tags `read-path-evidence-2026-09-09` / `-10` |
-| [Transport](#2--transport--stream-shape-congestion-send-path) | [#5](https://github.com/dary-dc/wt-pacs/pull/5) (carrier); absorbed [#12](https://github.com/dary-dc/wt-pacs/pull/12), [#17](https://github.com/dary-dc/wt-pacs/pull/17), [#20](https://github.com/dary-dc/wt-pacs/pull/20), [#23](https://github.com/dary-dc/wt-pacs/pull/23), [#24](https://github.com/dary-dc/wt-pacs/pull/24). Related closed: [#1](https://github.com/dary-dc/wt-pacs/pull/1), [#2](https://github.com/dary-dc/wt-pacs/pull/2), [#10](https://github.com/dary-dc/wt-pacs/pull/10) | Shared vs per-frame, Cubic vs BBR, send path, windows | [`docs/transport/transport-conclusions.md`](transport/transport-conclusions.md) · tag `archive/transport-lab-2026-09` |
-| [L2 ask policy](#3--l2-ask-policy) | Archive [#6](https://github.com/dary-dc/wt-pacs/pull/6), [#7](https://github.com/dary-dc/wt-pacs/pull/7), [#8](https://github.com/dary-dc/wt-pacs/pull/8); close-out [#9](https://github.com/dary-dc/wt-pacs/pull/9) (open, do not merge) | Bound in-flight asks? Adapt the bound live? | PR #9 `L2-ask-policy-CLOSED.md` |
-| [Telemetry](#4--telemetry) | [#3](https://github.com/dary-dc/wt-pacs/pull/3) | Instrument clients and server without touching the product path | [`docs/telemetry/`](telemetry/) |
-| [N6 client runtime](#5--n6-wasm-vs-typescript) | [#13](https://github.com/dary-dc/wt-pacs/pull/13) archived by [#25](https://github.com/dary-dc/wt-pacs/pull/25) | What the WASM/JS boundary costs on the receive path | [`docs/measurements/n6/ARCHIVE.md`](measurements/n6/ARCHIVE.md) · tag `archive/n6-wasm-vs-ts-2026-09` |
-| [Improvements lab](#6--improvements-lab) | [#14](https://github.com/dary-dc/wt-pacs/pull/14), [#21](https://github.com/dary-dc/wt-pacs/pull/21) | Work outside the two owned lanes | [`docs/improvements/`](improvements/) · tag `archive/improvements-lab-2026-09` |
-| [Product-policy ADRs](#7--product-policy-adrs) | On `main` with the extract (no numbered campaign PR) | Window depth, stride, cancel, ordering, framing, resolution rungs | `docs/adr-*.md` |
+Tables from [`investigations.md`](investigations.md). Latest results. Two tables per campaign:
+measured, then analysed without a metric.
 
 ---
 
-## 1 · Disk access — how the server reads frame bytes
+## 1 · Disk access
 
-**Shipped:** a page-cache hit is `preadv2(RWF_NOWAIT)` on the executor. A fill (`SeqReader`)
-names one frame ahead and stays on the blocking pool — no ring. A tile ask (`TileReader`)
-keeps `TILE_SLOTS` frames and builds a per-session io_uring on its first miss.
-
-PR #4 shipped mmap + always-touch (2026-08-31). That decision is **overturned**: its harness
-ran a current-thread runtime while the product is multi-thread, and `RWF_NOWAIT` was never in
-its table. PR #11 is the path that ships. PR #22 only reports planner reach (`named` /
-`in_flight`) and stacks `wanted`.
-
-### Metrics of interest
-
-| Metric | Use |
-| --- | --- |
-| p50 / p99 **per ask** (wall) | Latency. Never compared across arms whose `peak_in_flight` differs |
-| CPU per ask | The ring's remaining claim on a device-bound miss |
-| `gap_max` | Longest a co-tenant task waited — the column mmap is rejected on |
-| OS threads, fds, memlock | Scale at thousands of sessions |
-| Miss rate (forced, not page-cache eviction) | Regime label. An 80 MB study is not a miss fixture |
-| asks/s | Throughput. Do not quote it **and** latency for the same cell |
-
-Rule: a difference counts only if **\|median\| ≥ 28.5 %** (measured p90 drift) **and** sign
-agreement **≥ 0.8n**, and it keeps its sign across independent runs. Everything else is a
-**tie**.
-
-### Measured candidates — latest
-
-Latest arm sweep: 2026-09-10, agent container, direction and shape **not magnitude** (noise
-floor up to 24 %). Workstation magnitudes: 2026-09-09 / 2026-09-10, with the depth-was-session-count
-harness defect corrected. Full tables: [`disk-access/EVIDENCE.md`](disk-access/EVIDENCE.md).
+### Measured
 
 | Candidate | What it is | Latest result | Verdict |
 | --- | --- | --- | --- |
@@ -96,14 +38,7 @@ harness defect corrected. Full tables: [`disk-access/EVIDENCE.md`](disk-access/E
 | `max_udp_payload_size` 1472 → 4000 B | Transport lever, measured here | **−35 % CPU, +55 % throughput** — largest effect in this investigation. Peer must advertise the same ceiling; above 4000 B path discovery failed | Measured, not taken |
 | Serving depth 1 → 2 | Look-ahead **is** depth 2 | Cold 16 KiB: **+67.4 % asks/s, 12/12**; product look-ahead **+73.8 %, 12/12**; warm a tie. 2 collects 62 % of what 16 offers | **Accepted** (`FILL_AHEAD = 1`, `TILE_SLOTS` default 4) |
 
-Hosts stop separating arms at ~64 reads in flight (sandbox on CPU, workstation on the device
-~840 MB/s at 0.42 of 8 cores). Past that every arm ties by construction.
-
-### Analysed without a metric — discarded
-
-These were scored on the owners' constraints (Tokio multi-thread runtime, never block a
-worker, positional reads on one fd per study, shared page cache) and dropped **before** a
-campaign cell.
+### Without a metric
 
 | Candidate | Point of analysis | Why discarded |
 | --- | --- | --- |
@@ -116,53 +51,11 @@ campaign cell.
 | **A static read-path config toggle** | Compile-time or flag choice of arm | `hybrid_lazyring` already chooses per session at runtime; a static flag can only be wrong |
 | **Cursor (`lseek` + `read`) APIs** | One file position | Tiles read `(offset, len)` out of order. Needs one open file per session and cannot express reads in flight |
 
-### Do not quote
-
-| Retracted | What is true |
-| --- | --- |
-| "`uring` has the better p99 at depth 4" | 4-vCPU sandbox artefact; on the workstation misses tie at every depth |
-| "`uring` is 47–61 % worse on latency" | A one-reader p50; does not survive crossing depth with readers |
-| "`product` tracks `hybrid_lazyring` at 250 kB" | Retracted on the workstation; the 250 kB penalty was serial window probes, not the ring |
-| Depth-4/16 `product` vs `pool` rows first published 2026-09-09 | Harness modelled depth as **session count**, not reads in flight. Depth 1 stands |
-| "`v36`'s 250 KB cold cell shows no win for read-ahead" | It reached only 4.7 % misses — no regression, not no win |
-| "ring construction costs 82 µs" | That is 1 000 rings at once; one ring is 15.6 µs |
-
-### Still open
-
-P0 — ring vs pool on the **production** instance, volume class, and container image — is the
-one measurement that can delete the ring. Fill overlap (pool-miss interleave, 4 MiB
-`WILLNEED`) is an open follow-on: [PR #28](https://github.com/dary-dc/wt-pacs/pull/28).
-
 ---
 
-## 2 · Transport — stream shape, congestion, send path
+## 2 · Transport
 
-**Shipped:** `--stream-mode` defaults to `shared`; one **chunked** send path (`Bytes` view +
-`write_all_chunks`); `--prefault true`; **Cubic** default; windows at quinn defaults.
-`per-frame` stays a product flag.
-
-PR #5 is the carrier. #12 was the optimisation branch (closed, absorbed). #20 ported send
-paths onto `main`'s pipeline. #23/#24 slimmed the face; campaign TSVs live on
-`archive/transport-lab-2026-09`.
-
-### Metrics of interest
-
-| Metric | Use |
-| --- | --- |
-| **p95 time-to-displayable** (`nz_p95` / miss-only waits) | Decision. All-sample p95 mixed cache hits (0) with network waits — that is why L1 v1 is void |
-| Stranded bytes | Whether the reader can produce head-of-line blocking. **0.00 MB ⇒ the cell is inadmissible** for stream shape |
-| Queue-drop counters | Which loss **regime** the cell actually sat in (congestive vs radio). Reading a controller result as general, without this, flipped the answer three times |
-| CPU/byte, throughput | Density (GSO, chunked). Not latency. Never through the datagram-by-datagram simulator |
-| `RssAnon` / total RSS on stall | Memory of the send path. A client that asks 25 MB and stops reading |
-
-Target: browser on tablets and phones over 5G, satellite, and WiFi. T2, n = 3 except where a
-row says otherwise.
-
-### Measured candidates — latest
-
-Cite [`transport/transport-conclusions.md`](transport/transport-conclusions.md). Stream shape
-was re-measured in **R6** after review 4 found the closed-loop reader could not produce HOL
-(stranded bytes 0.00 MB). X3L on the Oracle rig was the deciding cell, pre-registered.
+### Measured
 
 | Candidate | What it is | Latest result | Verdict |
 | --- | --- | --- | --- |
@@ -178,17 +71,11 @@ was re-measured in **R6** after review 4 found the closed-loop reader could not 
 | `copy` | Full-frame copy into quinn | Stall 6 990 kB; the arithmetic 10 MB × 5 000 viewers was real **for this path** | Deleted from `server/` |
 | `split` | Split write | Stall 6 807 kB — same class as copy | Deleted |
 | Flow-control windows | Bound `send_window` for memory | On chunked + shared, stall costs **180 kB** (11 % more than a slow reader). Hygiene, not a lever | Left at quinn defaults |
-| Equalise `stream_receive_window` across S and P/Q | Lab symmetry | Peak queued ≈ `D × frame` (e.g. 224 KiB) sits well below 1.25 MB. H7 should not bind | **Do not equalise** — [`adr-quic-stream-receive-window-defaults.md`](transport/adr-quic-stream-receive-window-defaults.md) |
+| Equalise `stream_receive_window` across S and P/Q | Lab symmetry | Peak queued ≈ `D × frame` (e.g. 224 KiB) sits well below 1.25 MB. H7 should not bind | **Do not equalise** |
 | `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | Stack knobs | ≤ 3 % or nil on the transport rig | Not applied |
 | Prefault (`--prefault true`) | Fault pages off the executor | Per-frame prefault hop, warm cache: −10 % throughput, +14–34 % CPU/byte if done wrong. On as a named hop | Shipped |
 
-**Controller is two answers.** Every flip in this work happened because a campaign sat in one
-loss regime and the result was read as general. Diagnostic: RTT rising before loss →
-congestive → Cubic; loss with RTT flat → radio → BBR. Default Cubic: incumbent, safer error
-(63 % worse if wrong vs 48 % the other way), and BBRv1's queue-drop excess is inflicted on
-neighbours.
-
-### Analysed without a metric — discarded or not a transport change
+### Without a metric
 
 | Candidate | Point of analysis | Why discarded / deferred |
 | --- | --- | --- |
@@ -199,43 +86,11 @@ neighbours.
 | **Cache size / eviction** | 64-frame cap on a 500-frame series | +65 % offered load for +2.8 pp of misses. Client/cache, not transport |
 | **Equalising S vs P/Q windows to isolate “pure HOL”** | Lab-only symmetry | Answers a different question than “ship defaults.” Revisit only if a **lossless** S–Q gap appears that might be flow-control capacity |
 
-### Do not quote
-
-| Void / retracted | Why |
-| --- | --- |
-| Stream-mode decision report (2026-08-28) | Retracted 2026-08-29. `finish().await` inside the serial loop measured an ack wait, not per-frame streams. X3: unequal depths, failed lossless control, p95 over ~4 tail samples |
-| Campaign v2 (432 lossless saturate rows) | Confirmed priority fixes P's deficit. **No loss dimension**; `--mode saturate` produces **no p95**. Cannot evaluate its own decision rule |
-| Lane A / L1 v1 ([#2](https://github.com/dary-dc/wt-pacs/pull/2)) | Incomplete cell (timeout). v1 `p95_wait_ms` mixed cache-hit zeros with misses |
-| Any stream-shape result from `--reader-mode closed` | Stranded bytes 0.00 MB — HOL is structurally impossible |
-| `--rtt-ms` as a link (early campaigns) | Userspace stand-in, measured inert in shared mode; produced a flat 0.408 that was never a result |
-| GSO +17 % as a real-path latency win | Loopback, n = 1, fixture-dependent; real path overlapping. Zero effect on p95 even where density moved |
-| BBR 600 ms congestive **+63 %** as a precise magnitude | n = 2 for BBR (one VOID repeat). **Ordering survives** (Cubic's worst beats BBR's best); the percentage does not |
-
 ---
 
 ## 3 · L2 ask policy
 
-Two questions: does bounding in-flight asks help, and does adapting that bound live beat a
-fixed number? Product ask paths were **not** changed.
-
-PRs #6–#8 are compressed archives on `main` (rankings withdrawn). PR #9 is the close-out
-(2026-09-09): harness rework, FIFO simulator, local rerun with `dynfb`. **Do not merge #9 onto
-`main`.**
-
-### Metrics of interest
-
-| Metric | Use |
-| --- | --- |
-| **Median lateness** | Primary. On these short traces, p95 is mostly session start |
-| **Stranded bytes** | Work on the wire the reader no longer wants |
-| `D` trajectory | Whether dynamic actually moved, or was stuck at the clamp |
-
-v1 ranked `p95_wait_ms` after depth-gated asks (rewards late asks). That ranking is void.
-
-### Measured candidates — latest
-
-Latest admissible grid: local v4 rerun on PR #9 (`--rtt-ms 60`, LinkPacer 10 Mbps, 36/36
-integrity). **Emulator, not a shaped path. Not a product lock.**
+### Measured
 
 | Candidate | What it is | Latest result | Verdict |
 | --- | --- | --- | --- |
@@ -246,10 +101,7 @@ integrity). **Emulator, not a shaped path. Not a product lock.**
 | **dynfb** | Live `D` from ask→first-byte | Moved 4 → 3; **did not** ratchet to 16. Primaries matched `adr` | **Not shown to win or lose** |
 | **dynclean** | Hold-D control | Held 4–4 every run | Sanity pass |
 
-When the reader is faster than the link, policy cannot save lateness except by not putting
-unwanted frames first. Those cells rank the link, not the policy.
-
-### Analysed without a metric — discarded as a default
+### Without a metric
 
 | Candidate | Point of analysis | Why not a default |
 | --- | --- | --- |
@@ -257,37 +109,11 @@ unwanted frames first. Those cells rank the link, not the policy.
 | **Clean transport RTT in the browser** | Chromium 141 | The page has **no** transport RTT. No input is both clean and available in the regime where a cap would matter |
 | **“Lab implements fixed D” / “do not adapt”** | Design preference after the missing RTT | Not a bake-off result. The close-out supersedes the 2026-09-06 design note as a lock |
 
-### Do not quote
-
-| Void | Why |
-| --- | --- |
-| v1–v3 arm rankings ([#6](https://github.com/dary-dc/wt-pacs/pull/6), [#7](https://github.com/dary-dc/wt-pacs/pull/7)) | Wrong primary metric; unequal workloads (byte/ask counts differed by an order of magnitude); HOL-contaminated RTT; mislabelled RTT axis (netem egress-only). Review: [#8](https://github.com/dary-dc/wt-pacs/pull/8) |
-| Cloud v4, 182 rows | `cloud_netem.sh stats` **deleted the shaper**. Unshaped WAN bake-off labelled as netem 60 / 0.5 %. No loss conclusion |
-| Anything about 0.5 % loss | Never measured with the shaper still on |
-
-A shaped-path `window` vs `adr`, a loss ranking, and a browser cell are a **new** campaign,
-not a reopening of this close-out.
-
 ---
 
 ## 4 · Telemetry
 
-Lab-only frame-pipeline timing. Default product builds contain **no** telemetry code. Seams:
-client Proxy from outside `WebTransport` (A4); server wrapper pipeline (Decision C).
-
-### Metrics of interest
-
-| Metric | Use |
-| --- | --- |
-| Emit cost on the serving thread (ns / µs) | Must stay invisible at thousands of sessions |
-| Drain RSS and exit time | Bounded memory; a killed process still leaves rows |
-| Serving CPU / throughput, telemetry off vs on | Product path must not move |
-| `overhead_us` | Residual after `prepare + locate + send` |
-| Integrity (`null` ≠ 0, nearest-rank, pairing fields) | The report is usable offline |
-
-### Measured candidates — latest
-
-Scale review 2026-09-06: [`telemetry/analysis-scale-and-serving-path-2026-09-06.md`](telemetry/analysis-scale-and-serving-path-2026-09-06.md).
+### Measured
 
 | Candidate | What it is | Latest result | Verdict |
 | --- | --- | --- | --- |
@@ -300,7 +126,7 @@ Scale review 2026-09-06: [`telemetry/analysis-scale-and-serving-path-2026-09-06.
 | Client Proxy on `globalThis.WebTransport` | A4 | Both arms, one shell. Recorder own cost measured later (improvements P3): 25–30 µs main-thread/frame in the interactive cell | **Shipped** |
 | FoD length cap | `MAX_FOD_LEN` 4 MiB | Unbounded `read_fod_msg` could allocate 4 GB | **Shipped** |
 
-### Analysed without a metric — discarded
+### Without a metric
 
 | Candidate | Point of analysis | Why discarded |
 | --- | --- | --- |
@@ -309,31 +135,11 @@ Scale review 2026-09-06: [`telemetry/analysis-scale-and-serving-path-2026-09-06.
 | **Client surface compression (C5)** | Trim Proxy boilerplate | Does not improve measurements or the product boundary; can hide which method is tapped |
 | **Joining client and server reports** | One file | Two independent files on purpose. Schema unification deferred |
 
-Improvements D1 (second sequential session truncates `telemetry-server.rows`) is a **defect**
-found after this campaign; it does not void the numbers (every harvest started one server per
-cell).
-
 ---
 
 ## 5 · N6 WASM vs TypeScript
 
-One question: what does the WASM/JS boundary cost on the receive path? Same server, same
-wire, one harness shell. Lab and docs only. PR #13 is closed; #25 left a pointer on `main`.
-
-### Metrics of interest
-
-| Metric | Use |
-| --- | --- |
-| `deliver_us` (last byte → app holds the bytes) | Per-frame receive-path cost. **Stale** after improvements W1/W2 — do not use for a ship decision |
-| `ask_to_complete` | End-to-end; on a shaped link the boundary is 0.014–0.024 % of the wait |
-| First-load bytes / `connect_ms` | One-time |
-| Peak JS heap + WASM linear memory | Bulk footprint |
-| Frames delivered vs 15 s timeout | Robustness (same constant, different arming point) |
-
-### Measured candidates — latest
-
-Still citable from tag `archive/n6-wasm-vs-ts-2026-09` (findings that do **not** depend on
-W1/W2). `deliver_us` **+25 to +58 µs** was pre–W1/W2.
+### Measured
 
 | Candidate | What it is | Latest result | Verdict |
 | --- | --- | --- | --- |
@@ -341,9 +147,7 @@ W1/W2). `deliver_us` **+25 to +58 µs** was pre–W1/W2.
 | **`transport-wasm`** | Linear memory + copy out | Delivers **80/80** in that same cell (deadline armed at await). First load ~30× the bytes; bulk footprint 1.9–2.3× | Not a ship decision from this campaign |
 | Extra full-frame copy (pre-registered mechanism) | WASM moves each frame twice | Penalty **falls** as frames grow 32 KB → 250 KB (+57.5 → +34.2 µs). A byte-proportional cost cannot do that | **Mechanism not confirmed** — fixed per-frame boundary cost |
 
-A new N6 on today's clients (after W1/W2) is a **new** campaign.
-
-### Analysed without a metric
+### Without a metric
 
 | Candidate | Point of analysis | Why not this campaign |
 | --- | --- | --- |
@@ -354,27 +158,7 @@ A new N6 on today's clients (after W1/W2) is a **new** campaign.
 
 ## 6 · Improvements lab
 
-Work **outside** transport (L1) and disk access. PR #14 landed first-pass commits (one per
-item) plus evidence. PR #21 isolated the docs folder. Nothing here was a transport or
-read-path decision.
-
-### Metrics of interest
-
-| Metric | Use |
-| --- | --- |
-| Chromium sampling profile (200 µs), named WASM/JS terms | Proof is the named term going to **zero**, not localhost wall time |
-| Server `send_us` / CPU per frame, interleaved A/B | Build-profile and send-path claims |
-| RSS timeline | Ack-task leak |
-| Callgrind instruction share | Whether app code is a hotspot |
-| e2e refusals / frame0 | Correctness, not speed |
-| Binary / wasm size | P1 / P2 |
-
-Tier: T2-local (4-core VM, localhost, no shaping). Relative comparisons only.
-
-### Measured candidates — latest
-
-First pass (landed on the branch, take-or-drop): [`improvements/2026-09-06.md`](improvements/2026-09-06.md).
-Second pass (analysis only): [`improvements/2026-09-08.md`](improvements/2026-09-08.md).
+### Measured
 
 | Candidate | What it is | Latest result | Verdict |
 | --- | --- | --- | --- |
@@ -393,7 +177,7 @@ Second pass (analysis only): [`improvements/2026-09-08.md`](improvements/2026-09
 | **BYOB reader** | `getReader({ mode: "byob" })` | Probe: 80 × 250 KB in 610 vs 541 reads, 191 vs 200 ms. Saving bounded by `take` ≈ 8–10 % of client self time in a fill cell | Parked — rewrites both frame loops |
 | Defects D1–D5, D2/D3 waiters, D4 key leak | Correctness | Reproduced on the runner; not coded on the second pass | Open queue on [`improvements/README.md`](improvements/README.md) |
 
-### Analysed without a metric — not taken
+### Without a metric
 
 | Candidate | Point of analysis | Why not now |
 | --- | --- | --- |
@@ -407,21 +191,18 @@ Second pass (analysis only): [`improvements/2026-09-08.md`](improvements/2026-09
 
 ## 7 · Product-policy ADRs
 
-Landed on `main` as docs with the public extract, before the numbered campaign PRs. They are
-the client/server **policy** the later campaigns had to respect.
+### Measured / standing
 
-### Metrics of interest (where a sweep existed)
+| Candidate | What it is | Latest result | Verdict |
+| --- | --- | --- | --- |
+| **Client window depth C** | `D_min = ceil(U × (1 + RTT / Tf))` | Any depth past saturation buys no throughput and costs latency on every miss. `U = 0.95` is a starting policy. E4 ran in a **dead cell** and is void | **Accepted** |
+| **Stride** (skip during fast motion) | Bandwidth conservation | Settle is never strided. Alternative to skipping is showing a **stale** frame | **Accepted** (argument, not a bake-off) |
+| **FIFO ask order** | Server serves in ask order | Saving from reordering is bounded by `(D−1)·Tf`. Shared makes ordering less useful, not more | **Accepted** (reject server ordering) |
+| **`CancelFrames`** | Drop stale asks in a deque | Sweep: 0 of 100 points. **Not a strong null** (`D ≈ 1`, `frame_modulo: 3`). Rejection is analytic: bytes already in QUIC | **Rejected** |
+| Frame framing A/B/C | Shared uni vs per-frame `drop` vs `finish` on a `JoinSet` | Early “per-frame loses” was a misplaced `finish().await`. Settled later by transport R6 / X3L | Deferred here; shared is the transport default |
+| Resolution rungs for frames larger than the viewport | Fit, then tiles for zoom | Tiles are a crop; a rung is a downsample | **Accepted**, blocked on a codec outside this repo |
 
-| ADR | Metric | Latest standing |
-| --- | --- | --- |
-| [Reject cancel](adr-reject-server-cancel.md) | `recovered_ms` (settle → first byte) | Sweep: cancel beat FIFO at **0 of 100** points. **The 0-of-100 is not a strong null** (ran at `D ≈ 1`, trace `frame_modulo: 3`). Rejection now rests on the **analytic** argument in the ordering ADR: bytes are committed to the transport before cancel lands |
-| [Reject server ordering](adr-reject-server-ordering.md) | Bound `(D−1)·Tf` | FIFO preserves client ask order. Saving is bounded by ≈ RTT + one frame time, and only on a miss. Measurements were per-frame unis; shared makes ordering **less** useful, not more |
-| [Client window depth](adr-client-window-depth.md) | `D_min = ceil(U × (1 + RTT / Tf))` | **Accepted C**: any depth past saturation buys no throughput and costs latency on every miss. `U = 0.95` is a starting policy, not a measured result. E4 (does the formula pick the right `D`?) ran in a **dead cell** and is void |
-| [Stride](adr-stride-is-bandwidth-conservation.md) | — (argument) | Skip during fast motion; settle is never strided. Alternative to skipping is showing a **stale** frame. Not a bake-off |
-| [Frame framing](adr-frame-framing-and-loop-shape.md) | — | Early “per-frame loses on merit” comparison was a misplaced `finish().await`. Decision **deferred** at the time; later settled by transport R6 / X3L |
-| [Resolution fitting](adr-resolution-fitting-for-large-frames.md) | — | Deliver the rung that fits the viewport; tiles for zoom. **Blocked** on a codec dependency outside this repo |
-
-### Analysed without a metric
+### Without a metric
 
 | Candidate | Point of analysis | Why discarded |
 | --- | --- | --- |
@@ -432,35 +213,3 @@ the client/server **policy** the later campaigns had to respect.
 | **Deep window + server reorder** | Option D | Ordering rejected; see above |
 | **Drop a resolution rung instead of stride** | Stride option C | Reduced-resolution delivery does not reach the render path in the current integration target |
 | **Clinical gate on stride** | “Hiding slices” | Nothing skipped would have been displayed; repeated passes re-ask. Bandwidth, not fidelity |
-
-Window-saturation E1/E2/E4 and the copy-cost knee were **not closed** as campaigns: dead
-cells (reader slower than the link), `frame_modulo: 3`, and RTT≈0 collapsing `D` to 1. The
-precondition now on record: **reader demand must exceed link supply** or the cell is not a
-measurement.
-
----
-
-## In flight
-
-Not in the campaign bodies. Listed so a later revision can fold them in or drop them.
-
-| PR | What | Notes |
-| --- | --- | --- |
-| [#9](https://github.com/dary-dc/wt-pacs/pull/9) | L2 close-out + harness | Investigation **closed**. Do not merge onto `main` |
-| [#26](https://github.com/dary-dc/wt-pacs/pull/26) | Rebase leftover mmap work off `SeqReader`/`TileReader` | Not a new investigation |
-| [#27](https://github.com/dary-dc/wt-pacs/pull/27) | Land improvements P1 (fat LTO) | Same numbers as [§6](#6--improvements-lab) |
-| [#28](https://github.com/dary-dc/wt-pacs/pull/28) | Fill: overlap pool misses; 4 MiB `WILLNEED` on nowait | Latest claimed: vs settle-first, 16 KiB force-pool **−34.9 % p50, 12/12**; 250 kB cold **−41.3 %, 12/12**; warm **tie**. Naive overlap and one-frame WILLNEED **retracted**. 10 µs max **hit** on warm 16 KiB — not a `send_us` claim |
-
----
-
-## Pointers
-
-| Want | Where |
-| --- | --- |
-| Disk decision + every candidate in one table | [`disk-access/adr.md`](disk-access/adr.md) §1 and §5 |
-| Disk numbers (including retractions) | [`disk-access/EVIDENCE.md`](disk-access/EVIDENCE.md) |
-| Transport answer sheet | [`transport/transport-conclusions.md`](transport/transport-conclusions.md) |
-| Transport campaign TSVs / reviews | tag `archive/transport-lab-2026-09` |
-| L2 what holds vs what is void | PR #9 `docs/lanes/L2-ask-policy-CLOSED.md` |
-| N6 what is still citable | [`measurements/n6/ARCHIVE.md`](measurements/n6/ARCHIVE.md) |
-| Improvements open queue | [`improvements/README.md`](improvements/README.md) |
