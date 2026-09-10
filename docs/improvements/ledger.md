@@ -133,5 +133,6 @@ works on the runner).
 Evidence: [`2026-09-10.md`](2026-09-10.md). The brief was the CPU / copy / parse / encode
 hot path. **Abandoned without retry:** `claude/serene-rubin-wakfg7` already showed app code
 < 0.3 % of instructions, LTO moving CPU but not workstation e2e latency, and 99 %+ of
-`serve_us` in `send`. Pivot: the shared media uni no longer blocks the first ask or the
-first read. Measurement on this host is in that file.
+`serve_us` in `send`. Pivot (uni handshake no longer in front of the first ask) was
+built and interleaved: one-ask wall +5.6 % (6/12), per-ask p50 a coin flip. **Not
+taken.** The ask-before-uni wire test is the only product-adjacent line that stays.

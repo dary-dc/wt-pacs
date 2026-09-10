@@ -188,12 +188,12 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    // First send waits for the uni; the ask and the first read do not. docs/improvements/2026-09-10.md
-    let out = FrameOut::begin(mode, connection.clone());
     let (control_send, control_recv) = connection
         .accept_bi()
         .await
         .context("accept control bidi")?;
+
+    let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out).with_control(control_send);
 
     #[cfg(feature = "telemetry")]
