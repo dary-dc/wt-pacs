@@ -3,6 +3,10 @@
 
 # Rust / Python / Node
 /target/
+
+# Generated Quinn modules (crates.io 0.11.11 + patches/quinn-0.11.11-mtu-gso.patch).
+/patched/quinn/src/**
+!/patched/quinn/src/lib.rs
 .venv/
 node_modules/
 client/transport-ts/node_modules/
@@ -33,6 +37,8 @@ lab/fixtures/frames_250k_deep/*.sbnd
 lab/fixtures/frames_16k_deep/*.sbnd
 lab/fixtures/frames_16k_seq/*.sbnd
 lab/fixtures/frames_250k_big/*.sbnd
+lab/fixtures/frames_tiny/*.sbnd
+lab/fixtures/frames_32k_big/*.sbnd
 # Large lab fixture, regenerate with the snippet in its README
 lab/fixtures/frames_500x64k/*.sbnd
 lab/fixtures/frames_500x250k/*.sbnd

@@ -143,6 +143,239 @@ git checkout archive/transport-lab-2026-09 -- docs/transport lab/transport
 
 (Checking out `docs/transport` from the tag overwrites these lean face files.)
 
+### 8 · One endpoint per core, each on a single-threaded runtime
+
+**Before.** One QUIC endpoint on tokio's multi-thread runtime, a worker per core. A frame
+crosses five tasks — I/O driver, endpoint driver, connection driver, ask reader, serving loop,
+and the connection driver again to send — and tokio hands a woken task to whichever worker is
+idle. At depth 1 every hop was a cross-thread wake: **28 context switches per 250 KB frame**,
+and the server spent more CPU on a frame (790 µs) than the whole round trip took (630 µs).
+Three passes on the read path and the build had left `serve_us` at 15 µs of that round trip.
+
+**Forced by.** Holding everything but the worker count. 4 vCPU VM, warm page cache, the native
+driver (`server_ab`) pinned to CPUs 2–3, the server to CPUs 0–1, depth 1, p50 of 200–300 asks,
+three repeats each, ranges never overlapping:
+
+| frame | 2 workers | 1 worker | round trip | CPU / frame | ctx switches / frame |
+| ----- | --------: | -------: | ---------: | ----------: | -------------------: |
+| 100 B | 83–96 µs | 57–62 µs | **−35 %** | −55 % | 4.2 → 1.2 |
+| 32 KB | 152–155 | 115–121 | **−23 %** | −45 % | 5.3 → 1.6 |
+| 250 KB | 577–613 | 368–376 | **−37 %** | −50 % | 20 → 1.6 |
+
+One worker on four CPUs reads the same as one worker on two: the cost is the hand-offs, not
+the cores.
+
+**What shipped.** `--workers N`, default one per core: N OS threads, each a `current_thread`
+runtime owning its own endpoint on an `SO_REUSEPORT` socket. The kernel hashes a client's
+4-tuple to one socket, so a session's packets, connection driver, ask reader, serving loop and
+blocking-pool returns all stay on one thread, and every core still serves. `--workers 1` is
+one endpoint on an exclusive bind, as before. The blocking pool and the tile ring (`AsyncFd`)
+run unchanged on the per-thread runtime — the disk ADR's "a hop costs 40 µs on current-thread,
+103 µs here" was this all along.
+
+Interleaved A/B on the same VM, `main` against this branch, both servers up, arm order
+reversed every repeat, six repeats paired per repeat, client unpinned as a user runs it. p50
+is the driver's ask-to-envelope round trip; a fill's is the inter-arrival:
+
+| cell | p50, base → new | asks / s | CPU per ask | ctx / ask |
+| ---- | --------------- | -------: | ----------: | --------: |
+| 100 B, depth 1 | 93.5 → 58.1 µs (**−37 %**, 6/6) | +60 % (6/6) | −64 % (6/6) | 5.0 → 1.1 |
+| 32 KB, depth 1 | 138 → 107 µs (**−23 %**, 6/6) | +29 % (6/6) | −48 % (6/6) | 5.9 → 1.5 |
+| 250 KB, depth 1 | 629 → 408 µs (**−34 %**, 6/6) | +47 % (6/6) | −58 % (6/6) | 29 → 2.0 |
+| 250 KB, depth 4 | 2 194 → 1 352 µs (**−40 %**, 6/6) | +58 % (6/6) | −56 % (6/6) | 27 → 0.2 |
+| 250 KB fill | 527 → 314 µs per frame (**−40 %**, 6/6) | +54 % (6/6) | −53 % (6/6) | 24 → 0.3 |
+| 32 KB fill | 52 → 11 µs per frame (6/6); p99 374 → 503 (4/6 higher) | +12 % (5/6) | −39 % (6/6) | 3.8 → 0.2 |
+
+Where the box saturates — 16 and 32 sessions at depth 4, one client socket per session
+(`server_ab` opens one per session now; `--one-socket` is the old behaviour), six repeats
+paired. First the server pinned to two cores with the driver on the other two, then all four
+shared:
+
+| cell | asks / s | CPU per ask | p50 | p99 |
+| ---- | -------: | ----------: | --: | --: |
+| 250 KB, 16 sessions, server on 2 cores | −3.6 % (4/6 lower) — tie | −5 % (4/6) — tie | +20 % (6/6) | −5 % (4/6) |
+| 32 KB, 16 sessions, server on 2 cores | **+9 % (6/6)** | −22 % (6/6) | −19 % (6/6) | −2.5 % (4/6) |
+| 250 KB, 32 sessions, server on 2 cores | +8 % (4/6) | −13 % (6/6) | +3 % — tie | −53 % (4/6) |
+| 32 KB, 32 sessions, server on 2 cores | **+17 % (6/6)** | −23 % (6/6) | −9 % (6/6) | −42 % (4/6) |
+| 250 KB, 16 sessions, 4 cores shared | +10 % (4/6) | −12 % (6/6) | −19 % (6/6) | +1.5 % — tie |
+| 32 KB, 16 sessions, 4 cores shared | **+12 % (6/6)** | −21 % (6/6) | −32 % (6/6) | +23 % (6/6 higher) |
+| 250 KB, 4 sessions at depth 4, 4 cores shared | +8 % (5/6) | −16 % (6/6) | −10 % (6/6) | −3 % — tie |
+| 250 KB, 4 sessions at depth 1, 4 cores shared | **+15 % (6/6)** | −24 % (6/6) | −17 % (6/6) | −14 % (6/6) |
+
+Reading: busy, the multi-thread runtime wastes fewer wake-ups — there is no parked worker to
+notify — so the saving per ask shrinks from 40–64 % at one session to 5–24 % here, and
+throughput follows it: +8 to +17 % on six of eight cells, a tie on the two 250 KB
+sixteen-session cells. The one column against is the 32 KB tail on four shared cores
+(+23 %, 6/6): sixteen sessions hash unevenly onto four endpoints and the busiest thread's
+sessions wait longest. Not measured: thousands of sessions on many cores with the clients off
+the box, which is P0's rig; the hash evens out with count, while a few heavy sessions landing
+on one endpoint is the case work stealing handled and this does not.
+
+**One socket, one thread.** The first run of these cells read −31 to −41 % throughput (6/6):
+the driver had opened every session from a single client socket, so they shared one 4-tuple
+and the kernel hashed all of them onto one endpoint thread while the others idled. A browser
+opens a socket per session and a fleet of viewers has as many addresses; a UDP proxy or load
+balancer that forwards every session from one source port would do the same to the product.
+
+**To a browser.** The same A/B driven by the product TypeScript client in headless Chromium 141
+on this VM (`lab/scripts/browser_cell.py`; one session, six interleaved repeats, wall per frame):
+
+| cell | base | new | paired |
+| ---- | ---: | --: | ------ |
+| 32 KB, depth 1, 1 500 asks | 442 µs | 445 µs | +1.8 % (2/6 lower) — tie |
+| 32 KB fill, 2 000 frames | 179 | 170 | −5.2 % (4/6) — tie |
+| 250 KB, depth 1, 320 asks | 1 777 | 1 694 | −4.3 % (4/6) |
+| 250 KB fill, 320 frames | 1 202 | 1 278 | +4.4 % (3/6) — tie |
+| no media (`cell=refuse`: 1 500 asks past the study, each refused on the control stream) | 268 | 200 | **−25 % (6/6)** |
+
+Reading: with no media in the round trip the browser sees the server's change whole — 268 to
+200 µs, 6/6. Put 32 KB of media in it and the cell is a tie: that ask costs the native driver
+107 µs end to end and Chromium 442 µs, and the ~240 µs Chromium adds for the bytes (decrypt in
+the network process, the Mojo hop, the copy into the renderer) is untouched by anything the
+server does. At 250 KB that path is 1.7 ms per frame — about 150 MB/s — and is the ceiling.
+**On a browser client the server's whole slice of a depth-1 round trip is about a quarter at
+32 KB, and this change removes most of what was left in it.** That is why three passes of
+server work did not move the workstation numbers: the rest of the round trip is Chromium, and
+the levers that reach it are the client's prefetch depth
+([`../adr-client-window-depth.md`](../adr-client-window-depth.md)) and per-frame priority
+([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §4),
+which change what the reader waits *for*, not how fast one frame is served.
+
+Named, not measured: on the workstation (`intel_pstate`/`powersave`) the cross-core wakes this
+removes also crossed C-states, so the saving there may read larger than on this VM; the depth-1
+cell with the governor at `performance` would price the rest of it. The native driver and the
+browser are both multi-threaded clients and pay the same kind of hand-off on their side.
+
+**Alternative.** One endpoint on its own thread handing accepted connections to per-core
+runtimes keeps the endpoint-to-connection hop, half the cost, and quinn's endpoint driver stays
+one core (S2). One worker in total is the same latency and no scale. Neither was measured; the
+per-core shape is what quinn's own docs give for scaling out.
+
+**Costs.** A client whose 4-tuple changes mid-session (NAT rebinding, a Wi-Fi to cellular move)
+hashes to another endpoint, which does not know the connection and answers with a stateless
+reset: the session drops and the client reconnects. A front that forwards many sessions from
+one source port puts them all on one thread (−31 to −41 % throughput at 16–32 sessions,
+above); a per-flow port on the front, or `--workers 1`, avoids it. `--workers 1` also keeps
+the exclusive bind: two servers of one user started on one port otherwise share it silently. Yielding the serving loop after every frame (`yield_now`), so the driver
+sends before the next ask is read, was measured on this shape and rejected: +7 % p50 and −9 %
+asks/s at 32 KB depth 1 (6/6), a tie at 250 KB depth 4; it only smooths a fill's inter-arrival
+(p99 −63 %), which no reader waits on.
+
+**Falsified by.** A cell where per-core endpoints lose on wall or CPU per ask with the clients
+off the box (P0's target, 64–256 sessions), or a deployment whose sessions migrate. Re-run:
+
+```bash
+bash server/scripts/gen_dev_cert.sh
+FRAMES=80 bash lab/scripts/gen_tf_fixtures.sh
+NAME=frames_tiny BYTES=100 FRAMES=80 bash lab/scripts/gen_live_cell_fixture.sh
+cargo build --release -p exact-server -p disk-access-bench
+git worktree add /tmp/base main && (cd /tmp/base && cargo build --release -p exact-server --target-dir /tmp/base-target)
+lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 200 1 6 \
+  base /tmp/base-target/release/exact-server -- new target/release/exact-server > rt.tsv
+lab/scripts/runtime_ab_pair.py rt.tsv base new
+# saturation: 16 sessions at depth 4, 100 asks each; SERVER_CPUS / CLIENT_CPUS pin the two sides
+SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_32k/frames_32k.sbnd \
+  on-demand 4 200 16 6 base /tmp/base-target/release/exact-server -- new target/release/exact-server
+# the browser cells: static host, TS bundle, then one server per run
+python3 server/dev-server.py --port 8765 &
+bash client/transport-ts/build.sh
+lab/scripts/browser_cell.py new target/release/exact-server lab/fixtures/frames_32k_big/frames_32k_big.sbnd ondemand 1500 1 6
+```
+
+### 9 · CPU per byte: segments per `sendmsg`, a profile-guided build, one copy fewer
+
+**Before.** After §8 a 250 KB frame still cost about 340 µs of CPU under load — some 2 µs per
+1452-byte datagram, spread over AES-GCM, quinn's packet assembly, four copies of every byte
+(page cache to buffer, buffer into quinn, quinn into the packet, packet into the kernel) and
+the kernel's per-segment work. quinn sends at most 10 datagrams per `sendmsg`, a constant its
+authors call "a good compromise"; the transport lane had measured 10 → 32 at −21 % CPU per
+byte on loopback, n = 1, and left it because its real-hardware cell was path-bound. Nothing
+here is a lever a lossy link cares about; every item is sessions per core.
+
+**Forced by.** Four candidates built as separate binaries and run against the tree in one
+interleaved A/B: server pinned to two cores, the driver to the other two, one client socket per
+session, six repeats paired per repeat. CPU per ask, then asks per second:
+
+| cell | GSO cap (MTU-derived) | PGO | mimalloc | pooled hand-off |
+| ---- | ----------: | --: | -------: | --------------: |
+| 100 B, depth 1 | −13 % (5/6) · +8 % | **−26 % (6/6)** · +20 % | −9 % (6/6) · +12 % | −8 % (5/6) · +5 % |
+| 32 KB, depth 1 | **−18 % (6/6)** · +3 % | −13 % (6/6) · +2 % | +3 % · −6 % | 0 % · −2 % |
+| 250 KB, depth 1 | **−21 % (6/6)** · +2 % | −15 % (6/6) · +15 % | −2 % · +2 % | −7 % (6/6) · +4 % |
+| 250 KB fill, 80 frames | **−20 % (6/6)** · +19 % (6/6) | −10 % (5/6) · +9 % | +9 % · −9 % | −10 % (5/6) · +9 % (5/6) |
+| 250 KB, 16 sessions, depth 4 | **−16 % (6/6)** · +7 % (5/6) | −9 % (6/6) · +12 % (4/6) | +4 % · −6 % | −3 % (5/6) · −1 % |
+| 32 KB, 16 sessions, depth 4 | **−17 % (6/6)** · +29 % (6/6) | −11 % (5/6) · −1 % | −3 % · +3 % | −2 % (5/6) · +4 % |
+
+The 32 KB fill of 80 frames is 6 ms per run and read worse for every arm, the tree's own
+included; it resolves nothing and is not quoted. mimalloc ties or loses everywhere but the
+100-byte cell and is not taken. The other three are independent mechanisms, so they were then
+built into one binary and profiled on that source:
+
+| cell | CPU per ask | asks / s | p50 | p99 |
+| ---- | ----------: | -------: | --: | --: |
+| 100 B, depth 1 | −11 % (5/6) | +2.5 % — tie | −3 % (6/6) | tie |
+| 32 KB, depth 1 | **−24 % (6/6)** | +6 % (4/6) | −6 % (4/6) | −10 % (5/6) |
+| 250 KB, depth 1 | **−30 % (6/6)** | **−15 % (5/6)** | −3.5 % (4/6) | +13 % (5/6) |
+| 32 KB fill, 2 000 frames | **−30 % (6/6)** | **+40 % (6/6)** | −50 % (6/6) | −46 % (6/6) |
+| 250 KB fill, 320 frames | **−32 % (6/6)** | **+39 % (6/6)** | −18 % (6/6) | −35 % (6/6) |
+| 32 KB, 4 sessions, depth 4 | **−35 % (6/6)** | **+46 % (6/6)** | −32 % (6/6) | −39 % (6/6) |
+| 32 KB, 16 sessions, depth 4 | **−29 % (6/6)** | **+25 % (5/6)** | −21 % (5/6) | −5 % (4/6) |
+| 250 KB, 16 sessions, depth 4 | **−33 % (6/6)** | **+44 % (6/6)** | −29 % (6/6) | −12 % (5/6) |
+
+The three add up, near enough: −24 to −35 % CPU per ask and +25 to +46 % throughput wherever
+the pipe is full. The one cell against is 250 KB at depth 1 with one session: the median holds
+and the mean rises (throughput −15 %, 5/6; p99 +13 %) while CPU falls 30 %. A serial session
+overlapped the server encrypting batch *n* + 1 with the client decrypting batch *n*; at ~45
+packets a batch there is less of that overlap, and nothing else is running to fill it. At
+depth 2 or two sessions the pipe is full and the cell joins the others. That is the lab's
+regime, not the product's — and the latency-first cell, since a viewer with no cache waits
+on depth 1. Combined rows above quote CPU, asks/s and p50 together; the house rule is one
+of latency or throughput, and the depth-1 p50 is the latency column.
+
+The formula is `65527 / mtu` (integer division), so **45 segments at 1452 bytes** and 44 at
+1472. An earlier write-up said 44 at 1452. Quinn 0.11.11 and upstream `main` still hard-code
+10; there is no `TransportConfig` knob (`quinn-rs/quinn#2189`).
+
+**What shipped.**
+
+- **`patches/quinn-0.11.11-mtu-gso.patch`** — applied at build time to the crates.io
+  quinn 0.11.11 tarball (`scripts/patch_quinn.sh`, `[patch.crates-io]` → `patched/quinn`).
+  Segments per `sendmsg` follow the MTU under the kernel's 65 527-byte GSO payload instead
+  of the constant 10, and the driver sends up to 64 datagrams per poll instead of 20. The
+  patch is the whole behavioural delta; wtransport's `quinn` dependency is patched too.
+  The repo does not vendor Quinn sources. This mechanism was not re-A/B'd against the
+  vendored tree: `scripts/patch_quinn.sh --check` and a `connection.rs` diff against that
+  vendor are the equivalence. Refresh: point `scripts/patch_quinn.sh` and
+  `patched/quinn/Cargo.toml` at the new crates.io version, retarget the hunks, run
+  `scripts/patch_quinn.sh --check`. The upstream shape would be a `TransportConfig` knob.
+- **`scripts/pgo_build.sh`** — instrument, train on the cells this file measures (fill, depth 4
+  with 4 and 16 sessions, depth 1, three frame sizes), rebuild with the profile. A profile is
+  bound to the source it was taken from, so the script runs per release build and
+  `cargo build --release` stays the plain build; a stale profile is worse than none.
+- **`media/frame_pool.rs`** — both readers hand the frame off as `Bytes` over their own buffer
+  and take the next buffer from a per-thread pool; `FrameOut` gives quinn head and body with
+  `write_all_chunks`, and the buffer comes back when quinn drops it after acknowledgement.
+  One copy of four gone, and the 64 KiB write chunking with it. This corrects the disk ADR's
+  §5 row: the 2026-09 attempt was rejected for a fresh 64 KiB allocation per window, which was
+  the allocation, not the hand-off.
+
+**Costs.** A 64 KB batch holds the connection lock about 30 µs longer than a 14 KB one, which
+is where a fill's inter-arrival p99 widens (+68 % on the short 32 KB cell, n = 80; the 320-frame
+fill below is the one to read). quinn now holds the reader's buffer until the peer acknowledges
+it: memory per session is unchanged in total, since quinn held a copy before, and the pool keeps
+at most 64 buffers per thread. PGO doubles the release build.
+
+**Falsified by.** A CPU-bound cell on the production target where the combined binary does not
+beat the plain one on CPU per ask; a quinn upgrade that moves the batching itself. Re-run:
+
+```bash
+cargo build --release -p exact-server -p disk-access-bench     # the tree: crates.io quinn + GSO patch + pool
+scripts/pgo_build.sh                                             # → target/pgo/release/exact-server
+git worktree add /tmp/before <commit-before-§9> && (cd /tmp/before && cargo build --release -p exact-server --target-dir /tmp/before-target)
+SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 4 100 16 6 \
+  base /tmp/before-target/release/exact-server -- tree target/release/exact-server -- pgo target/pgo/release/exact-server > rt.tsv
+lab/scripts/runtime_ab_pair.py rt.tsv base tree pgo
+```
+
 ---
 
 ## Campaign instruments (on the tag)

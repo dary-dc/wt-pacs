@@ -1,9 +1,9 @@
 //! Session-scoped outbound media: length-prefixed envelopes on shared or per-frame uni
-//! streams, the codestream streamed a window at a time. `docs/disk-access/adr.md`.
+//! streams, the codestream handed to quinn whole and uncopied. `docs/disk-access/adr.md`.
 
-use crate::media::frame_store::READ_WINDOW;
 use crate::transport::stream_mode::StreamMode;
 use anyhow::{Context, Result};
+use bytes::Bytes;
 use frame_envelope::ENVELOPE_LEN;
 use std::time::Duration;
 use tokio::task::JoinSet;
@@ -47,15 +47,12 @@ impl FrameOut {
         }
     }
 
-    /// `body` is the whole codestream: the reader returns a frame in one call, and the
-    /// write is chunked so a wide frame does not copy without yielding.
-    pub(crate) async fn send_frame(&mut self, idx: u32, body: &[u8]) -> Result<()> {
-        let head = frame_head(idx, body.len() as u32);
+    /// `body` is the whole codestream in the reader's own buffer; quinn keeps it until the
+    /// peer acknowledges it and the pool gets it back. `media/frame_pool.rs`.
+    pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes) -> Result<()> {
+        let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
-            Self::Shared { uni, .. } => {
-                uni.write_all(&head).await.context("write shared head")?;
-                write_body(uni, body).await?;
-            }
+            Self::Shared { uni, .. } => write_frame(uni, head, body).await,
             Self::PerFrame { connection, acks } => {
                 let mut uni = connection
                     .open_uni()
@@ -63,18 +60,16 @@ impl FrameOut {
                     .context("open uni")?
                     .await
                     .context("open uni ready")?;
-                uni.write_all(&head).await.context("write head")?;
-                write_body(&mut uni, body).await?;
-
+                write_frame(&mut uni, head, body).await?;
                 acks.spawn(async move {
                     let _ = uni.finish().await;
                 });
                 while acks.try_join_next().is_some() {}
+                Ok(())
             }
             #[cfg(test)]
             Self::Detached => unreachable!("a detached sink has no wire to write to"),
         }
-        Ok(())
     }
 
     pub(crate) async fn drain_acks(&mut self) {
@@ -96,24 +91,17 @@ fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
     head
 }
 
-fn write_chunks(ready: &[u8]) -> impl Iterator<Item = &[u8]> {
-    ready.chunks(READ_WINDOW)
-}
-
-async fn write_body(uni: &mut SendStream, body: &[u8]) -> Result<()> {
-    for piece in write_chunks(body) {
-        uni.write_all(piece).await.context("write codestream")?;
-    }
-    Ok(())
+async fn write_frame(uni: &mut SendStream, head: Bytes, body: Bytes) -> Result<()> {
+    uni.quic_stream_mut()
+        .write_all_chunks(&mut [head, body])
+        .await
+        .context("write frame")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::frame_store::FrameStore;
-    use crate::media::read_path::SeqReader;
     use frame_envelope::{unwrap, wrap};
-    use std::sync::Arc;
 
     /// Streaming replaced `wrap()`, and clients parse the bytes, not the code.
     #[test]
@@ -125,11 +113,9 @@ mod tests {
         let mut old_wire = (old.len() as u32).to_be_bytes().to_vec();
         old_wire.extend_from_slice(&old);
 
-        // What the streaming path writes: the head, then the codestream in windows.
+        // What the wire carries: the head chunk, then the codestream chunk.
         let mut new_wire = frame_head(idx, codestream.len() as u32).to_vec();
-        for window in codestream.chunks(READ_WINDOW) {
-            new_wire.extend_from_slice(window);
-        }
+        new_wire.extend_from_slice(&codestream);
 
         assert_eq!(new_wire, old_wire, "wire bytes changed");
         let (parsed_idx, body) = unwrap(&new_wire[4..]).expect("client can still parse");
@@ -140,61 +126,12 @@ mod tests {
     /// A frame larger than one window still frames as a single payload.
     #[test]
     fn head_counts_the_whole_codestream_not_one_window() {
-        let len = (READ_WINDOW * 3 + 17) as u32;
+        let len = (crate::media::frame_store::READ_WINDOW * 3 + 17) as u32;
         let head = frame_head(1, len);
         assert_eq!(
             u32::from_be_bytes(head[..4].try_into().unwrap()),
             ENVELOPE_LEN as u32 + len
         );
         assert_eq!(u32::from_be_bytes(head[4..].try_into().unwrap()), 1);
-    }
-
-    /// A pooled miss returns the whole frame; writes must still be window-sized, or the
-    /// executor copies 250 KB without yielding.
-    #[test]
-    fn a_pooled_frame_is_written_in_read_windows_not_in_one_copy() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-write-chunk-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let path = dir.join("frame.sbnd");
-        let len = 250_000u32;
-        let body: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
-        study_bundle::write_bundle(&path, br#"{"frameCount":1}"#, &[body.as_slice()])
-            .expect("write study");
-
-        let mut store = FrameStore::open(&path).expect("open");
-        store.force_pool_reads();
-        let store = Arc::new(store);
-        let span = store.frame_span(0).expect("span");
-
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("rt");
-        let mut seq = SeqReader::new();
-        let ready = rt
-            .block_on(seq.read(&store, span, None))
-            .expect("read")
-            .to_vec();
-        assert_eq!(
-            ready.len(),
-            span.len as usize,
-            "precondition: a pooled miss returns the whole frame in one call"
-        );
-        let mut pieces = 0usize;
-        for piece in write_chunks(&ready) {
-            assert!(
-                piece.len() <= READ_WINDOW,
-                "write piece {} exceeds READ_WINDOW",
-                piece.len()
-            );
-            pieces += 1;
-        }
-        assert!(
-            pieces > 1,
-            "a 250 KB pooled frame must be more than one write"
-        );
-        let pos = ready.len() as u32;
-        assert_eq!(pos, span.len);
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

@@ -46,6 +46,10 @@ struct Args {
     temp: String,
     #[arg(long)]
     no_header: bool,
+    /// Open every session from one client socket, as before 2026-09-10. One source port means
+    /// one 4-tuple, which a server of `SO_REUSEPORT` endpoints hashes onto one thread.
+    #[arg(long)]
+    one_socket: bool,
 }
 
 fn main() -> Result<()> {
@@ -58,15 +62,18 @@ fn main() -> Result<()> {
 }
 
 async fn run(args: Args) -> Result<()> {
-    let endpoint = client_endpoint()?;
+    let mut endpoints = vec![client_endpoint()?];
     let cpu0 = proc_cpu(args.server_pid)?;
     let rss0 = proc_rss_kib(args.server_pid)?;
     let peak = Arc::new(AtomicU64::new(rss0));
     let sampler = tokio::spawn(sample_rss(args.server_pid, Arc::clone(&peak)));
     let wall = Instant::now();
     let mut conns = Vec::with_capacity(args.sessions.max(1));
-    for _ in 0..args.sessions.max(1) {
-        conns.push(connect(&endpoint, &args.url).await?);
+    for i in 0..args.sessions.max(1) {
+        if i > 0 && !args.one_socket {
+            endpoints.push(client_endpoint()?);
+        }
+        conns.push(connect(endpoints.last().expect("one endpoint"), &args.url).await?);
     }
     let mut set = tokio::task::JoinSet::new();
     for conn in conns {
@@ -82,7 +89,7 @@ async fn run(args: Args) -> Result<()> {
     let cpu_ns = proc_cpu(args.server_pid)?.saturating_sub(cpu0);
     sampler.abort();
     let rss_kib = peak.load(Ordering::Relaxed).saturating_sub(rss0);
-    drop(endpoint);
+    drop(endpoints);
     let n = lats.len().max(1) as u64;
     let cpu_ns_per_ask = (cpu_ns / u128::from(n)) as u64;
     let asks_per_s = n as f64 * 1e9 / wall_ns.max(1) as f64;

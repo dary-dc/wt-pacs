@@ -20,9 +20,10 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 | **Stream shape** | **One shared stream — the binary defaults to it.** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a real path the 64 KB cell is noise-dominated; the 250 KB cell separates: per-frame is **5.76× worse**, 3/3, and the absolute penalty matches the simulator to 1.6 %. No cell on either rig separates in per-frame's favour |
 | **Fixed-N pool** | Untested. R6 makes it less promising: retransmit-deferral cost grows with N, and the winning endpoint is N = 1 |
 | **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
-| **GSO segment cap 10 → 32** | Density, not latency: +17 % throughput / −21 % CPU/byte on loopback at n = 1; **not confirmed on real hardware** (−1.0 % / +8.1 %, overlapping). **Not applied.** The cap is `quinn`'s `MAX_TRANSMIT_SEGMENTS`, not a server flag |
+| **GSO segment cap 10 → MTU-derived** | **Applied 2026-09-10** (build-time patch on crates.io quinn 0.11.11): −16 to −21 % CPU per ask, 6/6 in six of seven pinned cells, +19 to +29 % throughput where the pipe is full. 45 segments at 1452-byte MTU (`65527 / mtu`); an earlier write-up said 44 at 1452. The earlier real-hardware cell was path-bound, so it could not show a CPU lever. [`why-these-changes.md` §9](why-these-changes.md#9--cpu-per-byte-segments-per-sendmsg-a-profile-guided-build-one-copy-fewer) |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte, and it is what contains a stalled client (below). The only send path in `server/` |
 | **Flow-control windows** | Hygiene on this send path. A client that asks for 25 MB and stops reading costs **180 kB**. Left at quinn defaults |
+| **Runtime shape** | **One endpoint per core, each on a single-threaded runtime (`--workers`, default one per core).** Cross-worker hand-offs were 28 context switches per 250 KB frame; removing them is **−23 to −40 % on the depth-1 round trip and −40 to −64 % CPU per frame**, 6/6 in every single-session cell. At saturation (16–32 sessions at depth 4, one socket per session) throughput +8 to +17 % on six of eight cells and a tie on two, CPU per ask −5 to −24 %. [`why-these-changes.md` §8](why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime) |
 
 Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are not in
 `server/`. `--stream-mode per-frame` stays a product flag.
@@ -105,15 +106,19 @@ and destroys GSO batching).
 
 | item | effect |
 | ---- | ------ |
-| GSO cap 10 → 32 | +17.2 % / −20.9 % CPU/byte at 250 KB, n = 1; real-hardware re-run −1.0 % / +8.1 %, overlapping. Not applied |
+| GSO cap 10 → 32 | +17.2 % / −20.9 % CPU/byte at 250 KB, n = 1; real-hardware re-run −1.0 % / +8.1 %, overlapping. Superseded: the tree now derives the cap from the MTU (below) |
 | Chunked send path | −6…−14 % CPU/byte at every rate. Only path in `server/` |
 | Per-frame prefault hop, warm cache | costs 10 % throughput, 14–34 % CPU/byte |
 | `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil |
 
-**The GSO cap is not a server flag.** `MAX_TRANSMIT_SEGMENTS` is a compile-time constant
-in quinn. The lab numbers were taken against a patched crate *outside this tree*. Never
-derive the cap from `max_gso_segments()`: the binding limit is 65 527 bytes; exceeding it
-returns `EINVAL` and `quinn-udp` disables offload permanently for that socket.
+**The GSO cap is not a server flag.** `MAX_TRANSMIT_SEGMENTS` is still a compile-time
+constant in quinn 0.11.11 and on upstream `main`; there is no `TransportConfig` knob.
+The tree applies `patches/quinn-0.11.11-mtu-gso.patch` at build time to the crates.io
+tarball: segments per `sendmsg` are `min(platform, 65527 / mtu)` (45 at 1452, 44 at
+1472) and the driver may emit 64 datagrams per poll instead of 20. Never raise the cap
+by reading `max_gso_segments()` alone: exceeding 65 527 bytes returns `EINVAL` and
+`quinn-udp` disables offload permanently for that socket. Refresh: bump the version in
+`scripts/patch_quinn.sh` / `patched/quinn/Cargo.toml`, retarget the patch, `--check`.
 
 **A stalled client does not approach the 10 MB `send_window`.** `window-harness --mode stall`
 asks 400 frames (25 MB) then stops reading. On chunked + shared the server holds **180 kB**.
@@ -147,6 +152,8 @@ congestive 600 ms cell.
 | Per-frame is worse because of retransmit deferral | Strong — absolute penalty reproduced to 1.6 % across rigs |
 | GSO cap worth 17 % | Weak — loopback, n = 1, fixture-dependent; real path overlapping |
 | Windows never approached on chunked | Moderate — 48 rows, T2 loopback, N ≤ 16 |
+| One endpoint per core beats the shared multi-thread runtime | Strong for one session (6/6 per cell, 5 cells, two independent measurements); T2 loopback, 4 vCPU. Moderate at saturation: 16–32 sessions, six of eight cells up, two ties; thousands of sessions with clients off the box unmeasured |
+| Segments per `sendmsg`, PGO and the pooled hand-off cut CPU per byte | Strong on this VM: −24 to −35 % combined, 6/6 in seven of eight pinned cells, two independent runs; one lab cell (250 KB, depth 1, one session) loses 15 % throughput. Not run on the target |
 
 What would overturn the shipped defaults: a cell where per-frame + FIFO separates in its
 favour (none found), or client telemetry showing the loss mix is overwhelmingly radio
