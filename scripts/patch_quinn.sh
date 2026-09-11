@@ -57,7 +57,7 @@ fi
 rm -rf "$OUT/quinn-${VERSION}"
 tar -xzf "$crate" -C "$OUT"
 src="$OUT/quinn-${VERSION}"
-patch -p1 --forward --batch --quiet -d "$src" < "$PATCH"
+patch -p1 --forward --batch --fuzz=0 --quiet -d "$src" < "$PATCH"
 
 conn="$src/src/connection.rs"
 grep -q 'fn max_transmit_segments(mtu: u16)' "$conn"
@@ -67,6 +67,22 @@ grep -q 'const MAX_TRANSMIT_SEGMENTS: usize = 64' "$conn"
 # 1452-byte MTU → 45 segments (integer division). Earlier write-ups said 44 at 1452.
 python3 -c 'assert 65_527 // 1452 == 45 and 65_527 // 1472 == 44'
 
+# Inner crate docs/attrs cannot ride through include!; rustc treats them as outer.
+python3 - "$src/src/lib.rs" "$src/src/lib_body.rs" <<'PY'
+import sys
+from pathlib import Path
+src, dest = Path(sys.argv[1]), Path(sys.argv[2])
+lines = src.read_text().splitlines(True)
+i = 0
+while i < len(lines):
+    s = lines[i].lstrip()
+    if s == "" or s.startswith("//!") or s.startswith("#![") or s.startswith("//!"):
+        i += 1
+        continue
+    break
+dest.write_text("".join(lines[i:]))
+PY
+
 if [[ -n "$COPY_SRC" ]]; then
   mkdir -p "$COPY_SRC"
   keep=$(mktemp)
@@ -74,7 +90,7 @@ if [[ -n "$COPY_SRC" ]]; then
   find "$COPY_SRC" -mindepth 1 -maxdepth 1 ! -name lib.rs -exec rm -rf {} +
   for p in "$src/src"/*; do
     base=$(basename "$p")
-    [[ "$base" == lib.rs ]] && continue
+    [[ "$base" == lib.rs || "$base" == lib_body.rs ]] && continue
     cp -a "$p" "$COPY_SRC/"
   done
   if [[ -s "$keep" ]]; then
