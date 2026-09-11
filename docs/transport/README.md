@@ -14,10 +14,10 @@ default `shared`, `--prefault true`, Cubic default.
 | **Windows** | Left at quinn defaults. Memory is bounded by the send path, not `send_window` |
 | **Runtime shape** | `--workers` defaults to one endpoint per core, each on its own single-threaded runtime over an `SO_REUSEPORT` socket. A session never changes thread |
 
-| **CPU per byte** | 44 segments per `sendmsg` (`third_party/quinn`), a profile-guided build (`scripts/pgo_build.sh`), and frames handed to quinn uncopied: −24 to −35 % CPU per ask combined |
+| **CPU per byte** | MTU-derived GSO cap (`patches/quinn-0.11.11-mtu-gso.patch`), a profile-guided build (`scripts/pgo_build.sh`), and frames handed to quinn uncopied: −24 to −35 % CPU per ask combined |
 
 Rejected arms (`copy` / `split`, `--ask-priority`, MTU / socket knobs) are not in `server/`.
-The GSO cap lives in quinn; the tree carries the one-line change as a vendored crate.
+The GSO cap lives in quinn; the tree applies it at build time from crates.io plus that patch.
 
 ## Read next
 

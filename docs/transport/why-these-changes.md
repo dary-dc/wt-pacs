@@ -296,7 +296,7 @@ here is a lever a lossy link cares about; every item is sessions per core.
 interleaved A/B: server pinned to two cores, the driver to the other two, one client socket per
 session, six repeats paired per repeat. CPU per ask, then asks per second:
 
-| cell | segments 44 | PGO | mimalloc | pooled hand-off |
+| cell | GSO cap (MTU-derived) | PGO | mimalloc | pooled hand-off |
 | ---- | ----------: | --: | -------: | --------------: |
 | 100 B, depth 1 | −13 % (5/6) · +8 % | **−26 % (6/6)** · +20 % | −9 % (6/6) · +12 % | −8 % (5/6) · +5 % |
 | 32 KB, depth 1 | **−18 % (6/6)** · +3 % | −13 % (6/6) · +2 % | +3 % · −6 % | 0 % · −2 % |
@@ -324,20 +324,29 @@ built into one binary and profiled on that source:
 The three add up, near enough: −24 to −35 % CPU per ask and +25 to +46 % throughput wherever
 the pipe is full. The one cell against is 250 KB at depth 1 with one session: the median holds
 and the mean rises (throughput −15 %, 5/6; p99 +13 %) while CPU falls 30 %. A serial session
-overlapped the server encrypting batch *n* + 1 with the client decrypting batch *n*; at 44
+overlapped the server encrypting batch *n* + 1 with the client decrypting batch *n*; at ~45
 packets a batch there is less of that overlap, and nothing else is running to fill it. At
 depth 2 or two sessions the pipe is full and the cell joins the others. That is the lab's
-regime, not the product's, and the segment count is one constant in `third_party/quinn` if a
-target ever wants to sweep it.
+regime, not the product's — and the latency-first cell, since a viewer with no cache waits
+on depth 1. Combined rows above quote CPU, asks/s and p50 together; the house rule is one
+of latency or throughput, and the depth-1 p50 is the latency column.
+
+The formula is `65527 / mtu` (integer division), so **45 segments at 1452 bytes** and 44 at
+1472. An earlier write-up said 44 at 1452. Quinn 0.11.11 and upstream `main` still hard-code
+10; there is no `TransportConfig` knob (`quinn-rs/quinn#2189`).
 
 **What shipped.**
 
-- **`third_party/quinn`** — quinn 0.11.11, one change: the segments per `sendmsg` follow the
-  MTU (44 at 1452 bytes, under the kernel's 65 527-byte GSO payload) instead of the constant
-  10, and the driver sends up to 64 datagrams per poll instead of 20. The workspace
-  `[patch.crates-io]` points every `quinn` dependency, wtransport's included, at it. The cost
-  is a crate to refresh by hand on a quinn upgrade; the upstream shape would be a
-  `TransportConfig` knob.
+- **`patches/quinn-0.11.11-mtu-gso.patch`** — applied at build time to the crates.io
+  quinn 0.11.11 tarball (`scripts/patch_quinn.sh`, `[patch.crates-io]` → `patched/quinn`).
+  Segments per `sendmsg` follow the MTU under the kernel's 65 527-byte GSO payload instead
+  of the constant 10, and the driver sends up to 64 datagrams per poll instead of 20. The
+  patch is the whole behavioural delta; wtransport's `quinn` dependency is patched too.
+  The repo does not vendor Quinn sources. This mechanism was not re-A/B'd against the
+  vendored tree: `scripts/patch_quinn.sh --check` and a `connection.rs` diff against that
+  vendor are the equivalence. Refresh: point `scripts/patch_quinn.sh` and
+  `patched/quinn/Cargo.toml` at the new crates.io version, retarget the hunks, run
+  `scripts/patch_quinn.sh --check`. The upstream shape would be a `TransportConfig` knob.
 - **`scripts/pgo_build.sh`** — instrument, train on the cells this file measures (fill, depth 4
   with 4 and 16 sessions, depth 1, three frame sizes), rebuild with the profile. A profile is
   bound to the source it was taken from, so the script runs per release build and
@@ -359,7 +368,7 @@ at most 64 buffers per thread. PGO doubles the release build.
 beat the plain one on CPU per ask; a quinn upgrade that moves the batching itself. Re-run:
 
 ```bash
-cargo build --release -p exact-server -p disk-access-bench     # the tree: patched quinn + pool
+cargo build --release -p exact-server -p disk-access-bench     # the tree: crates.io quinn + GSO patch + pool
 scripts/pgo_build.sh                                             # → target/pgo/release/exact-server
 git worktree add /tmp/before <commit-before-§9> && (cd /tmp/before && cargo build --release -p exact-server --target-dir /tmp/before-target)
 SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 4 100 16 6 \
