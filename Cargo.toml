@@ -22,3 +22,7 @@ bytes = "1"
 tokio = { version = "1.53", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# One change in quinn, measured in docs/transport/why-these-changes.md §9: third_party/quinn/README.md.
+[patch.crates-io]
+quinn = { path = "third_party/quinn" }

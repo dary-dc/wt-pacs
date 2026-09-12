@@ -45,6 +45,11 @@ Front door: [`docs/transport/`](docs/transport/).
 
 - [`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) — **the answer**
 - [`docs/transport/why-these-changes.md`](docs/transport/why-these-changes.md) — why each decision exists
+- One endpoint per core, each on a single-threaded runtime (`--workers`, default one per core):
+  [`why-these-changes.md` §8](docs/transport/why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime)
+- CPU per byte: 44 segments per `sendmsg` (`third_party/quinn`), `scripts/pgo_build.sh` for a
+  profile-guided release, frames handed to quinn uncopied:
+  [`why-these-changes.md` §9](docs/transport/why-these-changes.md#9--cpu-per-byte-segments-per-sendmsg-a-profile-guided-build-one-copy-fewer)
 
 Campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`.
 

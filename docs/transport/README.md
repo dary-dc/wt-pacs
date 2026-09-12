@@ -12,10 +12,12 @@ default `shared`, `--prefault true`, Cubic default.
 | **Prefault** | Fault frame pages off the executor (`--prefault true`) |
 | **Cubic default** | Congestive loss → Cubic; radio loss → BBR. Default Cubic until the mix is measured |
 | **Windows** | Left at quinn defaults. Memory is bounded by the send path, not `send_window` |
+| **Runtime shape** | `--workers` defaults to one endpoint per core, each on its own single-threaded runtime over an `SO_REUSEPORT` socket. A session never changes thread |
 
-Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are not in
-`server/`. GSO 10 → 32 was measured, not applied: the cap lives in quinn, and on the
-real path it did not move the needle.
+| **CPU per byte** | 44 segments per `sendmsg` (`third_party/quinn`), a profile-guided build (`scripts/pgo_build.sh`), and frames handed to quinn uncopied: −24 to −35 % CPU per ask combined |
+
+Rejected arms (`copy` / `split`, `--ask-priority`, MTU / socket knobs) are not in `server/`.
+The GSO cap lives in quinn; the tree carries the one-line change as a vendored crate.
 
 ## Read next
 
@@ -23,6 +25,7 @@ real path it did not move the needle.
 | --- | ---- |
 | [`why-these-changes.md`](why-these-changes.md) | Why each decision exists |
 | [`adr-quic-stream-receive-window-defaults.md`](adr-quic-stream-receive-window-defaults.md) | Keep quinn window defaults; do not equalise S vs P/Q |
+| [`why-these-changes.md` §10](why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them) | Where latency and throughput part on this tree, and what joins them |
 
 ## Evidence and lab (on the archive tag)
 

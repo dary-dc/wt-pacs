@@ -5,8 +5,10 @@
 //! whose misses are rare, and a ring for tiles, whose queue would otherwise be OS threads.
 //! `docs/disk-access/adr.md`.
 
+use crate::media::frame_pool;
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use anyhow::{Context, Result};
+use bytes::Bytes;
 use std::mem;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
@@ -126,14 +128,14 @@ impl SeqReader {
         }
     }
 
-    /// The whole of `span`. `next` is the frame the planner will ask for after it, and its
-    /// read is running by the time this returns.
+    /// The whole of `span`, handed off to the wire. `next` is the frame the planner will ask
+    /// for after it, and its read is running by the time this returns.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         next: Option<FrameSpan>,
-    ) -> Result<&[u8]> {
+    ) -> Result<Bytes> {
         let (held, spare) = self.settle().await?;
         let spare = match held {
             Some((s, missed)) if s == span => {
@@ -161,7 +163,8 @@ impl SeqReader {
             .stats
             .peak_in_flight
             .max(u16::from(matches!(self.ahead, Ahead::InFlight { .. })));
-        Ok(&self.cur[..span.len as usize])
+        let frame = mem::replace(&mut self.cur, frame_pool::take());
+        Ok(frame_pool::hand_off(frame, span.len as usize))
     }
 
     /// Awaits whatever the last call started, so its buffer can be reused whether or not
@@ -284,14 +287,14 @@ impl TileReader {
         }
     }
 
-    /// The whole of `span`; reads of `upcoming` that fit are started underneath. Current
-    /// first, then upcoming, then wait — the measured order.
+    /// The whole of `span`, handed off to the wire; reads of `upcoming` that fit are started
+    /// underneath. Current first, then upcoming, then wait — the measured order.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         upcoming: &[FrameSpan],
-    ) -> Result<&[u8]> {
+    ) -> Result<Bytes> {
         let named = 1 + upcoming.len().min(self.slots.len() - 1);
         self.stats.peak_named = self.stats.peak_named.max(named as u16);
         for i in 0..named {
@@ -307,12 +310,15 @@ impl TileReader {
         let w = self.holding(span).expect("started above");
         self.wait(w).await?;
         self.last = w;
-        if self.slots[w].miss {
+        let slot = &mut self.slots[w];
+        if slot.miss {
             self.stats.misses += 1;
         } else {
             self.stats.hits += 1;
         }
-        Ok(&self.slots[w].buf[..self.slots[w].len])
+        slot.key = None;
+        let frame = mem::replace(&mut slot.buf, frame_pool::take());
+        Ok(frame_pool::hand_off(frame, slot.len))
     }
 
     fn holding(&self, span: FrameSpan) -> Option<usize> {
@@ -586,9 +592,9 @@ mod tests {
                 let span = store.frame_span(idx).expect("span");
                 let next = (idx + 1 < 4).then(|| store.frame_span(idx + 1).expect("next"));
                 let fill = rt.block_on(seq.read(&store, span, next)).expect("fill");
-                assert_eq!(fill, frame_pattern(idx, LEN), "fill {idx}, pooled={pooled}");
+                assert_eq!(&fill[..], &frame_pattern(idx, LEN)[..], "fill {idx}, pooled={pooled}");
                 let one = rt.block_on(tile.read(&store, span, &[])).expect("tile");
-                assert_eq!(one, frame_pattern(idx, LEN), "tile {idx}, pooled={pooled}");
+                assert_eq!(&one[..], &frame_pattern(idx, LEN)[..], "tile {idx}, pooled={pooled}");
             }
         }
         std::fs::remove_dir_all(&dir).ok();
@@ -614,8 +620,8 @@ mod tests {
         store.reset_pool_starts();
         let out = rt.block_on(seq.read(&store, second, None)).expect("second");
         assert_eq!(
-            out,
-            frame_pattern(1, LEN),
+            &out[..],
+            &frame_pattern(1, LEN)[..],
             "the read-ahead served wrong bytes"
         );
         assert_eq!(
@@ -671,8 +677,8 @@ mod tests {
         // Frame 1 was named and is in flight; the session asks for 2 instead.
         let out = rt.block_on(seq.read(&store, third, None)).expect("third");
         assert_eq!(
-            out,
-            frame_pattern(2, LEN),
+            &out[..],
+            &frame_pattern(2, LEN)[..],
             "the abandoned read landed in the buffer serving another frame"
         );
         std::fs::remove_dir_all(&dir).ok();
@@ -697,8 +703,8 @@ mod tests {
             .block_on(tile.read(&store, *span, upcoming))
             .expect("read");
         assert_eq!(
-            out,
-            frame_pattern(0, LEN),
+            &out[..],
+            &frame_pattern(0, LEN)[..],
             "the served frame came back wrong"
         );
         assert_eq!(
@@ -738,7 +744,8 @@ mod tests {
                 slots,
                 "a {slots}-slot reader named a different number of frames"
             );
-            for held in all.iter().take(slots) {
+            assert!(!tile.holds(all[0]), "the served frame stayed in its slot after hand-off");
+            for held in all.iter().take(slots).skip(1) {
                 assert!(tile.holds(*held), "a named frame is not held");
             }
             assert!(
@@ -821,7 +828,7 @@ mod tests {
         for idx in 0..3u32 {
             let span = store.frame_span(idx).expect("span");
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(out, frame_pattern(idx, LEN));
+            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..]);
         }
         assert!(
             !tile.ring_built(),
@@ -845,7 +852,7 @@ mod tests {
         for idx in 0..3u32 {
             let span = store.frame_span(idx).expect("span");
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(out, frame_pattern(idx, LEN), "the pooled path still serves");
+            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "the pooled path still serves");
         }
         assert!(
             !tile.ring_built(),
@@ -874,7 +881,7 @@ mod tests {
         for idx in 0..3u32 {
             let span = store.frame_span(idx).expect("span");
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(out, frame_pattern(idx, LEN), "frame {idx} did not compose");
+            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} did not compose");
         }
         assert!(tile.ring_built(), "the miss path never reached the ring");
         std::fs::remove_dir_all(&dir).ok();
@@ -893,7 +900,7 @@ mod tests {
         for idx in 0..3u32 {
             let span = store.frame_span(idx).expect("span");
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(out, frame_pattern(idx, LEN), "frame {idx} came back wrong");
+            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} came back wrong");
         }
         assert!(tile.ring_built(), "the lever never built a ring");
         std::fs::remove_dir_all(&dir).ok();

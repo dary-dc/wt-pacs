@@ -143,6 +143,426 @@ git checkout archive/transport-lab-2026-09 -- docs/transport lab/transport
 
 (Checking out `docs/transport` from the tag overwrites these lean face files.)
 
+### 8 · One endpoint per core, each on a single-threaded runtime
+
+**Before.** One QUIC endpoint on tokio's multi-thread runtime, a worker per core. A frame
+crosses five tasks — I/O driver, endpoint driver, connection driver, ask reader, serving loop,
+and the connection driver again to send — and tokio hands a woken task to whichever worker is
+idle. At depth 1 every hop was a cross-thread wake: **28 context switches per 250 KB frame**,
+and the server spent more CPU on a frame (790 µs) than the whole round trip took (630 µs).
+Three passes on the read path and the build had left `serve_us` at 15 µs of that round trip.
+
+**Forced by.** Holding everything but the worker count. 4 vCPU VM, warm page cache, the native
+driver (`server_ab`) pinned to CPUs 2–3, the server to CPUs 0–1, depth 1, p50 of 200–300 asks,
+three repeats each, ranges never overlapping:
+
+| frame | 2 workers | 1 worker | round trip | CPU / frame | ctx switches / frame |
+| ----- | --------: | -------: | ---------: | ----------: | -------------------: |
+| 100 B | 83–96 µs | 57–62 µs | **−35 %** | −55 % | 4.2 → 1.2 |
+| 32 KB | 152–155 | 115–121 | **−23 %** | −45 % | 5.3 → 1.6 |
+| 250 KB | 577–613 | 368–376 | **−37 %** | −50 % | 20 → 1.6 |
+
+One worker on four CPUs reads the same as one worker on two: the cost is the hand-offs, not
+the cores.
+
+**What shipped.** `--workers N`, default one per core: N OS threads, each a `current_thread`
+runtime owning its own endpoint on an `SO_REUSEPORT` socket. The kernel hashes a client's
+4-tuple to one socket, so a session's packets, connection driver, ask reader, serving loop and
+blocking-pool returns all stay on one thread, and every core still serves. `--workers 1` is
+one endpoint on an exclusive bind, as before. The blocking pool and the tile ring (`AsyncFd`)
+run unchanged on the per-thread runtime — the disk ADR's "a hop costs 40 µs on current-thread,
+103 µs here" was this all along.
+
+Interleaved A/B on the same VM, `main` against this branch, both servers up, arm order
+reversed every repeat, six repeats paired per repeat, client unpinned as a user runs it. p50
+is the driver's ask-to-envelope round trip; a fill's is the inter-arrival:
+
+| cell | p50, base → new | asks / s | CPU per ask | ctx / ask |
+| ---- | --------------- | -------: | ----------: | --------: |
+| 100 B, depth 1 | 93.5 → 58.1 µs (**−37 %**, 6/6) | +60 % (6/6) | −64 % (6/6) | 5.0 → 1.1 |
+| 32 KB, depth 1 | 138 → 107 µs (**−23 %**, 6/6) | +29 % (6/6) | −48 % (6/6) | 5.9 → 1.5 |
+| 250 KB, depth 1 | 629 → 408 µs (**−34 %**, 6/6) | +47 % (6/6) | −58 % (6/6) | 29 → 2.0 |
+| 250 KB, depth 4 | 2 194 → 1 352 µs (**−40 %**, 6/6) | +58 % (6/6) | −56 % (6/6) | 27 → 0.2 |
+| 250 KB fill | 527 → 314 µs per frame (**−40 %**, 6/6) | +54 % (6/6) | −53 % (6/6) | 24 → 0.3 |
+| 32 KB fill | 52 → 11 µs per frame (6/6); p99 374 → 503 (4/6 higher) | +12 % (5/6) | −39 % (6/6) | 3.8 → 0.2 |
+
+Where the box saturates — 16 and 32 sessions at depth 4, one client socket per session
+(`server_ab` opens one per session now; `--one-socket` is the old behaviour), six repeats
+paired. First the server pinned to two cores with the driver on the other two, then all four
+shared:
+
+| cell | asks / s | CPU per ask | p50 | p99 |
+| ---- | -------: | ----------: | --: | --: |
+| 250 KB, 16 sessions, server on 2 cores | −3.6 % (4/6 lower) — tie | −5 % (4/6) — tie | +20 % (6/6) | −5 % (4/6) |
+| 32 KB, 16 sessions, server on 2 cores | **+9 % (6/6)** | −22 % (6/6) | −19 % (6/6) | −2.5 % (4/6) |
+| 250 KB, 32 sessions, server on 2 cores | +8 % (4/6) | −13 % (6/6) | +3 % — tie | −53 % (4/6) |
+| 32 KB, 32 sessions, server on 2 cores | **+17 % (6/6)** | −23 % (6/6) | −9 % (6/6) | −42 % (4/6) |
+| 250 KB, 16 sessions, 4 cores shared | +10 % (4/6) | −12 % (6/6) | −19 % (6/6) | +1.5 % — tie |
+| 32 KB, 16 sessions, 4 cores shared | **+12 % (6/6)** | −21 % (6/6) | −32 % (6/6) | +23 % (6/6 higher) |
+| 250 KB, 4 sessions at depth 4, 4 cores shared | +8 % (5/6) | −16 % (6/6) | −10 % (6/6) | −3 % — tie |
+| 250 KB, 4 sessions at depth 1, 4 cores shared | **+15 % (6/6)** | −24 % (6/6) | −17 % (6/6) | −14 % (6/6) |
+
+Reading: busy, the multi-thread runtime wastes fewer wake-ups — there is no parked worker to
+notify — so the saving per ask shrinks from 40–64 % at one session to 5–24 % here, and
+throughput follows it: +8 to +17 % on six of eight cells, a tie on the two 250 KB
+sixteen-session cells. The one column against is the 32 KB tail on four shared cores
+(+23 %, 6/6): sixteen sessions hash unevenly onto four endpoints and the busiest thread's
+sessions wait longest. Not measured: thousands of sessions on many cores with the clients off
+the box, which is P0's rig; the hash evens out with count, while a few heavy sessions landing
+on one endpoint is the case work stealing handled and this does not.
+
+**One socket, one thread.** The first run of these cells read −31 to −41 % throughput (6/6):
+the driver had opened every session from a single client socket, so they shared one 4-tuple
+and the kernel hashed all of them onto one endpoint thread while the others idled. A browser
+opens a socket per session and a fleet of viewers has as many addresses; a UDP proxy or load
+balancer that forwards every session from one source port would do the same to the product.
+
+**Placement is a lottery, and count balance is the wrong statistic** (2026-09-11, a second box:
+8-core workstation, `intel_pstate`/`powersave`, server pinned to four cores and the driver to the
+other four, 87 × 49.1 KB frames, on-demand depth 4, 100 asks per session, six repeats paired,
+order reversed each repeat). Against `main`, with each arm's own per-round throughput range:
+
+| sessions | Δ asks / s | Δ p50 | Δ CPU per ask | range, new | range, `main` |
+| -------: | ---------: | ----: | -------------: | ---------- | ------------- |
+| 1 | **+36 % (6/6)** | −33 % (6/6) | −58 % | 7 233–8 895 | 5 427–5 732 |
+| 4 | **−14 % (4/6 worse)** | +2 % — tie | −33 % | **8 690–13 604** | 12 072–14 921 |
+| 16 | +2 % — tie | −18 % (6/6) | −27 % | 12 235–16 060 | 13 311–14 369 |
+| 32 | **+14 % (6/6)** | −12 % (5/6) | −23 % | 7 809–16 053 | 6 975–13 885 |
+
+At four sessions the new arm's floor (8 690) sits inside the band one worker gives
+(8 516–9 277, same cell): when two of four sessions hash to one endpoint the run performs like a
+single thread while the others idle. By sixteen the counts even out and the floor lifts.
+
+**What a collision costs.** `server_ab --one-socket` puts every session on one 4-tuple, which is
+the hash collision made deliberate. Sixteen sessions, depth 4, same pinning, six repeats paired:
+
+| arm | p50 | p99 | asks / s | CPU per ask |
+| --- | --: | --: | -------: | ----------: |
+| `main`, spread | 3.26 ms | 6.92 ms | 14 003 | 205 µs |
+| `main`, one thread | 2.34 ms | 32.2 ms | 13 294 (−5 %, 6/6) | 219 µs |
+| new, spread | 2.63 ms | 7.21 ms | 13 121 | 151 µs |
+| new, one thread | 6.24 ms | 8.55 ms | **8 898 (−32 %, 6/6)** | 103 µs |
+
+The multi-thread runtime does not care which socket a packet arrived on — it steals the work to a
+free core and loses 5 %. Per-core endpoints lose a third of the throughput and 2.4× the p50, at
+the *lowest* CPU per ask of the four: the efficiency survives, the parallelism does not.
+
+At a thousand sessions over eight endpoints the **counts** even out (125 ± 10). The **load** does
+not. A viewer filling a 61 MB study is worth hundreds of idle on-demand viewers, so the heavy
+sessions are few, their placement is a small-N lottery, and it is fixed for the life of the
+session; everyone hashed onto a thread with a heavy session pays the row above. Work stealing is
+the mechanism that absorbs exactly this, and it is the one this removes. Three things compound it,
+none of them measured here: a UDP front forwarding sessions from one source port makes the
+one-thread row permanent rather than exceptional; a mobile fleet's Wi-Fi-to-cellular handovers and
+NAT rebinds change the 4-tuple, and connection migration is the QUIC feature 4-tuple hashing
+defeats (eBPF reuseport steering on the connection ID is the usual answer and is not here); and a
+`current_thread` runtime has no relief valve when one session blocks its thread — this box never
+makes the reader miss, so that path has never run blocked.
+
+**To a browser.** The same A/B driven by the product TypeScript client in headless Chromium 141
+on this VM (`lab/scripts/browser_cell.py`; one session, six interleaved repeats, wall per frame):
+
+| cell | base | new | paired |
+| ---- | ---: | --: | ------ |
+| 32 KB, depth 1, 1 500 asks | 442 µs | 445 µs | +1.8 % (2/6 lower) — tie |
+| 32 KB fill, 2 000 frames | 179 | 170 | −5.2 % (4/6) — tie |
+| 250 KB, depth 1, 320 asks | 1 777 | 1 694 | −4.3 % (4/6) |
+| 250 KB fill, 320 frames | 1 202 | 1 278 | +4.4 % (3/6) — tie |
+| no media (`cell=refuse`: 1 500 asks past the study, each refused on the control stream) | 268 | 200 | **−25 % (6/6)** |
+
+Reading: with no media in the round trip the browser sees the server's change whole — 268 to
+200 µs, 6/6. Put 32 KB of media in it and the cell is a tie: that ask costs the native driver
+107 µs end to end and Chromium 442 µs, and the ~240 µs Chromium adds for the bytes (decrypt in
+the network process, the Mojo hop, the copy into the renderer) is untouched by anything the
+server does. At 250 KB that path is 1.7 ms per frame — about 150 MB/s — and is the ceiling.
+**On a browser client the server's whole slice of a depth-1 round trip is about a quarter at
+32 KB, and this change removes most of what was left in it.** That is why three passes of
+server work did not move the workstation numbers: the rest of the round trip is Chromium, and
+the levers that reach it are the client's prefetch depth
+([`../adr-client-window-depth.md`](../adr-client-window-depth.md)) and per-frame priority
+([`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §4),
+which change what the reader waits *for*, not how fast one frame is served.
+
+Named, not measured: on the workstation (`intel_pstate`/`powersave`) the cross-core wakes this
+removes also crossed C-states, so the saving there may read larger than on this VM; the depth-1
+cell with the governor at `performance` would price the rest of it. The native driver and the
+browser are both multi-threaded clients and pay the same kind of hand-off on their side.
+
+**The receive thread is the ceiling, and it is unmoved** (2026-09-11, the same second box; this
+whole branch — §8 and §9 together — against `main`, driven by a product page in Chromium 148,
+87 × 49.1 KB, five arms interleaved, n = 6 per cell, page clock). Paired against `main`: all
+frames received −0 % (3/6), all frames decoded +5 % (3/6); on demand, serve p50 −2 % (4/6) and
+gesture to on-screen −3 % (3/6). Every pairwise rounds-ahead cell reads 3/6 or 4/6.
+
+Chromium's network-service IO thread (`Chrome_ChildIOT`), busy milliseconds to receive the same
+4.38 MB:
+
+| arm | IO thread busy | peak over 100 ms | fill span |
+| --- | -------------: | ---------------: | --------: |
+| a reference implementation, TCP through a proxy | 178 ms | 50 % of a core | 297 ms |
+| a reference implementation, QUIC | 243 ms | 57 % | 58 ms |
+| `main` | 268 ms | **84 %** | 110 ms |
+| this branch | 274 ms | **82 %** | 126 ms |
+
+Natively this branch serves that study at 507 MB/s against `main`'s 305 MB/s. The thread that has
+to take the bytes did not move, and at 82–85 % of a core it is what sets the fill. That is the
+whole of the tie — a conclusive negative for loopback, not a shortage of repeats.
+
+Two things fall out. **The drops hypothesis is dead**: 44 datagrams per `sendmsg` did not worsen
+Chromium's socket overflow (866 → 852 per run, 3/6), so burst size is not what sheds them. And the
+rig favours TCP by a measurable amount — loopback's 65 536-byte MTU gives a TCP peer ~64 KB
+segments where our datagrams stop at 1 452, and the same 4.38 MB costs Chromium 178 ms of receive
+CPU that way against our 268. A real link gives both ~1.5 KB packets.
+
+**Open for whoever takes these two entries.** Neither can be priced for a viewer on loopback
+(§1 and §3 of the limits doc — `git show origin/docs/rig-limits:docs/rig-limits.md`,
+which records what this box cannot decide and what would lift each limit); the cell that would
+price them is a shaped,
+lossy, rate-limited link where the wire binds before the receiver does — the same rig §8's
+falsifier already asks for. Add a heavy-tailed mix to that falsifier — a few fills among many idle
+viewers — since the load, not the session count, is what the hash cannot balance. Splitting the
+branch is the other open question: §9 is per-byte work removal with no scheduling change, so the
+quinn patch and the frame pool on the stock multi-thread runtime would carry that win with none of
+the placement risk. The commits are stacked, so it needs a revert rather than a flag, and
+`--workers 1` is not that build (one `current_thread` endpoint, −26 to −38 % at four sessions
+and up).
+
+**Alternative.** One endpoint on its own thread handing accepted connections to per-core
+runtimes keeps the endpoint-to-connection hop, half the cost, and quinn's endpoint driver stays
+one core (S2). One worker in total is the same latency and no scale. Neither was measured; the
+per-core shape is what quinn's own docs give for scaling out.
+
+**Costs.** A client whose 4-tuple changes mid-session (NAT rebinding, a Wi-Fi to cellular move)
+hashes to another endpoint, which does not know the connection and answers with a stateless
+reset: the session drops and the client reconnects. A front that forwards many sessions from
+one source port puts them all on one thread (−31 to −41 % throughput at 16–32 sessions,
+above); a per-flow port on the front, or `--workers 1`, avoids it. `--workers 1` also keeps
+the exclusive bind: two servers of one user started on one port otherwise share it silently. Yielding the serving loop after every frame (`yield_now`), so the driver
+sends before the next ask is read, was measured on this shape and rejected: +7 % p50 and −9 %
+asks/s at 32 KB depth 1 (6/6), a tie at 250 KB depth 4; it only smooths a fill's inter-arrival
+(p99 −63 %), which no reader waits on.
+
+**Falsified by.** A cell where per-core endpoints lose on wall or CPU per ask with the clients
+off the box (P0's target, 64–256 sessions), or a deployment whose sessions migrate. Re-run:
+
+```bash
+bash server/scripts/gen_dev_cert.sh
+FRAMES=80 bash lab/scripts/gen_tf_fixtures.sh
+NAME=frames_tiny BYTES=100 FRAMES=80 bash lab/scripts/gen_live_cell_fixture.sh
+cargo build --release -p exact-server -p disk-access-bench
+git worktree add /tmp/base main && (cd /tmp/base && cargo build --release -p exact-server --target-dir /tmp/base-target)
+lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 200 1 6 \
+  base /tmp/base-target/release/exact-server -- new target/release/exact-server > rt.tsv
+lab/scripts/runtime_ab_pair.py rt.tsv base new
+# saturation: 16 sessions at depth 4, 100 asks each; SERVER_CPUS / CLIENT_CPUS pin the two sides
+SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_32k/frames_32k.sbnd \
+  on-demand 4 200 16 6 base /tmp/base-target/release/exact-server -- new target/release/exact-server
+# the browser cells: static host, TS bundle, then one server per run
+python3 server/dev-server.py --port 8765 &
+bash client/transport-ts/build.sh
+lab/scripts/browser_cell.py new target/release/exact-server lab/fixtures/frames_32k_big/frames_32k_big.sbnd ondemand 1500 1 6
+```
+
+### 9 · CPU per byte: segments per `sendmsg`, a profile-guided build, one copy fewer
+
+**Before.** After §8 a 250 KB frame still cost about 340 µs of CPU under load — some 2 µs per
+1452-byte datagram, spread over AES-GCM, quinn's packet assembly, four copies of every byte
+(page cache to buffer, buffer into quinn, quinn into the packet, packet into the kernel) and
+the kernel's per-segment work. quinn sends at most 10 datagrams per `sendmsg`, a constant its
+authors call "a good compromise"; the transport lane had measured 10 → 32 at −21 % CPU per
+byte on loopback, n = 1, and left it because its real-hardware cell was path-bound. Nothing
+here is a lever a lossy link cares about; every item is sessions per core.
+
+**Forced by.** Four candidates built as separate binaries and run against the tree in one
+interleaved A/B: server pinned to two cores, the driver to the other two, one client socket per
+session, six repeats paired per repeat. CPU per ask, then asks per second:
+
+| cell | segments 44 | PGO | mimalloc | pooled hand-off |
+| ---- | ----------: | --: | -------: | --------------: |
+| 100 B, depth 1 | −13 % (5/6) · +8 % | **−26 % (6/6)** · +20 % | −9 % (6/6) · +12 % | −8 % (5/6) · +5 % |
+| 32 KB, depth 1 | **−18 % (6/6)** · +3 % | −13 % (6/6) · +2 % | +3 % · −6 % | 0 % · −2 % |
+| 250 KB, depth 1 | **−21 % (6/6)** · +2 % | −15 % (6/6) · +15 % | −2 % · +2 % | −7 % (6/6) · +4 % |
+| 250 KB fill, 80 frames | **−20 % (6/6)** · +19 % (6/6) | −10 % (5/6) · +9 % | +9 % · −9 % | −10 % (5/6) · +9 % (5/6) |
+| 250 KB, 16 sessions, depth 4 | **−16 % (6/6)** · +7 % (5/6) | −9 % (6/6) · +12 % (4/6) | +4 % · −6 % | −3 % (5/6) · −1 % |
+| 32 KB, 16 sessions, depth 4 | **−17 % (6/6)** · +29 % (6/6) | −11 % (5/6) · −1 % | −3 % · +3 % | −2 % (5/6) · +4 % |
+
+The 32 KB fill of 80 frames is 6 ms per run and read worse for every arm, the tree's own
+included; it resolves nothing and is not quoted. mimalloc ties or loses everywhere but the
+100-byte cell and is not taken. The other three are independent mechanisms, so they were then
+built into one binary and profiled on that source:
+
+| cell | CPU per ask | asks / s | p50 | p99 |
+| ---- | ----------: | -------: | --: | --: |
+| 100 B, depth 1 | −11 % (5/6) | +2.5 % — tie | −3 % (6/6) | tie |
+| 32 KB, depth 1 | **−24 % (6/6)** | +6 % (4/6) | −6 % (4/6) | −10 % (5/6) |
+| 250 KB, depth 1 | **−30 % (6/6)** | **−15 % (5/6)** | −3.5 % (4/6) | +13 % (5/6) |
+| 32 KB fill, 2 000 frames | **−30 % (6/6)** | **+40 % (6/6)** | −50 % (6/6) | −46 % (6/6) |
+| 250 KB fill, 320 frames | **−32 % (6/6)** | **+39 % (6/6)** | −18 % (6/6) | −35 % (6/6) |
+| 32 KB, 4 sessions, depth 4 | **−35 % (6/6)** | **+46 % (6/6)** | −32 % (6/6) | −39 % (6/6) |
+| 32 KB, 16 sessions, depth 4 | **−29 % (6/6)** | **+25 % (5/6)** | −21 % (5/6) | −5 % (4/6) |
+| 250 KB, 16 sessions, depth 4 | **−33 % (6/6)** | **+44 % (6/6)** | −29 % (6/6) | −12 % (5/6) |
+
+The three add up, near enough: −24 to −35 % CPU per ask and +25 to +46 % throughput wherever
+the pipe is full. The one cell against is 250 KB at depth 1 with one session: the median holds
+and the mean rises (throughput −15 %, 5/6; p99 +13 %) while CPU falls 30 %. A serial session
+overlapped the server encrypting batch *n* + 1 with the client decrypting batch *n*; at 44
+packets a batch there is less of that overlap, and nothing else is running to fill it. At
+depth 2 or two sessions the pipe is full and the cell joins the others. That is the lab's
+regime, not the product's, and the segment count is one constant in `third_party/quinn` if a
+target ever wants to sweep it.
+
+**What shipped.**
+
+- **`third_party/quinn`** — quinn 0.11.11, one change: the segments per `sendmsg` follow the
+  MTU (44 at 1452 bytes, under the kernel's 65 527-byte GSO payload) instead of the constant
+  10, and the driver sends up to 64 datagrams per poll instead of 20. The workspace
+  `[patch.crates-io]` points every `quinn` dependency, wtransport's included, at it. The cost
+  is a crate to refresh by hand on a quinn upgrade; the upstream shape would be a
+  `TransportConfig` knob.
+- **`scripts/pgo_build.sh`** — instrument, train on the cells this file measures (fill, depth 4
+  with 4 and 16 sessions, depth 1, three frame sizes), rebuild with the profile. A profile is
+  bound to the source it was taken from, so the script runs per release build and
+  `cargo build --release` stays the plain build; a stale profile is worse than none.
+- **`media/frame_pool.rs`** — both readers hand the frame off as `Bytes` over their own buffer
+  and take the next buffer from a per-thread pool; `FrameOut` gives quinn head and body with
+  `write_all_chunks`, and the buffer comes back when quinn drops it after acknowledgement.
+  One copy of four gone, and the 64 KiB write chunking with it. This corrects the disk ADR's
+  §5 row: the 2026-09 attempt was rejected for a fresh 64 KiB allocation per window, which was
+  the allocation, not the hand-off.
+
+**Costs.** A 64 KB batch holds the connection lock about 30 µs longer than a 14 KB one, which
+is where a fill's inter-arrival p99 widens (+68 % on the short 32 KB cell, n = 80; the 320-frame
+fill below is the one to read). quinn now holds the reader's buffer until the peer acknowledges
+it: memory per session is unchanged in total, since quinn held a copy before, and the pool keeps
+at most 64 buffers per thread. PGO doubles the release build.
+
+**Falsified by.** A CPU-bound cell on the production target where the combined binary does not
+beat the plain one on CPU per ask; a quinn upgrade that moves the batching itself. Re-run:
+
+```bash
+cargo build --release -p exact-server -p disk-access-bench     # the tree: patched quinn + pool
+scripts/pgo_build.sh                                             # → target/pgo/release/exact-server
+git worktree add /tmp/before <commit-before-§9> && (cd /tmp/before && cargo build --release -p exact-server --target-dir /tmp/before-target)
+SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 4 100 16 6 \
+  base /tmp/before-target/release/exact-server -- tree target/release/exact-server -- pgo target/pgo/release/exact-server > rt.tsv
+lab/scripts/runtime_ab_pair.py rt.tsv base tree pgo
+```
+
+### 10 · Latency and throughput on one tree: where they part, and what joins them
+
+**The question.** Minimise the round trip and maximise sessions per core at once. On this tree
+the two part in four places. Each was measured 2026-09-12 on the 4 vCPU VM, client on the box and
+unpinned, `--workers` at its default, six repeats paired and arm order reversed unless a row says
+otherwise; loss is read from the client socket's `Udp: RcvbufErrors` (`runtime_ab.sh` now carries
+the column), never assumed.
+
+**1 · Depth.** One session, `server_ab`, medians of three sweeps with their ranges:
+
+| frame | depth | p50 | asks / s | CPU / ask |
+| ----- | ----: | --: | -------: | --------: |
+| 32 KB | 1 | 148 µs (143–160) | 6 241 | 96 µs |
+| 32 KB | 2 | 204 | 8 618 | 69 |
+| 32 KB | 4 | 241 | 13 710 | 56 |
+| 32 KB | 8 | 436 | 15 007 | 49 |
+| 32 KB | 16 | 757 | 18 252 | 49 |
+| 250 KB | 1 | 495 µs (495–512) | 1 855 | 373 µs |
+| 250 KB | 2 | 790 | 2 306 | 338 |
+| 250 KB | 4 | 1 443 | 2 614 | 345 |
+| 250 KB | 8 | 3 085 | 2 380 | 369 |
+
+Throughput is depth over latency, and the table is where the division stops paying: at 32 KB,
+1 → 4 is 2.2× the asks per second for 1.6× the p50 and −42 % CPU per ask (fewer wakes and ACKs
+per frame); past 4 the p50 grows with depth and the throughput barely. At 250 KB one session
+saturates its endpoint thread at depth 2 — 345 µs of CPU per ask is one core at 2 900 asks per
+second — and everything above is queue. The client library schedules none of this: each
+`requestExactFrame` is one ask, a batch or a fill arms every waiter at once, and depth is whatever
+the caller keeps outstanding. `D_min = ceil(0.95 × (1 + RTT / Tf))`
+([`../adr-client-window-depth.md`](../adr-client-window-depth.md)) is the one setting that takes
+the link's throughput at the least queueing, and it is built nowhere; L2 was to decide fixed
+against dynamic and never ran.
+
+**2 · A lost tail at depth 1 costs a probe timeout.** 250 KB, depth 1, four and sixteen
+sessions: p99 28–31 ms against a p50 of 1–3 ms in every repeat, with 22–81 datagrams dropped on
+the client socket per run (212 KB default buffer). quinn's PTO is `srtt + 4·rttvar` plus the
+peer's `max_ack_delay`, 25 ms by default and in Chromium, so a lost tail with nothing behind it
+waits at least 26 ms; a loss mid-frame is found by the packets behind it within an RTT. With the
+receive buffer at 1 MiB — Chromium's `kDefaultSocketReceiveBuffer` — the drops go to zero and the
+tail with them: p99 30.7 → 8.5 ms at sixteen sessions, 28.1 → 2.5 at four. The buffer is the rig's;
+the mechanism is the product's on any lossy link at depth 1, and only depth ≥ 2 (something
+follows the loss) or the ack-frequency extension (quinn peers only) shortens it.
+
+**3 · The 44-segment batch makes a drop a tail loss.** `third_party/quinn` at its 44 against the
+same source clamped to quinn's 10, 250 KB:
+
+| cell | drops / run, 44 → 10 | p99 | asks / s | CPU / ask |
+| ---- | -------------------: | --: | -------: | --------: |
+| depth 1, 4 sessions | 24 → 56 | 28.1 → 2.9 ms (**−90 %**, 6/6) | +24 % (6/6) | +10 % (5/6) |
+| depth 1, 16 sessions | 86 → 196 | 30.7 → 9.0 ms (**−71 %**, 6/6) | +4 % (5/6) | +10 % (6/6) |
+| depth 4, 16 sessions | 226 → 670 | +9 % (5/6) | **−5 % (6/6)** | **+11 % (6/6)** |
+| depth 1, 1 session | 0 → 4 | +6 % — tie | −7 % — tie | +20 % (6/6) |
+
+Ten segments drop more often and lose ten packets each time; forty-four drop less often and lose
+the frame's tail in one event. Where the pipe is full the 44 wins as §9 says; where a session is
+serial and the receiver's buffer is short, it is the whole of the tail. One thing §9 did not
+measure bounds it: quinn's pacer (`quinn-proto` `pacing.rs`) caps a burst at
+`window × 2 ms / RTT`, clamped to 10–256 packets, and `poll_transmit` ends the batch when the
+tokens run out. A 20 Mbps, 50 ms path has a window near 125 KB, so its burst is the 10-packet
+floor and the cap never binds; a hospital LAN at 1 ms fills it. §9's −16 to −21 % is a loopback
+and LAN figure. Derived from source, not measured: the cloud rig with netem prices it.
+
+**4 · More endpoints than cores.** The same binary at `--workers` 4, 16 and 64 on four cores:
+
+| cell | 16 vs 4 | 64 vs 4 |
+| ---- | ------- | ------- |
+| 32 KB, depth 4, 4 sessions | p50 −14 % (5/6), asks/s +10 % (5/6), CPU +4 % (5/6) | p50 −17 % (5/6), p99 −13 % (6/6), asks/s +14 % (5/6), CPU +4 % (6/6) |
+| 250 KB, depth 4, 4 sessions | tie | tie |
+| 250 KB, depth 4, 16 sessions | CPU +8 % (6/6), p50 — tie | CPU +12 % (6/6), p50 +8 % (5/6), asks/s −4 % (5/6) |
+| 250 KB, depth 1, 3 or 15 sessions beside one fill | tie | tie |
+
+A session shares a thread with probability about `1 − (1 − 1/W)^(S−1)`; idle endpoint threads
+cost nothing, and the kernel's scheduler is the work stealer at thread granularity until every
+core is busy, where it charges thread switches. This is the no-code answer to the placement
+lottery §8 recorded on 2026-09-11 (four sessions on four endpoints share a thread 58 % of the
+time; on sixty-four, 5 %), and the CPU column at sixteen sessions is its price. The heavy-tail
+cell (one fill, few on-demand sessions) ties here because entry 2's tail dominates it. The row
+to take on the target is the same three arms at its session count.
+
+**5 · LTO on this tree** (PR #27's profile, `lto = "fat"`, one codegen unit): sixteen sessions at
+depth 4, CPU per ask −5.6 % (6/6) at 250 KB and −3.1 % (4/6) at 32 KB; 32 KB, depth 1, one
+session: p50 +7 % (6/6 higher), asks/s −3.4 % (6/6), CPU −3.7 % (5/6). Small both ways, one
+campaign; the depth-1 loss is the cell a viewer without a cache lives in.
+
+**6 · Closed by reading.** `max_udp_payload_size` 1472 → 4000 B, the largest lever in
+[`../disk-access/adr.md`](../disk-access/adr.md) §8: Chromium's packet reader allocates
+`kMaxIncomingPacketSize + 1` = 1 473 bytes per read and drops a datagram that does not fit, so
+path discovery toward a browser cannot pass 1 472 whatever the path carries. Native quinn peers on
+a jumbo-frame LAN remain the only takers.
+
+**What joins them.** Per session there is one variable, depth: `D_min` takes the link's
+throughput at the least queueing, and depth ≥ 2 is also what turns a lost tail from a probe
+timeout into a fast retransmit. Across sessions the currency is CPU per byte and the risk is
+placement: PGO and the frame pool cut the first on every path, the segment cap only where the
+pacer lets a burst form, and endpoints above the core count bound the second. The receiver sets
+the browser's ceiling (`docs/rig-limits.md` §1 on the `docs/rig-limits` branch) and nothing here
+moves it.
+
+**Open, in order.** A client window at `D_min`, in the library or the viewer — whichever owns
+ask scheduling. The rig cells this VM cannot run (no `sch_netem` in its kernel): §9's batch at
+20 Mbps / 50 ms, and per-frame streams with ask-order priority at 250 KB under loss (arm Q; at
+32 KB it read inside noise at 0.5 % loss, +1.5 % pooled at 2 %, and +28 % on the reader clock at
+2 % — `L1_V3_PHASE_C_REVIEW.md` on the archive tag; never run at 250 KB). `--workers` above the
+core count on the target. PR #27 against entry 5.
+
+Re-run:
+
+```bash
+lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 100 4 6 \
+  w4 target/release/exact-server --workers 4 -- w16 target/release/exact-server --workers 16 > rt.tsv
+lab/scripts/runtime_ab_pair.py rt.tsv w4 w16              # p99 and rcvbuf_drops are the columns to read
+sysctl -w net.core.rmem_default=1048576                      # entry 2's control; 212992 restores it
+# entry 3: clamp `max_transmit_segments` to 10 in a worktree of third_party/quinn and pass both binaries
+```
+
 ---
 
 ## Campaign instruments (on the tag)
