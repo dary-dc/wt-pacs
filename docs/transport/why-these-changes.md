@@ -448,6 +448,121 @@ SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_25
 lab/scripts/runtime_ab_pair.py rt.tsv base tree pgo
 ```
 
+### 10 · Latency and throughput on one tree: where they part, and what joins them
+
+**The question.** Minimise the round trip and maximise sessions per core at once. On this tree
+the two part in four places. Each was measured 2026-09-12 on the 4 vCPU VM, client on the box and
+unpinned, `--workers` at its default, six repeats paired and arm order reversed unless a row says
+otherwise; loss is read from the client socket's `Udp: RcvbufErrors` (`runtime_ab.sh` now carries
+the column), never assumed.
+
+**1 · Depth.** One session, `server_ab`, medians of three sweeps with their ranges:
+
+| frame | depth | p50 | asks / s | CPU / ask |
+| ----- | ----: | --: | -------: | --------: |
+| 32 KB | 1 | 148 µs (143–160) | 6 241 | 96 µs |
+| 32 KB | 2 | 204 | 8 618 | 69 |
+| 32 KB | 4 | 241 | 13 710 | 56 |
+| 32 KB | 8 | 436 | 15 007 | 49 |
+| 32 KB | 16 | 757 | 18 252 | 49 |
+| 250 KB | 1 | 495 µs (495–512) | 1 855 | 373 µs |
+| 250 KB | 2 | 790 | 2 306 | 338 |
+| 250 KB | 4 | 1 443 | 2 614 | 345 |
+| 250 KB | 8 | 3 085 | 2 380 | 369 |
+
+Throughput is depth over latency, and the table is where the division stops paying: at 32 KB,
+1 → 4 is 2.2× the asks per second for 1.6× the p50 and −42 % CPU per ask (fewer wakes and ACKs
+per frame); past 4 the p50 grows with depth and the throughput barely. At 250 KB one session
+saturates its endpoint thread at depth 2 — 345 µs of CPU per ask is one core at 2 900 asks per
+second — and everything above is queue. The client library schedules none of this: each
+`requestExactFrame` is one ask, a batch or a fill arms every waiter at once, and depth is whatever
+the caller keeps outstanding. `D_min = ceil(0.95 × (1 + RTT / Tf))`
+([`../adr-client-window-depth.md`](../adr-client-window-depth.md)) is the one setting that takes
+the link's throughput at the least queueing, and it is built nowhere; L2 was to decide fixed
+against dynamic and never ran.
+
+**2 · A lost tail at depth 1 costs a probe timeout.** 250 KB, depth 1, four and sixteen
+sessions: p99 28–31 ms against a p50 of 1–3 ms in every repeat, with 22–81 datagrams dropped on
+the client socket per run (212 KB default buffer). quinn's PTO is `srtt + 4·rttvar` plus the
+peer's `max_ack_delay`, 25 ms by default and in Chromium, so a lost tail with nothing behind it
+waits at least 26 ms; a loss mid-frame is found by the packets behind it within an RTT. With the
+receive buffer at 1 MiB — Chromium's `kDefaultSocketReceiveBuffer` — the drops go to zero and the
+tail with them: p99 30.7 → 8.5 ms at sixteen sessions, 28.1 → 2.5 at four. The buffer is the rig's;
+the mechanism is the product's on any lossy link at depth 1, and only depth ≥ 2 (something
+follows the loss) or the ack-frequency extension (quinn peers only) shortens it.
+
+**3 · The 44-segment batch makes a drop a tail loss.** `third_party/quinn` at its 44 against the
+same source clamped to quinn's 10, 250 KB:
+
+| cell | drops / run, 44 → 10 | p99 | asks / s | CPU / ask |
+| ---- | -------------------: | --: | -------: | --------: |
+| depth 1, 4 sessions | 24 → 56 | 28.1 → 2.9 ms (**−90 %**, 6/6) | +24 % (6/6) | +10 % (5/6) |
+| depth 1, 16 sessions | 86 → 196 | 30.7 → 9.0 ms (**−71 %**, 6/6) | +4 % (5/6) | +10 % (6/6) |
+| depth 4, 16 sessions | 226 → 670 | +9 % (5/6) | **−5 % (6/6)** | **+11 % (6/6)** |
+| depth 1, 1 session | 0 → 4 | +6 % — tie | −7 % — tie | +20 % (6/6) |
+
+Ten segments drop more often and lose ten packets each time; forty-four drop less often and lose
+the frame's tail in one event. Where the pipe is full the 44 wins as §9 says; where a session is
+serial and the receiver's buffer is short, it is the whole of the tail. One thing §9 did not
+measure bounds it: quinn's pacer (`quinn-proto` `pacing.rs`) caps a burst at
+`window × 2 ms / RTT`, clamped to 10–256 packets, and `poll_transmit` ends the batch when the
+tokens run out. A 20 Mbps, 50 ms path has a window near 125 KB, so its burst is the 10-packet
+floor and the cap never binds; a hospital LAN at 1 ms fills it. §9's −16 to −21 % is a loopback
+and LAN figure. Derived from source, not measured: the cloud rig with netem prices it.
+
+**4 · More endpoints than cores.** The same binary at `--workers` 4, 16 and 64 on four cores:
+
+| cell | 16 vs 4 | 64 vs 4 |
+| ---- | ------- | ------- |
+| 32 KB, depth 4, 4 sessions | p50 −14 % (5/6), asks/s +10 % (5/6), CPU +4 % (5/6) | p50 −17 % (5/6), p99 −13 % (6/6), asks/s +14 % (5/6), CPU +4 % (6/6) |
+| 250 KB, depth 4, 4 sessions | tie | tie |
+| 250 KB, depth 4, 16 sessions | CPU +8 % (6/6), p50 — tie | CPU +12 % (6/6), p50 +8 % (5/6), asks/s −4 % (5/6) |
+| 250 KB, depth 1, 3 or 15 sessions beside one fill | tie | tie |
+
+A session shares a thread with probability about `1 − (1 − 1/W)^(S−1)`; idle endpoint threads
+cost nothing, and the kernel's scheduler is the work stealer at thread granularity until every
+core is busy, where it charges thread switches. This is the no-code answer to the placement
+lottery §8 recorded on 2026-09-11 (four sessions on four endpoints share a thread 58 % of the
+time; on sixty-four, 5 %), and the CPU column at sixteen sessions is its price. The heavy-tail
+cell (one fill, few on-demand sessions) ties here because entry 2's tail dominates it. The row
+to take on the target is the same three arms at its session count.
+
+**5 · LTO on this tree** (PR #27's profile, `lto = "fat"`, one codegen unit): sixteen sessions at
+depth 4, CPU per ask −5.6 % (6/6) at 250 KB and −3.1 % (4/6) at 32 KB; 32 KB, depth 1, one
+session: p50 +7 % (6/6 higher), asks/s −3.4 % (6/6), CPU −3.7 % (5/6). Small both ways, one
+campaign; the depth-1 loss is the cell a viewer without a cache lives in.
+
+**6 · Closed by reading.** `max_udp_payload_size` 1472 → 4000 B, the largest lever in
+[`../disk-access/adr.md`](../disk-access/adr.md) §8: Chromium's packet reader allocates
+`kMaxIncomingPacketSize + 1` = 1 473 bytes per read and drops a datagram that does not fit, so
+path discovery toward a browser cannot pass 1 472 whatever the path carries. Native quinn peers on
+a jumbo-frame LAN remain the only takers.
+
+**What joins them.** Per session there is one variable, depth: `D_min` takes the link's
+throughput at the least queueing, and depth ≥ 2 is also what turns a lost tail from a probe
+timeout into a fast retransmit. Across sessions the currency is CPU per byte and the risk is
+placement: PGO and the frame pool cut the first on every path, the segment cap only where the
+pacer lets a burst form, and endpoints above the core count bound the second. The receiver sets
+the browser's ceiling (`docs/rig-limits.md` §1 on the `docs/rig-limits` branch) and nothing here
+moves it.
+
+**Open, in order.** A client window at `D_min`, in the library or the viewer — whichever owns
+ask scheduling. The rig cells this VM cannot run (no `sch_netem` in its kernel): §9's batch at
+20 Mbps / 50 ms, and per-frame streams with ask-order priority at 250 KB under loss (arm Q; at
+32 KB it read inside noise at 0.5 % loss, +1.5 % pooled at 2 %, and +28 % on the reader clock at
+2 % — `L1_V3_PHASE_C_REVIEW.md` on the archive tag; never run at 250 KB). `--workers` above the
+core count on the target. PR #27 against entry 5.
+
+Re-run:
+
+```bash
+lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 100 4 6 \
+  w4 target/release/exact-server --workers 4 -- w16 target/release/exact-server --workers 16 > rt.tsv
+lab/scripts/runtime_ab_pair.py rt.tsv w4 w16              # p99 and rcvbuf_drops are the columns to read
+sysctl -w net.core.rmem_default=1048576                      # entry 2's control; 212992 restores it
+# entry 3: clamp `max_transmit_segments` to 10 in a worktree of third_party/quinn and pass both binaries
+```
+
 ---
 
 ## Campaign instruments (on the tag)

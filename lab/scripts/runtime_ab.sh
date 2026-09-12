@@ -5,7 +5,8 @@
 #   lab/scripts/runtime_ab.sh <fixture> <on-demand|fill> <depth> <asks> <sessions> <repeats> \
 #     <label-a> <bin-a> [server args...] -- <label-b> <bin-b> [server args...] [-- ...]
 #
-# One row per run, `server_ab`'s columns plus the server's context switches per ask.
+# One row per run, `server_ab`'s columns plus the server's context switches per ask and the
+# datagrams the client's socket dropped (`Udp: RcvbufErrors`), so a tail can be read against loss.
 # SERVER_CPUS / CLIENT_CPUS pin the two sides (taskset lists) so a saturated cell is the server's.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -33,17 +34,18 @@ for log in "${logs[@]}"; do
 done
 frames=$(sed -n 's/^frames=//p' "${logs[0]}" | head -1)
 ctx() { awk '/ctxt_switches/ {s+=$2} END {print s+0}' "/proc/$1/task/"*/status; }
+drops() { awk '/^Udp:/ {getline; print $6}' /proc/net/snmp; }
 run() {
-  local i=$1 r=$2 c0 c1 row
-  c0=$(ctx "${pids[$i]}")
+  local i=$1 r=$2 c0 c1 d0 d1 row
+  c0=$(ctx "${pids[$i]}"); d0=$(drops)
   row=$(${CLIENT_CPUS:+taskset -c "$CLIENT_CPUS"} "$ROOT/target/release/server_ab" \
     --url "https://127.0.0.1:${ports[$i]}/" --server-pid "${pids[$i]}" \
     --mode "$mode" --depth "$depth" --asks "$asks" --sessions "$sessions" --frames "$frames" \
     --label "r$r" --arm "${arms[$i]}" --temp warm --no-header)
-  c1=$(ctx "${pids[$i]}")
-  printf '%s\t%s\n' "$row" "$(python3 -c "print(f'{($c1-$c0)/($asks*$sessions):.1f}')")"
+  c1=$(ctx "${pids[$i]}"); d1=$(drops)
+  printf '%s\t%s\t%s\n' "$row" "$(python3 -c "print(f'{($c1-$c0)/($asks*$sessions):.1f}')")" "$((d1-d0))"
 }
-printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\tctx_per_ask\n'
+printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\tctx_per_ask\trcvbuf_drops\n'
 for i in "${!arms[@]}"; do run "$i" 0 >/dev/null; done
 for r in $(seq 1 "$reps"); do
   if (( r % 2 )); then order=$(seq 0 $((${#arms[@]}-1))); else order=$(seq $((${#arms[@]}-1)) -1 0); fi

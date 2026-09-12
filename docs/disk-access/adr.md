@@ -233,7 +233,7 @@ whole plan.
 
 | Lever | Worth | Blocker / cost | Status |
 | --- | --- | --- | --- |
-| **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — the largest effect measured anywhere in this investigation | the peer must advertise the same ceiling, and the peer is a browser; above 4000 B path discovery failed and fell back to 1200 B | **Measured, not taken.** Price it first |
+| **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** — the largest effect measured anywhere in this investigation | the peer must accept the datagram, and Chromium's reader drops any over 1 472 B; above 4000 B path discovery failed and fell back to 1200 B | **Closed for browsers 2026-09-12**, [`../transport/why-these-changes.md` §10](../transport/why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them); native peers on a jumbo LAN only |
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
