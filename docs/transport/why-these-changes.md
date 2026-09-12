@@ -217,6 +217,48 @@ and the kernel hashed all of them onto one endpoint thread while the others idle
 opens a socket per session and a fleet of viewers has as many addresses; a UDP proxy or load
 balancer that forwards every session from one source port would do the same to the product.
 
+**Placement is a lottery, and count balance is the wrong statistic** (2026-09-11, a second box:
+8-core workstation, `intel_pstate`/`powersave`, server pinned to four cores and the driver to the
+other four, 87 × 49.1 KB frames, on-demand depth 4, 100 asks per session, six repeats paired,
+order reversed each repeat). Against `main`, with each arm's own per-round throughput range:
+
+| sessions | Δ asks / s | Δ p50 | Δ CPU per ask | range, new | range, `main` |
+| -------: | ---------: | ----: | -------------: | ---------- | ------------- |
+| 1 | **+36 % (6/6)** | −33 % (6/6) | −58 % | 7 233–8 895 | 5 427–5 732 |
+| 4 | **−14 % (4/6 worse)** | +2 % — tie | −33 % | **8 690–13 604** | 12 072–14 921 |
+| 16 | +2 % — tie | −18 % (6/6) | −27 % | 12 235–16 060 | 13 311–14 369 |
+| 32 | **+14 % (6/6)** | −12 % (5/6) | −23 % | 7 809–16 053 | 6 975–13 885 |
+
+At four sessions the new arm's floor (8 690) sits inside the band one worker gives
+(8 516–9 277, same cell): when two of four sessions hash to one endpoint the run performs like a
+single thread while the others idle. By sixteen the counts even out and the floor lifts.
+
+**What a collision costs.** `server_ab --one-socket` puts every session on one 4-tuple, which is
+the hash collision made deliberate. Sixteen sessions, depth 4, same pinning, six repeats paired:
+
+| arm | p50 | p99 | asks / s | CPU per ask |
+| --- | --: | --: | -------: | ----------: |
+| `main`, spread | 3.26 ms | 6.92 ms | 14 003 | 205 µs |
+| `main`, one thread | 2.34 ms | 32.2 ms | 13 294 (−5 %, 6/6) | 219 µs |
+| new, spread | 2.63 ms | 7.21 ms | 13 121 | 151 µs |
+| new, one thread | 6.24 ms | 8.55 ms | **8 898 (−32 %, 6/6)** | 103 µs |
+
+The multi-thread runtime does not care which socket a packet arrived on — it steals the work to a
+free core and loses 5 %. Per-core endpoints lose a third of the throughput and 2.4× the p50, at
+the *lowest* CPU per ask of the four: the efficiency survives, the parallelism does not.
+
+At a thousand sessions over eight endpoints the **counts** even out (125 ± 10). The **load** does
+not. A viewer filling a 61 MB study is worth hundreds of idle on-demand viewers, so the heavy
+sessions are few, their placement is a small-N lottery, and it is fixed for the life of the
+session; everyone hashed onto a thread with a heavy session pays the row above. Work stealing is
+the mechanism that absorbs exactly this, and it is the one this removes. Three things compound it,
+none of them measured here: a UDP front forwarding sessions from one source port makes the
+one-thread row permanent rather than exceptional; a mobile fleet's Wi-Fi-to-cellular handovers and
+NAT rebinds change the 4-tuple, and connection migration is the QUIC feature 4-tuple hashing
+defeats (eBPF reuseport steering on the connection ID is the usual answer and is not here); and a
+`current_thread` runtime has no relief valve when one session blocks its thread — this box never
+makes the reader miss, so that path has never run blocked.
+
 **To a browser.** The same A/B driven by the product TypeScript client in headless Chromium 141
 on this VM (`lab/scripts/browser_cell.py`; one session, six interleaved repeats, wall per frame):
 
@@ -245,6 +287,45 @@ Named, not measured: on the workstation (`intel_pstate`/`powersave`) the cross-c
 removes also crossed C-states, so the saving there may read larger than on this VM; the depth-1
 cell with the governor at `performance` would price the rest of it. The native driver and the
 browser are both multi-threaded clients and pay the same kind of hand-off on their side.
+
+**The receive thread is the ceiling, and it is unmoved** (2026-09-11, the same second box; this
+whole branch — §8 and §9 together — against `main`, driven by a product page in Chromium 148,
+87 × 49.1 KB, five arms interleaved, n = 6 per cell, page clock). Paired against `main`: all
+frames received −0 % (3/6), all frames decoded +5 % (3/6); on demand, serve p50 −2 % (4/6) and
+gesture to on-screen −3 % (3/6). Every pairwise rounds-ahead cell reads 3/6 or 4/6.
+
+Chromium's network-service IO thread (`Chrome_ChildIOT`), busy milliseconds to receive the same
+4.38 MB:
+
+| arm | IO thread busy | peak over 100 ms | fill span |
+| --- | -------------: | ---------------: | --------: |
+| a reference implementation, TCP through a proxy | 178 ms | 50 % of a core | 297 ms |
+| a reference implementation, QUIC | 243 ms | 57 % | 58 ms |
+| `main` | 268 ms | **84 %** | 110 ms |
+| this branch | 274 ms | **82 %** | 126 ms |
+
+Natively this branch serves that study at 507 MB/s against `main`'s 305 MB/s. The thread that has
+to take the bytes did not move, and at 82–85 % of a core it is what sets the fill. That is the
+whole of the tie — a conclusive negative for loopback, not a shortage of repeats.
+
+Two things fall out. **The drops hypothesis is dead**: 44 datagrams per `sendmsg` did not worsen
+Chromium's socket overflow (866 → 852 per run, 3/6), so burst size is not what sheds them. And the
+rig favours TCP by a measurable amount — loopback's 65 536-byte MTU gives a TCP peer ~64 KB
+segments where our datagrams stop at 1 452, and the same 4.38 MB costs Chromium 178 ms of receive
+CPU that way against our 268. A real link gives both ~1.5 KB packets.
+
+**Open for whoever takes these two entries.** Neither can be priced for a viewer on loopback
+(§1 and §3 of the limits doc — `git show origin/docs/rig-limits:docs/rig-limits.md`,
+which records what this box cannot decide and what would lift each limit); the cell that would
+price them is a shaped,
+lossy, rate-limited link where the wire binds before the receiver does — the same rig §8's
+falsifier already asks for. Add a heavy-tailed mix to that falsifier — a few fills among many idle
+viewers — since the load, not the session count, is what the hash cannot balance. Splitting the
+branch is the other open question: §9 is per-byte work removal with no scheduling change, so the
+quinn patch and the frame pool on the stock multi-thread runtime would carry that win with none of
+the placement risk. The commits are stacked, so it needs a revert rather than a flag, and
+`--workers 1` is not that build (one `current_thread` endpoint, −26 to −38 % at four sessions
+and up).
 
 **Alternative.** One endpoint on its own thread handing accepted connections to per-core
 runtimes keeps the endpoint-to-connection hop, half the cost, and quinn's endpoint driver stays
