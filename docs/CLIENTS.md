@@ -7,7 +7,13 @@
 
 Same Media-complete wire as the server: FoD on one bidi control stream, envelope payloads on server uni streams.
 
-Neither client keeps an ask window: `requestExactFrame` is one ask, and depth is whatever the
-caller leaves outstanding. Fill is `startStreamFrames` (one `StreamFrames`). The window ADR is
-[`adr-client-window-depth.md`](adr-client-window-depth.md); open work is
-[`transport/why-these-changes.md` §10](transport/why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them).
+The TypeScript client keeps an optional ask window (2026-09-14): `connect(url, hash,
+{ window: { depth: 4 } })` holds `requestExactFrame` to a fixed depth in ask order, and
+`{ depth: "auto", initial: 2 }` re-derives the depth from the link every eight frames —
+`D = ceil(0.95 × (1 + RTT / Tf))`, RTT from the browser's `getStats().smoothedRtt`, `Tf` the median
+time between arrivals — and holds `initial` where the browser has no `getStats`. Without a window,
+`requestExactFrame` is one ask and depth is whatever the caller leaves outstanding, which is
+still the WASM client's only shape. Fill is `startStreamFrames` (one `StreamFrames`). The window
+ADR is [`adr-client-window-depth.md`](adr-client-window-depth.md); which depth ships is L2's
+question ([`lanes/L2-ask-policy.md`](lanes/L2-ask-policy.md)); the rest of the open work is
+[`transport/NEXT.md`](transport/NEXT.md).

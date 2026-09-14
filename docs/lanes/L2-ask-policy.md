@@ -2,6 +2,12 @@
 
 **Status: ready for cloud agent.** · Harness only · Round-robin the Oracle São Paulo rig with L1
 
+**Built 2026-09-14, later.** The TypeScript client carries the window as an opt-in
+(`connect(…, { window })`): fixed, or `"auto"` with the estimator below, RTT from
+`getStats().smoothedRtt` rather than ask-to-receive time (which inflates with the queue). The
+harness keeps its own fixed loop as this campaign's driver; the `dynamic` arm can now be the
+library's `auto`.
+
 **Product direction 2026-09-14.** Fill stays one `StreamFrames` (throughput). On-demand
 network depth is a client window, not a server queue; disk depth is already
 `TILE_SLOTS` / `FILL_AHEAD`. This run still decides fixed versus live `D_min` once that

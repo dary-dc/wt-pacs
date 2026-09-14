@@ -23,6 +23,7 @@ scripts/patch_quinn.sh --check
 step "client: build bundles + unit tests"
 bash client/transport-ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
+node client/transport-ts/test/run.mjs | tail -1
 
 step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)

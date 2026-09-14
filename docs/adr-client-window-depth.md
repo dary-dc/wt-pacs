@@ -228,6 +228,18 @@ streams are entirely different things.
 
 - Measure whether `D_min` actually saturates the real `wtransport` path. The formula is arithmetic;
   the transport may need more. See [`window-saturation-experiment.md`](window-saturation-experiment.md)
+- **2026-09-14, later — built in the TypeScript client** as an opt-in `window` on `connect`:
+  fixed depth, or `"auto"` with this ADR's formula, `U = 0.95`, re-evaluated every eight frames
+  with L2's damping and `[1, 16]` clamp. RTT is the browser's `getStats().smoothedRtt`, never
+  ask-to-receive time: once asks queue behind each other that interval is `RTT + D·Tf` and an
+  estimator fed with it climbs to the clamp. Where the browser exposes no `getStats`, `auto`
+  holds its initial depth. `Tf` is the median time between the last eight arrivals, which
+  reads the link's per-frame time once the depth saturates it and the delivered pace below
+  that — so the estimate climbs one step per evaluation until it saturates, and stops there.
+  A span from first send to last receive was tried first and rejected by the test: it folds
+  one round trip into eight intervals, under-reads the rate more as the depth rises, and
+  stalled the climb at 4 where the formula says 8. Tested against a Node stub of a FIFO server behind a link
+  (`client/transport-ts/test/`). Which depth ships is still L2's question.
 - **2026-09-14 — what is still to build.** Disk depth is already server-internal
   (`TILE_SLOTS` / `FILL_AHEAD`) and independent of the ask list. Fill is already one
   `StreamFrames`. Neither product client keeps a network window: `requestExactFrame` is one
