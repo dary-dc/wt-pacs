@@ -97,7 +97,7 @@ async fn prepare(
 
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
-        stream_mode: config.mode.as_str(),
+        stream_mode: config.mode.to_string(),
         study: config.study_path.display().to_string(),
         study_frames: store.frame_count(),
     });
@@ -109,7 +109,7 @@ async fn prepare(
     println!("frames={}", store.frame_count());
     println!("read_fast_path={}", read_fast_path(&store));
     println!("completion=media_uni_stream");
-    println!("stream_mode={}", config.mode.as_str());
+    println!("stream_mode={}", config.mode);
     println!("bind={bound}");
     println!("workers={workers}");
     println!("transport={}", config.tuning.describe());
@@ -120,7 +120,7 @@ async fn prepare(
     info!(
         %wt_url,
         study = %config.study_path.display(),
-        stream_mode = config.mode.as_str(),
+        stream_mode = %config.mode,
         workers,
         "exact-server ready (Media-complete)"
     );

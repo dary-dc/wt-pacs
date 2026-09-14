@@ -1,5 +1,6 @@
-//! Session-scoped outbound media: length-prefixed envelopes on shared or per-frame uni
-//! streams, the codestream handed to quinn whole and uncopied. `docs/disk-access/adr.md`.
+//! Session-scoped outbound media: length-prefixed envelopes on one shared uni, a fixed pool
+//! of them, or one per frame; the codestream handed to quinn whole and uncopied.
+//! `docs/disk-access/adr.md`; the three arms are `docs/lanes/T3-stream-shape.md`.
 
 use crate::transport::stream_mode::StreamMode;
 use anyhow::{Context, Result};
@@ -14,6 +15,12 @@ pub(crate) enum FrameOut {
     Shared {
         uni: SendStream,
         /// Keeps the QUIC connection alive for the session-scoped uni.
+        _connection: Connection,
+    },
+    Pool {
+        unis: Vec<SendStream>,
+        next: usize,
+        /// Keeps the QUIC connection alive for the session-scoped unis.
         _connection: Connection,
     },
     PerFrame {
@@ -42,6 +49,24 @@ impl FrameOut {
                     _connection: connection,
                 })
             }
+            StreamMode::Pool(k) => {
+                let mut unis = Vec::with_capacity(k.get());
+                for _ in 0..k.get() {
+                    unis.push(
+                        connection
+                            .open_uni()
+                            .await
+                            .context("open pool uni")?
+                            .await
+                            .context("pool uni ready")?,
+                    );
+                }
+                Ok(Self::Pool {
+                    unis,
+                    next: 0,
+                    _connection: connection,
+                })
+            }
             StreamMode::PerFrame => Ok(Self::PerFrame {
                 connection,
                 acks: JoinSet::new(),
@@ -56,6 +81,10 @@ impl FrameOut {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
             Self::Shared { uni, .. } => write_frame(uni, head, body).await,
+            Self::Pool { unis, next, .. } => {
+                let i = next_in_pool(next, unis.len());
+                write_frame(&mut unis[i], head, body).await
+            }
             Self::PerFrame {
                 connection,
                 acks,
@@ -89,6 +118,13 @@ impl FrameOut {
             .await;
         }
     }
+}
+
+/// Frame `n` rides stream `n % k`, so `k` streams share the session's backlog evenly.
+fn next_in_pool(next: &mut usize, len: usize) -> usize {
+    let i = *next;
+    *next = (i + 1) % len;
+    i
 }
 
 /// Earlier asks outrank later ones, so quinn sends a lost frame's retransmit before newer
@@ -147,6 +183,25 @@ mod tests {
             let p = ask_priority(seq);
             assert!(p < last, "ask {seq} ranks at {p}, not below {last}");
             last = p;
+        }
+    }
+
+    /// A pool deals every stream in turn and wraps, so no stream carries two frames before
+    /// another carries one.
+    #[test]
+    fn a_pool_deals_round_robin_and_wraps() {
+        let mut next = 0;
+        let dealt: Vec<usize> = (0..7).map(|_| next_in_pool(&mut next, 3)).collect();
+        assert_eq!(dealt, vec![0, 1, 2, 0, 1, 2, 0]);
+        assert_eq!(next, 1, "the cursor did not carry across the wrap");
+    }
+
+    /// A pool of one is the shared stream: every frame rides the same uni.
+    #[test]
+    fn a_pool_of_one_never_leaves_its_only_stream() {
+        let mut next = 0;
+        for _ in 0..5 {
+            assert_eq!(next_in_pool(&mut next, 1), 0);
         }
     }
 

@@ -20,7 +20,7 @@ struct Args {
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
     /// How frames reach the client: one shared uni stream or one per frame.
-    #[arg(long, value_enum, default_value_t = StreamMode::Shared)]
+    #[arg(long, default_value = "shared")]
     stream_mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to
     /// `0.0.0.0` when the host has no IPv6.
