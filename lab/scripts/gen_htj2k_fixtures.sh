@@ -7,11 +7,14 @@
 #
 #   OUT_ROOT=... FRAMES=... lab/scripts/gen_htj2k_fixtures.sh [size ...]
 #
-# Sizes name the decoded frame, which is what the decoder's heap answers to:
-#   c512   512x512  3x8-bit   colour     ~0.8 MB decoded
-#   g512   512x512  1x16-bit  greyscale  ~0.5 MB decoded
-#   g1024  1024x1024 1x16-bit greyscale  ~2 MB decoded
-#   g2048  2048x2048 1x16-bit greyscale  ~8 MB decoded
+# Sizes name the decoded frame, which is what the decoder's heap answers to. The
+# greyscale ladder doubles from 50 KB to 8 MB, the range the copy-cost sweep needs:
+#   g160   160x160  1x16-bit  greyscale  50 KB decoded
+#   g256   256x256  1x16-bit  greyscale  128 KB decoded
+#   g512   512x512  1x16-bit  greyscale  512 KB decoded
+#   c512   512x512  3x8-bit   colour     768 KB decoded
+#   g1024  1024x1024 1x16-bit greyscale  2 MB decoded
+#   g2048  2048x2048 1x16-bit greyscale  8 MB decoded
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT_ROOT="${OUT_ROOT:-$ROOT/lab/fixtures}"
@@ -22,6 +25,7 @@ SIZES=("$@")
 [[ ${#SIZES[@]} -eq 0 ]] && SIZES=(c512 g512 g1024 g2048)
 
 ojph_compress="$BUILD/install/bin/ojph_compress"
+export LD_LIBRARY_PATH="$BUILD/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 if [[ ! -x "$ojph_compress" ]]; then
   echo "building OpenJPH $OJPH_TAG for its encoder (once)"
   mkdir -p "$BUILD"
@@ -43,6 +47,8 @@ encode() {
 
 for size in "${SIZES[@]}"; do
   case "$size" in
+    g160)  w=160;  h=160;  ch=1; depth=65535 ;;
+    g256)  w=256;  h=256;  ch=1; depth=65535 ;;
     c512)  w=512;  h=512;  ch=3; depth=255 ;;
     g512)  w=512;  h=512;  ch=1; depth=65535 ;;
     g1024) w=1024; h=1024; ch=1; depth=65535 ;;
@@ -53,9 +59,11 @@ for size in "${SIZES[@]}"; do
   mkdir -p "$dir"
   echo "$size: $FRAMES frames of ${w}x${h}x${ch} -> $dir"
   for ((i = 0; i < FRAMES; i++)); do
-    pnm=$(mktemp --suffix=.pnm)
+    pnm=$(mktemp --suffix=".$([[ $ch -eq 1 ]] && echo pgm || echo ppm)")
     python3 "$ROOT/lab/scripts/gen_frame_pnm.py" "$pnm" "$w" "$h" "$ch" "$depth" "$i" "$FRAMES"
-    encode "$pnm" "$(printf '%s/%03d.j2c' "$dir" "$i")"
+    out=$(printf '%s/%03d' "$dir" "$i")
+    encode "$pnm" "$out.j2c"
+    mv "$pnm.sha256" "$out.sha256"
     rm -f "$pnm"
   done
   printf '{"frameCount": %d, "width": %d, "height": %d, "channels": %d, "maxValue": %d}\n' \

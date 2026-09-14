@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""One synthetic frame as binary PNM, for lab/scripts/gen_htj2k_fixtures.sh.
+"""One synthetic frame as binary PNM, plus a checksum of its samples in decoder order.
+
+The profile is reversible, so a decode of the encoded frame must reproduce these samples
+exactly. The checksum is the bench's ground truth: an oracle built by the decoder itself
+cannot catch a systematic decode bug, because it shares the bug.
 
 Content is structured rather than random: random pixels do not compress, and a flat field
 compresses to nothing, so either would give a codestream no real study would produce. This
@@ -8,6 +12,7 @@ roughly the ratios the profile gives on a real series.
 
 usage: gen_frame_pnm.py OUT W H CHANNELS MAXVAL INDEX COUNT
 """
+import hashlib
 import sys
 
 import numpy as np
@@ -37,6 +42,7 @@ def main() -> None:
 
     dtype = np.uint8 if maxval < 256 else np.uint16
     data = (stacked * maxval).astype(dtype)
+    samples = data.tobytes()  # little-endian above 8 bits, which is what the decoder emits
     if dtype is np.uint16:
         data = data.byteswap()  # PNM is big-endian above 8 bits
 
@@ -44,6 +50,8 @@ def main() -> None:
     with open(out, "wb") as fh:
         fh.write(b"%s\n%d %d\n%d\n" % (magic, w, h, maxval))
         fh.write(data.tobytes())
+    with open(out + ".sha256", "w") as fh:
+        fh.write(hashlib.sha256(samples).hexdigest())
 
 
 if __name__ == "__main__":

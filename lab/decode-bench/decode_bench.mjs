@@ -1,20 +1,10 @@
-// Heap cost of decoding with N decoder instances, across frame sizes.
-//
-// Each instance is its own WASM module with its own linear memory. WASM memory only grows,
-// so every instance holds its high-water mark for as long as it lives. The arms rotate order
-// each round. docs/decode/README.md says what the numbers are for.
+// Heap cost of decoding with N decoder instances. docs/decode/README.md says what it is for.
 //
 // usage: node decode_bench.mjs FIXTURE_DIR [rounds]
-import fs from 'node:fs';
-import path from 'node:path';
-import vm from 'node:vm';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { instance, loadFixture, MB, median, range, sha256 } from './decoder.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const decoderDir = path.join(here, 'vendor', 'openjph');
 const fixtureDir = process.argv[2];
-const ROUNDS = Number(process.argv[3] || 5); // round 0 warms up and checks pixels
+const ROUNDS = Number(process.argv[3] || 6); // round 0 warms up and is not counted
 const WIDTHS = [1, 2, 3, 4];
 
 if (!fixtureDir) {
@@ -22,83 +12,66 @@ if (!fixtureDir) {
   process.exit(2);
 }
 
-const frames = fs
-  .readdirSync(fixtureDir)
-  .filter((f) => f.endsWith('.j2c') || f.endsWith('.htj2k'))
-  .sort()
-  .map((f) => new Uint8Array(fs.readFileSync(path.join(fixtureDir, f))));
-if (!frames.length) {
-  console.error(`no codestreams in ${fixtureDir}`);
-  process.exit(2);
-}
+const { frames, truth, meta, name } = loadFixture(fixtureDir);
 
-// The glue is a classic script and takes `require` / `__dirname` from its scope in Node.
-globalThis.require = createRequire(import.meta.url);
-globalThis.__dirname = decoderDir;
-vm.runInThisContext(fs.readFileSync(path.join(decoderDir, 'openjphjs.js'), 'utf8'));
-const wasmBinary = fs.readFileSync(path.join(decoderDir, 'openjphjs.wasm'));
-
-const now = () => performance.now();
-const MB = (n) => (n / 1048576).toFixed(1);
-const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
-
-async function instance() {
-  const M = await globalThis.Module({ locateFile: (f) => path.join(decoderDir, f), wasmBinary });
-  return {
-    heap: () => M.HEAPU8.length,
-    decode(bytes) {
-      const d = new M.HTJ2KDecoder();
-      try {
-        d.getEncodedBuffer(bytes.length).set(bytes);
-        d.readHeader();
-        d.decode();
-        return d.getDecodedBuffer().slice();
-      } finally {
-        d.delete();
-      }
-    },
-  };
-}
-
-/** One arm: `width` instances, frames dealt round-robin. Serial by design — the claim is memory. */
-async function arm(width, reference) {
+/** `width` instances, frames dealt round-robin. Serial by design — the claim is memory. */
+async function arm(width) {
   const pool = [];
   for (let i = 0; i < width; i++) pool.push(await instance());
-  const t0 = now();
+  const floor = pool.map((p) => p.heap());
+  const t0 = performance.now();
   let mismatch = 0;
   for (let f = 0; f < frames.length; f++) {
     const pixels = pool[f % width].decode(frames[f]);
-    if (reference && !Buffer.from(pixels).equals(Buffer.from(reference[f]))) mismatch++;
+    if (sha256(pixels) !== truth[f]) mismatch++;
   }
-  const ms = (now() - t0) / frames.length;
-  const heaps = pool.map((p) => p.heap());
-  return { ms, mismatch, total: heaps.reduce((a, b) => a + b, 0), each: heaps };
+  const ms = (performance.now() - t0) / frames.length;
+  const high = pool.map((p) => p.heap());
+  return {
+    ms,
+    mismatch,
+    floor: floor.reduce((a, b) => a + b, 0),
+    high: high.reduce((a, b) => a + b, 0),
+    each: high,
+  };
 }
 
 const first = await instance();
-const oracle = frames.map((f) => first.decode(f));
+const idle = first.heap();
 
 const results = new Map(WIDTHS.map((w) => [w, []]));
 for (let round = 0; round < ROUNDS; round++) {
-  const order = WIDTHS.slice(round % WIDTHS.length).concat(WIDTHS.slice(0, round % WIDTHS.length));
-  for (const width of order) {
-    const r = await arm(width, oracle);
+  const shift = round % WIDTHS.length;
+  for (const width of WIDTHS.slice(shift).concat(WIDTHS.slice(0, shift))) {
+    const r = await arm(width);
     if (r.mismatch) {
-      console.error(`width ${width}: ${r.mismatch}/${frames.length} frames differ from the oracle`);
+      console.error(`width ${width}: ${r.mismatch}/${frames.length} frames differ from the encoder's input`);
       process.exit(1);
     }
     if (round) results.get(width).push(r);
   }
 }
 
-console.log(`${frames.length} frames from ${path.basename(fixtureDir)}, ${ROUNDS - 1} timed rounds`);
-console.log('  width  total heap   per instance   ms/frame (serial)');
+const n = ROUNDS - 1;
+const decoded = meta.width ? meta.width * meta.height * meta.channels * (meta.maxValue > 255 ? 2 : 1) : 0;
+console.log(
+  `${name}: ${frames.length} frames` +
+    (decoded ? `, ${meta.width}x${meta.height}x${meta.channels}, ${(decoded / 1024).toFixed(0)} KB decoded` : '') +
+    `, ${n} timed rounds`
+);
+console.log(`  idle instance, no decode yet: ${MB(idle)} MB`);
+console.log('  width   total heap   per instance   heap steady over rounds   ms/frame*');
 for (const width of WIDTHS) {
   const rs = results.get(width);
-  const each = rs[0].each.map(MB).join(' + ');
+  const highs = rs.map((r) => r.high);
+  const [lo, hi] = range(highs);
+  const steady = lo === hi && rs.every((r) => r.floor === r.high) ? `yes, all ${n}` : `NO ${MB(lo)}-${MB(hi)}`;
+  const ms = rs.map((r) => r.ms);
+  const [mlo, mhi] = range(ms);
   console.log(
-    `  ${String(width).padStart(5)}  ${MB(median(rs.map((r) => r.total))).padStart(7)} MB` +
-      `   ${each.padEnd(13)}  ${median(rs.map((r) => r.ms)).toFixed(2)}`
+    `  ${String(width).padStart(5)}   ${MB(median(highs)).padStart(6)} MB   ` +
+      `${rs[0].each.map(MB).join(' + ').padEnd(12)}   ${steady.padEnd(23)}   ` +
+      `${median(ms).toFixed(2)} [${mlo.toFixed(2)}-${mhi.toFixed(2)}]`
   );
 }
-console.log(`  reference instance after the oracle pass: ${MB(first.heap())} MB`);
+console.log('  * container-measured, not a timing rig: not used for any decision.');

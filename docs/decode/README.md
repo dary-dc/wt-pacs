@@ -10,43 +10,178 @@ OpenJPH, through the `@cornerstonejs/codec-openjph` WASM build (wrapper MIT, Ope
 BSD-2-Clause). `lab/decode-bench/fetch_decoder.sh` pulls a pinned version from npm and records
 the tarball's checksum; nothing is committed, so provenance is the checksum rather than trust in
 bytes in this repo. That build reports SIMD level 1, which OpenJPH returns only from its WASM SIMD
-build, so SIMD is already on and is not a lever.
+build, so SIMD is already on and is not a lever. Its WASM reports `OpenJPH Ver 0.31.0.`, which is
+the release `lab/scripts/gen_htj2k_fixtures.sh` builds its encoder from.
 
 It is a **decoder only** — no encoder ships in it. `lab/scripts/gen_htj2k_fixtures.sh` therefore
 builds OpenJPH from source for `ojph_compress` and encodes synthetic images, so a fixture can be
 made anywhere from nothing. The profile is part 15, reversible 5/3, 5 levels, 64×64 code-blocks,
 RPCL, one layer, one tile per frame.
 
-## What is known, and where it was measured
+Because the profile is reversible, a decode must reproduce the encoder's input exactly. The
+generator writes a `.sha256` of each frame's samples beside its codestream, and every bench here
+checks against that rather than against an oracle it decoded itself — §Ground truth says why.
 
-Two findings are structural and hold regardless of fixture:
+## Heap, measured
 
-* **Each decoder instance is its own WASM module with its own linear memory, and WASM memory only
-  grows.** Emscripten's allocator does not return pages, so an instance climbs to its high-water
-  mark and holds it for as long as it lives. N instances is N heaps, permanently. On a phone this
-  is the binding resource, not decode time.
-* **Handing out a view of decoded samples instead of copying them requires the heap be shared, and
-  making it shared is not free.** Measured as a controlled set — the same binary with only the
-  memory's limits flag changed — the shared-memory tax and the copy saved were the same size and
-  cancelled. So "avoid the copy" and "use shared memory" are one decision, not two, and on time it
-  is a wash.
+Six fixture sets, 87 frames each, decoded sizes from 50 KB to 8 MB
+(`lab/scripts/gen_htj2k_fixtures.sh g160 g256 g512 c512 g1024 g2048`). Heap is
+`HEAPU8.length`: the module's whole linear memory, which is what an instance costs the host.
 
-The numbers behind the second were taken elsewhere, on an 87-frame 512×512×3 series: 4.78 ms per
-frame all in, 4.84 shared with the copy kept, 4.79 shared with the pixels left in place; ~50 MB of
-heap per instance, 86 MB when frames are retained. **They have not been reproduced on this repo's
-own fixtures** — that is what `lab/decode-bench/` is for, and nothing here should be quoted as
-this project's measurement until it has been.
+**Every instance costs 50.0 MB, at every frame size, before it has decoded anything.**
+
+| decoded frame | 1 instance | 2 | 3 | 4 |
+| --- | --- | --- | --- | --- |
+| 50 KB … 8 MB | 50.0 MB | 100.0 MB | 150.0 MB | 200.0 MB |
+
+That is the whole table: 24 cells, all of them exactly 50.0 MB per instance, identical in all 5
+timed rounds of every cell. Nothing about frame size moves it, and nothing about decoding moves
+it — an instance that has never decoded a frame reads the same 50.0 MB as one that has decoded 87
+frames of 2048×2048.
+
+**The reason is a build flag, not a high-water mark.** The shipped `openjphjs.wasm` declares its
+memory `initial = 800 pages = 50 MB`, `maximum = 32768 pages = 2048 MB`, not shared. 50 MB is
+where an instance *starts*. Decoding an 8 MB frame does not reach it, so the memory never grows
+and the allocator never has anything to return.
+
+This corrects the framing this file previously carried. "WASM memory only grows, so an instance
+climbs to its high-water mark and holds it" is true of WASM in general and false of this build in
+particular: it does not climb, it is preallocated. The pool-sizing consequence is unchanged in
+shape — N instances really is N×50 MB, permanently — but the cause is a flag that can be changed,
+not a property of the decoder that cannot.
+
+### What decoding actually demands
+
+The same OpenJPH release built to WASM here (`lab/decode-bench/wasm/build.sh`), identical except
+for `INITIAL_MEMORY`, with growth on. High-water after 87 frames, fresh process per row, every
+frame verified against the encoder's input:
+
+| decoded frame | 2 MB floor | 4 MB floor |
+| --- | --- | --- |
+| 50 KB | 3.56 MB | 4.00 MB (not reached) |
+| 128 KB | 3.63 MB | 4.00 MB (not reached) |
+| 512 KB | 4.25 MB | 4.00 MB (not reached) |
+| 768 KB | 5.44 MB | 5.81 MB |
+| 2 MB | — | 8.00 MB |
+| 8 MB | — | 24.56 MB |
+
+So an instance wants about **3.5 MB of base plus rather less than 3× the decoded frame**: 3.6 MB
+to serve a 50 KB frame, around 4 MB to serve the 512×512×16-bit frame this project's fixtures are
+built around, 24.6 MB to serve an 8 MB one. Growth is geometric, so each figure is an upper bound
+on the demand rather than the demand itself, and the two floors bracket it — where they disagree
+the smaller floor has simply taken one more doubling.
+
+The shipped build's 50 MB is between 2× and 14× more than the work needs, depending on frame size.
+**For pool sizing this is the lever**: per-instance cost is set by whoever links the module, not
+by the decoder, and a build with a floor matched to the largest frame served would cut it
+several-fold at every size this project cares about. Nothing here says the shipped 50 MB is wrong
+for its author's purpose — only that it is a choice, and this project can make a different one.
+
+## The copy, measured
+
+`getDecodedBuffer()` returns a view into the module's heap (`buf.buffer === M.HEAPU8.buffer`),
+so copying out is `.slice()` and not copying out is handing the view on. Both arms read the same
+two samples, so the difference between them is the copy and nothing else. Interleaved, order
+rotated each round, 8 timed rounds (`lab/decode-bench/copy_cost.mjs`).
+
+| decoded frame | copy cost | copy slower in | as a share of the decode |
+| --- | --- | --- | --- |
+| 50 KB | 0.071 ms | 8/8 | 17 % |
+| 128 KB | 0.114 ms | 8/8 | 12 % |
+| 512 KB | 0.272 ms | 8/8 | 7 % |
+| 768 KB | — | 6/8, unresolved | — |
+| 2 MB | 0.599 ms | 8/8 | 4 % |
+| 8 MB | 3.018 ms | 8/8 | 5 % |
+
+Container-measured; see §What these numbers are not. The 768 KB row is the colour fixture and
+came out 6/8, which this project does not call a result, so it is left out rather than dressed up.
+
+Two shapes, both against the assumption the open question was written on. The copy is **not**
+linear from the bottom: 164× the frame size buys 42× the copy cost, because a fixed per-call cost
+of roughly 0.05 ms dominates below about 512 KB. And past that it is close to linear, which means
+the copy is a **shrinking share of the decode** as frames grow — 17 % at 50 KB down to about 5 %
+at 8 MB. Whatever the argument for avoiding the copy is, it gets weaker with frame size, not
+stronger.
+
+## Shared memory, measured
+
+The same source, the same toolchain, two builds differing only in `-pthread`: one plain, one whose
+heap is a `SharedArrayBuffer` (asserted at runtime in the bench, not assumed). Both verified
+bit-exact against the encoder's input. 8 timed rounds, interleaved, order rotated.
+
+| decoded frame | plain | shared | shared slower in |
+| --- | --- | --- | --- |
+| 50 KB | 0.45 ms | 0.42 ms | 0/8 |
+| 128 KB | 0.99 ms | 0.95 ms | 2/8 |
+| 512 KB | 3.73 ms | 3.66 ms | 2/8 |
+| 768 KB | 9.41 ms | 8.85 ms | 1/8 |
+| 2 MB | 15.46 ms | 14.74 ms | 0/8 |
+| 8 MB | 62.59 ms | 61.83 ms | 2/8 |
+
+Container-measured. **No shared-memory tax is visible at any frame size.** The shared arm is never
+slower at the median and is slower in at most 2 rounds of 8 anywhere; several rows' ranges
+overlap, so the honest reading is *no tax detectable*, not *sharing is faster*. Heap was identical
+between the arms in every row.
+
+This does not reproduce the finding this file used to carry, that the shared-memory tax and the
+copy saved were the same size and cancelled. On these fixtures, on this toolchain, the copy costs
+something that grows with frame size and the tax does not appear at all. That is one arm of a
+two-arm claim measured somewhere else, so it is a failure to reproduce rather than a refutation —
+and a container cannot adjudicate a millisecond. It does mean the pairing should not be quoted as
+settled in either direction.
+
+## Threads: not buildable from this release
+
+The question was one multithreaded instance at N threads against N single-threaded ones. It cannot
+be asked of OpenJPH 0.31.0 without first writing the threading:
+
+* `src/core/` — the codestream decoder itself — contains no thread, mutex or atomic. A single
+  frame's decode is serial by construction, so N threads cannot make one frame faster.
+* The only threading in the release is a frame-level pool under `src/apps/`, in the
+  `ojph_stream_expand` application, not in the library.
+* Upstream's own CMake sets `OJPH_BUILD_STREAM_EXPAND OFF` when the compiler is emscripten, so
+  the one threaded component is excluded from WASM builds by the project that wrote it.
+
+A threaded arm would therefore mean wrapping the library in a frame-level pool of our own and
+building that to WASM — writing the alternative, not measuring it. That is a larger piece of work
+than this lane, and the measurements above bound what it could win before anyone starts it: one
+pooled instance would replace N×50 MB with one heap, but so would rebuilding the existing decoder
+with a smaller floor, at none of the cost.
+
+## Ground truth
+
+The bench originally checked each arm against pixels it had decoded itself with the same code
+path. Mutating the decode — flipping one byte of every frame — **did not fail that check**, because
+the corruption reached the oracle and the arm alike. A self-built oracle catches divergence
+between instances and nothing else.
+
+Every bench here now checks against the `.sha256` the fixture generator wrote from the encoder's
+input. Four mutants were run against it and all four failed as they should: a flipped byte, a
+truncated buffer, a skipped `decode()` call, and a corrupted view in the copy bench — each
+reported 87/87 frames differing and exited non-zero, with the unmutated control clean.
+
+## What these numbers are not
+
+* **Every millisecond above is container-measured** and is reported, not decided on. The heap
+  figures, the byte-exactness and the build-flag findings are not timing and are safe.
+* **Nothing has been measured on a phone**, which is the target and the only place the memory
+  question is finally settled.
+* **Retention is not measured.** Every bench here releases each frame, so it measures a decoder
+  and not a viewer. A pipeline that holds frames changes the sign of the copy comparison: copying
+  holds the heap *plus* every retained buffer, keeping holds one heap. The 86 MB retained figure
+  this file used to carry has not been reproduced and is not quoted.
+* **The fixtures are synthetic and compress poorly at 16 bits** — the generator's grain is a
+  fraction of full scale, which is a few counts at 8 bits and several hundred at 16, so the
+  greyscale sets sit near 0.8:1 rather than the ratio a real series gives. Decoded size, which is
+  what every table above is indexed on, is exact regardless; decode *time* is not, and is another
+  reason not to lean on the millisecond columns.
 
 ## Open
 
-* **One multithreaded instance against N single-threaded ones**, at equal decode width. N heaps
-  against one is the whole question, and no threaded build has been made. Aimed at memory, not
-  milliseconds.
-* **Copy cost against frame size**, 50 KB to 8 MB. Only one size has ever been measured.
-* **Total resident memory of a pipeline that retains frames.** The bench above reported heap only
-  while releasing each frame, so it measured a decoder, not a viewer. Retaining changes the sign of
-  the comparison: copying holds the heap *plus* every copied buffer, keeping holds one heap.
-* **Nothing has been measured on a phone.**
+* **A build with a floor matched to the frames actually served**, and what it costs to own that
+  build rather than consume the published one.
+* **Retained-frame residency**, which is the viewer's question rather than the decoder's.
+* **Anything on a phone.**
 
 ## The BYOB read path
 
