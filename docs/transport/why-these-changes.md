@@ -320,7 +320,9 @@ which records what this box cannot decide and what would lift each limit); the c
 price them is a shaped,
 lossy, rate-limited link where the wire binds before the receiver does — the same rig §8's
 falsifier already asks for. Add a heavy-tailed mix to that falsifier — a few fills among many idle
-viewers — since the load, not the session count, is what the hash cannot balance. Splitting the
+viewers — since the load, not the session count, is what the hash cannot balance. That mix is
+the placement question at thousands of sessions; `--workers` above the core count is not
+(§10 entry 4). Splitting the
 branch is the other open question: §9 is per-byte work removal with no scheduling change, so the
 quinn patch and the frame pool on the stock multi-thread runtime would carry that win with none of
 the placement risk. The commits are stacked, so it needs a revert rather than a flag, and
@@ -481,6 +483,11 @@ the caller keeps outstanding. `D_min = ceil(0.95 × (1 + RTT / Tf))`
 the link's throughput at the least queueing, and it is built nowhere; L2 was to decide fixed
 against dynamic and never ran.
 
+Depth 1 is not a default for tiles. It is the formula's answer when `Tf ≫ RTT` — a large frame
+on a slow link (the window ADR's 2.85 MB / 10 Mbps row: `D_min` = 1 already reaches 97 % of the
+link). That is the case entries 2 and 3 have to survive, because "just ask two" is then the
+wrong latency trade.
+
 **2 · A lost tail at depth 1 costs a probe timeout.** 250 KB, depth 1, four and sixteen
 sessions: p99 28–31 ms against a p50 of 1–3 ms in every repeat, with 22–81 datagrams dropped on
 the client socket per run (212 KB default buffer). quinn's PTO is `srtt + 4·rttvar` plus the
@@ -489,7 +496,10 @@ waits at least 26 ms; a loss mid-frame is found by the packets behind it within 
 receive buffer at 1 MiB — Chromium's `kDefaultSocketReceiveBuffer` — the drops go to zero and the
 tail with them: p99 30.7 → 8.5 ms at sixteen sessions, 28.1 → 2.5 at four. The buffer is the rig's;
 the mechanism is the product's on any lossy link at depth 1, and only depth ≥ 2 (something
-follows the loss) or the ack-frequency extension (quinn peers only) shortens it.
+follows the loss) or the ack-frequency extension (quinn peers only) shortens it. A 1 MiB
+receive buffer hid the drops on this rig; it does not hide loss on the path. If the product
+ships depth 1 for large frames, this tail is inevitable the first time a last datagram is
+lost — not a lab curiosity.
 
 **3 · The 44-segment batch makes a drop a tail loss.** `third_party/quinn` at its 44 against the
 same source clamped to quinn's 10, 250 KB:
@@ -510,6 +520,12 @@ tokens run out. A 20 Mbps, 50 ms path has a window near 125 KB, so its burst is 
 floor and the cap never binds; a hospital LAN at 1 ms fills it. §9's −16 to −21 % is a loopback
 and LAN figure. Derived from source, not measured: the cloud rig with netem prices it.
 
+Clamping the product to 10 is one way to shrink the depth-1 tail, and it spends the CPU that
+§9 bought wherever the pacer would have let a burst form. It is not the only way: a lost tail
+is a missing packet with nothing after it, so anything that puts a packet after the frame
+(the next ask, or an ACK-eliciting probe) turns it into a gap. Investigate that before
+accepting 10 as the depth-1 answer — proposals below.
+
 **4 · More endpoints than cores.** The same binary at `--workers` 4, 16 and 64 on four cores:
 
 | cell | 16 vs 4 | 64 vs 4 |
@@ -519,18 +535,29 @@ and LAN figure. Derived from source, not measured: the cloud rig with netem pric
 | 250 KB, depth 4, 16 sessions | CPU +8 % (6/6), p50 — tie | CPU +12 % (6/6), p50 +8 % (5/6), asks/s −4 % (5/6) |
 | 250 KB, depth 1, 3 or 15 sessions beside one fill | tie | tie |
 
+A **worker** here is ours, not quinn's: `--workers N` binds N UDP sockets on one port
+(`SO_REUSEPORT`) and runs N OS threads (`wt-endpoint-*`), each a `current_thread` runtime with
+its own wtransport endpoint. Default `N` is the core count. The kernel hashes a client's
+4-tuple onto one socket; that session's packets, connection driver, ask reader and serving loop
+stay on that thread for life.
+
 A session shares a thread with probability about `1 − (1 − 1/W)^(S−1)`; idle endpoint threads
 cost nothing, and the kernel's scheduler is the work stealer at thread granularity until every
-core is busy, where it charges thread switches. This is the no-code answer to the placement
-lottery §8 recorded on 2026-09-11 (four sessions on four endpoints share a thread 58 % of the
-time; on sixty-four, 5 %), and the CPU column at sixteen sessions is its price. The heavy-tail
-cell (one fill, few on-demand sessions) ties here because entry 2's tail dominates it. The row
-to take on the target is the same three arms at its session count.
+core is busy, where it charges thread switches. `--workers` above the core count is a
+**small-N** hedge for that lottery (four sessions on four endpoints share a thread 58 % of the
+time; on sixty-four, 5 %). It is not how thousands of viewers scale. Thousands already
+multiplex on N threads; §8 recorded that the **counts** even out (~125 ± 10 on eight endpoints)
+and the remaining risk is **load** — a few fills among idle on-demand sessions hashing onto
+one thread. Extra threads do not add cores, and they do not stop two heavies colliding. Do not
+take oversubscription as the scale-out plan. One endpoint per core remains the default that
+uses every core; sessions per core is the CPU-per-byte work in §9.
 
 **5 · LTO on this tree** (PR #27's profile, `lto = "fat"`, one codegen unit): sixteen sessions at
 depth 4, CPU per ask −5.6 % (6/6) at 250 KB and −3.1 % (4/6) at 32 KB; 32 KB, depth 1, one
 session: p50 +7 % (6/6 higher), asks/s −3.4 % (6/6), CPU −3.7 % (5/6). Small both ways, one
-campaign; the depth-1 loss is the cell a viewer without a cache lives in.
+campaign. The p50 regression is a **depth-1** cell. If the product does not live at depth 1,
+it does not decide the profile; if it does (large frames, above), that cell is the one to
+weigh, not the saturation CPU win.
 
 **6 · Closed by reading.** `max_udp_payload_size` 1472 → 4000 B, the largest lever in
 [`../disk-access/adr.md`](../disk-access/adr.md) §8: Chromium's packet reader allocates
@@ -538,20 +565,78 @@ campaign; the depth-1 loss is the cell a viewer without a cache lives in.
 path discovery toward a browser cannot pass 1 472 whatever the path carries. Native quinn peers on
 a jumbo-frame LAN remain the only takers.
 
-**What joins them.** Per session there is one variable, depth: `D_min` takes the link's
-throughput at the least queueing, and depth ≥ 2 is also what turns a lost tail from a probe
-timeout into a fast retransmit. Across sessions the currency is CPU per byte and the risk is
-placement: PGO and the frame pool cut the first on every path, the segment cap only where the
-pacer lets a burst form, and endpoints above the core count bound the second. The receiver sets
-the browser's ceiling (`docs/rig-limits.md` §1 on the `docs/rig-limits` branch) and nothing here
-moves it.
+**What joins them.** Per session there is one variable, **network** depth: `D_min` takes the
+link's throughput at the least queueing, and depth ≥ 2 is also what turns a lost tail from a
+probe timeout into a fast retransmit — except when `D_min` is 1, where that fix is the wrong
+latency trade and the tail has to be solved some other way. Across sessions the currency is CPU
+per byte (PGO and the frame pool on every path; the segment cap only where the pacer lets a
+burst form). Placement is one endpoint per core, with sessions multiplexed on those threads;
+oversubscription is not the thousands-of-users plan. The receiver sets the browser's ceiling
+(`docs/rig-limits.md` §1 on the `docs/rig-limits` branch) and nothing here moves it.
 
-**Open, in order.** A client window at `D_min`, in the library or the viewer — whichever owns
-ask scheduling. The rig cells this VM cannot run (no `sch_netem` in its kernel): §9's batch at
-20 Mbps / 50 ms, and per-frame streams with ask-order priority at 250 KB under loss (arm Q; at
-32 KB it read inside noise at 0.5 % loss, +1.5 % pooled at 2 %, and +28 % on the reader clock at
-2 % — `L1_V3_PHASE_C_REVIEW.md` on the archive tag; never run at 250 KB). `--workers` above the
-core count on the target. PR #27 against entry 5.
+**Proposals.** Product direction on the six entries, 2026-09-14. Not coded.
+
+**1 · Network depth lives on the client; disk depth already lives on the server.**
+
+Fill and on-demand already split the metric: fill is throughput (`StreamFrames`, one ask, the
+server recites); on-demand is latency (named `RequestFrame`s, FIFO). Disk look-ahead is already
+internal and independent of how the client issued messages — `TILE_SLOTS = 4` for tiles,
+`FILL_AHEAD = 1` for fill, planner `ASKS_AHEAD = 8`. Do not couple "the user asked for N" to
+"run the disk at depth N", and do not invent the next on-demand tile on the server: only fill
+knows the next index.
+
+What still needs building is the **on-demand network window**. `requestExactFrame` is one ask;
+neither product client keeps outstanding asks. Decide who owns that schedule — this library or
+the viewer — then hold a window there. L2
+([`../lanes/L2-ask-policy.md`](../lanes/L2-ask-policy.md)) still decides fixed versus live
+`D_min` once a window exists; it has not run. Fixed 4 is a plausible on-demand MVP for small
+tiles on a fast link, not a constant for fill and not for large frames.
+
+When `Tf ≫ RTT`, `D_min` is 1 and entries 2–3 apply. When it is not, depth ≥ 2 is both the
+throughput setting and the tail-loss fix.
+
+**2 · Treat the depth-1 probe timeout as a product risk, not a rig artefact.**
+
+A lost last datagram at depth 1 waits quinn's PTO (~28 ms here: `srtt + 4·rttvar` + 25 ms
+`max_ack_delay`). Mid-frame loss is a gap and recovers in an RTT. This will bite on the first
+lossy link that ships depth 1. The interesting depth-1 case is large frames (entry 1), not
+"we forgot to pipeline tiles."
+
+**3 · Do not answer the 44-segment tail by accepting 10 packets as the product.**
+
+44 is a LAN/loopback CPU and throughput win when the pipe is full, and a depth-1 tail tax when
+a drop takes the end of the frame. On a 20 Mbps / 50 ms path the pacer's burst floor is already
+10, so the 44 never forms — unmeasured here (no `sch_netem`). Clamping to 10 everywhere spends
+that CPU on LAN to buy a tail that only exists when nothing follows the frame.
+
+Investigate, in this order, before changing the vendored cap:
+
+1. **An ACK-eliciting packet after an isolated frame** (nothing else queued — the depth-1 /
+   large-frame case). A lost last datagram then has a packet after it and becomes a gap, not a
+   PTO. Depth ≥ 2 already does this with the next ask; this is the same mechanism when the
+   next ask must not exist.
+2. **Clamp 44 only when the session has nothing queued**, not on every send. Fill and
+   pipelined on-demand keep the 44.
+3. **The shaped cell** at 20 Mbps / 50 ms: if the pacer already holds the burst at 10, the
+   LAN/loopback 44 can stay.
+
+Ack-frequency shortens PTO only for quinn peers; Chromium is not one. Splitting the last
+datagrams of a GSO batch without putting something after the frame still leaves a tail.
+
+**4 · `--workers` is endpoint threads. One per core is the scale-out default.**
+
+See entry 4. Do not sweep `N` ≫ cores as the thousands-of-users plan. Measure the heavy-tail
+mix (a few fills among many idle on-demand sessions) on the target at the default worker
+count; that is the placement question that remains.
+
+**5 · Weigh LTO on the depth-1 cell if we ship depth 1; otherwise take the CPU.**
+
+PR #27. The +7 % p50 (6/6) is 32 KB, depth 1, one session. Saturation at depth 4 is a 3–6 %
+CPU win. Large-frame depth 1 is the cell that can veto it; depth 4 cannot.
+
+Still unrun on this VM (no `sch_netem`): per-frame streams with ask-order priority at 250 KB
+under loss (arm Q; at 32 KB it read inside noise at 0.5 % loss, +1.5 % pooled at 2 %, and +28 %
+on the reader clock at 2 % — `L1_V3_PHASE_C_REVIEW.md` on the archive tag).
 
 Re-run:
 

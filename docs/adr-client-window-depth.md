@@ -228,6 +228,15 @@ streams are entirely different things.
 
 - Measure whether `D_min` actually saturates the real `wtransport` path. The formula is arithmetic;
   the transport may need more. See [`window-saturation-experiment.md`](window-saturation-experiment.md)
+- **2026-09-14 — what is still to build.** Disk depth is already server-internal
+  (`TILE_SLOTS` / `FILL_AHEAD`) and independent of the ask list. Fill is already one
+  `StreamFrames`. Neither product client keeps a network window: `requestExactFrame` is one
+  ask. On-demand outstanding asks belong in the library or the viewer, not in a server queue
+  that invents the next tile. L2
+  ([`lanes/L2-ask-policy.md`](lanes/L2-ask-policy.md)) still decides fixed versus live `D_min`
+  once that window exists. Depth 1 is the large-frame / `Tf ≫ RTT` case; it is also the case
+  where a lost last packet costs a probe timeout and the 44-segment batch makes a drop a tail —
+  [`transport/why-these-changes.md` §10](transport/why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them).
 
 ## Pros and Cons of the Options
 
