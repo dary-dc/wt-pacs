@@ -23,6 +23,6 @@ tokio = { version = "1.53", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# One change in quinn, measured in docs/transport/why-these-changes.md §9: third_party/quinn/README.md.
+# docs/transport/why-these-changes.md §9 — patches/quinn-0.11.11-mtu-gso.patch
 [patch.crates-io]
-quinn = { path = "third_party/quinn" }
+quinn = { path = "patched/quinn" }

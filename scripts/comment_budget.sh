@@ -21,7 +21,7 @@ FLOOR=${FLOOR:-10}   # what any file may spend regardless of size: header and po
 list=0
 [[ "${1:-}" == "--list" ]] && list=1
 
-files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' | grep -v -e '/node_modules/' -e '^target/' -e '^third_party/')
+files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' | grep -v -e '/node_modules/' -e '^target/')
 
 # shellcheck disable=SC2086
 awk -v ratio="$RATIO" -v floor="$FLOOR" -v list="$list" '

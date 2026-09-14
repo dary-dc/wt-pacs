@@ -238,7 +238,7 @@ whole plan.
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
 | **One endpoint per core on single-threaded runtimes** (`--workers`) | **−23 to −40 % on the depth-1 round trip, −40 to −64 % CPU per frame**, 6/6 per cell: the multi-thread runtime's cross-worker hand-offs were 28 context switches per 250 KB frame | at saturation +8 to +17 % throughput on six of eight cells, two ties; a front that funnels sessions through one source port puts them on one thread; a migrating client reconnects | **Landed 2026-09-10**, [`transport/why-these-changes.md` §8](../transport/why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime) |
-| GSO datagram batching, 10 → 44 segments per `sendmsg` | **−16 to −21 % CPU per ask** (6/6), +19 to +29 % throughput where the pipe is full | a vendored quinn to refresh on upgrade; 250 KB at depth 1 with one session loses the encrypt/decrypt overlap (−15 % throughput there) | **Landed 2026-09-10**, `third_party/quinn` |
+| GSO datagram batching, 10 → MTU-derived segments per `sendmsg` | **−16 to −21 % CPU per ask** (6/6), +19 to +29 % throughput where the pipe is full | a crates.io patch to refresh on upgrade; 250 KB at depth 1 with one session loses the encrypt/decrypt overlap (−15 % throughput there) | **Landed 2026-09-10**, `patches/quinn-0.11.11-mtu-gso.patch` |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
 | Congestion controller, flow-control windows, AEAD choice | unknown | — | **Not measured** — named so they are not mistaken for rejected |
 

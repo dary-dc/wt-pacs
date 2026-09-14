@@ -17,6 +17,9 @@ step() { printf '\n== %s\n' "$*"; }
 step "repo: comment budget"
 scripts/comment_budget.sh
 
+step "quinn: crates.io patch applies"
+scripts/patch_quinn.sh --check
+
 step "client: build bundles + unit tests"
 bash client/transport-ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
