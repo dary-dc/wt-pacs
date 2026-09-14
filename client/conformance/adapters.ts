@@ -26,14 +26,24 @@ export type Implementation = {
   connect(url: string, certHash: string): Promise<ConformantSession>;
 };
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+/** Resolved from the tree, not from import.meta.url, which moves when this file is bundled. */
+function repoRoot(): string {
+  let at = path.dirname(new URL(import.meta.url).pathname);
+  for (let i = 0; i < 8; i++) {
+    if (fs.existsSync(path.join(at, "CLAUDE.md"))) return at;
+    at = path.dirname(at);
+  }
+  return process.cwd();
+}
+
+const root = repoRoot();
 
 async function load(rel: string) {
-  return import(pathToFileURL(path.join(here, rel)).href);
+  return import(pathToFileURL(path.join(root, rel)).href);
 }
 
 export async function typescriptImpl(): Promise<Implementation> {
-  const { TransportSession } = await load("../transport-ts/dist/session.js");
+  const { TransportSession } = await load("client/transport-ts/dist/session.js");
   return {
     name: "transport-ts",
     async connect(url, certHash) {
@@ -50,14 +60,14 @@ export async function typescriptImpl(): Promise<Implementation> {
   };
 }
 
-export const WASM_PKG = path.join(here, "../transport-wasm/pkg");
+export const WASM_PKG = path.join(root, "client/transport-wasm/pkg");
 
 export function wasmBuilt(): boolean {
   return fs.existsSync(path.join(WASM_PKG, "transport_wasm_bg.wasm"));
 }
 
 export async function wasmImpl(): Promise<Implementation> {
-  const mod = await load("../transport-wasm/pkg/transport_wasm.js");
+  const mod = await load("client/transport-wasm/pkg/transport_wasm.js");
   await mod.default({
     module_or_path: fs.readFileSync(path.join(WASM_PKG, "transport_wasm_bg.wasm")),
   });

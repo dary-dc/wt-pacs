@@ -22,6 +22,8 @@ client/record/dist/
 client/record/test/run.mjs
 # Conformance suite bundle (build via transport-ts/build.sh)
 client/conformance/run.mjs
+# Telemetry cost bench bundle (build via transport-ts/build.sh)
+lab/telemetry-cost/cost.mjs
 # Telemetry-only WASM out-dir — plan §8
 client/transport-wasm/pkg-telemetry/
 

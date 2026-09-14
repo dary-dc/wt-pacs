@@ -59,6 +59,20 @@ export class FakeTransport {
     this.pushOnOneStream([[index, codestream]]);
   }
 
+  /** One frame split across `chunks` reads — a real link delivers a frame in many. */
+  pushFrameInChunks(index: number, codestream: Uint8Array, chunks: number) {
+    const whole = frameBytes(index, codestream);
+    const per = Math.ceil(whole.length / chunks);
+    this.uni.enqueue(
+      new ReadableStream({
+        start(c) {
+          for (let at = 0; at < whole.length; at += per) c.enqueue(whole.subarray(at, at + per));
+          c.close();
+        },
+      }),
+    );
+  }
+
   /** Several frames on one uni stream in one chunk — the shared mode. */
   pushOnOneStream(frames: [number, Uint8Array][]) {
     const parts = frames.map(([i, c]) => frameBytes(i, c));

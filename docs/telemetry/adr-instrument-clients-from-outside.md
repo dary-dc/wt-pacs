@@ -114,7 +114,7 @@ product framing helpers (A3), or a hybrid (A4). **A4 as built: A1 + A2.**
 | Invasiveness | zero product lines | ~8 sites per client, gated |
 | Default-build proof | never added | proven inert in two languages |
 | Batch correctness | deterministic byte arithmetic; ask identity from the FoD op | same |
-| Cost | measured: ~1 µs per read at 320 × 250 KB frames (`review-2026-09-06.md` §7) | small, paid in product code |
+| Cost | ~1 µs per read at 320 × 250 KB frames (`review-2026-09-06.md` §7), which is the tap timing *itself*; the installed-vs-not delta is larger — see §What installing it costs | small, paid in product code |
 
 A1's one real weakness was the cost of the first attributor (quadratic per read); that was an
 implementation defect, fixed by the streaming attributor, not a property of the seam. A2 alone
@@ -132,6 +132,57 @@ cannot split wire time from copy time, so it stays as the other half.
 **What would reopen it:** a wire change that breaks byte-offset attribution (multi-frame
 envelopes, compression), or a stage that can only be stamped inside `session.*`. Neither is
 planned.
+
+## What installing it costs
+
+**Added 2026-09-14.** The `~1 µs per read` above is `integrity.tap_read_cost_us`: the tap timing its
+own read path. It does not include the Proxy dispatch that gets it there, or the per-frame row
+bookkeeping around it. This is the other number — the same client driven identically with the seam
+installed and not installed.
+
+`lab/telemetry-cost/cost.mjs` runs it in Node with no browser and no server: the seam is a patched
+global `WebTransport`, which is exactly what `client/conformance/`'s fake occupies, so the whole
+thing runs on the conformance harness. **Three arms, not two.** `off` runs twice, and the second is
+a null control: whatever it shows against the first is this rig's resolution, and an overhead
+smaller than that is not a measurement. Arms interleave and rotate every round.
+
+Per frame, at 800 frames of 64 KB, against chunks per frame:
+
+| chunks/frame | transport-ts | on worse | transport-wasm | on worse |
+| --- | --- | --- | --- | --- |
+| 1 | +9.7 µs | 20/21 | +20.2 µs | 14/15 |
+| 2 | +10.4 µs | 21/21 | +20.0 µs | 15/15 |
+| 4 | +9.3 µs | 20/21 | +23.7 µs | 14/15 |
+| 8 | +15.7 µs | 21/21 | +30.8 µs | 15/15 |
+| 16 | +21.6 µs | 21/21 | +28.7 µs | 15/15 |
+| 32 | +25.5 µs | 21/21 | +39.6 µs | 15/15 |
+
+The null control stayed between 4/21 and 15/21 across every cell and within ±5 µs on the TS arm and
+±9 µs on the WASM arm, so the rig resolves something around 5–9 µs per frame and these are above it.
+Marginal ranges overlap — round-to-round drift is larger than the effect — but the comparison is
+paired within each round, which is what 21/21 and 15/15 are counting.
+
+**It scales with reads, not with frames or with bytes alone.** Three components, and the middle one
+is the one a real link moves:
+
+* a fixed per-frame cost — ~10 µs on the TS arm, ~20 µs on the WASM arm, which copies a chunk twice
+  where the TS arm copies once (`install.ts` declares that difference and it shows here);
+* **~0.5 µs per read**, which is the row above: 32 chunks costs about 16 µs more than one. This is
+  the component consistent with the `~1 µs per read` figure the tap reports for itself;
+* a sub-linear byte term: with one chunk per frame, the overhead runs from nothing at 16 KB
+  (12/25 rounds, unresolved) to +31.4 µs at 512 KB (20/25).
+
+Per-frame cost is nearly flat in frame count — +11.4 µs at 200 frames, +13.4 at 800, +19.1 at 3200
+on the TS arm — so a run's total is frames × per-frame, and the slight rise with count is not
+separated from noise here.
+
+**What this does not say.** It does not say the seam is cheap or expensive relative to anything
+else: the belief it was written to test is a comparison, and this lane measured only one side of it.
+The number to carry into that comparison is *tens of microseconds per frame*, not the ~1 µs the
+tap reports for itself. Every figure is container-measured; the shape is the claim, not the
+microseconds. The fake also delivers frames without a real link's jitter, and the chunk counts are
+imposed rather than observed — the right chunk count to read off the table is whatever a real
+session actually produces, which nothing here measures.
 
 ## The server pipeline — deliberately different from the browser
 
