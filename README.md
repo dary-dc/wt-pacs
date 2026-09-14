@@ -2,6 +2,12 @@
 
 WebTransport PACS — web-native medical imaging transport (MIT).
 
+## Target
+
+A browser on a **mobile, lossy wireless link**, with **thousands of sessions per server**. Every
+measurement in `docs/` is read against that reader; the open work, in that order, is
+[`docs/transport/NEXT.md`](docs/transport/NEXT.md).
+
 ## Quick start (harness)
 
 ```bash

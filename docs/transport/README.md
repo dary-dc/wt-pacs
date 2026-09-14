@@ -3,7 +3,8 @@
 What this lane decided. Product source is the chunked send path, `--stream-mode`
 default `shared`, `--prefault true`, Cubic default.
 
-**Start here:** [`transport-conclusions.md`](transport-conclusions.md).
+**Target:** a browser on a mobile, lossy wireless link, thousands of sessions per server.
+**Start here:** [`transport-conclusions.md`](transport-conclusions.md). **What is open, in order:** [`NEXT.md`](NEXT.md).
 
 | Decision | What shipped |
 | -------- | ------------ |
@@ -26,6 +27,7 @@ The GSO cap lives in quinn; the tree carries the one-line change as a vendored c
 | [`why-these-changes.md`](why-these-changes.md) | Why each decision exists |
 | [`adr-quic-stream-receive-window-defaults.md`](adr-quic-stream-receive-window-defaults.md) | Keep quinn window defaults; do not equalise S vs P/Q |
 | [`why-these-changes.md` §10](why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them) | Where latency and throughput part, and the open proposals (client window, depth-1 tail, 44-segment cap, workers, LTO) |
+| [`NEXT.md`](NEXT.md) | What is still open, ranked for the target |
 
 ## Evidence and lab (on the archive tag)
 

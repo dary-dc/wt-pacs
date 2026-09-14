@@ -3,6 +3,9 @@
 What this lane decided. Product source is the chunked send path, `--stream-mode`
 default `shared`, `--prefault true`, Cubic default, windows at quinn defaults.
 
+**Target (2026-09-14):** a browser on a mobile, lossy wireless link — radio loss, which is
+§1's BBR regime, pending the congestive share of the mix. What is open: [`NEXT.md`](NEXT.md).
+
 The full campaign write-up (method, reviews, TSVs, reproduce commands) is on tag
 `archive/transport-lab-2026-09` at this same path:
 
