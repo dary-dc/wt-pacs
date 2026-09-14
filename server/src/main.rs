@@ -42,6 +42,10 @@ struct Args {
     max_idle_timeout_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
+    /// Ask the peer for this `max_ack_delay` in ms. Only peers advertising `min_ack_delay`
+    /// honour it; the session-end `ack_frequency` count says whether one did.
+    #[arg(long)]
+    ack_frequency_max_delay_ms: Option<u64>,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
@@ -107,6 +111,7 @@ async fn main() -> anyhow::Result<()> {
             send_window: args.send_window_bytes,
             max_idle_timeout_ms: args.max_idle_timeout_ms,
             congestion: args.congestion,
+            ack_frequency_max_delay_ms: args.ack_frequency_max_delay_ms,
             prefault: args.prefault,
         },
         workers: args.workers,

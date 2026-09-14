@@ -267,15 +267,24 @@ async fn handle_incoming(
         .await
         .context("accept control bidi")?;
 
+    let stats_of = connection.clone();
     let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out).with_control(control_send);
 
     #[cfg(feature = "telemetry")]
-    if let Some(tap) = Tap::for_session() {
-        return run_session(&mut RecordedPipeline::new(product, tap), control_recv).await;
-    }
+    let result = match Tap::for_session() {
+        Some(tap) => run_session(&mut RecordedPipeline::new(product, tap), control_recv).await,
+        None => run_session(&mut product, control_recv).await,
+    };
+    #[cfg(not(feature = "telemetry"))]
+    let result = run_session(&mut product, control_recv).await;
 
-    run_session(&mut product, control_recv).await
+    // Non-zero only where the peer advertised `min_ack_delay`. `docs/lanes/T7-...md` step 1.
+    info!(
+        ack_frequency = stats_of.quic_connection().stats().frame_tx.ack_frequency,
+        "session transport"
+    );
+    result
 }
 
 /// The reader owns the control stream; the planner decides; the pipeline serves.

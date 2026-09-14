@@ -1,6 +1,10 @@
 # T7 — The depth-1 tail, and whether Chrome lets the server shorten it
 
-**Status:** open, small · **Needs:** this VM and a stable Chromium · **Size:** half a day
+**Status:** step 1 answered for Chromium 141 — it does not advertise `min_ack_delay`, so the
+extension never negotiates and nothing the server sets shortens its ACK delay
+([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, three cells with both controls).
+**Closes on the rule unless Chromium 148 differs**, which is one run of the same cell ·
+**Size:** the rest is half a day, if 148 differs
 
 ## Question
 
@@ -22,7 +26,9 @@ advertise it, close the item: the tail is the arithmetic above and depth ≥ 2 i
 
 ## Steps
 
-1. **Does Chrome advertise it.** T0's transport-parameter capture answers it directly
+1. **Does Chrome advertise it.** *Done on 141, 2026-09-14: no.* `--ack-frequency-max-delay-ms`
+   is the knob and `session transport ack_frequency=` the count; a quinn client on the same
+   server returns 1 with the flag and 0 without, so the zero is the browser's. T0's transport-parameter capture answers it directly
    (`min_ack_delay` present or not, per browser). Independently: log
    `connection.stats().frame_tx.ack_frequency` at session end (the `session reads` line in
    `pipeline.rs` is where a session's end is already reported) with `ack_frequency_config`

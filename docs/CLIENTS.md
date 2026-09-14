@@ -18,3 +18,25 @@ still the WASM client's only shape. Fill is `startStreamFrames` (one `StreamFram
 ADR is [`adr-client-window-depth.md`](adr-client-window-depth.md); which depth ships is L2's
 question ([`lanes/L2-ask-policy.md`](lanes/L2-ask-policy.md)); the rest of the open work is
 [`transport/NEXT.md`](transport/NEXT.md).
+
+## ACK frequency, by browser
+
+The server can ask its peer for a smaller `max_ack_delay`
+(`--ack-frequency-max-delay-ms`), which is the 25 ms half of the depth-1 tail
+([`lanes/T7-tail-and-ack-frequency.md`](lanes/T7-tail-and-ack-frequency.md)). quinn only uses
+the extension where the peer advertises `min_ack_delay`, and the frames it sends are counted in
+`frame_tx.ack_frequency`, logged as `session transport ack_frequency=` when a session ends.
+
+Measured 2026-09-14 on this VM, 32 KB fixture, `ondemand`, three cells:
+
+| peer | `--ack-frequency-max-delay-ms 5` | `ack_frequency` |
+| --- | --- | --- |
+| quinn (`window-harness`) | yes | **1** |
+| quinn (`window-harness`) | no | 0 |
+| **headless Chromium 141** | yes | **0** |
+
+The two quinn cells are the controls: the count follows the flag, so the zero against Chromium
+is Chromium's and not the wiring. **Headless Chromium 141 does not advertise `min_ack_delay`**,
+so nothing this server sets shortens its ACK delay. The rule closes the item on that evidence
+unless Chromium 148 differs — it is one run of the same cell on the browser rig, and it is the
+only thing T7 still waits on.
