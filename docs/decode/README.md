@@ -77,6 +77,61 @@ by the decoder, and a build with a floor matched to the largest frame served wou
 several-fold at every size this project cares about. Nothing here says the shipped 50 MB is wrong
 for its author's purpose — only that it is a choice, and this project can make a different one.
 
+## A build of our own
+
+`lab/decode-bench/wasm/` builds a decoder from OpenJPH source with the same surface as the
+package's, so one can stand in for the other. `lab/decode-bench/parity.mjs` is what makes that
+claim checkable: it runs both side by side over every fixture and compares the decoded bytes
+against each other **and** against the encoder's input, plus every getter the surface exposes.
+
+**609 frames across seven fixture sets, both the plain and the shared variant: byte-identical to
+the package, byte-identical to the encoder's input, and identical on every getter.** Both report
+`getVersion() = 0.31.0` and `getSIMDLevel() = 1`, so the SIMD path is not silently lost.
+
+### Where to put the floor
+
+Six builds on one ladder, interleaved and rotated — measured one after another they would be the
+sequential shape this project has already been wrong with:
+
+| initial | g512 high-water | g512 ms/frame* | g2048 high-water | g2048 ms/frame* |
+| --- | --- | --- | --- | --- |
+| 2 MB | 4.3 MB | 5.12 | 24.6 MB | 85.01 |
+| 4 MB | **4.0 MB** | 5.14 | 24.6 MB | 85.68 |
+| 8 MB | 8.0 MB | 5.13 | 24.6 MB | 86.87 |
+| 16 MB | 16.0 MB | 5.09 | 24.6 MB | 85.17 |
+| 32 MB | 32.0 MB | 5.13 | 32.0 MB | 85.51 |
+| 50 MB | 50.0 MB | 5.21 | 50.0 MB | 86.89 |
+
+**The floor costs no time.** Every arm sits within 2.2 % of the best at both sizes, with ranges
+that overlap throughout, so nothing here separates them — a small initial heap is not paid for in
+milliseconds, at least not at a resolution this container can see.
+
+It does cost memory, and the two profiles want different answers:
+
+* **512×512** — ship **4 MB**. The decode fits without a single growth, so the heap is 4.0 MB
+  against the package's 50 MB: **12.5× less per instance**, which is the whole pool-sizing lever.
+* **2048×2048** — ship **4 MB and let it grow**. Every floor at or below 16 MB converges on the
+  same 24.6 MB high-water, so starting higher buys nothing: a 32 MB floor ends 7.4 MB heavier than
+  a 4 MB one that grew, for no time back. Against the package that is still 2× less.
+
+Growth is geometric, so 24.6 MB is an upper bound on what an 8 MB frame demands, not the demand.
+
+### What adopting it costs
+
+The build is smaller, not larger — 299,838 bytes of `.wasm` + `.js` against the package's 358,022,
+and 329,366 for the shared variant. The cost is not size, it is ownership:
+
+* A pinned emscripten (3.1.74 here) and a pinned OpenJPH tag become build inputs, and a CI step has
+  to build WASM, which nothing in this repository does today.
+* Security and correctness fixes to OpenJPH become ours to track. The package's author does that
+  now, and that is a real service to give up.
+* `parity.mjs` is the mitigation and should run in CI against the published package: it is what
+  turns "we rebuilt it" into "we rebuilt it and it is the same decoder".
+
+**Worth it if the per-instance heap is the binding constraint, which on a phone it is** — 12.5× at
+the size this project serves is not a margin a smaller change recovers. Not worth it on any other
+ground: it is the same decoder, at the same speed, for slightly fewer bytes.
+
 ## The copy, measured
 
 `getDecodedBuffer()` returns a view into the module's heap (`buf.buffer === M.HEAPU8.buffer`),
@@ -160,6 +215,13 @@ input. Four mutants were run against it and all four failed as they should: a fl
 truncated buffer, a skipped `decode()` call, and a corrupted view in the copy bench — each
 reported 87/87 frames differing and exited non-zero, with the unmutated control clean.
 
+The parity suite was mutated in the build itself rather than in the harness. A getter returning a
+wrong constant was caught at once. **A clamp set one count low was not** — and the reason was a
+gap in the fixtures, not in the check: no organic fixture contains a sample at its ceiling, so the
+clamp is dead code for all of them. `sat256` was added for that, a full-range ramp reaching exactly
+0 and exactly 65535; against it the same mutant fails on 87 of 87 frames and the good build passes.
+A test that cannot fail is worth reporting as loudly as one that does.
+
 ## What these numbers are not
 
 * **Every millisecond above is container-measured** and is reported, not decided on. The heap
@@ -170,6 +232,9 @@ reported 87/87 frames differing and exited non-zero, with the unmutated control 
   and not a viewer. A pipeline that holds frames changes the sign of the copy comparison: copying
   holds the heap *plus* every retained buffer, keeping holds one heap. The 86 MB retained figure
   this file used to carry has not been reproduced and is not quoted.
+* **The clamp is not exercised by the organic fixtures.** None of them reaches its ceiling, so a
+  mutant that clamped one count low passed all six. `sat256` is a full-range ramp that hits exactly
+  0 and exactly 65535 and does catch it; §Ground truth has the rest.
 * **The fixtures are synthetic and compress poorly at 16 bits** — the generator's grain is a
   fraction of full scale, which is a few counts at 8 bits and several hundred at 16, so the
   greyscale sets sit near 0.8:1 rather than the ratio a real series gives. Decoded size, which is
@@ -178,8 +243,6 @@ reported 87/87 frames differing and exited non-zero, with the unmutated control 
 
 ## Open
 
-* **A build with a floor matched to the frames actually served**, and what it costs to own that
-  build rather than consume the published one.
 * **Retained-frame residency**, which is the viewer's question rather than the decoder's.
 * **Anything on a phone.**
 

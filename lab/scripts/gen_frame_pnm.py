@@ -10,7 +10,10 @@ compresses to nothing, so either would give a codestream no real study would pro
 is a moving gradient with soft ellipses and a little grain — compressible like anatomy, at
 roughly the ratios the profile gives on a real series.
 
-usage: gen_frame_pnm.py OUT W H CHANNELS MAXVAL INDEX COUNT
+The default content saturates nowhere, so it never exercises a decoder's clamp. The "ramp"
+mode exists for that: a full-range gradient that hits exactly 0 and exactly MAXVAL.
+
+usage: gen_frame_pnm.py OUT W H CHANNELS MAXVAL INDEX COUNT [MODE]
 """
 import hashlib
 import sys
@@ -22,6 +25,10 @@ def main() -> None:
     out, w, h, ch, maxval, index, count = (
         sys.argv[1], *(int(a) for a in sys.argv[2:8])
     )
+    mode = sys.argv[8] if len(sys.argv) > 8 else "field"
+    if mode == "ramp":
+        field = np.tile(np.linspace(0.0, 1.0, w, dtype=np.float64), (h, 1))
+        return write(out, field, w, h, ch, maxval)
     phase = 2.0 * np.pi * index / max(count, 1)
     y, x = np.mgrid[0:h, 0:w].astype(np.float32)
     ny, nx = y / h, x / w
@@ -35,6 +42,10 @@ def main() -> None:
     field += rng.normal(0.0, 0.012, field.shape).astype(np.float32)
 
     field = np.clip(field, 0.0, 1.0)
+    write(out, field, w, h, ch, maxval)
+
+
+def write(out, field, w, h, ch, maxval) -> None:
     planes = [field] * ch if ch > 1 else [field]
     if ch == 3:
         planes = [field, np.roll(field, 3, axis=1), np.roll(field, 3, axis=0)]

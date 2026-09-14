@@ -9,6 +9,7 @@
 #
 # Sizes name the decoded frame, which is what the decoder's heap answers to. The
 # greyscale ladder doubles from 50 KB to 8 MB, the range the copy-cost sweep needs:
+#   sat256 256x256  1x16-bit  ramp       128 KB decoded, saturates at both ends
 #   g160   160x160  1x16-bit  greyscale  50 KB decoded
 #   g256   256x256  1x16-bit  greyscale  128 KB decoded
 #   g512   512x512  1x16-bit  greyscale  512 KB decoded
@@ -46,7 +47,9 @@ encode() {
 }
 
 for size in "${SIZES[@]}"; do
+  mode=field
   case "$size" in
+    sat256) w=256; h=256; ch=1; depth=65535; mode=ramp ;;
     g160)  w=160;  h=160;  ch=1; depth=65535 ;;
     g256)  w=256;  h=256;  ch=1; depth=65535 ;;
     c512)  w=512;  h=512;  ch=3; depth=255 ;;
@@ -60,7 +63,7 @@ for size in "${SIZES[@]}"; do
   echo "$size: $FRAMES frames of ${w}x${h}x${ch} -> $dir"
   for ((i = 0; i < FRAMES; i++)); do
     pnm=$(mktemp --suffix=".$([[ $ch -eq 1 ]] && echo pgm || echo ppm)")
-    python3 "$ROOT/lab/scripts/gen_frame_pnm.py" "$pnm" "$w" "$h" "$ch" "$depth" "$i" "$FRAMES"
+    python3 "$ROOT/lab/scripts/gen_frame_pnm.py" "$pnm" "$w" "$h" "$ch" "$depth" "$i" "$FRAMES" "$mode"
     out=$(printf '%s/%03d' "$dir" "$i")
     encode "$pnm" "$out.j2c"
     mv "$pnm.sha256" "$out.sha256"

@@ -19,6 +19,7 @@ const wasmBinary = fs.readFileSync(path.join(decoderDir, 'openjphjs.wasm'));
 export async function instance() {
   const M = await globalThis.Module({ locateFile: (f) => path.join(decoderDir, f), wasmBinary });
   return {
+    module: M,
     heap: () => M.HEAPU8.length,
     /** Decoded samples as a view into this module's heap — valid until the next decode. */
     decodeInPlace(bytes) {

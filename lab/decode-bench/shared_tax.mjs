@@ -26,7 +26,7 @@ async function arm(name) {
     shared: M.HEAPU8.buffer instanceof SharedArrayBuffer,
     heap: () => M.HEAPU8.length,
     decode(bytes) {
-      const d = new M.DecodeProbe();
+      const d = new M.HTJ2KDecoder();
       try {
         d.getEncodedBuffer(bytes.length).set(bytes);
         d.decode();
