@@ -26,8 +26,10 @@ no loss in all-received. Adopt BYOB on its own on the same rule for CPU per fram
    `endStream`, `stats`) over `postMessage`, frames crossing as transferable `ArrayBuffer`s so
    no copy is added. The window (T1) lives in the Worker with the session.
 2. **BYOB.** `pumpFramedStream` reads with `getReader({ mode: "byob" })` into the frame's final
-   buffer once the length prefix is known; the telemetry proxy attributes bytes per `read()`,
-   so check it still does.
+   buffer once the length prefix is known, with a buffer of at least 64 KiB so one `read()`
+   returns many packets' worth; drain in a loop and hand frames off in batches rather than
+   awaiting per chunk. Chunk sizes differ by browser — measure them, do not assume packets.
+   The telemetry proxy attributes bytes per `read()`, so check it still does.
 3. **Campaign** on the browser rig with the harness (`ts.html`) driving both shapes, the
    `fill` and `ondemand` cells at 32 KB and 250 KB.
 4. If the decoder also moves to a Worker, decode belongs beside the session, not on the page.

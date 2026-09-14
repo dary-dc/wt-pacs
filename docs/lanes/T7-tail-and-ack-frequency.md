@@ -22,11 +22,14 @@ advertise it, close the item: the tail is the arithmetic above and depth ≥ 2 i
 
 ## Steps
 
-1. **Does Chrome advertise it.** Log `connection.stats().frame_tx.ack_frequency` at session
-   end (the `session reads` line in `pipeline.rs` is where a session's end is already
-   reported) with `ack_frequency_config` set; run `lab/scripts/browser_getstats.py` or any
-   browser cell. A count above zero means the extension negotiated. Chromium 141 here and 148
-   on the browser rig; the flag may differ by build.
+1. **Does Chrome advertise it.** T0's transport-parameter capture answers it directly
+   (`min_ack_delay` present or not, per browser). Independently: log
+   `connection.stats().frame_tx.ack_frequency` at session end (the `session reads` line in
+   `pipeline.rs` is where a session's end is already reported) with `ack_frequency_config`
+   set; run `lab/scripts/browser_getstats.py` or any browser cell. A count above zero means
+   the extension negotiated. Chromium 141 here and 148 on the browser rig; the flag may differ
+   by build. The browser pays for every ACK it sends, so a negotiated lower ACK rate is also
+   the only lever on that side of its receive cost.
 2. **The cell.** `runtime_ab.sh` on the drop-prone loopback cell (250 KB, depth 1, four
    sessions, the client socket at its 212 KB default), tree against tree with the config, six
    repeats: p99 and `rcvbuf_drops`. The native driver is a quinn peer and always negotiates,

@@ -1,8 +1,20 @@
-# T9 — The quinn segment cap on a paced link
+# T9 — Packets per byte: the segment cap on a paced link, and the packet size
 
-**Status:** open · **Needs:** the cloud rig · **Size:** one rig day
+**Status:** open · **Needs:** the cloud rig, T0's capture · **Size:** one rig day, one config line
 
-## Question
+## The packet size, first
+
+The browser reads one datagram per system call and acknowledges in user space, so its receive
+cost is per packet; that is what caps Chrome's downloads above ~500 Mbps on a desktop (Zhang et
+al., WWW 2024), far above the target link, so here it is a small free lever rather than a
+ceiling. quinn's MTU discovery stops at 1 452 bytes; Chromium accepts 1 472 (`kMaxIncomingPacketSize`),
+the IPv4 Ethernet maximum, and Firefox reads the interface MTU with discovery off. **Rule:**
+where T0's capture shows a browser's `max_udp_payload_size` at or above 1 472, raise
+`MtuDiscoveryConfig::upper_bound` to 1 472 for IPv4 peers — 1.4 % fewer packets for the same
+bytes, no other cost; never above what the peer advertises. The server already fills each
+packet with one STREAM frame, since a frame is handed to quinn as one buffer.
+
+## The segment cap
 
 The patched quinn sends up to 45 datagrams per `sendmsg` at 1452 bytes instead of 10, worth
 −16 to −21 % CPU per ask on loopback where the pipe is full

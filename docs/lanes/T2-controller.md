@@ -25,8 +25,10 @@ Flip the default to BBR only if all three hold on the rig, six repeats, arms int
 3. Fairness: sharing the bottleneck with one TCP Cubic flow over a shallow buffer, BBR's share
    stays at or under 80 %.
 
-If only rule 1 holds, BBR stays behind `--congestion bbr`, and "a production-tested BBR as a
-custom `ControllerFactory`" opens as the follow-up. If rule 1 fails, close the item.
+If only rule 1 holds, BBR stays behind `--congestion bbr`, and a production-tested BBR opens
+as the follow-up: quiche's BBR2 (Cloudflare's, run in production) ported as a quinn
+`ControllerFactory`, which keeps everything else in this server; swapping the library for one
+on quiche is the larger alternative and not this plan's. If rule 1 fails, close the item.
 
 ## Steps
 

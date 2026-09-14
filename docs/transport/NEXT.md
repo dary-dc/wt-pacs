@@ -12,7 +12,9 @@ reviewer's corrections were read against every row; where they add a lever or a 
 says so, and the sources are at the end.
 
 Three facts about the target order the list. On a 20 Mbps link a 250 KB frame takes 100 ms on
-the wire, so bytes and round trips dominate anything the server does per frame. No session can
+the wire, so bytes and round trips dominate anything the server does per frame — and the
+browser's per-packet receive cost, the first constraint in the server-to-browser direction on a
+fast link (it caps Chrome's downloads above ~500 Mbps on a desktop), sits far above this link. No session can
 be heavy — 20 Mbps is about 2.5 MB/s, near 0.4 % of a core — so at thousands of sessions the cost
 is CPU per byte. And the round trip is 30–80 ms, so a tail that reads as 28 ms of `max_ack_delay`
 against a 0.1 ms loopback RTT is worth half a round trip there, not fifty of them.
@@ -21,7 +23,7 @@ against a 0.1 ms loopback RTT is worth half a round trip there, not fifty of the
 
 | # | Item | Why | Plan |
 | --- | --- | --- | --- |
-| 0 | **Draft compatibility** | `wtransport` 0.7.2, the newest release, speaks the draft-07-era SETTINGS and the `webtransport` token; Firefox's neqo moved to draft-15 negotiation and `webtransport-h3` in August–September 2026, and Chromium will follow. When a stable browser stops accepting the old codepoints, no session establishes. Session flow control in draft-16 is opt-in on both sides; the trap is partial opt-in | [`T0`](../lanes/T0-draft-compat.md) |
+| 0 | **Draft compatibility** | `wtransport` 0.7.2, the newest release, speaks the legacy and draft-07 SETTINGS and the `webtransport` token. By report all three browsers accept that today (Chromium legacy + 07; Firefox 07, decode-only once its draft-15 lands; Safari 07 and 14), so the risk is forward: the day a stable browser drops draft-07, no session establishes. Two Safari rules: advertising draft-14 without `WT_MAX_DATA` capsules hangs the session, and `serverCertificateHashes` fails in 26.5–26.6, so Safari needs a trust-store certificate | [`T0`](../lanes/T0-draft-compat.md) |
 
 ## 1 · What shortens the wait on the target link
 
@@ -40,7 +42,7 @@ against a 0.1 ms loopback RTT is worth half a round trip there, not fifty of the
 
 | # | Item | Why it matters on the target | What decides it | Size · plan |
 | --- | --- | --- | --- | --- |
-| 9 | **The quinn segment cap: does the 44 form on the target, and how small can the patch be** | quinn's pacer bounds a burst to `window × 2 ms / RTT`, floor 10 packets; a 20 Mbps, 50 ms path should never form a 44-packet batch (derived, §10 entry 3), so on the target the change is inert and on LAN it is −16 to −21 % CPU. Fastly settled on 10 packets per GSO burst for the same reason the loopback tail showed: bursts raise loss. Footprint: **PR #31 merged 2026-09-14** — the change is now a 31-line patch applied to the crates.io crate at build time (`patches/`, `patched/quinn`, `scripts/patch_quinn.sh`), byte-equivalent to the vendored tree it replaced | The shaped cell: seg44 against seg10, CPU per ask, at 20 Mbps / 50 ms and 100 Mbps / 30 ms, both sides in one netns on the rig (`lab/scripts/rig_cells.sh`; the seg10 arm is the patch with its clamp at 10). A `TransportConfig` knob upstream ([quinn-rs/quinn#2189](https://github.com/quinn-rs/quinn/issues/2189)) is the shape that removes the patch | One rig campaign [`T9`](../lanes/T9-segment-cap.md) |
+| 9 | **Packets per byte: the segment cap on a paced link, and the packet size** | quinn's pacer bounds a burst to `window × 2 ms / RTT`, floor 10 packets; a 20 Mbps, 50 ms path should never form a 44-packet batch (derived, §10 entry 3), so on the target the change is inert and on LAN it is −16 to −21 % CPU. Fastly settled on 10 packets per GSO burst for the same reason the loopback tail showed: bursts raise loss. Footprint: **PR #31 merged 2026-09-14** — the change is now a 31-line patch applied to the crates.io crate at build time (`patches/`, `patched/quinn`, `scripts/patch_quinn.sh`), byte-equivalent to the vendored tree it replaced. Separately, the browser reads one packet per system call, so packet size is its lever: quinn stops MTU discovery at 1 452 and Chromium accepts 1 472, 1.4 % fewer packets for free where the peer advertises it | The shaped cell: seg44 against seg10, CPU per ask, at 20 Mbps / 50 ms and 100 Mbps / 30 ms, both sides in one netns on the rig (`lab/scripts/rig_cells.sh`; the seg10 arm is the patch with its clamp at 10). A `TransportConfig` knob upstream ([quinn-rs/quinn#2189](https://github.com/quinn-rs/quinn/issues/2189)) is the shape that removes the patch | One rig campaign [`T9`](../lanes/T9-segment-cap.md) |
 | 10 | **Placement at thousands of sessions** | One endpoint per core is the default that uses every core, and thousands of sessions multiplex on those threads; the counts even out and the remaining risk is load — a few fills among idle sessions on one thread. On the target no session is heavy, so that risk should be small. Named, not measured. Oversubscribing `--workers` is a small-N hedge (§10 entry 4), not the plan | The rig at 64–256 sessions with the client off the box, the heavy-tail mix at the default worker count, against one endpoint on the multi-thread runtime | One rig campaign [`T10`](../lanes/T10-placement-at-scale.md) |
 | 11 | **PR #27, LTO** | −3 to −6 % CPU per ask at saturation on this tree; +7 % p50 (6/6) at 32 KB, depth 1, one session. Depth 1 is the large-frame case (item 1), so that cell can veto it; depth 4 cannot | Weigh on the depth-1 cell if that path ships; otherwise take the CPU | A profile entry [`T11`](../lanes/T11-cost-items.md) |
 | 12 | **Read path on the target** | P0 and the rest of [`../disk-access/NEXT.md`](../disk-access/NEXT.md): ring against pool on the production volume, `read_ahead_kb`, the frame cache. On this link a read is ~1 % of a frame's wire time, so this is cost, not latency | The disk lane's own list, on the target | Its own list [`T11`](../lanes/T11-cost-items.md) |
@@ -51,8 +53,8 @@ against a 0.1 ms loopback RTT is worth half a round trip there, not fifty of the
 | # | Item | Standing |
 | --- | --- | --- |
 | 14 | Chromium's receive thread and decode queue (`rig-limits.md` §1–2) | The ceiling on loopback; on a 20 Mbps link the wire binds first. Client-side work, after items 4 and 5 |
-| 15 | Safari and iOS (WebTransport since 26.4, March 2026) | A second browser stack on the target's devices; every browser number here is Chromium. Unmeasured |
-| 16 | Receive windows and session flow control | Only quinn's two windows bound a session today (item 0), and at the target's BDP (125 KB at 20 Mbps × 50 ms) they are fifty times wide. Chromium's own advertised windows are 15 MB per connection and 6 MB per stream (`net/quic/quic_context.cc`), hard download caps of 15 MB and 6 MB per RTT — 1.2 Gbps and 500 Mbps at 100 ms — far above the target. draft-16's session window is opt-in on both sides and credited in order on the CONNECT stream; T0 says do not advertise it | Watch |
+| 15 | Safari and iOS (WebTransport since 26.4, March 2026) | A second browser stack on the target's devices; every browser number here is Chromium. Its receive windows, ACK policy and packet limit are unverified; its session window is 8 MiB only if the server negotiates draft-14, which T0 says not to. Unmeasured, and the dev pin does not work there |
+| 16 | Receive windows and session flow control | Only quinn's two windows bound a session today (item 0), and at the target's BDP (125 KB at 20 Mbps × 50 ms) they are fifty times wide. Chromium advertises 15 MB per connection and 6 MB per stream (`net/quic/quic_context.cc`), hard download caps of 15 MB and 6 MB per RTT — 1.2 Gbps and 500 Mbps at 100 ms; Firefox auto-tunes its windows with an unverified ceiling; Safari's 8 MiB session window applies only on draft-14. All far above the target. draft-16's session window is opt-in on both sides and credited in order on the CONNECT stream; T0 says do not advertise it | Watch |
 | 17 | `--workers` above the core count | A small-N, LAN-side hedge for the placement lottery (§10 entry 4); not the target's problem and not the scale plan |
 | 18 | Diagnostics on the rig | quinn exposes `qlog_stream`; a qlog per arm is how pacing, flow-control blocking and loss recovery are read rather than inferred, and the browser's `getStats()` is the client side of the same picture | Use in the rig campaigns |
 
@@ -76,6 +78,10 @@ BYOB, the `congestionControl` caveat); RFC 9002 (the probe timeout); draft-ietf-
 efficiency* (ACK rate, GSO at 10 — 2020, one core throttled to 400 MHz, directional only);
 König et al., IFIP Networking 2025 (sender-bound CPU, receive-buffer drops, stream count);
 Zhang et al., WWW 2024 (Chrome's receiver-side QUIC cost, 45 % behind HTTP/2 at 1 Gbps);
+Google, *QUIC and HTTP/3 CPU Performance*, EPIQ 2020 (one STREAM frame per packet);
+hyperium/h3 #347 and #363 (Safari's hybrid negotiation, the 8 MiB session window, the capsule
+rule, the `serverCertificateHashes` failure, wtransport 0.7 confirmed on draft-07);
+mozilla/neqo PR #3847 and #3978, issue #1820 (draft-15, auto-tuned windows);
 moq-dev PR #2468 and issue #686 (controller defaults, quinn's BBR); Chrome field data on UDP
 impairment (5 %); Chromium's `quic_constants.h`, packet reader and `quic_context.cc` (1 472 B,
 1 MiB receive buffer, 15 MB / 6 MB windows); caniuse on `allowPooling`.
