@@ -245,6 +245,98 @@ the miss through the store's own test levers.
 
 ---
 
+# Added 2026-09-14, after L1 reported
+
+L1 closed the threading question, corrected the 50 MB to a link-time constant, and left a **working
+emscripten → OpenJPH → WASM build** parameterised by `INITIAL_MB` that already emits shared-heap and
+non-shared variants (`lab/decode-bench/wasm/`). These three follow from that.
+
+## L8 — a right-sized, bit-exact decoder build
+
+**Container.** Finishing what L1 started; the toolchain, source, fixtures and ground truth all exist.
+**If L1's agent is still alive, continue it rather than starting fresh** — otherwise you repeat an
+emscripten install and an OpenJPH build for nothing.
+
+```
+L1 proved the shipped decoder's 50 MB heap is a link-time declaration (initial = 800
+pages), not growth, and that the same decoder rebuilt needs 3.6 MB to serve a 50 KB frame
+and 24.6 MB to serve an 8 MB one. That makes the heap a build flag rather than a
+constraint on how many decoders we can run. Turn that into something shippable.
+
+Deliverable: a decoder WASM that can replace the prebuilt npm one.
+  1. API parity. The current consumer calls HTJ2KDecoder with getEncodedBuffer,
+     readHeader, decode, getDecodedBuffer and getFrameInfo. decode_probe.cpp is "the
+     smallest thing that decodes" and does not match. Close that gap.
+  2. Bit-exact against the npm build on every fixture size, verified against the .sha256
+     ground truth the generator writes. Not "looks right" — byte-identical.
+  3. SIMD on. The npm build reports SIMD level 1; a build without it would be a silent
+     regression.
+  4. Right-sized initial heap. Report heap and decode time against INITIAL_MB so the
+     choice is a curve, not a guess, and say what you would ship for a 512x512 profile
+     and for a 2048x2048 one.
+  5. A shared-heap variant, built from the same source, equally bit-exact.
+
+Then say plainly what it costs to adopt: we would stop consuming a prebuilt package and
+start owning a build. Name what that adds — toolchain, CI, reproducibility, binary size —
+so the trade is visible. If you conclude the prebuilt one should stay, say that; a
+measured "not worth it" is a result.
+```
+
+## L9 — the transport conformance suite
+
+**Container.** No rig, no browser, no timing. **Highest value of the three: it gates every later
+client milestone.** See `docs/client-shape-plan.md` §0.
+
+```
+This repository defines a transport surface and has two independent implementations of
+it: client/transport-ts/session.ts and client/transport-wasm/src/session.rs. Two
+implementations behind one surface is what makes it a seam. A third implementation is
+expected, and everything built above the seam depends on all of them behaving the same.
+
+Three clauses the surface requires but does not state. Each has already cost real time.
+Write a conformance suite that runs against BOTH implementations and fails loudly:
+
+  1. Worker-safe. No implementation may reach for `window`. The WASM client did, through
+     perf_now_ms, and every timestamp it produced inside a worker read 0 — not an error,
+     zeros. It is fixed; the test is what stops the next implementation repeating it.
+     A silent-zeros failure must fail the suite, so assert on values, not on absence of
+     exceptions.
+  2. Cancellable. A running fill can be stopped without ending the session. endStream()
+     is in the surface and the server honours it mid-fill under test
+     (server/src/transport/server.rs). Prove the client half.
+  3. Transferable results. A FrameResult's buffer must cross a worker boundary as a move,
+     not a copy. Assert the source is detached afterwards.
+
+Mutate each test: break the implementation on purpose, watch that test fail, say so.
+
+Where the suite lives and how it runs is yours to propose — it must be runnable from
+scripts/gate.sh without a browser if that is achievable, and you should say so if it is
+not. Adding a gate step is structural: propose before implementing (CLAUDE.md).
+```
+
+## L10 — what telemetry costs
+
+**Container for the shape, VM for any millisecond.** Settles an unmeasured assumption.
+
+```
+client/record/ is this repository's telemetry: ~1830 lines of TypeScript behind an
+external seam, installed by patching a session rather than built into the client. It is
+believed to be cheaper than the alternative it may replace. Nobody has measured that, and
+the belief is being used to justify a replacement.
+
+Measure what it costs when installed: per frame and per run, against the same client with
+the seam not installed. Interleave the arms. Report median with range and rounds-better.
+
+Then answer the question that actually matters: does the cost scale with frames, with
+bytes, or with neither? A telemetry layer that is free at 87 frames and expensive at 2000
+is a different decision from one that is flat.
+
+If the overhead is below what this rig can resolve, say so and give the resolution floor.
+"Too small to measure here" is a result; "probably cheap" is not.
+```
+
+---
+
 ## Not delegable
 
 These need the workstation, or material that cannot leave it: the end-to-end comparison runs and
