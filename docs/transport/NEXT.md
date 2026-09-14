@@ -5,7 +5,8 @@ sessions per server.** Every row is ranked for that reader: first what shortens 
 frame on such a link, then what cuts the server's cost per session, then what sits below the
 wire, then what is closed. A row that is not measured says so. The mechanisms and the product
 direction on each are [`why-these-changes.md` §10](why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them);
-this page is the order. **Each row has a plan an implementer can take** — `docs/lanes/T*.md`,
+this page is the order. A session picking this up starts at [`../handoff-2026-09-14.md`](../handoff-2026-09-14.md).
+**Each row has a plan an implementer can take** — `docs/lanes/T*.md`,
 linked from the row: the question, the decision rule fixed before the run, the steps, the report,
 and what stops it. An external survey of WebTransport limits (14 September 2026) and its
 reviewer's corrections were read against every row; where they add a lever or a bound, the row
