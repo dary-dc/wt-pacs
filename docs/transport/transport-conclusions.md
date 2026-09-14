@@ -28,8 +28,9 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 | **Flow-control windows** | Hygiene on this send path. A client that asks for 25 MB and stops reading costs **180 kB**. Left at quinn defaults |
 | **Runtime shape** | **One endpoint per core, each on a single-threaded runtime (`--workers`, default one per core).** Cross-worker hand-offs were 28 context switches per 250 KB frame; removing them is **−23 to −40 % on the depth-1 round trip and −40 to −64 % CPU per frame**, 6/6 in every single-session cell. At saturation (16–32 sessions at depth 4, one socket per session) throughput +8 to +17 % on six of eight cells and a tie on two, CPU per ask −5 to −24 %. [`why-these-changes.md` §8](why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime) |
 
-Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are not in
-`server/`. `--stream-mode per-frame` stays a product flag.
+Rejected arms (`copy` / `split`, MTU / GSO / socket knobs) are not in `server/`.
+`--stream-mode per-frame` stays a product flag, and since 2026-09-14 ranks its streams by ask
+order — the L1 lane's arm Q, one flag away for the rig ([`NEXT.md`](NEXT.md) item 3).
 
 ---
 

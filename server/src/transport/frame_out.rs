@@ -19,6 +19,8 @@ pub(crate) enum FrameOut {
     PerFrame {
         connection: Connection,
         acks: JoinSet<()>,
+        /// Frames sent so far; each stream's priority descends with it. `docs/transport/NEXT.md` §3.
+        seq: u32,
     },
     /// No connection: sending panics, so a test can build a session but not serve on it.
     #[cfg(test)]
@@ -43,6 +45,7 @@ impl FrameOut {
             StreamMode::PerFrame => Ok(Self::PerFrame {
                 connection,
                 acks: JoinSet::new(),
+                seq: 0,
             }),
         }
     }
@@ -53,13 +56,19 @@ impl FrameOut {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
             Self::Shared { uni, .. } => write_frame(uni, head, body).await,
-            Self::PerFrame { connection, acks } => {
+            Self::PerFrame {
+                connection,
+                acks,
+                seq,
+            } => {
                 let mut uni = connection
                     .open_uni()
                     .await
                     .context("open uni")?
                     .await
                     .context("open uni ready")?;
+                uni.set_priority(ask_priority(*seq));
+                *seq = seq.saturating_add(1);
                 write_frame(&mut uni, head, body).await?;
                 acks.spawn(async move {
                     let _ = uni.finish().await;
@@ -80,6 +89,12 @@ impl FrameOut {
             .await;
         }
     }
+}
+
+/// Earlier asks outrank later ones, so quinn sends a lost frame's retransmit before newer
+/// frames' data instead of behind every stream already queued. `docs/transport/NEXT.md` §3.
+fn ask_priority(seq: u32) -> i32 {
+    i32::try_from(seq).map_or(i32::MIN, |s| -s)
 }
 
 /// Length prefix, then frame index. Clients parse it, so a test pins it byte-for-byte.
@@ -121,6 +136,18 @@ mod tests {
         let (parsed_idx, body) = unwrap(&new_wire[4..]).expect("client can still parse");
         assert_eq!(parsed_idx, idx);
         assert_eq!(body, &codestream[..]);
+    }
+
+    /// Ask order is stream priority: every later frame ranks strictly below every earlier one,
+    /// and the sequence never wraps back above an earlier frame.
+    #[test]
+    fn later_asks_rank_strictly_below_earlier_ones() {
+        let mut last = ask_priority(0);
+        for seq in [1u32, 2, 1000, i32::MAX as u32, u32::MAX] {
+            let p = ask_priority(seq);
+            assert!(p < last, "ask {seq} ranks at {p}, not below {last}");
+            last = p;
+        }
     }
 
     /// A frame larger than one window still frames as a single payload.

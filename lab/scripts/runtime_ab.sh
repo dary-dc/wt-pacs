@@ -23,7 +23,7 @@ for i in "${!arms[@]}"; do
   log=$(mktemp)
   # shellcheck disable=SC2086
   NO_COLOR=1 RUST_LOG=exact_server=warn ${SERVER_CPUS:+taskset -c "$SERVER_CPUS"} "${bins[$i]}" \
-    --port "$port" --study "$fx" --stream-mode shared \
+    --port "$port" --study "$fx" \
     --bind 127.0.0.1 --cert-pem "$ROOT/server/dev-cert/cert.pem" --key-pem "$ROOT/server/dev-cert/key.pem" \
     ${args[$i]} >"$log" 2>&1 &
   pids+=($!); ports+=("$port"); logs+=("$log")

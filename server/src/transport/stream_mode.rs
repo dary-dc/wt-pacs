@@ -4,7 +4,7 @@
 pub enum StreamMode {
     /// One long-lived uni: frames arrive strictly in ask order.
     Shared,
-    /// Independent delivery per frame; allows `set_priority` and `reset`.
+    /// Independent delivery per frame, each stream ranked by ask order (arm Q).
     PerFrame,
 }
 
