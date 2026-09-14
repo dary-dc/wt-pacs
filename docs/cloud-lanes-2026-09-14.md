@@ -1,8 +1,32 @@
 # Cloud lanes — 2026-09-14
 
-Seven investigations that need no access to the workstation they were scoped on. Each is a lane
-off this branch: one branch, one question, one report. The prompts below are meant to be handed
-to an agent as they stand.
+Seven **open questions** that need no access to the workstation they were scoped on. Each is a lane
+off this branch: one branch, one question, one report. The prompts below are meant to be handed to
+an agent as they stand.
+
+**This document is questions, not delivery.** This repository is a laboratory for an application
+that consumes what it proves. Turning a proven result into a change in that application is a
+separate plan with a separate audience, and it lives in the private tree — not here, and not on any
+lane. Nothing below ships anything.
+
+**Two kinds of lane, and the difference decides priority.** Some answer questions about things the
+consuming application will inherit — anything above the transport is transport-independent and
+transfers. Others answer questions about *this* repository's own transport and server, which that
+application does not use. Both are worth doing; only the first is on anyone's critical path.
+
+| lane | what it answers about | inherited by the consumer? |
+| --- | --- | --- |
+| **L1** decoder heaps and threads | decoding, which sits above the transport | **yes** — and it gates a sizing decision in the other plan |
+| **L3** a lossy, rate-limited link | the target regime; its levers are this transport's | findings yes, levers no |
+| **L4** a closed session unnoticed | this client's session handling | the *requirement* yes, the fix no |
+| **L6** keep-alive and idle survival | this server's idle behaviour | the *numbers* yes, the implementation no |
+| **L2** the BYOB frame-0 cost | this transport's read path | no |
+| **L5** the telemetry tail at SIGTERM | this server | no |
+| **L7** a regime where the read path misses | this server | no |
+
+L1 first. L4 and L6 next, for what their answers imply rather than their code. The rest when there
+is capacity — they are this repository's own correctness and performance work, which is real work
+and is not urgent.
 
 This branch carries what the lanes share: the release profile, the read-path fill window, the
 headless-Chromium runner (`lab/scripts/chrome_harness.cjs`), a worker-safe client clock, the BYOB
