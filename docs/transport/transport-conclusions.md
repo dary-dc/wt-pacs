@@ -132,6 +132,9 @@ dominate the absolute millisecond figures:
 2. **Cache size and eviction** — a 64-frame cap on a 500-frame series costs +65 % offered
    load for +2.8 pp of misses.
 3. **Ask window depth** — [`adr-client-window-depth.md`](../adr-client-window-depth.md).
+   Neither product client implements it. Open proposals (including when depth 1 is the
+   right answer, and the tail that then costs a probe timeout):
+   [`why-these-changes.md` §10](why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them).
 
 ---
 

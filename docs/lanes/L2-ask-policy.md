@@ -2,6 +2,12 @@
 
 **Status: ready for cloud agent.** · Harness only · Round-robin the Oracle São Paulo rig with L1
 
+**Product direction 2026-09-14.** Fill stays one `StreamFrames` (throughput). On-demand
+network depth is a client window, not a server queue; disk depth is already
+`TILE_SLOTS` / `FILL_AHEAD`. This run still decides fixed versus live `D_min` once that
+window exists. Depth 1 is the large-frame / `Tf ≫ RTT` case, not the tile default —
+[`../transport/why-these-changes.md` §10](../transport/why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them).
+
 ## Purpose
 
 Two questions in one run:
