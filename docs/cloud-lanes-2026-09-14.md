@@ -10,11 +10,17 @@ read path behind its features, and `lab/decode-bench/` with its fixture generato
 
 ## Rules every lane inherits
 
-**This repository is public and scanned.** `.local/hooks/scan.py` rejects a set of terms by the
-SHA-256 of every 4–10 character substring of every token, so concatenations are caught too. It
-covers branch names, commit messages, PR descriptions and agent prompts, not only source. Run
-`python3 .local/hooks/scan.py <file>` on everything you change. Where a comparison is unavoidable,
-write "the reference implementation" — never name it, never describe its internals.
+**This repository is public, and you cannot check it yourself.** A term scanner and a commit-msg
+hook guard it, but both live under `.local/`, which is git-ignored, and hooks are never cloned — so
+a fresh checkout has neither. Scanning happens on the workstation before anything merges, which
+means a leak in your branch is caught late and costs a rewrite of history.
+
+So treat it as a rule you keep rather than a check you run: **never name the other implementation
+or any part of its stack, and never describe its internals**, in code, comments, docs, fixture
+names, file names, branch names, commit messages or the PR body. Write "the reference
+implementation" where a comparison is unavoidable — and in most lanes it is avoidable entirely, so
+prefer saying nothing. If a measurement only makes sense as a comparison, report the number and
+leave the comparison out; it will be made on the workstation.
 
 **Measurement.** Each of these has already produced a wrong answer on this project:
 
