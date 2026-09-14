@@ -21,6 +21,12 @@ step "client: build bundles + unit tests"
 bash client/transport-ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
 
+step "client: worker-safe (no artifact reaches for window)"
+bash client/scripts/check_worker_safe.sh
+
+step "client: transport conformance (both implementations)"
+node client/conformance/run.mjs | tail -2
+
 step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)
 (cd client/transport-ts && npx tsc -p ../record/tsconfig.json)
