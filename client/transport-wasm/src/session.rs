@@ -21,11 +21,16 @@ use web_sys::{
 
 const FRAME_TIMEOUT_MS: u32 = 15_000;
 
+thread_local! {
+    /// The global scope's clock: `window.performance` on a page, `self.performance` in a worker.
+    static PERFORMANCE: Option<web_sys::Performance> =
+        Reflect::get(&js_sys::global(), &JsValue::from_str("performance"))
+            .ok()
+            .and_then(|p| p.dyn_into::<web_sys::Performance>().ok());
+}
+
 fn perf_now_ms() -> f64 {
-    web_sys::window()
-        .and_then(|w| w.performance())
-        .map(|p| p.now())
-        .unwrap_or(0.0)
+    PERFORMANCE.with(|p| p.as_ref().map(web_sys::Performance::now).unwrap_or(0.0))
 }
 
 fn js_buffer_from(src: &[u8]) -> Uint8Array {
