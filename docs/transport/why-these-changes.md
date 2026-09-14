@@ -510,7 +510,7 @@ receive buffer hid the drops on this rig; it does not hide loss on the path. If 
 ships depth 1 for large frames, this tail is inevitable the first time a last datagram is
 lost — not a lab curiosity.
 
-**3 · The 44-segment batch makes a drop a tail loss.** `third_party/quinn` at its 44 against the
+**3 · The 44-segment batch makes a drop a tail loss.** The patched quinn at its 44 against the
 same source clamped to quinn's 10, 250 KB:
 
 | cell | drops / run, 44 → 10 | p99 | asks / s | CPU / ask |
@@ -654,7 +654,7 @@ lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 
   w4 target/release/exact-server --workers 4 -- w16 target/release/exact-server --workers 16 > rt.tsv
 lab/scripts/runtime_ab_pair.py rt.tsv w4 w16              # p99 and rcvbuf_drops are the columns to read
 sysctl -w net.core.rmem_default=1048576                      # entry 2's control; 212992 restores it
-# entry 3: clamp `max_transmit_segments` to 10 in a worktree of third_party/quinn and pass both binaries
+# entry 3: clamp `max_transmit_segments` to 10 in patches/quinn-0.11.11-mtu-gso.patch and pass both binaries
 ```
 
 ---

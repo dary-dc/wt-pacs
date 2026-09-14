@@ -2,7 +2,8 @@
 """Browser round trip per frame: the TS harness cell in headless Chromium against one server binary.
 Needs the static host (`server/dev-server.py --port 8765`) and `client/transport-ts/dist`.
 usage: browser.py <label> <server-bin> <fixture> <cell> <n> <depth> <repeats> [server args...]
-Prints one line per repeat: label cell depth n wall_ms us_per_frame delivered failed.
+<depth> is the shell's own loop, or `w:N` / `w:auto` to hand the asks to the library's window.
+Prints one line per repeat: label cell depth n wall_ms us_per_frame delivered failed window_depth.
 """
 import hashlib, json, os, signal, socket, subprocess, sys, threading, time
 from pathlib import Path
@@ -11,7 +12,9 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[2]
 label, bin_, fixture, cell, n, depth, reps = sys.argv[1:8]
 extra = sys.argv[8:]
-n, depth, reps = int(n), int(depth), int(reps)
+n, reps = int(n), int(reps)
+ask = f"w={depth[2:]}" if depth.startswith("w:") else f"d={int(depth)}"
+if os.environ.get("INTERVAL_MS"): ask += f"&interval_ms={int(os.environ['INTERVAL_MS'])}"
 HTTP = int(os.environ.get("HTTP_PORT", "8765"))
 CHROME = os.environ.get("CHROME_PATH", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
 
@@ -40,7 +43,7 @@ try:
             page = browser.new_page()
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
-            url = f"http://127.0.0.1:{HTTP}/harness/ts.html?autorun=1&cell={cell}&stream_mode=shared&d={depth}&n={n}&frames={frames}"
+            url = f"http://127.0.0.1:{HTTP}/harness/ts.html?autorun=1&cell={cell}&stream_mode=shared&{ask}&n={n}&frames={frames}"
             page.goto(url, wait_until="networkidle", timeout=30_000)
             page.wait_for_function("() => globalThis.__wtpacsDone === true || globalThis.__wtpacsError != null", timeout=120_000)
             err = page.evaluate("() => globalThis.__wtpacsError ?? null")
@@ -51,7 +54,7 @@ try:
             if r == 0:
                 continue
             asked = summary["asked"]
-            print(f"{label}\t{cell}\t{depth}\t{asked}\t{summary['wall_ms']}\t{summary['wall_ms']*1000/asked:.1f}\t{summary['delivered']}\t{summary['failed']}", flush=True)
+            print(f"{label}\t{cell}\t{depth}\t{asked}\t{summary['wall_ms']}\t{summary['wall_ms']*1000/asked:.1f}\t{summary['delivered']}\t{summary['failed']}\t{summary.get('window_depth')}", flush=True)
         browser.close()
 finally:
     srv.send_signal(signal.SIGTERM)

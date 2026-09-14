@@ -232,8 +232,16 @@ streams are entirely different things.
   fixed depth, or `"auto"` with this ADR's formula, `U = 0.95`, re-evaluated every eight frames
   with L2's damping and `[1, 16]` clamp. RTT is the browser's `getStats().smoothedRtt`, never
   ask-to-receive time: once asks queue behind each other that interval is `RTT + D·Tf` and an
-  estimator fed with it climbs to the clamp. Where the browser exposes no `getStats`, `auto`
-  holds its initial depth. `Tf` is the median time between the last eight arrivals, which
+  estimator fed with it climbs to the clamp. Where the browser exposes no `getStats` — the
+  headless Chromium 141 on this VM has none; 148 on the browser rig is unverified — `auto`
+  reads RTT from asks sent into an idle window, whose trip is `RTT + Tf` with nothing queued
+  ahead: the smallest of at least two, because noise only inflates such a trip and a session's
+  first ask — the only idle one a reader that never pauses ever sends — carries the session's
+  warm-up (in headless Chromium 141 it alone drove the depth to the clamp). A reader that
+  never pauses therefore holds its initial depth. Measured there: a fixed window of 4 matched
+  the harness's own loop at depth 4 (≈200 µs per 32 KB frame against ≈330 at depth 1), and
+  with one step per timer tick `auto` settled at 1, which is the right depth for a reader
+  slower than its link; headless Chromium clamps that tick to ≈4 ms. `Tf` is the median time between the last eight arrivals, which
   reads the link's per-frame time once the depth saturates it and the delivered pace below
   that — so the estimate climbs one step per evaluation until it saturates, and stops there.
   A span from first send to last receive was tried first and rejected by the test: it folds

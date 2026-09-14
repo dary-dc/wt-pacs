@@ -60,14 +60,32 @@ async function autoDepthFindsTheLink() {
   assert(inOrder(stub.askOrder), "auto: asks sent in order");
 }
 
-/** Without the transport's RTT, `auto` holds its initial depth rather than guess. */
-async function autoWithoutStatsHolds() {
-  const { session, stub } = await drive({ rttMs: 40, tfMs: 6, bytes: 16 }, 48, { window: { depth: "auto", initial: 2 } });
-  assert(session.stats().windowDepth === 2, "auto without getStats: depth stays 2");
-  assert(stub.maxInFlight === 2, `auto without getStats: 2 in flight, saw ${stub.maxInFlight}`);
+/**
+ * Without the transport's RTT and without a pause the only idle ask is the session's first,
+ * whose trip carries the warm-up, so `auto` holds its initial depth rather than trust it.
+ */
+async function autoWithoutStatsHoldsWithoutAPause() {
+  const { session, stub } = await drive({ rttMs: 40, tfMs: 6, bytes: 16 }, 200, { window: { depth: "auto", initial: 2 } });
+  assert(session.stats().windowDepth === 2, "auto without getStats, no pause: depth stays 2");
+  assert(stub.maxInFlight === 2, `auto without getStats, no pause: 2 in flight, saw ${stub.maxInFlight}`);
 }
 
-for (const t of [noWindowIsUnchanged, fixedDepthCapsInFlight, autoDepthFindsTheLink, autoWithoutStatsHolds]) {
+/** Without the transport's RTT, a reader that pauses gives `auto` idle asks to read the RTT from. */
+async function autoWithoutStatsReadsIdleAsks() {
+  const link = { rttMs: 40, tfMs: 6, bytes: 16 };
+  const want = Math.ceil(0.95 * (1 + link.rttMs / link.tfMs));
+  StubTransport.link = link;
+  const session = await TransportSession.connect("https://stub/", HASH, { window: { depth: "auto", initial: 2 } });
+  let frame = 0;
+  for (let burst = 0; burst < 12; burst++) {
+    await Promise.all(Array.from({ length: 16 }, () => session.requestExactFrame(frame++)));
+    await new Promise((r) => setTimeout(r, 30));
+  }
+  const d = session.stats().windowDepth ?? 0;
+  assert(Math.abs(d - want) <= 1, `auto without getStats, bursts with pauses: depth ${d} within 1 of ${want}`);
+}
+
+for (const t of [noWindowIsUnchanged, fixedDepthCapsInFlight, autoDepthFindsTheLink, autoWithoutStatsHoldsWithoutAPause, autoWithoutStatsReadsIdleAsks]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

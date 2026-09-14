@@ -26,7 +26,7 @@
 
     bootShell({
       arm: "transport-ts",
-      async loadSession({ telemetry, streamMode, cfg }) {
+      async loadSession({ telemetry, streamMode, cfg, askWindow }) {
         if (telemetry) {
           globalThis.__wtpacsArm = "transport-ts";
           globalThis.__wtpacsStreamMode = streamMode;
@@ -36,7 +36,7 @@
         const mod = telemetry
           ? await import("/client/transport-ts/dist/session.telemetry.js")
           : await import("/client/transport-ts/dist/session.js");
-        return mod.TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
+        return mod.TransportSession.connect(cfg.wt_url, cfg.cert_sha256, askWindow ? { window: askWindow } : {});
       },
     });
   </script>
