@@ -159,9 +159,28 @@ about 7 packets:
 | `per-frame` | 47 | 613.37 ms | +2.0 %, CI [−41.5, +71.0] | +48.5 % |
 | `pool:2` | 289 | 502.31 ms | −16.4 %, CI [−42.3, +19.0] | +4.0 % |
 
-**The prediction was that `per-frame`'s margin would grow with burstiness. It reversed**, from
-−8.5 % under iid to +2.0 % here. By the rule written before the run, the confinement story does
-not explain the iid margin, and that 8.5 % needs another account.
+**At six repeats the prediction appeared falsified** — `per-frame`'s margin read +2.0 % here
+against −8.5 % under iid — and this file said so. **At eighteen repeats it reads −21.7 %**, the
+direction the prediction named. Neither number is a result: the interval spans zero in both
+cells, and the per-repeat rows say why.
+
+| arm | all-step p95 per repeat, 18 runs |
+| --- | --- |
+| `shared` | 63 · 64 · 64 · 64 · 65 · 65 · 65 · 65 · 65 · 65 · 71 · 153 · 154 · 273 · 275 · 325 · 361 · 439 |
+| `per-frame` | 64 · 64 · 64 · 64 · 64 · 64 · 64 · 65 · 65 · 65 · 119 · 153 · 154 · 180 · 277 · 279 · 279 · 415 |
+| `pool:2` | 483 × 15 · 621 · **26 431** · **26 431** |
+
+`shared` and `per-frame` are the same distribution to the eye: ten quiet runs at 64–65 ms and
+eight that a burst reached, with `shared`'s worst somewhat worse. Their **median of per-run p95
+is 65 ms each** — a dead heat — while pooling every wait gives −21.7 %. Two defensible
+estimators, opposite readings, neither interval excluding zero: by this lane's own standard
+that is not a finding, and **the prediction is untested rather than falsified**. Declaring it
+falsified from six repeats was premature, and declaring it confirmed from eighteen would repeat
+the mistake in the other direction.
+
+What eighteen repeats does establish is about the pool. `pool:2` sits at exactly 483 ms in
+fifteen runs — its deterministic interleaving cost — and then **collapses to 26 seconds in two
+of eighteen**. It is not merely slower; it fails outright about one run in nine.
 
 Two cautions against over-reading the falsification. Every interval here spans zero, so no arm
 separates. And the cell is thin: 47 pooled misses against the iid cell's 106, because bursts
