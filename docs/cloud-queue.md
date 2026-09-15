@@ -27,9 +27,9 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | ready, **needs the VM**; see Answers on wasm-opt |
-| 6 | **L3** — a lossy, rate-limited link | lanes §L3 | ready, **needs the VM** |
-| 7 | **L7** — a regime where the read path misses | lanes §L7 | ready, **needs the VM** |
+| 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **not for cloud** — workstation lane; browser timing, no VM needed |
+| 6 | **L3** — a lossy, rate-limited link | lanes §L3 | **not for cloud** — workstation lane; drives the VM over ssh |
+| 7 | **L7** — a regime where the read path misses | lanes §L7 | **not for cloud** — workstation lane; drives the VM over ssh |
 | — | L4 a closed session is noticed | lanes §L4 | done `62cf243` |
 | — | L5 the tail at SIGTERM | lanes §L5 | done `23bd447` |
 | — | L6 idle sessions, and the pair | lanes §L6 | done `c69450a` |
@@ -117,7 +117,15 @@ L7 — all say "needs the VM", and a cloud agent cannot get there:
 * Outbound traffic goes through an HTTPS proxy. A plain TCP connection to `168.138.130.163:22` does
   not open, so even with the key `ssh` would not reach it.
 
-So those three rows are `ready` in the sense that their briefs are complete, and unworkable in the
+**Resolved from the workstation, 2026-09-15 — the rows are not blocked, only mis-routed.** Checked
+there: port 22 on the rig is open, and both `~/.ssh/id_ed25519_rig` and `id_ed25519_rig_agent` are
+present. So L2, L3 and L7 are workstation lanes, not cloud lanes, and the queue should stop
+offering them. L2 needs no VM at all — it is a browser timing claim, and the workstation is the
+timing rig every other number came from. Marked accordingly below; **a cloud agent should treat the
+queue as empty** and say so rather than reaching for them.
+
+The original diagnosis stands and is worth keeping: those three rows are `ready` in the sense that
+their briefs are complete, and unworkable in the
 sense that the only machine they can run on is not addressable from here. **What is needed:** either
 the agent key placed in the cloud environment *and* egress to port 22 opened, or those lanes run
 from the workstation. Nothing in this queue is a container lane any more — the four that were
