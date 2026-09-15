@@ -1,0 +1,332 @@
+{
+  "trace": "x3_short_scroll",
+  "mode": "trace",
+  "read_bps": 0,
+  "depth": 2,
+  "stream_mode": "pool:2",
+  "peak_outstanding": 3,
+  "arm_label": "pool:2",
+  "wanted_frame": 16,
+  "asks_sent": 49,
+  "recovered_ms": 0.0,
+  "mean_wait_ms": 212.33229403703706,
+  "p95_wait_ms": 493.43053399999997,
+  "miss_mean_wait_ms": 350.99828197959187,
+  "miss_p95_wait_ms": 514.346456,
+  "cache_hits": 32,
+  "cache_misses": 49,
+  "cache_hit_rate": 0.3950617283950617,
+  "wait_ms": [
+    643.1527590000001,
+    363.743888,
+    324.415889,
+    286.83369600000003,
+    271.271098,
+    482.417902,
+    202.329858,
+    513.678222,
+    233.40788700000002,
+    482.75105,
+    202.599639,
+    483.00232700000004,
+    202.76854699999998,
+    482.838478,
+    203.005346,
+    482.822578,
+    203.32008,
+    483.69847,
+    203.072902,
+    483.186165,
+    202.856193,
+    483.251887,
+    202.49942000000001,
+    483.299356,
+    203.51021,
+    483.231539,
+    203.402525,
+    483.038033,
+    204.030572,
+    514.732848,
+    234.410228,
+    483.919408,
+    204.235509,
+    493.43053399999997,
+    213.764278,
+    484.081996,
+    204.426939,
+    484.159552,
+    203.984133,
+    483.939414,
+    203.840673,
+    484.000082,
+    203.317725,
+    484.107454,
+    197.866037,
+    483.987083,
+    203.932436,
+    0.0,
+    514.346456,
+    234.99651599999999,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "wait_samples": 81,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
+  "fill_dwell_ms": 2000,
+  "link_util": 0.0,
+  "wasted_bytes": 0,
+  "commitment_depth": 0,
+  "wanted_received": true,
+  "frames_on_wire": 49,
+  "bytes_on_wire": 12250196,
+  "frames_after_settle": 0,
+  "bytes_after_settle": 0,
+  "frames_before_settle": 49,
+  "bytes_before_settle": 12250196,
+  "warm_cache": false,
+  "rtt_ms": 0,
+  "step_loop_ms": 22121.446058,
+  "wait_h1_median_ms": 363.743888,
+  "wait_h2_median_ms": 0.0,
+  "link_util_measured": 0.0,
+  "late_mean_ms": 0.0,
+  "late_p95_ms": 0.0,
+  "late_max_ms": 0.0,
+  "on_time_rate": 0.0,
+  "ask_join": [
+    {
+      "frame_index": 0,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 1,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 2,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 3,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 9,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 14,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 17,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 22,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 27,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 28,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 30,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 34,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 37,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 38,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 42,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 43,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 44,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 46,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 47,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 48,
+      "ask_ordinal": 0
+    }
+  ],
+  "reader_mode": "open",
+  "censored_waits": 0,
+  "censored_frac": 0.0,
+  "reader_lag_ms": 1.444776,
+  "stranded_bytes": 6250100,
+  "stranded_frames": 25,
+  "center_asks_dropped": 0
+}

@@ -1,0 +1,21 @@
+frame=250000B wire=200ms step=280ms
+qdisc netem 805c: root refcnt 2 limit 1000 delay 30ms loss 0.5% rate 10Mbit
+  r1 shared done
+  r1 pool:2 done
+  r1 per-frame done
+  r2 per-frame done
+  r2 pool:2 done
+  r2 shared done
+  r3 shared done
+  r3 pool:2 done
+  r3 per-frame done
+  r4 per-frame done
+  r4 pool:2 done
+  r4 shared done
+  r5 shared done
+  r5 pool:2 done
+  r5 per-frame done
+  r6 per-frame done
+  r6 pool:2 done
+  r6 shared done
+wrote 18 runs to /home/ubuntu/wt-pacs-run/out/t3-250k-l0.5
