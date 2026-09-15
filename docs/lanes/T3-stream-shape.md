@@ -102,6 +102,34 @@ holds `DEPTH` asks in flight and reports the frame rate the link sustains, and t
 are not comparable. This makes the cell self-adapting to loss, rate and controller — the three
 things that made the label wrong.
 
+## The 0.5 % cell, 2026-09-15 — and its verdict
+
+`docs/measurements/r2/t3-250k-l0.5`, six repeats, zero censoring and all 49 asks sent in every
+repeat of every arm; no repeat carries the result (dropping the first moves the pooled p95 by
+under 0.5 %).
+
+| arm | pooled misses | p95 | median | vs `shared` | vs own null |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `shared` | 106 | 449.95 ms | 231.06 ms | — | +9.1 % |
+| `per-frame` | 132 | 411.81 ms | 130.22 ms | **−8.5 %**, CI [−34.5, −0.1] | **−0.3 %** |
+| `pool:2` | 290 | 544.07 ms | 341.40 ms | +20.9 %, CI [+3.2, +48.1] | +12.7 % |
+
+**The rule's verdict: `shared` stays the default.** `per-frame` beats it, and its interval
+excludes zero, but by 8.5 % against a bar of 15 %. `pool:2` is worse on both readings.
+
+The mechanism is nonetheless visible where theory puts it. `per-frame` does not degrade at all
+from its own null (−0.3 %) while `shared` degrades 9.1 %: a loss confined to one frame's stream
+costs only that frame. So head-of-line blocking is real here and costs `shared` about 9 % of
+its tail at 0.5 % loss — measured, and below the product bar. `per-frame` also carries *more*
+positive waits (132 against 106) that are individually smaller, which is the same story: the
+cost is spread rather than concentrated.
+
+**Read with the caveat that has not gone away:** these p95s are over pools of 106, 132 and 290
+samples, so each sits at a different depth of its arm's tail. That is the Phase C review's own
+criticism of the estimator, inherited here deliberately rather than changed after seeing data.
+`stranded_frames` is the corroborating signal and agrees: 3–13 for `shared` and `per-frame`,
+25–29 for `pool:2`, every repeat.
+
 ## Decision rule, fixed before the run
 
 Pooled miss samples, the estimator N11 asked for and `stream_shape_pool.py` implements — never

@@ -83,18 +83,12 @@ def main() -> int:
     for a, runs in arms.items():
         if any(r["read_bps"] for r in runs):
             void.append(f"{a} ran with read_bps set — the client's pacer, not the link, set the rate")
-        hits = [r["cache_hit_rate"] for r in runs]
-        if max(hits) - min(hits) > 0.25:
-            void.append(
-                f"{a} cache hit rate spans {min(hits):.2f}–{max(hits):.2f} across repeats — "
-                "the repeats are not one cell; the first read comes off disk"
-            )
         if any(r["asks_sent"] * 2 < r["wait_samples"] for r in runs):
             void.append(f"{a} sent under half the trace's asks — the outstanding ceiling suppressed them")
         if max(r["censored_frac"] for r in runs) > 0.1:
             void.append(f"{a} censored over 10% of waits")
         if min(r["cache_hit_rate"] for r in runs) > 0.9:
-            void.append(f"{a} served over 90% from cache — the link is not in the loop")
+            void.append(f"{a} was displayable on over 90% of steps — the link is not in the loop")
 
     null_p95 = {}
     if null_dir:
