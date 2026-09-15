@@ -101,4 +101,4 @@ for r in $(seq 1 "$REPS"); do
     echo "  r$r ${ARMS[$i]} done" >&2
   done
 done
-echo "wrote $(ls "$out"/*.json | wc -l) runs to $out" >&2
+echo "wrote $(ls "$out"/*.r*.json 2>/dev/null | wc -l) repeats and $(ls "$out"/probe.*.json 2>/dev/null | wc -l) probes to $out" >&2
