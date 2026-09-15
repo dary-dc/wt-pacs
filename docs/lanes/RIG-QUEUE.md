@@ -23,8 +23,10 @@ line cannot tell them apart. End each commit with a trailer naming the agent and
 courtesy: the reader is woken by PR comments, and a bare push may not reach it. One line
 naming the run id and whether the pooler returned a verdict or VOID is enough.
 
-**Rebase before every push** — `git pull --rebase origin claude/clever-curie-flm0wi`. This
-branch has moved under a session three times.
+**Pull before every cell, not just before every push.** The reader fixes the cell while the
+runner is running it, so a campaign started from a commit can be obsolete by its second cell.
+Check the branch head between cells and restart the campaign if the scripts moved; a cell run
+on a superseded script is rig time spent to reproduce a known fault.
 
 ## What comes back, per run
 
