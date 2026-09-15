@@ -101,6 +101,44 @@ A closed-loop reader cannot produce head-of-line blocking (stranded bytes: 0.00 
 stream-shape result from `--reader-mode closed` is admissible. The harness default is
 still `closed`; campaign cells that ask this question use `open`.
 
+### The three-arm campaign, 2026-09-15 — the default is confirmed, and a third shape is closed
+
+The 2026-09-11 verdict above compared `shared` against per-frame **with FIFO scheduling**. Two
+things had changed since: per-frame streams now descend in priority with their ask, which
+removes the retransmit deferral that lost it 5.76×, and `--stream-mode pool:k` deals frames
+round-robin over `k` long-lived streams — a shape nothing in the record had tested.
+
+Six repeats per cell at 250 KB, depth 2, 10 Mbit / 60 ms, arms interleaved with the order
+reversed every repeat; the bursty cell re-run at eighteen. Full method, the faults found in it,
+and every retraction: [`../lanes/T3-stream-shape.md`](../lanes/T3-stream-shape.md).
+
+| cell | `per-frame` vs `shared` | `pool:2` vs `shared` |
+| --- | --- | --- |
+| no loss | +0.1 %, CI [−17.2, +21.0] | **+74.9 %**, CI [+16.9, +41.5] |
+| 0.5 % iid | −7.0 %, CI [−23.8, +2.9] | **+69.2 %**, CI [+34.1, +85.1] |
+| bursty, 18 repeats | −21.7 %, CI [−45.2, +79.8] | **+88.1 %**, CI [+73.9, +294.3] |
+
+Equal-N p95 over every step. The pre-registered metric pooled positive waits only, which
+compares one arm's bulk against another's tail when their miss rates differ — `shared` gave 126
+samples to `pool:2`'s 867 in the bursty cell — so both are reported and this is the one to read.
+
+**`shared` stays the default.** No `per-frame` interval excludes zero at any loss level, and
+its per-run p95 in the bursty cell has the same median as `shared`'s, 65 ms, on distributions
+that overlay. Priority repaired what FIFO broke — per-frame is no longer 5.76× behind, it is
+level — but level is not a reason to change a default.
+
+**`pool:k` is closed, and not narrowly.** It costs ~75 % on the tail with no loss at all, from
+interleaving two frames a shared stream would serialise; it strands 24–26 frames per run of 49
+against 2–6; its mean wait is seven times the others'; and in the bursty cell it sat at exactly
+483 ms in fifteen runs and **collapsed to 26 seconds in two of eighteen**. Four independent
+signals, one direction. The flag stays for the record; nothing recommends it.
+
+**The finding that outweighs the arms.** From the same baselines, bursty loss degrades `shared`
+by 38 % where scattered loss of the same 0.5 % mean degrades it by 9 %. The delivery *shape* of
+the loss costs four times what its rate does, and neither stream arm changes that. On a target
+stated as a mobile radio link that points at the congestion controller
+([`../lanes/T2-controller.md`](../lanes/T2-controller.md)), not at the streams.
+
 ---
 
 ## 3 · Density, send path, windows
