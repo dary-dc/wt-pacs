@@ -1,125 +1,125 @@
 {
   "trace": "x3_short_scroll",
   "mode": "trace",
-  "read_bps": 2000000,
+  "read_bps": 0,
   "depth": 2,
   "stream_mode": "pool:2",
-  "peak_outstanding": 4,
+  "peak_outstanding": 3,
   "arm_label": "pool:2",
   "wanted_frame": 16,
-  "asks_sent": 20,
-  "recovered_ms": 476.753557,
-  "mean_wait_ms": 7662.9135786913575,
-  "p95_wait_ms": 15953.395634999999,
-  "miss_mean_wait_ms": 8167.052629921052,
-  "miss_p95_wait_ms": 16323.98054,
-  "cache_hits": 5,
-  "cache_misses": 76,
-  "cache_hit_rate": 0.06172839506172839,
+  "asks_sent": 49,
+  "recovered_ms": 0.0,
+  "mean_wait_ms": 205.21312254320992,
+  "p95_wait_ms": 482.746662,
+  "miss_mean_wait_ms": 346.2971442916667,
+  "miss_p95_wait_ms": 482.795142,
+  "cache_hits": 33,
+  "cache_misses": 48,
+  "cache_hit_rate": 0.4074074074074074,
   "wait_ms": [
-    1350.734713,
-    1640.904301,
-    1539.6882810000002,
-    2725.318133,
-    2244.9062710000003,
-    3614.984363,
-    2950.284617,
-    4875.080352,
-    2916.14292,
-    4841.146137,
-    2880.696948,
+    623.630052,
+    343.59374199999996,
+    305.214293,
+    271.60846,
+    482.664847,
+    203.268666,
+    482.69485499999996,
+    202.070853,
+    482.733588,
+    202.437747,
+    482.795142,
+    203.31053599999998,
+    482.768645,
+    203.117309,
+    482.689215,
+    203.021579,
+    482.746662,
+    203.343327,
+    482.574419,
+    202.189217,
+    482.80436100000003,
+    202.473113,
+    482.698201,
+    201.964142,
+    482.508102,
+    202.582931,
+    482.67157100000003,
+    203.634217,
+    482.54535999999996,
+    202.94589599999998,
+    482.63481,
+    202.522606,
+    482.596701,
+    203.373064,
+    482.713307,
+    202.41372199999998,
+    482.624642,
+    203.032431,
+    482.624031,
+    201.923826,
+    482.45424799999995,
+    202.528067,
+    482.553237,
+    202.931408,
+    482.717758,
+    202.310417,
     0.0,
-    4990.311874999999,
+    482.499364,
+    202.508239,
     0.0,
-    3771.421346,
-    2845.733677,
     0.0,
-    4956.3440439999995,
-    3661.0185579999998,
     0.0,
-    7620.749078,
-    2995.7532730000003,
     0.0,
-    7696.005019,
-    4920.775758,
-    11656.15719,
-    2961.169348,
-    11731.062428,
-    4886.071582,
-    16878.851579,
-    16693.749258,
-    16508.363129999998,
-    16323.98054,
-    15953.395634999999,
-    15583.784201,
-    15213.918177,
-    15028.863445,
-    14843.405206,
-    14658.939991000001,
-    14288.928976,
-    14103.610046,
-    13919.154735,
-    13733.728763000001,
-    13548.33149,
-    12994.309736,
-    12808.875477000001,
-    12623.561044,
-    12069.103024,
-    11883.691734999999,
-    11699.286451,
-    11329.256758,
-    10958.613586,
-    10773.225975000001,
-    10588.784193,
-    10033.680411000001,
-    9849.279222,
-    9663.842458,
-    9109.325254,
-    8923.883679999999,
-    8738.472929,
-    8553.990747,
-    7998.981556000001,
-    7813.572886,
-    7629.134688,
-    7073.548617,
-    6889.0920209999995,
-    6703.675093,
-    6334.182668,
-    5963.976804999999,
-    5778.604192,
-    5594.138154,
-    5038.990406,
-    4853.471849,
-    4669.001480000001,
-    4113.696228,
-    3929.27707,
-    3743.8714339999997,
-    3558.445219,
-    3374.16053,
-    3003.446414,
-    478.08450000000005
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
   ],
   "wait_samples": 81,
-  "fill_rate": 0.5,
-  "fill_frames": 1,
-  "fill_bytes": 250004,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
   "fill_dwell_ms": 2000,
-  "link_util": 0.500008,
-  "wasted_bytes": 250004,
-  "commitment_depth": 1,
+  "link_util": 0.0,
+  "wasted_bytes": 0,
+  "commitment_depth": 0,
   "wanted_received": true,
-  "frames_on_wire": 20,
-  "bytes_on_wire": 5000080,
-  "frames_after_settle": 2,
-  "bytes_after_settle": 500008,
-  "frames_before_settle": 18,
-  "bytes_before_settle": 4500072,
+  "frames_on_wire": 49,
+  "bytes_on_wire": 12250196,
+  "frames_after_settle": 0,
+  "bytes_after_settle": 0,
+  "frames_before_settle": 49,
+  "bytes_before_settle": 12250196,
   "warm_cache": false,
   "rtt_ms": 0,
-  "step_loop_ms": 17619.597051,
-  "wait_h1_median_ms": 4875.080352,
-  "wait_h2_median_ms": 8553.990747,
-  "link_util_measured": 1.1351178998083207,
+  "step_loop_ms": 22121.449026000002,
+  "wait_h1_median_ms": 343.59374199999996,
+  "wait_h2_median_ms": 0.0,
+  "link_util_measured": 0.0,
   "late_mean_ms": 0.0,
   "late_p95_ms": 0.0,
   "late_max_ms": 0.0,
@@ -142,7 +142,27 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 9,
       "ask_ordinal": 0
     },
     {
@@ -150,7 +170,27 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 14,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
       "ask_ordinal": 0
     },
     {
@@ -158,7 +198,43 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 22,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 27,
       "ask_ordinal": 0
     },
     {
@@ -166,11 +242,63 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 30,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 33,
       "ask_ordinal": 0
     },
     {
+      "frame_index": 34,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 37,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 38,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 42,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 43,
       "ask_ordinal": 0
     },
     {
@@ -182,35 +310,23 @@
       "ask_ordinal": 0
     },
     {
-      "frame_index": 40,
+      "frame_index": 46,
       "ask_ordinal": 0
     },
     {
-      "frame_index": 35,
+      "frame_index": 47,
       "ask_ordinal": 0
     },
     {
-      "frame_index": 29,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 24,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 18,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 16,
+      "frame_index": 48,
       "ask_ordinal": 0
     }
   ],
   "reader_mode": "open",
-  "censored_waits": 51,
-  "censored_frac": 0.6296296296296297,
-  "reader_lag_ms": 1.151799,
-  "stranded_bytes": 4750076,
-  "stranded_frames": 19,
-  "center_asks_dropped": 55
+  "censored_waits": 0,
+  "censored_frac": 0.0,
+  "reader_lag_ms": 1.447974,
+  "stranded_bytes": 6250100,
+  "stranded_frames": 25,
+  "center_asks_dropped": 0
 }

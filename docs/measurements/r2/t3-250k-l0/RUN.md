@@ -1,10 +1,10 @@
 # t3-250k-l0
 
-Queue run 1, first cell. `lab/scripts/stream_shape_cells.sh` then `lab/scripts/stream_shape_pool.py`. This file is the execution log.
+Queue run 1, re-release after `17d4123`. First attempt (`15b32d8`) is the VOID cell; these rows replace that directory. `lab/scripts/stream_shape_cells.sh` then `lab/scripts/stream_shape_pool.py`.
 
 ## Binaries
 
-Built on the runner VM from `a63ab3063fedcd39fc9fc9d5365bf3150afd0b39` (`claude/clever-curie-flm0wi`), rustc 1.88.0.
+Built on the runner VM from `a63ab3063fedcd39fc9fc9d5365bf3150afd0b39`. Scripts on the rig are from `17d4123` (`--read-bps 0`, derived `STEP_MS`). rustc 1.88.0.
 
 | name | path copied to the rig | sha256 |
 | --- | --- | --- |
@@ -18,54 +18,45 @@ Arms: `shared`, `pool:2`, `per-frame`. The script does not pass `--workers`; eac
 - `uname -r`: `6.17.0-1011-oracle`
 - cores: 2
 - MemTotal: 954 MB
-- started: `2026-09-15T00:20:43+00:00`
+- started: `2026-09-15T00:39:23+00:00`
 
-`tc qdisc show` as printed by the cell (stderr):
+Cell stderr:
 
 ```
-qdisc netem 8059: root refcnt 2 limit 1000 delay 30ms rate 10Mbit
+frame=250000B wire=200ms step=280ms
+qdisc netem 805b: root refcnt 2 limit 1000 delay 30ms rate 10Mbit
 ```
 
 `RATE_MBIT=10 RTT_MS=60 LOSS_PCT=0 LOSS_MODEL=iid REPS=6 DEPTH=2`
-`FX=.../frames_250k/frames_250k.sbnd` (80 frames, generated on the rig by `lab/scripts/gen_tf_fixtures.sh`)
+`FX=.../frames_250k/frames_250k.sbnd` (80 frames)
 `ARMS="shared pool:2 per-frame"`
 `TRACE=lab/traces/x3_short_scroll.json`
+`--read-bps 0 --step-interval-ms 280`
 
-Arm order in `cell.stderr` reverses every repeat (r1 shared → pool:2 → per-frame; r2 per-frame → pool:2 → shared; …). 18 JSON files.
+Arm order in `cell.stderr` reverses every repeat. 18 JSON files.
 
 ## Preflight
 
-- `verify_netns_netem.sh` as written failed: `unshare --user --map-root-user --net` → `write failed /proc/self/uid_map: Operation not permitted` (`kernel.apparmor_restrict_unprivileged_userns=1`).
-- Netem in an isolated netns was proved with `sudo unshare --net` (`tc qdisc replace dev lo root netem delay 20ms`; host `lo` stayed `noqueue`).
-- One-repeat smoke (`out/smoke-t3-250k-l0`, not committed): all three arms wrote a JSON; servers logged `frames=80`.
+- One-repeat smoke (`out/smoke-t3-250k-l0-v2`, not committed): all three arms `read_bps=0`, `censored_frac=0`, servers `frames=80`.
+- `sudo unshare --net` as in the updated runbook. Host `lo` stayed `noqueue`. `exact-server-q` on UDP 4437 left running.
 
 ## Deviations
 
-- The rig has no `git`. `/home/ubuntu/wt-pacs` is a deploy tree (not a checkout) and hosts `exact-server-q` on UDP 4437. That process was left running. The campaign tree was copied to `/home/ubuntu/wt-pacs-run` and the binaries to `/home/ubuntu/bin`.
-- The runbook command is `unshare --user --map-root-user --net`. That form cannot write the cell logs when wrapped in `sudo` (first smoke: `Permission denied` on `server.shared.log`, exit 124). The cell ran as `sudo unshare --net -- lab/scripts/stream_shape_cells.sh …` so netem stayed off the host and off the field server.
-- `t3-250k-l0.5`, `t3-250k-l2`, and `t3-250k-ge` were not started. The pooler returned VOID on this cell.
+None beyond the standing ones already folded into the runbook (no `git` on the rig; campaign tree at `/home/ubuntu/wt-pacs-run`; `sudo unshare --net`).
 
 ## What the rows show (not a verdict)
 
-Every JSON has `on_time_rate=0`, `censored_frac≈0.6296`, `center_asks_dropped=55`, `peak_outstanding=4`. No `rcvbuf_drops` field. Server logs have no `open_uni` / block line (this cell is `window-harness`, not Chromium).
+Every JSON has `read_bps=0`, `censored_frac=0`, `center_asks_dropped=0`. `cache_hit_rate` is below 0.9 on every repeat. No `rcvbuf_drops` field. Server logs have no `open_uni` / block line (this cell is `window-harness`, not Chromium).
 
 ## Pooler, verbatim
 
-`lab/scripts/stream_shape_pool.py` on the 18 JSONs (same text from the rig and from this tree; seed `20260914`). Exit 1.
+`lab/scripts/stream_shape_pool.py` on the 18 JSONs. Exit 0.
 
 ```
 arm          runs  misses    p95_ms  median_ms    vs ref  CI95
-shared          6     462  15949.80    7071.08         —  
-per-frame       6     456  15951.72    7073.44     +0.0%  [-2.3, +2.4]
-pool:2          6     457  16321.39    7624.65     +2.3%  [-2.3, +4.8]
-```
+shared          6      74    413.24     202.66         —  
+per-frame       6      87    416.62     203.58     +0.8%  [-17.3, +22.5]
+pool:2          6     289    482.86     321.37    +16.8%  [+16.5, +41.4]
 
-```
-VOID — this cell decides nothing:
-  · per-frame never met its schedule (on_time_rate 0 in every repeat)
-  · per-frame censored over 10% of waits
-  · pool:2 never met its schedule (on_time_rate 0 in every repeat)
-  · pool:2 censored over 10% of waits
-  · shared never met its schedule (on_time_rate 0 in every repeat)
-  · shared censored over 10% of waits
+A CI spanning zero is not a result. T3's bar is 15% on the reference arm.
 ```

@@ -1,4 +1,5 @@
-qdisc netem 8059: root refcnt 2 limit 1000 delay 30ms rate 10Mbit
+frame=250000B wire=200ms step=280ms
+qdisc netem 805b: root refcnt 2 limit 1000 delay 30ms rate 10Mbit
   r1 shared done
   r1 pool:2 done
   r1 per-frame done

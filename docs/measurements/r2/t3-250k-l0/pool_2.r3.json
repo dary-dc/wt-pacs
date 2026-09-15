@@ -1,125 +1,125 @@
 {
   "trace": "x3_short_scroll",
   "mode": "trace",
-  "read_bps": 2000000,
+  "read_bps": 0,
   "depth": 2,
   "stream_mode": "pool:2",
-  "peak_outstanding": 4,
+  "peak_outstanding": 3,
   "arm_label": "pool:2",
   "wanted_frame": 16,
-  "asks_sent": 20,
-  "recovered_ms": 479.272215,
-  "mean_wait_ms": 7661.455037888887,
-  "p95_wait_ms": 15951.149248,
-  "miss_mean_wait_ms": 8165.4981324868395,
-  "miss_p95_wait_ms": 16321.385833,
-  "cache_hits": 5,
-  "cache_misses": 76,
-  "cache_hit_rate": 0.06172839506172839,
+  "asks_sent": 49,
+  "recovered_ms": 0.0,
+  "mean_wait_ms": 205.0874875432099,
+  "p95_wait_ms": 482.68991700000004,
+  "miss_mean_wait_ms": 346.0851352291667,
+  "miss_p95_wait_ms": 482.79720799999996,
+  "cache_hits": 33,
+  "cache_misses": 48,
+  "cache_hit_rate": 0.4074074074074074,
   "wait_ms": [
-    1368.165103,
-    1650.883623,
-    1538.487094,
-    2724.90434,
-    2245.812006,
-    3614.889976,
-    2949.8216030000003,
-    4874.83747,
-    2914.805899,
-    4839.860466,
-    2879.204783,
+    620.904273,
+    341.27256700000004,
+    302.761188,
+    271.437929,
+    482.50516500000003,
+    202.051616,
+    482.79720799999996,
+    202.735438,
+    482.606348,
+    202.433998,
+    482.938415,
+    203.09687100000002,
+    482.568198,
+    202.803427,
+    482.76754300000005,
+    202.914927,
+    482.55195499999996,
+    203.178775,
+    482.542297,
+    203.03390199999998,
+    482.593992,
+    202.16854800000002,
+    482.340777,
+    203.046006,
+    482.551593,
+    201.801375,
+    482.580821,
+    202.918453,
+    482.536594,
+    202.98017099999998,
+    482.647224,
+    202.864282,
+    482.635119,
+    202.772548,
+    482.626856,
+    202.927311,
+    482.465862,
+    202.694932,
+    482.68991700000004,
+    202.184899,
+    482.486713,
+    202.9108,
+    482.51820299999997,
+    202.205037,
+    482.683122,
+    202.405846,
     0.0,
-    4990.092493,
+    482.58137899999997,
+    202.366071,
     0.0,
-    3769.83813,
-    2845.015871,
     0.0,
-    4954.555068000001,
-    3659.555918,
     0.0,
-    7620.241177999999,
-    2995.577617,
     0.0,
-    7694.553898,
-    4919.245723999999,
-    11655.34254,
-    2960.0633900000003,
-    11730.802096,
-    4885.554895,
-    16876.150064,
-    16691.742574,
-    16505.858185,
-    16321.385833,
-    15951.149248,
-    15581.804318,
-    15211.228583,
-    15025.862071000001,
-    14841.386388,
-    14655.966472999999,
-    14286.463242,
-    14101.418849,
-    13915.982727999999,
-    13731.511014,
-    13546.049807,
-    12991.000555999999,
-    12806.504955999999,
-    12621.110335000001,
-    12066.687612000002,
-    11881.22368,
-    11695.777102999999,
-    11326.050652,
-    10955.820905999999,
-    10771.363657,
-    10585.926061,
-    10030.876981000001,
-    9846.414441,
-    9660.976803000001,
-    9106.438728000001,
-    8920.992584,
-    8736.546534000001,
-    8551.113246,
-    7996.7064820000005,
-    7811.249171,
-    7625.821654,
-    7071.099450000001,
-    6886.637127,
-    6701.308358,
-    6331.613849,
-    5961.6214740000005,
-    5776.182092,
-    5590.742695,
-    5036.708515,
-    4851.284148999999,
-    4665.878931,
-    4111.521248,
-    3926.061421,
-    3741.66227,
-    3556.188999,
-    3370.8832979999997,
-    3001.035827,
-    482.755666
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
   ],
   "wait_samples": 81,
-  "fill_rate": 0.5,
-  "fill_frames": 1,
-  "fill_bytes": 250004,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
   "fill_dwell_ms": 2000,
-  "link_util": 0.500008,
-  "wasted_bytes": 250004,
-  "commitment_depth": 1,
+  "link_util": 0.0,
+  "wasted_bytes": 0,
+  "commitment_depth": 0,
   "wanted_received": true,
-  "frames_on_wire": 20,
-  "bytes_on_wire": 5000080,
-  "frames_after_settle": 2,
-  "bytes_after_settle": 500008,
-  "frames_before_settle": 18,
-  "bytes_before_settle": 4500072,
+  "frames_on_wire": 49,
+  "bytes_on_wire": 12250196,
+  "frames_after_settle": 0,
+  "bytes_after_settle": 0,
+  "frames_before_settle": 49,
+  "bytes_before_settle": 12250196,
   "warm_cache": false,
   "rtt_ms": 0,
-  "step_loop_ms": 17617.511381,
-  "wait_h1_median_ms": 4874.83747,
-  "wait_h2_median_ms": 8551.113246,
-  "link_util_measured": 1.135252282088479,
+  "step_loop_ms": 22121.043509,
+  "wait_h1_median_ms": 341.27256700000004,
+  "wait_h2_median_ms": 0.0,
+  "link_util_measured": 0.0,
   "late_mean_ms": 0.0,
   "late_p95_ms": 0.0,
   "late_max_ms": 0.0,
@@ -142,7 +142,27 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 9,
       "ask_ordinal": 0
     },
     {
@@ -150,7 +170,27 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 14,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
       "ask_ordinal": 0
     },
     {
@@ -158,7 +198,43 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 22,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 27,
       "ask_ordinal": 0
     },
     {
@@ -166,11 +242,63 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 30,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 33,
       "ask_ordinal": 0
     },
     {
+      "frame_index": 34,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 37,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 38,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 42,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 43,
       "ask_ordinal": 0
     },
     {
@@ -182,35 +310,23 @@
       "ask_ordinal": 0
     },
     {
-      "frame_index": 40,
+      "frame_index": 46,
       "ask_ordinal": 0
     },
     {
-      "frame_index": 35,
+      "frame_index": 47,
       "ask_ordinal": 0
     },
     {
-      "frame_index": 29,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 24,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 18,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 16,
+      "frame_index": 48,
       "ask_ordinal": 0
     }
   ],
   "reader_mode": "open",
-  "censored_waits": 51,
-  "censored_frac": 0.6296296296296297,
-  "reader_lag_ms": 1.477005,
-  "stranded_bytes": 4750076,
-  "stranded_frames": 19,
-  "center_asks_dropped": 55
+  "censored_waits": 0,
+  "censored_frac": 0.0,
+  "reader_lag_ms": 1.042447,
+  "stranded_bytes": 6250100,
+  "stranded_frames": 25,
+  "center_asks_dropped": 0
 }
