@@ -1,0 +1,8 @@
+
+VOID — this cell decides nothing:
+  · per-frame never met its schedule (on_time_rate 0 in every repeat)
+  · per-frame censored over 10% of waits
+  · pool:2 never met its schedule (on_time_rate 0 in every repeat)
+  · pool:2 censored over 10% of waits
+  · shared never met its schedule (on_time_rate 0 in every repeat)
+  · shared censored over 10% of waits

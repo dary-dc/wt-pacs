@@ -1,0 +1,216 @@
+{
+  "trace": "x3_short_scroll",
+  "mode": "trace",
+  "read_bps": 2000000,
+  "depth": 2,
+  "stream_mode": "pool:2",
+  "peak_outstanding": 4,
+  "arm_label": "pool:2",
+  "wanted_frame": 16,
+  "asks_sent": 20,
+  "recovered_ms": 1478.09747,
+  "mean_wait_ms": 7675.712253469139,
+  "p95_wait_ms": 15955.186536,
+  "miss_mean_wait_ms": 8180.693322776319,
+  "miss_p95_wait_ms": 16325.148508000002,
+  "cache_hits": 5,
+  "cache_misses": 76,
+  "cache_hit_rate": 0.06172839506172839,
+  "wait_ms": [
+    1344.62777,
+    1639.7086239999999,
+    1539.422074,
+    2725.254812,
+    2245.196623,
+    3615.0639340000002,
+    2949.8993570000002,
+    4874.847887,
+    2914.762816,
+    4839.995556,
+    2880.810586,
+    0.0,
+    4989.447362,
+    0.0,
+    3770.570576,
+    2845.7135550000003,
+    0.0,
+    4955.035952,
+    3659.79002,
+    0.0,
+    7619.507212,
+    2994.437357,
+    0.0,
+    7696.018322999999,
+    4921.2166179999995,
+    11655.738199,
+    2961.205595,
+    11731.052608,
+    4885.864726000001,
+    16880.061059,
+    16694.65309,
+    16509.508339,
+    16325.148508000002,
+    15955.186536,
+    15584.947098,
+    15214.50656,
+    15030.146963,
+    14844.812446,
+    14659.33632,
+    14289.887547999999,
+    14104.957049999999,
+    13919.530076000001,
+    13735.070893,
+    13549.609852,
+    12994.632219,
+    12810.15036,
+    12624.787995,
+    12069.961994,
+    11884.54075,
+    11700.052147999999,
+    11329.833218,
+    10960.250868,
+    10774.827965,
+    10589.419774,
+    10034.449417,
+    9850.021557,
+    9664.589606,
+    9109.87919,
+    8924.461820999999,
+    8740.018805,
+    8554.573694,
+    7999.478792999999,
+    7815.006473,
+    7629.589447,
+    7075.180661,
+    6889.750862999999,
+    6705.272029,
+    6334.872224,
+    5964.5290939999995,
+    5780.129183999999,
+    5594.715714999999,
+    5039.817363,
+    4854.395409000001,
+    4669.892486,
+    4114.558028,
+    3930.1531990000003,
+    3744.705786,
+    3560.279265,
+    3374.909477,
+    3005.248532,
+    1481.206642
+  ],
+  "wait_samples": 81,
+  "fill_rate": 0.0,
+  "fill_frames": 0,
+  "fill_bytes": 0,
+  "fill_dwell_ms": 2000,
+  "link_util": 0.0,
+  "wasted_bytes": 250004,
+  "commitment_depth": 1,
+  "wanted_received": true,
+  "frames_on_wire": 20,
+  "bytes_on_wire": 5000080,
+  "frames_after_settle": 2,
+  "bytes_after_settle": 500008,
+  "frames_before_settle": 18,
+  "bytes_before_settle": 4500072,
+  "warm_cache": false,
+  "rtt_ms": 0,
+  "step_loop_ms": 17620.801712,
+  "wait_h1_median_ms": 4874.847887,
+  "wait_h2_median_ms": 8554.573694,
+  "link_util_measured": 1.1350402965138366,
+  "late_mean_ms": 0.0,
+  "late_p95_ms": 0.0,
+  "late_max_ms": 0.0,
+  "on_time_rate": 0.0,
+  "ask_join": [
+    {
+      "frame_index": 0,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 1,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 2,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 3,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 17,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 28,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 44,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
+      "ask_ordinal": 0
+    }
+  ],
+  "reader_mode": "open",
+  "censored_waits": 51,
+  "censored_frac": 0.6296296296296297,
+  "reader_lag_ms": 0.554493,
+  "stranded_bytes": 4750076,
+  "stranded_frames": 19,
+  "center_asks_dropped": 55
+}

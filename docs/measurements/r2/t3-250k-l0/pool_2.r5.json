@@ -1,0 +1,216 @@
+{
+  "trace": "x3_short_scroll",
+  "mode": "trace",
+  "read_bps": 2000000,
+  "depth": 2,
+  "stream_mode": "pool:2",
+  "peak_outstanding": 4,
+  "arm_label": "pool:2",
+  "wanted_frame": 16,
+  "asks_sent": 20,
+  "recovered_ms": 475.592022,
+  "mean_wait_ms": 7664.104452567896,
+  "p95_wait_ms": 15955.892389,
+  "miss_mean_wait_ms": 8168.321850763153,
+  "miss_p95_wait_ms": 16325.766109,
+  "cache_hits": 5,
+  "cache_misses": 76,
+  "cache_hit_rate": 0.06172839506172839,
+  "wait_ms": [
+    1346.1305860000002,
+    1633.4170139999999,
+    1540.073997,
+    2726.2155780000003,
+    2246.448955,
+    3616.119682,
+    2950.2948829999996,
+    4876.5991189999995,
+    2915.246592,
+    4841.586243,
+    2880.3622349999996,
+    0.0,
+    4991.571512,
+    0.0,
+    3771.344305,
+    2846.4000189999997,
+    0.0,
+    4956.183596,
+    3661.641725,
+    0.0,
+    7621.221047,
+    2996.0670529999998,
+    0.0,
+    7696.196328,
+    4920.509738,
+    11656.570614,
+    2961.5062860000003,
+    11730.725774999999,
+    4885.3995350000005,
+    16881.254184999998,
+    16696.145761,
+    16511.206398,
+    16325.766109,
+    15955.892389,
+    15585.562047,
+    15215.387902,
+    15030.345626,
+    14845.991106,
+    14660.513300999999,
+    14291.324691,
+    14105.985068,
+    13920.532398000001,
+    13736.078150000001,
+    13550.592783999999,
+    12996.247306000001,
+    12810.712246,
+    12626.35218,
+    12070.593711000001,
+    11886.121412,
+    11700.643237,
+    11330.353975,
+    10960.824889,
+    10775.365585,
+    10590.757204,
+    10035.695734,
+    9851.23333,
+    9665.700275000001,
+    9111.088332,
+    8925.654437000001,
+    8741.188858,
+    8555.647106,
+    8001.2954070000005,
+    7815.8613319999995,
+    7630.4058350000005,
+    7075.698896999999,
+    6891.291244999999,
+    6705.844218,
+    6335.668038,
+    5965.762366,
+    5781.292864,
+    5595.876590999999,
+    5040.879759,
+    4855.410937000001,
+    4670.961955,
+    4115.529154,
+    3931.093067,
+    3745.682388,
+    3561.272904,
+    3375.402782,
+    3005.731771,
+    476.908999
+  ],
+  "wait_samples": 81,
+  "fill_rate": 0.5,
+  "fill_frames": 1,
+  "fill_bytes": 250004,
+  "fill_dwell_ms": 2000,
+  "link_util": 0.500008,
+  "wasted_bytes": 250004,
+  "commitment_depth": 1,
+  "wanted_received": true,
+  "frames_on_wire": 20,
+  "bytes_on_wire": 5000080,
+  "frames_after_settle": 2,
+  "bytes_after_settle": 500008,
+  "frames_before_settle": 18,
+  "bytes_before_settle": 4500072,
+  "warm_cache": false,
+  "rtt_ms": 0,
+  "step_loop_ms": 17621.964761,
+  "wait_h1_median_ms": 4876.5991189999995,
+  "wait_h2_median_ms": 8555.647106,
+  "link_util_measured": 1.1349653838976939,
+  "late_mean_ms": 0.0,
+  "late_p95_ms": 0.0,
+  "late_max_ms": 0.0,
+  "on_time_rate": 0.0,
+  "ask_join": [
+    {
+      "frame_index": 0,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 1,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 2,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 3,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 17,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 23,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 28,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 39,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 44,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 40,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 16,
+      "ask_ordinal": 0
+    }
+  ],
+  "reader_mode": "open",
+  "censored_waits": 51,
+  "censored_frac": 0.6296296296296297,
+  "reader_lag_ms": 1.234112,
+  "stranded_bytes": 4750076,
+  "stranded_frames": 19,
+  "center_asks_dropped": 55
+}
