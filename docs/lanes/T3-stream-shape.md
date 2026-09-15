@@ -130,6 +130,24 @@ criticism of the estimator, inherited here deliberately rather than changed afte
 `stranded_frames` is the corroborating signal and agrees: 3–13 for `shared` and `per-frame`,
 25–29 for `pool:2`, every repeat.
 
+### A prediction for the Gilbert–Elliott cell, recorded before it lands
+
+`p 0.07 % r 14 %` puts the link in its bad state 0.50 % of the time in bursts averaging
+7.1 packets — the same mean loss as the iid cell above, delivered differently. A 250 KB frame
+is 172 packets, so iid scatters about 0.9 losses across every frame, while a burst lands inside
+one frame and leaves its neighbours clean.
+
+If `per-frame`'s advantage comes from confining a loss to the frame that suffered it, then
+**bursts should favour it more than scattered loss does**: the same bytes lost, concentrated,
+means fewer frames damaged but each damaged worse, and only the shared stream makes the
+undamaged frames wait behind them. So `per-frame`'s margin over `shared` should be **larger**
+in this cell than the 8.5 % it managed at iid 0.5 %. If it is the same or smaller, the
+confinement story is wrong and the 0.5 % margin needs another explanation.
+
+The probe reported a third, independent corroboration of the pool's cost while setting the
+cell up: saturated frame rate **3.50/s for `pool:2` against 4.25/s** for both other arms, 18 %
+less throughput on a measurement that has nothing to do with the latency pools.
+
 ## Decision rule, fixed before the run
 
 Pooled miss samples, the estimator N11 asked for and `stream_shape_pool.py` implements — never
