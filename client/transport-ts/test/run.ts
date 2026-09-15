@@ -56,7 +56,8 @@ async function autoDepthFindsTheLink() {
   const { stub, session } = await drive(link, 200, { window: { depth: "auto", initial: 2 } });
   const d = session.stats().windowDepth ?? 0;
   assert(Math.abs(d - want) <= 1, `auto: depth ${d} within 1 of ${want}`);
-  assert(stub.maxInFlight <= want + 1, `auto: never more than ${want + 1} in flight, saw ${stub.maxInFlight}`);
+  assert(stub.maxInFlight <= 16, `auto: never past the clamp, saw ${stub.maxInFlight}`);
+  assert(stub.maxInFlight >= want - 1, `auto: opened up to the link, saw ${stub.maxInFlight} for want ${want}`);
   assert(inOrder(stub.askOrder), "auto: asks sent in order");
 }
 

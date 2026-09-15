@@ -291,3 +291,19 @@ streams are entirely different things.
 - [`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md) — stride, which handles the case where demand exceeds 1
 - Reader behaviour: published measurements of radiologist scroll speed, oscillation over adjacent
   slices, and repeated depth passes over ≥80% of a series
+
+## What the Node stub's tests can and cannot pin (2026-09-15)
+
+`fixedDepthCapsInFlight` pins the window's actual invariant deterministically: at a fixed
+depth, asks in flight never exceed it, exactly. The `auto` test cannot pin the same bound
+against its *settled* depth, because `maxInFlight` is a peak across the estimator's climb and a
+damped estimator may legitimately hold 10 for two evaluations on its way to 8. It is bounded by
+the clamp instead, with a floor of `want - 1` so a window that never opens still fails.
+
+One flake remains, measured at 1 run in 20: `auto` settling at 5 where the formula says 8. The
+stub's simulated `tf` is subject to Node's event-loop jitter, and the estimator faithfully
+reports what it measured — so the test asserts convergence to a value derived from the stub's
+*nominal* timings rather than its achieved ones. It is the same error as deriving a rig cell's
+step interval from a link's label rather than its measured rate
+([`lanes/T3-stream-shape.md`](lanes/T3-stream-shape.md)), and the same fix applies: compute the
+expectation from what the stub delivered. Not taken, because T1 is parked.
