@@ -45,13 +45,37 @@ is two cores.
 
 | # | Run id | Order | Status |
 | --- | --- | --- | --- |
-| 1 | `t3-250k-l0`, `-l0.5`, `-l2`, `-ge` | T3 at 250 KB, `DEPTH=2`, `ARMS="shared pool:2 per-frame"`, the four loss cells of [`RIG-RUNBOOK.md`](RIG-RUNBOOK.md) §1 | **released** |
+| 1 | `t3-250k-l0`, `-l0.5`, `-l2`, `-ge` | T3 at 250 KB, `DEPTH=2`, `ARMS="shared pool:2 per-frame"`, the four loss cells of [`RIG-RUNBOOK.md`](RIG-RUNBOOK.md) §1 | **re-released** — the first attempt is `docs/measurements/r2/t3-250k-l0`, VOID; the cell was wrong, see below. Re-run all four from scratch |
 | 2 | `t3-32k-l0`, `-l0.5`, `-l2` | T3 at 32 KB, `DEPTH=4`, `ARMS="shared pool:2 pool:4 per-frame"` | **released**, after run 1 |
 | 3 | `t2-*` | Controller, Cubic vs BBR — **step 1 is the source review and comes first**, [`T2`](T2-controller.md) | held |
 | 4 | `t9-*` | Segment cap, seg45 vs seg10 plus the LAN control, [`T9`](T9-segment-cap.md) | held |
 
 Runs 3 and 4 are held so the first result can correct the method before more rig time is spent
 on it. Ask in PR #30 to have one released.
+
+## Run 1, first attempt: what was wrong with the cell
+
+`t3-250k-l0` returned VOID and the runner stopped, which is the contract working. Two faults,
+both in the cell rather than the rig, and both now fixed in `stream_shape_cells.sh`:
+
+* **The client throttled itself to a fifth of the link.** `window-harness --read-bps` defaults
+  to 2 Mbit/s and the script never overrode it, so a 10 Mbit cell delivered 2.27 Mbit/s and
+  measured the harness's own pacer. L2's brief already said `--read-bps 0`; the script now
+  passes it.
+* **The reader outran the link even unthrottled.** `x3_short_scroll` steps every 185 ms and a
+  250 KB frame is 200 ms of wire at 10 Mbit, so the backlog grew without bound and 63 % of
+  waits were censored. The step interval is now **derived** from the frame size and the rate
+  (`HEADROOM` 1.4, so 280 ms at this cell, 36 ms at 32 KB) instead of taken from the trace.
+
+Both now void the cell by name if they ever recur.
+
+A third finding is about the instrument, not this cell: **`on_time_rate` and `late_*` are
+closed-reader metrics.** `wait_displayable` is handed a scheduled time only on the closed
+path, so under `--reader-mode open` — the only mode admissible for stream shape — they are
+structurally zero and mean nothing. The pooler no longer reads them; an open reader never
+blocks, so `censored_frac` is its distress signal. **Open question for the owner:** T3 asks for
+reader lateness beside every row, and in open mode nothing reports it. Either the open reader
+gains the instrumentation or that reporting line goes.
 
 ## Open questions the runner can answer cheaply
 

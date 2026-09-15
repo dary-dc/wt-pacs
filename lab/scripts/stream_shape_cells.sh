@@ -6,6 +6,9 @@
 #
 # RATE_MBIT (10) RTT_MS (60) LOSS_PCT (0) LOSS_MODEL (iid|gemodel) REPS (6) DEPTH (2)
 # FX (frames_250k) TRACE (x3_short_scroll) ARMS ("shared pool:2 per-frame") shape the cell.
+# The reader's step interval is DERIVED, not the trace's: a frame's wire time at RATE_MBIT
+# times HEADROOM (1.4). A reader that demands faster than the link can ever deliver builds an
+# unbounded backlog and every wait becomes a censoring artefact — `docs/measurements/r2/t3-250k-l0`.
 # One JSON per arm per repeat; `stream_shape_pool.py` reads them. Arm order reverses every
 # repeat, so a drift over the run cannot land on one arm.
 set -euo pipefail
@@ -16,6 +19,12 @@ LOSS_MODEL=${LOSS_MODEL:-iid}; REPS=${REPS:-6}; DEPTH=${DEPTH:-2}
 FX=${FX:-$ROOT/lab/fixtures/frames_250k/frames_250k.sbnd}
 TRACE=${TRACE:-$ROOT/lab/traces/x3_short_scroll.json}
 read -r -a ARMS <<< "${ARMS:-shared pool:2 per-frame}"
+HEADROOM=${HEADROOM:-1.4}
+frame_bytes=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['meanFrameBytes'])" \
+  "$(dirname "$FX")/metadata.json")
+STEP_MS=${STEP_MS:-$(python3 -c "
+import math;print(max(1, math.ceil($frame_bytes * 8 / ($RATE_MBIT * 1000) * $HEADROOM)))")}
+echo "frame=${frame_bytes}B wire=$(python3 -c "print(f'{$frame_bytes*8/($RATE_MBIT*1000):.0f}')")ms step=${STEP_MS}ms" >&2
 mkdir -p "$out"
 
 ip link set lo up
@@ -48,6 +57,7 @@ for r in $(seq 1 "$REPS"); do
     "$harness" --url "https://127.0.0.1:${ports[$i]}/" --trace "$TRACE" --mode trace \
       --depth "$DEPTH" --frame-count "$frames" --stream-mode "${ARMS[$i]}" --arm "${ARMS[$i]}" \
       --reader-mode open --bind 127.0.0.1 --timeout-ms 120000 --json \
+      --read-bps 0 --step-interval-ms "$STEP_MS" \
       > "$out/${ARMS[$i]//:/_}.r${r}.json"
     echo "  r$r ${ARMS[$i]} done" >&2
   done

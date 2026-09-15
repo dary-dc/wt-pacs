@@ -8,8 +8,13 @@ across repeats per arm, and bootstraps a CI on each arm's p95 ratio against the 
     lab/scripts/stream_shape_pool.py <out-dir> [--ref shared] [--boot 10000]
 
 Void checks run first and are fatal to the cell, not a footnote: a cell whose reference arm
-records fewer than 20 misses cannot separate anything, and one whose reader never met its
-schedule is outside the model the metric is defined in.
+records fewer than 20 misses cannot separate anything, and one the client's own pacer rate-limited
+measured the harness rather than the link.
+
+`on_time_rate` and the `late_*` fields are **not** read here. They are closed-reader metrics —
+`wait_displayable` is handed a scheduled time only on that path — so in `--reader-mode open`,
+the only mode admissible for stream shape, they are structurally zero and say nothing. An open
+reader never blocks, so it reports distress as censoring instead: `censored_frac` is the gate.
 """
 from __future__ import annotations
 
@@ -67,9 +72,10 @@ def main() -> int:
     if len(pools[ref]) < MIN_MISSES:
         void.append(f"{ref} pooled only {len(pools[ref])} misses, under {MIN_MISSES}")
     for a, runs in arms.items():
-        on_time = [r["on_time_rate"] for r in runs]
-        if max(on_time) == 0.0:
-            void.append(f"{a} never met its schedule (on_time_rate 0 in every repeat)")
+        if any(r["read_bps"] for r in runs):
+            void.append(f"{a} ran with read_bps set — the client's pacer, not the link, set the rate")
+        if any(r["asks_sent"] * 2 < r["wait_samples"] for r in runs):
+            void.append(f"{a} sent under half the trace's asks — the outstanding ceiling suppressed them")
         if max(r["censored_frac"] for r in runs) > 0.1:
             void.append(f"{a} censored over 10% of waits")
         if min(r["cache_hit_rate"] for r in runs) > 0.9:
