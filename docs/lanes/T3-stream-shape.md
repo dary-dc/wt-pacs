@@ -82,6 +82,20 @@ The cell now discards one pass per arm, and a cache-hit spread above 0.25 within
 it. The null cell above was unaffected: it was itself a re-run, so its page cache was already
 warm throughout (spread 0.07–0.11), which is why its reading stands.
 
+### And the 2 % cell voided for a third reason
+
+`docs/measurements/r2/t3-250k-l2`: every arm censored 5–33 % of waits and sent under half the
+trace's asks. Not a defect in the arms — **at 2 % loss the 10 Mbit link carried 2.5–4.3 Mbit**,
+Cubic's response to loss, and the step interval had been derived from the label rather than
+what the link achieved, so the reader over-demanded by about 2×. Goodput was within noise
+across the three arms, which is itself the only reading that cell supports.
+
+The interval is now measured, not computed: the discarded pass runs in `saturate` mode, which
+holds `DEPTH` asks in flight and reports the frame rate the link sustains, and the interval is
+`HEADROOM` times that. One interval for every arm, from the reference arm's probe, or the arms
+are not comparable. This makes the cell self-adapting to loss, rate and controller — the three
+things that made the label wrong.
+
 ## Decision rule, fixed before the run
 
 Pooled miss samples, the estimator N11 asked for and `stream_shape_pool.py` implements — never

@@ -6,9 +6,12 @@
 #
 # RATE_MBIT (10) RTT_MS (60) LOSS_PCT (0) LOSS_MODEL (iid|gemodel) REPS (6) DEPTH (2)
 # FX (frames_250k) TRACE (x3_short_scroll) ARMS ("shared pool:2 per-frame") shape the cell.
-# The reader's step interval is DERIVED, not the trace's: a frame's wire time at RATE_MBIT
-# times HEADROOM (1.4). A reader that demands faster than the link can ever deliver builds an
-# unbounded backlog and every wait becomes a censoring artefact — `docs/measurements/r2/t3-250k-l0`.
+# The reader's step interval is DERIVED, not the trace's, and from the rate the link ACHIEVES
+# rather than its label: the warm-up doubles as a saturation probe and the interval is a frame's
+# time at that measured rate times HEADROOM (1.4). The label is wrong wherever loss is: at 2 %
+# a 10 Mbit link carried 3 Mbit, so a nominal-rate interval over-demanded by 2x and every wait
+# became a censoring artefact — `docs/measurements/r2/t3-250k-l2`. One interval for every arm,
+# taken from the first (the reference), or the arms are not comparable.
 # One JSON per arm per repeat; `stream_shape_pool.py` reads them. Arm order reverses every
 # repeat, so a drift over the run cannot land on one arm.
 set -euo pipefail
@@ -19,12 +22,9 @@ LOSS_MODEL=${LOSS_MODEL:-iid}; REPS=${REPS:-6}; DEPTH=${DEPTH:-2}
 FX=${FX:-$ROOT/lab/fixtures/frames_250k/frames_250k.sbnd}
 TRACE=${TRACE:-$ROOT/lab/traces/x3_short_scroll.json}
 read -r -a ARMS <<< "${ARMS:-shared pool:2 per-frame}"
-HEADROOM=${HEADROOM:-1.4}
+HEADROOM=${HEADROOM:-1.4}; PROBE_MS=${PROBE_MS:-4000}
 frame_bytes=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['meanFrameBytes'])" \
   "$(dirname "$FX")/metadata.json")
-STEP_MS=${STEP_MS:-$(python3 -c "
-import math;print(max(1, math.ceil($frame_bytes * 8 / ($RATE_MBIT * 1000) * $HEADROOM)))")}
-echo "frame=${frame_bytes}B wire=$(python3 -c "print(f'{$frame_bytes*8/($RATE_MBIT*1000):.0f}')")ms step=${STEP_MS}ms" >&2
 mkdir -p "$out"
 
 ip link set lo up
@@ -51,15 +51,27 @@ for arm in "${ARMS[@]}"; do
 done
 frames=$(sed -n 's/^frames=//p' "$out/server.${ARMS[0]//:/_}.log" | head -1)
 
-# One discarded pass per arm: the first read of a frame comes off disk and every later one
-# off the page cache, and pooling the two regimes reads as a stream-shape effect.
+# One discarded pass per arm in `saturate` mode, which holds DEPTH asks in flight and reports
+# the frame rate the link sustains. It does two jobs: it warms the page cache — the first read
+# of a frame comes off disk and every later one off the cache, and pooling the two regimes
+# reads as a stream-shape effect — and it measures what the link ACHIEVES, which is what the
+# reader's demand must be set against.
 for i in "${!ARMS[@]}"; do
-  "$harness" --url "https://127.0.0.1:${ports[$i]}/" --trace "$TRACE" --mode trace \
+  "$harness" --url "https://127.0.0.1:${ports[$i]}/" --mode saturate \
     --depth "$DEPTH" --frame-count "$frames" --stream-mode "${ARMS[$i]}" --arm warmup \
-    --reader-mode open --bind 127.0.0.1 --timeout-ms 120000 --json \
-    --read-bps 0 --step-interval-ms "$STEP_MS" > /dev/null
-  echo "  warmup ${ARMS[$i]} done" >&2
+    --bind 127.0.0.1 --timeout-ms 120000 --json --read-bps 0 \
+    --fill-dwell-ms "$PROBE_MS" > "$out/probe.${ARMS[$i]//:/_}.json"
+  echo "  probe ${ARMS[$i]} $(python3 -c "
+import json;print(f\"{json.load(open('$out/probe.${ARMS[$i]//:/_}.json'))['fill_rate']:.2f} frames/s\")")" >&2
 done
+
+STEP_MS=${STEP_MS:-$(python3 -c "
+import json, math
+r = json.load(open('$out/probe.${ARMS[0]//:/_}.json'))['fill_rate']
+if r <= 0:
+    raise SystemExit('probe measured no frames — the cell cannot set a step interval')
+print(max(1, math.ceil(1000 / r * $HEADROOM)))")}
+echo "frame=${frame_bytes}B step=${STEP_MS}ms (${HEADROOM}x the rate ${ARMS[0]} sustained)" >&2
 
 for r in $(seq 1 "$REPS"); do
   order=("${!ARMS[@]}"); (( r % 2 == 0 )) && order=($(printf '%s\n' "${order[@]}" | tac))

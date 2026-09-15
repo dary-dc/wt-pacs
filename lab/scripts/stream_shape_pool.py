@@ -43,6 +43,8 @@ def nearest_rank(xs: list[float], p: float) -> float:
 def load(out_dir: Path) -> dict[str, list[dict]]:
     arms: dict[str, list[dict]] = {}
     for f in sorted(out_dir.glob("*.r*.json")):
+        if f.name.startswith("probe."):
+            continue
         run = json.loads(f.read_text())
         arms.setdefault(run.get("stream_mode") or run.get("arm_label", ""), []).append(run)
     return arms
