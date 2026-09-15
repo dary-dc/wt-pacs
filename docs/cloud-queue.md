@@ -27,7 +27,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **not for cloud** — workstation lane; browser timing, no VM needed |
+| 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | **not for cloud** — workstation lane; drives the VM over ssh |
 | 7 | **L7** — a regime where the read path misses | lanes §L7 | **not for cloud** — workstation lane; drives the VM over ssh |
 | — | L4 a closed session is noticed | lanes §L4 | done `62cf243` |
