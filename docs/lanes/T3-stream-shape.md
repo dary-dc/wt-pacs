@@ -176,29 +176,31 @@ bursts. For a target stated as a radio link that is the more consequential numbe
 and it points at [`T2`](T2-controller.md) — how the controller reads a burst — rather than at
 stream shape.
 
-### The probe found the largest effect in the campaign, and it is throughput
+### A 3.5× throughput claim, and its retraction the same hour
 
-Setting up the 2 % cell, the saturation probe measured what each arm sustains:
+Setting up the 2 % cell, a **single 4 s** saturation probe per arm read `shared` 1.00 frames/s,
+`pool:2` 1.50 and `per-frame` 3.50, and this file recorded it as the campaign's largest effect:
+head-of-line blocking turning from a tail cost into a 3.5× capacity ceiling.
 
-| arm | frames/s at 2 % loss | as throughput |
-| --- | ---: | ---: |
-| `shared` | 1.00 | 2.0 Mbit/s |
-| `pool:2` | 1.50 | 3.0 Mbit/s |
-| `per-frame` | **3.50** | **7.0 Mbit/s** |
+**It was noise.** Repeated — three probes, 10 s each — the same cell reads:
 
-**`per-frame` sustains 3.5× `shared`'s throughput at 2 % loss** — measured by saturation, a
-method with nothing in common with the latency pools. Counts of 4, 6 and 14 frames in a 4 s
-dwell: the precision is poor, 25 % granularity on the reference arm, but quantisation cannot
-manufacture a 3.5× gap.
+| arm | 1 × 4 s dwell | median of 3 × 10 s | the three |
+| --- | ---: | ---: | --- |
+| `shared` | 1.00 | **1.90** | 1.50 · 1.90 · 2.70 |
+| `pool:2` | 1.50 | 1.20 | 1.20 · 1.20 · 1.60 |
+| `per-frame` | 3.50 | 1.70 | 1.50 · 1.70 · 2.40 |
 
-This reframes the question. At 0.5 % loss the arms differ by 8.5 % on tail latency, which is
-under the bar. At 2 % they differ by **3.5× on throughput**, which is not a latency question at
-all — head-of-line blocking stops being a tail effect and becomes a capacity ceiling, because
-every frame behind a lost packet waits for its recovery and the link idles.
+`per-frame` against `shared` was 3.50×; it is 0.89×. The ordering reverses and the ranges
+overlap almost entirely — 1.5–2.7 against 1.5–2.4. **At 2 % loss these arms do not differ
+measurably in sustained throughput**, on the evidence available.
 
-`CLAUDE.md` says to quote latency or throughput, not both, and at 2 % the honest quantity is
-throughput. The probe now runs `PROBE_REPS` times per arm at a 10 s dwell and reports the
-median with the spread, so it is a measurement rather than a single sample.
+The 4 s dwell counted 4, 6 and 14 frames. A count of 4 quantises to 25 %, and the note that
+recorded the claim said so and drew the conclusion anyway, on the grounds that quantisation
+cannot manufacture a 3.5× gap. That was the error: quantisation cannot, but a single sample of
+a high-variance quantity can, and at 2 % loss the variance is most of the signal.
+
+What caught it was the probe becoming a repeated measurement — a change made in the same commit
+that published the claim, for unrelated reasons.
 
 ## Decision rule, fixed before the run
 
