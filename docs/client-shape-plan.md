@@ -79,11 +79,22 @@ bounded memory, and a jump abandons what is in flight.
 *Measured:* peak outstanding waiters against study size; time from a jump to the first frame of the
 new target, with and without cancellation.
 
-**M4 — lifecycle.** Dial at selection, keep-alive paired with the server's idle timeout, closure
-detected and waiters woken, a re-dial policy. *Proves:* a session opened minutes before first use
-still serves the first frame immediately.
-*Measured:* first-frame latency after an idle gap, swept over gap length; cost of an idle held
-session, and how that scales with several held at once.
+**M4 — lifecycle.** Dial at selection, closure detected and waiters woken, a re-dial policy.
+*Proves:* a session opened minutes before first use still serves the first frame immediately.
+*Measured:* first-frame latency after an idle gap, swept over gap length.
+
+**Two thirds of this is already done, and one third moved to the server.** Closure detection landed
+in both clients: a session carries the reason it is gone, and setting it fails every armed waiter,
+while a frame that never arrives on a *live* session still takes the full timeout. And keep-alive is
+**not client work at all** — the WebTransport API exposes no such knob, and only one end needs to
+send them, so **only the server can hold a browser's session open**. Measured: a 5 s idle timeout
+with none lost 3 of 3 sessions over a 12 s hold; 2 s keep-alive kept 3 of 3 with the client silent.
+An idle held session costs ~75 KB and ~0.05 ms of CPU per second, linear to 2 000 with no knee — it
+buys packets, not state. **Recommended: 20 s keep-alive, 60 s idle timeout**, since browsers
+typically advertise 30 s and the effective timeout is the lower of the two.
+
+So M4's remaining client work is the re-dial policy. Whoever consumes this plan must also configure
+its server, or a session opened at selection dies before the viewer mounts.
 
 **M5 — the cache seam.** An interface with an in-memory implementation behind it, and OPFS behind
 the same interface. **The format stays undecided** — whether it holds compressed or decoded frames
