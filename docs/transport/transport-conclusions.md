@@ -71,6 +71,42 @@ radio regime still stands; the Cubic default is a case about people who are not 
 
 ---
 
+### quinn's BBR read against the published BBRv1, 2026-09-15
+
+[`T2`](../lanes/T2-controller.md) step 1 asks for this before any cell, because moq-dev's issue
+#686 calls quinn's BBR "horribly broken from every indication" without naming a cause. Reading
+`quinn-proto-0.11.17/src/congestion/bbr` (651 lines) found no such thing.
+
+**What is faithful.** The four modes and their transitions; the constants, all matching
+BBRv1 — high gain 2.885, pacing cycle `[1.25, 0.75, 1×6]`, startup growth target 1.25, three
+rounds without growth before leaving Startup, derived cwnd gain 2.0; the gain-cycle seed, which
+draws 0–6 and bumps anything ≥1 so the phase never starts at 0.75; and the recovery window's
+arithmetic including its floor at `in_flight + bytes_acked`. There is not one `TODO`, `FIXME`
+or "simplified" marker in the file.
+
+**One candidate deviation, and it may explain §1's two-sided result.** `window()` applies the
+recovery window only when `mode != Startup`, unconditionally:
+
+```rust
+} else if self.recovery_state.in_recovery() && self.mode != Mode::Startup {
+    return self.cwnd.min(self.recovery_window);
+}
+```
+
+Chromium's BBR gates that same exemption on a `rate_based_startup_` option; quinn has no such
+flag and no way to turn it off. If that reading is right, **loss never limits the window during
+Startup** — which is precisely the behaviour that would produce both halves of the measurement
+above: −44 to −48 % on exogenous loss, where ignoring loss is correct because the link is not
+congested, and worse on congestive loss, where it is not.
+
+**What this review cannot do.** T2 asks for a diff against quiche's `bbr_sender.cc`, and that
+source is not available in this environment — this is a reading against the published algorithm
+instead. The `rate_based_startup_` claim above is from recollection of Chromium's source, not
+from reading it, so **treat it as the first thing to check rather than as a finding**. Whoever
+has quiche to hand should confirm or kill it before any rig time is spent: if it holds, the
+controller question is partly a one-line question, and the cells should be designed to separate
+Startup behaviour from steady state rather than to compare two controllers whole.
+
 ## 2 · One shared stream
 
 The textbook argument (per-frame confines loss to one frame) was pre-registered as H4 and
