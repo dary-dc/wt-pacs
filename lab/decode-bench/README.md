@@ -39,6 +39,19 @@ initial heap sizes and interleaves them, so the floor is chosen from a curve.
 other fixtures contains a sample at its ceiling, so none of them exercises the decoder's clamp —
 a mutant that clamped one count low passed all six and fails against this one.
 
+`dispatch.mjs` runs a pool of real decoders, one per worker thread, and compares round-robin
+against first-free and against first-free with one frame of lookahead. Dispatch is meaningless
+without real parallelism, so workers rather than an interleaved queue; they preload the fixtures so
+dispatching a frame costs a message of two integers rather than a copy of the codestream.
+
+```bash
+node lab/decode-bench/dispatch.mjs --width 3 --rounds 13 --frames 9
+```
+
+A mixed workload must not be a repeating cycle whose period shares a factor with the pool width —
+that hands each worker one size and reverses the answer. The sizes are a seeded shuffle for that
+reason.
+
 Every millisecond these print is container-measured unless it was run on the rig
 (`docs/cloud-rig-access.md`). Heap, byte-exactness and the build-flag findings are not timing and
 do not carry that caveat.

@@ -132,6 +132,70 @@ and 329,366 for the shared variant. The cost is not size, it is ownership:
 the size this project serves is not a margin a smaller change recovers. Not worth it on any other
 ground: it is the same decoder, at the same speed, for slightly fewer bytes.
 
+## Dispatch: first-free against round-robin
+
+The belief this tested: first-free matters when decode times are uneven and is a wash when they are
+even. Neither half had been measured. `lab/decode-bench/dispatch.mjs` runs a pool of real decoders,
+one per worker thread — dispatch is meaningless without real parallelism — and every frame is
+checked against the encoder's input.
+
+Three policies, because two was not enough to answer it:
+
+* **round-robin** assigns frame *k* to worker *k* mod width up front, busy or not. No coordination.
+* **first-free** holds the frames and gives the next to whichever worker just reported free. One
+  main-thread hop per frame.
+* **first-free+1** does the same but keeps each worker one frame ahead, so it never idles waiting
+  for that hop. This is the steelman, and without it the comparison prices the hop, not the policy.
+
+Both start from one instant with every frame already available, as a fill has them, so `wait` counts
+queueing in both. The split is reported from the median round, not as three medians: medians do not
+add, and a split that does not sum is not a split.
+
+**Width 3, 48 frames — 16 per worker:**
+
+| frames | policy | ms/frame* | wait* | decode* | take* | batch ms* | slower in |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| uniform | round-robin | 94.38 | 76.70 | 7.83 | 9.86 | 138 | — |
+| uniform | first-free | 98.20 | 90.58 | 7.04 | 0.58 | 157 | 8/12 |
+| uniform | first-free+1 | 90.32 | 78.32 | 7.54 | 4.46 | 137 | 5/12 |
+| mixed | round-robin | 305.02 | 262.11 | 24.68 | 18.23 | 524 | — |
+| mixed | first-free | 351.86 | 323.84 | 23.55 | 4.47 | 576 | 11/12 |
+| mixed | first-free+1 | 327.38 | 294.23 | 24.63 | 8.51 | 528 | 8/12 |
+
+**Width 3, 9 frames — 3 per worker:**
+
+| frames | policy | ms/frame* | wait* | decode* | take* | batch ms* | slower in |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| mixed | round-robin | 125.34 | 67.98 | 47.05 | 10.31 | 276 | — |
+| mixed | first-free | 140.29 | 81.09 | 50.32 | 8.88 | 255 | 9/12 |
+| mixed | first-free+1 | **123.84** | 54.43 | 52.59 | 16.81 | **221** | 4/12 |
+
+**The belief is half right, and the half that is right is not the interesting half.**
+
+* **Uniform frames are a wash**, as believed — every policy within a few per cent, nothing resolved.
+* **Uneven frames on a long queue are also a wash.** Sixteen frames per worker is enough for a
+  static assignment's luck to average out, so there is no head-of-line blocking left to fix:
+  round-robin's batch time ties first-free+1's (524 against 528) while needing no coordination.
+* **The win is on a short queue, and it is makespan, not latency.** At three frames per worker one
+  unlucky assignment cannot average out, and first-free+1 finishes the batch 20 % sooner (221
+  against 276). Its mean per-frame latency is not better — 4/12, unresolved — because finishing the
+  batch sooner and delivering any given frame sooner are different things.
+* **Plain first-free is worse than round-robin nearly everywhere** (8/12, 9/12, 11/12). It pays a
+  main-thread hop per frame that round-robin does not. What matters is not choosing a free decoder,
+  it is never leaving one idle — which is why the lookahead, not the choosing, carries the result.
+
+So: uneven decode times are necessary for dispatch to matter, and not sufficient. What decides it
+is **frames per decoder**, and a viewer scrubbing a few frames at a time is the case where it does.
+
+**Where this host saturates.** Four cores. Width 4 puts a worker on every core with the main thread
+contending, and the answer moved when it did; widths 2 and 3 agree with each other and are quoted
+here. Nothing is claimed at width 4 or above.
+
+**One artefact worth naming**, because it produced a confident wrong answer first: a mixed workload
+built as a repeating cycle of three sizes, dispatched round-robin across three workers, gives each
+worker one size and reverses the result. The sizes are a seeded shuffle now. A periodic workload
+whose period shares a factor with the pool width is not a mixed workload.
+
 ## The copy, measured
 
 `getDecodedBuffer()` returns a view into the module's heap (`buf.buffer === M.HEAPU8.buffer`),
