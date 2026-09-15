@@ -38,6 +38,30 @@ link, and its result does **not** transfer to the mammography and tomosynthesis 
 delivery puts a frame's tail on the wire beside the next frame's prefix — and then per-frame is
 required anyway, because `RESET_STREAM_AT` abandons a tail per stream.
 
+## The null cell, measured 2026-09-15
+
+`docs/measurements/r2/t3-250k-l0`, six repeats, 250 KB, depth 2, 10 Mbit / 60 ms, no loss:
+
+| arm | pooled misses | p95 | median | vs `shared` |
+| --- | ---: | ---: | ---: | ---: |
+| `shared` | 74 | 413.24 ms | 202.66 ms | — |
+| `per-frame` | 87 | 416.62 ms | 203.58 ms | +0.8 %, CI [−17.3, +22.5] |
+| `pool:2` | 289 | 482.86 ms | 321.37 ms | **+16.8 %, CI [+16.5, +41.4]** |
+
+`per-frame` against `shared` is inside noise, which is what makes the cell sound. `pool:2` is
+worse, with a confidence interval excluding zero, **at zero loss** — where there is no
+retransmit deferral for a pool to bound. So this is the arm's own cost, not a loss effect, and
+it is the shape `send_fairness(true)` already showed
+([`../transport/transport-conclusions.md` §2](../transport/transport-conclusions.md)): two
+equal-priority streams round-robin, so two frames interleave where a shared stream would
+serialise one and then the other, and both finish late instead of the first finishing early.
+
+**Consequence for the reading:** `pool:k`'s loss cells are compared against **its own** null
+p95 (`stream_shape_pool.py --null`), never against `shared` directly, or the scheduling cost
+rides into the difference. **Falsifiable prediction**, to be checked when run 2 lands: if
+interleaving is the mechanism, `pool:4` at 32 KB pays a larger null-cell cost than `pool:2`.
+If it does not, this reading is wrong and the cause is elsewhere.
+
 ## Decision rule, fixed before the run
 
 Pooled miss samples, the estimator N11 asked for and `stream_shape_pool.py` implements — never
@@ -74,5 +98,7 @@ lateness beside it. JSONs and tables under `docs/measurements/r2/`.
 
 ## Stop conditions
 
-The pooler reporting VOID — fix the cell, do not raise the repeats. The null cell's arms
-differing by more than 15 % (an instrumentation gap, not a loss effect).
+The pooler reporting VOID — fix the cell, do not raise the repeats. `per-frame` and `shared`
+differing by more than 15 % in the null cell: those two carry no baseline difference, so a gap
+there is instrumentation and nothing downstream can be attributed to loss. A null-cell gap on
+`pool:k` is not a stop — it is the arm's own cost, divided out by `--null`.

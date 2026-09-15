@@ -5,7 +5,13 @@ The Phase C review found the two disagree on sign of slope over the same 80 rows
 asked for pooling. This reads `stream_shape_cells.sh`'s JSONs, pools every positive wait
 across repeats per arm, and bootstraps a CI on each arm's p95 ratio against the reference.
 
-    lab/scripts/stream_shape_pool.py <out-dir> [--ref shared] [--boot 10000]
+    lab/scripts/stream_shape_pool.py <out-dir> [--ref shared] [--boot 10000] [--null <dir>]
+
+`--null` names the same cell at 0 % loss. An arm that pays a cost absent loss — `pool:k` does,
+by interleaving two frames that a shared stream would serialise — cannot be compared to the
+reference under loss without carrying that cost into the difference. With `--null`, each arm is
+also reported against **its own** null p95, which is the loss effect with the arm's baseline
+divided out, and that column is the one to compare across arms.
 
 Void checks run first and are fatal to the cell, not a footnote: a cell whose reference arm
 records fewer than 20 misses cannot separate anything, and one the client's own pacer rate-limited
@@ -60,6 +66,7 @@ def main() -> int:
     args = sys.argv[1:]
     out_dir = Path(args[0])
     ref = args[args.index("--ref") + 1] if "--ref" in args else "shared"
+    null_dir = Path(args[args.index("--null") + 1]) if "--null" in args else None
     boot = int(args[args.index("--boot") + 1]) if "--boot" in args else 10000
 
     arms = load(out_dir)
@@ -81,7 +88,15 @@ def main() -> int:
         if min(r["cache_hit_rate"] for r in runs) > 0.9:
             void.append(f"{a} served over 90% from cache — the link is not in the loop")
 
-    print(f"{'arm':<12} {'runs':>4} {'misses':>7} {'p95_ms':>9} {'median_ms':>10} {'vs ref':>9}  CI95")
+    null_p95 = {}
+    if null_dir:
+        for a, runs in load(null_dir).items():
+            w = [x for r in runs for x in r["wait_ms"] if x > 0]
+            if w:
+                null_p95[a] = nearest_rank(w, 95)
+
+    head = f"{'arm':<12} {'runs':>4} {'misses':>7} {'p95_ms':>9} {'median_ms':>10} {'vs ref':>9}"
+    print(head + (f" {'vs own null':>12}  CI95" if null_dir else "  CI95"))
     for a in sorted(pools, key=lambda x: (x != ref, x)):
         p95 = nearest_rank(pools[a], 95)
         med = nearest_rank(pools[a], 50)
@@ -91,7 +106,12 @@ def main() -> int:
             lo, hi = ratio_ci(pools[a], pools[ref], boot)
             delta = f"{(p95 / nearest_rank(pools[ref], 95) - 1) * 100:+.1f}%"
             ci = f"[{lo:+.1f}, {hi:+.1f}]"
-        print(f"{a:<12} {len(arms[a]):>4} {len(pools[a]):>7} {p95:>9.2f} {med:>10.2f} {delta:>9}  {ci}")
+        own = ""
+        if null_dir:
+            n = null_p95.get(a)
+            own = f"{(p95 / n - 1) * 100:+.1f}%" if n else "no null"
+            own = f" {own:>12}"
+        print(f"{a:<12} {len(arms[a]):>4} {len(pools[a]):>7} {p95:>9.2f} {med:>10.2f} {delta:>9}{own}  {ci}")
 
     if void:
         print("\nVOID — this cell decides nothing:", file=sys.stderr)
