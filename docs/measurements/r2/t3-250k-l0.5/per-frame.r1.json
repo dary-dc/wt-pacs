@@ -4,86 +4,68 @@
   "read_bps": 0,
   "depth": 2,
   "stream_mode": "per-frame",
-  "peak_outstanding": 4,
+  "peak_outstanding": 2,
   "arm_label": "per-frame",
   "wanted_frame": 16,
-  "asks_sent": 46,
+  "asks_sent": 49,
   "recovered_ms": 0.0,
-  "mean_wait_ms": 1995.7646674444445,
-  "p95_wait_ms": 9886.350038999999,
-  "miss_mean_wait_ms": 2787.1885872931034,
-  "miss_p95_wait_ms": 16375.623305000001,
-  "cache_hits": 23,
-  "cache_misses": 58,
-  "cache_hit_rate": 0.2839506172839506,
+  "mean_wait_ms": 58.42470458024694,
+  "p95_wait_ms": 283.662656,
+  "miss_mean_wait_ms": 118.31002677500005,
+  "miss_p95_wait_ms": 343.769963,
+  "cache_hits": 41,
+  "cache_misses": 40,
+  "cache_hit_rate": 0.5061728395061729,
   "wait_ms": [
-    637.2289169999999,
-    848.551111,
-    983.944617,
-    1064.708778,
-    1156.645766,
-    1217.8157549999999,
-    1265.004624,
-    1390.1373910000002,
-    1197.096648,
-    1258.366888,
-    1284.9985130000002,
-    1335.0354929999999,
-    1101.276766,
-    1128.592216,
-    1137.447402,
-    1131.999892,
-    1161.212795,
-    882.0350810000001,
-    921.733542,
-    982.3860639999999,
-    994.045598,
-    1078.078316,
-    1302.612909,
-    1558.273698,
-    1792.2279620000002,
-    1916.398069,
-    1770.627111,
-    1567.724792,
-    1352.9519589999998,
-    1376.496473,
-    1190.709575,
-    1338.3232839999998,
-    1574.577146,
-    1757.156044,
-    1659.4188889999998,
-    1746.766448,
-    1528.819899,
-    128.30509600000002,
+    414.43276499999996,
+    343.769963,
+    305.50719999999995,
+    271.441715,
+    282.200156,
+    233.096526,
+    283.662656,
+    203.545429,
+    279.961127,
+    259.739329,
+    467.21935199999996,
+    204.444076,
+    276.662596,
+    206.344636,
+    137.23792200000003,
+    98.301027,
+    33.211522,
+    4.617782,
+    18.404694,
+    29.479062,
+    32.748357,
+    16.557485,
+    15.814100000000002,
+    9.041909,
+    29.386114000000003,
+    7.01477,
+    5.107689000000001,
+    12.317797,
     0.0,
-    1296.6448269999999,
-    1016.873673,
+    9.104507,
+    13.739130000000001,
+    12.301286,
     0.0,
-    1959.102136,
-    1119.0065069999998,
-    0.0,
-    2953.836424,
-    994.548757,
-    0.0,
-    0.0,
-    4274.578659000001,
-    634.941436,
+    2.054111,
     0.0,
     0.0,
     0.0,
-    6915.402338,
-    475.11562699999996,
-    0.0,
-    8534.473172,
-    414.115388,
     0.0,
     0.0,
-    9886.350038999999,
-    645.532538,
+    52.545852,
+    23.878563,
+    29.029292,
+    1.588039,
+    7.503703,
     0.0,
+    24.416107999999998,
+    50.580028999999996,
     0.0,
-    11010.705761000001,
-    651.183847,
+    24.392695,
     0.0,
     0.0,
     0.0,
@@ -92,11 +74,29 @@
     0.0,
     0.0,
     0.0,
-    16375.623305000001,
-    415.786609,
     0.0,
-    22881.907768,
-    21481.477725,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
     0.0
   ],
   "wait_samples": 81,
@@ -108,16 +108,16 @@
   "wasted_bytes": 0,
   "commitment_depth": 0,
   "wanted_received": true,
-  "frames_on_wire": 46,
-  "bytes_on_wire": 11500184,
+  "frames_on_wire": 49,
+  "bytes_on_wire": 12250196,
   "frames_after_settle": 0,
   "bytes_after_settle": 0,
-  "frames_before_settle": 46,
-  "bytes_before_settle": 11500184,
+  "frames_before_settle": 49,
+  "bytes_before_settle": 12250196,
   "warm_cache": false,
   "rtt_ms": 0,
-  "step_loop_ms": 25122.973609,
-  "wait_h1_median_ms": 1258.366888,
+  "step_loop_ms": 22121.591272,
+  "wait_h1_median_ms": 29.479062,
   "wait_h2_median_ms": 0.0,
   "link_util_measured": 0.0,
   "late_mean_ms": 0.0,
@@ -158,6 +158,10 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 8,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 9,
       "ask_ordinal": 0
     },
@@ -171,6 +175,10 @@
     },
     {
       "frame_index": 12,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 13,
       "ask_ordinal": 0
     },
     {
@@ -191,6 +199,10 @@
     },
     {
       "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
       "ask_ordinal": 0
     },
     {
@@ -230,11 +242,23 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 29,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 30,
       "ask_ordinal": 0
     },
     {
+      "frame_index": 31,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 32,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 33,
       "ask_ordinal": 0
     },
     {
@@ -243,6 +267,10 @@
     },
     {
       "frame_index": 35,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 36,
       "ask_ordinal": 0
     },
     {
@@ -262,6 +290,10 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 42,
       "ask_ordinal": 0
     },
@@ -270,11 +302,11 @@
       "ask_ordinal": 0
     },
     {
-      "frame_index": 45,
+      "frame_index": 44,
       "ask_ordinal": 0
     },
     {
-      "frame_index": 47,
+      "frame_index": 45,
       "ask_ordinal": 0
     },
     {
@@ -282,39 +314,19 @@
       "ask_ordinal": 0
     },
     {
-      "frame_index": 44,
+      "frame_index": 47,
       "ask_ordinal": 0
     },
     {
-      "frame_index": 41,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 36,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 33,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 31,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 29,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 19,
+      "frame_index": 48,
       "ask_ordinal": 0
     }
   ],
   "reader_mode": "open",
-  "censored_waits": 2,
-  "censored_frac": 0.024691358024691357,
-  "reader_lag_ms": 1.1707049999999999,
-  "stranded_bytes": 10500168,
-  "stranded_frames": 42,
-  "center_asks_dropped": 10
+  "censored_waits": 0,
+  "censored_frac": 0.0,
+  "reader_lag_ms": 1.59005,
+  "stranded_bytes": 1750028,
+  "stranded_frames": 7,
+  "center_asks_dropped": 0
 }

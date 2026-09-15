@@ -4,65 +4,62 @@
   "read_bps": 0,
   "depth": 2,
   "stream_mode": "shared",
-  "peak_outstanding": 4,
+  "peak_outstanding": 2,
   "arm_label": "shared",
   "wanted_frame": 16,
-  "asks_sent": 41,
+  "asks_sent": 49,
   "recovered_ms": 0.0,
-  "mean_wait_ms": 3640.7389316666668,
-  "p95_wait_ms": 22322.428702,
-  "miss_mean_wait_ms": 5173.681639736842,
-  "miss_p95_wait_ms": 23162.318761000002,
-  "cache_hits": 24,
-  "cache_misses": 57,
-  "cache_hit_rate": 0.2962962962962963,
+  "mean_wait_ms": 54.16667528395062,
+  "p95_wait_ms": 283.66483999999997,
+  "miss_mean_wait_ms": 208.92860466666667,
+  "miss_p95_wait_ms": 341.261871,
+  "cache_hits": 60,
+  "cache_misses": 21,
+  "cache_hit_rate": 0.7407407407407407,
   "wait_ms": [
-    1192.3661299999999,
-    1935.777645,
-    2269.897129,
-    2528.851469,
-    2458.61805,
-    1999.344219,
-    1633.134313,
-    1701.390991,
-    2032.5897209999998,
-    1951.543434,
-    2124.2216009999997,
-    1696.219973,
-    1490.0381089999998,
-    1546.2934539999999,
-    1309.60349,
-    1062.3375079999998,
-    1119.184092,
-    1114.514821,
-    1098.724615,
-    1115.8244049999998,
-    1106.9108569999999,
-    1104.443236,
-    1071.031061,
-    1029.836506,
-    1067.064831,
-    1128.49493,
-    1214.283484,
-    1322.9209179999998,
-    1418.152799,
-    1225.827791,
-    1439.815048,
-    1620.686521,
+    412.268407,
+    341.261871,
+    303.40331199999997,
+    276.38246300000003,
+    278.542685,
+    235.796963,
+    283.66483999999997,
+    203.588258,
+    277.631253,
+    202.578331,
+    136.901796,
+    67.88759900000001,
+    0.0,
+    30.301425,
     0.0,
     0.0,
-    1436.8160830000002,
-    596.674149,
-    0.0,
-    1533.679076,
-    1254.458111,
-    2478.3851,
-    1078.216594,
     0.0,
     0.0,
-    4033.251689,
-    392.845629,
     0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    32.782371999999995,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    303.61787899999996,
+    231.058395,
+    273.987761,
+    204.926265,
+    135.440236,
+    68.633088,
+    0.0,
+    86.845499,
     0.0,
     0.0,
     0.0,
@@ -75,28 +72,31 @@
     0.0,
     0.0,
     0.0,
-    12373.660615,
-    334.02687199999997,
     0.0,
     0.0,
-    13502.491648,
-    343.142558,
     0.0,
-    15165.140005,
-    324.85952000000003,
     0.0,
-    16271.712892,
-    311.659025,
     0.0,
-    16819.893849,
-    300.111576,
-    24002.936654999998,
-    23442.953916000002,
-    23162.318761000002,
-    22602.830937,
-    22322.428702,
-    21762.823547,
-    20922.592805,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
     0.0
   ],
   "wait_samples": 81,
@@ -108,16 +108,16 @@
   "wasted_bytes": 0,
   "commitment_depth": 0,
   "wanted_received": true,
-  "frames_on_wire": 41,
-  "bytes_on_wire": 10250164,
+  "frames_on_wire": 49,
+  "bytes_on_wire": 12250196,
   "frames_after_settle": 0,
   "bytes_after_settle": 0,
-  "frames_before_settle": 41,
-  "bytes_before_settle": 10250164,
+  "frames_before_settle": 49,
+  "bytes_before_settle": 12250196,
   "warm_cache": false,
   "rtt_ms": 0,
-  "step_loop_ms": 25123.968285,
-  "wait_h1_median_ms": 1322.9209179999998,
+  "step_loop_ms": 22121.165386,
+  "wait_h1_median_ms": 0.0,
   "wait_h2_median_ms": 0.0,
   "link_util_measured": 0.0,
   "late_mean_ms": 0.0,
@@ -142,7 +142,19 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 4,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 5,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 6,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 7,
       "ask_ordinal": 0
     },
     {
@@ -150,7 +162,19 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 9,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 10,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 11,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 12,
       "ask_ordinal": 0
     },
     {
@@ -162,6 +186,10 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 15,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 16,
       "ask_ordinal": 0
     },
@@ -170,7 +198,19 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 18,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 19,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 20,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 21,
       "ask_ordinal": 0
     },
     {
@@ -182,7 +222,15 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 24,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 25,
+      "ask_ordinal": 0
+    },
+    {
+      "frame_index": 26,
       "ask_ordinal": 0
     },
     {
@@ -242,6 +290,10 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 41,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 42,
       "ask_ordinal": 0
     },
@@ -254,6 +306,10 @@
       "ask_ordinal": 0
     },
     {
+      "frame_index": 45,
+      "ask_ordinal": 0
+    },
+    {
       "frame_index": 46,
       "ask_ordinal": 0
     },
@@ -262,39 +318,15 @@
       "ask_ordinal": 0
     },
     {
-      "frame_index": 45,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 41,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 26,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 24,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 21,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 19,
-      "ask_ordinal": 0
-    },
-    {
-      "frame_index": 18,
+      "frame_index": 48,
       "ask_ordinal": 0
     }
   ],
   "reader_mode": "open",
-  "censored_waits": 7,
-  "censored_frac": 0.08641975308641975,
-  "reader_lag_ms": 1.232675,
-  "stranded_bytes": 8750140,
-  "stranded_frames": 35,
-  "center_asks_dropped": 14
+  "censored_waits": 0,
+  "censored_frac": 0.0,
+  "reader_lag_ms": 1.163943,
+  "stranded_bytes": 1500024,
+  "stranded_frames": 6,
+  "center_asks_dropped": 0
 }
