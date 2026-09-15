@@ -148,6 +148,34 @@ The probe reported a third, independent corroboration of the pool's cost while s
 cell up: saturated frame rate **3.50/s for `pool:2` against 4.25/s** for both other arms, 18 %
 less throughput on a measurement that has nothing to do with the latency pools.
 
+### The bursty cell falsified the prediction — and said something else
+
+`docs/measurements/r2/t3-250k-ge`, same 0.5 % mean loss as the iid cell, delivered in bursts of
+about 7 packets:
+
+| arm | pooled misses | p95 | vs `shared` | vs own null |
+| --- | ---: | ---: | ---: | ---: |
+| `shared` | 47 | 601.15 ms | — | +45.8 % |
+| `per-frame` | 47 | 613.37 ms | +2.0 %, CI [−41.5, +71.0] | +48.5 % |
+| `pool:2` | 289 | 502.31 ms | −16.4 %, CI [−42.3, +19.0] | +4.0 % |
+
+**The prediction was that `per-frame`'s margin would grow with burstiness. It reversed**, from
+−8.5 % under iid to +2.0 % here. By the rule written before the run, the confinement story does
+not explain the iid margin, and that 8.5 % needs another account.
+
+Two cautions against over-reading the falsification. Every interval here spans zero, so no arm
+separates. And the cell is thin: 47 pooled misses against the iid cell's 106, because bursts
+damage fewer frames at the same mean loss — which is a property of the loss model, not of the
+arms, and means **a Gilbert–Elliott cell needs two to three times the repeats of an iid cell to
+carry the same power**. That is the cell to re-run, not a conclusion to draw.
+
+**What the cell does support, and it is not about stream shape.** Both `shared` and `per-frame`
+degrade **45–49 %** from their own nulls under bursts, against +9.1 % and −0.3 % under scattered
+loss of the same mean rate. The same 0.5 % costs five times as much tail when it arrives in
+bursts. For a target stated as a radio link that is the more consequential number on this page,
+and it points at [`T2`](T2-controller.md) — how the controller reads a burst — rather than at
+stream shape.
+
 ## Decision rule, fixed before the run
 
 Pooled miss samples, the estimator N11 asked for and `stream_shape_pool.py` implements — never
