@@ -56,6 +56,12 @@ it is the shape `send_fairness(true)` already showed
 equal-priority streams round-robin, so two frames interleave where a shared stream would
 serialise one and then the other, and both finish late instead of the first finishing early.
 
+**Replicated 2026-09-15**, on a second cell with the warm-up discarded (cache-hit spread 0.04
+against the first cell's, which was warm by luck): `per-frame` +0.2 %, CI [−17.2, +21.0];
+`pool:2` **+17.1 %, CI [+16.9, +41.5]**. The two cells agree on the pool's cost to within
+0.3 points. `pool:2` also stranded exactly 25 of 49 frames in **every repeat of both cells**,
+against 3–4 for the other two arms — a deterministic structural cost, not a sampled one.
+
 **Consequence for the reading:** `pool:k`'s loss cells are compared against **its own** null
 p95 (`stream_shape_pool.py --null`), never against `shared` directly, or the scheduling cost
 rides into the difference. **Falsifiable prediction**, to be checked when run 2 lands: if
