@@ -27,13 +27,13 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 1 | **L4** — the client does not notice a closed session (blocks 15 s) | lanes §L4 | claimed 2026-09-15 |
 | 2 | **L5** — telemetry tail lost at SIGTERM | lanes §L5 | ready |
 | 3 | **L6** — keep-alive interval vs server idle timeout, and the cost of held idle sessions | lanes §L6 | ready |
 | 4 | **L11** — decode in the harness (client-shape M2) | below | ready |
-| 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | ready, **needs the VM** |
+| 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | ready, **needs the VM**; see Answers on wasm-opt |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | ready, **needs the VM** |
 | 7 | **L7** — a regime where the read path misses | lanes §L7 | ready, **needs the VM** |
+| — | L4 a closed session is noticed | lanes §L4 | done `62cf243` |
 | — | L1 decoder heaps | lanes §L1 | done `2ffc0aa` |
 | — | L8 a decoder built from source | lanes §L8 | done `82a13d9` |
 | — | L9 the conformance suite | lanes §L9 | done `4928b74` |
@@ -66,7 +66,27 @@ shape before implementing it.
 
 ## Answers
 
-*(empty)*
+**`wasm-pack` cannot fetch `wasm-opt` in the cloud container** (2026-09-15, from L4). The build
+compiles, then dies on `failed to download …/binaryen-version_117-x86_64-linux.tar.gz`. The URL is
+reachable — `curl` gets 200 — so it is wasm-pack's own downloader not using the proxy, not an egress
+block. Seeding its cache by hand works and costs a minute:
+
+```bash
+curl -sSL -o /tmp/b.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz
+# the dirname is a hash of the URL; wasm-pack writes .<dirname>.lock before it downloads, so run
+# build.sh once and read the name out of ~/.cache/.wasm-pack/
+mkdir -p ~/.cache/.wasm-pack/wasm-opt-1ceaaea8b7b5f7e0
+tar xzf /tmp/b.tar.gz -C ~/.cache/.wasm-pack/wasm-opt-1ceaaea8b7b5f7e0 --strip-components=1
+```
+
+It wants `<dirname>/bin/wasm-opt`. Any lane needing a WASM build per arm — **L2** — pays this first.
+`rustwasm.github.io` is blocked by egress policy (403), so install wasm-pack with `cargo install
+wasm-pack`, not the shell installer.
+
+**A cancelled fill leaves its waiters armed until `FRAME_TIMEOUT_MS`** (from L4). `endStream()`
+stops the server sending but settles nothing on the client, so the promises sit for 15 s. Not
+fixed: it wants a decision about what a cancelled waiter should reject with. Relevant to **L11**,
+which will cancel fills for real, and to L6's lifecycle work.
 
 ## Blocked
 
