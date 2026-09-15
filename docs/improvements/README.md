@@ -10,6 +10,7 @@ This folder is the front door. The dated files are evidence, not the queue.
 | File | What it is |
 | ---- | ---------- |
 | **this page** | ranked open work, then what already landed on the branch |
+| [`2026-09-10.md`](2026-09-10.md) | third pass: P1 re-measured and landed; the crypto provider a tie or a loss; the UDP payload lever closed against Chromium; a per-session path line; the remaining server levers and what each needs |
 | [`2026-09-08.md`](2026-09-08.md) | second pass: every open item below, reproduced or measured, **no product code** |
 | [`2026-09-06.md`](2026-09-06.md) | first pass: the commits already on the branch, plus withdrawn / null / parked |
 | [`ledger.md`](ledger.md) | one inventory of both passes |
@@ -36,13 +37,12 @@ From the 2026-09-08 pass unless noted. Size is the proposed change, not the writ
 | **D3** | defect, clients | duplicate indices in a bulk ask: TS orphans a waiter and asks twice; WASM sticks on “previous bulk still pending” | ~6 lines each arm, validate before arming | [§D3](2026-09-08.md#d3--duplicate-indices-in-a-bulk-ask) |
 | **Tests** | gap | product TypeScript client has no tests; a stub `WebTransport` already drives it in Node | `client/transport-ts/test/` from `lab/improvements/bench/ts_session_stub.mjs` (after restore) | [Tests](2026-09-08.md#tests--gaps) |
 | **T1 / T2** | tooling | no CI; `gate.sh` skips four crates, clippy, and fmt | one workflow + `cargo test --workspace` | [§T](2026-09-08.md#t--tooling) |
-| **P1** | perf, build | `lto = "fat"` + `codegen-units = 1`: server CPU/frame −5–8 %, `send_us` p50 −8–20 %, binary −26 %, rebuild 3 s → 37 s | workspace `[profile.release]` | [§P1](2026-09-08.md#p1--server-release-profile-lto--fat-codegen-units--1) |
-| **P2** | perf, WASM | `opt-level = "s"` + LTO: package −12 % gzip, no speed or `init()` change | per-crate or workspace profile | [§P2](2026-09-08.md#p2--wasm-package-release-profile-variants-all-through-wasm-opt) |
+| **P2** | perf, WASM | `opt-level = "s"` for the wasm package: −10 % gzip on top of the LTO the workspace profile now gives it, no speed or `init()` change | one `[profile.release.package.transport-wasm]` line | [§P2](2026-09-08.md#p2--wasm-package-release-profile-variants-all-through-wasm-opt) |
 
 D4 is first because it is the README quick-start host serving a private key. D1 is data loss in
 the telemetry contract. D2/D3 are product waiter bugs; the TS test gap is what would pin them.
 
-P1/P2 are real, measured, and need the lanes to agree (they change every binary's build).
+P1 landed on 2026-09-10 (below); P2's remaining half is a client call.
 
 ### Smaller, still open
 
@@ -69,7 +69,23 @@ Not coded on purpose. Numbers in [`2026-09-06.md`](2026-09-06.md) and [`ledger.m
 
 ## On the branch — coded, awaiting take-or-drop
 
-First pass, 2026-09-06. One commit per row. Evidence: [`2026-09-06.md`](2026-09-06.md).
+### 2026-09-10, `claude/serene-rubin-wakfg7`
+
+| # | What | Evidence |
+| - | ---- | -------- |
+| P1 | workspace `[profile.release] lto = "fat"`, `codegen-units = 1`: server CPU per frame −4 to −8 % in every cell, `send_us` p95 −3 to −9 %, binary −26 %; release rebuild 10 s → 39 s | [`2026-09-10.md`](2026-09-10.md) |
+
+| path | one INFO line per session from quinn's counters: `session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…` | [`2026-09-10.md`](2026-09-10.md) |
+| fill | a cold fill missed 60 % of 250 kB frames at the stock read-ahead, one read in flight — slower than on-demand; `SeqReader` now advises the kernel `FILL_WINDOW` ahead: ~1 % misses, warm a tie | [`disk-access/EVIDENCE.md`](../disk-access/EVIDENCE.md) §Fill against on-demand |
+
+Measured in the same pass and **not** taken: `aws-lc-rs` as the crypto provider, +3–5 % CPU at
+32 KB, a tie at 250 KB, +10–18 % peak RSS, on a CPU with VAES; and the UDP payload lever,
+**closed for browser clients** — Chromium 141 advertises `max_udp_payload_size` 1 472, so no
+server setting sends it a larger datagram.
+
+### 2026-09-06, `claude/project-improvements-lab-pmohec` — all ten are on `main`
+
+First pass. One commit per row. Evidence: [`2026-09-06.md`](2026-09-06.md).
 
 | # | Commit | What |
 | - | ------ | ---- |
@@ -97,7 +113,7 @@ From [`ledger.md`](ledger.md) §6–7 and [`2026-09-08.md`](2026-09-08.md) close
 1. Take or drop each first-pass commit; F2's refuse-vs-serve policy; T1 as tidiness or drop.
 2. Land D1 (process-lived sink vs per-run files), D2+D3 in both arms, D4, D5?
 3. CI workflow — yes/no; clippy `-D warnings` once lane warnings are gone.
-4. Adopt P1 / P2 release profiles?
+4. P2: `opt-level = "s"` for the wasm package? (P1 landed 2026-09-10.)
 5. M1 timing shape; whether BYOB is worth a round later.
 
 ---

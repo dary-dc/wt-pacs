@@ -1,0 +1,12 @@
+# Local run of both halves. The browser reaches the page on 8765 and the transport on 4433
+# directly — nginx is not in the transport's path and cannot be.
+services:
+  web:
+    build: { context: .., dockerfile: deploy/Containerfile, target: web }
+    environment: { STUDY: "${STUDY:-us_cine_smoke}" }
+    ports: ["8765:8765"]
+  server:
+    build: { context: .., dockerfile: deploy/Containerfile, target: server }
+    command: ["--study", "${STUDY:-us_cine_smoke}"]
+    volumes: ["../fixtures:/fixtures:ro,Z"]
+    ports: ["4433:4433/udp", "4434:4434"]

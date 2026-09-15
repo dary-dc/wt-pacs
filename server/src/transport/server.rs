@@ -193,15 +193,35 @@ async fn handle_incoming(
         .await
         .context("accept control bidi")?;
 
+    let path = connection.clone();
     let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out).with_control(control_send);
 
     #[cfg(feature = "telemetry")]
-    if let Some(tap) = Tap::for_session() {
-        return run_session(&mut RecordedPipeline::new(product, tap), control_recv).await;
-    }
+    let result = match Tap::for_session() {
+        Some(tap) => run_session(&mut RecordedPipeline::new(product, tap), control_recv).await,
+        None => run_session(&mut product, control_recv).await,
+    };
+    #[cfg(not(feature = "telemetry"))]
+    let result = run_session(&mut product, control_recv).await;
 
-    run_session(&mut product, control_recv).await
+    report_path(&path);
+    result
+}
+
+/// Once per session, so a deployment can see the MTU, loss and RTT it actually got.
+fn report_path(connection: &wtransport::Connection) {
+    let s = connection.quic_connection().stats();
+    info!(
+        mtu = s.path.current_mtu,
+        rtt_us = s.path.rtt.as_micros() as u64,
+        cwnd = s.path.cwnd,
+        sent = s.path.sent_packets,
+        lost = s.path.lost_packets,
+        congestion_events = s.path.congestion_events,
+        datagrams_tx = s.udp_tx.datagrams,
+        "session path"
+    );
 }
 
 /// The reader owns the control stream; the planner decides; the pipeline serves.

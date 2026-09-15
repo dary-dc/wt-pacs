@@ -1,0 +1,44 @@
+# Static host for the harness, the WASM bundles and the study metadata — the shape
+# server/dev-server.py served, in the server deployment will run.
+# docs/proposal-nginx-and-images.md says why. STUDY is substituted at container start.
+
+server {
+    listen       8765;
+    server_name  localhost;
+    root         /srv/wt-pacs;
+    autoindex    off;
+    charset      utf-8;
+
+    # Cross-origin isolation. The page needs SharedArrayBuffer and a 5 us performance.now();
+    # losing these degrades the client silently rather than failing, so `always`.
+    add_header Cross-Origin-Opener-Policy   same-origin   always;
+    add_header Cross-Origin-Embedder-Policy require-corp  always;
+    add_header Cross-Origin-Resource-Policy same-origin   always;
+
+    # nginx types map .ts to video/mp2t; the TypeScript client is served from source.
+    types { }
+    include      /etc/nginx/mime.types;
+    types {
+        text/typescript  ts;
+        application/wasm wasm;
+        text/javascript  js mjs;
+    }
+
+    location = /study/metadata {
+        alias /srv/wt-pacs/fixtures/${STUDY}/metadata.json;
+        default_type application/json;
+    }
+
+    location = /wt/dev-transport.json {
+        alias /srv/wt-pacs/client/dev-transport.json;
+        default_type application/json;
+    }
+
+    location = /harness  { return 301 /harness/; }
+    location = /harness/ { alias /srv/wt-pacs/client/harness/; index index.html; }
+    location   /harness/ { alias /srv/wt-pacs/client/harness/; }
+
+    # /client/** already resolves under root; dev-server.py's aliases for pkg/, pkg-telemetry/
+    # and transport-ts/ were identity mappings and need no rule here.
+    location / { try_files $uri $uri/ =404; }
+}

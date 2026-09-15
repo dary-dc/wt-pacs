@@ -1,0 +1,114 @@
+# Proposal: a conformance suite over the transport surface
+
+**For:** wt-pacs implementer · 2026-09-14 · **Status:** proposed; the suite is built, the gate step
+is the part that wants a decision.
+
+`docs/client-shape-plan.md` §0 names three clauses the transport surface requires and does not
+state, and calls a suite over them milestone 1's real output. This says what that suite is, how it
+runs without a browser, and what wiring it into `scripts/gate.sh` costs.
+
+## What makes it possible
+
+Both implementations construct `new WebTransport(url, options)` resolved from the **global scope** —
+`client/transport-ts/session.ts` directly, `client/transport-wasm` through `web_sys`, which emits
+the same global lookup. So a fake `WebTransport` installed on `globalThis` drives either one, in
+plain Node, with no browser and no server.
+
+That is the whole trick, and it is already proved: against the built TS bundle, a fake transport
+returns a session from `connect()`, receives `{"op":"request_frame","frame":7}` on its control
+stream, hands back one framed envelope, and `requestExactFrame(7)` resolves with the right bytes
+and non-zero timings.
+
+The fake speaks the wire format in `client/transport-ts/wire.ts`: `[4B LE len][JSON]` on the
+control stream, `[4B BE len][4B BE index][codestream]` on a unidirectional stream. It is about 60
+lines and belongs to the suite, not to either implementation.
+
+## Where it lives
+
+```
+client/conformance/
+  fake-transport.ts     the global WebTransport stand-in, and a frame pusher
+  adapters.ts           one surface, two implementations behind it
+  run.ts                the three clauses, as assertions
+```
+
+Neither implementation owns it, because it tests both. It follows `client/record/test/run.ts`
+exactly — TypeScript, bundled by esbuild to `.mjs`, run by `node`, asserting with a counter and a
+non-zero exit. No new test framework, no new dependency.
+
+**Adapters, because the two surfaces do not quite agree.** They agree more than expected — the WASM
+client exports camelCase JS names, so `requestExactFrame`, `startStreamFrames` and `endStream` line
+up. What differs is that `endStream` is a promise on one and synchronous on the other, and that
+`startStreamFrames` takes a range object on one and two optional arguments on the other. The
+adapter is the only place that knows either. A third implementation writes one and inherits every
+test.
+
+## The three clauses, as tests
+
+1. **Worker-safe.** Node has no `window`, which is exactly the environment the bug hid in: the WASM
+   client read its clock from `window.performance` and produced zeros, not errors, inside a worker.
+   The suite asserts **on values** — every timestamp strictly positive, and `lastChunkMs` at or
+   after `askMs` — so a return to silent zeros fails on the number rather than on the absence of an
+   exception. `client/scripts/check_worker_safe.sh` is the static half, in the shape
+   `check_telemetry_absent.sh` already uses: no built artifact may contain a `window.` reference,
+   and the wasm binary may not carry the string at all.
+
+2. **Cancellable.** Start a fill, call `endStream()`, then assert both halves: the client actually
+   emitted `{"op":"end_stream"}` on the control stream, **and the session still works** — a
+   single-frame request after the cancel completes. Cancelling by closing the session would pass a
+   weaker test and is the failure this one is for.
+
+3. **Transferable.** Take a `FrameResult`, transfer its buffer with `structuredClone(buf, {transfer:
+   [buf]})`, and assert the source is detached — `byteLength === 0`. A copy leaves it intact and
+   fails. A second assertion holds two frames at once and transfers one: the other must survive,
+   because frames delivered on one shared stream sharing a backing buffer would make every transfer
+   corrupt its neighbour. On the TS client they do not share one today; the test is what keeps that
+   true.
+
+4. **A closed session is noticed at once** (added with L4). A request against a closed session must
+   fail immediately rather than at `FRAME_TIMEOUT_MS`, a request in flight when the close lands must
+   be woken, and a *live* session with no frame must still take the full timeout. The close is
+   driven two ways — ending the media stream, and settling `closed` with the stream left open — so
+   a client that only watches one signal fails the other. `docs/CLIENTS.md` has the numbers.
+
+Every test is mutated — the implementation broken on purpose, the test watched failing — and the
+report says so.
+
+## What the gate step costs, and the one decision
+
+`scripts/gate.sh` does not build `client/transport-wasm` today. Nothing in the gate needs
+`wasm-pack` or the `wasm32-unknown-unknown` target, and a contributor without them is not currently
+blocked.
+
+Running the suite against **both** implementations in the gate changes that. Against the TS arm
+alone it is free: the bundle is already built two steps earlier.
+
+**The decision: what the gate does when `wasm-pack` is absent.** Three options, and this proposes
+the second.
+
+| | |
+| --- | --- |
+| require it | honest, and blocks every contributor who has not installed a Rust wasm toolchain to run a check about TypeScript |
+| **skip the arm, loudly** | the gate prints that the WASM arm was skipped and why, and passes. CI installs the toolchain and gets both arms; a laptop gets one and is told so |
+| drop the WASM arm | cheapest, and gives up the only thing that makes this a *conformance* suite rather than a unit test |
+
+The second keeps the gate usable and keeps the suite honest, at the cost of a check that is
+conditional — which is a real cost, because a conditional check is one that can quietly stop
+running. The mitigation is that it is loud: skipped arms are named in the gate's output, not
+silent.
+
+## Known gap: the suite is not type-checked
+
+`scripts/gate.sh` type-checks the product code and not this. The suite imports `node:fs`,
+`node:path` and `node:url`, which needs `@types/node`, which `client/transport-ts` does not carry —
+and `client/record/tsconfig.json` already excludes its own node-side test file for the same reason.
+Following that precedent costs a type-check; adding the dependency costs a dependency. This takes
+the precedent, and esbuild still fails the build on anything malformed. Worth revisiting if a third
+implementation arrives and the adapter surface starts carrying real weight.
+
+## Not in scope
+
+The suite proves the client half against a fake. It says nothing about whether the **server**
+honours `end_stream` mid-fill — `server/src/transport/server.rs` has that under its own test — and
+nothing about real network behaviour. It is a contract test, not an integration test, and a third
+implementation passing it is conformant, not proven correct.

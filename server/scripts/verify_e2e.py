@@ -119,7 +119,10 @@ def main() -> int:
     # transport-ts dist/ is gitignored — build product (and telemetry) bundles when needed.
     ts_js = ROOT / "client/transport-ts/dist/session.js"
     ts_tel = ROOT / "client/transport-ts/dist/session.telemetry.js"
-    need_ts = not ts_js.is_file() or (args.telemetry and not ts_tel.is_file())
+    want_ts = args.harness in ("ts", "both")
+    need_ts = want_ts and (
+        not ts_js.is_file() or (args.telemetry and not ts_tel.is_file())
+    )
     if need_ts:
         subprocess.run(
             ["bash", str(ROOT / "client/transport-ts/build.sh")],
