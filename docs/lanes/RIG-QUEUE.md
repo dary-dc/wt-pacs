@@ -47,13 +47,19 @@ is two cores.
 
 | # | Run id | Order | Status |
 | --- | --- | --- | --- |
-| 1 | `t3-250k-l0`, `-l0.5`, `-l2`, `-ge` | T3 at 250 KB, `DEPTH=2`, `ARMS="shared pool:2 per-frame"`, the four loss cells of [`RIG-RUNBOOK.md`](RIG-RUNBOOK.md) §1 | **re-released** — the first attempt is `docs/measurements/r2/t3-250k-l0`, VOID; the cell was wrong, see below. Re-run all four from scratch |
+| 1a | `t3-250k-l0` | the null cell | **done**, twice, agreeing to 0.3 points |
+| 1b | `t3-250k-l0.5` | the decision cell | **done** — `shared` stays default; see [`T3`](T3-stream-shape.md) |
+| 1c | `t3-250k-ge` | Gilbert–Elliott, the target's bursty loss | **next** — the cell that speaks to a radio link |
+| 1d | `t3-250k-l2` | the stress cell | after `-ge`; expect the reader model to fail here, and read goodput rather than latency |
 | 2 | `t3-32k-l0`, `-l0.5`, `-l2` | T3 at 32 KB, `DEPTH=4`, `ARMS="shared pool:2 pool:4 per-frame"` | **released**, after run 1 |
 | 3 | `t2-*` | Controller, Cubic vs BBR — **step 1 is the source review and comes first**, [`T2`](T2-controller.md) | held |
 | 4 | `t9-*` | Segment cap, seg45 vs seg10 plus the LAN control, [`T9`](T9-segment-cap.md) | held |
 
 Runs 3 and 4 are held so the first result can correct the method before more rig time is spent
 on it. Ask in PR #30 to have one released.
+
+**Say which commit to be on, in every comment.** Three cells were run on superseded scripts
+because fixes landed mid-campaign. Fixes now wait for a cell boundary.
 
 ## Run 1, first attempt: what was wrong with the cell
 
