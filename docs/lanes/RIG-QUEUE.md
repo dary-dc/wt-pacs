@@ -19,6 +19,10 @@ separation is why the estimator is already in code
 **Every commit says who ran it.** All agents here commit as the repository owner, so the author
 line cannot tell them apart. End each commit with a trailer naming the agent and its session.
 
+**Comment on PR #30 when a run lands.** This is the contract's one synchronous step, not a
+courtesy: the reader is woken by PR comments, and a bare push may not reach it. One line
+naming the run id and whether the pooler returned a verdict or VOID is enough.
+
 **Rebase before every push** — `git pull --rebase origin claude/clever-curie-flm0wi`. This
 branch has moved under a session three times.
 
