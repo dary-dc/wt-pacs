@@ -11,6 +11,7 @@ Product and ADRs stay here. This lane's campaign write-ups are on tag
 | [`telemetry/`](telemetry/) | Server/client telemetry (from `main`) |
 | [`disk-access/`](disk-access/) | How frames are brought in |
 | [`decode/`](decode/) | Codestream to pixels: the decoder, what it costs in memory, the BYOB read path |
+| [`../deploy/`](../deploy/) | nginx + the two images, and the check that they answer as the dev host did |
 | [`proposal-nginx-and-images.md`](proposal-nginx-and-images.md) | Proposed: nginx in place of the dev host, and an image per project |
 | [`client-shape-plan.md`](client-shape-plan.md) | The production client shape: the transport seam, what sits above it, and the milestones that build it |
 | [`cloud-queue.md`](cloud-queue.md) | What a cloud agent should pick up next, and how it claims and reports it |
