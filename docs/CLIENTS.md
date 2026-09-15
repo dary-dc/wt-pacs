@@ -40,3 +40,35 @@ is Chromium's and not the wiring. **Headless Chromium 141 does not advertise `mi
 so nothing this server sets shortens its ACK delay. The rule closes the item on that evidence
 unless Chromium 148 differs — it is one run of the same cell on the browser rig, and it is the
 only thing T7 still waits on.
+
+## The session in a Worker, on its own, does not pay (2026-09-15)
+
+The survey ranks main-thread contention at 10–50 ms of tail and calls a Worker the highest-
+leverage single latency change for a web app ([`lanes/T5-client-worker.md`](lanes/T5-client-worker.md)).
+Measured here — headless Chromium 141, loopback, 32 KB frames, `ondemand` depth 4, five repeats
+per arm with the arms interleaved and the order reversed every repeat, the session behind
+`client/harness/session-worker.js` and frames crossing as transferable buffers:
+
+| main-thread load | arm | median µs/frame | the five runs |
+| --- | --- | ---: | --- |
+| idle | main thread | 400 | 400 · 400 · 400 · 425 · 525 |
+| idle | Worker | 375 | 325 · 325 · 375 · 450 · 650 |
+| 50 ms per 100 ms | main thread | **400** | 350 · 375 · 400 · 400 · 450 |
+| 50 ms per 100 ms | Worker | **475** | 400 · 400 · 475 · 475 · 500 |
+
+Idle, the arms are inside each other's spread. **Under contention the Worker is 19 % worse**,
+which is the opposite of the expected direction and the more interesting half.
+
+The mechanism is that a Worker moves the session's work off the main thread but not the
+frames: every one still crosses back by `postMessage` to a page that consumes it, and that
+crossing queues behind whatever is making the main thread busy. Removing the reader from the
+main thread while leaving the consumer on it moves the queue rather than draining it.
+
+So **"session in a Worker" is not the change worth making on its own.** What could pay is the
+shape `docs/client-shape-plan.md` describes on the client branch, where the decode pool sits
+beside the session and the page only paints — there the frames never cross to the main thread
+at all. This measurement is evidence for that milestone ordering, not against the architecture.
+
+Limits: five repeats, one browser, loopback, a synthetic busy loop, and a page that touches
+every frame. The 28.9 ms per frame the browser rig measured for a page accepting a decoded
+result is a different regime from this one.

@@ -24,6 +24,41 @@
   <script type="module">
     import { bootShell } from "/harness/shell.js";
 
+    const q = new URLSearchParams(location.search);
+
+    // Simulated main-thread contention: `busy` ms of work every 100 ms. The survey's claim is
+    // that this is what a Worker removes, so the cell has to contain some.
+    const busy = Number(q.get("busy") || 0);
+    if (busy > 0) {
+      setInterval(() => { const end = performance.now() + busy; while (performance.now() < end); }, 100);
+    }
+
+    /** The same session, behind a Worker, over postMessage. Frames cross as transfers. */
+    async function workerSession(url, hash, opts) {
+      const w = new Worker("/harness/session-worker.js", { type: "module" });
+      let next = 0;
+      const pending = new Map();
+      w.onmessage = (e) => {
+        const m = e.data;
+        const p = pending.get(m.id);
+        if (!p) return;
+        pending.delete(m.id);
+        m.t === "err" ? p.reject(new Error(m.message)) : p.resolve(m);
+      };
+      const call = (msg) => new Promise((resolve, reject) => {
+        const id = ++next;
+        pending.set(id, { resolve, reject });
+        w.postMessage({ ...msg, id });
+      });
+      await call({ t: "connect", url, hash, opts });
+      return {
+        requestExactFrame: (frame) =>
+          call({ t: "ask", frame }).then((m) => ({ frameIndex: m.frameIndex, bytes: m.bytes })),
+        close: () => { call({ t: "close" }).catch(() => {}); setTimeout(() => w.terminate(), 50); },
+        stats: () => ({}),
+      };
+    }
+
     bootShell({
       arm: "transport-ts",
       async loadSession({ telemetry, streamMode, cfg, askWindow }) {
@@ -33,10 +68,12 @@
         }
         // The telemetry entry installs the WebTransport patch before the client module
         // evaluates and returns a wrapped session; the product entry is the product.
+        const opts = askWindow ? { window: askWindow } : {};
+        if (q.get("worker") === "1") return workerSession(cfg.wt_url, cfg.cert_sha256, opts);
         const mod = telemetry
           ? await import("/client/transport-ts/dist/session.telemetry.js")
           : await import("/client/transport-ts/dist/session.js");
-        return mod.TransportSession.connect(cfg.wt_url, cfg.cert_sha256, askWindow ? { window: askWindow } : {});
+        return mod.TransportSession.connect(cfg.wt_url, cfg.cert_sha256, opts);
       },
     });
   </script>

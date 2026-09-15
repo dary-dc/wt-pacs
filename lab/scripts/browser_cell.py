@@ -15,6 +15,9 @@ extra = sys.argv[8:]
 n, reps = int(n), int(reps)
 ask = f"w={depth[2:]}" if depth.startswith("w:") else f"d={int(depth)}"
 if os.environ.get("INTERVAL_MS"): ask += f"&interval_ms={int(os.environ['INTERVAL_MS'])}"
+# T5: `worker=1` runs the session in a Worker, `busy` simulates main-thread contention.
+for k in ("worker", "busy"):
+    if os.environ.get(k.upper()): ask += f"&{k}={int(os.environ[k.upper()])}"
 HTTP = int(os.environ.get("HTTP_PORT", "8765"))
 CHROME = os.environ.get("CHROME_PATH", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
 
