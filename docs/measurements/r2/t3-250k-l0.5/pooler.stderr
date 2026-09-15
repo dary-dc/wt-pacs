@@ -1,0 +1,3 @@
+
+VOID — this cell decides nothing:
+  · per-frame cache hit rate spans 0.51–0.86 across repeats — the repeats are not one cell; the first read comes off disk

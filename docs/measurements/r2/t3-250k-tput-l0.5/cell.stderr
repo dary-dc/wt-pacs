@@ -1,0 +1,6 @@
+qdisc netem 8069: root refcnt 2 limit 1000 delay 30ms loss 0.5% rate 10Mbit
+  probe shared 4.300 1.50 3.90 4.30 4.30 4.50 4.50 frames/s (median, then each)
+  probe pool:2 4.000 3.40 4.00 4.00 4.00 4.10 4.30 frames/s (median, then each)
+  probe per-frame 4.350 3.20 4.30 4.30 4.40 4.40 4.50 frames/s (median, then each)
+frame=250000B step=326ms (1.4x the rate shared sustained)
+wrote 0 repeats and 18 probes to /home/ubuntu/wt-pacs-run/out/t3-250k-tput-l0.5

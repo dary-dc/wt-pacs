@@ -1,5 +1,5 @@
 use clap::Parser;
-use exact_server::{run_server, Congestion, ServeConfig, StreamMode, TransportTuning};
+use exact_server::{serve, Congestion, ServeConfig, StreamMode, TransportTuning};
 use std::net::IpAddr;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
@@ -20,7 +20,7 @@ struct Args {
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
     /// How frames reach the client: one shared uni stream or one per frame.
-    #[arg(long, value_enum, default_value_t = StreamMode::Shared)]
+    #[arg(long, default_value = "shared")]
     stream_mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to
     /// `0.0.0.0` when the host has no IPv6.
@@ -42,9 +42,16 @@ struct Args {
     max_idle_timeout_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
+    /// Ask the peer for this `max_ack_delay` in ms. Only peers advertising `min_ack_delay`
+    /// honour it; the session-end `ack_frequency` count says whether one did.
+    #[arg(long)]
+    ack_frequency_max_delay_ms: Option<u64>,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
+    /// Endpoints sharing the port, one thread each. Default: one per core.
+    #[arg(long, default_value_t = 0)]
+    workers: usize,
     /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
     #[cfg(feature = "telemetry")]
     #[arg(long, value_name = "ROWS")]
@@ -67,7 +74,7 @@ fn install_crypto_provider() -> anyhow::Result<()> {
         .map_err(|_| anyhow::anyhow!("rustls crypto provider already installed"))
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive("exact_server=info".parse()?))
@@ -91,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
     let study_path = args
         .study
         .ok_or_else(|| anyhow::anyhow!("--study is required"))?;
-    let server = run_server(ServeConfig {
+    let server = serve(ServeConfig {
         wt_port: args.port,
         study_path,
         cert_pem: args.cert_pem,
@@ -104,8 +111,10 @@ async fn main() -> anyhow::Result<()> {
             send_window: args.send_window_bytes,
             max_idle_timeout_ms: args.max_idle_timeout_ms,
             congestion: args.congestion,
+            ack_frequency_max_delay_ms: args.ack_frequency_max_delay_ms,
             prefault: args.prefault,
         },
+        workers: args.workers,
     });
 
     tokio::select! {

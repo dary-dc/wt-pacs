@@ -1,0 +1,6 @@
+arm          runs  misses    p95_ms  median_ms    vs ref  CI95
+shared          6      67    412.35     203.36         —  
+per-frame       6      73    413.01     203.30     +0.2%  [-17.2, +21.0]
+pool:2          6     289    482.88     320.95    +17.1%  [+16.9, +41.5]
+
+A CI spanning zero is not a result. T3's bar is 15% on the reference arm.

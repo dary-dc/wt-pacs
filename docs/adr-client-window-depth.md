@@ -228,6 +228,35 @@ streams are entirely different things.
 
 - Measure whether `D_min` actually saturates the real `wtransport` path. The formula is arithmetic;
   the transport may need more. See [`window-saturation-experiment.md`](window-saturation-experiment.md)
+- **2026-09-14, later — built in the TypeScript client** as an opt-in `window` on `connect`:
+  fixed depth, or `"auto"` with this ADR's formula, `U = 0.95`, re-evaluated every eight frames
+  with L2's damping and `[1, 16]` clamp. RTT is the browser's `getStats().smoothedRtt`, never
+  ask-to-receive time: once asks queue behind each other that interval is `RTT + D·Tf` and an
+  estimator fed with it climbs to the clamp. Where the browser exposes no `getStats` — the
+  headless Chromium 141 on this VM has none; 148 on the browser rig is unverified — `auto`
+  reads RTT from asks sent into an idle window, whose trip is `RTT + Tf` with nothing queued
+  ahead: the smallest of at least two, because noise only inflates such a trip and a session's
+  first ask — the only idle one a reader that never pauses ever sends — carries the session's
+  warm-up (in headless Chromium 141 it alone drove the depth to the clamp). A reader that
+  never pauses therefore holds its initial depth. Measured there: a fixed window of 4 matched
+  the harness's own loop at depth 4 (≈200 µs per 32 KB frame against ≈330 at depth 1), and
+  with one step per timer tick `auto` settled at 1, which is the right depth for a reader
+  slower than its link; headless Chromium clamps that tick to ≈4 ms. `Tf` is the median time between the last eight arrivals, which
+  reads the link's per-frame time once the depth saturates it and the delivered pace below
+  that — so the estimate climbs one step per evaluation until it saturates, and stops there.
+  A span from first send to last receive was tried first and rejected by the test: it folds
+  one round trip into eight intervals, under-reads the rate more as the depth rises, and
+  stalled the climb at 4 where the formula says 8. Tested against a Node stub of a FIFO server behind a link
+  (`client/transport-ts/test/`). Which depth ships is still L2's question.
+- **2026-09-14 — what is still to build.** Disk depth is already server-internal
+  (`TILE_SLOTS` / `FILL_AHEAD`) and independent of the ask list. Fill is already one
+  `StreamFrames`. Neither product client keeps a network window: `requestExactFrame` is one
+  ask. On-demand outstanding asks belong in the library or the viewer, not in a server queue
+  that invents the next tile. L2
+  ([`lanes/L2-ask-policy.md`](lanes/L2-ask-policy.md)) still decides fixed versus live `D_min`
+  once that window exists. Depth 1 is the large-frame / `Tf ≫ RTT` case; it is also the case
+  where a lost last packet costs a probe timeout and the 44-segment batch makes a drop a tail —
+  [`transport/why-these-changes.md` §10](transport/why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them).
 
 ## Pros and Cons of the Options
 
@@ -262,3 +291,19 @@ streams are entirely different things.
 - [`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md) — stride, which handles the case where demand exceeds 1
 - Reader behaviour: published measurements of radiologist scroll speed, oscillation over adjacent
   slices, and repeated depth passes over ≥80% of a series
+
+## What the Node stub's tests can and cannot pin (2026-09-15)
+
+`fixedDepthCapsInFlight` pins the window's actual invariant deterministically: at a fixed
+depth, asks in flight never exceed it, exactly. The `auto` test cannot pin the same bound
+against its *settled* depth, because `maxInFlight` is a peak across the estimator's climb and a
+damped estimator may legitimately hold 10 for two evaluations on its way to 8. It is bounded by
+the clamp instead, with a floor of `want - 1` so a window that never opens still fails.
+
+One flake remains, measured at 1 run in 20: `auto` settling at 5 where the formula says 8. The
+stub's simulated `tf` is subject to Node's event-loop jitter, and the estimator faithfully
+reports what it measured — so the test asserts convergence to a value derived from the stub's
+*nominal* timings rather than its achieved ones. It is the same error as deriving a rig cell's
+step interval from a link's label rather than its measured rate
+([`lanes/T3-stream-shape.md`](lanes/T3-stream-shape.md)), and the same fix applies: compute the
+expectation from what the stub delivered. Not taken, because T1 is parked.

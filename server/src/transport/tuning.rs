@@ -34,6 +34,9 @@ pub struct TransportTuning {
     /// Idle timeout. Applied on the wtransport builder, not inside `TransportConfig`.
     pub max_idle_timeout_ms: Option<u64>,
     pub congestion: Congestion,
+    /// Requested peer `max_ack_delay`, milliseconds. Takes effect only where the peer
+    /// advertises `min_ack_delay`; `docs/lanes/T7-tail-and-ack-frequency.md`.
+    pub ack_frequency_max_delay_ms: Option<u64>,
     /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
     pub prefault: bool,
 }
@@ -46,6 +49,7 @@ impl Default for TransportTuning {
             send_window: None,
             max_idle_timeout_ms: None,
             congestion: Congestion::Cubic,
+            ack_frequency_max_delay_ms: None,
             prefault: false,
         }
     }
@@ -65,6 +69,12 @@ impl TransportTuning {
         }
         if let Some(v) = self.stream_receive_window {
             tc.stream_receive_window(varint(v, "stream-receive-window")?);
+        }
+
+        if let Some(ms) = self.ack_frequency_max_delay_ms {
+            let mut afc = wtransport::quinn::AckFrequencyConfig::default();
+            afc.max_ack_delay(Some(std::time::Duration::from_millis(ms)));
+            tc.ack_frequency_config(Some(afc));
         }
 
         match self.congestion {
@@ -88,6 +98,7 @@ impl TransportTuning {
             && self.send_window.is_none()
             && self.stream_receive_window.is_none()
             && self.max_idle_timeout_ms.is_none()
+            && self.ack_frequency_max_delay_ms.is_none()
             && matches!(self.congestion, Congestion::Cubic)
     }
 
@@ -107,6 +118,9 @@ impl TransportTuning {
         }
         if let Some(v) = self.max_idle_timeout_ms {
             parts.push(format!("max_idle_timeout_ms={v}"));
+        }
+        if let Some(ms) = self.ack_frequency_max_delay_ms {
+            parts.push(format!("ack_frequency_max_delay_ms={ms}"));
         }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
@@ -128,6 +142,19 @@ fn varint(v: u64, what: &str) -> Result<wtransport::quinn::VarInt> {
 mod tests {
     use super::*;
 
+    /// The ack-frequency request is a departure from the stock stack, so a run carrying it
+    /// must not describe itself as the library default.
+    #[test]
+    fn asking_for_an_ack_delay_is_not_the_library_default() {
+        let t = TransportTuning {
+            ack_frequency_max_delay_ms: Some(5),
+            ..Default::default()
+        };
+        assert!(!t.quic_is_library_default());
+        assert!(t.describe().contains("ack_frequency_max_delay_ms=5"));
+        assert!(TransportTuning::default().quic_is_library_default());
+    }
+
     #[test]
     fn default_tuning_builds() {
         TransportTuning::default().to_transport_config().unwrap();
@@ -141,6 +168,7 @@ mod tests {
             send_window: Some(32 << 20),
             max_idle_timeout_ms: Some(60_000),
             congestion: Congestion::Bbr,
+            ack_frequency_max_delay_ms: Some(5),
             prefault: false,
         };
         t.to_transport_config().unwrap();

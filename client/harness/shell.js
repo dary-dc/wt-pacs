@@ -8,8 +8,9 @@
  * Query parameters:
  *   telemetry=1        load the telemetry build and harvest via window.__wtpacsTelemetry
  *   stream_mode=…      shared | per-frame (must match the server; recorded in the report)
- *   cell=…             ondemand (one RequestFrame per step, `d` in flight) | fill (one StreamFrames)
+ *   cell=…             ondemand (one RequestFrame per step, `d` in flight) | fill (one StreamFrames) | refuse (ondemand past the study: no media)
  *   d=…                outstanding asks for on-demand (default 1 — the control)
+ *   w=…                hand the asks to the library's window instead: a depth, `auto`, or `auto:N` starting at N (TS arm only)
  *   n=…                steps to run (default: one pass over the study)
  *   frames=…           study frame count (default: /study/metadata frameCount)
  *   trace=…            URL of a lab trace (steps[].frame, step_interval_ms) instead of n/frames
@@ -23,6 +24,13 @@ const streamMode = params.get("stream_mode") || "shared";
 const cell = params.get("cell") || "ondemand";
 const autorun = params.get("autorun") === "1";
 const depth = Math.max(1, Number(params.get("d") || 1));
+const windowParam = params.get("w");
+const askWindow =
+  windowParam == null
+    ? null
+    : windowParam.startsWith("auto")
+      ? { depth: "auto", initial: Number(windowParam.split(":")[1] || 2) }
+      : { depth: Number(windowParam) };
 
 const logEl = document.getElementById("log");
 export function log(...a) {
@@ -99,8 +107,9 @@ function runOndemand(session, steps, interval, stats) {
   let nextStep = 0;
   let settled = 0;
   return new Promise((resolve) => {
+    const cap = askWindow ? Infinity : depth;
     const pump = () => {
-      while (inflight.size < depth && due.length > 0) {
+      while (inflight.size < cap && due.length > 0) {
         const frame = due[0];
         if (inflight.has(frame)) break;
         due.shift();
@@ -113,7 +122,7 @@ function runOndemand(session, steps, interval, stats) {
           },
           (err) => {
             stats.failed += 1;
-            log("frame", frame, "failed:", err && err.message ? err.message : String(err));
+            if (cell !== "refuse") log("frame", frame, "failed:", err && err.message ? err.message : String(err));
             finish(frame);
           },
         );
@@ -161,7 +170,7 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
   try {
     const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
     log("connecting", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
-    const session = await loadSession({ telemetry, streamMode, cfg });
+    const session = await loadSession({ telemetry, streamMode, cfg, askWindow });
     log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
 
     const frame0 = async () => {
@@ -180,7 +189,8 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
     };
 
     const runCell = async () => {
-      const { steps, interval, frames, name } = await schedule();
+      const { steps: due, interval, frames, name } = await schedule();
+      const steps = cell === "refuse" ? due.map((_, i) => 1_000_000 + i) : due;
       const stats = { delivered: 0, failed: 0, heap_peak: heapBytes() };
       const heapStart = heapBytes();
       const wasmStart = memoryBytes ? memoryBytes() : null;
@@ -196,6 +206,8 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
         arm,
         cell,
         depth: cell === "fill" ? asked : depth,
+        window: askWindow ? windowParam : null,
+        window_depth: session.stats?.().windowDepth ?? null,
         interval_ms: interval,
         schedule: name,
         steps: steps.length,
