@@ -23,7 +23,7 @@ FX=${FX:-$ROOT/lab/fixtures/frames_250k/frames_250k.sbnd}
 TRACE=${TRACE:-$ROOT/lab/traces/x3_short_scroll.json}
 read -r -a ARMS <<< "${ARMS:-shared pool:2 per-frame}"
 mkdir -p "$out"
-HEADROOM=${HEADROOM:-1.4}; PROBE_MS=${PROBE_MS:-4000}
+HEADROOM=${HEADROOM:-1.4}; PROBE_MS=${PROBE_MS:-10000}; PROBE_REPS=${PROBE_REPS:-3}
 frame_bytes=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['meanFrameBytes'])" \
   "$(dirname "$FX")/metadata.json")
 
@@ -58,23 +58,33 @@ for arm in "${ARMS[@]}"; do
 done
 frames=$(sed -n 's/^frames=//p' "$out/server.${ARMS[0]//:/_}.log" | head -1)
 
-# One discarded pass per arm in `saturate` mode, which holds DEPTH asks in flight and reports
-# the frame rate the link sustains. It does two jobs: it warms the page cache — the first read
+# `PROBE_REPS` discarded passes per arm in `saturate` mode, which holds DEPTH asks in flight and
+# reports the frame rate the link sustains. The median sets the interval, and the spread says
+# how much to trust it — a 4 s dwell at 1 frame/s quantises to 25 %. It does three jobs: it
+# warms the page cache — the first read
 # of a frame comes off disk and every later one off the cache, and pooling the two regimes
 # reads as a stream-shape effect — and it measures what the link ACHIEVES, which is what the
-# reader's demand must be set against.
+# reader's demand must be set against, and at high loss that rate is itself a result: the arms
+# differ 3.5x in sustained throughput at 2 % loss, far more than they differ in latency.
+median_rate() { python3 -c "
+import glob, json, statistics, sys
+rs = sorted(json.load(open(f))['fill_rate'] for f in glob.glob(sys.argv[1]))
+print(f'{statistics.median(rs):.3f} {\" \".join(f\"{r:.2f}\" for r in rs)}')" "$1"; }
+
 for i in "${!ARMS[@]}"; do
-  "$harness" --url "https://127.0.0.1:${ports[$i]}/" --mode saturate \
-    --depth "$DEPTH" --frame-count "$frames" --stream-mode "${ARMS[$i]}" --arm warmup \
-    --bind 127.0.0.1 --timeout-ms 120000 --json --read-bps 0 \
-    --fill-dwell-ms "$PROBE_MS" > "$out/probe.${ARMS[$i]//:/_}.json"
-  echo "  probe ${ARMS[$i]} $(python3 -c "
-import json;print(f\"{json.load(open('$out/probe.${ARMS[$i]//:/_}.json'))['fill_rate']:.2f} frames/s\")")" >&2
+  for k in $(seq 1 "$PROBE_REPS"); do
+    "$harness" --url "https://127.0.0.1:${ports[$i]}/" --mode saturate \
+      --depth "$DEPTH" --frame-count "$frames" --stream-mode "${ARMS[$i]}" --arm warmup \
+      --bind 127.0.0.1 --timeout-ms 120000 --json --read-bps 0 \
+      --fill-dwell-ms "$PROBE_MS" > "$out/probe.${ARMS[$i]//:/_}.$k.json"
+  done
+  echo "  probe ${ARMS[$i]} $(median_rate "$out/probe.${ARMS[$i]//:/_}.*.json") frames/s (median, then each)" >&2
 done
 
 STEP_MS=${STEP_MS:-$(python3 -c "
-import json, math
-r = json.load(open('$out/probe.${ARMS[0]//:/_}.json'))['fill_rate']
+import glob, json, math, statistics
+rs = [json.load(open(f))['fill_rate'] for f in glob.glob('$out/probe.${ARMS[0]//:/_}.*.json')]
+r = statistics.median(rs)
 if r <= 0:
     raise SystemExit('probe measured no frames — the cell cannot set a step interval')
 print(max(1, math.ceil(1000 / r * $HEADROOM)))")}

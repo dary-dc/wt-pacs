@@ -42,12 +42,20 @@ trip() {
 }
 
 echo "== the cell runs, and its knobs reach the harness"
-RATE_MBIT=10 RTT_MS=0 REPS=2 DEPTH=2 ARMS="shared pool:2 per-frame" PROBE_MS=1500 \
+RATE_MBIT=10 RTT_MS=0 REPS=2 DEPTH=2 ARMS="shared pool:2 per-frame" PROBE_MS=1500 PROBE_REPS=2 \
   "$ROOT/lab/scripts/stream_shape_cells.sh" "$work/cell" "$server" "$harness" >/dev/null 2>"$work/cell.err"
 check "an unshaped run marks itself unusable" "$(ls "$work"/cell/UNSHAPED 2>/dev/null | wc -l)" "1"
-check "probe wrote a file per arm" "$(ls "$work"/cell/probe.*.json 2>/dev/null | wc -l)" "3"
+check "probe wrote PROBE_REPS files per arm" "$(ls "$work"/cell/probe.*.json 2>/dev/null | wc -l)" "6"
+check "the pooler ignores every probe file" \
+  "$(python3 -c "
+import sys; sys.path.insert(0, '$ROOT/lab/scripts')
+import importlib.util as u
+m = u.module_from_spec(u.spec_from_file_location('p', '$ROOT/lab/scripts/stream_shape_pool.py'))
+u.spec_from_file_location('p', '$ROOT/lab/scripts/stream_shape_pool.py').loader.exec_module(m)
+from pathlib import Path
+print(sum(len(v) for v in m.load(Path('$work/cell')).values()))")" "6"
 check "six runs landed (3 arms x 2 repeats)" "$(ls "$work"/cell/*.r*.json 2>/dev/null | wc -l)" "6"
-check "the probe line is printed" "$(grep -c 'probe .* frames/s' "$work/cell.err")" "3"
+check "the probe line is printed per arm" "$(grep -c 'probe .* frames/s' "$work/cell.err")" "3"
 check "the reader is unthrottled" \
   "$(python3 -c "import json,glob;print(sum(json.load(open(f))['read_bps'] for f in glob.glob('$work/cell/*.r*.json')))")" "0"
 check "one step interval for every arm" \

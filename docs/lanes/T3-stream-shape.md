@@ -176,6 +176,30 @@ bursts. For a target stated as a radio link that is the more consequential numbe
 and it points at [`T2`](T2-controller.md) — how the controller reads a burst — rather than at
 stream shape.
 
+### The probe found the largest effect in the campaign, and it is throughput
+
+Setting up the 2 % cell, the saturation probe measured what each arm sustains:
+
+| arm | frames/s at 2 % loss | as throughput |
+| --- | ---: | ---: |
+| `shared` | 1.00 | 2.0 Mbit/s |
+| `pool:2` | 1.50 | 3.0 Mbit/s |
+| `per-frame` | **3.50** | **7.0 Mbit/s** |
+
+**`per-frame` sustains 3.5× `shared`'s throughput at 2 % loss** — measured by saturation, a
+method with nothing in common with the latency pools. Counts of 4, 6 and 14 frames in a 4 s
+dwell: the precision is poor, 25 % granularity on the reference arm, but quantisation cannot
+manufacture a 3.5× gap.
+
+This reframes the question. At 0.5 % loss the arms differ by 8.5 % on tail latency, which is
+under the bar. At 2 % they differ by **3.5× on throughput**, which is not a latency question at
+all — head-of-line blocking stops being a tail effect and becomes a capacity ceiling, because
+every frame behind a lost packet waits for its recovery and the link idles.
+
+`CLAUDE.md` says to quote latency or throughput, not both, and at 2 % the honest quantity is
+throughput. The probe now runs `PROBE_REPS` times per arm at a 10 s dwell and reports the
+median with the spread, so it is a measurement rather than a single sample.
+
 ## Decision rule, fixed before the run
 
 Pooled miss samples, the estimator N11 asked for and `stream_shape_pool.py` implements — never
