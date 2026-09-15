@@ -27,13 +27,13 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 2 | **L11** — decode in the harness (client-shape M2) | below | claimed 2026-09-15 |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | ready, **needs the VM**; see Answers on wasm-opt |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | ready, **needs the VM** |
 | 7 | **L7** — a regime where the read path misses | lanes §L7 | ready, **needs the VM** |
 | — | L4 a closed session is noticed | lanes §L4 | done `62cf243` |
 | — | L5 the tail at SIGTERM | lanes §L5 | done `23bd447` |
 | — | L6 idle sessions, and the pair | lanes §L6 | done `c69450a` |
+| — | L11 dispatch measured; harness wiring **proposed, not built** | below | part done `690bfb4` |
 | — | L1 decoder heaps | lanes §L1 | done `2ffc0aa` |
 | — | L8 a decoder built from source | lanes §L8 | done `82a13d9` |
 | — | L9 the conformance suite | lanes §L9 | done `4928b74` |
@@ -88,6 +88,13 @@ wasm-pack`, not the shell installer.
 buffers up to 63 rows before sending a batch of 64, and a session still open when the signal lands
 never drops its `Tap`. Fixed by sharing each session's buffer so the shutdown can take it. Worth
 knowing for **L6**, which also reasons about what an open session holds.
+
+**L11's premise did not hold, so its wiring is proposed rather than built** (2026-09-15).
+first-free beats round-robin only on a *short* uneven queue, and only on batch time, and only with
+one frame of lookahead; plain first-free — the thing the brief asked to wire — is worse than
+round-robin almost everywhere. `docs/proposal-decode-in-the-harness.md` says what to build instead.
+**Still open:** the harness decode arm itself, and the decision it waits on — whether it uses the
+published decoder or the build from source, since the pool cap depends on the per-instance heap.
 
 **The product's client cannot keep its own session alive** (2026-09-15, from L6). The WebTransport
 API exposes no keep-alive knob, so the server is the only end that can hold a browser's session
