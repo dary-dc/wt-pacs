@@ -52,7 +52,32 @@ low-surface shape and the numbers are in
 [`analysis-scale-and-serving-path-2026-09-06.md`](analysis-scale-and-serving-path-2026-09-06.md) §2.4.
 `WTPACS_TELEMETRY_SAMPLE=K` records one session in K (default every session); unsampled
 sessions cost one branch per frame. Rows travel to the drain in batches of 64 on an owned
-sender — no lock and no drain wake per row; a full ring drops a batch and says so.
+sender — no drain wake per row; a full ring drops a batch and says so.
+
+## The tail at SIGTERM
+
+A batch of 64 means a session holds up to 63 rows that have not reached the drain. `Drop for Tap`
+flushes them, so a session that **ends** loses nothing. A session still **open** when the process
+is signalled never drops its `Tap`: `flush_on_exit` is called from the signal arm while the session
+tasks are still alive, so those rows went with the process. It failed silently and produced a short
+report, which is worse than failing.
+
+`flush_on_exit` now takes them first. Each session's buffer is shared (`Arc<Mutex<Batch>>`) and
+registered weakly when the `Tap` is made, so a shutdown can take a buffer from outside the session's
+own task — which is the only way an open session's tail survives. Order matters: the buffers are
+taken while a sender still exists, before the sink is shut down.
+
+**Bounded.** A buffer its own task is holding right now is retried until a 50 ms deadline and then
+skipped, so a shutdown can never wait on a session. Skipping loses that one session's tail, which
+is what used to happen to every session. A test holds a buffer and asserts the take returns anyway;
+removing the deadline hangs it.
+
+**What it costs.** One uncontended mutex per row, where there was none: **12.41 ns per row against
+0.91 ns for a bare push, slower in 10 of 10 interleaved rounds** (container-measured, and a clean
+enough sweep to quote as a cost rather than a guess). Against a frame whose `serve_us` runs to tens
+of microseconds that is around 0.03 %, and it is paid only in the telemetry build —
+`server/scripts/check_telemetry_absent.sh` proves the default binary carries no `Tap` at all.
+The lock is per session and contended only by the shutdown walker, once.
 
 Pairing fields (no join product; these make the two files checkable side by side):
 
