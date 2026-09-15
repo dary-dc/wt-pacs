@@ -27,7 +27,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 1 | **L4** — the client does not notice a closed session (blocks 15 s) | lanes §L4 | ready |
+| 1 | **L4** — the client does not notice a closed session (blocks 15 s) | lanes §L4 | claimed 2026-09-15 |
 | 2 | **L5** — telemetry tail lost at SIGTERM | lanes §L5 | ready |
 | 3 | **L6** — keep-alive interval vs server idle timeout, and the cost of held idle sessions | lanes §L6 | ready |
 | 4 | **L11** — decode in the harness (client-shape M2) | below | ready |
