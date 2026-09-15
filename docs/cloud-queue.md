@@ -27,13 +27,13 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 2 | **L5** — telemetry tail lost at SIGTERM | lanes §L5 | claimed 2026-09-15 |
-| 3 | **L6** — keep-alive interval vs server idle timeout, and the cost of held idle sessions | lanes §L6 | ready |
-| 4 | **L11** — decode in the harness (client-shape M2) | below | ready |
+| 2 | **L6** — keep-alive interval vs server idle timeout, and the cost of held idle sessions | lanes §L6 | ready |
+| 3 | **L11** — decode in the harness (client-shape M2) | below | ready |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | ready, **needs the VM**; see Answers on wasm-opt |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | ready, **needs the VM** |
 | 7 | **L7** — a regime where the read path misses | lanes §L7 | ready, **needs the VM** |
 | — | L4 a closed session is noticed | lanes §L4 | done `62cf243` |
+| — | L5 the tail at SIGTERM | lanes §L5 | done `23bd447` |
 | — | L1 decoder heaps | lanes §L1 | done `2ffc0aa` |
 | — | L8 a decoder built from source | lanes §L8 | done `82a13d9` |
 | — | L9 the conformance suite | lanes §L9 | done `4928b74` |
@@ -82,6 +82,12 @@ tar xzf /tmp/b.tar.gz -C ~/.cache/.wasm-pack/wasm-opt-1ceaaea8b7b5f7e0 --strip-c
 It wants `<dirname>/bin/wasm-opt`. Any lane needing a WASM build per arm — **L2** — pays this first.
 `rustwasm.github.io` is blocked by egress policy (403), so install wasm-pack with `cargo install
 wasm-pack`, not the shell installer.
+
+**The SIGTERM tail was not lost where L5's brief said** (2026-09-15). `sink.rs` already had
+`flush_on_exit` and a test for it; the rows that went missing were never in the channel. A `Tap`
+buffers up to 63 rows before sending a batch of 64, and a session still open when the signal lands
+never drops its `Tap`. Fixed by sharing each session's buffer so the shutdown can take it. Worth
+knowing for **L6**, which also reasons about what an open session holds.
 
 **A cancelled fill leaves its waiters armed until `FRAME_TIMEOUT_MS`** (from L4). `endStream()`
 stops the server sending but settles nothing on the client, so the promises sit for 15 s. Not
