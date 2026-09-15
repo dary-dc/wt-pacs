@@ -27,7 +27,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 2 | **L5** — telemetry tail lost at SIGTERM | lanes §L5 | ready |
+| 2 | **L5** — telemetry tail lost at SIGTERM | lanes §L5 | claimed 2026-09-15 |
 | 3 | **L6** — keep-alive interval vs server idle timeout, and the cost of held idle sessions | lanes §L6 | ready |
 | 4 | **L11** — decode in the harness (client-shape M2) | below | ready |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | ready, **needs the VM**; see Answers on wasm-opt |
