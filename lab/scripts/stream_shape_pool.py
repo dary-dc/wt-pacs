@@ -71,6 +71,10 @@ def main() -> int:
     null_dir = Path(args[args.index("--null") + 1]) if "--null" in args else None
     boot = int(args[args.index("--boot") + 1]) if "--boot" in args else 10000
 
+    if (out_dir / "UNSHAPED").exists():
+        print(f"{out_dir} ran without a shaped link — it decides nothing", file=sys.stderr)
+        return 1
+
     arms = load(out_dir)
     if ref not in arms:
         print(f"reference arm `{ref}` has no runs in {out_dir}", file=sys.stderr)

@@ -50,6 +50,18 @@ which cannot write the cell's logs under `sudo`. The rig also has no `git`: the 
 is copied, and `/home/ubuntu/wt-pacs` is a deploy tree with a field server on UDP 4437 that
 must stay off the shaped path.
 
+**Before releasing any stream-shape cell**, run the pre-flight on a machine with the binaries —
+it needs no rig and no `tc`:
+
+```bash
+lab/scripts/stream_shape_preflight.sh
+```
+
+It exercises the cell end to end on unshaped loopback (which marks itself `UNSHAPED`, and the
+pooler refuses such a directory) and checks every void check fires on data built to trip it and
+clears on data that should not. Of the five faults in the 2026-09-15 campaign, three would have
+surfaced here instead of on the rig.
+
 ## 1 · Stream shape (T3)
 
 The three arms are built; `pool:k` landed with this runbook. Read

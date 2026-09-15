@@ -22,11 +22,17 @@ LOSS_MODEL=${LOSS_MODEL:-iid}; REPS=${REPS:-6}; DEPTH=${DEPTH:-2}
 FX=${FX:-$ROOT/lab/fixtures/frames_250k/frames_250k.sbnd}
 TRACE=${TRACE:-$ROOT/lab/traces/x3_short_scroll.json}
 read -r -a ARMS <<< "${ARMS:-shared pool:2 per-frame}"
+mkdir -p "$out"
 HEADROOM=${HEADROOM:-1.4}; PROBE_MS=${PROBE_MS:-4000}
 frame_bytes=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['meanFrameBytes'])" \
   "$(dirname "$FX")/metadata.json")
-mkdir -p "$out"
 
+if ! command -v tc >/dev/null; then
+  # No shaping available: run anyway so the machinery can be exercised, but leave a marker the
+  # pooler refuses, so an unshaped run can never be mistaken for a cell.
+  echo "!! no tc — running UNSHAPED. This cell decides nothing and the pooler will void it." >&2
+  touch "$out/UNSHAPED"
+else
 ip link set lo up
 one_way=$(python3 -c "print(max(0.001, $RTT_MS / 2))")
 loss=()
@@ -37,7 +43,8 @@ case "$LOSS_MODEL" in
 esac
 tc qdisc replace dev lo root netem delay "${one_way}ms" rate "${RATE_MBIT}mbit" "${loss[@]}"
 tc qdisc show dev lo >&2
-trap 'tc qdisc del dev lo root 2>/dev/null || true; kill ${pids[@]-} 2>/dev/null || true' EXIT
+fi
+trap 'command -v tc >/dev/null && tc qdisc del dev lo root 2>/dev/null; kill ${pids[@]-} 2>/dev/null || true' EXIT
 
 pids=(); ports=()
 for arm in "${ARMS[@]}"; do
