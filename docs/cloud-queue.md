@@ -27,7 +27,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 2 | **L11** — decode in the harness (client-shape M2) | below | ready |
+| 2 | **L11** — decode in the harness (client-shape M2) | below | claimed 2026-09-15 |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | ready, **needs the VM**; see Answers on wasm-opt |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | ready, **needs the VM** |
 | 7 | **L7** — a regime where the read path misses | lanes §L7 | ready, **needs the VM** |
