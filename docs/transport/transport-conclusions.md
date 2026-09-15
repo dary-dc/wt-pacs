@@ -133,6 +133,26 @@ against 2–6; its mean wait is seven times the others'; and in the bursty cell 
 483 ms in fifteen runs and **collapsed to 26 seconds in two of eighteen**. Four independent
 signals, one direction. The flag stays for the record; nothing recommends it.
 
+**Throughput separates the arms nowhere.** Six 10-second saturation probes per arm per loss
+level, no latency repeats (`REPS=0 PROBE_REPS=6`):
+
+| loss | `shared` | `pool:2` | `per-frame` | spread within an arm |
+| --- | ---: | ---: | ---: | ---: |
+| 0 % | 4.30 f/s | 4.10 (−4.7 %) | 4.30 (+0.0 %) | 1.0–1.1× |
+| 0.5 % | 4.30 | 4.00 (−7.0 %) | 4.35 (+1.2 %) | 1.3–3.0× |
+| 2 % | 2.65 | 1.95 (−26.4 %) | 2.05 (−22.6 %) | 2.3–3.5× |
+
+At 2 % every arm's six probes span roughly 3×, and all three ranges overlap almost entirely, so
+the medians order nothing. `pool:2` is a few percent low everywhere, consistent with its cost
+elsewhere but not separable here either.
+
+This cell exists because a **single 4-second probe** had read `shared` 1.00 f/s against
+`per-frame` 3.50, which this lane published as a 3.5× capacity finding and retracted within the
+hour ([`../lanes/T3-stream-shape.md`](../lanes/T3-stream-shape.md)). The powered cell shows why:
+`shared`'s six probes span 1.3–3.8 and `per-frame`'s 1.0–3.5. **Both of those single values sit
+inside the other arm's range** — two draws from opposite ends of overlapping distributions. The
+variance at 2 % loss is most of the signal, and one sample of it is worth nothing.
+
 **The finding that outweighs the arms.** From the same baselines, bursty loss degrades `shared`
 by 38 % where scattered loss of the same 0.5 % mean degrades it by 9 %. The delivery *shape* of
 the loss costs four times what its rate does, and neither stream arm changes that. On a target
