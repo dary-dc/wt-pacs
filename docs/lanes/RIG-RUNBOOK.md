@@ -41,6 +41,15 @@ Then prove the shaping works before trusting a number from it:
 ssh -i "$SSH_KEY" "$RIG" 'cd ~/wt-pacs && lab/scripts/verify_netns_netem.sh'
 ```
 
+`verify_netns_netem.sh` takes the unprivileged path, which this rig refuses —
+`kernel.apparmor_restrict_unprivileged_userns=1` makes `unshare --user --map-root-user --net`
+fail on `/proc/self/uid_map`. There, prove it with `sudo unshare --net -- tc qdisc replace dev
+lo root netem delay 20ms` and check the host's own `lo` stayed `noqueue`. **Run the cells the
+same way** — `sudo unshare --net -- lab/scripts/…`, not the `--user --map-root-user` form,
+which cannot write the cell's logs under `sudo`. The rig also has no `git`: the campaign tree
+is copied, and `/home/ubuntu/wt-pacs` is a deploy tree with a field server on UDP 4437 that
+must stay off the shaped path.
+
 ## 1 · Stream shape (T3)
 
 The three arms are built; `pool:k` landed with this runbook. Read
@@ -53,18 +62,18 @@ cd ~/wt-pacs
 for loss in 0 0.5 2; do
   RATE_MBIT=10 RTT_MS=60 LOSS_PCT=$loss REPS=6 DEPTH=2 \
   FX=$PWD/lab/fixtures/frames_250k/frames_250k.sbnd ARMS="shared pool:2 per-frame" \
-  unshare --user --map-root-user --net -- \
+  sudo unshare --net -- \
     lab/scripts/stream_shape_cells.sh out/t3-250k-l$loss ~/bin/exact-server ~/bin/window-harness
 done
 LOSS_MODEL=gemodel RATE_MBIT=10 RTT_MS=60 REPS=6 DEPTH=2 \
 FX=$PWD/lab/fixtures/frames_250k/frames_250k.sbnd ARMS="shared pool:2 per-frame" \
-unshare --user --map-root-user --net -- \
+sudo unshare --net -- \
   lab/scripts/stream_shape_cells.sh out/t3-250k-ge ~/bin/exact-server ~/bin/window-harness
 
 for loss in 0 0.5 2; do
   RATE_MBIT=10 RTT_MS=60 LOSS_PCT=$loss REPS=6 DEPTH=4 \
   FX=$PWD/lab/fixtures/frames_32k/frames_32k.sbnd ARMS="shared pool:2 pool:4 per-frame" \
-  unshare --user --map-root-user --net -- \
+  sudo unshare --net -- \
     lab/scripts/stream_shape_cells.sh out/t3-32k-l$loss ~/bin/exact-server ~/bin/window-harness
 done
 
