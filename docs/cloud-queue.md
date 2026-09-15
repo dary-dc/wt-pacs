@@ -33,7 +33,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | — | L4 a closed session is noticed | lanes §L4 | done `62cf243` |
 | — | L5 the tail at SIGTERM | lanes §L5 | done `23bd447` |
 | — | L6 idle sessions, and the pair | lanes §L6 | done `c69450a` |
-| — | L11 dispatch measured; harness wiring **proposed, not built** | below | part done `690bfb4` |
+| — | L11 dispatch measured; harness wiring **proposed, not built** | below | part done `ccf5317` |
 | — | L1 decoder heaps | lanes §L1 | done `2ffc0aa` |
 | — | L8 a decoder built from source | lanes §L8 | done `82a13d9` |
 | — | L9 the conformance suite | lanes §L9 | done `4928b74` |
