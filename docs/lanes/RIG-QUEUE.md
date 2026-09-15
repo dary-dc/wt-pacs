@@ -49,17 +49,41 @@ is two cores.
 | --- | --- | --- | --- |
 | 1a | `t3-250k-l0` | the null cell | **done**, twice, agreeing to 0.3 points |
 | 1b | `t3-250k-l0.5` | the decision cell | **done** — `shared` stays default; see [`T3`](T3-stream-shape.md) |
-| 1c | `t3-250k-ge` | Gilbert–Elliott, the target's bursty loss | **next** — the cell that speaks to a radio link |
-| 1d | `t3-250k-l2` | the stress cell | after `-ge`; expect the reader model to fail here, and read goodput rather than latency |
+| 1c | `t3-250k-ge`, `-ge-r18` | Gilbert–Elliott, the target's bursty loss | **done** at 6 and 18 repeats |
+| 1d | `t3-250k-tput-l{0,0.5,2}` | probe-only throughput | running; it tests a claim already retracted, so it can only confirm a null |
+| ~~1e~~ | ~~`t3-250k-l2`~~ | ~~the stress cell~~ | dropped — its step interval comes from the slowest arm, so it measures slack, not latency |
+| 3 | `t2-*` | **the controller** | **the case to release it is below** |
 | 2 | `t3-32k-l0`, `-l0.5`, `-l2` | T3 at 32 KB, `DEPTH=4`, `ARMS="shared pool:2 pool:4 per-frame"` | **released**, after run 1 |
 | 3 | `t2-*` | Controller, Cubic vs BBR — **step 1 is the source review and comes first**, [`T2`](T2-controller.md) | held |
 | 4 | `t9-*` | Segment cap, seg45 vs seg10 plus the LAN control, [`T9`](T9-segment-cap.md) | held |
 
-Runs 3 and 4 are held so the first result can correct the method before more rig time is spent
-on it. Ask in PR #30 to have one released.
+Run 4 (the segment cap) stays held. **Run 3, the controller, is the one to release next**, and
+the reason is a finding from run 1 rather than a plan: from the same baselines, bursty loss
+degrades `shared` by 38 % where scattered loss of the same 0.5 % mean degrades it by 9 %. The
+delivery shape of the loss costs four times what its rate does, no stream shape changes it, and
+the controller is what reads a burst. That is now better evidenced than anything left in T3.
+[`T2`](T2-controller.md) step 1 is a source review and needs no rig at all — it can start
+before any cell does. The owner's call.
 
 **Say which commit to be on, in every comment.** Three cells were run on superseded scripts
 because fixes landed mid-campaign. Fixes now wait for a cell boundary.
+
+## Run 1 is done: what it cost and what it bought
+
+Six cell-design faults, all in the cell rather than the rig or the arms, each found because the
+runner stopped on a VOID and committed its rows rather than pushing through: the client pacer
+left at its default, a reader outrunning the link, a cold page cache pooled with warm repeats,
+a step interval taken from the link's label rather than its measured rate, a void check built on
+a misread field, and an estimator that flattered the arm that missed most. One claim was
+published and retracted within the hour (a 3.5× throughput gap that was a single 4-second
+sample). A prediction was called falsified at six repeats and un-falsified at eighteen, and is
+recorded as untested.
+
+What it bought is in [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §2.
+The lesson worth keeping is the one the Phase C review already stated and this campaign
+re-learned six times: **a cell that decides nothing is a design error, and the only cheap place
+to find one is before the rig runs it.** `lab/scripts/stream_shape_preflight.sh` exists for
+that, and caught three contract breaks in its first hour.
 
 ## Run 1, first attempt: what was wrong with the cell
 
