@@ -202,6 +202,34 @@ a high-variance quantity can, and at 2 % loss the variance is most of the signal
 What caught it was the probe becoming a repeated measurement — a change made in the same commit
 that published the claim, for unrelated reasons.
 
+### The estimator was flattering the pool, and one cell's headline reverses
+
+The pre-registered metric pools **positive waits only**. When arms miss at very different rates
+that compares one arm's bulk against another's tail: in the bursty cell `shared` contributed 47
+samples and `pool:2` 289, so `shared`'s 90 % of instant steps were discarded and only its worst
+47 were set against `pool:2`'s typical ones. That is the Phase C review's criticism, inherited
+into this campaign deliberately and flagged at every reading.
+
+Re-read with **every step, zeros included, so each arm brings the same 486 samples**:
+
+| cell | `pool:2`, miss-only | `pool:2`, all steps | `per-frame`, miss-only | `per-frame`, all steps |
+| --- | ---: | ---: | ---: | ---: |
+| null | +17.1 % | **+74.9 %** | +0.2 % | +0.1 % |
+| 0.5 % iid | +20.9 % | **+69.2 %** | −8.5 % | −7.0 % |
+| bursty | **−16.4 %** | **+73.5 %** | +2.0 % | +0.1 % |
+
+**The bursty cell's `pool:2` win was an artifact**: −16.4 % becomes +73.5 %. Its mean wait across
+all steps is 197–217 ms against 27–49 ms for the other two, about seven times worse, and it
+strands 24–26 frames per run against 2–6.
+
+`per-frame` against `shared` moves by at most 1.5 points under either estimator, so **the
+decision the rule governs is unchanged** — and that is the reason to trust this correction
+rather than suspect it: the arm the campaign is actually deciding on reads the same either way,
+while the arm that was being flattered gets worse, not better.
+
+The pooler now prints both, with a warning when the miss counts differ by more than 2×. The
+pre-registered rule is still stated on `miss_p95`; `all_p95` is what to read when they diverge.
+
 ## Decision rule, fixed before the run
 
 Pooled miss samples, the estimator N11 asked for and `stream_shape_pool.py` implements — never

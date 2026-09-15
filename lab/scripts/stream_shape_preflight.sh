@@ -27,7 +27,7 @@ import json, sys
 d, mutation = sys.argv[1], sys.argv[2]
 for r in (1, 2, 3):
     run = {"stream_mode": "shared", "read_bps": 0, "censored_frac": 0.0, "cache_hit_rate": 0.5,
-           "asks_sent": 80, "wait_samples": 81,
+           "asks_sent": 80, "wait_samples": 81, "stranded_frames": 4,
            "wait_ms": [float(i % 40 + 1) for i in range(60)]}
     exec(mutation, {"run": run})
     json.dump(run, open(f"{d}/shared.r{r}.json", "w"))

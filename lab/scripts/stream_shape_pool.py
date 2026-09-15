@@ -7,6 +7,13 @@ across repeats per arm, and bootstraps a CI on each arm's p95 ratio against the 
 
     lab/scripts/stream_shape_pool.py <out-dir> [--ref shared] [--boot 10000] [--null <dir>]
 
+Two columns, because the metric the campaign pre-registered is biased and the bias is known.
+`miss p95` pools only positive waits, so arms that miss often are compared on their bulk while
+arms that miss rarely are compared on their tail — the Phase C review's criticism, inherited
+deliberately. `all p95` pools every step, zeros included, so every arm brings the same N. Read
+`all p95` when the arms' miss counts differ by more than about 2x; the pre-registered rule is
+still stated on `miss p95`.
+
 `--null` names the same cell at 0 % loss. An arm that pays a cost absent loss — `pool:k` does,
 by interleaving two frames that a shared stream would serialise — cannot be compared to the
 reference under loss without carrying that cost into the difference. With `--null`, each arm is
@@ -81,6 +88,8 @@ def main() -> int:
         return 2
 
     pools = {a: [w for r in runs for w in r["wait_ms"] if w > 0] for a, runs in arms.items()}
+    every = {a: [w for r in runs for w in r["wait_ms"]] for a, runs in arms.items()}
+    strand = {a: sum(r["stranded_frames"] for r in runs) / len(runs) for a, runs in arms.items()}
     void = []
     if len(pools[ref]) < MIN_MISSES:
         void.append(f"{ref} pooled only {len(pools[ref])} misses, under {MIN_MISSES}")
@@ -101,8 +110,9 @@ def main() -> int:
             if w:
                 null_p95[a] = nearest_rank(w, 95)
 
-    head = f"{'arm':<12} {'runs':>4} {'misses':>7} {'p95_ms':>9} {'median_ms':>10} {'vs ref':>9}"
-    print(head + (f" {'vs own null':>12}  CI95" if null_dir else "  CI95"))
+    head = (f"{'arm':<12} {'runs':>4} {'misses':>7} {'miss_p95':>9} {'vs ref':>8}"
+            f" {'all_p95':>8} {'vs ref':>8} {'strand':>7}")
+    print(head + (f" {'vs null':>8}  CI95" if null_dir else "  CI95"))
     for a in sorted(pools, key=lambda x: (x != ref, x)):
         p95 = nearest_rank(pools[a], 95)
         med = nearest_rank(pools[a], 50)
@@ -112,19 +122,26 @@ def main() -> int:
             lo, hi = ratio_ci(pools[a], pools[ref], boot)
             delta = f"{(p95 / nearest_rank(pools[ref], 95) - 1) * 100:+.1f}%"
             ci = f"[{lo:+.1f}, {hi:+.1f}]"
+        allp = nearest_rank(every[a], 95)
+        ref_all = nearest_rank(every[ref], 95)
+        adelta = "—" if a == ref or not ref_all else f"{(allp / ref_all - 1) * 100:+.1f}%"
         own = ""
         if null_dir:
             n = null_p95.get(a)
             own = f"{(p95 / n - 1) * 100:+.1f}%" if n else "no null"
-            own = f" {own:>12}"
-        print(f"{a:<12} {len(arms[a]):>4} {len(pools[a]):>7} {p95:>9.2f} {med:>10.2f} {delta:>9}{own}  {ci}")
+            own = f" {own:>8}"
+        print(f"{a:<12} {len(arms[a]):>4} {len(pools[a]):>7} {p95:>9.2f} {delta:>8}"
+              f" {allp:>8.2f} {adelta:>8} {strand[a]:>7.1f}{own}  {ci}")
 
     if void:
         print("\nVOID — this cell decides nothing:", file=sys.stderr)
         for v in void:
             print(f"  · {v}", file=sys.stderr)
         return 1
+    spread = max(len(p) for p in pools.values()) / max(1, min(len(p) for p in pools.values()))
     print("\nA CI spanning zero is not a result. T3's bar is 15% on the reference arm.")
+    if spread > 2:
+        print(f"Miss counts differ {spread:.1f}x across arms — read all_p95, not miss_p95.")
     return 0
 
 
