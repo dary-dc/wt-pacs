@@ -1,6 +1,7 @@
 # T6 — Session survival across a 4-tuple change, and what a reconnect costs
 
-**Status:** open, design · **Needs:** a phone, client telemetry, a decision · **Size:** each option a few hundred lines
+**Status:** step 1 **measured 2026-09-15 — the cliff is real and `--workers` decides it** ·
+**Needs:** a phone and client telemetry for the rest · **Size:** each option a few hundred lines
 
 ## Question
 
@@ -20,10 +21,23 @@ client reconnects, because steering does not cover a server restart.
 
 ## Steps
 
-1. **Native probe** (this VM): a lab binary on quinn's client that opens a session, receives
-   ten frames, calls `Endpoint::rebind()` to a new port, and asks again — against `--workers 4`
-   and `--workers 1`. Expected: reset on 4, survival on 1. Records the mechanism rather than
-   assuming it.
+1. **Native probe** (this VM) — **done, 3/3 each, deterministic.**
+   `wtransport`'s client endpoint exposes no `rebind()` and no handle on the quinn endpoint
+   beneath it, so the plan's call is unreachable. `lab/scripts/nat_rebind_relay.py` sits between
+   client and server and changes its own upstream source port mid-session instead: a NAT rebind,
+   which is the field case this lane names, and a closer analogue of it than `rebind()` would be.
+   `lab/scripts/t6_rebind_probe.sh <workers>` runs it.
+
+   | `--workers` | frames delivered | asks sent | censored | server saw the session end |
+   | --- | ---: | ---: | ---: | --- |
+   | 4 (one endpoint per core) | 18 | 22 | 74 % | **no** |
+   | 1 | **49** | 49 | 0 % | yes |
+
+   Identical on every repeat, because the rebind is at a fixed 6 s and the trace is
+   deterministic. **The session dies at the 4-tuple change under per-core endpoints and
+   survives it with one**, which is the mechanism §8 predicted, now recorded rather than
+   assumed. The server never logs a session end on four workers: it does not know the
+   connection ended, because the packets went to an endpoint that never knew it.
 2. **The browser.** On a phone, a session scrolling while Wi-Fi is switched off: does
    Chromium migrate a WebTransport session at all, or does it reconnect on its own? Unknown
    today; a device answers it in an afternoon.
