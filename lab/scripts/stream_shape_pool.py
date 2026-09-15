@@ -112,16 +112,18 @@ def main() -> int:
 
     head = (f"{'arm':<12} {'runs':>4} {'misses':>7} {'miss_p95':>9} {'vs ref':>8}"
             f" {'all_p95':>8} {'vs ref':>8} {'strand':>7}")
-    print(head + (f" {'vs null':>8}  CI95" if null_dir else "  CI95"))
+    print(head + (f" {'vs null':>8}  CI95(miss)  CI95(all)" if null_dir else "  CI95(miss)  CI95(all)"))
     for a in sorted(pools, key=lambda x: (x != ref, x)):
         p95 = nearest_rank(pools[a], 95)
         med = nearest_rank(pools[a], 50)
         if a == ref or not pools[a] or not pools[ref]:
-            delta, ci = "—", ""
+            delta, ci, aci = "—", "", ""
         else:
             lo, hi = ratio_ci(pools[a], pools[ref], boot)
             delta = f"{(p95 / nearest_rank(pools[ref], 95) - 1) * 100:+.1f}%"
             ci = f"[{lo:+.1f}, {hi:+.1f}]"
+            alo, ahi = ratio_ci(every[a], every[ref], boot)
+            aci = f"[{alo:+.1f}, {ahi:+.1f}]"
         allp = nearest_rank(every[a], 95)
         ref_all = nearest_rank(every[ref], 95)
         adelta = "—" if a == ref or not ref_all else f"{(allp / ref_all - 1) * 100:+.1f}%"
@@ -131,7 +133,7 @@ def main() -> int:
             own = f"{(p95 / n - 1) * 100:+.1f}%" if n else "no null"
             own = f" {own:>8}"
         print(f"{a:<12} {len(arms[a]):>4} {len(pools[a]):>7} {p95:>9.2f} {delta:>8}"
-              f" {allp:>8.2f} {adelta:>8} {strand[a]:>7.1f}{own}  {ci}")
+              f" {allp:>8.2f} {adelta:>8} {strand[a]:>7.1f}{own}  {ci:>12}  {aci}")
 
     if void:
         print("\nVOID — this cell decides nothing:", file=sys.stderr)

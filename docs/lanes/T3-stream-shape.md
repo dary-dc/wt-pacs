@@ -227,6 +227,16 @@ decision the rule governs is unchanged** — and that is the reason to trust thi
 rather than suspect it: the arm the campaign is actually deciding on reads the same either way,
 while the arm that was being flattered gets worse, not better.
 
+**But its interval does change, and it matters.** At 0.5 % iid, `per-frame`'s miss-only CI is
+[−34.5, −0.1] — excluding zero by a hair — while its equal-N CI is **[−23.8, +2.9]**, which
+spans it. So the −7 to −8.5 % is a favourable point estimate that is **not distinguishable from
+no difference**. An earlier note in this file called it a win below the bar; it is not
+established as a win at all. `pool:2`'s intervals exclude zero everywhere and comfortably:
+[+34.1, +85.1] at 0.5 % iid, [+59.8, +215.7] bursty.
+
+The honest summary of the three 250 KB cells is therefore: **`per-frame` and `shared` are
+indistinguishable at every loss level tested, and `pool:2` is decisively worse than both.**
+
 The pooler now prints both, with a warning when the miss counts differ by more than 2×. The
 pre-registered rule is still stated on `miss_p95`; `all_p95` is what to read when they diverge.
 
