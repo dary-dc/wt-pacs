@@ -29,22 +29,43 @@ export function frameBytes(index: number, codestream: Uint8Array): Uint8Array {
 export class FakeTransport {
   static last: FakeTransport;
   readonly ready = Promise.resolve();
-  readonly closed = new Promise<void>(() => {});
+  readonly closed: Promise<{ closeCode: number; reason: string }>;
   readonly sent: Uint8Array[] = [];
   didClose = false;
   readonly incomingUnidirectionalStreams: ReadableStream<ReadableStream<Uint8Array>>;
   private uni!: ReadableStreamDefaultController<ReadableStream<Uint8Array>>;
+  private settleClosed!: (info: { closeCode: number; reason: string }) => void;
 
   constructor(
     readonly url: string,
     readonly options: unknown,
   ) {
+    this.closed = new Promise((resolve) => {
+      this.settleClosed = resolve;
+    });
     this.incomingUnidirectionalStreams = new ReadableStream({
       start: (c) => {
         this.uni = c;
       },
     });
     FakeTransport.last = this;
+  }
+
+  /**
+   * The server goes away. `endStreams: false` settles `closed` and leaves the media stream
+   * open, which separates the two signals a client could be learning from.
+   */
+  serverClose(closeCode = 0, reason = "server closed the session", endStreams = true) {
+    if (this.didClose) return;
+    this.didClose = true;
+    if (endStreams) {
+      try {
+        this.uni.close();
+      } catch {
+        /* already closed */
+      }
+    }
+    this.settleClosed({ closeCode, reason });
   }
 
   async createBidirectionalStream() {

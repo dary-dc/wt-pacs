@@ -34,6 +34,12 @@ type Waiter = {
   timer: ReturnType<typeof setTimeout>;
 };
 
+function closedReasonOf(info: { closeCode?: number; reason?: string } | undefined): string {
+  const code = info?.closeCode ?? 0;
+  const why = info?.reason ? `: ${info.reason}` : "";
+  return `session closed (code ${code})${why}`;
+}
+
 export class TransportSession {
   private transport: WebTransport;
   private controlWriter: WritableStreamDefaultWriter<Uint8Array>;
@@ -42,6 +48,8 @@ export class TransportSession {
   private bulkPending = new Map<number, Promise<{ bytes: Uint8Array; receivedMs: number }>>();
   private droppedEarly = 0;
   private frameErrors = 0;
+  /** Set once the session is gone; a waiter armed after this would only reach the timeout. */
+  private closedReason: string | null = null;
 
   private constructor(
     transport: WebTransport,
@@ -63,13 +71,35 @@ export class TransportSession {
     const controlWriter = bi.writable.getWriter();
     const session = new TransportSession(transport, controlWriter);
 
+    session.watchClosed();
     session.pumpUni(transport.incomingUnidirectionalStreams);
     session.pumpControl(bi.readable);
 
     return session;
   }
 
+  /** docs/CLIENTS.md#a-closed-session-is-noticed-at-once. */
+  private watchClosed() {
+    this.transport.closed.then(
+      (info) => this.failAll(closedReasonOf(info)),
+      (err) => this.failAll(`session closed: ${err?.message ?? String(err)}`),
+    );
+  }
+
+  /** First reason wins: the stream ending and `closed` settling are the same event twice. */
+  private failAll(reason: string) {
+    this.closedReason ??= reason;
+    for (const [index, w] of this.waiters) {
+      clearTimeout(w.timer);
+      w.reject(new Error(`frame ${index} unavailable: ${this.closedReason}`));
+    }
+    this.waiters.clear();
+  }
+
   private armWaiter(frameIndex: number): Promise<{ bytes: Uint8Array; receivedMs: number }> {
+    if (this.closedReason) {
+      return Promise.reject(new Error(`frame ${frameIndex} unavailable: ${this.closedReason}`));
+    }
     if (this.waiters.has(frameIndex)) {
       return Promise.reject(new Error(`frame ${frameIndex} already requested`));
     }
@@ -116,11 +146,7 @@ export class TransportSession {
     } catch {
       /* session closed */
     } finally {
-      for (const [, w] of this.waiters) {
-        clearTimeout(w.timer);
-        w.reject(new Error("session closed"));
-      }
-      this.waiters.clear();
+      this.failAll("session closed: the media stream ended");
     }
   }
 
@@ -243,6 +269,7 @@ export class TransportSession {
 
   stats() {
     return {
+      closed: this.closedReason,
       inFlight: this.waiters.size,
       droppedEarlyMedia: this.droppedEarly,
       frameErrors: this.frameErrors,

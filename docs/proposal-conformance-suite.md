@@ -65,6 +65,12 @@ test.
    corrupt its neighbour. On the TS client they do not share one today; the test is what keeps that
    true.
 
+4. **A closed session is noticed at once** (added with L4). A request against a closed session must
+   fail immediately rather than at `FRAME_TIMEOUT_MS`, a request in flight when the close lands must
+   be woken, and a *live* session with no frame must still take the full timeout. The close is
+   driven two ways — ending the media stream, and settling `closed` with the stream left open — so
+   a client that only watches one signal fails the other. `docs/CLIENTS.md` has the numbers.
+
 Every test is mutated — the implementation broken on purpose, the test watched failing — and the
 report says so.
 

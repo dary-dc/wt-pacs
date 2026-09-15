@@ -14,6 +14,10 @@ import {
 } from "./adapters.ts";
 
 const CERT = "ab".repeat(32);
+// A cancelled fill leaves waiters nothing will ever settle; their eventual timeout is not a
+// result, and must not take the process down before the checks are counted.
+const strays: string[] = [];
+process.on("unhandledRejection", (e) => strays.push(String((e as Error)?.message ?? e)));
 const enc = new TextEncoder();
 let failed = 0;
 let ran = 0;
@@ -97,6 +101,66 @@ async function transferable(impl: Implementation) {
   s.close();
 }
 
+/** A closed session is noticed at once; a live one still owes the frame its full timeout. */
+async function noticesClose(impl: Implementation) {
+  const closedFirst = await open(impl);
+  FakeTransport.last.serverClose(7, "server went away");
+  await settle();
+  const t0 = performance.now();
+  let rejected = false;
+  try {
+    await closedFirst.requestExactFrame(1);
+  } catch {
+    rejected = true;
+  }
+  const ms = performance.now() - t0;
+  check(rejected, `${impl.name}: a request against a closed session fails`);
+  check(ms < 1000, `${impl.name}: it fails at once (${ms.toFixed(0)} ms), not at FRAME_TIMEOUT_MS`);
+
+  const closedDuring = await open(impl);
+  const t = FakeTransport.last;
+  const inFlight = closedDuring.requestExactFrame(2);
+  await settle();
+  const t1 = performance.now();
+  t.serverClose(7, "server went away");
+  let woke = false;
+  try {
+    await inFlight;
+  } catch {
+    woke = true;
+  }
+  check(woke, `${impl.name}: a request in flight when the session closes is woken`);
+  check(
+    performance.now() - t1 < 1000,
+    `${impl.name}: it is woken at once, not left to time out`,
+  );
+
+  // `closed` alone, with the media stream left open: the session object is the signal.
+  const quietClose = await open(impl);
+  FakeTransport.last.serverClose(7, "server went away", false);
+  await settle();
+  const t2 = performance.now();
+  let noticed = false;
+  try {
+    await quietClose.requestExactFrame(4);
+  } catch {
+    noticed = true;
+  }
+  check(
+    noticed && performance.now() - t2 < 1000,
+    `${impl.name}: a close is noticed from the session, not only from the stream ending`,
+  );
+
+  // The timeout's own case: still alive, frame never arrives. It must NOT fail fast.
+  const live = await open(impl);
+  const pending = live.requestExactFrame(3);
+  let early: unknown = null;
+  pending.catch((e) => (early = e));
+  await new Promise((r) => setTimeout(r, 300));
+  check(early === null, `${impl.name}: a live session still owes the frame its full timeout`);
+  live.close();
+}
+
 const impls: Implementation[] = [await typescriptImpl()];
 if (wasmBuilt()) {
   impls.push(await wasmImpl());
@@ -109,8 +173,10 @@ for (const impl of impls) {
   await workerSafe(impl);
   await cancellable(impl);
   await transferable(impl);
+  await noticesClose(impl);
 }
 
+if (strays.length) console.log(`\n  ${strays.length} abandoned waiter(s) rejected after their fill was cancelled`);
 console.log(
   `\nconformance: ${ran - failed}/${ran} checks passed across ${impls.length} implementation(s)` +
     (impls.length < 2 ? " — one arm was skipped" : ""),

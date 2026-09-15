@@ -380,6 +380,8 @@ async fn read_fod_msg(
 #[derive(Default)]
 struct SessionState {
     waiters: HashMap<u32, oneshot::Sender<(Uint8Array, f64)>>,
+    /// Set once the session is gone; a waiter armed after this would only reach the timeout.
+    closed: Option<String>,
     dropped_early: u64,
     errors: HashMap<u32, String>,
     frame_errors: u64,
@@ -429,6 +431,19 @@ impl TransportSession {
             .map_err(|e| format!("control reader: {e:?}"))?;
 
         let state = Rc::new(RefCell::new(SessionState::default()));
+
+        // docs/CLIENTS.md#a-closed-session-is-noticed-at-once.
+        let st_closed = Rc::clone(&state);
+        let closed = transport.closed();
+        spawn_local(async move {
+            let reason = match JsFuture::from(closed).await {
+                Ok(info) => closed_reason_of(&info),
+                Err(e) => format!("session closed: {e:?}"),
+            };
+            let mut s = st_closed.borrow_mut();
+            s.closed = Some(reason);
+            s.waiters.clear();
+        });
 
         // Media pump — each uni carries `[4B BE len][envelope]` frames (one or many).
         let st_uni = Rc::clone(&state);
@@ -499,6 +514,9 @@ impl TransportSession {
         let (tx, rx) = oneshot::channel();
         {
             let mut s = self.state.borrow_mut();
+            if let Some(reason) = s.closed.clone() {
+                return Err(format!("frame {frame_index} unavailable: {reason}"));
+            }
             if s.waiters.contains_key(&frame_index) {
                 return Err(format!("frame {frame_index} already requested"));
             }
@@ -540,6 +558,9 @@ impl TransportSession {
         {
             let mut s = self.state.borrow_mut();
             let mut bulk_rx = self.bulk_rx.borrow_mut();
+            if let Some(reason) = s.closed.clone() {
+                return Err(format!("session unavailable: {reason}"));
+            }
             for &frame_index in &indices {
                 if s.waiters.contains_key(&frame_index) || bulk_rx.contains_key(&frame_index) {
                     return Err(format!("frame {frame_index} already requested"));
@@ -582,6 +603,9 @@ impl TransportSession {
         {
             let mut s = self.state.borrow_mut();
             let mut bulk_rx = self.bulk_rx.borrow_mut();
+            if let Some(reason) = s.closed.clone() {
+                return Err(format!("session unavailable: {reason}"));
+            }
             for &frame_index in &indices {
                 if s.waiters.contains_key(&frame_index) || bulk_rx.contains_key(&frame_index) {
                     return Err(format!("frame {frame_index} already requested"));
@@ -631,7 +655,7 @@ impl TransportSession {
         frame_index: u32,
         ask_ms: f64,
     ) -> Result<JsValue, String> {
-        match await_bytes(rx, frame_index).await {
+        match await_bytes(rx, frame_index, &self.state).await {
             Ok((bytes, received_ms)) => result_to_js(frame_index, ask_ms, bytes, received_ms),
             Err(e) => {
                 let mut s = self.state.borrow_mut();
@@ -664,14 +688,32 @@ impl TransportSession {
     }
 }
 
+fn closed_reason_of(info: &JsValue) -> String {
+    let code = Reflect::get(info, &JsValue::from_str("closeCode"))
+        .ok()
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0) as i64;
+    let why = Reflect::get(info, &JsValue::from_str("reason"))
+        .ok()
+        .and_then(|v| v.as_string())
+        .filter(|r| !r.is_empty())
+        .map(|r| format!(": {r}"))
+        .unwrap_or_default();
+    format!("session closed (code {code}){why}")
+}
+
 async fn await_bytes(
     rx: oneshot::Receiver<(Uint8Array, f64)>,
     frame_index: u32,
+    st: &Rc<RefCell<SessionState>>,
 ) -> Result<(Uint8Array, f64), String> {
     let mut rx = rx.fuse();
     let mut timeout = TimeoutFuture::new(FRAME_TIMEOUT_MS).fuse();
     select! {
-        res = rx => res.map_err(|_| format!("frame {frame_index} aborted before completion")),
+        res = rx => res.map_err(|_| match st.borrow().closed.clone() {
+            Some(reason) => format!("frame {frame_index} unavailable: {reason}"),
+            None => format!("frame {frame_index} aborted before completion"),
+        }),
         _ = timeout => Err(format!(
             "timeout waiting for frame {frame_index} after {FRAME_TIMEOUT_MS} ms"
         )),
