@@ -33,6 +33,9 @@ pub struct TransportTuning {
     pub send_window: Option<u64>,
     /// Idle timeout. Applied on the wtransport builder, not inside `TransportConfig`.
     pub max_idle_timeout_ms: Option<u64>,
+    /// Server-sent keep-alive. One side is enough to hold a session open, and a browser client
+    /// has no such knob, so this is the only lever that reaches one. docs/transport/adr-idle-sessions.md.
+    pub keep_alive_interval_ms: Option<u64>,
     pub congestion: Congestion,
     /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
     pub prefault: bool,
@@ -45,6 +48,7 @@ impl Default for TransportTuning {
             stream_receive_window: None,
             send_window: None,
             max_idle_timeout_ms: None,
+            keep_alive_interval_ms: None,
             congestion: Congestion::Cubic,
             prefault: false,
         }
@@ -65,6 +69,9 @@ impl TransportTuning {
         }
         if let Some(v) = self.stream_receive_window {
             tc.stream_receive_window(varint(v, "stream-receive-window")?);
+        }
+        if let Some(ms) = self.keep_alive_interval_ms {
+            tc.keep_alive_interval(Some(std::time::Duration::from_millis(ms)));
         }
 
         match self.congestion {
@@ -88,6 +95,7 @@ impl TransportTuning {
             && self.send_window.is_none()
             && self.stream_receive_window.is_none()
             && self.max_idle_timeout_ms.is_none()
+            && self.keep_alive_interval_ms.is_none()
             && matches!(self.congestion, Congestion::Cubic)
     }
 
@@ -107,6 +115,9 @@ impl TransportTuning {
         }
         if let Some(v) = self.max_idle_timeout_ms {
             parts.push(format!("max_idle_timeout_ms={v}"));
+        }
+        if let Some(v) = self.keep_alive_interval_ms {
+            parts.push(format!("keep_alive_interval_ms={v}"));
         }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
@@ -140,9 +151,23 @@ mod tests {
             stream_receive_window: Some(8 << 20),
             send_window: Some(32 << 20),
             max_idle_timeout_ms: Some(60_000),
+            keep_alive_interval_ms: Some(20_000),
             congestion: Congestion::Bbr,
             prefault: false,
         };
+        t.to_transport_config().unwrap();
+    }
+
+    /// A keep-alive interval is a custom transport: taking the library default would drop it
+    /// silently, and a session held open is the whole point. docs/transport/adr-idle-sessions.md.
+    #[test]
+    fn keep_alive_alone_leaves_the_library_default_behind() {
+        let t = TransportTuning {
+            keep_alive_interval_ms: Some(20_000),
+            ..TransportTuning::default()
+        };
+        assert!(!t.quic_is_library_default());
+        assert!(t.describe().contains("keep_alive_interval_ms=20000"));
         t.to_transport_config().unwrap();
     }
 

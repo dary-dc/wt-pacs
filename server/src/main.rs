@@ -40,6 +40,10 @@ struct Args {
     /// QUIC idle timeout in milliseconds. Default: library default, 30 000.
     #[arg(long)]
     max_idle_timeout_ms: Option<u64>,
+    /// Server-sent keep-alive in milliseconds. Off by default; must be below both peers' idle
+    /// timeouts to work. docs/transport/adr-idle-sessions.md.
+    #[arg(long)]
+    keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
@@ -103,6 +107,7 @@ async fn main() -> anyhow::Result<()> {
             stream_receive_window: args.stream_receive_window_bytes,
             send_window: args.send_window_bytes,
             max_idle_timeout_ms: args.max_idle_timeout_ms,
+            keep_alive_interval_ms: args.keep_alive_interval_ms,
             congestion: args.congestion,
             prefault: args.prefault,
         },
