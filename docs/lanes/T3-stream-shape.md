@@ -62,6 +62,26 @@ rides into the difference. **Falsifiable prediction**, to be checked when run 2 
 interleaving is the mechanism, `pool:4` at 32 KB pays a larger null-cell cost than `pool:2`.
 If it does not, this reading is wrong and the cause is elsewhere.
 
+### The 0.5 % cell of 2026-09-15 decided nothing, and why
+
+`docs/measurements/r2/t3-250k-l0.5` passed every void check it was given and was still
+worthless. Its pooled p95 rested on the first repeat alone:
+
+| arm | pooled p95, six repeats | r1 excluded |
+| --- | ---: | ---: |
+| `shared` | 20 922.6 ms | **412.2 ms** |
+| `per-frame` | 2 953.8 ms | **709.2 ms** |
+| `pool:2` | 513.7 ms | 513.8 ms |
+
+The ordering reverses: with r1 in, `shared` is 50× the worst arm; with it out, `shared` is the
+best. r1 is a cold page cache — hit rate 0.28–0.30 against 0.70–0.84 in the later repeats —
+and the cell had no discarded warm-up, so it pooled two regimes and read the difference as
+stream shape. `pool:2` looked immune only because it is slow enough not to notice.
+
+The cell now discards one pass per arm, and a cache-hit spread above 0.25 within an arm voids
+it. The null cell above was unaffected: it was itself a re-run, so its page cache was already
+warm throughout (spread 0.07–0.11), which is why its reading stands.
+
 ## Decision rule, fixed before the run
 
 Pooled miss samples, the estimator N11 asked for and `stream_shape_pool.py` implements — never

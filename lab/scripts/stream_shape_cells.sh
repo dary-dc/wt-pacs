@@ -51,6 +51,16 @@ for arm in "${ARMS[@]}"; do
 done
 frames=$(sed -n 's/^frames=//p' "$out/server.${ARMS[0]//:/_}.log" | head -1)
 
+# One discarded pass per arm: the first read of a frame comes off disk and every later one
+# off the page cache, and pooling the two regimes reads as a stream-shape effect.
+for i in "${!ARMS[@]}"; do
+  "$harness" --url "https://127.0.0.1:${ports[$i]}/" --trace "$TRACE" --mode trace \
+    --depth "$DEPTH" --frame-count "$frames" --stream-mode "${ARMS[$i]}" --arm warmup \
+    --reader-mode open --bind 127.0.0.1 --timeout-ms 120000 --json \
+    --read-bps 0 --step-interval-ms "$STEP_MS" > /dev/null
+  echo "  warmup ${ARMS[$i]} done" >&2
+done
+
 for r in $(seq 1 "$REPS"); do
   order=("${!ARMS[@]}"); (( r % 2 == 0 )) && order=($(printf '%s\n' "${order[@]}" | tac))
   for i in "${order[@]}"; do
