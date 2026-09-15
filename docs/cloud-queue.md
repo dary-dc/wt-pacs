@@ -109,4 +109,16 @@ which will cancel fills for real, and to L6's lifecycle work.
 
 ## Blocked
 
-*(empty)*
+**The rig is not reachable from a cloud agent container** (2026-09-15). Rows 5, 6 and 7 — L2, L3 and
+L7 — all say "needs the VM", and a cloud agent cannot get there:
+
+* `~/.ssh/id_ed25519_rig_agent` is not present, and `~/.ssh` is empty. The key lives on the
+  workstation; nothing puts it in this environment.
+* Outbound traffic goes through an HTTPS proxy. A plain TCP connection to `168.138.130.163:22` does
+  not open, so even with the key `ssh` would not reach it.
+
+So those three rows are `ready` in the sense that their briefs are complete, and unworkable in the
+sense that the only machine they can run on is not addressable from here. **What is needed:** either
+the agent key placed in the cloud environment *and* egress to port 22 opened, or those lanes run
+from the workstation. Nothing in this queue is a container lane any more — the four that were
+(L4, L5, L6, L11) are done or, for L11, proposed with its measurement complete.
