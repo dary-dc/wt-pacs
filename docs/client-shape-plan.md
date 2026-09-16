@@ -36,7 +36,8 @@ implement it.
 2. **Cancellable.** `endStream()` is part of the surface and the server honours it mid-fill under
    test. An implementation that cannot cancel is not conformant.
 3. **Transferable results.** A `FrameResult`'s buffer must be transferable, so crossing the worker
-   boundary is a move and not a copy.
+   boundary is a move and not a copy. Priced: at 8 MB a copied frame costs the page's main thread
+   1.34 s per 237-frame burst against 17 ms transferred. [`thread-hops.md`](thread-hops.md).
 
 A conformance suite over those three, run against both implementations, is milestone 1's real
 output.
@@ -123,6 +124,9 @@ answers the question that matters most on large frames.
 * **Cache format** — deferred by decision, not by oversight.
 * **Reconnect policy** — eager on visibility change, or lazy on first failed ask. M4 should measure
   both rather than assume.
+* **How many hops survive** — the relay through the receive worker costs ~0.1–0.2 ms while that
+  worker is quiet, and becomes unbounded (0.28–19.5 ms) when it is not; pull adds a `postMessage`
+  per frame to the main thread. Measured, not decided: [`thread-hops.md`](thread-hops.md).
 
 ## 5 · Out of scope
 

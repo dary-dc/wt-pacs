@@ -14,6 +14,7 @@ Product and ADRs stay here. This lane's campaign write-ups are on tag
 | [`../deploy/`](../deploy/) | nginx + the two images, and the check that they answer as the dev host did |
 | [`proposal-nginx-and-images.md`](proposal-nginx-and-images.md) | Proposed: nginx in place of the dev host, and an image per project |
 | [`client-shape-plan.md`](client-shape-plan.md) | The production client shape: the transport seam, what sits above it, and the milestones that build it |
+| [`thread-hops.md`](thread-hops.md) | What each thread hop costs a decoded frame on its way to the page, and what a copy costs instead of a transfer |
 | [`cloud-queue.md`](cloud-queue.md) | What a cloud agent should pick up next, and how it claims and reports it |
 | [`cloud-lanes-2026-09-14.md`](cloud-lanes-2026-09-14.md) | Investigations that need no workstation, one brief per lane |
 | [`transport/`](transport/) | This lane: conclusions, why, and the window-defaults ADR. Evidence/lab on tag `archive/transport-lab-2026-09` |
