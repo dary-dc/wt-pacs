@@ -29,7 +29,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | --- | --- | --- | --- |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
-| 10 | **L14** — what retained frames cost in memory | lanes §L14 | ready |
+| 10 | **L14** — what retained frames cost in memory | lanes §L14 | claimed 2026-09-16 |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | ready |
 | 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | ready |
 | 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | ready |
