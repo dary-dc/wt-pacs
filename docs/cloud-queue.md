@@ -41,7 +41,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 16 |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
-| 10 | **L14** — what retained frames cost in memory | lanes §L14 | claimed 2026-09-16 |
+| 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | ready |
 | 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | ready |
 | 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | ready |
@@ -168,6 +168,27 @@ reads it from `CHROME_PATH`. `server/dev-server.py` already sends COOP/COEP, so
 `crossOriginIsolated` is true and `SharedArrayBuffer` works. Chromium reaches for
 `www.google.com` on start-up and the proxy denies it; harmless, silenced with
 `--disable-background-networking`. This clears the way for **L14**, **L15** and **L18**.
+
+**Keeping frames in the decoder's heap is worse than copying them out** (2026-09-16, from L14),
+which is the reverse of what `docs/decode/README.md` assumed, and the wrong expectation is
+corrected there. 108 MB against 517 for 87 × 768 KB; 217 against 1081 for 237 × 512 KB; 939
+against 2042 for 64 × 8 MB. Two reasons, neither the pixels: a retained decoder holds its
+codestream as well as its pixels, and **a WASM heap never shrinks**, so it keeps its high-water
+mark and every transient along with it. This is the memory half of L13's latency answer and they
+agree: **copy the pixels out, transfer the buffer, do not hand out a heap view.**
+
+**L8's 4 MB floor is right only if the pixels leave the heap** (from L14). Copying out, it
+reproduces the ladder exactly (4.0 MB at 512×512, 24.6 MB at 2048×2048). Retaining in it, it is
+the *worst* build measured — 4.6–5.1× what it holds, against the package's 1.0–1.2×. **L17** tunes
+that build and should not change the floor without saying which of the two it is optimising.
+
+**`measureUserAgentSpecificMemory()` works headless and costs 10–16 s a call unless you ask
+otherwise** (from L14). `--enable-blink-features=ForceEagerMeasureMemory` takes it to ~15 ms with
+no loss of accuracy (checked: ±256 MB in a worker, and it still collects before counting). It
+counts WASM heaps, plain `ArrayBuffer`s and `SharedArrayBuffer`s on one scale, in workers, with
+per-realm attribution — so **L18** can use it for its heap high-water rather than only `--trace-gc`.
+Also: the source build exports no `Module.HEAPU8`; use a `typed_memory_view`'s buffer instead,
+which measures either build identically.
 
 ## Blocked
 
