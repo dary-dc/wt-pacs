@@ -45,7 +45,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
 | 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | **done** `9714d41` — it ends the fill; `transport/ask-during-fill.md` |
 | 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | **done** `6f87cbb` — no win; the toolchain is a 15 % regression |
-| 14 | **L18** — what the BYOB read path allocates | lanes §L18 | claimed 2026-09-16 |
+| 14 | **L18** — what the BYOB read path allocates | lanes §L18 | **done** `bb86253` — byob allocates **less**; `decode/README.md` §The BYOB read path |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | **not for cloud** — workstation lane; drives the VM over ssh |
 | 7 | **L7** — a regime where the read path misses | lanes §L7 | **not for cloud** — workstation lane; drives the VM over ssh |
@@ -287,6 +287,34 @@ not recognise with `EXTRA_FLAGS`, which is how build settings are compared. And 
 `wasm-opt`: binaryen 117 (the one seeded for wasm-pack) cannot validate emscripten 6.0.9 output at
 all, and `--all-features` yields a binary Node will not instantiate — pass the build's actual
 features instead.
+
+**byob allocates less than the default read path, and `byob-min` less again** (2026-09-16, from
+L18) — the corrected premise holds. Over a 237-frame fill: **338 collections for default, 201 for
+byob (−40.5 %), 165 for byob-min (−51.2 %)**, fewer in 5 of 5 paired rounds each, with JS heap
+high-water ranges that do not overlap (default never under 70 MB, neither byob arm reaching it).
+The free list the lane asked about is **not** written, because byob's churn is the smaller of the
+two; a free list would help the default path more, and what it must decide — which thread hands the
+buffer back, and when — belongs to the pipeline redesign.
+
+That removes one of the two things holding byob behind its feature. The other is untouched: the
+~12 ms first-frame cost (**L2**), still undiagnosed.
+
+**Two things to know before running a browser lane here** (from L18). `--js-flags=--trace-gc` emits
+nothing in this Chromium (141, headless) — not to the browser's stderr, not to the renderer's, with
+`--single-process` and `--enable-logging=stderr` both tried. Use the `disabled-by-default-v8.gc`
+trace category over CDP, as `lab/scripts/read_path_alloc.cjs` does. And CDP's `HeapProfiler`
+sampler does **not** weigh `ArrayBuffer` backing stores, so it reads the same in every arm of a
+buffer comparison and settles nothing.
+
+**The conformance suite cannot drive a byob build in Node** (from L18): the fake transport's
+`ReadableStream` is not a byte stream, so `getReader({mode:'byob'})` throws. Anything testing byob
+arms needs a browser, and `client/transport-wasm/pkg/` must be left holding the **default** build —
+a byob build there fails the gate's conformance step.
+
+**One honest loose end**: a single `exact-server` test binary failed once during this session while
+a server, a static host and a browser run were all loading the box, and has passed every run since,
+including two full gates. The wire tests bind ephemeral ports, so it was **not** a port conflict and
+no mechanism was established. Worth knowing if it recurs; not worth believing as a finding.
 
 ## Blocked
 
