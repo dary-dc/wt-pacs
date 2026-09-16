@@ -44,7 +44,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
 | 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | **done** `9714d41` — it ends the fill; `transport/ask-during-fill.md` |
-| 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | claimed 2026-09-16 |
+| 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | **done** `6f87cbb` — no win; the toolchain is a 15 % regression |
 | 14 | **L18** — what the BYOB read path allocates | lanes §L18 | ready |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | **not for cloud** — workstation lane; drives the VM over ssh |
@@ -266,6 +266,27 @@ does that today; its `promote()` moves a frame up its own queue and assumes the 
 `feat/set-priority-per-frame` (`f85f8a6`) does not apply: it is in the per-frame arm of
 `write_payload` and never runs in `shared` mode. `--ask-priority` was already a rejected arm of the
 transport lane.
+
+**No build lever makes the decoder faster, and a newer emscripten makes it slower** (2026-09-16,
+from L17). Rebuilt unchanged with emscripten 6.0.9 instead of the pinned 3.1.74, the same source
+decodes **15.6 % slower at 512 KB and 16.0 % at 8 MB**, 0 of 8 and 0 of 6 rounds faster. LTO
+recovers exactly that and no more (−1.2 %, +2.2 %, −1.6 % — three ties). **The emscripten pin is
+holding about 15 % of decode time**, so moving it is a performance decision, not housekeeping.
+Ties: a decoder object reused rather than per frame (the lane's own candidate for the largest
+lever), and `wasm-opt -O4`, which emcc has already run. There is no newer OpenJPH. Worth taking
+anyway: LTO is **16 % off the binary**, 200 KB against 239 KB, heap unchanged.
+
+**A baseline of your own making is the trap here.** The first pass measured LTO at −17.8 % against
+a `plain` build this lane had itself rebuilt with the newer toolchain, and that number is real but
+means only "LTO undoes the regression". Any lane rebuilding `lab/decode-bench/wasm` should record
+which emscripten it used and compare against the pinned one, not against its own rebuild — this
+applies directly to **L2** and **L18**, which both rebuild the WASM client.
+
+**Two toolchain notes** (from L17). `lab/decode-bench/wasm/build.sh` now builds any arm name it does
+not recognise with `EXTRA_FLAGS`, which is how build settings are compared. And use the emsdk's own
+`wasm-opt`: binaryen 117 (the one seeded for wasm-pack) cannot validate emscripten 6.0.9 output at
+all, and `--all-features` yields a binary Node will not instantiate — pass the build's actual
+features instead.
 
 ## Blocked
 
