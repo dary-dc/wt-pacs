@@ -44,7 +44,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
 | 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | **done** `9714d41` — it ends the fill; `transport/ask-during-fill.md` |
-| 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | ready |
+| 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | claimed 2026-09-16 |
 | 14 | **L18** — what the BYOB read path allocates | lanes §L18 | ready |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | **not for cloud** — workstation lane; drives the VM over ssh |
