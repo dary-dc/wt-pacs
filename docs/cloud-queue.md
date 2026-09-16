@@ -40,11 +40,11 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | --- | --- | --- | --- |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
-| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **part done** on `claude/downloader-s2-worker` — built and running; owes the conformance run, see below |
+| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 20 |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
-| 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | claimed 2026-09-16 |
-| 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | after 19 |
+| 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | **done** `09fcf32` on `claude/downloader-s2-worker` — 35 checks green, in the gate |
+| 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | ready |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | ready |
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
@@ -258,12 +258,30 @@ boundaries are non-zero and in order, and a session opened after a closure serve
 Mutation-checked both ways — one perturbed sample turns every `sha` line to `MISMATCH`, and
 dropping every fifth frame makes the fill report 9/12.
 
-**What it owes, and why D3 can start anyway.** S1's clauses do not yet drive this arm: they run in
-Node against a fake `WebTransport`, and the downloader dials inside its own worker, so the fake has
-to be installed *there* and driven from the page. `config.transport` — a module URL exporting
-`TransportSession` — is in place as the hook, so the remaining work is a conformance runner that
-supplies a fake transport module and a control path to it (a `BroadcastChannel` reaches into a
-worker on the same origin). That is a self-contained row and could be its own.
+**What it owed is done: D2b drives this arm** (2026-09-16, `09fcf32` on `claude/downloader-s2-worker`).
+The clauses moved to `client/conformance/clauses.ts`, written against a **rig** — open a session,
+drive the fake, count dials — so the same checks run wherever the fake lives. `fake-session.ts` is
+the module `config.transport` names during a run: evaluated inside the downloader's worker, it
+installs the fake `WebTransport` there and answers the page over a `BroadcastChannel`.
+`run_downloader.sh` drives `downloader.html` in headless Chromium and **the gate runs it** (skips
+loudly without Chromium, the WASM-arm decision applied again). **35 checks green**, mutation-checked
+clause by clause — stamps zeroed, `end_stream` dropped, closure never noticed, a swallowed failure,
+a dropped delivery, lying `stats`, a dial per command, a cached client, the fake left uninstalled:
+each fails by name and the suite still completes. Two structural fixes fell out: the clauses now
+catch a throwing clause (an abort counted nothing before), and `consumer.js` rejects `connect()`
+on a start failure instead of hanging to `FRAME_TIMEOUT_MS`. The Node suite is unchanged in shape
+and now reports **62/62** across both clients (was 58; two closure checks were split so each half
+fails by name).
+
+**One limit, found by a mutant that *passed*:** a frame posted without a transfer list arrives as a
+clone that still detaches, so the page cannot tell move from copy across the worker boundary. The
+downloader clause holds delivered-buffer semantics (movable, no sibling coupling); the copy cost is
+**D4/S4**'s metric, not a conformance clause.
+
+**This lands on D2c (row 20).** The rig and clauses are the place D2c's two assertions attach —
+ask-before-fill ordering under forced contention, and the two-outstanding-per-decoder bound. Both
+need a *slow* decoder to force the contention (the conformance arm runs `decode:false`, so a D2c
+clause must install a decoder that stalls), not luck; write them as clauses over the same rig.
 
 **Three things are implemented and asserted by nothing**, so D2 claims none of them: the ordering
 of the two priorities under contention, the two-outstanding-per-decoder dispatch bound, and sign
