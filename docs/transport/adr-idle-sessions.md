@@ -23,9 +23,14 @@ it is absent. quinn's own documentation settles what to do about that:
 
 > Only one side of any given connection needs keep-alive enabled for the connection to be preserved.
 
-So the server is the only end that can hold a browser's session open. **Measured, not assumed**: a
-server with a 5 s idle timeout and no keep-alive lost 3 of 3 sessions over a 12 s idle hold; the
-same server with `--keep-alive-interval-ms 2000` kept 3 of 3, with the client sending nothing.
+So the server is the only end that can hold a browser's session open *through the API*. **Measured,
+not assumed**: a server with a 5 s idle timeout and no keep-alive lost 3 of 3 sessions over a 12 s
+idle hold; the same server with `--keep-alive-interval-ms 2000` kept 3 of 3, with the client sending
+nothing.
+
+**A real browser turned out not to need it** (2026-09-16, §What a real Chromium does). The API has no
+knob, but Chromium keeps the connection alive by itself, so the sentence above is true of the API and
+too strong about the outcome.
 
 ## What an idle held session costs
 
@@ -64,9 +69,9 @@ At 20 s rather than 3 s the packet cost falls by the same factor: **2 datagrams 
 20 s**, so a thousand held sessions cost about 100 datagrams a second between them. The CPU share
 attributable to keep-alive falls with it.
 
-* **20 s keep-alive.** Comfortably below the 60 s timeout, and below the 30 s that browsers
-  typically advertise — which matters, because the effective idle timeout is the *lower* of the two
-  ends and the browser's end is not ours to set.
+* **20 s keep-alive.** Comfortably below the 60 s timeout, and below the **30 s Chromium actually
+  advertises** — measured, §What a real Chromium does — which matters, because the effective idle
+  timeout is the *lower* of the two ends and the browser's end is not ours to set.
 * **60 s idle timeout.** Long enough that a brief loss of connectivity does not cost the session,
   short enough that a genuinely dead peer's 75 KB comes back inside a minute. The current default is
   the library's 30 s, which is below the browser's own and leaves no margin.
@@ -75,11 +80,46 @@ The pair is deliberately conservative on packets and deliberately generous on st
 is cheap here — 75 KB — and a dropped session costs a user-visible reconnect at the moment they
 open the viewer.
 
+## What a real Chromium does
+
+Headless Chromium 141, loopback, against this server, driven by `client/harness/idle-hold.html` —
+which dials, takes a frame, sends nothing for the hold, then asks for another frame, so **alive
+means a frame arrived**, not that the handle still exists.
+
+**It advertises 30 s, as assumed.** From `--log-net-log`, the transport parameters Chromium sends
+carry `max_idle_timeout 30000`; the server's carry the same (the library default). Only a server
+sends `stateless_reset_token`, which is how the two sets are told apart.
+
+**And it is not idle.** Over a 45 s hold Chromium sent three 29-byte packets, at **15.0, 30.0 and
+45.0 s**, each `NOT_RETRANSMISSION` and each drawing an ACK from the server. That is a keep-alive
+ping on Chromium's 15 s timer, and it restarts the idle timer at **both** ends.
+
+| server | hold | alive |
+| --- | --- | --- |
+| idle 60 s, no keep-alive | 28 s / 33 s / 45 s | yes / yes / yes |
+| idle 60 s, no keep-alive | **180 s** | **yes** |
+| idle 60 s, keep-alive 20 s | 45 s / 180 s | yes / yes |
+| idle 5 s, no keep-alive | 12 s | **no** — "Connection lost." |
+
+The last row is the 5 s cell above, reproduced with a real browser instead of the native harness: a
+15 s ping cannot save a 5 s timeout, and that is the whole of why that cell died.
+
+**What this changes, and what it does not.** The pair stands — 30 s was the figure it was chosen
+against and 30 s is what Chromium advertises. What is no longer true is that the server is the only
+thing holding the session up: with the recommended 60 s timeout, **a browser session survives 180 s
+of silence with server keep-alive off**. Keep-alive earns its place as the lever for an effective
+timeout below ~15 s and for clients that do not ping — not as the thing that keeps Chrome connected.
+
+**Do not lean on the 15 s.** It is Chromium's implementation, not a guarantee of the WebTransport or
+QUIC specs; another browser, or another Chromium, may not do it. The 60 s timeout is what makes the
+session survive, and it is ours. This was measured with an open bidi control stream — the product's
+shape, and the case Chromium's ping timer covers; a session holding no stream open was not measured.
+Loopback still cannot show NAT rebinding, which is one of the things keep-alive is actually for.
+
 ## What is not measured
 
-* **The browser's advertised idle timeout is assumed, not measured.** 30 s is the common figure and
-  the reason 20 s was chosen, but nothing here ran a browser. It wants one run on the rig with a
-  real Chrome to confirm the effective timeout is the one this ADR assumes.
+* ~~The browser's advertised idle timeout is assumed, not measured.~~ **Measured 2026-09-16**: it is
+  30 s exactly, and the browser does more than advertise it. §What a real Chromium does.
 * **Every millisecond is container-measured.** Memory, datagram counts and survive/die are not
   timing and are safe; the CPU column is reported and decides nothing.
 * **Loopback only.** A real link adds NAT rebinding, which is one of the things keep-alive is
