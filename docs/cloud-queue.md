@@ -17,6 +17,14 @@ A place to hand work to a cloud agent between sessions, and for it to hand resul
 6. Go back to step 1. Stop when no row is `ready`, and say so in your final message rather than
    inventing work.
 
+**Rows that wait.** `after N` becomes `ready` when row N is done; the agent that marks N done
+flips it in the same commit.
+
+**Code rows (D1–D4)** follow `docs/proposal-downloader.md` and push code to the agent's own
+branch, never to this one; this branch gets only the queue update, with the branch name in the
+row. If the design turns out wrong, stop and say why in `## Blocked` rather than building a
+different shape.
+
 **Answering a question rather than running a lane.** A row may be a question, not a lane. Answer it
 in `## Answers` below, push, mark it done. Keep it short — the asker has no other channel.
 
@@ -28,6 +36,10 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | # | what | brief | state |
 | --- | --- | --- | --- |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
+| 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | ready |
+| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | after 15 |
+| 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 16 |
+| 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | claimed 2026-09-16 |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | ready |
@@ -46,10 +58,10 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | — | L9 the conformance suite | lanes §L9 | done `4928b74` |
 | — | L10 what telemetry costs | lanes §L10 | done `c0197d4` |
 
-**Held, not queued** (2026-09-16): anything that changes the client's structure — the harness
-decode arm L11 proposed, a bounded fill with cancellation, the cache seam, paint. The path a frame
-takes to the page is being redesigned on the workstation; those are queued once that design is
-reviewed. Rows 8–14 measure what the design has to choose between and build nothing it would undo.
+**The redesign is queued** (2026-09-16) as D1–D4: `docs/proposal-downloader.md`, approved for
+investigation. It replaces the harness decode arm L11 proposed. D1 comes before any code, because
+the proposal is adopted only if nothing today's path can do is lost. **Still held:** a bounded
+fill window, the cache seam, paint.
 
 ### L11 — decode in the harness
 

@@ -1,5 +1,8 @@
 # Proposal: real decode in the harness
 
+**Superseded 2026-09-16** by [`proposal-downloader.md`](proposal-downloader.md): the pool it draws
+on the main thread is one of the layers that proposal removes. Kept for its dispatch reasoning.
+
 **For:** wt-pacs implementer · 2026-09-15 · **Status:** proposed, not built. The dispatch question
 it was raised to settle **is** measured — `docs/decode/README.md` §Dispatch — and the answer changes
 what the harness should be wired to do, which is why this is a proposal and not a patch.
