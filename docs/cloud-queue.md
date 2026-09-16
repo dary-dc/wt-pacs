@@ -37,7 +37,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | --- | --- | --- | --- |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
-| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | claimed 2026-09-16 |
+| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **part done** on `claude/downloader-s2-worker` — built and running; owes the conformance run, see below |
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 16 |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
@@ -206,6 +206,31 @@ Also fixed there, found by one of the mutants: `transferable` awaited its frames
 shared-mode regression **took the whole suite down at `FRAME_TIMEOUT_MS` with nothing counted**
 instead of reporting. Every frame wait is bounded now. Worth knowing for **D3**, which changes how
 a fill's frames are delivered and will lean on exactly these clauses.
+
+**D2 is built and running, and owes one thing** (2026-09-16), on `claude/downloader-s2-worker`.
+`client/downloader/` plus `client/harness/downloader.html`, beside today's path with nothing
+removed. Against the real server and 12 real HTJ2K frames, headless and cross-origin isolated: a
+single ask decodes **byte-identical to the encoder's input**, a fill returns **12/12 all
+byte-identical in 113 ms**, a cancel leaves the session serving, the stamps crossing two worker
+boundaries are non-zero and in order, and a session opened after a closure serves frames again.
+Mutation-checked both ways — one perturbed sample turns every `sha` line to `MISMATCH`, and
+dropping every fifth frame makes the fill report 9/12.
+
+**What it owes, and why D3 can start anyway.** S1's clauses do not yet drive this arm: they run in
+Node against a fake `WebTransport`, and the downloader dials inside its own worker, so the fake has
+to be installed *there* and driven from the page. `config.transport` — a module URL exporting
+`TransportSession` — is in place as the hook, so the remaining work is a conformance runner that
+supplies a fake transport module and a control path to it (a `BroadcastChannel` reaches into a
+worker on the same origin). That is a self-contained row and could be its own.
+
+**Three things are implemented and asserted by nothing**, so D2 claims none of them: the ordering
+of the two priorities under contention, the two-outstanding-per-decoder dispatch bound, and sign
+extension — which cannot be asserted at all until there is a signed fixture (§Blocked).
+
+**Useful to D3 and D4:** a real study is easy to make here — `pack-study` over
+`lab/fixtures/decode_c512` frames renamed `NNN.htj2k` — and headless Chromium speaks WebTransport
+to `exact-server` with the dev cert hash and no extra flags. The smoke study's frames are ASCII
+placeholders, so they cannot exercise decode; use a packed one.
 
 ## Blocked
 
