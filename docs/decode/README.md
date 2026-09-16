@@ -116,6 +116,10 @@ It does cost memory, and the two profiles want different answers:
 
 Growth is geometric, so 24.6 MB is an upper bound on what an 8 MB frame demands, not the demand.
 
+Both figures are reproduced by the retention bench's copy-out arms, and both hold **only while the
+pixels leave the heap**: a viewer that keeps them inside it turns the 4 MB floor into the worst of
+the builds measured, not the best. §Retention, measured.
+
 ### What adopting it costs
 
 The build is smaller, not larger — 299,838 bytes of `.wasm` + `.js` against the package's 358,022,
@@ -249,6 +253,81 @@ two-arm claim measured somewhere else, so it is a failure to reproduce rather th
 and a container cannot adjudicate a millisecond. It does mean the pairing should not be quoted as
 settled in either direction.
 
+## Retention, measured
+
+Every section above releases each frame, so each prices a decoder. A viewer keeps what it decoded,
+and that was expected to flip the copy comparison: copying out holds the decoder heaps *plus*
+every retained buffer, while keeping the pixels where they were decoded holds the heaps alone.
+
+**It does not flip. Copying out is smaller — in all three series, on both builds, at every pool
+size.** `lab/decode-bench/retained/` holds every frame of a series to the end and weighs three
+places to keep it, in headless Chromium because
+`performance.measureUserAgentSpecificMemory()` is the only instrument that counts a WASM heap, a
+plain `ArrayBuffer` and a `SharedArrayBuffer` on one scale. It was validated before it was used:
+256 MB allocated in a worker reads as +256 MB for each of the three, and dropping the reference
+reads as −256 MB, so it collects before it counts. Frame counts are the lane's: 87 × 512×512
+colour, 237 × 512×512 16-bit, 64 × 2048×2048 16-bit.
+
+Total renderer memory at the end of the series, one instance, MB — the number a viewer lives with:
+
+| series | pixels held | copy out, 4 MB build | copy out, package | keep in heap, package | keep in heap, 4 MB build |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 87 × 768 KB | 65.2 | **108.4** | 152.7 | 161.9 | 517.4 |
+| 237 × 512 KB | 118.5 | **217.1** | 263.2 | 310.0 | 1080.7 |
+| 64 × 8 MB | 512.0 | **938.7** | 964.2 | 1329.8 | 2042.4 |
+
+Keeping costs 1.42–1.49× the best arrangement on the package build and **2.18–4.78× on the 4 MB
+build**. Every retained frame was checked against the `.sha256` the generator wrote from the
+encoder's input: 0 mismatches across 120 cells.
+
+**Why keeping loses, and it is not the pixels.** A retained decoder holds its `encoded_` vector as
+well as its `decoded_` one, so arrangement 3 keeps every codestream too — 35.5, 92.8 and 400.4 MB
+per series. Even measured against that larger floor the heap is not tight, and **WASM memory never
+shrinks**, so a heap holds its high-water mark for the life of the instance and every transient
+allocation the decoder made along the way is kept forever:
+
+| series | what the retained decoders hold | package heap | 4 MB build heap |
+| --- | ---: | ---: | ---: |
+| 87 × 768 KB | 100.7 MB | 120–200 MB (1.19–1.99×) | 463–513 MB (**4.60–5.10×**) |
+| 237 × 512 KB | 211.3 MB | 215–259 MB (1.02–1.23×) | 967–1044 MB (**4.58–4.94×**) |
+| 64 × 8 MB | 912.4 MB | 928–1116 MB (1.02–1.22×) | 1589–1723 MB (1.74–1.89×) |
+
+The build that starts at 4 MB has to grow its heap by two orders of magnitude across a series and
+ends up carrying four to five times what it holds; the one that starts at 50 MB starts above most
+of the demand and stays within a quarter of it. Which is the reverse of §Where to put the floor —
+and does not overturn it, because the arrangement that provokes it is the one to avoid.
+
+**The floor stands, for a viewer that copies out.** In the copy-out arms the decoder is deleted per
+frame and the heap holds only transients: 4.0 MB on the 237 × 512×512 series and 24.6 MB on the
+64 × 2048×2048 one, reproducing the ladder in §Where to put the floor exactly, against the
+package's fixed 50 MB. The two decisions are coupled: **the 4 MB floor is right if and only if the
+pixels leave the heap.**
+
+**Pool size costs each instance its floor**, and that is nearly all it costs. Copying out, each
+extra instance adds **+50.9 MB on the package build in every series** — its initial heap, paid
+whether or not it is used — against +6.6, +4.8 and +25.3 MB on the 4 MB build, the last rising
+because a 2048×2048 decode's transient working set is larger. This is the pool-sizing lever §Where
+to put the floor names, measured with frames retained rather than released.
+
+**A `SharedArrayBuffer` costs nothing.** Arrangements 1 and 2 are within 0.1 MB of each other in
+every one of the 72 cells that compare them, so the shared-memory variant is free on this axis
+whatever it costs elsewhere (§Shared memory, measured). **Reusing one decoder object rather than
+creating one per frame costs 1.2, 0.8 and 12.5 MB** per instance — one live `decoded_` plus
+`encoded_` that is never released — always in the same direction, never large.
+
+**The check, and the mutant.** An arrangement that keeps a frame the next decode overwrote is the
+failure this lane most needs to catch, and it is invisible in the memory numbers — it looks like a
+win. `mutate=heap-reused` makes the retained arrangement reuse one decoder so every frame aliases
+the last: it reports **`MISMATCH ×86` of 87** frames, the last being genuinely correct, with memory
+collapsing from 476 MB to 3.0 MB. The copy-out arms in the same run stay clean, so the mutant is
+targeted and the ground-truth check is what stands between this table and a fiction.
+
+**What this is not.** Container-measured in headless Chromium 141 on 4 vCPU; peak host use was
+3.3 GB. Memory, not time — the millisecond column is not quoted and the arms are not interleaved,
+because nothing here is a timing claim. Nothing has been measured on a phone, which is where the
+memory question is finally settled. The fixtures are the synthetic ones §What these numbers are
+not describes, so the codestream totals above are theirs and not a real series'.
+
 ## Threads: not buildable from this release
 
 The question was one multithreaded instance at N threads against N single-threaded ones. It cannot
@@ -292,10 +371,11 @@ A test that cannot fail is worth reporting as loudly as one that does.
   figures, the byte-exactness and the build-flag findings are not timing and are safe.
 * **Nothing has been measured on a phone**, which is the target and the only place the memory
   question is finally settled.
-* **Retention is not measured.** Every bench here releases each frame, so it measures a decoder
-  and not a viewer. A pipeline that holds frames changes the sign of the copy comparison: copying
-  holds the heap *plus* every retained buffer, keeping holds one heap. The 86 MB retained figure
-  this file used to carry has not been reproduced and is not quoted.
+* **Retention is measured now, and the expectation above was wrong** (§Retention, measured). It
+  said a pipeline that holds frames changes the sign of the copy comparison. It does not: copying
+  out is smaller in all three series and on both builds, because a WASM heap never shrinks and a
+  retained decoder holds its codestream as well as its pixels. The 86 MB retained figure this file
+  used to carry is still not reproduced and still not quoted.
 * **The clamp is not exercised by the organic fixtures.** None of them reaches its ceiling, so a
   mutant that clamped one count low passed all six. `sat256` is a full-range ramp that hits exactly
   0 and exactly 65535 and does catch it; §Ground truth has the rest.
@@ -307,8 +387,9 @@ A test that cannot fail is worth reporting as loudly as one that does.
 
 ## Open
 
-* **Retained-frame residency**, which is the viewer's question rather than the decoder's.
 * **Anything on a phone.**
+
+Retained-frame residency was open here until 2026-09-16 and is now §Retention, measured.
 
 ## The BYOB read path
 
