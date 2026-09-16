@@ -68,9 +68,13 @@ if (ours.getSIMDLevel() !== 1) {
   bad++;
 }
 
-console.log('\n  fixture   frames   bytes vs package   bytes vs encoder   surface');
+console.log('\n  fixture   frames   samples            bytes vs package   bytes vs encoder   surface');
+const covered = new Set();
 for (const dir of dirs) {
-  const { frames, truth, name } = loadFixture(dir);
+  const { frames, truth, name, meta } = loadFixture(dir);
+  const bits = meta.bitsPerSample ?? (meta.maxValue > 255 ? 16 : 8);
+  const kind = `${bits}-bit ${meta.signed ? 'signed' : 'unsigned'} x${meta.channels ?? '?'}`;
+  covered.add(kind);
   let pixelDiff = 0, truthDiff = 0;
   const surfaceDiff = new Set();
   for (let i = 0; i < frames.length; i++) {
@@ -82,12 +86,14 @@ for (const dir of dirs) {
   }
   const ok = (n) => (n === 0 ? `${frames.length}/${frames.length} identical` : `${n} DIFFER`);
   console.log(
-    `  ${name.replace('decode_', '').padEnd(8)} ${String(frames.length).padStart(5)}   ` +
+    `  ${name.replace('decode_', '').padEnd(8)} ${String(frames.length).padStart(5)}   ${kind.padEnd(18)} ` +
       `${ok(pixelDiff).padEnd(18)} ${ok(truthDiff).padEnd(18)} ` +
       `${surfaceDiff.size ? [...surfaceDiff].join('; ') : 'identical'}`
   );
   bad += pixelDiff + truthDiff + surfaceDiff.size;
 }
 
-console.log(bad ? `\nPARITY FAILED: ${bad} difference(s)` : '\nPARITY OK: same surface, same bytes, on every frame');
+// A parity claim is only as wide as the fixtures it ran on; say which those were.
+console.log(`\ncovers: ${[...covered].join(', ')}${covered.size && ![...covered].some((k) => k.includes('signed ')) ? ' — no signed fixture: run gen_htj2k_fixtures.sh s512 s12' : ''}`);
+console.log(bad ? `PARITY FAILED: ${bad} difference(s)` : 'PARITY OK: same surface, same bytes, on every frame');
 process.exit(bad ? 1 : 0);

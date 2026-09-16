@@ -67,7 +67,10 @@ class HTJ2KDecoder {
 
     const uint32_t comps = frame_.componentCount, w = frame_.width, h = frame_.height;
     const uint32_t wide = frame_.bitsPerSample > 8 ? 2 : 1;
-    const int32_t top = (int32_t)((1u << frame_.bitsPerSample) - 1);
+    // A signed component's range is centred on zero; the clamp must not saturate its negatives.
+    const int32_t half = (int32_t)(1u << (frame_.bitsPerSample - 1));
+    const int32_t lo = frame_.isSigned ? -half : 0;
+    const int32_t top = frame_.isSigned ? half - 1 : 2 * half - 1;
     decoded_.assign((size_t)w * h * comps * wide, 0);
 
     for (uint32_t y = 0; y < h; ++y) {
@@ -78,7 +81,7 @@ class HTJ2KDecoder {
         uint8_t* dst = decoded_.data() + (size_t)y * w * comps * wide + (size_t)got * wide;
         for (uint32_t x = 0; x < w; ++x, dst += (size_t)comps * wide) {
           int32_t v = src[x];
-          v = v < 0 ? 0 : (v > top ? top : v);
+          v = v < lo ? lo : (v > top ? top : v);
           dst[0] = (uint8_t)(v & 0xff);
           if (wide == 2) dst[1] = (uint8_t)((v >> 8) & 0xff);
         }

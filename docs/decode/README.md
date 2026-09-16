@@ -88,6 +88,14 @@ against each other **and** against the encoder's input, plus every getter the su
 the package, byte-identical to the encoder's input, and identical on every getter.** Both report
 `getVersion() = 0.31.0` and `getSIMDLevel() = 1`, so the SIMD path is not silently lost.
 
+**That claim covered unsigned data only, and on signed data the build was wrong** (2026-09-16, F1;
+§Ground truth, *Signed*). Its wrapper clamped every component to `[0, 2^B − 1]` regardless of the
+sign flag, so a signed component's negatives saturated to 0 — while the package decoded them
+correctly. Fixed in `htj2k_decoder.cpp` (the clamp is `[−2^(B−1), 2^(B−1) − 1]` when signed) and
+re-run: **87 frames of 16-bit signed and 87 of 12-bit signed, byte-identical to the package and to
+the encoder's input.** `parity.mjs` now prints what its fixtures cover, and says so when no signed
+set is among them.
+
 ### Where to put the floor
 
 Six builds on one ladder, interleaved and rotated — measured one after another they would be the
@@ -364,6 +372,40 @@ gap in the fixtures, not in the check: no organic fixture contains a sample at i
 clamp is dead code for all of them. `sat256` was added for that, a full-range ramp reaching exactly
 0 and exactly 65535; against it the same mutant fails on 87 of 87 frames and the good build passes.
 A test that cannot fail is worth reporting as loudly as one that does.
+
+### Signed
+
+Signed 16-bit is ordinary CT data and until 2026-09-16 no fixture could exercise it: the encoder's
+own `-signed true` path saturates negatives before coding, so nothing it produced was ground truth.
+The fixture is made the other way round — encoded unsigned, then the sign bit of each component's
+`Ssiz` set in the SIZ marker (`lab/scripts/sign_htj2k.py`). JPEG 2000 level-shifts an unsigned
+component by 2^(B−1) before coding and a signed one not at all, so the same coded bits read as
+signed must decode to `v − 2^(B−1)`. An **independent** decoder settled whether they do:
+OpenJPEG 2.5's `opj_decompress` on a flipped 16-bit frame gives exactly `v − 32768` (range
+−21975 … 21863 for an input of 10793 … 54631), and on a flipped 12-bit frame exactly `v − 2048`,
+written as 12-bit two's complement in 16-bit containers (its raw writer does not sign-extend;
+extending it gives the same samples). OpenJPH's own `ojph_expand` agrees on both, sign-extended.
+The `.sha256` beside each signed frame is of the sign-extended little-endian int16 samples the
+decoder must emit, computed from the encoder's input.
+
+Against that truth: **the package decodes both signed sets byte for byte, and already
+sign-extends 12-bit samples into int16** — `getFrameInfo()` reports `bitsPerSample: 12,
+isSigned: true` and the samples come back −1500 … 952, not 12-bit two's complement. So the
+downloader's own sign-extension pass (`client/downloader/decoder.js`, `finish`) is idempotent on
+this decoder's output rather than load-bearing. **The build in `wasm/` was wrong**: its output on
+both signed sets was the truth with every negative clamped to 0, and the cause was the wrapper's
+clamp, not OpenJPH. Fixed, both sets are 87/87 identical to the package and to the truth.
+
+Two mutants. The unfixed build against the signed sets is one: it passed every unsigned set and
+failed both signed ones, which is what the earlier 609-frame claim could not see. The other is the
+truth itself: a level shift off by one in `sign_htj2k.py` fails parity's *bytes vs encoder* column
+on a signed frame while *bytes vs package* stays identical — the two columns fail independently,
+which is the point of having both.
+
+What this corrects: `cloud-queue.md` §Blocked recorded that the package saturates negatives to
+32767 and the source build does not. That was read off codestreams the encoder's `-signed true`
+path had already damaged; with a valid signed codestream and an independent truth it is the other
+way round, and now neither is wrong.
 
 ## What these numbers are not
 

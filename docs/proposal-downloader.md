@@ -126,7 +126,7 @@ D2–D3 built: "on the downloader arm" is `client/conformance/run_downloader.sh`
 | an ask during a fill, served before the fill's queue | `client/conformance/ask-during-fill.html` against a real server, **in the gate** (D1r): the ask is served mid-fill, the fill ends — 28 of 120 arrive, then nothing — and the rest arrive only once asked again, which the raw client does not do by itself; server `a_data_request_during_a_fill_ends_it_and_is_served_next`, `request_frame_during_fill_switches_to_on_demand` | the same page, `arm=downloader`: the ask is served and the fill completes without being asked again, no frame twice — D3's re-issue on the real wire; dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill`, `asksTheWireForAnOwedFrame`, `reissuesAfterAsk`; priced at 10 %, 50 % and 90 % in §Results |
 | a session opened at load, first ask served without a dial | conformance **`oneDialServesLaterAsks`** *(new)* | conformance `oneDialServesLaterAsks` on the downloader arm |
 | re-dial after closure | conformance **`redialsAfterClosure`** *(new)* | conformance `redialsAfterClosure` on the downloader arm, and the redial branch of `noticesClose` |
-| 8-bit multi-component, 16-bit unsigned, 16-bit signed with sign extension | `parity.mjs` covers 8-bit 3-component and 16-bit unsigned over 388 frames. **Signed is untestable today** — see §S1 results | 8-bit 3-component: `downloader.html`, byte-identical (D2). 16-bit unsigned: the decoder is `parity.mjs`'s, not re-run behind the downloader. **Signed: untestable** (§Blocked; F1, queue row 22) |
+| 8-bit multi-component, 16-bit unsigned, 16-bit signed with sign extension | `parity.mjs` covers 8-bit 3-component and 16-bit unsigned over 388 frames, and since F1 **16-bit signed and 12-bit signed, 87 frames each**, against ground truth an independent decoder confirmed (`docs/decode/README.md` §Ground truth, *Signed*); the source build's signed clamp was wrong and is fixed | 8-bit 3-component: `downloader.html`, byte-identical (D2). 16-bit unsigned and signed: the decoder the downloader runs is the package, which `parity.mjs` proves on all of them and which sign-extends 12-in-16 itself, so `decoder.js`'s `finish` is idempotent on it. Not yet run *behind* the downloader on a signed study — the harness decodes c512 only |
 | every decoded frame byte-identical to the fixture's `.sha256` | `parity.mjs` (388 frames), `lab/decode-bench/retained/` (120 cells), `decode_bench.mjs` | `downloader.html`: single ask and a 12-frame fill, every frame against the encoder's input; mutation-checked both ways (D2) |
 | both clients, TS and WASM, behind the same downloader | every conformance clause runs against both arms — **but only when `client/transport-wasm/pkg/` exists**; otherwise one arm is skipped and the gate still passes (`cloud-queue.md` §Blocked) | **not shown** — every downloader run so far is over the TS transport (`config.transport` default). The WASM pkg exports `TransportSessionHandle`, not `TransportSession`, so the seam needs a one-line adapter module before the WASM arm can be run behind it |
 
@@ -154,16 +154,14 @@ and the same mutant found it.
   runs it in CI, so the row rests on a manual step.
 * **An ask during a fill** is proven on the server and nowhere on the client. L16 measures what it
   costs; no test asserts the client gets it.
-* **16-bit signed cannot be tested at all today.** There is no signed fixture, the generator has no
-  signed mode, and one cannot be made with the encoder in this tree: `ojph_compress -signed true`
-  over its raw reader does not survive its own `ojph_expand` — every negative sample saturates to
-  the bottom of the range, at 12- and 16-bit alike, in-range data included. So there is no ground
-  truth to test a decoder against, and **no claim is made here about how either decoder handles
-  signed data**. What is measurable without ground truth: the package build and
-  `lab/decode-bench/wasm` **disagree** on the same signed codestream — the package saturates every
-  negative sample to 32767, the source build does not — so `parity.mjs`'s byte-identical result
-  covers unsigned data only. Getting this row green needs a signed fixture from a source other
-  than this encoder path.
+* **16-bit signed could not be tested that morning** — no signed fixture, and none makeable with
+  the encoder's `-signed true` path, which saturates negatives before coding. **F1 closed it the same
+  day:** the fixture is made by encoding unsigned and setting the sign bit in SIZ, with ground truth
+  an independent decoder confirmed (`docs/decode/README.md` §Ground truth, *Signed*). The
+  disagreement recorded here at the time — "the package saturates negatives, the source build does
+  not" — was read off codestreams the encoder had already damaged and was the wrong way round: the
+  package was right, the source build's clamp was wrong, and is fixed. `parity.mjs` now says what it
+  covers.
 
 ## Stages
 
