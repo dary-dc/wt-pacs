@@ -43,7 +43,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
-| 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | ready |
+| 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | claimed 2026-09-16 |
 | 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | ready |
 | 14 | **L18** — what the BYOB read path allocates | lanes §L18 | ready |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
