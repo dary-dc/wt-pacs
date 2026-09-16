@@ -41,10 +41,10 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
-| 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 20 |
+| 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | ready |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
 | 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | **done** `09fcf32` on `claude/downloader-s2-worker` — 35 checks green, in the gate |
-| 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | claimed 2026-09-16 |
+| 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | **done** `2ca9886` on `claude/downloader-s2-worker` — 9 checks green, in the gate |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | ready |
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
@@ -282,6 +282,20 @@ downloader clause holds delivered-buffer semantics (movable, no sibling coupling
 ask-before-fill ordering under forced contention, and the two-outstanding-per-decoder bound. Both
 need a *slow* decoder to force the contention (the conformance arm runs `decode:false`, so a D2c
 clause must install a decoder that stalls), not luck; write them as clauses over the same rig.
+
+**D2c is done** (2026-09-16, `2ca9886` on `claude/downloader-s2-worker`), and it went its own file,
+not the conformance rig: the rig hides the internal stamps D2c reads. `dispatch-rig.ts` drives the
+downloader against `fake-decoder.js` — a decoder that stalls each decode, so the queue backs up on
+purpose — and reads back the order each frame started (`decodeSeq`) and the most a decoder held at
+once (`maxInFlight`). **9 checks green in the gate**, three clauses: a fresh ask starts right after
+the frames in flight and before the queued fill; an ask for a frame *already* in the fill is
+promoted (not re-asked, `promote()` — the bit L16 flagged); and no decoder holds more than
+`perDecoder`, shown with one decoder and per-decoder with two. Mutation-checked: a fill-first queue,
+a no-op `promote()`, and a raised outstanding cap each fail their clauses by name. This needed a new
+`config.decoderWorker` seam (a decoder analogue of `config.transport`), and the page-side channel
+client moved to `worker-fake.ts`, shared with the D2b rig. **D3 inherits the seam** — the same fake
+decoder can hold frames while a re-issued fill is checked. The one row still unasserted is sign
+extension, blocked on a signed fixture (§Blocked, row 22).
 
 **Three things are implemented and asserted by nothing**, so D2 claims none of them: the ordering
 of the two priorities under contention, the two-outstanding-per-decoder dispatch bound, and sign
