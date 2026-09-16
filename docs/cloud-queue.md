@@ -36,7 +36,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | # | what | brief | state |
 | --- | --- | --- | --- |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
-| 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | ready |
+| 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | claimed 2026-09-16 |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | after 15 |
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 16 |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
