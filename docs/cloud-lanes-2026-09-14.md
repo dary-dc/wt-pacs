@@ -536,9 +536,13 @@ candidate for the workstation; anything less is a tie.
 **Container, headless Chromium. Counts, not timing.**
 
 ```
-The default read path copies each chunk into one receive buffer it reuses; the byob feature
-reads each frame into a buffer allocated for that frame. On a phone allocation churn is a
-cost in its own right, whatever it does to the clock. Count it.
+Both read paths hand on a buffer allocated for each frame: the default path copies the frame
+out of WASM memory into a fresh Uint8Array (js_buffer_from), and byob reads straight into
+one. What differs is before that: the default reader gets every read as a new chunk the
+browser allocated, and copies it into a reused receive buffer in WASM memory; byob fills one
+caller-owned buffer across its reads. So byob may allocate less, not more — the workstation
+assumed the opposite without counting. On a phone churn is a cost in its own right, whatever
+it does to the clock. Count it.
 
 Over a 237-frame fill, default against byob against byob-min: garbage collections
 (--js-flags=--trace-gc), bytes allocated, and the page's JS heap high-water, per fill and per
