@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>retained frames — what a viewer that keeps them costs</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>retained frames</h1>
+  <p>
+    Every bench in <code>docs/decode/</code> releases each frame, so it measures a decoder.
+    This holds every frame of the series to the end, which is what a viewer does.
+    Query: <code>series</code>, <code>build</code>, <code>pools</code>,
+    <code>mutate=heap-reused</code>.
+  </p>
+  <div id="log"></div>
+  <script type="module" src="./bench.js"></script>
+</body>
+</html>
