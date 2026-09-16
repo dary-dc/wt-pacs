@@ -28,7 +28,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | # | what | brief | state |
 | --- | --- | --- | --- |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
-| 9 | **L13** — what a thread hop costs a frame | lanes §L13 | claimed 2026-09-16 |
+| 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | ready |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | ready |
 | 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | ready |
@@ -134,6 +134,28 @@ taking the whole gate down with it. Per-step timings and the mutation table:
 [`improvements/2026-09-16.md`](improvements/2026-09-16.md). Two caveats for rows 8–14: the gate
 covers **one arm of two** unless the WASM pkg is built first (see §Blocked), and a fresh container
 has no `node_modules` — `client/transport-ts/build.sh` runs `npm install` itself, 1.9 s.
+
+**A copy costs far more than a hop** (2026-09-16, from L13). The relay through the receive worker
+is ~0.1–0.2 ms while that worker is quiet; a *cloned* 8 MB frame costs the page's main thread
+**1.34 s per 237-frame burst against 17 ms transferred**. Anything downstream that moves frames
+between threads should list the buffer, and **L14** should read this first: its arrangement 1
+(copied out to a plain ArrayBuffer) is this repo's default and the expensive arm here, so L14's
+memory answer and this latency answer may point the same way or oppose each other — say which.
+
+**Two cautions for any browser lane here** (from L13). `performance.now()` is **5 µs** under
+cross-origin isolation, so a one-tick difference is quantisation, not a finding — this nearly
+produced two wrong answers in L13. And each context has its own `performance.timeOrigin` (48.8 ms
+apart here), so only `timeOrigin + now()` compares across threads. **L18** counts allocations
+rather than time and is not exposed to either, but **L14** and **L15** are.
+
+**Headless Chromium works in this container, with two fixes** (2026-09-16, from L13).
+`npm install -g playwright` (1.9 s) then `NODE_PATH="$(npm root -g)"`; its pinned build (1243) is
+not the one installed (1194), so pass
+`executablePath=/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — `lab/thread-hops/run.mjs`
+reads it from `CHROME_PATH`. `server/dev-server.py` already sends COOP/COEP, so
+`crossOriginIsolated` is true and `SharedArrayBuffer` works. Chromium reaches for
+`www.google.com` on start-up and the proxy denies it; harmless, silenced with
+`--disable-background-networking`. This clears the way for **L14**, **L15** and **L18**.
 
 ## Blocked
 
