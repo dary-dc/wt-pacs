@@ -42,7 +42,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
-| 11 | **L15** — how long an idle browser session survives | lanes §L15 | claimed 2026-09-16 |
+| 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
 | 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | ready |
 | 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | ready |
 | 14 | **L18** — what the BYOB read path allocates | lanes §L18 | ready |
@@ -231,6 +231,23 @@ extension — which cannot be asserted at all until there is a signed fixture (�
 `lab/fixtures/decode_c512` frames renamed `NNN.htj2k` — and headless Chromium speaks WebTransport
 to `exact-server` with the dev cert hash and no extra flags. The smoke study's frames are ASCII
 placeholders, so they cannot exercise decode; use a packed one.
+
+**Chromium advertises 30 s and then keeps the session alive itself** (2026-09-16, from L15). The
+ADR's assumption was right — `max_idle_timeout 30000` in the parameters it sends — but it is not
+idle: over a 45 s hold it sends a 29-byte ping at **15.0, 30.0 and 45.0 s**, each drawing a server
+ACK, which restarts the idle timer at both ends. **A browser session survives 180 s of silence with
+server keep-alive off**, given the recommended 60 s timeout. The ADR is corrected in place; its
+status is untouched. Keep-alive still matters below ~15 s — the ADR's 5 s cell reproduces with a
+real browser.
+
+Relevant to **L16** and **D2/D3**: a session left open between asks stays up on its own, so a
+viewer that dials early and asks late needs nothing from the server to survive the gap.
+
+**A trap this container makes easy** (from L15). A backgrounded script of mine restarted the server
+mid-hold and produced a clean-looking "45 s → dead" that was nothing of the kind. Any lane that
+restarts `exact-server` between arms should check the flags on the running process before and after
+each arm, and keep a control that is *expected* to die — a 5 s idle timeout here — so a rig that
+cannot observe the failure is caught rather than believed.
 
 ## Blocked
 
