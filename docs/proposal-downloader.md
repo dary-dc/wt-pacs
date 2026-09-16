@@ -110,23 +110,25 @@ today's path; Stage 4 fills the last.
 Stage 1 filled the middle column on 2026-09-16. **conformance** is `client/conformance/run.mjs`,
 which runs every clause against both implementations and is in `scripts/gate.sh`; **server** is
 `cargo test -p exact-server`. Clauses marked *new* were written for this stage and are
-mutation-checked — §S1 results below.
+mutation-checked — §S1 results below. Stage 4 filled the last column the same day, from what
+D2–D3 built: "on the downloader arm" is `client/conformance/run_downloader.sh`, "dispatch" is
+`run_dispatch.sh`, both in the gate. Two rows are **not shown** on the new path and say so.
 
 | capability | today | downloader |
 | --- | --- | --- |
-| connect, single ask, fill; shared and per-frame stream modes | conformance `workerSafe`, `cancellable`, **`bothStreamModes`** *(new)*; server `stream_frames_range_arrives_in_order`, `a_batch_arrives_whole_and_in_ask_order` | |
-| a fill cancelled mid-way, the session still serving afterwards | conformance `cancellable` — incl. "the session still serves a frame after a cancel"; server `end_stream_stops_a_fill_on_the_wire` | |
-| a closed session noticed at once, waiters failed | conformance `noticesClose` | |
-| a frame on a live session still owed its full timeout | conformance `noticesClose`, last check | |
-| refusals delivered, none lost (`client/harness/refusals.html`) | **browser page, not in the gate** — server side covered by `a_bad_range_is_refused_with_from`, `an_empty_study_is_refused_with_from`, `fod_len_zero_and_huge_are_refused_before_allocation` | |
-| worker-safe clocks; transferable results | conformance `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | |
-| `stats` | conformance **`reportsStats`** *(new)* | |
-| an ask during a fill, served before the fill's queue | **server only** — `a_data_request_during_a_fill_ends_it_and_is_served_next`, `request_frame_during_fill_switches_to_on_demand`; no client-side test | |
-| a session opened at load, first ask served without a dial | conformance **`oneDialServesLaterAsks`** *(new)* | |
-| re-dial after closure | conformance **`redialsAfterClosure`** *(new)* | |
-| 8-bit multi-component, 16-bit unsigned, 16-bit signed with sign extension | `parity.mjs` covers 8-bit 3-component and 16-bit unsigned over 388 frames. **Signed is untestable today** — see §S1 results | |
-| every decoded frame byte-identical to the fixture's `.sha256` | `parity.mjs` (388 frames), `lab/decode-bench/retained/` (120 cells), `decode_bench.mjs` | |
-| both clients, TS and WASM, behind the same downloader | every conformance clause runs against both arms — **but only when `client/transport-wasm/pkg/` exists**; otherwise one arm is skipped and the gate still passes (`cloud-queue.md` §Blocked) | |
+| connect, single ask, fill; shared and per-frame stream modes | conformance `workerSafe`, `cancellable`, **`bothStreamModes`** *(new)*; server `stream_frames_range_arrives_in_order`, `a_batch_arrives_whole_and_in_ask_order` | conformance `workerSafe`, `cancellable`, `bothStreamModes`, **`pushedFill`** on the downloader arm (D2b, D3); `client/harness/downloader.html` against the real server, 12/12 byte-identical (D2) |
+| a fill cancelled mid-way, the session still serving afterwards | conformance `cancellable` — incl. "the session still serves a frame after a cancel"; server `end_stream_stops_a_fill_on_the_wire` | conformance `cancellable` on the downloader arm; the harness's "cancel: the session still serves frame 5" (D2) |
+| a closed session noticed at once, waiters failed | conformance `noticesClose` | conformance `noticesClose` on the downloader arm — an in-flight ask is woken at once; an ask after the closure re-dials and is served (its own contract) |
+| a frame on a live session still owed its full timeout | conformance `noticesClose`, last check | conformance `noticesClose`, last check, on the downloader arm |
+| refusals delivered, none lost (`client/harness/refusals.html`) | **browser page, not in the gate** — server side covered by `a_bad_range_is_refused_with_from`, `an_empty_study_is_refused_with_from`, `fod_len_zero_and_huge_are_refused_before_allocation` | **not shown** — `onError` on a refused range is wired in both clients and asserted by nothing; the fake has no control-stream push. D1r (queue row 21) |
+| worker-safe clocks; transferable results | conformance `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | conformance `workerSafe`, `transferable` on the downloader arm: stamps that cross two worker boundaries are non-zero and ordered; a delivered buffer is movable and takes no sibling. Move-not-copy *across* the worker boundary is not page-observable (§S3 results) |
+| `stats` | conformance **`reportsStats`** *(new)* | conformance `reportsStats` on the downloader arm — answered on the page, no round trip |
+| an ask during a fill, served before the fill's queue | **server only** — `a_data_request_during_a_fill_ends_it_and_is_served_next`, `request_frame_during_fill_switches_to_on_demand`; no client-side test | dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill` (the decode queue, D2c) and `asksTheWireForAnOwedFrame`, `reissuesAfterAsk` (the wire, D3); priced at 10 %, 50 % and 90 % of a fill in §Results |
+| a session opened at load, first ask served without a dial | conformance **`oneDialServesLaterAsks`** *(new)* | conformance `oneDialServesLaterAsks` on the downloader arm |
+| re-dial after closure | conformance **`redialsAfterClosure`** *(new)* | conformance `redialsAfterClosure` on the downloader arm, and the redial branch of `noticesClose` |
+| 8-bit multi-component, 16-bit unsigned, 16-bit signed with sign extension | `parity.mjs` covers 8-bit 3-component and 16-bit unsigned over 388 frames. **Signed is untestable today** — see §S1 results | 8-bit 3-component: `downloader.html`, byte-identical (D2). 16-bit unsigned: the decoder is `parity.mjs`'s, not re-run behind the downloader. **Signed: untestable** (§Blocked; F1, queue row 22) |
+| every decoded frame byte-identical to the fixture's `.sha256` | `parity.mjs` (388 frames), `lab/decode-bench/retained/` (120 cells), `decode_bench.mjs` | `downloader.html`: single ask and a 12-frame fill, every frame against the encoder's input; mutation-checked both ways (D2) |
+| both clients, TS and WASM, behind the same downloader | every conformance clause runs against both arms — **but only when `client/transport-wasm/pkg/` exists**; otherwise one arm is skipped and the gate still passes (`cloud-queue.md` §Blocked) | **not shown** — every downloader run so far is over the TS transport (`config.transport` default). The WASM pkg exports `TransportSessionHandle`, not `TransportSession`, so the seam needs a one-line adapter module before the WASM arm can be run behind it |
 
 ### S1 results
 
@@ -304,4 +306,76 @@ sizing for a device.
 
 ## Results
 
-Empty until S4.
+**S4, 2026-09-16, container-measured** (`lab/downloader-campaign/`, its README says how). 4 cores,
+loopback, `exact-server` in shared mode over 87 real HTJ2K frames of 512×512×3 (c512, ~430 KB
+each). Three arms, one fresh session each, arm order rotated every round, **8 rounds**, 120 runs,
+no errors: **H**, today's harness path — the TS session on the page, the fill as a waiter per
+frame, `touch` on the bytes; **Dw**, the downloader with decode off — the same bytes delivered
+from its worker, the like-for-like comparison; **Dd**, the downloader decoding with three
+decoders, the product path — strictly more work, reported on its own. Median [min … max], and
+Dw's rounds-better out of 8 against H. Reported, not decided on: adoption is the workstation's
+browser campaign.
+
+**What is settled — three clean sweeps, ranges that do not overlap.** Over an 80-frame fill the
+page's main thread does **95 ms [85 … 128] of work on H against 14 ms [11 … 18] on Dw**, 8/8;
+the renderer collects **139 times [122 … 156] on H against 0 on Dw**, 8/8; the page's JS heap
+peaks at **59 MB [55 … 70] on H against 31 MB [27 … 33] on Dw**, 8/8. That is the offload the
+proposal argued for, priced: the frame parsing, the per-frame promise and its timer, and the
+garbage they make, leave the main thread.
+
+**What is a tie.** The fill itself: issue → last frame at the page, **233 ms [203 … 255] on H
+against 230 ms [193 … 278] on Dw**, 5/8 — the worker hop costs the fill nothing measurable, and
+gains it nothing. A cold ask: **4.98 ms [4.11 … 7.66] on H against 5.87 ms [5.23 … 8.04] on Dw**,
+2/8, ranges overlapping — the hop to the worker and back costs the single ask under a millisecond
+at the median, and this rig cannot resolve it further. The in-page handling of delivered bytes is
+under a millisecond per fill on every arm and at the clock floor.
+
+**An ask during a fill, at 10 %, 50 % and 90 %** (a fill of frames 0–79, the ask for frame 86):
+
+| | H | Dw | Dw better | Dd |
+| --- | --- | --- | --- | --- |
+| ask → delivered at 10 % (ms) | 40.6 [25.7 … 45.9] | 36.7 [28.7 … 45.0] | 4/8 | 77.5 [64.5 … 92.8] |
+| ask → delivered at 50 % (ms) | 36.1 [32.6 … 40.3] | 40.1 [33.8 … 49.9] | 1/8 | 41.1 [32.6 … 78.8] |
+| ask → delivered at 90 % (ms) | 36.2 [30.7 … 41.3] | **24.0 [22.8 … 27.8]** | **8/8** | 32.9 [29.9 … 38.2] |
+| fill frames delivered after an ask at 10 % | **23 [18 … 23]** of 80 | 80 | | 80 |
+| fill frames delivered after an ask at 50 % | **53 [52 … 53]** of 80 | 80 | | 80 |
+| fill frames delivered after an ask at 90 % | 80 | 80 | | 80 |
+| fill issue → last frame, ask at 10 % (ms) | 63 (dead) | 230 [200 … 241] | | 478 |
+| fill issue → last frame, ask at 50 % (ms) | 144 (dead) | 239 [200 … 275] | | 478 |
+
+On both arms the ask waits behind the frames already in flight, as L16 said it would — ~35–40 ms
+here, where the window holds some fifteen 430 KB frames — and at 10 % and 50 % the two arms are
+ties. At 90 % Dw is faster in every round with ranges that do not overlap; the likely mechanism
+is that on H the ask's own delivery competes with the fill's parsing on the one thread, and that is
+offered as a mechanism, not established. **What differs is the fill.** On H the server ends it and
+nothing re-issues it: 23 and 53 frames arrive, the rest never do, and the page holds waiters that
+would sit out 15 s. On Dw the downloader re-issues the remainder once the ask settles and the fill
+completes in the time a plain fill takes — 230 ms against 230, the re-issue itself costing nothing
+this rig can see.
+
+**The decode arm, on its own.** 80 frames decoded and delivered as pixels in **472 ms [435 …
+481]** — decode-bound: three decoders and everything else on 4 cores, so nothing about that
+number transfers to a device, and the arm is here to be measured, not compared. Its memory does
+transfer: **161.6 MB after a fill, 160.5 MB of it in the workers**, which is three decoders holding
+the package build's 50 MB link-time heap (L1) — the L8 build at its 4 MB floor would make that
+~12 MB. Its main-thread time is 33 ms [17 … 55], its page JS heap peak 1.7 MB (the pixels live in
+`SharedArrayBuffer`s the page never copies), and its 355 GCs [338 … 366] are in the decoder
+workers, not the page. A cold ask costs 39.6 ms [37.0 … 52.5], which is one decode. An ask during
+a fill at 10 % costs 77.5 ms: it waits, as designed, behind the two frames each decoder already
+holds (`perDecoder`, D2c) — a real cost of the dispatch bound, and the number to weigh it against.
+
+**Per frame, from the code — counted, not measured:**
+
+| | H | Dw | Dd |
+| --- | --- | --- | --- |
+| messages | 0 | 1 (worker → page) | 3 (compressed to a decoder; pixels to the page; `done` back) |
+| thread crossings of the frame | 0 | 1, a move | 2: compressed as a move, pixels shared |
+| copies of the frame's bytes | 1 (out of the stream chunk) | 1 (the same, in the worker) | 3 (out of the chunk; into the WASM heap; out of it into the `SharedArrayBuffer`) |
+| per-frame state on the page | a promise and a 15 s timer | none | none |
+| threads besides the page | 0 | 1 | 4 |
+
+**Not shown, and why.** The WASM transport behind the downloader has not been run
+(§Capabilities, last row). Refusals and signed data are not green on either path (rows 21, 22).
+The recorder does not see a pushed fill, so its per-frame telemetry is not what measured this —
+CDP did. And every millisecond above is loopback in a container: the window that the ask waits
+behind is this host's, and a long fat link holds more of it.
