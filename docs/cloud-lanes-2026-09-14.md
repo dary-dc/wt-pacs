@@ -1,8 +1,9 @@
 # Cloud lanes — 2026-09-14
 
-Seven **open questions** that need no access to the workstation they were scoped on. Each is a lane
-off this branch: one branch, one question, one report. The prompts below are meant to be handed to
-an agent as they stand.
+**Open questions** that need no access to the workstation they were scoped on: seven from
+2026-09-14, and seven more from 2026-09-16 in §Second round. Each is a lane off this branch:
+one branch, one question, one report. The prompts below are meant to be handed to an agent as
+they stand.
 
 **This document is questions, not delivery.** This repository is a laboratory for an application
 that consumes what it proves. Turning a proven result into a change in that application is a
@@ -336,6 +337,217 @@ If the overhead is below what this rig can resolve, say so and give the resoluti
 ```
 
 ---
+
+## Second round — 2026-09-16
+
+Seven more, all container lanes. Two rules on top of the ones above.
+
+**Nothing here changes the client's structure.** The path a frame takes from the socket to the
+page is being redesigned on the workstation, because it crosses more layers than its job needs.
+These lanes measure what that design has to choose between — what a thread hop costs, what
+retained frames cost, what an ask during a fill waits for — and build nothing a redesign would have
+to unpick. Where a lane finds a change worth making, it proposes it and stops.
+
+**The VM is not reachable from a container** (`docs/cloud-queue.md` §Blocked), so every millisecond
+below is container-measured: interleaved, relative to an arm run in the same round, and confirmed on
+the workstation before anyone decides on it. Memory, counts and correctness are not timing and stand
+as measured.
+
+| lane | question | kind |
+| --- | --- | --- |
+| **L12** | does the whole gate pass on this branch | correctness |
+| **L13** | what a thread hop costs a frame | relative time |
+| **L14** | what a viewer that keeps its frames costs in memory | memory |
+| **L15** | how long a browser's idle session survives | correctness |
+| **L16** | whether an ask can overtake a running fill | relative time |
+| **L17** | whether the decoder can be made faster | relative time |
+| **L18** | what the BYOB read path allocates | counts |
+
+## L12 — the whole gate, on this branch
+
+**Container. First, because every later lane pushes here.**
+
+```
+scripts/gate.sh has never completed on this branch. The workstation that pushed most of it
+has no npm, so the commits since main passed the Rust tests, the type-check and the comment
+budget in pieces — never together, and never the client bundles or the absence checks.
+
+Run scripts/gate.sh without --quick. The known wasm-opt download failure and its workaround
+are in docs/cloud-queue.md §Answers.
+
+For each step: pass or fail, and on failure the first error. Fix a failure when the fix is
+local — a stale import, a test asserting an old message, a bundle path. When the fix would
+change a design (a public surface, a wire format, how a module is split), do not make it:
+add it to docs/cloud-queue.md §Blocked with what you found, and carry on with the rest.
+
+Done when the gate passes end to end, or every remaining failure is in Blocked. Report the
+wall time of each step; a gate too slow to run before a push stops being run.
+```
+
+## L13 — what a thread hop costs a frame
+
+**Container, headless Chromium, relative.** Node's workers and structured clone are not the
+browser's, and this is a browser question.
+
+```
+A decoded frame in the pipeline under redesign crosses more threads than it has to. The
+receive worker hands the codestream to a decoder worker, the decoder hands the pixels back
+to the receive worker, the receive worker hands them to the page — and the page pulls each
+frame with a request message of its own, so a decoded frame waits in the receive worker
+until it is asked for. The redesign has to decide how many of those hops survive. Price them.
+
+Build a page under lab/ (not client/) with workers standing in for receive and decode. No
+transport and no decoder: post buffers of the decoded sizes below.
+
+Arms, per frame:
+  a. relay   decoder -> receive worker -> page, transferred at each hop (today's shape)
+  b. direct  decoder -> page over a MessagePort the receive worker handed out at setup,
+             transferred
+  c. shared  as b, the pixels in a SharedArrayBuffer, sent with no transfer list
+  d. cloned  as b, a plain ArrayBuffer with no transfer list — what a consumer pays when
+             it posts a frame to its own worker without listing it
+And for a and b: pull (the page asks per frame; the result waits for the ask) against push
+(posted as soon as it is ready).
+
+Sizes: 50 KB, 512 KB, 768 KB, 2 MB, 8 MB.
+Regimes: one frame with every thread idle; and a burst of 237 frames while the receive
+worker also handles a steady stream of small messages, standing in for its read loop.
+
+Report per frame, post to receipt: median, range, rounds better out of n, arm order rotated
+each round. And the page's main-thread time spent handling messages per 237-frame burst —
+that is the number the page lives with, more than latency.
+
+Serve the page cross-origin isolated (dev-server.py and deploy/nginx both send the headers)
+and assert crossOriginIsolated === true before arm c runs; an arm that silently falls back
+to a copy measures the wrong thing. Mutate: give arm c a transfer list and confirm the page
+fails; make arm b relay and confirm its numbers move to a's.
+
+Container-measured: report, do not recommend a shape. The workstation decides.
+```
+
+## L14 — what a viewer that keeps its frames costs in memory
+
+**Container. Memory, not timing, so it stands as measured.**
+
+```
+docs/decode/README.md §Open: every bench there releases each frame, so it measures a
+decoder, not a viewer. A viewer keeps what it has decoded, and that can flip the comparison:
+copying out holds the decoder heaps plus every retained buffer; keeping pixels where they
+were decoded holds the heaps alone. Nobody has measured which is smaller.
+
+Arrangements, each holding every frame of the series until the end:
+  1. copied out to a plain ArrayBuffer (today's default)
+  2. copied out to a SharedArrayBuffer (the shared-memory variant)
+  3. kept in the decoder's shared heap, each frame in its own allocation. If that needs a
+     change to the decoder's C++ surface, make it in lab/decode-bench/wasm/ only; if it
+     cannot be done cleanly, say so and drop the arm — a measured "not feasible" is a result.
+Crossed with: the package build against lab/decode-bench/wasm at its 4 MB floor; pools of
+1 to 4 instances; and a decoder object created and deleted per frame (what the consumer
+does today) against one reused per instance.
+
+Series, from lab/scripts/gen_htj2k_fixtures.sh: 87 x 512x512 8-bit colour, 237 x 512x512
+16-bit, 64 x 2048x2048 16-bit.
+
+Measure in headless Chromium, cross-origin isolated: performance.measureUserAgentSpecificMemory()
+and each worker's WASM memory size, peak and end of series — or the renderer's RSS if that
+API is unavailable headless; say which. Report the smallest arrangement per series, by how
+much, and what pool size does to each.
+
+Check every retained frame against the .sha256 ground truth at the end. An arrangement that
+keeps a frame the next decode overwrote is the failure this lane most needs to catch; mutate
+arrangement 3 to prove the check does.
+```
+
+## L15 — how long a browser's idle session survives
+
+**Container, headless Chromium. Correctness, not timing.**
+
+```
+docs/transport/adr-idle-sessions.md recommends a 20 s server keep-alive with a 60 s server
+idle timeout, and assumes the browser advertises 30 s. The effective timeout is the lower of
+the two ends, so that assumption decides whether the pair works, and it was never checked
+against a real browser. The ADR is waiting to be accepted; this is the evidence it lacks.
+
+1. Read what Chromium advertises: run it with --log-net-log and take max_idle_timeout from
+   the QUIC transport parameters it sends.
+2. Open a session from headless Chromium, send nothing, and hold it:
+     --max-idle-timeout-ms 60000, no keep-alive            -> when does it die, which end closes it?
+     --keep-alive-interval-ms 20000 --max-idle-timeout-ms 60000 -> alive after 180 s?
+   Alive means a frame requested after the hold arrives, not that the handle still exists.
+3. If Chromium does not advertise 30 s, say what pair you would recommend and why.
+
+Correct the ADR's assumption in place with what you found; leave its status alone. Loopback
+cannot show NAT rebinding, which is half of what keep-alive is for — say so rather than
+implying the pair covers it.
+```
+
+## L16 — whether an ask can overtake a running fill
+
+**Container, browser-free, relative.**
+
+```
+A viewer filling its cache in the background still has to paint what the user asks for now.
+When the user jumps to a frame the fill has not delivered, the ask goes out on its own
+stream while the fill's one ordered stream keeps sending, and with equal priorities the two
+share what the connection sends. Nobody has measured how long the ask waits.
+
+Branch feat/set-priority-per-frame (f85f8a6, 11 lines) orders stream priority by ask, in
+per-frame mode only. Read it first and say whether it bears on this case: the fill runs in
+shared mode.
+
+Use the native driver (server_ab, lab/disk-access-bench), extending it under lab/ if it
+cannot inject an ask mid-fill, on a synthetic series of at least 200 frames of about 250 KB:
+  a. equal priority (today)
+  b. the ask's stream above the fill's, behind a server flag
+  c. anything simpler you find that gets the same result
+Ask at 10 %, 50 % and 90 % of the fill. Per arm: ask -> last byte of the asked frame, and
+what the fill's own completion paid for it. Interleave; rotate the order.
+
+A loopback sender is CPU-bound where a real link is congestion-bound, so a tie here does not
+close the question — say that, and name the regime that would. Keep b behind its flag and
+propose; do not make it the default.
+```
+
+## L17 — whether the decoder can be made faster
+
+**Container, relative. An arm that is not byte-identical is not an arm.**
+
+```
+Every client decodes at the same speed because they run the same decoder with the same build:
+SIMD on, nothing else tuned. lab/decode-bench/wasm/build.sh reproduces it byte for byte, and
+it was built to match, not to be fast. During a fill the decode queue sets the finish, and
+more decoders is not an option on the target device, so time per frame is the lever left.
+
+Arms, against lab/decode-bench/wasm at its L8 settings:
+  - optimisation level, and LTO
+  - wasm-opt level
+  - a newer emscripten; a newer OpenJPH release tag
+  - one decoder object reused across frames, against one created and deleted per frame
+    (what the consumer does today) — not a build flag, and possibly the largest of these
+  - combinations of whatever wins alone
+Every arm passes parity.mjs against the .sha256 ground truth before it is timed. Report ms
+per frame per fixture size relative to the baseline, rounds better out of n, interleaved,
+with binary size and heap. Better by more than 5 % with non-overlapping ranges is a
+candidate for the workstation; anything less is a tie.
+```
+
+## L18 — what the BYOB read path allocates
+
+**Container, headless Chromium. Counts, not timing.**
+
+```
+The default read path copies each chunk into one receive buffer it reuses; the byob feature
+reads each frame into a buffer allocated for that frame. On a phone allocation churn is a
+cost in its own right, whatever it does to the clock. Count it.
+
+Over a 237-frame fill, default against byob against byob-min: garbage collections
+(--js-flags=--trace-gc), bytes allocated, and the page's JS heap high-water, per fill and per
+frame. Interleave; rotate.
+
+If byob's churn is material, write down what a free list would need — which thread hands a
+buffer back, and when — and stop. Do not build it: where a frame's buffer goes after decode
+is exactly what the pipeline redesign is deciding.
+```
 
 ## Not delegable
 

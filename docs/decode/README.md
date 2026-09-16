@@ -321,10 +321,12 @@ and is also a tie, because the receive stream already coalesces: reads per frame
 2.30 to 2.00 on a 49 KB frame and 4.70 to 2.00 on a 250 KB one.
 
 **Not adopted, for one reason.** The first frame of a session costs about 12 ms more on this path,
-reproduced across two independent campaigns, in the worse direction on 8 of 8 rounds with
-non-overlapping ranges. It is undiagnosed; the places to look are acquiring a BYOB reader on a
-fresh stream, and the first per-frame buffer allocation against a cold allocator. Until that is
-explained the path stays behind its feature.
+reproduced across three independent campaigns, in the worse direction on 8 of 8 rounds with
+non-overlapping ranges. **It is not acquiring the reader** (2026-09-15): with a reader per frame
+(`--stream-mode per-frame`) the median frame still ties and the cost stays on one frame per
+session. Left: the first per-frame buffer allocation against a cold allocator, and that the `byob`
+build is a separate WASM module whose first call pays its own compile. Until that is explained the
+path stays behind its feature.
 
 It is kept because adopting it would **delete** more than it adds: the default path needs a
 partial-frame state machine, a compaction heuristic and a reserve policy to reassemble frames from

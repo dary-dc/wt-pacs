@@ -27,6 +27,13 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
+| 8 | **L12** — the whole gate on this branch | lanes §L12 | ready |
+| 9 | **L13** — what a thread hop costs a frame | lanes §L13 | ready |
+| 10 | **L14** — what retained frames cost in memory | lanes §L14 | ready |
+| 11 | **L15** — how long an idle browser session survives | lanes §L15 | ready |
+| 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | ready |
+| 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | ready |
+| 14 | **L18** — what the BYOB read path allocates | lanes §L18 | ready |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 6 | **L3** — a lossy, rate-limited link | lanes §L3 | **not for cloud** — workstation lane; drives the VM over ssh |
 | 7 | **L7** — a regime where the read path misses | lanes §L7 | **not for cloud** — workstation lane; drives the VM over ssh |
@@ -38,6 +45,11 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | — | L8 a decoder built from source | lanes §L8 | done `82a13d9` |
 | — | L9 the conformance suite | lanes §L9 | done `4928b74` |
 | — | L10 what telemetry costs | lanes §L10 | done `c0197d4` |
+
+**Held, not queued** (2026-09-16): anything that changes the client's structure — the harness
+decode arm L11 proposed, a bounded fill with cancellation, the cache seam, paint. The path a frame
+takes to the page is being redesigned on the workstation; those are queued once that design is
+reviewed. Rows 8–14 measure what the design has to choose between and build nothing it would undo.
 
 ### L11 — decode in the harness
 
@@ -121,12 +133,13 @@ L7 — all say "needs the VM", and a cloud agent cannot get there:
 there: port 22 on the rig is open, and both `~/.ssh/id_ed25519_rig` and `id_ed25519_rig_agent` are
 present. So L2, L3 and L7 are workstation lanes, not cloud lanes, and the queue should stop
 offering them. L2 needs no VM at all — it is a browser timing claim, and the workstation is the
-timing rig every other number came from. Marked accordingly below; **a cloud agent should treat the
-queue as empty** and say so rather than reaching for them.
+timing rig every other number came from. Marked accordingly in the queue; a
+cloud agent skips them.
 
 The original diagnosis stands and is worth keeping: those three rows are `ready` in the sense that
 their briefs are complete, and unworkable in the
 sense that the only machine they can run on is not addressable from here. **What is needed:** either
 the agent key placed in the cloud environment *and* egress to port 22 opened, or those lanes run
 from the workstation. Nothing in this queue is a container lane any more — the four that were
-(L4, L5, L6, L11) are done or, for L11, proposed with its measurement complete.
+(L4, L5, L6, L11) are done or, for L11, proposed with its measurement complete. Rows 8–14, queued
+2026-09-16, are container lanes again.
