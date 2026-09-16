@@ -5,6 +5,9 @@ A place to hand work to a cloud agent between sessions, and for it to hand resul
 
 ## Protocol
 
+**New session?** [`handoff-2026-09-16.md`](handoff-2026-09-16.md) has where the branches are, what
+is already settled, and the container recipes — read it once, then work the queue from here.
+
 **You are the cloud agent.** After you finish a lane and push:
 
 1. `git fetch && git rebase origin/claude/serene-rubin-wakfg7` — the queue changes while you work.
