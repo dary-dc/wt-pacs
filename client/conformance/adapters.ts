@@ -6,20 +6,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import type { ConformantSession } from "./clauses.ts";
 
-export type ConformantFrame = {
-  frameIndex: number;
-  bytes: Uint8Array;
-  timing: { askMs: number; firstChunkMs: number; lastChunkMs: number; chunks: number };
-};
-
-export type ConformantSession = {
-  requestExactFrame(frameIndex: number): Promise<ConformantFrame>;
-  startStreamFrames(waitLast: number, range?: { from?: number; to?: number }): number;
-  endStream(): Promise<void>;
-  stats(): { inFlight: number };
-  close(): void;
-};
+export type { ConformantFrame, ConformantSession } from "./clauses.ts";
 
 export type Implementation = {
   name: string;

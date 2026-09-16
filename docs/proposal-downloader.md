@@ -192,12 +192,19 @@ Mutation-checked: perturbing one decoded sample turns every `sha` line to `MISMA
 every fifth frame makes the fill report 9/12. A decode arm whose ground-truth check does not fire
 is worth nothing, so both were run.
 
-**S2 is not done, and owes one thing: S1's clauses do not yet drive this arm.** They run in Node
-against a fake `WebTransport`; the downloader dials inside its own worker, so the fake has to be
-installed there and driven from the page. `config.transport` — a module URL exporting
-`TransportSession`, defaulting to today's — is the hook that makes that possible and is in place.
-What remains is a conformance runner that supplies a fake transport module and a control path to
-it. Until then these rows are shown on the arm rather than by the suite.
+**D2b closed what S2 owed (2026-09-16): the clauses drive this arm.** The clauses live in
+`client/conformance/clauses.ts` against a rig; `fake-session.ts` is the module `config.transport`
+names, evaluated inside the downloader's worker, where it installs the fake `WebTransport` and
+answers the page over a `BroadcastChannel`. `client/conformance/run_downloader.sh` runs every
+clause against the downloader in headless Chromium — **35 checks, green** — and `scripts/gate.sh`
+runs it, skipping loudly without Chromium. Two clauses read from the rig what this arm does
+differently by design: its fill sends `request_frames`, and an ask after a closure re-dials and
+is served (§The downloader) where the raw sessions fail it. Mutation-checked clause by clause —
+stamps zeroed, `end_stream` dropped, frames sharing one buffer, closure never noticed, a
+swallowed failure, a dropped delivery, lying `stats`, a dial per command, a cached client, and
+the fake left uninstalled: each fails its checks by name and the suite still completes. One
+limit, found by a mutant that *passed*: a dropped transfer list arrives as a clone that still
+detaches, so move-not-copy across the worker boundary is S4's metric, not a clause here.
 
 **Implemented but asserted by nothing yet**, and so not claimed: the two priorities' *ordering*
 under contention (an ask arriving mid-fill is promoted, but no test watches the order it comes

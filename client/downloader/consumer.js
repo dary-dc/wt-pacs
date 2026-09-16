@@ -16,12 +16,15 @@ export class DownloaderClient {
     this.#onFrame = opts.onFrame ?? (() => {});
     this.#worker = new Worker(new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);
-    this.#ready = new Promise((resolve) => {
+    this.#ready = new Promise((resolve, reject) => {
       this.#resolveReady = resolve;
+      this.#rejectReady = reject;
     });
   }
 
   #resolveReady;
+  #rejectReady;
+  #started = false;
 
   static async connect(url, certHash, opts = {}) {
     if (!globalThis.crossOriginIsolated && opts.decode !== false) {
@@ -34,6 +37,7 @@ export class DownloaderClient {
       decode: opts.decode,
       perDecoder: opts.perDecoder,
       decoder: opts.decoder,
+      transport: opts.transport,
     };
     c.#worker.postMessage({ kind: "start", url, certHash, config });
     await c.#ready;
@@ -41,13 +45,20 @@ export class DownloaderClient {
   }
 
   #fromDownloader(m) {
-    if (m.kind === "started") return void this.#resolveReady();
+    if (m.kind === "started") {
+      this.#started = true;
+      return void this.#resolveReady();
+    }
     if (m.kind === "pixel-port") {
       m.port.onmessage = (e) => this.#deliver(e.data);
       return;
     }
     if (m.kind === "frame") return void this.#deliver(m);
-    if (m.kind === "failed") return void this.#failOne(m.index, m.reason);
+    if (m.kind === "failed") {
+      // A failure before `started` is the start itself failing: connect must reject, not hang.
+      if (!this.#started) return void this.#rejectReady(new Error(`the downloader failed to start: ${m.reason}`));
+      return void this.#failOne(m.index, m.reason);
+    }
     if (m.kind === "closed") return void this.#failAll(m.reason);
   }
 

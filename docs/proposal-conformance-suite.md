@@ -28,8 +28,11 @@ lines and belongs to the suite, not to either implementation.
 ```
 client/conformance/
   fake-transport.ts     the global WebTransport stand-in, and a frame pusher
+  clauses.ts            the clauses, against a rig any arm can supply
   adapters.ts           one surface, two implementations behind it
-  run.ts                the three clauses, as assertions
+  run.ts                Node entry: both clients over the fake on the global scope
+  fake-session.ts       the fake installed inside the downloader's worker (config.transport)
+  downloader-rig.ts     the downloader's rig; downloader.html + run_downloader.sh drive it
 ```
 
 Neither implementation owns it, because it tests both. It follows `client/record/test/run.ts`
@@ -96,6 +99,28 @@ The second keeps the gate usable and keeps the suite honest, at the cost of a ch
 conditional — which is a real cost, because a conditional check is one that can quietly stop
 running. The mitigation is that it is loud: skipped arms are named in the gate's output, not
 silent.
+
+## The downloader arm (added 2026-09-16, D2b)
+
+The downloader dials inside its own worker, where the test process's global scope cannot reach.
+Two additions close that. The clauses moved to `clauses.ts`, written against a rig — open a
+session, drive the fake, count dials — so the same checks run wherever the fake lives. And
+`fake-session.ts` is the module `config.transport` names during a conformance run: evaluated
+inside the downloader's worker, it installs the fake there, answers the page's commands over a
+`BroadcastChannel` named in its own URL query, and exports the real `TransportSession` over it.
+
+`run_downloader.sh` serves the repo with `server/dev-server.py`, drives
+`client/conformance/downloader.html` in headless Chromium, and fails on any failed check.
+The gate runs it, and skips loudly when playwright or Chromium is missing — the WASM-arm
+decision above, applied again.
+
+Two clauses read what an arm does from the rig rather than special-casing a test: this arm's
+fill goes out as `request_frames` (the downloader fills by explicit indices), and an ask after
+a closure **re-dials and is served** rather than failing — the downloader's own contract
+(`proposal-downloader.md` §The downloader). One thing the page cannot see: whether the worker
+*moved or copied* a frame's buffer across the boundary, because a dropped transfer list arrives
+as a clone that still detaches. The clause holds delivered-buffer semantics — movable, no
+sibling coupling; the copy cost is S4's metric.
 
 ## Known gap: the suite is not type-checked
 

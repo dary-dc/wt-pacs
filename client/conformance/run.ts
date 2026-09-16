@@ -1,25 +1,18 @@
 /**
- * The clauses the transport surface requires and does not state, run against every
- * implementation. docs/proposal-conformance-suite.md says why; the capability rows they fill
- * are docs/proposal-downloader.md §Capabilities.
+ * Node entry: the clauses in clauses.ts against both client implementations, over the fake
+ * transport installed on the global scope.
  *
  *   bash client/transport-ts/build.sh && node client/conformance/run.mjs
  */
 import { FakeTransport, installFakeTransport } from "./fake-transport.ts";
-import {
-  type ConformantSession,
-  type Implementation,
-  typescriptImpl,
-  wasmBuilt,
-  wasmImpl,
-} from "./adapters.ts";
+import { type Implementation, typescriptImpl, wasmBuilt, wasmImpl } from "./adapters.ts";
+import { type Rig, runClauses } from "./clauses.ts";
 
 const CERT = "ab".repeat(32);
 // A cancelled fill leaves waiters nothing will ever settle; their eventual timeout is not a
 // result, and must not take the process down before the checks are counted.
 const strays: string[] = [];
 process.on("unhandledRejection", (e) => strays.push(String((e as Error)?.message ?? e)));
-const enc = new TextEncoder();
 let failed = 0;
 let ran = 0;
 
@@ -31,232 +24,27 @@ function check(cond: boolean, what: string) {
   }
 }
 
-const settle = () => new Promise((r) => setTimeout(r, 20));
-
-/**
- * Wait a bounded time for a frame. A frame that never arrives must fail its own check by name;
- * awaiting it raw instead takes the process down at FRAME_TIMEOUT_MS with nothing counted.
- */
-function within<T>(p: Promise<T>, ms = 300): Promise<T | null> {
-  return Promise.race([
-    p.catch(() => null),
-    new Promise<null>((r) => setTimeout(() => r(null), ms)),
-  ]);
-}
-
-async function open(impl: Implementation): Promise<ConformantSession> {
-  installFakeTransport();
-  return impl.connect("https://conformance.invalid/", CERT);
-}
-
-/** Timestamps must be real values, not the zeros a missing clock hands back in a worker. */
-async function workerSafe(impl: Implementation) {
-  const s = await open(impl);
-  const pending = s.requestExactFrame(3);
-  await settle();
-  FakeTransport.last.pushFrame(3, enc.encode("frame-three"));
-  const f = await pending;
-
-  check(f.frameIndex === 3, `${impl.name}: frame index round-trips`);
-  check(f.timing.askMs > 0, `${impl.name}: askMs is a real clock reading, not 0`);
-  check(f.timing.lastChunkMs > 0, `${impl.name}: lastChunkMs is a real clock reading, not 0`);
-  check(f.timing.lastChunkMs >= f.timing.askMs, `${impl.name}: the frame arrives at or after the ask`);
-  s.close();
-}
-
-/** A fill can be stopped without ending the session: the ask goes out and the session survives. */
-async function cancellable(impl: Implementation) {
-  const s = await open(impl);
-  const t = FakeTransport.last;
-  s.startStreamFrames(4, { from: 0, to: 4 });
-  await settle();
-  await s.endStream();
-  await settle();
-
-  const ops = t.controlMessages().map((m) => m.op);
-  check(ops.includes("stream_frames"), `${impl.name}: the fill was asked for`);
-  check(ops.includes("end_stream"), `${impl.name}: end_stream was sent`);
-  check(!t.didClose, `${impl.name}: cancelling a fill does not close the session`);
-
-  const after = s.requestExactFrame(9);
-  await settle();
-  t.pushFrame(9, enc.encode("after-cancel"));
-  const f = await after;
-  check(
-    new TextDecoder().decode(f.bytes) === "after-cancel",
-    `${impl.name}: the session still serves a frame after a cancel`,
-  );
-  s.close();
-}
-
-/** A frame's buffer crosses a worker boundary as a move, and takes no sibling with it. */
-async function transferable(impl: Implementation) {
-  const s = await open(impl);
-  const t = FakeTransport.last;
-  const a = s.requestExactFrame(1);
-  const b = s.requestExactFrame(2);
-  await settle();
-  t.pushOnOneStream([
-    [1, enc.encode("frame-one")],
-    [2, enc.encode("frame-two")],
-  ]);
-  const [f1, f2] = await Promise.all([within(a), within(b)]);
-  check(f1 !== null && f2 !== null, `${impl.name}: both frames of a shared stream arrive`);
-  if (f1 === null || f2 === null) {
-    s.close();
-    return;
-  }
-
-  const buf = f1.bytes.buffer as ArrayBuffer;
-  check(buf.byteLength > 0, `${impl.name}: the frame arrives with a live buffer`);
-  structuredClone(buf, { transfer: [buf] });
-  check(buf.byteLength === 0, `${impl.name}: transferring the buffer detaches it — a move, not a copy`);
-  check(
-    f2.bytes.length > 0 && new TextDecoder().decode(f2.bytes) === "frame-two",
-    `${impl.name}: transferring one frame does not detach another delivered beside it`,
-  );
-  s.close();
-}
-
-/** A closed session is noticed at once; a live one still owes the frame its full timeout. */
-async function noticesClose(impl: Implementation) {
-  const closedFirst = await open(impl);
-  FakeTransport.last.serverClose(7, "server went away");
-  await settle();
-  const t0 = performance.now();
-  let rejected = false;
-  try {
-    await closedFirst.requestExactFrame(1);
-  } catch {
-    rejected = true;
-  }
-  const ms = performance.now() - t0;
-  check(rejected, `${impl.name}: a request against a closed session fails`);
-  check(ms < 1000, `${impl.name}: it fails at once (${ms.toFixed(0)} ms), not at FRAME_TIMEOUT_MS`);
-
-  const closedDuring = await open(impl);
-  const t = FakeTransport.last;
-  const inFlight = closedDuring.requestExactFrame(2);
-  await settle();
-  const t1 = performance.now();
-  t.serverClose(7, "server went away");
-  let woke = false;
-  try {
-    await inFlight;
-  } catch {
-    woke = true;
-  }
-  check(woke, `${impl.name}: a request in flight when the session closes is woken`);
-  check(
-    performance.now() - t1 < 1000,
-    `${impl.name}: it is woken at once, not left to time out`,
-  );
-
-  // `closed` alone, with the media stream left open: the session object is the signal.
-  const quietClose = await open(impl);
-  FakeTransport.last.serverClose(7, "server went away", false);
-  await settle();
-  const t2 = performance.now();
-  let noticed = false;
-  try {
-    await quietClose.requestExactFrame(4);
-  } catch {
-    noticed = true;
-  }
-  check(
-    noticed && performance.now() - t2 < 1000,
-    `${impl.name}: a close is noticed from the session, not only from the stream ending`,
-  );
-
-  // The timeout's own case: still alive, frame never arrives. It must NOT fail fast.
-  const live = await open(impl);
-  const pending = live.requestExactFrame(3);
-  let early: unknown = null;
-  pending.catch((e) => (early = e));
-  await new Promise((r) => setTimeout(r, 300));
-  check(early === null, `${impl.name}: a live session still owes the frame its full timeout`);
-  live.close();
-}
-
-/** A fill arrives either as one stream carrying many frames or as a stream per frame. */
-async function bothStreamModes(impl: Implementation) {
-  for (const mode of ["shared", "per-frame"] as const) {
-    const s = await open(impl);
-    const t = FakeTransport.last;
-    const want = [0, 1, 2];
-    const pending = want.map((i) => s.requestExactFrame(i));
-    await settle();
-    const frames = want.map((i) => [i, enc.encode(`frame-${i}`)] as [number, Uint8Array]);
-    if (mode === "shared") t.pushOnOneStream(frames);
-    else for (const [i, c] of frames) t.pushFrame(i, c);
-    const got = await Promise.all(pending.map((p) => within(p)));
-    check(
-      got.every((f, k) => f !== null && new TextDecoder().decode(f.bytes) === `frame-${want[k]}`),
-      `${impl.name}: every frame of a ${mode} fill arrives, in the order asked`,
-    );
-    s.close();
-  }
-}
-
-/** `stats` counts what is outstanding, and lets it go when the frame lands. */
-async function reportsStats(impl: Implementation) {
-  const s = await open(impl);
-  const t = FakeTransport.last;
-  check(s.stats().inFlight === 0, `${impl.name}: a fresh session has nothing in flight`);
-  const a = s.requestExactFrame(1);
-  const b = s.requestExactFrame(2);
-  await settle();
-  check(s.stats().inFlight === 2, `${impl.name}: stats counts both outstanding asks`);
-  t.pushFrame(1, enc.encode("one"));
-  await within(a);
-  check(s.stats().inFlight === 1, `${impl.name}: a delivered frame leaves the count`);
-  t.pushFrame(2, enc.encode("two"));
-  await within(b);
-  check(s.stats().inFlight === 0, `${impl.name}: the count returns to zero`);
-  s.close();
-}
-
-/** A session opened at load serves an ask made later without dialling a second time. */
-async function oneDialServesLaterAsks(impl: Implementation) {
-  const before = FakeTransport.dials;
-  const s = await open(impl);
-  const t = FakeTransport.last;
-  check(FakeTransport.dials === before + 1, `${impl.name}: connecting dials once`);
-  await settle();
-  const f = s.requestExactFrame(7);
-  await settle();
-  t.pushFrame(7, enc.encode("late-ask"));
-  const late = await within(f);
-  check(
-    late !== null && new TextDecoder().decode(late.bytes) === "late-ask",
-    `${impl.name}: an ask long after the dial is served`,
-  );
-  check(FakeTransport.dials === before + 1, `${impl.name}: serving it dials no second transport`);
-  s.close();
-}
-
-/** A closed session can be replaced: the next connect serves frames again. */
-async function redialsAfterClosure(impl: Implementation) {
-  const first = await open(impl);
-  FakeTransport.last.serverClose(1, "gone");
-  await settle();
-  await first.requestExactFrame(1).then(
-    () => check(false, `${impl.name}: an ask on the closed session should fail`),
-    () => check(true, `${impl.name}: the closed session fails its asks`),
-  );
-  first.close();
-
-  const second = await open(impl);
-  const t = FakeTransport.last;
-  const f = second.requestExactFrame(5);
-  await settle();
-  t.pushFrame(5, enc.encode("after-redial"));
-  const again = await within(f);
-  check(
-    again !== null && new TextDecoder().decode(again.bytes) === "after-redial",
-    `${impl.name}: a session opened after a closure serves frames again`,
-  );
-  second.close();
+function nodeRig(impl: Implementation): Rig {
+  let dialsAtOpen = 0;
+  return {
+    name: impl.name,
+    fillOp: "stream_frames",
+    closure: "fail",
+    open() {
+      installFakeTransport();
+      dialsAtOpen = FakeTransport.dials;
+      return impl.connect("https://conformance.invalid/", CERT);
+    },
+    fake: () => ({
+      pushFrame: async (i, c) => FakeTransport.last.pushFrame(i, c),
+      pushOnOneStream: async (frames) => FakeTransport.last.pushOnOneStream(frames),
+      serverClose: async (code, reason, endStreams) =>
+        FakeTransport.last.serverClose(code, reason, endStreams),
+      controlMessages: async () => FakeTransport.last.controlMessages(),
+      didClose: async () => FakeTransport.last.didClose,
+    }),
+    dialsSinceOpen: async () => FakeTransport.dials - dialsAtOpen,
+  };
 }
 
 const impls: Implementation[] = [await typescriptImpl()];
@@ -268,14 +56,7 @@ if (wasmBuilt()) {
 
 for (const impl of impls) {
   console.log(`\n${impl.name}`);
-  await workerSafe(impl);
-  await cancellable(impl);
-  await transferable(impl);
-  await noticesClose(impl);
-  await bothStreamModes(impl);
-  await reportsStats(impl);
-  await oneDialServesLaterAsks(impl);
-  await redialsAfterClosure(impl);
+  await runClauses(nodeRig(impl), check);
 }
 
 if (strays.length) console.log(`\n  ${strays.length} abandoned waiter(s) rejected after their fill was cancelled`);
