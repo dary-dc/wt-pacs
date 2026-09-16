@@ -43,7 +43,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
-| 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | claimed 2026-09-16 |
+| 12 | **L16** — whether an ask can overtake a running fill | lanes §L16 | **done** `9714d41` — it ends the fill; `transport/ask-during-fill.md` |
 | 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | ready |
 | 14 | **L18** — what the BYOB read path allocates | lanes §L18 | ready |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
@@ -248,6 +248,24 @@ mid-hold and produced a clean-looking "45 s → dead" that was nothing of the ki
 restarts `exact-server` between arms should check the flags on the running process before and after
 each arm, and keep a control that is *expected* to die — a 5 s idle timeout here — so a rig that
 cannot observe the failure is caught rather than believed.
+
+**An ask does not overtake a running fill — it ends one** (2026-09-16, from L16), so L16's premise
+did not hold and neither of its priority arms arises. `planner.rs` sets `self.fill = None` the
+moment any ask is in hand, with no saved position, so the fill is discarded and never resumes; two
+existing tests already said so. The ask waits **~3 ms wherever it lands** (27 rounds, 1.65–5.33 ms,
+10/50/90 % indistinguishable) because it waits behind the four or five frames already in flight, not
+behind the fill. What the fill pays is the rest of itself: an ask at 10 % discards 180 frames of
+stated intent and the client must ask again.
+
+This lands on **D2/D3**. The downloader's two-priority queue orders work *inside the client*, which
+is right, but on the wire an ask already pre-empts a fill wholesale — so a downloader that issues an
+ask mid-fill must re-issue the remainder itself or it will silently stop filling. Nothing in D2
+does that today; its `promote()` moves a frame up its own queue and assumes the fill keeps coming.
+**D3, which pushes fills, is where this has to be handled.**
+
+`feat/set-priority-per-frame` (`f85f8a6`) does not apply: it is in the per-frame arm of
+`write_payload` and never runs in `shared` mode. `--ask-priority` was already a rejected arm of the
+transport lane.
 
 ## Blocked
 
