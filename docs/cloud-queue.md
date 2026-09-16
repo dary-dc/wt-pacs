@@ -46,7 +46,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | **done** `09fcf32` on `claude/downloader-s2-worker` — 35 checks green, in the gate |
 | 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | **done** `2ca9886` on `claude/downloader-s2-worker` — 9 checks green, in the gate |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | **done** `5b93cd5` on `claude/downloader-s2-worker` — both rows green against a real server, in the gate; one hole found, see below |
-| 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | ready |
+| 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | claimed 2026-09-16 |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
