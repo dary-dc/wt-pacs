@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs harness — what a read path allocates</title>
+</head>
+<body>
+  <h1>read-path allocation</h1>
+  <p>One fill, one arm. Counts, not timing. Query: <code>arm=default|byob|byob-min</code>, <code>frames=237</code>.</p>
+  <div id="log" style="white-space:pre;font-family:monospace"></div>
+  <script type="module">
+    const logEl = document.getElementById("log");
+    const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; };
+    const q = new URLSearchParams(location.search);
+    const arm = q.get("arm") || "default";
+    const frames = Number(q.get("frames") || 237);
+
+    const heap = () => (performance.memory ? performance.memory.usedJSHeapSize : 0);
+
+    (async () => {
+      const cfg = await (await fetch("/wt/dev-transport.json")).json();
+      const mod = await import(`/client/transport-wasm/pkg-${arm}/transport_wasm.js`);
+      await mod.default();
+      log(`arm=${arm} frames=${frames}`);
+
+      // The marker the driver looks for in --trace-gc: everything between them is this fill.
+      console.log(`WTPACS_FILL_BEGIN ${arm}`);
+      const before = heap();
+      let peak = before;
+
+      const session = await mod.TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
+      const askMs = session.startStreamFrames(frames - 1, 0, frames - 1);
+      let got = 0;
+      let bytes = 0;
+      for (let i = 0; i < frames; i++) {
+        const f = await session.waitExactFrame(i, askMs);
+        bytes += f.bytes.length;
+        got += 1;
+        if (heap() > peak) peak = heap();
+      }
+      const after = heap();
+      console.log(`WTPACS_FILL_END ${arm}`);
+
+      log(`frames ${got}/${frames}, ${(bytes / 1048576).toFixed(1)} MB of codestreams`);
+      log(`JS heap: before ${(before / 1048576).toFixed(1)} MB, peak ${(peak / 1048576).toFixed(1)} MB, after ${(after / 1048576).toFixed(1)} MB`);
+      globalThis.__wtpacsResult = { arm, got, bytes, before, peak, after };
+      session.close();
+      globalThis.__wtpacsDone = true;
+    })().catch((e) => { log("FAILED " + (e?.stack || e?.message || e)); globalThis.__wtpacsDone = true; });
+  </script>
+</body>
+</html>

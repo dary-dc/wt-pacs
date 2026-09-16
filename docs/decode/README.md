@@ -1,3 +1,48 @@
+
+### What each path allocates
+
+L18. On a phone, allocation churn is a cost in its own right whatever it does to the clock, and the
+premise this was first written on was backwards. Both paths hand on a buffer allocated per frame —
+the default one copies the frame out of WASM memory into a fresh `Uint8Array`, byob reads straight
+into one — so byob adds no per-frame allocation. What differs is *before* that: the default reader
+receives every read as a new chunk the browser allocated and copies it into a reused receive buffer
+in WASM memory, while byob fills one caller-owned buffer across its reads.
+
+**byob allocates less, and `byob-min` less again.** One 237-frame fill of 512×512 16-bit frames
+(92.8 MB of codestreams), five rounds per arm, arms rotated each round, `lab/scripts/read_path_alloc.cjs`:
+
+| arm | collections per fill | per frame | JS heap high-water |
+| --- | ---: | ---: | ---: |
+| default | 338 [305 … 350] | 1.43 | 71.4 MB [70 … 75] |
+| `byob` | **201** [185 … 257] | 0.85 | 67.7 MB [67 … 68] |
+| `byob-min` | **165** [158 … 188] | 0.70 | 66.2 MB [66 … 67] |
+
+**−40.5 % collections for `byob` and −51.2 % for `byob-min`, fewer in 5 of 5 paired rounds each.**
+The heap high-water moves with it and the ranges do not overlap: default never came in under 70 MB
+and neither byob arm ever reached it. That is the shape the corrected premise predicts — the saving
+is the per-read chunks the default reader is handed, and `byob-min`'s larger reads remove more of
+them, which agrees with the read counts already recorded above (4.70 → 2.00 reads on a 250 KB frame).
+
+**A free list is not the answer to this, because this is not byob's problem.** The lane asked what
+one would need if byob's churn turned out material. It is the *smaller* of the two, so the design
+is not written: a free list would help the default path more, and both paths would still allocate
+the frame buffer they hand on. If one is ever wanted, the question it has to answer is the same for
+either path — which thread hands the buffer back, and when the consumer is known to be done with it
+— and that is exactly what the pipeline redesign is deciding
+([`../proposal-downloader.md`](../proposal-downloader.md)).
+
+**Instruments, and one substitution.** `--js-flags=--trace-gc` emits nothing in this Chromium
+(141, headless) — not to the browser's stderr, not to the renderer's, with `--single-process` and
+`--enable-logging=stderr` both tried — so collections are counted from the `disabled-by-default-v8.gc`
+trace category over CDP instead, which does work. The heap high-water is
+`performance.memory.usedJSHeapSize` under `--enable-precise-memory-info`. CDP's `HeapProfiler`
+sampler reads **1.10 MB in every arm**, identical: it samples the JS heap, and the buffers these
+arms differ over are `ArrayBuffer` backing stores, which it does not weigh. That figure is reported
+only to say it settles nothing — the collections and the high-water are what carry the finding.
+
+**Counts, not timing.** Nothing here is a millisecond, so nothing here needs the rig. All three arms
+are the same `wasm-pack` build of the same source, differing only in the feature flag, and every run
+delivered 237 of 237 frames.
 # Decode — codestream to pixels
 
 `disk-access/` owns how a frame is brought in and `transport/` how it is sent. This owns what
