@@ -3,7 +3,7 @@
  * fake transport inside its worker over the BroadcastChannel fake-session.ts listens on.
  * The page passes DownloaderClient in, so its worker URLs resolve from its own module.
  */
-import { type Check, type ConformantSession, type Rig, runClauses } from "./clauses.ts";
+import { type Check, type ConformantFrame, type ConformantSession, type Rig, runClauses } from "./clauses.ts";
 import { workerFake } from "./worker-fake.ts";
 
 const CERT = "ab".repeat(32);
@@ -20,15 +20,19 @@ type DownloaderCtor = {
   connect(url: string, certHash: string, opts: Record<string, unknown>): Promise<Downloader>;
 };
 
-function adapt(c: Downloader): ConformantSession {
+const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, k) => from + k);
+
+/** The downloader pushes fill frames to the callback it was opened with; `route` points it at the clause's. */
+function adapt(c: Downloader, route: { onFrame: (f: ConformantFrame) => void }): ConformantSession {
   return {
     requestExactFrame: (i) => c.requestExactFrame(i),
-    startStreamFrames(waitLast, range) {
-      const from = range?.from ?? 0;
-      const to = range?.to ?? waitLast;
-      const indices = [];
-      for (let i = from; i <= to; i++) indices.push(i);
-      c.fill(indices);
+    startStreamFrames(waitLast, r) {
+      c.fill(range(r?.from ?? 0, r?.to ?? waitLast));
+      return performance.now();
+    },
+    fillFrames(from, to, onFrame) {
+      route.onFrame = onFrame;
+      c.fill(range(from, to));
       return performance.now();
     },
     endStream: async () => c.cancel(),
@@ -42,15 +46,16 @@ function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
   let handle: ReturnType<typeof workerFake> | null = null;
   return {
     name: "downloader",
-    fillOp: "request_frames",
     closure: "redial",
     async open() {
       const ch = `wtpacs-conformance-${++world}`;
       handle = workerFake(ch);
+      const route = { onFrame: (_f: ConformantFrame) => {} };
       const connect = DownloaderClient.connect("https://conformance.invalid/", CERT, {
         decode: false,
         decoders: 0,
         transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
+        onFrame: (f: ConformantFrame) => route.onFrame(f),
       });
       const c = await Promise.race([
         connect,
@@ -58,7 +63,7 @@ function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
           setTimeout(() => reject(new Error("the downloader did not start in 5 s")), 5000),
         ),
       ]);
-      return adapt(c);
+      return adapt(c, route);
     },
     fake: () => {
       if (!handle) throw new Error("fake() before open()");

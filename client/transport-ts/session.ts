@@ -34,6 +34,14 @@ type Waiter = {
   timer: ReturnType<typeof setTimeout>;
 };
 
+/** A fill pushed as it lands: what is still owed, and where each frame goes. No timer per frame. */
+type Fill = {
+  pending: Set<number>;
+  askMs: number;
+  onFrame: (f: FrameResult) => void;
+  onError: (frameIndex: number, reason: string) => void;
+};
+
 function closedReasonOf(info: { closeCode?: number; reason?: string } | undefined): string {
   const code = info?.closeCode ?? 0;
   const why = info?.reason ? `: ${info.reason}` : "";
@@ -46,6 +54,7 @@ export class TransportSession {
   private waiters = new Map<number, Waiter>();
   private errors = new Map<number, string>();
   private bulkPending = new Map<number, Promise<{ bytes: Uint8Array; receivedMs: number }>>();
+  private fill: Fill | null = null;
   private droppedEarly = 0;
   private frameErrors = 0;
   /** Set once the session is gone; a waiter armed after this would only reach the timeout. */
@@ -89,6 +98,7 @@ export class TransportSession {
   /** First reason wins: the stream ending and `closed` settling are the same event twice. */
   private failAll(reason: string) {
     this.closedReason ??= reason;
+    this.fill = null;
     for (const [index, w] of this.waiters) {
       clearTimeout(w.timer);
       w.reject(new Error(`frame ${index} unavailable: ${this.closedReason}`));
@@ -112,22 +122,33 @@ export class TransportSession {
     });
   }
 
-  private completeWaiter(frameIndex: number, bytes: Uint8Array, receivedMs: number) {
+  /** An asked frame settles its waiter; a fill frame goes straight to the fill's callback. */
+  private deliver(frameIndex: number, bytes: Uint8Array, receivedMs: number) {
+    const fill = this.fill;
+    const owed = fill?.pending.delete(frameIndex) ?? false;
     const w = this.waiters.get(frameIndex);
-    if (!w) {
-      this.droppedEarly += 1;
+    if (w) {
+      clearTimeout(w.timer);
+      this.waiters.delete(frameIndex);
+      w.resolve({ bytes, receivedMs });
       return;
     }
-    clearTimeout(w.timer);
-    this.waiters.delete(frameIndex);
-    w.resolve({ bytes, receivedMs });
+    if (fill && owed) {
+      fill.onFrame(toResult(frameIndex, fill.askMs, bytes, receivedMs));
+      return;
+    }
+    this.droppedEarly += 1;
   }
 
   private failWaiter(frameIndex: number, reason: string) {
     const w = this.waiters.get(frameIndex);
     this.errors.set(frameIndex, reason);
     this.frameErrors += 1;
-    if (!w) return;
+    const owed = this.fill?.pending.delete(frameIndex) ?? false;
+    if (!w) {
+      if (owed) this.fill?.onError(frameIndex, reason);
+      return;
+    }
     clearTimeout(w.timer);
     this.waiters.delete(frameIndex);
     w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
@@ -161,7 +182,7 @@ export class TransportSession {
         const receivedMs = performance.now();
         try {
           const { index, codestream } = unwrapEnvelope(envelope);
-          this.completeWaiter(index, codestream, receivedMs);
+          this.deliver(index, codestream, receivedMs);
         } catch {
           /* ignore bad envelope */
         }
@@ -263,7 +284,28 @@ export class TransportSession {
     return askMs;
   }
 
+  /**
+   * A fill pushed as it lands, on the wire as `stream_frames`: no waiter and no timer per frame,
+   * so `endStream()` or a later fill simply drops what is still owed. docs/CLIENTS.md#fills-are-pushed
+   */
+  fillFrames(
+    from: number,
+    to: number,
+    onFrame: (f: FrameResult) => void,
+    onError: (frameIndex: number, reason: string) => void = () => {},
+  ): number {
+    if (to < from) throw new Error("fillFrames: to < from");
+    if (this.closedReason) throw new Error(`session unavailable: ${this.closedReason}`);
+    const askMs = performance.now();
+    const pending = new Set<number>();
+    for (let i = from; i <= to; i++) pending.add(i);
+    this.fill = { pending, askMs, onFrame, onError };
+    void this.sendFod({ op: "stream_frames", from, to });
+    return askMs;
+  }
+
   async endStream() {
+    this.fill = null;
     await this.sendFod({ op: "end_stream" });
   }
 

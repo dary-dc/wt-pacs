@@ -13,11 +13,14 @@ let session = null;
 let cfg = { decoders: 3, decode: true, perDecoder: 2 };
 let dial = null;
 let generation = 0;
+let asksInFlight = 0;
 
 const decoders = [];
-/** index → { state, gen, askMs, priority }. State: wire | queued | decoding | delivered | failed. */
+/** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
 const records = new Map();
 const queue = { ask: [], fill: [] };
+/** Fill frames the consumer wants and the wire has not delivered. */
+const wanted = new Set();
 
 function post(msg, transfer) {
   postMessage(msg, transfer ?? []);
@@ -25,10 +28,11 @@ function post(msg, transfer) {
 
 function fail(index, reason) {
   records.delete(index);
+  wanted.delete(index);
   post({ kind: "failed", index, reason });
 }
 
-/** Asks come before fill frames; a frame already in flight moves up rather than being re-asked. */
+/** Asks come before fill frames; a frame already in hand moves up rather than being re-asked. */
 function promote(index) {
   const rec = records.get(index);
   if (!rec || rec.priority === "ask") return;
@@ -70,30 +74,62 @@ function pump() {
   }
 }
 
-async function take(index, priority, promise, askMs) {
+function record(index, priority, askMs) {
   const stamps = { ask: askMs, firstByte: 0, lastByte: 0, dispatched: 0, decodeStart: 0, decodeEnd: 0 };
   records.set(index, { state: "wire", gen: generation, priority, stamps });
-  const gen = generation;
-  let frame;
-  try {
-    frame = await promise;
-  } catch (e) {
-    if (gen === generation) fail(index, String(e?.message ?? e));
-    return;
-  }
-  if (gen !== generation) return;
-  stamps.lastByte = abs();
+}
+
+/** A frame's bytes are here: straight to the consumer, or into the queue for a decoder. */
+function arrived(index, frame) {
+  wanted.delete(index);
   const rec = records.get(index);
   if (!rec) return;
-  rec.bytes = frame.bytes;
+  rec.stamps.lastByte = abs();
   if (!cfg.decode) {
     records.delete(index);
-    post({ kind: "frame", index, pixels: frame.bytes, stamps, decoded: false }, [frame.bytes.buffer]);
+    post({ kind: "frame", index, pixels: frame.bytes, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
     return;
   }
+  rec.bytes = frame.bytes;
   rec.state = "queued";
-  queue[priority].push(index);
+  queue[rec.priority].push(index);
   pump();
+}
+
+/** The server ends a running fill for an ask (L16), so the remainder is re-issued once the ask settles. */
+async function ask(index, promise) {
+  const gen = generation;
+  asksInFlight += 1;
+  try {
+    const frame = await promise;
+    if (gen === generation) arrived(index, frame);
+  } catch (e) {
+    if (gen === generation) fail(index, String(e?.message ?? e));
+  } finally {
+    asksInFlight -= 1;
+    if (gen === generation) issueFill();
+  }
+}
+
+/** The wire carries one contiguous run of what is wanted at a time. docs/proposal-downloader.md §The downloader */
+function issueFill() {
+  if (asksInFlight > 0 || wanted.size === 0 || !session) return;
+  const from = Math.min(...wanted);
+  let to = from;
+  while (wanted.has(to + 1)) to += 1;
+  const gen = generation;
+  const onFrame = (frame) => {
+    if (gen !== generation) return;
+    arrived(frame.frameIndex, frame);
+    if (frame.frameIndex === to) issueFill();
+  };
+  // A refused range is one frame_error at `from`, so the run fails whole.
+  const onRefused = (_index, reason) => {
+    if (gen !== generation) return;
+    for (let i = from; i <= to; i++) if (wanted.has(i)) fail(i, reason);
+    issueFill();
+  };
+  session.fillFrames(from, to, onFrame, onRefused);
 }
 
 function onDone(d, m) {
@@ -134,6 +170,7 @@ async function connect() {
   TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
   session = await TransportSession.connect(dial.url, dial.certHash);
   session.closedPromise?.catch(() => {});
+  issueFill();
 }
 
 /** A command after a closure re-dials, as the proposal requires. */
@@ -149,18 +186,23 @@ onmessage = async (e) => {
     if (m.kind === "start") return void (await start(m));
     if (m.kind === "ask") {
       const s = await live();
-      const askMs = abs();
       const rec = records.get(m.index);
-      // An ask for a frame already on the wire moves it up the queue rather than asking twice.
-      if (rec) return void promote(m.index);
-      return void take(m.index, "ask", s.requestExactFrame(m.index), askMs);
+      if (rec?.priority === "ask") return;
+      // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
+      if (rec && rec.state !== "wire") return void promote(m.index);
+      if (rec) rec.priority = "ask";
+      else record(m.index, "ask", abs());
+      return void ask(m.index, s.requestExactFrame(m.index));
     }
     if (m.kind === "fill") {
-      const s = await live();
+      await live();
       const askMs = abs();
-      s.startExactFrames(m.indices);
-      for (const i of m.indices) take(i, "fill", s.waitExactFrame(i, askMs), askMs);
-      return;
+      for (const i of m.indices) {
+        if (records.has(i)) continue;
+        record(i, "fill", askMs);
+        wanted.add(i);
+      }
+      return void issueFill();
     }
     if (m.kind === "cancel") {
       generation += 1;
@@ -168,6 +210,7 @@ onmessage = async (e) => {
       queue.fill.length = 0;
       for (const [index] of records) post({ kind: "failed", index, reason: "AbortError: the fill was cancelled" });
       records.clear();
+      wanted.clear();
       await session?.endStream();
       return void post({ kind: "cancelled" });
     }

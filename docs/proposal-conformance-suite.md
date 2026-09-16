@@ -74,6 +74,11 @@ test.
    driven two ways — ending the media stream, and settling `closed` with the stream left open — so
    a client that only watches one signal fails the other. `docs/CLIENTS.md` has the numbers.
 
+5. **A fill is pushed** (added with D3). `fillFrames(from, to, onFrame)` delivers every frame of
+   the range to the callback once, in order, with real timings, in both stream modes, and arms no
+   waiter; an ask during it is served on its own promise and not pushed as well; a frame arriving
+   after `endStream()` is dropped. `docs/CLIENTS.md` §Fills are pushed.
+
 Every test is mutated — the implementation broken on purpose, the test watched failing — and the
 report says so.
 

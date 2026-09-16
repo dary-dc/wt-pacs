@@ -41,6 +41,8 @@ export async function typescriptImpl(): Promise<Implementation> {
         requestExactFrame: (i: number) => s.requestExactFrame(i),
         startStreamFrames: (last: number, range?: { from?: number; to?: number }) =>
           s.startStreamFrames(last, range),
+        fillFrames: (from: number, to: number, onFrame: (f: unknown) => void) =>
+          s.fillFrames(from, to, onFrame),
         endStream: () => s.endStream(),
         stats: () => s.stats(),
         close: () => s.close(),
@@ -68,6 +70,8 @@ export async function wasmImpl(): Promise<Implementation> {
         requestExactFrame: (i: number) => s.requestExactFrame(i),
         startStreamFrames: (last: number, range?: { from?: number; to?: number }) =>
           s.startStreamFrames(last, range?.from ?? undefined, range?.to ?? undefined),
+        fillFrames: (from: number, to: number, onFrame: (f: unknown) => void) =>
+          s.fillFrames(from, to, onFrame, undefined),
         endStream: async () => s.endStream(),
         stats: () => s.stats(),
         close: () => s.close(),

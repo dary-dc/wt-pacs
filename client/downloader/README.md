@@ -6,7 +6,7 @@ Design and what it is for: [`docs/proposal-downloader.md`](../../docs/proposal-d
 
 | file | |
 | - | - |
-| `downloader.js` | the worker: dial, per-frame records, two-priority queue, dispatch, cancel |
+| `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time and re-issued after an ask, two-priority queue, dispatch, cancel |
 | `decoder.js` | one decoder instance, reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
 

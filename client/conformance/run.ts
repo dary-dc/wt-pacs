@@ -28,7 +28,6 @@ function nodeRig(impl: Implementation): Rig {
   let dialsAtOpen = 0;
   return {
     name: impl.name,
-    fillOp: "stream_frames",
     closure: "fail",
     open() {
       installFakeTransport();

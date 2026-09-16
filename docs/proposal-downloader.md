@@ -75,7 +75,12 @@ last byte, dispatched, decode start, decode end.
 * **One queue, two priorities.** Asks before fill frames. Dispatch never leaves a decoder idle: up to
   two outstanding per decoder (`docs/decode/README.md` §Dispatch). `N` is a start parameter; the
   comparison campaigns use 3.
-* **Fill frames are pushed by the session** (Stage 3). Asks keep their waiter.
+* **Fill frames are pushed by the session** (Stage 3), on the wire as `stream_frames`, one
+  contiguous run of what is still wanted at a time. Asks keep their waiter. On the wire an ask
+  ends a fill with no saved position (L16), so once an ask settles the downloader re-issues the
+  frames not yet delivered as a new fill — the client owns that decision, the server stays as it
+  is. An ask for a frame the fill still owes goes to the wire, where the server serves it next;
+  one already in hand only moves up the decode queue.
 * **Closure:** outstanding frames fail with the session's reason, as today; the next command re-dials.
 * **Cancel:** end the stream, drop queued work by generation, fail outstanding asks with an
   `AbortError` distinct from the timeout. The reason's name is pending confirmation before adoption.
@@ -222,6 +227,64 @@ asserted at all until there is a signed fixture (`cloud-queue.md` §Blocked).
 **S3 — fills pushed.** Both clients deliver a fill's frames as they arrive instead of through a waiter
 per frame; the conformance suite covers the new form against both implementations. The downloader
 switches to it. Report lines removed against lines added.
+
+### S3 results
+
+Built on `claude/downloader-s2-worker` (2026-09-16). Both clients gained the fill as a **push**:
+`fillFrames(from, to, onFrame, onError?)` — `stream_frames` on the wire, every owed frame straight to
+the callback as it lands, no waiter and no timer per frame, `endStream()` or a later fill dropping
+the rest (`CLIENTS.md` §Fills are pushed). The downloader switched to it: one contiguous run of what
+is still wanted at a time, the remainder re-issued once an ask settles, and an ask for a frame the
+fill still owes sent to the wire rather than waited for.
+
+**Why `stream_frames`, and not the `request_frames` the downloader used to send.** The planner turns a
+`request_frames` batch into one `Ask::Frame` per index and serves them in order, so an ask behind a
+200-frame batch waited for all 200; a `stream_frames` fill is dropped the moment an ask is in hand
+(L16). The pushed fill is what gives an ask the wire.
+
+**Checks.** Conformance clause `pushedFill`, both stream modes, both clients and the downloader arm:
+**84/84** in Node (was 62), **46/46** on the downloader arm (was 35). Two downloader clauses in
+`dispatch-rig.ts`, `reissuesAfterAsk` and `asksTheWireForAnOwedFrame`: **19/19** (was 9). What they
+assert is the wire sequence — `stream_frames 0-7`, `request_frame 50`, `stream_frames 4-7` — because
+the fake cannot drop a fill the way the server does; against the fake a fill "completes" either way,
+so completion alone proves nothing there.
+
+| mutant | caught by |
+| --- | --- |
+| TS: `deliver` never routes to the fill | `pushedFill`, both modes — nothing lands |
+| TS: `endStream` keeps the fill | `pushedFill` — the late frame is pushed |
+| TS: the fill wins over an ask's waiter | `pushedFill` — the ask is pushed and its promise starves |
+| WASM: the guard inverted (`!owed`) | `pushedFill` on the wasm arm only — strays pushed, owed dropped |
+| downloader: no re-issue after an ask | `reissuesAfterAsk`, `asksTheWireForAnOwedFrame` — no second run on the wire |
+| downloader: delivered frames never retired from `wanted` | both — the re-issue repeats `0-7` |
+| downloader: any known record promoted, never asked | `asksTheWireForAnOwedFrame` — no `request_frame` |
+
+The WASM mutant first "passed" — against a pkg that had not rebuilt, a `cargo build` failure hidden
+behind a `tail`. The pkg's timestamp gave it away; the row above is from a build whose exit code was
+read. A mutant that passes is a finding about the rig before it is one about the test.
+
+**One honest loose end.** In one full gate run the dispatch arm reported 16/17 — a clause threw
+before its checks — and the gate's `| tail -2` swallowed the line that named it. Eleven serial runs
+since, and two more gates, have passed 19/19, so no mechanism was established. Two things changed
+because of it, not one: `drive_downloader.cjs` now echoes every `FAIL`/`threw` line on stderr, so
+the gate can no longer hide a name; and `dispatch-rig.ts` bounds `open()` at 5 s, the one await on
+that path that had no bound. Worth knowing if it recurs; not worth believing as a finding.
+
+**Lines removed against lines added.** The downloader lost the promise per fill frame and the
+`waitExactFrame` loop and gained run-splitting and the re-issue: −24 / +67. TS session −8 / +50;
+WASM session −15 / +93 (its two media pumps now share one `deliver`), `lib.rs` +13. The
+waiter-per-frame forms — `startExactFrames` / `waitExactFrame`, `startStreamFrames` — stay: the
+harness, `refusals.html` and the recorder use them, and removing today's path follows acceptance
+(§Not in this proposal). Net, the pushed fill is **more code, not less**; what it removes is a
+promise, a timer and a `waitExactFrame` round trip *per frame at run time*, and the stray timeouts a
+cancelled fill used to leave armed.
+
+**Open, and D4's.** An ask for a frame the fill has already handed to a decoder only moves up the
+decode queue, as before; an ask for one the fill still owes now goes to the wire and costs the fill
+a re-issue. Whether that is the right trade at 10 %, 50 % and 90 % of a fill is the measurement S4
+names. The recorder (`client/record/`) wraps `waitExactFrame` and does not see a pushed fill —
+S4's metrics question. `onError` (a refused range) is wired in both clients and asserted by nothing:
+the fake has no control-stream push. D1r, which makes refusals a gate test, inherits it.
 
 **S4 — validation and metrics.** The last column of §Capabilities. Per frame: messages, thread
 crossings, copies, allocations, main-thread handling time. Threads, heaps and peak memory. Time

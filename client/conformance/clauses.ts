@@ -12,6 +12,7 @@ export type ConformantFrame = {
 export type ConformantSession = {
   requestExactFrame(frameIndex: number): Promise<ConformantFrame>;
   startStreamFrames(waitLast: number, range?: { from?: number; to?: number }): number;
+  fillFrames(from: number, to: number, onFrame: (f: ConformantFrame) => void): number;
   endStream(): Promise<void>;
   stats(): { inFlight: number };
   close(): void;
@@ -28,8 +29,6 @@ export type FakeHandle = {
 
 export type Rig = {
   name: string;
-  /** The wire op this arm's fill sends. */
-  fillOp: "stream_frames" | "request_frames";
   /** An ask after a closure: the sessions fail it, the downloader re-dials and serves it. */
   closure: "fail" | "redial";
   open(): Promise<ConformantSession>;
@@ -56,14 +55,16 @@ function within<T>(p: Promise<T>, ms = 500): Promise<T | null> {
   ]);
 }
 
-async function untilDials(rig: Rig, n: number, ms = 3000): Promise<boolean> {
+async function until(cond: () => boolean | Promise<boolean>, ms: number): Promise<boolean> {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
-    if ((await rig.dialsSinceOpen()) >= n) return true;
+    if (await cond()) return true;
     await new Promise((r) => setTimeout(r, 10));
   }
-  return false;
+  return cond();
 }
+
+const untilDials = (rig: Rig, n: number) => until(async () => (await rig.dialsSinceOpen()) >= n, 3000);
 
 /** Timestamps must be real values, not the zeros a missing clock hands back in a worker. */
 async function workerSafe(rig: Rig, check: Check) {
@@ -92,7 +93,7 @@ async function cancellable(rig: Rig, check: Check) {
   await settle();
 
   const ops = (await t.controlMessages()).map((m) => m.op);
-  check(ops.includes(rig.fillOp), `${rig.name}: the fill was asked for`);
+  check(ops.includes("stream_frames"), `${rig.name}: the fill was asked for`);
   check(ops.includes("end_stream"), `${rig.name}: end_stream was sent`);
   check(!(await t.didClose()), `${rig.name}: cancelling a fill does not close the session`);
 
@@ -252,6 +253,54 @@ async function oneDialServesLaterAsks(rig: Rig, check: Check) {
   s.close();
 }
 
+/**
+ * A fill pushed as it lands: every frame reaches the callback once and in order, none arms a
+ * waiter, in both stream modes; an ask during it keeps its own promise; endStream() drops the rest.
+ */
+async function pushedFill(rig: Rig, check: Check) {
+  for (const mode of ["shared", "per-frame"] as const) {
+    const s = await rig.open();
+    const t = rig.fake();
+    const got: ConformantFrame[] = [];
+    s.fillFrames(0, 2, (f) => got.push(f));
+    await settle();
+    check(s.stats().inFlight === 0, `${rig.name}: a pushed ${mode} fill arms no waiter`);
+    // Frame 9 is outside the fill: it must be dropped, not pushed.
+    const frames = [0, 1, 2, 9].map((i) => [i, enc.encode(`frame-${i}`)] as [number, Uint8Array]);
+    if (mode === "shared") await t.pushOnOneStream(frames);
+    else for (const [i, c] of frames) await t.pushFrame(i, c);
+    await until(() => got.length >= 3, 1000);
+    await settle();
+    const order = got.map((f) => f.frameIndex).join();
+    check(order === "0,1,2", `${rig.name}: every frame of a pushed ${mode} fill lands once, in order (got ${order})`);
+    check(got.every((f) => text(f) === `frame-${f.frameIndex}`), `${rig.name}: pushed ${mode} frames carry their bytes`);
+    check(
+      got.every((f) => f.timing.askMs > 0 && f.timing.lastChunkMs >= f.timing.askMs),
+      `${rig.name}: pushed ${mode} frames carry real timings`,
+    );
+    s.close();
+  }
+
+  const s = await rig.open();
+  const t = rig.fake();
+  const got: ConformantFrame[] = [];
+  s.fillFrames(0, 3, (f) => got.push(f));
+  await settle();
+  const asked = s.requestExactFrame(2);
+  await settle();
+  await t.pushFrame(2, enc.encode("frame-2"));
+  const f = await within(asked);
+  check(text(f) === "frame-2", `${rig.name}: an ask during a pushed fill is served on its own promise`);
+  await settle();
+  check(!got.some((g) => g.frameIndex === 2), `${rig.name}: and is not pushed to the fill as well`);
+  await s.endStream();
+  await settle();
+  await t.pushFrame(3, enc.encode("frame-3"));
+  await settle();
+  check(!got.some((g) => g.frameIndex === 3), `${rig.name}: after endStream a late fill frame is dropped, not pushed`);
+  s.close();
+}
+
 /** A closed session can be replaced: the next connect serves frames again. */
 async function redialsAfterClosure(rig: Rig, check: Check) {
   const first = await rig.open();
@@ -289,6 +338,7 @@ export async function runClauses(rig: Rig, check: Check): Promise<void> {
     reportsStats,
     oneDialServesLaterAsks,
     redialsAfterClosure,
+    pushedFill,
   ];
   for (const clause of clauses) {
     try {
