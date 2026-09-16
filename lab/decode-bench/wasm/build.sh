@@ -3,6 +3,9 @@
 # variant built from the same file. docs/decode/README.md says what it is for.
 #
 #   EMSDK=... INITIAL_MB=... ARMS="plain shared" lab/decode-bench/wasm/build.sh
+#
+# Any other arm name builds with EXTRA_FLAGS, which is how L17 compares build settings:
+#   ARMS=lto EXTRA_FLAGS="-flto" lab/decode-bench/wasm/build.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 HERE="$ROOT/lab/decode-bench/wasm"
@@ -40,6 +43,6 @@ for arm in $ARMS; do
   case "$arm" in
     plain) build_arm plain "" ;;
     shared) build_arm shared "-pthread" ;;
-    *) echo "unknown arm $arm" >&2; exit 2 ;;
+    *) build_arm "$arm" "${EXTRA_FLAGS:-}" ;;
   esac
 done
