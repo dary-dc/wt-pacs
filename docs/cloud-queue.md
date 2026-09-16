@@ -37,7 +37,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | --- | --- | --- | --- |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
-| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | ready |
+| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | claimed 2026-09-16 |
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 16 |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
