@@ -3,7 +3,8 @@
  * fake transport inside its worker over the BroadcastChannel fake-session.ts listens on.
  * The page passes DownloaderClient in, so its worker URLs resolve from its own module.
  */
-import { type Check, type ConformantSession, type FakeHandle, type Rig, runClauses } from "./clauses.ts";
+import { type Check, type ConformantSession, type Rig, runClauses } from "./clauses.ts";
+import { workerFake } from "./worker-fake.ts";
 
 const CERT = "ab".repeat(32);
 
@@ -18,36 +19,6 @@ type Downloader = {
 type DownloaderCtor = {
   connect(url: string, certHash: string, opts: Record<string, unknown>): Promise<Downloader>;
 };
-
-function channelHandle(name: string): FakeHandle & { dials(): Promise<number> } {
-  const bc = new BroadcastChannel(name);
-  let nextId = 1;
-  const waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
-  bc.onmessage = (e) => {
-    const w = waiting.get(e.data.id);
-    if (!w) return;
-    waiting.delete(e.data.id);
-    if (e.data.ok) w.resolve(e.data.result);
-    else w.reject(new Error(e.data.result));
-  };
-  const call = (cmd: string, ...args: unknown[]) =>
-    new Promise<unknown>((resolve, reject) => {
-      const id = nextId++;
-      waiting.set(id, { resolve, reject });
-      bc.postMessage({ id, cmd, args });
-      setTimeout(() => {
-        if (waiting.delete(id)) reject(new Error(`no reply to ${cmd} in 2 s — is the fake installed in the worker?`));
-      }, 2000);
-    });
-  return {
-    pushFrame: (i, c) => call("pushFrame", i, c) as Promise<void>,
-    pushOnOneStream: (frames) => call("pushOnOneStream", frames) as Promise<void>,
-    serverClose: (code, reason, endStreams) => call("serverClose", code, reason, endStreams) as Promise<void>,
-    controlMessages: () => call("controlMessages") as Promise<{ op: string }[]>,
-    didClose: () => call("didClose") as Promise<boolean>,
-    dials: () => call("dials") as Promise<number>,
-  };
-}
 
 function adapt(c: Downloader): ConformantSession {
   return {
@@ -68,14 +39,14 @@ function adapt(c: Downloader): ConformantSession {
 
 function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
   let world = 0;
-  let handle: ReturnType<typeof channelHandle> | null = null;
+  let handle: ReturnType<typeof workerFake> | null = null;
   return {
     name: "downloader",
     fillOp: "request_frames",
     closure: "redial",
     async open() {
       const ch = `wtpacs-conformance-${++world}`;
-      handle = channelHandle(ch);
+      handle = workerFake(ch);
       const connect = DownloaderClient.connect("https://conformance.invalid/", CERT, {
         decode: false,
         decoders: 0,

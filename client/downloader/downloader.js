@@ -106,8 +106,10 @@ async function start(m) {
   // A config field the consumer left out must not clobber the default with `undefined`.
   for (const [k, v] of Object.entries(m.config ?? {})) if (v !== undefined) cfg[k] = v;
   const ready = [];
+  // The decoder is a seam like the transport: a test points it at a controllable stand-in.
+  const decoderUrl = cfg.decoderWorker ?? new URL("./decoder.js", import.meta.url);
   for (let i = 0; i < cfg.decoders; i++) {
-    const worker = new Worker(new URL("./decoder.js", import.meta.url), { type: "module" });
+    const worker = new Worker(decoderUrl, { type: "module" });
     const d = { worker, outstanding: 0 };
     ready.push(new Promise((r) => { d.ready = r; }));
     const ch = new MessageChannel();

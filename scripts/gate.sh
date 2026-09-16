@@ -30,6 +30,9 @@ node client/conformance/run.mjs | tail -2
 step "client: transport conformance (downloader arm, headless Chromium)"
 bash client/conformance/run_downloader.sh | tail -2
 
+step "client: downloader dispatch — ordering and the per-decoder bound (headless Chromium)"
+bash client/conformance/run_dispatch.sh | tail -2
+
 step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)
 (cd client/transport-ts && npx tsc -p ../record/tsconfig.json)

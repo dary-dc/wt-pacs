@@ -206,9 +206,17 @@ the fake left uninstalled: each fails its checks by name and the suite still com
 limit, found by a mutant that *passed*: a dropped transfer list arrives as a clone that still
 detaches, so move-not-copy across the worker boundary is S4's metric, not a clause here.
 
-**Implemented but asserted by nothing yet**, and so not claimed: the two priorities' *ordering*
-under contention (an ask arriving mid-fill is promoted, but no test watches the order it comes
-back in), the two-outstanding-per-decoder dispatch bound, and sign extension — which cannot be
+**D2c asserted two of the three (2026-09-16):** the priority *ordering* under contention and the
+two-outstanding-per-decoder bound. `client/conformance/dispatch-rig.ts` drives the downloader
+against a **stalling** decoder (`fake-decoder.js`) so the queue backs up on purpose — contention
+forced, not waited for — and reads the order each frame started (`decodeSeq`) and the most a
+decoder ever held (`maxInFlight`) back off every frame. Three clauses, **9 checks green in the
+gate**: a fresh ask starts right after the frames in flight and before the queued fill; an ask for
+a frame *already* in the fill is promoted (not re-asked) and does the same; and no single decoder
+ever holds more than `perDecoder`, proven with one decoder and again per-decoder with two.
+Mutation-checked: a fill-first queue, a `promote()` that does nothing, and a raised outstanding
+cap each fail their clauses by name. `config.decoderWorker` is the seam that made this possible,
+a decoder analogue of `config.transport`. **Still unasserted:** sign extension — it cannot be
 asserted at all until there is a signed fixture (`cloud-queue.md` §Blocked).
 
 **S3 — fills pushed.** Both clients deliver a fill's frames as they arrive instead of through a waiter

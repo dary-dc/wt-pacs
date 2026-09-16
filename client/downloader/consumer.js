@@ -38,6 +38,7 @@ export class DownloaderClient {
       perDecoder: opts.perDecoder,
       decoder: opts.decoder,
       transport: opts.transport,
+      decoderWorker: opts.decoderWorker,
     };
     c.#worker.postMessage({ kind: "start", url, certHash, config });
     await c.#ready;

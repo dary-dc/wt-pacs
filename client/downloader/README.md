@@ -28,6 +28,8 @@ would measure the wrong thing. `dev-server.py` and `deploy/nginx` both send the 
 defaulting to `client/transport-ts/dist/session.js`. A third implementation plugs in there without
 the downloader knowing ([`client-shape-plan.md`](../../docs/client-shape-plan.md) §0) — and it is
 how the conformance suite drives this arm: `client/conformance/run_downloader.sh`, run by the gate.
+`config.decoderWorker` is the same seam for the decoder: `client/conformance/run_dispatch.sh` (D2c)
+points it at a stalling stand-in to force the contention its ordering and dispatch-bound tests need.
 
 **Mutate it after any change to `decoder.js`.** Perturb one decoded sample and every `sha` line must
 read `MISMATCH`; drop every fifth frame and the fill must report fewer than it asked for. Both were
