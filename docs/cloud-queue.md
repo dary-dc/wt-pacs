@@ -46,7 +46,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | **done** `09fcf32` on `claude/downloader-s2-worker` — 35 checks green, in the gate |
 | 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | **done** `2ca9886` on `claude/downloader-s2-worker` — 9 checks green, in the gate |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | **done** `5b93cd5` on `claude/downloader-s2-worker` — both rows green against a real server, in the gate; one hole found, see below |
-| 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | claimed 2026-09-16 |
+| 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | **done** `352b82e` on `claude/downloader-s2-worker` — route proven with an independent decoder; the package was right, the source build was wrong and is fixed |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
@@ -366,6 +366,28 @@ its reason. This belongs to whoever takes the downloader past investigation.
 when its command line carries the pattern, and the shell dies with 144. `pgrep -f "[e]xact-server"`
 cannot match itself; kill by that PID.
 
+**F1 is done** (2026-09-16, `352b82e` on `claude/downloader-s2-worker`), and it settles the §Blocked
+question the other way round from what was recorded. The route the row proposed works: encode
+unsigned, set each component's sign bit in SIZ (`lab/scripts/sign_htj2k.py`), and the same coded
+bits decode to `v − 2^(B−1)` — **OpenJPEG 2.5's `opj_decompress`, an independent decoder, confirms
+it exactly** on 16-bit (−21975 … 21863 from 10793 … 54631) and on 12-bit, where its raw writer keeps
+12-bit two's complement in 16-bit containers; `ojph_expand` agrees, sign-extended. Two fixture sets
+now exist, `decode_s512` (16-bit signed) and `decode_s12` (12-bit in 16), 87 frames each, with
+`.sha256` ground truth from the encoder's input. Against them **the package decodes byte for byte
+and already sign-extends 12-in-16 samples** — so `decoder.js`'s `finish` pass is idempotent on it.
+**The source build was the wrong one:** its wrapper clamped every component to `[0, 2^B − 1]`
+regardless of the sign flag, so negatives saturated to 0. Fixed in `htj2k_decoder.cpp`; parity is
+**87/87 on both signed sets** against the package and the truth, and `parity.mjs` prints what it
+covers and flags a run with no signed set. Mutants: the unfixed build fails the signed sets only;
+a level shift off by one in the truth fails the encoder column only. The proposal's signed row is
+green on the decoder; not yet run *behind* the downloader on a signed study.
+
+**What this changes elsewhere.** L8's parity claim is now true on signed data too, after the fix.
+L17 tuned a build whose signed output was wrong; its timing findings do not depend on the clamp.
+The one thing still the workstation's: whether the product serves signed data at all.
+
+**No row is `ready`.** Rows 5–7 are workstation lanes; D1–D4, D2b, D2c, D1r and F1 are done.
+
 **Three things are implemented and asserted by nothing**, so D2 claims none of them: the ordering
 of the two priorities under contention, the two-outstanding-per-decoder dispatch bound, and sign
 extension — which cannot be asserted at all until there is a signed fixture (§Blocked).
@@ -516,6 +538,14 @@ negative sample to 32767, the source build does not. `parity.mjs`'s byte-identic
 covers unsigned data only, which qualifies **L8**'s parity claim and bears on **L17**, which tunes
 that build against it.
 
-**What is needed:** a signed HTJ2K fixture from a source other than this encoder path — another
-encoder, or a known-good file with its expected samples — plus a decision on whether the product
-serves signed data at all. Until then the row stays red and `parity.mjs` should say what it covers.
+**Corrected 2026-09-16 by F1, in place.** That disagreement was read off codestreams the encoder's
+`-signed true` path had already damaged, and it was the wrong way round. With a valid signed
+codestream and ground truth from an independent decoder, **the package is right and the source
+build was wrong** — its wrapper clamped negatives to 0 — and is fixed. The row is no longer blocked;
+see the F1 note in §Answers. What stands from the original: `parity.mjs`'s 609-frame claim was
+unsigned-only when it was made, and L8's parity claim needed the qualification.
+
+**What was needed, and F1 supplied:** a signed HTJ2K fixture from a source other than the encoder's
+`-signed` path — made by encoding unsigned and setting the sign bit in SIZ, confirmed by OpenJPEG.
+`parity.mjs` now says what it covers. Still the workstation's: whether the product serves signed
+data at all.
