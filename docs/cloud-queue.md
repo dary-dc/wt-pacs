@@ -27,7 +27,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 8 | **L12** — the whole gate on this branch | lanes §L12 | claimed 2026-09-16 |
+| 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | ready |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | ready |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | ready |
@@ -95,6 +95,12 @@ It wants `<dirname>/bin/wasm-opt`. Any lane needing a WASM build per arm — **L
 `rustwasm.github.io` is blocked by egress policy (403), so install wasm-pack with `cargo install
 wasm-pack`, not the shell installer.
 
+*Confirmed verbatim 2026-09-16 (L12), and the hash above is stable — seeding
+`wasm-opt-1ceaaea8b7b5f7e0` by hand first meant `build.sh` never attempted the download.* Two
+prerequisites the recipe does not mention, both missing in a fresh container: `cargo install
+wasm-pack` ≈ 2 min, and `rustup target add wasm32-unknown-unknown` ≈ 3 s. The pkg build itself is
+then 1 m 41 s, most of it `wasm-pack` compiling its own `wasm-bindgen-cli`.
+
 **The SIGTERM tail was not lost where L5's brief said** (2026-09-15). `sink.rs` already had
 `flush_on_exit` and a test for it; the rows that went missing were never in the channel. A `Tap`
 buffers up to 63 rows before sending a batch of 64, and a session still open when the signal lands
@@ -118,6 +124,16 @@ memory, linear to 2 000. Relevant to **L11**, which holds a session across a vie
 stops the server sending but settles nothing on the client, so the promises sit for 15 s. Not
 fixed: it wants a decision about what a cancelled waiter should reject with. Relevant to **L11**,
 which will cancel fills for real, and to L6's lifecycle work.
+
+**The gate passes end to end on this branch** (2026-09-16, from L12). `GATE OK`, no step failed,
+nothing needed fixing. **10.2 s warm, ≈2 m 33 s cold**, the cold figure almost entirely two builds:
+the default-feature test build (40 s) and the `release` build the server absence check needs (75 s).
+Every later row pushes here, so run `scripts/gate.sh` before pushing — it is cheap, and it is now
+known to catch things: four deliberate breakages were caught, one of them undoing L4's fix and
+taking the whole gate down with it. Per-step timings and the mutation table:
+[`improvements/2026-09-16.md`](improvements/2026-09-16.md). Two caveats for rows 8–14: the gate
+covers **one arm of two** unless the WASM pkg is built first (see §Blocked), and a fresh container
+has no `node_modules` — `client/transport-ts/build.sh` runs `npm install` itself, 1.9 s.
 
 ## Blocked
 
@@ -143,3 +159,21 @@ the agent key placed in the cloud environment *and* egress to port 22 opened, or
 from the workstation. Nothing in this queue is a container lane any more — the four that were
 (L4, L5, L6, L11) are done or, for L11, proposed with its measurement complete. Rows 8–14, queued
 2026-09-16, are container lanes again.
+
+**Should the gate hard-require the WASM arm?** (2026-09-16, from L12). `scripts/gate.sh` passes
+and prints `GATE OK` with the WASM client unchecked, because both client steps test that arm only
+if `client/transport-wasm/pkg/` already exists and the gate never builds it. Conformance is
+**17/17 over one implementation** instead of 34/34 over two; the worker-safe check reads one
+artifact instead of two — and the WASM clock is the bug that check was written for (`3396c28`).
+Evidence and both outputs: [`improvements/2026-09-16.md` §2](improvements/2026-09-16.md).
+
+**What is needed — a decision, because it is contributor-facing, not a local fix.** Building the
+pkg costs 1 m 41 s here, against a 2½-minute cold gate and 10 s warm, and makes `wasm-pack`,
+`wasm-opt` and the `wasm32-unknown-unknown` target hard prerequisites the README does not yet name
+(T6). Three ways, cheapest first:
+
+* leave it, and have the gate say loudly at the end that it ran at half strength;
+* fail the gate when `pkg/` is absent, so the arm is skipped only by deleting it deliberately;
+* build the pkg in the gate, and pay it on every cold run.
+
+A cloud agent can implement any of the three in minutes once the workstation picks one.
