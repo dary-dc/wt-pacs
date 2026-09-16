@@ -36,8 +36,8 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | # | what | brief | state |
 | --- | --- | --- | --- |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
-| 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | claimed 2026-09-16 |
-| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | after 15 |
+| 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
+| 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | ready |
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 16 |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
@@ -190,6 +190,23 @@ per-realm attribution — so **L18** can use it for its heap high-water rather t
 Also: the source build exports no `Module.HEAPU8`; use a `typed_memory_view`'s buffer instead,
 which measures either build identically.
 
+**D1 is done and three capability rows are not green** (2026-09-16), on
+`claude/downloader-s1-capabilities`. The conformance suite goes 34 → **58 checks, both arms**, with
+four clauses added and mutation-checked: both stream modes, `stats`, an ask long after the dial,
+and a re-dial after closure. §Capabilities' middle column is filled there. What is not green, all
+of it pre-existing rather than the downloader's doing:
+
+* **refusals** — a browser page (`client/harness/refusals.html`), no gate test, so the row rests on
+  a manual step;
+* **an ask during a fill** — proven on the server, nowhere on the client. **L16** measures what it
+  costs and could leave the client assertion behind it;
+* **16-bit signed** — see §Blocked.
+
+Also fixed there, found by one of the mutants: `transferable` awaited its frames raw, so a
+shared-mode regression **took the whole suite down at `FRAME_TIMEOUT_MS` with nothing counted**
+instead of reporting. Every frame wait is bounded now. Worth knowing for **D3**, which changes how
+a fill's frames are delivered and will lean on exactly these clauses.
+
 ## Blocked
 
 **The rig is not reachable from a cloud agent container** (2026-09-15). Rows 5, 6 and 7 — L2, L3 and
@@ -232,3 +249,21 @@ pkg costs 1 m 41 s here, against a 2½-minute cold gate and 10 s warm, and makes
 * build the pkg in the gate, and pay it on every cold run.
 
 A cloud agent can implement any of the three in minutes once the workstation picks one.
+
+**No signed fixture can be made with the encoder in this tree** (2026-09-16, from D1), so the
+capability row "16-bit signed with sign extension" cannot be tested at all — and signed 16-bit is
+ordinary medical data, so this is a real hole rather than a formality. `lab/scripts/gen_htj2k_fixtures.sh`
+has no signed mode, and `ojph_compress -signed true` over its raw reader does not survive its own
+`ojph_expand`: every negative sample saturates to the bottom of the range, at 12- and 16-bit alike,
+with in-range data. So there is no ground truth, and **D1 makes no claim about how either decoder
+handles signed data**.
+
+What is measurable without ground truth, and is worth someone's attention: **the package build and
+`lab/decode-bench/wasm` disagree on the same signed codestream** — the package saturates every
+negative sample to 32767, the source build does not. `parity.mjs`'s byte-identical result therefore
+covers unsigned data only, which qualifies **L8**'s parity claim and bears on **L17**, which tunes
+that build against it.
+
+**What is needed:** a signed HTJ2K fixture from a source other than this encoder path — another
+encoder, or a known-good file with its expected samples — plus a decision on whether the product
+serves signed data at all. Until then the row stays red and `parity.mjs` should say what it covers.
