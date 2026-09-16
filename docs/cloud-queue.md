@@ -43,7 +43,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **part done** on `claude/downloader-s2-worker` — built and running; owes the conformance run, see below |
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 20 |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
-| 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | ready |
+| 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | claimed 2026-09-16 |
 | 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | after 19 |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | ready |
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | ready |
