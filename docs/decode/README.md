@@ -126,7 +126,7 @@ The build is smaller, not larger — 299,838 bytes of `.wasm` + `.js` against th
 and 329,366 for the shared variant. The cost is not size, it is ownership:
 
 * A pinned emscripten (3.1.74 here) and a pinned OpenJPH tag become build inputs, and a CI step has
-  to build WASM, which nothing in this repository does today.
+  to build WASM, which nothing in this repository does today. **The emscripten pin is holding about 15 % of decode time**, not only reproducibility: §Faster, measured — and it is not.
 * Security and correctness fixes to OpenJPH become ours to track. The package's author does that
   now, and that is a real service to give up.
 * `parity.mjs` is the mitigation and should run in CI against the published package: it is what
@@ -252,6 +252,73 @@ something that grows with frame size and the tax does not appear at all. That is
 two-arm claim measured somewhere else, so it is a failure to reproduce rather than a refutation —
 and a container cannot adjudicate a millisecond. It does mean the pairing should not be quoted as
 settled in either direction.
+
+## Faster, measured — and it is not
+
+L17 asked whether the decoder can be made faster, since during a fill the decode queue sets the
+finish and more decoders is not an option on the target device. Every arm below passed
+`parity.mjs` against the package and the encoder's input before it was timed; an arm that is not
+byte-identical is not an arm. Interleaved, arm order rotated each round.
+
+**Nothing here makes it faster.** The one lever that moved the clock was a *regression* the lane
+did not ask about, and the one build flag that helps exactly undoes it.
+
+### The toolchain is the lever, and it points backwards
+
+`docs/decode/README.md` records the build as emscripten **3.1.74**. Rebuilt unchanged with
+**6.0.9**, the same source and flags decode measurably slower:
+
+| against the 3.1.74 build | 512 KB | 768 KB | 8 MB |
+| --- | ---: | ---: | ---: |
+| emscripten 6.0.9, `-O3` | **+15.6 %** (0/8 rounds faster) | +6.5 % (1/6) | **+16.0 %** (0/6) |
+| emscripten 6.0.9, `-O3 -flto` | −1.2 % (7/8) | +2.2 % (3/6) | −1.6 % (4/6) |
+
+Two readings, and the second is the one that matters:
+
+* **A newer emscripten costs 6.5–16 %** on this decoder, in the wrong direction, and the round
+  counts are as one-sided as they can be — 0 of 8 and 0 of 6 at the two sizes where it is largest.
+* **LTO recovers that and stops there.** Against the 3.1.74 build it is −1.2 %, +2.2 %, −1.6 %:
+  three ties, all inside the 5 % bar with overlapping ranges. Against a 6.0.9 build without it, LTO
+  looks like a 17.8–21.7 % win — which is what it is worth *if you have already taken the
+  regression*, and nothing at all if you have not.
+
+So the pinned emscripten in `wasm/build.sh` is not only a reproducibility device; it is holding
+about 15 % of decode time. Moving it is a performance decision.
+
+### What the other arms did
+
+| arm | 512 KB | 768 KB | 8 MB | verdict |
+| --- | --- | --- | --- | --- |
+| a decoder object reused vs created per frame | −1.6 % (8/8) | +0.6 % (4/8) | −0.6 % (4/8) | **tie** |
+| `wasm-opt -O4` over the linked binary | +0.1 % (8/8) | — | — | **tie** |
+| a newer OpenJPH | — | — | — | **none exists**: 0.31.0 is the newest tag |
+| combinations | — | — | — | nothing won alone, so nothing to combine |
+
+* **The decoder's lifetime is not the lever** the lane guessed it might be — "possibly the largest
+  of these". Reusing one object is consistently in the right direction at 512 KB (8 of 8 rounds)
+  but by 0.042 ms on 2.7, and it is a wash at the other two sizes. It is still the right default for
+  other reasons (`§Retention, measured`), just not for speed.
+* **`wasm-opt` has already run.** emcc invokes it at `-O3` during linking, so a second `-O4` pass
+  changes the clock by 0.1 % and makes the binary 275 bytes *larger*. Use the emsdk's own `wasm-opt`
+  if you try this: binaryen 117 cannot validate 6.0.9's output at all, and `--all-features` produces
+  a binary Node will not instantiate.
+
+### What is worth taking, and it is not time
+
+**LTO makes the binary 16 % smaller** — 200 KB against 239 KB for the 3.1.74 build and 233 KB for
+6.0.9 without it — at no cost in heap, which is identical across every arm (4.0 MB at 512×512,
+24.6 MB at 2048×2048). On a phone that is a download, not a decode, and it is the only unambiguous
+gain on this page.
+
+### What this is not
+
+* **Container-measured**, so the millisecond columns are reported and decide nothing; the round
+  counts and the byte-exactness are what carry weight. The workstation is the timing rig.
+* **A first pass of this measured LTO at −17.8 %** and nearly reported it as a win. It was measured
+  against a `plain` build this lane had itself rebuilt with the newer, slower toolchain — a baseline
+  of its own making. The table above is against the build the project actually records.
+* **The 768 KB colour fixture is the noisy one** here as elsewhere (`§The copy, measured` left its
+  row out at 6/8). Its ranges overlap in every arm and it settles nothing on its own.
 
 ## Retention, measured
 
