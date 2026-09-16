@@ -23,6 +23,7 @@ real path it did not move the needle.
 | --- | ---- |
 | [`why-these-changes.md`](why-these-changes.md) | Why each decision exists |
 | [`adr-quic-stream-receive-window-defaults.md`](adr-quic-stream-receive-window-defaults.md) | Keep quinn window defaults; do not equalise S vs P/Q |
+| [`ask-during-fill.md`](ask-during-fill.md) | An ask does not overtake a running fill — it ends one. What that costs, and why stream priority does not arise |
 
 ## Evidence and lab (on the archive tag)
 
