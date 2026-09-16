@@ -41,8 +41,8 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
-| 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | claimed 2026-09-16 |
-| 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
+| 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | **done** `77e01f0` on `claude/downloader-s2-worker` — pushed on both clients, the downloader re-issues after an ask; `CLIENTS.md` §Fills are pushed |
+| 18 | **D4** — validation and metrics | proposal-downloader §S4 | ready |
 | 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | **done** `09fcf32` on `claude/downloader-s2-worker` — 35 checks green, in the gate |
 | 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | **done** `2ca9886` on `claude/downloader-s2-worker` — 9 checks green, in the gate |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | ready |
@@ -296,6 +296,35 @@ a no-op `promote()`, and a raised outstanding cap each fail their clauses by nam
 client moved to `worker-fake.ts`, shared with the D2b rig. **D3 inherits the seam** — the same fake
 decoder can hold frames while a re-issued fill is checked. The one row still unasserted is sign
 extension, blocked on a signed fixture (§Blocked, row 22).
+
+**D3 is done** (2026-09-16, `77e01f0` on `claude/downloader-s2-worker`), and its premise needed one
+correction first. The brief said an ask ends a fill (L16); it does — a `stream_frames` fill. The
+downloader was filling with `request_frames`, which `planner.rs` turns into one `Ask::Frame` per
+index and serves in order, so an ask behind its 200-frame fill waited for all 200 and L16 did not
+apply to it at all. The pushed fill therefore rides `stream_frames`: both clients gained
+`fillFrames(from, to, onFrame, onError?)` — every owed frame straight to the callback, no waiter,
+no timer per frame, `endStream()` or a later fill dropping the rest (`docs/CLIENTS.md` §Fills are
+pushed) — and the downloader issues one contiguous run of what it still wants at a time and
+re-issues exactly the remainder once an ask settles. An ask for a frame the fill still owes now goes
+to the wire, where the server serves it next; one already in hand only moves up the decode queue.
+**84/84** in Node, **46/46** on the downloader arm, **19/19** dispatch; seven mutants caught by name.
+Lines: the pushed fill is *more* code, not less (downloader −24/+67, TS −8/+50, WASM −15/+93); what
+it removes is a promise, a timer and a `waitExactFrame` round trip per frame at run time, and the
+stray timeouts a cancelled fill used to leave armed — the L4 loose end, for pushed fills.
+
+**Two traps, both from this lane.** A WASM mutant "passed" against a pkg that had not rebuilt — the
+`cargo build` failure was behind a `| tail`; the pkg's timestamp gave it away, and the build was
+re-run with its exit code read. And one gate run reported `dispatch: 16/17` with the failing line
+swallowed by the gate's own `| tail -2`; eleven serial runs and two more gates since are 19/19, no
+mechanism found. `drive_downloader.cjs` now echoes every `FAIL` on stderr so the gate cannot hide a
+name again, and the one unbounded `open()` on that path is bounded at 5 s.
+
+**This lands on D4 (row 18), now ready.** The measurement S4 names — an ask at 10 %, 50 % and 90 %
+of a fill — is exactly where D3's trade shows: an owed frame asked on the wire costs the fill a
+re-issue. And two things D4 must know: the recorder (`client/record/`) wraps `waitExactFrame` and
+does **not** see a pushed fill, so its per-frame telemetry is blind to the downloader's fill path
+until it wraps `fillFrames`; and `onError` on a refused range is wired in both clients and asserted
+by nothing — the fake has no control-stream push. **D1r** (row 21) inherits that second one.
 
 **Three things are implemented and asserted by nothing**, so D2 claims none of them: the ordering
 of the two priorities under contention, the two-outstanding-per-decoder dispatch bound, and sign
