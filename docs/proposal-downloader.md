@@ -171,6 +171,39 @@ pixel ports, decoder-side sample work, cancel. Built beside today's path as a ne
 existing is removed. Uses today's `startExactFrames` / `waitExactFrame`. Done when S1's tests pass
 against it.
 
+### S2 results
+
+Built and running on `claude/downloader-s2-worker`: `client/downloader/` (worker, decoders,
+consumer) and `client/harness/downloader.html`, beside today's path with nothing removed.
+
+Against the real server and 12 real HTJ2K frames, in headless Chromium, cross-origin isolated:
+
+```
+started, dialled and decoders up in 59 ms
+single ask   frame 3: 512x512x3 8-bit signed=false range 39..212 786432 B  sha ok
+             pixels arrived in a SharedArrayBuffer: true
+fill 12:     12/12 frames in 113 ms, every frame byte-identical to the fixture
+stamps:      ask→lastByte 4.34 ms, dispatch→decodeEnd 29.70 ms, all non-zero and in order: ok
+cancel:      the session still serves frame 5 afterwards: ok
+re-dial:     a session opened after a closure serves frame 1: ok
+```
+
+Mutation-checked: perturbing one decoded sample turns every `sha` line to `MISMATCH`, and dropping
+every fifth frame makes the fill report 9/12. A decode arm whose ground-truth check does not fire
+is worth nothing, so both were run.
+
+**S2 is not done, and owes one thing: S1's clauses do not yet drive this arm.** They run in Node
+against a fake `WebTransport`; the downloader dials inside its own worker, so the fake has to be
+installed there and driven from the page. `config.transport` — a module URL exporting
+`TransportSession`, defaulting to today's — is the hook that makes that possible and is in place.
+What remains is a conformance runner that supplies a fake transport module and a control path to
+it. Until then these rows are shown on the arm rather than by the suite.
+
+**Implemented but asserted by nothing yet**, and so not claimed: the two priorities' *ordering*
+under contention (an ask arriving mid-fill is promoted, but no test watches the order it comes
+back in), the two-outstanding-per-decoder dispatch bound, and sign extension — which cannot be
+asserted at all until there is a signed fixture (`cloud-queue.md` §Blocked).
+
 **S3 — fills pushed.** Both clients deliver a fill's frames as they arrive instead of through a waiter
 per frame; the conformance suite covers the new form against both implementations. The downloader
 switches to it. Report lines removed against lines added.
