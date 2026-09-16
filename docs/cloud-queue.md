@@ -42,7 +42,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | **done** `77e01f0` on `claude/downloader-s2-worker` — pushed on both clients, the downloader re-issues after an ask; `CLIENTS.md` §Fills are pushed |
-| 18 | **D4** — validation and metrics | proposal-downloader §S4 | claimed 2026-09-16 |
+| 18 | **D4** — validation and metrics | proposal-downloader §S4 | **done** `857ff54` on `claude/downloader-s2-worker` — three clean sweeps, two ties, the fill survives an ask only on the downloader; proposal §Results |
 | 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | **done** `09fcf32` on `claude/downloader-s2-worker` — 35 checks green, in the gate |
 | 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | **done** `2ca9886` on `claude/downloader-s2-worker` — 9 checks green, in the gate |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | ready |
@@ -325,6 +325,28 @@ re-issue. And two things D4 must know: the recorder (`client/record/`) wraps `wa
 does **not** see a pushed fill, so its per-frame telemetry is blind to the downloader's fill path
 until it wraps `fillFrames`; and `onError` on a refused range is wired in both clients and asserted
 by nothing — the fake has no control-stream push. **D1r** (row 21) inherits that second one.
+
+**D4 is done** (2026-09-16, `857ff54` on `claude/downloader-s2-worker`): `lab/downloader-campaign/`,
+three arms against the real server in headless Chromium, arm order rotated, 8 rounds, 120 runs, no
+errors, all container-measured. **Three clean sweeps** for the downloader over an 80-frame fill,
+8/8 with ranges that do not overlap: the page's main-thread work **95 → 14 ms**, renderer GCs
+**139 → 0**, page JS heap peak **59 → 31 MB**. **Two ties**: the fill itself (233 vs 230 ms, 5/8)
+and a cold ask (4.98 vs 5.87 ms, 2/8, overlapping). An ask mid-fill waits ~35–40 ms behind the
+in-flight window on both arms (L16 holds); on today's path the fill then **dies** (23 and 53 of 80
+delivered at 10 % and 50 %), on the downloader it completes in a plain fill's time. The decode arm is
+decode-bound on 4 cores — 472 ms per fill, no timing claim — and holds **161 MB, 150 of it three 50 MB
+link-time decoder heaps** (L1): the L8 4 MB floor would make that ~12 MB, which is now a number with a
+consequence. An ask during a decoding fill waits behind each decoder's two outstanding frames: 78 ms
+at 10 %, the price of the D2c bound. The last column of the proposal's capability table is filled;
+two rows are not shown on the new path — the WASM transport behind the downloader (the pkg exports
+`TransportSessionHandle`, the seam wants `TransportSession`: a one-line adapter, unwritten) and
+refusals (row 21).
+
+**Two things the rig had to learn** (from D4). `measureUserAgentSpecificMemory` is absent from the
+headless shell playwright launches by default; only an explicit `executablePath` launches the full
+browser where it works — L14 had passed it and never said why. And the measurement forces a GC, so
+CDP tracing must stop before it or the GC count includes it. `lab/downloader-campaign/run.mjs`
+does both.
 
 **Three things are implemented and asserted by nothing**, so D2 claims none of them: the ordering
 of the two priorities under contention, the two-outstanding-per-decoder dispatch bound, and sign
