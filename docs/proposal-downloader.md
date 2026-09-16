@@ -102,21 +102,61 @@ priority, so a paint never waits behind a fill.
 Nothing is removed until every row passes on the new path. Stage 1 fills the middle column against
 today's path; Stage 4 fills the last.
 
+Stage 1 filled the middle column on 2026-09-16. **conformance** is `client/conformance/run.mjs`,
+which runs every clause against both implementations and is in `scripts/gate.sh`; **server** is
+`cargo test -p exact-server`. Clauses marked *new* were written for this stage and are
+mutation-checked — §S1 results below.
+
 | capability | today | downloader |
 | --- | --- | --- |
-| connect, single ask, fill; shared and per-frame stream modes | | |
-| a fill cancelled mid-way, the session still serving afterwards | | |
-| a closed session noticed at once, waiters failed | | |
-| a frame on a live session still owed its full timeout | | |
-| refusals delivered, none lost (`client/harness/refusals.html`) | | |
-| worker-safe clocks; transferable results | | |
-| `stats` | | |
-| an ask during a fill, served before the fill's queue | | |
-| a session opened at load, first ask served without a dial | | |
-| re-dial after closure | | |
-| 8-bit multi-component, 16-bit unsigned, 16-bit signed with sign extension | | |
-| every decoded frame byte-identical to the fixture's `.sha256` | | |
-| both clients, TS and WASM, behind the same downloader | | |
+| connect, single ask, fill; shared and per-frame stream modes | conformance `workerSafe`, `cancellable`, **`bothStreamModes`** *(new)*; server `stream_frames_range_arrives_in_order`, `a_batch_arrives_whole_and_in_ask_order` | |
+| a fill cancelled mid-way, the session still serving afterwards | conformance `cancellable` — incl. "the session still serves a frame after a cancel"; server `end_stream_stops_a_fill_on_the_wire` | |
+| a closed session noticed at once, waiters failed | conformance `noticesClose` | |
+| a frame on a live session still owed its full timeout | conformance `noticesClose`, last check | |
+| refusals delivered, none lost (`client/harness/refusals.html`) | **browser page, not in the gate** — server side covered by `a_bad_range_is_refused_with_from`, `an_empty_study_is_refused_with_from`, `fod_len_zero_and_huge_are_refused_before_allocation` | |
+| worker-safe clocks; transferable results | conformance `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | |
+| `stats` | conformance **`reportsStats`** *(new)* | |
+| an ask during a fill, served before the fill's queue | **server only** — `a_data_request_during_a_fill_ends_it_and_is_served_next`, `request_frame_during_fill_switches_to_on_demand`; no client-side test | |
+| a session opened at load, first ask served without a dial | conformance **`oneDialServesLaterAsks`** *(new)* | |
+| re-dial after closure | conformance **`redialsAfterClosure`** *(new)* | |
+| 8-bit multi-component, 16-bit unsigned, 16-bit signed with sign extension | `parity.mjs` covers 8-bit 3-component and 16-bit unsigned over 388 frames. **Signed is untestable today** — see §S1 results | |
+| every decoded frame byte-identical to the fixture's `.sha256` | `parity.mjs` (388 frames), `lab/decode-bench/retained/` (120 cells), `decode_bench.mjs` | |
+| both clients, TS and WASM, behind the same downloader | every conformance clause runs against both arms — **but only when `client/transport-wasm/pkg/` exists**; otherwise one arm is skipped and the gate still passes (`cloud-queue.md` §Blocked) | |
+
+### S1 results
+
+The suite went from 34 checks to **58, green on both arms**. Four clauses were added, and each was
+broken on purpose to prove it reports:
+
+| mutant | caught by |
+| --- | --- |
+| `stats` always reports nothing in flight | `reportsStats` — 2 checks |
+| only the first frame of each uni stream is read | `bothStreamModes` (both modes) and `transferable` — 4 checks |
+| a closed session's reason is shared, so a re-dial is born closed | `redialsAfterClosure` and 6 others |
+| `connect` makes a probe dial before the real one | `oneDialServesLaterAsks` — 2 checks |
+
+**A weakness in the suite itself, fixed.** `transferable` awaited its frames raw, so the second
+mutant above took the whole process down at `FRAME_TIMEOUT_MS` — 15 s, no checks counted, no
+failure named — instead of reporting. Every frame wait is now bounded (`within`), so a frame that
+never arrives fails its own check by name. The first version of the new clauses had the same fault
+and the same mutant found it.
+
+**Three rows are not green, and none of them is the downloader's fault.**
+
+* **Refusals** have a browser page and no gate test. The page is real and passes by hand; nothing
+  runs it in CI, so the row rests on a manual step.
+* **An ask during a fill** is proven on the server and nowhere on the client. L16 measures what it
+  costs; no test asserts the client gets it.
+* **16-bit signed cannot be tested at all today.** There is no signed fixture, the generator has no
+  signed mode, and one cannot be made with the encoder in this tree: `ojph_compress -signed true`
+  over its raw reader does not survive its own `ojph_expand` — every negative sample saturates to
+  the bottom of the range, at 12- and 16-bit alike, in-range data included. So there is no ground
+  truth to test a decoder against, and **no claim is made here about how either decoder handles
+  signed data**. What is measurable without ground truth: the package build and
+  `lab/decode-bench/wasm` **disagree** on the same signed codestream — the package saturates every
+  negative sample to 32767, the source build does not — so `parity.mjs`'s byte-identical result
+  covers unsigned data only. Getting this row green needs a signed fixture from a source other
+  than this encoder path.
 
 ## Stages
 

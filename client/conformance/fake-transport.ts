@@ -28,6 +28,8 @@ export function frameBytes(index: number, codestream: Uint8Array): Uint8Array {
 
 export class FakeTransport {
   static last: FakeTransport;
+  /** How many transports have been constructed: a dial the client did not need shows up here. */
+  static dials = 0;
   readonly ready = Promise.resolve();
   readonly closed: Promise<{ closeCode: number; reason: string }>;
   readonly sent: Uint8Array[] = [];
@@ -49,6 +51,7 @@ export class FakeTransport {
       },
     });
     FakeTransport.last = this;
+    FakeTransport.dials += 1;
   }
 
   /**
