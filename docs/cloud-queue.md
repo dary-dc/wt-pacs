@@ -41,8 +41,12 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **part done** on `claude/downloader-s2-worker` — built and running; owes the conformance run, see below |
-| 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 16 |
+| 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | after 20 |
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | after 17 |
+| 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | ready |
+| 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | after 19 |
+| 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | ready |
+| 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
@@ -65,6 +69,41 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 investigation. It replaces the harness decode arm L11 proposed. D1 comes before any code, because
 the proposal is adopted only if nothing today's path can do is lost. **Still held:** a bounded
 fill window, the cache seam, paint.
+
+### Rows 19–22
+
+Queued 2026-09-16, evening, from what D1, D2, L16 and the signed-fixture note in §Blocked left. All
+four work on `claude/downloader-s2-worker` or a branch off it, per the code-row rule above.
+
+**19 · D2b.** D2's own suggestion, as a row: a conformance runner that installs a fake transport
+*inside* the downloader's worker through `config.transport`, driven from the page over a
+`BroadcastChannel`, so S1's 58 checks run against the downloader arm as they do against both
+clients. Done when the downloader arm passes every clause the clients pass, each mutation-checked,
+and the gate runs it. D2 is done when this is.
+
+**20 · D2c.** The two behaviours D2 implements and nothing asserts: asks served before fill frames
+when both wait for a decoder, and never more than two frames outstanding per decoder. Contention has
+to be forced — slow decoders, not luck — or the ordering test passes by accident. Sign extension
+waits for row 22.
+
+**21 · D1r.** Two red rows. *Refusals*: `client/harness/refusals.html` becomes a gate test, headless,
+with a mutant that drops one refusal. *An ask during a fill*, asserted on the client with the
+server's real semantics from L16: the ask ends the fill, the asked frame arrives, and the fill's
+undelivered frames arrive only if the client asks again. Today's clients do not re-ask, so write
+the assertion and report it red rather than changing the clients — D3 is where that changes.
+
+**22 · F1.** A signed 16-bit HTJ2K fixture whose expected samples do not come from the decoders under
+test. One route to try, not a known answer: encode *unsigned* data (the encoder handles that
+correctly), then flip the component's sign bit in the SIZ marker. JPEG 2000 level-shifts unsigned
+components by 2^(B−1) before coding and signed ones not at all, so the same bits read as signed
+should decode to `v − 2^(B−1)`. Prove the route with an independent decoder (OpenJPEG's
+`opj_decompress` reads HTJ2K) before trusting it as ground truth. Then settle which of the package
+build and `lab/decode-bench/wasm` is right on signed data, and make `parity.mjs` say what it covers.
+
+**D3 inherits L16's finding.** On the wire an ask ends a fill with no saved position. The
+downloader already keeps one record per frame, so after an ask it re-issues the frames not yet
+delivered as a new fill — the client owns that decision, the server stays as it is. Proposal §The
+downloader gains that sentence in D3's commit.
 
 ### L11 — decode in the harness
 
