@@ -75,6 +75,11 @@
       };
       globalThis.__wtpacsRefusals = summary;
       log("summary", JSON.stringify({ ...summary, results: undefined }));
+      const failed = summary.refused_with_reason !== n || summary.timed_out > 0 || summary.other > 0;
+      log(failed
+        ? `  FAIL: ${arm}: ${summary.refused_with_reason} of ${n} refused with the server's reason, ${summary.timed_out} timed out, ${summary.other} other`
+        : `refusals (${arm}): ${n}/${n} refused with the server's reason, none lost`);
+      globalThis.__wtpacsFailed = failed ? 1 : 0;
       session.close();
       globalThis.__wtpacsDone = true;
     } catch (e) {

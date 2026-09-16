@@ -33,6 +33,9 @@ client/conformance/
   run.ts                Node entry: both clients over the fake on the global scope
   fake-session.ts       the fake installed inside the downloader's worker (config.transport)
   downloader-rig.ts     the downloader's rig; downloader.html + run_downloader.sh drive it
+  dispatch-rig.ts       the downloader's own behaviours; dispatch.html + run_dispatch.sh
+  ask-during-fill.html  the server's semantics seen from the client; run_wire.sh, with
+                        client/harness/refusals.html, against a real server
 ```
 
 Neither implementation owns it, because it tests both. It follows `client/record/test/run.ts`
@@ -126,6 +129,33 @@ a closure **re-dials and is served** rather than failing — the downloader's ow
 *moved or copied* a frame's buffer across the boundary, because a dropped transfer list arrives
 as a clone that still detaches. The clause holds delivered-buffer semantics — movable, no
 sibling coupling; the copy cost is S4's metric.
+
+## Against the real server (added 2026-09-16, D1r)
+
+Two rows the fake cannot reach: refusals back to back on the real control stream, and what an
+ask does to a running fill under the server's own planner. `run_wire.sh` builds a debug
+`exact-server` and `pack-study`, packs 200 random 256 KB frames as a study, makes its own cert
+under a temp dir, and runs the server with a 2 MB send window — so a fill is still running when
+an ask lands and few enough frames are in flight that its end is observable. Nothing in the tree
+is touched; the pages take `wt=`/`hash=` overrides. About 18 s warm, in the gate, skipping loudly
+without Chromium.
+
+`client/harness/refusals.html`, both clients: 64 out-of-range asks in one `request_frames`, every
+waiter rejected promptly with the server's reason — none lost to the 15 s timeout. Its mutant, the
+TS control pump dropping one `frame_error`: **63 of 64, 1 timed out**, the wasm arm untouched.
+
+`ask-during-fill.html`. On the raw client: the ask is served mid-fill; the fill ends — 28 of 120
+arrive (20 delivered at the ask, 8 the window held), then nothing; the rest arrive only once asked
+again, which the test does and the raw client does not. On the downloader: the ask is served, the
+fill completes without being asked again, no frame twice. Two mutants: a planner that keeps the
+fill past an ask — the raw client reports **120 of 120 arrived, then nothing**, while the
+downloader survives it, since it re-issues only what is still wanted and a fill the server failed
+to drop is superseded, not duplicated; and a downloader that never re-issues — **28 of 120**.
+
+What this found and did not fix: a refused *fill* never reaches the downloader's consumer. The
+session's `onError` fails the run's records, but the consumer API has `onFrame` only, so the page
+is never told. A refused *ask* does reach it, with the reason. `proposal-downloader.md`
+§Capabilities carries the row.
 
 ## Known gap: the suite is not type-checked
 

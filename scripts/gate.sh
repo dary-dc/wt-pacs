@@ -46,6 +46,9 @@ cargo test -p window-harness --quiet
 step "lab: disk-access-bench compiles (the arms are part of the API)"
 cargo check -p disk-access-bench --all-targets --quiet
 
+step "client: against the real server — refusals, an ask during a fill (headless Chromium)"
+bash client/conformance/run_wire.sh | tail -4
+
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"
   bash client/scripts/check_telemetry_absent.sh | tail -1
