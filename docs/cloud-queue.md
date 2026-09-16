@@ -45,7 +45,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 18 | **D4** — validation and metrics | proposal-downloader §S4 | **done** `857ff54` on `claude/downloader-s2-worker` — three clean sweeps, two ties, the fill survives an ask only on the downloader; proposal §Results |
 | 19 | **D2b** — the conformance suite drives the downloader arm | queue §Rows 19–22 | **done** `09fcf32` on `claude/downloader-s2-worker` — 35 checks green, in the gate |
 | 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | **done** `2ca9886` on `claude/downloader-s2-worker` — 9 checks green, in the gate |
-| 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | claimed 2026-09-16 |
+| 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | **done** `5b93cd5` on `claude/downloader-s2-worker` — both rows green against a real server, in the gate; one hole found, see below |
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
@@ -347,6 +347,24 @@ headless shell playwright launches by default; only an explicit `executablePath`
 browser where it works — L14 had passed it and never said why. And the measurement forces a GC, so
 CDP tracing must stop before it or the GC count includes it. `lab/downloader-campaign/run.mjs`
 does both.
+
+**D1r is done** (2026-09-16, `5b93cd5` on `claude/downloader-s2-worker`). Both red rows are green
+against a **real server, in the gate**: `client/conformance/run_wire.sh` builds a debug
+`exact-server`, packs 200 random 256 KB frames, makes its own cert under a temp dir and runs with a
+2 MB send window, so the end of a fill is observable — nothing in the tree is touched, ~18 s warm.
+`refusals.html`, both clients: 64 back to back, none lost; its mutant, one `frame_error` dropped in
+the TS control pump, reports 63 of 64 with 1 timed out. `ask-during-fill.html`: on the raw client the
+ask is served, the fill ends (28 of 120, then nothing) and the rest arrive only once asked again; on
+the downloader the fill completes by itself, no frame twice. A planner that keeps the fill past an
+ask is caught on the raw client (120 of 120) and survived by the downloader, which re-issues only
+what is still wanted; a downloader that never re-issues reports 28 of 120. **One hole, found and
+not fixed:** a refused *fill* never reaches the downloader's consumer — the session's `onError`
+fails the run's records, but the consumer API has `onFrame` only. A refused *ask* does arrive with
+its reason. This belongs to whoever takes the downloader past investigation.
+
+**The `pkill -f` / `pgrep -f` trap bit twice more** (from D1r): both match the shell that runs them
+when its command line carries the pattern, and the shell dies with 144. `pgrep -f "[e]xact-server"`
+cannot match itself; kill by that PID.
 
 **Three things are implemented and asserted by nothing**, so D2 claims none of them: the ordering
 of the two priorities under contention, the two-outstanding-per-decoder dispatch bound, and sign
