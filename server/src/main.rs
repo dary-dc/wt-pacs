@@ -71,7 +71,7 @@ fn install_crypto_provider() -> anyhow::Result<()> {
         .map_err(|_| anyhow::anyhow!("rustls crypto provider already installed"))
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive("exact_server=info".parse()?))

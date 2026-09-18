@@ -15,7 +15,7 @@ default `shared`, `--prefault true`, Cubic default.
 | **Windows** | Left at quinn defaults. Memory is bounded by the send path, not `send_window` |
 | **Runtime shape** | One endpoint on tokio's multi-thread runtime. Per-core endpoints were built and parked on `claude/per-core-endpoints`: they break a session whose 4-tuple changes (T6) |
 
-| **CPU per byte** | MTU-derived GSO cap (`patches/quinn-0.11.11-mtu-gso.patch`), a profile-guided build (`scripts/pgo_build.sh`), and frames handed to quinn uncopied. **−24 to −35 % CPU per ask with per-core endpoints underneath; without them, measured 2026-09-18, it keeps the CPU saving and loses 29–38 % of the throughput.** Open: it may have to follow §8 onto `claude/per-core-endpoints` |
+| **CPU per byte** | MTU-derived GSO cap (`patches/quinn-0.11.11-mtu-gso.patch`), a profile-guided build (`scripts/pgo_build.sh`), and frames handed to quinn uncopied. On the multi-thread runtime, without the parked per-core endpoints: **+13 to +23 % throughput and −17 to −22 % CPU per ask** (6/6, two saturation cells) |
 
 Rejected arms (`copy` / `split`, `--ask-priority`, MTU / socket knobs) are not in `server/`.
 The GSO cap lives in quinn; the tree applies it at build time from crates.io plus that patch.

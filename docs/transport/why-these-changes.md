@@ -459,28 +459,33 @@ The formula is `65527 / mtu` (integer division), so **45 segments at 1452 bytes*
   §5 row: the 2026-09 attempt was rejected for a fresh 64 KiB allocation per window, which was
   the allocation, not the hand-off.
 
-**Without §8, it does not pay — measured 2026-09-18.** This entry, and §8's closing
-paragraph, assumed the three mechanisms were "per-byte work removal with no scheduling change",
-so they would carry to the stock multi-thread runtime with none of §8's placement risk. They do
-not. `main` against this tree with §8 reverted and the pool made cross-thread, release builds
-without PGO, server pinned to two cores and the driver to the other two, six repeats paired:
+**Without §8, it still pays — measured 2026-09-18, after one false alarm.** §8's closing
+paragraph claimed these three mechanisms were "per-byte work removal with no scheduling
+change" that would carry to the stock multi-thread runtime. They do. The first attempt to
+check it said the opposite — −38 % throughput — and that was a bug in the measurement, not a
+finding: reverting §8 restored the endpoint but left the binary on
+`#[tokio::main(flavor = "current_thread")]`, which §8 had set because it ran its own threads.
+Every arm in that run was single-threaded. Recorded because the shape of the wrong answer was
+convincing: CPU per ask down, context switches down, throughput down, which reads like lock
+contention and is equally what one worker looks like.
+
+With `#[tokio::main]` restored, `main` against this tree, release builds without PGO, server
+pinned to two cores and the driver to the other two, six repeats paired:
 
 | cell | asks / s | CPU per ask | p50 | p99 |
 | ---- | -------: | ----------: | --: | --: |
-| 250 KB, 16 sessions, depth 4 | **−38 % (6/6)** | −16 % (6/6) | +77 % (0/6 lower) | +93 % |
-| 32 KB, 16 sessions, depth 4 | **−29 % (6/6)** | −22 % (6/6) | +56 % (0/6 lower) | +27 % |
+| 250 KB, 16 sessions, depth 4 | **+13.5 % (6/6)** | −16.8 % (6/6) | +18 % | −15 % (4/6) |
+| 32 KB, 16 sessions, depth 4 | **+23.2 % (6/6)** | −22.0 % (6/6) | −25 % (6/6) | −11 % (5/6) |
 
-The CPU saving is real and survives; the throughput and the latency do not. Lower CPU per ask,
-fewer context switches and fewer receive drops alongside a third less throughput is the
-signature of a narrower pipeline, and the mechanism is the one this entry already named as a
-cost: a bigger batch holds the connection lock longer, and on a work-stealing runtime that lock
-is contended across workers. §8's per-thread endpoints removed the contention, which is what
-made the batching pay. The two are one change, not two.
+Depth 4 with sixteen sessions is a throughput cell, so throughput is the column; the 250 KB
+p50 is depth over that throughput and moves with the queue.
 
-Ruled out: the cross-thread pool this measurement needed is not the cause — a thread-local
-arm built beside it reads the same (−36 % against −35.8 % on the 250 KB cell). Not yet
-attributed between the GSO cap and the pooled hand-off; the arm that would separate them is a
-build with the patch clamped to 10.
+**Attributed.** `main` carrying only the quinn patch, against `main`: asks/s +10.3 % and
++21.4 %, CPU per ask −11.0 % and −20.6 %, p50 −7 % and −22 %, receive drops −71 % — the GSO
+cap is a clean win on the stock runtime by itself. The pooled hand-off roughly doubles the
+throughput half at 250 KB (+13.5 % with it against +6.0 % without) and pays for the rest of
+the CPU. Neither depends on §8. PGO is not in these numbers: `cargo build --release` stays
+the plain build, and `scripts/pgo_build.sh` was not run for them.
 
 **Costs.** A 64 KB batch holds the connection lock about 30 µs longer than a 14 KB one, which
 is where a fill's inter-arrival p99 widens (+68 % on the short 32 KB cell, n = 80; the 320-frame
