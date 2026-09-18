@@ -34,6 +34,12 @@ step "client: the byob read path compiles (off by default; docs/decode/README.md
 (cd client/transport-wasm && cargo check --features byob-min,byob-count \
   --target wasm32-unknown-unknown --quiet)
 
+step "client: transport conformance (downloader arm, headless Chromium)"
+bash client/conformance/run_downloader.sh | tail -2
+
+step "client: downloader dispatch — ordering and the per-decoder bound (headless Chromium)"
+bash client/conformance/run_dispatch.sh | tail -2
+
 step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)
 (cd client/transport-ts && npx tsc -p ../record/tsconfig.json)
@@ -46,6 +52,9 @@ step "lab: window-harness tests"
 cargo test -p window-harness --quiet
 step "lab: disk-access-bench compiles (the arms are part of the API)"
 cargo check -p disk-access-bench --all-targets --quiet
+
+step "client: against the real server — refusals, an ask during a fill (headless Chromium)"
+bash client/conformance/run_wire.sh | tail -4
 
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"

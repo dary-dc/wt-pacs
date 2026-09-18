@@ -28,8 +28,14 @@ lines and belongs to the suite, not to either implementation.
 ```
 client/conformance/
   fake-transport.ts     the global WebTransport stand-in, and a frame pusher
+  clauses.ts            the clauses, against a rig any arm can supply
   adapters.ts           one surface, two implementations behind it
-  run.ts                the three clauses, as assertions
+  run.ts                Node entry: both clients over the fake on the global scope
+  fake-session.ts       the fake installed inside the downloader's worker (config.transport)
+  downloader-rig.ts     the downloader's rig; downloader.html + run_downloader.sh drive it
+  dispatch-rig.ts       the downloader's own behaviours; dispatch.html + run_dispatch.sh
+  ask-during-fill.html  the server's semantics seen from the client; run_wire.sh, with
+                        client/harness/refusals.html, against a real server
 ```
 
 Neither implementation owns it, because it tests both. It follows `client/record/test/run.ts`
@@ -71,6 +77,11 @@ test.
    driven two ways — ending the media stream, and settling `closed` with the stream left open — so
    a client that only watches one signal fails the other. `docs/CLIENTS.md` has the numbers.
 
+5. **A fill is pushed** (added with D3). `fillFrames(from, to, onFrame)` delivers every frame of
+   the range to the callback once, in order, with real timings, in both stream modes, and arms no
+   waiter; an ask during it is served on its own promise and not pushed as well; a frame arriving
+   after `endStream()` is dropped. `docs/CLIENTS.md` §Fills are pushed.
+
 Every test is mutated — the implementation broken on purpose, the test watched failing — and the
 report says so.
 
@@ -96,6 +107,55 @@ The second keeps the gate usable and keeps the suite honest, at the cost of a ch
 conditional — which is a real cost, because a conditional check is one that can quietly stop
 running. The mitigation is that it is loud: skipped arms are named in the gate's output, not
 silent.
+
+## The downloader arm (added 2026-09-16, D2b)
+
+The downloader dials inside its own worker, where the test process's global scope cannot reach.
+Two additions close that. The clauses moved to `clauses.ts`, written against a rig — open a
+session, drive the fake, count dials — so the same checks run wherever the fake lives. And
+`fake-session.ts` is the module `config.transport` names during a conformance run: evaluated
+inside the downloader's worker, it installs the fake there, answers the page's commands over a
+`BroadcastChannel` named in its own URL query, and exports the real `TransportSession` over it.
+
+`run_downloader.sh` serves the repo with `server/dev-server.py`, drives
+`client/conformance/downloader.html` in headless Chromium, and fails on any failed check.
+The gate runs it, and skips loudly when playwright or Chromium is missing — the WASM-arm
+decision above, applied again.
+
+Two clauses read what an arm does from the rig rather than special-casing a test: this arm's
+fill goes out as `request_frames` (the downloader fills by explicit indices), and an ask after
+a closure **re-dials and is served** rather than failing — the downloader's own contract
+(`proposal-downloader.md` §The downloader). One thing the page cannot see: whether the worker
+*moved or copied* a frame's buffer across the boundary, because a dropped transfer list arrives
+as a clone that still detaches. The clause holds delivered-buffer semantics — movable, no
+sibling coupling; the copy cost is S4's metric.
+
+## Against the real server (added 2026-09-16, D1r)
+
+Two rows the fake cannot reach: refusals back to back on the real control stream, and what an
+ask does to a running fill under the server's own planner. `run_wire.sh` builds a debug
+`exact-server` and `pack-study`, packs 200 random 256 KB frames as a study, makes its own cert
+under a temp dir, and runs the server with a 2 MB send window — so a fill is still running when
+an ask lands and few enough frames are in flight that its end is observable. Nothing in the tree
+is touched; the pages take `wt=`/`hash=` overrides. About 18 s warm, in the gate, skipping loudly
+without Chromium.
+
+`client/harness/refusals.html`, both clients: 64 out-of-range asks in one `request_frames`, every
+waiter rejected promptly with the server's reason — none lost to the 15 s timeout. Its mutant, the
+TS control pump dropping one `frame_error`: **63 of 64, 1 timed out**, the wasm arm untouched.
+
+`ask-during-fill.html`. On the raw client: the ask is served mid-fill; the fill ends — 28 of 120
+arrive (20 delivered at the ask, 8 the window held), then nothing; the rest arrive only once asked
+again, which the test does and the raw client does not. On the downloader: the ask is served, the
+fill completes without being asked again, no frame twice. Two mutants: a planner that keeps the
+fill past an ask — the raw client reports **120 of 120 arrived, then nothing**, while the
+downloader survives it, since it re-issues only what is still wanted and a fill the server failed
+to drop is superseded, not duplicated; and a downloader that never re-issues — **28 of 120**.
+
+What this found and did not fix: a refused *fill* never reaches the downloader's consumer. The
+session's `onError` fails the run's records, but the consumer API has `onFrame` only, so the page
+is never told. A refused *ask* does reach it, with the reason. `proposal-downloader.md`
+§Capabilities carries the row.
 
 ## Known gap: the suite is not type-checked
 

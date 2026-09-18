@@ -20,8 +20,9 @@ client/transport-ts/dist/
 # Shared client recorder (both arms) — build via transport-ts/build.sh
 client/record/dist/
 client/record/test/run.mjs
-# Conformance suite bundle (build via transport-ts/build.sh)
+# Conformance suite bundles (build via transport-ts/build.sh)
 client/conformance/run.mjs
+client/conformance/dist/
 # Telemetry cost bench bundle (build via transport-ts/build.sh)
 lab/telemetry-cost/cost.mjs
 # Telemetry-only WASM out-dir — plan §8

@@ -20,6 +20,7 @@ implementations of one surface:
 | `requestExactFrame(i)` | one frame, interactive path |
 | `startExactFrames(indices)` / `waitExactFrame(i)` | ask for a set, take them as they land |
 | `startStreamFrames(last, range?)` | the bulk path |
+| `fillFrames(from, to, onFrame)` | the bulk path **pushed** as it lands, no waiter per frame (S3; `CLIENTS.md` §Fills are pushed) |
 | `endStream()` | **stop a running fill without ending the session** |
 | `stats()` / `close()` | |
 

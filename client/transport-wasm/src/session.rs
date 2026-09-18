@@ -1,7 +1,7 @@
 //! Media-complete session over browser WebTransport via `web_sys`.
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use fod::{decode_fod_msg, encode_fod_msg, FodMsg};
@@ -202,14 +202,34 @@ async fn pump_framed_stream(
         };
         let now = perf_now_ms();
         let (index, view) = frame;
-        let mut s = st.borrow_mut();
-        if let Some(tx) = s.waiters.remove(&index) {
-            let _ = tx.send((view, now));
-        } else {
-            s.dropped_early += 1;
-        }
+        deliver(&st, index, view, now);
     }
     let _ = JsFuture::from(reader.cancel()).await;
+}
+
+/// An asked frame settles its waiter; a fill frame goes straight to the fill's callback, which
+/// is called after the borrow is released — it is JS and may re-enter the session.
+fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f64) {
+    let push = {
+        let mut s = st.borrow_mut();
+        let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&index));
+        if let Some(tx) = s.waiters.remove(&index) {
+            let _ = tx.send((view, now));
+            return;
+        }
+        match s.fill.as_ref() {
+            Some(f) if owed => Some((f.ask_ms, f.on_frame.clone())),
+            _ => {
+                s.dropped_early += 1;
+                None
+            }
+        }
+    };
+    if let Some((ask_ms, on_frame)) = push {
+        if let Ok(result) = result_to_js(index, ask_ms, view, now) {
+            let _ = on_frame.call1(&JsValue::NULL, &result);
+        }
+    }
 }
 
 /// `[4B BE length][4B BE display index]` in front of every codestream on a media stream.
@@ -347,12 +367,7 @@ async fn pump_framed_stream(stream: ReadableStream, st: Rc<RefCell<SessionState>
                 TOTAL_READS.with(Cell::get),
             )));
         }
-        let mut s = st.borrow_mut();
-        if let Some(tx) = s.waiters.remove(&index) {
-            let _ = tx.send((view, now));
-        } else {
-            s.dropped_early += 1;
-        }
+        deliver(&st, index, view, now);
     }
     let _ = JsFuture::from(reader.cancel()).await;
 }
@@ -379,9 +394,18 @@ async fn read_fod_msg(
     msg
 }
 
+/// A fill pushed as it lands: what is still owed, and where each frame goes. No timer per frame.
+struct Fill {
+    pending: HashSet<u32>,
+    ask_ms: f64,
+    on_frame: js_sys::Function,
+    on_error: Option<js_sys::Function>,
+}
+
 #[derive(Default)]
 struct SessionState {
     waiters: HashMap<u32, oneshot::Sender<(Uint8Array, f64)>>,
+    fill: Option<Fill>,
     /// Set once the session is gone; a waiter armed after this would only reach the timeout.
     closed: Option<String>,
     dropped_early: u64,
@@ -445,6 +469,7 @@ impl TransportSession {
             let mut s = st_closed.borrow_mut();
             s.closed = Some(reason);
             s.waiters.clear();
+            s.fill = None;
         });
 
         // Media pump — each uni carries `[4B BE len][envelope]` frames (one or many).
@@ -469,7 +494,9 @@ impl TransportSession {
                     pump_framed_stream(stream, st).await;
                 });
             }
-            st_uni.borrow_mut().waiters.clear();
+            let mut s = st_uni.borrow_mut();
+            s.waiters.clear();
+            s.fill = None;
         });
 
         // FoD downlink — exceptions only (FrameError), length-prefixed on control stream.
@@ -482,10 +509,21 @@ impl TransportSession {
                         frame_index,
                         reason,
                     }) => {
-                        let mut s = st_ctl.borrow_mut();
-                        s.errors.insert(frame_index, reason);
-                        s.frame_errors += 1;
-                        s.waiters.remove(&frame_index);
+                        let refused = {
+                            let mut s = st_ctl.borrow_mut();
+                            s.errors.insert(frame_index, reason.clone());
+                            s.frame_errors += 1;
+                            let asked = s.waiters.remove(&frame_index).is_some();
+                            let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&frame_index));
+                            if asked || !owed {
+                                None
+                            } else {
+                                s.fill.as_ref().and_then(|f| f.on_error.clone())
+                            }
+                        };
+                        if let Some(on_error) = refused {
+                            let _ = on_error.call2(&JsValue::NULL, &JsValue::from(frame_index), &JsValue::from_str(&reason));
+                        }
                     }
                     Ok(_) => continue,
                     Err(_) => break,
@@ -632,7 +670,46 @@ impl TransportSession {
         Ok(ask_ms)
     }
 
+    /// A fill pushed as it lands, on the wire as `StreamFrames`: no waiter and no timer per
+    /// frame, so `end_stream` or a later fill simply drops what is still owed.
+    /// docs/CLIENTS.md#fills-are-pushed
+    pub fn fill_frames(
+        &self,
+        from: u32,
+        to: u32,
+        on_frame: js_sys::Function,
+        on_error: Option<js_sys::Function>,
+    ) -> Result<f64, String> {
+        if to < from {
+            return Err("fillFrames: to < from".into());
+        }
+        let ask_ms = perf_now_ms();
+        {
+            let mut s = self.state.borrow_mut();
+            if let Some(reason) = s.closed.clone() {
+                return Err(format!("session unavailable: {reason}"));
+            }
+            s.fill = Some(Fill {
+                pending: (from..=to).collect(),
+                ask_ms,
+                on_frame,
+                on_error,
+            });
+        }
+        let payload = encode_fod_msg(&FodMsg::StreamFrames {
+            from: Some(from),
+            to: Some(to),
+        })
+        .map_err(|e| format!("encode FoD: {e}"))?;
+        if self.req_tx.unbounded_send(payload).is_err() {
+            self.state.borrow_mut().fill = None;
+            return Err("FoD request channel closed".into());
+        }
+        Ok(ask_ms)
+    }
+
     pub fn end_stream(&self) -> Result<(), String> {
+        self.state.borrow_mut().fill = None;
         let payload =
             encode_fod_msg(&FodMsg::EndStream).map_err(|e| format!("encode FoD: {e}"))?;
         if self.req_tx.unbounded_send(payload).is_err() {
@@ -679,6 +756,7 @@ impl TransportSession {
     pub fn stats(&self) -> Result<JsValue, String> {
         let s = self.state.borrow();
         let out = Object::new();
+        set(&out, "closed", &s.closed.as_deref().map_or(JsValue::NULL, JsValue::from_str))?;
         set(&out, "inFlight", &JsValue::from(s.waiters.len() as u32))?;
         set(
             &out,

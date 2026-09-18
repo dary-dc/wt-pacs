@@ -60,3 +60,37 @@ A cancelled fill still leaves its waiters armed until `FRAME_TIMEOUT_MS`; `endSt
 server sending but settles nothing on the client. Nothing here fixes that — it needs a decision
 about what a cancelled waiter should reject with — and the conformance suite tolerates the stray
 rejections rather than pretending they are not there.
+
+## Fills are pushed
+
+A fill used to arm a waiter per frame — a promise or a oneshot channel with its own 15 s timer —
+and the consumer collected them one `waitExactFrame` at a time, for frames that arrive in order on
+one stream anyway. Both implementations now also offer the fill as a **push**:
+
+```
+fillFrames(from, to, onFrame, onError?)   → askMs
+```
+
+On the wire it is `stream_frames {from, to}`, a fill the server recites and — this is the point —
+**drops the moment an ask arrives** (`docs/transport/ask-during-fill.md`). A `request_frames`
+batch is not that: the planner turns it into one `Ask::Frame` per index and serves them in order,
+so an ask behind a 200-frame batch waits for all 200. A pushed fill is how an ask gets the wire.
+
+**The shape.** The session keeps one `Fill`: the set still owed, the ask time, and the callback.
+Each frame that lands and is owed goes straight to `onFrame` as a `FrameResult`; a frame outside
+the fill is dropped and counted in `droppedEarlyMedia`. No waiter, no timer per frame. A frame the
+consumer *asks* for while the fill is running keeps its own waiter and wins — it settles the ask's
+promise and is not pushed as well. `endStream()` or a later `fillFrames` drops what is still owed,
+so a cancelled pushed fill leaves nothing armed to time out later — the stray rejections a
+cancelled waiter-per-frame fill leaves behind do not arise here. A refused range is one
+`frame_error` at `from`, delivered to `onError`.
+
+**What the consumer owns.** A pushed fill cannot time out a frame that never comes; the consumer
+that pushed it keeps its own record of what it wants. The downloader does exactly that, and uses
+it to re-issue the undelivered remainder as a new fill once an ask has settled
+(`docs/proposal-downloader.md` §The downloader).
+
+**Conformance** clause `pushedFill` runs against both implementations and the downloader arm in
+both stream modes: every frame lands once, in order, with real timings; nothing is armed; an ask
+during the fill is served on its own promise and not pushed; a frame after `endStream()` is dropped.
+Mutation-checked on both implementations — §S3 results in `proposal-downloader.md`.

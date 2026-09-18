@@ -23,10 +23,16 @@ is already settled, and the container recipes — read it once, then work the qu
 **Rows that wait.** `after N` becomes `ready` when row N is done; the agent that marks N done
 flips it in the same commit.
 
-**Code rows (the D rows)** follow `docs/proposal-downloader.md` and push code to the agent's own
-branch, never to this one; this branch gets only the queue update, with the branch name in the
-row. If the design turns out wrong, stop and say why in `## Blocked` rather than building a
-different shape.
+**Code rows (the D rows)** follow `docs/proposal-downloader.md`. **Changed 2026-09-18:** they used
+to push to the agent's own branch, never to this one, and `claude/downloader-s2-worker` carried D1
+through F1. That branch is merged here and is no longer where the work goes — the downloader lives
+beside today's path in this branch, and a D row is worked here like any other. If the design turns
+out wrong, stop and say why in `## Blocked` rather than building a different shape.
+
+**The merge is not an adoption.** Nothing today's path does has been removed, and the two items
+§Rows 23–26 lists as owed before it could be — a refused fill never reaching the consumer (D1r's
+hole), and a signed study run through the downloader rather than the decoder alone — are still
+owed. Adoption remains the workstation's call.
 
 **Answering a question rather than running a lane.** A row may be a question, not a lane. Answer it
 in `## Answers` below, push, mark it done. Keep it short — the asker has no other channel.
@@ -77,12 +83,17 @@ investigation. It replaces the harness decode arm L11 proposed. D1 comes before 
 the proposal is adopted only if nothing today's path can do is lost. **Still held:** a bounded
 fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving during a running fill.
 
+Rows 15–22 name the branch each landed on. `claude/downloader-s2-worker` was merged into this one
+on 2026-09-18, so those commits are in this history and the branch names are provenance, not
+somewhere still to look.
+
 ### Rows 23–26
 
 Queued 2026-09-18. **Two goals, measured apart:** the time a fill takes to deliver every frame, and
 the latency of one frame asked on an idle session — plus memory, which counts as much as time on
 the target device. An ask arriving while a fill runs is **parked**: do not measure it or tune for
-it. All four work on `claude/downloader-s2-worker` or a branch off it.
+it. All four worked on `claude/downloader-s2-worker` when they were queued; **since 2026-09-18 that
+branch is merged here and they are worked on this one**, like every other row.
 
 **23 · D2d.** The last row of the proposal's capability table is "not shown": every downloader run
 so far is over the TypeScript client. The WASM package exports `TransportSessionHandle`; the seam

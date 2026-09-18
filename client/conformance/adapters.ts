@@ -6,20 +6,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import type { ConformantSession } from "./clauses.ts";
 
-export type ConformantFrame = {
-  frameIndex: number;
-  bytes: Uint8Array;
-  timing: { askMs: number; firstChunkMs: number; lastChunkMs: number; chunks: number };
-};
-
-export type ConformantSession = {
-  requestExactFrame(frameIndex: number): Promise<ConformantFrame>;
-  startStreamFrames(waitLast: number, range?: { from?: number; to?: number }): number;
-  endStream(): Promise<void>;
-  stats(): { inFlight: number };
-  close(): void;
-};
+export type { ConformantFrame, ConformantSession } from "./clauses.ts";
 
 export type Implementation = {
   name: string;
@@ -52,6 +41,8 @@ export async function typescriptImpl(): Promise<Implementation> {
         requestExactFrame: (i: number) => s.requestExactFrame(i),
         startStreamFrames: (last: number, range?: { from?: number; to?: number }) =>
           s.startStreamFrames(last, range),
+        fillFrames: (from: number, to: number, onFrame: (f: unknown) => void) =>
+          s.fillFrames(from, to, onFrame),
         endStream: () => s.endStream(),
         stats: () => s.stats(),
         close: () => s.close(),
@@ -79,6 +70,8 @@ export async function wasmImpl(): Promise<Implementation> {
         requestExactFrame: (i: number) => s.requestExactFrame(i),
         startStreamFrames: (last: number, range?: { from?: number; to?: number }) =>
           s.startStreamFrames(last, range?.from ?? undefined, range?.to ?? undefined),
+        fillFrames: (from: number, to: number, onFrame: (f: unknown) => void) =>
+          s.fillFrames(from, to, onFrame, undefined),
         endStream: async () => s.endStream(),
         stats: () => s.stats(),
         close: () => s.close(),

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs conformance — the downloader arm</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>conformance — the downloader arm</h1>
+  <p>
+    The clauses in <code>client/conformance/clauses.ts</code> against the downloader, over a fake
+    transport installed inside its worker. No server. <code>client/conformance/run_downloader.sh</code>
+    drives this page headless from the gate.
+  </p>
+  <div id="log"></div>
+  <script type="module">
+    import { DownloaderClient } from "/client/downloader/consumer.js";
+    import { runDownloaderArm } from "/client/conformance/dist/downloader-rig.js";
+
+    const logEl = document.getElementById("log");
+    const log = (line) => { logEl.textContent += line + "\n"; };
+    runDownloaderArm(DownloaderClient, log).catch((e) => {
+      log("FAILED: " + (e?.stack || e?.message || e));
+      globalThis.__wtpacsFailed = 1;
+      globalThis.__wtpacsDone = true;
+    });
+  </script>
+</body>
+</html>
