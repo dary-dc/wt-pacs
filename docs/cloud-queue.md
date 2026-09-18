@@ -52,6 +52,8 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 25 | **D6** — a fresh decoder's first frame | queue §Rows 23–26 | ready |
 | 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | ready |
+| 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | ready |
+| 29 | **L21** — when UDP is blocked: a proposal, no code | queue §Rows 28–29 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
@@ -126,7 +128,35 @@ change. For 512×512 RGB 8-bit, 16-bit unsigned and 16-bit signed, and at each r
   the ground truth, mutation-checked with a prefix one byte short.
 
 Report the curve of bytes against level in `docs/decode/README.md`. Nothing is built into the
-downloader or the clients until this says it works.
+downloader or the clients until this says it works. **The next step is held**, whatever this row
+finds: clients handing a frame's first bytes to the decoder before the frame completes waits on a
+decision about how a smaller first image would be displayed.
+
+### Rows 28–29
+
+Queued 2026-09-18.
+
+**28 · L20.** A viewer mostly opens studies nobody has read yet, and nothing here has priced that.
+On a study whose frames are not in memory, measure one ask on an idle session (the first frame) and
+a whole fill, each on its own, against the same study already read — interleaved, in the browser.
+Force the misses the way `CLAUDE.md` requires: through the store's test levers
+(`force_pool_reads`, `force_short_reads` in `frame_store.rs`), not page-cache eviction. They are
+test-only today; if an end-to-end run needs one, add it as a lab flag, off by default, and show it
+works by the server's own miss count being non-zero with it and zero without. Report what the miss
+path costs; what real storage adds on top is the device's, and not this container's to claim.
+
+**29 · L21.** WebTransport needs UDP, and some networks impair it (Chrome field data: ~5 %). There, a
+client gets nothing at all. Write `docs/proposal-udp-fallback.md`; build nothing. It answers:
+
+* **How fast a client knows.** In headless Chromium, time from `new WebTransport(...)` to rejection
+  when UDP to the server gets no answer (nothing listening on that UDP port) and when it is refused.
+  This is the one measured part: every second here is a second the viewer shows nothing.
+* **What to fall back to** — for example a WebSocket over TCP carrying the same frames — and what
+  each option loses against a QUIC session: independent streams, loss recovery, the idle-session
+  behaviour L15 measured.
+* **What it costs**: server and client lines, and whether one server can serve both.
+
+The decision stays with the workstation.
 
 ### Rows 19–22
 
