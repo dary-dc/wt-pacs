@@ -1,5 +1,5 @@
 use clap::Parser;
-use exact_server::{serve, Congestion, ServeConfig, StreamMode, TransportTuning};
+use exact_server::{run_server, Congestion, ServeConfig, StreamMode, TransportTuning};
 use std::net::IpAddr;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
@@ -49,9 +49,6 @@ struct Args {
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
-    /// Endpoints sharing the port, one thread each. Default: one per core.
-    #[arg(long, default_value_t = 0)]
-    workers: usize,
     /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
     #[cfg(feature = "telemetry")]
     #[arg(long, value_name = "ROWS")]
@@ -98,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
     let study_path = args
         .study
         .ok_or_else(|| anyhow::anyhow!("--study is required"))?;
-    let server = serve(ServeConfig {
+    let server = run_server(ServeConfig {
         wt_port: args.port,
         study_path,
         cert_pem: args.cert_pem,
@@ -114,7 +111,6 @@ async fn main() -> anyhow::Result<()> {
             ack_frequency_max_delay_ms: args.ack_frequency_max_delay_ms,
             prefault: args.prefault,
         },
-        workers: args.workers,
     });
 
     tokio::select! {

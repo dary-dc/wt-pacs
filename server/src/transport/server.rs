@@ -10,14 +10,14 @@ use crate::transport::tuning::TransportTuning;
 use crate::transport::wire::read_fod_msg;
 use anyhow::{anyhow, Context, Result};
 use fod::FodMsg;
-use socket2::{Domain, Protocol, Socket, Type};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
-use wtransport::config::{states, ServerConfigBuilder};
+use wtransport::config::{states, IpBindConfig, ServerConfigBuilder};
+use wtransport::endpoint::endpoint_side;
 use wtransport::stream::RecvStream;
 use wtransport::{Endpoint, Identity, ServerConfig};
 
@@ -37,62 +37,14 @@ pub struct ServeConfig {
     pub bind: Option<IpAddr>,
     /// QUIC transport knobs. Unset fields keep the library default.
     pub tuning: TransportTuning,
-    /// Endpoints on the port, one per thread. `0` is one per core.
-    pub workers: usize,
 }
 
-/// One endpoint per worker, each on its own thread and single-threaded runtime, so a
-/// session's packets, driver and serving loop never change thread. Resolves only when a
-/// worker fails. `docs/transport/why-these-changes.md` §8.
-pub async fn serve(config: ServeConfig) -> Result<()> {
-    let workers = match config.workers {
-        0 => std::thread::available_parallelism().map_or(1, |n| n.get()),
-        n => n,
-    };
-    let (store, identity, sockets) = prepare(&config, workers).await?;
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    for (i, socket) in sockets.into_iter().enumerate() {
-        let (config, store, identity, tx) = (
-            config.clone(),
-            Arc::clone(&store),
-            identity.clone_identity(),
-            tx.clone(),
-        );
-        std::thread::Builder::new()
-            .name(format!("wt-endpoint-{i}"))
-            .spawn(move || {
-                let result = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(anyhow::Error::from)
-                    .and_then(|rt| rt.block_on(run_endpoint(&config, store, identity, socket)));
-                let _ = tx.send(result.with_context(|| format!("endpoint {i}")));
-            })
-            .with_context(|| format!("spawn endpoint thread {i}"))?;
-    }
-    drop(tx);
-    rx.recv()
-        .await
-        .unwrap_or_else(|| Err(anyhow!("every endpoint thread ended")))
-}
-
-/// One endpoint on the current runtime — what a test drives.
 pub async fn run_server(config: ServeConfig) -> Result<()> {
-    let (store, identity, mut sockets) = prepare(&config, 1).await?;
-    let socket = sockets.pop().context("one socket")?;
-    run_endpoint(&config, store, identity, socket).await
-}
-
-/// Binds every socket before the banner, so `wt_url=` means the port answers.
-async fn prepare(
-    config: &ServeConfig,
-    workers: usize,
-) -> Result<(Arc<FrameStore>, Identity, Vec<UdpSocket>)> {
     let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
         .await
         .with_context(|| format!("load TLS identity from {}", config.cert_pem.display()))?;
     let cert_sha256 = cert_sha256_hex(&identity)?;
-    let (sockets, bound) = bind_sockets(config, workers)?;
+    let (endpoint, bound) = build_endpoint(&config, identity).await?;
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
 
     #[cfg(feature = "telemetry")]
@@ -111,7 +63,6 @@ async fn prepare(
     println!("completion=media_uni_stream");
     println!("stream_mode={}", config.mode);
     println!("bind={bound}");
-    println!("workers={workers}");
     println!("transport={}", config.tuning.describe());
     #[cfg(feature = "telemetry")]
     println!("telemetry=compile-time");
@@ -121,24 +72,9 @@ async fn prepare(
         %wt_url,
         study = %config.study_path.display(),
         stream_mode = %config.mode,
-        workers,
         "exact-server ready (Media-complete)"
     );
-    Ok((store, identity, sockets))
-}
 
-async fn run_endpoint(
-    config: &ServeConfig,
-    store: Arc<FrameStore>,
-    identity: Identity,
-    socket: UdpSocket,
-) -> Result<()> {
-    let server_config = finish(
-        ServerConfig::builder().with_bind_socket(socket),
-        identity,
-        &config.tuning,
-    )?;
-    let endpoint = Endpoint::server(server_config).context("wtransport endpoint")?;
     let mode = config.mode;
     loop {
         let incoming = endpoint.accept().await;
@@ -150,6 +86,7 @@ async fn run_endpoint(
         });
     }
 }
+
 
 /// Lower-case hex SHA-256 of the leaf certificate — the value a browser pins through
 /// `serverCertificateHashes`, printed in the banner for the harness and `dev-transport.json`.
@@ -181,56 +118,42 @@ fn read_fast_path(store: &FrameStore) -> &'static str {
 }
 
 /// A host without an IPv6 stack refuses the dual-stack socket, so fall back to IPv4 any.
-/// More than one socket shares the port through `SO_REUSEPORT`; one keeps the port exclusive.
-fn bind_sockets(config: &ServeConfig, n: usize) -> Result<(Vec<UdpSocket>, String)> {
-    let reuse_port = n > 1;
-    let port = config.wt_port;
-    let (first, addr, label) = match config.bind {
-        Some(ip) => {
-            let addr = SocketAddr::new(ip, port);
-            let socket =
-                bind_socket(addr, reuse_port).with_context(|| format!("bind {ip}:{port}"))?;
-            (socket, addr, ip.to_string())
-        }
-        None => {
-            let dual = SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port);
-            match bind_socket(dual, reuse_port) {
-                Ok(socket) => (socket, dual, "[::] dual-stack".to_string()),
-                Err(err) => {
-                    warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
-                    let v4 = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port);
-                    let socket = bind_socket(v4, reuse_port).context("bind IPv4 any")?;
-                    (
-                        socket,
-                        v4,
-                        "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
-                    )
-                }
-            }
-        }
-    };
-    let mut sockets = vec![first];
-    for _ in 1..n {
-        sockets.push(bind_socket(addr, reuse_port).with_context(|| format!("bind {addr}"))?);
+async fn build_endpoint(
+    config: &ServeConfig,
+    identity: Identity,
+) -> Result<(Endpoint<endpoint_side::Server>, String)> {
+    if let Some(ip) = config.bind {
+        let server_config = finish(
+            ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
+            identity,
+            &config.tuning,
+        )?;
+        let endpoint = Endpoint::server(server_config)
+            .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
+        return Ok((endpoint, ip.to_string()));
     }
-    Ok((sockets, label))
-}
 
-fn bind_socket(addr: SocketAddr, reuse_port: bool) -> std::io::Result<UdpSocket> {
-    let domain = if addr.is_ipv6() {
-        Domain::IPV6
-    } else {
-        Domain::IPV4
-    };
-    let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
-    if addr.is_ipv6() {
-        socket.set_only_v6(false)?;
+    let dual = finish(
+        ServerConfig::builder().with_bind_default(config.wt_port),
+        identity.clone_identity(),
+        &config.tuning,
+    )?;
+    match Endpoint::server(dual) {
+        Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
+        Err(err) => {
+            warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
+            let v4 = finish(
+                ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
+                identity,
+                &config.tuning,
+            )?;
+            let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
+            Ok((
+                endpoint,
+                "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
+            ))
+        }
     }
-    if reuse_port {
-        socket.set_reuse_port(true)?;
-    }
-    socket.bind(&addr.into())?;
-    Ok(socket.into())
 }
 
 fn finish(
@@ -635,7 +558,6 @@ mod tests {
             mode: StreamMode::Shared,
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             tuning: TransportTuning::default(),
-            workers: 1,
         }));
         let (connection, control, media) = connect_client(port, cert_hash).await;
         (server, connection, control, media)
@@ -831,83 +753,4 @@ mod tests {
         });
     }
 
-    fn loopback(port: u16, workers: usize) -> ServeConfig {
-        ServeConfig {
-            wt_port: port,
-            study_path: PathBuf::new(),
-            cert_pem: PathBuf::new(),
-            key_pem: PathBuf::new(),
-            mode: StreamMode::Shared,
-            bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-            tuning: TransportTuning::default(),
-            workers,
-        }
-    }
-
-    /// `n` sockets share one port only when there are several: a single endpoint still
-    /// keeps its port exclusive, so a second server on it is refused as before.
-    #[test]
-    fn several_sockets_share_the_port_and_one_keeps_it() {
-        let port = free_port();
-        let (sockets, _) = bind_sockets(&loopback(port, 3), 3).expect("three sockets");
-        assert_eq!(sockets.len(), 3);
-        for socket in &sockets {
-            assert_eq!(socket.local_addr().expect("addr").port(), port);
-        }
-        drop(sockets);
-        let (_one, _) = bind_sockets(&loopback(port, 1), 1).expect("one socket");
-        assert!(
-            bind_sockets(&loopback(port, 1), 1).is_err(),
-            "a second server took a single endpoint's port"
-        );
-        assert!(
-            bind_sockets(&loopback(port, 2), 2).is_err(),
-            "SO_REUSEPORT joined a port a single endpoint holds"
-        );
-    }
-
-    /// **Per-core endpoints serve.** `serve` with two workers answers sessions from either
-    /// endpoint's own thread and single-threaded runtime — the ask reader, the read path
-    /// and the blocking pool all run there. `docs/transport/why-these-changes.md` §8.
-    #[test]
-    fn serve_answers_sessions_on_its_endpoints() {
-        let dir = std::env::temp_dir().join(format!("wtpacs-serve-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let frames = 4u32;
-        let study = write_study(&dir, frames);
-        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
-        let port = free_port();
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        rt.block_on(async move {
-            let server = tokio::spawn(serve(ServeConfig {
-                study_path: study,
-                cert_pem,
-                key_pem,
-                ..loopback(port, 2)
-            }));
-            for want in 0..frames {
-                let (_connection, mut control, mut media) = connect_client(port, cert_hash).await;
-                control
-                    .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrame { frame: want }).unwrap())
-                    .await
-                    .expect("ask");
-                let (idx, codestream) =
-                    tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
-                        .await
-                        .expect("frame never arrived");
-                assert_eq!((idx, codestream), (want, pattern(want)), "session {want}");
-            }
-            assert!(
-                !server.is_finished(),
-                "serve returned while its endpoints were serving"
-            );
-            server.abort();
-        });
-        std::fs::remove_dir_all(&dir).ok();
-    }
 }

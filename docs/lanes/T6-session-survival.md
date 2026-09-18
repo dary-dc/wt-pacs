@@ -1,6 +1,7 @@
 # T6 — Session survival across a 4-tuple change, and what a reconnect costs
 
-**Status:** step 1 **measured 2026-09-15 — the cliff is real and `--workers` decides it** ·
+**Status:** step 1 **measured — the cliff is real, and it is why per-core endpoints were parked
+2026-09-18 on `claude/per-core-endpoints`** ·
 **Needs:** a phone and client telemetry for the rest · **Size:** each option a few hundred lines
 
 ## Question
@@ -28,7 +29,8 @@ client reconnects, because steering does not cover a server restart.
    beneath it, so the plan's call is unreachable. `lab/scripts/nat_rebind_relay.py` sits between
    client and server and changes its own upstream source port mid-session instead: a NAT rebind,
    which is the field case this lane names, and a closer analogue of it than `rebind()` would be.
-   `lab/scripts/t6_rebind_probe.sh <workers>` runs it.
+   `lab/scripts/t6_rebind_probe.sh <workers>` runs it — on branch `claude/per-core-endpoints`,
+   with the two scripts, because `--workers` is not on this branch's server any more.
 
    | `--workers` | frames delivered | asks sent | censored | server saw the session end |
    | --- | ---: | ---: | ---: | --- |
@@ -44,7 +46,7 @@ client reconnects, because steering does not cover a server restart.
    **The rate, and how it dies** (2026-09-18, same VM). The cell above rebinds once per run,
    so it reads the cliff but not its frequency: the kernel redraws the hash on every rebind,
    and a session survives the one whose new port lands back on its own endpoint.
-   `lab/scripts/t6_rebind_rate.sh <workers> <reps>` repeats it with
+   `lab/scripts/t6_rebind_rate.sh <workers> <reps>` (parked branch) repeats it with
    `target/debug/rebind-probe` — ten frames, rebind on command, ask for one more — and
    classifies each outcome:
 

@@ -2,7 +2,7 @@ pub mod media;
 pub mod record;
 pub mod transport;
 
-pub use transport::{run_server, serve, Congestion, ServeConfig, StreamMode, TransportTuning};
+pub use transport::{run_server, Congestion, ServeConfig, StreamMode, TransportTuning};
 
 #[cfg(test)]
 mod tests {

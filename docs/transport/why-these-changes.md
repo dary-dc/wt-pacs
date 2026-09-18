@@ -145,6 +145,19 @@ git checkout archive/transport-lab-2026-09 -- docs/transport lab/transport
 
 ### 8 · One endpoint per core, each on a single-threaded runtime
 
+> **Parked 2026-09-18 — this is not in `server/`.** The measurements below stand; what they do
+> not cover is what removed the change. Per-core endpoints pin a session to the thread its
+> 4-tuple hashed to, so a NAT rebind or a Wi-Fi-to-cellular move lands on an endpoint that does
+> not know the connection: **12 of 16 rebinds kill the session, against 0 of 6 on one endpoint**
+> ([`../lanes/T6-session-survival.md`](../lanes/T6-session-survival.md)), and the client gets no
+> error, just a 30-second freeze. The target is a browser on a mobile link, so that is a
+> correctness cliff and not a tuning trade. The scale case was never measured either: the
+> saturation cells here are 16–32 sessions on 2–4 cores with the clients on the same box, and
+> the load a hash cannot balance is a few heavy fills among many idle viewers (T10). The work is
+> whole on branch `claude/per-core-endpoints` and returns if T6 finds a steering answer and T10
+> shows it scales.
+
+
 **Before.** One QUIC endpoint on tokio's multi-thread runtime, a worker per core. A frame
 crosses five tasks — I/O driver, endpoint driver, connection driver, ask reader, serving loop,
 and the connection driver again to send — and tokio hands a woken task to whichever worker is
@@ -445,6 +458,29 @@ The formula is `65527 / mtu` (integer division), so **45 segments at 1452 bytes*
   One copy of four gone, and the 64 KiB write chunking with it. This corrects the disk ADR's
   §5 row: the 2026-09 attempt was rejected for a fresh 64 KiB allocation per window, which was
   the allocation, not the hand-off.
+
+**Without §8, it does not pay — measured 2026-09-18.** This entry, and §8's closing
+paragraph, assumed the three mechanisms were "per-byte work removal with no scheduling change",
+so they would carry to the stock multi-thread runtime with none of §8's placement risk. They do
+not. `main` against this tree with §8 reverted and the pool made cross-thread, release builds
+without PGO, server pinned to two cores and the driver to the other two, six repeats paired:
+
+| cell | asks / s | CPU per ask | p50 | p99 |
+| ---- | -------: | ----------: | --: | --: |
+| 250 KB, 16 sessions, depth 4 | **−38 % (6/6)** | −16 % (6/6) | +77 % (0/6 lower) | +93 % |
+| 32 KB, 16 sessions, depth 4 | **−29 % (6/6)** | −22 % (6/6) | +56 % (0/6 lower) | +27 % |
+
+The CPU saving is real and survives; the throughput and the latency do not. Lower CPU per ask,
+fewer context switches and fewer receive drops alongside a third less throughput is the
+signature of a narrower pipeline, and the mechanism is the one this entry already named as a
+cost: a bigger batch holds the connection lock longer, and on a work-stealing runtime that lock
+is contended across workers. §8's per-thread endpoints removed the contention, which is what
+made the batching pay. The two are one change, not two.
+
+Ruled out: the cross-thread pool this measurement needed is not the cause — a thread-local
+arm built beside it reads the same (−36 % against −35.8 % on the 250 KB cell). Not yet
+attributed between the GSO cap and the pooled hand-off; the arm that would separate them is a
+build with the patch clamped to 10.
 
 **Costs.** A 64 KB batch holds the connection lock about 30 µs longer than a 14 KB one, which
 is where a fill's inter-arrival p99 widens (+68 % on the short 32 KB cell, n = 80; the 320-frame
