@@ -49,6 +49,9 @@ struct Args {
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
+    /// Lab only: serve every frame as a miss, for measuring a study nobody has read.
+    #[arg(long, default_value_t = false)]
+    force_pool_reads: bool,
     /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
     #[cfg(feature = "telemetry")]
     #[arg(long, value_name = "ROWS")]
@@ -111,6 +114,7 @@ async fn main() -> anyhow::Result<()> {
             congestion: args.congestion,
             prefault: args.prefault,
         },
+        force_pool_reads: args.force_pool_reads,
     });
 
     tokio::select! {

@@ -52,7 +52,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 25 | **D6** — a fresh decoder's first frame | queue §Rows 23–26 | ready |
 | 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **part done** — a quarter of the bytes draws the half-size image; only the package can do it. `decode/README.md` §A prefix draws a smaller image. **Signed waits on F1 reaching this branch** |
-| 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **claimed** 2026-09-18 |
+| 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **claimed** 2026-09-18 — the lever is in (`--force-pool-reads`, miss_rate 0.0 → 1.0, `disk-access/IMPLEMENTATION.md`); the browser cold-vs-warm run is still owed |
 | 29 | **L21** — when UDP is blocked: a proposal, no code | queue §Rows 28–29 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |

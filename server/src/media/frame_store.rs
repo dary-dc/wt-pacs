@@ -159,10 +159,9 @@ impl FrameStore {
         self.nowait_cap = Some(cap);
     }
 
-    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test
-    /// can rely on — CLAUDE.md#measurement.
-    #[cfg(test)]
-    pub(crate) fn force_pool_reads(&mut self) {
+    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test or
+    /// a lab run can rely on — CLAUDE.md#measurement. Reachable in a build for `--force-pool-reads`.
+    pub fn force_pool_reads(&mut self) {
         self.nowait = false;
     }
 

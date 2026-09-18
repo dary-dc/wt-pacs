@@ -36,6 +36,9 @@ pub struct ServeConfig {
     pub bind: Option<IpAddr>,
     /// QUIC transport knobs. Unset fields keep the library default.
     pub tuning: TransportTuning,
+    /// Lab only: serve every frame as a miss, so a cold study can be measured without
+    /// relying on page-cache eviction. `docs/disk-access/EVIDENCE.md`.
+    pub force_pool_reads: bool,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -46,7 +49,12 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     let (endpoint, bound) = build_endpoint(&config).await?;
 
-    let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
+    let mut store = FrameStore::open(&config.study_path).context("open study")?;
+    if config.force_pool_reads {
+        warn!("--force-pool-reads: every read reports a miss; this is a lab flag, not a deployment one");
+        store.force_pool_reads();
+    }
+    let store = Arc::new(store);
 
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
@@ -571,6 +579,7 @@ mod tests {
             mode: StreamMode::Shared,
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             tuning: TransportTuning::default(),
+            force_pool_reads: false,
         }));
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()

@@ -20,6 +20,19 @@ What is worth a flag is a **kill switch**. `WTPACS_READ_PATH=pool` forces the pr
 path on tiles. `uring` is a lab lever, not a production mode. An unrecognised value
 warns and uses `auto`. A fill ignores the flag: it has no ring to take.
 
+**`--force-pool-reads` is the other lab lever**, added 2026-09-18 for L20. It clears the
+store's `nowait` at open, so every frame reports a miss and takes the blocking pool — the
+same state a filesystem refusing `RWF_NOWAIT` puts the server in, which is why it also trips
+the `RWF_NOWAIT is refused here` warning. It exists because a study nobody has read cannot be
+measured by evicting the page cache (`CLAUDE.md#measurement`); the store's own lever is the
+only reliable way in. Off by default, and it warns at startup that it is not a deployment
+flag. One saturate run over `queue_large`, everything else equal:
+
+| | `read_fast_path` | hits | misses | `miss_rate` |
+| --- | --- | ---: | ---: | ---: |
+| default | `preadv2` | 3 648 | 0 | 0.0 |
+| `--force-pool-reads` | `pooled_pread` | 0 | 3 627 | 1.0 |
+
 ## The trap: never route a hit through the ring
 
 On overlayfs or tmpfs, `RWF_NOWAIT` returns 0 for every read, hit or miss. A ring keyed
