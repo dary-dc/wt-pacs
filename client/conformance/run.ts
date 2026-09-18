@@ -161,12 +161,17 @@ async function noticesClose(impl: Implementation) {
   live.close();
 }
 
-const impls: Implementation[] = [await typescriptImpl()];
-if (wasmBuilt()) {
-  impls.push(await wasmImpl());
-} else {
-  console.log("SKIPPED arm: transport-wasm — no pkg/, run client/transport-wasm/build.sh (needs wasm-pack)");
+// Both arms are required: a suite that runs over one implementation states nothing about the
+// surface, and the WASM clock is the bug it was written for. docs/cloud-queue.md §Blocked.
+if (!wasmBuilt()) {
+  console.error(
+    "transport-wasm is not built — no client/transport-wasm/pkg/.\n" +
+      "  Build it once: bash client/transport-wasm/build.sh (needs wasm-pack).\n" +
+      "  README.md §Prerequisites.",
+  );
+  process.exit(2);
 }
+const impls: Implementation[] = [await typescriptImpl(), await wasmImpl()];
 
 for (const impl of impls) {
   console.log(`\n${impl.name}`);
@@ -178,8 +183,7 @@ for (const impl of impls) {
 
 if (strays.length) console.log(`\n  ${strays.length} abandoned waiter(s) rejected after their fill was cancelled`);
 console.log(
-  `\nconformance: ${ran - failed}/${ran} checks passed across ${impls.length} implementation(s)` +
-    (impls.length < 2 ? " — one arm was skipped" : ""),
+  `\nconformance: ${ran - failed}/${ran} checks passed across ${impls.length} implementations`,
 );
 // A cancelled fill leaves its waiters armed until FRAME_TIMEOUT_MS; exit rather than wait them out.
 process.exit(failed ? 1 : 0);

@@ -97,6 +97,7 @@ impl RecvBuf {
         self.data.len() - self.pos
     }
 
+    #[cfg(not(feature = "byob"))]
     fn is_empty(&self) -> bool {
         self.pos >= self.data.len()
     }
@@ -116,6 +117,7 @@ impl RecvBuf {
 
     /// Room for a frame whose length is now known: one allocation instead of a doubling
     /// sequence (16 → 32 → … KB, each step a copy) for every fresh buffer.
+    #[cfg(not(feature = "byob"))]
     fn reserve_for(&mut self, total: usize) {
         let have = self.data.len() - self.pos;
         if total > have {

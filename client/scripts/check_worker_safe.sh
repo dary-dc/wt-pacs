@@ -6,13 +6,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-artifacts=(client/transport-ts/dist/session.js)
-[[ -f client/transport-wasm/pkg/transport_wasm.js ]] &&
-  artifacts+=(client/transport-wasm/pkg/transport_wasm.js)
+wasm=client/transport-wasm/pkg/transport_wasm_bg.wasm
+artifacts=(client/transport-ts/dist/session.js client/transport-wasm/pkg/transport_wasm.js)
 
 bad=0
+for f in "${artifacts[@]}" "$wasm"; do
+  [[ -f "$f" ]] || {
+    echo "missing $f — build both clients first: client/transport-ts/build.sh and" \
+      "client/transport-wasm/build.sh (README.md §Prerequisites)" >&2
+    exit 2
+  }
+done
+
 for f in "${artifacts[@]}"; do
-  [[ -f "$f" ]] || { echo "missing $f — run the build first" >&2; exit 2; }
   if hits=$(grep -nE '(^|[^.[:alnum:]_])window[.[]' "$f"); then
     echo "$f reaches for window:" >&2
     echo "$hits" | head -5 >&2
@@ -20,11 +26,10 @@ for f in "${artifacts[@]}"; do
   fi
 done
 
-if [[ -f client/transport-wasm/pkg/transport_wasm_bg.wasm ]] &&
-  strings client/transport-wasm/pkg/transport_wasm_bg.wasm | grep -qx window; then
-  echo "client/transport-wasm/pkg/transport_wasm_bg.wasm carries the string 'window'" >&2
+if strings "$wasm" | grep -qx window; then
+  echo "$wasm carries the string 'window'" >&2
   bad=1
 fi
 
 [[ $bad -eq 0 ]] || exit 1
-echo "OK: no client artifact reaches for window (${#artifacts[@]} checked)"
+echo "OK: no client artifact reaches for window (${#artifacts[@]} bundles + the wasm)"

@@ -4,6 +4,9 @@
 #   scripts/gate.sh            everything (the server absence check builds a default release)
 #   scripts/gate.sh --quick    skip the two absence checks
 #
+# The WASM client is a hard prerequisite, not an optional arm: build it once with
+# client/transport-wasm/build.sh. README.md §Prerequisites.
+#
 # CARGO_TARGET_DIR is respected; set it to keep the default-feature release build out of a
 # telemetry target dir you are also using for a harvest.
 set -euo pipefail
@@ -26,6 +29,10 @@ bash client/scripts/check_worker_safe.sh
 
 step "client: transport conformance (both implementations)"
 node client/conformance/run.mjs | tail -2
+
+step "client: the byob read path compiles (off by default; docs/decode/README.md)"
+(cd client/transport-wasm && cargo check --features byob-min,byob-count \
+  --target wasm32-unknown-unknown --quiet)
 
 step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)

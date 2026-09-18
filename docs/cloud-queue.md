@@ -38,7 +38,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm is a decision, see §Blocked |
+| 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm decision is settled 2026-09-18, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
 | 17 | **D3** — fills pushed, both clients | proposal-downloader §S3 | **done** `77e01f0` on `claude/downloader-s2-worker` — pushed on both clients, the downloader re-issues after an ask; `CLIENTS.md` §Fills are pushed |
@@ -611,6 +611,14 @@ pkg costs 1 m 41 s here, against a 2½-minute cold gate and 10 s warm, and makes
 * build the pkg in the gate, and pay it on every cold run.
 
 A cloud agent can implement any of the three in minutes once the workstation picks one.
+
+**Decided 2026-09-18 — the second: the gate fails when `pkg/` is absent.** Both client steps now
+require the WASM artifacts rather than testing them only if present, so conformance runs over two
+implementations or not at all. The build is paid once per clone, not per run, and there is no CI
+here to pay it cold repeatedly. `README.md` §Prerequisites names `wasm-pack`, `wasm-opt` and the
+`wasm32-unknown-unknown` target, which closes T6. The same pass added a `cargo check` over
+`byob-min,byob-count`: nothing built the BYOB read path before, so a path L18 and L2 are still
+working on could break unnoticed.
 
 **No signed fixture can be made with the encoder in this tree** (2026-09-16, from D1), so the
 capability row "16-bit signed with sign extension" cannot be tested at all — and signed 16-bit is
