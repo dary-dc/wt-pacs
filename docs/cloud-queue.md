@@ -40,6 +40,9 @@ in `## Answers` below, push, mark it done. Keep it short — the asker has no ot
 **Asking for something.** If a lane is blocked on a decision only the workstation can make, add a
 row to `## Blocked` saying what you need, push, and move to the next `ready` row. Do not wait.
 
+**A commit message holds the change and nothing else** — no attribution, co-author or session
+trailers. This is the owner's rule for every repository.
+
 ## Queue
 
 | # | what | brief | state |
@@ -53,13 +56,25 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | **done** `2ca9886` on `claude/downloader-s2-worker` — 9 checks green, in the gate |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | **done** `5b93cd5` on `claude/downloader-s2-worker` — both rows green against a real server, in the gate; one hole found, see below |
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | **done** `352b82e` on `claude/downloader-s2-worker` — route proven with an independent decoder; the package was right, the source build was wrong and is fixed |
-| 23 | **D2d** — the WASM client behind the downloader | queue §Rows 23–26 | ready |
-| 24 | **D5** — what the decoder's range pass costs a fill | queue §Rows 23–26 | ready |
-| 25 | **D6** — a fresh decoder's first frame | queue §Rows 23–26 | ready |
-| 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
+| 30 | **Q1** — the QUIC crate, bumped | queue §Rows 30–41 | ready |
+| 31 | **F2** — fixtures that compress like real series | queue §Rows 30–41 | ready |
+| 32 | **R1** — two round trips off a cold open: a proposal, then a prototype behind a flag | queue §Rows 30–41 | ready |
+| 33 | **P1** — a decoder pool that follows the queue, and a reader that waits: a proposal | queue §Rows 30–41 | ready |
+| 34 | **A1** — a session that dies is noticed and resumed: a proposal | queue §Rows 30–41 | ready |
+| 29 | **L21** — when UDP is blocked: a proposal, no code — **amended 2026-09-18** | queue §Rows 28–29, §Rows 30–41 | ready |
+| 25 | **D6** — a fresh decoder's first frame — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | ready |
+| 23 | **D2d** — the WASM client behind the downloader — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | ready |
+| 24 | **D5** — what the decoder's range pass costs a fill — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | after 31 |
+| 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | after 31 |
+| 35 | **T1** — the transport branch's lab and client pieces, here; not its server | queue §Rows 30–41 | ready |
+| 36 | **N1** — an impaired link in a container | queue §Rows 30–41 | after 35 |
+| 37 | **R2** — navigation to first byte on a real round trip: count, then cut | queue §Rows 30–41 | after 36 |
+| 38 | **W1** — the first ask on an idle session | queue §Rows 30–41 | after 36 |
+| 39 | **W2** — slow-start exit, an outage, the first timeout | queue §Rows 30–41 | after 36 |
+| 40 | **E1** — the ingest format | queue §Rows 30–41 | after 31 |
+| 41 | **O1** — the fill's order; prerender, yes or no | queue §Rows 30–41 | ready |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **done** — a quarter of the bytes draws the half-size image, on all four formats; only the package can do it. `decode/README.md` §A prefix draws a smaller image |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **done** — a tie in both scenarios; the miss *path* costs ~0.5 ms on one ask and nothing across a fill. What a cold study costs is the device's, not this container's. `disk-access/EVIDENCE.md` §A study nobody has read |
-| 29 | **L21** — when UDP is blocked: a proposal, no code | queue §Rows 28–29 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
@@ -86,6 +101,121 @@ fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving du
 Rows 15–22 name the branch each landed on. `claude/downloader-s2-worker` was merged into this one
 on 2026-09-18, so those commits are in this history and the branch names are provenance, not
 somewhere still to look.
+
+### Rows 30–41
+
+Queued 2026-09-18 from [`improvements/2026-09-18.md`](improvements/2026-09-18.md) — read it first;
+**S-numbers below are its findings**, each with its evidence. Everything measured so far is
+loopback, which makes round trips, slow start, loss and start-up free; the target is a phone's
+browser on a 20–50 Mbit, 30–80 ms, lossy link, which charges for all four. The two goals stay
+apart — a fill's time to all frames, one frame asked on an idle session — and memory counts as much
+as time. An ask during a running fill stays parked. **Order is deliberate:** defects and gates
+first, then the three proposals so that their approval overlaps the code rows, then what needs the
+impaired link. A container's timings are reported, not decided on; where a verdict needs a real
+RTT, say what the container showed and leave the exact cell to run — the workstation drives the
+shaped-link VM and runs it.
+
+**30 · Q1.** Bump `quinn-proto` to 0.11.18 or later (S4): it fixes black-hole detection tripping on
+ordinary congestion loss and pinning the MTU at 1200 for 60 s, and carries three security fixes.
+Gate green; then grep every archived server log for `mtu=1200` and say how often past runs were hit.
+
+**31 · F2.** The decode bench's sets are 8.7× too large for cine and compress 1.25:1 where CT does
+~2.1:1 (S16), so block decoding is over-weighted in every decode number. Add two generator modes —
+a dark sector with speckle, grey on all but ~1 % coloured pixels, at ~16:1; 12-bit-in-16 signed
+with an air background at ~2:1 — and re-run `decode_bench` and `prefix_levels` on them beside the
+old sets. Report what moves: per-frame decode, the copy-out's share, L19's bytes per level.
+
+**32 · R1.** A cold open reaches its first byte in ~4 round trips, not the 2 the docs state (S5).
+Write `docs/proposal-session-open.md`: the ask — a fill or one frame, and the study — carried in
+the session URL so the server sends behind its accept; the server's SETTINGS sent at 0.5 RTT;
+optional link and device fields in the same URL (S22). State what `WIRE.md` and the conformance
+suite gain, what the WebTransport crate must expose or be patched for, and correct the round-trip
+count where the docs state it. Then a prototype behind a flag, off by default; its timing waits on
+row 36.
+
+**33 · P1.** Write the proposal, build nothing: a pool that starts at one decoder, grows while the
+decode queue stays non-empty and shrinks when idle (S12 — on the target's link one decoder keeps
+up; sizing from core count sizes for loopback); and the reader pausing once queued compressed bytes
+pass a bound, so QUIC flow control pushes back with no server cap and M3's fill window is not
+needed (S15). Amend `proposal-downloader.md` and `client-shape-plan.md` M2/M3 rather than adding a
+file. Include the capability rows each must not lose.
+
+**34 · A1.** Write `docs/proposal-session-survival.md`, build nothing. Chromium never migrates a
+WebTransport session (S2) and the client learns of a dead path only at the smaller idle timeout, so
+L6's 60 s recommendation is also the length of the freeze. Cover: liveness triggers the platform
+gives (`connection` change, `online`/`offline`, `visibilitychange`, `resume`) and a probe ask with
+a deadline; re-dial and re-issue through the downloader's existing per-frame records; the idle
+timeout and keep-alive as the detection bound against a phone's radio; a wake lock during a fill
+and a deliberate close on `freeze` (S3). Re-run the rebind probe at a 10 s idle timeout for the
+one measured number.
+
+**29 · L21, amended.** Three additions to the brief below. iOS: WebKit bug 319818 stalls a
+connection after 16 MB (S1), so the fallback may be every iPhone, not ~5 % of networks — and the
+route that keeps QUIC there is recycling the session before 16 MB and re-issuing; cost it. Racing
+the fallback against WebTransport instead of detecting failure (S22), which makes the time to
+rejection moot. And what a device check must show before any of this is built.
+
+**25 · D6, amended.** The decoder is instantiated from a buffer and its glue evaluated as text, so
+the engine's compiled-code cache can never engage (S13) and a warm-up decode would not tier up.
+Load it by streaming compile from an ES module build; report first-decode and frames 0–5 for a cold
+HTTP cache, a warm HTTP cache and a warm code cache, apart, on a persistent profile.
+
+**23 · D2d, amended.** Two additions. The downloader awaits every decoder before it dials
+(`downloader.js`, `start()`; S6) — today's worker path does not, so adoption as it stands adds a
+handshake to every cold start: dial first, keep dispatch gated on readiness, and show the
+conformance suite still passes. And report time from worker start to `ready` for both transport
+clients under a 4–6× CPU throttle: the WASM client needs ~300 KB before it can dial, the
+TypeScript one ~16 KB.
+
+**24 · D5, amended.** On F2's fixtures. While in `decoder.js`: `new Uint8Array(m.bytes)` copies a
+view that is already a `Uint8Array` — a fourth copy D4's table omits (S14); remove it and report
+the decoder workers' GC count and decode wall time with and without. The source build's wrapper
+zero-fills its output and then clamps per sample (S19); the range belongs in that loop.
+
+**35 · T1.** Bring onto this branch what `claude/clever-curie-flm0wi` has that does not depend on
+its server: the path simulator and the rebind relay, the stream-shape and rig cell scripts, the
+TypeScript client's ask window and its tests, `docs/transport/` and `docs/lanes/`. **Not its
+`server/` or `patches/`**: that branch measured on 2026-09-18 that its per-byte work loses 29–38 %
+throughput at saturation without the per-core endpoints, which are dropped — that question is
+settled there, not here. Gate green.
+
+**36 · N1.** One harness that impairs both planes inside a container, no root: delay, rate, buffer
+depth, scattered and bursty loss, a blackout, a rebind — for the UDP session and for the static
+host's TCP. Validate it against arithmetic before trusting it: a cold open must read the round
+trips R1 counted, and a 250 KB ask from a fresh session the ~5 flights S7 predicts. Say what it
+cannot do (it forwards datagram by datagram, so nothing about batching is admissible).
+
+**37 · R2.** Through N1 at 0 / 40 / 80 ms, cold and warm profile: navigation → session ready →
+first byte → first decoded frame, for the harness on both clients and for the downloader (S6).
+Then cut, one change at a time: the config fetch, one worker bundle and one decoder bundle,
+`modulepreload`, and — needing no harness, land it regardless — compression and immutable hashed
+names in `deploy/nginx`. Report serial round trips before and after.
+
+**38 · W1.** One frame asked on an idle session is slow-start-bound for 50 KB–1 MB frames (S7).
+Through N1, native client, 50 KB and 250 KB at 40 and 80 ms: a fresh session, a session warmed by
+a fill, a session after a lossy fill, and after a rebind; then the two levers — bytes the viewer
+needs anyway pushed at session open, swept by size, and a paced 32-packet initial window — with
+loss and retransmissions reported per arm. Correct the "initial window ≤ 7 %" verdict in place: it
+never measured this cell (finding file §3).
+
+**39 · W2.** Behind the public `Controller` trait, no fork: an early slow-start exit for Cubic
+(S8); then the persistent-congestion threshold against 0.5 / 1 / 2 s blackouts (S9) and
+`initial_rtt` against cold-connect P95 / P99 at 1 % loss (S10). Cells: shallow and deep buffer,
+with and without jitter; arms Cubic, Cubic with the exit, BBR. Hand S11's two BBR leads to the
+controller lane's source review.
+
+**40 · E1.** On F2's fixtures, a sweep over TLM markers with per-resolution tile-parts, and
+code-block geometry (S18, S19): bytes, both decoders byte-exact, decode time, and that the TLM
+lengths equal L19's boundaries with a decode truncated at a tile-part boundary identical to the
+full decode at that level — mutation-checked. Then the tooling for S17's question, ready for when a
+census of source formats exists: for a lossy-JPEG source, bytes and decode time of a lossless
+transcode against the alternatives, with the maximum sample difference stated.
+
+**41 · O1.** Two small ones. Does a WebTransport session dial, and a worker start, while
+`document.prerendering` in headless Chromium (S20) — yes or no, on the page and in a worker. And
+the fill asked in a coarse-to-fine order — every 8th frame, then every 4th … each frame still
+decoded once (S21): time until every 8th frame is cached (through N1 once it exists) and what the
+permuted order costs the read path under `--force-pool-reads`.
 
 ### Rows 23–26
 
