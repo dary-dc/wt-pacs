@@ -857,6 +857,41 @@ wall, **+1872 %** and **+1734 %** CPU against `SeqReader` on the 16 KiB fill, 6/
 the co-tenant gap. The **fill 250 kB cell resolves nothing in either direction** - every arm's
 p99 there is 3.3-4.3 ms and the device dominates.
 
+## A study nobody has read, in the browser · 2026-09-18 (agent container)
+
+L20. A viewer mostly opens studies nobody has read yet, and nothing here had priced that from the
+client's side. Two scenarios, each on its own session: **one ask on an idle session** (the first
+frame a viewer waits for) and **a whole fill** of the study. Cold against the same study warm,
+interleaved with the arm order reversed every round, driven in headless Chromium through the
+shipped TS client (`lab/scripts/cold_study.sh`, 8 rounds, 120 frames of 256 KB).
+
+Cold is forced through the store's own lever, `--force-pool-reads`, never by evicting the page
+cache — `CLAUDE.md#measurement` rules that out. Each run reads the server's own `session reads`
+line back, so an arm that was not actually cold is visible rather than assumed.
+
+| scenario | arm | wall ms, median | [min … max] | server's `misses` |
+| --- | --- | ---: | --- | ---: |
+| one ask, idle session | warm | 6.5 | [5 … 7] | **0** |
+| | cold | 7.0 | [5 … 7] | **1** |
+| whole fill, 120 frames | warm | 318.5 | [293 … 336] | **0** |
+| | cold | 320.5 | [305 … 332] | **120** |
+
+**It is a tie, in both scenarios.** The ask is 1.08× with the cold arm slower in 3 of 8 paired
+rounds, the fill 1.01× and slower in 5 of 8 — both sign counts are what chance gives, and the
+ranges overlap almost entirely. The miss counts confirm the arms were real: every frame of the
+cold fill missed, and neither warm arm missed once.
+
+**What this does and does not price.** `--force-pool-reads` clears the store's `nowait`, so each
+read is refused the inline fast path and goes to the blocking pool — but the bytes it then reads
+are still in this container's page cache. So the number above is **the cost of the executor-to-pool
+hop, and that alone: about 0.5 ms on a single ask and nothing measurable across 120 frames.** It is
+not the cost of a cold study on real storage. A miss on a cloud volume pays device latency the pool
+hop does not include, and that is the device's to show, not this container's.
+
+Which is the useful half of the answer: the *mechanism* the server uses for a miss is not what
+makes a cold study slow. Whatever a first read costs a viewer, it is paid on the way to the
+device, not in the server's own path to it.
+
 ## Where the margin comes from
 
 `pool` and `hybrid` differ in two things at once — the reader loop and the miss mechanism —
