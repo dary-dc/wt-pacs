@@ -1,9 +1,8 @@
 # Improvements lab
 
 Work **outside** the two owned lanes — transport (`cursor/l1-loss-run-dbae`) and disk access
-(`claude/disk-access-adr-validation-saz6m8`). Branch
-[`claude/project-improvements-lab-pmohec`](https://github.com/dary-dc/wt-pacs/tree/claude/project-improvements-lab-pmohec)
-· [PR #14](https://github.com/dary-dc/wt-pacs/pull/14).
+(`claude/disk-access-adr-validation-saz6m8`). Branch `claude/project-improvements-lab-pmohec`,
+merged to `main` and since deleted · [PR #14](https://github.com/dary-dc/wt-pacs/pull/14).
 
 This folder is the front door. The dated files are evidence, not the queue.
 

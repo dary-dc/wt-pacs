@@ -51,7 +51,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 24 | **D5** — what the decoder's range pass costs a fill | queue §Rows 23–26 | ready |
 | 25 | **D6** — a fresh decoder's first frame | queue §Rows 23–26 | ready |
 | 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
-| 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **part done** — a quarter of the bytes draws the half-size image; only the package can do it. `decode/README.md` §A prefix draws a smaller image. **Signed waits on F1 reaching this branch** |
+| 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **done** — a quarter of the bytes draws the half-size image, on all four formats; only the package can do it. `decode/README.md` §A prefix draws a smaller image |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **claimed** 2026-09-18 — the lever is in (`--force-pool-reads`, miss_rate 0.0 → 1.0, `disk-access/IMPLEMENTATION.md`); the browser cold-vs-warm run is still owed |
 | 29 | **L21** — when UDP is blocked: a proposal, no code | queue §Rows 28–29 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
@@ -649,6 +649,12 @@ would measure the bug rather than the decoder. Both fixes are `352b82e` on
 `claude/downloader-s2-worker`, and they are lab tooling only — no downloader code — so they are a
 merge, not a port. **What is needed:** that commit on this branch, after which the signed third of
 L19 is one bench run.
+
+**Resolved the same day.** F1's eight shared lab files were taken onto this branch —
+`sign_htj2k.py`, the `s512`/`s12` generator, the clamp fix, `parity.mjs` and their fixtures —
+leaving `proposal-downloader.md` on s2, because that file is the downloader's and this is not an
+adoption. L19's signed arm then ran: `s12` at 23.8 % for level 1, and `s512` identical to `g512`
+because F1's method leaves the codestream one byte different. Row 27 is done.
 
 **What was needed, and F1 supplied:** a signed HTJ2K fixture from a source other than the encoder's
 `-signed` path — made by encoding unsigned and setting the sign bit in SIZ, confirmed by OpenJPEG.

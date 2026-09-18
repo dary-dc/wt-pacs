@@ -5,7 +5,7 @@ every number these produce.
 
 ```bash
 lab/decode-bench/fetch_decoder.sh                       # decoder from npm, pinned; not committed
-lab/scripts/gen_htj2k_fixtures.sh g160 g256 g512 c512 g1024 g2048
+lab/scripts/gen_htj2k_fixtures.sh g160 g256 g512 c512 g1024 g2048 s512 s12   # s*: signed, see below
 node lab/decode-bench/decode_bench.mjs lab/fixtures/decode_g512
 node lab/decode-bench/copy_cost.mjs lab/fixtures/decode_g512 lab/fixtures/decode_g2048
 ```
@@ -34,6 +34,14 @@ EMSDK=~/emsdk lab/decode-bench/wasm/heap_curve.sh lab/fixtures/decode_g512
 `parity.mjs` is the one that matters: it compares our build against the package byte for byte and
 getter for getter, and against the encoder's input as well. `heap_curve.sh` builds a ladder of
 initial heap sizes and interleaves them, so the floor is chosen from a curve.
+
+`decode_s512` (16-bit) and `decode_s12` (12-bit in 16-bit containers) are **signed**. The encoder
+cannot make one its own decoder survives, so they are made the other way round: encoded unsigned,
+then the sign bit set in the SIZ marker (`lab/scripts/sign_htj2k.py`), which JPEG 2000 reads as
+"no level shift" — the same coded bits decode to `v − 2^(B−1)`. An independent decoder
+(OpenJPEG's `opj_decompress`) confirmed the route before it was trusted; `docs/decode/README.md`
+§Ground truth has the numbers. `parity.mjs` prints what its fixtures cover and says so when no
+signed set is among them: a parity claim is only as wide as the fixtures it ran on.
 
 `decode_sat256` is a full-range ramp rather than organic content. It exists because none of the
 other fixtures contains a sample at its ceiling, so none of them exercises the decoder's clamp —

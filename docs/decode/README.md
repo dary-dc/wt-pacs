@@ -484,7 +484,7 @@ arrive resolution by resolution and a *prefix* is a whole smaller image rather t
 large one. What that prefix costs is the question a slow link asks: how little has to arrive
 before something can be drawn.
 
-`lab/decode-bench/prefix_levels.mjs`, four frames per set, medians. **Bytes needed** is the
+`lab/decode-bench/prefix_levels.mjs`, four frames per set, medians, over four pixel formats. **Bytes needed** is the
 smallest prefix whose decode at that level is byte-identical to decoding the *whole* codestream at
 the same level — found by binary search, and mutation-checked at the boundary: one byte short never
 reproduces the image, at every level of both sets. The timing columns are interleaved with the
@@ -504,6 +504,12 @@ order reversed each repeat.
 | | 3 | 64×64 | 5 927 | 1.4 % | 77 | 2 250 |
 | | 4 | 32×32 | 1 713 | 0.4 % | 30 | 2 094 |
 | | 5 | 16×16 | 646 | 0.2 % | 41 | 2 240 |
+| `s12` 12-bit signed | 0 | 512×512 | 277 427 | 100 % | 1 711 | 1 717 |
+| | **1** | **256×256** | **65 898** | **23.8 %** | **478** | 1 728 |
+| | 2 | 128×128 | 15 334 | 5.5 % | 148 | 1 686 |
+| | 3 | 64×64 | 3 787 | 1.4 % | 54 | 1 700 |
+| | 4 | 32×32 | 1 176 | 0.4 % | 30 | 1 712 |
+| | 5 | 16×16 | 517 | 0.2 % | 42 | 1 943 |
 
 **A quarter of the bytes draws the half-size image**, on both sets: 22.7 % and 24.2 % for level 1.
 Below that the curve falls away fast — an eighth-size image is 5 % of the frame and a sixteenth is
@@ -522,11 +528,13 @@ for `g512` (24.2 %, ×1.00 — 175 bytes above it). So on a slow link the source
 full-size image with detail missing, and only after most of the bytes on colour; the package offers
 a correct smaller image after a quarter of them.
 
-**Not covered: 16-bit signed.** This branch's `gen_htj2k_fixtures.sh` has no signed mode, and the
-source build here still carries the signed clamp that saturates negatives to 0. Both were fixed by
-F1 on `claude/downloader-s2-worker` (`352b82e`, `s512` and `s12` plus the clamp). The signed third
-of this row waits on that reaching this branch; nothing above is affected, because neither set here
-is signed.
+**Signed behaves the same, and one of the two signed sets had to.** F1 makes a signed fixture by
+encoding unsigned and setting the sign bit in SIZ, so `s512`'s codestream differs from `g512`'s by
+**exactly one byte**. Its curve is therefore identical to `g512`'s by construction — a consistency
+check that the sign flag does not disturb packet order, not an independent measurement. `s12` is
+the one that carries new information: 12-bit samples, a different codestream, and the same shape —
+23.8 % at level 1, 5.5 % at level 2, 1.4 % at level 3. **The curve is a property of the codestream's
+progression, not of the pixel format.**
 
 **Held, whatever this says.** Handing a frame's first bytes to a decoder before the frame completes
 is not built into the clients or the downloader: it waits on a decision about how a smaller first
