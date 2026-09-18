@@ -335,8 +335,13 @@ one core (S2). One worker in total is the same latency and no scale. Neither was
 per-core shape is what quinn's own docs give for scaling out.
 
 **Costs.** A client whose 4-tuple changes mid-session (NAT rebinding, a Wi-Fi to cellular move)
-hashes to another endpoint, which does not know the connection and answers with a stateless
-reset: the session drops and the client reconnects. A front that forwards many sessions from
+hashes to another endpoint, which does not know the connection. This said "answers with a
+stateless reset: the session drops and the client reconnects" until 2026-09-18; T6 step 1
+measured it and both halves were wrong. The wrong endpoint drops the packets in silence, so
+the client freezes and dies of `connection timed out` at 30 001 ms — quinn's idle timeout —
+with no error to reconnect on and no reconnect in either product client. It happens on 12 of
+16 rebinds at `--workers 4`, the `(W−1)/W` the hash predicts, against 0 of 6 at `--workers 1`
+([`../lanes/T6-session-survival.md`](../lanes/T6-session-survival.md)). A front that forwards many sessions from
 one source port puts them all on one thread (−31 to −41 % throughput at 16–32 sessions,
 above); a per-flow port on the front, or `--workers 1`, avoids it. `--workers 1` also keeps
 the exclusive bind: two servers of one user started on one port otherwise share it silently. Yielding the serving loop after every frame (`yield_now`), so the driver

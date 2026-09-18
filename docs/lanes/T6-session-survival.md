@@ -8,7 +8,9 @@
 Per-core endpoints hash a session's 4-tuple onto one socket
 ([`../transport/why-these-changes.md` §8](../transport/why-these-changes.md)). A Wi-Fi to
 cellular move or a NAT rebind changes the tuple; the packets land on another endpoint, which
-does not know the connection and sends a stateless reset. The TS client has no reconnect. A
+does not know the connection and **drops them in silence** — not the stateless reset this
+paragraph claimed until 2026-09-18, which step 1 measured and found does not happen. The TS
+client has no reconnect, and no error to hang one on. A
 reconnect is a cold session — 2 RTT plus certificate verification, about 1.5 RTT to the first
 server-side byte with optimistic streams — and pooling onto a warm connection is not available
 in Chromium or Safari, only Firefox, so nothing shortens it.
@@ -38,6 +40,29 @@ client reconnects, because steering does not cover a server restart.
    survives it with one**, which is the mechanism §8 predicted, now recorded rather than
    assumed. The server never logs a session end on four workers: it does not know the
    connection ended, because the packets went to an endpoint that never knew it.
+
+   **The rate, and how it dies** (2026-09-18, same VM). The cell above rebinds once per run,
+   so it reads the cliff but not its frequency: the kernel redraws the hash on every rebind,
+   and a session survives the one whose new port lands back on its own endpoint.
+   `lab/scripts/t6_rebind_rate.sh <workers> <reps>` repeats it with
+   `target/debug/rebind-probe` — ten frames, rebind on command, ask for one more — and
+   classifies each outcome:
+
+   | `--workers` | survived | killed | rate |
+   | --- | ---: | ---: | --- |
+   | 4 | 4 / 16 | 12 | 75 %, which is the `(W−1)/W` the hash predicts |
+   | 1 | 6 / 6 | 0 | — |
+
+   **No stateless reset reaches the client.** It sees nothing, then `connection timed out` at
+   30 001 ms — quinn's default idle timeout — in 3/3 repeats given long enough to reach it.
+   Each endpoint builds its own `EndpointConfig`, so its reset key is not the one the client
+   holds a token for; a reset it did send would be ignored. The user-visible symptom is a
+   **30-second freeze mid-study, then a dead session**, with no error to reconnect on.
+
+   Two things follow for the decision rule below. A session surviving one 4-tuple change is
+   not evidence of safety — the field rate is multiplied by `(W−1)/W`, not by 1. And *client
+   reconnect* needs a trigger the client does not currently get: an idle timeout 30 s later
+   is what it has, so that option costs a liveness check, not just a re-dial.
 2. **The browser.** On a phone, a session scrolling while Wi-Fi is switched off: does
    Chromium migrate a WebTransport session at all, or does it reconnect on its own? Unknown
    today; a device answers it in an afternoon.
