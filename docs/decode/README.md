@@ -477,6 +477,61 @@ clamp is dead code for all of them. `sat256` was added for that, a full-range ra
 0 and exactly 65535; against it the same mutant fails on 87 of 87 frames and the good build passes.
 A test that cannot fail is worth reporting as loudly as one that does.
 
+## A prefix draws a smaller image
+
+L19. The fixtures are encoded RPCL, one layer, one tile, five decompositions, so a frame's bytes
+arrive resolution by resolution and a *prefix* is a whole smaller image rather than a damaged
+large one. What that prefix costs is the question a slow link asks: how little has to arrive
+before something can be drawn.
+
+`lab/decode-bench/prefix_levels.mjs`, four frames per set, medians. **Bytes needed** is the
+smallest prefix whose decode at that level is byte-identical to decoding the *whole* codestream at
+the same level — found by binary search, and mutation-checked at the boundary: one byte short never
+reproduces the image, at every level of both sets. The timing columns are interleaved with the
+order reversed each repeat.
+
+| set | level | image | bytes needed | of full | decode µs | full decode µs |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| `c512` 8-bit RGB | 0 | 512×512 | 428 016 | 100 % | 6 092 | 6 146 |
+| | **1** | **256×256** | **97 088** | **22.7 %** | **1 641** | 6 157 |
+| | 2 | 128×128 | 21 012 | 4.9 % | 490 | 6 205 |
+| | 3 | 64×64 | 4 783 | 1.1 % | 184 | 6 213 |
+| | 4 | 32×32 | 1 477 | 0.3 % | 102 | 6 133 |
+| | 5 | 16×16 | 662 | 0.2 % | 44 | 5 200 |
+| `g512` 16-bit grey | 0 | 512×512 | 410 331 | 100 % | 2 149 | 2 150 |
+| | **1** | **256×256** | **99 322** | **24.2 %** | **592** | 2 130 |
+| | 2 | 128×128 | 23 765 | 5.8 % | 180 | 2 149 |
+| | 3 | 64×64 | 5 927 | 1.4 % | 77 | 2 250 |
+| | 4 | 32×32 | 1 713 | 0.4 % | 30 | 2 094 |
+| | 5 | 16×16 | 646 | 0.2 % | 41 | 2 240 |
+
+**A quarter of the bytes draws the half-size image**, on both sets: 22.7 % and 24.2 % for level 1.
+Below that the curve falls away fast — an eighth-size image is 5 % of the frame and a sixteenth is
+about 1 %. Decode time falls with the image rather than with the bytes, roughly ×4 per level.
+
+**Only one of the two decoders can do it, and it is the one that ships.** The package exposes
+`decodeSubResolution(level)`; every row above is that call. The source build in
+`lab/decode-bench/wasm` binds no equivalent — its wrapper calls `decode()`, which always
+reconstructs at full resolution because it never calls OpenJPH's `restrict_input_resolution`. Fed
+a level-*r* prefix it does not return a smaller image: it throws, at every level of both sets.
+
+That is not the same as refusing every truncation. The source build has a floor of its own, above
+which `decode()` returns a **full-size** image and logs `File terminated early` — never a smaller
+one. On frame 0: 307 806 B for `c512` (71.8 % of the frame, ×3.16 the level-1 prefix) and 99 497 B
+for `g512` (24.2 %, ×1.00 — 175 bytes above it). So on a slow link the source build offers a
+full-size image with detail missing, and only after most of the bytes on colour; the package offers
+a correct smaller image after a quarter of them.
+
+**Not covered: 16-bit signed.** This branch's `gen_htj2k_fixtures.sh` has no signed mode, and the
+source build here still carries the signed clamp that saturates negatives to 0. Both were fixed by
+F1 on `claude/downloader-s2-worker` (`352b82e`, `s512` and `s12` plus the clamp). The signed third
+of this row waits on that reaching this branch; nothing above is affected, because neither set here
+is signed.
+
+**Held, whatever this says.** Handing a frame's first bytes to a decoder before the frame completes
+is not built into the clients or the downloader: it waits on a decision about how a smaller first
+image is displayed, and that decision is the workstation's.
+
 ## What these numbers are not
 
 * **Every millisecond above is container-measured** and is reported, not decided on. The heap
@@ -488,6 +543,9 @@ A test that cannot fail is worth reporting as loudly as one that does.
   out is smaller in all three series and on both builds, because a WASM heap never shrinks and a
   retained decoder holds its codestream as well as its pixels. The 86 MB retained figure this file
   used to carry is still not reproduced and still not quoted.
+* **The prefix curve is four frames per set** (§A prefix draws a smaller image), enough for a
+  byte-exact claim that is mutation-checked per frame, not enough to call the percentages a
+  distribution. The source build's floor is frame 0 only.
 * **The clamp is not exercised by the organic fixtures.** None of them reaches its ceiling, so a
   mutant that clamped one count low passed all six. `sat256` is a full-range ramp that hits exactly
   0 and exactly 65535 and does catch it; §Ground truth has the rest.

@@ -51,7 +51,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 24 | **D5** — what the decoder's range pass costs a fill | queue §Rows 23–26 | ready |
 | 25 | **D6** — a fresh decoder's first frame | queue §Rows 23–26 | ready |
 | 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
-| 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **claimed** 2026-09-18 |
+| 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **part done** — a quarter of the bytes draws the half-size image; only the package can do it. `decode/README.md` §A prefix draws a smaller image. **Signed waits on F1 reaching this branch** |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | ready |
 | 29 | **L21** — when UDP is blocked: a proposal, no code | queue §Rows 28–29 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
@@ -640,6 +640,15 @@ codestream and ground truth from an independent decoder, **the package is right 
 build was wrong** — its wrapper clamped negatives to 0 — and is fixed. The row is no longer blocked;
 see the F1 note in §Answers. What stands from the original: `parity.mjs`'s 609-frame claim was
 unsigned-only when it was made, and L8's parity claim needed the qualification.
+
+**F1 has not reached this branch, and L19 wants it** (2026-09-18). Row 27 asks for 512×512 RGB
+8-bit, 16-bit unsigned **and 16-bit signed**; the first two are done and reported. Signed cannot be
+run here at all: `gen_htj2k_fixtures.sh` on this branch has no `s512`/`s12`, and the source build
+still carries the clamp that saturates negatives to 0, so even with fixtures its signed column
+would measure the bug rather than the decoder. Both fixes are `352b82e` on
+`claude/downloader-s2-worker`, and they are lab tooling only — no downloader code — so they are a
+merge, not a port. **What is needed:** that commit on this branch, after which the signed third of
+L19 is one bench run.
 
 **What was needed, and F1 supplied:** a signed HTJ2K fixture from a source other than the encoder's
 `-signed` path — made by encoding unsigned and setting the sign bit in SIZ, confirmed by OpenJPEG.
