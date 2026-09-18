@@ -51,7 +51,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 24 | **D5** — what the decoder's range pass costs a fill | queue §Rows 23–26 | ready |
 | 25 | **D6** — a fresh decoder's first frame | queue §Rows 23–26 | ready |
 | 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
-| 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | ready |
+| 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **claimed** 2026-09-18 |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | ready |
 | 29 | **L21** — when UDP is blocked: a proposal, no code | queue §Rows 28–29 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
