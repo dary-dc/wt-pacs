@@ -51,6 +51,7 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 24 | **D5** — what the decoder's range pass costs a fill | queue §Rows 23–26 | ready |
 | 25 | **D6** — a fresh decoder's first frame | queue §Rows 23–26 | ready |
 | 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
+| 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
@@ -109,6 +110,23 @@ signed study run through the downloader rather than the decoder alone. Neither m
 single ask; both are owed before today's path is removed. `consumer.js` says fill frames are taken
 at background priority and hands them over at once — correct that comment in whichever row next
 touches the file, and do not build the priority.
+
+### Row 27
+
+**27 · L19.** The fixtures' codestreams are resolution-ordered (RPCL, one layer, one tile), so the
+first part of a frame's bytes should decode to a smaller image. On a slow link that is a first image
+after a fraction of the bytes — one-frame latency, the second goal. Decode side only; no transport
+change. For 512×512 RGB 8-bit, 16-bit unsigned and 16-bit signed, and at each resolution level:
+
+* how many bytes of the codestream that level needs;
+* whether each decoder — the package and the source build — decodes that truncated prefix at that
+  level, and by which call; if one cannot, say so rather than work around it;
+* its decode time against a full decode, interleaved;
+* that the result is byte-identical to decoding the **whole** codestream at the same reduced level —
+  the ground truth, mutation-checked with a prefix one byte short.
+
+Report the curve of bytes against level in `docs/decode/README.md`. Nothing is built into the
+downloader or the clients until this says it works.
 
 ### Rows 19–22
 
