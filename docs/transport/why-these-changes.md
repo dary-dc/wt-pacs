@@ -516,6 +516,32 @@ work-stealing runtime does not promise. Measured against a thread-local arm on t
 of the invariant, not speed, and the drift it removes is not observable in this cell — worth
 recording so nobody re-measures it hoping for a win.
 
+**The conditions beyond saturation, 2026-09-18.** Throughput on a native driver is one axis;
+these are the others this box can reach.
+
+*Fill, the other product path* (250 KB, one session, six repeats paired against `main`):
+p50 −42.2 %, p99 −42.8 %, asks/s +73.9 %, CPU per ask −44.0 %, all 6/6. The on-demand cells
+above understate it, because a fill is where the send path runs uninterrupted.
+
+*A stalled client, which the pool changes the shape of.* quinn now holds the reader's own
+buffer until the peer acknowledges it, so a peer that never reads pins it — the case §4 and
+§5 price. `lab/scripts/stall_memory_cell.sh`, peak `RssAnon` over the hold minus the settled
+baseline: at 250 KB, `main` holds 3 584 KiB and this tree 3 364 KiB; at 32 KB, 2 364 against
+2 152 KiB. The ceiling did not move, and the pool does not add to it.
+
+*A real browser, which is the target's client.* `lab/scripts/browser_cell.py`, headless
+Chromium 141, arms interleaved and the order reversed every repeat, wall per frame, n = 6:
+32 KB on demand **−0.8 %, 2/6 paired lower — a tie**; 250 KB on demand **+3.2 %, 1/6 paired
+lower**, ranges overlapping (base 2 375–2 712 µs, tree 2 431–2 619 µs). So none of the
+native-driver win reaches a viewer here. That is the finding §8 already recorded for its own
+change — at 250 KB Chromium's receive path is about 1.7 ms per frame and is the ceiling — now
+confirmed for §9. The 250 KB cell reading 5/6 slower rather than evenly split is worth one
+more look before it is called noise.
+
+**What this means for keeping them.** The case for §9 is **cost per session**, which is the
+target's actual constraint at thousands of viewers, and that is measured and large. It is not
+a latency win for a browser on this rig, and the docs should not be read as promising one.
+
 **Costs.** A 64 KB batch holds the connection lock about 30 µs longer than a 14 KB one, which
 is where a fill's inter-arrival p99 widens (+68 % on the short 32 KB cell, n = 80; the 320-frame
 fill below is the one to read). quinn now holds the reader's buffer until the peer acknowledges
