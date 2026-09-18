@@ -23,7 +23,7 @@ is already settled, and the container recipes — read it once, then work the qu
 **Rows that wait.** `after N` becomes `ready` when row N is done; the agent that marks N done
 flips it in the same commit.
 
-**Code rows (D1–D4)** follow `docs/proposal-downloader.md` and push code to the agent's own
+**Code rows (the D rows)** follow `docs/proposal-downloader.md` and push code to the agent's own
 branch, never to this one; this branch gets only the queue update, with the branch name in the
 row. If the design turns out wrong, stop and say why in `## Blocked` rather than building a
 different shape.
@@ -47,6 +47,10 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 | 20 | **D2c** — assert what D2 implements and nothing checks | queue §Rows 19–22 | **done** `2ca9886` on `claude/downloader-s2-worker` — 9 checks green, in the gate |
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | **done** `5b93cd5` on `claude/downloader-s2-worker` — both rows green against a real server, in the gate; one hole found, see below |
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | **done** `352b82e` on `claude/downloader-s2-worker` — route proven with an independent decoder; the package was right, the source build was wrong and is fixed |
+| 23 | **D2d** — the WASM client behind the downloader | queue §Rows 23–26 | ready |
+| 24 | **D5** — what the decoder's range pass costs a fill | queue §Rows 23–26 | ready |
+| 25 | **D6** — a fresh decoder's first frame | queue §Rows 23–26 | ready |
+| 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
 | 10 | **L14** — what retained frames cost in memory | lanes §L14 | **done** `dfbd4e8` — `docs/decode/README.md` §Retention |
 | 11 | **L15** — how long an idle browser session survives | lanes §L15 | **done** `444dd36` — 30 s confirmed, and the browser pings itself |
@@ -68,7 +72,43 @@ row to `## Blocked` saying what you need, push, and move to the next `ready` row
 **The redesign is queued** (2026-09-16) as D1–D4: `docs/proposal-downloader.md`, approved for
 investigation. It replaces the harness decode arm L11 proposed. D1 comes before any code, because
 the proposal is adopted only if nothing today's path can do is lost. **Still held:** a bounded
-fill window, the cache seam, paint.
+fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving during a running fill.
+
+### Rows 23–26
+
+Queued 2026-09-18. **Two goals, measured apart:** the time a fill takes to deliver every frame, and
+the latency of one frame asked on an idle session — plus memory, which counts as much as time on
+the target device. An ask arriving while a fill runs is **parked**: do not measure it or tune for
+it. All four work on `claude/downloader-s2-worker` or a branch off it.
+
+**23 · D2d.** The last row of the proposal's capability table is "not shown": every downloader run
+so far is over the TypeScript client. The WASM package exports `TransportSessionHandle`; the seam
+wants a module exporting `TransportSession`. Write that adapter, run `run_downloader.sh` and
+`downloader.html` over it, and report a fill and a cold ask on both clients, interleaved. Done when
+the row is green on both.
+
+**24 · D5.** `decoder.js` copies each decoded frame into a `SharedArrayBuffer`, then walks it a
+second time for sign extension and the sample range. In a fill the decoders are the bottleneck (S4:
+the decode arm is decode-bound), so that walk is on the fill's critical path. Price it per frame at
+512×512 RGB 8-bit and 512×512 16-bit. If it is more than noise, fold the range into the copy, and
+show the fill is byte-identical against `.sha256` and faster, mutation-checked. While in the file,
+correct its comment that no signed fixture exists — F1 made two.
+
+**25 · D6.** A decoder's first frame may pay for its WASM code being compiled in stages. On fresh
+instances in headless Chromium, compare the first decode with the steady state, per size. If the
+first is slower beyond noise, decode a small built-in codestream at `init` and show the first real
+frame no longer pays. Report it either way: this is one-frame latency, the second goal.
+
+**26 · D7.** S4 measured 161 MB for the decode arm, 150 MB of it three decoder heaps at the
+package's link-time 50 MB (L1). Point the downloader at the source build — F1's signed fix
+included, emscripten pinned at 3.1.74 (L17) — and re-run S4's memory and fill. `parity.mjs` must
+stay byte-identical on every set, signed included.
+
+**Before adoption, not now.** A refused fill never reaching the consumer (D1r's hole), and a
+signed study run through the downloader rather than the decoder alone. Neither moves a fill or a
+single ask; both are owed before today's path is removed. `consumer.js` says fill frames are taken
+at background priority and hands them over at once — correct that comment in whichever row next
+touches the file, and do not build the priority.
 
 ### Rows 19–22
 
