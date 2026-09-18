@@ -60,6 +60,9 @@ for size in "${SIZES[@]}"; do
     # Signed: encoded unsigned, then the sign bit set in SIZ — lab/scripts/sign_htj2k.py.
     s512)  w=512;  h=512;  ch=1; depth=65535; signed=1 ;;
     s12)   w=512;  h=512;  ch=1; depth=4095;  signed=1 ;;
+    # F2: content that compresses like a real series rather than like `field` (1.25:1).
+    cine512) w=512; h=512; ch=3; depth=255;   mode=cine ;;
+    ct512)   w=512; h=512; ch=1; depth=4095;  signed=1; mode=ct ;;
     *) echo "unknown size $size" >&2; exit 2 ;;
   esac
   case "$depth" in 255) bits=8 ;; 4095) bits=12 ;; *) bits=16 ;; esac

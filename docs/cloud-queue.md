@@ -57,21 +57,21 @@ trailers. This is the owner's rule for every repository.
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | **done** `5b93cd5` on `claude/downloader-s2-worker` — both rows green against a real server, in the gate; one hole found, see below |
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | **done** `352b82e` on `claude/downloader-s2-worker` — route proven with an independent decoder; the package was right, the source build was wrong and is fixed |
 | 30 | **Q1** — the QUIC crate, bumped | queue §Rows 30–41 | **done** — `quinn-proto` 0.11.17 → 0.11.18, gate green. The log sweep cannot be run: the `mtu=` line is newer than every archive tag. Two occurrences are recorded in prose, both the 2026-09-10 relay runs under induced loss. `disk-access/IMPLEMENTATION.md` §What the server reports |
-| 31 | **F2** — fixtures that compress like real series | queue §Rows 30–41 | **claimed** 2026-09-18 |
+| 31 | **F2** — fixtures that compress like real series | queue §Rows 30–41 | **done** — `cine512` 18.2:1 and `ct512` 1.99:1, both byte-exact. Colour decode −44 %; copy-out share 6.2 → 7.8 %; **L19 corrected — level 1 is 48 % at 18:1, not 23 %**. `decode/README.md` §Content |
 | 32 | **R1** — two round trips off a cold open: a proposal, then a prototype behind a flag | queue §Rows 30–41 | ready |
 | 33 | **P1** — a decoder pool that follows the queue, and a reader that waits: a proposal | queue §Rows 30–41 | ready |
 | 34 | **A1** — a session that dies is noticed and resumed: a proposal | queue §Rows 30–41 | ready |
 | 29 | **L21** — when UDP is blocked: a proposal, no code — **amended 2026-09-18** | queue §Rows 28–29, §Rows 30–41 | ready |
 | 25 | **D6** — a fresh decoder's first frame — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | ready |
 | 23 | **D2d** — the WASM client behind the downloader — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | ready |
-| 24 | **D5** — what the decoder's range pass costs a fill — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | after 31 |
-| 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | after 31 |
+| 24 | **D5** — what the decoder's range pass costs a fill — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | ready |
+| 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | ready |
 | 35 | **T1** — the transport branch's lab and client pieces, here; not its server | queue §Rows 30–41 | ready |
 | 36 | **N1** — an impaired link in a container | queue §Rows 30–41 | after 35 |
 | 37 | **R2** — navigation to first byte on a real round trip: count, then cut | queue §Rows 30–41 | after 36 |
 | 38 | **W1** — the first ask on an idle session | queue §Rows 30–41 | after 36 |
 | 39 | **W2** — slow-start exit, an outage, the first timeout | queue §Rows 30–41 | after 36 |
-| 40 | **E1** — the ingest format | queue §Rows 30–41 | after 31 |
+| 40 | **E1** — the ingest format | queue §Rows 30–41 | ready |
 | 41 | **O1** — the fill's order; prerender, yes or no | queue §Rows 30–41 | ready |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **done** — a quarter of the bytes draws the half-size image, on all four formats; only the package can do it. `decode/README.md` §A prefix draws a smaller image |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **done** — a tie in both scenarios; the miss *path* costs ~0.5 ms on one ask and nothing across a fill. What a cold study costs is the device's, not this container's. `disk-access/EVIDENCE.md` §A study nobody has read |
