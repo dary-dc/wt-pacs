@@ -80,8 +80,29 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
   means quinn's black-hole detection reset it on loss, not that discovery never ran.
   Against Chromium it tops out at 1 472 whatever the server is told
   (`docs/improvements/2026-09-10.md`).
+  **That reset was a quinn bug, fixed upstream and taken 2026-09-18** (Q1): one ACK
+  revealing four holes tripped black-hole detection and pinned the MTU for 60 s, which
+  ordinary congestion loss is enough to produce. `quinn-proto` 0.11.17 → **0.11.18**
+  (upstream PR 2799, and three security fixes with it), through `wtransport`'s tree
+  rather than a direct dependency. Gate green on it.
 * `lost` against `sent`, with `congestion_events`, is the server-side half of the
   loss-regime question in `docs/transport/transport-conclusions.md` §1.
+
+**How often past runs were hit: the question cannot be answered from a log, and the reason
+is structural.** Q1 asked for a sweep of archived server logs for `mtu=1200`. There are none
+to sweep — this line was added by `34bedf7` on 2026-09-10 02:28, and *every* archive tag
+predates it (`transport-lab` 09-09 16:09, `improvements-lab` 09-09 14:39, `n6` 09-06,
+`read-path-evidence` 09-10 00:07, two hours short). Run folders live under `.local/` and are
+gitignored, so nothing else is committed. The instrument is newer than everything it could
+have measured.
+
+What is recorded is prose, and it is **two occurrences, both from the same campaign**: the
+relay runs of 2026-09-10, where the MTU reset to 1 200 mid-run in **two of three arms** at
+`lost=183–302` and those runs finished on 1 200-byte datagrams
+([`improvements/2026-09-10.md`](../improvements/2026-09-10.md)). Both were under induced
+loss on a relay, which that file already declines to quote for CPU or latency. So: twice,
+never on an unimpaired path, and never since — which is consistent with the upstream bug but
+does not on its own measure how often a deployment would meet it.
 
 ## How a read works
 
