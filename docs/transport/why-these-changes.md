@@ -542,6 +542,46 @@ more look before it is called noise.
 target's actual constraint at thousands of viewers, and that is measured and large. It is not
 a latency win for a browser on this rig, and the docs should not be read as promising one.
 
+**The depth x sessions plane against `main`, 2026-09-18.** The cells above are two points;
+`lab/scripts/depth_session_matrix.sh` walks 24 — both frame sizes, depth 1/2/4/8, 1/4/16
+sessions, six interleaved repeats each.
+
+**CPU per ask falls in every one of the 24 cells, 6/6 in each**, by −5.9 % to −45.3 %. That
+is the claim this work is kept for and it has no exception on this box. Throughput is up in
+22 of the 24, from +1.5 % to +63 %; the two that are not are below. The 4-session rows at
+32 KB are flat on throughput (+1.5 to +4.4 %, 1–3/6) because four sessions do not saturate
+two cores — the CPU column still moves there, which is the point.
+
+**One cell is materially worse, and it is not an obscure one.** 250 KB, depth 1, four
+sessions:
+
+| arm | p50 | p99 | asks / s |
+| --- | --: | --: | -------: |
+| `main` | 1 220 µs | **2 210 µs** | 2 936 |
+| `main` + the quinn patch only | 776 µs (−33 %) | **27 928 µs (+1 160 %)** | 2 215 (−29 %) |
+| this tree | 757 µs (−37 %) | **27 786 µs (+1 163 %)** | 2 109 (−29 %) |
+
+The median ask gets faster and the tail becomes a probe timeout: ~28 ms is
+`srtt + 4·rttvar` plus the peer's 25 ms `max_ack_delay`. **The GSO cap is the whole of it** —
+`main` carrying only the patch reproduces it to within 1 %, so neither the pooled hand-off nor
+anything else on this branch is implicated. [§10 entry 3](#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them)
+predicted this from the other direction and measured the reverse of it (clamping 44 to 10 took
+the same cell's p99 from 28.1 ms to 2.9 ms); this is the confirmation, arrived at from the
+plane rather than from the hypothesis.
+
+Why that cell and not its neighbours: at one session nothing drops (`rcvbuf_drops` 0) so no
+tail is lost; at sixteen there is always another session's packet behind the frame, so a lost
+tail is a gap and recovers in an RTT. Four is the band with enough traffic to drop and not
+enough to backfill. Depth 1 is required — depth 2 at the same size and count is +12.5 %.
+
+**So the branch is not unconditionally better than `main`.** It is better on CPU per ask
+everywhere, better on throughput nearly everywhere, and worse at 250 KB when the client keeps
+one ask outstanding and a handful of sessions share the box — which is what the product does
+today, because neither client ships a window. The fix is already designed in §10 proposal 3:
+clamp the batch when the session has nothing queued, or put an ACK-eliciting packet after an
+isolated frame. Until one of those lands, or the client window ships and makes depth ≥ 2 the
+normal case, this cell is the honest cost of the segment cap.
+
 **Costs.** A 64 KB batch holds the connection lock about 30 µs longer than a 14 KB one, which
 is where a fill's inter-arrival p99 widens (+68 % on the short 32 KB cell, n = 80; the 320-frame
 fill below is the one to read). quinn now holds the reader's buffer until the peer acknowledges
