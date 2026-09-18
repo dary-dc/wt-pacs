@@ -57,7 +57,7 @@ trailers. This is the owner's rule for every repository.
 | 21 | **D1r** — the two red capability rows that need no fixture | queue §Rows 19–22 | **done** `5b93cd5` on `claude/downloader-s2-worker` — both rows green against a real server, in the gate; one hole found, see below |
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | **done** `352b82e` on `claude/downloader-s2-worker` — route proven with an independent decoder; the package was right, the source build was wrong and is fixed |
 | 30 | **Q1** — the QUIC crate, bumped | queue §Rows 30–41 | **done** — `quinn-proto` 0.11.17 → 0.11.18, gate green. The log sweep cannot be run: the `mtu=` line is newer than every archive tag. Two occurrences are recorded in prose, both the 2026-09-10 relay runs under induced loss. `disk-access/IMPLEMENTATION.md` §What the server reports |
-| 31 | **F2** — fixtures that compress like real series | queue §Rows 30–41 | ready |
+| 31 | **F2** — fixtures that compress like real series | queue §Rows 30–41 | **claimed** 2026-09-18 |
 | 32 | **R1** — two round trips off a cold open: a proposal, then a prototype behind a flag | queue §Rows 30–41 | ready |
 | 33 | **P1** — a decoder pool that follows the queue, and a reader that waits: a proposal | queue §Rows 30–41 | ready |
 | 34 | **A1** — a session that dies is noticed and resumed: a proposal | queue §Rows 30–41 | ready |
