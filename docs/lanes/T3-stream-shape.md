@@ -1,6 +1,6 @@
 # T3 — The stream shape: one, a fixed pool, or one per frame
 
-**Status:** three arms built, none measured on a fair cell · **Needs:** the cloud rig · **Size:** one rig day
+**Status:** measured — `shared` holds and `pool:k` is closed on every reading below · **Needs:** nothing further on this rig · **Size:** done
 
 ## Question
 

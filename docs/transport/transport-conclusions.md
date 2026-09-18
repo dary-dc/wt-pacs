@@ -254,7 +254,7 @@ congestive 600 ms cell.
 | GSO cap worth 17 % | Weak — loopback, n = 1, fixture-dependent; real path overlapping |
 | Windows never approached on chunked | Moderate — 48 rows, T2 loopback, N ≤ 16 |
 | One endpoint per core beats the shared multi-thread runtime | Strong for one session (6/6 per cell, 5 cells, two independent measurements); T2 loopback, 4 vCPU. Moderate at saturation: 16–32 sessions, six of eight cells up, two ties; thousands of sessions with clients off the box unmeasured |
-| Segments per `sendmsg`, PGO and the pooled hand-off cut CPU per byte | **Independent of §8, confirmed 2026-09-18 on the multi-thread runtime: +13 to +23 % throughput and −17 to −22 % CPU per ask, 6/6 on two saturation cells. The quinn patch alone carries +10 to +21 %.** Strong on this VM: −24 to −35 % combined, 6/6 in seven of eight pinned cells, two independent runs; one lab cell (250 KB, depth 1, one session) loses 15 % throughput. Not run on the target |
+| Segments per `sendmsg`, PGO and the pooled hand-off cut CPU per byte | **Independent of §8, confirmed 2026-09-18 on the multi-thread runtime: +13 to +23 % throughput and −17 to −22 % CPU per ask at saturation, and p50 −32.5 % / −6.9 % at depth 1, all 6/6. The quinn patch alone carries +10 to +21 %; PGO adds +7 to +8 % with no depth-1 cost; the pool's shared-vs-thread-local shape is a tie.** Strong on this VM: −24 to −35 % combined, 6/6 in seven of eight pinned cells, two independent runs; one lab cell (250 KB, depth 1, one session) loses 15 % throughput. Not run on the target |
 
 What would overturn the shipped defaults: a cell where per-frame + FIFO separates in its
 favour (none found), or client telemetry showing the loss mix is overwhelmingly radio

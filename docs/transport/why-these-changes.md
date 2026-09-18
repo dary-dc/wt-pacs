@@ -487,6 +487,35 @@ throughput half at 250 KB (+13.5 % with it against +6.0 % without) and pays for 
 the CPU. Neither depends on §8. PGO is not in these numbers: `cargo build --release` stays
 the plain build, and `scripts/pgo_build.sh` was not run for them.
 
+**Verified where the product actually sits, 2026-09-18.** The cells above are saturation, and
+neither product client keeps asks outstanding, so depth 1 is today's behaviour. Against `main`,
+one session, six repeats paired:
+
+| cell | p50 | p99 | CPU per ask |
+| ---- | --: | --: | ----------: |
+| 250 KB, depth 1 | **−32.5 % (6/6)** | −23.0 % (5/6) | −46.3 % (6/6) |
+| 32 KB, depth 1 | **−6.9 % (6/6)** | −5.7 % (5/6) | −30.9 % (6/6) |
+
+Depth 1 is a latency cell, so p50 is the column. §9 recorded a 250 KB depth-1 cell that lost
+15 % of its throughput; that was against the tree with §8 underneath, not against `main`, and
+the comparison that matters to a viewer goes the other way.
+
+**PGO, measured on this runtime for the first time.** `scripts/pgo_build.sh` against the plain
+release build of the same source, six repeats paired: 250 KB at 16 sessions +7.2 % asks/s and
+−8.8 % CPU per ask (6/6, p99 +7.5 % the one column against); 32 KB at 16 sessions +8.0 % asks/s,
+−10.6 % CPU, p50 −10.3 % (6/6); 250 KB at depth 1 p50 −4.7 % (6/6), CPU −8.6 %. The −9 to −25 %
+CPU this entry claimed was taken with §8 underneath; −8.6 to −10.6 % is what it is worth here.
+Unlike LTO ([§10 entry 5](#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them))
+it does not cost the depth-1 cell, so nothing vetoes it. It stays a per-build script, never a
+stored profile, and `cargo build --release` stays the plain build.
+
+**The frame pool's shape is free.** The shared pool this entry now uses was written because a
+thread-local one assumes a session's buffer comes back on the thread that read it, which a
+work-stealing runtime does not promise. Measured against a thread-local arm on the same source,
+250 KB at 16 sessions: a tie on every column (0.1–0.8 %, 2–3/6). So the rework buys correctness
+of the invariant, not speed, and the drift it removes is not observable in this cell — worth
+recording so nobody re-measures it hoping for a win.
+
 **Costs.** A 64 KB batch holds the connection lock about 30 µs longer than a 14 KB one, which
 is where a fill's inter-arrival p99 widens (+68 % on the short 32 KB cell, n = 80; the 320-frame
 fill below is the one to read). quinn now holds the reader's buffer until the peer acknowledges
