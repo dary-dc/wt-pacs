@@ -1,7 +1,8 @@
 # Proposal: nginx in place of the dev host, and an image per project
 
-**2026-09-14 · Status: proposed, nothing built.** Structural, so this is a proposal first
-(`CLAUDE.md`). Treat it as one deployment step, not a refactor.
+**2026-09-14 · Status: built, `98abbf5`.** Structural, so this was a proposal first
+(`CLAUDE.md`). Treat it as one deployment step, not a refactor. §Open after building holds what
+reviewing the built shape turned up; none of it is fixed.
 
 ## Why
 
@@ -67,6 +68,29 @@ on the same box, in one interleaved run, or accept that the older numbers are a 
 
 ## Not in this proposal
 
-Fronting the transport with anything. TLS on the page host — localhost is already a secure context
-and adding TLS is a separate decision with its own measurement. Any change to the rewrite surface
-itself. The second project's image, which waits on this one.
+Fronting the transport with anything. Any change to the rewrite surface itself. The second
+project's image, which waits on this one.
+
+TLS on the page host, **on localhost only**: localhost is a secure context, so the page needs no
+certificate there and adding one is a separate decision with its own measurement. It is not
+optional anywhere else. Served from any other host over `http://`, the page is not a secure
+context, `SharedArrayBuffer` is gone, and the client degrades silently rather than failing — the
+config's own comment says why that is the dangerous direction. Since the reason for an image is a
+run that is reproducible **off** this workstation, the first such run needs a certificate.
+
+## Open after building
+
+**2026-09-18**, from reading the built shape against a sibling deployment of it. Ordered by what
+would bite first. Nothing here is fixed.
+
+| what | why it matters | fix |
+| --- | --- | --- |
+| `compose.yml` mounts fixtures `:ro,Z` | `Z` is a **private** SELinux label: it relabels the host directory for one container and revokes every other reader. It passes today only because one container mounts it while `web` bakes its copy in. On the sibling deployment this exact flag revoked two running containers mid-session — nginx answered 403 on the metadata route and the server would not restart | `:ro,z`, the shared form |
+| the certificate hash is baked into the web image | `gen_dev_cert.sh` writes `client/dev-transport.json` and the Containerfile `COPY`s `client`. `serverCertificateHashes` caps a pinned certificate at 14 days, so the file changes at least that often and the image keeps serving the stale hash until someone rebuilds. The page then dials with a wrong pin and fails with nothing naming the cause | serve that one file from a mount, not a `COPY` |
+| two decisions in the Containerfile carry no comment | `rust:1-bookworm` → `debian:bookworm-slim` is the same Debian release on purpose — the binary links glibc and a mismatch fails at start, in the container only. And a build with no `--target` stops at the last stage, which is `web`, so a bare build silently produces one image of the two | a line above each |
+| `check_equivalence.sh` does not compare caching headers | it compares status, the three isolation headers, content type and body bytes. nginx sends `ETag`; `dev-server.py` does not. Repeat loads can therefore revalidate differently across the swap and the check still passes — and page-load timing is part of the page clock, which is the measurement flag this document already raises | compare the caching headers too, or state that the check does not cover them |
+| `/harness/` has two names | it is aliased at `/harness/` and also resolves at `/client/harness/` under `root`. Two entry points to one page is a thing to decide, not necessarily to change | one name, or a line saying both are kept deliberately |
+
+Two things the built shape gets right and should not be traded away: the server runs as a
+non-root user, and `fixtures/` is small enough (20 KB) that baking it into the web image costs
+nothing.
