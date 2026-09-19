@@ -13,6 +13,7 @@ Product and ADRs stay here. This lane's campaign write-ups are on tag
 | [`decode/`](decode/) | Codestream to pixels: the decoder, what it costs in memory, the BYOB read path |
 | [`../deploy/`](../deploy/) | nginx + the two images, and the check that they answer as the dev host did |
 | [`proposal-nginx-and-images.md`](proposal-nginx-and-images.md) | Proposed: nginx in place of the dev host, and an image per project |
+| [`proposal-udp-fallback.md`](proposal-udp-fallback.md) | Proposed: when UDP does not work — 4 s to rejection measured, the iOS 16 MB stall, and racing instead of detecting |
 | [`proposal-session-survival.md`](proposal-session-survival.md) | Proposed: a session that dies is noticed from platform signals and resumed on the downloader's records |
 | [`proposal-session-open.md`](proposal-session-open.md) | Proposed: two round trips off a cold open — the ask in the session URL, and SETTINGS at 0.5 RTT |
 | [`client-shape-plan.md`](client-shape-plan.md) | The production client shape: the transport seam, what sits above it, and the milestones that build it |
