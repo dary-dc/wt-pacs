@@ -127,6 +127,11 @@ the async executor against probing with `RWF_NOWAIT` and escalating to a blockin
 [`disk-access/NEXT.md`](disk-access/NEXT.md) #6. Drivers: `lab/scripts/e2_miss_cost_cloud.sh`,
 `lab/scripts/read_path_ab.sh`.
 
+**On the cloud rig it does** (2026-09-18, L7, `lab/scripts/l7_read_path.sh`). A 4 GB study on its
+954 MB host misses 76–97 % of spread asks, and each is ~1 ms slower at p50 than warm, 6/6. The
+fill still does not miss. That host's stolen CPU caps what it can price at a median:
+[`disk-access/EVIDENCE.md`](disk-access/EVIDENCE.md) §A study past RAM.
+
 ## 5. Natively, the send path is already at its ceiling
 
 Browser-free, this server and a reference implementation of the same protocol shape both land at

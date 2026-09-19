@@ -3,7 +3,9 @@
 **Host:** `168.138.130.163` (Oracle E2, São Paulo) · **User:** `ubuntu` · passwordless `sudo`
 **Deploy path:** `/home/ubuntu/wt-pacs/` · **Why it exists:** `sch_netem` loads on a VM but not in
 an agent container, so shaped-link experiments run here.
-**Shape:** 2 vCPU (EPYC 7551), 954 MB RAM, Ubuntu 24.04, network block storage.
+**Shape:** 2 vCPU (EPYC 7551), **burstable**: ~2.6 s of CPU stolen over a 2.1 s fill (L7), so its
+tails are the hypervisor's. 954 MB RAM, Ubuntu 24.04. The block volume is throttled to ~50 MB/s
+sequential, with random 256 KiB reads at 1.3–4.9 ms p50.
 **Reachable from outside:** UDP **4435** only. 4436 and 4437 pass the host firewall, but no session
 arrives (2026-09-18). A long-lived `exact-server-q` from an earlier campaign holds 4437.
 
