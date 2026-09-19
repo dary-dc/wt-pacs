@@ -48,9 +48,9 @@ output.
 | | why, and the evidence |
 | --- | --- |
 | **the session lives in a worker** | a receive loop on the main thread cannot read while the main thread is busy, and it is busy constantly; a fill measured behind one blocking task loses more than any transport lever recovers |
-| **one decode pool, sized from the device** | `navigator.hardwareConcurrency`, not a constant. Thread count is a whole-application budget — transport worker plus decoders plus the renderer — and pricing any one of them alone is how you end up oversubscribed on a phone |
+| **one decode pool, sized by the queue** | *corrected 2026-09-19 (P1)*: it used to say "sized from the device", from `navigator.hardwareConcurrency`. That sizes for the machine, and the link sets the pace on the target — one decoder covers 20 Mbit on every fixture here. Start at one and follow the queue; core count is a ceiling. Thread count is still a whole-application budget, which is the reason the smaller pool is the right default |
 | **first-free dispatch** | a free decoder takes the next frame; round-robin idles a decoder behind a slow neighbour. Matters when decode times are uneven, which is the device case |
-| **a bounded fill window** | asking for every frame of a study up front allocates one waiter per frame before a byte arrives. Fine at 87, not at 2 000 |
+| **a bounded compressed queue** | *corrected 2026-09-19 (P1)*: it used to say "a bounded fill window", because asking for every frame up front allocated a waiter per frame. D3 removed the per-frame waiter, so the window is deleted rather than built; the reader pausing past a byte bound gives the same guarantee through QUIC flow control, with no server cap |
 | **cancellation wired end to end** | a jump to another series must abandon what is in flight, or the new frames queue behind the old ones |
 | **lifecycle: dial early, stay alive, notice death** | the session opens when the user picks a series and is used when the viewer mounts, minutes later |
 | **a cache seam** | the viewer paints from cache; the cache is filled ahead of it |
@@ -70,16 +70,29 @@ Add the conformance suite (§0) and run it against both implementations. *Proves
 survives the boundary, and both implementations satisfy the three clauses.
 *Measured:* the harness's existing figures are unchanged; worker stamps are non-zero.
 
-**M2 — decode.** A real decode path in the harness: OpenJPH, one pool, first-free, sized from
-`hardwareConcurrency`. *Proves:* codestreams become pixels off the main thread.
+**M2 — decode.** A real decode path in the harness: OpenJPH, one pool, first-free.
+**Amended 2026-09-19 (P1):** ~~sized from `hardwareConcurrency`~~ — **the pool follows the decode
+queue instead.** Core count sizes for the machine, and on the target the link sets the pace, not
+the machine: one decoder covers 20 Mbit on every fixture here (S12). Start at one, add one while
+the queue stays non-empty across a dispatch, retire one that has been idle. `hardwareConcurrency`
+stays only as a ceiling, never as the starting size.
+*Proves:* codestreams become pixels off the main thread, and the pool ends at one on a link one
+decoder covers.
 *Measured:* per frame — time waiting for a decoder, time decoding, time for the page to take it.
-Those three must sum to the total; a split that does not sum is not a split.
+Those three must sum to the total; a split that does not sum is not a split. Plus the pool's size
+over a fill, which is the claim this amendment adds.
 
-**M3 — bounded fill and cancellation.** A window of outstanding frames, refilled as they land, and
-`endStream()` reachable from the page. *Proves:* a study far larger than the window fills with
-bounded memory, and a jump abandons what is in flight.
-*Measured:* peak outstanding waiters against study size; time from a jump to the first frame of the
-new target, with and without cancellation.
+**M3 — cancellation.** ~~bounded fill and cancellation. A window of outstanding frames, refilled as
+they land~~ — **the fill window is deleted, not built (P1, from S15).** Its stated reason was a
+waiter allocated per frame, and D3 removed that when fills became pushed. Memory is bounded instead
+by the reader pausing once queued compressed bytes pass a bound, which pushes back through QUIC
+flow control with no server cap and no new message
+([`proposal-downloader.md`](proposal-downloader.md) §The downloader).
+What remains of M3 is cancellation, which was always independent: `endStream()` reachable from the
+page. *Proves:* a study far larger than memory fills with bounded memory, and a jump abandons what
+is in flight.
+*Measured:* peak queued compressed bytes against study size — the number the window used to
+promise; and time from a jump to the first frame of the new target, with and without cancellation.
 
 **M4 — lifecycle.** Dial at selection, closure detected and waiters woken, a re-dial policy.
 *Proves:* a session opened minutes before first use still serves the first frame immediately.

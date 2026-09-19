@@ -81,11 +81,43 @@ last byte, dispatched, decode start, decode end.
   frames not yet delivered as a new fill — the client owns that decision, the server stays as it
   is. An ask for a frame the fill still owes goes to the wire, where the server serves it next;
   one already in hand only moves up the decode queue.
+* **The reader pauses, and that is the whole memory bound.** *Amended 2026-09-19 (P1, from
+  [S15](improvements/2026-09-18.md)).* Today the compressed-frame queue is bounded only by the
+  study — 61 MB for the usual one, gigabytes for a large series, all of it resident before a
+  decoder has taken it. Instead: once queued compressed bytes pass a bound, the downloader stops
+  reading its stream. QUIC flow control then stops the server, **with no server-side cap and no
+  new message** — the back pressure is the transport's, which is what it is for.
+  **This deletes M3's fill-window protocol** rather than implementing it: that window existed to
+  stop a waiter being allocated per frame, and D3 already removed the per-frame waiter when fills
+  became pushed. What must not be lost is cancellation, which M3 also carried and which is
+  independent — it stays, as the `AbortError` row below.
 * **Closure:** outstanding frames fail with the session's reason, as today; the next command re-dials.
 * **Cancel:** end the stream, drop queued work by generation, fail outstanding asks with an
   `AbortError` distinct from the timeout. The reason's name is pending confirmation before adoption.
 
 ## The decoders
+
+**Amended 2026-09-19 (P1, from [S12](improvements/2026-09-18.md)): the pool follows the queue, it
+is not sized from the device.** A pool sized from `navigator.hardwareConcurrency` is sized for the
+machine, and on the target the machine is not what sets the pace — the link is. Arithmetic: at
+20 Mbit a cine frame needs 0.34 of a desktop decoder, and at a phone's ~2.5× slower decode still
+only ~0.86. **One decoder keeps up with a 20 Mbit link on every fixture in `lab/fixtures/`.**
+A pool sized from core count therefore buys nothing on the target and costs two workers and two
+50 MB heaps ([`decode/README.md`](decode/README.md) §Heap).
+
+So: **start at one decoder; add one while the decode queue has stayed non-empty across a
+dispatch; retire one that has been idle for a grace period.** The pool ends at one on a link that
+one decoder covers and grows only where the link outruns it — a fast link, a small frame, a slow
+phone. This narrows the pool. It says nothing about decoder *width*: a multithreaded decoder is a
+separate question ([`decode/README.md`](decode/README.md) §Threads).
+
+**What it must not lose:** the capability rows below, unchanged, and the two dispatch clauses
+`run_dispatch.sh` already asserts — asks served before fill frames when both wait for a decoder,
+and never more than two frames outstanding per decoder. A pool that resizes must keep both while
+resizing, which is the part worth testing: the bound is per decoder, so it moves when the pool
+does.
+
+**Decided by** a container under a rate limit and a CPU throttle, then a phone. Not by this file.
 
 * One decoder object per worker, reused — **only if** `lab/decode-bench/parity.mjs` stays
   byte-identical on every fixture; otherwise one per frame, as today, and say so.
