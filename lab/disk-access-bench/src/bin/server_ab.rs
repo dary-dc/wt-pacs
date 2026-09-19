@@ -22,8 +22,9 @@ enum Mode {
 struct Args {
     #[arg(long)]
     url: String,
+    /// For the CPU and RSS columns. A remote server has no local pid; they print `-`.
     #[arg(long)]
-    server_pid: u32,
+    server_pid: Option<u32>,
     #[arg(long, value_enum)]
     mode: Mode,
     #[arg(long, default_value_t = 1)]
@@ -59,10 +60,12 @@ fn main() -> Result<()> {
 
 async fn run(args: Args) -> Result<()> {
     let endpoint = client_endpoint()?;
-    let cpu0 = proc_cpu(args.server_pid)?;
-    let rss0 = proc_rss_kib(args.server_pid)?;
-    let peak = Arc::new(AtomicU64::new(rss0));
-    let sampler = tokio::spawn(sample_rss(args.server_pid, Arc::clone(&peak)));
+    let server = match args.server_pid {
+        Some(pid) => Some((pid, proc_cpu(pid)?, proc_rss_kib(pid)?)),
+        None => None,
+    };
+    let peak = Arc::new(AtomicU64::new(server.map_or(0, |(_, _, rss0)| rss0)));
+    let sampler = server.map(|(pid, ..)| tokio::spawn(sample_rss(pid, Arc::clone(&peak))));
     let wall = Instant::now();
     let mut conns = Vec::with_capacity(args.sessions.max(1));
     for _ in 0..args.sessions.max(1) {
@@ -79,12 +82,18 @@ async fn run(args: Args) -> Result<()> {
         lats.extend(joined.context("session join")??);
     }
     let wall_ns = wall.elapsed().as_nanos() as u64;
-    let cpu_ns = proc_cpu(args.server_pid)?.saturating_sub(cpu0);
-    sampler.abort();
-    let rss_kib = peak.load(Ordering::Relaxed).saturating_sub(rss0);
-    drop(endpoint);
     let n = lats.len().max(1) as u64;
-    let cpu_ns_per_ask = (cpu_ns / u128::from(n)) as u64;
+    let (cpu_ns_per_ask, rss_kib) = match server {
+        Some((pid, cpu0, rss0)) => (
+            (proc_cpu(pid)?.saturating_sub(cpu0) / u128::from(n)).to_string(),
+            peak.load(Ordering::Relaxed).saturating_sub(rss0).to_string(),
+        ),
+        None => ("-".to_string(), "-".to_string()),
+    };
+    if let Some(sampler) = sampler {
+        sampler.abort();
+    }
+    drop(endpoint);
     let asks_per_s = n as f64 * 1e9 / wall_ns.max(1) as f64;
     lats.sort_unstable();
     if !args.no_header {
