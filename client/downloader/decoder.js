@@ -9,8 +9,8 @@ let toConsumer = null;
 const abs = () => performance.timeOrigin + performance.now();
 
 /**
- * Sign-extend samples stored in fewer bits than they occupy, and take the range in the same pass.
- * No fixture proves this: docs/cloud-queue.md §Blocked — no signed HTJ2K fixture can be made here.
+ * Sign-extend narrow samples and take the range in one pass. Folding it into the copy above is
+ * slower, and decode_s512/decode_s12 cover it — docs/decode/README.md §The range pass.
  */
 function finish(view, bits, signed) {
   let min = Infinity;
@@ -56,8 +56,8 @@ onmessage = async (e) => {
   if (m.kind !== "decode") return;
   const stamps = { ...m.stamps, decodeStart: abs() };
   try {
-    const bytes = new Uint8Array(m.bytes);
-    dec.getEncodedBuffer(bytes.length).set(bytes);
+    // Already a Uint8Array over the transferred buffer; re-wrapping copied it for nothing (S14).
+    dec.getEncodedBuffer(m.bytes.length).set(m.bytes);
     dec.readHeader();
     const info = dec.getFrameInfo();
     dec.decode();

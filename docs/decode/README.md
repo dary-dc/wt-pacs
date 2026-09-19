@@ -670,6 +670,39 @@ first-frame cost of about 12 ms on that path, reproduced twice and undiagnosed, 
 figure was measured on a different path and a different rig — but a lane that reopens L2 should
 price this first.
 
+## The range pass
+
+D5. The decoder worker writes pixels into a `SharedArrayBuffer` and then walks them again to
+sign-extend and take the sample range (`client/downloader/decoder.js`, `finish`). In a fill the
+decoders are the bottleneck, so that second walk is on the critical path. Priced interleaved, order
+reversed each repeat, 400 repeats:
+
+| frame | `set()` + a range pass | one loop doing both | folded is |
+| --- | ---: | ---: | ---: |
+| 512×512×3 8-bit | 1 104 µs | 1 175 µs | **1.06× slower** |
+| 512×512 16-bit | 497 µs | 583 µs | **1.17× slower** |
+
+**It is not noise — and D5's own remedy makes it worse.** The pass costs 0.5–1.1 ms against a
+3–7 ms decode, so 10–25 % of it. But folding the range into the copy replaces a native `set()`
+memcpy plus a read-only loop with one hand-written copy loop, and that loses on both fixtures. The
+two-pass shape is the faster one; it is reported here so nobody folds it later on the assumption
+that one pass beats two.
+
+**What is left is not doing it.** The remaining lever is whether an exact min/max is needed at all,
+or whether a subsample would serve the window/level it feeds. That is a product question about the
+viewer, not a decode question, and it is not answered here.
+
+**One copy did go.** `new Uint8Array(m.bytes)` re-wrapped a view that already was a `Uint8Array`
+over the transferred buffer, copying the whole codestream for nothing (S14): 5.9 µs at 48 KB,
+10.8 at 256 KB, 16.2 at 418 KB, plus a fresh buffer per frame for the collector. Removed. It is
+0.2–0.5 % of a decode, so it is a tidy-up rather than a win — the allocation it stops is the part
+that matters on a phone.
+
+**Still open, in the lab decoder rather than the product one:** the source build's wrapper
+zero-fills its output and then writes every sample (`lab/decode-bench/wasm/htj2k_decoder.cpp`), so
+the same two-pass question exists there in C++ where the answer may differ from JavaScript's. Not
+measured.
+
 ## What these numbers are not
 
 * **Every millisecond above is container-measured** and is reported, not decided on. The heap
