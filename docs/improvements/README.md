@@ -9,6 +9,8 @@ This folder is the front door. The dated files are evidence, not the queue.
 | File | What it is |
 | ---- | ---------- |
 | **this page** | ranked open work, then what already landed on the branch |
+| [`2026-09-19.md`](2026-09-19.md) | sixth pass: the tip re-verified — gate, the nginx config, the fill's order, the first ask, prerender — and what the re-runs corrected |
+| [`2026-09-18.md`](2026-09-18.md) | fifth pass: what loopback hides — 22 candidates from an identification sweep, queued as rows 30–41 |
 | [`2026-09-16.md`](2026-09-16.md) | fourth pass: the whole gate run end to end for the first time on this branch — `GATE OK`, every step timed, and the two client steps that pass at half strength |
 | [`2026-09-10.md`](2026-09-10.md) | third pass: P1 re-measured and landed; the crypto provider a tie or a loss; the UDP payload lever closed against Chromium; a per-session path line; the remaining server levers and what each needs |
 | [`2026-09-08.md`](2026-09-08.md) | second pass: every open item below, reproduced or measured, **no product code** |
@@ -31,7 +33,7 @@ From the 2026-09-08 pass unless noted. Size is the proposed change, not the writ
 
 | # | Kind | What | Size | Evidence |
 | - | ---- | ---- | ---- | -------- |
-| **D4** | defect, dev | `dev-server.py` serves `dev-cert/key.pem` and `.git/` | ~5 lines deny-list | [§D4](2026-09-08.md#d4--the-dev-static-host-serves-the-private-key-and-the-git-directory) |
+| **D4** | defect, dev | `dev-server.py` serves `dev-cert/key.pem` and `.git/` — still true 2026-09-19, both answer 200 | ~5 lines deny-list | [§D4](2026-09-08.md#d4--the-dev-static-host-serves-the-private-key-and-the-git-directory) |
 | **D1** | defect, telemetry | second sequential session in one process truncates `telemetry-server.rows`; session 1 gone from disk and the report | ~15 lines in `sink.rs` / `tap.rs` | [§D1](2026-09-08.md#d1--telemetry-the-second-sequential-session-truncates-the-row-file) |
 | **D2** | defect, clients | failed **single** ask leaves a 15 s waiter and an unhandled rejection (bulk was fixed in C7) | four lines per arm, same shape as C7 | [§D2](2026-09-08.md#d2--ts-client-a-failed-single-ask-leaves-its-waiter-armed-and-an-orphaned-rejection) |
 | **D3** | defect, clients | duplicate indices in a bulk ask: TS orphans a waiter and asks twice; WASM sticks on “previous bulk still pending” | ~6 lines each arm, validate before arming | [§D3](2026-09-08.md#d3--duplicate-indices-in-a-bulk-ask) |
