@@ -11,8 +11,14 @@ import {
   unwrapEnvelope,
   type FodMsg,
 } from "./wire.ts";
+import { Window, type AskWindow } from "./window.ts";
 
 const FRAME_TIMEOUT_MS = 15_000;
+
+export type ConnectOptions = {
+  /** Hold on-demand asks to a depth: fixed, or `"auto"` from the link. `window.ts`. */
+  window?: AskWindow;
+};
 
 export type FrameResult = {
   frameIndex: number;
@@ -42,16 +48,23 @@ export class TransportSession {
   private bulkPending = new Map<number, Promise<{ bytes: Uint8Array; receivedMs: number }>>();
   private droppedEarly = 0;
   private frameErrors = 0;
+  private readonly window: Window | null;
 
   private constructor(
     transport: WebTransport,
     controlWriter: WritableStreamDefaultWriter<Uint8Array>,
+    window: AskWindow | undefined,
   ) {
     this.transport = transport;
     this.controlWriter = controlWriter;
+    this.window = window ? new Window(window, () => this.smoothedRtt()) : null;
   }
 
-  static async connect(wtUrl: string, certSha256: string): Promise<TransportSession> {
+  static async connect(
+    wtUrl: string,
+    certSha256: string,
+    options: ConnectOptions = {},
+  ): Promise<TransportSession> {
     const hash = hexToBytes(certSha256);
     const transport = new WebTransport(wtUrl, {
       serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
@@ -61,7 +74,7 @@ export class TransportSession {
 
     const bi = await transport.createBidirectionalStream();
     const controlWriter = bi.writable.getWriter();
-    const session = new TransportSession(transport, controlWriter);
+    const session = new TransportSession(transport, controlWriter, options.window);
 
     session.pumpUni(transport.incomingUnidirectionalStreams);
     session.pumpControl(bi.readable);
@@ -91,6 +104,7 @@ export class TransportSession {
     clearTimeout(w.timer);
     this.waiters.delete(frameIndex);
     w.resolve({ bytes, receivedMs });
+    this.window?.done(frameIndex, bytes.length, receivedMs);
   }
 
   private failWaiter(frameIndex: number, reason: string) {
@@ -101,6 +115,7 @@ export class TransportSession {
     clearTimeout(w.timer);
     this.waiters.delete(frameIndex);
     w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
+    this.window?.done(frameIndex, 0, performance.now());
   }
 
   private async pumpUni(incoming: ReadableStream<ReadableStream<Uint8Array>>) {
@@ -167,8 +182,26 @@ export class TransportSession {
   async requestExactFrame(frameIndex: number): Promise<FrameResult> {
     const askMs = performance.now();
     const pending = this.armWaiter(frameIndex);
-    await this.sendFod({ op: "request_frame", frame: frameIndex });
+    const ask: FodMsg = { op: "request_frame", frame: frameIndex };
+    if (this.window) {
+      this.window.ask(frameIndex, () => {
+        this.sendFod(ask).catch((e) => this.failWaiter(frameIndex, `control write: ${e}`));
+      });
+    } else {
+      await this.sendFod(ask);
+    }
     return this.settle(frameIndex, askMs, pending);
+  }
+
+  // Not in this TypeScript version's DOM library yet; Chromium has it, other browsers may not.
+  private async smoothedRtt(): Promise<number | undefined> {
+    const t = this.transport as { getStats?: () => Promise<{ smoothedRtt?: number }> };
+    if (typeof t.getStats !== "function") return undefined;
+    try {
+      return (await t.getStats()).smoothedRtt;
+    } catch {
+      return undefined;
+    }
   }
 
   startExactFrames(indices: number[]): number {
@@ -246,6 +279,7 @@ export class TransportSession {
       inFlight: this.waiters.size,
       droppedEarlyMedia: this.droppedEarly,
       frameErrors: this.frameErrors,
+      windowDepth: this.window?.current() ?? null,
     };
   }
 

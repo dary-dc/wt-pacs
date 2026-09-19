@@ -1,0 +1,4 @@
+arm          runs  misses    p95_ms  median_ms    vs ref  CI95
+shared          6     106    449.95     231.06         —  
+per-frame       6     132    411.81     130.22     -8.5%  [-34.5, -0.1]
+pool:2          6     290    544.07     341.40    +20.9%  [+3.2, +48.1]

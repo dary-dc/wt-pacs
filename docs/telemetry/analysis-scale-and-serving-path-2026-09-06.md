@@ -74,7 +74,7 @@ only backpressure. Nothing needs a redesign. Ceilings and gaps, with what was do
 | # | Item | Assessment | Outcome |
 | --- | --- | --- | --- |
 | S1 | Default `send_window` = 8 × 1.25 MB = **10 MB** of unacked data per connection | 1 000 slow clients can pin 10 GB; fast clients about one frame each | **Exposed**: `--send-window-bytes`, `--stream-receive-window-bytes`, `--max-idle-timeout-ms`, defaults unchanged. Measured §4.4 |
-| S2 | Single UDP socket / endpoint driver (`build_endpoint`) | receive-side packet processing is one core; `quinn` scales with several endpoints on `SO_REUSEPORT` sockets | **T1, unmeasured**: 16+ harness processes saturate this box first. Follow-up |
+| S2 | Single UDP socket / endpoint driver (`build_endpoint`) | receive-side packet processing is one core; `quinn` scales with several endpoints on `SO_REUSEPORT` sockets | **T1, unmeasured**: 16+ harness processes saturate this box first. **Built 2026-09-10** as `--workers`, for latency first: [`transport/why-these-changes.md` §8](../transport/why-these-changes.md#8--one-endpoint-per-core-each-on-a-single-threaded-runtime) |
 | S3 | Unbounded allocation from a wire-supplied length in `read_fod_msg` | any client could make the server allocate 4 GB | **Capped** at 4 MiB (`MAX_FOD_LEN`, `check_fod_len`), `len == 0` refused, unit-tested |
 | S4 | `serve_batch` serves *N* frames before the next control read | blind period ≤ *N* × Tf, bounded by S3 | none; `t_ask_us` gaps show it |
 | S5 | Blind period under congestion (`write_all` stalls, control unread) | per-session only | deferred per `adr-frame-framing-and-loop-shape.md` §5; `send_us` measures it |

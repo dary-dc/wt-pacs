@@ -1,0 +1,60 @@
+qdisc netem 8067: root refcnt 2 limit 1000 delay 30ms loss gemodel p 0.07% r 14% 1-h 100% 1-k 0% rate 10Mbit
+  probe shared 4.300 4.30 4.30 4.30 frames/s (median, then each)
+  probe pool:2 4.100 4.00 4.10 4.20 frames/s (median, then each)
+  probe per-frame 4.300 4.30 4.30 4.30 frames/s (median, then each)
+frame=250000B step=330ms (1.4x the rate shared sustained)
+  r1 shared done
+  r1 pool:2 done
+  r1 per-frame done
+  r2 per-frame done
+  r2 pool:2 done
+  r2 shared done
+  r3 shared done
+  r3 pool:2 done
+  r3 per-frame done
+  r4 per-frame done
+  r4 pool:2 done
+  r4 shared done
+  r5 shared done
+  r5 pool:2 done
+  r5 per-frame done
+  r6 per-frame done
+  r6 pool:2 done
+  r6 shared done
+  r7 shared done
+  r7 pool:2 done
+  r7 per-frame done
+  r8 per-frame done
+  r8 pool:2 done
+  r8 shared done
+  r9 shared done
+  r9 pool:2 done
+  r9 per-frame done
+  r10 per-frame done
+  r10 pool:2 done
+  r10 shared done
+  r11 shared done
+  r11 pool:2 done
+  r11 per-frame done
+  r12 per-frame done
+  r12 pool:2 done
+  r12 shared done
+  r13 shared done
+  r13 pool:2 done
+  r13 per-frame done
+  r14 per-frame done
+  r14 pool:2 done
+  r14 shared done
+  r15 shared done
+  r15 pool:2 done
+  r15 per-frame done
+  r16 per-frame done
+  r16 pool:2 done
+  r16 shared done
+  r17 shared done
+  r17 pool:2 done
+  r17 per-frame done
+  r18 per-frame done
+  r18 pool:2 done
+  r18 shared done
+wrote 54 repeats and 9 probes to /home/ubuntu/wt-pacs-run/out/t3-250k-ge-r18

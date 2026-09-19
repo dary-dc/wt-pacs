@@ -8,6 +8,10 @@ description = "Headless WebTransport client for window-saturation / HoL lab (sca
 name = "window-harness"
 path = "src/main.rs"
 
+[[bin]]
+name = "rebind-probe"
+path = "src/bin/rebind_probe.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }

@@ -1,0 +1,25 @@
+wt_url=https://127.0.0.1:60464/
+cert_sha256=5724307ae9d48d58311ef1367f13463bde2e340c589db39e7799e212d56fcf03
+study=/home/ubuntu/wt-pacs-run/lab/fixtures/frames_250k/frames_250k.sbnd
+frames=80
+read_fast_path=preadv2
+completion=media_uni_stream
+stream_mode=shared
+bind=127.0.0.1
+workers=2
+transport=default
+telemetry=absent
+2026-09-15T00:57:59.086585Z  INFO exact_server::transport::server: exact-server ready (Media-complete) wt_url=https://127.0.0.1:60464/ study=/home/ubuntu/wt-pacs-run/lab/fixtures/frames_250k/frames_250k.sbnd stream_mode=shared workers=2
+2026-09-15T00:58:26.628073Z  INFO exact_server::transport::server: session transport ack_frequency=0
+2026-09-15T00:58:26.628104Z  INFO exact_server::transport::pipeline: session reads hits=41 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=41 tile_misses=0 named=2 in_flight=0 ring=false fills=0
+2026-09-15T01:00:43.574092Z  INFO exact_server::transport::server: session transport ack_frequency=0
+2026-09-15T01:00:43.574130Z  INFO exact_server::transport::pipeline: session reads hits=46 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=46 tile_misses=0 named=2 in_flight=0 ring=false fills=0
+2026-09-15T01:01:10.944394Z  INFO exact_server::transport::server: session transport ack_frequency=0
+2026-09-15T01:01:10.944428Z  INFO exact_server::transport::pipeline: session reads hits=44 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=44 tile_misses=0 named=2 in_flight=0 ring=false fills=0
+2026-09-15T01:03:24.796324Z  INFO exact_server::transport::server: session transport ack_frequency=0
+2026-09-15T01:03:24.796361Z  INFO exact_server::transport::pipeline: session reads hits=31 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=31 tile_misses=0 named=2 in_flight=0 ring=false fills=0
+2026-09-15T01:03:52.164393Z  INFO exact_server::transport::server: session transport ack_frequency=0
+2026-09-15T01:03:52.164427Z  INFO exact_server::transport::pipeline: session reads hits=42 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=42 tile_misses=0 named=2 in_flight=0 ring=false fills=0
+2026-09-15T01:06:09.152259Z  INFO exact_server::transport::server: session transport ack_frequency=0
+2026-09-15T01:06:09.152296Z  INFO exact_server::transport::pipeline: session reads hits=40 misses=0 miss_rate=0.0 fill_hits=0 fill_misses=0 tile_hits=40 tile_misses=0 named=2 in_flight=0 ring=false fills=0
+2026-09-15T01:06:09.180556Z  INFO exact_server: shutdown signal received

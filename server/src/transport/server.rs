@@ -26,6 +26,7 @@ use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
 use crate::transport::pipeline::RecordedPipeline;
 
+#[derive(Clone)]
 pub struct ServeConfig {
     pub wt_port: u16,
     pub study_path: PathBuf,
@@ -43,14 +44,12 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         .await
         .with_context(|| format!("load TLS identity from {}", config.cert_pem.display()))?;
     let cert_sha256 = cert_sha256_hex(&identity)?;
-
-    let (endpoint, bound) = build_endpoint(&config).await?;
-
+    let (endpoint, bound) = build_endpoint(&config, identity).await?;
     let store = Arc::new(FrameStore::open(&config.study_path).context("open study")?);
 
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
-        stream_mode: config.mode.as_str(),
+        stream_mode: config.mode.to_string(),
         study: config.study_path.display().to_string(),
         study_frames: store.frame_count(),
     });
@@ -62,7 +61,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("frames={}", store.frame_count());
     println!("read_fast_path={}", read_fast_path(&store));
     println!("completion=media_uni_stream");
-    println!("stream_mode={}", config.mode.as_str());
+    println!("stream_mode={}", config.mode);
     println!("bind={bound}");
     println!("transport={}", config.tuning.describe());
     #[cfg(feature = "telemetry")]
@@ -72,7 +71,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     info!(
         %wt_url,
         study = %config.study_path.display(),
-        stream_mode = config.mode.as_str(),
+        stream_mode = %config.mode,
         "exact-server ready (Media-complete)"
     );
 
@@ -87,6 +86,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         });
     }
 }
+
 
 /// Lower-case hex SHA-256 of the leaf certificate — the value a browser pins through
 /// `serverCertificateHashes`, printed in the banner for the harness and `dev-transport.json`.
@@ -118,35 +118,14 @@ fn read_fast_path(store: &FrameStore) -> &'static str {
 }
 
 /// A host without an IPv6 stack refuses the dual-stack socket, so fall back to IPv4 any.
-async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side::Server>, String)> {
-    async fn identity(config: &ServeConfig) -> Result<Identity> {
-        Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
-            .await
-            .context("load wtransport identity")
-    }
-
-    fn finish(
-        builder: ServerConfigBuilder<states::WantsIdentity>,
-        identity: Identity,
-        tuning: &TransportTuning,
-    ) -> Result<ServerConfig> {
-        if tuning.quic_is_library_default() {
-            return Ok(builder.with_identity(identity).build());
-        }
-        let transport = tuning.to_transport_config()?;
-        let mut builder = builder.with_custom_transport(identity, transport);
-        if let Some(ms) = tuning.max_idle_timeout_ms {
-            builder = builder
-                .max_idle_timeout(Some(Duration::from_millis(ms)))
-                .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
-        }
-        Ok(builder.build())
-    }
-
+async fn build_endpoint(
+    config: &ServeConfig,
+    identity: Identity,
+) -> Result<(Endpoint<endpoint_side::Server>, String)> {
     if let Some(ip) = config.bind {
         let server_config = finish(
             ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
-            identity(config).await?,
+            identity,
             &config.tuning,
         )?;
         let endpoint = Endpoint::server(server_config)
@@ -156,7 +135,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
 
     let dual = finish(
         ServerConfig::builder().with_bind_default(config.wt_port),
-        identity(config).await?,
+        identity.clone_identity(),
         &config.tuning,
     )?;
     match Endpoint::server(dual) {
@@ -165,7 +144,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
             warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
             let v4 = finish(
                 ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
-                identity(config).await?,
+                identity,
                 &config.tuning,
             )?;
             let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
@@ -175,6 +154,24 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
             ))
         }
     }
+}
+
+fn finish(
+    builder: ServerConfigBuilder<states::WantsIdentity>,
+    identity: Identity,
+    tuning: &TransportTuning,
+) -> Result<ServerConfig> {
+    if tuning.quic_is_library_default() {
+        return Ok(builder.with_identity(identity).build());
+    }
+    let transport = tuning.to_transport_config()?;
+    let mut builder = builder.with_custom_transport(identity, transport);
+    if let Some(ms) = tuning.max_idle_timeout_ms {
+        builder = builder
+            .max_idle_timeout(Some(Duration::from_millis(ms)))
+            .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
+    }
+    Ok(builder.build())
 }
 
 async fn handle_incoming(
@@ -193,15 +190,24 @@ async fn handle_incoming(
         .await
         .context("accept control bidi")?;
 
+    let stats_of = connection.clone();
     let out = FrameOut::open(mode, connection).await?;
     let mut product = ProductPipeline::new(store, out).with_control(control_send);
 
     #[cfg(feature = "telemetry")]
-    if let Some(tap) = Tap::for_session() {
-        return run_session(&mut RecordedPipeline::new(product, tap), control_recv).await;
-    }
+    let result = match Tap::for_session() {
+        Some(tap) => run_session(&mut RecordedPipeline::new(product, tap), control_recv).await,
+        None => run_session(&mut product, control_recv).await,
+    };
+    #[cfg(not(feature = "telemetry"))]
+    let result = run_session(&mut product, control_recv).await;
 
-    run_session(&mut product, control_recv).await
+    // Non-zero only where the peer advertised `min_ack_delay`. `docs/lanes/T7-...md` step 1.
+    info!(
+        ack_frequency = stats_of.quic_connection().stats().frame_tx.ack_frequency,
+        "session transport"
+    );
+    result
 }
 
 /// The reader owns the control stream; the planner decides; the pipeline serves.
@@ -291,6 +297,7 @@ mod tests {
     use fod::FodMsg;
     use frame_envelope::unwrap;
     use std::io::Write;
+    use wtransport::config::IpBindConfig;
     use wtransport::stream::SendStream;
     use wtransport::ClientConfig;
 
@@ -552,6 +559,14 @@ mod tests {
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             tuning: TransportTuning::default(),
         }));
+        let (connection, control, media) = connect_client(port, cert_hash).await;
+        (server, connection, control, media)
+    }
+
+    async fn connect_client(
+        port: u16,
+        cert_hash: [u8; 32],
+    ) -> (wtransport::Connection, SendStream, RecvStream) {
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()
                 .with_bind_config(IpBindConfig::InAddrAnyV4)
@@ -561,13 +576,15 @@ mod tests {
         .expect("client endpoint");
         let url = format!("https://127.0.0.1:{port}/");
         let mut connection = None;
+        // Bounded per attempt: a port nobody answers on would otherwise wait out a handshake.
         for _ in 0..50 {
-            match endpoint.connect(url.clone()).await {
-                Ok(c) => {
+            match tokio::time::timeout(Duration::from_secs(2), endpoint.connect(url.clone())).await
+            {
+                Ok(Ok(c)) => {
                     connection = Some(c);
                     break;
                 }
-                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                _ => tokio::time::sleep(Duration::from_millis(100)).await,
             }
         }
         let connection = connection.expect("server never accepted a connection");
@@ -578,7 +595,7 @@ mod tests {
             .await
             .expect("bi ready");
         let media = connection.accept_uni().await.expect("accept media uni");
-        (server, connection, control, media)
+        (connection, control, media)
     }
 
     fn wire_test<F, Fut>(frames: u32, body: F)
@@ -735,4 +752,5 @@ mod tests {
             }
         });
     }
+
 }

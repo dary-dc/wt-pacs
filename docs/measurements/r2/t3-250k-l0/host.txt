@@ -1,0 +1,7 @@
+date=2026-09-15T01:09:17+00:00
+uname=6.17.0-1011-oracle
+nproc=2
+mem_mb=954
+exact-server=20d48ed9e25341339cf1ccb64b7dcf9797df44a0676491671c70092f81b0f0ae  /home/ubuntu/bin/exact-server
+window-harness=dd04ef7f2b43820293e12105cbc7c0e5c0c2fa9fc79fdacb575089a42e628e37  /home/ubuntu/bin/window-harness
+unshare=sudo unshare --net

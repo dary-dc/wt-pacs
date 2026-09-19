@@ -1,0 +1,8 @@
+
+VOID — this cell decides nothing:
+  · per-frame sent under half the trace's asks — the outstanding ceiling suppressed them
+  · per-frame censored over 10% of waits
+  · pool:2 sent under half the trace's asks — the outstanding ceiling suppressed them
+  · pool:2 censored over 10% of waits
+  · shared sent under half the trace's asks — the outstanding ceiling suppressed them
+  · shared censored over 10% of waits
