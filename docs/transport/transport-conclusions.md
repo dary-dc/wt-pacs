@@ -380,13 +380,46 @@ being set — are source questions, not cells. They go to the controller lane's 
 On a real-looking link a third to a half of steps wait on the network. These still
 dominate the absolute millisecond figures:
 
-1. **Progressive delivery** — a truncated HTJ2K prefix is a viewable image.
+1. **Progressive delivery** — a truncated HTJ2K prefix is a viewable image. A coarse-to-fine
+   fill order is the same idea along the time axis, and it is measured below.
 2. **Cache size and eviction** — a 64-frame cap on a 500-frame series costs +65 % offered
    load for +2.8 pp of misses.
 3. **Ask window depth** — [`adr-client-window-depth.md`](../adr-client-window-depth.md).
    Neither product client implements it. Open proposals (including when depth 1 is the
    right answer, and the tail that then costs a probe timeout):
    [`why-these-changes.md` §10](why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them).
+
+### The fill's order, 2026-09-19
+
+**O1 / S21.** A fill asked coarse to fine — every 8th frame, then every 4th, then every 2nd, then
+the rest — against the sequential order, each frame asked exactly once and at the same depth.
+`lab/scripts/fill_order_cells.sh`, 200 frames of 64 KB (12 MB), depth 4, arms interleaved with
+the order reversed every round.
+
+| cell | order | fill ms | every 8th frame in hand |
+| --- | --- | ---: | ---: |
+| 80 ms round trip, 20 Mbit (n = 3) | sequential | 6 032 | 5 688 |
+| | coarse to fine | 5 826 | **1 043** |
+| loopback, every frame a miss (n = 12) | sequential | 190 | 183 |
+| | coarse to fine | 189 | **27** |
+| loopback, warm store (n = 12) | sequential | 185 | 178 |
+| | coarse to fine | 182 | **26** |
+
+**It moves time-to-scrubbable by 5.5× and the fill by nothing**, which is what S21 predicted.
+Sequentially, every 8th frame is only in hand at 94 % of the fill — the last multiple of eight is
+the 192nd of 200 — so a viewer that can scrub as soon as the coarse pass lands waits 1.0 s
+instead of 5.7 s on this link.
+
+**The permuted order costs the read path nothing measurable.** Under `--force-pool-reads`, where
+every frame is a miss and the store cannot lean on anything a previous read brought in, the two
+orders are within 0.3 % over twelve interleaved rounds, and warm they are within 1.9 %. The
+frames are 64 KB and the study is one file; a stride of eight moves the read head half a megabyte,
+which is nothing to an NVMe and would be something to a spinning disk or a cold object store.
+
+**No server change.** Ask order is already the client's priority, so this is a client decision
+and it is not made here: the downloader fills sequentially today
+([`../proposal-downloader.md`](../proposal-downloader.md)), and what the order should be depends
+on what the viewer does with a partly-filled study, which is the display library's half.
 
 ---
 

@@ -9,13 +9,10 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
 use fod::{encode_fod_msg, FodMsg};
-use frame_envelope::unwrap;
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use std::time::{Duration, Instant};
-use wtransport::stream::RecvStream;
-use wtransport::{ClientConfig, Connection, Endpoint};
-
-const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
+use window_harness::frames::Frames;
+use wtransport::{ClientConfig, Endpoint};
 
 #[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum State {
@@ -64,48 +61,7 @@ fn poke(port: u16, cmd: &str) -> Result<()> {
     Ok(())
 }
 
-/// The default stream mode puts a whole fill on one uni stream, so a frame is the next
-/// envelope on the stream in hand, not the next stream.
-struct Frames {
-    connection: Connection,
-    current: Option<RecvStream>,
-}
-
-impl Frames {
-    async fn next(&mut self, timeout_ms: u64) -> Result<(u32, usize)> {
-        loop {
-            if self.current.is_none() {
-                self.current = Some(
-                    tokio::time::timeout(
-                        Duration::from_millis(timeout_ms),
-                        self.connection.accept_uni(),
-                    )
-                    .await
-                    .map_err(|_| anyhow::anyhow!("no media stream within {timeout_ms} ms"))?
-                    .context("accept uni")?,
-                );
-            }
-            let uni = self.current.as_mut().expect("just set");
-            let mut len = [0u8; 4];
-            if !read_exact(uni, &mut len).await? {
-                self.current = None;
-                continue;
-            }
-            let n = u32::from_be_bytes(len) as usize;
-            if n == 0 || n > MAX_FRAME_LEN {
-                bail!("invalid frame length {n}");
-            }
-            let mut payload = vec![0u8; n];
-            if !read_exact(uni, &mut payload).await? {
-                bail!("stream ended mid-envelope");
-            }
-            let (index, body) = unwrap(&payload).map_err(|e| anyhow::anyhow!("envelope: {e}"))?;
-            return Ok((index, body.len()));
-        }
-    }
-}
-
-/// (the ask, the warm-up fill that preceded it, the frame's size)
+/// (the ask, the warm-up that preceded it, the frame's size)
 async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
     let v4 = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
     let endpoint = Endpoint::client(
@@ -212,20 +168,4 @@ fn state_name(s: State) -> &'static str {
         State::Rebound => "rebound",
         State::OpenPush => "open-push",
     }
-}
-
-/// `false` when the stream ended on an envelope boundary — the caller moves to the next uni.
-async fn read_exact(recv: &mut RecvStream, buf: &mut [u8]) -> Result<bool> {
-    let mut filled = 0;
-    while filled < buf.len() {
-        let n = recv.read(&mut buf[filled..]).await?.unwrap_or(0);
-        if n == 0 {
-            if filled != 0 {
-                bail!("stream ended after {filled} bytes of an envelope");
-            }
-            return Ok(false);
-        }
-        filled += n;
-    }
-    Ok(true)
 }

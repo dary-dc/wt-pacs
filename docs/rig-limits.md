@@ -2,7 +2,7 @@
 
 Every number in this repository was taken on one 8-core workstation over loopback
 (`intel_pstate`/`powersave`, 15 GB RAM, NVMe with `read_ahead_kb=128`, btrfs on LUKS,
-Linux 7.1.13). Seven limits bound what it can decide. Each is stated with the evidence that
+Linux 7.1.13), or in an agent container beside it. Eight limits bound what they can decide. Each is stated with the evidence that
 established it and with what would lift it — written for an agent working somewhere else.
 
 Two of them already have drivers under `lab/scripts/` aimed at the cloud rig in
@@ -159,3 +159,19 @@ measured**; neither is per-frame decode cost on a phone. No mobile trade-off —
 decoder width, cache format — is settled by a number taken here.
 
 **What lifts it:** a real device. Nothing in `lab/` addresses it.
+
+## 8. Headless Chromium does not prerender
+
+Measured 2026-09-19 (O1). The API is there — `HTMLScriptElement.supports("speculationrules")` is
+`true` in Chromium 141 and `document.prerendering` exists — but a Speculation Rules prerender
+never starts: the target page is not fetched before the click, with Playwright's defaults, with
+`--enable-features=Prerender2,SpeculationRulesPrerenderingTarget`, or with the preloading holdback
+off. Without a display there is no visible tab, which Chromium requires before it will prerender.
+
+**What this costs:** S20 is unanswerable here. Whether a worker starts and a WebTransport session
+dials while `document.prerendering` decides whether up to half of a cold open can happen before
+the viewer is clicked ([`../lab/page-open/README.md`](../lab/page-open/README.md) counts that
+half), and nothing in a container can say.
+
+**What lifts it:** a headful Chrome, on the workstation or under `Xvfb`. The probe is written and
+needs no change: [`../lab/prerender/`](../lab/prerender/).

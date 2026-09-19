@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>prerender target</title>
+</head>
+<body>
+  <div id="log"></div>
+  <script type="module">
+    /**
+     * S20 asks whether the work before the click can happen before the click: does a worker
+     * start, and does a WebTransport session dial, while `document.prerendering`?
+     * lab/prerender/README.md
+     */
+    const r = (globalThis.__wtpacsPrerender = {
+      prerenderingAtLoad: document.prerendering === true,
+      activatedMs: null,
+      worker: null,
+      workerWhilePrerendering: null,
+      session: null,
+      sessionWhilePrerendering: null,
+      sessionError: null,
+    });
+    const log = (s) => (document.getElementById("log").textContent += s + "\n");
+    document.addEventListener("prerenderingchange", () => {
+      r.activatedMs = performance.now();
+      log("activated at " + r.activatedMs.toFixed(0));
+    });
+
+    const w = new Worker("/lab/prerender/worker.js", { type: "module" });
+    w.onmessage = () => {
+      r.worker = performance.now();
+      r.workerWhilePrerendering = document.prerendering === true;
+      log(`worker up at ${r.worker.toFixed(0)}, prerendering=${r.workerWhilePrerendering}`);
+    };
+
+    try {
+      const cfg = await (await fetch("/wt/dev-transport.json")).json();
+      const mod = await import("/client/transport-ts/dist/session.js");
+      const s = await mod.TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
+      r.session = performance.now();
+      r.sessionWhilePrerendering = document.prerendering === true;
+      log(`session up at ${r.session.toFixed(0)}, prerendering=${r.sessionWhilePrerendering}`);
+      s.close();
+    } catch (e) {
+      r.sessionError = String(e?.message || e);
+      log("session failed: " + r.sessionError);
+    }
+    globalThis.__wtpacsDone = true;
+  </script>
+</body>
+</html>
