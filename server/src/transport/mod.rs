@@ -1,5 +1,6 @@
 pub mod frame_out;
 pub mod hystart;
+pub mod restart;
 pub mod pipeline;
 pub mod planner;
 pub mod server;
