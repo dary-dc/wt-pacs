@@ -22,6 +22,9 @@ uring = ["dep:io-uring"]
 # (VAES/AVX-512 where the CPU has it); `ring` is the historical default.
 crypto-ring = ["rustls/ring", "wtransport/ring"]
 crypto-aws-lc-rs = ["rustls/aws-lc-rs", "wtransport/aws-lc-rs"]
+# RFC 8879 certificate compression. Off: it pulls brotli and zlib-rs into the tree and does
+# nothing until a peer offers the extension -- docs/proposal-session-open.md §What production adds.
+cert-compression = ["rustls/brotli", "rustls/zlib"]
 
 [dependencies]
 anyhow = { workspace = true }
