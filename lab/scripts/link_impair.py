@@ -145,11 +145,13 @@ class TcpConn:
 
     def __init__(self, sel, client, upstream, args, rng):
         self.sel = sel
-        # The kernel completed the handshake locally, so the first request is charged the round
-        # trip it would have waited for on a real path.
-        self.owed = 0.0 if args.tcp_no_handshake else 2 * args.delay_ms / 1000.0
         self.socks = {"client": client, "upstream": upstream}
         self.pipes = {s: Pipe(args, rng, lossy=False) for s in self.SIDES}
+        # The kernel completed the handshake locally, so charge the round trip it would have
+        # waited for — from the accept, not the first request, or a socket the browser opened
+        # ahead of time would pay it serially.
+        if not args.tcp_no_handshake:
+            self.pipes["upstream"].next_free = time.monotonic() + 2 * args.delay_ms / 1000.0
         self.out = {s: b"" for s in self.SIDES}
         self.eof = {s: False for s in self.SIDES}
         self.shut = {s: False for s in self.SIDES}
@@ -175,9 +177,6 @@ class TcpConn:
             self._unwatch(side)
             return
         pipe = self.pipes[self.peer(side)]
-        if side == "client" and self.owed:
-            pipe.next_free = max(pipe.next_free, now + self.owed)
-            self.owed = 0.0
         for i in range(0, len(data), MTU):
             pipe.offer(now, data[i:i + MTU], False)
 

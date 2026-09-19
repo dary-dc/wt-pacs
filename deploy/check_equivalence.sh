@@ -39,5 +39,26 @@ for p in "${PATHS[@]}"; do
   if [ "$a" = "$b" ]; then printf '  ok   %-38s %s\n' "$p" "$a"
   else printf '  DIFF %-38s\n    dev-server %s\n    nginx      %s\n' "$p" "$a" "$b"; fail=1; fi
 done
-[ $fail -eq 0 ] && echo "equivalent on ${#PATHS[@]} paths" || echo "NOT equivalent"
+# Two deliberate divergences from dev-server.py, so they are asserted rather than compared.
+# lab/page-open/README.md.
+enc=$(curl -sS -H 'Accept-Encoding: gzip' -o /dev/null -D- "http://127.0.0.1:$NG_PORT/harness/shell.js" \
+      | grep -i '^content-encoding:' | head -1 | tr -d '\r' | cut -d' ' -f2-)
+if [ "$enc" = "gzip" ]; then printf '  ok   %-38s %s\n' "gzip on a module" "$enc"
+else printf '  MISS %-38s got "%s"\n' "gzip on a module" "$enc"; fail=1; fi
+
+# No build emits a hashed name yet, so this probes a path that 404s: `always` still sends the
+# headers, and the header set is the whole of what this rule has to get right.
+h=$(curl -sS -o /dev/null -D- "http://127.0.0.1:$NG_PORT/client/nothing.0123456789ab.js")
+for want in "cache-control: public, max-age=31536000, immutable" \
+            "cross-origin-opener-policy: same-origin" \
+            "cross-origin-embedder-policy: require-corp" \
+            "cross-origin-resource-policy: same-origin"; do
+  if printf '%s' "$h" | tr -d '\r' | grep -qi "^$want\$"; then
+    printf '  ok   %-38s %s\n' "hashed name" "${want%%:*}"
+  else
+    printf '  MISS %-38s %s\n' "hashed name" "$want"; fail=1
+  fi
+done
+
+[ $fail -eq 0 ] && echo "equivalent on ${#PATHS[@]} paths, and the two divergences hold" || echo "NOT equivalent"
 exit $fail

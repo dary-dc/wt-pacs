@@ -43,7 +43,11 @@ inside the session is not separated here — the probe sees `connect()` resolve,
 inside it, so the table's reasoning about who holds what is untested.
 
 **This is the native client.** Chromium holding CONNECT until the server's SETTINGS arrive is the
-browser's half of the same count, and it is [R2](cloud-queue.md)'s to measure.
+browser's half of the same count. R2 measured it: in a browser the dial is **3.0 round trips**
+too, and everything a page spends before it is
+[`../lab/page-open/README.md`](../lab/page-open/README.md) — 3.6 of them, once its hints are
+right. That leaves the dial the largest single item in a cold open, which is what the levers
+below are for.
 
 ## Lever 1 — the ask in the session URL
 

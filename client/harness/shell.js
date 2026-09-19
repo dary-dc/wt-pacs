@@ -37,9 +37,14 @@ export function log(...a) {
   logEl.textContent += a.join(" ") + "\n";
 }
 
+/** Milestones since navigation, in ms. What R2 counts round trips from — lab/page-open/. */
+const open = (globalThis.__wtpacsOpen = {});
+const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
+
 /** Touch one byte per 4 KiB and the last byte, so the bytes are used and the copy is real. */
 let checksum = 0;
 function touch(bytes) {
+  mark("frame");
   for (let i = 0; i < bytes.length; i += 4096) checksum = (checksum * 31 + bytes[i]) >>> 0;
   if (bytes.length) checksum = (checksum * 31 + bytes[bytes.length - 1]) >>> 0;
 }
@@ -169,8 +174,10 @@ async function runFill(session, steps, stats) {
 export async function bootShell({ arm, loadSession, memoryBytes }) {
   try {
     const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
+    mark("config");
     log("connecting", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
     const session = await loadSession({ telemetry, streamMode, cfg, askWindow });
+    mark("session");
     log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
 
     const frame0 = async () => {

@@ -3,6 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <link rel="icon" href="data:," />
+  <!-- The open is serial without these: each is otherwise discovered one round trip
+       later than it could be. lab/page-open/README.md -->
+  <link rel="preload" as="fetch" href="/wt/dev-transport.json" />
+  <link rel="modulepreload" href="/harness/shell.js" />
+  <link rel="modulepreload" href="/client/transport-wasm/pkg/transport_wasm.js" />
+  <link rel="preload" as="fetch" href="/client/transport-wasm/pkg/transport_wasm_bg.wasm" />
   <title>wt-pacs harness (WASM)</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 1rem; }
