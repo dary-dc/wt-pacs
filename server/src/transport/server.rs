@@ -39,6 +39,9 @@ pub struct ServeConfig {
     /// Lab only: serve every frame as a miss, so a cold study can be measured without
     /// relying on page-cache eviction. `docs/disk-access/EVIDENCE.md`.
     pub force_pool_reads: bool,
+    /// Prototype, off by default: honour `?ask=` in the session URL, so the first frame moves
+    /// behind the accept instead of behind the control stream. `docs/proposal-session-open.md`.
+    pub open_ask: bool,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -85,11 +88,12 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     );
 
     let mode = config.mode;
+    let open_ask = config.open_ask;
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
         tokio::spawn(async move {
-            if let Err(err) = handle_incoming(incoming, store, mode).await {
+            if let Err(err) = handle_incoming(incoming, store, mode, open_ask).await {
                 warn!(%err, "session ended");
             }
         });
@@ -189,12 +193,20 @@ async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
     store: Arc<FrameStore>,
     mode: StreamMode,
+    open_ask: bool,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
+    // Read before accepting: the whole point of an opening ask is to serve behind the accept
+    // rather than behind the client's control stream. `docs/proposal-session-open.md`.
+    let opening = open_ask.then(|| parse_open_ask(session_request.path(), store.frame_count()));
     let connection = session_request.accept().await.context("accept session")?;
 
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
+
+    if let Some(Some(ask)) = opening {
+        return serve_opening_ask(connection, store, mode, ask).await;
+    }
 
     let (control_send, control_recv) = connection
         .accept_bi()
@@ -213,6 +225,56 @@ async fn handle_incoming(
     #[cfg(not(feature = "telemetry"))]
     let result = run_session(&mut product, control_recv).await;
 
+    report_path(&path);
+    result
+}
+
+/// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
+/// session then proceeds as today and the client's own ask gets the normal refusal.
+fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
+    let value = path
+        .split_once('?')?
+        .1
+        .split('&')
+        .find_map(|f| f.strip_prefix("ask="))?;
+    let ask = match value.split_once(':')? {
+        ("frame", n) => Ask::Frame(n.parse().ok()?),
+        ("fill", range) => {
+            let (from, to) = range.split_once('-')?;
+            Ask::Fill { from: from.parse().ok(), to: to.parse().ok() }
+        }
+        _ => return None,
+    };
+    match ask {
+        Ask::Frame(n) if n >= frames => None,
+        Ask::Fill { to: Some(to), .. } if to >= frames => None,
+        ask => Some(ask),
+    }
+}
+
+/// Lab path: serve the opening ask immediately, and take the control stream whenever it turns
+/// up. Refusals have nowhere to go until it does, which is why a bad ask never reaches here.
+async fn serve_opening_ask(
+    connection: wtransport::Connection,
+    store: Arc<FrameStore>,
+    mode: StreamMode,
+    ask: Ask,
+) -> Result<()> {
+    let path = connection.clone();
+    let control = connection.clone();
+    let out = FrameOut::open(mode, connection).await?;
+    let mut product = ProductPipeline::new(store, out);
+
+    let (tx, mut asks) = mpsc::channel(ASKS_AHEAD);
+    tx.send(ask).await.ok();
+    let reader = tokio::spawn(async move {
+        let Ok((_send, mut recv)) = control.accept_bi().await else { return };
+        while read_asks(&mut recv, &tx).await.is_ok() {}
+    });
+
+    let result = drive(&mut product, &mut asks).await;
+    reader.abort();
+    let _ = reader.await;
     report_path(&path);
     result
 }
@@ -559,6 +621,83 @@ mod tests {
         });
     }
 
+    /// The ask in the session URL is served without the client ever writing to the control
+    /// stream, and an out-of-range one is ignored rather than taken. R1 —
+    /// `docs/proposal-session-open.md`.
+    #[test]
+    fn an_opening_ask_is_served_behind_the_accept() {
+        for (query, want) in [("?ask=frame:3", Some(3u32)), ("?ask=frame:99", None)] {
+            let frames = 6u32;
+            let dir = std::env::temp_dir()
+                .join(format!("wtpacs-open-{}-{}", std::process::id(), want.unwrap_or(99)));
+            std::fs::create_dir_all(&dir).expect("tmpdir");
+            let study = write_study(&dir, frames);
+            let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+            let port = free_port();
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("rt");
+            let _ = rustls::crypto::ring::default_provider().install_default();
+            rt.block_on(async move {
+                let server = tokio::spawn(run_server(ServeConfig {
+                    wt_port: port,
+                    study_path: study,
+                    cert_pem,
+                    key_pem,
+                    mode: StreamMode::Shared,
+                    bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                    tuning: TransportTuning::default(),
+                    force_pool_reads: false,
+                    open_ask: true,
+                }));
+                let endpoint = wtransport::Endpoint::client(
+                    ClientConfig::builder()
+                        .with_bind_config(IpBindConfig::InAddrAnyV4)
+                        .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(
+                            cert_hash,
+                        )])
+                        .build(),
+                )
+                .expect("client endpoint");
+                let url = format!("https://127.0.0.1:{port}/{query}");
+                let mut connection = None;
+                for _ in 0..50 {
+                    match endpoint.connect(url.clone()).await {
+                        Ok(c) => {
+                            connection = Some(c);
+                            break;
+                        }
+                        Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                    }
+                }
+                let connection = connection.expect("server never accepted a connection");
+
+                // No control stream is opened: the frame must arrive on the URL ask alone.
+                let media = tokio::time::timeout(
+                    Duration::from_secs(5),
+                    connection.accept_uni(),
+                )
+                .await;
+                match want {
+                    Some(frame) => {
+                        let mut media = media.expect("no media uni").expect("accept media uni");
+                        let (idx, codestream) = read_envelope(&mut media).await;
+                        assert_eq!(idx, frame, "the URL ask served the wrong frame");
+                        assert_eq!(codestream, pattern(frame), "frame {frame} came back wrong");
+                    }
+                    None => assert!(
+                        media.is_err(),
+                        "an out-of-range opening ask opened a media stream",
+                    ),
+                }
+                server.abort();
+            });
+            std::fs::remove_dir_all(&dir).ok();
+        }
+    }
+
     async fn connect_session(
         study: PathBuf,
         cert_pem: PathBuf,
@@ -580,6 +719,7 @@ mod tests {
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             tuning: TransportTuning::default(),
             force_pool_reads: false,
+            open_ask: false,
         }));
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()

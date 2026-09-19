@@ -52,6 +52,9 @@ struct Args {
     /// Lab only: serve every frame as a miss, for measuring a study nobody has read.
     #[arg(long, default_value_t = false)]
     force_pool_reads: bool,
+    /// Prototype: honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL.
+    #[arg(long, default_value_t = false)]
+    open_ask: bool,
     /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
     #[cfg(feature = "telemetry")]
     #[arg(long, value_name = "ROWS")]
@@ -115,6 +118,7 @@ async fn main() -> anyhow::Result<()> {
             prefault: args.prefault,
         },
         force_pool_reads: args.force_pool_reads,
+        open_ask: args.open_ask,
     });
 
     tokio::select! {

@@ -13,6 +13,7 @@ Product and ADRs stay here. This lane's campaign write-ups are on tag
 | [`decode/`](decode/) | Codestream to pixels: the decoder, what it costs in memory, the BYOB read path |
 | [`../deploy/`](../deploy/) | nginx + the two images, and the check that they answer as the dev host did |
 | [`proposal-nginx-and-images.md`](proposal-nginx-and-images.md) | Proposed: nginx in place of the dev host, and an image per project |
+| [`proposal-session-open.md`](proposal-session-open.md) | Proposed: two round trips off a cold open — the ask in the session URL, and SETTINGS at 0.5 RTT |
 | [`client-shape-plan.md`](client-shape-plan.md) | The production client shape: the transport seam, what sits above it, and the milestones that build it |
 | [`thread-hops.md`](thread-hops.md) | What each thread hop costs a decoded frame on its way to the page, and what a copy costs instead of a transfer |
 | [`handoff-2026-09-16.md`](handoff-2026-09-16.md) | Start here if you are a new session: where the branches are, what not to redo, and what the container costs to set up |
