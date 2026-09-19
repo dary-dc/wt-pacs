@@ -93,6 +93,15 @@ The wake lock is a request the platform may refuse, so the `freeze` path must wo
 
 ## The measurement this owes
 
+**Taken 2026-09-19** (`lab/scripts/rebind_idle_cells.sh`, on the workstation through the relay,
+which is calibrated against `netem` for delay, `rig-limits.md` §3). At a 40 ms round trip, the
+relay moved its source port after 10 frames, and the probe asked once more. The server idle timeout
+was 10 s or 30 s, arms interleaved, 8 rounds each. **The session survived 16 of 16, and the next
+ask took 70 ms [68–72] at both timeouts.** A port-only path change is migrated, not noticed as a
+dead session, so the idle timeout plays no part in it. The 30 s freeze T6 measured belonged to the
+parked per-core endpoints. Not modelled: a new IP address, as on a Wi-Fi to cellular change.
+
+What A1 asked, as written:
 **One number, and it cannot be taken on this branch yet.** A1 asks for the rebind probe re-run at a
 10 s idle timeout, to put a figure on how fast a path change is noticed when the timeout is short.
 The probe is `lab/window-harness/src/bin/rebind_probe.rs` with `lab/scripts/link_impair.py`, both
