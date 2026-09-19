@@ -10,6 +10,7 @@ show is [`../../docs/rig-limits.md`](../../docs/rig-limits.md) §3.
 
 ```bash
 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3
+HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS with HTTP/2; h1 without; dev is the default
 ```
 
 ## The count, before and after

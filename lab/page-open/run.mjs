@@ -26,6 +26,9 @@ const ARMS = {
   downloader: (base) => `${base}/lab/page-open/downloader.html`,
 };
 
+// HOST=dev (default) is server/dev-server.py, plaintext HTTP/1.1; h1 and h2 are nginx on the deploy
+// template over TLS, without and with HTTP/2 — the handshakes a real host charges the page half.
+const HOST = process.env.HOST || "dev";
 const port = () => 30000 + ((Math.random() * 20000) | 0);
 const UDP_SRV = port();
 const UDP_IN = port();
@@ -83,11 +86,26 @@ start(path.join(BIN, "exact-server"), [
   "--port", String(UDP_SRV), "--study", path.join(T, "study.sbnd"),
   "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem"),
 ], srvLog);
-start("python3", ["server/dev-server.py", "--port", String(TCP_SRV)], fs.openSync(path.join(T, "static.log"), "a"));
+if (HOST === "dev") {
+  start("python3", ["server/dev-server.py", "--port", String(TCP_SRV)], fs.openSync(path.join(T, "static.log"), "a"));
+} else {
+  const site = fs.readFileSync(path.join(ROOT, "deploy/nginx/wt-pacs.conf.template"), "utf8")
+    .replace(/\$\{STUDY\}/g, "us_cine_smoke")
+    .replace(/\/srv\/wt-pacs/g, ROOT)
+    .replace(/listen\s+8765;/, `listen 127.0.0.1:${TCP_SRV} ssl${HOST === "h2" ? " http2" : ""};\n` +
+      `    ssl_certificate ${T}/cert.pem;\n    ssl_certificate_key ${T}/key.pem;`);
+  fs.writeFileSync(path.join(T, "site.conf"), site);
+  fs.mkdirSync(path.join(T, "ngx"));
+  fs.writeFileSync(path.join(T, "nginx.conf"),
+    `pid ${T}/nginx.pid;\nerror_log ${T}/nginx-error.log error;\nevents {}\nhttp {\n  access_log off;\n` +
+    ["client_body", "proxy", "fastcgi", "uwsgi", "scgi"].map((d) => `  ${d}_temp_path ${T}/ngx;\n`).join("") +
+    `  include ${T}/site.conf;\n}\n`);
+  start("nginx", ["-c", path.join(T, "nginx.conf"), "-g", "daemon off;"], fs.openSync(path.join(T, "static.log"), "a"));
+}
 fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${UDP_IN}/`, cert_sha256: hash }) + "\n");
 await new Promise((r) => setTimeout(r, 2000));
 
-const base = `http://127.0.0.1:${TCP_IN}`;
+const base = `${HOST === "dev" ? "http" : "https"}://127.0.0.1:${TCP_IN}`;
 const rows = [];
 
 async function visit(ctx, arm) {
@@ -123,7 +141,8 @@ for (const rtt of RTTS) {
       const ctx = await chromium.launchPersistentContext(dir, {
         headless: true,
         executablePath: process.env.CHROME_PATH || chromium.executablePath(),
-        args: ["--disable-background-networking", "--ignore-certificate-errors-spki-list"],
+        args: ["--disable-background-networking", "--ignore-certificate-errors-spki-list",
+          ...(HOST === "dev" ? [] : ["--ignore-certificate-errors"])],
       });
       try {
         rows.push({ rtt, arm, profile: "cold", ...(await visit(ctx, arm)) });
@@ -158,7 +177,7 @@ function fit(arm, profile, key) {
 }
 
 console.log(
-  `\n${"arm".padEnd(11)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
+  `\nhost ${HOST}\n${"arm".padEnd(11)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
     `${"round trips".padStart(11)} ${"fixed ms".padStart(9)}  ` +
     RTTS.map((r) => `${r} ms`.padStart(8)).join(" "),
 );
