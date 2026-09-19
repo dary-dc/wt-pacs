@@ -100,9 +100,22 @@ the ones in the table has to be re-checked against the relay itself first. It ca
 at a time on the UDP plane. Everything else on this list still holds: the MTU above is unchanged,
 and the server still sees a loopback socket.
 
-**Still owed:** the calibration against `netem` on the rig that
-[`lanes/RIG-RUNBOOK.md`](lanes/RIG-RUNBOOK.md) preflights, so that a later container result can be
-read on its own wherever the two agree.
+**Calibrated against `netem`, 2026-09-19** (`lab/scripts/n1_netem_calibration.sh`). The run was on
+the cloud rig, with the server and `cold_open` on its own loopback. For each round and delay the
+link was either this relay or `netem` on `lo`, the arms interleaved, 5 rounds, the same three round
+trips and the same fit:
+
+| phase | relay: round trips, fixed ms | `netem`: round trips, fixed ms |
+| --- | --- | --- |
+| session ready | 3.00 [2.98–3.00], 7.4 | 3.00 [3.00–3.00], 2.8 |
+| first byte | 3.99 [3.97–3.99], 10.2 | 4.00 [4.00–4.00], 3.3 |
+| 250 KB ask, fresh session | 5.43 [5.42–5.45], 19.1 | 5.44 [5.43–5.56], 8.9 |
+
+**On delay, the two agree to 0.01 round trips in every phase**, and the container's own fit (4.01,
+5.59) sits beside them. So **a round-trip count taken through the relay can be read on its own**.
+The relay's fixed cost (5–10 ms here, on a burstable host) cannot, and nor can anything this run
+did not shape: rate, queue depth, loss and blackouts were not calibrated. The lossy cells on the
+rig itself are §3 above (L3).
 
 ## 4. The reader never misses
 
