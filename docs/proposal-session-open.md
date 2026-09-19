@@ -108,18 +108,17 @@ ClientHello offering `certificate_compression_algorithms: [Brotli, Zlib]` and it
 `CompressedCertificate { alg: Brotli, uncompressed_len: 2909 }` at 1 968 B — **−32.3 % on the
 Certificate message**, and 3 840 → 2 870 B on the wire, back inside the budget.
 
-**The feature stays off by default**, because it costs five crates in `Cargo.lock` (`brotli`,
+**A browser does offer it over QUIC.** Google Chrome 148.0.7778.96, headless and with no driver,
+dialling this server with the dev certificate pinned by hash, sent
+`certificate_compression_algorithms: [Brotli]` — brotli alone, where the native probe offers
+`[Brotli, Zlib]` — and the server with the feature on answered it with a `CompressedCertificate {
+alg: Brotli }`. So `zlib` buys nothing against a browser, and `brotli` is the whole of the feature.
+
+**The feature still stays off by default**, because it costs five crates in `Cargo.lock` (`brotli`,
 `brotli-decompressor`, `alloc-stdlib`, `alloc-no-stdlib`, `zlib-rs`) and **+1.29 MiB on the release
-binary** (5 307 808 → 6 656 680 B), and the fact that would justify it is not in hand:
-
-**Not decided — whether Chromium offers the extension over QUIC.** No Chromium is installed on this
-box and this lane did not install one. The cheapest honest way needs no code at all: `rustls` logs
-the decoded ClientHello at `trace` and `exact-server` already builds it with `logging`, so
-`RUST_LOG=rustls=trace` prints the offered extension list. That is how the `[Brotli, Zlib]` above
-was read off the native probe.
-
-**Until it is, ECDSA is the answer, not compression.** An ECDSA leaf and intermediate fit the
-budget uncompressed, on any peer, with no dependency added.
+binary** (5 307 808 → 6 656 680 B), and **ECDSA is the cheaper answer**: an ECDSA leaf and
+intermediate fit the budget uncompressed, on any peer, with no dependency added. Compression is
+what makes an RSA chain viable where one is forced.
 
 **A leaf-only PEM (S39).** `Identity::load_pemfiles` ships whatever the file holds, so a PEM with
 no intermediate leaves the browser to fetch it over AIA — DNS, TCP, TLS, GET — on every cold open
