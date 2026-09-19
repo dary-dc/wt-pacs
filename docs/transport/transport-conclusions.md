@@ -326,10 +326,48 @@ cell it was built for is owed on the rig, where `netem` shapes instead of a user
 **What these cells did find is reordering, and it is not small.** Cubic takes **8.6×** longer at
 ±2 ms of jitter and **25×** at ±10 ms, where BBR takes 1.05× and 2.9×. The jitter here is
 independent per packet, which at 20 Mbit spaces packets 0.58 ms apart and reorders across seven
-of them — **adversarial for a loss-based controller and not what a queue does**, so read it as a
-reordering-tolerance cell, not a jitter one. It points the same way §1 already does: where loss
-is not congestion, BBR. BBR's cost is unchanged and large — on the 20-packet queue it sends
-3 834 datagrams to Cubic's 2 158 and loses 1 887 of them.
+of them. BBR's cost is unchanged and large — on the 20-packet queue it sends 3 834 datagrams to
+Cubic's 2 158 and loses 1 887 of them.
+
+**Corrected 2026-09-19 (N2): the whole of it is the reordering, and it is the relay's model, not
+a radio's.** `lab/scripts/link_impair.py` gained `--jitter-mode ordered`, which clamps each
+direction's delivery to non-decreasing — the same wobble, on one leg, which is what LTE, 5G and
+Wi-Fi deliver ([`../rig-limits.md`](../rig-limits.md) §3). `lab/scripts/radio_link_cells.sh`,
+five rounds, arms interleaved inside each round, the deep queue, against each controller's own
+no-jitter fill:
+
+| arm | ±2 ms reordering | ±2 ms ordered | ±10 ms reordering | ±10 ms ordered |
+| --- | ---: | ---: | ---: | ---: |
+| Cubic | **8.22×** | **1.01×** | **23.68×** | **1.03×** |
+| BBR | 1.02× | 0.99× | 2.65× | 1.17× |
+
+Ordered beats reordering 5/5 in the three cells where reordering costs anything, and 4/5 in
+BBR's ±2 ms cell, where it costs 2 %. **On a link that delivers in sequence there is no effect
+left to measure** — Cubic's fill is within 3 % of its own no-jitter figure at ±10 ms, and most
+of BBR's 2.9× was the reordering too. The reordering cells stand, as what a path with more than
+one leg would do; nothing in them supports "Cubic cannot take a radio's jitter", and §1's regime
+argument for BBR, which rests on loss and not on this, is untouched. The table above was
+reproduced on the same script the same day before any of this was built: 7.6× and 24.2×.
+
+**S26's mechanism is refuted.** It read every one of those losses as quinn's
+`packet_threshold = 3`; `--packet-threshold` now exposes the setter (default unchanged) and the
+threshold is not what is costing the fill:
+
+| under reordering jitter | threshold 3 | 6 | 12 | 48 |
+| --- | ---: | ---: | ---: | ---: |
+| ±2 ms | 11 880 | 6 124 | 6 135 | 6 124 |
+| ±10 ms | 34 217 | 30 214 | 31 094 | 31 428 |
+
+Fill milliseconds, medians of five. At ±2 ms raising it removes the spurious losses — 21 per
+session become 0 or 1 — and still leaves **4.2×**, because *one* congestion event is worth that
+much: every round that declared one ended on an 84 ms smoothed RTT and a 6.1 s fill, every round
+that declared none on ~140 ms and a 1.44 s fill, with no case in between. That is S30's regrowth,
+priced from a different direction. At ±10 ms the threshold buys 8–12 %, and it cannot be the
+mechanism there at all: the model's largest possible overtake is 20 ms of wobble over 0.58 ms of
+spacing, ~34 packet numbers, under a threshold of 48 — yet ~140 packets a session are still
+declared lost, and the relay's own tally on that link says it dropped and overflowed nothing.
+What declares them is unattributed here; quinn's other detector is the 9/8 × RTT time threshold,
+which S26 argued could never fire at an 80 ms round trip. A qlog cell owes the answer.
 
 **The deep buffer holds 39 ms of standing queue**, not seconds: the session ends on a smoothed
 RTT of 119 ms against the link's 80, with zero loss and zero congestion events. S8's "seconds of
@@ -349,6 +387,35 @@ where it moves it moves the wrong way. The reason is in the counters: one conges
 on it has nothing to act on. **The cost is the probe-timeout ladder**: a 500 ms outage costs
 **+5.4 s** of fill, a 1 s outage +6.1 s and a 2 s outage +7.3 s, and the outage itself is a
 fraction of that. S9's "~0.9 s per outage" is the window's regrowth alone and understates it.
+
+**A blackout that holds instead of dropping costs the outage and nothing else, 2026-09-19 (N2).**
+S33 asked whether that +5.4 s is the relay's model: `link_impair.py` discarded both directions
+through a blackout, where a radio's link layer usually buffers and delivers late.
+`--blackout-mode hold` freezes each direction's rate clock for the outage instead, and
+`radio_link_cells.sh outage`, five rounds interleaved, separates the two models completely:
+
+| blackout | Cubic, dropping | Cubic, holding | BBR, dropping | BBR, holding |
+| --- | ---: | ---: | ---: | ---: |
+| 500 ms | 6 984 | **1 943** | 1 970 | 1 822 |
+| 1 000 ms | 7 727 | **2 475** | 2 720 | 2 371 |
+| 2 000 ms | 8 920 | **3 449** | 4 362 | 3 392 |
+
+Fill milliseconds against the jitter cells' 1 445 ms fill with no outage, on the same link and
+the same 2.56 MB; holding wins 5/5 in all six cells.
+**Held, there is no congestion event and no lost datagram at all**, and the fill is the
+undisturbed fill plus the outage, to within 30 ms in each of the three rows. Every number in the
+table above it — the ladder, the regrowth, the threshold that does nothing — belongs to the
+dropping model.
+
+**S33's second half is refuted.** It predicted that the outage-sized round-trip sample would take
+the next probe timeout to ~2.4 s and wreck the *next* blink. On a 12.8 MB fill with a second
+1 s blink (medians of five, interleaved): held, one blink costs 6 773 ms and a second costs
+**+1 003 ms** three seconds later and **+1 097 ms** two hundred milliseconds after the first ends
+— its own length, wherever it lands, still with zero congestion events. Dropping, the same second
+blink costs +1 998 ms at three seconds and +694 ms at two hundred milliseconds, where it overlaps
+a recovery already being paid for. **Which model a radio is remains unverified** — no primary
+source for the discard timer was found — and it decides whether the outage work has a target at
+all.
 
 #### The first timeout, at 1 % loss
 
