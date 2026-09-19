@@ -67,7 +67,7 @@ trailers. This is the owner's rule for every repository.
 | 24 | **D5** — what the decoder's range pass costs a fill — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | **done** — the range pass is 10–25 % of a decode, and **folding it into the copy is slower** (1.06x, 1.17x), so D5's remedy is refused with the measurement. S14's redundant copy removed; the stale "no signed fixture" comment corrected. `decode/README.md` §The range pass |
 | 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | **done** — the 4 MB build cuts the decode arm from **161.4 MB to 16.3 MB** (10x) with fill and cold ask unchanged to the tenth of a ms. Parity byte-identical on all six sets, 40 frames, signed included. `proposal-downloader.md` §Results |
 | 35 | **T1** — the transport branch's lab and client pieces, here; not its server | queue §Rows 30–41 | **done** 2026-09-19 — 45 paths taken whole, 4 merged by hand (`session.ts`, `build.sh`, `docs/transport/README.md`, `transport-conclusions.md`). No `server/`, no `patches/`. Its `window.ts` is `ask-window.ts` here: the worker-safe check read a bundle's `// window.ts` banner as a reach. The ask window's 5 tests are in the gate. Gate green — conformance 84/84, downloader 46/46, dispatch 19/19, refusals 64/64 on both clients |
-| 36 | **N1** — an impaired link in a container | queue §Rows 30–41 | ready |
+| 36 | **N1** — an impaired link in a container | queue §Rows 30–41 | **claimed** 2026-09-19 |
 | 37 | **R2** — navigation to first byte on a real round trip: count, then cut | queue §Rows 30–41 | after 36 |
 | 38 | **W1** — the first ask on an idle session | queue §Rows 30–41 | after 36 |
 | 39 | **W2** — slow-start exit, an outage, the first timeout | queue §Rows 30–41 | after 36 |
