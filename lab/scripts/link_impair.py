@@ -32,6 +32,7 @@ class Pipe:
 
     def __init__(self, args, rng, lossy=True):
         self.delay = args.delay_ms / 1000.0
+        self.jitter = args.jitter_ms / 1000.0
         self.rate = args.rate_kbit * 1000.0
         self.limit = args.queue_pkts
         self.loss = args.loss / 100.0
@@ -64,7 +65,10 @@ class Pipe:
         start = max(now, self.next_free)
         self.next_free = start + (len(payload) * 8 / self.rate if self.rate else 0.0)
         self.tx.append(self.next_free)
-        heapq.heappush(self.pending, (self.next_free + self.delay, self.seq, payload))
+        # Jitter reorders, as a real path does: the heap delivers by time, not arrival.
+        wobble = self.rng.uniform(-self.jitter, self.jitter) if self.jitter else 0.0
+        heapq.heappush(self.pending, (self.next_free + max(0.0, self.delay + wobble),
+                                      self.seq, payload))
         self.seq += 1
 
     def due(self):
@@ -274,6 +278,8 @@ def main():
     ap.add_argument("--tcp", type=parse_pair, help="LISTEN:SERVER, the static host's plane")
     ap.add_argument("--delay-ms", type=float, default=0.0, help="one way, each direction")
     ap.add_argument("--rate-kbit", type=float, default=0.0, help="0 = unlimited")
+    ap.add_argument("--jitter-ms", type=float, default=0.0,
+                    help="uniform, each direction, and it reorders")
     ap.add_argument("--queue-pkts", type=int, default=50, help="tail drop, like netem's limit")
     ap.add_argument("--loss", type=float, default=0.0, help="percent, iid, udp only")
     ap.add_argument("--loss-model", choices=("iid", "ge"), default="iid")
@@ -299,9 +305,10 @@ def main():
         ctrl.bind(("127.0.0.1", args.control_port))
         sel.register(ctrl, selectors.EVENT_READ, ("ctrl", None, None))
 
-    print("READY udp=%s tcp=%s ctrl=%s delay_ms=%g rate_kbit=%g queue=%d loss=%g%s"
+    print("READY udp=%s tcp=%s ctrl=%s delay_ms=%g jitter_ms=%g rate_kbit=%g queue=%d loss=%g%s"
           % (args.udp[0] if args.udp else "-", args.tcp[0] if args.tcp else "-",
-             args.control_port, args.delay_ms, args.rate_kbit, args.queue_pkts, args.loss,
+             args.control_port, args.delay_ms, args.jitter_ms, args.rate_kbit,
+             args.queue_pkts, args.loss,
              " ge" if args.loss_model == "ge" else ""), flush=True)
 
     blackout_until = 0.0

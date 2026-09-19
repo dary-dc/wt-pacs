@@ -11,6 +11,8 @@ pub enum Congestion {
     Cubic,
     Bbr,
     NewReno,
+    /// Cubic with RFC 9406's slow-start exit over it. `hystart.rs`.
+    CubicHystart,
 }
 
 impl Congestion {
@@ -19,6 +21,7 @@ impl Congestion {
             Self::Cubic => "cubic",
             Self::Bbr => "bbr",
             Self::NewReno => "new-reno",
+            Self::CubicHystart => "cubic-hystart",
         }
     }
 }
@@ -39,6 +42,11 @@ pub struct TransportTuning {
     pub congestion: Congestion,
     /// Bytes the controller may send before the first ACK. quinn default: 12 000 (S7).
     pub initial_window: Option<u64>,
+    /// Round trips of unbroken loss that declare persistent congestion. quinn default: 3 (S9).
+    pub persistent_congestion_threshold: Option<u32>,
+    /// The RTT assumed before the first sample, which sets the first probe timeout.
+    /// quinn default: 333 ms (S10).
+    pub initial_rtt_ms: Option<u64>,
     /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
     pub prefault: bool,
 }
@@ -53,6 +61,8 @@ impl Default for TransportTuning {
             keep_alive_interval_ms: None,
             congestion: Congestion::Cubic,
             initial_window: None,
+            persistent_congestion_threshold: None,
+            initial_rtt_ms: None,
             prefault: false,
         }
     }
@@ -75,6 +85,12 @@ impl TransportTuning {
         }
         if let Some(ms) = self.keep_alive_interval_ms {
             tc.keep_alive_interval(Some(std::time::Duration::from_millis(ms)));
+        }
+        if let Some(n) = self.persistent_congestion_threshold {
+            tc.persistent_congestion_threshold(n);
+        }
+        if let Some(ms) = self.initial_rtt_ms {
+            tc.initial_rtt(std::time::Duration::from_millis(ms));
         }
 
         let iw = self.initial_window;
@@ -100,6 +116,9 @@ impl TransportTuning {
                 }
                 tc.congestion_controller_factory(Arc::new(c))
             }
+            Congestion::CubicHystart => {
+                tc.congestion_controller_factory(Arc::new(crate::transport::hystart::HyStartConfig::new(iw)))
+            }
         };
 
         Ok(tc)
@@ -113,6 +132,8 @@ impl TransportTuning {
             && self.max_idle_timeout_ms.is_none()
             && self.keep_alive_interval_ms.is_none()
             && self.initial_window.is_none()
+            && self.persistent_congestion_threshold.is_none()
+            && self.initial_rtt_ms.is_none()
             && matches!(self.congestion, Congestion::Cubic)
     }
 
@@ -138,6 +159,12 @@ impl TransportTuning {
         }
         if let Some(v) = self.initial_window {
             parts.push(format!("initial_window={v}"));
+        }
+        if let Some(v) = self.persistent_congestion_threshold {
+            parts.push(format!("persistent_congestion_threshold={v}"));
+        }
+        if let Some(v) = self.initial_rtt_ms {
+            parts.push(format!("initial_rtt_ms={v}"));
         }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
@@ -174,6 +201,8 @@ mod tests {
             keep_alive_interval_ms: Some(20_000),
             congestion: Congestion::Bbr,
             initial_window: Some(32 * 1200),
+            persistent_congestion_threshold: Some(6),
+            initial_rtt_ms: Some(100),
             prefault: false,
         };
         t.to_transport_config().unwrap();
@@ -203,6 +232,29 @@ mod tests {
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("initial_window=38400"));
         t.to_transport_config().unwrap();
+    }
+
+    /// W2's two knobs are custom transport too, and each is named in `describe` so a campaign
+    /// row cannot be mislabelled. docs/transport/transport-conclusions.md §3.
+    #[test]
+    fn the_outage_and_timeout_knobs_leave_the_library_default_behind() {
+        for (t, want) in [
+            (
+                TransportTuning {
+                    persistent_congestion_threshold: Some(6),
+                    ..TransportTuning::default()
+                },
+                "persistent_congestion_threshold=6",
+            ),
+            (
+                TransportTuning { initial_rtt_ms: Some(100), ..TransportTuning::default() },
+                "initial_rtt_ms=100",
+            ),
+        ] {
+            assert!(!t.quic_is_library_default());
+            assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
+            t.to_transport_config().unwrap();
+        }
     }
 
     #[test]

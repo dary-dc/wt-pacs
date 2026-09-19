@@ -474,6 +474,7 @@ dependencies = [
  "frame-envelope",
  "io-uring",
  "libc",
+ "quinn-proto",
  "rcgen 0.13.2",
  "rustls",
  "serde",

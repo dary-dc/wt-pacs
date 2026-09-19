@@ -105,7 +105,8 @@ impl Frames {
     }
 }
 
-async fn one_round(args: &Args) -> Result<(f64, usize)> {
+/// (the ask, the warm-up fill that preceded it, the frame's size)
+async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
     let v4 = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
     let endpoint = Endpoint::client(
         ClientConfig::builder().with_bind_address(v4).with_no_cert_validation().build(),
@@ -123,6 +124,8 @@ async fn one_round(args: &Args) -> Result<(f64, usize)> {
     if args.state != State::Fresh && args.target < args.warm {
         bail!("--target {} is inside the warm-up 0..={}", args.target, args.warm - 1);
     }
+    let mut fill_ms = f64::NAN;
+    let filling = Instant::now();
     if args.state == State::OpenPush {
         for _ in 0..args.warm {
             frames.next(args.timeout_ms).await.context("pushed frame")?;
@@ -142,6 +145,7 @@ async fn one_round(args: &Args) -> Result<(f64, usize)> {
         for _ in 0..args.warm {
             frames.next(args.timeout_ms).await.context("warm frame")?;
         }
+        fill_ms = filling.elapsed().as_secs_f64() * 1000.0;
         if args.state == State::Rebound {
             poke(args.control_port, "rebind")?;
             // The rebind is only a new path once a packet has travelled over it.
@@ -160,7 +164,7 @@ async fn one_round(args: &Args) -> Result<(f64, usize)> {
         bail!("asked for {} and got {index}", args.target);
     }
     connection.close(0u32.into(), b"done");
-    Ok((ms, bytes))
+    Ok((ms, fill_ms, bytes))
 }
 
 #[tokio::main]
@@ -171,23 +175,33 @@ async fn main() -> Result<()> {
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
     let mut ms = Vec::new();
+    let mut fills = Vec::new();
     let mut bytes = 0;
     for _ in 0..args.rounds {
-        let (v, b) = one_round(&args).await?;
+        let (v, f, b) = one_round(&args).await?;
         ms.push(v);
+        if !f.is_nan() {
+            fills.push(f);
+        }
         bytes = b;
     }
-    ms.sort_by(|a, b| a.partial_cmp(b).expect("no NaN"));
     println!(
-        "state={} bytes={} rounds={} ask_to_last_byte_ms median={:.1} min={:.1} max={:.1}",
+        "state={} bytes={} rounds={} ask_to_last_byte_ms median={:.1} min={:.1} max={:.1} \
+         fill_ms median={:.1}",
         state_name(args.state),
         bytes,
         ms.len(),
-        ms[ms.len() / 2],
+        median(&mut ms),
         ms[0],
         ms[ms.len() - 1],
+        if fills.is_empty() { f64::NAN } else { median(&mut fills) },
     );
     Ok(())
+}
+
+fn median(v: &mut [f64]) -> f64 {
+    v.sort_by(|a, b| a.partial_cmp(b).expect("no NaN"));
+    v[v.len() / 2]
 }
 
 fn state_name(s: State) -> &'static str {

@@ -46,20 +46,21 @@ PY
 cat > "$T/probe.py" <<'PY'
 """Echoes `count` datagrams of `size` through the relay, paced `spacing` seconds apart (0 blasts
 them, which is what fills a queue). Open loop: the sender never waits for a reply, so one lost
-datagram costs one, not the whole stream. Each carries its send time, so the reply reads the RTT.
-Prints median RTT, delivered, elapsed."""
+datagram costs one, not the whole stream. Each carries its send time and sequence, so the reply
+reads the RTT and whether the path reordered it.
+Prints median RTT, delivered, elapsed, p90-p10 of the RTT, and how many arrived out of order."""
 import socket, statistics, struct, sys, threading, time
 port, count, size, spacing = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), float(sys.argv[4])
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8 << 20)
 s.settimeout(3)
-pad = b"x" * max(0, size - 8)
+pad = b"x" * max(0, size - 12)
 done = threading.Event()
 
 
 def send():
-    for _ in range(count):
-        s.sendto(struct.pack("!d", time.monotonic()) + pad, ("127.0.0.1", port))
+    for i in range(count):
+        s.sendto(struct.pack("!dI", time.monotonic(), i) + pad, ("127.0.0.1", port))
         if spacing > 0:
             time.sleep(spacing)
     done.set()
@@ -67,7 +68,7 @@ def send():
 
 start = time.monotonic()
 threading.Thread(target=send, daemon=True).start()
-rtt, got = [], 0
+rtt, got, highest, out_of_order = [], 0, -1, 0
 while got < count:
     try:
         data, _ = s.recvfrom(65535)
@@ -75,9 +76,17 @@ while got < count:
         if done.is_set():
             break
         continue
-    rtt.append((time.monotonic() - struct.unpack("!d", data[:8])[0]) * 1000)
+    sent_at, seq = struct.unpack("!dI", data[:12])
+    rtt.append((time.monotonic() - sent_at) * 1000)
+    out_of_order += seq < highest
+    highest = max(highest, seq)
     got += 1
-print("%.3f %d %.4f" % (statistics.median(rtt) if rtt else 0.0, got, time.monotonic() - start))
+spread = 0.0
+if len(rtt) >= 10:
+    q = statistics.quantiles(rtt, n=10)
+    spread = q[8] - q[0]
+print("%.3f %d %.4f %.3f %d" % (statistics.median(rtt) if rtt else 0.0, got,
+                                time.monotonic() - start, spread, out_of_order))
 PY
 
 relay() {  # extra args...
@@ -108,7 +117,7 @@ for d in 20 40; do
 done
 
 relay --rate-kbit 10000 --queue-pkts 4000
-read -r _ got el < <(python3 "$T/probe.py" "$UDP_IN" 1000 1000 0)
+read -r _ got el _ _ < <(python3 "$T/probe.py" "$UDP_IN" 1000 1000 0)
 kbit=$(python3 -c "print(f'{$got*1000*8/$el/1000:.0f}')")
 want "rate 10000 kbit: goodput (kbit/s)" "$kbit" 9000 10100
 want "rate 10000 kbit: delivered of 1000" "$got" 1000 1000
@@ -128,6 +137,19 @@ stop_relay
 relay --loss-model ge --queue-pkts 4000
 read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 8000 200 0)
 want "gilbert-elliott 0.07/14: delivered of 8000" "$got" 7800 7980
+stop_relay
+
+relay --delay-ms 20
+read -r rtt _ _ spread reord < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.005)
+want "no jitter: rtt p90-p10 (ms)" "$spread" 0 2
+want "no jitter: arrived out of order" "$reord" 0 0
+stop_relay
+
+relay --delay-ms 20 --jitter-ms 5
+read -r rtt _ _ spread reord < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.005)
+want "jitter 5 ms: rtt median (ms)" "$rtt" 37 43
+want "jitter 5 ms: rtt p90-p10 (ms)" "$spread" 8 17
+want "jitter 5 ms: arrived out of order" "$reord" 5 120
 stop_relay
 
 CTRL=$((42000 + RANDOM % 2000))

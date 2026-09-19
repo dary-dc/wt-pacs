@@ -296,6 +296,83 @@ push arm's is mostly its own.
 lands on exactly the shallow-buffered link the target has; the push is the larger lever and is
 already prototyped behind a flag, where it waits on a browser cell rather than another native one.
 
+### The slow-start exit, an outage and the first timeout, 2026-09-19
+
+**W2.** `lab/scripts/controller_cells.sh`, three rounds a cell, through
+[`../../lab/scripts/link_impair.py`](../../lab/scripts/link_impair.py) at 80 ms round trip and
+20 Mbit; the fill is 40 frames of 64 KB. `lost` and `cong` are per session and count the whole of
+it.
+
+**The early slow-start exit is a tie, in every cell.** `server/src/transport/hystart.rs` is
+RFC 9406's detector over the public `Controller` trait — no fork, no patch: it watches the
+per-round minimum RTT and, when it rises, caps the window where slow start left it and opens one
+datagram per round trip after that.
+
+| buffer | jitter | Cubic | Cubic + exit | BBR |
+| --- | --- | ---: | ---: | ---: |
+| 20 packets | none | 1 679 | 1 693 | 1 316 |
+| 1 500 packets | none | 1 437 | 1 437 | 1 231 |
+| 20 packets | ±2 ms | 13 418 | 11 479 | 1 461 |
+| 1 500 packets | ±2 ms | 12 440 | 12 610 | 1 287 |
+| 20 packets | ±10 ms | 36 438 | 33 706 | 3 596 |
+| 1 500 packets | ±10 ms | 35 410 | 33 923 | 3 597 |
+
+Fill milliseconds. The exit is within 5 % of Cubic everywhere, in both directions — **it does not
+pay for itself and it is not the default.** It stays as `--congestion cubic-hystart` because the
+cell it was built for is owed on the rig, where `netem` shapes instead of a userspace relay.
+
+**What these cells did find is reordering, and it is not small.** Cubic takes **8.6×** longer at
+±2 ms of jitter and **25×** at ±10 ms, where BBR takes 1.05× and 2.9×. The jitter here is
+independent per packet, which at 20 Mbit spaces packets 0.58 ms apart and reorders across seven
+of them — **adversarial for a loss-based controller and not what a queue does**, so read it as a
+reordering-tolerance cell, not a jitter one. It points the same way §1 already does: where loss
+is not congestion, BBR. BBR's cost is unchanged and large — on the 20-packet queue it sends
+3 834 datagrams to Cubic's 2 158 and loses 1 887 of them.
+
+**The deep buffer holds 39 ms of standing queue**, not seconds: the session ends on a smoothed
+RTT of 119 ms against the link's 80, with zero loss and zero congestion events. S8's "seconds of
+queue" is a cellular figure, not this rig's.
+
+#### An outage: the threshold is not the lever
+
+| blackout | threshold 3 (default) | 6 | 12 | fill with no outage |
+| --- | ---: | ---: | ---: | ---: |
+| 500 ms | 6 836 | 6 881 | 6 871 | 1 437 |
+| 1 000 ms | 7 503 | 7 508 | 7 626 | |
+| 2 000 ms | 8 704 | 9 058 | 9 092 | |
+
+**Raising the persistent-congestion threshold changes nothing** — every arm is within noise, and
+where it moves it moves the wrong way. The reason is in the counters: one congestion event and
+3 to 11 lost datagrams per session, so persistent congestion is never declared and a threshold
+on it has nothing to act on. **The cost is the probe-timeout ladder**: a 500 ms outage costs
+**+5.4 s** of fill, a 1 s outage +6.1 s and a 2 s outage +7.3 s, and the outage itself is a
+fraction of that. S9's "~0.9 s per outage" is the window's regrowth alone and understates it.
+
+#### The first timeout, at 1 % loss
+
+200 cold connects an arm, 80 ms round trip, 1 % loss each way.
+
+| `initial_rtt` | p50 | p95 | p99 |
+| --- | ---: | ---: | ---: |
+| 333 ms (quinn's default) | 252.3 | 417.6 | **1 335.1** |
+| 100 ms | 252.3 | **255.6** | **637.8** |
+| 50 ms | 252.3 | 334.4 | 502.4 |
+
+**S10 is confirmed and has a lever.** One cold open in a hundred waits 1.3 s where the median
+waits 0.25 — the 999 ms first probe timeout, which is three times a 333 ms assumption. Setting
+`--initial-rtt-ms 100` halves the p99 and leaves the median untouched. **50 ms is worse, not
+better**: its p95 rises to 334 ms because the first probe now fires before an 80 ms path could
+have answered, which is the cost a too-low assumption buys. Twenty-four connects showed none of
+this; the tail needs a couple of hundred.
+
+**Not changed in the product.** `--initial-rtt-ms` is the one lever here worth a default, and the
+number that decides it is the target's round trip, which this rig cannot stand in for: 100 ms is
+right at 80 ms and wrong at 300. It waits on the shaped-link VM.
+
+**S11's two BBR leads** — the pacer ignoring BBR's pacing rate, and `exiting_quiescence` never
+being set — are source questions, not cells. They go to the controller lane's source review with
+§1's BBR-against-BBRv1 reading.
+
 ---
 
 ## 4 · Larger levers, still above this layer

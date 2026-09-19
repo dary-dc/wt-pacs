@@ -96,6 +96,10 @@ async fn main() -> Result<()> {
             format!("{name}={m:.1}ms ")
         }
     };
+    // S10 is a tail, not a median: a first probe timeout only shows in the worst few per cent.
+    let tail = |name: &str, v: Vec<f64>| {
+        format!("{name}_p95={:.1}ms {name}_p99={:.1}ms ", quantile(v.clone(), 0.95), quantile(v, 0.99))
+    };
     println!(
         "rounds={} rtt_ms={} bytes={} {}{}{}{}",
         rows.len(),
@@ -104,13 +108,19 @@ async fn main() -> Result<()> {
         phase("session", rows.iter().map(|r| r.session_ms).collect()),
         phase("control", rows.iter().map(|r| r.control_ms).collect()),
         phase("first_byte", rows.iter().map(|r| r.first_byte_ms).collect()),
-        phase("ask_to_last_byte", rows.iter().map(|r| r.ask_to_last_byte_ms).collect()),
+        phase("ask_to_last_byte", rows.iter().map(|r| r.ask_to_last_byte_ms).collect())
+            + &tail("session", rows.iter().map(|r| r.session_ms).collect()),
     );
     Ok(())
 }
 
 fn ms(from: Instant) -> f64 {
     from.elapsed().as_secs_f64() * 1000.0
+}
+
+fn quantile(mut v: Vec<f64>, q: f64) -> f64 {
+    v.sort_by(|a, b| a.partial_cmp(b).expect("no NaN phase"));
+    v[(((v.len() - 1) as f64) * q).ceil() as usize]
 }
 
 fn median(mut v: Vec<f64>) -> f64 {
