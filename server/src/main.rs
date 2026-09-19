@@ -46,6 +46,10 @@ struct Args {
     keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
+    /// Bytes the controller may send before the first ACK. Default: quinn's 12 000.
+    /// S7's second lever is 32 packets — `--initial-window-bytes 38400`.
+    #[arg(long)]
+    initial_window_bytes: Option<u64>,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
@@ -115,6 +119,7 @@ async fn main() -> anyhow::Result<()> {
             max_idle_timeout_ms: args.max_idle_timeout_ms,
             keep_alive_interval_ms: args.keep_alive_interval_ms,
             congestion: args.congestion,
+            initial_window: args.initial_window_bytes,
             prefault: args.prefault,
         },
         force_pool_reads: args.force_pool_reads,

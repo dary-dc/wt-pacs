@@ -37,6 +37,8 @@ pub struct TransportTuning {
     /// has no such knob, so this is the only lever that reaches one. docs/transport/adr-idle-sessions.md.
     pub keep_alive_interval_ms: Option<u64>,
     pub congestion: Congestion,
+    /// Bytes the controller may send before the first ACK. quinn default: 12 000 (S7).
+    pub initial_window: Option<u64>,
     /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
     pub prefault: bool,
 }
@@ -50,6 +52,7 @@ impl Default for TransportTuning {
             max_idle_timeout_ms: None,
             keep_alive_interval_ms: None,
             congestion: Congestion::Cubic,
+            initial_window: None,
             prefault: false,
         }
     }
@@ -74,15 +77,28 @@ impl TransportTuning {
             tc.keep_alive_interval(Some(std::time::Duration::from_millis(ms)));
         }
 
+        let iw = self.initial_window;
         match self.congestion {
             Congestion::Cubic => {
-                tc.congestion_controller_factory(Arc::new(congestion::CubicConfig::default()))
+                let mut c = congestion::CubicConfig::default();
+                if let Some(v) = iw {
+                    c.initial_window(v);
+                }
+                tc.congestion_controller_factory(Arc::new(c))
             }
             Congestion::Bbr => {
-                tc.congestion_controller_factory(Arc::new(congestion::BbrConfig::default()))
+                let mut c = congestion::BbrConfig::default();
+                if let Some(v) = iw {
+                    c.initial_window(v);
+                }
+                tc.congestion_controller_factory(Arc::new(c))
             }
             Congestion::NewReno => {
-                tc.congestion_controller_factory(Arc::new(congestion::NewRenoConfig::default()))
+                let mut c = congestion::NewRenoConfig::default();
+                if let Some(v) = iw {
+                    c.initial_window(v);
+                }
+                tc.congestion_controller_factory(Arc::new(c))
             }
         };
 
@@ -96,6 +112,7 @@ impl TransportTuning {
             && self.stream_receive_window.is_none()
             && self.max_idle_timeout_ms.is_none()
             && self.keep_alive_interval_ms.is_none()
+            && self.initial_window.is_none()
             && matches!(self.congestion, Congestion::Cubic)
     }
 
@@ -118,6 +135,9 @@ impl TransportTuning {
         }
         if let Some(v) = self.keep_alive_interval_ms {
             parts.push(format!("keep_alive_interval_ms={v}"));
+        }
+        if let Some(v) = self.initial_window {
+            parts.push(format!("initial_window={v}"));
         }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
@@ -153,6 +173,7 @@ mod tests {
             max_idle_timeout_ms: Some(60_000),
             keep_alive_interval_ms: Some(20_000),
             congestion: Congestion::Bbr,
+            initial_window: Some(32 * 1200),
             prefault: false,
         };
         t.to_transport_config().unwrap();
@@ -168,6 +189,19 @@ mod tests {
         };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("keep_alive_interval_ms=20000"));
+        t.to_transport_config().unwrap();
+    }
+
+    /// An initial window alone is a custom transport: S7's second lever is this knob, and
+    /// taking the library default would drop it. docs/transport/transport-conclusions.md.
+    #[test]
+    fn an_initial_window_alone_leaves_the_library_default_behind() {
+        let t = TransportTuning {
+            initial_window: Some(38_400),
+            ..TransportTuning::default()
+        };
+        assert!(!t.quic_is_library_default());
+        assert!(t.describe().contains("initial_window=38400"));
         t.to_transport_config().unwrap();
     }
 

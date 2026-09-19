@@ -22,7 +22,7 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss the link has.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured |
 | **Stream shape** | **One shared stream — the binary defaults to it.** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a real path the 64 KB cell is noise-dominated; the 250 KB cell separates: per-frame is **5.76× worse**, 3/3, and the absolute penalty matches the simulator to 1.6 %. No cell on either rig separates in per-frame's favour |
 | **Fixed-N pool** | Untested. R6 makes it less promising: retransmit-deferral cost grows with N, and the winning endpoint is N = 1 |
-| **Initial congestion window** | Leave at quinn's default — ≤ 7 %, ranges overlapping |
+| **Initial congestion window** | **Leave at quinn's default — but the ≤ 7 % that used to be the whole reason is corrected 2026-09-19.** That cell averaged many asks on one session, where every arm converges after a frame or two; it never measured the first ask, which is the only place the initial window can matter. On the first ask of an idle session 32 packets is **−28 to −33 %** (§3, the first ask). The default stays because the win is one frame per session and the cost lands on the shallow-buffered link the target has: at 80 ms on 10 Mbit behind a 20-packet queue it takes per-session loss from 2.1 % to 6.5 % |
 | **GSO segment cap 10 → MTU-derived** | **Costs a depth-1 tail, measured 2026-09-18: at 250 KB with four sessions at depth 1 it takes p99 from 2.2 ms to 27.9 ms and throughput −29 % against `main`, the patch alone reproducing it — a probe timeout on a lost frame tail. Every other cell of the 24 in the depth × sessions plane is neutral or better. Unresolved until §10 proposal 3 lands or the client window makes depth ≥ 2 normal.** **Applied 2026-09-10** (build-time patch on crates.io quinn 0.11.11): −16 to −21 % CPU per ask, 6/6 in six of seven pinned cells, +19 to +29 % throughput where the pipe is full. 45 segments at 1452-byte MTU (`65527 / mtu`); an earlier write-up said 44 at 1452. The earlier real-hardware cell was path-bound, so it could not show a CPU lever. [`why-these-changes.md` §9](why-these-changes.md#9--cpu-per-byte-segments-per-sendmsg-a-profile-guided-build-one-copy-fewer) |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte, and it is what contains a stalled client (below). The only send path in `server/` |
 | **Flow-control windows** | Hygiene on this send path. A client that asks for 25 MB and stops reading costs **180 kB**. Left at quinn defaults |
@@ -222,6 +222,79 @@ by reading `max_gso_segments()` alone: exceeding 65 527 bytes returns `EINVAL` a
 asks 400 frames (25 MB) then stops reading. On chunked + shared the server holds **180 kB**.
 On the old `copy` + per-frame path the same client cost **6.8 MB**. Chunked is a memory
 property, not only a CPU one. Windows stay at quinn defaults.
+
+### The first ask on an idle session, 2026-09-19
+
+**W1.** One frame, asked as the first thing a session asks for, through
+[`../../lab/scripts/link_impair.py`](../../lab/scripts/link_impair.py) at 40 and 80 ms round
+trip. `lab/scripts/first_ask_cells.sh`, five rounds a cell, medians; "trips" is the median over
+the link's round trip. The link has no rate limit, so nothing here is the link.
+
+| session state | 50 KB | trips | 250 KB | trips |
+| --- | ---: | ---: | ---: | ---: |
+| **fresh** — nothing sent yet | 127.5 / 248.2 | 3.1 | 234.5 / 454.7 | 5.8 |
+| **filled** — after eight frames | 51.8 / 98.6 | 1.3 | 55.5 / 104.3 | 1.3 |
+| **lossy** — a fill through a 300 ms blackout | 103.8 / 190.8 | 2.5 | 220.1 / 430.8 | 5.4 |
+| **rebound** — a fill, then the relay changes its source port | 49.4 / 93.9 | 1.2 | 52.0 / 101.1 | 1.3 |
+
+**S7's headline holds and is now a number: the first ask is slow start.** A 250 KB frame costs
+**5.8 round trips on a fresh session against 1.3 on a warmed one** — 4.4 of the 5.8 are the
+window opening, and 12 KB doubling to 250 KB is exactly six flights. At 50 KB it is 3.1 against
+1.3. A warmed session is **4.2× faster** at 250 KB and 2.5× at 50 KB, at both round trips.
+
+**Two of S7's clauses did not reproduce.** "After a lossy fill the ask is slower than on a fresh
+session": it is not — the lossy arm lands *between* fresh and filled (−6 % against fresh at
+250 KB, −23 % at 50 KB), because the blackout collapses the window without taking it below where
+it started. And "a new IP resets the controller": a **4-tuple change by source port alone does
+not** — the rebound arm is indistinguishable from the filled one (52.0 against 55.5 ms). A
+genuinely different client address is untested here; this container has one loopback address.
+
+#### Lever 1 — the bytes the viewer needs anyway, pushed at session open
+
+The prototype is `--open-ask` ([`../proposal-session-open.md`](../proposal-session-open.md)):
+the session URL carries `?ask=fill:0-k`, so the study's first frames are already moving when the
+control stream opens. Swept by how much it pushes, then one more frame asked:
+
+| pushed | 50 KB ask | 250 KB ask |
+| --- | ---: | ---: |
+| nothing (fresh) | 127.5 / 248.2 | 234.5 / 454.7 |
+| 1 frame | 85.1 / 165.9 | 107.1 / 204.0 |
+| 2 frames | 66.0 / 124.8 | 86.8 / 157.2 |
+| 4 frames | 57.8 / 108.5 | 63.1 / 127.6 |
+| 8 frames | 53.1 / 98.1 | 52.8 / 103.9 |
+
+**It reaches the warmed session's speed, and most of the way there at 1 MB.** At 250 KB and
+80 ms the ask falls 454.7 → 127.6 ms once 1 MB has been pushed, and 103.9 at 2 MB, which is the
+filled arm's 104.3. S7 predicted ~260 ms for this lever; it is better than that.
+
+#### Lever 2 — a 32-packet initial window
+
+`--initial-window-bytes 38400` against quinn's 12 000. On the unshaped link it is free:
+
+| | 50 KB | 250 KB |
+| --- | ---: | ---: |
+| fresh, default | 127.5 / 248.2 | 234.5 / 454.7 |
+| fresh, 32 packets | 85.8 / 165.5 | 167.7 / 319.5 |
+| | **−33 %** | **−28 to −30 %** |
+
+Zero loss and zero congestion events in every arm above, and no effect once the session is warm
+(filled reads 51.6 / 98.6 with it, against 51.8 / 98.6 without). **But an uncongested link cannot
+punish a burst.** On 10 Mbit with a 20-packet queue — shallower than the window itself:
+
+| arm | 40 ms | lost / session | 80 ms | lost / session |
+| --- | ---: | ---: | ---: | ---: |
+| fresh, default | 324.2 | 37.0 of 230 | 578.2 | 4.2 of 196 |
+| fresh, 32 packets | 266.6 | 45.5 of 241 | 432.5 | 13.5 of 208 |
+| open-push 1 MB | 248.7 | 72.8 of 970 | 305.7 | 118.5 of 1017 |
+
+Both levers still win the asked frame there — −18 to −25 % for the window, −23 to −47 % for the
+push — and both pay for it in loss: the 80 ms cell goes from 2.1 % of datagrams lost to 6.5 %
+with the wider window and 11.7 % with the push. The loss column counts the whole session, so the
+push arm's is mostly its own.
+
+**Neither is changed in the product.** The window's win is one frame per session and its cost
+lands on exactly the shallow-buffered link the target has; the push is the larger lever and is
+already prototyped behind a flag, where it waits on a browser cell rather than another native one.
 
 ---
 
