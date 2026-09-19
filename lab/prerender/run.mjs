@@ -6,6 +6,7 @@
  *   NODE_PATH=$(npm root -g) node lab/prerender/run.mjs
  */
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
@@ -22,7 +23,7 @@ const kids = [];
 process.on("exit", () => {
   for (const k of kids) k.kill();
   if (CFG_BAK) fs.writeFileSync(CFG, CFG_BAK);
-  fs.rmSync(T, { recursive: true, force: true });
+  fs.rmSync(T, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 execFileSync("cargo", ["build", "-q", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
@@ -53,26 +54,61 @@ kids.push(spawn("python3", ["server/dev-server.py", "--port", String(HTTP)], { c
 fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${WT}/`, cert_sha256: hash }) + "\n");
 await new Promise((r) => setTimeout(r, 2000));
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath: process.env.CHROME_PATH || chromium.executablePath(),
-  // Prerender is off in headless unless the feature is asked for by name.
-  args: ["--enable-features=Prerender2,SpeculationRulesPrerenderingTarget"],
-});
-const page = await browser.newPage();
-await page.goto(`http://127.0.0.1:${HTTP}/lab/prerender/index.html`);
-// Give the speculation rule time to run before the click that activates it.
-await new Promise((r) => setTimeout(r, 4000));
-await page.click("#go");
-await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: 60000 });
-const out = await page.evaluate(() => globalThis.__wtpacsPrerender);
-await browser.close();
+// HEADFUL=1 needs a display (`Xvfb :99 &` and `DISPLAY=:99`).
+const headful = process.env.HEADFUL === "1";
+const CHROME = process.env.CHROME_PATH || chromium.executablePath();
+const flags = ["--enable-features=Prerender2,SpeculationRulesPrerenderingTarget", "--no-sandbox"];
+const why = [];
+let out;
+if (process.env.DRIVER === "playwright") {
+  // A DevTools session disables prerendering; this arm exists to print the browser's reason.
+  const browser = await chromium.launch({ headless: !headful, executablePath: CHROME, args: flags });
+  const page = await browser.newPage();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Preload.enable");
+  cdp.on("Preload.prerenderStatusUpdated", (e) => why.push(e));
+  await page.goto(`http://127.0.0.1:${HTTP}/lab/prerender/index.html`);
+  await new Promise((r) => setTimeout(r, 4000));
+  await page.click("#go");
+  await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: 60000 });
+  out = await page.evaluate(() => globalThis.__wtpacsPrerender);
+  await browser.close();
+} else {
+  // No driver: the referrer navigates itself after 4 s and the target posts its record here.
+  let resolveReport;
+  const reported = new Promise((resolve) => (resolveReport = resolve));
+  const sink = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      res.writeHead(204, { "access-control-allow-origin": "*" });
+      res.end();
+      if (req.method === "POST") resolveReport(JSON.parse(body));
+    });
+  });
+  await new Promise((r) => sink.listen(0, "127.0.0.1", r));
+  const REPORT = sink.address().port;
+  kids.push(spawn(CHROME, [
+    ...flags, `--user-data-dir=${T}/profile`, "--no-first-run", "--no-default-browser-check", "--disable-gpu",
+    ...(headful ? [] : ["--headless=new"]),
+    `http://127.0.0.1:${HTTP}/lab/prerender/index.html?report=${REPORT}`,
+  ], { stdio: "ignore" }));
+  out = await Promise.race([
+    reported,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("no report in 60 s")), 60000)),
+  ]);
+}
 
 const yes = (v) => (v === null ? "not reached" : v ? "yes" : "no");
 console.log(`
 prerendered at load      ${yes(out.prerenderingAtLoad)}
 activation seen          ${out.activatedMs === null ? "no" : `${out.activatedMs.toFixed(0)} ms`}
 worker started           ${out.worker === null ? "no" : `${out.worker.toFixed(0)} ms`}, while prerendering: ${yes(out.workerWhilePrerendering)}
+dial called              ${out.dial === null ? "no" : `${out.dial.toFixed(0)} ms`}, while prerendering: ${yes(out.dialWhilePrerendering)}
 session dialled          ${out.session === null ? "no" : `${out.session.toFixed(0)} ms`}, while prerendering: ${yes(out.sessionWhilePrerendering)}
 session error            ${out.sessionError ?? "none"}`);
+for (const e of why) {
+  console.log(`prerender status         ${e.status}${e.prerenderStatus ? ` (${e.prerenderStatus})` : ""}${e.disallowedMojoInterface ? `, disallowed ${e.disallowedMojoInterface}` : ""}`);
+}
+if (process.env.DRIVER === "playwright" && why.length === 0) console.log("prerender status         no attempt reported");
 process.exit(0);

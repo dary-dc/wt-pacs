@@ -160,18 +160,19 @@ decoder width, cache format — is settled by a number taken here.
 
 **What lifts it:** a real device. Nothing in `lab/` addresses it.
 
-## 8. Headless Chromium does not prerender
+## 8. A driven Chromium does not prerender — lifted 2026-09-19
 
-Measured 2026-09-19 (O1). The API is there — `HTMLScriptElement.supports("speculationrules")` is
-`true` in Chromium 141 and `document.prerendering` exists — but a Speculation Rules prerender
-never starts: the target page is not fetched before the click, with Playwright's defaults, with
-`--enable-features=Prerender2,SpeculationRulesPrerenderingTarget`, or with the preloading holdback
-off. Without a display there is no visible tab, which Chromium requires before it will prerender.
+**Corrected 2026-09-19.** This section first said headless Chromium never starts a Speculation
+Rules prerender because it has no visible tab. The mechanism was wrong. The browser's own reason,
+read from the DevTools `Preload` domain, is `PrerenderingDisabledByDevTools`, and headful under
+`Xvfb` gives the same answer: any DevTools session, Playwright's included, disables prerendering.
+Launched with no driver, Chromium 141 prerenders in this container, headless included, three runs
+of three.
 
-**What this costs:** S20 is unanswerable here. Whether a worker starts and a WebTransport session
-dials while `document.prerendering` decides whether up to half of a cold open can happen before
-the viewer is clicked ([`../lab/page-open/README.md`](../lab/page-open/README.md) counts that
-half), and nothing in a container can say.
-
-**What lifts it:** a headful Chrome, on the workstation or under `Xvfb`. The probe is written and
-needs no change: [`../lab/prerender/`](../lab/prerender/).
+**What it answered (S20).** While `document.prerendering` the target page loads, fetches its
+config, imports the transport module and *calls* the dial at 44–85 ms; the WebTransport session
+and the worker's first message both land ~20 ms after activation, never before. A prerender from
+the worklist can therefore hide the page's fetches and script — the 3.6 round trips before the
+dial that [`../lab/page-open/README.md`](../lab/page-open/README.md) counts — and none of the
+dial's 3.0, and nothing that boots in a worker. The probe and its numbers:
+[`../lab/prerender/`](../lab/prerender/).

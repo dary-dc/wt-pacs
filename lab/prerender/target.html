@@ -18,6 +18,8 @@
       activatedMs: null,
       worker: null,
       workerWhilePrerendering: null,
+      dial: null,
+      dialWhilePrerendering: null,
       session: null,
       sessionWhilePrerendering: null,
       sessionError: null,
@@ -29,15 +31,20 @@
     });
 
     const w = new Worker("/lab/prerender/worker.js", { type: "module" });
-    w.onmessage = () => {
-      r.worker = performance.now();
-      r.workerWhilePrerendering = document.prerendering === true;
-      log(`worker up at ${r.worker.toFixed(0)}, prerendering=${r.workerWhilePrerendering}`);
-    };
+    const workerUp = new Promise((resolve) => {
+      w.onmessage = () => {
+        r.worker = performance.now();
+        r.workerWhilePrerendering = document.prerendering === true;
+        log(`worker up at ${r.worker.toFixed(0)}, prerendering=${r.workerWhilePrerendering}`);
+        resolve();
+      };
+    });
 
     try {
       const cfg = await (await fetch("/wt/dev-transport.json")).json();
       const mod = await import("/client/transport-ts/dist/session.js");
+      r.dial = performance.now();
+      r.dialWhilePrerendering = document.prerendering === true;
       const s = await mod.TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
       r.session = performance.now();
       r.sessionWhilePrerendering = document.prerendering === true;
@@ -48,6 +55,17 @@
       log("session failed: " + r.sessionError);
     }
     globalThis.__wtpacsDone = true;
+
+    const report = new URLSearchParams(location.search).get("report");
+    if (report) {
+      // A deferred worker reports after activation, so give it 3 s before the record is posted.
+      const send = async () => {
+        await Promise.race([workerUp, new Promise((resolve) => setTimeout(resolve, 3000))]);
+        fetch(`http://127.0.0.1:${report}/`, { method: "POST", body: JSON.stringify(r), keepalive: true });
+      };
+      if (document.prerendering) document.addEventListener("prerenderingchange", send, { once: true });
+      else send();
+    }
   </script>
 </body>
 </html>
