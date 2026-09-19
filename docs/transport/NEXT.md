@@ -5,7 +5,7 @@ sessions per server.** Every row is ranked for that reader: first what shortens 
 frame on such a link, then what cuts the server's cost per session, then what sits below the
 wire, then what is closed. A row that is not measured says so. The mechanisms and the product
 direction on each are [`why-these-changes.md` §10](why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them);
-this page is the order. A session picking this up starts at [`../handoff-2026-09-14.md`](../handoff-2026-09-14.md).
+this page is the order. A session picking this up starts at [`../handoff-2026-09-19.md`](../handoff-2026-09-19.md).
 The shaped campaigns are collected as one work order in
 [`../lanes/RIG-RUNBOOK.md`](../lanes/RIG-RUNBOOK.md); the cloud agent cannot reach the rig at
 all, so they run locally or with the owner.
