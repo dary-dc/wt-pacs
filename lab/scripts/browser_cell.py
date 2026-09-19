@@ -4,6 +4,7 @@ Needs the static host (`server/dev-server.py --port 8765`) and `client/transport
 usage: browser.py <label> <server-bin> <fixture> <cell> <n> <depth> <repeats> [server args...]
 <depth> is the shell's own loop, or `w:N` / `w:auto` to hand the asks to the library's window.
 Prints one line per repeat: label cell depth n wall_ms us_per_frame delivered failed window_depth.
+`RELAY_ARGS` (e.g. "--delay-ms 20 --rate-kbit 20000") puts lab/scripts/link_impair.py between page and server.
 """
 import hashlib, json, os, signal, socket, subprocess, sys, threading, time
 from pathlib import Path
@@ -25,9 +26,11 @@ def free_udp():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.1", 0)); p = s.getsockname()[1]; s.close(); return p
 
 wt_port = free_udp()
+relay_args = os.environ.get("RELAY_ARGS", "").split()
+page_port = free_udp() if relay_args else wt_port
 cert = ROOT / "server/dev-cert/cert.pem"
 pin = hashlib.sha256(subprocess.check_output(["openssl", "x509", "-in", str(cert), "-outform", "DER"])).hexdigest()
-(ROOT / "client/dev-transport.json").write_text(json.dumps({"wt_url": f"https://127.0.0.1:{wt_port}/", "cert_sha256": pin}) + "\n")
+(ROOT / "client/dev-transport.json").write_text(json.dumps({"wt_url": f"https://127.0.0.1:{page_port}/", "cert_sha256": pin}) + "\n")
 
 env = dict(os.environ, NO_COLOR="1", RUST_LOG="exact_server=error")  # a WARN per refusal would be the measurement
 srv = subprocess.Popen([bin_, "--port", str(wt_port), "--study", fixture, "--stream-mode", "shared", "--bind", "127.0.0.1",
@@ -39,6 +42,13 @@ for line in srv.stdout:
     if line.startswith("telemetry="): break
 # keep draining, or a WARN per refused frame fills the pipe and stalls the server
 threading.Thread(target=lambda: [None for _ in srv.stdout], daemon=True).start()
+relay = None
+if relay_args:
+    relay = subprocess.Popen([sys.executable, str(ROOT / "lab/scripts/link_impair.py"), "--udp", f"{page_port}:{wt_port}",
+                              "--control-port", str(free_udp()), *relay_args], stdout=subprocess.PIPE, text=True)
+    for line in relay.stdout:
+        if "READY" in line: break
+    threading.Thread(target=lambda: [None for _ in relay.stdout], daemon=True).start()
 try:
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=CHROME, headless=True, args=["--enable-features=WebTransport", "--no-sandbox"])
@@ -60,6 +70,7 @@ try:
             print(f"{label}\t{cell}\t{depth}\t{asked}\t{summary['wall_ms']}\t{summary['wall_ms']*1000/asked:.1f}\t{summary['delivered']}\t{summary['failed']}\t{summary.get('window_depth')}", flush=True)
         browser.close()
 finally:
+    if relay: relay.terminate()
     srv.send_signal(signal.SIGTERM)
     try: srv.wait(timeout=3)
     except subprocess.TimeoutExpired: srv.kill()
