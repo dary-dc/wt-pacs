@@ -307,3 +307,31 @@ reports what it measured — so the test asserts convergence to a value derived 
 step interval from a link's label rather than its measured rate
 ([`lanes/T3-stream-shape.md`](lanes/T3-stream-shape.md)), and the same fix applies: compute the
 expectation from what the stub delivered. Not taken, because T1 is parked.
+
+## What the window is worth in a browser (2026-09-18)
+
+The stub's tests pin the window's *mechanics* — the depth is honoured, `auto` converges, and
+it holds where the browser has no `getStats`. They say nothing about whether it helps. This
+is that measurement: the product TypeScript client in headless Chromium 141, one session
+against one server binary, the two arms interleaved and the order reversed every repeat, wall
+per frame, n = 6. `nowin` is the shell awaiting each frame — the serial pattern a viewer falls
+into when nothing schedules for it; `win4` hands the asks to `connect(…, { window: { depth: 4 } })`.
+
+| cell | serial | window at 4 | |
+| ---- | -----: | ----------: | --- |
+| 250 KB on demand | 2 428 µs | **1 781 µs** | **−26.6 %**, 6/6, ranges disjoint (2 381–2 488 against 1 738–1 812) |
+| 32 KB on demand | 739 µs | **300 µs** | **−59.4 %**, 6/6, ranges disjoint (673–773 against 287–315) |
+
+This is the largest latency lever measured on this branch, and the only one that reaches a
+browser at all: the server-side work of `transport/why-these-changes.md` §9 is a tie through
+Chromium on the same rig, because the receive path is the ceiling there. The two are
+complementary rather than competing — §9 buys sessions per core, the window buys the wait.
+
+It also removes the branch's one regression by construction. §9's depth-1 cell (250 KB, four
+sessions: p99 2.2 ms → 27.9 ms on a lost frame tail) requires depth 1; a window of 4 puts a
+packet behind every frame, so the lost tail is a gap rather than a probe timeout. Shipping the
+window and shipping the segment cap answer each other.
+
+Unverified still: `auto` against a real `getStats`, which Chromium 141 does not expose
+(`lanes/T1-client-window.md`). Only the fixed depth is measured here. And loopback is not the
+target's link — on a 20 Mbps path `D_min` is 2 at 250 KB, not 4.
