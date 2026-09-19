@@ -46,6 +46,10 @@ struct Args {
     keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
+    /// Lab only: `false` sends each datagram alone, so netem here drops datagrams, not GSO
+    /// batches.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    segmentation_offload: bool,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
@@ -112,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
             max_idle_timeout_ms: args.max_idle_timeout_ms,
             keep_alive_interval_ms: args.keep_alive_interval_ms,
             congestion: args.congestion,
+            segmentation_offload: args.segmentation_offload,
             prefault: args.prefault,
         },
         force_pool_reads: args.force_pool_reads,

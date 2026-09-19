@@ -37,6 +37,9 @@ pub struct TransportTuning {
     /// has no such knob, so this is the only lever that reaches one. docs/transport/adr-idle-sessions.md.
     pub keep_alive_interval_ms: Option<u64>,
     pub congestion: Congestion,
+    /// Lab only: off sends each datagram alone, so netem on the sending host drops datagrams,
+    /// not whole GSO batches (docs/rig-limits.md §3).
+    pub segmentation_offload: bool,
     /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
     pub prefault: bool,
 }
@@ -50,6 +53,7 @@ impl Default for TransportTuning {
             max_idle_timeout_ms: None,
             keep_alive_interval_ms: None,
             congestion: Congestion::Cubic,
+            segmentation_offload: true,
             prefault: false,
         }
     }
@@ -73,6 +77,7 @@ impl TransportTuning {
         if let Some(ms) = self.keep_alive_interval_ms {
             tc.keep_alive_interval(Some(std::time::Duration::from_millis(ms)));
         }
+        tc.enable_segmentation_offload(self.segmentation_offload);
 
         match self.congestion {
             Congestion::Cubic => {
@@ -97,6 +102,7 @@ impl TransportTuning {
             && self.max_idle_timeout_ms.is_none()
             && self.keep_alive_interval_ms.is_none()
             && matches!(self.congestion, Congestion::Cubic)
+            && self.segmentation_offload
     }
 
     pub fn describe(&self) -> String {
@@ -121,6 +127,9 @@ impl TransportTuning {
         }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
+        }
+        if !self.segmentation_offload {
+            parts.push("segmentation_offload=false".to_string());
         }
         if parts.is_empty() {
             "default".to_string()
@@ -153,6 +162,7 @@ mod tests {
             max_idle_timeout_ms: Some(60_000),
             keep_alive_interval_ms: Some(20_000),
             congestion: Congestion::Bbr,
+            segmentation_offload: false,
             prefault: false,
         };
         t.to_transport_config().unwrap();
@@ -169,6 +179,18 @@ mod tests {
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("keep_alive_interval_ms=20000"));
         t.to_transport_config().unwrap();
+    }
+
+    /// Turning GSO off must reach quinn: taking the library default would send batches anyway,
+    /// and netem would go back to dropping them whole.
+    #[test]
+    fn gso_off_leaves_the_library_default_behind() {
+        let t = TransportTuning {
+            segmentation_offload: false,
+            ..TransportTuning::default()
+        };
+        assert!(!t.quic_is_library_default());
+        assert!(t.describe().contains("segmentation_offload=false"));
     }
 
     #[test]
