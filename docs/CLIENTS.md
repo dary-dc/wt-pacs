@@ -19,6 +19,21 @@ ADR is [`adr-client-window-depth.md`](adr-client-window-depth.md); which depth s
 question ([`lanes/L2-ask-policy.md`](lanes/L2-ask-policy.md)); the rest of the open work is
 [`transport/NEXT.md`](transport/NEXT.md).
 
+## What a browser can receive
+
+Measured 2026-09-19 in headless Chromium 141 on loopback, the regime where the browser and not
+the wire binds ([`lanes/T12-browser-receive.md`](lanes/T12-browser-receive.md)). Chromium's
+network-service IO thread costs 6.6 ms of CPU per MB received at either frame size and runs a
+full core through a fill, so ~150 MB/s on that host is the browser's ceiling, and no code in
+this repository raises it beyond the 1.4 % a 1 472-byte packet would. The TypeScript client on the main thread costs the
+renderer 2.5 ms per MB at 250 KB and 3.9 at 32 KB (~50 µs per frame plus 2.3 ms per MB); that,
+not throughput, is all a session off the main thread could move, and on its own it does not
+pay (below). A stream per frame costs a
+browser a quarter of its throughput at 250 KB and three fifths at 32 KB, and a third more latency
+at depth 1; `shared` stays the default. The default reader hands a 250 KB frame over in ~5 reads
+and a 32 KB frame in less than one — it coalesces up to 256 KB — so a BYOB read per frame is
+fewer reads only for large frames. On the target link none of this binds.
+
 ## ACK frequency, by browser
 
 The server can ask its peer for a smaller `max_ack_delay`
