@@ -30,9 +30,14 @@ evidence, its expected size on the target, and who can run the measurement that 
 5. **Reconcile conflicts** by sending one investigator the other's claim and asking which cell
    the older result actually measured. Both times this happened the older verdict turned out not
    to cover the cell.
-6. **Rank by effect on the target**, keep the "looked at and dropped" lists so nobody re-looks,
+6. **Screen against the goal before anything is ranked.** A candidate stays only if it moves a
+   figure the comparison reports, on the comparison's own content, with the final image bit-exact.
+   The first run skipped this and queued a fixtures row that moved nothing the comparison reports;
+   it cost a cloud row and a documentation trail. A lever may change when bytes arrive or what
+   is shown first, never the content.
+7. **Rank by effect on the target**, keep the "looked at and dropped" lists so nobody re-looks,
    and record corrections owed to existing docs (`CLAUDE.md`: corrected in place, not dropped).
-7. **Persist**: a dated file under `improvements/`, proposed queue rows, and the split between
+8. **Persist**: a dated file under `improvements/`, proposed queue rows, and the split between
    what a cloud container, a shaped-link VM, the workstation and a device must each do.
 
 ## The brief

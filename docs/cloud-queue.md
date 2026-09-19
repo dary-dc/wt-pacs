@@ -71,7 +71,7 @@ trailers. This is the owner's rule for every repository.
 | 37 | **R2** — navigation to first byte on a real round trip: count, then cut | queue §Rows 30–41 | after 36 |
 | 38 | **W1** — the first ask on an idle session | queue §Rows 30–41 | after 36 |
 | 39 | **W2** — slow-start exit, an outage, the first timeout | queue §Rows 30–41 | after 36 |
-| 40 | **E1** — the ingest format | queue §Rows 30–41 | ready |
+| 40 | **E1** — the ingest format | queue §Rows 30–41 | **held** 2026-09-18 by the owner — see "What a row may not change" below; do not take it |
 | 41 | **O1** — the fill's order; prerender, yes or no | queue §Rows 30–41 | ready |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **done** — a quarter of the bytes draws the half-size image, on all four formats; only the package can do it. `decode/README.md` §A prefix draws a smaller image |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **done** — a tie in both scenarios; the miss *path* costs ~0.5 ms on one ask and nothing across a fill. What a cold study costs is the device's, not this container's. `disk-access/EVIDENCE.md` §A study nobody has read |
@@ -114,6 +114,16 @@ first, then the three proposals so that their approval overlaps the code rows, t
 impaired link. A container's timings are reported, not decided on; where a verdict needs a real
 RTT, say what the container showed and leave the exact cell to run — the workstation drives the
 shaped-link VM and runs it.
+
+**What a row may not change** (the owner, 2026-09-18). The work is judged on one comparison, on
+one content: the same frames, the same lossless encoding, the same measurement, as the baseline.
+So **the final image is bit-exact, always** — nothing lossy, no dropped channel, no alternative
+source decode — and **the comparison's content and encode settings are fixed**. A lever may change
+*when* bytes arrive or *what is shown first* (a smaller first image, a different order), as long as
+every frame ends bit-exact. A row that would change the content, or that moves no figure the
+comparison reports, is not queued; if a row drifts that way while you work it, stop and say so in
+`## Blocked`. F2 (row 31) was such a row and should not have been queued; its fixtures stay for the
+bench, and nothing further is built on them. E1 (row 40) is held for the same reason.
 
 **30 · Q1.** Bump `quinn-proto` to 0.11.18 or later (S4): it fixes black-hole detection tripping on
 ordinary congestion loss and pinning the MTU at 1200 for 60 s, and carries three security fixes.
