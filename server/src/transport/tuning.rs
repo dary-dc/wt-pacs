@@ -44,6 +44,8 @@ pub struct TransportTuning {
     pub initial_window: Option<u64>,
     /// Round trips of unbroken loss that declare persistent congestion. quinn default: 3 (S9).
     pub persistent_congestion_threshold: Option<u32>,
+    /// Packets of reordering tolerated before a gap is called a loss. quinn default: 3 (S26).
+    pub packet_threshold: Option<u32>,
     /// The RTT assumed before the first sample, which sets the first probe timeout.
     /// quinn default: 333 ms (S10).
     pub initial_rtt_ms: Option<u64>,
@@ -62,6 +64,7 @@ impl Default for TransportTuning {
             congestion: Congestion::Cubic,
             initial_window: None,
             persistent_congestion_threshold: None,
+            packet_threshold: None,
             initial_rtt_ms: None,
             prefault: false,
         }
@@ -88,6 +91,9 @@ impl TransportTuning {
         }
         if let Some(n) = self.persistent_congestion_threshold {
             tc.persistent_congestion_threshold(n);
+        }
+        if let Some(n) = self.packet_threshold {
+            tc.packet_threshold(n);
         }
         if let Some(ms) = self.initial_rtt_ms {
             tc.initial_rtt(std::time::Duration::from_millis(ms));
@@ -133,6 +139,7 @@ impl TransportTuning {
             && self.keep_alive_interval_ms.is_none()
             && self.initial_window.is_none()
             && self.persistent_congestion_threshold.is_none()
+            && self.packet_threshold.is_none()
             && self.initial_rtt_ms.is_none()
             && matches!(self.congestion, Congestion::Cubic)
     }
@@ -162,6 +169,9 @@ impl TransportTuning {
         }
         if let Some(v) = self.persistent_congestion_threshold {
             parts.push(format!("persistent_congestion_threshold={v}"));
+        }
+        if let Some(v) = self.packet_threshold {
+            parts.push(format!("packet_threshold={v}"));
         }
         if let Some(v) = self.initial_rtt_ms {
             parts.push(format!("initial_rtt_ms={v}"));
@@ -202,6 +212,7 @@ mod tests {
             congestion: Congestion::Bbr,
             initial_window: Some(32 * 1200),
             persistent_congestion_threshold: Some(6),
+            packet_threshold: Some(6),
             initial_rtt_ms: Some(100),
             prefault: false,
         };
@@ -255,6 +266,17 @@ mod tests {
             assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
             t.to_transport_config().unwrap();
         }
+    }
+
+    /// Reordering tolerance is a custom transport too. S26 reads every loss in the jitter cells
+    /// as this knob firing, so an arm that set it and then took the library default would
+    /// measure nothing. docs/transport/transport-conclusions.md §3.
+    #[test]
+    fn a_packet_threshold_alone_leaves_the_library_default_behind() {
+        let t = TransportTuning { packet_threshold: Some(12), ..TransportTuning::default() };
+        assert!(!t.quic_is_library_default());
+        assert!(t.describe().contains("packet_threshold=12"));
+        t.to_transport_config().unwrap();
     }
 
     #[test]

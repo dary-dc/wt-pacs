@@ -53,6 +53,8 @@ struct Args {
     #[arg(long)]
     persistent_congestion_threshold: Option<u32>,
     #[arg(long)]
+    packet_threshold: Option<u32>,
+    #[arg(long)]
     initial_rtt_ms: Option<u64>,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
@@ -125,6 +127,7 @@ async fn main() -> anyhow::Result<()> {
             congestion: args.congestion,
             initial_window: args.initial_window_bytes,
             persistent_congestion_threshold: args.persistent_congestion_threshold,
+            packet_threshold: args.packet_threshold,
             initial_rtt_ms: args.initial_rtt_ms,
             prefault: args.prefault,
         },
