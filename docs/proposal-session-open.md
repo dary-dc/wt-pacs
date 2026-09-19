@@ -1,8 +1,9 @@
 # Proposal: two round trips off a cold open
 
 **2026-09-19 · Status: proposed. Lever 1 prototyped behind a flag, off by default; lever 2 not
-built. The count below is now measured (N1, §The count, measured); neither lever is.** Structural,
-so this is a proposal first (`CLAUDE.md`). R1, from [S5](improvements/2026-09-18.md).
+built. The count below is now measured (N1, §The count, measured), and what a production
+certificate does to it with it (H1, §What production adds to the count); neither lever is.**
+Structural, so this is a proposal first (`CLAUDE.md`). R1, from [S5](improvements/2026-09-18.md).
 
 ## What a cold open costs today
 
@@ -48,6 +49,83 @@ too, and everything a page spends before it is
 [`../lab/page-open/README.md`](../lab/page-open/README.md) — 3.6 of them, once its hints are
 right. That leaves the dial the largest single item in a cold open, which is what the levers
 below are for.
+
+## What production adds to the count, and what removes it
+
+**2026-09-19, H1.** Every count above was taken with this tree's dial: one self-signed 450 B P-256
+leaf, pinned by hash, so the server answers in ~1.3 KB. Production replaces it with a WebPKI chain,
+and the chain is what decides whether the count stays at four. Re-measured first, same rig, same
+method: **4.03 round trips + 41.4 ms** to first byte, against the 4.01 + 17.7 ms above. The slope
+reproduces to two decimals; the intercept is higher because the box carried another lane
+throughout, which the relay's own floor shows (0.90 ms of round trip today against 0.40). **Nothing
+below is claimed from the intercept.**
+
+**The budget.** Before it has validated the client's address a QUIC server may send no more than
+three times what it has received — `total_recvd * 3 < total_sent + bytes_to_send`
+(`quinn-proto-0.11.18/src/connection/paths.rs`). A quinn client Initial is padded to 1 200 B, so
+the first flight is capped at **3 600 B** and whatever will not fit waits for the client's next
+packet, one round trip later. Chromium's Initial is reported at 1 250 B (S37, not measured here),
+which would buy it 150 B more.
+
+**Three chains from a throwaway private CA** (`../lab/scripts/cert_chain_cells.sh`), each leaf
+padded with what a public CA issues — several SANs, AIA, a CRL distribution point, policies with a
+CPS URI, and an SCT-sized blob — and the probe skipping validation as `cold_open` always has, so
+only the bytes on the wire matter. Flights read by `../lab/scripts/first_flight.py`:
+
+| Arm | Leaf | Intermediate | Server's first flight | Then |
+| --- | --- | --- | --- | --- |
+| today's dial | 450 B | — | 1 338 B / 2 datagrams | — |
+| ECDSA P-256 | 1 237 B | 855 B | 2 810 B / 4 | — |
+| RSA-2048 | 1 633 B | 1 253 B | **3 600 B / 3** | **240 B, a round trip later** |
+| ECDSA, compressed | " | " | 1 840 B / 3 | — |
+| RSA-2048, compressed | " | " | 2 870 B / 4 | — |
+
+3 600 B to the byte — three datagrams of 1 200 B: quinn fills to the cap, stops mid-flight, and
+resumes once the client's 1 200 B acknowledgement has bought it credit. The tap was mutated to
+group every datagram on its own, and the same connection then read `1200 1200 1200`, which is where
+the 3 600 comes from.
+
+**The slope, refitted** — the five arms interleaved within every round, n = 7 per delay, at round
+trips of 40, 80 and 160 ms, the medians fitted against the round trip:
+
+| Arm | First byte | Session ready | Rounds behind the dev arm, 40 / 80 / 160 ms |
+| --- | --- | --- | --- |
+| today's dial | 4.03 rt + 41.4 ms | 3.03 rt | — |
+| ECDSA chain | 4.04 rt + 39.7 ms | 3.05 rt | 3/7 · 4/7 · 2/7 |
+| RSA-2048 chain | **5.05 rt** + 45.1 ms | **4.03 rt** | 7/7 · 7/7 · 7/7 |
+| ECDSA + compression | 4.02 rt + 42.9 ms | 3.03 rt | 4/7 · 4/7 · 4/7 |
+| RSA + compression | 4.08 rt + 38.7 ms | 3.07 rt | 3/7 · 4/7 · 4/7 |
+
+**An RSA chain costs a whole round trip; an ECDSA chain costs nothing.** The extra trip is inside
+the handshake — session-ready moves 3.03 → 4.03 — which is exactly where the budget bites, and it
+is every cold open and every reconnect: **+60–80 ms at the target's round trip.** The ECDSA arm
+ties, 2–4 rounds of 7 behind at each delay.
+
+**Certificate compression buys the round trip back.** `exact-server`'s `cert-compression` feature
+(and `window-harness`'s, so the probe offers the decompressor) is the whole change — no code.
+Confirmed from the handshake rather than inferred: with `RUST_LOG=rustls=trace` the server logs the
+ClientHello offering `certificate_compression_algorithms: [Brotli, Zlib]` and its own
+`CompressedCertificate { alg: Brotli, uncompressed_len: 2909 }` at 1 968 B — **−32.3 % on the
+Certificate message**, and 3 840 → 2 870 B on the wire, back inside the budget.
+
+**The feature stays off by default**, because it costs five crates in `Cargo.lock` (`brotli`,
+`brotli-decompressor`, `alloc-stdlib`, `alloc-no-stdlib`, `zlib-rs`) and **+1.29 MiB on the release
+binary** (5 307 808 → 6 656 680 B), and the fact that would justify it is not in hand:
+
+**Not decided — whether Chromium offers the extension over QUIC.** No Chromium is installed on this
+box and this lane did not install one. The cheapest honest way needs no code at all: `rustls` logs
+the decoded ClientHello at `trace` and `exact-server` already builds it with `logging`, so
+`RUST_LOG=rustls=trace` prints the offered extension list. That is how the `[Brotli, Zlib]` above
+was read off the native probe.
+
+**Until it is, ECDSA is the answer, not compression.** An ECDSA leaf and intermediate fit the
+budget uncompressed, on any peer, with no dependency added.
+
+**A leaf-only PEM (S39).** `Identity::load_pemfiles` ships whatever the file holds, so a PEM with
+no intermediate leaves the browser to fetch it over AIA — DNS, TCP, TLS, GET — on every cold open
+until it is cached. `../deploy/check_equivalence.sh` now warns on a PEM holding one certificate
+that something else issued, and `--cert PEM` runs that check alone. **The cost of the AIA fetch
+itself is not measured here.**
 
 ## Lever 1 — the ask in the session URL
 
