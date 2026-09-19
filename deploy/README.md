@@ -8,7 +8,12 @@ podman build -f deploy/Containerfile --target web    -t wt-pacs-web .
 podman build -f deploy/Containerfile --target server -t wt-pacs-server .
 STUDY=us_cine_smoke podman-compose -f deploy/compose.yml up      # or docker compose
 deploy/check_equivalence.sh us_cine_smoke                        # needs the web image built
+deploy/check_equivalence.sh --local us_cine_smoke                # the template on a host nginx, no image
 ```
+
+`--local` verifies the config, not the image: it runs `nginx` from `PATH` on the template with
+`root` pointed at this tree. It passed 2026-09-19, and each assertion was mutated
+(`gzip off`, the immutable rule deleted, `always` dropped from a header) and seen to fail.
 
 **nginx is not in the transport's path and cannot be.** The server speaks WebTransport over QUIC on
 UDP 4433 and nginx has no QUIC upstream, so the browser dials it directly — the same shape

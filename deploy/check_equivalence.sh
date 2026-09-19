@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # The web image must answer exactly as server/dev-server.py does: same status, same three
 # isolation headers, same content type, same bytes, on every path the harness uses.
-# usage: deploy/check_equivalence.sh [study]
+# usage: deploy/check_equivalence.sh [--local] [study]
+# --local runs nginx on this host from the template, so the config is checked without a
+# container runtime; the image itself is not.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL=0
+if [ "${1:-}" = "--local" ]; then LOCAL=1; shift; fi
 STUDY="${1:-us_cine_smoke}"
 PY_PORT=18765
 NG_PORT=18766
@@ -12,12 +16,26 @@ PATHS=(/harness/ /harness/index.html /harness/shell.js /wt/dev-transport.json /s
 
 python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --study "$STUDY" >/dev/null 2>&1 &
 PY=$!
-podman rm -f wtpacs-web-check >/dev/null 2>&1
-podman run -d --rm --name wtpacs-web-check -e STUDY="$STUDY" -p "$NG_PORT:8765" \
-  localhost/wt-pacs-web:check >/dev/null || { kill $PY; exit 2; }
-trap 'kill $PY 2>/dev/null; podman rm -f wtpacs-web-check >/dev/null 2>&1' EXIT
+if [ "$LOCAL" -eq 1 ]; then
+  NG=$(mktemp -d)
+  mkdir -p "$NG/tmp"
+  sed -e 's#\${STUDY}#'"$STUDY"'#g' -e "s#/srv/wt-pacs#$ROOT#g" -e "s/listen  *8765;/listen 127.0.0.1:$NG_PORT;/" \
+    "$ROOT/deploy/nginx/wt-pacs.conf.template" > "$NG/server.conf"
+  printf 'pid %s/nginx.pid;\nerror_log %s/error.log error;\nevents {}\nhttp {\n  access_log off;\n' "$NG" "$NG" > "$NG/nginx.conf"
+  for d in client_body proxy fastcgi uwsgi scgi; do printf '  %s_temp_path %s/tmp;\n' "$d" "$NG"; done >> "$NG/nginx.conf"
+  printf '  include %s/server.conf;\n}\n' "$NG" >> "$NG/nginx.conf"
+  nginx -c "$NG/nginx.conf" || { kill $PY; exit 2; }
+  trap 'kill $PY 2>/dev/null; nginx -s stop -c "$NG/nginx.conf" 2>/dev/null; rm -rf "$NG"' EXIT
+else
+  podman rm -f wtpacs-web-check >/dev/null 2>&1
+  podman run -d --rm --name wtpacs-web-check -e STUDY="$STUDY" -p "$NG_PORT:8765" \
+    localhost/wt-pacs-web:check >/dev/null || { kill $PY; exit 2; }
+  trap 'kill $PY 2>/dev/null; podman rm -f wtpacs-web-check >/dev/null 2>&1' EXIT
+fi
 
-for _ in $(seq 40); do curl -sf "http://127.0.0.1:$NG_PORT/harness/" -o /dev/null && break; sleep 0.25; done
+for port in "$PY_PORT" "$NG_PORT"; do
+  for _ in $(seq 40); do curl -sf "http://127.0.0.1:$port/harness/" -o /dev/null && break; sleep 0.25; done
+done
 
 fail=0
 probe() {  # port path -> "status|coop|coep|corp|ctype|sha"

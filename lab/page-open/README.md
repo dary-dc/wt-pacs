@@ -69,9 +69,11 @@ how `dev-transport.json` reaches the browser, so it is a separate change with it
 ## Compression and cache headers
 
 Landed in [`../../deploy/nginx/wt-pacs.conf.template`](../../deploy/nginx/wt-pacs.conf.template)
-and asserted by `deploy/check_equivalence.sh`. **Neither is run here** — the container has no
-nginx and no working container runtime — so this half is written and unverified until that check
-runs on a built image.
+and asserted by `deploy/check_equivalence.sh`. **Verified 2026-09-19 on a host nginx** with
+`check_equivalence.sh --local`: the eight harness paths answer as `dev-server.py` does, a module
+comes back gzipped, a hashed name carries the immutable rule and the three isolation headers, and
+each assertion was watched to fail on a mutated template. The built image itself is still unrun in
+a container without a runtime.
 
 Compression is worth 2.9× over everything a cold open fetches:
 
