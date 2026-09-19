@@ -20,6 +20,8 @@ client/transport-ts/dist/
 # Shared client recorder (both arms) — build via transport-ts/build.sh
 client/record/dist/
 client/record/test/run.mjs
+# Ask-window unit tests (build via transport-ts/build.sh)
+client/transport-ts/test/run.mjs
 # Conformance suite bundles (build via transport-ts/build.sh)
 client/conformance/run.mjs
 client/conformance/dist/

@@ -1,6 +1,6 @@
 //! The pathological client: asks a lot, stops reading, stays connected. mem/stall-client.md §3.1.
 
-use crate::metrics::{RunConfig, StreamMode};
+use crate::metrics::RunConfig;
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use serde::Serialize;
@@ -58,7 +58,6 @@ pub async fn run_stall_client(
 
     let reader = tokio::spawn(accept_and_read(
         connection.clone(),
-        cfg.stream_mode,
         stall.stall_after_ms,
         Arc::clone(&deadline),
         Arc::clone(&stalled),
@@ -102,10 +101,7 @@ pub async fn run_stall_client(
 
     let outcome = StallOutcome {
         arm: arm_label.to_string(),
-        stream_mode: match cfg.stream_mode {
-            StreamMode::Shared => "shared".to_string(),
-            StreamMode::PerFrame => "per-frame".to_string(),
-        },
+        stream_mode: cfg.stream_mode.to_string(),
         stall_after_ms: stall.stall_after_ms,
         hold_ms: stall.hold_ms,
         asks_requested: stall.asks,
@@ -125,7 +121,6 @@ pub async fn run_stall_client(
 /// Read until the deadline, then park the streams. Dropping one sends `STOP_SENDING`.
 async fn accept_and_read(
     connection: Connection,
-    stream_mode: StreamMode,
     stall_after_ms: u64,
     deadline: Arc<Mutex<Option<Instant>>>,
     stalled: Arc<AtomicBool>,
@@ -134,22 +129,10 @@ async fn accept_and_read(
 ) {
     let mut held: Vec<wtransport::stream::RecvStream> = Vec::new();
 
-    match stream_mode {
-        StreamMode::Shared => {
-            if let Ok(recv) = connection.accept_uni().await {
-                streams_opened.fetch_add(1, Ordering::Relaxed);
-                let mut recv = recv;
-                read_until_stall(&mut recv, stall_after_ms, &deadline, &stalled, &bytes_read).await;
-                held.push(recv);
-            }
-        }
-        StreamMode::PerFrame => {
-            while let Ok(mut recv) = connection.accept_uni().await {
-                streams_opened.fetch_add(1, Ordering::Relaxed);
-                read_until_stall(&mut recv, stall_after_ms, &deadline, &stalled, &bytes_read).await;
-                held.push(recv);
-            }
-        }
+    while let Ok(mut recv) = connection.accept_uni().await {
+        streams_opened.fetch_add(1, Ordering::Relaxed);
+        read_until_stall(&mut recv, stall_after_ms, &deadline, &stalled, &bytes_read).await;
+        held.push(recv);
     }
 
     loop {

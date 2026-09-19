@@ -19,7 +19,8 @@ for f in "${artifacts[@]}" "$wasm"; do
 done
 
 for f in "${artifacts[@]}"; do
-  if hits=$(grep -nE '(^|[^.[:alnum:]_])window[.[]' "$f"); then
+  # A whole-line comment is not a reach; esbuild banners each bundled module with its path.
+  if hits=$(grep -nE '(^|[^.[:alnum:]_])window[.[]' "$f" | grep -vE '^[0-9]+:[[:space:]]*//'); then
     echo "$f reaches for window:" >&2
     echo "$hits" | head -5 >&2
     bad=1

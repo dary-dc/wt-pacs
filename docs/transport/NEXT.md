@@ -1,0 +1,91 @@
+# Latency and throughput — what is still open, in order
+
+**Target, set with the owner 2026-09-14: a browser on a mobile, lossy wireless link, thousands of
+sessions per server.** Every row is ranked for that reader: first what shortens the wait for a
+frame on such a link, then what cuts the server's cost per session, then what sits below the
+wire, then what is closed. A row that is not measured says so. The mechanisms and the product
+direction on each are [`why-these-changes.md` §10](why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them);
+this page is the order. A session picking this up starts at [`../handoff-2026-09-19.md`](../handoff-2026-09-19.md).
+The shaped campaigns are collected as one work order in
+[`../lanes/RIG-RUNBOOK.md`](../lanes/RIG-RUNBOOK.md); the cloud agent cannot reach the rig at
+all, so they run locally or with the owner.
+**Each row has a plan an implementer can take** — `docs/lanes/T*.md`,
+linked from the row: the question, the decision rule fixed before the run, the steps, the report,
+and what stops it. An external survey of WebTransport limits (14 September 2026) and its
+reviewer's corrections were read against every row; where they add a lever or a bound, the row
+says so, and the sources are at the end.
+
+Three facts about the target order the list. On a 20 Mbps link a 250 KB frame takes 100 ms on
+the wire, so bytes and round trips dominate anything the server does per frame — and the
+browser's per-packet receive cost, the first constraint in the server-to-browser direction on a
+fast link (it caps Chrome's downloads above ~500 Mbps on a desktop), sits far above this link. No session can
+be heavy — 20 Mbps is about 2.5 MB/s, near 0.4 % of a core — so at thousands of sessions the cost
+is CPU per byte. And the round trip is 30–80 ms, so a tail that reads as 28 ms of `max_ack_delay`
+against a 0.1 ms loopback RTT is worth half a round trip there, not fifty of them.
+
+## 0 · Before anything else
+
+| # | Item | Why | Plan |
+| --- | --- | --- | --- |
+| 0 | **Draft compatibility** | `wtransport` 0.7.2, the newest release, speaks the legacy and draft-07 SETTINGS and the `webtransport` token. By report all three browsers accept that today (Chromium legacy + 07; Firefox 07, decode-only once its draft-15 lands; Safari 07 and 14), so the risk is forward: the day a stable browser drops draft-07, no session establishes. Two Safari rules: advertising draft-14 without `WT_MAX_DATA` capsules hangs the session, and `serverCertificateHashes` fails in 26.5–26.6, so Safari needs a trust-store certificate | [`T0`](../lanes/T0-draft-compat.md) |
+
+## 1 · What shortens the wait on the target link
+
+| # | Item | Why it matters on the target | What decides it | Size · plan |
+| --- | --- | --- | --- | --- |
+| 1 | **The on-demand network window at `D_min`** | **Measured in a browser 2026-09-18: a fixed window of 4 against serial asks is −26.6 % per frame at 250 KB and −59.4 % at 32 KB, 6/6 with disjoint ranges ([`../adr-client-window-depth.md`](../adr-client-window-depth.md)). The largest latency lever on the branch and the only one that reaches a browser.** Throughput at the least queueing ([`../adr-client-window-depth.md`](../adr-client-window-depth.md), 6/6 under netem). **Built 2026-09-14 in the TypeScript client** as an opt-in `window` on `connect`: fixed, or `"auto"` from `getStats().smoothedRtt` (absent in Chromium 141; 148 unverified) or from the smallest of at least two asks sent into an idle window, and the time between arrivals; a reader that never pauses holds its initial depth. In headless Chromium 141 the fixed window matched the harness's own loop at depth 4. The WASM client has none; the viewer chooses whether to turn it on. When `Tf ≫ RTT` (a large frame on a slow link) `D_min` is 1 and that is the right answer | L2 on the rig, fixed against `auto` ([`../lanes/L2-ask-policy.md`](../lanes/L2-ask-policy.md), never run), and the browser campaign that shows `auto` converging on a real Chromium `getStats`. Re-check [`../adr-reject-server-ordering.md`](../adr-reject-server-ordering.md)'s one flip condition, RTT above ~100 ms, which mobile can cross | One rig campaign, one browser campaign [`T1`](../lanes/T1-client-window.md) |
+| 2 | **Congestion controller for radio loss** | Measured: BBR −44 to −48 % on exogenous loss, Cubic +63 % better on congestive loss ([`transport-conclusions.md` §1](transport-conclusions.md)). The default is Cubic because the mix was unknown; the target is now stated as radio. Two cautions: quinn's BBR is a port of quiche's BBRv1 that moq-dev's issue #686 calls broken without naming a cause (their switch to it as a default is not evidence either way), and BBRv1's neighbour cost stands. The browser's `congestionControl` hint shapes only its send side and is irrelevant to downloads | Client telemetry from real sessions: is loss correlated with RTT rise. Until then the rig's Gilbert-Elliott model (`cloud_netem.sh … gemodel`) prices BBR against Cubic on a bursty-loss link | One flag; one rig campaign [`T2`](../lanes/T2-controller.md) |
+| 3 | **The stream shape under loss**: one, a fixed pool, or one per frame | One stream for everything holds every later frame behind one lost packet; per-frame + FIFO lost 5.76× to retransmit deferral, because quinn re-queues a lost stream behind every stream already pending. Two independent things bound that backlog: **ask-order priority** (built; measured only at 32 KB, where it is inside noise — pooled CI [−7.3, +26.3] % at 0.5 % loss) and **a fixed pool** (`--stream-mode pool:k`, built 2026-09-14; never measured, and nothing in the record discards it). **The arms are byte-identical at depth 1**, so this question has teeth only where `D_min > 1` — not at the mammography sizes, where it reopens through T4's prefix-plus-tail and per-frame is required anyway for `RESET_STREAM_AT` | One rig campaign at 250 KB and 32 KB, each at its own `D_min`, pooled miss samples and a bootstrap CI; the estimator is fixed before the run because median-of-p95 inverted the slope last time | Three flags, one rig campaign [`T3`](../lanes/T3-stream-shape.md) |
+| 4 | **Bytes per displayed frame** — progressive HTJ2K prefix, resolution rungs, the stride control law | On this link the wire binds before the receiver (`docs/rig-limits.md` §1 on the `docs/rig-limits` branch), so fewer bytes is the only lever above ~2×. The transport piece, once frames are streams: `RESET_STREAM_AT` (reliable partial reset, now required by the WebTransport draft) lets the server abandon a frame's tail past a viewable prefix; quinn and wtransport do not carry it yet | Product decisions above the transport ([`transport-conclusions.md` §4](transport-conclusions.md), [`../adr-stride-is-bandwidth-conservation.md`](../adr-stride-is-bandwidth-conservation.md)); the render path must accept a rung | Outside this layer [`T4`](../lanes/T4-bytes-per-frame.md) |
+| 5 | **The client off the main thread** — the session in a Worker, BYOB reads | The survey ranks main-thread contention at 10–50 ms of tail and calls a Worker the highest-leverage single latency change for a web app; on this rig the page took 28.9 ms per frame to accept a decoded result and the decode queue set a fill's finish (`rig-limits.md` §2). A Worker removes renderer-side contention only: the renderer-to-network-service hop stays. BYOB deletes the accumulator copy (parked in [`../improvements/README.md`](../improvements/README.md)). Neither client does either | One interleaved browser campaign, Worker against main thread, all-received and all-decoded reported separately | Client work; a campaign [`T5`](../lanes/T5-client-worker.md) |
+| 6 | **Session survival across a 4-tuple change, and what a reconnect costs** | Per-core endpoints hash on the 4-tuple; a Wi-Fi to cellular move or a NAT rebind lands on another endpoint, which drops the packets in silence — **measured 2026-09-18: 12 of 16 rebinds kill the session at `--workers 4` against 0 of 6 at `--workers 1`, and the client sees no reset, just a freeze to `connection timed out` at 30 s.** This row said "stateless reset" before that run. The TS client has no reconnect, and now no error to trigger one. A reconnect is a cold session, 2 RTT plus certificate verification, about 1.5 RTT to the first server-side byte with optimistic streams: WebTransport cannot use 0-RTT for CONNECT, and pooling onto a warm connection is unavailable in Chromium and Safari (Firefox only), quite apart from being refused under `serverCertificateHashes`. On mobile this is the design's one cliff | How often it happens, from client telemetry, and whether Chromium migrates a WebTransport session at all (unknown). Then: reuseport steering on the connection ID (the QUIC-LB idea, draft expired), or the multi-thread runtime carrying §9's per-byte work without §8, or client reconnect with optimistic stream opening | Design decision; each option is a few hundred lines [`T6`](../lanes/T6-session-survival.md) |
+| 7 | **The depth-1 tail: a lost last datagram waits the probe timeout** | `srtt + 4·rttvar` + the peer's 25 ms `max_ack_delay`, against about 1.1 RTT for a loss with a packet behind it. Priced for the target: on a 50 ms path that is ~95 ms against ~55 ms to detect, so a tail loss costs about half a round trip plus 25 ms more than a mid-frame loss; only the last few packets of a frame can be a tail, so at 1 % loss it averages under a millisecond per 250 KB frame. Real, small; large on loopback only because the RTT there is 0.1 ms (§10 entry 2). The ACK-frequency extension that would shrink the 25 ms expired at the IETF, but Chromium's quiche deploys it regardless; whether a given Chrome advertises `min_ack_delay` decides, and quinn can negotiate it — the check is the plan's first step | If it is ever taken: an ACK-eliciting packet after an isolated frame (§10 proposal 3), placed after the tail, which quinn's packet builder does not do for a datagram queued behind buffered stream data — the placement is the whole design. Not before items 1–3 | One send in `frame_out.rs`, if at all [`T7`](../lanes/T7-tail-and-ack-frequency.md) |
+| 8 | **Reachability** | 3–5 % of networks impair UDP (Chrome field data: 5 %). wtransport speaks HTTP/3 only, there is no HTTP/2 fallback, and the TS client checks neither `reliability` nor `requireUnreliable`. A viewer on such a network gets nothing, not a slower session | A product decision: a TCP fallback path (the survey's capsule mode loses stream independence, which this protocol does not need) or a stated non-goal | Outside this layer [`T8`](../lanes/T8-reachability.md) |
+
+## 2 · What cuts the cost per session
+
+| # | Item | Why it matters on the target | What decides it | Size · plan |
+| --- | --- | --- | --- | --- |
+| 9 | **Packets per byte: the segment cap on a paced link, and the packet size** | **Now has a measured cost, 2026-09-18: 250 KB at depth 1 with four sessions, p99 2.2 → 27.9 ms and throughput −29 % against `main`, reproduced by the patch alone. The band is narrow (one session drops nothing; sixteen backfill the tail) but depth 1 at large frames is what the product does today. §10 proposal 3's clamp-when-nothing-queued is the fix and is not built.** quinn's pacer bounds a burst to `window × 2 ms / RTT`, floor 10 packets; a 20 Mbps, 50 ms path should never form a 44-packet batch (derived, §10 entry 3), so on the target the change is inert and on LAN it is −16 to −21 % CPU. Fastly settled on 10 packets per GSO burst for the same reason the loopback tail showed: bursts raise loss. Footprint: **PR #31 merged 2026-09-14** — the change is now a 31-line patch applied to the crates.io crate at build time (`patches/`, `patched/quinn`, `scripts/patch_quinn.sh`), byte-equivalent to the vendored tree it replaced. Separately, the browser reads one packet per system call, so packet size is its lever: quinn stops MTU discovery at 1 452 and Chromium accepts 1 472, 1.4 % fewer packets for free where the peer advertises it | The shaped cell: seg44 against seg10, CPU per ask, at 20 Mbps / 50 ms and 100 Mbps / 30 ms, both sides in one netns on the rig (`lab/scripts/rig_cells.sh`; the seg10 arm is the patch with its clamp at 10). A `TransportConfig` knob upstream ([quinn-rs/quinn#2189](https://github.com/quinn-rs/quinn/issues/2189)) is the shape that removes the patch | One rig campaign [`T9`](../lanes/T9-segment-cap.md) |
+| 10 | **Placement at thousands of sessions** | **Moot on this branch since 2026-09-18: per-core endpoints are parked (`claude/per-core-endpoints`, T6), so `server/` runs one endpoint on the multi-thread runtime and the kernel's hash places nothing.** This row is what would have to be measured before they come back. One endpoint per core uses every core, and thousands of sessions multiplex on those threads; the counts even out and the remaining risk is load — a few fills among idle sessions on one thread. On the target no session is heavy, so that risk should be small. Named, not measured. Oversubscribing `--workers` is a small-N hedge (§10 entry 4), not the plan | The rig at 64–256 sessions with the client off the box, the heavy-tail mix at the default worker count, against one endpoint on the multi-thread runtime | One rig campaign [`T10`](../lanes/T10-placement-at-scale.md) |
+| 11 | **PR #27, LTO** | −3 to −6 % CPU per ask at saturation on this tree; +7 % p50 (6/6) at 32 KB, depth 1, one session. Depth 1 is the large-frame case (item 1), so that cell can veto it; depth 4 cannot | Weigh on the depth-1 cell if that path ships; otherwise take the CPU | A profile entry [`T11`](../lanes/T11-cost-items.md) |
+| 12 | **Read path on the target** | P0 and the rest of [`../disk-access/NEXT.md`](../disk-access/NEXT.md): ring against pool on the production volume, `read_ahead_kb`, the frame cache. On this link a read is ~1 % of a frame's wire time, so this is cost, not latency | The disk lane's own list, on the target | Its own list [`T11`](../lanes/T11-cost-items.md) |
+| 13 | **Memory and limits at thousands of sessions** | `send_window` default 10 MB is the ceiling per stalled client and the chunked path holds 180 kB of it; rings charge memlock; no admission control at accept | Deployment manifest ([`../disk-access/DEPLOYMENT.md`](../disk-access/DEPLOYMENT.md)); a stall campaign at 1 000 sessions on the target | Manifest lines; one campaign [`T11`](../lanes/T11-cost-items.md) |
+
+## 3 · Below the wire on this link, or not yet a question
+
+| # | Item | Standing |
+| --- | --- | --- |
+| 14 | Chromium's receive thread and decode queue (`rig-limits.md` §1–2) | The ceiling on loopback; on a 20 Mbps link the wire binds first. Client-side work, after items 4 and 5 |
+| 15 | Safari and iOS (WebTransport since 26.4, March 2026) | A second browser stack on the target's devices; every browser number here is Chromium. Its receive windows, ACK policy and packet limit are unverified; its session window is 8 MiB only if the server negotiates draft-14, which T0 says not to. Unmeasured, and the dev pin does not work there |
+| 16 | Receive windows and session flow control | Only quinn's two windows bound a session today (item 0), and at the target's BDP (125 KB at 20 Mbps × 50 ms) they are fifty times wide. Chromium advertises 15 MB per connection and 6 MB per stream (`net/quic/quic_context.cc`), hard download caps of 15 MB and 6 MB per RTT — 1.2 Gbps and 500 Mbps at 100 ms; Firefox auto-tunes its windows with an unverified ceiling; Safari's 8 MiB session window applies only on draft-14. All far above the target. draft-16's session window is opt-in on both sides and credited in order on the CONNECT stream; T0 says do not advertise it | Watch |
+| 17 | `--workers` above the core count | A small-N, LAN-side hedge for the placement lottery (§10 entry 4); not the target's problem and not the scale plan |
+| 18 | Diagnostics on the rig | quinn exposes `qlog_stream`; a qlog per arm is how pacing, flow-control blocking and loss recovery are read rather than inferred, and the browser's `getStats()` is the client side of the same picture | Use in the rig campaigns |
+
+## 4 · Closed
+
+| Item | Why |
+| --- | --- |
+| `max_udp_payload_size` above 1 472 B | Chromium's reader drops the datagram (§10 entry 6) |
+| 0-RTT session setup, pooling, and `congestionControl: "low-latency"` | The draft forbids CONNECT in 0-RTT; pooling is Firefox-only; the hint shapes the browser's send side, which carries only asks |
+| L4S | No Chromium client support at the last public statement |
+| A 10-segment clamp everywhere as the depth-1 answer | Spends §9's LAN CPU to buy a tail that only exists when nothing follows the frame (§10 proposal 3) |
+| Per-frame streams without priority, `send_fairness`, `yield_now`, window equalisation | Measured and rejected: [`transport-conclusions.md`](transport-conclusions.md), [`why-these-changes.md` §8](why-these-changes.md) |
+
+## Sources read against this list
+
+Beyond the repository's own measurements: draft-ietf-webtrans-http3-16 (session flow control
+opt-in on both sides, no 0-RTT, optimistic streams, `RESET_STREAM_AT`); the W3C WebTransport
+Candidate Recommendation of 30 July 2026 (`getStats`, `anticipatedConcurrentIncomingUnidirectionalStreams`,
+BYOB, the `congestionControl` caveat); RFC 9002 (the probe timeout); draft-ietf-quic-ack-frequency-14
+(expired 9 August 2026, deployed by quiche regardless); Oku and Iyengar, Fastly, *QUIC matches TCP's
+efficiency* (ACK rate, GSO at 10 — 2020, one core throttled to 400 MHz, directional only);
+König et al., IFIP Networking 2025 (sender-bound CPU, receive-buffer drops, stream count);
+Zhang et al., WWW 2024 (Chrome's receiver-side QUIC cost, 45 % behind HTTP/2 at 1 Gbps);
+Google, *QUIC and HTTP/3 CPU Performance*, EPIQ 2020 (one STREAM frame per packet);
+hyperium/h3 #347 and #363 (Safari's hybrid negotiation, the 8 MiB session window, the capsule
+rule, the `serverCertificateHashes` failure, wtransport 0.7 confirmed on draft-07);
+mozilla/neqo PR #3847 and #3978, issue #1820 (draft-15, auto-tuned windows);
+moq-dev PR #2468 and issue #686 (controller defaults, quinn's BBR); Chrome field data on UDP
+impairment (5 %); Chromium's `quic_constants.h`, packet reader and `quic_context.cc` (1 472 B,
+1 MiB receive buffer, 15 MB / 6 MB windows); caniuse on `allowPooling`.
