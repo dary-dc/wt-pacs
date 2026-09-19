@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One impaired link for both planes, in a container without root: a userspace relay in front of
-the UDP session and in front of the static host's TCP. Delay, rate, queue depth, scattered and
-bursty loss, a blackout, a rebind — one model, both planes.
+the UDP session and in front of the static host's TCP. Delay, rate, queue depth, jitter with or
+without reordering, scattered and bursty loss, a blackout, a rebind — one model, both planes.
 
 What it cannot do, and the limits it was calibrated against, are in `docs/rig-limits.md` §3.
 
@@ -33,6 +33,8 @@ class Pipe:
     def __init__(self, args, rng, lossy=True):
         self.delay = args.delay_ms / 1000.0
         self.jitter = args.jitter_ms / 1000.0
+        self.ordered = args.jitter_mode == "ordered"
+        self.last_due = 0.0
         self.rate = args.rate_kbit * 1000.0
         self.limit = args.queue_pkts
         self.loss = args.loss / 100.0
@@ -65,10 +67,13 @@ class Pipe:
         start = max(now, self.next_free)
         self.next_free = start + (len(payload) * 8 / self.rate if self.rate else 0.0)
         self.tx.append(self.next_free)
-        # Jitter reorders, as a real path does: the heap delivers by time, not arrival.
+        # --jitter-mode picks which path the wobble models. docs/rig-limits.md §3.
         wobble = self.rng.uniform(-self.jitter, self.jitter) if self.jitter else 0.0
-        heapq.heappush(self.pending, (self.next_free + max(0.0, self.delay + wobble),
-                                      self.seq, payload))
+        due = self.next_free + max(0.0, self.delay + wobble)
+        if self.ordered:
+            due = max(due, self.last_due)
+            self.last_due = due
+        heapq.heappush(self.pending, (due, self.seq, payload))
         self.seq += 1
 
     def due(self):
@@ -278,8 +283,9 @@ def main():
     ap.add_argument("--tcp", type=parse_pair, help="LISTEN:SERVER, the static host's plane")
     ap.add_argument("--delay-ms", type=float, default=0.0, help="one way, each direction")
     ap.add_argument("--rate-kbit", type=float, default=0.0, help="0 = unlimited")
-    ap.add_argument("--jitter-ms", type=float, default=0.0,
-                    help="uniform, each direction, and it reorders")
+    ap.add_argument("--jitter-ms", type=float, default=0.0, help="uniform, each direction")
+    ap.add_argument("--jitter-mode", choices=("reorder", "ordered"), default="reorder",
+                    help="reorder: deliver by time, across packets. ordered: one leg, in sequence")
     ap.add_argument("--queue-pkts", type=int, default=50, help="tail drop, like netem's limit")
     ap.add_argument("--loss", type=float, default=0.0, help="percent, iid, udp only")
     ap.add_argument("--loss-model", choices=("iid", "ge"), default="iid")

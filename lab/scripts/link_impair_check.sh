@@ -48,7 +48,8 @@ cat > "$T/probe.py" <<'PY'
 them, which is what fills a queue). Open loop: the sender never waits for a reply, so one lost
 datagram costs one, not the whole stream. Each carries its send time and sequence, so the reply
 reads the RTT and whether the path reordered it.
-Prints median RTT, delivered, elapsed, p90-p10 of the RTT, and how many arrived out of order."""
+Prints median RTT, delivered, elapsed, p90-p10 of the RTT, how many arrived out of order, and the
+worst RTT — the last of which is what a held outage shows up as."""
 import socket, statistics, struct, sys, threading, time
 port, count, size, spacing = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), float(sys.argv[4])
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -85,8 +86,9 @@ spread = 0.0
 if len(rtt) >= 10:
     q = statistics.quantiles(rtt, n=10)
     spread = q[8] - q[0]
-print("%.3f %d %.4f %.3f %d" % (statistics.median(rtt) if rtt else 0.0, got,
-                                time.monotonic() - start, spread, out_of_order))
+print("%.3f %d %.4f %.3f %d %.3f" % (statistics.median(rtt) if rtt else 0.0, got,
+                                     time.monotonic() - start, spread, out_of_order,
+                                     max(rtt) if rtt else 0.0))
 PY
 
 relay() {  # extra args...
@@ -140,16 +142,26 @@ want "gilbert-elliott 0.07/14: delivered of 8000" "$got" 7800 7980
 stop_relay
 
 relay --delay-ms 20
-read -r rtt _ _ spread reord < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.005)
+read -r rtt _ _ spread reord worst < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.005)
 want "no jitter: rtt p90-p10 (ms)" "$spread" 0 2
 want "no jitter: arrived out of order" "$reord" 0 0
 stop_relay
 
 relay --delay-ms 20 --jitter-ms 5
-read -r rtt _ _ spread reord < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.005)
+read -r rtt _ _ spread reord worst < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.005)
 want "jitter 5 ms: rtt median (ms)" "$rtt" 37 43
 want "jitter 5 ms: rtt p90-p10 (ms)" "$spread" 8 17
 want "jitter 5 ms: arrived out of order" "$reord" 5 120
+stop_relay
+
+# Ordered jitter only ever delays a packet to its predecessor's slot, so the wobble is still
+# there, no packet passes another, and one way stays inside delay + jitter: 50 ms plus the floor.
+relay --delay-ms 20 --jitter-ms 5 --jitter-mode ordered
+read -r rtt _ _ spread reord worst < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.005)
+want "ordered jitter 5 ms: rtt median (ms)" "$rtt" 39 47
+want "ordered jitter 5 ms: rtt p90-p10 (ms)" "$spread" 5 14
+want "ordered jitter 5 ms: arrived out of order" "$reord" 0 0
+want "ordered jitter 5 ms: worst rtt (ms)" "$worst" 44 52
 stop_relay
 
 CTRL=$((42000 + RANDOM % 2000))
