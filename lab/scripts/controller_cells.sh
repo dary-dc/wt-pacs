@@ -2,7 +2,8 @@
 # W2: the three controller questions, through lab/scripts/link_impair.py.
 #   S8  an early slow-start exit — Cubic, Cubic with the exit, BBR; shallow and deep buffer,
 #       with and without jitter.
-#   S9  the persistent-congestion threshold against 0.5 / 1 / 2 s blackouts.
+#   S9  the persistent-congestion threshold against 0.5 / 1 / 2 s blackouts. Where in the
+#       transfer the blink lands, and the controller arms through it: blink_cells.sh.
 #   S10 `initial_rtt` against the cold-connect tail at 1 % loss.
 # Results: docs/transport/transport-conclusions.md §3.
 #
