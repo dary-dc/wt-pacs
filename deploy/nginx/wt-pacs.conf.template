@@ -1,0 +1,64 @@
+# Static host for the harness, the WASM bundles and the study metadata — the shape
+# server/dev-server.py served, in the server deployment will run.
+# docs/proposal-nginx-and-images.md says why. STUDY is substituted at container start.
+
+server {
+    listen       8765;
+    server_name  localhost;
+    root         /srv/wt-pacs;
+    autoindex    off;
+    charset      utf-8;
+
+    # Cross-origin isolation. The page needs SharedArrayBuffer and a 5 us performance.now();
+    # losing these degrades the client silently rather than failing, so `always`.
+    add_header Cross-Origin-Opener-Policy   same-origin   always;
+    add_header Cross-Origin-Embedder-Policy require-corp  always;
+    add_header Cross-Origin-Resource-Policy same-origin   always;
+
+    # nginx types map .ts to video/mp2t; the TypeScript client is served from source.
+    types { }
+    include      /etc/nginx/mime.types;
+    types {
+        text/typescript  ts;
+        application/wasm wasm;
+        text/javascript  js mjs;
+    }
+
+    # A cold open fetches the page, its modules and two WASM binaries. Compressed they are
+    # 2.9x smaller, which is bytes rather than round trips once the pages preload them —
+    # lab/page-open/README.md has both halves of that.
+    gzip            on;
+    gzip_comp_level 6;
+    gzip_min_length 1024;
+    gzip_vary       on;
+    gzip_types      text/css text/javascript text/typescript application/javascript
+                    application/json application/wasm image/svg+xml;
+
+    # A name carrying a content hash cannot go stale. `add_header` in a location REPLACES the
+    # server's, so the three isolation headers are repeated here or the page loses
+    # SharedArrayBuffer on exactly the assets this rule speeds up.
+    location ~ "\.[0-9a-f]{8,}\.(js|mjs|wasm|css)$" {
+        add_header Cross-Origin-Opener-Policy   same-origin   always;
+        add_header Cross-Origin-Embedder-Policy require-corp  always;
+        add_header Cross-Origin-Resource-Policy same-origin   always;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
+    location = /study/metadata {
+        alias /srv/wt-pacs/fixtures/${STUDY}/metadata.json;
+        default_type application/json;
+    }
+
+    location = /wt/dev-transport.json {
+        alias /srv/wt-pacs/client/dev-transport.json;
+        default_type application/json;
+    }
+
+    location = /harness  { return 301 /harness/; }
+    location = /harness/ { alias /srv/wt-pacs/client/harness/; index index.html; }
+    location   /harness/ { alias /srv/wt-pacs/client/harness/; }
+
+    # /client/** already resolves under root; dev-server.py's aliases for pkg/, pkg-telemetry/
+    # and transport-ts/ were identity mappings and need no rule here.
+    location / { try_files $uri $uri/ =404; }
+}

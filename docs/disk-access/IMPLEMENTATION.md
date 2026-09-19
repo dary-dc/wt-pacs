@@ -20,6 +20,19 @@ What is worth a flag is a **kill switch**. `WTPACS_READ_PATH=pool` forces the pr
 path on tiles. `uring` is a lab lever, not a production mode. An unrecognised value
 warns and uses `auto`. A fill ignores the flag: it has no ring to take.
 
+**`--force-pool-reads` is the other lab lever**, added 2026-09-18 for L20. It clears the
+store's `nowait` at open, so every frame reports a miss and takes the blocking pool — the
+same state a filesystem refusing `RWF_NOWAIT` puts the server in, which is why it also trips
+the `RWF_NOWAIT is refused here` warning. It exists because a study nobody has read cannot be
+measured by evicting the page cache (`CLAUDE.md#measurement`); the store's own lever is the
+only reliable way in. Off by default, and it warns at startup that it is not a deployment
+flag. One saturate run over `queue_large`, everything else equal:
+
+| | `read_fast_path` | hits | misses | `miss_rate` |
+| --- | --- | ---: | ---: | ---: |
+| default | `preadv2` | 3 648 | 0 | 0.0 |
+| `--force-pool-reads` | `pooled_pread` | 0 | 3 627 | 1.0 |
+
 ## The trap: never route a hit through the ring
 
 On overlayfs or tmpfs, `RWF_NOWAIT` returns 0 for every read, hit or miss. A ring keyed
@@ -57,6 +70,40 @@ INFO session reads hits=… misses=… miss_rate=… fill_hits=… fill_misses=�
   has no `uring` feature. A fill-only session is `ring=false` because `SeqReader` has
   no ring to build.
 
+Also at end of session, from quinn's own counters:
+
+```
+INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…
+```
+
+* `mtu` is the largest UDP payload the path carries *now*. `1200` after a long session
+  means quinn's black-hole detection reset it on loss, not that discovery never ran.
+  Against Chromium it tops out at 1 472 whatever the server is told
+  (`docs/improvements/2026-09-10.md`).
+  **That reset was a quinn bug, fixed upstream and taken 2026-09-18** (Q1): one ACK
+  revealing four holes tripped black-hole detection and pinned the MTU for 60 s, which
+  ordinary congestion loss is enough to produce. `quinn-proto` 0.11.17 → **0.11.18**
+  (upstream PR 2799, and three security fixes with it), through `wtransport`'s tree
+  rather than a direct dependency. Gate green on it.
+* `lost` against `sent`, with `congestion_events`, is the server-side half of the
+  loss-regime question in `docs/transport/transport-conclusions.md` §1.
+
+**How often past runs were hit: the question cannot be answered from a log, and the reason
+is structural.** Q1 asked for a sweep of archived server logs for `mtu=1200`. There are none
+to sweep — this line was added by `34bedf7` on 2026-09-10 02:28, and *every* archive tag
+predates it (`transport-lab` 09-09 16:09, `improvements-lab` 09-09 14:39, `n6` 09-06,
+`read-path-evidence` 09-10 00:07, two hours short). Run folders live under `.local/` and are
+gitignored, so nothing else is committed. The instrument is newer than everything it could
+have measured.
+
+What is recorded is prose, and it is **two occurrences, both from the same campaign**: the
+relay runs of 2026-09-10, where the MTU reset to 1 200 mid-run in **two of three arms** at
+`lost=183–302` and those runs finished on 1 200-byte datagrams
+([`improvements/2026-09-10.md`](../improvements/2026-09-10.md)). Both were under induced
+loss on a relay, which that file already declines to quote for CPU or latency. So: twice,
+never on an unimpaired path, and never since — which is consistent with the upstream bug but
+does not on its own measure how often a deployment would meet it.
+
 ## How a read works
 
 The planner’s `Mode` picks the reader. Each is built on the first frame of its kind, so
@@ -67,11 +114,20 @@ after this one (`FILL_AHEAD = 1`), and its pooled read is running by the time `r
 returns. `peak_in_flight` is 1: the current frame has already landed, and only the
 named one may still be with the pool. No ring, no extra fd.
 
+The device's queue is the kernel's, not a thread's: after starting `next`, the reader
+tells the kernel (`posix_fadvise(WILLNEED)`) to have `FILL_WINDOW` (4 MiB) past it in
+the page cache, extended a quarter window at a time so the syscall lands once per
+megabyte walked, restarted on a seek. Frames sit in index order in the bundle, so the
+bytes after `next` are the frames after it. Without it a 250 kB fill at the stock
+128 KiB `read_ahead_kb` misses six frames in ten, one blocking read each
+([`EVIDENCE.md`](EVIDENCE.md) §Fill against on-demand, cold).
+
 ```
 read(span, next):
   settle whatever the last call started
   serve span from that, or start it now
   start next on the spare buffer
+  advise the kernel past next, a quarter window at a time
 ```
 
 **Tiles — `TileReader`.** `slots` frames (default `TILE_SLOTS = 4`); `slots` is a
@@ -131,6 +187,7 @@ misses.
 | Both readers reassemble every frame | `both_readers_reassemble_every_frame` |
 | A named fill frame is not read twice | `a_named_fill_frame_is_read_before_it_is_asked_for` |
 | A fill holds one read at a time | `a_fill_never_holds_more_than_one_read_at_once` |
+| A fill advises a window past the named frame, per quarter window, restarted on a seek | `a_fill_tells_the_kernel_what_follows_the_named_frame` |
 | An abandoned read-ahead is settled before reuse | `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused` |
 | Named tiles start before the current wait | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
 | Slot count is a constructor argument | `a_tile_reader_holds_as_many_frames_as_it_was_given_slots` |

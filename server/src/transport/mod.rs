@@ -1,4 +1,5 @@
 pub mod frame_out;
+pub mod hystart;
 pub mod pipeline;
 pub mod planner;
 pub mod server;

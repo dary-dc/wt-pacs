@@ -595,6 +595,60 @@ cells do not (their spread is tight, 1279–1390 ns/ask at 250 kB depth 1).
 
 
 
+## Fill against on-demand, cold, at stock read-ahead · 2026-09-10 (agent container)
+
+**Reported:** a fill reads slower than on-demand. **True on a cold study whenever the
+kernel's read-ahead window is smaller than a frame**: `SeqReader` keeps one read in flight
+by design, and the kernel's read-ahead was the only thing that could queue more. At the stock
+`read_ahead_kb` of 128 KiB and 250 kB frames it queues nothing past the frame. **Fixed** by
+the fill advising the kernel `FILL_WINDOW` (4 MiB) past the named frame
+(`posix_fadvise(WILLNEED)`), a quarter window at a time. No thread, no ring, no buffer.
+
+Rig: 4 vCPU sandbox, `frames_250k_deep` (32 000 × 250 kB, 8 GB), `evict` before every cell,
+one session, 256 sequential asks through `server_ab`: the fill against on-demand at depth 4
+on the same frames in the same order, `before` and `after` interleaved, order reversed each
+round, three rounds; miss rates from the server's own `session reads` line. **A miss here is
+served from the hypervisor (~12 µs)**, so these cells carry the miss rate, the tail and the
+direction — not the magnitude a device with real latency would show.
+
+| `read_ahead_kb` | arm | asks/s | p50 | p99 | CPU/ask | fill miss rate |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 128 (stock) | fill, before | 1 617 | 583 µs | 1 613 µs | 893 µs | **59–66 %** at `in_flight=1` |
+| 128 | **fill, after** | 1 582 (−4.8 %, 1/3: tie) | 585 | 1 599 | 892 | **0.7–1.1 %** |
+| 128 | on-demand depth 4 | 1 618 | 2 379 | 4 291 | 845 | 14–69 % at `in_flight=4` |
+| 8 192 (this VM) | fill, before | 1 496 | 577 | **3 798** | 958 | 0.7–1.1 % |
+| 8 192 | **fill, after** | 1 687 (+5.6 %, 3/3) | 562 | **1 429** | 846 | 0.3–1.1 % |
+| 8 192 | on-demand depth 4 | 1 538 | 2 304 | 5 292 | 900 | 1.5–2.7 % |
+
+Warm, the tie the change had to keep (medians of four, interleaved):
+
+| cell | fill before | fill after | CPU/ask before → after |
+| --- | ---: | ---: | ---: |
+| 16 KiB, 2 048 asks | 20 938 /s | 22 066 /s (+5.2 %, 4/4) | 62.4 → 60.5 µs |
+| 250 kB, 80 asks | 1 594 /s | 1 650 /s (+3.7 %, 3/4) | 839 → 794 µs |
+
+**Reading.**
+
+* At the stock read-ahead the fill missed six frames in ten with one read in flight. On-demand
+  at depth 4 missed as often but had four reads on the device. On storage with real latency
+  every fill miss is a round trip on its own — that is the report, and it is the design's
+  premise ("a sequential walk is read-ahead's best case") failing at 250 kB frames.
+* After, the fill's miss rate is ~1 % at either setting. Throughput ties here because a miss
+  costs ~12 µs on this VM. The row that shows a device is the 8 192 one: the kernel's own 8 MB
+  read-ahead bursts *inside* the fill's blocking read and put 3.8–4.0 ms in its p99; advising
+  a quarter window at a time removed it (p99 −62 %, +5.6 % 3/3, CPU/ask −12 %).
+* **The syscall must not be per frame.** The first cut advised on every frame and cost the
+  16 KiB warm fill −8.7 % (4/4) and +9 % CPU/ask; per quarter window (once per MiB walked) it
+  is +5.2 % (4/4). That is why `advise` carries a threshold.
+* On-demand's own miss rate at stock read-ahead (14–69 %) is the tile reader's business: it
+  probes whole frames and carries misses at depth 4 through the ring. Not changed here.
+* Not measured: the magnitude on cloud block storage, and `FILL_WINDOW` against a device
+  slower than this one. Direction and mechanism only, per this file's rule.
+
+Re-run: `lab/scripts/server_ab.sh` covers the warm and cold fill cells against a base commit;
+the cold cells above evict `frames_250k_deep` and set `read_ahead_kb` by hand
+(`/sys/block/<dev>/queue/read_ahead_kb`).
+
 ## Line 221, bracketed · 2026-09-10
 
 Same workstation. Four campaigns, one at a time, 12 repeats, **`--monitors 0` throughout**.
@@ -802,6 +856,41 @@ wall, **+1872 %** and **+1734 %** CPU against `SeqReader` on the 16 KiB fill, 6/
 **What these cells do not cover:** depth above 1, more than one reader, RSS, warm cells, and
 the co-tenant gap. The **fill 250 kB cell resolves nothing in either direction** - every arm's
 p99 there is 3.3-4.3 ms and the device dominates.
+
+## A study nobody has read, in the browser · 2026-09-18 (agent container)
+
+L20. A viewer mostly opens studies nobody has read yet, and nothing here had priced that from the
+client's side. Two scenarios, each on its own session: **one ask on an idle session** (the first
+frame a viewer waits for) and **a whole fill** of the study. Cold against the same study warm,
+interleaved with the arm order reversed every round, driven in headless Chromium through the
+shipped TS client (`lab/scripts/cold_study.sh`, 8 rounds, 120 frames of 256 KB).
+
+Cold is forced through the store's own lever, `--force-pool-reads`, never by evicting the page
+cache — `CLAUDE.md#measurement` rules that out. Each run reads the server's own `session reads`
+line back, so an arm that was not actually cold is visible rather than assumed.
+
+| scenario | arm | wall ms, median | [min … max] | server's `misses` |
+| --- | --- | ---: | --- | ---: |
+| one ask, idle session | warm | 6.5 | [5 … 7] | **0** |
+| | cold | 7.0 | [5 … 7] | **1** |
+| whole fill, 120 frames | warm | 318.5 | [293 … 336] | **0** |
+| | cold | 320.5 | [305 … 332] | **120** |
+
+**It is a tie, in both scenarios.** The ask is 1.08× with the cold arm slower in 3 of 8 paired
+rounds, the fill 1.01× and slower in 5 of 8 — both sign counts are what chance gives, and the
+ranges overlap almost entirely. The miss counts confirm the arms were real: every frame of the
+cold fill missed, and neither warm arm missed once.
+
+**What this does and does not price.** `--force-pool-reads` clears the store's `nowait`, so each
+read is refused the inline fast path and goes to the blocking pool — but the bytes it then reads
+are still in this container's page cache. So the number above is **the cost of the executor-to-pool
+hop, and that alone: about 0.5 ms on a single ask and nothing measurable across 120 frames.** It is
+not the cost of a cold study on real storage. A miss on a cloud volume pays device latency the pool
+hop does not include, and that is the device's to show, not this container's.
+
+Which is the useful half of the answer: the *mechanism* the server uses for a miss is not what
+makes a cold study slow. Whatever a first read costs a viewer, it is paid on the way to the
+device, not in the server's own path to it.
 
 ## Where the margin comes from
 

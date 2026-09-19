@@ -1,7 +1,7 @@
 //! Media-complete session over browser WebTransport via `web_sys`.
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use fod::{decode_fod_msg, encode_fod_msg, FodMsg};
@@ -18,16 +18,24 @@ use web_sys::{
     WebTransportCongestionControl, WebTransportHash, WebTransportOptions,
     WritableStreamDefaultWriter,
 };
+#[cfg(feature = "byob")]
+use web_sys::{ReadableStreamByobReader, ReadableStreamGetReaderOptions, ReadableStreamReaderMode};
 
 const FRAME_TIMEOUT_MS: u32 = 15_000;
 
-fn perf_now_ms() -> f64 {
-    web_sys::window()
-        .and_then(|w| w.performance())
-        .map(|p| p.now())
-        .unwrap_or(0.0)
+thread_local! {
+    /// The global scope's clock: `window.performance` on a page, `self.performance` in a worker.
+    static PERFORMANCE: Option<web_sys::Performance> =
+        Reflect::get(&js_sys::global(), &JsValue::from_str("performance"))
+            .ok()
+            .and_then(|p| p.dyn_into::<web_sys::Performance>().ok());
 }
 
+fn perf_now_ms() -> f64 {
+    PERFORMANCE.with(|p| p.as_ref().map(web_sys::Performance::now).unwrap_or(0.0))
+}
+
+#[cfg(not(feature = "byob"))]
 fn js_buffer_from(src: &[u8]) -> Uint8Array {
     let view = Uint8Array::new_with_length(src.len() as u32);
     view.copy_from(src);
@@ -89,6 +97,7 @@ impl RecvBuf {
         self.data.len() - self.pos
     }
 
+    #[cfg(not(feature = "byob"))]
     fn is_empty(&self) -> bool {
         self.pos >= self.data.len()
     }
@@ -108,6 +117,7 @@ impl RecvBuf {
 
     /// Room for a frame whose length is now known: one allocation instead of a doubling
     /// sequence (16 → 32 → … KB, each step a copy) for every fresh buffer.
+    #[cfg(not(feature = "byob"))]
     fn reserve_for(&mut self, total: usize) {
         let have = self.data.len() - self.pos;
         if total > have {
@@ -146,6 +156,7 @@ const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
 
 /// Read one `[4B BE len][payload]` from a uni stream. `Ok(None)` on clean EOF before a frame.
 /// Returns `(display_index, js_codestream)` with a single JS-heap copy of the codestream.
+#[cfg(not(feature = "byob"))]
 async fn read_length_prefixed_frame(
     reader: &ReadableStreamDefaultReader,
     buf: &mut RecvBuf,
@@ -171,6 +182,7 @@ async fn read_length_prefixed_frame(
 }
 
 /// Drain length-prefixed envelopes from one uni until EOF (shared or per-frame).
+#[cfg(not(feature = "byob"))]
 async fn pump_framed_stream(
     stream: ReadableStream,
     st: Rc<RefCell<SessionState>>,
@@ -190,12 +202,172 @@ async fn pump_framed_stream(
         };
         let now = perf_now_ms();
         let (index, view) = frame;
+        deliver(&st, index, view, now);
+    }
+    let _ = JsFuture::from(reader.cancel()).await;
+}
+
+/// An asked frame settles its waiter; a fill frame goes straight to the fill's callback, which
+/// is called after the borrow is released — it is JS and may re-enter the session.
+fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f64) {
+    let push = {
         let mut s = st.borrow_mut();
+        let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&index));
         if let Some(tx) = s.waiters.remove(&index) {
             let _ = tx.send((view, now));
-        } else {
-            s.dropped_early += 1;
+            return;
         }
+        match s.fill.as_ref() {
+            Some(f) if owed => Some((f.ask_ms, f.on_frame.clone())),
+            _ => {
+                s.dropped_early += 1;
+                None
+            }
+        }
+    };
+    if let Some((ask_ms, on_frame)) = push {
+        if let Ok(result) = result_to_js(index, ask_ms, view, now) {
+            let _ = on_frame.call1(&JsValue::NULL, &result);
+        }
+    }
+}
+
+/// `[4B BE length][4B BE display index]` in front of every codestream on a media stream.
+#[cfg(feature = "byob")]
+const HEAD_LEN: u32 = 8;
+
+#[cfg(feature = "byob-count")]
+thread_local! {
+    static READS: Cell<u32> = const { Cell::new(0) };
+    static TOTAL_READS: Cell<u32> = const { Cell::new(0) };
+    static TOTAL_FRAMES: Cell<u32> = const { Cell::new(0) };
+}
+
+#[cfg(feature = "byob-min")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(extends = ReadableStreamByobReader, js_name = ReadableStreamBYOBReader)]
+    type ByobReaderWithMin;
+    /// `reader.read(view, { min })`: resolves once `min` elements are in, not at the first packet.
+    /// web-sys binds `read` without its options argument, so it is declared here.
+    #[wasm_bindgen(method, js_name = read)]
+    fn read_min(this: &ByobReaderWithMin, view: &Object, options: &Object) -> js_sys::Promise;
+}
+
+/// One BYOB read into `buffer[offset..offset + len]`. The reader takes the buffer and hands it
+/// back in the result: returns it with the bytes read, 0 at end of stream.
+#[cfg(feature = "byob")]
+async fn byob_read(
+    reader: &ReadableStreamByobReader,
+    buffer: js_sys::ArrayBuffer,
+    offset: u32,
+    len: u32,
+) -> Result<(js_sys::ArrayBuffer, u32), String> {
+    let view = Uint8Array::new_with_byte_offset_and_length(&buffer, offset, len);
+    #[cfg(feature = "byob-count")]
+    {
+        READS.with(|r| r.set(r.get() + 1));
+        TOTAL_READS.with(|r| r.set(r.get() + 1));
+    }
+    #[cfg(feature = "byob-min")]
+    let read = {
+        let options = Object::new();
+        set(&options, "min", &JsValue::from(len))?;
+        reader.unchecked_ref::<ByobReaderWithMin>().read_min(&view, &options)
+    };
+    #[cfg(not(feature = "byob-min"))]
+    let read = reader.read_with_array_buffer_view(&view);
+    let result: ReadableStreamReadResult = JsFuture::from(read)
+        .await
+        .map_err(|e| format!("stream read: {e:?}"))?
+        .unchecked_into();
+    let value = result.get_value();
+    if value.is_undefined() {
+        return Err("stream cancelled".into());
+    }
+    let got: Uint8Array = value.unchecked_into();
+    let n = if result.get_done().unwrap_or(false) { 0 } else { got.byte_length() };
+    Ok((got.buffer(), n))
+}
+
+/// Fill `buffer[start..end]`. `Ok(None)` when the stream ends before its first byte.
+#[cfg(feature = "byob")]
+async fn byob_fill(
+    reader: &ReadableStreamByobReader,
+    mut buffer: js_sys::ArrayBuffer,
+    start: u32,
+    end: u32,
+) -> Result<Option<js_sys::ArrayBuffer>, String> {
+    let mut at = start;
+    while at < end {
+        let (back, n) = byob_read(reader, buffer, at, end - at).await?;
+        buffer = back;
+        if n == 0 {
+            return if at == start { Ok(None) } else { Err("stream ended early".into()) };
+        }
+        at += n;
+    }
+    Ok(Some(buffer))
+}
+
+/// One frame straight into its own JS buffer: the head into a reused 8-byte buffer, the
+/// codestream into one sized from the head. No byte of it passes through WASM memory.
+#[cfg(feature = "byob")]
+async fn read_frame_byob(
+    reader: &ReadableStreamByobReader,
+    head: &mut Option<js_sys::ArrayBuffer>,
+) -> Result<Option<(u32, Uint8Array)>, String> {
+    let buffer = head.take().unwrap_or_else(|| js_sys::ArrayBuffer::new(HEAD_LEN));
+    let Some(buffer) = byob_fill(reader, buffer, 0, HEAD_LEN).await? else {
+        return Ok(None);
+    };
+    let mut raw = [0u8; HEAD_LEN as usize];
+    Uint8Array::new(&buffer).copy_to(&mut raw);
+    *head = Some(buffer);
+    let len = u32::from_be_bytes(raw[0..4].try_into().unwrap()) as usize;
+    if len < frame_envelope::ENVELOPE_LEN || len > MAX_FRAME_LEN {
+        return Err(format!("invalid frame length {len}"));
+    }
+    let (index, _) = unwrap_envelope(&raw[4..]).map_err(|e| format!("envelope: {e}"))?;
+    let body_len = (len - frame_envelope::ENVELOPE_LEN) as u32;
+    let body = byob_fill(reader, js_sys::ArrayBuffer::new(body_len), 0, body_len)
+        .await?
+        .ok_or("stream ended early")?;
+    Ok(Some((index, Uint8Array::new(&body))))
+}
+
+/// Drain length-prefixed envelopes from one uni until EOF, each frame read into its own buffer.
+#[cfg(feature = "byob")]
+async fn pump_framed_stream(stream: ReadableStream, st: Rc<RefCell<SessionState>>) {
+    let options = ReadableStreamGetReaderOptions::new();
+    options.set_mode(ReadableStreamReaderMode::Byob);
+    let reader = match stream
+        .get_reader_with_options(&options)
+        .dyn_into::<ReadableStreamByobReader>()
+    {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    let mut head = None;
+    loop {
+        let (index, view) = match read_frame_byob(&reader, &mut head).await {
+            Ok(Some(f)) => f,
+            Ok(None) | Err(_) => break,
+        };
+        let now = perf_now_ms();
+        #[cfg(feature = "byob-count")]
+        {
+            TOTAL_FRAMES.with(|f| f.set(f.get() + 1));
+            web_sys::console::log_1(&JsValue::from_str(&format!(
+                "byob-count frame={} bytes={} reads={} total_frames={} total_reads={}",
+                index,
+                view.byte_length(),
+                READS.with(|r| r.replace(0)),
+                TOTAL_FRAMES.with(Cell::get),
+                TOTAL_READS.with(Cell::get),
+            )));
+        }
+        deliver(&st, index, view, now);
     }
     let _ = JsFuture::from(reader.cancel()).await;
 }
@@ -222,9 +394,20 @@ async fn read_fod_msg(
     msg
 }
 
+/// A fill pushed as it lands: what is still owed, and where each frame goes. No timer per frame.
+struct Fill {
+    pending: HashSet<u32>,
+    ask_ms: f64,
+    on_frame: js_sys::Function,
+    on_error: Option<js_sys::Function>,
+}
+
 #[derive(Default)]
 struct SessionState {
     waiters: HashMap<u32, oneshot::Sender<(Uint8Array, f64)>>,
+    fill: Option<Fill>,
+    /// Set once the session is gone; a waiter armed after this would only reach the timeout.
+    closed: Option<String>,
     dropped_early: u64,
     errors: HashMap<u32, String>,
     frame_errors: u64,
@@ -275,6 +458,20 @@ impl TransportSession {
 
         let state = Rc::new(RefCell::new(SessionState::default()));
 
+        // docs/CLIENTS.md#a-closed-session-is-noticed-at-once.
+        let st_closed = Rc::clone(&state);
+        let closed = transport.closed();
+        spawn_local(async move {
+            let reason = match JsFuture::from(closed).await {
+                Ok(info) => closed_reason_of(&info),
+                Err(e) => format!("session closed: {e:?}"),
+            };
+            let mut s = st_closed.borrow_mut();
+            s.closed = Some(reason);
+            s.waiters.clear();
+            s.fill = None;
+        });
+
         // Media pump — each uni carries `[4B BE len][envelope]` frames (one or many).
         let st_uni = Rc::clone(&state);
         let uni_incoming = transport.incoming_unidirectional_streams();
@@ -297,7 +494,9 @@ impl TransportSession {
                     pump_framed_stream(stream, st).await;
                 });
             }
-            st_uni.borrow_mut().waiters.clear();
+            let mut s = st_uni.borrow_mut();
+            s.waiters.clear();
+            s.fill = None;
         });
 
         // FoD downlink — exceptions only (FrameError), length-prefixed on control stream.
@@ -310,10 +509,21 @@ impl TransportSession {
                         frame_index,
                         reason,
                     }) => {
-                        let mut s = st_ctl.borrow_mut();
-                        s.errors.insert(frame_index, reason);
-                        s.frame_errors += 1;
-                        s.waiters.remove(&frame_index);
+                        let refused = {
+                            let mut s = st_ctl.borrow_mut();
+                            s.errors.insert(frame_index, reason.clone());
+                            s.frame_errors += 1;
+                            let asked = s.waiters.remove(&frame_index).is_some();
+                            let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&frame_index));
+                            if asked || !owed {
+                                None
+                            } else {
+                                s.fill.as_ref().and_then(|f| f.on_error.clone())
+                            }
+                        };
+                        if let Some(on_error) = refused {
+                            let _ = on_error.call2(&JsValue::NULL, &JsValue::from(frame_index), &JsValue::from_str(&reason));
+                        }
                     }
                     Ok(_) => continue,
                     Err(_) => break,
@@ -344,6 +554,9 @@ impl TransportSession {
         let (tx, rx) = oneshot::channel();
         {
             let mut s = self.state.borrow_mut();
+            if let Some(reason) = s.closed.clone() {
+                return Err(format!("frame {frame_index} unavailable: {reason}"));
+            }
             if s.waiters.contains_key(&frame_index) {
                 return Err(format!("frame {frame_index} already requested"));
             }
@@ -385,6 +598,9 @@ impl TransportSession {
         {
             let mut s = self.state.borrow_mut();
             let mut bulk_rx = self.bulk_rx.borrow_mut();
+            if let Some(reason) = s.closed.clone() {
+                return Err(format!("session unavailable: {reason}"));
+            }
             for &frame_index in &indices {
                 if s.waiters.contains_key(&frame_index) || bulk_rx.contains_key(&frame_index) {
                     return Err(format!("frame {frame_index} already requested"));
@@ -427,6 +643,9 @@ impl TransportSession {
         {
             let mut s = self.state.borrow_mut();
             let mut bulk_rx = self.bulk_rx.borrow_mut();
+            if let Some(reason) = s.closed.clone() {
+                return Err(format!("session unavailable: {reason}"));
+            }
             for &frame_index in &indices {
                 if s.waiters.contains_key(&frame_index) || bulk_rx.contains_key(&frame_index) {
                     return Err(format!("frame {frame_index} already requested"));
@@ -451,7 +670,46 @@ impl TransportSession {
         Ok(ask_ms)
     }
 
+    /// A fill pushed as it lands, on the wire as `StreamFrames`: no waiter and no timer per
+    /// frame, so `end_stream` or a later fill simply drops what is still owed.
+    /// docs/CLIENTS.md#fills-are-pushed
+    pub fn fill_frames(
+        &self,
+        from: u32,
+        to: u32,
+        on_frame: js_sys::Function,
+        on_error: Option<js_sys::Function>,
+    ) -> Result<f64, String> {
+        if to < from {
+            return Err("fillFrames: to < from".into());
+        }
+        let ask_ms = perf_now_ms();
+        {
+            let mut s = self.state.borrow_mut();
+            if let Some(reason) = s.closed.clone() {
+                return Err(format!("session unavailable: {reason}"));
+            }
+            s.fill = Some(Fill {
+                pending: (from..=to).collect(),
+                ask_ms,
+                on_frame,
+                on_error,
+            });
+        }
+        let payload = encode_fod_msg(&FodMsg::StreamFrames {
+            from: Some(from),
+            to: Some(to),
+        })
+        .map_err(|e| format!("encode FoD: {e}"))?;
+        if self.req_tx.unbounded_send(payload).is_err() {
+            self.state.borrow_mut().fill = None;
+            return Err("FoD request channel closed".into());
+        }
+        Ok(ask_ms)
+    }
+
     pub fn end_stream(&self) -> Result<(), String> {
+        self.state.borrow_mut().fill = None;
         let payload =
             encode_fod_msg(&FodMsg::EndStream).map_err(|e| format!("encode FoD: {e}"))?;
         if self.req_tx.unbounded_send(payload).is_err() {
@@ -476,7 +734,7 @@ impl TransportSession {
         frame_index: u32,
         ask_ms: f64,
     ) -> Result<JsValue, String> {
-        match await_bytes(rx, frame_index).await {
+        match await_bytes(rx, frame_index, &self.state).await {
             Ok((bytes, received_ms)) => result_to_js(frame_index, ask_ms, bytes, received_ms),
             Err(e) => {
                 let mut s = self.state.borrow_mut();
@@ -498,6 +756,7 @@ impl TransportSession {
     pub fn stats(&self) -> Result<JsValue, String> {
         let s = self.state.borrow();
         let out = Object::new();
+        set(&out, "closed", &s.closed.as_deref().map_or(JsValue::NULL, JsValue::from_str))?;
         set(&out, "inFlight", &JsValue::from(s.waiters.len() as u32))?;
         set(
             &out,
@@ -509,14 +768,32 @@ impl TransportSession {
     }
 }
 
+fn closed_reason_of(info: &JsValue) -> String {
+    let code = Reflect::get(info, &JsValue::from_str("closeCode"))
+        .ok()
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0) as i64;
+    let why = Reflect::get(info, &JsValue::from_str("reason"))
+        .ok()
+        .and_then(|v| v.as_string())
+        .filter(|r| !r.is_empty())
+        .map(|r| format!(": {r}"))
+        .unwrap_or_default();
+    format!("session closed (code {code}){why}")
+}
+
 async fn await_bytes(
     rx: oneshot::Receiver<(Uint8Array, f64)>,
     frame_index: u32,
+    st: &Rc<RefCell<SessionState>>,
 ) -> Result<(Uint8Array, f64), String> {
     let mut rx = rx.fuse();
     let mut timeout = TimeoutFuture::new(FRAME_TIMEOUT_MS).fuse();
     select! {
-        res = rx => res.map_err(|_| format!("frame {frame_index} aborted before completion")),
+        res = rx => res.map_err(|_| match st.borrow().closed.clone() {
+            Some(reason) => format!("frame {frame_index} unavailable: {reason}"),
+            None => format!("frame {frame_index} aborted before completion"),
+        }),
         _ = timeout => Err(format!(
             "timeout waiting for frame {frame_index} after {FRAME_TIMEOUT_MS} ms"
         )),

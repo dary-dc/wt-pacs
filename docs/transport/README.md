@@ -1,21 +1,29 @@
 # Transport
 
-What this lane decided. Product source is the chunked send path, `--stream-mode`
-default `shared`, `--prefault true`, Cubic default.
+What this lane decided. On this branch the product source carries `--stream-mode` default
+`shared`, Cubic default and quinn's window defaults. **Not on this branch (corrected 2026-09-19):**
+the chunked `Bytes` send path, the GSO patch and the PGO script named below are on
+`claude/clever-curie-flm0wi`, whose `server/` was not merged (`../cloud-queue.md` row 35). This
+tree's `server/src/transport/frame_out.rs` writes each frame with `write_all` in 64 KiB slices, and
+`--prefault` is accepted but unused (`server/src/main.rs`). The numbers in those rows are that
+branch's.
 
-**Start here:** [`transport-conclusions.md`](transport-conclusions.md).
+**Target:** a browser on a mobile, lossy wireless link, thousands of sessions per server.
+**Start here:** [`transport-conclusions.md`](transport-conclusions.md). **What is open, in order:** [`NEXT.md`](NEXT.md).
 
 | Decision | What shipped |
 | -------- | ------------ |
 | **One shared stream** | `--stream-mode` defaults to `shared`. `per-frame` stays a product flag |
-| **Chunked send** | `Bytes` view of the study mapping + `write_all_chunks` — no full-frame copy |
-| **Prefault** | Fault frame pages off the executor (`--prefault true`) |
+| **Chunked send** | *Transport branch only.* `Bytes` view of the study mapping + `write_all_chunks` — no full-frame copy |
+| **Prefault** | *Transport branch only.* Fault frame pages off the executor (`--prefault true`); here the flag is a no-op |
 | **Cubic default** | Congestive loss → Cubic; radio loss → BBR. Default Cubic until the mix is measured |
 | **Windows** | Left at quinn defaults. Memory is bounded by the send path, not `send_window` |
+| **Runtime shape** | One endpoint on tokio's multi-thread runtime. Per-core endpoints were built and parked on `claude/per-core-endpoints`: they break a session whose 4-tuple changes (T6) |
 
-Rejected arms (`copy` / `split`, `--ask-priority`, MTU / GSO / socket knobs) are not in
-`server/`. GSO 10 → 32 was measured, not applied: the cap lives in quinn, and on the
-real path it did not move the needle.
+| **CPU per byte** | *Transport branch only.* MTU-derived GSO cap (`patches/quinn-0.11.11-mtu-gso.patch`), a profile-guided build (`scripts/pgo_build.sh`), and frames handed to quinn uncopied. On the multi-thread runtime, without the parked per-core endpoints: **+13 to +23 % throughput and −17 to −22 % CPU per ask** (6/6, two saturation cells) |
+
+Rejected arms (`copy` / `split`, `--ask-priority`, MTU / socket knobs) are not in `server/`.
+The GSO cap lives in quinn; the tree applies it at build time from crates.io plus that patch.
 
 ## Read next
 
@@ -23,6 +31,9 @@ real path it did not move the needle.
 | --- | ---- |
 | [`why-these-changes.md`](why-these-changes.md) | Why each decision exists |
 | [`adr-quic-stream-receive-window-defaults.md`](adr-quic-stream-receive-window-defaults.md) | Keep quinn window defaults; do not equalise S vs P/Q |
+| [`ask-during-fill.md`](ask-during-fill.md) | An ask does not overtake a running fill — it ends one. What that costs, and why stream priority does not arise |
+| [`why-these-changes.md` §10](why-these-changes.md#10--latency-and-throughput-on-one-tree-where-they-part-and-what-joins-them) | Where latency and throughput part, and the open proposals (client window, depth-1 tail, 44-segment cap, workers, LTO) |
+| [`NEXT.md`](NEXT.md) | What is still open, ranked for the target |
 
 ## Evidence and lab (on the archive tag)
 

@@ -2,6 +2,18 @@
 
 WebTransport PACS — web-native medical imaging transport (MIT).
 
+## Prerequisites
+
+A Rust toolchain, Python 3 and Node. The WASM client is part of the product, not an optional
+arm, so `scripts/gate.sh` requires it built and fails when `client/transport-wasm/pkg/` is
+absent — the gate's conformance and worker-safe steps cover both clients or neither:
+
+```bash
+rustup target add wasm32-unknown-unknown
+npm i -g wasm-pack                    # or: cargo install wasm-pack
+bash client/transport-wasm/build.sh   # once per clone; fetches wasm-opt on first run
+```
+
 ## Quick start (harness)
 
 ```bash

@@ -74,6 +74,19 @@ impl TransportSessionHandle {
             .map_err(|e| JsValue::from_str(&e))
     }
 
+    #[wasm_bindgen(js_name = fillFrames)]
+    pub fn fill_frames(
+        &self,
+        from: u32,
+        to: u32,
+        on_frame: js_sys::Function,
+        on_error: Option<js_sys::Function>,
+    ) -> Result<f64, JsValue> {
+        self.inner
+            .fill_frames(from, to, on_frame, on_error)
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
     #[wasm_bindgen(js_name = endStream)]
     pub fn end_stream(&self) -> Result<(), JsValue> {
         self.inner.end_stream().map_err(|e| JsValue::from_str(&e))
@@ -85,7 +98,7 @@ impl TransportSessionHandle {
     }
 
     #[wasm_bindgen(js_name = close)]
-    pub fn close(self) {
+    pub fn close(&self) {
         self.inner.close();
     }
 }

@@ -39,6 +39,9 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 wtransport = { version = "0.7", default-features = false, features = ["quinn"] }
+# `RttEstimator` reaches the congestion controller but quinn 0.11.11 does not re-export it;
+# the version is the one quinn itself resolves, so the types are the same.
+quinn-proto = { version = "0.11", default-features = false }
 
 [dev-dependencies]
 rcgen = "0.13"
