@@ -61,6 +61,49 @@ on the server's egress, with an iid and a Gilbert-Elliott burst model;
 `lab/scripts/e0_netem_validation.sh` checks the shaping did what it claims before a campaign reads
 anything.
 
+**Partly lifted in a container, 2026-09-19 (N1).** `lab/scripts/link_impair.py` is a userspace
+relay in front of both planes — the UDP session and the static host's TCP — with one model for
+each: a one-way delay applied in each direction, a bottleneck rate draining a tail-drop queue,
+iid or Gilbert–Elliott loss, and a blackout or a NAT rebind on a control port. No root, no
+`netem`. `lab/scripts/link_impair_check.sh` reads every lever back against arithmetic rather than
+against another emulator, and each lever was mutated to watch it fail.
+
+| Lever | Asked | Read |
+| --- | --- | --- |
+| Floor | — | 0.40 ms of round trip, delivery quantised to 0.5 ms |
+| One-way delay | 20 / 40 ms | 41.0 / 81.7 ms round trip |
+| Rate | 10 000 kbit/s | 9 948, nothing dropped |
+| Queue | 10 packets | 10 of a 500-packet burst |
+| Loss, iid | 5 % each way | 3 597 of 4 000 delivered (3 600 expected) |
+| Loss, GE 0.07/14 | ~0.5 % mean | 7 913 of 8 000 (7 920 expected) |
+| Blackout | 600 ms | 59 of a 200-packet, 2 s stream gone |
+| Rebind | mid-stream | none lost; the session survives it (`rebind-probe`) |
+
+**The two counts it was made to check**, fitted over round trips of 40, 80 and 160 ms so that the
+relay's own floor and the crypto fall out as the intercept:
+
+* **A cold open reaches its first byte in 4.01 round trips + 17.7 ms** — the count
+  [`proposal-session-open.md`](proposal-session-open.md) states, now measured, on the native
+  client. Its attribution is corrected there: the session is ready at **3.00 round trips**, and
+  opening the control stream costs nothing.
+* **One 250 KB ask on a fresh session is 5.59 round trips + 12.5 ms** — S7's ~5 flights out of a
+  12 KB initial window, on a link with no rate limit at all, so it is slow start and not the link.
+
+**What it still cannot do.** It forwards datagram by datagram, so it destroys any batching the
+kernel would have done: **nothing about GSO/GRO or per-packet CPU taken through it is
+admissible.** The TCP plane is relayed *above* TCP, where a dropped chunk would be data gone
+rather than a segment the peer retransmits, so that plane shapes only — no loss, no blackout, and
+no TCP loss-recovery number; its handshake is completed locally by the kernel, so the relay
+charges the setup round trip rather than observing it (`--tcp-no-handshake` turns that off), and
+TLS is not modelled. It is one thread, so delays under ~1 ms decide nothing and a rate far above
+the ones in the table has to be re-checked against the relay itself first. It carries one client
+at a time on the UDP plane. Everything else on this list still holds: the MTU above is unchanged,
+and the server still sees a loopback socket.
+
+**Still owed:** the calibration against `netem` on the rig that
+[`lanes/RIG-RUNBOOK.md`](lanes/RIG-RUNBOOK.md) preflights, so that a later container result can be
+read on its own wherever the two agree.
+
 ## 4. The reader never misses
 
 A fully evicted 61 MB study still reports `fill_hits=237 fill_misses=0`. On this NVMe the

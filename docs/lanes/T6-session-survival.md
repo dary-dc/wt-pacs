@@ -26,7 +26,7 @@ client reconnects, because steering does not cover a server restart.
 
 1. **Native probe** (this VM) — **done, 3/3 each, deterministic.**
    `wtransport`'s client endpoint exposes no `rebind()` and no handle on the quinn endpoint
-   beneath it, so the plan's call is unreachable. `lab/scripts/nat_rebind_relay.py` sits between
+   beneath it, so the plan's call is unreachable. `lab/scripts/link_impair.py` sits between
    client and server and changes its own upstream source port mid-session instead: a NAT rebind,
    which is the field case this lane names, and a closer analogue of it than `rebind()` would be.
    `lab/scripts/t6_rebind_probe.sh <workers>` runs it — on branch `claude/per-core-endpoints`,

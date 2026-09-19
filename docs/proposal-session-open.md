@@ -1,9 +1,8 @@
 # Proposal: two round trips off a cold open
 
 **2026-09-19 · Status: proposed. Lever 1 prototyped behind a flag, off by default; lever 2 not
-built. Nothing here is measured — the timing cell is queue row 36, which needs the impaired-link
-container (row 35).** Structural, so this is a proposal first (`CLAUDE.md`). R1, from
-[S5](improvements/2026-09-18.md).
+built. The count below is now measured (N1, §The count, measured); neither lever is.** Structural,
+so this is a proposal first (`CLAUDE.md`). R1, from [S5](improvements/2026-09-18.md).
 
 ## What a cold open costs today
 
@@ -24,6 +23,27 @@ every cold open, and [S2](improvements/2026-09-18.md) makes reconnects routine r
 2 (1.5)". They do not: no file in `docs/` states a cold-open round-trip count at all — `WIRE.md`
 describes the two streams and never the handshake that precedes them. There is no wrong number to
 correct. There is a missing one, and this file is where it now lives.
+
+## The count, measured
+
+**2026-09-19, native client, through `lab/scripts/link_impair.py`** at round trips of 40, 80 and
+160 ms, five cold opens each, the phase fitted against the round trip so that the relay's floor
+and the crypto fall out as an intercept ([`rig-limits.md`](rig-limits.md) §3):
+
+| Phase | Round trips | Fixed |
+| --- | --- | --- |
+| Session ready (`connect()` resolves) | **3.00** | 13.7 ms |
+| The control stream, opened | +0.00 | — |
+| First byte of the frame | **4.01** | 17.7 ms |
+
+**Four to first byte is right. The attribution above is not.** Steps 1 and 2 together cost three
+round trips, not two, and step 3 costs nothing: a client-initiated stream opens locally, so the
+ask rides out with it and the frame comes back one round trip later. Where the third trip sits
+inside the session is not separated here — the probe sees `connect()` resolve, not the frames
+inside it, so the table's reasoning about who holds what is untested.
+
+**This is the native client.** Chromium holding CONNECT until the server's SETTINGS arrive is the
+browser's half of the same count, and it is [R2](cloud-queue.md)'s to measure.
 
 ## Lever 1 — the ask in the session URL
 
@@ -107,6 +127,6 @@ honest claim is the arithmetic at the top of this file.
 
 1. This proposal. ✔
 2. The prototype behind the flag, and the two conformance clauses. ← next
-3. Row 36's container, then the timing cell: navigation → ready → first byte, flag on and off, at
-   0 / 40 / 80 ms.
+3. Row 36's container. ✔ — and with it the count above. The timing cell it was built for,
+   navigation → ready → first byte with the flag on and off, is still owed.
 4. Lever 2 upstream, if the cell says step 2 is worth halving.

@@ -1,7 +1,9 @@
 # The rig runbook — every shaped campaign, in order
 
 **Why this exists:** `sch_netem` loads on a VM but not in an agent container, so every shaped
-cell runs on the Oracle rig ([`../cloud-rig-access.md`](../cloud-rig-access.md)). The cloud
+cell runs on the Oracle rig ([`../cloud-rig-access.md`](../cloud-rig-access.md)). A container can
+now shape in userspace instead (`../rig-limits.md` §3), which is where a mechanism is shown; these
+campaigns are the verdicts, and they stay here until the two are calibrated against each other. The cloud
 agent cannot reach it at all — that environment has no `ssh` binary, no route to port 22, and
 its containment layer refuses a tunnel — so these campaigns are run by a **local** agent or by
 the owner, and the results come back as commits on this branch.

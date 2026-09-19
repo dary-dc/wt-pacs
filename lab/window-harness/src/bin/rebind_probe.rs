@@ -1,6 +1,6 @@
 //! Does a session survive a 4-tuple change? `docs/lanes/T6-session-survival.md` step 1.
 //!
-//! Takes `--warm` frames through `lab/scripts/nat_rebind_relay.py`, tells the relay to change
+//! Takes `--warm` frames through `lab/scripts/link_impair.py`, tells the relay to change
 //! its upstream source port, then asks for one more frame and reports what happened.
 
 use anyhow::{bail, Context, Result};

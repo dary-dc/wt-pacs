@@ -95,10 +95,10 @@ The wake lock is a request the platform may refuse, so the `freeze` path must wo
 
 **One number, and it cannot be taken on this branch yet.** A1 asks for the rebind probe re-run at a
 10 s idle timeout, to put a figure on how fast a path change is noticed when the timeout is short.
-The probe is `lab/window-harness/src/bin/rebind_probe.rs` with `lab/scripts/nat_rebind_relay.py`,
-and both live on `claude/clever-curie-flm0wi` — **queue row 35 (T1) is what brings them here.**
-Until then this file's only quantities are the two already measured elsewhere: Chromium advertises
-30 s (L15) and a 61 MB fill at 20 Mbit is 24 s (arithmetic).
+The probe is `lab/window-harness/src/bin/rebind_probe.rs` with `lab/scripts/link_impair.py`, both
+here since T1 and N1; the rebind survives in this container at a 30 s timeout, so the number the
+lane wants is the same probe against a 10 s one. This file's other quantities are the two measured
+elsewhere: Chromium advertises 30 s (L15) and a 61 MB fill at 20 Mbit is 24 s (arithmetic).
 
 Everything above is a design. The order it should be proved in: the rebind number after T1, then
 the triggers on a phone, which is the only place `freeze` and a radio change both happen for real.
