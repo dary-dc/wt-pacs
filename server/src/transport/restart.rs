@@ -14,16 +14,18 @@ use wtransport::quinn::congestion::{
 /// Two probe timeouts, with quinn's RTT variance sitting near a quarter of the estimate.
 const SILENCE_RTTS: u32 = 4;
 
-/// Holds the gap between the last two acknowledgements. A congestion event that ends a gap of
-/// `SILENCE_RTTS` round trips replaces the inner controller with a new one, which is quinn's
-/// only way back into slow start: initial window, no ssthresh.
+/// Watches the acknowledgement stream for a silence of `SILENCE_RTTS` round trips. A congestion
+/// event whose lost packets all predate that silence replaces the inner controller with a new
+/// one, which is quinn's only way back into slow start: initial window, no ssthresh.
 pub struct SlowStartRestart {
     cubic: Arc<CubicConfig>,
     inner: Box<dyn Controller>,
     mtu: u16,
     rtt: Duration,
-    prev_ack: Option<Instant>,
     last_ack: Option<Instant>,
+    /// The acknowledgement that closed the last silence, until a congestion event spends it:
+    /// quinn declares the loss an acknowledgement or two later, not on the one that closed it.
+    silence_end: Option<Instant>,
 }
 
 impl SlowStartRestart {
@@ -33,27 +35,21 @@ impl SlowStartRestart {
             cubic,
             mtu,
             rtt: Duration::ZERO,
-            prev_ack: None,
             last_ack: None,
+            silence_end: None,
         }
     }
 
-    /// One acknowledgement arrival. quinn calls `on_ack` once per acknowledged packet, so only a
-    /// new instant is a new arrival. `RttEstimator` cannot be built outside quinn, so this is the
-    /// seam the detector is exercised through.
+    /// One acknowledged packet. The gap is read against the estimate that held before it: the
+    /// sample that closes an outage is the outage, and would raise the bar by the silence it
+    /// measures. `RttEstimator` cannot be built outside quinn, so this is the seam the detector
+    /// is exercised through.
     fn note_ack(&mut self, now: Instant, rtt: Duration) {
-        self.rtt = rtt;
-        if self.last_ack != Some(now) {
-            self.prev_ack = self.last_ack;
-            self.last_ack = Some(now);
+        if self.last_ack.is_some_and(|l| now.duration_since(l) >= SILENCE_RTTS * self.rtt) {
+            self.silence_end = Some(now);
         }
-    }
-
-    fn after_a_silence(&self) -> bool {
-        let (Some(last), Some(prev)) = (self.last_ack, self.prev_ack) else {
-            return false;
-        };
-        last.duration_since(prev) >= SILENCE_RTTS * self.rtt
+        self.last_ack = Some(now);
+        self.rtt = rtt;
     }
 }
 
@@ -92,9 +88,9 @@ impl Controller for SlowStartRestart {
         is_persistent_congestion: bool,
         lost_bytes: u64,
     ) {
-        if self.after_a_silence() {
+        if self.silence_end.is_some_and(|end| sent <= end) {
             self.inner = Arc::clone(&self.cubic).build(now, self.mtu);
-            self.prev_ack = self.last_ack;
+            self.silence_end = None;
             return;
         }
         self.inner
@@ -120,8 +116,8 @@ impl Controller for SlowStartRestart {
             inner: self.inner.clone_box(),
             mtu: self.mtu,
             rtt: self.rtt,
-            prev_ack: self.prev_ack,
             last_ack: self.last_ack,
+            silence_end: self.silence_end,
         })
     }
 
@@ -170,7 +166,8 @@ mod tests {
         SlowStartRestart::new(Arc::new(CubicConfig::default()), Instant::now(), MTU)
     }
 
-    /// Two acknowledgements `gap` apart, then the congestion event that follows them.
+    /// Two acknowledgements `gap` apart, then the congestion event that follows them, over
+    /// packets sent before the gap.
     fn acks_then_loss(r: &mut SlowStartRestart, gap: Duration) {
         let now = Instant::now();
         r.note_ack(now, RTT);
@@ -226,8 +223,8 @@ mod tests {
         assert!(!in_slow_start(&r));
     }
 
-    /// quinn calls `on_ack` once per acknowledged packet: a batch shares one instant and must
-    /// read as one arrival, or the gap collapses to zero and no outage is ever seen.
+    /// quinn calls `on_ack` once per acknowledged packet: the zero-length gaps inside one batch
+    /// must not erase the silence the first packet of it recorded.
     #[test]
     fn a_batch_of_acks_is_one_arrival() {
         let mut r = restart();
@@ -236,7 +233,43 @@ mod tests {
         for _ in 0..8 {
             r.note_ack(now + 4 * RTT, RTT);
         }
-        assert!(r.after_a_silence());
+        assert_eq!(r.silence_end, Some(now + 4 * RTT));
+    }
+
+    /// The acknowledgement that closes an outage carries the outage as its round-trip sample:
+    /// read the gap against that and a long blink raises its own bar out of reach.
+    #[test]
+    fn the_closing_sample_does_not_raise_the_bar() {
+        let mut r = restart();
+        let now = Instant::now();
+        r.note_ack(now, RTT);
+        r.note_ack(now + 5 * RTT, 5 * RTT);
+        assert_eq!(r.silence_end, Some(now + 5 * RTT));
+    }
+
+    /// The cell that found this: quinn declares the loss an acknowledgement or two after the one
+    /// that closed the outage, and a detector that reads only the newest gap misses it.
+    #[test]
+    fn a_silence_survives_the_acks_that_follow_it() {
+        let mut r = restart();
+        let now = Instant::now();
+        r.note_ack(now, RTT);
+        r.note_ack(now + 4 * RTT, RTT);
+        r.note_ack(now + 5 * RTT, RTT);
+        r.on_congestion_event(now + 5 * RTT, now, false, 1200);
+        assert!(in_slow_start(&r));
+    }
+
+    /// Loss of packets sent after the outage closed is ordinary congestion, however recent the
+    /// outage — otherwise one blink would turn every later loss into a restart.
+    #[test]
+    fn loss_after_the_silence_closed_is_congestion() {
+        let mut r = restart();
+        let now = Instant::now();
+        r.note_ack(now, RTT);
+        r.note_ack(now + 4 * RTT, RTT);
+        r.on_congestion_event(now + 6 * RTT, now + 5 * RTT, false, 1200);
+        assert!(!in_slow_start(&r));
     }
 
     /// A restart consumes the silence: a second congestion event behind the same gap halves the
