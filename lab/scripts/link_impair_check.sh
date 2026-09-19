@@ -176,6 +176,22 @@ read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.01)
 want "blackout 600 ms: delivered of a 2 s stream" "$got" 128 152
 stop_relay
 
+# Held, the same outage loses nothing the queue can hold: the 60 packets of a 10 ms-paced stream
+# that fall inside it burst out at its end, the first of them a whole outage late.
+relay --control-port "$CTRL" --blackout-mode hold --queue-pkts 200
+poke 0.7 "blackout 600"
+read -r _ got _ spread reord worst < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.01)
+want "held 600 ms: delivered of a 2 s stream" "$got" 200 200
+want "held 600 ms: worst rtt (ms)" "$worst" 585 610
+want "held 600 ms: arrived out of order" "$reord" 0 0
+stop_relay
+
+relay --control-port "$CTRL" --blackout-mode hold --queue-pkts 20
+poke 0.7 "blackout 600"
+read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.01)
+want "held 600 ms, queue 20: delivered of 200" "$got" 152 168
+stop_relay
+
 relay --control-port "$CTRL"
 poke 0.7 "rebind"
 read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.01)
