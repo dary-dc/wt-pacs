@@ -1,7 +1,9 @@
 # Transport optimisation — conclusions
 
-What this lane decided. Product source is the chunked send path, `--stream-mode`
-default `shared`, `--prefault true`, Cubic default, windows at quinn defaults.
+What this lane decided. On this branch the product source carries `--stream-mode` default
+`shared`, Cubic default and windows at quinn defaults; the chunked send path, the GSO patch and
+`--prefault` are the transport branch's server, not merged here — [`README.md`](README.md) says
+which rows below are its (corrected 2026-09-19).
 
 **Target (2026-09-14):** a browser on a mobile, lossy wireless link — radio loss, which is
 §1's BBR regime, pending the congestive share of the mix. What is open: [`NEXT.md`](NEXT.md).
@@ -205,7 +207,7 @@ and destroys GSO batching).
 | item | effect |
 | ---- | ------ |
 | GSO cap 10 → 32 | +17.2 % / −20.9 % CPU/byte at 250 KB, n = 1; real-hardware re-run −1.0 % / +8.1 %, overlapping. Superseded: the tree now derives the cap from the MTU (below) |
-| Chunked send path | −6…−14 % CPU/byte at every rate. Only path in `server/` |
+| Chunked send path | −6…−14 % CPU/byte at every rate. Only path in the transport branch's `server/`; this tree still sends with `write_all` (corrected 2026-09-19) |
 | Per-frame prefault hop, warm cache | costs 10 % throughput, 14–34 % CPU/byte |
 | `aws-lc-rs`, ACK frequency, socket buffers, initial MTU | ≤ 3 % or nil. `aws-lc-rs` re-measured 2026-09-10 on VAES / AVX-512 hardware: +3–5 % CPU at 32 KB, a tie at 250 KB, +10–18 % peak RSS — [`improvements/2026-09-10.md`](../improvements/2026-09-10.md) |
 
