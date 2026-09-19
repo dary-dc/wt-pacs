@@ -185,9 +185,11 @@ zero-fills its output and then clamps per sample (S19); the range belongs in tha
 **35 · T1.** Bring onto this branch what `claude/clever-curie-flm0wi` has that does not depend on
 its server: the path simulator and the rebind relay, the stream-shape and rig cell scripts, the
 TypeScript client's ask window and its tests, `docs/transport/` and `docs/lanes/`. **Not its
-`server/` or `patches/`**: that branch measured on 2026-09-18 that its per-byte work loses 29–38 %
-throughput at saturation without the per-core endpoints, which are dropped — that question is
-settled there, not here. Gate green.
+`server/` or `patches/`.** Corrected 2026-09-19: this brief said that branch had measured its
+per-byte work losing 29–38 % throughput without the per-core endpoints; the branch retracted that
+(`6e2e113` — the revert had left the binary single-threaded) and now claims a native win with one
+regression at depth 1, large frames, four sessions. Its server still does not come here: the
+workstation is verifying those claims in a browser and on a paced link first. Gate green.
 
 **36 · N1.** One harness that impairs both planes inside a container, no root: delay, rate, buffer
 depth, scattered and bursty loss, a blackout, a rebind — for the UDP session and for the static
