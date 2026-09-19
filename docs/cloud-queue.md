@@ -5,8 +5,10 @@ A place to hand work to a cloud agent between sessions, and for it to hand resul
 
 ## Protocol
 
-**New session?** [`handoff-2026-09-16.md`](handoff-2026-09-16.md) has where the branches are, what
-is already settled, and the container recipes — read it once, then work the queue from here.
+**New session?** [`handoff-2026-09-19.md`](handoff-2026-09-19.md) has where the branch is, what is
+already settled, what the instruments are and what cost time to find — read it once, then work the
+queue from here. **Every row below is `done` except row 40, which the owner holds**, so the next
+questions are in that file's §3 rather than in this table.
 
 **You are the cloud agent.** After you finish a lane and push:
 
