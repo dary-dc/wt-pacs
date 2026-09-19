@@ -626,6 +626,50 @@ progression, not of the pixel format.**
 is not built into the clients or the downloader: it waits on a decision about how a smaller first
 image is displayed, and that decision is the workstation's.
 
+## The first frame
+
+D6. One frame asked on an idle session is the second goal, and a decoder that has just been
+created is slower than the same decoder a few frames later. `lab/decode-first-frame/`, headless
+Chromium on a **persistent profile**, a fresh decoder instance per visit, 3 rounds, medians:
+
+| set | arm | load ms | frame 0 | frames 1–5 | steady | frame 0 pays |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `g512` | cold profile | 18 | 11.8 | 4.5 | 3.0 | **3.92×** |
+| | warm HTTP cache | 16 | 11.8 | 4.9 | 3.0 | 3.97× |
+| | warm code cache | 16 | 12.1 | 4.5 | 3.0 | 4.08× |
+| | warm + a warm-up decode | 14 | 9.9 | 5.1 | 2.8 | **3.50×** |
+| `cine512` | cold profile | 18 | 13.7 | 4.3 | 3.8 | **3.57×** |
+| | warm HTTP cache | 17 | 15.3 | 4.4 | 3.8 | 4.00× |
+| | warm code cache | 13 | 16.9 | 4.5 | 3.8 | 4.47× |
+| | warm + a warm-up decode | 14 | 13.9 | 4.3 | 4.3 | 3.26× |
+
+**The first frame costs about four times the steady state**, on both fixtures, and it is not only
+frame 0 — frames 1–5 sit around 4.5 ms against a 3.0 ms steady state, so a handful of frames pay a
+smaller version of the same thing. On the viewer's one-frame goal that is ~9 ms of avoidable
+latency on a 512×512 frame, and it lands exactly where a user is waiting.
+
+**The engine's code cache does nothing here, as [S13](../improvements/2026-09-18.md) predicted.**
+Cold, warm-HTTP and warm-code are the same within noise — 3.92×, 3.97×, 4.08× on `g512` — and the
+arms only ever move in the wrong direction. The decoder is instantiated from a buffer and its glue
+is a classic script evaluated as text, so there is nothing for a compiled-code cache to attach to.
+The small load-time gain across arms (18 → 13–16 ms) is the HTTP cache, not the code cache.
+
+**D6's own remedy was to decode a small codestream at `init`. It does not remove the cost.** With
+a warm-up decode the first real frame still pays **3.50×** and **3.26×** — better than 3.9× and
+3.6×, and nowhere near gone. That is the behaviour S13 describes: tiering is per function with no
+on-stack replacement, so warming *some* functions does not promote the ones the next frame runs.
+
+**What would.** Not measured, and named so the next lane does not have to re-derive it: load the
+decoder by streaming compile from an ES module build, so the engine has a script it can cache and
+tier ahead of the first decode. That is a build change to the decoder package, not a client change,
+and it belongs with the source build (§A build of our own) rather than here.
+
+**This may be the ~12 ms nobody explained.** [§The BYOB read path](#the-byob-read-path) records a
+first-frame cost of about 12 ms on that path, reproduced twice and undiagnosed, and frame 0 here is
+11.8–16.9 ms against a 3 ms steady state. The shapes match. Nothing here confirms it — the BYOB
+figure was measured on a different path and a different rig — but a lane that reopens L2 should
+price this first.
+
 ## What these numbers are not
 
 * **Every millisecond above is container-measured** and is reported, not decided on. The heap
