@@ -47,6 +47,10 @@ struct Args {
     /// Blackout length for `lossy`, in ms.
     #[arg(long, default_value_t = 300)]
     blackout_ms: u64,
+    /// A second blackout this long after the first, whatever the fill is doing by then. 0: one
+    /// blackout only. S33: the first one's round-trip sample is what makes the second expensive.
+    #[arg(long, default_value_t = 0)]
+    blackout_again_after_ms: u64,
     #[arg(long, default_value_t = 5)]
     rounds: u32,
     #[arg(long, default_value_t = 30_000)]
@@ -96,7 +100,15 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
             .await
             .context("stream_frames")?;
         if args.state == State::Lossy {
-            poke(args.control_port, &format!("blackout {}", args.blackout_ms))?;
+            let blackout = format!("blackout {}", args.blackout_ms);
+            poke(args.control_port, &blackout)?;
+            if args.blackout_again_after_ms > 0 {
+                let (port, after) = (args.control_port, args.blackout_again_after_ms);
+                tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(after)).await;
+                    let _ = poke(port, &blackout);
+                });
+            }
         }
         for _ in 0..args.warm {
             frames.next(args.timeout_ms).await.context("warm frame")?;
