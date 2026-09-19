@@ -90,7 +90,7 @@ cell() {  # label state study rtt warm extra_server_args...
       stop_server; return; }
   stop_relay
   local ms bytes
-  ms=$(sed -n 's/.*median=\([0-9.]*\).*/\1/p' <<<"$line")
+  ms=$(sed -n 's/.*ask_to_last_byte_ms median=\([0-9.]*\).*/\1/p' <<<"$line")
   bytes=$(sed -n 's/.*bytes=\([0-9]*\).*/\1/p' <<<"$line")
   read -r sent lost ce < <(link_cost)
   stop_server
