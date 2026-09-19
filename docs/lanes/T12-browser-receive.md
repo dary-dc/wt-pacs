@@ -124,13 +124,16 @@ and the paired deltas:
 | 32 KB (~18 k datagrams) | 1 660 | **0** (6/6) | 338 (−79 %, 6/6) | 1 512 (−7 %, 4/6) | 1 230 (−20 %, 6/6) | 1 041 (−37 %, 5/6) |
 | on-demand, either depth | 0 | 0 | — | 0 | — | 0 |
 
-The count is the same size in a 0.2 s fill as in a 1.4 s one, so it is one event, not a rate.
-The mechanism is inferred from the counts, not traced: slow start overshoots the socket buffer
-once, the receive thread (already at a full core) cannot drain it, and Cubic backs off — the
-same overshoot the client branch describes from the sender's side (`improvements/2026-09-18.md`
-S8 there). On that reading a smaller buffer loses *fewer* datagrams because the overflow arrives
-at a smaller window, and a 768 KB send window never lets the bytes in flight reach the buffer, so
-nothing is ever dropped. The 45-segment batch is not the cause: `seg10` drops the same. Throughput did not follow the drops — `sw768k` is +4.7 % (3/6) and +0.3 % (3/6), a tie, as
+The count is the same size in a 0.2 s fill as in a 1.4 s one, so it is one event, not a rate —
+and traced (the socket's drop counter polled every 2 ms through three 250 KB fills): every
+drop lands in one burst 68–97 ms into the fill, 1 190–1 330 datagrams in ~25 ms, with at most
+~120 more over the second that follows. The sender's window grows past the socket buffer once
+the receive thread (already at a full core) falls behind, the buffer overflows, and Cubic backs
+off — the overshoot the client branch describes from the sender's side
+(`improvements/2026-09-18.md` S8 there). A smaller buffer therefore loses *fewer* datagrams,
+because the overflow arrives at a smaller window, and a 768 KB send window never lets the bytes
+in flight reach the buffer, so nothing is ever dropped. The 45-segment batch is not the cause:
+`seg10` drops the same. Throughput did not follow the drops — `sw768k` is +4.7 % (3/6) and +0.3 % (3/6), a tie, as
 the rig found — because the loss is one event in a fill that the receive thread bounds anyway.
 On the target link 768 KB is five times the bandwidth-delay product and never binds, so the window
 is harmless there; at depth 4 it cost the server +17.8 % CPU per MB (6/6), so it is not a free

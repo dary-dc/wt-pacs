@@ -34,6 +34,15 @@ at depth 1; `shared` stays the default. The default reader hands a 250 KB frame 
 and a 32 KB frame in less than one — it coalesces up to 256 KB — so a BYOB read per frame is
 fewer reads only for large frames. On the target link none of this binds.
 
+## A fill longer than 15 s fails from the client's side
+
+Arithmetic, not a measurement, recorded 2026-09-19: `startStreamFrames` arms every frame's 15 s
+deadline at the ask, so on the 20 Mbps target a fill past ~37 MB (15 s × 2.5 MB/s) times out
+frame by frame while the bytes are still arriving, and the late frames count as dropped media
+(N6 saw the TS client lose 29/80 in a slowed cell; the WASM client arms its deadline at the
+wait). The client branch's pushed fills carry no timer per frame and are the fix; this branch's
+`session.ts` is merged there by hand, so the change is not made here twice.
+
 ## ACK frequency, by browser
 
 The server can ask its peer for a smaller `max_ack_delay`
