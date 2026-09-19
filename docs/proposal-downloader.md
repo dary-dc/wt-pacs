@@ -347,6 +347,37 @@ sizing for a device.
 
 ## Results
 
+### D7 — the same path on a decoder built with a 4 MB floor
+
+2026-09-19. S4's decode arm cost **161.6 MB**, 150 MB of it three decoder heaps at the package's
+link-time 50 MB floor (L1). The source build takes that floor as a parameter. Rebuilt at 4 MB
+(emscripten pinned at 3.1.74, L17; F1's signed clamp fix included) and pointed at by the
+downloader's existing decoder seam — `?decoder=source` on the campaign page, no product change —
+the Dd arm, 3 rounds, arms interleaved with the order reversed each round:
+
+| decoder | page + workers | workers alone | fill ms | cold ask ms |
+| --- | ---: | ---: | ---: | ---: |
+| the package (50 MB floor) | **161.4 MB** | 160.4 MB | 80.0 | 86.0 |
+| the source build (4 MB floor) | **16.3 MB** | 15.3 MB | 80.0 | 86.0 |
+
+**Ten times less memory, and the clock does not move.** 161.4 MB reproduces S4's 161.6 MB, which
+is the check that the two runs are measuring the same thing. Fill and cold ask are identical to the
+tenth of a millisecond across arms — the floor is preallocation, so lowering it returns memory the
+work never used rather than taking anything away.
+
+**Correctness is `parity.mjs`, not this table.** The campaign's `checksum` is a sampled rolling
+hash accumulated in arrival order, so it moves with delivery order and is not an oracle. The
+4 MB build was checked the proper way first: **byte-identical to the package and to the encoder's
+input on all six fixture sets, 40 frames, signed and 12-bit-in-16 included.**
+
+**What it does not settle.** This is one container, and the figure that matters is a phone's. It
+also does not make the source build the shipping decoder: that is a supply question — the package
+is a pinned npm artifact with a recorded checksum, and the source build is compiled here — and
+[`decode/README.md`](decode/README.md) §A build of our own holds it. What is settled is that the
+50 MB is a link-time choice and costs 145 MB for nothing.
+
+
+
 **S4, 2026-09-16, container-measured** (`lab/downloader-campaign/`, its README says how). 4 cores,
 loopback, `exact-server` in shared mode over 87 real HTJ2K frames of 512×512×3 (c512, ~430 KB
 each). Three arms, one fresh session each, arm order rotated every round, **8 rounds**, 120 runs,

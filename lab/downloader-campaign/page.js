@@ -20,6 +20,13 @@ const DECODER = {
   dir: "/lab/decode-bench/vendor/openjph",
 };
 
+// D7: ?decoder=source points at the build with a 4 MB floor instead of the package's 50 MB.
+const SOURCE_DECODER = {
+  glue: "/lab/.openjph-build/wasm/plain.js",
+  wasm: "/lab/.openjph-build/wasm/plain.wasm",
+  dir: "/lab/.openjph-build/wasm",
+};
+
 const logEl = document.getElementById("log");
 const log = (s) => { logEl.textContent += s + "\n"; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -66,7 +73,9 @@ async function downloaderArm(cfg, decode) {
   const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
     decode,
     decoders: decode ? 3 : 0,
-    decoder: decode ? DECODER : undefined,
+    decoder: decode
+      ? (new URLSearchParams(location.search).get("decoder") === "source" ? SOURCE_DECODER : DECODER)
+      : undefined,
     onFrame: (f) => deliver(f),
   });
   return {
