@@ -14,6 +14,8 @@ let cfg = { decoders: 3, decode: true, perDecoder: 2 };
 let dial = null;
 let generation = 0;
 let asksInFlight = 0;
+// S6: the dial and the decoders start together; dispatch waits on this, the dial does not.
+let decodersUp = false;
 
 const decoders = [];
 /** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
@@ -113,7 +115,7 @@ async function ask(index, promise) {
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/proposal-downloader.md §The downloader */
 function issueFill() {
-  if (asksInFlight > 0 || wanted.size === 0 || !session) return;
+  if (asksInFlight > 0 || wanted.size === 0 || !session || !decodersUp) return;
   const from = Math.min(...wanted);
   let to = from;
   while (wanted.has(to + 1)) to += 1;
@@ -159,10 +161,14 @@ async function start(m) {
     post({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
     decoders.push(d);
   }
-  // No frame may be dispatched before every decoder holds its instance.
-  if (cfg.decode) await Promise.all(ready);
+  // The handshake overlaps decoder start-up instead of queueing behind it (S6); no frame may
+  // still be dispatched before every decoder holds its instance, which `decodersUp` gates.
   dial = { url: m.url, certHash: m.certHash };
-  await connect();
+  const dialled = connect();
+  if (cfg.decode) await Promise.all(ready);
+  decodersUp = true;
+  await dialled;
+  issueFill();
   post({ kind: "started" });
 }
 

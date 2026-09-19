@@ -47,11 +47,14 @@
       if (!globalThis.crossOriginIsolated) { log("FATAL: not cross-origin isolated"); globalThis.__wtpacsDone = true; return; }
       await groundTruth(FRAMES);
       const cfg = await (await fetch("/wt/dev-transport.json")).json();
+      // D2d: the seam takes a module exporting TransportSession; absent, the downloader's default.
+      const transport = new URLSearchParams(location.search).get("transport") || undefined;
 
       const fillFrames = [];
       const t0 = performance.now();
       const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
         decoders: 3,
+        transport,
         decoder: {
           glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
           wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",

@@ -95,6 +95,17 @@ last byte, dispatched, decode start, decode end.
 * **Cancel:** end the stream, drop queued work by generation, fail outstanding asks with an
   `AbortError` distinct from the timeout. The reason's name is pending confirmation before adoption.
 
+**The dial no longer queues behind the decoders.** *Amended 2026-09-19 (D2d, from
+[S6](improvements/2026-09-18.md)).* `start()` awaited every decoder's instance before it dialled,
+so the handshake was paid after decoder start-up rather than beside it. They now start together
+and **dispatch** is what waits on decoder readiness, which is what the ordering was protecting.
+Measured on loopback, medians of 4 interleaved rounds: start-to-dialled **58 → 52 ms** on the TS
+client and **70 → 57 ms** on the WASM one, and the WASM client's penalty over the TS one falls from
+12 ms to 5 — the dial now overlaps the larger bundle instead of following it. **Loopback is the
+floor for this**: a handshake costs ~0 here and four round trips on a real link
+([`proposal-session-open.md`](proposal-session-open.md)), so the saving there is a whole handshake,
+not 6 ms. `run_downloader.sh` 46/46 and `run_dispatch.sh` 19/19 still pass.
+
 ## The decoders
 
 **Amended 2026-09-19 (P1, from [S12](improvements/2026-09-18.md)): the pool follows the queue, it
@@ -144,7 +155,7 @@ which runs every clause against both implementations and is in `scripts/gate.sh`
 `cargo test -p exact-server`. Clauses marked *new* were written for this stage and are
 mutation-checked — §S1 results below. Stage 4 filled the last column the same day, from what
 D2–D3 built: "on the downloader arm" is `client/conformance/run_downloader.sh`, "dispatch" is
-`run_dispatch.sh`, both in the gate. Two rows are **not shown** on the new path and say so.
+`run_dispatch.sh`, both in the gate. One row was **not shown** on the new path until D2d closed it (2026-09-19); the other still says so.
 
 | capability | today | downloader |
 | --- | --- | --- |
@@ -160,7 +171,7 @@ D2–D3 built: "on the downloader arm" is `client/conformance/run_downloader.sh`
 | re-dial after closure | conformance **`redialsAfterClosure`** *(new)* | conformance `redialsAfterClosure` on the downloader arm, and the redial branch of `noticesClose` |
 | 8-bit multi-component, 16-bit unsigned, 16-bit signed with sign extension | `parity.mjs` covers 8-bit 3-component and 16-bit unsigned over 388 frames, and since F1 **16-bit signed and 12-bit signed, 87 frames each**, against ground truth an independent decoder confirmed (`docs/decode/README.md` §Ground truth, *Signed*); the source build's signed clamp was wrong and is fixed | 8-bit 3-component: `downloader.html`, byte-identical (D2). 16-bit unsigned and signed: the decoder the downloader runs is the package, which `parity.mjs` proves on all of them and which sign-extends 12-in-16 itself, so `decoder.js`'s `finish` is idempotent on it. Not yet run *behind* the downloader on a signed study — the harness decodes c512 only |
 | every decoded frame byte-identical to the fixture's `.sha256` | `parity.mjs` (388 frames), `lab/decode-bench/retained/` (120 cells), `decode_bench.mjs` | `downloader.html`: single ask and a 12-frame fill, every frame against the encoder's input; mutation-checked both ways (D2) |
-| both clients, TS and WASM, behind the same downloader | every conformance clause runs against both arms — **but only when `client/transport-wasm/pkg/` exists**; otherwise one arm is skipped and the gate still passes (`cloud-queue.md` §Blocked) | **not shown** — every downloader run so far is over the TS transport (`config.transport` default). The WASM pkg exports `TransportSessionHandle`, not `TransportSession`, so the seam needs a one-line adapter module before the WASM arm can be run behind it |
+| both clients, TS and WASM, behind the same downloader | every conformance clause runs against both arms — and since 2026-09-18 the gate **requires** `client/transport-wasm/pkg/` rather than skipping the arm | **green, D2d 2026-09-19.** `client/transport-wasm/session-adapter.js` exports `TransportSession` over the package's `TransportSessionHandle`; `lab/scripts/downloader_both_clients.sh` runs the real downloader over each client against a real server. Single ask byte-exact on both, fill a tie (120 / 125 ms), start+dial 52 / 57 ms |
 
 ### S1 results
 
