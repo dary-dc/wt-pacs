@@ -1,12 +1,34 @@
 #!/usr/bin/env bash
 # The web image must answer exactly as server/dev-server.py does: same status, same three
-# isolation headers, same content type, same bytes, on every path the harness uses.
+# isolation headers, same content type, same bytes, on every path the harness uses. And the
+# transport's PEM must carry its own chain.
 # usage: deploy/check_equivalence.sh [--local] [study]
+#        deploy/check_equivalence.sh --cert [PEM]        the PEM check alone
 # --local runs nginx on this host from the template, so the config is checked without a
 # container runtime; the image itself is not.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# A PEM holding one certificate that something else issued leaves the browser to fetch the
+# intermediate over AIA on every cold open. docs/proposal-session-open.md §What production adds.
+cert_chain() {  # pem
+  local pem="$1" n subject issuer
+  if [ ! -r "$pem" ]; then printf '  skip %-38s no such PEM\n' "cert chain"; return 0; fi
+  n=$(grep -c -- '-----BEGIN CERTIFICATE-----' "$pem")
+  if [ "$n" -gt 1 ]; then printf '  ok   %-38s %s certificates\n' "cert chain" "$n"; return 0; fi
+  subject=$(openssl x509 -in "$pem" -noout -subject -nameopt rfc2253 | cut -d= -f2-)
+  issuer=$(openssl x509 -in "$pem" -noout -issuer -nameopt rfc2253 | cut -d= -f2-)
+  if [ "$subject" = "$issuer" ]; then
+    printf '  ok   %-38s one self-signed certificate\n' "cert chain"
+    return 0
+  fi
+  printf '  WARN %-38s one certificate, issued by "%s"\n' "cert chain" "$issuer"
+  printf '       a browser fetches that intermediate over AIA on every cold open; append it\n'
+  return 1
+}
+
 LOCAL=0
+if [ "${1:-}" = "--cert" ]; then cert_chain "${2:-$ROOT/server/dev-cert/cert.pem}"; exit; fi
 if [ "${1:-}" = "--local" ]; then LOCAL=1; shift; fi
 STUDY="${1:-us_cine_smoke}"
 PY_PORT=18765
@@ -38,6 +60,7 @@ for port in "$PY_PORT" "$NG_PORT"; do
 done
 
 fail=0
+cert_chain "${CERT_PEM:-$ROOT/server/dev-cert/cert.pem}" || fail=1
 probe() {  # port path -> "status|coop|coep|corp|ctype|sha"
   local url="http://127.0.0.1:$1$2"
   local h; h=$(curl -sS -D- -o /tmp/body.$$ "$url" 2>/dev/null)
@@ -78,5 +101,5 @@ for want in "cache-control: public, max-age=31536000, immutable" \
   fi
 done
 
-[ $fail -eq 0 ] && echo "equivalent on ${#PATHS[@]} paths, and the two divergences hold" || echo "NOT equivalent"
+[ $fail -eq 0 ] && echo "equivalent on ${#PATHS[@]} paths; the two divergences and the PEM's chain hold" || echo "NOT equivalent"
 exit $fail
