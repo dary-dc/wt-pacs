@@ -38,8 +38,10 @@ function codeCache(dir) {
   const walk = (p) => {
     for (const e of fs.readdirSync(p, { withFileTypes: true })) {
       const q = path.join(p, e.name);
-      if (e.isDirectory()) walk(q);
-      else if (!e.name.startsWith("index")) {
+      // The backend's own index is always there and is not a cached module.
+      if (e.isDirectory()) {
+        if (e.name !== "index-dir") walk(q);
+      } else if (e.name !== "index") {
         files++;
         bytes += fs.statSync(q).size;
       }
@@ -78,6 +80,7 @@ if (process.argv.includes("--parity")) {
   for (const set of ["decode_g512", "decode_c512", "decode_s512", "decode_cine512"]) {
     const out = {};
     for (const arm of ARMS) out[arm] = (await visit(ctx, set, arm, "&digest=1")).digests;
+    if (!out.buffer?.length) throw new Error(`${set}: no digests — the page decoded nothing`);
     // Ground truth is the encoder's input, never a decoder under test — parity.mjs says why.
     const truth = out.buffer.map((_, i) =>
       fs
