@@ -114,7 +114,7 @@ async function run(opts) {
   for (const r of state.routes) await inFrame(() => r.paint(state.frames[opts.set][0], win, out, opts.smooth));
 
   for (let i = 0; i < opts.paints; i++) {
-    const frame = state.frames[opts.set][i % set.frames];
+    const frame = state.frames[opts.set][opts.drag ? 0 : i % set.frames];
     const w = step(i);
     const order = i % 2 ? [state.routes[1], state.routes[0]] : state.routes;
     for (const r of order) {

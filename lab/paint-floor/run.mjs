@@ -34,8 +34,10 @@ const CSS = {
 };
 /** Every display size the bench uses, so equality is proven where it is timed. */
 const CHECK_OUT = Object.fromEntries(Object.entries(CSS).map(([set, css]) =>
-  [set, [null, ...[1, 2, 3].map((d) => ({ w: css.w * d, h: css.h * d }))]]));
-const DPRS = [1, 2, 3];
+  [set, argv.includes("--quick") && set === "big12mp"
+    ? [{ w: css.w, h: css.h }]
+    : [null, ...[1, 2, 3].map((d) => ({ w: css.w * d, h: css.h * d }))]]));
+const DPRS = flag("dprs", "1,2,3").split(",").map(Number);
 const PASSES = Number(flag("passes", 3));
 const PAINTS = Number(flag("paints", 12));
 const SMOOTH = argv.includes("--smooth");
@@ -134,7 +136,7 @@ for (let pass = 0; pass < PASSES; pass++) {
 
 console.log(`renderer  ${renderer}`);
 console.log(`${mode}, ${PASSES} passes x ${PAINTS} paints per route per cell, arms interleaved, smoothing ${SMOOTH}\n`);
-console.log("set        window    dpr  display     2d main ms        gl main ms       2d/gl   2d raf  gl raf  2d kB/paint");
+console.log("set        window    dpr  display     2d main ms        gl main ms       2d/gl   2d raf  gl raf  2d kB  gl kB");
 for (const [k, v] of [...cells.keys()].sort().map((k) => [k, cells.get(k)])) {
   const [set, win, dpr, display] = k.split("|");
   const main = (label) => median(v[label].map((r) => r.main));
@@ -148,7 +150,8 @@ for (const [k, v] of [...cells.keys()].sort().map((k) => [k, cells.get(k)])) {
     `${fmt(main("2d") / main("gl"), 1)}x`.padStart(6)}  ${
     fmt(median(v["2d"].map((r) => r.raf)), 1).padStart(6)}  ${
     fmt(median(v.gl.map((r) => r.raf)), 1).padStart(6)}  ${
-    fmt(median(v["2d"].map((r) => r.used)) / 1024, 0).padStart(11)}`);
+    fmt(median(v["2d"].map((r) => r.used)) / 1024, 0).padStart(6)}  ${
+    fmt(median(v.gl.map((r) => r.used)) / 1024, 0).padStart(5)}`);
 }
 console.log(`\nn per cell: ${PASSES * PAINTS} paints per route`);
 process.exit(0);

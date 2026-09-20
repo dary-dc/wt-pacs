@@ -115,7 +115,11 @@ void main() {
 
 const key = (frame) => `${frame.bits > 8 ? 16 : 8}${frame.signed ? "i" : "u"}${frame.components}`;
 
-/** A texture of the decoded samples, window/level in the shader, one draw at display size. */
+/**
+ * A texture of the decoded samples, window/level in the shader, one draw at display size. The
+ * upload is skipped when the frame has not changed, which is what makes a window/level drag cost
+ * a uniform rather than a frame — README §The drag.
+ */
 export class WebGL2Route {
   static label = "gl";
 
@@ -134,6 +138,7 @@ export class WebGL2Route {
     this.programs = new Map();
     this.texture = null;
     this.allocated = null;
+    this.uploaded = null;
   }
 
   renderer() {
@@ -179,7 +184,10 @@ export class WebGL2Route {
       this.allocated = want;
     }
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, frame.width, frame.height, f.format, f.type, frame.samples);
+    if (this.uploaded !== frame) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, frame.width, frame.height, f.format, f.type, frame.samples);
+      this.uploaded = frame;
+    }
 
     const at = this.program(frame);
     gl.useProgram(at.program);
