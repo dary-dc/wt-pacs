@@ -180,7 +180,6 @@ async function start(m) {
   decodersUp = true;
   pump();
   await dialled;
-  issueFill();
   post({ kind: "started" });
 }
 

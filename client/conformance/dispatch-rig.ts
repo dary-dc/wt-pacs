@@ -292,6 +292,12 @@ async function fillWithStartRunsAheadOfTheDecoders(DownloaderClient: DownloaderC
   check(asStart.size === early.length && asStart.size === indices.length, `fill at start: each frame exactly once (${asStart.size} of ${early.length})`);
   check(indices.every((i) => same(asStart.get(i), asFill.get(i))), `fill at start: byte-identical to the same fill asked after started`);
   c2.close();
+
+  // Decoders ready at once and nothing pushed: `start` must not re-issue what `connect` just sent.
+  const { c: c3, fake: fake3 } = await open(DownloaderClient, { decoders: 1, perDecoder: 2, delayMs: 0, fill: indices, onFrame: () => {} });
+  const runs = wireOf((await fake3.controlMessages()) as Wire[]).filter((w) => w.startsWith("stream_frames"));
+  check(runs.length === 1, `fill at start: it goes to the wire as one run (${runs.join(", ") || "none"})`);
+  c3.close();
 }
 
 /**
