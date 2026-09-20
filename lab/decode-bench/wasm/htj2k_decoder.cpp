@@ -5,6 +5,7 @@
 #include <emscripten/val.h>
 
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,27 @@ struct FrameInfo {
   bool isSigned = false, isUsingColorTransform = false;
 };
 
+// Clamp, narrow and interleave one pulled line into the frame. A single-component frame is
+// contiguous and is the case -msimd128 can take; docs/decode/README.md §The wrapper's two passes.
+template <typename T>
+void pack(const ojph::si32* src, uint8_t* dst, uint32_t w, uint32_t comps, int32_t lo,
+          int32_t top) {
+  if (comps == 1) {
+    T* out = reinterpret_cast<T*>(dst);
+    for (uint32_t x = 0; x < w; ++x) {
+      const int32_t v = src[x];
+      out[x] = (T)(v < lo ? lo : (v > top ? top : v));
+    }
+    return;
+  }
+  const size_t stride = (size_t)comps * sizeof(T);
+  for (uint32_t x = 0; x < w; ++x, dst += stride) {
+    const int32_t v = src[x];
+    const T out = (T)(v < lo ? lo : (v > top ? top : v));
+    std::memcpy(dst, &out, sizeof out);
+  }
+}
+
 }  // namespace
 
 class HTJ2KDecoder {
@@ -45,8 +67,7 @@ class HTJ2KDecoder {
   void readHeader() {
     in_.close();
     in_.open(encoded_.data(), encoded_.size());
-    cs_.~codestream();
-    new (&cs_) ojph::codestream();
+    cs_.restart();
     cs_.read_headers(&in_);
     cs_.set_planar(false);
 
@@ -71,20 +92,17 @@ class HTJ2KDecoder {
     const int32_t half = (int32_t)(1u << (frame_.bitsPerSample - 1));
     const int32_t lo = frame_.isSigned ? -half : 0;
     const int32_t top = frame_.isSigned ? half - 1 : 2 * half - 1;
-    decoded_.assign((size_t)w * h * comps * wide, 0);
+    // Not assign(…, 0): pack() writes every byte, and the fill was a second full-frame pass.
+    decoded_.resize((size_t)w * h * comps * wide);
 
     for (uint32_t y = 0; y < h; ++y) {
       for (uint32_t c = 0; c < comps; ++c) {
         uint32_t got = 0;
         ojph::line_buf* line = cs_.pull(got);
         const ojph::si32* src = line->i32;
-        uint8_t* dst = decoded_.data() + (size_t)y * w * comps * wide + (size_t)got * wide;
-        for (uint32_t x = 0; x < w; ++x, dst += (size_t)comps * wide) {
-          int32_t v = src[x];
-          v = v < lo ? lo : (v > top ? top : v);
-          dst[0] = (uint8_t)(v & 0xff);
-          if (wide == 2) dst[1] = (uint8_t)((v >> 8) & 0xff);
-        }
+        uint8_t* dst = decoded_.data() + ((size_t)y * w * comps + got) * wide;
+        if (wide == 2) pack<uint16_t>(src, dst, w, comps, lo, top);
+        else pack<uint8_t>(src, dst, w, comps, lo, top);
       }
     }
     cs_.close();
@@ -136,9 +154,9 @@ std::string getVersion() {
          "." + std::to_string(OPENJPH_VERSION_PATCH);
 }
 
-// 1 is what OpenJPH reports from a WASM SIMD build; 0 would mean the -msimd128 path was lost.
+// This wrapper's own -msimd128, not the library's: OpenJPH's CMake sets its SIMD flags itself.
 int getSIMDLevel() {
-#ifdef OJPH_ENABLE_WASM_SIMD
+#ifdef __wasm_simd128__
   return 1;
 #else
   return 0;

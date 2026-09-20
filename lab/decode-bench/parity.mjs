@@ -51,8 +51,8 @@ const ours = await require(path.join(armsDir, `${arm}.js`))();
 const theirsInstance = await instance();
 const theirs = theirsInstance.module;
 
-// One decoder object for every frame of every fixture, which is what the product holds
-// (`client/downloader/decoder.js`) and what a codestream reused across shapes must survive.
+// One decoder for every frame of every fixture: the product reuses one, so a reused codestream
+// has to survive the shape changes between them.
 const oursDecoder = new ours.HTJ2KDecoder();
 const theirsDecoder = new theirs.HTJ2KDecoder();
 
