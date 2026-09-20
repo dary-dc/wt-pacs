@@ -46,8 +46,12 @@ export class DownloaderClient {
       decoderWorker: opts.decoderWorker,
       // `opts.fill` rides with `start`: a page inside a long task cannot post one. docs/proposal-downloader.md §The downloader
       fill: opts.fill,
+      openAsk: opts.openAsk,
     };
-    c.#worker.postMessage({ kind: "start", url, certHash, config });
+    // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
+    // may be promises. docs/proposal-session-open.md
+    c.#worker.postMessage({ kind: "start", config });
+    c.#worker.postMessage({ kind: "dial", url: await url, certHash: await certHash });
     await c.#ready;
     return c;
   }
