@@ -13,6 +13,7 @@ let session = null;
 let cfg = { decoders: 3, decode: true, perDecoder: 2 };
 let dial = null;
 let dialling = null;
+/** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
 let generation = 0;
 let asksInFlight = 0;
 // S6: the dial and the decoders start together; dispatch waits on this, the dial does not.
@@ -32,7 +33,7 @@ function post(msg, transfer) {
 function fail(index, reason) {
   records.delete(index);
   wanted.delete(index);
-  post({ kind: "failed", index, reason });
+  post({ kind: "failed", index, gen: generation, reason });
 }
 
 /** Asks come before fill frames; a frame already in hand moves up rather than being re-asked. */
@@ -99,7 +100,7 @@ function arrived(index, frame) {
   rec.stamps.lastByte = abs();
   if (!cfg.decode) {
     records.delete(index);
-    post({ kind: "frame", index, pixels: frame.bytes, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
+    post({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
     return;
   }
   rec.bytes = frame.bytes;
@@ -118,8 +119,11 @@ async function ask(index, promise) {
   } catch (e) {
     if (gen === generation) fail(index, String(e?.message ?? e));
   } finally {
-    asksInFlight -= 1;
-    if (gen === generation) issueFill();
+    // A cancelled ask's count was already dropped with the rest of its generation's work.
+    if (gen === generation) {
+      asksInFlight -= 1;
+      issueFill();
+    }
   }
 }
 
@@ -146,7 +150,7 @@ function issueFill() {
 
 function onDone(d, m) {
   d.outstanding -= 1;
-  records.delete(m.index);
+  if (m.gen === generation) records.delete(m.index);
   pump();
 }
 
@@ -166,7 +170,11 @@ async function start(m) {
       if (e.data.kind === "done") onDone(d, e.data);
       else if (e.data.kind === "ready") d.ready();
       else if (e.data.kind === "init-failed") d.ready(post({ kind: "failed", index: -1, reason: e.data.reason }));
-      else if (e.data.kind === "failed") { d.outstanding -= 1; fail(e.data.index, e.data.reason); pump(); }
+      else if (e.data.kind === "failed") {
+        d.outstanding -= 1;
+        if (e.data.gen === generation) fail(e.data.index, e.data.reason);
+        pump();
+      }
     };
     post({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
     decoders.push(d);
@@ -228,11 +236,11 @@ onmessage = async (e) => {
       generation += 1;
       queue.ask.length = 0;
       queue.fill.length = 0;
-      for (const [index] of records) post({ kind: "failed", index, reason: "AbortError: the fill was cancelled" });
       records.clear();
       wanted.clear();
+      asksInFlight = 0;
       await session?.endStream();
-      return void post({ kind: "cancelled" });
+      return void post({ kind: "cancelled", gen: generation });
     }
     if (m.kind === "stats") return void post({ kind: "stats", id: m.id, stats: session ? session.stats() : { inFlight: 0 } });
     if (m.kind === "close") {
