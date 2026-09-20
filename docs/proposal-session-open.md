@@ -148,7 +148,11 @@ behaves as today, which is what keeps the change additive.
 **What the server must not do:** treat the URL as trusted input. It is a path from the network,
 so the study name is resolved against the configured root the same way today's `--study` is, and
 a malformed or out-of-range ask is refused with the existing `FrameError` on the control stream
-once that stream arrives — not by dropping the session.
+once that stream arrives — not by dropping the session. *Corrected 2026-09-20 (R1): until then the
+prototype had no control stream to refuse on at all* — `serve_opening_ask` built its pipeline
+without one, so **every** refusal in such a session was dropped, not only an opening one. The
+pipeline now takes the send half over a `oneshot` the accept task fills, and `refuse` waits for it.
+`server/src/transport/server.rs`'s `an_opening_ask_is_served_behind_the_accept` asserts it.
 
 ## Lever 2 — the server's SETTINGS at 0.5 RTT
 
@@ -198,16 +202,20 @@ Neither needs the impaired link. They are correctness, and they can run in this 
 
 ## The prototype, and what it does not claim
 
-Behind `--open-ask` on the server, off by default, with the client sending it only when told to.
-It is there so row 36 has something to time, and so the two clauses above have something to test.
-**It is not a measurement.** On loopback a round trip is ~0 and this change is invisible by
-construction; the cell that decides it is row 36's shaped link, and until that runs the only
-honest claim is the arithmetic at the top of this file.
+Behind `--open-ask` on the server, off by default, with the client sending it only when told to:
+`DownloaderClient.connect(url, certHash, { fill, openAsk: true })` puts the run it would have asked
+for on the control stream into the URL instead, and does not ask for it again.
+**On loopback a round trip is ~0 and the change is invisible by construction**, which is why it is
+timed through an impaired link in [`../lab/page-open/README.md`](../lab/page-open/README.md)
+§The first byte on a fill rather than here.
 
 ## Order
 
 1. This proposal. ✔
-2. The prototype behind the flag, and the two conformance clauses. ← next
+2. The prototype behind the flag, and the two conformance clauses. ✔ — server-side, plus the
+   client half (`openAsk`) and its clauses in `client/conformance/dispatch-rig.ts`.
 3. Row 36's container. ✔ — and with it the count above. The timing cell it was built for,
    navigation → ready → first byte with the flag on and off, is still owed.
 4. Lever 2 upstream, if the cell says step 2 is worth halving.
+
+The timing cell step 3 owes is `lab/page-open/README.md` §The first byte on a fill.

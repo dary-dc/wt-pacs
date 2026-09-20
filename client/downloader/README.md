@@ -13,6 +13,11 @@ Design and what it is for: [`docs/proposal-downloader.md`](../../docs/proposal-d
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
 
+**Only the dial needs the URL.** `url` and `certHash` may each be a promise: the worker, the
+decoders and the transport import start at once and the dial waits alone. With `opts.openAsk` the
+opening fill rides the session URL as `?ask=fill:A-B` and is never asked for on the control stream —
+off by default, as the server's `--open-ask` is. `lab/page-open/README.md` prices both.
+
 **A request is a generation.** `cancel()` bumps it and returns a promise that resolves once the
 downloader has ended the stream and dropped that request's work; every frame and failure carries the
 generation it was made under, and anything older is dropped on the page rather than handed over
