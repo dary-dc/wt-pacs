@@ -10,6 +10,9 @@ Design and what it is for: [`docs/proposal-downloader.md`](../../docs/proposal-d
 | `decoder.js` | one decoder instance, reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
 
+`DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
+in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
+
 Run the arm (`client/harness/downloader.html`) the way the README's quick start runs the others,
 against any study — it checks each decoded frame against the fixture's `.sha256`:
 

@@ -51,6 +51,7 @@ series costs the page's main thread 1.34 s cloned against 17 ms transferred.
 
 | to the downloader | fields |
 | --- | --- |
+| `start` | url, cert hash, config — and, optionally, `fill`: the first fill's frame indices |
 | `fill` | frame indices |
 | `ask` | one frame index |
 | `cancel` | — |
@@ -94,6 +95,23 @@ last byte, dispatched, decode start, decode end.
 * **Closure:** outstanding frames fail with the session's reason, as today; the next command re-dials.
 * **Cancel:** end the stream, drop queued work by generation, fail outstanding asks with an
   `AbortError` distinct from the timeout. The reason's name is pending confirmation before adoption.
+
+**The first fill rides with `start`.** *Amended 2026-09-19.* `DownloaderClient.connect(url, hash,
+{ fill })` puts the indices in the `start` message, so the downloader records them before it
+dials and the page is out of the fill's path. Without it the page must wait for the `started`
+message and then post `fill` — and a message cannot be delivered into a running task, so a main
+thread inside a third-party viewer's ~280 ms boot does not post that fill until the boot ends.
+Leaving `fill` out is exactly today's behaviour.
+
+**Why the wire may run ahead of the decoders, and dispatch may not.** Issuing a fill needs a
+session and nothing else; handing a frame to a decoder needs a decoder that holds its instance.
+Those were one condition (`decodersUp` on `issueFill`) and are now two: the guard moved to the top
+of `pump()`, so frames that land before a decoder exists sit in the queue with their bytes and go
+out the moment `decodersUp` flips. Left as one condition the fill waits for the decoders; removed
+altogether a frame reaches a decoder that does not exist yet and is lost. The dial is memoised for
+the same reason — `start` carrying a fill and a command behind it must share one handshake — and
+`connect()` alone issues the first run, since a second `issueFill()` after the dial put the same
+`stream_frames` range on the wire twice.
 
 **The dial no longer queues behind the decoders.** *Amended 2026-09-19 (D2d, from
 [S6](improvements/2026-09-18.md)).* `start()` awaited every decoder's instance before it dialled,
@@ -346,6 +364,46 @@ Removing today's path, which follows acceptance. A bounded fill window, the cach
 sizing for a device.
 
 ## Results
+
+### The first fill handed to `start`
+
+2026-09-19, workstation, 8 cores, `lab/fill-at-start/` (its README says how). `exact-server` in
+shared mode over `lab_queue_large` — 20 frames of ~51 KB, realistic sizes and not valid HTJ2K, so
+decode is off and "received" means the bytes are in the downloader's worker. Two arms, one fresh
+page and one fresh session each, **12 rounds**, arm order reversed on odd rounds: **after**, the
+page awaits `started` and then calls `fill()`; **start**, the same indices handed to `connect`.
+Median [min … max] from the page's call to `connect()`, and start's rounds-better out of 12.
+
+**Over a 50 ms round trip** (`lab/scripts/link_impair.py --udp 5555:4433 --delay-ms 25`), with the
+main thread held 300 ms from 25 ms in — the worker alive and dialling, `started` not yet back,
+which is the viewer's ordering:
+
+| | after | start | start better |
+| --- | --- | --- | --- |
+| the downloader has the fill (ms) | 327 [327 … 327] | **19 [17 … 24]** | 12/12 |
+| first frame received (ms) | 486 [484 … 487] | **335 [331 … 339]** | 12/12 |
+| all 20 frames received (ms) | 748 [744 … 754] | **599 [593 … 605]** | 12/12 |
+
+Three clean sweeps, ranges that do not overlap: the page round trip is worth **151 ms** on the fill
+here, which is the blocked main thread minus the part of it the worker was going to spend dialling
+anyway. A private viewer rig measured the same change on a real SDK boot the same day — the ask out
+at 451 → 102 ms, all frames received 527 → 221 ms, all decoded 958 → 644 ms, n = 10, 10/10 on each.
+
+**The other cells are ties, and each says something.** With the main thread free the change moves
+only when the downloader learns what to fetch, not when the fill lands: over the same 50 ms link
+the downloader has the fill at **189 [187 … 196] → 21 [17 … 23] ms, 12/12**, while all 20 frames
+are received at **609 [600 … 613] → 609 [604 … 639] ms, 5/12**. Nothing can go on the wire before
+the handshake is up, so a free page's round trip — ~2 ms — hides behind it. On loopback the same
+pair reads 41 [32 … 71] → 25 [20 … 35] ms, 12/12, and 53 [40 … 98] → 48 [39 … 76] ms, 9/12.
+
+**A main thread blocked in `connect()`'s own task takes the worker with it**, and this is the
+limit of the change. Held 300 ms from inside that task, over the 50 ms link, the downloader has the
+fill at **485 [483 … 488] → 316 [316 … 320] ms, 12/12** but all frames are received at **905 [901 …
+910] → 906 [902 … 913] ms, 5/12**. A blob worker created immediately before a 300 ms busy loop
+first replies at **304 ms**, against 8 ms with the thread free: in Chrome 148 a dedicated worker
+does not start while the main thread is blocked. So the change is worth a whole boot task only
+where the worker was already alive when the task began — which is the viewer's case and the row
+above, and is not something the downloader can arrange for itself.
 
 ### D7 — the same path on a decoder built with a 4 MB floor
 
