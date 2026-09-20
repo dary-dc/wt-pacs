@@ -39,22 +39,22 @@ function surface(d) {
   return out;
 }
 
-function decodeWith(M, bytes) {
-  const d = new M.HTJ2KDecoder();
-  try {
-    d.getEncodedBuffer(bytes.length).set(bytes);
-    d.readHeader();
-    const s = surface(d);
-    d.decode();
-    return { surface: s, pixels: Buffer.from(d.getDecodedBuffer()) };
-  } finally {
-    d.delete();
-  }
+function decodeWith(d, bytes) {
+  d.getEncodedBuffer(bytes.length).set(bytes);
+  d.readHeader();
+  const s = surface(d);
+  d.decode();
+  return { surface: s, pixels: Buffer.from(d.getDecodedBuffer()) };
 }
 
 const ours = await require(path.join(armsDir, `${arm}.js`))();
 const theirsInstance = await instance();
 const theirs = theirsInstance.module;
+
+// One decoder object for every frame of every fixture, which is what the product holds
+// (`client/downloader/decoder.js`) and what a codestream reused across shapes must survive.
+const oursDecoder = new ours.HTJ2KDecoder();
+const theirsDecoder = new theirs.HTJ2KDecoder();
 
 console.log(`ours:   getVersion()=${ours.getVersion()} getSIMDLevel()=${ours.getSIMDLevel()}`);
 console.log(`theirs: getVersion()=${theirs.getVersion()} getSIMDLevel()=${theirs.getSIMDLevel()}`);
@@ -78,8 +78,8 @@ for (const dir of dirs) {
   let pixelDiff = 0, truthDiff = 0;
   const surfaceDiff = new Set();
   for (let i = 0; i < frames.length; i++) {
-    const a = decodeWith(ours, frames[i]);
-    const b = decodeWith(theirs, frames[i]);
+    const a = decodeWith(oursDecoder, frames[i]);
+    const b = decodeWith(theirsDecoder, frames[i]);
     if (Buffer.compare(a.pixels, b.pixels) !== 0) pixelDiff++;
     if (sha256(a.pixels) !== truth[i]) truthDiff++;
     for (const k of Object.keys(b.surface)) if (a.surface[k] !== b.surface[k]) surfaceDiff.add(`${k}: ours ${a.surface[k]} theirs ${b.surface[k]}`);
@@ -94,6 +94,9 @@ for (const dir of dirs) {
 }
 
 // A parity claim is only as wide as the fixtures it ran on; say which those were.
-console.log(`\ncovers: ${[...covered].join(', ')}${covered.size && ![...covered].some((k) => k.includes('signed ')) ? ' — no signed fixture: run gen_htj2k_fixtures.sh s512 s12' : ''}`);
+const gaps = [];
+if (![...covered].some((k) => k.includes('signed '))) gaps.push('no signed fixture: add s512 s12');
+if (covered.size < 2) gaps.push('one sample shape: the reused codestream never changed geometry');
+console.log(`\ncovers: ${[...covered].join(', ')}${gaps.length ? ` — ${gaps.join('; ')}` : ''}`);
 console.log(bad ? `PARITY FAILED: ${bad} difference(s)` : 'PARITY OK: same surface, same bytes, on every frame');
 process.exit(bad ? 1 : 0);
