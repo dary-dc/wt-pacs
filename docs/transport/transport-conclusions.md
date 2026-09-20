@@ -237,19 +237,29 @@ the link's round trip. The link has no rate limit, so nothing here is the link.
 | **fresh** — nothing sent yet | 127.5 / 248.2 | 3.1 | 234.5 / 454.7 | 5.8 |
 | **filled** — after eight frames | 51.8 / 98.6 | 1.3 | 55.5 / 104.3 | 1.3 |
 | **lossy** — a fill through a 300 ms blackout | 103.8 / 190.8 | 2.5 | 220.1 / 430.8 | 5.4 |
-| **rebound** — a fill, then the relay changes its source port | 49.4 / 93.9 | 1.2 | 52.0 / 101.1 | 1.3 |
+| **rebound** — a fill, then the relay changes its source port | ~~49.4 / 93.9~~ 135.6 / 255.6 | 3.3 | ~~52.0 / 101.1~~ 236.7 / 454.7 | 5.8 |
 
 **S7's headline holds and is now a number: the first ask is slow start.** A 250 KB frame costs
 **5.8 round trips on a fresh session against 1.3 on a warmed one** — 4.4 of the 5.8 are the
 window opening, and 12 KB doubling to 250 KB is exactly six flights. At 50 KB it is 3.1 against
 1.3. A warmed session is **4.2× faster** at 250 KB and 2.5× at 50 KB, at both round trips.
 
-**Two of S7's clauses did not reproduce.** "After a lossy fill the ask is slower than on a fresh
+**One of S7's clauses did not reproduce.** "After a lossy fill the ask is slower than on a fresh
 session": it is not — the lossy arm lands *between* fresh and filled (−6 % against fresh at
 250 KB, −23 % at 50 KB), because the blackout collapses the window without taking it below where
-it started. And "a new IP resets the controller": a **4-tuple change by source port alone does
-not** — the rebound arm is indistinguishable from the filled one (52.0 against 55.5 ms). A
-genuinely different client address is untested here; this container has one loopback address.
+it started.
+
+**The rebound row is corrected 2026-09-20 (LD): a source-port change does reset the controller.**
+This table read it as indistinguishable from filled; re-run on the same script it reads as
+**fresh** — 236.7 / 454.7 ms at 250 KB against the fresh arm's 250.8 / 465.5 and the filled arm's
+52.9 / 109.3, five rounds, and again at n = 3 with the relay's own `REBOUND <old> -> <new>` lines
+in view, so the poke is known to have landed. That is RFC 9000 §9.4, a new path resetting the
+congestion controller and the RTT estimator. What produced the earlier reading is not known — same
+script, same relay, and the relay's rebind has not changed since it was written. **It is the
+target's case**: a mobile NAT rebind puts a warmed session back at the initial window, so a
+session is warm only until its 4-tuple moves, and every lever below is worth its cost again after
+each rebind. A genuinely different client address is untested here; this container has one
+loopback address.
 
 #### Lever 1 — the bytes the viewer needs anyway, pushed at session open
 
