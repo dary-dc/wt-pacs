@@ -39,6 +39,8 @@ export class DownloaderClient {
       decoder: opts.decoder,
       transport: opts.transport,
       decoderWorker: opts.decoderWorker,
+      // `opts.fill` rides with `start`: a page inside a long task cannot post one. docs/proposal-downloader.md §The downloader
+      fill: opts.fill,
     };
     c.#worker.postMessage({ kind: "start", url, certHash, config });
     await c.#ready;
