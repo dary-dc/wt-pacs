@@ -11,6 +11,7 @@ Product and ADRs stay here. This lane's campaign write-ups are on tag
 | [`telemetry/`](telemetry/) | Server/client telemetry (from `main`) |
 | [`disk-access/`](disk-access/) | How frames are brought in |
 | [`decode/`](decode/) | Codestream to pixels: the decoder, what it costs in memory, the BYOB read path |
+| [`paint-floor.md`](paint-floor.md) | Pixels to the screen: a canvas-2D route against a WebGL2 one, what each costs, and whether they are the same image |
 | [`../deploy/`](../deploy/) | nginx + the two images, and the check that they answer as the dev host did |
 | [`proposal-nginx-and-images.md`](proposal-nginx-and-images.md) | Proposed: nginx in place of the dev host, and an image per project |
 | [`proposal-udp-fallback.md`](proposal-udp-fallback.md) | Proposed: when UDP does not work — 4 s to rejection measured, the iOS 16 MB stall, and racing instead of detecting |

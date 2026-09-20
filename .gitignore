@@ -47,6 +47,8 @@ lab/fixtures/frames_500x250k/*.sbnd
 # Generated decode fixtures (regenerate with lab/scripts/gen_htj2k_fixtures.sh)
 lab/fixtures/decode_*/*.j2c
 lab/fixtures/decode_*/*.sha256
+# Decoded sample sets for the paint bench (regenerate with lab/paint-floor/frames.py)
+lab/paint-floor/frames/
 
 # Python bytecode from lab analysis scripts
 __pycache__/
