@@ -35,8 +35,10 @@ async function init(m) {
   const factory = new Function(
     `${src}\nreturn typeof Module !== "undefined" ? Module : OpenJPHModule;`,
   ).call(self);
-  const wasmBinary = await (await fetch(m.decoder.wasm)).arrayBuffer();
-  M = await factory({ wasmBinary, locateFile: (f) => m.decoder.dir + "/" + f });
+  // No binary and the glue streams its own fetch — docs/decode/README.md §The first frame.
+  const opts = { locateFile: (f) => m.decoder.dir + "/" + f };
+  if (!m.decoder.streaming) opts.wasmBinary = await (await fetch(m.decoder.wasm)).arrayBuffer();
+  M = await factory(opts);
   // One decoder object reused: parity.mjs is byte-identical on every fixture, so reuse is safe.
   dec = new M.HTJ2KDecoder();
 }

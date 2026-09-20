@@ -648,27 +648,88 @@ frame 0 — frames 1–5 sit around 4.5 ms against a 3.0 ms steady state, so a h
 smaller version of the same thing. On the viewer's one-frame goal that is ~9 ms of avoidable
 latency on a 512×512 frame, and it lands exactly where a user is waiting.
 
-**The engine's code cache does nothing here, as [S13](../improvements/2026-09-18.md) predicted.**
-Cold, warm-HTTP and warm-code are the same within noise — 3.92×, 3.97×, 4.08× on `g512` — and the
-arms only ever move in the wrong direction. The decoder is instantiated from a buffer and its glue
-is a classic script evaluated as text, so there is nothing for a compiled-code cache to attach to.
-The small load-time gain across arms (18 → 13–16 ms) is the HTTP cache, not the code cache.
+**The engine's code cache does nothing to the first frame.** Cold, warm-HTTP and warm-code are the
+same within noise — 3.92×, 3.97×, 4.08× on `g512` — and the arms only ever move in the wrong
+direction.
+
+**The reason given here was wrong, and D8 corrected it (2026-09-20).** This section said the cache
+had nothing to attach to because "the decoder is instantiated from a buffer and its glue is a
+classic script evaluated as text". That describes `client/downloader/decoder.js`; it does not
+describe the page that produced the table above. `lab/decode-first-frame/page.js` loads the glue
+with `<script src>` and passes the factory no `wasmBinary`, and Emscripten's `instantiateAsync`
+streams whenever it is given no binary — so this harness was already on the streaming path, with
+both caches available to it, and still saw nothing on the first frame. What is true is that the
+**load-time** gain across arms is not only the HTTP cache: the JavaScript code cache writes the
+glue's 63 336 B entry on visit 2 and deserializes it on visit 3 (§Instantiating by streaming).
 
 **D6's own remedy was to decode a small codestream at `init`. It does not remove the cost.** With
 a warm-up decode the first real frame still pays **3.50×** and **3.26×** — better than 3.9× and
 3.6×, and nowhere near gone. That is the behaviour S13 describes: tiering is per function with no
 on-stack replacement, so warming *some* functions does not promote the ones the next frame runs.
 
-**What would.** Not measured, and named so the next lane does not have to re-derive it: load the
-decoder by streaming compile from an ES module build, so the engine has a script it can cache and
-tier ahead of the first decode. That is a build change to the decoder package, not a client change,
-and it belongs with the source build (§A build of our own) rather than here.
+**What was named as the remedy — a streaming compile — was measured in D8 and is a tie.**
+§Instantiating by streaming.
 
 **This may be the ~12 ms nobody explained.** [§The BYOB read path](#the-byob-read-path) records a
 first-frame cost of about 12 ms on that path, reproduced twice and undiagnosed, and frame 0 here is
 11.8–16.9 ms against a 3 ms steady state. The shapes match. Nothing here confirms it — the BYOB
 figure was measured on a different path and a different rig — but a lane that reopens L2 should
 price this first.
+
+## Instantiating by streaming
+
+D8. V8 caches compiled WebAssembly only for a **streaming** compile of a module served as
+`application/wasm`, and what it caches is tiered-up code — exactly what the first frames lack. The
+product hands Emscripten a `wasmBinary`, which forbids that. `client/downloader/decoder.js` now
+takes `decoder.streaming`; given it, no binary is passed and the glue's own
+`WebAssembly.instantiateStreaming` runs. **The default is unchanged.** The lab's static host sends
+`Content-Type: application/wasm` and the module is 299 948 B, above the 128 kB V8 requires.
+
+`lab/decode-first-frame/arms.mjs`, 5 rounds, arms interleaved within each visit and the order
+reversed on odd rounds, a fresh persistent profile per arm, three visits each. Medians in ms;
+*k/n* is streaming's wins against the buffer over the five rounds.
+
+| set | visit | ready buffer → streaming | frame 0 buffer → streaming | steady | wins on frame 0 |
+| --- | ---: | --- | --- | --- | ---: |
+| `g512` | 1 | 22.9 → 22.9 | 19.0 → 19.1 | 4.3 → 4.0 | 2/5 |
+| | 2 | 16.5 → 17.9 | 14.1 → 15.1 | 4.1 → 4.0 | 2/5 |
+| | 3 | 13.1 → 14.1 | 13.7 → 17.1 | 4.3 → 4.1 | 1/5 |
+| `cine512` | 1 | 22.6 → 21.5 | 26.9 → 25.3 | 5.5 → 5.2 | 4/5 |
+| | 2 | 19.9 → 18.6 | 27.2 → 23.6 | 5.4 → 5.2 | 4/5 |
+| | 3 | 12.9 → 14.4 | 24.4 → 24.0 | 5.3 → 5.3 | 2/5 |
+
+**It is a tie, and the reason is that the cache never engages.** Wins straddle 2.5/5 in both
+directions and no cell holds its sign across visits. Chrome's WASM code cache lives in the
+profile's `Code Cache/wasm`, and across all 60 visits it held **nothing but the backend's own
+index** — 0 bytes of cached module. Five configurations were tried against one profile, three
+visits each: the host as it stands; `Cache-Control: public, max-age=31536000, immutable` on the
+wasm over HTTP/1.1; sixty decodes instead of eight with a fifteen-second settle; every function
+compiled up front (`--js-flags=--no-wasm-lazy-compilation`); and the buffer arm as a control.
+**None of them produced a WASM cache entry.** A CDP trace shows `wasm.TopTierCompilation` firing on
+every visit and no `v8.wasm` cache event at any of them.
+
+**The same profile caches JavaScript, which is how we know the machinery is alive.** `Code
+Cache/js` gains a 63 336 B entry on visit 2 — the decoder's glue — and visit 3 traces
+`v8.deserializeOnBackground` and `OnFinishCodeCacheConsumerScriptDecode`. That, with the HTTP
+cache, is the whole of the 22.9 → 13.1 ms fall in time-to-a-ready-decoder across visits, and it is
+a gain the **product does not get**: `decoder.js` runs in a module worker and evaluates the glue
+through `new Function`, which no code cache can attach to. Moving the glue onto a cacheable script
+is the larger lever here, and it is not measured.
+
+**Decoded output is identical on the two paths**: `g512`, `c512`, `s512` and `cine512`, 8 frames
+each, byte-identical between the arms and against the encoder's input (`arms.mjs --parity`);
+mutation-checked both ways. 12-bit signed is not covered — this box cannot build the fixture
+encoder.
+
+**Not defaulted, and what it would take if the cache ever engages**: `deploy/nginx` already maps
+`application/wasm` and gzips it, but only a name carrying a content hash gets `Cache-Control`, and
+the decoder's does not; there is no CSP today, and `new Function` on the glue would need
+`unsafe-eval` under one; the transport module (`client/transport-wasm`, wasm-bindgen
+`--target web`) already streams and has the same missing-`Cache-Control` gap.
+
+Measured on a desktop, headless. A phone tiers up more slowly and would pay more for the same
+miss; nothing here measures that. A headed browser was not tried: the only display on the rig is
+the owner's session.
 
 ## The range pass
 
