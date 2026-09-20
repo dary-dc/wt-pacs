@@ -274,7 +274,9 @@ milliseconds, at least not at a resolution this container can see.
 It does cost memory, and the two profiles want different answers:
 
 * **512×512** — ship **4 MB**. The decode fits without a single growth, so the heap is 4.0 MB
-  against the package's 50 MB: **12.5× less per instance**, which is the whole pool-sizing lever.
+  against the package's 50 MB — but that is a fresh decoder per frame, and the product reuses one:
+  **4.8 MB, 10× less per instance**, which is the whole pool-sizing lever. Corrected two paragraphs
+  below; the floor is unchanged and the rest of this row still holds.
 * **2048×2048** — ship **4 MB and let it grow**. Every floor at or below 16 MB converges on the
   same 24.6 MB high-water, so starting higher buys nothing: a 32 MB floor ends 7.4 MB heavier than
   a 4 MB one that grew, for no time back. Against the package that is still 2× less.
@@ -284,6 +286,32 @@ Growth is geometric, so 24.6 MB is an upper bound on what an 8 MB frame demands,
 Both figures are reproduced by the retention bench's copy-out arms, and both hold **only while the
 pixels leave the heap**: a viewer that keeps them inside it turns the 4 MB floor into the worst of
 the builds measured, not the best. §Retention, measured.
+
+**The 4.0 MB above is a decoder-per-frame figure, and the product does not decode that way**
+(D13, 2026-09-20). Re-measured on the adopted wrapper with **one decoder object reused**, which is
+what `client/downloader/decoder.js` holds, each set decoded on its own from a cold module:
+
+| initial | `g512` 512 KB grey | `c512` 768 KB colour |
+| --- | --- | --- |
+| 2 MB | 5.1 MB | **6.6 MB** |
+| 4 MB | **4.8 MB** | 7.0 MB |
+| 6 MB | 6.0 MB | 7.3 MB |
+| 8 MB | 8.0 MB | 8.0 MB |
+
+Time is again a tie: every floor is within 2.1 % of the best at both sizes with overlapping ranges,
+and which floor is nominally fastest changes between the two sets.
+
+**The floor stays at 4 MB**, and the reason is now the greyscale column rather than the colour one.
+A reused decoder keeps its codestream's arena between frames, so 512×512 greyscale costs **4.8 MB,
+not 4.0** — still 10× less than the package's 50 MB, not 12.5×. 4 MB is the *minimum* of that
+column: starting at 2 MB ends 0.3 MB **heavier**, because what it saves at load it gives back in a
+larger growth step. Colour prefers 2 MB by 0.4 MB and that is the smaller of the two effects.
+6 and 8 MB buy nothing and cost 1.2–3.2 MB.
+
+Neither column can see a growth inside frame 0 — an 87-frame median cannot — so a floor chosen for
+first-frame latency rather than for residency is a separate measurement, and §The first frame is
+where it would go. The floor is a link-time parameter either way:
+`EMSDK=… INITIAL_MB=2 lab/decode-bench/wasm/build.sh`.
 
 ### What adopting it costs
 
@@ -297,9 +325,27 @@ and 329,366 for the shared variant. The cost is not size, it is ownership:
 * `parity.mjs` is the mitigation and should run in CI against the published package: it is what
   turns "we rebuilt it" into "we rebuilt it and it is the same decoder".
 
-**Worth it if the per-instance heap is the binding constraint, which on a phone it is** — 12.5× at
+**Worth it if the per-instance heap is the binding constraint, which on a phone it is** — 10× at
 the size this project serves is not a margin a smaller change recovers. Not worth it on any other
-ground: it is the same decoder, at the same speed, for slightly fewer bytes.
+ground: it is the same decoder, for slightly fewer bytes, and its wrapper is now a pass lighter.
+**How much of that pass the package's own build still pays is not measured** — the 5.5–8.3 % above
+is against this repository's earlier wrapper, and nothing has re-timed the package since.
+
+### The build, as delivered
+
+`~/.cache/wt-pacs-decoder-2026-09-20/` is the adopted wrapper built for a consumer to take as built:
+`openjphjs.js`, `openjphjs.wasm`, OpenJPH's `LICENSE`, and a `SOURCE.txt` repeating what follows.
+
+```
+6a9abcc85363adb0864f4d1afed8dc899640a2f51e8945432d25d2069ecf6900  openjphjs.js    55,158 B
+19d11a7564ab48112159c1bf8c806fe85ac8df2c9b4f6d78fad11083369ca796  openjphjs.wasm 245,456 B
+```
+
+Commit `a28587f` (branch `claude/d-wrapper`), emscripten 3.1.74, `-O3 -msimd128 -fexceptions`,
+`INITIAL_MEMORY=4MB`, built by `EMSDK=… INITIAL_MB=4 ARMS=deliver lab/decode-bench/wasm/build.sh`.
+The `.wasm` is byte-identical to the `plain` build the 522-frame parity run above went through, and
+the glue differs from it only in the `.wasm` filename it loads. It exports `OpenJPHModule` where the
+package's exports `Module`, which `client/downloader/decoder.js` already handles.
 
 ## Dispatch: first-free against round-robin
 
