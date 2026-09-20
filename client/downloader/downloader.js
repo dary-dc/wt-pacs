@@ -12,6 +12,7 @@ const abs = () => performance.timeOrigin + performance.now();
 let session = null;
 let cfg = { decoders: 3, decode: true, perDecoder: 2 };
 let dial = null;
+let dialling = null;
 let generation = 0;
 let asksInFlight = 0;
 // S6: the dial and the decoders start together; dispatch waits on this, the dial does not.
@@ -58,6 +59,7 @@ function nextDecoder() {
 
 /** Never leave a decoder idle: up to `perDecoder` outstanding each. docs/decode/README.md §Dispatch */
 function pump() {
+  if (!decodersUp) return;
   for (;;) {
     const d = nextDecoder();
     if (!d) return;
@@ -73,6 +75,14 @@ function pump() {
       [rec.bytes.buffer],
     );
     rec.bytes = null;
+  }
+}
+
+function want(indices, askMs) {
+  for (const i of indices) {
+    if (records.has(i)) continue;
+    record(i, "fill", askMs);
+    wanted.add(i);
   }
 }
 
@@ -115,7 +125,7 @@ async function ask(index, promise) {
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/proposal-downloader.md §The downloader */
 function issueFill() {
-  if (asksInFlight > 0 || wanted.size === 0 || !session || !decodersUp) return;
+  if (asksInFlight > 0 || wanted.size === 0 || !session) return;
   const from = Math.min(...wanted);
   let to = from;
   while (wanted.has(to + 1)) to += 1;
@@ -161,21 +171,30 @@ async function start(m) {
     post({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
     decoders.push(d);
   }
-  // The handshake overlaps decoder start-up instead of queueing behind it (S6); no frame may
-  // still be dispatched before every decoder holds its instance, which `decodersUp` gates.
+  // The handshake and the first fill overlap decoder start-up instead of queueing behind it (S6);
+  // `decodersUp` gates dispatch alone — docs/proposal-downloader.md §The downloader.
   dial = { url: m.url, certHash: m.certHash };
+  if (cfg.fill) want(cfg.fill, abs());
   const dialled = connect();
   if (cfg.decode) await Promise.all(ready);
   decodersUp = true;
+  pump();
   await dialled;
-  issueFill();
   post({ kind: "started" });
 }
 
+/** One dial at a time: a fill riding with `start` and a command behind it share the handshake. */
 async function connect() {
-  TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
-  session = await TransportSession.connect(dial.url, dial.certHash);
-  session.closedPromise?.catch(() => {});
+  dialling ??= (async () => {
+    TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
+    session = await TransportSession.connect(dial.url, dial.certHash);
+    session.closedPromise?.catch(() => {});
+  })();
+  try {
+    await dialling;
+  } finally {
+    dialling = null;
+  }
   issueFill();
 }
 
@@ -202,12 +221,7 @@ onmessage = async (e) => {
     }
     if (m.kind === "fill") {
       await live();
-      const askMs = abs();
-      for (const i of m.indices) {
-        if (records.has(i)) continue;
-        record(i, "fill", askMs);
-        wanted.add(i);
-      }
+      want(m.indices, abs());
       return void issueFill();
     }
     if (m.kind === "cancel") {

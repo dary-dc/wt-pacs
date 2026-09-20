@@ -1,15 +1,16 @@
 /**
- * D2c: the two behaviours the downloader implements and D2b's surface clauses cannot see —
- * an ask served before the fill frames still waiting for a decoder, and never more than
- * `perDecoder` frames outstanding on one decoder. Both need contention forced with a stalling
- * decoder (fake-decoder.js), not luck. docs/proposal-downloader.md §The downloader.
+ * D2c: the behaviours the downloader implements and D2b's surface clauses cannot see — an ask
+ * served before the fill frames still waiting for a decoder, never more than `perDecoder` frames
+ * outstanding on one decoder, and a fill handed to `start` reaching the wire while the decoders
+ * are still coming up. Each needs the stand-in decoder (fake-decoder.js) made to stall or to hold
+ * `ready` back, not luck. docs/proposal-downloader.md §The downloader.
  */
-import { workerFake } from "./worker-fake.ts";
+import { type WorkerFake, workerFake } from "./worker-fake.ts";
 
 const CERT = "ab".repeat(32);
 const enc = new TextEncoder();
 
-type Frame = { frameIndex: number; info: { decodeSeq?: number; maxInFlight?: number } };
+type Frame = { frameIndex: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number } };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
   fill(indices: number[]): void;
@@ -22,21 +23,34 @@ type Wire = { op: string; from?: number; to?: number; frame?: number };
 
 let world = 0;
 
-async function open(
-  DownloaderClient: DownloaderCtor,
-  opts: { decoders: number; perDecoder: number; delayMs: number; onFrame: (f: Frame) => void; decode?: boolean },
-) {
+type OpenOpts = {
+  decoders: number;
+  perDecoder: number;
+  delayMs: number;
+  onFrame: (f: Frame) => void;
+  decode?: boolean;
+  fill?: number[];
+  readyDelayMs?: number;
+};
+
+function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
   const ch = `wtpacs-dispatch-${++world}`;
   const fake = workerFake(ch);
   const connect = DownloaderClient.connect("https://conformance.invalid/", CERT, {
     decode: opts.decode ?? true,
     decoders: opts.decoders,
     perDecoder: opts.perDecoder,
+    fill: opts.fill,
     transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
     decoderWorker: "/client/conformance/fake-decoder.js",
-    decoder: { delayMs: opts.delayMs },
+    decoder: { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
     onFrame: opts.onFrame,
   });
+  return { connect, fake };
+}
+
+async function open(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
+  const { connect, fake } = begin(DownloaderClient, opts);
   const c = await Promise.race([
     connect,
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error("the downloader did not start in 5 s")), 5000)),
@@ -214,6 +228,139 @@ async function asksTheWireForAnOwedFrame(DownloaderClient: DownloaderCtor, check
   c.close();
 }
 
+/** How long the stand-in decoders hold `ready` back, so the wire has a window to run ahead of them. */
+const READY_DELAY_MS = 400;
+
+const same = (a?: Uint8Array, b?: Uint8Array) =>
+  !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+
+/**
+ * When `needle` first appears on the wire, in ms from now. Probes are fired rather than awaited:
+ * one sent before the worker has imported the fake is dropped, and awaiting it would cost 2 s.
+ */
+async function firstSeenMs(fake: WorkerFake, needle: string, budgetMs = 3000) {
+  const t0 = Date.now();
+  let at = 0;
+  while (!at && Date.now() - t0 < budgetMs) {
+    void fake
+      .controlMessages()
+      .then((msgs) => {
+        if (!at && wireOf(msgs as Wire[]).includes(needle)) at = Date.now() - t0;
+      })
+      .catch(() => {});
+    await settle(5);
+  }
+  return at;
+}
+
+/**
+ * A fill handed to `start` is on the wire while the decoders are still coming up, and its frames
+ * arrive decoded once each and byte-identical to the same fill asked the old way, after `started`.
+ */
+async function fillWithStartRunsAheadOfTheDecoders(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const indices = [0, 1, 2, 3, 4, 5, 6, 7];
+  const payload = (i: number) => enc.encode(`frame-${i}-${"ab".repeat(i + 1)}`);
+
+  const early: Frame[] = [];
+  const { connect, fake } = begin(DownloaderClient, {
+    decoders: 1,
+    perDecoder: 2,
+    delayMs: 0,
+    readyDelayMs: READY_DELAY_MS,
+    fill: indices,
+    onFrame: (f) => early.push(f),
+  });
+  const at = await firstSeenMs(fake, "stream_frames 0-7");
+  check(
+    at > 0 && at < READY_DELAY_MS / 2,
+    `fill at start: the fill is on the wire at ${at} ms, with the decoders ${READY_DELAY_MS} ms from ready`,
+  );
+  for (const i of indices) await fake.pushFrame(i, payload(i));
+  const c = await connect.catch(() => null);
+  const all = await until(() => early.length >= indices.length, 5000);
+  check(all, `fill at start: every frame of it arrives (${early.length}/${indices.length})`);
+  c?.close();
+
+  const late: Frame[] = [];
+  const { c: c2, fake: fake2 } = await open(DownloaderClient, { decoders: 1, perDecoder: 2, delayMs: 0, onFrame: (f) => late.push(f) });
+  c2.fill(indices);
+  for (const i of indices) await fake2.pushFrame(i, payload(i));
+  await until(() => late.length >= indices.length, 5000);
+
+  const asStart = new Map(early.map((f) => [f.frameIndex, f.bytes]));
+  const asFill = new Map(late.map((f) => [f.frameIndex, f.bytes]));
+  check(asStart.size === early.length && asStart.size === indices.length, `fill at start: each frame exactly once (${asStart.size} of ${early.length})`);
+  check(indices.every((i) => same(asStart.get(i), asFill.get(i))), `fill at start: byte-identical to the same fill asked after started`);
+  c2.close();
+
+  // Decoders ready at once and nothing pushed: `start` must not re-issue what `connect` just sent.
+  const { c: c3, fake: fake3 } = await open(DownloaderClient, { decoders: 1, perDecoder: 2, delayMs: 0, fill: indices, onFrame: () => {} });
+  const runs = wireOf((await fake3.controlMessages()) as Wire[]).filter((w) => w.startsWith("stream_frames"));
+  check(runs.length === 1, `fill at start: it goes to the wire as one run (${runs.join(", ") || "none"})`);
+  c3.close();
+}
+
+/**
+ * The race the wire-ahead-of-the-decoders change opens: frames that land before any decoder
+ * exists are held for one, not handed to a decoder that cannot take them. `pump()`'s guard.
+ */
+async function framesBeforeAnyDecoderAreHeld(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const indices = [...Array(12).keys()];
+  const held: Frame[] = [];
+  const t0 = Date.now();
+  const { connect, fake } = begin(DownloaderClient, {
+    decoders: 3,
+    perDecoder: 2,
+    delayMs: 0,
+    readyDelayMs: READY_DELAY_MS,
+    fill: indices,
+    onFrame: (f) => held.push(f),
+  });
+  await firstSeenMs(fake, "stream_frames 0-11");
+  for (const i of indices) await fake.pushFrame(i, enc.encode(`held-${i}`));
+  const pushedAt = Date.now() - t0;
+  check(pushedAt < READY_DELAY_MS, `held: all ${indices.length} frames land at ${pushedAt} ms, before any decoder is ready (${READY_DELAY_MS} ms)`);
+
+  const c = await connect.catch(() => null);
+  const all = await until(() => held.length >= indices.length, 5000);
+  check(all, `held: every frame that arrived before a decoder existed is delivered (${held.length}/${indices.length})`);
+  check(held.every((f) => (f.info.decodeSeq ?? 0) > 0), `held: each of them went through a decoder`);
+  check(new Set(held.map((f) => f.frameIndex)).size === indices.length, `held: each of them exactly once`);
+  c?.close();
+}
+
+/**
+ * `start` carrying a fill with an `ask` posted straight behind it — the pair the consumer cannot
+ * make, since `connect` resolves on `started` — shares one handshake instead of racing into two.
+ */
+async function startWithAFillDialsOnce(_DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const ch = `wtpacs-dispatch-${++world}`;
+  const fake = workerFake(ch);
+  const w = new Worker("/client/downloader/downloader.js", { type: "module" });
+  w.onmessage = () => {};
+  w.postMessage({
+    kind: "start",
+    url: "https://conformance.invalid/",
+    certHash: CERT,
+    config: { decode: false, decoders: 0, transport: `/client/conformance/dist/fake-session.js?ch=${ch}`, fill: [0, 1, 2, 3] },
+  });
+  w.postMessage({ kind: "ask", index: 50 });
+
+  let dialled = 0;
+  const deadline = Date.now() + 3000;
+  while (!dialled && Date.now() < deadline) {
+    void fake
+      .dials()
+      .then((n) => { dialled = n; })
+      .catch(() => {});
+    await settle(10);
+  }
+  await settle(300);
+  const dials = await fake.dials();
+  check(dials === 1, `fill at start: a start carrying a fill and an ask behind it dial once (${dials})`);
+  w.terminate();
+}
+
 export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -226,7 +373,16 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     }
   };
   log("dispatch (D2c)");
-  for (const clause of [askBeatsQueuedFill, promoteBeatsQueuedFill, boundHoldsPerDecoder, reissuesAfterAsk, asksTheWireForAnOwedFrame]) {
+  for (const clause of [
+    askBeatsQueuedFill,
+    promoteBeatsQueuedFill,
+    boundHoldsPerDecoder,
+    reissuesAfterAsk,
+    asksTheWireForAnOwedFrame,
+    fillWithStartRunsAheadOfTheDecoders,
+    framesBeforeAnyDecoderAreHeld,
+    startWithAFillDialsOnce,
+  ]) {
     try {
       await clause(DownloaderClient, check);
     } catch (e) {

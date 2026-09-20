@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs lab — the first fill</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>lab — when the first fill leaves</h1>
+  <p>
+    <code>?arm=after</code> posts the fill once <code>started</code> comes back;
+    <code>?arm=start</code> hands it to <code>connect</code>. <code>?block=300</code> holds the
+    page's main thread for 300 ms right after <code>connect()</code> is called, which is where a
+    viewer's SDK boot task sits. <code>lab/fill-at-start/run.mjs</code> drives this headless.
+  </p>
+  <div id="log"></div>
+  <script type="module" src="./page.js"></script>
+</body>
+</html>
