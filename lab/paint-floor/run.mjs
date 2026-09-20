@@ -32,11 +32,6 @@ const CSS = {
   ct512: { w: 512, h: 512 },
   big12mp: { w: 768, h: 576 },
 };
-/** Every display size the bench uses, so equality is proven where it is timed. */
-const CHECK_OUT = Object.fromEntries(Object.entries(CSS).map(([set, css]) =>
-  [set, argv.includes("--quick") && set === "big12mp"
-    ? [{ w: css.w, h: css.h }]
-    : [null, ...[1, 2, 3].map((d) => ({ w: css.w * d, h: css.h * d }))]]));
 const DPRS = flag("dprs", "1,2,3").split(",").map(Number);
 const PASSES = Number(flag("passes", 3));
 const PAINTS = Number(flag("paints", 12));
@@ -51,6 +46,15 @@ const fmt = (x, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : "n/a");
 if (!fs.existsSync(path.join(HERE, "frames/manifest.json"))) {
   execFileSync("python3", [path.join(HERE, "frames.py")], { stdio: "inherit" });
 }
+const SETS = JSON.parse(fs.readFileSync(path.join(HERE, "frames/manifest.json"), "utf8"));
+
+/** Every display size the bench times, plus 1:1, each once — equality proven where it is timed. */
+const CHECK_OUT = Object.fromEntries(Object.entries(CSS).map(([set, css]) => {
+  const sizes = argv.includes("--quick") && set === "big12mp"
+    ? [{ w: css.w, h: css.h }]
+    : [{ w: SETS[set].width, h: SETS[set].height }, ...[1, 2, 3].map((d) => ({ w: css.w * d, h: css.h * d }))];
+  return [set, sizes.filter((o, i) => sizes.findIndex((q) => q.w === o.w && q.h === o.h) === i)];
+}));
 
 const port = 30000 + ((Math.random() * 20000) | 0);
 const kids = [spawn("python3", ["server/dev-server.py", "--port", String(port)], { cwd: ROOT, stdio: "ignore" })];
