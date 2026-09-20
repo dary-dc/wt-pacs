@@ -47,6 +47,23 @@ console.log(`${ROUNDS - 1} timed rounds, order rotated each round; the first arm
 
 const consume = (b) => b[0] + b[b.length - 1];
 
+// A module tiers up as it runs, so the first frames are only cold once per process: this pass
+// runs before anything else and its order is the order of --arms, which the caller rotates.
+const COLD_TO = 100;
+{
+  const { frames } = loadFixture(dirs[0]);
+  for (const n of names) {
+    const first = [];
+    for (let i = 0; i < COLD_TO; i++) {
+      const t0 = performance.now();
+      consume(arms[n].decode(frames[i % frames.length]));
+      if (i < 3) first.push(performance.now() - t0);
+    }
+    console.log(`  ${n.padEnd(8)} cold frames 1-3: ${first.map((v) => v.toFixed(1)).join(' / ')} ms` +
+      `, heap after ${COLD_TO}: ${(arms[n].heap() / 1048576).toFixed(1)} MB`);
+  }
+}
+
 for (const dir of dirs) {
   const { frames, truth, meta, name } = loadFixture(dir);
   for (const n of names) {
