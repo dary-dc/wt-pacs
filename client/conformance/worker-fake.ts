@@ -6,6 +6,7 @@
 export type WorkerFake = {
   pushFrame(index: number, codestream: Uint8Array): Promise<void>;
   pushOnOneStream(frames: [number, Uint8Array][]): Promise<void>;
+  pushRefusal(index: number, reason: string): Promise<void>;
   serverClose(closeCode?: number, reason?: string, endStreams?: boolean): Promise<void>;
   controlMessages(): Promise<{ op: string }[]>;
   didClose(): Promise<boolean>;
@@ -35,6 +36,7 @@ export function workerFake(name: string): WorkerFake {
   return {
     pushFrame: (i, c) => call("pushFrame", i, c) as Promise<void>,
     pushOnOneStream: (frames) => call("pushOnOneStream", frames) as Promise<void>,
+    pushRefusal: (i, reason) => call("pushRefusal", i, reason) as Promise<void>,
     serverClose: (code, reason, endStreams) => call("serverClose", code, reason, endStreams) as Promise<void>,
     controlMessages: () => call("controlMessages") as Promise<{ op: string }[]>,
     didClose: () => call("didClose") as Promise<boolean>,

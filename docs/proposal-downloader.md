@@ -59,12 +59,32 @@ series costs the page's main thread 1.34 s cloned against 17 ms transferred.
 
 | to the consumer | fields |
 | --- | --- |
-| `frame` | index, pixels, width, height, bits, components, signed, min, max, byte count, stamps |
-| `failed` | index, reason |
+| `frame` | index, generation, pixels, width, height, bits, components, signed, min, max, byte count, stamps |
+| `failed` | index, generation, reason |
+| `cancelled` | generation |
 | `closed` | reason |
 
 Stamps are epoch milliseconds (`timeOrigin + now`), converted once by the consumer: ask, first byte,
 last byte, dispatched, decode start, decode end.
+
+**A request's identity is its generation, not its frame index.** *Amended 2026-09-20 (P1).* `cancel`
+bumps a counter the downloader owns, and every record, decode, decoder reply and delivery to the page
+carries the generation it was made under; anything older is dropped where it lands. Without it a
+frame decoded for a cancelled request was handed to the consumer under an index the *new* request was
+using — the right key with the wrong pixels, which is the bit-exact guarantee — and a late `done`
+deleted the new request's record, so its own frame arrived with nothing to put it in and was dropped.
+
+**The decoders are not told, because telling them would do nothing.** A `cancel` posted to a decoder
+queues behind the decodes already posted to it, so it cannot stop them; what a cancel wastes is at
+most `decoders × perDecoder` frames, which is what the dispatch bound already holds. What matters is
+that the result is not taken for the new request's, and the generation on the reply is that.
+An out-of-band signal a decoder could read before each frame — a flag in a `SharedArrayBuffer` — is
+the only shape that would drop queued work; it is worth its complexity only if a decode is long
+against a switch, which the phone measurement would say.
+
+**`want()`'s bare index is not one of these places**, though the sweep read it as one: `cancel`
+clears `records`, so an index `want()` skips is always one the *current* request already has on the
+wire or in hand.
 
 ## The downloader
 
@@ -95,6 +115,11 @@ last byte, dispatched, decode start, decode end.
 * **Closure:** outstanding frames fail with the session's reason, as today; the next command re-dials.
 * **Cancel:** end the stream, drop queued work by generation, fail outstanding asks with an
   `AbortError` distinct from the timeout. The reason's name is pending confirmation before adoption.
+  *Amended 2026-09-20 (P1).* It also **resets the count of asks in flight** — that count is what
+  gates the fill, so one left over from the cancelled request stalls the next fill to the consumer's
+  15 s timeout — and answers `cancelled`, which `DownloaderClient.cancel()` returns as a promise. The
+  page rejects its own waiters when it posts the cancel, which is what the `failed`-per-record the
+  worker used to post was for, and is one message per cancel instead of one per outstanding frame.
 
 **The first fill rides with `start`.** *Amended 2026-09-19.* `DownloaderClient.connect(url, hash,
 { fill })` puts the indices in the `start` message, so the downloader records them before it
@@ -163,6 +188,14 @@ Here, the harness: take each frame, check it against the fixture's `.sha256`, re
 For any consumer, one rule: frames that were asked for are taken at once, fill frames at background
 priority, so a paint never waits behind a fill.
 
+`DownloaderClient.connect(url, certHash, { onFrame, onError, fill, … })` →
+`requestExactFrame(index)`, `fill(indices)`, `cancel()`, `stats()`, `close()`. *Amended 2026-09-20
+(P1):* every delivered frame carries its `generation`; `cancel()` returns a promise that resolves
+when the downloader has ended the stream and dropped that request's work; and
+`onError({ frameIndex, reason, generation })` is how a refused **fill** frame reaches the consumer.
+A refused *asked* frame still rejects its own promise — a fill frame has no waiter to reject, which
+is why it reached nobody before.
+
 ## Capabilities
 
 Nothing is removed until every row passes on the new path. Stage 1 fills the middle column against
@@ -178,10 +211,10 @@ D2–D3 built: "on the downloader arm" is `client/conformance/run_downloader.sh`
 | capability | today | downloader |
 | --- | --- | --- |
 | connect, single ask, fill; shared and per-frame stream modes | conformance `workerSafe`, `cancellable`, **`bothStreamModes`** *(new)*; server `stream_frames_range_arrives_in_order`, `a_batch_arrives_whole_and_in_ask_order` | conformance `workerSafe`, `cancellable`, `bothStreamModes`, **`pushedFill`** on the downloader arm (D2b, D3); `client/harness/downloader.html` against the real server, 12/12 byte-identical (D2) |
-| a fill cancelled mid-way, the session still serving afterwards | conformance `cancellable` — incl. "the session still serves a frame after a cancel"; server `end_stream_stops_a_fill_on_the_wire` | conformance `cancellable` on the downloader arm; the harness's "cancel: the session still serves frame 5" (D2) |
+| a fill cancelled mid-way, the session still serving afterwards | conformance `cancellable` — incl. "the session still serves a frame after a cancel"; server `end_stream_stops_a_fill_on_the_wire` | conformance `cancellable` on the downloader arm; the harness's "cancel: the session still serves frame 5" (D2); and, since P1, dispatch `lateFramesOfACancelledRequestAreDropped`, `aLateDoneDoesNotDropTheNewRequestsFrame`, `cancelCompletesAndUnblocksTheNextFill` — §P1 results |
 | a closed session noticed at once, waiters failed | conformance `noticesClose` | conformance `noticesClose` on the downloader arm — an in-flight ask is woken at once; an ask after the closure re-dials and is served (its own contract) |
 | a frame on a live session still owed its full timeout | conformance `noticesClose`, last check | conformance `noticesClose`, last check, on the downloader arm |
-| refusals delivered, none lost (`client/harness/refusals.html`) | `refusals.html` headless against a real server, **in the gate** (`client/conformance/run_wire.sh`, D1r): 64 refusals back to back, none lost, both clients, mutation-checked; server side `a_bad_range_is_refused_with_from`, `an_empty_study_is_refused_with_from`, `fod_len_zero_and_huge_are_refused_before_allocation` | **partly** — a refused *ask* reaches the consumer with the server's reason (the `failed` path). A refused *fill* does not: the session's `onError` fails the run's records, but the consumer has `onFrame` only and never hears. Found by D1r, not fixed by it |
+| refusals delivered, none lost (`client/harness/refusals.html`) | `refusals.html` headless against a real server, **in the gate** (`client/conformance/run_wire.sh`, D1r): 64 refusals back to back, none lost, both clients, mutation-checked; server side `a_bad_range_is_refused_with_from`, `an_empty_study_is_refused_with_from`, `fod_len_zero_and_huge_are_refused_before_allocation` | **green, P1 2026-09-20.** A refused *ask* reaches the consumer with the server's reason (the `failed` path), and a refused *fill* now reaches it through `onError`: dispatch `aRefusedFillReachesTheConsumer` refuses a run at its first frame and reads every frame of it back on the page, and checks a refused ask still rejects its own promise instead. Found by D1r; the fake gained `pushRefusal`, the control-stream push it had no way to make |
 | worker-safe clocks; transferable results | conformance `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | conformance `workerSafe`, `transferable` on the downloader arm: stamps that cross two worker boundaries are non-zero and ordered; a delivered buffer is movable and takes no sibling. Move-not-copy *across* the worker boundary is not page-observable (§S3 results) |
 | `stats` | conformance **`reportsStats`** *(new)* | conformance `reportsStats` on the downloader arm — answered on the page, no round trip |
 | an ask during a fill, served before the fill's queue | `client/conformance/ask-during-fill.html` against a real server, **in the gate** (D1r): the ask is served mid-fill, the fill ends — 28 of 120 arrive, then nothing — and the rest arrive only once asked again, which the raw client does not do by itself; server `a_data_request_during_a_fill_ends_it_and_is_served_next`, `request_frame_during_fill_switches_to_on_demand` | the same page, `arm=downloader`: the ask is served and the fill completes without being asked again, no frame twice — D3's re-issue on the real wire; dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill`, `asksTheWireForAnOwedFrame`, `reissuesAfterAsk`; priced at 10 %, 50 % and 90 % in §Results |
@@ -284,6 +317,34 @@ Mutation-checked: a fill-first queue, a `promote()` that does nothing, and a rai
 cap each fail their clauses by name. `config.decoderWorker` is the seam that made this possible,
 a decoder analogue of `config.transport`. **Still unasserted:** sign extension — it cannot be
 asserted at all until there is a signed fixture (`cloud-queue.md` §Blocked).
+
+### P1 results — the cancel and refusal paths
+
+2026-09-20. Four clauses in `dispatch-rig.ts`, **29 → 43 checks green in the gate**: a frame decoded
+for a cancelled request is dropped rather than delivered under the new request's index; that
+request's late `done` leaves the new record alone, so the new frame still arrives; `cancel()`
+completes, aborts the asks it dropped and frees the count that gates the fill, and a late settlement
+of a cancelled ask does not leave a fill free to run beside a live one; and a refused fill reaches
+the consumer through `onError` while a refused ask still rejects its own promise. The fake gained
+`pushRefusal`, the control-stream push it had no way to make, and `client/harness/downloader.html`
+dropped a 300 ms sleep for `await c.cancel()`.
+
+| mutant | caught by |
+| --- | --- |
+| the page's generation guard on a delivered frame removed | `lateFramesOfACancelledRequestAreDropped` — 3 checks, incl. the cancelled request's bytes under the new request's key — and `aLateDoneDoesNotDropTheNewRequestsFrame` |
+| `onDone` deletes by index with no generation check | `aLateDoneDoesNotDropTheNewRequestsFrame` — 2 checks; the new frame is dropped in `arrived()` for want of a record |
+| `cancel` does not reset the count of asks in flight | `cancelCompletesAndUnblocksTheNextFill` — 2 checks: nothing after `end_stream` on the wire, no frames |
+| `cancelled` is never posted | `cancelCompletesAndUnblocksTheNextFill` — `cancel() completes` |
+| a refused fill frame reaches nobody again | `aRefusedFillReachesTheConsumer` |
+| `onError` fires for an asked frame as well | `aRefusedFillReachesTheConsumer`, last check |
+| the ask count decremented across a cancel | `cancelCompletesAndUnblocksTheNextFill`, last check |
+
+**One guard has no clause, and is recorded rather than claimed.** The page also drops a `failed`
+stamped with a superseded generation. A failure is only ever posted with the worker's *current*
+generation, so the only window is the page's `cancel()` racing the worker's — and no deterministic
+clause opens it, because against the fake every await on that path resolves in microtasks. The
+mutant that removes that guard passes. It is kept because one rule — anything older is dropped
+where it lands — is easier to hold true than the same rule with an exception.
 
 **S3 — fills pushed.** Both clients deliver a fill's frames as they arrive instead of through a waiter
 per frame; the conformance suite covers the new form against both implementations. The downloader

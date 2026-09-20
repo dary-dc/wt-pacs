@@ -9,11 +9,15 @@ import { type WorkerFake, workerFake } from "./worker-fake.ts";
 
 const CERT = "ab".repeat(32);
 const enc = new TextEncoder();
+/** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
+const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number } };
+type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
   fill(indices: number[]): void;
+  cancel(): Promise<void>;
   close(): void;
 };
 type DownloaderCtor = {
@@ -28,6 +32,7 @@ type OpenOpts = {
   perDecoder: number;
   delayMs: number;
   onFrame: (f: Frame) => void;
+  onError?: (f: Fail) => void;
   decode?: boolean;
   fill?: number[];
   readyDelayMs?: number;
@@ -45,6 +50,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     decoderWorker: "/client/conformance/fake-decoder.js",
     decoder: { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
     onFrame: opts.onFrame,
+    onError: opts.onError,
   });
   return { connect, fake };
 }
@@ -59,6 +65,10 @@ async function open(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
 }
 
 const settle = (ms = 40) => new Promise((r) => setTimeout(r, ms));
+
+/** A cancel that never completes must fail its own check by name, not take the suite down (S1). */
+const cancelled = (c: Downloader, ms = 3000) =>
+  Promise.race([c.cancel().then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), ms))]);
 
 async function until(cond: () => boolean, ms = 3000): Promise<boolean> {
   const t0 = Date.now();
@@ -228,6 +238,133 @@ async function asksTheWireForAnOwedFrame(DownloaderClient: DownloaderCtor, check
   c.close();
 }
 
+/**
+ * A frame decoded for a cancelled request must never be handed over under an index the new
+ * request is using: the right key with the wrong pixels is how the bit-exact guarantee is lost.
+ */
+async function lateFramesOfACancelledRequestAreDropped(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, { decoders: 1, perDecoder: 2, delayMs: 300, onFrame: (f) => got.push(f) });
+  c.fill([5]);
+  await settle();
+  await fake.pushFrame(5, enc.encode("old-5"));
+  await settle(60);
+
+  await cancelled(c);
+  c.fill([5]);
+  await settle();
+  await fake.pushFrame(5, enc.encode("new-5"));
+  await until(() => got.length > 0);
+  await settle(500);
+
+  check(got.length === 1, `cancel: frame 5 is delivered once after the cancel, not twice (${got.length})`);
+  check(text(got[0]?.bytes) === "new-5", `cancel: it carries the new request's bytes (${text(got[0]?.bytes) || "nothing"})`);
+  check(got[0]?.generation === 1, `cancel: and the new request's generation (${got[0]?.generation})`);
+  c.close();
+}
+
+/**
+ * The cancelled request's `done` must not delete the record the new request keeps under the same
+ * index; without that record the new frame arrives with nothing to put it in and is dropped.
+ */
+async function aLateDoneDoesNotDropTheNewRequestsFrame(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, { decoders: 1, perDecoder: 2, delayMs: 400, onFrame: (f) => got.push(f) });
+  c.fill([5]);
+  await settle();
+  await fake.pushFrame(5, enc.encode("old-5"));
+  await settle(60);
+
+  await cancelled(c);
+  c.fill([5]);
+  // Long enough that the cancelled decode has finished while the new frame 5 is still on the wire.
+  await settle(600);
+  await fake.pushFrame(5, enc.encode("new-5"));
+
+  const came = await until(() => got.length > 0);
+  check(came, `cancel: the new request's frame 5 still arrives after the cancelled decode finished`);
+  check(text(got[0]?.bytes) === "new-5", `cancel: carrying the new request's bytes (${text(got[0]?.bytes) || "nothing"})`);
+  c.close();
+}
+
+/**
+ * `cancel` completes, and the ask it dropped stops gating the fill: asks in flight are what hold
+ * a fill back, so one left counted stalls the next request until the consumer's 15 s timeout.
+ */
+async function cancelCompletesAndUnblocksTheNextFill(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, { decode: false, decoders: 0, perDecoder: 2, delayMs: 0, onFrame: (f) => got.push(f) });
+  c.fill([0, 1, 2, 3, 4, 5, 6, 7]);
+  await settle();
+  let abort = "";
+  c.requestExactFrame(50).catch((e: Error) => { abort = String(e.message); });
+  await settle();
+
+  const finished = await cancelled(c);
+  await settle();
+  check(finished === true, `cancel: cancel() completes`);
+  check(abort.includes("AbortError"), `cancel: the ask it dropped rejects with an AbortError (${abort || "still pending"})`);
+
+  c.fill([5, 6, 7]);
+  await settle();
+  const wire = wireOf((await fake.controlMessages()) as Wire[]);
+  const at = wire.lastIndexOf("end_stream");
+  check(wire[at + 1] === "stream_frames 5-7", `cancel: the next fill reaches the wire (${wire.slice(at + 1).join(", ") || "nothing after end_stream"})`);
+
+  for (const i of [5, 6, 7]) await fake.pushFrame(i, enc.encode(`new-${i}`));
+  check(await until(() => got.length >= 3), `cancel: and its frames arrive (${got.length}/3)`);
+
+  // The cancelled ask settles late. Its count belonged to the old request; subtracting it from
+  // the new one's leaves a fill free to go out while an ask is still on the wire.
+  await fake.pushFrame(50, enc.encode("late-50"));
+  await settle();
+  c.fill([20, 21, 30]);
+  await settle();
+  c.requestExactFrame(50).catch(() => {});
+  await settle();
+  for (const i of [20, 21]) await fake.pushFrame(i, enc.encode(`new-${i}`));
+  await settle(100);
+  const after = wireOf((await fake.controlMessages()) as Wire[]);
+  const asked = after.lastIndexOf("request_frame 50");
+  const runs = after.slice(asked).filter((w) => w.startsWith("stream_frames"));
+  check(runs.length === 0, `cancel: a late ask of the cancelled request leaves no fill free to run beside a live ask (${runs.join(", ")})`);
+  c.close();
+}
+
+/**
+ * A refused fill reaches the consumer. The session fails the run's records, but a fill frame has
+ * no waiter, so without an error callback the consumer has only `onFrame` and never hears (D1r).
+ */
+async function aRefusedFillReachesTheConsumer(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false,
+    decoders: 0,
+    perDecoder: 2,
+    delayMs: 0,
+    onFrame: () => {},
+    onError: (f) => failures.push(f),
+  });
+  c.fill([0, 1, 2, 3]);
+  await settle();
+  // A refused range is one frame_error at its first frame, so the whole run fails with it.
+  await fake.pushRefusal(0, "no such frame");
+  await until(() => failures.length >= 4);
+
+  const indices = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join();
+  check(indices === "0,1,2,3", `refusal: every frame of the refused run reaches the consumer (${indices || "none"})`);
+  check(failures.every((f) => f.reason.includes("no such frame")), `refusal: with the server's reason`);
+
+  let rejected = "";
+  c.requestExactFrame(9).catch((e: Error) => { rejected = String(e.message); });
+  await settle();
+  await fake.pushRefusal(9, "no such frame");
+  await until(() => rejected !== "");
+  check(rejected.includes("no such frame"), `refusal: a refused ask rejects its own promise (${rejected || "still pending"})`);
+  check(!failures.some((f) => f.frameIndex === 9), `refusal: and does not go to the error callback as well`);
+  c.close();
+}
+
 /** How long the stand-in decoders hold `ready` back, so the wire has a window to run ahead of them. */
 const READY_DELAY_MS = 400;
 
@@ -382,6 +519,10 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     fillWithStartRunsAheadOfTheDecoders,
     framesBeforeAnyDecoderAreHeld,
     startWithAFillDialsOnce,
+    lateFramesOfACancelledRequestAreDropped,
+    aLateDoneDoesNotDropTheNewRequestsFrame,
+    cancelCompletesAndUnblocksTheNextFill,
+    aRefusedFillReachesTheConsumer,
   ]) {
     try {
       await clause(DownloaderClient, check);

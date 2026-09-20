@@ -6,7 +6,7 @@
  * It speaks the format in ../transport-ts/wire.ts: `[4B LE len][JSON]` on control,
  * `[4B BE len][4B BE index][codestream]` on a unidirectional stream.
  */
-import { decodeFodMsg, type FodMsg } from "../transport-ts/wire.ts";
+import { decodeFodMsg, encodeFodMsg, type FodMsg } from "../transport-ts/wire.ts";
 
 /** web_sys checks `instanceof` on the bidi stream, which returns false for a bare object. */
 class WebTransportBidirectionalStream {
@@ -36,6 +36,7 @@ export class FakeTransport {
   didClose = false;
   readonly incomingUnidirectionalStreams: ReadableStream<ReadableStream<Uint8Array>>;
   private uni!: ReadableStreamDefaultController<ReadableStream<Uint8Array>>;
+  private control: ReadableStreamDefaultController<Uint8Array> | null = null;
   private settleClosed!: (info: { closeCode: number; reason: string }) => void;
 
   constructor(
@@ -73,9 +74,14 @@ export class FakeTransport {
 
   async createBidirectionalStream() {
     return new WebTransportBidirectionalStream(
-      new ReadableStream({ start: () => {} }),
+      new ReadableStream({ start: (c) => void (this.control = c) }),
       new WritableStream({ write: (chunk) => void this.sent.push(chunk) }),
     );
+  }
+
+  /** The server refusing a frame: one `frame_error` on control, which is how a range is refused. */
+  pushRefusal(index: number, reason: string) {
+    this.control?.enqueue(encodeFodMsg({ op: "frame_error", frame_index: index, reason }));
   }
 
   /** One frame on its own uni stream — the per-frame mode. */

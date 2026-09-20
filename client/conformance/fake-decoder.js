@@ -30,7 +30,7 @@ onmessage = async (e) => {
   }
   if (m.kind !== "decode") return;
   // The real decoder has no instance until its wasm is up, and loses a frame handed to it before.
-  if (!up) return void postMessage({ kind: "failed", index: m.index, reason: "dispatched before the decoder was ready" });
+  if (!up) return void postMessage({ kind: "failed", index: m.index, gen: m.gen, reason: "dispatched before the decoder was ready" });
   const seq = ++decodeSeq;
   inFlight += 1;
   if (inFlight > maxInFlight) maxInFlight = inFlight;
@@ -43,6 +43,7 @@ onmessage = async (e) => {
   toConsumer.postMessage({
     kind: "frame",
     index: m.index,
+    gen: m.gen,
     pixels: sab,
     width: 1,
     height: bytes.length,
@@ -56,6 +57,6 @@ onmessage = async (e) => {
     decodeSeq: seq,
     maxInFlight,
   });
-  postMessage({ kind: "done", index: m.index, byteCount: bytes.length });
+  postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: bytes.length });
   inFlight -= 1;
 };
