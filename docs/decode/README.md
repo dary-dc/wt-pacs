@@ -238,6 +238,11 @@ reconstruct it replaces, the codestream's arena is never reset.
 5.8 MB over `cine512`/`ct512`, both from a 4 MB build with one reused decoder. Wasm grows 1.2 KB,
 239 → 240 KB.
 
+**Where this host saturates.** Every arm here decodes on one thread, and the box ran other work
+throughout: one core is busy and the rest are not this measurement's. So the ms are read across
+arms inside a run — that is what interleaving and rotating buys — and an absolute figure here is
+not comparable with one taken on an idle box, or with the per-frame times on any other page.
+
 Parity on the adopted wrapper covers **six sets, 522 frames**: 8-bit unsigned ×3 (`c512`,
 `cine512`), 16-bit unsigned ×1 (`g512`, `sat256`), 16-bit signed ×1 (`s512`) and 12-bit signed ×1
 (`ct512`) — byte-identical to the package, byte-identical to the encoder's input, identical on
