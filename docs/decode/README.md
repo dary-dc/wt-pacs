@@ -275,8 +275,8 @@ It does cost memory, and the two profiles want different answers:
 
 * **512×512** — ship **4 MB**. The decode fits without a single growth, so the heap is 4.0 MB
   against the package's 50 MB — but that is a fresh decoder per frame, and the product reuses one:
-  **4.8 MB, 10× less per instance**, which is the whole pool-sizing lever. Corrected two paragraphs
-  below; the floor is unchanged and the rest of this row still holds.
+  **4.8 MB, 10× less per instance**, which is the whole pool-sizing lever. The reused-decoder
+  ladder below is where that is measured; the floor it chooses is the same 4 MB.
 * **2048×2048** — ship **4 MB and let it grow**. Every floor at or below 16 MB converges on the
   same 24.6 MB high-water, so starting higher buys nothing: a 32 MB floor ends 7.4 MB heavier than
   a 4 MB one that grew, for no time back. Against the package that is still 2× less.
