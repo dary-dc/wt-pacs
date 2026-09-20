@@ -56,7 +56,8 @@ BSD-2-Clause). `lab/decode-bench/fetch_decoder.sh` pulls a pinned version from n
 the tarball's checksum; nothing is committed, so provenance is the checksum rather than trust in
 bytes in this repo. That build reports SIMD level 1, which OpenJPH returns only from its WASM SIMD
 build, so SIMD is already on and is not a lever. Its WASM reports `OpenJPH Ver 0.31.0.`, which is
-the release `lab/scripts/gen_htj2k_fixtures.sh` builds its encoder from.
+the release `lab/scripts/gen_htj2k_fixtures.sh` builds its encoder from. The other open
+implementation, OpenHTJ2K, has now been built and benched against it: §A second decoder, measured.
 
 It is a **decoder only** — no encoder ships in it. `lab/scripts/gen_htj2k_fixtures.sh` therefore
 builds OpenJPH from source for `ojph_compress` and encodes synthetic images, so a fixture can be
@@ -351,6 +352,89 @@ Commit `a28587f` (branch `claude/d-wrapper`), emscripten 3.1.74, `-O3 -msimd128 
 The `.wasm` is byte-identical to the `plain` build the 522-frame parity run above went through, and
 the glue differs from it only in the `.wasm` filename it loads. It exports `OpenJPHModule` where the
 package's exports `Module`, which `client/downloader/decoder.js` already handles.
+
+## A second decoder, measured
+
+D14. Until now this file had evaluated exactly one HTJ2K implementation, so "OpenJPH is fast
+enough" rested on nothing. **OpenHTJ2K** (github.com/osamu620/OpenHTJ2K) is the other open
+implementation with WASM SIMD paths for the block coder, the wavelet and the colour transform, and
+no head-to-head figure against OpenJPH is published. This is that figure.
+
+**Licence, first, because it is a gate.** BSD 3-Clause; its one bundled third party,
+`source/thirdparty/highway`, is Apache-2.0. Both permissive, both compatible with shipping in a
+product, and neither is a reason to stop. Pinned at **v0.9.1**,
+`8cf42e90e6f54a51c8247587437c12f96eb131ec`.
+
+`lab/decode-bench/wasm/build_openhtj2k.sh` fetches that commit into `lab/.openhtj2k-build/`
+(ignored, never vendored, as `build.sh` does for OpenJPH) and links
+`lab/decode-bench/wasm/openhtj2k_decoder.cpp` into **the same arms directory** at the same
+`-O3 -msimd128 -fexceptions`, single-threaded, `INITIAL_MEMORY=4MB`. The wrapper carries the same
+class surface and the same `pack<T>()`, so `build_arms.mjs` and `parity.mjs` drive both decoders
+with no branch for either. It decodes through `invoke_line_based_stream()`, the per-row analogue of
+OpenJPH's `pull()` and the lowest-heap path the library offers.
+
+**A surface the library does not have.** OpenHTJ2K reports components, per-component size, depth,
+signedness and DWT levels — and nothing else. Progression order, layers, tile size and offset,
+image offset, block dimensions, precincts, the colour transform flag and reversibility are not
+exposed at all, so the wrapper reads SIZ and COD out of the codestream itself. That is ~40 lines
+this project would own, and it is a cost of adoption, not a detail.
+
+**Parity: it is bit-exact.** Six sets, **522 frames** — 8-bit unsigned ×3, 16-bit unsigned ×1,
+16-bit signed ×1, 12-bit signed ×1 — byte-identical to the package **and** to the encoder's input,
+and identical on every getter including the ones read from the markers. A decoder that were not
+bit-exact on every set would not be a candidate; this one is.
+
+### Decode time: OpenJPH wins on both shapes
+
+Both decoders through one reused wrapper object, arms interleaved with the order rotated each
+round, 20 timed rounds, one 4 MB build per arm, 87 frames per set. Run A leads with OpenJPH, run B
+with OpenHTJ2K, so neither order nor which shape is cold is doing the work.
+
+| set | OpenJPH ms/frame | OpenHTJ2K ms/frame | OpenHTJ2K vs OpenJPH | rounds faster |
+| --- | --- | --- | --- | --- |
+| `c512` colour, run A | 8.076 [8.024–8.383] | 9.433 [9.376–9.574] | **+16.8 %** | 0/20 |
+| `c512` colour, run B | 8.000 [7.963–8.303] | 9.338 [9.300–9.595] | **+16.7 %** | 0/20 |
+| `g512` grey, run A | 3.212 [3.201–3.308] | 4.728 [4.687–4.954] | **+47.2 %** | 0/20 |
+| `g512` grey, run B | 3.159 [3.138–3.193] | 4.703 [4.656–4.800] | **+48.9 %** | 0/20 |
+
+**40 rounds out of 40 to OpenJPH**, every pair of ranges disjoint. The gap is larger on one
+component than on three, which is the opposite of where a colour-transform SIMD path would show.
+
+**The first three frames**, from a cold module, in the order the run leads with — colour cold:
+23.1 / 10.0 / 9.6 ms for OpenJPH against 28.2 / 14.7 / 13.8; grey cold: 12.3 / 6.3 / 4.0 against
+19.7 / 7.9 / 6.5. Both tier up over the same two frames and OpenHTJ2K's first frame is 5.1–7.4 ms
+dearer, so nothing recovers at the tier-up end either.
+
+**Heap after 100 frames, and here OpenHTJ2K is ahead**: 4.8 MB colour / 4.0 MB grey against
+OpenJPH's 7.0 MB and 4.8 MB. It is ahead for the reason it is slow — it builds and tears down its
+whole working set per codestream, where OpenJPH's `restart()` keeps the arena (§The wrapper's two
+passes). `.wasm` is 285,058 B against 245,447 B.
+
+**One decoder object per codestream is not optional there.** Re-`init()`ing one
+`openhtj2k_decoder` — the shape `client/downloader/decoder.js` holds — **leaks one codestream per
+frame**: 44–52.8 MB after 100 frames, 854 MB after one set's rounds, 1.62 GB after two.
+`j2c_src_memory::alloc_memory()` allocates without freeing the previous buffer and
+`openhtj2k_decoder_impl::destroy()` is empty, so only the destructor reclaims. Measured on the
+first build of this wrapper (commit `b4d6d48`), which reused the object; it decoded the same bytes,
+and its times were no better than the per-codestream build's, so the leak buys nothing either.
+
+**Where this host saturates.** One thread decodes and the box carried other lanes throughout: one
+core is busy and the rest are not this measurement's. Only the within-run differences are claimed —
+the absolute ms are not comparable with a figure from an idle box or from any other page here.
+
+**Mutants.** Three, all caught by `parity.mjs`: the interleave stride one component short (348
+differences, on the colour sets only), a signed component's negatives clamped to 0 (348, on the
+signed sets only), and the COD transform byte read the wrong way round (6 surface differences,
+pixels untouched — the surface column fails independently of the byte columns).
+
+**The result, and it is not an adoption.** OpenHTJ2K decodes this project's content exactly, and is
+**15–17 % slower on colour and 33–49 % slower on grey**, for 39 KB more `.wasm`, a header surface
+this project would have to supply itself, and a second codebase to track. It is 2.2 MB lighter on
+colour per instance, which matters only if per-instance heap is binding and time is not — and §Heap,
+measured already gets that 10× from a floor. Nothing here recommends switching; what it does say is
+that the decoder in use is the faster of the two open ones on both shapes, which is a thing this
+file could not say yesterday. `parity.mjs`'s version check is now informational rather than a
+failure, because two libraries under it can no longer be expected to report the same version.
 
 ## Dispatch: first-free against round-robin
 
