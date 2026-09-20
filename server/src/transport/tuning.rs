@@ -13,6 +13,8 @@ pub enum Congestion {
     NewReno,
     /// Cubic with RFC 9406's slow-start exit over it. `hystart.rs`.
     CubicHystart,
+    /// Cubic that restarts slow start after a silence instead of halving. `restart.rs`.
+    CubicRestart,
 }
 
 impl Congestion {
@@ -22,6 +24,7 @@ impl Congestion {
             Self::Bbr => "bbr",
             Self::NewReno => "new-reno",
             Self::CubicHystart => "cubic-hystart",
+            Self::CubicRestart => "cubic-restart",
         }
     }
 }
@@ -119,6 +122,9 @@ impl TransportTuning {
             Congestion::CubicHystart => {
                 tc.congestion_controller_factory(Arc::new(crate::transport::hystart::HyStartConfig::new(iw)))
             }
+            Congestion::CubicRestart => tc.congestion_controller_factory(Arc::new(
+                crate::transport::restart::SlowStartRestartConfig::new(iw),
+            )),
         };
 
         Ok(tc)

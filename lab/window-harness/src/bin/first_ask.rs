@@ -47,6 +47,9 @@ struct Args {
     /// Blackout length for `lossy`, in ms.
     #[arg(long, default_value_t = 300)]
     blackout_ms: u64,
+    /// Fill frames delivered before the blackout fires. `--warm` fires it at the ask.
+    #[arg(long, default_value_t = 0)]
+    blackout_after: u32,
     #[arg(long, default_value_t = 5)]
     rounds: u32,
     #[arg(long, default_value_t = 30_000)]
@@ -58,6 +61,14 @@ fn poke(port: u16, cmd: &str) -> Result<()> {
         .context("control socket")?
         .send_to(cmd.as_bytes(), ("127.0.0.1", port))
         .context("poke the relay")?;
+    Ok(())
+}
+
+/// Fires the blackout once, at the point in the fill `--blackout-after` names.
+fn blackout_at(args: &Args, frames_done: u32) -> Result<()> {
+    if args.state == State::Lossy && frames_done == args.blackout_after {
+        poke(args.control_port, &format!("blackout {}", args.blackout_ms))?;
+    }
     Ok(())
 }
 
@@ -95,11 +106,10 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
             })?)
             .await
             .context("stream_frames")?;
-        if args.state == State::Lossy {
-            poke(args.control_port, &format!("blackout {}", args.blackout_ms))?;
-        }
-        for _ in 0..args.warm {
+        blackout_at(args, 0)?;
+        for i in 0..args.warm {
             frames.next(args.timeout_ms).await.context("warm frame")?;
+            blackout_at(args, i + 1)?;
         }
         fill_ms = filling.elapsed().as_secs_f64() * 1000.0;
         if args.state == State::Rebound {

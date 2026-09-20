@@ -331,9 +331,13 @@ reordering-tolerance cell, not a jitter one. It points the same way §1 already 
 is not congestion, BBR. BBR's cost is unchanged and large — on the 20-packet queue it sends
 3 834 datagrams to Cubic's 2 158 and loses 1 887 of them.
 
-**The deep buffer holds 39 ms of standing queue**, not seconds: the session ends on a smoothed
-RTT of 119 ms against the link's 80, with zero loss and zero congestion events. S8's "seconds of
-queue" is a cellular figure, not this rig's.
+**The deep buffer holds 39 ms of standing queue at the session's end — corrected 2026-09-19
+(W3): during the fill it holds ten times that.** The 39 ms was read off the end-of-session path
+line, after the queue had drained. Sampled every 50 ms through the fill instead, one clean trace
+has the smoothed RTT climbing to **468 ms against the link's 80** before the last frame lands:
+388 ms of standing queue, a megabyte of it, in a 1 500-packet buffer. The session still ends with
+zero loss and zero congestion events, which is why the end-of-session figure reads as it does.
+One trace, not an interleaved cell.
 
 #### An outage: the threshold is not the lever
 
@@ -346,9 +350,96 @@ queue" is a cellular figure, not this rig's.
 **Raising the persistent-congestion threshold changes nothing** — every arm is within noise, and
 where it moves it moves the wrong way. The reason is in the counters: one congestion event and
 3 to 11 lost datagrams per session, so persistent congestion is never declared and a threshold
-on it has nothing to act on. **The cost is the probe-timeout ladder**: a 500 ms outage costs
-**+5.4 s** of fill, a 1 s outage +6.1 s and a 2 s outage +7.3 s, and the outage itself is a
-fraction of that. S9's "~0.9 s per outage" is the window's regrowth alone and understates it.
+on it has nothing to act on. The outage costs **+5.4 s** of fill at 500 ms, +6.1 s at 1 s and
++7.3 s at 2 s, and the outage itself is a fraction of that. S9's "~0.9 s per outage" understates
+it.
+
+**"The cost is the probe-timeout ladder" is wrong — corrected 2026-09-19 (W3), below.** The cost
+is the window's regrowth from a window the outage halved; the ladder is only the *difference*
+between the three rows. The table itself reproduces: re-run today, unchanged, it gives
+6 995 / 7 796 / 9 197 against a 1 448 ms fill.
+
+### After a blink, 2026-09-19
+
+**W3.** [`../../lab/scripts/blink_cells.sh`](../../lab/scripts/blink_cells.sh), five rounds a
+cell, **arms interleaved within every round**, on W2's link: 80 ms round trip, 20 Mbit, a
+1 500-packet queue, a fill of 40 × 64 KB. Times are medians; `wins` counts rounds beaten against
+Cubic, round against round.
+
+**The window says what the clock only suggested.** Sampled every 50 ms through the server's path
+telemetry, a 1 s blink fired as the fill is requested: the session holds the 12 000 B initial
+window for the length of the outage, takes one congestion event, drops to **8 400 B —
+0.7 × 12 000 — and opens by one MTU every second round trip**, a measured 0.51 packets per round
+trip over the 3.4 s it spends climbing from 36 to 66 kB. It never re-enters slow start, and the
+fill takes 7 659 ms where a clean one takes 1 440. **S30 is confirmed off the window itself:** the cost is regrowth from a window that was tiny when the blink hit, so it is
+the *position* of the blink that prices it, not its length.
+
+| the blink | Cubic | wins | Cubic + restart | wins | BBR |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| none | 1 440 | | 1 437 | 2/5 | **1 222** |
+| 500 ms, at the fill's start | 6 915 | | **2 116** | 5/5 | **1 897** |
+| 1 s, at the fill's start | 7 659 | | **2 891** | 5/5 | **2 802** |
+| 2 s, at the fill's start | 9 326 | | **4 409** | 5/5 | **4 352** |
+| 1 s, at frame 20 of 40 | 2 444 | | 2 175 | 2/5 | 2 880 |
+| 1 s, at frame 36 of 40 | 1 445 | | 1 441 | 3/5 | 1 230 |
+
+Fill milliseconds. **A blink is expensive only in a fill's first round trips**: at the start it
+costs Cubic +5.5 to +7.9 s, at frame 20 it costs +1.0 s, and by frame 36 it costs nothing
+measurable — though that last row measures little, because at this buffer depth the fill's
+remaining bytes are already sitting in the relay's queue, which a blackout does not drop.
+
+**S32 works and is worth about five seconds.** `server/src/transport/restart.rs` is
+`--congestion cubic-restart`: a wrapper over the public `Controller` trait, like `hystart.rs`,
+that watches the acknowledgement stream and, when a congestion event's lost packets all predate a
+silence of four round trips, replaces the inner Cubic with a fresh one — quinn's only way back
+into slow start. It takes **4.8 to 4.9 s off every start-of-fill row, 5/5**, and what is left is
+the outage plus a second. It is **not** the default.
+
+**The detector's first form was refuted by the 500 ms cell**, which is why it reads as it does: a
+rule that compared only the two most recent acknowledgements missed the outage entirely, because
+quinn declares the loss an acknowledgement or two *after* the one that ended the silence. The
+silence is now remembered until a congestion event spends it, and the gap is measured against the
+RTT estimate that held *before* it — the sample that closes an outage is the outage.
+
+**S31 half holds.** BBR through a start-of-fill blink is as predicted (1 897 ms against a
+predicted ~1.8 s at 500 ms) and beats Cubic 5/5 on all three rows. Mid-fill it is **worse**
+than Cubic, 0/5. **And BBR's known price does not appear on this link**: across every blink cell
+the three arms send within 1 % of each other — 1 914 to 1 930 datagrams for a 1 920-datagram fill
+— and lose the same 3 / 5 / 7. Mid-fill all three lose 104 to 116, which is the deep queue
+overflowing, not an arm.
+
+| one ask, on a warmed session | Cubic | Cubic + restart | wins | BBR | wins |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 250 KB, clean | 195 | 192 | 3/5 | 197 | 1/5 |
+| 250 KB, blinked 1 s | 2 099 | 2 312 | 1/5 | **1 859** | 5/5 |
+| 64 KB, blinked 1 s | 2 586 | 2 563 | 3/5 | **2 282** | 5/5 |
+
+Ask to last byte, milliseconds; the blink fires as the ask goes out. **A blink across an ask
+costs ~2 s of a 195 ms ask and the restart does not help** — on a warmed session the server's
+window is already large, so there is no regrowth to save, and what is left is the client's own
+request being retransmitted through the outage. The restart is a shade *worse* here (1/5), which
+is the shape of its cost: it throws away a large window to rebuild it.
+
+#### The misfire check: it is not neutral at 1 % loss
+
+| link, no blackout | Cubic | Cubic + restart | wins | BBR |
+| --- | ---: | ---: | ---: | ---: |
+| clean | 1 440 | 1 437 | 2/5 | 1 222 |
+| 1 % loss | 10 774 (3 564–13 814) | 4 387 (2 230–12 608) | 3/5 | **1 354** |
+| 3 % loss | 24 306 | 24 519 | 3/5 | **1 517** |
+
+Fill milliseconds. At 3 % the two Cubics tie, within 1 %. **At 1 % they do not** — the restart's
+median is 2.5× faster, on the same datagrams sent and lost (1 932 / 23.0 against 1 934 / 24.7),
+so the detector is firing where there is no outage: at this loss rate a whole flight goes missing
+often enough to look like one. The direction is favourable and the spread is four-fold on both
+arms, so five rounds size nothing here beyond "not neutral". **Before this is a default it needs
+the cell that decides it**, at 0.1–1 % loss with enough rounds to separate.
+
+**Neither is changed in the product.** Cubic stays the default, and `--congestion cubic-restart`
+is one flag away. What the three tables say together is that a blink is a *slow-start* problem:
+fix it in slow start, at the start of a session or a fill, and the lever is large; look for it
+anywhere else and there is nothing to win. BBR wins the same rows for the same reason and loses
+the mid-fill one.
 
 #### The first timeout, at 1 % loss
 
