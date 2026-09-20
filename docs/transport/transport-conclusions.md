@@ -331,7 +331,7 @@ Every lever arm beats `fresh` 7/7 on disjoint ranges, with zero loss and zero co
 all of them — this link is unshaped, so nothing here is the link. **But the combined arm is not
 the two wins added.** Against the push alone it is +1.7 % and +0.7 % at 50 KB (worse) and −4.9 %
 and −3.9 % at 250 KB (better), on ranges that overlap in all four cells. The push already leaves
-the ask within 5–27 % of a warmed session; there is no slow start left for a wider first flight to
+the ask within 5–28 % of a warmed session; there is no slow start left for a wider first flight to
 skip. **If the push is taken, the window buys nothing on top of it.**
 
 **A warmed window survives a silence, on both controllers.** The on-demand regime is a fill, then
@@ -358,6 +358,55 @@ of the three on both controllers. Every arm ends on the window it had before the
 20 s keep-alive is enough to carry 30 s of quiet. The mechanism agrees: quinn 0.11.18 implements
 no congestion-window restart after idle in any of its controllers, and the pacer only clamps the
 first flight after the silence to its own burst capacity.
+
+**The wide first flight is bounded by the queue, and by one cell only.** A 32-packet initial window
+is 38 400 bytes, about 26 datagrams, so a 10-packet queue cannot hold it. Against the default
+window on a 10 Mbit link, by the relay's queue depth (`default → iw 32 pkt`, medians, 7 rounds,
+every cell 7/7 for the wider window except the one marked):
+
+| queue | 50 KB, 40 ms | 50 KB, 80 ms | 250 KB, 40 ms | 250 KB, 80 ms |
+| --- | ---: | ---: | ---: | ---: |
+| 10 pkt (12 ms of buffer) | 149.5 → 113.0 | 268.9 → 205.2 | 354.5 → 346.0 | 557.3 → **623.3, 0/7** |
+| 20 pkt | 150.5 → 102.8 | 270.0 → 182.9 | 334.2 → 275.0 | 600.1 → 456.4 |
+| 40 pkt | 149.0 → 102.6 | 271.7 → 183.0 | 359.3 → 291.1 | 498.7 → 373.4 |
+| 100 pkt | 149.5 → 102.7 | 269.9 → 182.9 | 325.3 → 272.1 | 499.5 → 373.5 |
+
+From 20 packets up the win is flat — −31…−33 % at 50 KB and −16…−25 % at 250 KB, unchanged from
+20 to 100 — and W1's own 20-packet row reads the same (324.2 → 266.6 and 578.2 → 432.5 there).
+**Depth is not a dial the lever is sensitive to; it is a cliff, and the cliff is below 20
+packets.** At 10 packets the 50 KB cells still win by ~24 %, the 250 KB / 40 ms cell is a tie at
+−2.4 % on overlapping ranges, and the 250 KB / 80 ms cell **loses by 11.8 %**. That cell is the
+lever's failure mode and it is visible in the window: the wider arm ends the session on 44 kB
+against the default arm's 87 kB, having lost *fewer* datagrams (3.0 against 10.4). The burst is
+chopped at the queue, the controller reads the drop and never gets the window back inside one
+session — it pays a round trip to lose half its window, which is the opposite of what it was
+bought for.
+
+#### What the numbers support, by session shape
+
+**A session that opens with a fill is warmed by the fill**, and needs neither lever: by frame two
+it is at the warmed figure, and the fill's own first frames are what the push would have pushed.
+**An ask-only session is not warmed** and pays 4.4 round trips, 4.2× at 250 KB, once per session —
+and again after every NAT rebind (the corrected rebound row above). For it, in order:
+
+| lever | what it buys on the first ask | what it costs |
+| --- | --- | --- |
+| push at session open | fresh → within 5–28 % of warmed (−70 % at 250 KB / 80 ms) | a page-side change (named below); pushes bytes before any ACK, so on a shallow queue it is the arm that loses the most datagrams (W1: 11.7 % at 20 packets) |
+| 32-packet initial window | −28…−33 % unshaped, −16…−33 % at 20+ packets of queue | +11.8 % and half the window in the one cell where 250 KB meets 80 ms and a 10-packet queue; nothing at all on top of the push |
+| keep-alive 20 s / idle 60 s | nothing on a first ask | holds a warmed session through 30 s of silence at full window (28 of 28 rounds); one datagram per 20 s per idle session |
+
+**The page-side change the push needs, named and not made** (read from the client, not measured):
+today a page would drop every pushed frame. `client/transport-ts/session.ts:86` builds the
+`WebTransport` URL, which has to carry `?ask=fill:0-k`; `session.ts:336` arms `this.fill` only
+inside `fillFrames`, which sends the ask in the same breath at `:337`, so a pushed fill needs that
+record armed *without* an ask before `pumpUni` starts at `:97` — otherwise `deliver` finds no
+waiter and counts the frame as `droppedEarly` at `:155`. In the default client the two lines are
+`client/downloader/downloader.js:190` (the dial) and `:144` (the ask).
+
+**The two levers are alternatives, not a pair** — together they are the push alone, ±5 %. The
+window is the one to take if the page cannot be changed; the push is the one to take if it can.
+**Every product default is unchanged here**: each arm above is a flag on the lab's own binary, and
+which of these becomes a default is the owner's call.
 
 ### The slow-start exit, an outage and the first timeout, 2026-09-19
 
