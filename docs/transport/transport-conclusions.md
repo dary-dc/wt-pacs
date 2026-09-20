@@ -336,10 +336,14 @@ skip. **If the push is taken, the window buys nothing on top of it.**
 
 **A warmed window survives a silence, on both controllers.** The on-demand regime is a fill, then
 a pause while the user reads, then one ask. Eight frames, then 0, 10 or 30 s of silence, then the
-ask, carrying the pair [`../adr-idle-sessions.md`](../adr-idle-sessions.md) proposes — a 20 s
-keep-alive under a 60 s idle timeout — in **every** arm, because quinn's default idle timeout is
-30 s at both ends and without it the 30 s arm would measure a dead session rather than a cold
-window:
+ask, carrying the pair [`adr-idle-sessions.md`](adr-idle-sessions.md) proposes — a 20 s
+keep-alive under a 60 s idle timeout — in **every** arm, because without it the 30 s arm measures a
+dead session rather than a cold window. That is measured, not assumed: the same cell run with
+`HOLD=` (library defaults — a 30 s idle timeout at both ends, no keep-alive) loses the session in
+**2 of 2 rounds on both controllers at 30 s**, while every 0 s and 10 s arm survives and reads the
+same ask as below. A real Chromium would not die there — it pings itself every 15 s
+([`adr-idle-sessions.md`](adr-idle-sessions.md) §What a real Chromium does) — so the pair is
+what makes the native probe model the browser, not a thumb on the scale:
 
 | arm | 50 KB, 40 ms | 50 KB, 80 ms | 250 KB, 40 ms | 250 KB, 80 ms |
 | --- | ---: | ---: | ---: | ---: |
@@ -354,8 +358,8 @@ window:
 ask. The worst cell is 250 KB at 40 ms — Cubic +9 %, BBR +17 % and 0/7 against its own no-idle
 arm, the one range in the block that nearly separates — and at 50 KB the 30 s arm is the *fastest*
 of the three on both controllers. Every arm ends on the window it had before the silence
-(~1.12–1.16 MB at 250 KB), and **no arm lost a session: 28 of 28 rounds served the ask**, so the
-20 s keep-alive is enough to carry 30 s of quiet. The mechanism agrees: quinn 0.11.18 implements
+(~1.12–1.16 MB at 250 KB), and **no arm lost a session: 56 of 56 rounds with 30 s of silence served the ask**, 168 of 168
+across the block, so the 20 s keep-alive is enough to carry 30 s of quiet. The mechanism agrees: quinn 0.11.18 implements
 no congestion-window restart after idle in any of its controllers, and the pacer only clamps the
 first flight after the silence to its own burst capacity.
 
@@ -393,7 +397,7 @@ and again after every NAT rebind (the corrected rebound row above). For it, in o
 | --- | --- | --- |
 | push at session open | fresh → within 5–28 % of warmed (−70 % at 250 KB / 80 ms) | a page-side change (named below); pushes bytes before any ACK, so on a shallow queue it is the arm that loses the most datagrams (W1: 11.7 % at 20 packets) |
 | 32-packet initial window | −28…−33 % unshaped, −16…−33 % at 20+ packets of queue | +11.8 % and half the window in the one cell where 250 KB meets 80 ms and a 10-packet queue; nothing at all on top of the push |
-| keep-alive 20 s / idle 60 s | nothing on a first ask | holds a warmed session through 30 s of silence at full window (28 of 28 rounds); one datagram per 20 s per idle session |
+| keep-alive 20 s / idle 60 s | nothing on a first ask | holds a warmed session through 30 s of silence at full window (28 of 28 rounds); two datagrams per 20 s per idle session, the ping and its ACK |
 
 **The page-side change the push needs, named and not made** (read from the client, not measured):
 today a page would drop every pushed frame. `client/transport-ts/session.ts:86` builds the

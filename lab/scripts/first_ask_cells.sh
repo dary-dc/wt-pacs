@@ -18,9 +18,9 @@ SIZES="${SIZES:-50 250}"
 RTTS="${RTTS:-40 80}"
 TARGET=$((WARM + 1))
 FRAMES=$((TARGET + 2))
-# The pair docs/transport/adr-idle-sessions.md proposes. Without it a 30 s idle would measure a
-# dead session: quinn's default idle timeout is 30 s at both ends.
-HOLD="--keep-alive-interval-ms 20000 --max-idle-timeout-ms 60000"
+# The pair docs/transport/adr-idle-sessions.md proposes, in every `idle` arm; `HOLD=` runs the same
+# cell without it, which is the survive-or-die question.
+HOLD="${HOLD---keep-alive-interval-ms 20000 --max-idle-timeout-ms 60000}"
 T="$(mktemp -d)"
 SERVER_PID=""
 RELAY_PID=""
@@ -216,7 +216,8 @@ idle_cells() {
           arm "$cc, idle ${s}s|filled|$WARM|$((s * 1000))|--congestion $cc $HOLD|"
         done
       done
-      printf '\n== %s KB, %s ms, a warmed session left idle, keep-alive 20 s\n' "$kb" "$rtt"
+      printf '\n== %s KB, %s ms, a warmed session left idle%s\n' "$kb" "$rtt" \
+        "${HOLD:+, keep-alive 20 s}"
       round_robin "$T/s$kb.sbnd" "$rtt"
     done
   done
