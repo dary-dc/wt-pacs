@@ -148,13 +148,16 @@ class HTJ2KDecoder {
     const int32_t top = frame_.isSigned ? half - 1 : 2 * half - 1;
     decoded_.resize((size_t)w * h * comps * wide);
 
-    dec_.init(encoded_.data(), encoded_.size(), 0, 1);
-    dec_.parse();
+    // One codestream per decoder: init() does not release the previous one and destroy() is
+    // empty, so re-init()ing leaks it. docs/decode/README.md §A second decoder, measured.
+    open_htj2k::openhtj2k_decoder dec;
+    dec.init(encoded_.data(), encoded_.size(), 0, 1);
+    dec.parse();
     std::vector<uint32_t> width, height;
     std::vector<uint8_t> depth;
     std::vector<bool> isSigned;
     uint8_t* const out = decoded_.data();
-    dec_.invoke_line_based_stream(
+    dec.invoke_line_based_stream(
         [=](uint32_t y, int32_t* const* rows, uint16_t nc) {
           for (uint16_t c = 0; c < nc; ++c) {
             uint8_t* dst = out + ((size_t)y * w * comps + c) * wide;
@@ -183,7 +186,6 @@ class HTJ2KDecoder {
 
  private:
   std::vector<uint8_t> encoded_, decoded_;
-  open_htj2k::openhtj2k_decoder dec_;
   Markers m_;
   FrameInfo frame_;
   bool headerValid_ = false;
