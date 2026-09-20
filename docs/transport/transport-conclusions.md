@@ -409,6 +409,9 @@ waiter and counts the frame as `droppedEarly` at `:155`. In the default client t
 
 **The two levers are alternatives, not a pair** — together they are the push alone, ±5 %. The
 window is the one to take if the page cannot be changed; the push is the one to take if it can.
+One asymmetry is not measured here: a path reset restarts the controller at the *initial* window,
+so the window lever is re-applied after every NAT rebind while the push is spent at session open.
+The rebound arm is the cell that would measure it; it was run without either lever.
 **Every product default is unchanged here**: each arm above is a flag on the lab's own binary, and
 which of these becomes a default is the owner's call.
 
