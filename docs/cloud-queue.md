@@ -7,8 +7,9 @@ A place to hand work to a cloud agent between sessions, and for it to hand resul
 
 **New session?** [`handoff-2026-09-19.md`](handoff-2026-09-19.md) has where the branch is, what is
 already settled, what the instruments are and what cost time to find — read it once, then work the
-queue from here. **Every row below is `done` except row 40, which the owner holds**, so the next
-questions are in that file's §3 rather than in this table.
+queue from here. **Rows 42–52 were queued 2026-09-19** from a second identification sweep; the
+workstation ran several the same day on local branches that are not merged here yet — a row that
+says so is not to be taken until it is. Every older row is `done` except row 40, which the owner holds.
 
 **You are the cloud agent.** After you finish a lane and push:
 
@@ -75,6 +76,17 @@ trailers. This is the owner's rule for every repository.
 | 39 | **W2** — slow-start exit, an outage, the first timeout | queue §Rows 30–41 | **done** 2026-09-19 — `server/src/transport/hystart.rs` (RFC 9406 over the public trait, no fork) + `lab/scripts/controller_cells.sh`; `transport-conclusions.md` §3. **The exit is a tie in all six cells**, so it is a flag, not a default. **S9 refuted as a lever** — the threshold does nothing; the outage cost is the probe-timeout ladder, +5.4 s for a 500 ms blackout. **S10 confirmed with a lever** — p99 cold open 1 335 → 638 ms at `--initial-rtt-ms 100`. The cells also found reordering costs Cubic 25× where BBR pays 2.9×. S11's leads handed to the source review |
 | 40 | **E1** — the ingest format | queue §Rows 30–41 | **held** 2026-09-18 by the owner — see "What a row may not change" below; do not take it |
 | 41 | **O1** — the fill's order; prerender, yes or no | queue §Rows 30–41 | **done** 2026-09-19 — **S21 measured**: a coarse-to-fine fill takes time-to-scrubbable from 5 688 to 1 043 ms (5.5×) and costs the fill nothing, and the permuted order costs the read path 0.3 % under `--force-pool-reads`, twelve interleaved rounds — `lab/scripts/fill_order_cells.sh`, `transport-conclusions.md` §4. **S20 answered 2026-09-19, correcting the row's first verdict**: the earlier "cannot be answered here" was a driver artefact (`PrerenderingDisabledByDevTools`); with no driver, headless Chromium prerenders, the page and its fetches run while prerendering, and the session and the worker complete only at activation — `lab/prerender/`, `rig-limits.md` §8 |
+| 42 | **W3** — after a blink: where the 5.4 s goes, and BBR through the same blackout | queue §Rows 42–52 | **done on the workstation** 2026-09-19, branch `claude/w3-after-a-blink`, **merged into `claude/integrated-2026-09-20`** 2026-09-20. S30 confirmed off the window: `cwnd` 8 400 B after a blink at the fill's start, +0.51 packets a round trip. A 500 ms blink: Cubic 6 915 ms, `--congestion cubic-restart` (new, default unchanged) 2 116, BBR 1 897, 5/5 each; BBR is worse mid-fill (0/5). The restart's misfire cell at 1 % loss is not clean — see row 50 |
+| 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 42–52 | **half done on the workstation** 2026-09-19, branch `claude/n2-radio-link`, **merged into `claude/integrated-2026-09-20`** 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open, and the merge is no longer in the way: the idle penalty and trace replay** |
+| 44 | **H1** — the production handshake: a real chain, compression, the static plane | queue §Rows 42–52 | **first half done on the workstation** 2026-09-19, branch `claude/h1-production-handshake`, **merged into `claude/integrated-2026-09-20`** 2026-09-20: an RSA-2048 chain costs exactly one round trip (4.03 → 5.05, 7/7 at three delays), an ECDSA P-256 chain none; brotli compression (feature `cert-compression`, off) brings RSA back to 4.08 and Chrome 148 offers brotli only; the leaf-only-PEM guard is built. **Still open: S40, the static plane** — ready, and independent of that branch |
+| 45 | **K1** — iOS: a dial that never settles, and what silently does nothing there | queue §Rows 42–52 | **ready** |
+| 46 | **D8** — the decoder instantiated by streaming: does the code cache engage now | queue §Rows 42–52 | **ready** |
+| 47 | **P2** — a paint floor: two routes from decoded samples to the screen, pixel-equal | queue §Rows 42–52 | **ready** |
+| 48 | **W4** — the controller verdicts, re-run on a link that does not reorder | queue §Rows 42–52 | **half answered on the workstation** 2026-09-19 (`claude/n2-radio-link`): on ordered jitter Cubic is 1.01× / 1.03× where it was 8.2× / 23.7×; `--packet-threshold` does *not* explain it (0.52× at ±2 ms, ~0.9× at ±10 ms) — what declares those losses owes a qlog cell. **Still open, and 43 is merged: the deep-buffer fill (S28 is half wrong — the queue does fill) and the trace arm** |
+| 49 | **I1** — the idle ask when the first packet is late | queue §Rows 42–52 | after 43 |
+| 50 | **W5** — a blink that holds instead of dropping; slow start restarted after a silence | queue §Rows 42–52 | **mostly answered on the workstation** 2026-09-19: held, a blink costs the outage and nothing else — no congestion event, no loss — and a second blink is no worse (S33's second half refuted); the restart is built (row 42). **Still open, and both merges are in: the restart against plain Cubic at 0.1–1 % loss with rounds enough to size it** — five rounds gave a four-fold spread |
+| 51 | **C1** — a reconnect that remembers the path: a proposal | queue §Rows 42–52 | **ready** |
+| 52 | **M1** — what a fill allocates on the page, on a throttled CPU | queue §Rows 42–52 | **ready** |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **done** — a quarter of the bytes draws the half-size image, on all four formats; only the package can do it. `decode/README.md` §A prefix draws a smaller image |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **done** — a tie in both scenarios; the miss *path* costs ~0.5 ms on one ask and nothing across a fill. What a cold study costs is the device's, not this container's. `disk-access/EVIDENCE.md` §A study nobody has read |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
@@ -230,6 +242,98 @@ transcode against the alternatives, with the maximum sample difference stated.
 the fill asked in a coarse-to-fine order — every 8th frame, then every 4th … each frame still
 decoded once (S21): time until every 8th frame is cached (through N1 once it exists) and what the
 permuted order costs the read path under `--force-pool-reads`.
+
+### Rows 42–52
+
+Queued 2026-09-19 from [`improvements/2026-09-19-sweep.md`](improvements/2026-09-19-sweep.md) —
+read it first; **S23–S46 below are its findings**, each with its evidence, and none is measured.
+"What a row may not change" (§Rows 30–41) binds these rows too. The first sweep's rows measured the
+target through an impaired link; these rows ask what that link's *model* hides, explain the one
+number it produced without a mechanism, and open the production and iOS halves no rig has charged
+for. **Order is deliberate:** the blink first because it is minutes of work and the largest cost
+found; then the instrument, because three later rows wait on it. A finding is a claim until your
+cell reproduces it — where it does not, correct the sweep file in place, as rows 38, 39 and 41 did.
+
+**42 · W3.** W2 priced a 500 ms blackout at +5.4 s of fill and blamed the probe-timeout ladder.
+S30 reads it differently, from `cubic.rs`: the harness fires the blackout while only the initial
+window is in flight, Cubic anchors `w_max` there and never re-enters slow start, and arithmetic
+reproduces all three rows within 2 %. Confirm or refute with the window itself (the session path
+line's `cwnd`, or qlog): the blackout at three points of a fill — the first round trips, mid-fill,
+the last — and across one 250 KB ask on a warmed session. Add a `bbr` arm to the same loop (S31:
+never run; its source says it should not pay this). Correct `transport-conclusions.md` §3 and S9 in
+place with what the cells show.
+
+**43 · N2.** `link_impair.py` is what every container verdict stands on, and four things it does
+are not what a radio does. Add, each read back against arithmetic and mutated as N1 was: jitter
+that **does not reorder** (delivery clamped to non-decreasing) as a mode beside today's, which
+stays as an explicit reordering lever (S26 — and its comment "as a real path does" goes); a
+blackout that **holds and bursts** beside the one that drops (S33); an **idle penalty** — the
+first packet after *N* ms without traffic waits *X* ms, each direction (S34); and **replay of a
+delivery-opportunity trace**, one millisecond timestamp per MTU-sized opportunity, with a Poisson
+option (S29). `rig-limits.md` §3 says what the relay now can and cannot stand in for.
+
+**44 · H1.** Every dial here uses a ~450 B self-signed certificate. Build size-matched WebPKI-shaped
+chains (ECDSA leaf + intermediate; RSA-2048) from a throwaway CA and refit `cold_open`'s first-byte
+slope at two or three round trips (S37: does the RSA chain cost a round trip?). Turn on `rustls`'s
+`brotli` / `zlib` features and capture headless Chromium's QUIC ClientHello: does it offer
+certificate compression over QUIC, and does the slope come back (S38)? A leaf-only PEM: what the
+dial costs, and a guard in `deploy/check_equivalence.sh` (S39). Then the static plane in
+`lab/page-open`'s HOST mode: a second hostname behind a delayed stub resolver, and an HTTP/3 arm
+with an HTTPS DNS record against today's (S40).
+
+**45 · K1.** WebKit bug 319879: the server answers 200 and `ready` never settles — no error for
+either client to catch (S23). Add a lab server mode that accepts the CONNECT and never completes,
+and say what each client and the downloader do today; then amend
+`proposal-session-survival.md` with a dial deadline and its retry, prototype behind the
+downloader's dial. Second half, a table in `CLIENTS.md` (S24): every browser API the clients and
+the four proposals rely on, whether WebKit has it, and what the code does when it is absent —
+starting from Speculation Rules (correct S20's size in place: Chromium only), `navigator.connection`,
+`deviceMemory`, `scheduler.postTask`, OPFS's seven-day deletion.
+
+**46 · D8.** `client/downloader/decoder.js` instantiates from a buffer, so row 25's "the code cache
+does nothing" tested a path where nothing could engage (S42). Instantiate by streaming (the static
+host must send `application/wasm`), and re-run `lab/decode-first-frame/` over two and three visits
+on a persistent profile: the first frame, frames 1–5, and whether the cache was consumed. Both
+WASM modules. Parity byte-identical, as always.
+
+**47 · P2.** An SDK-free page in `lab/` that takes the downloader's decoded `SharedArrayBuffer` to
+the screen two ways (S43): the 2D-canvas route (a new RGBA `ImageData` at source size, an
+`OffscreenCanvas`, `transferToImageBitmap`, `drawImage`) and a WebGL2 route (an 8-bit or `R16UI` /
+`R16I` texture uploaded from the shared view, window/level as a uniform, one draw at display size),
+honouring `devicePixelRatio`. **Prove the two pixel-equal** at identity and at a non-trivial window,
+on cine RGB, signed 16-bit CT and a 12 Mpx 16-bit frame — mutated. A container's GL is software, so
+report no timing as a verdict; the workstation and a device time this page.
+
+**48 · W4.** After 43. W2's six controller cells on jitter that does not reorder, with a
+`packet_threshold` arm (expose the setter as a flag; default unchanged) — is anything left of
+8.6× / 25× (S26)? The slow-start-exit cells with a fill at least ten times the buffer, so the deep
+queue actually forms (S28: S8 is not refuted until then). BBR against Cubic on a replayed trace
+instead of iid loss (S27, S29). Correct `transport-conclusions.md` §1 and §3 in place.
+
+**49 · I1.** After 43. With the idle penalty at 200 / 400 / 1 000 / 1 900 ms after 5 and 10 s idle:
+what one ask on a warmed session costs, what the client's and the server's probe timers do with a
+first packet that late, and what the inflated round-trip sample does to the *next* ask. A
+keep-alive arm at 3 / 5 / 10 s against none, and a one-packet poke sent 100–300 ms before the ask
+(S35, S36). This shows the stack's half only; the sizes and the battery are a device's.
+
+**50 · W5.** After 42 and 43. S30's cells again on the hold-and-burst blackout: is there a
+congestion event at all, and what does the outage-sized round-trip sample do to the probe timeout
+at the next blink (S33)? Then, only if 42 showed Cubic paying and BBR is not simply the answer:
+S32 behind a flag over the public `Controller` trait, as `hystart.rs` is — slow start restarted
+when every lost packet predates a silence of two probe timeouts — with a cell at 1–3 % background
+loss to show it does not misfire. Default unchanged.
+
+**51 · C1.** A proposal, no product code (S41). Careful Resume for the reconnects S2, S3 and S30
+make routine: what is saved and keyed on what, the unvalidated phase and the retreat, the
+carrier-NAT risk, and how it composes with W1's push at open and the 32-packet window. **Settle
+reachability first** — the controller factory is not told the peer, and `wtransport` 0.7.2 keeps
+`quinn::Incoming` private — without a fork if one exists, else the crate patch specced as R1's
+was. The deciding cells are `first_ask`'s fresh / warmed / resumed.
+
+**52 · M1.** Last, and small (S44). Under headless Chromium's CPU throttle at 4× and 6×: renderer
+collections and main-thread time per fill on the downloader's page side against its worker side,
+and which per-frame page allocations in `client/downloader/consumer.js` account for them. The
+crossing itself is already shown not to bind; do not optimise messages.
 
 ### Rows 23–26
 

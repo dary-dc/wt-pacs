@@ -9,6 +9,7 @@ This folder is the front door. The dated files are evidence, not the queue.
 | File | What it is |
 | ---- | ---------- |
 | **this page** | ranked open work, then what already landed on the branch |
+| [`2026-09-19-sweep.md`](2026-09-19-sweep.md) | second identification sweep: what the shaped link's model, the dev certificate, an idle radio and a desktop still hide — findings S23–S46, none measured, queued as rows 42–52 |
 | [`2026-09-19.md`](2026-09-19.md) | sixth pass: the tip re-verified — gate, the nginx config, the fill's order, the first ask, prerender — and what the re-runs corrected |
 | [`2026-09-18.md`](2026-09-18.md) | fifth pass: what loopback hides — 22 candidates from an identification sweep, queued as rows 30–41 |
 | [`2026-09-16.md`](2026-09-16.md) | fourth pass: the whole gate run end to end for the first time on this branch — `GATE OK`, every step timed, and the two client steps that pass at half strength |

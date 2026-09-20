@@ -64,10 +64,27 @@ OUTPUT, under 600 words: at most 5 candidates ranked by effect on the target, ea
   elsewhere · the deciding measurement and who can run it. End with "looked at and dropped".
 ```
 
+**Round two (2026-09-19, [`improvements/2026-09-19-sweep.md`](improvements/2026-09-19-sweep.md)).**
+Areas that worked once the first round's rows had been measured: the *instrument's own model*
+(what the impaired link does that a radio does not); a measured number with no mechanism (read the
+library until arithmetic reproduces it); what a dev certificate and a dev static host make free;
+the radio's idle states; a second browser engine checked against every dependency and planned
+lever; the page half of the clock once the third-party SDK became changeable. Areas that returned
+caveats and no lever: decode on phone silicon, a phone's memory ceiling — both need a device, not
+a reader. Verify each report's opening code fact yourself before persisting it; one reachability
+claim did not survive that check.
+
 ## What it cost
 
-Nine investigators, each inheriting the session's context: about 2.2 M tokens and ten minutes of
-wall time, plus one reconciliation. Nothing ran on the shared box.
+Round one: nine investigators, each inheriting the session's context: about 2.2 M tokens and ten
+minutes of wall time, plus one reconciliation. Nothing ran on the shared box.
+
+Round two: eleven investigators, **fresh rather than forked** — the frame (project, target,
+constraints, rules, exclusions, output) in one shared file, each area's brief in another, a
+three-line prompt each — about 1.3 M tokens on cheaper models and ten minutes a wave. A first
+attempt at eleven forks-worth of the most capable model exhausted the session's usage limit before
+any reported; launch in two waves, highest expected effect first, so a limit costs the tail and
+not the head.
 
 ## What reopens areas
 
