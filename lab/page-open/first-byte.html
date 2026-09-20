@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <!-- The open is serial without these: each is otherwise discovered one round trip
+       later than it could be. lab/page-open/README.md -->
+  <link rel="preload" as="fetch" href="/wt/dev-transport.json" />
+  <link rel="modulepreload" href="/client/downloader/consumer.js" />
+  <link rel="preload" as="script" href="/client/downloader/downloader.js" />
+  <link rel="preload" as="script" href="/client/downloader/decoder.js" />
+  <link rel="preload" as="script" href="/lab/decode-bench/vendor/openjph/openjphjs.js" />
+  <link rel="preload" as="fetch" href="/lab/decode-bench/vendor/openjph/openjphjs.wasm" />
+  <script>
+    // The transport's hint is the one the `no-r4` arm drops, so it is written rather than parsed.
+    globalThis.__stage = new URLSearchParams(location.search).get("stage") ?? "all";
+    if (globalThis.__stage !== "no-r4") {
+      document.head.insertAdjacentHTML(
+        "beforeend",
+        '<link rel="preload" as="script" href="/client/transport-ts/dist/session.js">',
+      );
+    }
+  </script>
+  <title>first byte — the downloader</title>
+</head>
+<body>
+  <div id="log"></div>
+  <script type="module">
+    /**
+     * The first frame of a study fill, where downloader.html times a single ask: one rung of the
+     * ladder in lab/page-open/README.md per `?stage=`. The frame count is told, not fetched.
+     */
+    import { DownloaderClient } from "/client/downloader/consumer.js";
+
+    const stage = globalThis.__stage;
+    const frames = Number(new URLSearchParams(location.search).get("frames") || 12);
+    const open = (globalThis.__wtpacsOpen = {});
+    const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
+    const log = (s) => (document.getElementById("log").textContent += s + "\n");
+
+    try {
+      const config = fetch("/wt/dev-transport.json").then((r) => r.json()).then((c) => (mark("config"), c));
+      let first;
+      const firstFrame = new Promise((r) => (first = r));
+      // Today's page has nothing to hand `connect` until the config is in; R3's does not wait.
+      if (stage !== "r3" && stage !== "all") await config;
+      const c = await DownloaderClient.connect(
+        config.then((v) => v.wt_url),
+        config.then((v) => v.cert_sha256),
+        {
+          decoders: 3,
+          fill: [...Array(frames).keys()],
+          openAsk: stage === "r1" || stage === "all",
+          onFrame: (f) => f.frameIndex === 0 && first(f),
+          decoder: {
+            glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
+            wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
+            dir: "/lab/decode-bench/vendor/openjph",
+          },
+        },
+      );
+      mark("session");
+      const f = await firstFrame;
+      mark("frame");
+      log(`${f.info.width}x${f.info.height} in ${open.frame} ms`);
+      c.close();
+    } catch (e) {
+      globalThis.__wtpacsError = String(e?.stack || e);
+      log("FAILED: " + globalThis.__wtpacsError);
+    }
+    globalThis.__wtpacsDone = true;
+  </script>
+</body>
+</html>

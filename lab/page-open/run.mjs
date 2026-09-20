@@ -17,14 +17,22 @@ import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const ROUNDS = Number(process.argv[2] || 3);
-const RTTS = [0, 40, 80];
+const RTTS = (process.env.RTTS || "0,40,80").split(",").map(Number);
 const FRAMES = 12;
 
-const ARMS = {
-  ts: (base) => `${base}/harness/ts.html?autorun=1&n=1&frames=${FRAMES}`,
-  wasm: (base) => `${base}/harness/index.html?autorun=1&n=1&frames=${FRAMES}`,
-  downloader: (base) => `${base}/lab/page-open/downloader.html`,
-};
+// STAGES swaps the three clients for the first-byte ladder: one rung of README.md per arm, on a
+// cold profile only, since a warm visit spends none of what the ladder cuts.
+const STAGES = process.env.STAGES?.split(",");
+const ARMS = STAGES
+  ? Object.fromEntries(
+      STAGES.map((s) => [s, (base) => `${base}/lab/page-open/first-byte.html?stage=${s}&frames=${FRAMES}`]),
+    )
+  : {
+      ts: (base) => `${base}/harness/ts.html?autorun=1&n=1&frames=${FRAMES}`,
+      wasm: (base) => `${base}/harness/index.html?autorun=1&n=1&frames=${FRAMES}`,
+      downloader: (base) => `${base}/lab/page-open/downloader.html`,
+    };
+const PROFILES = STAGES ? ["cold"] : ["cold", "warm"];
 
 // HOST=dev (default) is server/dev-server.py, plaintext HTTP/1.1; h1 and h2 are nginx on the deploy
 // template over TLS, without and with HTTP/2 — the handshakes a real host charges the page half.
@@ -85,6 +93,8 @@ const srvLog = fs.openSync(path.join(T, "server.log"), "a");
 start(path.join(BIN, "exact-server"), [
   "--port", String(UDP_SRV), "--study", path.join(T, "study.sbnd"),
   "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem"),
+  // Inert for an arm that sends no `?ask=`, so every arm runs on one server. R1's arm needs it.
+  "--open-ask",
 ], srvLog);
 if (HOST === "dev") {
   start("python3", ["server/dev-server.py", "--port", String(TCP_SRV)], fs.openSync(path.join(T, "static.log"), "a"));
@@ -145,8 +155,7 @@ for (const rtt of RTTS) {
           ...(HOST === "dev" ? [] : ["--ignore-certificate-errors"])],
       });
       try {
-        rows.push({ rtt, arm, profile: "cold", ...(await visit(ctx, arm)) });
-        rows.push({ rtt, arm, profile: "warm", ...(await visit(ctx, arm)) });
+        for (const profile of PROFILES) rows.push({ rtt, arm, profile, ...(await visit(ctx, arm)) });
       } catch (e) {
         process.stderr.write(`rtt=${rtt} ${arm}: ${e.message.split("\n")[0]}\n`);
       }
@@ -182,7 +191,7 @@ console.log(
     RTTS.map((r) => `${r} ms`.padStart(8)).join(" "),
 );
 for (const arm of Object.keys(ARMS)) {
-  for (const profile of ["cold", "warm"]) {
+  for (const profile of PROFILES) {
     for (const key of ["config", "session", "frame"]) {
       const f = fit(arm, profile, key);
       if (!f) continue;
