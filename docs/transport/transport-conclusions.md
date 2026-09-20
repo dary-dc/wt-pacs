@@ -334,6 +334,31 @@ and −3.9 % at 250 KB (better), on ranges that overlap in all four cells. The p
 the ask within 5–27 % of a warmed session; there is no slow start left for a wider first flight to
 skip. **If the push is taken, the window buys nothing on top of it.**
 
+**A warmed window survives a silence, on both controllers.** The on-demand regime is a fill, then
+a pause while the user reads, then one ask. Eight frames, then 0, 10 or 30 s of silence, then the
+ask, carrying the pair [`../adr-idle-sessions.md`](../adr-idle-sessions.md) proposes — a 20 s
+keep-alive under a 60 s idle timeout — in **every** arm, because quinn's default idle timeout is
+30 s at both ends and without it the 30 s arm would measure a dead session rather than a cold
+window:
+
+| arm | 50 KB, 40 ms | 50 KB, 80 ms | 250 KB, 40 ms | 250 KB, 80 ms |
+| --- | ---: | ---: | ---: | ---: |
+| Cubic, no idle | 54.1 | 103.3 | 53.8 | 108.0 |
+| Cubic, 10 s | 56.7 | 103.3 | 58.4 | 109.0 |
+| Cubic, 30 s | 55.6 | 99.4 | 58.7 | 111.1 |
+| BBR, no idle | 54.8 | 97.2 | 52.5 | 105.1 |
+| BBR, 10 s | 56.1 | 98.4 | 61.0 | 108.1 |
+| BBR, 30 s | 52.8 | 94.8 | 61.4 | 107.3 |
+
+**No arm anywhere goes back to slow start**, which at 250 KB would be 4.4 round trips and a 4.2×
+ask. The worst cell is 250 KB at 40 ms — Cubic +9 %, BBR +17 % and 0/7 against its own no-idle
+arm, the one range in the block that nearly separates — and at 50 KB the 30 s arm is the *fastest*
+of the three on both controllers. Every arm ends on the window it had before the silence
+(~1.12–1.16 MB at 250 KB), and **no arm lost a session: 28 of 28 rounds served the ask**, so the
+20 s keep-alive is enough to carry 30 s of quiet. The mechanism agrees: quinn 0.11.18 implements
+no congestion-window restart after idle in any of its controllers, and the pacer only clamps the
+first flight after the silence to its own burst capacity.
+
 ### The slow-start exit, an outage and the first timeout, 2026-09-19
 
 **W2.** `lab/scripts/controller_cells.sh`, three rounds a cell, through
