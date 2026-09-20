@@ -76,7 +76,10 @@ against another emulator, and each lever was mutated to watch it fail.
 | Queue | 10 packets | 10 of a 500-packet burst |
 | Loss, iid | 5 % each way | 3 597 of 4 000 delivered (3 600 expected) |
 | Loss, GE 0.07/14 | ~0.5 % mean | 7 913 of 8 000 (7 920 expected) |
-| Blackout | 600 ms | 59 of a 200-packet, 2 s stream gone |
+| Blackout, dropping | 600 ms | 59 of a 200-packet, 2 s stream gone |
+| Blackout, holding | 600 ms | none gone, the first held packet 602 ms late; 40 of 60 gone when the queue is 20 |
+| Jitter, reordering | ±5 ms | 9.7 ms of p90-p10 spread; 40 of 200 arrive out of order |
+| Jitter, ordered | ±5 ms | the same spread, 9.8 ms; none out of order, none later than delay + jitter |
 | Rebind | mid-stream | none lost; the session survives it (`rebind-probe`) |
 
 **The two counts it was made to check**, fitted over round trips of 40, 80 and 160 ms so that the
@@ -99,6 +102,23 @@ TLS is not modelled. It is one thread, so delays under ~1 ms decide nothing and 
 the ones in the table has to be re-checked against the relay itself first. It carries one client
 at a time on the UDP plane. Everything else on this list still holds: the MTU above is unchanged,
 and the server still sees a loopback socket.
+
+**Two of its models were not a single radio leg's, 2026-09-19 (N2).** Each now has a mode, and
+the default is still the model the earlier numbers were taken on:
+
+* **Jitter.** `--jitter-mode reorder` (the default) adds an independent wobble after the rate
+  queue and delivers by time, so packets pass each other — that is a path with more than one leg
+  (carrier aggregation across legs, bonding), not LTE, 5G or Wi-Fi, which deliver in sequence on
+  one. `--jitter-mode ordered` clamps each direction's delivery to non-decreasing: the same
+  wobble, nothing overtaken. What neither stands in for is the *shape* of real jitter — both draw
+  it independently per packet, where a radio's comes from grants and retransmissions and is
+  correlated over milliseconds — and neither is a scheduler.
+* **A blackout.** `--blackout-mode drop` (the default) discards both directions, which is a path
+  that throws the outage away. `--blackout-mode hold` freezes each direction's rate clock instead,
+  so what arrives during the outage queues behind it, the queue limit decides what survives, and
+  the rest leaves in order the moment it ends — a link layer that buffers. **Which one a radio
+  does is unverified here**: no primary source was found for the discard timer that decides it,
+  and the two give a transport very different sessions (`transport-conclusions.md` §3).
 
 **Still owed:** the calibration against `netem` on the rig that
 [`lanes/RIG-RUNBOOK.md`](lanes/RIG-RUNBOOK.md) preflights, so that a later container result can be

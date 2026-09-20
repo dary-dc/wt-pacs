@@ -50,6 +50,10 @@ struct Args {
     /// Fill frames delivered before the blackout fires. `--warm` fires it at the ask.
     #[arg(long, default_value_t = 0)]
     blackout_after: u32,
+    /// A second blackout this long after the first, whatever the fill is doing by then. 0: one
+    /// blackout only. S33: the first one's round-trip sample is what makes the second expensive.
+    #[arg(long, default_value_t = 0)]
+    blackout_again_after_ms: u64,
     #[arg(long, default_value_t = 5)]
     rounds: u32,
     #[arg(long, default_value_t = 30_000)]
@@ -64,10 +68,20 @@ fn poke(port: u16, cmd: &str) -> Result<()> {
     Ok(())
 }
 
-/// Fires the blackout once, at the point in the fill `--blackout-after` names.
+/// Fires the blackout at the point in the fill `--blackout-after` names, and schedules the
+/// repeat `--blackout-again-after-ms` asks for.
 fn blackout_at(args: &Args, frames_done: u32) -> Result<()> {
-    if args.state == State::Lossy && frames_done == args.blackout_after {
-        poke(args.control_port, &format!("blackout {}", args.blackout_ms))?;
+    if args.state != State::Lossy || frames_done != args.blackout_after {
+        return Ok(());
+    }
+    let blackout = format!("blackout {}", args.blackout_ms);
+    poke(args.control_port, &blackout)?;
+    if args.blackout_again_after_ms > 0 {
+        let (port, after) = (args.control_port, args.blackout_again_after_ms);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(after)).await;
+            let _ = poke(port, &blackout);
+        });
     }
     Ok(())
 }
