@@ -14,7 +14,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 use wtransport::config::{states, IpBindConfig, ServerConfigBuilder};
 use wtransport::endpoint::endpoint_side;
@@ -253,7 +253,7 @@ fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
 }
 
 /// Lab path: serve the opening ask immediately, and take the control stream whenever it turns
-/// up. Refusals have nowhere to go until it does, which is why a bad ask never reaches here.
+/// up. A refusal waits for it, since that is the only way one can be sent.
 async fn serve_opening_ask(
     connection: wtransport::Connection,
     store: Arc<FrameStore>,
@@ -263,12 +263,14 @@ async fn serve_opening_ask(
     let path = connection.clone();
     let control = connection.clone();
     let out = FrameOut::open(mode, connection).await?;
-    let mut product = ProductPipeline::new(store, out);
+    let (ctl_tx, ctl_rx) = oneshot::channel();
+    let mut product = ProductPipeline::new(store, out).with_late_control(ctl_rx);
 
     let (tx, mut asks) = mpsc::channel(ASKS_AHEAD);
     tx.send(ask).await.ok();
     let reader = tokio::spawn(async move {
-        let Ok((_send, mut recv)) = control.accept_bi().await else { return };
+        let Ok((send, mut recv)) = control.accept_bi().await else { return };
+        ctl_tx.send(send).ok();
         while read_asks(&mut recv, &tx).await.is_ok() {}
     });
 
@@ -378,6 +380,7 @@ mod tests {
     use super::*;
     use crate::media::frame_store::FrameSpan;
     use crate::transport::planner::Mode;
+    use crate::transport::wire::write_fod_msg;
     use fod::FodMsg;
     use frame_envelope::unwrap;
     use std::io::Write;
@@ -622,7 +625,8 @@ mod tests {
     }
 
     /// The ask in the session URL is served without the client ever writing to the control
-    /// stream, and an out-of-range one is ignored rather than taken. R1 —
+    /// stream, an out-of-range one is ignored rather than taken, and a refusal in such a session
+    /// waits for the control stream instead of being dropped. R1 —
     /// `docs/proposal-session-open.md`.
     #[test]
     fn an_opening_ask_is_served_behind_the_accept() {
@@ -686,6 +690,23 @@ mod tests {
                         let (idx, codestream) = read_envelope(&mut media).await;
                         assert_eq!(idx, frame, "the URL ask served the wrong frame");
                         assert_eq!(codestream, pattern(frame), "frame {frame} came back wrong");
+
+                        let (mut send, mut recv) =
+                            connection.open_bi().await.expect("open control").await.expect("control");
+                        write_fod_msg(&mut send, &FodMsg::RequestFrame { frame: 99 })
+                            .await
+                            .expect("ask out of range");
+                        let refusal = tokio::time::timeout(
+                            Duration::from_secs(5),
+                            read_fod_msg(&mut recv),
+                        )
+                        .await
+                        .expect("no refusal on the control stream")
+                        .expect("refusal");
+                        assert!(
+                            matches!(refusal, FodMsg::FrameError { frame_index: 99, .. }),
+                            "the refusal was {refusal:?}, not a frame_error for 99",
+                        );
                     }
                     None => assert!(
                         media.is_err(),
