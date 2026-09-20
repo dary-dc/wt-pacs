@@ -308,6 +308,32 @@ push arm's is mostly its own.
 lands on exactly the shallow-buffered link the target has; the push is the larger lever and is
 already prototyped behind a flag, where it waits on a browser cell rather than another native one.
 
+#### Which default for which session shape, 2026-09-20 (LD)
+
+**W1b.** The cells W1 does not have, on the same probe and the same relay: the two levers
+*together*, a warmed session left idle before the ask, and the wide first flight against the queue
+depth. Seven rounds a cell, **arms interleaved inside every round with the order reversed on every
+other round**, medians with their range, and wins counted round against round.
+`lab/scripts/first_ask_cells.sh together|idle|queue`. The box carried other lanes throughout, so
+every figure here reads 3–8 % slower than W1's and only the within-cell comparisons are claimed.
+
+**The two levers do not stack.** Ask-to-last-byte medians, 40 ms / 80 ms, against the `fresh` arm:
+
+| arm | 50 KB | 250 KB | wins vs fresh |
+| --- | ---: | ---: | ---: |
+| fresh | 133.8 / 255.9 | 244.0 / 463.3 | |
+| 32-packet window | 89.7 / 171.8 | 182.3 / 333.4 | 7/7 |
+| push 4 frames | 57.5 / 109.9 | 69.2 / 137.9 | 7/7 |
+| **push + 32-packet window** | 58.5 / 110.7 | 65.8 / 132.5 | 7/7 |
+| warmed (the ceiling) | 55.0 / 102.2 | 53.9 / 109.4 | 7/7 |
+
+Every lever arm beats `fresh` 7/7 on disjoint ranges, with zero loss and zero congestion events in
+all of them — this link is unshaped, so nothing here is the link. **But the combined arm is not
+the two wins added.** Against the push alone it is +1.7 % and +0.7 % at 50 KB (worse) and −4.9 %
+and −3.9 % at 250 KB (better), on ranges that overlap in all four cells. The push already leaves
+the ask within 5–27 % of a warmed session; there is no slow start left for a wider first flight to
+skip. **If the push is taken, the window buys nothing on top of it.**
+
 ### The slow-start exit, an outage and the first timeout, 2026-09-19
 
 **W2.** `lab/scripts/controller_cells.sh`, three rounds a cell, through
