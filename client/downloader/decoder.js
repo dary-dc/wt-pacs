@@ -107,6 +107,7 @@ onmessage = async (e) => {
       min: range.min,
       max: range.max,
       byteCount,
+      wireBytes: m.bytes.length,
       stamps,
     });
     postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount });

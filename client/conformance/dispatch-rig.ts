@@ -12,7 +12,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -685,6 +685,48 @@ async function anUndecodableFrameIsAFailureNotAFrame(
   c.close();
 }
 
+/**
+ * A frame says what crossed the link. `wireBytes` is the codestream length its envelope declared,
+ * on the undecoded path and behind a decoder alike — never the decoded plane, which on a
+ * compressed frame is several times larger. client/downloader/README.md §What a frame reports
+ */
+async function aFrameCarriesItsWireBytes(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  const payload = enc.encode("frame-zero-and-then-some-more");
+  const undecoded: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, onFrame: (f) => undecoded.push(f),
+  });
+  c.fill([0]);
+  await fake.pushFrame(0, payload);
+  await until(() => undecoded.length >= 1);
+  const raw = undecoded[0];
+  check(raw?.info.wireBytes === payload.length, `wire bytes: undecoded, the length the envelope declared (${raw?.info.wireBytes ?? "none"} of ${payload.length})`);
+  c.close();
+
+  const dir = "/lab/decode-bench/vendor/openjph";
+  const ok = await fetch(`${dir}/openjphjs.js`, { method: "HEAD" }).then((r) => r.ok, () => false);
+  if (!ok) return void log(`  SKIPPED: wire bytes behind a decoder — no ${dir} (bash lab/decode-bench/fetch_decoder.sh)`);
+  const codestream = new Uint8Array(await (await fetch("/client/downloader/warmup/colour-8.j2c")).arrayBuffer());
+
+  const decoded: Frame[] = [];
+  const { c: c2, fake: fake2 } = await open(DownloaderClient, {
+    decoders: 1, perDecoder: 2, delayMs: 0,
+    realDecoder: { glue: `${dir}/openjphjs.js`, wasm: `${dir}/openjphjs.wasm`, dir },
+    onFrame: (f) => decoded.push(f),
+  });
+  c2.fill([0]);
+  await fake2.pushFrame(0, codestream);
+  await until(() => decoded.length >= 1);
+  const f = decoded[0];
+  check(f?.info.wireBytes === codestream.length, `wire bytes: decoded, the length the envelope declared (${f?.info.wireBytes ?? "none"} of ${codestream.length})`);
+  check(f?.bytes.length === 160 * 160 * 3 && f.bytes.length !== f.info.wireBytes, `wire bytes: and the decoded plane is a separate, larger number (${f?.bytes.length ?? "none"} decoded)`);
+  c2.close();
+}
+
 export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -715,6 +757,7 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aWarmUpChangesNothingOnTheWire,
     aTruncatedFrameIsAFailureNotAFrame,
     anUndecodableFrameIsAFailureNotAFrame,
+    aFrameCarriesItsWireBytes,
   ];
   log("dispatch (D2c)");
   for (const clause of clauses) {

@@ -60,7 +60,7 @@ series costs the page's main thread 1.34 s cloned against 17 ms transferred.
 
 | to the consumer | fields |
 | --- | --- |
-| `frame` | index, generation, pixels, width, height, bits, components, signed, min, max, byte count, stamps |
+| `frame` | index, generation, pixels, width, height, bits, components, signed, min, max, byte count, wire bytes, stamps |
 | `failed` | index, generation, reason |
 | `cancelled` | generation |
 | `closed` | reason |

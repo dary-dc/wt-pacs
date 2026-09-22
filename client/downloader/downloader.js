@@ -100,7 +100,7 @@ function arrived(index, frame) {
   rec.stamps.lastByte = abs();
   if (!cfg.decode) {
     records.delete(index);
-    post({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
+    post({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
     return;
   }
   rec.bytes = frame.bytes;
