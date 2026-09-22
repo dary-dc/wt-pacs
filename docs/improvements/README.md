@@ -85,7 +85,9 @@ Not coded on purpose. Numbers in [`2026-09-06.md`](2026-09-06.md) and [`ledger.m
 Measured in the same pass and **not** taken: `aws-lc-rs` as the crypto provider, +3–5 % CPU at
 32 KB, a tie at 250 KB, +10–18 % peak RSS, on a CPU with VAES; and the UDP payload lever,
 **closed for browser clients** — Chromium 141 advertises `max_udp_payload_size` 1 472, so no
-server setting sends it a larger datagram.
+server setting sends it a larger datagram. And the browser fill's loss: Chromium's 2 MB QUIC socket
+overflows on loopback (403–559 drops per 3.6 MB fill, either server); a 768 KB send window removes
+it and moves neither clock — nothing waits on it ([`2026-09-10.md`](2026-09-10.md)).
 
 ### 2026-09-06, `claude/project-improvements-lab-pmohec` — all ten are on `main`
 

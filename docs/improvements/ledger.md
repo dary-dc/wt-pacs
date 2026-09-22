@@ -142,6 +142,7 @@ agree") was gone; it was re-measured against the code that ships before it was l
 | path | product, **landed** | `session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…` once per session, from quinn's counters | the relay runs: it caught the black-hole reset to 1 200 that the histogram alone could not explain | — |
 | fill | defect, product, **fixed** | a cold fill at the stock `read_ahead_kb` missed 59–66 % of 250 kB frames with one read in flight, slower than on-demand at depth 4 on any device with latency | evicted 8 GB study, before/after interleaved: misses → 0.7–1.1 % (3/3), 8 MB read-ahead burst tail −62 %, warm a tie at 16 KiB and 250 kB | — |
 | map | analysis | the server levers still open, each with the measurement or decision it needs: P0, ring fd, `send_window`, frame cache, S2, `read_ahead_kb`, D5 | [`2026-09-10.md`](2026-09-10.md) §What would move the server further | the owners' calls named there |
+| loss | measured, **nothing to take** | a browser fill on loopback overflows Chromium's 2 MB QUIC socket: 403–559 drops per 3.6 MB fill, on this server and the reference server alike | browser rig, per-socket `/proc/net/udp` against quinn's `lost_packets` (equal); `--send-window-bytes 786432`: 0 drops in 4/4, neither clock moves (n = 4, interleaved) | none — the default window stays; production is a BDP call |
 
 Corrected in place: `docs/transport/transport-conclusions.md` §3 (the `aws-lc-rs` row now
 carries the VAES re-measurement) and `docs/disk-access/adr.md` §8 (AEAD choice moved from

@@ -185,6 +185,16 @@ Paired on wall time, nothing resolves: `main` vs branch +1.5 % (3/5, P=0.50) on 
 (3/5, P=0.50) on on-demand; reference vs `main` +7.4 % (4/5, P=0.19) on fill. **One arm's own
 run-to-run range is wider than every median gap**, so this rig cannot separate the three.
 
+**Warm, n = 20, with a settle gap, fill separates.** Same native drivers, `main` against the
+reference, page cache warm, the order alternating every rep, 3 s idle after each run: on the 61 MB
+study this server fills **6.2 % faster** (median paired Δ, 95 % CI −12.3 … −2.2 %, 17/20 pairs)
+and spends **10.9 % less server CPU** (−13.8 … −3.6 %, 16/20). On-demand at depth 1 ties
+(+0.9 %, 8/20). A 3.6 MB study stays undecided: its 25–50 ms runs move 22–33 % with their place
+in the pair. Cold was not re-run at n = 20. Back to back, with no idle gap, the second run of each
+pair ran up to 60 % slower — such a run is not a comparison, and a cell whose order effect exceeds
+10 % is not read. Each side drives its server with its own native client, so this compares
+server plus protocol stack.
+
 ### Why it cannot, and what that rules out
 
 * **Cold does not stall the reader.** On a fully evicted 61 MB study the session line still reads
