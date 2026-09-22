@@ -90,7 +90,10 @@ floor: every frame still owed went unreported, so a consumer counting frames wai
 session that had already gone. It now reports each still-owed index once through the fill's
 `onError`, with the closure's own reason, after the waiters are rejected. First reason wins — the
 media stream ending and `closed` settling are the same event twice, and the fill is taken out of
-the session before either reports. Conformance: `aDeadSessionNamesWhatItOwed`.
+the session before either reports. Conformance: `aDeadSessionNamesWhatItOwed`. What the downloader
+does with that report is resume on it, not fail — `client/downloader/README.md` §A session that
+dies is resumed; the clause runs against that arm with resumption off, because the claim here is
+the transport's.
 
 **What the consumer owns.** A pushed fill cannot time out a frame that never comes; the consumer
 that pushed it keeps its own record of what it wants. The downloader does exactly that, and uses

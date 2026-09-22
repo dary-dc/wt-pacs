@@ -1,9 +1,9 @@
-# Proposal: a session that dies is noticed and resumed
+# A session that dies is noticed and resumed
 
-**2026-09-19, the client half verified from Chromium's source 2026-09-22 · Status: proposed,
-nothing built.** Structural, so this is a proposal first (`CLAUDE.md`). A1, from
-[S2 and S3](improvements/2026-09-18.md). One number it asks for cannot be taken here yet — see
-§The measurement this owes; what the stack choice assumed and what is left of it is
+**2026-09-19 as a proposal; built and measured in the lab's client 2026-09-22.** §What is built,
+and where. The product's half — the viewer re-asking through the same path, and the page's notice
+— is not built, and neither is the screen-lock pair in §A fill outlasts the screen lock. A1, from
+[S2 and S3](improvements/2026-09-18.md). What the stack choice assumed and what is left of it is
 §What this means for the stack choice.
 
 ## The problem, stated as a freeze
@@ -135,7 +135,12 @@ Free signals, none of which this client listens to today:
 | `freeze` / `resume` | the page was frozen and thawed — see §A fill outlasts the screen lock |
 
 **None of them proves the path works**, which is why they are triggers and not verdicts. Each one
-should start a check, not a re-dial.
+starts a check, not a re-dial.
+
+**A sixth, added when this was built: a fill that has gone quiet.** `stallMs` with frames owed
+and none arriving is the only trigger a path change raises on one host — no platform signal fires
+when the bytes simply stop — and the only one that is about this session's data rather than the
+platform's guess about the network. It is what §The measurement below actually exercises.
 
 ## The check: a probe ask with a deadline
 
@@ -150,6 +155,14 @@ The frame index is chosen from the downloader's own records, so the probe costs 
 no bookkeeping of its own. A study with nothing delivered yet has nothing in flight to lose, so the
 probe is skipped and the first real ask is the probe.
 
+Two more skips, both from building it. A check already running does not start another. And a
+session that delivered a frame **within the last `stallMs`** has just proved itself, so a tab
+switch during a healthy fill costs nothing — which matters, because an ask ends a running fill on
+the server (`transport/ask-during-fill.md`) and a probe that interrupts a live fill costs the
+round trip to re-issue the remainder. While the fill is *stalled*, which is when the probe
+actually fires, that cost is zero. The same reasoning settles what to do when the probe's deadline
+passes but a frame arrived while it was out: the frame wins, because it is the better evidence.
+
 ## Re-dial and re-issue, on records that already exist
 
 This is the part that needs no new state. `proposal-downloader.md` §The downloader already keeps
@@ -158,11 +171,21 @@ already re-issues the undelivered remainder of a fill after an ask ends it (L16)
 the same problem with a wider blast radius:
 
 1. Re-dial. With [`proposal-session-open.md`](proposal-session-open.md)'s opening ask this costs two
-   round trips rather than four, which is why that row went first.
+   round trips rather than four, which is why that row went first. A dial that fails is retried
+   `tries` times `redialMs` apart while anything is still owed; after the last one every owed frame
+   is failed, which is what LG/LH already did and is now the terminal state rather than the first
+   response.
 2. Re-issue every frame whose record is *on the wire* or *not asked*, in the same priority order
    asks and fills already have.
 3. Frames already *delivered*, *decoding* or *waiting for a decoder* are untouched. They are in
    memory and the wire is not needed for them.
+
+**The request's generation does not change.** A generation is a *request's* identity and `cancel()`
+is what moves it (`client/downloader/README.md` §A request is a generation); a resume is the same
+request continuing. Bumping it would drop frames still inside a decoder under the old generation
+and would have to be told to the page. A session **epoch**, private to the worker, fences the dead
+session's callbacks instead — so the page's records stay valid without being told anything, and
+the only thing it is told is that a resume happened, as a count in `stats()`.
 
 **Nothing is re-decoded and nothing is re-fetched that arrived.** That property is the reason to
 put resumption behind the records rather than behind a session-level retry.
@@ -174,6 +197,8 @@ page runs nothing — no reader, no decoder, no timers. The fill does not fail; 
 the idle timeout kills the session under it.
 
 Two measures, both platform calls and neither novel:
+
+**Neither of these is built** — both are phone behaviour and neither is measurable on this host.
 
 * **A screen wake lock for the duration of a fill**, released the moment it finishes. Held only
   while a fill is running — not for the session, and not while merely viewing.
@@ -190,6 +215,42 @@ The wake lock is a request the platform may refuse, so the `freeze` path must wo
 * **No new wire message.** Every part of this is client-side, and the probe is an ordinary ask.
 * **No server change.** The server already serves a repeat ask and already reclaims a dead session
   on its timeout.
+
+## What is built, and where
+
+**2026-09-22, the lab's client.** All of the mechanism is in `client/downloader/downloader.js` —
+the worker that owns the session, the records and the queue — with four lines in `consumer.js` for
+the triggers a worker cannot see. No wire message, no server change and no transport change: the
+probe is an ordinary ask and both transports already serve it.
+[`../client/downloader/README.md`](../client/downloader/README.md) §A session that dies is resumed
+is the reader's entry.
+
+A session is **live**, **suspect** (one probe out, with a deadline), **dead**, or being
+**re-dialled**. Every trigger moves it from live to suspect; only a session the API itself reports
+closed goes straight to dead.
+
+| trigger | where it is listened for |
+| --- | --- |
+| `online`, `offline`, `navigator.connection` `change` | the downloader's worker |
+| `visibilitychange` to visible, `pageshow`, `freeze`, `resume` | the page, forwarded as one message |
+| a fill quiet for `stallMs` with frames owed | the downloader's own records |
+
+The deadlines are `{ stallMs: 3000, probeMs: 2000, redialMs: 1000, tries: 5 }`, so detection costs
+`stallMs + probeMs` and a resume costs a dial after it; `survival: false` turns the whole of it off
+and an object overrides them. Nothing in it runs when nothing dies, which is what keeps the
+conformance and dispatch suites green unchanged.
+
+**`tries` bounds the dials within one resumption, not the resumptions.** A dial that succeeds onto
+a path that still carries nothing leaves the fill owed and quiet, so the cycle starts again about
+`stallMs + probeMs` later, for as long as the consumer wants frames. That is deliberate: a network
+that is genuinely down refuses the dial, which is the case `tries` ends.
+
+**Five clauses**, `client/conformance/dispatch-rig.ts`, each mutated and seen to fail: a trigger
+checks before it re-dials and a session that answers the probe is kept; a probe nobody answers
+re-dials and re-issues exactly what was owed; a session the API calls closed is re-dialled with no
+probe at all; an ask outstanding at the death is re-asked and settles the promise the page is still
+holding; and when the re-dials run out, every frame the fill still owed is named once — LG/LH's
+behaviour, as the terminal state.
 
 ## The measurement this owes
 
