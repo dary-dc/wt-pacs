@@ -94,3 +94,29 @@ it to re-issue the undelivered remainder as a new fill once an ask has settled
 both stream modes: every frame lands once, in order, with real timings; nothing is armed; an ask
 during the fill is served on its own promise and not pushed; a frame after `endStream()` is dropped.
 Mutation-checked on both implementations — §S3 results in `proposal-downloader.md`.
+
+## A truncated frame is a failure
+
+A frame arrives as `[4B BE len][4B BE index][codestream]`, so the stream itself says how long the
+frame is. A uni stream that ends before that length has lost the frame, and until 2026-09-22 the
+TypeScript reader threw where the pump swallowed it: the frame was neither delivered nor refused,
+and a fill simply waited on it forever while the consumer counted the rest as complete.
+
+`readEnvelope` now reads the **index ahead of the codestream**, which is the whole point — a loss
+can then be *named*. A stream that ends short reports `truncated: G of D bytes` for that index
+through `failWaiter`, the same path a server `frame_error` takes, so an asked frame rejects its
+promise and a fill frame reaches `onError`. The reader then stops on that stream: the server's
+default `StreamMode::Shared` carries the whole run on one uni, so whatever was behind the lost
+frame is gone too, and the downloader's run-wide refusal (`fillHandlers.onError`) is the right
+response. In `--stream-mode per-frame` each frame has its own uni and that is one frame too many,
+which is a reason to prefer the shared mode rather than to weaken the report.
+
+**What it does not catch.** A codestream the *server* truncated before framing it declares its own
+short length and passes; only its pixels would say, and the per-frame hash oracle is what says
+that. A stream cut inside the 4 bytes of the index itself cannot name a frame and is not reported.
+
+**Only the TypeScript client has it.** `read_length_prefixed_frame` in the WASM client returns
+`stream ended early` into a loop that breaks, exactly as the TS one used to; the adopted downloader
+uses the TypeScript transport, and closing the WASM gap needs a rebuild of `pkg/`. Recorded, not
+fixed. Conformance: `aTruncatedFrameIsAFailureNotAFrame` in `client/conformance/dispatch-rig.ts`,
+driven by a fake transport that ends a stream after a given number of codestream bytes.

@@ -30,8 +30,8 @@ caller is what holds the series metadata; a file of the wrong shape warms the wr
 ([`docs/decode/README.md`](../../docs/decode/README.md) §Warming the decoders). It is one
 same-origin GET, nothing on the session, and a warm-up that cannot be fetched leaves a working
 decoder — `client/conformance/dispatch-rig.ts` holds all three to account. One that is *not a
-codestream* also leaves one, but that is the decoder's doing rather than this code's: the wrapper
-logs and returns nothing instead of throwing (`docs/decode/README.md` §Warming the decoders).
+codestream* also leaves one, now because `decodeFrame` refuses it rather than because the wrapper
+is silent (`docs/decode/README.md` §A frame that did not decode).
 **Off by default, and the shape is not a detail**: a warm-up takes 30–45 % off frames 0–2 of a
 fill, but a warm-up of the *wrong* shape leaves the frames after them slower than no warm-up at
 all, and on the box that measured it the decoders answer `ready` later by about what the frames
@@ -44,6 +44,18 @@ generation it was made under, and anything older is dropped on the page rather t
 under an index the new request is using. A refused *fill* frame has no waiter, so it reaches the
 consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
 rejects its own promise. [`proposal-downloader.md`](../../docs/proposal-downloader.md) §The consumer.
+
+**A frame that did not arrive whole is a failure, not a frame.** Two checks, both inside the worker
+graph, so the page never sees a bad frame. On the wire, a uni stream that ends before the length its
+own envelope declares names the frame it lost and refuses it
+([`docs/CLIENTS.md`](../../docs/CLIENTS.md) §A truncated frame is a failure). In the decoder, a
+decoded buffer that is empty or shorter than the codestream's header declares is thrown, because one
+decoder object is reused and an undecodable frame otherwise comes back carrying the **previous**
+frame's pixels under the new index ([`docs/decode/README.md`](../../docs/decode/README.md) §A frame
+that did not decode). Either way the consumer gets `onError({ frameIndex, reason, generation })` for
+a fill frame or a rejected promise for an asked one, so a fill that lost a frame cannot report
+itself complete. Neither check sees a codestream the server truncated *before* framing it; the
+harness's per-frame `.sha256` is what sees that.
 
 Run the arm (`client/harness/downloader.html`) the way the README's quick start runs the others,
 against any study — it checks each decoded frame against the fixture's `.sha256`:

@@ -756,11 +756,13 @@ bytes arrive, and it gave part of the page clock back: the first frame's bytes w
 a decoder instead of 53.9, and reached the page at 124.9 ms instead of 130.0. The gate on `ready`
 is therefore **not load-bearing on this box**, and the ungated shape is the better-looking one;
 4 rounds is not a ladder, so nothing is changed on it. Removing the `try` around the warm-up
-decode also changed nothing, for a plainer reason: the wrapper **never throws**. An empty body, a
-README and a 60-byte prefix each log an `ojph error` and return a zero-length frame, and a
-truncated codestream decodes in full — so no input reachable through `warmup` can reach that
-`catch`. It stays because a decoder build that *does* throw would otherwise turn an optimisation
-into a session that never starts.
+decode also changed nothing, for a plainer reason: the wrapper **never threw**. An empty body, a
+README and a 60-byte prefix each logged an `ojph error` and came back as a frame, and a truncated
+codestream decodes in full — so no input reachable through `warmup` could reach that `catch`. The
+`catch` is now load-bearing: §A frame that did not decode gave `decodeFrame` a check of its own,
+which the warm-up path reaches with a file that is not a codestream. That section also corrects the
+sentence above — "a zero-length frame" was measured on a *fresh* decoder, and the product reuses
+one.
 
 **What this is not.** Loopback and a userspace relay on a four-core box carrying other lanes, so
 only the within-round differences are claimed and none of the levels. At 40 ms the frames arrive
@@ -771,6 +773,42 @@ grey frame is 38 331 B against the colour frame's 6 708 B because 16-bit grey do
 like a cine loop, and both were fetched from a static host with no `Cache-Control` — a warm-up
 that the app already holds costs less than one measured here. Nothing here was measured on a
 phone, which tiers more slowly and would pay more for the same miss.
+
+## A frame that did not decode
+
+The wrapper reports nothing. It logs an `ojph error` to the console and returns, and
+`client/downloader/decoder.js` reuses **one** `HTJ2KDecoder` object across every frame — which the
+lab's `reuse_cost.mjs` measured as the right thing to do, and which makes the failure mode worse
+than a zero-length frame. Measured here on 2026-09-22, decoder 2.4.11, one reused object, the two
+shipped warm-up codestreams:
+
+| input | `getFrameInfo()` | `getDecodedBuffer().length` | the pixels |
+| --- | --- | ---: | --- |
+| `warmup/colour-8.j2c`, 6 708 B | 160x160x3@8 | 76 800 | the frame |
+| the same, truncated to 60 % or 25 % | 160x160x3@8 | 76 800 | **different, and nothing is reported** |
+| 100 B of it, an empty body, a README | **0x0x0@0** | 76 800 | **the previous frame's, byte for byte** |
+
+So an undecodable frame does not arrive as 0 pixels: it arrives as the **last frame's pixels under
+the new index**, with `width: 0` beside them. A viewer that trusts the index shows the wrong slice.
+
+**The check is the header, not the length.** `decodeFrame` computes
+`width x height x components x (bits > 8 ? 2 : 1)` and throws when that is zero or when the decoded
+buffer is shorter, and the decoder worker's existing `catch` posts `failed` with the frame's index
+and generation — so it reaches the consumer as `onError({ frameIndex, reason, generation })`, or as
+a rejected `requestExactFrame`, and never as a frame. A cheaper-looking check on the buffer's
+**length** alone catches nothing, because the length is the previous frame's.
+
+**A truncated codestream is invisible here** and stays so: rows 2 of the table decode to the full
+declared size, silently, with wrong pixels. Truncation is caught on the wire instead, against the
+length the frame's own envelope declares — `../CLIENTS.md` §A truncated frame is a failure. The two
+checks are disjoint on purpose; neither subsumes the other.
+
+**What is not claimed.** A codestream the server truncated *before* it framed it passes both
+checks: the envelope declares the short length and the header still parses. Only the pixels would
+say, and the per-frame `.sha256` oracle in `client/harness/downloader.html` is what says it.
+Conformance: `anUndecodableFrameIsAFailureNotAFrame` in `client/conformance/dispatch-rig.ts` runs
+an empty codestream and a file that is not one through the **real** decoder and requires both to
+fail while a real frame beside them arrives whole; it skips loudly where `vendor/openjph` is absent.
 
 ## Instantiating by streaming
 
