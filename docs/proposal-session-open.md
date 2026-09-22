@@ -1,8 +1,10 @@
 # Proposal: two round trips off a cold open
 
-**2026-09-19 · Status: proposed. Lever 1 prototyped behind a flag, off by default; lever 2 not
-built. The count below is now measured (N1, §The count, measured), and what a production
-certificate does to it with it (H1, §What production adds to the count); neither lever is.**
+**2026-09-19 · Status: proposed. Lever 1 is built behind a flag, off by default, on both sides,
+and measured — −1.13 round trips off the first byte of a fill in a browser (§What lever 1 is
+worth). Lever 2 is neither built nor measured. The count below is measured (N1, §The count,
+measured), and what a production certificate does to it with it (H1, §What production adds to the
+count).**
 Structural, so this is a proposal first (`CLAUDE.md`). R1, from [S5](improvements/2026-09-18.md).
 
 ## What a cold open costs today
@@ -154,6 +156,19 @@ without one, so **every** refusal in such a session was dropped, not only an ope
 pipeline now takes the send half over a `oneshot` the accept task fills, and `refuse` waits for it.
 `server/src/transport/server.rs`'s `an_opening_ask_is_served_behind_the_accept` asserts it.
 
+### What lever 1 is worth
+
+**2026-09-20, in a browser, through the impaired link** — the ladder in
+[`../lab/page-open/README.md`](../lab/page-open/README.md) §The first byte on a fill: a page that
+opens a 12-frame fill with the flag on reaches its first frame in **13.44 round trips against
+14.57**, seven rounds an arm at 40, 80 and 160 ms, interleaved, against an arm-to-arm spread of
+±0.2 on the milestones the flag does not touch. **−1.13 round trips: 41 ms at 40, 90 ms at 80,
+178 ms at 160.** The session itself resolves when it did (8.28 against 8.36), so the saving is
+step 3 and nothing else — which is what this lever claimed and had not shown.
+
+That is one round trip of the four a cold open spends. The other three are the dial, and lever 2
+is the only thing here that touches them.
+
 ## Lever 2 — the server's SETTINGS at 0.5 RTT
 
 **Halves step 2, and needs the crate.** `IncomingSessionFuture::accept` calls `Driver::init` only
@@ -205,9 +220,11 @@ Neither needs the impaired link. They are correctness, and they can run in this 
 Behind `--open-ask` on the server, off by default, with the client sending it only when told to:
 `DownloaderClient.connect(url, certHash, { fill, openAsk: true })` puts the run it would have asked
 for on the control stream into the URL instead, and does not ask for it again.
-**On loopback a round trip is ~0 and the change is invisible by construction**, which is why it is
-timed through an impaired link in [`../lab/page-open/README.md`](../lab/page-open/README.md)
-§The first byte on a fill rather than here.
+**On loopback a round trip is ~0 and the change is invisible by construction**, which is why it was
+timed through an impaired link — §What lever 1 is worth. What the flag is still short of being a
+default: the URL carries one contiguous run, so a client whose first fill is not contiguous asks
+for the rest on the control stream as today; and nothing has run it against a host that is not this
+box's relay.
 
 ## Order
 
@@ -215,7 +232,7 @@ timed through an impaired link in [`../lab/page-open/README.md`](../lab/page-ope
 2. The prototype behind the flag, and the two conformance clauses. ✔ — server-side, plus the
    client half (`openAsk`) and its clauses in `client/conformance/dispatch-rig.ts`.
 3. Row 36's container. ✔ — and with it the count above. The timing cell it was built for,
-   navigation → ready → first byte with the flag on and off, is still owed.
-4. Lever 2 upstream, if the cell says step 2 is worth halving.
-
-The timing cell step 3 owes is `lab/page-open/README.md` §The first byte on a fill.
+   navigation → first byte with the flag on and off, is run: §What lever 1 is worth. ✔
+4. Lever 2 upstream, if the cell says step 2 is worth halving. **The cell says a round trip is
+   worth having** — step 3's was 41–178 ms of the open across 40–160 ms of link — and the three
+   that are left are the dial, where lever 2's half sits.

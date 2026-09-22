@@ -87,7 +87,12 @@ against a switch, which the phone measurement would say.
 the session URL, so `start` boots the decoders and records the opening fill without it and `dial`
 carries it when the page has it; `started` therefore means *dialled*, not *dialled and decoded-ready*,
 and a frame that lands before a decoder exists is held by `pump()`'s guard as it already was. It is
-what lets the consumer take a promise for the URL — `lab/page-open/README.md`.
+what lets the consumer take a promise for the URL. **Measured 2026-09-20: it buys no round trip** —
+14.51 against today's 14.57 to the first frame of a fill, inside the ±0.2 that arms which change
+nothing wander (`lab/page-open/README.md` §The first byte on a fill), because the worker, the
+decoders and the transport are preloaded already and the dial cannot start before the URL either
+way. It costs nothing measurable either; the device that would decide it is one whose worker boot is
+slower than its dial, and this box is not one.
 
 **`want()`'s bare index is not one of these places**, though the sweep read it as one: `cancel`
 clears `records`, so an index `want()` skips is always one the *current* request already has on the
@@ -98,8 +103,9 @@ wire or in hand.
 * **Started by the page at load**, before anything else runs. *Amended 2026-09-20 (R3):* it is the
   page that fetches the config, not the downloader — the config's shape is the deployment's, not the
   downloader's — and the page may hand `connect` a *promise* for the URL, which keeps the worker,
-  the decoders and the transport import off the fetch. It dials and holds the session; holding an
-  idle session open is the server's keep-alive (`docs/transport/adr-idle-sessions.md`).
+  the decoders and the transport import off the fetch. Off it, not sooner to the frame: see the
+  message table above. It dials and holds the session; holding an idle session open is the server's
+  keep-alive (`docs/transport/adr-idle-sessions.md`).
 * **One record per frame:** not asked, on the wire, waiting for a decoder, decoding, delivered. An
   ask for a frame already in flight moves it up the queue instead of asking the wire again.
 * **One queue, two priorities.** Asks before fill frames. Dispatch never leaves a decoder idle: up to
@@ -207,7 +213,9 @@ is why it reached nobody before.
 
 *Amended 2026-09-20 (R1):* `url` and `certHash` may each be a promise, and `opts.openAsk` puts the
 opening fill in the session URL rather than on the control stream — off by default, as the server's
-`--open-ask` is. `docs/proposal-session-open.md`, priced in `lab/page-open/README.md`.
+`--open-ask` is. **−1.13 round trips to the first frame of a fill**, measured:
+`docs/proposal-session-open.md` §What lever 1 is worth, from `lab/page-open/README.md` §The first
+byte on a fill.
 
 ## Capabilities
 

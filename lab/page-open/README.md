@@ -67,6 +67,79 @@ decoder are `preload`ed as scripts rather than modulepreloaded.
 HTML, and the config. Inlining the config into the page would remove the last one; it changes
 how `dev-transport.json` reaches the browser, so it is a separate change with its own reason.
 
+## The first byte on a fill
+
+**R1/R3/R4, 2026-09-20.** The table above times a single *ask*. This one times the first frame of a
+**fill** — the first byte on the target of a study open — with
+[`first-byte.html`](first-byte.html), whose `?stage=` selects one rung per arm. Same relay, cold
+profile only (a warm visit spends none of what these cut), round trips of 40, 80 and 160 ms,
+**seven rounds a delay**, the five arms interleaved inside every round, all of them against one
+server binary started with `--open-ask`:
+
+```bash
+RTTS=40,80,160 STAGES=today,no-r4,r3,r1,all NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 7
+```
+
+| arm | what it is | `frame` round trips | fixed ms | 40 ms | 80 ms | 160 ms |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `today` | the committed load path | 14.57 | 136 | 718 | 1303 | 2467 |
+| `no-r4` | minus the `preload` of `dist/session.js` | 15.73 | 167 | 792 | 1432 | 2681 |
+| `r3` | `connect()` handed promises: the worker graph stops waiting for the config | 14.51 | 140 | 725 | 1295 | 2463 |
+| `r1` | the opening fill rides the session URL (`?ask=fill:0-11`) | **13.44** | 139 | **677** | **1213** | **2289** |
+| `all` | `r3` and `r1` together | 13.34 | 172 | 720 | 1219 | 2314 |
+
+`session` and `config` on the same runs, which is how the noise is read:
+
+| arm | `session` round trips | `config` round trips |
+| --- | ---: | ---: |
+| `today` | 8.36 | 4.35 |
+| `no-r4` | 9.54 | 4.36 |
+| `r3` | 8.30 | 4.40 |
+| `r1` | 8.28 | 4.42 |
+| `all` | 8.44 | 4.46 |
+
+**How far apart two arms have to be to mean anything.** No arm changes what `config` measures, and
+only `no-r4` changes what `session` measures: across the five arms `config` spans 0.11 round trips,
+and across the four that keep the preload `session` spans 0.16. **±0.2 round trips is this fit's
+arm-to-arm spread**, and it is the only spread these runs kept — see the last paragraph.
+
+**R1 is the rung that pays: −1.13 round trips** (13.44 against 14.57), five to seven times the
+spread above, worth 41 ms at 40, 90 ms at 80 and 178 ms at 160 — one round trip, which is exactly
+what putting the ask in the URL removes
+([`../../docs/proposal-session-open.md`](../../docs/proposal-session-open.md) §Lever 1). It is
+spent between `session` and `frame` and nowhere else: `r1` reaches `session` when `today` does
+(8.28 against 8.36) and `frame` a round trip sooner. The same push buys a second thing this page
+cannot see — the window it opens for the *next* ask, measured natively in
+[`../../docs/transport/transport-conclusions.md`](../../docs/transport/transport-conclusions.md)
+§3 lever 1.
+
+**R4 is worth 1.16 round trips, and is already landed** — cut 3 above preloads `dist/session.js`,
+so this ladder prices it by *removal*: `no-r4` is the slowest arm at every delay (+129 ms at 80),
+and its cost falls on `session` (9.54 against 8.36), which is where a late `import()` of the
+transport would.
+
+**R3/W1 buys nothing here: −0.06 round trips**, inside the spread. The premise it was drawn from —
+the page awaits its config, so the worker, the decoder fetches and the transport import all start a
+round trip late — is true of the code and does not reach the first frame, because cut 3 already
+preloads every one of those into the HTTP cache: un-gating the graph starts them earlier inside a
+window that was not the critical path. The dial still cannot start before the URL, and the dial is
+what the round trip would have been. The `all` arm is the table's highest intercept (172 ms against
+`today`'s 136) and is no faster than `r1` alone at any of the three delays — a hint that the earlier
+boot competes for the same core, not a finding, since the intercepts wander 136–172 ms across arms
+regardless. **What would decide it is a device where the worker boot and the decoder fetches are
+slower than the dial** — the target's phone, which this box is not; on this one the split may be
+reverted at no measured cost.
+
+**Comparable down the column, not across to the tables above.** These arms differ from the
+`downloader` row there — a 12-frame fill rather than one ask, a fit over 40/80/160 rather than
+0/40/80, and a box carrying other lanes throughout — so `today`'s 14.57 is not that table's 12.86
+gone bad. Only within-run comparisons count.
+
+**What these runs do not carry.** `run.mjs` keeps the median of its seven rounds per cell and the
+fit, and prints nothing else, so there is **no per-round range and no wins-out-of-n for this
+ladder**; the two control milestones above are the whole of its spread. A ladder that decides
+something on a margin narrower than half a round trip needs the runner to record them first.
+
 ## Compression and cache headers
 
 Landed in [`../../deploy/nginx/wt-pacs.conf.template`](../../deploy/nginx/wt-pacs.conf.template)
@@ -101,4 +174,5 @@ check probes it on a 404 to catch the one thing it can get wrong: an `add_header
 The round trips are the container's userspace relay, not `netem` and not a real path; the
 calibration `rig-limits.md` §3 still owes applies to every number here. The browser is headless
 Chromium on loopback, so nothing here is a phone, and the fixed costs in the fit (47–160 ms) are
-this box's CPU. A single frame is measured, so nothing here says anything about a fill.
+this box's CPU. The first table measures a single frame; the ladder measures the first frame of a
+12-frame fill and stops there, so nothing here says what a fill costs to *finish*.

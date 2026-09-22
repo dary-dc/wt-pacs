@@ -16,7 +16,9 @@ in `start` so it does not wait for a round trip through the page. `lab/fill-at-s
 **Only the dial needs the URL.** `url` and `certHash` may each be a promise: the worker, the
 decoders and the transport import start at once and the dial waits alone. With `opts.openAsk` the
 opening fill rides the session URL as `?ask=fill:A-B` and is never asked for on the control stream —
-off by default, as the server's `--open-ask` is. `lab/page-open/README.md` prices both.
+off by default, as the server's `--open-ask` is. `lab/page-open/README.md` §The first byte on a
+fill prices both: the opening ask is **−1.13 round trips** to the first frame of a fill, 41 ms at a
+40 ms link and 178 ms at 160; the promise is worth nothing measurable on that box.
 
 **A request is a generation.** `cancel()` bumps it and returns a promise that resolves once the
 downloader has ended the stream and dropped that request's work; every frame and failure carries the
