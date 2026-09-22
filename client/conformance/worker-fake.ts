@@ -13,6 +13,7 @@ export type WorkerFake = {
   dialUrl(): Promise<string>;
   didClose(): Promise<boolean>;
   dials(): Promise<number>;
+  failDials(n: number): Promise<void>;
 };
 
 export function workerFake(name: string): WorkerFake {
@@ -45,5 +46,6 @@ export function workerFake(name: string): WorkerFake {
     dialUrl: () => call("dialUrl") as Promise<string>,
     didClose: () => call("didClose") as Promise<boolean>,
     dials: () => call("dials") as Promise<number>,
+    failDials: (n) => call("failDials", n) as Promise<void>,
   };
 }

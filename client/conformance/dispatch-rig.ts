@@ -41,6 +41,7 @@ type OpenOpts = {
   warmup?: string;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
   realDecoder?: { glue: string; wasm: string; dir: string };
+  survival?: false | { stallMs?: number; probeMs?: number; redialMs?: number; tries?: number };
 };
 
 function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
@@ -59,6 +60,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     decoderWorker: opts.realDecoder ? undefined : "/client/conformance/fake-decoder.js",
     decoder: opts.realDecoder ?? { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
     warmup: opts.warmup,
+    survival: opts.survival,
     onFrame: opts.onFrame,
     onError: opts.onError,
   });
@@ -727,6 +729,135 @@ async function aFrameCarriesItsWireBytes(
   c2.close();
 }
 
+
+/** The fake answers over a channel, so a condition that reads its wire has to be awaited. */
+async function untilAsync(cond: () => Promise<boolean>, ms = 3000): Promise<boolean> {
+  const t0 = Date.now();
+  while (!(await cond()) && Date.now() - t0 < ms) await settle(10);
+  return cond();
+}
+
+/** Short enough that a clause can watch a whole death and resumption without a long wait. */
+const QUICK = { stallMs: 120, probeMs: 300, redialMs: 60, tries: 3 };
+
+async function stalledFill(DownloaderClient: DownloaderCtor, extra: Partial<OpenOpts> = {}) {
+  const got: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, survival: QUICK,
+    onFrame: (f) => got.push(f), onError: (f) => failures.push(f), ...extra,
+  });
+  c.fill([0, 1, 2, 3, 4, 5]);
+  await settle();
+  for (const i of [0, 1]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+  await until(() => got.length >= 2);
+  return { c, fake, got, failures };
+}
+
+/**
+ * A trigger is not a verdict: the check is one ask for a frame already in hand, and a session that
+ * answers it is kept — no second dial, and the frame the probe brought back is discarded.
+ * docs/proposal-session-survival.md §The check
+ */
+async function aTriggerChecksBeforeItRedials(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake, got, failures } = await stalledFill(DownloaderClient);
+
+  // The fill has gone quiet with 2..5 owed: the check fires, and the fake answers it.
+  const probed = await untilAsync(async () => (await fake.controlMessages()).some((m) => m.op === "request_frame"));
+  check(probed, "survival: a stalled fill starts a check — one ask for a frame already in hand");
+  await fake.pushFrame(1, enc.encode("probe-answer"));
+
+  const wentOn = await untilAsync(async () => wireOf(await fake.controlMessages()).lastIndexOf("stream_frames 2-5") > 0);
+  check(wentOn, "survival: a session that answers the probe is kept and the fill is re-issued on it");
+  check((await fake.dials()) === 1, `survival: with no second dial (${await fake.dials()})`);
+  for (const i of [2, 3, 4, 5]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+  const all = await until(() => got.length >= 6, 3000);
+  check(all, `survival: and the fill goes on to the end (${got.length}/6)`);
+  check(got.filter((f) => f.frameIndex === 1).length === 1, "survival: the probe's own frame is discarded, not delivered twice");
+  check(failures.length === 0, `survival: nothing is reported as failed (${failures.map((f) => f.frameIndex).join() || "none"})`);
+  c.close();
+}
+
+/**
+ * The probe's deadline is the only proof the client gets when the path simply stops carrying
+ * bytes — no close, no error. It re-dials, and re-issues exactly what the records still owed.
+ */
+async function aProbeThatMissesItsDeadlineRedials(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake, got, failures } = await stalledFill(DownloaderClient);
+
+  const redialled = await untilAsync(async () => (await fake.dials()) >= 2);
+  check(redialled, `survival: a probe nobody answers re-dials (${await fake.dials()} dials)`);
+  if (!redialled) return c.close();
+
+  const wire = wireOf(await fake.controlMessages());
+  const fills = wire.filter((w) => w.startsWith("stream_frames"));
+  check(wire[0] === "stream_frames 2-5" && fills.every((w) => w === "stream_frames 2-5"),
+    `survival: the new session is asked for what was owed and for nothing that arrived (${wire.join(", ") || "nothing"})`);
+  for (const i of [2, 3, 4, 5]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+  const all = await until(() => got.length >= 6, 3000);
+  check(all, `survival: and the fill finishes across the two sessions (${got.length}/6)`);
+  check(failures.length === 0, `survival: with nothing reported as failed (${failures.map((f) => f.frameIndex).join() || "none"})`);
+  c.close();
+}
+
+/**
+ * A session the API itself calls closed needs no probe. The fill is resumed rather than failed —
+ * LG/LH's naming is what happens when resumption runs out, not what happens first.
+ */
+async function aDeadSessionIsResumedNotReported(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake, got, failures } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 } });
+  await fake.serverClose(0, "the server went away");
+
+  const redialled = await untilAsync(async () => (await fake.dials()) >= 2);
+  check(redialled, `survival: a closed session is re-dialled at once, with no probe (${await fake.dials()} dials)`);
+  if (!redialled) return c.close();
+  check((await fake.controlMessages()).every((m) => m.op !== "request_frame"), "survival: and the close is proof enough — no probe was sent");
+
+  for (const i of [2, 3, 4, 5]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+  const all = await until(() => got.length >= 6, 3000);
+  check(all, `survival: the fill finishes (${got.length}/6)`);
+  check(failures.length === 0, `survival: and nothing reached the consumer as a failure (${failures.map((f) => f.frameIndex).join() || "none"})`);
+  c.close();
+}
+
+/** An ask outstanding when the session dies is re-asked on the new one, on its own promise. */
+async function anOwedAskIsReaskedAfterAResume(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 } });
+  const asked = c.requestExactFrame(50);
+  await settle();
+  await fake.serverClose(0, "the server went away");
+
+  const redialled = await untilAsync(async () => (await fake.dials()) >= 2);
+  check(redialled, `survival: the session dies with an ask outstanding and is re-dialled (${await fake.dials()} dials)`);
+  if (!redialled) {
+    asked.catch(() => {});
+    return c.close();
+  }
+  const wire = wireOf(await fake.controlMessages());
+  check(wire.includes("request_frame 50"), `survival: the owed ask is asked again (${wire.join(", ") || "nothing"})`);
+  await fake.pushFrame(50, enc.encode("ask-50"));
+  const f = await Promise.race([asked, settle(2000).then(() => null)]);
+  check(text(f?.bytes) === "ask-50", `survival: and settles the promise the page is still holding (${text(f?.bytes) || "never"})`);
+  c.close();
+}
+
+/**
+ * The terminal state is LG/LH's: once the re-dials run out, every frame the fill still owed is
+ * named, each once, and the frames that did arrive are not among them.
+ */
+async function whenTheRedialsRunOutWhatWasOwedIsNamed(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake, got, failures } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 } });
+  await fake.failDials(QUICK.tries);
+  await fake.serverClose(0, "the server went away");
+
+  const named = await until(() => failures.length >= 4, 5000);
+  const owed = [...new Set(failures.map((f) => f.frameIndex))].sort((a, b) => a - b).join();
+  check(named && owed === "2,3,4,5", `survival: every frame the fill still owed is named once the re-dials run out (${owed || "none"})`);
+  check(failures.length === 4, `survival: each of them once (${failures.map((f) => f.frameIndex).join() || "none"})`);
+  check(got.length === 2, `survival: the frames that did arrive are not among them (${got.length} delivered)`);
+  c.close();
+}
+
 export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -758,6 +889,11 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aTruncatedFrameIsAFailureNotAFrame,
     anUndecodableFrameIsAFailureNotAFrame,
     aFrameCarriesItsWireBytes,
+    aTriggerChecksBeforeItRedials,
+    aProbeThatMissesItsDeadlineRedials,
+    aDeadSessionIsResumedNotReported,
+    anOwedAskIsReaskedAfterAResume,
+    whenTheRedialsRunOutWhatWasOwedIsNamed,
   ];
   log("dispatch (D2c)");
   for (const clause of clauses) {

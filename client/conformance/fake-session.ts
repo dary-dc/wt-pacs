@@ -15,6 +15,7 @@ type Command = { id: number; cmd: string; args: unknown[] };
 function run(cmd: string, args: unknown[]): unknown {
   const t = FakeTransport.last as FakeTransport | undefined;
   if (cmd === "dials") return FakeTransport.dials;
+  if (cmd === "failDials") return void (FakeTransport.failNext = args[0] as number);
   if (!t) throw new Error(`${cmd}: nothing has dialled yet`);
   if (cmd === "pushFrame") return void t.pushFrame(args[0] as number, args[1] as Uint8Array);
   if (cmd === "pushOnOneStream") return void t.pushOnOneStream(args[0] as [number, Uint8Array][]);
