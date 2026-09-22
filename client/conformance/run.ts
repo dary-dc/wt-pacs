@@ -37,6 +37,7 @@ function nodeRig(impl: Implementation): Rig {
     fake: () => ({
       pushFrame: async (i, c) => FakeTransport.last.pushFrame(i, c),
       pushOnOneStream: async (frames) => FakeTransport.last.pushOnOneStream(frames),
+      pushTruncatedFrame: async (i, c, sent) => FakeTransport.last.pushTruncatedFrame(i, c, sent),
       serverClose: async (code, reason, endStreams) =>
         FakeTransport.last.serverClose(code, reason, endStreams),
       controlMessages: async () => FakeTransport.last.controlMessages(),

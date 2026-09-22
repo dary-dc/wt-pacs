@@ -154,7 +154,7 @@ function fillHandlers(from, to) {
 }
 
 function issueFill() {
-  if (asksInFlight > 0 || !session) return;
+  if (asksInFlight > 0 || !session || session.stats().closed) return;
   const run = nextRun();
   if (!run) return;
   const { onFrame, onError } = fillHandlers(run.from, run.to);

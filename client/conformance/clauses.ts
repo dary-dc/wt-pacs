@@ -12,7 +12,12 @@ export type ConformantFrame = {
 export type ConformantSession = {
   requestExactFrame(frameIndex: number): Promise<ConformantFrame>;
   startStreamFrames(waitLast: number, range?: { from?: number; to?: number }): number;
-  fillFrames(from: number, to: number, onFrame: (f: ConformantFrame) => void): number;
+  fillFrames(
+    from: number,
+    to: number,
+    onFrame: (f: ConformantFrame) => void,
+    onError?: (frameIndex: number, reason: string) => void,
+  ): number;
   endStream(): Promise<void>;
   stats(): { inFlight: number };
   close(): void;
@@ -22,6 +27,7 @@ export type ConformantSession = {
 export type FakeHandle = {
   pushFrame(index: number, codestream: Uint8Array): Promise<void>;
   pushOnOneStream(frames: [number, Uint8Array][]): Promise<void>;
+  pushTruncatedFrame(index: number, codestream: Uint8Array, sent: number): Promise<void>;
   serverClose(closeCode?: number, reason?: string, endStreams?: boolean): Promise<void>;
   controlMessages(): Promise<{ op: string }[]>;
   didClose(): Promise<boolean>;
@@ -160,34 +166,48 @@ async function askAfterClose(rig: Rig, check: Check, s: ConformantSession, index
   check(Date.now() - t0 < 5000, `${rig.name}: at once, not at FRAME_TIMEOUT_MS (${what})`);
 }
 
+/** A fake that never answers must fail one check by name, not throw the clause's rest away. */
+async function serverGone(rig: Rig, check: Check, what: string, endStreams?: boolean): Promise<boolean> {
+  const sent = rig.fake().serverClose(7, "server went away", endStreams);
+  const took = await Promise.race([
+    sent.then(() => true, () => false),
+    new Promise<boolean>((r) => setTimeout(() => r(false), 3000)),
+  ]);
+  if (!took) check(false, `${rig.name}: the fake took the server's close (${what})`);
+  return took;
+}
+
 /** A closed session is noticed at once; a live one still owes the frame its full timeout. */
 async function noticesClose(rig: Rig, check: Check) {
   const closedFirst = await rig.open();
-  await rig.fake().serverClose(7, "server went away");
-  await settle();
-  await askAfterClose(rig, check, closedFirst, 1, "closed before the ask");
+  if (await serverGone(rig, check, "closed before the ask")) {
+    await settle();
+    await askAfterClose(rig, check, closedFirst, 1, "closed before the ask");
+  }
   closedFirst.close();
 
   const closedDuring = await rig.open();
   const inFlight = closedDuring.requestExactFrame(2);
   await settle();
   const t1 = Date.now();
-  await rig.fake().serverClose(7, "server went away");
-  let woke = false;
-  try {
-    await inFlight;
-  } catch {
-    woke = true;
+  if (await serverGone(rig, check, "closed with an ask in flight")) {
+    let woke = false;
+    try {
+      await inFlight;
+    } catch {
+      woke = true;
+    }
+    check(woke, `${rig.name}: a request in flight when the session closes is woken`);
+    check(Date.now() - t1 < 1000, `${rig.name}: it is woken at once, not left to time out`);
   }
-  check(woke, `${rig.name}: a request in flight when the session closes is woken`);
-  check(Date.now() - t1 < 1000, `${rig.name}: it is woken at once, not left to time out`);
   closedDuring.close();
 
   // `closed` alone, with the media stream left open: the session object is the signal.
   const quietClose = await rig.open();
-  await rig.fake().serverClose(7, "server went away", false);
-  await settle();
-  await askAfterClose(rig, check, quietClose, 4, "closed with the stream left open");
+  if (await serverGone(rig, check, "closed with the stream left open", false)) {
+    await settle();
+    await askAfterClose(rig, check, quietClose, 4, "closed with the stream left open");
+  }
   quietClose.close();
 
   // The timeout's own case: still alive, frame never arrives. It must NOT fail fast.
@@ -301,19 +321,76 @@ async function pushedFill(rig: Rig, check: Check) {
   s.close();
 }
 
+/**
+ * A uni stream that ends mid-frame has lost that frame: it is named on the fill's refusal path,
+ * never delivered, and the whole frame before it still arrives.
+ * docs/CLIENTS.md#a-truncated-frame-is-a-failure
+ */
+async function aTruncatedFrameIsAFailure(rig: Rig, check: Check) {
+  const s = await rig.open();
+  const t = rig.fake();
+  const got: ConformantFrame[] = [];
+  const named: [number, string][] = [];
+  s.fillFrames(0, 1, (f) => got.push(f), (i, reason) => named.push([i, reason]));
+  await settle();
+  await t.pushFrame(0, enc.encode("frame-zero"));
+  await until(() => got.length >= 1, 1000);
+  await t.pushTruncatedFrame(1, enc.encode("frame-one-and-then-some"), 5);
+  await until(() => named.length >= 1, 1000);
+  await settle();
+
+  const seen = named.map(([i]) => i).join() || "none";
+  check(named.some(([i]) => i === 1), `${rig.name}: the frame a stream cut short is named (${seen})`);
+  check(
+    named.every(([, r]) => r.includes("truncated")),
+    `${rig.name}: with a reason that says so (${named.map(([, r]) => r).join() || "none"})`,
+  );
+  check(!got.some((f) => f.frameIndex === 1), `${rig.name}: the frame it cut short never arrives`);
+  check(
+    got.length === 1 && got[0]?.frameIndex === 0,
+    `${rig.name}: the whole frame before it still arrives (${got.map((f) => f.frameIndex).join() || "none"})`,
+  );
+  s.close();
+}
+
+/** A session that dies mid-fill names every frame it still owed, each once. */
+async function aDeadSessionNamesWhatItOwed(rig: Rig, check: Check) {
+  const s = await rig.open();
+  const t = rig.fake();
+  const got: ConformantFrame[] = [];
+  const named: number[] = [];
+  s.fillFrames(0, 2, (f) => got.push(f), (i) => named.push(i));
+  await settle();
+  await t.pushFrame(0, enc.encode("frame-zero"));
+  await until(() => got.length >= 1, 1000);
+  if (!(await serverGone(rig, check, "mid-fill"))) return s.close();
+  await until(() => named.length >= 2, 1000);
+  await settle();
+
+  const owed = [...new Set(named)].sort((a, b) => a - b).join();
+  check(owed === "1,2", `${rig.name}: every frame the dead session still owed is named (${owed || "none"})`);
+  check(named.length === 2, `${rig.name}: each of them once (${named.join() || "none"})`);
+  check(
+    got.length === 1 && got[0]?.frameIndex === 0,
+    `${rig.name}: the frame that did arrive is not among them (${got.map((f) => f.frameIndex).join() || "none"})`,
+  );
+  s.close();
+}
+
 /** A closed session can be replaced: the next connect serves frames again. */
 async function redialsAfterClosure(rig: Rig, check: Check) {
   const first = await rig.open();
-  await rig.fake().serverClose(1, "gone");
-  await settle();
-  if (rig.closure === "fail") {
-    await first.requestExactFrame(1).then(
-      () => check(false, `${rig.name}: an ask on the closed session should fail`),
-      () => check(true, `${rig.name}: the closed session fails its asks`),
-    );
-  } else {
-    // The downloader re-dials by itself — proven in noticesClose. Here: a fresh client after it.
-    await askAfterClose(rig, check, first, 1, "redial");
+  if (await serverGone(rig, check, "before a redial")) {
+    await settle();
+    if (rig.closure === "fail") {
+      await first.requestExactFrame(1).then(
+        () => check(false, `${rig.name}: an ask on the closed session should fail`),
+        () => check(true, `${rig.name}: the closed session fails its asks`),
+      );
+    } else {
+      // The downloader re-dials by itself — proven in noticesClose. Here: a fresh client after it.
+      await askAfterClose(rig, check, first, 1, "redial");
+    }
   }
   first.close();
 
@@ -339,6 +416,8 @@ export async function runClauses(rig: Rig, check: Check): Promise<void> {
     oneDialServesLaterAsks,
     redialsAfterClosure,
     pushedFill,
+    aTruncatedFrameIsAFailure,
+    aDeadSessionNamesWhatItOwed,
   ];
   for (const clause of clauses) {
     try {

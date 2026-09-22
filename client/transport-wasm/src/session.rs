@@ -97,11 +97,6 @@ impl RecvBuf {
         self.data.len() - self.pos
     }
 
-    #[cfg(not(feature = "byob"))]
-    fn is_empty(&self) -> bool {
-        self.pos >= self.data.len()
-    }
-
     fn as_slice(&self) -> &[u8] {
         &self.data[self.pos..]
     }
@@ -135,50 +130,74 @@ impl RecvBuf {
     }
 }
 
+/// Read until `buf` holds `need` bytes; `false` when the stream ended before that.
 async fn read_exact(
     reader: &ReadableStreamDefaultReader,
     buf: &mut RecvBuf,
     need: usize,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     while buf.available() < need {
         match reader_read_bytes(reader)
             .await
             .map_err(|e| format!("stream read: {e:?}"))?
         {
             Some(chunk) => buf.push_chunk(&chunk),
-            None => return Err("stream ended early".into()),
+            None => return Ok(false),
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
 
-/// Read one `[4B BE len][payload]` from a uni stream. `Ok(None)` on clean EOF before a frame.
-/// Returns `(display_index, js_codestream)` with a single JS-heap copy of the codestream.
+/// A frame off a media stream, or the index of the one a stream that ended mid-frame lost.
+#[cfg(not(feature = "byob"))]
+enum Envelope {
+    Frame { index: u32, codestream: Uint8Array },
+    /// `index: None` — the stream was cut inside the index itself, which cannot name a frame.
+    Lost { index: Option<u32>, reason: String },
+    Eof,
+}
+
+/// Read one `[4B BE len][4B BE index][codestream]` from a uni stream: the index ahead of the
+/// codestream, so a stream that ends short can name what it lost.
 #[cfg(not(feature = "byob"))]
 async fn read_length_prefixed_frame(
     reader: &ReadableStreamDefaultReader,
     buf: &mut RecvBuf,
-) -> Result<Option<(u32, Uint8Array)>, String> {
-    if let Err(e) = read_exact(reader, buf, 4).await {
-        if buf.is_empty() {
-            return Ok(None);
-        }
-        return Err(e);
+) -> Result<Envelope, String> {
+    if !read_exact(reader, buf, 4).await? {
+        return Ok(Envelope::Eof);
     }
     let len = u32::from_be_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
-    if len == 0 || len > MAX_FRAME_LEN {
+    if len < frame_envelope::ENVELOPE_LEN || len > MAX_FRAME_LEN {
         return Err(format!("invalid frame length {len}"));
     }
     buf.reserve_for(4 + len);
-    read_exact(reader, buf, 4 + len).await?;
+    if !read_exact(reader, buf, 4 + len).await? {
+        return Ok(lost(buf.as_slice(), len - frame_envelope::ENVELOPE_LEN));
+    }
     let envelope = &buf.as_slice()[4..4 + len];
     let (index, codestream) = unwrap_envelope(envelope).map_err(|e| format!("envelope: {e}"))?;
     // One full-frame copy into the JS heap — the app-owned Uint8Array.
-    let view = js_buffer_from(codestream);
+    let codestream = js_buffer_from(codestream);
     buf.consume(4 + len);
-    Ok(Some((index, view)))
+    Ok(Envelope::Frame { index, codestream })
+}
+
+/// `head` is what arrived of `[4B BE len][4B BE index][codestream]` before the stream ended.
+#[cfg(not(feature = "byob"))]
+fn lost(head: &[u8], declared: usize) -> Envelope {
+    let named = 4 + frame_envelope::ENVELOPE_LEN;
+    if head.len() < named {
+        return Envelope::Lost { index: None, reason: "truncated before its index".into() };
+    }
+    let index = u32::from_be_bytes(head[4..named].try_into().unwrap());
+    let got = head.len() - named;
+    Envelope::Lost {
+        index: Some(index),
+        reason: format!("truncated: {got} of {declared} bytes"),
+    }
 }
 
 /// Drain length-prefixed envelopes from one uni until EOF (shared or per-frame).
@@ -196,13 +215,19 @@ async fn pump_framed_stream(
     };
     let mut buf = RecvBuf::new();
     loop {
-        let frame = match read_length_prefixed_frame(&reader, &mut buf).await {
-            Ok(Some(f)) => f,
-            Ok(None) | Err(_) => break,
-        };
-        let now = perf_now_ms();
-        let (index, view) = frame;
-        deliver(&st, index, view, now);
+        match read_length_prefixed_frame(&reader, &mut buf).await {
+            Ok(Envelope::Frame { index, codestream }) => {
+                deliver(&st, index, codestream, perf_now_ms());
+            }
+            // Shared mode carries the whole run here, so the frames behind the lost one are gone too.
+            Ok(Envelope::Lost { index, reason }) => {
+                if let Some(index) = index {
+                    fail_waiter(&st, index, &reason);
+                }
+                break;
+            }
+            Ok(Envelope::Eof) | Err(_) => break,
+        }
     }
     let _ = JsFuture::from(reader.cancel()).await;
 }
@@ -228,6 +253,51 @@ fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f6
     if let Some((ask_ms, on_frame)) = push {
         if let Ok(result) = result_to_js(index, ask_ms, view, now) {
             let _ = on_frame.call1(&JsValue::NULL, &result);
+        }
+    }
+}
+
+/// A frame that will not arrive: the waiter rejects, or the fill's `onError` names it — the
+/// path a server `FrameError` takes. `client/transport-ts/session.ts` `failWaiter`.
+fn fail_waiter(st: &Rc<RefCell<SessionState>>, index: u32, reason: &str) {
+    let refused = {
+        let mut s = st.borrow_mut();
+        s.errors.insert(index, reason.to_string());
+        s.frame_errors += 1;
+        let asked = s.waiters.remove(&index).is_some();
+        let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&index));
+        if asked || !owed {
+            None
+        } else {
+            s.fill.as_ref().and_then(|f| f.on_error.clone())
+        }
+    };
+    if let Some(on_error) = refused {
+        let _ = on_error.call2(&JsValue::NULL, &JsValue::from(index), &JsValue::from_str(reason));
+    }
+}
+
+/// The session is gone: every waiter woken, and every frame the fill was still owed named once.
+/// First reason wins — the stream ending and `closed` settling are the same event twice.
+fn fail_all(st: &Rc<RefCell<SessionState>>, reason: String) {
+    let owed = {
+        let mut s = st.borrow_mut();
+        let reason = s.closed.get_or_insert(reason).clone();
+        s.waiters.clear();
+        match s.fill.take() {
+            Some(Fill { pending, on_error: Some(on_error), .. }) => Some((pending, on_error, reason)),
+            _ => None,
+        }
+    };
+    if let Some((pending, on_error, reason)) = owed {
+        let mut indices: Vec<u32> = pending.into_iter().collect();
+        indices.sort_unstable();
+        for index in indices {
+            let _ = on_error.call2(
+                &JsValue::NULL,
+                &JsValue::from(index),
+                &JsValue::from_str(&reason),
+            );
         }
     }
 }
@@ -386,9 +456,13 @@ async fn read_fod_msg(
     reader: &ReadableStreamDefaultReader,
     buf: &mut RecvBuf,
 ) -> Result<FodMsg, String> {
-    read_exact(reader, buf, 4).await?;
+    if !read_exact(reader, buf, 4).await? {
+        return Err("control stream ended".into());
+    }
     let len = u32::from_le_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
-    read_exact(reader, buf, 4 + len).await?;
+    if !read_exact(reader, buf, 4 + len).await? {
+        return Err("control stream ended mid-message".into());
+    }
     let msg = decode_fod_msg(&buf.as_slice()[..4 + len]).map_err(|e| format!("decode FoD: {e}"));
     buf.consume(4 + len);
     msg
@@ -466,10 +540,7 @@ impl TransportSession {
                 Ok(info) => closed_reason_of(&info),
                 Err(e) => format!("session closed: {e:?}"),
             };
-            let mut s = st_closed.borrow_mut();
-            s.closed = Some(reason);
-            s.waiters.clear();
-            s.fill = None;
+            fail_all(&st_closed, reason);
         });
 
         // Media pump — each uni carries `[4B BE len][envelope]` frames (one or many).
@@ -494,9 +565,7 @@ impl TransportSession {
                     pump_framed_stream(stream, st).await;
                 });
             }
-            let mut s = st_uni.borrow_mut();
-            s.waiters.clear();
-            s.fill = None;
+            fail_all(&st_uni, "session closed: the media stream ended".into());
         });
 
         // FoD downlink — exceptions only (FrameError), length-prefixed on control stream.
@@ -508,23 +577,7 @@ impl TransportSession {
                     Ok(FodMsg::FrameError {
                         frame_index,
                         reason,
-                    }) => {
-                        let refused = {
-                            let mut s = st_ctl.borrow_mut();
-                            s.errors.insert(frame_index, reason.clone());
-                            s.frame_errors += 1;
-                            let asked = s.waiters.remove(&frame_index).is_some();
-                            let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&frame_index));
-                            if asked || !owed {
-                                None
-                            } else {
-                                s.fill.as_ref().and_then(|f| f.on_error.clone())
-                            }
-                        };
-                        if let Some(on_error) = refused {
-                            let _ = on_error.call2(&JsValue::NULL, &JsValue::from(frame_index), &JsValue::from_str(&reason));
-                        }
-                    }
+                    }) => fail_waiter(&st_ctl, frame_index, &reason),
                     Ok(_) => continue,
                     Err(_) => break,
                 }

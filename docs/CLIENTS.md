@@ -85,6 +85,13 @@ so a cancelled pushed fill leaves nothing armed to time out later — the stray 
 cancelled waiter-per-frame fill leaves behind do not arise here. A refused range is one
 `frame_error` at `from`, delivered to `onError`.
 
+**A dead session names what it owed.** `failAll` (Rust: `fail_all`) used to drop the fill on the
+floor: every frame still owed went unreported, so a consumer counting frames waited forever on a
+session that had already gone. It now reports each still-owed index once through the fill's
+`onError`, with the closure's own reason, after the waiters are rejected. First reason wins — the
+media stream ending and `closed` settling are the same event twice, and the fill is taken out of
+the session before either reports. Conformance: `aDeadSessionNamesWhatItOwed`.
+
 **What the consumer owns.** A pushed fill cannot time out a frame that never comes; the consumer
 that pushed it keeps its own record of what it wants. The downloader does exactly that, and uses
 it to re-issue the undelivered remainder as a new fill once an ask has settled
@@ -108,15 +115,25 @@ through `failWaiter`, the same path a server `frame_error` takes, so an asked fr
 promise and a fill frame reaches `onError`. The reader then stops on that stream: the server's
 default `StreamMode::Shared` carries the whole run on one uni, so whatever was behind the lost
 frame is gone too, and the downloader's run-wide refusal (`fillHandlers.onError`) is the right
-response. In `--stream-mode per-frame` each frame has its own uni and that is one frame too many,
-which is a reason to prefer the shared mode rather than to weaken the report.
+response. In `--stream-mode per-frame` each frame has its own uni and that is one frame too many.
+It is **not narrowed**: the mode is a server flag that never reaches the client — nothing in the
+handshake or the envelope says which one is in force, and a uni that ends mid-frame looks the same
+under both — so the client would have to be told, which is a wire field and a server change for a
+mode the measured cells do not use. A reason to prefer the shared mode, not to weaken the report.
 
 **What it does not catch.** A codestream the *server* truncated before framing it declares its own
 short length and passes; only its pixels would say, and the per-frame hash oracle is what says
 that. A stream cut inside the 4 bytes of the index itself cannot name a frame and is not reported.
 
-**Only the TypeScript client has it.** `read_length_prefixed_frame` in the WASM client returns
-`stream ended early` into a loop that breaks, exactly as the TS one used to; the adopted downloader
-uses the TypeScript transport, and closing the WASM gap needs a rebuild of `pkg/`. Recorded, not
-fixed. Conformance: `aTruncatedFrameIsAFailureNotAFrame` in `client/conformance/dispatch-rig.ts`,
-driven by a fake transport that ends a stream after a given number of codestream bytes.
+**Both clients have it.** The WASM reader used to return `stream ended early` into a loop that
+broke, exactly as the TS one did; since 2026-09-22 `read_length_prefixed_frame` returns an
+`Envelope` — a frame, a named loss, or a clean end — and `fail_waiter`, the Rust twin of
+`failWaiter`, carries the loss to the same two places: the asked frame's promise and the fill's
+`onError`. The reason string is the TS one, `truncated: G of D bytes`. Its `pkg/` was rebuilt.
+The BYOB reader (`--features byob`, off by default and only compiled in the gate) still breaks
+silently; it is a prototype, not a client anyone runs.
+
+Conformance: `aTruncatedFrameIsAFailure` in `client/conformance/clauses.ts` — both transport
+implementations and the downloader arm — and `aTruncatedFrameIsAFailureNotAFrame` in
+`dispatch-rig.ts`, which adds the generation the consumer sees. Both drive a fake transport that
+ends a stream after a given number of codestream bytes.
