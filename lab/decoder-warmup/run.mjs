@@ -22,7 +22,9 @@ const WARMUP = {
 };
 const SETS = (process.env.SETS || "cine512,g512").split(",");
 const ARMS = ["none", "mismatch", "match"];
-const METRICS = ["d0", "d1", "d2", "first_ms", "fill_ms"];
+const METRICS = ["d0", "d1", "d2", "b0", "w0", "first_ms", "fill_ms"];
+/** 0 is loopback, where the bytes beat the decoders and no idle window exists to warm in. */
+const RTT = Number(process.env.RTT || 0);
 
 const port = () => 30000 + ((Math.random() * 20000) | 0);
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "lf-"));
@@ -72,11 +74,24 @@ for (const set of SETS) {
     "--port", String(p), "--study", path.join(T, set, "study.sbnd"),
     "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem"),
   ], fs.openSync(path.join(T, `server-${set}.log`), "a"));
-  wt[set] = `https://127.0.0.1:${p}/`;
+  let session = p;
+  if (RTT) {
+    session = port();
+    start("python3", ["lab/scripts/link_impair.py", "--udp", `${session}:${p}`, "--delay-ms", String(RTT / 2)],
+      fs.openSync(path.join(T, `relay-${set}.log`), "a"));
+  }
+  wt[set] = `https://127.0.0.1:${session}/`;
 }
 
 const TCP = port();
 start("python3", ["server/dev-server.py", "--port", String(TCP)], fs.openSync(path.join(T, "static.log"), "a"));
+// The warm-up is a static fetch, so it pays the link like everything else the page loads.
+let STATIC = TCP;
+if (RTT) {
+  STATIC = port();
+  start("python3", ["lab/scripts/link_impair.py", "--tcp", `${STATIC}:${TCP}`, "--delay-ms", String(RTT / 2)],
+    fs.openSync(path.join(T, "relay-static.log"), "a"));
+}
 await new Promise((r) => setTimeout(r, 2000));
 
 const browser = await chromium.launch({
@@ -86,12 +101,12 @@ const browser = await chromium.launch({
 });
 
 const rows = [];
-async function visit(set, arm) {
-  const warmup = arm === "none" ? "" : WARMUP[arm === "match" ? set : SETS.find((s) => s !== set) ?? set];
+async function visit(set, arm, override) {
+  const warmup = override ?? (arm === "none" ? "" : WARMUP[arm === "match" ? set : SETS.find((s) => s !== set) ?? set]);
   const page = await browser.newPage();
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
-  const url = `http://127.0.0.1:${TCP}/lab/decoder-warmup/index.html?set=${set}&frames=${FRAMES}` +
+  const url = `http://127.0.0.1:${STATIC}/lab/decoder-warmup/index.html?set=${set}&frames=${FRAMES}` +
     `&warmup=${encodeURIComponent(warmup)}&wt=${encodeURIComponent(wt[set])}&hash=${hash}`;
   await page.goto(url);
   await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: 120000 });
@@ -104,6 +119,9 @@ async function visit(set, arm) {
 
 for (const set of SETS) {
   await visit(set, "none").catch((e) => process.stderr.write(`${set} warm visit: ${e.message}\n`));
+  // A warm-up is an optimisation: one that is not a codestream must still leave a working fill.
+  const bad = await visit(set, "none", "/lab/decoder-warmup/README.md").catch((e) => ({ error: e.message }));
+  console.log(`${set}: a warm-up that is not a codestream delivers ${bad.delivered ?? `nothing — ${bad.error}`}/${FRAMES}`);
   for (let round = 0; round < ROUNDS; round++) {
     for (let k = 0; k < ARMS.length; k++) {
       const arm = ARMS[(round + k) % ARMS.length];
@@ -117,12 +135,14 @@ for (const set of SETS) {
   process.stderr.write(`${set} done\n`);
 }
 
-fs.writeFileSync(path.join(ROOT, process.env.OUT || path.join(T, "rows.jsonl")),
-  rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+// The temporary directory goes with the process, so the rows land outside it: a ladder whose
+// raw rows are lost cannot be re-read (LC's finding).
+const OUT = process.env.OUT ? path.resolve(ROOT, process.env.OUT) : path.join(os.tmpdir(), "lf-rows.jsonl");
+fs.writeFileSync(OUT, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
 const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 const cell = (set, arm) => rows.filter((r) => r.set === set && r.arm === arm);
 
-console.log(`\nframes ${FRAMES}, rounds ${ROUNDS}, three arms interleaved inside every round`);
+console.log(`\nframes ${FRAMES}, rounds ${ROUNDS}, rtt ${RTT} ms, three arms interleaved inside every round`);
 for (const set of SETS) {
   const none = new Map(cell(set, "none").map((r) => [r.round, r]));
   console.log(`\n${"set " + set} (${WARMUP[set]})`);

@@ -25,6 +25,7 @@ async function main() {
   const done = new Promise((r) => { resolveDone = r; });
 
   const t0 = performance.now();
+  const t0abs = performance.timeOrigin + t0;
   const c = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
     decode: true,
     decoders: 3,
@@ -38,6 +39,10 @@ async function main() {
         index: f.frameIndex,
         decode_ms: +(s.decodeEnd - s.decodeStart).toFixed(2),
         at_ms: +(performance.now() - t0).toFixed(1),
+        // When its bytes landed, and how long they then waited for a decoder: a warm-up that
+        // does not fit the idle window shows up here and nowhere else.
+        bytes_ms: +(s.lastByte - t0abs).toFixed(1),
+        wait_ms: +(s.dispatched - s.lastByte).toFixed(1),
       });
       // A SharedArrayBuffer view is refused by subtle.digest, and hashing in the timed path
       // would price the hash: copy now, hash once the fill is done.
@@ -52,6 +57,8 @@ async function main() {
   result.delivered = rows.length;
   result.decode_ms = rows.map((r) => r.decode_ms);
   result.first_ms = rows.find((r) => r.index === 0)?.at_ms ?? null;
+  result.b0 = rows.find((r) => r.index === 0)?.bytes_ms ?? null;
+  result.w0 = rows.find((r) => r.index === 0)?.wait_ms ?? null;
   result.fill_ms = rows.reduce((m, r) => Math.max(m, r.at_ms), 0);
   const digests = [];
   for (let i = 0; i < FRAMES; i++) {
