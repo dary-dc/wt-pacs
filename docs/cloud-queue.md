@@ -90,7 +90,7 @@ trailers. This is the owner's rule for every repository.
 | 53 | **D10 + D11 + D13** — one wrapper pass, parity-gated | queue §Rows 53–56 | **done on the workstation** 2026-09-20, branch `claude/d-wrapper`, **merged into `claude/integrated-2026-09-20`** 2026-09-22: packing each line once (D10) is **−5.5 to −8.3 % on one-component frames and a wash on colour** (+0.9 % on the tight colour set), `restart()` (D11) is a tie kept for the simpler code, and the 4 MB floor (D13) stays — the headline corrected in place, a reused decoder costs **4.8 MB not 4.0**, so **10× not 12.5×**. 522-frame parity, three mutants caught and one not — `decode/README.md`. **Still open: the package's own build has not been re-timed since D10; a floor chosen for first-frame latency** |
 | 54 | **D14** — another open HTJ2K decoder, benched | queue §Rows 53–56 | **done on the workstation** 2026-09-20, branch `claude/d14-other-decoder`, **merged into `claude/integrated-2026-09-20`** 2026-09-22 as a lab arm, **adopted nowhere**: bit-exact on 522 frames and **+16.7 % colour / +47 % grey**, 40/40 rounds to the incumbent with every pair of ranges disjoint, 39 KB more `.wasm`, and a header surface it does not expose. Three mutants caught; a per-frame leak found in its own re-`init()` shape and worked around — `decode/README.md` §A second decoder, measured. **The row is closed**; only 512² was benched |
 | 55 | **D9** — the warm-up frame's shape | queue §Rows 53–56 | **done on the workstation** 2026-09-22, branch `claude/decoder-warmup`, **merged into `claude/integrated-2026-09-20`** 2026-09-22 — **off by default.** A warm-up decode in each decoder before it answers `ready` takes **30–45 % off frames 0–2**, 12/12 rounds on all six cells (cine 44.33 → 29.49 ms, grey 37.68 → 20.74), and a wrong-shape control at the same sample count comes within 2–3 ms — **the first frames want samples, not the shape**. The shape decides **frames 3–11**: a mismatched warm-up leaves the cine at 14.4–14.7 ms against **10.22 with no warm-up at all**, disjoint ranges. It does not move the page's clock on this box (the decoders report `ready` later by about what the frames save: frame 0 at the page 119 → 130 ms on loopback, 522 → 555 at 40 ms), pixels identical, no new session bytes — one same-origin GET of a shipped 6.7 / 38 KB file. Two of four mutants uncaught and recorded. `decode/README.md` §Warming the decoders. **Still open: the deciding ladder on a device whose decoders are up well before the first bytes; the warm-up's own size, unswept; 12-bit signed CT has no shipped frame** |
-| 57 | **D16** — a truncated frame reaches the consumer as 0 pixels | queue §Row 57 | **open** — found by row 55, not fixed |
+| 57 | **D16** — a truncated or undecodable frame reaches the consumer as pixels | queue §Row 57 | **half done on the workstation** 2026-09-22, branch `claude/truncated-frame`, **merged into `claude/integrated-2026-09-20`** the same day: **the TypeScript side**, in two checks that do not subsume one another — on the wire, `readEnvelope` reads the frame's index **ahead of** its codestream so a uni stream that ends short can name what it lost (`truncated: G of D bytes`, through the refusal path a server `frame_error` takes), and in `decodeFrame`, against the size the codestream's own header declares. The behaviour was **worse than this row recorded**: the product reuses one decoder, so an undecodable frame came back as the **previous frame's pixels** under the new index, not as 0 pixels — 0 pixels is what a *fresh* decoder returns. A codestream truncated to 25–60 % decodes to full size silently, which is why the wire is the only place truncation is visible. No new message kind and no new option — it rides the existing `onError({frameIndex, reason, generation})`. Refuses **none of 129 real codestreams**; dispatch **55 → 63**, five mutants five caught. `CLIENTS.md` §A truncated frame is a failure · `decode/README.md` §A frame that did not decode. **The WASM transport, `failAll` and per-frame mode follow in `claude/truncated-frame-wasm`** |
 | 56 | **W1b** — a default for the first ask | queue §Rows 53–56 | **measured on the workstation** 2026-09-20, branch `claude/first-ask-defaults`, **merged into `claude/integrated-2026-09-20`** 2026-09-22 — **no default changed, the owner's call.** The push at session open is **463.3 → 137.9 ms (−70 %, 7/7)** at 250 KB / 80 ms and needs three lines on the page; a 32-packet initial window is **−16 to −33 % at queues ≥ 20 packets** and **+11.8 % (0/7) behind a 10-packet queue** and needs no page change; **the two do not stack**; the keep-alive pair keeps a 30 s idle session alive **56/56**, and without it the native session is **dead 2/2**. `transport/transport-conclusions.md` §3. **Still open: the push's browser cell, and which lever a rebind re-applies** |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **done** — a quarter of the bytes draws the half-size image, on all four formats; only the package can do it. `decode/README.md` §A prefix draws a smaller image |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **done** — a tie in both scenarios; the miss *path* costs ~0.5 ms on one ask and nothing across a fill. What a cold study costs is the device's, not this container's. `disk-access/EVIDENCE.md` §A study nobody has read |
@@ -373,19 +373,47 @@ fill or an ask. The confirming run on the shaped link waits on that choice.
 
 ### Row 57
 
-Queued 2026-09-22 from what row 55 found on the way and left alone.
+Queued 2026-09-22 from what row 55 found on the way and left alone; **half done the same day**, and
+the half that is done corrected the row's own premise.
 
-**57 · D16, a truncated frame reaches the consumer as 0 pixels.** The decoder wrapper the client
-loads reports a parse failure by logging to the console and returning a zero-length frame: an empty
-body, a README and a 60-byte prefix each do it, and a truncated codestream decodes in full with no
-complaint. A frame the wire cuts short therefore arrives at the consumer as `width: 0` under a key
-that says it is that frame — a correctness hole, not a latency one, and the same class as the
-generation bug P1 closed. **This is a wrong picture presented as a right one, which is what the
-bit-exact guarantee forbids.** What the row owes: where the failure should be declared (the
-wrapper's return, the worker's reply, or a length check before either), how it reaches the consumer
-— `onError` already exists and carries `{frameIndex, reason, generation}` — and a test whose mutant
-is a truncated fixture that the suite must fail on. `decode/README.md` §Warming the decoders records
-the behaviour as measured.
+**57 · D16, a truncated or undecodable frame reaches the consumer as pixels.** The decoder wrapper
+the client loads reports a parse failure by logging to the console and returning: an empty body, a
+README and a 60-byte prefix each do it, and a truncated codestream decodes in full with no
+complaint. The row was queued saying the frame then arrives as 0 pixels. It does not. The product
+holds **one** `HTJ2KDecoder` for the whole session — which the lab measured as the right thing to
+do — so `getDecodedBuffer()` still holds the **previous frame's pixels**, and they arrive under the
+new index with `width: 0` beside them. 0 pixels is what a *fresh* decoder returns. **A wrong
+picture presented as a right one is what the bit-exact guarantee forbids**, and the wrong picture
+here is a real slice, from the wrong slice.
+
+**Done (`claude/truncated-frame`, merged 2026-09-22).** Two checks, both inside the downloader's
+worker graph, neither subsuming the other, and no new message kind or option — a failure rides the
+`onError({frameIndex, reason, generation})` the downloader already had, and an asked frame rejects
+its promise:
+
+* **the wire**, in the TypeScript transport: `readEnvelope` reads the 4-byte index *ahead of* the
+  codestream, so a uni stream that ends before the declared length can name the frame it lost and
+  report `truncated: G of D bytes` through `failWaiter`. It used to throw where the pump swallowed
+  it, and the fill waited forever while the consumer counted the rest as complete;
+* **the codestream header**, in `decodeFrame`: `width x height x components x (bits > 8 ? 2 : 1)`,
+  refused when it is zero or larger than what came back.
+
+Measured before either was written: a codestream truncated to **25–60 %** of its bytes decodes to
+the **full declared size, silently, with wrong pixels** — so no check on the decode result can ever
+see truncation, and the wire is the only place it is visible. The header rule refuses **none of 129
+real codestreams** across all four shapes the product serves, with the decoded buffer exactly the
+declared size in every one. Dispatch **55 → 63** checks; five mutants written, five caught, the one
+that matters being a truncation reported under the wrong index.
+
+**Not done, and it is `claude/truncated-frame-wasm`'s.** The **WASM transport** has the same gap —
+`read_length_prefixed_frame` returns `stream ended early` into a loop that breaks — and closing it
+needs a `pkg/` rebuild; `TransportSession.failAll` nulls a fill **without calling its `onError`**,
+so a session that dies mid-fill leaves every still-owed frame unreported; and under
+`--stream-mode per-frame` the run-wide refusal is over-broad, correct only under the default
+`Shared`. Still uncaught by anything but the per-frame hash oracle: a codestream the **server**
+truncated before framing it, whose envelope declares the short length and whose header parses.
+`CLIENTS.md` §A truncated frame is a failure and `decode/README.md` §A frame that did not decode
+record what is measured.
 
 ### Rows 23–26
 
