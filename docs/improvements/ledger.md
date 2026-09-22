@@ -147,3 +147,22 @@ agree") was gone; it was re-measured against the code that ships before it was l
 Corrected in place: `docs/transport/transport-conclusions.md` §3 (the `aws-lc-rs` row now
 carries the VAES re-measurement) and `docs/disk-access/adr.md` §8 (AEAD choice moved from
 "not measured" to measured; the profile added as a landed lever).
+
+---
+
+## 9 · Fourth round, 2026-09-20 — the nulls, so nobody re-derives them
+
+The wins of this round are owned by the files that hold their cells —
+[`../decode/README.md`](../decode/README.md),
+[`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §3,
+[`../../lab/page-open/README.md`](../../lab/page-open/README.md) — and the round itself is
+[`2026-09-20.md`](2026-09-20.md) §Fourth identification round. Only what was measured and found to
+be nothing is inventoried here, in the same spirit as §3.
+
+| What | Method | Result |
+| - | - | - |
+| `restart()` on the codestream object instead of rebuilding it (D11) | five fixture sets, 87 frames each, one reused decoder, arms interleaved with the order rotated, 12 timed rounds | **a tie on the clock**: −0.1 to −1.8 %, right-direction on 43 of 60 rounds, heap identical. Adopted for the simpler code only — parity alone does not gate it, and removing it entirely was **not caught** by the 348-frame parity run |
+| The zero-fill removed from the wrapper on a colour frame (D10) | same arms | a **one-component** win of 5.5–8.3 % and a three-component **wash** (+0.9 % on `cine512`, whose ranges are the tight ones). The estimate had priced it on the colour frame, which is the frame it does not help |
+| A second open HTJ2K decoder in place of the incumbent (D14) | both built at the same flags into the same arms directory, 522-frame parity first, then 20 interleaved rounds per set, both lead orders | **a loss: +16.7 % colour, +47 % grey, 40/40 rounds to the incumbent**, every pair of ranges disjoint, 39 KB more `.wasm`, and a header surface it does not expose. Bit-exact, so the claim it retires is "the incumbent is fast enough". Closed |
+| Un-gating the worker graph from the page config (R3 / W1) | five-arm first-byte ladder, n = 7 cold page opens a cell, three delays, arms interleaved inside each round | **−0.06 round trips**, inside the ±0.2 RT arm-to-arm spread; `all` is no faster than R1 alone at any delay and carries the highest intercept. `../proposal-downloader.md` corrected in place |
+| Stacking the push at session open with a 32-packet initial window | `lab/scripts/first_ask_cells.sh together`, n = 7, four cells | **they do not stack**: +1.7 / +0.7 % at 50 KB, −4.9 / −3.9 % at 250 KB, ranges overlapping in all four. The push leaves no slow start for the window to skip |

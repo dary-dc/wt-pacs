@@ -61,7 +61,7 @@ trailers. This is the owner's rule for every repository.
 | 22 | **F1** — a signed 16-bit fixture with ground truth | queue §Rows 19–22 | **done** `352b82e` on `claude/downloader-s2-worker` — route proven with an independent decoder; the package was right, the source build was wrong and is fixed |
 | 30 | **Q1** — the QUIC crate, bumped | queue §Rows 30–41 | **done** — `quinn-proto` 0.11.17 → 0.11.18, gate green. The log sweep cannot be run: the `mtu=` line is newer than every archive tag. Two occurrences are recorded in prose, both the 2026-09-10 relay runs under induced loss. `disk-access/IMPLEMENTATION.md` §What the server reports |
 | 31 | **F2** — fixtures that compress like real series | queue §Rows 30–41 | **done** — `cine512` 18.2:1 and `ct512` 1.99:1, both byte-exact. Colour decode −44 %; copy-out share 6.2 → 7.8 %; **L19 corrected — level 1 is 48 % at 18:1, not 23 %**. `decode/README.md` §Content |
-| 32 | **R1** — two round trips off a cold open: a proposal, then a prototype behind a flag | queue §Rows 30–41 | **done** — `proposal-session-open.md`; lever 1 (`--open-ask`) prototyped and tested, no crate patch needed; lever 2 needs one, specced not built. **No doc stated a round-trip count to correct** — this one states it. **Timed under row 36: four round trips to first byte, confirmed.** Lever 1 is measured in a browser too — **−1.13 round trips** to the first frame of a fill (`lab/page-open/README.md` §The first byte on a fill); lever 2 is still unmeasured |
+| 32 | **R1** — two round trips off a cold open: a proposal, then a prototype behind a flag | queue §Rows 30–41 | **done** — `proposal-session-open.md`; lever 1 (`--open-ask`) prototyped and tested, no crate patch needed; lever 2 needs one, specced not built. **No doc stated a round-trip count to correct** — this one states it. **Timed under row 36: four round trips to first byte, confirmed.** Lever 1 is measured in a browser too — **−1.13 round trips** to the first frame of a fill (41 / 90 / 178 ms at 40 / 80 / 160 ms, n = 7 cold opens a cell; `lab/page-open/README.md` §The first byte on a fill), built on branch `claude/first-byte` and **merged into `claude/integrated-2026-09-20`** 2026-09-22, **off by default**. R3/W1, the third lever the same ladder priced, buys nothing measurable (−0.06 RT) and `proposal-downloader.md` is corrected in place. Lever 2 is still unmeasured |
 | 33 | **P1** — a decoder pool that follows the queue, and a reader that waits: a proposal | queue §Rows 30–41 | **done** — `proposal-downloader.md` §The decoders and §The downloader; `client-shape-plan.md` M2/M3 and its shape table corrected in place. **M3's fill window is deleted, not built**; the reader pausing gives the same bound through QUIC flow control. Nothing built |
 | 34 | **A1** — a session that dies is noticed and resumed: a proposal | queue §Rows 30–41 | **done** — `proposal-session-survival.md`. The idle timeout is the freeze length, so detection moves to platform triggers + a probe ask; resumption rides the downloader's per-frame records. **The rebind number still waits on a run** — the probe and relay came over with T1 |
 | 29 | **L21** — when UDP is blocked: a proposal, no code — **amended 2026-09-18** | queue §Rows 28–29, §Rows 30–41 | **done** — `proposal-udp-fallback.md`. **Measured: 2 ms when UDP is refused, 4 004 ms when it is silently dropped** — 2000x, and the realistic impairment is the slow one. iOS (S1) makes the scope all iPhones, not ~5 % of networks; recycling before 16 MB is the cheaper experiment. Race, do not detect |
@@ -87,6 +87,10 @@ trailers. This is the owner's rule for every repository.
 | 50 | **W5** — a blink that holds instead of dropping; slow start restarted after a silence | queue §Rows 42–52 | **mostly answered on the workstation** 2026-09-19: held, a blink costs the outage and nothing else — no congestion event, no loss — and a second blink is no worse (S33's second half refuted); the restart is built (row 42). **Still open, and both merges are in: the restart against plain Cubic at 0.1–1 % loss with rounds enough to size it** — five rounds gave a four-fold spread |
 | 51 | **C1** — a reconnect that remembers the path: a proposal | queue §Rows 42–52 | **ready** |
 | 52 | **M1** — what a fill allocates on the page, on a throttled CPU | queue §Rows 42–52 | **ready** |
+| 53 | **D10 + D11 + D13** — one wrapper pass, parity-gated | queue §Rows 53–56 | **done on the workstation** 2026-09-20, branch `claude/d-wrapper`, **merged into `claude/integrated-2026-09-20`** 2026-09-22: packing each line once (D10) is **−5.5 to −8.3 % on one-component frames and a wash on colour** (+0.9 % on the tight colour set), `restart()` (D11) is a tie kept for the simpler code, and the 4 MB floor (D13) stays — the headline corrected in place, a reused decoder costs **4.8 MB not 4.0**, so **10× not 12.5×**. 522-frame parity, three mutants caught and one not — `decode/README.md`. **Still open: the package's own build has not been re-timed since D10; a floor chosen for first-frame latency** |
+| 54 | **D14** — another open HTJ2K decoder, benched | queue §Rows 53–56 | **done on the workstation** 2026-09-20, branch `claude/d14-other-decoder`, **merged into `claude/integrated-2026-09-20`** 2026-09-22 as a lab arm, **adopted nowhere**: bit-exact on 522 frames and **+16.7 % colour / +47 % grey**, 40/40 rounds to the incumbent with every pair of ranges disjoint, 39 KB more `.wasm`, and a header surface it does not expose. Three mutants caught; a per-frame leak found in its own re-`init()` shape and worked around — `decode/README.md` §A second decoder, measured. **The row is closed**; only 512² was benched |
+| 55 | **D9** — the warm-up frame's shape | queue §Rows 53–56 | **running** on the workstation, branch `claude/decoder-warmup` — **not merged**; a follow-up merge takes it |
+| 56 | **W1b** — a default for the first ask | queue §Rows 53–56 | **measured on the workstation** 2026-09-20, branch `claude/first-ask-defaults`, **merged into `claude/integrated-2026-09-20`** 2026-09-22 — **no default changed, the owner's call.** The push at session open is **463.3 → 137.9 ms (−70 %, 7/7)** at 250 KB / 80 ms and needs three lines on the page; a 32-packet initial window is **−16 to −33 % at queues ≥ 20 packets** and **+11.8 % (0/7) behind a 10-packet queue** and needs no page change; **the two do not stack**; the keep-alive pair keeps a 30 s idle session alive **56/56**, and without it the native session is **dead 2/2**. `transport/transport-conclusions.md` §3. **Still open: the push's browser cell, and which lever a rebind re-applies** |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **done** — a quarter of the bytes draws the half-size image, on all four formats; only the package can do it. `decode/README.md` §A prefix draws a smaller image |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **done** — a tie in both scenarios; the miss *path* costs ~0.5 ms on one ask and nothing across a fill. What a cold study costs is the device's, not this container's. `disk-access/EVIDENCE.md` §A study nobody has read |
 | 9 | **L13** — what a thread hop costs a frame | lanes §L13 | **done** `3cd29fd` — `docs/thread-hops.md` |
@@ -334,6 +338,31 @@ was. The deciding cells are `first_ask`'s fresh / warmed / resumed.
 collections and main-thread time per fill on the downloader's page side against its worker side,
 and which per-frame page allocations in `client/downloader/consumer.js` account for them. The
 crossing itself is already shown not to bind; do not optimise messages.
+
+### Rows 53–56
+
+Queued 2026-09-20 from the fourth identification round
+([`improvements/2026-09-20.md`](improvements/2026-09-20.md) §Fourth identification round) — read it
+first. "What a row may not change" (§Rows 30–41) binds these rows too. Three of the four are done
+and merged; their estimates and what the bench said are side by side in that file, corrected where
+they disagreed.
+
+**53 · the wrapper pass.** D10, D11 and D13 are one edit to one file, so they were measured as one
+set of arms rather than three rows. The estimate priced D10 on the colour frame; the colour frame is
+the one it does not help. Adopted anyway, for the one-component sets that are the 16-bit series.
+
+**54 · the second decoder.** Built, byte-exact and slower on both shapes, which is the answer the
+row wanted: the incumbent being fast enough is no longer an unexamined claim. The arm stays in
+`lab/decode-bench` so the next candidate has a harness; nothing in the product points at it.
+
+**55 · the warm-up arms.** D9 is the one row of this round still open, and the only one whose
+estimate (150–200 ms of the cine fill) nothing has tested.
+
+**56 · the first ask.** A decision, not a measurement — §3 already had the cells, and this row added
+the queue-depth ladder, the idle cell and the stacking cell that bound each lever's cost. **It ends
+undecided on purpose**: the push wants a page change and loses datagrams behind a shallow queue, the
+window is free but loses one cell, and which matters depends on whether the session opens with a
+fill or an ask. The confirming run on the shaped link waits on that choice.
 
 ### Rows 23–26
 

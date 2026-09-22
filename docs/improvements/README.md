@@ -9,7 +9,7 @@ This folder is the front door. The dated files are evidence, not the queue.
 | File | What it is |
 | ---- | ---------- |
 | **this page** | ranked open work, then what already landed on the branch |
-| [`2026-09-20.md`](2026-09-20.md) | seventh pass: the integrated branch — four lanes merged green, `GATE OK`, every lever smoked once on the merged binary against the number that owns it |
+| [`2026-09-20.md`](2026-09-20.md) | seventh pass: the integrated branch — eleven lanes merged green, `GATE OK`, every lever smoked once on the merged binary against the number that owns it; and the **fourth identification round**, each of its rows carried through to a measurement and corrected in place |
 | [`2026-09-19-sweep.md`](2026-09-19-sweep.md) | second identification sweep: what the shaped link's model, the dev certificate, an idle radio and a desktop still hide — findings S23–S46, none measured, queued as rows 42–52 |
 | [`2026-09-19.md`](2026-09-19.md) | sixth pass: the tip re-verified — gate, the nginx config, the fill's order, the first ask, prerender — and what the re-runs corrected |
 | [`2026-09-18.md`](2026-09-18.md) | fifth pass: what loopback hides — 22 candidates from an identification sweep, queued as rows 30–41 |
