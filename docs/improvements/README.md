@@ -47,7 +47,7 @@ From the 2026-09-08 pass unless noted. Size is the proposed change, not the writ
 D4 is first because it is the README quick-start host serving a private key. D1 is data loss in
 the telemetry contract. D2/D3 are product waiter bugs; the TS test gap is what would pin them.
 Q57 is queue row 57, found 2026-09-22 and numbered from the queue because `D1`–`D7` here are the
-2026-09-08 pass's own namespace. It stays on this list at half its size: the client the rig adopted
+2026-09-08 pass's own namespace. It stays on this list at half its size: the client a private viewer rig adopted
 no longer shows the wrong slice, and the WASM one still can.
 
 P1 landed on 2026-09-10 (below); P2's remaining half is a client call.
