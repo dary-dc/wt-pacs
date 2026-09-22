@@ -28,8 +28,10 @@ window before the first bytes instead of on the frames a user is waiting for.
 `lab/scripts/gen_htj2k_fixtures.sh warmup_c warmup_g`. The **caller** picks the file, because the
 caller is what holds the series metadata; a file of the wrong shape warms the wrong code
 ([`docs/decode/README.md`](../../docs/decode/README.md) §Warming the decoders). It is one
-same-origin GET, nothing on the session, and a warm-up that cannot be fetched or decoded leaves a
-working decoder — `client/conformance/dispatch-rig.ts` holds all three to account.
+same-origin GET, nothing on the session, and a warm-up that cannot be fetched leaves a working
+decoder — `client/conformance/dispatch-rig.ts` holds all three to account. One that is *not a
+codestream* also leaves one, but that is the decoder's doing rather than this code's: the wrapper
+logs and returns nothing instead of throwing (`docs/decode/README.md` §Warming the decoders).
 **Off by default, and the shape is not a detail**: a warm-up takes 30–45 % off frames 0–2 of a
 fill, but a warm-up of the *wrong* shape leaves the frames after them slower than no warm-up at
 all, and on the box that measured it the decoders answer `ready` later by about what the frames
