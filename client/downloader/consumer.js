@@ -44,6 +44,8 @@ export class DownloaderClient {
       decoder: opts.decoder,
       transport: opts.transport,
       decoderWorker: opts.decoderWorker,
+      // A codestream of the series' shape, decoded in each decoder before the first bytes arrive.
+      warmup: opts.warmup,
       // `opts.fill` rides with `start`: a page inside a long task cannot post one. docs/proposal-downloader.md §The downloader
       fill: opts.fill,
       openAsk: opts.openAsk,

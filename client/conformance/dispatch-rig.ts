@@ -12,7 +12,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -38,6 +38,7 @@ type OpenOpts = {
   readyDelayMs?: number;
   openAsk?: boolean;
   urlDelayMs?: number;
+  warmup?: string;
 };
 
 function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
@@ -55,6 +56,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
     decoderWorker: "/client/conformance/fake-decoder.js",
     decoder: { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
+    warmup: opts.warmup,
     onFrame: opts.onFrame,
     onError: opts.onError,
   });
@@ -579,6 +581,40 @@ async function aRefusedOpeningFillReachesTheConsumer(DownloaderClient: Downloade
   c.close();
 }
 
+/**
+ * The warm-up lives inside the decoders: the session carries exactly what it carried without one,
+ * every frame comes from a warmed decoder, and a warm-up that cannot be fetched still leaves a
+ * decoder that decodes. docs/decode/README.md §Warming the decoders
+ */
+async function aWarmUpChangesNothingOnTheWire(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const indices = [0, 1, 2, 3, 4, 5, 6, 7];
+  const payload = (i: number) => enc.encode(`frame-${i}-${"ab".repeat(i + 1)}`);
+  const run = async (warmup?: string) => {
+    const got: Frame[] = [];
+    const { connect, fake } = begin(DownloaderClient, {
+      decoders: 3, perDecoder: 2, delayMs: 0, fill: indices, warmup, onFrame: (f) => got.push(f),
+    });
+    await firstSeenMs(fake, "stream_frames 0-7");
+    for (const i of indices) await fake.pushFrame(i, payload(i));
+    const c = await connect.catch(() => null);
+    await until(() => got.length >= indices.length, 5000);
+    const wire = wireOf((await fake.controlMessages()) as Wire[]);
+    c?.close();
+    return { by: new Map(got.map((f) => [f.frameIndex, f])), n: got.length, wire };
+  };
+
+  const plain = await run();
+  const warm = await run("/client/conformance/fake-decoder.js");
+  check(warm.wire.join(", ") === plain.wire.join(", "), `warm-up: the wire is what it was without one (${warm.wire.join(", ")})`);
+  check(warm.n === indices.length, `warm-up: every frame of the fill arrives (${warm.n}/${indices.length})`);
+  check(indices.every((i) => same(warm.by.get(i)?.bytes, plain.by.get(i)?.bytes)), `warm-up: each frame byte-identical to the fill without one`);
+  check([...warm.by.values()].every((f) => f.info.warmed), `warm-up: every frame came from a warmed decoder`);
+
+  const missing = await run("/client/conformance/no-such-frame.j2c");
+  check(missing.n === indices.length, `warm-up: one that cannot be fetched still delivers the fill (${missing.n}/${indices.length})`);
+  check([...missing.by.values()].every((f) => !f.info.warmed), `warm-up: and the decoders say they did not warm`);
+}
+
 export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -607,6 +643,7 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     theDecodersComeUpWhileTheUrlIsUnknown,
     anOpeningFillRidesTheSessionUrl,
     aRefusedOpeningFillReachesTheConsumer,
+    aWarmUpChangesNothingOnTheWire,
   ]) {
     try {
       await clause(DownloaderClient, check);

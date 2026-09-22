@@ -13,6 +13,7 @@ let up = false;
 let inFlight = 0;
 let maxInFlight = 0;
 let decodeSeq = 0;
+let warmed = false;
 
 const abs = () => performance.timeOrigin + performance.now();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -23,6 +24,8 @@ onmessage = async (e) => {
     toConsumer = m.toConsumer;
     if (m.decoder && typeof m.decoder.delayMs === "number") delayMs = m.decoder.delayMs;
     if (m.decoder && typeof m.decoder.readyDelayMs === "number") readyDelayMs = m.decoder.readyDelayMs;
+    // The real decoder warms before it answers `ready`; the stand-in waits as long and says so.
+    if (m.warmup) warmed = !!(await fetch(m.warmup).catch(() => null))?.ok;
     if (readyDelayMs) await sleep(readyDelayMs);
     up = true;
     postMessage({ kind: "ready" });
@@ -56,6 +59,7 @@ onmessage = async (e) => {
     stamps,
     decodeSeq: seq,
     maxInFlight,
+    warmed,
   });
   postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: bytes.length });
   inFlight -= 1;

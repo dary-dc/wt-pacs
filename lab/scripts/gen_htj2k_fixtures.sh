@@ -14,6 +14,8 @@
 #   g256   256x256  1x16-bit  greyscale  128 KB decoded
 #   g512   512x512  1x16-bit  greyscale  512 KB decoded
 #   c512   512x512  3x8-bit   colour     768 KB decoded
+# warmup_c and warmup_g are the client's warm-up frames rather than a bench set: 160x160 of each
+# shape the product serves, content that still reaches the block decoder — docs/decode/README.md.
 #   g1024  1024x1024 1x16-bit greyscale  2 MB decoded
 #   g2048  2048x2048 1x16-bit greyscale  8 MB decoded
 set -euo pipefail
@@ -63,6 +65,12 @@ for size in "${SIZES[@]}"; do
     # F2: content that compresses like a real series rather than like `field` (1.25:1).
     cine512) w=512; h=512; ch=3; depth=255;   mode=cine ;;
     ct512)   w=512; h=512; ch=1; depth=4095;  signed=1; mode=ct ;;
+    # The client's warm-up frames, one per shape it serves — client/downloader/warmup/.
+    warmup_c) w=160; h=160; ch=3; depth=255;   mode=cine ;;
+    warmup_g) w=160; h=160; ch=1; depth=65535; mode=ct ;;
+    # The same sample count as the other shape's warm-up: shape without size — lab/decoder-warmup.
+    warmup_c92)  w=92;  h=92;  ch=3; depth=255;   mode=cine ;;
+    warmup_g277) w=277; h=277; ch=1; depth=65535; mode=ct ;;
     *) echo "unknown size $size" >&2; exit 2 ;;
   esac
   case "$depth" in 255) bits=8 ;; 4095) bits=12 ;; *) bits=16 ;; esac

@@ -178,7 +178,7 @@ async function start(m) {
     const d = { worker, outstanding: 0 };
     ready.push(new Promise((r) => { d.ready = r; }));
     const ch = new MessageChannel();
-    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder }, [ch.port1]);
+    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, warmup: cfg.warmup }, [ch.port1]);
     worker.onmessage = (e) => {
       if (e.data.kind === "done") onDone(d, e.data);
       else if (e.data.kind === "ready") d.ready();
