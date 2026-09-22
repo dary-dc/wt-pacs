@@ -749,6 +749,19 @@ warm-up still does not pay: on `cine512` it pushes the wait to 66.4 ms and frame
 555 ms (4/12); on `g512` it fits inside the window (0.1 ms) and frame 0 does not move, 658 → 661
 (8/12). The arms' first frames are 47.7 → 41.0 ms there, inside a `none` range of [17.6 … 105.8].
 
+**Two mutants were not caught, and both say something.** Moving the warm-up to *after* the
+decoder answers `ready` (so the gate is gone) left the first frames exactly as fast — 29.49 ms on
+`cine512`, 19.66 on `g512` over 4 rounds — because the warm-up still finishes before the first
+bytes arrive, and it gave part of the page clock back: the first frame's bytes waited 39.1 ms for
+a decoder instead of 53.9, and reached the page at 124.9 ms instead of 130.0. The gate on `ready`
+is therefore **not load-bearing on this box**, and the ungated shape is the better-looking one;
+4 rounds is not a ladder, so nothing is changed on it. Removing the `try` around the warm-up
+decode also changed nothing, for a plainer reason: the wrapper **never throws**. An empty body, a
+README and a 60-byte prefix each log an `ojph error` and return a zero-length frame, and a
+truncated codestream decodes in full — so no input reachable through `warmup` can reach that
+`catch`. It stays because a decoder build that *does* throw would otherwise turn an optimisation
+into a session that never starts.
+
 **What this is not.** Loopback and a userspace relay on a four-core box carrying other lanes, so
 only the within-round differences are claimed and none of the levels. At 40 ms the frames arrive
 one at a time and `pump()` hands them all to the first free decoder, so only frame 0 is a cold
