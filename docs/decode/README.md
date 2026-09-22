@@ -798,6 +798,11 @@ and generation — so it reaches the consumer as `onError({ frameIndex, reason, 
 a rejected `requestExactFrame`, and never as a frame. A cheaper-looking check on the buffer's
 **length** alone catches nothing, because the length is the previous frame's.
 
+**It refuses nothing real.** The rule was run over **129 real codestreams** — every generated
+fixture on this box plus the two shipped warm-up frames, covering all four shapes the product
+serves (512x512x3@8, 512x512@16, 512x512@12 signed, and the 160x160 warm-ups): none is refused, and
+the decoded buffer is **exactly** the declared size in every one, never larger.
+
 **A truncated codestream is invisible here** and stays so: rows 2 of the table decode to the full
 declared size, silently, with wrong pixels. Truncation is caught on the wire instead, against the
 length the frame's own envelope declares — `../CLIENTS.md` §A truncated frame is a failure. The two
