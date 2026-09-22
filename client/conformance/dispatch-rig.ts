@@ -12,7 +12,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -39,6 +39,8 @@ type OpenOpts = {
   openAsk?: boolean;
   urlDelayMs?: number;
   warmup?: string;
+  /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
+  realDecoder?: { glue: string; wasm: string; dir: string };
 };
 
 function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
@@ -54,8 +56,8 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     fill: opts.fill,
     openAsk: opts.openAsk,
     transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
-    decoderWorker: "/client/conformance/fake-decoder.js",
-    decoder: { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
+    decoderWorker: opts.realDecoder ? undefined : "/client/conformance/fake-decoder.js",
+    decoder: opts.realDecoder ?? { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
     warmup: opts.warmup,
     onFrame: opts.onFrame,
     onError: opts.onError,
@@ -615,6 +617,74 @@ async function aWarmUpChangesNothingOnTheWire(DownloaderClient: DownloaderCtor, 
   check([...missing.by.values()].every((f) => !f.info.warmed), `warm-up: and the decoders say they did not warm`);
 }
 
+/**
+ * A media stream that ends before the length its own header declares has lost that frame: the
+ * consumer is told which frame, in the generation it is living in, and is never handed the part
+ * that did arrive as pixels. docs/CLIENTS.md#a-truncated-frame-is-a-failure
+ */
+async function aTruncatedFrameIsAFailureNotAFrame(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const frames: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0,
+    onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
+  });
+  // One cancel first, so the generation the failure carries is not the initial 0 by default.
+  await cancelled(c);
+  c.fill([0, 1]);
+  await fake.pushFrame(0, enc.encode("frame-zero"));
+  await until(() => frames.length >= 1);
+  await fake.pushTruncatedFrame(1, enc.encode("frame-one-and-then-some"), 5);
+
+  const named = await until(() => failures.some((f) => f.frameIndex === 1));
+  const seen = failures.map((f) => f.frameIndex).join() || "none";
+  check(named, `truncated: the frame the stream cut short is reported (${seen})`);
+  check(failures.every((f) => f.generation === 1), `truncated: the failure carries the current generation (${failures.map((f) => f.generation).join() || "none"})`);
+  check(!frames.some((f) => f.frameIndex === 1), "truncated: the frame it cut short never arrives as pixels");
+  check(frames.length === 1 && frames[0].frameIndex === 0, `truncated: the whole frame before it still arrives (${frames.map((f) => f.frameIndex).join() || "none"})`);
+  c.close();
+}
+
+/**
+ * Only the decoder knows a codestream did not decode. An empty one and a file that is not one
+ * reach the consumer as failures, each named and in the current generation, while a real frame
+ * beside them arrives whole — one decoder object is reused, so without the check they would each
+ * arrive as a frame carrying the previous frame's pixels. docs/decode/README.md §A frame that did not decode
+ */
+async function anUndecodableFrameIsAFailureNotAFrame(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  const dir = "/lab/decode-bench/vendor/openjph";
+  const ok = await fetch(`${dir}/openjphjs.js`, { method: "HEAD" }).then((r) => r.ok, () => false);
+  if (!ok) return void log(`  SKIPPED: an undecodable frame — no ${dir} (bash lab/decode-bench/fetch_decoder.sh)`);
+  const bytesOf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+  const good = await bytesOf("/client/downloader/warmup/colour-8.j2c");
+  const wrong = await bytesOf("/client/downloader/README.md");
+
+  const frames: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 1, perDecoder: 2, delayMs: 0,
+    realDecoder: { glue: `${dir}/openjphjs.js`, wasm: `${dir}/openjphjs.wasm`, dir },
+    onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
+  });
+  c.fill([0, 1, 2]);
+  await fake.pushFrame(0, good);
+  await until(() => frames.length >= 1);
+  await fake.pushFrame(1, new Uint8Array(0));
+  await fake.pushFrame(2, wrong);
+
+  await until(() => failures.length >= 2);
+  const seen = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join();
+  check(seen === "1,2", `undecodable: the empty codestream and the wrong file are both reported (${seen || "none"})`);
+  check(failures.every((f) => f.generation === 0), `undecodable: each failure carries the request's generation (${failures.map((f) => f.generation).join() || "none"})`);
+  check(frames.length === 1 && frames[0].frameIndex === 0, `undecodable: neither arrives as a frame (${frames.map((f) => f.frameIndex).join() || "none"})`);
+  check(frames[0]?.info.byteCount === 160 * 160 * 3, `undecodable: the frame that did decode is whole (${frames[0]?.info.byteCount ?? "none"})`);
+  c.close();
+}
+
 export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -626,8 +696,7 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
       log(`  FAIL: ${what}`);
     }
   };
-  log("dispatch (D2c)");
-  for (const clause of [
+  const clauses: ((c: DownloaderCtor, check: (c: boolean, w: string) => void, log: (l: string) => void) => Promise<void>)[] = [
     askBeatsQueuedFill,
     promoteBeatsQueuedFill,
     boundHoldsPerDecoder,
@@ -644,9 +713,13 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     anOpeningFillRidesTheSessionUrl,
     aRefusedOpeningFillReachesTheConsumer,
     aWarmUpChangesNothingOnTheWire,
-  ]) {
+    aTruncatedFrameIsAFailureNotAFrame,
+    anUndecodableFrameIsAFailureNotAFrame,
+  ];
+  log("dispatch (D2c)");
+  for (const clause of clauses) {
     try {
-      await clause(DownloaderClient, check);
+      await clause(DownloaderClient, check, log);
     } catch (e) {
       failed += 1;
       log(`  FAIL: ${clause.name} threw: ${(e as Error)?.message ?? e}`);

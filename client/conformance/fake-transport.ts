@@ -103,6 +103,19 @@ export class FakeTransport {
     );
   }
 
+  /** A frame whose stream ends after `sent` codestream bytes — the server truncating it. */
+  pushTruncatedFrame(index: number, codestream: Uint8Array, sent: number) {
+    const cut = frameBytes(index, codestream).subarray(0, 8 + sent);
+    this.uni.enqueue(
+      new ReadableStream({
+        start(c) {
+          c.enqueue(cut);
+          c.close();
+        },
+      }),
+    );
+  }
+
   /** Several frames on one uni stream in one chunk — the shared mode. */
   pushOnOneStream(frames: [number, Uint8Array][]) {
     const parts = frames.map(([i, c]) => frameBytes(i, c));
