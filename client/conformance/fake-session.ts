@@ -19,6 +19,8 @@ function run(cmd: string, args: unknown[]): unknown {
   if (cmd === "pushFrame") return void t.pushFrame(args[0] as number, args[1] as Uint8Array);
   if (cmd === "pushOnOneStream") return void t.pushOnOneStream(args[0] as [number, Uint8Array][]);
   if (cmd === "pushRefusal") return void t.pushRefusal(args[0] as number, args[1] as string);
+  if (cmd === "pushTruncatedFrame")
+    return void t.pushTruncatedFrame(args[0] as number, args[1] as Uint8Array, args[2] as number);
   if (cmd === "serverClose")
     return void t.serverClose(args[0] as number, args[1] as string, args[2] as boolean | undefined);
   if (cmd === "controlMessages") return t.controlMessages();

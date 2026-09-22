@@ -94,9 +94,11 @@ tree is archived — [`measurements/n6/ARCHIVE.md`](measurements/n6/ARCHIVE.md).
 
 
 **P1 · Wire framing — landed.** Both clients read `[4B BE len][4B BE index][codestream]` per frame.
-TS: `readLengthPrefixed` → `unwrapEnvelope` in `pumpFramedStream`
-(`client/transport-ts/session.ts`). WASM: `read_length_prefixed_frame` → `unwrap_envelope`
-(`client/transport-wasm/src/session.rs`).
+TS: `readEnvelope` in `pumpFramedStream` (`client/transport-ts/session.ts`), which reads the index
+ahead of the codestream so a stream that ends mid-frame can name what it lost
+(`CLIENTS.md` §A truncated frame is a failure). WASM: `read_length_prefixed_frame` →
+`unwrap_envelope` (`client/transport-wasm/src/session.rs`), which still drops a truncated frame
+silently.
 
 **P2 · Shared-mode reader — landed.** Both arms accept incoming uni streams and drain
 length-prefixed envelopes until EOF — one uni carries many frames in shared mode. Per-frame mode
