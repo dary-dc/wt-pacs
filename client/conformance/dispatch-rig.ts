@@ -36,16 +36,22 @@ type OpenOpts = {
   decode?: boolean;
   fill?: number[];
   readyDelayMs?: number;
+  openAsk?: boolean;
+  urlDelayMs?: number;
 };
 
 function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
   const ch = `wtpacs-dispatch-${++world}`;
   const fake = workerFake(ch);
-  const connect = DownloaderClient.connect("https://conformance.invalid/", CERT, {
+  const url = opts.urlDelayMs
+    ? new Promise<string>((r) => setTimeout(() => r("https://conformance.invalid/"), opts.urlDelayMs))
+    : "https://conformance.invalid/";
+  const connect = DownloaderClient.connect(url as string, CERT, {
     decode: opts.decode ?? true,
     decoders: opts.decoders,
     perDecoder: opts.perDecoder,
     fill: opts.fill,
+    openAsk: opts.openAsk,
     transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
     decoderWorker: "/client/conformance/fake-decoder.js",
     decoder: { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
@@ -477,10 +483,9 @@ async function startWithAFillDialsOnce(_DownloaderClient: DownloaderCtor, check:
   w.onmessage = () => {};
   w.postMessage({
     kind: "start",
-    url: "https://conformance.invalid/",
-    certHash: CERT,
     config: { decode: false, decoders: 0, transport: `/client/conformance/dist/fake-session.js?ch=${ch}`, fill: [0, 1, 2, 3] },
   });
+  w.postMessage({ kind: "dial", url: "https://conformance.invalid/", certHash: CERT });
   w.postMessage({ kind: "ask", index: 50 });
 
   let dialled = 0;
@@ -496,6 +501,82 @@ async function startWithAFillDialsOnce(_DownloaderClient: DownloaderCtor, check:
   const dials = await fake.dials();
   check(dials === 1, `fill at start: a start carrying a fill and an ask behind it dial once (${dials})`);
   w.terminate();
+}
+
+/** The URL is withheld for as long as the decoders hold `ready`, so the two have to overlap. */
+const URL_DELAY_MS = 500;
+
+/**
+ * R3: only the dial needs the session URL, so the worker graph comes up while it is still being
+ * fetched. With the URL and `ready` each URL_DELAY_MS out, the first frame is decoded at about
+ * that, not at twice it. lab/page-open/README.md
+ */
+async function theDecodersComeUpWhileTheUrlIsUnknown(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const got: Frame[] = [];
+  const t0 = Date.now();
+  const { connect, fake } = begin(DownloaderClient, {
+    decoders: 1,
+    perDecoder: 2,
+    delayMs: 0,
+    readyDelayMs: URL_DELAY_MS,
+    urlDelayMs: URL_DELAY_MS,
+    fill: [0],
+    onFrame: (f) => got.push(f),
+  });
+  const c = await connect;
+  await fake.pushFrame(0, enc.encode("first"));
+  const came = await until(() => got.length > 0, 5000);
+  const at = Date.now() - t0;
+  check(
+    came && at < URL_DELAY_MS * 1.6,
+    `un-gated: the first frame is decoded at ${at} ms, with the URL and the decoders each ${URL_DELAY_MS} ms out`,
+  );
+  c.close();
+}
+
+/**
+ * R1: the fill the consumer opens with rides the session URL, so the server serves it behind its
+ * accept, and the control stream is never asked for it a second time. Off unless asked for, as
+ * the server's `--open-ask` is. docs/proposal-session-open.md
+ */
+async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const indices = [0, 1, 2, 3];
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0,
+    fill: indices, openAsk: true, onFrame: (f) => got.push(f),
+  });
+  const url = await fake.dialUrl();
+  check(url.endsWith("?ask=fill:0-3"), `open ask: the session URL carries the fill (${url})`);
+  const runs = wireOf((await fake.controlMessages()) as Wire[]).filter((w) => w.startsWith("stream_frames"));
+  check(runs.length === 0, `open ask: and the wire is not asked for it again (${runs.join(", ") || "clean"})`);
+  for (const i of indices) await fake.pushFrame(i, enc.encode(`open-${i}`));
+  check(await until(() => got.length >= indices.length), `open ask: every frame of it is delivered (${got.length}/${indices.length})`);
+  c.close();
+
+  const { c: c2, fake: fake2 } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, fill: indices, onFrame: () => {},
+  });
+  const plain = await fake2.dialUrl();
+  check(!plain.includes("ask="), `open ask: the session URL carries nothing unless asked for (${plain})`);
+  c2.close();
+}
+
+/**
+ * A refused opening fill reaches the consumer: the run armed at the dial carries the same error
+ * callback as one asked on the wire, so the refusal is not lost for want of a waiter.
+ */
+async function aRefusedOpeningFillReachesTheConsumer(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0,
+    fill: [0, 1, 2, 3], openAsk: true, onFrame: () => {}, onError: (f) => failures.push(f),
+  });
+  await fake.pushRefusal(0, "no such frame");
+  await until(() => failures.length >= 4);
+  const indices = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join();
+  check(indices === "0,1,2,3", `open ask: a refused opening fill reaches the consumer whole (${indices || "none"})`);
+  c.close();
 }
 
 export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
@@ -523,6 +604,9 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aLateDoneDoesNotDropTheNewRequestsFrame,
     cancelCompletesAndUnblocksTheNextFill,
     aRefusedFillReachesTheConsumer,
+    theDecodersComeUpWhileTheUrlIsUnknown,
+    anOpeningFillRidesTheSessionUrl,
+    aRefusedOpeningFillReachesTheConsumer,
   ]) {
     try {
       await clause(DownloaderClient, check);

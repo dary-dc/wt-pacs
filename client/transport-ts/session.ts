@@ -18,6 +18,15 @@ const FRAME_TIMEOUT_MS = 15_000;
 export type ConnectOptions = {
   /** Hold on-demand asks to a depth: fixed, or `"auto"` from the link. `ask-window.ts`. */
   window?: AskWindowConfig;
+  /** A fill the session URL carries, served behind the accept. docs/proposal-session-open.md */
+  fill?: OpeningFill;
+};
+
+export type OpeningFill = {
+  from: number;
+  to: number;
+  onFrame: (f: FrameResult) => void;
+  onError: (frameIndex: number, reason: string) => void;
 };
 
 export type FrameResult = {
@@ -83,7 +92,8 @@ export class TransportSession {
     options: ConnectOptions = {},
   ): Promise<TransportSession> {
     const hash = hexToBytes(certSha256);
-    const transport = new WebTransport(wtUrl, {
+    const fill = options.fill;
+    const transport = new WebTransport(fill ? openAskUrl(wtUrl, fill) : wtUrl, {
       serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
       congestionControl: "low-latency",
     });
@@ -92,6 +102,8 @@ export class TransportSession {
     const bi = await transport.createBidirectionalStream();
     const controlWriter = bi.writable.getWriter();
     const session = new TransportSession(transport, controlWriter, options.window);
+    // The server is already pushing it, so the run is armed and never asked for.
+    if (fill) session.armFill(fill.from, fill.to, fill.onFrame, fill.onError);
 
     session.watchClosed();
     session.pumpUni(transport.incomingUnidirectionalStreams);
@@ -330,11 +342,21 @@ export class TransportSession {
   ): number {
     if (to < from) throw new Error("fillFrames: to < from");
     if (this.closedReason) throw new Error(`session unavailable: ${this.closedReason}`);
+    const askMs = this.armFill(from, to, onFrame, onError);
+    void this.sendFod({ op: "stream_frames", from, to });
+    return askMs;
+  }
+
+  private armFill(
+    from: number,
+    to: number,
+    onFrame: (f: FrameResult) => void,
+    onError: (frameIndex: number, reason: string) => void,
+  ): number {
     const askMs = performance.now();
     const pending = new Set<number>();
     for (let i = from; i <= to; i++) pending.add(i);
     this.fill = { pending, askMs, onFrame, onError };
-    void this.sendFod({ op: "stream_frames", from, to });
     return askMs;
   }
 
@@ -360,6 +382,11 @@ export class TransportSession {
       /* ignore */
     }
   }
+}
+
+/** `:` and `-` are legal in a query, and `parse_open_ask` splits on them literally. */
+function openAskUrl(wtUrl: string, fill: { from: number; to: number }): string {
+  return `${wtUrl}${wtUrl.includes("?") ? "&" : "?"}ask=fill:${fill.from}-${fill.to}`;
 }
 
 function toResult(

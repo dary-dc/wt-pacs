@@ -22,6 +22,7 @@ function run(cmd: string, args: unknown[]): unknown {
   if (cmd === "serverClose")
     return void t.serverClose(args[0] as number, args[1] as string, args[2] as boolean | undefined);
   if (cmd === "controlMessages") return t.controlMessages();
+  if (cmd === "dialUrl") return t.url;
   if (cmd === "didClose") return t.didClose;
   throw new Error(`unknown command ${cmd}`);
 }

@@ -128,24 +128,37 @@ async function ask(index, promise) {
 }
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/proposal-downloader.md §The downloader */
-function issueFill() {
-  if (asksInFlight > 0 || wanted.size === 0 || !session) return;
+function nextRun() {
+  if (wanted.size === 0) return null;
   const from = Math.min(...wanted);
   let to = from;
   while (wanted.has(to + 1)) to += 1;
+  return { from, to };
+}
+
+function fillHandlers(from, to) {
   const gen = generation;
-  const onFrame = (frame) => {
-    if (gen !== generation) return;
-    arrived(frame.frameIndex, frame);
-    if (frame.frameIndex === to) issueFill();
+  return {
+    onFrame: (frame) => {
+      if (gen !== generation) return;
+      arrived(frame.frameIndex, frame);
+      if (frame.frameIndex === to) issueFill();
+    },
+    // A refused range is one frame_error at `from`, so the run fails whole.
+    onError: (_index, reason) => {
+      if (gen !== generation) return;
+      for (let i = from; i <= to; i++) if (wanted.has(i)) fail(i, reason);
+      issueFill();
+    },
   };
-  // A refused range is one frame_error at `from`, so the run fails whole.
-  const onRefused = (_index, reason) => {
-    if (gen !== generation) return;
-    for (let i = from; i <= to; i++) if (wanted.has(i)) fail(i, reason);
-    issueFill();
-  };
-  session.fillFrames(from, to, onFrame, onRefused);
+}
+
+function issueFill() {
+  if (asksInFlight > 0 || !session) return;
+  const run = nextRun();
+  if (!run) return;
+  const { onFrame, onError } = fillHandlers(run.from, run.to);
+  session.fillFrames(run.from, run.to, onFrame, onError);
 }
 
 function onDone(d, m) {
@@ -179,31 +192,33 @@ async function start(m) {
     post({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
     decoders.push(d);
   }
-  // The handshake and the first fill overlap decoder start-up instead of queueing behind it (S6);
-  // `decodersUp` gates dispatch alone — docs/proposal-downloader.md §The downloader.
-  dial = { url: m.url, certHash: m.certHash };
+  // The decoders come up without the session URL, which arrives in `dial`; `decodersUp` gates
+  // dispatch alone — docs/proposal-downloader.md §The downloader.
   if (cfg.fill) want(cfg.fill, abs());
-  const dialled = connect();
   if (cfg.decode) await Promise.all(ready);
   decodersUp = true;
   pump();
-  await dialled;
-  post({ kind: "started" });
 }
 
-/** One dial at a time: a fill riding with `start` and a command behind it share the handshake. */
+/** One dial at a time: a fill riding with the dial and a command behind it share the handshake. */
 async function connect() {
   dialling ??= (async () => {
     TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
-    session = await TransportSession.connect(dial.url, dial.certHash);
+    // The range is known here, so it rides the session URL and is served behind the accept
+    // rather than a round trip later. docs/proposal-session-open.md
+    const run = cfg.openAsk ? nextRun() : null;
+    const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
+    session = await TransportSession.connect(dial.url, dial.certHash, opening ? { fill: opening } : {});
     session.closedPromise?.catch(() => {});
+    return opening;
   })();
+  let opening = null;
   try {
-    await dialling;
+    opening = await dialling;
   } finally {
     dialling = null;
   }
-  issueFill();
+  if (!opening) issueFill();
 }
 
 /** A command after a closure re-dials, as the proposal requires. */
@@ -217,6 +232,11 @@ onmessage = async (e) => {
   const m = e.data;
   try {
     if (m.kind === "start") return void (await start(m));
+    if (m.kind === "dial") {
+      dial = { url: m.url, certHash: m.certHash };
+      await connect();
+      return void post({ kind: "started" });
+    }
     if (m.kind === "ask") {
       const s = await live();
       const rec = records.get(m.index);

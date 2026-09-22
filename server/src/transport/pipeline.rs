@@ -9,6 +9,7 @@ use crate::transport::wire::write_fod_msg;
 use anyhow::{Error, Result};
 use fod::FodMsg;
 use std::sync::Arc;
+use tokio::sync::oneshot;
 use tracing::{info, warn};
 use wtransport::stream::SendStream;
 
@@ -73,6 +74,8 @@ pub(crate) struct ProductPipeline {
     tile: Option<TileReader>,
     mode: ReadMode,
     control: Option<SendStream>,
+    /// The opening ask is served before the client opens control, so a refusal of it waits here.
+    late_control: Option<oneshot::Receiver<SendStream>>,
     fills: u64,
 }
 
@@ -85,12 +88,18 @@ impl ProductPipeline {
             tile: None,
             mode: ReadMode::from_env(),
             control: None,
+            late_control: None,
             fills: 0,
         }
     }
 
     pub(crate) fn with_control(mut self, control: SendStream) -> Self {
         self.control = Some(control);
+        self
+    }
+
+    pub(crate) fn with_late_control(mut self, control: oneshot::Receiver<SendStream>) -> Self {
+        self.late_control = Some(control);
         self
     }
 }
@@ -137,6 +146,11 @@ impl FramePipeline for ProductPipeline {
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
         let reason = err.to_string();
         warn!(frame, %reason, "frame refused");
+        if self.control.is_none() {
+            if let Some(late) = self.late_control.take() {
+                self.control = late.await.ok();
+            }
+        }
         let Some(control) = self.control.as_mut() else {
             return Ok(());
         };

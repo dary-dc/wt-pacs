@@ -9,6 +9,7 @@ export type WorkerFake = {
   pushRefusal(index: number, reason: string): Promise<void>;
   serverClose(closeCode?: number, reason?: string, endStreams?: boolean): Promise<void>;
   controlMessages(): Promise<{ op: string }[]>;
+  dialUrl(): Promise<string>;
   didClose(): Promise<boolean>;
   dials(): Promise<number>;
 };
@@ -39,6 +40,7 @@ export function workerFake(name: string): WorkerFake {
     pushRefusal: (i, reason) => call("pushRefusal", i, reason) as Promise<void>,
     serverClose: (code, reason, endStreams) => call("serverClose", code, reason, endStreams) as Promise<void>,
     controlMessages: () => call("controlMessages") as Promise<{ op: string }[]>,
+    dialUrl: () => call("dialUrl") as Promise<string>,
     didClose: () => call("didClose") as Promise<boolean>,
     dials: () => call("dials") as Promise<number>,
   };
