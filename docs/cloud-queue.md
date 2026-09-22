@@ -65,7 +65,7 @@ trailers. This is the owner's rule for every repository.
 | 33 | **P1** — a decoder pool that follows the queue, and a reader that waits: a proposal | queue §Rows 30–41 | **done** — `proposal-downloader.md` §The decoders and §The downloader; `client-shape-plan.md` M2/M3 and its shape table corrected in place. **M3's fill window is deleted, not built**; the reader pausing gives the same bound through QUIC flow control. Nothing built |
 | 34 | **A1** — a session that dies is noticed and resumed: a proposal | queue §Rows 30–41 | **done** — `proposal-session-survival.md`. The idle timeout is the freeze length, so detection moves to platform triggers + a probe ask; resumption rides the downloader's per-frame records. **The rebind number still waits on a run** — the probe and relay came over with T1 |
 | 29 | **L21** — when UDP is blocked: a proposal, no code — **amended 2026-09-18** | queue §Rows 28–29, §Rows 30–41 | **done** — `proposal-udp-fallback.md`. **Measured: 2 ms when UDP is refused, 4 004 ms when it is silently dropped** — 2000x, and the realistic impairment is the slow one. iOS (S1) makes the scope all iPhones, not ~5 % of networks; recycling before 16 MB is the cheaper experiment. Race, do not detect |
-| 25 | **D6** — a fresh decoder's first frame — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | **done** — **the first frame costs ~4x the steady state** on both fixtures, and frames 1–5 pay a smaller version. The code cache does nothing (S13 confirmed); D6's own warm-up decode helps but does not remove it (3.9x → 3.5x). May be §BYOB's unexplained ~12 ms. `decode/README.md` §The first frame |
+| 25 | **D6** — a fresh decoder's first frame — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | **done** — **the first frame costs ~4x the steady state** on both fixtures, and frames 1–5 pay a smaller version. The code cache does nothing (S13 confirmed); D6's own warm-up decode helps but does not remove it (3.9x → 3.5x; row 55 measured what its shape decides). May be §BYOB's unexplained ~12 ms. `decode/README.md` §The first frame |
 | 23 | **D2d** — the WASM client behind the downloader — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | **done** — the capability row is **green on both clients**: single ask byte-exact, fill a tie. And S6 fixed — the dial now overlaps decoder start-up, start+dial 58→52 ms (TS) and 70→57 (WASM), conformance 46/46 + 19/19. `proposal-downloader.md` §The decoders |
 | 24 | **D5** — what the decoder's range pass costs a fill — **amended 2026-09-18** | queue §Rows 23–26, §Rows 30–41 | **done** — the range pass is 10–25 % of a decode, and **folding it into the copy is slower** (1.06x, 1.17x), so D5's remedy is refused with the measurement. S14's redundant copy removed; the stale "no signed fixture" comment corrected. `decode/README.md` §The range pass |
 | 26 | **D7** — the downloader on the 4 MB decoder | queue §Rows 23–26 | **done** — the 4 MB build cuts the decode arm from **161.4 MB to 16.3 MB** (10x) with fill and cold ask unchanged to the tenth of a ms. Parity byte-identical on all six sets, 40 frames, signed included. `proposal-downloader.md` §Results |
@@ -89,7 +89,8 @@ trailers. This is the owner's rule for every repository.
 | 52 | **M1** — what a fill allocates on the page, on a throttled CPU | queue §Rows 42–52 | **ready** |
 | 53 | **D10 + D11 + D13** — one wrapper pass, parity-gated | queue §Rows 53–56 | **done on the workstation** 2026-09-20, branch `claude/d-wrapper`, **merged into `claude/integrated-2026-09-20`** 2026-09-22: packing each line once (D10) is **−5.5 to −8.3 % on one-component frames and a wash on colour** (+0.9 % on the tight colour set), `restart()` (D11) is a tie kept for the simpler code, and the 4 MB floor (D13) stays — the headline corrected in place, a reused decoder costs **4.8 MB not 4.0**, so **10× not 12.5×**. 522-frame parity, three mutants caught and one not — `decode/README.md`. **Still open: the package's own build has not been re-timed since D10; a floor chosen for first-frame latency** |
 | 54 | **D14** — another open HTJ2K decoder, benched | queue §Rows 53–56 | **done on the workstation** 2026-09-20, branch `claude/d14-other-decoder`, **merged into `claude/integrated-2026-09-20`** 2026-09-22 as a lab arm, **adopted nowhere**: bit-exact on 522 frames and **+16.7 % colour / +47 % grey**, 40/40 rounds to the incumbent with every pair of ranges disjoint, 39 KB more `.wasm`, and a header surface it does not expose. Three mutants caught; a per-frame leak found in its own re-`init()` shape and worked around — `decode/README.md` §A second decoder, measured. **The row is closed**; only 512² was benched |
-| 55 | **D9** — the warm-up frame's shape | queue §Rows 53–56 | **running** on the workstation, branch `claude/decoder-warmup` — **not merged**; a follow-up merge takes it |
+| 55 | **D9** — the warm-up frame's shape | queue §Rows 53–56 | **done on the workstation** 2026-09-22, branch `claude/decoder-warmup`, **merged into `claude/integrated-2026-09-20`** 2026-09-22 — **off by default.** A warm-up decode in each decoder before it answers `ready` takes **30–45 % off frames 0–2**, 12/12 rounds on all six cells (cine 44.33 → 29.49 ms, grey 37.68 → 20.74), and a wrong-shape control at the same sample count comes within 2–3 ms — **the first frames want samples, not the shape**. The shape decides **frames 3–11**: a mismatched warm-up leaves the cine at 14.4–14.7 ms against **10.22 with no warm-up at all**, disjoint ranges. It does not move the page's clock on this box (the decoders report `ready` later by about what the frames save: frame 0 at the page 119 → 130 ms on loopback, 522 → 555 at 40 ms), pixels identical, no new session bytes — one same-origin GET of a shipped 6.7 / 38 KB file. Two of four mutants uncaught and recorded. `decode/README.md` §Warming the decoders. **Still open: the deciding ladder on a device whose decoders are up well before the first bytes; the warm-up's own size, unswept; 12-bit signed CT has no shipped frame** |
+| 57 | **D16** — a truncated frame reaches the consumer as 0 pixels | queue §Row 57 | **open** — found by row 55, not fixed |
 | 56 | **W1b** — a default for the first ask | queue §Rows 53–56 | **measured on the workstation** 2026-09-20, branch `claude/first-ask-defaults`, **merged into `claude/integrated-2026-09-20`** 2026-09-22 — **no default changed, the owner's call.** The push at session open is **463.3 → 137.9 ms (−70 %, 7/7)** at 250 KB / 80 ms and needs three lines on the page; a 32-packet initial window is **−16 to −33 % at queues ≥ 20 packets** and **+11.8 % (0/7) behind a 10-packet queue** and needs no page change; **the two do not stack**; the keep-alive pair keeps a 30 s idle session alive **56/56**, and without it the native session is **dead 2/2**. `transport/transport-conclusions.md` §3. **Still open: the push's browser cell, and which lever a rebind re-applies** |
 | 27 | **L19** — how much of a frame draws a smaller image | queue §Row 27 | **done** — a quarter of the bytes draws the half-size image, on all four formats; only the package can do it. `decode/README.md` §A prefix draws a smaller image |
 | 28 | **L20** — opening a study nobody has read | queue §Rows 28–29 | **done** — a tie in both scenarios; the miss *path* costs ~0.5 ms on one ask and nothing across a fill. What a cold study costs is the device's, not this container's. `disk-access/EVIDENCE.md` §A study nobody has read |
@@ -183,8 +184,10 @@ route that keeps QUIC there is recycling the session before 16 MB and re-issuing
 the fallback against WebTransport instead of detecting failure (S22), which makes the time to
 rejection moot. And what a device check must show before any of this is built.
 
-**25 · D6, amended.** The decoder is instantiated from a buffer and its glue evaluated as text, so
-the engine's compiled-code cache can never engage (S13) and a warm-up decode would not tier up.
+**25 · D6, amended — and its second half is now wrong.** The decoder is instantiated from a buffer
+and its glue evaluated as text, so the engine's compiled-code cache can never engage (S13). "A
+warm-up decode would not tier up" is **refuted by row 55**: one does, by 30–45 % of frames 0–2,
+provided it runs the functions the real frames run.
 Load it by streaming compile from an ES module build; report first-decode and frames 0–5 for a cold
 HTTP cache, a warm HTTP cache and a warm code cache, apart, on a persistent profile.
 
@@ -355,14 +358,34 @@ the one it does not help. Adopted anyway, for the one-component sets that are th
 row wanted: the incumbent being fast enough is no longer an unexamined claim. The arm stays in
 `lab/decode-bench` so the next candidate has a harness; nothing in the product points at it.
 
-**55 · the warm-up arms.** D9 is the one row of this round still open, and the only one whose
-estimate (150–200 ms of the cine fill) nothing has tested.
+**55 · the warm-up arms.** The estimate (150–200 ms of the cine fill) was half right and it splits
+in two: a warm-up is worth 30–45 % of frames 0–2 whatever its shape, and the *shape* decides the
+frames after them — a mismatched one is the single arm measured here that is worse than no warm-up
+at all. It ships off because the gain is decode's and not the page's on this box, which is a
+statement about the box: the deciding cell is a device whose decoders are up well before the first
+bytes.
 
 **56 · the first ask.** A decision, not a measurement — §3 already had the cells, and this row added
 the queue-depth ladder, the idle cell and the stacking cell that bound each lever's cost. **It ends
 undecided on purpose**: the push wants a page change and loses datagrams behind a shallow queue, the
 window is free but loses one cell, and which matters depends on whether the session opens with a
 fill or an ask. The confirming run on the shaped link waits on that choice.
+
+### Row 57
+
+Queued 2026-09-22 from what row 55 found on the way and left alone.
+
+**57 · D16, a truncated frame reaches the consumer as 0 pixels.** The decoder wrapper the client
+loads reports a parse failure by logging to the console and returning a zero-length frame: an empty
+body, a README and a 60-byte prefix each do it, and a truncated codestream decodes in full with no
+complaint. A frame the wire cuts short therefore arrives at the consumer as `width: 0` under a key
+that says it is that frame — a correctness hole, not a latency one, and the same class as the
+generation bug P1 closed. **This is a wrong picture presented as a right one, which is what the
+bit-exact guarantee forbids.** What the row owes: where the failure should be declared (the
+wrapper's return, the worker's reply, or a length check before either), how it reaches the consumer
+— `onError` already exists and carries `{frameIndex, reason, generation}` — and a test whose mutant
+is a truncated fixture that the suite must fail on. `decode/README.md` §Warming the decoders records
+the behaviour as measured.
 
 ### Rows 23–26
 

@@ -9,7 +9,7 @@ This folder is the front door. The dated files are evidence, not the queue.
 | File | What it is |
 | ---- | ---------- |
 | **this page** | ranked open work, then what already landed on the branch |
-| [`2026-09-20.md`](2026-09-20.md) | seventh pass: the integrated branch — eleven lanes merged green, `GATE OK`, every lever smoked once on the merged binary against the number that owns it; and the **fourth identification round**, each of its rows carried through to a measurement and corrected in place |
+| [`2026-09-20.md`](2026-09-20.md) | seventh pass: the integrated branch — twelve lanes merged green, `GATE OK`, every lever smoked once on the merged binary against the number that owns it; and the **fourth identification round**, all of whose rows are now measured and corrected in place — the last of them the decoder warm-up, which ships off by default |
 | [`2026-09-19-sweep.md`](2026-09-19-sweep.md) | second identification sweep: what the shaped link's model, the dev certificate, an idle radio and a desktop still hide — findings S23–S46, none measured, queued as rows 42–52 |
 | [`2026-09-19.md`](2026-09-19.md) | sixth pass: the tip re-verified — gate, the nginx config, the fill's order, the first ask, prerender — and what the re-runs corrected |
 | [`2026-09-18.md`](2026-09-18.md) | fifth pass: what loopback hides — 22 candidates from an identification sweep, queued as rows 30–41 |
@@ -41,10 +41,13 @@ From the 2026-09-08 pass unless noted. Size is the proposed change, not the writ
 | **D3** | defect, clients | duplicate indices in a bulk ask: TS orphans a waiter and asks twice; WASM sticks on “previous bulk still pending” | ~6 lines each arm, validate before arming | [§D3](2026-09-08.md#d3--duplicate-indices-in-a-bulk-ask) |
 | **Tests** | gap | product TypeScript client has no tests; a stub `WebTransport` already drives it in Node | `client/transport-ts/test/` from `lab/improvements/bench/ts_session_stub.mjs` (after restore) | [Tests](2026-09-08.md#tests--gaps) |
 | **T1 / T2** | tooling | no CI; `gate.sh` skips four crates, clippy, and fmt — and its two client steps skip the WASM arm unless `pkg/` already exists, still printing `GATE OK` | one workflow + `cargo test --workspace`; the WASM arm is a decision, not a fix | [§T](2026-09-08.md#t--tooling) · [4th pass §2](2026-09-16.md#2--the-hole-two-steps-pass-at-half-strength-and-still-say-gate-ok) |
+| **Q57** | defect, decode | the decoder wrapper never throws: a truncated frame reaches the consumer as **0 pixels under a key that says it is that frame**, not as a failure — a wrong picture presented as a right one | declare the failure and route it through the `onError` the downloader already has | [`../cloud-queue.md`](../cloud-queue.md) §Row 57 · [`../decode/README.md`](../decode/README.md) §Warming the decoders |
 | **P2** | perf, WASM | `opt-level = "s"` for the wasm package: −10 % gzip on top of the LTO the workspace profile now gives it, no speed or `init()` change | one `[profile.release.package.transport-wasm]` line | [§P2](2026-09-08.md#p2--wasm-package-release-profile-variants-all-through-wasm-opt) |
 
 D4 is first because it is the README quick-start host serving a private key. D1 is data loss in
 the telemetry contract. D2/D3 are product waiter bugs; the TS test gap is what would pin them.
+Q57 is queue row 57, found 2026-09-22 and numbered from the queue because `D1`–`D7` here are the
+2026-09-08 pass's own namespace.
 
 P1 landed on 2026-09-10 (below); P2's remaining half is a client call.
 
