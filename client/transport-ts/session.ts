@@ -122,12 +122,15 @@ export class TransportSession {
   /** First reason wins: the stream ending and `closed` settling are the same event twice. */
   private failAll(reason: string) {
     this.closedReason ??= reason;
+    const fill = this.fill;
     this.fill = null;
     for (const [index, w] of this.waiters) {
       clearTimeout(w.timer);
       w.reject(new Error(`frame ${index} unavailable: ${this.closedReason}`));
     }
     this.waiters.clear();
+    // A fill that lost a frame is not complete: what it was still owed is named, not dropped.
+    if (fill) for (const index of fill.pending) fill.onError(index, this.closedReason);
   }
 
   private armWaiter(frameIndex: number): Promise<{ bytes: Uint8Array; receivedMs: number }> {
