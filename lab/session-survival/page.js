@@ -8,6 +8,8 @@ import { DownloaderClient } from "/client/downloader/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const arm = q.get("arm") || "built";
+/** `quick` is the same code with tighter deadlines: what the defaults cost, not a proposed default. */
+const SURVIVAL = { today: false, built: undefined, quick: { stallMs: 1000, probeMs: 800 } };
 const FILL = Number(q.get("fill") || 80);
 
 const at = () => performance.timeOrigin + performance.now();
@@ -34,16 +36,17 @@ function askAgain() {
 }
 
 function finish() {
-  globalThis.__wtpacsResult = { arm, frames, failures, resumes: client.stats().resumes };
+  const { resumedAt } = client.stats();
+  globalThis.__wtpacsResult = { arm, frames, failures, resumedAt };
   globalThis.__wtpacsDone = true;
-  log(`done: ${frames.length}/${FILL} frames, ${failures.length} failures, ${client.stats().resumes} resumes`);
+  log(`done: ${frames.length}/${FILL} frames, ${failures.length} failures, ${resumedAt.length} resumes`);
 }
 
 const cfg = await (await fetch("/wt/dev-transport.json")).json();
 client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
   decode: false,
   decoders: 0,
-  survival: arm === "today" ? false : undefined,
+  survival: SURVIVAL[arm],
   onFrame: (f) => {
     frames.push({ i: f.frameIndex, at: at() });
     globalThis.__wtpacsFrames = frames.length;

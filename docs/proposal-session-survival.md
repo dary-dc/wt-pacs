@@ -185,7 +185,7 @@ is what moves it (`client/downloader/README.md` §A request is a generation); a 
 request continuing. Bumping it would drop frames still inside a decoder under the old generation
 and would have to be told to the page. A session **epoch**, private to the worker, fences the dead
 session's callbacks instead — so the page's records stay valid without being told anything, and
-the only thing it is told is that a resume happened, as a count in `stats()`.
+the only thing it is told is when each resume happened, as `stats().resumedAt`.
 
 **Nothing is re-decoded and nothing is re-fetched that arrived.** That property is the reason to
 put resumption behind the records rather than behind a session-level retry.

@@ -25,13 +25,18 @@ gone, a new one works, and **nothing tells the client** — no close, no reset, 
 `blackout` is not this: the same path comes back, and QUIC recovers by itself without anything
 here doing a thing.
 
-**The two arms, same binary, same page.** `built` is the client as it is. `today` passes
-`survival: false` and does what a page could do without resumption: it re-asks for what it is
-missing once the transport reports the fill gone — which happens at the browser's idle timeout and
-not before. Every round runs both, order rotated.
+**Three arms, same binary, same page.** `built` is the client as it is. `quick` is the same code
+with `{ stallMs: 1000, probeMs: 800 }` — what the default deadlines cost, not a proposed default.
+`today` passes `survival: false` and does what a page could do without resumption: it re-asks for
+what it is missing the moment the transport reports the fill gone. That is a **generous** baseline:
+a real page today gets the frames named and the fill failed (`client/downloader/README.md`) and has
+to do something about it; this one does the best possible thing instantly. Every round runs all
+three, order rotated.
 
-**What the number is.** The wall-clock gap from the cut datagram to the first frame the page
-receives after it. Latency, not throughput: the fill's rate before and after the cut is the link's
+**The two numbers.** `noticed` is the wall-clock gap from the cut datagram to the moment something
+acted on it — this client resuming, or, with resumption off, the transport failing the run. `first
+frame` is the gap to the first frame the page receives after the cut, which is `noticed` plus a dial
+and a frame. Latency, not throughput: the fill's rate before and after the cut is the link's
 and says nothing about this. The host saturates well above 20 Mbit on loopback, so the rate is the
 relay's and not the box's; what the box's load does reach is the dial and the decode, which this
 arm does not run (`decode: false`).

@@ -15,7 +15,7 @@ export class DownloaderClient {
   /** The page's copy of the downloader's generation: both step on `cancel`, and messages are ordered. */
   #gen = 0;
   #cancels = [];
-  #resumes = 0;
+  #resumedAt = [];
   #triggers = new AbortController();
 
   constructor(opts) {
@@ -74,7 +74,7 @@ export class DownloaderClient {
     }
     if (m.kind === "frame") return void this.#deliver(m);
     if (m.kind === "cancelled") return void this.#cancels.shift()?.();
-    if (m.kind === "resumed") return void (this.#resumes += 1);
+    if (m.kind === "resumed") return void this.#resumedAt.push(performance.timeOrigin + performance.now());
     if (m.kind === "failed") {
       // A failure before `started` is the start itself failing: connect must reject, not hang.
       if (!this.#started) return void this.#rejectReady(new Error(`the downloader failed to start: ${m.reason}`));
@@ -162,7 +162,7 @@ export class DownloaderClient {
   }
 
   stats() {
-    return { closed: this.#closedReason, inFlight: this.#waiters.size, resumes: this.#resumes };
+    return { closed: this.#closedReason, inFlight: this.#waiters.size, resumedAt: [...this.#resumedAt] };
   }
 
   close() {

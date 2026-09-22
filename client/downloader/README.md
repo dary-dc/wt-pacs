@@ -84,7 +84,7 @@ hand, with a deadline. It answers, or the session is re-dialled and exactly what
 owe is issued on the new one — the fill's remainder as a run and any outstanding ask again, with
 nothing that arrived re-fetched and nothing re-decoded. The request's **generation does not move**:
 a resume is the same request, so the page's waiters and records stay valid and the only thing it is
-told is a `resumes` count in `stats()`. `survival: false` turns it off; an object overrides
+told is when each resume happened, as `stats().resumedAt`. `survival: false` turns it off; an object overrides
 `{ stallMs: 3000, probeMs: 2000, redialMs: 1000, tries: 5 }`.
 [`docs/proposal-session-survival.md`](../../docs/proposal-session-survival.md) has the states, the
 reasons and what a cut costs today against built.
