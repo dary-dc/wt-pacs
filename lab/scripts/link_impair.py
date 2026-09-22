@@ -9,7 +9,7 @@ usage: link_impair.py --udp 5555:4433 [--tcp 8443:8000] [--delay-ms 40] [--rate-
                       [--queue-pkts 50] [--loss 0.5 | --loss-model ge] [--control-port 5556]
 
 --delay-ms is ONE WAY and applies to each direction, so a round trip reads twice it, matching
-`cloud_netem.sh`'s profiles. Control datagrams on --control-port: `rebind`, `blackout <ms>`,
+`cloud_netem.sh`'s profiles. Control datagrams on --control-port: `rebind`, `cut`, `blackout <ms>`,
 `stats`, `quit`. Prints READY, then REBOUND <old> -> <new>, then a tally at exit.
 """
 import argparse
@@ -103,6 +103,7 @@ class UdpPlane:
         self.down = udp_socket(listen_port)
         self.up = udp_socket(0)
         self.client = None
+        self.dead = None
         self.to_server = Pipe(args, rng)
         self.to_client = Pipe(args, rng)
         sel.register(self.down, selectors.EVENT_READ, ("udp", None, "down"))
@@ -118,6 +119,8 @@ class UdpPlane:
             except (BlockingIOError, InterruptedError):
                 return
             if which == "down":
+                if addr == self.dead:
+                    continue
                 self.client = addr
             pipe.offer(now, data, blacked_out)
 
@@ -127,6 +130,12 @@ class UdpPlane:
         for payload in self.to_client.ready(now):
             if self.client:
                 self.down.sendto(payload, self.client)
+
+    def cut(self):
+        """The path this session is on is gone for good, and a session from a new port is not —
+        what a handover does, on one host. docs/proposal-session-survival.md"""
+        self.dead, self.client = self.client, None
+        return self.dead[1] if self.dead else 0
 
     def rebind(self):
         old = self.up.getsockname()[1]
@@ -341,7 +350,10 @@ def main():
                     else:
                         cmd = ctrl.recvfrom(65535)[0].split()
                         head = cmd[0] if cmd else b""
-                        if head == b"rebind" and udp:
+                        if head == b"cut" and udp:
+                            print("CUT client port %d, upstream %d -> %d"
+                                  % (udp.cut(), *udp.rebind()), flush=True)
+                        elif head == b"rebind" and udp:
                             print("REBOUND %d -> %d" % udp.rebind(), flush=True)
                         elif head == b"blackout":
                             outage = float(cmd[1]) / 1000.0
