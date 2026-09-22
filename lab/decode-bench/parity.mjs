@@ -59,9 +59,10 @@ const theirsDecoder = new theirs.HTJ2KDecoder();
 console.log(`ours:   getVersion()=${ours.getVersion()} getSIMDLevel()=${ours.getSIMDLevel()}`);
 console.log(`theirs: getVersion()=${theirs.getVersion()} getSIMDLevel()=${theirs.getSIMDLevel()}`);
 let bad = 0;
+// A second library is now an arm, so equal versions are no longer the invariant; the byte
+// checks below are stronger and are the gate. docs/decode/README.md §A second decoder.
 if (ours.getVersion() !== theirs.getVersion()) {
-  console.error('  version differs — these are not the same OpenJPH release');
-  bad++;
+  console.log('  versions differ — a different library or release, so this is a cross-decoder run');
 }
 if (ours.getSIMDLevel() !== 1) {
   console.error('  ours reports SIMD level 0 — the -msimd128 path was lost');
