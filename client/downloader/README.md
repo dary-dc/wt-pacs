@@ -54,8 +54,10 @@ decoder object is reused and an undecodable frame otherwise comes back carrying 
 frame's pixels under the new index ([`docs/decode/README.md`](../../docs/decode/README.md) §A frame
 that did not decode). Either way the consumer gets `onError({ frameIndex, reason, generation })` for
 a fill frame or a rejected promise for an asked one, so a fill that lost a frame cannot report
-itself complete. Neither check sees a codestream the server truncated *before* framing it; the
-harness's per-frame `.sha256` is what sees that.
+itself complete. A session that **dies** mid-fill is the third way to lose a frame, and reports the
+same way: the transport names every index the fill still owed, this worker fails that run, and it
+issues no new fill onto a session that is gone. Neither check sees a codestream the server truncated
+*before* framing it; the harness's per-frame `.sha256` is what sees that.
 
 Run the arm (`client/harness/downloader.html`) the way the README's quick start runs the others,
 against any study — it checks each decoded frame against the fixture's `.sha256`:
