@@ -28,7 +28,30 @@ function finish(view, bits, signed) {
   return { min, max };
 }
 
+function decodeFrame(bytes) {
+  // Already a Uint8Array over the transferred buffer; re-wrapping copied it for nothing (S14).
+  dec.getEncodedBuffer(bytes.length).set(bytes);
+  dec.readHeader();
+  const info = dec.getFrameInfo();
+  dec.decode();
+  const out = dec.getDecodedBuffer();
+
+  const wide = info.bitsPerSample > 8;
+  const sab = new SharedArrayBuffer(out.length);
+  new Uint8Array(sab).set(out);
+  const view = wide
+    ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))
+    : (info.isSigned ? new Int8Array(sab) : new Uint8Array(sab));
+  return { info, sab, byteCount: out.length, range: finish(view, info.bitsPerSample, info.isSigned) };
+}
+
+/** The warm-up's bytes, or none: an optimisation must never reject a decoder's init. */
+const warmupBytes = (url) =>
+  fetch(url).then((r) => r.arrayBuffer()).then((b) => new Uint8Array(b), () => null);
+
 async function init(m) {
+  // Fetched beside the compile: it has to fit the idle window — docs/decode/README.md §Warming.
+  const warmup = m.warmup ? warmupBytes(m.warmup) : null;
   // A module worker has no importScripts and the glue is a classic script. Its factory is a
   // top-level `var`, which inside a Function body is local, so hand it back explicitly.
   const src = await (await fetch(m.decoder.glue)).text();
@@ -41,6 +64,14 @@ async function init(m) {
   M = await factory(opts);
   // One decoder object reused: parity.mjs is byte-identical on every fixture, so reuse is safe.
   dec = new M.HTJ2KDecoder();
+  const w = warmup && (await warmup);
+  if (w) {
+    try {
+      decodeFrame(w);
+    } catch {
+      /* a decoder that cannot warm is still a decoder */
+    }
+  }
 }
 
 onmessage = async (e) => {
@@ -58,22 +89,7 @@ onmessage = async (e) => {
   if (m.kind !== "decode") return;
   const stamps = { ...m.stamps, decodeStart: abs() };
   try {
-    // Already a Uint8Array over the transferred buffer; re-wrapping copied it for nothing (S14).
-    dec.getEncodedBuffer(m.bytes.length).set(m.bytes);
-    dec.readHeader();
-    const info = dec.getFrameInfo();
-    dec.decode();
-    const out = dec.getDecodedBuffer();
-
-    const wide = info.bitsPerSample > 8;
-    const sab = new SharedArrayBuffer(out.length);
-    const pixels = new Uint8Array(sab);
-    pixels.set(out);
-    const view = wide
-      ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))
-      : (info.isSigned ? new Int8Array(sab) : new Uint8Array(sab));
-    const range = finish(view, info.bitsPerSample, info.isSigned);
-
+    const { info, sab, byteCount, range } = decodeFrame(m.bytes);
     stamps.decodeEnd = abs();
     toConsumer.postMessage({
       kind: "frame",
@@ -87,10 +103,10 @@ onmessage = async (e) => {
       signed: info.isSigned,
       min: range.min,
       max: range.max,
-      byteCount: out.length,
+      byteCount,
       stamps,
     });
-    postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: out.length });
+    postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount });
   } catch (err) {
     postMessage({ kind: "failed", index: m.index, gen: m.gen, reason: String(err?.message ?? err) });
   }
