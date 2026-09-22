@@ -235,9 +235,13 @@ explicit destructor call plus a placement-new with one documented library call. 
 the second reason, not the first. Its own claim is not a timing one: without it, or without the
 reconstruct it replaces, the codestream's arena is never reset.
 
-**Heap does not move**: identical on all four arms in each run — 7.0 MB over `c512`/`g512`/`s512`,
-5.8 MB over `cine512`/`ct512`, both from a 4 MB build with one reused decoder. Wasm grows 1.2 KB,
-239 → 240 KB.
+**Heap does not move — while the frames keep one size.** Identical on all four arms in each run
+here — 7.0 MB over `c512`/`g512`/`s512`, 5.8 MB over `cine512`/`ct512`, both from a 4 MB build with
+one reused decoder. Both of those runs lead with their **largest** frame, and that is what makes
+the arms agree: re-measured 2026-09-22, a decoder that meets a *larger* frame after a smaller one
+ends **1.9 MB heavier with `restart()` than without it**, because the arena the smaller frames grew
+is still held when the larger one allocates. §Where to put the floor has the table. Wasm grows
+1.2 KB, 239 → 240 KB.
 
 **Where this host saturates.** Every arm here decodes on one thread, and the box ran other work
 throughout: one core is busy and the rest are not this measurement's. So the ms are read across
@@ -308,16 +312,54 @@ Time is again a tie: every floor is within 2.1 % of the best at both sizes with 
 and which floor is nominally fastest changes between the two sets.
 
 **The floor stays at 4 MB**, and the reason is now the greyscale column rather than the colour one.
-A reused decoder keeps its codestream's arena between frames, so 512×512 greyscale costs **4.8 MB,
-not 4.0** — still 10× less than the package's 50 MB, not 12.5×. 4 MB is the *minimum* of that
-column: starting at 2 MB ends 0.3 MB **heavier**, because what it saves at load it gives back in a
-larger growth step. Colour prefers 2 MB by 0.4 MB and that is the smaller of the two effects.
-6 and 8 MB buy nothing and cost 1.2–3.2 MB.
+512×512 greyscale costs a reused decoder **4.8 MB, not 4.0** — still 10× less than the package's
+50 MB, not 12.5×. 4 MB is the *minimum* of that column: starting at 2 MB ends 0.3 MB **heavier**,
+because what it saves at load it gives back in a larger growth step. Colour prefers 2 MB by 0.4 MB
+and that is the smaller of the two effects. 6 and 8 MB buy nothing and cost 1.2–3.2 MB.
 
 Neither column can see a growth inside frame 0 — an 87-frame median cannot — so a floor chosen for
 first-frame latency rather than for residency is a separate measurement, and §The first frame is
 where it would go. The floor is a link-time parameter either way:
 `EMSDK=… INITIAL_MB=2 lab/decode-bench/wasm/build.sh`.
+
+**Which wrapper those two cells belong to, re-measured 2026-09-22.** The ladder was taken on the
+adopted wrapper alone, and the arm turned out to matter elsewhere (§The wrapper's two passes), so
+the 4 MB row was re-read on the merged branch's binary with three arms in one process, order
+rotated: `base` — the wrapper before D10/D11, which destroys the codestream and placement-news a
+fresh one every frame — `d11` (`restart()` alone) and `merged` (D10 + D11, adopted). Each set
+decoded on its own from a cold module at `INITIAL_MB=4`, 6 timed rounds a repeat, **6 repeats**:
+
+| set | `base` | `d11` | `merged`, adopted |
+| --- | --- | --- | --- |
+| `g512` 512 KB grey | 4.8 MB | 4.8 MB | **4.8 MB** |
+| `c512` 768 KB colour | 7.0 MB | 7.0 MB | **7.0 MB** |
+
+**36 readings, no spread at all** — every repeat identical to the tenth of a megabyte. The two
+cells are the wrapper's regardless of arm, so **4.8 MB stands and 10× stands.** What does not
+stand is the reason once given here for it: it is *not* the codestream's arena that puts a reused
+decoder above the 4 MB floor, because the arm that throws that arena away every frame reads the
+same 4.8 MB. What reuse keeps is the decoder object's other buffers, which all three arms keep.
+
+**The arena shows when the frame size changes**, and only then. One decoder over both sets in one
+run, 6/6 repeats a cell:
+
+| one decoder, in this order | `base` | `d11` | `merged` |
+| --- | --- | --- | --- |
+| `g512` then `c512` — after the grey set | 4.8 MB | 4.8 MB | 4.8 MB |
+| — after the colour set | **5.8 MB** | **7.7 MB** | **7.7 MB** |
+| `c512` then `g512` — after either set | 7.0 MB | 7.0 MB | 7.0 MB |
+
+So `restart()` **retains ~1.9 MB** across a size increase: the grey arena is still held when the
+colour frame allocates on top of it, where destroying the codestream releases it and the colour
+allocation reuses the space — ending 1.2 MB *below* a cold colour module. D10's packing pass adds
+nothing to either figure; `d11` and `merged` agree to the reading. Going the other way costs
+nothing: the larger arena already covers the smaller frame.
+
+For pool sizing that is the number to budget, not the ladder's: a decoder that only ever sees one
+study's frames costs its own set's cell, but one reused across shapes costs **7.7 MB** here, the
+larger frame's cold figure plus the smaller frame's retained arena. Heap is a high-water mark —
+WASM memory never shrinks — so every figure on this page is a peak, and a peak is order-dependent
+whenever the sizes differ.
 
 ### What adopting it costs
 
@@ -406,9 +448,10 @@ component than on three, which is the opposite of where a colour-transform SIMD 
 dearer, so nothing recovers at the tier-up end either.
 
 **Heap after 100 frames, and here OpenHTJ2K is ahead**: 4.8 MB colour / 4.0 MB grey against
-OpenJPH's 7.0 MB and 4.8 MB. It is ahead for the reason it is slow — it builds and tears down its
-whole working set per codestream, where OpenJPH's `restart()` keeps the arena (§The wrapper's two
-passes). `.wasm` is 285,058 B against 245,447 B.
+OpenJPH's 7.0 MB and 4.8 MB. The gap is not `restart()`'s, as this paragraph once said: the
+OpenJPH wrapper that destroys and placement-news its codestream every frame reads the same 7.0 and
+4.8 on a cold single-shape run, 6/6 repeats (§Where to put the floor). It is the two libraries'
+working sets, which is also where OpenHTJ2K's time goes. `.wasm` is 285,058 B against 245,447 B.
 
 **One decoder object per codestream is not optional there.** Re-`init()`ing one
 `openhtj2k_decoder` — the shape `client/downloader/decoder.js` holds — **leaks one codestream per
