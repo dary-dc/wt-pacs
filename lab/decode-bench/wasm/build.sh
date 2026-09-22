@@ -29,10 +29,11 @@ build_arm() {
     -DCMAKE_CXX_FLAGS="$extra" -DCMAKE_C_FLAGS="$extra" >/dev/null
   cmake --build "$b/lib" -j"$(nproc)" --target openjph >/dev/null
 
-  em++ -O3 -std=c++17 $extra --bind "$HERE/htj2k_decoder.cpp" \
+  # $extra comes last so an arm can override a default here, -fexceptions included.
+  em++ -O3 -std=c++17 --bind "$HERE/htj2k_decoder.cpp" \
     -I"$SRC/src/core/common" -I"$SRC/src/core" \
     "$(find "$b/lib" -name 'libopenjph*.a' | head -1)" \
-    -msimd128 -DOJPH_ENABLE_WASM_SIMD -fexceptions \
+    -msimd128 -fexceptions $extra \
     -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=$((INITIAL_MB * 1024 * 1024)) \
     -sMODULARIZE=1 -sEXPORT_NAME=OpenJPHModule -sENVIRONMENT=node,worker \
     -o "$OUT/$arm.js"

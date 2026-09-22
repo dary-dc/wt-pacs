@@ -25,19 +25,15 @@ const arms = [];
 for (const spec of armSpecs) {
   const [label, dir] = spec.split('=');
   const M = await require(path.join(dir, 'plain.js'))();
-  arms.push({ label, M, atLoad: M.HEAPU8.length });
+  // One decoder object for every frame, which is what the product holds — client/downloader/decoder.js.
+  arms.push({ label, M, d: new M.HTJ2KDecoder(), atLoad: M.HEAPU8.length });
 }
 
-const decode = (M, b) => {
-  const d = new M.HTJ2KDecoder();
-  try {
-    d.getEncodedBuffer(b.length).set(b);
-    d.readHeader();
-    d.decode();
-    return Buffer.from(d.getDecodedBuffer());
-  } finally {
-    d.delete();
-  }
+const decode = (d, b) => {
+  d.getEncodedBuffer(b.length).set(b);
+  d.readHeader();
+  d.decode();
+  return Buffer.from(d.getDecodedBuffer());
 };
 
 for (const dir of dirs) {
@@ -52,7 +48,7 @@ for (const dir of dirs) {
     for (const x of arms.slice(shift).concat(arms.slice(0, shift))) {
       const t0 = performance.now();
       let bad = 0;
-      for (let i = 0; i < frames.length; i++) if (sha256(decode(x.M, frames[i])) !== truth[i]) bad++;
+      for (let i = 0; i < frames.length; i++) if (sha256(decode(x.d, frames[i])) !== truth[i]) bad++;
       if (round) {
         ms.get(x.label).push((performance.now() - t0) / frames.length);
         wrong.set(x.label, wrong.get(x.label) + bad);

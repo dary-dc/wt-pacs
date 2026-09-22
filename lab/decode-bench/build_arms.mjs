@@ -24,23 +24,18 @@ if (!dirs.length) {
 
 async function load(name) {
   const M = await require(path.join(armsDir, `${name}.js`))();
-  // These builds export no HEAPU8; a typed_memory_view is backed by the WASM memory itself.
-  const heap = () => {
-    const d = new M.HTJ2KDecoder();
-    try { return d.getEncodedBuffer(1).buffer.byteLength; } finally { d.delete(); }
-  };
+  // One decoder object for every frame, which is what the product holds — client/downloader/decoder.js.
+  const d = new M.HTJ2KDecoder();
   return {
     name,
-    heap,
+    // These builds export no HEAPU8; a typed_memory_view is backed by the WASM memory itself.
+    heap: () => d.getEncodedBuffer(1).buffer.byteLength,
     wasmBytes: fs.statSync(path.join(armsDir, `${name}.wasm`)).size,
     decode(bytes) {
-      const d = new M.HTJ2KDecoder();
-      try {
-        d.getEncodedBuffer(bytes.length).set(bytes);
-        d.readHeader();
-        d.decode();
-        return d.getDecodedBuffer();
-      } finally { d.delete(); }
+      d.getEncodedBuffer(bytes.length).set(bytes);
+      d.readHeader();
+      d.decode();
+      return d.getDecodedBuffer();
     },
   };
 }
