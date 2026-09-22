@@ -66,8 +66,13 @@ client reconnects, because steering does not cover a server restart.
    reconnect* needs a trigger the client does not currently get: an idle timeout 30 s later
    is what it has, so that option costs a liveness check, not just a re-dial.
 2. **The browser.** On a phone, a session scrolling while Wi-Fi is switched off: does
-   Chromium migrate a WebTransport session at all, or does it reconnect on its own? Unknown
-   today; a device answers it in an afternoon.
+   Chromium migrate a WebTransport session at all, or does it reconnect on its own?
+   **Answered for the code path 2026-09-22, from Chromium's public source and not from a device:
+   it does neither** — the dedicated WebTransport client owns one socket made at connect, observes
+   no network change, and is on none of the migration machinery `QuicChromiumClientSession` and
+   `QuicSessionPool` carry
+   ([`../proposal-session-survival.md`](../proposal-session-survival.md) §What this means for the
+   stack choice). A device is still owed, and still answers it in an afternoon.
 3. **Telemetry.** Count resets and reconnects per session-hour in the client recorder; that
    number is the decision.
 4. **Options, costed:**
@@ -90,4 +95,4 @@ new entry.
 ## Stop conditions
 
 Step 2 showing Chromium never migrates: then only NAT rebinds matter and the rate in step 3
-is what to read.
+is what to read. Source met that condition on 2026-09-22 for the code path; a device has not.

@@ -268,7 +268,11 @@ the mechanism that absorbs exactly this, and it is the one this removes. Three t
 none of them measured here: a UDP front forwarding sessions from one source port makes the
 one-thread row permanent rather than exceptional; a mobile fleet's Wi-Fi-to-cellular handovers and
 NAT rebinds change the 4-tuple, and connection migration is the QUIC feature 4-tuple hashing
-defeats (eBPF reuseport steering on the connection ID is the usual answer and is not here); and a
+defeats (eBPF reuseport steering on the connection ID is the usual answer and is not here) — though
+**a browser page has no migration to lose**, verified in Chromium's source 2026-09-22
+([`../proposal-session-survival.md`](../proposal-session-survival.md) §What this means for the
+stack choice), so on the product's own client this paragraph costs a NAT rebind, not a handover; and
+a
 `current_thread` runtime has no relief valve when one session blocks its thread — this box never
 makes the reader miss, so that path has never run blocked.
 

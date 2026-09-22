@@ -1,26 +1,126 @@
 # Proposal: a session that dies is noticed and resumed
 
-**2026-09-19 · Status: proposed, nothing built.** Structural, so this is a proposal first
-(`CLAUDE.md`). A1, from [S2 and S3](improvements/2026-09-18.md). One number it asks for cannot be
-taken here yet — see §The measurement this owes.
+**2026-09-19, the client half verified from Chromium's source 2026-09-22 · Status: proposed,
+nothing built.** Structural, so this is a proposal first (`CLAUDE.md`). A1, from
+[S2 and S3](improvements/2026-09-18.md). One number it asks for cannot be taken here yet — see
+§The measurement this owes; what the stack choice assumed and what is left of it is
+§What this means for the stack choice.
 
 ## The problem, stated as a freeze
 
-**Chromium never migrates a WebTransport session.** Its client has no network-change handling, so
-Wi-Fi → cellular ends the session whatever the server does. Nothing in the API reports it. The
-client discovers the path is dead only when an idle timeout fires — the smaller of the two peers'
-— and until then it sits holding a session that cannot carry a byte.
+**Chromium does not move a WebTransport session to a new network.** Its dedicated WebTransport
+client keeps one socket, made once at connect, watches no network change, and carries none of the
+migration code Chromium's pooled HTTP/3 path has — read from the public source on 2026-09-22, file
+by file, in §What this means for the stack choice. So Wi-Fi → cellular ends the session whatever
+the server does, and nothing in the API reports it.
 
-That makes [`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md)'s recommendation
-read differently than when it was written. The pair there is **20 s keep-alive, 60 s server idle
+**What that evidence is, exactly.** Absence in the files that would have to implement it, read once
+on one date — which says no code path exists for the browser to move the session, and is not a
+device result. **No phone has been tried here**, and on WebKit the same question is not answerable
+from source at all ([`improvements/2026-09-19-sweep.md`](improvements/2026-09-19-sweep.md) S25).
+
+The client discovers the path is dead only when an idle timeout fires — the smaller of the two
+peers' — and until then it sits holding a session that cannot carry a byte.
+
+**The length of that freeze has not been measured on a browser; both sides of it have.** L15
+(2026-09-16, container) read what Chromium advertises: `max_idle_timeout 30000`, and a self-ping
+every 15 s that keeps an *idle* session alive for 180 s with server keep-alive off
+([`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md) §What a real Chromium does).
+The 30-second freeze itself was measured on a **native** client, not a browser, and after a **NAT
+rebind**, not a radio change: T6 step 1, where `lab/scripts/link_impair.py` moved its own upstream
+source port mid-session, the client saw no reset at all, and the session ended at `connection timed
+out` **30 001 ms** later — quinn's default — in 3/3 repeats
+([`lanes/T6-session-survival.md`](lanes/T6-session-survival.md)). A browser's freeze is that
+mechanism with Chromium's 30 s in place of quinn's: arithmetic, not a reading.
+
+That makes [`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md)'s recommendation read
+differently than when it was written. The pair there is **20 s keep-alive, 60 s server idle
 timeout**, chosen against the 30 s Chromium advertises (L15 confirmed it does, exactly). Those are
-still the right numbers for *holding a session open*. But the timeout is also **the length of the
-freeze**: a 60 s server timeout against Chromium's 30 s means the client notices at 30 s, and the
-recommendation doubles the 30 s freeze L15 measured rather than shortening it.
+still the right numbers for *holding a session open*. But the timeout is also **the detection
+bound**, and the effective one is the lower of the two ends — the ADR's own §Picking the pair — so
+a 60 s server timeout leaves detection where the browser puts it, at **30 s**. **Corrected in place
+2026-09-22:** this paragraph used to say the recommendation *doubles the 30 s freeze L15 measured*.
+It does neither — it cannot push detection past the client's own bound, and L15 measured an
+advertised timeout, not a freeze. Only a server idle timeout **below 30 s** moves detection, which
+is the number A1 asks for at 10 s (§The measurement this owes).
 
 **The timeout is a detection bound, and it is the wrong instrument.** It exists to reclaim a dead
 session, not to tell a viewer its data stopped. Detection should come from the platform, and the
 timeout should stay where it is.
+
+**What is not evidence here.** The blink and blackout lanes
+([`improvements/2026-09-20.md`](improvements/2026-09-20.md)) interrupt the **same** path: the
+4-tuple never changes, the session survives the outage by construction, and what they measure is
+what slow start does afterwards. They say nothing either way about a network change.
+
+## What this means for the stack choice
+
+**The assumption this transport was partly chosen on.** A QUIC session is named by a connection ID,
+not by its 4-tuple, so connection migration was expected to carry a viewer across a Wi-Fi ↔ cellular
+handover that would break a TCP socket. [`transport/why-these-changes.md`](transport/why-these-changes.md)
+§8 states it in that form: "connection migration is the QUIC feature 4-tuple hashing defeats".
+**That property is not available to a browser page today.** The two halves below are verified
+differently, and neither is a device.
+
+**Client half — Chromium's public source, read 2026-09-22 at `refs/heads/main`** (each row
+`https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/quic/<file>`):
+
+| file | what it shows |
+| --- | --- |
+| `dedicated_web_transport_http3_client.h` | `class DedicatedWebTransportHttp3Client : public WebTransportClient, public quic::WebTransportVisitor, public QuicChromiumPacketReader::Visitor, public QuicChromiumPacketWriter::Delegate` — **no `NetworkChangeNotifier` observer among the bases**, and the session it owns is a plain `std::unique_ptr<quic::QuicSpdyClientSession>`, not `QuicChromiumClientSession` |
+| `dedicated_web_transport_http3_client.cc` | the socket is created once in `DoConnect()` (`CreateDatagramClientSocket(DatagramSocket::DEFAULT_BIND, target_network_, ...)`, then `ConnectAsync`) and **never re-created or re-bound**; `OnWriteError` forwards to `connection_->OnWriteError`, `OnReadError` closes the connection; the file contains no `Migrate*`, no `OnNetworkMadeDefault`, no network-change observer or timer |
+| `quic_chromium_client_session.h` | where the migration that does exist lives: `MigrateNetworkImmediately`, `MigrateSessionOnWriteError`, `MigrateWithoutProbing`, `OnNetworkConnected`, `OnNetworkDisconnectedV2`, `OnNetworkMadeDefault`, with `MigrationResult` and `ConnectionMigrationMode` |
+| `quic_session_pool.h` | `class QuicSessionPool : public NetworkChangeNotifier::IPAddressObserver, public NetworkChangeNotifier::NetworkObserver, ...` — the observer that drives those calls, over the pool's HTTP/3 sessions. **WebTransport is not mentioned in the file** |
+| `quic_context.h` | and even there it is conditional: `migrate_sessions_on_network_change_v2` defaults to `base::FeatureList::IsEnabled(features::kMigrateSessionsOnNetworkChangeV2)`, `migrate_sessions_early_v2` and `migrate_idle_sessions` to `false`, `allow_port_migration` to `true` |
+
+The page's WebTransport session is built by the first two rows and is on none of the machinery of
+the last three. **What the file's own history would add is missing:** the gitiles `+log` page for
+that file answered HTTP 403, so nothing here is pinned to a commit — only to `refs/heads/main` on
+the date above. RFC 9000 §10.1 could not be fetched whole either (both renderings truncate before
+§10), so the lower-of-the-two idle timeout rule above is cited from the ADR that already measured
+it, not from the RFC.
+
+**Server half — ours, and measured.** Per-core endpoints hash a session onto one socket, so a moved
+session lands on a worker that does not know it and its packets are dropped in silence: **12 of 16
+rebinds killed the session at `--workers 4` against 0 of 6 at `--workers 1`**, the `(W−1)/W` kill
+rate the hash predicts, with **no stateless reset reaching the client**
+([`lanes/T6-session-survival.md`](lanes/T6-session-survival.md), 2026-09-18, this container, a
+native probe). This half is ours to fix — one endpoint, connection-ID steering, or the multi-thread
+runtime without §8 — each costed in that lane.
+
+**Not tried, by anyone here.** A device: no phone, no SIM, no radio handover, and no browser reading
+of the freeze. Nor a genuinely different client **address**: the probe changes a port on one
+loopback address, and a port-only rebind on a single endpoint costs nothing at all
+([`transport/NEXT.md`](transport/NEXT.md) row 6). The device row is
+[`cloud-queue.md`](cloud-queue.md) row 59.
+
+**The consequence, for the stack choice.**
+
+* **An application-layer reconnect is required regardless of the server shape.** Fixing the server
+  half restores nothing on a handover: the browser's socket stays bound to the dead path and there
+  is no code in its WebTransport client to move the session. The triggers, probe and re-issue this
+  document proposes are the mechanism, not a workaround for a server bug.
+* **QUIC migration is not usable from a browser page today.** It is real in the protocol and real in
+  Chromium's pooled HTTP/3 path; it is not on the path a page reaches, and the API exposes no knob
+  for it. Third-party write-ups saying a phone moving from Wi-Fi to cellular keeps its WebTransport
+  session — the common claim a search returns on 2026-09-22 — describe the protocol, not the
+  browser's WebTransport client, and none of them cites the code.
+* **A reconnect is a cold session** — 2 RTT plus certificate verification, no 0-RTT for CONNECT and
+  no pooling onto a warm connection in Chromium or Safari (`transport/NEXT.md` row 6) — so the
+  round-trip cuts in [`proposal-session-open.md`](proposal-session-open.md) are worth more than
+  their own cells say: they are paid again on every handover.
+* **Nothing here re-opens the rest of the choice.** Streams, loss behaviour and the fill's numbers
+  are measured elsewhere and are not what this finding touches. One assumed property is gone.
+
+**What would change it.** Browser support: Chromium wiring its dedicated client to the
+network-change machinery, which would show as those symbols appearing in
+`dedicated_web_transport_http3_client.cc` — re-read the file before re-deciding. **No public
+tracking issue was found for it** (searched 2026-09-22): `w3c/webtransport` returns five closed
+issues for "migration", none on the subject, and the nearest Chromium one,
+<https://issues.chromium.org/issues/40849481> "WebTransport should reconnect after …", is indexed
+with its title truncated and its tracker page requires sign-in — it could not be read, so nothing is
+claimed about what it says. The other two changes are ours: the server half above, and a device that
+puts a reading where the source inference is.
 
 ## What the platform already offers
 
@@ -101,4 +201,5 @@ lane wants is the same probe against a 10 s one. This file's other quantities ar
 elsewhere: Chromium advertises 30 s (L15) and a 61 MB fill at 20 Mbit is 24 s (arithmetic).
 
 Everything above is a design. The order it should be proved in: the rebind number after T1, then
-the triggers on a phone, which is the only place `freeze` and a radio change both happen for real.
+the triggers on a phone, which is the only place `freeze` and a radio change both happen for real
+— [`cloud-queue.md`](cloud-queue.md) row 59.
