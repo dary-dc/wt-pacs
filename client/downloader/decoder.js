@@ -78,6 +78,7 @@ onmessage = async (e) => {
     toConsumer.postMessage({
       kind: "frame",
       index: m.index,
+      gen: m.gen,
       pixels: sab,
       width: info.width,
       height: info.height,
@@ -89,8 +90,8 @@ onmessage = async (e) => {
       byteCount: out.length,
       stamps,
     });
-    postMessage({ kind: "done", index: m.index, byteCount: out.length });
+    postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: out.length });
   } catch (err) {
-    postMessage({ kind: "failed", index: m.index, reason: String(err?.message ?? err) });
+    postMessage({ kind: "failed", index: m.index, gen: m.gen, reason: String(err?.message ?? err) });
   }
 };

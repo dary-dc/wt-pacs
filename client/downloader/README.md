@@ -13,6 +13,13 @@ Design and what it is for: [`docs/proposal-downloader.md`](../../docs/proposal-d
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
 
+**A request is a generation.** `cancel()` bumps it and returns a promise that resolves once the
+downloader has ended the stream and dropped that request's work; every frame and failure carries the
+generation it was made under, and anything older is dropped on the page rather than handed over
+under an index the new request is using. A refused *fill* frame has no waiter, so it reaches the
+consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
+rejects its own promise. [`proposal-downloader.md`](../../docs/proposal-downloader.md) §The consumer.
+
 Run the arm (`client/harness/downloader.html`) the way the README's quick start runs the others,
 against any study — it checks each decoded frame against the fixture's `.sha256`:
 

@@ -10,10 +10,15 @@ export class DownloaderClient {
   #waiters = new Map();
   #closedReason = null;
   #onFrame;
+  #onError;
   #ready;
+  /** The page's copy of the downloader's generation: both step on `cancel`, and messages are ordered. */
+  #gen = 0;
+  #cancels = [];
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
+    this.#onError = opts.onError ?? (() => {});
     this.#worker = new Worker(new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);
     this.#ready = new Promise((resolve, reject) => {
@@ -57,19 +62,24 @@ export class DownloaderClient {
       return;
     }
     if (m.kind === "frame") return void this.#deliver(m);
+    if (m.kind === "cancelled") return void this.#cancels.shift()?.();
     if (m.kind === "failed") {
       // A failure before `started` is the start itself failing: connect must reject, not hang.
       if (!this.#started) return void this.#rejectReady(new Error(`the downloader failed to start: ${m.reason}`));
+      if (m.gen !== this.#gen) return;
       return void this.#failOne(m.index, m.reason);
     }
     if (m.kind === "closed") return void this.#failAll(m.reason);
   }
 
   #deliver(m) {
+    // A frame of a cancelled request under the index a new one is using: wrong pixels, right key.
+    if (m.gen !== this.#gen) return;
     const w = this.#waiters.get(m.index);
     const bytes = m.pixels instanceof SharedArrayBuffer ? new Uint8Array(m.pixels) : m.pixels;
     const frame = {
       frameIndex: m.index,
+      generation: m.gen,
       bytes,
       timing: { askMs: m.stamps?.ask ?? 0, lastChunkMs: m.stamps?.lastByte || m.stamps?.decodeEnd || 0 },
       info: m,
@@ -86,7 +96,8 @@ export class DownloaderClient {
 
   #failOne(index, reason) {
     const w = this.#waiters.get(index);
-    if (!w) return;
+    // Nobody is waiting on it, so it is a fill frame: the refusal reaches the consumer here or nowhere.
+    if (!w) return void this.#onError({ frameIndex: index, reason, generation: this.#gen });
     clearTimeout(w.timer);
     this.#waiters.delete(index);
     w.reject(new Error(`frame ${index} unavailable: ${reason}`));
@@ -125,8 +136,17 @@ export class DownloaderClient {
     this.#worker.postMessage({ kind: "fill", indices });
   }
 
+  /** Resolves once the downloader has ended the stream and dropped this request's work. */
   cancel() {
+    this.#gen += 1;
+    for (const [index, w] of this.#waiters) {
+      clearTimeout(w.timer);
+      w.reject(new Error(`frame ${index} unavailable: AbortError: the fill was cancelled`));
+    }
+    this.#waiters.clear();
+    const done = new Promise((r) => this.#cancels.push(r));
     this.#worker.postMessage({ kind: "cancel" });
+    return done;
   }
 
   stats() {

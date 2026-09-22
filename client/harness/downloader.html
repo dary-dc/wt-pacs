@@ -99,8 +99,7 @@
       // 4 — a cancel, and the session still serving
       fillFrames.length = 0;
       c.fill(want);
-      c.cancel();
-      await new Promise((r) => setTimeout(r, 300));
+      await c.cancel();
       const after = await c.requestExactFrame(5);
       const v3 = await check(after);
       log(`\ncancel:      the session still serves frame 5 afterwards: ${v3.ok ? "ok" : "MISMATCH"}`);
