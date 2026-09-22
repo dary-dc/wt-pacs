@@ -20,8 +20,20 @@ const WARMUP = {
   cine512: "/client/downloader/warmup/colour-8.j2c",
   g512: "/client/downloader/warmup/grey-16.j2c",
 };
+/** The same shape as WARMUP, sized to the *other* set's sample count: shape without size. */
+const SIZED = {
+  cine512: "/lab/fixtures/decode_warmup_c92/000.j2c",
+  g512: "/lab/fixtures/decode_warmup_g277/000.j2c",
+};
 const SETS = (process.env.SETS || "cine512,g512").split(",");
-const ARMS = ["none", "mismatch", "match"];
+const other = (set) => SETS.find((s) => s !== set) ?? set;
+const ARMS = {
+  none: () => "",
+  mismatch: (set) => WARMUP[other(set)],
+  "mismatch-sized": (set) => SIZED[other(set)],
+  match: (set) => WARMUP[set],
+};
+const ARM_NAMES = (process.env.ARMS || Object.keys(ARMS).join(",")).split(",");
 const METRICS = ["d0", "d1", "d2", "b0", "w0", "first_ms", "fill_ms"];
 /** 0 is loopback, where the bytes beat the decoders and no idle window exists to warm in. */
 const RTT = Number(process.env.RTT || 0);
@@ -102,7 +114,7 @@ const browser = await chromium.launch({
 
 const rows = [];
 async function visit(set, arm, override) {
-  const warmup = override ?? (arm === "none" ? "" : WARMUP[arm === "match" ? set : SETS.find((s) => s !== set) ?? set]);
+  const warmup = override ?? ARMS[arm](set);
   const page = await browser.newPage();
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
@@ -123,8 +135,8 @@ for (const set of SETS) {
   const bad = await visit(set, "none", "/lab/decoder-warmup/README.md").catch((e) => ({ error: e.message }));
   console.log(`${set}: a warm-up that is not a codestream delivers ${bad.delivered ?? `nothing — ${bad.error}`}/${FRAMES}`);
   for (let round = 0; round < ROUNDS; round++) {
-    for (let k = 0; k < ARMS.length; k++) {
-      const arm = ARMS[(round + k) % ARMS.length];
+    for (let k = 0; k < ARM_NAMES.length; k++) {
+      const arm = ARM_NAMES[(round + k) % ARM_NAMES.length];
       try {
         rows.push({ set, arm, round, ...(await visit(set, arm)) });
       } catch (e) {
@@ -145,10 +157,10 @@ const cell = (set, arm) => rows.filter((r) => r.set === set && r.arm === arm);
 console.log(`\nframes ${FRAMES}, rounds ${ROUNDS}, rtt ${RTT} ms, three arms interleaved inside every round`);
 for (const set of SETS) {
   const none = new Map(cell(set, "none").map((r) => [r.round, r]));
-  console.log(`\n${"set " + set} (${WARMUP[set]})`);
+  console.log(`\nset ${set} — match ${WARMUP[set]}, mismatch ${WARMUP[other(set)]}, mismatch-sized ${SIZED[other(set)]}`);
   console.log(`${"arm".padEnd(9)} ${"metric".padEnd(9)} ${"n".padStart(3)} ${"median".padStart(8)} ` +
     `${"min".padStart(8)} ${"max".padStart(8)} ${"wins vs none".padStart(13)}`);
-  for (const arm of ARMS) {
+  for (const arm of ARM_NAMES) {
     const got = cell(set, arm);
     for (const m of METRICS) {
       const v = got.map((r) => r[m]).filter((x) => x != null);
@@ -161,7 +173,7 @@ for (const set of SETS) {
         `${(arm === "none" ? "—" : `${wins}/${paired.length}`).padStart(13)}`);
     }
   }
-  const digests = new Set(cell(set, "none").concat(cell(set, "match"), cell(set, "mismatch")).map((r) => r.digest));
+  const digests = new Set(ARM_NAMES.flatMap((a) => cell(set, a)).map((r) => r.digest));
   console.log(`pixels: ${digests.size === 1 ? "identical on every arm and every round" : `DIFFER — ${digests.size} distinct digests`}`);
 }
 
