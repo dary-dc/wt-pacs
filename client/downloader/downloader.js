@@ -10,7 +10,9 @@ let TransportSession = null;
 const abs = () => performance.timeOrigin + performance.now();
 
 let session = null;
-let cfg = { decoders: 3, decode: true, perDecoder: 2 };
+let cfg = { decoders: 3, decode: true, perDecoder: 2, survival: true };
+/** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns it all off. */
+const deadlines = { stallMs: 3000, probeMs: 2000, redialMs: 1000, tries: 5 };
 let dial = null;
 let dialling = null;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
@@ -18,6 +20,13 @@ let generation = 0;
 let asksInFlight = 0;
 // S6: the dial and the decoders start together; dispatch waits on this, the dial does not.
 let decodersUp = false;
+/** The session's identity: `+1` when one is declared dead, so its callbacks become no-ops. */
+let epoch = 0;
+let resuming = null;
+let checking = false;
+let lastArrival = 0;
+let lastDelivered = -1;
+let stall = null;
 
 const decoders = [];
 /** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
@@ -29,6 +38,8 @@ const wanted = new Set();
 function post(msg, transfer) {
   postMessage(msg, transfer ?? []);
 }
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function fail(index, reason) {
   records.delete(index);
@@ -95,6 +106,9 @@ function record(index, priority, askMs) {
 /** A frame's bytes are here: straight to the consumer, or into the queue for a decoder. */
 function arrived(index, frame) {
   wanted.delete(index);
+  lastArrival = abs();
+  lastDelivered = index;
+  armStall();
   const rec = records.get(index);
   if (!rec) return;
   rec.stamps.lastByte = abs();
@@ -112,15 +126,16 @@ function arrived(index, frame) {
 /** The server ends a running fill for an ask (L16), so the remainder is re-issued once the ask settles. */
 async function ask(index, promise) {
   const gen = generation;
+  const ep = epoch;
   asksInFlight += 1;
   try {
     const frame = await promise;
-    if (gen === generation) arrived(index, frame);
+    if (gen === generation && ep === epoch) arrived(index, frame);
   } catch (e) {
-    if (gen === generation) fail(index, String(e?.message ?? e));
+    if (gen === generation && ep === epoch && !lost()) fail(index, String(e?.message ?? e));
   } finally {
     // A cancelled ask's count was already dropped with the rest of its generation's work.
-    if (gen === generation) {
+    if (gen === generation && ep === epoch) {
       asksInFlight -= 1;
       issueFill();
     }
@@ -138,15 +153,16 @@ function nextRun() {
 
 function fillHandlers(from, to) {
   const gen = generation;
+  const ep = epoch;
   return {
     onFrame: (frame) => {
-      if (gen !== generation) return;
+      if (gen !== generation || ep !== epoch) return;
       arrived(frame.frameIndex, frame);
       if (frame.frameIndex === to) issueFill();
     },
     // A refused range is one frame_error at `from`, so the run fails whole.
     onError: (_index, reason) => {
-      if (gen !== generation) return;
+      if (gen !== generation || ep !== epoch || lost()) return;
       for (let i = from; i <= to; i++) if (wanted.has(i)) fail(i, reason);
       issueFill();
     },
@@ -159,6 +175,76 @@ function issueFill() {
   if (!run) return;
   const { onFrame, onError } = fillHandlers(run.from, run.to);
   session.fillFrames(run.from, run.to, onFrame, onError);
+  armStall();
+}
+
+
+/** A fill gone quiet is a trigger; so is every platform signal. docs/proposal-session-survival.md */
+function armStall() {
+  clearTimeout(stall);
+  stall = cfg.survival && wanted.size > 0 ? setTimeout(suspect, deadlines.stallMs) : null;
+}
+
+/** None of the triggers proves the path is dead, so each one starts a check, not a re-dial. */
+function suspect() {
+  if (!cfg.survival || checking || resuming || !session) return;
+  // The probe reuses a frame already in hand, so one the fill wants again is not a candidate.
+  if (lastDelivered < 0 || records.has(lastDelivered) || wanted.has(lastDelivered)) return;
+  if (abs() - lastArrival < deadlines.stallMs) return;
+  checking = true;
+  probe().finally(() => { checking = false; });
+}
+
+/** The cheapest honest test of a session is to use it: one ask, discarded, with a deadline. */
+async function probe() {
+  const ep = epoch;
+  const at = abs();
+  if (session.stats().closed) return void lost();
+  // An ask ends the running fill on the server (L16), so the remainder is re-issued after it.
+  asksInFlight += 1;
+  const answer = session.requestExactFrame(lastDelivered).then(() => true, () => false);
+  const alive = await Promise.race([answer, sleep(deadlines.probeMs).then(() => false)]);
+  if (ep !== epoch) return;
+  asksInFlight -= 1;
+  // A frame that landed while the probe was out proves the path whatever became of the probe.
+  if (!alive && lastArrival < at) return void lost(true);
+  armStall();
+  issueFill();
+}
+
+/** True once the session is being resumed. The probe's missed deadline is the only proof a
+ *  caller may bring of its own; every other one must see the session already closed. */
+function lost(proved) {
+  if (!cfg.survival || !dial || !session) return false;
+  if (!proved && !session.stats().closed) return false;
+  resuming ??= resume().finally(() => { resuming = null; });
+  return true;
+}
+
+const owedAsks = () =>
+  [...records].filter(([, r]) => r.state === "wire" && r.priority === "ask").map(([i]) => i);
+
+/** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
+async function resume() {
+  epoch += 1;
+  asksInFlight = 0;
+  clearTimeout(stall);
+  session.close();
+  session = null;
+  dialling = null;
+  for (let n = 0; n < deadlines.tries; n++) {
+    if (wanted.size === 0 && owedAsks().length === 0) return;
+    try {
+      await connect();
+      for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
+      return void post({ kind: "resumed" });
+    } catch {
+      await sleep(deadlines.redialMs);
+    }
+  }
+  const reason = "the session was lost and could not be re-dialled";
+  for (const i of [...wanted]) fail(i, reason);
+  for (const [i, rec] of [...records]) if (rec.state === "wire") fail(i, reason);
 }
 
 function onDone(d, m) {
@@ -192,6 +278,7 @@ async function start(m) {
     post({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
     decoders.push(d);
   }
+  if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
   // The decoders come up without the session URL, which arrives in `dial`; `decodersUp` gates
   // dispatch alone — docs/proposal-downloader.md §The downloader.
   if (cfg.fill) want(cfg.fill, abs());
@@ -223,10 +310,15 @@ async function connect() {
 
 /** A command after a closure re-dials, as the proposal requires. */
 async function live() {
+  await resuming;
   if (session && !session.stats().closed) return session;
   await connect();
   return session;
 }
+
+// The page's own triggers — visibility, pageshow, freeze/resume — are forwarded by consumer.js.
+for (const ev of ["online", "offline"]) addEventListener(ev, suspect);
+navigator.connection?.addEventListener?.("change", suspect);
 
 onmessage = async (e) => {
   const m = e.data;
@@ -252,8 +344,10 @@ onmessage = async (e) => {
       want(m.indices, abs());
       return void issueFill();
     }
+    if (m.kind === "check") return void suspect();
     if (m.kind === "cancel") {
       generation += 1;
+      clearTimeout(stall);
       queue.ask.length = 0;
       queue.fill.length = 0;
       records.clear();
@@ -264,6 +358,7 @@ onmessage = async (e) => {
     }
     if (m.kind === "stats") return void post({ kind: "stats", id: m.id, stats: session ? session.stats() : { inFlight: 0 } });
     if (m.kind === "close") {
+      clearTimeout(stall);
       session?.close();
       for (const d of decoders) d.worker.terminate();
       return void post({ kind: "closed", reason: "closed by the consumer" });
