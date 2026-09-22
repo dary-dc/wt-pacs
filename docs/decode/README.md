@@ -662,10 +662,14 @@ both caches available to it, and still saw nothing on the first frame. What is t
 **load-time** gain across arms is not only the HTTP cache: the JavaScript code cache writes the
 glue's 63 336 B entry on visit 2 and deserializes it on visit 3 (§Instantiating by streaming).
 
-**D6's own remedy was to decode a small codestream at `init`. It does not remove the cost.** With
-a warm-up decode the first real frame still pays **3.50×** and **3.26×** — better than 3.9× and
-3.6×, and nowhere near gone. That is the behaviour S13 describes: tiering is per function with no
-on-stack replacement, so warming *some* functions does not promote the ones the next frame runs.
+**D6's own remedy was to decode a small codestream at `init`, and this section used to say flatly
+that it does not remove the cost. D15 corrects that** — §Warming the decoders. With a warm-up the
+first real frame here still pays **3.50×** and **3.26×** against 3.9× and 3.6×, and D6's warm-up
+was `decode_g160`: one component, 16-bit — the *same* shape as `g512`, where it moved the number,
+and the *wrong* shape for `cine512`, where it moved nothing (13.7 → 13.9). On the product path
+D15 measures a warm-up worth 30–45 % of frames 0–2 whatever its shape, with the shape deciding
+what happens to the frames after them. S13's mechanism is unchanged: tiering is per function with
+no on-stack replacement, so a warm-up promotes only the functions it actually runs.
 
 **What was named as the remedy — a streaming compile — was measured in D8 and is a tie.**
 §Instantiating by streaming.
@@ -675,6 +679,85 @@ first-frame cost of about 12 ms on that path, reproduced twice and undiagnosed, 
 11.8–16.9 ms against a 3 ms steady state. The shapes match. Nothing here confirms it — the BYOB
 figure was measured on a different path and a different rig — but a lane that reopens L2 should
 price this first.
+
+## Warming the decoders
+
+D15. If the first frames cost four times the steady state because the engine tiers the decoder's
+hot functions over them, that cost can be **moved** rather than removed: decode a frame in each
+decoder while the session is still opening. `client/downloader/decoder.js` takes `warmup`, a URL
+to a codestream, fetched beside its own WASM compile and decoded through the same path a real
+frame takes — copy into the `SharedArrayBuffer` and range pass included — before that decoder
+answers `ready`. `decodersUp` already gates dispatch on `ready`, so no frame can reach a decoder
+that has not warmed, and nothing reaches the session: it is one same-origin GET. **It is off by
+default, and the numbers below are why.**
+
+`lab/decoder-warmup/`: four arms interleaved inside every round with the order rotated, 12 rounds,
+a 12-frame fill on three decoders, one fresh page and one fresh session per visit, loopback.
+**none** · **mismatch**, a warm-up of the other set's shape · **mismatch-sized**, the other shape
+again resized to the same **sample count** as the matching one, which is what separates shape from
+size · **match**, the series' own shape. The shipped frames are `colour-8.j2c`, 160x160x3 8-bit,
+6 708 B and `grey-16.j2c`, 160x160 16-bit, 38 331 B; the two controls are 92x92x3 (3 222 B) and
+277x277 (111 069 B). Frames 0, 1 and 2 are one per decoder — on loopback the whole fill lands in
+41–56 ms, so all three decoders take their first frame at once.
+
+Medians in ms over 12 rounds, ranges where a claim rests on them, `(k/12)` rounds better than
+`none` on the same round:
+
+| set | arm | frame 0 | frame 1 | frame 2 | frames 3–11 | 12 decodes |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `cine512` 8-bit colour | none | 44.33 [38.2 … 47.4] | 45.15 | 44.41 | 10.22 [9.6 … 11.5] | 229.6 |
+| | mismatch | 34.58 (12/12) | 34.51 (12/12) | 33.08 (12/12) | **14.66 [13.7 … 16.9]** | 234.1 |
+| | mismatch-sized | 31.50 (12/12) | 31.34 (12/12) | 29.38 (11/12) | **14.39 [13.0 … 16.4]** | 228.6 |
+| | **match** | **29.49 [24.0 … 33.4]** (12/12) | 29.21 (12/12) | 27.43 (12/12) | **9.60 [9.3 … 10.4]** | **188.2** |
+| `g512` 16-bit grey | none | 37.68 [34.7 … 43.0] | 37.67 | 37.95 | 9.46 [6.9 … 11.7] | 196.4 |
+| | mismatch | 20.00 (12/12) | 23.66 (12/12) | 21.47 (12/12) | 9.73 [8.1 … 13.0] | 152.1 |
+| | mismatch-sized | 23.73 (12/12) | 23.03 (12/12) | 23.50 (12/12) | 8.91 [8.0 … 12.6] | 153.3 |
+| | **match** | **20.74 [17.7 … 22.2]** (12/12) | 20.23 (12/12) | 19.09 (12/12) | 7.95 [6.8 … 9.7] | **134.7** |
+
+**A warm-up is worth 30–45 % of frames 0–2, and almost none of that is the shape.** Every warm-up
+arm beats `none` on every one of the six first-frame cells, 12/12. At equal sample count the
+matching arm is 29.49 against 31.50 (colour, 7/12) and 20.74 against 23.73 (grey, 11/12) — two to
+three ms of a fifteen ms gain, with the ranges overlapping on the colour set. What the first
+frames want is **samples to tier on**, not the right shape: the 76 800-sample arms beat the
+25 600-sample ones on both sets whichever shape they carry.
+
+**The shape decides the frames after them, and on colour it decides them against you.** On
+`cine512` a mismatched warm-up leaves frames 3–11 at 14.4–14.7 ms against 10.22 with **no warm-up
+at all** — ranges that do not overlap, both sizes, and the matching arm better than either on
+12/12 rounds. Over the whole fill the matching warm-up saves 41 ms of decode (229.6 → 188.2) and a
+mismatched one saves nothing (234.1, 228.6). `g512` shows the same sign and nothing more: 7.95
+against 8.91–9.73, ranges overlapping, 8/12. A mismatched warm-up is the one arm here that can be
+*worse than no warm-up*, so a product that ships a warm-up frame must pick it from the series'
+metadata — `client/downloader/README.md`.
+
+**It does not reach the page's clock on this box.** The decoders answer `ready` later by about
+what the frames save, and `w0` — the first frame's bytes waiting for a decoder — is where it
+shows:
+
+| set | arm | bytes at (ms) | waiting for a decoder | frame 0 at the page | fill done |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `cine512` | none | 41.3 | 33.4 | 119.3 | 157.1 |
+| | match | 45.6 | 53.9 (0/12) | 130.0 (2/12) | 165.1 (1/12) |
+| `g512` | none | 52.6 | 29.0 | 119.1 | 151.0 |
+| | match | 56.0 | 43.1 (1/12) | 120.6 (6/12) | 148.0 (9/12) |
+
+On loopback there is **no idle window to warm in**: the bytes of frame 0 land at 41–53 ms and the
+decoders are not ready until 30–55 ms after that, warm-up or none. Repeated through
+`lab/scripts/link_impair.py` at a 40 ms round trip, where the bytes land at 470 ms (`cine512`) and
+615 ms (`g512`), an idle window does exist — `none` waits 0.0 and 0.1 ms for a decoder — and the
+warm-up still does not pay: on `cine512` it pushes the wait to 66.4 ms and frame 0 from 522 to
+555 ms (4/12); on `g512` it fits inside the window (0.1 ms) and frame 0 does not move, 658 → 661
+(8/12). The arms' first frames are 47.7 → 41.0 ms there, inside a `none` range of [17.6 … 105.8].
+
+**What this is not.** Loopback and a userspace relay on a four-core box carrying other lanes, so
+only the within-round differences are claimed and none of the levels. At 40 ms the frames arrive
+one at a time and `pump()` hands them all to the first free decoder, so only frame 0 is a cold
+decoder's first frame there — the 12-round loopback table is the decode measurement and the 40 ms
+run is the page-clock one. The warm-up's own size was not swept: 160x160 is D6's size, the shipped
+grey frame is 38 331 B against the colour frame's 6 708 B because 16-bit grey does not compress
+like a cine loop, and both were fetched from a static host with no `Cache-Control` — a warm-up
+that the app already holds costs less than one measured here. Nothing here was measured on a
+phone, which tiers more slowly and would pay more for the same miss.
 
 ## Instantiating by streaming
 
