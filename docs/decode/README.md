@@ -744,6 +744,74 @@ because nothing here is a timing claim. Nothing has been measured on a phone, wh
 memory question is finally settled. The fixtures are the synthetic ones §What these numbers are
 not describes, so the codestream totals above are theirs and not a real series'.
 
+## What a decoder worker costs, resident
+
+A decoder worker has no RSS of its own — dedicated workers are threads in the page's renderer — so
+its cost is a **slope in the worker count**: the same page decodes the same series at `decoders=1`
+and at `decoders=3`, and the answer is `(RSS₃ − RSS₁) / 2`. `lab/decoder-memory/` runs that
+ablation over 87 × 512×512 × 16-bit frames with the wrapper as delivered, interleaved with the arm
+and count order rotated every round, one page in a fresh context per run, every frame checked
+against the `.sha256` the generator wrote from the encoder's input. Chrome 148, peak from the
+kernel's `VmHWM`, settled after `measureUserAgentSpecificMemory()` — which collects across the
+agent cluster, so the workers are collected too — with the workers still alive when it is read.
+
+**A decoder worker of ours costs 5.9 MB resident, of which 5.7 MB is its own JS+WASM heap.**
+n = 6 rounds, MB, median [range]:
+
+| arm | what it changes | per-worker resident | peak `VmHWM` | counted JS+WASM | WASM heap |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `prod` | nothing — `client/downloader/decoder.js`, two frames in flight | **5.9 [5.2–7.0]** | 6.8 [6.0–7.1] | 5.7 | — |
+| `perdec1` | one frame in flight per worker | 6.1 [5.6–6.6] | 6.7 [6.2–7.0] | 5.7 | — |
+| `twin` | the bench's copy of it, in the same configuration | 6.4 [5.2–7.4] | 6.9 [6.4–7.0] | 5.7 | 4 928 KiB |
+| `fresh` | a decoder object per frame instead of one reused | 5.6 [5.3–5.7] | 6.3 [5.5–6.8] | 4.8 | 4 096 KiB |
+| `share` | one `WebAssembly.Module`, compiled once for all three | 5.6 [5.1–6.2] | 6.1 [5.8–6.5] | 5.4 | 4 928 KiB |
+
+* **It is per worker, not per frame in flight.** `perdec1` halves what is outstanding in each
+  worker and does not move it: 6.1 against 5.9, ranges overlapping.
+* **Reuse costs 0.81 MB of it.** The WASM heap is 4 928 KiB with one decoder object reused against
+  4 096 KiB with one per frame — the 4.8 against 4.0 MB §Where to put the floor predicted, now read
+  from a running product worker rather than from a bench that decodes and releases.
+* **It does not accumulate.** That heap is the same 4 928 KiB whether the worker decoded 87 frames
+  (one worker) or 29 (three), so what a reused decoder keeps is one frame's arenas, not a series'.
+* **A private compiled module costs 0.3 MB.** Handing every worker one `WebAssembly.Module`
+  compiled on the page saves 0.3 MB of counted heap and nothing outside the ranges. The measurement
+  says only that a private compile is not where the memory goes; the likely reason is that the
+  engine already keeps one compiled module per wire-bytes for the whole process, so three workers
+  compiling the same 245 KB binary were already sharing the code.
+* **Most of the heap is mapped, not resident.** A worker counts 5.7 MB and adds 5.9 MB to the
+  process at D=3 but only ~2.6 MB before it has decoded anything: the untouched part of a 4 MB
+  initial linear memory is not resident, which is the same reason an untouched 50 MB floor reads as
+  nothing (§Heap, measured).
+
+**The instrument was calibrated before any of this was believed.** With `ballast=32` every worker
+allocates and touches 32 MB, and the slope reads **38.3 MB [38.3–38.3]** per worker — 32 plus the
+6.3 the worker already costs — with the counted heap at 37.7 MB. A per-worker cost of tens of MB is
+not something this bench can miss. The calibration paid for itself at once: it caught the harness
+terminating its workers before the settled reading was taken, which had made every arm read 2 MB
+and read the same.
+
+**The whole client, ablated the same way, says the same number.** `path=downloader`: the downloader
+worker owns a real session against `exact-server`, frames arrive over the wire, the product's
+decoders decode them and the page **keeps every frame** as a viewer would. n = 4 rounds:
+**6.1 MB [6.0–6.1] per decoder worker** (197.2 → 209.4 MB for two more), and
+`measureUserAgentSpecificMemory` names 2 worker entries at D=1 against 4 at D=3 — the downloader
+and its decoders, counted one by one.
+
+**What this closes.** A decoder worker of ours costing tens of MB is not a thing this decoder does,
+and the two mechanisms that could have made one — a reused decoder's arenas, and each worker
+instantiating its own module from a `wasmBinary` after `new Function` on the glue — are worth
+0.81 MB and 0.3 MB against a ±1 MB spread and a 32 MB calibration. Neither is worth taking: a
+decoder per frame is the arrangement §Retention, measured finds going wrong on every other axis,
+and the compiled module is already shared. Where a page shows three of these workers costing tens
+of MB each, the term is not inside them, and the ablation that found it is measuring something
+else the worker count changes.
+
+**What this is not.** Desktop Chrome on a shared box, one series shape — 512×512 × 16-bit, the
+shape this project serves — and memory, not time: the wall-clock column the bench prints is context
+and nothing here is a rate claim. 87 frames, because the heap reaches its high-water in the first
+few and does not move afterwards. Nothing measured on a phone, which is where the memory question
+is finally settled.
+
 ## Threads: not buildable from this release
 
 The question was one multithreaded instance at N threads against N single-threaded ones. It cannot

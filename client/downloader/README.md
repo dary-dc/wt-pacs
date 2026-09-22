@@ -38,6 +38,14 @@ all, and on the box that measured it the decoders answer `ready` later by about 
 save, so the page's clock does not move. `docs/decode/README.md` §Warming the decoders has the
 table and the conditions it would pay under.
 
+**What a decoder worker costs.** 5.9 MB resident each, 5.7 MB of it the worker's own JS+WASM heap,
+measured as the slope in the decoder count with the instrument calibrated against 32 MB of ballast
+per worker — and 6.1 MB through this whole path, session included, with the page keeping every
+frame ([`docs/decode/README.md`](../../docs/decode/README.md) §What a decoder worker costs,
+resident). The one decoder object `decoder.js` reuses accounts for 0.81 MB of that and does not
+grow with the series; each worker compiling its own module accounts for 0.3 MB. So neither is a
+lever worth pulling, and a page where three of these cost tens of MB each is not paying for them.
+
 **A request is a generation.** `cancel()` bumps it and returns a promise that resolves once the
 downloader has ended the stream and dropped that request's work; every frame and failure carries the
 generation it was made under, and anything older is dropped on the page rather than handed over
