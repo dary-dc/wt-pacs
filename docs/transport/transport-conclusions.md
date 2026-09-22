@@ -24,7 +24,7 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 | **Congestion controller** | **Two opposite answers, depending on which kind of loss the link has.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured |
 | **Stream shape** | **One shared stream — the binary defaults to it.** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a real path the 64 KB cell is noise-dominated; the 250 KB cell separates: per-frame is **5.76× worse**, 3/3, and the absolute penalty matches the simulator to 1.6 %. No cell on either rig separates in per-frame's favour |
 | **Fixed-N pool** | Untested. R6 makes it less promising: retransmit-deferral cost grows with N, and the winning endpoint is N = 1 |
-| **Initial congestion window** | **Leave at quinn's default — but the ≤ 7 % that used to be the whole reason is corrected 2026-09-19.** That cell averaged many asks on one session, where every arm converges after a frame or two; it never measured the first ask, which is the only place the initial window can matter. On the first ask of an idle session 32 packets is **−28 to −33 %** (§3, the first ask). The default stays because the win is one frame per session and the cost lands on the shallow-buffered link the target has: at 80 ms on 10 Mbit behind a 20-packet queue it takes per-session loss from 2.1 % to 6.5 % |
+| **Initial congestion window** | **Leave at quinn's default — but the ≤ 7 % that used to be the whole reason is corrected 2026-09-19.** That cell averaged many asks on one session, where every arm converges after a frame or two; it never measured the first ask, which is the only place the initial window can matter. On the first ask of an idle session 32 packets is **−28 to −33 %** (§3, the first ask). The default stays because the win is one frame per session and the cost lands on the shallow-buffered link the target has: at 80 ms on 10 Mbit behind a 20-packet queue it takes per-session loss from 2.1 % to 6.5 %. **Swept by queue depth 2026-09-20:** that loss does not reverse the win — from 20 packets up it is a flat −16…−33 %, and the lever fails in exactly one cell, a 10-packet queue at 250 KB / 80 ms (+11.8 %, and it ends on half the default arm's window). It also buys nothing on top of the session-open push, which is the larger lever |
 | **GSO segment cap 10 → MTU-derived** | **Costs a depth-1 tail, measured 2026-09-18: at 250 KB with four sessions at depth 1 it takes p99 from 2.2 ms to 27.9 ms and throughput −29 % against `main`, the patch alone reproducing it — a probe timeout on a lost frame tail. Every other cell of the 24 in the depth × sessions plane is neutral or better. Unresolved until §10 proposal 3 lands or the client window makes depth ≥ 2 normal.** **Applied 2026-09-10** (build-time patch on crates.io quinn 0.11.11): −16 to −21 % CPU per ask, 6/6 in six of seven pinned cells, +19 to +29 % throughput where the pipe is full. 45 segments at 1452-byte MTU (`65527 / mtu`); an earlier write-up said 44 at 1452. The earlier real-hardware cell was path-bound, so it could not show a CPU lever. [`why-these-changes.md` §9](why-these-changes.md#9--cpu-per-byte-segments-per-sendmsg-a-profile-guided-build-one-copy-fewer) |
 | **Chunked send path** | Keep. −6…−14 % CPU/byte, and it is what contains a stalled client (below). The only send path in `server/` |
 | **Flow-control windows** | Hygiene on this send path. A client that asks for 25 MB and stops reading costs **180 kB**. Left at quinn defaults |
@@ -237,19 +237,29 @@ the link's round trip. The link has no rate limit, so nothing here is the link.
 | **fresh** — nothing sent yet | 127.5 / 248.2 | 3.1 | 234.5 / 454.7 | 5.8 |
 | **filled** — after eight frames | 51.8 / 98.6 | 1.3 | 55.5 / 104.3 | 1.3 |
 | **lossy** — a fill through a 300 ms blackout | 103.8 / 190.8 | 2.5 | 220.1 / 430.8 | 5.4 |
-| **rebound** — a fill, then the relay changes its source port | 49.4 / 93.9 | 1.2 | 52.0 / 101.1 | 1.3 |
+| **rebound** — a fill, then the relay changes its source port | ~~49.4 / 93.9~~ 135.6 / 255.6 | 3.3 | ~~52.0 / 101.1~~ 236.7 / 454.7 | 5.8 |
 
 **S7's headline holds and is now a number: the first ask is slow start.** A 250 KB frame costs
 **5.8 round trips on a fresh session against 1.3 on a warmed one** — 4.4 of the 5.8 are the
 window opening, and 12 KB doubling to 250 KB is exactly six flights. At 50 KB it is 3.1 against
 1.3. A warmed session is **4.2× faster** at 250 KB and 2.5× at 50 KB, at both round trips.
 
-**Two of S7's clauses did not reproduce.** "After a lossy fill the ask is slower than on a fresh
+**One of S7's clauses did not reproduce.** "After a lossy fill the ask is slower than on a fresh
 session": it is not — the lossy arm lands *between* fresh and filled (−6 % against fresh at
 250 KB, −23 % at 50 KB), because the blackout collapses the window without taking it below where
-it started. And "a new IP resets the controller": a **4-tuple change by source port alone does
-not** — the rebound arm is indistinguishable from the filled one (52.0 against 55.5 ms). A
-genuinely different client address is untested here; this container has one loopback address.
+it started.
+
+**The rebound row is corrected 2026-09-20 (LD): a source-port change does reset the controller.**
+This table read it as indistinguishable from filled; re-run on the same script it reads as
+**fresh** — 236.7 / 454.7 ms at 250 KB against the fresh arm's 250.8 / 465.5 and the filled arm's
+52.9 / 109.3, five rounds, and again at n = 3 with the relay's own `REBOUND <old> -> <new>` lines
+in view, so the poke is known to have landed. That is RFC 9000 §9.4, a new path resetting the
+congestion controller and the RTT estimator. What produced the earlier reading is not known — same
+script, same relay, and the relay's rebind has not changed since it was written. **It is the
+target's case**: a mobile NAT rebind puts a warmed session back at the initial window, so a
+session is warm only until its 4-tuple moves, and every lever below is worth its cost again after
+each rebind. A genuinely different client address is untested here; this container has one
+loopback address.
 
 #### Lever 1 — the bytes the viewer needs anyway, pushed at session open
 
@@ -297,6 +307,113 @@ push arm's is mostly its own.
 **Neither is changed in the product.** The window's win is one frame per session and its cost
 lands on exactly the shallow-buffered link the target has; the push is the larger lever and is
 already prototyped behind a flag, where it waits on a browser cell rather than another native one.
+
+#### Which default for which session shape, 2026-09-20 (LD)
+
+**W1b.** The cells W1 does not have, on the same probe and the same relay: the two levers
+*together*, a warmed session left idle before the ask, and the wide first flight against the queue
+depth. Seven rounds a cell, **arms interleaved inside every round with the order reversed on every
+other round**, medians with their range, and wins counted round against round.
+`lab/scripts/first_ask_cells.sh together|idle|queue`. The box carried other lanes throughout, so
+every figure here reads 3–8 % slower than W1's and only the within-cell comparisons are claimed.
+
+**The two levers do not stack.** Ask-to-last-byte medians, 40 ms / 80 ms, against the `fresh` arm:
+
+| arm | 50 KB | 250 KB | wins vs fresh |
+| --- | ---: | ---: | ---: |
+| fresh | 133.8 / 255.9 | 244.0 / 463.3 | |
+| 32-packet window | 89.7 / 171.8 | 182.3 / 333.4 | 7/7 |
+| push 4 frames | 57.5 / 109.9 | 69.2 / 137.9 | 7/7 |
+| **push + 32-packet window** | 58.5 / 110.7 | 65.8 / 132.5 | 7/7 |
+| warmed (the ceiling) | 55.0 / 102.2 | 53.9 / 109.4 | 7/7 |
+
+Every lever arm beats `fresh` 7/7 on disjoint ranges, with zero loss and zero congestion events in
+all of them — this link is unshaped, so nothing here is the link. **But the combined arm is not
+the two wins added.** Against the push alone it is +1.7 % and +0.7 % at 50 KB (worse) and −4.9 %
+and −3.9 % at 250 KB (better), on ranges that overlap in all four cells. The push already leaves
+the ask within 5–28 % of a warmed session; there is no slow start left for a wider first flight to
+skip. **If the push is taken, the window buys nothing on top of it.**
+
+**A warmed window survives a silence, on both controllers.** The on-demand regime is a fill, then
+a pause while the user reads, then one ask. Eight frames, then 0, 10 or 30 s of silence, then the
+ask, carrying the pair [`adr-idle-sessions.md`](adr-idle-sessions.md) proposes — a 20 s
+keep-alive under a 60 s idle timeout — in **every** arm, because without it the 30 s arm measures a
+dead session rather than a cold window. That is measured, not assumed: the same cell run with
+`HOLD=` (library defaults — a 30 s idle timeout at both ends, no keep-alive) loses the session in
+**2 of 2 rounds on both controllers at 30 s**, while every 0 s and 10 s arm survives and reads the
+same ask as below. A real Chromium would not die there — it pings itself every 15 s
+([`adr-idle-sessions.md`](adr-idle-sessions.md) §What a real Chromium does) — so the pair is
+what makes the native probe model the browser, not a thumb on the scale:
+
+| arm | 50 KB, 40 ms | 50 KB, 80 ms | 250 KB, 40 ms | 250 KB, 80 ms |
+| --- | ---: | ---: | ---: | ---: |
+| Cubic, no idle | 54.1 | 103.3 | 53.8 | 108.0 |
+| Cubic, 10 s | 56.7 | 103.3 | 58.4 | 109.0 |
+| Cubic, 30 s | 55.6 | 99.4 | 58.7 | 111.1 |
+| BBR, no idle | 54.8 | 97.2 | 52.5 | 105.1 |
+| BBR, 10 s | 56.1 | 98.4 | 61.0 | 108.1 |
+| BBR, 30 s | 52.8 | 94.8 | 61.4 | 107.3 |
+
+**No arm anywhere goes back to slow start**, which at 250 KB would be 4.4 round trips and a 4.2×
+ask. The worst cell is 250 KB at 40 ms — Cubic +9 %, BBR +17 % and 0/7 against its own no-idle
+arm, the one range in the block that nearly separates — and at 50 KB the 30 s arm is the *fastest*
+of the three on both controllers. Every arm ends on the window it had before the silence
+(~1.12–1.16 MB at 250 KB), and **no arm lost a session: 56 of 56 rounds with 30 s of silence served the ask**, 168 of 168
+across the block, so the 20 s keep-alive is enough to carry 30 s of quiet. The mechanism agrees: quinn 0.11.18 implements
+no congestion-window restart after idle in any of its controllers, and the pacer only clamps the
+first flight after the silence to its own burst capacity.
+
+**The wide first flight is bounded by the queue, and by one cell only.** A 32-packet initial window
+is 38 400 bytes, about 26 datagrams, so a 10-packet queue cannot hold it. Against the default
+window on a 10 Mbit link, by the relay's queue depth (`default → iw 32 pkt`, medians, 7 rounds,
+every cell 7/7 for the wider window except the one marked):
+
+| queue | 50 KB, 40 ms | 50 KB, 80 ms | 250 KB, 40 ms | 250 KB, 80 ms |
+| --- | ---: | ---: | ---: | ---: |
+| 10 pkt (12 ms of buffer) | 149.5 → 113.0 | 268.9 → 205.2 | 354.5 → 346.0 | 557.3 → **623.3, 0/7** |
+| 20 pkt | 150.5 → 102.8 | 270.0 → 182.9 | 334.2 → 275.0 | 600.1 → 456.4 |
+| 40 pkt | 149.0 → 102.6 | 271.7 → 183.0 | 359.3 → 291.1 | 498.7 → 373.4 |
+| 100 pkt | 149.5 → 102.7 | 269.9 → 182.9 | 325.3 → 272.1 | 499.5 → 373.5 |
+
+From 20 packets up the win is flat — −31…−33 % at 50 KB and −16…−25 % at 250 KB, unchanged from
+20 to 100 — and W1's own 20-packet row reads the same (324.2 → 266.6 and 578.2 → 432.5 there).
+**Depth is not a dial the lever is sensitive to; it is a cliff, and the cliff is below 20
+packets.** At 10 packets the 50 KB cells still win by ~24 %, the 250 KB / 40 ms cell is a tie at
+−2.4 % on overlapping ranges, and the 250 KB / 80 ms cell **loses by 11.8 %**. That cell is the
+lever's failure mode and it is visible in the window: the wider arm ends the session on 44 kB
+against the default arm's 87 kB, having lost *fewer* datagrams (3.0 against 10.4). The burst is
+chopped at the queue, the controller reads the drop and never gets the window back inside one
+session — it pays a round trip to lose half its window, which is the opposite of what it was
+bought for.
+
+#### What the numbers support, by session shape
+
+**A session that opens with a fill is warmed by the fill**, and needs neither lever: by frame two
+it is at the warmed figure, and the fill's own first frames are what the push would have pushed.
+**An ask-only session is not warmed** and pays 4.4 round trips, 4.2× at 250 KB, once per session —
+and again after every NAT rebind (the corrected rebound row above). For it, in order:
+
+| lever | what it buys on the first ask | what it costs |
+| --- | --- | --- |
+| push at session open | fresh → within 5–28 % of warmed (−70 % at 250 KB / 80 ms) | a page-side change (named below); pushes bytes before any ACK, so on a shallow queue it is the arm that loses the most datagrams (W1: 11.7 % at 20 packets) |
+| 32-packet initial window | −28…−33 % unshaped, −16…−33 % at 20+ packets of queue | +11.8 % and half the window in the one cell where 250 KB meets 80 ms and a 10-packet queue; nothing at all on top of the push |
+| keep-alive 20 s / idle 60 s | nothing on a first ask | holds a warmed session through 30 s of silence at full window (28 of 28 rounds); two datagrams per 20 s per idle session, the ping and its ACK |
+
+**The page-side change the push needs, named and not made** (read from the client, not measured):
+today a page would drop every pushed frame. `client/transport-ts/session.ts:86` builds the
+`WebTransport` URL, which has to carry `?ask=fill:0-k`; `session.ts:336` arms `this.fill` only
+inside `fillFrames`, which sends the ask in the same breath at `:337`, so a pushed fill needs that
+record armed *without* an ask before `pumpUni` starts at `:97` — otherwise `deliver` finds no
+waiter and counts the frame as `droppedEarly` at `:155`. In the default client the two lines are
+`client/downloader/downloader.js:190` (the dial) and `:144` (the ask).
+
+**The two levers are alternatives, not a pair** — together they are the push alone, ±5 %. The
+window is the one to take if the page cannot be changed; the push is the one to take if it can.
+One asymmetry is not measured here: a path reset restarts the controller at the *initial* window,
+so the window lever is re-applied after every NAT rebind while the push is spent at session open.
+The rebound arm is the cell that would measure it; it was run without either lever.
+**Every product default is unchanged here**: each arm above is a flag on the lab's own binary, and
+which of these becomes a default is the owner's call.
 
 ### The slow-start exit, an outage and the first timeout, 2026-09-19
 

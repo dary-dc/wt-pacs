@@ -54,6 +54,9 @@ struct Args {
     /// blackout only. S33: the first one's round-trip sample is what makes the second expensive.
     #[arg(long, default_value_t = 0)]
     blackout_again_after_ms: u64,
+    /// Silence between the warm-up and the ask: the on-demand regime, which the window must survive.
+    #[arg(long, default_value_t = 0)]
+    idle_ms: u64,
     #[arg(long, default_value_t = 5)]
     rounds: u32,
     #[arg(long, default_value_t = 30_000)]
@@ -133,6 +136,10 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
         }
     }
 
+    if args.idle_ms > 0 {
+        tokio::time::sleep(Duration::from_millis(args.idle_ms)).await;
+    }
+
     let asked = Instant::now();
     control
         .write_all(&encode_fod_msg(&FodMsg::RequestFrame { frame: args.target })?)
@@ -144,6 +151,8 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
         bail!("asked for {} and got {index}", args.target);
     }
     connection.close(0u32.into(), b"done");
+    // The close ends the session, and the end is what prints the server's `session path` line.
+    endpoint.wait_idle().await;
     Ok((ms, fill_ms, bytes))
 }
 
