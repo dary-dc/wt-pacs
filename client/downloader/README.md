@@ -45,6 +45,13 @@ under an index the new request is using. A refused *fill* frame has no waiter, s
 consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
 rejects its own promise. [`proposal-downloader.md`](../../docs/proposal-downloader.md) §The consumer.
 
+**What a frame reports.** Beside the decoded `byteCount`, every frame message the decoder and the
+downloader post carries `wireBytes` — the codestream length the frame's envelope declared, which is
+what actually crossed the link. A consumer reporting traffic quotes that one: on a compressed frame
+the decoded plane is several times larger, so `byteCount` would overstate the link by that factor.
+It reaches the page as `frame.info.wireBytes`, the way `byteCount` does, on the decoded path and on
+the undecoded one alike; nothing was renamed to make room for it.
+
 **A frame that did not arrive whole is a failure, not a frame.** Two checks, both inside the worker
 graph, so the page never sees a bad frame. On the wire, a uni stream that ends before the length its
 own envelope declares names the frame it lost and refuses it
