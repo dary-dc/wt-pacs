@@ -8,10 +8,7 @@ let toConsumer = null;
 
 const abs = () => performance.timeOrigin + performance.now();
 
-/**
- * Sign-extend narrow samples and take the range in one pass. Folding it into the copy above is
- * slower, and decode_s512/decode_s12 cover it — docs/decode/README.md §The range pass.
- */
+/** Sign-extend narrow samples and take the range in one pass — docs/decode/README.md §The range pass. */
 function finish(view, bits, signed) {
   let min = Infinity;
   let max = -Infinity;
@@ -35,8 +32,14 @@ function decodeFrame(bytes) {
   const info = dec.getFrameInfo();
   dec.decode();
   const out = dec.getDecodedBuffer();
-
   const wide = info.bitsPerSample > 8;
+  // The reused decoder leaves the previous frame's pixels here when a parse fails, so the header
+  // is what says the frame is gone, not the length. docs/decode/README.md §A frame that did not decode
+  const declared = info.width * info.height * info.componentCount * (wide ? 2 : 1);
+  if (declared === 0 || out.length < declared) {
+    throw new Error(`undecodable: ${out.length} bytes for a header declaring ${declared}`);
+  }
+
   const sab = new SharedArrayBuffer(out.length);
   new Uint8Array(sab).set(out);
   const view = wide

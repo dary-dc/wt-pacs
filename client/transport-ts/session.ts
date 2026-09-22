@@ -8,7 +8,6 @@ import {
   encodeFodMsg,
   hexToBytes,
   MAX_FRAME_LEN,
-  unwrapEnvelope,
   type FodMsg,
 } from "./wire.ts";
 import { AskWindow, type AskWindowConfig } from "./ask-window.ts";
@@ -199,21 +198,21 @@ export class TransportSession {
     }
   }
 
-  /** Read length-prefixed envelopes until the uni stream ends. */
+  /** Read envelopes until the uni stream ends. docs/CLIENTS.md#a-truncated-frame-is-a-failure */
   private async pumpFramedStream(stream: ReadableStream<Uint8Array>) {
     const reader = stream.getReader();
     const buf = new ByteAccumulator();
     try {
       for (;;) {
-        const envelope = await readLengthPrefixed(reader, buf);
-        if (!envelope) break;
-        const receivedMs = performance.now();
-        try {
-          const { index, codestream } = unwrapEnvelope(envelope);
-          this.deliver(index, codestream, receivedMs);
-        } catch {
-          /* ignore bad envelope */
+        const env = await readEnvelope(reader, buf);
+        if (!env) break;
+        if (env.ok) {
+          this.deliver(env.index, env.codestream, performance.now());
+          continue;
         }
+        // Shared mode carries the whole run here, so the frames behind the lost one are gone too.
+        if (env.index >= 0) this.failWaiter(env.index, env.lost);
+        break;
       }
     } catch {
       /* stream ended */
@@ -410,26 +409,42 @@ function toResult(
   };
 }
 
-async function readLengthPrefixed(
+/** A frame off a media stream, or the index of the one a stream that ended mid-frame lost. */
+type Envelope =
+  | { ok: true; index: number; codestream: Uint8Array }
+  | { ok: false; index: number; lost: string };
+
+const be32 = (b: Uint8Array) => new DataView(b.buffer, b.byteOffset, 4).getUint32(0, false);
+const le32 = (b: Uint8Array) => new DataView(b.buffer, b.byteOffset, 4).getUint32(0, true);
+
+/** Read until `buf` holds `n` bytes; false when the stream ended before that. */
+async function fillTo(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   buf: ByteAccumulator,
-): Promise<Uint8Array | null> {
-  while (buf.length < 4) {
+  n: number,
+): Promise<boolean> {
+  while (buf.length < n) {
     const { value, done } = await reader.read();
-    if (done) return null;
+    if (done) return false;
     if (value) buf.push(value);
   }
-  const header = buf.take(4);
-  const len = new DataView(header.buffer, header.byteOffset, 4).getUint32(0, false);
-  if (len === 0 || len > MAX_FRAME_LEN) {
-    throw new Error(`invalid frame length ${len}`);
+  return true;
+}
+
+/** `[4B BE len][4B BE index][codestream…]`: the index is read first so a loss can be named. */
+async function readEnvelope(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  buf: ByteAccumulator,
+): Promise<Envelope | null> {
+  if (!(await fillTo(reader, buf, 4))) return null;
+  const len = be32(buf.take(4));
+  if (len < 4 || len > MAX_FRAME_LEN) throw new Error(`invalid frame length ${len}`);
+  if (!(await fillTo(reader, buf, len))) {
+    if (buf.length < 4) return { ok: false, index: -1, lost: "truncated before its index" };
+    const index = be32(buf.take(4));
+    return { ok: false, index, lost: `truncated: ${buf.length} of ${len - 4} bytes` };
   }
-  while (buf.length < len) {
-    const { value, done } = await reader.read();
-    if (done) throw new Error("uni stream ended mid-frame");
-    if (value) buf.push(value);
-  }
-  return buf.take(len);
+  return { ok: true, index: be32(buf.take(4)), codestream: buf.take(len - 4) };
 }
 
 class ByteAccumulator {
@@ -472,17 +487,8 @@ async function readFodFrom(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   buf: ByteAccumulator,
 ): Promise<FodMsg> {
-  while (buf.length < 4) {
-    const { value, done } = await reader.read();
-    if (done) throw new Error("control stream ended");
-    if (value) buf.push(value);
-  }
-  const header = buf.take(4);
-  const bodyLen = new DataView(header.buffer, header.byteOffset, 4).getUint32(0, true);
-  while (buf.length < bodyLen) {
-    const { value, done } = await reader.read();
-    if (done) throw new Error("control stream ended mid-message");
-    if (value) buf.push(value);
-  }
+  if (!(await fillTo(reader, buf, 4))) throw new Error("control stream ended");
+  const bodyLen = le32(buf.take(4));
+  if (!(await fillTo(reader, buf, bodyLen))) throw new Error("control stream ended mid-message");
   return decodeFodBody(buf.take(bodyLen));
 }
