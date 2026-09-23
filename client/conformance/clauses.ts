@@ -19,6 +19,8 @@ export type ConformantSession = {
     onError?: (frameIndex: number, reason: string) => void,
   ): number;
   endStream(): Promise<void>;
+  /** Only the sessions own a ring; the downloader's rig leaves it out. client/conformance/ring.ts */
+  releaseWireBuffer?(buffer: ArrayBuffer): void;
   stats(): { inFlight: number };
   close(): void;
 };

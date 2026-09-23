@@ -12,8 +12,10 @@ export type { ConformantFrame, ConformantSession } from "./clauses.ts";
 
 export type Implementation = {
   name: string;
-  connect(url: string, certHash: string): Promise<ConformantSession>;
+  connect(url: string, certHash: string, options?: ConnectOptions): Promise<ConformantSession>;
 };
+
+export type ConnectOptions = { wireBuffers?: number };
 
 /** Resolved from the tree, not from import.meta.url, which moves when this file is bundled. */
 function repoRoot(): string {
@@ -35,8 +37,8 @@ export async function typescriptImpl(): Promise<Implementation> {
   const { TransportSession } = await load("client/transport-ts/dist/session.js");
   return {
     name: "transport-ts",
-    async connect(url, certHash) {
-      const s = await TransportSession.connect(url, certHash);
+    async connect(url, certHash, options) {
+      const s = await TransportSession.connect(url, certHash, options ?? {});
       return {
         requestExactFrame: (i: number) => s.requestExactFrame(i),
         startStreamFrames: (last: number, range?: { from?: number; to?: number }) =>
@@ -48,6 +50,7 @@ export async function typescriptImpl(): Promise<Implementation> {
           onError?: (i: number, reason: string) => void,
         ) => s.fillFrames(from, to, onFrame, onError),
         endStream: () => s.endStream(),
+        releaseWireBuffer: (b: ArrayBuffer) => s.releaseWireBuffer(b),
         stats: () => s.stats(),
         close: () => s.close(),
       };
@@ -68,8 +71,8 @@ export async function wasmImpl(): Promise<Implementation> {
   });
   return {
     name: "transport-wasm",
-    async connect(url, certHash) {
-      const s = await mod.TransportSessionHandle.connect(url, certHash);
+    async connect(url, certHash, options) {
+      const s = await mod.TransportSessionHandle.connect(url, certHash, options?.wireBuffers);
       return {
         requestExactFrame: (i: number) => s.requestExactFrame(i),
         startStreamFrames: (last: number, range?: { from?: number; to?: number }) =>
@@ -81,6 +84,7 @@ export async function wasmImpl(): Promise<Implementation> {
           onError?: (i: number, reason: string) => void,
         ) => s.fillFrames(from, to, onFrame, onError),
         endStream: async () => s.endStream(),
+        releaseWireBuffer: (b: ArrayBuffer) => s.releaseWireBuffer(b),
         stats: () => s.stats(),
         close: () => s.close(),
       };

@@ -431,9 +431,10 @@ async fn read_frame_byob(
     }
     let (index, _) = unwrap_envelope(&raw[4..]).map_err(|e| format!("envelope: {e}"))?;
     let body_len = (len - frame_envelope::ENVELOPE_LEN) as u32;
-    let body = byob_fill(reader, st.borrow_mut().wire.take(body_len), 0, body_len)
-        .await?
-        .ok_or("stream ended early")?;
+    // Bound before the await: a borrow taken inside the call expression is held across it, and
+    // `releaseWireBuffer` borrows the same cell from JS at any moment.
+    let into = st.borrow_mut().wire.take(body_len);
+    let body = byob_fill(reader, into, 0, body_len).await?.ok_or("stream ended early")?;
     Ok(Some((index, wire_view(&body, body_len))))
 }
 
