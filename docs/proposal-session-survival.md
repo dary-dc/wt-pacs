@@ -225,6 +225,16 @@ The wake lock is a request the platform may refuse, so the `freeze` path must wo
 * **No server change.** The server already serves a repeat ask and already reclaims a dead session
   on its timeout.
 
+## The rebind number A1 owed
+
+**Taken 2026-09-19** (`lab/scripts/rebind_idle_cells.sh`, on the workstation through the relay,
+which is calibrated against `netem` for delay, `rig-limits.md` §3). At a 40 ms round trip, the
+relay moved its source port after 10 frames, and the probe asked once more. The server idle timeout
+was 10 s or 30 s, arms interleaved, 8 rounds each. **The session survived 16 of 16, and the next
+ask took 70 ms [68–72] at both timeouts.** A port-only path change is migrated, not noticed as a
+dead session, so the idle timeout plays no part in it. The 30 s freeze T6 measured belonged to the
+parked per-core endpoints. Not modelled: a new IP address, as on a Wi-Fi to cellular change.
+
 ## What is built, and where
 
 **2026-09-22, the lab's client.** All of the mechanism is in `client/downloader/downloader.js` —
