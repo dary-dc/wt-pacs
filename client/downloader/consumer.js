@@ -49,6 +49,7 @@ export class DownloaderClient {
       // `opts.fill` rides with `start`: a page inside a long task cannot post one. docs/proposal-downloader.md §The downloader
       fill: opts.fill,
       openAsk: opts.openAsk,
+      wireBuffers: opts.wireBuffers,
     };
     // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
     // may be promises. docs/proposal-session-open.md

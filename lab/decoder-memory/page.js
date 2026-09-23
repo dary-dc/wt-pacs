@@ -10,6 +10,8 @@ const MUTATE = q.get("mutate") || "";
 const BALLAST_MB = Number(q.get("ballast") || 0);
 const PATH = q.get("path") === "downloader" ? "downloader" : "direct";
 const HOLD = q.get("hold") === "1";
+/** The ring's size: `0` is one wire buffer per frame, the arm before it. */
+const WIRE = q.has("wire") ? Number(q.get("wire")) : undefined;
 
 /** The wrapper as delivered — docs/decode/README.md §The build, as delivered. */
 const BUILD = {
@@ -90,6 +92,7 @@ async function main() {
     const client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
       decoders: D,
       perDecoder: PER,
+      wireBuffers: WIRE,
       decoder: BUILD,
       onFrame: (f) => take(f.frameIndex, f.bytes),
       onError: () => { failures += 1; if (checked + failures >= wanted) settle(); },

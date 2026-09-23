@@ -17,8 +17,12 @@ pub struct TransportSessionHandle {
 #[wasm_bindgen]
 impl TransportSessionHandle {
     #[wasm_bindgen(js_name = connect)]
-    pub async fn connect(wt_url: String, cert_sha256: String) -> Result<TransportSessionHandle, JsValue> {
-        let inner = TransportSession::connect(wt_url, cert_sha256)
+    pub async fn connect(
+        wt_url: String,
+        cert_sha256: String,
+        wire_buffers: Option<u32>,
+    ) -> Result<TransportSessionHandle, JsValue> {
+        let inner = TransportSession::connect(wt_url, cert_sha256, wire_buffers)
             .await
             .map_err(|e| JsValue::from_str(&e))?;
         Ok(Self { inner })
@@ -85,6 +89,11 @@ impl TransportSessionHandle {
         self.inner
             .fill_frames(from, to, on_frame, on_error)
             .map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen(js_name = releaseWireBuffer)]
+    pub fn release_wire_buffer(&self, buffer: js_sys::ArrayBuffer) {
+        self.inner.release_wire_buffer(buffer);
     }
 
     #[wasm_bindgen(js_name = endStream)]

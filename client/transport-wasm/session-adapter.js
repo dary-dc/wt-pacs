@@ -8,9 +8,9 @@ import init, { TransportSessionHandle } from "./pkg/transport_wasm.js";
 let started = null;
 
 export class TransportSession {
-  static async connect(url, certHash) {
+  static async connect(url, certHash, options = {}) {
     started ??= init();
     await started;
-    return TransportSessionHandle.connect(url, certHash);
+    return TransportSessionHandle.connect(url, certHash, options.wireBuffers);
   }
 }

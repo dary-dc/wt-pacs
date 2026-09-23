@@ -180,6 +180,7 @@ async function start(m) {
     const ch = new MessageChannel();
     worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, warmup: cfg.warmup }, [ch.port1]);
     worker.onmessage = (e) => {
+      if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
       if (e.data.kind === "done") onDone(d, e.data);
       else if (e.data.kind === "ready") d.ready();
       else if (e.data.kind === "init-failed") d.ready(post({ kind: "failed", index: -1, reason: e.data.reason }));
@@ -208,7 +209,10 @@ async function connect() {
     // rather than a round trip later. docs/proposal-session-open.md
     const run = cfg.openAsk ? nextRun() : null;
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
-    session = await TransportSession.connect(dial.url, dial.certHash, opening ? { fill: opening } : {});
+    // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
+    const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 };
+    if (opening) options.fill = opening;
+    session = await TransportSession.connect(dial.url, dial.certHash, options);
     session.closedPromise?.catch(() => {});
     return opening;
   })();
