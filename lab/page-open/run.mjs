@@ -7,6 +7,10 @@
  * lab/page-open/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/page-open/run.mjs [rounds]
+ *
+ * SERVERS=a=BIN,b=BIN runs every arm against each server binary, interleaved inside each round,
+ * and prints how often b beat a; ONLY=arm,… keeps those arms; PORT_BASE=N takes ports from N up;
+ * NETLOG=DIR keeps Chrome's net log per visit; ROWS=FILE keeps every visit's milestones.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -32,14 +36,14 @@ const ARMS = STAGES
       wasm: (base) => `${base}/harness/index.html?autorun=1&n=1&frames=${FRAMES}`,
       downloader: (base) => `${base}/lab/page-open/downloader.html`,
     };
+for (const arm of Object.keys(ARMS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(arm)) delete ARMS[arm];
 const PROFILES = STAGES ? ["cold"] : ["cold", "warm"];
 
 // HOST=dev (default) is server/dev-server.py, plaintext HTTP/1.1; h1 and h2 are nginx on the deploy
 // template over TLS, without and with HTTP/2 — the handshakes a real host charges the page half.
 const HOST = process.env.HOST || "dev";
-const port = () => 30000 + ((Math.random() * 20000) | 0);
-const UDP_SRV = port();
-const UDP_IN = port();
+let nextPort = Number(process.env.PORT_BASE || 0);
+const port = () => (nextPort ? nextPort++ : 30000 + ((Math.random() * 20000) | 0));
 const TCP_SRV = port();
 const TCP_IN = port();
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "r2-"));
@@ -63,6 +67,11 @@ process.on("exit", stop);
 // A real study: the downloader arm decodes what it gets, so random bytes would not do.
 execFileSync("cargo", ["build", "-q", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
 const BIN = path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug");
+const SERVERS = (process.env.SERVERS || `=${path.join(BIN, "exact-server")}`).split(",").map((s) => {
+  const [name, bin] = s.split("=");
+  return { name, bin, srv: port(), inn: port() };
+});
+const label = (arm, server) => (server.name ? `${arm}@${server.name}` : arm);
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
   -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \
@@ -89,13 +98,14 @@ execFileSync(path.join(BIN, "pack-study"), [
   "--output", path.join(T, "study.sbnd"),
 ]);
 
-const srvLog = fs.openSync(path.join(T, "server.log"), "a");
-start(path.join(BIN, "exact-server"), [
-  "--port", String(UDP_SRV), "--study", path.join(T, "study.sbnd"),
-  "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem"),
-  // Inert for an arm that sends no `?ask=`, so every arm runs on one server. R1's arm needs it.
-  "--open-ask",
-], srvLog);
+for (const s of SERVERS) {
+  start(s.bin, [
+    "--port", String(s.srv), "--study", path.join(T, "study.sbnd"),
+    "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem"),
+    // Inert for an arm that sends no `?ask=`, so every arm runs on one server. R1's arm needs it.
+    "--open-ask",
+  ], fs.openSync(path.join(T, `server${s.name}.log`), "a"));
+}
 if (HOST === "dev") {
   start("python3", ["server/dev-server.py", "--port", String(TCP_SRV)], fs.openSync(path.join(T, "static.log"), "a"));
 } else {
@@ -112,7 +122,8 @@ if (HOST === "dev") {
     `  include ${T}/site.conf;\n}\n`);
   start("nginx", ["-c", path.join(T, "nginx.conf"), "-g", "daemon off;"], fs.openSync(path.join(T, "static.log"), "a"));
 }
-fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${UDP_IN}/`, cert_sha256: hash }) + "\n");
+const pointAt = (s) =>
+  fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${s.inn}/`, cert_sha256: hash }) + "\n");
 await new Promise((r) => setTimeout(r, 2000));
 
 const base = `${HOST === "dev" ? "http" : "https"}://127.0.0.1:${TCP_IN}`;
@@ -136,34 +147,42 @@ async function visit(ctx, arm) {
 }
 
 for (const rtt of RTTS) {
-  const relay = start("python3", [
+  const relays = SERVERS.map((s, i) => start("python3", [
     "lab/scripts/link_impair.py",
-    "--udp", `${UDP_IN}:${UDP_SRV}`,
-    "--tcp", `${TCP_IN}:${TCP_SRV}`,
+    "--udp", `${s.inn}:${s.srv}`,
+    ...(i ? [] : ["--tcp", `${TCP_IN}:${TCP_SRV}`]),
     "--delay-ms", String(rtt / 2),
-  ], fs.openSync(path.join(T, `relay-${rtt}.log`), "a"));
+  ], fs.openSync(path.join(T, `relay-${rtt}-${i}.log`), "a")));
   await new Promise((r) => setTimeout(r, 1000));
 
   for (let round = 0; round < ROUNDS; round++) {
     for (const arm of Object.keys(ARMS)) {
-      // A fresh profile is what makes the cold arm cold: no HTTP cache, no compiled-code cache.
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "r2p-"));
-      const ctx = await chromium.launchPersistentContext(dir, {
-        headless: true,
-        executablePath: process.env.CHROME_PATH || chromium.executablePath(),
-        args: ["--disable-background-networking", "--ignore-certificate-errors-spki-list",
-          ...(HOST === "dev" ? [] : ["--ignore-certificate-errors"])],
-      });
-      try {
-        for (const profile of PROFILES) rows.push({ rtt, arm, profile, ...(await visit(ctx, arm)) });
-      } catch (e) {
-        process.stderr.write(`rtt=${rtt} ${arm}: ${e.message.split("\n")[0]}\n`);
+      for (const server of SERVERS) {
+        pointAt(server);
+        const name = label(arm, server);
+        // A fresh profile is what makes the cold arm cold: no HTTP cache, no compiled-code cache.
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "r2p-"));
+        const netlog = process.env.NETLOG
+          ? [`--log-net-log=${path.resolve(process.env.NETLOG, `${name}-${rtt}-${round}.json`)}`,
+            "--net-log-capture-mode=Everything"]
+          : [];
+        const ctx = await chromium.launchPersistentContext(dir, {
+          headless: true,
+          executablePath: process.env.CHROME_PATH || chromium.executablePath(),
+          args: ["--disable-background-networking", "--ignore-certificate-errors-spki-list",
+            ...(HOST === "dev" ? [] : ["--ignore-certificate-errors"]), ...netlog],
+        });
+        try {
+          for (const profile of PROFILES) rows.push({ rtt, round, arm: name, profile, ...(await visit(ctx, arm)) });
+        } catch (e) {
+          process.stderr.write(`rtt=${rtt} ${name}: ${e.message.split("\n")[0]}\n`);
+        }
+        await ctx.close();
+        fs.rmSync(dir, { recursive: true, force: true });
       }
-      await ctx.close();
-      fs.rmSync(dir, { recursive: true, force: true });
     }
   }
-  relay.kill();
+  for (const relay of relays) relay.kill();
   await new Promise((r) => setTimeout(r, 500));
   process.stderr.write(`rtt ${rtt} done\n`);
 }
@@ -185,24 +204,49 @@ function fit(arm, profile, key) {
   return { slope, fixed: my - slope * mx, at: Object.fromEntries(xs.map((x, i) => [x, ys[i]])) };
 }
 
+const LABELS = Object.keys(ARMS).flatMap((arm) => SERVERS.map((s) => label(arm, s)));
+const W = Math.max(11, ...LABELS.map((l) => l.length));
 console.log(
-  `\nhost ${HOST}\n${"arm".padEnd(11)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
+  `\nhost ${HOST}\n${"arm".padEnd(W)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
     `${"round trips".padStart(11)} ${"fixed ms".padStart(9)}  ` +
     RTTS.map((r) => `${r} ms`.padStart(8)).join(" "),
 );
-for (const arm of Object.keys(ARMS)) {
+for (const arm of LABELS) {
   for (const profile of PROFILES) {
     for (const key of ["config", "session", "frame"]) {
       const f = fit(arm, profile, key);
       if (!f) continue;
       console.log(
-        `${arm.padEnd(11)} ${profile.padEnd(8)} ${key.padEnd(10)} ` +
+        `${arm.padEnd(W)} ${profile.padEnd(8)} ${key.padEnd(10)} ` +
           `${f.slope.toFixed(2).padStart(11)} ${f.fixed.toFixed(0).padStart(9)}  ` +
           RTTS.map((r) => f.at[r].toFixed(0).padStart(8)).join(" "),
       );
     }
   }
 }
+
+if (SERVERS.length > 1) {
+  console.log(`\nms at each round trip: median [min-max], and rounds each server beat ${SERVERS[0].name} in`);
+  for (const arm of Object.keys(ARMS)) {
+    for (const profile of PROFILES) {
+      for (const key of ["config", "session", "frame"]) {
+        for (const s of SERVERS) {
+          const cells = RTTS.map((rtt) => {
+            const of = (name) => rows.filter((r) => r.arm === name && r.profile === profile && r.rtt === rtt && r[key] != null);
+            const mine = of(label(arm, s));
+            if (!mine.length) return "-";
+            const v = mine.map((r) => r[key]).sort((x, y) => x - y);
+            const ref = new Map(of(label(arm, SERVERS[0])).map((r) => [r.round, r[key]]));
+            const won = mine.filter((r) => ref.has(r.round) && r[key] < ref.get(r.round)).length;
+            return `${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${won}/${mine.length}`;
+          });
+          console.log(`${label(arm, s).padEnd(W)} ${profile.padEnd(6)} ${key.padEnd(8)} ${cells.join("   ")}`);
+        }
+      }
+    }
+  }
+}
+if (process.env.ROWS) fs.writeFileSync(process.env.ROWS, JSON.stringify(rows));
 
 // The server, the static host and the browser all hold handles open; the report is the work.
 process.exit(0);
