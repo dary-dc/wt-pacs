@@ -15,12 +15,15 @@ export class DownloaderClient {
   /** The page's copy of the downloader's generation: both step on `cancel`, and messages are ordered. */
   #gen = 0;
   #cancels = [];
+  #resumedAt = [];
+  #triggers = new AbortController();
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
     this.#worker = new Worker(new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);
+    this.#watchPage();
     this.#ready = new Promise((resolve, reject) => {
       this.#resolveReady = resolve;
       this.#rejectReady = reject;
@@ -46,6 +49,8 @@ export class DownloaderClient {
       decoderWorker: opts.decoderWorker,
       // A codestream of the series' shape, decoded in each decoder before the first bytes arrive.
       warmup: opts.warmup,
+      // `false` turns resumption off; an object overrides its deadlines. docs/proposal-session-survival.md
+      survival: opts.survival,
       // `opts.fill` rides with `start`: a page inside a long task cannot post one. docs/proposal-downloader.md §The downloader
       fill: opts.fill,
       openAsk: opts.openAsk,
@@ -69,6 +74,7 @@ export class DownloaderClient {
     }
     if (m.kind === "frame") return void this.#deliver(m);
     if (m.kind === "cancelled") return void this.#cancels.shift()?.();
+    if (m.kind === "resumed") return void this.#resumedAt.push(performance.timeOrigin + performance.now());
     if (m.kind === "failed") {
       // A failure before `started` is the start itself failing: connect must reject, not hang.
       if (!this.#started) return void this.#rejectReady(new Error(`the downloader failed to start: ${m.reason}`));
@@ -156,10 +162,25 @@ export class DownloaderClient {
   }
 
   stats() {
-    return { closed: this.#closedReason, inFlight: this.#waiters.size };
+    return { closed: this.#closedReason, inFlight: this.#waiters.size, resumedAt: [...this.#resumedAt] };
   }
 
   close() {
+    this.#triggers.abort();
     this.#worker.postMessage({ kind: "close" });
+  }
+
+  /** The triggers a worker cannot see; the downloader decides whether any of them means anything. */
+  #watchPage() {
+    if (typeof document === "undefined") return;
+    const signal = this.#triggers.signal;
+    const check = () => this.#worker.postMessage({ kind: "check" });
+    addEventListener("pageshow", check, { signal });
+    for (const ev of ["freeze", "resume"]) document.addEventListener(ev, check, { signal });
+    document.addEventListener(
+      "visibilitychange",
+      () => document.visibilityState === "visible" && check(),
+      { signal },
+    );
   }
 }

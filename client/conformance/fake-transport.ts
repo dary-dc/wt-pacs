@@ -30,7 +30,9 @@ export class FakeTransport {
   static last: FakeTransport;
   /** How many transports have been constructed: a dial the client did not need shows up here. */
   static dials = 0;
-  readonly ready = Promise.resolve();
+  /** The next `n` dials fail — a path that is still gone when the client tries to come back. */
+  static failNext = 0;
+  readonly ready: Promise<void>;
   readonly closed: Promise<{ closeCode: number; reason: string }>;
   readonly sent: Uint8Array[] = [];
   didClose = false;
@@ -43,6 +45,10 @@ export class FakeTransport {
     readonly url: string,
     readonly options: unknown,
   ) {
+    const refuse = FakeTransport.failNext > 0;
+    if (refuse) FakeTransport.failNext -= 1;
+    this.ready = refuse ? Promise.reject(new Error("dial refused")) : Promise.resolve();
+    this.ready.catch(() => {});
     this.closed = new Promise((resolve) => {
       this.settleClosed = resolve;
     });

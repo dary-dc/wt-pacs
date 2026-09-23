@@ -60,6 +60,9 @@ function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
       const connect = DownloaderClient.connect("https://conformance.invalid/", CERT, {
         decode: false,
         decoders: 0,
+        // These clauses are the transport surface's; resumption is the downloader's own, and
+        // dispatch-rig.ts owns it — with it on, a dead session is resumed instead of reported.
+        survival: false,
         transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
         onFrame: (f: ConformantFrame) => route.onFrame(f),
         onError: (f: { frameIndex: number; reason: string }) => route.onError(f.frameIndex, f.reason),

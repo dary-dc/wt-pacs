@@ -69,10 +69,25 @@ decoder object is reused and an undecodable frame otherwise comes back carrying 
 frame's pixels under the new index ([`docs/decode/README.md`](../../docs/decode/README.md) §A frame
 that did not decode). Either way the consumer gets `onError({ frameIndex, reason, generation })` for
 a fill frame or a rejected promise for an asked one, so a fill that lost a frame cannot report
-itself complete. A session that **dies** mid-fill is the third way to lose a frame, and reports the
-same way: the transport names every index the fill still owed, this worker fails that run, and it
-issues no new fill onto a session that is gone. Neither check sees a codestream the server truncated
-*before* framing it; the harness's per-frame `.sha256` is what sees that.
+itself complete. A session that **dies** mid-fill is the third way to lose a frame: the transport
+names every index the fill still owed, and — corrected 2026-09-22 — this worker resumes on that
+list rather than failing the run, and fails it only once the re-dials have run out (§A session that
+dies is resumed). Neither check sees a codestream the server truncated *before* framing it; the
+harness's per-frame `.sha256` is what sees that.
+
+**A session that dies is resumed.** A path that goes away takes no byte with it that the records do
+not already hold, so the worker treats a death as a resumption rather than a failure. Every
+platform trigger — `online`/`offline` and `navigator.connection` `change` in the worker,
+`visibilitychange`, `pageshow`, `freeze` and `resume` forwarded by `consumer.js` — and a fill that
+has gone quiet with frames owed start a **check**, never a re-dial: one ask for a frame already in
+hand, with a deadline. It answers, or the session is re-dialled and exactly what the records still
+owe is issued on the new one — the fill's remainder as a run and any outstanding ask again, with
+nothing that arrived re-fetched and nothing re-decoded. The request's **generation does not move**:
+a resume is the same request, so the page's waiters and records stay valid and the only thing it is
+told is when each resume happened, as `stats().resumedAt`. `survival: false` turns it off; an object overrides
+`{ stallMs: 3000, probeMs: 2000, redialMs: 1000, tries: 5 }`.
+[`docs/proposal-session-survival.md`](../../docs/proposal-session-survival.md) has the states, the
+reasons and what a cut costs today against built.
 
 Run the arm (`client/harness/downloader.html`) the way the README's quick start runs the others,
 against any study — it checks each decoded frame against the fixture's `.sha256`:

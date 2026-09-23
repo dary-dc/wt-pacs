@@ -1,9 +1,9 @@
-# Proposal: a session that dies is noticed and resumed
+# A session that dies is noticed and resumed
 
-**2026-09-19, the client half verified from Chromium's source 2026-09-22 · Status: proposed,
-nothing built.** Structural, so this is a proposal first (`CLAUDE.md`). A1, from
-[S2 and S3](improvements/2026-09-18.md). One number it asks for cannot be taken here yet — see
-§The measurement this owes; what the stack choice assumed and what is left of it is
+**2026-09-19 as a proposal; built and measured in the lab's client 2026-09-22.** §What is built,
+and where. The product's half — the viewer re-asking through the same path, and the page's notice
+— is not built, and neither is the screen-lock pair in §A fill outlasts the screen lock. A1, from
+[S2 and S3](improvements/2026-09-18.md). What the stack choice assumed and what is left of it is
 §What this means for the stack choice.
 
 ## The problem, stated as a freeze
@@ -20,18 +20,27 @@ device result. **No phone has been tried here**, and on WebKit the same question
 from source at all ([`improvements/2026-09-19-sweep.md`](improvements/2026-09-19-sweep.md) S25).
 
 The client discovers the path is dead only when an idle timeout fires — the smaller of the two
-peers' — and until then it sits holding a session that cannot carry a byte.
+peers' — and until then it sits holding a session that cannot carry a byte. **Corrected in place
+2026-09-22: that is true of an *idle* session only.** With a fill in flight when the path goes,
+Chromium ends the session itself in **6.55 s** (6.54–6.56, n=7, §The measurement, taken) — the loss
+recovery runs out of probe timeouts long before any idle timer is consulted, and the page is told
+`session closed: Connection lost.` The 30 s below is therefore the bound on noticing a path that
+was carrying nothing, not the length of a freeze mid-fill; the paragraphs that follow are kept
+because that idle bound is what a page waiting on nothing still faces, and because the
+detection this document builds beats even the 6.5 s.
 
-**The length of that freeze has not been measured on a browser; both sides of it have.** L15
-(2026-09-16, container) read what Chromium advertises: `max_idle_timeout 30000`, and a self-ping
-every 15 s that keeps an *idle* session alive for 180 s with server keep-alive off
+**The length of that freeze had not been measured on a browser when this was written; both sides
+of it had.** L15 (2026-09-16, container) read what Chromium advertises: `max_idle_timeout 30000`,
+and a self-ping every 15 s that keeps an *idle* session alive for 180 s with server keep-alive off
 ([`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md) §What a real Chromium does).
 The 30-second freeze itself was measured on a **native** client, not a browser, and after a **NAT
 rebind**, not a radio change: T6 step 1, where `lab/scripts/link_impair.py` moved its own upstream
 source port mid-session, the client saw no reset at all, and the session ended at `connection timed
 out` **30 001 ms** later — quinn's default — in 3/3 repeats
-([`lanes/T6-session-survival.md`](lanes/T6-session-survival.md)). A browser's freeze is that
-mechanism with Chromium's 30 s in place of quinn's: arithmetic, not a reading.
+([`lanes/T6-session-survival.md`](lanes/T6-session-survival.md)). A browser's freeze was taken to
+be that mechanism with Chromium's 30 s in place of quinn's — arithmetic, not a reading, and
+**wrong for a session with data owed**: quinn's native client had nothing in flight to fail on,
+which is exactly the case the arithmetic carried over and the browser's 6.5 s does not.
 
 That makes [`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md)'s recommendation read
 differently than when it was written. The pair there is **20 s keep-alive, 60 s server idle
@@ -42,7 +51,7 @@ a 60 s server timeout leaves detection where the browser puts it, at **30 s**. *
 2026-09-22:** this paragraph used to say the recommendation *doubles the 30 s freeze L15 measured*.
 It does neither — it cannot push detection past the client's own bound, and L15 measured an
 advertised timeout, not a freeze. Only a server idle timeout **below 30 s** moves detection, which
-is the number A1 asks for at 10 s (§The measurement this owes).
+is the number A1 asks for at 10 s (§The measurement, taken).
 
 **The timeout is a detection bound, and it is the wrong instrument.** It exists to reclaim a dead
 session, not to tell a viewer its data stopped. Detection should come from the platform, and the
@@ -135,7 +144,12 @@ Free signals, none of which this client listens to today:
 | `freeze` / `resume` | the page was frozen and thawed — see §A fill outlasts the screen lock |
 
 **None of them proves the path works**, which is why they are triggers and not verdicts. Each one
-should start a check, not a re-dial.
+starts a check, not a re-dial.
+
+**A sixth, added when this was built: a fill that has gone quiet.** `stallMs` with frames owed
+and none arriving is the only trigger a path change raises on one host — no platform signal fires
+when the bytes simply stop — and the only one that is about this session's data rather than the
+platform's guess about the network. It is what §The measurement below actually exercises.
 
 ## The check: a probe ask with a deadline
 
@@ -150,6 +164,14 @@ The frame index is chosen from the downloader's own records, so the probe costs 
 no bookkeeping of its own. A study with nothing delivered yet has nothing in flight to lose, so the
 probe is skipped and the first real ask is the probe.
 
+Two more skips, both from building it. A check already running does not start another. And a
+session that delivered a frame **within the last `stallMs`** has just proved itself, so a tab
+switch during a healthy fill costs nothing — which matters, because an ask ends a running fill on
+the server (`transport/ask-during-fill.md`) and a probe that interrupts a live fill costs the
+round trip to re-issue the remainder. While the fill is *stalled*, which is when the probe
+actually fires, that cost is zero. The same reasoning settles what to do when the probe's deadline
+passes but a frame arrived while it was out: the frame wins, because it is the better evidence.
+
 ## Re-dial and re-issue, on records that already exist
 
 This is the part that needs no new state. `proposal-downloader.md` §The downloader already keeps
@@ -158,11 +180,21 @@ already re-issues the undelivered remainder of a fill after an ask ends it (L16)
 the same problem with a wider blast radius:
 
 1. Re-dial. With [`proposal-session-open.md`](proposal-session-open.md)'s opening ask this costs two
-   round trips rather than four, which is why that row went first.
+   round trips rather than four, which is why that row went first. A dial that fails is retried
+   `tries` times `redialMs` apart while anything is still owed; after the last one every owed frame
+   is failed, which is what LG/LH already did and is now the terminal state rather than the first
+   response.
 2. Re-issue every frame whose record is *on the wire* or *not asked*, in the same priority order
    asks and fills already have.
 3. Frames already *delivered*, *decoding* or *waiting for a decoder* are untouched. They are in
    memory and the wire is not needed for them.
+
+**The request's generation does not change.** A generation is a *request's* identity and `cancel()`
+is what moves it (`client/downloader/README.md` §A request is a generation); a resume is the same
+request continuing. Bumping it would drop frames still inside a decoder under the old generation
+and would have to be told to the page. A session **epoch**, private to the worker, fences the dead
+session's callbacks instead — so the page's records stay valid without being told anything, and
+the only thing it is told is when each resume happened, as `stats().resumedAt`.
 
 **Nothing is re-decoded and nothing is re-fetched that arrived.** That property is the reason to
 put resumption behind the records rather than behind a session-level retry.
@@ -174,6 +206,8 @@ page runs nothing — no reader, no decoder, no timers. The fill does not fail; 
 the idle timeout kills the session under it.
 
 Two measures, both platform calls and neither novel:
+
+**Neither of these is built** — both are phone behaviour and neither is measurable on this host.
 
 * **A screen wake lock for the duration of a fill**, released the moment it finishes. Held only
   while a fill is running — not for the session, and not while merely viewing.
@@ -191,15 +225,105 @@ The wake lock is a request the platform may refuse, so the `freeze` path must wo
 * **No server change.** The server already serves a repeat ask and already reclaims a dead session
   on its timeout.
 
-## The measurement this owes
+## What is built, and where
 
-**One number, and it cannot be taken on this branch yet.** A1 asks for the rebind probe re-run at a
-10 s idle timeout, to put a figure on how fast a path change is noticed when the timeout is short.
-The probe is `lab/window-harness/src/bin/rebind_probe.rs` with `lab/scripts/link_impair.py`, both
-here since T1 and N1; the rebind survives in this container at a 30 s timeout, so the number the
-lane wants is the same probe against a 10 s one. This file's other quantities are the two measured
-elsewhere: Chromium advertises 30 s (L15) and a 61 MB fill at 20 Mbit is 24 s (arithmetic).
+**2026-09-22, the lab's client.** All of the mechanism is in `client/downloader/downloader.js` —
+the worker that owns the session, the records and the queue — with four lines in `consumer.js` for
+the triggers a worker cannot see. No wire message, no server change and no transport change: the
+probe is an ordinary ask and both transports already serve it.
+[`../client/downloader/README.md`](../client/downloader/README.md) §A session that dies is resumed
+is the reader's entry.
 
-Everything above is a design. The order it should be proved in: the rebind number after T1, then
-the triggers on a phone, which is the only place `freeze` and a radio change both happen for real
-— [`cloud-queue.md`](cloud-queue.md) row 59.
+A session is **live**, **suspect** (one probe out, with a deadline), **dead**, or being
+**re-dialled**. Every trigger moves it from live to suspect; only a session the API itself reports
+closed goes straight to dead.
+
+| trigger | where it is listened for |
+| --- | --- |
+| `online`, `offline`, `navigator.connection` `change` | the downloader's worker |
+| `visibilitychange` to visible, `pageshow`, `freeze`, `resume` | the page, forwarded as one message |
+| a fill quiet for `stallMs` with frames owed | the downloader's own records |
+
+The deadlines are `{ stallMs: 3000, probeMs: 2000, redialMs: 1000, tries: 5 }`, so detection costs
+`stallMs + probeMs` and a resume costs a dial after it; `survival: false` turns the whole of it off
+and an object overrides them. Nothing in it runs when nothing dies, which is what keeps the
+conformance and dispatch suites green unchanged.
+
+**`tries` bounds the dials within one resumption, not the resumptions.** A dial that succeeds onto
+a path that still carries nothing leaves the fill owed and quiet, so the cycle starts again about
+`stallMs + probeMs` later, for as long as the consumer wants frames. That is deliberate: a network
+that is genuinely down refuses the dial, which is the case `tries` ends.
+
+**Five clauses**, `client/conformance/dispatch-rig.ts`, each mutated and seen to fail: a trigger
+checks before it re-dials and a session that answers the probe is kept; a probe nobody answers
+re-dials and re-issues exactly what was owed; a session the API calls closed is re-dialled with no
+probe at all; an ask outstanding at the death is re-asked and settles the promise the page is still
+holding; and when the re-dials run out, every frame the fill still owed is named once — LG/LH's
+behaviour, as the terminal state.
+
+## The measurement, taken
+
+**The cut, and what it models.** `lab/scripts/link_impair.py`'s `cut` blackholes the client port
+the session is on for good and rebinds its own upstream port, so the server's half goes nowhere
+either and a session dialled from a new port is untouched: a handover modelled on one host — the
+old path is gone, a new one works, **and nothing tells the client**. That is not a blackout; a
+blackout brings the same path back and QUIC recovers with nothing here doing a thing
+([`improvements/2026-09-20.md`](improvements/2026-09-20.md)). The harness, the study and the three
+arms are [`../lab/session-survival/README.md`](../lab/session-survival/README.md).
+
+**Three arms, one server binary, one page, interleaved with the order rotated each round.** `today`
+is `survival: false` **plus a page that re-asks for everything missing the instant the transport
+reports the fill gone** — a deliberately generous baseline, since a real page today gets the frames
+named and the fill failed and must do something about it. `built` is the defaults. `quick` is the
+same code at `{ stallMs: 1000, probeMs: 800 }`.
+
+**7 rounds, 21 runs, one host, 2026-09-22.** 87-frame study, 428 KB a frame, relay at 20 Mbit, the
+fill 80 frames, the cut after 12 (about 2 s in). Median [min … max] ms from the cut datagram.
+
+| arm | noticed | first frame after the cut | the fill completed | frames failed | resumes |
+| --- | --- | --- | --- | --- | --- |
+| `today` (`survival: false`, page re-asks at once) | 6552 [6539 … 6558] | 6745 [6740 … 6758] | 7/7 | **476** (68 a round) | 0 |
+| `built` (`stallMs 3000`, `probeMs 2000`) | **5010** [4996 … 5023] | **5191** [5172 … 5216] | 7/7 | 0 | 7 |
+| `quick` (`stallMs 1000`, `probeMs 800`) | 1816 [1803 … 1821] | 1996 [1979 … 2003] | 7/7 | 0 | 7 |
+
+`today` completes only because its page re-asks; the 476 frames are what a real page is handed
+instead. The spread inside an arm is under 30 ms in every cell, so the arms do not overlap and the
+win is 7/7 both ways.
+
+**What the numbers say.**
+
+* **The 30 s freeze does not happen to a fill.** `today` is noticed at ~6.5 s, not 30, and the page
+  is told `session closed: Connection lost.` — Chromium's own loss recovery gives up on a path with
+  data owed long before any idle timer is consulted. §The problem is corrected in place above. The
+  30 s bound still stands for a session **carrying nothing**, which is the case A1's rebind number
+  is still about.
+* **Detection is the deadlines, exactly.** `built` notices at `stallMs + probeMs` and `quick` at
+  the same sum, to within the round's jitter — the stall timer and the probe deadline are the whole
+  of it, and neither arm waits on the browser's close. **The resume itself costs ~180 ms** — the
+  gap between the two columns is 181 ms for `built` and 180 ms for `quick`, a dial and a frame —
+  so the deadlines are what to argue about and the mechanism is not.
+* **The claim that does not depend on the deadlines**: today the fill **fails** and every owed
+  frame is named; built, it **completes by itself** with nothing reported to the page but a
+  `stats().resumedAt` entry.
+
+**Why the default stays at 3000/2000, on this evidence.** `quick` is not a proposed default: the
+stall trigger has to outlast the longest legitimate gap between frames, and one 428 KB frame at
+1 Mbit is 3.4 s, so `stallMs: 1000` would probe a *healthy* slow fill between frames. A probe is an
+ask, and an ask ends the running fill on the server
+([`transport/ask-during-fill.md`](transport/ask-during-fill.md)), so a false probe costs a round
+trip to re-issue the remainder plus the probe frame's own bytes — on exactly the link least able to
+pay. **What would decide a move** is that cost measured on a slow link, or a `stallMs` derived from
+the fill's own observed inter-frame time rather than fixed; neither is taken here, and neither is
+built.
+
+**Still owed, and not this lane's.** A1's other number: the rebind probe
+(`lab/window-harness/src/bin/rebind_probe.rs`) re-run at a **10 s** idle timeout, which is about the
+*idle* path the correction above leaves standing. And the triggers on a phone — the only place
+`freeze` and a radio change both happen for real — [`cloud-queue.md`](cloud-queue.md) row 59.
+`visibilitychange`, `pageshow`, `freeze`, `resume`, `online`/`offline` and `connection` `change` are
+covered by the dispatch clauses, not by this campaign: a desktop cut can raise only the stall.
+
+**Where the host saturates.** The arms run at the relay's 20 Mbit, three orders below what this
+loopback does; the rate is the relay's, not the box's. What the box's load could reach is the dial
+and the decode, and the harness runs `decode: false`. Latency only — no throughput is quoted from
+these runs, and the fill's rate before and after the cut is the link's.
