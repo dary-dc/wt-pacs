@@ -46,6 +46,18 @@ resident). The one decoder object `decoder.js` reuses accounts for 0.81 MB of th
 grow with the series; each worker compiling its own module accounts for 0.3 MB. So neither is a
 lever worth pulling, and a page where three of these cost tens of MB each is not paying for them.
 
+**The wire buffer is a ring, not a frame's own.** `connect` sizes it —
+`opts.wireBuffers`, defaulting to `decoders × perDecoder + 2`, the frames that can be between the
+wire and a decoder — and the session hands frames out of it. `decoder.js` transfers `bytes.buffer`
+back in its `done` or `failed` reply and this worker returns it with `session.releaseWireBuffer`,
+so a fill's peak is the pool rather than the series: **−19.2 MB [−20.9…−16.0] of renderer peak on
+an 87-frame 16-bit fill, 8 of 8 rounds**, −10.8 on the colour set, against a constant 3.1 MB the
+pool retains and no movement in the fill's clock
+([`docs/decode/README.md`](../../docs/decode/README.md) §The wire buffer ring). `wireBuffers: 0`
+never retains, which is one buffer per frame — the behaviour before it, and what a consumer that
+hands nothing back gets anyway. An undecoded frame (`decode: false`) is transferred to the page and
+never comes back, as before.
+
 **A request is a generation.** `cancel()` bumps it and returns a promise that resolves once the
 downloader has ended the stream and dropped that request's work; every frame and failure carries the
 generation it was made under, and anything older is dropped on the page rather than handed over
