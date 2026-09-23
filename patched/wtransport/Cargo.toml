@@ -1,0 +1,114 @@
+# crates.io wtransport 0.7.2's manifest without examples, dev-dependencies and metadata; the source
+# is that crate with patches/wtransport-0.7.2-settings-early.patch — docs/proposal-session-open.md §Lever 2
+
+[package]
+edition = "2021"
+rust-version = "1.88"
+name = "wtransport"
+version = "0.7.2"
+authors = ["Biagio Festa"]
+build = "build.rs"
+autolib = false
+autobins = false
+description = "Implementation of the WebTransport (over HTTP3) protocol"
+keywords = ["webtransport"]
+categories = [
+    "network-programming",
+    "asynchronous",
+]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/BiagioFesta/wtransport"
+
+[features]
+aws-lc-rs = [
+    "quinn/aws-lc-rs",
+    "quinn/rustls-aws-lc-rs",
+    "rustls/aws-lc-rs",
+    "rcgen?/aws_lc_rs",
+]
+aws-lc-rs-fips = [
+    "quinn/aws-lc-rs-fips",
+    "quinn/rustls-aws-lc-rs-fips",
+    "rustls/fips",
+    "rcgen?/fips",
+]
+dangerous-configuration = []
+default = [
+    "self-signed",
+    "ring",
+]
+fips = ["aws-lc-rs-fips"]
+quinn = []
+quinn-log = ["quinn/log"]
+ring = [
+    "quinn/ring",
+    "quinn/rustls",
+    "rustls/ring",
+    "rcgen?/ring",
+]
+self-signed = ["dep:rcgen"]
+
+[lib]
+name = "wtransport"
+path = "src/lib.rs"
+
+[dependencies.bytes]
+version = "1.4.0"
+
+[dependencies.pem]
+version = "3.0.4"
+
+[dependencies.quinn]
+version = "0.11.6"
+features = ["runtime-tokio"]
+default-features = false
+
+[dependencies.rcgen]
+version = "0.14.5"
+optional = true
+default-features = false
+
+[dependencies.rustls]
+version = "0.23.23"
+default-features = false
+
+[dependencies.rustls-native-certs]
+version = "0.8.0"
+
+[dependencies.rustls-pki-types]
+version = "1.13.2"
+
+[dependencies.sha2]
+version = "0.11.0"
+
+[dependencies.socket2]
+version = "0.6.3"
+
+[dependencies.thiserror]
+version = "2.0.3"
+
+[dependencies.time]
+version = "0.3.21"
+
+[dependencies.tokio]
+version = "1.28.1"
+features = [
+    "macros",
+    "fs",
+    "io-util",
+]
+default-features = false
+
+[dependencies.tracing]
+version = "0.1.37"
+
+[dependencies.url]
+version = "2.4.0"
+
+[dependencies.wtransport-proto]
+version = "0.7.2"
+features = ["async"]
+
+[dependencies.x509-parser]
+version = "0.18.1"
+
