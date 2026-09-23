@@ -93,7 +93,7 @@ for (let round = 0; round < ROUNDS; round++) {
           (r.error ? `ERROR ${r.error}` :
             `rss hwm ${mb(r.rss_hwm_kib)} settled ${mb(r.rss_settled_kib)} MB  ` +
             `workers ${(r.memory_workers_bytes / 1048576).toFixed(1)} MB (${r.memory_worker_entries}) ` +
-            `frames ${r.checked}/${r.frames} mism ${r.mismatches} ${r.decode_wall_ms?.toFixed(0)} ms`) +
+            `frames ${r.checked}/${r.declared} mism ${r.mismatches} ${r.decode_wall_ms?.toFixed(0)} ms`) +
           (r.errors?.length ? ` pageerrors ${r.errors.length}` : ""));
       }
     }
@@ -117,16 +117,19 @@ function slope(arm, key, lo, hi) {
   return out;
 }
 const [lo, hi] = [Math.min(...COUNTS), Math.max(...COUNTS)];
-console.log(`\n### ${ROUNDS} rounds, arm and count order rotated each round, D=${lo} against D=${hi}\n`);
-console.log(`| arm | RSS D=${lo} MB | RSS D=${hi} MB | per-worker resident MB | at init | peak | JS+WASM | n |`);
-console.log(`| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |`);
-for (const arm of ARMS) {
-  const i = slope(arm, "rss_ready_kib", lo, hi).map((k) => k / 1024);
-  const s = slope(arm, "rss_settled_kib", lo, hi).map((k) => k / 1024);
-  const p = slope(arm, "rss_hwm_kib", lo, hi).map((k) => k / 1024);
-  const h = slope(arm, "memory_workers_bytes", lo, hi).map((b) => b / 1048576);
-  console.log(`| ${arm} | ${fmt(cell(arm, lo, "rss_settled_kib").map((k) => k / 1024))} | ` +
-    `${fmt(cell(arm, hi, "rss_settled_kib").map((k) => k / 1024))} | **${fmt(s)}** | ${fmt(i)} | ${fmt(p)} | ${fmt(h)} | ${s.length} |`);
+// The per-worker cost is a slope between two counts; one count has none.
+if (COUNTS.length > 1) {
+  console.log(`\n### ${ROUNDS} rounds, arm and count order rotated each round, D=${lo} against D=${hi}\n`);
+  console.log(`| arm | RSS D=${lo} MB | RSS D=${hi} MB | per-worker resident MB | at init | peak | JS+WASM | n |`);
+  console.log(`| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |`);
+  for (const arm of ARMS) {
+    const i = slope(arm, "rss_ready_kib", lo, hi).map((k) => k / 1024);
+    const s = slope(arm, "rss_settled_kib", lo, hi).map((k) => k / 1024);
+    const p = slope(arm, "rss_hwm_kib", lo, hi).map((k) => k / 1024);
+    const h = slope(arm, "memory_workers_bytes", lo, hi).map((b) => b / 1048576);
+    console.log(`| ${arm} | ${fmt(cell(arm, lo, "rss_settled_kib").map((k) => k / 1024))} | ` +
+      `${fmt(cell(arm, hi, "rss_settled_kib").map((k) => k / 1024))} | **${fmt(s)}** | ${fmt(i)} | ${fmt(p)} | ${fmt(h)} | ${s.length} |`);
+  }
 }
 if (WIRES.length) {
   console.log(`\n### the wire-buffer ring: the renderer's peak at each size\n`);
@@ -145,6 +148,7 @@ if (WIRES.length) {
   }
 }
 
-const bad = rows.filter((r) => r.error || r.mismatches > 0 || r.checked !== r.frames);
+// A set the generator left short of its own metadata is a partial series, not a smaller one.
+const bad = rows.filter((r) => r.error || r.mismatches > 0 || r.checked !== r.frames || r.frames !== r.declared);
 console.log(`\nframes checked against the fixture in every cell; cells not clean: ${bad.length}/${rows.length}`);
-for (const r of bad.slice(0, 8)) console.log(`  ${r.arm} D=${r.decoders} ${r.error ?? `${r.checked}/${r.frames} checked, ${r.mismatches} mismatches`}`);
+for (const r of bad.slice(0, 8)) console.log(`  ${r.arm} D=${r.decoders} ${r.error ?? `${r.checked} checked of ${r.frames} on disk, ${r.declared} declared, ${r.mismatches} mismatches`}`);

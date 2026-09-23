@@ -44,18 +44,19 @@ async function series(withBytes) {
   for (let i = 0; i < declared; i++) {
     const name = String(i).padStart(3, "0");
     const frame = await fetch(`/lab/fixtures/${SERIES}/${name}.${withBytes ? "j2c" : "sha256"}`);
-    // A generated set on disk can be shorter than the metadata the generator wrote.
+    // A set shorter than its metadata is reported as such, not absorbed: run.mjs fails the cell.
     if (!frame.ok) break;
     if (withBytes) codestreams.push(new Uint8Array(await frame.arrayBuffer()));
     digests.push((await (await fetch(`/lab/fixtures/${SERIES}/${name}.sha256`)).text()).trim());
   }
-  return { meta, n: digests.length, codestreams, digests };
+  return { meta, declared, n: digests.length, codestreams, digests };
 }
 
 async function main() {
   const result = { arm: ARM, decoders: D, perDecoder: PER, path: PATH, series: SERIES,
     mutate: MUTATE, ballast_mb: BALLAST_MB, hold: HOLD };
-  const { meta, n, codestreams, digests } = await series(PATH === "direct");
+  const { meta, declared, n, codestreams, digests } = await series(PATH === "direct");
+  result.declared = declared;
   result.frames = n;
   const spec = ARMS[ARM];
 

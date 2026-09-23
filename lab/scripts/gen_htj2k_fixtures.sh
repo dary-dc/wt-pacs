@@ -18,6 +18,10 @@
 # shape the product serves, content that still reaches the block decoder — docs/decode/README.md.
 #   g1024  1024x1024 1x16-bit greyscale  2 MB decoded
 #   g2048  2048x2048 1x16-bit greyscale  8 MB decoded
+#
+# The frames are gitignored; the metadata.json beside them is tracked. A set made at another
+# FRAMES must have its metadata committed with it, or a bench reads a count that is not on disk —
+# lab/decoder-memory/README.md says what catches that.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT_ROOT="${OUT_ROOT:-$ROOT/lab/fixtures}"

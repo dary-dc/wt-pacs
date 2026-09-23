@@ -58,14 +58,16 @@ export async function typescriptImpl(): Promise<Implementation> {
   };
 }
 
-export const WASM_PKG = path.join(root, "client/transport-wasm/pkg");
+/** The product's build, or another of the same client: `WTPACS_WASM_PKG` runs the suite on a
+ *  feature build without displacing `pkg/`. docs/decode/README.md §The BYOB read path */
+export const WASM_PKG = process.env.WTPACS_WASM_PKG || path.join(root, "client/transport-wasm/pkg");
 
 export function wasmBuilt(): boolean {
   return fs.existsSync(path.join(WASM_PKG, "transport_wasm_bg.wasm"));
 }
 
 export async function wasmImpl(): Promise<Implementation> {
-  const mod = await load("client/transport-wasm/pkg/transport_wasm.js");
+  const mod = await import(pathToFileURL(path.join(WASM_PKG, "transport_wasm.js")).href);
   await mod.default({
     module_or_path: fs.readFileSync(path.join(WASM_PKG, "transport_wasm_bg.wasm")),
   });

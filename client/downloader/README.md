@@ -48,7 +48,8 @@ lever worth pulling, and a page where three of these cost tens of MB each is not
 
 **The wire buffer is a ring, not a frame's own.** `connect` sizes it —
 `opts.wireBuffers`, defaulting to `decoders × perDecoder + 2`, the frames that can be between the
-wire and a decoder — and the session hands frames out of it. `decoder.js` transfers `bytes.buffer`
+wire and a decoder, a default 2, 8 and 16 were measured against and nothing beat — and the session
+hands frames out of it. `decoder.js` transfers `bytes.buffer`
 back in its `done` or `failed` reply and this worker returns it with `session.releaseWireBuffer`,
 so a fill's peak is the pool rather than the series: **−19.2 MB [−20.9…−16.0] of renderer peak on
 an 87-frame 16-bit fill, 8 of 8 rounds**, −10.8 on the colour set, against a constant 3.1 MB the
