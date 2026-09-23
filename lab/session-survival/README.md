@@ -2,7 +2,7 @@
 
 How long a page sits frozen when the path its session is on goes away, and how long it sits with
 the resumption `docs/proposal-session-survival.md` describes. The numbers live in that proposal
-§The measurement this owes; this says how they were made.
+§The measurement, taken; this says how they were made.
 
 ```bash
 ./server/scripts/gen_dev_cert.sh                      # then point wt_url at the relay, below
@@ -40,3 +40,9 @@ and a frame. Latency, not throughput: the fill's rate before and after the cut i
 and says nothing about this. The host saturates well above 20 Mbit on loopback, so the rate is the
 relay's and not the box's; what the box's load does reach is the dial and the decode, which this
 arm does not run (`decode: false`).
+
+**What it read, 2026-09-22, 7 rounds interleaved** (median [min … max] ms from the cut): `today`
+noticed 6552 [6539 … 6558], `built` 5010 [4996 … 5023], `quick` 1816 [1803 … 1821]; first frame
+after the cut 6745 / 5191 / 1996. Detection is `stallMs + probeMs`, the resume costs ~180 ms on top,
+and `today` hands the page 68 failed frames a round where the other two hand it none. The reading
+and what it corrects are `docs/proposal-session-survival.md` §The measurement, taken.
