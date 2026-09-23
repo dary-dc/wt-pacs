@@ -32,6 +32,7 @@ JS+WASM bytes, and the twin arms report each worker's WASM heap directly.
 | `ballast` | MB each worker allocates and touches: the slope's calibration |
 | `path` | `direct` (the workers alone) or `downloader` — the whole client, session included, which needs `exact-server` on a study of the same frames and `client/dev-transport.json` pointing at it |
 | `hold` | `1` keeps every decoded frame to the end, as a viewer does |
+| `wire` | the session's wire-buffer ring size on `path=downloader`; `0` is one buffer per frame, the arm before it. `--wire 0,8` runs both, rotated every round like the arms |
 
 `twin` exists so `fresh` and `share` differ from a running decoder by **one knob**, and it is run
 as a cell of its own: it has to read as `prod` does, or the knobs are not the only difference.
@@ -40,6 +41,9 @@ as a cell of its own: it has to read as `prod` does, or the knobs are not the on
 every cell, and `run.mjs` prints the cells that were not clean. Mutants: `mutate=pixel` must report
 a mismatch, `mutate=skip` must report fewer frames checked than the series has, and `ballast=N`
 must move the per-worker slope by N MB and nothing else.
+
+The ring's own numbers are in `docs/decode/README.md` §The wire buffer ring; `--wire` is the axis
+that made them, and it needs `path=downloader`, because the ring is the session's.
 
 **Read before trusting a number.** Memory, not time — the wall-clock column is context, and the
 arms are not a timing claim. Container-free but shared box: cells are interleaved and the count

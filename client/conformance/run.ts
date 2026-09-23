@@ -7,6 +7,7 @@
 import { FakeTransport, installFakeTransport } from "./fake-transport.ts";
 import { type Implementation, typescriptImpl, wasmBuilt, wasmImpl } from "./adapters.ts";
 import { type Rig, runClauses } from "./clauses.ts";
+import { runRing } from "./ring.ts";
 
 const CERT = "ab".repeat(32);
 // A cancelled fill leaves waiters nothing will ever settle; their eventual timeout is not a
@@ -61,6 +62,7 @@ const impls: Implementation[] = [await typescriptImpl(), await wasmImpl()];
 for (const impl of impls) {
   console.log(`\n${impl.name}`);
   await runClauses(nodeRig(impl), check);
+  await runRing(impl, check);
 }
 
 if (strays.length) console.log(`\n  ${strays.length} abandoned waiter(s) rejected after their fill was cancelled`);

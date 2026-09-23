@@ -812,6 +812,67 @@ and nothing here is a rate claim. 87 frames, because the heap reaches its high-w
 few and does not move afterwards. Nothing measured on a phone, which is where the memory question
 is finally settled.
 
+### The wire buffer ring
+
+The term above is per worker and small. The large one on the same page is **not** a worker at all:
+it is the **per-frame wire buffer** — one fresh `Uint8Array` copied out of the transport per frame,
+transferred to a decoder and dead on the other side, charged in *both* isolates because neither
+reaches a collection while a fill runs. A private viewer rig sized it at up to **~130 MB** of
+renderer peak on a 237-frame 16-bit fill, of which 61.5 MB sat in the downloader worker's isolate
+and 68.0 MB across three decoders', and a forced collection removed all of it.
+
+**The ring.** The **transport session** — the only place that knows a frame's length before its
+bytes land — keeps a free list of the buffers it has handed out. `connect(url, hash,
+{ wireBuffers: N })` sizes it; the downloader passes `decoders × perDecoder + 2`, the frames that
+can be between the wire and a decoder. A frame is read into a buffer from that list and is a
+`Uint8Array` **view** of the codestream's own length over it, so nothing on the wire changes. The
+decoder transfers `bytes.buffer` back in its `done` or `failed` reply and the downloader hands it
+to `session.releaseWireBuffer`. A released buffer is kept only while the free list is under `N`;
+one smaller than the frame being read is dropped rather than grown, so the pool converges upward to
+`N` × the largest frame. **`wireBuffers` unset or 0 never retains**, which is the behaviour to the
+letter of every consumer that does not hand buffers back — the conformance fakes, the harnesses —
+and is the *before* arm of the table below, in the same build. A frame delivered undecoded
+(`decode: false`) goes to the page and never returns, unchanged.
+
+**The reader is never paused when the list is empty**; a fresh buffer is allocated, as before.
+Bounding the memory by back pressure instead is a different lever: it moves the fill's clock and it
+is the one place this could deadlock a consumer that keeps a buffer.
+
+`lab/decoder-memory/` with `path=downloader&hold=1` — the whole client, a real session against
+`exact-server`, the page keeping every frame as a viewer does — `--wire 0,8`, the size rotated
+every round, D=3. Peak is the kernel's `VmHWM`; paired inside each round, MB, median [range]:
+
+| series | peak, one buffer per frame | peak, a ring of 8 | paired | lower in | fill + decode wall | n |
+| --- | ---: | ---: | ---: | :-: | --- | :-: |
+| 87 × 512² 16-bit | 275.7 [274.1–276.2] | **256.3 [253.9–260.2]** | **−19.2 [−20.9…−16.0]** | 8/8 | 420 [391–463] → 409 [400–471] ms | 8 |
+| 87 × 512² colour | 304.7 [304.2–305.3] | **293.9 [292.0–295.7]** | **−10.8 [−12.7…−8.5]** | 8/8 | 678 [650–701] → 653 [630–771] ms | 8 |
+| 30 × 512² 16-bit | 195.5 [194.8–196.2] | **192.3 [192.0–192.6]** | **−3.2 [−3.9…−2.5]** | 6/6 | 221 [208–229] → 217 [199–224] ms | 6 |
+
+* **What it costs is a constant; what it saves is the series.** `measureUserAgentSpecificMemory`
+  counts **+3.1 MB** of worker JS+WASM with the ring at 30 frames and **+3.1 MB** at 87 — eight
+  buffers of the largest frame, retained rather than collected — against a peak that falls by 3.2,
+  19.2 and 10.8 MB. Settled RSS rises with the pool (+4.1 / +1.9 / +7.7 MB). At 30 frames the lever
+  roughly breaks even; it is the length of the series that pays for it, and on a device it is the
+  peak, not the settled figure, that the tab is killed for.
+* **The clock does not move.** The wall clock of the whole fill and decode overlaps on every shape
+  and has no direction (the ring is lower in 4 of 8, 6 of 8, 4 of 6). The bytes are copied either
+  way; only their destination changed. `lab/decode-bench/` drives its own decoder in Node with no
+  worker message and no session, so it cannot see this change — this path's clock is the one that
+  can.
+* **Pixels.** Every frame in all 44 cells checked against the generator's `.sha256`: 87/87 (30/30),
+  **0 mismatches, 0 failures**. `client/conformance/ring.ts` holds the mechanism to account against
+  **both** session implementations — reuse, that an unset size keeps none, that a buffer still held
+  is never handed out, the cap, a frame read into a larger buffer being a view of its own length,
+  and a smaller one being dropped rather than grown. Six mutants, each caught on its own
+  implementation's arm alone.
+* **Not the same lever as BYOB reads** (§The BYOB read path), which would remove the *other*
+  per-frame allocation — the chunks the reader hands back on the way in. Measured, a tie on time,
+  ~12 ms on a session's first frame, and a decision of its own.
+
+**What this is not.** Desktop Chrome 148 on a shared box, 87-frame series, loopback. The rig's
+130 MB is a 237-frame fill behind a viewer that caches every plane; what is measured here is the
+same mechanism on a shorter series, and the saving is not a constant to carry across.
+
 ## Threads: not buildable from this release
 
 The question was one multithreaded instance at N threads against N single-threaded ones. It cannot

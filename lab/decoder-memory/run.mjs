@@ -16,6 +16,8 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ROUNDS = Number(arg("--rounds", 6));
 const ARMS = arg("--arms", "prod,perdec1,twin,fresh,share").split(",");
 const COUNTS = arg("--counts", "1,3").split(",").map(Number);
+/** Ring sizes to compare, interleaved like the arms: `0` is one wire buffer per frame. */
+const WIRES = arg("--wire", "").split(",").filter((w) => w !== "");
 const EXTRA = arg("--query", "");
 const OUT = arg("--out", "");
 const PORT = Number(process.env.PORT || 8771);
@@ -46,13 +48,13 @@ async function renderers() {
   return new Set(processInfo.filter((p) => p.type === "renderer").map((p) => String(p.id)));
 }
 
-async function runOne(arm, decoders) {
+async function runOne(arm, decoders, wire) {
   const before = await renderers();
   const context = await browser.newContext();
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(`http://127.0.0.1:${PORT}/lab/decoder-memory/index.html?arm=${arm}&decoders=${decoders}${EXTRA}`);
+  await page.goto(`http://127.0.0.1:${PORT}/lab/decoder-memory/index.html?arm=${arm}&decoders=${decoders}${wire === undefined ? "" : `&wire=${wire}`}${EXTRA}`);
   await page.waitForFunction(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone, null, { timeout: 300000 });
   // The page has its fixtures and its workers by now, so among the processes this run started it
   // is the largest by a wide margin; `runner_up_kib` is what says the margin was wide.
@@ -72,7 +74,7 @@ async function runOne(arm, decoders) {
   clearInterval(sampler);
   const result = await page.evaluate(() => globalThis.__wtpacsResult);
   await context.close();
-  return { ...result, arm, decoders, pid: Number(pid), rss_peak_kib: peak, rss_hwm_kib: hwm, rss_settled_kib: settled,
+  return { ...result, arm, decoders, wire, pid: Number(pid), rss_peak_kib: peak, rss_hwm_kib: hwm, rss_settled_kib: settled,
     rss_ready_kib: atReady, runner_up_kib: fresh[1]?.[1] ?? 0, renderers: fresh.length, errors };
 }
 
@@ -80,17 +82,20 @@ const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
   const arms = ARMS.map((_, i) => ARMS[(i + round) % ARMS.length]);
   const counts = COUNTS.map((_, i) => COUNTS[(i + round) % COUNTS.length]);
+  const wires = WIRES.length ? WIRES.map((_, i) => WIRES[(i + round) % WIRES.length]) : [undefined];
   for (const arm of arms) {
     for (const decoders of counts) {
-      const r = await runOne(arm, decoders);
-      rows.push({ round, ...r });
-      const mb = (k) => (k / 1024).toFixed(1);
-      console.log(`round ${round} ${arm.padEnd(8)} D=${decoders} ` +
-        (r.error ? `ERROR ${r.error}` :
-          `rss hwm ${mb(r.rss_hwm_kib)} settled ${mb(r.rss_settled_kib)} MB  ` +
-          `workers ${(r.memory_workers_bytes / 1048576).toFixed(1)} MB (${r.memory_worker_entries}) ` +
-          `frames ${r.checked}/${r.frames} mism ${r.mismatches} ${r.decode_wall_ms?.toFixed(0)} ms`) +
-        (r.errors?.length ? ` pageerrors ${r.errors.length}` : ""));
+      for (const wire of wires) {
+        const r = await runOne(arm, decoders, wire);
+        rows.push({ round, ...r });
+        const mb = (k) => (k / 1024).toFixed(1);
+        console.log(`round ${round} ${arm.padEnd(8)} D=${decoders} ${wire === undefined ? "" : `wire=${wire} `}` +
+          (r.error ? `ERROR ${r.error}` :
+            `rss hwm ${mb(r.rss_hwm_kib)} settled ${mb(r.rss_settled_kib)} MB  ` +
+            `workers ${(r.memory_workers_bytes / 1048576).toFixed(1)} MB (${r.memory_worker_entries}) ` +
+            `frames ${r.checked}/${r.frames} mism ${r.mismatches} ${r.decode_wall_ms?.toFixed(0)} ms`) +
+          (r.errors?.length ? ` pageerrors ${r.errors.length}` : ""));
+      }
     }
   }
 }
@@ -123,6 +128,23 @@ for (const arm of ARMS) {
   console.log(`| ${arm} | ${fmt(cell(arm, lo, "rss_settled_kib").map((k) => k / 1024))} | ` +
     `${fmt(cell(arm, hi, "rss_settled_kib").map((k) => k / 1024))} | **${fmt(s)}** | ${fmt(i)} | ${fmt(p)} | ${fmt(h)} | ${s.length} |`);
 }
+if (WIRES.length) {
+  console.log(`\n### the wire-buffer ring: the renderer's peak at each size\n`);
+  console.log(`| arm | D | wire | peak VmHWM MB | settled MB | decode wall ms | n |`);
+  console.log(`| --- | ---: | ---: | ---: | ---: | ---: | ---: |`);
+  for (const arm of ARMS) {
+    for (const decoders of COUNTS) {
+      for (const wire of WIRES) {
+        const at = (key) => rows.filter((r) => r.arm === arm && r.decoders === decoders &&
+          r.wire === wire && !r.error && r[key] != null).map((r) => r[key]);
+        const peak = at("rss_hwm_kib").map((k) => k / 1024);
+        console.log(`| ${arm} | ${decoders} | ${wire} | **${fmt(peak)}** | ` +
+          `${fmt(at("rss_settled_kib").map((k) => k / 1024))} | ${fmt(at("decode_wall_ms"), 0)} | ${peak.length} |`);
+      }
+    }
+  }
+}
+
 const bad = rows.filter((r) => r.error || r.mismatches > 0 || r.checked !== r.frames);
 console.log(`\nframes checked against the fixture in every cell; cells not clean: ${bad.length}/${rows.length}`);
 for (const r of bad.slice(0, 8)) console.log(`  ${r.arm} D=${r.decoders} ${r.error ?? `${r.checked}/${r.frames} checked, ${r.mismatches} mismatches`}`);

@@ -19,6 +19,8 @@ export type ConnectOptions = {
   window?: AskWindowConfig;
   /** A fill the session URL carries, served behind the accept. docs/proposal-session-open.md */
   fill?: OpeningFill;
+  /** Wire buffers to keep for reuse; 0 allocates one per frame. docs/decode/README.md §The wire buffer ring */
+  wireBuffers?: number;
 };
 
 export type OpeningFill = {
@@ -56,6 +58,25 @@ type Fill = {
   onError: (frameIndex: number, reason: string) => void;
 };
 
+/**
+ * The ring: a frame is read into a buffer the consumer hands back, so a fill's peak is the pool
+ * and not the series. A buffer too small for the frame being read is dropped rather than grown.
+ */
+class WireBuffers {
+  private free: ArrayBuffer[] = [];
+
+  constructor(private readonly cap: number) {}
+
+  take(len: number): Uint8Array {
+    const buf = this.free.pop();
+    return new Uint8Array(buf && buf.byteLength >= len ? buf : new ArrayBuffer(len), 0, len);
+  }
+
+  release(buffer: ArrayBuffer) {
+    if (this.free.length < this.cap) this.free.push(buffer);
+  }
+}
+
 function closedReasonOf(info: { closeCode?: number; reason?: string } | undefined): string {
   const code = info?.closeCode ?? 0;
   const why = info?.reason ? `: ${info.reason}` : "";
@@ -74,15 +95,17 @@ export class TransportSession {
   /** Set once the session is gone; a waiter armed after this would only reach the timeout. */
   private closedReason: string | null = null;
   private readonly window: AskWindow | null;
+  private readonly wire: WireBuffers;
 
   private constructor(
     transport: WebTransport,
     controlWriter: WritableStreamDefaultWriter<Uint8Array>,
-    window: AskWindowConfig | undefined,
+    options: ConnectOptions,
   ) {
     this.transport = transport;
     this.controlWriter = controlWriter;
-    this.window = window ? new AskWindow(window, () => this.smoothedRtt()) : null;
+    this.window = options.window ? new AskWindow(options.window, () => this.smoothedRtt()) : null;
+    this.wire = new WireBuffers(options.wireBuffers ?? 0);
   }
 
   static async connect(
@@ -100,7 +123,7 @@ export class TransportSession {
 
     const bi = await transport.createBidirectionalStream();
     const controlWriter = bi.writable.getWriter();
-    const session = new TransportSession(transport, controlWriter, options.window);
+    const session = new TransportSession(transport, controlWriter, options);
     // The server is already pushing it, so the run is armed and never asked for.
     if (fill) session.armFill(fill.from, fill.to, fill.onFrame, fill.onError);
 
@@ -207,7 +230,7 @@ export class TransportSession {
     const buf = new ByteAccumulator();
     try {
       for (;;) {
-        const env = await readEnvelope(reader, buf);
+        const env = await readEnvelope(reader, buf, this.wire);
         if (!env) break;
         if (env.ok) {
           this.deliver(env.index, env.codestream, performance.now());
@@ -377,6 +400,11 @@ export class TransportSession {
     };
   }
 
+  /** A wire buffer the consumer has finished with, back into the ring. */
+  releaseWireBuffer(buffer: ArrayBuffer) {
+    this.wire.release(buffer);
+  }
+
   close() {
     try {
       this.transport.close();
@@ -438,6 +466,7 @@ async function fillTo(
 async function readEnvelope(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   buf: ByteAccumulator,
+  wire: WireBuffers,
 ): Promise<Envelope | null> {
   if (!(await fillTo(reader, buf, 4))) return null;
   const len = be32(buf.take(4));
@@ -447,7 +476,7 @@ async function readEnvelope(
     const index = be32(buf.take(4));
     return { ok: false, index, lost: `truncated: ${buf.length} of ${len - 4} bytes` };
   }
-  return { ok: true, index: be32(buf.take(4)), codestream: buf.take(len - 4) };
+  return { ok: true, index: be32(buf.take(4)), codestream: buf.take(len - 4, wire.take(len - 4)) };
 }
 
 class ByteAccumulator {
@@ -463,10 +492,9 @@ class ByteAccumulator {
     return this.len;
   }
 
-  /** Consume `n` bytes from the front. */
-  take(n: number): Uint8Array {
+  /** Consume `n` bytes from the front, into `out` when the caller owns a buffer for them. */
+  take(n: number, out: Uint8Array = new Uint8Array(n)): Uint8Array {
     if (n > this.len) throw new Error("take past length");
-    const out = new Uint8Array(n);
     let filled = 0;
     while (filled < n) {
       const head = this.parts[0];

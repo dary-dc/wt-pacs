@@ -35,9 +35,38 @@ fn perf_now_ms() -> f64 {
     PERFORMANCE.with(|p| p.as_ref().map(web_sys::Performance::now).unwrap_or(0.0))
 }
 
+/// The ring: a frame lands in a buffer the consumer hands back, so a fill's peak is the pool and
+/// not the series. `cap` 0 keeps none, which is one buffer per frame.
+/// docs/decode/README.md §The wire buffer ring
+#[derive(Default)]
+struct WireBuffers {
+    free: Vec<js_sys::ArrayBuffer>,
+    cap: usize,
+}
+
+impl WireBuffers {
+    fn take(&mut self, len: u32) -> js_sys::ArrayBuffer {
+        match self.free.pop() {
+            Some(buf) if buf.byte_length() >= len => buf,
+            _ => js_sys::ArrayBuffer::new(len),
+        }
+    }
+
+    fn release(&mut self, buffer: js_sys::ArrayBuffer) {
+        if self.free.len() < self.cap {
+            self.free.push(buffer);
+        }
+    }
+}
+
+fn wire_view(buffer: &js_sys::ArrayBuffer, len: u32) -> Uint8Array {
+    Uint8Array::new_with_byte_offset_and_length(buffer, 0, len)
+}
+
 #[cfg(not(feature = "byob"))]
-fn js_buffer_from(src: &[u8]) -> Uint8Array {
-    let view = Uint8Array::new_with_length(src.len() as u32);
+fn js_buffer_from(src: &[u8], wire: &mut WireBuffers) -> Uint8Array {
+    let len = src.len() as u32;
+    let view = wire_view(&wire.take(len), len);
     view.copy_from(src);
     view
 }
@@ -165,6 +194,7 @@ enum Envelope {
 async fn read_length_prefixed_frame(
     reader: &ReadableStreamDefaultReader,
     buf: &mut RecvBuf,
+    st: &Rc<RefCell<SessionState>>,
 ) -> Result<Envelope, String> {
     if !read_exact(reader, buf, 4).await? {
         return Ok(Envelope::Eof);
@@ -180,7 +210,7 @@ async fn read_length_prefixed_frame(
     let envelope = &buf.as_slice()[4..4 + len];
     let (index, codestream) = unwrap_envelope(envelope).map_err(|e| format!("envelope: {e}"))?;
     // One full-frame copy into the JS heap — the app-owned Uint8Array.
-    let codestream = js_buffer_from(codestream);
+    let codestream = js_buffer_from(codestream, &mut st.borrow_mut().wire);
     buf.consume(4 + len);
     Ok(Envelope::Frame { index, codestream })
 }
@@ -215,7 +245,7 @@ async fn pump_framed_stream(
     };
     let mut buf = RecvBuf::new();
     loop {
-        match read_length_prefixed_frame(&reader, &mut buf).await {
+        match read_length_prefixed_frame(&reader, &mut buf, &st).await {
             Ok(Envelope::Frame { index, codestream }) => {
                 deliver(&st, index, codestream, perf_now_ms());
             }
@@ -386,6 +416,7 @@ async fn byob_fill(
 async fn read_frame_byob(
     reader: &ReadableStreamByobReader,
     head: &mut Option<js_sys::ArrayBuffer>,
+    st: &Rc<RefCell<SessionState>>,
 ) -> Result<Option<(u32, Uint8Array)>, String> {
     let buffer = head.take().unwrap_or_else(|| js_sys::ArrayBuffer::new(HEAD_LEN));
     let Some(buffer) = byob_fill(reader, buffer, 0, HEAD_LEN).await? else {
@@ -400,10 +431,11 @@ async fn read_frame_byob(
     }
     let (index, _) = unwrap_envelope(&raw[4..]).map_err(|e| format!("envelope: {e}"))?;
     let body_len = (len - frame_envelope::ENVELOPE_LEN) as u32;
-    let body = byob_fill(reader, js_sys::ArrayBuffer::new(body_len), 0, body_len)
-        .await?
-        .ok_or("stream ended early")?;
-    Ok(Some((index, Uint8Array::new(&body))))
+    // Bound before the await: a borrow taken inside the call expression is held across it, and
+    // `releaseWireBuffer` borrows the same cell from JS at any moment.
+    let into = st.borrow_mut().wire.take(body_len);
+    let body = byob_fill(reader, into, 0, body_len).await?.ok_or("stream ended early")?;
+    Ok(Some((index, wire_view(&body, body_len))))
 }
 
 /// Drain length-prefixed envelopes from one uni until EOF, each frame read into its own buffer.
@@ -420,7 +452,7 @@ async fn pump_framed_stream(stream: ReadableStream, st: Rc<RefCell<SessionState>
     };
     let mut head = None;
     loop {
-        let (index, view) = match read_frame_byob(&reader, &mut head).await {
+        let (index, view) = match read_frame_byob(&reader, &mut head, &st).await {
             Ok(Some(f)) => f,
             Ok(None) | Err(_) => break,
         };
@@ -485,6 +517,7 @@ struct SessionState {
     dropped_early: u64,
     errors: HashMap<u32, String>,
     frame_errors: u64,
+    wire: WireBuffers,
 }
 
 pub struct TransportSession {
@@ -496,7 +529,11 @@ pub struct TransportSession {
 }
 
 impl TransportSession {
-    pub async fn connect(wt_url: String, cert_sha256: String) -> Result<Self, String> {
+    pub async fn connect(
+        wt_url: String,
+        cert_sha256: String,
+        wire_buffers: Option<u32>,
+    ) -> Result<Self, String> {
         let hash_bytes = hex_to_bytes(&cert_sha256)?;
         let hash_arr = Uint8Array::from(hash_bytes.as_slice());
 
@@ -530,7 +567,10 @@ impl TransportSession {
             .dyn_into::<ReadableStreamDefaultReader>()
             .map_err(|e| format!("control reader: {e:?}"))?;
 
-        let state = Rc::new(RefCell::new(SessionState::default()));
+        let state = Rc::new(RefCell::new(SessionState {
+            wire: WireBuffers { free: Vec::new(), cap: wire_buffers.unwrap_or(0) as usize },
+            ..SessionState::default()
+        }));
 
         // docs/CLIENTS.md#a-closed-session-is-noticed-at-once.
         let st_closed = Rc::clone(&state);
@@ -759,6 +799,11 @@ impl TransportSession {
             return Err("FoD request channel closed".into());
         }
         Ok(ask_ms)
+    }
+
+    /// A wire buffer the consumer has finished with, back into the ring.
+    pub fn release_wire_buffer(&self, buffer: js_sys::ArrayBuffer) {
+        self.state.borrow_mut().wire.release(buffer);
     }
 
     pub fn end_stream(&self) -> Result<(), String> {
