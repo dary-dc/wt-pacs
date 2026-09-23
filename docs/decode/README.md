@@ -1354,3 +1354,24 @@ It is kept because adopting it would **delete** more than it adds: the default p
 partial-frame state machine, a compaction heuristic and a reserve policy to reassemble frames from
 chunks that do not align with them, all of which BYOB makes unnecessary — about 140 lines removed
 against 93 added. That argument is independent of every measurement above.
+
+**A truncated frame is a failure here too** (2026-09-22). The head — four bytes of length, four of
+index — is read before the body, so a stream that ends short can name the frame it lost:
+`byob_fill` reports how much arrived, `read_frame_byob` returns the default reader's own
+`Envelope`, and the pump carries a named loss through the same `fail_waiter`, with the same reason
+string. `CLIENTS.md` §A truncated frame is a failure holds the claim. The clause is answered by
+this build, not by argument:
+
+```bash
+(cd client/transport-wasm && wasm-pack build --target web --release --features byob)
+WTPACS_WASM_PKG=<that pkg> node client/conformance/run.mjs
+```
+
+**Two of the ring's seven checks cannot be asked of this path.** A BYOB read *transfers* the buffer
+it is given and hands back a new `ArrayBuffer` over the same memory, so `ring: a buffer handed back
+is read into again` and `ring: the free list keeps at most the size it was given` — both written on
+buffer identity — read 12 distinct buffers and 0 kept, and a byob build answers **118/120** with
+those two as the only failures. The memory *is* reused: `ring: a frame read into a larger buffer is
+a view of its own length` passes, which it can only do when the 16-byte frame lands in the
+4096-byte buffer the frame before it was released from. Identity does not survive a transfer, so
+the two checks are right for the default path and blind on this one.

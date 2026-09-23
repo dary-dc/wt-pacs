@@ -133,10 +133,15 @@ broke, exactly as the TS one did; since 2026-09-22 `read_length_prefixed_frame` 
 `Envelope` — a frame, a named loss, or a clean end — and `fail_waiter`, the Rust twin of
 `failWaiter`, carries the loss to the same two places: the asked frame's promise and the fill's
 `onError`. The reason string is the TS one, `truncated: G of D bytes`. Its `pkg/` was rebuilt.
-The BYOB reader (`--features byob`, off by default and only compiled in the gate) still breaks
-silently; it is a prototype, not a client anyone runs.
+**Both of that client's read paths have it.** The BYOB prototype (`--features byob`, off by
+default) reads the head — the length and the index — before the body, returns the same `Envelope`
+and carries a named loss through the same `fail_waiter`, so its reason string is the same string.
+The clause is answered *by that build*: `WTPACS_WASM_PKG=<a --features byob pkg>
+node client/conformance/run.mjs`. `docs/decode/README.md` §The BYOB read path records that run,
+and the two ring checks a BYOB read cannot satisfy.
 
 Conformance: `aTruncatedFrameIsAFailure` in `client/conformance/clauses.ts` — both transport
 implementations and the downloader arm — and `aTruncatedFrameIsAFailureNotAFrame` in
 `dispatch-rig.ts`, which adds the generation the consumer sees. Both drive a fake transport that
-ends a stream after a given number of codestream bytes.
+ends a stream after a given number of codestream bytes, on a byte stream, as a WebTransport
+receive stream is.

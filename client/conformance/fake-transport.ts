@@ -2,7 +2,6 @@
  * A WebTransport stand-in on the global scope. Both implementations reach for
  * `new WebTransport(...)` there — the TS one directly, the WASM one through web_sys — so one
  * fake drives either, in Node, with no browser and no server.
- *
  * It speaks the format in ../transport-ts/wire.ts: `[4B LE len][JSON]` on control,
  * `[4B BE len][4B BE index][codestream]` on a unidirectional stream.
  */
@@ -61,10 +60,8 @@ export class FakeTransport {
     FakeTransport.dials += 1;
   }
 
-  /**
-   * The server goes away. `endStreams: false` settles `closed` and leaves the media stream
-   * open, which separates the two signals a client could be learning from.
-   */
+  /** The server goes away. `endStreams: false` settles `closed` and leaves the media stream open,
+   *  which separates the two signals a client could be learning from. */
   serverClose(closeCode = 0, reason = "server closed the session", endStreams = true) {
     if (this.didClose) return;
     this.didClose = true;
@@ -95,31 +92,32 @@ export class FakeTransport {
     this.pushOnOneStream([[index, codestream]]);
   }
 
-  /** One frame split across `chunks` reads — a real link delivers a frame in many. */
-  pushFrameInChunks(index: number, codestream: Uint8Array, chunks: number) {
-    const whole = frameBytes(index, codestream);
-    const per = Math.ceil(whole.length / chunks);
+  /** One media stream, ended after its chunks: a byte stream, as a WebTransport receive stream
+   *  is — only those take a BYOB reader. Enqueueing detaches, so each chunk is its own. */
+  private pushMediaStream(chunks: Uint8Array[]) {
     this.uni.enqueue(
       new ReadableStream({
+        type: "bytes",
         start(c) {
-          for (let at = 0; at < whole.length; at += per) c.enqueue(whole.subarray(at, at + per));
+          for (const chunk of chunks) c.enqueue(chunk);
           c.close();
         },
       }),
     );
   }
 
+  /** One frame split across `chunks` reads — a real link delivers a frame in many. */
+  pushFrameInChunks(index: number, codestream: Uint8Array, chunks: number) {
+    const whole = frameBytes(index, codestream);
+    const per = Math.ceil(whole.length / chunks);
+    const parts = [];
+    for (let at = 0; at < whole.length; at += per) parts.push(whole.slice(at, at + per));
+    this.pushMediaStream(parts);
+  }
+
   /** A frame whose stream ends after `sent` codestream bytes — the server truncating it. */
   pushTruncatedFrame(index: number, codestream: Uint8Array, sent: number) {
-    const cut = frameBytes(index, codestream).subarray(0, 8 + sent);
-    this.uni.enqueue(
-      new ReadableStream({
-        start(c) {
-          c.enqueue(cut);
-          c.close();
-        },
-      }),
-    );
+    this.pushMediaStream([frameBytes(index, codestream).slice(0, 8 + sent)]);
   }
 
   /** Several frames on one uni stream in one chunk — the shared mode. */
@@ -132,14 +130,7 @@ export class FakeTransport {
       merged.set(p, at);
       at += p.length;
     }
-    this.uni.enqueue(
-      new ReadableStream({
-        start(c) {
-          c.enqueue(merged);
-          c.close();
-        },
-      }),
-    );
+    this.pushMediaStream([merged]);
   }
 
   controlMessages(): FodMsg[] {
