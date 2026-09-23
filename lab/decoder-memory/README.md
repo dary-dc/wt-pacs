@@ -38,9 +38,12 @@ JS+WASM bytes, and the twin arms report each worker's WASM heap directly.
 as a cell of its own: it has to read as `prod` does, or the knobs are not the only difference.
 
 **Every frame is checked against the `.sha256` the generator wrote from the encoder's input**, in
-every cell, and `run.mjs` prints the cells that were not clean. Mutants: `mutate=pixel` must report
-a mismatch, `mutate=skip` must report fewer frames checked than the series has, and `ballast=N`
-must move the per-worker slope by N MB and nothing else.
+every cell, and `run.mjs` prints the cells that were not clean — which includes a series whose
+frames on disk run out before the `frameCount` its `metadata.json` declares, so a generation that
+stopped early cannot be reported as a whole set. Mutants: `mutate=pixel` must report a mismatch,
+`mutate=skip` must report fewer frames checked than the series has, a `frameCount` raised above the
+frames on disk must make the cell not clean, and `ballast=N` must move the per-worker slope by N MB
+and nothing else.
 
 The ring's own numbers are in `docs/decode/README.md` §The wire buffer ring; `--wire` is the axis
 that made them, and it needs `path=downloader`, because the ring is the session's.
