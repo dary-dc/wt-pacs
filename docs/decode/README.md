@@ -869,6 +869,35 @@ every round, D=3. Peak is the kernel's `VmHWM`; paired inside each round, MB, me
   per-frame allocation — the chunks the reader hands back on the way in. Measured, a tie on time,
   ~12 ms on a session's first frame, and a decision of its own.
 
+**The size stays `decoders × perDecoder + 2`.** `N` was the frames that *can* be between the wire
+and a decoder, not a measured optimum, so 2, 8 and 16 were run on both shapes — the same cell as
+the table above, the size rotated every round, n = 5, `--wire 2,8,16`. Peak is `VmHWM`; the clock
+is the whole fill and decode, one number:
+
+| series | wire | peak MB | settled MB | worker JS+WASM MB | fill + decode wall ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 87 × 512² 16-bit | 2 | 255.3 [252.5–257.5] | 209.8 | 18.2 | 411 [407–452] |
+| | **8** | 255.6 [253.1–257.0] | 212.3 | 20.5 | 425 [399–433] |
+| | 16 | 253.8 [252.0–256.6] | 215.3 | 23.7 | 421 [401–482] |
+| 87 × 512² colour | 2 | 295.3 [294.9–296.7] | 235.8 | 23.6 | 680 [666–716] |
+| | **8** | 293.9 [293.3–295.9] | 238.5 | 26.1 | 657 [639–698] |
+| | 16 | 294.9 [293.1–295.8] | 242.0 | 30.5 | 671 [652–698] |
+
+* **Peak — the side this lever exists for — does not move with the size.** Paired inside each
+  round against 8: 16-bit `2 − 8` = +1.2 [−3.0…+2.3] MB and `16 − 8` = −0.5 [−3.6…+1.6];
+  colour +1.7 [−1.0…+2.5] and −0.1 [−1.3…+2.5]. Every range crosses zero and no size is lower in
+  more than 4 of 5 rounds. The ~20 MB the ring takes off the peak is already had at 2.
+* **16 retains more for nothing:** +3.0 MB settled and +3.2 MB of counted worker memory over 8 on
+  the 16-bit series (+3.5 and +4.4 on colour), at the same peak and the same clock. The pool is
+  `N` × the largest frame, and that is all it is.
+* **2 is cheaper to hold and pays on the clock.** It settles 2.5 MB lower, and it starves the free
+  list — six of the eight frames that can be in flight allocate fresh, which is the churn the ring
+  exists to remove. On the colour shape it is slower than 8 in **5 of 5** rounds, +19 ms [15–35] of
+  a 657 ms wall; on the 16-bit shape it has no direction (+4 [−21…+27], 1 of 5). A 2.5 MB settled
+  saving is not worth re-admitting the mechanism on the evidence of one shape where it does not show.
+* So the downloader's formula stands unchanged. Frames: 87/87 in all 30 cells, **0 mismatches, 0
+  failures**, against the generator's `.sha256`.
+
 **What this is not.** Desktop Chrome 148 on a shared box, 87-frame series, loopback. The rig's
 130 MB is a 237-frame fill behind a viewer that caches every plane; what is measured here is the
 same mechanism on a shorter series, and the saving is not a constant to carry across.
@@ -1355,7 +1384,7 @@ partial-frame state machine, a compaction heuristic and a reserve policy to reas
 chunks that do not align with them, all of which BYOB makes unnecessary — about 140 lines removed
 against 93 added. That argument is independent of every measurement above.
 
-**A truncated frame is a failure here too** (2026-09-22). The head — four bytes of length, four of
+**A truncated frame is a failure here too** (2026-09-22), on `byob`. The head — four bytes of length, four of
 index — is read before the body, so a stream that ends short can name the frame it lost:
 `byob_fill` reports how much arrived, `read_frame_byob` returns the default reader's own
 `Envelope`, and the pump carries a named loss through the same `fail_waiter`, with the same reason
@@ -1375,3 +1404,13 @@ those two as the only failures. The memory *is* reused: `ring: a frame read into
 a view of its own length` passes, which it can only do when the 16-byte frame lands in the
 4096-byte buffer the frame before it was released from. Identity does not survive a transfer, so
 the two checks are right for the default path and blind on this one.
+
+**`byob-min` does not carry the truncation, and the reason is `min` itself.** Built
+`--features byob-min,byob-count`, the same clause reads `the frame a stream cut short is named
+(none)` (117/120). `read(view, { min })` asks for the whole remaining span, and a byte stream that
+closes with a pull-into descriptor partly filled and its `min` unmet **errors** rather than
+resolving short: the truncation arrives as a stream error, not as an end of stream, and the count
+the client received is gone with the descriptor. The default reader swallows a stream error in the
+same place, so this is parity, not a gap in the BYOB path — but a `min` build cannot name what a
+short stream lost, and naming it means deciding what an errored stream owes the frame in flight,
+which is a session-level question and nobody's lane yet.
