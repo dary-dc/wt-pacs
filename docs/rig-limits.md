@@ -22,6 +22,7 @@ The consequence is that **no sender-side lever shortens a browser fill here**. M
 the default on one interleaved campaign: a 768 KB send window removed every dropped datagram and
 the ~2 MB gap that follows the first burst, and changed the fill by less than a millisecond;
 one stream per frame was 42 ms worse over 87 frames (0/8 rounds better); BBR was 8.5× slower.
+On a lossy link, natively, that last one reverses (§3).
 
 Chromium receives one datagram per system call, yields every 32 packets or 2 ms, builds ACKs in
 user space, and ships with batched receive and GRO off; the rig's build (148) carries no flag to
@@ -60,6 +61,53 @@ Shaping the loopback interface needs root, which this box's agent context does n
 on the server's egress, with an iid and a Gilbert-Elliott burst model;
 `lab/scripts/e0_netem_validation.sh` checks the shaping did what it claims before a campaign reads
 anything.
+
+**Measured there, 2026-09-18 (lane L3):** `lab/scripts/l3_lossy_link.sh`, summarised by
+`lab/scripts/l3_summary.py`. The native driver runs on the workstation, and the server runs on the rig
+across the real WAN (~28 ms RTT, 27–58 Mbit unshaped, varying run to run). netem adds one-way delay,
+20 Mbit, iid loss and a 500-packet queue, on the server's egress only. Each run is a 5.12 MB fill
+(160 × 32 kB frames, wall time including connect) and 32 asks at depth 1. Three arms, interleaved,
+n = 5 per cell, median [range] and rounds better than the default:
+
+| delay · rate · loss | fill, default | 768 KB send window | BBR | ask p50, default | ask p50, BBR |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| unshaped | 0.7 s [0.7–0.7] | tie, 1/5 | 0.8 s, 0/5 | 38.9 ms | 30.8, 5/5 |
+| 20 ms · 20 Mbit · 0 % | 2.8 s [2.5–4.2] | 2.6, 3/5 | 2.5, 4/5 | 73.7 | 61.6, 5/5 |
+| 20 ms · 20 Mbit · 1 % | 12.7 s [12.1–15.4] | 13.9, 2/5 | **2.4 [2.4–2.9], 5/5** | 105.3 | **61.7, 5/5** |
+| 20 ms · 20 Mbit · 3 % | 24.3 s [23.2–28.3] | 23.6, 2/5 | **2.9 [2.4–3.0], 5/5** | 194.9 | **103.3, 5/5** |
+| 60 ms · 20 Mbit · 1 % | 27.4 s [7.1–31.1] | 21.2, 3/5 | **3.0 [2.8–3.1], 5/5** | 185.8 | **101.9, 5/5** |
+
+* **On a lossy link the congestion controller is the lever, and the send window is not.** At 1 %,
+  cubic fills at 3.2 Mbit of a 20 Mbit link, close to the classic loss-limited rate (~2.4 Mbit at
+  its 1.4 % and 49 ms); BBR fills at 16.7. The 768 KB window ties the default in every lossy cell,
+  because cubic's congestion window never gets near it. Its one effect is at 0 %, where it caps
+  slow start's overshoot of the queue (datagram loss 7.8 % → 0.8 %) for a fill that is 3/5 better,
+  unresolved. Loopback's verdict, not taken, stands.
+* **BBR's costs, measured.** It keeps the queue full: smoothed RTT 145–220 ms against cubic's 49 in
+  the lossy cells. Its startup overflows that queue: 5–13 % of its datagrams are lost and resent,
+  against 1.4–2.9 % for cubic. Unshaped, its fill is 0/5. In a browser on loopback it was 8.5×
+  slower (§1). **So this is a lever to price in a browser on a shaped link, not one to take**: a
+  browser's receive path (§1) and a phone's buffer depth are exactly what this cell does not model.
+* **One ask under loss**, 32 kB, p50: cubic 105 ms at 1 % and 195 at 3 %, against a floor of ~61
+  (round trip plus transfer). BBR: 62 and 103.
+* **Where the host saturates:** unshaped, a 5 MB fill reaches 58 Mbit (a 32 MB fill reached 27; the
+  WAN varies), with the server at ~20 % of one core and negligible steal. Every shaped cell runs at
+  20 Mbit, below the path; nothing is claimed above ~27 Mbit.
+
+Instrument notes, each of which would have produced a wrong number:
+
+* **netem on the sending host drops whole GSO batches.** quinn hands the kernel up to 64 datagrams
+  per send; netem sees each batch as one packet, so "1 %" was 1 % of batches (0.2 % by its own
+  count, bursty by construction). Every arm here runs with `--segmentation-offload false`, a lab
+  flag added for this. The server's own loss count then matches the configured rate: 1.41 %,
+  2.87 %, 1.45 %.
+* **Only UDP 4435 reaches the rig from outside**; 4436 and 4437 pass its host firewall, but no
+  session arrives. The arms share one port, and the server restarts per run.
+* `e0_netem_validation.sh` was not run: it compares the real path with a locally *simulated* RTT,
+  not netem on the rig. Instead the shaping was checked directly: goodput caps at the netem rate,
+  and the loss counts match.
+* Not modelled: jitter (netem reorders), loss on the client → server path, a browser receiver, a
+  phone's buffer.
 
 **Partly lifted in a container, 2026-09-19 (N1).** `lab/scripts/link_impair.py` is a userspace
 relay in front of both planes — the UDP session and the static host's TCP — with one model for
@@ -154,6 +202,11 @@ the async executor against probing with `RWF_NOWAIT` and escalating to a blockin
 `read_ahead_kb` — already recorded as moving miss rate 2–15× in
 [`disk-access/NEXT.md`](disk-access/NEXT.md) #6. Drivers: `lab/scripts/e2_miss_cost_cloud.sh`,
 `lab/scripts/read_path_ab.sh`.
+
+**On the cloud rig it does** (2026-09-18, L7, `lab/scripts/l7_read_path.sh`). A 4 GB study on its
+954 MB host misses 76–97 % of spread asks, and each is ~1 ms slower at p50 than warm, 6/6. The
+fill still does not miss. That host's stolen CPU caps what it can price at a median:
+[`disk-access/EVIDENCE.md`](disk-access/EVIDENCE.md) §A study past RAM.
 
 ## 5. Natively, the send path is already at its ceiling
 

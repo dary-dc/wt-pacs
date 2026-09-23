@@ -103,8 +103,8 @@ trailers. This is the owner's rule for every repository.
 | 13 | **L17** — a faster decoder, byte for byte | lanes §L17 | **done** `6f87cbb` — no win; the toolchain is a 15 % regression |
 | 14 | **L18** — what the BYOB read path allocates | lanes §L18 | **done** `bb86253` — byob allocates **less**; `decode/README.md` §The BYOB read path |
 | 5 | **L2** — the BYOB frame-0 cost | lanes §L2 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
-| 6 | **L3** — a lossy, rate-limited link | lanes §L3 | **not for cloud** — workstation lane; drives the VM over ssh |
-| 7 | **L7** — a regime where the read path misses | lanes §L7 | **not for cloud** — workstation lane; drives the VM over ssh |
+| 6 | **L3** — a lossy, rate-limited link | lanes §L3 | **done** 2026-09-18 from the workstation — on a lossy link the congestion controller is the lever: BBR fills 5–9× faster than cubic at 1–3 % loss, 5/5, and the 768 KB send window ties. BBR fills the queue and resends 5–13 %, so it is to be priced in a browser, not taken. netem on the sender needs GSO off. `rig-limits.md` §3 |
+| 7 | **L7** — a regime where the read path misses | lanes §L7 | **done** 2026-09-18 from the workstation — a 4 GB study on the rig's 954 MB host misses 76–97 % of spread asks, each ~1 ms slower at p50 than warm (6/6); the fill still does not miss; `read_ahead_kb` no clean result. The rig's stolen CPU caps it at medians; P0 needs a non-burstable host. `disk-access/EVIDENCE.md` §A study past RAM |
 | — | L4 a closed session is noticed | lanes §L4 | done `62cf243` |
 | — | L5 the tail at SIGTERM | lanes §L5 | done `23bd447` |
 | — | L6 idle sessions, and the pair | lanes §L6 | done `c69450a` |

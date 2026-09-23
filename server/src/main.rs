@@ -56,6 +56,10 @@ struct Args {
     packet_threshold: Option<u32>,
     #[arg(long)]
     initial_rtt_ms: Option<u64>,
+    /// Lab only: `false` sends each datagram alone, so netem here drops datagrams, not GSO
+    /// batches.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    segmentation_offload: bool,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
@@ -129,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
             persistent_congestion_threshold: args.persistent_congestion_threshold,
             packet_threshold: args.packet_threshold,
             initial_rtt_ms: args.initial_rtt_ms,
+            segmentation_offload: args.segmentation_offload,
             prefault: args.prefault,
         },
         force_pool_reads: args.force_pool_reads,

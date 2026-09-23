@@ -52,6 +52,9 @@ pub struct TransportTuning {
     /// The RTT assumed before the first sample, which sets the first probe timeout.
     /// quinn default: 333 ms (S10).
     pub initial_rtt_ms: Option<u64>,
+    /// Lab only: off sends each datagram alone, so netem on the sending host drops datagrams,
+    /// not whole GSO batches (docs/rig-limits.md §3).
+    pub segmentation_offload: bool,
     /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
     pub prefault: bool,
 }
@@ -69,6 +72,7 @@ impl Default for TransportTuning {
             persistent_congestion_threshold: None,
             packet_threshold: None,
             initial_rtt_ms: None,
+            segmentation_offload: true,
             prefault: false,
         }
     }
@@ -101,6 +105,7 @@ impl TransportTuning {
         if let Some(ms) = self.initial_rtt_ms {
             tc.initial_rtt(std::time::Duration::from_millis(ms));
         }
+        tc.enable_segmentation_offload(self.segmentation_offload);
 
         let iw = self.initial_window;
         match self.congestion {
@@ -148,6 +153,7 @@ impl TransportTuning {
             && self.packet_threshold.is_none()
             && self.initial_rtt_ms.is_none()
             && matches!(self.congestion, Congestion::Cubic)
+            && self.segmentation_offload
     }
 
     pub fn describe(&self) -> String {
@@ -185,6 +191,9 @@ impl TransportTuning {
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
         }
+        if !self.segmentation_offload {
+            parts.push("segmentation_offload=false".to_string());
+        }
         if parts.is_empty() {
             "default".to_string()
         } else {
@@ -220,6 +229,7 @@ mod tests {
             persistent_congestion_threshold: Some(6),
             packet_threshold: Some(6),
             initial_rtt_ms: Some(100),
+            segmentation_offload: false,
             prefault: false,
         };
         t.to_transport_config().unwrap();
@@ -283,6 +293,18 @@ mod tests {
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("packet_threshold=12"));
         t.to_transport_config().unwrap();
+    }
+
+    /// Turning GSO off must reach quinn: taking the library default would send batches anyway,
+    /// and netem would go back to dropping them whole.
+    #[test]
+    fn gso_off_leaves_the_library_default_behind() {
+        let t = TransportTuning {
+            segmentation_offload: false,
+            ..TransportTuning::default()
+        };
+        assert!(!t.quic_is_library_default());
+        assert!(t.describe().contains("segmentation_offload=false"));
     }
 
     #[test]

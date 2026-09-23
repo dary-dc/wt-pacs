@@ -892,6 +892,53 @@ Which is the useful half of the answer: the *mechanism* the server uses for a mi
 makes a cold study slow. Whatever a first read costs a viewer, it is paid on the way to the
 device, not in the server's own path to it.
 
+## A study past RAM, on the cloud rig · 2026-09-18 (L7)
+
+This is L7, and the device half L20 left open. `lab/scripts/l7_read_path.sh` does the runs, and
+`lab/scripts/l7_summary.py` summarises them. Server and native driver both run on the rig's own
+loopback, so there is no WAN. The study is **4 GB on a 954 MB host**, so reads reach the block
+volume with no eviction. Every run starts at a frame no earlier run read (`server_ab --start`), and
+the server's own `session reads` line counts what missed. Six rounds, interleaved, asks spread 997
+frames apart. The arms are `read_ahead_kb` 2048 (the rig's) against 128 (the workstation's), in an
+order reversed each round. The hit reference is a warm 80 MB study, read through by a fill just
+before its asks.
+
+The device itself, measured with the page cache bypassed (`O_DIRECT`, not eviction), is a throttled
+network volume:
+
+* random 256 KiB reads at depth 1: p50 1.3 ms while its burst lasts and 4.9 ms after, p99 11–14;
+* at depth 4: p99 up to 219 ms;
+* sequential: 51–53 MB/s.
+
+| cell, 250 kB frames | ask p50 ms, median [range] | p99 ms | server's misses |
+| --- | ---: | ---: | ---: |
+| one ask at a time, cold, read-ahead 2048 | 2.7 [2.4–2.9] | 63.8 | 92 % |
+| one ask at a time, cold, read-ahead 128 | 2.5 [2.4–2.9] | 65.7 | 76 % |
+| one ask at a time, warm | **1.5 [1.3–2.1]** | 76.2 | 0 % |
+| depth 4, cold | 6.3–6.9 | 84–88 | 91–97 % |
+| four sessions at depth 1, cold | 4.1–4.3 | 91–98 | 53–57 % |
+| fill, 400 frames, cold | 2.13 s the fill | — | 1 % |
+| fill, 320 frames, warm | 1.72 s the fill | — | 1 % |
+
+* **The reader misses here, and a miss costs a spread ask ~1 ms at p50.** Cold was slower than
+  warm in 6/6 rounds on both arms, by 0.5–1.5 ms, with disjoint ranges. That is the device half of
+  L20's answer: L20's pool hop was ~0.5 ms, and this volume adds about as much again.
+* **The fill does not miss, even past RAM**: 1 % cold, the same as warm. The fill window's advice
+  keeps the kernel ahead of the reader on a real volume too, so NEXT.md #6's "the fill no longer
+  depends on `read_ahead_kb`" holds on a device.
+* **`read_ahead_kb` 128 against 2048: no clean result in any cell.** The closest is depth 4, with
+  p50 lower in 5/6 but overlapping ranges. Fewer misses at 128 (76 % against 92 % at depth 1) moved
+  no latency.
+* **The host saturates on CPU, and everything past a median here is the hypervisor's.** The rig is
+  a burstable 2-vCPU instance that loses ~2.6 s of CPU to steal over a 2.1 s fill. Every cell,
+  warm included, has a p99 of 60–100 ms, the server spends 2.4–4.2 ms of CPU per 250 kB ask, and a
+  cold fill and a warm one both run at ~47 MB/s. So this host prices a miss's median and nothing
+  past it. P0 (ring against pool) cannot be asked here: a hop of tens of µs cannot show under that
+  steal.
+
+The driver gives four sessions the same frames, so after the first session they hit, hence
+53–57 % misses.
+
 ## Where the margin comes from
 
 `pool` and `hybrid` differ in two things at once — the reader loop and the miss mechanism —
