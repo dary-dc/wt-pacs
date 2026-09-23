@@ -232,6 +232,7 @@ named test.
 * **A fill never builds a ring.** `SeqReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
 * **A fill keeps `FILL_WINDOW` advised past the named frame.** Otherwise its depth on the device is one blocking read. `a_fill_tells_the_kernel_what_follows_the_named_frame`.
 * **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
+* **A jump does not wait on the read-ahead it abandons.** A tile takes a slot with no read in flight first; before 2026-09-23 the wanted frame's read queued behind the dead one. Unpriced on a rig that misses. `an_abandoned_tile_prefetch_does_not_delay_the_frame_that_replaces_it`.
 
 ## 8 · Levers outside this decision
 
