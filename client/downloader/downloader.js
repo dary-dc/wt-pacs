@@ -81,6 +81,7 @@ function pump() {
     if (!rec || rec.gen !== generation || rec.state !== "queued" || !rec.bytes) continue;
     rec.state = "decoding";
     rec.stamps.dispatched = abs();
+    rec.stamps.decoder = decoders.indexOf(d);
     d.outstanding += 1;
     d.worker.postMessage(
       { kind: "decode", index, gen: generation, bytes: rec.bytes, stamps: rec.stamps },

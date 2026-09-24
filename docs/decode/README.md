@@ -1332,6 +1332,57 @@ a wash: §The wrapper's two passes. The difference from the JavaScript result ab
 pass is not the range pass — it writes bytes nobody reads, rather than reading bytes that are
 already there.
 
+## The decode tail
+
+*Row 68 (DC1), 2026-09-24.* The workstation's rig saw a colour fill's last byte ~325 ms after the
+ask and its last frame decoded ~685 ms after it — ~360 ms of decoding after the wire was done, three
+decoders. **The pool is busy the whole fill; the tail is throughput, not scheduling.**
+[`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs) runs a fill through the downloader
+with three real decoders against the server on loopback, driverless Chromium, and splits it from the
+stamps every frame already carries (last byte, dispatched, decode start and end, and since this row
+the decoder's index): at every instant it counts busy decoders and frames that have arrived and not
+started, and charges an idle decoder with work in reach to its own inbox, the downloader's queue, or a
+busy decoder's inbox. The two sets of §Content, 87 frames each, 7 rounds interleaved, medians:
+
+| set | wire | last decoded | tail | decode a frame | work per decoder | busy while bytes arrive | idle with work waiting |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| c512, colour | 401 ms | 666 ms | **274 ms** | 17.8 ms | 638 ms | **95 %** | 31 decoder-ms, all between a decoder's own frames |
+| g512, 16-bit | 357 ms | 369 ms | 10 ms | 8.8 ms | 317 ms | 85 % | 54 decoder-ms |
+
+Colour needs 638 ms of each decoder against a 401 ms wire, so 45 of its 87 frames start after the last
+byte and the tail is the backlog three decoders cannot avoid; the capacity lost to hand-offs is 1.6 %
+of the work (a decoder's next frame starts 0.24 ms after its last, p90 0.44). 16-bit decodes faster
+than it arrives and has no tail. The container reads the rig's shape: 274 ms of tail after a 401 ms
+wire, against ~360 after ~325.
+
+**What fits the standing rules, and what it is worth:**
+
+* **Build flags.** The shipped decoder is the npm package (`@cornerstonejs/codec-openjph` 2.4.11):
+  SIMD128 on — 4 450 `v128` instructions — and no relaxed SIMD. Built from source with emscripten
+  3.1.74, `-mrelaxed-simd` produces a byte-identical binary: nothing in this code lowers to a relaxed
+  instruction. `build_arms.mjs`, Node, 9 rounds, colour / 16-bit: from source `-O3` is **−7.9 % /
+  −10.6 %** against the package (7/8, 7/8), `-O2` −11.1 % / −10.5 % (8/8, 8/8), `-Os` −8.3 % / −2.0 %;
+  the ranges touch, so by §Faster's bar it is reported, not decided. In the page the colour fill
+  finishes 682 → 661 ms with `-O3` (4/7) and 671 with `-O2` (5/7): not separated at n = 7 on a host
+  the fill saturates. The source build is §The build, as delivered, which the workstation holds; the
+  product pages still load the package. *Nothing changed.*
+* **The order frames reach decoders** cannot shorten a throughput-bound finish: the work is fixed and
+  the pool is busy. What order could move is the ragged end — at most one frame's decode, ~18 ms.
+* **Starting a frame before its last byte** would add no capacity to a pool that is busy while bytes
+  arrive; at most it moves the first frames' start by one frame's transfer.
+* **Reusing the pixel buffer** (a lab arm, `decoder-reuse.js`, which overwrites pixels the consumer
+  holds) tied the product on both sets: allocation is not in the tail.
+
+**Corrected before it was reported:** the first readings of this row showed 70–100 ms a colour frame
+and between-frame gaps with a p90 of 10–20 ms, which looked like collection pauses. They were taken
+while four runaway server processes from another lane held all four cores; with the box idle the
+gaps are 0.44 ms at p90 and the decode is 17.8 ms.
+
+**Where the host saturates.** Three decoders, the page, the downloader and the server on four cores:
+the colour fill is decode-bound by design and the box is at its limit through it, which is why the
+browser cannot separate a 7 % faster decoder. The Node bench is single-threaded and is where the
+per-frame figures come from.
+
 ## What these numbers are not
 
 * **Every millisecond above is container-measured** and is reported, not decided on. The heap

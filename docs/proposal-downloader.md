@@ -66,7 +66,8 @@ series costs the page's main thread 1.34 s cloned against 17 ms transferred.
 | `closed` | reason |
 
 Stamps are epoch milliseconds (`timeOrigin + now`), converted once by the consumer: ask, first byte,
-last byte, dispatched, decode start, decode end.
+last byte, dispatched, decode start, decode end — and, since row 68, `decoder`, the index of the
+decoder it was dispatched to (`decode/README.md` §The decode tail).
 
 **A request's identity is its generation, not its frame index.** *Amended 2026-09-20 (P1).* `cancel`
 bumps a counter the downloader owns, and every record, decode, decoder reply and delivery to the page
