@@ -2,9 +2,10 @@
 
 **2026-09-19 · Status: proposed. Lever 1 is built behind a flag, off by default, on both sides,
 and measured — −1.13 round trips off the first byte of a fill in a browser (§What lever 1 is
-worth). Lever 2 is neither built nor measured. The count below is measured (N1, §The count,
-measured), and what a production certificate does to it with it (H1, §What production adds to the
-count).**
+worth). Lever 2 is built, on by default, as a build-time patch of `wtransport`, and measured —
+−1.0 round trips off the dial in a browser and natively (§What lever 2 is worth, 2026-09-23). The
+count below is measured (N1, §The count, measured), and what a production certificate does to it
+with it (H1, §What production adds to the count).**
 Structural, so this is a proposal first (`CLAUDE.md`). R1, from [S5](improvements/2026-09-18.md).
 
 ## What a cold open costs today
@@ -15,7 +16,7 @@ round trip the viewer waits through before a single byte of pixel data moves:
 | | Who waits on what |
 | --- | --- |
 | **1** | QUIC handshake. TLS 1.3, one round trip. |
-| **2** | The client sends its SETTINGS and CONNECT; the server's SETTINGS come back and `transport.ready` resolves. Chromium holds CONNECT until the server's SETTINGS arrive, and the crate sends the server's only after the handshake future has resolved — so this is a *whole* round trip, not the half it could be. |
+| **2** | The client sends its SETTINGS and CONNECT; the server's SETTINGS come back and `transport.ready` resolves. Chromium holds CONNECT until the server's SETTINGS arrive, and the crate sends the server's only after the handshake future has resolved — so this is a *whole* round trip. Lever 2 removes it (§What lever 2 is worth). |
 | **3** | The client opens the control bidi and writes the ask (`session.ts:79`). The server has been parked in `accept_bi()` since it accepted (`transport/server.rs:200`), so nothing server-side could start earlier. |
 | **4** | The frame comes back. |
 
@@ -171,16 +172,128 @@ is the only thing here that touches them.
 
 ## Lever 2 — the server's SETTINGS at 0.5 RTT
 
-**Halves step 2, and needs the crate.** `IncomingSessionFuture::accept` calls `Driver::init` only
+**Removes step 2, and needs the crate.** `IncomingSessionFuture::accept` calls `Driver::init` only
 after `quic_incoming.await?` has resolved (`endpoint.rs:620-622`), so the local SETTINGS stream is
 opened after the handshake completes. The server has 1-RTT keys half a round trip earlier and
 could have written SETTINGS then; Chromium is holding its CONNECT on exactly that.
 
-The change is to start the driver from the `Connecting` state rather than the completed
-connection. S5 calls it "~5 lines"; read against the crate it is small but not that small, because
-`Driver::init` takes a `quinn::Connection` and the accept path would have to hold the connecting
-future instead. It is a patch to `wtransport`, best upstream — this project should not carry a
-fork for it, and lever 1 does not depend on it.
+*Corrected 2026-09-23:* this section said the lever **halves** step 2 and that the project should
+not carry a fork for it. It removes the **whole** round trip — Chrome sends its CONNECT with its
+handshake Finished once the SETTINGS are in hand, without waiting for `HANDSHAKE_DONE` (the net log
+below) — and it is carried as a patch applied at build time, not as a fork.
+
+**The change** — [`../patches/wtransport-0.7.2-settings-early.patch`](../patches/wtransport-0.7.2-settings-early.patch),
+19 lines added and 5 removed in `endpoint.rs`. `IncomingSessionFuture::new` takes the server's `Connecting` to 0.5-RTT
+with `quinn::Connecting::into_0rtt` (on a server it always succeeds) and starts the driver on it, so
+the driver's first act — open the control stream, write SETTINGS — rides the handshake flight. It
+then waits for the handshake before reading the client's SETTINGS and CONNECT, so a
+`SessionRequest` still exists only after a completed handshake: the API's contract is unchanged,
+and a replayed 0-RTT CONNECT could not be surfaced even on a server that enabled early data. This
+one does not (`wtransport`'s TLS config leaves `max_early_data_size` at 0). The only bytes that move
+earlier are the SETTINGS, which RFC 9114 §6.2.1 lets a server send as soon as it can. **On by
+default, behind no flag**: nothing unsafe was found for a flag to guard, and the one cost found is a
+round trip in one phase of a blink (§What lever 2 costs).
+
+**How it is carried** — the mechanism the transport branch used for its quinn patch.
+[`../scripts/patch_wtransport.sh`](../scripts/patch_wtransport.sh) takes the crates.io 0.7.2 tarball
+(checksum-verified, from cargo's cache or downloaded), applies the patch with `--fuzz=0` so a stale
+hunk fails the build, and writes the crate into `OUT_DIR`; `patched/wtransport/` is a
+`[patch.crates-io]` shim — the crate's manifest, a `build.rs` that runs the script, and a `lib.rs`
+that is one `include!`. A `mod` inside an included file resolves beside that file, so nothing is
+copied into the source tree. Dropping the patch is deleting the two `[patch.crates-io]` lines.
+
+`server/src/transport/server.rs` `settings_ride_the_handshake_flight` holds it: a client that loses
+everything it sends after its first flight — so the server's handshake never completes — must
+still receive the server's control stream, opening with SETTINGS. With the `[patch.crates-io]` line
+commented out it fails after its 3 s timeout (mutant, caught).
+
+### What lever 2 is worth
+
+**2026-09-23, in a browser** — [`../lab/page-open/run.mjs`](../lab/page-open/run.mjs) with
+`SERVERS=unpatched=…,patched=…`: the same tree built with and without the patch, each behind its own
+`link_impair.py` relay, the two interleaved inside every round, all three page arms, cold and warm
+profile, 8 rounds at 0, 40 and 80 ms. The dial is each visit's `session − config`; the slope is
+fitted over the three delays:
+
+| arm | profile | dial, unpatched | dial, patched | rounds won at 40 / 80 ms |
+| --- | --- | ---: | ---: | --- |
+| ts | cold | 3.15 rt | **2.14 rt** | 8/8 · 8/8 |
+| ts | warm | 3.19 rt | **2.16 rt** | 8/8 · 8/8 |
+| wasm | cold | 3.41 rt | **2.49 rt** | 8/8 · 8/8 |
+| wasm | warm | 3.55 rt | **2.42 rt** | 8/8 · 8/8 |
+| downloader | cold | 3.40 rt | **2.41 rt** | 8/8 · 8/8 |
+| downloader | warm | 3.51 rt | **2.18 rt** | 8/8 · 8/8 |
+
+At 80 ms the ts arm's dial is 258 [253–260] ms against 177 [175–179]. At 0 ms the arms tie (4/8,
+6/8, 3/8 …), as a round-trip lever must on loopback. `config`, which the patch cannot touch, ties
+too (1/8 – 4/8 cold), which is how the table's noise is read.
+
+**Why, in Chrome's net log** — `NETLOG=DIR` on the same runner and
+[`../lab/scripts/netlog_dial.py`](../lab/scripts/netlog_dial.py), 3 rounds × 3 arms × 2 sessions
+at 80 ms: in **18 of 18** patched sessions the server's SETTINGS arrive with its first flight
+(83–88 ms), the CONNECT leaves 0–2 ms after the client's Finished and before `HANDSHAKE_DONE`, and
+the session is ready at 165–172 ms. In 18 of 18 unpatched ones the SETTINGS arrive with
+`HANDSHAKE_DONE` a round trip later (164–171 ms) and the session is ready at 247–254 ms.
+
+**Natively** — `cold_open` through the relay, both servers interleaved, 6 rounds at 0 / 40 / 80 ms:
+session ready 3.10 → **2.10** round trips, first byte 4.13 → **3.14**, 6/6 at 40 and at 80. The
+crate's own client holds its CONNECT for the server's SETTINGS as Chrome does.
+
+So the count at the top of this file is now **three round trips to first byte**, and two of them
+are the dial: the handshake, and the CONNECT.
+
+### What lever 2 costs
+
+**Bytes in the first flight: none.** `first_flight.py` in front of the relay, three cold opens a
+server: 1 406–1 409 B in 4 datagrams with the patch, 1 407–1 409 B without — the SETTINGS take the
+padding of the server's 1 200-B Initial datagram. Chrome's net log reads 1 200 + 46 B either way.
+The amplification budget (3 600 B against a quinn Initial, §What production adds) is untouched.
+
+**Under 1 % loss, no regression but in the tail the blink prices.** Native, 80 ms, n = 10, both relays on one seed per round: session
+2.04–2.13 round trips patched against 3.07–3.14, 10/10; the frame's tail unchanged. In Chrome
+(`dial-blink.mjs` with `OFFSETS=none LOSS=1`, n = 40): ready 169 [165–1 414] ms against 251
+[248–1 334], 34/40, mean 232 against 282. Each arm drew one lost handshake flight and paid the ~1.1 s
+probe timeout for it; the patched arm's cost a round trip more, the phase the next paragraph prices.
+
+**Under a blink, one phase loses a round trip.** `link_impair.py`'s 150 ms `blackout`, dropped,
+sent at an offset into a cold dial at 80 ms — [`../lab/page-open/dial-blink.mjs`](../lab/page-open/dial-blink.mjs),
+n = 5 an offset, the servers interleaved. Chrome's ready time, median ms:
+
+| blink at | 0 | 20 | 40 | 60 | 80 | 100 | 120 | 140 | 160 | 180 | 200 | none |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| unpatched | 554 | 1334 | 1333 | 417 | 415 | 567 | 539 | 420 | 422 | 502 | 501 | 251 |
+| patched | 472 | **1414** | **1417** | 416 | 416 | 434 | 431 | 170 | 169 | 167 | 170 | 169 |
+
+Every column is 5/5 one way or the other except 60 and 80, which tie (2/5, 0/5 within 1–6 ms);
+each range is at most 35 ms wide. An earlier run with a scratch copy of
+the same script read the same to within 20 ms at every offset. **When the blink eats the
+server's first flight (20–40 ms), the patched server is +80 ms, one round trip, behind**: both arms
+wait out the same ~1 s probe timeout, then the unpatched server writes its SETTINGS fresh after the
+handshake while the patched one's went out in the lost flight and are recovered by quinn's loss
+detection only after the handshake completes (inferred from the timing, not traced). Everywhere else the patch wins by 80–340 ms. The
+crate's native client adds a second losing phase that Chrome does not have: a blink over the
+client's Finished and CONNECT (60–75 ms) costs it +220 ms, which is what RFC 9002 §6.2.1 predicts — no probe for
+application data before the handshake is confirmed — though not traced (`cold_open`, one blink per
+offset, 10 offsets);
+Chrome recovers its early CONNECT at no cost.
+
+**What would remove the losing phase** is quinn retransmitting 0.5-RTT data with its handshake
+probe, a transport change this project does not make. It is priced here instead: one round trip,
+in one 20–40 ms window of a dial that has already lost a second to the blink.
+
+**What this rig does not decide.** Loopback, the userspace relay, one box carrying other lanes
+throughout; nothing here is a phone or a real path (`rig-limits.md` §3). The dial's fixed costs
+(6–36 ms) are this box's; only the slope is claimed.
+
+### Upstream
+
+No `wtransport` issue or pull request asks for this (GitHub search of the repository for `0-RTT`,
+`rtt`, `settings` and `handshake`, 2026-09-23), and `master` still awaits the handshake before
+`Driver::init`. The closest is [#324](https://github.com/BiagioFesta/wtransport/pull/324), which
+races `open_and_send_settings` against the driver being dropped — the same function this patch
+starts earlier, so a rebase onto a release carrying it needs a look. The patch is small, keeps the
+public API and the `SessionRequest`-after-handshake contract, and is RFC-sanctioned, which is what an
+upstream reviewer would ask; what they would also ask is the blink row above. None has been opened.
 
 ## Lever 3 — link and device in the same URL
 
@@ -233,6 +346,6 @@ box's relay.
    client half (`openAsk`) and its clauses in `client/conformance/dispatch-rig.ts`.
 3. Row 36's container. ✔ — and with it the count above. The timing cell it was built for,
    navigation → first byte with the flag on and off, is run: §What lever 1 is worth. ✔
-4. Lever 2 upstream, if the cell says step 2 is worth halving. **The cell says a round trip is
-   worth having** — step 3's was 41–178 ms of the open across 40–160 ms of link — and the three
-   that are left are the dial, where lever 2's half sits.
+4. Lever 2, if the cell says step 2 is worth removing. **The cell says a round trip is worth
+   having** — step 3's was 41–178 ms of the open across 40–160 ms of link. ✔ — built as a build-time
+   patch and measured, §Lever 2; upstream not opened.
