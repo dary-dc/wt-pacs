@@ -164,13 +164,17 @@ async fn read_exact(
     reader: &ReadableStreamDefaultReader,
     buf: &mut RecvBuf,
     need: usize,
+    st: &Rc<RefCell<SessionState>>,
 ) -> Result<bool, String> {
     while buf.available() < need {
         match reader_read_bytes(reader)
             .await
             .map_err(|e| format!("stream read: {e:?}"))?
         {
-            Some(chunk) => buf.push_chunk(&chunk),
+            Some(chunk) => {
+                st.borrow_mut().last_byte_ms = perf_now_ms();
+                buf.push_chunk(&chunk);
+            }
             None => return Ok(false),
         }
     }
@@ -195,7 +199,7 @@ async fn read_length_prefixed_frame(
     buf: &mut RecvBuf,
     st: &Rc<RefCell<SessionState>>,
 ) -> Result<Envelope, String> {
-    if !read_exact(reader, buf, 4).await? {
+    if !read_exact(reader, buf, 4, st).await? {
         return Ok(Envelope::Eof);
     }
     let len = u32::from_be_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
@@ -203,7 +207,7 @@ async fn read_length_prefixed_frame(
         return Err(format!("invalid frame length {len}"));
     }
     buf.reserve_for(4 + len);
-    if !read_exact(reader, buf, 4 + len).await? {
+    if !read_exact(reader, buf, 4 + len, st).await? {
         return Ok(lost(buf.as_slice(), len - frame_envelope::ENVELOPE_LEN));
     }
     let envelope = &buf.as_slice()[4..4 + len];
@@ -396,6 +400,7 @@ async fn byob_fill(
     mut buffer: js_sys::ArrayBuffer,
     start: u32,
     end: u32,
+    st: &Rc<RefCell<SessionState>>,
 ) -> Result<(js_sys::ArrayBuffer, u32), String> {
     let mut at = start;
     while at < end {
@@ -404,6 +409,7 @@ async fn byob_fill(
         if n == 0 {
             break;
         }
+        st.borrow_mut().last_byte_ms = perf_now_ms();
         at += n;
     }
     Ok((buffer, at - start))
@@ -418,7 +424,7 @@ async fn read_frame_byob(
     st: &Rc<RefCell<SessionState>>,
 ) -> Result<Envelope, String> {
     let buffer = head.take().unwrap_or_else(|| js_sys::ArrayBuffer::new(HEAD_LEN));
-    let (buffer, got) = byob_fill(reader, buffer, 0, HEAD_LEN).await?;
+    let (buffer, got) = byob_fill(reader, buffer, 0, HEAD_LEN, st).await?;
     let mut raw = [0u8; HEAD_LEN as usize];
     Uint8Array::new(&buffer).copy_to(&mut raw);
     *head = Some(buffer);
@@ -437,7 +443,7 @@ async fn read_frame_byob(
     // Bound before the await: a borrow taken inside the call expression is held across it, and
     // `releaseWireBuffer` borrows the same cell from JS at any moment.
     let into = st.borrow_mut().wire.take(body_len);
-    let (body, got) = byob_fill(reader, into, 0, body_len).await?;
+    let (body, got) = byob_fill(reader, into, 0, body_len, st).await?;
     if got < body_len {
         return Ok(Envelope::Lost {
             index: Some(index),
@@ -503,12 +509,13 @@ async fn write_all(writer: &WritableStreamDefaultWriter, bytes: &[u8]) -> Result
 async fn read_fod_msg(
     reader: &ReadableStreamDefaultReader,
     buf: &mut RecvBuf,
+    st: &Rc<RefCell<SessionState>>,
 ) -> Result<FodMsg, String> {
-    if !read_exact(reader, buf, 4).await? {
+    if !read_exact(reader, buf, 4, st).await? {
         return Err("control stream ended".into());
     }
     let len = u32::from_le_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
-    if !read_exact(reader, buf, 4 + len).await? {
+    if !read_exact(reader, buf, 4 + len, st).await? {
         return Err("control stream ended mid-message".into());
     }
     let msg = decode_fod_msg(&buf.as_slice()[..4 + len]).map_err(|e| format!("decode FoD: {e}"));
@@ -534,6 +541,8 @@ struct SessionState {
     errors: HashMap<u32, String>,
     frame_errors: u64,
     wire: WireBuffers,
+    /// `performance.now()` of the last byte any stream delivered: what a dead path stops moving.
+    last_byte_ms: f64,
 }
 
 pub struct TransportSession {
@@ -629,7 +638,7 @@ impl TransportSession {
         spawn_local(async move {
             let mut buf = RecvBuf::new();
             loop {
-                match read_fod_msg(&control_reader, &mut buf).await {
+                match read_fod_msg(&control_reader, &mut buf, &st_ctl).await {
                     Ok(FodMsg::FrameError {
                         frame_index,
                         reason,
@@ -878,6 +887,7 @@ impl TransportSession {
             &JsValue::from(s.dropped_early as f64),
         )?;
         set(&out, "frameErrors", &JsValue::from(s.frame_errors as f64))?;
+        set(&out, "lastByteAt", &JsValue::from(s.last_byte_ms))?;
         Ok(out.into())
     }
 }
@@ -902,15 +912,26 @@ async fn await_bytes(
     st: &Rc<RefCell<SessionState>>,
 ) -> Result<(Uint8Array, f64), String> {
     let mut rx = rx.fuse();
-    let mut timeout = TimeoutFuture::new(FRAME_TIMEOUT_MS).fuse();
-    select! {
-        res = rx => res.map_err(|_| match st.borrow().closed.clone() {
-            Some(reason) => format!("frame {frame_index} unavailable: {reason}"),
-            None => format!("frame {frame_index} aborted before completion"),
-        }),
-        _ = timeout => Err(format!(
-            "timeout waiting for frame {frame_index} after {FRAME_TIMEOUT_MS} ms"
-        )),
+    let armed = perf_now_ms();
+    let mut wait = FRAME_TIMEOUT_MS;
+    loop {
+        let mut timeout = TimeoutFuture::new(wait).fuse();
+        select! {
+            res = rx => return res.map_err(|_| match st.borrow().closed.clone() {
+                Some(reason) => format!("frame {frame_index} unavailable: {reason}"),
+                None => format!("frame {frame_index} aborted before completion"),
+            }),
+            _ = timeout => {
+                // Late when the session goes quiet, not when the ask is old: a long burst still owes its tail.
+                let quiet = perf_now_ms() - st.borrow().last_byte_ms.max(armed);
+                if quiet >= f64::from(FRAME_TIMEOUT_MS) {
+                    return Err(format!(
+                        "timeout waiting for frame {frame_index}: no byte for {FRAME_TIMEOUT_MS} ms"
+                    ));
+                }
+                wait = (f64::from(FRAME_TIMEOUT_MS) - quiet).ceil() as u32;
+            }
+        }
     }
 }
 

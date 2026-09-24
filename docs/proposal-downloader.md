@@ -253,7 +253,8 @@ byte on a fill.
 *Added 2026-09-24 (row 60, LK1).* **`close()` ends every worker the client started.** The consumer
 terminates the downloader when it answers `closed`, or after 1 s if it never does (a downloader wedged
 in a long task), and an ask still outstanding is named `closed by the consumer` at that point rather
-than at its 15 s timeout. The decoders are the downloader's nested workers and end with it; the
+than at its 15 s timeout (which the consumer no longer keeps since row 66: the downloader settles
+every ask). The decoders are the downloader's nested workers and end with it; the
 downloader does not terminate them itself.
 
 **Before, every closed client left its downloader running** — one renderer thread and **2.5 MB

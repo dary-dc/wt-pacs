@@ -31,6 +31,8 @@ export class FakeTransport {
   static dials = 0;
   /** The next `n` dials fail — a path that is still gone when the client tries to come back. */
   static failNext = 0;
+  /** Every transport dialled, oldest first: a replaced one still open is a session left sending. */
+  static all: FakeTransport[] = [];
   readonly ready: Promise<void>;
   readonly closed: Promise<{ closeCode: number; reason: string }>;
   readonly sent: Uint8Array[] = [];
@@ -57,6 +59,7 @@ export class FakeTransport {
       },
     });
     FakeTransport.last = this;
+    FakeTransport.all.push(this);
     FakeTransport.dials += 1;
   }
 
@@ -113,6 +116,26 @@ export class FakeTransport {
     const parts = [];
     for (let at = 0; at < whole.length; at += per) parts.push(whole.slice(at, at + per));
     this.pushMediaStream(parts);
+  }
+
+  /** One frame whose `chunks` arrive `everyMs` apart — a link slower than the frame. */
+  trickleFrame(index: number, codestream: Uint8Array, chunks: number, everyMs: number) {
+    const whole = frameBytes(index, codestream);
+    const per = Math.ceil(whole.length / chunks);
+    this.uni.enqueue(
+      new ReadableStream({
+        type: "bytes",
+        start(c) {
+          let at = 0;
+          const next = () => {
+            if (at >= whole.length) return c.close();
+            c.enqueue(whole.slice(at, (at += per)));
+            setTimeout(next, everyMs);
+          };
+          next();
+        },
+      }),
+    );
   }
 
   /** A frame whose stream ends after `sent` codestream bytes — the server truncating it. */

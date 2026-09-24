@@ -41,7 +41,7 @@ type OpenOpts = {
   warmup?: string;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
   realDecoder?: { glue: string; wasm: string; dir: string };
-  survival?: false | { stallMs?: number; probeMs?: number; redialMs?: number; tries?: number };
+  survival?: false | { stallMs?: number; redialMs?: number; tries?: number };
 };
 
 function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
@@ -738,7 +738,7 @@ async function untilAsync(cond: () => Promise<boolean>, ms = 3000): Promise<bool
 }
 
 /** Short enough that a clause can watch a whole death and resumption without a long wait. */
-const QUICK = { stallMs: 120, probeMs: 300, redialMs: 60, tries: 3 };
+const QUICK = { stallMs: 120, redialMs: 60, tries: 3 };
 
 async function stalledFill(DownloaderClient: DownloaderCtor, extra: Partial<OpenOpts> = {}) {
   const got: Frame[] = [];
@@ -755,39 +755,40 @@ async function stalledFill(DownloaderClient: DownloaderCtor, extra: Partial<Open
 }
 
 /**
- * A trigger is not a verdict: the check is one ask for a frame already in hand, and a session that
- * answers it is kept — no second dial, and the frame the probe brought back is discarded.
- * docs/proposal-session-survival.md §The check
+ * A slow frame is not a death, and a trigger is not a verdict: while bytes keep arriving the session
+ * is kept however long the frame takes — no re-dial, and nothing asked to test it.
+ * docs/proposal-session-survival.md §Detection by the bytes
  */
-async function aTriggerChecksBeforeItRedials(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
-  const { c, fake, got, failures } = await stalledFill(DownloaderClient);
-
-  // The fill has gone quiet with 2..5 owed: the check fires, and the fake answers it.
-  const probed = await untilAsync(async () => (await fake.controlMessages()).some((m) => m.op === "request_frame"));
-  check(probed, "survival: a stalled fill starts a check — one ask for a frame already in hand");
-  await fake.pushFrame(1, enc.encode("probe-answer"));
-
-  const wentOn = await untilAsync(async () => wireOf(await fake.controlMessages()).lastIndexOf("stream_frames 2-5") > 0);
-  check(wentOn, "survival: a session that answers the probe is kept and the fill is re-issued on it");
-  check((await fake.dials()) === 1, `survival: with no second dial (${await fake.dials()})`);
-  for (const i of [2, 3, 4, 5]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
-  const all = await until(() => got.length >= 6, 3000);
-  check(all, `survival: and the fill goes on to the end (${got.length}/6)`);
-  check(got.filter((f) => f.frameIndex === 1).length === 1, "survival: the probe's own frame is discarded, not delivered twice");
-  check(failures.length === 0, `survival: nothing is reported as failed (${failures.map((f) => f.frameIndex).join() || "none"})`);
+async function aSessionWhoseBytesKeepComingIsKept(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, survival: QUICK, onFrame: (f) => got.push(f),
+  });
+  c.fill([0, 1]);
+  await settle();
+  await fake.trickleFrame(0, enc.encode("slow".repeat(64)), 20, (QUICK.stallMs * 5) / 20);
+  await settle(QUICK.stallMs * 2);
+  dispatchEvent(new Event("pageshow"));
+  const landed = await until(() => got.length >= 1, 3000);
+  check(landed, `survival: a frame slower than stallMs still lands (${got.length})`);
+  check((await fake.dials()) === 1, `survival: with no re-dial while its bytes were moving (${await fake.dials()} dials)`);
+  check((await fake.controlMessages()).every((m) => m.op !== "request_frame"), "survival: and nothing asked to test the session");
+  await fake.pushFrame(1, enc.encode("fill-1"));
+  check(await until(() => got.length >= 2), `survival: the fill goes on (${got.length}/2)`);
   c.close();
 }
 
 /**
- * The probe's deadline is the only proof the client gets when the path simply stops carrying
- * bytes — no close, no error. It re-dials, and re-issues exactly what the records still owed.
+ * Silence is the only proof when a path stops carrying bytes: after `stallMs` of it with frames owed
+ * the client re-dials, asks nothing first, and re-issues exactly what the records still owed.
  */
-async function aProbeThatMissesItsDeadlineRedials(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+async function aSilentSessionIsRedialled(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const { c, fake, got, failures } = await stalledFill(DownloaderClient);
 
   const redialled = await untilAsync(async () => (await fake.dials()) >= 2);
-  check(redialled, `survival: a probe nobody answers re-dials (${await fake.dials()} dials)`);
+  check(redialled, `survival: a session silent for stallMs is re-dialled (${await fake.dials()} dials)`);
   if (!redialled) return c.close();
+  check(await fake.replacedClosed(), "survival: the session it replaced is closed, not left sending to nobody");
 
   const wire = wireOf(await fake.controlMessages());
   const fills = wire.filter((w) => w.startsWith("stream_frames"));
@@ -801,7 +802,24 @@ async function aProbeThatMissesItsDeadlineRedials(DownloaderClient: DownloaderCt
 }
 
 /**
- * A session the API itself calls closed needs no probe. The fill is resumed rather than failed —
+ * A path that is slow rather than dead would be re-dialled for ever at a fixed wait, so each re-dial
+ * the silence causes doubles the wait for the next.
+ */
+async function theWaitDoublesAfterEachRedialItCauses(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const stallMs = 200;
+  const { c, fake } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs } });
+  const second = await untilAsync(async () => (await fake.dials()) >= 2);
+  const t0 = performance.now();
+  await settle(stallMs * 1.5);
+  const held = (await fake.dials()) === 2;
+  const third = await untilAsync(async () => (await fake.dials()) >= 3);
+  const ms = Math.round(performance.now() - t0);
+  check(second && held && third, `survival: the second silence is judged against twice stallMs (third dial after ${ms} ms, stallMs ${stallMs})`);
+  c.close();
+}
+
+/**
+ * A session the API itself calls closed needs no silence to prove it. The fill is resumed rather than failed —
  * LG/LH's naming is what happens when resumption runs out, not what happens first.
  */
 async function aDeadSessionIsResumedNotReported(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
@@ -809,9 +827,9 @@ async function aDeadSessionIsResumedNotReported(DownloaderClient: DownloaderCtor
   await fake.serverClose(0, "the server went away");
 
   const redialled = await untilAsync(async () => (await fake.dials()) >= 2);
-  check(redialled, `survival: a closed session is re-dialled at once, with no probe (${await fake.dials()} dials)`);
+  check(redialled, `survival: a closed session is re-dialled at once, with no wait (${await fake.dials()} dials)`);
   if (!redialled) return c.close();
-  check((await fake.controlMessages()).every((m) => m.op !== "request_frame"), "survival: and the close is proof enough — no probe was sent");
+  check((await fake.controlMessages()).every((m) => m.op !== "request_frame"), "survival: and the close is proof enough — nothing was asked");
 
   for (const i of [2, 3, 4, 5]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
   const all = await until(() => got.length >= 6, 3000);
@@ -926,8 +944,9 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aTruncatedFrameIsAFailureNotAFrame,
     anUndecodableFrameIsAFailureNotAFrame,
     aFrameCarriesItsWireBytes,
-    aTriggerChecksBeforeItRedials,
-    aProbeThatMissesItsDeadlineRedials,
+    aSessionWhoseBytesKeepComingIsKept,
+    aSilentSessionIsRedialled,
+    theWaitDoublesAfterEachRedialItCauses,
     aDeadSessionIsResumedNotReported,
     anOwedAskIsReaskedAfterAResume,
     whenTheRedialsRunOutWhatWasOwedIsNamed,

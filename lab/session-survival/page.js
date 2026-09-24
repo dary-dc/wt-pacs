@@ -8,9 +8,11 @@ import { DownloaderClient } from "/client/downloader/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const arm = q.get("arm") || "built";
-/** `quick` is the same code with tighter deadlines: what the defaults cost, not a proposed default. */
-const SURVIVAL = { today: false, built: undefined, quick: { stallMs: 1000, probeMs: 800 } };
+/** `quick` is the same code with a tighter wait: what the default costs, not a proposed default. */
+const SURVIVAL = { today: false, built: undefined, quick: { stallMs: 1000 } };
 const FILL = Number(q.get("fill") || 80);
+/** `asks=K` asks for frames 0..K-1 at once instead of filling: each settles its own promise. */
+const ASKS = Number(q.get("asks") || 0);
 
 const at = () => performance.timeOrigin + performance.now();
 const frames = [];
@@ -57,6 +59,17 @@ client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
     if (arm === "today") askAgain();
   },
 });
-log(`arm ${arm}, filling ${FILL} frames`);
 globalThis.__wtpacsReady = true;
-client.fill([...Array(FILL).keys()]);
+if (ASKS) {
+  log(`arm ${arm}, asking for ${ASKS} frames at once`);
+  const t0 = at();
+  await Promise.all([...Array(ASKS).keys()].map((i) => client.requestExactFrame(i).then(
+    () => frames.push({ i, at: at() }),
+    (e) => failures.push({ i, at: at(), reason: String(e.message), afterMs: Math.round(at() - t0) }),
+  )));
+  globalThis.__wtpacsFrames = frames.length;
+  finish();
+} else {
+  log(`arm ${arm}, filling ${FILL} frames`);
+  client.fill([...Array(FILL).keys()]);
+}

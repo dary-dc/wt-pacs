@@ -33,7 +33,10 @@ request arriving *after* it is set fails without arming a waiter at all — that
 and without it the fix only helps sessions that were already waiting.
 
 `FRAME_TIMEOUT_MS` keeps the job it exists for: a frame that never arrives on a session that is
-still alive. That path is untouched and still takes the full 15 s.
+still alive. That path is untouched and still takes the full 15 s — *measured since 2026-09-24 from
+the last byte the session delivered, not from the ask*, so the tail of a burst longer than 15 s is no
+longer failed while its bytes arrive ([`proposal-session-survival.md`](proposal-session-survival.md)
+§Detection by the bytes).
 
 **Measured**, on the conformance fake (container, but these are wall-clock gaps of milliseconds
 against seconds, not a timing claim):

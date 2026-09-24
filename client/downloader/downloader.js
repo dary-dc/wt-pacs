@@ -12,7 +12,7 @@ const abs = () => performance.timeOrigin + performance.now();
 let session = null;
 let cfg = { decoders: 3, decode: true, perDecoder: 2, survival: true };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns it all off. */
-const deadlines = { stallMs: 3000, probeMs: 2000, redialMs: 1000, tries: 5 };
+const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5 };
 let dial = null;
 let dialling = null;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
@@ -23,10 +23,10 @@ let decodersUp = false;
 /** The session's identity: `+1` when one is declared dead, so its callbacks become no-ops. */
 let epoch = 0;
 let resuming = null;
-let checking = false;
-let lastArrival = 0;
-let lastDelivered = -1;
 let stall = null;
+/** When the owed work last went on the wire, and the silence after it that condemns the session. */
+let issuedAt = 0;
+let quietMs = 0;
 
 const decoders = [];
 /** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
@@ -106,9 +106,7 @@ function record(index, priority, askMs) {
 /** A frame's bytes are here: straight to the consumer, or into the queue for a decoder. */
 function arrived(index, frame) {
   wanted.delete(index);
-  lastArrival = abs();
-  lastDelivered = index;
-  armStall();
+  watch();
   const rec = records.get(index);
   if (!rec) return;
   rec.stamps.lastByte = abs();
@@ -128,6 +126,8 @@ async function ask(index, promise) {
   const gen = generation;
   const ep = epoch;
   asksInFlight += 1;
+  issuedAt = performance.now();
+  watch();
   try {
     const frame = await promise;
     if (gen === generation && ep === epoch) arrived(index, frame);
@@ -175,45 +175,25 @@ function issueFill() {
   if (!run) return;
   const { onFrame, onError } = fillHandlers(run.from, run.to);
   session.fillFrames(run.from, run.to, onFrame, onError);
-  armStall();
+  issuedAt = performance.now();
+  watch();
 }
 
 
-/** A fill gone quiet is a trigger; so is every platform signal. docs/proposal-session-survival.md */
-function armStall() {
+/** No byte for `quietMs` while frames are owed is a dead path; each re-dial it causes doubles the
+ *  wait. A frame slower than the wait still moves bytes. docs/proposal-session-survival.md §Detection */
+function watch() {
   clearTimeout(stall);
-  stall = cfg.survival && wanted.size > 0 ? setTimeout(suspect, deadlines.stallMs) : null;
+  stall = null;
+  if (!cfg.survival || !session || (wanted.size === 0 && owedAsks().length === 0)) return;
+  const quiet = performance.now() - Math.max(session.stats().lastByteAt ?? 0, issuedAt);
+  if (quiet < quietMs) return void (stall = setTimeout(watch, quietMs - quiet));
+  quietMs *= 2;
+  lost(true);
 }
 
-/** None of the triggers proves the path is dead, so each one starts a check, not a re-dial. */
-function suspect() {
-  if (!cfg.survival || checking || resuming || !session) return;
-  // The probe reuses a frame already in hand, so one the fill wants again is not a candidate.
-  if (lastDelivered < 0 || records.has(lastDelivered) || wanted.has(lastDelivered)) return;
-  if (abs() - lastArrival < deadlines.stallMs) return;
-  checking = true;
-  probe().finally(() => { checking = false; });
-}
-
-/** The cheapest honest test of a session is to use it: one ask, discarded, with a deadline. */
-async function probe() {
-  const ep = epoch;
-  const at = abs();
-  if (session.stats().closed) return void lost();
-  // An ask ends the running fill on the server (L16), so the remainder is re-issued after it.
-  asksInFlight += 1;
-  const answer = session.requestExactFrame(lastDelivered).then(() => true, () => false);
-  const alive = await Promise.race([answer, sleep(deadlines.probeMs).then(() => false)]);
-  if (ep !== epoch) return;
-  asksInFlight -= 1;
-  // A frame that landed while the probe was out proves the path whatever became of the probe.
-  if (!alive && lastArrival < at) return void lost(true);
-  armStall();
-  issueFill();
-}
-
-/** True once the session is being resumed. The probe's missed deadline is the only proof a
- *  caller may bring of its own; every other one must see the session already closed. */
+/** True once the session is being resumed. Silence is the only proof a caller may bring of its own;
+ *  every other one must see the session already closed. */
 function lost(proved) {
   if (!cfg.survival || !dial || !session) return false;
   if (!proved && !session.stats().closed) return false;
@@ -280,6 +260,7 @@ async function start(m) {
     decoders.push(d);
   }
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
+  quietMs = deadlines.stallMs;
   // The decoders come up without the session URL, which arrives in `dial`; `decodersUp` gates
   // dispatch alone — docs/proposal-downloader.md §The downloader.
   if (cfg.fill) want(cfg.fill, abs());
@@ -301,6 +282,7 @@ async function connect() {
     if (opening) options.fill = opening;
     session = await TransportSession.connect(dial.url, dial.certHash, options);
     session.closedPromise?.catch(() => {});
+    issuedAt = performance.now();
     return opening;
   })();
   let opening = null;
@@ -321,8 +303,8 @@ async function live() {
 }
 
 // The page's own triggers — visibility, pageshow, freeze/resume — are forwarded by consumer.js.
-for (const ev of ["online", "offline"]) addEventListener(ev, suspect);
-navigator.connection?.addEventListener?.("change", suspect);
+for (const ev of ["online", "offline"]) addEventListener(ev, watch);
+navigator.connection?.addEventListener?.("change", watch);
 
 onmessage = async (e) => {
   const m = e.data;
@@ -348,7 +330,7 @@ onmessage = async (e) => {
       want(m.indices, abs());
       return void issueFill();
     }
-    if (m.kind === "check") return void suspect();
+    if (m.kind === "check") return void watch();
     if (m.kind === "cancel") {
       generation += 1;
       clearTimeout(stall);

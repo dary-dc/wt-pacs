@@ -26,7 +26,8 @@ gone, a new one works, and **nothing tells the client** — no close, no reset, 
 here doing a thing.
 
 **Three arms, same binary, same page.** `built` is the client as it is. `quick` is the same code
-with `{ stallMs: 1000, probeMs: 800 }` — what the default deadlines cost, not a proposed default.
+with `{ stallMs: 1000 }` — what the default wait costs, not a proposed default (it was `{ stallMs:
+1000, probeMs: 800 }` while the client probed, before 2026-09-24).
 `today` passes `survival: false` and does what a page could do without resumption: it re-asks for
 what it is missing the moment the transport reports the fill gone. That is a **generous** baseline:
 a real page today gets the frames named and the fill failed (`client/downloader/README.md`) and has
@@ -45,4 +46,12 @@ arm does not run (`decode: false`).
 noticed 6552 [6539 … 6558], `built` 5010 [4996 … 5023], `quick` 1816 [1803 … 1821]; first frame
 after the cut 6745 / 5191 / 1996. Detection is `stallMs + probeMs`, the resume costs ~180 ms on top,
 and `today` hands the page 68 failed frames a round where the other two hand it none. The reading
-and what it corrects are `docs/proposal-session-survival.md` §The measurement, taken.
+and what it corrects are `docs/proposal-session-survival.md` §The measurement, taken. Those are the
+probe design's numbers; the client now decides by the bytes and notices the same cut at ~3 016 ms.
+
+**[`cells.sh`](cells.sh)** (row 66) runs the page against its own server, relay and static host for
+one cell — `cut`, `radio`, `blinks`, `slow` (700 kbit), `deep` (700 kbit behind a 4 s queue) or `asks`
+(six frames asked at once on the slow link) — and puts `client/dev-transport.json` back after.
+`run.mjs --no-cut` counts every resume as a false alarm, `--blink-every` blinks the relay, `--asks K`
+asks instead of filling. Its readings are `docs/proposal-session-survival.md` §Detection by the
+bytes.

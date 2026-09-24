@@ -3,7 +3,6 @@
  * without a round trip, and takes asked frames at once and fill frames at background priority.
  * docs/proposal-downloader.md §The consumer
  */
-const FRAME_TIMEOUT_MS = 15_000;
 /** How long a closed client waits for the downloader's answer before ending it anyway. */
 const CLOSE_DEADLINE_MS = 1_000;
 
@@ -102,7 +101,6 @@ export class DownloaderClient {
       info: m,
     };
     if (w) {
-      clearTimeout(w.timer);
       this.#waiters.delete(m.index);
       w.resolve(frame);
       return;
@@ -115,7 +113,6 @@ export class DownloaderClient {
     const w = this.#waiters.get(index);
     // Nobody is waiting on it, so it is a fill frame: the refusal reaches the consumer here or nowhere.
     if (!w) return void this.#onError({ frameIndex: index, reason, generation: this.#gen });
-    clearTimeout(w.timer);
     this.#waiters.delete(index);
     w.reject(new Error(`frame ${index} unavailable: ${reason}`));
   }
@@ -123,7 +120,6 @@ export class DownloaderClient {
   #failAll(reason) {
     this.#closedReason ??= reason;
     for (const [index, w] of this.#waiters) {
-      clearTimeout(w.timer);
       w.reject(new Error(`frame ${index} unavailable: ${this.#closedReason}`));
     }
     this.#waiters.clear();
@@ -134,13 +130,8 @@ export class DownloaderClient {
       return Promise.reject(new Error(`frame ${index} unavailable: ${this.#closedReason}`));
     }
     if (this.#waiters.has(index)) return Promise.reject(new Error(`frame ${index} already requested`));
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.#waiters.delete(index);
-        reject(new Error(`timeout waiting for frame ${index} after ${FRAME_TIMEOUT_MS} ms`));
-      }, FRAME_TIMEOUT_MS);
-      this.#waiters.set(index, { resolve, reject, timer });
-    });
+    // No timer here: the downloader settles every ask, and only it can see the bytes a deadline needs.
+    return new Promise((resolve, reject) => this.#waiters.set(index, { resolve, reject }));
   }
 
   requestExactFrame(index) {
@@ -157,7 +148,6 @@ export class DownloaderClient {
   cancel() {
     this.#gen += 1;
     for (const [index, w] of this.#waiters) {
-      clearTimeout(w.timer);
       w.reject(new Error(`frame ${index} unavailable: AbortError: the fill was cancelled`));
     }
     this.#waiters.clear();

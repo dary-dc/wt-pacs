@@ -21,10 +21,16 @@ const FILL = Number(arg("--fill", 80));
 const BASE = arg("--base", "http://127.0.0.1:8792");
 const CONTROL = Number(arg("--control", 5583));
 const OUT = arg("--out", "");
-const ARMS = ["today", "built", "quick"];
+const ARMS = arg("--arms", "today,built,quick").split(",");
+/** `--no-cut` runs the fill undisturbed: every resume it reports is a false alarm. */
+const NO_CUT = process.argv.includes("--no-cut");
+const BLINK_EVERY = Number(arg("--blink-every", 0));
+const BLINK_MS = Number(arg("--blink-ms", 1000));
+const ASKS = Number(arg("--asks", 0));
 
 const sock = dgram.createSocket("udp4");
-const cut = () => new Promise((r) => sock.send("cut", CONTROL, "127.0.0.1", () => r()));
+const poke = (m) => new Promise((r) => sock.send(m, CONTROL, "127.0.0.1", () => r()));
+const cut = () => poke("cut");
 
 const browser = await chromium.launch({
   headless: true,
@@ -42,12 +48,25 @@ async function runOne(arm) {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(`${BASE}/lab/session-survival/index.html?arm=${arm}&fill=${FILL}`);
-  await page.waitForFunction((n) => (globalThis.__wtpacsFrames ?? 0) >= n, CUT_AFTER, { timeout: 60000 });
-  const cutAt = Date.now();
-  await cut();
+  if (process.env.DEBUG) {
+    const t0 = Date.now();
+    const say = (who) => (m) => console.log(`  [${who} +${Date.now() - t0}] ${m.text()}`);
+    page.on("console", say("page"));
+    page.on("worker", (w) => w.on("console", say(w.url().split("/").pop())));
+  }
+  const startAt = Date.now();
+  await page.goto(`${BASE}/lab/session-survival/index.html?arm=${arm}&fill=${FILL}&asks=${ASKS}`);
+  let cutAt = Infinity;
+  if (!NO_CUT) {
+    await page.waitForFunction((n) => (globalThis.__wtpacsFrames ?? 0) >= n, CUT_AFTER, { timeout: 60000 });
+    cutAt = Date.now();
+    await cut();
+  }
+  const blinks = BLINK_EVERY ? setInterval(() => poke(`blackout ${BLINK_MS}`), BLINK_EVERY) : null;
   let done = true;
-  await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: 120000 }).catch(() => { done = false; });
+  await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: Number(arg("--timeout", 600000)), polling: 100 }).catch(() => { done = false; });
+  clearInterval(blinks);
+  const tookMs = Date.now() - startAt;
   const r = await page.evaluate(() => globalThis.__wtpacsResult ?? { frames: [], failures: [], resumedAt: [] });
   await page.close();
   const after = r.frames.filter((f) => f.at > cutAt).map((f) => f.at - cutAt);
@@ -63,6 +82,8 @@ async function runOne(arm) {
     failures: r.failures.length,
     reason: r.failures[0]?.reason ?? "",
     resumes: (r.resumedAt ?? []).length,
+    tookMs,
+    failedAfterMs: r.failures.map((f) => f.afterMs).filter((v) => v !== undefined),
     errors,
   };
 }
@@ -75,7 +96,7 @@ for (let round = 0; round < ROUNDS; round++) {
     console.log(
       `round ${round} ${row.arm.padEnd(5)} noticed ${String(row.noticedMs ?? "never").padStart(6)} ms` +
         `  first frame after the cut ${String(row.firstAfterMs ?? "never").padStart(6)} ms` +
-        `  (${row.before} before, ${row.delivered}/${FILL} delivered, ${row.failures} failed, ${row.resumes} resumes)` +
+        `  (${row.before} before, ${row.delivered}/${ASKS || FILL} delivered, ${row.failures} failed, ${row.resumes} resumes, ${row.tookMs} ms)` +
         (row.reason ? `  ${row.reason}` : "") +
         (row.errors.length ? `  page error: ${row.errors[0]}` : ""),
     );
@@ -93,9 +114,11 @@ const cell = (rs, k) => {
 console.log(`\nms from the cut, ${ROUNDS} rounds, interleaved`);
 for (const arm of ARMS) {
   const rs = rows.filter((r) => r.arm === arm);
-  const complete = rs.filter((r) => r.delivered === FILL).length;
+  const complete = rs.filter((r) => r.delivered === (ASKS || FILL)).length;
+  const resumes = rs.map((r) => r.resumes);
   console.log(
     `  ${arm.padEnd(5)} noticed ${cell(rs, "noticedMs").padEnd(22)} first frame ${cell(rs, "firstAfterMs").padEnd(22)}` +
-      ` n=${rs.length}, the fill completed in ${complete}/${rs.length}`,
+      ` took ${cell(rs, "tookMs").padEnd(26)} resumes ${resumes.join(",")}` +
+      ` failed ${rs.map((r) => r.failures).join(",")} n=${rs.length}, completed ${complete}/${rs.length}`,
   );
 }

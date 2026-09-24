@@ -153,6 +153,11 @@ platform's guess about the network. It is what §The measurement below actually 
 
 ## The check: a probe ask with a deadline
 
+*Superseded 2026-09-24 (row 66), kept as it was built:* on a slow link this check **livelocks** —
+a frame slower than `stallMs` starts a probe, the probe is an ask that ends the running fill and
+cannot itself arrive inside `probeMs`, so the session is re-dialled, the fill re-issued, and the same
+again, for ever (§Detection by the bytes). The client now decides by the bytes alone.
+
 The cheapest honest test of a session is to use it. On any trigger above, the downloader asks for
 **one frame it already holds** — a frame already delivered, so the answer is discardable and the
 decode path is not disturbed — with a deadline well under the idle timeout.
@@ -171,6 +176,67 @@ the server (`transport/ask-during-fill.md`) and a probe that interrupts a live f
 round trip to re-issue the remainder. While the fill is *stalled*, which is when the probe
 actually fires, that cost is zero. The same reasoning settles what to do when the probe's deadline
 passes but a frame arrived while it was out: the frame wins, because it is the better evidence.
+
+## Detection by the bytes
+
+*Row 66 (LV1), 2026-09-24; built.* **No byte for `stallMs` (3 s) while frames are owed means the
+path is dead**, and each re-dial that silence causes doubles the wait for the next. Nothing is asked
+to test the session; a platform trigger re-reads the silence and nothing else. The bytes are the
+transports' — both stamp `stats().lastByteAt` on every chunk any stream delivers — so a frame slower
+than the wait is not a death while its bytes keep coming. It is the rule another client of this lab's
+pair already ran, on the workstation's rig; this is it compared with the probe on this client.
+
+**Measured** — [`../lab/session-survival/cells.sh`](../lab/session-survival/cells.sh), headless
+Chromium, the downloader against the real server through `link_impair.py`, 428 KB frames, both
+detections in one worker selected per page, interleaved with the order rotated, 7 rounds a cell:
+
+| cell | the link | probe (as built before) | bytes |
+| --- | --- | --- | --- |
+| cut | 20 Mbit, the path cut after 12 frames | noticed **5 006** ms [5 003–5 012] | noticed **3 016** ms [3 012–3 028] |
+| radio | 80 ms, ordered ±10 ms jitter, Gilbert–Elliott loss | 1 false re-dial in 7 fills | 1 fill of 7 with 2 false re-dials |
+| blinks | 80 ms, a 1 s blackout every 5 s | none; 19.1 s a fill | none; 19.1 s a fill |
+| slow | 700 kbit, 80 ms, 0.9 s queue, 8 frames | **0 of 7 completed** in 120 s | 7 of 7, **41.4 s** [41.3–41.5], none |
+| deep | 700 kbit behind a 4.1 s standing queue | **0 of 7 completed** in 120 s | 7 of 7, 52.9 s [52.5–56.5], one re-dial each |
+
+**The probe livelocks on a slow link.** Traced from the worker: frames 0 and 1 land 4.5 s apart, the
+stall fires 3 s after frame 1, the probe asks for frame 1 again — 428 KB, which cannot arrive in
+`probeMs` at 700 kbit, and whose ask ends the running fill on the server (L16) — so the session is
+re-dialled, the fill re-issued, and 5.5 s later the same: the fill never passes frame 1. The
+paragraph below that kept 3000/2000 "until that cost is measured on a slow link" is answered by it.
+Behind a 4 s standing queue the bytes rule re-dials once a fill, as on the rig, and the doubled wait
+holds after it. On the cut it notices **2 s sooner** because it no longer waits out a probe. The
+radio cell is a draw: each rule re-dialled a healthy session in one fill of seven. After adoption the
+built client read the same on three rounds each: cut 3 015 ms, slow 41.4 s, and the burst below.
+
+**Two defects the other client had, checked here.**
+
+* **A replaced session left open**, so the server kept sending the old burst to nobody. *Not here:*
+  a resumption closes the old session before it dials, and across both slow cells the server ended
+  205 sessions on the client's close or during setup and **none by idle timeout**, at the cadence of
+  the re-dials. A clause now holds it (`aSilentSessionIsRedialled`: the replaced transport is closed;
+  mutant — the `close()` removed — caught).
+* **A frame's deadline counted from its ask**, so a burst longer than the deadline fails its tail.
+  *Here, in three places:* both transports' 15 s waiter and the consumer's own 15 s timer. Six frames
+  asked at once on the slow link — 29 s of bytes — delivered 2 and failed 4 at **15.0 s**, 7/7 rounds,
+  while their bytes were still arriving. Both transports now time a waiter from the **last byte** the
+  session delivered (`no byte for 15000 ms`), and the consumer keeps no timer: it cannot see bytes, and
+  the downloader settles every ask — a frame, a refusal, the transport's silence, or the re-dials
+  running out. The same burst now delivers **6 of 6 in 31.2 s**. What that leaves: with survival on,
+  a server that accepts every dial and never sends keeps an ask waiting through re-dials whose wait
+  doubles — which is what the fill already did.
+
+**Clauses** (`client/conformance/dispatch-rig.ts`, and `clauses.ts` for all three implementations):
+a frame whose bytes take five times `stallMs` lands with no re-dial and nothing asked, a platform
+trigger arriving mid-frame included; a silent session is re-dialled, re-issues exactly what was owed
+and closes what it replaced; the wait doubles after a re-dial it caused; and a frame whose bytes take
+16 s lands on the TypeScript and WASM transports and through the downloader. Six mutants, six caught:
+silence read from frames instead of bytes (five dials, the frame never lands — the livelock in the
+fake), no doubling, the replaced session not closed, either transport's waiter or the consumer's timer
+counted from the ask.
+
+**Where the host saturates.** Every cell runs at the relay's rate, 20 Mbit or 700 kbit, three or more
+orders below what this loopback carries; latency and completion are quoted, no throughput. The radio
+cell's fill time varies 20–54 s with the loss draw, so only its re-dials are read.
 
 ## Re-dial and re-issue, on records that already exist
 
@@ -239,35 +305,36 @@ parked per-core endpoints. Not modelled: a new IP address, as on a Wi-Fi to cell
 
 **2026-09-22, the lab's client.** All of the mechanism is in `client/downloader/downloader.js` —
 the worker that owns the session, the records and the queue — with four lines in `consumer.js` for
-the triggers a worker cannot see. No wire message, no server change and no transport change: the
-probe is an ordinary ask and both transports already serve it.
+the triggers a worker cannot see. No wire message and no server change. *Since row 66* the only
+transport change is `stats().lastByteAt`, the byte clock the detection reads (§Detection by the bytes).
 [`../client/downloader/README.md`](../client/downloader/README.md) §A session that dies is resumed
 is the reader's entry.
 
-A session is **live**, **suspect** (one probe out, with a deadline), **dead**, or being
-**re-dialled**. Every trigger moves it from live to suspect; only a session the API itself reports
-closed goes straight to dead.
+A session is **live**, **dead**, or being **re-dialled**. *Corrected in place 2026-09-24 (row 66):*
+there was a **suspect** state, one probe out with a deadline, and it is gone with the probe. A
+session is dead when it has delivered no byte for the wait with frames owed, or when the API reports
+it closed; every trigger re-reads the silence and decides nothing else.
 
 | trigger | where it is listened for |
 | --- | --- |
 | `online`, `offline`, `navigator.connection` `change` | the downloader's worker |
 | `visibilitychange` to visible, `pageshow`, `freeze`, `resume` | the page, forwarded as one message |
-| a fill quiet for `stallMs` with frames owed | the downloader's own records |
+| no byte for the wait with frames owed | the transport's `lastByteAt` against the downloader's records |
 
-The deadlines are `{ stallMs: 3000, probeMs: 2000, redialMs: 1000, tries: 5 }`, so detection costs
-`stallMs + probeMs` and a resume costs a dial after it; `survival: false` turns the whole of it off
-and an object overrides them. Nothing in it runs when nothing dies, which is what keeps the
+The deadlines are `{ stallMs: 3000, redialMs: 1000, tries: 5 }` (`probeMs` is gone), so detection
+costs `stallMs` — doubled after each re-dial the silence caused — and a resume costs a dial after
+it; `survival: false` turns the whole of it off and an object overrides them. Nothing in it runs when nothing dies, which is what keeps the
 conformance and dispatch suites green unchanged.
 
 **`tries` bounds the dials within one resumption, not the resumptions.** A dial that succeeds onto
-a path that still carries nothing leaves the fill owed and quiet, so the cycle starts again about
-`stallMs + probeMs` later, for as long as the consumer wants frames. That is deliberate: a network
+a path that still carries nothing leaves the fill owed and quiet, so the cycle starts again after the
+doubled wait, for as long as the consumer wants frames. That is deliberate: a network
 that is genuinely down refuses the dial, which is the case `tries` ends.
 
-**Five clauses**, `client/conformance/dispatch-rig.ts`, each mutated and seen to fail: a trigger
-checks before it re-dials and a session that answers the probe is kept; a probe nobody answers
-re-dials and re-issues exactly what was owed; a session the API calls closed is re-dialled with no
-probe at all; an ask outstanding at the death is re-asked and settles the promise the page is still
+**Six clauses**, `client/conformance/dispatch-rig.ts`, each mutated and seen to fail — the first
+three rewritten for row 66 (§Detection by the bytes): a frame slower than the wait is not a death
+and a trigger does not make it one; a silent session is re-dialled, re-issues exactly what was owed
+and closes what it replaced; the wait doubles; a session the API calls closed is re-dialled at once; an ask outstanding at the death is re-asked and settles the promise the page is still
 holding; and when the re-dials run out, every frame the fill still owed is named once — LG/LH's
 behaviour, as the terminal state.
 
@@ -286,6 +353,9 @@ is `survival: false` **plus a page that re-asks for everything missing the insta
 reports the fill gone** — a deliberately generous baseline, since a real page today gets the frames
 named and the fill failed and must do something about it. `built` is the defaults. `quick` is the
 same code at `{ stallMs: 1000, probeMs: 800 }`.
+
+*These arms are the probe design, which row 66 replaced: the same cut is now noticed at 3 016 ms,
+§Detection by the bytes.*
 
 **7 rounds, 21 runs, one host, 2026-09-22.** 87-frame study, 428 KB a frame, relay at 20 Mbit, the
 fill 80 frames, the cut after 12 (about 2 s in). Median [min … max] ms from the cut datagram.
@@ -316,7 +386,9 @@ win is 7/7 both ways.
   frame is named; built, it **completes by itself** with nothing reported to the page but a
   `stats().resumedAt` entry.
 
-**Why the default stays at 3000/2000, on this evidence.** `quick` is not a proposed default: the
+**Why the default stays at 3000/2000, on this evidence.** *Answered 2026-09-24 (row 66):* the cost
+this paragraph asked to have measured on a slow link is a livelock — the fill never completes — and
+the probe is gone (§Detection by the bytes). The paragraph as it stood: `quick` is not a proposed default: the
 stall trigger has to outlast the longest legitimate gap between frames, and one 428 KB frame at
 1 Mbit is 3.4 s, so `stallMs: 1000` would probe a *healthy* slow fill between frames. A probe is an
 ask, and an ask ends the running fill on the server

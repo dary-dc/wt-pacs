@@ -30,6 +30,7 @@ export type FakeHandle = {
   pushFrame(index: number, codestream: Uint8Array): Promise<void>;
   pushOnOneStream(frames: [number, Uint8Array][]): Promise<void>;
   pushTruncatedFrame(index: number, codestream: Uint8Array, sent: number): Promise<void>;
+  trickleFrame(index: number, codestream: Uint8Array, chunks: number, everyMs: number): Promise<void>;
   serverClose(closeCode?: number, reason?: string, endStreams?: boolean): Promise<void>;
   controlMessages(): Promise<{ op: string }[]>;
   didClose(): Promise<boolean>;
@@ -407,6 +408,25 @@ async function redialsAfterClosure(rig: Rig, check: Check) {
 }
 
 /** A clause that throws fails by name and the rest still run — an abort counts nothing. */
+/**
+ * A frame is late when its session goes quiet, not when its ask is old: one whose bytes keep coming
+ * for longer than FRAME_TIMEOUT_MS still lands — the tail of a burst on a slow link.
+ * docs/proposal-session-survival.md §Detection by the bytes
+ */
+async function aFrameIsLateOnlyWhenTheSessionGoesQuiet(rig: Rig, check: Check) {
+  const s = await rig.open();
+  const asked = s.requestExactFrame(0).then(
+    (f) => text(f),
+    (e) => `rejected: ${e?.message ?? e}`,
+  );
+  await settle();
+  // Seventeen chunks a second apart: sixteen seconds of bytes, none more than one apart.
+  await rig.fake().trickleFrame(0, enc.encode("slow".repeat(40)), 17, 1000);
+  const got = await asked;
+  check(got === "slow".repeat(40), `${rig.name}: a frame whose bytes take 16 s lands (${got.slice(0, 60)})`);
+  s.close();
+}
+
 export async function runClauses(rig: Rig, check: Check): Promise<void> {
   const clauses = [
     workerSafe,
@@ -420,6 +440,7 @@ export async function runClauses(rig: Rig, check: Check): Promise<void> {
     pushedFill,
     aTruncatedFrameIsAFailure,
     aDeadSessionNamesWhatItOwed,
+    aFrameIsLateOnlyWhenTheSessionGoesQuiet,
   ];
   for (const clause of clauses) {
     try {

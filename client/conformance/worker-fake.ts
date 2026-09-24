@@ -6,6 +6,7 @@
 export type WorkerFake = {
   pushFrame(index: number, codestream: Uint8Array): Promise<void>;
   pushOnOneStream(frames: [number, Uint8Array][]): Promise<void>;
+  trickleFrame(index: number, codestream: Uint8Array, chunks: number, everyMs: number): Promise<void>;
   pushRefusal(index: number, reason: string): Promise<void>;
   pushTruncatedFrame(index: number, codestream: Uint8Array, sent: number): Promise<void>;
   serverClose(closeCode?: number, reason?: string, endStreams?: boolean): Promise<void>;
@@ -13,6 +14,8 @@ export type WorkerFake = {
   dialUrl(): Promise<string>;
   didClose(): Promise<boolean>;
   dials(): Promise<number>;
+  /** Whether every transport before the latest was closed by the client. */
+  replacedClosed(): Promise<boolean>;
   failDials(n: number): Promise<void>;
   /** Resolves once the downloader's worker has started a busy loop of `ms` that answers nothing. */
   block(ms: number): Promise<void>;
@@ -47,6 +50,7 @@ export function workerFake(name: string): WorkerFake {
   return {
     pushFrame: (i, c) => call("pushFrame", i, c) as Promise<void>,
     pushOnOneStream: (frames) => call("pushOnOneStream", frames) as Promise<void>,
+    trickleFrame: (i, c, n, ms) => call("trickleFrame", i, c, n, ms) as Promise<void>,
     pushRefusal: (i, reason) => call("pushRefusal", i, reason) as Promise<void>,
     pushTruncatedFrame: (i, c, sent) => call("pushTruncatedFrame", i, c, sent) as Promise<void>,
     serverClose: (code, reason, endStreams) => call("serverClose", code, reason, endStreams) as Promise<void>,
@@ -54,6 +58,7 @@ export function workerFake(name: string): WorkerFake {
     dialUrl: () => call("dialUrl") as Promise<string>,
     didClose: () => call("didClose") as Promise<boolean>,
     dials: () => call("dials") as Promise<number>,
+    replacedClosed: () => call("replacedClosed") as Promise<boolean>,
     failDials: (n) => call("failDials", n) as Promise<void>,
     block: (ms) => call("block", ms) as Promise<void>,
     alive: () => alive(name),

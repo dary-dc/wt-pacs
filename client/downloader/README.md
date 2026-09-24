@@ -91,14 +91,16 @@ harness's per-frame `.sha256` is what sees that.
 **A session that dies is resumed.** A path that goes away takes no byte with it that the records do
 not already hold, so the worker treats a death as a resumption rather than a failure. Every
 platform trigger — `online`/`offline` and `navigator.connection` `change` in the worker,
-`visibilitychange`, `pageshow`, `freeze` and `resume` forwarded by `consumer.js` — and a fill that
-has gone quiet with frames owed start a **check**, never a re-dial: one ask for a frame already in
-hand, with a deadline. It answers, or the session is re-dialled and exactly what the records still
-owe is issued on the new one — the fill's remainder as a run and any outstanding ask again, with
+`visibilitychange`, `pageshow`, `freeze` and `resume` forwarded by `consumer.js` — re-reads one
+clock: the last byte the transport delivered. **No byte for `stallMs` while frames are owed** and the
+session is re-dialled, the wait doubling after each re-dial it caused, and exactly what the records
+still owe is issued on the new one — the fill's remainder as a run and any outstanding ask again, with
 nothing that arrived re-fetched and nothing re-decoded. The request's **generation does not move**:
 a resume is the same request, so the page's waiters and records stay valid and the only thing it is
 told is when each resume happened, as `stats().resumedAt`. `survival: false` turns it off; an object overrides
-`{ stallMs: 3000, probeMs: 2000, redialMs: 1000, tries: 5 }`.
+`{ stallMs: 3000, redialMs: 1000, tries: 5 }`. Until 2026-09-24 a quiet fill started a probe ask
+instead, which livelocked on a slow link. An ask keeps no timer in the consumer: the downloader
+settles it, and the transports time a frame from the last byte, not from the ask.
 [`docs/proposal-session-survival.md`](../../docs/proposal-session-survival.md) has the states, the
 reasons and what a cut costs today against built.
 

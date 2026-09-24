@@ -92,6 +92,8 @@ export class TransportSession {
   private fill: Fill | null = null;
   private droppedEarly = 0;
   private frameErrors = 0;
+  /** `performance.now()` of the last byte any stream delivered: what a dead path stops moving. */
+  private lastByteAt = 0;
   /** Set once the session is gone; a waiter armed after this would only reach the timeout. */
   private closedReason: string | null = null;
   private readonly window: AskWindow | null;
@@ -164,11 +166,16 @@ export class TransportSession {
       return Promise.reject(new Error(`frame ${frameIndex} already requested`));
     }
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const armedAt = performance.now();
+      // Late when the session goes quiet, not when the ask is old: a long burst still owes its tail.
+      const expire = () => {
+        const quiet = performance.now() - Math.max(armedAt, this.lastByteAt);
+        if (quiet < FRAME_TIMEOUT_MS) return void (w.timer = setTimeout(expire, FRAME_TIMEOUT_MS - quiet));
         this.waiters.delete(frameIndex);
-        reject(new Error(`timeout waiting for frame ${frameIndex} after ${FRAME_TIMEOUT_MS} ms`));
-      }, FRAME_TIMEOUT_MS);
-      this.waiters.set(frameIndex, { resolve, reject, timer });
+        reject(new Error(`timeout waiting for frame ${frameIndex}: no byte for ${FRAME_TIMEOUT_MS} ms`));
+      };
+      const w = { resolve, reject, timer: setTimeout(expire, FRAME_TIMEOUT_MS) };
+      this.waiters.set(frameIndex, w);
     });
   }
 
@@ -227,7 +234,7 @@ export class TransportSession {
   /** Read envelopes until the uni stream ends. docs/CLIENTS.md#a-truncated-frame-is-a-failure */
   private async pumpFramedStream(stream: ReadableStream<Uint8Array>) {
     const reader = stream.getReader();
-    const buf = new ByteAccumulator();
+    const buf = new ByteAccumulator(() => (this.lastByteAt = performance.now()));
     try {
       for (;;) {
         const env = await readEnvelope(reader, buf, this.wire);
@@ -247,7 +254,7 @@ export class TransportSession {
 
   private async pumpControl(readable: ReadableStream<Uint8Array>) {
     const reader = readable.getReader();
-    const buf = new ByteAccumulator();
+    const buf = new ByteAccumulator(() => (this.lastByteAt = performance.now()));
     try {
       for (;;) {
         const msg = await readFodFrom(reader, buf);
@@ -397,6 +404,7 @@ export class TransportSession {
       droppedEarlyMedia: this.droppedEarly,
       frameErrors: this.frameErrors,
       windowDepth: this.window?.current() ?? null,
+      lastByteAt: this.lastByteAt,
     };
   }
 
@@ -483,7 +491,10 @@ class ByteAccumulator {
   private parts: Uint8Array[] = [];
   private len = 0;
 
+  constructor(private onBytes: () => void) {}
+
   push(chunk: Uint8Array) {
+    this.onBytes();
     this.parts.push(chunk);
     this.len += chunk.length;
   }
