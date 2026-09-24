@@ -58,7 +58,7 @@ trailers. This is the owner's rule for every repository.
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 60 | **LK1** — a closed downloader client leaves its worker running | queue §Rows 60–64 | **claimed** 2026-09-24 by the cloud agent |
+| 60 | **LK1** — a closed downloader client leaves its worker running | queue §Rows 60–64 | **done** 2026-09-24 `91ecaf7` — the leak was **one renderer thread and 2.5 MB resident per closed client** (40 clients: 10 → 50 threads, 106 → 206 MB, three interleaved rounds identical, driverless). The decoders did *not* leak — the downloader terminated them. `close()` now terminates the downloader on `closed`, or at a 1 s deadline if it is wedged (its asks named then, not at 15 s); **the downloader no longer terminates its decoders** — doing both stranded 10–12 of 40 downloader workers as targets Chromium never reclaimed, script dead, thread and memory held. Two dispatch clauses (84/84) and an end-of-page worker count in `drive_downloader.cjs` (0 left on every page; the pre-fix client leaves 18); three mutants caught every run, the stranding mutant one run of two (it is a race — `lab/worker-leak/run.mjs --driver playwright` shows it reliably). `proposal-downloader.md` §Closing a client. **For row 65:** the conformance fakes now answer a liveness ping on `<ch>-alive`, which counts live workers from the page |
 | 65 | **WM1** — a message posted before the other side listens, in production code | queue §Rows 65–72 | **ready** |
 | 61 | **FF1** — a blink that swallows the server's first flight, after lever 2 | queue §Rows 60–64 | **ready** |
 | 66 | **LV1** — detection by the bytes, and two defects found on another client | queue §Rows 65–72 | **ready** |
