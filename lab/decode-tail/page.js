@@ -20,7 +20,7 @@ const client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
   decoder,
   decoderWorker: q.get("decoderWorker") || undefined,
   onFrame: (f) => {
-    frames.push({ i: f.frameIndex, bytes: f.info.byteCount, ...f.info.stamps });
+    frames.push({ i: f.frameIndex, bytes: f.info.byteCount, ...f.info.stamps, received: performance.timeOrigin + performance.now() });
     if (frames.length === FILL) resolveAll();
   },
   onError: (e) => frames.push({ i: e.frameIndex, error: e.reason }),

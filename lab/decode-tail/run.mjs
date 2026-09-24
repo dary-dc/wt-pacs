@@ -18,7 +18,8 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 7));
 const SETS = arg("--sets", "c512,g512").split(",");
-/** `name=decoderDir[/glue.js][@decoderWorker]`: another decoder build, or another worker around it. */
+/** `name=[direct:]decoderDir[/glue.js][@decoderWorker]`: another decoder build, another worker around
+ *  it, or `direct:` for the page that drives the decoders itself (direct.html). */
 const ARMS = arg("--arms", "package=/lab/decode-bench/vendor/openjph").split(",").map((a) => a.split("="));
 const DECODERS = Number(arg("--decoders", 3));
 const CHROME = process.env.CHROME_PATH || chromium.executablePath();
@@ -63,7 +64,8 @@ await new Promise((r) => sink.listen(0, "127.0.0.1", r));
 await new Promise((r) => setTimeout(r, 1500));
 
 async function page(set, [arm, spec]) {
-  const [where, worker] = spec.split("@");
+  const direct = spec.startsWith("direct:");
+  const [where, worker] = spec.replace(/^direct:/, "").split("@");
   const [dir, glue] = where.endsWith(".js") ? [path.dirname(where), path.basename(where)] : [where, undefined];
   const profile = fs.mkdtempSync(path.join(T, "p-"));
   const got = new Promise((r) => (report = r));
@@ -74,7 +76,7 @@ async function page(set, [arm, spec]) {
   const log = process.env.CHROME_LOG ? fs.openSync(process.env.CHROME_LOG, "a") : "ignore";
   const chrome = spawn(CHROME, ["--headless=new", "--no-sandbox", "--no-first-run", "--disable-background-networking",
     ...(process.env.CHROME_FLAGS ?? "").split(" ").filter(Boolean),
-    `--user-data-dir=${profile}`, `http://127.0.0.1:${HTTP}/lab/decode-tail/index.html?${u}`], { stdio: ["ignore", log, log] });
+    `--user-data-dir=${profile}`, `http://127.0.0.1:${HTTP}/lab/decode-tail/${direct ? "direct" : "index"}.html?${u}`], { stdio: ["ignore", log, log] });
   const out = await Promise.race([got, new Promise((r) => setTimeout(() => r(null), 90000))]);
   chrome.kill();
   await new Promise((r) => setTimeout(r, 500));
@@ -117,6 +119,9 @@ function split(r) {
     }
   }
   gaps.sort((x, y) => x - y);
+  // A frame's path, and the interval between frames as the page sees them.
+  const got = f.map((x) => x.received).sort((a, b) => a - b);
+  const intervals = got.slice(1).map((t, k) => t - got[k]);
   const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
   return {
     frames: f.length, failed: r.frames.length - f.length,
@@ -124,6 +129,10 @@ function split(r) {
     decodeMs: med(work), workPerDecoderMs: work.reduce((s, x) => s + x, 0) / DECODERS,
     busyShareInWire: busyInWire / (DECODERS * (wireEnd - t0)),
     idleWithWorkMs: idle.ownInbox + idle.queue + idle.otherInbox,
+    intervalMs: med(intervals),
+    loopMs: med(f.map((x) => x.dispatched - x.lastByte)),
+    handoffMs: med(f.map((x) => x.decodeStart - x.dispatched)),
+    toPageMs: med(f.map((x) => x.received - x.decodeEnd)),
     gapMs: gaps[gaps.length >> 1], gapP90Ms: gaps[Math.floor(gaps.length * 0.9)], gapMaxMs: gaps.at(-1),
     idleOwnInboxMs: idle.ownInbox, idleQueueMs: idle.queue, idleOtherInboxMs: idle.otherInbox,
     startedAfterWire: f.filter((x) => x.decodeStart >= wireEnd).length,
@@ -152,7 +161,9 @@ for (const set of SETS) for (const [arm] of ARMS) {
     `  busy in wire ${(100 * m("busyShareInWire")).toFixed(0)} %  idle-with-work ${m("idleWithWorkMs").toFixed(0)} decoder-ms` +
     ` (own inbox ${m("idleOwnInboxMs").toFixed(0)}, queue ${m("idleQueueMs").toFixed(0)}, a busy one's inbox ${m("idleOtherInboxMs").toFixed(0)})` +
     `  gap between a decoder's frames ${m("gapMs").toFixed(2)} [p90 ${m("gapP90Ms").toFixed(2)}, max ${m("gapMaxMs").toFixed(1)}]` +
-    `  started after wire ${m("startedAfterWire")}  n=${rs.length}` + (arm === ARMS[0][0] ? "" :
+    `  started after wire ${m("startedAfterWire")}` +
+    `  | interval ${m("intervalMs").toFixed(2)}  wire→dispatch ${m("loopMs").toFixed(2)}  dispatch→decode ${m("handoffMs").toFixed(2)}` +
+    `  decode→page ${m("toPageMs").toFixed(2)}  n=${rs.length}` + (arm === ARMS[0][0] ? "" :
       `  done sooner than ${ARMS[0][0]} in ${rs.filter((r) => r.doneMs < rows.find((b) => b.round === r.round && b.set === set && b.arm === ARMS[0][0])?.doneMs).length}/${rs.length}`));
 }
 process.exit(0);
