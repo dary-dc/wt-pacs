@@ -40,3 +40,4 @@ bc.onmessage = (e: MessageEvent<Command>) => {
     bc.postMessage({ id, ok: false, result: String((err as Error)?.message ?? err) });
   }
 };
+bc.postMessage({ listening: true });

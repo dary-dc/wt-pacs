@@ -20,7 +20,10 @@ export function workerFake(name: string): WorkerFake {
   const bc = new BroadcastChannel(name);
   let nextId = 1;
   const waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  let heard!: () => void;
+  const listening = new Promise<void>((r) => (heard = r));
   bc.onmessage = (e) => {
+    if (e.data.listening) return void heard();
     const w = waiting.get(e.data.id);
     if (!w) return;
     waiting.delete(e.data.id);
@@ -31,7 +34,8 @@ export function workerFake(name: string): WorkerFake {
     new Promise<unknown>((resolve, reject) => {
       const id = nextId++;
       waiting.set(id, { resolve, reject });
-      bc.postMessage({ id, cmd, args });
+      // Posted before the worker's channel is registered, a command is dropped. docs/proposal-conformance-suite.md
+      void listening.then(() => waiting.has(id) && bc.postMessage({ id, cmd, args }));
       setTimeout(() => {
         if (waiting.delete(id)) reject(new Error(`no reply to ${cmd} in 2 s — is the fake installed in the worker?`));
       }, 2000);

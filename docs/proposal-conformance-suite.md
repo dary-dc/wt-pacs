@@ -117,6 +117,17 @@ session, drive the fake, count dials — so the same checks run wherever the fak
 inside the downloader's worker, it installs the fake there, answers the page's commands over a
 `BroadcastChannel` named in its own URL query, and exports the real `TransportSession` over it.
 
+The fake says `listening` on that channel once it is up, and the page posts nothing before it
+hears that (added 2026-09-23). Chromium can drop a message posted to a channel a worker has
+already constructed: on Chrome 148, a worker that builds its channel and then tells the page
+over `postMessage` lost 10 of 5,000 pings the page sent at once, and 0 of 5,000 when the page
+waited for `listening` instead (five rounds each, interleaved, one headless page per round).
+In the suite, three commands follow `open()` with no pause, and the gate once failed one of them,
+"the fake took the server's close (closed before the ask)". There the loss is rarer — 1 in 3,500
+opens on this host, none in 110 whole-suite runs — so the fix is shown by forcing the order: with
+the fake's channel created 300 ms late, the page without the wait passes 4 of 18 checks, and
+with it all 53.
+
 `run_downloader.sh` serves the repo with `server/dev-server.py`, drives
 `client/conformance/downloader.html` in headless Chromium, and fails on any failed check.
 The gate runs it, and skips loudly when playwright or Chromium is missing — the WASM-arm
