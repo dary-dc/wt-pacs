@@ -21,7 +21,7 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Two opposite answers, depending on which kind of loss the link has.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured. *Priced in Chromium 2026-09-24:* under 1–3 % random loss BBR fills 11–20× faster, and pays with ~45 % of its datagrams overflowing a 120 ms queue or 287 ms of standing queue in a 900 ms one; **neither as they stand**, Cubic stays (§1, CC1) |
+| **Congestion controller** | **Two opposite answers, depending on which kind of loss the link has.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured. *Priced in Chromium 2026-09-24:* under 1–3 % random loss BBR fills 12–19× faster, and pays with ~45 % of its datagrams overflowing a 120 ms queue or 294 ms of standing queue in a 900 ms one; **neither as they stand**, Cubic stays (§1, CC1) |
 | **Stream shape** | **One shared stream — the binary defaults to it.** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a real path the 64 KB cell is noise-dominated; the 250 KB cell separates: per-frame is **5.76× worse**, 3/3, and the absolute penalty matches the simulator to 1.6 %. No cell on either rig separates in per-frame's favour |
 | **Fixed-N pool** | Untested. R6 makes it less promising: retransmit-deferral cost grows with N, and the winning endpoint is N = 1 |
 | **Initial congestion window** | **Leave at quinn's default — but the ≤ 7 % that used to be the whole reason is corrected 2026-09-19.** That cell averaged many asks on one session, where every arm converges after a frame or two; it never measured the first ask, which is the only place the initial window can matter. On the first ask of an idle session 32 packets is **−28 to −33 %** (§3, the first ask). The default stays because the win is one frame per session and the cost lands on the shallow-buffered link the target has: at 80 ms on 10 Mbit behind a 20-packet queue it takes per-session loss from 2.1 % to 6.5 %. **Swept by queue depth 2026-09-20:** that loss does not reverse the win — from 20 packets up it is a flat −16…−33 %, and the lever fails in exactly one cell, a 10-packet queue at 250 KB / 80 ms (+11.8 %, and it ends on half the default arm's window). It also buys nothing on top of the session-open push, which is the larger lever |
@@ -85,33 +85,41 @@ and rounds won against Cubic:
 
 | cell | fill: Cubic | Cubic + restart | BBR | ask: Cubic | BBR |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 % loss | 42.0 s [40.8–49.9] | 42.3 s, 5/7 | **3.8 s** [3.8–3.9], 7/7 | 671 ms | **319**, 7/7 |
-| 3 % loss | 75.7 s [69.0–82.2] | 75.9 s, 3/7 | **3.8 s** [3.8–4.2], 7/7 | 2 698 | **408**, 7/7 |
-| radio: ordered ±10 ms, Gilbert–Elliott | 6.8 s [4.0–22.8] | 5.2 s, 5/7 | **3.8 s** [3.7–3.9], 7/7 | 658 | **342**, 7/7 |
-| a 500 ms blink, no loss | **4.55 s** [4.54–4.58] | 4.87 s, 0/7 | 4.73 s, 0/7 | 553 | **285**, 7/7 |
-| 1 % loss, 1 500-packet queue | 41.7 s [37.7–44.2] | — | **3.8 s** [3.8–3.9], 7/7 | 813 | **349**, 7/7 |
+| 1 % loss | 45.1 s [39.6–48.3] | 42.7 s, 3/7 | **3.8 s** [3.7–3.8], 7/7 | 807 ms | **338**, 7/7 |
+| 3 % loss | 75.5 s [71.1–82.5] | 78.0 s, 2/7 | **3.9 s** [3.8–4.1], 7/7 | 2 360 | **380**, 7/7 |
+| radio: ordered ±10 ms, Gilbert–Elliott | 6.4 s [4.0–15.0] | 5.2 s, 2/7 | **3.9 s** [3.8–4.0], 6/7 | 624 | **484**, 7/7 |
+| a 500 ms blink, no loss | **4.54 s** [4.52–4.56] | 4.85 s, 0/7 | 4.89 s, 0/7 | 553 | **315**, 7/7 |
+| 1 % loss, 1 500-packet queue | 43.4 s [38.5–49.2] | — | **3.8 s** [3.7–3.8], 7/7 | 795 | **344**, 6/7 |
 
 | what BBR costs | Cubic | BBR |
 | --- | ---: | ---: |
-| datagrams lost, 1 % / 3 % / radio | 1.1 / 2.9 / 0.6 % | **46.8 / 51.5 / 48.4 %** |
-| of which the queue overflowed | 0 | **45.7 / 48.4 / 48.2 %** |
-| standing queue, 200 packets | 4–11 ms | **36–70 ms** |
-| standing queue, 1 500 packets (overflow 4.4 %) | 5 ms | **287 ms** |
+| datagrams lost, 1 % / 3 % / radio | 1.1 / 3.0 / 0.7 % | **46.4 / 47.1 / 40.6 %** |
+| of which the queue overflowed | 0 | **45.3 / 44.0 / 40.1 %** |
+| standing queue, 200 packets | 4–11 ms | **43–77 ms** |
+| standing queue, 1 500 packets (no overflow) | 5 ms | **294 ms** |
 
-**The browser confirms L3 and widens it**: under random loss BBR fills **11× (1 %) to 20× (3 %)
-faster** and answers a fresh ask **2 to 6.6× sooner**, 7/7 in every lossy cell. A fresh ask is ~2×
-faster on a clean link too (the blink cell's ask, which the blink at 3 s never reached). **Its price
-is the queue, both ways.** Against a 120 ms buffer it sends about twice the fill's bytes and the
-bottleneck drops the other half; against a 900 ms buffer it stops overflowing and **stands 287 ms of
-queue** in front of everything else the phone does. On a link whose only trouble is one blink, it
-is 4 % slower than Cubic (0/7). The restart W3 built ties Cubic in every lossy cell and loses in the
-blink cell here (0/7) — this blink lands late in a 3.6 s fill, where W3 found it neutral to negative.
+*Re-taken 2026-09-24 on an idle box.* The first run of every cell shared the four cores with four
+runaway server processes from another lane (`decode/README.md` §The decode tail says how it was
+found); the tables are the re-take. The first run agreed in every verdict and within a few points in
+every figure — its overflow read 45.7 / 48.4 / 48.2 %, its deep standing queue 287 ms, its blink cell
+BBR 4 % slower rather than 7.8 %.
+
+**The browser confirms L3 and widens it**: under random loss BBR fills **12× (1 %) to 19× (3 %)
+faster** and answers a fresh ask **1.3 to 6.2× sooner**, 6/7 or 7/7 in every lossy cell. A fresh ask
+is ~1.8× faster on a clean link too (the blink cell's ask, which the blink at 3 s never reached).
+**Its price is the queue, both ways.** Against a 120 ms buffer it sends about twice the fill's bytes
+and the bottleneck drops the other half; against a 900 ms buffer it stops overflowing and **stands
+294 ms of queue** in front of everything else the phone does. On a link whose only trouble is one
+blink, it is 7.8 % slower than Cubic (0/7). The restart W3 built ties Cubic in every lossy cell and
+loses in the blink cell here (0/7) — this blink lands late in a 3.6 s fill, where W3 found it
+neutral to negative.
 
 **Why BBR overdrives the queue — one reading refuted.** quinn's pacer sends `1.25 × window / RTT`
 and never reads the pacing rate BBR computes, which goes only to its metrics (`connection/pacing.rs`,
 `congestion/bbr/mod.rs`, 0.11.18). With BBR's window at twice the path's BDP that paces at ~2.5×
 the bottleneck — a plausible cause. **It is not the cause here:** a prototype that paces a
-rate-reporting controller at its own rate overflowed as much (57.6 % against 47.8 %, 3 rounds, 1 %).
+rate-reporting controller at its own rate overflowed as much (57.6 % against 47.8 %, 3 rounds, 1 %;
+taken under the same load as the first run, and not re-taken).
 The excess is BBR's own estimate or window, which this lane did not trace; §quinn's BBR read against
 the published BBRv1 below has the other candidate, loss ignored during Startup.
 
