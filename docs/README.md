@@ -23,6 +23,6 @@ Product and ADRs stay here. This lane's campaign write-ups are on tag
 | [`cloud-queue.md`](cloud-queue.md) | What a cloud agent should pick up next, and how it claims and reports it |
 | [`identification-sweep.md`](identification-sweep.md) | How to find levers nobody has written down: the steps, the investigator brief, and what reopens a closed area |
 | [`cloud-lanes-2026-09-14.md`](cloud-lanes-2026-09-14.md) | Investigations that need no workstation, one brief per lane |
-| [`transport/`](transport/) | This lane: conclusions, why, and the window-defaults ADR. Evidence/lab on tag `archive/transport-lab-2026-09` |
+| [`transport/`](transport/) | This lane: conclusions, why, the window-defaults ADR, and the unposted upstream draft for lever 2. Evidence/lab on tag `archive/transport-lab-2026-09` |
 | [`serving-cells-and-run-variance.md`](serving-cells-and-run-variance.md) | The two serving cells, serve against session wall, and which statistic survives run-to-run |
 | [`rig-limits.md`](rig-limits.md) | What this box cannot measure, and what would lift each limit |

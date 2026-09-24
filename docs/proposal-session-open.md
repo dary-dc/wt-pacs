@@ -420,7 +420,9 @@ No `wtransport` issue or pull request asks for this (GitHub search of the reposi
 races `open_and_send_settings` against the driver being dropped — the same function this patch
 starts earlier, so a rebase onto a release carrying it needs a look. The patch is small, keeps the
 public API and the `SessionRequest`-after-handshake contract, and is RFC-sanctioned, which is what an
-upstream reviewer would ask; what they would also ask is the blink row above. None has been opened.
+upstream reviewer would ask; what they would also ask is the blink row above. None has been opened. An issue and a PR description are drafted in
+[`transport/upstream-wtransport-settings.md`](transport/upstream-wtransport-settings.md) (row 64),
+for the owner to post or not.
 
 ## Lever 3 — link and device in the same URL
 
