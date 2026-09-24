@@ -58,7 +58,7 @@ trailers. This is the owner's rule for every repository.
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 60 | **LK1** — a closed downloader client leaves its worker running | queue §Rows 60–64 | **ready** |
+| 60 | **LK1** — a closed downloader client leaves its worker running | queue §Rows 60–64 | **claimed** 2026-09-24 by the cloud agent |
 | 61 | **FF1** — a blink that swallows the server's first flight, after lever 2 | queue §Rows 60–64 | **ready** |
 | 62 | **RS1** — a re-dial with TLS resumption or 0-RTT | queue §Rows 60–64 | **ready** |
 | 63 | **PT1** — one probe retransmission ~400 ms after every session opens | queue §Rows 60–64 | **ready** |
