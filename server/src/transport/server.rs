@@ -292,6 +292,7 @@ fn report_path(connection: &wtransport::Connection) {
         lost = s.path.lost_packets,
         congestion_events = s.path.congestion_events,
         datagrams_tx = s.udp_tx.datagrams,
+        sendmsg = s.udp_tx.ios,
         // Non-zero only where the peer advertised `min_ack_delay` (T7).
         ack_frequency = s.frame_tx.ack_frequency,
         "session path"

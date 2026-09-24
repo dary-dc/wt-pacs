@@ -446,6 +446,9 @@ The formula is `65527 / mtu` (integer division), so **45 segments at 1452 bytes*
   quinn 0.11.11 tarball (`scripts/patch_quinn.sh`, `[patch.crates-io]` → `patched/quinn`).
   **Corrected 2026-09-23: not the default build on the unified tree** — `--config
   'patch.crates-io.quinn.path="patched/quinn"'` opts in, because the depth-1 cell below reproduced.
+  GS1 (2026-09-24) found that cell to be the rig client's receive buffer, and found a ceiling of
+  24 that keeps about two thirds of the win without the tail: §10 entry 3. The opt-in stands
+  until that is decided.
   Segments per `sendmsg` follow the MTU under the kernel's 65 527-byte GSO payload instead
   of the constant 10, and the driver sends up to 64 datagrams per poll instead of 20. The
   patch is the whole behavioural delta; wtransport's `quinn` dependency is patched too.
@@ -579,11 +582,16 @@ Why that cell and not its neighbours: at one session nothing drops (`rcvbuf_drop
 tail is lost; at sixteen there is always another session's packet behind the frame, so a lost
 tail is a gap and recovers in an RTT. Four is the band with enough traffic to drop and not
 enough to backfill. Depth 1 is required — depth 2 at the same size and count is +12.5 %.
+**Corrected 2026-09-24 (GS1):** the band is the frame's size against the client's 212 KB
+receive queue, not the session count. At sixteen sessions on the cloud rig `gso` has the tail too
+(p99 +200 %, 0/10). quinn's own 10 has the same cliff at 240 KB. §10 entry 3 has the sweep.
 
 **So the branch is not unconditionally better than `main`.** It is better on CPU per ask
 everywhere, better on throughput nearly everywhere, and worse at 250 KB when the client keeps
 one ask outstanding and a handful of sessions share the box — which is what the product does
-today, because neither client ships a window. The fix is already designed in §10 proposal 3:
+today, because neither client ships a window. *(GS1, 2026-09-24: on this rig's client, whose
+`UDP_GRO` queue drops a whole batch at a time. Chromium's socket has neither the 212 KB queue
+nor GRO — §10 entry 3.)* The fix is already designed in §10 proposal 3:
 clamp the batch when the session has nothing queued, or put an ACK-eliciting packet after an
 isolated frame. Until one of those lands, or the client window ships and makes depth ≥ 2 the
 normal case, this cell is the honest cost of the segment cap.
@@ -601,6 +609,8 @@ beat the plain one on CPU per ask; a quinn upgrade that moves the batching itsel
 cargo build --release -p exact-server -p disk-access-bench     # the tree: crates.io quinn + pool
 # + --config 'patch.crates-io.quinn.path="patched/quinn"'     # the GSO cap, opt-in
 scripts/pgo_build.sh                                             # → target/pgo/release/exact-server
+# between arm builds `git checkout Cargo.lock`: a `--config` patch the lock cannot take is only a
+# warning, and the next build may resolve quinn to a newer crates.io release instead
 git worktree add /tmp/before <commit-before-§9> && (cd /tmp/before && cargo build --release -p exact-server --target-dir /tmp/before-target)
 SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 4 100 16 6 \
   base /tmp/before-target/release/exact-server -- tree target/release/exact-server -- pgo target/pgo/release/exact-server > rt.tsv
@@ -716,6 +726,71 @@ is a missing packet with nothing after it, so anything that puts a packet after 
 (the next ask, or an ACK-eliciting probe) turns it into a gap. Investigate that before
 accepting 10 as the depth-1 answer — proposals below.
 
+**Why a drop takes the tail, and what keeps the win — GS1, 2026-09-24.** The mechanism is the
+client's receive queue, and the segment cap only chooses which frame sizes meet it. Five builds of
+this tree in one `lab/scripts/runtime_ab.sh` run: `base` (crates.io quinn, 10 per `sendmsg`), `gso`
+(the patch, 45 at 1452 bytes), and the patch with its ceiling at 24, 16 and 10 (`cap10` isolates
+the patch's other change, 64 datagrams per poll). Cloud container, 4 vCPU, server on cores 0–1,
+`server_ab` on 2–3, loopback, ten repeats with the order reversed every repeat, the client socket
+at the kernel's default 212 992 bytes. The runner now also reads the server's own `session path`
+counters: packets it declared lost, and datagrams per `sendmsg` (`udp_tx.ios`, logged as `sendmsg`).
+250 KB, depth 1, four sessions:
+
+| arm | datagrams / `sendmsg` | client drops / run | server lost / run | p99 | CPU / ask |
+| --- | --: | --: | --: | --: | --: |
+| `base` | 9.4 | 53.5 | 535 | 2.4 ms | — |
+| `gso` | 34.8 | 8.5 | 340 | **27.7 ms (0/10 lower)** | −9 % (7/10) |
+| `cap24` | 19.7 | 32.5 | 769 | 2.8 ms, −3 % (6/10) | **−16 % (9/10)** |
+| `cap16` | 13.9 | 41.5 | 659 | 2.3 ms, −2 % (5/10) | −11 % (7/10) |
+| `cap10` | 9.3 | 57.0 | 569 | 2.6 ms, +4 % (4/10) | −3 % (7/10) |
+
+*Server lost ≈ drops × datagrams per send.* The client is quinn, and quinn turns on `UDP_GRO` on
+its socket. The kernel therefore queues each GSO send as one buffer, and a full queue drops all of
+it: 10 packets in `base`, about 40 in `gso`. A tail loss follows when the send that overflows the
+queue is the frame's last, so nothing comes after it. The capture shows it: `tcpdump -s 64` on
+`lo`, one run per arm, counting server sends that follow more than 15 ms of silence on their
+connection. `gso` has 14, at a median of 26.3 ms, which is the PTO; the send before each gap is a
+median 59.7 KB, a whole batch. `base`, `cap16` and `cap24` have none, despite 20–60 drops a run.
+Pacing does not enter: on loopback the pacer's burst limit is 256 packets, and no arm reached it.
+
+*Every cap has the cliff; the size of a send sets how wide it is.* Twenty frame sizes from
+100 KB to 1 MB, the same cell, 4–10 repeats. Below 200 KB nothing drops. The p99 is a PTO
+(≥ 15 ms) at these sizes:
+
+| arm | frame sizes where the p99 is a PTO |
+| --- | --- |
+| `gso` | 12 of 20: 210–240, 250, 275, 300, 350, 400, 700 KB |
+| `cap16` | 225 KB only |
+| `base` | 240 KB — quinn's own 10 has the cliff too |
+| `cap24` | none; worst 3.9 ms, at 240 KB |
+
+At 1 MB every arm drops, and the drop lands mid-frame. With the receive buffer at 1 MiB the drops
+went to zero and every tail with them, at 250, 240, 275 and 700 KB, six repeats each. On those
+cells `gso` kept −11 to −19 % CPU per ask, 6/6 at 250 KB. So the regression that keeps the patch
+opt-in belongs to the rig's client, not to the product's: Chromium's network service sets
+`SO_RCVBUF` 1 MiB on its QUIC socket and no `UDP_GRO` (strace of Chromium 141 here). The kernel
+caps that request at `net.core.rmem_max` and doubles it: 2 MiB on this host, 416 KB on a stock
+212 992 host. There a drop costs one datagram, not a batch. The browser at depth 1 was not
+measured: `lab/scripts/browser_receive.py` needs the `harness/` pages, which this tree does not
+carry.
+
+*What keeps the win.* `cap24` gives up about a third of it, and shows no tail at any size tried.
+Asks/s where the server's two cores saturate, with CPU per ask:
+
+| cell | `gso` | `cap24` |
+| --- | --- | --- |
+| 250 KB, 16 sessions, depth 4 | +13 % (10/10), −13 % (10/10) | +10 % (10/10), −9 % (10/10) |
+| 32 KB, 16 sessions, depth 4 | +12 % (7/8), −13 % (7/8) | +9 % (8/8), −14 % (8/8) |
+| 250 KB fill, 80 frames | +30 % (7/8), −29 % (8/8) | +24 % (6/8), −21 % (7/8) |
+
+On latency cells, `cap24` has the lower p99 at 250 KB, depth 1, 16 sessions: −25 % (9/10), where
+`gso` is +200 % (0/10). At one session its p50 is −20 % (10/10), against −27 % for `gso`.
+None of this proves `cap24` has no cliff: `base` has one at 10, and a size that was not swept can
+hold one for 24. A depth-conditional clamp (§10 proposal 3.2) was not built. The cliff exists at
+10 too, so clamping would move it to `base`'s sizes rather than remove it. The fix that removes
+the cliff at every cap is the one the product's client already has: a receive buffer larger
+than a frame.
+
 **4 · More endpoints than cores.** The same binary at `--workers` 4, 16 and 64 on four cores:
 
 | cell | 16 vs 4 | 64 vs 4 |
@@ -799,7 +874,9 @@ a drop takes the end of the frame. On a 20 Mbps / 50 ms path the pacer's burst f
 10, so the 44 never forms — unmeasured here (no `sch_netem`). Clamping to 10 everywhere spends
 that CPU on LAN to buy a tail that only exists when nothing follows the frame.
 
-Investigate, in this order, before changing the vendored cap:
+Investigate, in this order, before changing the vendored cap. *GS1 (entry 3) has since
+answered the cap question: 24 per `sendmsg` kept two thirds of the win and showed no tail at 20
+frame sizes. The tail is the client's receive queue, and every cap has the cliff somewhere.*
 
 1. **An ACK-eliciting packet after an isolated frame** (nothing else queued — the depth-1 /
    large-frame case). A lost last datagram then has a packet after it and becomes a gap, not a
@@ -836,6 +913,11 @@ lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 
 lab/scripts/runtime_ab_pair.py rt.tsv w4 w16              # p99 and rcvbuf_drops are the columns to read
 sysctl -w net.core.rmem_default=1048576                      # entry 2's control; 212992 restores it
 # entry 3: clamp `max_transmit_segments` to 10 in patches/quinn-0.11.11-mtu-gso.patch and pass both binaries
+# GS1: copies of patched/quinn with MAX_TRANSMIT_SEGMENTS at 24/16/10, each its own binary; the
+# sweep's fixtures are 40 random frames of each size through pack-study
+SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 1 100 4 10 \
+  base base-bin -- gso gso-bin -- cap24 cap24-bin > gs.tsv
+lab/scripts/runtime_ab_pair.py gs.tsv base gso cap24     # p99, rcvbuf_drops, server_lost, per_sendmsg
 ```
 
 ---
