@@ -27,7 +27,7 @@ advertise it, close the item: the tail is the arithmetic above and depth ≥ 2 i
 ## Steps
 
 1. **Does Chrome advertise it.** *Done on 141, 2026-09-14: no.* `--ack-frequency-max-delay-ms`
-   is the knob and `session transport ack_frequency=` the count; a quinn client on the same
+   is the knob and `ack_frequency=` on the `session path` line the count; a quinn client on the same
    server returns 1 with the flag and 0 without, so the zero is the browser's. T0's transport-parameter capture answers it directly
    (`min_ack_delay` present or not, per browser). Independently: log
    `connection.stats().frame_tx.ack_frequency` at session end (the `session reads` line in

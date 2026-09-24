@@ -145,3 +145,41 @@ implementations and the downloader arm — and `aTruncatedFrameIsAFailureNotAFra
 `dispatch-rig.ts`, which adds the generation the consumer sees. Both drive a fake transport that
 ends a stream after a given number of codestream bytes, on a byte stream, as a WebTransport
 receive stream is.
+
+## What a browser can receive
+
+Measured 2026-09-19 in headless Chromium 141 on loopback, the regime where the browser and not
+the wire binds ([`lanes/T12-browser-receive.md`](lanes/T12-browser-receive.md)). Chromium's
+network-service IO thread costs 6.6 ms of CPU per MB received at either frame size and runs a
+full core through a fill, so ~150 MB/s on that host is the browser's ceiling, and no code in
+this repository raises it beyond the 1.4 % a 1 472-byte packet would. The TypeScript client on the main thread costs the
+renderer 2.5 ms per MB at 250 KB and 3.9 at 32 KB (~50 µs per frame plus 2.3 ms per MB); that,
+not throughput, is all a session off the main thread could move, and on its own it does not
+pay (below). A stream per frame costs a
+browser a quarter of its throughput at 250 KB and three fifths at 32 KB, and a third more latency
+at depth 1; `shared` stays the default. The default reader hands a 250 KB frame over in ~5 reads
+and a 32 KB frame in less than one — it coalesces up to 256 KB — so a BYOB read per frame is
+fewer reads only for large frames. On the target link none of this binds.
+
+## ACK frequency, by browser
+
+The server can ask its peer for a smaller `max_ack_delay`
+(`--ack-frequency-max-delay-ms`), which is the 25 ms half of the depth-1 tail
+([`lanes/T7-tail-and-ack-frequency.md`](lanes/T7-tail-and-ack-frequency.md)). quinn only uses
+the extension where the peer advertises `min_ack_delay`, and the frames it sends are counted in
+`frame_tx.ack_frequency`, logged as `ack_frequency=` on the `session path` line when a session
+ends.
+
+Measured 2026-09-14 on this VM, 32 KB fixture, `ondemand`, three cells:
+
+| peer | `--ack-frequency-max-delay-ms 5` | `ack_frequency` |
+| --- | --- | --- |
+| quinn (`window-harness`) | yes | **1** |
+| quinn (`window-harness`) | no | 0 |
+| **headless Chromium 141** | yes | **0** |
+
+The two quinn cells are the controls: the count follows the flag, so the zero against Chromium
+is Chromium's and not the wiring. **Headless Chromium 141 does not advertise `min_ack_delay`**,
+so nothing this server sets shortens its ACK delay. The rule closes the item on that evidence
+unless Chromium 148 differs — it is one run of the same cell on the browser rig, and it is the
+only thing T7 still waits on.

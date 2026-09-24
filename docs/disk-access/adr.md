@@ -188,7 +188,7 @@ that row says *conditional*. **And it is size-dependent as well as depth-depende
 | `sendfile` / `splice` | B | — | — | userspace QUIC copies anyway | Rejected |
 | `O_DIRECT` + SPDK, whole-study preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
 | Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
-| `write_chunk` owned windows to quinn | B | −3.2 % at one session; **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | Rejected, more so at scale |
+| `write_chunk` owned windows to quinn | B | −3.2 % at one session; **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | Rejected as built. **Corrected 2026-09-23:** the allocation was the cost, not the hand-off. Whole frames handed off over pooled buffers are **−3 to −8 % CPU per ask in every cell, 5–6/6** on this tree — `media/frame_pool.rs`, [`transport/why-these-changes.md` §9](../transport/why-these-changes.md#9--cpu-per-byte-segments-per-sendmsg-a-profile-guided-build-one-copy-fewer) |
 | Sequential: `SeqReader`, one frame ahead, pool only | S | ties pool and ring-on-miss at ~3 µs per 16 KiB; the kernel's read-ahead made 96–99 % of asks hits **at 16 KiB** — at 250 kB and the stock window it did not (60 % misses), which is what `FILL_WINDOW` now supplies | 5 threads; one fd per study; no ring | its own reader, because a fill that builds a ring pays 2 fds for one miss in sixty | **Accepted** |
 | Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
 | Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
@@ -224,8 +224,9 @@ named test.
 * **One index per study, never per session.** `FrameStore` is opened once and shared by
   `Arc`; 12 B per frame, immutable after open. A per-session store would cost 384 MB instead
   of 384 KB at a thousand readers. `sessions_share_one_store_rather_than_opening_their_own`.
-* **The bytes quinn sends are process-private.** The read path copies into a session-owned
-  buffer and never hands quinn a mapping — which is why `server/` has no mapping at all; the
+* **The bytes quinn sends are process-private.** The read path copies into a buffer from
+  `media/frame_pool.rs`, hands that buffer to quinn and gets it back on acknowledgement; it never
+  hands quinn a mapping — which is why `server/` has no mapping at all; the
   mmap arms live in `lab/`. 
 * **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm tile would
   go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
@@ -246,7 +247,7 @@ whole plan.
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on this host | the throttled-link cell and P0's depth ladder | **Built**; unmeasured on the default link ([`NEXT.md`](NEXT.md)) |
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob | per target | Not tuned |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | needs a real ask trace | Lab only |
-| GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn |
+| GSO datagram batching | ~10× fewer `sendmsg` | — | Already on in quinn. A larger cap (`patches/quinn-0.11.11-mtu-gso.patch`) is a build-time opt-in: it costs the depth-1 tail ([`transport/NEXT.md`](../transport/NEXT.md) row 9) |
 | `write_chunk` owned windows | worse at scale (§5 D) | — | Rejected |
 | Congestion controller, flow-control windows | unknown | — | **Not measured** — named so they are not mistaken for rejected |
 | AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | — | **Measured 2026-09-10, not taken** ([`improvements/2026-09-10.md`](../improvements/2026-09-10.md)) |

@@ -55,6 +55,9 @@ pub struct TransportTuning {
     /// Lab only: off sends each datagram alone, so netem on the sending host drops datagrams,
     /// not whole GSO batches (docs/rig-limits.md §3).
     pub segmentation_offload: bool,
+    /// Requested peer `max_ack_delay`, milliseconds. Takes effect only where the peer
+    /// advertises `min_ack_delay`; `docs/lanes/T7-tail-and-ack-frequency.md`.
+    pub ack_frequency_max_delay_ms: Option<u64>,
     /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
     pub prefault: bool,
 }
@@ -73,6 +76,7 @@ impl Default for TransportTuning {
             packet_threshold: None,
             initial_rtt_ms: None,
             segmentation_offload: true,
+            ack_frequency_max_delay_ms: None,
             prefault: false,
         }
     }
@@ -106,6 +110,11 @@ impl TransportTuning {
             tc.initial_rtt(std::time::Duration::from_millis(ms));
         }
         tc.enable_segmentation_offload(self.segmentation_offload);
+        if let Some(ms) = self.ack_frequency_max_delay_ms {
+            let mut afc = wtransport::quinn::AckFrequencyConfig::default();
+            afc.max_ack_delay(Some(std::time::Duration::from_millis(ms)));
+            tc.ack_frequency_config(Some(afc));
+        }
 
         let iw = self.initial_window;
         match self.congestion {
@@ -154,6 +163,7 @@ impl TransportTuning {
             && self.initial_rtt_ms.is_none()
             && matches!(self.congestion, Congestion::Cubic)
             && self.segmentation_offload
+            && self.ack_frequency_max_delay_ms.is_none()
     }
 
     pub fn describe(&self) -> String {
@@ -194,6 +204,9 @@ impl TransportTuning {
         if !self.segmentation_offload {
             parts.push("segmentation_offload=false".to_string());
         }
+        if let Some(ms) = self.ack_frequency_max_delay_ms {
+            parts.push(format!("ack_frequency_max_delay_ms={ms}"));
+        }
         if parts.is_empty() {
             "default".to_string()
         } else {
@@ -230,6 +243,7 @@ mod tests {
             packet_threshold: Some(6),
             initial_rtt_ms: Some(100),
             segmentation_offload: false,
+            ack_frequency_max_delay_ms: Some(5),
             prefault: false,
         };
         t.to_transport_config().unwrap();
@@ -305,6 +319,19 @@ mod tests {
         };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("segmentation_offload=false"));
+    }
+
+    /// The ack-frequency request is a departure from the stock stack, so a run carrying it
+    /// must not describe itself as the library default.
+    #[test]
+    fn asking_for_an_ack_delay_is_not_the_library_default() {
+        let t = TransportTuning {
+            ack_frequency_max_delay_ms: Some(5),
+            ..Default::default()
+        };
+        assert!(!t.quic_is_library_default());
+        assert!(t.describe().contains("ack_frequency_max_delay_ms=5"));
+        assert!(TransportTuning::default().quic_is_library_default());
     }
 
     #[test]

@@ -444,6 +444,8 @@ The formula is `65527 / mtu` (integer division), so **45 segments at 1452 bytes*
 
 - **`patches/quinn-0.11.11-mtu-gso.patch`** — applied at build time to the crates.io
   quinn 0.11.11 tarball (`scripts/patch_quinn.sh`, `[patch.crates-io]` → `patched/quinn`).
+  **Corrected 2026-09-23: not the default build on the unified tree** — `--config
+  'patch.crates-io.quinn.path="patched/quinn"'` opts in, because the depth-1 cell below reproduced.
   Segments per `sendmsg` follow the MTU under the kernel's 65 527-byte GSO payload instead
   of the constant 10, and the driver sends up to 64 datagrams per poll instead of 20. The
   patch is the whole behavioural delta; wtransport's `quinn` dependency is patched too.
@@ -596,13 +598,47 @@ at most 64 buffers per thread. PGO doubles the release build.
 beat the plain one on CPU per ask; a quinn upgrade that moves the batching itself. Re-run:
 
 ```bash
-cargo build --release -p exact-server -p disk-access-bench     # the tree: crates.io quinn + GSO patch + pool
+cargo build --release -p exact-server -p disk-access-bench     # the tree: crates.io quinn + pool
+# + --config 'patch.crates-io.quinn.path="patched/quinn"'     # the GSO cap, opt-in
 scripts/pgo_build.sh                                             # → target/pgo/release/exact-server
 git worktree add /tmp/before <commit-before-§9> && (cd /tmp/before && cargo build --release -p exact-server --target-dir /tmp/before-target)
 SERVER_CPUS=0,1 CLIENT_CPUS=2,3 lab/scripts/runtime_ab.sh lab/fixtures/frames_250k/frames_250k.sbnd on-demand 4 100 16 6 \
   base /tmp/before-target/release/exact-server -- tree target/release/exact-server -- pgo target/pgo/release/exact-server > rt.tsv
 lab/scripts/runtime_ab_pair.py rt.tsv base tree pgo
 ```
+
+**Re-checked on this tree, 2026-09-23**, before the branch's server became this tree's: four
+release binaries of the same source — `base` (this tree before the merge), `pool` (the hand-off
+alone, the default build), `gso` (`pool` + the quinn patch) and `pgo` (`gso` through
+`scripts/pgo_build.sh`) — in one `lab/scripts/runtime_ab.sh` run, server on cores 0–1 and the driver
+on 2–3 of a 4-core i5-8250U laptop shared with other jobs, loopback, six repeats with the order
+reversed every repeat, paired against `base`. Throughput cells quote asks/s, latency cells p50 or p99:
+
+| cell | `pool` | `gso` | `pgo` | CPU per ask, `pool` · `gso` · `pgo` |
+| ---- | -----: | ----: | ----: | ---: |
+| 250 KB, 16 sessions, depth 4 — asks/s | +7.4 % (6/6) | **+25.8 % (6/6)** | +27.8 % (6/6) | −7.7 · −16.9 · −19.6 % (6/6) |
+| 32 KB, 16 sessions, depth 4 — asks/s | +2.3 % (4/6) | **+26.8 % (6/6)** | +41.8 % (6/6) | −6.0 · −23.3 · −32.0 % (6/6) |
+| 250 KB, 4 sessions, depth 1 — **p99** | −3.1 % (4/6) | **+1 390 %, 1.9 → 27.5 ms (0/6)** | +1 380 % (0/6) | −3.2 · −7.3 · −19.6 % |
+| 250 KB, 1 session, depth 1 — p50 | −4.6 % (5/6) | −15.5 % (5/6) | −19.1 % (5/6) | −5.8 · −35.7 · −42.5 % |
+| 32 KB, 1 session, depth 1 — p50 | −2.3 % (5/6) | −4.3 % (6/6) | −8.1 % (6/6) | −3.0 · −28.8 · −37.4 % |
+| 250 KB fill, 80 frames — asks/s | +7.9 % (6/6) | +27.5 % (6/6) | +34.2 % (5/6) | −6.5 · −25.8 · −33.0 % (6/6) |
+
+The pooled hand-off holds in every cell with nothing against it, so it is the tree's send path. The
+GSO cap holds its win and **its regression reproduces** — the four-session depth-1 tail, to within
+1 % of the 2026-09-18 figure — so it is an opt-in, not the default, until §10 proposal 3 or a
+shipped client window removes that cell. PGO was then re-run **without** the cap (`base` · `pool` ·
+`pgo` of the default build, same rig, n = 6): CPU per ask −13.4 / −19.6 / −14.9 / −18.0 / −15.3 %
+against `base` on the 250 KB depth-4, 32 KB depth-4, 4-session depth-1, 1-session depth-1 and fill
+cells, and the 4-session depth-1 p99 **−11.8 % (5/6)** — no cell against. It stays a per-build
+script, as above. The host saturates at the two server cores in the depth-4 and fill cells; nothing
+is claimed past them.
+
+**With a browser and the wire buffer ring.** The hand-off changes what quinn holds, the ring what
+the client holds, on the same frames. `lab/decoder-memory/` `path=downloader&hold=1`, three
+decoders, a ring of 8, 87 × 512² 16-bit frames, headless Chromium 148, `base` and `pool` servers
+up together, eight rounds with the order alternating: fill-and-decode wall **394.2 → 394.9 ms,
++0.4 % (3/8 lower)**, renderer peak **256.4 → 255.5 MB, −0.4 % (5/8)**, 87/87 frames bit-exact on
+both arms. No interaction on loopback, where the browser's receive thread binds first (`T12`).
 
 ### 10 · Latency and throughput on one tree: where they part, and what joins them
 

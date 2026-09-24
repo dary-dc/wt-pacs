@@ -60,6 +60,9 @@ struct Args {
     /// batches.
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     segmentation_offload: bool,
+    /// Peer `max_ack_delay` to request, ms; inert unless the peer advertises `min_ack_delay`.
+    #[arg(long)]
+    ack_frequency_max_delay_ms: Option<u64>,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
@@ -134,6 +137,7 @@ async fn main() -> anyhow::Result<()> {
             packet_threshold: args.packet_threshold,
             initial_rtt_ms: args.initial_rtt_ms,
             segmentation_offload: args.segmentation_offload,
+            ack_frequency_max_delay_ms: args.ack_frequency_max_delay_ms,
             prefault: args.prefault,
         },
         force_pool_reads: args.force_pool_reads,
