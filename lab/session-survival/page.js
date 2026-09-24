@@ -37,10 +37,14 @@ function askAgain() {
   }, 0);
 }
 
+let issuedAt = 0;
+
 function finish() {
   const { resumedAt } = client.stats();
-  globalThis.__wtpacsResult = { arm, frames, failures, resumedAt };
+  const last = Math.max(...frames.map((f) => f.at));
+  globalThis.__wtpacsResult = { arm, frames, failures, resumedAt, spanMs: frames.length ? Math.round(last - issuedAt) : null };
   globalThis.__wtpacsDone = true;
+  client.close();
   log(`done: ${frames.length}/${FILL} frames, ${failures.length} failures, ${resumedAt.length} resumes`);
 }
 
@@ -63,6 +67,7 @@ globalThis.__wtpacsReady = true;
 if (ASKS) {
   log(`arm ${arm}, asking for ${ASKS} frames at once`);
   const t0 = at();
+  issuedAt = t0;
   await Promise.all([...Array(ASKS).keys()].map((i) => client.requestExactFrame(i).then(
     () => frames.push({ i, at: at() }),
     (e) => failures.push({ i, at: at(), reason: String(e.message), afterMs: Math.round(at() - t0) }),
@@ -71,5 +76,6 @@ if (ASKS) {
   finish();
 } else {
   log(`arm ${arm}, filling ${FILL} frames`);
+  issuedAt = at();
   client.fill([...Array(FILL).keys()]);
 }

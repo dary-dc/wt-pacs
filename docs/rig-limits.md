@@ -88,6 +88,9 @@ n = 5 per cell, median [range] and rounds better than the default:
   against 1.4–2.9 % for cubic. Unshaped, its fill is 0/5. In a browser on loopback it was 8.5×
   slower (§1). **So this is a lever to price in a browser on a shaped link, not one to take**: a
   browser's receive path (§1) and a phone's buffer depth are exactly what this cell does not model.
+  *Priced 2026-09-24 (CC1):* in Chromium BBR fills 11–20× faster under 1–3 % loss, and pays for it
+  with ~45 % of its datagrams dropped at a 120 ms queue or 287 ms of standing queue at a 900 ms one;
+  the default stays Cubic — `transport/transport-conclusions.md` §1.
 * **One ask under loss**, 32 kB, p50: cubic 105 ms at 1 % and 195 at 3 %, against a floor of ~61
   (round trip plus transfer). BBR: 62 and 103.
 * **Where the host saturates:** unshaped, a 5 MB fill reaches 58 Mbit (a 32 MB fill reached 27; the

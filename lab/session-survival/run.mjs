@@ -26,6 +26,8 @@ const ARMS = arg("--arms", "today,built,quick").split(",");
 const NO_CUT = process.argv.includes("--no-cut");
 const BLINK_EVERY = Number(arg("--blink-every", 0));
 const BLINK_MS = Number(arg("--blink-ms", 1000));
+/** One blink, this long after the page loads, rather than a train of them. */
+const BLINK_AT = Number(arg("--blink-at", 0));
 const ASKS = Number(arg("--asks", 0));
 
 const sock = dgram.createSocket("udp4");
@@ -63,9 +65,11 @@ async function runOne(arm) {
     await cut();
   }
   const blinks = BLINK_EVERY ? setInterval(() => poke(`blackout ${BLINK_MS}`), BLINK_EVERY) : null;
+  const blink = BLINK_AT ? setTimeout(() => poke(`blackout ${BLINK_MS}`), BLINK_AT) : null;
   let done = true;
   await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: Number(arg("--timeout", 600000)), polling: 100 }).catch(() => { done = false; });
   clearInterval(blinks);
+  clearTimeout(blink);
   const tookMs = Date.now() - startAt;
   const r = await page.evaluate(() => globalThis.__wtpacsResult ?? { frames: [], failures: [], resumedAt: [] });
   await page.close();
@@ -83,6 +87,7 @@ async function runOne(arm) {
     reason: r.failures[0]?.reason ?? "",
     resumes: (r.resumedAt ?? []).length,
     tookMs,
+    spanMs: r.spanMs ?? null,
     failedAfterMs: r.failures.map((f) => f.afterMs).filter((v) => v !== undefined),
     errors,
   };
