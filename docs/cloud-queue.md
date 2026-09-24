@@ -11,7 +11,7 @@ lab improvement: the tested state of 2026-09-22, the lane branches, the transpor
 reproduced), and the wtransport patch that sends the server's SETTINGS with its first flight
 ([`proposal-session-open.md`](proposal-session-open.md) §Lever 2: the dial 3.1 → 2.1 round trips).
 The inventory of what was merged and what was not is [`improvements/ledger.md`](improvements/ledger.md)
-§10. **Work rows 60–64 first**; they are the only `ready` rows.
+§10. **Work the `ready` rows (60–72) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
 
 **New session?** [`handoff-2026-09-19.md`](handoff-2026-09-19.md) has where the branch is, what is
 already settled, what the instruments are and what cost time to find — read it once, then work the
@@ -59,9 +59,17 @@ trailers. This is the owner's rule for every repository.
 | # | what | brief | state |
 | --- | --- | --- | --- |
 | 60 | **LK1** — a closed downloader client leaves its worker running | queue §Rows 60–64 | **claimed** 2026-09-24 by the cloud agent |
+| 65 | **WM1** — a message posted before the other side listens, in production code | queue §Rows 65–72 | **ready** |
 | 61 | **FF1** — a blink that swallows the server's first flight, after lever 2 | queue §Rows 60–64 | **ready** |
+| 66 | **LV1** — detection by the bytes, and two defects found on another client | queue §Rows 65–72 | **ready** |
+| 67 | **CC1** — the congestion controller on a lossy radio link, priced in a browser | queue §Rows 65–72 | **ready** |
+| 68 | **DC1** — the decode tail: ~360 ms of decoding after a colour fill's last byte | queue §Rows 65–72 | **ready** |
+| 69 | **HP1** — a frame's latency during a fill, downloader arm vs direct | queue §Rows 65–72 | **ready** |
+| 70 | **GS1** — why the send-size cap patch loses p99 at depth 1 | queue §Rows 65–72 | **ready** |
 | 62 | **RS1** — a re-dial with TLS resumption or 0-RTT | queue §Rows 60–64 | **ready** |
 | 63 | **PT1** — one probe retransmission ~400 ms after every session opens | queue §Rows 60–64 | **ready** |
+| 71 | **WP1** — lever 2 against every other client we can run | queue §Rows 65–72 | **ready** |
+| 72 | **PO1** — the page's first frame on a shaped link, end to end, with lever 2 | queue §Rows 65–72 | **ready** |
 | 64 | **UP1** — lever 2 written up for upstream, not posted | queue §Rows 60–64 | **ready** |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm decision is settled 2026-09-18, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
@@ -135,6 +143,75 @@ fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving du
 Rows 15–22 name the branch each landed on. `claude/downloader-s2-worker` was merged into this one
 on 2026-09-18, so those commits are in this history and the branch names are provenance, not
 somewhere still to look.
+
+### Rows 65–72
+
+Queued 2026-09-23 night, the second batch of the day; the same rules as §Rows 60–64. Several come from
+the workstation's private rig, which runs this lab's downloader and decoder pair against another
+transport: the finding is stated here in the lab's terms, and the row asks what it means for this code.
+
+**65 · WM1 — a message posted before the other side listens, in production code.** Row 60's neighbour
+(`851668f`) found that Chrome 148 sometimes drops a message the conformance page posts to a fake in a
+worker right after opening it — 10 in 5 000 without the fix. The fix was in the test's channel. **Audit
+every production site** in `client/` that posts to a worker, a `MessagePort` or a `BroadcastChannel`
+before the other side has said it listens (the downloader's `start`, the decoder pool's first job, the
+session's first command). Reproduce the drop outside the test harness if you can (≥ 5 000 opens), name
+each site safe (the spec queues it — say which clause) or exposed, and fix the exposed ones with the same
+handshake. A mutant per fix.
+
+**66 · LV1 — detection by the bytes, and two defects found on another client.** The rig's client finds a
+dead session in 3.3 s by the bytes alone: **no byte for 3 s while frames are owed → dead**, the threshold
+doubling after every re-dial it causes; 0 false re-dials in 42 fills on the radio relay, a 700 kbit link
+and 1 s blinks; one re-dial per fill behind a 4 s standing queue (+10 s of 97). This lab's survival
+([`proposal-session-survival.md`](proposal-session-survival.md)) decides with a probe ask and deadlines.
+Compare the two on this client — detection time on a cut (the server killed mid-fill), false alarms on the
+radio relay and a slow link, n ≥ 7 each, interleaved — and adopt the simpler if it is not worse. Also check
+two defects the rig found in its other client, here: (a) **a replaced session's WebTransport left open**
+after a re-dial, so the server kept sending the old burst to nobody (+31–41 s on a slow link); (b) **a
+frame's deadline counted from the ask rather than from the last byte**, so a burst longer than the deadline
+fails its tail. Each: reproduce first, fix, mutant.
+
+**67 · CC1 — the congestion controller on a lossy radio link, priced in a browser.** Row 6 (L3) found BBR
+fills 5–9× faster than cubic at 1–3 % loss on the native client, "to be priced in a browser, not taken";
+W3 found BBR worse mid-fill after a blink (2 880 vs 2 444 ms, 0/5); `rig-limits.md` §3 has the table. The
+target is a phone on lossy wireless. Price it in headless Chromium through the lab's relay: cubic vs BBR
+(and cubic with the slow-start restart W3 built) on 1 %, 3 % loss, the radio relay's ordered jitter and a
+blink, fill and ask cells, n ≥ 7, interleaved; retransmission share and the queue BBR builds. The answer is
+which controller the server should default to for this target, or "neither, and why".
+
+**68 · DC1 — the decode tail.** On the rig, a colour fill's last byte arrives ~325 ms after the ask and
+its last frame is decoded ~685 ms after it: ~360 ms of decoding after the wire is done, with three
+decoders. Is the pool idle while bytes arrive and then backed up (scheduling), or busy the whole fill
+(throughput)? Record each decoder's busy intervals against each frame's arrival in `lab/decode-bench` or a
+page cell, the colour and the 16-bit sets. Then only what fits the standing rules: no more decoders; build
+flags (SIMD / relaxed SIMD already on? `-O3` vs `-Os`, `wasm-opt` levels — L17 found the toolchain a 15 %
+regression, so re-check what is shipped), the order frames reach decoders, a decoder starting a frame
+before its last byte if the codestream allows it. Report the split and any change that wins, bit-exact.
+
+**69 · HP1 — a frame's latency during a fill, downloader arm vs direct.** On the rig the downloader pair's
+per-frame interval during a fill is 10.4 ms (colour) / 13.8 ms (16-bit) against 9.2 / 9.1 ms for a client
+on the page, and its steady serve leg is ~0.1 ms slower (the worker hop). `docs/thread-hops.md` priced a
+hop; find where this arm's extra per-frame milliseconds go during a fill (the downloader's own loop, a
+transfer, the decoder hand-off, the page's `onmessage`), with a trace, and remove what can be removed.
+
+**70 · GS1 — why the send-size cap patch loses p99 at depth 1.** The transport branch's quinn patch (44
+segments per `sendmsg`) stays opt-in because its regression reproduced on the workstation: 250 KB frames,
+depth 1, 4 sessions — p99 1.9 → 27.5 ms, 0/6. Find the mechanism (a burst that overflows a queue, pacing
+off, the ack clock) with the server's own counters and a packet capture, and whether a smaller cap, pacing,
+or a cap only past a depth keeps its CPU win without the tail. If nothing does, say so and close it.
+
+**71 · WP1 — lever 2 against every other client we can run.** Lever 2 (SETTINGS in the server's first
+flight) is on by default and was proved with Chrome and the native client. Before anyone else relies on
+it: every other HTTP/3 or WebTransport client the container can run — Firefox headless if installable,
+`curl --http3` against the server's HTTP/3 surface, a quinn / h3 example client, the `webtransport-go`
+or `aioquic` examples if they install — connects, and a client that ignores 0.5-RTT data still works.
+Say which clients were tried and which could not be installed.
+
+**72 · PO1 — the page's first frame on a shaped link, end to end, with lever 2.** `lab/page-open` has a
+HOST mode that serves the page from nginx over TLS, HTTP/1.1 or HTTP/2 (`efe4aca`). On 40 and 80 ms RTT:
+the page's first frame on screen, lever 2 on vs off, HTTP/1.1 vs HTTP/2, n ≥ 7, interleaved; where the
+time goes (TLS for the page, the page's scripts, the WebTransport dial, the first frame). This is the
+lab's answer to "is the dial on the first picture's path on a real link".
 
 ### Rows 60–64
 
