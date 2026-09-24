@@ -478,7 +478,8 @@ and the original is acknowledged, so there is no congestion reaction. The first 
 delayed either, because the server was window-blocked with or without the probe. Derived and not
 measured: an ask sent while a fill holds the window full waits for its ACK the same way. On a
 long path it can draw the same spurious probe, still one small packet per ask. Nothing is
-changed here. The quinn defect is worth an upstream issue: ACKs withheld while congestion-blocked.
+changed here. The quinn defect is worth an upstream issue: ACKs withheld while congestion-blocked —
+drafted, with a reproduction plan, in [`transport/upstream-quinn-ack.md`](transport/upstream-quinn-ack.md).
 
 ## What `WIRE.md` gains
 
