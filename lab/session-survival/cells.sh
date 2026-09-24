@@ -19,6 +19,8 @@ cleanup() {
   rm -rf "$T"
 }
 trap cleanup EXIT
+# `timeout` sends TERM, and without this the servers outlive the script — one spun for hours.
+trap "exit 143" TERM INT
 
 case "$CELL" in
   cut)    RELAY=(--rate-kbit 20000 --queue-pkts 200); RUN=(--fill 80 --cut-after 12) ;;

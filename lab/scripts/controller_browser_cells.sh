@@ -28,6 +28,8 @@ cleanup() {
   rm -rf "$T"
 }
 trap cleanup EXIT
+# `timeout` sends TERM, and without this the servers outlive the script — one spun for hours.
+trap "exit 143" TERM INT
 
 LINK=(--delay-ms "$((RTT / 2))" --rate-kbit "$RATE" --queue-pkts "${QUEUE:-200}")
 BLINK=()

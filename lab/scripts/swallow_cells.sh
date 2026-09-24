@@ -18,6 +18,8 @@ T="$(mktemp -d)"
 PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
+# `timeout` sends TERM, and without this the servers outlive the script — one spun for hours.
+trap "exit 143" TERM INT
 
 cargo build -q --release -p window-harness
 cargo build -q -p pack-study
