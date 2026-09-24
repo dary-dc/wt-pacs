@@ -98,6 +98,37 @@ slower than its dial, and this box is not one.
 clears `records`, so an index `want()` skips is always one the *current* request already has on the
 wire or in hand.
 
+### Messages posted before anyone listens
+
+*Added 2026-09-24 (row 65, WM1).* Every message the client posts before its receiver has said it
+listens is queued by the platform, not dropped, so none needs a handshake. The audit, site by site:
+
+| site | posted before | why it is safe |
+| --- | --- | --- |
+| consumer → downloader: `start`, `dial` | the worker's script has run | HTML, *run a worker*: the worker's implicit port queue is enabled only after its script runs, and `downloader.js` sets `onmessage` at top level |
+| downloader → decoder: `init`, then the first `decode` | the same, for each decoder | the same clause; `decoder.js` sets `onmessage` at top level |
+| decoder → consumer: frames on the pixel port | the consumer has the port | HTML, *message ports*: a port's queue starts disabled, its messages move with it on transfer, and setting `onmessage` starts it — **`addEventListener` would not** |
+| downloader / decoder → their `Worker` objects | — | the owner sets `onmessage` in the task that created the worker |
+| `client/harness/ts.html` → `session-worker.js`: `connect` | the worker's script has run | as the first row; the worker's static import is evaluated before it |
+
+The session's first command is not among them: it is written to the WebTransport control stream,
+which QUIC orders and the server reads once the session is up.
+
+The one pattern that does lose messages, a `BroadcastChannel` a worker constructs and the page posts
+to at once, is used by no product code — only by the conformance fakes, which wait for `listening`
+(`proposal-conformance-suite.md`).
+
+**Measured** — [`../lab/early-messages/run.mjs`](../lab/early-messages/run.mjs), driverless Chromium
+141, five rounds of 1 000 opens per arm, arms rotated: the downloader path (`connect` on the
+conformance fakes, three decoders, one frame asked and delivered through a decoder and the pixel
+port) lost **0 of 5 000**; the harness's worker **0 of 5 000**; the `BroadcastChannel` control
+**103 of 5 000** (13–26 a round). Each site was then made exposed on purpose and the instrument
+caught it: the pixel port listened to with `addEventListener` lost 100 of 100; the downloader's or
+the decoder's `onmessage` set 50 ms after its script ran lost 20 of 20 each. A top-level `await`
+before `onmessage` did **not** expose either worker — Chromium held the messages until the
+evaluation settled (0 of 100) — and neither did a handler set in a 0 ms timer, which ran before the
+queued messages did; this is Chromium's behaviour, not a clause to rely on.
+
 ## The downloader
 
 * **Started by the page at load**, before anything else runs. *Amended 2026-09-20 (R3):* it is the

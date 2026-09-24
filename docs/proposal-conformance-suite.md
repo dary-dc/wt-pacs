@@ -126,7 +126,9 @@ In the suite, three commands follow `open()` with no pause, and the gate once fa
 "the fake took the server's close (closed before the ask)". There the loss is rarer — 1 in 3,500
 opens on this host, none in 110 whole-suite runs — so the fix is shown by forcing the order: with
 the fake's channel created 300 ms late, the page without the wait passes 4 of 18 checks, and
-with it all 53.
+with it all 53. On this container's Chromium 141 the same pattern lost 103 of 5 000
+(`lab/early-messages/run.mjs`, 2026-09-24), and no product code uses it
+(`proposal-downloader.md` §Messages posted before anyone listens).
 
 `run_downloader.sh` serves the repo with `server/dev-server.py`, drives
 `client/conformance/downloader.html` in headless Chromium, and fails on any failed check.

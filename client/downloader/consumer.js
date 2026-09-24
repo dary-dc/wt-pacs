@@ -73,6 +73,7 @@ export class DownloaderClient {
       return void this.#resolveReady();
     }
     if (m.kind === "pixel-port") {
+      // `onmessage`, not `addEventListener`: only it starts the port and releases the frames queued on it.
       m.port.onmessage = (e) => this.#deliver(e.data);
       return;
     }
