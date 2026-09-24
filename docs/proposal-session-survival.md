@@ -274,6 +274,59 @@ the only thing it is told is when each resume happened, as `stats().resumedAt`.
 **Nothing is re-decoded and nothing is re-fetched that arrived.** That property is the reason to
 put resumption behind the records rather than behind a session-level retry.
 
+## Resumption and 0-RTT
+
+*RS1, 2026-09-24.* The question: can a re-dial pay less than a full handshake? Measured:
+
+* **The server resumes already.** wtransport's `with_identity` config gets rustls's defaults. That
+  is TLS 1.3 with two tickets after every handshake, and each ticket is a key into an in-memory
+  cache of 256 sessions, which a restart empties. `max_early_data_size` is 0, so there is no 0-RTT.
+  The native client (quinn over rustls, with its own in-memory cache) offers the PSK on its next
+  dial, and the server took it 21 times out of 21. That count comes from decrypting each dial's
+  Initial packets and reading the ServerHello
+  ([`../lab/scripts/client_hello.py`](../lab/scripts/client_hello.py)).
+* **Resumption buys no round trip.** A QUIC handshake has the same flights with or without a PSK.
+  All it drops is the certificate and its signature, and the dev certificate already fits the
+  server's first datagram. Native, [`../lab/session-resume/native.sh`](../lab/session-resume/native.sh),
+  7 rounds, arms alternating in each round (first byte shows the same):
+
+  | RTT | session ready, cold | resumed |
+  | --: | --: | --: |
+  | 0 ms | 3.1 [2.6–3.9] ms | 2.7 [2.5–3.4] ms |
+  | 40 ms | 85.2 [84.1–87.4] | 85.0 [83.8–87.6] |
+  | 80 ms | 165.8 [164.5–167.5] | 165.3 [164.3–168.2] |
+
+* **Chrome never offers a PSK on a WebTransport dial.** Chromium 141,
+  [`../lab/session-resume/run.mjs`](../lab/session-resume/run.mjs), 6 rounds: 216 dials, none
+  offering a ticket. Each fresh browser context dialled once cold, once more from the same page,
+  and once from a new page. The runs covered 0, 40 and 80 ms and a hostname. They covered
+  `serverCertificateHashes` and a CA-signed certificate (a lab CA in the browser's NSS store, with
+  `--webtransport-developer-mode`, since WebTransport otherwise requires a root Chrome ships). And
+  they covered a server built to accept early data. The ClientHello carries
+  `psk_key_exchange_modes` but never `pre_shared_key`. Why is inferred, not traced: Chromium's
+  dedicated WebTransport client appears to keep no session cache. Every kind of dial is ready in
+  the same time, about 87 ms at 40 and 168 ms at 80 — 2.1 round trips, the dial lever 2 left
+  ([`proposal-session-open.md`](proposal-session-open.md)). With the CA certificate, a context's
+  first dial is ~3 ms slower at 0 ms (7.1 against 4.2 ms). That is certificate verification
+  being cached, not TLS resumption.
+
+**What 0-RTT would take, and what it would be worth.** On the server, `max_early_data_size =
+u32::MAX` (the arm above; it changed nothing in Chrome). wtransport would also have to accept the
+session before its handshake completes (quinn's `into_0rtt` on the server side), so that a CONNECT
+arriving in 0-RTT is answered at 0.5 RTT. wtransport 0.7.2 does neither side of 0-RTT. And a
+browser has to send 0-RTT, which none here does. The prize is one round trip off a re-dial
+(2.1 → ~1.1): derived, not measured.
+
+**What 0-RTT would be safe for.** Everything the client sends is a read. The messages are
+`RequestFrame`, `RequestFrames`, `StreamFrames`, `EndStream` and `EndSession`, plus the opening
+ask in the CONNECT's URL. A replay changes no state. It costs the server a read, and whatever it
+may send before the address is validated: three times what it received. That holds until the URL
+carries a credential, which it does not today.
+
+**So nothing changes in the server.** A re-dial costs a full handshake whatever the server does,
+because the browser sends no ticket. Revisit when Chrome resumes WebTransport sessions: the server
+side is a config line, and the 0-RTT half is a wtransport change.
+
 ## A fill outlasts the screen lock
 
 A 61 MB fill at 20 Mbit is **24 seconds**. A phone's screen locks well inside that, and a frozen

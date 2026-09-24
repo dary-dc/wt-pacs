@@ -154,7 +154,10 @@ no TCP loss-recovery number; its handshake is completed locally by the kernel, s
 charges the setup round trip rather than observing it (`--tcp-no-handshake` turns that off), and
 TLS is not modelled. It is one thread, so delays under ~1 ms decide nothing and a rate far above
 the ones in the table has to be re-checked against the relay itself first. It carries one client
-at a time on the UDP plane. Everything else on this list still holds: the MTU above is unchanged,
+at a time on the UDP plane, forwarding to whichever client it heard from last. So a dial made while
+the previous connection still sends can have its server's first flight delivered to the old port,
+and pays a handshake probe timeout of ~1 s. Dial in sequence only once the last connection is
+silent (RS1, 2026-09-24). Everything else on this list still holds: the MTU above is unchanged,
 and the server still sees a loopback socket.
 
 **Two of its models were not a single radio leg's, 2026-09-19 (N2).** Each now has a mode, and

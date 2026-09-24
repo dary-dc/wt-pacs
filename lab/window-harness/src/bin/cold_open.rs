@@ -10,8 +10,11 @@ use clap::Parser;
 use fod::{encode_fod_msg, FodMsg};
 use frame_envelope::unwrap;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 use std::time::Instant;
 use wtransport::stream::RecvStream;
+use wtransport::tls::client::{build_default_tls_config, NoServerVerification};
+use wtransport::tls::rustls::{ClientConfig as TlsClientConfig, RootCertStore};
 use wtransport::{ClientConfig, Endpoint};
 
 const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
@@ -27,6 +30,9 @@ struct Args {
     /// The link's round trip, for reading each phase in round trips rather than milliseconds.
     #[arg(long, default_value_t = 0.0)]
     rtt_ms: f64,
+    /// Every round shares one TLS session cache, primed by an uncounted dial, so each can resume.
+    #[arg(long)]
+    resume: bool,
 }
 
 struct Round {
@@ -37,13 +43,15 @@ struct Round {
     bytes: usize,
 }
 
-async fn one_round(args: &Args) -> Result<Round> {
+fn tls() -> TlsClientConfig {
+    build_default_tls_config(Arc::new(RootCertStore::empty()), Some(Arc::new(NoServerVerification::new())))
+}
+
+async fn one_round(args: &Args, tls: TlsClientConfig) -> Result<Round> {
     // A fresh endpoint per round: a cold open is a new socket and a new 4-tuple, not a reused one.
     let v4 = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
-    let endpoint = Endpoint::client(
-        ClientConfig::builder().with_bind_address(v4).with_no_cert_validation().build(),
-    )
-    .context("wtransport client")?;
+    let endpoint = Endpoint::client(ClientConfig::builder().with_bind_address(v4).with_custom_tls(tls).build())
+        .context("wtransport client")?;
 
     let t0 = Instant::now();
     let connection = endpoint.connect(&args.url).await.context("connect")?;
@@ -73,6 +81,8 @@ async fn one_round(args: &Args) -> Result<Round> {
     let bytes = unwrap(&payload).map(|(_, body)| body.len()).unwrap_or(0);
 
     connection.close(0u32.into(), b"done");
+    // The relay forwards to the last client it heard: this one must be silent before the next dials.
+    endpoint.wait_idle().await;
     Ok(Round { session_ms, control_ms, first_byte_ms, ask_to_last_byte_ms, bytes })
 }
 
@@ -83,9 +93,13 @@ async fn main() -> Result<()> {
         .install_default()
         .map_err(|_| anyhow::anyhow!("rustls ring provider already installed"))?;
 
+    let shared = tls();
+    if args.resume {
+        one_round(&args, shared.clone()).await?;
+    }
     let mut rows = Vec::new();
     for _ in 0..args.rounds {
-        rows.push(one_round(&args).await?);
+        rows.push(one_round(&args, if args.resume { shared.clone() } else { tls() }).await?);
     }
 
     let phase = |name: &str, v: Vec<f64>| {
