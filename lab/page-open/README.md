@@ -140,6 +140,22 @@ fit, and prints nothing else, so there is **no per-round range and no wins-out-o
 ladder**; the two control milestones above are the whole of its spread. A ladder that decides
 something on a margin narrower than half a round trip needs the runner to record them first.
 
+## Two servers, and the dial alone
+
+`SERVERS=a=BIN,b=BIN` runs every arm against each server binary, interleaved inside each round,
+each behind its own relay, and prints median [min–max] and the rounds each beat the first in;
+`NETLOG=DIR` keeps Chrome's net log per visit for
+[`../scripts/netlog_dial.py`](../scripts/netlog_dial.py). [`dial-blink.mjs`](dial-blink.mjs) is a
+bare `new WebTransport` dial with a relay blackout at a chosen offset into it. Both were built for
+lever 2, the server's SETTINGS at 0.5 RTT, and its numbers are
+[`../../docs/proposal-session-open.md`](../../docs/proposal-session-open.md) §Lever 2 — the dial
+this file counts as 3.0 round trips is 2.1 with it.
+
+```bash
+SERVERS=unpatched=/path/a,patched=/path/b ONLY=ts NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 8
+SERVERS=unpatched=/path/a,patched=/path/b NODE_PATH=$(npm root -g) node lab/page-open/dial-blink.mjs 5
+```
+
 ## Compression and cache headers
 
 Landed in [`../../deploy/nginx/wt-pacs.conf.template`](../../deploy/nginx/wt-pacs.conf.template)

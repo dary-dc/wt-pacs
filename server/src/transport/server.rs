@@ -721,6 +721,90 @@ mod tests {
         }
     }
 
+    /// The server's SETTINGS leave with its handshake flight: a client that loses everything it
+    /// sends after its first flight — so the server's handshake can never complete — still
+    /// receives the HTTP/3 control stream, opening with SETTINGS. Without
+    /// `patches/wtransport-0.7.2-settings-early.patch` it never does.
+    /// `docs/proposal-session-open.md` §Lever 2.
+    #[test]
+    fn settings_ride_the_handshake_flight() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-settings-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                wt_port: port,
+                study_path: study,
+                cert_pem,
+                key_pem,
+                mode: StreamMode::Shared,
+                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                tuning: TransportTuning::default(),
+                force_pool_reads: false,
+                open_ask: false,
+            }));
+            while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+
+            let front = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
+            let relay = front.local_addr().expect("relay addr");
+            let back = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
+            back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+            tokio::spawn(async move {
+                let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+                let (mut client, mut answered) = (None, false);
+                loop {
+                    tokio::select! {
+                        Ok((n, from)) = front.recv_from(&mut up) => {
+                            client = Some(from);
+                            if !answered {
+                                back.send(&up[..n]).await.ok();
+                            }
+                        }
+                        Ok(n) = back.recv(&mut down) => {
+                            answered = true;
+                            if let Some(to) = client {
+                                front.send_to(&down[..n], to).await.ok();
+                            }
+                        }
+                    }
+                }
+            });
+
+            let config = ClientConfig::builder()
+                .with_bind_config(IpBindConfig::InAddrAnyV4)
+                .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                .build();
+            let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap())
+                .expect("quinn client");
+            endpoint.set_default_client_config(config.quic_config().clone());
+            let connection = endpoint
+                .connect(relay, "localhost")
+                .expect("connect")
+                .await
+                .expect("client side of the handshake");
+            let mut control =
+                tokio::time::timeout(Duration::from_secs(3), connection.accept_uni())
+                    .await
+                    .expect("no server stream before the server's handshake completed")
+                    .expect("accept uni");
+            let mut head = [0u8; 2];
+            control.read_exact(&mut head).await.expect("control stream head");
+            assert_eq!(head, [0x00, 0x04], "not a control stream opening with SETTINGS");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     async fn connect_session(
         study: PathBuf,
         cert_pem: PathBuf,
