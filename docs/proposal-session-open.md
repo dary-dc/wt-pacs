@@ -363,6 +363,50 @@ well before, and read clean above.
 does not do. Chrome repeated its Initial four times before quinn's probe fired, the first at
 +300 ms, so it would reach what `--initial-rtt-ms 100` reaches without guessing a round trip.
 
+### Other clients
+
+*WP1, 2026-09-24.* Lever 2 was proved with Chrome and the native client. Here it is against every
+other client this container could run ([`../lab/other-clients/`](../lab/other-clients/README.md)).
+Each ran against this tree with both patches (settings-early wtransport and the probe-every-space
+quinn-proto) and against the same tree with `[patch.crates-io]` removed. Each went through the
+relay at 40 ms, both directly and through
+[`../lab/scripts/half_rtt_deaf.py`](../lab/scripts/half_rtt_deaf.py). That relay strips the
+server's 1-RTT packets until the client sends one of its own, which makes any client one that
+ignores 0.5-RTT data. 5 rounds, every cell rotated inside each round, medians in round trips:
+
+| client | milestone | lever 2 on | on, 0.5-RTT ignored | off | off, 0.5-RTT ignored |
+| --- | --- | --: | --: | --: | --: |
+| native (wtransport 0.7.2) | session ready | **2.12** | 4.22 | 3.18 | 3.20 |
+| webtransport-go v0.9.0 | session ready | **2.17** | 4.29 | 3.21 | 3.23 |
+| aioquic 1.3.0 | session ready | **2.45** | 4.54 | 3.48 | 3.47 |
+| quic-go v0.53.0 HTTP/3 | SETTINGS received | **1.13** | 3.25 | 2.20 | 2.22 |
+| h3 0.0.8 on crates.io quinn | handshake | 1.07 | 1.08 | 1.08 | 1.09 |
+
+Every client connects to both builds; the three WebTransport clients each get frame 0 too. Every
+client takes the lever: session ready or SETTINGS a round trip sooner. None of them ignores
+0.5-RTT data on its own. The relay stripped the SETTINGS packet in every lever-on dial, and one
+other packet in every dial on either build.
+
+**A client that ignores 0.5-RTT data still works, and pays a round trip for the lever.** Its
+session is ready at ~4.2–4.5 round trips, against ~3.2 with the lever off. The SETTINGS the client
+dropped are resent only once the server declares them lost. That needs the client's ACK of a later
+1-RTT packet, which the client may delay up to 25 ms. This mechanism is inferred from the
+timings, not traced. It is the cost of the worst case the relay builds, and no client here is that
+case.
+
+**Two findings that are not the lever.** First, the server's HTTP/3 surface answers a request that
+is not a CONNECT by ending the stream with no response, on both builds. quic-go reports `parsing
+frame failed: EOF`, and h3 closes the connection with `H3_FRAME_UNEXPECTED`. A plain HTTP/3 probe of
+the server therefore sees a protocol error, where a 404 would be the polite answer. That is
+wtransport's behaviour, not this tree's. Second, webtransport-go from v0.13.0 (draft 15) refuses
+the server on both builds: *server didn't enable QUIC stream reset partial delivery*
+(reset-stream-at). Hence the pin to v0.9.0.
+
+**Not run.** Firefox: the container's network policy refuses Mozilla's archive and CDN, and
+GitHub release downloads. `curl --http3`: the distro's curl 8.5.0 is built without HTTP/3, and
+static HTTP/3 builds are on GitHub releases, refused likewise. One quic-go GET out of five came
+back with an empty error string; 12 reruns of that cell did not repeat it.
+
 ### Upstream
 
 No `wtransport` issue or pull request asks for this (GitHub search of the repository for `0-RTT`,

@@ -1,0 +1,17 @@
+[package]
+name = "h3-get"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Outside the repo's workspace: its h3 and quinn are the crates' own, not the patched ones.
+[workspace]
+
+[dependencies]
+bytes = "1"
+h3 = "0.0.8"
+h3-quinn = "0.0.10"
+http = "1"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
