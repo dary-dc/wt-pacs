@@ -5,6 +5,14 @@ A place to hand work to a cloud agent between sessions, and for it to hand resul
 
 ## Protocol
 
+**Since 2026-09-23 the queue lives on `claude/unified-2026-09-23`**, the one branch that carries every
+lab improvement: the tested state of 2026-09-22, the lane branches, the transport branch's server half
+(the pooled send path as default; the send-size cap patch of quinn opt-in, its p99 regression
+reproduced), and the wtransport patch that sends the server's SETTINGS with its first flight
+([`proposal-session-open.md`](proposal-session-open.md) §Lever 2: the dial 3.1 → 2.1 round trips).
+The inventory of what was merged and what was not is [`improvements/ledger.md`](improvements/ledger.md)
+§10. **Work rows 60–64 first**; they are the only `ready` rows.
+
 **New session?** [`handoff-2026-09-19.md`](handoff-2026-09-19.md) has where the branch is, what is
 already settled, what the instruments are and what cost time to find — read it once, then work the
 queue from here. **Rows 42–52 were queued 2026-09-19** from a second identification sweep; the
@@ -13,7 +21,7 @@ says so is not to be taken until it is. Every older row is `done` except row 40,
 
 **You are the cloud agent.** After you finish a lane and push:
 
-1. `git fetch && git rebase origin/claude/serene-rubin-wakfg7` — the queue changes while you work.
+1. `git fetch && git rebase origin/claude/unified-2026-09-23` — the queue changes while you work.
 2. Read the table below. Take the **topmost row marked `ready`**.
 3. Edit that row to `claimed` with the date, commit it alone, push it. That is the lock; if the
    push is rejected someone took it first, so rebase and take the next one.
@@ -50,6 +58,11 @@ trailers. This is the owner's rule for every repository.
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
+| 60 | **LK1** — a closed downloader client leaves its worker running | queue §Rows 60–64 | **ready** |
+| 61 | **FF1** — a blink that swallows the server's first flight, after lever 2 | queue §Rows 60–64 | **ready** |
+| 62 | **RS1** — a re-dial with TLS resumption or 0-RTT | queue §Rows 60–64 | **ready** |
+| 63 | **PT1** — one probe retransmission ~400 ms after every session opens | queue §Rows 60–64 | **ready** |
+| 64 | **UP1** — lever 2 written up for upstream, not posted | queue §Rows 60–64 | **ready** |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm decision is settled 2026-09-18, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
@@ -122,6 +135,54 @@ fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving du
 Rows 15–22 name the branch each landed on. `claude/downloader-s2-worker` was merged into this one
 on 2026-09-18, so those commits are in this history and the branch names are provenance, not
 somewhere still to look.
+
+### Rows 60–64
+
+Queued 2026-09-23 from the workstation's day on this branch. "What a row may not change" (§Rows
+30–41) binds these rows: bit-exact pixels, fixed content, no server caps, no mixed mode, remove rather
+than add. Interleave the arms, mutate every new test, quote latency or throughput not both, and say
+where the host saturates. Each row ends with the full `scripts/gate.sh` green.
+
+**60 · LK1 — a closed downloader client leaves its worker running.** `DownloaderClient.close()`
+(`client/downloader/consumer.js`) posts `close` but never terminates the downloader's own worker, so
+every closed client leaves a worker thread alive — the conformance suite leaks about fifteen per
+page. Find whether the decoder workers the downloader starts outlive it too. Fix it so a closed client
+ends every worker it started, once the worker has answered its close (or at once if it never answers
+within a deadline). A test that counts live workers and fails without the fix; the conformance suite
+and the gate green. A page that opens one client for its whole life is unaffected; one that opens and
+closes clients repeatedly is not — say what the leak costs per client (threads, memory) before the fix.
+
+**61 · FF1 — a blink that swallows the server's first flight, after lever 2.** With lever 2 the
+server's SETTINGS ride its handshake flight, and the dial is 2.1 round trips. The measurement that
+adopted it found one phase where it loses: a blink that drops exactly the server's first flight costs
+one more round trip (+80 ms at 80 ms RTT), because of how quinn times the retransmission of that
+flight. With the native client through netem (or the lab's relay), drop exactly that flight and read
+what quinn does and when (the probe timeout on the server's side, the client's Initial retransmit).
+Is there a small server-side change — a shorter initial probe timeout, a duplicated first flight within
+the 3× amplification limit — that recovers it without costing the clean case? Interleaved, n ≥ 7, at
+40 and 80 ms. Build only if it wins cleanly and the conformance suite holds on both transports.
+
+**62 · RS1 — a re-dial with TLS resumption or 0-RTT.** A session that dies is re-dialled
+([`proposal-session-survival.md`](proposal-session-survival.md)), and every re-dial pays the whole
+handshake. Does the server issue session tickets, and does a resumed handshake (or 0-RTT) shorten the
+dial — on the native client, and in headless Chrome if the container's browser can reach the server?
+What must the server change (rustls / quinn configuration), what does the browser actually do on a
+second connection to the same origin, and what is 0-RTT safe for (a frame ask is idempotent; say
+whether anything else is sent early)? The dial at 0 / 40 / 80 ms RTT, cold vs resumed, n ≥ 6 per arm.
+
+**63 · PT1 — one probe retransmission ~400 ms after every session opens.** A decrypted capture on the
+workstation (a second WebTransport server measured the same way showed none in 18 opens) found this
+branch's client sending one 72-byte `PTO_RETRANSMISSION` about 400 ms after the session opened, in 6 of
+6 opens at 80 ms RTT and 4 of 6 at 0 ms. Which packet is it, why does its probe timer fire (an
+unacknowledged packet the server never acks? an ack delay?), is it spurious, and does it cost anything
+— a wasted packet, a congestion reaction, a delayed first frame? Report; fix only if the cause is ours
+and the fix is small.
+
+**64 · UP1 — lever 2 written up for upstream, not posted.** There is no upstream issue or pull
+request for sending SETTINGS in 0.5-RTT from wtransport's server. Draft both — the issue (the
+behaviour, RFC 9114's allowance, the measured dial 3.1 → 2.1 round trips, the blink phase row 61
+studies) and a PR description for the patch as this branch carries it — in
+`docs/transport/upstream-wtransport-settings.md`. **Do not post anything upstream**; the owner does.
 
 ### Rows 30–41
 
