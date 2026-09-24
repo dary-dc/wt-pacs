@@ -5,14 +5,12 @@
  * Whether each dial offered a PSK, and whether the server took it, is read from a capture of the
  * Initial packets (`lab/scripts/client_hello.py`). docs/proposal-session-survival.md §Resumption and 0-RTT
  *
- * Two modes on one certificate: `hashes` dials with `serverCertificateHashes`, as the dev page does;
- * `ca` dials without, the certificate signed by a throwaway CA that only this browser's NSS store
- * trusts — a deployment's CA-signed certificate. Needs `certutil` (libnss3-tools).
+ * Modes: `hashes` dials with `serverCertificateHashes`; `ca` without, the certificate signed by a
+ * throwaway CA only this browser's NSS store trusts (needs `certutil`). The host is `rs1.test`,
+ * mapped to loopback: a hostname, not an IP literal.
  *
- * The page dials `rs1.test`, which the browser maps to loopback: a hostname, not an IP literal.
- *
- *   NODE_PATH=$(npm root -g) node lab/session-resume/run.mjs [rounds]
- *     [RTTS=0,40,80] [SERVERS=a=BIN,b=BIN] [MODES=hashes,ca] [ROWS=FILE] [DEBUG=1]
+ *   NODE_PATH=$(npm root -g) node lab/session-resume/run.mjs [rounds]   [RTTS=0,40,80] [SERVERS=a=BIN,b=BIN]
+ *     [MODES=hashes,ca] [ROWS=FILE] [DEBUG=1] [HOLD=ms open per session] [NETLOG=FILE for the run]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -84,12 +82,13 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH || chromium.executablePath(),
   env: { ...process.env, HOME: `${T}/home` },
   // WebTransport otherwise wants a root Chrome ships, which a lab CA cannot be.
-  args: ["--webtransport-developer-mode", "--host-resolver-rules=MAP rs1.test 127.0.0.1", "--no-proxy-server"],
+  args: ["--webtransport-developer-mode", "--host-resolver-rules=MAP rs1.test 127.0.0.1", "--no-proxy-server",
+    ...(process.env.NETLOG ? [`--log-net-log=${path.resolve(process.env.NETLOG)}`, "--net-log-capture-mode=Everything"] : [])],
 });
 async function dials(ctx, n, mode) {
   const page = await ctx.newPage();
   if (process.env.DEBUG) page.on("console", (m) => console.log(`  [page] ${m.text()}`));
-  await page.goto(`http://127.0.0.1:${HTTP}/lab/session-resume/index.html?dials=${n}&hashes=${mode === "hashes" ? 1 : 0}`);
+  await page.goto(`http://127.0.0.1:${HTTP}/lab/session-resume/index.html?dials=${n}&hashes=${mode === "hashes" ? 1 : 0}&hold=${process.env.HOLD || 0}`);
   await page.waitForFunction(() => globalThis.__done, null, { timeout: 60000 });
   const r = await page.evaluate(() => ({ ready: globalThis.__ready, error: globalThis.__error }));
   if (r.error) throw new Error(r.error);

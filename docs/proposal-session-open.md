@@ -386,6 +386,49 @@ Free, because the URL is already being parsed for lever 1, and each field is a h
 ignore. Nothing should be *decided* by them until something measures whether they help; they are
 proposed here only so the format has room and is not revised later.
 
+## The probe after the open
+
+*PT1, 2026-09-24.* The workstation's decrypted capture showed Chrome's client re-sending one small
+packet as a `PTO_RETRANSMISSION` shortly after every session opened. It is spurious, the cause is
+in quinn rather than here, and it costs one packet.
+
+**Which packet.** The ask. From Chrome's net log
+([`../lab/scripts/netlog_pto.py`](../lab/scripts/netlog_pto.py), `lab/page-open/run.mjs` with
+`NETLOG=`, the downloader arm): the client opens the control stream (stream 4) in one packet, with
+its 3-byte stream header, and puts the ask in the next, 2 ms later. The server answers the open
+with the first frame, fast enough that its first data packet acknowledges the stream header but
+not the ask. The rest of the initial window leaves without an ACK. Then the window is full and
+the ACK of the ask waits for the client's ACKs of that burst, which take a round trip. At 80 ms
+that is ~163 ms, and Chrome's probe timer (srtt + 4·rttvar + 25 ms) fires at ~146 ms. The server
+then acknowledges the original, so nothing is declared lost. Here it is 65 bytes and ~160 ms after
+`ready`. The workstation measured 72 bytes at ~400 ms from a different origin; the frames match.
+
+**Why the ACK waits: quinn.** quinn-proto 0.11.18 `poll_transmit` skips the whole Data space when
+the congestion window is full and stream data is queued. An owed ACK is skipped with it, even
+once `MaxAckDelay` has marked it immediate. RFC 9000 §13.2.1 asks for 1-RTT packets to be
+acknowledged within `max_ack_delay` (25 ms), and an ACK-only packet is outside the congestion
+window. So this is a quinn defect, not the server's code, and not small to patch: a packet that
+carries only the ACK needs a path through the packet builder that does not exist.
+
+**Proved by moving the window.** The same server with `--initial-window-bytes 1000000`, so the
+window cannot fill before the ask arrives, 4 rounds, both servers in each round, two sessions a
+visit:
+
+| RTT | default window | 1 MB window |
+| --: | --: | --: |
+| 40 ms | 0 / 8 sessions | 0 / 8 |
+| 80 ms | **7 / 8** | 0 / 8 |
+
+At 0 ms it is 0/6 here; the workstation saw 4/6. It needs the window to reopen later than the
+probe fires: two round trips against one plus 4·rttvar + 25 ms, so a path above ~65 ms (derived).
+
+**What it costs.** A 65-byte packet. Chrome's probe timeout does not shrink its congestion window,
+and the original is acknowledged, so there is no congestion reaction. The first frame is not
+delayed either, because the server was window-blocked with or without the probe. Derived and not
+measured: an ask sent while a fill holds the window full waits for its ACK the same way. On a
+long path it can draw the same spurious probe, still one small packet per ask. Nothing is
+changed here. The quinn defect is worth an upstream issue: ACKs withheld while congestion-blocked.
+
 ## What `WIRE.md` gains
 
 A section it does not have: **the session's opening**. Today it starts at "two WebTransport
