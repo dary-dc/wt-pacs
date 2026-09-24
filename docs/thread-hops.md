@@ -109,6 +109,44 @@ and 0.0151 ms — one 5 µs tick apart — and the per-burst totals differ only 
 against 1.13 ms). That gap is garbage collection landing in some handlers, not a systematic
 per-frame cost, and the two should be read as a tie.
 
+## The downloader arm during a fill, against direct (HP1)
+
+*Row 69, 2026-09-24.* The workstation's rig, which runs this lab's downloader and decoder pair
+against another transport, read a per-frame interval during a fill of **10.4 ms colour / 13.8 ms
+16-bit through the pair against 9.2 / 9.1 for a client on the page**. Here the same comparison, on
+this lab's own transport: [`../lab/decode-tail/`](../lab/decode-tail/run.mjs) `page.js` is the
+product path, and `direct.js` the same TypeScript transport on the page feeding the same
+`decoder.js` workers by the same rule (fewest outstanding, two at most), so that the downloader
+worker is the only difference. Driverless Chromium, loopback, the 87-frame c512 and g512 sets
+(`decode/README.md` §Content), 7 rounds interleaved, medians. The interval is between frames as the
+page receives them; the path is read from each frame's stamps.
+
+| decoders | set | interval, downloader | interval, direct | direct finished sooner |
+| --- | --- | ---: | ---: | --- |
+| 1 | colour | 16.84 ms | 16.98 ms | 4/7 — a tie |
+| 1 | 16-bit | 6.92 | **6.63** | 6/7 |
+| 3 | colour | **5.55** | 6.26 | 2/7 |
+| 3 | 16-bit | 2.95 | 2.92 | 2/7 — a tie |
+
+| a frame's path, 3 decoders, 16-bit (wire-bound) | downloader | direct |
+| --- | ---: | ---: |
+| last byte → handed to a decoder | **0.04 ms** | 1.04 ms |
+| decoded → on the page | 0.17 ms | 0.36 ms |
+
+**The rig's gap does not reproduce, and nothing on this path is worth removing.** With one decoder
+the interval *is* the decode, on both arms; with three the downloader is level or ahead — its own
+loop hands a frame to a decoder in 0.04 ms, where the page's main thread takes a millisecond, and
+the pixel port delivers in 0.17–0.35 ms either way. The one cost the arm carries is **+0.29 ms a
+16-bit frame at one decoder (4 %, 6/7)**, and it sits *inside* the decode stamp — the same
+`decoder.js` decodes 6.67 ms beside a busy downloader thread against 6.43 without one — so it is
+contention on this four-core host, not a hop. What the rig's extra 1.2 / 4.7 ms is, then, is in
+what differs there: its transport, and whatever its page client does or skips per frame (the range
+pass is 10–25 % of a decode, §The range pass in `decode/README.md`). Not decided here.
+
+**Where the host saturates.** Three decoders, the page, the downloader and the server on four cores
+saturate it through a colour fill; the one-decoder rows do not. Intervals are quoted; no
+throughput.
+
 ## Mutants
 
 Both of the lane's checks were run, and both fired.

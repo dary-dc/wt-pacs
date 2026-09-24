@@ -2,7 +2,7 @@
  * The decode tail, split: after a fill's last byte, is the pool finishing a backlog it could not
  * have avoided (throughput), or work it left waiting while a decoder sat idle (scheduling)? Each set
  * is served by its own server on loopback; pages are driverless, sets rotated every round.
- * docs/decode/README.md §The decode tail
+ * docs/decode/README.md §The decode tail; with `direct:` arms, docs/thread-hops.md (HP1).
  *
  *   NODE_PATH=$(npm root -g) node lab/decode-tail/run.mjs --rounds 7 --sets c512,g512
  *     [--arms name=decoderDir,...]    another decoder build, same page
