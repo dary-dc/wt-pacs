@@ -4,6 +4,8 @@
  * docs/proposal-downloader.md §The consumer
  */
 const FRAME_TIMEOUT_MS = 15_000;
+/** How long a closed client waits for the downloader's answer before ending it anyway. */
+const CLOSE_DEADLINE_MS = 1_000;
 
 export class DownloaderClient {
   #worker;
@@ -17,6 +19,7 @@ export class DownloaderClient {
   #cancels = [];
   #resumedAt = [];
   #triggers = new AbortController();
+  #ending = null;
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
@@ -82,7 +85,7 @@ export class DownloaderClient {
       if (m.gen !== this.#gen) return;
       return void this.#failOne(m.index, m.reason);
     }
-    if (m.kind === "closed") return void this.#failAll(m.reason);
+    if (m.kind === "closed") return void this.#end(m.reason);
   }
 
   #deliver(m) {
@@ -169,6 +172,14 @@ export class DownloaderClient {
   close() {
     this.#triggers.abort();
     this.#worker.postMessage({ kind: "close" });
+    this.#ending ??= setTimeout(() => this.#end("closed by the consumer"), CLOSE_DEADLINE_MS);
+  }
+
+  /** Nested workers end with the worker that started them, so this ends the decoders too. */
+  #end(reason) {
+    clearTimeout(this.#ending);
+    this.#worker.terminate();
+    this.#failAll(reason);
   }
 
   /** The triggers a worker cannot see; the downloader decides whether any of them means anything. */

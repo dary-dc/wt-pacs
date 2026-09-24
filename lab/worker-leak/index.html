@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><link rel="icon" href="data:," /><title>worker leak</title></head>
+<body>
+<script type="module">
+  import { DownloaderClient } from "/client/downloader/consumer.js";
+  let world = 0;
+  /** Opens a client on the conformance fakes and closes it, `n` times over. */
+  globalThis.openClose = async (n, decoders) => {
+    for (let i = 0; i < n; i++) {
+      const ch = `wtpacs-leak-${++world}`;
+      const c = await DownloaderClient.connect("https://leak.invalid/", "ab".repeat(32), {
+        decoders,
+        transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
+        decoderWorker: "/client/conformance/fake-decoder.js",
+        decoder: { delayMs: 0 },
+      });
+      c.close();
+    }
+  };
+  globalThis.__wtpacsReady = true;
+  const q = new URLSearchParams(location.search);
+  if (q.has("auto")) globalThis.openClose(Number(q.get("auto")), Number(q.get("decoders")));
+</script>
+</body>
+</html>

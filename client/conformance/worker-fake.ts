@@ -14,6 +14,10 @@ export type WorkerFake = {
   didClose(): Promise<boolean>;
   dials(): Promise<number>;
   failDials(n: number): Promise<void>;
+  /** Resolves once the downloader's worker has started a busy loop of `ms` that answers nothing. */
+  block(ms: number): Promise<void>;
+  /** The fakes still running in this world's workers, by kind: a terminated worker cannot answer. */
+  alive(): Promise<{ downloader: number; decoder: number }>;
 };
 
 export function workerFake(name: string): WorkerFake {
@@ -51,5 +55,21 @@ export function workerFake(name: string): WorkerFake {
     didClose: () => call("didClose") as Promise<boolean>,
     dials: () => call("dials") as Promise<number>,
     failDials: (n) => call("failDials", n) as Promise<void>,
+    block: (ms) => call("block", ms) as Promise<void>,
+    alive: () => alive(name),
   };
+}
+
+let pings = 0;
+async function alive(name: string) {
+  const bc = new BroadcastChannel(`${name}-alive`);
+  const ping = ++pings;
+  const count = { downloader: 0, decoder: 0 };
+  bc.onmessage = (e) => {
+    if (e.data.pong === ping) count[e.data.who as keyof typeof count] += 1;
+  };
+  bc.postMessage({ ping });
+  await new Promise((r) => setTimeout(r, 250));
+  bc.close();
+  return count;
 }

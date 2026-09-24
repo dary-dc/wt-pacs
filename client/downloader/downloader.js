@@ -364,7 +364,7 @@ onmessage = async (e) => {
     if (m.kind === "close") {
       clearTimeout(stall);
       session?.close();
-      for (const d of decoders) d.worker.terminate();
+      // The decoders end with this worker; ending them here first can strand it. docs/proposal-downloader.md §Closing a client
       return void post({ kind: "closed", reason: "closed by the consumer" });
     }
   } catch (err) {

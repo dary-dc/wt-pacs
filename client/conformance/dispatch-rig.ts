@@ -57,7 +57,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     fill: opts.fill,
     openAsk: opts.openAsk,
     transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
-    decoderWorker: opts.realDecoder ? undefined : "/client/conformance/fake-decoder.js",
+    decoderWorker: opts.realDecoder ? undefined : `/client/conformance/fake-decoder.js?ch=${ch}`,
     decoder: opts.realDecoder ?? { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
     warmup: opts.warmup,
     survival: opts.survival,
@@ -858,6 +858,43 @@ async function whenTheRedialsRunOutWhatWasOwedIsNamed(DownloaderClient: Download
   c.close();
 }
 
+/** A closed client ends every worker it started: the downloader's, and each decoder's. */
+async function aClosedClientEndsEveryWorkerItStarted(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake } = await open(DownloaderClient, { decoders: 2, perDecoder: 2, delayMs: 0, onFrame: () => {} });
+  await untilAsync(async () => (await fake.alive()).decoder === 2);
+  const before = await fake.alive();
+  check(before.downloader === 1 && before.decoder === 2, `close: the ping reaches every worker the client started (${JSON.stringify(before)})`);
+  c.close();
+  const after = await untilAsync(async () => {
+    const a = await fake.alive();
+    return a.downloader + a.decoder === 0;
+  }, 1500);
+  check(after, `close: and none of them is left running once it answers (${JSON.stringify(await fake.alive())})`);
+}
+
+/**
+ * A downloader wedged in a long task never answers `close`. The client ends it at the deadline,
+ * its decoders with it, and an ask still outstanding is named rather than left to its timeout.
+ */
+async function aDownloaderThatNeverAnswersIsEndedAnyway(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake } = await open(DownloaderClient, { decoders: 2, perDecoder: 2, delayMs: 0, onFrame: () => {} });
+  await untilAsync(async () => (await fake.alive()).decoder === 2);
+  const asked = c.requestExactFrame(7).then(() => "delivered", (e: Error) => e.message);
+  await settle();
+  await fake.block(8000);
+  const t0 = performance.now();
+  c.close();
+  const reason = await Promise.race([asked, settle(3000).then(() => "still waiting")]);
+  const ms = Math.round(performance.now() - t0);
+  check(/closed by the consumer/.test(reason) && ms < 2000, `close: an ask outstanding on a wedged downloader is named at the deadline (${reason}, ${ms} ms)`);
+  // Chromium ends a worker busy in script 2 s after `terminate()`; the block outlasts both.
+  const gone = await untilAsync(async () => {
+    const a = await fake.alive();
+    return a.downloader + a.decoder === 0;
+  }, 4000);
+  check(gone, `close: and the wedged downloader and its decoders are ended (${JSON.stringify(await fake.alive())})`);
+}
+
 export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -894,6 +931,8 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aDeadSessionIsResumedNotReported,
     anOwedAskIsReaskedAfterAResume,
     whenTheRedialsRunOutWhatWasOwedIsNamed,
+    aClosedClientEndsEveryWorkerItStarted,
+    aDownloaderThatNeverAnswersIsEndedAnyway,
   ];
   log("dispatch (D2c)");
   for (const clause of clauses) {

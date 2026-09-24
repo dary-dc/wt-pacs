@@ -18,6 +18,10 @@ let warmed = false;
 const abs = () => performance.timeOrigin + performance.now();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const ch = new URL(import.meta.url).searchParams.get("ch");
+const alive = ch && new BroadcastChannel(`${ch}-alive`);
+if (alive) alive.onmessage = (e) => e.data.ping && alive.postMessage({ pong: e.data.ping, who: "decoder" });
+
 onmessage = async (e) => {
   const m = e.data;
   if (m.kind === "init") {

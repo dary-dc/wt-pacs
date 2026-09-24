@@ -217,6 +217,31 @@ opening fill in the session URL rather than on the control stream — off by def
 `docs/proposal-session-open.md` §What lever 1 is worth, from `lab/page-open/README.md` §The first
 byte on a fill.
 
+### Closing a client
+
+*Added 2026-09-24 (row 60, LK1).* **`close()` ends every worker the client started.** The consumer
+terminates the downloader when it answers `closed`, or after 1 s if it never does (a downloader wedged
+in a long task), and an ask still outstanding is named `closed by the consumer` at that point rather
+than at its 15 s timeout. The decoders are the downloader's nested workers and end with it; the
+downloader does not terminate them itself.
+
+**Before, every closed client left its downloader running** — one renderer thread and **2.5 MB
+resident per client**, linear: 40 clients opened and closed took the renderer from 10 to 50 threads
+and from 106 to 206 MB, three interleaved rounds identical to the thread (`lab/worker-leak/run.mjs
+--driver none`, Chromium 141 headless, no DevTools session attached). The decoders were already
+terminated by the downloader's `close` handler, so they did not leak. After: 10–12 threads and
+118–123 MB after the same 40 — the residue is not proportional and is not attributed. A page that
+opens one client for its life never paid this; the conformance suite left 18 workers per page.
+
+**Terminating the decoders from the downloader, then the downloader from the page, strands it.**
+With both, 10–12 of 40 downloader workers stayed as targets Chromium never reclaimed — their script
+dead (no answer to a ping), their thread and memory held, a GC no help. With the decoders left to
+end with their parent, none did, in every round. The driver's end-of-page count
+(`client/conformance/drive_downloader.cjs`) catches the leak every time and the stranding in one run
+of two, because the stranding is a race; `lab/worker-leak/run.mjs --driver playwright` shows it
+reliably. A worker busy in script ends 2 s after `terminate()` — Chromium's forcible-termination
+delay — so a wedged downloader's decoders go at ~3.2 s after `close()`, and its asks at 1 s.
+
 ## Capabilities
 
 Nothing is removed until every row passes on the new path. Stage 1 fills the middle column against

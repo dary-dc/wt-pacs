@@ -34,6 +34,13 @@ const name = new URL(import.meta.url).searchParams.get("ch") ?? "wtpacs-conforma
 const bc = new BroadcastChannel(name);
 bc.onmessage = (e: MessageEvent<Command>) => {
   const { id, cmd, args } = e.data;
+  // Answered first, so the page knows the worker is wedged before it tests what that costs.
+  if (cmd === "block") {
+    bc.postMessage({ id, ok: true });
+    const until = performance.now() + (args[0] as number);
+    while (performance.now() < until);
+    return;
+  }
   try {
     bc.postMessage({ id, ok: true, result: run(cmd, args) });
   } catch (err) {
@@ -41,3 +48,5 @@ bc.onmessage = (e: MessageEvent<Command>) => {
   }
 };
 bc.postMessage({ listening: true });
+const alive = new BroadcastChannel(`${name}-alive`);
+alive.onmessage = (e) => e.data.ping && alive.postMessage({ pong: e.data.ping, who: "downloader" });
