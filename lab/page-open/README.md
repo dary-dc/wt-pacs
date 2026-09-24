@@ -13,6 +13,11 @@ NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3
 HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS with HTTP/2; h1 without; dev is the default
 ```
 
+A HOST run trusts its certificate through an NSS store of the browser's own (`certutil`, from
+libnss3-tools), not `--ignore-certificate-errors`. Chrome caches nothing whose certificate had
+an error, so ignoring it puts every worker script back on the wire and on the page's path —
+two round trips of the dial, until 2026-09-24 (PO1).
+
 ## The count, before and after
 
 Serial round trips on a cold profile. `config` is the transport endpoint in hand, `session` the
@@ -185,6 +190,50 @@ care about; it is not a round-trip lever here. The immutable rule has nothing to
 build emits a content-hashed name — so it is the deployment contract for when one does, and the
 check probes it on a 404 to catch the one thing it can get wrong: an `add_header` inside a
 `location` replaces the server's, which would silently drop cross-origin isolation.
+
+## The first frame on a real host, with lever 2
+
+**PO1, 2026-09-24.** The downloader arm served by nginx over TLS: HTTP/1.1 and HTTP/2
+invocations alternated round by round, and inside each, lever 2 on and off
+(`SERVERS=on=…,off=…`, the second being this tree with `[patch.crates-io]` removed). 7 rounds at
+40 and 80 ms, cold and warm profile. Each stage is timed from the previous one. `tls` is the
+document's TLS handshake, which includes the TCP setup, because the relay charges that to the
+first bytes. `page` is the HTML's last byte, `scripts` until the module runs, `config` the
+transport config, `dial` config → session ready, and `frame` session → frame 0 decoded. Round
+trips are the slope from 40 to 80 ms; the cold profile over HTTP/2 is the product's first visit:
+
+| stage | lever on | lever off |
+| --- | --: | --: |
+| TCP + TLS + HTML | 3.0 | 3.0 |
+| scripts | 0.45 | 0.9 |
+| config | 0.9 | 1.05 |
+| **dial** | **1.85** | **3.0** |
+| frame | 6.5 | 6.2 |
+| **first frame on screen** | **12.65** (720 ms at 40, 1 226 at 80) | **14.35** (738, 1 312) |
+
+The lever cannot touch the stages before the dial or the frame after it. Their spread between
+the arms (scripts 0.45 against 0.9) is how the table's noise reads.
+
+**The dial is on the path, and lever 2 takes a round trip off it everywhere.** Paired by round,
+the dial with the lever is −39 to −44 ms at 40 and −77 to −86 at 80, 7/7 in all eight cells
+(HTTP/1.1 and HTTP/2, cold and warm). The first frame keeps it: −18 to −54 ms at 40 and −63 to
+−83 at 80, 6/7 or 7/7. That leaves the dial at two round trips of the page's ~12.7. The largest
+share is the frame's own slow start (S7, above), then the page's TCP, TLS and HTML.
+
+**What HTTP/2 buys is the config's round trip.** On HTTP/1.1 the config stage is 2.15 round trips
+cold against 0.9, and the first frame 1 325 ms at 80 against 1 226. Warm, they tie. These
+invocations were alternated rather than interleaved, so that comparison carries more drift than
+the lever's.
+
+**Where the round trip before the dial goes: the config is fetched twice.** In Chrome's net log
+the page's `fetch("/wt/dev-transport.json")` does not take the `<link rel=preload as=fetch>`
+response. It revalidates on the wire (a 304) one round trip later, and a warm visit does it twice.
+Everything else the page preloads is taken from cache, and the QUIC dial starts ~26 ms after
+`config`. Unmeasured: a preload the fetch matches would take that round trip off the first frame.
+
+*Corrected before it was published:* the first full run left `run.mjs`'s
+`--ignore-certificate-errors` in place, and every worker's scripts came off the wire. That put the
+dial at 3.95 round trips with the lever, not 1.85. The note under the commands at the top says why.
 
 ## What this rig does not decide
 

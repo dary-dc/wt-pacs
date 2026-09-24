@@ -245,6 +245,11 @@ crate's own client holds its CONNECT for the server's SETTINGS as Chrome does.
 So the count at the top of this file is now **three round trips to first byte**, and two of them
 are the dial: the handshake, and the CONNECT.
 
+**End to end, from a TLS page host** (row 72, [`../lab/page-open/README.md`](../lab/page-open/README.md)
+§The first frame on a real host): nginx over HTTP/1.1 and HTTP/2 at 40 and 80 ms, 7 rounds. The
+lever takes its round trip off the page's first frame in every cell, and the dial is 1.85 of that
+page's 12.65 round trips.
+
 ### What lever 2 costs
 
 **Bytes in the first flight: none.** `first_flight.py` in front of the relay, three cold opens a

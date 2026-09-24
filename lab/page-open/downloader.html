@@ -27,6 +27,7 @@
     const open = (globalThis.__wtpacsOpen = {});
     const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
     const log = (s) => (document.getElementById("log").textContent += s + "\n");
+    mark("script");
 
     try {
       const cfg = await (await fetch("/wt/dev-transport.json")).json();

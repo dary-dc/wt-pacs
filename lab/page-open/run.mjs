@@ -76,6 +76,13 @@ execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_c
   -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
   -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \
   -addext 'extendedKeyUsage=serverAuth' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`]);
+// A HOST page is served on this certificate, trusted through an NSS store of the browser's own:
+// Chrome caches nothing whose certificate had an error, so ignoring the error would re-fetch every
+// worker script on the page's path.
+if (HOST !== "dev") {
+  execFileSync("bash", ["-c", `mkdir -p ${T}/home/.pki/nssdb && certutil -N -d sql:${T}/home/.pki/nssdb --empty-password \
+    && certutil -A -d sql:${T}/home/.pki/nssdb -n page -t P,, -i ${T}/cert.pem`]);
+}
 const hash = execFileSync("bash", [
   "-c",
   `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`,
@@ -137,10 +144,15 @@ async function visit(ctx, arm) {
   await page.waitForFunction(() => globalThis.__wtpacsDone || globalThis.__wtpacsError, null, {
     timeout: 120000,
   });
-  const out = await page.evaluate(() => ({
-    open: globalThis.__wtpacsOpen,
-    error: globalThis.__wtpacsError ?? null,
-  }));
+  // The document's own fetch: `page` when its last byte landed, `tls` what its TLS handshake took.
+  const out = await page.evaluate(() => {
+    const n = performance.getEntriesByType("navigation")[0];
+    const tls = n.secureConnectionStart > 0 ? n.connectEnd - n.secureConnectionStart : 0;
+    return {
+      open: { page: Math.round(n.responseEnd), tls: Math.round(tls), ...globalThis.__wtpacsOpen },
+      error: globalThis.__wtpacsError ?? null,
+    };
+  });
   await page.close();
   if (out.error || err) throw new Error(out.error || err);
   return out.open;
@@ -169,8 +181,8 @@ for (const rtt of RTTS) {
         const ctx = await chromium.launchPersistentContext(dir, {
           headless: true,
           executablePath: process.env.CHROME_PATH || chromium.executablePath(),
-          args: ["--disable-background-networking", "--ignore-certificate-errors-spki-list",
-            ...(HOST === "dev" ? [] : ["--ignore-certificate-errors"]), ...netlog],
+          args: ["--disable-background-networking", ...netlog],
+          ...(HOST === "dev" ? {} : { env: { ...process.env, HOME: `${T}/home` } }),
         });
         try {
           for (const profile of PROFILES) rows.push({ rtt, round, arm: name, profile, ...(await visit(ctx, arm)) });
@@ -188,6 +200,7 @@ for (const rtt of RTTS) {
 }
 
 const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+const MILESTONES = ["tls", "page", "script", "config", "session", "frame"];
 function fit(arm, profile, key) {
   const xs = [];
   const ys = [];
@@ -213,7 +226,7 @@ console.log(
 );
 for (const arm of LABELS) {
   for (const profile of PROFILES) {
-    for (const key of ["config", "session", "frame"]) {
+    for (const key of MILESTONES) {
       const f = fit(arm, profile, key);
       if (!f) continue;
       console.log(
@@ -229,7 +242,7 @@ if (SERVERS.length > 1) {
   console.log(`\nms at each round trip: median [min-max], and rounds each server beat ${SERVERS[0].name} in`);
   for (const arm of Object.keys(ARMS)) {
     for (const profile of PROFILES) {
-      for (const key of ["config", "session", "frame"]) {
+      for (const key of MILESTONES) {
         for (const s of SERVERS) {
           const cells = RTTS.map((rtt) => {
             const of = (name) => rows.filter((r) => r.arm === name && r.profile === profile && r.rtt === rtt && r[key] != null);
