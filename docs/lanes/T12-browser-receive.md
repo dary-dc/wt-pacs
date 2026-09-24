@@ -56,6 +56,10 @@ Fixed before the run. Arms interleaved, order reversed every repeat, six repeats
 | `seg10` | the same source with the patch's cap clamped to 10, quinn's stock batch |
 | `rmem212k` | `shared` with the client host at `net.core.rmem_max` = 212 992 (Linux default) |
 
+The arms are the transport branch's server at `8b903cd`. On the unified tree (2026-09-23) `pool:k`
+is not in `server/` (T3 closed it) and the GSO cap is a build-time opt-in, so `shared` there sends
+quinn's stock 10-segment batch unless built with the patch ([`../transport/README.md`](../transport/README.md)).
+
 Cells: `fill` at 250 KB and 32 KB, 800 frames (`FRAMES=800 lab/scripts/gen_tf_fixtures.sh` into
 a scratch `OUT_ROOT`, so a run is long enough for per-thread CPU to resolve); `ondemand` at depth
 1 and 4, 250 KB, 320 asks. Driver: `lab/scripts/browser_receive.py` — per-thread CPU from
