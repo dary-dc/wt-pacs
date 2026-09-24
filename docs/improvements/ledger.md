@@ -177,3 +177,33 @@ Corrected in place 2026-09-22: **S2's migration claim, with its provenance** —
 [`../proposal-session-survival.md`](../proposal-session-survival.md) §The problem and §What this
 means for the stack choice. The client half is Chromium's source, the server half is ours and
 measured, and the freeze on a browser is still arithmetic; a device is [`../cloud-queue.md`](../cloud-queue.md) row 59.
+
+## 10 · The 2026-09-10 latency lanes, never merged — read 2026-09-23
+
+Seventeen `origin/cursor/latency-*` branches (and `fill-overlap-latency-f9c2`,
+`server-latency-resources-437e`) were cut from `495ccd6` on 2026-09-10 and never merged; none of
+their findings was in `docs/`. One of them is now code: `TileReader::free_slot` prefers a slot with
+no read in flight (`latency-max-concurrency-1676`, `464a619`), pinned by its test and mutated —
+[`../disk-access/adr.md`](../disk-access/adr.md) §7. The rest is here, each on its own branch's
+numbers, none re-measured, so nobody re-derives them.
+
+| Branch | What it tried | What it found | Why not taken |
+| - | - | - | - |
+| `fill-overlap-latency-f9c2` | the named fill read started during the current miss's wait, plus a sliding `WILLNEED` | 250 kB cold p50 −68.9 % (12/12) but **wall a tie and p99 worse**; 16 KiB cold wall a resolved loss | `FILL_WINDOW` had already landed; two lanes below refused the overlap on a real host |
+| `latency-real-computer-093d` | the shared uni opened at accept; BYOB reads in the TS client | ask-to-receive p50 −12.5 % (13/16), p10 and wall ties; BYOB fill a 0 % tie | contradicted by the next two rows; the session open has since been rebuilt (R1, LD) |
+| `latency-cpu-hotpath-093d` | the same uni overlap | one-ask wall +5.6 % (6/12) — a coin flip | a null |
+| `latency-transport-wt-093d` | uni at accept, the head written with the read; one `write_all` of the body | no separation; the single write −4.3 % at 250 KB, 12–28 µs, under the bar | superseded: the pooled send path writes head and body in one call |
+| `latency-transport-quic-3a29` | the head and the first window in one write | 32 KB a tie, 250 KB −4.0 % p50 (8/8), localhost | superseded, as above |
+| `latency-hotpath-cpu-3a29` | a microbenchmark of everything before the read | 160 ns against ~140–200 µs of CPU a frame; the head before the read is unsafe on a shared uni | a null |
+| `latency-sched-hops-3a29` | the ask reader folded into the session task | first byte **+10.7 %** (9/10 worse); reverted on the branch | a loss |
+| `latency-io-store-093d` | a guest-evicted fill; tiles striding past read-ahead | +11 % p50 (6/6, under the bar); striding +200 % | no reader change asked for |
+| `latency-store-read-3a29` | the store's single-request path | negative | a null |
+| `latency-measured-hotpath-2287` | the hop code on the workstation cells | LTO moved CPU, not wall; the fill's `WILLNEED` taxed a warm browser fill | a null |
+| `latency-concurrency-2701` ⊂ `latency-real-computer-2701` | a tile hit not queued behind upcoming probes; a yield between hit windows; fill-ahead off the send task | "did not move wall"; unmeasured on a shaped link | no evidence |
+| `latency-io-scheduling-2287` | a jump skips stale prefetch (the defect `464a619` fixes, in a larger diff); a fill miss `readahead(2)` | no number | superseded by `464a619` |
+| `latency-protocol-zerocopy-2287` | the first write before the look-ahead | "no real-computer first-byte move is claimed" | no evidence |
+| `latency-io-store-2701` | page-aligned packs (a bundle-format change); `WILLNEED` of the opening 4 MiB at accept | no number | no evidence, and a format change is structural |
+| `latency-metadata-qido-3a29` | `Study { frames }` pushed on the control stream at accept | 5 µs against a 203 µs sidecar GET, localhost | a wire change: a proposal, not a merge. `lab/page-open/` is the instrument that would price it |
+| `latency-client-first-3a29` | the TS session queues a fill's ask before arming its waiters | no number | superseded by D2d and the downloader |
+| `latency-max-concurrency-1676`, the rest | `send_fairness(false)`, a 14 720 B initial window, keep-alive at a third of the idle timeout; setup awaits joined | no number, by its own ledger row | LD's initial-window and keep-alive work covers the tuning half |
+| `server-latency-resources-437e` | fat LTO; the TLS identity loaded once | — | LTO landed 2026-09-10 (§8) |

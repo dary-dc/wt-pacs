@@ -2,6 +2,10 @@
 
 **Status: ready for cloud agent.** · Harness only · Round-robin the Oracle São Paulo rig with L1
 
+**The 2026-09-09 investigation** is closed on its own branch, `cursor/l2-harness-fix-plan-c999`
+(`docs/lanes/L2-ask-policy-CLOSED.md` there): v1–v4 void, lab only, no product lock. It stays there
+at the owner's request (`../improvements/ledger.md` §1, row L2).
+
 **Built 2026-09-14, later.** The TypeScript client carries the window as an opt-in
 (`connect(…, { window })`): fixed, or `"auto"` with the estimator below, RTT from
 `getStats().smoothedRtt` rather than ask-to-receive time (which inflates with the queue). The
