@@ -193,19 +193,28 @@ detections in one worker selected per page, interleaved with the order rotated, 
 | cell | the link | probe (as built before) | bytes |
 | --- | --- | --- | --- |
 | cut | 20 Mbit, the path cut after 12 frames | noticed **5 006** ms [5 003–5 012] | noticed **3 016** ms [3 012–3 028] |
-| radio | 80 ms, ordered ±10 ms jitter, Gilbert–Elliott loss | 1 false re-dial in 7 fills | 1 fill of 7 with 2 false re-dials |
+| radio | 80 ms, ordered ±10 ms jitter, Gilbert–Elliott loss | a false re-dial in 2 fills of 7, and **1 fill never completed** in 600 s | a false re-dial in 3 fills of 7, all 7 completed |
 | blinks | 80 ms, a 1 s blackout every 5 s | none; 19.1 s a fill | none; 19.1 s a fill |
 | slow | 700 kbit, 80 ms, 0.9 s queue, 8 frames | **0 of 7 completed** in 120 s | 7 of 7, **41.4 s** [41.3–41.5], none |
 | deep | 700 kbit behind a 4.1 s standing queue | **0 of 7 completed** in 120 s | 7 of 7, 52.9 s [52.5–56.5], one re-dial each |
 
-**The probe livelocks on a slow link.** Traced from the worker: frames 0 and 1 land 4.5 s apart, the
+*Re-taken 2026-09-24 on an idle box:* the first run shared the CPU with four runaway server
+processes from another lane (`decode/README.md` §The decode tail). The table is the re-take — the
+probe arm from the tree before this row, the bytes arm from this one, alternated round by round, 5
+rounds on the cut and 3 on the slow and deep cells, 7 on radio. Every verdict held; the cut read
+4 993–5 004 ms against 3 014–3 018, the slow fill 41.2–41.3 s, the deep 52.6 s. What moved is the
+radio cell, which the first run had read as one false re-dial for the probe and one fill with two
+for the bytes.
+
+**The probe livelocks on a slow link**, and on the radio relay once in seven fills. Traced from the worker: frames 0 and 1 land 4.5 s apart, the
 stall fires 3 s after frame 1, the probe asks for frame 1 again — 428 KB, which cannot arrive in
 `probeMs` at 700 kbit, and whose ask ends the running fill on the server (L16) — so the session is
 re-dialled, the fill re-issued, and 5.5 s later the same: the fill never passes frame 1. The
 paragraph below that kept 3000/2000 "until that cost is measured on a slow link" is answered by it.
 Behind a 4 s standing queue the bytes rule re-dials once a fill, as on the rig, and the doubled wait
-holds after it. On the cut it notices **2 s sooner** because it no longer waits out a probe. The
-radio cell is a draw: each rule re-dialled a healthy session in one fill of seven. After adoption the
+holds after it. On the cut it notices **2 s sooner** because it no longer waits out a probe. On the
+radio relay the bytes rule re-dials a healthy session more often (3 fills of 7 against 2) and always
+finishes; the probe re-dialled less and once never finished. After adoption the
 built client read the same on three rounds each: cut 3 015 ms, slow 41.4 s, and the burst below.
 
 **Two defects the other client had, checked here.**
