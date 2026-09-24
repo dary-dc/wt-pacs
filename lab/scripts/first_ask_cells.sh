@@ -5,7 +5,7 @@
 # The server's own `session path` line gives the window, loss and congestion events per arm.
 # Results and the verdict they correct: docs/transport/transport-conclusions.md §3.
 #
-#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue] [rounds]
+#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume] [rounds]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -254,10 +254,33 @@ queue_cells() {
   done
 }
 
+# C1: Careful Resume's jump, approximated — a fresh session started at half the window a filled one
+# ended with, without the validation or the retreat. LINKS are relay arguments, `;`-separated.
+resume_cells() {
+  local link cwnd
+  IFS=';' read -r -a links <<<"${LINKS:-;--rate-kbit 10000 --queue-pkts 20}"
+  for kb in $SIZES; do
+    for rtt in $RTTS; do
+      for link in "${links[@]}"; do
+        read -r _ cwnd _ <<<"$(one_round filled "$WARM" 0 "$T/s$kb.sbnd" "$rtt" "" "$link")"
+        ARMS=()
+        arm "fresh|fresh|$WARM|0||$link"
+        arm "warmed|filled|$WARM|0||$link"
+        arm "jump $((cwnd / 2)) B|fresh|$WARM|0|--initial-window-bytes $((cwnd / 2))|$link"
+        arm "push 4|open-push|4|0|--open-ask|$link"
+        arm "push 4 + jump|open-push|4|0|--open-ask --initial-window-bytes $((cwnd / 2))|$link"
+        printf '\n== %s KB, %s ms, %s; the filled session ended at cwnd %s B\n' "$kb" "$rtt" "${link:-unshaped}" "$cwnd"
+        round_robin "$T/s$kb.sbnd" "$rtt"
+      done
+    done
+  done
+}
+
 case "$CELL" in
   repro) repro ;;
   idle) idle_cells ;;
   together) together_cells ;;
   queue) queue_cells ;;
+  resume) resume_cells ;;
   *) echo "unknown cell: $CELL"; exit 2 ;;
 esac

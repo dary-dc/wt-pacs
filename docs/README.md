@@ -15,6 +15,7 @@ Product and ADRs stay here. This lane's campaign write-ups are on tag
 | [`../deploy/`](../deploy/) | nginx + the two images, and the check that they answer as the dev host did |
 | [`proposal-nginx-and-images.md`](proposal-nginx-and-images.md) | Proposed: nginx in place of the dev host, and an image per project |
 | [`proposal-udp-fallback.md`](proposal-udp-fallback.md) | Proposed: when UDP does not work — 4 s to rejection measured, the iOS 16 MB stall, and racing instead of detecting |
+| [`proposal-careful-resume.md`](proposal-careful-resume.md) | Proposed and not recommended now: a remembered window for the reconnects — the push at open recovers the same round trips |
 | [`proposal-session-survival.md`](proposal-session-survival.md) | Proposed: a session that dies is noticed from platform signals and resumed on the downloader's records |
 | [`proposal-session-open.md`](proposal-session-open.md) | Two round trips off a cold open — the ask in the session URL (behind a flag), and SETTINGS at 0.5 RTT (built: a build-time `wtransport` patch, −1.0 round trip off the dial) |
 | [`client-shape-plan.md`](client-shape-plan.md) | The production client shape: the transport seam, what sits above it, and the milestones that build it |
