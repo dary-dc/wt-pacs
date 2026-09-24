@@ -25,7 +25,19 @@ Every round runs every scenario on every arm with the arm order rotated, so a dr
 lands on all arms alike. The page measures ask → delivered, fill issue → last frame at the page,
 frames delivered, its own handling time and JS-heap peak, and `measureUserAgentSpecificMemory`
 after; the driver adds, over CDP, the page's main-thread task time and the renderer's GC count —
-tracing is stopped *before* the memory measurement, which forces a GC of its own.
+tracing is stopped *before* the memory measurement, which forces a GC of its own. *Corrected
+2026-09-24 (M1):* that count is of every `V8.GC*` trace event, and most of those are phases of one
+collection; `throttle.mjs` counts collections.
+
+`throttle.mjs` (M1) runs the fill under Chromium's CPU throttle, 1×, 4× and 6× by default. Per
+thread it reports collections, GC pause and task time, splitting the page's time into the
+product's (message dispatch and code under `/client/`) and this page's own. From the page it takes
+a sampled allocation profile. It waits on a 200 ms timer, because waiting on animation frames is
+main-thread work the fill would be charged.
+
+```bash
+NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs 5   # rounds; THROTTLES=1,4,6 ARMS=H,Dw,Dd
+```
 
 **Read before trusting a number.** Container-measured, loopback, 4 cores: the Dd arm is
 decode-bound here and says nothing about a device. `run.mjs` launches the full Chromium by

@@ -545,6 +545,53 @@ does not start while the main thread is blocked. So the change is worth a whole 
 where the worker was already alive when the task began — which is the viewer's case and the row
 above, and is not something the downloader can arrange for itself.
 
+### Under a throttled CPU (M1)
+
+*Row 52, 2026-09-24 (S44).* S44 priced the page-side garbage from "139 collections per 80 frames"
+at ~1–4 s of a phone's main thread across a fill. Retaken under Chromium's CPU throttle with
+[`../lab/downloader-campaign/throttle.mjs`](../lab/downloader-campaign/throttle.mjs). The same
+80-frame fill ran on H, Dw and Dd at 1×, 4× and 6×, arms and throttles rotated inside each of 5
+rounds. From each fill's trace it counts collections (`V8.GC_SCAVENGER`, `V8.GC_MARK_COMPACTOR`:
+one event each) and task time per thread, and it samples allocations on the page, including objects
+already collected. Medians per fill:
+
+| arm | throttle | fill | page collections, pause | page time, product's | worker threads' time | page allocation, of it `consumer.js` |
+| --- | --: | --: | --: | --: | --: | --: |
+| H | 1× | 279 ms | 1, 3.0 ms | 43 ms | 0 | 812 KiB, — |
+| H | 4× | 478 | 1, 13.4 | 61 | 0 | 474 |
+| H | 6× | 692 | 1, 15.0 | 78 | 0 | 465 |
+| Dw | 1× | 273 | **0** | 9 | 39 ms | 192, 48 |
+| Dw | 4× | 283 | **0** | 35 | 37 | 224, 53 |
+| Dw | 6× | 300 | **0** | 40 | 41 | 192, 42 |
+| Dd | 1× | 674 | **0** | 22 | 2 006 | 265, 50 |
+| Dd | 4× | 759 | **0** | 197 | 2 257 | 265, 58 |
+| Dd | 6× | 762 | **0** | 293 | 2 286 | 288, 51 |
+
+The page's time is split. The product's share is the platform's message dispatch plus code under
+`/client/`. The rest belongs to this lab page, whose heap sampler and handler cost up to 144 ms of a fill under throttle.
+Playwright's default polling on animation frames was taken out: it is main-thread work the fill
+would otherwise be charged.
+
+* **No collection happens on the downloader's page, or in its workers, at any throttle.** H's one
+  collection pauses the page 13–15 ms at 4–6×. The page allocates ~0.2–0.3 MB per fill.
+  `consumer.js`'s share is 42–58 KiB: ~0.4–0.5 KiB per frame for the message its handler receives
+  (the deserialised `m`, charged to `onmessage`), and ~130 B per frame for `#deliver`'s frame,
+  timing and view. That is far below a young generation, so S44's seconds do not occur. S44 is
+  answered, and its premise is corrected above.
+* **The throttle slows the page's thread only.** Worker threads' time does not move with it. The
+  downloader's fill is flat — Dw 273 → 300 ms, and Dd 674 → 762 ms bound by decoding — while H's
+  slows 279 → 692 ms at 6×. Under a throttled main thread, the worker is where the fill should be.
+* **Found, not changed (the row says not to optimise messages): the decoded path's page cost per
+  frame grows faster than H's.** Dd's share is 0.28, 2.5 and 3.7 ms a frame at 1×, 4× and 6×,
+  against H's 0.54, 0.76 and 0.98. About half of it is the platform dispatching the pixel port's
+  message (`SimpleWatcher::OnHandleReady`), and half is the consumer's handler; Dw's plain worker
+  messages cost 0.11, 0.44 and 0.50. At a frame every 19.6 ms (S44's 20 Mbit) that is ~19 % of a
+  6×-throttled main thread. Whether a phone's port dispatch behaves like the throttle is for a
+  device.
+
+The host saturates in Dd: three decoders keep three of four cores busy for the whole fill. The
+throttle is Chromium's, not a phone, and the allocation figures are sampled at 8 KiB.
+
 ### D7 — the same path on a decoder built with a 4 MB floor
 
 2026-09-19. S4's decode arm cost **161.6 MB**, 150 MB of it three decoder heaps at the package's
@@ -588,7 +635,9 @@ browser campaign.
 
 **What is settled — three clean sweeps, ranges that do not overlap.** Over an 80-frame fill the
 page's main thread does **95 ms [85 … 128] of work on H against 14 ms [11 … 18] on Dw**, 8/8;
-the renderer collects **139 times [122 … 156] on H against 0 on Dw**, 8/8; the page's JS heap
+the renderer collects **139 times [122 … 156] on H against 0 on Dw**, 8/8 (*corrected
+2026-09-24, M1: 139 counts `V8.GC*` trace events, most of them phases; H makes **one** collection
+per fill, a mark-compact, and Dw none — §Under a throttled CPU*); the page's JS heap
 peaks at **59 MB [55 … 70] on H against 31 MB [27 … 33] on Dw**, 8/8. That is the offload the
 proposal argued for, priced: the frame parsing, the per-frame promise and its timer, and the
 garbage they make, leave the main thread.
