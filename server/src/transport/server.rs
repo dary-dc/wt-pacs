@@ -42,6 +42,9 @@ pub struct ServeConfig {
     /// Prototype, off by default: honour `?ask=` in the session URL, so the first frame moves
     /// behind the accept instead of behind the control stream. `docs/proposal-session-open.md`.
     pub open_ask: bool,
+    /// Lab only: every session request is taken and never answered — WebKit bug 319879's dial
+    /// that never settles, made on purpose. `docs/proposal-session-survival.md` §A dial that never settles.
+    pub hold_sessions: bool,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -89,10 +92,14 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     let mode = config.mode;
     let open_ask = config.open_ask;
+    let hold = config.hold_sessions;
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
         tokio::spawn(async move {
+            if hold {
+                return hold_session(incoming).await;
+            }
             if let Err(err) = handle_incoming(incoming, store, mode, open_ask).await {
                 warn!(%err, "session ended");
             }
@@ -186,6 +193,12 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
                 "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
             ))
         }
+    }
+}
+
+async fn hold_session(incoming: wtransport::endpoint::IncomingSession) {
+    if let Ok(_unanswered) = incoming.await {
+        std::future::pending::<()>().await;
     }
 }
 
@@ -658,6 +671,7 @@ mod tests {
                     tuning: TransportTuning::default(),
                     force_pool_reads: false,
                     open_ask: true,
+                    hold_sessions: false,
                 }));
                 let endpoint = wtransport::Endpoint::client(
                     ClientConfig::builder()
@@ -722,6 +736,61 @@ mod tests {
         }
     }
 
+    /// With `hold_sessions` the client's dial neither completes nor fails: the handshake is done,
+    /// the CONNECT is taken, and nothing answers it — the dial a client needs its own deadline
+    /// for. `docs/proposal-session-survival.md` §A dial that never settles.
+    #[test]
+    fn a_held_dial_neither_connects_nor_fails() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-hold-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                wt_port: port,
+                study_path: study,
+                cert_pem,
+                key_pem,
+                mode: StreamMode::Shared,
+                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                tuning: TransportTuning::default(),
+                force_pool_reads: false,
+                open_ask: false,
+                hold_sessions: true,
+            }));
+            let endpoint = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                    .build(),
+            )
+            .expect("client endpoint");
+            let url = format!("https://127.0.0.1:{port}/");
+            // A dial that errors is a server not listening yet; one that hangs is the hold.
+            let mut held = false;
+            for _ in 0..50 {
+                match tokio::time::timeout(Duration::from_secs(2), endpoint.connect(url.clone())).await {
+                    Ok(Ok(_)) => panic!("a held session request was answered"),
+                    Ok(Err(_)) => tokio::time::sleep(Duration::from_millis(100)).await,
+                    Err(_) => {
+                        held = true;
+                        break;
+                    }
+                }
+            }
+            assert!(held, "the server never took the dial");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// The server's SETTINGS leave with its handshake flight: a client that loses everything it
     /// sends after its first flight — so the server's handshake can never complete — still
     /// receives the HTTP/3 control stream, opening with SETTINGS. Without
@@ -751,6 +820,7 @@ mod tests {
                 tuning: TransportTuning::default(),
                 force_pool_reads: false,
                 open_ask: false,
+                hold_sessions: false,
             }));
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -836,6 +906,7 @@ mod tests {
                 tuning: TransportTuning::default(),
                 force_pool_reads: false,
                 open_ask: false,
+                hold_sessions: false,
             }));
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -940,6 +1011,7 @@ mod tests {
             tuning: TransportTuning::default(),
             force_pool_reads: false,
             open_ask: false,
+            hold_sessions: false,
         }));
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()

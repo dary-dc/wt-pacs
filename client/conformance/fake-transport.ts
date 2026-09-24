@@ -31,12 +31,15 @@ export class FakeTransport {
   static dials = 0;
   /** The next `n` dials fail — a path that is still gone when the client tries to come back. */
   static failNext = 0;
+  /** The next `n` dials never settle — WebKit bug 319879, or a server that takes the CONNECT and is silent. */
+  static hangNext = 0;
   /** Every transport dialled, oldest first: a replaced one still open is a session left sending. */
   static all: FakeTransport[] = [];
   readonly ready: Promise<void>;
   readonly closed: Promise<{ closeCode: number; reason: string }>;
   readonly sent: Uint8Array[] = [];
   didClose = false;
+  private abandon?: () => void;
   readonly incomingUnidirectionalStreams: ReadableStream<ReadableStream<Uint8Array>>;
   private uni!: ReadableStreamDefaultController<ReadableStream<Uint8Array>>;
   private control: ReadableStreamDefaultController<Uint8Array> | null = null;
@@ -48,7 +51,14 @@ export class FakeTransport {
   ) {
     const refuse = FakeTransport.failNext > 0;
     if (refuse) FakeTransport.failNext -= 1;
-    this.ready = refuse ? Promise.reject(new Error("dial refused")) : Promise.resolve();
+    const hang = !refuse && FakeTransport.hangNext > 0;
+    if (hang) FakeTransport.hangNext -= 1;
+    // As Chrome does, `close()` on a dial still connecting rejects its `ready` at once.
+    this.ready = refuse
+      ? Promise.reject(new Error("dial refused"))
+      : hang
+        ? new Promise((_, reject) => { this.abandon = () => reject(new Error("close() is called while connecting.")); })
+        : Promise.resolve();
     this.ready.catch(() => {});
     this.closed = new Promise((resolve) => {
       this.settleClosed = resolve;
@@ -162,6 +172,7 @@ export class FakeTransport {
 
   close() {
     this.didClose = true;
+    this.abandon?.();
   }
 }
 

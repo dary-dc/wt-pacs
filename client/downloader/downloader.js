@@ -12,7 +12,7 @@ const abs = () => performance.timeOrigin + performance.now();
 let session = null;
 let cfg = { decoders: 3, decode: true, perDecoder: 2, survival: true };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns it all off. */
-const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5 };
+const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 };
 let dial = null;
 let dialling = null;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
@@ -280,6 +280,7 @@ async function connect() {
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
     // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
     const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 };
+    if (cfg.survival) options.dialMs = deadlines.dialMs;
     if (opening) options.fill = opening;
     session = await TransportSession.connect(dial.url, dial.certHash, options);
     session.closedPromise?.catch(() => {});
@@ -293,6 +294,18 @@ async function connect() {
     dialling = null;
   }
   if (!opening) issueFill();
+}
+
+/** A first dial that never settles is tried again, as a re-dial is; one that fails says so at once. */
+async function firstDial() {
+  for (let n = 1; ; n++) {
+    try {
+      return await connect();
+    } catch (e) {
+      if (!cfg.survival || n >= deadlines.tries || e?.name !== "DialTimeoutError") throw e;
+      await sleep(deadlines.redialMs);
+    }
+  }
 }
 
 /** A command after a closure re-dials, as the proposal requires. */
@@ -313,7 +326,7 @@ onmessage = async (e) => {
     if (m.kind === "start") return void (await start(m));
     if (m.kind === "dial") {
       dial = { url: m.url, certHash: m.certHash };
-      await connect();
+      await firstDial();
       return void post({ kind: "started" });
     }
     if (m.kind === "ask") {

@@ -9,6 +9,8 @@ import { FakeTransport, installFakeTransport } from "./fake-transport.ts";
 export { TransportSession } from "../transport-ts/session.ts";
 
 installFakeTransport();
+// Before the first dial, which is what loads this module: `?hang=` dials never settle.
+FakeTransport.hangNext = Number(new URL(import.meta.url).searchParams.get("hang") ?? 0);
 
 type Command = { id: number; cmd: string; args: unknown[] };
 

@@ -98,7 +98,8 @@ still owe is issued on the new one — the fill's remainder as a run and any out
 nothing that arrived re-fetched and nothing re-decoded. The request's **generation does not move**:
 a resume is the same request, so the page's waiters and records stay valid and the only thing it is
 told is when each resume happened, as `stats().resumedAt`. `survival: false` turns it off; an object overrides
-`{ stallMs: 3000, redialMs: 1000, tries: 5 }`. Until 2026-09-24 a quiet fill started a probe ask
+`{ stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 }`. A dial whose `ready` has not settled by
+`dialMs` is closed and counts as a failed try, the first dial included. Until 2026-09-24 a quiet fill started a probe ask
 instead, which livelocked on a slow link. An ask keeps no timer in the consumer: the downloader
 settles it, and the transports time a frame from the last byte, not from the ask.
 [`docs/proposal-session-survival.md`](../../docs/proposal-session-survival.md) has the states, the

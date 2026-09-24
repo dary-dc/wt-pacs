@@ -186,3 +186,31 @@ is Chromium's and not the wiring. **Headless Chromium 141 does not advertise `mi
 so nothing this server sets shortens its ACK delay. The rule closes the item on that evidence
 unless Chromium 148 differs — it is one run of the same cell on the browser rig, and it is the
 only thing T7 still waits on.
+
+## On WebKit: what the clients rely on, and what happens without it
+
+*K1, row 45, 2026-09-24 (S24).* No WebKit browser runs in this container. The WebKit column is
+therefore the 2026-09-19 sweep's reading of WebKit's status
+([`improvements/2026-09-19-sweep.md`](improvements/2026-09-19-sweep.md) S23, S24), not a
+measurement. Where the sweep said nothing, the cell says *not checked*. The last column is what the
+code in this repository does, read from the code.
+
+| API | relied on by | WebKit | without it |
+| --- | --- | --- | --- |
+| `WebTransport` | both clients | shipped in Safari 26; a dial can hang with `ready` never settling (bug 319879) | the downloader's `dialMs` ends a hung dial and retries it; the TS client does so when given `dialMs`; the WASM client waits for ever (`proposal-session-survival.md` §A dial that never settles) |
+| `serverCertificateHashes` | both clients, the dev setup | not checked | the dial fails; a deployment uses a CA-signed certificate, which the clients do not care about (row 62's `ca` mode) |
+| `SharedArrayBuffer`, `crossOriginIsolated` | the downloader's pixel path | not checked | `DownloaderClient.connect` throws *serve the page cross-origin isolated* unless `decode: false` |
+| module workers, a worker started from a worker | the downloader and its decoders | not checked | the downloader does not start, and `connect` rejects |
+| WebAssembly SIMD128 | the shipped HTJ2K decoder | not checked | the decoder's init fails, and the page is told why (`failed`, index −1) |
+| `navigator.connection` `change` | a survival trigger; the link fields of lever 3 (`proposal-session-open.md`) | declined | `navigator.connection?.` makes it a no-op. A network change is noticed only when the bytes stop, after `stallMs`. Lever 3 is not built |
+| `navigator.deviceMemory` | lever 3's `mem=` field | declined | nothing reads it today; lever 3 would send the field without it |
+| `scheduler.postTask`, `scheduler.yield` | nothing in the clients or the proposals today | absent | — |
+| `freeze` / `resume` (Page Lifecycle) | the consumer forwards them to the downloader as survival triggers | not checked; a Chromium API | they never fire; `visibilitychange` and `pageshow` still do |
+| Speculation Rules (prerender) | S20's saving, not built | absent | **S20's saving is Chromium-only**, corrected in place there |
+| OPFS | the cache seam `client-shape-plan.md` M5 plans behind it | present; script-written storage deleted after 7 days without interaction, `persist()` no exemption | M5 is not built. When it is, an OPFS cache must be evictable on WebKit, not a store |
+| 2D canvas `alpha: false` | `lab/paint-floor/` only | no effect | the lab's 2D route measures something different on WebKit |
+| WebAssembly under Lockdown Mode | the decoder, the WASM client | disabled when introduced; not verified for current iOS | a blank viewer, not a slow one. Needs a device |
+
+The two that bite without a device are `WebTransport`'s hung dial, which now has its deadline, and
+`navigator.connection`, whose absence moves a network change from the radio's event to the byte
+silence. That costs `stallMs` (3 s), measured in row 66.

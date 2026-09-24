@@ -21,7 +21,23 @@ export type ConnectOptions = {
   fill?: OpeningFill;
   /** Wire buffers to keep for reuse; 0 allocates one per frame. docs/decode/README.md §The wire buffer ring */
   wireBuffers?: number;
+  /** ms: a dial whose `ready` has not settled by then is closed and rejected with a `DialTimeoutError`.
+   *  docs/proposal-session-survival.md §A dial that never settles */
+  dialMs?: number;
 };
+
+/** Closes a transport whose `ready` outlives `ms`, so an abandoned dial leaves nothing open. */
+function settleWithin(transport: WebTransport, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      // First: `close()` rejects a connecting `ready` at once, and the race must see this error.
+      reject(Object.assign(new Error(`the dial did not settle in ${ms} ms`), { name: "DialTimeoutError" }));
+      transport.close();
+    }, ms);
+  });
+  return Promise.race([transport.ready, late]).finally(() => clearTimeout(timer));
+}
 
 export type OpeningFill = {
   from: number;
@@ -121,7 +137,7 @@ export class TransportSession {
       serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
       congestionControl: "low-latency",
     });
-    await transport.ready;
+    await (options.dialMs ? settleWithin(transport, options.dialMs) : transport.ready);
 
     const bi = await transport.createBidirectionalStream();
     const controlWriter = bi.writable.getWriter();

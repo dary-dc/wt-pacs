@@ -274,6 +274,63 @@ the only thing it is told is when each resume happened, as `stats().resumedAt`.
 **Nothing is re-decoded and nothing is re-fetched that arrived.** That property is the reason to
 put resumption behind the records rather than behind a session-level retry.
 
+## A dial that never settles
+
+*K1, row 45, 2026-09-24.* WebKit bug 319879 (S23; Safari 26 on macOS): the server answers the
+CONNECT with 200 and `WebTransport.ready` never resolves or rejects. Recycling a session cannot help
+a dial that hangs at byte zero. The iPhone case needs a device. What a container can do is make the
+same hang on purpose and give the client a deadline for it.
+
+**The hang, made.** `exact-server --hold-sessions`, a lab flag, takes each CONNECT and never
+answers it. Its test (`a_held_dial_neither_connects_nor_fails`) was mutated both ways: with the
+request dropped, and with the flag ignored. The difference from WebKit's bug is which side hangs:
+here the server never answers, and there the browser never settles an answered dial. The client
+sees the same thing either way.
+
+**What every client does today: waits for ever.** [`../lab/dial-deadline/`](../lab/dial-deadline/),
+headless Chromium 141, the four clients dialling side by side against the held server with its
+default config, and against one that answers as the control:
+
+| client | held | answered |
+| --- | --- | --- |
+| a bare `new WebTransport` | pending at 180 s | ready, 32 ms |
+| TS client | pending at 180 s | ready, 70 ms |
+| WASM client | pending at 180 s | ready, 64 ms |
+| downloader, before this row | pending at 180 s | ready, 75 ms |
+
+Neither Chromium nor QUIC's idle timeout ends it: the connection is alive and the CONNECT stream
+is open. **So the failure is not WebKit's alone.** Any server that takes a CONNECT and stalls, when
+overloaded for example, leaves every one of these clients waiting for ever.
+
+**The deadline.** The TS client takes `dialMs`: a dial whose `ready` has not settled by then is
+closed and rejected as a `DialTimeoutError`. The downloader passes `dialMs: 5000`. A dial that times
+out counts as a failed try in a resumption, and **the first dial retries it too**: `tries` dials,
+`redialMs` apart. A first dial that fails outright is still reported at once, since a refusal says
+something a hang does not. 5 s holds two lost handshake flights, whose probe timeouts are ~1 s and
+~2 s (§The losing phase in `proposal-session-open.md`); that value is derived, not measured.
+
+**Closing the abandoned dial.** Without the close, each retry would leave a QUIC connection open.
+Chrome's `close()` on a dial still connecting rejects `ready` at once, with *close() is called
+while connecting*. The deadline must therefore reject *before* it closes, or the race settles with
+Chrome's error, which the retry does not recognise. The first build had it the other way round and
+failed the first dial in 5 s; the fake transport now rejects the same way Chrome does.
+
+**Measured with the prototype**, same rig: against the held server the downloader fails at
+**29.1 s**, which is five dials of 5 s, 1 s apart. It says *the dial did not settle in 5000 ms*,
+and the other three clients are still pending at 60 s. Against the answering server, all four are
+ready within 100 ms. `client/conformance/dispatch-rig.ts` holds it in two clauses. A dial that
+never settles is dialled again, and the one abandoned is closed. Once every try has hung, connect
+fails and names the deadline. Three mutants were caught: no first-dial retry, the abandoned dial
+not closed, and no deadline passed.
+
+**Found on the way: a failed `connect` left its worker running.** `DownloaderClient.connect` now
+ends the worker it started, and the page listeners, when the dial fails; the drive's leftover-worker
+count caught it.
+
+**Not built.** The WASM client has no `dialMs`. Only the downloader passes one to the TS client,
+and a caller of the TS client directly gets the deadline only by passing it. Whether 5 s is right
+on a phone is not measured here.
+
 ## Resumption and 0-RTT
 
 *RS1, 2026-09-24.* The question: can a re-dial pay less than a full handshake? Measured:
@@ -383,7 +440,8 @@ it closed; every trigger re-reads the silence and decides nothing else.
 | `visibilitychange` to visible, `pageshow`, `freeze`, `resume` | the page, forwarded as one message |
 | no byte for the wait with frames owed | the transport's `lastByteAt` against the downloader's records |
 
-The deadlines are `{ stallMs: 3000, redialMs: 1000, tries: 5 }` (`probeMs` is gone), so detection
+The deadlines are `{ stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 }` (`probeMs` is gone;
+`dialMs` since row 45, §A dial that never settles), so detection
 costs `stallMs` — doubled after each re-dial the silence caused — and a resume costs a dial after
 it; `survival: false` turns the whole of it off and an object overrides them. Nothing in it runs when nothing dies, which is what keeps the
 conformance and dispatch suites green unchanged.

@@ -72,6 +72,8 @@ struct Args {
     /// Prototype: honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL.
     #[arg(long, default_value_t = false)]
     open_ask: bool,
+    #[arg(long, default_value_t = false, help = "Lab only: take each CONNECT and never answer it")]
+    hold_sessions: bool,
     /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
     #[cfg(feature = "telemetry")]
     #[arg(long, value_name = "ROWS")]
@@ -142,6 +144,7 @@ async fn main() -> anyhow::Result<()> {
         },
         force_pool_reads: args.force_pool_reads,
         open_ask: args.open_ask,
+        hold_sessions: args.hold_sessions,
     });
 
     tokio::select! {

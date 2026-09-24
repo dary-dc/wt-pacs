@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>dial deadline — one dial</title>
+</head>
+<body>
+  <script type="module">
+    /**
+     * One dial with `?client=raw|ts|wasm|downloader`, reported as how and when it settled, or
+     * `pending` at `?cap=` ms. lab/dial-deadline/README.md
+     */
+    const q = new URLSearchParams(location.search);
+    const client = q.get("client");
+    const cap = Number(q.get("cap") || 60000);
+    const hex = (h) => new Uint8Array(h.match(/../g).map((b) => parseInt(b, 16)));
+    const { wt_url: url, cert_sha256: hash } = await (await fetch("/wt/dev-transport.json")).json();
+    const dials = {
+      raw: async () => {
+        const wt = new WebTransport(url, { serverCertificateHashes: [{ algorithm: "sha-256", value: hex(hash) }] });
+        await wt.ready;
+      },
+      ts: async () => (await import("/client/transport-ts/dist/session.js")).TransportSession.connect(url, hash),
+      wasm: async () => {
+        const mod = await import("/client/transport-wasm/pkg/transport_wasm.js");
+        await mod.default();
+        return mod.TransportSessionHandle.connect(url, hash);
+      },
+      downloader: async () => (await import("/client/downloader/consumer.js")).DownloaderClient.connect(url, hash, {
+        decoders: 1,
+        decoder: {
+          glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
+          wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
+          dir: "/lab/decode-bench/vendor/openjph",
+        },
+      }),
+    };
+    const t0 = performance.now();
+    const at = () => Math.round(performance.now() - t0);
+    const settled = dials[client]().then(() => ({ outcome: "ready", ms: at() }), (e) => ({ outcome: "rejected", ms: at(), reason: String(e?.message ?? e) }));
+    globalThis.__result = await Promise.race([settled, new Promise((r) => setTimeout(() => r({ outcome: "pending", ms: at() }), cap))]);
+  </script>
+</body>
+</html>

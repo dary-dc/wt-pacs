@@ -61,8 +61,15 @@ export class DownloaderClient {
     // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
     // may be promises. docs/proposal-session-open.md
     c.#worker.postMessage({ kind: "start", config });
-    c.#worker.postMessage({ kind: "dial", url: await url, certHash: await certHash });
-    await c.#ready;
+    try {
+      c.#worker.postMessage({ kind: "dial", url: await url, certHash: await certHash });
+      await c.#ready;
+    } catch (e) {
+      // No client comes back to close, so what it started ends here.
+      c.#triggers.abort();
+      c.#end(String(e?.message ?? e));
+      throw e;
+    }
     return c;
   }
 

@@ -41,7 +41,8 @@ type OpenOpts = {
   warmup?: string;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
   realDecoder?: { glue: string; wasm: string; dir: string };
-  survival?: false | { stallMs?: number; redialMs?: number; tries?: number };
+  survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
+  hangDials?: number;
 };
 
 function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
@@ -56,7 +57,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     perDecoder: opts.perDecoder,
     fill: opts.fill,
     openAsk: opts.openAsk,
-    transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
+    transport: `/client/conformance/dist/fake-session.js?ch=${ch}&hang=${opts.hangDials ?? 0}`,
     decoderWorker: opts.realDecoder ? undefined : `/client/conformance/fake-decoder.js?ch=${ch}`,
     decoder: opts.realDecoder ?? { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
     warmup: opts.warmup,
@@ -876,6 +877,31 @@ async function whenTheRedialsRunOutWhatWasOwedIsNamed(DownloaderClient: Download
   c.close();
 }
 
+/** A dial that never settles is closed at `dialMs` and dialled again. docs/proposal-session-survival.md §A dial that never settles */
+async function aDialThatNeverSettlesIsDialledAgain(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, onFrame: () => {}, survival: { ...QUICK, dialMs: 150 }, hangDials: 1,
+  });
+  check((await fake.dials()) === 2, `dial: a dial that never settles is dialled again (${await fake.dials()} dials)`);
+  check(await fake.replacedClosed(), "dial: and the one it abandoned is closed, not left open");
+  c.close();
+}
+
+/** Once every try has hung, the client says so rather than waiting for ever. */
+async function aDialThatNeverSettlesAtAllIsNamed(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const dialMs = 100;
+  const { connect } = begin(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, onFrame: () => {}, survival: { ...QUICK, dialMs }, hangDials: QUICK.tries,
+  });
+  const t0 = performance.now();
+  const outcome = await Promise.race([
+    connect.then((c) => (c.close(), "started"), (e) => String((e as Error)?.message ?? e)),
+    settle(5000).then(() => "still pending at 5 s"),
+  ]);
+  const ms = Math.round(performance.now() - t0);
+  check(/did not settle/.test(outcome), `dial: after ${QUICK.tries} dials that hung, connect fails and names why (${outcome}, ${ms} ms)`);
+}
+
 /** A closed client ends every worker it started: the downloader's, and each decoder's. */
 async function aClosedClientEndsEveryWorkerItStarted(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const { c, fake } = await open(DownloaderClient, { decoders: 2, perDecoder: 2, delayMs: 0, onFrame: () => {} });
@@ -950,6 +976,8 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aDeadSessionIsResumedNotReported,
     anOwedAskIsReaskedAfterAResume,
     whenTheRedialsRunOutWhatWasOwedIsNamed,
+    aDialThatNeverSettlesIsDialledAgain,
+    aDialThatNeverSettlesAtAllIsNamed,
     aClosedClientEndsEveryWorkerItStarted,
     aDownloaderThatNeverAnswersIsEndedAnyway,
   ];
