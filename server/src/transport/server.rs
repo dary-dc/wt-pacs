@@ -884,9 +884,15 @@ mod tests {
                 .with_bind_config(IpBindConfig::InAddrAnyV4)
                 .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
                 .build();
+            // The client's own Initial retransmit would land beside the server's probe, both ~1 s;
+            // racing them is not this test's claim, so the client waits 3 s before it repeats.
+            let mut quic = config.quic_config().clone();
+            let mut transport = wtransport::quinn::TransportConfig::default();
+            transport.initial_rtt(Duration::from_secs(1));
+            quic.transport_config(Arc::new(transport));
             let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap())
                 .expect("quinn client");
-            endpoint.set_default_client_config(config.quic_config().clone());
+            endpoint.set_default_client_config(quic);
             let connection = endpoint
                 .connect(relay, "localhost")
                 .expect("connect")

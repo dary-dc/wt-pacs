@@ -334,7 +334,14 @@ The binary built through the shim reads as the prototype did, to 1.5 ms.
 `server.rs` `a_lost_first_flight_is_repeated_whole` holds it: through a relay with 50 ms each way
 that drops the server's first flight, the control stream reaches the client within 1.5 round
 trips of its handshake (104 ms with the patch, 208–211 without). Two mutants caught: the
-`[patch.crates-io]` line commented out, and the 1-RTT space left out of the probe.
+`[patch.crates-io]` line commented out, and the 1-RTT space left out of the probe. *Corrected
+2026-09-24 (row 66's gate):* as first written the test raced — the test's quinn client repeats its
+Initial at ~1 s too, and under the full suite's load it once landed ~3 ms **before** the server's
+probe fired; in that ordering the SETTINGS came two round trips after the handshake again (221 ms),
+1 run in 4. The test's client now waits 3 s before repeating, which pins the claim (0 of 12 loaded
+runs failed; both mutants still caught). **The ordering itself is not traced**: a client whose repeat
+reaches the server just before its probe may not get the round trip back. Chrome repeats at +300 ms,
+well before, and read clean above.
 
 **Tried, not built.**
 
