@@ -191,16 +191,19 @@ then waits for the handshake before reading the client's SETTINGS and CONNECT, s
 and a replayed 0-RTT CONNECT could not be surfaced even on a server that enabled early data. This
 one does not (`wtransport`'s TLS config leaves `max_early_data_size` at 0). The only bytes that move
 earlier are the SETTINGS, which RFC 9114 §6.2.1 lets a server send as soon as it can. **On by
-default, behind no flag**: nothing unsafe was found for a flag to guard, and the one cost found is a
-round trip in one phase of a blink (§What lever 2 costs).
+default, behind no flag**: nothing unsafe was found for a flag to guard, and the one cost found — a
+round trip in one phase of a blink (§What lever 2 costs) — is removed since row 61 by a second patch
+that turns the phase into a win (§The losing phase, removed).
 
 **How it is carried** — the mechanism the transport branch used for its quinn patch.
-[`../scripts/patch_wtransport.sh`](../scripts/patch_wtransport.sh) takes the crates.io 0.7.2 tarball
+[`../scripts/patch_crate.sh`](../scripts/patch_crate.sh) takes the crate's crates.io tarball
 (checksum-verified, from cargo's cache or downloaded), applies the patch with `--fuzz=0` so a stale
 hunk fails the build, and writes the crate into `OUT_DIR`; `patched/wtransport/` is a
 `[patch.crates-io]` shim — the crate's manifest, a `build.rs` that runs the script, and a `lib.rs`
 that is one `include!`. A `mod` inside an included file resolves beside that file, so nothing is
-copied into the source tree. Dropping the patch is deleting the two `[patch.crates-io]` lines.
+copied into the source tree. Dropping the patch is deleting its line under `[patch.crates-io]`.
+Since row 61 the same script and shim carry a second patch, to quinn-proto (§The losing phase,
+removed).
 
 `server/src/transport/server.rs` `settings_ride_the_handshake_flight` holds it: a client that loses
 everything it sends after its first flight — so the server's handshake never completes — must
@@ -270,7 +273,8 @@ the same script read the same to within 20 ms at every offset. **When the blink 
 server's first flight (20–40 ms), the patched server is +80 ms, one round trip, behind**: both arms
 wait out the same ~1 s probe timeout, then the unpatched server writes its SETTINGS fresh after the
 handshake while the patched one's went out in the lost flight and are recovered by quinn's loss
-detection only after the handshake completes (inferred from the timing, not traced). Everywhere else the patch wins by 80–340 ms. The
+detection only after the handshake completes (inferred from the timing; traced 2026-09-24 and
+confirmed, with a round trip more for both servers than this said — §The losing phase, removed). Everywhere else the patch wins by 80–340 ms. The
 crate's native client adds a second losing phase that Chrome does not have: a blink over the
 client's Finished and CONNECT (60–75 ms) costs it +220 ms, which is what RFC 9002 §6.2.1 predicts — no probe for
 application data before the handshake is confirmed — though not traced (`cold_open`, one blink per
@@ -278,12 +282,79 @@ offset, 10 offsets);
 Chrome recovers its early CONNECT at no cost.
 
 **What would remove the losing phase** is quinn retransmitting 0.5-RTT data with its handshake
-probe, a transport change this project does not make. It is priced here instead: one round trip,
-in one 20–40 ms window of a dial that has already lost a second to the blink.
+probe. *Corrected 2026-09-24 (row 61):* this said it was a transport change the project does not
+make, and priced the round trip instead. It is made, as a second build-time patch, and the phase
+now wins by a round trip — §The losing phase, removed.
 
 **What this rig does not decide.** Loopback, the userspace relay, one box carrying other lanes
 throughout; nothing here is a phone or a real path (`rig-limits.md` §3). The dial's fixed costs
 (6–36 ms) are this box's; only the slope is claimed.
+
+### The losing phase, removed
+
+*Row 61 (FF1), 2026-09-24.* `link_impair.py`'s `swallow` drops exactly the server's first flight
+— every server datagram in the 50 ms after its first — so the phase is taken alone, not found by
+sweeping a blink's offset. [`../lab/scripts/swallow_cells.sh`](../lab/scripts/swallow_cells.sh)
+dials natively and `dial-blink.mjs`'s `swallow` offset in Chrome.
+
+**What quinn does, traced** (`quinn_proto=trace`, 80 ms). The client repeats its Initial — quinn's
+client once at +1.0 s; **Chrome four times, at +300, +546, +772 and +983 ms** — and quinn answers
+none of them. Its own probe timeout fires at +1.001 s (three times its 333 ms initial RTT) and
+carries **only the ServerHello**: a probe repeats its own packet-number space. The Handshake flight
+goes when that probe's ACK comes back, a round trip later. The SETTINGS lost with the first flight
+are declared lost only when the client ACKs a 1-RTT packet sent after the handshake —
+HANDSHAKE_DONE — a round trip after that; an unpatched server writes them fresh at the handshake's
+end, which is lever 2's round trip.
+
+**The change** — [`../patches/quinn-proto-0.11.18-probe-every-space.patch`](../patches/quinn-proto-0.11.18-probe-every-space.patch),
+8 lines: when a server's probe timer fires during the handshake, every other space with data in
+flight gets a probe too. The ServerHello's probe then carries the Handshake flight, and the 1-RTT
+space sends a probe of its own — a PING, because quinn's probes repeat control frames and not
+stream data — whose ACK declares the SETTINGS lost a round trip before HANDSHAKE_DONE's would.
+RFC 9002 §6.2.4 requires a probe in the expired space and bars none in the others; §6.2.3 lets an
+endpoint resend unacknowledged CRYPTO data early. On by default, like lever 2.
+
+Swallowed first flight, session ready in ms, median [range], rounds won against unpatched; seven
+rounds, arms rotated inside each:
+
+| client | round trip | unpatched | lever 2 | **lever 2 + this** |
+| --- | --- | ---: | ---: | ---: |
+| native | 40 ms | 1 167.5 [1 166.0–1 170.7] | 1 209.6 [1 206.9–1 212.8], 0/7 | **1 126.8** [1 126.0–1 128.4], 7/7 |
+| native | 80 ms | 1 328.5 [1 327.0–1 330.4] | 1 411.7 [1 408.9–1 413.7], 0/7 | **1 247.3** [1 246.5–1 248.7], 7/7 |
+| Chrome | 40 ms | 1 171 [1 170–1 172] | 1 213 [1 211–1 220], 0/7 | **1 130** [1 127–1 130], 7/7 |
+| Chrome | 80 ms | 1 332 [1 330–1 334] | 1 414 [1 412–1 420], 0/7 | **1 249** [1 248–1 251], 7/7 |
+
+**It costs nothing measured elsewhere.** A clean dial ties with lever 2 alone (native 85.3 against
+84.7 ms at 40 and 165.8 against 165.8 at 80; Chrome 86–87 and 167–168). Across the blink offsets
+above (Chrome, 80 ms, n = 5 an offset) the 20 and 40 ms columns go 1 415 → **1 250**, 5/5 each,
+and every other column is within 2 ms, 1–4 of 5 either way. At 1 % loss (n = 40) the median ties at
+168 ms, 20 of 40, and the worst dial — the one that drew a lost first flight — is 1 416 → 1 250.
+The binary built through the shim reads as the prototype did, to 1.5 ms.
+
+`server.rs` `a_lost_first_flight_is_repeated_whole` holds it: through a relay with 50 ms each way
+that drops the server's first flight, the control stream reaches the client within 1.5 round
+trips of its handshake (104 ms with the patch, 208–211 without). Two mutants caught: the
+`[patch.crates-io]` line commented out, and the 1-RTT space left out of the probe.
+
+**Tried, not built.**
+
+* **Probing only the 1-RTT space** recovers lever 2's round trip and no more: it ties unpatched
+  (1 168.2 and 1 328.0 native, 1 170 and 1 332 Chrome), because the Handshake flight still waits.
+* **Re-queueing the 0.5-RTT stream data with the probe**, so the SETTINGS ride it as data rather
+  than wait on the PING's ACK. They did — the client sent its CONNECT with its Finished — but the
+  session then stalled until the idle timeout, in the one swallowed dial traced: the wtransport
+  driver never saw the client's streams, and quinn logged nothing further. Cause not found.
+* **A shorter initial probe timeout** (`--initial-rtt-ms 100`, W2's flag) is the larger lever in
+  this phase and a different one: Chrome at 40 ms, every server **−700 ms** (unpatched 1 169 →
+  470), but lever 2 stays a round trip behind with it (513 against 470; 714 against 631 at 80), so
+  it does not recover the phase. With this patch as well, **430 and 550 ms**. Clean dials tie. Its
+  default is still the shaped-link VM's to set ([`handoff-2026-09-19.md`](handoff-2026-09-19.md) §3).
+* **A duplicated first flight** inside the amplification limit: a blink that eats one copy eats a
+  copy sent with it, and a copy sent later is a shorter probe timeout, the item above.
+
+**Not tried: answering the client's repeated Initial**, which RFC 9002 §6.2.3 allows and quinn
+does not do. Chrome repeated its Initial four times before quinn's probe fired, the first at
++300 ms, so it would reach what `--initial-rtt-ms 100` reaches without guessing a round trip.
 
 ### Upstream
 

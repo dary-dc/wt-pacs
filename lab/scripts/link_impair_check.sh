@@ -192,6 +192,19 @@ read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.01)
 want "held 600 ms, queue 20: delivered of 200" "$got" 152 168
 stop_relay
 
+# Armed a second before any traffic, the window still opens on the first echo and eats ~30 of a
+# 10 ms-paced stream: a blackout armed then would have expired unused.
+relay --control-port "$CTRL"
+poke 0 "swallow 300"
+sleep 1
+read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.01)
+want "swallow 300 ms armed idle: delivered of 200" "$got" 167 173
+stop_relay
+swallowed=$(grep -o "swallowed [0-9]*" "$T/relay.log" | awk '{print $2}')
+want "swallow 300 ms: server->client datagrams it took" "${swallowed:-0}" 27 33
+lost_up=$(grep -o "client->server sent [0-9]* lost [0-9]*" "$T/relay.log" | awk '{print $5}')
+want "swallow 300 ms: client->server datagrams it took" "${lost_up:-0}" 0 0
+
 relay --control-port "$CTRL"
 poke 0.7 "rebind"
 read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.01)
@@ -264,7 +277,8 @@ read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" session)
 say "session ready: round trips + fixed ms" "$rt + $fixed"
 read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" first_byte)
 say "first byte: fixed cost (ms)" "$fixed"
-want "first byte: round trips (R1 counts 4)" "$rt" 3.6 4.4
+# R1 counted 4; lever 2's SETTINGS in the first flight took one. docs/proposal-session-open.md §Lever 2
+want "first byte: round trips (lever 2 counts 3)" "$rt" 2.6 3.4
 read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" ask_to_last_byte)
 say "250 KB ask: fixed cost (ms)" "$fixed"
 want "250 KB ask: flights (S7 predicts ~5)" "$rt" 4.5 6.0

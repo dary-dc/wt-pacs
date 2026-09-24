@@ -10,7 +10,8 @@ usage: link_impair.py --udp 5555:4433 [--tcp 8443:8000] [--delay-ms 40] [--rate-
 
 --delay-ms is ONE WAY and applies to each direction, so a round trip reads twice it, matching
 `cloud_netem.sh`'s profiles. Control datagrams on --control-port: `rebind`, `cut`, `blackout <ms>`,
-`stats`, `quit`. Prints READY, then REBOUND <old> -> <new>, then a tally at exit.
+`swallow <ms>` (drops server->client for <ms> from the next server datagram: its next flight), `stats`,
+`quit`. Prints READY, then REBOUND <old> -> <new>, then a tally at exit.
 """
 import argparse
 import collections
@@ -106,6 +107,9 @@ class UdpPlane:
         self.dead = None
         self.to_server = Pipe(args, rng)
         self.to_client = Pipe(args, rng)
+        self.swallow = None
+        self.swallow_until = 0.0
+        self.swallowed = 0
         sel.register(self.down, selectors.EVENT_READ, ("udp", None, "down"))
         sel.register(self.up, selectors.EVENT_READ, ("udp", None, "up"))
 
@@ -113,6 +117,7 @@ class UdpPlane:
         # Drain the socket, not one datagram: a burst that outruns the loop is the kernel's
         # drop, not the model's.
         sock, pipe = (self.down, self.to_server) if which == "down" else (self.up, self.to_client)
+        up = which == "up"
         while True:
             try:
                 data, addr = sock.recvfrom(65535)
@@ -122,7 +127,11 @@ class UdpPlane:
                 if addr == self.dead:
                     continue
                 self.client = addr
-            pipe.offer(now, data, blacked_out)
+            if up and self.swallow is not None:
+                self.swallow_until, self.swallow = now + self.swallow, None
+            swallowed = up and now < self.swallow_until
+            self.swallowed += swallowed
+            pipe.offer(now, data, blacked_out or swallowed)
 
     def pump(self, now):
         for payload in self.to_server.ready(now):
@@ -151,8 +160,8 @@ class UdpPlane:
     def tally(self):
         a, b = self.to_server, self.to_client
         return ("udp client->server sent %d lost %d overflowed %d | server->client sent %d "
-                "lost %d overflowed %d" % (a.sent, a.lost, a.overflowed, b.sent, b.lost,
-                                           b.overflowed))
+                "lost %d overflowed %d swallowed %d" % (a.sent, a.lost, a.overflowed, b.sent, b.lost,
+                                                        b.overflowed, self.swallowed))
 
 
 class TcpConn:
@@ -365,6 +374,9 @@ def main():
                                     pipe.next_free = max(pipe.next_free, now) + outage
                             print("BLACKOUT %s ms %s" % (cmd[1].decode(), args.blackout_mode),
                                   flush=True)
+                        elif head == b"swallow" and udp:
+                            udp.swallow = float(cmd[1]) / 1000.0
+                            print("SWALLOW %s ms armed" % cmd[1].decode(), flush=True)
                         elif head == b"stats":
                             for p in planes:
                                 print(p.tally(), flush=True)

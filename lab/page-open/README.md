@@ -146,7 +146,8 @@ something on a margin narrower than half a round trip needs the runner to record
 each behind its own relay, and prints median [min–max] and the rounds each beat the first in;
 `NETLOG=DIR` keeps Chrome's net log per visit for
 [`../scripts/netlog_dial.py`](../scripts/netlog_dial.py). [`dial-blink.mjs`](dial-blink.mjs) is a
-bare `new WebTransport` dial with a relay blackout at a chosen offset into it. Both were built for
+bare `new WebTransport` dial with a relay blackout at a chosen offset into it, or, at the offset
+`swallow`, with exactly the server's first flight dropped (row 61). Both were built for
 lever 2, the server's SETTINGS at 0.5 RTT, and its numbers are
 [`../../docs/proposal-session-open.md`](../../docs/proposal-session-open.md) §Lever 2 — the dial
 this file counts as 3.0 round trips is 2.1 with it.

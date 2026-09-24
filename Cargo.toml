@@ -31,3 +31,5 @@ codegen-units = 1
 # The server's SETTINGS in its handshake flight: docs/proposal-session-open.md §Lever 2.
 [patch.crates-io]
 wtransport = { path = "patched/wtransport" }
+# A server's handshake probe repeats its whole flight: docs/proposal-session-open.md §What lever 2 costs.
+quinn-proto = { path = "patched/quinn-proto" }

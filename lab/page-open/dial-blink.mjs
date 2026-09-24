@@ -1,7 +1,7 @@
 /**
  * A cold WebTransport dial in Chrome with a blink at a chosen offset into it, for two or more
- * server binaries, interleaved inside every round. Each offset says which flight the blink eats.
- * docs/proposal-session-open.md §Lever 2.
+ * server binaries, interleaved inside every round. Each offset says which flight the blink eats;
+ * `swallow` eats exactly the server's first flight, wherever it falls. docs/proposal-session-open.md §Lever 2.
  *
  *   SERVERS=a=BIN,b=BIN [OFFSETS=none,0,20,…] [LOSS=1] [RTT=80] [BLINK_MS=150] [PORT_BASE=N] [ROWS=FILE] \
  *     NODE_PATH=$(npm root -g) node lab/page-open/dial-blink.mjs [rounds]
@@ -66,6 +66,9 @@ for (let round = 0; round < ROUNDS; round++) {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
       await page.goto(`http://127.0.0.1:${PAGE}/`);
+      if (o === "swallow") {
+        await new Promise((r) => control.send(Buffer.from(`swallow ${process.env.SWALLOW_MS || 50}`), s.ctrl, "127.0.0.1", r));
+      }
       const dial = page.evaluate(async ({ url, hash }) => {
         const value = new Uint8Array(hash.match(/../g).map((h) => parseInt(h, 16)));
         const t0 = performance.now();
@@ -74,7 +77,7 @@ for (let round = 0; round < ROUNDS; round++) {
         wt.close();
         return performance.now() - t0;
       }, { url: `https://127.0.0.1:${s.front}/`, hash });
-      if (o !== "none") {
+      if (o !== "none" && o !== "swallow") {
         const blink = Buffer.from(`blackout ${process.env.BLINK_MS || 150}`);
         setTimeout(() => control.send(blink, s.ctrl, "127.0.0.1"), Number(o));
       }

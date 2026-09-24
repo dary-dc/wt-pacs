@@ -1,0 +1,17 @@
+--- a/src/connection/mod.rs
++++ b/src/connection/mod.rs
+@@ -1688,6 +1688,14 @@
+             _ => 2,
+         };
+         self.spaces[space].loss_probes = self.spaces[space].loss_probes.saturating_add(count);
++        // A server's flight spans every space it has keys for, so a probe for one repeats them all.
++        if self.side.is_server() && self.is_handshaking() {
++            for other in [SpaceId::Initial, SpaceId::Handshake, SpaceId::Data] {
++                if other != space && self.spaces[other].has_in_flight() {
++                    self.spaces[other].loss_probes = self.spaces[other].loss_probes.saturating_add(1);
++                }
++            }
++        }
+         self.pto_count = self.pto_count.saturating_add(1);
+         self.set_loss_detection_timer(now);
+     }

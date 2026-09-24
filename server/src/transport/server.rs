@@ -805,6 +805,112 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// A server whose whole first flight is lost probes every space it sent in, so its handshake
+    /// flight rides the ServerHello's probe and its 0.5-RTT SETTINGS reach the client one round
+    /// trip after the client's handshake completes — when an unpatched server's would. Without
+    /// `patches/quinn-proto-0.11.18-probe-every-space.patch` they wait for the ACK of
+    /// HANDSHAKE_DONE to be declared lost: two round trips. `docs/proposal-session-open.md` §What lever 2 costs.
+    #[test]
+    fn a_lost_first_flight_is_repeated_whole() {
+        const ONE_WAY: Duration = Duration::from_millis(50);
+        let dir = std::env::temp_dir().join(format!("wtpacs-first-flight-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                wt_port: port,
+                study_path: study,
+                cert_pem,
+                key_pem,
+                mode: StreamMode::Shared,
+                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                tuning: TransportTuning::default(),
+                force_pool_reads: false,
+                open_ask: false,
+            }));
+            while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+
+            // Every datagram is delayed ONE_WAY; the server's burst in the first ONE_WAY after its
+            // first datagram — its first flight — is dropped.
+            let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            let relay = front.local_addr().expect("relay addr");
+            let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+            let swallowed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let dropped = swallowed.clone();
+            tokio::spawn(async move {
+                let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+                let mut client = None;
+                let mut first_answer: Option<tokio::time::Instant> = None;
+                loop {
+                    tokio::select! {
+                        Ok((n, from)) = front.recv_from(&mut up) => {
+                            client = Some(from);
+                            let (back, d) = (back.clone(), up[..n].to_vec());
+                            tokio::spawn(async move {
+                                tokio::time::sleep(ONE_WAY).await;
+                                back.send(&d).await.ok();
+                            });
+                        }
+                        Ok(n) = back.recv(&mut down) => {
+                            let now = tokio::time::Instant::now();
+                            if now - *first_answer.get_or_insert(now) < ONE_WAY {
+                                dropped.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                continue;
+                            }
+                            let (front, d, to) = (front.clone(), down[..n].to_vec(), client);
+                            tokio::spawn(async move {
+                                tokio::time::sleep(ONE_WAY).await;
+                                if let Some(to) = to {
+                                    front.send_to(&d, to).await.ok();
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+
+            let config = ClientConfig::builder()
+                .with_bind_config(IpBindConfig::InAddrAnyV4)
+                .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                .build();
+            let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap())
+                .expect("quinn client");
+            endpoint.set_default_client_config(config.quic_config().clone());
+            let connection = endpoint
+                .connect(relay, "localhost")
+                .expect("connect")
+                .await
+                .expect("client side of the handshake");
+            let handshake_done = std::time::Instant::now();
+            let _control = tokio::time::timeout(Duration::from_secs(5), connection.accept_uni())
+                .await
+                .expect("no control stream in 5 s")
+                .expect("accept uni");
+            let late = handshake_done.elapsed();
+            assert!(
+                swallowed.load(std::sync::atomic::Ordering::Relaxed) > 0,
+                "the relay dropped nothing: the test did not lose the first flight"
+            );
+            assert!(
+                late < ONE_WAY * 3,
+                "the control stream came {late:?} after the handshake: the lost SETTINGS waited on HANDSHAKE_DONE"
+            );
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     async fn connect_session(
         study: PathBuf,
         cert_pem: PathBuf,

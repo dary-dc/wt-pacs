@@ -129,6 +129,7 @@ against another emulator, and each lever was mutated to watch it fail.
 | Jitter, reordering | ±5 ms | 9.7 ms of p90-p10 spread; 40 of 200 arrive out of order |
 | Jitter, ordered | ±5 ms | the same spread, 9.8 ms; none out of order, none later than delay + jitter |
 | Rebind | mid-stream | none lost; the session survives it (`rebind-probe`) |
+| Swallow | 300 ms, armed idle | opens on the next server datagram, not on the command: 30 of a 10 ms-paced echo taken, 0 client→server — the server's next flight, wherever it falls (row 61) |
 
 **The two counts it was made to check**, fitted over round trips of 40, 80 and 160 ms so that the
 relay's own floor and the crypto fall out as the intercept:
@@ -136,7 +137,9 @@ relay's own floor and the crypto fall out as the intercept:
 * **A cold open reaches its first byte in 4.01 round trips + 17.7 ms** — the count
   [`proposal-session-open.md`](proposal-session-open.md) states, now measured, on the native
   client. Its attribution is corrected there: the session is ready at **3.00 round trips**, and
-  opening the control stream costs nothing.
+  opening the control stream costs nothing. *Since lever 2 (2026-09-23) it is one fewer:* the same
+  fit read **2.99 round trips + 17.8 ms** to first byte and 1.99 + 12.0 ms to the session on
+  2026-09-24, and the check that still wanted 4 failed until it was changed to want 3.
 * **One 250 KB ask on a fresh session is 5.59 round trips + 12.5 ms** — S7's ~5 flights out of a
   12 KB initial window, on a link with no rate limit at all, so it is slow start and not the link.
 
