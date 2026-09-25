@@ -11,7 +11,7 @@ lab improvement: the tested state of 2026-09-22, the lane branches, the transpor
 reproduced), and the wtransport patch that sends the server's SETTINGS with its first flight
 ([`proposal-session-open.md`](proposal-session-open.md) §Lever 2: the dial 3.1 → 2.1 round trips).
 The inventory of what was merged and what was not is [`improvements/ledger.md`](improvements/ledger.md)
-§10. **Work the `ready` rows (73–76) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
+§10. **Work the `ready` rows (77) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
 
 **New session?** [`handoff-2026-09-19.md`](handoff-2026-09-19.md) has where the branch is, what is
 already settled, what the instruments are and what cost time to find — read it once, then work the
@@ -75,6 +75,7 @@ trailers. This is the owner's rule for every repository.
 | 76 | **PH1** — the decoded frame's hand-off to the page on a throttled CPU | queue §Rows 73–76 | **done** 2026-09-25 `dbe6c96` — **nothing changed: the cost was counted twice, and on a slow CPU coalescing has nothing to batch.** Row 52 summed the port's callback with the dispatch event it runs inside, plus the lab page's handler; the product's page share per decoded frame is **0.15 / 0.84 / 1.15 ms** at 1× / 4× / 6× (page-only throttle, n = 7), not 0.28 / 2.5 / 3.7 — ~4 % of a 4× main thread at a frame every 20 ms. In the callback at 4×: deserialising ~0.22 ms, `#deliver` ~0.10, dispatch ~0.24. `port.mjs`, the message alone: its SAB and stamps do not separate; two frames a message is −33 % / −45 % a frame at 1× / 4× (7/7), −12 % at 6× (4/7). But each decoder posts to the page itself, and with every thread slowed (row 74's dump) **no decoder ever has two frames in one animation frame at 4–6×** (0 %; 15–33 % across decoders), so per-decoder coalescing batches nothing and per-k holds a frame 80–120 ms; batching across decoders needs a merge point — a change to §The decoders' shape, ceiling ~10 ms of a fill's main thread — asked of the owner in `## Blocked`. No product change, so no clause or mutant. `throttle.mjs` now counts a nested call once (`ALLOC=0` drops the sampler); M1's figures corrected in place. `proposal-downloader.md` §The hand-off. **For row 75:** the page-only throttle leaves decoders at desktop speed, so the page sees frames every ~8 ms there; measure page-side costs with that caveat stated |
 | 73 | **WU1** — the decoder warm-up, re-measured on a throttled CPU | queue §Rows 73–76 | **done** 2026-09-25 `af22015` — **keep it off by default: the container shows both signs.** Every browser thread slowed (`cpu_throttle.mjs`; Chrome's throttle does not reach the decoders), `none` vs `match`, fill and a cold ask, 1× / 4× / 6×, loopback and 40 ms, n = 7, 336 visits, pixels identical. The warm-up **always cuts frames 0–2's decode 30–65 %** (7/7 or 6/7 everywhere; 60–100 ms a frame at 6×). But it is paid before `ready`, and on a slow CPU it costs the gate more than it saves the frame (colour 4×: the wait for a decoder +61–81 ms against −58–60 of decode). Where the first bytes land after it — 16-bit at 40 ms — frame 0 is **50–81 ms sooner at 4–6× (7/7, 6/7)** and a cold ask 30–93 ms sooner; where they land before — loopback, and the colour cine loop (~50 KB frames) even at 40 ms — frame 0 and the ask are **44–100 ms later** (0–1/7). The deciding quantity is the window between the decoders' compile and the first frame's bytes; a device on the target link, cine loop and 16-bit, decides it. `decode/README.md` §Warming the decoders, On a slow CPU. `lab/decoder-warmup/run.mjs` takes `THROTTLES` and `SCENARIOS=ask` |
 | 75 | **RC1** — per-thread and per-heap resources, and the decoder count against the cores | queue §Rows 73–76 | **done** 2026-09-25 `ec74c04` — **follow the cores as a resource rule: `min(3, hardwareConcurrency)`.** `lab/scripts/proc_sampler.mjs` (per-process kind and peak PSS/RSS from `smaps_rollup`, per-thread `comm` and `schedstat`) and `lab/downloader-campaign/resources.mjs`: Dd fill and cold ask, 1/2/3 decoders, pinned to 2/4 cores, 1× and 4× (every thread slowed, and the tree capped at that many slowed cores — without the cap two pinned cores never bind), 7 rounds, 252 visits. Fill: 4 cores 1 508 / 899 / 723 ms at 1× and 6 624 / 3 642 / 2 616 at 4× (each added decoder 7/7); **2 cores 1 598 / 1 027 / 1 067 at 1× and 7 021 / 4 999 / 5 329 at 4× — the third decoder 2/7 and 1/7**, and on 2 slow cores the page's main thread is starved (198–337 ms against ~60). No decoder count moves an ask. **A decoder is one thread and ~51 MB of JS heap (`measureUserAgentSpecificMemory`) but ~4–5 MB resident** — the package's heap is reserved, not touched; GPU (~35 MB), browser (~99 MB) and the workers' total CPU (~1.5–1.9 s a fill) do not follow the count. A fill's renderer holds ~120 MB more than an ask's at every count, not split here. Phones report every core, little ones too, so the rule bites on two-core devices only; measured at 2 and 4 cores. Nothing in `client/` changed. `proposal-downloader.md` §Resources |
+| 77 | **TC1** — a TCP path: the same envelopes over a WebSocket, as a fallback beside QUIC | queue §Row 77 | **ready** |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm decision is settled 2026-09-18, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
@@ -147,6 +148,28 @@ fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving du
 Rows 15–22 name the branch each landed on. `claude/downloader-s2-worker` was merged into this one
 on 2026-09-18, so those commits are in this history and the branch names are provenance, not
 somewhere still to look.
+
+### Row 77
+
+Queued 2026-09-25 by the workstation. **The owner's decision (2026-09-24/25):** a TCP path is *completion of the
+implementation* — a fallback for the ~5 % of networks that impair UDP and for browsers without WebTransport — built now on
+free cloud capacity. It supersedes `proposal-udp-fallback.md` §What must be shown before any of this is built for the
+build itself (the device check stays owed before it is *enabled* anywhere). It is not a performance claim: the owner
+expects TCP to tie or win on a clean, stable link and lose under loss, and the shaped A/B is the workstation's, later.
+
+**77 · TC1 — the same envelopes over a WebSocket.** Follow `proposal-udp-fallback.md` §What it costs:
+1. **Server:** a second listener speaking the same envelopes and the same FoD messages over one WebSocket (TLS, the same
+   certificate); `FrameOut` gains a second implementation; the frame path, the store and the planner do not change. One
+   process serves both. Behind a flag, off by default.
+2. **Client:** a second implementation behind the existing transport seam (`client-shape-plan.md` §0), usable by the
+   downloader like the TS and WASM ones. **The conformance suite runs every clause against it**; the clauses about
+   independent delivery (a slow or lost frame not blocking the others) are marked *not applicable* with the reason, not
+   green (the proposal's table).
+3. **Race it, do not detect it** (`proposal-udp-fallback.md` §Race it): an opt-in client mode that opens both and keeps
+   whichever session is ready first, then drops the other; a clause for each outcome (QUIC first, TCP first, QUIC refused).
+4. **A loopback smoke only**: both transports fill and ask, bit-exact, n = 3 — no performance claim (loopback's 64 KB MTU
+   favours TCP; `rig-limits.md` §3). Say what the shaped A/B on the workstation should measure.
+Full `scripts/gate.sh` green; a mutant per new clause; the proposal's doc updated in place with what was built.
 
 ### Rows 73–76
 
