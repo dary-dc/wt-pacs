@@ -1,5 +1,5 @@
-//! Session-scoped outbound media: length-prefixed envelopes on shared or per-frame uni
-//! streams, the codestream handed to quinn whole and uncopied. `docs/disk-access/adr.md`.
+//! Session-scoped outbound media: length-prefixed envelopes on one shared uni, a fixed pool of
+//! them, or one per frame; the codestream handed to quinn whole and uncopied. `docs/disk-access/adr.md`.
 
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::websocket::WsSink;
@@ -17,9 +17,16 @@ pub(crate) enum FrameOut {
         /// Keeps the QUIC connection alive for the session-scoped uni.
         _connection: Connection,
     },
+    Pool {
+        unis: Vec<SendStream>,
+        /// Frames sent so far: the next frame's stream, and its priority.
+        seq: u32,
+        _connection: Connection,
+    },
     PerFrame {
         connection: Connection,
         acks: JoinSet<()>,
+        seq: u32,
     },
     /// One ordered TCP stream, which the session's refusals share.
     WebSocket(WsSink),
@@ -43,9 +50,28 @@ impl FrameOut {
                     _connection: connection,
                 })
             }
+            StreamMode::Pool(k) => {
+                let mut unis = Vec::with_capacity(k.get());
+                for _ in 0..k.get() {
+                    unis.push(
+                        connection
+                            .open_uni()
+                            .await
+                            .context("open pool uni")?
+                            .await
+                            .context("pool uni ready")?,
+                    );
+                }
+                Ok(Self::Pool {
+                    unis,
+                    seq: 0,
+                    _connection: connection,
+                })
+            }
             StreamMode::PerFrame => Ok(Self::PerFrame {
                 connection,
                 acks: JoinSet::new(),
+                seq: 0,
             }),
         }
     }
@@ -57,13 +83,23 @@ impl FrameOut {
         match self {
             Self::Shared { uni, .. } => write_frame(uni, head, body).await?,
             Self::WebSocket(ws) => ws.send_frame(head, body).await?,
-            Self::PerFrame { connection, acks } => {
+            Self::Pool { unis, seq, .. } => {
+                let at = *seq as usize % unis.len();
+                let uni = &mut unis[at];
+                // The whole stream takes the new frame's rank, and with it any older frame it still holds.
+                let _ = uni.set_priority(ask_priority(*seq));
+                *seq = seq.wrapping_add(1);
+                write_frame(uni, head, body).await?;
+            }
+            Self::PerFrame { connection, acks, seq } => {
                 let mut uni = connection
                     .open_uni()
                     .await
                     .context("open uni")?
                     .await
                     .context("open uni ready")?;
+                let _ = uni.set_priority(ask_priority(*seq));
+                *seq = seq.saturating_add(1);
                 write_frame(&mut uni, head, body).await?;
                 acks.spawn(async move {
                     let _ = uni.finish().await;
@@ -84,6 +120,12 @@ impl FrameOut {
             .await;
         }
     }
+}
+
+/// Earlier asks outrank later ones, so quinn sends a lost frame's retransmit before newer
+/// frames' data instead of behind every stream already queued. `docs/transport/NEXT.md` §3.
+fn ask_priority(seq: u32) -> i32 {
+    i32::try_from(seq).map_or(i32::MIN, |s| -s)
 }
 
 /// Length prefix, then frame index. Clients parse it, so a test pins it byte-for-byte.
@@ -125,6 +167,18 @@ mod tests {
         let (parsed_idx, body) = unwrap(&new_wire[4..]).expect("client can still parse");
         assert_eq!(parsed_idx, idx);
         assert_eq!(body, &codestream[..]);
+    }
+
+    /// Ask order is stream priority: every later frame ranks strictly below every earlier one,
+    /// and the sequence never wraps back above an earlier frame.
+    #[test]
+    fn later_asks_rank_strictly_below_earlier_ones() {
+        let mut last = ask_priority(0);
+        for seq in [1u32, 2, 1000, i32::MAX as u32, u32::MAX] {
+            let p = ask_priority(seq);
+            assert!(p < last, "ask {seq} ranks at {p}, not below {last}");
+            last = p;
+        }
     }
 
     /// A frame larger than one window still frames as a single payload.

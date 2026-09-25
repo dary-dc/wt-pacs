@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs lab — the stream shape under loss</title>
+</head>
+<body>
+  <p>Driven by <code>lab/stream-shape/run.mjs</code>: <code>runArm()</code> fills frames
+  <code>0..fill-1</code> and times each one's arrival, then asks <code>asks</code> more frames with
+  <code>depth</code> outstanding and times each ask.</p>
+  <script type="module">
+    import { TransportSession } from "/client/transport-ts/dist/session.js";
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    globalThis.runArm = async ({ url, hash, fill, asks, depth, limitMs }) => {
+      const s = await TransportSession.connect(url, hash);
+      const arrived = new Array(fill).fill(null);
+      const t0 = performance.now();
+      s.fillFrames(0, fill - 1, (f) => (arrived[f.frameIndex] = performance.now() - t0));
+      while (arrived.includes(null) && performance.now() - t0 < limitMs) await sleep(10);
+      const fillMs = performance.now() - t0;
+
+      // A run of asks outside the fill, `depth` on the wire at once, each timed from its own send.
+      const latencies = [];
+      let failures = 0;
+      let next = fill;
+      const a0 = performance.now();
+      const lane = async () => {
+        while (next < fill + asks && performance.now() - a0 < limitMs) {
+          const index = next++;
+          const sent = performance.now();
+          try {
+            await s.requestExactFrame(index);
+            latencies.push(performance.now() - sent);
+          } catch {
+            failures += 1;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: depth }, lane));
+      const asksMs = performance.now() - a0;
+      s.close();
+      return { arrived, fillMs, latencies, failures, asksMs };
+    };
+    globalThis.__ready = true;
+  </script>
+</body>
+</html>

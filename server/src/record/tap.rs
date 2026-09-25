@@ -47,7 +47,7 @@ fn since_origin_us() -> u64 {
 /// checked against the client file it sits beside (stream mode, fixture) without a filename.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct RunMeta {
-    pub stream_mode: &'static str,
+    pub stream_mode: String,
     pub study: String,
     /// Frames in the study bundle (the summary's `frame_count` is rows recorded).
     pub study_frames: u32,

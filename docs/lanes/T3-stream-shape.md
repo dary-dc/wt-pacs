@@ -299,3 +299,48 @@ The pooler reporting VOID — fix the cell, do not raise the repeats. `per-frame
 differing by more than 15 % in the null cell: those two carry no baseline difference, so a gap
 there is instrumentation and nothing downstream can be attributed to loss. A null-cell gap on
 `pool:k` is not a stop — it is the arm's own cost, divided out by `--null`.
+
+## HOL1 — in Chromium, through the relay (2026-09-25)
+
+Queue row 78. The rig campaign above was native; this asks the same question of a browser, for
+an owner who will use the pool's answer to decide whether another stack moves from one shared
+stream to K persistent ones. `lab/stream-shape/`.
+
+**What was ported.** `pool:k` and per-frame ask-order priority were built on
+`claude/per-core-endpoints` and never reached this tree; both are here now. The pool also takes
+ask-order priority: each stream takes the rank of the frame just dealt to it. That is exact only
+while a stream holds one unsent frame, true of a run of asks at `D_min < k` and false of a fill,
+where a stream still sending frame `n` is demoted when frame `n + k` is dealt to it. Priority is
+per stream in QUIC, so K persistent streams cannot carry per-frame order: that is a property of the
+shape, not of this build.
+
+**The rig.** 20 Mbit, 40 ms each way, a 200-packet queue (`link_impair.py`); Cubic; 128 KB frames,
+so the ask window's formula puts `D_min` at 3 and the arms are not byte-identical. Per run: a fresh
+release server and relay, the raw TS client, a fill of 40 frames, then 30 asks outside it with the
+arm's `D_min` outstanding. Arms `shared`, `per-frame`, `pool:2`, `pool:4`, `pool:8`, rotated every
+round. Cells: 0 %, 1 % and 3 % iid, and Gilbert–Elliott at the relay's default (0.5 % mean, bursts
+of ~7 packets).
+
+### Decision rule, fixed before the first run
+
+Written and pushed before any campaign run; the one run before it was a 10-frame harness check.
+
+1. **`D_min` per arm.** Asks alone at depths 1–6, no loss, 3 rounds: the smallest depth whose
+   median asks/s is within 95 % of the arm's best. Every later cell runs each arm at its own.
+2. **Metrics.** *All received*: fill frames and asks delivered of those owed. *The fill's gap*:
+   the wait between consecutive frames for an in-order viewer (frame `i` shows once `0..i` have
+   landed), pooled over 7 rounds × 39 gaps = 273 samples, nearest-rank p50 and p95 (p95 is about
+   the 14th largest). *An ask's latency*: send to arrival, pooled over 7 × 30 = 210 samples (p95
+   about the 11th largest). Each run's own p95, paired with `shared`'s in the same round, gives the
+   rounds won.
+3. **The control.** At 0 % every arm must receive everything, and `per-frame` must sit within 15 %
+   of `shared` on both p95s — those two carry no baseline difference, so a gap between them is the
+   instrument, and no loss cell is read until it closes. A pool outside 15 % at 0 % has a cost of its
+   own: it is reported, and that arm's loss cells are read against its own control, as the ratio
+   loss p95 / control p95 against `shared`'s.
+4. **A verdict per lossy cell and arm.** *Worth it*: pooled p95 at least 20 % under `shared`'s and
+   the run's own p95 under `shared`'s in at least 5 of 7 rounds, everything received. *Costs*: the
+   same the other way. Otherwise *no separation*.
+5. **The owner's question.** K persistent streams are worth moving to if some `pool:k` is *worth it*
+   on the fill's gap or on asks in at least two of the three lossy cells, and passes its control or
+   stays worth it against its own. Otherwise not, on this evidence.

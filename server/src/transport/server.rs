@@ -73,7 +73,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
-        stream_mode: config.mode.as_str(),
+        stream_mode: config.mode.to_string(),
         study: config.study_path.display().to_string(),
         study_frames: store.frame_count(),
     });
@@ -88,7 +88,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("frames={}", store.frame_count());
     println!("read_fast_path={}", read_fast_path(&store));
     println!("completion=media_uni_stream");
-    println!("stream_mode={}", config.mode.as_str());
+    println!("stream_mode={}", config.mode);
     println!("bind={bound}");
     println!("transport={}", config.tuning.describe());
     #[cfg(feature = "telemetry")]
@@ -98,7 +98,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     info!(
         %wt_url,
         study = %config.study_path.display(),
-        stream_mode = config.mode.as_str(),
+        stream_mode = %config.mode,
         "exact-server ready (Media-complete)"
     );
 
@@ -1019,18 +1019,14 @@ mod tests {
         key_pem: PathBuf,
         cert_hash: [u8; 32],
         port: u16,
-    ) -> (
-        tokio::task::JoinHandle<Result<()>>,
-        wtransport::Connection,
-        SendStream,
-        RecvStream,
-    ) {
+        mode: StreamMode,
+    ) -> (tokio::task::JoinHandle<Result<()>>, wtransport::Connection, SendStream) {
         let server = tokio::spawn(run_server(ServeConfig {
             wt_port: port,
             study_path: study,
             cert_pem,
             key_pem,
-            mode: StreamMode::Shared,
+            mode,
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             tuning: TransportTuning::default(),
             force_pool_reads: false,
@@ -1063,8 +1059,7 @@ mod tests {
             .expect("open bi")
             .await
             .expect("bi ready");
-        let media = connection.accept_uni().await.expect("accept media uni");
-        (server, connection, control, media)
+        (server, connection, control)
     }
 
     fn wire_test<F, Fut>(frames: u32, body: F)
@@ -1086,9 +1081,61 @@ mod tests {
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
-            let (server, _conn, control, media) =
-                connect_session(study, cert_pem, key_pem, cert_hash, port).await;
+            let (server, conn, control) =
+                connect_session(study, cert_pem, key_pem, cert_hash, port, StreamMode::Shared).await;
+            let media = conn.accept_uni().await.expect("accept media uni");
             body(control, media).await;
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **`pool:k` over the wire.** Frames are dealt round-robin: each of the `k` streams carries
+    /// the frames of one residue mod `k`, whole and in ask order. `docs/lanes/T3-stream-shape.md`.
+    #[test]
+    fn a_pool_deals_frames_round_robin_over_its_streams() {
+        let (frames, k) = (7u32, 3u32);
+        let dir = std::env::temp_dir().join(format!("wtpacs-pool-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let mode = StreamMode::Pool(std::num::NonZeroUsize::new(k as usize).unwrap());
+            let (server, conn, mut control) =
+                connect_session(study, cert_pem, key_pem, cert_hash, port, mode).await;
+            control
+                .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrames { frames: (0..frames).collect() }).unwrap())
+                .await
+                .expect("ask");
+            let mut residues = Vec::new();
+            for _ in 0..k {
+                let mut uni = tokio::time::timeout(Duration::from_secs(10), conn.accept_uni())
+                    .await
+                    .expect("a pool stream never opened")
+                    .expect("accept uni");
+                let mut want = None;
+                loop {
+                    let Ok((idx, codestream)) =
+                        tokio::time::timeout(Duration::from_millis(500), read_envelope(&mut uni)).await
+                    else {
+                        break;
+                    };
+                    let next = *want.get_or_insert(idx % k);
+                    assert_eq!(idx, next, "a pool stream carried frame {idx} where {next} was due");
+                    assert_eq!(codestream, pattern(idx), "frame {idx} came back wrong");
+                    want = Some(next + k);
+                }
+                residues.push(want.map(|w| w % k));
+            }
+            residues.sort();
+            assert_eq!(residues, vec![Some(0), Some(1), Some(2)], "the streams did not share the frames");
             server.abort();
         });
         std::fs::remove_dir_all(&dir).ok();
