@@ -6,6 +6,8 @@
  *
  *   NODE_PATH=$(npm root -g) node lab/decode-tail/run.mjs --rounds 7 --sets c512,g512
  *     [--arms name=decoderDir,...]    another decoder build, same page
+ *     [--throttles 1,4,6]             every browser thread slowed — lab/scripts/cpu_throttle.mjs
+ *     [--asks 20,43,66]               after the fill, these frames asked one at a time
  */
 import fs from "node:fs";
 import http from "node:http";
@@ -13,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { throttleTree } from "../scripts/cpu_throttle.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -22,6 +25,8 @@ const SETS = arg("--sets", "c512,g512").split(",");
  *  it, or `direct:` for the page that drives the decoders itself (direct.html). */
 const ARMS = arg("--arms", "package=/lab/decode-bench/vendor/openjph").split(",").map((a) => a.split("="));
 const DECODERS = Number(arg("--decoders", 3));
+const THROTTLES = arg("--throttles", "1").split(",").map(Number);
+const ASKS = arg("--asks", "");
 const CHROME = process.env.CHROME_PATH || chromium.executablePath();
 const ROOT = new URL("../..", import.meta.url).pathname;
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "tail-"));
@@ -63,21 +68,23 @@ const sink = http.createServer((req, res) => {
 await new Promise((r) => sink.listen(0, "127.0.0.1", r));
 await new Promise((r) => setTimeout(r, 1500));
 
-async function page(set, [arm, spec]) {
+async function page(set, [arm, spec], rate) {
   const direct = spec.startsWith("direct:");
   const [where, worker] = spec.replace(/^direct:/, "").split("@");
   const [dir, glue] = where.endsWith(".js") ? [path.dirname(where), path.basename(where)] : [where, undefined];
   const profile = fs.mkdtempSync(path.join(T, "p-"));
   const got = new Promise((r) => (report = r));
   const u = new URLSearchParams({ set, arm, fill: servers[set].frames, decoders: DECODERS, decoderDir: dir,
-    wt: servers[set].url, hash: HASH, report: sink.address().port, ...(worker ? { decoderWorker: worker } : {}),
+    wt: servers[set].url, hash: HASH, report: sink.address().port, slow: rate, asks: ASKS, ...(worker ? { decoderWorker: worker } : {}),
     ...(glue ? { glue, wasm: glue.replace(/\.js$/, ".wasm") } : {}) });
   // CHROME_FLAGS passes flags through; CHROME_LOG keeps what the browser prints.
   const log = process.env.CHROME_LOG ? fs.openSync(process.env.CHROME_LOG, "a") : "ignore";
   const chrome = spawn(CHROME, ["--headless=new", "--no-sandbox", "--no-first-run", "--disable-background-networking",
     ...(process.env.CHROME_FLAGS ?? "").split(" ").filter(Boolean),
     `--user-data-dir=${profile}`, `http://127.0.0.1:${HTTP}/lab/decode-tail/${direct ? "direct" : "index"}.html?${u}`], { stdio: ["ignore", log, log] });
-  const out = await Promise.race([got, new Promise((r) => setTimeout(() => r(null), 90000))]);
+  const unthrottle = throttleTree(chrome.pid, rate);
+  const out = await Promise.race([got, new Promise((r) => setTimeout(() => r(null), 90000 * rate))]);
+  unthrottle();
   chrome.kill();
   await new Promise((r) => setTimeout(r, 500));
   return out;
@@ -123,7 +130,16 @@ function split(r) {
   const got = f.map((x) => x.received).sort((a, b) => a - b);
   const intervals = got.slice(1).map((t, k) => t - got[k]);
   const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
+  // decoder-split.js's stamps, when that worker ran: where one frame's time in its decoder goes.
+  const part = (from, to) => (f[0][to] === undefined ? undefined : med(f.map((x) => x[to] - x[from])));
+  const asks = r.asks ?? [];
   return {
+    bytesInMs: part("decodeStart", "bytesIn"), headerMs: part("bytesIn", "header"), wasmMs: part("header", "wasm"),
+    pixelsOutMs: part("wasm", "pixelsOut"), rangeMs: part("pixelsOut", "decodeEnd"),
+    askMs: asks.length ? med(asks.map((a) => a.received - a.at)) : undefined,
+    askWireMs: asks.length ? med(asks.map((a) => a.lastByte - a.at)) : undefined,
+    askDecodeMs: asks.length ? med(asks.map((a) => a.decodeEnd - a.decodeStart)) : undefined,
+    askToPageMs: asks.length ? med(asks.map((a) => a.received - a.decodeEnd)) : undefined,
     frames: f.length, failed: r.frames.length - f.length,
     wireMs: wireEnd - t0, doneMs: end - t0, tailMs: end - wireEnd,
     decodeMs: med(work), workPerDecoderMs: work.reduce((s, x) => s + x, 0) / DECODERS,
@@ -141,29 +157,35 @@ function split(r) {
 
 const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
-  const cells = SETS.flatMap((s) => ARMS.map((a) => [s, a]));
+  const cells = THROTTLES.flatMap((t) => SETS.flatMap((s) => ARMS.map((a) => [s, a, t])));
   for (let k = 0; k < cells.length; k++) {
-    const [set, arm] = cells[(k + round) % cells.length];
-    const r = await page(set, arm);
-    if (r && process.env.DUMP) fs.appendFileSync(process.env.DUMP, JSON.stringify(r) + "\n");
-    const row = r ? { round, set, arm: arm[0], ...split(r) } : { round, set, arm: arm[0], lost: true };
+    const [set, arm, throttle] = cells[(k + round) % cells.length];
+    const r = await page(set, arm, throttle);
+    if (r && process.env.DUMP) fs.appendFileSync(process.env.DUMP, JSON.stringify({ throttle, ...r }) + "\n");
+    const row = r ? { round, set, arm: arm[0], throttle, ...split(r) } : { round, set, arm: arm[0], throttle, lost: true };
     rows.push(row);
     console.log(JSON.stringify(row, (k2, v) => (typeof v === "number" ? Math.round(v * 100) / 100 : v)));
   }
 }
 const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
 console.log("\nmedians over rounds, ms from the fill's ask");
-for (const set of SETS) for (const [arm] of ARMS) {
-  const rs = rows.filter((r) => r.set === set && r.arm === arm && !r.lost);
+const f2 = (v) => (v === undefined ? "-" : v.toFixed(2));
+for (const throttle of THROTTLES) for (const set of SETS) for (const [arm] of ARMS) {
+  const rs = rows.filter((r) => r.set === set && r.arm === arm && r.throttle === throttle && !r.lost);
   const m = (k) => med(rs.map((r) => r[k]));
-  console.log(`${set} ${arm}: wire ${m("wireMs").toFixed(0)}  decoded ${m("doneMs").toFixed(0)}  tail ${m("tailMs").toFixed(0)}` +
+  const base = (r) => rows.find((b) => b.round === r.round && b.set === set && b.throttle === throttle && b.arm === ARMS[0][0]);
+  const sooner = (k) => `${rs.filter((r) => r[k] < base(r)?.[k]).length}/${rs.length}`;
+  console.log(`${throttle}x ${set} ${arm}: wire ${m("wireMs").toFixed(0)}  decoded ${m("doneMs").toFixed(0)}  tail ${m("tailMs").toFixed(0)}` +
     `  decode/frame ${m("decodeMs").toFixed(2)}  work/decoder ${m("workPerDecoderMs").toFixed(0)}` +
     `  busy in wire ${(100 * m("busyShareInWire")).toFixed(0)} %  idle-with-work ${m("idleWithWorkMs").toFixed(0)} decoder-ms` +
     ` (own inbox ${m("idleOwnInboxMs").toFixed(0)}, queue ${m("idleQueueMs").toFixed(0)}, a busy one's inbox ${m("idleOtherInboxMs").toFixed(0)})` +
     `  gap between a decoder's frames ${m("gapMs").toFixed(2)} [p90 ${m("gapP90Ms").toFixed(2)}, max ${m("gapMaxMs").toFixed(1)}]` +
     `  started after wire ${m("startedAfterWire")}` +
     `  | interval ${m("intervalMs").toFixed(2)}  wire→dispatch ${m("loopMs").toFixed(2)}  dispatch→decode ${m("handoffMs").toFixed(2)}` +
-    `  decode→page ${m("toPageMs").toFixed(2)}  n=${rs.length}` + (arm === ARMS[0][0] ? "" :
-      `  done sooner than ${ARMS[0][0]} in ${rs.filter((r) => r.doneMs < rows.find((b) => b.round === r.round && b.set === set && b.arm === ARMS[0][0])?.doneMs).length}/${rs.length}`));
+    `  decode→page ${m("toPageMs").toFixed(2)}` +
+    `  | in decoder: bytes in ${f2(m("bytesInMs"))}  header ${f2(m("headerMs"))}  wasm ${f2(m("wasmMs"))}` +
+    `  pixels out ${f2(m("pixelsOutMs"))}  range ${f2(m("rangeMs"))}` +
+    `  | ask ${f2(m("askMs"))} (wire ${f2(m("askWireMs"))}, decode ${f2(m("askDecodeMs"))}, to page ${f2(m("askToPageMs"))})  n=${rs.length}` +
+    (arm === ARMS[0][0] ? "" : `  vs ${ARMS[0][0]}: decoded sooner ${sooner("doneMs")}, wasm faster ${sooner("wasmMs")}, ask sooner ${sooner("askMs")}`));
 }
 process.exit(0);

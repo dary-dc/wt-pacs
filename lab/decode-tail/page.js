@@ -26,13 +26,22 @@ const client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
   onError: (e) => frames.push({ i: e.frameIndex, error: e.reason }),
 });
 // Decoders compile after `connect` settles; a fill asked before they are up is a start-up cell.
-await new Promise((r) => setTimeout(r, 1500));
+const settle = (ms) => new Promise((r) => setTimeout(r, ms * Number(q.get("slow") || 1)));
+await settle(1500);
 const askAt = performance.timeOrigin + performance.now();
 client.fill([...Array(FILL).keys()]);
 await Promise.race([all, new Promise((r) => setTimeout(r, 60000))]);
+// One frame asked on an idle, warm session, spread over the study: one frame's latency.
+const asks = [];
+for (const i of (q.get("asks") || "").split(",").filter(Boolean).map(Number)) {
+  await settle(300);
+  const at = performance.timeOrigin + performance.now();
+  const f = await client.requestExactFrame(i).catch(() => null);
+  if (f) asks.push({ i, at, received: performance.timeOrigin + performance.now(), ...f.info.stamps });
+}
 client.close();
 fetch(`http://127.0.0.1:${q.get("report")}/`, {
   method: "POST",
-  body: JSON.stringify({ set: q.get("set"), arm: q.get("arm"), askAt, frames }),
+  body: JSON.stringify({ set: q.get("set"), arm: q.get("arm"), askAt, frames, asks }),
   keepalive: true,
 });
