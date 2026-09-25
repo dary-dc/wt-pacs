@@ -156,6 +156,10 @@ without Chromium.
 `client/harness/refusals.html`, both clients: 64 out-of-range asks in one `request_frames`, every
 waiter rejected promptly with the server's reason — none lost to the 15 s timeout. Its mutant, the
 TS control pump dropping one `frame_error`: **63 of 64, 1 timed out**, the wasm arm untouched.
+*Corrected 2026-09-25 (TC1):* the page counted any `unavailable` rejection as the server's reason, and
+a session that died makes every waiter `unavailable` too — the WebSocket arm passed 64 of 64 that way
+with its refusals arriving as the wrong message type. It now requires the reason's own words; both
+WebTransport arms still pass 64 of 64.
 
 `ask-during-fill.html`. On the raw client: the ask is served mid-fill; the fill ends — 28 of 120
 arrive (20 delivered at the ask, 8 the window held), then nothing; the rest arrive only once asked
