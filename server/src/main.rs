@@ -46,6 +46,9 @@ struct Args {
     keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
+    /// `bbr-bounded` only: its window over its BDP estimate.
+    #[arg(long, default_value_t = 1.25)]
+    bdp_gain: f64,
     /// Controller knobs, all at quinn's default unless set. What each one measured:
     /// docs/transport/transport-conclusions.md §3.
     #[arg(long)]
@@ -137,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
             max_idle_timeout_ms: args.max_idle_timeout_ms,
             keep_alive_interval_ms: args.keep_alive_interval_ms,
             congestion: args.congestion,
+            bdp_gain: args.bdp_gain,
             initial_window: args.initial_window_bytes,
             persistent_congestion_threshold: args.persistent_congestion_threshold,
             packet_threshold: args.packet_threshold,

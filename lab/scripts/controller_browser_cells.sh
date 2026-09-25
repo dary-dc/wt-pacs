@@ -7,7 +7,8 @@
 #   lab/scripts/controller_browser_cells.sh loss1|loss3|radio|blink [rounds]
 #     [ARMS="cubic bbr cubic-restart"] [MODES="fill ask"] [RTT=80] [RATE=20000] [FILL=20] [QUEUE=200]
 #
-# An arm is a controller, or `name:controller:server-binary` to run another build of the server.
+# An arm is a controller, or `name:controller[:server-binary[:server flags]]` — another build, or
+# the same one with flags: `bbr1.25:bbr-bounded::--bdp-gain=1.25`.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -59,12 +60,13 @@ PIDS+=("$!")
 
 one() {  # round mode arm
   local srv=$((30000 + RANDOM % 5000)) in=$((35000 + RANDOM % 5000)) ctrl=$((40000 + RANDOM % 5000))
-  local name="${3%%:*}" cc="$3" bin=target/release/exact-server
-  [[ $3 == *:* ]] && { cc="${3#*:}"; bin="${cc#*:}"; cc="${cc%%:*}"; }
+  local name cc bin extra
+  IFS=: read -r name cc bin extra <<< "$3"
+  cc="${cc:-$name}" bin="${bin:-target/release/exact-server}"
   local run=(--fill "$FILL")
   [[ $2 == ask ]] && run=(--asks 1)
   "$bin" --port "$srv" --bind 127.0.0.1 --study "$T/study.sbnd" \
-    --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "$cc" > "$T/server.log" 2>&1 &
+    --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "$cc" $extra > "$T/server.log" 2>&1 &
   local server=$!
   python3 lab/scripts/link_impair.py --udp "$in:$srv" --control-port "$ctrl" --seed "$1" "${LINK[@]}" \
     > "$T/relay.log" 2>&1 &

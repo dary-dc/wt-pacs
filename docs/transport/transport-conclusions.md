@@ -138,6 +138,21 @@ phone's receive path.
 
 ---
 
+### A bounded BBR, 2026-09-25 (BB2)
+
+CC1 left one question: can BBR keep its loss tolerance without its queue? **quinn exposes neither
+knob the row asked for** — `BbrConfig` sets only an initial window, and Cubic's β is a constant — so
+the variant is built as `restart.rs` is, over the public `Controller` trait:
+[`bounded.rs`](../../server/src/transport/bounded.rs), `--congestion bbr-bounded --bdp-gain g`, quinn's
+BBR with its window held to `g` × (the best delivery rate of the last ten round trips × the minimum
+round trip). A larger Cubic β needs a Cubic of our own or a quinn patch, and is not built.
+
+**The reading, fixed before the run.** The same rig and cells as CC1 (1 % and 3 % behind 200 packets,
+1 % behind 1 500, a 500 ms blink), arms `cubic`, `bbr` and the bound at 1.0, 1.25 and 1.5, 7 rounds
+rotated. A variant *keeps BBR's loss tolerance* if its median fill is within 2× BBR's at 1 % and 3 %;
+it does so *at Cubic's queue cost* if under 5 % of its datagrams overflow the 200-packet queue and it
+stands under 50 ms in the 1 500-packet one (Cubic: 0 % and 5 ms; BBR: 45 % and 294 ms).
+
 ### quinn's BBR read against the published BBRv1, 2026-09-15
 
 [`T2`](../lanes/T2-controller.md) step 1 asks for this before any cell, because moq-dev's issue

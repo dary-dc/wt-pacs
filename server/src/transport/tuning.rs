@@ -15,6 +15,8 @@ pub enum Congestion {
     CubicHystart,
     /// Cubic that restarts slow start after a silence instead of halving. `restart.rs`.
     CubicRestart,
+    /// BBR with its window held to `bdp_gain` × its path estimate. `bounded.rs`.
+    BbrBounded,
 }
 
 impl Congestion {
@@ -25,6 +27,7 @@ impl Congestion {
             Self::NewReno => "new-reno",
             Self::CubicHystart => "cubic-hystart",
             Self::CubicRestart => "cubic-restart",
+            Self::BbrBounded => "bbr-bounded",
         }
     }
 }
@@ -43,6 +46,8 @@ pub struct TransportTuning {
     /// has no such knob, so this is the only lever that reaches one. docs/transport/adr-idle-sessions.md.
     pub keep_alive_interval_ms: Option<u64>,
     pub congestion: Congestion,
+    /// `BbrBounded`'s window over its BDP estimate; BBRv1's own is 2.
+    pub bdp_gain: f64,
     /// Bytes the controller may send before the first ACK. quinn default: 12 000 (S7).
     pub initial_window: Option<u64>,
     /// Round trips of unbroken loss that declare persistent congestion. quinn default: 3 (S9).
@@ -71,6 +76,7 @@ impl Default for TransportTuning {
             max_idle_timeout_ms: None,
             keep_alive_interval_ms: None,
             congestion: Congestion::Cubic,
+            bdp_gain: 1.25,
             initial_window: None,
             persistent_congestion_threshold: None,
             packet_threshold: None,
@@ -145,6 +151,9 @@ impl TransportTuning {
             Congestion::CubicRestart => tc.congestion_controller_factory(Arc::new(
                 crate::transport::restart::SlowStartRestartConfig::new(iw),
             )),
+            Congestion::BbrBounded => tc.congestion_controller_factory(Arc::new(
+                crate::transport::bounded::BoundedBbrConfig::new(self.bdp_gain, iw),
+            )),
         };
 
         Ok(tc)
@@ -201,6 +210,9 @@ impl TransportTuning {
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
         }
+        if matches!(self.congestion, Congestion::BbrBounded) {
+            parts.push(format!("bdp_gain={}", self.bdp_gain));
+        }
         if !self.segmentation_offload {
             parts.push("segmentation_offload=false".to_string());
         }
@@ -237,7 +249,8 @@ mod tests {
             send_window: Some(32 << 20),
             max_idle_timeout_ms: Some(60_000),
             keep_alive_interval_ms: Some(20_000),
-            congestion: Congestion::Bbr,
+            congestion: Congestion::BbrBounded,
+            bdp_gain: 1.5,
             initial_window: Some(32 * 1200),
             persistent_congestion_threshold: Some(6),
             packet_threshold: Some(6),
