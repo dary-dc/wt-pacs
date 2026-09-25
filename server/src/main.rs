@@ -46,8 +46,7 @@ struct Args {
     keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
-    /// `bbr-bounded` only: its window over its BDP estimate.
-    #[arg(long, default_value_t = 1.25)]
+    #[arg(long, default_value_t = 1.25, help = "bbr-bounded only: its window over its BDP estimate")]
     bdp_gain: f64,
     /// Controller knobs, all at quinn's default unless set. What each one measured:
     /// docs/transport/transport-conclusions.md §3.

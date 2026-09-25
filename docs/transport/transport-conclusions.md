@@ -21,7 +21,7 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Two opposite answers, depending on which kind of loss the link has.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured. *Priced in Chromium 2026-09-24:* under 1–3 % random loss BBR fills 12–19× faster, and pays with ~45 % of its datagrams overflowing a 120 ms queue or 294 ms of standing queue in a 900 ms one; **neither as they stand**, Cubic stays (§1, CC1) |
+| **Congestion controller** | **Two opposite answers, depending on which kind of loss the link has.** Congestive → **Cubic**. Radio/exogenous → **BBR**. Both directions large and separated. **Default to Cubic** until the mix is measured. *Priced in Chromium 2026-09-24:* under 1–3 % random loss BBR fills 12–19× faster, and pays with ~45 % of its datagrams overflowing a 120 ms queue or 294 ms of standing queue in a 900 ms one; **neither as they stand**, Cubic stays (§1, CC1). *2026-09-25 (BB2):* BBR with its window held to 1.25× its own path estimate keeps that fill time with no overflow and 13–16 ms of queue — a candidate for the rig, not a default (§1, A bounded BBR) |
 | **Stream shape** | **One shared stream — the binary defaults to it.** In simulation, per-frame is 3.5× worse at 64 KB and 8.5× worse at 250 KB. On a real path the 64 KB cell is noise-dominated; the 250 KB cell separates: per-frame is **5.76× worse**, 3/3, and the absolute penalty matches the simulator to 1.6 %. No cell on either rig separates in per-frame's favour |
 | **Fixed-N pool** | Untested. R6 makes it less promising: retransmit-deferral cost grows with N, and the winning endpoint is N = 1 |
 | **Initial congestion window** | **Leave at quinn's default — but the ≤ 7 % that used to be the whole reason is corrected 2026-09-19.** That cell averaged many asks on one session, where every arm converges after a frame or two; it never measured the first ask, which is the only place the initial window can matter. On the first ask of an idle session 32 packets is **−28 to −33 %** (§3, the first ask). The default stays because the win is one frame per session and the cost lands on the shallow-buffered link the target has: at 80 ms on 10 Mbit behind a 20-packet queue it takes per-session loss from 2.1 % to 6.5 %. **Swept by queue depth 2026-09-20:** that loss does not reverse the win — from 20 packets up it is a flat −16…−33 %, and the lever fails in exactly one cell, a 10-packet queue at 250 KB / 80 ms (+11.8 %, and it ends on half the default arm's window). It also buys nothing on top of the session-open push, which is the larger lever |
@@ -152,6 +152,33 @@ round trip). A larger Cubic β needs a Cubic of our own or a quinn patch, and is
 rotated. A variant *keeps BBR's loss tolerance* if its median fill is within 2× BBR's at 1 % and 3 %;
 it does so *at Cubic's queue cost* if under 5 % of its datagrams overflow the 200-packet queue and it
 stands under 50 ms in the 1 500-packet one (Cubic: 0 % and 5 ms; BBR: 45 % and 294 ms).
+
+**Result: the bound at 1.25 keeps all of BBR's goodput under loss, and none of its queue.** Medians,
+7 rounds, every run complete; rounds won against Cubic in brackets:
+
+| cell | Cubic | BBR | bound ×1.0 | bound ×1.25 | bound ×1.5 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| fill, 1 % | 43.0 s | 3.88 s (7/7) | 5.65 s (7/7) | **3.86 s** (7/7) | 3.91 s (7/7) |
+| fill, 3 % | 74.7 s | 3.87 s (7/7) | 5.58 s (7/7) | **3.92 s** (7/7) | 3.84 s (7/7) |
+| fill, 1 %, 1 500 packets | 41.8 s | 3.89 s (7/7) | 5.48 s (7/7) | **3.89 s** (7/7) | 3.88 s (7/7) |
+| fill, a 500 ms blink | **4.54 s** | 4.94 s (0/7) | 6.17 s (0/7) | 4.91 s (0/7) | 5.00 s (1/7) |
+| ask, 1 % / 3 % | 788 / 1 676 ms | 419 / 413 | 423 / 456 | 456 / 488 | 419 / 475 |
+| datagrams overflowing 200 packets, 1 % / 3 % | 0 / 0 % | **43.4 / 44.5 %** | 0 / 0 % | **0 / 0 %** | 0 / 0 % |
+| standing queue, 200 / 1 500 packets | 4 / 4 ms | 50 / **309 ms** | 4 / 4 ms | **13 / 16 ms** | 27 / 31 ms |
+
+* **By the rule fixed above, ×1.25 and ×1.5 pass both halves**; ×1.0 passes too (its fill 1.4–1.5×
+  BBR's, inside 2×) and is the only one whose queue equals Cubic's, but it pays 45 % of the fill for
+  the last 10 ms. **×1.25 is the one that keeps most of BBR's goodput at Cubic's queue cost**:
+  17.7 of 20 Mbit under 3 % loss where Cubic carries 0.9, no datagram overflowed, and its
+  retransmitted share is the link's own loss (1.0 / 3.0 %) where BBR's is 45–48 %.
+* **The blink is where none of them helps**: BBR, bounded or not, is 8–10 % slower than Cubic after a
+  500 ms outage with no loss, as CC1 found; ×1.0 is 36 % slower. Asks still come 1.3–2× sooner.
+* **What this does not cover.** A competing flow: this relay gives each plane its own queue, so a TCP
+  neighbour's share is not cheap here, and the Oracle rig's neighbour table above is BBRv1's, not the
+  bound's. Congestive loss (a queue that overflows because of another flow) is where §1 found Cubic
+  ahead, and was not re-run. One host through a userspace relay (`rig-limits.md` §3). **Nothing
+  changed**: Cubic stays the default. The bound is a candidate for the workstation's rig, against a
+  competing flow and congestive loss, before any default moves.
 
 ### quinn's BBR read against the published BBRv1, 2026-09-15
 
