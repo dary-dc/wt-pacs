@@ -32,11 +32,16 @@ function descendants(root) {
 
 const threads = (pid) => { try { return fs.readdirSync(`/proc/${pid}/task`).map(Number); } catch { return []; } };
 
-/** Caps every thread under `rootPid`, including those started later, until the returned `stop()`. */
-export function throttleTree(rootPid, rate, { everyMs = 10 } = {}) {
+/** Caps every thread under `rootPid`, including those started later, until the returned `stop()`.
+ *  With `cores`, the tree as a whole also gets `cores` slowed CPUs: a slow phone, not slow threads on a fast box. */
+export function throttleTree(rootPid, rate, { everyMs = 10, cores } = {}) {
   if (rate === 1) return () => {};
   const base = path.join(CPU, `wtpacs-${process.pid}-${rootPid}`);
   fs.mkdirSync(base);
+  if (cores) {
+    fs.writeFileSync(path.join(base, "cpu.cfs_period_us"), String(QUOTA_US * rate));
+    fs.writeFileSync(path.join(base, "cpu.cfs_quota_us"), String(QUOTA_US * cores));
+  }
   const placed = new Set();
   const place = () => {
     for (const pid of descendants(rootPid)) {

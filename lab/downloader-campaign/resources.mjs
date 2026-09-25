@@ -63,7 +63,7 @@ for (const n of CORES) {
 async function visit(decoders, cores, throttle, scenario) {
   const server = await chromium.launchServer({ executablePath: path.join(T, `chrome-${cores}`),
     args: ["--disable-background-networking", "--enable-blink-features=ForceEagerMeasureMemory"] });
-  const unthrottle = throttleTree(server.process().pid, throttle);
+  const unthrottle = throttleTree(server.process().pid, throttle, { cores });
   try {
     const browser = await chromium.connect(server.wsEndpoint());
     const page = await browser.newPage();
