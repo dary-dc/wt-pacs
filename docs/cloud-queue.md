@@ -174,6 +174,13 @@ and never measured. In Chromium through the relay at 20 Mbit / 80 ms with 0 / 1 
 cell if the relay can): `--stream-mode` one · per-frame · pool:4 · pool:8, a fill and a run of asks, n ≥ 7 interleaved;
 report all received, the fill's p95 inter-frame gap, and one ask's p50/p95 during loss. The question it prices: what
 independent delivery is worth to a viewer on a lossy link.
+**Do not repeat X3's flaws** (`stream-mode-decision-report.md`, `client-runtime-experiment-plan.md` row X3 — INVALID): run
+each arm **at its own `D_min`**, not one shared depth; give per-frame and the pool **ask-order priority** (`set_priority`,
+built; per-frame without it loses for ordered demand because concurrent streams share bandwidth fairly — that is not a
+head-of-line finding); a zero-loss control that must show no gap, checked before any loss cell is read; the decision rule
+written in the progress file before the first run; p95 only over enough samples (say how many). The owner will use the
+result to decide whether another stack moves from one shared stream to K persistent streams (the pool's shape) — so the
+pool at k = 2, 4, 8 is the arm that matters most.
 
 **79 · BB2 — a BBR that keeps its loss tolerance without its queue.** Row 67 (CC1): BBR fills 12–19× faster than Cubic at
 1–3 % loss but overflows a 120 ms queue with ~45–48 % of its datagrams and stands 294 ms in a deep one; it concluded that a
