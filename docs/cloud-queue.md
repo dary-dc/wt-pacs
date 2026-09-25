@@ -11,7 +11,7 @@ lab improvement: the tested state of 2026-09-22, the lane branches, the transpor
 reproduced), and the wtransport patch that sends the server's SETTINGS with its first flight
 ([`proposal-session-open.md`](proposal-session-open.md) §Lever 2: the dial 3.1 → 2.1 round trips).
 The inventory of what was merged and what was not is [`improvements/ledger.md`](improvements/ledger.md)
-§10. **Work the `ready` rows (60–72) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
+§10. **Work the `ready` rows (73–76) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
 
 **New session?** [`handoff-2026-09-19.md`](handoff-2026-09-19.md) has where the branch is, what is
 already settled, what the instruments are and what cost time to find — read it once, then work the
@@ -71,6 +71,10 @@ trailers. This is the owner's rule for every repository.
 | 71 | **WP1** — lever 2 against every other client we can run | queue §Rows 65–72 | **done** 2026-09-24 `8c6c364` — **every client connects and takes the lever; a client that ignores 0.5-RTT data still works, and pays one round trip over no lever.** Tried: aioquic 1.3.0, webtransport-go v0.9.0, quic-go v0.53.0's HTTP/3 client, h3 0.0.8 on quinn, and the native client. Each ran against both patches and against `[patch.crates-io]` removed, at 40 ms, 5 rounds rotated. Session ready or SETTINGS came about 1 round trip sooner (native 2.12 against 3.18; webtransport-go 2.17 against 3.21; aioquic 2.45 against 3.48; quic-go SETTINGS 1.13 against 2.20). `lab/scripts/half_rtt_deaf.py` makes any client deaf to 0.5-RTT data: ready at 4.2–4.5 round trips, against ~3.2 with the lever off. None of the clients is deaf on its own. Not lever-related: a GET gets a bare FIN from wtransport (quic-go EOF, h3 `H3_FRAME_UNEXPECTED`), and webtransport-go ≥ v0.13 wants reset-stream-at. Not run: Firefox (Mozilla downloads refused by the network policy) and `curl --http3` (distro curl has no HTTP/3; static builds refused). For row 64: the draft can cite the four clients and the deaf-client cost. `proposal-session-open.md` §Other clients |
 | 72 | **PO1** — the page's first frame on a shaped link, end to end, with lever 2 | queue §Rows 65–72 | **done** 2026-09-24 `e7211d6` — **yes, the dial is on the first picture's path, and lever 2 takes its round trip off it in every cell.** nginx over TLS, HTTP/1.1 and HTTP/2 alternated, lever on/off interleaved, 7 rounds at 40 and 80 ms, cold and warm. Cold over HTTP/2: first frame 12.65 round trips with the lever against 14.35 without (1 226 against 1 312 ms at 80). Of those: TCP + TLS + HTML 3.0, scripts 0.45, config 0.9, dial 1.85 (3.0 off), the frame's slow start 6.5. Dial −39 to −86 ms, 7/7 in all eight cells; first frame −18 to −83 ms, 6–7/7. HTTP/2 buys the config's round trip (2.15 round trips on HTTP/1.1, cold). Two findings. First, the page's `fetch()` of the config does not take its `preload as=fetch` and revalidates on the wire: an unclaimed lever of one round trip. Second, HOST mode used `--ignore-certificate-errors`, and Chrome caches nothing from a certificate error, so every worker script was refetched on the path. It now trusts the certificate through an NSS store; the first run, which had the artefact, is corrected in place before publishing. `lab/page-open/README.md` §The first frame on a real host |
 | 64 | **UP1** — lever 2 written up for upstream, not posted | queue §Rows 60–64 | **done** 2026-09-24 `771fce3` — **drafted in `docs/transport/upstream-wtransport-settings.md`; nothing posted.** It holds three pieces. (1) A wtransport issue: the behaviour, RFC 9114 §6.2.1, the dial 3.1 → 2.1 round trips across Chrome, the native client, webtransport-go and aioquic, and the page end to end (row 72). (2) A PR description carrying the patch as this branch does, its unchanged API contract, and its test. (3) The quinn-proto probe-every-space companion as a separate quinn issue, with the losing phase row 61 measured (1 414 → 1 249 ms in Chrome at 80). The row 63 ACK finding is noted there as a separate quinn item. Before posting: re-check for an existing issue and rebase onto the release current then (#324 touches the same function). |
+| 74 | **DT1** — the decode tail: what makes one frame's decode cheaper, on a throttled CPU | queue §Rows 73–76 | **ready** |
+| 76 | **PH1** — the decoded frame's hand-off to the page on a throttled CPU | queue §Rows 73–76 | **ready** |
+| 73 | **WU1** — the decoder warm-up, re-measured on a throttled CPU | queue §Rows 73–76 | **ready** |
+| 75 | **RC1** — per-thread and per-heap resources, and the decoder count against the cores | queue §Rows 73–76 | **ready** |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm decision is settled 2026-09-18, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
@@ -143,6 +147,45 @@ fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving du
 Rows 15–22 name the branch each landed on. `claude/downloader-s2-worker` was merged into this one
 on 2026-09-18, so those commits are in this history and the branch names are provenance, not
 somewhere still to look.
+
+### Rows 73–76
+
+Queued 2026-09-25 by the workstation. The owner's order for this phase: **the numbers first** — a fill's throughput,
+one frame's latency, and memory and threads on the target (a phone's browser on a lossy 20–50 Mbit link); resilience
+work waits for a later phase. Each row is lab-only and container-sized (no VM, no device). The workstation ports what
+wins into a private rig and re-measures it there. **A phone's CPU is emulated here by Chrome's CPU throttle** (CDP
+`Emulation.setCPUThrottlingRate`, 4× and 6×, as row 52's `lab/downloader-campaign/throttle.mjs`); say so beside every
+number, and never quote a throttled number as a phone's.
+
+**74 · DT1 — the decode tail: what makes one frame's decode cheaper.** Row 68 found the colour fill's last ~270 ms is
+decode throughput (three decoders busy 95 %), and the from-source build 8–11 % faster than the package in Node but not
+separable in the browser on a host the fill saturates. Under a 4× / 6× throttle the decode is the clock of the fill and of
+one ask. (a) The package, the from-source build at the tree's wrapper (restart + pack-once, `a28587f`), and the 4 MB-heap
+build, parity-gated bit-exact: per-frame WASM decode time alone (not the JS range pass), the fill's all-decoded, one ask,
+both contents, n ≥ 7 interleaved, at 1× / 4× / 6×. (b) Identify, do not build: whether OpenJPH can decode one frame's
+code-blocks in parallel under WASM threads (what it would take; what one ask would gain), priced against the standing rule
+that more decoders are not the answer — say whether this is that in disguise. (c) Anything per frame in the wrapper or the
+decoder worker that scales with a slow CPU more than the decode does.
+
+**76 · PH1 — the decoded frame's hand-off to the page.** Row 52 found the decoded path's pixel-port dispatch costs the page
+0.28 / 2.5 / 3.7 ms a frame at 1× / 4× / 6×, against ~1 ms for the old on-page decode, and left it unchanged. The rig's
+version of the same page measured its share at ~0.36 ms a frame at 1× and ~1.0 at 4×, with the port ~20 % of it. Find where
+the lab's page spends it (a trace per thread), then the smallest change that removes it: **fill frames coalesced (one
+message per animation frame, or per k frames); an ask and frame 0 never held.** Measure at 1× / 4× / 6×, n ≥ 7 interleaved:
+the page's main-thread time per fill, all received / all decoded / delivered, one ask's latency (must not regress at 1×).
+A conformance clause and a mutant per change.
+
+**73 · WU1 — the decoder warm-up on a throttled CPU.** LF (`claude/first-byte`, merged) warmed each decoder with a frame of
+the series' shape: frames 0–2 −30–45 %, but the page clock did not move on the workstation, so it stays off by default. On a
+slow CPU the first frames are where one-frame latency is lost. Re-measure warm-up on / off at 1× / 4× / 6×: the first three
+frames' decode, the first frame on the page clock, one cold ask, the fill; n ≥ 7 interleaved. Say whether it should be on.
+
+**75 · RC1 — per-thread and per-heap resources, and the decoder count against the cores.** Nothing here samples a browser
+per thread or per heap: add a sampler (per-thread `comm` + `schedstat` from `/proc/<pid>/task`, `smaps_rollup` per process,
+and `performance.measureUserAgentSpecificMemory()` where cross-origin isolated) to the downloader campaign. Then the fill and
+one ask with 1, 2 and 3 decoders, with Chrome confined to 2 and to 4 cores (`taskset`) and at 1× / 4×: time, main-thread
+time, renderer and GPU memory, threads. Nothing in `client/` reads `navigator.hardwareConcurrency` today: say whether the
+decoder count should follow it, and by what rule — a resource lever, not a speed one ("more decoders" stays barred).
 
 ### Rows 65–72
 
