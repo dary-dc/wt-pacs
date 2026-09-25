@@ -55,7 +55,10 @@ export function throttleTree(rootPid, rate, { everyMs = 10 } = {}) {
   };
   place();
   const timer = setInterval(place, everyMs);
-  return () => {
+  // A group left behind outlives the run and holds whatever lands in it; a signal must still reach `exit`.
+  for (const sig of ["SIGINT", "SIGTERM"]) if (!process.listenerCount(sig)) process.once(sig, () => process.exit(130));
+  const stop = () => {
+    process.off("exit", stop);
     clearInterval(timer);
     for (const g of fs.readdirSync(base).filter((d) => d.startsWith("thread-"))) {
       const dir = path.join(base, g);
@@ -66,6 +69,8 @@ export function throttleTree(rootPid, rate, { everyMs = 10 } = {}) {
     }
     fs.rmdirSync(base);
   };
+  process.once("exit", stop);
+  return stop;
 }
 
 /** The lever measured: the same loop on a page's thread and in a worker, free and capped. */
