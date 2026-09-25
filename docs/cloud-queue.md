@@ -11,7 +11,7 @@ lab improvement: the tested state of 2026-09-22, the lane branches, the transpor
 reproduced), and the wtransport patch that sends the server's SETTINGS with its first flight
 ([`proposal-session-open.md`](proposal-session-open.md) §Lever 2: the dial 3.1 → 2.1 round trips).
 The inventory of what was merged and what was not is [`improvements/ledger.md`](improvements/ledger.md)
-§10. **Work the `ready` rows (77) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
+§10. **Work the `ready` rows (78–81) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
 
 **New session?** [`handoff-2026-09-19.md`](handoff-2026-09-19.md) has where the branch is, what is
 already settled, what the instruments are and what cost time to find — read it once, then work the
@@ -76,6 +76,10 @@ trailers. This is the owner's rule for every repository.
 | 73 | **WU1** — the decoder warm-up, re-measured on a throttled CPU | queue §Rows 73–76 | **done** 2026-09-25 `af22015` — **keep it off by default: the container shows both signs.** Every browser thread slowed (`cpu_throttle.mjs`; Chrome's throttle does not reach the decoders), `none` vs `match`, fill and a cold ask, 1× / 4× / 6×, loopback and 40 ms, n = 7, 336 visits, pixels identical. The warm-up **always cuts frames 0–2's decode 30–65 %** (7/7 or 6/7 everywhere; 60–100 ms a frame at 6×). But it is paid before `ready`, and on a slow CPU it costs the gate more than it saves the frame (colour 4×: the wait for a decoder +61–81 ms against −58–60 of decode). Where the first bytes land after it — 16-bit at 40 ms — frame 0 is **50–81 ms sooner at 4–6× (7/7, 6/7)** and a cold ask 30–93 ms sooner; where they land before — loopback, and the colour cine loop (~50 KB frames) even at 40 ms — frame 0 and the ask are **44–100 ms later** (0–1/7). The deciding quantity is the window between the decoders' compile and the first frame's bytes; a device on the target link, cine loop and 16-bit, decides it. `decode/README.md` §Warming the decoders, On a slow CPU. `lab/decoder-warmup/run.mjs` takes `THROTTLES` and `SCENARIOS=ask` |
 | 75 | **RC1** — per-thread and per-heap resources, and the decoder count against the cores | queue §Rows 73–76 | **done** 2026-09-25 `ec74c04` — **follow the cores as a resource rule: `min(3, hardwareConcurrency)`.** `lab/scripts/proc_sampler.mjs` (per-process kind and peak PSS/RSS from `smaps_rollup`, per-thread `comm` and `schedstat`) and `lab/downloader-campaign/resources.mjs`: Dd fill and cold ask, 1/2/3 decoders, pinned to 2/4 cores, 1× and 4× (every thread slowed, and the tree capped at that many slowed cores — without the cap two pinned cores never bind), 7 rounds, 252 visits. Fill: 4 cores 1 508 / 899 / 723 ms at 1× and 6 624 / 3 642 / 2 616 at 4× (each added decoder 7/7); **2 cores 1 598 / 1 027 / 1 067 at 1× and 7 021 / 4 999 / 5 329 at 4× — the third decoder 2/7 and 1/7**, and on 2 slow cores the page's main thread is starved (198–337 ms against ~60). No decoder count moves an ask. **A decoder is one thread and ~51 MB of JS heap (`measureUserAgentSpecificMemory`) but ~4–5 MB resident** — the package's heap is reserved, not touched; GPU (~35 MB), browser (~99 MB) and the workers' total CPU (~1.5–1.9 s a fill) do not follow the count. A fill's renderer holds ~120 MB more than an ask's at every count, not split here. Phones report every core, little ones too, so the rule bites on two-core devices only; measured at 2 and 4 cores. Nothing in `client/` changed. `proposal-downloader.md` §Resources |
 | 77 | **TC1** — a TCP path: the same envelopes over a WebSocket, as a fallback beside QUIC | queue §Row 77 | **done** 2026-09-25 `823d52d` — **built, off by default; bit-exact over both, and the WebSocket wins the race on loopback.** `exact-server --websocket`: TCP on the QUIC port's number, the same certificate; FoD as one text message each, media as binary messages whose bytes joined are the shared uni stream's, split every 64 KiB so a browser sees a frame move. `FrameOut::WebSocket`; frame path, store and planner untouched. Client: `frame-session.ts` is everything a session does whatever carries it, `session.ts` / `ws-session.ts` are carriers, the downloader takes either as `transport`; `race-session.ts` keeps the first ready and sends an opening fill to the winner alone. Conformance **189/189 over three implementations and the race, 3 not applicable** (the per-frame halves of two clauses, and a new clause — a slow frame holds no other — that the WebTransport clients and the downloader pass, 55/55); four race clauses; the real-server wire test runs refusals and an ask during a fill over the WebSocket, raw and through the downloader. Mutants: 7 client, 2 server, 1 on the smoke, each caught. Loopback smoke `lab/tcp-fallback/`: every frame bit-exact on WebTransport, WebSocket and the race, 3 rounds interleaved. **On loopback TCP wins the race 57–58 of 60 dials** (debug and release server) — whether QUIC wants a head start is the shaped A/B's third question, `proposal-udp-fallback.md` §What was built. **Found on the way:** `refusals.html` counted a dead session as refused — the WebSocket arm passed 64/64 with its refusals sent as binary; it now needs the server's words (`proposal-conformance-suite.md`, corrected in place). **Cost time:** restoring a mutated Rust file with `mv` puts back the backup's older mtime, so cargo keeps the mutant build; restore with `cp` and `touch` |
+| 80 | **RP1** — the range taken in the wrapper's pack, not in a JS pass | queue §Rows 78–81 | **ready** |
+| 78 | **HOL1** — one stream against a stream per frame against a pool, under loss, in a browser | queue §Rows 78–81 | **ready** |
+| 79 | **BB2** — a BBR that keeps its loss tolerance without its queue | queue §Rows 78–81 | **ready** |
+| 81 | **QA1** — row 63's withheld ACK, reproduced in quinn-proto's own test harness | queue §Rows 78–81 | **ready** |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm decision is settled 2026-09-18, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
@@ -148,6 +152,43 @@ fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving du
 Rows 15–22 name the branch each landed on. `claude/downloader-s2-worker` was merged into this one
 on 2026-09-18, so those commits are in this history and the branch names are provenance, not
 somewhere still to look.
+
+### Rows 78–81
+
+Queued 2026-09-25 by the workstation, in priority order (the table's order). The owner's order for this phase: the numbers
+first. Rows 78 and 79 price two questions the owner holds for another stack — independent streams and the congestion
+controller — using this lab's transport as the reference; they state results in this lab's terms. Shaping in the container
+is `lab/scripts/link_impair.py` (a UDP relay: one client connection at a time — `rig-limits.md` §3), as row 67 used it.
+
+**80 · RP1 — the range taken in the wrapper's pack.** Row 74 (c) found the JS range pass is 21–31 % of a frame in its
+decoder (24 ms of a 4×-throttled colour ask) and that the source wrapper could take the min/max while it packs each line.
+A grey or 16-bit frame needs its true range (a consumer's window/level lookup is sized from it); a colour frame with a window
+does not. Take the range inside `htj2k_decoder.cpp`'s pack (integer min/max per line, the sign extension where it already
+happens), return it with the frame, and drop `finish()`'s pass where the wrapper supplies it. Bit-exact pixels and ranges
+against today's on all fixtures (signed included), a mutant per claim; one ask and a fill's all-decoded at 1× / 4× / 6×
+(`lab/scripts/cpu_throttle.mjs`, every thread), both contents, n ≥ 7 interleaved.
+
+**78 · HOL1 — one stream, a stream per frame, or a pool, under loss.** `transport/NEXT.md` row 3: one stream for everything
+holds every later frame behind one lost packet; per-frame streams lost 5.76× to retransmit deferral once; `pool:k` was built
+and never measured. In Chromium through the relay at 20 Mbit / 80 ms with 0 / 1 / 3 % loss (and one Gilbert-Elliott burst
+cell if the relay can): `--stream-mode` one · per-frame · pool:4 · pool:8, a fill and a run of asks, n ≥ 7 interleaved;
+report all received, the fill's p95 inter-frame gap, and one ask's p50/p95 during loss. The question it prices: what
+independent delivery is worth to a viewer on a lossy link.
+
+**79 · BB2 — a BBR that keeps its loss tolerance without its queue.** Row 67 (CC1): BBR fills 12–19× faster than Cubic at
+1–3 % loss but overflows a 120 ms queue with ~45–48 % of its datagrams and stands 294 ms in a deep one; it concluded that a
+loss- and inflight-bounded BBR (v2/v3) is what would change the default, and quinn lacks it. Try what quinn exposes: BBR
+with a lower congestion-window gain / a cap on bytes in flight (e.g. 1× – 1.5× the BDP estimate), and Cubic with a larger
+loss-reduction factor if quinn allows it; the same cells as row 67 (1 % / 3 % random loss, the 120 ms and the deep queue,
+one blink), n ≥ 7 interleaved. Report goodput, the standing queue, datagrams dropped at the queue, and a competing TCP flow's
+share where cheap. Say which variant, if any, keeps most of BBR's goodput under loss at Cubic's queue cost.
+
+**81 · QA1 — row 63's withheld ACK in quinn-proto's own harness.** `transport/upstream-quinn-ack.md` has the plan. Write
+the failing test in quinn-proto's test harness (the simulated pair, a small initial window, an ask while the server is
+congestion-blocked, the ACK due within `max_ack_delay`) against the version this tree pins and against quinn's current
+`main`; if it fails on `main`, sketch the smallest fix (an ACK-only packet exempt from the congestion gate, as #2787 did for
+`CONNECTION_CLOSE`) as a patch under `patches/`, off by default, with the test green on it. Update the upstream draft in
+place. **Post nothing upstream** — the owner files it.
 
 ### Row 77
 
