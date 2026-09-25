@@ -11,7 +11,7 @@ lab improvement: the tested state of 2026-09-22, the lane branches, the transpor
 reproduced), and the wtransport patch that sends the server's SETTINGS with its first flight
 ([`proposal-session-open.md`](proposal-session-open.md) §Lever 2: the dial 3.1 → 2.1 round trips).
 The inventory of what was merged and what was not is [`improvements/ledger.md`](improvements/ledger.md)
-§10. **Work the `ready` rows (78–81) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
+§10. **Work the `ready` rows (78–82) top to bottom — the table is in priority order, not number order.** Several agents may work the queue at once; the claim commit is the lock.
 
 **New session?** [`handoff-2026-09-19.md`](handoff-2026-09-19.md) has where the branch is, what is
 already settled, what the instruments are and what cost time to find — read it once, then work the
@@ -80,6 +80,7 @@ trailers. This is the owner's rule for every repository.
 | 80 | **RP1** — the range taken in the wrapper's pack, not in a JS pass | queue §Rows 78–81 | **ready** |
 | 79 | **BB2** — a BBR that keeps its loss tolerance without its queue | queue §Rows 78–81 | **ready** |
 | 81 | **QA1** — row 63's withheld ACK, reproduced in quinn-proto's own test harness | queue §Rows 78–81 | **ready** |
+| 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **after 81** — take it only when no other row is `claimed` |
 | 8 | **L12** — the whole gate on this branch | lanes §L12 | **done** — gate green; the WASM arm decision is settled 2026-09-18, see §Blocked |
 | 15 | **D1** — the downloader's capabilities, tested on today's path | proposal-downloader §S1 | **done** `7a21ab3` on `claude/downloader-s1-capabilities` — 3 rows not green, see below |
 | 16 | **D2** — the downloader, beside today's path | proposal-downloader §S2 | **done** on `claude/downloader-s2-worker` — the conformance run it owed is D2b `09fcf32` |
@@ -152,6 +153,25 @@ fill window, the cache seam, paint — and, since 2026-09-18, an ask arriving du
 Rows 15–22 name the branch each landed on. `claude/downloader-s2-worker` was merged into this one
 on 2026-09-18, so those commits are in this history and the branch names are provenance, not
 somewhere still to look.
+
+### Row 82
+
+Queued 2026-09-25 by the workstation; the owner approved it ("proceed with the docs"). `TODO.md` is the task; this row is
+its keep list. **One cleaning commit; history stays.** Take it last, when no other row is claimed (it touches every doc).
+
+**82 · DC2 — the docs cleaned to the essential.** Keep, and make each the single owner of its subject:
+`README.md` (+ a short index of what follows), `CLAUDE.md`, `TODO.md`, `WIRE.md`, `CLIENTS.md`, `FIXTURES.md`, the ADRs
+(`adr-*.md`, `disk-access/adr.md`), **one architecture doc** made from `proposal-downloader.md` with
+`proposal-session-open.md` and `proposal-session-survival.md` folded in, `transport/transport-conclusions.md` with
+`transport/why-these-changes.md` folded in, `decode/README.md` trimmed to what holds, `rig-limits.md`, and `cloud-queue.md`
+slimmed to its Protocol, the live rows and a one-line pointer per finished batch. Fold every still-true, still-needed
+claim from the rest into the doc that owns its subject (a retracted claim stays corrected in place there), then delete:
+the dated handoffs and plans, `lanes/`, `improvements/`, the `stream-mode-*` series (its conclusion into an ADR), the
+experiment and implementer plans, `disk-access/EVIDENCE.md` (into its ADR), the proposals not recommended, `telemetry/`,
+`measurements/`, `paint-floor.md`, `thread-hops.md`, `identification-sweep.md` and anything else not on the keep list —
+each into its owner first. Fix every link; the private-term scanner over the result; `scripts/gate.sh` green (the comment
+budget and any doc link checks). The commit body carries the fold map (file → where its surviving claims went). If a
+file's survival is a judgement call, keep it and list it under `## Blocked` for the owner rather than guessing.
 
 ### Rows 78–81
 
