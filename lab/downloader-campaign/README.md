@@ -36,8 +36,15 @@ a sampled allocation profile. It waits on a 200 ms timer, because waiting on ani
 main-thread work the fill would be charged.
 
 ```bash
-NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs 5   # rounds; THROTTLES=1,4,6 ARMS=H,Dw,Dd
+NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs 5   # rounds; THROTTLES=1,4,6 ARMS=H,Dw,Dd ALLOC=0
+NODE_PATH=$(npm root -g) node lab/downloader-campaign/port.mjs --rounds 7   # the pixel port's message alone
 ```
+
+*Corrected 2026-09-25 (PH1):* a call inside a message's dispatch or a timer is counted once — it was
+counted with its dispatch as well — and the product's share per frame is printed without the page's
+handler. `ALLOC=0` turns the allocation sampler off, whose cost lands on the page's time.
+`port.mjs` posts the decoder's message, and variants of it, from a worker at a fill's pace and charges
+each dispatch from the trace.
 
 **Read before trusting a number.** Container-measured, loopback, 4 cores: the Dd arm is
 decode-bound here and says nothing about a device. `run.mjs` launches the full Chromium by

@@ -118,6 +118,8 @@ async function main() {
     const askAt = k === null ? Infinity : Math.round(FILL * k);
     let delivered = 0;
     let lastFrameMs = 0;
+    const received = [];
+    result.received_ms = received;
     let askIssued = false;
     let resolveDone;
     let resolveAsk;
@@ -128,6 +130,7 @@ async function main() {
         handle(bytes);
         delivered += 1;
         lastFrameMs = performance.now() - t0;
+        received.push(lastFrameMs);
         if (!askIssued && delivered >= askAt) {
           askIssued = true;
           result.ask_issued_at_ms = performance.now() - t0;

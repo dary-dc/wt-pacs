@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pixel port</title>
+<script type="module">
+// What the page pays for a decoded frame's message, by what the message carries: the decoder's
+// message as client/downloader/decoder.js posts it, and variants of it. port.mjs times the page.
+const worker = `
+let port;
+const PIXELS = 512 * 512 * 3;
+const reused = new SharedArrayBuffer(PIXELS);
+function frame(variant, index) {
+  const m = { kind: "frame", index, gen: 0, pixels: variant === "reused" ? reused : variant === "none" ? null : new SharedArrayBuffer(PIXELS),
+    width: 512, height: 512, bits: 8, components: 3, signed: false, min: 0, max: 255, byteCount: PIXELS, wireBytes: 427000 };
+  if (variant !== "bare") m.stamps = { ask: 1, firstByte: 2, lastByte: 3, dispatched: 4, decodeStart: 5, decodeEnd: 6, decoder: 1 };
+  return m;
+}
+onmessage = async ({ data }) => {
+  if (data.port) return void (port = data.port);
+  const { variant, frames, everyMs, per } = data;
+  for (let i = 0; i < frames; i += per) {
+    const batch = Array.from({ length: per }, (_, k) => frame(variant, i + k));
+    port.postMessage(per === 1 ? batch[0] : { kind: "frames", frames: batch });
+    await new Promise((r) => setTimeout(r, everyMs * per));
+  }
+  postMessage("sent");
+};`;
+const w = new Worker(URL.createObjectURL(new Blob([worker], { type: "text/javascript" })));
+const ch = new MessageChannel();
+w.postMessage({ port: ch.port1 }, [ch.port1]);
+let got = 0;
+let sink = 0;
+// What consumer.js's #deliver does with each frame: a view on the pixels and a frame object.
+const deliver = (m) => {
+  const bytes = m.pixels instanceof SharedArrayBuffer ? new Uint8Array(m.pixels) : m.pixels;
+  const frame = { frameIndex: m.index, generation: m.gen, bytes, timing: { askMs: m.stamps?.ask ?? 0 }, info: m };
+  sink += frame.frameIndex;
+  got += 1;
+};
+ch.port2.onmessage = (e) => { const d = e.data; if (d.kind === "frames") d.frames.forEach(deliver); else deliver(d); };
+globalThis.run = (variant, frames, everyMs, per) => new Promise((r) => {
+  got = 0;
+  w.onmessage = () => { const t = setInterval(() => { if (got >= frames) { clearInterval(t); r(got); } }, 50); };
+  w.postMessage({ variant, frames, everyMs, per });
+});
+globalThis.ready = true;
+</script>

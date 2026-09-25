@@ -591,9 +591,65 @@ would otherwise be charged.
   messages cost 0.11, 0.44 and 0.50. At a frame every 19.6 ms (S44's 20 Mbit) that is ~19 % of a
   6×-throttled main thread. Whether a phone's port dispatch behaves like the throttle is for a
   device.
+  *Corrected 2026-09-25 (PH1):* these counted the handler twice — its call sits inside the
+  dispatch event, and both were summed — and include this page's handler. The product's share is
+  0.15 / 0.84 / 1.15 ms (Dd) and 0.07 / 0.22 / 0.32 (Dw); the table's product column carries the same
+  double count. §The hand-off.
 
 The host saturates in Dd: three decoders keep three of four cores busy for the whole fill. The
 throttle is Chromium's, not a phone, and the allocation figures are sampled at 8 KiB.
+
+### The hand-off (PH1)
+
+*Row 76, 2026-09-25.* The row asked where the decoded frame's hand-off costs the page 0.28 / 2.5 /
+3.7 ms a frame at 1× / 4× / 6×, and for the smallest change that removes it: fill frames coalesced,
+an ask and frame 0 never held. **Nothing is changed. The cost was counted twice, and on a slow CPU
+coalescing has almost nothing to batch.**
+
+**The figure was a double count.** A trace of the Dd fill at 4× puts the port's callback
+(`FunctionCall`, `consumer.js`) *inside* its dispatch (`SimpleWatcher::OnHandleReady`), and M1 summed
+both; the dispatch also carries this page's own handler. `throttle.mjs` now counts a nested call once
+and subtracts the handler the page times. Allocation sampling off (`ALLOC=0`), 7 rounds, arms and
+throttles rotated, the product's share of the page per frame:
+
+| arm | 1× | 4× | 6× |
+| --- | --: | --: | --: |
+| Dd, decoded, one message per frame on the pixel port | **0.15 ms** | **0.84** | **1.15** |
+| Dw, bytes only, the downloader's worker message | 0.07 | 0.22 | 0.32 |
+
+Inside the callback at 4× (a CPU profile): deserialising the message ~0.22 ms, `#deliver` ~0.10,
+the dispatch around it ~0.24. A frame every 20 ms is ~4 % of a 4×-throttled main thread, not ~12 %.
+
+**Where it goes: the message, not what it carries.**
+[`port.mjs`](../lab/downloader-campaign/port.mjs) posts the decoder's message from a worker to the
+page at a fill's pace, 80 frames, 7 rounds rotated, and charges each dispatch from the trace:
+
+| per frame | product message | same SAB every time | no SAB | no stamps | two frames a message |
+| --- | --: | --: | --: | --: | --: |
+| 1× | 0.101 ms | 0.130 (1/7 less) | 0.100 (4/7) | 0.096 (3/7) | **0.068 (7/7)** |
+| 4× | 0.385 | 0.357 (4/7) | 0.307 (2/7) | 0.306 (5/7) | **0.212 (7/7)** |
+| 6× | 0.401 | 0.418 (3/7) | 0.296 (5/7) | 0.413 (3/7) | 0.351 (4/7) |
+
+The SharedArrayBuffer and the stamps do not separate; fewer messages does. In a fill it costs about
+twice the isolated figure, with three decoders and the downloader busy on four cores.
+
+**Why coalescing is not built.** Chromium's throttle slows the page only, so in M1's fill the decoders
+are fast and frames reach the page every ~8 ms: 53–56 % of them share an animation frame with another.
+Slowed as a phone would be — every thread, row 74's `cpu_throttle.mjs` — they arrive further apart
+(row 74's dump, the package):
+
+| frames sharing an animation frame | 1× colour | 1× 16-bit | 4× colour | 4× 16-bit | 6× colour | 6× 16-bit |
+| --- | --: | --: | --: | --: | --: | --: |
+| with any decoder's | 56 % | 77 % | 17 % | 33 % | 15 % | 21 % |
+| with the same decoder's | 0 | 36 | **0** | **0** | **0** | **0** |
+
+Each decoder posts to the page itself, so the only place frames could be held is a decoder, and on a
+slow CPU a decoder never has two frames in one animation frame: per decoder, one message per
+animation frame batches nothing, and one per k frames holds each frame k − 1 decodes (80–120 ms at
+4–6×). Batching across decoders needs a point they all pass through — a hop through the downloader or
+a shared ring the page reads — which is a change to §The decoders' shape, for at most the dispatch of
+15–33 % of frames at 4–6×, about 10 ms of a fill's main thread. On the target link (row 74: a colour
+frame every 70–170 ms) there is less to batch still. That is a proposal for the owner, not this row.
 
 ### D7 — the same path on a decoder built with a 4 MB floor
 

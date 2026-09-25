@@ -5,7 +5,7 @@
  * allocation profile, summed by function, which says what the page allocates per frame.
  * Throttles and arms rotate inside every round. docs/proposal-downloader.md §Under a throttled CPU
  *
- *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs [rounds]   [THROTTLES=1,4,6] [ARMS=Dw,Dd]
+ *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs [rounds]   [THROTTLES=1,4,6] [ARMS=Dw,Dd] [ALLOC=0]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -19,6 +19,8 @@ const ROUNDS = Number(process.argv[2] || 5);
 const THROTTLES = (process.env.THROTTLES || "1,4,6").split(",").map(Number);
 // H, the TS client on the page, is the control that the trace sees collections at all.
 const ARMS = (process.env.ARMS || "H,Dw,Dd").split(",");
+// ALLOC=0: no allocation sampling, whose cost lands on every allocation the page's time is charged.
+const SAMPLE = process.env.ALLOC !== "0";
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "m1-"));
 const CFG = path.join(ROOT, "client/dev-transport.json");
 const CFG_BAK = fs.existsSync(CFG) ? fs.readFileSync(CFG) : null;
@@ -62,7 +64,7 @@ const COLLECTIONS = new Set(["V8.GC_SCAVENGER", "V8.GC_MINOR_MARK_SWEEPER", "V8.
 function byThread(events) {
   const names = new Map();
   for (const e of events) if (e.ph === "M" && e.name === "thread_name") names.set(e.tid, e.args?.name ?? "?");
-  const out = { page: { gcs: 0, gc_ms: 0, task_ms: 0, product_ms: 0, lab_ms: 0 }, workers: { gcs: 0, gc_ms: 0, task_ms: 0 } };
+  const out = { page: { gcs: 0, gc_ms: 0, task_ms: 0, product_ms: 0, lab_ms: 0, messages: 0 }, workers: { gcs: 0, gc_ms: 0, task_ms: 0 } };
   for (const e of events) {
     const name = names.get(e.tid);
     const t = name === "CrRendererMain" ? out.page : name === "DedicatedWorker thread" ? out.workers : null;
@@ -72,11 +74,19 @@ function byThread(events) {
       t.gc_ms += (e.dur ?? 0) / 1000;
     }
     if (e.name === "ThreadControllerImpl::RunTask") t.task_ms += (e.dur ?? 0) / 1000;
-    if (t !== out.page) continue;
+  }
+  // A call inside a message's dispatch or a timer is already in that event's time. *Corrected
+  // 2026-09-25 (PH1):* both were summed before, which counted the port's callback twice.
+  const page = events.filter((e) => e.ph === "X" && names.get(e.tid) === "CrRendererMain");
+  const outer = page.filter((e) => e.name === "SimpleWatcher::OnHandleReady" || e.name === "TimerFire");
+  const nested = (e) => outer.some((o) => o !== e && o.ts <= e.ts && e.ts + (e.dur ?? 0) <= o.ts + o.dur);
+  for (const e of page) {
     const url = e.args?.data?.url ?? "";
-    if (e.name === "SimpleWatcher::OnHandleReady" || (e.name === "FunctionCall" && url.includes("/client/"))) {
-      t.product_ms += (e.dur ?? 0) / 1000;
-    } else if (e.name === "TimerFire" || (e.name === "FunctionCall" && url.includes("/lab/"))) t.lab_ms += (e.dur ?? 0) / 1000;
+    if (e.name !== "SimpleWatcher::OnHandleReady" && e.name !== "TimerFire" && (e.name !== "FunctionCall" || nested(e))) continue;
+    if (e.name === "SimpleWatcher::OnHandleReady" || url.includes("/client/")) {
+      out.page.product_ms += (e.dur ?? 0) / 1000;
+      out.page.messages += e.name === "SimpleWatcher::OnHandleReady" ? 1 : 0;
+    } else if (e.name === "TimerFire" || url.includes("/lab/")) out.page.lab_ms += (e.dur ?? 0) / 1000;
   }
   return out;
 }
@@ -104,7 +114,7 @@ async function runOne(arm, throttle) {
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
   await cdp.send("HeapProfiler.enable");
   // Garbage is the question, so what was collected counts too, not only what is still live.
-  await cdp.send("HeapProfiler.startSampling", {
+  if (SAMPLE) await cdp.send("HeapProfiler.startSampling", {
     samplingInterval: 8192, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true,
   });
   await cdp.send("Tracing.start", {
@@ -117,13 +127,14 @@ async function runOne(arm, throttle) {
   const traced = new Promise((r) => cdp.once("Tracing.tracingComplete", r));
   await cdp.send("Tracing.end");
   await traced;
-  const { profile } = await cdp.send("HeapProfiler.stopSampling");
+  const { profile } = SAMPLE ? await cdp.send("HeapProfiler.stopSampling") : { profile: { head: { callFrame: { url: "" }, selfSize: 0 } } };
   if (process.env.DUMP) fs.writeFileSync(process.env.DUMP, JSON.stringify(events));
   await page.evaluate(() => { globalThis.__wtpacsMeasure = true; });
   await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: 60000 });
   const result = await page.evaluate(() => globalThis.__wtpacsResult ?? {});
   await page.close();
-  return { arm, throttle, fillMs: result.last_frame_ms, delivered: result.delivered, threads: byThread(events), alloc: allocations(profile) };
+  return { arm, throttle, fillMs: result.last_frame_ms, delivered: result.delivered, handlerMs: result.handler_ms,
+    received: result.received_ms ?? [], threads: byThread(events), alloc: allocations(profile) };
 }
 
 const rows = [];
@@ -153,6 +164,12 @@ for (const arm of ARMS) {
       `(product ${Math.round(m("page", "product_ms"))}, lab ${Math.round(m("page", "lab_ms"))}), ` +
       `${kib.toFixed(0)} KiB sampled  workers ${m("workers", "gcs")} gcs ${m("workers", "gc_ms").toFixed(1)} ms paused ` +
       `${Math.round(m("workers", "task_ms"))} ms tasks  n=${rs.length}`);
+    // The product's share of a frame, without this page's handler, and what one message per
+    // animation frame could at most save: the messages that share a 16.7 ms window with another.
+    const own = median(rs.map((r) => (r.threads.page.product_ms - r.handlerMs) / r.delivered));
+    const shared = median(rs.map((r) => 1 - new Set(r.received.map((t) => Math.floor(t / (1000 / 60)))).size / r.received.length));
+    console.log(`    product per frame, without the page's handler: ${own.toFixed(3)} ms over ${m("page", "messages")} messages; ` +
+      `frames sharing an animation frame with another: ${(100 * shared).toFixed(0)} %`);
     const total = new Map();
     for (const r of rs) for (const [k, v] of r.alloc) total.set(k, (total.get(k) ?? 0) + v / rs.length);
     const top = [...total].filter(([k]) => /consumer\.js|session\.js|page\.js/.test(k))

@@ -1218,3 +1218,14 @@ because F1's method leaves the codestream one byte different. Row 27 is done.
 `-signed` path — made by encoding unsigned and setting the sign bit in SIZ, confirmed by OpenJPEG.
 `parity.mjs` now says what it covers. Still the workstation's: whether the product serves signed
 data at all.
+
+**Coalesce the decoded frames across decoders — design it, or drop it?** (2026-09-25, from row 76, PH1).
+The row's change, fill frames coalesced, cannot be made small: each decoder posts to the page itself,
+and on a slow CPU no decoder ever has two frames in one animation frame, so batching per decoder
+batches nothing (`proposal-downloader.md` §The hand-off). Batching across decoders needs a point they
+all pass through — a hop through the downloader, or a shared ring the page reads per animation frame —
+which changes §The decoders' shape. Its ceiling at 4–6×, every thread slowed: the dispatch of the 15–33 %
+of frames that share an animation frame, about 10 ms of a fill's main thread; less on the target link.
+The product's real page cost is 0.15 / 0.84 / 1.15 ms a frame at 1× / 4× / 6× (page-only throttle), not
+0.28 / 2.5 / 3.7. **What is needed:** whether a proposal for the merge point is wanted at that price. Not
+built meanwhile.
