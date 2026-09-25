@@ -2,7 +2,7 @@
  * One arm, one scenario, one fresh session, against the real server. Three arms:
  *   H   today's harness path — the TS session on this thread, the fill as a waiter per frame
  *   Dw  the downloader with decode off — the same bytes, delivered from its worker
- *   Dd  the downloader decoding, three decoders — pixels in a SharedArrayBuffer (the product path)
+ *   Dd  the downloader decoding, `decoders` of them (3) — pixels in a SharedArrayBuffer (the product path)
  * Five scenarios: a fill of `fill` frames; one cold ask; a fill with an ask for a frame outside it
  * once 10, 50 or 90 % has landed. Numbers go to window.__wtpacsResult; run.mjs adds what only
  * CDP can see. docs/proposal-downloader.md §S4.
@@ -13,6 +13,7 @@ const q = new URLSearchParams(location.search);
 const arm = q.get("arm") || "H";
 const scenario = q.get("scenario") || "fill";
 const FILL = Number(q.get("fill") || 80);
+const DECODERS = Number(q.get("decoders") || 3);
 const ASK = Number(q.get("askFrame") || 86);
 const DECODER = {
   glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
@@ -72,14 +73,14 @@ async function downloaderArm(cfg, decode) {
   let deliver = () => {};
   const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
     decode,
-    decoders: decode ? 3 : 0,
+    decoders: decode ? DECODERS : 0,
     decoder: decode
       ? (new URLSearchParams(location.search).get("decoder") === "source" ? SOURCE_DECODER : DECODER)
       : undefined,
     onFrame: (f) => deliver(f),
   });
   return {
-    workers: decode ? 4 : 1,
+    workers: decode ? 1 + DECODERS : 1,
     fill(onFrame, onDone, _fillEnded) {
       let n = 0;
       deliver = (f) => {
