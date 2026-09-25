@@ -6,6 +6,10 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { instance, loadFixture, sha256 } from './decoder.mjs';
 
+// The product's own range pass, from the worker module: its handler slot must exist before it loads.
+globalThis.onmessage ??= null;
+const { finish } = await import('../../client/downloader/decoder.js');
+
 const require = createRequire(import.meta.url);
 const armsDir = process.env.ARMS || path.join(process.cwd(), 'lab/.openjph-build/wasm');
 const arm = process.env.ARM || 'plain';
@@ -44,7 +48,18 @@ function decodeWith(d, bytes) {
   d.readHeader();
   const s = surface(d);
   d.decode();
-  return { surface: s, pixels: Buffer.from(d.getDecodedBuffer()) };
+  return { surface: s, pixels: Buffer.from(d.getDecodedBuffer()), range: d.getRange ? plain(d.getRange()) : null };
+}
+
+/** The range decoder.js's own pass takes over these pixels: what the page gets today. */
+function passRange(pixels, info) {
+  const bytes = new Uint8Array(pixels);
+  const wide = info.bitsPerSample > 8;
+  const view = wide
+    ? new (info.isSigned ? Int16Array : Uint16Array)(bytes.buffer, 0, bytes.length / 2)
+    : new (info.isSigned ? Int8Array : Uint8Array)(bytes.buffer);
+  const { min, max } = finish(view, info.bitsPerSample, info.isSigned);
+  return plain({ min, max });
 }
 
 const ours = await require(path.join(armsDir, `${arm}.js`))();
@@ -76,22 +91,24 @@ for (const dir of dirs) {
   const bits = meta.bitsPerSample ?? (meta.maxValue > 255 ? 16 : 8);
   const kind = `${bits}-bit ${meta.signed ? 'signed' : 'unsigned'} x${meta.channels ?? '?'}`;
   covered.add(kind);
-  let pixelDiff = 0, truthDiff = 0;
+  let pixelDiff = 0, truthDiff = 0, rangeDiff = 0;
   const surfaceDiff = new Set();
   for (let i = 0; i < frames.length; i++) {
     const a = decodeWith(oursDecoder, frames[i]);
     const b = decodeWith(theirsDecoder, frames[i]);
     if (Buffer.compare(a.pixels, b.pixels) !== 0) pixelDiff++;
     if (sha256(a.pixels) !== truth[i]) truthDiff++;
+    if (a.range && a.range !== passRange(b.pixels, theirsDecoder.getFrameInfo())) rangeDiff++;
     for (const k of Object.keys(b.surface)) if (a.surface[k] !== b.surface[k]) surfaceDiff.add(`${k}: ours ${a.surface[k]} theirs ${b.surface[k]}`);
   }
   const ok = (n) => (n === 0 ? `${frames.length}/${frames.length} identical` : `${n} DIFFER`);
   console.log(
     `  ${name.replace('decode_', '').padEnd(8)} ${String(frames.length).padStart(5)}   ${kind.padEnd(18)} ` +
       `${ok(pixelDiff).padEnd(18)} ${ok(truthDiff).padEnd(18)} ` +
-      `${surfaceDiff.size ? [...surfaceDiff].join('; ') : 'identical'}`
+      `${surfaceDiff.size ? [...surfaceDiff].join('; ') : 'identical'}` +
+      (ours.HTJ2KDecoder.prototype.getRange ? `   range vs the JS pass: ${ok(rangeDiff)}` : '')
   );
-  bad += pixelDiff + truthDiff + surfaceDiff.size;
+  bad += pixelDiff + truthDiff + surfaceDiff.size + rangeDiff;
 }
 
 // A parity claim is only as wide as the fixtures it ran on; say which those were.

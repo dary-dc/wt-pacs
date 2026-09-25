@@ -12,7 +12,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number; min?: number; max?: number } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -731,6 +731,44 @@ async function aFrameCarriesItsWireBytes(
 }
 
 
+/**
+ * A frame's range comes from the decoder when the decoder takes it as it packs, and from the
+ * worker's own pass when it does not: the package's range is its pixels' own, and a decoder
+ * answering `getRange()` is taken at its word, pass skipped. docs/decode/README.md §The range in the pack
+ */
+async function aFrameCarriesItsDecodersRangeOrItsOwn(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  const dir = "/lab/decode-bench/vendor/openjph";
+  const ok = await fetch(`${dir}/openjphjs.js`, { method: "HEAD" }).then((r) => r.ok, () => false);
+  if (!ok) return void log(`  SKIPPED: a frame's range — no ${dir} (bash lab/decode-bench/fetch_decoder.sh)`);
+  const codestream = new Uint8Array(await (await fetch("/client/downloader/warmup/colour-8.j2c")).arrayBuffer());
+  const rangeOf = async (glue: string) => {
+    const got: Frame[] = [];
+    const { c, fake } = await open(DownloaderClient, {
+      decoders: 1, perDecoder: 2, delayMs: 0,
+      realDecoder: { glue, wasm: `${dir}/openjphjs.wasm`, dir },
+      onFrame: (f) => got.push(f),
+    });
+    c.fill([0]);
+    await fake.pushFrame(0, codestream);
+    await until(() => got.length >= 1);
+    c.close();
+    return got[0];
+  };
+
+  const own = await rangeOf(`${dir}/openjphjs.js`);
+  let [min, max] = [Infinity, -Infinity];
+  for (const v of own?.bytes ?? []) [min, max] = [Math.min(min, v), Math.max(max, v)];
+  check(own !== undefined && own.info.min === min && own.info.max === max,
+    `range: a decoder without one gets the worker's pass (${own?.info.min}..${own?.info.max}, pixels ${min}..${max})`);
+  const told = await rangeOf("/client/conformance/range-glue.js");
+  check(told?.info.min === -7 && told?.info.max === 7,
+    `range: a decoder that takes its own is taken at its word (${told?.info.min}..${told?.info.max})`);
+}
+
 /** The fake answers over a channel, so a condition that reads its wire has to be awaited. */
 async function untilAsync(cond: () => Promise<boolean>, ms = 3000): Promise<boolean> {
   const t0 = Date.now();
@@ -970,6 +1008,7 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aTruncatedFrameIsAFailureNotAFrame,
     anUndecodableFrameIsAFailureNotAFrame,
     aFrameCarriesItsWireBytes,
+    aFrameCarriesItsDecodersRangeOrItsOwn,
     aSessionWhoseBytesKeepComingIsKept,
     aSilentSessionIsRedialled,
     theWaitDoublesAfterEachRedialItCauses,

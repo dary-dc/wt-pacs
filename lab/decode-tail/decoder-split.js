@@ -49,7 +49,8 @@ function decodeFrame(bytes, t = {}) {
   const view = wide
     ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))
     : (info.isSigned ? new Int8Array(sab) : new Uint8Array(sab));
-  return { info, sab, byteCount: out.length, range: finish(view, info.bitsPerSample, info.isSigned) };
+  const range = dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
+  return { info, sab, byteCount: out.length, range };
 }
 
 /** The warm-up's bytes, or none: an optimisation must never reject a decoder's init. */

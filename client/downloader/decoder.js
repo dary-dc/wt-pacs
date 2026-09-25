@@ -9,7 +9,7 @@ let toConsumer = null;
 const abs = () => performance.timeOrigin + performance.now();
 
 /** Sign-extend narrow samples and take the range in one pass — docs/decode/README.md §The range pass. */
-function finish(view, bits, signed) {
+export function finish(view, bits, signed) {
   let min = Infinity;
   let max = -Infinity;
   const shift = 16 - bits;
@@ -45,7 +45,9 @@ function decodeFrame(bytes) {
   const view = wide
     ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))
     : (info.isSigned ? new Int8Array(sab) : new Uint8Array(sab));
-  return { info, sab, byteCount: out.length, range: finish(view, info.bitsPerSample, info.isSigned) };
+  // A build that takes the range as it packs has sign-extended already. docs/decode/README.md §The range in the pack
+  const range = dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
+  return { info, sab, byteCount: out.length, range };
 }
 
 /** The warm-up's bytes, or none: an optimisation must never reject a decoder's init. */

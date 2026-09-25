@@ -25,30 +25,41 @@ struct Size {
   uint32_t width = 0, height = 0;
 };
 
+struct Range {
+  int32_t min = 0, max = 0;
+};
+
 struct FrameInfo {
   uint32_t width = 0, height = 0, bitsPerSample = 0, componentCount = 0;
   bool isSigned = false, isUsingColorTransform = false;
 };
 
-// Clamp, narrow and interleave one pulled line into the frame. A single-component frame is
-// contiguous and is the case -msimd128 can take; docs/decode/README.md §The wrapper's two passes.
+// Clamp, narrow and interleave one pulled line into the frame, widening `range` by it. A
+// single-component frame is contiguous and is the case -msimd128 can take;
+// docs/decode/README.md §The wrapper's two passes, §The range in the pack.
 template <typename T>
 void pack(const ojph::si32* src, uint8_t* dst, uint32_t w, uint32_t comps, int32_t lo,
-          int32_t top) {
+          int32_t top, Range& range) {
+  int32_t mn = range.min, mx = range.max;
   if (comps == 1) {
     T* out = reinterpret_cast<T*>(dst);
     for (uint32_t x = 0; x < w; ++x) {
-      const int32_t v = src[x];
-      out[x] = (T)(v < lo ? lo : (v > top ? top : v));
+      const int32_t v = src[x] < lo ? lo : (src[x] > top ? top : src[x]);
+      out[x] = (T)v;
+      mn = v < mn ? v : mn;
+      mx = v > mx ? v : mx;
     }
-    return;
+  } else {
+    const size_t stride = (size_t)comps * sizeof(T);
+    for (uint32_t x = 0; x < w; ++x, dst += stride) {
+      const int32_t v = src[x] < lo ? lo : (src[x] > top ? top : src[x]);
+      const T out = (T)v;
+      std::memcpy(dst, &out, sizeof out);
+      mn = v < mn ? v : mn;
+      mx = v > mx ? v : mx;
+    }
   }
-  const size_t stride = (size_t)comps * sizeof(T);
-  for (uint32_t x = 0; x < w; ++x, dst += stride) {
-    const int32_t v = src[x];
-    const T out = (T)(v < lo ? lo : (v > top ? top : v));
-    std::memcpy(dst, &out, sizeof out);
-  }
+  range = {mn, mx};
 }
 
 }  // namespace
@@ -94,6 +105,7 @@ class HTJ2KDecoder {
     const int32_t top = frame_.isSigned ? half - 1 : 2 * half - 1;
     // Not assign(…, 0): pack() writes every byte, and the fill was a second full-frame pass.
     decoded_.resize((size_t)w * h * comps * wide);
+    range_ = {top, lo};
 
     for (uint32_t y = 0; y < h; ++y) {
       for (uint32_t c = 0; c < comps; ++c) {
@@ -101,8 +113,8 @@ class HTJ2KDecoder {
         ojph::line_buf* line = cs_.pull(got);
         const ojph::si32* src = line->i32;
         uint8_t* dst = decoded_.data() + ((size_t)y * w * comps + got) * wide;
-        if (wide == 2) pack<uint16_t>(src, dst, w, comps, lo, top);
-        else pack<uint8_t>(src, dst, w, comps, lo, top);
+        if (wide == 2) pack<uint16_t>(src, dst, w, comps, lo, top, range_);
+        else pack<uint8_t>(src, dst, w, comps, lo, top, range_);
       }
     }
     cs_.close();
@@ -110,6 +122,8 @@ class HTJ2KDecoder {
   }
 
   FrameInfo getFrameInfo() const { return frame_; }
+  // The samples' own values, sign already in place: decoder.js skips its range pass for it.
+  Range getRange() const { return range_; }
   bool getIsHeaderValid() const { return headerValid_; }
   uint32_t getNumDecompositions() { return cs_.access_cod().get_num_decompositions(); }
   bool getIsReversible() { return cs_.access_cod().is_reversible(); }
@@ -146,6 +160,7 @@ class HTJ2KDecoder {
   ojph::mem_infile in_;
   ojph::codestream cs_;
   FrameInfo frame_;
+  Range range_;
   bool headerValid_ = false;
 };
 
@@ -165,6 +180,7 @@ int getSIMDLevel() {
 
 EMSCRIPTEN_BINDINGS(htj2k_decoder) {
   emscripten::value_object<Point>("Point").field("x", &Point::x).field("y", &Point::y);
+  emscripten::value_object<Range>("Range").field("min", &Range::min).field("max", &Range::max);
   emscripten::value_object<Size>("Size").field("width", &Size::width).field("height", &Size::height);
   emscripten::value_object<FrameInfo>("FrameInfo")
       .field("width", &FrameInfo::width)
@@ -181,6 +197,7 @@ EMSCRIPTEN_BINDINGS(htj2k_decoder) {
       .function("readHeader", &HTJ2KDecoder::readHeader)
       .function("decode", &HTJ2KDecoder::decode)
       .function("getFrameInfo", &HTJ2KDecoder::getFrameInfo)
+      .function("getRange", &HTJ2KDecoder::getRange)
       .function("getIsHeaderValid", &HTJ2KDecoder::getIsHeaderValid)
       .function("getNumDecompositions", &HTJ2KDecoder::getNumDecompositions)
       .function("getIsReversible", &HTJ2KDecoder::getIsReversible)

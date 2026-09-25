@@ -1368,7 +1368,8 @@ that one pass beats two.
 
 **What is left is not doing it.** The remaining lever is whether an exact min/max is needed at all,
 or whether a subsample would serve the window/level it feeds. That is a product question about the
-viewer, not a decode question, and it is not answered here.
+viewer, not a decode question, and it is not answered here. *2026-09-25 (RP1):* the source build no
+longer walks the pixels for it at all — §The range in the pack.
 
 **One copy did go.** `new Uint8Array(m.bytes)` re-wrapped a view that already was a `Uint8Array`
 over the transferred buffer, copying the whole codestream for nothing (S14): 5.9 µs at 48 KB,
@@ -1381,6 +1382,54 @@ wrapper did zero-fill its output and then write every sample, and removing that 
 a wash: §The wrapper's two passes. The difference from the JavaScript result above is that this
 pass is not the range pass — it writes bytes nobody reads, rather than reading bytes that are
 already there.
+
+## The range in the pack
+
+*Row 80 (RP1), 2026-09-25.* The source wrapper clamps and narrows every sample as it packs a line
+(`lab/decode-bench/wasm/htj2k_decoder.cpp`, `pack`); it now takes the integer min/max of the clamped
+value there too and returns it from `getRange()`. It already writes signed samples sign-extended,
+which is why `finish()`'s pass was idempotent on its output, so `client/downloader/decoder.js` takes
+the decoder's range whenever the decoder has `getRange` and runs its own pass otherwise — the package
+has none and is unchanged.
+
+**Bit-exact.** `parity.mjs` over c512, g512, s12 (12-bit signed), s512 (16-bit signed) and sat256
+(both ends saturated), 435 frames: pixels identical to the package and to the encoder's input, and
+`getRange()` identical to `finish()` run on the package's pixels, on every frame. Mutants, each
+caught: the colour loop widening the range by its first component only (87 of 87 c512 frames differ),
+a range that is one line's rather than the frame's (348 of 348), and the clamp one short at the top —
+which **no set but sat256 reaches**, so sat256 is now part of the run. In the gate,
+`dispatch-rig.ts` holds `decoder.js` to both halves, with the package and with a stand-in glue whose
+decoder answers `getRange()` (`client/conformance/range-glue.js`); making the worker always run its
+pass, or never, fails one clause each.
+
+**What it buys.** [`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs), `today` (the
+tree's wrapper before this) against `built`, both from source at a 16 MB heap, both through
+`decoder-split.js`; every browser thread slowed by `cpu_throttle.mjs` (4.0× / 5.9× on this 4-core
+box, `--check`); c512 and g512 with three asks after the fill; 7 rounds interleaved, none lost.
+Medians, and the rounds `built` was sooner:
+
+| set | throttle | all decoded | one ask | a frame in its decoder | of it the range pass |
+| --- | --: | --: | --: | --: | --: |
+| c512, colour | 1× | 495 → 361 ms (**−27 %**, 7/7) | 17.1 → 15.8 (−8 %, 5/7) | 12.8 → 8.8 (7/7) | 4.1 → 0.0 |
+| | 4× | 1 607 → 1 080 (**−33 %**, 7/7) | 53.6 → 31.4 (**−41 %**, 7/7) | 51.3 → 35.2 (7/7) | 16.1 → 0.0 |
+| | 6× | 2 507 → 1 628 (**−35 %**, 7/7) | 82.9 → 52.9 (**−36 %**, 7/7) | 77.9 → 51.0 (7/7) | 24.5 → 0.0 |
+| g512, 16-bit | 1× | 248 → 220 (−11 %, 7/7) | 9.1 → 7.5 (−18 %, 6/7) | 6.2 → 4.4 (7/7) | 1.4 → 0.0 |
+| | 4× | 749 → 757 (+1 %, 5/7) | 19.6 → 8.3 (**−58 %**, 7/7) | 16.4 → 9.4 (7/7) | 4.2 → 0.0 |
+| | 6× | 1 127 → 1 129 (+0 %, 4/7) | 25.6 → 12.8 (**−50 %**, 6/7) | 24.0 → 12.1 (7/7) | 6.5 → 0.0 |
+
+* **The colour fill is decode-bound, so it takes all of it**: a third off its all-decoded at 4–6×.
+  The 16-bit fill is wire-bound at 4–6× (§The decode tail on a slow CPU) and does not move; its asks
+  halve.
+* **The pack's min/max is not free, and is small**: the WASM decode is +0.5 ms (+6.6 %, 1 of 7) on a
+  colour frame at 1× and within noise at 4–6×, against the 4–25 ms pass it replaces. A colour frame
+  shown through a window does not need its range at all; skipping it there is worth that half
+  millisecond and is not built.
+* The WASM medians of the 16-bit set at 4–6× swing both ways (−44 % at 6 of 7, −34 % at 2 of 7) on
+  work of 4–12 ms: the throttle's tick, not the build. The decoder-time and ask columns are the claim.
+
+**Not yet in the product's decoder.** §The build, as delivered is the old wrapper; the win reaches a
+page once it is rebuilt — `EMSDK=… INITIAL_MB=4 ARMS=deliver lab/decode-bench/wasm/build.sh` — and
+that is the workstation's, as the delivered build is. Container-measured, like every number here.
 
 ## The decode tail
 
@@ -1524,6 +1573,7 @@ of a 16-bit one, at every throttle, and 24 ms of the colour ask's 86 at 4×. Two
 * **Not walking the pixels a second time.** The source wrapper's pack already clamps every sample on
   its way out of the codestream; taking the range there removes the pass. It needs the source build,
   which the workstation holds (§The build, as delivered), and it is worth up to the whole pass.
+  *Built and measured 2026-09-25 (RP1):* it is — a third off a colour fill at 4–6×, §The range in the pack.
 
 ## What these numbers are not
 
