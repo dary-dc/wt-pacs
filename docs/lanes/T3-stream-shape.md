@@ -1,6 +1,6 @@
 # T3 — The stream shape: one, a fixed pool, or one per frame
 
-**Status:** measured — `shared` holds and `pool:k` is closed on every reading below · **Needs:** nothing further on this rig · **Size:** done
+**Status:** measured — `shared` holds and `pool:k` is closed on every reading below, natively and, since HOL1 (2026-09-25), in a browser · **Needs:** nothing further on this rig · **Size:** done
 
 ## Question
 
@@ -344,3 +344,53 @@ Written and pushed before any campaign run; the one run before it was a 10-frame
 5. **The owner's question.** K persistent streams are worth moving to if some `pool:k` is *worth it*
    on the fill's gap or on asks in at least two of the three lossy cells, and passes its control or
    stays worth it against its own. Otherwise not, on this evidence.
+
+### Results, 2026-09-25
+
+Rows: `docs/measurements/hol1/`, read by `lab/stream-shape/summarize.py`. **Every arm received
+everything in every cell: 280 of 280 fill frames and 210 of 210 asks, none failed.**
+
+**`D_min` is 3 for every arm** (sweep, 3 rounds): 6.1 / 12.7 / 15.2 asks/s at depths 1 / 2 / 3, flat
+after — the link carries about 16 of its 20 Mbit as frames. So one depth is every arm's own here, and
+the run of asks holds 3 frames in flight.
+
+**The control passes.** At 0 %, `per-frame` is −2.1 % on the fill's gap p95 and +0.3 % on asks
+against `shared`. The pools carry a cost of their own on the fill — `pool:4` +141 %, `pool:8` +34 %,
+`pool:2` −8 % — with a gap **p50 of 0 ms**: frames land in bunches, several shown at once after a
+long wait. Asks at depth 3 tie everywhere (all within 0.3 %).
+
+Pooled p95 against `shared` in the same cell (273 fill gaps, 210 asks each):
+
+| cell | `shared` fill gap / ask, ms | `per-frame` | `pool:2` | `pool:4` | `pool:8` |
+| --- | --- | --- | --- | --- | --- |
+| 0 % | 221 / 190 | −2 % / +0 % | −8 % / +0 % | **+141 %** / +0 % | **+34 %** / −0 % |
+| burst (GE, 0.5 %) | 213 / 605 | −4 % / −1 % | −16 % / +13 % | **+151 %** / −3 % | **+39 %** / −19 % |
+| 1 % | 1 013 / 2 822 | +4 % / −0 % | +4 % / **+23 %** | **+475 %** / −3 % | **+268 %** / −4 % |
+| 3 % | 1 667 / 4 413 | −6 % / −2 % | −1 % / **+23 %** | **+583 %** / +2 % | **+271 %** / −1 % |
+
+**Verdicts, by the rule.** `per-frame`: *no separation* in every lossy cell, the largest −5.5 % (3 %,
+fill), though it wins 5 of 7 rounds there. `pool:2`: *costs* on asks at 1 % and 3 % (+23 %, 0 of 7
+rounds won in both), no separation on the fill (burst −16 %, 6 of 7, under the bar). `pool:4` and
+`pool:8`: *cost* on the fill at 1 % and 3 % even against their own control — ×2.4 → ×5.8 and ×6.8 for
+`pool:4`, ×1.3 → ×3.7 for `pool:8` — and no separation on asks; `pool:8`'s burst ask (−19 %, 5 of 7)
+is the closest anything came, and it is under the bar.
+
+**The owner's question: no.** No `pool:k` is worth it in any lossy cell, let alone two, so on this
+evidence another stack should not move from one shared stream to K persistent ones for loss.
+
+**Why, in two mechanisms, both visible in the rows.**
+
+* *Independent delivery has nothing to rescue here.* Under random loss Cubic is the limit: at 1 % the
+  link carried ~1.7 Mbit of frames (Mathis' 1.22·MSS/(RTT·√p) gives 1.5 at 80 ms), so an ask waits ~2 s in the
+  window and a lost packet's round trip of head-of-line blocking is a few percent of it. `per-frame`,
+  the purest independent delivery with exact ask order, moves nothing past 6 %.
+* *K persistent streams cannot keep ask order.* QUIC ranks streams, not frames: a pool stream that
+  still holds frame `n` takes frame `n + k`'s rank when it is dealt, and the frames behind it jump the
+  queue. It bites the fill, where streams hold many frames — bunches of `k` and a p50 of 0 — and the
+  asks only where 3 asks share 2 streams (`pool:2`, +23 % under loss), never where `k` exceeds the
+  depth. Without the priority the pool round-robins frames packet by packet, which is T3's zero-loss
+  cost above; with it, it reorders them. Either way it is the shape, not this build.
+
+**What this does not say.** One link (20 Mbit / 80 ms, a 200-packet queue), 128 KB frames, Cubic,
+one host through a userspace relay (`rig-limits.md` §3). Under BBR (row 67) the controller stops being
+the limit, and independent delivery may have something to rescue: this lane did not run it.
