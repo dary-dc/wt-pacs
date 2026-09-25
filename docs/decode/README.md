@@ -1202,6 +1202,53 @@ like a cine loop, and both were fetched from a static host with no `Cache-Contro
 that the app already holds costs less than one measured here. Nothing here was measured on a
 phone, which tiers more slowly and would pay more for the same miss.
 
+### On a slow CPU (WU1)
+
+*Row 73, 2026-09-25.* The warm-up runs in the decoder workers, which Chromium's throttle does not
+reach (§The decode tail on a slow CPU), so `run.mjs` now slows every browser thread with
+`lab/scripts/cpu_throttle.mjs` (`THROTTLES`) and adds a cold ask (`SCENARIOS=ask`: a fresh session,
+no fill, frame 5 asked as it opens). `none` against `match`, 1× / 4× / 6× and fill / ask rotated
+inside every round, 7 rounds, both sets, on loopback and at a 40 ms round trip; 336 visits, none
+lost, pixels identical on every arm. Medians, `none → match`, `(k/7)` rounds better with the warm-up:
+
+| rtt | set | throttle | frames 0–2 decode | frame 0 waits for a decoder | frame 0 at the page | cold ask |
+| --- | --- | --: | --: | --: | --: | --: |
+| 0 | `cine512` | 1× | 65 / 67 / 74 → 47 / 47 / 42 ms | 37 → 72 | 184 → 181 (3/7) | 132 → 143 (3/7) |
+| | | 4× | 139 / 136 / 132 → 79 / 84 / 75 | 110 → 171 | 396 → **466 (1/7)** | 385 → 410 (2/7) |
+| | | 6× | 193 / 176 / 180 → 130 / 117 / 128 | 174 → 253 | 594 → **694 (1/7)** | 608 → 624 (3/7) |
+| | `g512` | 1× | 50 / 51 / 52 → 21 / 33 / 32 | 32 → 52 | 162 → 156 (4/7) | 134 → 130 (6/7) |
+| | | 4× | 104 / 100 / 103 → 62 / 53 / 56 | 51 → 80 | 370 → 389 (3/7) | 409 → 388 (5/7) |
+| | | 6× | 149 / 138 / 145 → 89 / 74 / 72 | 61 → 129 | 568 → **666 (2/7)** | 541 → 604 (3/7) |
+| 40 | `cine512` | 1× | 41 → 25 (frame 0) | 0 → 15 | 449 → 460 (1/7) | 461 → **445 (7/7)** |
+| | | 4× | 140 / 124 / 106 → 82 / 90 / 84 | 35 → 116 | 643 → **687 (0/7)** | 621 → **680 (1/7)** |
+| | | 6× | 188 / 176 / 168 → 116 / 123 / 127 | 84 → 161 | 795 → 843 (1/7) | 778 → 830 (1/7) |
+| | `g512` | 1× | 34 → 11 (frame 0) | 0 → 0 | 587 → **569 (7/7)** | 590 → **566 (7/7)** |
+| | | 4× | 105 / 77 / 51 → 37 / 35 / 24 | 0 → 0 | 726 → **645 (7/7)** | 708 → 678 (5/7) |
+| | | 6× | 164 / 105 / 106 → 60 / 56 / 54 | 0 → 0 | 816 → **766 (6/7)** | 851 → **758 (7/7)** |
+
+(At 40 ms and 1× the fill's frames arrive one at a time and go to the first free decoder, so only
+frame 0 is a cold decoder's first frame there — §Warming's caveat.)
+
+* **The warm-up always does what it does**: the first three decodes fall 30–65 %, 7/7 or 6/7 in
+  every cell, and more in milliseconds the slower the CPU — 60–100 ms a frame at 6×.
+* **Whether the page sees it is the idle window, and the throttle shrinks that window.** The
+  warm-up is paid before a decoder answers `ready`, and on a slow CPU it costs more than it saves
+  the first frame: at 4× on colour, frame 0's wait for a decoder grows 61–81 ms to save 58–60 ms
+  of its decode. Where the first bytes land after the warm-up is done — the 16-bit set at 40 ms, whose
+  first frame is 8× the size — the wait stays 0 and the page gets frame 0 **50–81 ms sooner at 4–6×
+  and a cold ask 30–93 ms sooner**. Where they land before it — loopback, and the colour cine loop
+  (18:1, frames of ~50 KB) even at 40 ms — frame 0 and the cold ask arrive **44–100 ms later**.
+* **Keep it off by default — the container shows both signs and cannot say which a phone sees.**
+  The answer is the window between the decoders' compile and the first frame's bytes, which grows
+  with the round trip and with the first frame's size on the link, and shrinks as the CPU slows.
+  On the target link (a slower link than this relay, which only delays) the window is longer than
+  here, which favours the warm-up; that is arithmetic, not measured. A device on the target link,
+  cine loop and 16-bit series, decides it.
+
+Not measured here: the warm-up's own size and a cached warm-up file (§Warming's caveats stand), and
+per-decoder readiness — dispatch waits on all three decoders (`Promise.all` in `downloader.js`),
+though they warm in parallel and finish together.
+
 ## A frame that did not decode
 
 The wrapper reports nothing. It logs an `ojph error` to the console and returns, and

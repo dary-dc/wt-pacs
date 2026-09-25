@@ -26,7 +26,12 @@ lab/decode-bench/fetch_decoder.sh                                  # the decoder
 lab/scripts/gen_htj2k_fixtures.sh cine512 g512 warmup_c92 warmup_g277
 NODE_PATH=$(npm root -g) CHROME_PATH=... node lab/decoder-warmup/run.mjs 12
 RTT=40 node lab/decoder-warmup/run.mjs 12                          # with an idle window to warm in
+THROTTLES=1,4,6 SCENARIOS=fill,ask ARMS=none,match node lab/decoder-warmup/run.mjs 7   # WU1
 ```
+
+`THROTTLES` slows every browser thread per visit (`lab/scripts/cpu_throttle.mjs`; the warm-up is in
+the decoders, which Chromium's own throttle does not reach). `SCENARIOS=ask` opens a session with
+no fill and asks frame 5 at once: the cold ask.
 
 `SETS`, `ARMS`, `FRAMES`, `RTT` and `OUT` override the two sets, which arms run, the fill's
 length, the round trip `lab/scripts/link_impair.py` imposes on **both** planes — the warm-up is a
