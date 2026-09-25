@@ -62,10 +62,14 @@ export function throttleTree(rootPid, rate, { everyMs = 10 } = {}) {
     clearInterval(timer);
     for (const g of fs.readdirSync(base).filter((d) => d.startsWith("thread-"))) {
       const dir = path.join(base, g);
-      for (const tid of fs.readFileSync(path.join(dir, "tasks"), "utf8").split("\n").filter(Boolean)) {
-        try { fs.writeFileSync(path.join(CPU, "tasks"), tid); } catch { /* exited */ }
+      // A thread started meanwhile lands in its parent's group, and one exiting holds it until reaped.
+      for (let tries = 0; ; tries++) {
+        for (const tid of fs.readFileSync(path.join(dir, "tasks"), "utf8").split("\n").filter(Boolean)) {
+          try { fs.writeFileSync(path.join(CPU, "tasks"), tid); } catch { /* exited */ }
+        }
+        try { fs.rmdirSync(dir); break; } catch (e) { if (e.code !== "EBUSY" || tries === 200) throw e; }
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
       }
-      fs.rmdirSync(dir);
     }
     fs.rmdirSync(base);
   };

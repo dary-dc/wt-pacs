@@ -84,8 +84,8 @@ async function page(set, [arm, spec], rate) {
     `--user-data-dir=${profile}`, `http://127.0.0.1:${HTTP}/lab/decode-tail/${direct ? "direct" : "index"}.html?${u}`], { stdio: ["ignore", log, log] });
   const unthrottle = throttleTree(chrome.pid, rate);
   const out = await Promise.race([got, new Promise((r) => setTimeout(() => r(null), 90000 * rate))]);
+  await new Promise((r) => { chrome.once("exit", r); chrome.kill(); });
   unthrottle();
-  chrome.kill();
   await new Promise((r) => setTimeout(r, 500));
   return out;
 }
