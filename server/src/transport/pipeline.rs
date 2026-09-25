@@ -5,7 +5,7 @@ use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
 use crate::transport::frame_out::FrameOut;
 use crate::transport::planner::Mode;
-use crate::transport::wire::write_fod_msg;
+use crate::transport::wire::Control;
 use anyhow::{Error, Result};
 use fod::FodMsg;
 use std::sync::Arc;
@@ -73,7 +73,7 @@ pub(crate) struct ProductPipeline {
     seq: Option<SeqReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
-    control: Option<SendStream>,
+    control: Option<Control>,
     /// The opening ask is served before the client opens control, so a refusal of it waits here.
     late_control: Option<oneshot::Receiver<SendStream>>,
     fills: u64,
@@ -93,7 +93,7 @@ impl ProductPipeline {
         }
     }
 
-    pub(crate) fn with_control(mut self, control: SendStream) -> Self {
+    pub(crate) fn with_control(mut self, control: Control) -> Self {
         self.control = Some(control);
         self
     }
@@ -148,20 +148,18 @@ impl FramePipeline for ProductPipeline {
         warn!(frame, %reason, "frame refused");
         if self.control.is_none() {
             if let Some(late) = self.late_control.take() {
-                self.control = late.await.ok();
+                self.control = late.await.ok().map(Control::Stream);
             }
         }
         let Some(control) = self.control.as_mut() else {
             return Ok(());
         };
-        write_fod_msg(
-            control,
-            &FodMsg::FrameError {
+        control
+            .write(&FodMsg::FrameError {
                 frame_index: frame,
                 reason,
-            },
-        )
-        .await
+            })
+            .await
     }
 
     async fn drain_acks(&mut self) {

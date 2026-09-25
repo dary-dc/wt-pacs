@@ -7,7 +7,10 @@ const timeoutMs = Number(process.argv[3] || 120000);
   const browser = await chromium.launch({
     headless: true,
     executablePath: process.env.CHROME_PATH || undefined,
-    args: ["--disable-background-networking"],
+    // A WebSocket cannot pin a certificate by hash, so a test cert is trusted by its key's hash here.
+    args: ["--disable-background-networking"].concat(
+      process.env.WTPACS_TRUST_SPKI ? [`--ignore-certificate-errors-spki-list=${process.env.WTPACS_TRUST_SPKI}`] : [],
+    ),
   });
   const page = await browser.newPage();
   page.on("pageerror", (e) => process.stderr.write("[pageerror] " + e.message + "\n"));

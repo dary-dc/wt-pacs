@@ -31,7 +31,7 @@ node client/transport-ts/test/run.mjs | tail -1
 step "client: worker-safe (no artifact reaches for window)"
 bash client/scripts/check_worker_safe.sh
 
-step "client: transport conformance (both implementations)"
+step "client: transport conformance (every implementation, and the race)"
 node client/conformance/run.mjs | tail -2
 
 step "client: the byob read path compiles (off by default; docs/decode/README.md)"
@@ -57,8 +57,8 @@ cargo test -p window-harness --quiet
 step "lab: disk-access-bench compiles (the arms are part of the API)"
 cargo check -p disk-access-bench --all-targets --quiet
 
-step "client: against the real server — refusals, an ask during a fill (headless Chromium)"
-bash client/conformance/run_wire.sh | tail -4
+step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
+bash client/conformance/run_wire.sh | tail -8
 
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"

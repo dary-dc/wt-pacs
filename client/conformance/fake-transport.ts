@@ -33,6 +33,8 @@ export class FakeTransport {
   static failNext = 0;
   /** The next `n` dials never settle — WebKit bug 319879, or a server that takes the CONNECT and is silent. */
   static hangNext = 0;
+  /** ms before the next dials are ready: a slower path, for racing it against the other. */
+  static openAfterMs = 0;
   /** Every transport dialled, oldest first: a replaced one still open is a session left sending. */
   static all: FakeTransport[] = [];
   readonly ready: Promise<void>;
@@ -58,7 +60,9 @@ export class FakeTransport {
       ? Promise.reject(new Error("dial refused"))
       : hang
         ? new Promise((_, reject) => { this.abandon = () => reject(new Error("close() is called while connecting.")); })
-        : Promise.resolve();
+        : FakeTransport.openAfterMs
+          ? new Promise((resolve) => setTimeout(resolve, FakeTransport.openAfterMs))
+          : Promise.resolve();
     this.ready.catch(() => {});
     this.closed = new Promise((resolve) => {
       this.settleClosed = resolve;

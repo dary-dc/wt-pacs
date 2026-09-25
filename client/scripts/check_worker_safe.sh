@@ -7,7 +7,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 wasm=client/transport-wasm/pkg/transport_wasm_bg.wasm
-artifacts=(client/transport-ts/dist/session.js client/transport-wasm/pkg/transport_wasm.js)
+artifacts=(client/transport-ts/dist/session.js client/transport-ts/dist/ws-session.js
+  client/transport-ts/dist/race-session.js client/transport-wasm/pkg/transport_wasm.js)
 
 bad=0
 for f in "${artifacts[@]}" "$wasm"; do

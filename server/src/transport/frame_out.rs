@@ -2,6 +2,7 @@
 //! streams, the codestream handed to quinn whole and uncopied. `docs/disk-access/adr.md`.
 
 use crate::transport::stream_mode::StreamMode;
+use crate::transport::websocket::WsSink;
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use frame_envelope::ENVELOPE_LEN;
@@ -20,6 +21,8 @@ pub(crate) enum FrameOut {
         connection: Connection,
         acks: JoinSet<()>,
     },
+    /// One ordered TCP stream, which the session's refusals share.
+    WebSocket(WsSink),
     /// No connection: sending panics, so a test can build a session but not serve on it.
     #[cfg(test)]
     Detached,
@@ -53,6 +56,7 @@ impl FrameOut {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
             Self::Shared { uni, .. } => write_frame(uni, head, body).await?,
+            Self::WebSocket(ws) => ws.send_frame(head, body).await?,
             Self::PerFrame { connection, acks } => {
                 let mut uni = connection
                     .open_uni()

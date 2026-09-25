@@ -44,6 +44,9 @@ export type Rig = {
   /** Addresses the transport most recently dialled in the current open's world. */
   fake(): FakeHandle;
   dialsSinceOpen(): Promise<number>;
+  /** Set where one ordered stream carries every frame, as a WebSocket does: a clause about
+   *  independent delivery reports itself here by name instead of passing. docs/proposal-udp-fallback.md */
+  oneStream?: (what: string) => void;
 };
 
 export type Check = (cond: boolean, what: string) => void;
@@ -223,9 +226,16 @@ async function noticesClose(rig: Rig, check: Check) {
   live.close();
 }
 
+/** The per-frame mode needs independent streams; one ordered stream has the shared mode alone. */
+function streamModes(rig: Rig, what: string): ("shared" | "per-frame")[] {
+  if (!rig.oneStream) return ["shared", "per-frame"];
+  rig.oneStream(`${rig.name}: ${what}, per-frame mode`);
+  return ["shared"];
+}
+
 /** A fill arrives either as one stream carrying many frames or as a stream per frame. */
 async function bothStreamModes(rig: Rig, check: Check) {
-  for (const mode of ["shared", "per-frame"] as const) {
+  for (const mode of streamModes(rig, "every frame of a fill arrives in the order asked")) {
     const s = await rig.open();
     const t = rig.fake();
     const want = [0, 1, 2];
@@ -281,7 +291,7 @@ async function oneDialServesLaterAsks(rig: Rig, check: Check) {
  * waiter, in both stream modes; an ask during it keeps its own promise; endStream() drops the rest.
  */
 async function pushedFill(rig: Rig, check: Check) {
-  for (const mode of ["shared", "per-frame"] as const) {
+  for (const mode of streamModes(rig, "a pushed fill lands once, in order")) {
     const s = await rig.open();
     const t = rig.fake();
     const got: ConformantFrame[] = [];
@@ -407,7 +417,21 @@ async function redialsAfterClosure(rig: Rig, check: Check) {
   second.close();
 }
 
-/** A clause that throws fails by name and the rest still run — an abort counts nothing. */
+/** A frame slow on its own stream holds back no frame on another: delivery is independent. */
+async function aSlowFrameHoldsNoOther(rig: Rig, check: Check) {
+  if (rig.oneStream) return rig.oneStream(`${rig.name}: a frame slow on its own stream holds no other`);
+  const s = await rig.open();
+  const order: number[] = [];
+  const slow = s.requestExactFrame(0).then((f) => order.push(f.frameIndex), () => {});
+  const fast = s.requestExactFrame(1).then((f) => order.push(f.frameIndex), () => {});
+  await settle();
+  await rig.fake().trickleFrame(0, enc.encode("slow".repeat(40)), 5, 100);
+  await rig.fake().pushFrame(1, enc.encode("fast"));
+  await within(Promise.all([slow, fast]), 2000);
+  check(order.join() === "1,0", `${rig.name}: a frame slow on its own stream holds no other (${order.join() || "none"})`);
+  s.close();
+}
+
 /**
  * A frame is late when its session goes quiet, not when its ask is old: one whose bytes keep coming
  * for longer than FRAME_TIMEOUT_MS still lands — the tail of a burst on a slow link.
@@ -441,7 +465,9 @@ export async function runClauses(rig: Rig, check: Check): Promise<void> {
     aTruncatedFrameIsAFailure,
     aDeadSessionNamesWhatItOwed,
     aFrameIsLateOnlyWhenTheSessionGoesQuiet,
+    aSlowFrameHoldsNoOther,
   ];
+  // A clause that throws fails by name and the rest still run — an abort counts nothing.
   for (const clause of clauses) {
     try {
       await clause(rig, check);

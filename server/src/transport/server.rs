@@ -7,7 +7,8 @@ use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{Ask, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
-use crate::transport::wire::read_fod_msg;
+use crate::transport::websocket;
+use crate::transport::wire::{read_fod_msg, Control};
 use anyhow::{anyhow, Context, Result};
 use fod::FodMsg;
 use std::net::{IpAddr, SocketAddr};
@@ -45,6 +46,9 @@ pub struct ServeConfig {
     /// Lab only: every session request is taken and never answered — WebKit bug 319879's dial
     /// that never settles, made on purpose. `docs/proposal-session-survival.md` §A dial that never settles.
     pub hold_sessions: bool,
+    /// Off by default: also serve the same envelopes over a WebSocket, TCP on `wt_port`.
+    /// `docs/proposal-udp-fallback.md` §What was built.
+    pub websocket: bool,
 }
 
 pub async fn run_server(config: ServeConfig) -> Result<()> {
@@ -54,6 +58,11 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     let cert_sha256 = cert_sha256_hex(&identity)?;
 
     let (endpoint, bound) = build_endpoint(&config).await?;
+    let websocket = if config.websocket {
+        Some(websocket::bind(config.bind, config.wt_port, &config.cert_pem, &config.key_pem).await?)
+    } else {
+        None
+    };
 
     let mut store = FrameStore::open(&config.study_path).context("open study")?;
     if config.force_pool_reads {
@@ -71,6 +80,9 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
     println!("wt_url={wt_url}");
+    if websocket.is_some() {
+        println!("ws_url=wss://127.0.0.1:{}/", config.wt_port);
+    }
     println!("cert_sha256={cert_sha256}");
     println!("study={}", config.study_path.display());
     println!("frames={}", store.frame_count());
@@ -90,6 +102,9 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         "exact-server ready (Media-complete)"
     );
 
+    if let Some((listener, tls)) = websocket {
+        tokio::spawn(websocket::serve(listener, tls, Arc::clone(&store)));
+    }
     let mode = config.mode;
     let open_ask = config.open_ask;
     let hold = config.hold_sessions;
@@ -228,7 +243,7 @@ async fn handle_incoming(
 
     let path = connection.clone();
     let out = FrameOut::open(mode, connection).await?;
-    let mut product = ProductPipeline::new(store, out).with_control(control_send);
+    let mut product = ProductPipeline::new(store, out).with_control(Control::Stream(control_send));
 
     #[cfg(feature = "telemetry")]
     let result = match Tap::for_session() {
@@ -323,7 +338,7 @@ async fn run_session<P: FramePipeline>(pipeline: &mut P, control_recv: RecvStrea
 }
 
 /// The loop over `Ask`, with no stream in it, so a test can drive it without QUIC.
-async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
+pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
     let mut plan = Planner::new(pipeline.store().frame_count());
     loop {
         let step = plan.next(|| asks.try_recv().ok())?;
@@ -365,7 +380,12 @@ fn spawn_ask_reader(
 }
 
 async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
-    let ask = match read_fod_msg(control_recv).await {
+    forward(read_fod_msg(control_recv).await, tx).await
+}
+
+/// One FoD message as the loop's asks; `Err` once the reader should stop.
+pub(super) async fn forward(msg: Result<FodMsg>, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+    let ask = match msg {
         Ok(FodMsg::RequestFrame { frame }) => {
             tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
             return Ok(());
@@ -672,6 +692,7 @@ mod tests {
                     force_pool_reads: false,
                     open_ask: true,
                     hold_sessions: false,
+                    websocket: false,
                 }));
                 let endpoint = wtransport::Endpoint::client(
                     ClientConfig::builder()
@@ -764,6 +785,7 @@ mod tests {
                 force_pool_reads: false,
                 open_ask: false,
                 hold_sessions: true,
+                websocket: false,
             }));
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
@@ -821,6 +843,7 @@ mod tests {
                 force_pool_reads: false,
                 open_ask: false,
                 hold_sessions: false,
+                websocket: false,
             }));
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -907,6 +930,7 @@ mod tests {
                 force_pool_reads: false,
                 open_ask: false,
                 hold_sessions: false,
+                websocket: false,
             }));
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -1012,6 +1036,7 @@ mod tests {
             force_pool_reads: false,
             open_ask: false,
             hold_sessions: false,
+            websocket: false,
         }));
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()
@@ -1195,5 +1220,112 @@ mod tests {
                 assert_eq!(first, 5);
             }
         });
+    }
+
+    /// **The WebSocket path.** Binary messages, joined, are the shared uni stream's bytes — each
+    /// frame whole, in fill order, its codestream split across messages so a client sees it move —
+    /// and a refusal comes back as a text message holding FoD's JSON. `docs/proposal-udp-fallback.md`.
+    #[test]
+    fn a_websocket_carries_the_same_envelopes_and_refusals() {
+        use futures_util::{SinkExt, StreamExt};
+        use rustls::pki_types::pem::PemObject;
+        use tokio_tungstenite::tungstenite::Message;
+
+        let frames = 3u32;
+        let dir = std::env::temp_dir().join(format!("wtpacs-ws-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, _) = write_dev_cert(&dir);
+        let cert = std::fs::read(&cert_pem).expect("cert");
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                wt_port: port,
+                study_path: study,
+                cert_pem,
+                key_pem,
+                mode: StreamMode::Shared,
+                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                tuning: TransportTuning::default(),
+                force_pool_reads: false,
+                open_ask: false,
+                hold_sessions: false,
+                websocket: true,
+            }));
+            let mut roots = rustls::RootCertStore::empty();
+            for der in rustls::pki_types::CertificateDer::pem_slice_iter(&cert) {
+                roots.add(der.expect("pem")).expect("trust the test cert");
+            }
+            let tls = tokio_rustls::TlsConnector::from(Arc::new(
+                rustls::ClientConfig::builder()
+                    .with_root_certificates(roots)
+                    .with_no_client_auth(),
+            ));
+            let mut tcp = None;
+            for _ in 0..50 {
+                match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
+                    Ok(t) => {
+                        tcp = Some(t);
+                        break;
+                    }
+                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                }
+            }
+            let tcp = tcp.expect("the WebSocket listener never came up");
+            let name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+            let tls = tls.connect(name, tcp).await.expect("TLS with the QUIC certificate");
+            let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
+                .await
+                .expect("WebSocket upgrade");
+
+            let ask = |msg: FodMsg| Message::text(serde_json::to_string(&msg).unwrap());
+            ws.send(ask(FodMsg::StreamFrames { from: Some(0), to: Some(frames - 1) }))
+                .await
+                .expect("fill");
+            let (mut wire, mut messages) = (Vec::new(), 0);
+            let want: usize = (0..frames).map(|f| 8 + pattern(f).len()).sum();
+            while wire.len() < want {
+                let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                    .await
+                    .expect("the fill stalled")
+                    .expect("socket ended")
+                    .expect("read");
+                let Message::Binary(bytes) = msg else { panic!("a fill frame came as {msg:?}") };
+                wire.extend_from_slice(&bytes);
+                messages += 1;
+            }
+            let mut at = 0;
+            for f in 0..frames {
+                let len = u32::from_be_bytes(wire[at..at + 4].try_into().unwrap()) as usize;
+                let (idx, codestream) = unwrap(&wire[at + 4..at + 4 + len]).expect("envelope");
+                assert_eq!(idx, f, "frames arrived out of fill order");
+                assert_eq!(codestream, &pattern(f)[..], "frame {f} came back wrong");
+                at += 4 + len;
+            }
+            assert!(
+                messages > 2 * frames as usize,
+                "{messages} messages for {frames} frames: a codestream was not split"
+            );
+
+            ws.send(ask(FodMsg::RequestFrame { frame: 99 })).await.expect("ask out of range");
+            let refusal = tokio::time::timeout(Duration::from_secs(5), ws.next())
+                .await
+                .expect("no refusal")
+                .expect("socket ended")
+                .expect("read");
+            let Message::Text(json) = refusal else { panic!("the refusal came as {refusal:?}") };
+            assert!(
+                matches!(fod::decode_fod_body(json.as_bytes()), Ok(FodMsg::FrameError { frame_index: 99, .. })),
+                "the refusal was {json}, not a frame_error for 99"
+            );
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

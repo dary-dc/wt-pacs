@@ -6,6 +6,7 @@ pub mod planner;
 pub mod server;
 pub mod stream_mode;
 pub mod tuning;
+pub mod websocket;
 pub mod wire;
 
 pub use server::{run_server, ServeConfig};

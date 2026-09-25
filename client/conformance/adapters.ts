@@ -1,7 +1,8 @@
 /**
- * One surface, two implementations behind it. The names mostly agree; what does not is
- * `endStream`, which is a promise on one and synchronous on the other, and the shape of
- * `startStreamFrames`. A third implementation writes one of these and inherits every test.
+ * One surface, three implementations behind it: TypeScript and WASM over WebTransport, TypeScript
+ * over a WebSocket. The names mostly agree; what does not is `endStream`, which is a promise on the
+ * TypeScript ones and synchronous on WASM, and the shape of `startStreamFrames`. Another
+ * implementation writes one of these and inherits every test.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -12,6 +13,8 @@ export type { ConformantFrame, ConformantSession } from "./clauses.ts";
 
 export type Implementation = {
   name: string;
+  /** Dials a WebSocket, not WebTransport: one ordered stream, driven by fake-websocket.ts. */
+  overWebSocket?: true;
   connect(url: string, certHash: string, options?: ConnectOptions): Promise<ConformantSession>;
 };
 
@@ -34,9 +37,22 @@ async function load(rel: string) {
 }
 
 export async function typescriptImpl(): Promise<Implementation> {
-  const { TransportSession } = await load("client/transport-ts/dist/session.js");
+  return sessionImpl("transport-ts", "client/transport-ts/dist/session.js");
+}
+
+export async function websocketImpl(): Promise<Implementation> {
+  return { ...(await sessionImpl("transport-ws", "client/transport-ts/dist/ws-session.js")), overWebSocket: true };
+}
+
+/** Either carrier, whichever dials first: the race's winner is one of the two above. */
+export async function raceImpl(): Promise<Implementation> {
+  return sessionImpl("transport-race", "client/transport-ts/dist/race-session.js");
+}
+
+async function sessionImpl(name: string, bundle: string): Promise<Implementation> {
+  const { TransportSession } = await load(bundle);
   return {
-    name: "transport-ts",
+    name,
     async connect(url, certHash, options) {
       const s = await TransportSession.connect(url, certHash, options ?? {});
       return {
