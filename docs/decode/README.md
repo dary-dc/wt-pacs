@@ -1311,7 +1311,10 @@ reversed each repeat, 400 repeats:
 | 512×512 16-bit | 497 µs | 583 µs | **1.17× slower** |
 
 **It is not noise — and D5's own remedy makes it worse.** The pass costs 0.5–1.1 ms against a
-3–7 ms decode, so 10–25 % of it. But folding the range into the copy replaces a native `set()`
+3–7 ms decode, so 10–25 % of it. *Corrected 2026-09-25 (DT1):* in a decoder worker during
+a fill the pass alone is 5.6 ms of a colour frame's 18.7 and 2.0 of a 16-bit one's 9.5, 21–31 % of
+the frame at every throttle; the same loop is 3.4 ms in a browser worker on an idle box and 2.9 in
+Node here, so these figures do not reproduce — §The decode tail on a slow CPU. But folding the range into the copy replaces a native `set()`
 memcpy plus a read-only loop with one hand-written copy loop, and that loses on both fixtures. The
 two-pass shape is the faster one; it is reported here so nobody folds it later on the assumption
 that one pass beats two.
@@ -1382,6 +1385,98 @@ gaps are 0.44 ms at p90 and the decode is 17.8 ms.
 the colour fill is decode-bound by design and the box is at its limit through it, which is why the
 browser cannot separate a 7 % faster decoder. The Node bench is single-threaded and is where the
 per-frame figures come from.
+
+## The decode tail on a slow CPU
+
+*Row 74 (DT1), 2026-09-25.* The phase's target is a phone's browser, and a phone's CPU was to be
+emulated by Chromium's throttle. **That throttle cannot slow a decoder.** Chrome 141 answers
+`Emulation.setCPUThrottlingRate` on a worker target with *"Operation is only supported for pages,
+not workers"*, and a loop in a worker runs as fast at 4× as at 1× — row 52's "the throttle slows the
+page's thread only" is this. Under it, a fill is a slow page beside fast decoders, not a slow phone.
+
+**The emulation used instead.** [`../../lab/scripts/cpu_throttle.mjs`](../../lab/scripts/cpu_throttle.mjs)
+puts every thread of the browser's process tree in its own cgroup (v1 `cpu`), capped at 1 ms in
+every `rate` ms: the page, the downloader, the decoders and the browser's network stack alike, the
+server not. One loop, page thread and worker: 306 / 1 257 / 1 994 ms and 329 / 1 326 / 2 034 ms at
+1× / 4× / 6× (`--check`). **What it cannot do:** the kernel enforces the cap at its tick, so a
+burst of about a millisecond runs at nearly full speed and pays for it later in a stall of up to
+~20 ms (a 0.93 ms loop capped at 6×: median 1.01 ms, worst 21). Work lasting many periods — a
+frame's decode, its range pass — is slowed faithfully; a sub-millisecond hop between threads is not,
+so no hand-off is quoted from it. Every number below is a throttled container, not a phone.
+
+[`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs) `--throttles 1,4,6 --asks 20,43,66`:
+a fill of each set, then three frames asked one at a time on the warm session; the decoder is
+[`decoder-split.js`](../../lab/decode-tail/decoder-split.js), the product's worker with stamps inside
+`decodeFrame`. Two sets × three builds × three throttles, rotated, 7 rounds, none lost. The package,
+medians:
+
+| set | throttle | wire | all decoded | tail | a frame in its decoder | of it WASM | of it range pass | one ask, of it decoding |
+| --- | --: | --: | --: | --: | --: | --: | --: | --: |
+| c512, colour | 1× | 373 ms | 707 | 357 | 18.7 | 11.7 | 5.6 | 25, 17 |
+| | 4× | 1 325 | 2 626 | **1 336** | 81.8 | 52.5 | 23.7 | 86, 75 |
+| | 6× | 1 995 | 3 757 | **1 783** | 120.1 | 77.9 | 35.7 | 127, 110 |
+| g512, 16-bit | 1× | 346 | 384 | 13 | 9.5 | 5.8 | 2.0 | 13, 7 |
+| | 4× | 1 318 | 1 343 | 27 | 28.6 | 17.1 | 8.2 | 36, 26 |
+| | 6× | 2 107 | 2 146 | 36 | 38.1 | 24.0 | 11.0 | 46, 31 |
+
+* **The throttle moves the wire nearly as much as the decode.** The browser takes 1.3 s at 4× to
+  receive what it received in 0.37 s: its QUIC stack and the downloader are slow threads too. The
+  16-bit fill is wire-bound at 4× and 6× (decoders 58–68 % busy, tail 27–36 ms); the colour fill
+  stays decode-bound, its tail 357 → 1 336 → 1 783 ms.
+* **On the target link the wire is slower still — arithmetic, not measured.** The sets are 37.2 and
+  35.7 MB; at 20–50 Mbit that is 6–15 s, against 2.5–3.6 s of decoding per decoder at 4–6×. Three
+  decoders keep up with that link, so a faster decode buys the fill its last frame and buys an ask its
+  decoding — the ask is where the levers below are priced.
+
+**(a) The builds.** Parity first: the from-source build at the tree's wrapper (`a28587f`) and the
+4 MB-heap build are byte-identical to the package and to the encoder's input on all 174 frames
+(`parity.mjs`). Against the package, paired per round, at 1× / 4× / 6×, with the rounds it won:
+
+| build, set | WASM a frame | all decoded | one ask |
+| --- | --: | --: | --: |
+| source, colour | −1.6 / −3.7 / −1.4 % (4, 6, 5 of 7) | +1.2 / −2.4 / +3.5 % (3, 5, 2) | +1.1 / −3.3 / −6.2 % (3, 4, 6) |
+| 4 MB, colour | +2.2 / −7.0 / −3.5 % (3, 6, 6) | +2.9 / **−7.5 / −5.3 %** (3, **7, 7**) | −1.7 / +3.4 / −10.0 % (5, 2, 5) |
+| source, 16-bit | +2.3 / −12.2 / −10.9 % (3, 6, 5) | +0.8 / −3.5 / −6.3 % (3, 5, 5) | +4.7 / −2.3 / −0.5 % (2, 5, 4) |
+| 4 MB, 16-bit | −15.9 / −12.8 / −4.6 % (6, 5, 6) | −4.7 / −1.1 / −2.3 % (5, 4, 4) | −1.5 / −4.6 / −0.8 % (4, 6, 4) |
+
+Nothing separates on an ask. The one 7-of-7 result, the 4 MB build's colour fill at 4× and 6×, is not
+a faster decoder: its range pass — the same JavaScript in every arm — is also faster in 7 of 7
+(−13 %, −15 %), so part of the gain sits in code that does not differ, a memory effect of the
+smaller heap or of this rig. It is reported, not claimed. The 16-bit source build's −11–12 % at 4–6×
+agrees with row 68's Node figure (−10.6 %).
+
+**(b) One frame's code-blocks in parallel — identified, not built.** §Threads found no threading in
+OpenJPH's core. The seam is `subband::pull_line` (`src/core/codestream/ojph_subband.cpp`), which
+decodes a row of code-blocks in a serial loop, each into its own buffer, when the first line of the
+row is pulled. [`profile_decode.mjs`](../../lab/decode-bench/profile_decode.mjs) on a source build
+with names kept: decoding code-blocks, and turning them into lines, is **70 % of a colour frame and
+76 % of a 16-bit one**; the inverse wavelet 7–9 %, the wrapper's clamp-and-interleave 10 % / 3 %.
+A 512² frame with 64² blocks gives a row of 4 blocks at the finest resolution, 2 at the next, 1 below
+it, so with 4 threads and no overhead a frame falls to ~0.54 of its time (colour) and ~0.50 (16-bit).
+On a 4× ask that is ~24 ms of the colour ask's 86 and ~8 of the 16-bit's 36.
+
+What it would take: a parallel loop in that function (whether a block's decode touches shared state
+is unchecked); a `-pthread` build, which costs a single thread nothing (§Shared memory); a pool of
+worker threads inside each decoder worker, each its own V8 isolate, which row 75 prices; a fork-join
+per row of blocks, ~20 a 16-bit frame and ~50 a colour one. **During a fill it is more decoders in disguise**: the pool is busy 95 % of a colour fill, and
+threads inside a frame would compete for the same cores and add only the joins. One heap rather than
+several, but the same cores. Its one honest use is an ask on an idle pool, where it turns idle cores
+into one frame's latency — and the range pass, below, is worth as much there with no thread.
+
+**(c) What in the worker scales with the throttle.** Nothing scales faster than the decode. Bytes in,
+header and pixels out stay under 1 ms at every throttle; the range pass goes 5.6 → 23.7 → 35.7 ms
+(×4.2, ×6.4) against the WASM's 11.7 → 52.5 → 77.9 (×4.5, ×6.7). **But the range pass is the
+largest per-frame cost after the decode**: 29–31 % of a colour frame's time in its decoder and 21–29 %
+of a 16-bit one, at every throttle, and 24 ms of the colour ask's 86 at 4×. Two levers, not changed:
+
+* **The loop as written keeps its minimum and maximum as doubles**, starting from ±Infinity.
+  Starting them from the first sample keeps them integers:
+  [`range.mjs`](../../lab/decode-tail/range.mjs), a browser worker on an idle box, 7 rounds —
+  colour 3.36 → 2.58 ms (6 of 7), 16-bit 1.52 → 1.26 (5 of 7), signed 12-bit 2.45 → 2.20 (5 of 7),
+  the same range on every call. About 4 % of a colour frame.
+* **Not walking the pixels a second time.** The source wrapper's pack already clamps every sample on
+  its way out of the codestream; taking the range there removes the pass. It needs the source build,
+  which the workstation holds (§The build, as delivered), and it is worth up to the whole pass.
 
 ## What these numbers are not
 

@@ -581,6 +581,9 @@ would otherwise be charged.
 * **The throttle slows the page's thread only.** Worker threads' time does not move with it. The
   downloader's fill is flat — Dw 273 → 300 ms, and Dd 674 → 762 ms bound by decoding — while H's
   slows 279 → 692 ms at 6×. Under a throttled main thread, the worker is where the fill should be.
+  *Why, found 2026-09-25 (DT1):* Chromium refuses the throttle on a worker target, so a decoder
+  is never slowed by it; `lab/scripts/cpu_throttle.mjs` slows every thread — `decode/README.md`
+  §The decode tail on a slow CPU.
 * **Found, not changed (the row says not to optimise messages): the decoded path's page cost per
   frame grows faster than H's.** Dd's share is 0.28, 2.5 and 3.7 ms a frame at 1×, 4× and 6×,
   against H's 0.54, 0.76 and 0.98. About half of it is the platform dispatching the pixel port's

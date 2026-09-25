@@ -1,8 +1,8 @@
 /**
- * The range pass alone, in a browser worker at each throttle: range.html's arms, rotated with the
- * shapes and throttles every round. docs/decode/README.md §The decode tail on a slow CPU
+ * The range pass alone, in a browser worker: range.html's arms, rotated with the shapes every round.
+ * At 1×: a pass this short outruns the throttle's enforcement. docs/decode/README.md §The decode tail on a slow CPU
  *
- *   NODE_PATH=$(npm root -g) node lab/decode-tail/range.mjs [--rounds 7] [--throttles 1,4,6]
+ *   NODE_PATH=$(npm root -g) node lab/decode-tail/range.mjs [--rounds 7] [--throttles 1]
  */
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -11,7 +11,7 @@ import { throttleTree } from "../scripts/cpu_throttle.mjs";
 const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 7));
-const THROTTLES = arg("--throttles", "1,4,6").split(",").map(Number);
+const THROTTLES = arg("--throttles", "1").split(",").map(Number);
 const ARMS = ["product", "ints"];
 const SHAPES = ["c512", "g512", "s12"];
 const ROOT = new URL("../..", import.meta.url).pathname;
