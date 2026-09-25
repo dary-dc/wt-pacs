@@ -38,7 +38,12 @@ main-thread work the fill would be charged.
 ```bash
 NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs 5   # rounds; THROTTLES=1,4,6 ARMS=H,Dw,Dd ALLOC=0
 NODE_PATH=$(npm root -g) node lab/downloader-campaign/port.mjs --rounds 7   # the pixel port's message alone
+NODE_PATH=$(npm root -g) node lab/downloader-campaign/resources.mjs 7       # DECODERS=1,2,3 CORES=2,4 THROTTLES=1,4
 ```
+
+`resources.mjs` (RC1) runs Dd with `?decoders=`, one fresh browser a visit pinned with `taskset`,
+and samples every process and thread of it (`lab/scripts/proc_sampler.mjs`): peak PSS and RSS by
+process kind, on-CPU time by thread name.
 
 *Corrected 2026-09-25 (PH1):* a call inside a message's dispatch or a timer is counted once — it was
 counted with its dispatch as well — and the product's share per frame is printed without the page's

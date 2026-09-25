@@ -651,6 +651,51 @@ a shared ring the page reads — which is a change to §The decoders' shape, for
 15–33 % of frames at 4–6×, about 10 ms of a fill's main thread. On the target link (row 74: a colour
 frame every 70–170 ms) there is less to batch still. That is a proposal for the owner, not this row.
 
+### Resources (RC1)
+
+*Row 75, 2026-09-25.* What the product path holds and burns per process and per thread, and whether
+the decoder count should follow the cores. [`../lab/scripts/proc_sampler.mjs`](../lab/scripts/proc_sampler.mjs)
+walks the browser's process tree every 100 ms: each process's kind (`--type`, and what a utility
+process hosts) and peak PSS and RSS from `smaps_rollup`, each thread's name and on-CPU time from
+`schedstat`. [`resources.mjs`](../lab/downloader-campaign/resources.mjs) runs the Dd fill (80 colour
+frames) and a cold ask with 1, 2 and 3 decoders, the browser pinned to 2 or 4 cores (`taskset`),
+at 1× and 4× — one fresh browser a visit, everything rotated, 7 rounds, 252 visits. At 4× every
+thread is slowed and the tree as a whole gets as many slowed cores as it is pinned to
+(`cpu_throttle.mjs`, `cores`); without that cap two pinned cores never bind, because each slowed
+thread only ever wants a quarter of one. Medians:
+
+| scenario | throttle | cores | decoders 1 / 2 / 3: time | page main thread | renderer PSS | JS heaps, all workers |
+| --- | --: | --: | --: | --: | --: | --: |
+| fill | 1× | 2 | 1 598 / **1 027** / 1 067 ms | 38 / 35 / 48 ms | 220 / 224 / 228 MB | 53 / 105 / 156 MB |
+| | 1× | 4 | 1 508 / 899 / **723** | 31 / 38 / 33 | 219 / 225 / 229 | 53 / 105 / 156 |
+| | 4× | 2 | 7 021 / **4 999** / 5 329 | 198 / 337 / 271 | 216 / 221 / 228 | 53 / 105 / 156 |
+| | 4× | 4 | 6 624 / 3 642 / **2 616** | 58 / 62 / 118 | 218 / 223 / 224 | 53 / 105 / 156 |
+| cold ask | 1× | 2 | 65 / 62 / 64 | 6 | 94 / 97 / 101 | 52 / 103 / 153 |
+| | 1× | 4 | 53 / 51 / 57 | 6–7 | 93 / 97 / 100 | 52 / 103 / 153 |
+| | 4× | 2 | 245 / 253 / 275 | 16–25 | 95 / 99 / 102 | 52 / 103 / 153 |
+| | 4× | 4 | 173 / 170 / 164 | 5–7 | 95 / 99 / 102 | 52 / 103 / 153 |
+
+Paired: a second decoder shortens the fill in 7 of 7 rounds everywhere; a third does so in 7 of 7
+on four cores (1× and 4×) and in 2 of 7 and 1 of 7 on two. No decoder count moves an ask.
+
+* **A decoder costs one thread and ~51 MB of JavaScript heap, but only ~4–5 MB resident.**
+  `measureUserAgentSpecificMemory` counts the package's heap (§D7's 50 MB floor), while the
+  renderer's PSS grows 4–5 MB a decoder: the heap is reserved, and a 512² frame touches little of
+  it. Which of the two a phone's browser kills a tab by is not measured here.
+* **The rest does not follow the decoders.** The GPU process holds ~35 MB and the browser ~99 MB
+  PSS in every cell; the worker threads burn the same ~1.5–1.9 s of CPU for a fill whatever their
+  number — the work is fixed; the network service burns ~250–380 ms, more at 4×.
+* **A fill's renderer holds ~120 MB more than an ask's**, at every decoder count. Where it goes is
+  not split here.
+* **Should the count follow `navigator.hardwareConcurrency`? Yes, as a resource rule:
+  `min(3, hardwareConcurrency)`.** A decoder the cores cannot run buys nothing — on two cores the
+  third decoder is no faster at 1× and slower at 4× (5 329 against 4 999 ms, 1/7), and the page's
+  main thread is what is starved — and it still costs a thread and its heap. On four cores three
+  are fastest in every round. Three stays the ceiling: "more decoders" is not a lever. Measured at
+  two and four cores only; three is the rule's interpolation. On a phone the property counts every
+  core, little ones too, so the rule gives three almost everywhere and bites on two-core devices;
+  whether a phone's scheduler behaves like this emulation is for a device.
+
 ### D7 — the same path on a decoder built with a 4 MB floor
 
 2026-09-19. S4's decode arm cost **161.6 MB**, 150 MB of it three decoder heaps at the package's
