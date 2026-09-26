@@ -61,5 +61,5 @@ that hands each worker one size and reverses the answer. The sizes are a seeded 
 reason.
 
 Every millisecond these print is container-measured unless it was run on the rig
-(`docs/cloud-rig-access.md`). Heap, byte-exactness and the build-flag findings are not timing and
+(`docs/rig-limits.md`). Heap, byte-exactness and the build-flag findings are not timing and
 do not carry that caveat.

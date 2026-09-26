@@ -127,7 +127,7 @@ pub type Batch = Vec<Record>;
 
 /// A live session's buffered rows. Shared because a shutdown has to take them from outside the
 /// session's own task: a session still open at SIGTERM never drops its `Tap`, and its tail would
-/// go with it. docs/telemetry/README.md#the-tail-at-sigterm.
+/// go with it. docs/telemetry/adr-server-pipeline.md#the-tail-at-sigterm.
 type Pending = Arc<Mutex<Batch>>;
 
 static LIVE: OnceLock<Mutex<Vec<Weak<Mutex<Batch>>>>> = OnceLock::new();

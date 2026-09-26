@@ -10,4 +10,4 @@ NODE_PATH=$(npm root -g) node lab/dial-deadline/run.mjs 60000   # the cap, in ms
 ```
 
 Results and the deadline they led to:
-[`docs/proposal-session-survival.md`](../../docs/proposal-session-survival.md) §A dial that never settles.
+[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §A dial that never settles.

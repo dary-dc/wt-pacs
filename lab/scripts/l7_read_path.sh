@@ -3,7 +3,7 @@
 # loopback, a 4 GB study on a 954 MB host, so reads reach the throttled block device without any
 # eviction; every run starts at a frame no earlier run read. Arms: read_ahead_kb 2048 (the rig's)
 # against 128 (the workstation's), interleaved. The server's own hit/miss line says how cold each
-# run was. A warm 80 MB study is the hit reference. Results: docs/disk-access/EVIDENCE.md.
+# run was. A warm 80 MB study is the hit reference. Results: docs/disk-access/adr.md.
 #
 #   SSH_KEY=~/.ssh/id_ed25519_rig lab/scripts/l7_read_path.sh [ROUNDS]
 set -euo pipefail
@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ROUNDS=${1:-6}
 HOST=${CLOUD_HOST:-168.138.130.163}
-SSH_KEY=${SSH_KEY:?the human rig key, docs/cloud-rig-access.md}
+SSH_KEY=${SSH_KEY:?the human rig key, docs/rig-limits.md}
 OUT=${OUT:-$ROOT/.local/measurements/l7-$(date +%Y%m%d-%H%M%S).tsv}
 SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes "ubuntu@$HOST")
 SCP=(scp -q -i "$SSH_KEY")

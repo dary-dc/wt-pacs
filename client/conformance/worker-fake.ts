@@ -41,7 +41,7 @@ export function workerFake(name: string): WorkerFake {
     new Promise<unknown>((resolve, reject) => {
       const id = nextId++;
       waiting.set(id, { resolve, reject });
-      // Posted before the worker's channel is registered, a command is dropped. docs/proposal-conformance-suite.md
+      // Posted before the worker's channel is registered, a command is dropped. docs/CLIENTS.md
       void listening.then(() => waiting.has(id) && bc.postMessage({ id, cmd, args }));
       setTimeout(() => {
         if (waiting.delete(id)) reject(new Error(`no reply to ${cmd} in 2 s — is the fake installed in the worker?`));

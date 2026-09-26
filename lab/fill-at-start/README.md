@@ -1,7 +1,7 @@
 # fill-at-start
 
 When the first fill leaves, with the fill posted after `started` against the fill handed to
-`start`. The numbers live in [`docs/proposal-downloader.md`](../../docs/proposal-downloader.md)
+`start`. The numbers live in [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
 §The first fill handed to `start`; this says how they were made.
 
 ```bash

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stream-mode decision campaign (docs/stream-mode-decision-experiments.md).
+# Stream-mode decision campaign (docs/adr-stream-shape.md).
 # Run inside: unshare --user --map-root-user --net -- bash lab/scripts/stream_mode_decision.sh
 set -euo pipefail
 
@@ -326,7 +326,7 @@ x1_mbps=float(x1[0]['mbps']) if x1 and x1[0]['mbps'] not in ('FAIL','-') else No
 lines=[]
 lines.append('# Stream mode decision — experiment report')
 lines.append('')
-lines.append('**Date:** 2026-08-28 · **Campaign:** `docs/stream-mode-decision-experiments.md`')
+lines.append('**Date:** 2026-08-28 · **Campaign:** `docs/adr-stream-shape.md`')
 lines.append('')
 lines.append('## X1 — finish() gate')
 lines.append(f'- Measured: **{x1_mbps} Mbps** (need ≥ 8.0)')

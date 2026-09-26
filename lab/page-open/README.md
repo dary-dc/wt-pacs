@@ -42,7 +42,7 @@ cuts cost a warm visit nothing and are invisible in it.
 **Three things the after-column says.** All three arms now converge on ~6.5 round trips to a
 session, because what is left is the same for all of them: ~3.6 for the connection, the page and
 the config, and the 3.0 the dial costs
-([`../../docs/proposal-session-open.md`](../../docs/proposal-session-open.md)). The WASM and
+([`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)). The WASM and
 downloader arms were 2 and 6 round trips worse than the TypeScript one and are no longer. And the
 remaining gap from `session` to `frame`, 6.4 round trips, is **not** the page: the fixture is a
 428 KB frame and slow start out of a 12 KB initial window needs six flights for it — S7's
@@ -111,7 +111,7 @@ arm-to-arm spread**, and it is the only spread these runs kept — see the last 
 **R1 is the rung that pays: −1.13 round trips** (13.44 against 14.57), five to seven times the
 spread above, worth 41 ms at 40, 90 ms at 80 and 178 ms at 160 — one round trip, which is exactly
 what putting the ask in the URL removes
-([`../../docs/proposal-session-open.md`](../../docs/proposal-session-open.md) §Lever 1). It is
+([`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Lever 1). It is
 spent between `session` and `frame` and nowhere else: `r1` reaches `session` when `today` does
 (8.28 against 8.36) and `frame` a round trip sooner. The same push buys a second thing this page
 cannot see — the window it opens for the *next* ask, measured natively in
@@ -154,7 +154,7 @@ each behind its own relay, and prints median [min–max] and the rounds each bea
 bare `new WebTransport` dial with a relay blackout at a chosen offset into it, or, at the offset
 `swallow`, with exactly the server's first flight dropped (row 61). Both were built for
 lever 2, the server's SETTINGS at 0.5 RTT, and its numbers are
-[`../../docs/proposal-session-open.md`](../../docs/proposal-session-open.md) §Lever 2 — the dial
+[`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Lever 2 — the dial
 this file counts as 3.0 round trips is 2.1 with it.
 
 ```bash

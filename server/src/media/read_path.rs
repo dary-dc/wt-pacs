@@ -49,7 +49,7 @@ impl ReadMode {
     }
 }
 
-/// Counted per frame. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
+/// Counted per frame. `docs/disk-access/adr.md` §Reporting.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ReadStats {
     pub hits: u64,
@@ -108,7 +108,7 @@ enum Ahead {
 
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
 /// and no ring: a sequential walk is read-ahead's best case and misses about one read in
-/// sixty. `docs/disk-access/EVIDENCE.md` §Fill at scale.
+/// sixty. `docs/disk-access/adr.md` §Fill at scale.
 pub struct SeqReader {
     cur: Vec<u8>,
     ahead: Ahead,
@@ -283,7 +283,7 @@ pub struct TileReader {
 
 impl TileReader {
     /// Without `RWF_NOWAIT` a ring keyed on the shortfall would serve every *warm* read
-    /// too — `docs/disk-access/IMPLEMENTATION.md` §The trap.
+    /// too — `docs/disk-access/adr.md` §The trap.
     #[cfg_attr(not(feature = "uring"), allow(unused_variables))]
     pub fn new(mode: ReadMode, store: &FrameStore, slots: usize) -> Self {
         #[cfg(feature = "uring")]
@@ -565,7 +565,7 @@ mod tests {
 
     /// **The ADR's claim, as an assertion**: a miss reads to the end of the *frame*, so a
     /// missing frame costs one round trip however wide it is. Capping the probe at
-    /// `READ_WINDOW` cost +55–82 % at two windows and up; `docs/disk-access/EVIDENCE.md`.
+    /// `READ_WINDOW` cost +55–82 % at two windows and up; `docs/disk-access/adr.md`.
     #[test]
     fn a_missing_frame_costs_one_round_trip_however_wide_it_is() {
         let dir = scratch("oneshot");
@@ -661,7 +661,7 @@ mod tests {
     }
 
     /// A fill holds **one** read at a time whatever it names, which is what bounds its
-    /// blocking threads at scale. `docs/disk-access/EVIDENCE.md` §Fill at scale.
+    /// blocking threads at scale. `docs/disk-access/adr.md` §Fill at scale.
     #[test]
     fn a_fill_never_holds_more_than_one_read_at_once() {
         let dir = scratch("onedeep");
@@ -688,7 +688,7 @@ mod tests {
     /// A fill asks the kernel for `FILL_WINDOW` past the named frame, extends it only once a
     /// quarter window has been walked, and restarts it on a seek past it. Without the
     /// advice a 250 kB fill at the stock 128 KiB read-ahead misses six frames in ten —
-    /// `docs/disk-access/EVIDENCE.md`.
+    /// `docs/disk-access/adr.md`.
     #[test]
     fn a_fill_tells_the_kernel_what_follows_the_named_frame() {
         let dir = scratch("advise");

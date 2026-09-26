@@ -4,7 +4,7 @@ when (ms from the client's first packet), why (`transmission_type`), and the fra
 
 usage: netlog_pto.py NETLOG.json [...]      (lab/page-open/run.mjs NETLOG=DIR writes one per visit)
 Prints one line per session: `file source ready=+ms | +ms TYPE pn= size= LEVEL [frames] | ...`
-docs/proposal-session-open.md §The probe after the open
+docs/ARCHITECTURE.md §The probe after the open
 """
 import collections
 import json

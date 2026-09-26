@@ -1,6 +1,6 @@
 /**
  * Outstanding-ask window for on-demand asks: the smallest depth that saturates the link.
- * `docs/adr-client-window-depth.md`; the estimator is `docs/lanes/L2-ask-policy.md`'s.
+ * `docs/adr-client-window-depth.md`; the estimator is `docs/adr-client-window-depth.md`'s.
  */
 
 export type AskWindowConfig = { depth: number } | { depth: "auto"; initial?: number };

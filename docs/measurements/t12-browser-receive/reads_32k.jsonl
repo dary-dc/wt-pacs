@@ -1,4 +1,0 @@
-{"mode": "default", "frames": 80, "reads": 61, "reads_per_frame": 0.76, "ms": 23.7, "bytes_per_read": {"min": 214, "p50": 47091, "p90": 47124, "max": 155039}}
-{"mode": "byob-min", "frames": 80, "reads": 160, "reads_per_frame": 2, "ms": 17.6, "bytes_per_read": {"min": 8, "p50": 8, "p90": 32000, "max": 32000}}
-{"mode": "default", "frames": 80, "reads": 51, "reads_per_frame": 0.64, "ms": 16.3, "bytes_per_read": {"min": 305, "p50": 47091, "p90": 80357, "max": 248258}}
-{"mode": "byob-min", "frames": 80, "reads": 160, "reads_per_frame": 2, "ms": 31.9, "bytes_per_read": {"min": 8, "p50": 8, "p90": 32000, "max": 32000}}

@@ -3,7 +3,7 @@
 Lever 2 (the server's SETTINGS in its first flight) against every HTTP/3 or WebTransport client
 this box could run, with lever 2 on and off. Each run goes direct, and again through
 `lab/scripts/half_rtt_deaf.py`, which turns any client into one that ignores 0.5-RTT data. Results:
-[`docs/proposal-session-open.md`](../../docs/proposal-session-open.md) §Other clients.
+[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Other clients.
 
 | client | what it does |
 | --- | --- |

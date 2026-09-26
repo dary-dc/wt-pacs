@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Extract crates.io quinn 0.11.11 and apply patches/quinn-0.11.11-mtu-gso.patch.
-# docs/transport/why-these-changes.md §9
+# docs/transport/transport-conclusions.md §4
 #
 #   scripts/patch_quinn.sh --out DIR [--copy-src DIR]   from patched/quinn/build.rs
 #   scripts/patch_quinn.sh --check                      apply in a temp dir (gate.sh)

@@ -1,7 +1,7 @@
 /**
  * RC1: what the product path holds and burns, per process and per thread, by decoder count, with
  * the browser confined to 2 or 4 cores and every thread slowed or not. One fresh browser per visit;
- * decoders, cores, throttles and scenarios rotate inside every round. docs/proposal-downloader.md §Resources
+ * decoders, cores, throttles and scenarios rotate inside every round. docs/ARCHITECTURE.md §Resources
  *
  *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/resources.mjs [rounds]
  *     [DECODERS=1,2,3] [CORES=2,4] [THROTTLES=1,4] [SCENARIOS=fill,ask]

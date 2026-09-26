@@ -1,5 +1,5 @@
 # crates.io quinn-proto 0.11.18's manifest without dev-dependencies and metadata; the source is
-# that crate with patches/quinn-proto-0.11.18-probe-every-space.patch — docs/proposal-session-open.md
+# that crate with patches/quinn-proto-0.11.18-probe-every-space.patch — docs/ARCHITECTURE.md
 # §What lever 2 costs
 
 [package]

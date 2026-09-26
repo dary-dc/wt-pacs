@@ -3,7 +3,7 @@
  * every round runs `today` and `built` with the order rotated, so a drift in the host lands on
  * both alike. The cut is `link_impair.py`'s `cut` — the port this session is on is blackholed for
  * good and a session from a new port is not, which is what a handover does on one host.
- * docs/proposal-session-survival.md §The measurement this owes
+ * docs/ARCHITECTURE.md §The measurement this owes
  *
  *   NODE_PATH=$(npm root -g) node lab/session-survival/run.mjs [--rounds 7] [--cut-after 12]
  */

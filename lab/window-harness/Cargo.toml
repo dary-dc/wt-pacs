@@ -14,7 +14,7 @@ path = "src/bin/rebind_probe.rs"
 
 [features]
 # The RFC 8879 decompressor, so the probe can negotiate compression with a server built with
-# exact-server's `cert-compression`. docs/proposal-session-open.md §What production adds.
+# exact-server's `cert-compression`. docs/ARCHITECTURE.md §What production adds.
 cert-compression = ["rustls/brotli", "rustls/zlib"]
 
 [dependencies]

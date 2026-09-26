@@ -1,7 +1,7 @@
 # Two targets from one file: `web` serves the page, `server` speaks the transport.
 # nginx cannot front the transport — it is QUIC on UDP and nginx has no QUIC upstream —
 # so the browser dials the server directly, exactly as it does in development.
-# docs/proposal-nginx-and-images.md
+# deploy/README.md
 
 # ---------------------------------------------------------------- server
 FROM docker.io/library/rust:1-bookworm AS build

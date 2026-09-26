@@ -1,5 +1,5 @@
 fn main() {
-    // docs/transport/why-these-changes.md §9
+    // docs/transport/transport-conclusions.md §4
     println!("cargo:rerun-if-changed=../../patches/quinn-0.11.11-mtu-gso.patch");
     println!("cargo:rerun-if-changed=../../scripts/patch_quinn.sh");
     let manifest = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());

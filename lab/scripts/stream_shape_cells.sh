@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # T3's cell: the stream-shape arms on one shaped link, interleaved, on the rig inside one
-# network namespace. `docs/lanes/T3-stream-shape.md` is the work order and the decision rule.
+# network namespace. `docs/adr-stream-shape.md` is the work order and the decision rule.
 #
 #   unshare --user --map-root-user --net -- lab/scripts/stream_shape_cells.sh <out-dir> <server-bin> <harness-bin>
 #

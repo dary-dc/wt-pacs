@@ -1,5 +1,5 @@
 # crates.io wtransport 0.7.2's manifest without examples, dev-dependencies and metadata; the source
-# is that crate with patches/wtransport-0.7.2-settings-early.patch — docs/proposal-session-open.md §Lever 2
+# is that crate with patches/wtransport-0.7.2-settings-early.patch — docs/ARCHITECTURE.md §Lever 2
 
 [package]
 edition = "2021"

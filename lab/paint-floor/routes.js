@@ -1,6 +1,6 @@
 /**
  * Two routes from decoded samples to the screen, and the window mapping both owe.
- * lab/paint-floor/README.md; docs/paint-floor.md holds the numbers.
+ * lab/paint-floor/README.md; docs/ARCHITECTURE.md holds the numbers.
  */
 
 /** Integer, so the two routes agree bit for bit — the dividend and `range` are never negative. */

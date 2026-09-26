@@ -1,7 +1,7 @@
 /**
  * A browser's resources, per process and per thread, from /proc: each process's kind and its peak
  * PSS and RSS (`smaps_rollup`), each thread's name and on-CPU time (`schedstat`). Polls a process
- * tree until `stop()`, which sums them by kind and by thread name. docs/proposal-downloader.md §Resources
+ * tree until `stop()`, which sums them by kind and by thread name. docs/ARCHITECTURE.md §Resources
  *
  *   const s = sampleTree(chrome.pid);  ...  const { kinds, threads } = s.stop();
  */

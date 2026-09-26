@@ -3,7 +3,7 @@
  * served before the fill frames still waiting for a decoder, never more than `perDecoder` frames
  * outstanding on one decoder, and a fill handed to `start` reaching the wire while the decoders
  * are still coming up. Each needs the stand-in decoder (fake-decoder.js) made to stall or to hold
- * `ready` back, not luck. docs/proposal-downloader.md §The downloader.
+ * `ready` back, not luck. docs/ARCHITECTURE.md §The downloader.
  */
 import { type WorkerFake, workerFake } from "./worker-fake.ts";
 
@@ -544,7 +544,7 @@ async function theDecodersComeUpWhileTheUrlIsUnknown(DownloaderClient: Downloade
 /**
  * R1: the fill the consumer opens with rides the session URL, so the server serves it behind its
  * accept, and the control stream is never asked for it a second time. Off unless asked for, as
- * the server's `--open-ask` is. docs/proposal-session-open.md
+ * the server's `--open-ask` is. docs/ARCHITECTURE.md
  */
 async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const indices = [0, 1, 2, 3];
@@ -796,7 +796,7 @@ async function stalledFill(DownloaderClient: DownloaderCtor, extra: Partial<Open
 /**
  * A slow frame is not a death, and a trigger is not a verdict: while bytes keep arriving the session
  * is kept however long the frame takes — no re-dial, and nothing asked to test it.
- * docs/proposal-session-survival.md §Detection by the bytes
+ * docs/ARCHITECTURE.md §Detection by the bytes
  */
 async function aSessionWhoseBytesKeepComingIsKept(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const got: Frame[] = [];
@@ -915,7 +915,7 @@ async function whenTheRedialsRunOutWhatWasOwedIsNamed(DownloaderClient: Download
   c.close();
 }
 
-/** A dial that never settles is closed at `dialMs` and dialled again. docs/proposal-session-survival.md §A dial that never settles */
+/** A dial that never settles is closed at `dialMs` and dialled again. docs/ARCHITECTURE.md §A dial that never settles */
 async function aDialThatNeverSettlesIsDialledAgain(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const { c, fake } = await open(DownloaderClient, {
     decode: false, decoders: 0, perDecoder: 2, delayMs: 0, onFrame: () => {}, survival: { ...QUICK, dialMs: 150 }, hangDials: 1,

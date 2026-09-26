@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """How a browser hands a frame to the page: reads per frame and bytes per read on the media
 stream, with the default reader and with a BYOB reader asking for the whole frame at once.
-Needs the static host (`server/dev-server.py --port 8765`). `docs/lanes/T12-browser-receive.md`.
+Needs the static host (`server/dev-server.py --port 8765`). `docs/rig-limits.md`.
 usage: browser_reads.py <server-bin> <fixture> [frames=40]
 """
 import hashlib, json, os, signal, socket, subprocess, sys

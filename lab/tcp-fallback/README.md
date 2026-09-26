@@ -12,4 +12,4 @@ NODE_PATH=$(npm root -g) node lab/tcp-fallback/run.mjs 3    # rounds
 
 **A correctness smoke, not a comparison.** Loopback's 64 KB MTU favours TCP (`docs/rig-limits.md`
 §3). Results and what the shaped A/B on the workstation should measure:
-[`docs/proposal-udp-fallback.md`](../../docs/proposal-udp-fallback.md) §What was built.
+[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §What was built.

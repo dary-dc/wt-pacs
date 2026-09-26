@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E1 — does D_min saturate the link? docs/window-saturation-experiment.md §1.
+# E1 — does D_min saturate the link? docs/adr-client-window-depth.md §E1 — does `D_min` saturate the link?.
 # Pass condition, fixed in advance: measured D_min (smallest depth reaching 95% of the D=64
 # ceiling) within +/-1 of ceil(U * (1 + RTT/Tf)), U=0.95, Tf = frame_bytes*8/read_bps.
 # RTT~0 is a floor control only. USE_NETEM=1 for tc; needs CAP_NET_ADMIN.

@@ -2,7 +2,7 @@
  * Messages posted before the other side listens, in the product's own sites: each trial opens the
  * receiver and posts at once, and a message that never arrives is a loss. Driverless — a DevTools
  * session pauses every worker at start — one page per arm per round, arms rotated.
- * docs/proposal-downloader.md §Messages posted before anyone listens
+ * docs/ARCHITECTURE.md §Messages posted before anyone listens
  *
  *   NODE_PATH=$(npm root -g) node lab/early-messages/run.mjs --rounds 5 --n 1000
  */

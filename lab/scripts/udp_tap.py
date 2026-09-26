@@ -4,7 +4,7 @@
 usage: udp_tap.py LISTEN_PORT UPSTREAM_PORT OUT.json
 Relays 127.0.0.1:LISTEN_PORT <-> 127.0.0.1:UPSTREAM_PORT, one upstream socket per client
 address, and writes the histogram on SIGTERM / SIGINT. It drops under load, so its numbers
-answer "how large" and never "how fast" — docs/improvements/2026-09-10.md.
+answer "how large" and never "how fast" — docs/transport/transport-conclusions.md.
 """
 import collections
 import json

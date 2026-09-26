@@ -1,4 +1,4 @@
-// The decode worker: no decoder, just buffers of the decoded sizes. docs/thread-hops.md
+// The decode worker: no decoder, just buffers of the decoded sizes. docs/ARCHITECTURE.md
 let toPage = null;
 const held = [];
 

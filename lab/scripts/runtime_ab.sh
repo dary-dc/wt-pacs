@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Interleaved A/B of two server binaries on one warm cell, both servers up for the whole run,
-# arm order reversed every repeat. `docs/transport/why-these-changes.md` §8.
+# arm order reversed every repeat. `docs/transport/transport-conclusions.md` §6.
 #
 #   lab/scripts/runtime_ab.sh <fixture> <on-demand|fill> <depth> <asks> <sessions> <repeats> \
 #     <label-a> <bin-a> [server args...] -- <label-b> <bin-b> [server args...] [-- ...]

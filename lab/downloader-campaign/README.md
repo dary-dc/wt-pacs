@@ -1,7 +1,7 @@
 # downloader-campaign
 
 What the downloader costs against today's harness path, on the same server, interleaved. The
-numbers live in [`docs/proposal-downloader.md`](../../docs/proposal-downloader.md) §Results; this
+numbers live in [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Results; this
 says how they were made.
 
 ```bash

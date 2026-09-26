@@ -123,7 +123,7 @@ impl FrameOut {
 }
 
 /// Earlier asks outrank later ones, so quinn sends a lost frame's retransmit before newer
-/// frames' data instead of behind every stream already queued. `docs/transport/NEXT.md` §3.
+/// frames' data instead of behind every stream already queued. `docs/adr-stream-shape.md`.
 fn ask_priority(seq: u32) -> i32 {
     i32::try_from(seq).map_or(i32::MIN, |s| -s)
 }

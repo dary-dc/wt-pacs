@@ -5,7 +5,7 @@
  *   Dd  the downloader decoding, `decoders` of them (3) — pixels in a SharedArrayBuffer (the product path)
  * Five scenarios: a fill of `fill` frames; one cold ask; a fill with an ask for a frame outside it
  * once 10, 50 or 90 % has landed. Numbers go to window.__wtpacsResult; run.mjs adds what only
- * CDP can see. docs/proposal-downloader.md §S4.
+ * CDP can see. docs/ARCHITECTURE.md §S4.
  */
 import { DownloaderClient } from "/client/downloader/consumer.js";
 

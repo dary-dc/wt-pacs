@@ -1,4 +1,4 @@
-//! Whole-file page-cache eviction. `docs/disk-access/IMPLEMENTATION.md`.
+//! Whole-file page-cache eviction. `docs/disk-access/adr.md`.
 
 use anyhow::{bail, Context, Result};
 use disk_access_bench::residency::evict_retry;

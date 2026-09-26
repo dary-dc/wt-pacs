@@ -1,6 +1,6 @@
 //! The same envelopes and FoD messages over one WebSocket on TCP, beside QUIC, for a client UDP
 //! cannot reach. Binary messages, joined, are the shared uni stream's bytes; a text message is one
-//! FoD message's JSON. `docs/proposal-udp-fallback.md` §What was built.
+//! FoD message's JSON. `docs/WIRE.md` §The WebSocket mapping.
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # D2d: the downloader over each transport client in turn, against a real server. A fill and a
 # cold ask per arm, interleaved with the order reversed each round.
-# docs/proposal-downloader.md §Capabilities.
+# docs/ARCHITECTURE.md §Capabilities.
 #
 #   ROUNDS=4 lab/scripts/downloader_both_clients.sh
 set -euo pipefail

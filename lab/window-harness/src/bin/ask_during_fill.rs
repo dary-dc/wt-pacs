@@ -2,7 +2,7 @@
 //!
 //! The lane's premise was that the two share the connection. They do not: the planner drops the
 //! fill the moment any ask is in hand (`server/src/transport/planner.rs`), so the ask does not
-//! overtake the fill, it replaces it. This measures what that costs. docs/transport/adr-ask-during-fill.md
+//! overtake the fill, it replaces it. This measures what that costs. docs/WIRE.md
 //!
 //! usage: ask_during_fill --url https://127.0.0.1:4433 --frames 200 --at-pct 50 --rounds 5
 use anyhow::{Context, Result};

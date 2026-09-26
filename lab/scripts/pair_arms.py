@@ -13,8 +13,8 @@ is defined on:
     median of paired ratios   median over cells of (uring - lazyring)/lazy = -24.0%
 
 Both are arithmetically right on the same 84 cells of `v27_lazyring.tsv`. Only the second is
-what `RERUN.md` Precision defines the threshold against, and the first is what the candidate
-table in `EVIDENCE.md` shows — which is how a 24% near-miss came to be read as a 42% win,
+what `docs/disk-access/adr.md` §11 defines the threshold against, and the first is what the candidate
+table in its §5 shows — which is how a 24% near-miss came to be read as a 42% win,
 twice. Pair before concluding.
 
     lab/scripts/pair_arms.py FILE.tsv [more.tsv ...]
@@ -108,7 +108,7 @@ def main():
                     choices=["cpu_ns_per_ask", "p50_ns", "p90_ns", "p99_ns", "wall_ns"],
                     help="column to pair on (default: CPU per ask, the campaign's rule)")
     ap.add_argument("--drift", type=float, default=DRIFT,
-                    help=f"resolution threshold in %% (default {DRIFT}; RERUN.md gives 7 for a "
+                    help=f"resolution threshold in %% (default {DRIFT}; adr.md §11 gives 7 for a "
                          "latency median re-run on one host)")
     a = ap.parse_args()
     pairs = DEFAULT_PAIRS

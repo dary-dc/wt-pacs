@@ -2,7 +2,7 @@
  * One arm, one fill, against the real server through the relay: the page records when each frame
  * landed and run.mjs cuts the path under it. `built` is the client as it is; `today` turns
  * resumption off and does what a page could do without it — re-ask once the transport says the
- * fill is gone. docs/proposal-session-survival.md §The measurement this owes
+ * fill is gone. docs/ARCHITECTURE.md §The measurement this owes
  */
 import { DownloaderClient } from "/client/downloader/consumer.js";
 

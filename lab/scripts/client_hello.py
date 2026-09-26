@@ -5,7 +5,7 @@ derived from the client's first destination connection ID (RFC 9001 §5.2), so n
 
 usage: tcpdump -i lo -w dial.pcap udp port SERVER_PORT; client_hello.py dial.pcap SERVER_PORT
 Prints one line per connection: `conn=N psk=resumed|offered|no early_data=yes|no zero_rtt_packets=yes|no`
-docs/proposal-session-survival.md §Resumption and 0-RTT
+docs/ARCHITECTURE.md §Resumption and 0-RTT
 """
 import hashlib
 import hmac

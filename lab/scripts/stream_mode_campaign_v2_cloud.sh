@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stream-mode campaign v2 — docs/stream-mode-campaign-v2.md
+# Stream-mode campaign v2 — docs/adr-stream-shape.md
 # Harness local → exact-server on São Paulo rig with server-side netem.
 # --rtt-ms is always 0. --read-bps 0. --mode saturate.
 set -euo pipefail
@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 source "$ROOT/lab/scripts/cloud_common.sh"
 
-OUT_TSV="${OUT_TSV:-$ROOT/docs/measurements/r2/stream_mode_campaign_v2.tsv}"
+OUT_TSV="${OUT_TSV:-$ROOT/.local/r2/campaign_v2/stream_mode_campaign_v2.tsv}"
 RAW_DIR="${RAW_DIR:-$ROOT/.local/r2/campaign_v2/raw}"
 LOG="${LOG:-$ROOT/.local/r2/campaign_v2/RUN.log}"
 FILL_DWELL_MS="${FILL_DWELL_MS:-5000}"

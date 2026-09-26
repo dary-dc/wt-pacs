@@ -24,7 +24,7 @@
 -const MAX_TRANSMIT_SEGMENTS: usize = 10;
 +const MAX_TRANSMIT_SEGMENTS: usize = 64;
 +
-+/// docs/transport/why-these-changes.md §9
++/// docs/transport/transport-conclusions.md §4
 +fn max_transmit_segments(mtu: u16) -> usize {
 +    (65_527 / usize::from(mtu.max(1))).clamp(1, MAX_TRANSMIT_SEGMENTS)
 +}

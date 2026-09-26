@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Profile-guided release build of exact-server: instrument, train on the cells the server is
 # measured on, rebuild with the profile. The profile is bound to the source it was taken from,
-# so this runs per build, never from a stored profile. `docs/transport/why-these-changes.md` §9.
+# so this runs per build, never from a stored profile. `docs/transport/transport-conclusions.md` §4.
 #
 #   scripts/pgo_build.sh            → target/pgo/release/exact-server
 set -euo pipefail

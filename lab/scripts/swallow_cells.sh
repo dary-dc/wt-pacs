@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # FF1: a cold native dial when the relay swallows exactly the server's first flight, against a
 # clean dial, for two or more server binaries, arms rotated inside every round.
-# Results: docs/proposal-session-open.md §What lever 2 costs.
+# Results: docs/ARCHITECTURE.md §What lever 2 costs.
 #
 #   SERVERS=a=BIN,b=BIN [RTTS="40 80"] [SWALLOW_MS=50] [TRACE=DIR] lab/scripts/swallow_cells.sh [rounds]
 #

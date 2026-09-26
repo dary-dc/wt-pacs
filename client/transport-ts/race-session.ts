@@ -1,7 +1,7 @@
 /**
  * Opt-in: dial WebTransport and a WebSocket at once and keep whichever session is ready first,
  * because a network that swallows UDP makes a QUIC dial wait out Chrome's four-second handshake
- * timeout before it fails. docs/proposal-udp-fallback.md §Race it
+ * timeout before it fails. docs/ARCHITECTURE.md §Race it
  */
 
 import { TransportSession as OverQuic } from "./session.ts";

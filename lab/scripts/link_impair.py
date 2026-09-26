@@ -142,7 +142,7 @@ class UdpPlane:
 
     def cut(self):
         """The path this session is on is gone for good, and a session from a new port is not —
-        what a handover does, on one host. docs/proposal-session-survival.md"""
+        what a handover does, on one host. docs/ARCHITECTURE.md"""
         self.dead, self.client = self.client, None
         return self.dead[1] if self.dead else 0
 

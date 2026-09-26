@@ -1,4 +1,4 @@
-//! Product-server A/B client. `docs/disk-access/IMPLEMENTATION.md`.
+//! Product-server A/B client. `docs/disk-access/adr.md`.
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};

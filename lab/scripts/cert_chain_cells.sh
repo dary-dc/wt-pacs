@@ -2,7 +2,7 @@
 # H1: what a production certificate chain costs a cold open, and what RFC 8879 compression
 # gives back. Builds throwaway WebPKI-shaped chains from a private CA made here, reads each
 # server first flight off the wire, and refits cold_open's first-byte slope with the arms
-# interleaved. Numbers and what they mean: docs/proposal-session-open.md §What production adds.
+# interleaved. Numbers and what they mean: docs/ARCHITECTURE.md §What production adds.
 #
 #   lab/scripts/cert_chain_cells.sh [rounds]
 #

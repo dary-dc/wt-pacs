@@ -2,7 +2,7 @@
 
 **A draft, not posted.** The owner posts it, or does not. Below are an issue and a pull-request
 description for [BiagioFesta/wtransport](https://github.com/BiagioFesta/wtransport), written from
-[`../proposal-session-open.md`](../proposal-session-open.md) §Lever 2, whose numbers they quote.
+[`ARCHITECTURE.md`](../ARCHITECTURE.md) §Lever 2, whose numbers they quote.
 Before posting: check for an open issue or PR again (none on 2026-09-23, §Upstream there), and
 rebase the patch onto the release current then. [#324](https://github.com/BiagioFesta/wtransport/pull/324)
 touches `open_and_send_settings`, which this patch starts earlier.
@@ -136,8 +136,8 @@ bars none in the others; §6.2.3 lets an endpoint resend unacknowledged CRYPTO d
 Measured at 80 ms: a lost first flight costs Chrome 1 249 ms instead of 1 414 (1 332 without
 0.5-RTT data at all). Clean dials tie, and a 1 % loss median ties. The patch as carried is
 [`../../patches/quinn-proto-0.11.18-probe-every-space.patch`](../../patches/quinn-proto-0.11.18-probe-every-space.patch),
-and `proposal-session-open.md` §The losing phase, removed, has the trace.
+and `docs/ARCHITECTURE.md` §The losing phase, removed, has the trace.
 
 A second quinn item, found since: an owed ACK waits while the congestion window is full and
-stream data is queued ([`../proposal-session-open.md`](../proposal-session-open.md) §The probe
+stream data is queued ([`ARCHITECTURE.md`](../ARCHITECTURE.md) §The probe
 after the open). It is a separate issue and not part of this draft.

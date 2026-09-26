@@ -1,9 +1,9 @@
 /**
  * The downloader: one worker owns the session, every frame's record and the queue.
  * Data takes the shortest path — pixels go decoder → consumer over a port handed out here —
- * and control has one owner. docs/proposal-downloader.md
+ * and control has one owner. docs/ARCHITECTURE.md
  */
-/** The transport is a seam: a third implementation plugs in here. docs/client-shape-plan.md §0 */
+/** The transport is a seam: a third implementation plugs in here. docs/CLIENTS.md §The seam */
 const DEFAULT_TRANSPORT = "/client/transport-ts/dist/session.js";
 let TransportSession = null;
 
@@ -143,7 +143,7 @@ async function ask(index, promise) {
   }
 }
 
-/** The wire carries one contiguous run of what is wanted at a time. docs/proposal-downloader.md §The downloader */
+/** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */
 function nextRun() {
   if (wanted.size === 0) return null;
   const from = Math.min(...wanted);
@@ -182,7 +182,7 @@ function issueFill() {
 
 
 /** No byte for `quietMs` while frames are owed is a dead path; each re-dial it causes doubles the
- *  wait. A frame slower than the wait still moves bytes. docs/proposal-session-survival.md §Detection */
+ *  wait. A frame slower than the wait still moves bytes. docs/ARCHITECTURE.md §Detection */
 function watch() {
   clearTimeout(stall);
   stall = null;
@@ -263,7 +263,7 @@ async function start(m) {
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
   quietMs = deadlines.stallMs;
   // The decoders come up without the session URL, which arrives in `dial`; `decodersUp` gates
-  // dispatch alone — docs/proposal-downloader.md §The downloader.
+  // dispatch alone — docs/ARCHITECTURE.md §The downloader.
   if (cfg.fill) want(cfg.fill, abs());
   if (cfg.decode) await Promise.all(ready);
   decodersUp = true;
@@ -275,7 +275,7 @@ async function connect() {
   dialling ??= (async () => {
     TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
     // The range is known here, so it rides the session URL and is served behind the accept
-    // rather than a round trip later. docs/proposal-session-open.md
+    // rather than a round trip later. docs/ARCHITECTURE.md
     const run = cfg.openAsk ? nextRun() : null;
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
     // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
@@ -360,7 +360,7 @@ onmessage = async (e) => {
     if (m.kind === "close") {
       clearTimeout(stall);
       session?.close();
-      // The decoders end with this worker; ending them here first can strand it. docs/proposal-downloader.md §Closing a client
+      // The decoders end with this worker; ending them here first can strand it. docs/ARCHITECTURE.md §Closing a client
       return void post({ kind: "closed", reason: "closed by the consumer" });
     }
   } catch (err) {

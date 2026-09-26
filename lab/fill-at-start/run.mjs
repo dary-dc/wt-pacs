@@ -1,7 +1,7 @@
 /**
  * Drive page.js headless, interleaving the arms: every round runs both arms in each cell with the
  * arm order reversed on odd rounds, so a drift in the host lands on both alike. Prints median
- * [min … max] and the new arm's rounds-better out of n. docs/proposal-downloader.md §The first fill.
+ * [min … max] and the new arm's rounds-better out of n. docs/ARCHITECTURE.md §The first fill.
  *
  *   NODE_PATH=$(npm root -g) node lab/fill-at-start/run.mjs [--rounds 12] [--base http://127.0.0.1:8765]
  */

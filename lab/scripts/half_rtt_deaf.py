@@ -3,7 +3,7 @@
 every 1-RTT (short-header) packet the server sends a client until that client sends its own first
 1-RTT packet, alone or coalesced — which it can only do once its handshake is complete. Long-header
 packets coalesced ahead of a 1-RTT packet in one datagram are kept.
-docs/proposal-session-open.md §Other clients
+docs/ARCHITECTURE.md §Other clients
 
 usage: half_rtt_deaf.py LISTEN_PORT UPSTREAM_PORT
 Prints one line per client on SIGTERM / SIGINT: `client=N stripped_packets=... stripped_bytes=...`

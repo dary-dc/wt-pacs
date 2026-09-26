@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ROUNDS=${1:-5}
 HOST=${CLOUD_HOST:-168.138.130.163}
-SSH_KEY=${SSH_KEY:?the human rig key, docs/cloud-rig-access.md}
+SSH_KEY=${SSH_KEY:?the human rig key, docs/rig-limits.md}
 STUDY=${STUDY:?a .sbnd of 256 kB frames, as link_impair_check.sh packs}
 OUT=${OUT:-$ROOT/.local/measurements/n1-netem-$(date +%Y%m%d-%H%M%S).tsv}
 SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes "ubuntu@$HOST")

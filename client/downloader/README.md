@@ -2,7 +2,7 @@
 
 One worker owns the session, every frame's record and the queue; decoders hand pixels straight to
 the consumer over a port the downloader hands out. Beside today's path, not instead of it.
-Design and what it is for: [`docs/proposal-downloader.md`](../../docs/proposal-downloader.md).
+Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 
 | file | |
 | - | - |
@@ -64,7 +64,7 @@ downloader has ended the stream and dropped that request's work; every frame and
 generation it was made under, and anything older is dropped on the page rather than handed over
 under an index the new request is using. A refused *fill* frame has no waiter, so it reaches the
 consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
-rejects its own promise. [`proposal-downloader.md`](../../docs/proposal-downloader.md) §The consumer.
+rejects its own promise. [`ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §The consumer.
 
 **What a frame reports.** Beside the decoded `byteCount`, every frame message the decoder and the
 downloader post carries `wireBytes` — the codestream length the frame's envelope declared, which is
@@ -102,7 +102,7 @@ told is when each resume happened, as `stats().resumedAt`. `survival: false` tur
 `dialMs` is closed and counts as a failed try, the first dial included. Until 2026-09-24 a quiet fill started a probe ask
 instead, which livelocked on a slow link. An ask keeps no timer in the consumer: the downloader
 settles it, and the transports time a frame from the last byte, not from the ask.
-[`docs/proposal-session-survival.md`](../../docs/proposal-session-survival.md) has the states, the
+[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) has the states, the
 reasons and what a cut costs today against built.
 
 Run the arm (`client/harness/downloader.html`) the way the README's quick start runs the others,
@@ -121,7 +121,7 @@ would measure the wrong thing. `dev-server.py` and `deploy/nginx` both send the 
 
 **The transport is a seam.** `config.transport` is a module URL exporting `TransportSession`,
 defaulting to `client/transport-ts/dist/session.js`. A third implementation plugs in there without
-the downloader knowing ([`client-shape-plan.md`](../../docs/client-shape-plan.md) §0) — and it is
+the downloader knowing ([`CLIENTS.md`](../../docs/CLIENTS.md) §The seam) — and it is
 how the conformance suite drives this arm: `client/conformance/run_downloader.sh`, run by the gate.
 `config.decoderWorker` is the same seam for the decoder: `client/conformance/run_dispatch.sh` (D2c)
 points it at a stalling stand-in to force the contention its ordering and dispatch-bound tests need.

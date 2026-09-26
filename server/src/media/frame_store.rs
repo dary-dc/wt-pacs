@@ -58,7 +58,7 @@ impl FrameStore {
     }
 
     /// Where this is false every read reports a miss, cached or not, so a caller that
-    /// branches on a miss must gate on it — `docs/disk-access/IMPLEMENTATION.md` §The trap.
+    /// branches on a miss must gate on it — `docs/disk-access/adr.md` §The trap.
     pub fn nowait_supported(&self) -> bool {
         self.nowait
     }

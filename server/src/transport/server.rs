@@ -38,16 +38,16 @@ pub struct ServeConfig {
     /// QUIC transport knobs. Unset fields keep the library default.
     pub tuning: TransportTuning,
     /// Lab only: serve every frame as a miss, so a cold study can be measured without
-    /// relying on page-cache eviction. `docs/disk-access/EVIDENCE.md`.
+    /// relying on page-cache eviction. `docs/disk-access/adr.md`.
     pub force_pool_reads: bool,
     /// Prototype, off by default: honour `?ask=` in the session URL, so the first frame moves
-    /// behind the accept instead of behind the control stream. `docs/proposal-session-open.md`.
+    /// behind the accept instead of behind the control stream. `docs/ARCHITECTURE.md`.
     pub open_ask: bool,
     /// Lab only: every session request is taken and never answered — WebKit bug 319879's dial
-    /// that never settles, made on purpose. `docs/proposal-session-survival.md` §A dial that never settles.
+    /// that never settles, made on purpose. `docs/ARCHITECTURE.md` §A dial that never settles.
     pub hold_sessions: bool,
     /// Off by default: also serve the same envelopes over a WebSocket, TCP on `wt_port`.
-    /// `docs/proposal-udp-fallback.md` §What was built.
+    /// `docs/WIRE.md` §The WebSocket mapping.
     pub websocket: bool,
 }
 
@@ -139,14 +139,14 @@ fn cert_sha256_hex(identity: &Identity) -> Result<String> {
 }
 
 /// Warns where the fast path is absent: the fallback is correct and ~2.5x slower per frame.
-/// `docs/disk-access/DEPLOYMENT.md`.
+/// `docs/disk-access/adr.md`.
 fn read_fast_path(store: &FrameStore) -> &'static str {
     if store.nowait_supported() {
         return "preadv2";
     }
     warn!(
         "RWF_NOWAIT is refused here (overlayfs or tmpfs?); every frame costs a blocking-pool \
-         round trip. See docs/disk-access/DEPLOYMENT.md"
+         round trip. See docs/disk-access/adr.md"
     );
     "pooled_pread"
 }
@@ -225,7 +225,7 @@ async fn handle_incoming(
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     // Read before accepting: the whole point of an opening ask is to serve behind the accept
-    // rather than behind the client's control stream. `docs/proposal-session-open.md`.
+    // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
     let opening = open_ask.then(|| parse_open_ask(session_request.path(), store.frame_count()));
     let connection = session_request.accept().await.context("accept session")?;
 
@@ -328,7 +328,7 @@ fn report_path(connection: &wtransport::Connection) {
 }
 
 /// The reader owns the control stream; the planner decides; the pipeline serves.
-/// `docs/disk-access/IMPLEMENTATION.md`.
+/// `docs/disk-access/adr.md`.
 async fn run_session<P: FramePipeline>(pipeline: &mut P, control_recv: RecvStream) -> Result<()> {
     let (reader, mut asks) = spawn_ask_reader(control_recv);
     let result = drive(pipeline, &mut asks).await;
@@ -462,7 +462,7 @@ mod tests {
 
     /// **The loop's own line.** `Step::Serve`'s `upcoming` reaches `serve`; a fill names
     /// `FILL_AHEAD` and is counted once. No QUIC — the seam below `serve` is
-    /// `pipeline.rs`'s. `docs/disk-access/IMPLEMENTATION.md`.
+    /// `pipeline.rs`'s. `docs/disk-access/adr.md`.
     #[test]
     fn the_loop_hands_serve_the_frames_the_planner_named() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drive-{}", std::process::id()));
@@ -663,7 +663,7 @@ mod tests {
     /// The ask in the session URL is served without the client ever writing to the control
     /// stream, an out-of-range one is ignored rather than taken, and a refusal in such a session
     /// waits for the control stream instead of being dropped. R1 —
-    /// `docs/proposal-session-open.md`.
+    /// `docs/ARCHITECTURE.md`.
     #[test]
     fn an_opening_ask_is_served_behind_the_accept() {
         for (query, want) in [("?ask=frame:3", Some(3u32)), ("?ask=frame:99", None)] {
@@ -759,7 +759,7 @@ mod tests {
 
     /// With `hold_sessions` the client's dial neither completes nor fails: the handshake is done,
     /// the CONNECT is taken, and nothing answers it — the dial a client needs its own deadline
-    /// for. `docs/proposal-session-survival.md` §A dial that never settles.
+    /// for. `docs/ARCHITECTURE.md` §A dial that never settles.
     #[test]
     fn a_held_dial_neither_connects_nor_fails() {
         let dir = std::env::temp_dir().join(format!("wtpacs-hold-{}", std::process::id()));
@@ -817,7 +817,7 @@ mod tests {
     /// sends after its first flight — so the server's handshake can never complete — still
     /// receives the HTTP/3 control stream, opening with SETTINGS. Without
     /// `patches/wtransport-0.7.2-settings-early.patch` it never does.
-    /// `docs/proposal-session-open.md` §Lever 2.
+    /// `docs/ARCHITECTURE.md` §Lever 2.
     #[test]
     fn settings_ride_the_handshake_flight() {
         let dir = std::env::temp_dir().join(format!("wtpacs-settings-{}", std::process::id()));
@@ -903,7 +903,7 @@ mod tests {
     /// flight rides the ServerHello's probe and its 0.5-RTT SETTINGS reach the client one round
     /// trip after the client's handshake completes — when an unpatched server's would. Without
     /// `patches/quinn-proto-0.11.18-probe-every-space.patch` they wait for the ACK of
-    /// HANDSHAKE_DONE to be declared lost: two round trips. `docs/proposal-session-open.md` §What lever 2 costs.
+    /// HANDSHAKE_DONE to be declared lost: two round trips. `docs/ARCHITECTURE.md` §What lever 2 costs.
     #[test]
     fn a_lost_first_flight_is_repeated_whole() {
         const ONE_WAY: Duration = Duration::from_millis(50);
@@ -1091,7 +1091,7 @@ mod tests {
     }
 
     /// **`pool:k` over the wire.** Frames are dealt round-robin: each of the `k` streams carries
-    /// the frames of one residue mod `k`, whole and in ask order. `docs/lanes/T3-stream-shape.md`.
+    /// the frames of one residue mod `k`, whole and in ask order. `docs/adr-stream-shape.md`.
     #[test]
     fn a_pool_deals_frames_round_robin_over_its_streams() {
         let (frames, k) = (7u32, 3u32);
@@ -1170,7 +1170,7 @@ mod tests {
     }
 
     /// `StreamFrames {}` recites the whole study, in order, and nothing past it.
-    /// `docs/disk-access/IMPLEMENTATION.md`.
+    /// `docs/disk-access/adr.md`.
     #[test]
     fn empty_stream_frames_is_the_whole_study() {
         let frames = 4u32;
@@ -1271,7 +1271,7 @@ mod tests {
 
     /// **The WebSocket path.** Binary messages, joined, are the shared uni stream's bytes — each
     /// frame whole, in fill order, its codestream split across messages so a client sees it move —
-    /// and a refusal comes back as a text message holding FoD's JSON. `docs/proposal-udp-fallback.md`.
+    /// and a refusal comes back as a text message holding FoD's JSON. `docs/ARCHITECTURE.md`.
     #[test]
     fn a_websocket_carries_the_same_envelopes_and_refusals() {
         use futures_util::{SinkExt, StreamExt};

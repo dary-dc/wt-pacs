@@ -2,7 +2,7 @@
 
 Prices the thread hops a decoded frame crosses on its way to the page. No transport and no
 decoder: the decode worker posts buffers of the decoded sizes. Write-up and results:
-[`docs/thread-hops.md`](../../docs/thread-hops.md).
+[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 
 ```bash
 npm install -g playwright                     # browsers are pre-installed; do not re-fetch them

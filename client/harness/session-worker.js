@@ -1,6 +1,6 @@
 // The product session, run inside a module Worker. Frames cross as transferable buffers, so
 // the boundary is a move and not a copy. Lab only — the product's worker shape is
-// `docs/client-shape-plan.md` on the client branch. Measurement: `docs/CLIENTS.md`.
+// `docs/ARCHITECTURE.md` on the client branch. Measurement: `docs/CLIENTS.md`.
 import { TransportSession } from "/client/transport-ts/dist/session.js";
 
 let session = null;

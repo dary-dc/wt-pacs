@@ -12,7 +12,7 @@
 //! (`current`) and the proposed streaming design (`streaming`). Rows share one fixed
 //! layout so the arms differ only in the thing being measured.
 //!
-//! See docs/server-telemetry-and-architecture-analysis-2026-09.md.
+//! See docs/telemetry/adr-server-pipeline.md.
 
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Serialize;

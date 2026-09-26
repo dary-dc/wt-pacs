@@ -14,4 +14,4 @@ python3 lab/stream-shape/summarize.py loss0.jsonl loss1.jsonl loss3.jsonl burst.
 ```
 
 Cells: `loss0`, `loss1`, `loss3`, `burst` (Gilbert–Elliott). The rule the numbers were read by,
-fixed before the first run, and the results: [`docs/lanes/T3-stream-shape.md`](../../docs/lanes/T3-stream-shape.md) §HOL1.
+fixed before the first run, and the results: [`docs/adr-stream-shape.md`](../../docs/adr-stream-shape.md) §HOL1.

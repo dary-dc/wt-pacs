@@ -3,7 +3,7 @@
  * worker side. From the trace of each fill: collections (MinorGC, MajorGC) and top-level task time
  * per thread, the page's main thread against every worker thread. From the page, a sampled
  * allocation profile, summed by function, which says what the page allocates per frame.
- * Throttles and arms rotate inside every round. docs/proposal-downloader.md §Under a throttled CPU
+ * Throttles and arms rotate inside every round. docs/ARCHITECTURE.md §Under a throttled CPU
  *
  *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs [rounds]   [THROTTLES=1,4,6] [ARMS=Dw,Dd] [ALLOC=0]
  */

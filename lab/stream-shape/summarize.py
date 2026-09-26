@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HOL1's reading of run.mjs rows, by the rule fixed in docs/lanes/T3-stream-shape.md §HOL1 before
+"""HOL1's reading of run.mjs rows, by the rule fixed in docs/adr-stream-shape.md §HOL1 before
 the first run: pooled nearest-rank p95s, and per-round p95s paired against `shared` for the win count.
 
 usage: summarize.py rows.jsonl [...]          the cells

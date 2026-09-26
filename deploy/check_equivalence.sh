@@ -10,7 +10,7 @@ set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # A PEM holding one certificate that something else issued leaves the browser to fetch the
-# intermediate over AIA on every cold open. docs/proposal-session-open.md §What production adds.
+# intermediate over AIA on every cold open. docs/ARCHITECTURE.md §What production adds.
 cert_chain() {  # pem
   local pem="$1" n subject issuer
   if [ ! -r "$pem" ]; then printf '  skip %-38s no such PEM\n' "cert chain"; return 0; fi

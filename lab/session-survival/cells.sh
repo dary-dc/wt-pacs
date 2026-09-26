@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # LV1: how the client decides a session is dead, on a cut and on links that only look dead —
 # a radio, a slow link, a standing queue, blinks, a burst of asks. Arms interleaved, order rotated
-# each round. docs/proposal-session-survival.md §Detection by the bytes
+# each round. docs/ARCHITECTURE.md §Detection by the bytes
 #
 #   lab/session-survival/cells.sh cut|radio|slow|deep|blinks|asks [rounds]   [ARMS=built,quick]
 set -euo pipefail

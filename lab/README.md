@@ -1,6 +1,6 @@
 # wt-pacs lab (scaffolding)
 
-Measurement for [`docs/window-saturation-experiment.md`](../docs/window-saturation-experiment.md)
+Measurement for [`docs/adr-client-window-depth.md`](../docs/adr-client-window-depth.md)
 and Q2 (head-of-line). **No product crate depends on these.**
 
 ## Crates
@@ -9,7 +9,7 @@ and Q2 (head-of-line). **No product crate depends on these.**
 | ----- | ------- |
 | `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2), `--mode stall` (pathological client). Stream-shape cells need `--reader-mode open` |
 | `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
-| `telemetry-bench` | Telemetry pipeline microbench: emit seams under contention, drain shapes at scale — no network, no product crate. See `docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md` §5 |
+| `telemetry-bench` | Telemetry pipeline microbench: emit seams under contention, drain shapes at scale — no network, no product crate. See `docs/telemetry/adr-server-pipeline.md` §Pipeline baseline, 2026-09-06 |
 
 ## Run
 
@@ -19,7 +19,7 @@ and Q2 (head-of-line). **No product crate depends on these.**
 ./lab/scripts/e2_miss_cost_sweep.sh       # → .local/measurements/E2_MISS_COST.tsv
 cargo run -p cold-page-bench --release -- --study lab/fixtures/queue_large/queue_large.sbnd
 
-# Server telemetry pipeline baseline (docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md §5)
+# Server telemetry pipeline baseline (docs/telemetry/adr-server-pipeline.md §Pipeline baseline, 2026-09-06)
 lab/scripts/telemetry_bench_matrix.sh                       # → .local/measurements/telemetry-bench-*.jsonl
 SERVER_DEFAULT=… SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
   lab/scripts/telemetry_e2e_baseline.sh                     # → .local/measurements/telemetry-e2e-*.jsonl
@@ -30,4 +30,4 @@ SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
 Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.
 
 This lane's campaign drivers (`lab/transport/`, extra fixtures/traces) are on tag
-`archive/transport-lab-2026-09`. Restore: see [`docs/transport/README.md`](../docs/transport/README.md).
+`archive/transport-lab-2026-09`. Restore: see [`docs/transport/transport-conclusions.md`](../docs/transport/transport-conclusions.md).

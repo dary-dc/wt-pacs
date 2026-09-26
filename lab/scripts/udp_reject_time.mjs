@@ -1,6 +1,6 @@
 /**
  * How fast a browser gives up on WebTransport when UDP does not work: a port that answers ICMP
- * unreachable against one that is bound and silent. docs/proposal-udp-fallback.md.
+ * unreachable against one that is bound and silent. docs/ARCHITECTURE.md.
  *
  *   NODE_PATH=$(npm root -g) node lab/scripts/udp_reject_time.mjs [rounds]
  */

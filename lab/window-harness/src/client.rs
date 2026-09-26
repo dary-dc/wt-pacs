@@ -501,7 +501,7 @@ struct Want {
     wanted_at: std::time::Instant,
 }
 
-/// Advances on the trace's wall clock, never waiting for the transport. docs/transport/why-these-changes.md §3.
+/// Advances on the trace's wall clock, never waiting for the transport. docs/transport/transport-conclusions.md §2.
 async fn run_reader_open_loop(
     control_send: &mut wtransport::stream::SendStream,
     trace: &TraceSpec,

@@ -4,7 +4,7 @@
 A cell's own p99 is one observation with a tail's worth of leverage, and the mix cells are
 smaller than the first campaign's (128 asks, not 320). Pooling across repeats is what makes
 a percentile mean anything here. The CI is still only sampling noise inside one run --
-`docs/disk-access/RERUN.md` Precision has the rule that follows from that.
+`docs/disk-access/adr.md` Precision has the rule that follows from that.
 
 Usage:
   mix_pool.py SAMPLES.tsv [--summary SUMMARY.tsv] [--by mix_target|concurrency]

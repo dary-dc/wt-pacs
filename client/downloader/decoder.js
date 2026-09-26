@@ -1,6 +1,6 @@
 /**
  * One decoder instance. Pixels are written once, into a SharedArrayBuffer, and go straight to the
- * consumer over the port the downloader handed out. docs/proposal-downloader.md §The decoders
+ * consumer over the port the downloader handed out. docs/ARCHITECTURE.md §The decoders
  */
 let M = null;
 let dec = null;

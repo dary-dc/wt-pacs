@@ -61,7 +61,7 @@ pub struct TransportTuning {
     /// not whole GSO batches (docs/rig-limits.md §3).
     pub segmentation_offload: bool,
     /// Requested peer `max_ack_delay`, milliseconds. Takes effect only where the peer
-    /// advertises `min_ack_delay`; `docs/lanes/T7-tail-and-ack-frequency.md`.
+    /// advertises `min_ack_delay`; `docs/transport/transport-conclusions.md`.
     pub ack_frequency_max_delay_ms: Option<u64>,
     /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
     pub prefault: bool,

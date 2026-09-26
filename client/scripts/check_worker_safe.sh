@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # No built client artifact may reach for `window`. The WASM client did, through its clock, and
 # every timestamp it produced inside a worker read 0 rather than raising.
-# docs/proposal-conformance-suite.md; client/conformance/ asserts the runtime half.
+# docs/CLIENTS.md; client/conformance/ asserts the runtime half.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"

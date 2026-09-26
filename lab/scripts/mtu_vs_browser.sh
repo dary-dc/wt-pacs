@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # What datagram size a real Chromium lets the server send: one harness run through the UDP
-# relay, sizes in both directions. docs/improvements/2026-09-10.md.
+# relay, sizes in both directions. docs/transport/transport-conclusions.md.
 #
 #   lab/scripts/mtu_vs_browser.sh LABEL STUDY_NAME [exact-server args...]
 #

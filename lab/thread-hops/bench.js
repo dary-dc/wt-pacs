@@ -1,4 +1,4 @@
-// Prices the thread hops a decoded frame crosses. docs/thread-hops.md
+// Prices the thread hops a decoded frame crosses. docs/ARCHITECTURE.md
 const SIZES = [51200, 524288, 786432, 2097152, 8388608];
 const ARMS = ["relay-push", "relay-pull", "direct-push", "direct-pull", "shared", "cloned"];
 const BURST = 237;

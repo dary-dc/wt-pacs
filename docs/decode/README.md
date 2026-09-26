@@ -1,71 +1,26 @@
-
-### What each path allocates
-
-L18. On a phone, allocation churn is a cost in its own right whatever it does to the clock, and the
-premise this was first written on was backwards. Both paths hand on a buffer allocated per frame —
-the default one copies the frame out of WASM memory into a fresh `Uint8Array`, byob reads straight
-into one — so byob adds no per-frame allocation. What differs is *before* that: the default reader
-receives every read as a new chunk the browser allocated and copies it into a reused receive buffer
-in WASM memory, while byob fills one caller-owned buffer across its reads.
-
-**byob allocates less, and `byob-min` less again.** One 237-frame fill of 512×512 16-bit frames
-(92.8 MB of codestreams), five rounds per arm, arms rotated each round, `lab/scripts/read_path_alloc.cjs`:
-
-| arm | collections per fill | per frame | JS heap high-water |
-| --- | ---: | ---: | ---: |
-| default | 338 [305 … 350] | 1.43 | 71.4 MB [70 … 75] |
-| `byob` | **201** [185 … 257] | 0.85 | 67.7 MB [67 … 68] |
-| `byob-min` | **165** [158 … 188] | 0.70 | 66.2 MB [66 … 67] |
-
-**−40.5 % collections for `byob` and −51.2 % for `byob-min`, fewer in 5 of 5 paired rounds each.**
-The heap high-water moves with it and the ranges do not overlap: default never came in under 70 MB
-and neither byob arm ever reached it. That is the shape the corrected premise predicts — the saving
-is the per-read chunks the default reader is handed, and `byob-min`'s larger reads remove more of
-them, which agrees with the read counts already recorded above (4.70 → 2.00 reads on a 250 KB frame).
-
-**A free list is not the answer to this, because this is not byob's problem.** The lane asked what
-one would need if byob's churn turned out material. It is the *smaller* of the two, so the design
-is not written: a free list would help the default path more, and both paths would still allocate
-the frame buffer they hand on. If one is ever wanted, the question it has to answer is the same for
-either path — which thread hands the buffer back, and when the consumer is known to be done with it
-— and that is exactly what the pipeline redesign is deciding
-([`../proposal-downloader.md`](../proposal-downloader.md)).
-
-**Instruments, and one substitution.** `--js-flags=--trace-gc` emits nothing in this Chromium
-(141, headless) — not to the browser's stderr, not to the renderer's, with `--single-process` and
-`--enable-logging=stderr` both tried — so collections are counted from the `disabled-by-default-v8.gc`
-trace category over CDP instead, which does work. The heap high-water is
-`performance.memory.usedJSHeapSize` under `--enable-precise-memory-info`. CDP's `HeapProfiler`
-sampler reads **1.10 MB in every arm**, identical: it samples the JS heap, and the buffers these
-arms differ over are `ArrayBuffer` backing stores, which it does not weigh. That figure is reported
-only to say it settles nothing — the collections and the high-water are what carry the finding.
-
-**Counts, not timing.** Nothing here is a millisecond, so nothing here needs the rig. All three arms
-are the same `wasm-pack` build of the same source, differing only in the feature flag, and every run
-delivered 237 of 237 frames.
 # Decode — codestream to pixels
 
 `disk-access/` owns how a frame is brought in and `transport/` how it is sent. This owns what
 happens after it arrives: turning a codestream into samples, what that costs, and where those
-samples live.
+samples live. How to run each bench is in its own directory, `lab/decode-bench/README.md` first;
+this file holds the numbers and the reasons. Every millisecond here is container-measured unless it
+says otherwise — §What these numbers are not.
 
 ## The decoder
 
-OpenJPH, through the `@cornerstonejs/codec-openjph` WASM build (wrapper MIT, OpenJPH
-BSD-2-Clause). `lab/decode-bench/fetch_decoder.sh` pulls a pinned version from npm and records
-the tarball's checksum; nothing is committed, so provenance is the checksum rather than trust in
-bytes in this repo. That build reports SIMD level 1, which OpenJPH returns only from its WASM SIMD
-build, so SIMD is already on and is not a lever. Its WASM reports `OpenJPH Ver 0.31.0.`, which is
-the release `lab/scripts/gen_htj2k_fixtures.sh` builds its encoder from. The other open
-implementation, OpenHTJ2K, has now been built and benched against it: §A second decoder, measured.
+OpenJPH, through the `@cornerstonejs/codec-openjph` WASM build (wrapper MIT, OpenJPH BSD-2-Clause).
+`lab/decode-bench/fetch_decoder.sh` pulls a pinned version from npm and records the tarball's
+checksum; nothing is committed, so provenance is the checksum rather than trust in bytes in this
+repo. Its WASM reports `OpenJPH Ver 0.31.0.` and SIMD level 1, which OpenJPH returns only from its
+WASM SIMD build, so SIMD is already on and is not a lever. The product loads this package.
 
-It is a **decoder only** — no encoder ships in it. `lab/scripts/gen_htj2k_fixtures.sh` therefore
-builds OpenJPH from source for `ojph_compress` and encodes synthetic images, so a fixture can be
-made anywhere from nothing. The profile is part 15, reversible 5/3, 5 levels, 64×64 code-blocks,
-RPCL, one layer, one tile per frame.
+It is a **decoder only**. `lab/scripts/gen_htj2k_fixtures.sh` builds OpenJPH 0.31.0 from source for
+`ojph_compress` and encodes synthetic images, so a fixture can be made anywhere from nothing. The
+profile is part 15, reversible 5/3, 5 levels, 64×64 code-blocks, RPCL, one layer, one tile per
+frame.
 
 **A host with no native C++ toolchain can still generate them.** `ojph_compress` builds under
-emscripten as well, and Node runs it against the real filesystem:
+emscripten, and Node runs it against the real filesystem:
 
 ```bash
 emcmake cmake -S lab/.openjph-build/src -B /tmp/ojphapp -DCMAKE_BUILD_TYPE=Release \
@@ -75,137 +30,129 @@ cmake --build /tmp/ojphapp -j"$(nproc)" --target ojph_compress
 # lab/.openjph-build/install/bin/ojph_compress, which the generator picks up instead of building
 ```
 
-It encodes the same bytes: on a frame both routes produced, the codestreams differ only in the two
-version digits inside the `OpenJPH Ver` comment marker, and the ground-truth checksum — which comes
-from the encoder's *input*, not its output — is identical either way.
+It encodes the same bytes: the codestreams differ only in the two version digits of the `OpenJPH
+Ver` comment marker, and the ground-truth checksum — taken from the encoder's *input* — is identical
+either way. Because the profile is reversible a decode must reproduce that input exactly, and every
+bench here checks against it (§Ground truth).
 
-Because the profile is reversible, a decode must reproduce the encoder's input exactly. The
-generator writes a `.sha256` of each frame's samples beside its codestream, and every bench here
-checks against that rather than against an oracle it decoded itself — §Ground truth says why.
+## Content
 
-## Content, and why it decides the numbers
-
-F2. Every set above this section was generated by the `field` mode — a gradient with ellipses and
-grain — which compresses **1.28:1** greyscale and 1.84:1 colour. No modality does that. Real cine
-runs ~16:1 and CT ~2:1, so a set at 1.28:1 carries several times the coded data a real frame does,
-and every decode number built on it is weighted toward block decoding in proportion.
-
-Two modes were added for that (`lab/scripts/gen_frame_pnm.py`), each tuned to its modality's ratio
-and each byte-exact on both decoders against the encoder's input (`parity.mjs`, 8/8 per set):
+The first fixture sets were all the generator's `field` mode — a gradient with ellipses and grain —
+which compresses **1.28:1** greyscale and **1.84:1** colour. Real cine runs ~16:1 and CT ~2:1, so
+those sets carry several times a real frame's coded data and weight every decode number toward block
+decoding. Two modes were added (F2, `lab/scripts/gen_frame_pnm.py`), each tuned to its modality's
+ratio and byte-exact on both decoders against the encoder's input:
 
 | set | content | ratio |
 | --- | --- | ---: |
 | `cine512` | a dark sector of correlated Rayleigh speckle, grey but for a ~1 % Doppler patch | **18.2:1** |
 | `ct512` | 12-bit-in-16 signed, a textured body on an air background | **1.99:1** |
-| `c512`, `g512` (old) | `field` | 1.84:1, 1.28:1 |
+| `c512`, `g512` | `field` | 1.84:1, 1.28:1 |
 
-**What moves, and it is not small.**
-
-* **Per-frame decode falls 44 % on colour** — `cine512` 3.91 ms against `c512` 6.98 ms, same
-  768 KB decoded. The old colour set overstated decode cost by nearly a factor of two.
+* **Per-frame decode falls 44 % on colour** — `cine512` 3.91 ms against `c512` 6.98 ms, the same 768
+  KB decoded. `field` colour overstates decode cost by nearly a factor of two.
 * **The copy-out's share rises, 6.2 % → 7.8 %** (0.420 ms of 6.821 on `c512`, 0.326 of 4.175 on
-  `cine512`). The copy scales with the *decoded* frame, which is identical in both, so as decode
-  gets cheaper the fixed copy takes a larger slice. Nothing about the copy itself changed.
-* **Greyscale at a similar ratio does not move**: `ct512` 3.00 ms against `s12` 3.06 ms, because
-  both sit near 2:1. The lever is the ratio, not the modality.
+  `cine512`): the copy scales with the decoded frame, which is the same size in both.
+* **Greyscale at a similar ratio does not move**: `ct512` 3.00 ms against `s12` 3.06 ms, both near
+  2:1. The lever is the ratio, not the modality.
 
-## Heap, measured
+## Ground truth
 
-Six fixture sets, 87 frames each, decoded sizes from 50 KB to 8 MB
-(`lab/scripts/gen_htj2k_fixtures.sh g160 g256 g512 c512 g1024 g2048`). Heap is
-`HEAPU8.length`: the module's whole linear memory, which is what an instance costs the host.
+A bench that checks each arm against pixels it decoded itself cannot fail: flipping one byte of
+every decoded frame **did not fail that check**, because the corruption reached the oracle and the
+arm alike. Every bench here checks against the `.sha256` the generator wrote from the encoder's
+input. Four mutants — a flipped byte, a truncated buffer, a skipped `decode()`, a corrupted view in
+the copy bench — each report 87/87 frames differing and exit non-zero; the control is clean.
 
-**Every instance costs 50.0 MB, at every frame size, before it has decoded anything.**
+`lab/decode-bench/parity.mjs` compares a build against the package byte for byte **and** against the
+encoder's input, plus every getter. A getter returning a wrong constant was caught at once. **A
+clamp set one count low was not**, because no organic fixture contains a sample at its ceiling.
+`sat256`, a full-range ramp reaching exactly 0 and 65535, was added for that; against it the mutant
+fails 87/87. A test that cannot fail is worth reporting as loudly as one that does.
 
-| decoded frame | 1 instance | 2 | 3 | 4 |
-| --- | --- | --- | --- | --- |
-| 50 KB … 8 MB | 50.0 MB | 100.0 MB | 150.0 MB | 200.0 MB |
+### Signed
 
-That is the whole table: 24 cells, all of them exactly 50.0 MB per instance, identical in all 5
-timed rounds of every cell. Nothing about frame size moves it, and nothing about decoding moves
-it — an instance that has never decoded a frame reads the same 50.0 MB as one that has decoded 87
-frames of 2048×2048.
+Signed 16-bit is ordinary CT data. The encoder's own `-signed true` path saturates negatives before
+coding, so nothing it produces is ground truth. The fixture is made the other way round: encoded
+unsigned, then the sign bit of each component's `Ssiz` set in SIZ (`lab/scripts/sign_htj2k.py`).
+JPEG 2000 level-shifts an unsigned component by 2^(B−1) and a signed one not at all, so the same
+coded bits read as signed must decode to `v − 2^(B−1)`. An **independent** decoder confirms it:
+OpenJPEG 2.5's `opj_decompress` gives exactly `v − 32768` on a flipped 16-bit frame and `v − 2048`
+on a flipped 12-bit one (12-bit two's complement in 16-bit containers; sign-extended, the same
+samples), and `ojph_expand` agrees on both. The `.sha256` beside each signed frame is of the
+sign-extended little-endian int16 samples, computed from the encoder's input. Sets: `s512` (16-bit)
+and `s12` (12-bit in 16).
 
-**The reason is a build flag, not a high-water mark.** The shipped `openjphjs.wasm` declares its
-memory `initial = 800 pages = 50 MB`, `maximum = 32768 pages = 2048 MB`, not shared. 50 MB is
-where an instance *starts*. Decoding an 8 MB frame does not reach it, so the memory never grows
-and the allocator never has anything to return.
+**The package decodes both signed sets byte for byte and already sign-extends 12-bit samples** —
+`getFrameInfo()` reports `bitsPerSample: 12, isSigned: true` and the samples come back −1500 … 952.
+So `finish`'s sign extension in `client/downloader/decoder.js` is idempotent on this decoder's
+output. The source build was wrong (§A build of our own).
 
-This corrects the framing this file previously carried. "WASM memory only grows, so an instance
-climbs to its high-water mark and holds it" is true of WASM in general and false of this build in
-particular: it does not climb, it is preallocated. The pool-sizing consequence is unchanged in
-shape — N instances really is N×50 MB, permanently — but the cause is a flag that can be changed,
-not a property of the decoder that cannot.
+*Corrected:* an earlier record said the package saturates negatives to 32767 and the source build
+does not. That was read off codestreams the encoder's `-signed true` path had already damaged; with
+a valid signed codestream and an independent truth it was the other way round, and now neither is
+wrong. Two mutants: the unfixed build (passes every unsigned set, fails both signed ones), and a
+level shift off by one in `sign_htj2k.py`, which fails *bytes vs encoder* while *bytes vs package*
+stays identical — the two columns fail independently, which is the point of having both.
+
+## Heap
+
+Heap here is `HEAPU8.length`, the module's whole linear memory. **Every package instance is 50.0 MB,
+at every frame size from 50 KB to 8 MB and every pool size from 1 to 4, before it has decoded
+anything** — 24 cells, all exactly 50.0 MB per instance in every round
+(`lab/scripts/gen_htj2k_fixtures.sh g160 g256 g512 c512 g1024 g2048`, 87 frames each).
+
+**The reason is a build flag.** The shipped `openjphjs.wasm` declares `initial = 800 pages = 50 MB`,
+`maximum = 2048 MB`, not shared. Decoding an 8 MB frame does not reach 50 MB, so the memory never
+grows. *Corrected:* this file once said an instance climbs to its high-water mark and holds it; this
+build does not climb, it is preallocated, so the cost is a flag that can be changed.
+
+**Counted, not resident.** In a browser a package decoder counts ~51 MB of JS heap
+(`measureUserAgentSpecificMemory`) but adds only ~4–5 MB to the renderer's PSS: the heap is reserved
+and a 512² frame touches little of it ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Resources). Which
+of the two a phone kills a tab by is not measured.
 
 ### What decoding actually demands
 
-The same OpenJPH release built to WASM here (`lab/decode-bench/wasm/build.sh`), identical except
-for `INITIAL_MEMORY`, with growth on. High-water after 87 frames, fresh process per row, every
-frame verified against the encoder's input:
-
-| decoded frame | 2 MB floor | 4 MB floor |
-| --- | --- | --- |
-| 50 KB | 3.56 MB | 4.00 MB (not reached) |
-| 128 KB | 3.63 MB | 4.00 MB (not reached) |
-| 512 KB | 4.25 MB | 4.00 MB (not reached) |
-| 768 KB | 5.44 MB | 5.81 MB |
-| 2 MB | — | 8.00 MB |
-| 8 MB | — | 24.56 MB |
-
-So an instance wants about **3.5 MB of base plus rather less than 3× the decoded frame**: 3.6 MB
-to serve a 50 KB frame, around 4 MB to serve the 512×512×16-bit frame this project's fixtures are
-built around, 24.6 MB to serve an 8 MB one. Growth is geometric, so each figure is an upper bound
-on the demand rather than the demand itself, and the two floors bracket it — where they disagree
-the smaller floor has simply taken one more doubling.
-
-The shipped build's 50 MB is between 2× and 14× more than the work needs, depending on frame size.
-**For pool sizing this is the lever**: per-instance cost is set by whoever links the module, not
-by the decoder, and a build with a floor matched to the largest frame served would cut it
-several-fold at every size this project cares about. Nothing here says the shipped 50 MB is wrong
-for its author's purpose — only that it is a choice, and this project can make a different one.
+The same OpenJPH release built here (`lab/decode-bench/wasm/build.sh`) with growth on, identical but
+for `INITIAL_MEMORY`; high-water after 87 frames, fresh process per row, every frame verified. From
+a 2 MB floor: 3.56, 3.63, 4.25 and 5.44 MB for 50 KB, 128 KB, 512 KB and 768 KB frames. From a 4 MB
+floor: 4.00 (not reached) up to 512 KB, then 5.81, 8.00 and **24.56 MB** for 768 KB, 2 MB and 8 MB.
+About **3.5 MB of base plus rather less than 3× the decoded frame**. Growth is geometric, so each
+figure is an upper bound on the demand. The package's 50 MB is 2× to 14× what the work needs:
+**per-instance heap is set by whoever links the module, and that is the pool-sizing lever.**
 
 ## A build of our own
 
-`lab/decode-bench/wasm/` builds a decoder from OpenJPH source with the same surface as the
-package's, so one can stand in for the other. `lab/decode-bench/parity.mjs` is what makes that
-claim checkable: it runs both side by side over every fixture and compares the decoded bytes
-against each other **and** against the encoder's input, plus every getter the surface exposes.
+`lab/decode-bench/wasm/` builds a decoder from OpenJPH source with the package's surface, so one can
+stand in for the other; `parity.mjs` is what makes that checkable. **Every frame of every fixture
+goes through one decoder object**, as `client/downloader/decoder.js` holds it — until 2026-09-20 the
+benches built a fresh decoder per frame, so state carried from one frame to the next was never
+exercised. `parity.mjs` prints a coverage line when fewer than two sample shapes ran, and says so
+when no signed set is among them.
 
-**Every frame of every fixture goes through one decoder object**, on both builds, because that is
-what the product holds (`client/downloader/decoder.js`, one instance for the session) — and what
-`decoder.js`'s own comment already claimed parity had checked. It had not: until 2026-09-20 all
-three benches here built a fresh decoder per frame, so a codestream carried from one frame to the
-next was never exercised. It is now, including the shape changes between fixture sets, and
-`parity.mjs` says so in its coverage line when fewer than two sample shapes ran.
+**Parity on the adopted wrapper: six sets, 522 frames** — 8-bit unsigned ×3 (`c512`, `cine512`),
+16-bit unsigned (`g512`, `sat256`), 16-bit signed (`s512`), 12-bit signed (`ct512`) — byte-identical
+to the package, to the encoder's input, and on every getter, through one decoder object. Both report
+`getVersion() = 0.31.0`.
 
-**609 frames across seven fixture sets, both the plain and the shared variant: byte-identical to
-the package, byte-identical to the encoder's input, and identical on every getter.** Both report
-`getVersion() = 0.31.0` and `getSIMDLevel() = 1`, so the SIMD path is not silently lost.
-
-**That claim covered unsigned data only, and on signed data the build was wrong** (2026-09-16, F1;
-§Ground truth, *Signed*). Its wrapper clamped every component to `[0, 2^B − 1]` regardless of the
-sign flag, so a signed component's negatives saturated to 0 — while the package decoded them
-correctly. Fixed in `htj2k_decoder.cpp` (the clamp is `[−2^(B−1), 2^(B−1) − 1]` when signed) and
-re-run: **87 frames of 16-bit signed and 87 of 12-bit signed, byte-identical to the package and to
-the encoder's input.** `parity.mjs` now prints what its fixtures cover, and says so when no signed
-set is among them.
+*Corrected:* the first parity claim (609 frames) covered unsigned data only, and **on signed data
+the build was wrong** — its wrapper clamped every component to `[0, 2^B − 1]` regardless of the sign
+flag, so negatives saturated to 0. Fixed in `htj2k_decoder.cpp` (`[−2^(B−1), 2^(B−1) − 1]` when
+signed). And `getSIMDLevel() = 1` on the source build is the wrapper's own `-msimd128`, not the
+library's, so parity on that getter is a tautology rather than evidence the library's SIMD is on.
 
 ### The wrapper's two passes
 
-D10 and D11. Between `pull()` and the caller's buffer the wrapper did two things it did not need
-to do, and both are in `htj2k_decoder.cpp` rather than in OpenJPH:
+Two things between `pull()` and the caller's buffer, both in `htj2k_decoder.cpp`:
 
 * **D11** — `readHeader()` destroyed the `ojph::codestream` and placement-new'd a fresh one every
-  frame, throwing away allocations the next frame immediately re-made. `restart()` is the
-  library's own API for this ("all memory allocations are preserved … decoding multiple
-  codestreams that have largely the same structure").
-* **D10** — `decode()` zero-filled the whole output with `assign(…, 0)` and then wrote every byte
-  of it again, and the loop that wrote it branched on the sample width *inside* the per-pixel
-  loop, which is what stops `-msimd128` from taking it.
+  frame. `restart()` is the library's own API for this.
+* **D10** — `decode()` zero-filled the whole output and then wrote every byte again, in a loop that
+  branched on sample width *inside* the per-pixel loop, which stops `-msimd128` taking it.
 
-Four arms, one binary each, the same source at four define sets, interleaved with the order
-rotated every round, 12 timed rounds of 87 frames, one decoder object reused throughout. ms per
-frame, and how many of the 12 rounds beat `base`:
+Four arms, one binary each, interleaved with the order rotated, 12 timed rounds of 87 frames, one
+decoder object reused. ms per frame, and rounds of 12 better than `base`:
 
 | set | components | base | +D11 | +D10 | both |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -215,91 +162,37 @@ frame, and how many of the 12 rounds beat `base`:
 | `c512` 768 KB colour | 3 | 8.447 | 8.292 −1.8 % (9/12) | 8.186 −3.1 % (10/12) | 8.163 −3.4 % (9/12) |
 | `cine512` 768 KB colour, 18:1 | 3 | 4.496 | 4.473 −0.5 % (8/12) | 4.538 +0.9 % (2/12) | 4.515 +0.4 % (3/12) |
 
-**D10 is a single-component win and a three-component wash**, and the split is the point. A
-one-component frame is written contiguously, which is the shape `-msimd128` can take: 5.5–8.3 %
-off, 12 of 12 rounds on all three greyscale sets, and on `g512` the only pair here with
-**non-overlapping ranges** ([3.228–3.260] against [3.426–3.461]). A three-component frame is
-written strided, which no vectoriser helps, and the two colour sets then disagree: −3.1 % on
-`c512` at 10/12, +0.9 % on `cine512` at 2/12. **Believe `cine512`.** Its ranges are ±0.05 ms where
-`c512`'s are ±0.28, and the pack work is byte-for-byte identical in the two — same 768 KB out — so
-a difference that changes sign between them is that fixture's noise, not a lever. Colour gains
-nothing measurable; it also loses nothing worth naming.
+**D10 is a single-component win and a three-component wash.** One component is written contiguously,
+which `-msimd128` can take: 5.5–8.3 % off, 12/12 on all three greyscale sets, and on `g512`
+non-overlapping ranges. Three components are written strided, and the two colour sets disagree in
+sign; **believe `cine512`**, whose ranges are ±0.05 ms against `c512`'s ±0.28 for the same 768 KB of
+output. Why colour does not collect the dropped zero-fill is not established.
 
-Why colour does not even collect the dropped zero-fill is **not established**. One candidate is
-that the fill pre-touches the 768 KB the strided pass then writes out of order, which a contiguous
-pass does not need. It was not measured, and nothing here rests on it.
+**D11 is a tie on the clock** — under 2 %, ranges overlapping, right-direction on 43 of 60 rounds —
+adopted because one documented library call replaces a destructor plus a placement-new. Its heap
+effect is in §Where to put the floor.
 
-**D11 is a tie on the clock** by this project's bar — under 2 % everywhere, ranges overlapping —
-but it is in the right direction on **43 of 60 rounds** across the five sets, and it replaces an
-explicit destructor call plus a placement-new with one documented library call. It is adopted for
-the second reason, not the first. Its own claim is not a timing one: without it, or without the
-reconstruct it replaces, the codestream's arena is never reset.
+**Where this host saturates.** One thread decodes and the box ran other work throughout, so only
+differences across arms inside a run are claimed; the absolute ms are not comparable with any other
+table here.
 
-**Heap does not move — while the frames keep one size.** Identical on all four arms in each run
-here — 7.0 MB over `c512`/`g512`/`s512`, 5.8 MB over `cine512`/`ct512`, both from a 4 MB build with
-one reused decoder. Both of those runs lead with their **largest** frame, and that is what makes
-the arms agree: re-measured 2026-09-22, a decoder that meets a *larger* frame after a smaller one
-ends **1.9 MB heavier with `restart()` than without it**, because the arena the smaller frames grew
-is still held when the larger one allocates. §Where to put the floor has the table. Wasm grows
-1.2 KB, 239 → 240 KB.
-
-**Where this host saturates.** Every arm here decodes on one thread, and the box ran other work
-throughout: one core is busy and the rest are not this measurement's. So the ms are read across
-arms inside a run — that is what interleaving and rotating buys — and an absolute figure here is
-not comparable with one taken on an idle box, or with the per-frame times on any other page.
-
-Parity on the adopted wrapper covers **six sets, 522 frames**: 8-bit unsigned ×3 (`c512`,
-`cine512`), 16-bit unsigned ×1 (`g512`, `sat256`), 16-bit signed ×1 (`s512`) and 12-bit signed ×1
-(`ct512`) — byte-identical to the package, byte-identical to the encoder's input, identical on
-every getter, all through one decoder object.
-
-**What the mutants say.** Each change was broken on purpose and `parity.mjs` re-run over
-c512 → g512 → s512 → sat256:
-
-| mutant | caught |
-| --- | --- |
-| interleave stride `comps − 1` | **yes** — c512 87/87 differ; the greyscale sets, which take the contiguous path, do not |
-| the contiguous loop stops one sample short | **yes** — g512, s512 and sat256 87/87 differ. This is the mutant that licenses dropping the zero-fill: a byte nobody writes now keeps the previous frame's value |
-| `bitsPerSample` kept stale across a shape change | **yes** — but only because a colour set runs before a grey one. The same mutant on `g512` alone is PARITY OK, which is why parity now prints a coverage line when one sample shape ran |
-| `restart()` removed entirely | **no** — 348 frames byte-identical, shape change included. Bytes are not what `restart()` protects. Parity alone cannot gate D11 |
+**Mutants**, `parity.mjs` over c512 → g512 → s512 → sat256. Caught: the interleave stride `comps −
+1` (c512 87/87); the contiguous loop one sample short (87/87 on each one-component set — this is
+what licenses dropping the zero-fill, since a byte nobody writes keeps the previous frame's value);
+`bitsPerSample` kept stale across a shape change, but only because a colour set runs first — on
+`g512` alone it passes, hence the coverage line. **Not caught: `restart()` removed entirely** — 348
+frames byte-identical. Bytes are not what `restart()` protects; parity cannot gate D11.
 
 ### Where to put the floor
 
-Six builds on one ladder, interleaved and rotated — measured one after another they would be the
-sequential shape this project has already been wrong with:
+Six initial heaps — 2, 4, 8, 16, 32, 50 MB — interleaved and rotated, a fresh decoder per frame
+(`wasm/heap_curve.sh`). **The floor costs no time**: every arm within 2.2 % of the best at both
+sizes, ranges overlapping (g512 5.09–5.21 ms, g2048 85.0–86.9 ms). On `g512` the high-water is 4.3
+MB from 2, **4.0 MB from 4**, and the floor itself above that. On `g2048` every floor up to 16 MB
+converges on 24.6 MB, so **start at 4 MB and let it grow** — 2× less than the package.
 
-| initial | g512 high-water | g512 ms/frame* | g2048 high-water | g2048 ms/frame* |
-| --- | --- | --- | --- | --- |
-| 2 MB | 4.3 MB | 5.12 | 24.6 MB | 85.01 |
-| 4 MB | **4.0 MB** | 5.14 | 24.6 MB | 85.68 |
-| 8 MB | 8.0 MB | 5.13 | 24.6 MB | 86.87 |
-| 16 MB | 16.0 MB | 5.09 | 24.6 MB | 85.17 |
-| 32 MB | 32.0 MB | 5.13 | 32.0 MB | 85.51 |
-| 50 MB | 50.0 MB | 5.21 | 50.0 MB | 86.89 |
-
-**The floor costs no time.** Every arm sits within 2.2 % of the best at both sizes, with ranges
-that overlap throughout, so nothing here separates them — a small initial heap is not paid for in
-milliseconds, at least not at a resolution this container can see.
-
-It does cost memory, and the two profiles want different answers:
-
-* **512×512** — ship **4 MB**. The decode fits without a single growth, so the heap is 4.0 MB
-  against the package's 50 MB — but that is a fresh decoder per frame, and the product reuses one:
-  **4.8 MB, 10× less per instance**, which is the whole pool-sizing lever. The reused-decoder
-  ladder below is where that is measured; the floor it chooses is the same 4 MB.
-* **2048×2048** — ship **4 MB and let it grow**. Every floor at or below 16 MB converges on the
-  same 24.6 MB high-water, so starting higher buys nothing: a 32 MB floor ends 7.4 MB heavier than
-  a 4 MB one that grew, for no time back. Against the package that is still 2× less.
-
-Growth is geometric, so 24.6 MB is an upper bound on what an 8 MB frame demands, not the demand.
-
-Both figures are reproduced by the retention bench's copy-out arms, and both hold **only while the
-pixels leave the heap**: a viewer that keeps them inside it turns the 4 MB floor into the worst of
-the builds measured, not the best. §Retention, measured.
-
-**The 4.0 MB above is a decoder-per-frame figure, and the product does not decode that way**
-(D13, 2026-09-20). Re-measured on the adopted wrapper with **one decoder object reused**, which is
-what `client/downloader/decoder.js` holds, each set decoded on its own from a cold module:
+**A reused decoder costs more than the per-frame one, and the product reuses one.** On the adopted
+wrapper, one decoder object, each set from a cold module:
 
 | initial | `g512` 512 KB grey | `c512` 768 KB colour |
 | --- | --- | --- |
@@ -308,383 +201,224 @@ what `client/downloader/decoder.js` holds, each set decoded on its own from a co
 | 6 MB | 6.0 MB | 7.3 MB |
 | 8 MB | 8.0 MB | 8.0 MB |
 
-Time is again a tie: every floor is within 2.1 % of the best at both sizes with overlapping ranges,
-and which floor is nominally fastest changes between the two sets.
+Time is again a tie (within 2.1 %). **The floor is 4 MB: a reused 512×512 greyscale decoder costs
+4.8 MB, 10× less than the package's 50 MB.** *Corrected:* the headline was once 4.0 MB and 12.5×,
+read off the per-frame ladder. 2 MB ends 0.3 MB heavier on grey because it gives back in a larger
+growth step what it saves at load; colour prefers 2 MB by 0.4 MB, the smaller effect. The floor is a
+link-time parameter: `EMSDK=… INITIAL_MB=2 lab/decode-bench/wasm/build.sh`.
 
-**The floor stays at 4 MB**, and the reason is now the greyscale column rather than the colour one.
-512×512 greyscale costs a reused decoder **4.8 MB, not 4.0** — still 10× less than the package's
-50 MB, not 12.5×. 4 MB is the *minimum* of that column: starting at 2 MB ends 0.3 MB **heavier**,
-because what it saves at load it gives back in a larger growth step. Colour prefers 2 MB by 0.4 MB
-and that is the smaller of the two effects. 6 and 8 MB buy nothing and cost 1.2–3.2 MB.
+**The 4.8 MB is the wrapper's, not one arm's.** Re-read on the merged binary with three arms in one
+process — `base` (destroy and placement-new every frame), `d11` (`restart()` alone), `merged`
+(adopted) — at `INITIAL_MB=4`, 6 repeats × 6 rounds: **4.8 MB grey and 7.0 MB colour on all three,
+36 readings without spread.** *Corrected:* the reason once given — that the codestream's arena lifts
+a reused decoder off the floor — is wrong, since the arm that discards the arena every frame reads
+the same. What reuse keeps is the decoder object's other buffers.
 
-Neither column can see a growth inside frame 0 — an 87-frame median cannot — so a floor chosen for
-first-frame latency rather than for residency is a separate measurement, and §The first frame is
-where it would go. The floor is a link-time parameter either way:
-`EMSDK=… INITIAL_MB=2 lab/decode-bench/wasm/build.sh`.
+**The arena shows when the frame size grows.** One decoder, `g512` then `c512`, 6/6: **7.7 MB with
+`restart()`** (`d11` and `merged` alike) against **5.8 MB for `base`**, because the grey arena is
+still held when the colour frame allocates. The other order reads 7.0 MB on all three. So a decoder
+reused across shapes is budgeted at **7.7 MB**, and every heap figure here is a peak, which is
+order-dependent whenever sizes differ.
 
-**Which wrapper those two cells belong to, re-measured 2026-09-22.** The ladder was taken on the
-adopted wrapper alone, and the arm turned out to matter elsewhere (§The wrapper's two passes), so
-the 4 MB row was re-read on the merged branch's binary with three arms in one process, order
-rotated: `base` — the wrapper before D10/D11, which destroys the codestream and placement-news a
-fresh one every frame — `d11` (`restart()` alone) and `merged` (D10 + D11, adopted). Each set
-decoded on its own from a cold module at `INITIAL_MB=4`, 6 timed rounds a repeat, **6 repeats**:
+**Behind the downloader** (three decoders, `?decoder=source` on the campaign page, 3 rounds
+interleaved): the decode arm is **161.4 MB on the package and 16.3 MB on the 4 MB build**, with fill
+(80.0 ms) and cold ask (86.0 ms) identical to the tenth of a millisecond.
 
-| set | `base` | `d11` | `merged`, adopted |
-| --- | --- | --- | --- |
-| `g512` 512 KB grey | 4.8 MB | 4.8 MB | **4.8 MB** |
-| `c512` 768 KB colour | 7.0 MB | 7.0 MB | **7.0 MB** |
-
-**36 readings, no spread at all** — every repeat identical to the tenth of a megabyte. The two
-cells are the wrapper's regardless of arm, so **4.8 MB stands and 10× stands.** What does not
-stand is the reason once given here for it: it is *not* the codestream's arena that puts a reused
-decoder above the 4 MB floor, because the arm that throws that arena away every frame reads the
-same 4.8 MB. What reuse keeps is the decoder object's other buffers, which all three arms keep.
-
-**The arena shows when the frame size changes**, and only then. One decoder over both sets in one
-run, 6/6 repeats a cell:
-
-| one decoder, in this order | `base` | `d11` | `merged` |
-| --- | --- | --- | --- |
-| `g512` then `c512` — after the grey set | 4.8 MB | 4.8 MB | 4.8 MB |
-| — after the colour set | **5.8 MB** | **7.7 MB** | **7.7 MB** |
-| `c512` then `g512` — after either set | 7.0 MB | 7.0 MB | 7.0 MB |
-
-So `restart()` **retains ~1.9 MB** across a size increase: the grey arena is still held when the
-colour frame allocates on top of it, where destroying the codestream releases it and the colour
-allocation reuses the space — ending 1.2 MB *below* a cold colour module. D10's packing pass adds
-nothing to either figure; `d11` and `merged` agree to the reading. Going the other way costs
-nothing: the larger arena already covers the smaller frame.
-
-For pool sizing that is the number to budget, not the ladder's: a decoder that only ever sees one
-study's frames costs its own set's cell, but one reused across shapes costs **7.7 MB** here, the
-larger frame's cold figure plus the smaller frame's retained arena. Heap is a high-water mark —
-WASM memory never shrinks — so every figure on this page is a peak, and a peak is order-dependent
-whenever the sizes differ.
+The 4 MB floor holds **only while the pixels leave the heap** — §Retention, measured. Neither ladder
+can see a growth inside frame 0; a floor chosen for first-frame latency is a separate measurement,
+not taken.
 
 ### What adopting it costs
 
-The build is smaller, not larger — 299,838 bytes of `.wasm` + `.js` against the package's 358,022,
-and 329,366 for the shared variant. The cost is not size, it is ownership:
+The build is smaller — 299,838 bytes of `.wasm` + `.js` against the package's 358,022 (329,366 for
+the shared variant). The cost is ownership:
 
-* A pinned emscripten (3.1.74 here) and a pinned OpenJPH tag become build inputs, and a CI step has
-  to build WASM, which nothing in this repository does today. **The emscripten pin is holding about 15 % of decode time**, not only reproducibility: §Faster, measured — and it is not.
-* Security and correctness fixes to OpenJPH become ours to track. The package's author does that
-  now, and that is a real service to give up.
-* `parity.mjs` is the mitigation and should run in CI against the published package: it is what
-  turns "we rebuilt it" into "we rebuilt it and it is the same decoder".
+* A pinned emscripten (3.1.74) and a pinned OpenJPH tag become build inputs, and CI would have to
+  build WASM. **The emscripten pin holds about 15 % of decode time** (§Faster).
+* Security and correctness fixes to OpenJPH become ours to track, where the package's author does
+  that now.
+* `parity.mjs` is the mitigation and should run in CI against the published package.
 
-**Worth it if the per-instance heap is the binding constraint, which on a phone it is** — 10× at
-the size this project serves is not a margin a smaller change recovers. Not worth it on any other
-ground: it is the same decoder, for slightly fewer bytes, and its wrapper is now a pass lighter.
-**How much of that pass the package's own build still pays is not measured** — the 5.5–8.3 % above
-is against this repository's earlier wrapper, and nothing has re-timed the package since.
+**Worth it if per-instance heap is the binding constraint, which on a phone it is expected to be** —
+10× is not a margin a smaller change recovers. On any other ground it is the same decoder, for
+slightly fewer bytes. How much of D10's pass the package's own build still pays is not measured. How
+many decoders a page runs is [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Resources; what each one
+costs is this section.
 
 ### The build, as delivered
 
-`~/.cache/wt-pacs-decoder-2026-09-20/` is the adopted wrapper built for a consumer to take as built:
-`openjphjs.js`, `openjphjs.wasm`, OpenJPH's `LICENSE`, and a `SOURCE.txt` repeating what follows.
+`~/.cache/wt-pacs-decoder-2026-09-20/` on the workstation is the adopted wrapper built for a
+consumer to take: `openjphjs.js`, `openjphjs.wasm`, OpenJPH's `LICENSE`, and a `SOURCE.txt`
+repeating this.
 
 ```
 6a9abcc85363adb0864f4d1afed8dc899640a2f51e8945432d25d2069ecf6900  openjphjs.js    55,158 B
 19d11a7564ab48112159c1bf8c806fe85ac8df2c9b4f6d78fad11083369ca796  openjphjs.wasm 245,456 B
 ```
 
-Commit `a28587f` (branch `claude/d-wrapper`), emscripten 3.1.74, `-O3 -msimd128 -fexceptions`,
-`INITIAL_MEMORY=4MB`, built by `EMSDK=… INITIAL_MB=4 ARMS=deliver lab/decode-bench/wasm/build.sh`.
-The `.wasm` is byte-identical to the `plain` build the 522-frame parity run above went through, and
-the glue differs from it only in the `.wasm` filename it loads. It exports `OpenJPHModule` where the
-package's exports `Module`, which `client/downloader/decoder.js` already handles.
+Commit `a28587f`, emscripten 3.1.74, `-O3 -msimd128 -fexceptions`, `INITIAL_MEMORY=4MB`, built by
+`EMSDK=… INITIAL_MB=4 ARMS=deliver lab/decode-bench/wasm/build.sh`. The `.wasm` is byte-identical to
+the `plain` build of the 522-frame parity run; the glue differs only in the filename it loads. It
+exports `OpenJPHModule` where the package exports `Module`, which `decoder.js` handles. **It
+predates §The range in the pack**; that win reaches a page only once this is rebuilt from the
+current wrapper, and the delivered build is the workstation's.
 
-## A second decoder, measured
+## A second decoder
 
-D14. Until now this file had evaluated exactly one HTJ2K implementation, so "OpenJPH is fast
-enough" rested on nothing. **OpenHTJ2K** (github.com/osamu620/OpenHTJ2K) is the other open
-implementation with WASM SIMD paths for the block coder, the wavelet and the colour transform, and
-no head-to-head figure against OpenJPH is published. This is that figure.
+"OpenJPH is fast enough" rested on nothing until it was benched against **OpenHTJ2K**, the other
+open implementation with WASM SIMD paths for the block coder, the wavelet and the colour transform.
+Licence first, because it is a gate: BSD 3-Clause, its bundled `highway` Apache-2.0 — both
+permissive. Pinned at **v0.9.1**, `8cf42e90e6f54a51c8247587437c12f96eb131ec`;
+`lab/decode-bench/wasm/build_openhtj2k.sh` fetches it (never vendored) and links
+`openhtj2k_decoder.cpp` at the same flags, single-threaded, 4 MB, with the same class surface and
+`pack<T>()`, so `build_arms.mjs` and `parity.mjs` drive both with no branch. It decodes through
+`invoke_line_based_stream()`, the per-row analogue of `pull()`. **It exposes no header surface**
+beyond components, sizes, depth, signedness and DWT levels, so the wrapper reads SIZ and COD itself —
+~40 lines this project would own. `parity.mjs`'s version check is informational for that reason.
 
-**Licence, first, because it is a gate.** BSD 3-Clause; its one bundled third party,
-`source/thirdparty/highway`, is Apache-2.0. Both permissive, both compatible with shipping in a
-product, and neither is a reason to stop. Pinned at **v0.9.1**,
-`8cf42e90e6f54a51c8247587437c12f96eb131ec`.
+### A second decoder, measured
 
-`lab/decode-bench/wasm/build_openhtj2k.sh` fetches that commit into `lab/.openhtj2k-build/`
-(ignored, never vendored, as `build.sh` does for OpenJPH) and links
-`lab/decode-bench/wasm/openhtj2k_decoder.cpp` into **the same arms directory** at the same
-`-O3 -msimd128 -fexceptions`, single-threaded, `INITIAL_MEMORY=4MB`. The wrapper carries the same
-class surface and the same `pack<T>()`, so `build_arms.mjs` and `parity.mjs` drive both decoders
-with no branch for either. It decodes through `invoke_line_based_stream()`, the per-row analogue of
-OpenJPH's `pull()` and the lowest-heap path the library offers.
+**Bit-exact:** six sets, 522 frames, byte-identical to the package and to the encoder's input, and
+identical on every getter including those read from the markers.
 
-**A surface the library does not have.** OpenHTJ2K reports components, per-component size, depth,
-signedness and DWT levels — and nothing else. Progression order, layers, tile size and offset,
-image offset, block dimensions, precincts, the colour transform flag and reversibility are not
-exposed at all, so the wrapper reads SIZ and COD out of the codestream itself. That is ~40 lines
-this project would own, and it is a cost of adoption, not a detail.
+Both through one reused wrapper object, interleaved with the order rotated, 20 timed rounds, 87
+frames per set, in two runs led by either decoder: `c512` OpenJPH 8.076 / 8.000 ms against OpenHTJ2K
+9.433 / 9.338 (**+16.8 %, +16.7 %**), `g512` 3.212 / 3.159 against 4.728 / 4.703 (**+47.2 %,
++48.9 %**). **40 of 40 rounds to OpenJPH**, every pair of ranges disjoint. From a cold module the first three
+frames tier up over the same two frames on both, and OpenHTJ2K's first is 5.1–7.4 ms dearer.
 
-**Parity: it is bit-exact.** Six sets, **522 frames** — 8-bit unsigned ×3, 16-bit unsigned ×1,
-16-bit signed ×1, 12-bit signed ×1 — byte-identical to the package **and** to the encoder's input,
-and identical on every getter including the ones read from the markers. A decoder that were not
-bit-exact on every set would not be a candidate; this one is.
+**Heap after 100 frames favours OpenHTJ2K**: 4.8 MB colour / 4.0 MB grey against 7.0 / 4.8. That is
+the two libraries' working sets, not `restart()` (§Where to put the floor). `.wasm` is 285,058 B
+against 245,447 B.
 
-### Decode time: OpenJPH wins on both shapes
+**One decoder object per codestream is required there.** Re-`init()`ing one `openhtj2k_decoder` —
+the shape `decoder.js` holds — **leaks a codestream per frame** (44–52.8 MB after 100 frames, 1.62
+GB after two sets' rounds): `j2c_src_memory::alloc_memory()` does not free the previous buffer and
+`openhtj2k_decoder_impl::destroy()` is empty. The reused build decoded the same bytes no faster.
 
-Both decoders through one reused wrapper object, arms interleaved with the order rotated each
-round, 20 timed rounds, one 4 MB build per arm, 87 frames per set. Run A leads with OpenJPH, run B
-with OpenHTJ2K, so neither order nor which shape is cold is doing the work.
+**Mutants**, all caught: the interleave stride one short (348 differences, colour only), signed
+negatives clamped to 0 (348, signed only), the COD transform byte read backwards (6 surface
+differences, pixels untouched).
 
-| set | OpenJPH ms/frame | OpenHTJ2K ms/frame | OpenHTJ2K vs OpenJPH | rounds faster |
-| --- | --- | --- | --- | --- |
-| `c512` colour, run A | 8.076 [8.024–8.383] | 9.433 [9.376–9.574] | **+16.8 %** | 0/20 |
-| `c512` colour, run B | 8.000 [7.963–8.303] | 9.338 [9.300–9.595] | **+16.7 %** | 0/20 |
-| `g512` grey, run A | 3.212 [3.201–3.308] | 4.728 [4.687–4.954] | **+47.2 %** | 0/20 |
-| `g512` grey, run B | 3.159 [3.138–3.193] | 4.703 [4.656–4.800] | **+48.9 %** | 0/20 |
+**Not adopted.** Exact on this content, but **15–17 % slower on colour and 33–49 % on grey**, 39 KB
+more `.wasm`, a header surface to supply, and a second codebase to track; 2.2 MB lighter on colour,
+where the floor already gets 10×. The decoder in use is the faster of the two open ones on both
+shapes. Only 512² was benched; one thread decodes on a box carrying other work, so only the
+within-run differences are claimed.
 
-**40 rounds out of 40 to OpenJPH**, every pair of ranges disjoint. The gap is larger on one
-component than on three, which is the opposite of where a colour-transform SIMD path would show.
+## Faster
 
-**The first three frames**, from a cold module, in the order the run leads with — colour cold:
-23.1 / 10.0 / 9.6 ms for OpenJPH against 28.2 / 14.7 / 13.8; grey cold: 12.3 / 6.3 / 4.0 against
-19.7 / 7.9 / 6.5. Both tier up over the same two frames and OpenHTJ2K's first frame is 5.1–7.4 ms
-dearer, so nothing recovers at the tier-up end either.
-
-**Heap after 100 frames, and here OpenHTJ2K is ahead**: 4.8 MB colour / 4.0 MB grey against
-OpenJPH's 7.0 MB and 4.8 MB. The gap is not `restart()`'s, as this paragraph once said: the
-OpenJPH wrapper that destroys and placement-news its codestream every frame reads the same 7.0 and
-4.8 on a cold single-shape run, 6/6 repeats (§Where to put the floor). It is the two libraries'
-working sets, which is also where OpenHTJ2K's time goes. `.wasm` is 285,058 B against 245,447 B.
-
-**One decoder object per codestream is not optional there.** Re-`init()`ing one
-`openhtj2k_decoder` — the shape `client/downloader/decoder.js` holds — **leaks one codestream per
-frame**: 44–52.8 MB after 100 frames, 854 MB after one set's rounds, 1.62 GB after two.
-`j2c_src_memory::alloc_memory()` allocates without freeing the previous buffer and
-`openhtj2k_decoder_impl::destroy()` is empty, so only the destructor reclaims. Measured on the
-first build of this wrapper (commit `b4d6d48`), which reused the object; it decoded the same bytes,
-and its times were no better than the per-codestream build's, so the leak buys nothing either.
-
-**Where this host saturates.** One thread decodes and the box carried other lanes throughout: one
-core is busy and the rest are not this measurement's. Only the within-run differences are claimed —
-the absolute ms are not comparable with a figure from an idle box or from any other page here.
-
-**Mutants.** Three, all caught by `parity.mjs`: the interleave stride one component short (348
-differences, on the colour sets only), a signed component's negatives clamped to 0 (348, on the
-signed sets only), and the COD transform byte read the wrong way round (6 surface differences,
-pixels untouched — the surface column fails independently of the byte columns).
-
-**The result, and it is not an adoption.** OpenHTJ2K decodes this project's content exactly, and is
-**15–17 % slower on colour and 33–49 % slower on grey**, for 39 KB more `.wasm`, a header surface
-this project would have to supply itself, and a second codebase to track. It is 2.2 MB lighter on
-colour per instance, which matters only if per-instance heap is binding and time is not — and §Heap,
-measured already gets that 10× from a floor. Nothing here recommends switching; what it does say is
-that the decoder in use is the faster of the two open ones on both shapes, which is a thing this
-file could not say yesterday. `parity.mjs`'s version check is now informational rather than a
-failure, because two libraries under it can no longer be expected to report the same version.
-
-## Dispatch: first-free against round-robin
-
-The belief this tested: first-free matters when decode times are uneven and is a wash when they are
-even. Neither half had been measured. `lab/decode-bench/dispatch.mjs` runs a pool of real decoders,
-one per worker thread — dispatch is meaningless without real parallelism — and every frame is
-checked against the encoder's input.
-
-Three policies, because two was not enough to answer it:
-
-* **round-robin** assigns frame *k* to worker *k* mod width up front, busy or not. No coordination.
-* **first-free** holds the frames and gives the next to whichever worker just reported free. One
-  main-thread hop per frame.
-* **first-free+1** does the same but keeps each worker one frame ahead, so it never idles waiting
-  for that hop. This is the steelman, and without it the comparison prices the hop, not the policy.
-
-Both start from one instant with every frame already available, as a fill has them, so `wait` counts
-queueing in both. The split is reported from the median round, not as three medians: medians do not
-add, and a split that does not sum is not a split.
-
-**Width 3, 48 frames — 16 per worker:**
-
-| frames | policy | ms/frame* | wait* | decode* | take* | batch ms* | slower in |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| uniform | round-robin | 94.38 | 76.70 | 7.83 | 9.86 | 138 | — |
-| uniform | first-free | 98.20 | 90.58 | 7.04 | 0.58 | 157 | 8/12 |
-| uniform | first-free+1 | 90.32 | 78.32 | 7.54 | 4.46 | 137 | 5/12 |
-| mixed | round-robin | 305.02 | 262.11 | 24.68 | 18.23 | 524 | — |
-| mixed | first-free | 351.86 | 323.84 | 23.55 | 4.47 | 576 | 11/12 |
-| mixed | first-free+1 | 327.38 | 294.23 | 24.63 | 8.51 | 528 | 8/12 |
-
-**Width 3, 9 frames — 3 per worker:**
-
-| frames | policy | ms/frame* | wait* | decode* | take* | batch ms* | slower in |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| mixed | round-robin | 125.34 | 67.98 | 47.05 | 10.31 | 276 | — |
-| mixed | first-free | 140.29 | 81.09 | 50.32 | 8.88 | 255 | 9/12 |
-| mixed | first-free+1 | **123.84** | 54.43 | 52.59 | 16.81 | **221** | 4/12 |
-
-**The belief is half right, and the half that is right is not the interesting half.**
-
-* **Uniform frames are a wash**, as believed — every policy within a few per cent, nothing resolved.
-* **Uneven frames on a long queue are also a wash.** Sixteen frames per worker is enough for a
-  static assignment's luck to average out, so there is no head-of-line blocking left to fix:
-  round-robin's batch time ties first-free+1's (524 against 528) while needing no coordination.
-* **The win is on a short queue, and it is makespan, not latency.** At three frames per worker one
-  unlucky assignment cannot average out, and first-free+1 finishes the batch 20 % sooner (221
-  against 276). Its mean per-frame latency is not better — 4/12, unresolved — because finishing the
-  batch sooner and delivering any given frame sooner are different things.
-* **Plain first-free is worse than round-robin nearly everywhere** (8/12, 9/12, 11/12). It pays a
-  main-thread hop per frame that round-robin does not. What matters is not choosing a free decoder,
-  it is never leaving one idle — which is why the lookahead, not the choosing, carries the result.
-
-So: uneven decode times are necessary for dispatch to matter, and not sufficient. What decides it
-is **frames per decoder**, and a viewer scrubbing a few frames at a time is the case where it does.
-
-**Where this host saturates.** Four cores. Width 4 puts a worker on every core with the main thread
-contending, and the answer moved when it did; widths 2 and 3 agree with each other and are quoted
-here. Nothing is claimed at width 4 or above.
-
-**One artefact worth naming**, because it produced a confident wrong answer first: a mixed workload
-built as a repeating cycle of three sizes, dispatched round-robin across three workers, gives each
-worker one size and reverses the result. The sizes are a seeded shuffle now. A periodic workload
-whose period shares a factor with the pool width is not a mixed workload.
-
-## The copy, measured
-
-`getDecodedBuffer()` returns a view into the module's heap (`buf.buffer === M.HEAPU8.buffer`),
-so copying out is `.slice()` and not copying out is handing the view on. Both arms read the same
-two samples, so the difference between them is the copy and nothing else. Interleaved, order
-rotated each round, 8 timed rounds (`lab/decode-bench/copy_cost.mjs`).
-
-| decoded frame | copy cost | copy slower in | as a share of the decode |
-| --- | --- | --- | --- |
-| 50 KB | 0.071 ms | 8/8 | 17 % |
-| 128 KB | 0.114 ms | 8/8 | 12 % |
-| 512 KB | 0.272 ms | 8/8 | 7 % |
-| 768 KB | — | 6/8, unresolved | — |
-| 2 MB | 0.599 ms | 8/8 | 4 % |
-| 8 MB | 3.018 ms | 8/8 | 5 % |
-
-Container-measured; see §What these numbers are not. The 768 KB row is the colour fixture and
-came out 6/8, which this project does not call a result, so it is left out rather than dressed up.
-
-Two shapes, both against the assumption the open question was written on. The copy is **not**
-linear from the bottom: 164× the frame size buys 42× the copy cost, because a fixed per-call cost
-of roughly 0.05 ms dominates below about 512 KB. And past that it is close to linear, which means
-the copy is a **shrinking share of the decode** as frames grow — 17 % at 50 KB down to about 5 %
-at 8 MB. Whatever the argument for avoiding the copy is, it gets weaker with frame size, not
-stronger.
-
-## Shared memory, measured
-
-The same source, the same toolchain, two builds differing only in `-pthread`: one plain, one whose
-heap is a `SharedArrayBuffer` (asserted at runtime in the bench, not assumed). Both verified
-bit-exact against the encoder's input. 8 timed rounds, interleaved, order rotated.
-
-| decoded frame | plain | shared | shared slower in |
-| --- | --- | --- | --- |
-| 50 KB | 0.45 ms | 0.42 ms | 0/8 |
-| 128 KB | 0.99 ms | 0.95 ms | 2/8 |
-| 512 KB | 3.73 ms | 3.66 ms | 2/8 |
-| 768 KB | 9.41 ms | 8.85 ms | 1/8 |
-| 2 MB | 15.46 ms | 14.74 ms | 0/8 |
-| 8 MB | 62.59 ms | 61.83 ms | 2/8 |
-
-Container-measured. **No shared-memory tax is visible at any frame size.** The shared arm is never
-slower at the median and is slower in at most 2 rounds of 8 anywhere; several rows' ranges
-overlap, so the honest reading is *no tax detectable*, not *sharing is faster*. Heap was identical
-between the arms in every row.
-
-This does not reproduce the finding this file used to carry, that the shared-memory tax and the
-copy saved were the same size and cancelled. On these fixtures, on this toolchain, the copy costs
-something that grows with frame size and the tax does not appear at all. That is one arm of a
-two-arm claim measured somewhere else, so it is a failure to reproduce rather than a refutation —
-and a container cannot adjudicate a millisecond. It does mean the pairing should not be quoted as
-settled in either direction.
-
-## Faster, measured — and it is not
-
-L17 asked whether the decoder can be made faster, since during a fill the decode queue sets the
-finish and more decoders is not an option on the target device. Every arm below passed
-`parity.mjs` against the package and the encoder's input before it was timed; an arm that is not
-byte-identical is not an arm. Interleaved, arm order rotated each round.
-
-**Nothing here makes it faster.** The one lever that moved the clock was a *regression* the lane
-did not ask about, and the one build flag that helps exactly undoes it.
-
-**That heading was too wide, and it is corrected below rather than dropped** (2026-09-20). L17
-asked what the *build* could do and answered it correctly: no flag, no toolchain, no object
-lifetime on the package's binary moves the clock. It did not ask what the *wrapper source* does
-between `pull()` and the caller's buffer, and that is where the time was — §The wrapper's two
-passes. Nothing on this page is retracted; its scope is.
-
-### The toolchain is the lever, and it points backwards
-
-`docs/decode/README.md` records the build as emscripten **3.1.74**. Rebuilt unchanged with
-**6.0.9**, the same source and flags decode measurably slower:
+**No build lever makes the decoder faster; a newer emscripten makes it slower.** Every arm passed
+`parity.mjs` before it was timed; interleaved, order rotated. *Scope, corrected:* this answers what
+the *build* can do. What the wrapper source does between `pull()` and the caller's buffer is where
+time was found — §The wrapper's two passes.
 
 | against the 3.1.74 build | 512 KB | 768 KB | 8 MB |
 | --- | ---: | ---: | ---: |
 | emscripten 6.0.9, `-O3` | **+15.6 %** (0/8 rounds faster) | +6.5 % (1/6) | **+16.0 %** (0/6) |
 | emscripten 6.0.9, `-O3 -flto` | −1.2 % (7/8) | +2.2 % (3/6) | −1.6 % (4/6) |
 
-Two readings, and the second is the one that matters:
+* **A newer emscripten costs 6.5–16 %**, 0 of 8 and 0 of 6 rounds faster where it is largest. **LTO
+  recovers that and stops there**: three ties against 3.1.74. So the pin in `wasm/build.sh` holds
+  about 15 % of decode time, and moving it is a performance decision.
+* **A decoder object reused vs created per frame: tie** (−1.6 % 8/8 at 512 KB, a wash elsewhere).
+  Reuse stays the product's shape; what it costs is memory (§Where to put the floor).
+* **`wasm-opt -O4`: tie** (+0.1 %, 275 B larger) — emcc already runs it at `-O3`. Use the emsdk's
+  own `wasm-opt`: binaryen 117 cannot validate 6.0.9's output, and `--all-features` yields a binary
+  Node will not instantiate.
+* **A newer OpenJPH: none exists**; 0.31.0 is the newest tag.
+* **Worth taking, and it is not time: LTO makes the binary 16 % smaller** (200 KB against 239 KB),
+  heap identical.
 
-* **A newer emscripten costs 6.5–16 %** on this decoder, in the wrong direction, and the round
-  counts are as one-sided as they can be — 0 of 8 and 0 of 6 at the two sizes where it is largest.
-* **LTO recovers that and stops there.** Against the 3.1.74 build it is −1.2 %, +2.2 %, −1.6 %:
-  three ties, all inside the 5 % bar with overlapping ranges. Against a 6.0.9 build without it, LTO
-  looks like a 17.8–21.7 % win — which is what it is worth *if you have already taken the
-  regression*, and nothing at all if you have not.
+*A baseline of your own making:* LTO first measured −17.8 % against a `plain` build the lane had
+rebuilt with the newer, slower toolchain. Record which emscripten a rebuild used and compare against
+the pinned one. The 768 KB colour fixture is the noisy one here as elsewhere and settles nothing on
+its own. Build arms other than `plain`/`shared` take `EXTRA_FLAGS` (`ARMS=lto EXTRA_FLAGS="-flto"
+lab/decode-bench/wasm/build.sh`); a from-source build against the package, and relaxed SIMD, are in
+§The decode tail.
 
-So the pinned emscripten in `wasm/build.sh` is not only a reproducibility device; it is holding
-about 15 % of decode time. Moving it is a performance decision.
+## The copy, measured
 
-### What the other arms did
+`getDecodedBuffer()` returns a view into the module's heap, so copying out is `.slice()` and not
+copying out is handing the view on. Interleaved, order rotated, 8 timed rounds
+(`lab/decode-bench/copy_cost.mjs`), the copy slower in 8/8 at every size but the noisy 768 KB colour
+one (6/8, left out): **0.071, 0.114, 0.272, 0.599 and 3.018 ms at 50 KB, 128 KB, 512 KB, 2 MB and 8
+MB — 17, 12, 7, 4 and 5 % of the decode.** A fixed per-call cost of ~0.05 ms dominates below ~512 KB
+(164× the frame buys 42× the cost); past that the copy is close to linear and a **shrinking share of
+the decode** as frames grow. On realistic content the share is larger (§Content). Whether to copy
+out is decided by memory, not by this: §Retention, measured.
 
-| arm | 512 KB | 768 KB | 8 MB | verdict |
+## Shared memory
+
+The same source and toolchain, two builds differing only in `-pthread` (the shared heap asserted at
+runtime), both bit-exact, 8 timed rounds interleaved, 50 KB to 8 MB (plain → shared: 0.45 → 0.42,
+3.73 → 3.66 at 512 KB, 62.59 → 61.83 ms at 8 MB). **No shared-memory tax is detectable at any
+size**: the shared arm is slower in at most 2 of 8 rounds anywhere, and ranges overlap, so the
+reading is *no tax detectable*, not *sharing is faster*. Heap identical.
+
+*Corrected:* this file once carried a finding from elsewhere that the tax and the copy saved
+cancelled exactly. It did not reproduce here; that is one arm of a two-arm claim, so a failure to
+reproduce rather than a refutation, and it should not be quoted in either direction.
+
+## Threads
+
+One multithreaded instance at N threads against N single-threaded ones **cannot be asked of OpenJPH
+0.31.0** without writing the threading: `src/core/` contains no thread, mutex or atomic, so one
+frame's decode is serial by construction; the only threading is a frame-level pool in the
+`ojph_stream_expand` app, which upstream's CMake excludes under emscripten. Where parallelism inside
+one frame could go, and what it would buy, is §The decode tail on a slow CPU (b).
+
+## Dispatch
+
+The belief tested: first-free dispatch matters when decode times are uneven and is a wash when they
+are even. `lab/decode-bench/dispatch.mjs` runs a pool of real decoders, one per worker thread, every
+frame checked. Three policies: **round-robin** (frame *k* to worker *k* mod width, no coordination);
+**first-free** (the next frame to whichever worker just reported free, one main-thread hop per
+frame); **first-free+1** (the same, keeping each worker one frame ahead so it never idles on that
+hop). All start with every frame available, as a fill has them; the split comes from the median
+round so it sums.
+
+Width 3; ms per frame (wait + decode + take), batch ms, and rounds of 12 slower than round-robin:
+
+| queue | frames | round-robin | first-free | first-free+1 |
 | --- | --- | --- | --- | --- |
-| a decoder object reused vs created per frame | −1.6 % (8/8) | +0.6 % (4/8) | −0.6 % (4/8) | **tie** |
-| `wasm-opt -O4` over the linked binary | +0.1 % (8/8) | — | — | **tie** |
-| a newer OpenJPH | — | — | — | **none exists**: 0.31.0 is the newest tag |
-| combinations | — | — | — | nothing won alone, so nothing to combine |
+| 16 per worker | uniform | 94.38, 138 | 98.20, 157 (8/12) | 90.32, 137 (5/12) |
+| 16 per worker | mixed | 305.02, 524 | 351.86, 576 (11/12) | 327.38, 528 (8/12) |
+| 3 per worker | mixed | 125.34, 276 | 140.29, 255 (9/12) | **123.84, 221** (4/12) |
 
-* **The decoder's lifetime is not the lever** the lane guessed it might be — "possibly the largest
-  of these". Reusing one object is consistently in the right direction at 512 KB (8 of 8 rounds)
-  but by 0.042 ms on 2.7, and it is a wash at the other two sizes. It is still the right default for
-  other reasons (`§Retention, measured`), just not for speed.
-* **`wasm-opt` has already run.** emcc invokes it at `-O3` during linking, so a second `-O4` pass
-  changes the clock by 0.1 % and makes the binary 275 bytes *larger*. Use the emsdk's own `wasm-opt`
-  if you try this: binaryen 117 cannot validate 6.0.9's output at all, and `--all-features` produces
-  a binary Node will not instantiate.
+* **Uniform frames are a wash**, and so are **uneven frames on a long queue**: at 16 per worker a
+  static assignment's luck averages out, and round-robin ties first-free+1 (524 against 528 ms).
+* **The win is on a short queue, and it is makespan, not latency**: at three per worker first-free+1
+  finishes the batch 20 % sooner (221 against 276); its mean per-frame latency is not better (4/12).
+* **Plain first-free is worse than round-robin nearly everywhere** (8/12, 9/12, 11/12): it pays a
+  hop per frame. What matters is never leaving a decoder idle; the lookahead carries the result.
 
-### What is worth taking, and it is not time
+**So the downloader dispatches with lookahead, not plain first-free**: each decoder holds up to
+`perDecoder` (2) frames and the next goes to the one with fewest (`client/downloader/downloader.js`,
+`nextDecoder`). What decides whether dispatch matters is **frames per decoder**, and a viewer
+scrubbing a few frames at a time is the case where it does.
 
-**LTO makes the binary 16 % smaller** — 200 KB against 239 KB for the 3.1.74 build and 233 KB for
-6.0.9 without it — at no cost in heap, which is identical across every arm (4.0 MB at 512×512,
-24.6 MB at 2048×2048). On a phone that is a download, not a decode, and it is the only unambiguous
-gain on this page.
+**Where this host saturates.** Four cores; widths 2 and 3 agree and are quoted, width 4 moved the
+answer and nothing is claimed at or above it. **A trap:** a mixed workload built as a repeating
+cycle of three sizes over three workers gives each worker one size and reverses the result; the
+sizes are a seeded shuffle.
 
-### What this is not
+## Retained-frame residency
 
-* **Container-measured**, so the millisecond columns are reported and decide nothing; the round
-  counts and the byte-exactness are what carry weight. The workstation is the timing rig.
-* **A first pass of this measured LTO at −17.8 %** and nearly reported it as a win. It was measured
-  against a `plain` build this lane had itself rebuilt with the newer, slower toolchain — a baseline
-  of its own making. The table above is against the build the project actually records.
-* **The 768 KB colour fixture is the noisy one** here as elsewhere (`§The copy, measured` left its
-  row out at 6/8). Its ranges overlap in every arm and it settles nothing on its own.
+Every bench above releases each frame, so each prices a decoder. A viewer keeps what it decoded, and
+that was expected to flip the copy comparison: copying out holds the decoder heaps *plus* every
+retained buffer, keeping the pixels in the heap holds the heaps alone.
 
-## Retention, measured
+### Retention, measured
 
-Every section above releases each frame, so each prices a decoder. A viewer keeps what it decoded,
-and that was expected to flip the copy comparison: copying out holds the decoder heaps *plus*
-every retained buffer, while keeping the pixels where they were decoded holds the heaps alone.
-
-**It does not flip. Copying out is smaller — in all three series, on both builds, at every pool
+**It does not flip. Copying out is smaller in all three series, on both builds, at every pool
 size.** `lab/decode-bench/retained/` holds every frame of a series to the end and weighs three
-places to keep it, in headless Chromium because
-`performance.measureUserAgentSpecificMemory()` is the only instrument that counts a WASM heap, a
-plain `ArrayBuffer` and a `SharedArrayBuffer` on one scale. It was validated before it was used:
-256 MB allocated in a worker reads as +256 MB for each of the three, and dropping the reference
-reads as −256 MB, so it collects before it counts. Frame counts are the lane's: 87 × 512×512
-colour, 237 × 512×512 16-bit, 64 × 2048×2048 16-bit.
+places to keep it, in headless Chromium, with `performance.measureUserAgentSpecificMemory()` — the
+one instrument that counts a WASM heap, an `ArrayBuffer` and a `SharedArrayBuffer` on one scale.
+Validated first: 256 MB allocated in a worker reads +256 MB for each kind and −256 MB when dropped.
+Pass `--enable-blink-features=ForceEagerMeasureMemory` or each call waits 10–16 s.
 
-Total renderer memory at the end of the series, one instance, MB — the number a viewer lives with:
+Total renderer memory at the end of the series, one instance, MB:
 
 | series | pixels held | copy out, 4 MB build | copy out, package | keep in heap, package | keep in heap, 4 MB build |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -692,155 +426,87 @@ Total renderer memory at the end of the series, one instance, MB — the number 
 | 237 × 512 KB | 118.5 | **217.1** | 263.2 | 310.0 | 1080.7 |
 | 64 × 8 MB | 512.0 | **938.7** | 964.2 | 1329.8 | 2042.4 |
 
-Keeping costs 1.42–1.49× the best arrangement on the package build and **2.18–4.78× on the 4 MB
-build**. Every retained frame was checked against the `.sha256` the generator wrote from the
-encoder's input: 0 mismatches across 120 cells.
+Keeping costs 1.42–1.49× the best arrangement on the package and **2.18–4.78× on the 4 MB build**.
+Every retained frame checked against the generator's `.sha256`: 0 mismatches in 120 cells.
 
 **Why keeping loses, and it is not the pixels.** A retained decoder holds its `encoded_` vector as
-well as its `decoded_` one, so arrangement 3 keeps every codestream too — 35.5, 92.8 and 400.4 MB
-per series. Even measured against that larger floor the heap is not tight, and **WASM memory never
-shrinks**, so a heap holds its high-water mark for the life of the instance and every transient
-allocation the decoder made along the way is kept forever:
+well as `decoded_`, so keeping also keeps every codestream (35.5, 92.8 and 400.4 MB per series), and
+**WASM memory never shrinks**, so every transient allocation along the way is kept too. Against what
+the retained decoders hold (100.7, 211.3 and 912.4 MB), the package's heaps are 1.02–1.99× and the 4
+MB build's **4.58–5.10×** on the 512² series (1.74–1.89× at 2048²): a build that starts at 4 MB
+grows by two orders of magnitude and carries every step.
 
-| series | what the retained decoders hold | package heap | 4 MB build heap |
-| --- | ---: | ---: | ---: |
-| 87 × 768 KB | 100.7 MB | 120–200 MB (1.19–1.99×) | 463–513 MB (**4.60–5.10×**) |
-| 237 × 512 KB | 211.3 MB | 215–259 MB (1.02–1.23×) | 967–1044 MB (**4.58–4.94×**) |
-| 64 × 8 MB | 912.4 MB | 928–1116 MB (1.02–1.22×) | 1589–1723 MB (1.74–1.89×) |
+**The floor stands for a viewer that copies out, and only then.** In the copy-out arms the heap
+holds only transients — 4.0 MB on the 512×512 series, 24.6 MB on the 2048×2048 one, reproducing
+§Where to put the floor. **The 4 MB floor is right if and only if the pixels leave the heap.**
 
-The build that starts at 4 MB has to grow its heap by two orders of magnitude across a series and
-ends up carrying four to five times what it holds; the one that starts at 50 MB starts above most
-of the demand and stays within a quarter of it. Which is the reverse of §Where to put the floor —
-and does not overturn it, because the arrangement that provokes it is the one to avoid.
+* **Pool size costs each instance its floor**: copying out, each extra instance adds **+50.9 MB on
+  the package in every series**, against +6.6, +4.8 and +25.3 MB on the 4 MB build.
+* **A `SharedArrayBuffer` destination costs nothing**: within 0.1 MB of a plain one in all 72 cells.
+* **Reusing one decoder object costs 1.2, 0.8 and 12.5 MB** per instance over one per frame — one
+  live `decoded_` plus `encoded_` — never large.
 
-**The floor stands, for a viewer that copies out.** In the copy-out arms the decoder is deleted per
-frame and the heap holds only transients: 4.0 MB on the 237 × 512×512 series and 24.6 MB on the
-64 × 2048×2048 one, reproducing the ladder in §Where to put the floor exactly, against the
-package's fixed 50 MB. The two decisions are coupled: **the 4 MB floor is right if and only if the
-pixels leave the heap.**
+**The mutant.** Keeping a frame the next decode overwrote looks like a win in memory.
+`mutate=heap-reused` makes the kept arrangement reuse one decoder: **`MISMATCH ×86` of 87**, memory
+collapsing from 476 MB to 3.0 MB, copy-out arms clean. The ground-truth check is what stands between
+this table and a fiction.
 
-**Pool size costs each instance its floor**, and that is nearly all it costs. Copying out, each
-extra instance adds **+50.9 MB on the package build in every series** — its initial heap, paid
-whether or not it is used — against +6.6, +4.8 and +25.3 MB on the 4 MB build, the last rising
-because a 2048×2048 decode's transient working set is larger. This is the pool-sizing lever §Where
-to put the floor names, measured with frames retained rather than released.
-
-**A `SharedArrayBuffer` costs nothing.** Arrangements 1 and 2 are within 0.1 MB of each other in
-every one of the 72 cells that compare them, so the shared-memory variant is free on this axis
-whatever it costs elsewhere (§Shared memory, measured). **Reusing one decoder object rather than
-creating one per frame costs 1.2, 0.8 and 12.5 MB** per instance — one live `decoded_` plus
-`encoded_` that is never released — always in the same direction, never large.
-
-**The check, and the mutant.** An arrangement that keeps a frame the next decode overwrote is the
-failure this lane most needs to catch, and it is invisible in the memory numbers — it looks like a
-win. `mutate=heap-reused` makes the retained arrangement reuse one decoder so every frame aliases
-the last: it reports **`MISMATCH ×86` of 87** frames, the last being genuinely correct, with memory
-collapsing from 476 MB to 3.0 MB. The copy-out arms in the same run stay clean, so the mutant is
-targeted and the ground-truth check is what stands between this table and a fiction.
-
-**What this is not.** Container-measured in headless Chromium 141 on 4 vCPU; peak host use was
-3.3 GB. Memory, not time — the millisecond column is not quoted and the arms are not interleaved,
-because nothing here is a timing claim. Nothing has been measured on a phone, which is where the
-memory question is finally settled. The fixtures are the synthetic ones §What these numbers are
-not describes, so the codestream totals above are theirs and not a real series'.
+**What this is not.** Headless Chromium 141, 4 vCPU, synthetic fixtures; memory, not time. This
+instrument counts heap, which for an untouched floor is more than is resident (§Heap). Nothing on a
+phone. *Corrected:* an 86 MB retained figure this file once carried was never reproduced and is not
+quoted.
 
 ## What a decoder worker costs, resident
 
-A decoder worker has no RSS of its own — dedicated workers are threads in the page's renderer — so
-its cost is a **slope in the worker count**: the same page decodes the same series at `decoders=1`
-and at `decoders=3`, and the answer is `(RSS₃ − RSS₁) / 2`. `lab/decoder-memory/` runs that
-ablation over 87 × 512×512 × 16-bit frames with the wrapper as delivered, interleaved with the arm
-and count order rotated every round, one page in a fresh context per run, every frame checked
-against the `.sha256` the generator wrote from the encoder's input. Chrome 148, peak from the
-kernel's `VmHWM`, settled after `measureUserAgentSpecificMemory()` — which collects across the
-agent cluster, so the workers are collected too — with the workers still alive when it is read.
+A dedicated worker is a thread in the page's renderer, so its cost is a **slope in the worker
+count**: the same page decodes the same series at `decoders=1` and `decoders=3`, and the answer is
+`(RSS₃ − RSS₁) / 2`. `lab/decoder-memory/`, 87 × 512×512 × 16-bit, the wrapper as delivered,
+interleaved with arm and count order rotated, a fresh context per run, every frame checked. Chrome
+148, peak from `VmHWM`, settled after `measureUserAgentSpecificMemory()` with the workers alive.
 
-**A decoder worker of ours costs 5.9 MB resident, of which 5.7 MB is its own JS+WASM heap.**
-n = 6 rounds, MB, median [range]:
+**A decoder worker costs 5.9 MB [5.2–7.0] resident, of which 5.7 MB is its own JS+WASM heap**
+(`client/downloader/decoder.js` as shipped, two frames in flight; n = 6, median [range]).
 
-| arm | what it changes | per-worker resident | peak `VmHWM` | counted JS+WASM | WASM heap |
-| --- | --- | ---: | ---: | ---: | ---: |
-| `prod` | nothing — `client/downloader/decoder.js`, two frames in flight | **5.9 [5.2–7.0]** | 6.8 [6.0–7.1] | 5.7 | — |
-| `perdec1` | one frame in flight per worker | 6.1 [5.6–6.6] | 6.7 [6.2–7.0] | 5.7 | — |
-| `twin` | the bench's copy of it, in the same configuration | 6.4 [5.2–7.4] | 6.9 [6.4–7.0] | 5.7 | 4 928 KiB |
-| `fresh` | a decoder object per frame instead of one reused | 5.6 [5.3–5.7] | 6.3 [5.5–6.8] | 4.8 | 4 096 KiB |
-| `share` | one `WebAssembly.Module`, compiled once for all three | 5.6 [5.1–6.2] | 6.1 [5.8–6.5] | 5.4 | 4 928 KiB |
+* **Per worker, not per frame in flight**: one frame in flight per worker reads 6.1 [5.6–6.6].
+* **Reuse costs 0.81 MB of it**: a decoder object per frame reads 5.6 [5.3–5.7], its WASM heap 4 096
+  KiB against 4 928 — the 4.0 against 4.8 §Where to put the floor predicted. It **does not
+  accumulate**: the same after 87 frames or 29.
+* **A private compiled module costs 0.3 MB**: one `WebAssembly.Module` compiled for all three reads
+  5.6 [5.1–6.2], inside the ranges; the engine very likely already shares one compile per
+  wire-bytes.
+* **Most of the heap is mapped, not resident**: a worker adds only ~2.6 MB before its first decode.
 
-* **It is per worker, not per frame in flight.** `perdec1` halves what is outstanding in each
-  worker and does not move it: 6.1 against 5.9, ranges overlapping.
-* **Reuse costs 0.81 MB of it.** The WASM heap is 4 928 KiB with one decoder object reused against
-  4 096 KiB with one per frame — the 4.8 against 4.0 MB §Where to put the floor predicted, now read
-  from a running product worker rather than from a bench that decodes and releases.
-* **It does not accumulate.** That heap is the same 4 928 KiB whether the worker decoded 87 frames
-  (one worker) or 29 (three), so what a reused decoder keeps is one frame's arenas, not a series'.
-* **A private compiled module costs 0.3 MB.** Handing every worker one `WebAssembly.Module`
-  compiled on the page saves 0.3 MB of counted heap and nothing outside the ranges. The measurement
-  says only that a private compile is not where the memory goes; the likely reason is that the
-  engine already keeps one compiled module per wire-bytes for the whole process, so three workers
-  compiling the same 245 KB binary were already sharing the code.
-* **Most of the heap is mapped, not resident.** A worker counts 5.7 MB and adds 5.9 MB to the
-  process at D=3 but only ~2.6 MB before it has decoded anything: the untouched part of a 4 MB
-  initial linear memory is not resident, which is the same reason an untouched 50 MB floor reads as
-  nothing (§Heap, measured).
+**Calibrated first:** with `ballast=32` every worker touches 32 MB and the slope reads **38.3 MB
+[38.3–38.3]**. The calibration caught the harness terminating its workers before the settled
+reading, which had made every arm read 2 MB. **The whole client, ablated the same way**
+(`path=downloader`, a real session against `exact-server`, the page keeping every frame, n = 4):
+**6.1 MB [6.0–6.1] per decoder worker**.
 
-**The instrument was calibrated before any of this was believed.** With `ballast=32` every worker
-allocates and touches 32 MB, and the slope reads **38.3 MB [38.3–38.3]** per worker — 32 plus the
-6.3 the worker already costs — with the counted heap at 37.7 MB. A per-worker cost of tens of MB is
-not something this bench can miss. The calibration paid for itself at once: it caught the harness
-terminating its workers before the settled reading was taken, which had made every arm read 2 MB
-and read the same.
-
-**The whole client, ablated the same way, says the same number.** `path=downloader`: the downloader
-worker owns a real session against `exact-server`, frames arrive over the wire, the product's
-decoders decode them and the page **keeps every frame** as a viewer would. n = 4 rounds:
-**6.1 MB [6.0–6.1] per decoder worker** (197.2 → 209.4 MB for two more), and
-`measureUserAgentSpecificMemory` names 2 worker entries at D=1 against 4 at D=3 — the downloader
-and its decoders, counted one by one.
-
-**What this closes.** A decoder worker of ours costing tens of MB is not a thing this decoder does,
-and the two mechanisms that could have made one — a reused decoder's arenas, and each worker
-instantiating its own module from a `wasmBinary` after `new Function` on the glue — are worth
-0.81 MB and 0.3 MB against a ±1 MB spread and a 32 MB calibration. Neither is worth taking: a
-decoder per frame is the arrangement §Retention, measured finds going wrong on every other axis,
-and the compiled module is already shared. Where a page shows three of these workers costing tens
-of MB each, the term is not inside them, and the ablation that found it is measuring something
-else the worker count changes.
-
-**What this is not.** Desktop Chrome on a shared box, one series shape — 512×512 × 16-bit, the
-shape this project serves — and memory, not time: the wall-clock column the bench prints is context
-and nothing here is a rate claim. 87 frames, because the heap reaches its high-water in the first
-few and does not move afterwards. Nothing measured on a phone, which is where the memory question
-is finally settled.
+**So a decoder worker of ours does not cost tens of MB**, and neither mechanism that could have made
+it so — reuse (0.81 MB) or a private compile (0.3 MB) — is worth taking. Desktop Chrome on a shared
+box, one series shape, memory not time, nothing on a phone.
 
 ### The wire buffer ring
 
-The term above is per worker and small. The large one on the same page is **not** a worker at all:
-it is the **per-frame wire buffer** — one fresh `Uint8Array` copied out of the transport per frame,
-transferred to a decoder and dead on the other side, charged in *both* isolates because neither
-reaches a collection while a fill runs. A private viewer rig sized it at up to **~130 MB** of
-renderer peak on a 237-frame 16-bit fill, of which 61.5 MB sat in the downloader worker's isolate
-and 68.0 MB across three decoders', and a forced collection removed all of it.
+The large term on the same page is **not** a worker: it is the **per-frame wire buffer** — a fresh
+`Uint8Array` copied out of the transport per frame, transferred to a decoder and dead on the other
+side, charged in *both* isolates because neither collects during a fill. A private viewer rig sized
+it at up to **~130 MB** of renderer peak on a 237-frame 16-bit fill, and a forced collection removed
+all of it.
 
 **The ring.** The **transport session** — the only place that knows a frame's length before its
-bytes land — keeps a free list of the buffers it has handed out. `connect(url, hash,
-{ wireBuffers: N })` sizes it; the downloader passes `decoders × perDecoder + 2`, the frames that
-can be between the wire and a decoder. A frame is read into a buffer from that list and is a
-`Uint8Array` **view** of the codestream's own length over it, so nothing on the wire changes. The
-decoder transfers `bytes.buffer` back in its `done` or `failed` reply and the downloader hands it
-to `session.releaseWireBuffer`. A released buffer is kept only while the free list is under `N`;
-one smaller than the frame being read is dropped rather than grown, so the pool converges upward to
-`N` × the largest frame. **`wireBuffers` unset or 0 never retains**, which is the behaviour to the
-letter of every consumer that does not hand buffers back — the conformance fakes, the harnesses —
-and is the *before* arm of the table below, in the same build. A frame delivered undecoded
-(`decode: false`) goes to the page and never returns, unchanged.
+bytes land — keeps a free list of the buffers it has handed out. `connect(url, hash, { wireBuffers:
+N })` sizes it; the downloader passes `decoders × perDecoder + 2`, the frames that can be between
+the wire and a decoder. A frame is read into a pooled buffer and is a `Uint8Array` **view** of its
+own length over it. The decoder transfers `bytes.buffer` back in its `done` or `failed` reply and
+the downloader hands it to `session.releaseWireBuffer`. A released buffer is kept only while the
+list is under `N`; one smaller than the frame being read is dropped rather than grown.
+**`wireBuffers` unset or 0 never retains** — every consumer that does not hand buffers back. A
+`decode: false` frame goes to the page and never returns. **The reader is never paused when the list
+is empty**; a fresh buffer is allocated, so no consumer that keeps a buffer can deadlock it.
 
-**The reader is never paused when the list is empty**; a fresh buffer is allocated, as before.
-Bounding the memory by back pressure instead is a different lever: it moves the fill's clock and it
-is the one place this could deadlock a consumer that keeps a buffer.
-
-`lab/decoder-memory/` with `path=downloader&hold=1` — the whole client, a real session against
-`exact-server`, the page keeping every frame as a viewer does — `--wire 0,8`, the size rotated
-every round, D=3. Peak is the kernel's `VmHWM`; paired inside each round, MB, median [range]:
+`lab/decoder-memory/` with `path=downloader&hold=1 --wire 0,8`, D=3, the size rotated every round;
+peak is `VmHWM`, paired inside each round, MB, median [range]:
 
 | series | peak, one buffer per frame | peak, a ring of 8 | paired | lower in | fill + decode wall | n |
 | --- | ---: | ---: | ---: | :-: | --- | :-: |
@@ -848,288 +514,76 @@ every round, D=3. Peak is the kernel's `VmHWM`; paired inside each round, MB, me
 | 87 × 512² colour | 304.7 [304.2–305.3] | **293.9 [292.0–295.7]** | **−10.8 [−12.7…−8.5]** | 8/8 | 678 [650–701] → 653 [630–771] ms | 8 |
 | 30 × 512² 16-bit | 195.5 [194.8–196.2] | **192.3 [192.0–192.6]** | **−3.2 [−3.9…−2.5]** | 6/6 | 221 [208–229] → 217 [199–224] ms | 6 |
 
-* **What it costs is a constant; what it saves is the series.** `measureUserAgentSpecificMemory`
-  counts **+3.1 MB** of worker JS+WASM with the ring at 30 frames and **+3.1 MB** at 87 — eight
-  buffers of the largest frame, retained rather than collected — against a peak that falls by 3.2,
-  19.2 and 10.8 MB. Settled RSS rises with the pool (+4.1 / +1.9 / +7.7 MB). At 30 frames the lever
-  roughly breaks even; it is the length of the series that pays for it, and on a device it is the
-  peak, not the settled figure, that the tab is killed for.
-* **The clock does not move.** The wall clock of the whole fill and decode overlaps on every shape
-  and has no direction (the ring is lower in 4 of 8, 6 of 8, 4 of 6). The bytes are copied either
-  way; only their destination changed. `lab/decode-bench/` drives its own decoder in Node with no
-  worker message and no session, so it cannot see this change — this path's clock is the one that
-  can.
-* **Pixels.** Every frame in all 44 cells checked against the generator's `.sha256`: 87/87 (30/30),
-  **0 mismatches, 0 failures**. `client/conformance/ring.ts` holds the mechanism to account against
-  **both** session implementations — reuse, that an unset size keeps none, that a buffer still held
-  is never handed out, the cap, a frame read into a larger buffer being a view of its own length,
-  and a smaller one being dropped rather than grown. Six mutants, each caught on its own
-  implementation's arm alone.
-* **Not the same lever as BYOB reads** (§The BYOB read path), which would remove the *other*
-  per-frame allocation — the chunks the reader hands back on the way in. Measured, a tie on time,
-  ~12 ms on a session's first frame, and a decision of its own.
+* **What it costs is a constant; what it saves is the series.** +3.1 MB of counted worker memory at
+  30 and at 87 frames, against a peak that falls 3.2, 19.2 and 10.8 MB; settled RSS rises +1.9 to
+  +7.7 MB. On a device it is the peak a tab is killed for.
+* **The clock does not move** (the ring lower in 4/8, 6/8, 4/6).
+* **Pixels**: 0 mismatches in 44 cells. `client/conformance/ring.ts` holds the mechanism against
+  **both** session implementations; six mutants, each caught.
 
-**The size stays `decoders × perDecoder + 2`.** `N` was the frames that *can* be between the wire
-and a decoder, not a measured optimum, so 2, 8 and 16 were run on both shapes — the same cell as
-the table above, the size rotated every round, n = 5, `--wire 2,8,16`. Peak is `VmHWM`; the clock
-is the whole fill and decode, one number:
-
-| series | wire | peak MB | settled MB | worker JS+WASM MB | fill + decode wall ms |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 87 × 512² 16-bit | 2 | 255.3 [252.5–257.5] | 209.8 | 18.2 | 411 [407–452] |
-| | **8** | 255.6 [253.1–257.0] | 212.3 | 20.5 | 425 [399–433] |
-| | 16 | 253.8 [252.0–256.6] | 215.3 | 23.7 | 421 [401–482] |
-| 87 × 512² colour | 2 | 295.3 [294.9–296.7] | 235.8 | 23.6 | 680 [666–716] |
-| | **8** | 293.9 [293.3–295.9] | 238.5 | 26.1 | 657 [639–698] |
-| | 16 | 294.9 [293.1–295.8] | 242.0 | 30.5 | 671 [652–698] |
-
-* **Peak — the side this lever exists for — does not move with the size.** Paired inside each
-  round against 8: 16-bit `2 − 8` = +1.2 [−3.0…+2.3] MB and `16 − 8` = −0.5 [−3.6…+1.6];
-  colour +1.7 [−1.0…+2.5] and −0.1 [−1.3…+2.5]. Every range crosses zero and no size is lower in
-  more than 4 of 5 rounds. The ~20 MB the ring takes off the peak is already had at 2.
-* **16 retains more for nothing:** +3.0 MB settled and +3.2 MB of counted worker memory over 8 on
-  the 16-bit series (+3.5 and +4.4 on colour), at the same peak and the same clock. The pool is
-  `N` × the largest frame, and that is all it is.
-* **2 is cheaper to hold and pays on the clock.** It settles 2.5 MB lower, and it starves the free
-  list — six of the eight frames that can be in flight allocate fresh, which is the churn the ring
-  exists to remove. On the colour shape it is slower than 8 in **5 of 5** rounds, +19 ms [15–35] of
-  a 657 ms wall; on the 16-bit shape it has no direction (+4 [−21…+27], 1 of 5). A 2.5 MB settled
-  saving is not worth re-admitting the mechanism on the evidence of one shape where it does not show.
-* So the downloader's formula stands unchanged. Frames: 87/87 in all 30 cells, **0 mismatches, 0
-  failures**, against the generator's `.sha256`.
-
-**What this is not.** Desktop Chrome 148 on a shared box, 87-frame series, loopback. The rig's
-130 MB is a 237-frame fill behind a viewer that caches every plane; what is measured here is the
-same mechanism on a shorter series, and the saving is not a constant to carry across.
-
-## Threads: not buildable from this release
-
-The question was one multithreaded instance at N threads against N single-threaded ones. It cannot
-be asked of OpenJPH 0.31.0 without first writing the threading:
-
-* `src/core/` — the codestream decoder itself — contains no thread, mutex or atomic. A single
-  frame's decode is serial by construction, so N threads cannot make one frame faster.
-* The only threading in the release is a frame-level pool under `src/apps/`, in the
-  `ojph_stream_expand` application, not in the library.
-* Upstream's own CMake sets `OJPH_BUILD_STREAM_EXPAND OFF` when the compiler is emscripten, so
-  the one threaded component is excluded from WASM builds by the project that wrote it.
-
-A threaded arm would therefore mean wrapping the library in a frame-level pool of our own and
-building that to WASM — writing the alternative, not measuring it. That is a larger piece of work
-than this lane, and the measurements above bound what it could win before anyone starts it: one
-pooled instance would replace N×50 MB with one heap, but so would rebuilding the existing decoder
-with a smaller floor, at none of the cost.
-
-## Ground truth
-
-The bench originally checked each arm against pixels it had decoded itself with the same code
-path. Mutating the decode — flipping one byte of every frame — **did not fail that check**, because
-the corruption reached the oracle and the arm alike. A self-built oracle catches divergence
-between instances and nothing else.
-
-Every bench here now checks against the `.sha256` the fixture generator wrote from the encoder's
-input. Four mutants were run against it and all four failed as they should: a flipped byte, a
-truncated buffer, a skipped `decode()` call, and a corrupted view in the copy bench — each
-reported 87/87 frames differing and exited non-zero, with the unmutated control clean.
-
-The parity suite was mutated in the build itself rather than in the harness. A getter returning a
-wrong constant was caught at once. **A clamp set one count low was not** — and the reason was a
-gap in the fixtures, not in the check: no organic fixture contains a sample at its ceiling, so the
-clamp is dead code for all of them. `sat256` was added for that, a full-range ramp reaching exactly
-0 and exactly 65535; against it the same mutant fails on 87 of 87 frames and the good build passes.
-A test that cannot fail is worth reporting as loudly as one that does.
-
-### Signed
-
-Signed 16-bit is ordinary CT data and until 2026-09-16 no fixture could exercise it: the encoder's
-own `-signed true` path saturates negatives before coding, so nothing it produced was ground truth.
-The fixture is made the other way round — encoded unsigned, then the sign bit of each component's
-`Ssiz` set in the SIZ marker (`lab/scripts/sign_htj2k.py`). JPEG 2000 level-shifts an unsigned
-component by 2^(B−1) before coding and a signed one not at all, so the same coded bits read as
-signed must decode to `v − 2^(B−1)`. An **independent** decoder settled whether they do:
-OpenJPEG 2.5's `opj_decompress` on a flipped 16-bit frame gives exactly `v − 32768` (range
-−21975 … 21863 for an input of 10793 … 54631), and on a flipped 12-bit frame exactly `v − 2048`,
-written as 12-bit two's complement in 16-bit containers (its raw writer does not sign-extend;
-extending it gives the same samples). OpenJPH's own `ojph_expand` agrees on both, sign-extended.
-The `.sha256` beside each signed frame is of the sign-extended little-endian int16 samples the
-decoder must emit, computed from the encoder's input.
-
-Against that truth: **the package decodes both signed sets byte for byte, and already
-sign-extends 12-bit samples into int16** — `getFrameInfo()` reports `bitsPerSample: 12,
-isSigned: true` and the samples come back −1500 … 952, not 12-bit two's complement. So the
-downloader's own sign-extension pass (`client/downloader/decoder.js`, `finish`) is idempotent on
-this decoder's output rather than load-bearing. **The build in `wasm/` was wrong**: its output on
-both signed sets was the truth with every negative clamped to 0, and the cause was the wrapper's
-clamp, not OpenJPH. Fixed, both sets are 87/87 identical to the package and to the truth.
-
-Two mutants. The unfixed build against the signed sets is one: it passed every unsigned set and
-failed both signed ones, which is what the earlier 609-frame claim could not see. The other is the
-truth itself: a level shift off by one in `sign_htj2k.py` fails parity's *bytes vs encoder* column
-on a signed frame while *bytes vs package* stays identical — the two columns fail independently,
-which is the point of having both.
-
-What this corrects: `cloud-queue.md` §Blocked recorded that the package saturates negatives to
-32767 and the source build does not. That was read off codestreams the encoder's `-signed true`
-path had already damaged; with a valid signed codestream and an independent truth it is the other
-way round, and now neither is wrong.
-
-## A prefix draws a smaller image
-
-L19. The fixtures are encoded RPCL, one layer, one tile, five decompositions, so a frame's bytes
-arrive resolution by resolution and a *prefix* is a whole smaller image rather than a damaged
-large one. What that prefix costs is the question a slow link asks: how little has to arrive
-before something can be drawn.
-
-`lab/decode-bench/prefix_levels.mjs`, four frames per set, medians, over four pixel formats. **Bytes needed** is the
-smallest prefix whose decode at that level is byte-identical to decoding the *whole* codestream at
-the same level — found by binary search, and mutation-checked at the boundary: one byte short never
-reproduces the image, at every level of both sets. The timing columns are interleaved with the
-order reversed each repeat.
-
-| set | level | image | bytes needed | of full | decode µs | full decode µs |
-| --- | --- | --- | ---: | ---: | ---: | ---: |
-| `c512` 8-bit RGB | 0 | 512×512 | 428 016 | 100 % | 6 092 | 6 146 |
-| | **1** | **256×256** | **97 088** | **22.7 %** | **1 641** | 6 157 |
-| | 2 | 128×128 | 21 012 | 4.9 % | 490 | 6 205 |
-| | 3 | 64×64 | 4 783 | 1.1 % | 184 | 6 213 |
-| | 4 | 32×32 | 1 477 | 0.3 % | 102 | 6 133 |
-| | 5 | 16×16 | 662 | 0.2 % | 44 | 5 200 |
-| `g512` 16-bit grey | 0 | 512×512 | 410 331 | 100 % | 2 149 | 2 150 |
-| | **1** | **256×256** | **99 322** | **24.2 %** | **592** | 2 130 |
-| | 2 | 128×128 | 23 765 | 5.8 % | 180 | 2 149 |
-| | 3 | 64×64 | 5 927 | 1.4 % | 77 | 2 250 |
-| | 4 | 32×32 | 1 713 | 0.4 % | 30 | 2 094 |
-| | 5 | 16×16 | 646 | 0.2 % | 41 | 2 240 |
-| `s12` 12-bit signed | 0 | 512×512 | 277 427 | 100 % | 1 711 | 1 717 |
-| | **1** | **256×256** | **65 898** | **23.8 %** | **478** | 1 728 |
-| | 2 | 128×128 | 15 334 | 5.5 % | 148 | 1 686 |
-| | 3 | 64×64 | 3 787 | 1.4 % | 54 | 1 700 |
-| | 4 | 32×32 | 1 176 | 0.4 % | 30 | 1 712 |
-| | 5 | 16×16 | 517 | 0.2 % | 42 | 1 943 |
-
-**A quarter of the bytes draws the half-size image** on these sets: 22.7 % and 24.2 % for level 1.
-Below that the curve falls away fast — an eighth-size image is 5 % of the frame and a sixteenth is
-about 1 %. Decode time falls with the image rather than with the bytes, roughly ×4 per level.
-
-**Corrected 2026-09-18 by F2: that headline holds at ~2:1 and fails at ~18:1.** The sets above are
-`field` content, and the curve turns out to track the *compression ratio* rather than the frame
-size or the pixel format. Re-run on content that compresses like a real series:
-
-| set | ratio | level 1 | level 2 | level 3 |
-| --- | ---: | ---: | ---: | ---: |
-| `ct512` (CT-like) | 1.99:1 | 25.2 % | 6.4 % | 1.8 % |
-| `s12`, `c512`, `g512` (`field`) | 1.3–1.9:1 | 22.7–24.2 % | 4.9–5.8 % | 1.1–1.4 % |
-| **`cine512`** (ultrasound-like) | **18.2:1** | **48.3 %** | **17.0 %** | **5.9 %** |
-
-At ~2:1 the quarter holds, and CT content lands where `field` already did. **At 18:1 it does not:
-half the frame's bytes are needed for the half-size image, and an eighth-size image costs 5.9 %
-rather than ~1 %.** The mechanism is the obvious one — the better the content compresses, the less
-of the codestream the high-frequency subbands take, so the low-resolution prefix is a larger share
-of a smaller whole. In absolute bytes the prefix is still far cheaper on cine (23 863 B for
-256×256, against 97 088 B on `c512`); it is the *fraction* that a slow-link policy would read off
-this table, and that fraction is content-dependent. §Content, and why it decides the numbers.
-
-**Only one of the two decoders can do it, and it is the one that ships.** The package exposes
-`decodeSubResolution(level)`; every row above is that call. The source build in
-`lab/decode-bench/wasm` binds no equivalent — its wrapper calls `decode()`, which always
-reconstructs at full resolution because it never calls OpenJPH's `restrict_input_resolution`. Fed
-a level-*r* prefix it does not return a smaller image: it throws, at every level of both sets.
-
-That is not the same as refusing every truncation. The source build has a floor of its own, above
-which `decode()` returns a **full-size** image and logs `File terminated early` — never a smaller
-one. On frame 0: 307 806 B for `c512` (71.8 % of the frame, ×3.16 the level-1 prefix) and 99 497 B
-for `g512` (24.2 %, ×1.00 — 175 bytes above it). So on a slow link the source build offers a
-full-size image with detail missing, and only after most of the bytes on colour; the package offers
-a correct smaller image after a quarter of them.
-
-**Signed behaves the same, and one of the two signed sets had to.** F1 makes a signed fixture by
-encoding unsigned and setting the sign bit in SIZ, so `s512`'s codestream differs from `g512`'s by
-**exactly one byte**. Its curve is therefore identical to `g512`'s by construction — a consistency
-check that the sign flag does not disturb packet order, not an independent measurement. `s12` is
-the one that carries new information: 12-bit samples, a different codestream, and the same shape —
-23.8 % at level 1, 5.5 % at level 2, 1.4 % at level 3. **The curve is a property of the codestream's
-progression, not of the pixel format.**
-
-**Held, whatever this says.** Handing a frame's first bytes to a decoder before the frame completes
-is not built into the clients or the downloader: it waits on a decision about how a smaller first
-image is displayed, and that decision is the workstation's.
+**The size stays `decoders × perDecoder + 2`.** 2, 8 and 16 on both shapes, n = 5: **peak does not
+move with the size** (every paired range against 8 crosses zero). 16 retains 3.0–4.4 MB more for
+nothing. 2 settles 2.5 MB lower but starves the free list, and on colour is slower than 8 in 5 of 5
+rounds (+19 ms [15–35] of 657). Frames 87/87 in all 30 cells. Desktop Chrome 148, loopback, 87-frame
+series; the rig's 130 MB is a 237-frame fill and the saving is not a constant to carry across.
 
 ## The first frame
 
-D6. One frame asked on an idle session is the second goal, and a decoder that has just been
-created is slower than the same decoder a few frames later. `lab/decode-first-frame/`, headless
-Chromium on a **persistent profile**, a fresh decoder instance per visit, 3 rounds, medians:
+A decoder just created is slower than the same decoder a few frames later.
+`lab/decode-first-frame/`, headless Chromium on a persistent profile, a fresh decoder per visit, 3
+rounds, medians. **The first frame costs about four times the steady state**: on `g512` frame 0 is
+11.8 ms, frames 1–5 ~4.5, steady 3.0 (**3.92×**); on `cine512` 13.7, 4.3 and 3.8 (**3.57×**) — ~9 ms
+on a 512×512 frame, exactly where a user is waiting. **The engine's code cache does nothing to it**:
+warm HTTP cache and warm code cache read 3.97× and 4.08× on `g512`, 4.00× and 4.47× on `cine512`,
+only ever the wrong way. Tiering is per function with no on-stack replacement, so a warm-up promotes
+only the functions it runs — §Warming the decoders.
 
-| set | arm | load ms | frame 0 | frames 1–5 | steady | frame 0 pays |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `g512` | cold profile | 18 | 11.8 | 4.5 | 3.0 | **3.92×** |
-| | warm HTTP cache | 16 | 11.8 | 4.9 | 3.0 | 3.97× |
-| | warm code cache | 16 | 12.1 | 4.5 | 3.0 | 4.08× |
-| | warm + a warm-up decode | 14 | 9.9 | 5.1 | 2.8 | **3.50×** |
-| `cine512` | cold profile | 18 | 13.7 | 4.3 | 3.8 | **3.57×** |
-| | warm HTTP cache | 17 | 15.3 | 4.4 | 3.8 | 4.00× |
-| | warm code cache | 13 | 16.9 | 4.5 | 3.8 | 4.47× |
-| | warm + a warm-up decode | 14 | 13.9 | 4.3 | 4.3 | 3.26× |
+*Corrected:* the reason first given — that the decoder is instantiated from a buffer and its glue
+evaluated as text, so no cache could attach — describes `client/downloader/decoder.js`, not this
+harness, whose page loads the glue by `<script src>` with no `wasmBinary` and so already streamed.
+The load-time gain across arms is the HTTP cache plus the JavaScript code cache on the glue.
 
-**The first frame costs about four times the steady state**, on both fixtures, and it is not only
-frame 0 — frames 1–5 sit around 4.5 ms against a 3.0 ms steady state, so a handful of frames pay a
-smaller version of the same thing. On the viewer's one-frame goal that is ~9 ms of avoidable
-latency on a 512×512 frame, and it lands exactly where a user is waiting.
+This may be §The BYOB read path's unexplained ~12 ms: frame 0 here is 11.8–16.9 ms against a 3 ms
+steady state. Not confirmed — a different path and rig.
 
-**The engine's code cache does nothing to the first frame.** Cold, warm-HTTP and warm-code are the
-same within noise — 3.92×, 3.97×, 4.08× on `g512` — and the arms only ever move in the wrong
-direction.
+## Instantiating by streaming
 
-**The reason given here was wrong, and D8 corrected it (2026-09-20).** This section said the cache
-had nothing to attach to because "the decoder is instantiated from a buffer and its glue is a
-classic script evaluated as text". That describes `client/downloader/decoder.js`; it does not
-describe the page that produced the table above. `lab/decode-first-frame/page.js` loads the glue
-with `<script src>` and passes the factory no `wasmBinary`, and Emscripten's `instantiateAsync`
-streams whenever it is given no binary — so this harness was already on the streaming path, with
-both caches available to it, and still saw nothing on the first frame. What is true is that the
-**load-time** gain across arms is not only the HTTP cache: the JavaScript code cache writes the
-glue's 63 336 B entry on visit 2 and deserializes it on visit 3 (§Instantiating by streaming).
+V8 caches compiled WebAssembly only for a **streaming** compile of a module served as
+`application/wasm`, and what it caches is tiered-up code. The product hands Emscripten a
+`wasmBinary`, which forbids that. `decoder.js` takes `decoder.streaming`; given it, no binary is
+passed and the glue's own `WebAssembly.instantiateStreaming` runs. **The default is unchanged.**
 
-**D6's own remedy was to decode a small codestream at `init`, and this section used to say flatly
-that it does not remove the cost. D15 corrects that** — §Warming the decoders. With a warm-up the
-first real frame here still pays **3.50×** and **3.26×** against 3.9× and 3.6×, and D6's warm-up
-was `decode_g160`: one component, 16-bit — the *same* shape as `g512`, where it moved the number,
-and the *wrong* shape for `cine512`, where it moved nothing (13.7 → 13.9). On the product path
-D15 measures a warm-up worth 30–45 % of frames 0–2 whatever its shape, with the shape deciding
-what happens to the frames after them. S13's mechanism is unchanged: tiering is per function with
-no on-stack replacement, so a warm-up promotes only the functions it actually runs.
+`lab/decode-first-frame/arms.mjs`, 5 rounds interleaved, a fresh persistent profile per arm, three
+visits each: **a tie.** Streaming's wins on frame 0 are 2/5, 2/5, 1/5 on `g512` and 4/5, 4/5, 2/5 on
+`cine512` across the three visits, and no cell holds its sign. **The WASM cache never engages**:
+across 60 visits and five configurations — the host as is; `Cache-Control: public, max-age=31536000,
+immutable`; sixty decodes and a fifteen-second settle; `--no-wasm-lazy-compilation`; the buffer arm
+as control — `Code Cache/wasm` held nothing but its index, and a CDP trace shows
+`wasm.TopTierCompilation` every visit and no `v8.wasm` cache event.
 
-**What was named as the remedy — a streaming compile — was measured in D8 and is a tie.**
-§Instantiating by streaming.
+**The JavaScript cache does engage**: `Code Cache/js` gains the glue's 63 336 B entry on visit 2 and
+deserializes it on visit 3; with the HTTP cache that is the whole 22.9 → 13.1 ms fall in time to a
+ready decoder. **The product does not get it**: `decoder.js` evaluates the glue through `new
+Function` in a module worker. Moving the glue onto a cacheable script is the larger lever, not
+measured. Output is byte-identical on both paths (`arms.mjs --parity`; 12-bit signed not covered).
 
-**This may be the ~12 ms nobody explained.** [§The BYOB read path](#the-byob-read-path) records a
-first-frame cost of about 12 ms on that path, reproduced twice and undiagnosed, and frame 0 here is
-11.8–16.9 ms against a 3 ms steady state. The shapes match. Nothing here confirms it — the BYOB
-figure was measured on a different path and a different rig — but a lane that reopens L2 should
-price this first.
+If the cache ever engages: `deploy/nginx` gives `Cache-Control` only to content-hashed names, which
+the decoder's is not, and `new Function` would need `unsafe-eval` under a CSP. Desktop, headless.
 
 ## Warming the decoders
 
-D15. If the first frames cost four times the steady state because the engine tiers the decoder's
-hot functions over them, that cost can be **moved** rather than removed: decode a frame in each
-decoder while the session is still opening. `client/downloader/decoder.js` takes `warmup`, a URL
-to a codestream, fetched beside its own WASM compile and decoded through the same path a real
-frame takes — copy into the `SharedArrayBuffer` and range pass included — before that decoder
-answers `ready`. `decodersUp` already gates dispatch on `ready`, so no frame can reach a decoder
-that has not warmed, and nothing reaches the session: it is one same-origin GET. **It is off by
-default, and the numbers below are why.**
+If the first frames are slow because the engine tiers the decoder over them, that cost can be
+**moved**: decode a frame in each decoder while the session is still opening.
+`client/downloader/decoder.js` takes `warmup`, a codestream URL fetched beside its own WASM compile
+and decoded through the path a real frame takes, before that decoder answers `ready`. `decodersUp`
+gates dispatch on `ready`; nothing reaches the session. **Off by default, and the numbers below are
+why.**
 
-`lab/decoder-warmup/`: four arms interleaved inside every round with the order rotated, 12 rounds,
-a 12-frame fill on three decoders, one fresh page and one fresh session per visit, loopback.
-**none** · **mismatch**, a warm-up of the other set's shape · **mismatch-sized**, the other shape
-again resized to the same **sample count** as the matching one, which is what separates shape from
-size · **match**, the series' own shape. The shipped frames are `colour-8.j2c`, 160x160x3 8-bit,
-6 708 B and `grey-16.j2c`, 160x160 16-bit, 38 331 B; the two controls are 92x92x3 (3 222 B) and
-277x277 (111 069 B). Frames 0, 1 and 2 are one per decoder — on loopback the whole fill lands in
-41–56 ms, so all three decoders take their first frame at once.
-
-Medians in ms over 12 rounds, ranges where a claim rests on them, `(k/12)` rounds better than
-`none` on the same round:
+`lab/decoder-warmup/`: four arms interleaved with the order rotated, 12 rounds, a 12-frame fill on
+three decoders, a fresh page and session per visit, loopback. **none** · **mismatch** (the other
+set's shape) · **mismatch-sized** (the other shape at the matching sample count) · **match**. The
+shipped frames: `colour-8.j2c`, 160×160×3 8-bit, 6 708 B; `grey-16.j2c`, 160×160 16-bit, 38 331 B.
+Frames 0–2 are one per decoder. Medians in ms, `(k/12)` rounds better than `none`:
 
 | set | arm | frame 0 | frame 1 | frame 2 | frames 3–11 | 12 decodes |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -1142,120 +596,59 @@ Medians in ms over 12 rounds, ranges where a claim rests on them, `(k/12)` round
 | | mismatch-sized | 23.73 (12/12) | 23.03 (12/12) | 23.50 (12/12) | 8.91 [8.0 … 12.6] | 153.3 |
 | | **match** | **20.74 [17.7 … 22.2]** (12/12) | 20.23 (12/12) | 19.09 (12/12) | 7.95 [6.8 … 9.7] | **134.7** |
 
-**A warm-up is worth 30–45 % of frames 0–2, and almost none of that is the shape.** Every warm-up
-arm beats `none` on every one of the six first-frame cells, 12/12. At equal sample count the
-matching arm is 29.49 against 31.50 (colour, 7/12) and 20.74 against 23.73 (grey, 11/12) — two to
-three ms of a fifteen ms gain, with the ranges overlapping on the colour set. What the first
-frames want is **samples to tier on**, not the right shape: the 76 800-sample arms beat the
-25 600-sample ones on both sets whichever shape they carry.
+* **A warm-up is worth 30–45 % of frames 0–2, and almost none of that is the shape**: at equal
+  sample count the matching arm gains only 2–3 ms more. The first frames want samples to tier on.
+* **The shape decides the frames after them, against you on colour**: a mismatched warm-up leaves
+  `cine512`'s frames 3–11 at 14.4–14.7 ms against 10.22 with **no warm-up**, disjoint ranges. A
+  product that ships a warm-up must pick it from the series' metadata
+  (`client/downloader/README.md`).
+* **It does not reach the page's clock on this box.** The decoders answer `ready` later by about
+  what the frames save: frame 0 at the page 119.3 → 130.0 ms (cine, 2/12) and 119.1 → 120.6 (grey,
+  6/12) on loopback, and 522 → 555 ms at a 40 ms round trip (`lab/scripts/link_impair.py`).
 
-**The shape decides the frames after them, and on colour it decides them against you.** On
-`cine512` a mismatched warm-up leaves frames 3–11 at 14.4–14.7 ms against 10.22 with **no warm-up
-at all** — ranges that do not overlap, both sizes, and the matching arm better than either on
-12/12 rounds. Over the whole fill the matching warm-up saves 41 ms of decode (229.6 → 188.2) and a
-mismatched one saves nothing (234.1, 228.6). `g512` shows the same sign and nothing more: 7.95
-against 8.91–9.73, ranges overlapping, 8/12. A mismatched warm-up is the one arm here that can be
-*worse than no warm-up*, so a product that ships a warm-up frame must pick it from the series'
-metadata — `client/downloader/README.md`.
+**Mutants.** Moving the warm-up *after* `ready` was not caught — the warm-up still finished before
+the first bytes, so the gate on `ready` is not load-bearing on this box (4 rounds; nothing changed
+on it). Removing the `try` around it was not caught either, because the wrapper never throws; the
+`catch` is load-bearing now that `decodeFrame` checks the header (§A frame that did not decode).
 
-**It does not reach the page's clock on this box.** The decoders answer `ready` later by about
-what the frames save, and `w0` — the first frame's bytes waiting for a decoder — is where it
-shows:
+**What this is not.** Loopback and a userspace relay on a four-core box with other work: only
+within-round differences are claimed. At 40 ms only frame 0 is a cold decoder's first frame. The
+warm-up's size was not swept, and 12-bit signed has no shipped warm-up frame.
 
-| set | arm | bytes at (ms) | waiting for a decoder | frame 0 at the page | fill done |
-| --- | --- | ---: | ---: | ---: | ---: |
-| `cine512` | none | 41.3 | 33.4 | 119.3 | 157.1 |
-| | match | 45.6 | 53.9 (0/12) | 130.0 (2/12) | 165.1 (1/12) |
-| `g512` | none | 52.6 | 29.0 | 119.1 | 151.0 |
-| | match | 56.0 | 43.1 (1/12) | 120.6 (6/12) | 148.0 (9/12) |
+### On a slow CPU
 
-On loopback there is **no idle window to warm in**: the bytes of frame 0 land at 41–53 ms and the
-decoders are not ready until 30–55 ms after that, warm-up or none. Repeated through
-`lab/scripts/link_impair.py` at a 40 ms round trip, where the bytes land at 470 ms (`cine512`) and
-615 ms (`g512`), an idle window does exist — `none` waits 0.0 and 0.1 ms for a decoder — and the
-warm-up still does not pay: on `cine512` it pushes the wait to 66.4 ms and frame 0 from 522 to
-555 ms (4/12); on `g512` it fits inside the window (0.1 ms) and frame 0 does not move, 658 → 661
-(8/12). The arms' first frames are 47.7 → 41.0 ms there, inside a `none` range of [17.6 … 105.8].
+Every browser thread slowed with `lab/scripts/cpu_throttle.mjs` (§A slow CPU, emulated) and a cold
+ask added (`SCENARIOS=ask`: a fresh session, no fill, frame 5 asked as it opens). `none` against
+`match`, 1× / 4× / 6× and fill / ask rotated inside every round, 7 rounds, both sets, loopback and
+40 ms; 336 visits, pixels identical. Medians in ms, `none → match` at 1×, 4×, 6×, and `(k)` rounds
+of 7 better with the warm-up:
 
-**Two mutants were not caught, and both say something.** Moving the warm-up to *after* the
-decoder answers `ready` (so the gate is gone) left the first frames exactly as fast — 29.49 ms on
-`cine512`, 19.66 on `g512` over 4 rounds — because the warm-up still finishes before the first
-bytes arrive, and it gave part of the page clock back: the first frame's bytes waited 39.1 ms for
-a decoder instead of 53.9, and reached the page at 124.9 ms instead of 130.0. The gate on `ready`
-is therefore **not load-bearing on this box**, and the ungated shape is the better-looking one;
-4 rounds is not a ladder, so nothing is changed on it. Removing the `try` around the warm-up
-decode also changed nothing, for a plainer reason: the wrapper **never threw**. An empty body, a
-README and a 60-byte prefix each logged an `ojph error` and came back as a frame, and a truncated
-codestream decodes in full — so no input reachable through `warmup` could reach that `catch`. The
-`catch` is now load-bearing: §A frame that did not decode gave `decodeFrame` a check of its own,
-which the warm-up path reaches with a file that is not a codestream. That section also corrects the
-sentence above — "a zero-length frame" was measured on a *fresh* decoder, and the product reuses
-one.
+| rtt | set | frame 0 at the page | cold ask |
+| --- | --- | --- | --- |
+| 0 | `cine512` | 184 → 181 (3), 396 → **466 (1)**, 594 → **694 (1)** | 132 → 143 (3), 385 → 410 (2), 608 → 624 (3) |
+| 0 | `g512` | 162 → 156 (4), 370 → 389 (3), 568 → **666 (2)** | 134 → 130 (6), 409 → 388 (5), 541 → 604 (3) |
+| 40 | `cine512` | 449 → 460 (1), 643 → **687 (0)**, 795 → 843 (1) | 461 → **445 (7)**, 621 → **680 (1)**, 778 → 830 (1) |
+| 40 | `g512` | 587 → **569 (7)**, 726 → **645 (7)**, 816 → **766 (6)** | 590 → **566 (7)**, 708 → 678 (5), 851 → **758 (7)** |
 
-**What this is not.** Loopback and a userspace relay on a four-core box carrying other lanes, so
-only the within-round differences are claimed and none of the levels. At 40 ms the frames arrive
-one at a time and `pump()` hands them all to the first free decoder, so only frame 0 is a cold
-decoder's first frame there — the 12-round loopback table is the decode measurement and the 40 ms
-run is the page-clock one. The warm-up's own size was not swept: 160x160 is D6's size, the shipped
-grey frame is 38 331 B against the colour frame's 6 708 B because 16-bit grey does not compress
-like a cine loop, and both were fetched from a static host with no `Cache-Control` — a warm-up
-that the app already holds costs less than one measured here. Nothing here was measured on a
-phone, which tiers more slowly and would pay more for the same miss.
-
-### On a slow CPU (WU1)
-
-*Row 73, 2026-09-25.* The warm-up runs in the decoder workers, which Chromium's throttle does not
-reach (§The decode tail on a slow CPU), so `run.mjs` now slows every browser thread with
-`lab/scripts/cpu_throttle.mjs` (`THROTTLES`) and adds a cold ask (`SCENARIOS=ask`: a fresh session,
-no fill, frame 5 asked as it opens). `none` against `match`, 1× / 4× / 6× and fill / ask rotated
-inside every round, 7 rounds, both sets, on loopback and at a 40 ms round trip; 336 visits, none
-lost, pixels identical on every arm. Medians, `none → match`, `(k/7)` rounds better with the warm-up:
-
-| rtt | set | throttle | frames 0–2 decode | frame 0 waits for a decoder | frame 0 at the page | cold ask |
-| --- | --- | --: | --: | --: | --: | --: |
-| 0 | `cine512` | 1× | 65 / 67 / 74 → 47 / 47 / 42 ms | 37 → 72 | 184 → 181 (3/7) | 132 → 143 (3/7) |
-| | | 4× | 139 / 136 / 132 → 79 / 84 / 75 | 110 → 171 | 396 → **466 (1/7)** | 385 → 410 (2/7) |
-| | | 6× | 193 / 176 / 180 → 130 / 117 / 128 | 174 → 253 | 594 → **694 (1/7)** | 608 → 624 (3/7) |
-| | `g512` | 1× | 50 / 51 / 52 → 21 / 33 / 32 | 32 → 52 | 162 → 156 (4/7) | 134 → 130 (6/7) |
-| | | 4× | 104 / 100 / 103 → 62 / 53 / 56 | 51 → 80 | 370 → 389 (3/7) | 409 → 388 (5/7) |
-| | | 6× | 149 / 138 / 145 → 89 / 74 / 72 | 61 → 129 | 568 → **666 (2/7)** | 541 → 604 (3/7) |
-| 40 | `cine512` | 1× | 41 → 25 (frame 0) | 0 → 15 | 449 → 460 (1/7) | 461 → **445 (7/7)** |
-| | | 4× | 140 / 124 / 106 → 82 / 90 / 84 | 35 → 116 | 643 → **687 (0/7)** | 621 → **680 (1/7)** |
-| | | 6× | 188 / 176 / 168 → 116 / 123 / 127 | 84 → 161 | 795 → 843 (1/7) | 778 → 830 (1/7) |
-| | `g512` | 1× | 34 → 11 (frame 0) | 0 → 0 | 587 → **569 (7/7)** | 590 → **566 (7/7)** |
-| | | 4× | 105 / 77 / 51 → 37 / 35 / 24 | 0 → 0 | 726 → **645 (7/7)** | 708 → 678 (5/7) |
-| | | 6× | 164 / 105 / 106 → 60 / 56 / 54 | 0 → 0 | 816 → **766 (6/7)** | 851 → **758 (7/7)** |
-
-(At 40 ms and 1× the fill's frames arrive one at a time and go to the first free decoder, so only
-frame 0 is a cold decoder's first frame there — §Warming's caveat.)
-
-* **The warm-up always does what it does**: the first three decodes fall 30–65 %, 7/7 or 6/7 in
-  every cell, and more in milliseconds the slower the CPU — 60–100 ms a frame at 6×.
-* **Whether the page sees it is the idle window, and the throttle shrinks that window.** The
-  warm-up is paid before a decoder answers `ready`, and on a slow CPU it costs more than it saves
-  the first frame: at 4× on colour, frame 0's wait for a decoder grows 61–81 ms to save 58–60 ms
-  of its decode. Where the first bytes land after the warm-up is done — the 16-bit set at 40 ms, whose
-  first frame is 8× the size — the wait stays 0 and the page gets frame 0 **50–81 ms sooner at 4–6×
-  and a cold ask 30–93 ms sooner**. Where they land before it — loopback, and the colour cine loop
-  (18:1, frames of ~50 KB) even at 40 ms — frame 0 and the cold ask arrive **44–100 ms later**.
-* **Keep it off by default — the container shows both signs and cannot say which a phone sees.**
-  The answer is the window between the decoders' compile and the first frame's bytes, which grows
-  with the round trip and with the first frame's size on the link, and shrinks as the CPU slows.
-  On the target link (a slower link than this relay, which only delays) the window is longer than
-  here, which favours the warm-up; that is arithmetic, not measured. A device on the target link,
-  cine loop and 16-bit series, decides it.
-
-Not measured here: the warm-up's own size and a cached warm-up file (§Warming's caveats stand), and
-per-decoder readiness — dispatch waits on all three decoders (`Promise.all` in `downloader.js`),
-though they warm in parallel and finish together.
+* **The warm-up always cuts the first three decodes 30–65 %**, 7/7 or 6/7 in every cell — on colour
+  at 4× on loopback 139 / 136 / 132 → 79 / 84 / 75 ms, 60–100 ms a frame at 6×.
+* **Whether the page sees it is the idle window, and a slow CPU shrinks it.** The warm-up is paid
+  before `ready`: at 4× on colour frame 0's wait for a decoder grows 61–81 ms (110 → 171 ms on
+  loopback) to save 58–60 ms of decode; on the 16-bit set at 40 ms that wait stays 0. Where the
+  first bytes land after the warm-up — the 16-bit set at 40 ms — frame 0 is **50–81 ms sooner at
+  4–6×** and a cold ask 30–93 ms sooner. Where they land before — loopback, and the colour cine loop
+  (~50 KB frames) even at 40 ms — frame 0 and the ask are **44–100 ms later**.
+* **Keep it off by default.** The deciding quantity is the window between the decoders' compile and
+  the first frame's bytes, which grows with the round trip and the first frame's size and shrinks as
+  the CPU slows. On the target link it is longer than here, which favours the warm-up — arithmetic,
+  not measured. A device on the target link, cine loop and 16-bit series, decides it. Dispatch waits
+  on all three decoders (`Promise.all` in `downloader.js`); per-decoder readiness is not measured.
 
 ## A frame that did not decode
 
-The wrapper reports nothing. It logs an `ojph error` to the console and returns, and
-`client/downloader/decoder.js` reuses **one** `HTJ2KDecoder` object across every frame — which the
-lab's `reuse_cost.mjs` measured as the right thing to do, and which makes the failure mode worse
-than a zero-length frame. Measured here on 2026-09-22, decoder 2.4.11, one reused object, the two
-shipped warm-up codestreams:
+The wrapper reports nothing: it logs an `ojph error` and returns, and `decoder.js` reuses **one**
+`HTJ2KDecoder` across every frame. Decoder 2.4.11, one reused object, the two shipped warm-up
+codestreams:
 
 | input | `getFrameInfo()` | `getDecodedBuffer().length` | the pixels |
 | --- | --- | ---: | --- |
@@ -1263,150 +656,61 @@ shipped warm-up codestreams:
 | the same, truncated to 60 % or 25 % | 160x160x3@8 | 76 800 | **different, and nothing is reported** |
 | 100 B of it, an empty body, a README | **0x0x0@0** | 76 800 | **the previous frame's, byte for byte** |
 
-So an undecodable frame does not arrive as 0 pixels: it arrives as the **last frame's pixels under
-the new index**, with `width: 0` beside them. A viewer that trusts the index shows the wrong slice.
+So an undecodable frame arrives as the **last frame's pixels under the new index**, with `width: 0`
+beside them — not as 0 pixels, which is what a *fresh* decoder returns.
 
-**The check is the header, not the length.** `decodeFrame` computes
-`width x height x components x (bits > 8 ? 2 : 1)` and throws when that is zero or when the decoded
-buffer is shorter, and the decoder worker's existing `catch` posts `failed` with the frame's index
-and generation — so it reaches the consumer as `onError({ frameIndex, reason, generation })`, or as
-a rejected `requestExactFrame`, and never as a frame. A cheaper-looking check on the buffer's
-**length** alone catches nothing, because the length is the previous frame's.
+**The check is the header, not the length.** `decodeFrame` computes `width x height x components x
+(bits > 8 ? 2 : 1)` and throws when that is zero or the decoded buffer is shorter; the worker's
+`catch` posts `failed` with the index and generation, so it reaches the consumer as `onError({
+frameIndex, reason, generation })` or a rejected `requestExactFrame`, never as a frame. A check on
+the length alone catches nothing: the length is the previous frame's. A fresh decoder per frame buys
+only what this check buys and gives up reuse; zero-filling the output before each decode is the pass
+D10 removed. Neither is taken.
 
-**It refuses nothing real.** The rule was run over **129 real codestreams** — every generated
-fixture on this box plus the two shipped warm-up frames, covering all four shapes the product
-serves (512x512x3@8, 512x512@16, 512x512@12 signed, and the 160x160 warm-ups): none is refused, and
-the decoded buffer is **exactly** the declared size in every one, never larger.
+**It refuses nothing real**: 129 real codestreams, all four shapes the product serves, none refused,
+each decoded buffer exactly the declared size.
 
-**A truncated codestream is invisible here** and stays so: rows 2 of the table decode to the full
-declared size, silently, with wrong pixels. Truncation is caught on the wire instead, against the
-length the frame's own envelope declares — `../CLIENTS.md` §A truncated frame is a failure. The two
-checks are disjoint on purpose; neither subsumes the other.
-
-**What is not claimed.** A codestream the server truncated *before* it framed it passes both
-checks: the envelope declares the short length and the header still parses. Only the pixels would
-say, and the per-frame `.sha256` oracle in `client/harness/downloader.html` is what says it.
-Conformance: `anUndecodableFrameIsAFailureNotAFrame` in `client/conformance/dispatch-rig.ts` runs
-an empty codestream and a file that is not one through the **real** decoder and requires both to
-fail while a real frame beside them arrives whole; it skips loudly where `vendor/openjph` is absent.
-
-## Instantiating by streaming
-
-D8. V8 caches compiled WebAssembly only for a **streaming** compile of a module served as
-`application/wasm`, and what it caches is tiered-up code — exactly what the first frames lack. The
-product hands Emscripten a `wasmBinary`, which forbids that. `client/downloader/decoder.js` now
-takes `decoder.streaming`; given it, no binary is passed and the glue's own
-`WebAssembly.instantiateStreaming` runs. **The default is unchanged.** The lab's static host sends
-`Content-Type: application/wasm` and the module is 299 948 B, above the 128 kB V8 requires.
-
-`lab/decode-first-frame/arms.mjs`, 5 rounds, arms interleaved within each visit and the order
-reversed on odd rounds, a fresh persistent profile per arm, three visits each. Medians in ms;
-*k/n* is streaming's wins against the buffer over the five rounds.
-
-| set | visit | ready buffer → streaming | frame 0 buffer → streaming | steady | wins on frame 0 |
-| --- | ---: | --- | --- | --- | ---: |
-| `g512` | 1 | 22.9 → 22.9 | 19.0 → 19.1 | 4.3 → 4.0 | 2/5 |
-| | 2 | 16.5 → 17.9 | 14.1 → 15.1 | 4.1 → 4.0 | 2/5 |
-| | 3 | 13.1 → 14.1 | 13.7 → 17.1 | 4.3 → 4.1 | 1/5 |
-| `cine512` | 1 | 22.6 → 21.5 | 26.9 → 25.3 | 5.5 → 5.2 | 4/5 |
-| | 2 | 19.9 → 18.6 | 27.2 → 23.6 | 5.4 → 5.2 | 4/5 |
-| | 3 | 12.9 → 14.4 | 24.4 → 24.0 | 5.3 → 5.3 | 2/5 |
-
-**It is a tie, and the reason is that the cache never engages.** Wins straddle 2.5/5 in both
-directions and no cell holds its sign across visits. Chrome's WASM code cache lives in the
-profile's `Code Cache/wasm`, and across all 60 visits it held **nothing but the backend's own
-index** — 0 bytes of cached module. Five configurations were tried against one profile, three
-visits each: the host as it stands; `Cache-Control: public, max-age=31536000, immutable` on the
-wasm over HTTP/1.1; sixty decodes instead of eight with a fifteen-second settle; every function
-compiled up front (`--js-flags=--no-wasm-lazy-compilation`); and the buffer arm as a control.
-**None of them produced a WASM cache entry.** A CDP trace shows `wasm.TopTierCompilation` firing on
-every visit and no `v8.wasm` cache event at any of them.
-
-**The same profile caches JavaScript, which is how we know the machinery is alive.** `Code
-Cache/js` gains a 63 336 B entry on visit 2 — the decoder's glue — and visit 3 traces
-`v8.deserializeOnBackground` and `OnFinishCodeCacheConsumerScriptDecode`. That, with the HTTP
-cache, is the whole of the 22.9 → 13.1 ms fall in time-to-a-ready-decoder across visits, and it is
-a gain the **product does not get**: `decoder.js` runs in a module worker and evaluates the glue
-through `new Function`, which no code cache can attach to. Moving the glue onto a cacheable script
-is the larger lever here, and it is not measured.
-
-**Decoded output is identical on the two paths**: `g512`, `c512`, `s512` and `cine512`, 8 frames
-each, byte-identical between the arms and against the encoder's input (`arms.mjs --parity`);
-mutation-checked both ways. 12-bit signed is not covered — this box cannot build the fixture
-encoder.
-
-**Not defaulted, and what it would take if the cache ever engages**: `deploy/nginx` already maps
-`application/wasm` and gzips it, but only a name carrying a content hash gets `Cache-Control`, and
-the decoder's does not; there is no CSP today, and `new Function` on the glue would need
-`unsafe-eval` under one; the transport module (`client/transport-wasm`, wasm-bindgen
-`--target web`) already streams and has the same missing-`Cache-Control` gap.
-
-Measured on a desktop, headless. A phone tiers up more slowly and would pay more for the same
-miss; nothing here measures that. A headed browser was not tried: the only display on the rig is
-the owner's session.
+**A truncated codestream is invisible here** (full size, wrong pixels); it is caught on the wire
+against the envelope's declared length — [`../CLIENTS.md`](../CLIENTS.md) §A truncated frame is a
+failure. The two checks are disjoint on purpose. A codestream the server truncated *before* framing
+passes both; only a per-frame `.sha256` oracle sees it. Conformance:
+`anUndecodableFrameIsAFailureNotAFrame` in `client/conformance/dispatch-rig.ts`, real decoder,
+skipped loudly where `vendor/openjph` is absent.
 
 ## The range pass
 
-D5. The decoder worker writes pixels into a `SharedArrayBuffer` and then walks them again to
-sign-extend and take the sample range (`client/downloader/decoder.js`, `finish`). In a fill the
-decoders are the bottleneck, so that second walk is on the critical path. Priced interleaved, order
-reversed each repeat, 400 repeats:
+The decoder worker writes pixels into a `SharedArrayBuffer` and then walks them again to sign-extend
+and take the sample range (`decoder.js`, `finish`). Folding the range into the copy was priced,
+interleaved, 400 repeats: `set()` plus a range pass 1 104 µs against one loop doing both 1 175 µs on
+512×512×3 8-bit (**1.06× slower** folded), 497 against 583 µs on 512×512 16-bit (**1.17×**).
+**Folding loses**: a native `set()` memcpy plus a read-only loop beats one hand-written copy loop.
+Do not fold it on the assumption that one pass beats two. *Corrected:* the pass was first put at
+10–25 % of a decode; in a decoder worker during a fill it is **21–31 % of the frame** at every
+throttle (§The decode tail on a slow CPU). The lever that remains is not walking the pixels at all —
+§The range in the pack. (In C++ the answer was the other one: the wrapper's zero-fill wrote bytes
+nobody reads, and removing it won — §The wrapper's two passes.)
 
-| frame | `set()` + a range pass | one loop doing both | folded is |
-| --- | ---: | ---: | ---: |
-| 512×512×3 8-bit | 1 104 µs | 1 175 µs | **1.06× slower** |
-| 512×512 16-bit | 497 µs | 583 µs | **1.17× slower** |
-
-**It is not noise — and D5's own remedy makes it worse.** The pass costs 0.5–1.1 ms against a
-3–7 ms decode, so 10–25 % of it. *Corrected 2026-09-25 (DT1):* in a decoder worker during
-a fill the pass alone is 5.6 ms of a colour frame's 18.7 and 2.0 of a 16-bit one's 9.5, 21–31 % of
-the frame at every throttle; the same loop is 3.4 ms in a browser worker on an idle box and 2.9 in
-Node here, so these figures do not reproduce — §The decode tail on a slow CPU. But folding the range into the copy replaces a native `set()`
-memcpy plus a read-only loop with one hand-written copy loop, and that loses on both fixtures. The
-two-pass shape is the faster one; it is reported here so nobody folds it later on the assumption
-that one pass beats two.
-
-**What is left is not doing it.** The remaining lever is whether an exact min/max is needed at all,
-or whether a subsample would serve the window/level it feeds. That is a product question about the
-viewer, not a decode question, and it is not answered here. *2026-09-25 (RP1):* the source build no
-longer walks the pixels for it at all — §The range in the pack.
-
-**One copy did go.** `new Uint8Array(m.bytes)` re-wrapped a view that already was a `Uint8Array`
-over the transferred buffer, copying the whole codestream for nothing (S14): 5.9 µs at 48 KB,
-10.8 at 256 KB, 16.2 at 418 KB, plus a fresh buffer per frame for the collector. Removed. It is
-0.2–0.5 % of a decode, so it is a tidy-up rather than a win — the allocation it stops is the part
-that matters on a phone.
-
-**Measured in C++ since, and there the answer is the other one** (2026-09-20). The source build's
-wrapper did zero-fill its output and then write every sample, and removing that fill is a win, not
-a wash: §The wrapper's two passes. The difference from the JavaScript result above is that this
-pass is not the range pass — it writes bytes nobody reads, rather than reading bytes that are
-already there.
+**One copy did go** (S14): `new Uint8Array(m.bytes)` re-wrapped a view that already was one, copying
+the codestream for nothing — 5.9 µs at 48 KB to 16.2 at 418 KB, plus a buffer per frame. Removed.
 
 ## The range in the pack
 
-*Row 80 (RP1), 2026-09-25.* The source wrapper clamps and narrows every sample as it packs a line
-(`lab/decode-bench/wasm/htj2k_decoder.cpp`, `pack`); it now takes the integer min/max of the clamped
-value there too and returns it from `getRange()`. It already writes signed samples sign-extended,
-which is why `finish()`'s pass was idempotent on its output, so `client/downloader/decoder.js` takes
-the decoder's range whenever the decoder has `getRange` and runs its own pass otherwise — the package
-has none and is unchanged.
+The source wrapper clamps and narrows every sample as it packs a line (`htj2k_decoder.cpp`, `pack`);
+it now takes the integer min/max of the clamped value there and returns it from `getRange()`. It
+already writes signed samples sign-extended, so `decoder.js` takes the decoder's range whenever the
+decoder has `getRange` and runs `finish()` otherwise — the package has none and is unchanged.
 
-**Bit-exact.** `parity.mjs` over c512, g512, s12 (12-bit signed), s512 (16-bit signed) and sat256
-(both ends saturated), 435 frames: pixels identical to the package and to the encoder's input, and
-`getRange()` identical to `finish()` run on the package's pixels, on every frame. Mutants, each
-caught: the colour loop widening the range by its first component only (87 of 87 c512 frames differ),
-a range that is one line's rather than the frame's (348 of 348), and the clamp one short at the top —
-which **no set but sat256 reaches**, so sat256 is now part of the run. In the gate,
-`dispatch-rig.ts` holds `decoder.js` to both halves, with the package and with a stand-in glue whose
-decoder answers `getRange()` (`client/conformance/range-glue.js`); making the worker always run its
-pass, or never, fails one clause each.
+**Bit-exact.** `parity.mjs` over c512, g512, s12, s512 and sat256, 435 frames: pixels identical to
+the package and the encoder's input, `getRange()` identical to `finish()` on the package's pixels.
+Mutants, each caught: the colour range from its first component (87/87 differ), one line's range
+(348/348), the clamp one short at the top — **reached only by sat256**, now part of the run. In the
+gate, `dispatch-rig.ts` holds `decoder.js` to both halves with the package and a stand-in glue that
+answers `getRange()` (`client/conformance/range-glue.js`); always-pass and never-pass each fail one.
 
-**What it buys.** [`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs), `today` (the
-tree's wrapper before this) against `built`, both from source at a 16 MB heap, both through
-`decoder-split.js`; every browser thread slowed by `cpu_throttle.mjs` (4.0× / 5.9× on this 4-core
-box, `--check`); c512 and g512 with three asks after the fill; 7 rounds interleaved, none lost.
-Medians, and the rounds `built` was sooner:
+**What it buys.** [`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs), the wrapper
+before (`today`) against `built`, both from source at a 16 MB heap through `decoder-split.js`; every
+browser thread slowed; c512 and g512 with three asks after the fill; 7 rounds interleaved. Medians,
+and rounds `built` was sooner:
 
 | set | throttle | all decoded | one ask | a frame in its decoder | of it the range pass |
 | --- | --: | --: | --: | --: | --: |
@@ -1417,94 +721,78 @@ Medians, and the rounds `built` was sooner:
 | | 4× | 749 → 757 (+1 %, 5/7) | 19.6 → 8.3 (**−58 %**, 7/7) | 16.4 → 9.4 (7/7) | 4.2 → 0.0 |
 | | 6× | 1 127 → 1 129 (+0 %, 4/7) | 25.6 → 12.8 (**−50 %**, 6/7) | 24.0 → 12.1 (7/7) | 6.5 → 0.0 |
 
-* **The colour fill is decode-bound, so it takes all of it**: a third off its all-decoded at 4–6×.
-  The 16-bit fill is wire-bound at 4–6× (§The decode tail on a slow CPU) and does not move; its asks
-  halve.
-* **The pack's min/max is not free, and is small**: the WASM decode is +0.5 ms (+6.6 %, 1 of 7) on a
-  colour frame at 1× and within noise at 4–6×, against the 4–25 ms pass it replaces. A colour frame
-  shown through a window does not need its range at all; skipping it there is worth that half
-  millisecond and is not built.
-* The WASM medians of the 16-bit set at 4–6× swing both ways (−44 % at 6 of 7, −34 % at 2 of 7) on
-  work of 4–12 ms: the throttle's tick, not the build. The decoder-time and ask columns are the claim.
+* **The colour fill is decode-bound and takes all of it**: a third off at 4–6×. The 16-bit fill is
+  wire-bound at 4–6× and does not move; its asks halve.
+* **The pack's min/max is small but not free**: +0.5 ms of WASM (+6.6 %, 1/7) on a colour frame at
+  1×, noise at 4–6×. A colour frame shown through a window does not need a range; skipping it there
+  is not built. The 16-bit WASM medians at 4–6× swing both ways on 4–12 ms of work — the throttle's
+  tick; the decoder-time and ask columns are the claim.
 
-**Not yet in the product's decoder.** §The build, as delivered is the old wrapper; the win reaches a
-page once it is rebuilt — `EMSDK=… INITIAL_MB=4 ARMS=deliver lab/decode-bench/wasm/build.sh` — and
-that is the workstation's, as the delivered build is. Container-measured, like every number here.
+**Not yet in the product's decoder**: §The build, as delivered predates it.
 
 ## The decode tail
 
-*Row 68 (DC1), 2026-09-24.* The workstation's rig saw a colour fill's last byte ~325 ms after the
-ask and its last frame decoded ~685 ms after it — ~360 ms of decoding after the wire was done, three
-decoders. **The pool is busy the whole fill; the tail is throughput, not scheduling.**
+The workstation's rig saw a colour fill's last byte ~325 ms after the ask and its last frame decoded
+~685 ms after it. **The pool is busy the whole fill; the tail is throughput, not scheduling.**
 [`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs) runs a fill through the downloader
-with three real decoders against the server on loopback, driverless Chromium, and splits it from the
-stamps every frame already carries (last byte, dispatched, decode start and end, and since this row
-the decoder's index): at every instant it counts busy decoders and frames that have arrived and not
-started, and charges an idle decoder with work in reach to its own inbox, the downloader's queue, or a
-busy decoder's inbox. The two sets of §Content, 87 frames each, 7 rounds interleaved, medians:
+with three real decoders against the server on loopback, driverless Chromium, and splits it from each
+frame's stamps (last byte, dispatched, decode start and end, decoder index), charging any idle
+decoder with work in reach to where that work sat. §Content's two sets, 87 frames, 7 rounds
+interleaved, medians:
 
 | set | wire | last decoded | tail | decode a frame | work per decoder | busy while bytes arrive | idle with work waiting |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | c512, colour | 401 ms | 666 ms | **274 ms** | 17.8 ms | 638 ms | **95 %** | 31 decoder-ms, all between a decoder's own frames |
 | g512, 16-bit | 357 ms | 369 ms | 10 ms | 8.8 ms | 317 ms | 85 % | 54 decoder-ms |
 
-Colour needs 638 ms of each decoder against a 401 ms wire, so 45 of its 87 frames start after the last
-byte and the tail is the backlog three decoders cannot avoid; the capacity lost to hand-offs is 1.6 %
-of the work (a decoder's next frame starts 0.24 ms after its last, p90 0.44). 16-bit decodes faster
-than it arrives and has no tail. The container reads the rig's shape: 274 ms of tail after a 401 ms
-wire, against ~360 after ~325.
+Colour needs 638 ms of each decoder against a 401 ms wire, so 45 of 87 frames start after the last
+byte; hand-offs lose 1.6 % of the work (a decoder's next frame starts 0.24 ms after its last, p90
+0.44). 16-bit decodes faster than it arrives and has no tail. **Decode is the fill's clock on one
+content only**: on the rig a 237-frame 16-bit fill ended 15 ms after its last byte.
 
-**What fits the standing rules, and what it is worth:**
-
-* **Build flags.** The shipped decoder is the npm package (`@cornerstonejs/codec-openjph` 2.4.11):
-  SIMD128 on — 4 450 `v128` instructions — and no relaxed SIMD. Built from source with emscripten
-  3.1.74, `-mrelaxed-simd` produces a byte-identical binary: nothing in this code lowers to a relaxed
-  instruction. `build_arms.mjs`, Node, 9 rounds, colour / 16-bit: from source `-O3` is **−7.9 % /
-  −10.6 %** against the package (7/8, 7/8), `-O2` −11.1 % / −10.5 % (8/8, 8/8), `-Os` −8.3 % / −2.0 %;
-  the ranges touch, so by §Faster's bar it is reported, not decided. In the page the colour fill
-  finishes 682 → 661 ms with `-O3` (4/7) and 671 with `-O2` (5/7): not separated at n = 7 on a host
-  the fill saturates. The source build is §The build, as delivered, which the workstation holds; the
-  product pages still load the package. *Nothing changed.*
-* **The order frames reach decoders** cannot shorten a throughput-bound finish: the work is fixed and
-  the pool is busy. What order could move is the ragged end — at most one frame's decode, ~18 ms.
-* **Starting a frame before its last byte** would add no capacity to a pool that is busy while bytes
-  arrive; at most it moves the first frames' start by one frame's transfer.
-* **Reusing the pixel buffer** (a lab arm, `decoder-reuse.js`, which overwrites pixels the consumer
-  holds) tied the product on both sets: allocation is not in the tail.
-
-**Corrected before it was reported:** the first readings of this row showed 70–100 ms a colour frame
-and between-frame gaps with a p90 of 10–20 ms, which looked like collection pauses. They were taken
-while four runaway server processes from another lane held all four cores; with the box idle the
-gaps are 0.44 ms at p90 and the decode is 17.8 ms.
+* **Build flags.** The package (`@cornerstonejs/codec-openjph` 2.4.11) has SIMD128 — 4 450 `v128`
+  instructions — and no relaxed SIMD; `-mrelaxed-simd` on a source build produces a byte-identical
+  binary. `build_arms.mjs`, Node, 9 rounds, colour / 16-bit: from source (emscripten 3.1.74) `-O3`
+  is **−7.9 % / −10.6 %** against the package (7/8, 7/8), `-O2` −11.1 % / −10.5 % (8/8, 8/8), `-Os`
+  −8.3 % / −2.0 %; the ranges touch, so it is reported, not decided. In the page the colour fill
+  does not separate (682 → 661 ms `-O3`, 4/7). *Nothing changed.*
+* **The order frames reach decoders** cannot shorten a throughput-bound finish; at most the ragged
+  end, one frame's decode (~18 ms).
+* **Starting a frame before its last byte** adds no capacity to a pool busy while bytes arrive.
+* **Reusing the pixel buffer** (`lab/decode-tail/decoder-reuse.js`) tied: allocation is not in the
+  tail.
 
 **Where the host saturates.** Three decoders, the page, the downloader and the server on four cores:
-the colour fill is decode-bound by design and the box is at its limit through it, which is why the
-browser cannot separate a 7 % faster decoder. The Node bench is single-threaded and is where the
-per-frame figures come from.
+the colour fill is at the box's limit, which is why the browser cannot separate a 7 % faster
+decoder. The first readings of this section, 70–100 ms a colour frame, were taken while stray server
+processes held all four cores and were discarded before they were reported.
 
 ## The decode tail on a slow CPU
 
-*Row 74 (DT1), 2026-09-25.* The phase's target is a phone's browser, and a phone's CPU was to be
-emulated by Chromium's throttle. **That throttle cannot slow a decoder.** Chrome 141 answers
+The target is a phone's browser. Container results under an emulated slow CPU, not a phone's.
+
+### A slow CPU, emulated
+
+**Chromium's CPU throttle cannot slow a decoder.** Chrome 141 answers
 `Emulation.setCPUThrottlingRate` on a worker target with *"Operation is only supported for pages,
-not workers"*, and a loop in a worker runs as fast at 4× as at 1× — row 52's "the throttle slows the
-page's thread only" is this. Under it, a fill is a slow page beside fast decoders, not a slow phone.
+not workers"*, and a loop in a worker runs as fast at 4× as at 1×. Under it a fill is a slow page
+beside fast decoders.
 
-**The emulation used instead.** [`../../lab/scripts/cpu_throttle.mjs`](../../lab/scripts/cpu_throttle.mjs)
-puts every thread of the browser's process tree in its own cgroup (v1 `cpu`), capped at 1 ms in
-every `rate` ms: the page, the downloader, the decoders and the browser's network stack alike, the
-server not. One loop, page thread and worker: 306 / 1 257 / 1 994 ms and 329 / 1 326 / 2 034 ms at
-1× / 4× / 6× (`--check`). **What it cannot do:** the kernel enforces the cap at its tick, so a
-burst of about a millisecond runs at nearly full speed and pays for it later in a stall of up to
-~20 ms (a 0.93 ms loop capped at 6×: median 1.01 ms, worst 21). Work lasting many periods — a
-frame's decode, its range pass — is slowed faithfully; a sub-millisecond hop between threads is not,
-so no hand-off is quoted from it. Every number below is a throttled container, not a phone.
+[`../../lab/scripts/cpu_throttle.mjs`](../../lab/scripts/cpu_throttle.mjs) instead puts every thread
+of the browser's process tree in its own cgroup (v1 `cpu`), capped at 1 ms in every `rate` ms —
+page, downloader, decoders and the browser's network stack alike, the server not. One loop, page
+thread and worker: 306 / 1 257 / 1 994 ms and 329 / 1 326 / 2 034 ms at 1× / 4× / 6× (`--check`).
+**What it cannot do:** the kernel enforces the cap at its tick, so a ~1 ms burst runs nearly full
+speed and pays later in a stall of up to ~20 ms. Work lasting many periods — a decode, a range pass
+— is slowed faithfully; a sub-millisecond hop between threads is not, so no hand-off is quoted from
+it.
 
-[`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs) `--throttles 1,4,6 --asks 20,43,66`:
-a fill of each set, then three frames asked one at a time on the warm session; the decoder is
-[`decoder-split.js`](../../lab/decode-tail/decoder-split.js), the product's worker with stamps inside
-`decodeFrame`. Two sets × three builds × three throttles, rotated, 7 rounds, none lost. The package,
-medians:
+### The package, throttled
+
+`run.mjs --throttles 1,4,6 --asks 20,43,66`: a fill of each set, then three frames asked one at a
+time on the warm session, through [`decoder-split.js`](../../lab/decode-tail/decoder-split.js) (the
+product's worker with stamps inside `decodeFrame`). Two sets × three builds × three throttles,
+rotated, 7 rounds. The package, medians:
 
 | set | throttle | wire | all decoded | tail | a frame in its decoder | of it WASM | of it range pass | one ask, of it decoding |
 | --- | --: | --: | --: | --: | --: | --: | --: | --: |
@@ -1515,145 +803,162 @@ medians:
 | | 4× | 1 318 | 1 343 | 27 | 28.6 | 17.1 | 8.2 | 36, 26 |
 | | 6× | 2 107 | 2 146 | 36 | 38.1 | 24.0 | 11.0 | 46, 31 |
 
-* **The throttle moves the wire nearly as much as the decode.** The browser takes 1.3 s at 4× to
-  receive what it received in 0.37 s: its QUIC stack and the downloader are slow threads too. The
-  16-bit fill is wire-bound at 4× and 6× (decoders 58–68 % busy, tail 27–36 ms); the colour fill
-  stays decode-bound, its tail 357 → 1 336 → 1 783 ms.
-* **On the target link the wire is slower still — arithmetic, not measured.** The sets are 37.2 and
-  35.7 MB; at 20–50 Mbit that is 6–15 s, against 2.5–3.6 s of decoding per decoder at 4–6×. Three
-  decoders keep up with that link, so a faster decode buys the fill its last frame and buys an ask its
-  decoding — the ask is where the levers below are priced.
+* **The throttle moves the wire nearly as much as the decode**: the browser's QUIC stack and the
+  downloader are slow threads too. 16-bit is wire-bound at 4–6× (decoders 58–68 % busy); colour
+  stays decode-bound.
+* **On the target link the wire is slower still — arithmetic, not measured.** 37.2 and 35.7 MB at
+  20–50 Mbit is 6–15 s, against 2.5–3.6 s of decoding per decoder at 4–6×. Three decoders keep up,
+  so a faster decode buys the fill its last frame and an ask its decoding.
 
-**(a) The builds.** Parity first: the from-source build at the tree's wrapper (`a28587f`) and the
-4 MB-heap build are byte-identical to the package and to the encoder's input on all 174 frames
-(`parity.mjs`). Against the package, paired per round, at 1× / 4× / 6×, with the rounds it won:
+**(a) The builds.** The source build at the tree's wrapper (`a28587f`) and the 4 MB build are
+byte-identical to the package and the encoder's input on all 174 frames. Against the package, paired
+per round, 7 rounds at each of 1× / 4× / 6×: **nothing separates on an ask** (−10.0 to +4.7 %, no
+cell better than 6 of 7). Per-frame WASM moves −1.6 to −3.7 % on colour and up to −12.2 % on 16-bit
+at 4–6× (5–6 of 7), which agrees with the Node figure in §The decode tail. The one 7-of-7 result,
+the 4 MB build's colour fill at 4× and 6× (**−7.5 %, −5.3 %**), is not claimed as a faster decoder:
+its range pass — identical JavaScript in every arm — is also faster 7/7 (−13 %, −15 %), so part of
+the gain is a memory effect of the smaller heap or of this rig.
 
-| build, set | WASM a frame | all decoded | one ask |
-| --- | --: | --: | --: |
-| source, colour | −1.6 / −3.7 / −1.4 % (4, 6, 5 of 7) | +1.2 / −2.4 / +3.5 % (3, 5, 2) | +1.1 / −3.3 / −6.2 % (3, 4, 6) |
-| 4 MB, colour | +2.2 / −7.0 / −3.5 % (3, 6, 6) | +2.9 / **−7.5 / −5.3 %** (3, **7, 7**) | −1.7 / +3.4 / −10.0 % (5, 2, 5) |
-| source, 16-bit | +2.3 / −12.2 / −10.9 % (3, 6, 5) | +0.8 / −3.5 / −6.3 % (3, 5, 5) | +4.7 / −2.3 / −0.5 % (2, 5, 4) |
-| 4 MB, 16-bit | −15.9 / −12.8 / −4.6 % (6, 5, 6) | −4.7 / −1.1 / −2.3 % (5, 4, 4) | −1.5 / −4.6 / −0.8 % (4, 6, 4) |
+**(b) One frame's code-blocks in parallel — identified, not built.** The seam is
+`subband::pull_line` (`src/core/codestream/ojph_subband.cpp`), which decodes a row of code-blocks in
+a serial loop, each into its own buffer.
+[`profile_decode.mjs`](../../lab/decode-bench/profile_decode.mjs) on a source build with names kept:
+decoding code-blocks and turning them into lines is **70 % of a colour frame and 76 % of a 16-bit
+one**; the inverse wavelet 7–9 %, the wrapper's pack 10 % / 3 %. A 512² frame with 64² blocks gives
+rows of at most 4 blocks, so with 4 threads and no overhead a frame falls to ~0.54 (colour) and
+~0.50 (16-bit) of its time — ~24 ms of a 4× colour ask's 86. It would take a parallel loop there
+(whether a block's decode touches shared state is unchecked), a `-pthread` build and a thread pool
+inside each decoder worker. **During a fill it is more decoders in disguise**: the pool is busy 95 % of a colour fill.
+Its one use is an ask on an idle pool, and the range pass is worth as much there with no thread.
 
-Nothing separates on an ask. The one 7-of-7 result, the 4 MB build's colour fill at 4× and 6×, is not
-a faster decoder: its range pass — the same JavaScript in every arm — is also faster in 7 of 7
-(−13 %, −15 %), so part of the gain sits in code that does not differ, a memory effect of the
-smaller heap or of this rig. It is reported, not claimed. The 16-bit source build's −11–12 % at 4–6×
-agrees with row 68's Node figure (−10.6 %).
+**(c) What in the worker scales with the throttle.** Nothing faster than the decode: bytes in,
+header and pixels out stay under 1 ms at every throttle. **But the range pass is the largest
+per-frame cost after the decode** — 21–31 % of a frame in its decoder at every throttle. Keeping its
+min and max as integers rather than doubles from ±Infinity
+([`range.mjs`](../../lab/decode-tail/range.mjs), a browser worker, 7 rounds): colour 3.36 → 2.58 ms
+(6/7), 16-bit 1.52 → 1.26 (5/7), signed 12-bit 2.45 → 2.20 (5/7) — not changed. Not walking the
+pixels at all was built: §The range in the pack.
 
-**(b) One frame's code-blocks in parallel — identified, not built.** §Threads found no threading in
-OpenJPH's core. The seam is `subband::pull_line` (`src/core/codestream/ojph_subband.cpp`), which
-decodes a row of code-blocks in a serial loop, each into its own buffer, when the first line of the
-row is pulled. [`profile_decode.mjs`](../../lab/decode-bench/profile_decode.mjs) on a source build
-with names kept: decoding code-blocks, and turning them into lines, is **70 % of a colour frame and
-76 % of a 16-bit one**; the inverse wavelet 7–9 %, the wrapper's clamp-and-interleave 10 % / 3 %.
-A 512² frame with 64² blocks gives a row of 4 blocks at the finest resolution, 2 at the next, 1 below
-it, so with 4 threads and no overhead a frame falls to ~0.54 of its time (colour) and ~0.50 (16-bit).
-On a 4× ask that is ~24 ms of the colour ask's 86 and ~8 of the 16-bit's 36.
+## A prefix draws a smaller image
 
-What it would take: a parallel loop in that function (whether a block's decode touches shared state
-is unchecked); a `-pthread` build, which costs a single thread nothing (§Shared memory); a pool of
-worker threads inside each decoder worker, each its own V8 isolate, which row 75 prices; a fork-join
-per row of blocks, ~20 a 16-bit frame and ~50 a colour one. **During a fill it is more decoders in disguise**: the pool is busy 95 % of a colour fill, and
-threads inside a frame would compete for the same cores and add only the joins. One heap rather than
-several, but the same cores. Its one honest use is an ask on an idle pool, where it turns idle cores
-into one frame's latency — and the range pass, below, is worth as much there with no thread.
+The fixtures are RPCL, one layer, one tile, five decompositions, so a frame arrives resolution by
+resolution and a *prefix* is a whole smaller image. `lab/decode-bench/prefix_levels.mjs`, four
+frames per set, medians. **Bytes needed** is the smallest prefix whose decode at that level is
+byte-identical to decoding the whole codestream at that level — binary search, mutation-checked: one
+byte short never reproduces the image. Share of the full frame's bytes:
 
-**(c) What in the worker scales with the throttle.** Nothing scales faster than the decode. Bytes in,
-header and pixels out stay under 1 ms at every throttle; the range pass goes 5.6 → 23.7 → 35.7 ms
-(×4.2, ×6.4) against the WASM's 11.7 → 52.5 → 77.9 (×4.5, ×6.7). **But the range pass is the
-largest per-frame cost after the decode**: 29–31 % of a colour frame's time in its decoder and 21–29 %
-of a 16-bit one, at every throttle, and 24 ms of the colour ask's 86 at 4×. Two levers, not changed:
+| set | ratio | level 1, 256² | level 2, 128² | level 3, 64² | level 4 | level 5 | decode µs, level 1 / full |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `c512` 8-bit RGB | 1.84:1 | 22.7 % | 4.9 % | 1.1 % | 0.3 % | 0.2 % | 1 641 / 6 146 |
+| `g512` 16-bit grey | 1.28:1 | 24.2 % | 5.8 % | 1.4 % | 0.4 % | 0.2 % | 592 / 2 150 |
+| `s12` 12-bit signed | — | 23.8 % | 5.5 % | 1.4 % | 0.4 % | 0.2 % | 478 / 1 717 |
+| `ct512` CT-like | 1.99:1 | 25.2 % | 6.4 % | 1.8 % | — | — | — |
+| **`cine512`** ultrasound-like | **18.2:1** | **48.3 %** | **17.0 %** | **5.9 %** | — | — | — |
 
-* **The loop as written keeps its minimum and maximum as doubles**, starting from ±Infinity.
-  Starting them from the first sample keeps them integers:
-  [`range.mjs`](../../lab/decode-tail/range.mjs), a browser worker on an idle box, 7 rounds —
-  colour 3.36 → 2.58 ms (6 of 7), 16-bit 1.52 → 1.26 (5 of 7), signed 12-bit 2.45 → 2.20 (5 of 7),
-  the same range on every call. About 4 % of a colour frame.
-* **Not walking the pixels a second time.** The source wrapper's pack already clamps every sample on
-  its way out of the codestream; taking the range there removes the pass. It needs the source build,
-  which the workstation holds (§The build, as delivered), and it is worth up to the whole pass.
-  *Built and measured 2026-09-25 (RP1):* it is — a third off a colour fill at 4–6×, §The range in the pack.
+**At ~2:1 a quarter of the bytes draws the half-size image; at 18:1 it takes half.** *Corrected:*
+the headline was first "a quarter", read off `field` content alone. The curve tracks the compression
+ratio — the better content compresses, the less of the codestream the high-frequency subbands take.
+In absolute bytes the cine prefix is still far cheaper (23 863 B for 256², against 97 088 B on
+`c512`); it is the *fraction* a slow-link policy would read, and it is content-dependent. Decode
+time falls with the image, roughly ×4 per level. `s12` is `field` content too; `s512` differs from
+`g512` by one byte (the SIZ sign bit), so its identical curve is only a consistency check, and `s12`
+is the independent one — **the curve is a property of the progression, not of the pixel format.**
 
-## What these numbers are not
+**Only the package can do it.** It exposes `decodeSubResolution(level)`; every row is that call. The
+source build binds no equivalent — `decode()` never calls `restrict_input_resolution` — and throws
+on a level-*r* prefix. Above a floor of its own it returns a **full-size** image with detail missing
+and logs `File terminated early`: on frame 0, 307 806 B for `c512` (71.8 %) and 99 497 B for `g512`
+(24.2 %).
 
-* **Every millisecond above is container-measured** and is reported, not decided on. The heap
-  figures, the byte-exactness and the build-flag findings are not timing and are safe.
-* **Nothing has been measured on a phone**, which is the target and the only place the memory
-  question is finally settled.
-* **Retention is measured now, and the expectation above was wrong** (§Retention, measured). It
-  said a pipeline that holds frames changes the sign of the copy comparison. It does not: copying
-  out is smaller in all three series and on both builds, because a WASM heap never shrinks and a
-  retained decoder holds its codestream as well as its pixels. The 86 MB retained figure this file
-  used to carry is still not reproduced and still not quoted.
-* **The prefix curve is four frames per set** (§A prefix draws a smaller image), enough for a
-  byte-exact claim that is mutation-checked per frame, not enough to call the percentages a
-  distribution. The source build's floor is frame 0 only.
-* **The clamp is not exercised by the organic fixtures.** None of them reaches its ceiling, so a
-  mutant that clamped one count low passed all six. `sat256` is a full-range ramp that hits exactly
-  0 and exactly 65535 and does catch it; §Ground truth has the rest.
-* **The fixtures are synthetic and compress poorly at 16 bits** — the generator's grain is a
-  fraction of full scale, which is a few counts at 8 bits and several hundred at 16, so the
-  greyscale sets sit near 0.8:1 rather than the ratio a real series gives. Decoded size, which is
-  what every table above is indexed on, is exact regardless; decode *time* is not, and is another
-  reason not to lean on the millisecond columns.
-
-## Open
-
-* **Anything on a phone.**
-
-Retained-frame residency was open here until 2026-09-16 and is now §Retention, measured.
+**Not built.** Handing a frame's first bytes to a decoder before it completes waits on how a smaller
+first image is displayed, and that decision is the workstation's. Four frames per set is enough for
+a byte-exact, mutation-checked claim, not to call the percentages a distribution; the source build's
+floor is frame 0 only.
 
 ## The BYOB read path
 
-`client/transport-wasm` can read media frames with a BYOB reader instead of the default one
-(`byob`, `byob-min`, `byob-count`, all off by default). It removes both compressed-frame copies:
-the frame is read straight into its own JS buffer and no byte passes through WASM memory.
+`client/transport-wasm` can read media frames with a BYOB reader instead of the default one (`byob`,
+`byob-min`, `byob-count`, all off by default). It removes both compressed-frame copies: the frame is
+read straight into its own JS buffer and no byte passes through WASM memory.
 
-On time it is a tie — both fixtures, both cells, route-matched. `byob-min` adds `read(view, {min})`
-and is also a tie, because the receive stream already coalesces: reads per frame fall only from
-2.30 to 2.00 on a 49 KB frame and 4.70 to 2.00 on a 250 KB one.
+**On time it is a tie** — both fixtures, both cells, route-matched. `byob-min` adds `read(view,
+{min})` and also ties: the receive stream already coalesces, so reads per frame fall only 2.30 →
+2.00 on a 49 KB frame and 4.70 → 2.00 on a 250 KB one.
 
-**Not adopted, for one reason.** The first frame of a session costs about 12 ms more on this path,
-reproduced across three independent campaigns, in the worse direction on 8 of 8 rounds with
-non-overlapping ranges. **It is not acquiring the reader** (2026-09-15): with a reader per frame
-(`--stream-mode per-frame`) the median frame still ties and the cost stays on one frame per
-session. Left: the first per-frame buffer allocation against a cold allocator, and that the `byob`
-build is a separate WASM module whose first call pays its own compile. Until that is explained the
-path stays behind its feature.
+**Not adopted, for one reason.** A session's first frame costs about 12 ms more on this path,
+reproduced across three campaigns, worse in 8 of 8 rounds with non-overlapping ranges. **It is not
+acquiring the reader**: with a reader per frame (`--stream-mode per-frame`) the cost stays on one
+frame per session. Left: the first per-frame buffer against a cold allocator, and the `byob` build
+being a separate WASM module whose first call pays its own compile — or §The first frame's tier-up.
 
 It is kept because adopting it would **delete** more than it adds: the default path needs a
-partial-frame state machine, a compaction heuristic and a reserve policy to reassemble frames from
-chunks that do not align with them, all of which BYOB makes unnecessary — about 140 lines removed
-against 93 added. That argument is independent of every measurement above.
+partial-frame state machine, a compaction heuristic and a reserve policy, all unnecessary under BYOB
+— about 140 lines removed against 93 added.
 
-**A truncated frame is a failure here too** (2026-09-22), on `byob`. The head — four bytes of length, four of
-index — is read before the body, so a stream that ends short can name the frame it lost:
-`byob_fill` reports how much arrived, `read_frame_byob` returns the default reader's own
-`Envelope`, and the pump carries a named loss through the same `fail_waiter`, with the same reason
-string. `CLIENTS.md` §A truncated frame is a failure holds the claim. The clause is answered by
-this build, not by argument:
+**A truncated frame is a failure here too**, on `byob`: the head — four bytes of length, four of
+index — is read before the body, so a short stream names the frame it lost through the same
+`fail_waiter` and reason string ([`../CLIENTS.md`](../CLIENTS.md) §A truncated frame is a failure).
 
 ```bash
 (cd client/transport-wasm && wasm-pack build --target web --release --features byob)
 WTPACS_WASM_PKG=<that pkg> node client/conformance/run.mjs
 ```
 
-**Two of the ring's seven checks cannot be asked of this path.** A BYOB read *transfers* the buffer
-it is given and hands back a new `ArrayBuffer` over the same memory, so `ring: a buffer handed back
-is read into again` and `ring: the free list keeps at most the size it was given` — both written on
-buffer identity — read 12 distinct buffers and 0 kept, and a byob build answers **118/120** with
-those two as the only failures. The memory *is* reused: `ring: a frame read into a larger buffer is
-a view of its own length` passes, which it can only do when the 16-byte frame lands in the
-4096-byte buffer the frame before it was released from. Identity does not survive a transfer, so
-the two checks are right for the default path and blind on this one.
+A byob build answers **118/120**: two ring checks are written on buffer identity, and a BYOB read
+*transfers* its buffer and hands back a new `ArrayBuffer` over the same memory. The memory is reused
+(the ring's view-of-its-own-length check passes); the two are right for the default path and blind
+on this one. **`byob-min` does not name a truncation**
+(117/120): a byte stream that closes with its `min` unmet **errors** rather than resolving short,
+and the count received goes with the descriptor. The default reader swallows a stream error in the
+same place, so this is parity, not a gap; naming it is a session-level question nobody has taken.
 
-**`byob-min` does not carry the truncation, and the reason is `min` itself.** Built
-`--features byob-min,byob-count`, the same clause reads `the frame a stream cut short is named
-(none)` (117/120). `read(view, { min })` asks for the whole remaining span, and a byte stream that
-closes with a pull-into descriptor partly filled and its `min` unmet **errors** rather than
-resolving short: the truncation arrives as a stream error, not as an end of stream, and the count
-the client received is gone with the descriptor. The default reader swallows a stream error in the
-same place, so this is parity, not a gap in the BYOB path — but a `min` build cannot name what a
-short stream lost, and naming it means deciding what an errored stream owes the frame in flight,
-which is a session-level question and nobody's lane yet.
+`client/transport-wasm/pkg/` must hold the **default** build: the conformance fake's
+`ReadableStream` is not a byte stream, so a byob build there fails the gate. Byob arms need a
+browser.
+
+### What each path allocates
+
+Both paths hand on a buffer allocated per frame — the default copies the frame out of WASM memory
+into a fresh `Uint8Array`, byob reads straight into one. What differs is *before* that: the default
+reader receives every read as a new chunk the browser allocated and copies it into a reused receive
+buffer, while byob fills one caller-owned buffer across its reads. One 237-frame fill of 512×512
+16-bit frames (92.8 MB of codestreams), five rounds per arm, arms rotated,
+`lab/scripts/read_path_alloc.cjs`: **byob allocates less, and `byob-min` less again** — collections
+per fill 338 [305 … 350] default, **201** [185 … 257] `byob` (−40.5 %), **165** [158 … 188]
+`byob-min` (−51.2 %), fewer in 5 of 5 paired rounds each; JS heap high-water 71.4, 67.7 and 66.2 MB,
+ranges disjoint. *Corrected:* the premise this was first written on was that byob would allocate
+more. **A free list is not designed**: byob's churn is the smaller, a free list would help the
+default path more, and which thread hands a buffer back, and when, is the wire buffer ring's
+question (§The wire buffer ring).
+
+**Instruments.** `--js-flags=--trace-gc` emits nothing in this Chromium (141, headless), so
+collections come from the `disabled-by-default-v8.gc` trace category over CDP. The high-water is
+`performance.memory.usedJSHeapSize` under `--enable-precise-memory-info`. CDP's `HeapProfiler`
+sampler reads 1.10 MB in every arm — it does not weigh `ArrayBuffer` backing stores — and settles
+nothing. Counts, not timing, from one `wasm-pack` build per feature flag; 237 of 237 frames every
+run.
+
+## What these numbers are not
+
+* **Every millisecond is container-measured** and reported, not decided on. Heap, byte-exactness and
+  the build-flag findings are not timing.
+* **Nothing has been measured on a phone**, which is the target and the only place the memory
+  question is settled.
+* **Decode verdicts were ranked where decode is the fill's clock** — the colour cine loop, one ask,
+  and the fast end of the target link. On a long 16-bit fill decode hides inside the receive (§The
+  decode tail).
+* **The fixtures are synthetic.** Decoded size, which the memory tables are indexed on, is exact
+  regardless; decode time depends on content (§Content). *Corrected:* this list once put the
+  greyscale `field` sets near 0.8:1; their ratio is 1.28:1 (§Content).
+
+## Open
+
+* **Anything on a phone** — including whether a tab is killed by counted or by resident memory.
+* The glue evaluated through `new Function`, where no code cache reaches it (§Instantiating by
+  streaming).
+* A heap floor chosen for first-frame latency; the package's own build re-timed since D10.
+* The warm-up's size, and the device cell that decides it (§Warming the decoders).
+* BYOB's ~12 ms first frame, and what an errored stream owes the frame in flight (§The BYOB read
+  path).
+* Looked at and dropped, not measured: GPU decode (nothing runs in a browser), fewer decompositions
+  (estimated ≤ 0.5 %), a BYOB read into the WASM heap (its memory is not detachable).

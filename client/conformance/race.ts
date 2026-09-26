@@ -1,6 +1,6 @@
 /**
  * The race: both carriers dialled at once, the first ready kept and the other dropped. One clause
- * per outcome — QUIC first, TCP first, QUIC refused. docs/proposal-udp-fallback.md §Race it
+ * per outcome — QUIC first, TCP first, QUIC refused. docs/ARCHITECTURE.md §Race it
  */
 import { FakeTransport, installFakeTransport } from "./fake-transport.ts";
 import { FakeWebSocket, installFakeWebSocket } from "./fake-websocket.ts";

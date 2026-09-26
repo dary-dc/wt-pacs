@@ -1,5 +1,5 @@
 //! Does this host's storage give the server its fast read path? Run it against the
-//! directory studies will be served from, before deploying: `docs/disk-access/DEPLOYMENT.md`.
+//! directory studies will be served from, before deploying: `docs/disk-access/adr.md`.
 //!
 //! Exit status is the answer, so it can gate a rollout: 0 fast path, 1 fallback, 2 unknown.
 
@@ -40,7 +40,7 @@ fn report(target: &Path) -> Result<bool> {
     println!("path            {}", target.display());
     println!("filesystem      {}", fstype.as_deref().unwrap_or("unknown"));
     if let Some(kb) = read_ahead_kb(target) {
-        // Moves every measured miss rate; record it beside a campaign. `docs/disk-access/DEPLOYMENT.md`.
+        // Moves every measured miss rate; record it beside a campaign. `docs/disk-access/adr.md`.
         println!("read_ahead_kb   {kb}");
     }
     println!(
@@ -65,7 +65,7 @@ fn report(target: &Path) -> Result<bool> {
         println!("or a tmpfs/RAM disk. Neither implements RWF_NOWAIT.");
         println!();
         println!("Fix: serve studies from a volume backed by a real filesystem (ext4/XFS)");
-        println!("     rather than the container layer. See docs/disk-access/DEPLOYMENT.md");
+        println!("     rather than the container layer. See docs/disk-access/adr.md");
     }
     Ok(supported)
 }

@@ -1,6 +1,6 @@
 //! What a cold open costs, phase by phase, and what one ask on a fresh session costs after it.
 //!
-//! The counts this checks are `docs/proposal-session-open.md` (four round trips to first byte)
+//! The counts this checks are `docs/ARCHITECTURE.md` (four round trips to first byte)
 //! and S7 (a 250 KB ask is slow-start-bound, ~5 flights). Run it through
 //! `lab/scripts/link_impair.py` — on loopback every phase reads ~0 and decides nothing.
 //!

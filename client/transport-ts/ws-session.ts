@@ -1,7 +1,7 @@
 /**
  * The same envelopes and FoD messages over one WebSocket, for a network that impairs UDP or a
  * browser without WebTransport. Binary messages, joined, are the shared media stream's bytes; a
- * text message is one FoD message's JSON. docs/proposal-udp-fallback.md §What was built
+ * text message is one FoD message's JSON. docs/WIRE.md §The WebSocket mapping
  */
 
 import type { FodMsg } from "./wire.ts";

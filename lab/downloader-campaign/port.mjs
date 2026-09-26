@@ -1,7 +1,7 @@
 /**
  * The page's time per decoded frame's message under Chromium's CPU throttle, by what the message
  * carries and how many frames it holds: port.html's variants, rotated with the throttles every round.
- * Charged from the trace: each message's dispatch, callback included. docs/proposal-downloader.md §The hand-off
+ * Charged from the trace: each message's dispatch, callback included. docs/ARCHITECTURE.md §The hand-off
  *
  *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/port.mjs [--rounds 7] [--throttles 1,4,6]
  */

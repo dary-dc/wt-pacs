@@ -3,7 +3,7 @@
  * send 0-RTT, or neither — and what the dial costs each way. Per round, RTT and server, arms
  * interleaved: a fresh browser context dials twice from one page, then once from a second page.
  * Whether each dial offered a PSK, and whether the server took it, is read from a capture of the
- * Initial packets (`lab/scripts/client_hello.py`). docs/proposal-session-survival.md §Resumption and 0-RTT
+ * Initial packets (`lab/scripts/client_hello.py`). docs/ARCHITECTURE.md §Resumption and 0-RTT
  *
  * Modes: `hashes` dials with `serverCertificateHashes`; `ca` without, the certificate signed by a
  * throwaway CA only this browser's NSS store trusts (needs `certutil`). The host is `rs1.test`,

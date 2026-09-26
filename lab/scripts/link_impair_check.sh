@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # N1: does lab/scripts/link_impair.py tell the truth? Arithmetic first — delay, rate, queue,
 # loss, and the floor the relay itself adds — then the two counts the lane owes: a cold open
-# against docs/proposal-session-open.md, and a 250 KB ask against S7's slow start.
+# against docs/ARCHITECTURE.md, and a 250 KB ask against S7's slow start.
 # Reads every number out loud and exits non-zero on the first one outside tolerance.
 # Results and what this harness cannot do: docs/rig-limits.md §3.
 #
@@ -277,7 +277,7 @@ read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" session)
 say "session ready: round trips + fixed ms" "$rt + $fixed"
 read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" first_byte)
 say "first byte: fixed cost (ms)" "$fixed"
-# R1 counted 4; lever 2's SETTINGS in the first flight took one. docs/proposal-session-open.md §Lever 2
+# R1 counted 4; lever 2's SETTINGS in the first flight took one. docs/ARCHITECTURE.md §Lever 2
 want "first byte: round trips (lever 2 counts 3)" "$rt" 2.6 3.4
 read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" ask_to_last_byte)
 say "250 KB ask: fixed cost (ms)" "$fixed"

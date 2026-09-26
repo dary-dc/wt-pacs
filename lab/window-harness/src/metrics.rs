@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// How the reader advances. `Closed` cannot answer a stream-shape question — `docs/transport/why-these-changes.md` §3.
+/// How the reader advances. `Closed` cannot answer a stream-shape question — `docs/transport/transport-conclusions.md` §2.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum ReaderMode {
     /// Block on each cursor. Prior campaigns; not for stream-shape work.

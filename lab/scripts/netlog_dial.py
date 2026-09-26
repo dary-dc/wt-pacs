@@ -5,7 +5,7 @@ whether the CONNECT left with the client's handshake Finished or waited for HAND
 usage: netlog_dial.py NETLOG.json [...]      (run.mjs NETLOG=DIR writes one per visit)
 Prints, per loopback session, ms from the client's first Initial: the server's first flight,
 the client's Finished, the server's SETTINGS (its control stream, id 3), the CONNECT (stream 0),
-HANDSHAKE_DONE, and the session ready. docs/proposal-session-open.md §Lever 2.
+HANDSHAKE_DONE, and the session ready. docs/ARCHITECTURE.md §Lever 2.
 """
 import collections
 import json

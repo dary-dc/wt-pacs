@@ -7,7 +7,7 @@ This page measures that floor.
 
 **An instrument and a target number, not a renderer.** It does the least that makes the two routes
 comparable, and nothing a viewer would need.
-[`../../docs/paint-floor.md`](../../docs/paint-floor.md) holds every number and every reason.
+[`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) holds every number and every reason.
 
 ```bash
 python3 lab/paint-floor/frames.py                          # sample sets, ~10 s, gitignored

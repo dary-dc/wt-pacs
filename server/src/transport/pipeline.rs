@@ -173,7 +173,7 @@ impl FramePipeline for ProductPipeline {
 
 impl Drop for ProductPipeline {
     /// In `Drop` because a session ends several ways, and a miss rate only some of them
-    /// report is worse than none. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
+    /// report is worse than none. `docs/disk-access/adr.md` §Reporting.
     fn drop(&mut self) {
         let seq = self.seq.as_ref().map(SeqReader::stats).unwrap_or_default();
         let tile = self
@@ -355,7 +355,7 @@ mod tests {
 
     /// **The seam.** `serve`'s default body turns the planner's frame indexes into the spans
     /// the read path starts on. Nothing on the wire and no other test can see that line, so
-    /// this one owns it. `docs/disk-access/IMPLEMENTATION.md`.
+    /// this one owns it. `docs/disk-access/adr.md`.
     #[test]
     fn serve_hands_every_named_frame_to_the_read_path_as_a_span() {
         let (path, mut rec) = recorder("seam", 4);

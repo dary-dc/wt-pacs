@@ -76,7 +76,7 @@ struct Args {
     open_ask: bool,
     #[arg(long, default_value_t = false, help = "Lab only: take each CONNECT and never answer it")]
     hold_sessions: bool,
-    /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/proposal-udp-fallback.md
+    /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = false)]
     websocket: bool,
     /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.

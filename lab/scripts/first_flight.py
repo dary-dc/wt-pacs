@@ -4,7 +4,7 @@ connection's datagrams into flights, a flight being a run of datagrams in one di
 
 Before it has validated the client's address a QUIC server may send only three times what it has
 received (`quinn-proto` `connection/paths.rs`), so whether a certificate chain fits the first
-flight is what decides a round trip. docs/proposal-session-open.md §What production adds.
+flight is what decides a round trip. docs/ARCHITECTURE.md §What production adds.
 
 It relays and does not shape: put it in front of link_impair.py so each flight arrives whole.
 

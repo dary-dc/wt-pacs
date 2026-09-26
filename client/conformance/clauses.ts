@@ -1,7 +1,7 @@
 /**
  * The clauses themselves, written against a Rig so the same checks drive every arm:
  * both clients in Node (run.ts) and the downloader in a browser (downloader-rig.ts).
- * docs/proposal-conformance-suite.md says why; the rows are proposal-downloader.md §Capabilities.
+ * docs/CLIENTS.md says why; the rows are docs/ARCHITECTURE.md §Capabilities.
  */
 export type ConformantFrame = {
   frameIndex: number;
@@ -45,7 +45,7 @@ export type Rig = {
   fake(): FakeHandle;
   dialsSinceOpen(): Promise<number>;
   /** Set where one ordered stream carries every frame, as a WebSocket does: a clause about
-   *  independent delivery reports itself here by name instead of passing. docs/proposal-udp-fallback.md */
+   *  independent delivery reports itself here by name instead of passing. docs/ARCHITECTURE.md */
   oneStream?: (what: string) => void;
 };
 
@@ -435,7 +435,7 @@ async function aSlowFrameHoldsNoOther(rig: Rig, check: Check) {
 /**
  * A frame is late when its session goes quiet, not when its ask is old: one whose bytes keep coming
  * for longer than FRAME_TIMEOUT_MS still lands — the tail of a burst on a slow link.
- * docs/proposal-session-survival.md §Detection by the bytes
+ * docs/ARCHITECTURE.md §Detection by the bytes
  */
 async function aFrameIsLateOnlyWhenTheSessionGoesQuiet(rig: Rig, check: Check) {
   const s = await rig.open();

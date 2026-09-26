@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A crates.io crate with its patch from patches/ applied, into DIR. Run by patched/CRATE/build.rs;
-# why each patch exists: docs/proposal-session-open.md §Lever 2 and §What lever 2 costs.
+# why each patch exists: docs/ARCHITECTURE.md §Lever 2 and §What lever 2 costs.
 #
 #   scripts/patch_crate.sh CRATE DIR
 set -euo pipefail

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # This tree against `main` across the depth x sessions plane, one interleaved A/B per cell.
-# `docs/transport/why-these-changes.md` §9. Depth divides throughput into latency, so both
+# `docs/transport/transport-conclusions.md` §4. Depth divides throughput into latency, so both
 # columns are printed per cell and the house rule picks which one the cell is allowed to claim:
 # one session is a latency cell, many sessions at depth is a throughput cell.
 #

@@ -1,7 +1,7 @@
 /**
  * page.js without the downloader: the same transport on the page, the same decoder workers fed from
  * the page by the same rule (fewest outstanding, two at most), so what differs from page.js is the
- * downloader worker and nothing else. docs/thread-hops.md §The downloader arm during a fill, against direct
+ * downloader worker and nothing else. docs/ARCHITECTURE.md §The downloader arm during a fill, against direct
  */
 import { TransportSession } from "/client/transport-ts/dist/session.js";
 

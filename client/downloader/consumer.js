@@ -1,7 +1,7 @@
 /**
  * The page side of the downloader. Holds one waiter per asked frame, so `stats` is answerable
  * without a round trip, and takes asked frames at once and fill frames at background priority.
- * docs/proposal-downloader.md §The consumer
+ * docs/ARCHITECTURE.md §The consumer
  */
 /** How long a closed client waits for the downloader's answer before ending it anyway. */
 const CLOSE_DEADLINE_MS = 1_000;
@@ -51,15 +51,15 @@ export class DownloaderClient {
       decoderWorker: opts.decoderWorker,
       // A codestream of the series' shape, decoded in each decoder before the first bytes arrive.
       warmup: opts.warmup,
-      // `false` turns resumption off; an object overrides its deadlines. docs/proposal-session-survival.md
+      // `false` turns resumption off; an object overrides its deadlines. docs/ARCHITECTURE.md
       survival: opts.survival,
-      // `opts.fill` rides with `start`: a page inside a long task cannot post one. docs/proposal-downloader.md §The downloader
+      // `opts.fill` rides with `start`: a page inside a long task cannot post one. docs/ARCHITECTURE.md §The downloader
       fill: opts.fill,
       openAsk: opts.openAsk,
       wireBuffers: opts.wireBuffers,
     };
     // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
-    // may be promises. docs/proposal-session-open.md
+    // may be promises. docs/ARCHITECTURE.md
     c.#worker.postMessage({ kind: "start", config });
     try {
       c.#worker.postMessage({ kind: "dial", url: await url, certHash: await certHash });

@@ -2,7 +2,7 @@
 # A1's owed number: does a session survive a path change (the relay moves its source port), and how
 # long does the next ask take, with the server's idle timeout at 10 s against the default 30 s.
 # rebind-probe through link_impair.py at a 40 ms round trip, arms interleaved.
-# Results: docs/proposal-session-survival.md §The measurement this owes.
+# Results: docs/ARCHITECTURE.md §The measurement this owes.
 #
 #   lab/scripts/rebind_idle_cells.sh [rounds]
 set -euo pipefail

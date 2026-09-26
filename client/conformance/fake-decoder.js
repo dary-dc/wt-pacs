@@ -4,7 +4,7 @@
  * `readyDelayMs` holds `ready` back so a fill can be on the wire while no decoder exists. It tags
  * every frame with the order it started (`decodeSeq`) and the most it ever held at once
  * (`maxInFlight`), which is what the ordering and the two-outstanding-per-decoder bound are read
- * from. docs/proposal-downloader.md §The downloader; client/conformance/dispatch-rig.ts drives it.
+ * from. docs/ARCHITECTURE.md §The downloader; client/conformance/dispatch-rig.ts drives it.
  */
 let toConsumer = null;
 let delayMs = 120;

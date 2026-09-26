@@ -12,7 +12,7 @@
 <body>
   <h1>an ask during a fill — the server's semantics, seen from the client</h1>
   <p>
-    On the wire an ask ends a running fill and is served next (<code>docs/transport/ask-during-fill.md</code>).
+    On the wire an ask ends a running fill and is served next (<code>docs/WIRE.md</code>).
     The raw client sees exactly that, and the rest arrives only once asked again; the downloader asks
     again by itself. <code>?arm=ts|ws|downloader|downloader-ws</code> · <code>wt=</code>/<code>hash=</code> override
     <code>/wt/dev-transport.json</code>. <code>client/conformance/run_wire.sh</code> drives this from the gate.

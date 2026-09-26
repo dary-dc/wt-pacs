@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# The shaped cells docs/transport/NEXT.md asks the rig for, run ON the rig inside one network
+# The shaped cells docs/transport/transport-conclusions.md asks the rig for, run ON the rig inside one network
 # namespace: netem on lo shapes both directions, server and driver share the box, and
 # runtime_ab.sh reads CPU per ask and the client's dropped datagrams as on loopback.
 #
 #   unshare --user --map-root-user --net -- lab/scripts/rig_cells.sh <cell> <out.tsv> <label> <bin> [-- <label> <bin>]...
 #
-#   cell   segs      250 KB, depth 4, 8 sessions — the segment cap (NEXT.md item 9); pass seg44 and seg10 binaries
+#   cell   segs      250 KB, depth 4, 8 sessions — the segment cap (docs/transport/transport-conclusions.md §9); pass seg44 and seg10 binaries
 #          cc        250 KB, depth 4, 8 sessions — the controller (item 2); one binary, arms cubic and bbr
 #          q         250 KB, depth 4, 1 session — per-frame + priority against shared (item 3); one binary
 #   RATE_MBIT (20), RTT_MS (50), LOSS_PCT (0), LOSS_MODEL (iid | gemodel), REPS (6) shape the link and the count.

@@ -5,7 +5,7 @@ The TS harness cell in headless Chromium against several server binaries at once
 interleaved and their order reversed every repeat. Around each run: CPU per thread of the
 server and of every Chromium process (`/proc/*/task/*/schedstat`, ns), and the datagrams the
 client socket dropped (`Udp: RcvbufErrors`). Needs the static host (`server/dev-server.py
---port 8765`) and `client/transport-ts/dist`. `docs/lanes/T12-browser-receive.md`.
+--port 8765`) and `client/transport-ts/dist`. `docs/rig-limits.md`.
 
 usage: browser_receive.py <fixture> <cell> <n> <depth> <repeats> \\
          <label-a> <bin-a> [server args...] -- <label-b> <bin-b> [server args...] [-- ...]

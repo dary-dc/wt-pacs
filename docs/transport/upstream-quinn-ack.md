@@ -1,7 +1,7 @@
 # Upstream draft: quinn withholds an owed ACK while its congestion window is full
 
 **A draft, not filed.** The owner files it, or does not. It is written from
-[`../proposal-session-open.md`](../proposal-session-open.md) §The probe after the open (PT1, cloud
+[`ARCHITECTURE.md`](../ARCHITECTURE.md) §The probe after the open (PT1, cloud
 queue row 63), whose numbers it quotes. Nothing here changes this server.
 
 ## In plain words
@@ -117,7 +117,7 @@ retransmits data that was received, every time.
 **Observed.** A WebTransport server on quinn-proto 0.11.18 with Chrome 141 at 80 ms RTT: the client's
 request after the session opens is probed in 7 of 8 sessions. With a 1 MB initial window, so the
 window never fills, 0 of 8. Net-log excerpt and method: *(link to this repository's
-`proposal-session-open.md` §The probe after the open)*.
+`docs/ARCHITECTURE.md` §The probe after the open)*.
 
 **Expected.** When a space is congestion-blocked but owes an ACK, send an ACK-only packet for it,
 as #2787 did for `CONNECTION_CLOSE`.

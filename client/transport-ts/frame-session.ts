@@ -12,12 +12,12 @@ const FRAME_TIMEOUT_MS = 15_000;
 export type ConnectOptions = {
   /** Hold on-demand asks to a depth: fixed, or `"auto"` from the link. `ask-window.ts`. */
   window?: AskWindowConfig;
-  /** A fill the session URL carries, served behind the accept. docs/proposal-session-open.md */
+  /** A fill the session URL carries, served behind the accept. docs/ARCHITECTURE.md */
   fill?: OpeningFill;
   /** Wire buffers to keep for reuse; 0 allocates one per frame. docs/decode/README.md §The wire buffer ring */
   wireBuffers?: number;
   /** ms: a dial whose `ready` has not settled by then is closed and rejected with a `DialTimeoutError`.
-   *  docs/proposal-session-survival.md §A dial that never settles */
+   *  docs/ARCHITECTURE.md §A dial that never settles */
   dialMs?: number;
 };
 

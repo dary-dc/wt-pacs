@@ -1,8 +1,8 @@
 # session-survival
 
 How long a page sits frozen when the path its session is on goes away, and how long it sits with
-the resumption `docs/proposal-session-survival.md` describes. The numbers live in that proposal
-§The measurement, taken; this says how they were made.
+the resumption `docs/ARCHITECTURE.md` describes. The numbers live there,
+§The measurement this owes; this says how they were made.
 
 ```bash
 ./server/scripts/gen_dev_cert.sh                      # then point wt_url at the relay, below
@@ -46,12 +46,12 @@ arm does not run (`decode: false`).
 noticed 6552 [6539 … 6558], `built` 5010 [4996 … 5023], `quick` 1816 [1803 … 1821]; first frame
 after the cut 6745 / 5191 / 1996. Detection is `stallMs + probeMs`, the resume costs ~180 ms on top,
 and `today` hands the page 68 failed frames a round where the other two hand it none. The reading
-and what it corrects are `docs/proposal-session-survival.md` §The measurement, taken. Those are the
+and what it corrects are `docs/ARCHITECTURE.md` §The measurement this owes. Those are the
 probe design's numbers; the client now decides by the bytes and notices the same cut at ~3 016 ms.
 
 **[`cells.sh`](cells.sh)** (row 66) runs the page against its own server, relay and static host for
 one cell — `cut`, `radio`, `blinks`, `slow` (700 kbit), `deep` (700 kbit behind a 4 s queue) or `asks`
 (six frames asked at once on the slow link) — and puts `client/dev-transport.json` back after.
 `run.mjs --no-cut` counts every resume as a false alarm, `--blink-every` blinks the relay, `--asks K`
-asks instead of filling. Its readings are `docs/proposal-session-survival.md` §Detection by the
+asks instead of filling. Its readings are `docs/ARCHITECTURE.md` §Detection by the
 bytes.

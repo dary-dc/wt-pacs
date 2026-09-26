@@ -1,5 +1,5 @@
 //! How media frames leave the server for a session (process-wide CLI choice).
-//! What separates the three shapes: `docs/lanes/T3-stream-shape.md`.
+//! What separates the three shapes: `docs/adr-stream-shape.md`.
 
 use std::fmt;
 use std::num::NonZeroUsize;

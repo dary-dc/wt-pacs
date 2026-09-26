@@ -1,6 +1,6 @@
 # Static host for the harness, the WASM bundles and the study metadata — the shape
 # server/dev-server.py served, in the server deployment will run.
-# docs/proposal-nginx-and-images.md says why. STUDY is substituted at container start.
+# deploy/README.md says why. STUDY is substituted at container start.
 
 server {
     listen       8765;
