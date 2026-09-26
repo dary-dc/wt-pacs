@@ -57,7 +57,8 @@ missed) with a small cost, not a performance lever for this server.
   congestion control" traces. It is not this defect.
 * `main`'s `poll_transmit` still `continue`s past a congestion-blocked space before any ACK-only
   packet is built. This was read through a summary of the file, not line by line: **re-read the
-  code on the day you file.**
+  code on the day you file.** *Corrected 2026-09-25 (QA1):* read line by line at `a577f35b`
+  (2026-09-23) and reproduced there by the test below; #2787's `&& !close` is the gate's only change.
 
 ## Before filing: a reproduction in quinn's own terms
 
@@ -75,6 +76,29 @@ failing test in quinn-proto's test harness (`quinn-proto/src/tests/`, which driv
 
 The test is also the learning path: it pins the behaviour in quinn's terms (spaces, `SendableFrames`,
 the congestion gate) before touching `poll_transmit`.
+
+**Written and run 2026-09-25 (QA1)** — `ack_is_not_held_back_by_a_full_congestion_window`, in
+[`../../patches/quinn-proto-0.11.18-ack-when-congestion-blocked.patch`](../../patches/quinn-proto-0.11.18-ack-when-congestion-blocked.patch)
+with the fix below. 100 ms one way, a server whose Cubic window is two packets, a client PING;
+the time from the PING to the client's first ACK frame, on a 1 ms simulated clock:
+
+| | idle server (the control) | server blocked, 200 KB queued |
+| --- | ---: | ---: |
+| quinn-proto 0.11.18, as released | 225 ms | **325 ms** — fails |
+| `main` `a577f35b`, as it stands | 225 ms | **325 ms** — fails |
+| either, with the fix | 225 ms | 225 ms — passes |
+
+225 ms is one latency out, `max_ack_delay`, one back. 325 is the ACK waiting for the window to reopen
+a round trip after it filled, plus the delay. Two things the harness taught, for the issue text:
+
+* **The window has to be small for the test to be deterministic on `main`.** With the default window,
+  `main` paces the first flight — one packet per drive, the window not full 25 ms in — so it fills only
+  just before its own ACKs return, and the gap the test needs closes. 0.11.18 sent the whole initial
+  window at once, which is the case PT1 saw in Chrome. So on `main` the session-open probe may be
+  rarer than PT1 measured; the defect is not, wherever a full window meets a due ACK. Seen in the
+  harness only, not in a browser.
+* `Pair::step()` stops once no connection has a timer earlier than its idle timer, even with a packet
+  still on the simulated wire, so the test steps its own clock.
 
 ## Issue
 
@@ -109,3 +133,15 @@ rejects an ACK-only packet when other frames were sendable has to allow this cas
 ACK-only packet must not count toward `in_flight` (RFC 9002 §7), which quinn already does for
 ACK-only packets elsewhere. Scope it to 1-RTT (Data) space first, since that is the only space
 measured here.
+
+**Built 2026-09-25, and smaller than this sketch** — the patch above, three hunks in
+`Connection::poll_transmit`, the same on 0.11.18 and on `main`: when the gate finds the window full
+and `can_send.acks` is set, it marks the packet ACK-only and not ack-eliciting (so neither congestion
+controlled nor paced) instead of `continue`, and writes it with `try_populate_acks` — what the close
+path already calls for its ACKs — instead of `populate_packet`. The loop's next pass finds the window
+still full and nothing owed, and moves on as before. The `debug_assert` needs no change (`can_send.acks`
+is true), and no space is special-cased: the gate only ever ran for ack-eliciting spaces. quinn-proto's
+whole suite passes with it, 304 + 3 on 0.11.18 and 327 + 3 on `main`, the new test included.
+**Off in this tree**: `scripts/patch_crate.sh` applies one patch per crate, and this is not it; it applies
+cleanly beside `probe-every-space`, to try it with. Whether it removes PT1's probe in Chrome is not
+measured.
