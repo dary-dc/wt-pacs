@@ -60,7 +60,7 @@ The term scanner that checks it runs on the workstation, not in a container.
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **claimed** 2026-09-26 |
+| 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. **The term scanner was not run** — it lives on the workstation; run it over `0752e5d` before anything else lands. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** |
 | 44 | **H1** — the production handshake: a real chain, compression, the static plane | queue §Rows 43–50 | **first half done on the workstation** 2026-09-19, merged 2026-09-20: an RSA-2048 chain costs exactly one round trip (4.03 → 5.05, 7/7 at three delays), an ECDSA P-256 chain none; brotli compression (feature `cert-compression`, off) brings RSA back to 4.08 and Chrome 148 offers brotli only; the leaf-only-PEM guard is built. **Still open: S40, the static plane** — ready |

@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] **Clean the docs down to the essential, in one cleaning commit.** The repository is essentialist: a doc that is not
+- [x] **Clean the docs down to the essential, in one cleaning commit.** Done in `0752e5d`; the scanner is still the workstation's. The repository is essentialist: a doc that is not
   needed to run, change or trust the code is not kept or maintained. History stays as it is.
   1. Inventory `docs/` against the keep list the owner approves: what owns a subject (how to run it, the wire, the
      clients, the fixtures, the ADRs, the architecture, what the transport and the decoder measured and chose, what the
