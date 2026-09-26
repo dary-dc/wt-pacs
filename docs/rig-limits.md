@@ -433,6 +433,12 @@ dial that [`../lab/page-open/README.md`](../lab/page-open/README.md) counts — 
 dial's 3.0, and nothing that boots in a worker. The probe and its numbers:
 [`../lab/prerender/`](../lab/prerender/).
 
+**Nor does every build resolve like a browser** (2026-09-26). Playwright's headless shell never
+turns on Chromium's own DNS client: it asks the system for A and AAAA and never for an HTTPS record.
+Full Chromium does, and asks for one on every `https://` host and port — unless a proxy is set, when
+it resolves nothing. A lab lane about names runs the full build with `no_proxy` covering them
+([`../lab/page-open/README.md`](../lab/page-open/README.md) §The static plane).
+
 ## 9. The cloud rig: two cores, and a shaped link
 
 It exists because `sch_netem` loads on a VM and not in an agent container.

@@ -68,6 +68,11 @@ open). Checked on all three shapes and a missing file, and mutated twice: readin
 reads the issuer blinded it to a leaf-only PEM, and raising the multi-certificate early return made it
 warn on a good chain.
 
+**Two levers the page open leaves on the table** ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
+§What production adds): a `<link rel=dns-prefetch>` to the transport's origin (`https://host:4433`)
+takes a lookup off every cold dial, and an HTTPS DNS record with `alpn=h3` takes a round trip off the
+first visit once the static host speaks HTTP/3 (nginx 1.25 or later). Neither is in this deployment.
+
 **A measurement flag.** Page-load timing is part of the page clock. A comparison spanning a switch
 from one host to the other is not comparable across it — take a before and after in one interleaved
 run, or treat the older numbers as a different cell.

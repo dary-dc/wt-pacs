@@ -3,6 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <link rel="icon" href="data:," />
+  <!-- ?dns=ORIGIN resolves the transport's host while the page loads. lab/page-open/README.md -->
+  <script>
+    const dns = new URLSearchParams(location.search).get("dns");
+    if (dns) document.head.append(Object.assign(document.createElement("link"), { rel: "dns-prefetch", href: dns }));
+  </script>
   <!-- The open is serial without these: each is otherwise discovered one round trip
        later than it could be. lab/page-open/README.md -->
   <link rel="preload" as="fetch" href="/wt/dev-transport.json" />

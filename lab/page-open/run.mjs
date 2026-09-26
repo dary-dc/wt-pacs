@@ -11,6 +11,7 @@
  * SERVERS=a=BIN,b=BIN runs every arm against each server binary, interleaved inside each round,
  * and prints how often b beat a; ONLY=arm,… keeps those arms; PORT_BASE=N takes ports from N up;
  * NETLOG=DIR keeps Chrome's net log per visit; ROWS=FILE keeps every visit's milestones.
+ * HOST=dns runs as root: it binds 443 and 53 and gives the browser its own resolv.conf.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -27,25 +28,37 @@ const FRAMES = 12;
 // STAGES swaps the three clients for the first-byte ladder: one rung of README.md per arm, on a
 // cold profile only, since a warm visit spends none of what the ladder cuts.
 const STAGES = process.env.STAGES?.split(",");
+// HOST=dns names each arm's page host and transport host; only h3.test has an HTTPS record.
+const PLANES = {
+  h2: { page: "static.test", wt: "static.test" },
+  "h2+wt-ip": { page: "static.test", wt: "127.0.0.1" },
+  "h2+wt-host": { page: "static.test", wt: "wt.test" },
+  "h2+wt-hint": { page: "static.test", wt: "wt.test", hint: true },
+  h3: { page: "h3.test", wt: "h3.test" },
+};
+const HOST = process.env.HOST || "dev";
 const ARMS = STAGES
   ? Object.fromEntries(
       STAGES.map((s) => [s, (base) => `${base}/lab/page-open/first-byte.html?stage=${s}&frames=${FRAMES}`]),
     )
+  : HOST === "dns"
+  ? Object.fromEntries(Object.entries(PLANES).map(([arm, p]) => [arm, (_, s) =>
+      `https://${p.page}/lab/page-open/downloader.html${p.hint ? `?dns=https://${p.wt}:${s.inn}` : ""}`]))
   : {
       ts: (base) => `${base}/harness/ts.html?autorun=1&n=1&frames=${FRAMES}`,
       wasm: (base) => `${base}/harness/index.html?autorun=1&n=1&frames=${FRAMES}`,
       downloader: (base) => `${base}/lab/page-open/downloader.html`,
     };
 for (const arm of Object.keys(ARMS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(arm)) delete ARMS[arm];
-const PROFILES = STAGES ? ["cold"] : ["cold", "warm"];
+const PROFILES = STAGES || HOST === "dns" ? ["cold"] : ["cold", "warm"];
 
 // HOST=dev (default) is server/dev-server.py, plaintext HTTP/1.1; h1 and h2 are nginx on the deploy
 // template over TLS, without and with HTTP/2 — the handshakes a real host charges the page half.
-const HOST = process.env.HOST || "dev";
+// dns is h3-host on 443, HTTP/2 and HTTP/3, behind stub_dns.py one round trip away.
 let nextPort = Number(process.env.PORT_BASE || 0);
 const port = () => (nextPort ? nextPort++ : 30000 + ((Math.random() * 20000) | 0));
 const TCP_SRV = port();
-const TCP_IN = port();
+const TCP_IN = HOST === "dns" ? 443 : port();
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "r2-"));
 const CFG = path.join(ROOT, "client/dev-transport.json");
 const CFG_BAK = fs.existsSync(CFG) ? fs.readFileSync(CFG) : null;
@@ -75,7 +88,8 @@ const label = (arm, server) => (server.name ? `${arm}@${server.name}` : arm);
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
   -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \
-  -addext 'extendedKeyUsage=serverAuth' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`]);
+  -addext 'extendedKeyUsage=serverAuth' \
+  -addext 'subjectAltName=DNS:localhost,DNS:static.test,DNS:h3.test,DNS:wt.test,IP:127.0.0.1' 2>/dev/null`]);
 // A HOST page is served on this certificate, trusted through an NSS store of the browser's own:
 // Chrome caches nothing whose certificate had an error, so ignoring the error would re-fetch every
 // worker script on the page's path.
@@ -115,6 +129,13 @@ for (const s of SERVERS) {
 }
 if (HOST === "dev") {
   start("python3", ["server/dev-server.py", "--port", String(TCP_SRV)], fs.openSync(path.join(T, "static.log"), "a"));
+} else if (HOST === "dns") {
+  execFileSync("go", ["build", "-o", path.join(T, "h3-host"), "."], { cwd: path.join(ROOT, "lab/page-open/h3-host") });
+  start(path.join(T, "h3-host"), [ROOT, `127.0.0.1:${TCP_SRV}`, `${T}/cert.pem`, `${T}/key.pem`],
+    fs.openSync(path.join(T, "static.log"), "a"));
+  fs.writeFileSync(path.join(T, "resolv.conf"), "nameserver 127.0.0.1\n");
+  fs.writeFileSync(path.join(T, "chrome"), `#!/bin/sh\nexec unshare -m sh -c 'mount --bind ${T}/resolv.conf ` +
+    `/etc/resolv.conf && exec "$0" "$@"' ${process.env.CHROME_PATH || chromium.executablePath()} "$@"\n`, { mode: 0o755 });
 } else {
   const site = fs.readFileSync(path.join(ROOT, "deploy/nginx/wt-pacs.conf.template"), "utf8")
     .replace(/\$\{STUDY\}/g, "us_cine_smoke")
@@ -129,18 +150,22 @@ if (HOST === "dev") {
     `  include ${T}/site.conf;\n}\n`);
   start("nginx", ["-c", path.join(T, "nginx.conf"), "-g", "daemon off;"], fs.openSync(path.join(T, "static.log"), "a"));
 }
-const pointAt = (s) =>
-  fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${s.inn}/`, cert_sha256: hash }) + "\n");
+// Chrome takes QUIC only from a known root, except for hosts named here; port 9 is never visited,
+// so it lifts that check for h3.test without forcing QUIC on it.
+const DNS_ARGS = HOST === "dns" ? ["--origin-to-force-quic-on=h3.test:9"] : [];
+const DNS_ENV = HOST === "dns" ? { no_proxy: `${process.env.no_proxy ?? ""},.test`, NO_PROXY: `${process.env.NO_PROXY ?? ""},.test` } : {};
+const pointAt = (s, host = "127.0.0.1") =>
+  fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://${host}:${s.inn}/`, cert_sha256: hash }) + "\n");
 await new Promise((r) => setTimeout(r, 2000));
 
 const base = `${HOST === "dev" ? "http" : "https"}://127.0.0.1:${TCP_IN}`;
 const rows = [];
 
-async function visit(ctx, arm) {
+async function visit(ctx, arm, server) {
   const page = await ctx.newPage();
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
-  await page.goto(ARMS[arm](base), { waitUntil: "commit" });
+  await page.goto(ARMS[arm](base, server), { waitUntil: "commit" });
   await page.waitForFunction(() => globalThis.__wtpacsDone || globalThis.__wtpacsError, null, {
     timeout: 120000,
   });
@@ -149,7 +174,10 @@ async function visit(ctx, arm) {
     const n = performance.getEntriesByType("navigation")[0];
     const tls = n.secureConnectionStart > 0 ? n.connectEnd - n.secureConnectionStart : 0;
     return {
-      open: { page: Math.round(n.responseEnd), tls: Math.round(tls), ...globalThis.__wtpacsOpen },
+      open: {
+        page: Math.round(n.responseEnd), tls: Math.round(tls), dns: Math.round(n.domainLookupEnd - n.domainLookupStart),
+        proto: n.nextHopProtocol, ...globalThis.__wtpacsOpen,
+      },
       error: globalThis.__wtpacsError ?? null,
     };
   });
@@ -162,15 +190,23 @@ for (const rtt of RTTS) {
   const relays = SERVERS.map((s, i) => start("python3", [
     "lab/scripts/link_impair.py",
     "--udp", `${s.inn}:${s.srv}`,
-    ...(i ? [] : ["--tcp", `${TCP_IN}:${TCP_SRV}`]),
+    ...(i || HOST === "dns" ? [] : ["--tcp", `${TCP_IN}:${TCP_SRV}`]),
     "--delay-ms", String(rtt / 2),
   ], fs.openSync(path.join(T, `relay-${rtt}-${i}.log`), "a")));
+  if (HOST === "dns") {
+    relays.push(start("python3", [
+      "lab/scripts/link_impair.py", "--udp", `${TCP_IN}:${TCP_SRV}`, "--tcp", `${TCP_IN}:${TCP_SRV}`,
+      "--delay-ms", String(rtt / 2),
+    ], fs.openSync(path.join(T, `relay-${rtt}-page.log`), "a")));
+    relays.push(start("python3", ["lab/page-open/stub_dns.py", "--delay-ms", String(rtt), "--h3", "h3.test"],
+      fs.openSync(path.join(T, `dns-${rtt}.log`), "a")));
+  }
   await new Promise((r) => setTimeout(r, 1000));
 
   for (let round = 0; round < ROUNDS; round++) {
     for (const arm of Object.keys(ARMS)) {
       for (const server of SERVERS) {
-        pointAt(server);
+        pointAt(server, HOST === "dns" ? PLANES[arm].wt : undefined);
         const name = label(arm, server);
         // A fresh profile is what makes the cold arm cold: no HTTP cache, no compiled-code cache.
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "r2p-"));
@@ -180,12 +216,12 @@ for (const rtt of RTTS) {
           : [];
         const ctx = await chromium.launchPersistentContext(dir, {
           headless: true,
-          executablePath: process.env.CHROME_PATH || chromium.executablePath(),
-          args: ["--disable-background-networking", ...netlog],
-          ...(HOST === "dev" ? {} : { env: { ...process.env, HOME: `${T}/home` } }),
+          executablePath: HOST === "dns" ? path.join(T, "chrome") : process.env.CHROME_PATH || chromium.executablePath(),
+          args: ["--disable-background-networking", ...netlog, ...DNS_ARGS],
+          ...(HOST === "dev" ? {} : { env: { ...process.env, HOME: `${T}/home`, ...DNS_ENV } }),
         });
         try {
-          for (const profile of PROFILES) rows.push({ rtt, round, arm: name, profile, ...(await visit(ctx, arm)) });
+          for (const profile of PROFILES) rows.push({ rtt, round, arm: name, profile, ...(await visit(ctx, arm, server)) });
         } catch (e) {
           process.stderr.write(`rtt=${rtt} ${name}: ${e.message.split("\n")[0]}\n`);
         }
@@ -200,7 +236,7 @@ for (const rtt of RTTS) {
 }
 
 const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
-const MILESTONES = ["tls", "page", "script", "config", "session", "frame"];
+const MILESTONES = ["tls", ...(HOST === "dns" ? ["dns"] : []), "page", "script", "config", "session", "frame"];
 function fit(arm, profile, key) {
   const xs = [];
   const ys = [];
@@ -257,6 +293,30 @@ if (SERVERS.length > 1) {
         }
       }
     }
+  }
+}
+if (HOST === "dns") {
+  const stage = { tls: (r) => r.tls, dial: (r) => r.session - r.config, session: (r) => r.session };
+  const first = LABELS[0];
+  console.log(`\nms at each round trip: median [min-max], and rounds each arm beat ${first} in`);
+  for (const [key, of] of Object.entries(stage)) {
+    for (const arm of LABELS) {
+      const cells = RTTS.map((rtt) => {
+        const mine = rows.filter((r) => r.arm === arm && r.rtt === rtt && r.session != null);
+        if (!mine.length) return "-";
+        const v = mine.map(of).sort((x, y) => x - y);
+        const ref = new Map(rows.filter((r) => r.arm === first && r.rtt === rtt).map((r) => [r.round, of(r)]));
+        const won = mine.filter((r) => ref.has(r.round) && of(r) < ref.get(r.round)).length;
+        return `${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${won}/${mine.length}`;
+      });
+      console.log(`${arm.padEnd(W)} ${key.padEnd(8)} ${cells.join("   ")}`);
+    }
+  }
+  console.log("\nthe document's protocol, visits per arm");
+  for (const arm of LABELS) {
+    const n = {};
+    for (const r of rows.filter((r) => r.arm === arm)) n[r.proto] = (n[r.proto] ?? 0) + 1;
+    console.log(`${arm.padEnd(W)} ${JSON.stringify(n)}`);
   }
 }
 if (process.env.ROWS) fs.writeFileSync(process.env.ROWS, JSON.stringify(rows));

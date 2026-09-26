@@ -489,6 +489,19 @@ crates and +1.29 MiB on the binary, for what ECDSA gets with none. **A leaf-only
 browser fetch the intermediate over AIA on every cold open until cached; `deploy/check_equivalence.sh`
 warns on one ([`../deploy/README.md`](../deploy/README.md)). The fetch's cost is not measured.
 
+**The static plane** (S40, 2026-09-26; [`../lab/page-open/README.md`](../lab/page-open/README.md)
+§The static plane). Every host behind a stub resolver one round trip away, the downloader page cold,
+n = 7 at 40 / 80 / 160 ms. **An HTTPS DNS record with `alpn=h3` makes the first visit HTTP/3 and takes
+one round trip off every milestone** (config 6.03 → 5.00, first frame 17.39 → 16.33; the handshake
+7/7 at every delay) — it needs a static host that speaks HTTP/3, which today's nginx 1.24 does not.
+**The transport on the page's host at its own port pays a whole lookup after the config**, +1.00
+round trip on the dial, 7/7 against an IP literal: Chromium's host cache is keyed by port, and a
+dial asks for `_port._https.host`. *Corrected in place:* S40 as identified said a port is free and
+only a second hostname pays; a second hostname costs the same as a port, a tie. **A `dns-prefetch`
+hint naming the transport's origin, port included, removes that lookup** — the dial ties the IP
+literal's, 7/7 against today's. Neither is adopted; the hint is one line in the page, the record is
+a static host and a DNS change.
+
 ### Lever 1
 
 **The ask in the session URL**, `?ask=frame:42` or `?ask=fill:0-486`. `SessionRequest::path()` is

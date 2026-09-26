@@ -11,6 +11,7 @@ show is [`../../docs/rig-limits.md`](../../docs/rig-limits.md) §3.
 ```bash
 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3
 HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS with HTTP/2; h1 without; dev is the default
+# HOST=dns: every host behind a name, HTTP/2 against HTTP/3 — §The static plane
 ```
 
 A HOST run trusts its certificate through an NSS store of the browser's own (`certutil`, from
@@ -234,6 +235,58 @@ Everything else the page preloads is taken from cache, and the QUIC dial starts 
 *Corrected before it was published:* the first full run left `run.mjs`'s
 `--ignore-certificate-errors` in place, and every worker's scripts came off the wire. That put the
 dial at 3.95 round trips with the lever, not 1.85. The note under the commands at the top says why.
+
+## The static plane
+
+**H1/S40, 2026-09-26.** `HOST=dns` puts every host behind a name. [`stub_dns.py`](stub_dns.py) is the
+browser's resolver, answering one round trip after each query (a resolver as far away as the server;
+a closer one scales the lookup down, not away). [`h3-host/`](h3-host/) is the deploy template's static
+host — its paths, isolation headers and gzip — on quic-go, serving HTTP/2 and, on the same port,
+HTTP/3, with **no Alt-Svc**: a cold browser finds the HTTP/3 plane only through an HTTPS DNS record.
+Today's nginx 1.24 has no HTTP/3, so both protocols come from one server and the arms differ only in
+what the name says. Downloader page, cold profile, five arms interleaved in every round, 7 rounds at
+40, 80 and 160 ms:
+
+```bash
+sudo HOST=dns RTTS=40,80,160 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 7
+```
+
+| arm | page | transport | config | dial | session | frame |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| `h2` — today's shape | `static.test`, HTTP/2 | same host, its own port | 6.03 | 5.01 | 11.04 | 17.39 |
+| `h2+wt-ip` | same | an IP literal: no lookup | 6.00 | **4.04** | 10.04 | 16.33 |
+| `h2+wt-host` | same | a second hostname | 6.01 | 5.03 | 11.04 | 17.34 |
+| `h2+wt-hint` | same, `<link rel=dns-prefetch>` to the transport's origin | the second hostname | 6.05 | **4.02** | 10.07 | 16.40 |
+| `h3` | `h3.test`, HTTPS record `alpn=h3` | same host, its own port | **5.00** | 5.05 | 10.05 | 16.33 |
+
+Round trips, cumulative from navigation except `dial` (config → session). Paired by round against
+`h2`: the `h3` arm's TLS is 47 / 88 / 165 ms against 87 / 165 / 324, **7/7 at every delay**, and its
+session 6/7, 7/7, 7/7; the dial of `h2+wt-ip` and of `h2+wt-hint` is −41 to −42 / −82 to −83 / −159 to −160
+ms, 7/7 at every delay; `h2+wt-host` against `h2` is 3/7, 4/7, 3/7 — a tie. The document's own lookup reads
+1.00 round trip in every arm, which is the stub doing what it was told.
+
+**An HTTPS record takes a round trip off every milestone of the first visit.** The document arrives
+over HTTP/3 (21/21 visits; the other arms 21/21 over HTTP/2), its handshake is one round trip where
+TCP and TLS are two, and the round trip stays saved to the first frame (−1.06).
+
+**The transport's port is not free.** Chromium keys its host cache by scheme, host and port, and a
+dial to `https://host:port` asks for an A record and for `_port._https.host`'s HTTPS record, so a
+transport on the page's own host at another port pays a whole lookup after the config, exactly as a
+second hostname does. **A `dns-prefetch` hint naming the transport's origin, port included, starts
+that lookup with the page and takes it off the dial** — the dial ties the IP literal's. The hint has
+to know the origin before the config does, so it is a deploy-time string in the page.
+
+**Two traps, both built around.** The browser uses its own DNS client, which asks for HTTPS records,
+only in full Chromium — the headless shell resolves through the system and never asks — and only
+when nothing proxies it, so the run sets `no_proxy` for `.test`. And Chromium takes QUIC only from a
+certificate issued by a known root; `--origin-to-force-quic-on=h3.test:9` names a port nobody visits,
+which lifts that check for `h3.test` without forcing QUIC on it. Each check was run broken: without the
+record, or without the flag, the `h3` arm's document came over HTTP/2.
+
+**Not measured:** the HTTPS record together with the hint (the two act on different stages and should
+add, −2 round trips); the transport on UDP 443 beside the page's TCP 443, which would share the
+page's cache entry (the relay binds one address); a real resolver, whose A answer for a known host is
+likely cached where an HTTPS query for `_4433._https` is not; nginx's own HTTP/3, which needs 1.25.
 
 ## What this rig does not decide
 
