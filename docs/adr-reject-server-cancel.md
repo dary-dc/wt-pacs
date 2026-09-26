@@ -1,16 +1,16 @@
 # ADR: reject server-side `CancelFrames`
 
 **Status:** accepted · **Date:** 2026-08-24 · **Supersedes:** Q1 cancel policy in
-[`queue-and-hol-harness.md`](queue-and-hol-harness.md)
+[`adr-stream-shape.md`](adr-stream-shape.md)
 
 > **§4 and §5 superseded 2026-08-26** by [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
 > Three of §4's four flip conditions are wrong — only RTT changes the answer. §5's retained two-task
-> queue shape is being removed; see [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md).
+> queue shape has since been removed: the server has no ask queue.
 > **Measured on one stream per frame.** The viewer integration target uses one shared stream. The
 > *mechanism* in §3 (bytes committed to the transport before cancel lands) is **stronger** on a shared
 > stream, not weaker — frames commit to a single stream strictly in order, so there is even less sitting
 > in the deque for cancel to reach. The rejection holds on both architectures. See §3e of
-> [`window-saturation-experiment.md`](window-saturation-experiment.md).
+> [`adr-client-window-depth.md`](adr-client-window-depth.md).
 >
 > **§1–§3 stand as a record, but the measurement is weaker than it reads.** Two regime defects found
 > later: the sweep ran at `D ≈ 1`, where the mechanism is zero by construction, and the trace has
@@ -107,7 +107,7 @@ completion. No `tokio::select!` on the hot path.
 
 **Stride depth (client policy, not server cancel)** — limit how many asks the client has outstanding
 (`D`). That **prevents** waste rather than undoing it after commit. See
-[`stride-and-queue-experiment.md`](stride-and-queue-experiment.md): at `D = D_min`, the queue’s
+[`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md): at `D = D_min`, the queue’s
 cancel benefit collapses toward ~one RTT; on large frames over slow links, `D = 1` already saturates
 the link and cancel is worth nothing.
 
@@ -117,6 +117,6 @@ the link and cancel is worth nothing.
 
 ## References
 
-- Design + harness spec: [`queue-and-hol-harness.md`](queue-and-hol-harness.md)
-- Stride / queue interaction: [`stride-and-queue-experiment.md`](stride-and-queue-experiment.md)
+- Design + harness spec: [`adr-stream-shape.md`](adr-stream-shape.md)
+- Stride / queue interaction: [`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md)
 - Rerun: `lab/queue-harness`, `lab/queue-sim`, `lab/scripts/harness_sweep_mbps.sh`

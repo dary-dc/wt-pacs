@@ -8,9 +8,9 @@ use crate::record::{LocateOutcome, WriteOutcome};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::sync::mpsc::{SyncSender, TrySendError};
-use std::sync::OnceLock;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::sink::{clone_sender, ensure_sink, shutdown_sink};
 
@@ -47,7 +47,7 @@ fn since_origin_us() -> u64 {
 /// checked against the client file it sits beside (stream mode, fixture) without a filename.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct RunMeta {
-    pub stream_mode: &'static str,
+    pub stream_mode: String,
     pub study: String,
     /// Frames in the study bundle (the summary's `frame_count` is rows recorded).
     pub study_frames: u32,
@@ -125,11 +125,48 @@ pub enum Record {
 
 pub type Batch = Vec<Record>;
 
+/// A live session's buffered rows. Shared because a shutdown has to take them from outside the
+/// session's own task: a session still open at SIGTERM never drops its `Tap`, and its tail would
+/// go with it. docs/telemetry/adr-server-pipeline.md#the-tail-at-sigterm.
+type Pending = Arc<Mutex<Batch>>;
+
+static LIVE: OnceLock<Mutex<Vec<Weak<Mutex<Batch>>>>> = OnceLock::new();
+
+fn live_cell() -> &'static Mutex<Vec<Weak<Mutex<Batch>>>> {
+    LIVE.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+/// Take what every live session has buffered. Bounded by `deadline`: a batch its own task is
+/// holding right now is retried and then skipped, so this can never wait on a session.
+pub(super) fn take_live_batches(deadline: Duration) -> Vec<Batch> {
+    let handles: Vec<Pending> = match live_cell().lock() {
+        Ok(live) => live.iter().filter_map(Weak::upgrade).collect(),
+        Err(_) => return Vec::new(),
+    };
+    let give_up = Instant::now() + deadline;
+    let mut taken = Vec::new();
+    for handle in handles {
+        loop {
+            if let Ok(mut batch) = handle.try_lock() {
+                if !batch.is_empty() {
+                    taken.push(std::mem::take(&mut *batch));
+                }
+                break;
+            }
+            if Instant::now() >= give_up {
+                break;
+            }
+            std::thread::yield_now();
+        }
+    }
+    taken
+}
+
 pub struct Tap {
     session_id: u64,
     /// Owned clone of the process sink — emit without taking the global lock.
     tx: Option<SyncSender<Batch>>,
-    batch: Batch,
+    batch: Pending,
     ordinals: HashMap<u32, u32>,
     frame_index: u32,
     ask_ordinal: u32,
@@ -185,11 +222,16 @@ impl Tap {
         Some(Self::new(SESSION_IDS.fetch_add(1, Ordering::Relaxed), tx))
     }
 
-    fn new(session_id: u64, tx: Option<SyncSender<Batch>>) -> Self {
+    pub(super) fn new(session_id: u64, tx: Option<SyncSender<Batch>>) -> Self {
+        let batch: Pending = Arc::new(Mutex::new(Vec::with_capacity(BATCH)));
+        if let Ok(mut live) = live_cell().lock() {
+            live.retain(|w| w.strong_count() > 0);
+            live.push(Arc::downgrade(&batch));
+        }
         Self {
             session_id,
             tx,
-            batch: Vec::with_capacity(BATCH),
+            batch,
             ordinals: HashMap::new(),
             frame_index: 0,
             ask_ordinal: 0,
@@ -344,9 +386,20 @@ impl Tap {
         self.push(Record::Frame(row));
     }
 
+    #[cfg(test)]
+    pub(super) fn buffer_for_test(&mut self, rec: Record) {
+        self.push(rec);
+    }
+
     fn push(&mut self, rec: Record) {
-        self.batch.push(rec);
-        if self.batch.len() >= BATCH {
+        let full = match self.batch.lock() {
+            Ok(mut batch) => {
+                batch.push(rec);
+                batch.len() >= BATCH
+            }
+            Err(_) => false,
+        };
+        if full {
             self.flush_batch();
         }
     }
@@ -354,10 +407,12 @@ impl Tap {
     /// One channel op for the whole batch. A full ring drops the batch; the rows are counted
     /// so the next row's `dropped_since_last` and the integrity blocks say so.
     pub(crate) fn flush_batch(&mut self) {
-        if self.batch.is_empty() {
-            return;
-        }
-        let batch = std::mem::replace(&mut self.batch, Vec::with_capacity(BATCH));
+        let batch = match self.batch.lock() {
+            Ok(mut held) if !held.is_empty() => {
+                std::mem::replace(&mut *held, Vec::with_capacity(BATCH))
+            }
+            _ => return,
+        };
         let frames = batch
             .iter()
             .filter(|r| matches!(r, Record::Frame(_)))
@@ -402,7 +457,9 @@ impl Drop for Tap {
         // batch before it is accounted for.
         self.flush_batch();
         let session = self.session_record();
-        self.batch.push(Record::Session(session));
+        if let Ok(mut batch) = self.batch.lock() {
+            batch.push(Record::Session(session));
+        }
         self.flush_batch();
         if ACTIVE_TAPS.fetch_sub(1, Ordering::Relaxed) == 1 {
             shutdown_sink();
@@ -785,6 +842,41 @@ mod tests {
         assert!(records
             .iter()
             .all(|r| matches!(r, Record::Frame(_) | Record::Session(_))));
+    }
+
+    /// A session mid-push must not be able to hold up a shutdown: the deadline wins.
+    #[test]
+    fn taking_live_batches_gives_up_on_a_held_batch() {
+        let tap = Tap::new(77, None);
+        let held = Arc::clone(&tap.batch);
+        held.lock().expect("hold the batch").push(Record::Session(SessionRecord {
+            kind: "server_session",
+            session_id: 77,
+            t_open_us: 0,
+            t_close_us: 0,
+            frames: 0,
+            bytes: 0,
+            refused: 0,
+            rows_opened: 0,
+            rows_closed: 0,
+            rows_dropped: 0,
+        }));
+
+        let guard = held.lock().expect("still holding");
+        let started = Instant::now();
+        let taken = take_live_batches(Duration::from_millis(20));
+        let waited = started.elapsed();
+        drop(guard);
+
+        assert!(
+            waited < Duration::from_millis(500),
+            "shutdown waited {waited:?} on a held batch"
+        );
+        assert!(
+            taken.iter().all(|b| b.is_empty()) || taken.is_empty(),
+            "a batch held by its own task should be skipped, not taken"
+        );
+        std::mem::forget(tap);
     }
 
     #[test]

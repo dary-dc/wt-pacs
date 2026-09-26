@@ -5,8 +5,10 @@
 //! whose misses are rare, and a ring for tiles, whose queue would otherwise be OS threads.
 //! `docs/disk-access/adr.md`.
 
+use crate::media::frame_pool;
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use anyhow::{Context, Result};
+use bytes::Bytes;
 use std::mem;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
@@ -17,6 +19,8 @@ use crate::media::uring_reader::UringReader;
 
 /// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
 pub const TILE_SLOTS: usize = 4;
+/// Bytes past the named frame a fill asks the kernel to have ready. `docs/disk-access/adr.md`.
+pub const FILL_WINDOW: u64 = 4 << 20;
 
 /// Which escalation a tile session takes, from `WTPACS_READ_PATH`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -45,7 +49,7 @@ impl ReadMode {
     }
 }
 
-/// Counted per frame. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
+/// Counted per frame. `docs/disk-access/adr.md` §Reporting.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ReadStats {
     pub hits: u64,
@@ -104,10 +108,12 @@ enum Ahead {
 
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
 /// and no ring: a sequential walk is read-ahead's best case and misses about one read in
-/// sixty. `docs/disk-access/EVIDENCE.md` §Fill at scale.
+/// sixty. `docs/disk-access/adr.md` §Fill at scale.
 pub struct SeqReader {
     cur: Vec<u8>,
     ahead: Ahead,
+    /// End of what the kernel has been asked for; a walk extends it, a seek restarts it.
+    advised_to: u64,
     stats: ReadStats,
 }
 
@@ -122,18 +128,19 @@ impl SeqReader {
         Self {
             cur: Vec::new(),
             ahead: Ahead::Idle(Vec::new()),
+            advised_to: 0,
             stats: ReadStats::default(),
         }
     }
 
-    /// The whole of `span`. `next` is the frame the planner will ask for after it, and its
-    /// read is running by the time this returns.
+    /// The whole of `span`, handed off to the wire. `next` is the frame the planner will ask
+    /// for after it, and its read is running by the time this returns.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         next: Option<FrameSpan>,
-    ) -> Result<&[u8]> {
+    ) -> Result<Bytes> {
         let (held, spare) = self.settle().await?;
         let spare = match held {
             Some((s, missed)) if s == span => {
@@ -153,7 +160,11 @@ impl SeqReader {
             }
         };
         self.ahead = match next {
-            Some(next) => start_pooled(store, next, spare)?,
+            Some(next) => {
+                let ahead = start_pooled(store, next, spare)?;
+                self.advise(store, next);
+                ahead
+            }
             None => Ahead::Idle(spare),
         };
         self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
@@ -161,7 +172,8 @@ impl SeqReader {
             .stats
             .peak_in_flight
             .max(u16::from(matches!(self.ahead, Ahead::InFlight { .. })));
-        Ok(&self.cur[..span.len as usize])
+        let frame = mem::replace(&mut self.cur, frame_pool::take());
+        Ok(frame_pool::hand_off(frame, span.len as usize))
     }
 
     /// Awaits whatever the last call started, so its buffer can be reused whether or not
@@ -176,6 +188,22 @@ impl SeqReader {
                 }
             },
         )
+    }
+
+    /// Extended a quarter window at a time, so the syscall is per megabyte of walk and not
+    /// per frame; a seek past the window restarts it.
+    fn advise(&mut self, store: &FrameStore, next: FrameSpan) {
+        let end = next.offset + u64::from(next.len);
+        let want = end + FILL_WINDOW;
+        if (end..=want).contains(&self.advised_to) {
+            if want - self.advised_to < FILL_WINDOW / 4 {
+                return;
+            }
+            store.advise_ahead(self.advised_to, want - self.advised_to);
+        } else {
+            store.advise_ahead(end, FILL_WINDOW);
+        }
+        self.advised_to = want;
     }
 
     fn count(&mut self, missed: bool) {
@@ -255,7 +283,7 @@ pub struct TileReader {
 
 impl TileReader {
     /// Without `RWF_NOWAIT` a ring keyed on the shortfall would serve every *warm* read
-    /// too — `docs/disk-access/IMPLEMENTATION.md` §The trap.
+    /// too — `docs/disk-access/adr.md` §The trap.
     #[cfg_attr(not(feature = "uring"), allow(unused_variables))]
     pub fn new(mode: ReadMode, store: &FrameStore, slots: usize) -> Self {
         #[cfg(feature = "uring")]
@@ -284,14 +312,14 @@ impl TileReader {
         }
     }
 
-    /// The whole of `span`; reads of `upcoming` that fit are started underneath. Current
-    /// first, then upcoming, then wait — the measured order.
+    /// The whole of `span`, handed off to the wire; reads of `upcoming` that fit are started
+    /// underneath. Current first, then upcoming, then wait — the measured order.
     pub async fn read(
         &mut self,
         store: &Arc<FrameStore>,
         span: FrameSpan,
         upcoming: &[FrameSpan],
-    ) -> Result<&[u8]> {
+    ) -> Result<Bytes> {
         let named = 1 + upcoming.len().min(self.slots.len() - 1);
         self.stats.peak_named = self.stats.peak_named.max(named as u16);
         for i in 0..named {
@@ -307,26 +335,32 @@ impl TileReader {
         let w = self.holding(span).expect("started above");
         self.wait(w).await?;
         self.last = w;
-        if self.slots[w].miss {
+        let slot = &mut self.slots[w];
+        if slot.miss {
             self.stats.misses += 1;
         } else {
             self.stats.hits += 1;
         }
-        Ok(&self.slots[w].buf[..self.slots[w].len])
+        slot.key = None;
+        let frame = mem::replace(&mut slot.buf, frame_pool::take());
+        Ok(frame_pool::hand_off(frame, slot.len))
     }
 
     fn holding(&self, span: FrameSpan) -> Option<usize> {
         self.slots.iter().position(|s| s.key == Some(span))
     }
 
+    /// Prefers a slot with no read landing in it, so an abandoned read never delays a wanted one.
     fn free_slot(&self, span: FrameSpan, upcoming: &[FrameSpan]) -> usize {
         let reach = self.slots.len() - 1;
+        let unnamed = |s: &Slot| match s.key {
+            None => true,
+            Some(k) => k != span && !upcoming.iter().take(reach).any(|&u| u == k),
+        };
         self.slots
             .iter()
-            .position(|s| match s.key {
-                None => true,
-                Some(k) => k != span && !upcoming.iter().take(reach).any(|&u| u == k),
-            })
+            .position(|s| unnamed(s) && s.read.is_none())
+            .or_else(|| self.slots.iter().position(unnamed))
             .expect("at most one slot per named frame")
     }
 
@@ -531,7 +565,7 @@ mod tests {
 
     /// **The ADR's claim, as an assertion**: a miss reads to the end of the *frame*, so a
     /// missing frame costs one round trip however wide it is. Capping the probe at
-    /// `READ_WINDOW` cost +55–82 % at two windows and up; `docs/disk-access/EVIDENCE.md`.
+    /// `READ_WINDOW` cost +55–82 % at two windows and up; `docs/disk-access/adr.md`.
     #[test]
     fn a_missing_frame_costs_one_round_trip_however_wide_it_is() {
         let dir = scratch("oneshot");
@@ -586,9 +620,9 @@ mod tests {
                 let span = store.frame_span(idx).expect("span");
                 let next = (idx + 1 < 4).then(|| store.frame_span(idx + 1).expect("next"));
                 let fill = rt.block_on(seq.read(&store, span, next)).expect("fill");
-                assert_eq!(fill, frame_pattern(idx, LEN), "fill {idx}, pooled={pooled}");
+                assert_eq!(&fill[..], &frame_pattern(idx, LEN)[..], "fill {idx}, pooled={pooled}");
                 let one = rt.block_on(tile.read(&store, span, &[])).expect("tile");
-                assert_eq!(one, frame_pattern(idx, LEN), "tile {idx}, pooled={pooled}");
+                assert_eq!(&one[..], &frame_pattern(idx, LEN)[..], "tile {idx}, pooled={pooled}");
             }
         }
         std::fs::remove_dir_all(&dir).ok();
@@ -614,8 +648,8 @@ mod tests {
         store.reset_pool_starts();
         let out = rt.block_on(seq.read(&store, second, None)).expect("second");
         assert_eq!(
-            out,
-            frame_pattern(1, LEN),
+            &out[..],
+            &frame_pattern(1, LEN)[..],
             "the read-ahead served wrong bytes"
         );
         assert_eq!(
@@ -627,7 +661,7 @@ mod tests {
     }
 
     /// A fill holds **one** read at a time whatever it names, which is what bounds its
-    /// blocking threads at scale. `docs/disk-access/EVIDENCE.md` §Fill at scale.
+    /// blocking threads at scale. `docs/disk-access/adr.md` §Fill at scale.
     #[test]
     fn a_fill_never_holds_more_than_one_read_at_once() {
         let dir = scratch("onedeep");
@@ -651,6 +685,59 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// A fill asks the kernel for `FILL_WINDOW` past the named frame, extends it only once a
+    /// quarter window has been walked, and restarts it on a seek past it. Without the
+    /// advice a 250 kB fill at the stock 128 KiB read-ahead misses six frames in ten —
+    /// `docs/disk-access/adr.md`.
+    #[test]
+    fn a_fill_tells_the_kernel_what_follows_the_named_frame() {
+        let dir = scratch("advise");
+        let path = write_bundle(&dir, 24, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let rt = rt();
+        let all = spans(&store, &(0..24u32).collect::<Vec<_>>());
+        let end = |s: FrameSpan| s.offset + u64::from(s.len);
+
+        let mut seq = SeqReader::new();
+        rt.block_on(seq.read(&store, all[0], Some(all[1]))).expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[1]), FILL_WINDOW)],
+            "the first frame asks for one whole window past the named frame"
+        );
+        let mut walked = 0u64;
+        for i in 1..20u32 {
+            rt.block_on(seq.read(&store, all[i as usize], Some(all[i as usize + 1])))
+                .expect("read");
+            walked += u64::from(all[i as usize + 1].len);
+            let advice = store.take_advice();
+            if walked < FILL_WINDOW / 4 {
+                assert!(advice.is_empty(), "frame {i}: advised again inside a quarter window");
+            } else {
+                assert_eq!(
+                    advice,
+                    vec![(end(all[1]) + FILL_WINDOW, walked)],
+                    "frame {i}: the extension does not start where the window ended"
+                );
+                break;
+            }
+        }
+        assert!(walked >= FILL_WINDOW / 4, "the walk never extended the window");
+        rt.block_on(seq.read(&store, all[20], Some(all[21]))).expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[21]), FILL_WINDOW)],
+            "a seek past the window restarts it"
+        );
+        rt.block_on(seq.read(&store, all[3], Some(all[4]))).expect("read");
+        assert_eq!(
+            store.take_advice(),
+            vec![(end(all[4]), FILL_WINDOW)],
+            "a seek back before the window restarts it"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// A read-ahead the session then abandons still owns its buffer until it lands, so it
     /// has to be waited for before that buffer is handed to another frame.
     #[test]
@@ -671,8 +758,8 @@ mod tests {
         // Frame 1 was named and is in flight; the session asks for 2 instead.
         let out = rt.block_on(seq.read(&store, third, None)).expect("third");
         assert_eq!(
-            out,
-            frame_pattern(2, LEN),
+            &out[..],
+            &frame_pattern(2, LEN)[..],
             "the abandoned read landed in the buffer serving another frame"
         );
         std::fs::remove_dir_all(&dir).ok();
@@ -697,8 +784,8 @@ mod tests {
             .block_on(tile.read(&store, *span, upcoming))
             .expect("read");
         assert_eq!(
-            out,
-            frame_pattern(0, LEN),
+            &out[..],
+            &frame_pattern(0, LEN)[..],
             "the served frame came back wrong"
         );
         assert_eq!(
@@ -715,6 +802,32 @@ mod tests {
             tile.serving_slot(),
             0,
             "the first slot serves the asked frame"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **A jump must not queue behind the prefetch it abandons.** The read for the frame the
+    /// client asked for is issued while the abandoned one is still in flight, not after it.
+    #[test]
+    fn an_abandoned_tile_prefetch_does_not_delay_the_frame_that_replaces_it() {
+        let dir = scratch("tilejump");
+        let path = write_bundle(&dir, 4, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let [first, named, jump, behind] = spans(&store, &[0, 1, 2, 3])[..] else {
+            unreachable!("four frames")
+        };
+
+        let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
+        rt.block_on(tile.read(&store, first, &[named])).expect("first");
+        // Frame 1 was named and is in flight; the session jumps to 2, naming 3 behind it.
+        rt.block_on(tile.read(&store, jump, &[behind])).expect("jump");
+        assert_eq!(
+            tile.stats().peak_in_flight,
+            3,
+            "the abandoned read-ahead was awaited before the jumped-to frames were started"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -738,7 +851,8 @@ mod tests {
                 slots,
                 "a {slots}-slot reader named a different number of frames"
             );
-            for held in all.iter().take(slots) {
+            assert!(!tile.holds(all[0]), "the served frame stayed in its slot after hand-off");
+            for held in all.iter().take(slots).skip(1) {
                 assert!(tile.holds(*held), "a named frame is not held");
             }
             assert!(
@@ -821,7 +935,7 @@ mod tests {
         for idx in 0..3u32 {
             let span = store.frame_span(idx).expect("span");
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(out, frame_pattern(idx, LEN));
+            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..]);
         }
         assert!(
             !tile.ring_built(),
@@ -845,7 +959,7 @@ mod tests {
         for idx in 0..3u32 {
             let span = store.frame_span(idx).expect("span");
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(out, frame_pattern(idx, LEN), "the pooled path still serves");
+            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "the pooled path still serves");
         }
         assert!(
             !tile.ring_built(),
@@ -874,7 +988,7 @@ mod tests {
         for idx in 0..3u32 {
             let span = store.frame_span(idx).expect("span");
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(out, frame_pattern(idx, LEN), "frame {idx} did not compose");
+            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} did not compose");
         }
         assert!(tile.ring_built(), "the miss path never reached the ring");
         std::fs::remove_dir_all(&dir).ok();
@@ -893,7 +1007,7 @@ mod tests {
         for idx in 0..3u32 {
             let span = store.frame_span(idx).expect("span");
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(out, frame_pattern(idx, LEN), "frame {idx} came back wrong");
+            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} came back wrong");
         }
         assert!(tile.ring_built(), "the lever never built a ring");
         std::fs::remove_dir_all(&dir).ok();

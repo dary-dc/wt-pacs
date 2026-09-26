@@ -1,4 +1,4 @@
-//! Product-server A/B client. `docs/disk-access/IMPLEMENTATION.md`.
+//! Product-server A/B client. `docs/disk-access/adr.md`.
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
@@ -22,8 +22,9 @@ enum Mode {
 struct Args {
     #[arg(long)]
     url: String,
+    /// For the CPU and RSS columns. A remote server has no local pid; they print `-`.
     #[arg(long)]
-    server_pid: u32,
+    server_pid: Option<u32>,
     #[arg(long, value_enum)]
     mode: Mode,
     #[arg(long, default_value_t = 1)]
@@ -38,6 +39,10 @@ struct Args {
     /// read-ahead or a cold cell is a hit cell wearing a cold label — §14.4.
     #[arg(long, default_value_t = 1)]
     step: u32,
+    /// First frame asked; a fill then streams `asks` frames from it. A study past RAM is cold only
+    /// where no earlier run has read it. Unset: frame 0, and a fill streams the whole study.
+    #[arg(long)]
+    start: Option<u32>,
     #[arg(long, default_value = "")]
     label: String,
     #[arg(long, default_value = "")]
@@ -46,6 +51,10 @@ struct Args {
     temp: String,
     #[arg(long)]
     no_header: bool,
+    /// Open every session from one client socket, as before 2026-09-10. One source port means
+    /// one 4-tuple, which a server of `SO_REUSEPORT` endpoints hashes onto one thread.
+    #[arg(long)]
+    one_socket: bool,
 }
 
 fn main() -> Result<()> {
@@ -58,33 +67,44 @@ fn main() -> Result<()> {
 }
 
 async fn run(args: Args) -> Result<()> {
-    let endpoint = client_endpoint()?;
-    let cpu0 = proc_cpu(args.server_pid)?;
-    let rss0 = proc_rss_kib(args.server_pid)?;
-    let peak = Arc::new(AtomicU64::new(rss0));
-    let sampler = tokio::spawn(sample_rss(args.server_pid, Arc::clone(&peak)));
+    let mut endpoints = vec![client_endpoint()?];
+    let server = match args.server_pid {
+        Some(pid) => Some((pid, proc_cpu(pid)?, proc_rss_kib(pid)?)),
+        None => None,
+    };
+    let peak = Arc::new(AtomicU64::new(server.map_or(0, |(_, _, rss0)| rss0)));
+    let sampler = server.map(|(pid, ..)| tokio::spawn(sample_rss(pid, Arc::clone(&peak))));
     let wall = Instant::now();
     let mut conns = Vec::with_capacity(args.sessions.max(1));
-    for _ in 0..args.sessions.max(1) {
-        conns.push(connect(&endpoint, &args.url).await?);
+    for i in 0..args.sessions.max(1) {
+        if i > 0 && !args.one_socket {
+            endpoints.push(client_endpoint()?);
+        }
+        conns.push(connect(endpoints.last().expect("one endpoint"), &args.url).await?);
     }
     let mut set = tokio::task::JoinSet::new();
     for conn in conns {
         let (mode, depth, asks, frames) = (args.mode, args.depth, args.asks, args.frames.max(1));
-        let step = args.step.max(1);
-        set.spawn(async move { session(conn, mode, depth, asks, frames, step).await });
+        let (step, start) = (args.step.max(1), args.start);
+        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start).await });
     }
     let mut lats = Vec::new();
     while let Some(joined) = set.join_next().await {
         lats.extend(joined.context("session join")??);
     }
     let wall_ns = wall.elapsed().as_nanos() as u64;
-    let cpu_ns = proc_cpu(args.server_pid)?.saturating_sub(cpu0);
-    sampler.abort();
-    let rss_kib = peak.load(Ordering::Relaxed).saturating_sub(rss0);
-    drop(endpoint);
     let n = lats.len().max(1) as u64;
-    let cpu_ns_per_ask = (cpu_ns / u128::from(n)) as u64;
+    let (cpu_ns_per_ask, rss_kib) = match server {
+        Some((pid, cpu0, rss0)) => (
+            (proc_cpu(pid)?.saturating_sub(cpu0) / u128::from(n)).to_string(),
+            peak.load(Ordering::Relaxed).saturating_sub(rss0).to_string(),
+        ),
+        None => ("-".to_string(), "-".to_string()),
+    };
+    if let Some(sampler) = sampler {
+        sampler.abort();
+    }
+    drop(endpoints);
     let asks_per_s = n as f64 * 1e9 / wall_ns.max(1) as f64;
     lats.sort_unstable();
     if !args.no_header {
@@ -156,6 +176,7 @@ async fn session(
     asks: usize,
     frames: u32,
     step: u32,
+    start: Option<u32>,
 ) -> Result<Vec<u64>> {
     let (mut control, _recv) = connection
         .open_bi()
@@ -166,9 +187,10 @@ async fn session(
     let mut media = connection.accept_uni().await.context("accept media uni")?;
     match mode {
         Mode::OnDemand => {
-            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step).await
+            let start = start.unwrap_or(0);
+            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start).await
         }
-        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize)).await,
+        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start).await,
     }
 }
 
@@ -179,8 +201,9 @@ async fn on_demand(
     asks: usize,
     frames: u32,
     step: u32,
+    start: u32,
 ) -> Result<Vec<u64>> {
-    let plan = |i: usize| (i as u32).wrapping_mul(step) % frames;
+    let plan = |i: usize| start.wrapping_add((i as u32).wrapping_mul(step)) % frames;
     let mut sent = Vec::with_capacity(asks);
     let mut lats = Vec::with_capacity(asks);
     let mut next_send = 0usize;
@@ -209,13 +232,19 @@ async fn on_demand(
     Ok(lats)
 }
 
-async fn fill(control: &mut SendStream, media: &mut RecvStream, asks: usize) -> Result<Vec<u64>> {
+async fn fill(
+    control: &mut SendStream,
+    media: &mut RecvStream,
+    asks: usize,
+    start: Option<u32>,
+) -> Result<Vec<u64>> {
     let mut lats = Vec::with_capacity(asks);
+    let (from, to) = match start {
+        Some(from) => (Some(from), Some(from + asks as u32 - 1)),
+        None => (None, None),
+    };
     control
-        .write_all(&encode_fod_msg(&FodMsg::StreamFrames {
-            from: None,
-            to: None,
-        })?)
+        .write_all(&encode_fod_msg(&FodMsg::StreamFrames { from, to })?)
         .await?;
     let mut prev = Instant::now();
     for _ in 0..asks {

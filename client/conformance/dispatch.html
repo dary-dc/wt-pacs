@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs conformance — dispatch (D2c)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>conformance — dispatch (D2c)</h1>
+  <p>
+    An ask served before the fill frames still queued for a decoder, and never more than
+    <code>perDecoder</code> outstanding on one decoder. Contention forced with a stalling decoder.
+    <code>client/conformance/run_dispatch.sh</code> drives this headless from the gate.
+  </p>
+  <div id="log"></div>
+  <script type="module">
+    import { DownloaderClient } from "/client/downloader/consumer.js";
+    import { runDispatchArm } from "/client/conformance/dist/dispatch-rig.js";
+
+    const logEl = document.getElementById("log");
+    const log = (line) => { logEl.textContent += line + "\n"; };
+    runDispatchArm(DownloaderClient, log).catch((e) => {
+      log("FAILED: " + (e?.stack || e?.message || e));
+      globalThis.__wtpacsFailed = 1;
+      globalThis.__wtpacsDone = true;
+    });
+  </script>
+</body>
+</html>

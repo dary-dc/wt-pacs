@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>prerender referrer</title>
+</head>
+<body>
+  <p><a id="go" href="/lab/prerender/target.html">activate the prerendered viewer</a></p>
+  <script>
+    // ?report=PORT is the driverless run (run.mjs): the target carries it and this page navigates itself.
+    const report = new URLSearchParams(location.search).get("report");
+    const target = "/lab/prerender/target.html" + (report ? `?report=${report}` : "");
+    document.getElementById("go").href = target;
+    const rules = document.createElement("script");
+    rules.type = "speculationrules";
+    rules.textContent = JSON.stringify({ prerender: [{ source: "list", urls: [target] }] });
+    document.head.append(rules);
+    if (report) setTimeout(() => location.assign(target), 4000);
+  </script>
+</body>
+</html>

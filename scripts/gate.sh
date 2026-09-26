@@ -4,6 +4,9 @@
 #   scripts/gate.sh            everything (the server absence check builds a default release)
 #   scripts/gate.sh --quick    skip the two absence checks
 #
+# The WASM client is a hard prerequisite, not an optional arm: build it once with
+# client/transport-wasm/build.sh. README.md §Prerequisites.
+#
 # CARGO_TARGET_DIR is respected; set it to keep the default-feature release build out of a
 # telemetry target dir you are also using for a harvest.
 set -euo pipefail
@@ -17,9 +20,29 @@ step() { printf '\n== %s\n' "$*"; }
 step "repo: comment budget"
 scripts/comment_budget.sh
 
+step "quinn: the opt-in GSO patch still applies to crates.io quinn"
+scripts/patch_quinn.sh --check
+
 step "client: build bundles + unit tests"
 bash client/transport-ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
+node client/transport-ts/test/run.mjs | tail -1
+
+step "client: worker-safe (no artifact reaches for window)"
+bash client/scripts/check_worker_safe.sh
+
+step "client: transport conformance (every implementation, and the race)"
+node client/conformance/run.mjs | tail -2
+
+step "client: the byob read path compiles (off by default; docs/decode/README.md)"
+(cd client/transport-wasm && cargo check --features byob-min,byob-count \
+  --target wasm32-unknown-unknown --quiet)
+
+step "client: transport conformance (downloader arm, headless Chromium)"
+bash client/conformance/run_downloader.sh | tail -2
+
+step "client: downloader dispatch — ordering and the per-decoder bound (headless Chromium)"
+bash client/conformance/run_dispatch.sh | tail -2
 
 step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)
@@ -33,6 +56,9 @@ step "lab: window-harness tests"
 cargo test -p window-harness --quiet
 step "lab: disk-access-bench compiles (the arms are part of the API)"
 cargo check -p disk-access-bench --all-targets --quiet
+
+step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
+bash client/conformance/run_wire.sh | tail -8
 
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"

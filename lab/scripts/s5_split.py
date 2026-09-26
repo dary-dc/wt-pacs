@@ -14,7 +14,7 @@ subtraction valid:
 first miss, which is the design the split implies (keep L on hits, keep R on misses, skip
 the idle ring).
 
-The rule is `RERUN.md` §Precision, applied mechanically: a difference counts only if
+The rule is `docs/disk-access/adr.md` §11, applied mechanically: a difference counts only if
 |median| >= 28.5% **and** sign agreement >= 0.8n **and** it keeps its sign across runs.
 Regime is read off `pool`'s miss rate so every arm in a cell is classified identically.
 

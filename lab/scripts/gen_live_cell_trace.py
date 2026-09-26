@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate live_cell_scroll.json — replacement for fly_and_settle (§0b).
 
-Requirements (window-saturation-experiment.md §0b):
+Requirements (docs/adr-client-window-depth.md §Live cells — the precondition):
   - ≥300 unique frames, no modulo
   - max_step = 1 (consecutive indices only)
   - ~9 frames/s sustained traversal

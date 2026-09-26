@@ -9,7 +9,15 @@ if [[ ! -d node_modules ]]; then
   npm install
 fi
 npx esbuild session.ts --bundle --format=esm --outfile=dist/session.js --platform=browser --target=es2022
+npx esbuild ws-session.ts --bundle --format=esm --outfile=dist/ws-session.js --platform=browser --target=es2022
+npx esbuild race-session.ts --bundle --format=esm --outfile=dist/race-session.js --platform=browser --target=es2022
 npx esbuild session-telemetry.ts --bundle --format=esm --outfile=dist/session.telemetry.js --platform=browser --target=es2022
 npx esbuild ../record/install.ts --bundle --format=esm --outfile=../record/dist/install.js --platform=browser --target=es2022
 npx esbuild ../record/test/run.ts --bundle --format=esm --outfile=../record/test/run.mjs --platform=node --target=node20
-echo "wrote dist/session.js dist/session.telemetry.js ../record/dist/install.js ../record/test/run.mjs"
+npx esbuild ../conformance/run.ts --bundle --format=esm --outfile=../conformance/run.mjs --platform=node --target=node20
+npx esbuild ../conformance/fake-session.ts --bundle --format=esm --outfile=../conformance/dist/fake-session.js --platform=browser --target=es2022
+npx esbuild ../conformance/downloader-rig.ts --bundle --format=esm --outfile=../conformance/dist/downloader-rig.js --platform=browser --target=es2022
+npx esbuild ../conformance/dispatch-rig.ts --bundle --format=esm --outfile=../conformance/dist/dispatch-rig.js --platform=browser --target=es2022
+npx esbuild ../../lab/telemetry-cost/cost.ts --bundle --format=esm --outfile=../../lab/telemetry-cost/cost.mjs --platform=node --target=node20
+npx esbuild test/run.ts --bundle --format=esm --outfile=test/run.mjs --platform=node --target=node20
+echo "wrote dist/session.js dist/ws-session.js dist/race-session.js dist/session.telemetry.js ../record/dist/install.js ../record/test/run.mjs ../conformance/run.mjs ../../lab/telemetry-cost/cost.mjs test/run.mjs"

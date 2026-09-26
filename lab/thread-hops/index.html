@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>thread hops — what a decoded frame pays to reach the page</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>thread hops</h1>
+  <p>
+    Workers stand in for receive and decode; no transport and no decoder.
+    Query: <code>rounds</code>, <code>burstRounds</code>, <code>arm</code>,
+    <code>mutate=shared-transfer|b-relay</code>.
+    Write-up: <code>docs/ARCHITECTURE.md</code>.
+  </p>
+  <div id="log"></div>
+  <script type="module" src="./bench.js"></script>
+</body>
+</html>

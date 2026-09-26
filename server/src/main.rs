@@ -19,8 +19,8 @@ struct Args {
     cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
-    /// How frames reach the client: one shared uni stream or one per frame.
-    #[arg(long, value_enum, default_value_t = StreamMode::Shared)]
+    /// How frames reach the client: `shared`, `pool:<k>` or `per-frame`.
+    #[arg(long, default_value = "shared")]
     stream_mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to
     /// `0.0.0.0` when the host has no IPv6.
@@ -40,11 +40,45 @@ struct Args {
     /// QUIC idle timeout in milliseconds. Default: library default, 30 000.
     #[arg(long)]
     max_idle_timeout_ms: Option<u64>,
+    /// Server-sent keep-alive in milliseconds. Off by default; must be below both peers' idle
+    /// timeouts to work. docs/transport/adr-idle-sessions.md.
+    #[arg(long)]
+    keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
+    #[arg(long, default_value_t = 1.25, help = "bbr-bounded only: its window over its BDP estimate")]
+    bdp_gain: f64,
+    /// Controller knobs, all at quinn's default unless set. What each one measured:
+    /// docs/transport/transport-conclusions.md §3.
+    #[arg(long)]
+    initial_window_bytes: Option<u64>,
+    #[arg(long)]
+    persistent_congestion_threshold: Option<u32>,
+    #[arg(long)]
+    packet_threshold: Option<u32>,
+    #[arg(long)]
+    initial_rtt_ms: Option<u64>,
+    /// Lab only: `false` sends each datagram alone, so netem here drops datagrams, not GSO
+    /// batches.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    segmentation_offload: bool,
+    /// Peer `max_ack_delay` to request, ms; inert unless the peer advertises `min_ack_delay`.
+    #[arg(long)]
+    ack_frequency_max_delay_ms: Option<u64>,
     /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
     #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
     prefault: bool,
+    /// Lab only: serve every frame as a miss, for measuring a study nobody has read.
+    #[arg(long, default_value_t = false)]
+    force_pool_reads: bool,
+    /// Prototype: honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL.
+    #[arg(long, default_value_t = false)]
+    open_ask: bool,
+    #[arg(long, default_value_t = false, help = "Lab only: take each CONNECT and never answer it")]
+    hold_sessions: bool,
+    /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/ARCHITECTURE.md
+    #[arg(long, default_value_t = false)]
+    websocket: bool,
     /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
     #[cfg(feature = "telemetry")]
     #[arg(long, value_name = "ROWS")]
@@ -103,9 +137,21 @@ async fn main() -> anyhow::Result<()> {
             stream_receive_window: args.stream_receive_window_bytes,
             send_window: args.send_window_bytes,
             max_idle_timeout_ms: args.max_idle_timeout_ms,
+            keep_alive_interval_ms: args.keep_alive_interval_ms,
             congestion: args.congestion,
+            bdp_gain: args.bdp_gain,
+            initial_window: args.initial_window_bytes,
+            persistent_congestion_threshold: args.persistent_congestion_threshold,
+            packet_threshold: args.packet_threshold,
+            initial_rtt_ms: args.initial_rtt_ms,
+            segmentation_offload: args.segmentation_offload,
+            ack_frequency_max_delay_ms: args.ack_frequency_max_delay_ms,
             prefault: args.prefault,
         },
+        force_pool_reads: args.force_pool_reads,
+        open_ask: args.open_ask,
+        hold_sessions: args.hold_sessions,
+        websocket: args.websocket,
     });
 
     tokio::select! {

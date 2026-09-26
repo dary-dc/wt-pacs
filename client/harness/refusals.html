@@ -18,7 +18,7 @@
     15 s client timeout means a control message was lost.
   </p>
   <p>
-    Query: <code>arm=ts|wasm</code> · <code>n=64</code> (refused asks) ·
+    Query: <code>arm=ts|wasm|ws</code> · <code>n=64</code> (refused asks) ·
     <code>wt=</code>/<code>hash=</code> override <code>/wt/dev-transport.json</code>.
   </p>
   <div id="log"></div>
@@ -36,7 +36,8 @@
         await init();
         return TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
       }
-      const { TransportSession } = await import("/client/transport-ts/dist/session.js");
+      const bundle = arm === "ws" ? "ws-session.js" : "session.js";
+      const { TransportSession } = await import(`/client/transport-ts/dist/${bundle}`);
       return TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
     }
 
@@ -67,7 +68,8 @@
         arm,
         n,
         wall_ms: Math.round(performance.now() - t0),
-        refused_with_reason: results.filter((r) => /unavailable/.test(r.message || "")).length,
+        // The server's own words: a session that died also makes every waiter "unavailable".
+        refused_with_reason: results.filter((r) => /unavailable: .*out of range/.test(r.message || "")).length,
         timed_out: results.filter((r) => /timeout/.test(r.message || "")).length,
         other: results.filter((r) => !/unavailable|timeout/.test(r.message || "")).length,
         stats: session.stats(),
@@ -75,6 +77,11 @@
       };
       globalThis.__wtpacsRefusals = summary;
       log("summary", JSON.stringify({ ...summary, results: undefined }));
+      const failed = summary.refused_with_reason !== n || summary.timed_out > 0 || summary.other > 0;
+      log(failed
+        ? `  FAIL: ${arm}: ${summary.refused_with_reason} of ${n} refused with the server's reason, ${summary.timed_out} timed out, ${summary.other} other`
+        : `refusals (${arm}): ${n}/${n} refused with the server's reason, none lost`);
+      globalThis.__wtpacsFailed = failed ? 1 : 0;
       session.close();
       globalThis.__wtpacsDone = true;
     } catch (e) {

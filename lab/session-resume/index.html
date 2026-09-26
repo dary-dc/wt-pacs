@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>session resume — dials</title>
+</head>
+<body>
+  <script type="module">
+    /**
+     * `?dials=N` WebTransport dials in a row, each closed and followed by `?gap=` ms of quiet: the
+     * relay forwards to the last client it heard, so a closing session must go silent first.
+     * `?hashes=0` dials without `serverCertificateHashes`, as a CA-signed certificate would.
+     * `?hold=` ms keeps each session open, idle, before it is closed.
+     */
+    const q = new URLSearchParams(location.search);
+    const dials = Number(q.get("dials") || 2);
+    const gap = Number(q.get("gap") || 1000);
+    const hashes = q.get("hashes") !== "0";
+    const hold = Number(q.get("hold") || 0);
+    const hex = (h) => new Uint8Array(h.match(/../g).map((b) => parseInt(b, 16)));
+    try {
+      const c = await (await fetch("/wt/dev-transport.json")).json();
+      const ready = [];
+      for (let i = 0; i < dials; i++) {
+        await new Promise((r) => setTimeout(r, gap));
+        const t0 = performance.now();
+        const options = hashes ? { serverCertificateHashes: [{ algorithm: "sha-256", value: hex(c.cert_sha256) }] } : {};
+        const wt = new WebTransport(c.wt_url, options);
+        await wt.ready;
+        ready.push(Math.round((performance.now() - t0) * 10) / 10);
+        await new Promise((r) => setTimeout(r, hold));
+        wt.close();
+        await wt.closed.catch(() => {});
+      }
+      globalThis.__ready = ready;
+    } catch (e) {
+      globalThis.__error = String(e?.stack || e);
+    }
+    globalThis.__done = true;
+  </script>
+</body>
+</html>

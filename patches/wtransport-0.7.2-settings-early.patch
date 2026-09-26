@@ -1,0 +1,43 @@
+--- a/src/endpoint.rs
++++ b/src/endpoint.rs
+@@ -607,20 +607,34 @@
+     pub fn with_quic_connecting(quic_connecting: quinn::Connecting) -> Self {
+         Self(Box::pin(async move {
+             let quic_connection = quic_connecting.await?;
+-            Self::accept(quic_connection).await
++            let driver = Driver::init(quic_connection.clone());
++            Self::accept(quic_connection, driver).await
+         }))
+     }
+ 
+     fn new(quic_incoming: quinn::Incoming) -> Self {
+         Self(Box::pin(async move {
+-            let quic_connection = quic_incoming.await?;
+-            Self::accept(quic_connection).await
++            // 0.5-RTT: the driver opens the control stream and writes SETTINGS with the
++            // handshake flight (RFC 9114 §6.2.1), rather than a round trip later.
++            let (quic_connection, handshake) = quic_incoming
++                .accept()?
++                .into_0rtt()
++                .unwrap_or_else(|_| unreachable!("a server connection always converts"));
++            let driver = Driver::init(quic_connection.clone());
++
++            // A session request is surfaced only from a completed handshake.
++            handshake.await;
++            if let Some(error) = quic_connection.close_reason() {
++                return Err(error.into());
++            }
++            Self::accept(quic_connection, driver).await
+         }))
+     }
+ 
+-    async fn accept(quic_connection: quinn::Connection) -> Result<SessionRequest, ConnectionError> {
+-        let driver = Driver::init(quic_connection.clone());
+-
++    async fn accept(
++        quic_connection: quinn::Connection,
++        driver: Driver,
++    ) -> Result<SessionRequest, ConnectionError> {
+         let _settings = driver.accept_settings().await.map_err(|driver_error| {
+             ConnectionError::with_driver_error(driver_error, &quic_connection)
+         })?;

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs harness — the downloader</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>harness — the downloader</h1>
+  <p>
+    One downloader worker owns the session; decoders hand pixels straight to this page.
+    Beside today's path, not instead of it. <code>docs/ARCHITECTURE.md</code>
+  </p>
+  <div id="log"></div>
+  <script type="module">
+    import { DownloaderClient } from "/client/downloader/consumer.js";
+
+    const logEl = document.getElementById("log");
+    const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; };
+    const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const sha = async (bytes) => hex(await crypto.subtle.digest("SHA-256", bytes));
+
+    const truth = [];
+    async function groundTruth(n) {
+      for (let i = 0; i < n; i++) {
+        const name = String(i).padStart(3, "0");
+        truth.push((await (await fetch(`/lab/fixtures/decode_c512/${name}.sha256`)).text()).trim());
+      }
+    }
+
+    async function check(frame) {
+      const flat = new Uint8Array(frame.bytes.length);
+      flat.set(frame.bytes);
+      const got = await sha(flat);
+      const ok = got === truth[frame.frameIndex];
+      return { ok, got, want: truth[frame.frameIndex] };
+    }
+
+    const FRAMES = 12;
+
+    async function main() {
+      log(`crossOriginIsolated=${globalThis.crossOriginIsolated} cores=${navigator.hardwareConcurrency}`);
+      if (!globalThis.crossOriginIsolated) { log("FATAL: not cross-origin isolated"); globalThis.__wtpacsDone = true; return; }
+      await groundTruth(FRAMES);
+      const cfg = await (await fetch("/wt/dev-transport.json")).json();
+      // D2d: the seam takes a module exporting TransportSession; absent, the downloader's default.
+      const transport = new URLSearchParams(location.search).get("transport") || undefined;
+
+      const fillFrames = [];
+      const t0 = performance.now();
+      const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
+        decoders: 3,
+        transport,
+        decoder: {
+          glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
+          wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
+          dir: "/lab/decode-bench/vendor/openjph",
+        },
+        onFrame: (f) => fillFrames.push(f),
+      });
+      log(`started, dialled and decoders up in ${(performance.now() - t0).toFixed(0)} ms\n`);
+
+      // 1 — a single ask, decoded, against the encoder's input
+      const one = await c.requestExactFrame(3);
+      const v1 = await check(one);
+      log(`single ask   frame 3: ${one.info.width}x${one.info.height}x${one.info.components} ` +
+          `${one.info.bits}-bit signed=${one.info.signed} range ${one.info.min}..${one.info.max} ` +
+          `${one.bytes.length} B  sha ${v1.ok ? "ok" : "MISMATCH"}`);
+      log(`             pixels arrived in a SharedArrayBuffer: ${one.info.pixels instanceof SharedArrayBuffer}`);
+      log(`             stats.inFlight after delivery: ${c.stats().inFlight}`);
+
+      // 2 — a fill, every frame checked
+      fillFrames.length = 0;
+      const want = [...Array(FRAMES).keys()];
+      const tFill = performance.now();
+      c.fill(want);
+      await new Promise((r) => {
+        const t = setInterval(() => { if (fillFrames.length >= FRAMES) { clearInterval(t); r(); } }, 10);
+        setTimeout(() => { clearInterval(t); r(); }, 30000);
+      });
+      const checks = await Promise.all(fillFrames.map(check));
+      const bad = checks.filter((v) => !v.ok).length;
+      log(`\nfill ${FRAMES}:     ${fillFrames.length}/${FRAMES} frames in ${(performance.now() - tFill).toFixed(0)} ms, ` +
+          `${bad === 0 ? "every frame byte-identical to the fixture" : bad + " MISMATCH"}`);
+      const seen = new Set(fillFrames.map((f) => f.frameIndex));
+      log(`             distinct indices: ${seen.size}/${FRAMES}`);
+
+      // 3 — stamps, which cross two worker boundaries and must not be the zeros a missing clock gives
+      const st = one.info.stamps;
+      const ordered = st.ask > 0 && st.lastByte >= st.ask && st.decodeEnd >= st.decodeStart && st.decodeStart >= st.dispatched;
+      log(`\nstamps:      ask→lastByte ${(st.lastByte - st.ask).toFixed(2)} ms, ` +
+          `dispatch→decodeEnd ${(st.decodeEnd - st.dispatched).toFixed(2)} ms, ` +
+          `all non-zero and in order: ${ordered ? "ok" : "NO"}`);
+
+      // 4 — a cancel, and the session still serving
+      fillFrames.length = 0;
+      c.fill(want);
+      await c.cancel();
+      const after = await c.requestExactFrame(5);
+      const v3 = await check(after);
+      log(`\ncancel:      the session still serves frame 5 afterwards: ${v3.ok ? "ok" : "MISMATCH"}`);
+
+      c.close();
+
+      // 5 — a session opened after a closure serves frames again
+      const again = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
+        decoders: 1,
+        decoder: {
+          glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
+          wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
+          dir: "/lab/decode-bench/vendor/openjph",
+        },
+      });
+      const v5 = await check(await again.requestExactFrame(1));
+      log(`re-dial:     a session opened after a closure serves frame 1: ${v5.ok ? "ok" : "MISMATCH"}`);
+      again.close();
+
+      log("\ndone");
+      globalThis.__wtpacsDone = true;
+    }
+
+    main().catch((e) => { log("FAILED: " + (e?.stack || e?.message || e)); globalThis.__wtpacsDone = true; });
+  </script>
+</body>
+</html>

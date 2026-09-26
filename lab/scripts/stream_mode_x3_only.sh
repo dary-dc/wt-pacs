@@ -110,7 +110,7 @@ for loss in ['0','0.1','0.5','2']:
 x1_mbps=float(x1[0]['mbps']) if x1 else None
 lines=[
 '# Stream mode decision — experiment report','',
-'**Date:** 2026-08-28 · **Campaign:** `docs/stream-mode-decision-experiments.md`','',
+'**Date:** 2026-08-28 · **Campaign:** `docs/adr-stream-shape.md`','',
 '## X1 — finish() gate',
 f'- Measured: **{x1_mbps} Mbps** (need ≥ 8.0)',
 f'- Result: **{"PASS" if x1_mbps and x1_mbps>=8 else "FAIL"}**','',

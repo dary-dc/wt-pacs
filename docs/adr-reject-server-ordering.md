@@ -11,7 +11,7 @@
 > the deque. **The rejection is safe on both architectures.** What is *not* transferable is the depth
 > arithmetic in §2, whose measured `D_min` values are architecture-specific — see
 > [`adr-client-window-depth.md`](adr-client-window-depth.md) and §3e of
-> [`window-saturation-experiment.md`](window-saturation-experiment.md).
+> [`adr-client-window-depth.md`](adr-client-window-depth.md).
 
 ---
 
@@ -100,7 +100,7 @@ a **cap on outstanding work**, which is robustness, not priority — and a seria
 because unread asks are bounded by QUIC stream flow control and each is served to completion before the
 next is read.
 
-Cleanup is tracked in [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md).
+The cleanup is done: the server keeps no ask queue (`server/src/transport/server.rs`).
 
 ---
 
@@ -115,4 +115,4 @@ size, tiling, or trace shape changes the answer.
 ## References
 
 - [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md) — the measured null result, §4 and §5 superseded here
-- [`window-saturation-experiment.md`](window-saturation-experiment.md) — the experiment that replaces the ordering sweep
+- [`adr-client-window-depth.md`](adr-client-window-depth.md) — the experiment that replaces the ordering sweep

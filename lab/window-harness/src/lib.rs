@@ -1,10 +1,11 @@
 //! Headless WebTransport client for window-saturation / HoL measurements.
 
 mod client;
+pub mod frames;
 mod metrics;
 mod stall;
 mod trace;
-mod wire;
+pub mod wire;
 
 pub use client::{
     center_asks_dropped, peak_outstanding, reset_peak_outstanding, run_depth_sweep, run_harness,

@@ -2,8 +2,8 @@
 
 **Status:** open — analysis recorded, decision deferred · **Date:** 2026-08-27 ·
 **Corrects:** the architecture comparison quoted in
-[`adr-client-window-depth.md`](adr-client-window-depth.md) and §4b of
-[`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md) ·
+[`adr-client-window-depth.md`](adr-client-window-depth.md) and §4b of the August cleanup plan
+(retired, in history) ·
 **Amends:** [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md)
 
 ---
@@ -146,7 +146,7 @@ measuring.
 **Status: built 2026-09-09.** Option B shipped: an ask-reader task owns `control_recv` and
 feeds a planner; `RequestFrame` and `RequestFrames` are the same `Ask::Frame` to the loop.
 The read path split on 2026-09-10 (`SeqReader` / `TileReader`). Historical cost of depth 1
-is the table below. [`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
+is the table below. [`adr.md`](disk-access/adr.md).
 
 Until then, `FodMsg::RequestFrame` was documented as "one frame per message (**depth =
 outstanding asks**)" and the server did not realise that depth. `run_session` read one
@@ -216,7 +216,7 @@ none of the table above — that number is device queueing, not wire time.
 **A page-cache hit still never touches the ring.** The read ahead probes with
 `RWF_NOWAIT` first, exactly as an on-demand read does, and only a shortfall is submitted.
 Anything else would rebuild the `uring` arm's +131% on hits
-([`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md) §The trap).
+([`adr.md`](disk-access/adr.md) §The trap).
 
 **This does not change the read arm.** At depth 1 `hybrid_lazyring` and `uring` tie; the
 choice between them only becomes interesting once this is built
@@ -234,7 +234,7 @@ uses. 16 missing tiles: 1.14 ms → 0.62 ms.
 ## 6c · Server-driven streaming
 
 **Status: built 2026-09-09.** Messages and the loop: [`disk-access/adr.md`](disk-access/adr.md),
-[`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
+[`adr.md`](disk-access/adr.md).
 
 This is the **fill** app mode. The client sends `StreamFrames` (empty = the whole study;
 optional `from` / `to` default to 0 and the last frame). Current use is start-to-end; `from`
@@ -282,7 +282,7 @@ there is no next ask to name.
 **Recommendation: B, not A.** A buys nothing over B and puts a cancel-safety hazard in the
 session loop's hot path. C is not enough: the two app modes are fill (`StreamFrames`) and
 on-demand (`RequestFrame` / `RequestFrames`), and fill needs the reader task.
-[`disk-access/IMPLEMENTATION.md`](disk-access/IMPLEMENTATION.md).
+[`adr.md`](disk-access/adr.md).
 
 Note the owners' requirement is **depth 4 or more**, and C alone does not reach it for a
 client that asks per tile: `RequestFrames` gives depth 2 today, and widening past two is a
@@ -322,7 +322,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
    generated stream indexes. The tile reader takes at most `slots − 1` of what the planner
    names; a fill takes `FILL_AHEAD`. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
-   ([`disk-access/NEXT.md`](disk-access/NEXT.md)). Depth 2 → 4 is a further
+   ([`adr.md`](disk-access/adr.md)). Depth 2 → 4 is a further
    0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion
    demultiplexer. Build the loop first — four asks in flight is worth nothing while the loop
    supplies one — then widen the read path with that measurement in hand.
@@ -339,5 +339,5 @@ the one thing the read path is built not to do.
 
 - [`adr-client-window-depth.md`](adr-client-window-depth.md) — the architecture comparison must be
   labelled as measuring a misplaced `await`, not framing
-- [`cleanup-plan-2026-08.md`](cleanup-plan-2026-08.md) §4b — the recommendation to default to the
-  shared stream stands, but for the reasons in §4 above, not the measurement it currently cites
+- the August cleanup plan's §4b (retired) — the shared-stream default stands, now on the measured
+  decision in [`adr-stream-shape.md`](adr-stream-shape.md), not the measurement it cited

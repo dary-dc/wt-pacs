@@ -31,13 +31,6 @@ export function decodeFodBody(body: Uint8Array): FodMsg {
   return JSON.parse(utf8Decoder.decode(body)) as FodMsg;
 }
 
-/** Frame envelope: [4B BE display_index][codestream…] */
-export function unwrapEnvelope(payload: Uint8Array): { index: number; codestream: Uint8Array } {
-  if (payload.length < 4) throw new Error("envelope too short");
-  const index = new DataView(payload.buffer, payload.byteOffset, payload.byteLength).getUint32(0, false);
-  return { index, codestream: payload.subarray(4) };
-}
-
 /** Max media frame length — matches server/harness guard. */
 export const MAX_FRAME_LEN = 64 * 1024 * 1024;
 

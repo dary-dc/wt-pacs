@@ -1,4 +1,4 @@
-//! What to serve next, decided without I/O. `docs/disk-access/IMPLEMENTATION.md`.
+//! What to serve next, decided without I/O. `docs/disk-access/adr.md`.
 
 use anyhow::Result;
 use std::collections::VecDeque;

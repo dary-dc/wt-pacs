@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><link rel="icon" href="data:," /><title>early messages</title></head>
+<body>
+<script type="module">
+  import { DownloaderClient } from "/client/downloader/consumer.js";
+  const q = new URLSearchParams(location.search);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const within = (p, ms) => Promise.race([p.then(() => true, () => false), sleep(ms).then(() => false)]);
+  let world = 0;
+
+  /** Each trial resolves true when the message posted before the other side listened arrived. */
+  const arms = {
+    async bc() {
+      const ch = `early-bc-${++world}`;
+      const page = new BroadcastChannel(ch);
+      const w = new Worker(`/lab/early-messages/bc-worker.js?ch=${ch}`, { type: "module" });
+      const pong = new Promise((r) => (w.onmessage = (e) => (e.data.constructed ? page.postMessage(1) : r())));
+      const ok = await within(pong, 1000);
+      w.terminate();
+      page.close();
+      return ok;
+    },
+    async harness() {
+      const w = new Worker("/harness/session-worker.js", { type: "module" });
+      const reply = new Promise((r) => (w.onmessage = r));
+      w.postMessage({ t: "close", id: 1 });
+      const ok = await within(reply, 1000);
+      w.terminate();
+      return ok;
+    },
+    async downloader() {
+      const ch = `early-dl-${++world}`;
+      const fake = fakeOn(ch);
+      const connect = DownloaderClient.connect("https://early.invalid/", "ab".repeat(32), {
+        decoders: 3,
+        transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
+        decoderWorker: "/client/conformance/fake-decoder.js",
+        decoder: { delayMs: 0 },
+      });
+      const frame = connect.then(async (client) => {
+        const asked = client.requestExactFrame(0);
+        await fake.push(0);
+        return asked;
+      });
+      const ok = await within(frame, 3000);
+      connect.then((client) => client.close(), () => {});
+      fake.close();
+      return ok;
+    },
+  };
+
+  /** The fake's own channel, behind its `listening` handshake: this arm tests the product, not it. */
+  function fakeOn(ch) {
+    const bc = new BroadcastChannel(ch);
+    let heard;
+    const listening = new Promise((r) => (heard = r));
+    bc.onmessage = (e) => e.data.listening && heard();
+    return {
+      push: async (i) => {
+        await listening;
+        bc.postMessage({ id: 1, cmd: "pushFrame", args: [i, new TextEncoder().encode(`frame-${i}`)] });
+      },
+      close: () => bc.close(),
+    };
+  }
+
+  const arm = q.get("arm");
+  const n = Number(q.get("n"));
+  const t0 = performance.now();
+  let lost = 0;
+  for (let i = 0; i < n; i++) if (!(await arms[arm]())) lost += 1;
+  const out = { arm, n, lost, ms: Math.round(performance.now() - t0) };
+  fetch(`http://127.0.0.1:${q.get("report")}/`, { method: "POST", body: JSON.stringify(out), keepalive: true });
+</script>
+</body>
+</html>

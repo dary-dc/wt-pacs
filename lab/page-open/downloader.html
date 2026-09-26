@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <!-- ?dns=ORIGIN resolves the transport's host while the page loads. lab/page-open/README.md -->
+  <script>
+    const dns = new URLSearchParams(location.search).get("dns");
+    if (dns) document.head.append(Object.assign(document.createElement("link"), { rel: "dns-prefetch", href: dns }));
+  </script>
+  <!-- The open is serial without these: each is otherwise discovered one round trip
+       later than it could be. lab/page-open/README.md -->
+  <link rel="preload" as="fetch" href="/wt/dev-transport.json" />
+  <link rel="modulepreload" href="/client/downloader/consumer.js" />
+  <link rel="preload" as="script" href="/client/downloader/downloader.js" />
+  <link rel="preload" as="script" href="/client/downloader/decoder.js" />
+  <link rel="preload" as="script" href="/client/transport-ts/dist/session.js" />
+  <link rel="preload" as="script" href="/lab/decode-bench/vendor/openjph/openjphjs.js" />
+  <link rel="preload" as="fetch" href="/lab/decode-bench/vendor/openjph/openjphjs.wasm" />
+  <title>page open — the downloader</title>
+</head>
+<body>
+  <div id="log"></div>
+  <script type="module">
+    /**
+     * R2's downloader arm: the product's own load path — consumer, downloader worker, decoder
+     * pool — and nothing else, so the milestones are the open and not a conformance run.
+     * lab/page-open/README.md
+     */
+    import { DownloaderClient } from "/client/downloader/consumer.js";
+
+    const open = (globalThis.__wtpacsOpen = {});
+    const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
+    const log = (s) => (document.getElementById("log").textContent += s + "\n");
+    mark("script");
+
+    try {
+      const cfg = await (await fetch("/wt/dev-transport.json")).json();
+      mark("config");
+      const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
+        decoders: 3,
+        decoder: {
+          glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
+          wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
+          dir: "/lab/decode-bench/vendor/openjph",
+        },
+      });
+      mark("session");
+      const f = await c.requestExactFrame(0);
+      mark("frame");
+      log(`${f.info.width}x${f.info.height} in ${open.frame} ms`);
+      c.close();
+    } catch (e) {
+      globalThis.__wtpacsError = String(e?.stack || e);
+      log("FAILED: " + globalThis.__wtpacsError);
+    }
+    globalThis.__wtpacsDone = true;
+  </script>
+</body>
+</html>

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// How the reader advances. `Closed` cannot answer a stream-shape question — `docs/transport/why-these-changes.md` §3.
+/// How the reader advances. `Closed` cannot answer a stream-shape question — `docs/transport/transport-conclusions.md` §2.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum ReaderMode {
     /// Block on each cursor. Prior campaigns; not for stream-shape work.
@@ -21,19 +21,37 @@ impl ReaderMode {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+/// The server's arm, as the run should be labelled. The reader accepts every uni the server
+/// opens regardless, so this names the cell rather than selecting a code path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StreamMode {
-    /// One persistent uni stream for the session.
     Shared,
-    /// One uni stream per frame.
+    Pool(std::num::NonZeroUsize),
     PerFrame,
 }
 
-impl StreamMode {
-    pub fn as_str(self) -> &'static str {
+impl std::fmt::Display for StreamMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Shared => "shared",
-            Self::PerFrame => "per-frame",
+            Self::Shared => f.write_str("shared"),
+            Self::Pool(k) => write!(f, "pool:{k}"),
+            Self::PerFrame => f.write_str("per-frame"),
+        }
+    }
+}
+
+impl std::str::FromStr for StreamMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "shared" => Ok(Self::Shared),
+            "per-frame" => Ok(Self::PerFrame),
+            _ => s
+                .strip_prefix("pool:")
+                .and_then(|k| k.parse().ok())
+                .map(Self::Pool)
+                .ok_or_else(|| format!("expected `shared`, `per-frame` or `pool:<k>`, got `{s}`")),
         }
     }
 }
@@ -441,7 +459,7 @@ impl MetricsState {
             mode: mode.to_string(),
             read_bps,
             depth,
-            stream_mode: stream_mode.as_str().to_string(),
+            stream_mode: stream_mode.to_string(),
             peak_outstanding: crate::client::peak_outstanding(),
             arm_label: arm_label.to_string(),
             wanted_frame: self.wanted_frame,

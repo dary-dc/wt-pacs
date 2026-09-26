@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs harness — hold an idle session</title>
+</head>
+<body>
+  <h1>idle hold</h1>
+  <p>Dial, send nothing for <code>hold</code> ms, then ask for a frame. Alive means the frame arrives.</p>
+  <div id="log" style="white-space:pre;font-family:monospace"></div>
+  <script type="module">
+    import { TransportSession } from "/client/transport-ts/dist/session.js";
+    const logEl = document.getElementById("log");
+    const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; };
+    const q = new URLSearchParams(location.search);
+    const holdMs = Number(q.get("hold") || 0);
+
+    (async () => {
+      const cfg = await (await fetch("/wt/dev-transport.json")).json();
+      const t0 = performance.now();
+      const s = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
+      log(`dialled in ${(performance.now() - t0).toFixed(0)} ms`);
+
+      // A frame before the hold, so "alive after" is a change and not a first attempt.
+      try {
+        await s.requestExactFrame(0);
+        log("before hold: frame 0 arrived");
+      } catch (e) {
+        log("before hold: FAILED " + e.message);
+      }
+
+      log(`holding ${holdMs} ms, sending nothing…`);
+      const held0 = performance.now();
+      await new Promise((r) => setTimeout(r, holdMs));
+      const held = ((performance.now() - held0) / 1000).toFixed(1);
+
+      const closed = s.stats().closed;
+      let alive = false;
+      let why = "";
+      try {
+        await s.requestExactFrame(1);
+        alive = true;
+      } catch (e) {
+        why = e.message;
+      }
+      log(`after ${held}s: alive=${alive}${alive ? "" : "  reason: " + why}`);
+      log(`session.stats().closed = ${JSON.stringify(closed)}`);
+      globalThis.__wtpacsResult = { holdMs, held: Number(held), alive, why, closed };
+      globalThis.__wtpacsDone = true;
+    })().catch((e) => { log("FAILED " + (e?.stack || e?.message)); globalThis.__wtpacsDone = true; });
+  </script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs conformance — an ask during a fill, on the real server</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>an ask during a fill — the server's semantics, seen from the client</h1>
+  <p>
+    On the wire an ask ends a running fill and is served next (<code>docs/WIRE.md</code>).
+    The raw client sees exactly that, and the rest arrives only once asked again; the downloader asks
+    again by itself. <code>?arm=ts|ws|downloader|downloader-ws</code> · <code>wt=</code>/<code>hash=</code> override
+    <code>/wt/dev-transport.json</code>. <code>client/conformance/run_wire.sh</code> drives this from the gate.
+  </p>
+  <div id="log"></div>
+  <script type="module">
+    const q = new URLSearchParams(location.search);
+    const arm = q.get("arm") || "ts";
+    const FILL = Number(q.get("fill") || 120);
+    const ASK = Number(q.get("askFrame") || 190);
+    const AT = Number(q.get("at") || 20);
+    const logEl = document.getElementById("log");
+    const log = (s) => { logEl.textContent += s + "\n"; };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    let ran = 0;
+    let failed = 0;
+    const check = (cond, what) => { ran += 1; if (!cond) { failed += 1; log(`  FAIL: ${what}`); } };
+    /** Resolves once `count()` has not changed for `ms`, or after 5 s. */
+    async function quiet(count, ms) {
+      const t0 = performance.now();
+      let last = count();
+      let since = t0;
+      while (performance.now() - t0 < 5000) {
+        await sleep(50);
+        const c = count();
+        if (c !== last) { last = c; since = performance.now(); }
+        else if (performance.now() - since >= ms) return;
+      }
+    }
+    const served = (p, ms = 3000) => Promise.race([p.then((r) => r, () => null), sleep(ms).then(() => null)]);
+
+    try {
+      const cfg = q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : await (await fetch("/wt/dev-transport.json")).json();
+      if (arm === "ts" || arm === "ws") {
+        const { TransportSession } = await import(`/client/transport-ts/dist/${arm === "ws" ? "ws-session" : "session"}.js`);
+        const s = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
+        const got = [];
+        let askP = null;
+        let askAt = 0;
+        s.fillFrames(0, FILL - 1, (f) => {
+          got.push(f.frameIndex);
+          if (got.length === AT && !askP) { askAt = performance.now(); askP = s.requestExactFrame(ASK); }
+        });
+        while (!askP) await sleep(10);
+        const asked = await served(askP);
+        check(asked?.frameIndex === ASK, `${arm}: the ask is served during the fill (${asked ? (performance.now() - askAt).toFixed(0) + " ms" : "not within 3 s"})`);
+        await quiet(() => got.length, 500);
+        const delivered = got.length;
+        check(delivered >= AT && delivered < FILL, `${arm}: the server ended the fill — ${delivered} of ${FILL} arrived, then nothing`);
+        const rest = [];
+        if (delivered < FILL) s.fillFrames(delivered, FILL - 1, (f) => rest.push(f.frameIndex));
+        await quiet(() => rest.length, 500);
+        check(delivered < FILL && rest.length === FILL - delivered, `${arm}: asked again, the remaining ${FILL - delivered} arrive (${rest.length} did)`);
+        s.close();
+      } else {
+        const { DownloaderClient } = await import("/client/downloader/consumer.js");
+        const got = [];
+        let askP = null;
+        const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
+          decode: false,
+          decoders: 0,
+          transport: arm === "downloader-ws" ? "/client/transport-ts/dist/ws-session.js" : undefined,
+          onFrame: (f) => { got.push(f.frameIndex); if (got.length === AT && !askP) askP = c.requestExactFrame(ASK); },
+        });
+        c.fill(Array.from({ length: FILL }, (_, i) => i));
+        while (!askP) await sleep(10);
+        const asked = await served(askP);
+        check(asked?.frameIndex === ASK, `${arm}: the ask is served during the fill`);
+        await quiet(() => got.length, 500);
+        check(got.length === FILL, `${arm}: the fill completes without being asked again (${got.length} of ${FILL})`);
+        check(new Set(got).size === got.length, `${arm}: no frame arrives twice`);
+        c.close();
+      }
+      log(`\nask-during-fill (${arm}): ${ran - failed}/${ran} checks passed`);
+    } catch (e) {
+      failed += 1;
+      log("FAILED: " + (e?.stack || e?.message || e));
+    }
+    globalThis.__wtpacsFailed = failed;
+    globalThis.__wtpacsDone = true;
+  </script>
+</body>
+</html>

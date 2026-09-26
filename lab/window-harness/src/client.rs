@@ -1,5 +1,5 @@
 use crate::metrics::{
-    HarnessMetrics, HarnessMode, ReaderMode, RunConfig, SharedMetrics, StreamMode, WindowShape,
+    HarnessMetrics, HarnessMode, ReaderMode, RunConfig, SharedMetrics, WindowShape,
 };
 use crate::trace::TraceSpec;
 use crate::wire::{read_framed_paced, write_fod_msg, LinkPacer};
@@ -186,32 +186,16 @@ pub async fn run_harness(
     let in_flight_uni = Arc::clone(&in_flight);
     let pacer_uni = Arc::clone(&pacer);
     let rtt_ms = cfg.rtt_ms;
-    let stream_mode = cfg.stream_mode;
     let uni_task = tokio::spawn(async move {
-        let r = match stream_mode {
-            StreamMode::Shared => {
-                shared_stream_loop(
-                    conn_uni,
-                    metrics_uni,
-                    outstanding_uni,
-                    in_flight_uni,
-                    pacer_uni,
-                    rtt_ms,
-                )
-                .await
-            }
-            StreamMode::PerFrame => {
-                accept_uni_loop(
-                    conn_uni,
-                    metrics_uni,
-                    outstanding_uni,
-                    in_flight_uni,
-                    pacer_uni,
-                    rtt_ms,
-                )
-                .await
-            }
-        };
+        let r = accept_and_read_loop(
+            conn_uni,
+            metrics_uni,
+            outstanding_uni,
+            in_flight_uni,
+            pacer_uni,
+            rtt_ms,
+        )
+        .await;
         if let Err(err) = r {
             eprintln!("uni loop ended: {err:#}");
         }
@@ -517,7 +501,7 @@ struct Want {
     wanted_at: std::time::Instant,
 }
 
-/// Advances on the trace's wall clock, never waiting for the transport. docs/transport/why-these-changes.md §3.
+/// Advances on the trace's wall clock, never waiting for the transport. docs/transport/transport-conclusions.md §2.
 async fn run_reader_open_loop(
     control_send: &mut wtransport::stream::SendStream,
     trace: &TraceSpec,
@@ -839,44 +823,11 @@ async fn on_frame_arrived(
     m.on_envelope(index, wire_len);
 }
 
-/// One shared uni stream of `[4B BE envelope_len][envelope]`. Post-processing is spawned so
-/// the read loop is never blocked by it.
-async fn shared_stream_loop(
-    connection: Connection,
-    metrics: SharedMetrics,
-    outstanding: Arc<Mutex<HashSet<u32>>>,
-    in_flight: Arc<Mutex<u32>>,
-    pacer: Arc<tokio::sync::Mutex<LinkPacer>>,
-    rtt_ms: u64,
-) -> Result<()> {
-    let mut recv = match connection.accept_uni().await {
-        Ok(s) => s,
-        Err(_) => return Ok(()),
-    };
-    loop {
-        let payload = match read_framed_paced(&mut recv, &pacer).await {
-            Ok(p) => p,
-            Err(_) => break,
-        };
-        let (index, body) = match unwrap(&payload) {
-            Ok(v) => v,
-            Err(err) => {
-                eprintln!("unwrap error: {err}");
-                break;
-            }
-        };
-        let wire_len = (4 + body.len()) as u64;
-        let metrics = Arc::clone(&metrics);
-        let outstanding = Arc::clone(&outstanding);
-        let in_flight = Arc::clone(&in_flight);
-        tokio::spawn(async move {
-            on_frame_arrived(index, wire_len, &metrics, &outstanding, &in_flight, rtt_ms).await;
-        });
-    }
-    Ok(())
-}
-
-async fn accept_uni_loop(
+/// Every uni the server opens, each carrying `[4B BE envelope_len][envelope]` frames until it
+/// ends: one stream for `shared`, `k` for `pool:k`, one per frame for `per-frame`. One reader
+/// for all three, so an arm's numbers never carry a reader difference. Post-processing is
+/// spawned so no read loop is blocked by it.
+async fn accept_and_read_loop(
     connection: Connection,
     metrics: SharedMetrics,
     outstanding: Arc<Mutex<HashSet<u32>>>,
@@ -894,29 +845,27 @@ async fn accept_uni_loop(
         let in_flight = Arc::clone(&in_flight);
         let pacer = Arc::clone(&pacer);
         tokio::spawn(async move {
-            let payload = match read_framed_paced(&mut recv, &pacer).await {
-                Ok(p) => p,
-                Err(err) => {
-                    eprintln!("uni read error: {err:#}");
-                    return;
-                }
-            };
-            let (index, body) = match unwrap(&payload) {
-                Ok(v) => v,
-                Err(err) => {
-                    eprintln!("unwrap error: {err}");
-                    return;
-                }
-            };
-            on_frame_arrived(
-                index,
-                (4 + body.len()) as u64,
-                &metrics,
-                &outstanding,
-                &in_flight,
-                rtt_ms,
-            )
-            .await;
+            loop {
+                let payload = match read_framed_paced(&mut recv, &pacer).await {
+                    Ok(p) => p,
+                    Err(_) => break,
+                };
+                let (index, body) = match unwrap(&payload) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        eprintln!("unwrap error: {err}");
+                        break;
+                    }
+                };
+                let wire_len = (4 + body.len()) as u64;
+                let metrics = Arc::clone(&metrics);
+                let outstanding = Arc::clone(&outstanding);
+                let in_flight = Arc::clone(&in_flight);
+                tokio::spawn(async move {
+                    on_frame_arrived(index, wire_len, &metrics, &outstanding, &in_flight, rtt_ms)
+                        .await;
+                });
+            }
         });
     }
     Ok(())

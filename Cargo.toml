@@ -22,3 +22,14 @@ bytes = "1"
 tokio = { version = "1.53", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Measured: docs/transport/transport-conclusions.md §4.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+# The server's SETTINGS in its handshake flight: docs/ARCHITECTURE.md §Lever 2.
+[patch.crates-io]
+wtransport = { path = "patched/wtransport" }
+# A server's handshake probe repeats its whole flight: docs/ARCHITECTURE.md §What lever 2 costs.
+quinn-proto = { path = "patched/quinn-proto" }

@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>range pass</title>
+<script type="module">
+// The decoder worker's range pass, in a worker, on SharedArrayBuffer pixels: the product's loop
+// against one that keeps min and max as integers. docs/decode/README.md §The decode tail on a slow CPU
+const worker = `
+function product(view, bits, signed) {
+  let min = Infinity;
+  let max = -Infinity;
+  const shift = 16 - bits;
+  for (let i = 0; i < view.length; i++) {
+    let v = view[i];
+    if (signed && shift > 0) {
+      v = (v << shift) >> shift;
+      view[i] = v;
+    }
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return { min, max };
+}
+function ints(view, bits, signed) {
+  const shift = 16 - bits;
+  if (signed && shift > 0) for (let i = 0; i < view.length; i++) view[i] = (view[i] << shift) >> shift;
+  let min = view[0];
+  let max = min;
+  for (let i = 1; i < view.length; i++) {
+    const v = view[i];
+    if (v < min) min = v;
+    else if (v > max) max = v;
+  }
+  return { min, max };
+}
+const FNS = { product, ints };
+onmessage = ({ data: { arm, shape, n } }) => {
+  const [Kind, len, bits, signed] = shape === "c512" ? [Uint8Array, 512 * 512 * 3, 8, false]
+    : shape === "g512" ? [Uint16Array, 512 * 512, 16, false] : [Int16Array, 512 * 512, 12, true];
+  const out = [];
+  let result;
+  for (let k = 0; k < n; k++) {
+    const v = new Kind(new SharedArrayBuffer(len * Kind.BYTES_PER_ELEMENT));
+    // Image-like: a smooth field with texture, spanning most of the range.
+    const top = (1 << bits) - 1;
+    for (let i = 0; i < len; i++) v[i] = (((i % 512) * 7 + ((i / 512) | 0) * 3 + (i * 2654435761 >>> 27)) % top) & top;
+    const t = performance.now();
+    result = FNS[arm](v, bits, signed);
+    out.push(performance.now() - t);
+  }
+  postMessage({ out, result });
+};`;
+const w = new Worker(URL.createObjectURL(new Blob([worker], { type: "text/javascript" })));
+globalThis.run = (arm, shape, n) => new Promise((r) => { w.onmessage = (e) => r(e.data); w.postMessage({ arm, shape, n }); });
+globalThis.ready = true;
+</script>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs lab — the same fill and asks over QUIC, a WebSocket and the race</title>
+</head>
+<body>
+  <p>Driven by <code>lab/tcp-fallback/run.mjs</code>: <code>runArm()</code> fills a study through the
+  downloader on one transport, asks frames outside the fill while it runs and inside it after, and
+  hashes every frame against the source. Correctness only; see the README.</p>
+  <script type="module">
+    import { DownloaderClient } from "/client/downloader/consumer.js";
+
+    const BUNDLE = { wt: undefined, ws: "ws-session.js", race: "race-session.js" };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const hex = async (bytes) =>
+      [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    /** Frames `0..fill-1` as a fill; `during` asked once `at` of them have landed; `after` asked once it completes. */
+    globalThis.runArm = async ({ arm, url, hash, expected, fill, at, during, after }) => {
+      const bundle = BUNDLE[arm];
+      const frames = new Map();
+      let duplicates = 0;
+      let asks = null;
+      const keep = (f) => {
+        if (frames.has(f.frameIndex)) duplicates += 1;
+        frames.set(f.frameIndex, f.bytes);
+      };
+      const c = await DownloaderClient.connect(url, hash, {
+        decode: false,
+        decoders: 0,
+        transport: bundle && `/client/transport-ts/dist/${bundle}`,
+        onFrame: (f) => {
+          keep(f);
+          if (frames.size === at && !asks) asks = Promise.all(during.map((i) => c.requestExactFrame(i).then(keep, () => {})));
+        },
+      });
+      c.fill(Array.from({ length: fill }, (_, i) => i));
+      const t0 = performance.now();
+      while (frames.size < fill + during.length && performance.now() - t0 < 60000) await sleep(20);
+      await asks;
+      // A frame that failed is missing from `frames`, and counted as not bit-exact.
+      await Promise.all(after.map((i) => c.requestExactFrame(i).then((f) => frames.set(`after-${i}`, f.bytes), () => {})));
+      c.close();
+
+      const exact = async (key, index) => frames.has(key) && (await hex(frames.get(key))) === expected[index];
+      const count = async (keys) => (await Promise.all(keys.map(([k, i]) => exact(k, i)))).filter(Boolean).length;
+      return {
+        fill: await count(Array.from({ length: fill }, (_, i) => [i, i])),
+        during: await count(during.map((i) => [i, i])),
+        after: await count(after.map((i) => [`after-${i}`, i])),
+        duplicates,
+      };
+    };
+    globalThis.__ready = true;
+  </script>
+</body>
+</html>

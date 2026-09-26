@@ -5,10 +5,11 @@ use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
 use crate::transport::frame_out::FrameOut;
 use crate::transport::planner::Mode;
-use crate::transport::wire::write_fod_msg;
+use crate::transport::wire::Control;
 use anyhow::{Error, Result};
 use fod::FodMsg;
 use std::sync::Arc;
+use tokio::sync::oneshot;
 use tracing::{info, warn};
 use wtransport::stream::SendStream;
 
@@ -72,7 +73,9 @@ pub(crate) struct ProductPipeline {
     seq: Option<SeqReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
-    control: Option<SendStream>,
+    control: Option<Control>,
+    /// The opening ask is served before the client opens control, so a refusal of it waits here.
+    late_control: Option<oneshot::Receiver<SendStream>>,
     fills: u64,
 }
 
@@ -85,12 +88,18 @@ impl ProductPipeline {
             tile: None,
             mode: ReadMode::from_env(),
             control: None,
+            late_control: None,
             fills: 0,
         }
     }
 
-    pub(crate) fn with_control(mut self, control: SendStream) -> Self {
+    pub(crate) fn with_control(mut self, control: Control) -> Self {
         self.control = Some(control);
+        self
+    }
+
+    pub(crate) fn with_late_control(mut self, control: oneshot::Receiver<SendStream>) -> Self {
+        self.late_control = Some(control);
         self
     }
 }
@@ -137,17 +146,20 @@ impl FramePipeline for ProductPipeline {
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
         let reason = err.to_string();
         warn!(frame, %reason, "frame refused");
+        if self.control.is_none() {
+            if let Some(late) = self.late_control.take() {
+                self.control = late.await.ok().map(Control::Stream);
+            }
+        }
         let Some(control) = self.control.as_mut() else {
             return Ok(());
         };
-        write_fod_msg(
-            control,
-            &FodMsg::FrameError {
+        control
+            .write(&FodMsg::FrameError {
                 frame_index: frame,
                 reason,
-            },
-        )
-        .await
+            })
+            .await
     }
 
     async fn drain_acks(&mut self) {
@@ -161,7 +173,7 @@ impl FramePipeline for ProductPipeline {
 
 impl Drop for ProductPipeline {
     /// In `Drop` because a session ends several ways, and a miss rate only some of them
-    /// report is worse than none. `docs/disk-access/IMPLEMENTATION.md` §Reporting.
+    /// report is worse than none. `docs/disk-access/adr.md` §Reporting.
     fn drop(&mut self) {
         let seq = self.seq.as_ref().map(SeqReader::stats).unwrap_or_default();
         let tile = self
@@ -343,7 +355,7 @@ mod tests {
 
     /// **The seam.** `serve`'s default body turns the planner's frame indexes into the spans
     /// the read path starts on. Nothing on the wire and no other test can see that line, so
-    /// this one owns it. `docs/disk-access/IMPLEMENTATION.md`.
+    /// this one owns it. `docs/disk-access/adr.md`.
     #[test]
     fn serve_hands_every_named_frame_to_the_read_path_as_a_span() {
         let (path, mut rec) = recorder("seam", 4);

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2 miss cost on cloud — mild cell trace (reversal @ 60%). docs/window-saturation-experiment.md §2
+# E2 miss cost on cloud — mild cell trace (reversal @ 60%). docs/adr-client-window-depth.md §E2 — what a cache miss costs
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

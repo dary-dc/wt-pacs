@@ -2,7 +2,7 @@
 //!
 //! Two constraints are easy to undo by accident: tokio migrates a task between workers, so
 //! `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable, and blocking in `io_uring_enter` would
-//! be the stall this exists to prevent. `docs/disk-access/IMPLEMENTATION.md`.
+//! be the stall this exists to prevent. `docs/disk-access/adr.md`.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
@@ -148,7 +148,7 @@ mod tests {
     /// The mid-flight state is built directly rather than by racing `task.abort()`, which
     /// cannot reach it: a ring read that completes inline never yields for the abort to land
     /// on. Without a sanitiser the wait itself is the only observable, hence
-    /// [`DRAINED_ON_DROP`]. `docs/disk-access/IMPLEMENTATION.md` §Test plan.
+    /// [`DRAINED_ON_DROP`]. `docs/disk-access/adr.md` §Test plan.
     #[test]
     fn dropping_a_reader_mid_read_waits_for_the_kernel() {
         let dir = std::env::temp_dir().join(format!("wtpacs-ring-drop-{}", std::process::id()));
