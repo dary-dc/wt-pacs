@@ -49,7 +49,10 @@ function decodeFrame(bytes, t = {}) {
   const view = wide
     ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))
     : (info.isSigned ? new Int8Array(sab) : new Uint8Array(sab));
-  const range = dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
+  const unranged = info.componentCount === 3 && info.bitsPerSample === 8 && !info.isSigned;
+  const range = unranged
+    ? { min: 0, max: 255 }
+    : dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
   return { info, sab, byteCount: out.length, range };
 }
 

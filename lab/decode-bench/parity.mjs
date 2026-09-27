@@ -8,7 +8,7 @@ import { instance, loadFixture, sha256 } from './decoder.mjs';
 
 // The product's own range pass, from the worker module: its handler slot must exist before it loads.
 globalThis.onmessage ??= null;
-const { finish } = await import('../../client/downloader/decoder.js');
+const { finish, unranged } = await import('../../client/downloader/decoder.js');
 
 const require = createRequire(import.meta.url);
 const armsDir = process.env.ARMS || path.join(process.cwd(), 'lab/.openjph-build/wasm');
@@ -51,8 +51,12 @@ function decodeWith(d, bytes) {
   return { surface: s, pixels: Buffer.from(d.getDecodedBuffer()), range: d.getRange ? plain(d.getRange()) : null };
 }
 
-/** The range decoder.js's own pass takes over these pixels: what the page gets today. */
+/**
+ * The range decoder.js's own pass takes over these pixels: what the page gets today. A frame it
+ * gives a constant must have had none taken as it was packed, so the build's range is empty there.
+ */
 function passRange(pixels, info) {
+  if (unranged(info)) return plain({ min: 255, max: 0 });
   const bytes = new Uint8Array(pixels);
   const wide = info.bitsPerSample > 8;
   const view = wide

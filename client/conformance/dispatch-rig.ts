@@ -734,7 +734,8 @@ async function aFrameCarriesItsWireBytes(
 /**
  * A frame's range comes from the decoder when the decoder takes it as it packs, and from the
  * worker's own pass when it does not: the package's range is its pixels' own, and a decoder
- * answering `getRange()` is taken at its word, pass skipped. docs/decode/README.md §The range in the pack
+ * answering `getRange()` is taken at its word, pass skipped. An 8-bit colour frame's is its sample
+ * type's, whatever the decoder answers. docs/decode/README.md §The range in the pack
  */
 async function aFrameCarriesItsDecodersRangeOrItsOwn(
   DownloaderClient: DownloaderCtor,
@@ -744,8 +745,10 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(
   const dir = "/lab/decode-bench/vendor/openjph";
   const ok = await fetch(`${dir}/openjphjs.js`, { method: "HEAD" }).then((r) => r.ok, () => false);
   if (!ok) return void log(`  SKIPPED: a frame's range — no ${dir} (bash lab/decode-bench/fetch_decoder.sh)`);
-  const codestream = new Uint8Array(await (await fetch("/client/downloader/warmup/colour-8.j2c")).arrayBuffer());
-  const rangeOf = async (glue: string) => {
+  const bytesOf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+  const grey = await bytesOf("/client/downloader/warmup/grey-16.j2c");
+  const colour = await bytesOf("/client/downloader/warmup/colour-8.j2c");
+  const rangeOf = async (glue: string, codestream: Uint8Array) => {
     const got: Frame[] = [];
     const { c, fake } = await open(DownloaderClient, {
       decoders: 1, perDecoder: 2, delayMs: 0,
@@ -758,15 +761,23 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(
     c.close();
     return got[0];
   };
+  const pkg = `${dir}/openjphjs.js`;
+  const glue = "/client/conformance/range-glue.js";
 
-  const own = await rangeOf(`${dir}/openjphjs.js`);
+  const own = await rangeOf(pkg, grey);
   let [min, max] = [Infinity, -Infinity];
-  for (const v of own?.bytes ?? []) [min, max] = [Math.min(min, v), Math.max(max, v)];
+  const samples = own ? new Uint16Array(own.bytes.buffer, own.bytes.byteOffset, own.bytes.length / 2) : [];
+  for (const v of samples) [min, max] = [Math.min(min, v), Math.max(max, v)];
   check(own !== undefined && own.info.min === min && own.info.max === max,
     `range: a decoder without one gets the worker's pass (${own?.info.min}..${own?.info.max}, pixels ${min}..${max})`);
-  const told = await rangeOf("/client/conformance/range-glue.js");
+  const told = await rangeOf(glue, grey);
   check(told?.info.min === -7 && told?.info.max === 7,
     `range: a decoder that takes its own is taken at its word (${told?.info.min}..${told?.info.max})`);
+  for (const [name, g] of [["the package", pkg], ["a decoder with its own", glue]]) {
+    const f = await rangeOf(g, colour);
+    check(f?.info.min === 0 && f?.info.max === 255,
+      `range: an 8-bit colour frame through ${name} carries 0..255, no pass taken (${f?.info.min}..${f?.info.max})`);
+  }
 }
 
 /** The fake answers over a channel, so a condition that reads its wire has to be awaited. */

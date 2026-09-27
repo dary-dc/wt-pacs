@@ -14,6 +14,7 @@
 #   g256   256x256  1x16-bit  greyscale  128 KB decoded
 #   g512   512x512  1x16-bit  greyscale  512 KB decoded
 #   c512   512x512  3x8-bit   colour     768 KB decoded
+#   g8     512x512  1x8-bit   greyscale  256 KB decoded, the 8-bit frame that still takes a range
 # warmup_c and warmup_g are the client's warm-up frames rather than a bench set: 160x160 of each
 # shape the product serves, content that still reaches the block decoder — docs/decode/README.md.
 #   g1024  1024x1024 1x16-bit greyscale  2 MB decoded
@@ -60,6 +61,7 @@ for size in "${SIZES[@]}"; do
     g160)  w=160;  h=160;  ch=1; depth=65535 ;;
     g256)  w=256;  h=256;  ch=1; depth=65535 ;;
     c512)  w=512;  h=512;  ch=3; depth=255 ;;
+    g8)    w=512;  h=512;  ch=1; depth=255 ;;
     g512)  w=512;  h=512;  ch=1; depth=65535 ;;
     g1024) w=1024; h=1024; ch=1; depth=65535 ;;
     g2048) w=2048; h=2048; ch=1; depth=65535 ;;

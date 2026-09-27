@@ -25,6 +25,9 @@ export function finish(view, bits, signed) {
   return { min, max };
 }
 
+/** Nothing reads an 8-bit colour frame's range — its window comes from the tags — so no pass takes it. */
+export const unranged = (info) => info.componentCount === 3 && info.bitsPerSample === 8 && !info.isSigned;
+
 function decodeFrame(bytes) {
   // Already a Uint8Array over the transferred buffer; re-wrapping copied it for nothing (S14).
   dec.getEncodedBuffer(bytes.length).set(bytes);
@@ -46,7 +49,9 @@ function decodeFrame(bytes) {
     ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))
     : (info.isSigned ? new Int8Array(sab) : new Uint8Array(sab));
   // A build that takes the range as it packs has sign-extended already. docs/decode/README.md §The range in the pack
-  const range = dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
+  const range = unranged(info)
+    ? { min: 0, max: 255 }
+    : dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
   return { info, sab, byteCount: out.length, range };
 }
 

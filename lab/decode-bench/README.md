@@ -5,7 +5,7 @@ every number these produce.
 
 ```bash
 lab/decode-bench/fetch_decoder.sh                       # decoder from npm, pinned; not committed
-lab/scripts/gen_htj2k_fixtures.sh g160 g256 g512 c512 g1024 g2048 s512 s12   # s*: signed, see below
+lab/scripts/gen_htj2k_fixtures.sh g160 g256 g512 c512 g8 g1024 g2048 s512 s12   # s*: signed, see below
 node lab/decode-bench/decode_bench.mjs lab/fixtures/decode_g512
 node lab/decode-bench/copy_cost.mjs lab/fixtures/decode_g512 lab/fixtures/decode_g2048
 ```

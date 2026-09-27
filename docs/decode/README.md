@@ -724,9 +724,44 @@ and rounds `built` was sooner:
 * **The colour fill is decode-bound and takes all of it**: a third off at 4–6×. The 16-bit fill is
   wire-bound at 4–6× and does not move; its asks halve.
 * **The pack's min/max is small but not free**: +0.5 ms of WASM (+6.6 %, 1/7) on a colour frame at
-  1×, noise at 4–6×. A colour frame shown through a window does not need a range; skipping it there
-  is not built. The 16-bit WASM medians at 4–6× swing both ways on 4–12 ms of work — the throttle's
-  tick; the decoder-time and ask columns are the claim.
+  1×, noise at 4–6×. *Since skipped there* — §An 8-bit colour frame takes no range. The 16-bit WASM
+  medians at 4–6× swing both ways on 4–12 ms of work — the throttle's tick; the decoder-time and ask
+  columns are the claim.
+
+### An 8-bit colour frame takes no range
+
+Nothing reads an 8-bit colour frame's range — its window comes from the tags — so neither side takes
+one there (row 83). `pack` has a template flag `Ranged`, and the min/max run only under it: `false`
+for an unsigned 8-bit 3-component frame, `true` for everything else, 16-bit always; the loops are
+otherwise the old ones, with no runtime `if`. `getRange()` is empty (min > max) for such a frame, and
+`decoder.js` gives it the sample type's range, 0..255, with no pass, whichever decoder it holds
+(`unranged`, which must match the wrapper's test).
+
+**Bit-exact.** `parity.mjs` over c512, g8, g512, s12, s512 and sat256, 522 frames: pixels identical to
+the package and the encoder's input; `getRange()` identical to `finish()` wherever a range is taken
+and empty wherever `unranged` holds, so the two tests cannot drift apart. `g8`, 512² 8-bit grey, is
+new: the one 8-bit frame that still takes a range. Mutants, each caught: min −1 and max +1 (522/522),
+the range read from the narrowed unsigned sample (s12 and s512, 174), the skip widened to 8-bit grey
+in the wrapper or in `unranged` (g8, 87), `unranged` never true (c512, 87); the row-80 wrapper itself
+fails on c512 alone. In the gate, `dispatch-rig.ts` holds `decoder.js` to 0..255 on the colour
+warm-up frame through the package (pixels 0..199) and through `range-glue.js` (which answers −7..7);
+the constant dropped or one short fails both.
+
+**The WASM call** (`build_arms.mjs`, Node, container, 20 timed rounds rotated, two runs led by either
+arm; medians, ms/frame):
+
+| set | before row 80 | row 80 | row 83 |
+| --- | ---: | ---: | ---: |
+| c512, colour | 6.117 · 6.129 | 6.322 · 6.263 | 6.148 · 6.187 |
+| g512, 16-bit | 2.498 · 2.484 | 2.520 · 2.469 | 2.454 · 2.463 |
+| g8, 8-bit grey | 1.807 · 1.813 | 1.821 · 1.820 | 1.799 · 1.825 |
+
+* **Colour is back to the pre-row-80 figure**: against row 80, 18/20 and 14/20 rounds faster (−2.8 %,
+  −1.2 %); against the wrapper before row 80, a tie (10/20 in the second run). On this host the pack's
+  min/max was 0.1–0.2 ms, under the 5 % bar; the workstation's 0.5 ms is its own figure.
+* **16-bit keeps row 80's win**: its code is unchanged and the WASM call ties; the win was never in
+  the call but in `decoder.js` taking `getRange()` instead of walking the pixels, which it still does.
+  Only the WASM call was timed here.
 
 **Not yet in the product's decoder**: §The build, as delivered predates it.
 

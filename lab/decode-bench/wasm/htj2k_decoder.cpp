@@ -34,10 +34,10 @@ struct FrameInfo {
   bool isSigned = false, isUsingColorTransform = false;
 };
 
-// Clamp, narrow and interleave one pulled line into the frame, widening `range` by it. A
-// single-component frame is contiguous and is the case -msimd128 can take;
+// Clamp, narrow and interleave one pulled line into the frame, widening `range` by it when
+// `Ranged`. A single-component frame is contiguous and is the case -msimd128 can take;
 // docs/decode/README.md §The wrapper's two passes, §The range in the pack.
-template <typename T>
+template <typename T, bool Ranged>
 void pack(const ojph::si32* src, uint8_t* dst, uint32_t w, uint32_t comps, int32_t lo,
           int32_t top, Range& range) {
   int32_t mn = range.min, mx = range.max;
@@ -46,8 +46,10 @@ void pack(const ojph::si32* src, uint8_t* dst, uint32_t w, uint32_t comps, int32
     for (uint32_t x = 0; x < w; ++x) {
       const int32_t v = src[x] < lo ? lo : (src[x] > top ? top : src[x]);
       out[x] = (T)v;
-      mn = v < mn ? v : mn;
-      mx = v > mx ? v : mx;
+      if constexpr (Ranged) {
+        mn = v < mn ? v : mn;
+        mx = v > mx ? v : mx;
+      }
     }
   } else {
     const size_t stride = (size_t)comps * sizeof(T);
@@ -55,8 +57,10 @@ void pack(const ojph::si32* src, uint8_t* dst, uint32_t w, uint32_t comps, int32
       const int32_t v = src[x] < lo ? lo : (src[x] > top ? top : src[x]);
       const T out = (T)v;
       std::memcpy(dst, &out, sizeof out);
-      mn = v < mn ? v : mn;
-      mx = v > mx ? v : mx;
+      if constexpr (Ranged) {
+        mn = v < mn ? v : mn;
+        mx = v > mx ? v : mx;
+      }
     }
   }
   range = {mn, mx};
@@ -106,6 +110,8 @@ class HTJ2KDecoder {
     // Not assign(…, 0): pack() writes every byte, and the fill was a second full-frame pass.
     decoded_.resize((size_t)w * h * comps * wide);
     range_ = {top, lo};
+    // Must match decoder.js's `unranged`, which gives this frame its sample type's range instead.
+    const bool ranged = !(comps == 3 && frame_.bitsPerSample == 8 && !frame_.isSigned);
 
     for (uint32_t y = 0; y < h; ++y) {
       for (uint32_t c = 0; c < comps; ++c) {
@@ -113,8 +119,9 @@ class HTJ2KDecoder {
         ojph::line_buf* line = cs_.pull(got);
         const ojph::si32* src = line->i32;
         uint8_t* dst = decoded_.data() + ((size_t)y * w * comps + got) * wide;
-        if (wide == 2) pack<uint16_t>(src, dst, w, comps, lo, top, range_);
-        else pack<uint8_t>(src, dst, w, comps, lo, top, range_);
+        if (wide == 2) pack<uint16_t, true>(src, dst, w, comps, lo, top, range_);
+        else if (ranged) pack<uint8_t, true>(src, dst, w, comps, lo, top, range_);
+        else pack<uint8_t, false>(src, dst, w, comps, lo, top, range_);
       }
     }
     cs_.close();
@@ -122,7 +129,7 @@ class HTJ2KDecoder {
   }
 
   FrameInfo getFrameInfo() const { return frame_; }
-  // The samples' own values, sign already in place: decoder.js skips its range pass for it.
+  // The samples' own values, sign already in place; empty (min > max) for an unranged frame.
   Range getRange() const { return range_; }
   bool getIsHeaderValid() const { return headerValid_; }
   uint32_t getNumDecompositions() { return cs_.access_cod().get_num_decompositions(); }
