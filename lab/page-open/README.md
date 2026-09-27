@@ -201,7 +201,8 @@ study's metadata, `?meta=`) is served by nginx 1.24 over TLS and HTTP/2. Each fi
 once: gzip 1.12 `-6`, brotli 1.1.0 `-q 11`, zstd 1.5.5 `-19`. Each encoding has its own server block,
 which serves the copy only to a client that lists the token and the file itself otherwise. Two checks
 guard it, and each was watched to fail on a mutated config. Before a run, a request without the token
-must get the file. On every visit, every asset must arrive as that arm's bytes. The browser is headless
+must get the file. On every visit, every asset must arrive as that arm's bytes. Each copy carries its
+source's modification time, so every arm's files are equally fresh to the browser. The browser is headless
 Chromium 141 on loopback, with a fresh context per visit. The four arms rotate inside every round, at
 1× and under a 4× cap on every browser thread ([`../scripts/cpu_throttle.mjs`](../scripts/cpu_throttle.mjs)).
 The cap stands in for a slow CPU. It is not a phone.
@@ -218,54 +219,54 @@ TRACE=0 NODE_PATH=$(npm root -g) node lab/page-open/enc.mjs 20   # the headline;
 | metadata JSON — synthetic, 300 frames of tags and UIDs, not a real series | 120 596 | 17 502 | 12 768 | 13 819 |
 | **total** | **814 393** | **259 850** (−68 %) | **213 000** (−74 %) | **228 665** (−72 %) |
 
-Two batches without the trace, n = 20 each. Each cell is the median in ms from navigation [range],
-and the rounds the arm beat identity in:
+One batch without the trace, n = 20. Each cell is the median in ms from navigation [range], and the
+rounds the arm beat identity in:
 
-| | batch | identity | gzip | br | zstd |
-| --- | --- | ---: | ---: | ---: | ---: |
-| first frame, 1× | A | 189 [153–222] | 198 [169–234] 7/20 | 199 [173–231] 6/20 | 202 [159–223] 6/20 |
-| | B | 192 [166–221] | 200 [166–233] 7/20 | 198 [163–236] 10/20 | 191 [178–229] 10/20 |
-| first frame, 4× | A | 549 [461–879] | 556 [492–720] 11/20 | 593 [475–754] 5/20 | 591 [515–653] 5/20 |
-| | B | 555 [455–1426] | 575 [524–661] 8/20 | 589 [483–659] 5/20 | 569 [499–666] 9/20 |
-| decoder WASM's response end, 4× | A | 138 | 165, 5/20 | 180, **1/20** | 187, **1/20** |
-| | B | 147 | 174, **1/20** | 192, **2/20** | 164, 5/20 |
+| | identity | gzip | br | zstd |
+| --- | ---: | ---: | ---: | ---: |
+| first frame, 1× | 177 [163–214] | 181 [148–206] 11/20 | 185 [157–219] 7/20 | 175 [155–226] 10/20 |
+| first frame, 4× | 530 [451–587] | 537 [442–614] 8/20 | 554 [479–690] 6/20 | 529 [454–644] 8/20 |
+| decoder WASM's response end, 1× | 56 [44–63] | 59 [45–69] 7/20 | 67 [52–85] **3/20** | 60 [46–80] 6/20 |
+| decoder WASM's response end, 4× | 127 [99–158] | 153 [107–189] **1/20** | 175 [113–192] **1/20** | 158 [102–204] 5/20 |
+| network-service CPU a visit, 4× (10 ms ticks) | 80 | 80, more in 11/20 | 90, more in 16/20 | 80, more in 11/20 |
 
 **No encoding is resolvably later than identity to the first frame on loopback, at 1× or at 4×.**
-Every cell is 5/20 to 11/20. Brotli at 4× is the nearest to a result: 5/20 in both batches, +44 and
-+35 ms. The order between the codecs did not survive the second batch: zstd went from +42 to +14 ms at
-4×, and gzip from +7 to +20. So nothing here ranks one encoding over another on time. The workstation's
-+34 / +55 ms is the size of this box's spread, and was not reproduced as a resolved loss.
+Every cell is 6/20 to 11/20. Gzip and zstd are ties at both throttles. Brotli is the nearest to a
+result: 7/20 at 1× (+9 ms) and 6/20 at 4× (+23 ms). The workstation's +34 / +55 ms is the size of this
+box's spread at 4×, and was not reproduced as a resolved loss.
 
-**Where a cost does show, it is the decoder WASM's arrival.** Its preload ends later under every
-encoding. At 4× the delay is +17 to +49 ms, and in each batch at least two of the three encodings beat
-identity in only 1 or 2 rounds of 20. At 1× it is +3 to +11 ms. Decompression itself is cheap: ~1 ms per
-300 KB WASM for any of the three, in Node at 1×. What the rows show is the network service spending
-more CPU under an encoding. Per visit at 4× (batch B) it used 80 → 90 ms (10 ms ticks), more in 10–13 of 20
-rounds and less in only 0–4. Under the cap, the network service's thread gets a quarter of a core, so
-its extra decoding stretches into wall time. The same WASM of the transport, 260 KB, does not show it
-cleanly (7/20 to 10/20). Why the decoder's copy is the one delayed is not isolated here.
+**Where a cost does show, it is the decoder WASM's arrival, and the network service's CPU.** The
+decoder WASM's preload ends later under every encoding: +26 to +48 ms at 4×, where gzip and brotli each
+beat identity in 1 round of 20. The network service spends more CPU under an encoding. Brotli is the
+steadiest: +10 ms a visit, more in 18/20 rounds at 1× and 16/20 at 4×, and never less at 1×. Gzip and
+zstd spend more in 9–11 rounds of 20. Decompression itself is cheap: ~1 ms per 300 KB WASM for any of the
+three, in Node at 1×. Under the cap the network service's thread gets a quarter of a core, so its extra
+decoding stretches into wall time. The transport's WASM, 260 KB, does not show the delay (8/20 to
+12/20). Why the decoder's copy is the one delayed is not isolated here. Only part of the delay reaches
+the first frame.
 
-**Streaming compile still overlaps under every encoding.** In a third batch, with the trace
-(n = 10), the transport WASM's streamed compile resolved 3–7 ms after its last byte reached the worker,
-in every arm. At 1× that was 5.1 / 3.0 / 2.7 / 7.2 ms, and at 4× 4.0 / 5.0 / 5.0 / 5.0, for
-identity / gzip / br / zstd. The network service decodes before V8 sees the bytes, and V8 compiles the
-decoded bytes as they stream. On loopback that worker fetch comes from the cache the page's preload
-filled. So this shows the encoding does not break streaming. It does not show overlap with a slow
-download. The decoder's compile does not stream (`decoder.js` hands its glue a buffer), so for the
-decoder there is nothing to overlap.
+**Streaming compile still overlaps under every encoding.** With the trace (n = 10), the transport
+WASM's streamed compile resolved 2–5 ms after its last byte reached the worker, in every arm. At 1× that
+was 5.1 / 2.8 / 1.9 / 3.3 ms, and at 4× 5.0 / 4.6 / 5.0 / 4.5, for identity / gzip / br / zstd. The
+network service decodes before V8 sees the bytes, and V8 compiles the decoded bytes as they stream. On
+loopback that worker fetch comes from the cache the page's preload filled. So this shows the encoding
+does not break streaming. It does not show overlap with a slow download. The decoder's compile does not
+stream (`decoder.js` hands its glue a buffer), so for the decoder there is nothing to overlap. The trace
+itself loads the browser, which is why the headline runs without it.
 
-**Break-even.** Take each encoding's worse batch at 4× at face value: +20 ms for gzip, +44 ms for
-brotli, +42 ms for zstd. Against the 555–601 KB each saves, that breaks even at **220, 108 and
-113 Mbit/s**. At 1× every encoding breaks even above 380 Mbit/s. Below those rates the saved bytes cost
-more time on the link than the encoding costs on loopback, provided the bytes are on the path. At
-20 Mbit/s they are ~220–240 ms of transfer.
+**Break-even.** Take each encoding's median cost to the first frame at 4× at face value: +6 ms for gzip,
++23 ms for brotli, none for zstd. Against the 555–601 KB each saves, gzip breaks even at **700 Mbit/s**
+and brotli at **206 Mbit/s**. At 1× every encoding breaks even above 560 Mbit/s. Below those rates the
+saved bytes cost more time on the link than the encoding costs on loopback, provided the bytes are on
+the path. At 20 Mbit/s they are ~220–240 ms of transfer.
 
-**Deciding: one mode, always on, is right on any link slower than ~100 Mbit/s even at this rig's worst
-case, and gzip is enough.** Gzip is within noise of identity on loopback at both throttles, and keeps
-92 % of brotli's saving (554 543 of 601 393 bytes). Brotli saves 47 KB more and leans the latest at 4×.
-Zstd sits between the two in bytes and is no faster here. No default changed. The template still
-compresses per request (`gzip on`, level 6). These rows measure precompressed files, and the server's
-CPU for compressing per request is not measured.
+**Deciding: one mode, always on, is right on any link slower than ~200 Mbit/s even at this rig's 4×,
+and gzip is enough.** Gzip is within noise of identity on loopback at both throttles, and keeps 92 % of
+brotli's saving (554 543 of 601 393 bytes). Brotli saves 47 KB more, costs the network service the most
+CPU, and leans the latest. Zstd ties gzip here and saves 31 KB more, but Safari decodes it only from
+macOS and iOS 26.3. No default changed. The template still compresses per request (`gzip on`, level 6).
+These rows measure precompressed files, and the server's CPU for compressing per request is not
+measured.
 
 **Support**, from MDN's browser-compat-data 8.1.3 (2026-09-24):
 * gzip is supported everywhere.
@@ -277,10 +278,14 @@ A deploy that serves zstd or br therefore has to pick by `Accept-Encoding`, fall
 zstd → br → gzip → the file. Each arm above falls back straight to the file, which is enough for a
 measurement.
 
-**Seen in the traces, not measured:** the decoder workers do not take the glue and the WASM from the
-preload. Their `fetch()` revalidates on the wire (a 304 of 223 B) in every arm. nginx sends
-`Last-Modified` and no `Cache-Control`, and a file minutes old gets almost no heuristic freshness. On a
-real link that is a round trip per decoder worker, on the path to its compile.
+*Corrected 2026-09-27, before any decision rested on it.* The first two batches (n = 20 each) served
+precompressed copies written seconds before the run. With no `Cache-Control`, a file seconds old gets
+no heuristic freshness, so in the compressed arms every decoder worker's `fetch()` of the glue and the
+WASM revalidated on the wire: a 304 of ~223 B, which the identity arm, serving the tree's hours-old
+files, never paid. Those batches put brotli at +44 / +35 ms and zstd at +42 / +14 ms at 4×. An earlier
+version of this section read the revalidation as nginx's behaviour in every arm; it was the harness's.
+Each copy now carries its source's modification time, and no worker fetch revalidates in any arm
+(checked in the trace). The same trap is in `rig-limits.md` §6.
 
 ## The first frame on a real host, with lever 2
 

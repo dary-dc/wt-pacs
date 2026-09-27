@@ -123,6 +123,9 @@ for (const arm of ARMS) {
     if (arm === "gzip" && !zlib.gunzipSync(enc).equals(raw)) throw new Error(`${a}: gzip does not round-trip`);
     fs.mkdirSync(path.dirname(path.join(dir, a)), { recursive: true });
     fs.writeFileSync(path.join(dir, a), enc);
+    // Its source's age, so its Last-Modified: a copy seconds old gets no heuristic freshness and every worker's fetch revalidates.
+    const { atime, mtime } = fs.statSync(path.join(ROOT, a));
+    fs.utimesSync(path.join(dir, a), atime, mtime);
   }
   servers[arm] = port();
 }

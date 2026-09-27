@@ -406,6 +406,13 @@ across runs.
   Anything measuring loss or a blackout is open loop.
 * **A relay that reads one datagram per wakeup drops bursts**, and the loss looks like the model's.
   Drain the socket to `EWOULDBLOCK` and raise `SO_RCVBUF`.
+* **A file written just before a run is stale to the browser.** Without `Cache-Control`, Chromium's
+  freshness for a response is a fraction of its `Last-Modified` age. A file seconds old is therefore
+  revalidated on every later read, as a 304 on the wire, while an older file in the other arm is read
+  from the cache. ENC's first two batches carried this against every precompressed arm
+  ([`../lab/page-open/README.md`](../lab/page-open/README.md) §What an encoding costs on loopback).
+  `run.mjs` rewrites the transport config before every visit, so it may carry the same trap; that is
+  unchecked. Give a generated file its source's age, or a lifetime.
 
 ## 7. Nothing here is the target device
 
