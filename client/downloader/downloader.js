@@ -82,6 +82,7 @@ function pump() {
     rec.state = "decoding";
     rec.stamps.dispatched = abs();
     rec.stamps.decoder = decoders.indexOf(d);
+    rec.stamps.decoderReady = d.readyAt;
     d.outstanding += 1;
     d.worker.postMessage(
       { kind: "decode", index, gen: generation, bytes: rec.bytes, stamps: rec.stamps },
@@ -249,7 +250,10 @@ async function start(m) {
     worker.onmessage = (e) => {
       if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
       if (e.data.kind === "done") onDone(d, e.data);
-      else if (e.data.kind === "ready") d.ready();
+      else if (e.data.kind === "ready") {
+        d.readyAt = abs();
+        d.ready();
+      }
       else if (e.data.kind === "init-failed") d.ready(post({ kind: "failed", index: -1, reason: e.data.reason }));
       else if (e.data.kind === "failed") {
         d.outstanding -= 1;

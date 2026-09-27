@@ -77,6 +77,8 @@ for size in "${SIZES[@]}"; do
     # The same sample count as the other shape's warm-up: shape without size — lab/decoder-warmup.
     warmup_c92)  w=92;  h=92;  ch=3; depth=255;   mode=cine ;;
     warmup_g277) w=277; h=277; ch=1; depth=65535; mode=ct ;;
+    # The grey one at the series' size; at 512² the colour one would be cine512's own frame 0.
+    warmup_g512) w=512; h=512; ch=1; depth=65535; mode=ct ;;
     *) echo "unknown size $size" >&2; exit 2 ;;
   esac
   case "$depth" in 255) bits=8 ;; 4095) bits=12 ;; *) bits=16 ;; esac

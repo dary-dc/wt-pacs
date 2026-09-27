@@ -12,7 +12,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number; min?: number; max?: number } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decoderReady?: number; dispatched?: number } } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -452,12 +452,14 @@ async function fillWithStartRunsAheadOfTheDecoders(DownloaderClient: DownloaderC
 
 /**
  * The race the wire-ahead-of-the-decoders change opens: frames that land before any decoder
- * exists are held for one, not handed to a decoder that cannot take them. `pump()`'s guard.
+ * exists are held for one, not handed to a decoder that cannot take them. `pump()`'s guard. Each
+ * carries when its decoder answered `ready`: no sooner than the stand-in let it, and before dispatch.
  */
 async function framesBeforeAnyDecoderAreHeld(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const indices = [...Array(12).keys()];
   const held: Frame[] = [];
   const t0 = Date.now();
+  const t0abs = performance.timeOrigin + performance.now();
   const { connect, fake } = begin(DownloaderClient, {
     decoders: 3,
     perDecoder: 2,
@@ -476,6 +478,11 @@ async function framesBeforeAnyDecoderAreHeld(DownloaderClient: DownloaderCtor, c
   check(all, `held: every frame that arrived before a decoder existed is delivered (${held.length}/${indices.length})`);
   check(held.every((f) => (f.info.decodeSeq ?? 0) > 0), `held: each of them went through a decoder`);
   check(new Set(held.map((f) => f.frameIndex)).size === indices.length, `held: each of them exactly once`);
+  const late = held.map((f) => (f.info.stamps?.decoderReady ?? 0) - t0abs);
+  check(late.every((ms) => ms >= READY_DELAY_MS),
+    `ready stamp: each frame carries its decoder's, ${READY_DELAY_MS} ms or more after the open (${Math.min(...late).toFixed(0)} ms at the least)`);
+  check(held.every((f) => (f.info.stamps?.decoderReady ?? Infinity) <= (f.info.stamps?.dispatched ?? 0)),
+    `ready stamp: and never after the frame was dispatched to that decoder`);
   c?.close();
 }
 

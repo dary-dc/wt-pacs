@@ -32,6 +32,8 @@ same-origin GET, nothing on the session, and a warm-up that cannot be fetched le
 decoder — `client/conformance/dispatch-rig.ts` holds all three to account. One that is *not a
 codestream* also leaves one, now because `decodeFrame` refuses it rather than because the wrapper
 is silent (`docs/decode/README.md` §A frame that did not decode).
+Every frame carries `stamps.decoderReady`, when its decoder's `ready` arrived, so `lastByte −
+decoderReady` is the window the warm-up had.
 **Off by default, and the shape is not a detail**: a warm-up takes 30–45 % off frames 0–2 of a
 fill, but a warm-up of the *wrong* shape leaves the frames after them slower than no warm-up at
 all, and on the box that measured it the decoders answer `ready` later by about what the frames

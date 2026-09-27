@@ -656,6 +656,66 @@ of 7 better with the warm-up:
   not measured. A device on the target link, cine loop and 16-bit series, decides it. Dispatch waits
   on all three decoders (`Promise.all` in `downloader.js`); per-decoder readiness is not measured.
 
+### Sizing the warm-up
+
+On the lab's transport the session is ready early and the warm-up was judged not to reach the page
+(above). The workstation's other transport dials longer — a session ready ~1.5 s after navigation on
+an 80 ms link, by its measurement — so the question becomes what a warm-up costs, what it saves, and
+how long an idle window it needs. [`../../lab/decoder-warmup/size.mjs`](../../lab/decoder-warmup/size.mjs)
+(row 85): one decoder (the package), a fresh browser context per sample, compiled from a buffer as
+`decoder.js` does, then the warm-up, then the series' frames 0–5; 12 rounds, arms and 1× / 4× rotated
+inside each; every frame checked against the encoder's input. Warm-ups: the shipped 160² frame
+(`w160`), a 512² 16-bit grey one (`w512`, CT only — at 512² the colour one is the series' own frame
+0), and a frame of the series' own shape and content (`own`, its frame 86). Medians in ms; `s1`, `s2`
+what it saves on the decoder's first and second frame; every arm faster on frames 0+1 in 12/12 rounds.
+
+| set | cpu | compile | arm | warm-up | frames 0 / 1 / 2 | s1 | s2 | frame 0 breaks even at | hidden at |
+| --- | --: | --: | --- | --: | --- | --: | --: | --: | --: |
+| cine512 | 1× | 9.4 | none | — | 17.2 / 12.3 / 6.5 | | | | |
+| | | | **w160** | **6.5** | 12.8 / 10.3 / 6.8 | 4.5 | 2.0 | **2.1** | **6.5** |
+| | | | own | 17.3 | 12.5 / 5.9 / 4.5 | 4.7 | 6.4 | 12.6 | 17.3 |
+| | 4× | 32.2 | none | — | 71.5 / 32.8 / 19.0 | | | | |
+| | | | **w160** | **28.3** | 47.6 / 30.9 / 21.3 | 23.9 | 1.9 | **4.4** | **28.3** |
+| | | | own | 72.8 | 36.1 / 23.0 / 20.4 | 35.4 | 9.8 | 37.4 | 72.8 |
+| ct512 | 1× | 10.0 | none | — | 10.6 / 5.6 / 5.6 | | | | |
+| | | | **w160** | **6.0** | 5.9 / 5.4 / 5.9 | 4.8 | 0.2 | **1.3** | **6.0** |
+| | | | w512 | 10.9 | 4.8 / 5.2 / 5.4 | 5.8 | 0.4 | 5.1 | 10.9 |
+| | | | own | 10.8 | 6.2 / 5.8 / 5.6 | 4.4 | −0.1 | 6.3 | 10.8 |
+| | 4× | 39.8 | none | — | 45.1 / 26.3 / 16.3 | | | | |
+| | | | **w160** | **27.8** | 24.3 / 26.3 / 16.1 | 20.9 | 0.0 | **6.9** | **27.8** |
+| | | | w512 | 45.0 | 20.7 / 19.5 / 12.6 | 24.4 | 6.8 | 20.6 | 45.0 |
+| | | | own | 47.5 | 24.9 / 18.4 / 12.1 | 20.2 | 8.0 | 27.2 | 47.5 |
+
+The break-even is the idle window between the decoder's compile and its first frame's bytes at which
+frame 0 is no later with the warm-up: the warm-up's cost less `s1`. From that window up to the
+warm-up's cost the first frame is sooner by part of `s1`; past it, by all of it.
+
+* **The shipped 160² frame is the one to ship.** It buys nearly all of what a warm-up buys on the
+  first frame for a third to a half of what a larger one costs: **6.0–6.5 ms a decoder at 1×, 28 ms
+  at 4×**, saving 4.5–4.8 and 21–24 ms on frame 0. A larger or own-shape frame also warms the second
+  frame (6–10 ms at 4×), and costs 45–73 ms to do it.
+* **The window it needs is short.** Frame 0 breaks even at **1–2 ms of idle window at 1×, 4–7 ms at
+  4×**, and the warm-up is wholly hidden at 6.5 / 28 ms. A dial that leaves the decoders ~1.5 s
+  before the first byte — the workstation's figure for its other transport — hides it 20–250 times
+  over, on every arm here; the lab's own loopback leaves it none (above).
+  Per transport, the stamp below reads the window directly.
+* **From the third frame on, the shipped frame moves nothing**; only the larger ones take ~4 ms more
+  off CT's frame 2 at 4×.
+* **What the pool saves** is three decoders' first two frames: with `w160` about 20 decoder-ms per
+  fill on colour at 1× and 77 at 4× (CT 15 and 63), paid for with 18–85 decoder-ms of warm-up in the
+  idle window. The workstation's ~190 decoder-ms is its own measurement, not reproduced here.
+
+**The `ready` stamp.** Every frame now carries `stamps.decoderReady`, the moment its decoder's
+`ready` reached the downloader, beside `lastByte` and `dispatched`: `lastByte − decoderReady` is the
+window a warm-up had, per frame, on whatever transport the page runs. `dispatch-rig.ts` holds it to
+no sooner than a stand-in decoder's delayed `ready` and never after the frame's dispatch; a stamp
+taken at the worker's creation, one never copied, and one taken after dispatch each fail.
+
+**What this is not.** One decoder on the page's main thread, not three workers sharing four cores;
+the headless shell; the package decoder; 4× is a cgroup quota whose tick shows in the 4× ranges. The
+host is not saturated at one decoder. Whether the warm-up should be on by default is still the
+workstation's call per transport — the table says what it costs and the stamp says whether it hid.
+
 ## A frame that did not decode
 
 The wrapper reports nothing: it logs an `ojph error` and returns, and `decoder.js` reuses **one**

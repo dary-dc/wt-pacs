@@ -49,3 +49,15 @@ did not cost the fill. With a round trip the fill arrives one frame at a time an
 them all to the first free decoder, so only `d0` is a cold decoder's first frame there.
 The first visit to each set is discarded, and the one after it checks that a warm-up which is not
 a codestream still delivers the whole fill.
+
+## Sizing it (WU2)
+
+`size.mjs` prices the warm-up frame itself, outside a session: one decoder, a fresh browser context
+per sample, compiled from a buffer as `decoder.js` does; the warm-up's cost, frames 0–5 with and
+without it, and the idle window at which each warm-up breaks even — none, the shipped 160² frame, a
+512² grey one (CT only), and a frame of the series' own shape. Every frame is checked against the
+encoder's input. Needs `gen_htj2k_fixtures.sh cine512 ct512` and `FRAMES=1 … warmup_g512`.
+
+```bash
+NODE_PATH=$(npm root -g) node lab/decoder-warmup/size.mjs --rounds 12 --throttles 1,4
+```
