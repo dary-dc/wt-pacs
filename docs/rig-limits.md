@@ -239,6 +239,8 @@ against another emulator, and each lever was mutated to watch it fail.
 | Jitter, reordering | ±5 ms | 9.7 ms of p90-p10 spread; 40 of 200 arrive out of order |
 | Jitter, ordered | ±5 ms | the same spread, 9.8 ms; none out of order, none later than delay + jitter |
 | Rebind | mid-stream | none lost; the session survives it (`rebind-probe`) |
+| Rate, TCP, a rate each | two 1 MB fetches at once, 8 000 kbit/s | 1.04 s, both byte-exact |
+| Rate, TCP, `--tcp-rate shared` | the same | 2.03 s, both byte-exact: one bottleneck, as HTTP/1.1's six sockets share on a real link |
 | Swallow | 300 ms, armed idle | opens on the next server datagram, not on the command: 30 of a 10 ms-paced echo taken, 0 client→server — the server's next flight, wherever it falls (row 61) |
 
 **The two counts it was made to check**, fitted over round trips of 40, 80 and 160 ms so that the
@@ -257,7 +259,9 @@ relay's own floor and the crypto fall out as the intercept:
 kernel would have done: **nothing about GSO/GRO or per-packet CPU taken through it is
 admissible.** The TCP plane is relayed *above* TCP, where a dropped chunk would be data gone
 rather than a segment the peer retransmits, so that plane shapes only — no loss, no blackout, and
-no TCP loss-recovery number; its handshake is completed locally by the kernel, so the relay
+no TCP loss-recovery number. *Until 2026-09-27 a rate on that plane could drop bytes:* its queue took
+the UDP plane's packet limit, and a burst over it cut the stream (both TCP rate checks above caught it
+when mutated back). No published cell set a rate on TCP. Its handshake is completed locally by the kernel, so the relay
 charges the setup round trip rather than observing it (`--tcp-no-handshake` turns that off), and
 TLS is not modelled. It is one thread, so delays under ~1 ms decide nothing and a rate far above
 the ones in the table has to be re-checked against the relay itself first. It carries one client
@@ -411,8 +415,12 @@ across runs.
   revalidated on every later read, as a 304 on the wire, while an older file in the other arm is read
   from the cache. ENC's first two batches carried this against every precompressed arm
   ([`../lab/page-open/README.md`](../lab/page-open/README.md) §What an encoding costs on loopback).
-  `run.mjs` rewrites the transport config before every visit, so it may carry the same trap; that is
-  unchecked. Give a generated file its source's age, or a lifetime.
+  `run.mjs` rewrites the transport config before every visit, and that is the round trip PO1 read
+  as the config fetched twice (corrected there). Give a generated file its source's age, or a
+  lifetime; `lab/page-open/host.mjs` ages what it writes by an hour.
+* **DevTools network emulation on a page does not reach its workers' `fetch()`,** and it charges no
+  connection setup. Shape the TCP with the relay's `--tcp-rate shared` instead
+  ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The worker graph over HTTP/1.1 and HTTP/2).
 
 ## 7. Nothing here is the target device
 

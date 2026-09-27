@@ -326,10 +326,86 @@ the page's `fetch("/wt/dev-transport.json")` does not take the `<link rel=preloa
 response. It revalidates on the wire (a 304) one round trip later, and a warm visit does it twice.
 Everything else the page preloads is taken from cache, and the QUIC dial starts ~26 ms after
 `config`. Unmeasured: a preload the fetch matches would take that round trip off the first frame.
+*Corrected 2026-09-27 (H2):* the round trip is the harness's. `run.mjs` rewrites the config just
+before every visit, and a file seconds old gets no heuristic freshness, so the second request went
+back to the server. With the config an hour old, the second request is answered from the HTTP cache in
+0–8 ms, 8/8 visits over HTTP/1.1 and HTTP/2. With it written at the run's start, 2 of 4 HTTP/1.1 visits
+went back to the server, +~120 ms (§The worker graph over HTTP/1.1 and HTTP/2). The page's `fetch()`
+still does not take the preload itself; it costs nothing only when the cached copy is fresh.
 
 *Corrected before it was published:* the first full run left `run.mjs`'s
 `--ignore-certificate-errors` in place, and every worker's scripts came off the wire. That put the
 dial at 3.95 round trips with the lever, not 1.85. The note under the commands at the top says why.
+
+## The worker graph over HTTP/1.1 and HTTP/2
+
+**H2, 2026-09-27.** On the workstation's page over HTTP/1.1, the downloader's worker script waited
+~180 ms for one of the six sockets. It was the head of a four-deep chain that put the WASM's request
+~1.2 s after navigation at 20 Mbit / 80 ms. [`h2.mjs`](h2.mjs) serves this page from nginx on the deploy
+template (gzip on) over HTTP/1.1 and over HTTP/2. Each protocol gets three pages:
+* `bare`: no hints, the workstation's shape.
+* `today`: the committed hints, cut 1–3 above.
+* `module`: `bare` plus a `modulepreload` of the worker graph (the downloader and decoder workers'
+  scripts and the transport they import).
+
+Every file the page fetches is at least an hour old (rig-limits.md §6). The six arms rotate inside
+every round, n = 10, on a cold context each visit. Each visit is checked against the protocol it was
+meant to use, and that check was watched to fail.
+
+**The link is the relay, not the browser's throttle, and here is why.** DevTools network emulation set
+on the page did not reach the decoder workers' `fetch()`. A 96 KB WASM came back in 17 ms at a nominal
+80 ms / 20 Mbit, yet the downloader worker's module import was throttled. Emulation also charges no
+connection setup, which is exactly what HTTP/1.1's extra sockets cost. So the page's TCP crosses
+[`link_impair.py`](../scripts/link_impair.py) at 40 ms each way, 20 Mbit/s, with `--tcp-rate shared`:
+every connection shares one bottleneck, as on a real link, where before each connection got the whole
+rate (rig-limits.md §3). The relay charges each new connection's TCP round trip, and TLS pays its own
+through it. The WebTransport session is not shaped, so the dial and the frame are loopback's.
+
+ms from navigation, median [range], and the rounds each arm beat HTTP/1.1 `bare` in:
+
+| | h1 bare | h2 bare | h1 today | h2 today | h1 module | h2 module |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| config | 453 | 451, 6/10 | 454 | **367** | 609, 0/10 | 455 |
+| downloader worker's script asked | 454 | 454 | 270 | 268 | 267 | 266 |
+| its transport import: queued for a socket | **89** [1–91] | **1**, 10/10 | 1 | 2 | 0 | 0 |
+| its transport import ends | 729 | 640, 10/10 | 530 | 368 | 524 | 361 |
+| decoder WASM asked | 815 | 747, 10/10 | 274 | 270 | 731 | 578 |
+| decoder WASM ends | 942 | 873, 10/10 | 573 | 412 | 857 | 703 |
+| **first frame** | **994** [970–1027] | **930** [919–947], 10/10 | 632 | **481** [459–492] | 905 | 763 |
+
+**HTTP/2 alone removes the socket wait, and only the socket wait.** On the bare page the wait falls on
+the downloader worker's first import, not on the worker's script. Over HTTP/1.1 that import sits
+89 ms in the queue, a round trip, behind the page's other fetches. Over HTTP/2 it sits 1 ms, 10/10. The
+first frame is −64 ms, 10/10 with disjoint ranges. The chain is still serial: the config, the worker,
+the decoder worker, its glue, then the WASM. The WASM is still asked for 747 ms after navigation, and
+HTTP/2 moves that only by the one round trip it saved.
+
+**The page change is the larger lever on either protocol.** With today's hints over HTTP/2 the first
+frame is 481 ms against the bare page's 930, −449 ms. Every hop of the chain is fetched at once, and the
+WASM is asked for at 270 ms. Over HTTP/1.1 the same hints cost 151 ms more than over HTTP/2 (632 against
+481). Each preload opens its own connection, and each connection pays 163 ms of TCP and TLS setup: two
+round trips. A `modulepreload` of the worker graph alone recovers the module hops (−167 ms on HTTP/2) but
+not the decoder's glue or its WASM. Those are a classic script and a fetch, so the WASM is still asked
+at 578 ms. Over HTTP/1.1 it also takes the config's socket: the config lands at 609 ms, 0/10.
+
+**Deciding: the serving change needs the page change too.** HTTP/2 without the hints takes 64 ms off
+the first frame. The hints without HTTP/2 take 362. Both together take 513. What the workstation's page
+needs is its chain fetched at once, which is cut 3 above (`preload` of each worker's script, its glue
+and its WASM), served over HTTP/2.
+
+**Not decided here:**
+* The request priorities the workstation read (a `Worker` at IDLE) are not recorded.
+* The session is not shaped, so the dial and the frame are cheaper than on a real link.
+* This page's graph is smaller than the workstation's, so there are fewer module fetches to stand in the
+  socket queue.
+
+The config's second request is answered from the cache in 0–8 ms (8/8) when the config is an hour old.
+When it is written at the run's start, the second request can go back to the server (the correction to
+PO1 above).
+
+```bash
+NODE_PATH=$(npm root -g) node lab/page-open/h2.mjs 10    # LINK=20,80 (Mbit/s, round trip ms)
+```
 
 ## The static plane
 

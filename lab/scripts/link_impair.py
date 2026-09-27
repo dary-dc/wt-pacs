@@ -28,10 +28,18 @@ TICK = 0.0005
 IDLE = 0.05
 
 
+class Link:
+    """A bottleneck's rate clock and queue: a pipe's own, or one every TCP connection crosses."""
+
+    def __init__(self):
+        self.next_free = 0.0
+        self.tx = collections.deque()
+
+
 class Pipe:
     """One direction: loss, then a finite queue drained at the rate, then the one-way delay."""
 
-    def __init__(self, args, rng, lossy=True):
+    def __init__(self, args, rng, lossy=True, link=None):
         self.delay = args.delay_ms / 1000.0
         self.jitter = args.jitter_ms / 1000.0
         self.ordered = args.jitter_mode == "ordered"
@@ -43,9 +51,10 @@ class Pipe:
         self.lossy = lossy
         self.rng = rng
         self.bad = False
-        self.next_free = 0.0
+        self.link = link or Link()
+        # Data may not leave before this: a new connection's setup round trip on a shared link.
+        self.hold = 0.0
         self.pending = []
-        self.tx = collections.deque()
         self.seq = 0
         self.sent = self.lost = self.overflowed = 0
 
@@ -60,17 +69,18 @@ class Pipe:
         if self.lossy and (blacked_out or self._drop()):
             self.lost += 1
             return
-        while self.tx and self.tx[0] <= now:
-            self.tx.popleft()
-        if self.limit and len(self.tx) >= self.limit:
+        link = self.link
+        while link.tx and link.tx[0] <= now:
+            link.tx.popleft()
+        if self.limit and len(link.tx) >= self.limit:
             self.overflowed += 1
             return
-        start = max(now, self.next_free)
-        self.next_free = start + (len(payload) * 8 / self.rate if self.rate else 0.0)
-        self.tx.append(self.next_free)
+        start = max(now, link.next_free)
+        link.next_free = start + (len(payload) * 8 / self.rate if self.rate else 0.0)
+        link.tx.append(link.next_free)
         # --jitter-mode picks which path the wobble models. docs/rig-limits.md §3.
         wobble = self.rng.uniform(-self.jitter, self.jitter) if self.jitter else 0.0
-        due = self.next_free + max(0.0, self.delay + wobble)
+        due = max(link.next_free, self.hold) + max(0.0, self.delay + wobble)
         if self.ordered:
             due = max(due, self.last_due)
             self.last_due = due
@@ -170,15 +180,17 @@ class TcpConn:
 
     SIDES = ("client", "upstream")
 
-    def __init__(self, sel, client, upstream, args, rng):
+    def __init__(self, sel, client, upstream, args, rng, links):
         self.sel = sel
         self.socks = {"client": client, "upstream": upstream}
-        self.pipes = {s: Pipe(args, rng, lossy=False) for s in self.SIDES}
+        self.pipes = {s: Pipe(args, rng, lossy=False, link=links and links[s]) for s in self.SIDES}
+        for pipe in self.pipes.values():
+            pipe.limit = 0  # a chunk dropped here is data gone: the queue only ever delays
         # The kernel completed the handshake locally, so charge the round trip it would have
         # waited for — from the accept, not the first request, or a socket the browser opened
         # ahead of time would pay it serially.
         if not args.tcp_no_handshake:
-            self.pipes["upstream"].next_free = time.monotonic() + 2 * args.delay_ms / 1000.0
+            self.pipes["upstream"].hold = time.monotonic() + 2 * args.delay_ms / 1000.0
         self.out = {s: b"" for s in self.SIDES}
         self.eof = {s: False for s in self.SIDES}
         self.shut = {s: False for s in self.SIDES}
@@ -258,6 +270,8 @@ class TcpPlane:
         self.listener.listen(64)
         self.listener.setblocking(False)
         self.conns = []
+        # One bottleneck for every connection, or a rate each (the model earlier runs were taken on).
+        self.links = {s: Link() for s in TcpConn.SIDES} if args.tcp_rate == "shared" else None
         self.accepted = self.chunks = 0
         sel.register(self.listener, selectors.EVENT_READ, ("tcp-accept", None, None))
 
@@ -272,7 +286,7 @@ class TcpPlane:
             return
         for s in (client, upstream):
             s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.conns.append(TcpConn(self.sel, client, upstream, self.args, self.rng))
+        self.conns.append(TcpConn(self.sel, client, upstream, self.args, self.rng, self.links))
         self.accepted += 1
 
     def pump(self, now):
@@ -309,6 +323,8 @@ def main():
     ap.add_argument("--loss-model", choices=("iid", "ge"), default="iid")
     ap.add_argument("--ge-p", type=float, default=0.07, help="percent, good->bad")
     ap.add_argument("--ge-r", type=float, default=14.0, help="percent, bad->good")
+    ap.add_argument("--tcp-rate", choices=("per-connection", "shared"), default="per-connection",
+                    help="shared: every tcp connection crosses one bottleneck, as on a real link")
     ap.add_argument("--tcp-no-handshake", action="store_true",
                     help="do not charge a new tcp connection its setup round trip")
     ap.add_argument("--blackout-mode", choices=("drop", "hold"), default="drop",
@@ -371,7 +387,7 @@ def main():
                                 # The link stops draining, so a queue already standing is
                                 # pushed by the outage, not absorbed into it.
                                 for pipe in (udp.to_server, udp.to_client):
-                                    pipe.next_free = max(pipe.next_free, now) + outage
+                                    pipe.link.next_free = max(pipe.link.next_free, now) + outage
                             print("BLACKOUT %s ms %s" % (cmd[1].decode(), args.blackout_mode),
                                   flush=True)
                         elif head == b"swallow" and udp:

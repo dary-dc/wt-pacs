@@ -8,21 +8,17 @@
  */
 import fs from "node:fs";
 import https from "node:https";
-import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
-import { execFileSync, spawn } from "node:child_process";
-import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
+import { ROOT, T, browser, median, nginx, onExit, port, study, tls, traced } from "./host.mjs";
 
-const { chromium } = createRequire(import.meta.url)("playwright");
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const ROUNDS = Number(process.argv[2] || 10);
 const THROTTLES = (process.env.THROTTLES || "1,4").split(",").map(Number);
 const TRANSPORT = process.env.TRANSPORT || "wasm";
 /** The trace decomposes the open and loads the browser doing it, so the headline runs without it. */
 const TRACE = process.env.TRACE !== "0";
-const FRAMES = 12;
 /** Each encoding as the deploy would precompress it once, and the token the browser must advertise. */
 const ENCODERS = {
   identity: null,
@@ -40,24 +36,7 @@ const ASSETS = [
   "lab/decode-bench/vendor/openjph/openjphjs.js", "lab/decode-bench/vendor/openjph/openjphjs.wasm",
   "lab/page-open/metadata.json",
 ];
-
-const T = fs.mkdtempSync(path.join(os.tmpdir(), "enc-"));
-const CFG = path.join(ROOT, "client/dev-transport.json");
-const CFG_BAK = fs.existsSync(CFG) ? fs.readFileSync(CFG) : null;
-const kids = [];
-const start = (cmd, args) => {
-  const out = fs.openSync(path.join(T, `${path.basename(cmd)}.log`), "a");
-  const p = spawn(cmd, args, { cwd: ROOT, stdio: ["ignore", out, out] });
-  kids.push(p);
-  return p;
-};
-process.on("exit", () => {
-  for (const p of kids) p.kill();
-  if (CFG_BAK) fs.writeFileSync(CFG, CFG_BAK);
-  fs.rmSync(path.join(ROOT, "lab/page-open/metadata.json"), { force: true });
-  fs.rmSync(T, { recursive: true, force: true });
-});
-const port = () => 30000 + ((Math.random() * 20000) | 0);
+onExit(() => fs.rmSync(path.join(ROOT, "lab/page-open/metadata.json"), { force: true }));
 
 /** A study's per-frame metadata, synthetic: its size and its mix of numbers and UIDs, not a real series'. */
 function metadata(frames = 300) {
@@ -80,30 +59,7 @@ function metadata(frames = 300) {
 }
 fs.writeFileSync(path.join(ROOT, "lab/page-open/metadata.json"), metadata());
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
-const BIN = path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "release");
-execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
-  -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
-  -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \
-  -addext 'extendedKeyUsage=serverAuth' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null \
-  && mkdir -p ${T}/home/.pki/nssdb && certutil -N -d sql:${T}/home/.pki/nssdb --empty-password \
-  && certutil -A -d sql:${T}/home/.pki/nssdb -n page -t P,, -i ${T}/cert.pem`]);
-const hash = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`])
-  .toString().trim();
-
-fs.mkdirSync(path.join(T, "frames"));
-const src = path.join(ROOT, "lab/fixtures/decode_c512");
-const codestreams = fs.readdirSync(src).filter((f) => f.endsWith(".j2c")).sort();
-for (let i = 0; i < FRAMES; i++) {
-  fs.copyFileSync(path.join(src, codestreams[i % codestreams.length]), path.join(T, "frames", `${String(i).padStart(3, "0")}.htj2k`));
-}
-fs.writeFileSync(path.join(T, "study.json"), JSON.stringify({ frameCount: FRAMES }));
-execFileSync(path.join(BIN, "pack-study"), ["--metadata", path.join(T, "study.json"), "--frames", path.join(T, "frames"),
-  "--output", path.join(T, "study.sbnd")]);
-const WT = port();
-start(path.join(BIN, "exact-server"), ["--port", String(WT), "--study", path.join(T, "study.sbnd"),
-  "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")]);
-fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${WT}/`, cert_sha256: hash }) + "\n");
+const { cfg: CFG, cert } = study();
 
 // Each encoding is its own server block: a precompressed copy where one exists and the browser
 // advertises the token, else the file itself. `add_header` in a location replaces the server's,
@@ -131,9 +87,7 @@ for (const arm of ARMS) {
 }
 const conf = ARMS.map((arm) => `
   server {
-    listen 127.0.0.1:${servers[arm]} ssl http2;
-    ssl_certificate ${T}/cert.pem;
-    ssl_certificate_key ${T}/key.pem;
+    ${tls(servers[arm], true)}
     root ${ROOT};
     ${ISOLATION}
     types { }
@@ -151,15 +105,11 @@ const conf = ARMS.map((arm) => `
     }
     location @file { }` : ""}
   }`).join("\n");
-fs.writeFileSync(path.join(T, "nginx.conf"), `pid ${T}/nginx.pid;\nerror_log ${T}/nginx-error.log error;\nevents {}\n` +
-  `http {\n  access_log off;\n  gzip off;\n` +
-  ["client_body", "proxy", "fastcgi", "uwsgi", "scgi"].map((d) => `  ${d}_temp_path ${T};\n`).join("") + conf + "\n}\n");
-start("nginx", ["-c", path.join(T, "nginx.conf"), "-g", "daemon off;"]);
-await new Promise((r) => setTimeout(r, 1500));
+await nginx(`  gzip off;\n${conf}`);
 
 // A client that does not advertise an arm's token must get the file itself, never bytes it cannot decode.
 const get = (arm, accept) => new Promise((ok, fail) => https.get({
-  host: "127.0.0.1", port: servers[arm], path: `/${ASSETS[0]}`, ca: fs.readFileSync(path.join(T, "cert.pem")),
+  host: "127.0.0.1", port: servers[arm], path: `/${ASSETS[0]}`, ca: fs.readFileSync(cert),
   headers: { "accept-encoding": accept },
 }, (res) => {
   const chunks = [];
@@ -178,31 +128,8 @@ for (const a of ASSETS) console.log(`${a.padEnd(48)} ${ARMS.map((arm) => String(
 const total = (arm) => ASSETS.reduce((s, a) => s + bytes[a][arm], 0);
 console.log(`${"total".padEnd(48)} ${ARMS.map((arm) => String(total(arm)).padStart(9)).join(" ")}`);
 
-const server = await chromium.launchServer({
-  headless: true,
-  executablePath: process.env.CHROME_PATH || chromium.executablePath(),
-  args: ["--disable-background-networking"],
-  env: { ...process.env, HOME: `${T}/home` },
-});
-const browser = await chromium.connect(server.wsEndpoint());
-const cdp = await browser.newBrowserCDPSession();
-
-/** The trace's events for one visit, every process and thread. */
-async function traced(fn) {
-  const events = [];
-  const collect = (d) => events.push(...(d.value ?? []));
-  cdp.on("Tracing.dataCollected", collect);
-  await cdp.send("Tracing.start", {
-    categories: "devtools.timeline,v8.wasm,disabled-by-default-v8.wasm.detailed,blink.user_timing,loading,netlog,v8.execute",
-    transferMode: "ReportEvents",
-  });
-  const out = await fn();
-  const done = new Promise((r) => cdp.once("Tracing.tracingComplete", r));
-  await cdp.send("Tracing.end");
-  await done;
-  cdp.off("Tracing.dataCollected", collect);
-  return { out, events };
-}
+const { server, browser: b, cdp } = await browser();
+const CATEGORIES = "devtools.timeline,v8.wasm,disabled-by-default-v8.wasm.detailed,blink.user_timing,loading,netlog,v8.execute";
 
 /** The milestones the trace alone has, in ms from navigation: every thread's clock is the trace's. */
 function milestones(events) {
@@ -256,7 +183,7 @@ const PROCESSES = { cpuNet: /network\.mojom\.NetworkService/, cpuRenderer: /--ty
 
 async function visit(arm, throttle) {
   const unthrottle = throttleTree(server.process().pid, throttle);
-  const page = await browser.newPage();
+  const page = await b.newPage();
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
   const url = `https://127.0.0.1:${servers[arm]}/lab/page-open/downloader.html?meta=/lab/page-open/metadata.json` +
@@ -276,7 +203,7 @@ async function visit(arm, throttle) {
       })),
     }));
   };
-  const { out, events } = await (TRACE ? traced(run) : run().then((o) => ({ out: o })))
+  const { out, events } = await (TRACE ? traced(cdp, CATEGORIES, run) : run().then((o) => ({ out: o })))
     .finally(async () => { await page.close(); unthrottle(); });
   if (err || out.error) throw new Error(err || out.error);
   if (process.env.DUMP && TRACE) fs.writeFileSync(`${process.env.DUMP}-${arm}-${throttle}x.json`, JSON.stringify(events));
@@ -307,7 +234,6 @@ if (process.env.ROWS) fs.writeFileSync(process.env.ROWS, JSON.stringify(rows));
 
 const KEYS = ["bundle", "script", "meta", "metaParsed", "config", "transportWasm", "transportCompiled", "transportStreamLag",
   "decoderWasm", "decoderCompiled", "session", "frame", ...Object.keys(PROCESSES)];
-const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 console.log(`\nms from navigation: median [min-max], and rounds each arm beat ${ARMS[0]} in`);
 for (const throttle of THROTTLES) {
   console.log(`\n${throttle}x ${"milestone".padEnd(18)} ${ARMS.map((a) => a.padEnd(26)).join("")}`);

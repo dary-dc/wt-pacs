@@ -229,6 +229,33 @@ tot=$(curl -s -o /dev/null -w '%{time_total}' "http://127.0.0.1:$TCP_IN/README.m
 want "fetch at one-way 40 ms (s): setup + exchange" "$tot" 0.155 0.185
 kill -TERM "$TCP_PID" 2>/dev/null || true
 
+# Two 1 MB fetches at once at 8 000 kbit/s: ~1 s each when every connection has its own rate,
+# ~2 s when they cross one bottleneck — which is what an HTTP/1.1 page's six sockets share.
+mkdir -p "$T/www" && head -c 1000000 /dev/urandom > "$T/www/mb.bin"
+python3 -m http.server --bind 127.0.0.1 --directory "$T/www" "$((TCP_OUT + 1))" > "$T/www.log" 2>&1 & WWW_PID=$!; PIDS+=("$WWW_PID")
+sleep 0.5
+for mode in per-connection shared; do
+  python3 "$RELAY" --tcp "$((TCP_IN + 1)):$((TCP_OUT + 1))" --delay-ms 5 --rate-kbit 8000 --tcp-rate "$mode" > "$T/tcp-$mode.log" 2>&1 &
+  TCP_PID=$!; PIDS+=("$TCP_PID")
+  for _ in $(seq 50); do grep -q READY "$T/tcp-$mode.log" && break; sleep 0.1; done
+  start=$(date +%s.%N)
+  curl -s -o "$T/a.bin" "http://127.0.0.1:$((TCP_IN + 1))/mb.bin" & A=$!
+  curl -s -o "$T/b.bin" "http://127.0.0.1:$((TCP_IN + 1))/mb.bin" & B=$!
+  wait "$A" "$B" || true  # a truncated stream is the byte-exact check's to report
+  took=$(python3 -c "print(round($(date +%s.%N) - $start, 2))")
+  if [[ $mode == shared ]]; then want "two 1 MB at 8 Mbit/s, shared (s)" "$took" 1.9 2.4
+  else want "two 1 MB at 8 Mbit/s, a rate each (s)" "$took" 0.95 1.35; fi
+  if cmp -s "$T/a.bin" "$T/www/mb.bin" && cmp -s "$T/b.bin" "$T/www/mb.bin"; then
+    say "  both byte-exact under the rate" "ok"
+  else
+    say "  both byte-exact under the rate" "FAIL"
+    fails=$((fails + 1))
+  fi
+  kill -TERM "$TCP_PID" 2>/dev/null || true
+  sleep 0.3
+done
+kill "$WWW_PID" 2>/dev/null || true
+
 echo
 echo "== the counts this lane owes"
 kill "$ECHO_PID" 2>/dev/null || true   # the real server takes the echo's port
