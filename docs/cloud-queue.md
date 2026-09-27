@@ -64,6 +64,8 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 84 | **WEX** — `-fwasm-exceptions` instead of `-fexceptions` in the decoder builds | queue §Rows 83–86 | **done** 2026-09-27, `4957d5a`: **not adopted, default unchanged.** Bit-exact (six sets, 522 frames; an undecodable frame throws and the reused decoder recovers, as before); all 81 `invoke_*` sites gone; steady −0.2 to −1.7 %, frames 0–2 a tie, Node and headless Chromium, n = 15 — under the 5 % bar. 4.9 KB less glue is its only case. `decode/README.md` §Faster; `lab/decode-bench/cold_arms.mjs` is the cold-frame bench. Measured at 1× only; a phone-class CPU is the workstation's cell |
 | 85 | **WU2** — the decoder warm-up, sized again for a slower dial | queue §Rows 83–86 | **done** 2026-09-27, `a040a73`: the shipped 160² frame is the one to ship — **6.0–6.5 ms a decoder at 1×, 28 at 4×**, saving 4.5–4.8 / 21–24 ms on frame 0; frame 0 breaks even at **1–7 ms** of idle window and the warm-up hides entirely at 6.5 / 28 ms; a 512² or own-shape frame costs 2–3× for ~6–10 ms more on the second frame at 4×. Every frame now carries `stamps.decoderReady` (three mutants caught). One decoder, headless shell, the package. `decode/README.md` §Sizing the warm-up. **Default unchanged — per transport, the workstation's call, read off the stamp.** The gate's `autoWithoutStatsReadsIdleAsks` (transport-ts, wall-clock timers, untouched here) failed once (depth 10 for 8) and passed on the rerun |
 | 86 | **PROF** — link profiles close to a phone: a rate trace, bursty loss, a deep or managed queue; the controllers on them | queue §Rows 83–86 | **blocked** 2026-09-27 — no netem or fq_codel in a container kernel; which substrate is the workstation's call, `## Blocked` |
+| 87 | **ENC** — what compression costs on a fast link, and whether an encoding makes it free | queue §Rows 87–88 | ready |
+| 88 | **H2** — does HTTP/2 serving take the worker's script off the socket queue | queue §Rows 87–88 | ready |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** |
@@ -87,6 +89,34 @@ The term scanner that checks it runs on the workstation, not in a container.
 * **Rows 73–76** (2026-09-25): the warm-up, the decode tail and resources under a throttled CPU, the hand-off to the page — `decode/README.md`, `ARCHITECTURE.md` §Resources and §The hand-off.
 * **Row 77** (TC1): the TCP fallback, built, off by default — `WIRE.md` §The WebSocket mapping, `CLIENTS.md` §The race, `ARCHITECTURE.md` §What was built.
 * **Rows 78–81** (2026-09-25): stream shape under loss in a browser (no); the range in the pack (a third off a colour fill at 4–6×); a bounded BBR (keeps BBR's fill, none of its queue); quinn's withheld ACK, reproduced and fixed as an opt-in patch — `adr-stream-shape.md` §HOL1, `decode/README.md` §The range in the pack, `transport/transport-conclusions.md` §1, `transport/upstream-quinn-ack.md`.
+
+### Rows 87–88
+
+Measured on the workstation 2026-09-26 against the reference implementation (not reachable from here); these rows take
+the part that is about serving a page, which is not specific to it.
+
+**87 · ENC.** gzip (level 6, compressed once and cached, so no server CPU per request) saved ~2.2 MB before the first
+image on a 20 Mbit / 80 ms link (−837 / −447 ms) but made it **+34 / +55 ms later on loopback** (n = 7). The owner wants
+one serving mode, not a link-speed switch (the server cannot know the link at the first request). So: where does the
+loopback cost go, and does an encoding remove it? On the lab's page served by nginx (page-open's HOST mode, TLS),
+precompressed files, no on-the-fly compression: identity · gzip-6 · brotli-11 · zstd (each only where the browser
+advertises it). Assets: the lab's own page bundle, its transport WASM, its decoder WASM, and a metadata-sized JSON —
+bytes of each per encoding. Rows, headless Chromium, loopback, n ≥ 10 interleaved, at 1× and at a 4× CPU throttle
+(a proxy, not a phone — say so): each response's end, the script evaluated, `WebAssembly.compileStreaming` resolved
+(does streaming compile still overlap the download under each encoding?), the first image. Then the break-even rate
+per encoding: bytes saved against the loopback cost. Deciding: an encoding within noise of identity on loopback that
+keeps most of gzip's saving would let "always on" be right everywhere. State each browser's support from primary
+sources (a browser without zstd must fall back by `Accept-Encoding`, never break). No default changed here; record in
+the doc that owns serving (README §Docs).
+
+**88 · H2.** On the workstation's page, served over HTTP/1.1, the downloader's worker script is requested at IDLE
+priority (a `Worker` takes none) and waited ~180 ms for one of the six sockets behind the page's module fetches, at the
+head of a four-deep chain (page script → worker script → transport glue → WASM) that put the WASM's request ~1.2 s
+after navigation at 20 Mbit / 80 ms. On the lab's page, HOST mode, HTTP/1.1 vs HTTP/2, with the browser's own HTTP
+throttle at 20 Mbit / 80 ms (it throttles HTTP only, not the WebTransport session — say so; add it to the harness if
+missing), n ≥ 7 interleaved: when the worker script, its imports and each WASM are requested and end, and the first
+image. Also a `<link rel=modulepreload>` of the worker graph on each protocol. Deciding: does HTTP/2 alone remove the
+socket wait, so the serving change needs no page change? Record in the doc that owns page open.
 
 ### Rows 83–86
 
