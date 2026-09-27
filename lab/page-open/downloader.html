@@ -3,10 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <link rel="icon" href="data:," />
-  <!-- ?dns=ORIGIN resolves the transport's host while the page loads. lab/page-open/README.md -->
+  <!-- ?dns=ORIGIN resolves the transport's host while the page loads; ?transport=wasm takes the
+       WASM client, preloaded as cut 3 preloads the rest; ?meta=URL fetches a study's metadata beside
+       the config. lab/page-open/README.md -->
   <script>
-    const dns = new URLSearchParams(location.search).get("dns");
-    if (dns) document.head.append(Object.assign(document.createElement("link"), { rel: "dns-prefetch", href: dns }));
+    const q = new URLSearchParams(location.search);
+    const link = (attrs) => document.head.append(Object.assign(document.createElement("link"), attrs));
+    if (q.get("dns")) link({ rel: "dns-prefetch", href: q.get("dns") });
+    if (q.get("meta")) link({ rel: "preload", as: "fetch", href: q.get("meta"), crossOrigin: "anonymous" });
+    if (q.get("transport") === "wasm") {
+      link({ rel: "preload", as: "script", href: "/client/transport-wasm/session-adapter.js" });
+      link({ rel: "preload", as: "script", href: "/client/transport-wasm/pkg/transport_wasm.js" });
+      link({ rel: "preload", as: "fetch", href: "/client/transport-wasm/pkg/transport_wasm_bg.wasm", crossOrigin: "anonymous" });
+    }
   </script>
   <!-- The open is serial without these: each is otherwise discovered one round trip
        later than it could be. lab/page-open/README.md -->
@@ -35,9 +44,12 @@
     mark("script");
 
     try {
+      const q = new URLSearchParams(location.search);
+      if (q.get("meta")) fetch(q.get("meta")).then((r) => r.json()).then(() => mark("meta"));
       const cfg = await (await fetch("/wt/dev-transport.json")).json();
       mark("config");
       const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
+        transport: q.get("transport") === "wasm" ? "/client/transport-wasm/session-adapter.js" : undefined,
         decoders: 3,
         decoder: {
           glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
