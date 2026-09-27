@@ -60,7 +60,11 @@ The term scanner that checks it runs on the workstation, not in a container.
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. **The term scanner was not run** — it lives on the workstation; run it over `0752e5d` before anything else lands. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
+| 83 | **RP2** — the range skipped in the pack where nothing reads it (8-bit colour) | queue §Rows 83–86 | ready |
+| 84 | **WEX** — `-fwasm-exceptions` instead of `-fexceptions` in the decoder builds | queue §Rows 83–86 | ready |
+| 85 | **WU2** — the decoder warm-up, sized again for a slower dial | queue §Rows 83–86 | ready |
+| 86 | **PROF** — link profiles close to a phone: a rate trace, bursty loss, a deep or managed queue; the controllers on them | queue §Rows 83–86 | ready |
+| 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** |
 | 44 | **H1** — the production handshake: a real chain, compression, the static plane | queue §Rows 43–50 | **first half done on the workstation** 2026-09-19, merged 2026-09-20: an RSA-2048 chain costs exactly one round trip (4.03 → 5.05, 7/7 at three delays), an ECDSA P-256 chain none; brotli compression (feature `cert-compression`, off) brings RSA back to 4.08 and Chrome 148 offers brotli only; the leaf-only-PEM guard is built. **S40, the static plane: done** 2026-09-26, `c367f5e` — an HTTPS record with `alpn=h3` takes a round trip off the first visit (7/7); the transport on its own port pays a whole lookup after the config, as a second hostname does (S40's "a port is free" corrected); a `dns-prefetch` to its origin removes it (7/7). `ARCHITECTURE.md` §What production adds. A lane about names needs full Chromium, not the headless shell (`rig-limits.md` §8) |
@@ -83,6 +87,57 @@ The term scanner that checks it runs on the workstation, not in a container.
 * **Rows 73–76** (2026-09-25): the warm-up, the decode tail and resources under a throttled CPU, the hand-off to the page — `decode/README.md`, `ARCHITECTURE.md` §Resources and §The hand-off.
 * **Row 77** (TC1): the TCP fallback, built, off by default — `WIRE.md` §The WebSocket mapping, `CLIENTS.md` §The race, `ARCHITECTURE.md` §What was built.
 * **Rows 78–81** (2026-09-25): stream shape under loss in a browser (no); the range in the pack (a third off a colour fill at 4–6×); a bounded BBR (keeps BBR's fill, none of its queue); quinn's withheld ACK, reproduced and fixed as an opt-in patch — `adr-stream-shape.md` §HOL1, `decode/README.md` §The range in the pack, `transport/transport-conclusions.md` §1, `transport/upstream-quinn-ack.md`.
+
+### Rows 83–86
+
+Measured on the workstation 2026-09-26, against the reference implementation (not reachable from here); these rows take
+the lab's side of what it found.
+
+**83 · RP2.** Row 80 put each frame's min/max into the wrapper's pack. On the workstation it won the 16-bit (a steady
+ask 9.63 → 8.22 ms, 10/10) but cost 8-bit colour ~0.5 ms a frame, because the page never reads a colour frame's range
+(the window/level comes from the tags) and the pack still computed it. The change: `pack` takes a template flag
+`Ranged`; the min/max updates run only when it is true; the caller passes `false` for an unsigned 8-bit 3-component
+frame (`comps == 3 && bitsPerSample == 8 && !isSigned`) and `true` for everything else, 16-bit always. The RGB loop is
+otherwise byte-for-byte the old one — no runtime `if` in the loop. `client/downloader/decoder.js` then must not take the
+decoder's (now empty) range for 8-bit colour: it keeps today's path there (the constant range, or `finish()` under a
+scan). Gates: `lab/decode-bench/parity.mjs` pixels and ranges on every fixture; mutants: min −1, max +1, signed read
+unsigned, **the skip widened to an 8-bit grey frame** (needs a synthetic 8-bit grey frame — add one) — each must fail.
+Bench: the colour WASM call back to row 80's pre-change figure, the 16-bit keeps row 80's win. Record in
+`docs/decode/README.md` §The range in the pack.
+
+**84 · WEX.** Both decoder builds pass `-fexceptions` (the library's CMake and the wrapper's `build.sh`), which routes
+every call that may throw through a JS `invoke_*` trampoline; `wasm-dis` of the 4 MB build shows 73 such sites in 17
+functions, 10 of them two to three loops deep in the decode driver. `-fwasm-exceptions` uses native Wasm exception
+handling (every current browser, phones included). Rebuild both builds with it (and `-sSUPPORT_LONGJMP=wasm` if the
+toolchain asks), parity bit-exact on every fixture, then bench, interleaved, n ≥ 10: frames 0–2 (cold) and steady, per
+content, Node and — if the container has one — a headless browser. Estimated 2–5 % of decode, more on cold frames;
+unmeasured. Default only if bit-exact and it wins with no regression. Record in `docs/decode/README.md` §Faster.
+
+**85 · WU2.** The warm-up (`docs/decode/README.md` §Warming the decoders) was judged "never reaches the page" on the
+lab's transport, whose session is ready early. On the workstation's other transport the dial takes longer (a session
+ready ~1.5 s after navigation on an 80 ms link), and each of three decoders pays a cold tier-up on its own first frames:
+41–71 ms for the first, 17–27 for the second, against 6.4–6.8 steady — ~190 decoder-ms per cine fill, all on frames
+0–5 (the first image and the start of a scroll). Size it: warm-up frame shape (160² vs 512² vs the series' own shape),
+its cost per decoder, frames 0–5's decode time with and without, and how long an idle window before the first byte it
+needs to pay for itself (so the workstation can tell, per transport, whether it is hidden). Add a decoder `ready` stamp.
+
+**86 · PROF.** Every link cell so far is netem with uniform random loss on a fixed rate. Real Wi-Fi and LTE hide most
+radio loss with link-layer retransmission and show it as rate swings, delay spikes and loss bursts behind deep buffers,
+and a controller verdict reached on uniform loss (row 79: bounded BBR 4–14× over Cubic) may not survive. Build, in the
+lab's link harness, a profile = (rate trace, base RTT, `slot` delivery, Gilbert–Elliott loss, queue): a netem delay line
+(no `delay … jitter` — it reorders, row 48) → an `htb` bottleneck whose rate a `tc -batch` loop steps from a trace every
+20–50 ms → a `bfifo` (sized in ms at the trace's rate) or `fq_codel` leaf. **Read every lever back against arithmetic
+and mutate it before any campaign** (goodput follows the trace; GE loss rate and burst length from counters; the FIFO's
+standing queue; codel drops); if `htb` under netem misbehaves, say so and use the simplest order that works. Profiles
+(sources: public measurement papers; where the literature has no fitted parameters the value is a knob to sweep):
+LTE-good (a public per-ms LTE capacity trace, 50 ms, GE mean 0.01 % in bursts of 2–5, FIFO ~500 ms); LTE-loaded (a lower
+trace, 60 ms, 0.1 %, FIFO ~1 s, a competing bulk flow); LTE-moving (a driving trace, 70 ms, 0.3 % + a burst at each
+handover every ~30 s: 50 ms outage and a ~200 ms queue spike); WiFi-home (steps 15/40/10/30/15 Mbit/s of 12 s, 30 ms,
+0.25–1 % bursty, FIFO); WiFi-busy (5–20 Mbit/s swings, 40 ms, 1 %, FIFO, a competing flow, one 0.5 s roaming gap);
+fq_codel variants of LTE-good and WiFi-home; and today's uniform 1 % as the control. Then Cubic · BBR · the bounded BBR
+(row 79) on the lab's transport, n ≥ 5 interleaved: a 250 KB first ask and a 61 MB fill, loss/overflow, standing queue,
+a neighbour's share. Traces are fetched for local use only — never committed; record their source and hash. Record in
+`docs/transport/transport-conclusions.md` and the harness's doc; say plainly where bounded BBR loses.
 
 ### Row 82
 
