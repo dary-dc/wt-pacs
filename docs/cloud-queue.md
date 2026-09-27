@@ -63,7 +63,7 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 83 | **RP2** — the range skipped in the pack where nothing reads it (8-bit colour) | queue §Rows 83–86 | **done** 2026-09-27, `acc65e6`: `pack<T, Ranged>`; `decoder.js`'s `unranged` gives the frame 0..255 with no pass, whichever decoder (the package's colour frames too — nothing reads it); parity bit-exact on six sets, 522 frames, new `g8` set; six mutants caught. The colour WASM call back to the pre-row-80 figure (a tie), 16-bit unchanged — container figures, under the 5 % bar. `decode/README.md` §An 8-bit colour frame takes no range. **Row 84 benches against this wrapper.** In a container, `wasm-pack` cannot fetch its `wasm-opt`: put emsdk's `upstream/bin` on `PATH` |
 | 84 | **WEX** — `-fwasm-exceptions` instead of `-fexceptions` in the decoder builds | queue §Rows 83–86 | **done** 2026-09-27, `4957d5a`: **not adopted, default unchanged.** Bit-exact (six sets, 522 frames; an undecodable frame throws and the reused decoder recovers, as before); all 81 `invoke_*` sites gone; steady −0.2 to −1.7 %, frames 0–2 a tie, Node and headless Chromium, n = 15 — under the 5 % bar. 4.9 KB less glue is its only case. `decode/README.md` §Faster; `lab/decode-bench/cold_arms.mjs` is the cold-frame bench. Measured at 1× only; a phone-class CPU is the workstation's cell |
 | 85 | **WU2** — the decoder warm-up, sized again for a slower dial | queue §Rows 83–86 | **done** 2026-09-27, `a040a73`: the shipped 160² frame is the one to ship — **6.0–6.5 ms a decoder at 1×, 28 at 4×**, saving 4.5–4.8 / 21–24 ms on frame 0; frame 0 breaks even at **1–7 ms** of idle window and the warm-up hides entirely at 6.5 / 28 ms; a 512² or own-shape frame costs 2–3× for ~6–10 ms more on the second frame at 4×. Every frame now carries `stamps.decoderReady` (three mutants caught). One decoder, headless shell, the package. `decode/README.md` §Sizing the warm-up. **Default unchanged — per transport, the workstation's call, read off the stamp.** The gate's `autoWithoutStatsReadsIdleAsks` (transport-ts, wall-clock timers, untouched here) failed once (depth 10 for 8) and passed on the rerun |
-| 86 | **PROF** — link profiles close to a phone: a rate trace, bursty loss, a deep or managed queue; the controllers on them | queue §Rows 83–86 | claimed 2026-09-27 |
+| 86 | **PROF** — link profiles close to a phone: a rate trace, bursty loss, a deep or managed queue; the controllers on them | queue §Rows 83–86 | **blocked** 2026-09-27 — no netem or fq_codel in a container kernel; which substrate is the workstation's call, `## Blocked` |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** |
@@ -247,6 +247,25 @@ per decoder batches nothing on a slow CPU; batching across decoders needs a poin
 through, which changes §The decoders' shape. Its ceiling at 4–6×: about 10 ms of a fill's main
 thread; less on the target link. **What is needed:** whether a proposal for the merge point is wanted
 at that price ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The hand-off). Not built meanwhile.
+
+**Row 86 (PROF): where do the link profiles live?** (2026-09-27). The brief's pipeline — a netem delay
+line, an `htb` bottleneck stepped by `tc -batch`, a `bfifo` or `fq_codel` leaf — cannot be built in an
+agent container: its 6.18 kernel has `htb` and the FIFOs (`CONFIG_NET_SCH_HTB=y`, `CONFIG_NET_SCH_FIFO=y`)
+and veth pairs in a network namespace, and a live `tc class change … htb rate` works, but
+`CONFIG_NET_SCH_NETEM` and `CONFIG_NET_SCH_FQ_CODEL` are not set and there are no modules to load
+(`rig-limits.md` §9 already says netem needs a VM). So no delay line, no Gilbert–Elliott loss and no
+fq_codel leaf in-kernel, and none of it can be read back and mutated here before a campaign. Row 79's
+verdict it would test stands on `link_impair.py`, the userspace relay, not on netem. **What is
+needed:** one of —
+* **the relay:** extend `link_impair.py` with a rate trace, a queue sized in ms of the trace's rate, and
+  a CoDel leaf of our own (Gilbert–Elliott, delay and tail drop are already there), calibrated where
+  netem exists (§9 item 2 of `transport/transport-conclusions.md` already owes that calibration);
+* **a hybrid:** the relay for delay and loss in front of a namespaced `htb` + `bfifo` stepped from the
+  trace — no fq_codel variants;
+* **the VM:** keep the brief's pipeline for the cloud rig or a shaped-link VM, where every lever can be
+  read back, and take the row off the container queue.
+
+Nothing was built; no trace was fetched.
 
 **Signed data in the product?** Still the workstation's: whether the product serves signed samples at
 all. The decoders and the parity run cover signed 12- and 16-bit ([`decode/README.md`](decode/README.md) §Ground truth).
