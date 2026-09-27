@@ -31,6 +31,9 @@ node lab/decode-bench/shared_tax.mjs lab/fixtures/decode_g1024
 EMSDK=~/emsdk lab/decode-bench/wasm/heap_curve.sh lab/fixtures/decode_g512
 ```
 
+`cold_arms.mjs --arms a,b` times two builds from a cold module — frames 0–2 and the steady state,
+a fresh Node process or browser context per sample, every frame checked against the `.sha256`.
+
 `parity.mjs` is the one that matters: it compares our build against the package byte for byte and
 getter for getter, and against the encoder's input as well. `heap_curve.sh` builds a ladder of
 initial heap sizes and interleaves them, so the floor is chosen from a curve.

@@ -329,6 +329,18 @@ time was found — §The wrapper's two passes.
 * **A newer OpenJPH: none exists**; 0.31.0 is the newest tag.
 * **Worth taking, and it is not time: LTO makes the binary 16 % smaller** (200 KB against 239 KB),
   heap identical.
+* **Native Wasm exceptions: bit-exact, a tie, not adopted** (row 84). Under `-fexceptions` every call
+  that may throw goes through a JS `invoke_*` trampoline: 81 call sites in 17 functions of the 4 MB
+  build, 11 trampolines. `-fwasm-exceptions` on the library and the wrapper (`ARMS=wex
+  EXTRA_FLAGS=-fwasm-exceptions`; the library's own `-fexceptions` stays harmlessly, and 3.1.74 asked
+  for no `SUPPORT_LONGJMP`) leaves none, 43 native `try`s instead. Parity: six sets, 522 frames,
+  identical. An undecodable input throws on both — a pointer against a `WebAssembly.Exception`, which
+  `decoder.js` stringifies alike — and the reused decoder then decodes a good frame byte-identically.
+  `cold_arms.mjs`, 4 MB builds, n = 15 rotated, a fresh Node process or browser context per sample,
+  on cine512, ct512, c512 and g512: **steady −0.2 to −1.7 %** (9–13/15 rounds), **frames 0–2 a tie
+  either way** (5–12/15), every range overlapping, in Node and headless Chromium alike. The estimate
+  was 2–5 %, more on cold frames; neither shows. What it does buy is bytes: glue 55,155 → 50,266 B,
+  `.wasm` 452 B less. Default unchanged; switching is one flag, and those bytes are the only case.
 
 *A baseline of your own making:* LTO first measured −17.8 % against a `plain` build the lane had
 rebuilt with the newer, slower toolchain. Record which emscripten a rebuild used and compare against
