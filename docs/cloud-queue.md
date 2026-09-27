@@ -60,7 +60,7 @@ The term scanner that checks it runs on the workstation, not in a container.
 
 | # | what | brief | state |
 | --- | --- | --- | --- |
-| 83 | **RP2** — the range skipped in the pack where nothing reads it (8-bit colour) | queue §Rows 83–86 | ready |
+| 83 | **RP2** — the range skipped in the pack where nothing reads it (8-bit colour) | queue §Rows 83–86 | claimed 2026-09-27 |
 | 84 | **WEX** — `-fwasm-exceptions` instead of `-fexceptions` in the decoder builds | queue §Rows 83–86 | ready |
 | 85 | **WU2** — the decoder warm-up, sized again for a slower dial | queue §Rows 83–86 | ready |
 | 86 | **PROF** — link profiles close to a phone: a rate trace, bursty loss, a deep or managed queue; the controllers on them | queue §Rows 83–86 | ready |
