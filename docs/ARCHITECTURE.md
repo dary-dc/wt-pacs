@@ -523,15 +523,22 @@ malformed ask leaves the session serving). A re-dial puts the fill's remainder i
 **The server's SETTINGS at 0.5 RTT.** Chromium holds its CONNECT until the server's SETTINGS arrive,
 and `wtransport` 0.7.2 opened the server's control stream only after the handshake completed.
 [`../patches/wtransport-0.7.2-settings-early.patch`](../patches/wtransport-0.7.2-settings-early.patch)
-(19 lines in `endpoint.rs`) takes the server's `Connecting` to 0.5-RTT with `into_0rtt` and starts the
-driver on it, so SETTINGS ride the handshake flight (RFC 9114 §6.2.1 allows it). It still waits for the
-handshake before reading the client's SETTINGS and CONNECT, so a `SessionRequest` exists only after a
-completed handshake, and early data stays off. **On by default.** *Corrected in place:* this was first
+(22 lines in `endpoint.rs`) takes the server's `Connecting` to 0.5-RTT with `into_0rtt` and starts the
+driver on it — on both of the library's server entry points, `Endpoint::accept` and
+`IncomingSessionFuture::with_quic_connecting` — so SETTINGS ride the handshake flight (RFC 9114
+§6.2.1 allows it). It still waits for the handshake before reading the client's SETTINGS and CONNECT,
+so a `SessionRequest` exists only after a completed handshake, and early data stays off. **On by default.** *Corrected in place:* this was first
 said to halve the round trip and to need a fork; it removes the whole of it — Chrome sends its CONNECT
 with its Finished once it holds the SETTINGS — and is carried as a build-time patch:
 [`../scripts/patch_crate.sh`](../scripts/patch_crate.sh) applies it with `--fuzz=0` to the
 checksum-verified crates.io tarball, behind a `[patch.crates-io]` shim in `patched/wtransport/`;
-dropping it is deleting that line. `settings_ride_the_handshake_flight` holds it (mutant caught).
+dropping it is deleting that line. `settings_ride_the_handshake_flight` and
+`settings_ride_the_handshake_flight_from_a_quic_connecting` hold it, one test an entry point (mutants
+caught: the driver started after the handshake fails both; the patch before 2026-09-28 fails the
+second). *Corrected in place:* until then the patch covered only `Endpoint::accept`; a server that
+accepts its own QUIC connections and hands each to `with_quic_connecting` still sent SETTINGS a round
+trip late — measured on the workstation, on a server built that way, 5.19 → 4.19 round trips to a
+session, 7/7 at 40 and 80 ms (not re-measured here; this server uses `Endpoint::accept`).
 
 **Worth one round trip off the dial**, in a browser ([`../lab/page-open/run.mjs`](../lab/page-open/run.mjs)
 with `SERVERS=`, both builds behind their own relays, interleaved, 8 rounds at 0, 40 and 80 ms):

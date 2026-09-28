@@ -17,7 +17,7 @@ touches `open_and_send_settings`, which this patch starts earlier.
 it calls `Driver::init`. So the server opens its control stream, and writes SETTINGS, only after
 the handshake completes. That is half a round trip after the server could first send 1-RTT data.
 In practice the SETTINGS reach the client with `HANDSHAKE_DONE`, a full round trip after the
-server's first flight.
+server's first flight. `with_quic_connecting` does the same with a `Connecting` it awaits.
 
 **Why it costs a round trip.** A WebTransport client must not send its extended CONNECT until it
 has seen the server's SETTINGS (they carry `ENABLE_CONNECT_PROTOCOL` and the WebTransport
@@ -65,47 +65,56 @@ and wtransport's change stands without it.
 
 **Title:** Send the server's SETTINGS at 0.5-RTT
 
-**What.** `IncomingSessionFuture::new` converts the server's `Connecting` with `into_0rtt()`,
-which always succeeds on a server, and starts the driver on it. The driver's first act — open the
-control stream, write SETTINGS — therefore rides the handshake flight. It then awaits the handshake
-before `accept` reads the client's SETTINGS and CONNECT. `with_quic_connecting` is unchanged.
+**What.** Both server entry points — `IncomingSessionFuture::new`, behind `Endpoint::accept` and
+`with_quic_incoming`, and `with_quic_connecting` — go through `accept`, which now takes the
+`quinn::Connecting`. It converts it with `into_0rtt()`, which always succeeds on a server, and
+starts the driver on it. The driver's first act — open the control stream, write SETTINGS —
+therefore rides the handshake flight. It then awaits the handshake before it reads the client's
+SETTINGS and CONNECT.
 
 ```diff
 --- a/src/endpoint.rs
 +++ b/src/endpoint.rs
-@@ -607,20 +607,34 @@
+@@ -605,22 +605,27 @@
+     #[cfg(feature = "quinn")]
+     #[cfg_attr(docsrs, doc(cfg(feature = "quinn")))]
      pub fn with_quic_connecting(quic_connecting: quinn::Connecting) -> Self {
-         Self(Box::pin(async move {
-             let quic_connection = quic_connecting.await?;
+-        Self(Box::pin(async move {
+-            let quic_connection = quic_connecting.await?;
 -            Self::accept(quic_connection).await
-+            let driver = Driver::init(quic_connection.clone());
-+            Self::accept(quic_connection, driver).await
-         }))
+-        }))
++        Self(Box::pin(Self::accept(quic_connecting)))
      }
  
      fn new(quic_incoming: quinn::Incoming) -> Self {
-         Self(Box::pin(async move {
+-        Self(Box::pin(async move {
 -            let quic_connection = quic_incoming.await?;
 -            Self::accept(quic_connection).await
-+            // 0.5-RTT: the driver opens the control stream and writes SETTINGS with the
-+            // handshake flight (RFC 9114 §6.2.1), rather than a round trip later.
-+            let (quic_connection, handshake) = quic_incoming
-+                .accept()?
-+                .into_0rtt()
-+                .unwrap_or_else(|_| unreachable!("a server connection always converts"));
-+            let driver = Driver::init(quic_connection.clone());
-+
-+            // A session request is surfaced only from a completed handshake.
-+            handshake.await;
-+            if let Some(error) = quic_connection.close_reason() {
-+                return Err(error.into());
-+            }
-+            Self::accept(quic_connection, driver).await
-         }))
+-        }))
++        Self(Box::pin(async move { Self::accept(quic_incoming.accept()?).await }))
      }
+ 
+-    async fn accept(quic_connection: quinn::Connection) -> Result<SessionRequest, ConnectionError> {
++    async fn accept(quic_connecting: quinn::Connecting) -> Result<SessionRequest, ConnectionError> {
++        // 0.5-RTT: the driver opens the control stream and writes SETTINGS with the
++        // handshake flight (RFC 9114 §6.2.1), rather than a round trip later.
++        let (quic_connection, handshake) = quic_connecting
++            .into_0rtt()
++            .unwrap_or_else(|_| unreachable!("a server connection always converts"));
+         let driver = Driver::init(quic_connection.clone());
+ 
++        // A session request is surfaced only from a completed handshake.
++        handshake.await;
++        if let Some(error) = quic_connection.close_reason() {
++            return Err(error.into());
++        }
++
+         let _settings = driver.accept_settings().await.map_err(|driver_error| {
+             ConnectionError::with_driver_error(driver_error, &quic_connection)
+         })?;
 ```
 
-(`accept` now takes the driver instead of creating it; its body is otherwise unchanged.)
+(The rest of `accept` is unchanged.)
 
 **What does not change.** The public API. A `SessionRequest` still exists only after a completed
 handshake, so a 0-RTT CONNECT could not be surfaced before it, even on a server that enabled early
@@ -114,7 +123,8 @@ that move earlier are the server's SETTINGS.
 
 **Tested.** A test in which the client loses everything it sends after its first flight, so the
 server's handshake never completes: the client must still receive the server's control stream,
-opening with SETTINGS. It times out without the change and passes with it. A PR would carry it
+opening with SETTINGS. It runs once through `Endpoint::accept` and once through
+`with_quic_connecting`; each times out without the change and passes with it. A PR would carry it
 into wtransport's own tests. Interop checked against Chrome 141, wtransport's client,
 webtransport-go v0.9.0 and aioquic 1.3.0 (sessions and a stream each way). Also against quic-go's
 HTTP/3 client and hyperium h3, whose handshakes and SETTINGS read the same with and without the

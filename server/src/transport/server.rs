@@ -848,55 +848,98 @@ mod tests {
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
             }
-
-            let front = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
-            let relay = front.local_addr().expect("relay addr");
-            let back = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
-            back.connect(("127.0.0.1", port)).await.expect("relay upstream");
-            tokio::spawn(async move {
-                let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
-                let (mut client, mut answered) = (None, false);
-                loop {
-                    tokio::select! {
-                        Ok((n, from)) = front.recv_from(&mut up) => {
-                            client = Some(from);
-                            if !answered {
-                                back.send(&up[..n]).await.ok();
-                            }
-                        }
-                        Ok(n) = back.recv(&mut down) => {
-                            answered = true;
-                            if let Some(to) = client {
-                                front.send_to(&down[..n], to).await.ok();
-                            }
-                        }
-                    }
-                }
-            });
-
-            let config = ClientConfig::builder()
-                .with_bind_config(IpBindConfig::InAddrAnyV4)
-                .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
-                .build();
-            let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap())
-                .expect("quinn client");
-            endpoint.set_default_client_config(config.quic_config().clone());
-            let connection = endpoint
-                .connect(relay, "localhost")
-                .expect("connect")
-                .await
-                .expect("client side of the handshake");
-            let mut control =
-                tokio::time::timeout(Duration::from_secs(3), connection.accept_uni())
-                    .await
-                    .expect("no server stream before the server's handshake completed")
-                    .expect("accept uni");
-            let mut head = [0u8; 2];
-            control.read_exact(&mut head).await.expect("control stream head");
-            assert_eq!(head, [0x00, 0x04], "not a control stream opening with SETTINGS");
+            assert_settings_before_the_handshake(port, cert_hash).await;
             server.abort();
         });
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The same holds for a server that accepts its own QUIC connections and hands each to the
+    /// library through `IncomingSessionFuture::with_quic_connecting`: its SETTINGS leave with its
+    /// handshake flight too. Without the patch's `with_quic_connecting` change they never do.
+    /// `docs/ARCHITECTURE.md` §Lever 2.
+    #[test]
+    fn settings_ride_the_handshake_flight_from_a_quic_connecting() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-connecting-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let identity = Identity::load_pemfiles(&cert_pem, &key_pem).await.expect("identity");
+            let config = ServerConfig::builder()
+                .with_bind_address("127.0.0.1:0".parse().unwrap())
+                .with_identity(identity)
+                .build();
+            let endpoint = wtransport::quinn::Endpoint::server(
+                config.quic_config().clone(),
+                "127.0.0.1:0".parse().unwrap(),
+            )
+            .expect("quinn server");
+            let port = endpoint.local_addr().expect("server addr").port();
+            let server = tokio::spawn(async move {
+                let incoming = endpoint.accept().await.expect("an incoming connection");
+                let connecting = incoming.accept().expect("connecting");
+                let _ = wtransport::endpoint::IncomingSessionFuture::with_quic_connecting(connecting)
+                    .await;
+            });
+            assert_settings_before_the_handshake(port, cert_hash).await;
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Dials the server on `port` through a relay that stops forwarding the client's datagrams
+    /// once the server has answered, and asserts the server's control stream arrives anyway.
+    async fn assert_settings_before_the_handshake(port: u16, cert_hash: [u8; 32]) {
+        let front = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
+        let relay = front.local_addr().expect("relay addr");
+        let back = tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay");
+        back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+        tokio::spawn(async move {
+            let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+            let (mut client, mut answered) = (None, false);
+            loop {
+                tokio::select! {
+                    Ok((n, from)) = front.recv_from(&mut up) => {
+                        client = Some(from);
+                        if !answered {
+                            back.send(&up[..n]).await.ok();
+                        }
+                    }
+                    Ok(n) = back.recv(&mut down) => {
+                        answered = true;
+                        if let Some(to) = client {
+                            front.send_to(&down[..n], to).await.ok();
+                        }
+                    }
+                }
+            }
+        });
+
+        let config = ClientConfig::builder()
+            .with_bind_config(IpBindConfig::InAddrAnyV4)
+            .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+            .build();
+        let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap())
+            .expect("quinn client");
+        endpoint.set_default_client_config(config.quic_config().clone());
+        let connection = endpoint
+            .connect(relay, "localhost")
+            .expect("connect")
+            .await
+            .expect("client side of the handshake");
+        let mut control = tokio::time::timeout(Duration::from_secs(3), connection.accept_uni())
+            .await
+            .expect("no server stream before the server's handshake completed")
+            .expect("accept uni");
+        let mut head = [0u8; 2];
+        control.read_exact(&mut head).await.expect("control stream head");
+        assert_eq!(head, [0x00, 0x04], "not a control stream opening with SETTINGS");
     }
 
     /// A server whose whole first flight is lost probes every space it sent in, so its handshake
