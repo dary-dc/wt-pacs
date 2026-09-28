@@ -1,11 +1,13 @@
 /**
- * The range pass alone, in a browser worker: range.html's arms, rotated with the shapes every round.
+ * The range pass alone, in a browser worker: range.html's arms with the shapes, in a Williams order
+ * every round (lab/order.mjs).
  * At 1×: a pass this short outruns the throttle's enforcement. docs/decode/README.md §The decode tail on a slow CPU
  *
  *   NODE_PATH=$(npm root -g) node lab/decode-tail/range.mjs [--rounds 7] [--throttles 1]
  */
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { leadsByPredecessor, order } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
@@ -27,16 +29,18 @@ await page.goto(`http://127.0.0.1:${PORT}/lab/decode-tail/range.html`);
 await page.waitForFunction(() => globalThis.ready);
 
 const rows = [];
+const cells = THROTTLES.flatMap((t) => SHAPES.flatMap((s) => ARMS.map((a) => [t, s, a])));
+const unit = (throttle, shape, arm) => `${arm}/${shape}@${throttle}x`;
 for (let round = 0; round < ROUNDS; round++) {
-  const cells = THROTTLES.flatMap((t) => SHAPES.flatMap((s) => ARMS.map((a) => [t, s, a])));
-  for (let k = 0; k < cells.length; k++) {
-    const [throttle, shape, arm] = cells[(k + round) % cells.length];
+  let prev = null;
+  for (const [throttle, shape, arm] of order(cells, round)) {
     const stop = throttleTree(server.process().pid, throttle);
     const { out, result } = await page.evaluate(([a, s]) => globalThis.run(a, s, 15), [arm, shape]);
     stop();
     // The first calls tier up; the steady state is the question.
     const steady = out.slice(5).sort((x, y) => x - y);
-    rows.push({ round, throttle, shape, arm, ms: steady[steady.length >> 1], result });
+    rows.push({ round, throttle, shape, arm, prev, ms: steady[steady.length >> 1], result });
+    prev = unit(throttle, shape, arm);
   }
 }
 await browser.close();
@@ -52,4 +56,8 @@ for (const throttle of THROTTLES) for (const shape of SHAPES) {
   console.log(`${throttle}x ${shape}: product ${med(p.map((r) => r.ms)).toFixed(2)}  ints ${med(i.map((r) => r.ms)).toFixed(2)}` +
     `  ints faster in ${faster}/${i.length}  same range: ${same}`);
 }
+console.log("\neach lead by the predecessor it ran after, ms a frame, rounds in brackets");
+const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.throttle, r.shape, r.arm), prev: r.prev, v: r.ms }));
+const pairs = THROTTLES.flatMap((t) => SHAPES.map((s) => [unit(t, s, "ints"), unit(t, s, "product")]));
+for (const line of leadsByPredecessor(byUnit, cells.map((c) => unit(...c)), pairs, 2)) console.log(line);
 process.exit(0);

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # L3: send levers on a lossy, rate-limited link. The rig's one reachable port serves each arm in
-# turn, server -> client shaped with netem; per round the arm order rotates and each arm runs a
-# fill and an on-demand cell with the native driver. Results: docs/rig-limits.md §3.
+# turn, server -> client shaped with netem; each round runs the arms in a Williams order
+# (lab/scripts/order.py) and each arm a fill and an on-demand cell with the native driver. Results: docs/rig-limits.md §3.
 #
 #   SSH_KEY=~/.ssh/id_ed25519_rig lab/scripts/l3_lossy_link.sh [ROUNDS]
 #   CELLS="off 20:50:0 20:50:1"   one-way delay ms : rate Mbit : loss %, or off
@@ -79,13 +79,14 @@ echo "==> deploy" >&2
 "${SSH[@]}" 'pkill -x exact-server-l3 || true'
 scp -i "$SSH_KEY" -o ControlPath="/tmp/l3-ssh-%C" "$BIN" "ubuntu@$HOST:wt-pacs/bin/exact-server-l3"
 
-printf 'cell\tround\tarm\tmode\tcode\tp50_ns\tp90_ns\tp99_ns\twall_ns\tserver_cpu_ns\tsteal_ticks\tsent\tlost\tloss_events\tsrtt_us\n' > "$OUT"
+printf 'cell\tround\tarm\tmode\tcode\tp50_ns\tp90_ns\tp99_ns\twall_ns\tserver_cpu_ns\tsteal_ticks\tsent\tlost\tloss_events\tsrtt_us\tprev\n' > "$OUT"
 for cell in $CELLS; do
   shape "$cell"
   before=$(netem_counts || true)
   for ((r = 0; r < ROUNDS; r++)); do
-    for ((k = 0; k < ${#ARMS[@]}; k++)); do
-      IFS=: read -r name args <<<"${ARMS[$(( (k + r) % ${#ARMS[@]} ))]}"
+    prev=first
+    for k in $(python3 "$ROOT/lab/scripts/order.py" row "${#ARMS[@]}" "$r"); do
+      IFS=: read -r name args <<<"${ARMS[$k]}"
       for mode in fill on-demand; do
         serve "$args"
         read -r cpu0 steal0 < <(server_cpu)
@@ -96,12 +97,13 @@ for cell in $CELLS; do
         read -r cpu1 steal1 < <(server_cpu)
         read -r sent lost events srtt < <(session_stats)
         IFS=$'\t' read -r _ _ _ _ _ _ p50 p90 p99 wall _ <<<"${line:-}"
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$cell" "$r" "$name" "$mode" \
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$cell" "$r" "$name" "$mode" \
           "$code" "${p50:-NA}" "${p90:-NA}" "${p99:-NA}" "${wall:-NA}" "$((cpu1 - cpu0))" \
-          "$((steal1 - steal0))" "${sent:-NA}" "${lost:-NA}" "${events:-NA}" "${srtt:-NA}" \
+          "$((steal1 - steal0))" "${sent:-NA}" "${lost:-NA}" "${events:-NA}" "${srtt:-NA}" "$prev" \
           | tee -a "$OUT"
         sleep "$SETTLE"
       done
+      prev="$name"
     done
   done
   echo "netem $cell sent/dropped before: ${before:-none} after: $(netem_counts || true)" | tee -a "$OUT.qdisc"

@@ -4,6 +4,7 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import { leadsByPredecessor, order } from '../order.mjs';
 import { loadFixture, median, range, sha256 } from './decoder.mjs';
 
 const require = createRequire(import.meta.url);
@@ -43,7 +44,7 @@ async function load(name) {
 const arms = {};
 for (const n of names) arms[n] = await load(n);
 console.log(`arms: ${names.map((n) => `${n} (${(arms[n].wasmBytes / 1024).toFixed(0)} KB wasm)`).join(', ')}`);
-console.log(`${ROUNDS - 1} timed rounds, order rotated each round; the first arm is the baseline`);
+console.log(`${ROUNDS - 1} timed rounds, Williams order (lab/order.mjs); the first arm is the baseline`);
 
 const consume = (b) => b[0] + b[b.length - 1];
 
@@ -75,10 +76,11 @@ for (const dir of dirs) {
   }
 
   const got = Object.fromEntries(names.map((n) => [n, []]));
+  const rows = [];
   for (let round = 0; round < ROUNDS; round++) {
-    const order = names.map((_, i) => names[(i + round) % names.length]);
+    const seq = order(names, round);
     const ms = {};
-    for (const n of order) {
+    for (const n of seq) {
       const t0 = performance.now();
       let sink = 0;
       for (const f of frames) sink += consume(arms[n].decode(f));
@@ -86,6 +88,7 @@ for (const dir of dirs) {
       if (sink === Infinity) console.log('');
     }
     if (round) for (const n of names) got[n].push(ms[n]);
+    if (round) seq.forEach((n, k) => rows.push({ round, unit: n, prev: seq[k - 1] ?? null, v: ms[n] }));
   }
 
   const bytes = meta.width * meta.height * meta.channels * (meta.maxValue > 255 ? 2 : 1);
@@ -99,5 +102,7 @@ for (const dir of dirs) {
     const rel = n === names[0] ? 'baseline' : `${(((m - base) / base) * 100).toFixed(1)}%`;
     console.log(`    ${n.padEnd(8)} ${m.toFixed(3)} ms/frame [${lo.toFixed(3)}-${hi.toFixed(3)}]  ${rel.padStart(8)}  heap ${(arms[n].heap() / 1048576).toFixed(1)} MB${better}`);
   }
+  console.log('    ms/frame, each lead by the predecessor it ran after, rounds in brackets');
+  for (const line of leadsByPredecessor(rows, names, names.slice(1).map((n) => [n, names[0]]), 3)) console.log(`  ${line}`);
 }
 console.log('\n  container-measured: reported, not decided on. 5% with non-overlapping ranges is the bar.');

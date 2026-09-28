@@ -48,6 +48,9 @@ step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)
 (cd client/transport-ts && npx tsc -p ../record/tsconfig.json)
 
+step "lab: the arm order and its predecessor split"
+node lab/order.test.mjs
+
 step "server: tests, default features"
 cargo test -p exact-server --quiet
 step "server: tests, telemetry feature"

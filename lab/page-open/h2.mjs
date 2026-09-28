@@ -1,7 +1,8 @@
 /**
  * H2: the downloader page over HTTP/1.1 and HTTP/2 from nginx on the deploy template, its hints as
- * committed, with none, and with a modulepreload of the worker graph instead, the arms rotated inside
- * every round. The page's TCP crosses one shaped bottleneck; the WebTransport session does not.
+ * committed, with none, and with a modulepreload of the worker graph instead, the arms in a Williams
+ * order inside every round (lab/order.mjs). The page's TCP crosses one shaped bottleneck; the
+ * WebTransport session does not.
  * lab/page-open/README.md §The worker graph over HTTP/1.1 and HTTP/2
  *
  *   NODE_PATH=$(npm root -g) node lab/page-open/h2.mjs [rounds]
@@ -9,6 +10,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { leadsByPredecessor, order } from "../order.mjs";
 import { ROOT, T, aged, browser, median, nginx, port, start, study, tls } from "./host.mjs";
 
 const ROUNDS = Number(process.argv[2] || 7);
@@ -88,13 +90,14 @@ async function visit(arm) {
 
 const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
-  for (let k = 0; k < ARMS.length; k++) {
-    const arm = ARMS[(round + k) % ARMS.length];
+  let prev = null;
+  for (const arm of order(ARMS, round)) {
     try {
-      rows.push({ round, arm, ...(await visit(arm)) });
+      rows.push({ round, arm, prev, ...(await visit(arm)) });
     } catch (e) {
       process.stderr.write(`${arm} round ${round}: ${e.message.split("\n")[0]}\n`);
     }
+    prev = arm;
   }
   process.stderr.write(`round ${round} done\n`);
 }
@@ -114,4 +117,7 @@ for (const key of KEYS) {
   });
   console.log(`${key.padEnd(15)} ${cells.join("")}`);
 }
+console.log("\nthe first frame, ms: each lead by the predecessor it ran after, rounds in brackets");
+const byArm = rows.map((r) => ({ round: r.round, unit: r.arm, prev: r.prev, v: r.frame }));
+for (const line of leadsByPredecessor(byArm, ARMS, ARMS.slice(1).map((a) => [a, ARMS[0]]))) console.log(line);
 process.exit(0);

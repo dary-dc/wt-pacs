@@ -2,6 +2,7 @@
 // Not a build flag, and the lane's candidate for the largest lever. docs/decode/README.md
 //
 // usage: node reuse_cost.mjs FIXTURE_DIR [FIXTURE_DIR ...] [--rounds N]
+import { leadsByPredecessor, order } from '../order.mjs';
 import { instance, loadFixture, median, range, sha256 } from './decoder.mjs';
 
 const args = process.argv.slice(2);
@@ -41,7 +42,7 @@ function pass(M, frames, arm) {
   return { ms: (performance.now() - t0) / frames.length, sink };
 }
 
-console.log(`a decoder per frame vs one reused, ${ROUNDS - 1} timed rounds, interleaved and rotated`);
+console.log(`a decoder per frame vs one reused, ${ROUNDS - 1} timed rounds, in a Williams order (lab/order.mjs)`);
 console.log('  fixture      decoded    per-frame ms*        reused ms*           saved*    reused faster in');
 for (const dir of dirs) {
   const { frames, truth, meta, name } = loadFixture(dir);
@@ -71,11 +72,13 @@ for (const dir of dirs) {
 
   const bytes = meta.width * meta.height * meta.channels * (meta.maxValue > 255 ? 2 : 1);
   const got = { fresh: [], reused: [] };
+  const rows = [];
   for (let round = 0; round < ROUNDS; round++) {
-    const order = round % 2 ? ['reused', 'fresh'] : ['fresh', 'reused'];
+    const seq = order(['fresh', 'reused'], round);
     const ms = {};
-    for (const arm of order) ms[arm] = pass(M, frames, arm).ms;
-    if (round) for (const arm of order) got[arm].push(ms[arm]);
+    for (const arm of seq) ms[arm] = pass(M, frames, arm).ms;
+    if (round) for (const arm of seq) got[arm].push(ms[arm]);
+    if (round) seq.forEach((u, i) => rows.push({ round, unit: u, prev: seq[i - 1] ?? null, v: ms[u] }));
   }
 
   const n = ROUNDS - 1;
@@ -89,5 +92,6 @@ for (const dir of dirs) {
       `   ${median(got.reused).toFixed(3)} [${rl.toFixed(3)}-${rh.toFixed(3)}]` +
       `   ${delta.toFixed(3).padStart(7)} ms   ${faster}/${n}`
   );
+  for (const line of leadsByPredecessor(rows, ['fresh', 'reused'], [['reused', 'fresh']], 3)) console.log(`  ${line}`);
 }
 console.log('  * container-measured, not a timing rig: reported, not used for any decision.');

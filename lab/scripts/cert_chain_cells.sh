@@ -2,7 +2,7 @@
 # H1: what a production certificate chain costs a cold open, and what RFC 8879 compression
 # gives back. Builds throwaway WebPKI-shaped chains from a private CA made here, reads each
 # server first flight off the wire, and refits cold_open's first-byte slope with the arms
-# interleaved. Numbers and what they mean: docs/ARCHITECTURE.md §What production adds.
+# interleaved in a Williams order (lab/scripts/order.py). Numbers and what they mean: docs/ARCHITECTURE.md §What production adds.
 #
 #   lab/scripts/cert_chain_cells.sh [rounds]
 #
@@ -164,32 +164,40 @@ for arm in "${ARMS[@]}"; do
 done
 
 echo
-echo "== first byte, arms interleaved, $ROUNDS rounds per delay"
+echo "== first byte, arms in a Williams order, $ROUNDS rounds per delay"
 : > "$T/samples.tsv"
 for d in "${DELAYS[@]}"; do
   for arm in "${ARMS[@]}"; do
     start_relay "$arm" "$(port_of "$arm" front)" "$(port_of "$arm" server)" "$d"
   done
-  for _ in $(seq "$ROUNDS"); do
-    for arm in "${ARMS[@]}"; do
+  for round in $(seq 0 $((ROUNDS - 1))); do
+    prev=first
+    for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$round"); do
+      arm="${ARMS[$k]}"
       line=$("$(bin_of "$arm")/cold_open" --url "https://127.0.0.1:$(port_of "$arm" front)/" \
              --rounds 1 --rtt-ms $((2 * d)))
-      printf '%s\t%s\t%s\n' "$arm" "$((2 * d))" "$line" >> "$T/samples.tsv"
+      printf '%s\t%s\t%s\t%s\t%s\n' "$arm" "$((2 * d))" "$round" "$prev" "$line" >> "$T/samples.tsv"
+      prev="$arm"
     done
   done
   stop_relays
 done
 
 cat > "$T/fit.py" <<'FIT'
-"""Median per (arm, rtt), the slope of that median against the rtt, and how often each arm's
-first byte landed behind the reference arm's in the same round."""
+"""Median per (arm, rtt), the slope of that median against the rtt, how often each arm's
+first byte landed behind the reference arm's in the same round, and that lead by predecessor."""
 import collections, re, statistics, sys
+sys.path.insert(0, "lab/scripts")
+from order import leads_by_predecessor
 
 phase, ref = sys.argv[2], sys.argv[3]
 cells = collections.defaultdict(list)
+visits = collections.defaultdict(list)
 for line in open(sys.argv[1]):
-    arm, rtt, out = line.rstrip("\n").split("\t", 2)
-    cells[(arm, int(rtt))].append(float(re.search(phase + r"=([0-9.]+)ms", out).group(1)))
+    arm, rtt, rnd, prev, out = line.rstrip("\n").split("\t", 4)
+    v = float(re.search(phase + r"=([0-9.]+)ms", out).group(1))
+    cells[(arm, int(rtt))].append(v)
+    visits[int(rtt)].append({"round": int(rnd), "unit": arm, "prev": None if prev == "first" else prev, "v": v})
 
 arms = sorted({a for a, _ in cells}, key=lambda a: [x[0] for x in cells].index(a))
 rtts = sorted({r for _, r in cells})
@@ -205,6 +213,10 @@ for arm in arms:
     mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
     slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
     print("  %-7s %s  ->  %.2f round trips + %.1f ms" % (arm, "  ".join(row), slope, my - slope * mx))
+for rtt in rtts:
+    print("  rtt %d ms, each lead by the predecessor it ran after, rounds in brackets" % rtt)
+    for line in leads_by_predecessor(visits[rtt], arms, [(a, ref) for a in arms if a != ref], 1):
+        print("  " + line)
 FIT
 
 echo

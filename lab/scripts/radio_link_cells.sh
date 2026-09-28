@@ -4,8 +4,8 @@
 #               Cubic's packet threshold raised under the reordering one.
 #   outage      S33 — a blackout that drops against one that holds, Cubic and BBR.
 #   two-blinks  S33's prediction — a second blink 3 s after the first, on both models.
-# Arms are interleaved inside every round and the relay takes the round as its seed, so every
-# arm of a round meets the same draw. Results: docs/transport/transport-conclusions.md §3.
+# Arms are interleaved inside every round in a Williams order (lab/scripts/order.py), and the relay
+# takes the round as its seed, so every arm of a round meets the same draw. Results: docs/transport/transport-conclusions.md §3.
 #
 #   lab/scripts/radio_link_cells.sh jitter|outage|two-blinks [rounds]
 set -euo pipefail
@@ -136,9 +136,9 @@ run() {  # round label relay-args server-args probe-args
     kill -TERM "$relay" 2>/dev/null || true
     sleep 0.3
     read -r rtt_ms sent lost ce < <(link_cost)
-    printf '%d\t%s\t%s\t%s\t%s\t%s\t%s\n' "$round" "$label" \
+    printf '%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$round" "$label" \
       "$(sed -n 's/.*fill_ms median=\([0-9.]*\).*/\1/p' <<<"$line")" \
-      "$sent" "$lost" "$ce" "$rtt_ms" >> "$T/rows.tsv"
+      "$sent" "$lost" "$ce" "$rtt_ms" "$PREV" >> "$T/rows.tsv"
   else
     printf '%-24s round %d FAILED %s\n' "$label" "$round" "$(head -2 <<<"$line" | tr '\n' ' ')" >&2
     kill -TERM "$relay" 2>/dev/null || true
@@ -150,19 +150,23 @@ run() {  # round label relay-args server-args probe-args
 : > "$T/rows.tsv"
 echo "cell $CELL · ${RTT} ms round trip, ${RATE} kbit, queue $QUEUE, fill $((FILL * KB)) KB, $ROUNDS rounds"
 for round in $(seq 1 "$ROUNDS"); do
-  for spec in "${ARMS[@]}"; do
-    IFS='|' read -r label relay server probe <<<"$spec"
+  PREV=first
+  for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$round"); do
+    IFS='|' read -r label relay server probe <<<"${ARMS[$k]}"
     run "$round" "$label" "$relay" "$server" "$probe"
+    PREV="$label"
   done
   printf 'round %d done\n' "$round" >&2
 done
 
 if [[ -n "${OUT_TSV:-}" ]]; then cp "$T/rows.tsv" "$OUT_TSV"; fi
-python3 - "$T/rows.tsv" "$PAIRS" <<'PY'
+python3 - "$T/rows.tsv" "$PAIRS" "${ARMS[@]%%|*}" <<'PY'
 import statistics as st, sys
+sys.path.insert(0, "lab/scripts")
+from order import leads_by_predecessor
 rows = [l.split("\t") for l in open(sys.argv[1]).read().splitlines() if l]
 by, order = {}, []
-for rnd, label, fill, sent, lost, ce, rtt in rows:
+for rnd, label, fill, sent, lost, ce, rtt, prev in rows:
     if label not in by:
         by[label] = {}
         order.append(label)
@@ -186,4 +190,9 @@ for pair in sys.argv[2].split(";"):
     ma, mb = st.median([by[a][r][0] for r in shared]), st.median([by[b][r][0] for r in shared])
     wins = sum(by[a][r][0] < by[b][r][0] for r in shared)
     print("%-24s %-24s %8.2f %5d/%d" % (a, b, ma / mb, wins, len(shared)))
+print("\nfill ms, each lead by the predecessor it ran after, rounds in brackets")
+split = [{"round": int(r[0]), "unit": r[1], "prev": None if r[7] == "first" else r[7], "v": float(r[2])} for r in rows]
+pairs = [p.split(">") for p in sys.argv[2].split(";") if all(x in by for x in p.split(">"))]
+for line in leads_by_predecessor(split, sys.argv[3:], pairs):
+    print(line)
 PY

@@ -1,6 +1,7 @@
 /**
  * ENC: the lab's page served by nginx over TLS and HTTP/2 from precompressed files — identity, gzip,
- * brotli, zstd — on loopback, at each CPU throttle, the arms rotated inside every round.
+ * brotli, zstd — on loopback, at each CPU throttle, the arms in a Williams order inside every round
+ * (lab/order.mjs).
  * lab/page-open/README.md §What an encoding costs on loopback
  *
  *   NODE_PATH=$(npm root -g) node lab/page-open/enc.mjs [rounds]
@@ -11,6 +12,7 @@ import https from "node:https";
 import path from "node:path";
 import zlib from "node:zlib";
 import { execFileSync } from "node:child_process";
+import { leadsByPredecessor, order } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
 import { ROOT, T, browser, median, nginx, onExit, port, study, tls, traced } from "./host.mjs";
 
@@ -218,14 +220,16 @@ async function visit(arm, throttle) {
 
 const rows = [];
 const cells = THROTTLES.flatMap((t) => ARMS.map((a) => [t, a]));
+const unit = (throttle, arm) => `${arm}@${throttle}x`;
 for (let round = 0; round < ROUNDS; round++) {
-  for (let k = 0; k < cells.length; k++) {
-    const [throttle, arm] = cells[(round + k) % cells.length];
+  let prev = null;
+  for (const [throttle, arm] of order(cells, round)) {
     try {
-      rows.push({ round, arm, throttle, ...(await visit(arm, throttle)) });
+      rows.push({ round, arm, throttle, prev, ...(await visit(arm, throttle)) });
     } catch (e) {
       process.stderr.write(`${arm} ${throttle}x round ${round}: ${e.message.split("\n")[0]}\n`);
     }
+    prev = unit(throttle, arm);
     await new Promise((r) => setTimeout(r, 300));
   }
   process.stderr.write(`round ${round} done\n`);
@@ -249,6 +253,11 @@ for (const throttle of THROTTLES) {
     console.log(`   ${key.padEnd(18)} ${cells.join("")}`);
   }
 }
+
+console.log("\nthe first frame, ms: each lead by the predecessor it ran after, rounds in brackets");
+const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.throttle, r.arm), prev: r.prev, v: r.frame }));
+const pairs = THROTTLES.flatMap((t) => ARMS.slice(1).map((a) => [unit(t, a), unit(t, ARMS[0])]));
+for (const line of leadsByPredecessor(byUnit, cells.map(([t, a]) => unit(t, a)), pairs)) console.log(line);
 
 // What an arm costs on loopback is paid back once the bytes it saves take that long on the link.
 console.log(`\nbreak-even: the rate below which each arm's saved bytes outweigh its loopback cost on the first frame`);

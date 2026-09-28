@@ -18,6 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { leadsByPredecessor, order } from "../order.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
@@ -85,6 +86,7 @@ const SERVERS = (process.env.SERVERS || `=${path.join(BIN, "exact-server")}`).sp
   return { name, bin, srv: port(), inn: port() };
 });
 const label = (arm, server) => (server.name ? `${arm}@${server.name}` : arm);
+const CELLS = Object.keys(ARMS).flatMap((arm) => SERVERS.map((server) => ({ arm, server })));
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
   -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \
@@ -204,30 +206,30 @@ for (const rtt of RTTS) {
   await new Promise((r) => setTimeout(r, 1000));
 
   for (let round = 0; round < ROUNDS; round++) {
-    for (const arm of Object.keys(ARMS)) {
-      for (const server of SERVERS) {
-        pointAt(server, HOST === "dns" ? PLANES[arm].wt : undefined);
-        const name = label(arm, server);
-        // A fresh profile is what makes the cold arm cold: no HTTP cache, no compiled-code cache.
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "r2p-"));
-        const netlog = process.env.NETLOG
-          ? [`--log-net-log=${path.resolve(process.env.NETLOG, `${name}-${rtt}-${round}.json`)}`,
-            "--net-log-capture-mode=Everything"]
-          : [];
-        const ctx = await chromium.launchPersistentContext(dir, {
-          headless: true,
-          executablePath: HOST === "dns" ? path.join(T, "chrome") : process.env.CHROME_PATH || chromium.executablePath(),
-          args: ["--disable-background-networking", ...netlog, ...DNS_ARGS],
-          ...(HOST === "dev" ? {} : { env: { ...process.env, HOME: `${T}/home`, ...DNS_ENV } }),
-        });
-        try {
-          for (const profile of PROFILES) rows.push({ rtt, round, arm: name, profile, ...(await visit(ctx, arm, server)) });
-        } catch (e) {
-          process.stderr.write(`rtt=${rtt} ${name}: ${e.message.split("\n")[0]}\n`);
-        }
-        await ctx.close();
-        fs.rmSync(dir, { recursive: true, force: true });
+    let prev = null;
+    for (const { arm, server } of order(CELLS, round)) {
+      pointAt(server, HOST === "dns" ? PLANES[arm].wt : undefined);
+      const name = label(arm, server);
+      // A fresh profile is what makes the cold arm cold: no HTTP cache, no compiled-code cache.
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "r2p-"));
+      const netlog = process.env.NETLOG
+        ? [`--log-net-log=${path.resolve(process.env.NETLOG, `${name}-${rtt}-${round}.json`)}`,
+          "--net-log-capture-mode=Everything"]
+        : [];
+      const ctx = await chromium.launchPersistentContext(dir, {
+        headless: true,
+        executablePath: HOST === "dns" ? path.join(T, "chrome") : process.env.CHROME_PATH || chromium.executablePath(),
+        args: ["--disable-background-networking", ...netlog, ...DNS_ARGS],
+        ...(HOST === "dev" ? {} : { env: { ...process.env, HOME: `${T}/home`, ...DNS_ENV } }),
+      });
+      try {
+        for (const profile of PROFILES) rows.push({ rtt, round, arm: name, prev, profile, ...(await visit(ctx, arm, server)) });
+      } catch (e) {
+        process.stderr.write(`rtt=${rtt} ${name}: ${e.message.split("\n")[0]}\n`);
       }
+      await ctx.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+      prev = name;
     }
   }
   for (const relay of relays) relay.kill();
@@ -254,6 +256,16 @@ function fit(arm, profile, key) {
 }
 
 const LABELS = Object.keys(ARMS).flatMap((arm) => SERVERS.map((s) => label(arm, s)));
+function byPredecessor(key, pairs) {
+  console.log(`\n${key}, ms, each lead by the predecessor it ran after, rounds in brackets`);
+  for (const rtt of RTTS) {
+    for (const profile of PROFILES) {
+      const at = rows.filter((r) => r.rtt === rtt && r.profile === profile);
+      console.log(`${rtt} ms, ${profile}`);
+      for (const line of leadsByPredecessor(at.map((r) => ({ round: r.round, unit: r.arm, prev: r.prev, v: r[key] })), LABELS, pairs)) console.log(line);
+    }
+  }
+}
 const W = Math.max(11, ...LABELS.map((l) => l.length));
 console.log(
   `\nhost ${HOST}\n${"arm".padEnd(W)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
@@ -295,6 +307,9 @@ if (SERVERS.length > 1) {
     }
   }
 }
+if (SERVERS.length > 1) {
+  byPredecessor("frame", Object.keys(ARMS).flatMap((arm) => SERVERS.slice(1).map((s) => [label(arm, s), label(arm, SERVERS[0])])));
+}
 if (HOST === "dns") {
   const stage = { tls: (r) => r.tls, dial: (r) => r.session - r.config, session: (r) => r.session };
   const first = LABELS[0];
@@ -318,6 +333,7 @@ if (HOST === "dns") {
     for (const r of rows.filter((r) => r.arm === arm)) n[r.proto] = (n[r.proto] ?? 0) + 1;
     console.log(`${arm.padEnd(W)} ${JSON.stringify(n)}`);
   }
+  byPredecessor("session", LABELS.slice(1).map((arm) => [arm, LABELS[0]]));
 }
 if (process.env.ROWS) fs.writeFileSync(process.env.ROWS, JSON.stringify(rows));
 

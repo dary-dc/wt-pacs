@@ -3,6 +3,7 @@
 // is one decision rather than two.
 //
 // usage: node copy_cost.mjs FIXTURE_DIR [FIXTURE_DIR ...] [--rounds N]
+import { leadsByPredecessor, order } from '../order.mjs';
 import { instance, loadFixture, median, range, sha256 } from './decoder.mjs';
 
 const args = process.argv.slice(2);
@@ -29,7 +30,7 @@ function pass(inst, frames, arm) {
   return { ms: (performance.now() - t0) / frames.length, sink };
 }
 
-console.log(`copy vs view, ${ROUNDS - 1} timed rounds, arms interleaved and rotated each round`);
+console.log(`copy vs view, ${ROUNDS - 1} timed rounds, arms in a Williams order (lab/order.mjs)`);
 console.log('  fixture      decoded    copy ms/frame*      view ms/frame*      copy cost*   slower in');
 for (const dir of dirs) {
   const { frames, truth, meta, name } = loadFixture(dir);
@@ -43,11 +44,13 @@ for (const dir of dirs) {
   }
 
   const got = { copy: [], view: [] };
+  const rows = [];
   for (let round = 0; round < ROUNDS; round++) {
-    const order = round % 2 ? ['view', 'copy'] : ['copy', 'view'];
+    const seq = order(['copy', 'view'], round);
     const ms = {};
-    for (const arm of order) ms[arm] = pass(inst, frames, arm).ms;
-    if (round) for (const arm of order) got[arm].push(ms[arm]);
+    for (const arm of seq) ms[arm] = pass(inst, frames, arm).ms;
+    if (round) for (const arm of seq) got[arm].push(ms[arm]);
+    if (round) seq.forEach((u, i) => rows.push({ round, unit: u, prev: seq[i - 1] ?? null, v: ms[u] }));
   }
 
   const n = ROUNDS - 1;
@@ -61,5 +64,6 @@ for (const dir of dirs) {
       `   ${median(got.view).toFixed(3)} [${vl.toFixed(3)}-${vh.toFixed(3)}]` +
       `   ${delta.toFixed(3).padStart(7)} ms   ${slower}/${n}`
   );
+  for (const line of leadsByPredecessor(rows, ['copy', 'view'], [['copy', 'view']], 3)) console.log(`  ${line}`);
 }
 console.log('  * container-measured, not a timing rig: reported, not used for any decision.');

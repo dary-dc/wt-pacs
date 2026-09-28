@@ -356,9 +356,9 @@ page-cached: `miss_rate=0.0` in all 240 runs): the same binary on the same cell 
 in one batch and 25 083 µs in another — **1.86× apart with no code change**. Spread of each
 statistic across four batches: min 1.10×, **p10 1.05×**, p25 1.28×, median 1.86×.
 
-* **Interleave the arms.** Sequential before/after measured +8.1 % on code that was a tie, and a
-  median from one batch against a median from another produced a false 30 %-against-43 %
-  "improvement".
+* **Interleave the arms, in a balanced order.** Sequential before/after measured +8.1 % on code that
+  was a tie, and a median from one batch against a median from another produced a false
+  30 %-against-43 % "improvement". Interleaving is not enough on its own: see below.
 * **Quote p10 or the whole distribution**, never one batch's median against another's. The
   percentiles are *across runs*: each run reports one `totals.serve_us`. `median / p10` = 1.84×
   inside a cell is run-to-run spread and says nothing about a single run. Browser-driven runs are
@@ -371,6 +371,56 @@ statistic across four batches: min 1.10×, **p10 1.05×**, p25 1.28×, median 1.
   clean sweep with disjoint ranges is a result; 4/6 or 5/8 is unresolved, and is reported so.
 * Browser page-clock values drift ~300 ms between sessions, so only ratios taken inside one
   interleaved campaign hold.
+
+**A balanced arm order** (row 90, ORD, 2026-09-28). On the workstation a fixed arm cycle tilted
+loopback rows: the same arm always followed the same predecessor, and a run that started after an
+idle gap paid a one-off cost (there a laptop GPU waking from runtime suspend, ~0.3 s at browser
+start; not reproducible in a container). A rotation by one a round does not cure it — every arm sits
+at every position, but still after the same one. **A Williams square does:** over a period of N
+rounds (2N for odd N) every arm sits at every position, and runs right after every other arm, equally
+often. [`../lab/order.mjs`](../lab/order.mjs) and [`../lab/scripts/order.py`](../lab/scripts/order.py)
+(`order.py row N ROUND` for a shell loop) build it; for odd N each row alternates with its mirror, so
+a campaign cut short stays within one visit of balance at every length but exactly N rounds. For two
+arms it is the order reversed every other round, which the two-arm drivers already had.
+
+Each converted driver's summary also prints **every paired lead split by the arm's predecessor**
+inside the round (`first` when it opened the round, which folds in both the idle-gap start and the
+previous round's last visit — the square does not balance that boundary), with the rounds in
+brackets. It appends `UNBALANCED predecessors` when the arm's or the reference's predecessor counts
+differ by more than one. `node lab/order.test.mjs` holds the square, the split and the flag, and the
+Python module against the JS one (run by `scripts/gate.sh`). It fails when `order` returns the fixed
+cycle, when a Python square is a plain rotation, when either flag never rises, and when the mirrors
+come in a block after the rows. Against a driver: `first_ask_cells.sh together`, 50 KB, 40 ms, five
+arms, six rounds, flags nothing. With `order.py` forced to the fixed cycle it prints each lead under a
+single predecessor, every one flagged (container, loopback relay; the leads themselves are not a
+finding).
+
+| driver | order before | where a doc names that order |
+| --- | --- | --- |
+| `lab/page-open/run.mjs` | fixed | `lab/page-open/README.md` §The first byte on a fill, §Two servers, and the dial alone, §The static plane; `ARCHITECTURE.md` §Lever 2 |
+| `lab/page-open/dial-blink.mjs` | fixed | `ARCHITECTURE.md` §What lever 2 costs |
+| `lab/page-open/h2.mjs` | rotated | `lab/page-open/README.md` §The worker graph over HTTP/1.1 and HTTP/2 |
+| `lab/page-open/enc.mjs` | rotated | `lab/page-open/README.md` §What an encoding costs on loopback |
+| `lab/decode-bench/cold_arms.mjs` | rotated | `decode/README.md` §Faster |
+| `lab/decode-bench/build_arms.mjs` | rotated | `decode/README.md` §An 8-bit colour frame takes no range |
+| `lab/decode-bench/dispatch.mjs` | rotated | `decode/README.md` §Dispatch |
+| `lab/decode-bench/heap_curve.mjs`, `decode_bench.mjs` | rotated (no paired lead, no split) | `decode/README.md` §Where to put the floor |
+| `lab/decode-bench/copy_cost.mjs`, `reuse_cost.mjs`, `shared_tax.mjs` | reversed every other round (unchanged) | `decode/README.md` §The copy, measured, §Shared memory |
+| `lab/decode-tail/run.mjs`, `range.mjs` | rotated | `decode/README.md` §The range in the pack, §The decode tail on a slow CPU |
+| `lab/decoder-warmup/run.mjs`, `size.mjs` | rotated | `decode/README.md` §Warming the decoders, §On a slow CPU, §Sizing the warm-up |
+| `lab/scripts/blink_cells.sh`, `radio_link_cells.sh` | fixed | `transport/transport-conclusions.md` §After a blink |
+| `lab/scripts/cert_chain_cells.sh` | fixed | `ARCHITECTURE.md` §What production adds |
+| `lab/scripts/swallow_cells.sh` | rotated | `ARCHITECTURE.md` §The losing phase, removed |
+| `lab/scripts/controller_browser_cells.sh` | rotated | `transport/transport-conclusions.md` §Priced in a browser, on a lossy link, §A bounded BBR |
+| `lab/scripts/first_ask_cells.sh` (`idle`, `together`, `queue`) | reversed every other round | `transport/transport-conclusions.md` §Which default for which session shape |
+| `lab/scripts/l3_lossy_link.sh`, `l3_summary.py` | rotated | §3 here |
+
+Every figure those sections quote was taken in the order before; they are left as written, and a cell
+re-run now is taken in the new one. **Not converted**, outside the row's three groups (page-open, the
+link campaigns, the decode benches): `lab/downloader-campaign/`, `decoder-memory/`,
+`session-survival/`, `session-resume/`, `early-messages/`, `stream-shape/`, `tcp-fallback/`,
+`worker-leak/`, `thread-hops/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-arm scripts
+that reverse every other round (already the square, with no split printed).
 
 **`serve_us` is not a speed, and it is not the server's alone.** It covers the read plus
 `write_all` into the `SendStream`, which returns when the send buffer accepts the bytes and awaits

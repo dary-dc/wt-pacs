@@ -1,6 +1,7 @@
 // Heap cost of decoding with N decoder instances. docs/decode/README.md says what it is for.
 //
 // usage: node decode_bench.mjs FIXTURE_DIR [rounds]
+import { order } from '../order.mjs';
 import { instance, loadFixture, MB, median, range, sha256 } from './decoder.mjs';
 
 const fixtureDir = process.argv[2];
@@ -41,8 +42,7 @@ const idle = first.heap();
 
 const results = new Map(WIDTHS.map((w) => [w, []]));
 for (let round = 0; round < ROUNDS; round++) {
-  const shift = round % WIDTHS.length;
-  for (const width of WIDTHS.slice(shift).concat(WIDTHS.slice(0, shift))) {
+  for (const width of order(WIDTHS, round)) {
     const r = await arm(width);
     if (r.mismatch) {
       console.error(`width ${width}: ${r.mismatch}/${frames.length} frames differ from the encoder's input`);

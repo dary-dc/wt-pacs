@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # W1: one frame asked on an idle session, through lab/scripts/link_impair.py at 40 and 80 ms round
 # trip and at two frame sizes. `repro` is the session-state and lever sweep; `idle`, `together` and
-# `queue` are the cells that decide a default, and they interleave their arms round by round.
+# `queue` are the cells that decide a default, and they interleave their arms round by round in a
+# Williams order (lab/scripts/order.py).
 # The server's own `session path` line gives the window, loss and congestion events per arm.
 # Results and the verdict they correct: docs/transport/transport-conclusions.md §3.
 #
@@ -114,7 +115,7 @@ header() {
 }
 
 # An arm is `label|state|warm|idle_ms|server args|relay args`. Arms are compared, so a round runs
-# every one of them and reverses the order on every other round.
+# every one of them, in a Williams order.
 ARMS=()
 arm() { ARMS+=("$1"); }
 
@@ -140,18 +141,21 @@ one_round() {  # state warm idle study rtt server_args relay_args -> "ms cwnd se
 }
 
 round_robin() {  # study rtt
-  local study="$1" rtt="$2" n=${#ARMS[@]} i j k
+  local study="$1" rtt="$2" n=${#ARMS[@]} i k prev
   rm -rf "$T/rr"; mkdir -p "$T/rr"
   for ((k = 0; k < n; k++)); do cut -d'|' -f1 <<<"${ARMS[k]}" >> "$T/rr/labels"; done
   for ((i = 0; i < ROUNDS; i++)); do
-    for ((j = 0; j < n; j++)); do
-      if ((i % 2 == 0)); then k=$j; else k=$((n - 1 - j)); fi
+    prev=-1
+    for k in $(python3 lab/scripts/order.py row "$n" "$i"); do
       IFS='|' read -r _ state warm idle srv rly <<<"${ARMS[k]}"
-      one_round "$state" "$warm" "$idle" "$study" "$rtt" "$srv" "$rly" >> "$T/rr/$k"
+      echo "$(one_round "$state" "$warm" "$idle" "$study" "$rtt" "$srv" "$rly") $i $prev" >> "$T/rr/$k"
+      prev=$k
     done
   done
   python3 - "$T/rr" "$n" <<'PY'
 import statistics, sys
+sys.path.insert(0, "lab/scripts")
+from order import leads_by_predecessor
 d, n = sys.argv[1], int(sys.argv[2])
 labels = open(d + "/labels").read().split("\n")
 cols = []
@@ -174,6 +178,11 @@ for k in range(n):
         "%d" % statistics.median(cw) if cw else "-",
         "%.1f" % statistics.mean(lost) if lost else "-",
         len(cols[k]) - len(got)))
+split = [{"round": int(c[-2]), "unit": labels[k], "prev": labels[int(c[-1])] if int(c[-1]) >= 0 else None, "v": v}
+         for k in range(n) for v, c in cols[k]]
+print("ask ms, each lead by the predecessor it ran after, rounds in brackets")
+for line in leads_by_predecessor(split, labels[:n], [(labels[k], labels[0]) for k in range(1, n)], 1):
+    print(line)
 PY
 }
 

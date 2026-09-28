@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Summarise an l3_lossy_link.sh TSV: per cell and arm, median [range] and rounds better than the
-default arm, paired by round. Fill is wall time (connect included) and goodput; on demand is the
+default arm, paired by round, and that lead by the arm's predecessor (lab/scripts/order.py). Fill is wall time (connect included) and goodput; on demand is the
 per-ask p50 and p90; loss is the server's own datagram count.
 
     lab/scripts/l3_summary.py .local/measurements/l3-*.tsv [--fill-bytes N]
 """
 import csv
+import os
 import statistics
 import sys
 from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from order import leads_by_predecessor
 
 args = sys.argv[1:]
 fill_bytes = 5_120_000
@@ -58,3 +62,11 @@ for cell in cells:
         print(f"   {arm:8} {med(wall):>22} {med(good):>20} {vs_f:>6} {loss:>6}"
               f" {statistics.median(events) if events else 'NA':>6} {statistics.median(srtt) if srtt else 0:>7.1f}"
               f" {statistics.median(cpu):>6.0f} | {med(p50):>22} {vs_o:>6} {med(p90):>22}")
+    if "prev" not in rows[0]:
+        continue
+    for mode, key in (("fill", "wall_ns"), ("on-demand", "p50_ns")):
+        split = [{"round": int(r["round"]), "unit": r["arm"], "prev": None if r["prev"] == "first" else r["prev"],
+                  "v": int(r[key]) / 1e6} for r in rows if r["cell"] == cell and r["mode"] == mode]
+        print(f"   {mode} ms, each lead by the predecessor it ran after, rounds in brackets")
+        for line in leads_by_predecessor(split, arms, [(a, "default") for a in arms if a != "default"], 1):
+            print(f"   {line}")

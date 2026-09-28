@@ -15,7 +15,8 @@ reports heap per instance and in total. It is **serial by design**: the claim is
 parallel arm would turn it into a throughput claim as well. `copy_cost.mjs` prices `.slice()`
 against handing back the heap view, across frame sizes.
 
-Round 0 warms up and is not counted; arm order rotates each round. Every decoded frame is checked
+Round 0 warms up and is not counted; the arms run in a Williams order (`docs/rig-limits.md` §6), and
+each summary splits its leads by predecessor. Every decoded frame is checked
 against the `.sha256` the generator wrote from the **encoder's input**, not against an oracle this
 decoder produced — an oracle built by the code under test shares its bugs, which a mutation proved
 before this was changed (`docs/decode/README.md` §Ground truth).

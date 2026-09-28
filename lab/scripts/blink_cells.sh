@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # W3: what a blink costs, where in the transfer it lands, and whether restarting slow start
-# after the silence is worth it. Arms interleaved within every round.
+# after the silence is worth it. Arms interleaved within every round, in a Williams order
+# (lab/scripts/order.py).
 # Results: docs/transport/transport-conclusions.md §3, after a blink.
 #
 #   lab/scripts/blink_cells.sh [rounds]
@@ -73,7 +74,7 @@ print("%s %s %s" % rows[-1] if rows else "- - -")
 PY
 }
 
-# One round of one arm. Appends "<metric ms> <sent> <lost> <cong>" to the arm's file.
+# One round of one arm. Appends "<metric ms> <sent> <lost> <cong> <round> <predecessor>" to the arm's file.
 one() {  # cell arm study warm target [harness args...]
   local cell="$1" arm="$2" study="$3" warm="$4" target="$5"
   shift 5
@@ -91,13 +92,15 @@ one() {  # cell arm study warm target [harness args...]
   kill -TERM "$RELAY_PID" 2>/dev/null || true; sleep 0.3
   local v
   v=$(sed -n "s/.*${METRIC} median=\([0-9.]*\).*/\1/p" <<<"$line")
-  echo "$v $(link_cost)" >> "$T/$cell.$arm"
+  echo "$v $(link_cost) $ROUND $PREV" >> "$T/$cell.$arm"
   kill "$SERVER_PID" 2>/dev/null || true; sleep 0.3
 }
 
 report() {  # cell
   python3 - "$T" "$1" "${ARMS[@]}" <<'PY'
 import sys
+sys.path.insert(0, "lab/scripts")
+from order import leads_by_predecessor
 t, cell, arms = sys.argv[1], sys.argv[2], sys.argv[3:]
 def rows(arm):
     try:
@@ -117,6 +120,10 @@ for arm in arms:
     print("%-14s %9.1f %9.1f %9.1f %8s %9.0f %7.1f %6.1f %6s" % (
         arm, ms[len(ms) // 2], ms[0], ms[-1], f"{wins}/{len(r)}",
         mean(1), mean(2), mean(3), f"{len(counted)}/{len(r)}"))
+split = [{"round": int(x[4]), "unit": arm, "prev": None if x[5] == "first" else x[5], "v": float(x[0])}
+         for arm in arms for x in rows(arm)]
+for line in leads_by_predecessor(split, arms, [(a, arms[0]) for a in arms[1:]], 1):
+    print(line)
 PY
 }
 
@@ -130,16 +137,18 @@ cell() {  # label study warm target [harness args...]
   local study="$1" warm="$2" target="$3"; shift 3
   local key="${label// /_}"
   rm -f "$T/$key".*
-  for _ in $(seq "$ROUNDS"); do
-    for arm in "${ARMS[@]}"; do
-      one "$key" "$arm" "$study" "$warm" "$target" "$@"
+  for ROUND in $(seq 0 $((ROUNDS - 1))); do
+    PREV=first
+    for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$ROUND"); do
+      one "$key" "${ARMS[$k]}" "$study" "$warm" "$target" "$@"
+      PREV="${ARMS[$k]}"
     done
   done
   head_row "$label"
   report "$key"
 }
 
-echo "link: ${RTT} ms round trip, ${RATE} kbit, fill $((FILL * KB)) KB, $ROUNDS rounds, arms interleaved"
+echo "link: ${RTT} ms round trip, ${RATE} kbit, fill $((FILL * KB)) KB, $ROUNDS rounds, arms in a Williams order"
 
 RELAY_ARGS=(--rate-kbit "$RATE" --queue-pkts 1500)
 METRIC=fill_ms

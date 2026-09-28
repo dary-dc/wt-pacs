@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # CC1: the congestion controller priced in headless Chromium, the downloader through the relay —
-# a fill and one ask on a fresh session, per controller, arms rotated inside every round. Each run
-# starts its own server and relay, and the server's `session path` line gives what was sent, lost
-# and the smoothed round trip at the end. Results: docs/transport/transport-conclusions.md §1.
+# a fill and one ask on a fresh session, per controller, arms in a Williams order inside every round
+# (lab/scripts/order.py). Each run starts its own server and relay, and the server's `session path`
+# line gives what was sent, lost and the smoothed round trip at the end. Results: docs/transport/transport-conclusions.md §1.
 #
 #   lab/scripts/controller_browser_cells.sh loss1|loss3|radio|blink [rounds]
 #     [ARMS="cubic bbr cubic-restart"] [MODES="fill ask"] [RTT=80] [RATE=20000] [FILL=20] [QUEUE=200]
@@ -80,7 +80,7 @@ one() {  # round mode arm
   for _ in $(seq 30); do grep -q "session path" "$T/server.log" && break; sleep 0.1; done
   kill "$relay" "$server" 2>/dev/null || true
   wait "$relay" "$server" 2>/dev/null || true
-  python3 - "$T/row.jsonl" "$T/server.log" "$1" "$2" "$name" "$RTT" "$T/relay.log" <<'PY'
+  python3 - "$T/row.jsonl" "$T/server.log" "$1" "$2" "$name" "$RTT" "$T/relay.log" "$PREV" <<'PY'
 import json, re, sys
 row = json.loads(open(sys.argv[1]).read().splitlines()[-1])
 # The relay's tally: what its loss model took from the server's packets, and what its queue did.
@@ -90,7 +90,7 @@ log = re.sub(r"\x1b\[[0-9;]*m", "", open(sys.argv[2], errors="replace").read())
 paths = re.findall(r"session path .*?rtt_us=(\d+) .*?sent=(\d+) lost=(\d+) congestion_events=(\d+)", log)
 sent = sum(int(p[1]) for p in paths); lost = sum(int(p[2]) for p in paths)
 rtt = int(paths[-1][0]) / 1000 if paths else None
-print(json.dumps({"round": int(sys.argv[3]), "mode": sys.argv[4], "arm": sys.argv[5],
+print(json.dumps({"round": int(sys.argv[3]), "mode": sys.argv[4], "arm": sys.argv[5], "prev": sys.argv[8],
                   "ms": row["spanMs"], "done": row["delivered"] > 0 and row["failures"] == 0,
                   "resumes": row["resumes"], "sent": sent, "lost": lost,
                   "link_dropped": dropped, "queue_overflowed": overflowed,
@@ -102,16 +102,21 @@ echo "cell $CELL: relay ${LINK[*]} ${BLINK[*]}"
 n=${#ARM_LIST[@]}
 for round in $(seq "$ROUNDS"); do
   for mode in "${MODE_LIST[@]}"; do
-    for k in $(seq 0 $((n - 1))); do
-      one "$round" "$mode" "${ARM_LIST[$(((k + round) % n))]}"
+    PREV=first
+    for k in $(python3 lab/scripts/order.py row "$n" "$round"); do
+      one "$round" "$mode" "${ARM_LIST[$k]}"
+      PREV="${ARM_LIST[$k]%%:*}"
     done
   done
 done | tee "$T/rows.jsonl"
 
-python3 - "$T/rows.jsonl" "${ARM_LIST[0]%%:*}" <<'PY'
+python3 - "$T/rows.jsonl" "${ARM_LIST[@]%%:*}" <<'PY'
 import collections, json, statistics, sys
+sys.path.insert(0, "lab/scripts")
+from order import leads_by_predecessor
 rows = [json.loads(l) for l in open(sys.argv[1])]
-ref = sys.argv[2]
+names = sys.argv[2:]
+ref = names[0]
 by = collections.defaultdict(dict)
 for r in rows:
     by[(r["mode"], r["arm"])][r["round"]] = r
@@ -128,4 +133,11 @@ for (mode, arm), rs in sorted(by.items()):
           f"  lost {100 * share:5.1f} % (queue overflow {100 * over:5.1f} %)  queue {queue:6.1f}"
           f"  resumes {sum(r['resumes'] for r in rs.values())}"
           + (f"  INCOMPLETE {bad}" if bad else ""))
+print("\nms, each lead by the predecessor it ran after, rounds in brackets")
+for mode in sorted({r["mode"] for r in rows}):
+    split = [{"round": r["round"], "unit": r["arm"], "prev": None if r["prev"] == "first" else r["prev"], "v": r["ms"]}
+             for r in rows if r["mode"] == mode]
+    print(mode)
+    for line in leads_by_predecessor(split, names, [(n, ref) for n in names[1:]]):
+        print(line)
 PY

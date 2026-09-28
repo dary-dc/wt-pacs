@@ -15,10 +15,11 @@ Four arms, one fresh page and one fresh session each, against one server per set
   to be the larger half.
 * **match** — a warm-up frame of the series' own shape.
 
-`run.mjs` rotates the arm order every round, so a drift in the host lands on all of them alike, and
-reports the median, the range and wins out of *n* against `none` on the same round. Each visit
-reports the decode of frames 0, 1 and 2 — one per decoder, the three that pay the tiering —
-`first_ms` (the page's `connect()` to frame 0 delivered) and `fill_ms` (to the last frame).
+`run.mjs` runs the arms in a Williams order (`docs/rig-limits.md` §6), so a drift in the host or one
+visit's wake on the next lands on all of them alike, and reports the median, the range and wins out
+of *n* against `none` on the same round. Each visit reports the decode of frames 0, 1 and 2 — one
+per decoder, the three that pay the tiering — `first_ms` (the page's `connect()` to frame 0
+delivered) and `fill_ms` (to the last frame).
 Pixels are hashed after the fill, never inside it, and every arm's digests must agree.
 
 ```bash

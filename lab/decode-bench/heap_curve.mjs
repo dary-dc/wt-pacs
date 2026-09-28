@@ -1,11 +1,12 @@
 // Heap high-water and decode time across a ladder of INITIAL_MEMORY builds, so the choice is
-// a curve rather than a guess. The builds are interleaved and rotated: measuring them one
+// a curve rather than a guess. The builds are interleaved in a Williams order: measuring them one
 // after another is the sequential shape this project has already been wrong with.
 // Driven by wasm/heap_curve.sh; docs/decode/README.md holds the numbers.
 //
 // usage: node heap_curve.mjs FIXTURE_DIR --arms LABEL=DIR [LABEL=DIR ...] [--rounds N]
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { order } from '../order.mjs';
 import { loadFixture, MB, median, range, sha256 } from './decoder.mjs';
 
 const require = createRequire(import.meta.url);
@@ -44,8 +45,7 @@ for (const dir of dirs) {
   const ms = new Map(arms.map((x) => [x.label, []]));
   const wrong = new Map(arms.map((x) => [x.label, 0]));
   for (let round = 0; round < ROUNDS; round++) {
-    const shift = round % arms.length;
-    for (const x of arms.slice(shift).concat(arms.slice(0, shift))) {
+    for (const x of order(arms, round)) {
       const t0 = performance.now();
       let bad = 0;
       for (let i = 0; i < frames.length; i++) if (sha256(decode(x.d, frames[i])) !== truth[i]) bad++;

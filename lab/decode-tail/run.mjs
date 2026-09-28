@@ -1,7 +1,8 @@
 /**
  * The decode tail, split: after a fill's last byte, is the pool finishing a backlog it could not
  * have avoided (throughput), or work it left waiting while a decoder sat idle (scheduling)? Each set
- * is served by its own server on loopback; pages are driverless, sets rotated every round.
+ * is served by its own server on loopback; pages are driverless, the cells in a Williams order
+ * every round (lab/order.mjs).
  * docs/decode/README.md §The decode tail; with `direct:` arms, docs/ARCHITECTURE.md (HP1).
  *
  *   NODE_PATH=$(npm root -g) node lab/decode-tail/run.mjs --rounds 7 --sets c512,g512
@@ -15,6 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { leadsByPredecessor, order } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
@@ -156,13 +158,15 @@ function split(r) {
 }
 
 const rows = [];
+const cells = THROTTLES.flatMap((t) => SETS.flatMap((s) => ARMS.map((a) => [s, a, t])));
+const unit = (set, arm, throttle) => `${arm}/${set}@${throttle}x`;
 for (let round = 0; round < ROUNDS; round++) {
-  const cells = THROTTLES.flatMap((t) => SETS.flatMap((s) => ARMS.map((a) => [s, a, t])));
-  for (let k = 0; k < cells.length; k++) {
-    const [set, arm, throttle] = cells[(k + round) % cells.length];
+  let prev = null;
+  for (const [set, arm, throttle] of order(cells, round)) {
     const r = await page(set, arm, throttle);
     if (r && process.env.DUMP) fs.appendFileSync(process.env.DUMP, JSON.stringify({ throttle, ...r }) + "\n");
-    const row = r ? { round, set, arm: arm[0], throttle, ...split(r) } : { round, set, arm: arm[0], throttle, lost: true };
+    const row = r ? { round, set, arm: arm[0], throttle, prev, ...split(r) } : { round, set, arm: arm[0], throttle, prev, lost: true };
+    prev = unit(set, arm[0], throttle);
     rows.push(row);
     console.log(JSON.stringify(row, (k2, v) => (typeof v === "number" ? Math.round(v * 100) / 100 : v)));
   }
@@ -188,4 +192,8 @@ for (const throttle of THROTTLES) for (const set of SETS) for (const [arm] of AR
     `  | ask ${f2(m("askMs"))} (wire ${f2(m("askWireMs"))}, decode ${f2(m("askDecodeMs"))}, to page ${f2(m("askToPageMs"))})  n=${rs.length}` +
     (arm === ARMS[0][0] ? "" : `  vs ${ARMS[0][0]}: decoded sooner ${sooner("doneMs")}, wasm faster ${sooner("wasmMs")}, ask sooner ${sooner("askMs")}`));
 }
+console.log("\ndecoded, ms: each lead by the predecessor it ran after, rounds in brackets");
+const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.set, r.arm, r.throttle), prev: r.prev, v: r.doneMs }));
+const pairs = THROTTLES.flatMap((t) => SETS.flatMap((s) => ARMS.slice(1).map(([a]) => [unit(s, a, t), unit(s, ARMS[0][0], t)])));
+for (const line of leadsByPredecessor(byUnit, cells.map(([s, [a], t]) => unit(s, a, t)), pairs)) console.log(line);
 process.exit(0);

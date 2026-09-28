@@ -1,7 +1,8 @@
 /**
  * LF: none · a warm-up of the wrong shape · a warm-up of the series' own, against each other on
- * both shapes. One fresh page and one fresh session per visit; the arm order rotates every round,
- * so a drift in the host lands on all three alike. docs/decode/README.md §Warming the decoders
+ * both shapes. One fresh page and one fresh session per visit; the arms run in a Williams order
+ * (lab/order.mjs), so a drift in the host, or a visit's wake on the next, lands on all three alike.
+ * docs/decode/README.md §Warming the decoders
  *
  *   NODE_PATH=$(npm root -g) CHROME_PATH=... node lab/decoder-warmup/run.mjs [rounds]
  *   THROTTLES=1,4,6 SCENARIOS=fill,ask ARMS=none,match ...   every browser thread slowed; a cold ask
@@ -11,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { leadsByPredecessor, order } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
@@ -140,20 +142,22 @@ async function visit(set, arm, override, throttle = 1, scenario = "fill") {
   return { d0: out.decode_ms[0], d1: out.decode_ms[1], d2: out.decode_ms[2], ...out };
 }
 
+const CELLS = THROTTLES.flatMap((t) => SCENARIOS.flatMap((sc) => ARM_NAMES.map((a) => [t, sc, a])));
+const unit = (throttle, scenario, arm) => `${arm}/${scenario}@${throttle}x`;
 for (const set of SETS) {
   await visit(set, "none").catch((e) => process.stderr.write(`${set} warm visit: ${e.message}\n`));
   // A warm-up is an optimisation: one that is not a codestream must still leave a working fill.
   const bad = await visit(set, "none", "/lab/decoder-warmup/README.md").catch((e) => ({ error: e.message }));
   console.log(`${set}: a warm-up that is not a codestream delivers ${bad.delivered ?? `nothing — ${bad.error}`}/${FRAMES}`);
   for (let round = 0; round < ROUNDS; round++) {
-    const cells = THROTTLES.flatMap((t) => SCENARIOS.flatMap((sc) => ARM_NAMES.map((a) => [t, sc, a])));
-    for (let k = 0; k < cells.length; k++) {
-      const [throttle, scenario, arm] = cells[(round + k) % cells.length];
+    let prev = null;
+    for (const [throttle, scenario, arm] of order(CELLS, round)) {
       try {
-        rows.push({ set, arm, round, throttle, scenario, ...(await visit(set, arm, undefined, throttle, scenario)) });
+        rows.push({ set, arm, round, throttle, scenario, prev, ...(await visit(set, arm, undefined, throttle, scenario)) });
       } catch (e) {
         process.stderr.write(`${set} ${arm} ${throttle}x ${scenario} round ${round}: ${e.message.split("\n")[0]}\n`);
       }
+      prev = unit(throttle, scenario, arm);
     }
   }
   process.stderr.write(`${set} done\n`);
@@ -167,7 +171,7 @@ const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 const cell = (set, arm, throttle, scenario) => rows.filter((r) => r.set === set && r.arm === arm &&
   (throttle === undefined || (r.throttle === throttle && r.scenario === scenario)));
 
-console.log(`\nframes ${FRAMES}, rounds ${ROUNDS}, rtt ${RTT} ms, three arms interleaved inside every round`);
+console.log(`\nframes ${FRAMES}, rounds ${ROUNDS}, rtt ${RTT} ms, the arms in a Williams order inside every round`);
 for (const set of SETS) for (const throttle of THROTTLES) for (const scenario of SCENARIOS) {
   const none = new Map(cell(set, "none", throttle, scenario).map((r) => [r.round, r]));
   console.log(`\nset ${set}, ${throttle}x, ${scenario} — match ${WARMUP[set]}, mismatch ${WARMUP[other(set)]}, mismatch-sized ${SIZED[other(set)]}`);
@@ -188,6 +192,15 @@ for (const set of SETS) for (const throttle of THROTTLES) for (const scenario of
   }
   const digests = new Set(ARM_NAMES.flatMap((a) => cell(set, a, throttle, scenario)).map((r) => r.digest));
   console.log(`pixels: ${digests.size === 1 ? "identical on every arm and every round" : `DIFFER — ${digests.size} distinct digests`}`);
+}
+
+console.log("\nthe first frame (a fill) or the ask, ms: each lead by the predecessor it ran after, rounds in brackets");
+for (const set of SETS) {
+  const key = (r) => (r.scenario === "ask" ? r.ask_ms : r.first_ms);
+  const byUnit = rows.filter((r) => r.set === set).map((r) => ({ round: r.round, unit: unit(r.throttle, r.scenario, r.arm), prev: r.prev, v: key(r) }));
+  const pairs = CELLS.filter(([, , a]) => a !== "none").map(([t, sc, a]) => [unit(t, sc, a), unit(t, sc, "none")]);
+  console.log(set);
+  for (const line of leadsByPredecessor(byUnit, CELLS.map((c) => unit(...c)), pairs, 1)) console.log(line);
 }
 
 process.exit(0);

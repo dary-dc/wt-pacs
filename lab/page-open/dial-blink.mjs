@@ -1,7 +1,8 @@
 /**
  * A cold WebTransport dial in Chrome with a blink at a chosen offset into it, for two or more
- * server binaries, interleaved inside every round. Each offset says which flight the blink eats;
- * `swallow` eats exactly the server's first flight, wherever it falls. docs/ARCHITECTURE.md §Lever 2.
+ * server binaries, interleaved inside every round in a Williams order (lab/order.mjs). Each offset
+ * says which flight the blink eats; `swallow` eats exactly the server's first flight, wherever it
+ * falls. docs/ARCHITECTURE.md §Lever 2.
  *
  *   SERVERS=a=BIN,b=BIN [OFFSETS=none,0,20,…] [LOSS=1] [RTT=80] [BLINK_MS=150] [PORT_BASE=N] [ROWS=FILE] \
  *     NODE_PATH=$(npm root -g) node lab/page-open/dial-blink.mjs [rounds]
@@ -12,6 +13,7 @@ import path from "node:path";
 import dgram from "node:dgram";
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { leadsByPredecessor, order } from "../order.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
@@ -60,32 +62,34 @@ const control = dgram.createSocket("udp4");
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH,
   args: ["--disable-background-networking"] });
 const rows = [];
+const cell = (o, s) => `${o}/${s.name}`;
+const CELLS = OFFSETS.flatMap((o) => servers.map((s) => ({ o, s })));
 for (let round = 0; round < ROUNDS; round++) {
-  for (const o of OFFSETS) {
-    for (const s of servers) {
-      const ctx = await browser.newContext();
-      const page = await ctx.newPage();
-      await page.goto(`http://127.0.0.1:${PAGE}/`);
-      if (o === "swallow") {
-        await new Promise((r) => control.send(Buffer.from(`swallow ${process.env.SWALLOW_MS || 50}`), s.ctrl, "127.0.0.1", r));
-      }
-      const dial = page.evaluate(async ({ url, hash }) => {
-        const value = new Uint8Array(hash.match(/../g).map((h) => parseInt(h, 16)));
-        const t0 = performance.now();
-        const wt = new WebTransport(url, { serverCertificateHashes: [{ algorithm: "sha-256", value }] });
-        await wt.ready;
-        wt.close();
-        return performance.now() - t0;
-      }, { url: `https://127.0.0.1:${s.front}/`, hash });
-      if (o !== "none" && o !== "swallow") {
-        const blink = Buffer.from(`blackout ${process.env.BLINK_MS || 150}`);
-        setTimeout(() => control.send(blink, s.ctrl, "127.0.0.1"), Number(o));
-      }
-      rows.push({ round, o, server: s.name, ms: await dial });
-      await ctx.close();
-      // Past the blink, so it cannot reach the next dial.
-      await new Promise((r) => setTimeout(r, 300));
+  let prev = null;
+  for (const { o, s } of order(CELLS, round)) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:${PAGE}/`);
+    if (o === "swallow") {
+      await new Promise((r) => control.send(Buffer.from(`swallow ${process.env.SWALLOW_MS || 50}`), s.ctrl, "127.0.0.1", r));
     }
+    const dial = page.evaluate(async ({ url, hash }) => {
+      const value = new Uint8Array(hash.match(/../g).map((h) => parseInt(h, 16)));
+      const t0 = performance.now();
+      const wt = new WebTransport(url, { serverCertificateHashes: [{ algorithm: "sha-256", value }] });
+      await wt.ready;
+      wt.close();
+      return performance.now() - t0;
+    }, { url: `https://127.0.0.1:${s.front}/`, hash });
+    if (o !== "none" && o !== "swallow") {
+      const blink = Buffer.from(`blackout ${process.env.BLINK_MS || 150}`);
+      setTimeout(() => control.send(blink, s.ctrl, "127.0.0.1"), Number(o));
+    }
+    rows.push({ round, o, server: s.name, prev, ms: await dial });
+    prev = cell(o, s);
+    await ctx.close();
+    // Past the blink, so it cannot reach the next dial.
+    await new Promise((r) => setTimeout(r, 300));
   }
 }
 await browser.close();
@@ -103,4 +107,9 @@ for (const o of OFFSETS) {
     return `${s.name} ${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${won}/${v.length}`;
   }).join("   "));
 }
+console.log("\neach lead by the predecessor it ran after, ms, rounds in brackets");
+const units = CELLS.map(({ o, s }) => cell(o, s));
+const byUnit = rows.map((r) => ({ round: r.round, unit: `${r.o}/${r.server}`, prev: r.prev, v: r.ms }));
+const pairs = OFFSETS.flatMap((o) => servers.slice(1).map((s) => [cell(o, s), cell(o, servers[0])]));
+for (const line of leadsByPredecessor(byUnit, units, pairs)) console.log(line);
 process.exit(0);

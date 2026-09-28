@@ -6,6 +6,7 @@
 import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
+import { leadsByPredecessor, order } from '../order.mjs';
 import { loadFixture, median, range, sha256 } from './decoder.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -126,21 +127,23 @@ function build(kind) {
   return work;
 }
 
-console.log(`pool width ${WIDTH}, ${FRAMES} frames, ${ROUNDS - 1} timed rounds, policies interleaved and rotated`);
+console.log(`pool width ${WIDTH}, ${FRAMES} frames, ${ROUNDS - 1} timed rounds, policies in a Williams order (lab/order.mjs)`);
 console.log('  frames     policy        ms/frame*           wait*    decode*    take*   sums   batch ms*   slower in');
 for (const kind of ['uniform', 'mixed']) {
   const work = build(kind);
   const got = Object.fromEntries(POLICIES.map((p) => [p, []]));
+  const rows = [];
   for (let round = 0; round < ROUNDS; round++) {
-    const shift = round % POLICIES.length;
-    const order = [...POLICIES.slice(shift), ...POLICIES.slice(0, shift)];
-    for (const policy of order) {
+    let prev = null;
+    for (const policy of order(POLICIES, round)) {
       const s = summarise(await run(policy, work), work);
       if (s.wrong) {
         console.error(`${kind}/${policy}: ${s.wrong} frames differ from the encoder's input`);
         process.exit(1);
       }
       if (round) got[policy].push(s);
+      if (round) rows.push({ round, unit: policy, prev, v: s.perFrame });
+      prev = policy;
     }
   }
   const n = ROUNDS - 1;
@@ -162,6 +165,8 @@ for (const kind of ['uniform', 'mixed']) {
         `   ${(parts / mid.perFrame).toFixed(3)}   ${median(rs.map((r) => r.wall)).toFixed(0).padStart(8)}   ${worse === null ? '—' : `${worse}/${n}`}`
     );
   }
+  const others = POLICIES.filter((p) => p !== 'round-robin').map((p) => [p, 'round-robin']);
+  for (const line of leadsByPredecessor(rows, POLICIES, others, 2)) console.log(`  ${kind} ms/frame${line}`);
 }
 console.log('  * container-measured, not a timing rig: the shape is the claim, not the milliseconds.');
 console.log('  sums = (wait + decode + take) / total; anything but 1.000 means the split is not one.');

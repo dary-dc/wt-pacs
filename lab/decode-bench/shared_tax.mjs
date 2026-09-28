@@ -5,6 +5,7 @@
 // usage: node shared_tax.mjs FIXTURE_DIR [FIXTURE_DIR ...] [--rounds N]
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { leadsByPredecessor, order } from '../order.mjs';
 import { loadFixture, MB, median, range, sha256 } from './decoder.mjs';
 
 const require = createRequire(import.meta.url);
@@ -47,7 +48,7 @@ if (arms.plain.shared || !arms.shared.shared) {
   process.exit(1);
 }
 
-console.log(`\n${ROUNDS - 1} timed rounds, arms interleaved and rotated each round`);
+console.log(`\n${ROUNDS - 1} timed rounds, arms in a Williams order (lab/order.mjs)`);
 console.log('  fixture     decoded    plain heap   shared heap   plain ms/frame*     shared ms/frame*    tax*      slower in');
 for (const dir of dirs) {
   const { frames, truth, meta, name } = loadFixture(dir);
@@ -62,15 +63,17 @@ for (const dir of dirs) {
   }
 
   const got = { plain: [], shared: [] };
+  const rows = [];
   for (let round = 0; round < ROUNDS; round++) {
-    const order = round % 2 ? ['shared', 'plain'] : ['plain', 'shared'];
+    const seq = order(['plain', 'shared'], round);
     const ms = {};
-    for (const k of order) {
+    for (const k of seq) {
       const t0 = performance.now();
       for (const f of frames) arms[k].decode(f);
       ms[k] = (performance.now() - t0) / frames.length;
     }
-    if (round) for (const k of order) got[k].push(ms[k]);
+    if (round) for (const k of seq) got[k].push(ms[k]);
+    if (round) seq.forEach((u, i) => rows.push({ round, unit: u, prev: seq[i - 1] ?? null, v: ms[u] }));
   }
 
   const n = ROUNDS - 1;
@@ -85,6 +88,7 @@ for (const dir of dirs) {
       `   ${median(got.shared).toFixed(2)} [${sl.toFixed(2)}-${sh.toFixed(2)}]` +
       `   ${tax >= 0 ? '+' : ''}${tax.toFixed(1)}%   ${slower}/${n}`
   );
+  for (const line of leadsByPredecessor(rows, ['plain', 'shared'], [['shared', 'plain']], 2)) console.log(`  ${line}`);
 }
 console.log('  * container-measured, not a timing rig: reported, not used for any decision.');
 console.log('  Heap columns are the high-water after this fixture, cumulative across the row above.');

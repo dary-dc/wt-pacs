@@ -6,6 +6,7 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { leadsByPredecessor, order } from '../order.mjs';
 import { loadFixture, median, range, sha256 } from './decoder.mjs';
 
 const require = createRequire(import.meta.url);
@@ -102,20 +103,21 @@ async function inBrowser(arm, dir, frameCount, truth) {
 }
 
 if (WHERE.includes('browser')) await openBrowser();
-console.log(`arms ${names.join(' · ')}, ${ROUNDS} rounds, order rotated; first arm the baseline; ms`);
+console.log(`arms ${names.join(' · ')}, ${ROUNDS} rounds, Williams order (lab/order.mjs); first arm the baseline; ms`);
 for (const where of WHERE) {
   for (const dir of dirs) {
     const { frames, truth, name } = loadFixture(dir);
     const got = Object.fromEntries(names.map((n) => [n, []]));
     for (let round = 0; round < ROUNDS; round++) {
-      for (let k = 0; k < names.length; k++) {
-        const n = names[(k + round) % names.length];
+      let prev = null;
+      for (const n of order(names, round)) {
         const r = where === 'node' ? inNode(n, dir) : await inBrowser(n, dir, frames.length, truth);
         if (r.wrong) {
           console.error(`${where} ${name} ${n}: ${r.wrong} frames differ from the encoder's input — not an arm`);
           process.exit(1);
         }
-        got[n].push({ cold: r.ms.slice(0, COLD), steady: median(r.ms.slice(STEADY_FROM)) });
+        got[n].push({ round, prev, cold: r.ms.slice(0, COLD), steady: median(r.ms.slice(STEADY_FROM)) });
+        prev = n;
       }
     }
     console.log(`\n  ${where} · ${name.replace('decode_', '')}`);
@@ -128,6 +130,11 @@ for (const where of WHERE) {
     for (const n of names) {
       const cols = [0, 1, 2].map((i) => cell(n, (s) => s.cold[i]));
       console.log(`    ${n.padEnd(8)} f0 ${cols[0].padEnd(24)} f1 ${cols[1].padEnd(24)} f2 ${cols[2].padEnd(24)} steady ${cell(n, (s) => s.steady)}`);
+    }
+    for (const [what, pickOf] of [['f0', (s) => s.cold[0]], ['steady', (s) => s.steady]]) {
+      console.log(`    ${what}, each lead by the predecessor it ran after, rounds in brackets`);
+      const rows = names.flatMap((n) => got[n].map((s) => ({ round: s.round, unit: n, prev: s.prev, v: pickOf(s) })));
+      for (const line of leadsByPredecessor(rows, names, names.slice(1).map((n) => [n, names[0]]), 2)) console.log(`  ${line}`);
     }
   }
 }

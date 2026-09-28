@@ -8,6 +8,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { leadsByPredecessor, order } from "../order.mjs";
 import { loadFixture, median, range } from "../decode-bench/decoder.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
 
@@ -89,21 +90,22 @@ for (const [set, arms] of Object.entries(SETS)) {
   const names = Object.keys(arms);
   const cells = THROTTLES.flatMap((t) => names.map((a) => [t, a]));
   for (let round = 0; round < ROUNDS; round++) {
-    for (let k = 0; k < cells.length; k++) {
-      const [throttle, arm] = cells[(k + round) % cells.length];
+    let prev = null;
+    for (const [throttle, arm] of order(cells, round)) {
       const r = await visit(set, arms[arm], truth, throttle);
       if (r.wrong) {
         console.error(`${set} ${arm}: ${r.wrong} frames differ from the encoder's input`);
         process.exit(1);
       }
-      rows.push({ set, arm, throttle, round, ...r });
+      rows.push({ set, arm, throttle, round, prev, ...r });
+      prev = `${arm}@${throttle}x`;
     }
   }
 }
 
 const f = (v) => v.toFixed(1);
 const med = (v) => `${f(median(v))} [${range(v).map(f).join("-")}]`;
-console.log(`${ROUNDS} rounds, arms and throttles rotated; one decoder, fresh context per sample; ms, medians [range]`);
+console.log(`${ROUNDS} rounds, arms and throttles in a Williams order (lab/order.mjs); one decoder, fresh context per sample; ms, medians [range]`);
 console.log("w: the warm-up decode. s1, s2: what it saves on the decoder's first and second frame against none.");
 console.log("pays: the idle window before the first byte at which frame 0 (s1) or the decoder's two frames (s1+s2) break even.");
 for (const set of Object.keys(SETS)) {
@@ -125,6 +127,11 @@ for (const set of Object.keys(SETS)) {
       );
     }
   }
+  const units = THROTTLES.flatMap((t) => Object.keys(SETS[set]).map((a) => `${a}@${t}x`));
+  const byUnit = rows.filter((r) => r.set === set).map((r) => ({ round: r.round, unit: `${r.arm}@${r.throttle}x`, prev: r.prev, v: r.ms[0] + r.ms[1] }));
+  const pairs = THROTTLES.flatMap((t) => Object.keys(SETS[set]).filter((a) => a !== "none").map((a) => [`${a}@${t}x`, `none@${t}x`]));
+  console.log(`  ${set}, frames 0+1, ms: each lead by the predecessor it ran after, rounds in brackets`);
+  for (const line of leadsByPredecessor(byUnit, units, pairs, 1)) console.log(`  ${line}`);
 }
 await browser.close();
 await server.close();
