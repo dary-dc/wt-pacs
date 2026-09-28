@@ -66,6 +66,8 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 86 | **PROF** — link profiles close to a phone: a rate trace, bursty loss, a deep or managed queue; the controllers on them | queue §Rows 83–86 | **blocked** 2026-09-27 — no netem or fq_codel in a container kernel; which substrate is the workstation's call, `## Blocked` |
 | 87 | **ENC** — what compression costs on a fast link, and whether an encoding makes it free | queue §Rows 87–88 | **done** 2026-09-27, `badcf76`, **corrected** the same day: **no encoding is resolvably later to the first frame on loopback**, at 1× or 4× (6/20 to 11/20; gzip and zstd tie, brotli leans later, +23 ms at 4×, 6/20). The cost that shows is the network service's decoding — brotli +10 ms CPU a visit in 16–18/20 — and the decoder WASM's preload, +26 to +48 ms at 4× (1/20 for gzip and brotli). A streamed compile still resolves 2–5 ms after its last byte in every arm. Break-even 206–700 Mbit/s at 4×; **gzip is within noise and keeps 92 % of brotli's saving** — one mode, always on. zstd needs Safari 26.3 (MDN compat data). No default changed. `lab/page-open/README.md` §What an encoding costs on loopback, `enc.mjs`; the page takes `?transport=wasm` and `?meta=`. *The first two batches were biased:* the precompressed copies were seconds old, so every worker fetch in those arms revalidated (a 304) — a file's heuristic freshness is a fraction of its age; corrected in place, and a trap in `rig-limits.md` §6. **For row 88:** give every file the page or its workers fetch an age or a lifetime, or its worker fetches revalidate; `run.mjs` rewrites the config before each visit, which may be why PO1 saw it fetched twice (unchecked). In a container: `apt-get install nginx libnss3-tools brotli zstd`, and `npm i -g binaryen@117.0.0` for `wasm-pack`'s `wasm-opt` (apt's 108 builds a WASM client whose externref table cannot grow) |
 | 88 | **H2** — does HTTP/2 serving take the worker's script off the socket queue | queue §Rows 87–88 | **done** 2026-09-27, `bde3e52`: **HTTP/2 removes the socket wait, and only that** — on the bare page the wait falls on the downloader worker's first import, 89 ms queued over HTTP/1.1 against 1 ms, −64 ms to the first frame (994 → 930, 10/10); the chain stays serial. **The page's hints are the larger lever**: today's preloads over HTTP/2 put the first frame at 481 ms (−449 against bare); over HTTP/1.1 each preload pays its own connection's two round trips (632). A `modulepreload` of the worker graph alone recovers the module hops, not the glue or the WASM (763 on HTTP/2). **Deciding: the serving change needs the page change** — cut 3's preloads, over HTTP/2. `lab/page-open/README.md` §The worker graph over HTTP/1.1 and HTTP/2, `h2.mjs`. The instrument is the relay, not DevTools emulation: that does not reach a page's workers' `fetch()` and charges no connection setup; the relay's TCP plane gains `--tcp-rate shared` and no longer drops bytes under a rate (no published cell set one), `rig-limits.md` §3 and §6. PO1's config round trip was the harness's (a config rewritten before each visit revalidates), corrected in place |
+| 89 | **SE2** — the SETTINGS-early patch on the library's other server entry point | queue §Rows 89–90 | ready |
+| 90 | **ORD** — a balanced arm order and a by-predecessor split in the lab's interleaved campaigns | queue §Rows 89–90 | ready |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** |
@@ -89,6 +91,27 @@ The term scanner that checks it runs on the workstation, not in a container.
 * **Rows 73–76** (2026-09-25): the warm-up, the decode tail and resources under a throttled CPU, the hand-off to the page — `decode/README.md`, `ARCHITECTURE.md` §Resources and §The hand-off.
 * **Row 77** (TC1): the TCP fallback, built, off by default — `WIRE.md` §The WebSocket mapping, `CLIENTS.md` §The race, `ARCHITECTURE.md` §What was built.
 * **Rows 78–81** (2026-09-25): stream shape under loss in a browser (no); the range in the pack (a third off a colour fill at 4–6×); a bounded BBR (keeps BBR's fill, none of its queue); quinn's withheld ACK, reproduced and fixed as an opt-in patch — `adr-stream-shape.md` §HOL1, `decode/README.md` §The range in the pack, `transport/transport-conclusions.md` §1, `transport/upstream-quinn-ack.md`.
+
+### Rows 89–90
+
+Found on the workstation 2026-09-27 while porting two lab results to the reference implementation.
+
+**89 · SE2.** `patches/wtransport-0.7.2-settings-early.patch` sends the server's HTTP/3 SETTINGS in the handshake's
+first flight only for a server built through the library's usual constructor. A server that accepts its own QUIC
+connections and hands each to the library through `with_quic_connecting` still sends them after the handshake: the
+workstation's port had to route that path too (42 lines against 0.7.1; the dial then lost its round trip, 5.19 → 4.19,
+7/7 at 40 and 80 ms, with the probe patch unchanged). Extend the lab's patch so both entry points send them early, with
+a test on each path that fails without the change (mutate it); keep the probe-every-space patch as it is. Record in
+`docs/ARCHITECTURE.md` beside §What lever 2 costs, and bring the upstream draft of row 64 in step (not posted).
+
+**90 · ORD.** On the workstation a fixed arm cycle tilted loopback rows: the same arm always followed the same
+predecessor, and a run that started after an idle gap paid a one-off cost (there, a laptop GPU waking from runtime
+suspend, ~0.3 s at browser start — not reproducible in a container). A Williams-square order removes the tilt whatever
+its cause: every arm follows every other equally often and sits at every position equally often (period N rounds, 2N
+for odd N). Give the lab's interleaved drivers (page-open, the link campaigns, the decode benches that alternate arms)
+that order by default, with a test, and have their summaries print each paired lead split by predecessor and flag a
+cell whose predecessors are unbalanced. Mutate: the old fixed order → the test fails and the flag shows. Say where each
+doc names its driver's order; nothing else changes. Record in `docs/rig-limits.md`.
 
 ### Rows 87–88
 
