@@ -203,7 +203,8 @@ under 50 ms in the 1 500-packet one.
 * **Not covered.** A competing flow: the relay gives each plane its own queue, and the neighbour
   table above is BBRv1's, not the bound's. Congestive loss, where Cubic led, was not re-run. One
   host through a userspace relay. **Nothing changed**: the bound is a candidate for the rig, against
-  a competing flow and congestive loss, before any default moves.
+  a competing flow and congestive loss, before any default moves. *2026-10-01:* on steady depth-1 asks with
+  no loss it is 77–104 ms slower than Cubic per ask (§5, TAX).
 
 ### quinn's BBR read against the published BBRv1, 2026-09-15
 
@@ -838,6 +839,37 @@ taker left ([`../disk-access/adr.md`](../disk-access/adr.md) §8). quinn's own d
 1 452; the 20 bytes between are open (§9). `quinn-proto` 0.11.18 also fixed a black-hole detection
 that pinned the MTU at 1 200 for 60 s after one ACK revealing four holes, which this project had
 seen twice.
+
+### The controller's tax on a steady ask, against an ideal TCP, 2026-10-01 (TAX)
+
+Depth-1 asks of 131 072 B on a fresh session, 30 a run, through the relay at 60 ms with a 50-packet
+queue (`lab/stream-shape/run.mjs --tax`, headless Chromium, the raw TS client, arms in a Williams
+order, every relay `--self-timing`, `VOID` runs dropped). The `ws` arm is the WebSocket through the
+relay's TCP plane, which has no loss and no window: an **ideal-TCP floor**, not a TCP reference
+([`../rig-limits.md`](../rig-limits.md) §3). Tax is the median of asks 2–30 over RTT + size/rate;
+paired is against `ws` in the same round. A floor arm dialled past the relay (the mutant) reads
+−128 ms, below arithmetic.
+
+| arm | 15 Mbit (floor 129.9 ms) | tax | paired | 25 Mbit (floor 101.9) | tax | paired |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `ws`, ideal TCP | 131.6 | +1.7 | | 103.6 | +1.6 | |
+| Cubic | 132.3 | +2.4 | +0.7, 7/7 | 115.6 | +13.7 | +11.8, 7/7 |
+| Cubic, `--initial-window-bytes 38400` | 132.3 | +2.4 | +0.7, 7/7 | 117.1 | +15.2 | +13.4, 11/11 |
+| bounded BBR (`bbr-bounded`, 1.25) | **235.7** | **+105.8** | +103.6, 7/7 | **197.0** | **+95.1** | +76.8, 10/10 |
+
+15 Mbit: 8 rounds, 1 of 32 runs `VOID`. 25 Mbit: two campaigns pooled (the first cut short by a
+container restart), 15 of 62 `VOID`, so arms keep 8–14.
+
+* **Cubic's tax is under 2 % where the ask is longer than a round trip's worth of link, and 13 % where
+  it is not.** At 25 Mbit 131 KB is 0.7 of the path's BDP; the 12 ms is consistent with the pacer
+  (quinn paces at 1.25 × window / RTT, and a depth-1 ask leaves the window app-limited near the ask's
+  size) — a mechanism inferred, not measured; a qlog cell would show it.
+* **The initial window is spent on the first ask** (284 → 197 ms at 15 Mbit) and changes nothing
+  after it.
+* **The bounded BBR pays 77–104 ms on every steady ask**, close to a round trip and a half, on a link
+  with no loss and no neighbour; its first ask is the best of the arms (105 at 25 Mbit). Its window
+  was not logged. This is row 91's question (the bound's all-time minimum RTT, §1 BB2) from the
+  ask's side, and the first cell where the bound loses to Cubic without an outage.
 
 ---
 

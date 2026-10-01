@@ -10,12 +10,13 @@
   <code>0..fill-1</code> and times each one's arrival, then asks <code>asks</code> more frames with
   <code>depth</code> outstanding and times each ask.</p>
   <script type="module">
-    import { TransportSession } from "/client/transport-ts/dist/session.js";
+    import { TransportSession as Wt } from "/client/transport-ts/dist/session.js";
+    import { TransportSession as Ws } from "/client/transport-ts/dist/ws-session.js";
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    globalThis.runArm = async ({ url, hash, fill, asks, depth, limitMs }) => {
-      const s = await TransportSession.connect(url, hash);
+    globalThis.runArm = async ({ url, hash, fill, asks, depth, limitMs, ws }) => {
+      const s = await (ws ? Ws : Wt).connect(url, hash);
       const arrived = new Array(fill).fill(null);
       const t0 = performance.now();
       if (fill > 0) s.fillFrames(0, fill - 1, (f) => (arrived[f.frameIndex] = performance.now() - t0));

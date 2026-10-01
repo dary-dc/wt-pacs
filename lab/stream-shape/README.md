@@ -15,3 +15,15 @@ python3 lab/stream-shape/summarize.py loss0.jsonl loss1.jsonl loss3.jsonl burst.
 
 Cells: `loss0`, `loss1`, `loss3`, `burst` (Gilbert–Elliott). The rule the numbers were read by,
 fixed before the first run, and the results: [`docs/adr-stream-shape.md`](../../docs/adr-stream-shape.md) §HOL1.
+
+`--tax` (row 97) is a different cell on the same page: depth-1 asks on a fresh session with arms
+`ws` (the WebSocket through the relay's TCP plane, an ideal-TCP floor), `cc:<controller>` and
+`iw:<bytes>`, at `--rate`, `--queue` and `--rtt`, in a Williams order with a self-timed relay; it
+prints each arm's ask over RTT + size/rate.
+
+```bash
+node lab/stream-shape/run.mjs --tax --rate 25000 --queue 50 --rtt 60 --rounds 8 --asks 30 \
+  --arms "ws cc:cubic cc:bbr-bounded iw:38400"
+```
+
+Results: [`docs/transport/transport-conclusions.md`](../../docs/transport/transport-conclusions.md) §5, TAX.

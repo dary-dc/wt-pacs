@@ -459,3 +459,11 @@ all. The decoders and the parity run cover signed 12- and 16-bit ([`decode/READM
   its cells can be reproduced; removing it is a code row of its own.
 * A second sequential telemetry session truncates `telemetry-server.rows` — a known defect, recorded in
   `telemetry/adr-server-pipeline.md` §Harvest, not fixed.
+
+**A TUN mode for the relay — wanted?** (2026-10-01, row 97). The check the row asked for: a container
+**can** take one. `/dev/net/tun` exists; `apt-get install iproute2` (no `ip` otherwise), then
+`unshare -rn ip tuntap add t0 mode tun` succeeds, and a Python `TUNSETIFF` inside `unshare -rn` reads
+a 128-byte IPv4 UDP packet sent to the tun's subnet off the fd. So a relay that forwards IP packets,
+under which the kernel's own TCP sees loss and retransmits, can be built here. **What is needed:**
+whether a faithful TCP reference under loss is worth that build (row 97 used the TCP plane as an
+ideal-TCP floor instead). Not built meanwhile.
