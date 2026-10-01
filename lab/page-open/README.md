@@ -72,6 +72,8 @@ decoder are `preload`ed as scripts rather than modulepreloaded.
 **What is left to cut, and not cut here.** The 3.6 before the dial is one connection setup, the
 HTML, and the config. Inlining the config into the page would remove the last one; it changes
 how `dev-transport.json` reaches the browser, so it is a separate change with its own reason.
+*Priced 2026-10-01 (DL0):* about one round trip to the first frame on top of R1 — §The dial
+before the config.
 
 ## The first byte on a fill
 
@@ -145,6 +147,62 @@ gone bad. Only within-run comparisons count.
 fit, and prints nothing else, so there is **no per-round range and no wins-out-of-n for this
 ladder**; the two control milestones above are the whole of its spread. A ladder that decides
 something on a margin narrower than half a round trip needs the runner to record them first.
+
+## The dial before the config
+
+**DL0, 2026-10-01.** Two more rungs on the ladder above. `inline` is `r1` with the transport URL
+written into the page (`?wt=&hash=`, as an inlined config would be) and no config fetch or preload.
+`dial0` opens a `WebTransport` in a head script from that URL and is timed to `ready` and no
+further: **a `WebTransport` cannot be posted to the downloader's worker** — Chromium 141 refuses to
+clone it and to transfer it (`DataCloneError` both ways) — so a session dialled in the page cannot
+be handed to the downloader, and `dial0` is the ceiling of a page-thread dial, not an arm the page
+can ship. A missing or wrong URL fails either rung (a page that fell back to the config was caught
+by the missing-URL run).
+
+```bash
+RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 STAGES=today,r1,inline,dial0 \
+  THROTTLE=4 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 9
+```
+
+Nine rounds in Williams order, a relay per visit with `--self-timing`, VOID visits dropped (31 of 108
+at 1×, 21 of 108 at 4×, so a cell holds 3–9 rounds). The link is 100 Mbit: unshaped, the relay was
+VOID in most visits (`rig-limits.md` §6), so these figures are comparable down their own columns and
+not with the ladder above. The config is aged an hour before each visit.
+
+| rung | `session` 1× | `frame` 1× | `session` 4× | `frame` 4× |
+| --- | ---: | ---: | ---: | ---: |
+| `today` | 6.93 | 13.39 | 6.13 | 12.41 |
+| `r1` | 6.94 | 12.28 | 6.29 | 11.60 |
+| `inline` | 5.99 | **11.04** | 5.67 | **10.87** |
+| `dial0` | **3.92** | — | **3.96** | — |
+
+Round trips, the slope over 40/80/160 ms. Paired by round:
+
+| pair | milestone | 40 ms | 80 ms | 160 ms |
+| --- | --- | --- | --- | --- |
+| `inline` − `r1`, 1× | frame | +7, 0/5 | −51, 4/4 | −129, 2/2 |
+| `inline` − `r1`, 4× | frame | −10, 3/5 | −31, 5/6 | −90, 3/3 |
+| `dial0` − `inline`, 1× | session | −83, 6/6 | −167, 3/3 | −334, 3/3 |
+| `dial0` − `inline`, 4× | session | −129, 7/7 | −201, 9/9 | −336, 6/6 |
+
+**Inlining the config is worth about one round trip to the first frame** (−1.24 at 1×, −0.73 at
+4×, against `r1`), won in every round at 80 and 160 ms and a tie at 40, where the fixed costs it
+does not touch dominate. The gain is smaller than the config's own ~2 round trips on this
+HTTP/1.1 page because the worker graph, preloaded in parallel, arrives about when the config did.
+
+**What is left before the dial is that worker graph: two round trips.** A dial from the head has
+its session at ~3.9 round trips, two after the HTML lands, at both throttles; `inline` has its
+own at 5.7–6.0. That ~2 round trips (−167 ms at 80, −334 at 160, every paired round) is what an
+adoption would be worth if it existed — the downloader's worker boots, fetches its script and the
+transport module over fresh connections, and only then dials. Getting it needs a shape this page
+cannot test (`../../docs/cloud-queue.md` §Blocked). On HTTP/2 the worker graph's fetches share
+the page's connection, so this gap is likely smaller there — unmeasured.
+
+*Corrected 2026-10-01 (DL0):* the ladder above and the count at the top of this file ran with a
+config `run.mjs` had written seconds before the visit, so the page's `fetch()` revalidated it
+(H2's trap): `today`'s config was 560 ms at 80 ms against 371 aged, and its session 720 against
+613. The rungs that fetch the config paid it alike, so the ladder's differences stand; its absolute
+cold `config` and `session` counts are high by one to two round trips. `run.mjs` now ages the file.
 
 ## Two servers, and the dial alone
 

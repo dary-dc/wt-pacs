@@ -432,6 +432,19 @@ needed:** one of —
 
 Nothing was built; no trace was fetched.
 
+**Row 93 (DL0): the ~2 round trips before the downloader's dial — which shape, if any?** (2026-10-01).
+Inlining the transport URL into the page is worth ~1 round trip to the first frame on top of R1
+(−1.24 at 1×, −0.73 at 4×) and needs no client change: `connect()` already takes the URL as a value.
+It changes how the config reaches the browser (the page templated by the host), which is the
+owner's call. Beyond it, a dial from the page's head has its session ~2 round trips sooner still
+(−167 ms at 80, every paired round), but **a `WebTransport` cannot be cloned or transferred to the
+downloader's worker** (Chromium 141), so the brief's "hand the open session to `connect()`" cannot
+be built. The shapes that could collect it: the dial on the page with its streams transferred to the
+worker (each chunk then crosses the page thread — the hop the downloader exists to avoid), or a
+worker graph that boots sooner (one bundle, or the worker's script inlined as a blob). **What is
+needed:** whether to template the URL into the page, and whether either shape is wanted at its
+price — `lab/page-open/README.md` §The dial before the config. Nothing built beyond the lab rungs.
+
 **Signed data in the product?** Still the workstation's: whether the product serves signed samples at
 all. The decoders and the parity run cover signed 12- and 16-bit ([`decode/README.md`](decode/README.md) §Ground truth).
 

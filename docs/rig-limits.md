@@ -512,6 +512,11 @@ across runs.
 * **A relay late on a busy host reads as jitter on the link**, and a loop that waits on epoll is up
   to 1 ms late on a quiet one. Run a cell with `--self-timing` and discard it when it prints `VOID`
   (§3, row 92).
+* **An unshaped relay is late by design on a burst.** With no rate, a whole flight is due at one
+  instant and leaves one packet at a time, so a browser fill on loopback reads p99 1.4–4 ms late:
+  5–6 of 8 page-open visits `VOID`, and still 5 of 8 with the relay at `chrt -f 50`. A 100 Mbit
+  rate spaces the flight and none was (p99 0.36–0.67 ms). Shape the link before reading the guard
+  (DL0, `../lab/page-open/README.md` §The dial before the config).
 * **A file written just before a run is stale to the browser.** Without `Cache-Control`, Chromium's
   freshness for a response is a fraction of its `Last-Modified` age. A file seconds old is therefore
   revalidated on every later read, as a 304 on the wire, while an older file in the other arm is read
