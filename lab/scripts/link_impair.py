@@ -2,13 +2,15 @@
 """One impaired link for both planes, in a container without root: a userspace relay in front of
 the UDP session and in front of the static host's TCP. Delay, rate, queue depth, jitter with or
 without reordering, scattered and bursty loss, a blackout that drops or holds, a rebind — one model, both planes.
-A delivery-opportunity trace can replace the to-client rate, and the queue can be limited in bytes.
+A delivery-opportunity trace can replace the to-client rate, and the queue can be limited in bytes. The UDP
+plane can idle like a radio: after a quiet spell, the next packet waits for the promotion.
 
 What it cannot do, and the limits it was calibrated against, are in `docs/rig-limits.md` §3.
 
 usage: link_impair.py --udp 5555:4433 [--tcp 8443:8000] [--delay-ms 40] [--rate-kbit 10000]
                       [--rate-up-kbit 2000] [--trace FILE] [--queue-pkts 50 | --queue-bytes N |
-                      --queue-ms N] [--loss 0.5 | --loss-model ge] [--self-timing] [--control-port 5556]
+                      --queue-ms N] [--loss 0.5 | --loss-model ge] [--idle-promote 5:300] [--self-timing]
+                      [--control-port 5556]
 
 --delay-ms is ONE WAY and applies to each direction, so a round trip reads twice it, matching
 `cloud_netem.sh`'s profiles. Control datagrams on --control-port: `rebind`, `cut`, `blackout <ms>`,
@@ -197,6 +199,11 @@ def udp_socket(port):
     return s
 
 
+def stall(pipes, now, seconds):
+    for pipe in pipes:
+        pipe.link.next_free = max(pipe.link.next_free, now) + seconds
+
+
 class UdpPlane:
     def __init__(self, sel, listen_port, server_port, args, rng, links, lateness):
         self.sel = sel
@@ -211,6 +218,9 @@ class UdpPlane:
         self.swallow = None
         self.swallow_until = 0.0
         self.swallowed = 0
+        self.idle_after, self.promotion = args.idle_promote or (0.0, 0.0)
+        self.last_packet = time.monotonic()
+        self.promoted = 0
         sel.register(self.down, selectors.EVENT_READ, ("udp", None, "down"))
         sel.register(self.up, selectors.EVENT_READ, ("udp", None, "up"))
 
@@ -232,7 +242,14 @@ class UdpPlane:
                 self.swallow_until, self.swallow = now + self.swallow, None
             swallowed = up and now < self.swallow_until
             self.swallowed += swallowed
+            self._wake(now)
             pipe.offer(now, data, blacked_out or swallowed)
+
+    def _wake(self, now):
+        if self.promotion and now - self.last_packet > self.idle_after:
+            stall((self.to_server, self.to_client), now, self.promotion)
+            self.promoted += 1
+        self.last_packet = now
 
     def pump(self, now):
         for due, payload in self.to_server.ready(now):
@@ -263,8 +280,9 @@ class UdpPlane:
     def tally(self):
         a, b = self.to_server, self.to_client
         return ("udp client->server sent %d lost %d overflowed %d | server->client sent %d "
-                "lost %d overflowed %d swallowed %d" % (a.sent, a.lost, a.overflowed, b.sent, b.lost,
-                                                        b.overflowed, self.swallowed))
+                "lost %d overflowed %d swallowed %d promoted %d"
+                % (a.sent, a.lost, a.overflowed, b.sent, b.lost, b.overflowed, self.swallowed,
+                   self.promoted))
 
 
 class TcpConn:
@@ -407,6 +425,11 @@ def parse_pair(s):
     return int(listen), int(target)
 
 
+def parse_promotion(s):
+    idle_s, promotion_ms = s.split(":")
+    return float(idle_s), float(promotion_ms) / 1000.0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--udp", type=parse_pair, help="LISTEN:SERVER, the QUIC session's plane")
@@ -433,6 +456,9 @@ def main():
                     help="do not charge a new tcp connection its setup round trip")
     ap.add_argument("--blackout-mode", choices=("drop", "hold"), default="drop",
                     help="drop: the outage discards. hold: it queues and bursts on return")
+    ap.add_argument("--idle-promote", type=parse_promotion, metavar="S:P",
+                    help="udp only: after S seconds with no packet either way, the next one holds "
+                         "both directions P ms, as one radio's promotion does")
     ap.add_argument("--self-timing", action="store_true",
                     help="tally how late each packet left; VOID when p99 is over 1 ms")
     ap.add_argument("--control-port", type=int)
@@ -467,10 +493,12 @@ def main():
     queue = ("%dB" % args.queue_bytes if args.queue_bytes else
              "%gms" % args.queue_ms if args.queue_ms else "%d" % args.queue_pkts)
     print("READY udp=%s tcp=%s ctrl=%s delay_ms=%g jitter_ms=%g rate_kbit=%g rate_up_kbit=%g "
-          "queue=%s loss=%g%s%s"
+          "queue=%s loss=%g%s%s%s"
           % (args.udp[0] if args.udp else "-", args.tcp[0] if args.tcp else "-",
              args.control_port, args.delay_ms, args.jitter_ms, args.rate_kbit, up_bps / 1000.0,
              queue, args.loss, " ge" if args.loss_model == "ge" else "",
+             " idle_promote=%g:%g" % (args.idle_promote[0], args.idle_promote[1] * 1000)
+             if args.idle_promote else "",
              " trace=%s sha256=%s mean_kbit=%.0f epoch=%.6f"
              % (args.trace, trace.sha256, trace.mean_bps / 1000.0, trace.epoch) if trace else ""),
           flush=True)
@@ -508,8 +536,7 @@ def main():
                             if args.blackout_mode == "hold" and udp:
                                 # The link stops draining, so a queue already standing is
                                 # pushed by the outage, not absorbed into it.
-                                for pipe in (udp.to_server, udp.to_client):
-                                    pipe.link.next_free = max(pipe.link.next_free, now) + outage
+                                stall((udp.to_server, udp.to_client), now, outage)
                             print("BLACKOUT %s ms %s" % (cmd[1].decode(), args.blackout_mode),
                                   flush=True)
                         elif head == b"swallow" and udp:

@@ -340,6 +340,18 @@ back by `link_impair_check.sh` against arithmetic and each mutated to watch a ch
   own for a traced direction), replaces the packet count, which changes meaning as the rate steps.
   A direction with no rate has no limit.
 
+**One radio's idle state, 2026-10-01 (row 95, IDL).** `--idle-promote S:P`: when neither direction
+of the UDP plane has carried a packet for S seconds, the next one either way holds both directions
+for P ms — the blackout's hold, once. The radio counts as active from the relay's start, and the TCP
+plane neither wakes it nor waits for it. `link_impair_check.sh` reads it back at 20 ms one way:
+with `5:300`, a probe after 6 s of quiet takes 340.6 ms and the next, 4 s later, 40.5; with `1:300`
+and an echo that answers 1.5 s late, the server's reply ends the quiet and a client packet sent
+inside that promotion waits it out — worst 2 060.9 ms, where a radio holding only the server's
+direction reads 1 840. Five mutants caught: a promotion on every packet, the quiet never reset, one
+direction held, only the client waking it, nothing waking it. **It is not a carrier's state
+machine** — no DRX cycle, no intermediate state, no tail that differs by direction; S and P are the
+cell's to name (by report 5–10.5 s and 190–1 907 ms, `transport/transport-conclusions.md` §9).
+
 No recorded radio trace has been replayed: what a trace stands in for is the trace's own claim.
 
 ## 4. The reader never misses

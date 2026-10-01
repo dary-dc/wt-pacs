@@ -33,15 +33,18 @@ want() {  # label measured low high
 }
 
 cat > "$T/echo.py" <<'PY'
-"""Echoes each datagram, or only its first `reply` bytes (at least the probe's 12-byte header)."""
-import socket, sys
+"""Echoes each datagram, or only its first `reply` bytes (at least the probe's 12-byte header),
+after `hold` seconds."""
+import socket, sys, time
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8 << 20)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8 << 20)
 s.bind(("127.0.0.1", int(sys.argv[1])))
 reply = max(12, int(sys.argv[2])) if len(sys.argv) > 2 else None
+hold = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
 while True:
     d, a = s.recvfrom(65535)
+    time.sleep(hold)
     s.sendto(d[:reply] if reply else d, a)
 PY
 
@@ -343,6 +346,31 @@ stop_relay
 relay --trace "$T/flat.trace" --queue-pkts 4000
 read -r _ got el _ < <(python3 "$T/probe.py" "$UDP_IN" 300 500 0)
 want "trace 1 per ms: 300 x 500 B, three a chance (s)" "$el" 0.098 0.115
+stop_relay
+
+# One radio: quiet for longer than S, the next packet either way waits P for both directions.
+relay --delay-ms 20 --idle-promote 5:300
+sleep 6
+read -r rtt _ < <(python3 "$T/probe.py" "$UDP_IN" 1 100 0)
+want "idle 6 s, promotion 5:300: rtt (ms)" "$rtt" 340 346
+sleep 4
+read -r rtt _ < <(python3 "$T/probe.py" "$UDP_IN" 1 100 0)
+want "then idle 4 s: rtt (ms)" "$rtt" 40 46
+stop_relay
+grep -q "promoted 1$" "$T/relay.log" && verdict=ok || { verdict=FAIL; fails=$((fails + 1)); }
+say "idle 6 s then 4 s: promotions" "$verdict"
+
+# An echo that answers 1.5 s late, so its reply is the packet that ends the quiet, at 1.52 s: the
+# first rtt is 1840 ms. The second probe leaves at 1.6, inside that promotion, and waits it out to
+# 1.82 before its own 1.5 s and a promotion again: 2060 ms, where a radio that held only the
+# server's direction reads 1840.
+SLOW=$((UDP_OUT + 2))
+python3 "$T/echo.py" "$SLOW" 0 1.5 & PIDS+=("$!")
+sleep 0.3
+TARGET=$SLOW relay --delay-ms 20 --idle-promote 1:300
+read -r _ got _ _ _ worst < <(python3 "$T/probe.py" "$UDP_IN" 2 100 1.6)
+want "server ends the quiet: delivered of 2" "$got" 2 2
+want "a client packet inside it waits: worst rtt (ms)" "$worst" 2055 2075
 stop_relay
 
 echo
