@@ -6,7 +6,7 @@
 # The server's own `session path` line gives the window, loss and congestion events per arm.
 # Results and the verdict they correct: docs/transport/transport-conclusions.md §3.
 #
-#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake|stw] [rounds]
+#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake|stw|late|keep] [rounds]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -16,6 +16,7 @@ case "$CELL" in repro) ROUNDS="${2:-5}" ;; *) ROUNDS="${2:-7}" ;; esac
 WARM="${WARM:-8}"
 # One cell at a time keeps a turn on the shared box short: SIZES=250 RTTS=80 is one.
 [[ "$CELL" == stw ]] && : "${SIZES:=250}" "${RTTS:=60}"
+[[ "$CELL" == late || "$CELL" == keep ]] && : "${SIZES:=250}" "${RTTS:=80}"
 SIZES="${SIZES:-50 250}"
 RTTS="${RTTS:-40 80}"
 TARGET=$((WARM + 1))
@@ -121,7 +122,7 @@ ARMS=()
 arm() { ARMS+=("$1"); }
 
 one_round() {  # state warm idle study rtt server_args relay_args probe_args -> "ms cwnd sent lost ce"
-  local state="$1" warm="$2" idle="$3" study="$4" rtt="$5" srv probe line ms
+  local state="$1" warm="$2" idle="$3" study="$4" rtt="$5" srv probe line ms next
   read -r -a srv <<<"$6"
   read -r -a RELAY_EXTRA <<<"$7"
   read -r -a probe <<<"${8:-}"
@@ -131,6 +132,7 @@ one_round() {  # state warm idle study rtt server_args relay_args probe_args -> 
       --warm "$warm" --target "$TARGET" --idle-ms "$idle" --control-port "$CTRL" --rounds 1 \
       ${probe[@]+"${probe[@]}"} 2>&1)
   then ms=$(sed -n 's/.*ask_to_last_byte_ms median=\([0-9.]*\).*/\1/p' <<<"$line")
+       next=$(sed -n 's/.*next_ask_ms median=\([0-9.a-zA-Z]*\).*/\1/p' <<<"$line")
   else ms=nan
   fi
   # The close still has a one-way delay to travel, and the relay carries it: read the path line
@@ -141,7 +143,7 @@ one_round() {  # state warm idle study rtt server_args relay_args probe_args -> 
   stop_relay
   grep -q VOID "$T/relay.log" && ms=void  # --self-timing: the relay, not the link, was late
   stop_server
-  echo "$ms $cost"
+  echo "$ms $cost ${next:-NaN}"
 }
 
 round_robin() {  # study rtt
@@ -168,15 +170,16 @@ for k in range(n):
     voids.append(sum(r[0] == "void" for r in rows))
     cols.append([(float(r[0]) if r[0] != "nan" else None, r[1:]) for r in rows if r[0] != "void"])
 base = {int(c[-2]): v for v, c in cols[0] if v is not None}
-print("%-26s %9s %15s %9s %7s %8s %7s %6s %5s" %
-      ("arm", "ask ms", "min-max", "paired", "wins", "cwnd", "lost", "fails", "void"))
+print("%-26s %9s %15s %9s %7s %8s %7s %6s %5s %9s" %
+      ("arm", "ask ms", "min-max", "paired", "wins", "cwnd", "lost", "fails", "void", "next ask"))
 for k in range(n):
     got = [v for v, _ in cols[k] if v is not None]
     pairs = [v - base[int(c[-2])] for v, c in cols[k] if v is not None and int(c[-2]) in base]
     wins = sum(1 for d in pairs if d < 0)
     cw = [int(c[0]) for _, c in cols[k] if c[0] != "-"]
     lost = [float(c[2]) for _, c in cols[k] if c[2] != "-"]
-    print("%-26s %9s %15s %9s %7s %8s %7s %6d %5d" % (
+    nxt = [float(c[4]) for v, c in cols[k] if v is not None and c[4].lower() != "nan"]
+    print("%-26s %9s %15s %9s %7s %8s %7s %6d %5d %9s" % (
         labels[k],
         "%.1f" % statistics.median(got) if got else "-",
         "%.1f-%.1f" % (min(got), max(got)) if got else "-",
@@ -184,7 +187,7 @@ for k in range(n):
         "" if k == 0 else "%d/%d" % (wins, len(pairs)),
         "%d" % statistics.median(cw) if cw else "-",
         "%.1f" % statistics.mean(lost) if lost else "-",
-        len(cols[k]) - len(got), voids[k]))
+        len(cols[k]) - len(got), voids[k], "%.1f" % statistics.median(nxt) if nxt else "-"))
 split = [{"round": int(c[-2]), "unit": labels[k], "prev": labels[int(c[-1])] if int(c[-1]) >= 0 else None, "v": v}
          for k in range(n) for v, c in cols[k]]
 print("ask ms, each lead by the predecessor it ran after, rounds in brackets")
@@ -336,6 +339,46 @@ stw_cells() {
   done
 }
 
+# I1: a radio promoted after 5 s quiet holds the ask's first packet P ms; the next ask follows at
+# once, to read what that one inflated round-trip sample costs it.
+late_cells() {
+  local p idle
+  for kb in $SIZES; do
+    for rtt in $RTTS; do
+      for idle in 6000 10000; do
+        ARMS=()
+        arm "no promotion|filled|$WARM|$idle|$HOLD|--self-timing|--next-ask"
+        for p in 200 400 1000 1900; do
+          arm "P $p|filled|$WARM|$idle|$HOLD|--self-timing --idle-promote 5:$p|--next-ask"
+        done
+        printf '\n== %s KB, %s ms, idle %s ms, a radio promoted after 5 s\n' "$kb" "$rtt" "$idle"
+        round_robin "$T/s$kb.sbnd" "$rtt"
+      done
+    done
+  done
+}
+
+# I1: what keeps the radio up through 10 s of silence — a server keep-alive, or one datagram
+# sent ahead of the ask — against neither, with P = KEEP_P.
+keep_cells() {
+  local p="${KEEP_P:-400}" ka l radio
+  radio="--self-timing --idle-promote 5:$p"
+  for kb in $SIZES; do
+    for rtt in $RTTS; do
+      ARMS=()
+      arm "no keep-alive|filled|$WARM|10000|--max-idle-timeout-ms 60000|$radio|--next-ask"
+      for ka in 3 5 10; do
+        arm "keep-alive ${ka} s|filled|$WARM|10000|--keep-alive-interval-ms $((ka * 1000)) --max-idle-timeout-ms 60000|$radio|--next-ask"
+      done
+      for l in 100 300; do
+        arm "poke $l ms ahead|filled|$WARM|10000|--max-idle-timeout-ms 60000|$radio|--next-ask --wake-lead-ms $l"
+      done
+      printf '\n== %s KB, %s ms, idle 10 s, P %s ms after 5 s quiet\n' "$kb" "$rtt" "$p"
+      round_robin "$T/s$kb.sbnd" "$rtt"
+    done
+  done
+}
+
 case "$CELL" in
   repro) repro ;;
   idle) idle_cells ;;
@@ -344,5 +387,7 @@ case "$CELL" in
   resume) resume_cells ;;
   wake) wake_cells ;;
   stw) stw_cells ;;
+  late) late_cells ;;
+  keep) keep_cells ;;
   *) echo "unknown cell: $CELL"; exit 2 ;;
 esac

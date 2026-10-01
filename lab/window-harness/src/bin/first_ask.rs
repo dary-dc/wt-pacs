@@ -60,6 +60,9 @@ struct Args {
     /// One datagram this long before the ask, after the silence: the page's wake on the first touch.
     #[arg(long)]
     wake_lead_ms: Option<u64>,
+    /// Ask `target + 1` the moment the ask lands: what the ask's round-trip sample does to the next.
+    #[arg(long)]
+    next_ask: bool,
     #[arg(long, default_value_t = 5)]
     rounds: u32,
     #[arg(long, default_value_t = 30_000)]
@@ -92,8 +95,27 @@ fn blackout_at(args: &Args, frames_done: u32) -> Result<()> {
     Ok(())
 }
 
-/// (the ask, the warm-up that preceded it, the frame's size)
-async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
+/// Asks for `frame` and times it to its last byte, in ms.
+async fn ask(
+    control: &mut wtransport::SendStream,
+    frames: &mut Frames,
+    frame: u32,
+    timeout_ms: u64,
+) -> Result<(f64, usize)> {
+    let asked = Instant::now();
+    control
+        .write_all(&encode_fod_msg(&FodMsg::RequestFrame { frame })?)
+        .await
+        .context("request_frame")?;
+    let (index, bytes) = frames.next(timeout_ms).await.context("the ask")?;
+    if index != frame {
+        bail!("asked for {frame} and got {index}");
+    }
+    Ok((asked.elapsed().as_secs_f64() * 1000.0, bytes))
+}
+
+/// (the ask, the warm-up that preceded it, the frame's size, the next ask or NaN)
+async fn one_round(args: &Args) -> Result<(f64, f64, usize, f64)> {
     let v4 = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
     let endpoint = Endpoint::client(
         ClientConfig::builder().with_bind_address(v4).with_no_cert_validation().build(),
@@ -147,20 +169,16 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
         tokio::time::sleep(Duration::from_millis(lead)).await;
     }
 
-    let asked = Instant::now();
-    control
-        .write_all(&encode_fod_msg(&FodMsg::RequestFrame { frame: args.target })?)
-        .await
-        .context("request_frame")?;
-    let (index, bytes) = frames.next(args.timeout_ms).await.context("the ask")?;
-    let ms = asked.elapsed().as_secs_f64() * 1000.0;
-    if index != args.target {
-        bail!("asked for {} and got {index}", args.target);
-    }
+    let (ms, bytes) = ask(&mut control, &mut frames, args.target, args.timeout_ms).await?;
+    let next = if args.next_ask {
+        ask(&mut control, &mut frames, args.target + 1, args.timeout_ms).await?.0
+    } else {
+        f64::NAN
+    };
     connection.close(0u32.into(), b"done");
     // The close ends the session, and the end is what prints the server's `session path` line.
     endpoint.wait_idle().await;
-    Ok((ms, fill_ms, bytes))
+    Ok((ms, fill_ms, bytes, next))
 }
 
 #[tokio::main]
@@ -172,10 +190,14 @@ async fn main() -> Result<()> {
 
     let mut ms = Vec::new();
     let mut fills = Vec::new();
+    let mut nexts = Vec::new();
     let mut bytes = 0;
     for _ in 0..args.rounds {
-        let (v, f, b) = one_round(&args).await?;
+        let (v, f, b, n) = one_round(&args).await?;
         ms.push(v);
+        if !n.is_nan() {
+            nexts.push(n);
+        }
         if !f.is_nan() {
             fills.push(f);
         }
@@ -183,7 +205,7 @@ async fn main() -> Result<()> {
     }
     println!(
         "state={} bytes={} rounds={} ask_to_last_byte_ms median={:.1} min={:.1} max={:.1} \
-         fill_ms median={:.1}",
+         fill_ms median={:.1} next_ask_ms median={:.1}",
         state_name(args.state),
         bytes,
         ms.len(),
@@ -191,6 +213,7 @@ async fn main() -> Result<()> {
         ms[0],
         ms[ms.len() - 1],
         if fills.is_empty() { f64::NAN } else { median(&mut fills) },
+        if nexts.is_empty() { f64::NAN } else { median(&mut nexts) },
     );
     Ok(())
 }

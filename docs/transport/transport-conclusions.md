@@ -492,6 +492,35 @@ the probe (the mutant), every lead reads +299 to +301 at P = 300. **This proves 
 radio**: how much of a real promotion a gesture's lead overlaps, and what an extra wake costs in
 energy, need a device. The page's `pointerdown` wake is not built.
 
+#### A late first packet after a silence, and what keeps the radio up, 2026-10-01 (I1)
+
+The same relay radio, `--idle-promote 5:P`, at P = 200 / 400 / 1 000 / 1 900 ms (the by-report span
+in §9 item 4), after 6 and 10 s of silence; 250 KB, 80 ms, a filled session, the keep-alive pair,
+`first_ask_cells.sh late`, seven interleaved rounds. `first_ask --next-ask` asks the next frame the
+moment the first lands, to read what that ask's inflated round-trip sample does. 13 of 70 runs
+`VOID` and dropped.
+
+| idle | no promotion | P 200 | P 400 | P 1 000 | P 1 900 | next ask, every arm |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 6 s | 105.7 | +197.5 | +400.4 | +998.0 | +1 898.1 | 100.2–103.8 |
+| 10 s | 102.8 | +201.5 | +400.0 | +1 000.9 | +1 902.4 | 101.2–103.3 |
+
+**The promotion costs P and nothing else.** Every lead is P within 3 ms; no arm lost a packet; the
+next ask is the unpromoted one. The hold delays the client's ask, so the inflated sample lands on the
+client's estimator; the server, which sends the frame, sees its replies leave after the hold and
+takes no inflated sample — the next ask has nothing to pay. (Mutant: the probe left quiet for 6 s
+before the next ask, which then pays P in every arm.) Whatever spurious probes the client's timer
+sends during the hold are held with the ask and reach the server as one burst; the native client's
+own PTO count was not read.
+
+**What keeps the radio up**, P = 400, 10 s of silence, `first_ask_cells.sh keep` (12 of 42 `VOID`),
+paired against no keep-alive at all (504.8 ms): a server keep-alive every **3 s −399.1 (4/4)**,
+every **5 s −398.4 (4/4)**, every 10 s +1.8 (0/4 — it leaves a 5 s gap); one datagram sent **100
+ms** ahead −100.2 (6/6), **300 ms** ahead −301.1 (5/5). So with S = 5 s a keep-alive at ≤ S keeps the
+promotion off the ask entirely, at a packet every few seconds of the radio's tail energy — the cost
+this relay cannot see; a poke saves its lead and no more. Plumbing, as IDL: S, P and the energy are
+a device's.
+
 ### The window through a silence, when the link slowed meanwhile, 2026-10-01 (STW)
 
 W1b's idle cell held the link fixed. Here a step trace (`link_impair.py --trace`, 40 Mbit for the
@@ -1035,7 +1064,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    neither a browser's 15 s ping nor the 20 s keep-alive ([`adr-idle-sessions.md`](adr-idle-sessions.md))
    comes often enough to prevent it, so every idle ask may pay it. The relay models it now, and one
    datagram sent L ahead of the ask takes L off the promotion (§3, IDL); a device decides how long
-   S and P are, how much a gesture's lead overlaps, and what the extra wake costs in energy.
+   S and P are, how much a gesture's lead overlaps, and what the extra wake costs in energy. On the
+   relay a late first packet costs P and nothing more — no loss, the next ask unaffected — and a
+   keep-alive at ≤ S keeps it off the ask (§3, I1); what that keep-alive costs a battery is a device's.
 5. **`--initial-rtt-ms`**, at the target's real round trip (§3).
 6. **The GSO cap: 24, or 45 behind the product's buffer** — the owner's call (§5). Owed: 44 against
    10 on CPU per ask at 20 Mbit / 50 ms and 100 Mbit / 30 ms, with a 1 Gbit / 1 ms control that must
