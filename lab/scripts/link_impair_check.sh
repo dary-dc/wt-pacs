@@ -373,6 +373,28 @@ want "server ends the quiet: delivered of 2" "$got" 2 2
 want "a client packet inside it waits: worst rtt (ms)" "$worst" 2055 2075
 stop_relay
 
+# A neighbour: two pairs, one link. 250 kB each way through each at 4 Mbit takes 1 s, not 0.5.
+NEIGHBOUR=$((UDP_OUT + 3))
+python3 "$T/echo.py" "$NEIGHBOUR" & PIDS+=("$!")
+sleep 0.3
+relay --udp "$((UDP_IN + 1)):$NEIGHBOUR" --rate-kbit 4000 --queue-pkts 4000
+python3 "$T/probe.py" "$((UDP_IN + 1))" 250 1000 0 > "$T/neighbour.out" & NPROBE=$!
+read -r _ got el _ < <(python3 "$T/probe.py" "$UDP_IN" 250 1000 0)
+wait "$NPROBE"
+read -r _ ngot nel _ < "$T/neighbour.out"
+want "two pairs at 4 Mbit: 250 kB through the first (s)" "$el" 0.95 1.15
+want "  and through the neighbour (s)" "$nel" 0.95 1.15
+want "  delivered of 500" "$((got + ngot))" 500 500
+stop_relay
+# One queue too: two bursts of 100 into a 10-packet queue leave about 10 between them, not 20.
+relay --udp "$((UDP_IN + 1)):$NEIGHBOUR" --rate-kbit 1000 --queue-pkts 10
+python3 "$T/probe.py" "$((UDP_IN + 1))" 100 1000 0 > "$T/neighbour.out" & NPROBE=$!
+read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 100 1000 0)
+wait "$NPROBE"
+read -r _ ngot _ < "$T/neighbour.out"
+want "two bursts of 100, one queue of 10: survivors" "$((got + ngot))" 10 13
+stop_relay
+
 echo
 echo "== the static host's plane"
 python3 server/dev-server.py --port "$TCP_OUT" > "$T/static.log" 2>&1 & PIDS+=("$!")

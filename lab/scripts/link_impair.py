@@ -3,19 +3,21 @@
 the UDP session and in front of the static host's TCP. Delay, rate, queue depth, jitter with or
 without reordering, scattered and bursty loss, a blackout that drops or holds, a rebind — one model, both planes.
 A delivery-opportunity trace can replace the to-client rate, and the queue can be limited in bytes. The UDP
-plane can idle like a radio: after a quiet spell, the next packet waits for the promotion.
+plane can idle like a radio: after a quiet spell, the next packet waits for the promotion. A second
+--udp is a neighbour: every UDP pair crosses one queue and one clock each way, as one phone's apps do.
 
 What it cannot do, and the limits it was calibrated against, are in `docs/rig-limits.md` §3.
 
-usage: link_impair.py --udp 5555:4433 [--tcp 8443:8000] [--delay-ms 40] [--rate-kbit 10000]
-                      [--rate-up-kbit 2000] [--trace FILE] [--queue-pkts 50 | --queue-bytes N |
+usage: link_impair.py --udp 5555:4433 [--udp 5557:4435 ...] [--tcp 8443:8000] [--delay-ms 40]
+                      [--rate-kbit 10000] [--rate-up-kbit 2000] [--trace FILE] [--queue-pkts 50 | --queue-bytes N |
                       --queue-ms N] [--loss 0.5 | --loss-model ge] [--idle-promote 5:300] [--self-timing]
                       [--control-port 5556]
 
 --delay-ms is ONE WAY and applies to each direction, so a round trip reads twice it, matching
 `cloud_netem.sh`'s profiles. Control datagrams on --control-port: `rebind`, `cut`, `blackout <ms>`,
 `swallow <ms>` (drops server->client for <ms> from the next server datagram: its next flight), `stats`,
-`quit`. Prints READY, then REBOUND <old> -> <new>, then a tally at exit.
+`quit`; `cut`, `rebind` and `swallow` act on the first --udp. Prints READY, then REBOUND <old> -> <new>,
+then a tally at exit.
 """
 import argparse
 import bisect
@@ -221,8 +223,8 @@ class UdpPlane:
         self.idle_after, self.promotion = args.idle_promote or (0.0, 0.0)
         self.last_packet = time.monotonic()
         self.promoted = 0
-        sel.register(self.down, selectors.EVENT_READ, ("udp", None, "down"))
-        sel.register(self.up, selectors.EVENT_READ, ("udp", None, "up"))
+        sel.register(self.down, selectors.EVENT_READ, ("udp", self, "down"))
+        sel.register(self.up, selectors.EVENT_READ, ("udp", self, "up"))
 
     def read(self, which, now, blacked_out):
         # Drain the socket, not one datagram: a burst that outruns the loop is the kernel's
@@ -271,7 +273,7 @@ class UdpPlane:
         self.sel.unregister(self.up)
         self.up.close()
         self.up = udp_socket(0)
-        self.sel.register(self.up, selectors.EVENT_READ, ("udp", None, "up"))
+        self.sel.register(self.up, selectors.EVENT_READ, ("udp", self, "up"))
         return old, self.up.getsockname()[1]
 
     def due(self):
@@ -279,10 +281,10 @@ class UdpPlane:
 
     def tally(self):
         a, b = self.to_server, self.to_client
-        return ("udp client->server sent %d lost %d overflowed %d | server->client sent %d "
+        return ("udp :%d client->server sent %d lost %d overflowed %d | server->client sent %d "
                 "lost %d overflowed %d swallowed %d promoted %d"
-                % (a.sent, a.lost, a.overflowed, b.sent, b.lost, b.overflowed, self.swallowed,
-                   self.promoted))
+                % (self.down.getsockname()[1], a.sent, a.lost, a.overflowed, b.sent, b.lost,
+                   b.overflowed, self.swallowed, self.promoted))
 
 
 class TcpConn:
@@ -432,7 +434,8 @@ def parse_promotion(s):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--udp", type=parse_pair, help="LISTEN:SERVER, the QUIC session's plane")
+    ap.add_argument("--udp", type=parse_pair, action="append",
+                    help="LISTEN:SERVER, the QUIC session's plane; again for a neighbour on one link")
     ap.add_argument("--tcp", type=parse_pair, help="LISTEN:SERVER, the static host's plane")
     ap.add_argument("--delay-ms", type=float, default=0.0, help="one way, each direction")
     ap.add_argument("--rate-kbit", type=float, default=0.0, help="0 = unlimited")
@@ -466,6 +469,8 @@ def main():
     args = ap.parse_args()
     if not args.udp and not args.tcp:
         ap.error("nothing to relay: pass --udp and/or --tcp")
+    if args.idle_promote and len(args.udp or ()) > 1:
+        ap.error("--idle-promote times one session's quiet: one --udp only")
     if args.queue_bytes and args.queue_ms:
         ap.error("--queue-bytes or --queue-ms, not both")
     if args.queue_bytes or args.queue_ms:
@@ -480,9 +485,11 @@ def main():
     # Not epoll: it waits in whole milliseconds, so every due packet left up to 1 ms late.
     sel = selectors.SelectSelector()
     lateness = Lateness(args.self_timing)
-    udp = UdpPlane(sel, *args.udp, args, rng, links, lateness) if args.udp else None
+    radio = {s: links(s) for s in ("upstream", "client")}
+    udps = [UdpPlane(sel, *pair, args, rng, radio.get, lateness) for pair in args.udp or ()]
+    udp = udps[0] if udps else None
     tcp = TcpPlane(sel, *args.tcp, args, rng, links, lateness) if args.tcp else None
-    planes = [p for p in (udp, tcp) if p]
+    planes = udps + ([tcp] if tcp else [])
 
     ctrl = None
     if args.control_port is not None:
@@ -494,7 +501,8 @@ def main():
              "%gms" % args.queue_ms if args.queue_ms else "%d" % args.queue_pkts)
     print("READY udp=%s tcp=%s ctrl=%s delay_ms=%g jitter_ms=%g rate_kbit=%g rate_up_kbit=%g "
           "queue=%s loss=%g%s%s%s"
-          % (args.udp[0] if args.udp else "-", args.tcp[0] if args.tcp else "-",
+          % (",".join(str(pair[0]) for pair in args.udp) if args.udp else "-",
+             args.tcp[0] if args.tcp else "-",
              args.control_port, args.delay_ms, args.jitter_ms, args.rate_kbit, up_bps / 1000.0,
              queue, args.loss, " ge" if args.loss_model == "ge" else "",
              " idle_promote=%g:%g" % (args.idle_promote[0], args.idle_promote[1] * 1000)
@@ -517,7 +525,7 @@ def main():
                 now = time.monotonic()
                 try:
                     if kind == "udp":
-                        udp.read(side, now, args.blackout_mode == "drop" and now < blackout_until)
+                        owner.read(side, now, args.blackout_mode == "drop" and now < blackout_until)
                     elif kind == "tcp":
                         owner.read(side, now, False)
                     elif kind == "tcp-accept":
