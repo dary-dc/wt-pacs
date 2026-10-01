@@ -20,6 +20,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { leadsByPredecessor, order } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
+import { metadata } from "./metadata.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
@@ -41,7 +42,15 @@ const PLANES = {
   "h2+wt-host": { page: "static.test", wt: "wt.test" },
   "h2+wt-hint": { page: "static.test", wt: "wt.test", hint: true },
   h3: { page: "h3.test", wt: "h3.test" },
+  "h2+meta": { page: "static.test", wt: "static.test", meta: "downloader.html" },
+  "h2+meta-first": { page: "static.test", wt: "static.test", meta: "meta-first.html" },
+  "h3+meta": { page: "h3.test", wt: "h3.test", meta: "downloader.html" },
+  "h3+meta-first": { page: "h3.test", wt: "h3.test", meta: "meta-first.html" },
 };
+// A study's metadata of ~120 KB gzipped. The page's `?meta=` preload is script-made, so it leaves after
+// every parsed link; meta-first.html, written per run, parses one ahead of the config's.
+const META = "lab/page-open/metadata.json";
+const META_FIRST = "lab/page-open/meta-first.html";
 const HOST = process.env.HOST || "dev";
 const ARMS = STAGES
   ? Object.fromEntries(
@@ -49,8 +58,12 @@ const ARMS = STAGES
         `&wt=${encodeURIComponent(`https://127.0.0.1:${server.inn}/`)}&hash=${hash}`]),
     )
   : HOST === "dns"
-  ? Object.fromEntries(Object.entries(PLANES).map(([arm, p]) => [arm, (_, s) =>
-      `https://${p.page}/lab/page-open/downloader.html${p.hint ? `?dns=https://${p.wt}:${s.inn}` : ""}`]))
+  ? Object.fromEntries(Object.entries(PLANES).map(([arm, p]) => [arm, (_, s) => {
+      const q = new URLSearchParams();
+      if (p.hint) q.set("dns", `https://${p.wt}:${s.inn}`);
+      if (p.meta) q.set("meta", `/${META}`);
+      return `https://${p.page}/lab/page-open/${p.meta ?? "downloader.html"}?${q}`;
+    }]))
   : {
       ts: (base) => `${base}/harness/ts.html?autorun=1&n=1&frames=${FRAMES}`,
       wasm: (base) => `${base}/harness/index.html?autorun=1&n=1&frames=${FRAMES}`,
@@ -80,6 +93,7 @@ function start(cmd, args, out) {
 function stop() {
   for (const p of kids) p.kill();
   if (CFG_BAK) fs.writeFileSync(CFG, CFG_BAK);
+  if (HOST === "dns") for (const f of [META, META_FIRST]) fs.rmSync(path.join(ROOT, f), { force: true });
   fs.rmSync(T, { recursive: true, force: true });
 }
 process.on("exit", stop);
@@ -138,6 +152,12 @@ for (const s of SERVERS) {
 if (HOST === "dev") {
   start("python3", ["server/dev-server.py", "--port", String(TCP_SRV)], fs.openSync(path.join(T, "static.log"), "a"));
 } else if (HOST === "dns") {
+  fs.writeFileSync(path.join(ROOT, META), metadata(2200));
+  const page = fs.readFileSync(path.join(ROOT, "lab/page-open/downloader.html"), "utf8");
+  const config = '  <link rel="preload" as="fetch" href="/wt/dev-transport.json" />';
+  if (!page.includes(config)) throw new Error("downloader.html has no config preload to put the metadata ahead of");
+  fs.writeFileSync(path.join(ROOT, META_FIRST),
+    page.replace(config, `  <link rel="preload" as="fetch" href="/${META}" crossorigin="anonymous" />\n${config}`));
   execFileSync("go", ["build", "-o", path.join(T, "h3-host"), "."], { cwd: path.join(ROOT, "lab/page-open/h3-host") });
   start(path.join(T, "h3-host"), [ROOT, `127.0.0.1:${TCP_SRV}`, `${T}/cert.pem`, `${T}/key.pem`],
     fs.openSync(path.join(T, "static.log"), "a"));
@@ -200,12 +220,15 @@ async function visit(ctx, arm, server) {
         page: Math.round(n.responseEnd), tls: Math.round(tls), dns: Math.round(n.domainLookupEnd - n.domainLookupStart),
         proto: n.nextHopProtocol, ...globalThis.__wtpacsOpen,
       },
+      // Each response: when it was asked for and when its last byte landed.
+      landed: performance.getEntriesByType("resource").filter((r) => r.responseEnd > 0)
+        .map((r) => [new URL(r.name).pathname, Math.round(r.requestStart), Math.round(r.responseEnd)]),
       error: globalThis.__wtpacsError ?? null,
     };
   });
   await page.close();
   if (out.error || err) throw new Error(out.error || err);
-  return out.open;
+  return { ...out.open, landed: out.landed };
 }
 
 // A relay per visit: its self-timing tally is the visit's, and a visit it was late for is VOID.
@@ -257,7 +280,7 @@ for (const rtt of RTTS) {
         args: ["--disable-background-networking", ...netlog, ...DNS_ARGS],
         ...(HOST === "dev" ? {} : { env: { ...process.env, HOME: `${T}/home`, ...DNS_ENV } }),
       });
-      const unthrottle = throttleTree(browserPid(dir), THROTTLE);
+      const unthrottle = THROTTLE > 1 ? throttleTree(browserPid(dir), THROTTLE) : () => {};
       const visits = [];
       try {
         for (const profile of PROFILES) visits.push({ rtt, round, arm: name, prev, profile, ...(await visit(ctx, arm, server)) });
@@ -384,6 +407,18 @@ if (HOST === "dns") {
       });
       console.log(`${arm.padEnd(W)} ${key.padEnd(8)} ${cells.join("   ")}`);
     }
+  }
+  console.log(`\nthe config's and the metadata's last byte, ms: median; visits the config was asked first in, and landed first in`);
+  for (const arm of LABELS.filter((a) => PLANES[a]?.meta)) {
+    const cells = RTTS.map((rtt) => {
+      const at = (r, file) => r.landed.find(([p]) => p === file) ?? [];
+      const mine = rows.filter((r) => r.arm === arm && r.rtt === rtt).map((r) => [at(r, "/wt/dev-transport.json"), at(r, `/${META}`)]);
+      if (!mine.length) return "-";
+      const first = (k) => mine.filter(([c, m]) => c[k] < m[k]).length;
+      return `config ${median(mine.map(([c]) => c[2]))} meta ${median(mine.map(([, m]) => m[2]))} ` +
+        `asked ${first(1)}/${mine.length} landed ${first(2)}/${mine.length}`;
+    });
+    console.log(`${arm.padEnd(W)} ${cells.join("   ")}`);
   }
   console.log("\nthe document's protocol, visits per arm");
   for (const arm of LABELS) {
