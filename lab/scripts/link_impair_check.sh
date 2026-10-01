@@ -33,14 +33,69 @@ want() {  # label measured low high
 }
 
 cat > "$T/echo.py" <<'PY'
+"""Echoes each datagram, or only its first `reply` bytes (at least the probe's 12-byte header)."""
 import socket, sys
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8 << 20)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8 << 20)
 s.bind(("127.0.0.1", int(sys.argv[1])))
+reply = max(12, int(sys.argv[2])) if len(sys.argv) > 2 else None
 while True:
     d, a = s.recvfrom(65535)
-    s.sendto(d, a)
+    s.sendto(d[:reply] if reply else d, a)
+PY
+
+cat > "$T/trace_probe.py" <<'PY'
+"""Sends MTU-sized datagrams open loop at `factor` times the trace's mean for one period, so the
+relay's queue never empties, and compares what comes back per 100 ms bin with the trace's own
+opportunities in that bin, both counted from the relay's epoch.
+Prints bins compared, the worst |delivered - trace| of any bin, delivered and the trace's total."""
+import socket, sys, threading, time
+port, trace, epoch, factor = int(sys.argv[1]), sys.argv[2], float(sys.argv[3]), float(sys.argv[4])
+ms = [int(x) for x in open(trace).read().split()]
+period = ms[-1]
+interval = period / 1000.0 / len(ms) / factor
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32 << 20)
+s.settimeout(0.5)
+arrivals, sent = [], []
+
+
+def send():
+    start = time.monotonic()
+    for i in range(int(period / 1000.0 / interval)):
+        wait = start + i * interval - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        s.sendto(b"x" * 1500, ("127.0.0.1", port))
+    sent.extend((start, time.monotonic()))
+
+
+sender = threading.Thread(target=send)
+sender.start()
+while True:
+    try:
+        s.recvfrom(65535)
+        arrivals.append(time.monotonic())
+    except socket.timeout:
+        if not sender.is_alive():
+            break
+# The first bin after the first send, to the last bin before the last send: the queue stands.
+first = int((sent[0] - epoch) * 10) + 1
+last = int((sent[1] - epoch) * 10) - 1
+got = {b: 0 for b in range(first, last + 1)}
+for t in arrivals:
+    b = int((t - epoch) * 10)
+    if b in got:
+        got[b] += 1
+want = {b: 0 for b in got}
+for loop in range(last * 100 // period + 2):
+    for t in ms:
+        b = (loop * period + t) // 100
+        if b in want:
+            want[b] += 1
+print("%d %d %d %d" % (len(got), max(abs(got[b] - want[b]) for b in got),
+                       sum(got.values()), sum(want.values())))
 PY
 
 cat > "$T/probe.py" <<'PY'
@@ -91,8 +146,8 @@ print("%.3f %d %.4f %.3f %d %.3f" % (statistics.median(rtt) if rtt else 0.0, got
                                      max(rtt) if rtt else 0.0))
 PY
 
-relay() {  # extra args...
-  python3 "$RELAY" --udp "$UDP_IN:$UDP_OUT" "$@" > "$T/relay.log" 2>&1 &
+relay() {  # extra args...; TARGET= picks another echo
+  python3 "$RELAY" --udp "$UDP_IN:${TARGET:-$UDP_OUT}" "$@" > "$T/relay.log" 2>&1 &
   RELAY_PID=$!
   PIDS+=("$RELAY_PID")
   for _ in $(seq 50); do grep -q READY "$T/relay.log" && return; sleep 0.1; done
@@ -210,6 +265,84 @@ poke 0.7 "rebind"
 read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 200 200 0.01)
 want "rebind mid-stream: delivered of 200" "$got" 199 200
 grep -q "^REBOUND " "$T/relay.log" || { say "the relay reported its rebind" "FAIL"; fails=$((fails + 1)); }
+stop_relay
+
+echo
+echo "== a phone's link: the relay's own timing, an uplink of its own, a trace, a queue in bytes"
+late() { grep -o "late p50 [0-9.]* p99 [0-9.]* max [0-9.]*" "$T/relay.log" | awk "{print \$$1}"; }
+
+# Every packet echoed is two sends, each timed. On a quiet host the p99 is ~0.2 ms; a loop that
+# waits in whole milliseconds (epoll) read 0.7–1.0.
+relay --self-timing --delay-ms 20 --rate-kbit 20000 --queue-pkts 4000
+python3 "$T/probe.py" "$UDP_IN" 2000 1200 0.0004 > /dev/null
+stop_relay
+want "self-timing, 20 Mbit: p99 late (ms)" "$(late 5)" 0 0.5
+grep -q "self-timing packets 4000 " "$T/relay.log" && verdict=ok || { verdict=FAIL; fails=$((fails + 1)); }
+say "self-timing, 20 Mbit: every send timed" "$verdict"
+
+# Stopped for 100 ms with ~20 packets due inside it at a 50 ms delay: a cell the guard voids.
+relay --self-timing --delay-ms 50
+(sleep 0.5; kill -STOP "$RELAY_PID"; sleep 0.1; kill -CONT "$RELAY_PID") & PIDS+=("$!")
+python3 "$T/probe.py" "$UDP_IN" 200 200 0.005 > /dev/null
+stop_relay
+want "relay stopped 100 ms: worst late (ms)" "$(late 7)" 90 140
+grep -q "VOID" "$T/relay.log" && verdict=ok || { verdict=FAIL; fails=$((fails + 1)); }
+say "relay stopped 100 ms: the cell is void" "$verdict"
+
+# 200 × 1000 bytes up and 64 back: the uplink alone sets the time, 0.8 s at 2 Mbit, 0.16 at 10.
+SHORT=$((UDP_OUT + 1))
+python3 "$T/echo.py" "$SHORT" 64 & PIDS+=("$!")
+sleep 0.3
+TARGET=$SHORT relay --rate-kbit 10000 --rate-up-kbit 2000 --queue-pkts 4000
+read -r _ got el _ < <(python3 "$T/probe.py" "$UDP_IN" 200 1000 0)
+want "up 2 Mbit, down 10: 200 kB up (s)" "$el" 0.78 0.9
+stop_relay
+TARGET=$SHORT relay --rate-kbit 2000 --rate-up-kbit 10000 --queue-pkts 4000
+read -r _ got el _ < <(python3 "$T/probe.py" "$UDP_IN" 200 1000 0)
+want "up 10 Mbit, down 2: 200 kB up (s)" "$el" 0.15 0.25
+stop_relay
+
+relay --rate-kbit 1000 --queue-bytes 15000
+read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 500 1000 0)
+want "queue 15000 B: 1000 B survivors of 500" "$got" 15 17
+stop_relay
+relay --rate-kbit 1000 --queue-bytes 15000
+read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 500 500 0)
+want "queue 15000 B: 500 B survivors of 500" "$got" 30 33
+stop_relay
+relay --rate-kbit 1200 --queue-ms 100
+read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 500 1000 0)
+want "queue 100 ms at 1200 kbit: 1000 B survivors" "$got" 15 17
+stop_relay
+relay --rate-kbit 10000 --queue-bytes 15000
+read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 200 1000 0.002)
+want "queue 15000 B, a stream under the rate" "$got" 200 200
+stop_relay
+
+# 12 Mbit for 1 s, 3 for 1 s, an outage of 300 ms, 12 for 0.7 s: a mean of 7.8 Mbit.
+python3 lab/scripts/gen_step_trace.py 12000:1000 3000:1000 0:300 12000:700 > "$T/steps.trace"
+relay --trace "$T/steps.trace" --queue-pkts 5000
+epoch=$(grep -o "epoch=[0-9.]*" "$T/relay.log" | cut -d= -f2)
+read -r bins worst got total < <(python3 "$T/trace_probe.py" "$UDP_IN" "$T/steps.trace" "$epoch" 2)
+want "trace at 2x its mean: worst 100 ms bin (pkts)" "$worst" 0 1
+want "trace at 2x its mean: delivered over $bins bins" "$got" "$((total - bins))" "$((total + bins))"
+stop_relay
+python3 lab/scripts/gen_step_trace.py 1200:1000 > "$T/slow.trace"
+relay --trace "$T/slow.trace" --queue-ms 100
+read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 500 1500 0)
+want "queue 100 ms at a 1200 kbit trace: survivors" "$got" 10 12
+stop_relay
+
+# Opportunities nobody used are gone: after a second idle, 100 packets still take 100 ms.
+python3 lab/scripts/gen_step_trace.py 12000:1000 > "$T/flat.trace"
+relay --trace "$T/flat.trace" --queue-pkts 4000
+sleep 1
+read -r _ got el _ < <(python3 "$T/probe.py" "$UDP_IN" 100 1500 0)
+want "trace 1 per ms, idle 1 s: 100 MTU (s)" "$el" 0.098 0.115
+stop_relay
+relay --trace "$T/flat.trace" --queue-pkts 4000
+read -r _ got el _ < <(python3 "$T/probe.py" "$UDP_IN" 300 500 0)
+want "trace 1 per ms: 300 x 500 B, three a chance (s)" "$el" 0.098 0.115
 stop_relay
 
 echo

@@ -228,7 +228,7 @@ against another emulator, and each lever was mutated to watch it fail.
 
 | Lever | Asked | Read |
 | --- | --- | --- |
-| Floor | — | 0.40 ms of round trip, delivery quantised to 0.5 ms |
+| Floor | — | 0.40 ms of round trip, delivery quantised to 0.5 ms. *Corrected 2026-10-01 (row 92):* to 1 ms — the loop waited on epoll, which rounds a wait up to a whole millisecond, so a delayed packet left up to 1 ms late (p99 0.74–1.03 ms); it now waits on `select()`, p99 0.13–0.26, the floor unchanged |
 | One-way delay | 20 / 40 ms | 41.0 / 81.7 ms round trip |
 | Rate | 10 000 kbit/s | 9 948, nothing dropped |
 | Queue | 10 packets | 10 of a 500-packet burst |
@@ -304,6 +304,43 @@ trips and the same fit:
 The relay's fixed cost (5–10 ms here, on a burstable host) cannot, and nor can anything this run
 did not shape: rate, queue depth, loss and blackouts were not calibrated. The lossy cells on the
 rig itself are §3 above (L3).
+
+**A phone's link, 2026-10-01 (row 92, RLY).** Four more levers, each off by default, each read
+back by `link_impair_check.sh` against arithmetic and each mutated to watch a check fail:
+
+| Lever | Asked | Read |
+| --- | --- | --- |
+| `--self-timing` | 20 Mbit, a queue standing | p99 0.14–0.26 ms late, all 4 000 sends timed |
+| | the relay stopped for 100 ms, 50 ms delay | worst 98.8 ms late, the cell `VOID` |
+| `--rate-up-kbit` | 2 Mbit up, 10 down, then the reverse; 200 × 1 000 B up, 64 B back | 0.80 s, then 0.16 s: the uplink alone sets it |
+| `--queue-bytes 15000` | 1 Mbit, a 500-packet burst | 15 of 1 000 B survive, 30 of 500 B; a 4 Mbit stream through 10 Mbit loses none |
+| `--queue-ms 100` | 1 200 kbit, then a 1 200 kbit trace | 15 of 1 000 B; 11 of 1 500 B |
+| `--trace` | a 12 / 3 / 0 / 12 Mbit step trace (1 s, 1 s, 300 ms, 700 ms; 7.8 Mbit mean), open loop at twice the mean | every 100 ms bin exactly the trace's count, 29 bins, 1 850 delivered of 1 850 |
+| | one opportunity a millisecond, after 1 s idle: 100 × 1 500 B | 0.101 s — an opportunity nothing used is gone |
+| | the same, 300 × 500 B | 0.101 s — three packets share one opportunity |
+
+* **The guard** times every send against its due time and prints p50, p99 and the worst with the
+  tally (and on `stats`), and `VOID` when the p99 is over 1 ms. A late relay reads as link jitter,
+  and on this box, with other builds and browsers running, the p99 crossed 1 ms in several of the
+  runs above. The check wants 0.5 ms or less; the epoll loop (§3's floor, corrected) fails it.
+* **The trace** is mahimahi's format: one millisecond timestamp per 1 500-byte delivery
+  opportunity, looped at its last timestamp, counted from the relay's start. `READY` prints that
+  start (`epoch=`) and the trace's sha256: record both with the cell, and never commit a trace
+  whose licence is unstated. It replaces the server→client rate on both planes; client→server
+  keeps `--rate-up-kbit` (default `--rate-kbit`). A packet takes its bytes from the first
+  opportunity at or after both its arrival and the last packet's, small packets share one, a large
+  one spans several. Sizes are UDP payloads, not IP packets, so a full-size QUIC datagram takes
+  ~2 % less of a trace than on the link the trace was recorded on. With `--tcp-rate
+  per-connection` each TCP connection gets the whole trace; use `shared`.
+* `lab/scripts/gen_step_trace.py KBIT:MS ...` writes a step trace, its opportunities spread evenly
+  over each step. A step at 0 is an outage, and two steps make a grant cycle: `0:9 400000:1` is
+  39.6 Mbit delivered once every 10 ms. A trace is anchored at the relay's start, so a driver that
+  wants a step at a moment of its cell starts the relay then, or reads `epoch=`.
+* **A queue in bytes**, `--queue-bytes` or `--queue-ms` (at each direction's mean rate, a trace's
+  own for a traced direction), replaces the packet count, which changes meaning as the rate steps.
+  A direction with no rate has no limit.
+
+No recorded radio trace has been replayed: what a trace stands in for is the trace's own claim.
 
 ## 4. The reader never misses
 
@@ -460,6 +497,9 @@ across runs.
   Anything measuring loss or a blackout is open loop.
 * **A relay that reads one datagram per wakeup drops bursts**, and the loss looks like the model's.
   Drain the socket to `EWOULDBLOCK` and raise `SO_RCVBUF`.
+* **A relay late on a busy host reads as jitter on the link**, and a loop that waits on epoll is up
+  to 1 ms late on a quiet one. Run a cell with `--self-timing` and discard it when it prints `VOID`
+  (§3, row 92).
 * **A file written just before a run is stale to the browser.** Without `Cache-Control`, Chromium's
   freshness for a response is a fraction of its `Last-Modified` age. A file seconds old is therefore
   revalidated on every later read, as a 304 on the wire, while an older file in the other arm is read

@@ -2,11 +2,13 @@
 """One impaired link for both planes, in a container without root: a userspace relay in front of
 the UDP session and in front of the static host's TCP. Delay, rate, queue depth, jitter with or
 without reordering, scattered and bursty loss, a blackout that drops or holds, a rebind — one model, both planes.
+A delivery-opportunity trace can replace the to-client rate, and the queue can be limited in bytes.
 
 What it cannot do, and the limits it was calibrated against, are in `docs/rig-limits.md` §3.
 
 usage: link_impair.py --udp 5555:4433 [--tcp 8443:8000] [--delay-ms 40] [--rate-kbit 10000]
-                      [--queue-pkts 50] [--loss 0.5 | --loss-model ge] [--control-port 5556]
+                      [--rate-up-kbit 2000] [--trace FILE] [--queue-pkts 50 | --queue-bytes N |
+                      --queue-ms N] [--loss 0.5 | --loss-model ge] [--self-timing] [--control-port 5556]
 
 --delay-ms is ONE WAY and applies to each direction, so a round trip reads twice it, matching
 `cloud_netem.sh`'s profiles. Control datagrams on --control-port: `rebind`, `cut`, `blackout <ms>`,
@@ -14,7 +16,9 @@ usage: link_impair.py --udp 5555:4433 [--tcp 8443:8000] [--delay-ms 40] [--rate-
 `quit`. Prints READY, then REBOUND <old> -> <new>, then a tally at exit.
 """
 import argparse
+import bisect
 import collections
+import hashlib
 import heapq
 import random
 import selectors
@@ -28,30 +32,113 @@ TICK = 0.0005
 IDLE = 0.05
 
 
-class Link:
-    """A bottleneck's rate clock and queue: a pipe's own, or one every TCP connection crosses."""
+class Trace:
+    """A mahimahi trace: one millisecond timestamp per MTU-sized delivery opportunity, looped at
+    its last timestamp, counted from `epoch`."""
 
-    def __init__(self):
+    def __init__(self, path, epoch):
+        with open(path, "rb") as f:
+            raw = f.read()
+        self.ms = [int(x) for x in raw.split()]
+        if not self.ms or self.ms[-1] <= 0 or self.ms != sorted(self.ms):
+            raise SystemExit("%s: want non-decreasing millisecond timestamps ending above 0" % path)
+        self.period = self.ms[-1]
+        self.epoch = epoch
+        self.sha256 = hashlib.sha256(raw).hexdigest()
+        self.mean_bps = len(self.ms) * MTU * 8 * 1000.0 / self.period
+
+    def time(self, k):
+        loop, i = divmod(k, len(self.ms))
+        return self.epoch + (loop * self.period + self.ms[i]) / 1000.0
+
+    def first_at_or_after(self, t):
+        loop, rem = divmod((t - self.epoch) * 1000.0, self.period)
+        if rem == 0 and loop > 0:  # a timestamp equal to the period belongs to the loop before
+            loop, rem = loop - 1, self.period
+        return int(loop) * len(self.ms) + bisect.bisect_left(self.ms, rem)
+
+
+class Link:
+    """A bottleneck's clock and queue: a pipe's own, or one every TCP connection crosses. The clock
+    is a rate, or a trace whose unused opportunities are gone once passed."""
+
+    def __init__(self, rate_bps=0.0, trace=None):
+        self.rate = rate_bps
+        self.trace = trace
         self.next_free = 0.0
-        self.tx = collections.deque()
+        self.opportunity, self.left = -1, 0
+        self.tx = collections.deque()  # (departure, bytes) of each packet not yet off the link
+        self.queued = 0
+
+    def mean_bps(self):
+        return self.trace.mean_bps if self.trace else self.rate
+
+    def depart(self, now, size):
+        start = max(now, self.next_free)
+        if not self.trace:
+            self.next_free = start + (size * 8 / self.rate if self.rate else 0.0)
+            return self.next_free
+        if self.left == 0:
+            self.opportunity, self.left = self.opportunity + 1, MTU
+        if self.trace.time(self.opportunity) < start:
+            self.opportunity, self.left = self.trace.first_at_or_after(start), MTU
+        while size > self.left:
+            size -= self.left
+            self.opportunity, self.left = self.opportunity + 1, MTU
+        self.left -= size
+        self.next_free = self.trace.time(self.opportunity)
+        return self.next_free
+
+
+class Lateness:
+    """How late each packet left against its due time: a preempted relay reads as link jitter."""
+
+    VOID_MS = 1.0
+
+    def __init__(self, on):
+        self.on = on
+        self.bins = collections.Counter()  # 10 µs each
+        self.n = 0
+        self.worst = 0.0
+
+    def sent(self, due):
+        if self.on:
+            late = time.monotonic() - due
+            self.bins[int(late * 1e5)] += 1
+            self.n += 1
+            self.worst = max(self.worst, late)
+
+    def quantile_ms(self, q):
+        seen = 0
+        for b in sorted(self.bins):
+            seen += self.bins[b]
+            if seen >= q * self.n:
+                return (b + 1) / 100.0
+        return 0.0
+
+    def tally(self):
+        p99 = self.quantile_ms(0.99)
+        return "self-timing packets %d late p50 %.2f p99 %.2f max %.2f ms%s" % (
+            self.n, self.quantile_ms(0.5), p99, self.worst * 1000,
+            " VOID: p99 over %g ms" % self.VOID_MS if p99 > self.VOID_MS else "")
 
 
 class Pipe:
-    """One direction: loss, then a finite queue drained at the rate, then the one-way delay."""
+    """One direction: loss, then a finite queue drained by the link's clock, then the one-way delay."""
 
-    def __init__(self, args, rng, lossy=True, link=None):
+    def __init__(self, args, rng, link, lossy=True):
         self.delay = args.delay_ms / 1000.0
         self.jitter = args.jitter_ms / 1000.0
         self.ordered = args.jitter_mode == "ordered"
         self.last_due = 0.0
-        self.rate = args.rate_kbit * 1000.0
         self.limit = args.queue_pkts
+        self.limit_bytes = args.queue_bytes or args.queue_ms / 1000.0 * link.mean_bps() / 8
         self.loss = args.loss / 100.0
         self.ge = (args.ge_p / 100.0, args.ge_r / 100.0) if args.loss_model == "ge" else None
         self.lossy = lossy
         self.rng = rng
         self.bad = False
-        self.link = link or Link()
+        self.link = link
         # Data may not leave before this: a new connection's setup round trip on a shared link.
         self.hold = 0.0
         self.pending = []
@@ -70,17 +157,19 @@ class Pipe:
             self.lost += 1
             return
         link = self.link
-        while link.tx and link.tx[0] <= now:
-            link.tx.popleft()
-        if self.limit and len(link.tx) >= self.limit:
+        while link.tx and link.tx[0][0] <= now:
+            link.queued -= link.tx.popleft()[1]
+        size = len(payload)
+        if (self.limit and len(link.tx) >= self.limit
+                or self.limit_bytes and link.queued + size > self.limit_bytes):
             self.overflowed += 1
             return
-        start = max(now, link.next_free)
-        link.next_free = start + (len(payload) * 8 / self.rate if self.rate else 0.0)
-        link.tx.append(link.next_free)
+        departure = link.depart(now, size)
+        link.tx.append((departure, size))
+        link.queued += size
         # --jitter-mode picks which path the wobble models. docs/rig-limits.md §3.
         wobble = self.rng.uniform(-self.jitter, self.jitter) if self.jitter else 0.0
-        due = max(link.next_free, self.hold) + max(0.0, self.delay + wobble)
+        due = max(departure, self.hold) + max(0.0, self.delay + wobble)
         if self.ordered:
             due = max(due, self.last_due)
             self.last_due = due
@@ -93,7 +182,8 @@ class Pipe:
     def ready(self, now):
         out = []
         while self.pending and self.pending[0][0] <= now:
-            out.append(heapq.heappop(self.pending)[2])
+            due, _, payload = heapq.heappop(self.pending)
+            out.append((due, payload))
         self.sent += len(out)
         return out
 
@@ -108,15 +198,16 @@ def udp_socket(port):
 
 
 class UdpPlane:
-    def __init__(self, sel, listen_port, server_port, args, rng):
+    def __init__(self, sel, listen_port, server_port, args, rng, links, lateness):
         self.sel = sel
         self.server = ("127.0.0.1", server_port)
         self.down = udp_socket(listen_port)
         self.up = udp_socket(0)
         self.client = None
         self.dead = None
-        self.to_server = Pipe(args, rng)
-        self.to_client = Pipe(args, rng)
+        self.to_server = Pipe(args, rng, links("upstream"))
+        self.to_client = Pipe(args, rng, links("client"))
+        self.lateness = lateness
         self.swallow = None
         self.swallow_until = 0.0
         self.swallowed = 0
@@ -144,11 +235,13 @@ class UdpPlane:
             pipe.offer(now, data, blacked_out or swallowed)
 
     def pump(self, now):
-        for payload in self.to_server.ready(now):
+        for due, payload in self.to_server.ready(now):
             self.up.sendto(payload, self.server)
-        for payload in self.to_client.ready(now):
+            self.lateness.sent(due)
+        for due, payload in self.to_client.ready(now):
             if self.client:
                 self.down.sendto(payload, self.client)
+            self.lateness.sent(due)
 
     def cut(self):
         """The path this session is on is gone for good, and a session from a new port is not —
@@ -180,12 +273,13 @@ class TcpConn:
 
     SIDES = ("client", "upstream")
 
-    def __init__(self, sel, client, upstream, args, rng, links):
+    def __init__(self, sel, client, upstream, args, rng, links, lateness):
         self.sel = sel
         self.socks = {"client": client, "upstream": upstream}
-        self.pipes = {s: Pipe(args, rng, lossy=False, link=links and links[s]) for s in self.SIDES}
+        self.pipes = {s: Pipe(args, rng, links(s), lossy=False) for s in self.SIDES}
         for pipe in self.pipes.values():
-            pipe.limit = 0  # a chunk dropped here is data gone: the queue only ever delays
+            pipe.limit = pipe.limit_bytes = 0  # a chunk dropped here is data gone: the queue only delays
+        self.lateness = lateness
         # The kernel completed the handshake locally, so charge the round trip it would have
         # waited for — from the accept, not the first request, or a socket the browser opened
         # ahead of time would pay it serially.
@@ -223,7 +317,9 @@ class TcpConn:
         if self.closed:
             return
         for side in self.SIDES:
-            self.out[side] += b"".join(self.pipes[side].ready(now))
+            for due, payload in self.pipes[side].ready(now):
+                self.out[side] += payload
+                self.lateness.sent(due)
             if self.out[side]:
                 try:
                     self.out[side] = self.out[side][self.socks[side].send(self.out[side]):]
@@ -261,8 +357,8 @@ class TcpConn:
 
 
 class TcpPlane:
-    def __init__(self, sel, listen_port, server_port, args, rng):
-        self.sel, self.args, self.rng = sel, args, rng
+    def __init__(self, sel, listen_port, server_port, args, rng, links, lateness):
+        self.sel, self.args, self.rng, self.lateness = sel, args, rng, lateness
         self.server = ("127.0.0.1", server_port)
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -270,8 +366,9 @@ class TcpPlane:
         self.listener.listen(64)
         self.listener.setblocking(False)
         self.conns = []
-        # One bottleneck for every connection, or a rate each (the model earlier runs were taken on).
-        self.links = {s: Link() for s in TcpConn.SIDES} if args.tcp_rate == "shared" else None
+        # One bottleneck for every connection, or a link each (the model earlier runs were taken on).
+        shared = {s: links(s) for s in TcpConn.SIDES}
+        self.links = shared.get if args.tcp_rate == "shared" else links
         self.accepted = self.chunks = 0
         sel.register(self.listener, selectors.EVENT_READ, ("tcp-accept", None, None))
 
@@ -286,7 +383,8 @@ class TcpPlane:
             return
         for s in (client, upstream):
             s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.conns.append(TcpConn(self.sel, client, upstream, self.args, self.rng, self.links))
+        self.conns.append(TcpConn(self.sel, client, upstream, self.args, self.rng, self.links,
+                                  self.lateness))
         self.accepted += 1
 
     def pump(self, now):
@@ -315,10 +413,16 @@ def main():
     ap.add_argument("--tcp", type=parse_pair, help="LISTEN:SERVER, the static host's plane")
     ap.add_argument("--delay-ms", type=float, default=0.0, help="one way, each direction")
     ap.add_argument("--rate-kbit", type=float, default=0.0, help="0 = unlimited")
+    ap.add_argument("--rate-up-kbit", type=float,
+                    help="client->server only, default --rate-kbit; 0 = unlimited")
+    ap.add_argument("--trace", help="a mahimahi trace that replaces the server->client rate")
     ap.add_argument("--jitter-ms", type=float, default=0.0, help="uniform, each direction")
     ap.add_argument("--jitter-mode", choices=("reorder", "ordered"), default="reorder",
                     help="reorder: deliver by time, across packets. ordered: one leg, in sequence")
     ap.add_argument("--queue-pkts", type=int, default=50, help="tail drop, like netem's limit")
+    ap.add_argument("--queue-bytes", type=int, default=0, help="tail drop in bytes, not packets")
+    ap.add_argument("--queue-ms", type=float, default=0.0,
+                    help="--queue-bytes as milliseconds at each direction's mean rate")
     ap.add_argument("--loss", type=float, default=0.0, help="percent, iid, udp only")
     ap.add_argument("--loss-model", choices=("iid", "ge"), default="iid")
     ap.add_argument("--ge-p", type=float, default=0.07, help="percent, good->bad")
@@ -329,16 +433,29 @@ def main():
                     help="do not charge a new tcp connection its setup round trip")
     ap.add_argument("--blackout-mode", choices=("drop", "hold"), default="drop",
                     help="drop: the outage discards. hold: it queues and bursts on return")
+    ap.add_argument("--self-timing", action="store_true",
+                    help="tally how late each packet left; VOID when p99 is over 1 ms")
     ap.add_argument("--control-port", type=int)
     ap.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
     if not args.udp and not args.tcp:
         ap.error("nothing to relay: pass --udp and/or --tcp")
+    if args.queue_bytes and args.queue_ms:
+        ap.error("--queue-bytes or --queue-ms, not both")
+    if args.queue_bytes or args.queue_ms:
+        args.queue_pkts = 0
+    up_bps = (args.rate_kbit if args.rate_up_kbit is None else args.rate_up_kbit) * 1000.0
+    trace = Trace(args.trace, time.monotonic()) if args.trace else None
+
+    def links(side):
+        return Link(up_bps) if side == "upstream" else Link(args.rate_kbit * 1000.0, trace)
 
     rng = random.Random(args.seed)
-    sel = selectors.DefaultSelector()
-    udp = UdpPlane(sel, *args.udp, args, rng) if args.udp else None
-    tcp = TcpPlane(sel, *args.tcp, args, rng) if args.tcp else None
+    # Not epoll: it waits in whole milliseconds, so every due packet left up to 1 ms late.
+    sel = selectors.SelectSelector()
+    lateness = Lateness(args.self_timing)
+    udp = UdpPlane(sel, *args.udp, args, rng, links, lateness) if args.udp else None
+    tcp = TcpPlane(sel, *args.tcp, args, rng, links, lateness) if args.tcp else None
     planes = [p for p in (udp, tcp) if p]
 
     ctrl = None
@@ -347,11 +464,16 @@ def main():
         ctrl.bind(("127.0.0.1", args.control_port))
         sel.register(ctrl, selectors.EVENT_READ, ("ctrl", None, None))
 
-    print("READY udp=%s tcp=%s ctrl=%s delay_ms=%g jitter_ms=%g rate_kbit=%g queue=%d loss=%g%s"
+    queue = ("%dB" % args.queue_bytes if args.queue_bytes else
+             "%gms" % args.queue_ms if args.queue_ms else "%d" % args.queue_pkts)
+    print("READY udp=%s tcp=%s ctrl=%s delay_ms=%g jitter_ms=%g rate_kbit=%g rate_up_kbit=%g "
+          "queue=%s loss=%g%s%s"
           % (args.udp[0] if args.udp else "-", args.tcp[0] if args.tcp else "-",
-             args.control_port, args.delay_ms, args.jitter_ms, args.rate_kbit,
-             args.queue_pkts, args.loss,
-             " ge" if args.loss_model == "ge" else ""), flush=True)
+             args.control_port, args.delay_ms, args.jitter_ms, args.rate_kbit, up_bps / 1000.0,
+             queue, args.loss, " ge" if args.loss_model == "ge" else "",
+             " trace=%s sha256=%s mean_kbit=%.0f epoch=%.6f"
+             % (args.trace, trace.sha256, trace.mean_bps / 1000.0, trace.epoch) if trace else ""),
+          flush=True)
 
     blackout_until = 0.0
     running = True
@@ -396,6 +518,8 @@ def main():
                         elif head == b"stats":
                             for p in planes:
                                 print(p.tally(), flush=True)
+                            if lateness.on:
+                                print(lateness.tally(), flush=True)
                         elif head == b"quit":
                             running = False
                 except OSError:
@@ -408,6 +532,8 @@ def main():
     finally:
         for p in planes:
             print(p.tally(), flush=True)
+        if lateness.on:
+            print(lateness.tally(), flush=True)
 
 
 if __name__ == "__main__":
