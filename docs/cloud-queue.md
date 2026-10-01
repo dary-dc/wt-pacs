@@ -63,17 +63,27 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 83 | **RP2** — the range skipped in the pack where nothing reads it (8-bit colour) | queue §Rows 83–86 | **done** 2026-09-27, `acc65e6`: `pack<T, Ranged>`; `decoder.js`'s `unranged` gives the frame 0..255 with no pass, whichever decoder (the package's colour frames too — nothing reads it); parity bit-exact on six sets, 522 frames, new `g8` set; six mutants caught. The colour WASM call back to the pre-row-80 figure (a tie), 16-bit unchanged — container figures, under the 5 % bar. `decode/README.md` §An 8-bit colour frame takes no range. **Row 84 benches against this wrapper.** In a container, `wasm-pack` cannot fetch its `wasm-opt`: put emsdk's `upstream/bin` on `PATH` |
 | 84 | **WEX** — `-fwasm-exceptions` instead of `-fexceptions` in the decoder builds | queue §Rows 83–86 | **done** 2026-09-27, `4957d5a`: **not adopted, default unchanged.** Bit-exact (six sets, 522 frames; an undecodable frame throws and the reused decoder recovers, as before); all 81 `invoke_*` sites gone; steady −0.2 to −1.7 %, frames 0–2 a tie, Node and headless Chromium, n = 15 — under the 5 % bar. 4.9 KB less glue is its only case. `decode/README.md` §Faster; `lab/decode-bench/cold_arms.mjs` is the cold-frame bench. Measured at 1× only; a phone-class CPU is the workstation's cell |
 | 85 | **WU2** — the decoder warm-up, sized again for a slower dial | queue §Rows 83–86 | **done** 2026-09-27, `a040a73`: the shipped 160² frame is the one to ship — **6.0–6.5 ms a decoder at 1×, 28 at 4×**, saving 4.5–4.8 / 21–24 ms on frame 0; frame 0 breaks even at **1–7 ms** of idle window and the warm-up hides entirely at 6.5 / 28 ms; a 512² or own-shape frame costs 2–3× for ~6–10 ms more on the second frame at 4×. Every frame now carries `stamps.decoderReady` (three mutants caught). One decoder, headless shell, the package. `decode/README.md` §Sizing the warm-up. **Default unchanged — per transport, the workstation's call, read off the stamp.** The gate's `autoWithoutStatsReadsIdleAsks` (transport-ts, wall-clock timers, untouched here) failed once (depth 10 for 8) and passed on the rerun |
-| 86 | **PROF** — link profiles close to a phone: a rate trace, bursty loss, a deep or managed queue; the controllers on them | queue §Rows 83–86 | **blocked** 2026-09-27 — no netem or fq_codel in a container kernel; which substrate is the workstation's call, `## Blocked` |
+| 86 | **PROF** — link profiles close to a phone: a rate trace, bursty loss, a deep or managed queue; the controllers on them | queue §Rows 83–86 | **blocked** 2026-09-27 — no netem or fq_codel in a container kernel; which substrate is the workstation's call, `## Blocked`. **2026-10-01: the relay takes it instead** — rows 92 (trace, byte FIFO), 99 (neighbour), 100 (CoDel) build each profile's parts in userspace; rerun this row's cells once they are done |
 | 87 | **ENC** — what compression costs on a fast link, and whether an encoding makes it free | queue §Rows 87–88 | **done** 2026-09-27, `badcf76`, **corrected** the same day: **no encoding is resolvably later to the first frame on loopback**, at 1× or 4× (6/20 to 11/20; gzip and zstd tie, brotli leans later, +23 ms at 4×, 6/20). The cost that shows is the network service's decoding — brotli +10 ms CPU a visit in 16–18/20 — and the decoder WASM's preload, +26 to +48 ms at 4× (1/20 for gzip and brotli). A streamed compile still resolves 2–5 ms after its last byte in every arm. Break-even 206–700 Mbit/s at 4×; **gzip is within noise and keeps 92 % of brotli's saving** — one mode, always on. zstd needs Safari 26.3 (MDN compat data). No default changed. `lab/page-open/README.md` §What an encoding costs on loopback, `enc.mjs`; the page takes `?transport=wasm` and `?meta=`. *The first two batches were biased:* the precompressed copies were seconds old, so every worker fetch in those arms revalidated (a 304) — a file's heuristic freshness is a fraction of its age; corrected in place, and a trap in `rig-limits.md` §6. **For row 88:** give every file the page or its workers fetch an age or a lifetime, or its worker fetches revalidate; `run.mjs` rewrites the config before each visit, which may be why PO1 saw it fetched twice (unchecked). In a container: `apt-get install nginx libnss3-tools brotli zstd`, and `npm i -g binaryen@117.0.0` for `wasm-pack`'s `wasm-opt` (apt's 108 builds a WASM client whose externref table cannot grow) |
 | 88 | **H2** — does HTTP/2 serving take the worker's script off the socket queue | queue §Rows 87–88 | **done** 2026-09-27, `bde3e52`: **HTTP/2 removes the socket wait, and only that** — on the bare page the wait falls on the downloader worker's first import, 89 ms queued over HTTP/1.1 against 1 ms, −64 ms to the first frame (994 → 930, 10/10); the chain stays serial. **The page's hints are the larger lever**: today's preloads over HTTP/2 put the first frame at 481 ms (−449 against bare); over HTTP/1.1 each preload pays its own connection's two round trips (632). A `modulepreload` of the worker graph alone recovers the module hops, not the glue or the WASM (763 on HTTP/2). **Deciding: the serving change needs the page change** — cut 3's preloads, over HTTP/2. `lab/page-open/README.md` §The worker graph over HTTP/1.1 and HTTP/2, `h2.mjs`. The instrument is the relay, not DevTools emulation: that does not reach a page's workers' `fetch()` and charges no connection setup; the relay's TCP plane gains `--tcp-rate shared` and no longer drops bytes under a rate (no published cell set one), `rig-limits.md` §3 and §6. PO1's config round trip was the harness's (a config rewritten before each visit revalidates), corrected in place |
 | 89 | **SE2** — the SETTINGS-early patch on the library's other server entry point | queue §Rows 89–90 | **done** 2026-09-28, `69d4f5d`: both entry points share one 0.5-RTT `accept`, which takes the `quinn::Connecting` (22 lines in `endpoint.rs`; the probe patch untouched). `settings_ride_the_handshake_flight_from_a_quic_connecting` is the second path's test: the old patch fails it and passes the first; the driver started after the handshake fails both. `ARCHITECTURE.md` §Lever 2 corrected in place, quoting the workstation's 5.19 → 4.19 (not re-measured: this server uses `Endpoint::accept`); the upstream draft carries the new diff and test, not posted. A client-side `Connecting` handed to `with_quic_connecting` would hit the patch's `unreachable!` — misuse, but an upstream reviewer may ask for an error instead |
 | 90 | **ORD** — a balanced arm order and a by-predecessor split in the lab's interleaved campaigns | queue §Rows 89–90 | **done** 2026-09-28, `abc55e6`: `lab/order.mjs` and `lab/scripts/order.py` (`order.py row N ROUND` for shell) — a Williams square, each odd-N row alternating with its mirror, so a campaign cut short stays within one of balance at every length but exactly N rounds. Page-open, the link campaigns and the decode benches (24 files) take it by default, record each visit's predecessor, and print each paired lead split by it with `UNBALANCED predecessors` on a tilted cell. `node lab/order.test.mjs`, now in the gate: five mutants caught, among them the fixed cycle; against `first_ask_cells.sh together` (five arms, six rounds) the new order flags nothing and the fixed one flags every lead. `rig-limits.md` §6 has the record, a table of where each doc names its driver's former order (those figures left as taken), and the drivers outside the row's three groups, not converted (downloader-campaign, stream-shape, session-*, thread-hops, telemetry-cost and others) — a row of their own if wanted. The gate's `auto without getStats` client test (wall-clock timers, untouched) failed once more (depth 10 for 8) and passed on the rerun, as in row 85 |
+| 91 | **BBF** — the bounded BBR's floor: does an all-time minimum RTT pin it at 4 packets on a jittery link | queue §Rows 91–100 | ready |
+| 92 | **RLY** — the relay as a phone link: a self-timing guard, an opportunity-trace player, a queue in bytes | queue §Rows 91–100 | ready |
+| 93 | **DL0** — the dial started from the HTML, not after the config | queue §Rows 91–100 | ready |
+| 94 | **BYM** — a frame read whole (`read(view, {min})`) on a link that delivers in bursts | queue §Rows 91–100 | after 92 |
+| 95 | **IDL** — one radio's idle penalty in the relay, and a wake sent on the first touch | queue §Rows 91–100 | after 92 |
+| 96 | **STW** — the window kept through a silence, when the link got slower meanwhile | queue §Rows 91–100 | after 92 |
+| 97 | **TAX** — the ask's controller and pacing tax over a rate-limited queue | queue §Rows 91–100 | ready |
+| 98 | **PORD** — the order the page's files leave in over HTTP/2 and HTTP/3 | queue §Rows 91–100 | ready |
+| 99 | **NBR** — a neighbour flow through the same bottleneck | queue §Rows 91–100 | after 92 |
+| 100 | **CDL** — CoDel in the relay | queue §Rows 91–100 | after 99 |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** |
 | 44 | **H1** — the production handshake: a real chain, compression, the static plane | queue §Rows 43–50 | **first half done on the workstation** 2026-09-19, merged 2026-09-20: an RSA-2048 chain costs exactly one round trip (4.03 → 5.05, 7/7 at three delays), an ECDSA P-256 chain none; brotli compression (feature `cert-compression`, off) brings RSA back to 4.08 and Chrome 148 offers brotli only; the leaf-only-PEM guard is built. **S40, the static plane: done** 2026-09-26, `c367f5e` — an HTTPS record with `alpn=h3` takes a round trip off the first visit (7/7); the transport on its own port pays a whole lookup after the config, as a second hostname does (S40's "a port is free" corrected); a `dns-prefetch` to its origin removes it (7/7). `ARCHITECTURE.md` §What production adds. A lane about names needs full Chromium, not the headless shell (`rig-limits.md` §8) |
 | 48 | **W4** — the controller verdicts, re-run on a link that does not reorder | queue §Rows 43–50 | **half answered on the workstation** 2026-09-19: on ordered jitter Cubic is 1.01× / 1.03× where it was 8.2× / 23.7×; `--packet-threshold` does *not* explain it (0.52× at ±2 ms, ~0.9× at ±10 ms) — what declares those losses owes a qlog cell. **Still open: the deep-buffer fill (S28 is half wrong — the queue does fill) and the trace arm** |
-| 49 | **I1** — the idle ask when the first packet is late | queue §Rows 43–50 | after 43 |
+| 49 | **I1** — the idle ask when the first packet is late | queue §Rows 43–50 | after 95 (which builds 43's idle penalty; 43's trace replay is row 92) |
 | 50 | **W5** — a blink that holds instead of dropping; slow start restarted after a silence | queue §Rows 43–50 | **mostly answered on the workstation** 2026-09-19: held, a blink costs the outage and nothing else — no congestion event, no loss — and a second blink is no worse; the restart is built. **Still open: the restart against plain Cubic at 0.1–1 % loss with rounds enough to size it** — five rounds gave a four-fold spread |
 | 56 | **W1b** — a default for the first ask | queue §Row 56 | **measured on the workstation** 2026-09-20, merged 2026-09-22 — **no default changed, the owner's call.** The push at session open is **463.3 → 137.9 ms (−70 %, 7/7)** at 250 KB / 80 ms and needs three lines on the page; a 32-packet initial window is **−16 to −33 % at queues ≥ 20 packets** and **+11.8 % (0/7) behind a 10-packet queue**; **the two do not stack**; the keep-alive pair keeps a 30 s idle session alive **56/56**. `transport/transport-conclusions.md` §3. **Still open: the push's browser cell, and which lever a rebind re-applies** |
 | 59 | **A1b** — the handover, on a device: does a session survive Wi-Fi → cellular, and how long is the freeze | [`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice | **waiting on a device — no container can take this row.** An Android phone with a SIM, the fill running, Wi-Fi switched off mid-fill: what the page sees (any event at all, and when), whether any frame arrives afterwards, and the wall time from the switch to the first error |
@@ -91,6 +101,108 @@ The term scanner that checks it runs on the workstation, not in a container.
 * **Rows 73–76** (2026-09-25): the warm-up, the decode tail and resources under a throttled CPU, the hand-off to the page — `decode/README.md`, `ARCHITECTURE.md` §Resources and §The hand-off.
 * **Row 77** (TC1): the TCP fallback, built, off by default — `WIRE.md` §The WebSocket mapping, `CLIENTS.md` §The race, `ARCHITECTURE.md` §What was built.
 * **Rows 78–81** (2026-09-25): stream shape under loss in a browser (no); the range in the pack (a third off a colour fill at 4–6×); a bounded BBR (keeps BBR's fill, none of its queue); quinn's withheld ACK, reproduced and fixed as an opt-in patch — `adr-stream-shape.md` §HOL1, `decode/README.md` §The range in the pack, `transport/transport-conclusions.md` §1, `transport/upstream-quinn-ack.md`.
+
+### Rows 91–100
+
+Found 2026-10-01 by an identification sweep against the target (a phone on a lossy, rate-swinging radio link),
+with the reference implementation's workstation measurements of 2026-09-29/30 as leads. Nothing here is measured
+yet; every size is derived and says so. **The relay is the instrument for most of them** (`lab/scripts/link_impair.py`):
+today it has one fixed rate (:78-79), a tail drop counted in packets (:75), loss before the queue, and no trace, AQM,
+idle state or shared bottleneck between flows. Rows 92, 95, 99 and 100 all edit it — take them in order, never two at once.
+
+**91 · BBF.** `server/src/transport/bounded.rs` caps the window at gain × best rate × `rtt.min()`, and quinn's
+minimum is all-time, never windowed (quinn-proto 0.11.18 `paths.rs` ~:338). At k capped packets the next cap is
+1.25·k·min/srtt, so the cap shrinks whenever srtt/min > 1.25 — and the bound's own queue already sits near 1.25, so
+jitter, burst delivery or a neighbour tips it over; the 4-packet floor is then absorbing (leaving it needs srtt ≤ min).
+Derived: ordered jitter ±20 ms at 80 ms takes it to the floor in under 1 s (~0.6 Mbit against BBR's ~18); ±10 ms in
+~7 s. Row 80 (BB2) ran neither jitter nor a neighbour (srtt/min 1.16–1.20). On the workstation the reference
+implementation's windowed variant still sat on the floor behind a neighbour flow. Cell: `controller_browser_cells.sh`
+with an ordered-jitter case (`--jitter-ms 20 --jitter-mode ordered`, and ±10), arms `cubic | bbr | bbr-bounded`
+ordered by `order.py`, ≥ 7 rounds, a fill long enough to show a collapse; log the window at close. Then a windowed
+minimum (e.g. 10 s) as a fourth arm: say whether it rescues the bound. Mutate: the all-time minimum restored in the
+windowed arm must reproduce the collapse. Correct `transport-conclusions.md` §1 (BB2) and §9 in place.
+
+**92 · RLY.** In this order, each off by default, each checked against arithmetic and mutated:
+(a) a self-timing guard — tally each packet's `sent_at − due` (p50/p99/max) and print it; a cell whose p99 exceeds
+1 ms is void (a preempted relay reads as link jitter; at 40 Mbit the relay handles ~5 k packets/s); add
+`--rate-up-kbit` for an asymmetric link.
+(b) `--trace FILE`: a mahimahi-format opportunity trace (one millisecond timestamp per 1500-byte delivery chance,
+looped) replacing `next_free = start + bits/rate` with "the next unused opportunity ≥ max(now, cursor)" — one
+mechanism for rate steps, grant bursts, aggregation and outages; a generator for synthetic step traces.
+(c) `--queue-bytes` / `--queue-ms` (ms at the trace's mean rate): a FIFO limited in bytes, since a packet count
+changes meaning as the rate steps (200 packets are 116 ms at 20 Mbit, 464 ms at 5).
+Checks: an open-loop probe at 2× the trace's mean delivers, per 100 ms bin, within ±1 packet of the trace; burst
+survivors = limit bytes / size. Record a trace's source and hash, never commit a trace whose licence is unstated.
+This closes row 43's trace half and opens row 48's trace arm and the FIFO profiles of row 86.
+
+**93 · DL0.** The dial waits for `fetch(config)` and module evaluation; `lab/page-open/README.md` (~:72-74) notes
+inlining the config "would remove the last one", unpriced, and R3 bought nothing because the dial still cannot start
+before the URL. Derived: ~1 round trip (−80 ms at 80 ms, ~6–8 % of the 12.65 to frame 0). Lab only: in
+`first-byte.html` add `stage=dial0` that creates the `WebTransport` in an inline head script from a URL `run.mjs`
+writes into the page and hands the promise to `connect()`; otherwise identical to `r1`. Ladder `today,r1,dial0,all` at
+40/80/160 ms, 1× and 4× CPU, ≥ 9 rounds, order by `order.mjs`; report the `session` and `frame` slopes and paired wins.
+Mutate: a wrong URL must fail, not fall back silently. **A client entry that adopts an open session is structural —
+build only the lab arm; the product change is proposed in `## Blocked` if it wins.**
+
+**94 · BYM.** The default reader hands the transport one browser-allocated chunk per read, copied into the wire ring
+(`client/transport-ts/frame-session.ts` ~:405). Loopback coalesces to ~5 reads per 250 KB (`rig-limits.md`), which is
+where the BYOB tie verdicts were reached; on burst-delivering radio profiles the reference implementation's workstation
+counted 88–217 reads per 254 KB frame (7–10 on uniform shaping) and 2 when read whole. Derived (per-read cost not
+measured): 136–335 reads a 392 KB 16-bit frame, ~1.3–6.3 s of downloader-worker CPU a 237-frame fill at 4×. First
+extend `lab/scripts/browser_reads.py` to run through the relay with row 92's trace; **if it gives fewer than 20 reads
+a frame, record that the regime is not reproduced and stop.** Arms: the default reader; BYOB `{min: min(remaining, K)}`
+into the wire ring at K = whole frame, 64 KB, 16 KB; each also with decode off. Read the downloader thread's on-CPU ms
+and voluntary context switches per fill, reads per frame, fill time, frame 0 and renderer peak (no regression), 1× and
+4×, `order.mjs`, n ≥ 8, `.sha256` per frame. Traps: `lastByteAt` advances per read (~:180) — a whole-frame `min` at a
+trickle would condemn a live session, so K must satisfy K / slowest survivable rate < `stallMs`; a cut stream under
+`{min}` resolves done with bytes (the truncated-frame path must still name it); row 5's ~12 ms BYOB frame 0 rechecked.
+Mutants: `min` ignored; a cut's bytes dropped.
+
+**95 · IDL.** (a) `--idle-promote S:P` in the relay: when neither direction has carried a packet for S seconds, the
+next packet either way holds **both** pipes until now+P (one radio; reuse the blackout's hold path). Check: idle 6 s →
+RTT = 2·delay + P; idle 4 s → none; mutate. This is row 43's idle penalty; row 49 runs after it. (b) A wake on the
+first touch: after > ~4 s quiet the page sends one datagram on `pointerdown`, so the radio's promotion overlaps the
+gesture instead of the ask (nothing on the server reads datagrams; a control-stream message would end a running fill —
+`WIRE.md` §An ask during a fill). Add a lead arm to `first_ask_cells.sh idle`: one datagram L ms before the ask, L in
+0/50/100/200, P = 80 and 300, interleaved, ≥ 7 rounds; the check is arithmetic, ask = base + max(0, P − L) ± 5 ms, plus
+a mutant that drops the datagram. This proves the plumbing, not a radio: the saving and its energy cost need a device.
+
+**96 · STW.** quinn 0.11.18 keeps the window through a silence (`transport-conclusions.md` ~:384; the restart patch
+fires only on a congestion event spanning one). W1b's idle cell held the link fixed. Derived: a 400 KB window from a
+40 Mbit moment, paced at 1.25× into a link now at 8 Mbit with a 50-packet queue, drops ~145 of 200 packets — the ask
+~0.6–0.8 s against 0.31 s; a restart pays slow start (~0.6 s), so the sign is unknown. Cell: a relay rate step during
+the silence (row 92's trace, or a `rate` control command), `first_ask_cells.sh idle`, 250 KB, 60 ms, 40 → 8 Mbit;
+arms plain Cubic, `cubic-restart`, a window clamp after the idle spell; interleaved, ≥ 7 rounds.
+
+**97 · TAX.** The relay's TCP plane is a byte-stream proxy without loss or a congestion window, so the WebSocket arm is
+an ideal-TCP floor, not a TCP reference (`rig-limits.md` §3). Use it as one: steady depth-1 asks at 15 and 25 Mbit,
+`--queue-pkts 50`, 60 ms; report ask − (RTT + size/rate), the controller and pacing tax, per arm `cubic`, `bbr-bounded`,
+`--initial-window-bytes`; no new code beyond a rate on the stream-shape cell. A faithful TCP reference under loss needs
+a TUN mode: check first, one minute, whether the container allows it (`ls /dev/net/tun; unshare -rn ip tuntap add t0
+mode tun`) and record the answer under `## Blocked` for the workstation.
+
+**98 · PORD.** Chrome sends a page's preloads at one priority and HTTP/2 serves them in request order, so a file
+requested after a large one arrives with its last byte (seen on the workstation on a reference page). `downloader.html`
+issues its script-made `?meta=` and WASM preloads before the static config and `session.js` links (~:8-22); the relay's
+TCP plane has no congestion window, so the lab cannot see it on HTTP/2. Cell: page-open `HOST=dns`, the h3 arm (real
+QUIC congestion control through the UDP plane), `?meta=` of a ~120 KB-gz file, the meta preload before and after the
+config link, n ≥ 9 at 80 ms; report the `config` and `session` round trips and the net log's response order. Derived:
+0 if the config already leaves first, else +1–2 round trips on the dial.
+
+**99 · NBR.** A neighbour flow (another app's download) shares the phone's queue. Accept `--udp` more than once, each
+pair its own server, every to-client pipe on one link (as `--tcp-rate shared` does, ~:274); the neighbour is a second
+native Cubic fill — quinn's Cubic, not Linux's (no HyStart): name it a proxy. The TCP plane cannot serve (unbounded,
+above TCP). Check: re-run the netem neighbour table in `transport-conclusions.md` (5 Mbit, 48 ms / 1.2 s) through the
+relay; shares within ±10 points, or the proxy's difference is named.
+
+**100 · CDL.** CoDel (RFC 8289) at the relay's virtual clock: in one FIFO each packet's departure is known at enqueue,
+in order, so the control law can run at offer time with now := departure (only the backlog ≤ MTU guard is
+approximated). Check: 1.5× overload → sojourn near 5 ms, drops at interval/√count; mutate. fq_codel (RFC 8290) needs a
+real dequeue loop and matters only with row 99. Then row 86's managed-queue cells.
+
+**Held for the owner, not queued:** showing a lower-resolution prefix of frame 0 first, then the bit-exact frame
+(the fixtures' progression order makes the first bytes a smaller whole image; derived −2 to −4 round trips to a first
+drawable image at 80 ms). The owner has not ruled whether a reduced first image counts as the first picture.
 
 ### Rows 89–90
 
