@@ -18,6 +18,10 @@ pub struct BoundedBbr {
     inner: Box<dyn Controller>,
     gain: f64,
     mtu: u16,
+    /// `None` takes quinn's minimum, which is all-time; `transport-conclusions.md` §1, BBF.
+    rtt_window: Option<Duration>,
+    /// The windowed minimum and when it was taken.
+    recent_min: Option<(Duration, Instant)>,
     min_rtt: Duration,
     round_start: Option<Instant>,
     round_bytes: u64,
@@ -26,11 +30,13 @@ pub struct BoundedBbr {
 }
 
 impl BoundedBbr {
-    fn new(bbr: Arc<BbrConfig>, gain: f64, now: Instant, mtu: u16) -> Self {
+    fn new(bbr: Arc<BbrConfig>, gain: f64, rtt_window: Option<Duration>, now: Instant, mtu: u16) -> Self {
         Self {
             inner: bbr.build(now, mtu),
             gain,
             mtu,
+            rtt_window,
+            recent_min: None,
             min_rtt: Duration::ZERO,
             round_start: None,
             round_bytes: 0,
@@ -59,6 +65,18 @@ impl BoundedBbr {
         self.round_bytes = 0;
     }
 
+    /// BBRv1's filter: a sample at or under the minimum replaces it, and so does any sample once
+    /// the minimum is `window` old.
+    fn windowed_min(&mut self, now: Instant, sample: Duration, window: Duration) -> Duration {
+        match self.recent_min {
+            Some((min, at)) if sample > min && now.duration_since(at) < window => min,
+            _ => {
+                self.recent_min = Some((sample, now));
+                sample
+            }
+        }
+    }
+
     /// `gain` × the best rate of the last rounds × the minimum round trip; none until a round closes.
     fn cap(&self) -> Option<u64> {
         let rate = self.rates.iter().copied().fold(None, |m: Option<f64>, r| Some(m.map_or(r, |m| m.max(r))))?;
@@ -73,7 +91,11 @@ impl Controller for BoundedBbr {
     }
 
     fn on_ack(&mut self, now: Instant, sent: Instant, bytes: u64, app_limited: bool, rtt: &RttEstimator) {
-        self.note_ack(now, bytes, app_limited, rtt.min());
+        let min_rtt = match self.rtt_window {
+            None => rtt.min(),
+            Some(w) => self.windowed_min(now, now.saturating_duration_since(sent), w),
+        };
+        self.note_ack(now, bytes, app_limited, min_rtt);
         self.inner.on_ack(now, sent, bytes, app_limited, rtt);
     }
 
@@ -106,6 +128,8 @@ impl Controller for BoundedBbr {
             inner: self.inner.clone_box(),
             gain: self.gain,
             mtu: self.mtu,
+            rtt_window: self.rtt_window,
+            recent_min: self.recent_min,
             min_rtt: self.min_rtt,
             round_start: self.round_start,
             round_bytes: self.round_bytes,
@@ -125,21 +149,22 @@ impl Controller for BoundedBbr {
 pub struct BoundedBbrConfig {
     bbr: Arc<BbrConfig>,
     gain: f64,
+    rtt_window: Option<Duration>,
 }
 
 impl BoundedBbrConfig {
-    pub fn new(gain: f64, initial_window: Option<u64>) -> Self {
+    pub fn new(gain: f64, rtt_window: Option<Duration>, initial_window: Option<u64>) -> Self {
         let mut bbr = BbrConfig::default();
         if let Some(v) = initial_window {
             bbr.initial_window(v);
         }
-        Self { bbr: Arc::new(bbr), gain }
+        Self { bbr: Arc::new(bbr), gain, rtt_window }
     }
 }
 
 impl ControllerFactory for BoundedBbrConfig {
     fn build(self: Arc<Self>, now: Instant, current_mtu: u16) -> Box<dyn Controller> {
-        Box::new(BoundedBbr::new(Arc::clone(&self.bbr), self.gain, now, current_mtu))
+        Box::new(BoundedBbr::new(Arc::clone(&self.bbr), self.gain, self.rtt_window, now, current_mtu))
     }
 }
 
@@ -162,7 +187,7 @@ mod tests {
     }
 
     fn bounded(gain: f64) -> BoundedBbr {
-        BoundedBbr::new(Arc::new(BbrConfig::default()), gain, Instant::now(), MTU)
+        BoundedBbr::new(Arc::new(BbrConfig::default()), gain, None, Instant::now(), MTU)
     }
 
     /// With nothing measured the window is BBR's own; once a round closes it is `gain` × rate ×
@@ -207,5 +232,19 @@ mod tests {
         let mut b = bounded(1.0);
         feed(&mut b, Instant::now(), 2, 1_000.0, false);
         assert_eq!(b.cap(), Some(MIN_PACKETS * MTU as u64));
+    }
+
+    /// The windowed minimum forgets a low sample once it is a window old, and keeps it until then:
+    /// a jitter trough 11 s ago no longer sets the cap, one 9 s ago still does.
+    #[test]
+    fn the_windowed_minimum_forgets_an_old_trough() {
+        let window = Duration::from_secs(10);
+        let mut b = bounded(1.25);
+        let t0 = Instant::now();
+        let (trough, high, lower) = (Duration::from_millis(60), Duration::from_millis(120), Duration::from_millis(110));
+        assert_eq!(b.windowed_min(t0, trough, window), trough);
+        assert_eq!(b.windowed_min(t0 + Duration::from_secs(9), high, window), trough, "forgot the trough early");
+        assert_eq!(b.windowed_min(t0 + Duration::from_secs(11), high, window), high, "kept the trough past the window");
+        assert_eq!(b.windowed_min(t0 + Duration::from_secs(12), lower, window), lower, "a lower sample did not replace it");
     }
 }

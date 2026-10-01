@@ -48,6 +48,8 @@ struct Args {
     congestion: Congestion,
     #[arg(long, default_value_t = 1.25, help = "bbr-bounded only: its window over its BDP estimate")]
     bdp_gain: f64,
+    #[arg(long, help = "bbr-bounded only: its minimum round trip over this window; unset is all-time")]
+    bdp_rtt_window_ms: Option<u64>,
     /// Controller knobs, all at quinn's default unless set. What each one measured:
     /// docs/transport/transport-conclusions.md §3.
     #[arg(long)]
@@ -140,6 +142,7 @@ async fn main() -> anyhow::Result<()> {
             keep_alive_interval_ms: args.keep_alive_interval_ms,
             congestion: args.congestion,
             bdp_gain: args.bdp_gain,
+            bdp_rtt_window_ms: args.bdp_rtt_window_ms,
             initial_window: args.initial_window_bytes,
             persistent_congestion_threshold: args.persistent_congestion_threshold,
             packet_threshold: args.packet_threshold,

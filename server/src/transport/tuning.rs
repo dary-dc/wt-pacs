@@ -52,6 +52,8 @@ pub struct TransportTuning {
     pub congestion: Congestion,
     /// `BbrBounded`'s window over its BDP estimate; BBRv1's own is 2.
     pub bdp_gain: f64,
+    /// `BbrBounded`'s minimum round trip over this window; unset is quinn's all-time minimum.
+    pub bdp_rtt_window_ms: Option<u64>,
     /// Bytes the controller may send before the first ACK. quinn default: 12 000 (S7).
     pub initial_window: Option<u64>,
     /// Round trips of unbroken loss that declare persistent congestion. quinn default: 3 (S9).
@@ -81,6 +83,7 @@ impl Default for TransportTuning {
             keep_alive_interval_ms: None,
             congestion: Congestion::Cubic,
             bdp_gain: 1.25,
+            bdp_rtt_window_ms: None,
             initial_window: None,
             persistent_congestion_threshold: None,
             packet_threshold: None,
@@ -159,7 +162,11 @@ impl TransportTuning {
                 SlowStartRestartConfig::new(Trigger::Idle, iw),
             )),
             Congestion::BbrBounded => tc.congestion_controller_factory(Arc::new(
-                crate::transport::bounded::BoundedBbrConfig::new(self.bdp_gain, iw),
+                crate::transport::bounded::BoundedBbrConfig::new(
+                    self.bdp_gain,
+                    self.bdp_rtt_window_ms.map(std::time::Duration::from_millis),
+                    iw,
+                ),
             )),
         };
 
@@ -219,6 +226,9 @@ impl TransportTuning {
         }
         if matches!(self.congestion, Congestion::BbrBounded) {
             parts.push(format!("bdp_gain={}", self.bdp_gain));
+            if let Some(ms) = self.bdp_rtt_window_ms {
+                parts.push(format!("bdp_rtt_window_ms={ms}"));
+            }
         }
         if !self.segmentation_offload {
             parts.push("segmentation_offload=false".to_string());
@@ -258,6 +268,7 @@ mod tests {
             keep_alive_interval_ms: Some(20_000),
             congestion: Congestion::BbrBounded,
             bdp_gain: 1.5,
+            bdp_rtt_window_ms: Some(10_000),
             initial_window: Some(32 * 1200),
             persistent_congestion_threshold: Some(6),
             packet_threshold: Some(6),

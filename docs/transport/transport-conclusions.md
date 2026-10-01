@@ -39,7 +39,7 @@ git checkout archive/transport-lab-2026-09 -- lab/transport                     
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Cubic, by default, until the loss mix is measured.** Congestive loss → Cubic; radio loss → BBR; both directions large (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster and pays with ~45 % of its datagrams overflowing a 120 ms queue, or 294 ms of standing queue in a 900 ms one (CC1). BBR with its window held to 1.25× its own path estimate keeps that fill with no overflow and 13–16 ms of queue — a candidate for the rig, not a default (BB2) |
+| **Congestion controller** | **Cubic, by default, until the loss mix is measured.** Congestive loss → Cubic; radio loss → BBR; both directions large (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster and pays with ~45 % of its datagrams overflowing a 120 ms queue, or 294 ms of standing queue in a 900 ms one (CC1). BBR with its window held to 1.25× its own path estimate keeps that fill with no overflow and 13–16 ms of queue (BB2) — *corrected 2026-10-01:* only while the round trip stays near its minimum; under ±20 ms of jitter it falls to a 4-packet window, 80 s for a 7 s fill, and a windowed minimum does not save it (BBF). Not a candidate as built |
 | **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed (§2, [`../adr-stream-shape.md`](../adr-stream-shape.md)) |
 | **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
@@ -181,8 +181,11 @@ variant *keeps BBR's loss tolerance* if its median fill is within 2× BBR's at 1
 so *at Cubic's queue cost* if under 5 % of its datagrams overflow the 200-packet queue and it stands
 under 50 ms in the 1 500-packet one.
 
-**The bound at 1.25 keeps all of BBR's goodput under loss, and none of its queue.** Medians,
-7 rounds, every run complete; rounds won against Cubic in brackets:
+**The bound at 1.25 keeps all of BBR's goodput under loss, and none of its queue** — *corrected
+2026-10-01 (BBF, below): on a link whose round trip stays near its minimum, as every cell here did
+(the smoothed round trip at 1.16–1.20× the minimum). Under ±20 ms of jitter its median fill is 10×
+Cubic's and four runs of seven end on its 4-packet floor.* Medians, 7 rounds, every run complete;
+rounds won against Cubic in brackets:
 
 | cell | Cubic | BBR | bound ×1.0 | bound ×1.25 | bound ×1.5 |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -203,8 +206,59 @@ under 50 ms in the 1 500-packet one.
 * **Not covered.** A competing flow: the relay gives each plane its own queue, and the neighbour
   table above is BBRv1's, not the bound's. Congestive loss, where Cubic led, was not re-run. One
   host through a userspace relay. **Nothing changed**: the bound is a candidate for the rig, against
-  a competing flow and congestive loss, before any default moves. *2026-10-01:* on steady depth-1 asks with
-  no loss it is 77–104 ms slower than Cubic per ask (§5, TAX).
+  a competing flow and congestive loss, before any default moves. *2026-10-01:* on steady depth-1
+  asks with no loss it is 77–104 ms slower than Cubic per ask (§5, TAX). Jitter, not covered
+  either, disqualifies it as built (BBF).
+
+### The bound on a jittery link, 2026-10-01 (BBF)
+
+**Why it can collapse.** The bound multiplies by quinn's `rtt.min()`, which is all-time (quinn-proto
+0.11.18, `RttEstimator::update`). Held at its cap it delivers about window ÷ smoothed round trip, so
+its next cap is 1.25 × window × min ÷ srtt: it shrinks whenever srtt exceeds 1.25 × min, and the
+4-packet floor is absorbing — leaving it needs a round that delivers more than the floor itself
+does. Jitter lowers the minimum and raises the mean, which is that condition.
+
+**The cell.** [`controller_browser_cells.sh`](../../lab/scripts/controller_browser_cells.sh)
+`jitter10 | jitter20`: CC1's link (20 Mbit, 80 ms, 200 packets), no loss, ordered jitter of ±10 or
+±20 ms each way; a fill of 40 × 428 KB, 7.0 s at the link's rate. Arms Cubic, BBR, the bound at 1.25,
+and the bound over a 10 s windowed minimum (`--bdp-rtt-window-ms 10000`: BBRv1's filter over each
+acknowledgement's `now − sent`, so the peer's ACK delay is in it). 7 rounds in a Williams order, each
+round under the host's lock, the relay's `--self-timing` on and every VOID run dropped; the window
+is the server's at the session's close. Medians [range], runs counted:
+
+| ordered jitter | Cubic | BBR | bound ×1.25 | bound, 10 s minimum |
+| --- | ---: | ---: | ---: | ---: |
+| ±10 ms: fill | 7.54 s [7.53–7.56], 6 | 7.37 s [7.34–7.52], 7 | 8.06 s [7.45–13.90], 7 | 7.70 s [7.37–13.86], 7 |
+| ±10 ms: window at close, median [lowest] | 486 KB | 7.4 MB | 258 KB [139] | 268 KB [227] |
+| ±20 ms: fill | 7.62 s [7.59–7.63], 3 | all 7 VOID | **79.9 s** [12.6–281.4], 7 | **35.4 s** [12.3–160.5], 7 |
+| ±20 ms: on the floor (≤ 6.1 KB) at close | 0/3 | — | **4/7** | **4/7** |
+
+* **At ±20 ms the bound collapses.** Against Cubic, paired: **+156.9 s, 0/3**; every one of its
+  seven fills is slower than every valid Cubic fill, 1.8–40× the link's 7.0 s, and four end at the
+  floor's 5.8 KB — 0.5 Mbit on a 20 Mbit link. When it falls varies run to run (12.6 to 281 s
+  for the same 17.5 MB), so a fill shorter than this one can miss it.
+* **At ±10 ms it holds**, in these fills: no run reaches the floor (lowest close 139 KB), and it
+  costs **+0.70 s against BBR, 1/7** (+9 %) and +0.28 s against Cubic, 2/6. The derived
+  "floor in ~7 s" at ±10 is not reproduced in 7.5–14 s fills, nor in 120-frame fills (52.6 MB,
+  21 s at the link; `FILL=120`, bound and BBR, 7 rounds): 22.55 s [21.79–29.13], lowest close
+  189 KB, **+0.74 s against BBR, 1/6**. A first batch of those long fills left two of the bound's
+  seven runs incomplete with nothing recorded to tell a stall from a page that never connected;
+  each row now carries the frames delivered and the packets the relay carried, and the retake had
+  none.
+* **The windowed minimum does not rescue it.** Against the all-time bound, paired: **−4.6 s, 4/7**
+  at ±20 (a tie, and 4/7 on the floor as well), −0.04 s, 4/7 at ±10. A jitter trough recurs inside
+  any 10 s window, so the windowed minimum sits as low as the all-time one; windowing cures a minimum
+  made stale by a path change, not one set by jitter. The mutant the row asks for — the all-time
+  minimum restored in the windowed arm — is the bound's own arm, and it collapses as much; in code,
+  `the_windowed_minimum_forgets_an_old_trough` fails when the window never expires.
+* **The instrument.** At ±20 ms the relay left packets over 1 ms late (p99 1.03–1.21 ms) in every
+  BBR run and 4 of 7 Cubic runs — the two arms that keep the link full — so BBR's figure there is
+  unmeasured and Cubic's rests on 3 runs; the bound's runs, light on the relay, were all valid
+  (p99 ≤ 0.88 ms). One Cubic run at ±10 never completed (the page did not finish; cause not found).
+* **What it changes.** The bound is not a candidate as built. How much a phone's round trip jitters
+  is unmeasured here, but the floor is absorbing (derived above), so one spell past the threshold
+  is enough to end a fill on it. A cap that jitter cannot ratchet down needs a round-trip floor not
+  set by the lowest sample, or a way off the floor; neither is built, and neither is measured.
 
 ### quinn's BBR read against the published BBRv1, 2026-09-15
 
@@ -943,8 +997,8 @@ one address; CPU per ask from the GSO cap, PGO and the hand-off, 6/6 in every sa
 three boxes; the depth-1 tail as the rig client's receive queue, on loopback. **Moderate**: the
 windows never approached (loopback, N ≤ 16); per-core endpoints at saturation. **Weak or
 unmeasured**: which regime the deployment mix is in; the bounded BBR (one rig, no competing flow, no
-congestive loss); the restart at 1 % loss; which outage model a radio follows; anything on the
-target, on a phone, or in a browser at depth 1.
+congestive loss — and disqualified by jitter as built, BBF); the restart at 1 % loss; which outage
+model a radio follows; anything on the target, on a phone, or in a browser at depth 1.
 
 What would overturn the shipped defaults: a cell where per-frame separates in its favour (none
 found), or client telemetry showing the loss mix is overwhelmingly radio (which would reopen the
@@ -966,8 +1020,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    offered draft-14 without `WT_MAX_DATA` capsules hangs, and its certificate-hash pinning fails in
    some releases. A failure is a release blocker.
 2. **The loss mix** (§1): client telemetry, the round-trip trend in the second before each loss.
-   Until then, the bounded BBR on a rig against a competing flow and congestive loss, and one
-   calibration of `link_impair.py` against `netem`.
+   Until then, one calibration of `link_impair.py` against `netem`. The bounded BBR is no longer
+   the candidate to put on a rig: jitter pins it to its floor (BBF, §1); a bound whose round-trip
+   floor jitter cannot lower would have to be built and pass BBF's cells first.
 3. **The first ask's defaults** — the owner's call (§3). Unmeasured: which lever a NAT rebind
    re-applies, and a genuinely new client address.
 4. **The restart at 0.1–1 % loss**, with rounds enough to size the misfire (it already misfires
