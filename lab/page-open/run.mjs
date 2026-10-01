@@ -19,12 +19,17 @@ import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { leadsByPredecessor, order } from "../order.mjs";
+import { throttleTree } from "../scripts/cpu_throttle.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const ROUNDS = Number(process.argv[2] || 3);
 const RTTS = (process.env.RTTS || "0,40,80").split(",").map(Number);
 const FRAMES = 12;
+// THROTTLE=N slows the browser's every thread N× (lab/scripts/cpu_throttle.mjs); the relay and server run free.
+const THROTTLE = Number(process.env.THROTTLE || 1);
+// RELAY_ARGS="--rate-kbit N …" shapes the link of every relay beyond its delay.
+const RELAY_ARGS = (process.env.RELAY_ARGS || "").split(" ").filter(Boolean);
 
 // STAGES swaps the three clients for the first-byte ladder: one rung of README.md per arm, on a
 // cold profile only, since a warm visit spends none of what the ladder cuts.
@@ -40,7 +45,8 @@ const PLANES = {
 const HOST = process.env.HOST || "dev";
 const ARMS = STAGES
   ? Object.fromEntries(
-      STAGES.map((s) => [s, (base) => `${base}/lab/page-open/first-byte.html?stage=${s}&frames=${FRAMES}`]),
+      STAGES.map((s) => [s, (base, server) => `${base}/lab/page-open/first-byte.html?stage=${s}&frames=${FRAMES}` +
+        `&wt=${encodeURIComponent(`https://127.0.0.1:${server.inn}/`)}&hash=${hash}`]),
     )
   : HOST === "dns"
   ? Object.fromEntries(Object.entries(PLANES).map(([arm, p]) => [arm, (_, s) =>
@@ -156,12 +162,26 @@ if (HOST === "dev") {
 // so it lifts that check for h3.test without forcing QUIC on it.
 const DNS_ARGS = HOST === "dns" ? ["--origin-to-force-quic-on=h3.test:9"] : [];
 const DNS_ENV = HOST === "dns" ? { no_proxy: `${process.env.no_proxy ?? ""},.test`, NO_PROXY: `${process.env.NO_PROXY ?? ""},.test` } : {};
-const pointAt = (s, host = "127.0.0.1") =>
+// An hour old, as a deployed config would be: one written seconds ago is revalidated (rig-limits.md §6).
+function pointAt(s, host = "127.0.0.1") {
   fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://${host}:${s.inn}/`, cert_sha256: hash }) + "\n");
+  const then = new Date(Date.now() - 3600e3);
+  fs.utimesSync(CFG, then, then);
+}
 await new Promise((r) => setTimeout(r, 2000));
 
 const base = `${HOST === "dev" ? "http" : "https"}://127.0.0.1:${TCP_IN}`;
 const rows = [];
+
+function browserPid(profileDir) {
+  for (const p of fs.readdirSync("/proc").filter((p) => /^\d+$/.test(p))) {
+    try {
+      const cmd = fs.readFileSync(`/proc/${p}/cmdline`, "utf8");
+      if (cmd.includes(`--user-data-dir=${profileDir}`) && !cmd.includes("--type=")) return Number(p);
+    } catch { /* exited while listed */ }
+  }
+  throw new Error(`no browser on ${profileDir}`);
+}
 
 async function visit(ctx, arm, server) {
   const page = await ctx.newPage();
@@ -169,7 +189,7 @@ async function visit(ctx, arm, server) {
   page.on("pageerror", (e) => (err = e.message));
   await page.goto(ARMS[arm](base, server), { waitUntil: "commit" });
   await page.waitForFunction(() => globalThis.__wtpacsDone || globalThis.__wtpacsError, null, {
-    timeout: 120000,
+    timeout: 120000 * THROTTLE,
   });
   // The document's own fetch: `page` when its last byte landed, `tls` what its TLS handshake took.
   const out = await page.evaluate(() => {
@@ -188,28 +208,43 @@ async function visit(ctx, arm, server) {
   return out.open;
 }
 
-for (const rtt of RTTS) {
-  const relays = SERVERS.map((s, i) => start("python3", [
-    "lab/scripts/link_impair.py",
+// A relay per visit: its self-timing tally is the visit's, and a visit it was late for is VOID.
+async function relaysUp(rtt, tag) {
+  const logs = [];
+  // Real-time, so a fill's decoders on every core do not preempt the instrument.
+  const relay = (args, name) => {
+    logs.push(path.join(T, `${name}-${tag}.log`));
+    return start("chrt", ["-f", "50", "python3", ...args], fs.openSync(logs.at(-1), "a"));
+  };
+  const procs = SERVERS.map((s, i) => relay([
+    "lab/scripts/link_impair.py", "--self-timing",
     "--udp", `${s.inn}:${s.srv}`,
     ...(i || HOST === "dns" ? [] : ["--tcp", `${TCP_IN}:${TCP_SRV}`]),
-    "--delay-ms", String(rtt / 2),
-  ], fs.openSync(path.join(T, `relay-${rtt}-${i}.log`), "a")));
+    "--delay-ms", String(rtt / 2), ...RELAY_ARGS,
+  ], `relay${i}`));
   if (HOST === "dns") {
-    relays.push(start("python3", [
-      "lab/scripts/link_impair.py", "--udp", `${TCP_IN}:${TCP_SRV}`, "--tcp", `${TCP_IN}:${TCP_SRV}`,
+    procs.push(relay([
+      "lab/scripts/link_impair.py", "--self-timing", "--udp", `${TCP_IN}:${TCP_SRV}`, "--tcp", `${TCP_IN}:${TCP_SRV}`,
       "--delay-ms", String(rtt / 2),
-    ], fs.openSync(path.join(T, `relay-${rtt}-page.log`), "a")));
-    relays.push(start("python3", ["lab/page-open/stub_dns.py", "--delay-ms", String(rtt), "--h3", "h3.test"],
-      fs.openSync(path.join(T, `dns-${rtt}.log`), "a")));
+    ], "relay-page"));
+    procs.push(start("python3", ["lab/page-open/stub_dns.py", "--delay-ms", String(rtt), "--h3", "h3.test"],
+      fs.openSync(path.join(T, `dns-${tag}.log`), "a")));
   }
   await new Promise((r) => setTimeout(r, 1000));
+  return async () => {
+    await Promise.all(procs.map((p) => new Promise((r) => (p.exitCode != null ? r() : (p.once("exit", r), p.kill())))));
+    return logs.some((l) => fs.readFileSync(l, "utf8").includes("VOID"));
+  };
+}
 
+let voided = 0;
+for (const rtt of RTTS) {
   for (let round = 0; round < ROUNDS; round++) {
     let prev = null;
     for (const { arm, server } of order(CELLS, round)) {
       pointAt(server, HOST === "dns" ? PLANES[arm].wt : undefined);
       const name = label(arm, server);
+      const relaysDown = await relaysUp(rtt, `${name}-${rtt}-${round}`);
       // A fresh profile is what makes the cold arm cold: no HTTP cache, no compiled-code cache.
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "r2p-"));
       const netlog = process.env.NETLOG
@@ -222,18 +257,23 @@ for (const rtt of RTTS) {
         args: ["--disable-background-networking", ...netlog, ...DNS_ARGS],
         ...(HOST === "dev" ? {} : { env: { ...process.env, HOME: `${T}/home`, ...DNS_ENV } }),
       });
+      const unthrottle = throttleTree(browserPid(dir), THROTTLE);
+      const visits = [];
       try {
-        for (const profile of PROFILES) rows.push({ rtt, round, arm: name, prev, profile, ...(await visit(ctx, arm, server)) });
+        for (const profile of PROFILES) visits.push({ rtt, round, arm: name, prev, profile, ...(await visit(ctx, arm, server)) });
       } catch (e) {
         process.stderr.write(`rtt=${rtt} ${name}: ${e.message.split("\n")[0]}\n`);
       }
+      unthrottle();
       await ctx.close();
       fs.rmSync(dir, { recursive: true, force: true });
+      if (await relaysDown()) {
+        voided++;
+        process.stderr.write(`rtt=${rtt} ${name} round ${round}: VOID, the relay was late\n`);
+      } else rows.push(...visits);
       prev = name;
     }
   }
-  for (const relay of relays) relay.kill();
-  await new Promise((r) => setTimeout(r, 500));
   process.stderr.write(`rtt ${rtt} done\n`);
 }
 
@@ -268,7 +308,7 @@ function byPredecessor(key, pairs) {
 }
 const W = Math.max(11, ...LABELS.map((l) => l.length));
 console.log(
-  `\nhost ${HOST}\n${"arm".padEnd(W)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
+  `\nhost ${HOST}, cpu ${THROTTLE}x\n${"arm".padEnd(W)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
     `${"round trips".padStart(11)} ${"fixed ms".padStart(9)}  ` +
     RTTS.map((r) => `${r} ms`.padStart(8)).join(" "),
 );
@@ -309,6 +349,24 @@ if (SERVERS.length > 1) {
 }
 if (SERVERS.length > 1) {
   byPredecessor("frame", Object.keys(ARMS).flatMap((arm) => SERVERS.slice(1).map((s) => [label(arm, s), label(arm, SERVERS[0])])));
+}
+if (STAGES) {
+  const first = LABELS[0];
+  console.log(`\nms at each round trip: median [min-max], and rounds each arm beat ${first} in; ${voided} visits VOID and dropped`);
+  for (const key of ["config", "session", "frame"]) {
+    for (const arm of LABELS) {
+      const cells = RTTS.map((rtt) => {
+        const mine = rows.filter((r) => r.arm === arm && r.rtt === rtt && r[key] != null);
+        if (!mine.length) return "-";
+        const v = mine.map((r) => r[key]).sort((x, y) => x - y);
+        const ref = new Map(rows.filter((r) => r.arm === first && r.rtt === rtt).map((r) => [r.round, r[key]]));
+        const won = mine.filter((r) => ref.get(r.round) != null && r[key] < ref.get(r.round)).length;
+        return `${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${won}/${mine.length}`;
+      });
+      if (cells.some((c) => c !== "-")) console.log(`${arm.padEnd(W)} ${key.padEnd(8)} ${cells.join("   ")}`);
+    }
+  }
+  byPredecessor("session", LABELS.slice(1).map((arm) => [arm, first]));
 }
 if (HOST === "dns") {
   const stage = { tls: (r) => r.tls, dial: (r) => r.session - r.config, session: (r) => r.session };

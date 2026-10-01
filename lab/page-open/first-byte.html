@@ -5,20 +5,31 @@
   <link rel="icon" href="data:," />
   <!-- The open is serial without these: each is otherwise discovered one round trip
        later than it could be. lab/page-open/README.md -->
-  <link rel="preload" as="fetch" href="/wt/dev-transport.json" />
   <link rel="modulepreload" href="/client/downloader/consumer.js" />
   <link rel="preload" as="script" href="/client/downloader/downloader.js" />
   <link rel="preload" as="script" href="/client/downloader/decoder.js" />
   <link rel="preload" as="script" href="/lab/decode-bench/vendor/openjph/openjphjs.js" />
   <link rel="preload" as="fetch" href="/lab/decode-bench/vendor/openjph/openjphjs.wasm" />
   <script>
-    // The transport's hint is the one the `no-r4` arm drops, so it is written rather than parsed.
-    globalThis.__stage = new URLSearchParams(location.search).get("stage") ?? "all";
-    if (globalThis.__stage !== "no-r4") {
-      document.head.insertAdjacentHTML(
-        "beforeend",
-        '<link rel="preload" as="script" href="/client/transport-ts/dist/session.js">',
-      );
+    const q = new URLSearchParams(location.search);
+    const stage = (globalThis.__stage = q.get("stage") ?? "all");
+    globalThis.__wtpacsOpen = {};
+    // `inline` and `dial0` take the transport URL from the page, as an inlined config would.
+    globalThis.__inline = q.get("wt") && q.get("hash") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : null;
+    // These hints are the ones an arm drops, so they are written rather than parsed.
+    const hint = (as, href) => document.head.insertAdjacentHTML("beforeend", `<link rel="preload" as="${as}" href="${href}">`);
+    if (stage !== "inline" && stage !== "dial0") hint("fetch", "/wt/dev-transport.json");
+    if (stage !== "no-r4") hint("script", "/client/transport-ts/dist/session.js");
+    // A WebTransport cannot be posted to the downloader's worker, so `dial0` is a probe: when a
+    // session dialled from the head is ready, and nothing after it.
+    if (stage === "dial0" && globalThis.__inline) {
+      globalThis.__dial0 = new WebTransport(globalThis.__inline.wt_url, {
+        serverCertificateHashes: [{
+          algorithm: "sha-256",
+          value: Uint8Array.from(globalThis.__inline.cert_sha256.match(/../g), (h) => parseInt(h, 16)),
+        }],
+        congestionControl: "low-latency",
+      });
     }
   </script>
   <title>first byte — the downloader</title>
@@ -34,12 +45,30 @@
 
     const stage = globalThis.__stage;
     const frames = Number(new URLSearchParams(location.search).get("frames") || 12);
-    const open = (globalThis.__wtpacsOpen = {});
+    const open = globalThis.__wtpacsOpen;
     const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
     const log = (s) => (document.getElementById("log").textContent += s + "\n");
 
     try {
-      const config = fetch("/wt/dev-transport.json").then((r) => r.json()).then((c) => (mark("config"), c));
+      const inline = stage === "inline" || stage === "dial0";
+      if (inline && !globalThis.__inline) throw new Error(`stage ${stage} needs ?wt= and ?hash=`);
+      if (stage === "dial0") {
+        await globalThis.__dial0.ready;
+        mark("session");
+        globalThis.__dial0.close();
+      } else {
+        await fill(inline);
+      }
+    } catch (e) {
+      globalThis.__wtpacsError = String(e?.stack || e);
+      log("FAILED: " + globalThis.__wtpacsError);
+    }
+    globalThis.__wtpacsDone = true;
+
+    async function fill(inline) {
+      const config = inline
+        ? Promise.resolve(globalThis.__inline)
+        : fetch("/wt/dev-transport.json").then((r) => r.json()).then((c) => (mark("config"), c));
       let first;
       const firstFrame = new Promise((r) => (first = r));
       // Today's page has nothing to hand `connect` until the config is in; R3's does not wait.
@@ -50,7 +79,7 @@
         {
           decoders: 3,
           fill: [...Array(frames).keys()],
-          openAsk: stage === "r1" || stage === "all",
+          openAsk: stage === "r1" || stage === "all" || stage === "inline",
           onFrame: (f) => f.frameIndex === 0 && first(f),
           decoder: {
             glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
@@ -64,11 +93,7 @@
       mark("frame");
       log(`${f.info.width}x${f.info.height} in ${open.frame} ms`);
       c.close();
-    } catch (e) {
-      globalThis.__wtpacsError = String(e?.stack || e);
-      log("FAILED: " + globalThis.__wtpacsError);
     }
-    globalThis.__wtpacsDone = true;
   </script>
 </body>
 </html>
