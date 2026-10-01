@@ -36,11 +36,8 @@ export function balanced(rows, unit, units) {
   return Math.max(...n) - Math.min(...n) <= 1;
 }
 
-/**
- * Each pair's lead — `unit` minus `ref`, the same round — grouped by the predecessor `unit` had in
- * that round, and flagged when either side's predecessors are unbalanced.
- * rows: { round, unit, prev (null when first), v }.
- */
+/** Each pair's lead, `unit` − `ref` in one round, by `unit`'s predecessor; flagged when either is unbalanced.
+ *  rows: { round, unit, prev (null when first), v }. */
 export function leadsByPredecessor(rows, units, pairs, digits = 0) {
   const lines = [];
   for (const [unit, ref] of pairs) {
