@@ -112,6 +112,7 @@ function arrived(index, frame) {
   const rec = records.get(index);
   if (!rec) return;
   rec.stamps.lastByte = abs();
+  rec.stamps.mediaReads = session?.stats().mediaReads;
   if (!cfg.decode) {
     records.delete(index);
     post({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
@@ -285,6 +286,7 @@ async function connect() {
     // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
     const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 };
     if (cfg.survival) options.dialMs = deadlines.dialMs;
+    if (cfg.readMin) options.readMin = cfg.readMin;
     if (opening) options.fill = opening;
     session = await TransportSession.connect(dial.url, dial.certHash, options);
     session.closedPromise?.catch(() => {});

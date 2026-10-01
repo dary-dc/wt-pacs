@@ -1,9 +1,10 @@
 /**
  * A browser's resources, per process and per thread, from /proc: each process's kind and its peak
- * PSS and RSS (`smaps_rollup`), each thread's name and on-CPU time (`schedstat`). Polls a process
- * tree until `stop()`, which sums them by kind and by thread name. docs/ARCHITECTURE.md §Resources
+ * PSS and RSS (`smaps_rollup`), each thread's name, on-CPU time (`schedstat`) and voluntary context
+ * switches. Polls a process tree until `stop()`, which sums them by kind and by thread name, and
+ * lists each thread. docs/ARCHITECTURE.md §Resources
  *
- *   const s = sampleTree(chrome.pid);  ...  const { kinds, threads } = s.stop();
+ *   const s = sampleTree(chrome.pid);  ...  const { kinds, threads, each } = s.stop();
  */
 import fs from "node:fs";
 
@@ -58,10 +59,11 @@ export function sampleTree(rootPid, { everyMs = 100 } = {}) {
         // schedstat: ns on a CPU, ns waiting for one, timeslices.
         const [run, wait] = read(`/proc/${pid}/task/${tid}/schedstat`).split(" ").map(Number);
         if (!Number.isFinite(run)) continue;
+        const vcs = Number(read(`/proc/${pid}/task/${tid}/status`).match(/^voluntary_ctxt_switches:\s+(\d+)/m)?.[1] ?? 0);
         // One that appears later was started later, so all of its time is inside the window.
-        const t = threads.get(tid) ??
-          { name: read(`/proc/${pid}/task/${tid}/comm`).trim(), kind: p.kind, run0: first ? run : 0, wait0: first ? wait : 0 };
-        threads.set(tid, { ...t, run, wait });
+        const t = threads.get(tid) ?? { name: read(`/proc/${pid}/task/${tid}/comm`).trim(), kind: p.kind,
+          run0: first ? run : 0, wait0: first ? wait : 0, vcs0: first ? vcs : 0 };
+        threads.set(tid, { ...t, run, wait, vcs });
       }
     }
     first = false;
@@ -87,7 +89,9 @@ export function sampleTree(rootPid, { everyMs = 100 } = {}) {
         k.cpu_ms += (t.run - t.run0) / 1e6;
         k.wait_ms += (t.wait - t.wait0) / 1e6;
       }
-      return { kinds, threads: byName };
+      const each = [...threads].map(([tid, t]) =>
+        ({ tid: Number(tid), kind: t.kind, name: t.name, cpu_ms: (t.run - t.run0) / 1e6, vcs: t.vcs - t.vcs0 }));
+      return { kinds, threads: byName, each };
     },
   };
 }

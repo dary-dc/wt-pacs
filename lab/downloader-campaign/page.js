@@ -15,6 +15,9 @@ const scenario = q.get("scenario") || "fill";
 const FILL = Number(q.get("fill") || 80);
 const DECODERS = Number(q.get("decoders") || 3);
 const ASK = Number(q.get("askFrame") || 86);
+// BYM: `readMin` reads each frame through a BYOB reader; `digest` keeps every frame's sha256.
+const READ_MIN = Number(q.get("readMin") || 0) || undefined;
+const DIGEST = q.has("digest");
 const DECODER = {
   glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
   wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
@@ -71,12 +74,14 @@ async function harnessArm(cfg) {
 
 async function downloaderArm(cfg, decode) {
   let deliver = () => {};
+  let mediaReads;
   const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
     decode,
     decoders: decode ? DECODERS : 0,
     decoder: decode
       ? (new URLSearchParams(location.search).get("decoder") === "source" ? SOURCE_DECODER : DECODER)
       : undefined,
+    readMin: READ_MIN,
     onFrame: (f) => deliver(f),
   });
   return {
@@ -84,13 +89,14 @@ async function downloaderArm(cfg, decode) {
     fill(onFrame, onDone, _fillEnded) {
       let n = 0;
       deliver = (f) => {
+        mediaReads = Math.max(mediaReads ?? 0, f.info?.stamps?.mediaReads ?? 0);
         onFrame(f.frameIndex, f.bytes);
         if (++n === FILL) onDone();
       };
       c.fill(Array.from({ length: FILL }, (_, i) => i));
     },
     ask: async (i) => (await c.requestExactFrame(i)).bytes,
-    stats: () => c.stats(),
+    stats: () => ({ ...c.stats(), mediaReads }),
     close: () => c.close(),
   };
 }
@@ -121,6 +127,8 @@ async function main() {
     let lastFrameMs = 0;
     const received = [];
     result.received_ms = received;
+    const digests = [];
+    if (DIGEST) result.digests = digests;
     let askIssued = false;
     let resolveDone;
     let resolveAsk;
@@ -129,6 +137,7 @@ async function main() {
     rig.fill(
       (index, bytes) => {
         handle(bytes);
+        if (DIGEST) digests[index] = crypto.subtle.digest("SHA-256", bytes.slice());
         delivered += 1;
         lastFrameMs = performance.now() - t0;
         received.push(lastFrameMs);
@@ -151,6 +160,8 @@ async function main() {
     result.delivered = delivered;
     result.fill_completed = delivered === FILL;
     result.last_frame_ms = lastFrameMs;
+    const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+    if (DIGEST) result.digests = (await Promise.all(digests)).map(hex);
   }
 
   clearInterval(sampler);

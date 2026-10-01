@@ -14,7 +14,7 @@ export class TransportSession extends FrameSession {
     private readonly socket: WebSocket,
     options: ConnectOptions,
   ) {
-    super(options);
+    super({ ...options, readMin: undefined });
   }
 
   /** The server's TCP listener shares its QUIC port's number, so `https://h:p/` dials `wss://h:p/`. */

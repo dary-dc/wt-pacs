@@ -57,6 +57,7 @@ export class DownloaderClient {
       fill: opts.fill,
       openAsk: opts.openAsk,
       wireBuffers: opts.wireBuffers,
+      readMin: opts.readMin,
     };
     // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
     // may be promises. docs/ARCHITECTURE.md

@@ -4,7 +4,7 @@
  */
 
 import { TransportSession } from "../session.ts";
-import { StubTransport, type StubLink } from "./stub.ts";
+import { codestreamByte, StubTransport, type StubLink } from "./stub.ts";
 
 (globalThis as { WebTransport?: unknown }).WebTransport = StubTransport;
 const HASH = "00".repeat(32);
@@ -86,7 +86,39 @@ async function autoWithoutStatsReadsIdleAsks() {
   assert(Math.abs(d - want) <= 1, `auto without getStats, bursts with pauses: depth ${d} within 1 of ${want}`);
 }
 
-for (const t of [noWindowIsUnchanged, fixedDepthCapsInFlight, autoDepthFindsTheLink, autoWithoutStatsHoldsWithoutAPause, autoWithoutStatsReadsIdleAsks]) {
+const intact = (r: { frameIndex: number; bytes: Uint8Array }) => r.bytes.every((b, i) => b === codestreamByte(r.frameIndex, i));
+
+/** A frame dribbled in 1 KB pieces takes one read a piece by default, and two — head, body — read whole. */
+async function readWholeTakesTwoReadsAFrame() {
+  const link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
+  const plain = await drive(link, 3);
+  const whole = await drive(link, 3, { readMin: 1 << 30 });
+  const reads = (d: typeof plain) => d.session.stats().mediaReads;
+  assert(reads(plain) >= 3 * 64, `default reader: a read a piece, saw ${reads(plain)} for 3 frames`);
+  assert(reads(whole) === 6, `readMin whole: 2 reads a frame, saw ${reads(whole)} for 3 frames`);
+  assert(whole.results.every(intact), "readMin whole: every frame bit-exact");
+}
+
+/** At 16 KB a read, a 64 000-byte body resolves in 4 reads of at least 16 384, the last the rest. */
+async function readMinBoundsEachRead() {
+  const { session, results } = await drive({ rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 }, 3, { readMin: 16_384 });
+  const reads = session.stats().mediaReads;
+  assert(reads === 15, `readMin 16 KB: a head and 4 body reads a frame, saw ${reads} for 3 frames`);
+  assert(results.every(intact), "readMin 16 KB: every frame bit-exact");
+}
+
+/** A stream cut inside a frame is named truncated with the bytes it carried, whichever reader. */
+async function aCutFrameIsNamedWithItsBytes() {
+  for (const readMin of [undefined, 1 << 30, 4096]) {
+    StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 10_000, chunk: 1000, cutAfter: 5008 };
+    const session = await TransportSession.connect("https://stub/", HASH, { readMin });
+    const why = await session.requestExactFrame(0).then(() => "delivered", (e) => String(e.message));
+    assert(why.includes("truncated: 5000 of 10000 bytes"), `readMin ${readMin}: a cut frame is named, saw "${why}"`);
+  }
+}
+
+for (const t of [noWindowIsUnchanged, fixedDepthCapsInFlight, autoDepthFindsTheLink, autoWithoutStatsHoldsWithoutAPause, autoWithoutStatsReadsIdleAsks,
+  readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, aCutFrameIsNamedWithItsBytes]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

@@ -2,7 +2,8 @@
 """How a browser hands a frame to the page: reads per frame and bytes per read on the media
 stream, with the default reader and with a BYOB reader asking for the whole frame at once.
 Needs the static host (`server/dev-server.py --port 8765`). `docs/rig-limits.md`.
-usage: browser_reads.py <server-bin> <fixture> [frames=40]
+usage: [RELAY="--delay-ms 20 --trace T"] browser_reads.py <server-bin> <fixture> [frames=40]
+RELAY puts `link_impair.py --self-timing` in front of each run; a run it marks VOID says so.
 """
 import hashlib, json, os, signal, socket, subprocess, sys
 from pathlib import Path
@@ -21,6 +22,21 @@ srv = subprocess.Popen([bin_, "--port", str(port), "--study", fixture, "--bind",
                        env=dict(os.environ, NO_COLOR="1", RUST_LOG="exact_server=error"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 for line in srv.stdout:
     if line.startswith("telemetry="): break
+
+def relay():
+    """A fresh relay per run, so a trace starts at the run's own epoch."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.1", 0)); front = s.getsockname()[1]; s.close()
+    r = subprocess.Popen([sys.executable, str(ROOT / "lab/scripts/link_impair.py"), "--udp", f"{front}:{port}",
+                          "--self-timing", *os.environ["RELAY"].split()], stdout=subprocess.PIPE, text=True)
+    if not r.stdout.readline().startswith("READY"): raise SystemExit("relay did not start")
+    return r, front
+
+
+def stop(r):
+    r.send_signal(signal.SIGTERM)
+    return r.communicate(timeout=5)[0]
+
+
 PROBE = """async ([url, pin, frames, mode]) => {
   const hash = Uint8Array.from(pin.match(/../g).map(h => parseInt(h, 16)));
   const t = new WebTransport(url, { serverCertificateHashes: [{ algorithm: "sha-256", value: hash }] });
@@ -75,7 +91,11 @@ try:
         for mode in ("default", "byob-min", "default", "byob-min"):
             page = b.new_page()
             page.goto(f"http://127.0.0.1:{HTTP}/harness/ts.html", wait_until="domcontentloaded")
-            print(json.dumps(page.evaluate(PROBE, [f"https://127.0.0.1:{port}/", pin, frames, mode])))
+            r, front = relay() if "RELAY" in os.environ else (None, port)
+            out = page.evaluate(PROBE, [f"https://127.0.0.1:{front}/", pin, frames, mode])
+            if r:
+                out["void"] = "VOID" in stop(r)
+            print(json.dumps(out))
             page.close()
         b.close()
 finally:

@@ -19,6 +19,9 @@ export type ConnectOptions = {
   /** ms: a dial whose `ready` has not settled by then is closed and rejected with a `DialTimeoutError`.
    *  docs/ARCHITECTURE.md §A dial that never settles */
   dialMs?: number;
+  /** Bytes: read each frame straight into its wire buffer, a read resolving at no fewer than this
+   *  many (BYOB `{min}`); unset, the default reader. WebTransport only. docs/CLIENTS.md §Reading a frame whole */
+  readMin?: number;
 };
 
 export type OpeningFill = {
@@ -103,14 +106,17 @@ export abstract class FrameSession {
   private frameErrors = 0;
   /** `performance.now()` of the last byte any stream delivered: what a dead path stops moving. */
   private lastByteAt = 0;
+  private reads = 0;
   /** Set once the session is gone; a waiter armed after this would only reach the timeout. */
   private closedReason: string | null = null;
   private readonly window: AskWindow | null;
   private readonly wire: WireBuffers;
+  private readonly readMin: number;
 
   protected constructor(options: ConnectOptions) {
     this.window = options.window ? new AskWindow(options.window, () => this.smoothedRtt()) : null;
     this.wire = new WireBuffers(options.wireBuffers ?? 0);
+    this.readMin = options.readMin ?? 0;
   }
 
   protected abstract sendFod(msg: FodMsg): Promise<void>;
@@ -199,11 +205,22 @@ export abstract class FrameSession {
 
   /** Read envelopes until the stream ends. docs/CLIENTS.md#a-truncated-frame-is-a-failure */
   protected async pumpFramedStream(stream: ReadableStream<Uint8Array>) {
-    const reader = stream.getReader();
-    const buf = this.newAccumulator();
+    const onRead = () => {
+      this.lastByteAt = performance.now();
+      this.reads += 1;
+    };
+    let next: () => Promise<Envelope | null>;
+    if (this.readMin) {
+      const reader = stream.getReader({ mode: "byob" });
+      next = () => readEnvelopeInto(reader, this.wire, this.readMin, onRead);
+    } else {
+      const reader = stream.getReader();
+      const buf = new ByteAccumulator(onRead);
+      next = () => readEnvelope(reader, buf, this.wire);
+    }
     try {
       for (;;) {
-        const env = await readEnvelope(reader, buf, this.wire);
+        const env = await next();
         if (!env) break;
         if (env.ok) {
           this.deliver(env.index, env.codestream, performance.now());
@@ -341,6 +358,7 @@ export abstract class FrameSession {
       frameErrors: this.frameErrors,
       windowDepth: this.window?.current() ?? null,
       lastByteAt: this.lastByteAt,
+      mediaReads: this.reads,
     };
   }
 
@@ -408,6 +426,46 @@ async function readEnvelope(
     return { ok: false, index, lost: `truncated: ${buf.length} of ${len - 4} bytes` };
   }
   return { ok: true, index: be32(buf.take(4)), codestream: buf.take(len - 4, wire.take(len - 4)) };
+}
+
+/** `readEnvelope` through a BYOB reader: the codestream lands in its wire buffer, no copy. */
+async function readEnvelopeInto(
+  reader: ReadableStreamBYOBReader,
+  wire: WireBuffers,
+  min: number,
+  onRead: () => void,
+): Promise<Envelope | null> {
+  const head = await readInto(reader, new Uint8Array(8), min, onRead);
+  if (head.filled === 0) return null;
+  if (head.filled < 4) return { ok: false, index: -1, lost: "truncated before its index" };
+  const len = be32(head.bytes);
+  if (len < 4 || len > MAX_FRAME_LEN) throw new Error(`invalid frame length ${len}`);
+  if (head.filled < 8) return { ok: false, index: -1, lost: "truncated before its index" };
+  const index = be32(head.bytes.subarray(4));
+  const body = await readInto(reader, wire.take(len - 4), min, onRead);
+  if (body.filled < len - 4) return { ok: false, index, lost: `truncated: ${body.filled} of ${len - 4} bytes` };
+  return { ok: true, index, codestream: body.bytes };
+}
+
+/** Fill `view`, each read resolving at `min` bytes or the rest; a cut stream's last read is done with bytes. */
+async function readInto(reader: ReadableStreamBYOBReader, view: Uint8Array, min: number, onRead: () => void) {
+  // Each read detaches the buffer it was given and hands back its successor, so `view` is read once.
+  const { byteOffset, length } = view;
+  let buffer = view.buffer as ArrayBuffer;
+  let filled = 0;
+  while (filled < length) {
+    const rest = length - filled;
+    const { value, done } = await reader.read(new Uint8Array(buffer, byteOffset + filled, rest), {
+      min: Math.min(rest, min),
+    });
+    if (value) {
+      buffer = value.buffer as ArrayBuffer;
+      filled += value.byteLength;
+      if (value.byteLength) onRead();
+    }
+    if (done) break;
+  }
+  return { bytes: new Uint8Array(buffer, byteOffset, length), filled };
 }
 
 export class ByteAccumulator {
