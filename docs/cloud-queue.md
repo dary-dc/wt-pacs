@@ -74,7 +74,7 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 94 | **BYM** — a frame read whole (`read(view, {min})`) on a link that delivers in bursts | queue §Rows 91–100 | after 92 |
 | 95 | **IDL** — one radio's idle penalty in the relay, and a wake sent on the first touch | queue §Rows 91–100 | after 92 |
 | 96 | **STW** — the window kept through a silence, when the link got slower meanwhile | queue §Rows 91–100 | after 92 |
-| 97 | **TAX** — the ask's controller and pacing tax over a rate-limited queue | queue §Rows 91–100 | ready |
+| 97 | **TAX** — the ask's controller and pacing tax over a rate-limited queue | queue §Rows 91–100 | **claimed** 2026-10-01 |
 | 98 | **PORD** — the order the page's files leave in over HTTP/2 and HTTP/3 | queue §Rows 91–100 | **claimed** 2026-10-01 |
 | 99 | **NBR** — a neighbour flow through the same bottleneck | queue §Rows 91–100 | after 92 |
 | 100 | **CDL** — CoDel in the relay | queue §Rows 91–100 | after 99 |
