@@ -76,7 +76,7 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 96 | **STW** — the window kept through a silence, when the link got slower meanwhile | queue §Rows 91–100 | ready |
 | 97 | **TAX** — the ask's controller and pacing tax over a rate-limited queue | queue §Rows 91–100 | ready |
 | 98 | **PORD** — the order the page's files leave in over HTTP/2 and HTTP/3 | queue §Rows 91–100 | ready |
-| 99 | **NBR** — a neighbour flow through the same bottleneck | queue §Rows 91–100 | after 95 (both edit the relay) |
+| 99 | **NBR** — a neighbour flow through the same bottleneck | queue §Rows 91–100 | **claimed** 2026-10-01 |
 | 100 | **CDL** — CoDel in the relay | queue §Rows 91–100 | after 99 |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
