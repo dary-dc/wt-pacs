@@ -517,6 +517,47 @@ add, −2 round trips); the transport on UDP 443 beside the page's TCP 443, whic
 page's cache entry (the relay binds one address); a real resolver, whose A answer for a known host is
 likely cached where an HTTPS query for `_4433._https` is not; nginx's own HTTP/3, which needs 1.25.
 
+### The order the page's files leave in
+
+**PORD, 2026-10-01.** On the workstation a file requested after a large one arrived with the large
+one's last byte. Does the downloader page's config? The `+meta` arms add a study's metadata of
+~120 KB gzipped (synthetic, [`metadata.mjs`](metadata.mjs), 2 200 frames): `+meta` through the
+page's own `?meta=` preload, `+meta-first` through `meta-first.html`, written per run, which parses
+a static preload of it one line ahead of the config's. `h2` is the Go host over TLS and HTTP/2
+through the relay's TCP plane (no congestion window: the server's bytes are all on the relay at
+once), `h3` the same host over HTTP/3 through the UDP plane, the host's own QUIC congestion control
+on the path. 12 rounds at 40/80/160 ms, relay per visit, VOID visits dropped (61 of 180; the
+`h3` pair topped up with 10 more rounds at 80 ms, 6 more VOID), each arm's requests and last bytes
+read from resource timing.
+
+```bash
+sudo HOST=dns RTTS=40,80,160 ONLY=h3,h2+meta,h2+meta-first,h3+meta,h3+meta-first NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 12
+```
+
+**The page's `?meta=` preload is not ahead of the config: a script-made preload leaves after every
+parsed one.** The preload scanner has issued the static links before the head script runs, so the
+metadata was asked for 3–33 ms after the config (median 17–19) in every visit, 63/63. Only the static
+link puts it first: 0–12 ms ahead, 49/49.
+
+**Asked first or not, the config lands first, every visit, on both protocols** (112/112):
+
+| arm | config ms at 40 / 80 / 160 | metadata ms at 80 | `config` slope | `session` slope |
+| --- | --- | --- | ---: | ---: |
+| `h3` (no metadata) | 230 / 375 / 689 | — | 3.84 | 8.97 |
+| `h3+meta` | 199 / 355 / 679 | 570 | 3.91 | 9.27 |
+| `h3+meta-first` | 212 / 364 / 676 | 581 | 3.85 | 9.18 |
+| `h2+meta` | 238 / 437 / 833 | 467 | 4.92 | 9.96 |
+| `h2+meta-first` | 242 / 436 / 839 | 458 | 4.90 | 9.97 |
+
+The config ties between the two orders at every delay (within 13 ms, under a round trip of 40), and
+so does the session. Over HTTP/3 the host interleaves its streams, so a 400-byte response finishes in
+its first flight whatever was asked before it; over HTTP/2 the relay's TCP plane delivers the whole
+host's output at once, so order cannot show there — as the brief expected. **Zero round trips: the
+lever the brief derived is not there on this host.** The metadata's own cost is on the dial, not
+the config: `h3+meta`'s session is +7 / +29 ms against `h3` at 80 / 160 (its dial +8 / +30, faster in 0/10
+and 0/8 rounds), its 120 KB sharing the window the dial's flights need. A server that sends
+responses in request order — the workstation's — is where the order matters; this one does not.
+
 ## What this rig does not decide
 
 The round trips are the container's userspace relay, not `netem` and not a real path; the
