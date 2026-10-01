@@ -412,6 +412,30 @@ open. A per-client jump start from a saved window was proposed (2026-09-24) and 
 the push recovers the same (130 against 134 ms of 462). **No product default is changed**; which
 lever becomes one is the owner's call.
 
+#### One radio's idle penalty, and a wake sent ahead of the ask, 2026-10-01 (IDL)
+
+The relay's `--idle-promote 5:P` ([`../rig-limits.md`](../rig-limits.md) §3) stands in for a radio
+that drops to idle after 5 s and pays P to come back; `first_ask --wake-lead-ms L` sends one
+datagram L ms before the ask, as a page could on the first `pointerdown` after a silence (nothing
+on the server reads datagrams; a control-stream message would end a running fill,
+[`../WIRE.md`](../WIRE.md) §An ask during a fill). `first_ask_cells.sh wake`: a filled session, 6 s
+idle, 80 ms, seven rounds of eleven interleaved arms, every relay with `--self-timing`; 13 of 77
+runs at 250 KB and 8 at 50 KB were `VOID` and dropped, so arms keep 5–7. The lead is the paired median over the unpromoted ask (109.7 /
+102.1 ms at 250 / 50 KB):
+
+| P | no wake | L = 0 | 50 | 100 | 200 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 80 ms, 250 KB | +78.4 | +79.1 | +27.8 | −1.5 | −1.9 |
+| 80 ms, 50 KB | +78.0 | +80.2 | +28.1 | −1.6 | −1.0 |
+| 300 ms, 250 KB | +296.8 | +300.0 | +246.1 | +198.5 | +97.6 |
+| 300 ms, 50 KB | +300.0 | +298.1 | +248.9 | +198.8 | +98.2 |
+
+**Every cell is base + max(0, P − L) within 4 ms**: the promotion is paid once, in full by an ask
+that wakes the radio itself, and a wake sent L ahead takes L off it. With the datagram dropped from
+the probe (the mutant), every lead reads +299 to +301 at P = 300. **This proves the plumbing, not a
+radio**: how much of a real promotion a gesture's lead overlaps, and what an extra wake costs in
+energy, need a device. The page's `pointerdown` wake is not built.
+
 ### The slow-start exit, an outage and the first timeout, 2026-09-19
 
 **W2.** `lab/scripts/controller_cells.sh`, three rounds a cell, through
@@ -891,7 +915,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    delivery-trace replay in the relay; and the idle radio — by report carriers drop a radio to idle
    after 5–10.5 s without traffic and promotion back costs 190–396 ms on 4G and 341–1 907 ms on 5G;
    neither a browser's 15 s ping nor the 20 s keep-alive ([`adr-idle-sessions.md`](adr-idle-sessions.md))
-   comes often enough to prevent it, so every idle ask may pay it. A device decides.
+   comes often enough to prevent it, so every idle ask may pay it. The relay models it now, and one
+   datagram sent L ahead of the ask takes L off the promotion (§3, IDL); a device decides how long
+   S and P are, how much a gesture's lead overlaps, and what the extra wake costs in energy.
 5. **`--initial-rtt-ms`**, at the target's real round trip (§3).
 6. **The GSO cap: 24, or 45 behind the product's buffer** — the owner's call (§5). Owed: 44 against
    10 on CPU per ask at 20 Mbit / 50 ms and 100 Mbit / 30 ms, with a 1 Gbit / 1 ms control that must

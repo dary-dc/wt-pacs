@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # W1: one frame asked on an idle session, through lab/scripts/link_impair.py at 40 and 80 ms round
 # trip and at two frame sizes. `repro` is the session-state and lever sweep; `idle`, `together` and
-# `queue` are the cells that decide a default, and they interleave their arms round by round in a
-# Williams order (lab/scripts/order.py).
+# `queue` are the cells that decide a default, and `wake` prices one radio's promotion; they
+# interleave their arms round by round in a Williams order (lab/scripts/order.py).
 # The server's own `session path` line gives the window, loss and congestion events per arm.
 # Results and the verdict they correct: docs/transport/transport-conclusions.md §3.
 #
-#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume] [rounds]
+#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake] [rounds]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -114,19 +114,21 @@ header() {
     "arm" "rtt" "ask ms" "trips" "sent/sess" "lost" "cong"
 }
 
-# An arm is `label|state|warm|idle_ms|server args|relay args`. Arms are compared, so a round runs
-# every one of them, in a Williams order.
+# An arm is `label|state|warm|idle_ms|server args|relay args|probe args`. Arms are compared, so a
+# round runs every one of them, in a Williams order.
 ARMS=()
 arm() { ARMS+=("$1"); }
 
-one_round() {  # state warm idle study rtt server_args relay_args -> "ms cwnd sent lost ce"
-  local state="$1" warm="$2" idle="$3" study="$4" rtt="$5" srv rly line ms
+one_round() {  # state warm idle study rtt server_args relay_args probe_args -> "ms cwnd sent lost ce"
+  local state="$1" warm="$2" idle="$3" study="$4" rtt="$5" srv probe line ms
   read -r -a srv <<<"$6"
   read -r -a RELAY_EXTRA <<<"$7"
+  read -r -a probe <<<"${8:-}"
   start_server "$study" ${srv[@]+"${srv[@]}"}
   start_relay "$rtt"
   if line=$(RUST_BACKTRACE=0 "$BIN/first_ask" --url "https://127.0.0.1:$IN/" --state "$state" \
-      --warm "$warm" --target "$TARGET" --idle-ms "$idle" --control-port "$CTRL" --rounds 1 2>&1)
+      --warm "$warm" --target "$TARGET" --idle-ms "$idle" --control-port "$CTRL" --rounds 1 \
+      ${probe[@]+"${probe[@]}"} 2>&1)
   then ms=$(sed -n 's/.*ask_to_last_byte_ms median=\([0-9.]*\).*/\1/p' <<<"$line")
   else ms=nan
   fi
@@ -136,6 +138,7 @@ one_round() {  # state warm idle study rtt server_args relay_args -> "ms cwnd se
   local cost
   cost=$(link_cost)
   stop_relay
+  grep -q VOID "$T/relay.log" && ms=void  # --self-timing: the relay, not the link, was late
   stop_server
   echo "$ms $cost"
 }
@@ -147,8 +150,8 @@ round_robin() {  # study rtt
   for ((i = 0; i < ROUNDS; i++)); do
     prev=-1
     for k in $(python3 lab/scripts/order.py row "$n" "$i"); do
-      IFS='|' read -r _ state warm idle srv rly <<<"${ARMS[k]}"
-      echo "$(one_round "$state" "$warm" "$idle" "$study" "$rtt" "$srv" "$rly") $i $prev" >> "$T/rr/$k"
+      IFS='|' read -r _ state warm idle srv rly probe <<<"${ARMS[k]}"
+      echo "$(one_round "$state" "$warm" "$idle" "$study" "$rtt" "$srv" "$rly" "$probe") $i $prev" >> "$T/rr/$k"
       prev=$k
     done
   done
@@ -158,26 +161,29 @@ sys.path.insert(0, "lab/scripts")
 from order import leads_by_predecessor
 d, n = sys.argv[1], int(sys.argv[2])
 labels = open(d + "/labels").read().split("\n")
-cols = []
+cols, voids = [], []
 for k in range(n):
     rows = [r.split() for r in open("%s/%d" % (d, k)) if r.strip()]
-    cols.append([(float(r[0]) if r[0] != "nan" else None, r[1:]) for r in rows])
-base = [v for v, _ in cols[0]]
-print("%-26s %9s %15s %7s %8s %7s %6s" %
-      ("arm", "ask ms", "min-max", "wins", "cwnd", "lost", "fails"))
+    voids.append(sum(r[0] == "void" for r in rows))
+    cols.append([(float(r[0]) if r[0] != "nan" else None, r[1:]) for r in rows if r[0] != "void"])
+base = {int(c[-2]): v for v, c in cols[0] if v is not None}
+print("%-26s %9s %15s %9s %7s %8s %7s %6s %5s" %
+      ("arm", "ask ms", "min-max", "paired", "wins", "cwnd", "lost", "fails", "void"))
 for k in range(n):
     got = [v for v, _ in cols[k] if v is not None]
-    wins = sum(1 for (a, _), b in zip(cols[k], base) if a is not None and b is not None and a < b)
+    pairs = [v - base[int(c[-2])] for v, c in cols[k] if v is not None and int(c[-2]) in base]
+    wins = sum(1 for d in pairs if d < 0)
     cw = [int(c[0]) for _, c in cols[k] if c[0] != "-"]
     lost = [float(c[2]) for _, c in cols[k] if c[2] != "-"]
-    print("%-26s %9s %15s %7s %8s %7s %6d" % (
+    print("%-26s %9s %15s %9s %7s %8s %7s %6d %5d" % (
         labels[k],
         "%.1f" % statistics.median(got) if got else "-",
         "%.1f-%.1f" % (min(got), max(got)) if got else "-",
-        "" if k == 0 else "%d/%d" % (wins, len(cols[k])),
+        "" if k == 0 or not pairs else "%+.1f" % statistics.median(pairs),
+        "" if k == 0 else "%d/%d" % (wins, len(pairs)),
         "%d" % statistics.median(cw) if cw else "-",
         "%.1f" % statistics.mean(lost) if lost else "-",
-        len(cols[k]) - len(got)))
+        len(cols[k]) - len(got), voids[k]))
 split = [{"round": int(c[-2]), "unit": labels[k], "prev": labels[int(c[-1])] if int(c[-1]) >= 0 else None, "v": v}
          for k in range(n) for v, c in cols[k]]
 print("ask ms, each lead by the predecessor it ran after, rounds in brackets")
@@ -285,11 +291,33 @@ resume_cells() {
   done
 }
 
+# One radio's idle penalty (relay --idle-promote) and a wake datagram sent L ms ahead of the ask:
+# each arm should read the unpromoted ask plus max(0, P - L). docs/transport/transport-conclusions.md §3.
+wake_cells() {
+  local p l radio
+  for kb in $SIZES; do
+    for rtt in $RTTS; do
+      ARMS=()
+      arm "no promotion|filled|$WARM|6000||--self-timing|"
+      for p in ${PROMOTIONS:-80 300}; do
+        radio="--self-timing --idle-promote 5:$p"
+        arm "P $p, no wake|filled|$WARM|6000||$radio|"
+        for l in 0 50 100 200; do
+          arm "P $p, wake $l ms ahead|filled|$WARM|6000||$radio|--wake-lead-ms $l"
+        done
+      done
+      printf '\n== %s KB, %s ms, idle 6 s, a radio promoted after 5 s\n' "$kb" "$rtt"
+      round_robin "$T/s$kb.sbnd" "$rtt"
+    done
+  done
+}
+
 case "$CELL" in
   repro) repro ;;
   idle) idle_cells ;;
   together) together_cells ;;
   queue) queue_cells ;;
   resume) resume_cells ;;
+  wake) wake_cells ;;
   *) echo "unknown cell: $CELL"; exit 2 ;;
 esac

@@ -57,6 +57,9 @@ struct Args {
     /// Silence between the warm-up and the ask: the on-demand regime, which the window must survive.
     #[arg(long, default_value_t = 0)]
     idle_ms: u64,
+    /// One datagram this long before the ask, after the silence: the page's wake on the first touch.
+    #[arg(long)]
+    wake_lead_ms: Option<u64>,
     #[arg(long, default_value_t = 5)]
     rounds: u32,
     #[arg(long, default_value_t = 30_000)]
@@ -138,6 +141,10 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize)> {
 
     if args.idle_ms > 0 {
         tokio::time::sleep(Duration::from_millis(args.idle_ms)).await;
+    }
+    if let Some(lead) = args.wake_lead_ms {
+        connection.send_datagram(b"wake").context("wake datagram")?;
+        tokio::time::sleep(Duration::from_millis(lead)).await;
     }
 
     let asked = Instant::now();
