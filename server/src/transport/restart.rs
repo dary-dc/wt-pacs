@@ -1,7 +1,8 @@
 //! An outage is not congestion. When a congestion event closes a silence rather than a loss
 //! among acknowledgements, restart slow start instead of halving — over any quinn controller,
 //! through the public `Controller` trait alone, as `hystart.rs` does. What it measured:
-//! `docs/transport/transport-conclusions.md` §3, after a blink.
+//! `docs/transport/transport-conclusions.md` §3, after a blink. `Trigger::Idle` restarts instead
+//! on the first send after an idle spell (RFC 5681 §4.1): §3, the window through a rate step.
 
 use quinn_proto::RttEstimator;
 use std::any::Any;
@@ -14,10 +15,19 @@ use wtransport::quinn::congestion::{
 /// Two probe timeouts, with quinn's RTT variance sitting near a quarter of the estimate.
 const SILENCE_RTTS: u32 = 4;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Trigger {
+    /// A congestion event over packets sent before a silence in the acknowledgements.
+    Silence,
+    /// A send after `SILENCE_RTTS` round trips with nothing in flight.
+    Idle,
+}
+
 /// Watches the acknowledgement stream for a silence of `SILENCE_RTTS` round trips. A congestion
 /// event whose lost packets all predate that silence replaces the inner controller with a new
 /// one, which is quinn's only way back into slow start: initial window, no ssthresh.
 pub struct SlowStartRestart {
+    trigger: Trigger,
     cubic: Arc<CubicConfig>,
     inner: Box<dyn Controller>,
     mtu: u16,
@@ -26,18 +36,26 @@ pub struct SlowStartRestart {
     /// The acknowledgement that closed the last silence, until a congestion event spends it:
     /// quinn declares the loss an acknowledgement or two later, not on the one that closed it.
     silence_end: Option<Instant>,
+    /// When the last batch of acknowledgements left nothing in flight.
+    empty_since: Option<Instant>,
 }
 
 impl SlowStartRestart {
-    fn new(cubic: Arc<CubicConfig>, now: Instant, mtu: u16) -> Self {
+    fn new(trigger: Trigger, cubic: Arc<CubicConfig>, now: Instant, mtu: u16) -> Self {
         Self {
+            trigger,
             inner: Arc::clone(&cubic).build(now, mtu),
             cubic,
             mtu,
             rtt: Duration::ZERO,
             last_ack: None,
             silence_end: None,
+            empty_since: None,
         }
+    }
+
+    fn rebuild(&mut self, now: Instant) {
+        self.inner = Arc::clone(&self.cubic).build(now, self.mtu);
     }
 
     /// One acknowledged packet. The gap is read against the estimate that held before it: the
@@ -55,6 +73,12 @@ impl SlowStartRestart {
 
 impl Controller for SlowStartRestart {
     fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
+        if self.trigger == Trigger::Idle
+            && self.empty_since.is_some_and(|t| now.duration_since(t) >= SILENCE_RTTS * self.rtt)
+        {
+            self.rebuild(now);
+            self.empty_since = None;
+        }
         self.inner.on_sent(now, bytes, last_packet_number);
     }
 
@@ -77,6 +101,7 @@ impl Controller for SlowStartRestart {
         app_limited: bool,
         largest_packet_num_acked: Option<u64>,
     ) {
+        self.empty_since = (in_flight == 0).then_some(now);
         self.inner
             .on_end_acks(now, in_flight, app_limited, largest_packet_num_acked);
     }
@@ -88,8 +113,8 @@ impl Controller for SlowStartRestart {
         is_persistent_congestion: bool,
         lost_bytes: u64,
     ) {
-        if self.silence_end.is_some_and(|end| sent <= end) {
-            self.inner = Arc::clone(&self.cubic).build(now, self.mtu);
+        if self.trigger == Trigger::Silence && self.silence_end.is_some_and(|end| sent <= end) {
+            self.rebuild(now);
             self.silence_end = None;
             return;
         }
@@ -112,12 +137,14 @@ impl Controller for SlowStartRestart {
 
     fn clone_box(&self) -> Box<dyn Controller> {
         Box::new(Self {
+            trigger: self.trigger,
             cubic: Arc::clone(&self.cubic),
             inner: self.inner.clone_box(),
             mtu: self.mtu,
             rtt: self.rtt,
             last_ack: self.last_ack,
             silence_end: self.silence_end,
+            empty_since: self.empty_since,
         })
     }
 
@@ -130,24 +157,25 @@ impl Controller for SlowStartRestart {
     }
 }
 
-#[derive(Default)]
 pub struct SlowStartRestartConfig {
+    trigger: Trigger,
     cubic: Arc<CubicConfig>,
 }
 
 impl SlowStartRestartConfig {
-    pub fn new(initial_window: Option<u64>) -> Self {
+    pub fn new(trigger: Trigger, initial_window: Option<u64>) -> Self {
         let mut cubic = CubicConfig::default();
         if let Some(v) = initial_window {
             cubic.initial_window(v);
         }
-        Self { cubic: Arc::new(cubic) }
+        Self { trigger, cubic: Arc::new(cubic) }
     }
 }
 
 impl ControllerFactory for SlowStartRestartConfig {
     fn build(self: Arc<Self>, now: Instant, current_mtu: u16) -> Box<dyn Controller> {
         Box::new(SlowStartRestart::new(
+            self.trigger,
             Arc::clone(&self.cubic),
             now,
             current_mtu,
@@ -163,7 +191,11 @@ mod tests {
     const RTT: Duration = Duration::from_millis(80);
 
     fn restart() -> SlowStartRestart {
-        SlowStartRestart::new(Arc::new(CubicConfig::default()), Instant::now(), MTU)
+        restart_on(Trigger::Silence)
+    }
+
+    fn restart_on(trigger: Trigger) -> SlowStartRestart {
+        SlowStartRestart::new(trigger, Arc::new(CubicConfig::default()), Instant::now(), MTU)
     }
 
     /// Two acknowledgements `gap` apart, then the congestion event that follows them, over
@@ -281,5 +313,46 @@ mod tests {
         let now = Instant::now();
         r.on_congestion_event(now, now, false, 1200);
         assert!(!in_slow_start(&r));
+    }
+
+    /// A halved window, then a last batch of acknowledgements at `now` leaving `in_flight`, then
+    /// one send `gap` later.
+    fn idle_then_send(trigger: Trigger, in_flight: u64, gap: Duration) -> SlowStartRestart {
+        let mut r = restart_on(trigger);
+        let now = Instant::now();
+        r.on_congestion_event(now, now, false, 1200);
+        r.note_ack(now, RTT);
+        r.on_end_acks(now, in_flight, true, None);
+        r.on_sent(now + gap, 1200, 1);
+        r
+    }
+
+    /// Four round trips with nothing in flight is an idle spell: the next send goes out from the
+    /// initial window, not from the window the session had before it.
+    #[test]
+    fn an_idle_spell_restarts_slow_start() {
+        assert!(in_slow_start(&idle_then_send(Trigger::Idle, 0, 4 * RTT)));
+    }
+
+    /// Three round trips are not idle enough.
+    #[test]
+    fn three_idle_round_trips_do_not_restart() {
+        assert!(!in_slow_start(&idle_then_send(Trigger::Idle, 0, 3 * RTT)));
+    }
+
+    /// A gap with packets still in flight is an outage, the silence trigger's business, not idle.
+    #[test]
+    fn a_gap_with_packets_in_flight_is_not_idle() {
+        assert!(!in_slow_start(&idle_then_send(Trigger::Idle, 1200, 10 * RTT)));
+    }
+
+    /// Each trigger is its own arm: the idle one passes a silence's loss through, and the silence
+    /// one keeps its window across an idle spell, as quinn's own Cubic does.
+    #[test]
+    fn each_trigger_ignores_the_other() {
+        let mut r = restart_on(Trigger::Idle);
+        acks_then_loss(&mut r, 4 * RTT);
+        assert!(!in_slow_start(&r));
+        assert!(!in_slow_start(&idle_then_send(Trigger::Silence, 0, 10 * RTT)));
     }
 }

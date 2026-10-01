@@ -1,5 +1,6 @@
 //! QUIC transport knobs. Unset reproduces quinn's stock configuration byte for byte.
 
+use crate::transport::restart::{SlowStartRestartConfig, Trigger};
 use anyhow::Result;
 use std::sync::Arc;
 use wtransport::quinn::TransportConfig;
@@ -15,6 +16,8 @@ pub enum Congestion {
     CubicHystart,
     /// Cubic that restarts slow start after a silence instead of halving. `restart.rs`.
     CubicRestart,
+    /// Cubic that restarts slow start on the first send after an idle spell. `restart.rs`.
+    CubicIdleRestart,
     /// BBR with its window held to `bdp_gain` × its path estimate. `bounded.rs`.
     BbrBounded,
 }
@@ -27,6 +30,7 @@ impl Congestion {
             Self::NewReno => "new-reno",
             Self::CubicHystart => "cubic-hystart",
             Self::CubicRestart => "cubic-restart",
+            Self::CubicIdleRestart => "cubic-idle-restart",
             Self::BbrBounded => "bbr-bounded",
         }
     }
@@ -149,7 +153,10 @@ impl TransportTuning {
                 tc.congestion_controller_factory(Arc::new(crate::transport::hystart::HyStartConfig::new(iw)))
             }
             Congestion::CubicRestart => tc.congestion_controller_factory(Arc::new(
-                crate::transport::restart::SlowStartRestartConfig::new(iw),
+                SlowStartRestartConfig::new(Trigger::Silence, iw),
+            )),
+            Congestion::CubicIdleRestart => tc.congestion_controller_factory(Arc::new(
+                SlowStartRestartConfig::new(Trigger::Idle, iw),
             )),
             Congestion::BbrBounded => tc.congestion_controller_factory(Arc::new(
                 crate::transport::bounded::BoundedBbrConfig::new(self.bdp_gain, iw),

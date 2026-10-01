@@ -48,8 +48,8 @@ git checkout archive/transport-lab-2026-09 -- lab/transport                     
 | **Flow-control windows** | **quinn's defaults.** A client that asks for 25 MB and stops reading costs the server **180 kB** on this send path (§3) |
 | **Runtime shape** | **One endpoint on the multi-thread runtime.** One endpoint per core won every single-session cell and most saturation cells, and **12 of 16 NAT rebinds kill the session** on it. Parked on `claude/per-core-endpoints` (§6) |
 
-`--stream-mode per-frame` and `pool:k`, `--congestion cubic-hystart | cubic-restart | bbr |
-bbr-bounded`, `--initial-window-bytes`, `--initial-rtt-ms`, `--packet-threshold`,
+`--stream-mode per-frame` and `pool:k`, `--congestion cubic-hystart | cubic-restart | cubic-idle-restart |
+bbr | bbr-bounded`, `--initial-window-bytes`, `--initial-rtt-ms`, `--packet-threshold`,
 `--persistent-congestion-threshold`, `--ack-frequency-max-delay-ms` and `--open-ask` are flags at
 quinn's behaviour, each for the cell named where it is measured below.
 
@@ -382,7 +382,8 @@ ms cells read alike.
 40 ms — Cubic +9 %, BBR +17 % and 0/7 against its own no-idle arm. Every arm ends on the window it
 had before the silence, and **56 of 56 rounds with 30 s of silence served the ask**. The mechanism
 agrees: quinn 0.11.18 has no congestion-window restart after idle in any controller, and the pacer
-only clamps the first flight after a silence to its burst capacity.
+only clamps the first flight after a silence to its burst capacity. A link that slowed during the
+silence does not change that verdict (§The window through a silence, STW).
 
 **The wide first flight fails at one queue depth, not gradually.** A 32-packet window is ~26
 datagrams; by the relay's queue on a 10 Mbit link (`default → 32 packets`, 7/7 for the wider window
@@ -435,6 +436,35 @@ that wakes the radio itself, and a wake sent L ahead takes L off it. With the da
 the probe (the mutant), every lead reads +299 to +301 at P = 300. **This proves the plumbing, not a
 radio**: how much of a real promotion a gesture's lead overlaps, and what an extra wake costs in
 energy, need a device. The page's `pointerdown` wake is not built.
+
+### The window through a silence, when the link slowed meanwhile, 2026-10-01 (STW)
+
+W1b's idle cell held the link fixed. Here a step trace (`link_impair.py --trace`, 40 Mbit for the
+relay's first 4 s, then 8 Mbit) slows the link inside the silence: eight 250 KB frames fill at 40
+Mbit (789–836 ms, all before the step), 8 s of silence, then one 250 KB ask; 60 ms, a 50-packet queue,
+the keep-alive pair, `first_ask_cells.sh stw`, nine interleaved rounds, every relay `--self-timing`
+(5 of 45 runs `VOID` and dropped, so the step arms keep 7–8 and pair 5–7). The third arm,
+`--congestion cubic-idle-restart` (`server/src/transport/restart.rs`, `Trigger::Idle`), goes back to
+slow start on the first send after four round trips with nothing in flight — RFC 5681 §4.1's restart
+window, without the threshold, which quinn's public trait cannot set; five mutants caught.
+
+| arm | ask ms | paired against Cubic | wins |
+| --- | ---: | ---: | ---: |
+| Cubic, 40 → 8 Mbit | **340.9** (338–345) | | |
+| Cubic + restart (`cubic-restart`), 40 → 8 | 831.8 (800–915) | +489.6 | 0/5 |
+| Cubic + idle restart, 40 → 8 | 379.5 (339–427) | +39.6 | 1/6 |
+| Cubic, 8 Mbit throughout | 382.8 (362–386) | +41.2 | 0/7 |
+| Cubic, 40 Mbit throughout | 130.2 (129–134) | −209.7 | 7/7 |
+
+**The kept window wins, and by more than it would lose**: the derived loss storm (~145 of 200
+packets, 0.6–0.8 s) did not happen — the stale window's ask is 341 ms, *faster* than a session warmed
+at 8 Mbit (383, 7/7), within 0.13 s of 250 KB at 8 Mbit plus a round trip. **The idle restart buys
+nothing** (a tie with the slow link, 1/6). **`cubic-restart` misfires on an idle spell**: the first
+flight's overflow is lost among packets sent before the acknowledgement that closed the silence, which
+is exactly its outage test, so it rebuilds at the initial window and the ask pays slow start — 2.4×,
+ending on a 17.7 kB window (Cubic 194 kB). That is a cost of the restart beyond §After a blink, on
+any ask after a silence that overflows the queue. One step, one depth, one size; a deeper drop (40 →
+2) or a shallower queue is not measured. No default changed.
 
 ### The slow-start exit, an outage and the first timeout, 2026-09-19
 
@@ -908,7 +938,8 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    calibration of `link_impair.py` against `netem`.
 3. **The first ask's defaults** — the owner's call (§3). Unmeasured: which lever a NAT rebind
    re-applies, and a genuinely new client address.
-4. **The restart at 0.1–1 % loss**, with rounds enough to size the misfire; **hold or drop** — which
+4. **The restart at 0.1–1 % loss**, with rounds enough to size the misfire (it already misfires
+   on an idle spell whose first flight overflows the queue, 2.4×, §3 STW); **hold or drop** — which
    a radio does through an outage, from a device trace; the slow-start exit once a deep queue is the
    steady state; what declares ~140 losses a session under ±10 ms reordering (a qlog cell: quinn's
    `qlog_stream` reads pacing, flow-control blocking and recovery instead of inferring them);

@@ -6,7 +6,7 @@
 # The server's own `session path` line gives the window, loss and congestion events per arm.
 # Results and the verdict they correct: docs/transport/transport-conclusions.md §3.
 #
-#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake] [rounds]
+#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake|stw] [rounds]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -15,6 +15,7 @@ CELL="${1:-repro}"
 case "$CELL" in repro) ROUNDS="${2:-5}" ;; *) ROUNDS="${2:-7}" ;; esac
 WARM="${WARM:-8}"
 # One cell at a time keeps a turn on the shared box short: SIZES=250 RTTS=80 is one.
+[[ "$CELL" == stw ]] && : "${SIZES:=250}" "${RTTS:=60}"
 SIZES="${SIZES:-50 250}"
 RTTS="${RTTS:-40 80}"
 TARGET=$((WARM + 1))
@@ -312,6 +313,29 @@ wake_cells() {
   done
 }
 
+# The window kept through a silence when the link slowed meanwhile: a trace steps 40 -> 8 Mbit
+# STEP_MS after the relay starts, inside the IDLE_MS silence that follows the warm-up.
+stw_cells() {
+  local step="${STEP_MS:-4000}" idle="${IDLE_MS:-8000}" cc link
+  python3 lab/scripts/gen_step_trace.py "40000:$step" "8000:$((60000 - step))" > "$T/step.trace"
+  python3 lab/scripts/gen_step_trace.py 8000:60000 > "$T/slow.trace"
+  python3 lab/scripts/gen_step_trace.py 40000:60000 > "$T/fast.trace"
+  for kb in $SIZES; do
+    for rtt in $RTTS; do
+      ARMS=()
+      link="--self-timing --queue-pkts 50 --trace"
+      for cc in cubic cubic-restart cubic-idle-restart; do
+        arm "$cc, 40 -> 8|filled|$WARM|$idle|--congestion $cc $HOLD|$link $T/step.trace|"
+      done
+      arm "cubic, 8 throughout|filled|$WARM|$idle|--congestion cubic $HOLD|$link $T/slow.trace|"
+      arm "cubic, 40 throughout|filled|$WARM|$idle|--congestion cubic $HOLD|$link $T/fast.trace|"
+      printf '\n== %s KB, %s ms, idle %s ms, the link 40 -> 8 Mbit at %s ms, a 50-packet queue\n' \
+        "$kb" "$rtt" "$idle" "$step"
+      round_robin "$T/s$kb.sbnd" "$rtt"
+    done
+  done
+}
+
 case "$CELL" in
   repro) repro ;;
   idle) idle_cells ;;
@@ -319,5 +343,6 @@ case "$CELL" in
   queue) queue_cells ;;
   resume) resume_cells ;;
   wake) wake_cells ;;
+  stw) stw_cells ;;
   *) echo "unknown cell: $CELL"; exit 2 ;;
 esac
