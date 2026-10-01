@@ -58,6 +58,7 @@ lab/fixtures/decode_*/*.sha256
 lab/paint-floor/frames/
 # The synthetic metadata lab/page-open/enc.mjs writes and removes
 lab/page-open/metadata.json
+lab/page-open/meta-first.html
 
 # Python bytecode from lab analysis scripts
 __pycache__/
