@@ -136,6 +136,13 @@ fewer at 250 KB, three times more at 32 KB, and the wall time is a tie at both. 
 read shape is right for large frames and wrong for small ones; the coalescing the default reader
 already does is what a BYOB path has to keep.
 
+**Loopback coalesces; a paced link does not** (2026-10-01, `RELAY="--trace …" browser_reads.py`, 20
+frames of 250 KB, 20 ms one way): a uniform 40 Mbit trace hands the default reader 42–43 reads a frame
+(p50 4.3 KB, about three packets); grant bursts of the same mean (9 ms off, 1 ms at 400 Mbit) only 5.9,
+and 4 ms off / 1 ms at 200 Mbit 9.7–10.5 — each burst lands as one read. So here the many-reads regime is
+smooth pacing, not bursts; which shaping the workstation's 88–217 reads came from is not known here.
+[`CLIENTS.md`](CLIENTS.md) §Reading a frame whole prices it.
+
 What remains for a fast-link browser is 20 bytes per packet (`MtuDiscoveryConfig::upper_bound(1472)`,
 1.4 % fewer datagrams) and the send window against the one overflow. **The workstation repeats the
 fill cells on its own CPU before either is acted on.**

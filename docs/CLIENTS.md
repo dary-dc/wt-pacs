@@ -284,6 +284,42 @@ a quarter of its throughput at 250 KB and three fifths at 32 KB, and a third mor
 over in ~5 reads and a 32 KB frame in less than one, so a BYOB read per frame is fewer reads only
 for large frames. On the target link none of this binds.
 
+## Reading a frame whole
+
+`ConnectOptions.readMin` (the downloader's `readMin`) reads the media stream through a BYOB reader,
+each frame straight into its wire buffer, a read resolving at no fewer than `readMin` bytes or the
+frame's rest; unset, the default reader and its copy. WebTransport only. **Off by default — adoption is
+the workstation's call.** A cut stream's last read resolves done with the bytes it holds, so the
+frame is still named truncated with its count (`aCutFrameIsNamedWithItsBytes`).
+
+**Bound on K.** Each read moves `lastByteAt`, which the downloader's stall watch reads, so a read
+must resolve inside `stallMs` (3 s) at the slowest rate a session should survive: a whole 410 KB
+frame needs ≥ 1.1 Mbit/s, 64 KB ≥ 175 kbit/s, 16 KB ≥ 44.
+
+**What it buys, on a packet-paced link** (BYM, 2026-10-01, `lab/downloader-campaign/reads.mjs`): 87
+16-bit 512² frames (`decode_g512`, 410 KB each) through `link_impair.py --trace` at a uniform
+40 Mbit/s, 20 ms one way, a 200 ms queue, every visit self-timed (7 of 128 `VOID`, dropped); a fresh
+headless Chromium 141 a visit, decode off (Dw) and on with three decoders (Dd), 1× and 4×
+(`cpu_throttle.mjs`), eight arms in a Williams order, 8 rounds; every frame's sha256 matched (wire bytes
+for Dw, samples for Dd; a byte flipped in the BYOB path reads 87 of 87 wrong). Medians, paired lead on
+the same decode's default reader:
+
+| | default | K = whole frame | 64 KB | 16 KB |
+| --- | --: | --: | --: | --: |
+| reads a frame | 72–74 | 2.0 | 7.3–7.5 | 20.3–20.7 |
+| downloader thread CPU, a fill | 729–769 ms | **−191 to −227** (all rounds) | −156 to −192 | −119 to −157 |
+| its voluntary context switches | 6 762–6 969 | −364 to −582 | −425 to −531 | −342 to −530 |
+| renderer peak PSS | 189 / 243 MB | **−39 to −41** (all rounds) | −38 to −40 | −36 to −38 |
+| fill time, frame 0 | 7.45 s, 269–343 ms | tie | tie (4× Dd frame 0 +11, 2/7) | tie (4× Dd +7, 2/7) |
+
+So **a whole-frame read takes a quarter to a third off the downloader thread (~34 µs a read saved) and
+~40 MB off the renderer's peak**, the default reader's per-read chunks; the clock does not move,
+since the link binds. The context switches barely move: the thread wakes per packet either way.
+The throttle caps a share of a core, which stretches wall time but not on-CPU time, so the 4× rows
+read like 1×; on a CPU 4× slower the CPU saving is ~4× (derived, ~0.8 s a fill, unmeasured).
+Container, one host, one trace; a device and the burst profiles are the workstation's. Row 5's
+~12 ms BYOB frame 0 is the WASM client's path and was not rechecked; this path's frame 0 ties at 1×.
+
 ## ACK frequency, by browser
 
 The server can ask its peer for a smaller `max_ack_delay` (`--ack-frequency-max-delay-ms`), the

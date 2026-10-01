@@ -211,7 +211,7 @@ export abstract class FrameSession {
     };
     let next: () => Promise<Envelope | null>;
     if (this.readMin) {
-      const reader = stream.getReader({ mode: "byob" });
+      const reader = stream.getReader({ mode: "byob" }) as unknown as MinReader;
       next = () => readEnvelopeInto(reader, this.wire, this.readMin, onRead);
     } else {
       const reader = stream.getReader();
@@ -428,9 +428,14 @@ async function readEnvelope(
   return { ok: true, index: be32(buf.take(4)), codestream: buf.take(len - 4, wire.take(len - 4)) };
 }
 
+/** A BYOB reader with `read(view, { min })`, which this TypeScript's DOM library does not have yet. */
+type MinReader = {
+  read(view: Uint8Array, opts: { min: number }): Promise<{ value?: Uint8Array; done: boolean }>;
+};
+
 /** `readEnvelope` through a BYOB reader: the codestream lands in its wire buffer, no copy. */
 async function readEnvelopeInto(
-  reader: ReadableStreamBYOBReader,
+  reader: MinReader,
   wire: WireBuffers,
   min: number,
   onRead: () => void,
@@ -448,7 +453,7 @@ async function readEnvelopeInto(
 }
 
 /** Fill `view`, each read resolving at `min` bytes or the rest; a cut stream's last read is done with bytes. */
-async function readInto(reader: ReadableStreamBYOBReader, view: Uint8Array, min: number, onRead: () => void) {
+async function readInto(reader: MinReader, view: Uint8Array, min: number, onRead: () => void) {
   // Each read detaches the buffer it was given and hands back its successor, so `view` is read once.
   const { byteOffset, length } = view;
   let buffer = view.buffer as ArrayBuffer;
