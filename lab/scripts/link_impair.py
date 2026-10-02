@@ -6,10 +6,11 @@ A delivery-opportunity trace can replace the to-client rate, the queue can be li
 CoDel can manage the UDP plane's queue. The UDP
 plane can idle like a radio: after a quiet spell, the next packet waits for the promotion. A second
 --udp is a neighbour: every UDP pair crosses one queue and one clock each way, as one phone's apps do.
+--tun moves the link down to IP packets, so kernel TCP and QUIC meet the same loss on one queue.
 
 What it cannot do, and the limits it was calibrated against, are in `docs/rig-limits.md` §3.
 
-usage: link_impair.py --udp 5555:4433 [--udp 5557:4435 ...] [--tcp 8443:8000] [--delay-ms 40]
+usage: link_impair.py {--udp 5555:4433 [--udp 5557:4435 ...] [--tcp 8443:8000] | --tun} [--delay-ms 40]
                       [--rate-kbit 10000] [--rate-up-kbit 2000] [--trace FILE] [--queue-pkts 50 | --queue-bytes N |
                       --queue-ms N] [--codel 5:100] [--loss 0.5 | --loss-model ge] [--idle-promote 5:300]
                       [--self-timing]
@@ -24,12 +25,17 @@ then a tally at exit.
 import argparse
 import bisect
 import collections
+import fcntl
 import hashlib
+import json
 import heapq
+import os
 import random
 import selectors
 import signal
 import socket
+import struct
+import subprocess
 import sys
 import time
 
@@ -475,6 +481,86 @@ class TcpPlane:
         return "tcp connections %d, chunks relayed %d" % (self.accepted, self.chunks + live)
 
 
+TUNSETIFF, IFF_TUN, IFF_NO_PI = 0x400454CA, 0x0001, 0x1000
+TUN_CLIENT, TUN_SERVER = "10.77.0.1", "10.77.0.2"
+
+
+def tun_open(name):
+    fd = os.open("/dev/net/tun", os.O_RDWR | os.O_NONBLOCK)
+    fcntl.ioctl(fd, TUNSETIFF, struct.pack("16sH", name.encode(), IFF_TUN | IFF_NO_PI))
+    return fd
+
+
+class TunPlane:
+    """Every IPv4 packet between this namespace and a server namespace of its own, kernel TCP and
+    UDP alike, so a dropped TCP segment is one the sender retransmits. docs/rig-limits.md §3."""
+
+    def __init__(self, sel, args, rng, links, lateness):
+        self.ns = subprocess.Popen(["unshare", "-n", "sleep", "infinity"])
+        own = os.readlink("/proc/self/ns/net")
+        self.netns = "/proc/%d/ns/net" % self.ns.pid
+        while os.readlink(self.netns) == own:
+            time.sleep(0.01)
+        self.fds = {"client": tun_open("wtc"), "upstream": tun_open("wts")}
+        inside = ["nsenter", "--net=" + self.netns]
+        subprocess.run(["ip", "link", "set", "wts", "netns", str(self.ns.pid)], check=True)
+        for pre, dev, me, peer in (([], "wtc", TUN_CLIENT, TUN_SERVER),
+                                   (inside, "wts", TUN_SERVER, TUN_CLIENT)):
+            for cmd in (["addr", "add", me, "peer", peer, "dev", dev],
+                        ["link", "set", dev, "up"], ["link", "set", "lo", "up"]):
+                subprocess.run(pre + ["ip"] + cmd, check=True)
+        self.to_server = Pipe(args, rng, links("upstream"))
+        self.to_client = Pipe(args, rng, links("client"))
+        self.pipes = {"client": self.to_server, "upstream": self.to_client}
+        self.lateness = lateness
+        self.idle_after, self.promotion = args.idle_promote or (0.0, 0.0)
+        self.last_packet = time.monotonic()
+        self.promoted = self.not_ipv4 = 0
+        for side, fd in self.fds.items():
+            sel.register(fd, selectors.EVENT_READ, ("tun", self, side))
+
+    def read(self, side, now, blacked_out):
+        while True:
+            try:
+                packet = os.read(self.fds[side], 65535)
+            except (BlockingIOError, InterruptedError):
+                return
+            if packet[0] >> 4 != 4:
+                self.not_ipv4 += 1
+                continue
+            self._wake(now)
+            self.pipes[side].offer(now, packet, blacked_out)
+
+    _wake = UdpPlane._wake
+
+    def pump(self, now):
+        for fd, pipe in ((self.fds["upstream"], self.to_server),
+                         (self.fds["client"], self.to_client)):
+            for due, packet in pipe.ready(now):
+                os.write(fd, packet)
+                self.lateness.sent(due)
+
+    def due(self):
+        return [d for d in (self.to_server.due(), self.to_client.due()) if d is not None]
+
+    def close(self):
+        self.ns.kill()
+
+    def _unread(self, pre, dev):
+        """Packets the kernel dropped from the tun's own queue because this loop read too late:
+        not the model's loss, and a kernel TCP retransmits them all the same."""
+        out = subprocess.run(pre + ["ip", "-j", "-s", "link", "show", dev], capture_output=True)
+        return json.loads(out.stdout)[0]["stats64"]["tx"]["dropped"] if out.returncode == 0 else -1
+
+    def tally(self):
+        a, b = self.to_server, self.to_client
+        return ("tun client->server sent %d lost %d overflowed %d codel %d | server->client "
+                "sent %d lost %d overflowed %d codel %d promoted %d not-ipv4 %d | unread %d %d"
+                % (a.sent, a.lost, a.overflowed, a.managed, b.sent, b.lost, b.overflowed,
+                   b.managed, self.promoted, self.not_ipv4, self._unread([], "wtc"),
+                   self._unread(["nsenter", "--net=" + self.netns], "wts")))
+
+
 def parse_pair(s):
     listen, target = s.split(":")
     return int(listen), int(target)
@@ -490,6 +576,9 @@ def main():
     ap.add_argument("--udp", type=parse_pair, action="append",
                     help="LISTEN:SERVER, the QUIC session's plane; again for a neighbour on one link")
     ap.add_argument("--tcp", type=parse_pair, help="LISTEN:SERVER, the static host's plane")
+    ap.add_argument("--tun", action="store_true",
+                    help="relay every IP packet to a server namespace of its own (%s -> %s); "
+                         "needs CAP_NET_ADMIN, so run it inside `unshare -rn`" % (TUN_CLIENT, TUN_SERVER))
     ap.add_argument("--delay-ms", type=float, default=0.0, help="one way, each direction")
     ap.add_argument("--rate-kbit", type=float, default=0.0, help="0 = unlimited")
     ap.add_argument("--rate-up-kbit", type=float,
@@ -503,8 +592,8 @@ def main():
     ap.add_argument("--queue-ms", type=float, default=0.0,
                     help="--queue-bytes as milliseconds at each direction's mean rate")
     ap.add_argument("--codel", type=parse_pair, metavar="TARGET:INTERVAL",
-                    help="udp only: CoDel on each direction's queue, in ms (RFC 8289's are 5:100)")
-    ap.add_argument("--loss", type=float, default=0.0, help="percent, iid, udp only")
+                    help="udp and tun: CoDel on each direction's queue, in ms (RFC 8289's are 5:100)")
+    ap.add_argument("--loss", type=float, default=0.0, help="percent, iid, udp and tun")
     ap.add_argument("--loss-model", choices=("iid", "ge"), default="iid")
     ap.add_argument("--ge-p", type=float, default=0.07, help="percent, good->bad")
     ap.add_argument("--ge-r", type=float, default=14.0, help="percent, bad->good")
@@ -515,7 +604,7 @@ def main():
     ap.add_argument("--blackout-mode", choices=("drop", "hold"), default="drop",
                     help="drop: the outage discards. hold: it queues and bursts on return")
     ap.add_argument("--idle-promote", type=parse_promotion, metavar="S:P",
-                    help="udp only: after S seconds with no packet either way, the next one holds "
+                    help="udp and tun: after S seconds with no packet either way, the next one holds "
                          "both directions P ms, as one radio's promotion does")
     ap.add_argument("--self-timing", action="store_true",
                     help="tally how late each packet left; VOID when p99 is over 1 ms")
@@ -524,8 +613,10 @@ def main():
     ap.add_argument("--control-port", type=int)
     ap.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
-    if not args.udp and not args.tcp:
-        ap.error("nothing to relay: pass --udp and/or --tcp")
+    if not args.udp and not args.tcp and not args.tun:
+        ap.error("nothing to relay: pass --udp and/or --tcp, or --tun")
+    if args.tun and (args.udp or args.tcp):
+        ap.error("--tun carries every packet: no --udp or --tcp beside it")
     if args.idle_promote and len(args.udp or ()) > 1:
         ap.error("--idle-promote times one session's quiet: one --udp only")
     if args.queue_bytes and args.queue_ms:
@@ -548,7 +639,8 @@ def main():
     udps = [UdpPlane(sel, *pair, args, rng, radio.get, lateness) for pair in args.udp or ()]
     udp = udps[0] if udps else None
     tcp = TcpPlane(sel, *args.tcp, args, rng, links, lateness) if args.tcp else None
-    planes = udps + ([tcp] if tcp else [])
+    tun = TunPlane(sel, args, rng, radio.get, lateness) if args.tun else None
+    planes = udps + ([tcp] if tcp else []) + ([tun] if tun else [])
 
     ctrl = None
     if args.control_port is not None:
@@ -558,10 +650,11 @@ def main():
 
     queue = ("%dB" % args.queue_bytes if args.queue_bytes else
              "%gms" % args.queue_ms if args.queue_ms else "%d" % args.queue_pkts)
-    print("READY udp=%s tcp=%s ctrl=%s delay_ms=%g jitter_ms=%g rate_kbit=%g rate_up_kbit=%g "
+    print("READY udp=%s tcp=%s%s ctrl=%s delay_ms=%g jitter_ms=%g rate_kbit=%g rate_up_kbit=%g "
           "queue=%s%s loss=%g%s%s%s"
           % (",".join(str(pair[0]) for pair in args.udp) if args.udp else "-",
              args.tcp[0] if args.tcp else "-",
+             " tun=%s->%s server_netns=%s" % (TUN_CLIENT, TUN_SERVER, tun.netns) if tun else "",
              args.control_port, args.delay_ms, args.jitter_ms, args.rate_kbit, up_bps / 1000.0,
              queue, " codel=%d:%d" % args.codel if args.codel else "", args.loss, " ge" if args.loss_model == "ge" else "",
              " idle_promote=%g:%g" % (args.idle_promote[0], args.idle_promote[1] * 1000)
@@ -583,7 +676,7 @@ def main():
                 kind, owner, side = key.data
                 now = time.monotonic()
                 try:
-                    if kind == "udp":
+                    if kind in ("udp", "tun"):
                         owner.read(side, now, args.blackout_mode == "drop" and now < blackout_until)
                     elif kind == "tcp":
                         owner.read(side, now, False)
@@ -600,10 +693,11 @@ def main():
                         elif head == b"blackout":
                             outage = float(cmd[1]) / 1000.0
                             blackout_until = now + outage
-                            if args.blackout_mode == "hold" and udp:
+                            radio_plane = udp or tun
+                            if args.blackout_mode == "hold" and radio_plane:
                                 # The link stops draining, so a queue already standing is
                                 # pushed by the outage, not absorbed into it.
-                                stall((udp.to_server, udp.to_client), now, outage)
+                                stall((radio_plane.to_server, radio_plane.to_client), now, outage)
                             print("BLACKOUT %s ms %s" % (cmd[1].decode(), args.blackout_mode),
                                   flush=True)
                         elif head == b"swallow" and udp:
@@ -628,6 +722,8 @@ def main():
             print(p.tally(), flush=True)
         if lateness.on:
             print(lateness.tally(), flush=True)
+        if tun:
+            tun.close()
 
 
 if __name__ == "__main__":

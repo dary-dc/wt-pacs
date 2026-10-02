@@ -266,7 +266,7 @@ relay's own floor and the crypto fall out as the intercept:
 kernel would have done: **nothing about GSO/GRO or per-packet CPU taken through it is
 admissible.** The TCP plane is relayed *above* TCP, where a dropped chunk would be data gone
 rather than a segment the peer retransmits, so that plane shapes only — no loss, no blackout, and
-no TCP loss-recovery number. *Until 2026-09-27 a rate on that plane could drop bytes:* its queue took
+no TCP loss-recovery number. *Since 2026-10-02 `--tun` (below) gives kernel TCP that number.* *Until 2026-09-27 a rate on that plane could drop bytes:* its queue took
 the UDP plane's packet limit, and a burst over it cut the stream (both TCP rate checks above caught it
 when mutated back). No published cell set a rate on TCP. Its handshake is completed locally by the kernel, so the relay
 charges the setup round trip rather than observing it (`--tcp-no-handshake` turns that off), and
@@ -409,6 +409,39 @@ fetched into `$TRACES` and never committed. `link_impair_check.sh` now also read
 model directly, with a million draws through the relay's own pipe: loss within 0.92–0.98 of
 p / (p + r), and burst length 0.95–0.99 of 1 / r, at the three settings the profiles use. A mutant that
 forgets the bad state reads a burst of 0.14–0.29.
+
+**The packet layer, 2026-10-02 (row 107, TUN).** `--tun` replaces `--udp` and `--tcp`: the relay
+creates two TUN devices, keeps `wtc` (10.77.0.1) in its own namespace and moves `wts` (10.77.0.2)
+into a server namespace it starts (`server_netns=` on `READY`, entered with `nsenter --net=`). Every
+IPv4 packet between the two crosses the same `Pipe`s as the UDP plane — delay, rate, `--trace`,
+either queue, iid and Gilbert–Elliott loss, `--codel`, `--idle-promote`, a blackout, `--self-timing` —
+so QUIC and kernel TCP share one queue and one clock each way, and a TCP segment dropped here is one
+the sender's kernel retransmits. Run it inside `unshare -rn` (`apt-get install iproute2` first); the
+client runs beside the relay and dials 10.77.0.2, the servers run in the server namespace and bind
+that address or any. Sizes are IP packets, so a trace opportunity now carries the headers too.
+`cut`, `rebind` and `swallow` are UDP-plane only. `lab/scripts/tun_check.sh` reads it back, three
+runs on a 4-core container (four for the ceiling):
+
+| Asked | Read |
+| --- | --- |
+| delay 0, then 20 ms one way | 0.57–0.64 ms round trip, then 40.9 |
+| a TCP bulk flow under a 12 / 3 Mbit step trace, 20 ms, 100-packet queue, 8 s of whole periods | 0.965–0.982 of the UDP plane's 7 500 kbit/s through the same relay; 1 448 / 1 500 is 0.965 |
+| Gilbert–Elliott 0.5831 / 28.57 (2 %), 150 000 × 200 B one way at 20 000 a second | 1.000 of the mean; what the sink counted plus what the relay counted is 150 000 |
+| a 20 Mbit TCP flow, 1 000-packet queue, no loss | 0 dropped, 0 retransmitted (`RetransSegs` in the sender's namespace) |
+| the same at 1 % iid | 81–87 data segments dropped, retransmitted 1.00× that |
+
+**Set a rate.** With none, the sender outruns the loop and the TUN's own queue drops what was not
+read in time (7 110 segments retransmitted at ~760 Mbit, none dropped by the model) — not the model's
+loss. The tally reports those as `unread client->server server->client`; a cell that reads them
+nonzero is not the link it asked for. Five mutants caught: no trace on the downlink (72.9×, and
+retransmissions with nothing counted), the tun plane lossless, one packet in 500 dropped uncounted,
+no delay, `unread` always 0. One mutant run delivered 149 997 of 150 000 with nothing counted, so
+the exact sum can fail on a host drop.
+
+**Its ceiling** is a single TCP flow at 20 ms one way: 33–106 µs of relay CPU a packet relayed
+(loop wake-ups included, so less a packet as the rate rises), the guard's p99 0.24–0.81 ms up to
+100 Mbit (~12 000 packets a second both ways), and 0.94–2.36 ms at 200 Mbit, `VOID` in three of
+four runs. Claim nothing through the tun above 100 Mbit on this host.
 
 Recorded radio traces are replayed since row 86 (mahimahi's, above). What a trace stands in for is
 the trace's own claim.
