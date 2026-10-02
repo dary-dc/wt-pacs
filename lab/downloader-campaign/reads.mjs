@@ -4,8 +4,9 @@
  * dropped. Decode off (Dw) and on (Dd), 1× and 4×, one fresh browser a visit, arms in a Williams order.
  * Every frame's sha256 is checked. docs/CLIENTS.md §Reading a frame whole
  *
- *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/reads.mjs [rounds=8]
+ *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/reads.mjs [rounds=8] [OUT=rows.jsonl]
  *     [THROTTLES=1,4] [KS=0,whole,65536,16384] [DECODE=0,1] [TRACE=40000:1000] [DELAY_MS=20] [QUEUE_MS=200] [FILL=87]
+ * With OUT, a run resumes after OUT's last round and appends to it, so each round can take its own lock hold.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -68,6 +69,7 @@ await new Promise((r) => setTimeout(r, 1500));
 async function relay() {
   const r = spawn("python3", [path.join(ROOT, "lab/scripts/link_impair.py"), "--udp", `${front}:${wt}`, "--self-timing",
     "--delay-ms", process.env.DELAY_MS || "20", "--trace", trace, "--queue-ms", process.env.QUEUE_MS || "200"]);
+  kids.push(r);
   let out = "";
   r.stdout.on("data", (d) => { out += d; });
   while (!out.includes("READY")) await new Promise((res) => setTimeout(res, 50));
@@ -121,31 +123,38 @@ async function visit(arm, throttle) {
 
 const label = (a) => `${a.decode ? "Dd" : "Dw"} ${a.k === 0 ? "default" : a.k === WHOLE ? "whole" : `${a.k / 1024}K`}`;
 const ARMS = DECODE.flatMap((decode) => KS.map((k) => ({ decode, k }))).map((a) => ({ ...a, name: label(a) }));
-const rows = [];
-let voids = 0;
-for (let round = 0; round < ROUNDS; round++) {
+const OUT = process.env.OUT;
+const taken = OUT && fs.existsSync(OUT) ? fs.readFileSync(OUT, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
+const FIRST = taken.length ? Math.max(...taken.map((r) => r.round)) + 1 : 0;
+for (let round = FIRST; round < FIRST + ROUNDS; round++) {
+  const visits = [];
   for (const throttle of round % 2 ? [...THROTTLES].reverse() : THROTTLES) {
     let prev = null;
     for (const arm of order(ARMS, round)) {
       const r = await visit(arm, throttle);
-      if (!r) process.stderr.write(`round ${round} ${throttle}x ${arm.name}: VOID, dropped\n`);
-      else {
-        rows.push({ round, throttle, unit: arm.name, prev, ...r });
+      if (!r) {
+        process.stderr.write(`round ${round} ${throttle}x ${arm.name}: VOID, dropped\n`);
+        visits.push({ round, throttle, unit: arm.name, prev, void: true });
+      } else {
+        visits.push({ round, throttle, unit: arm.name, prev, ...r });
         process.stderr.write(`round ${round} ${throttle}x ${arm.name}: fill ${r.fillMs.toFixed(0)} ms, ${r.reads.toFixed(1)} reads/frame, ` +
           `downloader ${r.cpuMs.toFixed(0)} ms ${r.vcs} vcs, wrong ${r.wrong}, resumed ${r.resumes}\n`);
       }
-      voids += r ? 0 : 1;
       prev = arm.name;
     }
   }
+  taken.push(...visits);
+  if (OUT) fs.appendFileSync(OUT, visits.map((r) => JSON.stringify(r) + "\n").join(""));
 }
-if (process.env.OUT) fs.writeFileSync(process.env.OUT, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+const rows = taken.filter((r) => !r.void);
+const voids = taken.length - rows.length;
+const rounds = new Set(taken.map((r) => r.round)).size;
 
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const METRICS = [["reads", "reads/frame", 1], ["cpuMs", "downloader CPU ms", 0], ["vcs", "downloader vcs", 0],
   ["fillMs", "fill ms", 0], ["frame0Ms", "frame 0 ms", 0], ["rendererMb", "renderer peak MB", 1]];
 console.log(`${SET}, ${FILL} frames, trace ${list("TRACE", "40000:1000").join(" ")}, delay ${process.env.DELAY_MS || 20} ms one way; ` +
-  `${ROUNDS} rounds, ${voids} VOID visits dropped; medians, and each arm's paired lead on its decode's default reader (wins/rounds)`);
+  `${rounds} rounds, ${voids} VOID visits dropped; medians, and each arm's paired lead on its decode's default reader (wins/rounds)`);
 console.log(`| throttle | arm | n | wrong frames | resumed (visits, resumes) | ${METRICS.map((m) => m[1]).join(" | ")} |`);
 console.log(`| --- | --- | --: | --: | --: | ${METRICS.map(() => "--:").join(" | ")} |`);
 for (const t of THROTTLES) for (const a of ARMS) {

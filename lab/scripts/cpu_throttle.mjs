@@ -1,6 +1,7 @@
 /**
  * A slow CPU for a whole process tree: every thread in its own cgroup (v1 `cpu`), capped at 1/rate of
  * one CPU. Chromium's own throttle refuses worker targets, so it cannot slow a decoder; this can.
+ * On a v2-only host, run inside a delegated scope: `systemd-run --user --scope -p Delegate=yes …`.
  * docs/decode/README.md §A slow CPU, emulated
  *
  *   const stop = throttleTree(chrome.pid, 4);  ...  stop();
@@ -10,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const CPU = "/sys/fs/cgroup/cpu";
+const V2 = !fs.existsSync(CPU);
 /** The kernel's floor for a quota, in µs; the period is `rate` of these, so a stall is never longer than a few ms. */
 const QUOTA_US = 1000;
 
@@ -36,23 +38,20 @@ const threads = (pid) => { try { return fs.readdirSync(`/proc/${pid}/task`).map(
  *  With `cores`, the tree as a whole also gets `cores` slowed CPUs: a slow phone, not slow threads on a fast box. */
 export function throttleTree(rootPid, rate, { everyMs = 10, cores } = {}) {
   if (rate === 1) return () => {};
-  const base = path.join(CPU, `wtpacs-${process.pid}-${rootPid}`);
-  fs.mkdirSync(base);
-  if (cores) {
-    fs.writeFileSync(path.join(base, "cpu.cfs_period_us"), String(QUOTA_US * rate));
-    fs.writeFileSync(path.join(base, "cpu.cfs_quota_us"), String(QUOTA_US * cores));
-  }
+  const cg = V2 ? v2 : v1;
+  const base = cg.domain(`wtpacs-${process.pid}-${rootPid}`);
+  if (cores) cg.cap(base, QUOTA_US * cores, QUOTA_US * rate);
   const placed = new Set();
   const place = () => {
     for (const pid of descendants(rootPid)) {
+      try { cg.adopt(base, pid); } catch { continue; /* exited */ }
       for (const tid of threads(pid)) {
         if (placed.has(tid)) continue;
-        const g = path.join(base, `thread-${tid}`);
+        const dir = path.join(base, `thread-${tid}`);
         try {
-          fs.mkdirSync(g);
-          fs.writeFileSync(path.join(g, "cpu.cfs_period_us"), String(QUOTA_US * rate));
-          fs.writeFileSync(path.join(g, "cpu.cfs_quota_us"), String(QUOTA_US));
-          fs.writeFileSync(path.join(g, "tasks"), String(tid));
+          cg.thread(dir);
+          cg.cap(dir, QUOTA_US, QUOTA_US * rate);
+          fs.writeFileSync(path.join(dir, cg.tasks), String(tid));
           placed.add(tid);
         } catch { /* exited before it was placed */ }
       }
@@ -69,18 +68,68 @@ export function throttleTree(rootPid, rate, { everyMs = 10, cores } = {}) {
       const dir = path.join(base, g);
       // A thread started meanwhile lands in its parent's group, and one exiting holds it until reaped.
       for (let tries = 0; ; tries++) {
-        for (const tid of fs.readFileSync(path.join(dir, "tasks"), "utf8").split("\n").filter(Boolean)) {
-          try { fs.writeFileSync(path.join(CPU, "tasks"), tid); } catch { /* exited */ }
+        for (const tid of fs.readFileSync(path.join(dir, cg.tasks), "utf8").split("\n").filter(Boolean)) {
+          try { fs.writeFileSync(path.join(cg.home(base), cg.tasks), tid); } catch { /* exited */ }
         }
         try { fs.rmdirSync(dir); break; } catch (e) { if (e.code !== "EBUSY" || tries === 200) throw e; }
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
       }
     }
+    cg.release(base);
     fs.rmdirSync(base);
   };
   process.once("exit", stop);
   return stop;
 }
+
+/** v1: one `cpu` hierarchy; any thread can join any group. */
+const v1 = {
+  tasks: "tasks",
+  domain: (name) => { const d = path.join(CPU, name); fs.mkdirSync(d); return d; },
+  cap: (dir, quota, period) => {
+    fs.writeFileSync(path.join(dir, "cpu.cfs_period_us"), String(period));
+    fs.writeFileSync(path.join(dir, "cpu.cfs_quota_us"), String(quota));
+  },
+  adopt: () => {},
+  thread: (dir) => fs.mkdirSync(dir),
+  home: () => CPU,
+  release: () => {},
+};
+
+/** v2: a thread can move only within its process's threaded domain, so each process of the tree is
+ *  first moved into `base`, the domain, and its threads into `base`'s threaded children. The caller's
+ *  own cgroup must be delegated; its processes move to a leaf, since a parent with controllers holds none. */
+let own;
+const v2 = {
+  tasks: "cgroup.threads",
+  domain: (name) => {
+    if (!own) {
+      own = path.join("/sys/fs/cgroup", fs.readFileSync("/proc/self/cgroup", "utf8").trim().split("::")[1]);
+      fs.mkdirSync(path.join(own, "leaf"), { recursive: true });
+      // A process forked while the others move lands beside them; move until none is left.
+      for (let procs; (procs = fs.readFileSync(path.join(own, "cgroup.procs"), "utf8").split("\n").filter(Boolean)).length;) {
+        for (const pid of procs) try { fs.writeFileSync(path.join(own, "leaf/cgroup.procs"), pid); } catch { /* exited */ }
+      }
+      fs.writeFileSync(path.join(own, "cgroup.subtree_control"), "+cpu");
+    }
+    const d = path.join(own, name);
+    fs.mkdirSync(d);
+    fs.writeFileSync(path.join(d, "cgroup.subtree_control"), "+cpu");
+    return d;
+  },
+  cap: (dir, quota, period) => fs.writeFileSync(path.join(dir, "cpu.max"), `${quota} ${period}`),
+  adopt: (base, pid) => {
+    const at = path.join("/sys/fs/cgroup", fs.readFileSync(`/proc/${pid}/cgroup`, "utf8").trim().split("::")[1]);
+    if (at !== base && !at.startsWith(base + "/")) fs.writeFileSync(path.join(base, "cgroup.procs"), String(pid));
+  },
+  thread: (dir) => { fs.mkdirSync(dir); fs.writeFileSync(path.join(dir, "cgroup.type"), "threaded"); },
+  home: (base) => base,
+  release: (base) => {
+    for (const pid of fs.readFileSync(path.join(base, "cgroup.procs"), "utf8").split("\n").filter(Boolean)) {
+      try { fs.writeFileSync(path.join(own, "leaf/cgroup.procs"), pid); } catch { /* exited */ }
+    }
+  },
+};
 
 /** The lever measured: the same loop on a page's thread and in a worker, free and capped. */
 async function check(rates) {

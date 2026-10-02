@@ -887,6 +887,13 @@ speed and pays later in a stall of up to ~20 ms. Work lasting many periods — a
 — is slowed faithfully; a sub-millisecond hop between threads is not, so no hand-off is quoted from
 it.
 
+**On a host with only cgroup v2** (no `/sys/fs/cgroup/cpu`) the same cap is `cpu.max` `1000 1000×rate`
+per thread. A v2 thread may move only inside its process's threaded domain, so each process of the
+tree moves first into a per-run domain and its threads into that domain's threaded children; the
+caller's cgroup must be delegated: `systemd-run --user --scope -p Delegate=yes node …`. On the
+workstation (Chrome 148, 2026-10-02): 267 / 1 097 ms page thread, 268 / 1 206 ms worker at 1× / 4×
+(`--check`); with the cap written nowhere, 4× reads 277 / 272 — the mutant is caught.
+
 ### The package, throttled
 
 `run.mjs --throttles 1,4,6 --asks 20,43,66`: a fill of each set, then three frames asked one at a
