@@ -5,14 +5,18 @@
 # Results: docs/transport/transport-conclusions.md §3, after a blink.
 #
 #   lab/scripts/blink_cells.sh [rounds]
+#   lab/scripts/blink_cells.sh w5b [rounds]   W5b: the restarts sized, blinks held and dropped at 0.1–1 % GE loss
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
+MODE=w3
+[[ "${1:-}" == w5b ]] && { MODE=w5b; shift; }
 ROUNDS="${1:-5}"
 RTT="${RTT:-80}"
 RATE="${RATE:-20000}"
 ARMS=(cubic cubic-restart bbr)
+[[ $MODE == w5b ]] && ARMS=(cubic cubic-restart cubic-idle-restart)
 FILL=40          # frames the fill takes
 KB=64            # frame size
 ASK_KB=250       # the one-ask cell's frame size
@@ -74,7 +78,8 @@ print("%s %s %s" % rows[-1] if rows else "- - -")
 PY
 }
 
-# One round of one arm. Appends "<metric ms> <sent> <lost> <cong> <round> <predecessor>" to the arm's file.
+# One round of one arm. Appends "<metric ms> <sent> <lost> <cong> <round> <predecessor> <next ask ms>"
+# to the arm's file; a run the relay timed late (`VOID`) is dropped.
 one() {  # cell arm study warm target [harness args...]
   local cell="$1" arm="$2" study="$3" warm="$4" target="$5"
   shift 5
@@ -90,9 +95,14 @@ one() {  # cell arm study warm target [harness args...]
   # flushing the close never sends one, and that round keeps its time and loses its counters.
   for _ in $(seq 30); do grep -q "session path" "$T/server.log" && break; sleep 0.1; done
   kill -TERM "$RELAY_PID" 2>/dev/null || true; sleep 0.3
-  local v
+  local v next
   v=$(sed -n "s/.*${METRIC} median=\([0-9.]*\).*/\1/p" <<<"$line")
-  echo "$v $(link_cost) $ROUND $PREV" >> "$T/$cell.$arm"
+  next=$(sed -n "s/.*ask_to_last_byte_ms median=\([0-9.]*\).*/\1/p" <<<"$line")
+  if grep -q VOID "$T/relay.log"; then
+    echo "VOID $cell $arm round $ROUND" >&2
+  else
+    echo "$v $(link_cost) $ROUND $PREV $next" >> "$T/$cell.$arm"
+  fi
   kill "$SERVER_PID" 2>/dev/null || true; sleep 0.3
 }
 
@@ -107,19 +117,26 @@ def rows(arm):
         return [l.split() for l in open(f"{t}/{cell}.{arm}") if l.strip()]
     except FileNotFoundError:
         return []
-base = [float(r[0]) for r in rows(arms[0])]
+base = {int(r[4]): float(r[0]) for r in rows(arms[0])}
+base_next = {int(r[4]): float(r[6]) for r in rows(arms[0])}
+def med(v):
+    v = sorted(v)
+    return float("nan") if not v else v[len(v) // 2] if len(v) % 2 else (v[len(v) // 2 - 1] + v[len(v) // 2]) / 2
 for arm in arms:
     r = rows(arm)
     if not r:
-        print("%-14s %s" % (arm, "no rounds")); continue
+        print("%-19s %s" % (arm, "no rounds")); continue
     mine = [float(x[0]) for x in r]
     ms = sorted(mine)
-    wins = sum(1 for a, b in zip(mine, base) if a < b)
+    paired = [float(x[0]) - base[int(x[4])] for x in r if int(x[4]) in base]
+    wins = sum(1 for d in paired if d < 0)
+    nexts = [float(x[6]) - base_next[int(x[4])] for x in r if int(x[4]) in base_next]
     counted = [x for x in r if x[1] != "-"]
     mean = lambda i: sum(int(x[i]) for x in counted) / len(counted)
-    print("%-14s %9.1f %9.1f %9.1f %8s %9.0f %7.1f %6.1f %6s" % (
-        arm, ms[len(ms) // 2], ms[0], ms[-1], f"{wins}/{len(r)}",
-        mean(1), mean(2), mean(3), f"{len(counted)}/{len(r)}"))
+    print("%-19s %9.1f %9.1f %9.1f %9s %8s %9.0f %7.1f %6.1f %6s %9.1f %9s" % (
+        arm, med(mine), ms[0], ms[-1], "%+.1f" % med(paired) if arm != arms[0] else "",
+        f"{wins}/{len(paired)}", mean(1), mean(2), mean(3), f"{len(counted)}/{len(r)}",
+        med([float(x[6]) for x in r]), "%+.1f" % med(nexts) if arm != arms[0] else ""))
 split = [{"round": int(x[4]), "unit": arm, "prev": None if x[5] == "first" else x[5], "v": float(x[0])}
          for arm in arms for x in rows(arm)]
 for line in leads_by_predecessor(split, arms, [(a, arms[0]) for a in arms[1:]], 1):
@@ -128,8 +145,8 @@ PY
 }
 
 head_row() {
-  printf '\n== %s\n%-14s %9s %9s %9s %8s %9s %7s %6s %6s\n' "$1" \
-    "arm" "median" "min" "max" "wins" "sent" "lost" "cong" "rows"
+  printf '\n== %s\n%-19s %9s %9s %9s %9s %8s %9s %7s %6s %6s %9s %9s\n' "$1" \
+    "arm" "median" "min" "max" "paired" "wins" "sent" "lost" "cong" "rows" "next ask" "paired"
 }
 
 cell() {  # label study warm target [harness args...]
@@ -149,6 +166,25 @@ cell() {  # label study warm target [harness args...]
 }
 
 echo "link: ${RTT} ms round trip, ${RATE} kbit, fill $((FILL * KB)) KB, $ROUNDS rounds, arms in a Williams order"
+
+# Gilbert–Elliott in percent: bursts of 3.5 packets on average, the mean loss asked (profile_cells.sh).
+ge() { python3 -c "r = 100 / 3.5; m = $1 / 100; print('--loss-model ge --ge-p %.5f --ge-r %.4f' % (m * r / (1 - m), r))"; }
+if [[ $MODE == w5b ]]; then
+  METRIC=fill_ms
+  for loss in 0.1 0.3 1; do
+    read -ra GE <<<"$(ge "$loss")"
+    RELAY_ARGS=(--rate-kbit "$RATE" --queue-pkts 1500 --self-timing "${GE[@]}")
+    cell "no blink, ${loss} % GE loss" fill "$FILL" "$FILL" --state filled
+    for how in hold drop; do
+      RELAY_ARGS=(--rate-kbit "$RATE" --queue-pkts 1500 --blackout-mode "$how" --self-timing "${GE[@]}")
+      for ms in 500 2000; do
+        cell "blink ${ms} ms, ${how}, at the fill's start, ${loss} % GE loss" fill "$FILL" "$FILL" \
+          --state lossy --blackout-ms "$ms" --blackout-after 0
+      done
+    done
+  done
+  exit 0
+fi
 
 RELAY_ARGS=(--rate-kbit "$RATE" --queue-pkts 1500)
 METRIC=fill_ms

@@ -674,7 +674,11 @@ flight's overflow is lost among packets sent before the acknowledgement that clo
 is exactly its outage test, so it rebuilds at the initial window and the ask pays slow start — 2.4×,
 ending on a 17.7 kB window (Cubic 194 kB). That is a cost of the restart beyond §After a blink, on
 any ask after a silence that overflows the queue. One step, one depth, one size; a deeper drop (40 →
-2) or a shallower queue is not measured. No default changed.
+2) or a shallower queue is not measured. No default changed. *Fixed 2026-10-02 (W5b, §After a
+blink):* the restart now measures the gap from the first send an acknowledgement is owed for, so an
+idle spell is no outage — the same cell, 15 rounds: **−1.4 ms against Cubic (4/7), a 195 kB window**,
+where it read +491.5 (0/12) unfixed. The idle restart is bimodal (338 or ~490 ms): +1.9 (3/12) and
++138.3 (1/5) in the two 15-round runs, never ahead of Cubic.
 
 ### The slow-start exit, an outage and the first timeout, 2026-09-19
 
@@ -848,8 +852,8 @@ retransmitted through the outage.
 10 774 ms (3 564–13 814) against the restart's 4 387 (2 230–12 608), 3/5, on the same datagrams sent
 and lost — the detector fires where there is no outage, because at that loss rate a whole flight
 goes missing often enough to look like one; at 3 % the two tie within 1 %. Favourable, four-fold
-spread, unsized. **Before it is a default it needs 0.1–1 % loss with rounds enough to separate.** A
-blink is a *slow-start* problem: fixed at the start of a session or a fill the lever is large,
+spread, unsized. *Sized 2026-10-02, below (W5b): no misfire at 0.1–1 % loss; the four-fold spread
+was five rounds' noise.* A blink is a *slow-start* problem: fixed at the start of a session or a fill the lever is large,
 anywhere else there is nothing to win.
 
 **A blackout that holds instead of dropping costs the outage and nothing else (N2).**
@@ -865,6 +869,33 @@ held, a second 1 s blink three seconds or 200 ms after the first costs its own l
 097 ms), with zero congestion events. **Which model a radio follows is unverified** — no primary
 source for the link layer's discard timer was found — and it decides whether the outage work has a
 target at all.
+
+**W5b — the restart sized, 2026-10-02.** `blink_cells.sh w5b`, the same link and fill, Gilbert–Elliott
+loss (bursts of 3.5 packets) at 0.1, 0.3 and 1 %, a blink of 0.5 or 2 s at the fill's start held or
+dropped, arms `cubic | cubic-restart | cubic-idle-restart`, 15 rounds Williams-ordered, every relay
+`--self-timing` (76 of 675 runs `VOID` and dropped, two runs failed at 1 %); the next ask is one
+64 KB frame right after the fill. Paired leads against Cubic, the restart with the idle fix below:
+
+| cell | Cubic fill ms | restart | wins | next ask | idle restart |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| no blink, 0.1 / 0.3 / 1 % | 1 438 / 1 438 / 2 162 | −0.5 / −1.2 / +4.7 | 6/12, 8/14, 5/11 | tie | +0.1 / −0.3 / −31.5 |
+| 0.5 s held, 0.1 / 0.3 / 1 % | 1 925 / 1 929 / 2 122 | −0.8 / −4.7 / −21.1 | 7/11, 9/14, 7/13 | tie | −1.0 / −2.0 / +2.5 |
+| 2 s held, 0.1 / 0.3 / 1 % | 3 494 / 3 497 / 3 632 | +4.8 / +0.3 / −18.5 | 5/11, 7/15, 7/12 | tie | +67.0 / −24.7 / −12.3 |
+| **0.5 s dropped**, 0.1 / 0.3 / 1 % | 6 839 / 7 422 / 8 244 | **−4 694 / −5 289 / −6 164** | 9/9, 13/13, 6/6 | −57 to −61 | +12.8 / +119.9 / +95.6 |
+| **2 s dropped**, 0.1 / 0.3 / 1 % | 8 871 / 10 264 / 10 990 | **−4 551 / −6 166 / −6 608** | 12/12, 11/11, 9/11 | −12 to −72 | −47.3 / −68.3 / +2.9 |
+
+**The restart keeps its whole win under loss and costs nothing without a blink.** At 0.1–1 % it
+takes 4.6–6.6 s off every dropped blink, all rounds but two at 1 %, and the next ask comes back to
+the clean 109 ms where Cubic's is 121–184; no blink, or a held one, it ties Cubic within 21 ms at
+every rate. The idle restart is never resolvably ahead: within 68 ms of Cubic with no blink or a
+held one (its best, −24.7 at 2 s held and 0.3 %, 11/14), +96 to +120 behind a dropped 0.5 s blink at
+0.3–1 %. **The idle-spell misfire is fixed without
+touching the win**: unfixed, the first 15-round run read the same — −4.64 to −6.58 s dropped, ties
+held — plus a +121.8 ms lean at 1 % with no blink (6/14), gone in the second run (+4.7, 5/11); the
+fix (`restart.rs`, the gap measured from the first send after nothing was in flight; two tests, two
+mutants caught) took the STW misfire from +491.5 to −1.4 ms (§The window through a silence). **Keep
+`cubic-restart`; drop `cubic-idle-restart`** — the owner's call, no default changed. Whether a radio
+drops or holds through an outage still decides whether the restart has a target at all.
 
 ### The fill's order, 2026-09-19
 
@@ -1202,7 +1233,7 @@ one address; CPU per ask from the GSO cap, PGO and the hand-off, 6/6 in every sa
 three boxes; the depth-1 tail as the rig client's receive queue, on loopback. **Moderate**: the
 windows never approached (loopback, N ≤ 16); per-core endpoints at saturation. **Weak or
 unmeasured**: which regime the deployment mix is in; the bounded BBR (one rig, no competing flow, no
-congestive loss — and disqualified by jitter as built, BBF); the restart at 1 % loss; which outage
+congestive loss — and disqualified by jitter as built, BBF); which outage
 model a radio follows; anything on the target, on a phone, or in a browser at depth 1.
 
 What would overturn the shipped defaults: a cell where per-frame separates in its favour (none
@@ -1235,8 +1266,8 @@ Ranked for the target. *By report* marks a claim from specifications and public 
 3. **The first ask's defaults** — the owner's call (§3). A port-only rebind keeps quinn's window,
    and a new address resets it, which re-applies the window lever but not the push (§3, PUSH). Not
    tested: whether a real mobile NAT keeps the address.
-4. **The restart at 0.1–1 % loss**, with rounds enough to size the misfire (it already misfires
-   on an idle spell whose first flight overflows the queue, 2.4×, §3 STW); **hold or drop** — which
+4. *The restart at 0.1–1 % loss: sized 2026-10-02 (§3 W5b) — it keeps its win and costs nothing,
+   and its idle-spell misfire (§3 STW) is fixed.* **Hold or drop** — which
    a radio does through an outage, from a device trace; what declares ~140 losses a session under ±10 ms reordering (a qlog cell: quinn's
    `qlog_stream` reads pacing, flow-control blocking and recovery instead of inferring them);
    delivery-trace replay in the relay; and the idle radio — by report carriers drop a radio to idle

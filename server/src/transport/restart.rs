@@ -73,11 +73,12 @@ impl SlowStartRestart {
 
 impl Controller for SlowStartRestart {
     fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
-        if self.trigger == Trigger::Idle
-            && self.empty_since.is_some_and(|t| now.duration_since(t) >= SILENCE_RTTS * self.rtt)
-        {
-            self.rebuild(now);
-            self.empty_since = None;
+        if let Some(empty) = self.empty_since.take() {
+            if self.trigger == Trigger::Idle && now.duration_since(empty) >= SILENCE_RTTS * self.rtt {
+                self.rebuild(now);
+            }
+            // Nothing was owed before this send: an idle spell is no outage (W5b).
+            self.last_ack = Some(now);
         }
         self.inner.on_sent(now, bytes, last_packet_number);
     }
@@ -344,6 +345,28 @@ mod tests {
     #[test]
     fn a_gap_with_packets_in_flight_is_not_idle() {
         assert!(!in_slow_start(&idle_then_send(Trigger::Idle, 1200, 10 * RTT)));
+    }
+
+    /// An idle spell is the application's silence, not the path's: loss in the first flight after
+    /// it is congestion. The misfire row 96 measured.
+    #[test]
+    fn an_idle_spell_is_not_an_outage() {
+        let mut r = idle_then_send(Trigger::Silence, 0, 10 * RTT);
+        let now = Instant::now();
+        r.note_ack(now + 11 * RTT, RTT);
+        r.on_congestion_event(now + 11 * RTT, now + 10 * RTT, false, 1200);
+        assert!(!in_slow_start(&r));
+    }
+
+    /// The gap runs from the first send an acknowledgement is owed for, so a blink that starts
+    /// as an idle session sends again is still an outage.
+    #[test]
+    fn a_blink_after_an_idle_spell_is_an_outage() {
+        let mut r = idle_then_send(Trigger::Silence, 0, 10 * RTT);
+        let now = Instant::now();
+        r.note_ack(now + 15 * RTT, RTT);
+        r.on_congestion_event(now + 15 * RTT, now + 10 * RTT, false, 1200);
+        assert!(in_slow_start(&r));
     }
 
     /// Each trigger is its own arm: the idle one passes a silence's loss through, and the silence
