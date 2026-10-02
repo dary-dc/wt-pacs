@@ -183,6 +183,98 @@ print("%.2f %.1f %.1f %.1f" % (worst * 1000, len(late) / 8, rate / size / 8 * 0.
                                1000 * statistics.median(s for t, s in sojourns if t >= 4)))
 PY
 
+cat > "$T/fq_sim.py" <<'PY'
+"""fq_codel on a 1 Mbit link, open loop on a virtual clock, through the relay's own Pipe and Link.
+`split`: 1500 B at 1.2 Mbit against 300 B at 0.6 Mbit: the first one's share of the bytes, fq then
+FIFO. `sparse`: 100 B every 200 ms beside four 1500 B flows at 0.5 Mbit, a 10-packet limit: the
+sparse flow's sojourn p99 in ms and its packets lost, fq then FIFO. `codel`: two 500 B flows at
+0.75 Mbit: the worst |gap - interval/sqrt(count)| over each flow's first ten drops in ms, and the
+drops a second per flow after 4 s against each one's excess."""
+import argparse, random, sys
+sys.path.insert(0, sys.argv[1])
+import link_impair as li
+
+RATE, SECONDS = 1e6, 12.0
+
+
+def run(flows, limit, fq):
+    """flows: name -> (size, offered bps, start). Returns the link and a pipe per flow."""
+    args = argparse.Namespace(delay_ms=0, jitter_ms=0, jitter_mode="reorder", queue_pkts=limit,
+                              queue_bytes=0, queue_ms=0, loss=0, loss_model="iid", ge_p=0, ge_r=0)
+    link = li.Link(RATE, fq=li.FqCodel(0.005, 0.1)) if fq else li.Link(RATE, codel=li.CoDel(0.005, 0.1))
+    pipes = {name: li.Pipe(args, random.Random(1), link) for name in flows}
+    offers = sorted((start + i * size * 8 / bps, name)
+                    for name, (size, bps, start) in flows.items()
+                    for i in range(int((SECONDS - start) * bps / size / 8)))
+    for t, name in offers:
+        pipes[name].offer(t, b"x" * flows[name][0], False, flow=name)
+    link.serve(SECONDS)
+    return link, pipes
+
+
+def share(fq):
+    link, _ = run({"a": (1500, 1.2e6, 0), "b": (300, 0.6e6, 0.0001)}, 1000, fq)
+    return link.flows["a"][1] / (link.flows["a"][1] + link.flows["b"][1])
+
+
+def sparse(fq):
+    flows = {"bulk%d" % i: (1500, 0.5e6, i * 0.001) for i in range(4)}
+    flows["sparse"] = (100, 100 * 8 / 0.2, 1.0123)
+    link, pipes = run(flows, 10, fq)
+    n, _, bins = link.flows["sparse"]
+    p = pipes["sparse"]
+    return li.quantile_ms(bins, n, 0.99), p.overflowed + p.managed
+
+
+def codel():
+    drops = {}
+    law = li.CoDel.drop
+
+    def drop(self, now, sojourn, backlog):
+        dropped = law(self, now, sojourn, backlog)
+        if dropped:
+            drops.setdefault(id(self), []).append((now, self.count))
+        return dropped
+
+    li.CoDel.drop = drop
+    link, _ = run({"a": (500, 0.75e6, 0), "b": (500, 0.75e6, 0.002)}, 10000, True)
+    li.CoDel.drop = law
+    worst, rates = 0.0, []
+    for f in link.fq.flows.values():
+        d = drops.get(id(f.codel), [])
+        first = d[:11]
+        worst = max([worst] + [abs((b[0] - a[0]) - 0.1 / a[1] ** 0.5) for a, b in zip(first, first[1:])]
+                    if len(first) == 11 else [1.0])
+        rates.append(sum(1 for t, _ in d if t >= 4) / (SECONDS - 4))
+    return worst * 1000, min(rates), max(rates), (0.75e6 - RATE / 2) / 500 / 8
+
+
+what = sys.argv[2]
+if what == "split":
+    print("%.3f %.3f" % (share(True), share(False)))
+elif what == "sparse":
+    print("%.2f %d %.2f %d" % (*sparse(True), *sparse(False)))
+else:
+    print("%.2f %.1f %.1f %.1f" % codel())
+PY
+
+cat > "$T/held.py" <<'PY'
+"""Holds the link `ms` through the control port and sends five datagrams into the hold at once.
+Prints the worst RTT: the hold, the round trip, and however late the relay woke for the queue."""
+import socket, sys, time
+port, ctrl, ms = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(3)
+s.sendto(b"blackout " + ms.encode(), ("127.0.0.1", ctrl))
+time.sleep(0.01)
+start = time.monotonic()
+for _ in range(5):
+    s.sendto(b"x" * 100, ("127.0.0.1", port))
+for _ in range(5):
+    s.recvfrom(65535)
+print("%.1f" % ((time.monotonic() - start) * 1000))
+PY
+
 cat > "$T/ge_sim.py" <<'PY'
 """Draws a million packets through the relay's own Gilbert-Elliott pipe at p and r (percent).
 Prints the loss rate and the mean burst length, each over what p / (p + r) and 1 / r predict."""
@@ -494,6 +586,35 @@ read -r worst rate excess sojourn < <(python3 "$T/codel_sim.py" lab/scripts)
 want "codel: first ten drop gaps vs law (ms off)" "$worst" 0 8
 want "codel: drops a second, 4-12 s (excess $excess)" "$rate" 56 69
 want "codel: sojourn held against no back-off (ms)" "$sojourn" 25 60
+
+# fq_codel: bytes split evenly whatever the packet size, a sparse flow passes a bulk queue and
+# loses nothing to an overflow, and each queue's CoDel keeps its own law. A DRR turn of the other
+# flow (four 500 B packets, 16 ms) is how late a queue's drop can fall against it.
+read -r share fifo < <(python3 "$T/fq_sim.py" lab/scripts split)
+want "fq_codel: 1500 B at 1.2 Mbit vs 300 B at 0.6: share" "$share" 0.475 0.525
+say "  the same through one FIFO" "$fifo"
+read -r p99 lost fifo_p99 fifo_lost < <(python3 "$T/fq_sim.py" lab/scripts sparse)
+want "fq_codel: sparse beside four bulk, p99 (ms)" "$p99" 0 12
+want "fq_codel: sparse lost at a 10-packet limit" "$lost" 0 0
+say "  the same through one FIFO: p99 ms, lost" "$fifo_p99 $fifo_lost"
+read -r worst lo hi excess < <(python3 "$T/fq_sim.py" lab/scripts codel)
+want "fq_codel: each queue's first ten gaps vs law (ms off)" "$worst" 0 16
+want "fq_codel: drops a second, fewest queue (excess $excess)" "$lo" 56 69
+want "fq_codel: drops a second, most queue" "$hi" 56 69
+
+# Live: a sparse probe beside a 2x open-loop blast on its own pair, and a hold with nothing else
+# due, which only the queue's own next dequeue wakes the relay for.
+relay --udp "$((UDP_IN + 1)):$UDP_OUT" --rate-kbit 1000 --rate-up-kbit 0 --delay-ms 20   --queue-pkts 200 --fq-codel
+python3 "$T/probe.py" "$UDP_IN" 1500 1000 0.004 > /dev/null & BULK=$!
+sleep 1
+read -r rtt got _ < <(python3 "$T/probe.py" "$((UDP_IN + 1))" 100 100 0.03)
+wait "$BULK"
+want "fq_codel: sparse probe beside the blast, rtt (ms)" "$rtt" 40 50
+want "fq_codel: sparse probe delivered of 100" "$got" 100 100
+stop_relay
+relay --rate-kbit 1000 --rate-up-kbit 0 --delay-ms 20 --blackout-mode hold --control-port "$CTRL" --fq-codel
+want "fq_codel: five into a 275 ms hold, worst rtt (ms)" "$(python3 "$T/held.py" "$UDP_IN" "$CTRL" 275)" 308 313
+stop_relay
 
 echo
 echo "== the static host's plane"

@@ -3,7 +3,7 @@
 the UDP session and in front of the static host's TCP. Delay, rate, queue depth, jitter with or
 without reordering, scattered and bursty loss, a blackout that drops or holds, a rebind — one model, both planes.
 A delivery-opportunity trace can replace the to-client rate, the queue can be limited in bytes, and
-CoDel can manage the UDP plane's queue. The UDP
+CoDel or fq_codel can manage the UDP plane's queue. The UDP
 plane can idle like a radio: after a quiet spell, the next packet waits for the promotion. A second
 --udp is a neighbour: every UDP pair crosses one queue and one clock each way, as one phone's apps do.
 Each client port on a pair gets its own upstream port, so two sessions open at once are two flows.
@@ -13,7 +13,8 @@ What it cannot do, and the limits it was calibrated against, are in `docs/rig-li
 
 usage: link_impair.py {--udp 5555:4433 [--udp 5557:4435 ...] [--tcp 8443:8000] | --tun} [--delay-ms 40]
                       [--rate-kbit 10000] [--rate-up-kbit 2000] [--trace FILE] [--queue-pkts 50 | --queue-bytes N |
-                      --queue-ms N] [--codel 5:100] [--loss 0.5 | --loss-model ge] [--idle-promote 5:300]
+                      --queue-ms N] [--codel 5:100] [--fq-codel] [--loss 0.5 | --loss-model ge]
+                      [--idle-promote 5:300]
                       [--self-timing]
                       [--control-port 5556]
 
@@ -21,7 +22,7 @@ usage: link_impair.py {--udp 5555:4433 [--udp 5557:4435 ...] [--tcp 8443:8000] |
 `cloud_netem.sh`'s profiles. Control datagrams on --control-port: `rebind`, `cut`, `blackout <ms>`,
 `swallow <ms>` (drops server->client for <ms> from the next server datagram: its next flight), `stats`,
 `quit`; `cut`, `rebind` and `swallow` act on the first --udp. Prints READY, then REBOUND <old> -> <new>,
-then a tally at exit.
+then a tally at exit, with each flow's packets and sojourn on the udp and tun planes' links.
 """
 import argparse
 import bisect
@@ -41,8 +42,19 @@ import sys
 import time
 
 MTU = 1500
+QUANTUM = 1514  # bytes, RFC 8290's
 TICK = 0.0005
 IDLE = 0.05
+
+
+def quantile_ms(bins, n, q):
+    """`bins` counts samples in 10 µs bins."""
+    seen = 0
+    for b in sorted(bins):
+        seen += bins[b]
+        if seen >= q * n:
+            return (b + 1) / 100.0
+    return 0.0
 
 
 class Trace:
@@ -73,16 +85,40 @@ class Trace:
 
 class Link:
     """A bottleneck's clock and queue: a pipe's own, or one every TCP connection crosses. The clock
-    is a rate, or a trace whose unused opportunities are gone once passed."""
+    is a rate, or a trace whose unused opportunities are gone once passed. The queue is a FIFO,
+    whose departures are known at the offer, or fq_codel, whose are decided at each dequeue."""
 
-    def __init__(self, rate_bps=0.0, trace=None, codel=None):
+    def __init__(self, rate_bps=0.0, trace=None, codel=None, fq=None):
         self.rate = rate_bps
         self.trace = trace
         self.codel = codel
+        self.fq = fq
         self.next_free = 0.0
         self.opportunity, self.left = -1, 0
         self.tx = collections.deque()  # (departure, bytes) of each packet not yet off the link
         self.queued = 0
+        self.flows = {}  # flow -> [packets, bytes, sojourn in 10 µs bins]
+
+    def count(self, flow, size, sojourn):
+        if flow is not None:
+            seen = self.flows.setdefault(flow, [0, 0, collections.Counter()])
+            seen[0] += 1
+            seen[1] += size
+            seen[2][int(sojourn * 1e5)] += 1
+
+    def next_service(self):
+        return max(self.next_free, self.fq.busy_from) if self.fq and self.fq.packets else None
+
+    def serve(self, now):
+        """Every dequeue fq_codel would have made by `now`, at the time it would have made it."""
+        while self.fq and self.fq.packets and self.next_free <= now:
+            start = self.next_service()
+            item = self.fq.dequeue(start)
+            if item is None:
+                return
+            arrival, size, pipe, payload, to, flow = item
+            self.count(flow, size, start - arrival)
+            pipe.schedule(self.depart(start, size), payload, to)
 
     def mean_bps(self):
         return self.trace.mean_bps if self.trace else self.rate
@@ -149,6 +185,81 @@ class CoDel:
         return True
 
 
+class FqFlow:
+    def __init__(self, codel):
+        self.q = collections.deque()  # (arrival, size, pipe, payload, to, flow)
+        self.bytes = 0
+        self.deficit = 0
+        self.listed = False
+        self.codel = codel
+
+
+class FqCodel:
+    """RFC 8290: a queue per flow, deficit round robin with a new flow served first, CoDel on each
+    queue at its dequeue; over the limit, the fattest queue loses its head. Flows are exact
+    5-tuples, so no two collide."""
+
+    def __init__(self, target, interval):
+        self.target, self.interval = target, interval
+        self.flows = {}
+        self.new, self.old = collections.deque(), collections.deque()
+        self.packets = self.bytes = 0
+        self.busy_from = 0.0  # when the link last found the queue empty and got a packet
+
+    def enqueue(self, now, flow, size, pipe, payload, to, limit, limit_bytes):
+        if not self.packets:
+            self.busy_from = now
+        f = self.flows.get(flow)
+        if f is None:
+            f = self.flows[flow] = FqFlow(CoDel(self.target, self.interval))
+        f.q.append((now, size, pipe, payload, to, flow))
+        f.bytes += size
+        self.packets += 1
+        self.bytes += size
+        if not f.listed:
+            f.listed, f.deficit = True, QUANTUM
+            self.new.append(f)
+        while limit and self.packets > limit or limit_bytes and self.bytes > limit_bytes:
+            fattest = max(self.flows.values(), key=lambda x: x.bytes)
+            self._pop(fattest)[2].overflowed += 1
+
+    def _pop(self, f):
+        item = f.q.popleft()
+        f.bytes -= item[1]
+        self.packets -= 1
+        self.bytes -= item[1]
+        return item
+
+    def _codel_dequeue(self, f, now):
+        while f.q:
+            item = self._pop(f)
+            if not f.codel.drop(now, now - item[0], f.bytes):
+                return item
+            item[2].managed += 1
+        return None
+
+    def dequeue(self, now):
+        while self.new or self.old:
+            head = self.new or self.old
+            f = head[0]
+            if f.deficit <= 0:
+                f.deficit += QUANTUM
+                self.old.append(head.popleft())
+                continue
+            item = self._codel_dequeue(f, now)
+            if item is None:
+                head.popleft()
+                # A new flow that empties goes to the old list once, so it cannot stay new.
+                if head is self.new and self.old:
+                    self.old.append(f)
+                else:
+                    f.listed = False
+                continue
+            f.deficit -= item[1]
+            return item
+        return None
+
+
 class Lateness:
     """How late each packet left against its due time: a preempted relay reads as link jitter."""
 
@@ -167,18 +278,10 @@ class Lateness:
             self.n += 1
             self.worst = max(self.worst, late)
 
-    def quantile_ms(self, q):
-        seen = 0
-        for b in sorted(self.bins):
-            seen += self.bins[b]
-            if seen >= q * self.n:
-                return (b + 1) / 100.0
-        return 0.0
-
     def tally(self):
-        p99 = self.quantile_ms(0.99)
+        p99 = quantile_ms(self.bins, self.n, 0.99)
         return "self-timing packets %d late p50 %.2f p99 %.2f max %.2f ms%s" % (
-            self.n, self.quantile_ms(0.5), p99, self.worst * 1000,
+            self.n, quantile_ms(self.bins, self.n, 0.5), p99, self.worst * 1000,
             " VOID: p99 over %g ms" % self.VOID_MS if p99 > self.VOID_MS else "")
 
 
@@ -211,11 +314,16 @@ class Pipe:
             return self.bad
         return self.loss > 0 and self.rng.random() < self.loss
 
-    def offer(self, now, payload, blacked_out, to=None):
+    def offer(self, now, payload, blacked_out, to=None, flow=None):
         if self.lossy and (blacked_out or self._drop()):
             self.lost += 1
             return
         link = self.link
+        if self.lossy and link.fq:
+            link.serve(now)
+            link.fq.enqueue(now, flow, len(payload), self, payload, to, self.limit, self.limit_bytes)
+            link.serve(now)
+            return
         while link.tx and link.tx[0][0] <= now:
             link.queued -= link.tx.popleft()[1]
         size = len(payload)
@@ -227,9 +335,13 @@ class Pipe:
         if self.lossy and link.codel and link.codel.drop(dequeue, dequeue - now, link.queued):
             self.managed += 1
             return
+        link.count(flow, size, dequeue - now)
         departure = link.depart(now, size)
         link.tx.append((departure, size))
         link.queued += size
+        self.schedule(departure, payload, to)
+
+    def schedule(self, departure, payload, to):
         # --jitter-mode picks which path the wobble models. docs/rig-limits.md §3.
         wobble = self.rng.uniform(-self.jitter, self.jitter) if self.jitter else 0.0
         due = max(departure, self.hold) + max(0.0, self.delay + wobble)
@@ -240,9 +352,12 @@ class Pipe:
         self.seq += 1
 
     def due(self):
-        return self.pending[0][0] if self.pending else None
+        due = [d for d in (self.pending[0][0] if self.pending else None,
+                           self.link.next_service()) if d is not None]
+        return min(due) if due else None
 
     def ready(self, now):
+        self.link.serve(now)
         out = []
         while self.pending and self.pending[0][0] <= now:
             due, _, payload, to = heapq.heappop(self.pending)
@@ -315,7 +430,9 @@ class UdpPlane:
             swallowed = up and now < self.swallow_until
             self.swallowed += swallowed
             self._wake(now)
-            pipe.offer(now, data, blacked_out or swallowed, which if up else addr)
+            client = which if up else addr
+            flow = ("udp", ":%d" % self.down.getsockname()[1], "%s:%d" % client)
+            pipe.offer(now, data, blacked_out or swallowed, client, flow)
 
     def _wake(self, now):
         if self.promotion and now - self.last_packet > self.idle_after:
@@ -501,6 +618,22 @@ TUNSETIFF, IFF_TUN, IFF_NO_PI = 0x400454CA, 0x0001, 0x1000
 TUN_CLIENT, TUN_SERVER = "10.77.0.1", "10.77.0.2"
 
 
+def tun_flow(packet):
+    """Protocol, addresses, and the ports of TCP and UDP: the 5-tuple fq_codel hashes."""
+    ihl = (packet[0] & 15) * 4
+    ports = struct.unpack("!HH", packet[ihl:ihl + 4]) if packet[9] in (6, 17) else (0, 0)
+    return ({6: "tcp", 17: "udp"}.get(packet[9], str(packet[9])),
+            "%s:%d" % (socket.inet_ntoa(packet[12:16]), ports[0]),
+            "%s:%d" % (socket.inet_ntoa(packet[16:20]), ports[1]))
+
+
+def flow_tally(side, link):
+    for flow, (n, size, bins) in link.flows.items():
+        yield ("flow %s %s packets %d bytes %d sojourn p50 %.2f p99 %.2f ms"
+               % (side, " ".join(map(str, flow)), n, size, quantile_ms(bins, n, 0.5),
+                  quantile_ms(bins, n, 0.99)))
+
+
 def tun_open(name):
     fd = os.open("/dev/net/tun", os.O_RDWR | os.O_NONBLOCK)
     fcntl.ioctl(fd, TUNSETIFF, struct.pack("16sH", name.encode(), IFF_TUN | IFF_NO_PI))
@@ -545,7 +678,7 @@ class TunPlane:
                 self.not_ipv4 += 1
                 continue
             self._wake(now)
-            self.pipes[side].offer(now, packet, blacked_out)
+            self.pipes[side].offer(now, packet, blacked_out, flow=tun_flow(packet))
 
     _wake = UdpPlane._wake
 
@@ -609,6 +742,9 @@ def main():
                     help="--queue-bytes as milliseconds at each direction's mean rate")
     ap.add_argument("--codel", type=parse_pair, metavar="TARGET:INTERVAL",
                     help="udp and tun: CoDel on each direction's queue, in ms (RFC 8289's are 5:100)")
+    ap.add_argument("--fq-codel", action="store_true",
+                    help="udp and tun: fq_codel instead, a queue per flow, each with --codel's "
+                         "CoDel (default 5:100); the queue limit is the total's")
     ap.add_argument("--loss", type=float, default=0.0, help="percent, iid, udp and tun")
     ap.add_argument("--loss-model", choices=("iid", "ge"), default="iid")
     ap.add_argument("--ge-p", type=float, default=0.07, help="percent, good->bad")
@@ -642,10 +778,15 @@ def main():
     up_bps = (args.rate_kbit if args.rate_up_kbit is None else args.rate_up_kbit) * 1000.0
     trace = Trace(args.trace, time.monotonic()) if args.trace else None
 
+    if args.fq_codel and not args.codel:
+        args.codel = (5, 100)
+
     def links(side):
-        codel = CoDel(args.codel[0] / 1000.0, args.codel[1] / 1000.0) if args.codel else None
-        return (Link(up_bps, codel=codel) if side == "upstream"
-                else Link(args.rate_kbit * 1000.0, trace, codel))
+        target, interval = (args.codel[0] / 1000.0, args.codel[1] / 1000.0) if args.codel else (0, 0)
+        fq = FqCodel(target, interval) if args.fq_codel else None
+        codel = CoDel(target, interval) if args.codel and not fq else None
+        return (Link(up_bps, codel=codel, fq=fq) if side == "upstream"
+                else Link(args.rate_kbit * 1000.0, trace, codel, fq))
 
     rng = random.Random(args.seed)
     # Not epoll: it waits in whole milliseconds, so every due packet left up to 1 ms late.
@@ -672,7 +813,7 @@ def main():
              args.tcp[0] if args.tcp else "-",
              " tun=%s->%s server_netns=%s" % (TUN_CLIENT, TUN_SERVER, tun.netns) if tun else "",
              args.control_port, args.delay_ms, args.jitter_ms, args.rate_kbit, up_bps / 1000.0,
-             queue, " codel=%d:%d" % args.codel if args.codel else "", args.loss, " ge" if args.loss_model == "ge" else "",
+             queue, (" fq_codel=%d:%d" if args.fq_codel else " codel=%d:%d") % args.codel if args.codel else "", args.loss, " ge" if args.loss_model == "ge" else "",
              " idle_promote=%g:%g" % (args.idle_promote[0], args.idle_promote[1] * 1000)
              if args.idle_promote else "",
              " trace=%s sha256=%s mean_kbit=%.0f epoch=%.6f"
@@ -722,6 +863,9 @@ def main():
                         elif head == b"stats":
                             for p in planes:
                                 print(p.tally(), flush=True)
+                            for side, link in radio.items():
+                                for line in flow_tally(side, link):
+                                    print(line, flush=True)
                             if lateness.on:
                                 print(lateness.tally(), flush=True)
                         elif head == b"quit":
@@ -736,6 +880,9 @@ def main():
     finally:
         for p in planes:
             print(p.tally(), flush=True)
+        for side, link in radio.items():
+            for line in flow_tally(side, link):
+                print(line, flush=True)
         if lateness.on:
             print(lateness.tally(), flush=True)
         if tun:

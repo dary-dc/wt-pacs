@@ -68,6 +68,9 @@ struct Args {
     /// Ask `target + 1` the moment the ask lands: what the ask's round-trip sample does to the next.
     #[arg(long)]
     next_ask: bool,
+    /// Asks in all, one at a time from `target` up: the rest after the first are the steady asks.
+    #[arg(long, default_value_t = 1)]
+    asks: u32,
     #[arg(long, default_value_t = 5)]
     rounds: u32,
     #[arg(long, default_value_t = 30_000)]
@@ -123,8 +126,8 @@ async fn ask(
     Ok((asked.elapsed().as_secs_f64() * 1000.0, bytes))
 }
 
-/// (the ask, the warm-up that preceded it, the frame's size, the next ask or NaN)
-async fn one_round(args: &Args) -> Result<(f64, f64, usize, f64)> {
+/// (the ask, the warm-up that preceded it, the frame's size, the next ask or NaN, the steady asks)
+async fn one_round(args: &Args) -> Result<(f64, f64, usize, f64, Vec<f64>)> {
     let v4 = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
     let builder = ClientConfig::builder().with_bind_address(v4);
     let config = match args.stream_recv_window {
@@ -194,10 +197,14 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize, f64)> {
     } else {
         f64::NAN
     };
+    let mut steady = Vec::new();
+    for frame in args.target + 1..args.target + args.asks {
+        steady.push(ask(&mut control, &mut frames, frame, args.timeout_ms).await?.0);
+    }
     connection.close(0u32.into(), b"done");
     // The close ends the session, and the end is what prints the server's `session path` line.
     endpoint.wait_idle().await;
-    Ok((ms, fill_ms, bytes, next))
+    Ok((ms, fill_ms, bytes, next, steady))
 }
 
 #[tokio::main]
@@ -210,9 +217,11 @@ async fn main() -> Result<()> {
     let mut ms = Vec::new();
     let mut fills = Vec::new();
     let mut nexts = Vec::new();
+    let mut steady = Vec::new();
     let mut bytes = 0;
     for _ in 0..args.rounds {
-        let (v, f, b, n) = one_round(&args).await?;
+        let (v, f, b, n, s) = one_round(&args).await?;
+        steady.extend(s);
         ms.push(v);
         if !n.is_nan() {
             nexts.push(n);
@@ -234,6 +243,11 @@ async fn main() -> Result<()> {
         if fills.is_empty() { f64::NAN } else { median(&mut fills) },
         if nexts.is_empty() { f64::NAN } else { median(&mut nexts) },
     );
+    if !steady.is_empty() {
+        steady.sort_by(|a, b| a.partial_cmp(b).expect("no NaN"));
+        let rank = |q: f64| steady[((q * steady.len() as f64).ceil() as usize).max(1) - 1];
+        println!("steady_ask_ms n={} p50={:.1} p99={:.1}", steady.len(), rank(0.5), rank(0.99));
+    }
     Ok(())
 }
 
