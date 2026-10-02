@@ -528,7 +528,7 @@ needed:** one of —
 * **the VM:** keep the brief's pipeline for the cloud rig or a shaped-link VM, where every lever can be
   read back, and take the row off the container queue.
 
-Nothing was built; no trace was fetched.
+Nothing was built; no trace was fetched. **Answered 2026-10-02: the relay — rows 92, 100 and 86.**
 
 **Row 93 (DL0): the ~2 round trips before the downloader's dial — which shape, if any?** (2026-10-01).
 Inlining the transport URL into the page is worth ~1 round trip to the first frame on top of R1
