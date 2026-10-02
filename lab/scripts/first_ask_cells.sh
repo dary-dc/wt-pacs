@@ -6,7 +6,7 @@
 # The server's own `session path` line gives the window, loss and congestion events per arm.
 # Results and the verdict they correct: docs/transport/transport-conclusions.md §3.
 #
-#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake|stw|late|keep] [rounds]
+#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake|stw|late|keep|rebind] [rounds]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -142,6 +142,7 @@ one_round() {  # state warm idle study rtt server_args relay_args probe_args -> 
   cost=$(link_cost)
   stop_relay
   grep -q VOID "$T/relay.log" && ms=void  # --self-timing: the relay, not the link, was late
+  [[ $state != rebound ]] || grep -q REBOUND "$T/relay.log" || ms=nan  # the poke never landed
   stop_server
   echo "$ms $cost ${next:-NaN}"
 }
@@ -379,8 +380,27 @@ keep_cells() {
   done
 }
 
+# Which first-ask lever a rebind re-applies: the path resets the controller to the initial window,
+# so a wider one should return; the push rides the session URL and is spent at open.
+rebind_cells() {
+  local iw="--initial-window-bytes 38400"
+  for kb in $SIZES; do
+    for rtt in $RTTS; do
+      ARMS=()
+      arm "fresh|fresh|$WARM|0||--self-timing|"
+      arm "warmed|filled|$WARM|0||--self-timing|"
+      arm "rebound|rebound|$WARM|0||--self-timing|"
+      arm "fresh, iw 32 pkt|fresh|$WARM|0|$iw|--self-timing|"
+      arm "rebound, iw 32 pkt|rebound|$WARM|0|$iw|--self-timing|"
+      printf '\n== %s KB, %s ms, a rebind after the warm-up\n' "$kb" "$rtt"
+      round_robin "$T/s$kb.sbnd" "$rtt"
+    done
+  done
+}
+
 case "$CELL" in
   repro) repro ;;
+  rebind) rebind_cells ;;
   idle) idle_cells ;;
   together) together_cells ;;
   queue) queue_cells ;;
