@@ -554,4 +554,4 @@ all. The decoders and the parity run cover signed 12- and 16-bit ([`decode/READM
 a 128-byte IPv4 UDP packet sent to the tun's subnet off the fd. So a relay that forwards IP packets,
 under which the kernel's own TCP sees loss and retransmits, can be built here. **What is needed:**
 whether a faithful TCP reference under loss is worth that build (row 97 used the TCP plane as an
-ideal-TCP floor instead). Not built meanwhile.
+ideal-TCP floor instead). Not built meanwhile. **Answered 2026-10-01: wanted — rows 107–108.**
