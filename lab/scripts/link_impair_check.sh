@@ -183,6 +183,21 @@ print("%.2f %.1f %.1f %.1f" % (worst * 1000, len(late) / 8, rate / size / 8 * 0.
                                1000 * statistics.median(s for t, s in sojourns if t >= 4)))
 PY
 
+cat > "$T/ge_sim.py" <<'PY'
+"""Draws a million packets through the relay's own Gilbert-Elliott pipe at p and r (percent).
+Prints the loss rate and the mean burst length, each over what p / (p + r) and 1 / r predict."""
+import argparse, random, sys
+sys.path.insert(0, sys.argv[1])
+from link_impair import Link, Pipe
+p, r = float(sys.argv[2]), float(sys.argv[3])
+args = argparse.Namespace(delay_ms=0, jitter_ms=0, jitter_mode="reorder", queue_pkts=0,
+                          queue_bytes=0, queue_ms=0, loss=0, loss_model="ge", ge_p=p, ge_r=r)
+pipe = Pipe(args, random.Random(1), Link())
+draws = [pipe._drop() for _ in range(1000000)]
+bursts = sum(1 for a, b in zip([False] + draws, draws) if b and not a)
+print("%.3f %.3f" % (sum(draws) / len(draws) / (p / (p + r)), sum(draws) / bursts * r / 100))
+PY
+
 relay() {  # extra args...; TARGET= picks another echo
   python3 "$RELAY" --udp "$UDP_IN:${TARGET:-$UDP_OUT}" "$@" > "$T/relay.log" 2>&1 &
   RELAY_PID=$!
@@ -228,6 +243,12 @@ read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 4000 200 0)
 want "loss 5% each way: delivered of 4000" "$got" 3554 3668
 stop_relay
 
+# The model itself, off the wire: a blast through the echo below also counts the host's drops.
+for pr in 0.07:14 0.0286:28.57 0.2886:28.57; do
+  read -r rate burst < <(python3 "$T/ge_sim.py" lab/scripts "${pr%%:*}" "${pr##*:}")
+  want "gilbert-elliott $pr: loss over p/(p+r)" "$rate" 0.85 1.15
+  want "gilbert-elliott $pr: burst over 1/r" "$burst" 0.85 1.15
+done
 relay --loss-model ge --queue-pkts 4000
 read -r _ got _ < <(python3 "$T/probe.py" "$UDP_IN" 8000 200 0)
 want "gilbert-elliott 0.07/14: delivered of 8000" "$got" 7800 7980
