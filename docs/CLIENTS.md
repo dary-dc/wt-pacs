@@ -68,16 +68,18 @@ so every server stream mode is read by the same code. The certificate is pinned 
 **Over a WebSocket, TypeScript** (`ws-session.ts`). The same `FrameSession` over one socket to
 `wss://` on the same host and port number; the certificate hash is ignored, since a WebSocket
 cannot pin one and the browser's trust store decides. Binary messages are joined into one media
-byte stream and read exactly as a shared uni stream is; a text message is a FoD message. There is
-no opening ask in the URL: an opening `fill` is sent as the socket's first message. When the
-socket closes, the bytes already received are read first, so a frame the close cut short is named
+byte stream and read exactly as a shared uni stream is; a text message is a FoD message. An
+opening `fill` rides the upgrade's URL as over WebTransport, armed and never sent. When the socket
+closes, the bytes already received are read first, so a frame the close cut short is named
 as truncated rather than merely owed.
 
 ### The race
 
 `race-session.ts`, opt-in. Dials both at once and keeps whichever session is ready
-first; the other is closed when its own dial settles. An opening fill rides neither URL — both
-servers would push it — and is sent to the winner alone. If both dials fail, one error names both,
+first; the other is closed when its own dial settles. An opening fill rides the WebSocket's URL
+alone, since in both URLs both servers would push it: if QUIC wins it is asked there as
+`stream_frames`, and the losing socket's close fails none of its frames. If both dials fail, one
+error names both,
 a `DialTimeoutError` if either timed out. Why race rather than detect: ARCHITECTURE.md, TCP
 fallback. On loopback the WebSocket wins 57–58 of 60 dials (headless Chromium, debug and release
 server, 200 ms apart), where the handshakes' CPU decides; on a link TCP + TLS + upgrade is three

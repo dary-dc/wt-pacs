@@ -5,7 +5,7 @@
  */
 
 import type { FodMsg } from "./wire.ts";
-import { closedReasonOf, FrameSession, settleWithin, type ConnectOptions } from "./frame-session.ts";
+import { closedReasonOf, FrameSession, openAskUrl, settleWithin, type ConnectOptions } from "./frame-session.ts";
 
 export type { ConnectOptions, FrameResult, OpeningFill } from "./frame-session.ts";
 
@@ -24,7 +24,9 @@ export class TransportSession extends FrameSession {
     options: ConnectOptions = {},
   ): Promise<TransportSession> {
     // A WebSocket cannot pin a certificate by hash: the browser's own trust decides.
-    const socket = new WebSocket(url.replace(/^https:/, "wss:"));
+    const wsUrl = url.replace(/^https:/, "wss:");
+    const fill = options.fill;
+    const socket = new WebSocket(fill ? openAskUrl(wsUrl, fill) : wsUrl);
     socket.binaryType = "arraybuffer";
     const open = new Promise<void>((resolve, reject) => {
       socket.onopen = () => resolve();
@@ -34,9 +36,8 @@ export class TransportSession extends FrameSession {
 
     const session = new TransportSession(socket, options);
     session.pump();
-    // No URL ask here: the fill goes first on the socket, a round trip later than over QUIC.
-    const fill = options.fill;
-    if (fill) session.fillFrames(fill.from, fill.to, fill.onFrame, fill.onError);
+    // The server pushes it behind the 101, so the run is armed and never asked for.
+    if (fill) session.armFill(fill.from, fill.to, fill.onFrame, fill.onError);
     return session;
   }
 

@@ -818,20 +818,26 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
 * **Server** (`server/src/transport/websocket.rs`, `--websocket`): TCP on the QUIC port's number, the
   same certificate, `TCP_NODELAY`; `FrameOut::WebSocket` beside `Shared` and `PerFrame`, refusals
   through the same writer; one process serves both. Without the QUIC knobs, the `session path` line,
-  telemetry rows, or the URL's opening ask (the fill is the socket's first message, a round trip later).
+  or telemetry rows. The opening ask rides the upgrade's URL (WSA, below), with the same flag.
 * **Client**: `client/transport-ts/frame-session.ts` is everything a session does whatever carries its
   bytes; `session.ts` and `ws-session.ts` are carriers over it, and the downloader takes either as
   `transport`. `race-session.ts` (opt-in) dials both, keeps the first ready, closes the other when its
-  dial settles, and sends an opening fill to the winner alone.
+  dial settles; an opening fill rides the WebSocket's URL alone, and is asked on QUIC if QUIC wins.
 * **Conformance**: every clause runs against the WebSocket client, with the per-frame halves of two
-  clauses and *a frame slow on its own stream holds no other* listed as not applicable; four race
-  clauses (QUIC first, TCP first, QUIC refused, the opening fill); `run_wire.sh` runs refusals and an
+  clauses and *a frame slow on its own stream holds no other* listed as not applicable; five race
+  clauses (QUIC first, TCP first, QUIC refused, the opening fill when either wins); `run_wire.sh` runs refusals and an
   ask during a fill over the WebSocket, raw and through the downloader.
 * **The loopback smoke** ([`../lab/tcp-fallback/`](../lab/tcp-fallback/README.md)): every frame
   bit-exact over WebTransport, WebSocket and the race, 3 rounds interleaved. No performance claim
   ([`rig-limits.md`](rig-limits.md) §3). **On loopback the WebSocket wins the race**, 57–58 of 60 dials:
   with the round trip near zero the handshakes' work decides. On a link TCP + TLS + upgrade is three
   round trips against QUIC's 2.1, so QUIC should win by one — not measured.
+* **WSA, the opening ask on the upgrade** (2026-10-02): with `--open-ask` the server reads `?ask=` from
+  the upgrade's URL and serves it right behind the 101; `ws-session.ts` puts an opening fill there.
+  **−1.03 to −1.09 round trips to the first frame**, every paired round: −43.6 ms at 40 (7/7), −83.8
+  at 80 (10/10), −164.3 at 160 (7/7), the fill's end the same. Lever 1 taken from the upgrade, for
+  every WebSocket client. Off by default, like lever 1; the race's default unchanged
+  ([`../lab/tcp-fallback/`](../lab/tcp-fallback/README.md) §The opening ask in the upgrade's URL).
 
 **Before it is enabled anywhere**: a device check of the iOS stall and of recycling. **What the shaped
 A/B on the workstation should measure**, arms interleaved: (1) a fill's wall time and per-frame

@@ -10,6 +10,7 @@ import {
   fillTo,
   FrameSession,
   le32,
+  openAskUrl,
   settleWithin,
   type ConnectOptions,
 } from "./frame-session.ts";
@@ -115,11 +116,6 @@ export class TransportSession extends FrameSession {
       /* ignore */
     }
   }
-}
-
-/** `:` and `-` are legal in a query, and `parse_open_ask` splits on them literally. */
-function openAskUrl(wtUrl: string, fill: { from: number; to: number }): string {
-  return `${wtUrl}${wtUrl.includes("?") ? "&" : "?"}ask=fill:${fill.from}-${fill.to}`;
 }
 
 async function readFodFrom(

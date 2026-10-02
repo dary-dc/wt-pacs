@@ -12,11 +12,14 @@ export type { ConnectOptions, FrameResult, OpeningFill } from "./frame-session.t
 
 export class TransportSession {
   static async connect(url: string, certSha256: string, options: ConnectOptions = {}) {
-    // An opening fill in both dials would be pushed by both servers: it goes to the winner alone.
+    // An opening fill in both dials would be pushed twice: it rides the WebSocket's URL alone,
+    // and that socket's close, if it loses, fails nothing the winner still owes.
     const { fill, ...dialOptions } = options;
+    let overTcpWon = false;
+    const tcpFill = fill && { ...fill, onError: (i: number, why: string) => overTcpWon && fill.onError(i, why) };
     const dials: Promise<OverQuic | OverTcp>[] = [
       OverQuic.connect(url, certSha256, dialOptions),
-      OverTcp.connect(url, certSha256, dialOptions),
+      OverTcp.connect(url, certSha256, { ...dialOptions, fill: tcpFill }),
     ];
     let winner: OverQuic | OverTcp;
     try {
@@ -30,7 +33,8 @@ export class TransportSession {
       });
     }
     for (const dial of dials) dial.then((s) => s !== winner && s.close(), () => {});
-    if (fill) winner.fillFrames(fill.from, fill.to, fill.onFrame, fill.onError);
+    overTcpWon = winner instanceof OverTcp;
+    if (fill && !overTcpWon) winner.fillFrames(fill.from, fill.to, fill.onFrame, fill.onError);
     return winner;
   }
 }

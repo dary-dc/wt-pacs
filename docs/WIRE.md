@@ -152,7 +152,7 @@ frame path, the store and the planner are the QUIC path's; one process serves bo
 | media | uni streams, one envelope per frame | binary messages whose bytes, joined, are the `shared` uni stream's: the 8-byte head, then the codestream split every 64 KiB — the grain at which a browser, which hands a message over only whole, sees a frame's bytes move |
 | refusals | the control stream | a text message, through the same writer as the frames |
 | stream mode | `--stream-mode` | always one ordered stream |
-| opening ask | `?ask=` with `--open-ask` | not honoured: the fill is the socket's first message, a round trip later |
+| opening ask | `?ask=` with `--open-ask` | the same `?ask=` on the upgrade's URL, with the same flag: served right behind the 101 |
 
 A binary message from the client, or any message over 4 MiB, ends the session. The library
 answers pings. Not on this path: the QUIC knobs (`--congestion`, the windows — TCP's are the

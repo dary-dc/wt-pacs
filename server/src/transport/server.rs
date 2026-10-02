@@ -103,7 +103,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     );
 
     if let Some((listener, tls)) = websocket {
-        tokio::spawn(websocket::serve(listener, tls, Arc::clone(&store)));
+        tokio::spawn(websocket::serve(listener, tls, Arc::clone(&store), config.open_ask));
     }
     let mode = config.mode;
     let open_ask = config.open_ask;
@@ -259,7 +259,7 @@ async fn handle_incoming(
 
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
 /// session then proceeds as today and the client's own ask gets the normal refusal.
-fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
+pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
     let value = path
         .split_once('?')?
         .1
@@ -750,6 +750,96 @@ mod tests {
                         media.is_err(),
                         "an out-of-range opening ask opened a media stream",
                     ),
+                }
+                server.abort();
+            });
+            std::fs::remove_dir_all(&dir).ok();
+        }
+    }
+
+    /// Over the WebSocket the ask in the upgrade's URL is served without the client ever sending
+    /// a message, and an out-of-range one is ignored rather than taken. WSA — `docs/WIRE.md`
+    /// §The WebSocket mapping.
+    #[test]
+    fn an_opening_ask_rides_the_websocket_upgrade() {
+        use futures_util::StreamExt;
+        use rustls::pki_types::{pem::PemObject, CertificateDer, ServerName};
+        use tokio_tungstenite::tungstenite::Message;
+        for (query, want) in [("?ask=frame:3", Some(3u32)), ("?ask=frame:99", None)] {
+            let dir = std::env::temp_dir()
+                .join(format!("wtpacs-ws-open-{}-{}", std::process::id(), want.unwrap_or(99)));
+            std::fs::create_dir_all(&dir).expect("tmpdir");
+            let study = write_study(&dir, 6);
+            let (cert_pem, key_pem, _) = write_dev_cert(&dir);
+            let port = free_port();
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("rt");
+            let _ = rustls::crypto::ring::default_provider().install_default();
+            let mut roots = rustls::RootCertStore::empty();
+            for cert in CertificateDer::pem_file_iter(&cert_pem).expect("pem") {
+                roots.add(cert.expect("cert")).expect("root");
+            }
+            let tls = tokio_rustls::TlsConnector::from(Arc::new(
+                rustls::ClientConfig::builder()
+                    .with_root_certificates(roots)
+                    .with_no_client_auth(),
+            ));
+            rt.block_on(async move {
+                let server = tokio::spawn(run_server(ServeConfig {
+                    wt_port: port,
+                    study_path: study,
+                    cert_pem,
+                    key_pem,
+                    mode: StreamMode::Shared,
+                    bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                    tuning: TransportTuning::default(),
+                    force_pool_reads: false,
+                    open_ask: true,
+                    hold_sessions: false,
+                    websocket: true,
+                }));
+                let mut tcp = None;
+                for _ in 0..50 {
+                    match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
+                        Ok(t) => {
+                            tcp = Some(t);
+                            break;
+                        }
+                        Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                    }
+                }
+                let tcp = tcp.expect("server never listened");
+                let name = ServerName::try_from("localhost").expect("name");
+                let stream = tls.connect(name, tcp).await.expect("TLS");
+                let url = format!("wss://localhost:{port}/{query}");
+                let (mut socket, _) =
+                    tokio_tungstenite::client_async(url, stream).await.expect("upgrade");
+
+                // Nothing is sent: the frame must arrive on the URL ask alone.
+                let mut bytes = Vec::new();
+                let whole = |b: &[u8]| {
+                    b.len() >= 4 && b.len() >= 4 + u32::from_be_bytes(b[..4].try_into().unwrap()) as usize
+                };
+                let read = tokio::time::timeout(Duration::from_secs(3), async {
+                    while let Some(Ok(Message::Binary(chunk))) = socket.next().await {
+                        bytes.extend_from_slice(&chunk);
+                        if whole(&bytes) {
+                            return;
+                        }
+                    }
+                })
+                .await;
+                match want {
+                    Some(frame) => {
+                        read.expect("no frame on the URL ask");
+                        let index = u32::from_be_bytes(bytes[4..8].try_into().unwrap());
+                        assert_eq!(index, frame, "the URL ask served the wrong frame");
+                        assert_eq!(bytes[8..], pattern(frame), "frame {frame} came back wrong");
+                    }
+                    None => assert!(bytes.is_empty(), "an out-of-range opening ask was served"),
                 }
                 server.abort();
             });
