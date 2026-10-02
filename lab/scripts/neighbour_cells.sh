@@ -3,18 +3,20 @@
 # neighbour table in docs/transport/transport-conclusions.md §1, re-run through link_impair.py.
 # The neighbour is quinn's Cubic, a proxy for a phone app's TCP: no HyStart, QUIC's own acks.
 #
-#   lab/scripts/neighbour_cells.sh [rounds]     RTT= RATE= DWELL_MS= QUEUES= OUT=
+#   lab/scripts/neighbour_cells.sh [rounds]     RTT= RATE= DWELL_MS= QUEUES= ARMS= LAG_MS= OUT= FIRST=
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 ROUNDS="${1:-5}"
+FIRST="${FIRST:-0}"           # resume: rounds FIRST..ROUNDS-1 appended to an existing OUT
 RTT="${RTT:-56}"              # the netem rig's 25 ms egress delay over its 28–35 ms path
 RATE="${RATE:-5000}"
 DWELL_MS="${DWELL_MS:-30000}"
 QUEUES="${QUEUES:-20 10 500}"
 SOLO_MS=10000
-ARMS=(cubic bbr bbr-bounded bbr:bbr)  # flow A's controller, then the neighbour's if not cubic
+read -ra ARMS <<<"${ARMS:-cubic bbr bbr-bounded bbr:bbr}"  # A's controller[:the neighbour's, cubic]
+LAG_MS="${LAG_MS:-0}"         # the neighbour starts this late, stops as early: the netem rig's way
 OUT="${OUT:-$(mktemp -t neighbour_cells.XXXX.tsv)}"
 LOCK="${LOCK:-/run/user/$(id -u)/wtpacs-rig.lock}"
 T="$(mktemp -d)"
@@ -73,7 +75,8 @@ run() {  # round prev queue dwell_ms congestion [neighbour's]: one row of $OUT
   local relay=$!
   for _ in $(seq 50); do grep -q READY "$T/relay.log" && break; sleep 0.1; done
   rm -f "$T"/flow*.json
-  for ((i = 0; i < n; i++)); do fill "$i" "$dwell" & flows+=("$!"); done
+  fill 0 "$dwell" & flows+=("$!")
+  [[ $n == 1 ]] || { sleep "$((LAG_MS))e-3"; fill 1 "$((dwell - 2 * LAG_MS))"; } & flows+=("$!")
   wait "${flows[@]}"
   kill -TERM "$relay"; wait "$relay" 2>/dev/null || true
   kill "${PIDS[@]}" 2>/dev/null || true
@@ -108,8 +111,8 @@ one_round() {  # round
 
 echo "link: ${RTT} ms round trip, ${RATE} kbit down, uplink unshaped, dwell ${DWELL_MS} ms; raw: $OUT"
 [ -s "$OUT" ] || printf 'queue\tround\tprev\tarm\ta_mbps\tb_mbps\tvoid\n' > "$OUT"
-locked solo
-for ((r = 0; r < ROUNDS; r++)); do locked one_round "$r"; done
+[[ $FIRST != 0 ]] || locked solo
+for ((r = FIRST; r < ROUNDS; r++)); do locked one_round "$r"; done
 
 python3 - "$OUT" <<'PY'
 import collections, statistics, sys

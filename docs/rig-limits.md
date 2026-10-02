@@ -272,7 +272,7 @@ when mutated back). No published cell set a rate on TCP. Its handshake is comple
 charges the setup round trip rather than observing it (`--tcp-no-handshake` turns that off), and
 TLS is not modelled. It is one thread, so delays under ~1 ms decide nothing and a rate far above
 the ones in the table has to be re-checked against the relay itself first. It carries one client
-at a time on the UDP plane, forwarding to whichever client it heard from last. So a dial made while
+at a time on each UDP pair (a neighbour is a second pair, below), forwarding to whichever client it heard from last. So a dial made while
 the previous connection still sends can have its server's first flight delivered to the old port,
 and pays a handshake probe timeout of ~1 s. Dial in sequence only once the last connection is
 silent (RS1, 2026-09-24). Everything else on this list still holds: the MTU above is unchanged,
@@ -358,6 +358,17 @@ direction reads 1 840. Five mutants caught: a promotion on every packet, the qui
 direction held, only the client waking it, nothing waking it. **It is not a carrier's state
 machine** — no DRX cycle, no intermediate state, no tail that differs by direction; S and P are the
 cell's to name (by report 5–10.5 s and 190–1 907 ms, `transport/transport-conclusions.md` §9).
+
+**A neighbour, 2026-10-01 (row 99, NBR).** `--udp` may be given more than once: each pair is its
+own client and server, and every pair crosses one queue and one rate clock each way, as one phone's
+apps share its radio. `cut`, `rebind` and `swallow` act on the first pair, a blackout on all, and
+`--idle-promote` takes one pair only. Read back with two echoes at once: 250 kB each way through
+each pair at 4 Mbit takes 0.98–1.00 s, not 0.5, all 500 delivered; two bursts of 100 into a
+10-packet queue leave 10 between them, not 20. Two mutants caught: a clock each, the first pair
+reading every socket. The neighbour a cell can put there is another QUIC flow, not TCP: the TCP
+plane sits above TCP and has no congestion window to compete with. Against the rig's `netem`
+neighbour table it agrees within ±10 points except a deep buffer's BBR against TCP
+(`transport/transport-conclusions.md` §1, NBR).
 
 No recorded radio trace has been replayed: what a trace stands in for is the trace's own claim.
 

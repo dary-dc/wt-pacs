@@ -87,7 +87,50 @@ That neighbour cost is measured. Two flows, one shared 5 Mbps bottleneck, the cl
 
 The same TCP flow takes 4.5 Mbps alone against the shallow bottleneck — BBR starves it
 150×. In a shallow buffer (an access link) BBR takes essentially everything. Cubic is not
-innocent (70–77 % from a flow that can take 90 % alone).
+innocent (70–77 % from a flow that can take 90 % alone). *Partly corrected 2026-10-01 (NBR,
+below):* that rig's TCP flow started 1.5 s after ours; through the relay the same lag takes a QUIC
+Cubic from 51.8 % to 67.4 % of a deep buffer against another QUIC Cubic, so most of the 77 % is the
+late start, not the protocol.
+
+**Through the relay, 2026-10-01 (NBR).** The same table re-run through `link_impair.py`, whose
+`--udp` pairs now share one queue and one clock each way:
+[`neighbour_cells.sh`](../../lab/scripts/neighbour_cells.sh), 5 Mbit down, the uplink unshaped,
+56 ms round trip (the rig's 25 ms of egress delay over its 28–35 ms path), two 30 s saturating
+native fills (depth 8) from two servers, arms ordered by `order.py`, 7 rounds, `--self-timing` with
+`VOID` runs dropped (6 of 84). **The neighbour is quinn's Cubic, a proxy for the rig's Linux TCP
+Cubic**: it paces, has no HyStart and acks as QUIC does. Each flow alone takes 4.51–4.77 Mbit at
+every depth. Our flow's share, median [range], n:
+
+| buffer | our flow : neighbour | `netem`, the rig (n) | relay, 20 / 500 packets | relay, 10 packets |
+| --- | --- | --- | --- | --- |
+| shallow | QUIC Cubic : QUIC Cubic | 55.6 % (5) | 47.8 % [38.5–49.6], 7 | 54.0 % [49.3–57.2], 7 |
+| shallow | QUIC BBR : QUIC BBR | 48.5 % (5) | 50.5 % [47.8–53.1], 7 | 55.3 % [39.5–68.2], 6 |
+| shallow | QUIC BBR : TCP Cubic / the proxy | **99.4 %** (5) | **94.0 %** [93.4–94.2], 6 | **95.6 %** [95.3–96.0], 7 |
+| shallow | bounded BBR ×1.25 : the proxy | — | **17.6 %** [11.2–21.2], 7 | 80.1 % [69.9–82.3], 6 |
+| deep | QUIC Cubic : QUIC Cubic | 50.4 % (3) | 50.9 % [48.9–52.7], 7 | |
+| deep | QUIC BBR : QUIC BBR | 27.6 % (3, noisy) | 50.5 % [50.2–53.4], 7 | |
+| deep | QUIC Cubic : TCP Cubic / the proxy, 1.5 s late | 76.8 % (3) | 67.4 % [61.4–67.8], 5 | |
+| deep | QUIC BBR : TCP Cubic / the proxy | **55.1 %** (3) | **15.2–15.8 %**, 5 + 5 | |
+| deep | the same, the proxy 1.5 s late | | 18.9 % [18.4–21.2], 5 | |
+| deep | bounded BBR ×1.25 : the proxy | — | **2.5 %** [2.5–2.5], 6 | |
+
+* **Within ±10 points in every cell but two.** One is the deep BBR pair, whose rig cell read 26.7,
+  56.0 and 27.6 % over its three runs and was given no weight there. `netem`'s 20-packet limit
+  counts the ~11 packets inside its 25 ms delay line, so its queue is nearer the relay's 10; both
+  columns are shown. The late-start rows are the rig's own skew reproduced (the neighbour starts
+  1.5 s late and stops 1.5 s early), interleaved with a no-lag arm, 5 rounds.
+* **BBR starves the proxy too, less deeply**: 0.21–0.29 Mbit left to it, 16–22× under what it takes
+  alone, where the rig's TCP kept 0.03 (150×).
+* **The proxy's difference is the deep BBR cell: 15–19 % against 55 %**, and the rig's start skew
+  explains 3.7 points of it. What is left is the neighbour itself — quinn's Cubic paces and has no
+  HyStart, the rig's was Linux's, unpaced behind `netem`, over ssh — and is not separated here. So
+  through this relay a deep buffer's verdict on BBR against TCP is not admissible; the shallow one
+  is.
+* **The bounded BBR is the worst neighbour to itself.** Behind a 20-packet queue it keeps 17.6 %,
+  behind 500 it keeps 2.5 % (0.12 Mbit) in every round. That is BBF's mechanism (below) with a
+  neighbour's queue in place of jitter: the smoothed round trip stands above 1.25 × the all-time
+  minimum, so each cap shrinks the next — though the window was not read here. Only at 10 packets,
+  where Cubic's own queue is short, does it hold 80 %.
 
 ### Why two answers and not one
 
@@ -208,7 +251,9 @@ rounds won against Cubic in brackets:
   host through a userspace relay. **Nothing changed**: the bound is a candidate for the rig, against
   a competing flow and congestive loss, before any default moves. *2026-10-01:* on steady depth-1
   asks with no loss it is 77–104 ms slower than Cubic per ask (§5, TAX). Jitter, not covered
-  either, disqualifies it as built (BBF).
+  either, disqualifies it as built (BBF). A competing flow, through the relay (NBR, the neighbour
+  table above): behind a Cubic neighbour it keeps 17.6 % of a 20-packet queue and 2.5 % of a
+  500-packet one — it starves itself, where plain BBR starves the neighbour.
 
 ### The bound on a jittery link, 2026-10-01 (BBF)
 
@@ -1051,7 +1096,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
 2. **The loss mix** (§1): client telemetry, the round-trip trend in the second before each loss.
    Until then, one calibration of `link_impair.py` against `netem`. The bounded BBR is no longer
    the candidate to put on a rig: jitter pins it to its floor (BBF, §1); a bound whose round-trip
-   floor jitter cannot lower would have to be built and pass BBF's cells first.
+   floor jitter cannot lower would have to be built and pass BBF's cells first — and a Cubic
+   neighbour's queue, which starves the bound as built (NBR, §1). A deep buffer's BBR-against-TCP
+   share needs a real TCP neighbour: the relay's proxy does not reproduce it.
 3. **The first ask's defaults** — the owner's call (§3). Unmeasured: which lever a NAT rebind
    re-applies, and a genuinely new client address.
 4. **The restart at 0.1–1 % loss**, with rounds enough to size the misfire (it already misfires
