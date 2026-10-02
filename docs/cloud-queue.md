@@ -86,6 +86,9 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 104 | **PUSH** — row 56's open half: the push at session open, in a browser | queue §Rows 101–104 | **done** 2026-10-02, `c2122ba`, `fa694ee`: **the page lines were already built** (`first-byte.html`'s `openAsk`, rungs `r1`/`inline`, row 93's ladder); re-run `today,r1,inline` at 40/80/160, 1× and 4×, 14 rounds Williams-ordered, self-timed relay per visit (24/126 and 31/126 `VOID` dropped, 7–13 rounds a cell): **the push is −1.06 round trips to the first frame at 1×, −1.52 at 4×** (−84 / −164 ms at 80 / 160, 9/13 and 9/12; −77 / −194 at 4×, 8/12, 6/11; a tie at 40), session untouched; with the URL inlined −1.9 / −1.8. **Rebind: LD's correction was wrong for a port change** — quinn-proto 0.11.18 keeps the controller when only the port moves on one IPv4 address (`migrate` ~:3077): a port-only rebind reads warmed (102.5 against 104.9, fresh 454.0 at 80 ms); a new address (new `link_impair.py --rebind-ip 127.0.0.2`) reads fresh (442.7), and **the 32-packet window re-applies there (321.1 = fresh with it), the push does not** (spent at open). `first_ask_cells.sh rebind`, 250 KB, 40/80, 9 rounds, `--self-timing`. No default changed. `lab/page-open/README.md` §The push in a browser, at 4×; `ARCHITECTURE.md` §Lever 1; `transport-conclusions.md` §3, §9 item 3; `rig-limits.md` §3. **For other rows:** any cell that used `rebind` as a NAT-rebind reset measured a kept window; whether a real mobile NAT changes the address is a device's question |
 | 107 | **TUN** — the relay at the packet layer, so kernel TCP meets the same loss as QUIC | queue §Rows 107–108 | **done** 2026-10-02, `9d66188`: `link_impair.py --tun` — two TUN devices, the server in a namespace of its own (10.77.0.1 → 10.77.0.2), every IPv4 packet through the same pipes, so kernel TCP and QUIC share one queue and one loss model. `tun_check.sh`: 40.9 ms at 20 one way; TCP under a step trace 0.965–0.982 of the UDP plane's goodput (1 448 / 1 500 = 0.965); GE 2 % at 1.000 of the mean, sink + relay = sent; nothing dropped, nothing retransmitted; 1 % iid, retransmitted 1.00× dropped. **Set a rate**: with none the TUN's own queue drops (7 110 retransmitted, none modelled), now tallied as `unread`. Ceiling **100 Mbit** (guard p99 ≤ 0.81 ms; 33–106 µs CPU a packet), `VOID` at 200 in 3 of 4. Five mutants caught — `rig-limits.md` §3 |
 | 108 | **ASKL** — our ask's loss sensitivity against kernel TCP carrying the same bytes | queue §Rows 107–108 | **done** 2026-10-02, `6c681d1`: **the slope is the controller's, not QUIC's.** Through row 107's relay, 256 KB depth-1 asks, 80 ms, a 24/12 Mbit step trace, GE 0–4 %, 4 arms Williams-ordered, 9 rounds (33 of 180 `VOID`): p50 per 1 % loss QUIC Cubic **+339**, TCP Cubic **+354**, QUIC BBR **+1**, TCP BBR **+18** ms (p99 +2 606 / +2 841 / +865 / +627). QUIC Cubic's window sits at 20–56 KB through 1 % against a 120–240 KB path. Smallest change: an existing knob — `bbr-bounded` +16 ms per 1 % (+50 lossless), `bbr` +1 (+160 lossless). Fill at 1 %: inter-frame p99 1 522 ms over TCP, 1 368 over the shared stream — no fallback HOL cost resolved. A first campaign read QUIC 20× steeper: its TCP arm took the container's default **BBR** — retracted; `ws:<cc>` now names it. No qlog: PTO fires not counted — `transport-conclusions.md` §5 ASKL |
+| 109 | **BOOT** — the downloader's worker graph booted sooner: one bundle, or its entry inlined | queue §Rows 109–111 | **ready** |
+| 110 | **FQC** — fq_codel in the relay, and BBR against a neighbour behind it | queue §Rows 109–111 | **ready** |
+| 111 | **BB3** — quinn's BBR against BBRv3: which measured costs v3 removes | queue §Rows 109–111 | **ready** |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** — 2026-10-01: trace replay done by row 92; the idle penalty by row 95 (`--idle-promote`) |
@@ -109,6 +112,39 @@ The term scanner that checks it runs on the workstation, not in a container.
 * **Rows 73–76** (2026-09-25): the warm-up, the decode tail and resources under a throttled CPU, the hand-off to the page — `decode/README.md`, `ARCHITECTURE.md` §Resources and §The hand-off.
 * **Row 77** (TC1): the TCP fallback, built, off by default — `WIRE.md` §The WebSocket mapping, `CLIENTS.md` §The race, `ARCHITECTURE.md` §What was built.
 * **Rows 78–81** (2026-09-25): stream shape under loss in a browser (no); the range in the pack (a third off a colour fill at 4–6×); a bounded BBR (keeps BBR's fill, none of its queue); quinn's withheld ACK, reproduced and fixed as an opt-in patch — `adr-stream-shape.md` §HOL1, `decode/README.md` §The range in the pack, `transport/transport-conclusions.md` §1, `transport/upstream-quinn-ack.md`.
+
+### Rows 109–111
+
+Opened 2026-10-02 from the harvest of rows 86–108; each decides a default the workstation holds.
+
+**109 · BOOT.** Row 93 found a dial from the page's head has its session ~2 round trips before `inline` (−167 ms at
+80, every paired round) — the downloader worker graph's boot — and that a `WebTransport` cannot be handed to the
+worker. Measure the shapes that boot the graph sooner without moving any chunk through the page thread: (a) the
+worker graph as one bundle (no module hops), (b) the worker's entry inlined in the page as a blob URL, (c) both. New
+rungs on `lab/page-open`'s ladder beside `inline` and `dial0` (the ceiling), on top of today's preloads, over HTTP/2
+(and HTTP/3 where the host serves it); 40 / 80 / 160 ms, 1× and 4×, `order.py`, ≥ 9 rounds, a self-timed relay per
+visit, `VOID` dropped, every frame bit-exact. Report round trips to the session's `ready` and to the first frame against
+`inline` and `dial0`, and what each shape asks of a deployment (a blob worker needs `worker-src blob:` in a CSP). No
+default changed.
+
+**110 · FQC.** Rows 86 and 99 put BBR's cost on a shared FIFO: a small share against TCP in a deep buffer, a long
+standing queue; row 100 built CoDel on one FIFO, not fq_codel. Build RFC 8290's fq_codel in `link_impair.py`:
+flows hashed by 5-tuple across the `--udp` pairs and the TUN plane (row 107), DRR with a 1 514-byte quantum, the
+new-flow list, CoDel per queue. Read back against arithmetic and mutate each part: two flows of unequal aggression
+split the rate within ±5 %; a sparse flow's packets skip the bulk flow's queue; per-queue CoDel's drop gaps as row
+100's. Then the neighbour cells: our fill and steady ask (p50 / p99) under BBR, Cubic and the bounded BBR against a
+kernel-TCP Cubic neighbour through the TUN plane, FIFO vs fq_codel, at row 99's shallow and deep buffers and on row
+86's LTE-loaded profile; `order.py`, ≥ 7 rounds, `--self-timing`. Report whether BBR's neighbour cost survives
+behind fq_codel, and each arm's share and queue. No default changed.
+
+**111 · BB3.** An answer, not a build, in `transport-conclusions.md`. quinn's BBR is a port of BBRv1. From primary
+sources (the IETF CCWG BBR draft, the Linux BBRv3 source, quinn's `congestion/bbr`), list what v3 changes —
+the loss- and ECN-bounded `inflight_hi`, the probe-up / probe-down cycle, ProbeRTT — and map each measured BBR cost
+here to whether v3 removes it, with arithmetic: CoDel's drops ignored and 200 ms kept (row 86), a 500 ms buffer
+overrun (row 102), a small share against TCP in a deep buffer (row 99), the jitter floor (row 91). Then the smallest
+build that keeps BBR's loss-free ask slope (row 108, +1 ms per 1 %) and pays none of those costs: v3's loss bound alone
+on quinn's controller, a full v3, or an existing Rust implementation (licence, size, how it fits quinn's `Controller`).
+End with the cell from rows 86, 99, 102 or 110 that would decide it.
 
 ### Rows 107–108
 
