@@ -59,6 +59,8 @@ lab/paint-floor/frames/
 # The synthetic metadata lab/page-open/enc.mjs writes and removes
 lab/page-open/metadata.json
 lab/page-open/meta-first.html
+# The pages and the bundle lab/page-open/boot.mjs writes and removes
+lab/page-open/boot/
 
 # Python bytecode from lab analysis scripts
 __pycache__/

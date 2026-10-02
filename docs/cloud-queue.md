@@ -578,6 +578,9 @@ worker (each chunk then crosses the page thread — the hop the downloader exist
 worker graph that boots sooner (one bundle, or the worker's script inlined as a blob). **What is
 needed:** whether to template the URL into the page, and whether either shape is wanted at its
 price — `lab/page-open/README.md` §The dial before the config. Nothing built beyond the lab rungs.
+**Priced 2026-10-02 (row 109):** over HTTP/2 the gap is one round trip and only a page carrying the
+consumer and the worker graph collects it (−1.0 to the session); a bundle or a blob worker alone
+moves none — `lab/page-open/README.md` §The worker graph's boot. Which, if any, is still the owner's.
 
 **Signed data in the product?** Still the workstation's: whether the product serves signed samples at
 all. The decoders and the parity run cover signed 12- and 16-bit ([`decode/README.md`](decode/README.md) §Ground truth).

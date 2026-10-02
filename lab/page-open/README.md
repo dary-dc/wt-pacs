@@ -196,13 +196,135 @@ own at 5.7–6.0. That ~2 round trips (−167 ms at 80, −334 at 160, every pai
 adoption would be worth if it existed — the downloader's worker boots, fetches its script and the
 transport module over fresh connections, and only then dials. Getting it needs a shape this page
 cannot test (`../../docs/cloud-queue.md` §Blocked). On HTTP/2 the worker graph's fetches share
-the page's connection, so this gap is likely smaller there — unmeasured.
+the page's connection, so this gap is likely smaller there — unmeasured. *Measured 2026-10-02 (BOOT):*
+one round trip over HTTP/2 and three over the lab's HTTP/3 host, and only a page that carries the
+consumer and the worker graph collects it — §The worker graph's boot.
 
 *Corrected 2026-10-01 (DL0):* the ladder above and the count at the top of this file ran with a
 config `run.mjs` had written seconds before the visit, so the page's `fetch()` revalidated it
 (H2's trap): `today`'s config was 560 ms at 80 ms against 371 aged, and its session 720 against
 613. The rungs that fetch the config paid it alike, so the ladder's differences stand; its absolute
 cold `config` and `session` counts are high by one to two round trips. `run.mjs` now ages the file.
+
+## The worker graph's boot
+
+**BOOT, 2026-10-02.** Row 93 left ~2 round trips between `inline` and a dial from the page's head, on
+this HTTP/1.1 page, and no way to hand the head's session to the worker. Four rungs boot the worker
+graph sooner without moving a chunk through the page thread, each built on `inline` (the URL in the
+page, the push at open) by [`boot.mjs`](boot.mjs), which `run.mjs` calls:
+
+* `bundle` — the downloader worker and its transport as one esbuild file, preloaded where the worker
+  was: no dynamic `import()` in the worker;
+* `blob` — the worker's script carried in the page and started from a blob URL; the transport is
+  still fetched (preloaded);
+* `both` — the bundle carried in the page as a blob;
+* `page` — `both` plus the consumer module inlined in the page's own script, so nothing is fetched
+  between the HTML and the dial.
+
+The decoder worker, its glue and its WASM stay as today (preloaded, off the dial's path). Every visit
+is held to two checks, each watched to fail on a mutant: the rung fetched none of what it carries
+(the worker's own requests included), and all 12 frames of the fill hash the same as the first
+`inline` visit's (SHA-256 of the pixels, after the clock; 359/359 visits bit-exact).
+
+```bash
+HOST=h2 RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 \
+  STAGES=inline,dial0,bundle,blob,both,page THROTTLE=4 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 12
+```
+
+nginx on the deploy template over TLS and HTTP/2 (gzip on), 12 rounds in Williams order, a
+self-timed relay per visit, 26 of 216 visits (1×) and 36 of 216 (4×) `VOID` and dropped, so a cell
+holds 8–12 rounds; one more 4× `blob` visit timed out at 40 ms — the boot files were removed by
+hand mid-run, an operator error, not the rung. Headless shell, 100 Mbit, the config inlined.
+
+| rung | `session` 1× | `frame` 1× | `session` 4× | `frame` 4× |
+| --- | ---: | ---: | ---: | ---: |
+| `inline` | 5.86 | 11.22 | 5.42 | 10.69 |
+| `bundle` | 5.88 | 11.22 | 5.26 | 10.39 |
+| `blob` | 5.99 | 11.08 | 5.25 | 10.32 |
+| `both` | 5.89 | 11.10 | 5.15 | 10.36 |
+| `page` | **4.84** | **10.08** | **4.58** | **9.60** |
+| `dial0` | 4.98 | — | 4.93 | — |
+
+Round trips, the slope over 40/80/160 ms. Against `inline` in the same round: the median difference
+in ms, and the rounds the rung was ahead in, of the rounds both kept:
+
+| rung | milestone | 1×: 40 ms | 80 ms | 160 ms | 4×: 40 ms | 80 ms | 160 ms |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `bundle` | session | −22, 9/9 | −1, 5/10 | −13, 8/10 | −40, 7/8 | −70, 6/7 | −52, 6/7 |
+| `blob` | session | −15, 7/9 | −13, 7/10 | +12, 2/9 | +8, 4/9 | +45, 3/8 | −18, 7/10 |
+| `both` | session | −23, 7/9 | −17, 7/9 | −12, 9/10 | −37, 7/10 | −32, 4/7 | −60, 7/8 |
+| `page` | session | −30, 9/9 | **−58, 10/10** | **−152, 9/9** | −12, 5/8 | −48, 7/10 | **−102, 9/9** |
+| `dial0` | session | −89, 10/10 | −124, 10/10 | −195, 8/8 | −180, 9/9 | −189, 8/8 | −221, 7/7 |
+| `bundle` | frame | −19, 8/9 | −3, 6/10 | −16, 7/10 | −28, 7/8 | −53, 6/7 | −69, 6/7 |
+| `blob` | frame | +2, 4/9 | −8, 6/10 | −1, 5/9 | +22, 3/9 | +47, 3/8 | −19, 7/10 |
+| `both` | frame | −7, 5/9 | −7, 7/9 | −7, 8/10 | −26, 6/10 | −63, 5/7 | −60, 8/8 |
+| `page` | frame | −32, 7/9 | **−65, 10/10** | **−153, 9/9** | −13, 5/8 | −48, 7/10 | **−95, 9/9** |
+
+**On HTTP/2 the gap is one round trip, not two, and it is the consumer module, not the worker.**
+`dial0` is 0.9 round trips ahead of `inline` at 1× (0.5 at 4×, where most of its lead is a
+constant ~170 ms, the worker graph's boot on a quartered CPU): over one connection the preloads
+leave with the HTML's arrival and land one round trip later, together. The worker's script and its
+transport land in that same flight as `consumer.js`, so bundling them or carrying the worker in
+the page removes no round trip: `bundle`, `blob` and `both` are within 0.13 of `inline` at 1×. What
+is still serial is the page's own module, which cannot run until `consumer.js` lands. **Only `page`
+collects it: −1.02 round trips to the session and −1.14 to the first frame at 1×, −0.84 and −1.09
+at 4×**, ahead in 10/10 and 9/9 rounds at 80 and 160 ms at 1×, 7/10 and 9/9 at 4×; its session
+slope is `dial0`'s or better. At 40 ms and 4× it is a tie (−12, 5/8): its fixed cost is the highest
+of the ladder (145 ms at 1× against `inline`'s 130 and `dial0`'s 78) — a 47 KB page parsed, a module
+compiled from the page's text, a worker from a blob — and at 4× that eats the round trip it saves.
+
+**The bundle saves CPU, not round trips.** At 4× `bundle` and `both` reach the session 32–70 ms
+sooner at every delay, ahead in 4–7 rounds of 7–10: one module fewer fetched and compiled in the
+worker, a constant rather than a slope. At 1× it is 1–23 ms. A lean, not a result.
+
+**Over HTTP/3 the gap is three round trips, and carrying the graph collects all of it.** The same
+rungs (`blob` left out) on the lab's HTTP/3 host (`HOST=dns`, the page on `h3.test` through its HTTPS
+record, full Chromium, a lookup of one round trip before the page), 12 rounds, 55 of 180 (1×) and
+44 of 180 (4×) visits `VOID`, so a cell keeps 3–11 paired rounds. The host now gzips HTML as nginx does;
+without it the two pages that carry the bundle landed 0.5–0.9 round trips late, and that run was dropped.
+
+```bash
+sudo HOST=dns RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 \
+  STAGES=inline,dial0,bundle,both,page NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 12
+```
+
+| rung | `session` 1× | `frame` 1× | `session` 4× | `frame` 4× | session against `inline`, 1×: 40 / 80 / 160 ms |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `inline` | 7.96 | 13.20 | 7.65 | 12.10 | |
+| `bundle` | 7.09 | 12.27 | 6.67 | 11.00 | −49, 6/6 · −82, 5/5 · −159, 9/9 |
+| `both` | 5.83 | 11.00 | 5.31 | 9.91 | −95, 5/5 · −154, 6/6 · −341, 8/8 |
+| `page` | **4.73** | **9.94** | **4.48** | **8.67** | −119, 3/3 · −214, 4/4 · −489, 6/6 |
+| `dial0` | 4.97 | — | 4.67 | — | −160, 4/4 · −277, 3/3 · −522, 10/10 |
+
+At 4× the session against `inline` is `bundle` −58 / −57 / −153 (3/4, 4/4, 10/10), `both` −60 / −143 / −324
+(7/7, 6/6, 11/11), `page` −39 / −159 / −406 (2/3, 7/7, 10/10). Here every rung moves round trips:
+`bundle` −0.9 to −1.1, `both` −2.1 to −2.3, `page` −3.2 to −3.4 to both milestones at both throttles,
+and `page` reaches the session at `dial0`'s slope again. On this host the preloads leave through the
+host's own QUIC slow start and its streams are interleaved (§The order the page's files leave in), so
+a small script lands only as the ~125 KB gzipped burst around it does; each file the dial waits on is
+another one finishing late, and the fewer of them, the sooner. That is a reading of this host's
+scheduling, not isolated here, and it is the lab's host — today's nginx serves no HTTP/3.
+`inline`'s own session is two round trips later here than over HTTP/2 (7.96 against 5.86), so the
+HTTP/3 page reaches the same place as the HTTP/2 one only once it carries the graph.
+
+**What each asks of a deployment.**
+
+| rung | bytes (gzip) | asks |
+| --- | --- | --- |
+| `bundle` | worker + transport 33 130 (9 300) in one file, page unchanged | a build step; beside `decoder.js` the worker's relative URL still holds, anywhere else the page names `decoderWorker` |
+| `blob` | page 5 985 → 20 484 (2 379 → 7 087) | `worker-src blob:` in a CSP; the page names `transport` and `decoderWorker` as absolute URLs (a blob's URL resolves nothing relative); the worker's script is re-sent with every HTML |
+| `both` | page → 39 092 (11 300) | the two above |
+| `page` | page → 46 684 (13 469) | the two above, and the consumer inline: a CSP needs a hash or nonce for the page's module script; the page is templated from the client build, so the HTML changes with every client release, and none of its 40 KB is cached apart from it |
+
+The HTML lands at 2.94–3.01 round trips in every rung on both hosts, so none of the pages costs a
+flight of its own here.
+
+**Deciding.** On HTTP/2, today's serving, only `page` is worth a round trip (−1.0 to the session,
+−1.1 to the first frame), and it is the dearest: a page templated from each client build, a CSP hash
+and `worker-src blob:`. `bundle` is the cheap one, a build step for a lean of 30–70 ms at 4× and no
+round trip; `blob` alone is worth nothing. On an HTTP/3 page like this host's the same shapes are
+worth one, two and three round trips. No default changed; `consumer.js` takes `opts.worker`, the
+seam the rungs need, and nothing else moved.
 
 ## The push in a browser, at 4×
 
@@ -550,6 +672,9 @@ when nothing proxies it, so the run sets `no_proxy` for `.test`. And Chromium ta
 certificate issued by a known root; `--origin-to-force-quic-on=h3.test:9` names a port nobody visits,
 which lifts that check for `h3.test` without forcing QUIC on it. Each check was run broken: without the
 record, or without the flag, the `h3` arm's document came over HTTP/2.
+
+*Corrected 2026-10-02 (BOOT):* `h3-host` gzipped scripts but not HTML, which nginx does. The pages
+measured here are ~3.5 KB, inside the first flight either way, so these figures stand.
 
 **Not measured:** the HTTPS record together with the hint (the two act on different stages and should
 add, −2 round trips); the transport on UDP 443 beside the page's TCP 443, which would share the

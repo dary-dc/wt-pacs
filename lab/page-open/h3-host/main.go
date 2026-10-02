@@ -20,7 +20,7 @@ import (
 )
 
 var compressible = map[string]bool{
-	".js": true, ".mjs": true, ".ts": true, ".css": true, ".json": true, ".wasm": true, ".svg": true,
+	".html": true, ".js": true, ".mjs": true, ".ts": true, ".css": true, ".json": true, ".wasm": true, ".svg": true,
 }
 
 func main() {

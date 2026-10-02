@@ -24,7 +24,8 @@ export class DownloaderClient {
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
-    this.#worker = new Worker(new URL("./downloader.js", import.meta.url), { type: "module" });
+    // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
+    this.#worker = new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);
     this.#watchPage();
     this.#ready = new Promise((resolve, reject) => {

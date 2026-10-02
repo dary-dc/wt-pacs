@@ -21,6 +21,7 @@ import { createRequire } from "node:module";
 import { leadsByPredecessor, order } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
 import { metadata } from "./metadata.mjs";
+import { BOOT_STAGES, buildBoot, removeBoot } from "./boot.mjs";
 
 const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
@@ -54,7 +55,9 @@ const META_FIRST = "lab/page-open/meta-first.html";
 const HOST = process.env.HOST || "dev";
 const ARMS = STAGES
   ? Object.fromEntries(
-      STAGES.map((s) => [s, (base, server) => `${base}/lab/page-open/first-byte.html?stage=${s}&frames=${FRAMES}` +
+      // HOST=dns serves the ladder from h3.test, the one name with an HTTPS record: HTTP/3.
+      STAGES.map((s) => [s, (base, server) => `${HOST === "dns" ? "https://h3.test" : base}/lab/page-open/${BOOT_STAGES.includes(s) ? `boot/${s}` : "first-byte"}.html` +
+        `?stage=${s}&frames=${FRAMES}` +
         `&wt=${encodeURIComponent(`https://127.0.0.1:${server.inn}/`)}&hash=${hash}`]),
     )
   : HOST === "dns"
@@ -94,6 +97,7 @@ function stop() {
   for (const p of kids) p.kill();
   if (CFG_BAK) fs.writeFileSync(CFG, CFG_BAK);
   if (HOST === "dns") for (const f of [META, META_FIRST]) fs.rmSync(path.join(ROOT, f), { force: true });
+  removeBoot();
   fs.rmSync(T, { recursive: true, force: true });
 }
 process.on("exit", stop);
@@ -140,6 +144,8 @@ execFileSync(path.join(BIN, "pack-study"), [
   "--frames", path.join(T, "frames"),
   "--output", path.join(T, "study.sbnd"),
 ]);
+
+if (STAGES?.some((s) => BOOT_STAGES.includes(s))) console.error("boot bytes", buildBoot());
 
 for (const s of SERVERS) {
   start(s.bin, [
@@ -203,8 +209,29 @@ function browserPid(profileDir) {
   throw new Error(`no browser on ${profileDir}`);
 }
 
+// What each boot rung carries rather than fetches: a visit that fetched one is not that rung.
+const BOOT_SKIPS = {
+  bundle: ["/client/downloader/downloader.js", "/client/transport-ts/dist/session.js"],
+  blob: ["/client/downloader/downloader.js"],
+  both: ["/client/downloader/downloader.js", "/client/transport-ts/dist/session.js"],
+  page: ["/client/downloader/downloader.js", "/client/transport-ts/dist/session.js", "/client/downloader/consumer.js"],
+};
+
+// Every visit that decodes a fill must hand back the pixels the first such visit did, frame by frame.
+let pixelsRef = null;
+const pixelsHeld = { same: 0, differ: [] };
+function holdPixels(arm, pixels) {
+  if (!pixels) return;
+  if (pixels.length !== FRAMES || pixels.some((p) => !p)) throw new Error(`${arm}: ${pixels.filter(Boolean).length} of ${FRAMES} frames`);
+  pixelsRef ??= { arm, pixels };
+  if (pixels.every((p, i) => p === pixelsRef.pixels[i])) pixelsHeld.same++;
+  else pixelsHeld.differ.push(arm);
+}
+
 async function visit(ctx, arm, server) {
   const page = await ctx.newPage();
+  const asked = [];
+  ctx.on("request", (r) => asked.push(new URL(r.url()).pathname));
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
   await page.goto(ARMS[arm](base, server), { waitUntil: "commit" });
@@ -224,10 +251,14 @@ async function visit(ctx, arm, server) {
       landed: performance.getEntriesByType("resource").filter((r) => r.responseEnd > 0)
         .map((r) => [new URL(r.name).pathname, Math.round(r.requestStart), Math.round(r.responseEnd)]),
       error: globalThis.__wtpacsError ?? null,
+      pixels: globalThis.__wtpacsPixels ?? null,
     };
   });
   await page.close();
   if (out.error || err) throw new Error(out.error || err);
+  holdPixels(arm, out.pixels);
+  const wrong = (BOOT_SKIPS[arm] ?? []).filter((f) => asked.includes(f));
+  if (wrong.length) throw new Error(`${arm} fetched ${wrong.join(", ")}, which it carries`);
   return { ...out.open, landed: out.landed };
 }
 
@@ -261,11 +292,12 @@ async function relaysUp(rtt, tag) {
 }
 
 let voided = 0;
+let failed = 0;
 for (const rtt of RTTS) {
   for (let round = 0; round < ROUNDS; round++) {
     let prev = null;
     for (const { arm, server } of order(CELLS, round)) {
-      pointAt(server, HOST === "dns" ? PLANES[arm].wt : undefined);
+      pointAt(server, HOST === "dns" ? PLANES[arm]?.wt : undefined);
       const name = label(arm, server);
       const relaysDown = await relaysUp(rtt, `${name}-${rtt}-${round}`);
       // A fresh profile is what makes the cold arm cold: no HTTP cache, no compiled-code cache.
@@ -285,6 +317,7 @@ for (const rtt of RTTS) {
       try {
         for (const profile of PROFILES) visits.push({ rtt, round, arm: name, prev, profile, ...(await visit(ctx, arm, server)) });
       } catch (e) {
+        failed++;
         process.stderr.write(`rtt=${rtt} ${name}: ${e.message.split("\n")[0]}\n`);
       }
       unthrottle();
@@ -375,7 +408,7 @@ if (SERVERS.length > 1) {
 }
 if (STAGES) {
   const first = LABELS[0];
-  console.log(`\nms at each round trip: median [min-max], and rounds each arm beat ${first} in; ${voided} visits VOID and dropped`);
+  console.log(`\nms at each round trip: median [min-max], and rounds each arm beat ${first} in; ${voided} visits VOID and dropped, ${failed} failed`);
   for (const key of ["config", "session", "frame"]) {
     for (const arm of LABELS) {
       const cells = RTTS.map((rtt) => {
@@ -428,7 +461,11 @@ if (HOST === "dns") {
   }
   byPredecessor("session", LABELS.slice(1).map((arm) => [arm, LABELS[0]]));
 }
+if (pixelsRef) {
+  console.log(`\npixels: ${pixelsHeld.same} visits bit-exact to ${pixelsRef.arm}'s first, ${pixelsHeld.differ.length} not` +
+    (pixelsHeld.differ.length ? ` (${[...new Set(pixelsHeld.differ)].join(", ")}) — DIFFER` : ""));
+}
 if (process.env.ROWS) fs.writeFileSync(process.env.ROWS, JSON.stringify(rows));
 
 // The server, the static host and the browser all hold handles open; the report is the work.
-process.exit(0);
+process.exit(pixelsHeld.differ.length ? 1 : 0);
