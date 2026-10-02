@@ -84,6 +84,8 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 106 | **WSA** — the opening ask in the WebSocket upgrade's URL | queue §Rows 105–106 | **done** 2026-10-02, `e834abe`: with `--open-ask` the WebSocket listener reads `?ask=` from the upgrade and serves it behind the 101; `ws-session.ts` carries an opening fill there (armed, never sent). **−1.03 to −1.09 round trips to the first frame, every paired round**: −43.6 ms at 40 (7/7), −83.8 at 80 (10/10), −164.3 at 160 (7/7), the fill's end the same; relay TCP plane, 20 Mbit, four 250 KB frames, 12 rounds Williams-ordered, a self-timed relay per visit (14 of 72 `VOID`, dropped), every frame bit-exact. A server ignoring the query gives the arm no frame (the client trusts the push, as over QUIC), not the brief's tie — caught either way; the Rust test (`an_opening_ask_rides_the_websocket_upgrade`) and three conformance clauses fail on their mutants. **The race** now puts an opening fill on the WebSocket's URL alone and asks it on QUIC if QUIC wins — only under `openAsk`, off by default; the losing socket may push up to a round trip of the fill before it is closed, unmeasured. `lab/tcp-fallback/README.md` §The opening ask in the upgrade's URL, `ARCHITECTURE.md` §What was built, `WIRE.md`, `CLIENTS.md`. No default changed. In a container: `rustup target add wasm32-unknown-unknown`, `cargo install wasm-pack`, `npm i -g binaryen@117.0.0` build the WASM client and the full `gate.sh --quick` passes |
 | 103 | **W5b** — row 50's open half, with row 96's misfire: size the restart at 0.1–1 % loss | queue §Rows 101–104 | **claimed** 2026-10-02 |
 | 104 | **PUSH** — row 56's open half: the push at session open, in a browser | queue §Rows 101–104 | **claimed** 2026-10-02 |
+| 107 | **TUN** — the relay at the packet layer, so kernel TCP meets the same loss as QUIC | queue §Rows 107–108 | ready |
+| 108 | **ASKL** — our ask's loss sensitivity against kernel TCP carrying the same bytes | queue §Rows 107–108 | after 107 |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** — 2026-10-01: trace replay done by row 92; the idle penalty by row 95 (`--idle-promote`) |
@@ -107,6 +109,29 @@ The term scanner that checks it runs on the workstation, not in a container.
 * **Rows 73–76** (2026-09-25): the warm-up, the decode tail and resources under a throttled CPU, the hand-off to the page — `decode/README.md`, `ARCHITECTURE.md` §Resources and §The hand-off.
 * **Row 77** (TC1): the TCP fallback, built, off by default — `WIRE.md` §The WebSocket mapping, `CLIENTS.md` §The race, `ARCHITECTURE.md` §What was built.
 * **Rows 78–81** (2026-09-25): stream shape under loss in a browser (no); the range in the pack (a third off a colour fill at 4–6×); a bounded BBR (keeps BBR's fill, none of its queue); quinn's withheld ACK, reproduced and fixed as an opt-in patch — `adr-stream-shape.md` §HOL1, `decode/README.md` §The range in the pack, `transport/transport-conclusions.md` §1, `transport/upstream-quinn-ack.md`.
+
+### Rows 107–108
+
+Opened 2026-10-01 night. Row 97 found a container can create a TUN device (`## Blocked`); until now the relay's TCP
+plane was a byte proxy above TCP — no loss, no window — so no lab cell could put QUIC and TCP under the same loss.
+
+**107 · TUN.** A packet-layer mode for `lab/scripts/link_impair.py`: inside `unshare -rn`, route the client's traffic
+through a TUN device whose reader applies the relay's existing models per IP packet (delay, `--trace`, `--queue-bytes`,
+GE loss, `--codel`, `--idle-promote`, `--self-timing`) to **both** UDP and kernel TCP — one queue, one clock. The browser
+and servers run inside the namespace; nothing else changes. Checks against arithmetic as rows 43, 92 and 95 did: a
+TCP bulk flow's goodput under the trace within ±5 % of the UDP plane's; GE loss counted per packet equals the
+configured mean; kernel TCP's retransmissions (`ss -ti`) appear only when the relay drops; mutate each. Record the
+CPU per packet and the rate where `--self-timing` voids cells (the container's ceiling).
+
+**108 · ASKL.** Measured on the workstation 2026-10-01 against the reference implementation (native client, a Wi-Fi
+profile with fq_codel): one ask's median grows 130 → 609 ms and its p99 197 → 1 128 ms from 0 to 4 % loss (~+118 /
++255 ms per 1 %). Whether that is QUIC's or any reliable transport's was not measurable there. Through row 107's TUN
+relay: the lab's ask (`first_ask` / steady depth-1 asks, 250 KB) over QUIC vs the same bytes over kernel TCP (the
+WebSocket fallback, row 77 — now under real loss), at 0 / 0.5 / 1 / 2 / 4 % GE loss, 80 ms, a rate trace; arms
+interleaved, ≥ 9 rounds. Report each transport's p50/p99 slope per 1 % loss and, for QUIC, where the time goes (a
+qlog: PTO fires, time-threshold losses, window after the first loss). If QUIC's slope is steeper, name the mechanism and
+the smallest change that flattens it (a knob or a patch), measured in the same cell. Also the fallback's head-of-line
+cost during a fill (inter-frame p99 over TCP vs QUIC at 1 %) — the iPhone-below-26.4 case.
 
 ### Rows 105–106
 
