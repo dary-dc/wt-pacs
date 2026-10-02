@@ -82,6 +82,8 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 102 | **W4b** — row 48's open half: the deep-buffer fill and the trace arm | queue §Rows 101–104 | **claimed** 2026-10-02 |
 | 103 | **W5b** — row 50's open half, with row 96's misfire: size the restart at 0.1–1 % loss | queue §Rows 101–104 | ready |
 | 104 | **PUSH** — row 56's open half: the push at session open, in a browser | queue §Rows 101–104 | ready |
+| 105 | **RCY** — the session recycled before a 16 MB stall: what it costs | queue §Rows 105–106 | ready |
+| 106 | **WSA** — the opening ask in the WebSocket upgrade's URL | queue §Rows 105–106 | ready |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
 | 5 | **L2** — the BYOB frame-0 cost | queue §Row 5 | **part done on the workstation** 2026-09-15: reader acquisition eliminated; module warm-up untested |
 | 43 | **N2** — the impaired link, made to behave like a radio | queue §Rows 43–50 | **half done on the workstation** 2026-09-19, merged 2026-09-20: `--jitter-mode reorder\|ordered` and `--blackout-mode drop\|hold`, each checked against arithmetic and mutated. **Still open: the idle penalty and trace replay** — 2026-10-01: trace replay done by row 92; the idle penalty by row 95 (`--idle-promote`) |
@@ -105,6 +107,32 @@ The term scanner that checks it runs on the workstation, not in a container.
 * **Rows 73–76** (2026-09-25): the warm-up, the decode tail and resources under a throttled CPU, the hand-off to the page — `decode/README.md`, `ARCHITECTURE.md` §Resources and §The hand-off.
 * **Row 77** (TC1): the TCP fallback, built, off by default — `WIRE.md` §The WebSocket mapping, `CLIENTS.md` §The race, `ARCHITECTURE.md` §What was built.
 * **Rows 78–81** (2026-09-25): stream shape under loss in a browser (no); the range in the pack (a third off a colour fill at 4–6×); a bounded BBR (keeps BBR's fill, none of its queue); quinn's withheld ACK, reproduced and fixed as an opt-in patch — `adr-stream-shape.md` §HOL1, `decode/README.md` §The range in the pack, `transport/transport-conclusions.md` §1, `transport/upstream-quinn-ack.md`.
+
+### Rows 105–106
+
+Opened 2026-10-01 by a sweep of what an iPhone runs (every iOS browser is WebKit; every lab cell so far is Chromium).
+
+**105 · RCY.** WebKit bug 319818 (NEW, filed 2026-07-20): QUIC flow control never refills, so a session stalls after
+16 MB of `MAX_DATA` or 7 600 streams — reproduced on Safari 26 / macOS 26 and on iOS 26.6.1 through a WKWebView, so on
+every iPhone browser; `ARCHITECTURE.md` (§What TCP gives up's iOS paragraph) says "nobody has measured what recycling
+costs". Measure it: a lab server flag `--stall-after-bytes N` (the session sends nothing after N bytes, no FIN — the
+bug's shape), and a downloader option `recycleAtBytes` that dials session 2 in the background at ~0.75 N and re-issues
+what the records still owe (§Re-dial and re-issue). Arms: stall + reactive (today: `stallMs` then a re-dial), stall +
+proactive, no stall + proactive (the recycle's own cost on a healthy session — the case if it ships everywhere), no
+stall + none. A 61 MB fill, 20 Mbit, 40/80/160 ms through the relay, `--self-timing`, ≥ 7 rounds ordered; report the
+fill time and the gap at each recycle, bit-exact frames. Mutate: no pre-dial → each recycle pays the dial (~2 round
+trips). Also correct the WebTransport version in `CLIENTS.md` / `ARCHITECTURE.md` in place from MDN's
+browser-compat-data (`api.WebTransport`: reported as Safari / iOS 26.4, not 26 — check the JSON). Whether a real
+iPhone stalls at 16 MB, and the detection rule, stay a device's.
+
+**106 · WSA.** On the WebSocket fallback the opening ask is not honoured: the fill is the socket's first message, a
+round trip after the upgrade (`WIRE.md` ~:160). The upgrade is an HTTP request with a URL, so the server can read
+`?ask=` there and send right after the 101 — row 56's push at open (−70 % natively) taken from the upgrade. It matters
+for every WebSocket client: an iPhone below 26.4 and any network that blocks UDP. Build it in
+`server/src/transport/websocket.rs` (the race client puts the ask on the WebSocket URL only, so the two servers do not
+both push); cell `lab/tcp-fallback` through the relay's TCP plane at 40/80/160 ms, `ws` with and without the URL ask,
+first frame at the client, ≥ 9 rounds ordered. Expect −1 round trip. Mutate: the server ignores the query → the arm
+ties the control. No default changes on the race client — the owner's call, like row 56.
 
 ### Rows 101–104
 
