@@ -514,7 +514,8 @@ such a session was dropped; `refuse` now waits for the stream (`an_opening_ask_i
 
 **Worth −1.13 round trips to the first frame of a fill in a browser** — 13.44 against 14.57, seven
 rounds an arm at 40, 80 and 160 ms, interleaved, against a ±0.2 spread on milestones it does not touch:
-41 ms at 40, 178 at 160. **Off by default** (`--open-ask`, `openAsk`): the URL carries one contiguous
+41 ms at 40, 178 at 160. Re-run 2026-10-02 (PUSH), 14 rounds Williams-ordered: −1.06 at 1×, **−1.52 at
+4×**, and −1.9 / −1.8 with the URL inlined ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The push in a browser, at 4×). **Off by default** (`--open-ask`, `openAsk`): the URL carries one contiguous
 run, and no host but this box's relay has served it. Two clauses hold it (honoured and optional; a
 malformed ask leaves the session serving). A re-dial puts the fill's remainder in the new URL too.
 

@@ -244,11 +244,11 @@ class Pipe:
         return out
 
 
-def udp_socket(port):
+def udp_socket(port, host="127.0.0.1"):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     for opt in (socket.SO_RCVBUF, socket.SO_SNDBUF):
         s.setsockopt(socket.SOL_SOCKET, opt, 8 << 20)
-    s.bind(("127.0.0.1", port))
+    s.bind((host, port))
     s.setblocking(False)
     return s
 
@@ -264,6 +264,7 @@ class UdpPlane:
         self.server = ("127.0.0.1", server_port)
         self.down = udp_socket(listen_port)
         self.up = udp_socket(0)
+        self.rebind_ip = args.rebind_ip
         self.client = None
         self.dead = None
         self.to_server = Pipe(args, rng, links("upstream"))
@@ -321,12 +322,12 @@ class UdpPlane:
         return self.dead[1] if self.dead else 0
 
     def rebind(self):
-        old = self.up.getsockname()[1]
+        old = "%s:%d" % self.up.getsockname()
         self.sel.unregister(self.up)
         self.up.close()
-        self.up = udp_socket(0)
+        self.up = udp_socket(0, self.rebind_ip)
         self.sel.register(self.up, selectors.EVENT_READ, ("udp", self, "up"))
-        return old, self.up.getsockname()[1]
+        return old, "%s:%d" % self.up.getsockname()
 
     def due(self):
         return [d for d in (self.to_server.due(), self.to_client.due()) if d is not None]
@@ -518,6 +519,8 @@ def main():
                          "both directions P ms, as one radio's promotion does")
     ap.add_argument("--self-timing", action="store_true",
                     help="tally how late each packet left; VOID when p99 is over 1 ms")
+    ap.add_argument("--rebind-ip", default="127.0.0.1",
+                    help="the address a rebind moves the server's side to; another one is a new path")
     ap.add_argument("--control-port", type=int)
     ap.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
@@ -590,10 +593,10 @@ def main():
                         cmd = ctrl.recvfrom(65535)[0].split()
                         head = cmd[0] if cmd else b""
                         if head == b"cut" and udp:
-                            print("CUT client port %d, upstream %d -> %d"
+                            print("CUT client port %d, upstream %s -> %s"
                                   % (udp.cut(), *udp.rebind()), flush=True)
                         elif head == b"rebind" and udp:
-                            print("REBOUND %d -> %d" % udp.rebind(), flush=True)
+                            print("REBOUND %s -> %s" % udp.rebind(), flush=True)
                         elif head == b"blackout":
                             outage = float(cmd[1]) / 1000.0
                             blackout_until = now + outage

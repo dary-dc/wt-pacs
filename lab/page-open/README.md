@@ -204,6 +204,45 @@ config `run.mjs` had written seconds before the visit, so the page's `fetch()` r
 613. The rungs that fetch the config paid it alike, so the ladder's differences stand; its absolute
 cold `config` and `session` counts are high by one to two round trips. `run.mjs` now ages the file.
 
+## The push in a browser, at 4×
+
+**PUSH, 2026-10-02.** Row 93's three rungs again, with enough rounds that every cell keeps nine or
+more after `VOID` drops. `today` is the page as served, `r1` adds the push at session open
+(`openAsk`, the three lines in `first-byte.html`), and `inline` is the push plus the transport URL
+written into the page.
+
+```bash
+RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 STAGES=today,r1,inline \
+  THROTTLE=4 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 14
+```
+
+14 rounds in Williams order, a self-timed relay per visit, with 24 of 126 visits (1×) and 31 of
+126 (4×) `VOID` and dropped, so a cell holds 7–13 rounds. Headless shell, 100 Mbit, config aged.
+
+| rung | `frame` 1× | `frame` 4× | `session` 1× | `session` 4× |
+| --- | ---: | ---: | ---: | ---: |
+| `today` | 13.18 | 12.41 | 6.91 | 6.05 |
+| `r1`, the push | 12.12 | **10.89** | 6.92 | 5.84 |
+| `inline`, the push + the URL | **11.25** | **10.61** | 5.97 | 5.32 |
+
+Round trips, the slope over 40/80/160 ms. The first frame, against `today`, by the median of each
+cell, and the rounds each rung beat `today` in:
+
+| rung | 40 ms | 80 ms | 160 ms |
+| --- | --- | --- | --- |
+| `r1`, 1× | −36, 6/9 | −84, 9/13 | −164, 9/12 |
+| `r1`, 4× | −11, 3/9 | −77, 8/12 | −194, 6/11 |
+| `inline`, 1× | −64, 11/12 | −137, 9/13 | −295, 8/10 |
+| `inline`, 4× | −20, 7/12 | −130, 8/11 | −244, 7/12 |
+
+**The push is worth about one round trip to the first frame at 1× (−1.06, as row 56's −1.13) and
+one and a half at 4× (−1.52).** It touches only the frame: its `session` ties `today`. With the URL
+inlined it is worth 1.9 round trips at 1× and 1.8 at 4×. At 40 ms the fixed costs dominate, and at
+4× the push wins only 3 of 9 rounds there. The arms' predecessors are flagged `UNBALANCED` in most
+cells after the drops, but the leads by predecessor agree in sign at 80 and 160 ms. **No default
+changes** — that is the owner's call (row 56). Which lever a rebind re-applies is native, not a page
+cell: `../../docs/transport/transport-conclusions.md` §3 (PUSH).
+
 ## Two servers, and the dial alone
 
 `SERVERS=a=BIN,b=BIN` runs every arm against each server binary, interleaved inside each round,

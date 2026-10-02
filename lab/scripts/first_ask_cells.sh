@@ -380,8 +380,8 @@ keep_cells() {
   done
 }
 
-# Which first-ask lever a rebind re-applies: the path resets the controller to the initial window,
-# so a wider one should return; the push rides the session URL and is spent at open.
+# Which first-ask lever a rebind re-applies. quinn keeps the controller across a port-only change
+# and resets it for a new address; the push rides the session URL and is spent at open either way.
 rebind_cells() {
   local iw="--initial-window-bytes 38400"
   for kb in $SIZES; do
@@ -392,6 +392,8 @@ rebind_cells() {
       arm "rebound|rebound|$WARM|0||--self-timing|"
       arm "fresh, iw 32 pkt|fresh|$WARM|0|$iw|--self-timing|"
       arm "rebound, iw 32 pkt|rebound|$WARM|0|$iw|--self-timing|"
+      arm "new address|rebound|$WARM|0||--self-timing --rebind-ip 127.0.0.2|"
+      arm "new address, iw 32 pkt|rebound|$WARM|0|$iw|--self-timing --rebind-ip 127.0.0.2|"
       printf '\n== %s KB, %s ms, a rebind after the warm-up\n' "$kb" "$rtt"
       round_robin "$T/s$kb.sbnd" "$rtt"
     done

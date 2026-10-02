@@ -486,6 +486,17 @@ stays warm.
 lands *between* fresh and filled (−6 % against fresh at 250 KB, −23 % at 50 KB), because the
 blackout collapses the window without taking it below where it started.
 
+**Corrected again 2026-10-02 (PUSH): a source-port change does not reset the controller; a new
+address does.** quinn-proto 0.11.18 keeps the congestion and RTT state when the peer's port changes
+on the same IPv4 address, because that "looks like a NAT rebinding" (`migrate`, `connection/mod.rs`
+~:3077). Only a new address gets a fresh controller, and the relay's rebind only moved the port.
+`first_ask_cells.sh rebind` at 250 KB, 9 rounds Williams-ordered, `--self-timing` (`VOID` runs
+dropped, 0–5 per arm), the relay's `REBOUND` line required: **a port-only rebind reads as warmed,
+50.6 / 102.5 ms against warmed 52.7 / 104.9 and fresh 234.6 / 454.0 at 40 / 80 ms**, every paired
+round, and the window it ends on is the warmed one (1.14–1.18 MB). **A rebind to a new address
+(`--rebind-ip 127.0.0.2`) reads as fresh, 223.6 / 442.7**, with a fresh session's window. The
+11–12 ms it keeps over fresh is unexplained. What LD's reading below measured is not known: it ran
+before the relay could change the address. *LD's text, kept:*
 **The rebound row is corrected 2026-09-20 (LD): a source-port change does reset the controller.**
 This table first read it as indistinguishable from filled; re-run on the same script it reads as
 **fresh** — 236.7 / 454.7 ms at 250 KB against the fresh arm's 250.8 / 465.5 and the filled arm's
@@ -573,11 +584,12 @@ pays a round trip to lose half its window.
 
 **A session that opens with a fill is warmed by the fill** and needs neither lever. **An ask-only
 session is not**, and pays 4.4 round trips, 4.2× at 250 KB, once per session and again after every
-NAT rebind. For it the push and the wider window are **alternatives, not a pair**: the window if the
+new client address (not after a port-only NAT rebind, PUSH). For it the push and the wider window are **alternatives, not a pair**: the window if the
 page cannot be changed, the push if it can; the keep-alive pair buys nothing on a first ask and
-keeps a warmed window through silence. Not measured: a path reset restarts the controller at the
-*initial* window, so the window lever is re-applied after every rebind where the push is spent at
-open. A per-client jump start from a saved window was proposed (2026-09-24) and not built: at 80 ms
+keeps a warmed window through silence. **After a path reset the window lever is re-applied and the
+push is not** (PUSH, 2026-10-02, above): on a new address the 32-packet window gives 167.0 / 321.1
+ms against a fresh session's 167.6 / 323.4 with the same window, while the push rides the session
+URL and is spent at open. A port-only rebind needs neither, because quinn keeps the warmed window. A per-client jump start from a saved window was proposed (2026-09-24) and not built: at 80 ms
 the push recovers the same (130 against 134 ms of 462). **No product default is changed**; which
 lever becomes one is the owner's call.
 
@@ -1169,8 +1181,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    share needs a real TCP neighbour: the relay's proxy does not reproduce it. On phone-like profiles (PROF, §1)
    BBR ties or beats Cubic on every one, by 1.0–2.3×, and CoDel widens the gap; which mix holds on a
    real radio is still the telemetry's question.
-3. **The first ask's defaults** — the owner's call (§3). Unmeasured: which lever a NAT rebind
-   re-applies, and a genuinely new client address.
+3. **The first ask's defaults** — the owner's call (§3). A port-only rebind keeps quinn's window,
+   and a new address resets it, which re-applies the window lever but not the push (§3, PUSH). Not
+   tested: whether a real mobile NAT keeps the address.
 4. **The restart at 0.1–1 % loss**, with rounds enough to size the misfire (it already misfires
    on an idle spell whose first flight overflows the queue, 2.4×, §3 STW); **hold or drop** — which
    a radio does through an outage, from a device trace; the slow-start exit once a deep queue is the

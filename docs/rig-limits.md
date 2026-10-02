@@ -397,6 +397,12 @@ the same link lost 2 219 of 4 273 packets to CoDel and stood 53 ms of queue agai
 only, the probe losing a third — its model does not read loss. Row 86's cells are where that is
 measured. fq_codel (RFC 8290) is not built: one FIFO, shared by every `--udp` pair.
 
+**A rebind that changes the address, 2026-10-02 (row 104).** `rebind` used to move only the
+relay's server-side port, and quinn keeps a path's controller across a port-only change. With
+`--rebind-ip 127.0.0.2`, a rebind binds the new socket on that loopback address instead, which quinn
+treats as a new path and resets: the first ask after it reads as fresh (`transport/transport-conclusions.md`
+§3, PUSH). `REBOUND` prints `address:port` on both sides now.
+
 **Phone profiles, 2026-10-02 (row 86, PROF).** `profile_cells.sh` composes the levers above into
 eight profiles (`transport/transport-conclusions.md` §1, PROF), with three public mahimahi LTE traces
 fetched into `$TRACES` and never committed. `link_impair_check.sh` now also reads the Gilbert–Elliott
