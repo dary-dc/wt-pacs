@@ -351,7 +351,8 @@ back by `link_impair_check.sh` against arithmetic and each mutated to watch a ch
 * `lab/scripts/gen_step_trace.py KBIT:MS ...` writes a step trace, its opportunities spread evenly
   over each step. A step at 0 is an outage, and two steps make a grant cycle: `0:9 400000:1` is
   39.6 Mbit delivered once every 10 ms. A trace is anchored at the relay's start, so a driver that
-  wants a step at a moment of its cell starts the relay then, or reads `epoch=`.
+  wants a step at a moment of its cell starts the relay then, or reads `epoch=`. A grant cycle is
+  hard on the self-timing guard: `0:9 220000:1` voided 41 % of W4b's runs, a flat 22 Mbit 7 %.
 * **A queue in bytes**, `--queue-bytes` or `--queue-ms` (at each direction's mean rate, a trace's
   own for a traced direction), replaces the packet count, which changes meaning as the rate steps.
   A direction with no rate has no limit.
@@ -593,6 +594,11 @@ older than ~14 days. Read `summary.totals.serve_us` from each run's JSON and tak
 across runs.
 
 **Instrument traps**, each of which produced a wrong answer here before it was caught:
+
+* **The rig client's stream credit as the bottleneck.** On one shared stream `first_ask` and
+  `window-harness` hold at most quinn's 1.25 MB in flight, so a deep-buffer cell taken with them
+  measures that credit — W3's "a megabyte of standing queue" did. A browser grants more (W4b,
+  `transport/transport-conclusions.md` §3); pass `--stream-recv-window` above buffer + BDP.
 
 * **A baseline of your own making.** LTO first measured −17.8 % against a build the lane had
   rebuilt with a newer, slower compiler; against the pinned toolchain it is worth nothing. Record

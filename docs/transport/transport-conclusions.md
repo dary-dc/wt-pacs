@@ -459,8 +459,9 @@ minus the settled baseline (a different instrument from the 180 kB, not comparab
 does not add to what a stalled client costs.**
 
 **What would overturn it:** a client that widens its own receive window on a high-BDP path, where
-the in-flight window rather than the peer's credit bounds the server. Unmeasured; on this rig such a
-client is killed by its own quinn first.
+the in-flight window rather than the peer's credit bounds the server. *A browser is one*
+(2026-10-02, W4b, below): Chromium let a fill put a 2.75 MB buffer plus the path's BDP in flight,
+where the rig's quinn client stops at 1.25 MB. What that costs the server's memory is unmeasured.
 
 ### The first ask on an idle session, 2026-09-19
 
@@ -687,7 +688,8 @@ per-round minimum RTT and, when it rises, caps the window where slow start left 
 datagram per round trip after that. Across a 20- and a 1 500-packet buffer with no jitter, ±2 ms and
 ±10 ms, it is within 5 % of Cubic in all six cells, both directions (1 437 against 1 437 ms deep and
 unjittered; BBR 1 231) — **it does not pay for itself and it is not the default.** It stays as
-`--congestion cubic-hystart` for the deep-queue cell (below) owed on a rig that shapes with `netem`.
+`--congestion cubic-hystart`; behind a deep queue it still ties on time and keeps the queue shorter
+(W4b, below).
 
 **Reordering, not jitter — corrected 2026-09-19 (N2).** These cells first read Cubic **8.6×**
 slower at ±2 ms of jitter and **25×** at ±10 ms, where BBR took 1.05× and 2.9×. The relay's jitter
@@ -719,8 +721,57 @@ quinn's other detector is the 9/8 × RTT time threshold. A qlog cell owes the an
 the end-of-session path line, after the queue had drained. Sampled every 50 ms through the fill, one
 clean trace has the smoothed RTT at **468 ms against the link's 80**: 388 ms of standing queue, a
 megabyte, in a 1 500-packet buffer, and the session still ends with zero loss. One trace, not an
-interleaved cell. Whether the slow-start exit still ties once that queue is the steady state is
-unrun.
+interleaved cell. *Corrected 2026-10-02 (W4b, below):* that megabyte was the rig client's stream
+credit, not the buffer — quinn's 1.25 MB less the path's BDP — so the buffer had not filled.
+
+#### A fill ten times the buffer, 2026-10-02 (W4b)
+
+[`deep_queue_cells.sh`](../../lab/scripts/deep_queue_cells.sh): a 237-frame fill (237 × 265 kB,
+61 MB) through the relay at 80 ms, a buffer of 500 or 1 000 ms at the link's 22 Mbit mean
+(1.4 / 2.75 MB, `--queue-ms`), uplink unshaped. Four links of that mean: `flat`; `step`, a home
+Wi-Fi link's 15/40/10/30/15 Mbit, 12 s each; `step40`, the same loop entered a step later so the
+fill crosses 40 → 10; `burst`, a 1 ms grant every 10 ms. Arms by `order.py`, 7 rounds and 6 more on
+`step40` and `burst`, `--self-timing`: 91 of 400 runs `VOID` and dropped (41 % of `burst`'s, whose
+18-packet grants the relay cannot always time; 7 % of `flat`'s). The standing queue is smoothed
+RTT − min RTT, sampled every 100 ms by the server's path telemetry.
+
+**The rig's client never let the buffer fill.** `first_ask` at quinn's default credit has ~1.25 MB
+in flight on the shared stream whatever the controller: a 348 ms standing queue on `flat` at
+*both* buffers, every round, no loss. **A browser grants more**: headless Chromium's downloader
+fills either buffer to its limit (max 497 / 996 ms, median 422 / 840 ms on `flat`) and loses what
+overflows — the same as `first_ask --stream-recv-window 16000000` (423 / 890 ms). So every
+controller cell below is at that wide credit, and any deep-buffer cell taken with the rig client at
+its default measured the client. Forcing the flag off turns the wide arm back into 348 ms.
+
+Against wide-credit Cubic, paired by round (median lead, rounds better / n):
+
+| link, buffer | Cubic queue p50 | BBR fill | BBR queue | HyStart fill | HyStart queue |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| flat, 500 ms | 423 | −158 ms, 5/6 | +75, 2/6 | −1, 5/6 | +2, 1/6 |
+| flat, 1 000 ms | 890 | −159, 7/7 | **−292, 6/7** | −4, 7/7 | **−239, 7/7** |
+| step, 500 ms | 478 | −28, 4/6 | **−228, 6/6** | +4, 2/6 | **−122, 6/6** |
+| step, 1 000 ms | 672 | −23, 5/6 | **−282, 6/6** | −5, 4/6 | **−308, 6/6** |
+| step40, 500 ms | 222 | **−425, 11/11** | +51, 1/11 | −17, 7/10 | +1, 0/10 |
+| step40, 1 000 ms | 454 | **−442, 11/11** | +75, 4/11 | +15, 4/11 | +17, 2/11 |
+| burst, 500 ms | 433 | −190, 4/7 | +56, 0/7 | +6, 0/3 | +38, 0/3 |
+| burst, 1 000 ms | 926 | −65, 2/4 | +34, 1/4 | +0, 2/5 | **−454, 5/5** |
+
+* **The fill is the link's, whichever controller**: 17.1–24.1 s, every arm within 2.5 % of Cubic.
+  BBR's lead is real where it is 11/11 (−2.5 % on `step40`) and nowhere larger. What a deep buffer
+  costs is the wait of anything asked behind the fill — up to the whole buffer, 2.1–2.2 s at the
+  10 Mbit step for every controller on `step40`.
+* **The slow-start exit, with that queue the steady state, still ties on time and often halves
+  the queue**: HyStart's fill is within 0.1 % in all eight cells, it loses **no packet** behind
+  1 000 ms in any round, and its standing queue is 239–454 ms under Cubic's in four cells, a tie in
+  the rest. It is not the default (a tie on the measured figure), but it is the arm that keeps a
+  deep queue short without BBR's loss.
+* **BBR overruns a 500 ms buffer**: 24 000–41 000 packets a session declared lost (the fill is
+  ~51 000), where Cubic loses ~1 600; the overflow falls before the bottleneck, so the fill does
+  not pay for it, the link's other users do. Behind 1 000 ms it loses 0–6 700.
+* **On a trace instead of iid loss (S27, S29) no verdict of §1 moves**: with no exogenous loss
+  there is nothing for BBR's model to win, and Cubic's congestive-loss case holds to within 2.5 %.
+  The browser's fill times are on a later trace phase (its page loads first), so only its queue is
+  comparable on `step`, `step40` and `burst`.
 
 #### An outage: the threshold is not the lever
 
@@ -1186,8 +1237,7 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    tested: whether a real mobile NAT keeps the address.
 4. **The restart at 0.1–1 % loss**, with rounds enough to size the misfire (it already misfires
    on an idle spell whose first flight overflows the queue, 2.4×, §3 STW); **hold or drop** — which
-   a radio does through an outage, from a device trace; the slow-start exit once a deep queue is the
-   steady state; what declares ~140 losses a session under ±10 ms reordering (a qlog cell: quinn's
+   a radio does through an outage, from a device trace; what declares ~140 losses a session under ±10 ms reordering (a qlog cell: quinn's
    `qlog_stream` reads pacing, flow-control blocking and recovery instead of inferring them);
    delivery-trace replay in the relay; and the idle radio — by report carriers drop a radio to idle
    after 5–10.5 s without traffic and promotion back costs 190–396 ms on 4G and 341–1 907 ms on 5G;
