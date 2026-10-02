@@ -305,6 +305,74 @@ is the server's at the session's close. Medians [range], runs counted:
   is enough to end a fill on it. A cap that jitter cannot ratchet down needs a round-trip floor not
   set by the lowest sample, or a way off the floor; neither is built, and neither is measured.
 
+### Link profiles close to a phone, 2026-10-02 (PROF)
+
+Every verdict above was reached on a fixed rate with uniform loss. [`profile_cells.sh`](../../lab/scripts/profile_cells.sh)
+runs eight profiles through the relay, each a rate trace, a base round trip, Gilbert–Elliott loss in
+bursts averaging 3.5 packets, a FIFO sized in ms at the trace's mean rate (or CoDel 5:100 on top of it),
+and in two of them a quinn Cubic neighbour. LTE traces are mahimahi's (GPL-3.0; fetched, never
+committed): `TMobile-LTE-short` 16.7 Mbit mean, sha256 `4f33dce8dd811b57…`; `Verizon-LTE-short`
+5.0, `c918436fbd6246af…`; `TMobile-LTE-driving` 12.8, `d48ff134fc29c36c…`, all from their start. The
+Wi-Fi traces are steps: home 15/40/10/30/15 Mbit of 12 s each; busy 5–20 Mbit swings of 2–3 s with
+one 0.5 s gap. The profiles: control (20 Mbit fixed, 50 ms, 1 % uniform, 120 ms FIFO); LTE-good
+(50 ms, 0.01 %, 500 ms); LTE-loaded (60 ms, 0.1 %, 1 s, a neighbour); LTE-moving (70 ms, 0.3 %, 500 ms,
+a 200 ms held outage mid-fill in place of a handover); Wi-Fi home (30 ms, 0.5 %, 300 ms); Wi-Fi busy
+(40 ms, 1 %, 300 ms, a neighbour); and CoDel variants of LTE-good and Wi-Fi home. **The loss rates,
+burst length and FIFO depths are the brief's picks or knobs, not fitted to any measurement.** Each run
+makes a 250 KB first ask on a fresh session (`cold_open`), then a 30 s saturating native fill (depth 8)
+with a 20 ms probe on the same link, whose extra round trip is the standing queue. Arms are ordered by
+`order.py`, 5 rounds, `--self-timing`, with 10 of 120 runs `VOID` and dropped (LTE-good's Cubic keeps
+n = 3). The fill is a 30 s rate, not the 61 MB fill: at these rates 61 MB takes 21–230 s.
+
+| profile | arm | ask ms | fill Mbit/s | queue ms | overflow / CoDel % | fill × Cubic (rounds) |
+| --- | --- | --- | --- | --- | --- | --- |
+| control | Cubic | 408 | 2.59 | 0.8 | 0 | |
+| | BBR | 202 | 18.91 | 109 | 32.0 | 7.29× (5/5) |
+| | bounded | 212 | 19.39 | 12.7 | 0 | 7.42× (5/5) |
+| LTE-good | Cubic | 314 | 16.18 | 360 | 0.5 | |
+| | BBR | 212 | 15.84 | 382 | 1.8 | 0.97× (0/3) |
+| | bounded | 229 | 14.81 | 29 | 0 | 0.91× (0/3) |
+| LTE-good + CoDel | Cubic | 317 | **8.26** | 4.7 | 0.14 | |
+| | BBR | 211 | 15.15 | 200 | 6.6 | 1.83× (5/5) |
+| | bounded | 231 | 14.85 | 26 | 1.9 | 1.86× (4/4) |
+| LTE-loaded, neighbour | Cubic | **6 101** | 2.12 (45 %) | 731 | 5.0 | |
+| | BBR | 2 208 | 3.07 (67 %) | 702 | 2.6 | 1.42× (4/4) |
+| | bounded | 2 297 | **0.07 (1 %)** | 590 | 2.3 | 0.07× (0/4) |
+| LTE-moving | Cubic | 418 | 5.12 | 57 | 0 | |
+| | BBR | 200 | 6.69 | 703 | 6.9 | 1.29× (3/3) |
+| | bounded | 309 | 5.60 | 62 | 0 | 1.11× (3/4) |
+| Wi-Fi home | Cubic | 231 | 10.45 | 1.6 | 0 | |
+| | BBR | 223 | 23.07 | 85 | 0 | 2.12× (4/4) |
+| | bounded | 235 | 23.01 | 8.2 | 0 | 2.20× (5/5) |
+| Wi-Fi home + CoDel | Cubic | 232 | 10.04 | 1.5 | 0.05 | |
+| | BBR | 239 | 22.60 | 77 | 7.1 | 2.26× (5/5) |
+| | bounded | 245 | 23.01 | 8.1 | 0.38 | 2.30× (5/5) |
+| Wi-Fi busy, neighbour | Cubic | 756 | 4.78 (51 %) | 8.0 | 0 | |
+| | BBR | 717 | 9.63 (85 %) | 199 | 0.13 | 2.01× (5/5) |
+| | bounded | 738 | 4.81 (49 %) | 10.6 | 0 | 1.05× (2/4) |
+
+Medians, and the share of the neighbour profiles in brackets. Every BBR and bounded first ask beats
+Cubic's in the LTE profiles, every round (−84 to −219 ms; −4.1 s behind LTE-loaded's neighbour); on
+Wi-Fi they tie.
+
+* **Loss in bursts, not the trace, decides Cubic.** At 0.5 % in 3.5-packet bursts on Wi-Fi home,
+  Cubic fills at 10.4 of the trace's 22 Mbit, with almost no queue, and BBR doubles it. At 0.01 %
+  (LTE-good) the controllers tie, and Cubic's own queue fills the 500 ms buffer. Row 79's
+  uniform-loss gap (7.3× here) shrinks to 1.0–2.3× on these profiles, but does not reverse anywhere.
+* **CoDel halves Cubic on LTE-good** (16.2 → 8.3 Mbit/s, queue 360 → 4.7 ms). BBR loses 5 % of its
+  fill and keeps a 200 ms queue, because it does not read CoDel's drops (6.6 % of its packets). A
+  managed queue therefore makes BBR's lead larger and turns it into the neighbour's problem.
+* **Where the bound loses, plainly: behind a neighbour on a deep, slow FIFO it keeps 1 %** —
+  0.07 Mbit/s against Cubic's 2.1, every round. It also ties Cubic on Wi-Fi busy (49 %). That is
+  NBR's starvation on a phone profile. Everywhere else it matches BBR's fill with Cubic's queue
+  (8–62 ms against BBR's 77–703).
+* **LTE-loaded is a bufferbloat cell**: 0.6–0.7 s of standing queue for every arm, and a 2.2–6.1 s
+  first ask behind the neighbour.
+
+One trace each, from their start, five rounds: this is a profile's verdict, not a carrier's. The
+handover is a held outage, not a measured one. **No default changes**: Cubic stays default until the
+loss mix is measured (§9 item 2).
+
 ### quinn's BBR read against the published BBRv1, 2026-09-15
 
 A public report called quinn's BBR broken without naming a cause, so
@@ -1098,7 +1166,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    the candidate to put on a rig: jitter pins it to its floor (BBF, §1); a bound whose round-trip
    floor jitter cannot lower would have to be built and pass BBF's cells first — and a Cubic
    neighbour's queue, which starves the bound as built (NBR, §1). A deep buffer's BBR-against-TCP
-   share needs a real TCP neighbour: the relay's proxy does not reproduce it.
+   share needs a real TCP neighbour: the relay's proxy does not reproduce it. On phone-like profiles (PROF, §1)
+   BBR ties or beats Cubic on every one, by 1.0–2.3×, and CoDel widens the gap; which mix holds on a
+   real radio is still the telemetry's question.
 3. **The first ask's defaults** — the owner's call (§3). Unmeasured: which lever a NAT rebind
    re-applies, and a genuinely new client address.
 4. **The restart at 0.1–1 % loss**, with rounds enough to size the misfire (it already misfires

@@ -397,7 +397,15 @@ the same link lost 2 219 of 4 273 packets to CoDel and stood 53 ms of queue agai
 only, the probe losing a third — its model does not read loss. Row 86's cells are where that is
 measured. fq_codel (RFC 8290) is not built: one FIFO, shared by every `--udp` pair.
 
-No recorded radio trace has been replayed: what a trace stands in for is the trace's own claim.
+**Phone profiles, 2026-10-02 (row 86, PROF).** `profile_cells.sh` composes the levers above into
+eight profiles (`transport/transport-conclusions.md` §1, PROF), with three public mahimahi LTE traces
+fetched into `$TRACES` and never committed. `link_impair_check.sh` now also reads the Gilbert–Elliott
+model directly, with a million draws through the relay's own pipe: loss within 0.92–0.98 of
+p / (p + r), and burst length 0.95–0.99 of 1 / r, at the three settings the profiles use. A mutant that
+forgets the bad state reads a burst of 0.14–0.29.
+
+Recorded radio traces are replayed since row 86 (mahimahi's, above). What a trace stands in for is
+the trace's own claim.
 
 ## 4. The reader never misses
 
