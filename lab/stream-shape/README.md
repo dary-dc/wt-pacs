@@ -27,3 +27,15 @@ node lab/stream-shape/run.mjs --tax --rate 25000 --queue 50 --rtt 60 --rounds 8 
 ```
 
 Results: [`docs/transport/transport-conclusions.md`](../../docs/transport/transport-conclusions.md) §5, TAX.
+
+`--tun` (row 108) runs the same page through the packet-layer relay inside `unshare -rn`, so the
+WebSocket is kernel TCP under the same loss as QUIC; `ws:<controller>` sets the server's TCP
+controller with `tcp_cc.c` (the host's default is not Cubic everywhere — here it is BBR), and cells
+`ge0.5 ge1 ge2 ge4` are Gilbert–Elliott at that mean. `lab/scripts/askl_cells.sh` runs the five
+cells and `askl.py` reads them; `askl.py --fill` reads a fill's gaps between frames.
+
+```bash
+lab/scripts/askl_cells.sh /tmp/askl 9 "cc:cubic ws:cubic cc:bbr ws:bbr"
+```
+
+Results: [`docs/transport/transport-conclusions.md`](../../docs/transport/transport-conclusions.md) §5, ASKL.

@@ -1161,6 +1161,60 @@ container restart), 15 of 62 `VOID`, so arms keep 8–14.
   was not logged. This is row 91's question (the bound's all-time minimum RTT, §1 BB2) from the
   ask's side, and the first cell where the bound loses to Cubic without an outage.
 
+### The ask's loss sensitivity, QUIC against kernel TCP, 2026-10-02 (ASKL)
+
+Measured on the workstation 2026-10-01 against the reference implementation: one ask's median grows
+130 → 609 ms from 0 to 4 % loss. Whether that is QUIC's or any reliable transport's was not
+measurable there. Here, through the packet-layer relay ([`../rig-limits.md`](../rig-limits.md) §3,
+TUN), where kernel TCP meets the same loss as QUIC: depth-1 asks of 256 000 B on a fresh session, 30
+a run, the raw TS client in headless Chromium, over QUIC (`exact-server`) or over the WebSocket
+fallback, 80 ms, a 24 / 12 Mbit step trace (1 s each) down and 20 Mbit up, a 100-packet queue,
+Gilbert–Elliott loss both ways in bursts of 3.5 at the cell's mean. Four arms in a Williams order, 9
+rounds, every relay `--self-timing`, `VOID` runs dropped (33 of 180). `ws:<cc>` is the WebSocket with
+that controller on the server's sockets (`lab/stream-shape/tcp_cc.c`). `lab/scripts/askl_cells.sh`,
+summarised by `lab/stream-shape/askl.py`; p50 and p99 are over every steady ask of the cell (asks 2–30):
+
+| loss | QUIC Cubic p50 · p99 | TCP Cubic | QUIC BBR | TCP BBR |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 176 · 415 | 255 · 1 188 | 337 · 514 | 210 · 477 |
+| 0.5 % | 370 · 1 506 | 434 · 1 182 | 329 · 746 | 249 · 4 642 |
+| 1 % | 752 · 1 585 | 571 · 1 595 | 331 · 553 | 260 · 802 |
+| 2 % | 1 052 · 2 810 | 907 · 6 357 | 325 · 2 668 | 260 · 694 |
+| 4 % | 1 549 · 11 031 | 1 675 · 11 596 | 338 · 3 645 | 298 · 4 674 |
+| **per 1 %, p50 · p99** | **+339 · +2 606** | **+354 · +2 841** | **+1 · +865** | **+18 · +627** |
+
+* **The slope is the controller's, not QUIC's.** With the same controller, QUIC and kernel TCP grow
+  alike: Cubic +339 against +354 ms a percent at the median, BBR +1 against +18. The workstation's
+  +118 ms a percent fits a loss-based controller on either transport.
+* **The mechanism, for QUIC Cubic at 1 %** (path telemetry every 50 ms, one of two runs read): the first loss
+  ends slow start at ~42 KB, and the window then sits at **20–56 KB for the whole run** — one
+  reduction a burst, a regrowth of ~1 packet in 2.5 round trips, a burst every ~1.5 s — where the
+  path holds 120–240 KB. A 256 KB ask then takes ~8 round trips. That is Cubic's loss-limited window;
+  kernel BBR holds 186–312 packets through the same losses (`TCP_INFO` at every ask of a Python
+  client asking the same bytes). PTO fires and
+  time-threshold losses were not counted: the server has no qlog, and the path counters count a loss,
+  not how it was detected.
+* **The smallest change that flattens it is a knob that exists**: `--congestion bbr` (+1 ms a percent)
+  or `bbr-bounded` (a second campaign, 0 / 1 / 4 %, same cell: +16 ms a percent at the median, +103 at
+  p99, 236 · 258 · 302 ms). Each costs the lossless ask: BBR +160 ms paired, the bound +50 (§1 BB2,
+  TAX); both win from 1 % (at 0.5 % BBR reads −66 ms, 3 of 5 rounds).
+* **The first ask** (a fresh session, the median of each arm's runs): QUIC Cubic 463–1 096 ms, TCP
+  Cubic 421–494, QUIC BBR 206–274.
+* **At 4 % asks fail**: an ask with no byte for 15 s is the client's timeout, and 44 asks over 8 TCP
+  Cubic runs and 23 over 2 QUIC Cubic runs failed, 2 for each BBR arm. Part of it is the relay's
+  model: Gilbert–Elliott steps once a packet, so a link in its bad state stays there through a
+  silence, and a backed-off probe that leaves into it is lost with the burst's odds rather than the
+  link's.
+* **The fallback's head-of-line cost during a fill** (the iPhone-below-26.4 case): 40 frames of
+  256 000 B at 1 %, both on Cubic, 9 rounds alternated, 4 of 18 runs `VOID` — the gap between
+  consecutive frames is p50 479 · p90 824 · p99 1 522 ms over TCP and 578 · 932 · 1 368 over QUIC's
+  shared stream, the fill 20.9 s against 24.2 (medians, 8 and 6 runs). **No difference resolved:**
+  the product's one stream blocks behind a loss as TCP does, and both fills are held to ~3.5 Mbit
+  by Cubic's window.
+* *Retracted the same day:* a first campaign read QUIC's median **20× steeper than TCP's** (+334
+  against +17 ms a percent). Its `ws` arm took the host's default controller, which in this
+  container is **BBR**: it compared Cubic with BBR, not QUIC with TCP.
+
 ---
 
 ## 6 · One endpoint per core — parked
@@ -1261,8 +1315,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    floor jitter cannot lower would have to be built and pass BBF's cells first — and a Cubic
    neighbour's queue, which starves the bound as built (NBR, §1). A deep buffer's BBR-against-TCP
    share needs a real TCP neighbour: the relay's proxy does not reproduce it. On phone-like profiles (PROF, §1)
-   BBR ties or beats Cubic on every one, by 1.0–2.3×, and CoDel widens the gap; which mix holds on a
-   real radio is still the telemetry's question.
+   BBR ties or beats Cubic on every one, by 1.0–2.3×, and CoDel widens the gap; under loss an ask's
+   slope is the controller's on either transport (§5, ASKL). Which mix holds on a real radio is still
+   the telemetry's question.
 3. **The first ask's defaults** — the owner's call (§3). A port-only rebind keeps quinn's window,
    and a new address resets it, which re-applies the window lever but not the push (§3, PUSH). Not
    tested: whether a real mobile NAT keeps the address.

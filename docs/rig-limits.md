@@ -440,6 +440,12 @@ runs on a 4-core container (four for the ceiling):
 | a 20 Mbit TCP flow, 1 000-packet queue, no loss | 0 dropped, 0 retransmitted (`RetransSegs` in the sender's namespace) |
 | the same at 1 % iid | 81–87 data segments dropped, retransmitted 1.00× that |
 
+**Name the TCP controller.** This container's kernel defaults to **BBR**
+(`net.ipv4.tcp_congestion_control`), and inside `unshare -rn` the sysctl cannot be changed; a
+socket's `TCP_CONGESTION` can, and an accepted socket inherits its listener's
+(`lab/stream-shape/tcp_cc.c`, row 108). The checks above ran on BBR. A cell whose TCP arm takes the
+host's default compares controllers, not transports: row 108's first campaign did.
+
 **Set a rate.** With none, the sender outruns the loop and the TUN's own queue drops what was not
 read in time (7 110 segments retransmitted at ~760 Mbit, none dropped by the model) — not the model's
 loss. The tally reports those as `unread client->server server->client`; a cell that reads them

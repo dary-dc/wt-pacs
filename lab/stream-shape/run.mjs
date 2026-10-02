@@ -9,6 +9,9 @@
  *   ... --tax --rate 15000 --queue 50 --rtt 60 --arms "ws cc:cubic cc:bbr-bounded iw:38400"
  *       depth-1 asks on a fresh session, each arm's ask over RTT + size / rate; `ws` is the
  *       relay's TCP plane, an ideal-TCP floor (docs/rig-limits.md §3)
+ *   ... --tun [--trace FILE]   inside `unshare -rn`: the relay at the packet layer, so `ws` is kernel
+ *       TCP under the same loss as QUIC, `ws:<controller>` with that controller rather than the
+ *       host's; cells ge0.5 ge1 ge2 ge4 are Gilbert-Elliott at that mean
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -30,11 +33,17 @@ const FRAME = Number(arg("--frame-bytes", 131072));
 const SWEEP = arg("--sweep", "");
 const OUT = arg("--out", "");
 const TAX = process.argv.includes("--tax");
+const TUN = process.argv.includes("--tun");
+const TUN_SERVER = "10.77.0.2";
 const RTT = Number(arg("--rtt", 80));
 const RATE = Number(arg("--rate", 20000));
 const LINK = ["--delay-ms", String(RTT / 2), "--rate-kbit", String(RATE), "--queue-pkts", arg("--queue", "200"),
-  ...(TAX ? ["--self-timing"] : [])];
+  ...(TAX || TUN ? ["--self-timing"] : []), ...(arg("--trace") ? ["--trace", arg("--trace")] : [])];
 const CELLS = { loss0: [], loss1: ["--loss", "1"], loss3: ["--loss", "3"], burst: ["--loss-model", "ge"] };
+// Bursts of 3.5 packets, as row 86's profiles: p is what puts the mean at the cell's percent.
+for (const mean of [0.5, 1, 2, 4]) {
+  CELLS[`ge${mean}`] = ["--loss-model", "ge", "--ge-r", "28.57", "--ge-p", String((mean * 28.57) / (100 - mean))];
+}
 if (!CELLS[CELL]) throw new Error(`unknown cell ${CELL}`);
 
 /** `--depth 3` for every arm, or `arm=d,...` for each its own. */
@@ -48,8 +57,9 @@ function depthOf(arm) {
 
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "hol1-"));
 const kids = new Set();
-const start = (cmd, args, log) => {
-  const k = spawn(cmd, args, { cwd: ROOT, stdio: ["ignore", fs.openSync(log, "w"), fs.openSync(log, "a")] });
+const start = (cmd, args, log, env = {}) => {
+  const k = spawn(cmd, args, { cwd: ROOT, env: { ...process.env, ...env },
+    stdio: ["ignore", fs.openSync(log, "w"), fs.openSync(log, "a")] });
   kids.add(k);
   return k;
 };
@@ -79,6 +89,7 @@ async function until(file, text, ms = 10000) {
 execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server"], { cwd: ROOT });
 execFileSync("cargo", ["build", "-q", "-p", "pack-study"], { cwd: ROOT });
 execFileSync("bash", ["client/transport-ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
+execFileSync("cc", ["-shared", "-fPIC", "-o", `${T}/tcp_cc.so`, "lab/stream-shape/tcp_cc.c", "-ldl"], { cwd: ROOT });
 const frames = FILL + ASKS;
 fs.mkdirSync(`${T}/frames`);
 for (let i = 0; i < frames; i++) fs.writeFileSync(`${T}/frames/${String(i).padStart(3, "0")}.htj2k`, crypto.randomBytes(FRAME));
@@ -86,7 +97,7 @@ fs.writeFileSync(`${T}/m.json`, JSON.stringify({ frameCount: frames }));
 sh(`target/debug/pack-study --metadata ${T}/m.json --frames ${T}/frames --output ${T}/study.sbnd`);
 sh(`openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem -out ${T}/cert.pem \
   -days 2 -nodes -subj '/CN=localhost' -addext 'extendedKeyUsage=serverAuth' \
-  -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`);
+  -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1,IP:${TUN_SERVER}' 2>/dev/null`);
 const hash = sh(`openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`);
 // A WebSocket cannot pin by hash: Chromium trusts this one key instead.
 const spki = sh(`openssl x509 -in ${T}/cert.pem -pubkey -noout | openssl pkey -pubin -outform DER | openssl dgst -sha256 -binary | base64`);
@@ -102,7 +113,7 @@ const browser = await chromium.launch({
 
 /** A stream mode, or `ws` (the WebSocket, through the relay's TCP plane), `cc:<controller>`, `iw:<bytes>`. */
 function serverArgs(arm) {
-  if (arm === "ws") return ["--websocket"];
+  if (arm.startsWith("ws")) return ["--websocket"];
   if (arm.startsWith("cc:")) return ["--congestion", arm.slice(3)];
   if (arm.startsWith("iw:")) return ["--initial-window-bytes", arm.slice(3)];
   return ["--stream-mode", arm];
@@ -110,11 +121,21 @@ function serverArgs(arm) {
 
 async function one(round, arm, depth, fill) {
   const [srv, relayPort] = [port(), port()];
-  const server = start("target/release/exact-server", ["--port", String(srv), "--bind", "127.0.0.1",
+  const planes = TUN ? ["--tun"] : ["--udp", `${relayPort}:${srv}`, ...(arm === "ws" ? ["--tcp", `${relayPort}:${srv}`] : [])];
+  if (arm.startsWith("ws:") && !TUN) throw new Error(`${arm} sets a controller only inside --tun's namespace`);
+  const relay = start("python3", ["lab/scripts/link_impair.py", ...planes, "--seed", String(round),
+    ...LINK, ...CELLS[CELL]], `${T}/relay.log`);
+  // Through the tun the server lives in the relay's namespace for it, and is dialled directly.
+  let netns = [];
+  if (TUN) {
+    await until(`${T}/relay.log`, "READY");
+    netns = ["nsenter", `--net=${fs.readFileSync(`${T}/relay.log`, "utf8").match(/server_netns=(\S+)/)[1]}`];
+  }
+  const [cmd, ...pre] = [...netns, process.env.EXACT_SERVER || "target/release/exact-server"];
+  const server = start(cmd, [...pre, "--port", String(srv), "--bind", TUN ? TUN_SERVER : "127.0.0.1",
     "--study", `${T}/study.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
-    ...serverArgs(arm)], `${T}/server.log`);
-  const relay = start("python3", ["lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`, "--seed", String(round),
-    ...(arm === "ws" ? ["--tcp", `${relayPort}:${srv}`] : []), ...LINK, ...CELLS[CELL]], `${T}/relay.log`);
+    ...serverArgs(arm)], `${T}/server.log`,
+    arm.startsWith("ws:") ? { LD_PRELOAD: `${T}/tcp_cc.so`, WTPACS_TCP_CC: arm.slice(3) } : {});
   let row;
   try {
     await until(`${T}/server.log`, "wt_url=");
@@ -123,7 +144,7 @@ async function one(round, arm, depth, fill) {
     await page.goto(`http://127.0.0.1:${http}/lab/stream-shape/index.html`);
     await page.waitForFunction(() => globalThis.__ready);
     const r = await page.evaluate((a) => globalThis.runArm(a), {
-      url: `https://127.0.0.1:${relayPort}/`, hash, fill, asks: ASKS, depth, limitMs: 300000, ws: arm === "ws",
+      url: TUN ? `https://${TUN_SERVER}:${srv}/` : `https://127.0.0.1:${relayPort}/`, hash, fill, asks: ASKS, depth, limitMs: 300000, ws: arm.startsWith("ws"),
     });
     await page.close();
     row = { cell: CELL, round, arm, depth, ...r };
