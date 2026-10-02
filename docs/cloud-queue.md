@@ -81,7 +81,7 @@ The term scanner that checks it runs on the workstation, not in a container.
 | 101 | **RMD** — `readMin` as the default, at a chunk that keeps a slow link alive | queue §Rows 101–104 | **claimed** 2026-10-02 |
 | 102 | **W4b** — row 48's open half: the deep-buffer fill and the trace arm | queue §Rows 101–104 | **claimed** 2026-10-02 |
 | 105 | **RCY** — the session recycled before a 16 MB stall: what it costs | queue §Rows 105–106 | **claimed** 2026-10-02 |
-| 106 | **WSA** — the opening ask in the WebSocket upgrade's URL | queue §Rows 105–106 | ready |
+| 106 | **WSA** — the opening ask in the WebSocket upgrade's URL | queue §Rows 105–106 | **claimed** 2026-10-02 |
 | 103 | **W5b** — row 50's open half, with row 96's misfire: size the restart at 0.1–1 % loss | queue §Rows 101–104 | ready |
 | 104 | **PUSH** — row 56's open half: the push at session open, in a browser | queue §Rows 101–104 | ready |
 | 82 | **DC2** — the docs cleaned to the essential, in one commit | queue §Row 82 | **done** 2026-09-26, `0752e5d`: 103 documents folded into the ones that own their subjects (fold map in the commit body), `ARCHITECTURE.md` and `adr-stream-shape.md` new, every code pointer follows its section. The term scanner was run over `0752e5d` and every doc on the workstation 2026-09-26: clean. Judgement calls under `## Blocked`. `lab/window-harness/src/stall.rs` still cites a `mem/stall-client.md` that was never in this tree |
