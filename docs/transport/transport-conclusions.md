@@ -391,6 +391,94 @@ time. Two more source leads: the pacer ignores BBR's pacing rate (refuted as the
 CC1), and `exiting_quiescence` is never set, so BBR enters ProbeRtt on the first ACK after ≥ 10 s
 idle.
 
+*Corrected 2026-10-02 (BB3, below), on a reading of 0.11.18:* "faithful" missed one departure —
+**the minimum round trip is all-time, not BBRv1's 10 s window**: on expiry `on_ack` re-reads
+`RttEstimator::min`, which never rises, so ProbeRtt drains the pipe and refreshes nothing; and its
+ProbeRtt window is 0.75 × BDP, not 4 packets. The Startup lead is now read (`window()`, line 488)
+but still not checked against v1 as published; v3 does the same in Startup (below), so it is no
+longer a candidate departure from the algorithm quinn should carry.
+
+### quinn's BBR against BBRv3, 2026-10-02 (BB3)
+
+An answer from sources, nothing measured. Read: the CCWG draft's editor's copy
+(`draft-ietf-ccwg-bbr-latest`, the working group's repository, sha256 `f0304976…`), the BBRv3
+branch of the Linux source (`net/ipv4/tcp_bbr.c`, sha256 `04ba1e8b…`) and quinn-proto 0.11.18
+`congestion/bbr`. Every figure below that is not quoted from a row is derived.
+
+| | quinn 0.11.18 (v1) | v3 (draft; Linux where it differs) |
+| --- | --- | --- |
+| loss in Startup | ignored by the window; Startup ends after a round without +25 % growth while in recovery | ignored by the window; Startup ends when a round loses > 2 % in ≥ 6 ranges, `inflight_hi` := max(BDP, last round's delivery) |
+| loss after Startup | one round of packet conservation, floored at in-flight + acked; the model never moves | a probe round losing > 2 %: `inflight_hi` := the in-flight where loss crossed 2 %, ≥ 0.7 × BDP; any lossy round: short-term rate and volume := max(last round's, 0.7 × previous), reset each probe cycle |
+| probing | `[1.25, 0.75, 1×6]`, one min RTT a phase, window 2 × BDP + aggregation throughout | DOWN 0.9 → CRUISE (cap 0.85 × `inflight_hi`) → REFILL → UP 1.25 (`inflight_hi` grown 1, 2, 4… packets a round); next probe in 2–3 s or min(BDP in packets, 63) rounds |
+| min RTT, ProbeRTT | all-time; every 10 s, 0.75 × BDP for 200 ms | 10 s window; every 5 s, 0.5 × BDP for 200 ms |
+| ECN | quinn hands CE to the controller as 0 lost bytes: ignored | draft: CE is congestion, response unspecified; Linux: only at min RTT ≤ 5 ms |
+| pacing | computed, unused — quinn paces 1.25 × window / srtt (CC1) | the gains are v3's main queue control |
+
+The last row decides much of what follows: **on quinn's pacer any BBR is window-limited**, so v3's
+pacing gains do nothing unless the pacer reads the controller's rate, and its queue is whatever its
+window caps leave. ECN is out of reach on a phone path (Linux v3 uses it at ≤ 5 ms only).
+
+**Each measured cost, and whether v3 removes it:**
+
+* **CoDel's drops ignored, 200 ms kept** (PROF: 6.6 % of BBR's packets dropped behind LTE-good +
+  CoDel, 200 ms standing; Wi-Fi home + CoDel 7.1 %, 77 ms). In quinn a drop buys one round of
+  conservation whose floor is the in-flight itself, and the model never moves. **v3 removes the
+  ignoring**: 6.6 % is 3.3× its threshold, and every lossy round cuts the short-term volume to what
+  the round delivered. Where it settles between CoDel's control law and a 2–3 s probe cycle is not
+  derived.
+* **The 500 ms buffer overrun** (W4b: 24 000–41 000 of ~51 000 packets declared lost, Cubic
+  ~1 600). **v3 removes it.** On `flat` (22 Mbit, 80 ms, 1.375 MB of buffer) a full round is
+  ~0.58 s and ~1 100 packets; a probe overshoots for about one round before its losses are seen,
+  ≤ 0.25 × 1 100 ≈ 275 packets, and probes come every 2–3 s: 7–12 in a 22 s fill, **≤ 2 000–3 300
+  lost**. Not the queue: on quinn's pacer CRUISE's 0.85 × (BDP + buffer) = 1.36 MB stands
+  **≈ 410 ms**, Cubic's 423 — less only if the 2 × BDP term binds first, and what lifted v1's
+  window past BDP + buffer there was not read.
+* **A small share against TCP in a deep buffer** (NBR: 15–16 % against the proxy; the rig's 55 %;
+  the relay's deep cell is not admissible). quinn's window, 2 × rate × R₀ on the all-time minimum,
+  carries 2R₀ / (R₀ + Q) of the rate it was sized for behind a neighbour's standing queue Q. A Cubic
+  neighbour's sawtooth floor in a 785 KB pipe is 0.7 × 785 − 35 = 515 KB, 0.82 s, so Q is 0.82–1.2 s
+  and that is **9–13 %**; measured 15–16 %, the same order without closing. A 10 s windowed minimum
+  refreshed every 5 s would take R₀ + ≥ 0.82 s and size the window to the neighbour's queue. **That
+  is v1 as published, not v3**: what removes this cost is the windowed minimum quinn lacks. The share
+  it would then take is not derived. In the shallow cells (BBR 94–96 %, the rig 99.4 %) v3's loss
+  bound with 15 % headroom is the part designed for it.
+* **The jitter floor** (BBF: the bound at 1.25 ends 4 of 7 fills on 4 packets at ±20 ms). A cap of
+  g × rate × min delivered over srtt shrinks when srtt > g × min. v3 keeps that window form at
+  g = 2 (2.25 in UP), and BBF measured that a windowed minimum does not help. With ±J each way on
+  80 ms the minimum nears 80 − 2J, so g = 2 shrinks once srtt > 160 − 4J: 120 ms at ±10, **80 ms at
+  ±20 — any queue at all**. That is a necessary condition, not a prediction (BBF's ±10 collapse,
+  derived the same way at g = 1.25, did not reproduce). quinn's v1 has the same form; its ±20 cell
+  was all `VOID`, and its 7.4 MB window at ±10 (37 BDPs) is a rate estimate far above the link,
+  which hides the ratchet. v3 limits each rate sample by the send rate, so it may sit nearer the
+  edge. **v3 does not remove it**; a loss bound alone has no min-RTT term and cannot add it.
+* **Does v3 keep ASKL's slope** (+1 ms a percent at p50)? Its long-term bound fires on > 2 % in a
+  probe round, and in ASKL's cell one Gilbert–Elliott burst (3.5 packets) in a 12 Mbit × 80 ms
+  round (82 packets) is 4.3 % on its own. So bursty loss sets `inflight_hi`, floored at 0.7 × BDP. At
+  that floor a 256 KB ask's 171 ms of transfer at 12 Mbit becomes 244: **at most +73 ms, flat in the
+  loss rate beyond** — near BBR's slope, not +1 ms a percent, and unmeasured.
+
+**The smallest build.** Three shapes, by what each removes:
+
+| build | size | removes | does not |
+| --- | --- | --- | --- |
+| **v3's loss bound alone**, a cap over quinn's BBR as `bounded.rs` is: a round losing > 2 % sets `inflight_hi` := max(in-flight, 0.7 × BDP); the window ≤ 0.85 × `inflight_hi`, regrown 1, 2, 4… packets a clean round | ~150 lines and tests | CoDel ignored, the overrun's loss, the shallow neighbour (derived) | the deep queue (≈ 410 ms on W4b's `flat`), the deep-buffer share (needs the minimum inside quinn's BBR) |
+| **a full v3** as a quinn `Controller`, plus a pacer patch | ~2 000 lines, a third carried quinn patch | the first three; the queue only with the pacer patch | the jitter floor |
+| **an existing Rust implementation** | one BBRv3 under Apache-2.0, ~2 000 lines with its rate sampler; two BBRv2s, Apache-2.0 and BSD-2-Clause, 5 000–7 000 | as a full v3 | — it is a port, not a dependency |
+
+The loss bound fits quinn's trait with one approximation. `on_congestion_event` gives the lost bytes
+and the newest lost packet's send time, not the in-flight at each lost packet's send, so the 2 % is
+a round's rate rather than the draft's per-packet `InflightAtLoss`. The full v3 and every existing
+implementation need what quinn does not hand over: a per-packet record of delivered and in-flight
+at send. quinn's `on_sent` is per transmit and `on_ack` carries a send time, not a packet number. All
+three licences are MIT-compatible; which stacks carry them is in the row's report to the owner, not
+here.
+
+**The cell that decides it**: PROF's LTE-good + CoDel profile (row 86), arms `bbr`, the loss bound
+and `cubic`, ≥ 5 rounds by `order.py`, `--self-timing`. The bound passes if under 2 % of its packets
+meet CoDel and it stands under 50 ms (BB2's rule) while keeping ≥ 0.9 × BBR's 15.15 Mbit/s. ASKL's
+1 % and 4 % cells guard the slope (≤ +73 ms over `bbr` at 4 %), and W4b's `flat` at 500 ms its loss
+(< 3 300). **Nothing built, no default changed.**
+
 ---
 
 ## 2 · One shared stream
@@ -1317,7 +1405,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    share needs a real TCP neighbour: the relay's proxy does not reproduce it. On phone-like profiles (PROF, §1)
    BBR ties or beats Cubic on every one, by 1.0–2.3×, and CoDel widens the gap; under loss an ask's
    slope is the controller's on either transport (§5, ASKL). Which mix holds on a real radio is still
-   the telemetry's question.
+   the telemetry's question. The smallest controller that could keep BBR's loss tolerance without
+   its queue costs is v3's loss bound alone over quinn's BBR, unbuilt; its deciding cell is PROF's
+   LTE-good + CoDel (BB3, §1).
 3. **The first ask's defaults** — the owner's call (§3). A port-only rebind keeps quinn's window,
    and a new address resets it, which re-applies the window lever but not the push (§3, PUSH). Not
    tested: whether a real mobile NAT keeps the address.
