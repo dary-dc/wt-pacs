@@ -814,6 +814,7 @@ mod tests {
                     open_ask: true,
                     hold_sessions: false,
                     websocket: true,
+                    stall_after_bytes: None,
                 }));
                 let mut tcp = None;
                 for _ in 0..50 {
