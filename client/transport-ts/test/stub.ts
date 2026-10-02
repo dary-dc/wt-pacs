@@ -3,8 +3,11 @@
  * FIFO by a server `tfMs` per frame behind a link of `rttMs`, and what it saw.
  */
 
-/** `chunk`: bytes a piece, each a task apart; `cutAfter`: the media stream ends inside the first envelope. */
-export type StubLink = { rttMs: number; tfMs: number; bytes: number; stats?: boolean; chunk?: number; cutAfter?: number };
+/** `chunk`: bytes a piece, each a task apart; `cutAfter`: the media stream ends inside the first envelope;
+ *  `plain`: the media stream is not a byte stream, so it has no BYOB reader. */
+export type StubLink = {
+  rttMs: number; tfMs: number; bytes: number; stats?: boolean; chunk?: number; cutAfter?: number; plain?: boolean;
+};
 
 export class StubTransport {
   static link: StubLink = { rttMs: 0, tfMs: 0, bytes: 16 };
@@ -24,7 +27,9 @@ export class StubTransport {
   constructor(_url: string, _opts: unknown) {
     this.link = StubTransport.link;
     StubTransport.last = this;
-    const mediaStream = new ReadableStream({ type: "bytes", start: (c) => void (this.media = c) });
+    const mediaStream = this.link.plain
+      ? new ReadableStream<Uint8Array>({ start: (c) => void (this.media = c as unknown as ReadableByteStreamController) })
+      : new ReadableStream({ type: "bytes", start: (c) => void (this.media = c) });
     this.incomingUnidirectionalStreams = new ReadableStream({
       start: (c) => c.enqueue(mediaStream),
     });

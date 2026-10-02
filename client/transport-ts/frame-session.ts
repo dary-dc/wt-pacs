@@ -209,11 +209,13 @@ export abstract class FrameSession {
       this.lastByteAt = performance.now();
       this.reads += 1;
     };
-    let next: () => Promise<Envelope | null>;
+    let next: (() => Promise<Envelope | null>) | null = null;
     if (this.readMin) {
-      const reader = stream.getReader({ mode: "byob" }) as unknown as MinReader;
-      next = () => readEnvelopeInto(reader, this.wire, this.readMin, onRead);
-    } else {
+      // A stream that is not a byte stream has no BYOB reader: it is read the default way.
+      const reader = byobReader(stream);
+      if (reader) next = () => readEnvelopeInto(reader, this.wire, this.readMin, onRead);
+    }
+    if (!next) {
       const reader = stream.getReader();
       const buf = new ByteAccumulator(onRead);
       next = () => readEnvelope(reader, buf, this.wire);
@@ -432,6 +434,14 @@ async function readEnvelope(
 type MinReader = {
   read(view: Uint8Array, opts: { min: number }): Promise<{ value?: Uint8Array; done: boolean }>;
 };
+
+function byobReader(stream: ReadableStream<Uint8Array>): MinReader | null {
+  try {
+    return stream.getReader({ mode: "byob" }) as unknown as MinReader;
+  } catch {
+    return null;
+  }
+}
 
 /** `readEnvelope` through a BYOB reader: the codestream lands in its wire buffer, no copy. */
 async function readEnvelopeInto(

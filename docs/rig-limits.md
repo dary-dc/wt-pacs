@@ -604,6 +604,11 @@ across runs.
 * **A relay late on a busy host reads as jitter on the link**, and a loop that waits on epoll is up
   to 1 ms late on a quiet one. Run a cell with `--self-timing` and discard it when it prints `VOID`
   (§3, row 92).
+* **A container's timing is the VM it lands on, not the image.** RMD ran the same 40 Mbit trace
+  cell at 21 of 120 visits `VOID`; after a restart onto a new VM, 23 of 24, every one at p99
+  1.3–1.8 ms with the host otherwise idle. Pairs across a restart are not comparable either (the
+  default reader's CPU 640 → 940 ms). Probe a round before a campaign; `reads.mjs` prints each
+  `VOID` visit's tally.
 * **An unshaped relay is late by design on a burst.** With no rate, a whole flight is due at one
   instant and leaves one packet at a time, so a browser fill on loopback reads p99 1.4–4 ms late:
   5–6 of 8 page-open visits `VOID`, and still 5 of 8 with the relay at `chrt -f 50`. A 100 Mbit

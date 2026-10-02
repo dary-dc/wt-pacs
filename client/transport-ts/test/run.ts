@@ -107,6 +107,13 @@ async function readMinBoundsEachRead() {
   assert(results.every(intact), "readMin 16 KB: every frame bit-exact");
 }
 
+/** A media stream with no BYOB reader is read the default way under `readMin`, every frame intact. */
+async function readMinWithoutByobFallsBack() {
+  const { session, results } = await drive({ rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000, plain: true }, 3, { readMin: 65_536 });
+  assert(results.length === 3 && results.every(intact), "readMin, no BYOB reader: every frame delivered bit-exact");
+  assert(session.stats().mediaReads >= 3 * 64, `readMin, no BYOB reader: a read a piece, saw ${session.stats().mediaReads}`);
+}
+
 /** A stream cut inside a frame is named truncated with the bytes it carried, whichever reader. */
 async function aCutFrameIsNamedWithItsBytes() {
   for (const readMin of [undefined, 1 << 30, 4096]) {
@@ -118,7 +125,7 @@ async function aCutFrameIsNamedWithItsBytes() {
 }
 
 for (const t of [noWindowIsUnchanged, fixedDepthCapsInFlight, autoDepthFindsTheLink, autoWithoutStatsHoldsWithoutAPause, autoWithoutStatsReadsIdleAsks,
-  readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, aCutFrameIsNamedWithItsBytes]) {
+  readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

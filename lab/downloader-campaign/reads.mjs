@@ -5,7 +5,7 @@
  * Every frame's sha256 is checked. docs/CLIENTS.md §Reading a frame whole
  *
  *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/reads.mjs [rounds=8]
- *     [THROTTLES=1,4] [KS=0,whole,65536,16384] [DECODE=0,1] [TRACE=40000:1000] [DELAY_MS=20] [QUEUE_MS=200]
+ *     [THROTTLES=1,4] [KS=0,whole,65536,16384] [DECODE=0,1] [TRACE=40000:1000] [DELAY_MS=20] [QUEUE_MS=200] [FILL=87]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -46,7 +46,7 @@ execFileSync(path.join(ROOT, "target/release/pack-study"), ["--metadata", path.j
   "--frames", path.join(T, "frames"), "--output", path.join(T, "set.sbnd")]);
 const wireSha = names.map((f) => crypto.createHash("sha256").update(fs.readFileSync(path.join(src, f))).digest("hex"));
 const pixelSha = names.map((f) => fs.readFileSync(path.join(src, f.replace(".j2c", ".sha256")), "utf8").trim().split(/\s/)[0]);
-const FILL = names.length;
+const FILL = Math.min(Number(process.env.FILL || names.length), names.length);
 
 const trace = path.join(T, "trace.txt");
 fs.writeFileSync(trace, execFileSync("python3", [path.join(ROOT, "lab/scripts/gen_step_trace.py"),
@@ -88,7 +88,7 @@ async function visit(arm, throttle) {
     const browser = await chromium.connect(server.wsEndpoint());
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?arm=${arm.decode ? "Dd" : "Dw"}` +
-      `&scenario=fill&fill=${FILL}&decoders=3&digest=1${arm.k ? `&readMin=${arm.k}` : ""}`);
+      `&scenario=fill&fill=${FILL}&decoders=3&digest=1&capMs=240000${arm.k ? `&readMin=${arm.k}` : ""}`);
     // Not the default: polling on every animation frame is main-thread work the visit would be charged.
     const wait = (f) => page.waitForFunction(f, null, { timeout: 300000, polling: 200 });
     await wait(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone);
@@ -106,13 +106,17 @@ async function visit(arm, throttle) {
   }
   const tally = await stopRelay();
   if (r.error) throw new Error(r.error);
-  if (tally.includes("VOID")) return null;
+  if (tally.includes("VOID")) {
+    process.stderr.write(`${tally.match(/self-timing.*/)?.[0]}\n`);
+    return null;
+  }
   // The downloader is the renderer's first worker; its decoders start after it.
   const downloader = each.filter((t) => t.kind === "renderer" && /DedicatedWorker/.test(t.name)).sort((a, b) => a.tid - b.tid)[0];
-  const truth = arm.decode ? pixelSha : wireSha;
+  const truth = (arm.decode ? pixelSha : wireSha).slice(0, FILL);
   return { fillMs: r.last_frame_ms, frame0Ms: r.received_ms[0], delivered: r.delivered,
     wrong: truth.filter((h, i) => r.digests?.[i] !== h).length, reads: r.stats.mediaReads / FILL,
-    cpuMs: downloader?.cpu_ms ?? NaN, vcs: downloader?.vcs ?? NaN, rendererMb: kinds.renderer?.pss_mb ?? NaN };
+    cpuMs: downloader?.cpu_ms ?? NaN, vcs: downloader?.vcs ?? NaN, rendererMb: kinds.renderer?.pss_mb ?? NaN,
+    resumes: r.stats.resumedAt?.length ?? 0 };
 }
 
 const label = (a) => `${a.decode ? "Dd" : "Dw"} ${a.k === 0 ? "default" : a.k === WHOLE ? "whole" : `${a.k / 1024}K`}`;
@@ -128,7 +132,7 @@ for (let round = 0; round < ROUNDS; round++) {
       else {
         rows.push({ round, throttle, unit: arm.name, prev, ...r });
         process.stderr.write(`round ${round} ${throttle}x ${arm.name}: fill ${r.fillMs.toFixed(0)} ms, ${r.reads.toFixed(1)} reads/frame, ` +
-          `downloader ${r.cpuMs.toFixed(0)} ms ${r.vcs} vcs, wrong ${r.wrong}\n`);
+          `downloader ${r.cpuMs.toFixed(0)} ms ${r.vcs} vcs, wrong ${r.wrong}, resumed ${r.resumes}\n`);
       }
       voids += r ? 0 : 1;
       prev = arm.name;
@@ -142,8 +146,8 @@ const METRICS = [["reads", "reads/frame", 1], ["cpuMs", "downloader CPU ms", 0],
   ["fillMs", "fill ms", 0], ["frame0Ms", "frame 0 ms", 0], ["rendererMb", "renderer peak MB", 1]];
 console.log(`${SET}, ${FILL} frames, trace ${list("TRACE", "40000:1000").join(" ")}, delay ${process.env.DELAY_MS || 20} ms one way; ` +
   `${ROUNDS} rounds, ${voids} VOID visits dropped; medians, and each arm's paired lead on its decode's default reader (wins/rounds)`);
-console.log(`| throttle | arm | n | wrong frames | ${METRICS.map((m) => m[1]).join(" | ")} |`);
-console.log(`| --- | --- | --: | --: | ${METRICS.map(() => "--:").join(" | ")} |`);
+console.log(`| throttle | arm | n | wrong frames | resumed (visits, resumes) | ${METRICS.map((m) => m[1]).join(" | ")} |`);
+console.log(`| --- | --- | --: | --: | --: | ${METRICS.map(() => "--:").join(" | ")} |`);
 for (const t of THROTTLES) for (const a of ARMS) {
   const rs = rows.filter((r) => r.throttle === t && r.unit === a.name);
   const base = new Map(rows.filter((r) => r.throttle === t && r.unit === label({ ...a, k: 0 })).map((r) => [r.round, r]));
@@ -154,7 +158,8 @@ for (const t of THROTTLES) for (const a of ARMS) {
     const m = med(leads);
     return `${v} (${m >= 0 ? "+" : ""}${m.toFixed(d)}, ${leads.filter((x) => x < 0).length}/${leads.length})`;
   };
-  console.log(`| ${t}× | ${a.name} | ${rs.length} | ${rs.reduce((n, r) => n + r.wrong, 0)} | ${METRICS.map(cell).join(" | ")} |`);
+  console.log(`| ${t}× | ${a.name} | ${rs.length} | ${rs.reduce((n, r) => n + r.wrong, 0)} | ` +
+    `${rs.filter((r) => r.resumes).length}, ${rs.reduce((n, r) => n + r.resumes, 0)} | ${METRICS.map(cell).join(" | ")} |`);
 }
 for (const t of THROTTLES) {
   console.log(`${t}×, downloader CPU ms:`);

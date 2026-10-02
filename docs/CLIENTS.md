@@ -296,7 +296,42 @@ frame is still named truncated with its count (`aCutFrameIsNamedWithItsBytes`).
 
 **Bound on K.** Each read moves `lastByteAt`, which the downloader's stall watch reads, so a read
 must resolve inside `stallMs` (3 s) at the slowest rate a session should survive: a whole 410 KB
-frame needs ≥ 1.1 Mbit/s, 64 KB ≥ 175 kbit/s, 16 KB ≥ 44.
+frame needs ≥ 1.1 Mbit/s, 64 KB ≥ 175 kbit/s, 16 KB ≥ 44. **Across an outage the budget is what the
+outage leaves**: K ≤ rate × (`stallMs` − outage − QUIC's recovery after it). Measured (RMD,
+2026-10-02, `reads.mjs` with `FILL=4 QUEUE_MS=500 TRACE=R:3000,0:2000,R:3000`, 2 s outages every
+8 s, decode off, 1×, 6 rounds Williams-ordered, self-timed, none `VOID`): sessions re-dialled by
+the stall watch (visits re-dialled / re-dials), against a default reader re-dialled in none —
+
+| rate while up | 16 KB | 32 KB | 64 KB | whole frame |
+| --- | --: | --: | --: | --: |
+| 0.5 Mbit/s | **0/6** | 1/6, 1 | 6/6, 6 (fill +3.3 s) | 6/6, 15 (+18.6 s) |
+| 1 Mbit/s | 0/6 | 0/6 | 0/6 | 6/6, 6 (+6.2 s) |
+
+So **16 KB is the largest K that keeps every session the default reader keeps at 0.5 Mbit/s with
+2 s outages**; a 32 KB read takes 0.52 s there, which the 1 s the outage leaves holds only until
+QUIC's recovery after the outage eats the rest (once in six). The whole-frame and
+64 KB columns are the cell's own mutant: a K above the bound is condemned in every visit. Each
+re-dial costs the fill seconds, not just a frame. Bit-exact in every visit.
+
+**At K = 16, 32, 64 and 128 KB on the fast link** (RMD, BYM's cell below, Dd, 15 rounds,
+Williams-ordered, self-timed, 21 + 6 of 180 visits `VOID` and dropped; paired leads on the
+default reader, wins/rounds):
+
+| | 16 KB | 32 KB | 64 KB | 128 KB |
+| --- | --: | --: | --: | --: |
+| downloader CPU, 1× / 4× | −105 / −90 (all) | −129 / −98 (all) | −113 / −132 (all) | −143 / −165 (all) |
+| renderer peak | −37 / −38 MB (all) | −40 / −41 (all) | −41 / −40 (all) | −40 / −43 (all) |
+| fill, 1× / 4× | −5 / +3 ms | −1 / −8 | −2 / −6 | +2 / −5 |
+| frame 0, 1× | +3 (4/13) | +4 (3/10) | +1 (4/11) | +5 (4/14) |
+| frame 0, 4× | **+12 (4/11)**, IQR −12…+31 | −4 (5/8) | −1 (5/9) | +8 (3/8) |
+
+**Not adopted — the 4× frame 0 at 16 KB is unresolved**: +12 ms (4/11) here and +7 (2/7) in BYM,
+while 32 and 64 KB tie; no mechanism makes a read with a smaller `min` finish a frame later (the
+last read resolves at the frame's rest), but two leans the same way are not a tie. A 12-round
+top-up could not be taken: after a container restart the relay ran p99 1.3–1.8 ms late in 23 of
+24 visits (`VOID`). The decision and what would settle it are in `cloud-queue.md` §Blocked. A
+stream that is not a byte stream, under `readMin`, is read the default way
+(`readMinWithoutByobFallsBack`).
 
 **What it buys, on a packet-paced link** (BYM, 2026-10-01, `lab/downloader-campaign/reads.mjs`): 87
 16-bit 512² frames (`decode_g512`, 410 KB each) through `link_impair.py --trace` at a uniform

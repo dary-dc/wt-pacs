@@ -18,6 +18,7 @@ const ASK = Number(q.get("askFrame") || 86);
 // BYM: `readMin` reads each frame through a BYOB reader; `digest` keeps every frame's sha256.
 const READ_MIN = Number(q.get("readMin") || 0) || undefined;
 const DIGEST = q.has("digest");
+const CAP_MS = Number(q.get("capMs") || 30000);
 const DECODER = {
   glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
   wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
@@ -156,7 +157,7 @@ async function main() {
       () => askIssued,
     );
     await askDone;
-    await Promise.race([fillDone, sleep(30000)]);
+    await Promise.race([fillDone, sleep(CAP_MS)]);
     result.delivered = delivered;
     result.fill_completed = delivered === FILL;
     result.last_frame_ms = lastFrameMs;
