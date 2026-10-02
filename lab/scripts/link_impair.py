@@ -2,7 +2,8 @@
 """One impaired link for both planes, in a container without root: a userspace relay in front of
 the UDP session and in front of the static host's TCP. Delay, rate, queue depth, jitter with or
 without reordering, scattered and bursty loss, a blackout that drops or holds, a rebind — one model, both planes.
-A delivery-opportunity trace can replace the to-client rate, and the queue can be limited in bytes. The UDP
+A delivery-opportunity trace can replace the to-client rate, the queue can be limited in bytes, and
+CoDel can manage the UDP plane's queue. The UDP
 plane can idle like a radio: after a quiet spell, the next packet waits for the promotion. A second
 --udp is a neighbour: every UDP pair crosses one queue and one clock each way, as one phone's apps do.
 
@@ -10,7 +11,8 @@ What it cannot do, and the limits it was calibrated against, are in `docs/rig-li
 
 usage: link_impair.py --udp 5555:4433 [--udp 5557:4435 ...] [--tcp 8443:8000] [--delay-ms 40]
                       [--rate-kbit 10000] [--rate-up-kbit 2000] [--trace FILE] [--queue-pkts 50 | --queue-bytes N |
-                      --queue-ms N] [--loss 0.5 | --loss-model ge] [--idle-promote 5:300] [--self-timing]
+                      --queue-ms N] [--codel 5:100] [--loss 0.5 | --loss-model ge] [--idle-promote 5:300]
+                      [--self-timing]
                       [--control-port 5556]
 
 --delay-ms is ONE WAY and applies to each direction, so a round trip reads twice it, matching
@@ -66,9 +68,10 @@ class Link:
     """A bottleneck's clock and queue: a pipe's own, or one every TCP connection crosses. The clock
     is a rate, or a trace whose unused opportunities are gone once passed."""
 
-    def __init__(self, rate_bps=0.0, trace=None):
+    def __init__(self, rate_bps=0.0, trace=None, codel=None):
         self.rate = rate_bps
         self.trace = trace
+        self.codel = codel
         self.next_free = 0.0
         self.opportunity, self.left = -1, 0
         self.tx = collections.deque()  # (departure, bytes) of each packet not yet off the link
@@ -92,6 +95,51 @@ class Link:
         self.left -= size
         self.next_free = self.trace.time(self.opportunity)
         return self.next_free
+
+
+class CoDel:
+    """RFC 8289's dequeue, run when a packet is offered: in one FIFO its dequeue time is known
+    then, and packets reach it in order. The bytes behind it at dequeue are not, so the
+    one-packet guard reads the bytes ahead of it instead."""
+
+    def __init__(self, target, interval):
+        self.target, self.interval = target, interval
+        self.first_above = 0.0
+        self.dropping = False
+        self.count = self.last_count = 0
+        self.drop_next = 0.0
+
+    def _ok_to_drop(self, now, sojourn, backlog):
+        if sojourn < self.target or backlog <= MTU:
+            self.first_above = 0.0
+            return False
+        if self.first_above == 0.0:
+            self.first_above = now + self.interval
+            return False
+        return now >= self.first_above
+
+    def _control_law(self, t):
+        return t + self.interval / self.count ** 0.5
+
+    def drop(self, now, sojourn, backlog):
+        """`now` is the packet's dequeue time, `sojourn` its wait to reach it."""
+        ok = self._ok_to_drop(now, sojourn, backlog)
+        if self.dropping:
+            if not ok:
+                self.dropping = False
+            elif now >= self.drop_next:
+                self.count += 1
+                self.drop_next = self._control_law(self.drop_next)
+                return True
+            return False
+        if not ok:
+            return False
+        self.dropping = True
+        delta = self.count - self.last_count
+        self.count = delta if delta > 1 and now - self.drop_next < 16 * self.interval else 1
+        self.drop_next = self._control_law(now)
+        self.last_count = self.count
+        return True
 
 
 class Lateness:
@@ -147,7 +195,7 @@ class Pipe:
         self.hold = 0.0
         self.pending = []
         self.seq = 0
-        self.sent = self.lost = self.overflowed = 0
+        self.sent = self.lost = self.overflowed = self.managed = 0
 
     def _drop(self):
         if self.ge:
@@ -167,6 +215,10 @@ class Pipe:
         if (self.limit and len(link.tx) >= self.limit
                 or self.limit_bytes and link.queued + size > self.limit_bytes):
             self.overflowed += 1
+            return
+        dequeue = max(now, link.next_free)
+        if self.lossy and link.codel and link.codel.drop(dequeue, dequeue - now, link.queued):
+            self.managed += 1
             return
         departure = link.depart(now, size)
         link.tx.append((departure, size))
@@ -281,10 +333,10 @@ class UdpPlane:
 
     def tally(self):
         a, b = self.to_server, self.to_client
-        return ("udp :%d client->server sent %d lost %d overflowed %d | server->client sent %d "
-                "lost %d overflowed %d swallowed %d promoted %d"
-                % (self.down.getsockname()[1], a.sent, a.lost, a.overflowed, b.sent, b.lost,
-                   b.overflowed, self.swallowed, self.promoted))
+        return ("udp :%d client->server sent %d lost %d overflowed %d codel %d | server->client "
+                "sent %d lost %d overflowed %d codel %d swallowed %d promoted %d"
+                % (self.down.getsockname()[1], a.sent, a.lost, a.overflowed, a.managed, b.sent,
+                   b.lost, b.overflowed, b.managed, self.swallowed, self.promoted))
 
 
 class TcpConn:
@@ -449,6 +501,8 @@ def main():
     ap.add_argument("--queue-bytes", type=int, default=0, help="tail drop in bytes, not packets")
     ap.add_argument("--queue-ms", type=float, default=0.0,
                     help="--queue-bytes as milliseconds at each direction's mean rate")
+    ap.add_argument("--codel", type=parse_pair, metavar="TARGET:INTERVAL",
+                    help="udp only: CoDel on each direction's queue, in ms (RFC 8289's are 5:100)")
     ap.add_argument("--loss", type=float, default=0.0, help="percent, iid, udp only")
     ap.add_argument("--loss-model", choices=("iid", "ge"), default="iid")
     ap.add_argument("--ge-p", type=float, default=0.07, help="percent, good->bad")
@@ -479,7 +533,9 @@ def main():
     trace = Trace(args.trace, time.monotonic()) if args.trace else None
 
     def links(side):
-        return Link(up_bps) if side == "upstream" else Link(args.rate_kbit * 1000.0, trace)
+        codel = CoDel(args.codel[0] / 1000.0, args.codel[1] / 1000.0) if args.codel else None
+        return (Link(up_bps, codel=codel) if side == "upstream"
+                else Link(args.rate_kbit * 1000.0, trace, codel))
 
     rng = random.Random(args.seed)
     # Not epoll: it waits in whole milliseconds, so every due packet left up to 1 ms late.
@@ -500,11 +556,11 @@ def main():
     queue = ("%dB" % args.queue_bytes if args.queue_bytes else
              "%gms" % args.queue_ms if args.queue_ms else "%d" % args.queue_pkts)
     print("READY udp=%s tcp=%s ctrl=%s delay_ms=%g jitter_ms=%g rate_kbit=%g rate_up_kbit=%g "
-          "queue=%s loss=%g%s%s%s"
+          "queue=%s%s loss=%g%s%s%s"
           % (",".join(str(pair[0]) for pair in args.udp) if args.udp else "-",
              args.tcp[0] if args.tcp else "-",
              args.control_port, args.delay_ms, args.jitter_ms, args.rate_kbit, up_bps / 1000.0,
-             queue, args.loss, " ge" if args.loss_model == "ge" else "",
+             queue, " codel=%d:%d" % args.codel if args.codel else "", args.loss, " ge" if args.loss_model == "ge" else "",
              " idle_promote=%g:%g" % (args.idle_promote[0], args.idle_promote[1] * 1000)
              if args.idle_promote else "",
              " trace=%s sha256=%s mean_kbit=%.0f epoch=%.6f"

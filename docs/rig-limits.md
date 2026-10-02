@@ -368,7 +368,34 @@ each pair at 4 Mbit takes 0.98–1.00 s, not 0.5, all 500 delivered; two bursts 
 reading every socket. The neighbour a cell can put there is another QUIC flow, not TCP: the TCP
 plane sits above TCP and has no congestion window to compete with. Against the rig's `netem`
 neighbour table it agrees within ±10 points except a deep buffer's BBR against TCP
-(`transport/transport-conclusions.md` §1, NBR).
+(`transport/transport-conclusions.md` §1, NBR). *On 2026-10-02, a 4-core container, the
+neighbour's probe started first and finished in 0.51–0.83 s, with and without row 100's change:
+that check reads the two probes' start skew as well as the shared clock.* On the same box two older
+checks failed the same way on the unchanged tip, both the host's: the Gilbert–Elliott blast
+delivers 6 650–7 050 of 8 000 because the echo's socket overflows (the relay's own tally lost 84),
+and the 1 200 kbit trace's 100 ms queue keeps 14–15, not 10–12, as the burst takes longer to arrive.
+
+**CoDel, 2026-10-02 (row 100, CDL).** `--codel TARGET:INTERVAL` (ms; RFC 8289's are `5:100`) runs
+RFC 8289's dequeue on each direction's UDP queue, on top of its tail drop. In one FIFO a packet's
+dequeue time is known when it is offered and packets reach it in order, so the control law runs then,
+with now := that dequeue time; a dropped packet takes no link time, as at a real dequeue. Two things
+are approximated: the one-packet guard reads the bytes ahead of the packet, not behind it, and
+`drop_next` advances on a drop rather than after the next packet is looked at. The TCP plane is not
+managed (a chunk dropped there is data gone). `link_impair_check.sh` reads it back:
+
+| Asked | Read |
+| --- | --- |
+| 1 000 B open loop at 1.5× a 1 Mbit link, 12 s, the relay's own `Pipe` on a virtual clock | the first ten drop gaps within 4 ms of 100/√count (dequeues are 8 ms apart); 62.4 drops a second after 4 s against an excess of 62.5; sojourn 40 ms |
+| a native Cubic fill and a 20 ms probe on one 5 Mbit, 56 ms link, 200-packet queue | the probe's extra round trip 4.7–5.1 ms with `--codel 5:100` (16–18 drops in 10–12 s), 389–395 ms tail drop only |
+
+**Against a sender that does not back off, CoDel holds ~40 ms, not 5** — its drop rate only reaches
+the excess once count ≈ (excess × interval)², and it oscillates there; that is the RFC's algorithm,
+not the relay's. Seven mutants caught: no square root, a fixed interval, the count never resumed,
+never above target, the sojourn read as zero, no interval before the first drop, and (live) a CoDel
+that never drops (369 ms). **One run each, not a campaign:** quinn's BBR under `--codel 5:100` at
+the same link lost 2 219 of 4 273 packets to CoDel and stood 53 ms of queue against 71 tail drop
+only, the probe losing a third — its model does not read loss. Row 86's cells are where that is
+measured. fq_codel (RFC 8290) is not built: one FIFO, shared by every `--udp` pair.
 
 No recorded radio trace has been replayed: what a trace stands in for is the trace's own claim.
 

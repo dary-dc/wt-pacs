@@ -149,6 +149,40 @@ print("%.3f %d %.4f %.3f %d %.3f" % (statistics.median(rtt) if rtt else 0.0, got
                                      max(rtt) if rtt else 0.0))
 PY
 
+cat > "$T/codel_sim.py" <<'PY'
+"""Offers 1000 B datagrams open loop at 1.5x a 1 Mbit CoDel link for 12 s on a virtual clock,
+through the relay's own Pipe. Prints the worst |gap - interval/sqrt(count)| over the first ten
+drops in ms, the drops a second after 4 s against the excess, and the median sojourn after 4 s."""
+import argparse, random, statistics, sys
+sys.path.insert(0, sys.argv[1])
+from link_impair import CoDel, Link, Pipe
+args = argparse.Namespace(delay_ms=0, jitter_ms=0, jitter_mode="reorder", queue_pkts=10000,
+                          queue_bytes=0, queue_ms=0, loss=0, loss_model="iid", ge_p=0, ge_r=0)
+rate, size, interval = 1e6, 1000, 0.1
+link = Link(rate, codel=CoDel(0.005, interval))
+pipe = Pipe(args, random.Random(1), link)
+drops, sojourns = [], []
+law = link.codel.drop
+
+
+def drop(now, sojourn, backlog):
+    dropped = law(now, sojourn, backlog)
+    (drops.append((now, link.codel.count)) if dropped else sojourns.append((now, sojourn)))
+    return dropped
+
+
+link.codel.drop = drop
+gap = size * 8 / rate / 1.5
+for i in range(int(12 / gap)):
+    pipe.offer(i * gap, b"x" * size, False)
+first = drops[:11]
+worst = max((abs((b[0] - a[0]) - interval / a[1] ** 0.5) for a, b in zip(first, first[1:])),
+            default=1)
+late = [d for d, _ in drops if d >= 4]
+print("%.2f %.1f %.1f %.1f" % (worst * 1000, len(late) / 8, rate / size / 8 * 0.5,
+                               1000 * statistics.median(s for t, s in sojourns if t >= 4)))
+PY
+
 relay() {  # extra args...; TARGET= picks another echo
   python3 "$RELAY" --udp "$UDP_IN:${TARGET:-$UDP_OUT}" "$@" > "$T/relay.log" 2>&1 &
   RELAY_PID=$!
@@ -395,6 +429,14 @@ read -r _ ngot _ < "$T/neighbour.out"
 want "two bursts of 100, one queue of 10: survivors" "$((got + ngot))" 10 13
 stop_relay
 
+# CoDel against 1.5x overload that never backs off: while dequeues are back to back (8 ms at
+# 1 Mbit), the drops follow interval/sqrt(count) and settle at the excess, the sojourn well above
+# target: RFC 8289's 5 ms is reached against a flow that answers a drop, below.
+read -r worst rate excess sojourn < <(python3 "$T/codel_sim.py" lab/scripts)
+want "codel: first ten drop gaps vs law (ms off)" "$worst" 0 8
+want "codel: drops a second, 4-12 s (excess $excess)" "$rate" 56 69
+want "codel: sojourn held against no back-off (ms)" "$sojourn" 25 60
+
 echo
 echo "== the static host's plane"
 python3 server/dev-server.py --port "$TCP_OUT" > "$T/static.log" 2>&1 & PIDS+=("$!")
@@ -457,6 +499,22 @@ RUST_LOG=exact_server=warn "$BIN/exact-server" --port "$UDP_OUT" --study "$T/stu
   --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" > "$T/server.log" 2>&1 & PIDS+=("$!")
 for _ in $(seq 100); do grep -q "wt_url=" "$T/server.log" && break; sleep 0.1; done
 grep -q "wt_url=" "$T/server.log" || { echo "server did not start:"; cat "$T/server.log"; exit 1; }
+
+# A Cubic fill and a probe on one 5 Mbit link: the probe's extra round trip is the standing queue.
+standing() {  # extra relay args...: prints the probe's median rtt over 56 ms
+  TARGET=$UDP_OUT relay --udp "$((UDP_IN + 1)):$NEIGHBOUR" --delay-ms 28 --rate-kbit 5000 \
+    --rate-up-kbit 0 --queue-pkts 200 "$@"
+  timeout 60 "$BIN/window-harness" --url "https://127.0.0.1:$UDP_IN/" --mode saturate \
+    --fill-dwell-ms 10000 --frame-count 10 --depth 8 --read-bps 0 --stream-mode shared \
+    > /dev/null 2>&1 & FILL=$!
+  sleep 3
+  read -r rtt _ < <(python3 "$T/probe.py" "$((UDP_IN + 1))" 300 100 0.02)
+  wait "$FILL" || true
+  stop_relay
+  python3 -c "print('%.1f' % ($rtt - 56))"
+}
+want "cubic fill, 200-packet tail drop: queue (ms)" "$(standing)" 100 600
+want "cubic fill, codel 5:100: queue (ms)" "$(standing --codel 5:100)" 2 10
 
 # A ratio at one delay carries the relay's own floor and the crypto with it. Three delays and a
 # least-squares fit separate them: the slope is the round trips, the intercept everything else.
