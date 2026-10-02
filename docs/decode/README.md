@@ -1062,7 +1062,12 @@ run.
 
 * **Anything on a phone** — including whether a tab is killed by counted or by resident memory.
 * The glue evaluated through `new Function`, where no code cache reaches it (§Instantiating by
-  streaming).
+  streaming). Ranked 2026-10-01 and not queued: a second visit only, ~10 ms per decoder and the
+  three in parallel, and off frame 0's path on a link — the decoders are ready about 4–5 round
+  trips before frame 0's bytes land (derived from page-open's ladder, not measured), and the
+  warm-up's later `ready` did not reach the page's clock either (§Warming the decoders). Its case
+  is a CSP without `unsafe-eval`, a deploy decision, or a device cell where the glue's compile is
+  no longer hidden.
 * A heap floor chosen for first-frame latency; the package's own build re-timed since D10.
 * The warm-up's size, and the device cell that decides it (§Warming the decoders).
 * BYOB's ~12 ms first frame, and what an errored stream owes the frame in flight (§The BYOB read
