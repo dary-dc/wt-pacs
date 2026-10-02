@@ -10,8 +10,13 @@ use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
 use fod::{encode_fod_msg, FodMsg};
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use rustls::RootCertStore;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use window_harness::frames::Frames;
+use wtransport::config::QuicTransportConfig;
+use wtransport::quinn::VarInt;
+use wtransport::tls::client::{build_default_tls_config, NoServerVerification};
 use wtransport::{ClientConfig, Endpoint};
 
 #[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -67,6 +72,10 @@ struct Args {
     rounds: u32,
     #[arg(long, default_value_t = 30_000)]
     timeout_ms: u64,
+    /// The client's credit per stream, in bytes; unset, quinn's 1.25 MB. A shared stream's fill
+    /// has no more than this in flight, whatever the controller would send.
+    #[arg(long)]
+    stream_recv_window: Option<u64>,
 }
 
 fn poke(port: u16, cmd: &str) -> Result<()> {
@@ -117,10 +126,20 @@ async fn ask(
 /// (the ask, the warm-up that preceded it, the frame's size, the next ask or NaN)
 async fn one_round(args: &Args) -> Result<(f64, f64, usize, f64)> {
     let v4 = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
-    let endpoint = Endpoint::client(
-        ClientConfig::builder().with_bind_address(v4).with_no_cert_validation().build(),
-    )
-    .context("wtransport client")?;
+    let builder = ClientConfig::builder().with_bind_address(v4);
+    let config = match args.stream_recv_window {
+        None => builder.with_no_cert_validation().build(),
+        Some(bytes) => {
+            let tls = build_default_tls_config(
+                Arc::new(RootCertStore::empty()),
+                Some(Arc::new(NoServerVerification::new())),
+            );
+            let mut transport = QuicTransportConfig::default();
+            transport.stream_receive_window(VarInt::from_u64(bytes).context("--stream-recv-window")?);
+            builder.with_custom_tls_and_transport(tls, transport).build()
+        }
+    };
+    let endpoint = Endpoint::client(config).context("wtransport client")?;
     let url = match args.state {
         State::OpenPush => format!("{}?ask=fill:0-{}", args.url, args.warm - 1),
         _ => args.url.clone(),
