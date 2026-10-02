@@ -3,7 +3,7 @@
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
-use crate::transport::frame_out::FrameOut;
+use crate::transport::frame_out::{FrameOut, FRAME_HEAD_LEN};
 use crate::transport::planner::Mode;
 use crate::transport::wire::Control;
 use anyhow::{Error, Result};
@@ -77,6 +77,8 @@ pub(crate) struct ProductPipeline {
     /// The opening ask is served before the client opens control, so a refusal of it waits here.
     late_control: Option<oneshot::Receiver<SendStream>>,
     fills: u64,
+    /// Lab only: envelope bytes left before the session stalls. `FrameOut::stall_within`.
+    stall_left: Option<u64>,
 }
 
 impl ProductPipeline {
@@ -90,7 +92,13 @@ impl ProductPipeline {
             control: None,
             late_control: None,
             fills: 0,
+            stall_left: None,
         }
+    }
+
+    pub(crate) fn with_stall_after(mut self, bytes: Option<u64>) -> Self {
+        self.stall_left = bytes;
+        self
     }
 
     pub(crate) fn with_control(mut self, control: Control) -> Self {
@@ -126,6 +134,7 @@ impl FramePipeline for ProductPipeline {
             seq,
             tile,
             mode: read_mode,
+            stall_left,
             ..
         } = self;
         let body = match mode {
@@ -140,6 +149,14 @@ impl FramePipeline for ProductPipeline {
                     .await?
             }
         };
+        let Some(left) = stall_left else {
+            return out.send_frame(frame, body).await;
+        };
+        let whole = (FRAME_HEAD_LEN + body.len()) as u64;
+        if whole > *left {
+            return out.stall_within(frame, body, *left as usize).await;
+        }
+        *left -= whole;
         out.send_frame(frame, body).await
     }
 

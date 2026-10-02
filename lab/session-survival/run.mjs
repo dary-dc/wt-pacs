@@ -29,6 +29,8 @@ const BLINK_MS = Number(arg("--blink-ms", 1000));
 /** One blink, this long after the page loads, rather than a train of them. */
 const BLINK_AT = Number(arg("--blink-at", 0));
 const ASKS = Number(arg("--asks", 0));
+/** Appended to the page's query: `recycle=N`, `sha=1`. */
+const QUERY = arg("--query", "");
 
 const sock = dgram.createSocket("udp4");
 const poke = (m) => new Promise((r) => sock.send(m, CONTROL, "127.0.0.1", () => r()));
@@ -57,7 +59,7 @@ async function runOne(arm) {
     page.on("worker", (w) => w.on("console", say(w.url().split("/").pop())));
   }
   const startAt = Date.now();
-  await page.goto(`${BASE}/lab/session-survival/index.html?arm=${arm}&fill=${FILL}&asks=${ASKS}`);
+  await page.goto(`${BASE}/lab/session-survival/index.html?arm=${arm}&fill=${FILL}&asks=${ASKS}${QUERY ? `&${QUERY}` : ""}`);
   let cutAt = Infinity;
   if (!NO_CUT) {
     await page.waitForFunction((n) => (globalThis.__wtpacsFrames ?? 0) >= n, CUT_AFTER, { timeout: 60000 });
@@ -90,6 +92,11 @@ async function runOne(arm) {
     spanMs: r.spanMs ?? null,
     failedAfterMs: r.failures.map((f) => f.afterMs).filter((v) => v !== undefined),
     errors,
+    // From the fill's issue, ms: what a cell needs to find the gap at each swap of session.
+    frameAt: r.frames.map((f) => [f.i, Math.round((f.at - r.issuedAt) * 10) / 10]),
+    resumedAtMs: (r.resumedAt ?? []).map((t) => Math.round(t - r.issuedAt)),
+    recycledAtMs: (r.recycledAt ?? []).map((t) => Math.round(t - r.issuedAt)),
+    sha: r.sha ?? {},
   };
 }
 

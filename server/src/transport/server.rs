@@ -46,6 +46,9 @@ pub struct ServeConfig {
     /// Lab only: every session request is taken and never answered — WebKit bug 319879's dial
     /// that never settles, made on purpose. `docs/ARCHITECTURE.md` §A dial that never settles.
     pub hold_sessions: bool,
+    /// Lab only: each WebTransport session sends this many media bytes and then nothing, its
+    /// stream left open — WebKit bug 319818's stall, made on purpose. `docs/ARCHITECTURE.md`.
+    pub stall_after_bytes: Option<u64>,
     /// Off by default: also serve the same envelopes over a WebSocket, TCP on `wt_port`.
     /// `docs/WIRE.md` §The WebSocket mapping.
     pub websocket: bool,
@@ -108,6 +111,10 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     let mode = config.mode;
     let open_ask = config.open_ask;
     let hold = config.hold_sessions;
+    let stall = config.stall_after_bytes;
+    if let Some(bytes) = stall {
+        warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
+    }
     loop {
         let incoming = endpoint.accept().await;
         let store = Arc::clone(&store);
@@ -115,7 +122,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
             if hold {
                 return hold_session(incoming).await;
             }
-            if let Err(err) = handle_incoming(incoming, store, mode, open_ask).await {
+            if let Err(err) = handle_incoming(incoming, store, mode, open_ask, stall).await {
                 warn!(%err, "session ended");
             }
         });
@@ -222,6 +229,7 @@ async fn handle_incoming(
     store: Arc<FrameStore>,
     mode: StreamMode,
     open_ask: bool,
+    stall: Option<u64>,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     // Read before accepting: the whole point of an opening ask is to serve behind the accept
@@ -233,7 +241,7 @@ async fn handle_incoming(
     tokio::spawn(crate::record::path::run(connection.clone()));
 
     if let Some(Some(ask)) = opening {
-        return serve_opening_ask(connection, store, mode, ask).await;
+        return serve_opening_ask(connection, store, mode, ask, stall).await;
     }
 
     let (control_send, control_recv) = connection
@@ -243,7 +251,9 @@ async fn handle_incoming(
 
     let path = connection.clone();
     let out = FrameOut::open(mode, connection).await?;
-    let mut product = ProductPipeline::new(store, out).with_control(Control::Stream(control_send));
+    let mut product = ProductPipeline::new(store, out)
+        .with_control(Control::Stream(control_send))
+        .with_stall_after(stall);
 
     #[cfg(feature = "telemetry")]
     let result = match Tap::for_session() {
@@ -287,12 +297,15 @@ async fn serve_opening_ask(
     store: Arc<FrameStore>,
     mode: StreamMode,
     ask: Ask,
+    stall: Option<u64>,
 ) -> Result<()> {
     let path = connection.clone();
     let control = connection.clone();
     let out = FrameOut::open(mode, connection).await?;
     let (ctl_tx, ctl_rx) = oneshot::channel();
-    let mut product = ProductPipeline::new(store, out).with_late_control(ctl_rx);
+    let mut product = ProductPipeline::new(store, out)
+        .with_late_control(ctl_rx)
+        .with_stall_after(stall);
 
     let (tx, mut asks) = mpsc::channel(ASKS_AHEAD);
     tx.send(ask).await.ok();
@@ -692,6 +705,7 @@ mod tests {
                     force_pool_reads: false,
                     open_ask: true,
                     hold_sessions: false,
+                    stall_after_bytes: None,
                     websocket: false,
                 }));
                 let endpoint = wtransport::Endpoint::client(
@@ -875,6 +889,7 @@ mod tests {
                 force_pool_reads: false,
                 open_ask: false,
                 hold_sessions: true,
+                stall_after_bytes: None,
                 websocket: false,
             }));
             let endpoint = wtransport::Endpoint::client(
@@ -898,6 +913,84 @@ mod tests {
                 }
             }
             assert!(held, "the server never took the dial");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// With `stall_after_bytes` a session's media stream carries exactly that many bytes — the
+    /// last frame cut inside its envelope — and then nothing, not even a FIN: WebKit bug 319818's
+    /// stall. `docs/ARCHITECTURE.md` §Recycling before the stall.
+    #[test]
+    fn a_stalled_session_sends_its_budget_and_then_nothing() {
+        let frames = 4u32;
+        let dir = std::env::temp_dir().join(format!("wtpacs-stall-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, frames);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let budget = (8 + pattern(0).len() + 8 + pattern(1).len() / 2) as u64;
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                wt_port: port,
+                study_path: study,
+                cert_pem,
+                key_pem,
+                mode: StreamMode::Shared,
+                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+                tuning: TransportTuning::default(),
+                force_pool_reads: false,
+                open_ask: false,
+                hold_sessions: false,
+                stall_after_bytes: Some(budget),
+                websocket: false,
+            }));
+            let endpoint = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                    .build(),
+            )
+            .expect("client endpoint");
+            let url = format!("https://127.0.0.1:{port}/");
+            let mut connection = None;
+            for _ in 0..50 {
+                match endpoint.connect(url.clone()).await {
+                    Ok(c) => {
+                        connection = Some(c);
+                        break;
+                    }
+                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                }
+            }
+            let connection = connection.expect("server never accepted a connection");
+            let (mut send, _recv) =
+                connection.open_bi().await.expect("open control").await.expect("control");
+            write_fod_msg(&mut send, &FodMsg::StreamFrames { from: Some(0), to: Some(frames - 1) })
+                .await
+                .expect("ask the fill");
+            let mut media = tokio::time::timeout(Duration::from_secs(5), connection.accept_uni())
+                .await
+                .expect("no media uni")
+                .expect("accept media uni");
+
+            let mut got = 0u64;
+            let mut buf = vec![0u8; 64 * 1024];
+            let ended = loop {
+                match tokio::time::timeout(Duration::from_millis(1500), media.read(&mut buf)).await {
+                    Ok(Ok(Some(n))) => got += n as u64,
+                    Ok(_) => break true,
+                    Err(_) => break false,
+                }
+            };
+            assert_eq!(got, budget, "the stream carried {got} bytes, not its budget of {budget}");
+            assert!(!ended, "the stalled stream was ended; the bug leaves it open");
             server.abort();
         });
         std::fs::remove_dir_all(&dir).ok();
@@ -933,6 +1026,7 @@ mod tests {
                 force_pool_reads: false,
                 open_ask: false,
                 hold_sessions: false,
+                stall_after_bytes: None,
                 websocket: false,
             }));
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
@@ -1063,6 +1157,7 @@ mod tests {
                 force_pool_reads: false,
                 open_ask: false,
                 hold_sessions: false,
+                stall_after_bytes: None,
                 websocket: false,
             }));
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
@@ -1165,6 +1260,7 @@ mod tests {
             force_pool_reads: false,
             open_ask: false,
             hold_sessions: false,
+            stall_after_bytes: None,
             websocket: false,
         }));
         let endpoint = wtransport::Endpoint::client(
@@ -1436,6 +1532,7 @@ mod tests {
                 force_pool_reads: false,
                 open_ask: false,
                 hold_sessions: false,
+                stall_after_bytes: None,
                 websocket: true,
             }));
             let mut roots = rustls::RootCertStore::empty();

@@ -43,6 +43,7 @@ type OpenOpts = {
   realDecoder?: { glue: string; wasm: string; dir: string };
   survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
   hangDials?: number;
+  recycleAtBytes?: number;
 };
 
 function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
@@ -62,6 +63,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     decoder: opts.realDecoder ?? { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
     warmup: opts.warmup,
     survival: opts.survival,
+    recycleAtBytes: opts.recycleAtBytes,
     onFrame: opts.onFrame,
     onError: opts.onError,
   });
@@ -933,6 +935,42 @@ async function whenTheRedialsRunOutWhatWasOwedIsNamed(DownloaderClient: Download
   c.close();
 }
 
+/**
+ * A session near its byte budget is replaced before it stalls: past three quarters the next is
+ * dialled, the remainder asked on it and nothing that arrived, and the old one closed.
+ * docs/ARCHITECTURE.md §Recycling before the stall
+ */
+async function aSessionNearItsBudgetIsReplaced(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const got: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, survival: { ...QUICK, stallMs: 30_000 },
+    recycleAtBytes: 300, onFrame: (f) => got.push(f), onError: (f) => failures.push(f),
+  });
+  // 108 envelope bytes a frame: two are under 225, three over.
+  const body = (i: number) => enc.encode(`fill-${i}`.padEnd(100, "."));
+  c.fill([0, 1, 2, 3, 4, 5]);
+  await settle();
+  for (const i of [0, 1]) await fake.pushFrame(i, body(i));
+  await until(() => got.length >= 2);
+  await settle(100);
+  check((await fake.dials()) === 1, `recycle: under three quarters of the budget the session is kept (${await fake.dials()} dials)`);
+  await fake.pushFrame(2, body(2));
+  const replaced = await untilAsync(async () => (await fake.dials()) >= 2 && (await fake.controlMessages()).length > 0);
+  check(replaced, `recycle: past three quarters a second session is dialled and asked (${await fake.dials()} dials)`);
+  if (!replaced) return c.close();
+  check(await fake.replacedClosed(), "recycle: the session it replaced is closed");
+  const wire = wireOf(await fake.controlMessages());
+  check(wire.length > 0 && wire.every((w) => w === "stream_frames 3-5"),
+    `recycle: the new session is asked for the remainder and nothing that arrived (${wire.join(", ")})`);
+  for (const i of [3, 4, 5]) await fake.pushFrame(i, body(i));
+  const all = await until(() => got.length >= 6, 3000);
+  const seen = got.map((f) => f.frameIndex).join();
+  check(all && seen === "0,1,2,3,4,5", `recycle: the fill finishes across the two, each frame once (${seen})`);
+  check(failures.length === 0, `recycle: with nothing reported as failed (${failures.map((f) => f.frameIndex).join() || "none"})`);
+  c.close();
+}
+
 /** A dial that never settles is closed at `dialMs` and dialled again. docs/ARCHITECTURE.md §A dial that never settles */
 async function aDialThatNeverSettlesIsDialledAgain(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const { c, fake } = await open(DownloaderClient, {
@@ -1033,6 +1071,7 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aDeadSessionIsResumedNotReported,
     anOwedAskIsReaskedAfterAResume,
     whenTheRedialsRunOutWhatWasOwedIsNamed,
+    aSessionNearItsBudgetIsReplaced,
     aDialThatNeverSettlesIsDialledAgain,
     aDialThatNeverSettlesAtAllIsNamed,
     aClosedClientEndsEveryWorkerItStarted,

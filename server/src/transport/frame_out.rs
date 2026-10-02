@@ -3,7 +3,7 @@
 
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::websocket::WsSink;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use bytes::Bytes;
 use frame_envelope::ENVELOPE_LEN;
 use std::time::Duration;
@@ -79,7 +79,27 @@ impl FrameOut {
     /// `body` is the whole codestream in the reader's own buffer; quinn keeps it until the
     /// peer acknowledges it and the pool gets it back. `media/frame_pool.rs`.
     pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes) -> Result<()> {
+        self.send_prefix(idx, body, usize::MAX).await
+    }
+
+    /// Lab only: the frame's first `budget` envelope bytes, then nothing — no FIN — until the peer
+    /// leaves. WebKit bug 319818's flow control. `docs/ARCHITECTURE.md` §Recycling before the stall.
+    pub(crate) async fn stall_within(&mut self, idx: u32, body: Bytes, budget: usize) -> Result<()> {
+        self.send_prefix(idx, body, budget).await?;
+        match self {
+            Self::Shared { _connection: c, .. } | Self::Pool { _connection: c, .. } | Self::PerFrame { connection: c, .. } => {
+                c.closed().await;
+            }
+            _ => std::future::pending().await,
+        }
+        Err(anyhow!("the session stalled after its byte budget"))
+    }
+
+    async fn send_prefix(&mut self, idx: u32, body: Bytes, budget: usize) -> Result<()> {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
+        let whole = budget >= head.len() + body.len();
+        let body = body.slice(..budget.saturating_sub(head.len()).min(body.len()));
+        let head = head.slice(..budget.min(head.len()));
         match self {
             Self::Shared { uni, .. } => write_frame(uni, head, body).await?,
             Self::WebSocket(ws) => ws.send_frame(head, body).await?,
@@ -101,8 +121,13 @@ impl FrameOut {
                 let _ = uni.set_priority(ask_priority(*seq));
                 *seq = seq.saturating_add(1);
                 write_frame(&mut uni, head, body).await?;
+                // A dropped stream is finished, so a cut one is held open instead.
                 acks.spawn(async move {
-                    let _ = uni.finish().await;
+                    if whole {
+                        let _ = uni.finish().await;
+                    } else {
+                        std::future::pending::<()>().await;
+                    }
                 });
                 while acks.try_join_next().is_some() {}
             }
@@ -128,10 +153,12 @@ fn ask_priority(seq: u32) -> i32 {
     i32::try_from(seq).map_or(i32::MIN, |s| -s)
 }
 
+pub(crate) const FRAME_HEAD_LEN: usize = 8;
+
 /// Length prefix, then frame index. Clients parse it, so a test pins it byte-for-byte.
-fn frame_head(idx: u32, codestream_len: u32) -> [u8; 8] {
+fn frame_head(idx: u32, codestream_len: u32) -> [u8; FRAME_HEAD_LEN] {
     let envelope_len = (ENVELOPE_LEN as u32).saturating_add(codestream_len);
-    let mut head = [0u8; 8];
+    let mut head = [0u8; FRAME_HEAD_LEN];
     head[..4].copy_from_slice(&envelope_len.to_be_bytes());
     head[4..].copy_from_slice(&idx.to_be_bytes());
     head

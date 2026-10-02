@@ -27,6 +27,9 @@ let stall = null;
 /** When the owed work last went on the wire, and the silence after it that condemns the session. */
 let issuedAt = 0;
 let quietMs = 0;
+/** Envelope bytes the live session has delivered, and the dial of its replacement once one is under way. */
+let sessionBytes = 0;
+let recycling = null;
 
 const decoders = [];
 /** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
@@ -109,6 +112,8 @@ function record(index, priority, askMs) {
 function arrived(index, frame) {
   wanted.delete(index);
   watch();
+  sessionBytes += frame.bytes.length + 8;
+  if (cfg.recycleAtBytes && sessionBytes >= 0.75 * cfg.recycleAtBytes) recycling ??= recycle().finally(() => { recycling = null; });
   const rec = records.get(index);
   if (!rec) return;
   rec.stamps.lastByte = abs();
@@ -207,6 +212,21 @@ function lost(proved) {
 const owedAsks = () =>
   [...records].filter(([, r]) => r.state === "wire" && r.priority === "ask").map(([i]) => i);
 
+/** A session swapped for its replacement before a byte budget runs out, the replacement dialled
+ *  while the old one still delivers. docs/ARCHITECTURE.md §Recycling before the stall */
+async function recycle() {
+  const ep = epoch;
+  const next = await openSession(null).catch(() => null);
+  if (!next || ep !== epoch || resuming || !session) return void next?.close();
+  epoch += 1;
+  asksInFlight = 0;
+  session.close();
+  adopt(next);
+  for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
+  issueFill();
+  post({ kind: "recycled" });
+}
+
 /** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
 async function resume() {
   epoch += 1;
@@ -275,22 +295,32 @@ async function start(m) {
   pump();
 }
 
+async function openSession(opening) {
+  TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
+  // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
+  const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 };
+  if (cfg.survival) options.dialMs = deadlines.dialMs;
+  if (cfg.readMin) options.readMin = cfg.readMin;
+  if (opening) options.fill = opening;
+  const next = await TransportSession.connect(dial.url, dial.certHash, options);
+  next.closedPromise?.catch(() => {});
+  return next;
+}
+
+function adopt(next) {
+  session = next;
+  sessionBytes = 0;
+  issuedAt = performance.now();
+}
+
 /** One dial at a time: a fill riding with the dial and a command behind it share the handshake. */
 async function connect() {
   dialling ??= (async () => {
-    TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
     // The range is known here, so it rides the session URL and is served behind the accept
     // rather than a round trip later. docs/ARCHITECTURE.md
     const run = cfg.openAsk ? nextRun() : null;
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
-    // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
-    const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 };
-    if (cfg.survival) options.dialMs = deadlines.dialMs;
-    if (cfg.readMin) options.readMin = cfg.readMin;
-    if (opening) options.fill = opening;
-    session = await TransportSession.connect(dial.url, dial.certHash, options);
-    session.closedPromise?.catch(() => {});
-    issuedAt = performance.now();
+    adopt(await openSession(opening));
     return opening;
   })();
   let opening = null;

@@ -6,6 +6,7 @@ A delivery-opportunity trace can replace the to-client rate, the queue can be li
 CoDel can manage the UDP plane's queue. The UDP
 plane can idle like a radio: after a quiet spell, the next packet waits for the promotion. A second
 --udp is a neighbour: every UDP pair crosses one queue and one clock each way, as one phone's apps do.
+Each client port on a pair gets its own upstream port, so two sessions open at once are two flows.
 --tun moves the link down to IP packets, so kernel TCP and QUIC meet the same loss on one queue.
 
 What it cannot do, and the limits it was calibrated against, are in `docs/rig-limits.md` §3.
@@ -210,7 +211,7 @@ class Pipe:
             return self.bad
         return self.loss > 0 and self.rng.random() < self.loss
 
-    def offer(self, now, payload, blacked_out):
+    def offer(self, now, payload, blacked_out, to=None):
         if self.lossy and (blacked_out or self._drop()):
             self.lost += 1
             return
@@ -235,7 +236,7 @@ class Pipe:
         if self.ordered:
             due = max(due, self.last_due)
             self.last_due = due
-        heapq.heappush(self.pending, (due, self.seq, payload))
+        heapq.heappush(self.pending, (due, self.seq, payload, to))
         self.seq += 1
 
     def due(self):
@@ -244,8 +245,8 @@ class Pipe:
     def ready(self, now):
         out = []
         while self.pending and self.pending[0][0] <= now:
-            due, _, payload = heapq.heappop(self.pending)
-            out.append((due, payload))
+            due, _, payload, to = heapq.heappop(self.pending)
+            out.append((due, payload, to))
         self.sent += len(out)
         return out
 
@@ -265,11 +266,14 @@ def stall(pipes, now, seconds):
 
 
 class UdpPlane:
+    """Each client port gets its own upstream port, as a NAT gives it, so two sessions open at once
+    are two flows to the server; both cross the one queue and rate clock each way."""
+
     def __init__(self, sel, listen_port, server_port, args, rng, links, lateness):
         self.sel = sel
         self.server = ("127.0.0.1", server_port)
         self.down = udp_socket(listen_port)
-        self.up = udp_socket(0)
+        self.ups = {}
         self.rebind_ip = args.rebind_ip
         self.client = None
         self.dead = None
@@ -283,28 +287,35 @@ class UdpPlane:
         self.last_packet = time.monotonic()
         self.promoted = 0
         sel.register(self.down, selectors.EVENT_READ, ("udp", self, "down"))
-        sel.register(self.up, selectors.EVENT_READ, ("udp", self, "up"))
+
+    def _upstream(self, client, host="127.0.0.1"):
+        if client not in self.ups:
+            self.ups[client] = udp_socket(0, host)
+            self.sel.register(self.ups[client], selectors.EVENT_READ, ("udp", self, client))
+        return self.ups[client]
 
     def read(self, which, now, blacked_out):
+        """`which` is "down", or the client whose upstream socket is readable."""
         # Drain the socket, not one datagram: a burst that outruns the loop is the kernel's
         # drop, not the model's.
-        sock, pipe = (self.down, self.to_server) if which == "down" else (self.up, self.to_client)
-        up = which == "up"
+        up = which != "down"
+        sock, pipe = (self.ups[which], self.to_client) if up else (self.down, self.to_server)
         while True:
             try:
                 data, addr = sock.recvfrom(65535)
             except (BlockingIOError, InterruptedError):
                 return
-            if which == "down":
+            if not up:
                 if addr == self.dead:
                     continue
                 self.client = addr
+                self._upstream(addr)
             if up and self.swallow is not None:
                 self.swallow_until, self.swallow = now + self.swallow, None
             swallowed = up and now < self.swallow_until
             self.swallowed += swallowed
             self._wake(now)
-            pipe.offer(now, data, blacked_out or swallowed)
+            pipe.offer(now, data, blacked_out or swallowed, which if up else addr)
 
     def _wake(self, now):
         if self.promotion and now - self.last_packet > self.idle_after:
@@ -313,12 +324,13 @@ class UdpPlane:
         self.last_packet = now
 
     def pump(self, now):
-        for due, payload in self.to_server.ready(now):
-            self.up.sendto(payload, self.server)
+        for due, payload, client in self.to_server.ready(now):
+            if client in self.ups:
+                self.ups[client].sendto(payload, self.server)
             self.lateness.sent(due)
-        for due, payload in self.to_client.ready(now):
-            if self.client:
-                self.down.sendto(payload, self.client)
+        for due, payload, client in self.to_client.ready(now):
+            if client != self.dead:
+                self.down.sendto(payload, client)
             self.lateness.sent(due)
 
     def cut(self):
@@ -327,13 +339,17 @@ class UdpPlane:
         self.dead, self.client = self.client, None
         return self.dead[1] if self.dead else 0
 
-    def rebind(self):
-        old = "%s:%d" % self.up.getsockname()
-        self.sel.unregister(self.up)
-        self.up.close()
-        self.up = udp_socket(0, self.rebind_ip)
-        self.sel.register(self.up, selectors.EVENT_READ, ("udp", self, "up"))
-        return old, "%s:%d" % self.up.getsockname()
+    def rebind(self, client=None):
+        """The latest client's upstream port changes, as a NAT rebinding does; to `--rebind-ip`'s
+        address when one is given."""
+        client = client or self.client or self.dead
+        if client not in self.ups:
+            return "-", "-"
+        old = self.ups.pop(client)
+        was = "%s:%d" % old.getsockname()
+        self.sel.unregister(old)
+        old.close()
+        return was, "%s:%d" % self._upstream(client, self.rebind_ip).getsockname()
 
     def due(self):
         return [d for d in (self.to_server.due(), self.to_client.due()) if d is not None]
@@ -396,7 +412,7 @@ class TcpConn:
         if self.closed:
             return
         for side in self.SIDES:
-            for due, payload in self.pipes[side].ready(now):
+            for due, payload, _ in self.pipes[side].ready(now):
                 self.out[side] += payload
                 self.lateness.sent(due)
             if self.out[side]:
@@ -536,7 +552,7 @@ class TunPlane:
     def pump(self, now):
         for fd, pipe in ((self.fds["upstream"], self.to_server),
                          (self.fds["client"], self.to_client)):
-            for due, packet in pipe.ready(now):
+            for due, packet, _ in pipe.ready(now):
                 os.write(fd, packet)
                 self.lateness.sent(due)
 

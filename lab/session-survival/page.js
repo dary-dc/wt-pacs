@@ -4,15 +4,20 @@
  * resumption off and does what a page could do without it — re-ask once the transport says the
  * fill is gone. docs/ARCHITECTURE.md §The measurement this owes
  */
-import { DownloaderClient } from "/client/downloader/consumer.js";
-
 const q = new URLSearchParams(location.search);
+/** `client=` loads another copy of the downloader — a mutant a cell built. */
+const { DownloaderClient } = await import(q.get("client") || "/client/downloader/consumer.js");
 const arm = q.get("arm") || "built";
 /** `quick` is the same code with a tighter wait: what the default costs, not a proposed default. */
 const SURVIVAL = { today: false, built: undefined, quick: { stallMs: 1000 } };
+// Unknown arms (a recycle cell's) are the client as it is.
 const FILL = Number(q.get("fill") || 80);
 /** `asks=K` asks for frames 0..K-1 at once instead of filling: each settles its own promise. */
 const ASKS = Number(q.get("asks") || 0);
+/** `recycle=N` swaps the session before N bytes; `sha=1` hashes every frame once the fill is done. */
+const RECYCLE = Number(q.get("recycle") || 0) || undefined;
+const SHA = q.get("sha") === "1";
+const bodies = new Map();
 
 const at = () => performance.timeOrigin + performance.now();
 const frames = [];
@@ -39,10 +44,17 @@ function askAgain() {
 
 let issuedAt = 0;
 
-function finish() {
-  const { resumedAt } = client.stats();
+async function finish() {
+  const { resumedAt, recycledAt } = client.stats();
   const last = Math.max(...frames.map((f) => f.at));
-  globalThis.__wtpacsResult = { arm, frames, failures, resumedAt, spanMs: frames.length ? Math.round(last - issuedAt) : null };
+  const sha = {};
+  for (const [i, b] of bodies) {
+    const d = new Uint8Array(await crypto.subtle.digest("SHA-256", b));
+    sha[i] = [...d].map((x) => x.toString(16).padStart(2, "0")).join("");
+  }
+  globalThis.__wtpacsResult = {
+    arm, frames, failures, resumedAt, recycledAt, issuedAt, sha, spanMs: frames.length ? Math.round(last - issuedAt) : null,
+  };
   globalThis.__wtpacsDone = true;
   client.close();
   log(`done: ${frames.length}/${FILL} frames, ${failures.length} failures, ${resumedAt.length} resumes`);
@@ -53,8 +65,10 @@ client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
   decode: false,
   decoders: 0,
   survival: SURVIVAL[arm],
+  recycleAtBytes: RECYCLE,
   onFrame: (f) => {
     frames.push({ i: f.frameIndex, at: at() });
+    if (SHA) bodies.set(f.frameIndex, f.bytes);
     globalThis.__wtpacsFrames = frames.length;
     if (frames.length >= FILL) finish();
   },

@@ -17,6 +17,7 @@ export class DownloaderClient {
   #gen = 0;
   #cancels = [];
   #resumedAt = [];
+  #recycledAt = [];
   #triggers = new AbortController();
   #ending = null;
 
@@ -58,6 +59,8 @@ export class DownloaderClient {
       openAsk: opts.openAsk,
       wireBuffers: opts.wireBuffers,
       readMin: opts.readMin,
+      // Bytes a session may carry before it stalls: its replacement is dialled at three quarters. docs/ARCHITECTURE.md
+      recycleAtBytes: opts.recycleAtBytes,
     };
     // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
     // may be promises. docs/ARCHITECTURE.md
@@ -87,6 +90,7 @@ export class DownloaderClient {
     if (m.kind === "frame") return void this.#deliver(m);
     if (m.kind === "cancelled") return void this.#cancels.shift()?.();
     if (m.kind === "resumed") return void this.#resumedAt.push(performance.timeOrigin + performance.now());
+    if (m.kind === "recycled") return void this.#recycledAt.push(performance.timeOrigin + performance.now());
     if (m.kind === "failed") {
       // A failure before `started` is the start itself failing: connect must reject, not hang.
       if (!this.#started) return void this.#rejectReady(new Error(`the downloader failed to start: ${m.reason}`));
@@ -165,7 +169,7 @@ export class DownloaderClient {
   }
 
   stats() {
-    return { closed: this.#closedReason, inFlight: this.#waiters.size, resumedAt: [...this.#resumedAt] };
+    return { closed: this.#closedReason, inFlight: this.#waiters.size, resumedAt: [...this.#resumedAt], recycledAt: [...this.#recycledAt] };
   }
 
   close() {

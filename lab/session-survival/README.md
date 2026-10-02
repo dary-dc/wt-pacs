@@ -55,3 +55,10 @@ one cell — `cut`, `radio`, `blinks`, `slow` (700 kbit), `deep` (700 kbit behin
 `run.mjs --no-cut` counts every resume as a false alarm, `--blink-every` blinks the relay, `--asks K`
 asks instead of filling. Its readings are `docs/ARCHITECTURE.md` §Detection by the
 bytes.
+
+**[`recycle_cells.sh`](recycle_cells.sh)** (row 105) times a session recycled before WebKit's 16 MB
+stall: a 61 MB fill against a server run with `--stall-after-bytes`, arms `reactive`, `proactive`,
+`late` (a mutated downloader that dials only after closing), `recycle` and `none`, each run its own
+server and relay, Williams-ordered, every frame hashed against its source, runs the relay's
+`--self-timing` voids dropped. `page.js?client=` loads the mutant, `run.mjs --query` passes
+`recycle=N` and `sha=1`. Its readings are `docs/ARCHITECTURE.md` §Recycling before the stall.

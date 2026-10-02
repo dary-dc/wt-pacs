@@ -383,7 +383,7 @@ the code does, read from the code.
 
 | API | relied on by | WebKit | without it |
 | --- | --- | --- | --- |
-| `WebTransport` | both WebTransport clients | shipped in Safari 26; a dial can hang with `ready` never settling (bug 319879) | the downloader's `dialMs` ends a hung dial and retries; the TS client does so when given `dialMs`; the WASM client waits for ever |
+| `WebTransport` | both WebTransport clients | shipped in Safari and iOS 26.4 (MDN browser-compat-data `api.WebTransport`, read 2026-10-02; *corrected from "26"*); a dial can hang with `ready` never settling (bug 319879); flow control never refills, so a session stalls after 16 MB (bug 319818, [`ARCHITECTURE.md`](ARCHITECTURE.md) §Recycling before the stall) | the downloader's `dialMs` ends a hung dial and retries; the TS client does so when given `dialMs`; the WASM client waits for ever |
 | `serverCertificateHashes` | both WebTransport clients, the dev setup | not checked | the dial fails; a deployment uses a CA-signed certificate, which the clients do not care about |
 | `SharedArrayBuffer`, `crossOriginIsolated` | the downloader's pixel path | not checked | `DownloaderClient.connect` throws *serve the page cross-origin isolated* unless `decode: false` |
 | module workers, a worker started from a worker | the downloader and its decoders | not checked | the downloader does not start, and `connect` rejects |

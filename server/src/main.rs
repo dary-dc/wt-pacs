@@ -78,6 +78,9 @@ struct Args {
     open_ask: bool,
     #[arg(long, default_value_t = false, help = "Lab only: take each CONNECT and never answer it")]
     hold_sessions: bool,
+    /// Lab only: each session sends this many media bytes, then nothing, with no FIN.
+    #[arg(long, value_name = "BYTES")]
+    stall_after_bytes: Option<u64>,
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = false)]
     websocket: bool,
@@ -154,6 +157,7 @@ async fn main() -> anyhow::Result<()> {
         force_pool_reads: args.force_pool_reads,
         open_ask: args.open_ask,
         hold_sessions: args.hold_sessions,
+        stall_after_bytes: args.stall_after_bytes,
         websocket: args.websocket,
     });
 

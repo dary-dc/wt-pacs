@@ -107,6 +107,12 @@ settles it, and the transports time a frame from the last byte, not from the ask
 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) has the states, the
 reasons and what a cut costs today against built.
 
+**A session can be recycled before a byte budget runs out** — `recycleAtBytes: N`, off by default.
+Past three quarters of N delivered on one session, the next is dialled in the background; once it is
+ready the old one is closed and the records' remainder is issued on the new one, exactly as a resume
+issues it, and the page is told as `stats().recycledAt`. It is for WebKit's session that stalls after
+16 MB; what it costs, and against what, is `docs/ARCHITECTURE.md` §Recycling before the stall.
+
 Run the arm (`client/harness/downloader.html`) the way the README's quick start runs the others,
 against any study — it checks each decoded frame against the fixture's `.sha256`:
 

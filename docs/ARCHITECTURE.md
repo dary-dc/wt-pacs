@@ -714,6 +714,56 @@ not the resumptions**: a dial onto a path that still carries nothing leaves the 
 restarts after the doubled wait; a network that is genuinely down refuses the dial, which `tries` ends.
 Six dispatch clauses hold it, each mutated and seen to fail.
 
+### Recycling before the stall
+
+WebKit bug 319818: QUIC flow control never refills, so a session stalls after 16 MB of `MAX_DATA` —
+on every iPhone browser, by report (not reproduced: no WebKit runs here). Today's client survives it
+as a death: `stallMs` of silence, a re-dial, the remainder re-issued. **`recycleAtBytes: N`** (off
+by default) does it on purpose instead: past three quarters of N delivered on one session the next
+is dialled in the background, and once it is ready the old one is closed and the records' remainder
+issued on the new one, as a resume issues it. A lab server flag, `--stall-after-bytes N`, makes the
+bug's shape: each session sends N media bytes, the last frame cut inside its envelope, then nothing
+and no FIN (`a_stalled_session_sends_its_budget_and_then_nothing`, three mutants caught). The
+clause `aSessionNearItsBudgetIsReplaced` holds the client (three mutants caught).
+
+**What it costs** ([`../lab/session-survival/recycle_cells.sh`](../lab/session-survival/recycle_cells.sh),
+2026-10-02): headless Chromium, the downloader (`decode: false`) through the relay at 20 Mbit with a
+200-packet queue, a 61 MB fill (87 frames of 701 KB), N = 16 MiB, 7 rounds Williams-ordered, each
+run its own server and relay, `--self-timing` (two runs `VOID`, dropped), 609 of 609 frames
+bit-exact in every arm. Fill time, median ms, and the lead over `none`; every arm's range is under
+±40 ms, so each lead holds in every round:
+
+| arm | 40 ms | 80 ms | 160 ms | gap at each swap (40 / 80 / 160) |
+| --- | --- | --- | --- | --- |
+| `none` — no stall, no recycle | 24 967 | 25 186 | 25 705 | — |
+| `reactive` — the stall, today's client | **+22 500** | **+23 410** | **+25 440** | 3 stalls: 3.8, 6.8, 12.8 s at 40 |
+| `proactive` — the stall, `recycleAtBytes` | **+2 120** | **+2 186** | **+4 830** | 814 / 827 / 1 492 ms, 4 a fill, no stall |
+| `recycle` — no stall, `recycleAtBytes` | +2 116 | +2 192 | +4 830 | 813 / 833 / 1 491 ms |
+| `late` — the stall, a mutant that closes, then dials | +1 326 | +2 527 | +5 212 | 616 / 915 / 1 585 ms |
+
+* **Today, the stall nearly doubles a 61 MB fill** (+22.5 to +25.4 s on ~25 s): three stalls, each
+  waiting out `stallMs`, and the wait doubles after each re-dial it caused (§Detection by the
+  bytes), so the third costs 12.8 s.
+* **Recycling takes that to +2.1 s at 40–80 ms and +4.8 s at 160** — four swaps, ~0.53 s each at
+  40–80 and ~1.2 s at 160: the frame in progress thrown away, the old session's standing queue, an
+  ask's round trip and a fresh slow start (the decomposition is arithmetic, not measured).
+* **On a healthy session it costs the same** (`recycle` against `proactive`, −2 to +8 ms paired):
+  8.5 % of the fill at 40–80 ms, 18.8 % at 160. Shipped everywhere it would charge every browser
+  that does not stall; it belongs where the stall is, and **the detection rule is a device's**.
+* **The pre-dial is worth less than the dial it hides.** The mutant pays the dial (~2 round trips)
+  at each swap and expected to lose by that; it **wins at 40 ms by 792 ms a fill (6/6)** and loses
+  by only 341 at 80 (6/6) and 381 at 160 (7/7) — 85–95 ms a swap, not 160–320. A swap on `ready`
+  discards the frame in progress, so the link's time during the dial is spent on bytes thrown away;
+  the late dial closes on a frame boundary and overlaps the old queue's drain with its handshake.
+  *Not built:* the swap held to the next frame boundary after `ready`.
+* **A rig trap this row found:** the relay forwarded every pair to the client it last heard from,
+  so a replacement dialled while its predecessor still sent swapped packets with it — dials of
+  0.16–2.1 s and a replacement condemned for silence. Fixed and read back
+  ([`rig-limits.md`](rig-limits.md) §3); every number above is on the fixed relay.
+
+Not measured: a real iPhone's stall, the 7 600-stream limit the bug also reports, and a link that
+is not a flat 20 Mbit.
+
 ### The measurement this owes
 
 **The cut** (`link_impair.py`'s `cut`) blackholes the client port the session is on for good and
@@ -797,9 +847,9 @@ impairs UDP drops rather than answers, so the realistic cost is **four seconds o
 
 **iOS.** WebKit bug 319818 (open): a WebTransport connection stalls after 16 MB because flow control
 never refills, so a 61 MB fill would freeze **on every iPhone, on a good network** — read from the bug,
-not reproduced. Recycling the session before 16 MB and re-issuing, which §Re-dial and re-issue makes
-ordinary, would keep QUIC there; **nobody has measured what recycling costs**, and it is the cheaper
-experiment.
+not reproduced. Recycling the session before 16 MB keeps QUIC there. *Corrected 2026-10-02 (row 105),
+was "nobody has measured what recycling costs":* with the stall emulated in the lab, today's client
+takes a 61 MB fill from ~25 s to 47–51 s, and recycling to 27–31 s (§Recycling before the stall).
 
 **What TCP gives up**: independent streams, so a slow frame blocks every frame behind it
 ([`adr-stream-shape.md`](adr-stream-shape.md)); loss recovery per stream; the idle behaviour measured

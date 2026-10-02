@@ -271,12 +271,21 @@ the UDP plane's packet limit, and a burst over it cut the stream (both TCP rate 
 when mutated back). No published cell set a rate on TCP. Its handshake is completed locally by the kernel, so the relay
 charges the setup round trip rather than observing it (`--tcp-no-handshake` turns that off), and
 TLS is not modelled. It is one thread, so delays under ~1 ms decide nothing and a rate far above
-the ones in the table has to be re-checked against the relay itself first. It carries one client
-at a time on each UDP pair (a neighbour is a second pair, below), forwarding to whichever client it heard from last. So a dial made while
-the previous connection still sends can have its server's first flight delivered to the old port,
-and pays a handshake probe timeout of ~1 s. Dial in sequence only once the last connection is
-silent (RS1, 2026-09-24). Everything else on this list still holds: the MTU above is unchanged,
-and the server still sees a loopback socket.
+the ones in the table has to be re-checked against the relay itself first. Each client port on a
+UDP pair has its own upstream port, as a NAT gives it, and every flow crosses the pair's one queue
+and rate clock. *Corrected 2026-10-02 (row 105):* until then a pair carried one client at a time,
+forwarding to whichever it heard from last, so a dial made while the previous connection still
+sent had its server's flights delivered to the old port and the old one's to the new (RS1,
+2026-09-24, saw the ~1 s handshake probe timeout). Two sessions open at once — a replacement
+dialled before its predecessor closes — swapped each other's packets: a 40 ms cell's
+replacements took 0.16–2.1 s to dial and one sent 53 packets in 3 s at the minimum window.
+`link_impair_check.sh` reads it back: two client ports through one pair, interleaved, get 100 of
+their own replies each and none of the other's; the old relay gave 0 and 20, and 20 crossed.
+An earlier cell that held two sessions open at once on one pair read this and is suspect (not
+re-checked here); one that dialled only after a silence or a cut did not, save a closed session's
+queued packets delivered to its successor's port, which Chromium drops, on a link they occupied
+either way. Everything else on this list
+still holds: the MTU above is unchanged, and the server still sees a loopback socket.
 
 **Two of its models were not a single radio leg's, 2026-09-19 (N2).** Each now has a mode, and
 the default is still the model the earlier numbers were taken on:

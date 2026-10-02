@@ -198,6 +198,34 @@ bursts = sum(1 for a, b in zip([False] + draws, draws) if b and not a)
 print("%.3f %.3f" % (sum(draws) / len(draws) / (p / (p + r)), sum(draws) / bursts * r / 100))
 PY
 
+cat > "$T/two_ports.py" <<'PY'
+"""Two client ports through one pair, sends interleaved, each datagram tagged with its port's
+letter. Prints the replies each port got that were its own, and those that were the other's."""
+import socket, sys, time
+port, count = int(sys.argv[1]), int(sys.argv[2])
+socks = {}
+for tag in (b"a", b"b"):
+    socks[tag] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    socks[tag].settimeout(0.05)
+for i in range(count):
+    for tag, s in socks.items():
+        s.sendto(tag + b"x" * 99, ("127.0.0.1", port))
+    time.sleep(0.005)
+own, foreign = {b"a": 0, b"b": 0}, 0
+deadline = time.monotonic() + 2
+while time.monotonic() < deadline:
+    for tag, s in socks.items():
+        try:
+            d, _ = s.recvfrom(65535)
+        except socket.timeout:
+            continue
+        if d[:1] == tag:
+            own[tag] += 1
+        else:
+            foreign += 1
+print(own[b"a"], own[b"b"], foreign)
+PY
+
 relay() {  # extra args...; TARGET= picks another echo
   python3 "$RELAY" --udp "$UDP_IN:${TARGET:-$UDP_OUT}" "$@" > "$T/relay.log" 2>&1 &
   RELAY_PID=$!
@@ -426,6 +454,15 @@ TARGET=$SLOW relay --delay-ms 20 --idle-promote 1:300
 read -r _ got _ _ _ worst < <(python3 "$T/probe.py" "$UDP_IN" 2 100 1.6)
 want "server ends the quiet: delivered of 2" "$got" 2 2
 want "a client packet inside it waits: worst rtt (ms)" "$worst" 2055 2075
+stop_relay
+
+# Two client ports through one pair are two flows, as a session and its replacement are: each
+# gets its own replies, none of the other's.
+relay --delay-ms 10
+read -r own_a own_b foreign < <(python3 "$T/two_ports.py" "$UDP_IN" 100)
+want "two client ports, one pair: own replies, first" "$own_a" 100 100
+want "  own replies, second" "$own_b" 100 100
+want "  the other's replies" "$foreign" 0 0
 stop_relay
 
 # A neighbour: two pairs, one link. 250 kB each way through each at 4 Mbit takes 1 s, not 0.5.
