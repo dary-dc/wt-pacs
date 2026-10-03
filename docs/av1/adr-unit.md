@@ -178,7 +178,7 @@ unchanged; the server stays codec-blind.
 | needed | from | for |
 | --- | --- | --- |
 | bytes per frame against HTJ2K at G = 1, 2, 4, 8, 16, 32, per content | SIZE (6) | whether any G > 1 pays, and the smallest G that collects most of it |
-| decode time per frame, dav1d-WASM and WebCodecs against OpenJPH, n ≥ 15, interleaved | SPEED (9) | whether G = 1 alone is affordable — the fill is decoder-bound |
+| decode time per frame, dav1d-WASM and WebCodecs against OpenJPH, n ≥ 15, interleaved | SPEED (9): **5.4–9.7× OpenJPH** (dav1d-WASM), 4.1–4.2× (WebCodecs, 8-bit only), 16 rounds, every frame exact | whether G = 1 alone is affordable — the fill is decoder-bound |
 | an ask's cost at G: bytes and serial decodes from k to N, mean (G + 1)/2 frames | SIZE × SPEED | the latency a mid-group ask pays, against today's one decode |
 | the fill's decode time with `min(decoders, groups)` in parallel and the first G serial | SPEED | the fill's cost of affinity |
 | a frame delay of 1 returns one frame per temporal unit, hidden frames or not | WASM (4): **yes**, dav1d-WASM, threads on and off | that a decoder returns one frame per frame given |

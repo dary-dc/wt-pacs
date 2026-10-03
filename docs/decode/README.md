@@ -1097,8 +1097,50 @@ exact against two native dav1d builds on every frame tried — 8/10/12-bit, 4:0:
 inter ([`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)). It is what `decode-av1.js` runs
 for an AV1 series, flushed before each frame (G = 1: [`docs/av1/adr-unit.md`](../av1/adr-unit.md)
 §2), and the dispatch arm decodes all six shapes through the downloader to their source's checksum.
-Unlike WebCodecs it takes 12 bits and returns one frame per unit with no `flush()` to wait on. Its
-decode time is not measured yet (row SPEED).
+Unlike WebCodecs it takes 12 bits and returns one frame per unit with no `flush()` to wait on. It
+is 5–10× slower than OpenJPH on the same frames (§Decode time against HTJ2K).
+
+### Decode time against HTJ2K
+
+Row SPEED ([`lab/av1/speed`](../../lab/av1/speed/README.md)), 2026-10-03. The first 18 frames of three
+real series (row DATA), each as the served HTJ2K and as lossless AV1 intra (libaom 3.15.1 `cpu-used`
+0, G = 1 as row SIZE recommends). Every arm is the product's decoder worker — `decoder.js` with the
+OpenJPH package, `decoder.js` → `decode-av1.js` with dav1d-WASM `simd` — or WebCodecs behind the
+same protocol and output, timed by the worker's own decode stamps (bytes in, the contract's pixels
+and range out), one frame at a time after a warm-up frame. 16 rounds, each (environment × throttle)
+cell a fresh process in a Williams order, sets and arms rotated inside it. **7 488 of 7 488 timed
+frames exact** against the series' checksums; flipping one bit of every decoded frame, or one digit
+of every checksum, turns all 13 cells to 0/18.
+
+ms a frame, median over rounds of each round's median [range of the round medians]; × is AV1 over
+HTJ2K, paired by round:
+
+| set | env | throttle | HTJ2K, OpenJPH | AV1, dav1d-WASM | × | AV1, WebCodecs | × |
+| --- | --- | --: | --: | --: | --: | --: | --: |
+| fluoroscopy 768², 12-bit | Node | 1× | 7.99 [6.99–10.9] | 71.5 [69.3–74.4] | **8.9** | — | |
+| | | 4× | 30.6 [23.7–36.2] | 300.6 [288.5–312.3] | **9.7** | — | |
+| | Chromium | 1× | 9.78 [8.44–13.4] | 70.1 [65.3–74.3] | **7.1** | refuses 12 bits | |
+| | | 4× | 34.8 [31.6–40.1] | 290.6 [275.7–312.9] | **8.1** | | |
+| MR 512², 11 bits (AV1 at 12) | Node | 1× | 4.30 [3.76–7.17] | 26.9 [25.3–28.5] | 6.3 | — | |
+| | | 4× | 16.1 [13.2–16.4] | 106.6 [92.6–112.8] | 6.9 | — | |
+| | Chromium | 1× | 4.88 [4.66–5.88] | 26.2 [23.8–27.6] | 5.4 | refuses 12 bits | |
+| | | 4× | 16.8 [13.8–28.1] | 103.8 [97.0–111.9] | 6.1 | | |
+| ultrasound 760×421, RGB 8 | Node | 1× | 7.26 [6.50–8.42] | 48.5 [44.6–51.3] | 6.5 | — | |
+| | | 4× | 26.4 [18.9–32.2] | 203.8 [189.9–225.6] | 7.6 | — | |
+| | Chromium | 1× | 7.86 [7.58–8.47] | 48.4 [45.4–52.3] | 6.1 | 33.6 [31.2–37.0] | **4.2** |
+| | | 4× | 28.5 [25.5–32.9] | 196.9 [185.3–226.0] | 6.9 | 115.4 [108.4–128.2] | **4.1** |
+
+* **AV1 is slower in every round of every cell**: the smallest of 224 paired ratios is 3.6×. The
+  earlier desktop figure of ~10× (docs/av1/README.md §Prior evidence) is the right size: 5–10× here
+  for dav1d-WASM, worst on the 12-bit fluoroscopy, and the throttle widens it slightly.
+* **The cost is dav1d's, not the copy-out**: `_av1_decode` alone is 67.5, 23.8 and 42.6 ms of the
+  ~71, ~26 and ~46 ms a frame in Node (one pass of 18 frames, not interleaved), so `decode-av1.js`'s
+  interleave and range pass are 6–12 %.
+* **WebCodecs is the faster AV1 path where it is exact** — 1.4–1.9× faster than dav1d-WASM (median 1.55, 32/32 rounds), still
+  4.1–4.2× OpenJPH — and that is only 8- and 10-bit (§WebCodecs): of these series, the ultrasound.
+* Where the host saturates: one decoder at a time on four cores, so nothing here contends; three
+  decoders in parallel were not run, and the fill figures in `docs/av1/README.md` §A1 multiply a
+  single decoder's time out by arithmetic.
 
 ## What these numbers are not
 
