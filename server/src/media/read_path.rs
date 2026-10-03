@@ -990,6 +990,35 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// A frame the file no longer holds ends the ring read with an error: a read that returns
+    /// nothing is the end of the file, not a short read to resubmit and wait on for ever.
+    #[test]
+    #[cfg(feature = "uring")]
+    fn a_frame_cut_from_the_file_fails_the_ring_read_instead_of_hanging() {
+        let dir = scratch("ringeof");
+        let path = write_bundle(&dir, 2, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let span = store.frame_span(0).expect("span");
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .and_then(|f| f.set_len(span.offset))
+            .expect("cut the frames off");
+        let rt = rt();
+        let mut tile = TileReader::new(ReadMode::Uring, &store, TILE_SLOTS);
+        let read = rt.block_on(async {
+            tokio::time::timeout(std::time::Duration::from_secs(5), tile.read(&store, span, &[]))
+                .await
+        });
+        if !tile.ring_built() {
+            eprintln!("skipped: io_uring is unavailable on this host");
+        } else {
+            let read = read.expect("the ring read hung on the end of the file");
+            assert!(read.is_err(), "a frame past the end of the file was served");
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// The lab lever reads every frame through the ring, so a layout experiment measures
     /// the `uring` arm and not a broken one.
     #[test]

@@ -291,6 +291,19 @@ mod tests {
         assert!(!in_slow_start(&r));
     }
 
+    /// A restart rebuilds the controller at the path's current MTU, not the one the connection
+    /// opened with: the rebuilt window's floor is two of the larger datagrams.
+    #[test]
+    fn a_restart_keeps_the_mtu_the_path_has_grown_to() {
+        let mut r = restart();
+        r.on_mtu_update(9000);
+        acks_then_loss(&mut r, 4 * RTT);
+        assert!(in_slow_start(&r), "precondition: the silence restarted slow start");
+        let now = Instant::now();
+        r.on_congestion_event(now, now, true, 1200);
+        assert_eq!(r.window(), 2 * 9000, "the rebuilt controller forgot the MTU update");
+    }
+
     /// A halved window, then a last batch of acknowledgements at `now` leaving `in_flight`, then
     /// one send `gap` later.
     fn idle_then_send(in_flight: u64, gap: Duration) -> SlowStartRestart {

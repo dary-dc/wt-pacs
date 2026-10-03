@@ -412,6 +412,31 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// A refusal in a session whose control stream never came returns once the session has
+    /// closed, rather than waiting for a stream that cannot arrive.
+    #[test]
+    fn a_refusal_with_no_control_stream_returns_once_the_session_closes() {
+        let path = std::env::temp_dir().join(format!("wtpacs-late-{}.sbnd", std::process::id()));
+        one_frame_study(&path);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let (closed, late) = oneshot::channel();
+        let mut product =
+            ProductPipeline::new(store, FrameOut::Detached, ReadMode::Auto).with_late_control(late);
+        drop(closed);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+        rt.block_on(async {
+            let refused = product.refuse(9, anyhow::anyhow!("out of range"));
+            tokio::time::timeout(std::time::Duration::from_secs(2), refused)
+                .await
+                .expect("the refusal waited on a control stream that can no longer come")
+                .expect("refuse");
+        });
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// **One index per study, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
     /// `docs/disk-access/adr.md` §Invariants.
