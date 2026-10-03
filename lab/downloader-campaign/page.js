@@ -1,6 +1,6 @@
 /**
- * One arm, one scenario, one fresh session, against the real server. Three arms:
- *   H   today's harness path — the TS session on this thread, the fill as a waiter per frame
+ * One arm, one scenario, one fresh session, against the real server. Two arms (H, the harness's
+ * own path, was removed 2026-10-03 after its last run, docs/ARCHITECTURE.md §S4):
  *   Dw  the downloader with decode off — the same bytes, delivered from its worker
  *   Dd  the downloader decoding, `decoders` of them (3) — pixels in a SharedArrayBuffer (the product path)
  * Five scenarios: a fill of `fill` frames; one cold ask; a fill with an ask for a frame outside it
@@ -10,7 +10,7 @@
 import { DownloaderClient } from "/client/downloader/consumer.js";
 
 const q = new URLSearchParams(location.search);
-const arm = q.get("arm") || "H";
+const arm = q.get("arm") || "Dw";
 const scenario = q.get("scenario") || "fill";
 const FILL = Number(q.get("fill") || 80);
 const DECODERS = Number(q.get("decoders") || 3);
@@ -46,33 +46,6 @@ function handle(bytes) {
   handlerMs += performance.now() - t;
 }
 
-async function harnessArm(cfg) {
-  const { TransportSession } = await import("/client/transport-ts/dist/session.js");
-  const s = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
-  return {
-    workers: 0,
-    fill(onFrame, onDone, fillEnded) {
-      const askMs = s.startStreamFrames(FILL - 1);
-      (async () => {
-        let i = 0;
-        for (; i < FILL; i++) {
-          // Once an ask has ended this fill on the server, a waiter that would sit 15 s is given 1.5.
-          const wait = s.waitExactFrame(i, askMs).catch(() => null);
-          const r = fillEnded() ? await Promise.race([wait, sleep(1500).then(() => null)]) : await wait;
-          if (!r) break;
-          onFrame(r.frameIndex, r.bytes);
-        }
-        // The waiters the dead fill leaves armed reject on close(); give each a handler.
-        for (i += 1; i < FILL; i++) s.waitExactFrame(i, askMs).catch(() => {});
-        onDone();
-      })();
-    },
-    ask: async (i) => (await s.requestExactFrame(i)).bytes,
-    stats: () => s.stats(),
-    close: () => s.close(),
-  };
-}
-
 async function downloaderArm(cfg, decode) {
   let deliver = () => {};
   let mediaReads;
@@ -105,7 +78,7 @@ async function downloaderArm(cfg, decode) {
 async function main() {
   const result = { arm, scenario, fill: FILL, askFrame: ASK, cores: navigator.hardwareConcurrency };
   const cfg = await (await fetch("/wt/dev-transport.json")).json();
-  const rig = arm === "H" ? await harnessArm(cfg) : await downloaderArm(cfg, arm === "Dd");
+  const rig = await downloaderArm(cfg, arm === "Dd");
   result.workers = rig.workers;
   log(`${arm} ${scenario}: connected, workers=${rig.workers}, crossOriginIsolated=${globalThis.crossOriginIsolated}`);
 

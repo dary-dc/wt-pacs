@@ -11,7 +11,6 @@ export type ConformantFrame = {
 
 export type ConformantSession = {
   requestExactFrame(frameIndex: number): Promise<ConformantFrame>;
-  startStreamFrames(waitLast: number, range?: { from?: number; to?: number }): number;
   fillFrames(
     from: number,
     to: number,
@@ -99,7 +98,7 @@ async function workerSafe(rig: Rig, check: Check) {
 async function cancellable(rig: Rig, check: Check) {
   const s = await rig.open();
   const t = rig.fake();
-  s.startStreamFrames(4, { from: 0, to: 4 });
+  s.fillFrames(0, 4, () => {});
   await settle();
   await s.endStream();
   await settle();

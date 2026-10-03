@@ -22,9 +22,6 @@ and the downloader takes any module exporting `TransportSession` as `config.tran
 | --- | --- |
 | `connect(url, certHash, options?)` | open a session |
 | `requestExactFrame(i)` | one frame, the interactive path; a promise per ask |
-| `startExactFrames(indices)` / `waitExactFrame(i, askMs)` | ask for a set in one `request_frames`, take them as they land |
-| `requestExactFrames(indices)` | the two above, awaited in order |
-| `startStreamFrames(waitLast, range?)` | a fill as `stream_frames`, a waiter armed per frame |
 | `fillFrames(from, to, onFrame, onError?)` | a fill **pushed** as it lands, no waiter per frame — §Fills are pushed |
 | `endStream()` | **stop a running fill without ending the session** |
 | `releaseWireBuffer(buffer)` | hand a delivered frame's buffer back to the session's ring ([`decode/README.md`](decode/README.md) §The wire buffer ring) |
@@ -161,7 +158,7 @@ packs 200 random 256 KB frames, makes its own certificate under a temp dir, and 
 send window and `--websocket`, so a fill is still running when an ask lands and few enough frames
 are in flight that its end is observable. Nothing in the tree is touched.
 
-* `client/harness/refusals.html`: 64 out-of-range asks in one `request_frames`, every waiter
+* `client/harness/refusals.html`: 64 out-of-range asks in flight at once, every waiter
   rejected promptly with **the server's own reason** — TS and WASM over WebTransport, TS over the
   WebSocket. Mutant: the TS control pump dropping one `frame_error` reports 63 of 64, 1 timed out.
   *Corrected 2026-09-25:* the page counted any `unavailable` rejection, and a session that died
@@ -223,9 +220,9 @@ fillFrames(from, to, onFrame, onError?)   → askMs
 ```
 
 On the wire it is `stream_frames {from, to}`, a fill the server recites and **drops the moment an
-ask arrives** (WIRE.md §An ask during a fill). A `request_frames` batch is not that: the server
-serves it index by index, in order, so an ask behind a 200-frame batch waits for all 200. A pushed
-fill is how an ask gets the wire.
+ask arrives** (WIRE.md §An ask during a fill). A `request_frames` batch, which the server still accepts and
+no client sends since 2026-10-03, is not that: the server serves it index by index, in order, so an
+ask behind a 200-frame batch waits for all 200. A pushed fill is how an ask gets the wire.
 
 **The shape.** The session keeps one fill: the set still owed, the ask time and the callbacks. A
 frame that lands and is owed goes straight to `onFrame`; one outside the fill is dropped and

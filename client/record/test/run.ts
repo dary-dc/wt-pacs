@@ -440,7 +440,7 @@ function sliceRiver(
   tap.onMediaRead(sid, mediaFor(3));
   tap.onMediaRead(sid, mediaFor(4));
   tap.onMediaRead(sid, mediaFor(5));
-  // The harness's waitExactFrame marks each one after the row already closed.
+  // A batch's frames are marked after their rows already closed.
   tap.onDelivered(3);
   tap.onDelivered(4);
   tap.onDelivered(5);

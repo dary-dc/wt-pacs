@@ -1,8 +1,8 @@
 /**
  * One surface, three implementations behind it: TypeScript and WASM over WebTransport, TypeScript
  * over a WebSocket. The names mostly agree; what does not is `endStream`, which is a promise on the
- * TypeScript ones and synchronous on WASM, and the shape of `startStreamFrames`. Another
- * implementation writes one of these and inherits every test.
+ * TypeScript ones and synchronous on WASM. Another implementation writes one of these and
+ * inherits every test.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -57,8 +57,6 @@ async function sessionImpl(name: string, bundle: string): Promise<Implementation
       const s = await TransportSession.connect(url, certHash, options ?? {});
       return {
         requestExactFrame: (i: number) => s.requestExactFrame(i),
-        startStreamFrames: (last: number, range?: { from?: number; to?: number }) =>
-          s.startStreamFrames(last, range),
         fillFrames: (
           from: number,
           to: number,
@@ -93,8 +91,6 @@ export async function wasmImpl(): Promise<Implementation> {
       const s = await mod.TransportSessionHandle.connect(url, certHash, options?.wireBuffers);
       return {
         requestExactFrame: (i: number) => s.requestExactFrame(i),
-        startStreamFrames: (last: number, range?: { from?: number; to?: number }) =>
-          s.startStreamFrames(last, range?.from ?? undefined, range?.to ?? undefined),
         fillFrames: (
           from: number,
           to: number,

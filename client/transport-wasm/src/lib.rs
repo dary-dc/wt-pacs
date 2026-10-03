@@ -36,48 +36,6 @@ impl TransportSessionHandle {
             .map_err(|e| JsValue::from_str(&e))
     }
 
-    #[wasm_bindgen(js_name = requestExactFrames)]
-    pub async fn request_exact_frames(
-        &self,
-        indices: js_sys::Uint32Array,
-    ) -> Result<JsValue, JsValue> {
-        self.inner
-            .request_frames(indices.to_vec())
-            .await
-            .map_err(|e| JsValue::from_str(&e))
-    }
-
-    #[wasm_bindgen(js_name = startExactFrames)]
-    pub fn start_exact_frames(&self, indices: js_sys::Uint32Array) -> Result<f64, JsValue> {
-        self.inner
-            .start_frames(indices.to_vec())
-            .map_err(|e| JsValue::from_str(&e))
-    }
-
-    #[wasm_bindgen(js_name = waitExactFrame)]
-    pub async fn wait_exact_frame(
-        &self,
-        frame_index: u32,
-        ask_ms: f64,
-    ) -> Result<JsValue, JsValue> {
-        self.inner
-            .wait_frame(frame_index, ask_ms)
-            .await
-            .map_err(|e| JsValue::from_str(&e))
-    }
-
-    #[wasm_bindgen(js_name = startStreamFrames)]
-    pub fn start_stream_frames(
-        &self,
-        wait_last: u32,
-        from: Option<u32>,
-        to: Option<u32>,
-    ) -> Result<f64, JsValue> {
-        self.inner
-            .start_stream(wait_last, from, to)
-            .map_err(|e| JsValue::from_str(&e))
-    }
-
     #[wasm_bindgen(js_name = fillFrames)]
     pub fn fill_frames(
         &self,

@@ -31,10 +31,6 @@ type Route = {
 function adapt(c: Downloader, route: Route): ConformantSession {
   return {
     requestExactFrame: (i) => c.requestExactFrame(i),
-    startStreamFrames(waitLast, r) {
-      c.fill(range(r?.from ?? 0, r?.to ?? waitLast));
-      return performance.now();
-    },
     fillFrames(from, to, onFrame, onError) {
       route.onFrame = onFrame;
       route.onError = onError ?? (() => {});

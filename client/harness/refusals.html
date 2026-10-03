@@ -51,19 +51,15 @@
       // Indices far past any study: every one is refused.
       const indices = Uint32Array.from({ length: n }, (_, i) => 1_000_000 + i);
       const t0 = performance.now();
-      const askMs = session.startExactFrames(indices);
-      const results = [];
-      for (const frame of indices) {
-        let outcome;
+      const results = await Promise.all([...indices].map(async (frame) => {
         try {
-          await session.waitExactFrame(frame, askMs);
-          outcome = { frame, ms: null, delivered: true };
+          await session.requestExactFrame(frame);
+          return { frame, ms: null, delivered: true };
         } catch (err) {
-          outcome = { frame, ms: Math.round(performance.now() - t0), message: String(err?.message ?? err) };
+          return { frame, ms: Math.round(performance.now() - t0), message: String(err?.message ?? err) };
         }
-        results.push(outcome);
-        log(JSON.stringify(outcome));
-      }
+      }));
+      for (const outcome of results) log(JSON.stringify(outcome));
       const summary = {
         arm,
         n,

@@ -2,7 +2,7 @@
  * Drive page.js headless, interleaving the arms: every round runs each scenario on each arm
  * with the arm order rotated, so a drift in the host lands on all arms alike. Adds what only
  * CDP sees — the page's main-thread task time and the renderer's GC count over the scenario —
- * then prints median [min … max] and rounds-better against H. docs/ARCHITECTURE.md §S4.
+ * then prints median [min … max] per arm. docs/ARCHITECTURE.md §S4.
  *
  *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/run.mjs [--rounds 8] [--base http://127.0.0.1:8765]
  */
@@ -16,7 +16,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ROUNDS = Number(arg("--rounds", 8));
 const BASE = arg("--base", "http://127.0.0.1:8765");
 const OUT = arg("--out", "");
-const ARMS = ["H", "Dw", "Dd"];
+const ARMS = ["Dw", "Dd"];
 const SCENARIOS = ["fill", "ask", "ask10", "ask50", "ask90"];
 
 // An explicit path launches the full browser; the headless shell playwright otherwise picks has
@@ -77,18 +77,6 @@ if (OUT) fs.writeFileSync(OUT, rows.map((r) => JSON.stringify(r)).join("\n") + "
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const fmt = (xs, d = 1) => xs.length ? `${median(xs).toFixed(d)} [${Math.min(...xs).toFixed(d)} … ${Math.max(...xs).toFixed(d)}]` : "—";
 const pick = (scenario, arm, key) => rows.filter((r) => r.scenario === scenario && r.arm === arm && r[key] != null && !r.error).map((r) => r[key]);
-const better = (scenario, arm, key, lowerIsBetter = true) => {
-  let n = 0, wins = 0;
-  for (let round = 0; round < ROUNDS; round++) {
-    const a = rows.find((r) => r.round === round && r.scenario === scenario && r.arm === arm && !r.error)?.[key];
-    const h = rows.find((r) => r.round === round && r.scenario === scenario && r.arm === "H" && !r.error)?.[key];
-    if (a == null || h == null) continue;
-    n += 1;
-    if (lowerIsBetter ? a < h : a > h) wins += 1;
-  }
-  return `${wins}/${n}`;
-};
-
 const first = rows.find((r) => !r.error) ?? {};
 console.log(`\n### ${ROUNDS} rounds, arm order rotated each round, fill of ${first.fill} frames, ask for frame ${first.askFrame}, ${first.cores} cores\n`);
 const METRICS = [
@@ -104,12 +92,12 @@ const METRICS = [
 ];
 for (const scenario of SCENARIOS) {
   console.log(`**${scenario}**\n`);
-  console.log(`| metric | H | Dw | Dw better | Dd |`);
-  console.log(`| --- | --- | --- | --- | --- |`);
+  console.log(`| metric | Dw | Dd |`);
+  console.log(`| --- | --- | --- |`);
   for (const [key, label, d] of METRICS) {
-    const h = pick(scenario, "H", key), dw = pick(scenario, "Dw", key), dd = pick(scenario, "Dd", key);
-    if (!h.length && !dw.length && !dd.length) continue;
-    console.log(`| ${label} | ${fmt(h, d)} | ${fmt(dw, d)} | ${better(scenario, "Dw", key, key !== "delivered")} | ${fmt(dd, d)} |`);
+    const dw = pick(scenario, "Dw", key), dd = pick(scenario, "Dd", key);
+    if (!dw.length && !dd.length) continue;
+    console.log(`| ${label} | ${fmt(dw, d)} | ${fmt(dd, d)} |`);
   }
   console.log("");
 }

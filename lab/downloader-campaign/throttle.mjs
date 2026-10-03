@@ -17,8 +17,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const ROUNDS = Number(process.argv[2] || 5);
 const THROTTLES = (process.env.THROTTLES || "1,4,6").split(",").map(Number);
-// H, the TS client on the page, is the control that the trace sees collections at all.
-const ARMS = (process.env.ARMS || "H,Dw,Dd").split(",");
+const ARMS = (process.env.ARMS || "Dw,Dd").split(",");
 // ALLOC=0: no allocation sampling, whose cost lands on every allocation the page's time is charged.
 const SAMPLE = process.env.ALLOC !== "0";
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "m1-"));

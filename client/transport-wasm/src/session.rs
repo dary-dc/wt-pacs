@@ -1,6 +1,6 @@
 //! Media-complete session over browser WebTransport via `web_sys`.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -381,8 +381,6 @@ pub struct TransportSession {
     transport: WebTransport,
     state: Rc<RefCell<SessionState>>,
     req_tx: mpsc::UnboundedSender<Vec<u8>>,
-    bulk_rx: RefCell<HashMap<u32, oneshot::Receiver<(Uint8Array, f64)>>>,
-    bulk_ask_ms: Cell<Option<f64>>,
 }
 
 impl TransportSession {
@@ -494,8 +492,6 @@ impl TransportSession {
             transport,
             state,
             req_tx,
-            bulk_rx: RefCell::new(HashMap::new()),
-            bulk_ask_ms: Cell::new(None),
         })
     }
 
@@ -523,101 +519,6 @@ impl TransportSession {
         }
 
         self.settle(rx, frame_index, ask_ms).await
-    }
-
-    pub async fn request_frames(&self, indices: Vec<u32>) -> Result<JsValue, String> {
-        let ask_ms = self.start_frames(indices.clone())?;
-        let results = js_sys::Array::new();
-        for &frame_index in &indices {
-            let one = self.wait_frame(frame_index, ask_ms).await?;
-            results.push(&one);
-        }
-        Ok(results.into())
-    }
-
-    pub fn start_frames(&self, indices: Vec<u32>) -> Result<f64, String> {
-        if indices.is_empty() {
-            return Err("start_frames: empty index list".into());
-        }
-        if !self.bulk_rx.borrow().is_empty() {
-            return Err("start_frames: previous bulk still pending".into());
-        }
-        let ask_ms = perf_now_ms();
-        self.bulk_ask_ms.set(Some(ask_ms));
-        let mut need_wire: Vec<u32> = Vec::new();
-        {
-            let mut s = self.state.borrow_mut();
-            let mut bulk_rx = self.bulk_rx.borrow_mut();
-            if let Some(reason) = s.closed.clone() {
-                return Err(format!("session unavailable: {reason}"));
-            }
-            for &frame_index in &indices {
-                if s.waiters.contains_key(&frame_index) || bulk_rx.contains_key(&frame_index) {
-                    return Err(format!("frame {frame_index} already requested"));
-                }
-                let (tx, rx) = oneshot::channel();
-                s.waiters.insert(frame_index, tx);
-                bulk_rx.insert(frame_index, rx);
-                need_wire.push(frame_index);
-            }
-        }
-        let payload = encode_fod_msg(&FodMsg::RequestFrames {
-            frames: need_wire.clone(),
-        })
-        .map_err(|e| format!("encode FoD: {e}"))?;
-        if self.req_tx.unbounded_send(payload).is_err() {
-            let mut s = self.state.borrow_mut();
-            let mut bulk_rx = self.bulk_rx.borrow_mut();
-            for &frame_index in &need_wire {
-                s.waiters.remove(&frame_index);
-                bulk_rx.remove(&frame_index);
-            }
-            self.bulk_ask_ms.set(None);
-            return Err("FoD request channel closed".into());
-        }
-        Ok(ask_ms)
-    }
-
-    pub fn start_stream(&self, last: u32, from: Option<u32>, to: Option<u32>) -> Result<f64, String> {
-        let lo = from.unwrap_or(0);
-        let hi = to.unwrap_or(last);
-        if hi < lo {
-            return Err("start_stream: to < from".into());
-        }
-        if !self.bulk_rx.borrow().is_empty() {
-            return Err("start_stream: previous bulk still pending".into());
-        }
-        let ask_ms = perf_now_ms();
-        self.bulk_ask_ms.set(Some(ask_ms));
-        let indices: Vec<u32> = (lo..=hi).collect();
-        {
-            let mut s = self.state.borrow_mut();
-            let mut bulk_rx = self.bulk_rx.borrow_mut();
-            if let Some(reason) = s.closed.clone() {
-                return Err(format!("session unavailable: {reason}"));
-            }
-            for &frame_index in &indices {
-                if s.waiters.contains_key(&frame_index) || bulk_rx.contains_key(&frame_index) {
-                    return Err(format!("frame {frame_index} already requested"));
-                }
-                let (tx, rx) = oneshot::channel();
-                s.waiters.insert(frame_index, tx);
-                bulk_rx.insert(frame_index, rx);
-            }
-        }
-        let payload = encode_fod_msg(&FodMsg::StreamFrames { from, to })
-            .map_err(|e| format!("encode FoD: {e}"))?;
-        if self.req_tx.unbounded_send(payload).is_err() {
-            let mut s = self.state.borrow_mut();
-            let mut bulk_rx = self.bulk_rx.borrow_mut();
-            for &frame_index in &indices {
-                s.waiters.remove(&frame_index);
-                bulk_rx.remove(&frame_index);
-            }
-            self.bulk_ask_ms.set(None);
-            return Err("FoD request channel closed".into());
-        }
-        Ok(ask_ms)
     }
 
     /// A fill pushed as it lands, on the wire as `StreamFrames`: no waiter and no timer per
@@ -671,15 +572,6 @@ impl TransportSession {
             return Err("FoD request channel closed".into());
         }
         Ok(())
-    }
-
-    pub async fn wait_frame(&self, frame_index: u32, ask_ms: f64) -> Result<JsValue, String> {
-        let rx = self
-            .bulk_rx
-            .borrow_mut()
-            .remove(&frame_index)
-            .ok_or_else(|| format!("wait_frame: no pending bulk waiter for {frame_index}"))?;
-        self.settle(rx, frame_index, ask_ms).await
     }
 
     /// Await one armed waiter; a refusal the server sent for this frame wins over the raw error.

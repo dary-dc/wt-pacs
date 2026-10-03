@@ -97,7 +97,6 @@ class WireBuffers {
 export abstract class FrameSession {
   private waiters = new Map<number, Waiter>();
   private errors = new Map<number, string>();
-  private bulkPending = new Map<number, Promise<{ bytes: Uint8Array; receivedMs: number }>>();
   private fill: Fill | null = null;
   private droppedEarly = 0;
   private frameErrors = 0;
@@ -234,29 +233,6 @@ export abstract class FrameSession {
     return this.settle(frameIndex, askMs, pending);
   }
 
-  startExactFrames(indices: number[]): number {
-    if (indices.length === 0) throw new Error("startExactFrames: empty index list");
-    if (this.bulkPending.size > 0) throw new Error("startExactFrames: previous bulk still pending");
-    const askMs = performance.now();
-    for (const frameIndex of indices) {
-      this.bulkPending.set(frameIndex, this.armWaiter(frameIndex));
-    }
-    // A control write that fails would otherwise leave every waiter to the 15 s timeout.
-    this.sendFod({ op: "request_frames", frames: [...indices] }).catch((e) => {
-      for (const frameIndex of indices) this.failWaiter(frameIndex, `control write: ${e}`);
-    });
-    return askMs;
-  }
-
-  async waitExactFrame(frameIndex: number, askMs: number): Promise<FrameResult> {
-    const pending = this.bulkPending.get(frameIndex);
-    this.bulkPending.delete(frameIndex);
-    if (!pending) {
-      throw new Error(`waitExactFrame: no pending bulk waiter for ${frameIndex}`);
-    }
-    return this.settle(frameIndex, askMs, pending);
-  }
-
   /** Await one armed waiter; a refusal the server sent for this frame wins over the raw error. */
   private async settle(
     frameIndex: number,
@@ -272,32 +248,6 @@ export abstract class FrameSession {
       if (reason) throw new Error(`frame ${frameIndex} unavailable: ${reason}`);
       throw e;
     }
-  }
-
-  async requestExactFrames(indices: number[]): Promise<FrameResult[]> {
-    const askMs = this.startExactFrames(indices);
-    const out: FrameResult[] = [];
-    for (const i of indices) {
-      out.push(await this.waitExactFrame(i, askMs));
-    }
-    return out;
-  }
-
-  /** `{}` on the wire is the whole study. `waitLast` arms waiters through that index. */
-  startStreamFrames(waitLast: number, range?: { from?: number; to?: number }): number {
-    if (this.bulkPending.size > 0) throw new Error("startStreamFrames: previous bulk still pending");
-    const from = range?.from ?? 0;
-    const last = range?.to ?? waitLast;
-    if (last < from) throw new Error("startStreamFrames: to < from");
-    const askMs = performance.now();
-    for (let i = from; i <= last; i++) {
-      this.bulkPending.set(i, this.armWaiter(i));
-    }
-    const msg: FodMsg = { op: "stream_frames" };
-    if (range?.from !== undefined) msg.from = range.from;
-    if (range?.to !== undefined) msg.to = range.to;
-    void this.sendFod(msg);
-    return askMs;
   }
 
   /**
