@@ -1,5 +1,4 @@
-//! Session-scoped outbound media: length-prefixed envelopes on one shared uni, a fixed pool of
-//! them, or one per frame; the codestream handed to quinn whole and uncopied. `docs/disk-access/adr.md`.
+//! Session-scoped outbound media: length-prefixed envelopes on one shared uni or one per frame; the codestream handed to quinn whole and uncopied. `docs/disk-access/adr.md`.
 
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::websocket::WsSink;
@@ -15,12 +14,6 @@ pub(crate) enum FrameOut {
     Shared {
         uni: SendStream,
         /// Keeps the QUIC connection alive for the session-scoped uni.
-        _connection: Connection,
-    },
-    Pool {
-        unis: Vec<SendStream>,
-        /// Frames sent so far: the next frame's stream, and its priority.
-        seq: u32,
         _connection: Connection,
     },
     PerFrame {
@@ -50,24 +43,6 @@ impl FrameOut {
                     _connection: connection,
                 })
             }
-            StreamMode::Pool(k) => {
-                let mut unis = Vec::with_capacity(k.get());
-                for _ in 0..k.get() {
-                    unis.push(
-                        connection
-                            .open_uni()
-                            .await
-                            .context("open pool uni")?
-                            .await
-                            .context("pool uni ready")?,
-                    );
-                }
-                Ok(Self::Pool {
-                    unis,
-                    seq: 0,
-                    _connection: connection,
-                })
-            }
             StreamMode::PerFrame => Ok(Self::PerFrame {
                 connection,
                 acks: JoinSet::new(),
@@ -87,7 +62,7 @@ impl FrameOut {
     pub(crate) async fn stall_within(&mut self, idx: u32, body: Bytes, budget: usize) -> Result<()> {
         self.send_prefix(idx, body, budget).await?;
         match self {
-            Self::Shared { _connection: c, .. } | Self::Pool { _connection: c, .. } | Self::PerFrame { connection: c, .. } => {
+            Self::Shared { _connection: c, .. } | Self::PerFrame { connection: c, .. } => {
                 c.closed().await;
             }
             _ => std::future::pending().await,
@@ -103,14 +78,6 @@ impl FrameOut {
         match self {
             Self::Shared { uni, .. } => write_frame(uni, head, body).await?,
             Self::WebSocket(ws) => ws.send_frame(head, body).await?,
-            Self::Pool { unis, seq, .. } => {
-                let at = *seq as usize % unis.len();
-                let uni = &mut unis[at];
-                // The whole stream takes the new frame's rank, and with it any older frame it still holds.
-                let _ = uni.set_priority(ask_priority(*seq));
-                *seq = seq.wrapping_add(1);
-                write_frame(uni, head, body).await?;
-            }
             Self::PerFrame { connection, acks, seq } => {
                 let mut uni = connection
                     .open_uni()

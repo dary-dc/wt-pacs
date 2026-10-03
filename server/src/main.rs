@@ -19,7 +19,7 @@ struct Args {
     cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
-    /// How frames reach the client: `shared`, `pool:<k>` or `per-frame`.
+    /// How frames reach the client: `shared` or `per-frame`.
     #[arg(long, default_value = "shared")]
     stream_mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to
@@ -46,10 +46,6 @@ struct Args {
     keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
     congestion: Congestion,
-    #[arg(long, default_value_t = 1.25, help = "bbr-bounded only: its window over its BDP estimate")]
-    bdp_gain: f64,
-    #[arg(long, help = "bbr-bounded only: its minimum round trip over this window; unset is all-time")]
-    bdp_rtt_window_ms: Option<u64>,
     /// Controller knobs, all at quinn's default unless set. What each one measured:
     /// docs/transport/transport-conclusions.md §3.
     #[arg(long)]
@@ -67,9 +63,6 @@ struct Args {
     /// Peer `max_ack_delay` to request, ms; inert unless the peer advertises `min_ack_delay`.
     #[arg(long)]
     ack_frequency_max_delay_ms: Option<u64>,
-    /// Unused on this build: page-touch is a mapping path. Kept so lab flags still parse.
-    #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
-    prefault: bool,
     /// Lab only: serve every frame as a miss, for measuring a study nobody has read.
     #[arg(long, default_value_t = false)]
     force_pool_reads: bool,
@@ -144,15 +137,12 @@ async fn main() -> anyhow::Result<()> {
             max_idle_timeout_ms: args.max_idle_timeout_ms,
             keep_alive_interval_ms: args.keep_alive_interval_ms,
             congestion: args.congestion,
-            bdp_gain: args.bdp_gain,
-            bdp_rtt_window_ms: args.bdp_rtt_window_ms,
             initial_window: args.initial_window_bytes,
             persistent_congestion_threshold: args.persistent_congestion_threshold,
             packet_threshold: args.packet_threshold,
             initial_rtt_ms: args.initial_rtt_ms,
             segmentation_offload: args.segmentation_offload,
             ack_frequency_max_delay_ms: args.ack_frequency_max_delay_ms,
-            prefault: args.prefault,
         },
         force_pool_reads: args.force_pool_reads,
         open_ask: args.open_ask,

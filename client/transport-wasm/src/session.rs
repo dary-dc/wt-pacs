@@ -18,8 +18,6 @@ use web_sys::{
     WebTransportCongestionControl, WebTransportHash, WebTransportOptions,
     WritableStreamDefaultWriter,
 };
-#[cfg(feature = "byob")]
-use web_sys::{ReadableStreamByobReader, ReadableStreamGetReaderOptions, ReadableStreamReaderMode};
 
 const FRAME_TIMEOUT_MS: u32 = 15_000;
 
@@ -63,7 +61,6 @@ fn wire_view(buffer: &js_sys::ArrayBuffer, len: u32) -> Uint8Array {
     Uint8Array::new_with_byte_offset_and_length(buffer, 0, len)
 }
 
-#[cfg(not(feature = "byob"))]
 fn js_buffer_from(src: &[u8], wire: &mut WireBuffers) -> Uint8Array {
     let len = src.len() as u32;
     let view = wire_view(&wire.take(len), len);
@@ -141,8 +138,7 @@ impl RecvBuf {
 
     /// Room for a frame whose length is now known: one allocation instead of a doubling
     /// sequence (16 → 32 → … KB, each step a copy) for every fresh buffer.
-    #[cfg(not(feature = "byob"))]
-    fn reserve_for(&mut self, total: usize) {
+        fn reserve_for(&mut self, total: usize) {
         let have = self.data.len() - self.pos;
         if total > have {
             self.data.reserve(total - have);
@@ -193,7 +189,6 @@ enum Envelope {
 
 /// Read one `[4B BE len][4B BE index][codestream]` from a uni stream: the index ahead of the
 /// codestream, so a stream that ends short can name what it lost.
-#[cfg(not(feature = "byob"))]
 async fn read_length_prefixed_frame(
     reader: &ReadableStreamDefaultReader,
     buf: &mut RecvBuf,
@@ -219,7 +214,6 @@ async fn read_length_prefixed_frame(
 }
 
 /// `head` is what arrived of `[4B BE len][4B BE index][codestream]` before the stream ended.
-#[cfg(not(feature = "byob"))]
 fn lost(head: &[u8], declared: usize) -> Envelope {
     let named = 4 + frame_envelope::ENVELOPE_LEN;
     if head.len() < named {
@@ -234,7 +228,6 @@ fn lost(head: &[u8], declared: usize) -> Envelope {
 }
 
 /// Drain length-prefixed envelopes from one uni until EOF (shared or per-frame).
-#[cfg(not(feature = "byob"))]
 async fn pump_framed_stream(
     stream: ReadableStream,
     st: Rc<RefCell<SessionState>>,
@@ -333,167 +326,6 @@ fn fail_all(st: &Rc<RefCell<SessionState>>, reason: String) {
             );
         }
     }
-}
-
-/// `[4B BE length][4B BE display index]` in front of every codestream on a media stream.
-#[cfg(feature = "byob")]
-const HEAD_LEN: u32 = 8;
-
-#[cfg(feature = "byob-count")]
-thread_local! {
-    static READS: Cell<u32> = const { Cell::new(0) };
-    static TOTAL_READS: Cell<u32> = const { Cell::new(0) };
-    static TOTAL_FRAMES: Cell<u32> = const { Cell::new(0) };
-}
-
-#[cfg(feature = "byob-min")]
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(extends = ReadableStreamByobReader, js_name = ReadableStreamBYOBReader)]
-    type ByobReaderWithMin;
-    /// `reader.read(view, { min })`: resolves once `min` elements are in, not at the first packet.
-    /// web-sys binds `read` without its options argument, so it is declared here.
-    #[wasm_bindgen(method, js_name = read)]
-    fn read_min(this: &ByobReaderWithMin, view: &Object, options: &Object) -> js_sys::Promise;
-}
-
-/// One BYOB read into `buffer[offset..offset + len]`. The reader takes the buffer and hands it
-/// back in the result: returns it with the bytes read, 0 at end of stream.
-#[cfg(feature = "byob")]
-async fn byob_read(
-    reader: &ReadableStreamByobReader,
-    buffer: js_sys::ArrayBuffer,
-    offset: u32,
-    len: u32,
-) -> Result<(js_sys::ArrayBuffer, u32), String> {
-    let view = Uint8Array::new_with_byte_offset_and_length(&buffer, offset, len);
-    #[cfg(feature = "byob-count")]
-    {
-        READS.with(|r| r.set(r.get() + 1));
-        TOTAL_READS.with(|r| r.set(r.get() + 1));
-    }
-    #[cfg(feature = "byob-min")]
-    let read = {
-        let options = Object::new();
-        set(&options, "min", &JsValue::from(len))?;
-        reader.unchecked_ref::<ByobReaderWithMin>().read_min(&view, &options)
-    };
-    #[cfg(not(feature = "byob-min"))]
-    let read = reader.read_with_array_buffer_view(&view);
-    let result: ReadableStreamReadResult = JsFuture::from(read)
-        .await
-        .map_err(|e| format!("stream read: {e:?}"))?
-        .unchecked_into();
-    let value = result.get_value();
-    if value.is_undefined() {
-        return Err("stream cancelled".into());
-    }
-    let got: Uint8Array = value.unchecked_into();
-    let n = if result.get_done().unwrap_or(false) { 0 } else { got.byte_length() };
-    Ok((got.buffer(), n))
-}
-
-/// Fill `buffer[start..end]`, and say how much of it arrived before the stream ended.
-#[cfg(feature = "byob")]
-async fn byob_fill(
-    reader: &ReadableStreamByobReader,
-    mut buffer: js_sys::ArrayBuffer,
-    start: u32,
-    end: u32,
-    st: &Rc<RefCell<SessionState>>,
-) -> Result<(js_sys::ArrayBuffer, u32), String> {
-    let mut at = start;
-    while at < end {
-        let (back, n) = byob_read(reader, buffer, at, end - at).await?;
-        buffer = back;
-        if n == 0 {
-            break;
-        }
-        st.borrow_mut().last_byte_ms = perf_now_ms();
-        at += n;
-    }
-    Ok((buffer, at - start))
-}
-
-/// One frame straight into its own JS buffer: the head into a reused 8-byte buffer, the
-/// codestream into one sized from the head. No byte of it passes through WASM memory.
-#[cfg(feature = "byob")]
-async fn read_frame_byob(
-    reader: &ReadableStreamByobReader,
-    head: &mut Option<js_sys::ArrayBuffer>,
-    st: &Rc<RefCell<SessionState>>,
-) -> Result<Envelope, String> {
-    let buffer = head.take().unwrap_or_else(|| js_sys::ArrayBuffer::new(HEAD_LEN));
-    let (buffer, got) = byob_fill(reader, buffer, 0, HEAD_LEN, st).await?;
-    let mut raw = [0u8; HEAD_LEN as usize];
-    Uint8Array::new(&buffer).copy_to(&mut raw);
-    *head = Some(buffer);
-    if got == 0 {
-        return Ok(Envelope::Eof);
-    }
-    if got < HEAD_LEN {
-        return Ok(Envelope::Lost { index: None, reason: "truncated before its index".into() });
-    }
-    let len = u32::from_be_bytes(raw[0..4].try_into().unwrap()) as usize;
-    if len < frame_envelope::ENVELOPE_LEN || len > MAX_FRAME_LEN {
-        return Err(format!("invalid frame length {len}"));
-    }
-    let (index, _) = unwrap_envelope(&raw[4..]).map_err(|e| format!("envelope: {e}"))?;
-    let body_len = (len - frame_envelope::ENVELOPE_LEN) as u32;
-    // Bound before the await: a borrow taken inside the call expression is held across it, and
-    // `releaseWireBuffer` borrows the same cell from JS at any moment.
-    let into = st.borrow_mut().wire.take(body_len);
-    let (body, got) = byob_fill(reader, into, 0, body_len, st).await?;
-    if got < body_len {
-        return Ok(Envelope::Lost {
-            index: Some(index),
-            reason: format!("truncated: {got} of {body_len} bytes"),
-        });
-    }
-    Ok(Envelope::Frame { index, codestream: wire_view(&body, body_len) })
-}
-
-/// Drain length-prefixed envelopes from one uni until EOF, each frame read into its own buffer.
-#[cfg(feature = "byob")]
-async fn pump_framed_stream(stream: ReadableStream, st: Rc<RefCell<SessionState>>) {
-    let options = ReadableStreamGetReaderOptions::new();
-    options.set_mode(ReadableStreamReaderMode::Byob);
-    let reader = match stream
-        .get_reader_with_options(&options)
-        .dyn_into::<ReadableStreamByobReader>()
-    {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    let mut head = None;
-    loop {
-        match read_frame_byob(&reader, &mut head, &st).await {
-            Ok(Envelope::Frame { index, codestream }) => {
-                #[cfg(feature = "byob-count")]
-                {
-                    TOTAL_FRAMES.with(|f| f.set(f.get() + 1));
-                    web_sys::console::log_1(&JsValue::from_str(&format!(
-                        "byob-count frame={} bytes={} reads={} total_frames={} total_reads={}",
-                        index,
-                        codestream.byte_length(),
-                        READS.with(|r| r.replace(0)),
-                        TOTAL_FRAMES.with(Cell::get),
-                        TOTAL_READS.with(Cell::get),
-                    )));
-                }
-                deliver(&st, index, codestream, perf_now_ms());
-            }
-            // Shared mode carries the whole run here, so the frames behind the lost one are gone too.
-            Ok(Envelope::Lost { index, reason }) => {
-                if let Some(index) = index {
-                    fail_waiter(&st, index, &reason);
-                }
-                break;
-            }
-            Ok(Envelope::Eof) | Err(_) => break,
-        }
-    }
-    let _ = JsFuture::from(reader.cancel()).await;
 }
 
 async fn write_all(writer: &WritableStreamDefaultWriter, bytes: &[u8]) -> Result<(), String> {

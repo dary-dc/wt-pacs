@@ -15,7 +15,7 @@ read -ra LINKS <<<"${LINKS:-flat step step40 burst}"
 read -ra QUEUES <<<"${QUEUES:-500 1000}"     # ms at the link's mean rate
 # controller[:client] — the client is first_ask with this stream credit in bytes (quinn's 1.25 MB
 # when absent), or `browser`: headless Chromium's downloader, lab/session-survival.
-read -ra ARMS <<<"${ARMS:-cubic cubic:16000000 bbr:16000000 cubic-hystart:16000000 cubic:browser}"
+read -ra ARMS <<<"${ARMS:-cubic cubic:16000000 bbr:16000000 cubic:browser}"
 FRAMES=237
 FRAME_BYTES=265000
 OUT="${OUT:-$(mktemp -t deep_queue_cells.XXXX.tsv)}"

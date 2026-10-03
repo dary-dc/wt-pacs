@@ -34,10 +34,6 @@ bash client/scripts/check_worker_safe.sh
 step "client: transport conformance (every implementation, and the race)"
 node client/conformance/run.mjs | tail -2
 
-step "client: the byob read path compiles (off by default; docs/decode/README.md)"
-(cd client/transport-wasm && cargo check --features byob-min,byob-count \
-  --target wasm32-unknown-unknown --quiet)
-
 step "client: transport conformance (downloader arm, headless Chromium)"
 bash client/conformance/run_downloader.sh | tail -2
 

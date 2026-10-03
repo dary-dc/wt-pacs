@@ -75,7 +75,7 @@ async function sessionImpl(name: string, bundle: string): Promise<Implementation
 }
 
 /** The product's build, or another of the same client: `WTPACS_WASM_PKG` runs the suite on a
- *  feature build without displacing `pkg/`. docs/decode/README.md §The BYOB read path */
+ *  feature build without displacing `pkg/`. */
 export const WASM_PKG = process.env.WTPACS_WASM_PKG || path.join(root, "client/transport-wasm/pkg");
 
 export function wasmBuilt(): boolean {

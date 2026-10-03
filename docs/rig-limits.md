@@ -755,7 +755,8 @@ rotated on exposure, not on evidence of use:
   netem delay 20ms` and check the host's own `lo` stayed `noqueue`.
 * **Prove the shaping before reading a number through it**: goodput caps at the netem rate and the
   server's loss count matches the configured rate (§3's instrument notes).
-* **Pre-flight off the rig.** `lab/scripts/stream_shape_preflight.sh` runs a cell end to end on
+* **Pre-flight off the rig.** The stream-shape pre-flight (retired with `pool:k`; in history at
+  `6e9c126`) ran a cell end to end on
   unshaped loopback (marked `UNSHAPED`, which the pooler refuses) and checks every void check fires
   on data built to trip it. Three of the five faults of the 2026-09-15 campaign would have surfaced
   there instead of on the rig.

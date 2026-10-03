@@ -9,6 +9,7 @@ wire
 
 * **One shared uni stream per session is the default** (`--stream-mode shared`).
 * **`pool:k` is closed.** No cell on either rig recommends it, and it costs where the others tie.
+  Retired; code in history at `6e9c126`.
 * **`per-frame` stays a flag**, and ranks each stream by ask order — earlier asks outrank later
   ones. It measured level with `shared`, not better, and level is not a reason to change a default.
 * **The WebSocket path is one ordered stream by construction**, so the question does not arise
@@ -218,8 +219,8 @@ Each was published or specified, then found wrong. Kept so none is re-derived.
 
 ## How a stream-shape cell is read
 
-What the corrections above cost to learn, and what `lab/scripts/stream_shape_cells.sh` and
-`stream_shape_pool.py` now enforce:
+What the corrections above cost to learn, and what the cell drivers enforced (retired with
+`pool:k`; in history at `6e9c126`):
 
 * **An open-loop reader.** A closed-loop reader cannot produce head-of-line blocking (0.00 MB
   stranded); no result from `--reader-mode closed`, still the harness default, is admissible.
@@ -277,5 +278,5 @@ reordering with it — and it grew, not shrank, from `k` = 2 to `k` = 4 in the b
   `finish()` retraction
 * [`adr-client-window-depth.md`](adr-client-window-depth.md) — `D_min`
 * [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) — ask order is the priority
-* `lab/stream-shape/`, `lab/scripts/stream_shape_cells.sh`, `lab/scripts/stream_shape_pool.py` — the
-  instruments; raw rows in git history under `docs/measurements/`
+* `lab/stream-shape/` — the browser instrument; the harness cell drivers are in history at `6e9c126`,
+  raw rows under `docs/measurements/`

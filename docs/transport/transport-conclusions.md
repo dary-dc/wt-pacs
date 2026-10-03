@@ -11,8 +11,7 @@ Two crate patches are on by default through `[patch.crates-io]` — wtransport's
 handshake flight and quinn-proto's probe of every space — and why they exist is
 [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Lever 2. Two levers are **build-time opt-ins**: the
 MTU-derived GSO cap (`patches/quinn-0.11.11-mtu-gso.patch`, §4) and a profile-guided build
-(`scripts/pgo_build.sh`, §4). Every other lever below is a flag at quinn's default. `--prefault` is
-accepted and does nothing.
+(`scripts/pgo_build.sh`, §4). Every other lever below is a flag at quinn's default.
 
 **The target**, set with the owner 2026-09-14: a browser on a mobile, lossy wireless link, thousands
 of sessions per server. In numbers: at 20 Mbit a 250 KB frame is 100 ms on the wire, so bytes and
@@ -48,8 +47,7 @@ git checkout archive/transport-lab-2026-09 -- lab/transport                     
 | **Flow-control windows** | **quinn's defaults.** A client that asks for 25 MB and stops reading costs the server **180 kB** on this send path (§3) |
 | **Runtime shape** | **One endpoint on the multi-thread runtime.** One endpoint per core won every single-session cell and most saturation cells, and **12 of 16 NAT rebinds kill the session** on it. Parked on `claude/per-core-endpoints` (§6) |
 
-`--stream-mode per-frame` and `pool:k`, `--congestion cubic-hystart | cubic-restart | cubic-idle-restart |
-bbr | bbr-bounded`, `--initial-window-bytes`, `--initial-rtt-ms`, `--packet-threshold`,
+`--stream-mode per-frame`, `--congestion cubic-restart | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`, `--packet-threshold`,
 `--persistent-congestion-threshold`, `--ack-frequency-max-delay-ms` and `--open-ask` are flags at
 quinn's behaviour, each for the cell named where it is measured below.
 
@@ -270,7 +268,7 @@ real radio's mix is not modelled; nor is a phone's receive path.
 Can BBR keep its loss tolerance without its queue? **quinn exposes neither knob that would say** —
 `BbrConfig` sets only an initial window, and Cubic's β is a constant — so the variant is built as
 `restart.rs` is, over the public `Controller` trait:
-[`bounded.rs`](../../server/src/transport/bounded.rs), `--congestion bbr-bounded --bdp-gain g`,
+`bounded.rs` (retired; code in history at `6e9c126`), `--congestion bbr-bounded --bdp-gain g`,
 quinn's BBR with its window held to `g` × (the best delivery rate of the last ten round trips × the
 minimum round trip). A larger Cubic β needs a Cubic of our own or a quinn patch, and is not built.
 

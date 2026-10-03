@@ -824,8 +824,8 @@ async fn on_frame_arrived(
 }
 
 /// Every uni the server opens, each carrying `[4B BE envelope_len][envelope]` frames until it
-/// ends: one stream for `shared`, `k` for `pool:k`, one per frame for `per-frame`. One reader
-/// for all three, so an arm's numbers never carry a reader difference. Post-processing is
+/// ends: one stream for `shared`, one per frame for `per-frame`. One reader
+/// for both, so an arm's numbers never carry a reader difference. Post-processing is
 /// spawned so no read loop is blocked by it.
 async fn accept_and_read_loop(
     connection: Connection,

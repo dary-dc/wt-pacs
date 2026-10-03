@@ -984,66 +984,13 @@ floor is frame 0 only.
 
 ## The BYOB read path
 
-`client/transport-wasm` can read media frames with a BYOB reader instead of the default one (`byob`,
-`byob-min`, `byob-count`, all off by default). It removes both compressed-frame copies: the frame is
-read straight into its own JS buffer and no byte passes through WASM memory.
-
-**On time it is a tie** — both fixtures, both cells, route-matched. `byob-min` adds `read(view,
-{min})` and also ties: the receive stream already coalesces, so reads per frame fall only 2.30 →
-2.00 on a 49 KB frame and 4.70 → 2.00 on a 250 KB one.
-
-**Not adopted, for one reason.** A session's first frame costs about 12 ms more on this path,
-reproduced across three campaigns, worse in 8 of 8 rounds with non-overlapping ranges. **It is not
-acquiring the reader**: with a reader per frame (`--stream-mode per-frame`) the cost stays on one
-frame per session. Left: the first per-frame buffer against a cold allocator, and the `byob` build
-being a separate WASM module whose first call pays its own compile — or §The first frame's tier-up.
-
-It is kept because adopting it would **delete** more than it adds: the default path needs a
-partial-frame state machine, a compaction heuristic and a reserve policy, all unnecessary under BYOB
-— about 140 lines removed against 93 added.
-
-**A truncated frame is a failure here too**, on `byob`: the head — four bytes of length, four of
-index — is read before the body, so a short stream names the frame it lost through the same
-`fail_waiter` and reason string ([`../CLIENTS.md`](../CLIENTS.md) §A truncated frame is a failure).
-
-```bash
-(cd client/transport-wasm && wasm-pack build --target web --release --features byob)
-WTPACS_WASM_PKG=<that pkg> node client/conformance/run.mjs
-```
-
-A byob build answers **118/120**: two ring checks are written on buffer identity, and a BYOB read
-*transfers* its buffer and hands back a new `ArrayBuffer` over the same memory. The memory is reused
-(the ring's view-of-its-own-length check passes); the two are right for the default path and blind
-on this one. **`byob-min` does not name a truncation**
-(117/120): a byte stream that closes with its `min` unmet **errors** rather than resolving short,
-and the count received goes with the descriptor. The default reader swallows a stream error in the
-same place, so this is parity, not a gap; naming it is a session-level question nobody has taken.
-
-`client/transport-wasm/pkg/` must hold the **default** build: the conformance fake's
-`ReadableStream` is not a byte stream, so a byob build there fails the gate. Byob arms need a
-browser.
-
-### What each path allocates
-
-Both paths hand on a buffer allocated per frame — the default copies the frame out of WASM memory
-into a fresh `Uint8Array`, byob reads straight into one. What differs is *before* that: the default
-reader receives every read as a new chunk the browser allocated and copies it into a reused receive
-buffer, while byob fills one caller-owned buffer across its reads. One 237-frame fill of 512×512
-16-bit frames (92.8 MB of codestreams), five rounds per arm, arms rotated,
-`lab/scripts/read_path_alloc.cjs`: **byob allocates less, and `byob-min` less again** — collections
-per fill 338 [305 … 350] default, **201** [185 … 257] `byob` (−40.5 %), **165** [158 … 188]
-`byob-min` (−51.2 %), fewer in 5 of 5 paired rounds each; JS heap high-water 71.4, 67.7 and 66.2 MB,
-ranges disjoint. *Corrected:* the premise this was first written on was that byob would allocate
-more. **A free list is not designed**: byob's churn is the smaller, a free list would help the
-default path more, and which thread hands a buffer back, and when, is the wire buffer ring's
-question (§The wire buffer ring).
-
-**Instruments.** `--js-flags=--trace-gc` emits nothing in this Chromium (141, headless), so
-collections come from the `disabled-by-default-v8.gc` trace category over CDP. The high-water is
-`performance.memory.usedJSHeapSize` under `--enable-precise-memory-info`. CDP's `HeapProfiler`
-sampler reads 1.10 MB in every arm — it does not weigh `ArrayBuffer` backing stores — and settles
-nothing. Counts, not timing, from one `wasm-pack` build per feature flag; 237 of 237 frames every
-run.
+Retired; code in history at `6e9c126`. The WASM client's BYOB reader (`byob`, `byob-min`) read each
+frame straight into its own JS buffer. Time tied on both fixtures and cells, and `byob-min` tied too;
+a session's first frame cost about 12 ms more in 8 of 8 rounds, not from acquiring the reader. It
+allocated less — 338 → 201 (`byob`) → 165 (`byob-min`) collections per 237-frame fill, 5/5 rounds —
+but a free list on the default path was never designed. `byob-min` errored instead of naming a
+truncation (117/120 conformance). The TypeScript client's `readMin` is a separate path, still open
+([`../CLIENTS.md`](../CLIENTS.md) §Reading a frame whole).
 
 ## What these numbers are not
 

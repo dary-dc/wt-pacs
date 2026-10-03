@@ -15,7 +15,7 @@ RATE="${RATE:-5000}"
 DWELL_MS="${DWELL_MS:-30000}"
 QUEUES="${QUEUES:-20 10 500}"
 SOLO_MS=10000
-read -ra ARMS <<<"${ARMS:-cubic bbr bbr-bounded bbr:bbr}"  # A's controller[:the neighbour's, cubic]
+read -ra ARMS <<<"${ARMS:-cubic bbr bbr:bbr}"  # A's controller[:the neighbour's, cubic]
 LAG_MS="${LAG_MS:-0}"         # the neighbour starts this late, stops as early: the netem rig's way
 OUT="${OUT:-$(mktemp -t neighbour_cells.XXXX.tsv)}"
 LOCK="${LOCK:-/run/user/$(id -u)/wtpacs-rig.lock}"
@@ -93,7 +93,7 @@ run() {  # round prev queue dwell_ms congestion [neighbour's]: one row of $OUT
 
 solo() {
   local q cc
-  for q in $QUEUES; do for cc in cubic bbr bbr-bounded; do run - - "$q" "$SOLO_MS" "$cc"; done; done
+  for q in $QUEUES; do for cc in cubic bbr; do run - - "$q" "$SOLO_MS" "$cc"; done; done
 }
 
 one_round() {  # round

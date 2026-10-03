@@ -1,12 +1,12 @@
 /**
- * HOL1: one stream, a pool of k, or a stream per frame, in Chromium through the relay. Every run
+ * HOL1: one stream or a stream per frame, in Chromium through the relay. Every run
  * starts its own server and relay; the arms are rotated inside every round. lab/stream-shape/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/stream-shape/run.mjs --cell loss1 [--rounds 7]
- *     [--arms "shared per-frame pool:2 pool:4 pool:8"] [--depth shared=3,pool:2=3 | --depth 3]
+ *     [--arms "shared per-frame"] [--depth shared=3,per-frame=3 | --depth 3]
  *     [--fill 40] [--asks 30] [--frame-bytes 131072] [--out rows.jsonl]
  *   ... --sweep 1-6 --rounds 3      the asks alone at each depth, no loss: each arm's D_min
- *   ... --tax --rate 15000 --queue 50 --rtt 60 --arms "ws cc:cubic cc:bbr-bounded iw:38400"
+ *   ... --tax --rate 15000 --queue 50 --rtt 60 --arms "ws cc:cubic cc:bbr iw:38400"
  *       depth-1 asks on a fresh session, each arm's ask over RTT + size / rate; `ws` is the
  *       relay's TCP plane, an ideal-TCP floor (docs/rig-limits.md §3)
  *   ... --tun [--trace FILE]   inside `unshare -rn`: the relay at the packet layer, so `ws` is kernel
@@ -26,7 +26,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../.
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const CELL = arg("--cell", "loss0");
 const ROUNDS = Number(arg("--rounds", 7));
-const ARMS = arg("--arms", "shared per-frame pool:2 pool:4 pool:8").split(" ");
+const ARMS = arg("--arms", "shared per-frame").split(" ");
 const FILL = Number(arg("--fill", 40));
 const ASKS = Number(arg("--asks", 30));
 const FRAME = Number(arg("--frame-bytes", 131072));

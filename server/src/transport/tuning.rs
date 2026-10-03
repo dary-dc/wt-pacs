@@ -1,6 +1,6 @@
 //! QUIC transport knobs. Unset reproduces quinn's stock configuration byte for byte.
 
-use crate::transport::restart::{SlowStartRestartConfig, Trigger};
+use crate::transport::restart::SlowStartRestartConfig;
 use anyhow::Result;
 use std::sync::Arc;
 use wtransport::quinn::TransportConfig;
@@ -11,15 +11,8 @@ pub enum Congestion {
     #[default]
     Cubic,
     Bbr,
-    NewReno,
-    /// Cubic with RFC 9406's slow-start exit over it. `hystart.rs`.
-    CubicHystart,
     /// Cubic that restarts slow start after a silence instead of halving. `restart.rs`.
     CubicRestart,
-    /// Cubic that restarts slow start on the first send after an idle spell. `restart.rs`.
-    CubicIdleRestart,
-    /// BBR with its window held to `bdp_gain` × its path estimate. `bounded.rs`.
-    BbrBounded,
 }
 
 impl Congestion {
@@ -27,11 +20,7 @@ impl Congestion {
         match self {
             Self::Cubic => "cubic",
             Self::Bbr => "bbr",
-            Self::NewReno => "new-reno",
-            Self::CubicHystart => "cubic-hystart",
             Self::CubicRestart => "cubic-restart",
-            Self::CubicIdleRestart => "cubic-idle-restart",
-            Self::BbrBounded => "bbr-bounded",
         }
     }
 }
@@ -50,10 +39,6 @@ pub struct TransportTuning {
     /// has no such knob, so this is the only lever that reaches one. docs/transport/adr-idle-sessions.md.
     pub keep_alive_interval_ms: Option<u64>,
     pub congestion: Congestion,
-    /// `BbrBounded`'s window over its BDP estimate; BBRv1's own is 2.
-    pub bdp_gain: f64,
-    /// `BbrBounded`'s minimum round trip over this window; unset is quinn's all-time minimum.
-    pub bdp_rtt_window_ms: Option<u64>,
     /// Bytes the controller may send before the first ACK. quinn default: 12 000 (S7).
     pub initial_window: Option<u64>,
     /// Round trips of unbroken loss that declare persistent congestion. quinn default: 3 (S9).
@@ -69,8 +54,6 @@ pub struct TransportTuning {
     /// Requested peer `max_ack_delay`, milliseconds. Takes effect only where the peer
     /// advertises `min_ack_delay`; `docs/transport/transport-conclusions.md`.
     pub ack_frequency_max_delay_ms: Option<u64>,
-    /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
-    pub prefault: bool,
 }
 
 impl Default for TransportTuning {
@@ -82,15 +65,12 @@ impl Default for TransportTuning {
             max_idle_timeout_ms: None,
             keep_alive_interval_ms: None,
             congestion: Congestion::Cubic,
-            bdp_gain: 1.25,
-            bdp_rtt_window_ms: None,
             initial_window: None,
             persistent_congestion_threshold: None,
             packet_threshold: None,
             initial_rtt_ms: None,
             segmentation_offload: true,
             ack_frequency_max_delay_ms: None,
-            prefault: false,
         }
     }
 }
@@ -145,29 +125,9 @@ impl TransportTuning {
                 }
                 tc.congestion_controller_factory(Arc::new(c))
             }
-            Congestion::NewReno => {
-                let mut c = congestion::NewRenoConfig::default();
-                if let Some(v) = iw {
-                    c.initial_window(v);
-                }
-                tc.congestion_controller_factory(Arc::new(c))
+            Congestion::CubicRestart => {
+                tc.congestion_controller_factory(Arc::new(SlowStartRestartConfig::new(iw)))
             }
-            Congestion::CubicHystart => {
-                tc.congestion_controller_factory(Arc::new(crate::transport::hystart::HyStartConfig::new(iw)))
-            }
-            Congestion::CubicRestart => tc.congestion_controller_factory(Arc::new(
-                SlowStartRestartConfig::new(Trigger::Silence, iw),
-            )),
-            Congestion::CubicIdleRestart => tc.congestion_controller_factory(Arc::new(
-                SlowStartRestartConfig::new(Trigger::Idle, iw),
-            )),
-            Congestion::BbrBounded => tc.congestion_controller_factory(Arc::new(
-                crate::transport::bounded::BoundedBbrConfig::new(
-                    self.bdp_gain,
-                    self.bdp_rtt_window_ms.map(std::time::Duration::from_millis),
-                    iw,
-                ),
-            )),
         };
 
         Ok(tc)
@@ -224,12 +184,6 @@ impl TransportTuning {
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
         }
-        if matches!(self.congestion, Congestion::BbrBounded) {
-            parts.push(format!("bdp_gain={}", self.bdp_gain));
-            if let Some(ms) = self.bdp_rtt_window_ms {
-                parts.push(format!("bdp_rtt_window_ms={ms}"));
-            }
-        }
         if !self.segmentation_offload {
             parts.push("segmentation_offload=false".to_string());
         }
@@ -266,16 +220,13 @@ mod tests {
             send_window: Some(32 << 20),
             max_idle_timeout_ms: Some(60_000),
             keep_alive_interval_ms: Some(20_000),
-            congestion: Congestion::BbrBounded,
-            bdp_gain: 1.5,
-            bdp_rtt_window_ms: Some(10_000),
+            congestion: Congestion::Bbr,
             initial_window: Some(32 * 1200),
             persistent_congestion_threshold: Some(6),
             packet_threshold: Some(6),
             initial_rtt_ms: Some(100),
             segmentation_offload: false,
             ack_frequency_max_delay_ms: Some(5),
-            prefault: false,
         };
         t.to_transport_config().unwrap();
     }

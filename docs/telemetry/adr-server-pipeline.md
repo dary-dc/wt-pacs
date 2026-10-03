@@ -36,8 +36,8 @@ before a stream opens); `send` reads the frame with the session's reader and wri
 
 *Corrected 2026-09-26.* Earlier text here said `prepare` pre-faulted the frame's pages on a
 `spawn_blocking` hop and that `locate` returned a `Bytes` view of the mapping (amended 2026-09-09).
-Both describe the mapping build. The read path that replaced it reads inside `send`; `--prefault`
-still parses and does nothing.
+Both describe the mapping build. The read path that replaced it reads inside `send`; `--prefault`,
+which parsed and did nothing, is removed.
 
 **`RecordedPipeline<P>`** wraps any `FramePipeline` and holds a live `Tap`. It is constructed only
 when `Tap::for_session()` returns `Some`, and does not override `serve`. It is generic, so it cannot

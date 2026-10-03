@@ -9,7 +9,7 @@
 #     [LOCK=file — held through each round, so a shared host's other campaigns stay out of it]
 #
 # An arm is a controller, or `name:controller[:server-binary[:server flags]]` — another build, or
-# the same one with flags: `bbr1.25:bbr-bounded::--bdp-gain=1.25`.
+# the same one with flags: `iw32:cubic::--initial-window-bytes=38400`.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"

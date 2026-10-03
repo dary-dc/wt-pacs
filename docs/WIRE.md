@@ -60,15 +60,14 @@ before `envelope_len` bytes ([`CLIENTS.md`](CLIENTS.md#a-truncated-frame-is-a-fa
 
 `exact-server --stream-mode`, process-wide, never told to the client — nothing in the handshake or
 the envelope says which is in force. Clients read every uni stream the server opens as a sequence
-of envelopes, so all three are read by the same code.
+of envelopes, so both are read by the same code.
 
 | Mode | Media streams | Priority |
 | --- | --- | --- |
 | `shared` (default) | one uni, opened at session start, for the whole session; frames arrive strictly in ask order | none set |
-| `pool:<k>` | `k` unis opened at session start; frame `n` of the session goes on stream `n mod k`, so a loss holds back only its own stream | before each write the stream takes that frame's rank — and with it any older frame it still holds |
 | `per-frame` | one uni per frame, finished after it; the session waits up to 2 s for outstanding finishes when it ends | each stream ranks by ask order: an earlier ask outranks a later one, so a lost frame's retransmit goes before newer frames' data |
 
-`pool:0` is refused at the flag. Why `shared` is the default, and what `pool:k` and `per-frame`
+Why `shared` is the default, and what `per-frame` (and the retired `pool:k`, in history at `6e9c126`)
 cost under loss: [`adr-stream-shape.md`](adr-stream-shape.md).
 
 ## The send path
@@ -100,7 +99,7 @@ reciting after the mode switch").
 So a fill and an ask never share the connection, and there is nothing for a stream priority to
 order: the fill's stream has stopped being fed. What the ask waits behind is **what of the fill is
 already in flight** — written into the send window and not yet delivered. Ask-order priority
-(`per-frame`, `pool:k`) does not shorten that: the fill frames already written were asked first,
+(`per-frame`) does not shorten that: the fill frames already written were asked first,
 so they outrank the ask's frame.
 
 **What it costs.** `lab/window-harness/src/bin/ask_during_fill.rs`, browser-free, against

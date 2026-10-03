@@ -1320,57 +1320,6 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// **`pool:k` over the wire.** Frames are dealt round-robin: each of the `k` streams carries
-    /// the frames of one residue mod `k`, whole and in ask order. `docs/adr-stream-shape.md`.
-    #[test]
-    fn a_pool_deals_frames_round_robin_over_its_streams() {
-        let (frames, k) = (7u32, 3u32);
-        let dir = std::env::temp_dir().join(format!("wtpacs-pool-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, frames);
-        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
-        let port = free_port();
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        rt.block_on(async move {
-            let mode = StreamMode::Pool(std::num::NonZeroUsize::new(k as usize).unwrap());
-            let (server, conn, mut control) =
-                connect_session(study, cert_pem, key_pem, cert_hash, port, mode).await;
-            control
-                .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrames { frames: (0..frames).collect() }).unwrap())
-                .await
-                .expect("ask");
-            let mut residues = Vec::new();
-            for _ in 0..k {
-                let mut uni = tokio::time::timeout(Duration::from_secs(10), conn.accept_uni())
-                    .await
-                    .expect("a pool stream never opened")
-                    .expect("accept uni");
-                let mut want = None;
-                loop {
-                    let Ok((idx, codestream)) =
-                        tokio::time::timeout(Duration::from_millis(500), read_envelope(&mut uni)).await
-                    else {
-                        break;
-                    };
-                    let next = *want.get_or_insert(idx % k);
-                    assert_eq!(idx, next, "a pool stream carried frame {idx} where {next} was due");
-                    assert_eq!(codestream, pattern(idx), "frame {idx} came back wrong");
-                    want = Some(next + k);
-                }
-                residues.push(want.map(|w| w % k));
-            }
-            residues.sort();
-            assert_eq!(residues, vec![Some(0), Some(1), Some(2)], "the streams did not share the frames");
-            server.abort();
-        });
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
     /// `StreamFrames { from, to }` recites that range, nothing outside it.
     #[test]
     fn stream_frames_range_arrives_in_order() {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # W2: the three controller questions, through lab/scripts/link_impair.py.
-#   S8  an early slow-start exit — Cubic, Cubic with the exit, BBR; shallow and deep buffer,
+#   S8  an early slow-start exit — Cubic against BBR (the exit itself is retired); shallow and deep buffer,
 #       with and without jitter.
 #   S9  the persistent-congestion threshold against 0.5 / 1 / 2 s blackouts. Where in the
 #       transfer the blink lands, and the controller arms through it: blink_cells.sh.
@@ -111,7 +111,7 @@ for buffer in "shallow:20" "deep:1500"; do
   for jitter in 0 2 10; do
     head_row "S8 · ${buffer%%:*} buffer (${buffer##*:} packets), jitter ${jitter} ms"
     RELAY_ARGS=(--rate-kbit "$RATE" --queue-pkts "${buffer##*:}" --jitter-ms "$jitter")
-    for arm in cubic cubic-hystart bbr; do
+    for arm in cubic bbr; do
       SERVER_ARGS=(--congestion "$arm")
       run "$arm" filled
     done

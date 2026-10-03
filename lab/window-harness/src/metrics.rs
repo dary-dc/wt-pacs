@@ -26,7 +26,6 @@ impl ReaderMode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StreamMode {
     Shared,
-    Pool(std::num::NonZeroUsize),
     PerFrame,
 }
 
@@ -34,7 +33,6 @@ impl std::fmt::Display for StreamMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Shared => f.write_str("shared"),
-            Self::Pool(k) => write!(f, "pool:{k}"),
             Self::PerFrame => f.write_str("per-frame"),
         }
     }
@@ -47,11 +45,7 @@ impl std::str::FromStr for StreamMode {
         match s {
             "shared" => Ok(Self::Shared),
             "per-frame" => Ok(Self::PerFrame),
-            _ => s
-                .strip_prefix("pool:")
-                .and_then(|k| k.parse().ok())
-                .map(Self::Pool)
-                .ok_or_else(|| format!("expected `shared`, `per-frame` or `pool:<k>`, got `{s}`")),
+            _ => Err(format!("expected `shared` or `per-frame`, got `{s}`")),
         }
     }
 }

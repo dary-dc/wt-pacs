@@ -16,7 +16,7 @@ ROUNDS="${1:-5}"
 RTT="${RTT:-80}"
 RATE="${RATE:-20000}"
 ARMS=(cubic cubic-restart bbr)
-[[ $MODE == w5b ]] && ARMS=(cubic cubic-restart cubic-idle-restart)
+[[ $MODE == w5b ]] && ARMS=(cubic cubic-restart)
 FILL=40          # frames the fill takes
 KB=64            # frame size
 ASK_KB=250       # the one-ask cell's frame size

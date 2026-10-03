@@ -328,7 +328,7 @@ stw_cells() {
     for rtt in $RTTS; do
       ARMS=()
       link="--self-timing --queue-pkts 50 --trace"
-      for cc in cubic cubic-restart cubic-idle-restart; do
+      for cc in cubic cubic-restart; do
         arm "$cc, 40 -> 8|filled|$WARM|$idle|--congestion $cc $HOLD|$link $T/step.trace|"
       done
       arm "cubic, 8 throughout|filled|$WARM|$idle|--congestion cubic $HOLD|$link $T/slow.trace|"

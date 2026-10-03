@@ -1,8 +1,7 @@
 //! An outage is not congestion. When a congestion event closes a silence rather than a loss
 //! among acknowledgements, restart slow start instead of halving — over any quinn controller,
-//! through the public `Controller` trait alone, as `hystart.rs` does. What it measured:
-//! `docs/transport/transport-conclusions.md` §3, after a blink. `Trigger::Idle` restarts instead
-//! on the first send after an idle spell (RFC 5681 §4.1): §3, the window through a rate step.
+//! through the public `Controller` trait alone. What it measured:
+//! `docs/transport/transport-conclusions.md` §3, after a blink.
 
 use quinn_proto::RttEstimator;
 use std::any::Any;
@@ -15,19 +14,10 @@ use wtransport::quinn::congestion::{
 /// Two probe timeouts, with quinn's RTT variance sitting near a quarter of the estimate.
 const SILENCE_RTTS: u32 = 4;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Trigger {
-    /// A congestion event over packets sent before a silence in the acknowledgements.
-    Silence,
-    /// A send after `SILENCE_RTTS` round trips with nothing in flight.
-    Idle,
-}
-
 /// Watches the acknowledgement stream for a silence of `SILENCE_RTTS` round trips. A congestion
 /// event whose lost packets all predate that silence replaces the inner controller with a new
 /// one, which is quinn's only way back into slow start: initial window, no ssthresh.
 pub struct SlowStartRestart {
-    trigger: Trigger,
     cubic: Arc<CubicConfig>,
     inner: Box<dyn Controller>,
     mtu: u16,
@@ -41,9 +31,8 @@ pub struct SlowStartRestart {
 }
 
 impl SlowStartRestart {
-    fn new(trigger: Trigger, cubic: Arc<CubicConfig>, now: Instant, mtu: u16) -> Self {
+    fn new(cubic: Arc<CubicConfig>, now: Instant, mtu: u16) -> Self {
         Self {
-            trigger,
             inner: Arc::clone(&cubic).build(now, mtu),
             cubic,
             mtu,
@@ -73,10 +62,7 @@ impl SlowStartRestart {
 
 impl Controller for SlowStartRestart {
     fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
-        if let Some(empty) = self.empty_since.take() {
-            if self.trigger == Trigger::Idle && now.duration_since(empty) >= SILENCE_RTTS * self.rtt {
-                self.rebuild(now);
-            }
+        if self.empty_since.take().is_some() {
             // Nothing was owed before this send: an idle spell is no outage (W5b).
             self.last_ack = Some(now);
         }
@@ -114,7 +100,7 @@ impl Controller for SlowStartRestart {
         is_persistent_congestion: bool,
         lost_bytes: u64,
     ) {
-        if self.trigger == Trigger::Silence && self.silence_end.is_some_and(|end| sent <= end) {
+        if self.silence_end.is_some_and(|end| sent <= end) {
             self.rebuild(now);
             self.silence_end = None;
             return;
@@ -138,7 +124,6 @@ impl Controller for SlowStartRestart {
 
     fn clone_box(&self) -> Box<dyn Controller> {
         Box::new(Self {
-            trigger: self.trigger,
             cubic: Arc::clone(&self.cubic),
             inner: self.inner.clone_box(),
             mtu: self.mtu,
@@ -159,28 +144,22 @@ impl Controller for SlowStartRestart {
 }
 
 pub struct SlowStartRestartConfig {
-    trigger: Trigger,
     cubic: Arc<CubicConfig>,
 }
 
 impl SlowStartRestartConfig {
-    pub fn new(trigger: Trigger, initial_window: Option<u64>) -> Self {
+    pub fn new(initial_window: Option<u64>) -> Self {
         let mut cubic = CubicConfig::default();
         if let Some(v) = initial_window {
             cubic.initial_window(v);
         }
-        Self { trigger, cubic: Arc::new(cubic) }
+        Self { cubic: Arc::new(cubic) }
     }
 }
 
 impl ControllerFactory for SlowStartRestartConfig {
     fn build(self: Arc<Self>, now: Instant, current_mtu: u16) -> Box<dyn Controller> {
-        Box::new(SlowStartRestart::new(
-            self.trigger,
-            Arc::clone(&self.cubic),
-            now,
-            current_mtu,
-        ))
+        Box::new(SlowStartRestart::new(Arc::clone(&self.cubic), now, current_mtu))
     }
 }
 
@@ -192,11 +171,7 @@ mod tests {
     const RTT: Duration = Duration::from_millis(80);
 
     fn restart() -> SlowStartRestart {
-        restart_on(Trigger::Silence)
-    }
-
-    fn restart_on(trigger: Trigger) -> SlowStartRestart {
-        SlowStartRestart::new(trigger, Arc::new(CubicConfig::default()), Instant::now(), MTU)
+        SlowStartRestart::new(Arc::new(CubicConfig::default()), Instant::now(), MTU)
     }
 
     /// Two acknowledgements `gap` apart, then the congestion event that follows them, over
@@ -318,8 +293,8 @@ mod tests {
 
     /// A halved window, then a last batch of acknowledgements at `now` leaving `in_flight`, then
     /// one send `gap` later.
-    fn idle_then_send(trigger: Trigger, in_flight: u64, gap: Duration) -> SlowStartRestart {
-        let mut r = restart_on(trigger);
+    fn idle_then_send(in_flight: u64, gap: Duration) -> SlowStartRestart {
+        let mut r = restart();
         let now = Instant::now();
         r.on_congestion_event(now, now, false, 1200);
         r.note_ack(now, RTT);
@@ -328,30 +303,11 @@ mod tests {
         r
     }
 
-    /// Four round trips with nothing in flight is an idle spell: the next send goes out from the
-    /// initial window, not from the window the session had before it.
-    #[test]
-    fn an_idle_spell_restarts_slow_start() {
-        assert!(in_slow_start(&idle_then_send(Trigger::Idle, 0, 4 * RTT)));
-    }
-
-    /// Three round trips are not idle enough.
-    #[test]
-    fn three_idle_round_trips_do_not_restart() {
-        assert!(!in_slow_start(&idle_then_send(Trigger::Idle, 0, 3 * RTT)));
-    }
-
-    /// A gap with packets still in flight is an outage, the silence trigger's business, not idle.
-    #[test]
-    fn a_gap_with_packets_in_flight_is_not_idle() {
-        assert!(!in_slow_start(&idle_then_send(Trigger::Idle, 1200, 10 * RTT)));
-    }
-
     /// An idle spell is the application's silence, not the path's: loss in the first flight after
     /// it is congestion. The misfire row 96 measured.
     #[test]
     fn an_idle_spell_is_not_an_outage() {
-        let mut r = idle_then_send(Trigger::Silence, 0, 10 * RTT);
+        let mut r = idle_then_send(0, 10 * RTT);
         let now = Instant::now();
         r.note_ack(now + 11 * RTT, RTT);
         r.on_congestion_event(now + 11 * RTT, now + 10 * RTT, false, 1200);
@@ -362,20 +318,16 @@ mod tests {
     /// as an idle session sends again is still an outage.
     #[test]
     fn a_blink_after_an_idle_spell_is_an_outage() {
-        let mut r = idle_then_send(Trigger::Silence, 0, 10 * RTT);
+        let mut r = idle_then_send(0, 10 * RTT);
         let now = Instant::now();
         r.note_ack(now + 15 * RTT, RTT);
         r.on_congestion_event(now + 15 * RTT, now + 10 * RTT, false, 1200);
         assert!(in_slow_start(&r));
     }
 
-    /// Each trigger is its own arm: the idle one passes a silence's loss through, and the silence
-    /// one keeps its window across an idle spell, as quinn's own Cubic does.
+    /// An idle spell alone restarts nothing: the window survives it, as quinn's own Cubic does.
     #[test]
-    fn each_trigger_ignores_the_other() {
-        let mut r = restart_on(Trigger::Idle);
-        acks_then_loss(&mut r, 4 * RTT);
-        assert!(!in_slow_start(&r));
-        assert!(!in_slow_start(&idle_then_send(Trigger::Silence, 0, 10 * RTT)));
+    fn an_idle_spell_keeps_the_window() {
+        assert!(!in_slow_start(&idle_then_send(0, 10 * RTT)));
     }
 }

@@ -20,7 +20,7 @@ FIRST="${FIRST:-0}"
 DWELL_MS="${DWELL_MS:-30000}"
 ASKS="${ASKS:-20}"
 read -ra PROFILES <<<"${PROFILES:-shallow deep lte-loaded}"
-read -ra CCS <<<"${CCS:-cubic bbr bbr-bounded}"
+read -ra CCS <<<"${CCS:-cubic bbr}"
 TRACES="${TRACES:-$HOME/.cache/wtpacs-traces}"
 T="$(mktemp -d)"
 PIDS=()

@@ -96,8 +96,8 @@ conformant, not proven correct.
 emits the same global lookup. A fake installed on `globalThis` therefore drives any of them in
 plain Node, with no browser and no server. The fake speaks the wire of `WIRE.md` and belongs to the
 suite, not to an implementation. Its media streams are byte streams, as a WebTransport receive
-stream is, so a BYOB build runs too: `WTPACS_WASM_PKG=<a --features byob pkg> node
-client/conformance/run.mjs`.
+stream is, so a TypeScript BYOB reader (`readMin`) runs on it too. `WTPACS_WASM_PKG=<pkg> node
+client/conformance/run.mjs` runs the suite on another build of the WASM client.
 
 | File | What |
 | --- | --- |
@@ -254,15 +254,14 @@ Both clients read the **index ahead of the codestream**, so a loss can be named.
 ends short reports `truncated: G of D bytes` for that index through the refusal path a server
 `frame_error` takes: an asked frame rejects its promise, a fill frame reaches `onError`. The reader
 then stops on that stream. Under the default `shared` mode that stream carries the whole run, so
-whatever was behind the lost frame is gone too and a run-wide response is right; under `pool:k` it
-is that stream's share of the run, and under `per-frame` it is one frame. The report is **not
+whatever was behind the lost frame is gone too and a run-wide response is right; under `per-frame` it is one frame. The report is **not
 narrowed** by mode: nothing on the wire says which mode is in force, and a stream that ends
 mid-frame looks the same under all of them, so narrowing would need a wire field and a server
 change.
 
-Both read paths of the WASM client have it — the default and the BYOB prototype
-(`--features byob`, off by default) — with the TypeScript reason string byte for byte;
-[`decode/README.md`](decode/README.md) §The BYOB read path records the BYOB run.
+The WASM client has it with the TypeScript reason string byte for byte. Its BYOB prototype is
+retired (code in history at `6e9c126`); [`decode/README.md`](decode/README.md) §The BYOB read path
+records the run.
 
 **What it does not catch.** A codestream the *server* truncated before framing declares its own
 short length and passes; only its pixels would say, and the per-frame hash is what says that. A
