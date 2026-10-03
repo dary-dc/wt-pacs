@@ -217,6 +217,27 @@ fluoroscopy and the ultrasound cine; no angiography run was available:*
   series puts the preview on one decoder and gives most of it back (3.52 s at 4×, 50 Mbit/s);
   G = 8 is within 1–16 % of its bytes.
 
+*Measured (EMBED; [`lab/av1/embed`](../../lab/av1/embed/README.md)), all seven sets: one intra
+codestream that is a preview first and exact at its end.*
+
+* **JPEG 2000 Part 1 with quality layers** (OpenJPEG 2.5.4, reversible 5/3, LRCP, three lossy layers
+  then lossless) costs 0.09–0.19 % over a single layer, and Part 1 is 4–7 % smaller than HTJ2K, so
+  the layered codestream is **0.93–0.96 of the served bytes, preview included**. Its first layer is
+  **0.4–0.9 % of them at 37–43 dB** on grey (25 dB on the RGB ultrasound), and the third is 7–15 % at
+  44–59 dB. It decodes in 1.0–1.4× OpenJPH's time for the exact frame. **The exact frame then
+  decodes 6–12× slower than OpenJPH** in WASM, slower in 210/210 paired rounds: EBCOT, the block
+  coder HTJ2K replaces, costs what dav1d-WASM does. For the same PSNR the layers take about twice
+  AV1's preview bytes (fluoroscopy 44 dB: 1.7 % against 0.78 %). Those bytes are inside the exact
+  frame; AV1's come on top of it.
+* **Progressive lossless JPEG XL** (libjxl 0.12.0, `-p`, squeeze) draws its first picture only after
+  **6–48 % of the bytes** (tomosynthesis 6 %, CT, MR and cone-beam 44–48 %), at 28–47 dB. libjxl
+  pauses at no progression step in a lossless frame, so a preview is a prefix flushed. The first
+  picture decodes in 1.3–2.9× OpenJPH's exact time and the whole codestream in 4.0–6.2×, and its
+  bytes are 0.91–0.95 of HTJ2K's.
+* So an embedded preview is free in bytes and dear in decode: JPEG 2000's is the only small one, and
+  it makes every exact frame 6–12× slower to decode. Headless Chromium 141, this container, 15
+  interleaved rounds at 1× and 4×; 22 680/22 680 frames matched.
+
 Serving a preview is a second representation of a frame in the store and on the wire: structural,
 and not proposed here.
 
