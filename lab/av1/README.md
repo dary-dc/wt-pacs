@@ -255,18 +255,20 @@ reported inexact.
 Queue row 14. libaom 3.15.1, `--lossless=1 --threads=1`, every `cpu-used` each usage accepts:
 `--good` 0–6 and `--allintra` 0–9 as intra (`--kf-max-dist=0`), `--rt` 5–12 as low-delay inter
 (one keyframe, the rest predicted — the shape of a live encode); against `ojph_compress` in the
-served profile. The first 8 frames of each row-DATA set; a set over 12 bits is DEPTH's top11+low,
+served profile. The first 8 frames of each row-DATA and row-CONTENT set; a set over 12 bits is DEPTH's top11+low,
 two streams timed together. Every output decoded with dav1d and matched the checksums written when
-the frames were made: 390/390 runs exact, the `--rt` inter streams at 11–13 bits included.
+the frames were made: 546/546 runs exact, the `--rt` inter streams at 10–13 bits included.
 
 ```bash
 python3 lab/av1/enc.py lab/.av1-build lab/.av1-work/enc OUT.tsv 8 3 lab/av1/data/mr_ispy1 …  # ~2 h
 python3 lab/av1/enc.py summary OUT.tsv 8
 ```
 
+The tomosynthesis sets ran as a second campaign under the same check, after row CONTENT landed.
+
 **Uncontended, and how that was checked.** One encode at a time on the container's 4 cores, one
 thread, nothing else started during the campaign; before each run two `/proc` samples 0.5 s apart
-summed every other process's CPU — at most 0.22 of a core over the 390 — and each child's CPU time
+summed every other process's CPU — at most 0.22 of a core over the 546 — and each child's CPU time
 was ≥ 0.96 of its wall time on every run over 1 s (≥ 0.88 on the shortest, where start-up and file
 I/O weigh most). Arms interleaved per set
 (`lab/scripts/order.py`), n = 3 rounds; bytes were identical in every round. A time is wall clock
@@ -282,23 +284,31 @@ ms a frame, median of 3 [min–max]; bytes over `--good` cpu0's (the slowest pre
 | `xa_dynact16` 512², 13-bit, 2 streams | 7.4 (1.003) | 5 242 [5 187–5 250] | **908** (1.018) | 4 105 (1.004) | 1 240 (1.009) | 290 (1.027) | 153 (1.031) | 37.4 [35.6–39.9] (1.103) | 265 (1.022) | 45.5 (1.054) |
 | `rf_fluoro` 768², 12-bit | 12.1 (0.974) | 9 326 [8 920–9 673] | 1 654 (1.014) | 9 276 (1.000) | 1 967 (1.004) | 612 (1.014) | **345** (1.017) | 68.8 [63.9–71.5] (1.047) | 551 (1.031) | 95.4 (1.076) |
 | `us_liver` 760×421 RGB 8 | 13.6 (0.895) | 9 481 [9 422–9 742] | 638 (1.558) | **7 232** (1.001) | 827 (1.039) | 313 (1.066) | 171 (1.576) | 61.9 [60.1–63.4] (1.632) | 415 (1.298) | 69.1 (1.339) |
+| `dbt10_ea1141` 678×1727, 10-bit | 17.2 (1.023) | 11 141 [10 990–11 288] | **936** (1.019) | 7 292 (1.005) | 2 178 (1.009) | 488 (1.021) | 280 (1.030) | 81.1 [78.1–86.1] (1.055) | 460 (0.992) | 111.1 (1.006) |
+| `dbt12_ea1141` 614×1359, 12-bit | 13.2 (0.962) | 7 399 [7 378–8 026] | 731 (1.026) | 5 931 (1.012) | **1 618** (1.015) | 285 (1.033) | 208 (1.037) | 78.8 [76.2–81.4] (1.068) | 547 (1.025) | 91.2 (1.061) |
 
-Every `cpu-used` is in the TSV. In 20 of the 130 (set × arm) cells one round of three is 13–50 % off
-the median, all but one (CT `--good` 3, 2.7 s against 2.3) under 0.2 s a frame; the median is quoted.
+Every `cpu-used` is in the TSV. In 23 of the 182 (set × arm) cells one round of three is 13–50 % off
+the median, all but two (CT `--good` 3 at 2.3 s, fluoroscopy `--rt` 5 at 0.55 s) under 0.3 s a
+frame; the median is quoted.
 
 **The fastest preset within 2 % of the slowest's bytes** (bold above): MR `--good` 6, 2.6 frames/s a
 core (`--rt` 5's inter, 1.019, gives 4.2); CT `--allintra` 6, 2.0; cone-beam `--good` 6, 1.1;
 fluoroscopy `--allintra` 7, 2.9; the ultrasound only `--allintra` 0 itself, 0.14 frames/s — every
-faster preset costs it ≥ 3.2 %, and `--good` 6 and `--allintra` 7–9 jump to 1.56–1.63. Two preset
+faster preset costs it ≥ 3.2 %, and `--good` 6 and `--allintra` 7–9 jump to 1.56–1.63; tomosynthesis
+10-bit `--good` 6, 1.1, and 12-bit `--allintra` 5, 0.62. **On the 10-bit tomosynthesis the real-time
+inter coding is smaller than every intra one**: `--rt` 8–10 at 0.959–0.963 of the slowest preset
+(0.937–0.941 of HTJ2K) and 5.5–9.6 frames/s — the one set here where a fast preset is also the
+smallest, consistent with row CONTENT's finding that AV1 coded whole is under HTJ2K on that volume;
+on the 12-bit one `--rt` 10 is within 2 % at 9.9 frames/s. Two preset
 pairs code identically lossless (`--good` 1 = 2, `--rt` 11 = 12), and `cpu-used` is not monotonic in
 time (`--good` 3 is faster than 4 on every set).
 
 **30 frames/s of 512² on one core, lossless:** reached only by `--allintra` 9, on MR (36.7 f/s) and
 CT (33.3, two streams) — at 1.049 and 1.186 of the slowest preset's bytes, 1.063 and 1.070 of
 HTJ2K's; cone-beam reaches 26.8, and no `--rt` preset reaches it (best 28.3, MR). `ojph_compress`
-encodes the same frames at 73–136 frames/s a core, process start included, into fewer bytes than
-every AV1 preset that fast. Row CONTENT's tomosynthesis and angiography were not fetched when this
-ran, so neither is here.
+encodes the same frames at 73–136 frames/s a core (58 and 75 on the larger tomosynthesis frames),
+process start included, into fewer bytes than every AV1 intra preset that fast. Row CONTENT found no
+open angiography run, so none is here.
 
 **Mutated**: lossy encode, OpenJPH irreversible, the low plane of a split dropped, one frame short,
 RGB planes misordered — each reported inexact; a `yes` loop beside the run showed as 1.02 cores in
