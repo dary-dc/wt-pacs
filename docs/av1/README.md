@@ -265,6 +265,18 @@ offset per series), not the preview and then the whole exact frame.
 Serving a preview — or a residual in place of the exact frame — is a second representation of a
 frame in the store and on the wire: structural, and not proposed here.
 
+*One scalable payload instead (row SVCQ; [`lab/av1/svcq`](../../lab/av1/svcq/README.md)).* A lossy
+base layer and a lossless top predicted from it, in one AV1 payload (libaom 3.15.1's real-time
+encoder, two spatial layers, base half or full size at quantizer 20–55): **every top frame exact,
+and the total 0.95–1.04 of single-layer lossless AV1** on fluoroscopy, MR and the ultrasound —
+scalability is nearly free; a half-size base is 0.03–2.4 % of HTJ2K's bytes at q 40–55 and
+decodes in 2–13 % of a lossless frame's time. But the payload carries lossless AV1's size, **1.04–1.64
+of HTJ2K's**, against a separate preview plus exact HTJ2K at 1.008 and 1.07 above; and the exact
+frame decodes 3–30 % slower than single-layer AV1 (dav1d-WASM, Chromium 141 and Node, 1× and 4×,
+n = 15 interleaved). `decode-av1.js` opens dav1d with `all_layers` 1, which returns the base and then
+fails on such a payload; WebCodecs returns the top exactly but cannot be asked for the base, only
+fed its units. Against row RESID's residual: not yet measured.
+
 *LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
 answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
 width 1 its dequantisation is the identity and its residuals are added at 2^−f of a sample (f = 7,
