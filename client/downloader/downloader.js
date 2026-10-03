@@ -24,6 +24,8 @@ let decoderLoss = "none is configured";
 /** The session's identity: `+1` when one is declared dead, so its callbacks become no-ops. */
 let epoch = 0;
 let resuming = null;
+/** Re-dials since a frame last arrived: a session that dies before delivering spends them too. */
+let redials = 0;
 let stall = null;
 /** When the owed work last went on the wire, and the silence after it that condemns the session. */
 let issuedAt = 0;
@@ -125,6 +127,7 @@ function record(index, priority, askMs) {
 
 /** A frame's bytes are here: straight to the consumer, or into the queue for a decoder. */
 function arrived(index, frame) {
+  redials = 0;
   wanted.delete(index);
   watch();
   sessionBytes += frame.bytes.length + 8;
@@ -250,8 +253,9 @@ async function resume() {
   session.close();
   session = null;
   dialling = null;
-  for (let n = 0; n < deadlines.tries; n++) {
+  while (redials < deadlines.tries) {
     if (wanted.size === 0 && owedAsks().length === 0) return;
+    redials += 1;
     try {
       await connect();
       for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
@@ -260,6 +264,7 @@ async function resume() {
       await sleep(deadlines.redialMs);
     }
   }
+  redials = 0;
   const reason = "the session was lost and could not be re-dialled";
   for (const i of [...wanted]) fail(i, reason);
   for (const [i, rec] of [...records]) if (rec.state === "wire") fail(i, reason);

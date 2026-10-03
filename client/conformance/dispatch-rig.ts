@@ -901,6 +901,33 @@ async function whenTheRedialsRunOutWhatWasOwedIsNamed(DownloaderClient: Download
   c.close();
 }
 
+/** A server that accepts every dial and never sends spends the re-dials too: `tries` counts them since
+ *  a frame last arrived, across resumptions, and then what was owed is named rather than re-dialled for ever. */
+async function aSessionThatNeverDeliversSpendsTheRedials(DownloaderClient: DownloaderCtor, check: Check) {
+  const { c, fake, failures } = await stalledFill(DownloaderClient);
+  const named = await until(() => failures.length >= 4, 4000);
+  const dials = await fake.dials();
+  check(named, `survival: sessions that never deliver end in the owed frames named (${failures.length} named, ${dials} dials)`);
+  check(dials === 1 + QUICK.tries, `survival: after ${QUICK.tries} re-dials since the last frame (${dials} dials)`);
+  c.close();
+}
+
+/** A frame that arrives gives the re-dials back: a session that dies more than `tries` times, delivering
+ *  between deaths, is resumed every time. */
+async function aFrameBetweenDeathsGivesTheRedialsBack(DownloaderClient: DownloaderCtor, check: Check) {
+  const { c, fake, got, failures } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 } });
+  const deaths = QUICK.tries + 1;
+  for (let k = 0; k < deaths; k++) {
+    await fake.serverClose(0, "the server went away");
+    if (!(await until(async () => (await fake.dials()) >= k + 2))) break;
+    await fake.pushFrame(2 + k, enc.encode(`fill-${2 + k}`));
+    await until(() => got.length >= 3 + k);
+  }
+  check(got.length === 2 + deaths && failures.length === 0,
+    `survival: ${deaths} deaths with a frame after each are each resumed (${got.length} delivered, ${failures.length} failed)`);
+  c.close();
+}
+
 /**
  * A session near its byte budget is replaced before it stalls: past three quarters the next is
  * dialled, the remainder asked on it and nothing that arrived, and the old one closed.
@@ -1164,6 +1191,8 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<v
     aDeadSessionIsResumedNotReported,
     anOwedAskIsReaskedAfterAResume,
     whenTheRedialsRunOutWhatWasOwedIsNamed,
+    aSessionThatNeverDeliversSpendsTheRedials,
+    aFrameBetweenDeathsGivesTheRedialsBack,
     aSessionNearItsBudgetIsReplaced,
     aDialThatNeverSettlesIsDialledAgain,
     aDialThatNeverSettlesAtAllIsNamed,

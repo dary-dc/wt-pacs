@@ -747,7 +747,7 @@ ended by idle timeout. *A frame's deadline counted from its ask*: **here, in thr
 transports' 15 s waiter, the consumer's timer) — six frames asked at once on the slow link failed 4 at
 15.0 s while their bytes still arrived. Waiters now time from the **last byte**, the consumer keeps no
 timer, and the burst delivers **6 of 6 in 31.2 s**; a server that accepts every dial and never sends
-keeps an ask waiting through doubling re-dials. Relay rates only — latency and completion, no
+kept an ask waiting through doubling re-dials (now `tries` ends it, §Re-dial and re-issue). Relay rates only — latency and completion, no
 throughput; only the radio cell's re-dials are read, its fill time varying 20–54 s with the loss draw.
 
 ### Re-dial and re-issue
@@ -762,10 +762,12 @@ change** — a resume is the same request, and bumping it would drop frames insi
 resume happened, as `stats().resumedAt`.
 
 Deadlines `{ stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 }`; `survival: false` turns it off,
-an object overrides them; nothing runs when nothing dies. **`tries` bounds the dials in one resumption,
-not the resumptions**: a dial onto a path that still carries nothing leaves the fill quiet and the cycle
-restarts after the doubled wait; a network that is genuinely down refuses the dial, which `tries` ends.
-Six dispatch clauses hold it, each mutated and seen to fail.
+an object overrides them; nothing runs when nothing dies. **`tries` bounds the re-dials since a frame
+last arrived**, across resumptions: a session that is accepted and then dies or stays silent before
+delivering spends one, as a refused dial does, and once they are spent what was owed is named.
+*Corrected 2026-10-03:* `tries` bounded the dials in one resumption only, so a server that accepted
+every dial and never sent was re-dialled for ever at a doubling wait. Eight dispatch clauses hold it,
+each mutated and seen to fail.
 
 ### Recycling before the stall
 
