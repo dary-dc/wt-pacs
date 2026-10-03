@@ -65,5 +65,7 @@ Equalise only if that knob moves the gap; that answers a different question (“
 
 - L1 runners leave harness `--stream-recv-window` unset unless running the optional diagnostic.
 - Plans / work orders may point here; this ADR survives after lane plans are deleted.
-- The server may expose `--stream-receive-window-bytes` at the library default. Do not change
-  that default to make lab arms symmetric. No FoD “receive window” API.
+- The server keeps the library default and exposes no receive-window flag. No FoD “receive window”
+  API. *Corrected 2026-10-03:* this said the server may expose `--stream-receive-window-bytes`; it
+  and `--receive-window` were removed (`c9fce63`), since no script passed them and a server's
+  receive window governs only the asks it receives, not the media.

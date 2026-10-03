@@ -383,7 +383,8 @@ datagram by datagram and destroys GSO batching. The controller knobs were measur
 The pooled hand-off's CPU numbers are §4. A per-frame prefault hop cost 10 % throughput and 14–34 %
 CPU per byte with a warm cache, and its flag is retired. `aws-lc-rs` for `ring`, re-measured
 2026-09-10 on VAES / AVX-512 hardware: +3–5 % CPU at 32 KB (4/4), a tie at 250 KB, +10–18 % peak RSS
-— `crypto-ring` stays, the feature remains for other hardware. ACK frequency, socket buffers and the
+— `crypto-ring` stays. *Corrected 2026-10-03:* this said the `crypto-aws-lc-rs` feature remained for
+other hardware; its build no longer compiled, and it was removed (code: `git show c9fce63^:server/Cargo.toml`). ACK frequency, socket buffers and the
 initial MTU: ≤ 3 % or nil.
 
 ### Flow-control windows — the 180 kB property

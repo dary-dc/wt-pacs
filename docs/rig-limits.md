@@ -459,7 +459,9 @@ across runs.
 * **A background process moving the ground.** Check the running process's flags before and after
   each arm, and keep a control that is *expected* to fail, so a rig that cannot observe the failure
   is caught rather than believed.
-* **The clock floor.** `performance.now()` is 5 µs under cross-origin isolation, so a one-tick
+* **The clock floor.** `performance.now()` is 5 µs under cross-origin isolation (headless Chromium,
+  2026-08-30, `lab/clock-resolution/measure_clock_resolution.py`; the row is
+  `git show 5567355:docs/measurements/clock-resolution-local.json`), so a one-tick
   difference is not a finding; each context has its own `timeOrigin`, and only
   `timeOrigin + now()` compares across threads.
 * **Twenty-four samples are not a tail.** A p99 read 415 ms at 24 connects and 1 335 ms at 200.

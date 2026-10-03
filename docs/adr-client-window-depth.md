@@ -158,7 +158,7 @@ nothing sets it by default.
 
 ### The estimator, as built
 
-`client/transport-ts/ask-window.ts`:
+`client/transport-ts/ask-window.ts` (removed; `git show 7bda871:client/transport-ts/ask-window.ts`):
 
 - **`Tf`** — the median time between the last 8 arrivals: the link's per-frame time once the depth
   saturates it, the delivered pace below that

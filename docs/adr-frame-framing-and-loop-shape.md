@@ -6,6 +6,10 @@
 (retired, in history) ·
 **Amends:** [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md)
 
+*2026-10-03: `RequestFrames` left the wire (`202644d`); a group ask is G pipelined `RequestFrame`s
+([`WIRE.md`](WIRE.md)). Where on-demand reads "`RequestFrame` / `RequestFrames`" below, read
+`RequestFrame`; §6d's batch look-ahead (`frames[i + 1]`) is now the planner's peek alone.*
+
 ---
 
 ## 1 · Retraction: the comparison that chose the shared stream was rigged

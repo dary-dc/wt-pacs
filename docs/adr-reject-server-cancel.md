@@ -119,5 +119,5 @@ the link and cancel is worth nothing.
 
 - Design + harness spec: [`adr-stream-shape.md`](adr-stream-shape.md)
 - Stride / queue interaction: [`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md)
-- Rerun: `lab/window-harness` (once `lab/queue-harness`), `lab/scripts/harness_sweep_mbps.sh`; the
+- Rerun: `lab/window-harness`, `lab/scripts/harness_sweep_mbps.sh`; the
   simulator `lab/queue-sim` is in history before `c3c466b`

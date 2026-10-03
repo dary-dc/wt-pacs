@@ -34,8 +34,8 @@ ask does not. That difference picks the escalation.
 
 **And the read path is told what is coming.** On-demand names up to `slots − 1` upcoming
 frames; a fill names one. The tile read-ahead probes `RWF_NOWAIT` first and submits only the
-shortfall. `RequestFrame` and `RequestFrames` are the same thing to the loop: one
-`Ask::Frame` per index, fed by an ask-reader task into a planner. The reader returns a whole
+shortfall. Each `RequestFrame` is one `Ask::Frame`, fed by an ask-reader task into a planner
+(`RequestFrames`, which the server split into one per index, left the wire on 2026-10-03). The reader returns a whole
 frame, and **the frame goes to quinn whole**: its buffer comes from `media/frame_pool.rs`, is
 handed off as `Bytes`, and returns to the pool when quinn drops it after acknowledgement
 (since 2026-09-23; before, `READ_WINDOW` = 64 KiB chunked the write and a second copy fed quinn).
@@ -294,7 +294,7 @@ path does not become the whole plan.
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on the sandbox | **Built**; unmeasured on a throttled link (§9) |
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob; the layout study measured **17.6×** on the same reads, against 2–4× for the read path (`git show read-path-evidence-2026-09-09:docs/disk-layout/`) | Not tuned; layout undecided |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | Lab only — needs a real ask trace |
-| AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | **Measured 2026-09-10, not taken** |
+| AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | **Measured 2026-09-10, not taken**; the feature was removed 2026-10-03 (`c9fce63`) |
 | Release profile: `lto = "fat"`, `codegen-units = 1` | −4 to −8 % CPU per frame, every cell | **Landed 2026-09-10**; 4× longer release rebuild |
 
 **Where scale actually binds.** A 250 kB copy is ~11 µs of a ~675 µs frame, and L2-resident
@@ -355,8 +355,8 @@ against `RLIMIT_MEMLOCK`, and the lab arm that registered them tied on misses.
 
 Also: the pool path reads ahead too (the `JoinHandle` is held, not awaited); delivery stays in
 ask order — reading *n+1* early is pipelining, not reordering; the planner bounds `in_hand` at
-`ASKS_AHEAD`, streams `RequestFrames` rather than collecting the batch, and stops upcoming at
-the first `Fill` or `EndSession`. `READ_WINDOW` (64 KiB) is off the product path: a test-only constant in
+`ASKS_AHEAD` and stops upcoming at the first `Fill` or `EndSession` (it also streamed a
+`RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). `READ_WINDOW` (64 KiB) is off the product path: a test-only constant in
 `frame_store.rs`, and `read_campaign.rs`'s own for the arm that reproduces the capped probe. `--no-default-features` alone has no
 rustls provider and does not link; add `--features crypto-ring`.
 
@@ -550,6 +550,9 @@ variable (a first reading that blamed it is retracted). Bracketed from both side
 | `product`, probe on, ring on the miss | **+53.1 %**, 12/12 RESOLVED | **+39.0 %**, 12/12 RESOLVED |
 | `product`, probe on, pool on the miss | **+38.0 %**, 11/12 RESOLVED | +28.3 %, tie |
 | `product`, probe **off** (`uring`) | +2.1 %, 6/12 tie | +1.8 %, 7/12 tie |
+
+The probe-off row ran the product's `uring` lever, removed 2026-10-03; code:
+`git show archive/arms-2026-10-03:server/src/media/read_path.rs`.
 
 | size | probe covers | `pool_capped_probe` vs `pool` | `product` vs `pool_capped_probe` |
 | ---: | --- | --- | --- |

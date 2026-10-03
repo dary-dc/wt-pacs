@@ -129,9 +129,10 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
 * **One queue, two priorities.** Asks before fill frames. Dispatch never leaves a decoder idle: up to
   `perDecoder` (2) outstanding each, to the decoder with the fewest.
 * **Fills are pushed by the session** ([`CLIENTS.md`](CLIENTS.md) §Fills are pushed), `stream_frames`
-  on the wire, one contiguous run of what is still wanted at a time. Not `request_frames`: the
-  server serves a batch as one ask per index in order, so an ask behind a 200-frame batch waited for
-  all 200, where a `stream_frames` fill is dropped the moment an ask is in hand. **An ask ends a
+  on the wire, one contiguous run of what is still wanted at a time. Not a `request_frames` batch,
+  which left the wire on 2026-10-03 (`202644d`): the server served it as one ask per index in order,
+  so an ask behind a 200-frame batch waited for all 200, where a `stream_frames` fill is dropped the
+  moment an ask is in hand. **An ask ends a
   running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once an ask settles
   the downloader re-issues what is not yet delivered as a new run — the client owns that decision,
   the server stays as it is. An ask for a frame the fill still owes goes to the wire, where the

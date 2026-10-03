@@ -112,9 +112,9 @@ as 0. **Null ≠ 0:** a refused row exports the stages it never entered as JSON 
 
 **`send_us` is not separable into disk and wire time.** Since read-ahead-by-one it also carries the
 *start* of the next frame's read (an `RWF_NOWAIT` probe and, on a shortfall, one submit, no wait),
-and excludes most of its own frame's read where the frame before started it. Within a
-`RequestFrames` batch, per-frame `send_us` is a pipeline stage, not a per-frame cost; the batch's
-total is exact. [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6b.
+and excludes most of its own frame's read where the frame before started it. Within a run of
+pipelined asks, per-frame `send_us` is a pipeline stage, not a per-frame cost; the run's total is
+exact. (This said "a `RequestFrames` batch", which left the wire on 2026-10-03.) [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6b.
 A trace showing `prepare_us` in the tens of µs is a trace of the mapping build (§Pipeline baseline).
 
 Also on each row: `session_id`, `frame_index`, `ask_ordinal`, `server_bytes_sent`,
