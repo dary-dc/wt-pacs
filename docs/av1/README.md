@@ -238,8 +238,25 @@ codestream that is a preview first and exact at its end.*
   it makes every exact frame 6–12× slower to decode. Headless Chromium 141, this container, 15
   interleaved rounds at 1× and 4×; 22 680/22 680 frames matched.
 
-Serving a preview is a second representation of a frame in the store and on the wire: structural,
-and not proposed here.
+*Measured (RESID; [`lab/av1/resid`](../../lab/av1/resid/README.md)), every series of rows DATA
+and CONTENT:* the exact frame as **the preview plus a lossless residual** (source − preview, one
+offset per series), not the preview and then the whole exact frame.
+
+* **Bit-identical lossy output**, so the residual is exact on every decoder: dav1d-WASM and
+  WebCodecs matched native dav1d on 13 440/13 440 preview frames (8-bit 4:2:0, 10-bit 4:0:0), and
+  preview + residual matched the source on 16 800/16 800. The colour preview's conversion back to
+  RGB must then be integer arithmetic, the same in every client.
+* **Bytes: the preview is free.** Preview (G = 8, cpu6) + residual in HTJ2K is **0.947–1.002 of
+  HTJ2K alone** at each series' best CRF (8 or 20; 0.947–1.021 over every CRF): −5.3 % on the
+  ultrasound, −5.0 % on CT, +0.2 % on 12-bit tomosynthesis — where preview-then-HTJ2K costs +0.1 %
+  to +22 %. The residual in AV1 is better only on 10-bit tomosynthesis (0.930) and worst on colour
+  (1.13–1.61). So AV1's preview, too, need not come on top of the exact frame.
+* **Decode: it is not.** Preview + HTJ2K residual + the add takes **1.31–1.89× HTJ2K alone's time**
+  through WebCodecs at 1× (1.23–1.74× at 4×) and 2.1–3.1× through dav1d-WASM; with the residual in
+  AV1, 4.9–11×. Headless Chromium, this container, first 16 frames, 15 interleaved rounds.
+
+Serving a preview — or a residual in place of the exact frame — is a second representation of a
+frame in the store and on the wire: structural, and not proposed here.
 
 *LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
 answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
