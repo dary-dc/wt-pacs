@@ -104,7 +104,8 @@ repository** and are recorded only so the queue tests them rather than rediscove
   independent decoders — so the encoder, not a decoder. Intra-only was exact up to 12 bits; 3.14.1
   passed its own lossless cases, but the failing grey clips were never re-run on it.
   *Reproduced here* with the same 3.8.2 through ffmpeg: inter (G = 8) 10- and 12-bit grey and 12-bit
-  4:4:4 inexact (up to 15 904 of 1 M samples, |Δ| ≤ 11), three decoders agreeing — [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md).
+  4:4:4 inexact (up to 15 904 of 1 M samples, |Δ| ≤ 11), three decoders agreeing — [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md). 3.15.1
+  has it too, and `--auto-alt-ref=0` cures both (§Measured here).
 * **WebCodecs on Chromium returned no frames from lossless streams** (Main 4:2:0 and High 4:4:4,
   8-bit), with `isConfigSupported` answering true; whether that was the probe's packaging was not
   settled. *Not reproduced here (WCAP):* both cells decode exactly in Chromium 141. Lossless is not
@@ -118,6 +119,18 @@ repository** and are recorded only so the queue tests them rather than rediscove
   12–14 ms a frame against HTJ2K's 1.2. The fill here is decoder-bound, so a slower decoder costs
   the fill directly, whatever it saves on the wire.
 * Signed CT there spanned −1024..2461, which fits 12 bits after a +1024 offset; it was not tried.
+
+## Measured here
+
+**Encoders (row TOOL, synthetic frames; [`lab/av1/README.md`](../../lab/av1/README.md)).** The
+libaom fault above reproduces, and **3.15.1 has it too**: with default settings, inter-coded grey
+at 10 and 12 bits came back wrong on 1–8 of 16 frames (|Δ| ≤ 2 at 10 bits, ≤ 11 at 12), never on a
+keyframe, identically from dav1d and aomdec. It goes with the alt-ref frames: with
+`--auto-alt-ref=0` every cell — grey 8/10/12 as 4:0:0 and RGB 8 as 4:4:4, intra and inter, both
+versions, two presets — is exact. libaom 3.15.1 is pinned. SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
+bits only, and its 10-bit inter stays inexact under every setting tried; rav1e 0.7.1 has no lossless
+mode. 12-bit 4:4:4 behaves alike on 3.8.2; 3.15.1's `aomenc` cannot encode it at all. Every SIZE
+encode of row DATA's series re-checks exactness on real content.
 
 ## Decided
 

@@ -69,3 +69,6 @@ __pycache__/
 *.pyc
 # AV1 public series and their frames (fetch with lab/av1/fetch_data.sh)
 lab/av1/data/
+# AV1 tools built by lab/av1/tools.sh, and the frames lab/av1/roundtrip.py makes
+lab/.av1-build/
+lab/.av1-work/
