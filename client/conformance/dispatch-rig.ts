@@ -45,6 +45,8 @@ type OpenOpts = {
   survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
   hangDials?: number;
   recycleAtBytes?: number;
+  /** One stand-in decoder fails its init this long after it starts. */
+  failOneInitAfterMs?: number;
 };
 
 function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
@@ -61,7 +63,11 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     openAsk: opts.openAsk === "default" ? undefined : (opts.openAsk ?? false),
     transport: `/client/conformance/dist/fake-session.js?ch=${ch}&hang=${opts.hangDials ?? 0}`,
     decoderWorker: opts.realDecoder ? undefined : `/client/conformance/fake-decoder.js?ch=${ch}`,
-    decoder: opts.realDecoder ?? { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
+    decoder: opts.realDecoder ?? {
+      delayMs: opts.delayMs,
+      readyDelayMs: opts.readyDelayMs,
+      failOneInit: opts.failOneInitAfterMs && { afterMs: opts.failOneInitAfterMs, ticket: new Int32Array(new SharedArrayBuffer(4)) },
+    },
     warmup: opts.warmup,
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
@@ -1122,6 +1128,41 @@ async function anAskAfterCloseRejectsAtOnce(DownloaderClient: DownloaderCtor, ch
   check(/closed by the consumer/.test(reason), `close: an ask after it rejects at once (${reason})`);
 }
 
+/**
+ * A decoder whose init fails after `started` leaves the pool: every frame goes to the decoder
+ * that did come up, and none is lost to the one that did not.
+ */
+async function aDecoderThatFailsItsInitLeavesThePool(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const got: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 2, perDecoder: 2, delayMs: 20, failOneInitAfterMs: 300,
+    onFrame: (f) => got.push(f), onError: (f) => failures.push(f),
+  });
+  const indices = [0, 1, 2, 3, 4, 5];
+  c.fill(indices);
+  for (const i of indices) await fake.pushFrame(i, enc.encode(`frame-${i}`));
+  await until(() => got.length + failures.length >= indices.length, 5000);
+  check(got.length === indices.length, `decoder init: every frame decodes on the decoder that came up (${got.length}/${indices.length})`);
+  check(failures.length === 0, `decoder init: none is lost to the one that failed (${failures.map((f) => f.reason).join("; ") || "none"})`);
+  c.close();
+}
+
+/** With no decoder left, a frame waiting for one is named with the reason the last init failed. */
+async function framesWithNoDecoderLeftAreNamed(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 1, perDecoder: 2, delayMs: 0, failOneInitAfterMs: 300, onFrame: () => {}, onError: (f) => failures.push(f),
+  });
+  c.fill([0, 1]);
+  for (const i of [0, 1]) await fake.pushFrame(i, enc.encode(`frame-${i}`));
+  await until(() => failures.length >= 2, 3000);
+  const named = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join();
+  check(named === "0,1", `decoder init: with none left, both frames are named (${named || "none"})`);
+  check(failures.every((f) => /failed its init/.test(f.reason)), `decoder init: with the init's reason (${failures[0]?.reason ?? "none"})`);
+  c.close();
+}
+
 export async function run(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -1170,6 +1211,8 @@ export async function run(DownloaderClient: DownloaderCtor, log: (line: string) 
     aCancelOnAnEndedClientResolves,
     aCancelDuringARedialDropsWhatWasAsked,
     anAskAfterCloseRejectsAtOnce,
+    aDecoderThatFailsItsInitLeavesThePool,
+    framesWithNoDecoderLeftAreNamed,
   ];
   log("dispatch");
   for (const clause of clauses) {

@@ -28,6 +28,12 @@ onmessage = async (e) => {
     toConsumer = m.toConsumer;
     if (m.decoder && typeof m.decoder.delayMs === "number") delayMs = m.decoder.delayMs;
     if (m.decoder && typeof m.decoder.readyDelayMs === "number") readyDelayMs = m.decoder.readyDelayMs;
+    // The decoders share one ticket, so exactly one of them fails, `afterMs` into its init.
+    const failOne = m.decoder?.failOneInit;
+    if (failOne && Atomics.add(failOne.ticket, 0, 1) === 0) {
+      await sleep(failOne.afterMs);
+      return void postMessage({ kind: "init-failed", reason: "the stand-in failed its init on purpose" });
+    }
     // The real decoder warms before it answers `ready`; the stand-in waits as long and says so.
     if (m.warmup) warmed = !!(await fetch(m.warmup).catch(() => null))?.ok;
     if (readyDelayMs) await sleep(readyDelayMs);

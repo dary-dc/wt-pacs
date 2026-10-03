@@ -20,6 +20,7 @@ let generation = 0;
 let asksInFlight = 0;
 // S6: the dial and the decoders start together; dispatch waits on this, the dial does not.
 let decodersUp = false;
+let decoderLoss = "none is configured";
 /** The session's identity: `+1` when one is declared dead, so its callbacks become no-ops. */
 let epoch = 0;
 let resuming = null;
@@ -75,6 +76,7 @@ function nextDecoder() {
 /** Never leave a decoder idle: up to `perDecoder` outstanding each. docs/decode/README.md §Dispatch */
 function pump() {
   if (!decodersUp) return;
+  if (decoders.length === 0) return failQueued();
   for (;;) {
     const d = nextDecoder();
     if (!d) return;
@@ -93,6 +95,23 @@ function pump() {
     );
     rec.bytes = null;
   }
+}
+
+function failQueued() {
+  for (const index of queue.ask.splice(0).concat(queue.fill.splice(0))) {
+    if (records.get(index)?.gen === generation) fail(index, `no decoder: ${decoderLoss}`);
+  }
+}
+
+/** A decoder that never came up leaves the pool; with none left, the start has failed. */
+function lose(d, reason) {
+  d.worker.terminate();
+  decoders.splice(decoders.indexOf(d), 1);
+  d.ready();
+  if (decoders.length > 0) return;
+  decoderLoss = reason;
+  post({ kind: "failed", index: -1, reason });
+  pump();
 }
 
 function want(indices, askMs) {
@@ -275,7 +294,7 @@ async function start(m) {
         d.readyAt = abs();
         d.ready();
       }
-      else if (e.data.kind === "init-failed") d.ready(post({ kind: "failed", index: -1, reason: e.data.reason }));
+      else if (e.data.kind === "init-failed") lose(d, e.data.reason);
       else if (e.data.kind === "failed") {
         d.outstanding -= 1;
         if (e.data.gen === generation) fail(e.data.index, e.data.reason);
