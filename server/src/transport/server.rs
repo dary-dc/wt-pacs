@@ -62,7 +62,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         .with_context(|| format!("load TLS identity from {}", config.cert_pem.display()))?;
     let cert_sha256 = cert_sha256_hex(&identity)?;
 
-    let (endpoint, bound) = build_endpoint(&config).await?;
+    let (endpoint, bound) = build_endpoint(&config, &identity)?;
     let websocket = if config.websocket {
         Some(websocket::bind(config.bind, config.wt_port, &config.cert_pem, &config.key_pem).await?)
     } else {
@@ -217,13 +217,10 @@ fn read_fast_path(store: &FrameStore) -> &'static str {
 }
 
 /// A host without an IPv6 stack refuses the dual-stack socket, so fall back to IPv4 any.
-async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side::Server>, String)> {
-    async fn identity(config: &ServeConfig) -> Result<Identity> {
-        Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
-            .await
-            .context("load wtransport identity")
-    }
-
+fn build_endpoint(
+    config: &ServeConfig,
+    identity: &Identity,
+) -> Result<(Endpoint<endpoint_side::Server>, String)> {
     fn finish(
         builder: ServerConfigBuilder<states::WantsIdentity>,
         identity: Identity,
@@ -244,7 +241,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
     if let Some(ip) = config.bind {
         let server_config = finish(
             ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
-            identity(config).await?,
+            identity.clone_identity(),
             &config.tuning,
         )?;
         let endpoint = Endpoint::server(server_config)
@@ -254,7 +251,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
 
     let dual = finish(
         ServerConfig::builder().with_bind_default(config.wt_port),
-        identity(config).await?,
+        identity.clone_identity(),
         &config.tuning,
     )?;
     match Endpoint::server(dual) {
@@ -263,7 +260,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
             warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
             let v4 = finish(
                 ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
-                identity(config).await?,
+                identity.clone_identity(),
                 &config.tuning,
             )?;
             let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
@@ -439,13 +436,9 @@ mod tests {
         fn store(&self) -> &Arc<FrameStore> {
             &self.store
         }
-        fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
-            store.frame_span(frame)
-        }
         async fn send(
             &mut self,
             _frame: u32,
-            _store: &Arc<FrameStore>,
             _span: FrameSpan,
             _ahead: &[FrameSpan],
             _mode: Mode,
@@ -922,7 +915,10 @@ mod tests {
         };
         rt.block_on(async move {
             let config = serve_config(study, cert_pem, key_pem, port);
-            let (endpoint, _) = build_endpoint(&config).await.expect("endpoint");
+            let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+                .await
+                .expect("identity");
+            let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
             let server = tokio::spawn(async move {
                 handle_incoming(endpoint.accept().await, sessions).await
             });

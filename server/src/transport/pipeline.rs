@@ -26,31 +26,30 @@ pub(crate) trait FramePipeline: Send {
     async fn serve(&mut self, frame: u32, upcoming: &[u32], mode: Mode) -> Result<()> {
         self.prepare(frame);
 
-        let store = Arc::clone(self.store());
-        let span = match self.locate(&store, frame) {
+        let span = match self.locate(frame) {
             Ok(span) => span,
             Err(err) => return self.refuse(frame, err).await,
         };
         let ahead: Vec<FrameSpan> = upcoming
             .iter()
-            .filter_map(|&frame| store.frame_span(frame).ok())
+            .filter_map(|&frame| self.store().frame_span(frame).ok())
             .collect();
 
-        self.send(frame, &store, span, &ahead, mode).await?;
-        Ok(())
+        self.send(frame, span, &ahead, mode).await
     }
 
     /// The frame begins. The product does nothing here; the lab starts its clock.
     fn prepare(&mut self, _frame: u32) {}
 
     /// No I/O, so an out-of-range ask is refused before a stream opens.
-    fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan>;
+    fn locate(&mut self, frame: u32) -> Result<FrameSpan> {
+        self.store().frame_span(frame)
+    }
 
     /// Read the frame with the reader `mode` names, then write it.
     async fn send(
         &mut self,
         frame: u32,
-        store: &Arc<FrameStore>,
         span: FrameSpan,
         ahead: &[FrameSpan],
         mode: Mode,
@@ -115,19 +114,15 @@ impl FramePipeline for ProductPipeline {
         &self.store
     }
 
-    fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
-        store.frame_span(frame)
-    }
-
     async fn send(
         &mut self,
         frame: u32,
-        store: &Arc<FrameStore>,
         span: FrameSpan,
         ahead: &[FrameSpan],
         mode: Mode,
     ) -> Result<()> {
         let Self {
+            store,
             out,
             seq,
             tile,
@@ -242,9 +237,9 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         self.inner.prepare(frame);
     }
 
-    fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
+    fn locate(&mut self, frame: u32) -> Result<FrameSpan> {
         self.tap.boundary_prepare_done(); // entry: close prepare
-        let result = self.inner.locate(store, frame);
+        let result = self.inner.locate(frame);
         if let Ok(span) = &result {
             self.tap.note_locate(span.len as usize);
         }
@@ -254,7 +249,6 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
     async fn send(
         &mut self,
         frame: u32,
-        store: &Arc<FrameStore>,
         span: FrameSpan,
         ahead: &[FrameSpan],
         mode: Mode,
@@ -262,7 +256,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         // `send_us` covers read and write together, plus the next frame's read starting.
         self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + span.len as usize;
-        match self.inner.send(frame, store, span, ahead, mode).await {
+        match self.inner.send(frame, span, ahead, mode).await {
             Ok(()) => {
                 self.tap.emit_sent(envelope_len);
                 Ok(())
@@ -332,14 +326,9 @@ mod tests {
             &self.store
         }
 
-        fn locate(&mut self, store: &FrameStore, frame: u32) -> Result<FrameSpan> {
-            store.frame_span(frame)
-        }
-
         async fn send(
             &mut self,
             frame: u32,
-            _store: &Arc<FrameStore>,
             _span: FrameSpan,
             ahead: &[FrameSpan],
             mode: Mode,
