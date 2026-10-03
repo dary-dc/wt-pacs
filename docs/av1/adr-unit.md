@@ -1,6 +1,6 @@
 # ADR: the codec seam, and the group as the client's unit
 
-**Status:** §1–2 built for G = 1 (row DEC, three departures marked *Built:*), §3 proposed · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
+**Status:** §1–2 built for G = 1 (row DEC, three departures marked *Built:*; the transforms and WebCodecs by row WCDEC), §3 proposed · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
 · **Answers:** [`README.md`](README.md) §A1, the shape half; SIZE and SPEED own the numbers.
 
 Read against [`WIRE.md`](../WIRE.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md),
@@ -80,6 +80,27 @@ against another decoder:
   and the sequence header dropped), so a frame decodes from its own bytes or fails. Without it a
   frame of a group handed to a G = 1 series decodes against the previous frame's references to
   wrong pixels — the conformance clause sees exactly that when the flush is removed.
+
+### The transforms and the decoder choice, as built (row WCDEC)
+
+Three more fields of `decoder`, from the series' metadata beside `codec`:
+
+```json
+{ "codec": "av1", "depth": 10, "split": 3, "offset": 4096 }
+```
+
+* **`depth`** — the bits of the deepest stream the series codes (the top stream when split). It
+  picks the decoder: WebCodecs where ≤ 10 and the browser has `VideoDecoder`, dav1d-WASM otherwise,
+  absent included ([`decode/README.md`](../decode/README.md) §AV1).
+* **`split`** — the bits of the low stream. A split frame is `[u32le top length][top unit][low
+  unit]`, both units of one store entry; the sample is `top << split | low`. Row DEPTH's top10+low
+  at 13 bits is `split: 3`. A frame that is not split in a split series is refused.
+* **`offset`** — subtracted after the merge; present means the source is signed, so `signed` and
+  the range are the source's.
+
+`bits` out is the stream's plus `split`. The store, the wire and SBND are unchanged: the framing is
+inside the opaque frame. The rule above that an unknown transform is refused before the dial is not
+built — a field the client does not read is ignored.
 
 ## 3 · If a group of G > 1 frames is the unit
 

@@ -10,6 +10,8 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | `decoder.js` | one decoder instance, reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
 | `decode-av1.js` | an AV1 series' decoding behind `decoder.js`'s contract, loaded only for one |
+| `decode-av1-webcodecs.js` | the same through WebCodecs, for a series whose streams are ≤ 10 bits |
+| `av1-frame.js` | either AV1 decoder's pictures as the contract: planes interleaved, a split merged |
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `decode-av1.js` and the dav1d build of
@@ -19,7 +21,10 @@ path untouched, `"av1"` loads `decode-av1.js` and the dav1d build of
 alone — 8/10/12-bit grey (4:0:0) or RGB (4:4:4, identity matrix) — and comes out in the same
 `{pixels, width, bits, signed, range}` as an HTJ2K frame, colour interleaved R, G, B. A frame of a
 group, which needs the frames before it, is refused rather than decoded against the previous frame
-([`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §2, G = 1). `warmup/colour-8.av1` and
+([`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §2, G = 1). `decoder.depth` ≤ 10 in a
+browser with `VideoDecoder` loads `decode-av1-webcodecs.js` instead; `decoder.split` and
+`decoder.offset` undo a split and a signed series' offset in either (adr-unit.md §2, the
+transforms). `warmup/colour-8.av1` and
 `warmup/grey-12.av1` are its warm-ups, made by `lab/av1/dav1d-wasm/make_client_frames.sh`; the
 dispatch arm checks every shape against its source's checksum (`client/conformance/av1/`).
 

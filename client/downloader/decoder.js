@@ -6,6 +6,7 @@ let M = null;
 let dec = null;
 let toConsumer = null;
 let decodeOne = decodeFrame;
+let queue = Promise.resolve();
 
 const abs = () => performance.timeOrigin + performance.now();
 
@@ -75,19 +76,21 @@ async function initHtj2k(m) {
   dec = new M.HTJ2KDecoder();
 }
 
+const webcodecs = (d) => d.depth <= 10 && typeof VideoDecoder === "function";
+
 async function init(m) {
   // Fetched beside the compile: it has to fit the idle window — docs/decode/README.md §Warming.
   const warmup = m.warmup ? warmupBytes(m.warmup) : null;
-  // Only an AV1 series loads AV1 code. docs/av1/adr-unit.md §2
+  // Only an AV1 series loads AV1 code, and WebCodecs only where exact. docs/av1/adr-unit.md §2
   if (m.decoder?.codec === "av1") {
-    const av1 = await import("./decode-av1.js");
+    const av1 = await import(webcodecs(m.decoder) ? "./decode-av1-webcodecs.js" : "./decode-av1.js");
     await av1.init(m.decoder);
     decodeOne = av1.decodeFrame;
   } else await initHtj2k(m);
   const w = warmup && (await warmup);
   if (w) {
     try {
-      decodeOne(w);
+      await decodeOne(w);
     } catch {
       /* a decoder that cannot warm is still a decoder */
     }
@@ -106,10 +109,14 @@ onmessage = async (e) => {
     }
     return;
   }
-  if (m.kind !== "decode") return;
+  // A decoder that answers later still takes its frames one at a time, in order.
+  if (m.kind === "decode") queue = queue.then(() => decode(m));
+};
+
+async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };
   try {
-    const { info, sab, byteCount, range } = decodeOne(m.bytes);
+    const { info, sab, byteCount, range } = await decodeOne(m.bytes);
     stamps.decodeEnd = abs();
     toConsumer.postMessage({
       kind: "frame",
@@ -133,4 +140,4 @@ onmessage = async (e) => {
     const reason = String(err?.message ?? err);
     postMessage({ kind: "failed", index: m.index, gen: m.gen, reason, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   }
-};
+}

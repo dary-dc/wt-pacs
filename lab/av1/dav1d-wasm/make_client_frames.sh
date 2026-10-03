@@ -4,6 +4,8 @@
 #   client/downloader/warmup/{colour-8,grey-12}.av1     160x160 warm-ups, one per shape
 #   client/conformance/av1/{g8,g10,g12,c8,c10,c12}.av1  90x70, with the generator's .sha256
 #   client/conformance/av1/inter.av1                    a frame of a group: must not decode alone
+#   client/conformance/av1/{s13,n13,n16}.av1            grey split top10+low: 13-bit, 13 and 16 signed
+#   client/conformance/av1/{yuv420,yuv444}.av1          colour as YUV: must be refused, not returned
 #
 # Intra-only, which libaom 3.8.2 codes exactly at every depth — lab/av1/dav1d-wasm/README.md.
 set -euo pipefail
@@ -12,6 +14,28 @@ BUILD="${BUILD:-$ROOT/lab/.av1-build}"
 PY="$BUILD/venv/bin/python"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
+# raw pix_fmt w h channels gop keep out [yuv pix_fmt]: the raw frames coded lossless, unit `keep`
+# kept; with a yuv pix_fmt, converted to it and tagged BT.709 — colour no decoder here returns as RGB
+encode() {
+  local raw=$1 fmt=$2 w=$3 h=$4 ch=$5 g=$6 keep=$7 out=$8 yuv=${9:-}
+  local space=unknown
+  [[ $ch == 3 ]] && space=rgb
+  [[ -n $yuv ]] && space=bt709
+  ffmpeg -v error -y -f rawvideo -pix_fmt "$fmt" -s "${w}x$h" -r 25 -i "$raw" ${yuv:+-pix_fmt "$yuv"} \
+    -c:v libaom-av1 -aom-params lossless=1 -cpu-used 6 -g "$g" -keyint_min "$g" \
+    -colorspace "$space" "$TMP/s.ivf"
+  "$PY" - "$TMP/s.ivf" "$keep" "$out" <<'PY'
+import struct, sys
+buf, keep = open(sys.argv[1], "rb").read(), int(sys.argv[2])
+at = struct.unpack_from("<H", buf, 6)[0]
+for i in range(keep + 1):
+    size = struct.unpack_from("<I", buf, at)[0]
+    unit = buf[at + 12: at + 12 + size]
+    at += 12 + size
+open(sys.argv[3], "wb").write(unit)
+PY
+}
 
 # out w h channels maxval mode frames gop [index of the unit kept]
 frame() {
@@ -27,19 +51,7 @@ frame() {
     "$PY" "$(dirname "$0")/pnm_planar.py" "$TMP/f.pnm" >>"$TMP/in.raw"
     [[ $i -eq $keep ]] && cp "$TMP/f.pnm.sha256" "$TMP/kept.sha256"
   done
-  ffmpeg -v error -y -f rawvideo -pix_fmt "$fmt" -s "${w}x$h" -r 25 -i "$TMP/in.raw" \
-    -c:v libaom-av1 -aom-params lossless=1 -cpu-used 6 -g "$g" -keyint_min "$g" \
-    -colorspace "$([[ $ch == 3 ]] && echo rgb || echo unknown)" "$TMP/s.ivf"
-  "$PY" - "$TMP/s.ivf" "$keep" "$out" <<'PY'
-import struct, sys
-buf, keep = open(sys.argv[1], "rb").read(), int(sys.argv[2])
-at = struct.unpack_from("<H", buf, 6)[0]
-for i in range(keep + 1):
-    size = struct.unpack_from("<I", buf, at)[0]
-    unit = buf[at + 12: at + 12 + size]
-    at += 12 + size
-open(sys.argv[3], "wb").write(unit)
-PY
+  encode "$TMP/in.raw" "$fmt" "$w" "$h" "$ch" "$g" "$keep" "$out"
   echo "$out: $(stat -c%s "$out") B"
 }
 
@@ -54,3 +66,25 @@ for cell in "g8 1 255 ct" "g10 1 1023 ct" "g12 1 4095 ct" "c8 3 255 field" "c10 
   cp "$TMP/kept.sha256" "$C/$name.sha256"
 done
 frame "$C/inter.av1" 90 70 3 255 field 2 8 1
+
+# out maxval offset split: a grey source as [u32le top length][top10 unit][low unit]
+split() {
+  local out=$1 maxval=$2 offset=$3 split=$4
+  "$PY" "$ROOT/lab/scripts/gen_frame_pnm.py" "$TMP/f.pnm" 90 70 1 "$maxval" 0 1 ct
+  "$PY" "$(dirname "$0")/split_planes.py" "$TMP/f.pnm" "$offset" "$split" "$TMP/p"
+  encode "$TMP/p.top" gray10le 90 70 1 1 0 "$TMP/top.av1"
+  encode "$TMP/p.low" gray 90 70 1 1 0 "$TMP/low.av1"
+  "$PY" -c 'import struct,sys; t,l=(open(f,"rb").read() for f in sys.argv[1:3]); open(sys.argv[3],"wb").write(struct.pack("<I",len(t))+t+l)' \
+    "$TMP/top.av1" "$TMP/low.av1" "$out"
+  cp "$TMP/p.sha256" "${out%.av1}.sha256"
+  echo "$out: $(stat -c%s "$out") B"
+}
+split "$C/s13.av1" 8191 0 3
+split "$C/n13.av1" 8191 4096 3
+split "$C/n16.av1" 65535 32768 6
+"$PY" "$ROOT/lab/scripts/gen_frame_pnm.py" "$TMP/f.pnm" 90 70 3 255 0 1 field
+"$PY" "$(dirname "$0")/pnm_planar.py" "$TMP/f.pnm" >"$TMP/in.raw"
+for yuv in yuv420 yuv444; do
+  encode "$TMP/in.raw" gbrp 90 70 3 1 0 "$C/$yuv.av1" "${yuv}p"
+  echo "$C/$yuv.av1: $(stat -c%s "$C/$yuv.av1") B"
+done

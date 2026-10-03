@@ -121,6 +121,10 @@ frame delay of 1. 546 KB `.wasm` scalar, 623 KB with SIMD (219 and 238 KB gzippe
 5–10× OpenJPH's on the same frames (below). **It is the client's AV1 decoder at G = 1** (row
 DEC): `decoder.codec: "av1"` loads it behind `decoder.js`'s contract, and every shape decodes
 through the downloader to its source's checksum ([`client/downloader/README.md`](../../client/downloader/README.md)).
+*WCDEC since:* WebCodecs is the client's decoder for a series that says `depth` ≤ 10 in a browser
+with `VideoDecoder`, dav1d-WASM for every other, the top10+low split and a signed series' offset
+undone by both; exact through the downloader in headless Chromium 141, not timed there
+([`decode/README.md`](../decode/README.md) §WebCodecs, the decoder the client runs).
 
 **Decode time, measured (SPEED, [`decode/README.md`](../decode/README.md) §Decode time against
 HTJ2K):** the product's worker, the same 18 frames of three real series, 16 interleaved rounds, Node
@@ -154,7 +158,8 @@ refuses 12-bit — while top10+low keeps every stream ≤ 10 bits at 0.994–1.0
 13-bit data, and by CONTENT on tomosynthesis: top11+low 0.943 (12-bit) and 0.946 (10-bit, against
 0.977 direct); a full 16-bit series is not. A split frame is two temporal units in one store entry:
 the store and the wire stay opaque, but this project's AV1 frame format and `decode-av1.js` change,
-which is a proposal for [`adr-unit.md`](adr-unit.md) — not written yet.
+which is a proposal for [`adr-unit.md`](adr-unit.md) — *built since by row WCDEC: the framing and
+its fields are [`adr-unit.md`](adr-unit.md) §2, the transforms.*
 
 *Measured (SPLIT10; [`lab/av1/split10`](../../lab/av1/split10/README.md)):* **top10+low decodes
 exactly through WebCodecs** on all four series. Two `VideoDecoder`s, 10- and 8-bit 4:0:0, take the
