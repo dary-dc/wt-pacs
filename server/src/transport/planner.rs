@@ -180,12 +180,11 @@ mod tests {
         assert_eq!((frame, upcoming), (4, vec![5, 6]));
     }
 
-    /// `RequestFrame` then `RequestFrames`: the batch's frames are upcoming.
+    /// Each ask served names the asks still behind it, and the next one served names one fewer.
     #[test]
-    fn a_batch_after_a_single_ask_supplies_its_first_frame() {
+    fn each_served_ask_names_the_asks_still_behind_it() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Frame(1));
-        for frame in [4, 5] {
+        for frame in [1, 4, 5] {
             plan.push(Ask::Frame(frame));
         }
         let Step::Serve {

@@ -403,12 +403,6 @@ pub(super) async fn forward(msg: Result<FodMsg>, tx: &mpsc::Sender<Ask>) -> Resu
             tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
             return Ok(());
         }
-        Ok(FodMsg::RequestFrames { frames }) => {
-            for frame in frames {
-                tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
-            }
-            return Ok(());
-        }
         Ok(FodMsg::StreamFrames { from, to }) => Ask::Fill { from, to },
         Ok(FodMsg::EndStream) => Ask::EndStream,
         Ok(FodMsg::EndSession) => Ask::EndSession,
@@ -619,34 +613,6 @@ mod tests {
                 .expect("stream ended early");
             done += n;
         }
-    }
-
-    /// **`RequestFrames` over the wire.** Every frame arrives whole and in ask order, with
-    /// the read ahead running under it — the one path where a frame is served out of a
-    /// window that was filled while the frame before it was still being sent.
-    #[test]
-    fn a_batch_arrives_whole_and_in_ask_order() {
-        let frames = 6u32;
-        wire_test(frames, |mut control, mut media| async move {
-            let asked: Vec<u32> = (0..frames).collect();
-            control
-                .write_all(
-                    &fod::encode_fod_msg(&FodMsg::RequestFrames {
-                        frames: asked.clone(),
-                    })
-                    .unwrap(),
-                )
-                .await
-                .expect("ask");
-            for want in asked {
-                let (idx, codestream) =
-                    tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
-                        .await
-                        .expect("frame never arrived");
-                assert_eq!(idx, want, "frames arrived out of ask order");
-                assert_eq!(codestream, pattern(want), "frame {want} came back wrong");
-            }
-        });
     }
 
     /// Pipelined `RequestFrame`s reach the loop as `current` + `upcoming`, not one-at-a-time.

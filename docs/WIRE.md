@@ -21,7 +21,6 @@ over 4 MiB (`MAX_FOD_LEN`) before allocating it; a message it cannot read ends t
 | Message | Direction | What the server does |
 | --- | --- | --- |
 | `{"op":"request_frame","frame":N}` | client → server | one `Ask::Frame`; served with any asks already in hand named as upcoming |
-| `{"op":"request_frames","frames":[…]}` | client → server | one `Ask::Frame` per index, served in order: an ask sent after a 200-frame batch waits for all 200 |
 | `{"op":"stream_frames","from":A,"to":B}` | client → server | a fill of `A..=B`; either end may be omitted (`from` → 0, `to` → the last frame), `{}` is the whole study. Recited until done, until `end_stream`, or until any other message arrives (§An ask during a fill) |
 | `{"op":"end_stream"}` | client → server | ends a running fill at the next frame boundary; the session goes on. Without a fill, nothing |
 | `{"op":"end_session"}` | client → server | ends the session |

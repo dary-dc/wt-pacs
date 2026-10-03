@@ -5,8 +5,8 @@ use anyhow::{Context, Result};
 use fod::{decode_fod_body, encode_fod_msg, FodMsg};
 use wtransport::stream::{RecvStream, SendStream};
 
-/// Largest FoD message the server will read. Asks are small; a `RequestFrames` of 700 k
-/// indices fits. Anything larger is a broken or hostile peer, not a study.
+/// Largest FoD message the server will read. Asks are small; anything larger is a broken or
+/// hostile peer.
 pub const MAX_FOD_LEN: usize = 4 * 1024 * 1024;
 
 /// The wire-supplied length is checked before a single byte is allocated for it.
