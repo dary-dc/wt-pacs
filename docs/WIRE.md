@@ -18,6 +18,15 @@ On the control stream each message is `[4B LE len][JSON]` — little-endian, unl
 tagged by `op` (`common/fod`, `client/transport-ts/wire.ts`). The server refuses a length of 0 or
 over 4 MiB (`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
 
+**A goodbye is not an error.** No client sends `end_session`: a session ends with the client closing
+it, a FIN on the control stream between messages, or a WebSocket Close. Each is a normal end, logged
+`session closed by peer` at INFO, and a send it interrupts is part of it; a malformed message, a
+timeout or a protocol abort is a WARN. On QUIC the peer's close is read from quinn's close reason, the
+peer's application close or wtransport's local close answering its `CLOSE_WEBTRANSPORT_SESSION`, so
+an HTTP/3 violation by the peer, which wtransport also answers with a local close, reads as one too.
+*Corrected 2026-10-03:* every ordinary session used to end as a WARN, and skipped the per-frame
+grace below.
+
 | Message | Direction | What the server does |
 | --- | --- | --- |
 | `{"op":"request_frame","frame":N}` | client → server | one `Ask::Frame`; served with any asks already in hand named as upcoming |
@@ -72,7 +81,7 @@ of envelopes, so both are read by the same code.
 | Mode | Media streams | Priority |
 | --- | --- | --- |
 | `shared` (default) | one uni, opened at session start, for the whole session; frames arrive strictly in ask order | none set |
-| `per-frame` | one uni per frame, finished after it; the session waits up to 2 s for outstanding finishes when it ends | each stream ranks by ask order: an earlier ask outranks a later one, so a lost frame's retransmit goes before newer frames' data |
+| `per-frame` | one uni per frame, finished after it; the session waits up to 2 s for outstanding finishes when it ends, however it ends | each stream ranks by ask order: an earlier ask outranks a later one, so a lost frame's retransmit goes before newer frames' data |
 
 Why `shared` is the default, and what `per-frame` (and the retired `pool:k`, in history at `6e9c126`)
 cost under loss: [`adr-stream-shape.md`](adr-stream-shape.md).

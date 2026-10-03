@@ -14,6 +14,7 @@ use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
@@ -24,7 +25,7 @@ use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
-use tracing::warn;
+use tracing::{info, warn};
 
 type Socket = WebSocketStream<TlsStream<TcpStream>>;
 
@@ -104,7 +105,7 @@ pub(super) async fn serve(listener: TcpListener, tls: TlsAcceptor, sessions: Ses
     }
 }
 
-async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions) -> Result<()> {
+pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions) -> Result<()> {
     tcp.set_nodelay(true).context("TCP_NODELAY")?;
     let mut opening = None;
     let read_ask = |request: &Request, response: Response| {
@@ -129,20 +130,37 @@ async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions) -> Result
     let product = sessions
         .pipeline(FrameOut::WebSocket(sink.clone()))
         .with_control(Control::WebSocket(sink.clone()));
-    let read = |tx| async move { while forward(next_fod(&mut stream).await, &tx).await.is_ok() {} };
+    let closed = Arc::new(AtomicBool::new(false));
+    let saw_close = Arc::clone(&closed);
+    let read = |tx| async move {
+        loop {
+            let msg = next_fod(&mut stream).await;
+            saw_close.store(matches!(msg, Ok(None)), Ordering::Relaxed);
+            if forward(msg, &tx).await.is_err() {
+                break;
+            }
+        }
+    };
     // Served right behind the 101, a round trip before the client's first message could land.
     let result = sessions.serve(product, opening, read).await;
     let _ = sink.0.lock().await.close().await;
-    result
+    match result {
+        Err(err) if closed.load(Ordering::Relaxed) => {
+            info!(%err, "WebSocket session closed by peer");
+            Ok(())
+        }
+        result => result,
+    }
 }
 
-async fn next_fod(stream: &mut SplitStream<Socket>) -> Result<FodMsg> {
+/// `None` once the client has closed the socket.
+async fn next_fod(stream: &mut SplitStream<Socket>) -> Result<Option<FodMsg>> {
     loop {
         match stream.next().await {
-            Some(Ok(Message::Text(json))) => return decode_fod_body(json.as_bytes()),
+            Some(Ok(Message::Text(json))) => return decode_fod_body(json.as_bytes()).map(Some),
             // The library answers a ping itself.
             Some(Ok(Message::Ping(_) | Message::Pong(_))) => continue,
-            Some(Ok(Message::Close(_))) | None => bail!("the client closed the WebSocket"),
+            Some(Ok(Message::Close(_))) | None => return Ok(None),
             Some(Ok(_)) => bail!("a binary message from the client: FoD travels as text"),
             Some(Err(err)) => return Err(err).context("read the WebSocket"),
         }

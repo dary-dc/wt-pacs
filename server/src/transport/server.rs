@@ -305,7 +305,32 @@ async fn handle_incoming(
         }
     };
     report_path(&connection);
-    result
+    match result {
+        Err(err) if closed_by_peer(&connection, &err) => {
+            info!(%err, "session closed by peer");
+            Ok(())
+        }
+        result => result,
+    }
+}
+
+/// The session failed because the connection went, and the peer closed it: its own close, or
+/// wtransport's local close answering the peer's CLOSE_WEBTRANSPORT_SESSION. A malformed
+/// message, a timeout or a protocol abort is not a goodbye.
+fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> bool {
+    use wtransport::error::{ConnectionError, StreamOpeningError, StreamReadError, StreamWriteError};
+    use wtransport::quinn;
+    let gone = err.chain().any(|e| {
+        matches!(e.downcast_ref(), Some(StreamReadError::NotConnected))
+            || matches!(e.downcast_ref(), Some(StreamWriteError::NotConnected))
+            || matches!(e.downcast_ref(), Some(StreamOpeningError::NotConnected))
+            || matches!(e.downcast_ref(), Some(quinn::WriteError::ConnectionLost(_)))
+            || e.downcast_ref::<ConnectionError>().is_some()
+    });
+    gone && matches!(
+        connection.quic_connection().close_reason(),
+        Some(quinn::ConnectionError::ApplicationClosed(_) | quinn::ConnectionError::LocallyClosed)
+    )
 }
 
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
@@ -347,8 +372,15 @@ fn report_path(connection: &wtransport::Connection) {
     );
 }
 
-/// The loop over `Ask`, with no stream in it, so a test can drive it without QUIC.
+/// The loop over `Ask`, with no stream in it, so a test can drive it without QUIC. However it
+/// ends, outstanding finishes get their grace.
 pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
+    let result = steps(pipeline, asks).await;
+    pipeline.drain_acks().await;
+    result
+}
+
+async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
     let mut plan = Planner::new(pipeline.store().frame_count());
     loop {
         let step = plan.next(|| asks.try_recv().ok())?;
@@ -366,30 +398,30 @@ pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::R
             }
             Step::Wait => match asks.recv().await {
                 Some(ask) => plan.push(ask),
-                None => break,
+                None => return Ok(()),
             },
-            Step::End => break,
+            Step::End => return Ok(()),
         }
     }
-    pipeline.drain_acks().await;
-    Ok(())
 }
 
 async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
     forward(read_fod_msg(control_recv).await, tx).await
 }
 
-/// One FoD message as the loop's asks; `Err` once the reader should stop.
-pub(super) async fn forward(msg: Result<FodMsg>, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+/// One FoD message as the loop's asks; `Err` once the reader should stop. `None`, the peer's
+/// goodbye, stops it with no ask, so the loop ends when it next waits.
+pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
     let ask = match msg {
-        Ok(FodMsg::RequestFrame { frame }) => {
+        Ok(Some(FodMsg::RequestFrame { frame })) => {
             tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
             return Ok(());
         }
-        Ok(FodMsg::StreamFrames { from, to }) => Ask::Fill { from, to },
-        Ok(FodMsg::EndStream) => Ask::EndStream,
-        Ok(FodMsg::EndSession) => Ask::EndSession,
-        Ok(FodMsg::FrameError { .. }) => return Ok(()),
+        Ok(Some(FodMsg::StreamFrames { from, to })) => Ask::Fill { from, to },
+        Ok(Some(FodMsg::EndStream)) => Ask::EndStream,
+        Ok(Some(FodMsg::EndSession)) => Ask::EndSession,
+        Ok(Some(FodMsg::FrameError { .. })) => return Ok(()),
+        Ok(None) => return Err(()),
         Err(err) => Ask::Failed(err),
     };
     let failed = matches!(ask, Ask::Failed(_));
@@ -419,6 +451,7 @@ mod tests {
         store: Arc<FrameStore>,
         seen: Vec<(u32, Vec<u32>)>,
         fills: u32,
+        drained: bool,
     }
 
     impl FramePipeline for LoopRecorder {
@@ -441,7 +474,9 @@ mod tests {
         async fn refuse(&mut self, _frame: u32, _err: anyhow::Error) -> Result<()> {
             Ok(())
         }
-        async fn drain_acks(&mut self) {}
+        async fn drain_acks(&mut self) {
+            self.drained = true;
+        }
         fn note_fill(&mut self) {
             self.fills += 1;
         }
@@ -464,6 +499,7 @@ mod tests {
             store,
             seen: Vec::new(),
             fills: 0,
+            drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
         for ask in [Ask::Frame(0), Ask::Frame(2), Ask::Frame(3), Ask::EndSession] {
@@ -480,6 +516,7 @@ mod tests {
             store: Arc::clone(rec.store()),
             seen: Vec::new(),
             fills: 0,
+            drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
         tx.try_send(Ask::Fill {
@@ -496,6 +533,7 @@ mod tests {
             store: Arc::clone(rec.store()),
             seen: Vec::new(),
             fills: 0,
+            drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
         tx.try_send(Ask::Fill {
@@ -511,6 +549,208 @@ mod tests {
             "a fill did not name one frame ahead"
         );
         assert_eq!(rec.fills, 1, "a fill that served was not counted once");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// However the asks end — a reader that failed included — outstanding finishes get their
+    /// grace before the loop returns. `docs/WIRE.md` §Stream modes.
+    #[test]
+    fn the_loop_drains_its_finishes_however_the_asks_end() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-drain-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let store = Arc::new(FrameStore::open(&write_study(&dir, 2)).expect("open store"));
+        let rt = tokio::runtime::Builder::new_current_thread().build().expect("rt");
+        let mut rec = LoopRecorder { store, seen: Vec::new(), fills: 0, drained: false };
+        let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
+        tx.try_send(Ask::Frame(0)).expect("queue ask");
+        tx.try_send(Ask::Failed(anyhow!("a malformed message"))).expect("queue failure");
+        assert!(rt.block_on(drive(&mut rec, &mut rx)).is_err(), "the failure was swallowed");
+        assert!(rec.drained, "a session that ended in error skipped the finishes' grace");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// One session served by `handle_incoming` itself, so the test sees what the session ended
+    /// with. `client` gets the connection and its control stream; the connection stays open
+    /// until the session has ended unless `client` closes it.
+    fn one_session<F, Fut>(tag: &str, tuning: TransportTuning, client: F) -> Result<()>
+    where
+        F: FnOnce(wtransport::Connection, SendStream) -> Fut,
+        Fut: Future<Output = ()>,
+    {
+        let dir = std::env::temp_dir().join(format!("wtpacs-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 4);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let sessions = plain_sessions(&study);
+        let ended = rt.block_on(async move {
+            let config = ServeConfig { tuning, ..serve_config(study, cert_pem, key_pem, port) };
+            let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
+                .await
+                .expect("identity");
+            let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
+            let server =
+                tokio::spawn(async move { handle_incoming(endpoint.accept().await, sessions).await });
+            let endpoint = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                    .build(),
+            )
+            .expect("client endpoint");
+            let connection = endpoint
+                .connect(format!("https://127.0.0.1:{port}/"))
+                .await
+                .expect("connect");
+            let (control, _control_recv) =
+                connection.open_bi().await.expect("open bi").await.expect("bi ready");
+            client(connection.clone(), control).await;
+            let ended = tokio::time::timeout(Duration::from_secs(10), server)
+                .await
+                .expect("the session never ended")
+                .expect("session task");
+            drop(connection);
+            ended
+        });
+        std::fs::remove_dir_all(&dir).ok();
+        ended
+    }
+
+    /// Shared streams, no opening ask, nothing recorded.
+    fn plain_sessions(study: &std::path::Path) -> Sessions {
+        Sessions {
+            store: Arc::new(FrameStore::open(study).expect("open store")),
+            read_mode: ReadMode::Auto,
+            mode: StreamMode::Shared,
+            open_ask: false,
+            stall: None,
+            #[cfg(feature = "telemetry")]
+            taps: Arc::new(|| None),
+        }
+    }
+
+    /// **A goodbye is not an error.** No client sends `end_session`: a session ends with the
+    /// client closing it, and that is a normal end, not a WARN. `docs/WIRE.md` §FoD messages.
+    #[test]
+    fn a_client_that_closes_after_its_frames_ends_its_session_cleanly() {
+        let ended = one_session("bye", TransportTuning::default(), |connection, mut control| async move {
+            control
+                .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrame { frame: 1 }).unwrap())
+                .await
+                .expect("ask");
+            let mut media = connection.accept_uni().await.expect("accept media uni");
+            let (idx, _) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                .await
+                .expect("frame never arrived");
+            assert_eq!(idx, 1);
+            connection.close(0u32.into(), b"done");
+        });
+        assert!(ended.is_ok(), "a client's close ended its session as {ended:?}");
+    }
+
+    /// A message the server cannot read still ends the session in error, a goodbye or not.
+    #[test]
+    fn a_malformed_ask_ends_its_session_in_error() {
+        let ended = one_session("malformed", TransportTuning::default(), |_connection, mut control| async move {
+            let mut bytes = 5u32.to_le_bytes().to_vec();
+            bytes.extend_from_slice(b"xxxxx");
+            control.write_all(&bytes).await.expect("write");
+        });
+        assert!(ended.is_err(), "a malformed ask ended its session cleanly");
+    }
+
+    /// A peer that goes silent until the connection times out has not said goodbye.
+    #[test]
+    fn a_session_that_times_out_ends_in_error() {
+        let idle = TransportTuning { max_idle_timeout_ms: Some(300), ..TransportTuning::default() };
+        let ended = one_session("idle", idle, |_connection, control| async move {
+            // Held open past the timeout: dropping it would finish it, which is a goodbye.
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            drop(control);
+        });
+        assert!(ended.is_err(), "a timed-out session ended cleanly");
+    }
+
+    /// A client that finishes its control stream between messages has said goodbye too.
+    #[test]
+    fn a_client_that_finishes_its_control_stream_ends_its_session_cleanly() {
+        let ended = one_session("fin", TransportTuning::default(), |_connection, mut control| async move {
+            control.finish().await.expect("finish");
+        });
+        assert!(ended.is_ok(), "a FIN between messages ended the session as {ended:?}");
+    }
+
+    /// A WebSocket client's Close is a goodbye too. `docs/WIRE.md` §The WebSocket mapping.
+    #[test]
+    fn a_websocket_close_ends_its_session_cleanly() {
+        use futures_util::{SinkExt, StreamExt};
+        use rustls::pki_types::pem::PemObject;
+        use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+        use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+        use tokio_tungstenite::tungstenite::Message;
+
+        let dir = std::env::temp_dir().join(format!("wtpacs-ws-bye-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 2);
+        let (cert_pem, key_pem, _) = write_dev_cert(&dir);
+        let cert = std::fs::read(&cert_pem).expect("cert");
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let sessions = plain_sessions(&study);
+        let ended = rt.block_on(async move {
+            let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+            let (listener, tls) =
+                websocket::bind(localhost, 0, &cert_pem, &key_pem).await.expect("bind");
+            let port = listener.local_addr().expect("addr").port();
+            let server = tokio::spawn(async move {
+                let (tcp, _) = listener.accept().await.expect("accept");
+                websocket::session(tcp, tls, sessions).await
+            });
+            let mut roots = rustls::RootCertStore::empty();
+            for der in rustls::pki_types::CertificateDer::pem_slice_iter(&cert) {
+                roots.add(der.expect("pem")).expect("trust the test cert");
+            }
+            let connector = tokio_rustls::TlsConnector::from(Arc::new(
+                rustls::ClientConfig::builder()
+                    .with_root_certificates(roots)
+                    .with_no_client_auth(),
+            ));
+            let tcp = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.expect("tcp");
+            let name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+            let tls = connector.connect(name, tcp).await.expect("TLS");
+            let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
+                .await
+                .expect("WebSocket upgrade");
+            let ask = serde_json::to_string(&FodMsg::RequestFrame { frame: 1 }).unwrap();
+            ws.send(Message::text(ask)).await.expect("ask");
+            let (want, mut got) = (8 + pattern(1).len(), 0);
+            while got < want {
+                let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                    .await
+                    .expect("the frame stalled")
+                    .expect("socket ended")
+                    .expect("read");
+                got += msg.into_data().len();
+            }
+            ws.close(Some(CloseFrame { code: CloseCode::Normal, reason: "".into() }))
+                .await
+                .expect("close");
+            tokio::time::timeout(Duration::from_secs(10), server)
+                .await
+                .expect("the session never ended")
+                .expect("session task")
+        });
+        assert!(ended.is_ok(), "a WebSocket Close ended its session as {ended:?}");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -731,7 +971,7 @@ mod tests {
                         .expect("no refusal on the control stream")
                         .expect("refusal");
                         assert!(
-                            matches!(refusal, FodMsg::FrameError { frame_index: 99, .. }),
+                            matches!(refusal, Some(FodMsg::FrameError { frame_index: 99, .. })),
                             "the refusal was {refusal:?}, not a frame_error for 99",
                         );
                     }
