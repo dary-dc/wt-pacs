@@ -161,3 +161,71 @@ ultrasound, at cpu6 0.3–1.4 s; HTJ2K under 1 s a set; JPEG XL 9–33 s a set.
 **Mutated**: a frame moved out of its group, a group one frame short, samples off by one, the
 signed shift not undone, a truth checksum corrupted — each reported inexact. A failed decode or a
 short one counts as inexact rather than stopping the run (the first two mutations found that).
+
+## DEPTH — samples AV1 cannot code in one stream
+
+Queue row 7. AV1 codes at most 12 bits, unsigned. A series is offset by its minimum when that is
+negative, then needs `bit_length(max + offset)` bits — measured per series, never assumed:
+
+| set | stored | range | offset | bits needed | one AV1 stream? |
+| --- | --- | --- | --- | --- | --- |
+| `ct_lidc` | 16-bit signed | −2048..3746 (−1097..3746 without the pad) | +2048 | 13 | no |
+| `xa_dynact16` | 16-bit unsigned | 0..7364 | 0 | 13 | no |
+| `mr_ispy1` | 16-bit signed, no negative sample | 0..1765 | 0 | 11 | yes, at 12 bits (Professional) |
+| `rf_fluoro` | 12 of 16 bits | 26..3984 | 0 | 12 | yes, at 12 bits (Professional) |
+
+```bash
+python3 lab/av1/depth.py lab/.av1-build lab/.av1-work/depth OUT.tsv 15 lab/av1/data/ct_lidc …
+```
+
+`depth.py` splits each sample v (after the offset; b = 13 for every set here) into planes, codes
+each as a 4:0:0 intra stream with libaom 3.15.1 (cpu0 and cpu6, `--lossless=1`), decodes them with
+dav1d and merges; every merged frame matched its checksum (44/44 cells).
+
+| split | planes (stream bits) | merge |
+| --- | --- | --- |
+| direct | v (12) | — |
+| hi8+lo8 | v ≫ 8 (8), v & 255 (8) | hi ≪ 8 \| lo |
+| top12+low | v ≫ 1 (12), v & 1 (8) | top ≪ 1 \| low |
+| top11+low | v ≫ 2 (12), v & 3 (8) | top ≪ 2 \| low |
+| top10+low | v ≫ 3 (10), v & 7 (8) | top ≪ 3 \| low — every stream ≤ 10 bits |
+| low12+top | v & 4095 (12), v ≫ 12 (8) | top ≪ 12 \| low |
+
+Bytes over HTJ2K's (SIZE's served profile), cpu0 (cpu6):
+
+| set | direct | hi8+lo8 | top12+low | **top11+low** | top10+low | low12+top |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ct_lidc` | — | 1.199 (1.243) | 0.927 (0.938) | **0.918 (0.927)** | 0.994 (1.002) | 0.980 (1.009) |
+| `xa_dynact16` | — | 1.336 (1.365) | 1.075 (1.102) | **0.997 (1.015)** | 1.000 (1.011) | 1.184 (1.218) |
+| `mr_ispy1` | 1.034 (1.058) | 1.069 (1.091) | 1.000 (1.009) | **0.990 (0.997)** | 1.071 (1.077) | 1.034 (1.058) |
+| `rf_fluoro` | 1.024 (1.039) | 1.263 (1.287) | 0.967 (0.973) | **0.946 (0.950)** | 0.999 (1.002) | 1.024 (1.039) |
+
+**Coding the two lowest bits apart is smaller than coding the sample whole** — on every set,
+including the two AV1 can code directly (MR 0.990 against 1.034, fluoroscopy 0.946 against 1.024),
+and it is the only AV1 coding here below HTJ2K. Why libaom codes the bits better apart is not
+established. Splitting off three bits gives back the gain but keeps every stream at ≤ 10 bits; hi/lo
+bytes, the obvious split, is the worst (1.20–1.37). Measured on 11- to 13-bit data only: what
+top11+low costs on a full 16-bit series (a 5-bit low plane) is not.
+
+**What each costs the decoder.** Native dav1d 1.5.4 (its assembly on), one thread, a whole cpu6
+stream a process with its start-up, output discarded; ms a frame summed over a split's streams,
+median [min–max], n = 15, arms interleaved per set; container numbers:
+
+| set | direct | hi8+lo8 | top12+low | top11+low | top10+low | low12+top |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ct_lidc` 512² | — | 19.0 [16.9–21.0] | 16.9 [13.5–17.7] | 15.6 [12.4–16.7] | 13.3 [11.4–14.6] | 13.7 [11.5–15.3] |
+| `xa_dynact16` 512² | — | 25.5 [23.0–27.3] | 25.2 [20.3–26.6] | 23.0 [20.7–24.1] | 19.0 [15.9–20.3] | 22.5 [19.6–23.9] |
+| `mr_ispy1` 512² | 16.2 [14.1–18.5] | 18.5 [15.8–20.2] | 19.1 [16.0–20.9] | 16.5 [14.6–19.2] | 14.9 [12.6–17.0] | 17.3 [13.4–18.2] |
+| `rf_fluoro` 768² | 46.9 [40.3–50.4] | 59.6 [49.3–63.8] | 52.8 [42.4–56.4] | 47.1 [40.6–50.9] | 39.2 [32.7–41.1] | 49.3 [37.8–53.3] |
+
+Two decodes do not cost two: decode work follows the bytes, so top11+low decodes in the time of
+direct, within the spread (MR 16.5 against 16.2, fluoroscopy 47.1 against 46.9). The merge is a shift
+and an or, 0.05 ms per 512² frame in numpy. What a split costs in WASM is row SPEED's.
+
+**Which decoder takes which stream.** 12-bit (direct, top12/top11+low, low12+top): dav1d native and
+dav1d-WASM, exact (rows TOOL, WASM); WebCodecs in Chromium 141 refuses 12-bit at `decode()` (row
+WCAP). 8- and 10-bit (hi8+lo8, top10+low): all three. A signed series costs nothing but its offset:
+CT went through it here (+2048), exact.
+
+**Mutated**: the high plane shifted by 7, the low plane dropped, CT's offset not undone — each
+reported inexact.

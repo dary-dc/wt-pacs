@@ -47,7 +47,9 @@ metadata, one decoder module per codec behind `decoder.js`, and for G > 1 the gr
 wire, the store and the server unchanged.
 
 *Measured (SIZE, libaom 3.15.1, every coding exact; [`lab/av1`](../../lab/av1/README.md) §SIZE):*
-**inter coding does not pay on any real series here, and AV1 does not beat HTJ2K.** Bytes over
+**inter coding does not pay on any real series here**, and coded whole, AV1 does not beat HTJ2K —
+*corrected by DEPTH (§A3): coded as two streams, the two low bits apart, it does on every series
+over 10 bits, 0.918–0.997*. Bytes over
 HTJ2K's at the slowest preset, intra → whole series: fluoroscopy (12-bit, 2 frames/s) 1.024 → 1.027,
 MR (11-bit, 3.5 mm) 1.034 → 1.062, ultrasound cine (RGB 8) 1.117 → 1.534; at a practical preset
 1.04–1.75. The smallest G that collects most of the gain is **G = 1**: there is no gain to collect
@@ -101,7 +103,9 @@ series it decodes exactly (8-bit), is 1.55× faster than dav1d-WASM and still 4.
 neither AV1 path wins on decode, and with §A1's bytes AV1 at G = 1 wins on nothing on this content:
 by [`adr-unit.md`](adr-unit.md) §4's rule it does not earn its place. Whether the phase continues is
 the owner's call; DEPTH (CT, cone-beam) is the content not yet measured. Container figures, not a
-phone's.
+phone's. *DEPTH since (§A3):* split into two streams, AV1 is 0.3–8 % under HTJ2K's bytes on the four
+series over 10 bits (CT 0.918) — the one place it wins, set against a decode SPEED measures at
+5–10× (a split's two streams decode natively in the time of one; not timed in WASM).
 
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
 unsigned. Signed data is offset by 2^(B−1), which is reversible; data over 12 bits (stored 16-bit)
@@ -109,6 +113,17 @@ needs a split into planes or streams. Row DEPTH measures the options against HTJ
 On row DATA's sets, measured: the CT spans −2048..3746 (−1097..3746 without its pad), so it does
 **not** fit 12 bits after an offset; the cone-beam volume needs 13 bits; MR, fluoroscopy and
 ultrasound fit 12 or fewer.
+
+*Measured (DEPTH; [`lab/av1`](../../lab/av1/README.md) §DEPTH, 44/44 splits exact):* the split to
+use is **top11+low** — v ≫ 2 as a 12-bit stream and v & 3 as an 8-bit one, merged `top << 2 | low`.
+Bytes over HTJ2K's at libaom's slowest preset: CT 0.918, cone-beam 0.997, and on the series AV1 can
+code whole it beats direct coding too — MR 0.990 against 1.034, fluoroscopy 0.946 against 1.024.
+Hi/lo bytes is the worst split (1.20–1.37). Two streams decode in the time of one (native dav1d,
+within the spread; the merge is 0.05 ms a 512² frame); the 12-bit stream needs dav1d — WebCodecs
+refuses 12-bit — while top10+low keeps every stream ≤ 10 bits at 0.994–1.071. Measured on 11- to
+13-bit data; a full 16-bit series is not. A split frame is two temporal units in one store entry:
+the store and the wire stay opaque, but this project's AV1 frame format and `decode-av1.js` change,
+which is a proposal for [`adr-unit.md`](adr-unit.md) — not written yet.
 
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
@@ -126,9 +141,9 @@ repository** and are recorded only so the queue tests them rather than rediscove
   ultrasound clip, HTJ2K 768 KB against AV1 inter (G = 5) 1 082 KB and intra 1 693 KB; a 12-bit CT
   stack of 24, HTJ2K 4.78 MB against AV1 intra 4.79 and inter 4.95; the median over 73 series,
   HTJ2K 0.138, AV1 intra 0.124, AV1 inter 0.106 (lossless JPEG XL 0.090, for reference).
-  *Not reproduced here (SIZE)*: on the three real series AV1 lossless, intra or inter, is 2–53 %
-  larger than HTJ2K at libaom's slowest preset (§A1); the settings and series behind those medians
-  are not known here.
+  *Not reproduced here (SIZE)*: on the three real series AV1 lossless coded whole, intra or inter,
+  is 2–53 % larger than HTJ2K at libaom's slowest preset (§A1) — split (§A3), 1–8 % smaller on the
+  series over 10 bits; the settings and series behind those medians are not known here.
 * **libaom's lossless mode was not always lossless.** With libaom 3.8.2, inter-coded 10- and 12-bit
   grey came back wrong on P-frames (up to 38 of 6.3 M samples, |Δ| ≤ 11), the same from two
   independent decoders — so the encoder, not a decoder. Intra-only was exact up to 12 bits; 3.14.1
