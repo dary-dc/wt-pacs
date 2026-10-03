@@ -358,6 +358,7 @@ navigator.connection?.addEventListener?.("change", watch);
 
 onmessage = async (e) => {
   const m = e.data;
+  const gen = generation;
   try {
     if (m.kind === "start") return void (await start(m));
     if (m.kind === "dial") {
@@ -367,6 +368,7 @@ onmessage = async (e) => {
     }
     if (m.kind === "ask") {
       const s = await live();
+      if (gen !== generation) return;
       const rec = records.get(m.index);
       if (rec?.priority === "ask") return;
       // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
@@ -377,6 +379,7 @@ onmessage = async (e) => {
     }
     if (m.kind === "fill") {
       await live();
+      if (gen !== generation) return;
       want(m.indices, abs());
       return void issueFill();
     }
@@ -389,7 +392,11 @@ onmessage = async (e) => {
       records.clear();
       wanted.clear();
       asksInFlight = 0;
-      await session?.endStream();
+      try {
+        await session?.endStream();
+      } catch {
+        /* a dead session has no stream to end */
+      }
       return void post({ kind: "cancelled", gen: generation });
     }
     if (m.kind === "stats") return void post({ kind: "stats", id: m.id, stats: session ? session.stats() : { inFlight: 0 } });
@@ -400,6 +407,9 @@ onmessage = async (e) => {
       return void post({ kind: "closed", reason: "closed by the consumer" });
     }
   } catch (err) {
-    post({ kind: "failed", index: m.index ?? -1, reason: String(err?.message ?? err) });
+    const reason = String(err?.message ?? err);
+    // Index -1 is the start failing; an ask or a fill names its own frames, in its own generation.
+    if (m.kind !== "ask" && m.kind !== "fill") return void post({ kind: "failed", index: -1, reason });
+    if (gen === generation) for (const index of m.indices ?? [m.index]) fail(index, reason);
   }
 };

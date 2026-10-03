@@ -1034,6 +1034,94 @@ async function aDownloaderThatNeverAnswersIsEndedAnyway(DownloaderClient: Downlo
   check(gone, `close: and the wedged downloader and its decoders are ended (${JSON.stringify(await fake.alive())})`);
 }
 
+/**
+ * A command that cannot re-dial a closed session fails by name, in its own generation: the ask
+ * rejects its own promise, and a fill names every frame it asked for.
+ */
+async function aFailedRedialNamesWhatItWasAskedFor(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, survival: false, onFrame: () => {}, onError: (f) => failures.push(f),
+  });
+  await fake.serverClose(0, "the server went away");
+  await settle();
+  await fake.failDials(5);
+  const asked = c.requestExactFrame(7).then(() => "delivered", (e: Error) => e.message);
+  const reason = await Promise.race([asked, settle(1000).then(() => "still pending at 1 s")]);
+  check(/dial refused/.test(reason), `failed re-dial: the ask rejects with the dial's reason (${reason})`);
+  c.fill([1, 2, 3]);
+  await until(() => failures.length >= 3, 1000);
+  const named = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join();
+  check(named === "1,2,3", `failed re-dial: the fill names every frame it asked for (${named || "none"})`);
+  c.close();
+}
+
+/**
+ * `cancel` resolves on a session that can no longer end its stream, and the one after it resolves
+ * its own promise: the page matches each `cancelled` to the oldest cancel still waiting.
+ */
+async function aCancelOnADeadSessionResolves(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, survival: false, onFrame: () => {},
+  });
+  await fake.serverClose(0, "the server went away");
+  await fake.failWrites();
+  check(await cancelled(c, 1000), "cancel: a cancel on a dead session resolves");
+  check(await cancelled(c, 1000), "cancel: and the next cancel resolves its own promise");
+  c.close();
+}
+
+/** A cancel still unanswered when the client ends resolves with it, rather than never. */
+async function aCancelOnAnEndedClientResolves(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, onFrame: () => {},
+  });
+  await fake.block(3000);
+  const done = cancelled(c, 3000);
+  c.close();
+  check(await done, "cancel: a cancel the wedged downloader never answers resolves when the client ends it");
+}
+
+/**
+ * A cancel that lands while an ask or a fill waits on a re-dial drops them: neither reaches the
+ * new session, and no frame of the cancelled request reaches the consumer.
+ */
+async function aCancelDuringARedialDropsWhatWasAsked(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, survival: false, onFrame: (f) => got.push(f),
+  });
+  await fake.serverClose(0, "the server went away");
+  await settle();
+  await fake.openAfterMs(300);
+  c.requestExactFrame(7).catch(() => {});
+  c.fill([8]);
+  await settle();
+  await cancelled(c);
+  const redialled = await untilAsync(async () => (await fake.dials()) >= 2);
+  check(redialled, `cancel during a re-dial: the re-dial still happens (${await fake.dials()} dials)`);
+  await settle(400);
+  for (const i of [7, 8]) await fake.pushFrame(i, enc.encode(`late-${i}`));
+  await settle(100);
+  const wire = wireOf((await fake.controlMessages()) as Wire[]);
+  check(!wire.includes("request_frame 7"), `cancel during a re-dial: the cancelled ask is not asked (${wire.join(", ") || "nothing"})`);
+  check(!wire.some((w) => w.startsWith("stream_frames")), `cancel during a re-dial: nor the cancelled fill (${wire.join(", ") || "nothing"})`);
+  check(got.length === 0, `cancel during a re-dial: no frame of it reaches the consumer (${got.map((f) => f.frameIndex).join() || "none"})`);
+  c.close();
+}
+
+/** An ask after `close()` rejects at once, without waiting on a downloader that may never answer. */
+async function anAskAfterCloseRejectsAtOnce(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, onFrame: () => {},
+  });
+  await fake.block(3000);
+  c.close();
+  const asked = c.requestExactFrame(7).then(() => "delivered", (e: Error) => e.message);
+  const reason = await Promise.race([asked, settle(200).then(() => "still pending")]);
+  check(/closed by the consumer/.test(reason), `close: an ask after it rejects at once (${reason})`);
+}
+
 export async function run(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -1077,6 +1165,11 @@ export async function run(DownloaderClient: DownloaderCtor, log: (line: string) 
     aDialThatNeverSettlesAtAllIsNamed,
     aClosedClientEndsEveryWorkerItStarted,
     aDownloaderThatNeverAnswersIsEndedAnyway,
+    aFailedRedialNamesWhatItWasAskedFor,
+    aCancelOnADeadSessionResolves,
+    aCancelOnAnEndedClientResolves,
+    aCancelDuringARedialDropsWhatWasAsked,
+    anAskAfterCloseRejectsAtOnce,
   ];
   log("dispatch");
   for (const clause of clauses) {

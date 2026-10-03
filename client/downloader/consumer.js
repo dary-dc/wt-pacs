@@ -174,6 +174,7 @@ export class DownloaderClient {
   }
 
   close() {
+    this.#closedReason ??= "closed by the consumer";
     this.#triggers.abort();
     this.#worker.postMessage({ kind: "close" });
     this.#ending ??= setTimeout(() => this.#end("closed by the consumer"), CLOSE_DEADLINE_MS);
@@ -184,6 +185,7 @@ export class DownloaderClient {
     clearTimeout(this.#ending);
     this.#worker.terminate();
     this.#failAll(reason);
+    for (const done of this.#cancels.splice(0)) done();
   }
 
   /** The triggers a worker cannot see; the downloader decides whether any of them means anything. */
