@@ -44,10 +44,36 @@ python3 server/dev-server.py --port 8765 --study us_cine_smoke
 
 Open in Chrome:
 
-- A cell over the downloader: `http://127.0.0.1:8765/harness/cell.html?autorun=1` — `&transport=wasm` or
-  `&transport=ws` for the other transports behind it; the query parameters are listed in `client/harness/shell.js`.
-- The downloader's self-check (decoded frames against `.sha256`): `http://127.0.0.1:8765/harness/` against
-  the `decode_c512` study, with the decoder vendor built (`client/downloader/README.md`).
+- A cell over the downloader, on any study: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the
+  URL the static host prints. `&transport=wasm` runs the WASM client. `&transport=ws` runs the
+  WebSocket fallback, which needs the server started with `--websocket` (add it to Terminal 1's
+  command) and a Chrome that trusts the dev certificate, since a WebSocket cannot pin it by hash
+  ([`docs/WIRE.md`](docs/WIRE.md) §The WebSocket mapping):
+
+  ```bash
+  SPKI=$(openssl x509 -in server/dev-cert/cert.pem -pubkey -noout | openssl pkey -pubin -outform DER \
+    | openssl dgst -sha256 -binary | base64)
+  google-chrome --user-data-dir="$(mktemp -d)" --ignore-certificate-errors-spki-list="$SPKI" \
+    'http://127.0.0.1:8765/harness/cell.html?autorun=1&transport=ws'
+  ```
+
+  The query parameters are listed in `client/harness/shell.js`.
+- The downloader's self-check (decoded frames against `.sha256`): `http://127.0.0.1:8765/harness/`.
+  It needs the decoder vendor (§Prerequisites) and the server running the `decode_c512` study in
+  place of the smoke one ([`docs/FIXTURES.md`](docs/FIXTURES.md), `client/downloader/README.md`):
+
+```bash
+lab/scripts/gen_htj2k_fixtures.sh c512   # 87 frames and their .sha256; builds OpenJPH's encoder once (cmake, a C++ compiler)
+mkdir -p target/c512
+for f in lab/fixtures/decode_c512/*.j2c; do cp "$f" "target/c512/$(basename "$f" .j2c).htj2k"; done
+cargo run -p pack-study -- \
+  --metadata lab/fixtures/decode_c512/metadata.json \
+  --frames target/c512 \
+  --output target/c512.sbnd
+
+# Terminal 1, in place of the smoke study
+cargo run --release -p exact-server -- --port 4433 --study target/c512.sbnd
+```
 
 The TypeScript and WASM transports speak the same wire (FoD on bidi control + envelope on server uni
 streams); the WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
@@ -81,6 +107,9 @@ retired doc is in the history before the commit that folded it.
 
 ## Provenance
 
-Public MIT extract of work that began in a private codebase. Names, license,
-and git history were cleaned for publication; treat the log as an engineering
-timeline of this tree, not a byte-for-byte mirror of the private repo.
+Public MIT extract of work that began in a private codebase. Names and license
+were cleaned for publication; treat the log as an engineering timeline of this
+tree, not a byte-for-byte mirror of the private repo.
+
+*Corrected 2026-10-03:* this said the git history was cleaned too. Its commit
+metadata was not rewritten: some commits carry attribution trailers.

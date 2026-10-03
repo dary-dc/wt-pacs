@@ -53,7 +53,7 @@ def main():
     Handler.study_name = args.study
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     port = server.server_address[1]
-    print(f"port={port} http://127.0.0.1:{port}/harness/ study={args.study}", flush=True)
+    print(f"port={port} http://127.0.0.1:{port}/harness/cell.html?autorun=1 study={args.study}", flush=True)
     server.serve_forever()
 
 
