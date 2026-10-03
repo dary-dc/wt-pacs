@@ -200,8 +200,6 @@ mod tests {
             frame_index,
             ask_ordinal: 0,
             t_ask_us: 0,
-            batch_position: 0,
-            batch_size: 1,
             prepare_us: Some(10),
             locate_us: Some(0),
             send_us: Some(30),

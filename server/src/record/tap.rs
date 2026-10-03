@@ -72,11 +72,8 @@ pub struct FrameRecord {
     pub frame_index: u32,
     pub ask_ordinal: u32,
     /// Ask accepted, µs since the process telemetry origin (first Tap). Same axis across
-    /// sessions; inter-ask spacing and batch queueing are read from it.
+    /// sessions; inter-ask spacing is read from it.
     pub t_ask_us: u64,
-    /// Position in a `RequestFrames` batch; `0` of `1` for a `RequestFrame`.
-    pub batch_position: u32,
-    pub batch_size: u32,
     /// Pre-read work before locating. Always ~0 since the disk-access ADR of 2026-09-04:
     /// the pool hop that pre-faulted the frame's pages is gone, and bytes are read inside
     /// `send` instead. A trace showing it high is a trace of an older build.
@@ -208,8 +205,6 @@ pub struct Tap {
     /// End of last closed stage = start of next (contiguous chain).
     stage_mark: Option<Instant>,
     t_ask_us: u64,
-    batch_position: u32,
-    batch_size: u32,
     // Session counters — the session row and its integrity block.
     t_open_us: u64,
     frames: u32,
@@ -271,8 +266,6 @@ impl Tap {
             serve_start: None,
             stage_mark: None,
             t_ask_us: 0,
-            batch_position: 0,
-            batch_size: 1,
             t_open_us: since_origin_us(),
             frames: 0,
             bytes: 0,
@@ -388,8 +381,6 @@ impl Tap {
             frame_index: self.frame_index,
             ask_ordinal: self.ask_ordinal,
             t_ask_us: self.t_ask_us,
-            batch_position: self.batch_position,
-            batch_size: self.batch_size,
             prepare_us: self.pending_prepare_us,
             locate_us: self.pending_locate_us,
             send_us,
@@ -400,9 +391,6 @@ impl Tap {
             write_outcome: write_outcome as u8,
             dropped_since_last: dropped,
         };
-        // A single ask that follows a batch is 0 of 1 again.
-        self.batch_position = 0;
-        self.batch_size = 1;
         match write_outcome {
             WriteOutcome::Sent => {
                 self.frames = self.frames.saturating_add(1);
@@ -569,8 +557,6 @@ mod tests {
             frame_index: 0,
             ask_ordinal: 0,
             t_ask_us: 0,
-            batch_position: 0,
-            batch_size: 1,
             prepare_us: prepare,
             locate_us: locate,
             send_us: send,

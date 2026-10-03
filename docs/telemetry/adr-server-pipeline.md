@@ -114,13 +114,15 @@ total is exact. [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-
 A trace showing `prepare_us` in the tens of µs is a trace of the mapping build (§Pipeline baseline).
 
 Also on each row: `session_id`, `frame_index`, `ask_ordinal`, `server_bytes_sent`,
-`locate_outcome`, `write_outcome`, `dropped_since_last`, and three fields that let the row be laid
+`locate_outcome`, `write_outcome`, `dropped_since_last`, and one field that lets the row be laid
 beside the client file by hand (there is no join product):
 
 | Field | Meaning |
 | --- | --- |
-| `t_ask_us` | ask accepted, µs since the process's first `Tap` — one axis for every session; inter-ask spacing and batch queueing are read from it |
-| `batch_position`, `batch_size` | place in a `RequestFrames` batch; `0` of `1` for a `RequestFrame` |
+| `t_ask_us` | ask accepted, µs since the process's first `Tap` — one axis for every session; inter-ask spacing is read from it |
+
+`batch_position` and `batch_size` were removed on 2026-10-03: nothing set them past `0` of `1`, and
+`request_frames`, the batch they described, left the wire the same day.
 
 The summary carries `stream_mode`, `study` and `study_frames` (what was served). One
 `server_session` row per session: `t_open_us`, `t_close_us`, `frames`, `bytes`, `refused`, and the
@@ -139,7 +141,8 @@ vocabularies are not unified; that is deferred.
 * **Ring.** 4 096 rows, counted as 64 batches. A full ring drops the batch and says so: the next
   row's `dropped_since_last`, the session row and `integrity` all count it.
 * **Rows are exact at any scale; the JSON is a summary.** The drain appends every record to
-  `telemetry-server.rows` (16-byte `WTPR` header, then 64-byte little-endian records) and folds it
+  `telemetry-server.rows` (16-byte `WTPR` header, then 56-byte little-endian records; version 2,
+64-byte version-1 files are refused by their record size) and folds it
   into log-linear histograms. Every `WTPACS_TELEMETRY_SUMMARY_MS` it rewrites the JSON
   (`run_end.event: "run_progress"`) by rename, so a reader never sees half a file and a hard kill
   loses at most the unflushed rows.
