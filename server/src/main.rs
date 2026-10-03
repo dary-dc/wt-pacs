@@ -49,9 +49,6 @@ struct Args {
     /// batches.
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     segmentation_offload: bool,
-    /// Peer `max_ack_delay` to request, ms; inert unless the peer advertises `min_ack_delay`.
-    #[arg(long)]
-    ack_frequency_max_delay_ms: Option<u64>,
     /// Lab only: serve every frame as a miss, for measuring a study nobody has read.
     #[arg(long, default_value_t = false)]
     force_pool_reads: bool,
@@ -121,7 +118,6 @@ async fn main() -> anyhow::Result<()> {
             initial_window: args.initial_window_bytes,
             initial_rtt_ms: args.initial_rtt_ms,
             segmentation_offload: args.segmentation_offload,
-            ack_frequency_max_delay_ms: args.ack_frequency_max_delay_ms,
         },
         force_pool_reads: args.force_pool_reads,
         open_ask: args.open_ask,

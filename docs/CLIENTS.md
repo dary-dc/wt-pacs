@@ -329,9 +329,11 @@ is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The 
 
 ## ACK frequency, by browser
 
-The server can ask its peer for a smaller `max_ack_delay` (`--ack-frequency-max-delay-ms`), the
+The server could ask its peer for a smaller `max_ack_delay` (`--ack-frequency-max-delay-ms`), the
 25 ms half of the depth-1 tail. quinn uses the extension only where the peer advertises
-`min_ack_delay`; frames sent are logged as `ack_frequency=` on the `session path` line.
+`min_ack_delay`; frames sent were logged as `ack_frequency=` on the `session path` line. The flag
+and the log field were removed 2026-10-03 as having no browser to act on; code:
+`git show archive/arms-2026-10-03:server/src/transport/tuning.rs`.
 
 Measured 2026-09-14, 32 KB fixture, on-demand, three cells:
 

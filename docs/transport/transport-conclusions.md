@@ -52,10 +52,11 @@ at `6e9c126`.
 | **Flow-control windows** | **quinn's defaults.** A client that asks for 25 MB and stops reading costs the server **180 kB** on this send path (§3) |
 | **Runtime shape** | **One endpoint on the multi-thread runtime.** One endpoint per core won every single-session cell and most saturation cells, and **12 of 16 NAT rebinds kill the session** on it. Parked at `d9ebe32` (§6) |
 
-`--stream-mode per-frame`, `--congestion cubic | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`,
-`--ack-frequency-max-delay-ms` and `--open-ask false` are flags, each for the cell named where it is
-measured below. `--packet-threshold` and `--persistent-congestion-threshold` were removed with their
-arms once closed (§3); code: `git show archive/arms-2026-10-03:server/src/transport/tuning.rs`.
+`--stream-mode per-frame`, `--congestion cubic | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`
+and `--open-ask false` are flags, each for the cell named where it is measured below.
+`--packet-threshold`, `--persistent-congestion-threshold` and `--ack-frequency-max-delay-ms` were
+removed with their arms once closed (§3, [`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser);
+code: `git show archive/arms-2026-10-03:server/src/transport/tuning.rs`.
 
 ---
 
@@ -1141,7 +1142,8 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    `MtuDiscoveryConfig::upper_bound` to 1 472 for IPv4 peers — 1.4 % fewer packets, never above what
    the peer advertises.
 7. **The depth-1 tail.** Headless Chromium 141 does not advertise `min_ack_delay`
-   ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser); one run on 148 closes that. An
+   ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser); one run on 148 closes that, with
+   the server's request restored from `archive/arms-2026-10-03`. An
    ACK-eliciting packet after an isolated frame would turn a lost tail into a gap, if quinn's packet
    builder can place it *after* the tail. Not before items 1–3.
 8. **Two upstream quinn items, drafted, not posted**:
