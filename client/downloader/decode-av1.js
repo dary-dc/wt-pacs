@@ -1,6 +1,6 @@
 /**
- * AV1 through dav1d-WASM behind decoder.js's contract, G = 1: every temporal unit decodes alone.
- * The build is lab/av1/dav1d-wasm; the seam is docs/av1/adr-unit.md §2.
+ * AV1 through dav1d-WASM behind decoder.js's contract: a keyframe decodes alone, any other frame only
+ * after its predecessor, here. Build: lab/av1/dav1d-wasm; seam: docs/av1/adr-unit.md §2–3.
  */
 import { begin, end, units } from "./av1-frame.js";
 
@@ -8,6 +8,8 @@ let M = null;
 let cfg = null;
 let ptr = 0;
 let cap = 0;
+/** The frame this decoder decoded last, `{ gen, index }`: what a frame of a group decodes against. */
+let last = null;
 
 export async function init(d) {
   cfg = d;
@@ -21,25 +23,31 @@ export async function init(d) {
   if (opened < 0) throw new Error(`dav1d_open: ${opened}`);
 }
 
-/** At G = 1 every unit decodes alone; a split frame's low unit replaces the top's picture, so it goes second. */
-export function decodeFrame(bytes) {
-  if (!cfg.split) return end(begin(picture(bytes), cfg));
+/** A split frame's low unit replaces the top's picture, so it goes second; a split series is G = 1. */
+export function decodeFrame(bytes, unit = { key: true }) {
+  const follows = last !== null && unit.gen === last.gen && unit.index === last.index + 1;
+  if (!unit.key && !follows) throw new Error(`undecodable: frame ${unit.index - 1} was not decoded before it here`);
+  last = null;
+  if (!cfg.split) {
+    const f = end(begin(picture(bytes, unit.key), cfg));
+    last = { gen: unit.gen, index: unit.index };
+    return f;
+  }
   const [top, low] = units(bytes);
-  const f = begin(picture(top), cfg);
-  return end(f, picture(low));
+  const f = begin(picture(top, true), cfg);
+  return end(f, picture(low, true));
 }
 
 /** A view of dav1d's picture, valid until its next decode. */
-function picture(bytes) {
+function picture(bytes, key) {
   if (bytes.length > cap) {
     if (ptr) M._free(ptr);
     cap = bytes.length;
     ptr = M._malloc(cap);
   }
   M.HEAPU8.set(bytes, ptr);
-  // Without its own sequence header and keyframe a unit has nothing to decode against, so a frame
-  // of a group fails here instead of decoding against the previous frame's references.
-  M._av1_flush();
+  // A frame of a group sent as a keyframe then fails, not decodes against the previous frame's references.
+  if (key) M._av1_flush();
   const r = M._av1_decode(ptr, bytes.length);
   if (r < 0) throw new Error(`undecodable: dav1d ${r}`);
 

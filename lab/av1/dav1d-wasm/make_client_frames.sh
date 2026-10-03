@@ -6,8 +6,10 @@
 #   client/conformance/av1/inter.av1                    a frame of a group: must not decode alone
 #   client/conformance/av1/{s13,n13,n16}.av1            grey split top10+low: 13-bit, 13 and 16 signed
 #   client/conformance/av1/{yuv420,yuv444}.av1          colour as YUV: must be refused, not returned
+#   client/conformance/av1/{g8x20,whole12}/NNN.av1      every unit of a G = 8 and a one-group stream
 #
-# Intra-only, which libaom 3.8.2 codes exactly at every depth — lab/av1/dav1d-wasm/README.md.
+# Intra-only, which libaom 3.8.2 codes exactly at every depth; the groups without alt-ref frames,
+# which it then codes exactly too — lab/av1/dav1d-wasm/README.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD="${BUILD:-$ROOT/lab/.av1-build}"
@@ -88,3 +90,32 @@ for yuv in yuv420 yuv444; do
   encode "$TMP/in.raw" gbrp 90 70 3 1 0 "$C/$yuv.av1" "${yuv}p"
   echo "$C/$yuv.av1: $(stat -c%s "$C/$yuv.av1") B"
 done
+
+# dir w h channels maxval mode frames gop: every unit as NNN.av1 beside its source's NNN.sha256
+group() {
+  local dir=$1 w=$2 h=$3 ch=$4 maxval=$5 mode=$6 n=$7 g=$8
+  local fmt
+  case "$ch/$maxval" in 1/4095) fmt=gray12le ;; 3/255) fmt=gbrp ;; esac
+  rm -rf "$dir" && mkdir -p "$dir"
+  : >"$TMP/in.raw"
+  for ((i = 0; i < n; i++)); do
+    "$PY" "$ROOT/lab/scripts/gen_frame_pnm.py" "$TMP/f.pnm" "$w" "$h" "$ch" "$maxval" $i "$n" "$mode"
+    "$PY" "$(dirname "$0")/pnm_planar.py" "$TMP/f.pnm" >>"$TMP/in.raw"
+    cp "$TMP/f.pnm.sha256" "$dir/$(printf %03d $i).sha256"
+  done
+  ffmpeg -v error -y -f rawvideo -pix_fmt "$fmt" -s "${w}x$h" -r 25 -i "$TMP/in.raw" \
+    -c:v libaom-av1 -aom-params lossless=1 -cpu-used 6 -g "$g" -keyint_min "$g" -auto-alt-ref 0 \
+    -colorspace "$([[ $ch == 3 ]] && echo rgb || echo unknown)" "$TMP/s.ivf"
+  "$PY" - "$TMP/s.ivf" "$dir" <<'PY'
+import struct, sys
+buf, i = open(sys.argv[1], "rb").read(), 0
+at = struct.unpack_from("<H", buf, 6)[0]
+while at < len(buf):
+    size = struct.unpack_from("<I", buf, at)[0]
+    open(f"{sys.argv[2]}/{i:03d}.av1", "wb").write(buf[at + 12: at + 12 + size])
+    at, i = at + 12 + size, i + 1
+PY
+  echo "$dir: $n units, $(cat "$dir"/*.av1 | wc -c) B"
+}
+group "$C/g8x20" 64 48 3 255 cine 20 8
+group "$C/whole12" 64 48 1 4095 ct 12 12

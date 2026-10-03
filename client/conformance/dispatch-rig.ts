@@ -43,6 +43,8 @@ type OpenOpts = {
   realDecoder?: { glue: string; wasm: string; dir: string; codec?: string; depth?: number; split?: number; offset?: number };
   /** A worker that wraps the real decoder, in place of decoder.js itself. */
   decoderWorker?: string;
+  groupLength?: number;
+  frameCount?: number;
   survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
   hangDials?: number;
   recycleAtBytes?: number;
@@ -63,6 +65,8 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     transport: `/client/conformance/dist/fake-session.js?ch=${ch}&hang=${opts.hangDials ?? 0}`,
     decoderWorker: opts.decoderWorker ?? (opts.realDecoder ? undefined : `/client/conformance/fake-decoder.js?ch=${ch}`),
     decoder: opts.realDecoder ?? { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
+    groupLength: opts.groupLength,
+    frameCount: opts.frameCount,
     warmup: opts.warmup,
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
@@ -1033,6 +1037,204 @@ async function anUnknownCodecIsRefusedBeforeTheDial(DownloaderClient: Downloader
   check(!loaded, "codec: and no transport was loaded, so nothing was dialled");
 }
 
+const G8 = `${AV1_SET}/g8x20`;
+const unit = (set: string, i: number) => fetched(`${set}/${String(i).padStart(3, "0")}.av1`);
+const source = async (set: string, i: number) => (await (await fetch(`${set}/${String(i).padStart(3, "0")}.sha256`)).text()).trim();
+/** A promise that may never settle, settled anyway: a hung ask fails its check by name. */
+const within = <T,>(p: Promise<T>, ms = 5000) => Promise.race([p, new Promise<undefined>((r) => setTimeout(r, ms))]);
+const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, k) => from + k);
+
+/** The frames of `want` that hash to their source, by index; anything else is named. */
+async function inexact(set: string, frames: Frame[], want: number[]) {
+  const bad: number[] = [];
+  for (const i of want) {
+    const f = frames.find((g) => g.frameIndex === i);
+    if (!f || (await sha256(f.bytes)) !== (await source(set, i))) bad.push(i);
+  }
+  return bad.join() || "none";
+}
+
+/**
+ * A G = 8 series and a series that is one group decode to their sources through the fill: every
+ * frame of a group on the decoder that took its keyframe, in order. docs/av1/adr-unit.md §3
+ */
+async function aGroupDecodesOnOneDecoderInOrder(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 groups — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  // 8 bits would take WebCodecs at G = 1; flushed per frame, it cannot hold a group.
+  for (const [set, g, n, depth] of [[G8, 8, 20, 8], [`${AV1_SET}/whole12`, 12, 12, 12]] as const) {
+    const got: Frame[] = [];
+    const { c, fake } = await open(DownloaderClient, {
+      decoders: 3, perDecoder: 2, delayMs: 0, realDecoder: { ...AV1, depth }, groupLength: g, frameCount: n,
+      onFrame: (f) => got.push(f),
+    });
+    c.fill(range(0, n - 1));
+    for (const i of range(0, n - 1)) await fake.pushFrame(i, await unit(set, i));
+    await until(() => got.length >= n, 5000);
+    check((await inexact(set, got, range(0, n - 1))) === "none", `group: G = ${g}, ${n} frames, every frame its source's (inexact: ${await inexact(set, got, range(0, n - 1))})`);
+    const split = range(0, n - 1).filter((i) => i % g && got.find((f) => f.frameIndex === i)?.info.stamps?.decoder !== got.find((f) => f.frameIndex === i - (i % g))?.info.stamps?.decoder);
+    check(split.length === 0, `group: G = ${g}, every frame on its keyframe's decoder (elsewhere: ${split.join() || "none"})`);
+    c.close();
+  }
+}
+
+/**
+ * An ask for a frame mid-group puts its whole group on the wire from the keyframe, the last group
+ * cut at the series' end; frames that land out of order still decode in order. docs/av1/adr-unit.md §3
+ */
+async function anAskForAFrameAsksItsWholeGroup(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 group asks — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: 8, frameCount: 20,
+    onFrame: (f) => got.push(f),
+  });
+  const asked = c.requestExactFrame(11);
+  await untilAsync(async () => (await fake.controlMessages()).length >= 8);
+  check(wireOf(await fake.controlMessages()).join() === range(8, 15).map((i) => `request_frame ${i}`).join(),
+    `group: an ask for 11 asks 8..15 in order (${wireOf(await fake.controlMessages()).join()})`);
+  for (const i of range(8, 15).reverse()) await fake.pushFrame(i, await unit(G8, i));
+  const eleven = await within(asked);
+  await until(() => got.length >= 7, 5000);
+  const ask = eleven ? [...got, eleven] : got;
+  check((await inexact(G8, ask, range(8, 15))) === "none",
+    `group: pushed last to first, 8..15 still decode to their sources (inexact: ${await inexact(G8, ask, range(8, 15))})`);
+  const tail = c.requestExactFrame(17);
+  await untilAsync(async () => (await fake.controlMessages()).length >= 12);
+  check(wireOf(await fake.controlMessages()).slice(8).join() === range(16, 19).map((i) => `request_frame ${i}`).join(),
+    `group: the last group is asked to the series' end (${wireOf(await fake.controlMessages()).slice(8).join()})`);
+  for (const i of range(16, 19)) await fake.pushFrame(i, await unit(G8, i));
+  const seventeen = await within(tail);
+  check(!!seventeen && (await sha256(seventeen.bytes)) === (await source(G8, 17)), "group: and its asked frame is its source's");
+  c.close();
+}
+
+/**
+ * An ask mid-fill is served from its keyframe; the fill's remainder resumes where it was cut, on the
+ * decoder still holding that group, and every frame is its source's. docs/av1/adr-unit.md §3
+ */
+async function anAskMidFillStartsAtItsKeyframe(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 ask mid-fill — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  // One decoder: the ask's keyframe must wait for the group it holds, not take its state.
+  for (const decoders of [1, 2]) await askMidFill(DownloaderClient, check, decoders);
+}
+
+async function askMidFill(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void, decoders: number) {
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: 8, frameCount: 20,
+    onFrame: (f) => got.push(f),
+  });
+  c.fill(range(0, 19));
+  for (const i of range(0, 3)) await fake.pushFrame(i, await unit(G8, i));
+  const asked = c.requestExactFrame(13);
+  await untilAsync(async () => (await fake.controlMessages()).length >= 9);
+  for (const i of range(8, 15)) await fake.pushFrame(i, await unit(G8, i));
+  await untilAsync(async () => wireOf(await fake.controlMessages()).includes("stream_frames 4-7"));
+  for (const i of range(4, 7)) await fake.pushFrame(i, await unit(G8, i));
+  const thirteen = await within(asked);
+  await untilAsync(async () => wireOf(await fake.controlMessages()).includes("stream_frames 16-19"));
+  for (const i of range(16, 19)) await fake.pushFrame(i, await unit(G8, i));
+  await until(() => got.length >= 19, 5000);
+  const wire = wireOf(await fake.controlMessages()).join();
+  check(wire === ["stream_frames 0-19", ...range(8, 15).map((i) => `request_frame ${i}`), "stream_frames 4-7", "stream_frames 16-19"].join(),
+    `group: ${decoders} decoder(s), an ask for 13 mid-fill asks 8..15, then the fill resumes at 4 (${wire})`);
+  const all = thirteen ? [...got, thirteen] : got;
+  check((await inexact(G8, all, range(0, 19))) === "none", `group: ${decoders} decoder(s), every frame its source's (inexact: ${await inexact(G8, all, range(0, 19))})`);
+  const decoderOf = (i: number) => all.find((f) => f.frameIndex === i)?.info.stamps?.decoder;
+  check(range(1, 7).every((i) => decoderOf(i) === decoderOf(0)), `group: ${decoders} decoder(s), 4..7 decoded after the ask on the decoder that holds 0..3`);
+  c.close();
+}
+
+/**
+ * A frame of a group that fails takes the rest of its group with it, each named, never decoded
+ * against a broken reference; the next group decodes exactly. docs/av1/adr-unit.md §3 invariant 4
+ */
+async function aFailedFrameFailsTheRestOfItsGroup(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 group failures — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  for (const how of ["undecodable", "refused"] as const) {
+    const got: Frame[] = [];
+    const failures: Fail[] = [];
+    const { c, fake } = await open(DownloaderClient, {
+      decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: 8, frameCount: 20,
+      onFrame: (f) => got.push(f), onError: (f) => failures.push(f),
+    });
+    const rejected: [number, string][] = [];
+    const asks = range(0, 15).map((i) =>
+      c.requestExactFrame(i).then((f) => void got.push(f), (e) => void rejected.push([i, String(e?.message ?? e)])));
+    await untilAsync(async () => (await fake.controlMessages()).length >= 16);
+    // Refused last, on a quiet wire: 4..7 wait on 3, so its failure itself has to reach them.
+    const order = how === "undecodable" ? range(0, 15) : [0, 1, 2, ...range(4, 15), 3];
+    for (const i of order) {
+      if (i !== 3) await fake.pushFrame(i, await unit(G8, i));
+      else if (how === "undecodable") await fake.pushFrame(i, new Uint8Array(0));
+      else await until(() => got.length >= 11).then(() => fake.pushRefusal(i, "gone"));
+    }
+    await within(Promise.all(asks));
+    const failed = new Set(failures.map((f) => f.frameIndex));
+    const decoded = got.map((f) => f.frameIndex).sort((a, b) => a - b).join();
+    check(decoded === "0,1,2,8,9,10,11,12,13,14,15", `group: frame 3 ${how}, 4..7 never reach the page as frames (${decoded})`);
+    const named = rejected.sort((a, b) => a[0] - b[0]).filter(([i, why]) => i === 3 || /frame \d+ (of its group did not decode|was not decoded before it here)/.test(why));
+    check(named.map(([i]) => i).join() === "3,4,5,6,7", `group: frame 3 ${how}, 3..7 each fail by name (${named.map(([i]) => i).join() || "none"} of ${rejected.length})`);
+    check((await inexact(G8, got, [0, 1, 2, ...range(8, 15)])) === "none", `group: frame 3 ${how}, the frames that arrived are their sources'`);
+    check(failed.size === 0, `group: and asked frames fail on their own promises, not onError (${[...failed].join() || "none"})`);
+    c.close();
+  }
+}
+
+/**
+ * A decoder decodes a frame of a group only right after its predecessor, in the same request: any
+ * other order is refused without touching its state, and a frame after one that failed is refused
+ * too. docs/av1/adr-unit.md §3
+ */
+async function aDecoderRefusesAFrameWhosePredecessorItDidNotDecode(
+  _: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 decoder order — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const worker = new Worker("/client/downloader/decoder.js", { type: "module" });
+  const ch = new MessageChannel();
+  const replies: { kind: string; index?: number; reason?: string }[] = [];
+  worker.onmessage = (e) => replies.push(e.data);
+  ch.port2.onmessage = () => {};
+  worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: AV1 }, [ch.port1]);
+  await until(() => replies.length > 0, 5000);
+  const outcome: string[] = [];
+  for (const [index, gen, empty] of [[0, 0], [2, 0], [1, 0], [2, 0, true], [3, 0], [8, 0], [9, 1], [9, 0]]) {
+    const n = replies.length;
+    const bytes = empty ? new Uint8Array(0) : await unit(G8, index);
+    worker.postMessage({ kind: "decode", index, gen, key: index % 8 === 0, bytes, stamps: {} });
+    await until(() => replies.length > n, 5000);
+    outcome.push(`${index}:${replies.at(-1)?.kind}`);
+  }
+  check(outcome.join() === "0:done,2:failed,1:done,2:failed,3:failed,8:done,9:failed,9:done",
+    `group: out of order, after a failure or from another request is refused (${outcome.join()})`);
+  worker.terminate();
+}
+
+/** A group is asked whole, so a series coded in groups without its frame count is refused at `connect`. */
+async function aGroupWithoutItsSeriesLengthIsRefused(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { connect } = begin(DownloaderClient, { decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: 8, onFrame: () => {} });
+  const refused = await connect.then((c) => void c.close() ?? "connected", (e) => String((e as Error)?.message ?? e));
+  check(/frameCount/.test(refused), `group: G = 8 and no frameCount is refused (${refused})`);
+}
+
 /** The fake answers over a channel, so a condition that reads its wire has to be awaited. */
 async function untilAsync(cond: () => Promise<boolean>, ms = 3000): Promise<boolean> {
   const t0 = Date.now();
@@ -1315,6 +1517,12 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     anAv1SplitFrameDecodesToItsSource,
     anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure,
     anUnknownCodecIsRefusedBeforeTheDial,
+    aGroupDecodesOnOneDecoderInOrder,
+    anAskForAFrameAsksItsWholeGroup,
+    anAskMidFillStartsAtItsKeyframe,
+    aFailedFrameFailsTheRestOfItsGroup,
+    aDecoderRefusesAFrameWhosePredecessorItDidNotDecode,
+    aGroupWithoutItsSeriesLengthIsRefused,
     aSessionWhoseBytesKeepComingIsKept,
     aSilentSessionIsRedialled,
     theWaitDoublesAfterEachRedialItCauses,
