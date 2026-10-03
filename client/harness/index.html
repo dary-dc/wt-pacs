@@ -25,6 +25,9 @@
     const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
     const sha = async (bytes) => hex(await crypto.subtle.digest("SHA-256", bytes));
 
+    let failed = 0;
+    const count = (ok) => { if (!ok) failed += 1; return ok; };
+
     const truth = [];
     async function groundTruth(n) {
       for (let i = 0; i < n; i++) {
@@ -37,7 +40,7 @@
       const flat = new Uint8Array(frame.bytes.length);
       flat.set(frame.bytes);
       const got = await sha(flat);
-      const ok = got === truth[frame.frameIndex];
+      const ok = count(got === truth[frame.frameIndex]);
       return { ok, got, want: truth[frame.frameIndex] };
     }
 
@@ -45,7 +48,7 @@
 
     async function main() {
       log(`crossOriginIsolated=${globalThis.crossOriginIsolated} cores=${navigator.hardwareConcurrency}`);
-      if (!globalThis.crossOriginIsolated) { log("FATAL: not cross-origin isolated"); globalThis.__wtpacsDone = true; return; }
+      if (!count(globalThis.crossOriginIsolated)) { log("FAIL: not cross-origin isolated"); return; }
       await groundTruth(FRAMES);
       const cfg = await (await fetch("/wt/dev-transport.json")).json();
       // The seam takes a module exporting TransportSession; absent, the downloader's default.
@@ -85,14 +88,16 @@
       });
       const checks = await Promise.all(fillFrames.map(check));
       const bad = checks.filter((v) => !v.ok).length;
+      count(fillFrames.length === FRAMES);
       log(`\nfill ${FRAMES}:     ${fillFrames.length}/${FRAMES} frames in ${(performance.now() - tFill).toFixed(0)} ms, ` +
           `${bad === 0 ? "every frame byte-identical to the fixture" : bad + " MISMATCH"}`);
       const seen = new Set(fillFrames.map((f) => f.frameIndex));
       log(`             distinct indices: ${seen.size}/${FRAMES}`);
+      count(seen.size === FRAMES);
 
       // 3 — stamps, which cross two worker boundaries and must not be the zeros a missing clock gives
       const st = one.info.stamps;
-      const ordered = st.ask > 0 && st.lastByte >= st.ask && st.decodeEnd >= st.decodeStart && st.decodeStart >= st.dispatched;
+      const ordered = count(st.ask > 0 && st.lastByte >= st.ask && st.decodeEnd >= st.decodeStart && st.decodeStart >= st.dispatched);
       log(`\nstamps:      ask→lastByte ${(st.lastByte - st.ask).toFixed(2)} ms, ` +
           `dispatch→decodeEnd ${(st.decodeEnd - st.dispatched).toFixed(2)} ms, ` +
           `all non-zero and in order: ${ordered ? "ok" : "NO"}`);
@@ -120,11 +125,12 @@
       log(`re-dial:     a session opened after a closure serves frame 1: ${v5.ok ? "ok" : "MISMATCH"}`);
       again.close();
 
-      log("\ndone");
-      globalThis.__wtpacsDone = true;
+      log(`\ndone: ${failed} failed`);
     }
 
-    main().catch((e) => { log("FAILED: " + (e?.stack || e?.message || e)); globalThis.__wtpacsDone = true; });
+    main()
+      .catch((e) => { failed += 1; log("FAILED: " + (e?.stack || e?.message || e)); })
+      .finally(() => { globalThis.__wtpacsFailed = failed; globalThis.__wtpacsDone = true; });
   </script>
 </body>
 </html>
