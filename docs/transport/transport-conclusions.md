@@ -33,20 +33,24 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md  
 git checkout archive/transport-lab-2026-09 -- lab/transport                      # the campaign drivers
 ```
 
+The arms measured below and retired on 2026-10-02 — the bounded BBR, the early slow-start exit
+(HyStart), the idle restart, NewReno, the fixed stream pool and the prefault hop — are in the history
+at `6e9c126`.
+
 ---
 
 ## The answer
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Cubic, restarted after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill on a dropped blink, a tie otherwise, §3 W5b); BBR stays opt-in until the loss mix is measured.** Congestive loss → Cubic; radio loss → BBR; both directions large (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster and pays with ~45 % of its datagrams overflowing a 120 ms queue, or 294 ms of standing queue in a 900 ms one (CC1). BBR with its window held to 1.25× its own path estimate keeps that fill with no overflow and 13–16 ms of queue (BB2) — *corrected 2026-10-01:* only while the round trip stays near its minimum; under ±20 ms of jitter it falls to a 4-packet window, 80 s for a 7 s fill, and a windowed minimum does not save it (BBF). Not a candidate as built |
-| **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed (§2, [`../adr-stream-shape.md`](../adr-stream-shape.md)) |
-| **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever (§3) |
+| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). A bounded BBR was built and retired (BB2, BBF); the next candidate is v3's loss bound, unbuilt (BB3) |
+| **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed and retired (§2, [`../adr-stream-shape.md`](../adr-stream-shape.md)) |
+| **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever and the default (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
 | **GSO segment cap 10 → `65527 / mtu`** | **Opt-in at build time.** −16 to −21 % CPU per ask, 6/6, and +10 to +30 % throughput where the pipe is full — and at 250 KB, depth 1, four sessions it takes p99 from ~2 ms to ~28 ms, reproduced twice. GS1 found that tail to be the rig client's receive queue, which a browser does not share, and a ceiling of 24 that keeps two thirds of the win with no tail seen. Ship 24, or 45 behind the product's buffer: **the owner's call** (§4, §5) |
 | **Profile-guided build** | **Opt-in, per release build.** −8.6 to −10.6 % CPU per ask on top of the plain build of the same source, no cell against (§4) |
 | **Flow-control windows** | **quinn's defaults.** A client that asks for 25 MB and stops reading costs the server **180 kB** on this send path (§3) |
-| **Runtime shape** | **One endpoint on the multi-thread runtime.** One endpoint per core won every single-session cell and most saturation cells, and **12 of 16 NAT rebinds kill the session** on it. Parked on `claude/per-core-endpoints` (§6) |
+| **Runtime shape** | **One endpoint on the multi-thread runtime.** One endpoint per core won every single-session cell and most saturation cells, and **12 of 16 NAT rebinds kill the session** on it. Parked at `d9ebe32` (§6) |
 
 `--stream-mode per-frame`, `--congestion cubic | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`,
 `--packet-threshold`, `--persistent-congestion-threshold`, `--ack-frequency-max-delay-ms` and
@@ -91,101 +95,63 @@ below):* that rig's TCP flow started 1.5 s after ours; through the relay the sam
 Cubic from 51.8 % to 67.4 % of a deep buffer against another QUIC Cubic, so most of the 77 % is the
 late start, not the protocol.
 
-**Through the relay, 2026-10-01 (NBR).** The same table re-run through `link_impair.py`, whose
-`--udp` pairs now share one queue and one clock each way:
-[`neighbour_cells.sh`](../../lab/scripts/neighbour_cells.sh), 5 Mbit down, the uplink unshaped,
-56 ms round trip (the rig's 25 ms of egress delay over its 28–35 ms path), two 30 s saturating
-native fills (depth 8) from two servers, arms ordered by `order.py`, 7 rounds, `--self-timing` with
-`VOID` runs dropped (6 of 84). **The neighbour is quinn's Cubic, a proxy for the rig's Linux TCP
-Cubic**: it paces, has no HyStart and acks as QUIC does. Each flow alone takes 4.51–4.77 Mbit at
-every depth. Our flow's share, median [range], n:
+**Through the relay, 2026-10-01 (NBR, `87df230`, `07bda80`).** The same table through
+`link_impair.py`, whose `--udp` pairs share one queue and one clock each way:
+[`neighbour_cells.sh`](../../lab/scripts/neighbour_cells.sh), 5 Mbit down, 56 ms, two 30 s native
+fills at depth 8 from two servers, 7 rounds by `order.py`, `--self-timing` (6 of 84 runs `VOID`).
+**The neighbour is quinn's Cubic, a proxy for Linux TCP Cubic**: it paces and has no HyStart. Our
+flow's share, median:
 
-| buffer | our flow : neighbour | `netem`, the rig (n) | relay, 20 / 500 packets | relay, 10 packets |
+| buffer | our flow : neighbour | `netem`, the rig | relay, 20 / 500 packets | relay, 10 packets |
 | --- | --- | --- | --- | --- |
-| shallow | QUIC Cubic : QUIC Cubic | 55.6 % (5) | 47.8 % [38.5–49.6], 7 | 54.0 % [49.3–57.2], 7 |
-| shallow | QUIC BBR : QUIC BBR | 48.5 % (5) | 50.5 % [47.8–53.1], 7 | 55.3 % [39.5–68.2], 6 |
-| shallow | QUIC BBR : TCP Cubic / the proxy | **99.4 %** (5) | **94.0 %** [93.4–94.2], 6 | **95.6 %** [95.3–96.0], 7 |
-| shallow | bounded BBR ×1.25 : the proxy | — | **17.6 %** [11.2–21.2], 7 | 80.1 % [69.9–82.3], 6 |
-| deep | QUIC Cubic : QUIC Cubic | 50.4 % (3) | 50.9 % [48.9–52.7], 7 | |
-| deep | QUIC BBR : QUIC BBR | 27.6 % (3, noisy) | 50.5 % [50.2–53.4], 7 | |
-| deep | QUIC Cubic : TCP Cubic / the proxy, 1.5 s late | 76.8 % (3) | 67.4 % [61.4–67.8], 5 | |
-| deep | QUIC BBR : TCP Cubic / the proxy | **55.1 %** (3) | **15.2–15.8 %**, 5 + 5 | |
-| deep | the same, the proxy 1.5 s late | | 18.9 % [18.4–21.2], 5 | |
-| deep | bounded BBR ×1.25 : the proxy | — | **2.5 %** [2.5–2.5], 6 | |
+| shallow | QUIC Cubic : QUIC Cubic | 55.6 % | 47.8 % | 54.0 % |
+| shallow | QUIC BBR : QUIC BBR | 48.5 % | 50.5 % | 55.3 % |
+| shallow | QUIC BBR : TCP Cubic / the proxy | **99.4 %** | **94.0 %** | **95.6 %** |
+| deep | QUIC Cubic : QUIC Cubic | 50.4 % | 50.9 % | |
+| deep | QUIC BBR : QUIC BBR | 27.6 % (noisy) | 50.5 % | |
+| deep | QUIC Cubic : the proxy, 1.5 s late | 76.8 % | 67.4 % | |
+| deep | QUIC BBR : TCP Cubic / the proxy | **55.1 %** | **15.2–15.8 %** | |
 
-* **Within ±10 points in every cell but two.** One is the deep BBR pair, whose rig cell read 26.7,
-  56.0 and 27.6 % over its three runs and was given no weight there. `netem`'s 20-packet limit
-  counts the ~11 packets inside its 25 ms delay line, so its queue is nearer the relay's 10; both
-  columns are shown. The late-start rows are the rig's own skew reproduced (the neighbour starts
-  1.5 s late and stops 1.5 s early), interleaved with a no-lag arm, 5 rounds.
-* **BBR starves the proxy too, less deeply**: 0.21–0.29 Mbit left to it, 16–22× under what it takes
-  alone, where the rig's TCP kept 0.03 (150×).
-* **The proxy's difference is the deep BBR cell: 15–19 % against 55 %**, and the rig's start skew
-  explains 3.7 points of it. What is left is the neighbour itself — quinn's Cubic paces and has no
-  HyStart, the rig's was Linux's, unpaced behind `netem`, over ssh — and is not separated here. So
-  through this relay a deep buffer's verdict on BBR against TCP is not admissible; the shallow one
-  is. *Answered 2026-10-02 (FQC, below): against kernel TCP Cubic through the packet-layer relay the
-  deep cell reads 49.6 %, within 6 points of the rig — the proxy was the difference.*
-* **The bounded BBR is the worst neighbour to itself.** Behind a 20-packet queue it keeps 17.6 %,
-  behind 500 it keeps 2.5 % (0.12 Mbit) in every round. That is BBF's mechanism (below) with a
-  neighbour's queue in place of jitter: the smoothed round trip stands above 1.25 × the all-time
-  minimum, so each cap shrinks the next — though the window was not read here. Only at 10 packets,
-  where Cubic's own queue is short, does it hold 80 %.
+**Within ±10 points in every cell but the deep BBR ones, so the shallow verdict on BBR against TCP is
+admissible through the relay.** BBR starves the proxy 16–22× where the rig's TCP was starved 150×.
+The deep cell's gap was the proxy, not the relay: against kernel TCP it reads 49.6 % (FQC, below).
+The retired bounded BBR starved itself behind the proxy: 17.6 % of a 20-packet queue, 2.5 % of a
+500-packet one.
 
 ### A neighbour behind fq_codel, 2026-10-02 (FQC)
 
-NBR and PROF put BBR's neighbour cost on one shared FIFO. [`fq_neighbour_cells.sh`](../../lab/scripts/fq_neighbour_cells.sh)
-asks whether it survives RFC 8290's fq_codel, now in the relay ([`rig-limits.md`](../rig-limits.md) §3),
-against a **kernel TCP Cubic** neighbour: the TUN plane (row 107), so the neighbour is Linux's own
-Cubic under the same queue and loss, not NBR's proxy. Per run the neighbour starts, 3 s later our
-fresh session makes 20 asks of 64 KB one at a time (the first dropped, p50 and p99 of the other 19),
-then a 30 s saturating fill (depth 8) runs beside it. Profiles: NBR's 5 Mbit, 56 ms with a shallow
-(20-packet) or deep (500-packet) buffer, the uplink unshaped; PROF's LTE-loaded (`Verizon-LTE-short`,
-60 ms, 0.1 % in bursts of 3.5, 1 s of buffer). FIFO and fq_codel (5:100) hold the same total, so the
-discipline is the only change. Six arms (three controllers × two queues) ordered by `order.py`,
-7 rounds, `--self-timing`, 1 of 126 runs `VOID` and dropped. Share is ours over ours plus the
-neighbour's over the fill; queue is each flow's median sojourn in the relay's own tally. Medians:
+`2d087f2`, `2694235`. Does BBR's neighbour cost survive RFC 8290's fq_codel, now in the relay
+([`rig-limits.md`](../rig-limits.md) §3)? [`fq_neighbour_cells.sh`](../../lab/scripts/fq_neighbour_cells.sh)
+runs on the TUN plane, so the neighbour is **kernel TCP Cubic** under the same queue and loss. Per
+run the neighbour starts, then our fresh session makes 20 asks of 64 KB one at a time, then a 30 s
+fill at depth 8 runs beside it. NBR's 5 Mbit, 56 ms link with a shallow (20-packet) or deep
+(500-packet) buffer, and PROF's LTE-loaded; FIFO and fq_codel (5:100) hold the same total. 7 rounds
+by `order.py`, `--self-timing`, 1 of 126 runs `VOID`. Medians; a queue is the flow's median sojourn:
 
-| profile | arm | ask p50 / p99 ms | share | our fill's queue ms | the neighbour's queue ms | fq − FIFO share, rounds |
-| --- | --- | --- | --- | --- | --- | --- |
-| shallow | Cubic, FIFO | 289 / 401 | 44.8 % | 35.5 | 34.2 | |
-| | Cubic, fq | 278 / 319 | 50.1 % | 6.5 | 5.5 | +5.5 (5/7) |
-| | BBR, FIFO | 257 / 543 | **98.8 %** | 44.0 | 29.7 | |
-| | BBR, fq | 274 / 330 | **49.9 %** | 27.1 | 4.3 | **−48.9 (0/7)** |
-| | bounded, FIFO | 254 / 537 | 18.2 % | 33.2 | 34.7 | |
-| | bounded, fq | 275 / 333 | 50.4 % | 12.0 | 4.0 | +32.2 (7/7) |
-| deep | Cubic, FIFO | **2 159 / 4 262** | **13.1 %** | 1 077 | 1 028 | |
-| | Cubic, fq | 277 / 330 | 50.6 % | 6.4 | 5.5 | +37.7 (7/7) |
-| | BBR, FIFO | 1 045 / 3 438 | 49.6 % | 1 058 | 1 014 | |
-| | BBR, fq | 302 / 405 | 49.7 % | **102.6** | 4.7 | +0.0 (4/7) |
-| | bounded, FIFO | 1 046 / 3 484 | 24.6 % | 1 080 | 1 036 | |
-| | bounded, fq | 302 / 487 | 50.3 % | 12.0 | 5.0 | +25.7 (7/7) |
-| LTE-loaded | Cubic, FIFO | 871 / 2 530 | 51.7 % | 881 | 504 | |
-| | Cubic, fq | 351 / 540 | 50.6 % | 9.3 | 8.5 | −3.0 (3/7) |
-| | BBR, FIFO | 602 / 2 327 | 66.8 % | 833 | 467 | |
-| | BBR, fq | 271 / 539 | 59.6 % | **196.1** | 8.5 | −6.2 (0/6) |
-| | bounded, FIFO | 639 / 2 739 | 25.2 % | 450 | 553 | |
-| | bounded, fq | 266 / 590 | 37.7 % | 28.8 | 7.6 | +21.3 (6/7) |
+| profile | arm | ask p50 / p99 ms | share | our queue ms | the neighbour's queue ms |
+| --- | --- | --- | --- | --- | --- |
+| shallow | Cubic, FIFO | 289 / 401 | 44.8 % | 35.5 | 34.2 |
+| | Cubic, fq | 278 / 319 | 50.1 % | 6.5 | 5.5 |
+| | BBR, FIFO | 257 / 543 | **98.8 %** | 44.0 | 29.7 |
+| | BBR, fq | 274 / 330 | **49.9 %** | 27.1 | 4.3 |
+| deep | Cubic, FIFO | **2 159 / 4 262** | **13.1 %** | 1 077 | 1 028 |
+| | Cubic, fq | 277 / 330 | 50.6 % | 6.4 | 5.5 |
+| | BBR, FIFO | 1 045 / 3 438 | 49.6 % | 1 058 | 1 014 |
+| | BBR, fq | 302 / 405 | 49.7 % | **102.6** | 4.7 |
+| LTE-loaded | Cubic, FIFO | 871 / 2 530 | 51.7 % | 881 | 504 |
+| | Cubic, fq | 351 / 540 | 50.6 % | 9.3 | 8.5 |
+| | BBR, FIFO | 602 / 2 327 | 66.8 % | 833 | 467 |
+| | BBR, fq | 271 / 539 | 59.6 % | **196.1** | 8.5 |
 
-* **BBR's neighbour cost does not survive fq_codel.** Behind a shallow FIFO BBR leaves kernel TCP
-  1.2 % (0.06 Mbit); behind fq_codel of the same depth the split is 49.9 / 50.1 in every round. In
-  every fq_codel arm the neighbour's queue is 4–9 ms, CoDel's target plus a packet, whatever our
-  controller does.
-* **BBR's queue does survive, in its own flow queue.** It ignores CoDel's drops (14–26 % of its
-  packets dropped by CoDel, against 0.6–1.4 % for Cubic), so its fill stands 27, 103 and 196 ms of
-  queue where Cubic's stands 6–9. Under fq_codel that cost lands on BBR's own packets — its asks
-  share the session's queue — not on the neighbour. The shallow ask's p50 is the one figure fq_codel
-  makes worse for BBR, +17 ms (bounded +23); its p99 still falls 200 ms.
-* **The deep FIFO verdict, with real TCP:** BBR 49.6 % — the rig read 55.1 %, NBR's QUIC proxy
-  15–19 %, so the proxy was the difference (corrected above). And a deep FIFO starves *QUIC Cubic*
-  against kernel Cubic, 13.1 % in every round with a 2.2 s median ask; quinn's paced Cubic loses to
-  Linux's. fq_codel gives it 50.6 %.
-* **The bounded BBR's starvation (NBR) is a FIFO's**: 18 → 50 % shallow, 25 → 50 % deep (7/7 each).
-  On LTE-loaded it keeps 37.7 % behind fq_codel (6/7 up) — the trace's swings, not measured apart.
-* **Every steady ask is faster behind fq_codel except both BBRs' p50 at a shallow buffer**: p99 −81 ms to
-  −3.9 s, the deep and LTE cells by 2–4 s, since our asks no longer wait behind the neighbour's
-  queue. Whether a user's bottleneck runs a FIFO or fq_codel is not measured here.
-* No default changed.
+**BBR's neighbour cost does not survive fq_codel; its own queue does.** Behind a shallow FIFO BBR
+leaves kernel TCP 1.2 %; behind fq_codel the split is 49.9 / 50.1 in every round, and the neighbour's
+queue is 4–9 ms in every fq_codel arm whatever our controller does. BBR ignores CoDel's drops (14–26 %
+of its packets, Cubic's 0.6–1.4 %), so its fill stands 27–196 ms in its own flow queue, which its asks
+share. With real TCP the deep FIFO reads 49.6 % (the rig 55.1 %), and a deep FIFO starves quinn's
+paced Cubic against Linux's: 13.1 % in every round, a 2.2 s ask; fq_codel gives it 50.6 %. Every
+steady ask's p99 falls behind fq_codel (−81 ms to −3.9 s); BBR's shallow p50 alone rises, +17 ms. The
+retired bounded BBR's starvation was a FIFO's (18 → 50 % shallow, 25 → 50 % deep, 7/7). Whether a
+user's bottleneck runs fq_codel is not measured. No default changed.
 
 ### Why two answers and not one
 
@@ -231,234 +197,102 @@ smoothed round trip at the session's end less 80 ms. Median [range], rounds won 
 | standing queue, 200 packets | 4–11 ms | **43–77 ms** |
 | standing queue, 1 500 packets (no overflow) | 5 ms | **294 ms** |
 
-*Re-taken 2026-09-24 on an idle box.* The first run of every cell shared the four cores with four
-runaway server processes from another lane; the tables are the re-take. The first run agreed in
-every verdict and within a few points in every figure.
+*Re-taken 2026-09-24 on an idle box*; a first run shared the cores with runaway servers and agreed in
+every verdict.
 
 **The browser confirms L3 and widens it**: under random loss BBR fills **12× (1 %) to 19× (3 %)
-faster** and answers a fresh ask **1.3 to 6.2× sooner**, 6/7 or 7/7 in every lossy cell; a fresh ask
-is ~1.8× faster on a clean link too. **Its price is the queue, both ways.** Against a 120 ms buffer
-it sends about twice the fill's bytes and the bottleneck drops the other half; against a 900 ms
-buffer it stops overflowing and **stands 294 ms of queue** in front of everything else the phone
-does. On a link whose only trouble is one blink it is 7.8 % slower than Cubic (0/7). The restart
-(§3, after a blink) ties Cubic in every lossy cell and loses the blink cell, which lands late in a
-3.6 s fill.
+faster** and answers a fresh ask **1.3 to 6.2× sooner**, 6/7 or 7/7 in every lossy cell. **Its price
+is the queue, both ways.** Against a 120 ms buffer it sends about twice the fill's bytes and the
+bottleneck drops half; against a 900 ms buffer it stops overflowing and **stands 294 ms of queue** in
+front of everything else the phone does. After one blink with no loss it is 7.8 % slower than Cubic
+(0/7). The restart (§3, after a blink) as first built tied Cubic in every lossy cell.
 
-**Why BBR overdrives the queue — one reading refuted.** quinn's pacer sends `1.25 × window / RTT`
-and never reads the pacing rate BBR computes, which goes only to its metrics
-(`connection/pacing.rs`, `congestion/bbr/mod.rs`, 0.11.18). With BBR's window at twice the path's
-BDP that paces at ~2.5× the bottleneck — a plausible cause. **It is not the cause here:** a
-prototype that paces a rate-reporting controller at its own rate overflowed as much (57.6 % against
-47.8 %, 3 rounds, 1 %; taken under the same load as the first run, and not re-taken). The excess is
-BBR's own estimate or window; the source reading below has the other candidate, loss ignored during
-Startup.
+**Not the cause of the overflow: quinn's pacer.** It sends `1.25 × window / RTT` and never reads BBR's
+pacing rate (`connection/pacing.rs`, 0.11.18), but a prototype pacing a controller at its own rate
+overflowed as much (57.6 % against 47.8 %, 3 rounds, 1 %). The excess is BBR's own estimate or window.
 
-**Neither, as they stand.** Cubic is an order of magnitude wrong for random loss. quinn's BBRv1 buys
-that back by doubling the bytes on a shallow link or standing a quarter-second of queue on a deep
-one, and starves a neighbour 150× (above). What would change the default is a controller that
-treats random loss as noise *and* bounds its queue — BBRv2/v3's loss- and inflight-bounded probing,
-which quinn does not carry. Nothing was changed.
+**Neither, as they stand.** Cubic is an order of magnitude wrong for random loss; quinn's BBRv1 buys
+that back with the queue and a neighbour's share. What would change the default treats random loss as
+noise *and* bounds its queue (BB3). Every fill is link-bound (BBR's 3.8 s is 18 Mbit of goodput), so
+latency and completion are quoted, not throughput. The relay's loss is exogenous by construction, and
+a phone's receive path is not modelled.
 
-**Where the host saturates.** The relay's 20 Mbit is far below loopback's reach and every fill here
-is link-bound (BBR's 3.8 s is 18 Mbit of goodput); latency and completion are quoted, not
-throughput. **What this rig does not decide:** the relay's loss is exogenous by construction, so a
-real radio's mix is not modelled; nor is a phone's receive path.
+### A bounded BBR, retired (BB2, 2026-09-25; BBF, 2026-10-01, `3a221e5`)
 
-### A bounded BBR, 2026-09-25 (BB2)
+Could BBR keep its loss tolerance without its queue? A cap held quinn's BBR window to g × (the best delivery rate of the last ten round trips ×
+the minimum round trip), over the public `Controller` trait. CC1's link and cells, 7 rounds rotated
+(BB2); then ordered jitter and no loss, a 40 × 428 KB fill, 7 rounds in a Williams order,
+`--self-timing` (BBF, `controller_browser_cells.sh jitter10 | jitter20`). Medians:
 
-Can BBR keep its loss tolerance without its queue? **quinn exposes neither knob that would say** —
-`BbrConfig` sets only an initial window, and Cubic's β is a constant — so the variant is built as
-`restart.rs` is, over the public `Controller` trait:
-`bounded.rs` (retired; code in history at `6e9c126`), `--congestion bbr-bounded --bdp-gain g`,
-quinn's BBR with its window held to `g` × (the best delivery rate of the last ten round trips × the
-minimum round trip). A larger Cubic β needs a Cubic of our own or a quinn patch, and is not built.
+| cell | Cubic | BBR | bound ×1.25 |
+| --- | ---: | ---: | ---: |
+| fill, 1 % / 3 % loss | 43.0 / 74.7 s | 3.88 / 3.87 s | **3.86 / 3.92 s** |
+| fill, a 500 ms blink | **4.54 s** | 4.94 s | 4.91 s |
+| datagrams overflowing 200 packets, 1 % / 3 % | 0 / 0 % | 43.4 / 44.5 % | **0 / 0 %** |
+| standing queue, 200 / 1 500 packets | 4 / 4 ms | 50 / 309 ms | **13 / 16 ms** |
+| fill, ±10 ms jitter | 7.54 s | 7.37 s | 8.06 s |
+| fill, ±20 ms jitter | 7.62 s (3 valid) | all `VOID` | **79.9 s** [12.6–281.4], 4 of 7 on the floor |
 
-**The rule, fixed before the run.** CC1's rig and cells (1 % and 3 % behind 200 packets, 1 % behind
-1 500, a 500 ms blink), arms `cubic`, `bbr` and the bound at 1.0, 1.25 and 1.5, 7 rounds rotated. A
-variant *keeps BBR's loss tolerance* if its median fill is within 2× BBR's at 1 % and 3 %; it does
-so *at Cubic's queue cost* if under 5 % of its datagrams overflow the 200-packet queue and it stands
-under 50 ms in the 1 500-packet one.
-
-**The bound at 1.25 keeps all of BBR's goodput under loss, and none of its queue** — *corrected
-2026-10-01 (BBF, below): on a link whose round trip stays near its minimum, as every cell here did
-(the smoothed round trip at 1.16–1.20× the minimum). Under ±20 ms of jitter its median fill is 10×
-Cubic's and four runs of seven end on its 4-packet floor.* Medians, 7 rounds, every run complete;
-rounds won against Cubic in brackets:
-
-| cell | Cubic | BBR | bound ×1.0 | bound ×1.25 | bound ×1.5 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| fill, 1 % | 43.0 s | 3.88 s (7/7) | 5.65 s (7/7) | **3.86 s** (7/7) | 3.91 s (7/7) |
-| fill, 3 % | 74.7 s | 3.87 s (7/7) | 5.58 s (7/7) | **3.92 s** (7/7) | 3.84 s (7/7) |
-| fill, 1 %, 1 500 packets | 41.8 s | 3.89 s (7/7) | 5.48 s (7/7) | **3.89 s** (7/7) | 3.88 s (7/7) |
-| fill, a 500 ms blink | **4.54 s** | 4.94 s (0/7) | 6.17 s (0/7) | 4.91 s (0/7) | 5.00 s (1/7) |
-| ask, 1 % / 3 % | 788 / 1 676 ms | 419 / 413 | 423 / 456 | 456 / 488 | 419 / 475 |
-| datagrams overflowing 200 packets, 1 % / 3 % | 0 / 0 % | **43.4 / 44.5 %** | 0 / 0 % | **0 / 0 %** | 0 / 0 % |
-| standing queue, 200 / 1 500 packets | 4 / 4 ms | 50 / **309 ms** | 4 / 4 ms | **13 / 16 ms** | 27 / 31 ms |
-
-* All three bounds pass both halves of the rule. ×1.0 is the only one whose queue equals Cubic's,
-  and it pays 45 % of the fill for the last 10 ms. **×1.25 keeps most of BBR's goodput at Cubic's
-  queue cost**: 17.7 of 20 Mbit under 3 % loss where Cubic carries 0.9, no datagram overflowed, and
-  its retransmitted share is the link's own loss (1.0 / 3.0 %) where BBR's is 45–48 %.
-* **The blink is where none of them helps**: every BBR, bounded or not, is 8–10 % slower than Cubic
-  after a 500 ms outage with no loss; ×1.0 is 36 % slower. Asks still come 1.3–2× sooner.
-* **Not covered.** A competing flow: the relay gives each plane its own queue, and the neighbour
-  table above is BBRv1's, not the bound's. Congestive loss, where Cubic led, was not re-run. One
-  host through a userspace relay. **Nothing changed**: the bound is a candidate for the rig, against
-  a competing flow and congestive loss, before any default moves. *2026-10-01:* on steady depth-1
-  asks with no loss it is 77–104 ms slower than Cubic per ask (§5, TAX). Jitter, not covered
-  either, disqualifies it as built (BBF). A competing flow, through the relay (NBR, the neighbour
-  table above): behind a Cubic neighbour it keeps 17.6 % of a 20-packet queue and 2.5 % of a
-  500-packet one — it starves itself, where plain BBR starves the neighbour.
-
-### The bound on a jittery link, 2026-10-01 (BBF)
-
-**Why it can collapse.** The bound multiplies by quinn's `rtt.min()`, which is all-time (quinn-proto
-0.11.18, `RttEstimator::update`). Held at its cap it delivers about window ÷ smoothed round trip, so
+**On a link whose round trip stays near its minimum the bound kept BBR's fill at Cubic's queue; on a
+jittery one it collapsed.** It multiplies by quinn's all-time minimum round trip, so held at its cap
 its next cap is 1.25 × window × min ÷ srtt: it shrinks whenever srtt exceeds 1.25 × min, and the
-4-packet floor is absorbing — leaving it needs a round that delivers more than the floor itself
-does. Jitter lowers the minimum and raises the mean, which is that condition.
-
-**The cell.** [`controller_browser_cells.sh`](../../lab/scripts/controller_browser_cells.sh)
-`jitter10 | jitter20`: CC1's link (20 Mbit, 80 ms, 200 packets), no loss, ordered jitter of ±10 or
-±20 ms each way; a fill of 40 × 428 KB, 7.0 s at the link's rate. Arms Cubic, BBR, the bound at 1.25,
-and the bound over a 10 s windowed minimum (`--bdp-rtt-window-ms 10000`: BBRv1's filter over each
-acknowledgement's `now − sent`, so the peer's ACK delay is in it). 7 rounds in a Williams order, each
-round under the host's lock, the relay's `--self-timing` on and every VOID run dropped; the window
-is the server's at the session's close. Medians [range], runs counted:
-
-| ordered jitter | Cubic | BBR | bound ×1.25 | bound, 10 s minimum |
-| --- | ---: | ---: | ---: | ---: |
-| ±10 ms: fill | 7.54 s [7.53–7.56], 6 | 7.37 s [7.34–7.52], 7 | 8.06 s [7.45–13.90], 7 | 7.70 s [7.37–13.86], 7 |
-| ±10 ms: window at close, median [lowest] | 486 KB | 7.4 MB | 258 KB [139] | 268 KB [227] |
-| ±20 ms: fill | 7.62 s [7.59–7.63], 3 | all 7 VOID | **79.9 s** [12.6–281.4], 7 | **35.4 s** [12.3–160.5], 7 |
-| ±20 ms: on the floor (≤ 6.1 KB) at close | 0/3 | — | **4/7** | **4/7** |
-
-* **At ±20 ms the bound collapses.** Against Cubic, paired: **+156.9 s, 0/3**; every one of its
-  seven fills is slower than every valid Cubic fill, 1.8–40× the link's 7.0 s, and four end at the
-  floor's 5.8 KB — 0.5 Mbit on a 20 Mbit link. When it falls varies run to run (12.6 to 281 s
-  for the same 17.5 MB), so a fill shorter than this one can miss it.
-* **At ±10 ms it holds**, in these fills: no run reaches the floor (lowest close 139 KB), and it
-  costs **+0.70 s against BBR, 1/7** (+9 %) and +0.28 s against Cubic, 2/6. The derived
-  "floor in ~7 s" at ±10 is not reproduced in 7.5–14 s fills, nor in 120-frame fills (52.6 MB,
-  21 s at the link; `FILL=120`, bound and BBR, 7 rounds): 22.55 s [21.79–29.13], lowest close
-  189 KB, **+0.74 s against BBR, 1/6**. A first batch of those long fills left two of the bound's
-  seven runs incomplete with nothing recorded to tell a stall from a page that never connected;
-  each row now carries the frames delivered and the packets the relay carried, and the retake had
-  none.
-* **The windowed minimum does not rescue it.** Against the all-time bound, paired: **−4.6 s, 4/7**
-  at ±20 (a tie, and 4/7 on the floor as well), −0.04 s, 4/7 at ±10. A jitter trough recurs inside
-  any 10 s window, so the windowed minimum sits as low as the all-time one; windowing cures a minimum
-  made stale by a path change, not one set by jitter. The mutant the row asks for — the all-time
-  minimum restored in the windowed arm — is the bound's own arm, and it collapses as much; in code,
-  `the_windowed_minimum_forgets_an_old_trough` fails when the window never expires.
-* **The instrument.** At ±20 ms the relay left packets over 1 ms late (p99 1.03–1.21 ms) in every
-  BBR run and 4 of 7 Cubic runs — the two arms that keep the link full — so BBR's figure there is
-  unmeasured and Cubic's rests on 3 runs; the bound's runs, light on the relay, were all valid
-  (p99 ≤ 0.88 ms). One Cubic run at ±10 never completed (the page did not finish; cause not found).
-* **What it changes.** The bound is not a candidate as built. How much a phone's round trip jitters
-  is unmeasured here, but the floor is absorbing (derived above), so one spell past the threshold
-  is enough to end a fill on it. A cap that jitter cannot ratchet down needs a round-trip floor not
-  set by the lowest sample, or a way off the floor; neither is built, and neither is measured.
+4-packet floor is absorbing. Jitter lowers the minimum and raises the mean. A 10 s windowed minimum did
+not rescue it (−4.6 s, 4/7, still 4 of 7 on the floor): a jitter trough recurs inside any window. It
+also starved itself behind a neighbour (NBR, PROF's LTE-loaded: 1 %), and paid 77–104 ms on every
+steady ask (§5 TAX). **Retired 2026-10-02.** A cap that jitter cannot ratchet down needs a round-trip
+floor not set by the lowest sample; the candidate now is v3's loss bound (BB3).
 
 ### Link profiles close to a phone, 2026-10-02 (PROF)
 
-Every verdict above was reached on a fixed rate with uniform loss. [`profile_cells.sh`](../../lab/scripts/profile_cells.sh)
-runs eight profiles through the relay, each a rate trace, a base round trip, Gilbert–Elliott loss in
-bursts averaging 3.5 packets, a FIFO sized in ms at the trace's mean rate (or CoDel 5:100 on top of it),
-and in two of them a quinn Cubic neighbour. LTE traces are mahimahi's (GPL-3.0; fetched, never
-committed): `TMobile-LTE-short` 16.7 Mbit mean, sha256 `4f33dce8dd811b57…`; `Verizon-LTE-short`
-5.0, `c918436fbd6246af…`; `TMobile-LTE-driving` 12.8, `d48ff134fc29c36c…`, all from their start. The
-Wi-Fi traces are steps: home 15/40/10/30/15 Mbit of 12 s each; busy 5–20 Mbit swings of 2–3 s with
-one 0.5 s gap. The profiles: control (20 Mbit fixed, 50 ms, 1 % uniform, 120 ms FIFO); LTE-good
-(50 ms, 0.01 %, 500 ms); LTE-loaded (60 ms, 0.1 %, 1 s, a neighbour); LTE-moving (70 ms, 0.3 %, 500 ms,
-a 200 ms held outage mid-fill in place of a handover); Wi-Fi home (30 ms, 0.5 %, 300 ms); Wi-Fi busy
-(40 ms, 1 %, 300 ms, a neighbour); and CoDel variants of LTE-good and Wi-Fi home. **The loss rates,
-burst length and FIFO depths are the brief's picks or knobs, not fitted to any measurement.** Each run
-makes a 250 KB first ask on a fresh session (`cold_open`), then a 30 s saturating native fill (depth 8)
-with a 20 ms probe on the same link, whose extra round trip is the standing queue. Arms are ordered by
-`order.py`, 5 rounds, `--self-timing`, with 10 of 120 runs `VOID` and dropped (LTE-good's Cubic keeps
-n = 3). The fill is a 30 s rate, not the 61 MB fill: at these rates 61 MB takes 21–230 s.
+`2cf0354`, `e2190d0`. [`profile_cells.sh`](../../lab/scripts/profile_cells.sh) runs eight profiles
+through the relay: a rate trace, a base round trip, Gilbert–Elliott loss in bursts of 3.5 packets, a
+FIFO sized in ms at the trace's mean (or CoDel 5:100 on top), and in two of them a quinn Cubic
+neighbour. The LTE traces are mahimahi's (GPL-3.0, fetched, never committed): `TMobile-LTE-short`
+sha256 `4f33dce8dd811b57…`, `Verizon-LTE-short` `c918436fbd6246af…`, `TMobile-LTE-driving`
+`d48ff134fc29c36c…`, from their start; the Wi-Fi traces are steps. **The loss rates, burst length and
+depths are picks, not fitted to any measurement.** Each run: a 250 KB first ask on a fresh session,
+then a 30 s fill at depth 8 with a 20 ms probe whose extra round trip is the standing queue. 5 rounds
+by `order.py`, `--self-timing`, 10 of 120 runs `VOID`. Medians, the neighbour profiles' share in
+brackets:
 
-| profile | arm | ask ms | fill Mbit/s | queue ms | overflow / CoDel % | fill × Cubic (rounds) |
-| --- | --- | --- | --- | --- | --- | --- |
-| control | Cubic | 408 | 2.59 | 0.8 | 0 | |
-| | BBR | 202 | 18.91 | 109 | 32.0 | 7.29× (5/5) |
-| | bounded | 212 | 19.39 | 12.7 | 0 | 7.42× (5/5) |
-| LTE-good | Cubic | 314 | 16.18 | 360 | 0.5 | |
-| | BBR | 212 | 15.84 | 382 | 1.8 | 0.97× (0/3) |
-| | bounded | 229 | 14.81 | 29 | 0 | 0.91× (0/3) |
-| LTE-good + CoDel | Cubic | 317 | **8.26** | 4.7 | 0.14 | |
-| | BBR | 211 | 15.15 | 200 | 6.6 | 1.83× (5/5) |
-| | bounded | 231 | 14.85 | 26 | 1.9 | 1.86× (4/4) |
-| LTE-loaded, neighbour | Cubic | **6 101** | 2.12 (45 %) | 731 | 5.0 | |
-| | BBR | 2 208 | 3.07 (67 %) | 702 | 2.6 | 1.42× (4/4) |
-| | bounded | 2 297 | **0.07 (1 %)** | 590 | 2.3 | 0.07× (0/4) |
-| LTE-moving | Cubic | 418 | 5.12 | 57 | 0 | |
-| | BBR | 200 | 6.69 | 703 | 6.9 | 1.29× (3/3) |
-| | bounded | 309 | 5.60 | 62 | 0 | 1.11× (3/4) |
-| Wi-Fi home | Cubic | 231 | 10.45 | 1.6 | 0 | |
-| | BBR | 223 | 23.07 | 85 | 0 | 2.12× (4/4) |
-| | bounded | 235 | 23.01 | 8.2 | 0 | 2.20× (5/5) |
-| Wi-Fi home + CoDel | Cubic | 232 | 10.04 | 1.5 | 0.05 | |
-| | BBR | 239 | 22.60 | 77 | 7.1 | 2.26× (5/5) |
-| | bounded | 245 | 23.01 | 8.1 | 0.38 | 2.30× (5/5) |
-| Wi-Fi busy, neighbour | Cubic | 756 | 4.78 (51 %) | 8.0 | 0 | |
-| | BBR | 717 | 9.63 (85 %) | 199 | 0.13 | 2.01× (5/5) |
-| | bounded | 738 | 4.81 (49 %) | 10.6 | 0 | 1.05× (2/4) |
+| profile | Cubic: ask ms · fill Mbit/s · queue ms | BBR: ask · fill · queue | BBR's fill × Cubic's |
+| --- | --- | --- | --- |
+| control: 20 Mbit, 50 ms, 1 % uniform, 120 ms FIFO | 408 · 2.59 · 0.8 | 202 · 18.91 · 109 | 7.29× (5/5) |
+| LTE-good: 50 ms, 0.01 %, 500 ms | 314 · 16.18 · 360 | 212 · 15.84 · 382 | 0.97× (0/3) |
+| LTE-good + CoDel | 317 · **8.26** · 4.7 | 211 · 15.15 · 200 | 1.83× (5/5) |
+| LTE-loaded: 60 ms, 0.1 %, 1 s, a neighbour | **6 101** · 2.12 (45 %) · 731 | 2 208 · 3.07 (67 %) · 702 | 1.42× (4/4) |
+| LTE-moving: 70 ms, 0.3 %, 500 ms, a 200 ms held outage | 418 · 5.12 · 57 | 200 · 6.69 · 703 | 1.29× (3/3) |
+| Wi-Fi home: 30 ms, 0.5 %, 300 ms | 231 · 10.45 · 1.6 | 223 · 23.07 · 85 | 2.12× (4/4) |
+| Wi-Fi home + CoDel | 232 · 10.04 · 1.5 | 239 · 22.60 · 77 | 2.26× (5/5) |
+| Wi-Fi busy: 40 ms, 1 %, 300 ms, a neighbour | 756 · 4.78 (51 %) · 8.0 | 717 · 9.63 (85 %) · 199 | 2.01× (5/5) |
 
-Medians, and the share of the neighbour profiles in brackets. Every BBR and bounded first ask beats
-Cubic's in the LTE profiles, every round (−84 to −219 ms; −4.1 s behind LTE-loaded's neighbour); on
-Wi-Fi they tie.
-
-* **Loss in bursts, not the trace, decides Cubic.** At 0.5 % in 3.5-packet bursts on Wi-Fi home,
-  Cubic fills at 10.4 of the trace's 22 Mbit, with almost no queue, and BBR doubles it. At 0.01 %
-  (LTE-good) the controllers tie, and Cubic's own queue fills the 500 ms buffer. Row 79's
-  uniform-loss gap (7.3× here) shrinks to 1.0–2.3× on these profiles, but does not reverse anywhere.
-* **CoDel halves Cubic on LTE-good** (16.2 → 8.3 Mbit/s, queue 360 → 4.7 ms). BBR loses 5 % of its
-  fill and keeps a 200 ms queue, because it does not read CoDel's drops (6.6 % of its packets). A
-  managed queue therefore makes BBR's lead larger and turns it into the neighbour's problem.
-* **Where the bound loses, plainly: behind a neighbour on a deep, slow FIFO it keeps 1 %** —
-  0.07 Mbit/s against Cubic's 2.1, every round. It also ties Cubic on Wi-Fi busy (49 %). That is
-  NBR's starvation on a phone profile. Everywhere else it matches BBR's fill with Cubic's queue
-  (8–62 ms against BBR's 77–703).
-* **LTE-loaded is a bufferbloat cell**: 0.6–0.7 s of standing queue for every arm, and a 2.2–6.1 s
-  first ask behind the neighbour.
-
-One trace each, from their start, five rounds: this is a profile's verdict, not a carrier's. The
-handover is a held outage, not a measured one. **No default changes**: Cubic stays default until the
-loss mix is measured (§9 item 2).
+**BBR ties or beats Cubic on every profile, 1.0–2.3× (7.3× on uniform loss), and its first ask is
+sooner on every LTE profile, every round.** Loss in bursts, not the trace, decides Cubic: 0.5 % on
+Wi-Fi home holds it at 10.4 of the trace's 22 Mbit. **CoDel halves Cubic on LTE-good** (16.2 → 8.3
+Mbit/s, queue 360 → 4.7 ms) while BBR ignores its drops (6.6 % of its packets) and keeps 200 ms, so a
+managed queue widens BBR's lead and makes its queue the neighbour's problem. LTE-loaded is bufferbloat
+for every arm (0.6–0.7 s of queue). One trace each, from its start: a profile's verdict, not a
+carrier's. No default changed (§9 item 2).
 
 ### quinn's BBR read against the published BBRv1, 2026-09-15
 
-A public report called quinn's BBR broken without naming a cause, so
-`quinn-proto-0.11.17/src/congestion/bbr` (651 lines) was read against the published BBRv1 before any
-cell. **Faithful**: the four modes and their transitions; the constants (high gain 2.885, pacing
-cycle `[1.25, 0.75, 1×6]`, startup growth target 1.25, three rounds without growth to leave Startup,
-cwnd gain 2.0); the gain-cycle seed; the recovery window's arithmetic and its floor at `in_flight +
-bytes_acked`. No `TODO`, `FIXME` or "simplified" marker.
-
-**One candidate deviation, which may explain §1's two-sided result**: `window()` applies the
-recovery window only when `mode != Startup`, unconditionally. If loss never limits the window during
-Startup, that is a win on exogenous loss, where ignoring loss is right, and a loss on congestive
-loss, where it is not. **That this departs from the algorithm as published is a lead, not a
-finding** — it rests on recollection, not a reading — and is the first thing to check before rig
-time. Two more source leads: the pacer ignores BBR's pacing rate (refuted as the overflow's cause,
-CC1), and `exiting_quiescence` is never set, so BBR enters ProbeRtt on the first ACK after ≥ 10 s
-idle.
-
-*Corrected 2026-10-02 (BB3, below), on a reading of 0.11.18:* "faithful" missed one departure —
-**the minimum round trip is all-time, not BBRv1's 10 s window**: on expiry `on_ack` re-reads
-`RttEstimator::min`, which never rises, so ProbeRtt drains the pipe and refreshes nothing; and its
-ProbeRtt window is 0.75 × BDP, not 4 packets. The Startup lead is now read (`window()`, line 488)
-but still not checked against v1 as published; v3 does the same in Startup (below), so it is no
-longer a candidate departure from the algorithm quinn should carry.
+A public report called quinn's BBR broken without naming a cause, so `congestion/bbr` (651 lines) was
+read against the published BBRv1 before any cell. **Faithful** in its four modes and transitions, its
+constants (high gain 2.885, pacing cycle `[1.25, 0.75, 1×6]`, startup growth target 1.25, three rounds
+without growth to leave Startup, cwnd gain 2.0), the gain-cycle seed and the recovery window. **Three
+departures.** The minimum round trip is all-time, not v1's 10 s window: on expiry `on_ack` re-reads
+`RttEstimator::min`, which never rises, so ProbeRtt drains the pipe and refreshes nothing, at
+0.75 × BDP rather than 4 packets (*corrected 2026-10-02, BB3:* the first reading called the model
+faithful and missed this). The pacer ignores BBR's pacing rate (not the overflow's cause, CC1). And
+`exiting_quiescence` is never set, so BBR enters ProbeRtt on the first ACK after ≥ 10 s idle. The
+window ignores loss in Startup (`window()`, line 488), as v3 does, so that is not a departure to fix.
 
 ### quinn's BBR against BBRv3, 2026-10-02 (BB3)
 
-An answer from sources, nothing measured. Read: the CCWG draft's editor's copy
-(`draft-ietf-ccwg-bbr-latest`, the working group's repository, sha256 `f0304976…`), the BBRv3
-branch of the Linux source (`net/ipv4/tcp_bbr.c`, sha256 `04ba1e8b…`) and quinn-proto 0.11.18
-`congestion/bbr`. Every figure below that is not quoted from a row is derived.
+`0052dc4`. An answer from sources, nothing measured: the CCWG draft's editor's copy
+(`draft-ietf-ccwg-bbr-latest`, sha256 `f0304976…`), the BBRv3 branch of Linux's `net/ipv4/tcp_bbr.c`
+(sha256 `04ba1e8b…`) and quinn-proto 0.11.18 `congestion/bbr`. A figure not quoted from a row is
+derived.
 
 | | quinn 0.11.18 (v1) | v3 (draft; Linux where it differs) |
 | --- | --- | --- |
@@ -469,76 +303,43 @@ branch of the Linux source (`net/ipv4/tcp_bbr.c`, sha256 `04ba1e8b…`) and quin
 | ECN | quinn hands CE to the controller as 0 lost bytes: ignored | draft: CE is congestion, response unspecified; Linux: only at min RTT ≤ 5 ms |
 | pacing | computed, unused — quinn paces 1.25 × window / srtt (CC1) | the gains are v3's main queue control |
 
-The last row decides much of what follows: **on quinn's pacer any BBR is window-limited**, so v3's
-pacing gains do nothing unless the pacer reads the controller's rate, and its queue is whatever its
-window caps leave. ECN is out of reach on a phone path (Linux v3 uses it at ≤ 5 ms only).
+**On quinn's pacer any BBR is window-limited**, so v3's pacing gains do nothing unless the pacer reads
+the controller's rate, and its queue is whatever its window caps leave. ECN is out of reach on a phone
+path. Each measured cost, and whether v3 removes it:
 
-**Each measured cost, and whether v3 removes it:**
-
-* **CoDel's drops ignored, 200 ms kept** (PROF: 6.6 % of BBR's packets dropped behind LTE-good +
-  CoDel, 200 ms standing; Wi-Fi home + CoDel 7.1 %, 77 ms). In quinn a drop buys one round of
-  conservation whose floor is the in-flight itself, and the model never moves. **v3 removes the
-  ignoring**: 6.6 % is 3.3× its threshold, and every lossy round cuts the short-term volume to what
-  the round delivered. Where it settles between CoDel's control law and a 2–3 s probe cycle is not
-  derived.
-* **The 500 ms buffer overrun** (W4b: 24 000–41 000 of ~51 000 packets declared lost, Cubic
-  ~1 600). **v3 removes it.** On `flat` (22 Mbit, 80 ms, 1.375 MB of buffer) a full round is
-  ~0.58 s and ~1 100 packets; a probe overshoots for about one round before its losses are seen,
-  ≤ 0.25 × 1 100 ≈ 275 packets, and probes come every 2–3 s: 7–12 in a 22 s fill, **≤ 2 000–3 300
-  lost**. Not the queue: on quinn's pacer CRUISE's 0.85 × (BDP + buffer) = 1.36 MB stands
-  **≈ 410 ms**, Cubic's 423 — less only if the 2 × BDP term binds first, and what lifted v1's
-  window past BDP + buffer there was not read.
-* **A small share against TCP in a deep buffer** (NBR: 15–16 % against the proxy; the rig's 55 %;
-  the relay's deep cell is not admissible). quinn's window, 2 × rate × R₀ on the all-time minimum,
-  carries 2R₀ / (R₀ + Q) of the rate it was sized for behind a neighbour's standing queue Q. A Cubic
-  neighbour's sawtooth floor in a 785 KB pipe is 0.7 × 785 − 35 = 515 KB, 0.82 s, so Q is 0.82–1.2 s
-  and that is **9–13 %**; measured 15–16 %, the same order without closing. A 10 s windowed minimum
-  refreshed every 5 s would take R₀ + ≥ 0.82 s and size the window to the neighbour's queue. **That
-  is v1 as published, not v3**: what removes this cost is the windowed minimum quinn lacks. The share
-  it would then take is not derived. In the shallow cells (BBR 94–96 %, the rig 99.4 %) v3's loss
-  bound with 15 % headroom is the part designed for it.
-* **The jitter floor** (BBF: the bound at 1.25 ends 4 of 7 fills on 4 packets at ±20 ms). A cap of
-  g × rate × min delivered over srtt shrinks when srtt > g × min. v3 keeps that window form at
-  g = 2 (2.25 in UP), and BBF measured that a windowed minimum does not help. With ±J each way on
-  80 ms the minimum nears 80 − 2J, so g = 2 shrinks once srtt > 160 − 4J: 120 ms at ±10, **80 ms at
-  ±20 — any queue at all**. That is a necessary condition, not a prediction (BBF's ±10 collapse,
-  derived the same way at g = 1.25, did not reproduce). quinn's v1 has the same form; its ±20 cell
-  was all `VOID`, and its 7.4 MB window at ±10 (37 BDPs) is a rate estimate far above the link,
-  which hides the ratchet. v3 limits each rate sample by the send rate, so it may sit nearer the
-  edge. **v3 does not remove it**; a loss bound alone has no min-RTT term and cannot add it.
-* **Does v3 keep ASKL's slope** (+1 ms a percent at p50)? Its long-term bound fires on > 2 % in a
-  probe round, and in ASKL's cell one Gilbert–Elliott burst (3.5 packets) in a 12 Mbit × 80 ms
-  round (82 packets) is 4.3 % on its own. So bursty loss sets `inflight_hi`, floored at 0.7 × BDP. At
-  that floor a 256 KB ask's 171 ms of transfer at 12 Mbit becomes 244: **at most +73 ms, flat in the
-  loss rate beyond** — near BBR's slope, not +1 ms a percent, and unmeasured.
+| cost (row) | v3 | why |
+| --- | --- | --- |
+| CoDel's drops ignored, 200 ms kept (PROF) | **removes the ignoring** | 6.6 % is 3.3× its threshold, and every lossy round cuts the short-term volume to what the round delivered; where it settles is not derived |
+| a 500 ms buffer overrun, 24 000–41 000 packets lost (W4b) | **removes the loss** | a probe overshoots for about one round, ≤ ~275 packets, every 2–3 s: ≤ 2 000–3 300 lost in a 22 s fill. Not the queue: CRUISE's 0.85 × (BDP + buffer) stands ≈ 410 ms, Cubic's 423 |
+| a small share against TCP in a deep buffer (NBR) | does not | quinn's window on the all-time minimum carries 2R₀ / (R₀ + Q) of its rate behind a neighbour's queue Q, 9–13 % derived against 15–16 % measured; v1's windowed minimum is what would size it. Against kernel TCP the cell reads 49.6 % (FQC), so the cost may be the proxy's |
+| the jitter floor (BBF) | does not | v3 keeps the window form at g = 2; with ±J on 80 ms it can shrink once srtt > 160 − 4J, 80 ms at ±20 — a necessary condition, not a prediction |
+| ASKL's flat slope (+1 ms a percent) | may lose it | one 3.5-packet burst in an 82-packet round is 4.3 %, past the 2 % bound; at the 0.7 × BDP floor a 256 KB ask goes 171 → 244 ms, at most +73 ms, flat beyond |
 
 **The smallest build.** Three shapes, by what each removes:
 
 | build | size | removes | does not |
 | --- | --- | --- | --- |
-| **v3's loss bound alone**, a cap over quinn's BBR as `bounded.rs` is: a round losing > 2 % sets `inflight_hi` := max(in-flight, 0.7 × BDP); the window ≤ 0.85 × `inflight_hi`, regrown 1, 2, 4… packets a clean round | ~150 lines and tests | CoDel ignored, the overrun's loss, the shallow neighbour (derived) | the deep queue (≈ 410 ms on W4b's `flat`), the deep-buffer share (needs the minimum inside quinn's BBR) |
+| **v3's loss bound alone**, a cap over quinn's BBR as the retired bound was: a round losing > 2 % sets `inflight_hi` := max(in-flight, 0.7 × BDP); the window ≤ 0.85 × `inflight_hi`, regrown 1, 2, 4… packets a clean round | ~150 lines and tests | CoDel ignored, the overrun's loss, the shallow neighbour (derived) | the deep queue (≈ 410 ms on W4b's `flat`), the deep-buffer share (needs the minimum inside quinn's BBR) |
 | **a full v3** as a quinn `Controller`, plus a pacer patch | ~2 000 lines, a third carried quinn patch | the first three; the queue only with the pacer patch | the jitter floor |
 | **an existing Rust implementation** | one BBRv3 under Apache-2.0, ~2 000 lines with its rate sampler; two BBRv2s, Apache-2.0 and BSD-2-Clause, 5 000–7 000 | as a full v3 | — it is a port, not a dependency |
 
-The loss bound fits quinn's trait with one approximation. `on_congestion_event` gives the lost bytes
-and the newest lost packet's send time, not the in-flight at each lost packet's send, so the 2 % is
-a round's rate rather than the draft's per-packet `InflightAtLoss`. The full v3 and every existing
-implementation need what quinn does not hand over: a per-packet record of delivered and in-flight
-at send. quinn's `on_sent` is per transmit and `on_ack` carries a send time, not a packet number. All
-three licences are MIT-compatible; which stacks carry them is in the row's report to the owner, not
-here.
+The loss bound fits quinn's trait with one approximation: `on_congestion_event` gives the lost bytes
+and the newest lost packet's send time, so the 2 % is a round's rate rather than the draft's
+per-packet `InflightAtLoss`. The full v3 and every existing implementation need a per-packet record of
+delivered and in-flight at send, which quinn does not hand over. All three licences are
+MIT-compatible.
 
-**The cell that decides it**: PROF's LTE-good + CoDel profile (row 86), arms `bbr`, the loss bound
-and `cubic`, ≥ 5 rounds by `order.py`, `--self-timing`. The bound passes if under 2 % of its packets
-meet CoDel and it stands under 50 ms (BB2's rule) while keeping ≥ 0.9 × BBR's 15.15 Mbit/s. ASKL's
-1 % and 4 % cells guard the slope (≤ +73 ms over `bbr` at 4 %), and W4b's `flat` at 500 ms its loss
-(< 3 300). **Nothing built, no default changed.**
+**The cell that decides it**: PROF's LTE-good + CoDel profile, arms `bbr`, the loss bound and `cubic`,
+≥ 5 rounds by `order.py`, `--self-timing`. The bound passes if under 2 % of its packets meet CoDel and
+it stands under 50 ms while keeping ≥ 0.9 × BBR's 15.15 Mbit/s. ASKL's 1 % and 4 % cells guard the
+slope (≤ +73 ms over `bbr` at 4 %), and W4b's `flat` at 500 ms its loss (< 3 300). **Nothing built,
+no default changed.**
 
 ---
 
 ## 2 · One shared stream
 
-**The binary defaults to `shared`; `per-frame` and `pool:k` are product flags.** The decision, the
+**The binary defaults to `shared`; `per-frame` is a product flag.** The decision, the
 three campaigns behind it and every retraction are
 [`../adr-stream-shape.md`](../adr-stream-shape.md). In short:
 
@@ -551,8 +352,8 @@ three campaigns behind it and every retraction are
 * **Ask-order priority repaired that and did not beat `shared`.** `per-frame` now ranks its streams
   by ask order. Natively (2026-09-15) no per-frame interval excludes zero at any loss level; in
   Chromium through the relay (HOL1, 2026-09-25, Cubic, 128 KB) it moves nothing past 6 %.
-* **A fixed pool is closed.** `pool:2` costs ~75 % on the p95 with no loss; in the browser `pool:2`
-  asks are +23 % at 1 % and 3 %, and `pool:4` / `pool:8` fills +268 to +583 %.
+* **A fixed pool is closed, and retired.** `pool:2` cost ~75 % on the p95 with no loss;
+  in the browser `pool:2` asks were +23 % at 1 % and 3 %, and `pool:4` / `pool:8` fills +268 to +583 %.
 * **The arms are byte-identical at depth 1**, so the question has teeth only where the client keeps
   more than one ask outstanding.
 * `send_fairness(true)` was worse than FIFO in every cell and is gone from the product crate.
@@ -577,8 +378,8 @@ Send-path and window cells were measured on loopback, never through a path simul
 datagram by datagram and destroys GSO batching. The controller knobs were measured through
 `link_impair.py`.
 
-The pooled hand-off's CPU numbers are §4. A per-frame prefault hop costs 10 % throughput and 14–34 %
-CPU per byte with a warm cache; the flag is inert on this build. `aws-lc-rs` for `ring`, re-measured
+The pooled hand-off's CPU numbers are §4. A per-frame prefault hop cost 10 % throughput and 14–34 %
+CPU per byte with a warm cache, and its flag is retired. `aws-lc-rs` for `ring`, re-measured
 2026-09-10 on VAES / AVX-512 hardware: +3–5 % CPU at 32 KB (4/4), a tie at 250 KB, +10–18 % peak RSS
 — `crypto-ring` stays, the feature remains for other hardware. ACK frequency, socket buffers and the
 initial MTU: ≤ 3 % or nil.
@@ -618,7 +419,7 @@ the median over the link's round trip. The link has no rate limit, so nothing he
 | **fresh** — nothing sent yet | 127.5 / 248.2 | 3.1 | 234.5 / 454.7 | 5.8 |
 | **filled** — after eight frames | 51.8 / 98.6 | 1.3 | 55.5 / 104.3 | 1.3 |
 | **lossy** — a fill through a 300 ms blackout | 103.8 / 190.8 | 2.5 | 220.1 / 430.8 | 5.4 |
-| **rebound** — a fill, then the relay changes its source port | ~~49.4 / 93.9~~ 135.6 / 255.6 | 3.3 | ~~52.0 / 101.1~~ 236.7 / 454.7 | 5.8 |
+| **rebound** — a fill, then the relay changes its source port | 49.4 / 93.9 | 1.2 | 52.0 / 101.1 | 1.3 |
 
 **The first ask is slow start.** A 250 KB frame costs **5.8 round trips on a fresh session against
 1.3 on a warmed one** — 4.4 of them the window opening; 12 KB doubling to 250 KB is exactly six
@@ -630,26 +431,16 @@ stays warm.
 lands *between* fresh and filled (−6 % against fresh at 250 KB, −23 % at 50 KB), because the
 blackout collapses the window without taking it below where it started.
 
-**Corrected again 2026-10-02 (PUSH): a source-port change does not reset the controller; a new
-address does.** quinn-proto 0.11.18 keeps the congestion and RTT state when the peer's port changes
-on the same IPv4 address, because that "looks like a NAT rebinding" (`migrate`, `connection/mod.rs`
-~:3077). Only a new address gets a fresh controller, and the relay's rebind only moved the port.
-`first_ask_cells.sh rebind` at 250 KB, 9 rounds Williams-ordered, `--self-timing` (`VOID` runs
-dropped, 0–5 per arm), the relay's `REBOUND` line required: **a port-only rebind reads as warmed,
-50.6 / 102.5 ms against warmed 52.7 / 104.9 and fresh 234.6 / 454.0 at 40 / 80 ms**, every paired
-round, and the window it ends on is the warmed one (1.14–1.18 MB). **A rebind to a new address
-(`--rebind-ip 127.0.0.2`) reads as fresh, 223.6 / 442.7**, with a fresh session's window. The
-11–12 ms it keeps over fresh is unexplained. What LD's reading below measured is not known: it ran
-before the relay could change the address. *LD's text, kept:*
-**The rebound row is corrected 2026-09-20 (LD): a source-port change does reset the controller.**
-This table first read it as indistinguishable from filled; re-run on the same script it reads as
-**fresh** — 236.7 / 454.7 ms at 250 KB against the fresh arm's 250.8 / 465.5 and the filled arm's
-52.9 / 109.3, five rounds, and again at n = 3 with the relay's own `REBOUND <old> -> <new>` lines
-in view, so the poke is known to have landed. That is RFC 9000 §9.4: a new path resets the
-congestion controller and the RTT estimator. What produced the earlier reading is not known. **It is
-the target's case**: a mobile NAT rebind puts a warmed session back at the initial window, so every
-lever below is worth its cost again after each rebind. A genuinely different client address is
-untested; this container has one loopback address.
+**A source-port change keeps the warmed window; a new address resets it** (PUSH, 2026-10-02,
+`fa694ee`). quinn-proto 0.11.18 keeps the congestion and RTT state when the peer's port changes on the
+same IPv4 address, because that "looks like a NAT rebinding" (`migrate`, `connection/mod.rs` ~:3077).
+`first_ask_cells.sh rebind` at 250 KB, 9 rounds Williams-ordered, `--self-timing`, the relay's
+`REBOUND` line required: **a port-only rebind reads as warmed**, 50.6 / 102.5 ms against warmed
+52.7 / 104.9 and fresh 234.6 / 454.0, every paired round, on the warmed window (1.14–1.18 MB); **a
+rebind to a new address** (`--rebind-ip 127.0.0.2`) **reads as fresh**, 223.6 / 442.7, on a fresh
+window. *Corrected in place:* LD (2026-09-20) read a port-only rebind as fresh (236.7 / 454.7 at
+250 KB) and this row was changed to match; it ran before the relay could change the address, and what
+produced that reading is not known. Not tested: whether a real mobile NAT keeps the address.
 
 #### Lever 1 — the bytes the viewer needs anyway, pushed at session open
 
@@ -688,25 +479,17 @@ reads 3–8 % slower than W1's and only within-cell comparisons are claimed.
 | **push + 32-packet window** | 58.5 / 110.7 | 65.8 / 132.5 | 7/7 |
 | warmed (the ceiling) | 55.0 / 102.2 | 53.9 / 109.4 | 7/7 |
 
-Against the push alone the combined arm is +1.7 % and +0.7 % at 50 KB and −4.9 % and −3.9 % at
-250 KB, on ranges that overlap in all four cells. The push already leaves the ask within 5–28 % of a
-warmed session; there is no slow start left for a wider first flight to skip.
+Against the push alone the combined arm is −4.9 to +1.7 %, on ranges
+that overlap in all four cells. The push leaves no slow start for a wider first flight to skip.
 
 **A warmed window survives a silence, on both controllers.** Eight frames, then 0, 10 or 30 s of
-silence, then the ask, with the keep-alive pair of [`adr-idle-sessions.md`](adr-idle-sessions.md) —
-20 s keep-alive, 60 s idle timeout — in every arm. Without it (library defaults, a 30 s idle timeout
-at both ends) the native session is **dead in 2 of 2 rounds on both controllers at 30 s**; a real
-Chromium pings itself every 15 s and would not die, so the pair makes the native probe model the
-browser. Ask to last byte after 30 s of silence against no silence, 50 KB / 250 KB at 80 ms: Cubic
-99.4 / 111.1 against 103.3 / 108.0, BBR 94.8 / 107.3 against 97.2 / 105.1; the 10 s arms and the 40
-ms cells read alike.
-
-**No arm goes back to slow start**, which at 250 KB would be a 4.2× ask. The worst cell is 250 KB at
-40 ms — Cubic +9 %, BBR +17 % and 0/7 against its own no-idle arm. Every arm ends on the window it
-had before the silence, and **56 of 56 rounds with 30 s of silence served the ask**. The mechanism
-agrees: quinn 0.11.18 has no congestion-window restart after idle in any controller, and the pacer
-only clamps the first flight after a silence to its burst capacity. A link that slowed during the
-silence does not change that verdict (§The window through a silence, STW).
+silence, then the ask, with the keep-alive pair of [`adr-idle-sessions.md`](adr-idle-sessions.md) in
+every arm (without it the native session died at 30 s in 2 of 2 rounds; a browser pings every 15 s).
+After 30 s, 50 / 250 KB at 80 ms: Cubic 99.4 / 111.1 ms against 103.3 / 108.0 with no silence, BBR
+94.8 / 107.3 against 97.2 / 105.1. The worst cell is 250 KB at 40 ms, Cubic +9 % and BBR +17 %; every
+arm ends on the window it had before the silence, and 56 of 56 rounds served the ask. quinn 0.11.18
+has no window restart after idle, and `cubic-restart` does not count an idle spell as an outage (W5b).
+A link that slowed during the silence does not change that verdict (§The window through a silence).
 
 **The wide first flight fails at one queue depth, not gradually.** A 32-packet window is ~26
 datagrams; by the relay's queue on a 10 Mbit link (`default → 32 packets`, 7/7 for the wider window
@@ -728,100 +511,58 @@ pays a round trip to lose half its window.
 
 **A session that opens with a fill is warmed by the fill** and needs neither lever. **An ask-only
 session is not**, and pays 4.4 round trips, 4.2× at 250 KB, once per session and again after every
-new client address (not after a port-only NAT rebind, PUSH). For it the push and the wider window are **alternatives, not a pair**: the window if the
-page cannot be changed, the push if it can; the keep-alive pair buys nothing on a first ask and
-keeps a warmed window through silence. **After a path reset the window lever is re-applied and the
-push is not** (PUSH, 2026-10-02, above): on a new address the 32-packet window gives 167.0 / 321.1
-ms against a fresh session's 167.6 / 323.4 with the same window, while the push rides the session
-URL and is spent at open. A port-only rebind needs neither, because quinn keeps the warmed window. A per-client jump start from a saved window was proposed (2026-09-24) and not built: at 80 ms
-the push recovers the same (130 against 134 ms of 462). **No product default is changed**; which
-lever becomes one is the owner's call.
+new client address (not after a port-only rebind). For it the push and the wider window are
+**alternatives, not a pair**. **After a path reset the window lever is re-applied and the push is
+not**: on a new address the 32-packet window gives 167.0 / 321.1 ms against a fresh session's
+167.6 / 323.4 with the same window, while the push rides the session URL and is spent at open (PUSH).
+A per-client jump start from a saved window was proposed (2026-09-24) and not built: at 80 ms the push
+recovers the same (130 against 134 ms of 462). **The push is the default since 2026-10-02**
+(`--open-ask`); the window stays the owner's call.
 
-#### One radio's idle penalty, and a wake sent ahead of the ask, 2026-10-01 (IDL)
+#### The idle radio: its penalty, a wake, a keep-alive, 2026-10-01 (IDL, I1)
 
-The relay's `--idle-promote 5:P` ([`../rig-limits.md`](../rig-limits.md) §3) stands in for a radio
-that drops to idle after 5 s and pays P to come back; `first_ask --wake-lead-ms L` sends one
-datagram L ms before the ask, as a page could on the first `pointerdown` after a silence (nothing
-on the server reads datagrams; a control-stream message would end a running fill,
-[`../WIRE.md`](../WIRE.md) §An ask during a fill). `first_ask_cells.sh wake`: a filled session, 6 s
-idle, 80 ms, seven rounds of eleven interleaved arms, every relay with `--self-timing`; 13 of 77
-runs at 250 KB and 8 at 50 KB were `VOID` and dropped, so arms keep 5–7. The lead is the paired median over the unpromoted ask (109.7 /
-102.1 ms at 250 / 50 KB):
+`ece7e89`, `e534009`, `2fbcd2e`. The relay's `--idle-promote S:P` ([`../rig-limits.md`](../rig-limits.md)
+§3) holds both directions for P ms on the first packet after S s of quiet: one radio's idle state. A
+filled session, 80 ms, the keep-alive pair, 7 interleaved rounds, every relay `--self-timing` and
+`VOID` runs dropped; a lead is the paired median over the unpromoted ask (103–110 ms).
+`first_ask_cells.sh wake | late | keep`:
 
-| P | no wake | L = 0 | 50 | 100 | 200 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 80 ms, 250 KB | +78.4 | +79.1 | +27.8 | −1.5 | −1.9 |
-| 80 ms, 50 KB | +78.0 | +80.2 | +28.1 | −1.6 | −1.0 |
-| 300 ms, 250 KB | +296.8 | +300.0 | +246.1 | +198.5 | +97.6 |
-| 300 ms, 50 KB | +300.0 | +298.1 | +248.9 | +198.8 | +98.2 |
+| cell | lead |
+| --- | --- |
+| S = 5, P = 80 or 300, 6 s quiet, one datagram sent L ahead of the ask (`--wake-lead-ms`), 250 and 50 KB | **max(0, P − L) within 4 ms**: at P = 300 and L = 0 / 50 / 100 / 200 ms, +300 / +246 / +199 / +98 |
+| S = 5, P = 200 / 400 / 1 000 / 1 900, after 6 and 10 s, the next ask sent at once (`--next-ask`) | **P within 3 ms**, no packet lost; the next ask 100–104 ms, unpromoted |
+| S = 5, P = 400, 10 s quiet: a server keep-alive, or one datagram ahead | keep-alive every 3 s −399 (4/4), 5 s −398 (4/4), 10 s +2 (0/4); a datagram 100 / 300 ms ahead −100 / −301 |
 
-**Every cell is base + max(0, P − L) within 4 ms**: the promotion is paid once, in full by an ask
-that wakes the radio itself, and a wake sent L ahead takes L off it. With the datagram dropped from
-the probe (the mutant), every lead reads +299 to +301 at P = 300. **This proves the plumbing, not a
-radio**: how much of a real promotion a gesture's lead overlaps, and what an extra wake costs in
-energy, need a device. The page's `pointerdown` wake is not built.
-
-#### A late first packet after a silence, and what keeps the radio up, 2026-10-01 (I1)
-
-The same relay radio, `--idle-promote 5:P`, at P = 200 / 400 / 1 000 / 1 900 ms (the by-report span
-in §9 item 4), after 6 and 10 s of silence; 250 KB, 80 ms, a filled session, the keep-alive pair,
-`first_ask_cells.sh late`, seven interleaved rounds. `first_ask --next-ask` asks the next frame the
-moment the first lands, to read what that ask's inflated round-trip sample does. 13 of 70 runs
-`VOID` and dropped.
-
-| idle | no promotion | P 200 | P 400 | P 1 000 | P 1 900 | next ask, every arm |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 6 s | 105.7 | +197.5 | +400.4 | +998.0 | +1 898.1 | 100.2–103.8 |
-| 10 s | 102.8 | +201.5 | +400.0 | +1 000.9 | +1 902.4 | 101.2–103.3 |
-
-**The promotion costs P and nothing else.** Every lead is P within 3 ms; no arm lost a packet; the
-next ask is the unpromoted one. The hold delays the client's ask, so the inflated sample lands on the
-client's estimator; the server, which sends the frame, sees its replies leave after the hold and
-takes no inflated sample — the next ask has nothing to pay. (Mutant: the probe left quiet for 6 s
-before the next ask, which then pays P in every arm.) Whatever spurious probes the client's timer
-sends during the hold are held with the ask and reach the server as one burst; the native client's
-own PTO count was not read.
-
-**What keeps the radio up**, P = 400, 10 s of silence, `first_ask_cells.sh keep` (12 of 42 `VOID`),
-paired against no keep-alive at all (504.8 ms): a server keep-alive every **3 s −399.1 (4/4)**,
-every **5 s −398.4 (4/4)**, every 10 s +1.8 (0/4 — it leaves a 5 s gap); one datagram sent **100
-ms** ahead −100.2 (6/6), **300 ms** ahead −301.1 (5/5). So with S = 5 s a keep-alive at ≤ S keeps the
-promotion off the ask entirely, at a packet every few seconds of the radio's tail energy — the cost
-this relay cannot see; a poke saves its lead and no more. Plumbing, as IDL: S, P and the energy are
-a device's.
+**The promotion costs P, once, and nothing else; a wake sent L ahead takes L off it, and a keep-alive
+at ≤ S keeps it off the ask.** The hold delays the client's ask, so the inflated round-trip sample
+lands on the client; the server, which sends the frame, takes none. Mutants: the probe without its
+datagram reads +299 to +301 at every lead; a probe left quiet before its next ask pays P on it. **This
+proves the plumbing, not a radio**: S, P, how much of a promotion a gesture's lead overlaps, and what a
+wake or a keep-alive costs in energy are a device's. The page's `pointerdown` wake is not built;
+nothing on the server reads datagrams, and a control-stream message would end a running fill
+([`../WIRE.md`](../WIRE.md) §An ask during a fill).
 
 ### The window through a silence, when the link slowed meanwhile, 2026-10-01 (STW)
 
-W1b's idle cell held the link fixed. Here a step trace (`link_impair.py --trace`, 40 Mbit for the
-relay's first 4 s, then 8 Mbit) slows the link inside the silence: eight 250 KB frames fill at 40
-Mbit (789–836 ms, all before the step), 8 s of silence, then one 250 KB ask; 60 ms, a 50-packet queue,
-the keep-alive pair, `first_ask_cells.sh stw`, nine interleaved rounds, every relay `--self-timing`
-(5 of 45 runs `VOID` and dropped, so the step arms keep 7–8 and pair 5–7). The third arm,
-`--congestion cubic-idle-restart` (`server/src/transport/restart.rs`, `Trigger::Idle`), goes back to
-slow start on the first send after four round trips with nothing in flight — RFC 5681 §4.1's restart
-window, without the threshold, which quinn's public trait cannot set; five mutants caught.
+`fe9994e`. A step trace slows the link inside the silence: eight 250 KB frames fill at 40 Mbit, 8 s of
+silence, the link at 8 Mbit, then one 250 KB ask; 60 ms, a 50-packet queue, the keep-alive pair,
+`first_ask_cells.sh stw`, nine interleaved rounds, `--self-timing` (5 of 45 runs `VOID`):
 
 | arm | ask ms | paired against Cubic | wins |
 | --- | ---: | ---: | ---: |
 | Cubic, 40 → 8 Mbit | **340.9** (338–345) | | |
-| Cubic + restart (`cubic-restart`), 40 → 8 | 831.8 (800–915) | +489.6 | 0/5 |
-| Cubic + idle restart, 40 → 8 | 379.5 (339–427) | +39.6 | 1/6 |
 | Cubic, 8 Mbit throughout | 382.8 (362–386) | +41.2 | 0/7 |
 | Cubic, 40 Mbit throughout | 130.2 (129–134) | −209.7 | 7/7 |
+| `cubic-restart` as first built, 40 → 8 | 831.8 (800–915) | +489.6 | 0/5 |
+| `cubic-restart` fixed (W5b), 40 → 8, 15 rounds | | −1.4 | 4/7 |
 
-**The kept window wins, and by more than it would lose**: the derived loss storm (~145 of 200
-packets, 0.6–0.8 s) did not happen — the stale window's ask is 341 ms, *faster* than a session warmed
-at 8 Mbit (383, 7/7), within 0.13 s of 250 KB at 8 Mbit plus a round trip. **The idle restart buys
-nothing** (a tie with the slow link, 1/6). **`cubic-restart` misfires on an idle spell**: the first
-flight's overflow is lost among packets sent before the acknowledgement that closed the silence, which
-is exactly its outage test, so it rebuilds at the initial window and the ask pays slow start — 2.4×,
-ending on a 17.7 kB window (Cubic 194 kB). That is a cost of the restart beyond §After a blink, on
-any ask after a silence that overflows the queue. One step, one depth, one size; a deeper drop (40 →
-2) or a shallower queue is not measured. No default changed. *Fixed 2026-10-02 (W5b, §After a
-blink):* the restart now measures the gap from the first send an acknowledgement is owed for, so an
-idle spell is no outage — the same cell, 15 rounds: **−1.4 ms against Cubic (4/7), a 195 kB window**,
-where it read +491.5 (0/12) unfixed. The idle restart is bimodal (338 or ~490 ms): +1.9 (3/12) and
-+138.3 (1/5) in the two 15-round runs, never ahead of Cubic.
+**The kept window wins, and by more than it would lose**: the stale window's ask is faster than a
+session warmed at 8 Mbit (7/7), and the derived loss storm (~145 of 200 packets) did not happen.
+`cubic-restart` first misfired here — an idle spell's overflow looked like its outage test, so it
+rebuilt at the initial window and the ask paid slow start (2.4×, a 17.7 kB window against 194) — and
+is fixed (W5b, §After a blink). Slow start restarted after idle (RFC 5681 §4.1's restart window) bought
+nothing, bimodal and never ahead of Cubic, and is retired. One step, one
+depth, one size.
 
 ### The slow-start exit, an outage and the first timeout, 2026-09-19
 
@@ -829,14 +570,10 @@ where it read +491.5 (0/12) unfixed. The idle restart is bimodal (338 or ~490 ms
 [`../../lab/scripts/link_impair.py`](../../lab/scripts/link_impair.py) at 80 ms round trip and
 20 Mbit; the fill is 40 frames of 64 KB. `lost` and `cong` are per session.
 
-**The early slow-start exit is a tie, in every cell.** `server/src/transport/hystart.rs` is
-RFC 9406's detector over the public `Controller` trait — no fork, no patch: it watches the
-per-round minimum RTT and, when it rises, caps the window where slow start left it and opens one
-datagram per round trip after that. Across a 20- and a 1 500-packet buffer with no jitter, ±2 ms and
-±10 ms, it is within 5 % of Cubic in all six cells, both directions (1 437 against 1 437 ms deep and
-unjittered; BBR 1 231) — **it does not pay for itself and it is not the default.** It stays as
-`--congestion cubic-hystart`; behind a deep queue it still ties on time and keeps the queue shorter
-(W4b, below).
+**The early slow-start exit is a tie, and retired.** RFC 9406's detector over the public `Controller`
+trait was within 5 % of Cubic in all six cells — a 20-
+and a 1 500-packet buffer, no jitter, ±2 and ±10 ms — and behind a deep queue tied on time while
+often halving the queue (W4b).
 
 **Reordering, not jitter — corrected 2026-09-19 (N2).** These cells first read Cubic **8.6×**
 slower at ±2 ms of jitter and **25×** at ±10 ms, where BBR took 1.05× and 2.9×. The relay's jitter
@@ -864,61 +601,41 @@ largest possible overtake is ~34 packet numbers, under a threshold of 48, yet ~1
 are still declared lost and the relay dropped nothing. **What declares them is unattributed**;
 quinn's other detector is the 9/8 × RTT time threshold. A qlog cell owes the answer.
 
-**The deep buffer does fill — corrected 2026-09-19 (W3).** "39 ms of standing queue" was read off
-the end-of-session path line, after the queue had drained. Sampled every 50 ms through the fill, one
-clean trace has the smoothed RTT at **468 ms against the link's 80**: 388 ms of standing queue, a
-megabyte, in a 1 500-packet buffer, and the session still ends with zero loss. One trace, not an
-interleaved cell. *Corrected 2026-10-02 (W4b, below):* that megabyte was the rig client's stream
-credit, not the buffer — quinn's 1.25 MB less the path's BDP — so the buffer had not filled.
+W3's "a megabyte of standing queue" behind a deep buffer was the rig client's stream credit, not the
+buffer (W4b).
 
 #### A fill ten times the buffer, 2026-10-02 (W4b)
 
-[`deep_queue_cells.sh`](../../lab/scripts/deep_queue_cells.sh): a 237-frame fill (237 × 265 kB,
-61 MB) through the relay at 80 ms, a buffer of 500 or 1 000 ms at the link's 22 Mbit mean
-(1.4 / 2.75 MB, `--queue-ms`), uplink unshaped. Four links of that mean: `flat`; `step`, a home
-Wi-Fi link's 15/40/10/30/15 Mbit, 12 s each; `step40`, the same loop entered a step later so the
-fill crosses 40 → 10; `burst`, a 1 ms grant every 10 ms. Arms by `order.py`, 7 rounds and 6 more on
-`step40` and `burst`, `--self-timing`: 91 of 400 runs `VOID` and dropped (41 % of `burst`'s, whose
-18-packet grants the relay cannot always time; 7 % of `flat`'s). The standing queue is smoothed
-RTT − min RTT, sampled every 100 ms by the server's path telemetry.
+`eaafef8`, `d95c305`. [`deep_queue_cells.sh`](../../lab/scripts/deep_queue_cells.sh): a 61 MB fill
+(237 × 265 kB) at 80 ms through a buffer of 500 or 1 000 ms at the link's 22 Mbit mean, on four links
+of that mean: `flat`; `step`, home Wi-Fi's 15/40/10/30/15 Mbit of 12 s each; `step40`, entered so the
+fill crosses 40 → 10; `burst`, a 1 ms grant every 10 ms. 7 rounds, 13 on `step40` and `burst`, by
+`order.py`, `--self-timing` (91 of 400 runs `VOID`, 41 % of `burst`'s). The standing queue is smoothed
+less minimum RTT, sampled every 100 ms.
 
-**The rig's client never let the buffer fill.** `first_ask` at quinn's default credit has ~1.25 MB
-in flight on the shared stream whatever the controller: a 348 ms standing queue on `flat` at
-*both* buffers, every round, no loss. **A browser grants more**: headless Chromium's downloader
-fills either buffer to its limit (max 497 / 996 ms, median 422 / 840 ms on `flat`) and loses what
-overflows — the same as `first_ask --stream-recv-window 16000000` (423 / 890 ms). So every
-controller cell below is at that wide credit, and any deep-buffer cell taken with the rig client at
-its default measured the client. Forcing the flag off turns the wide arm back into 348 ms.
+**The rig's client never let the buffer fill**: `first_ask` at quinn's default credit has ~1.25 MB in
+flight on the shared stream, a 348 ms queue on `flat` at both buffers. **A browser grants more**:
+headless Chromium's downloader fills either buffer to its limit (median 422 / 840 ms on `flat`), as
+`first_ask --stream-recv-window 16000000` does (423 / 890), so every cell below is at that credit
+([`../rig-limits.md`](../rig-limits.md) §6). Against wide-credit Cubic, paired by round:
 
-Against wide-credit Cubic, paired by round (median lead, rounds better / n):
+| link, buffer | Cubic queue p50 ms | BBR fill | BBR queue |
+| --- | ---: | ---: | ---: |
+| flat, 500 ms | 423 | −158 ms, 5/6 | +75, 2/6 |
+| flat, 1 000 ms | 890 | −159, 7/7 | **−292, 6/7** |
+| step, 500 ms | 478 | −28, 4/6 | **−228, 6/6** |
+| step, 1 000 ms | 672 | −23, 5/6 | **−282, 6/6** |
+| step40, 500 ms | 222 | **−425, 11/11** | +51, 1/11 |
+| step40, 1 000 ms | 454 | **−442, 11/11** | +75, 4/11 |
+| burst, 500 ms | 433 | −190, 4/7 | +56, 0/7 |
+| burst, 1 000 ms | 926 | −65, 2/4 | +34, 1/4 |
 
-| link, buffer | Cubic queue p50 | BBR fill | BBR queue | HyStart fill | HyStart queue |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| flat, 500 ms | 423 | −158 ms, 5/6 | +75, 2/6 | −1, 5/6 | +2, 1/6 |
-| flat, 1 000 ms | 890 | −159, 7/7 | **−292, 6/7** | −4, 7/7 | **−239, 7/7** |
-| step, 500 ms | 478 | −28, 4/6 | **−228, 6/6** | +4, 2/6 | **−122, 6/6** |
-| step, 1 000 ms | 672 | −23, 5/6 | **−282, 6/6** | −5, 4/6 | **−308, 6/6** |
-| step40, 500 ms | 222 | **−425, 11/11** | +51, 1/11 | −17, 7/10 | +1, 0/10 |
-| step40, 1 000 ms | 454 | **−442, 11/11** | +75, 4/11 | +15, 4/11 | +17, 2/11 |
-| burst, 500 ms | 433 | −190, 4/7 | +56, 0/7 | +6, 0/3 | +38, 0/3 |
-| burst, 1 000 ms | 926 | −65, 2/4 | +34, 1/4 | +0, 2/5 | **−454, 5/5** |
-
-* **The fill is the link's, whichever controller**: 17.1–24.1 s, every arm within 2.5 % of Cubic.
-  BBR's lead is real where it is 11/11 (−2.5 % on `step40`) and nowhere larger. What a deep buffer
-  costs is the wait of anything asked behind the fill — up to the whole buffer, 2.1–2.2 s at the
-  10 Mbit step for every controller on `step40`.
-* **The slow-start exit, with that queue the steady state, still ties on time and often halves
-  the queue**: HyStart's fill is within 0.1 % in all eight cells, it loses **no packet** behind
-  1 000 ms in any round, and its standing queue is 239–454 ms under Cubic's in four cells, a tie in
-  the rest. It is not the default (a tie on the measured figure), but it is the arm that keeps a
-  deep queue short without BBR's loss.
-* **BBR overruns a 500 ms buffer**: 24 000–41 000 packets a session declared lost (the fill is
-  ~51 000), where Cubic loses ~1 600; the overflow falls before the bottleneck, so the fill does
-  not pay for it, the link's other users do. Behind 1 000 ms it loses 0–6 700.
-* **On a trace instead of iid loss (S27, S29) no verdict of §1 moves**: with no exogenous loss
-  there is nothing for BBR's model to win, and Cubic's congestive-loss case holds to within 2.5 %.
-  The browser's fill times are on a later trace phase (its page loads first), so only its queue is
-  comparable on `step`, `step40` and `burst`.
+**The fill is the link's whichever controller** (17.1–24.1 s, every arm within 2.5 % of Cubic); what a
+deep buffer costs is the wait of anything asked behind the fill, up to the whole buffer (2.1–2.2 s at
+`step40`'s 10 Mbit step). **BBR overruns a 500 ms buffer**: 24 000–41 000 of ~51 000 packets declared
+lost where Cubic loses ~1 600, an overflow the link's other users pay for, not the fill. The retired
+slow-start exit tied on time in all eight cells, lost no packet behind 1 000 ms, and stood 239–454 ms
+less queue than Cubic in four. With no exogenous loss no verdict of §1 moves.
 
 #### An outage: the threshold is not the lever
 
@@ -991,13 +708,10 @@ session, the blink fired as it goes out: Cubic 2 099 ms, restart 2 312 (1/5), BB
 against 195 clean. A warmed window has no regrowth to save; what is left is the client's own request
 retransmitted through the outage.
 
-**The misfire check is not clean.** With no blackout: clean 1 440 / 1 437 (2/5); at 1 % loss Cubic
-10 774 ms (3 564–13 814) against the restart's 4 387 (2 230–12 608), 3/5, on the same datagrams sent
-and lost — the detector fires where there is no outage, because at that loss rate a whole flight
-goes missing often enough to look like one; at 3 % the two tie within 1 %. Favourable, four-fold
-spread, unsized. *Sized 2026-10-02, below (W5b): no misfire at 0.1–1 % loss; the four-fold spread
-was five rounds' noise.* A blink is a *slow-start* problem: fixed at the start of a session or a fill the lever is large,
-anywhere else there is nothing to win.
+**The misfire check.** At 1 % loss with no blackout the restart first read 4 387 ms against Cubic's
+10 774, 3/5, with a four-fold spread: the detector firing where a whole flight went missing. *Sized in
+W5b, below: no misfire at 0.1–1 % loss; the spread was five rounds' noise.* A blink is a *slow-start*
+problem: large at the start of a session or a fill, nothing to win anywhere else.
 
 **A blackout that holds instead of dropping costs the outage and nothing else (N2).**
 `link_impair.py` dropped both directions through a blackout, where a radio's link layer usually
@@ -1013,32 +727,25 @@ held, a second 1 s blink three seconds or 200 ms after the first costs its own l
 source for the link layer's discard timer was found — and it decides whether the outage work has a
 target at all.
 
-**W5b — the restart sized, 2026-10-02.** `blink_cells.sh w5b`, the same link and fill, Gilbert–Elliott
-loss (bursts of 3.5 packets) at 0.1, 0.3 and 1 %, a blink of 0.5 or 2 s at the fill's start held or
-dropped, arms `cubic | cubic-restart | cubic-idle-restart`, 15 rounds Williams-ordered, every relay
-`--self-timing` (76 of 675 runs `VOID` and dropped, two runs failed at 1 %); the next ask is one
-64 KB frame right after the fill. Paired leads against Cubic, the restart with the idle fix below:
+**W5b — the restart sized, 2026-10-02** (`60e0a63`, `f8fc7de`). `blink_cells.sh w5b`: the same link
+and fill, Gilbert–Elliott loss at 0.1, 0.3 and 1 %, a 0.5 or 2 s blink at the fill's start held or
+dropped, 15 rounds Williams-ordered, `--self-timing` (76 of 675 runs `VOID`); the next ask is one
+64 KB frame right after the fill. Paired leads against Cubic, the restart with its idle fix:
 
-| cell | Cubic fill ms | restart | wins | next ask | idle restart |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| no blink, 0.1 / 0.3 / 1 % | 1 438 / 1 438 / 2 162 | −0.5 / −1.2 / +4.7 | 6/12, 8/14, 5/11 | tie | +0.1 / −0.3 / −31.5 |
-| 0.5 s held, 0.1 / 0.3 / 1 % | 1 925 / 1 929 / 2 122 | −0.8 / −4.7 / −21.1 | 7/11, 9/14, 7/13 | tie | −1.0 / −2.0 / +2.5 |
-| 2 s held, 0.1 / 0.3 / 1 % | 3 494 / 3 497 / 3 632 | +4.8 / +0.3 / −18.5 | 5/11, 7/15, 7/12 | tie | +67.0 / −24.7 / −12.3 |
-| **0.5 s dropped**, 0.1 / 0.3 / 1 % | 6 839 / 7 422 / 8 244 | **−4 694 / −5 289 / −6 164** | 9/9, 13/13, 6/6 | −57 to −61 | +12.8 / +119.9 / +95.6 |
-| **2 s dropped**, 0.1 / 0.3 / 1 % | 8 871 / 10 264 / 10 990 | **−4 551 / −6 166 / −6 608** | 12/12, 11/11, 9/11 | −12 to −72 | −47.3 / −68.3 / +2.9 |
+| cell | Cubic fill ms | `cubic-restart` | wins | next ask |
+| --- | ---: | ---: | ---: | ---: |
+| no blink, 0.1 / 0.3 / 1 % | 1 438 / 1 438 / 2 162 | −0.5 / −1.2 / +4.7 | 6/12, 8/14, 5/11 | tie |
+| 0.5 s held, 0.1 / 0.3 / 1 % | 1 925 / 1 929 / 2 122 | −0.8 / −4.7 / −21.1 | 7/11, 9/14, 7/13 | tie |
+| 2 s held, 0.1 / 0.3 / 1 % | 3 494 / 3 497 / 3 632 | +4.8 / +0.3 / −18.5 | 5/11, 7/15, 7/12 | tie |
+| **0.5 s dropped**, 0.1 / 0.3 / 1 % | 6 839 / 7 422 / 8 244 | **−4 694 / −5 289 / −6 164** | 9/9, 13/13, 6/6 | −57 to −61 |
+| **2 s dropped**, 0.1 / 0.3 / 1 % | 8 871 / 10 264 / 10 990 | **−4 551 / −6 166 / −6 608** | 12/12, 11/11, 9/11 | −12 to −72 |
 
-**The restart keeps its whole win under loss and costs nothing without a blink.** At 0.1–1 % it
-takes 4.6–6.6 s off every dropped blink, all rounds but two at 1 %, and the next ask comes back to
-the clean 109 ms where Cubic's is 121–184; no blink, or a held one, it ties Cubic within 21 ms at
-every rate. The idle restart is never resolvably ahead: within 68 ms of Cubic with no blink or a
-held one (its best, −24.7 at 2 s held and 0.3 %, 11/14), +96 to +120 behind a dropped 0.5 s blink at
-0.3–1 %. **The idle-spell misfire is fixed without
-touching the win**: unfixed, the first 15-round run read the same — −4.64 to −6.58 s dropped, ties
-held — plus a +121.8 ms lean at 1 % with no blink (6/14), gone in the second run (+4.7, 5/11); the
-fix (`restart.rs`, the gap measured from the first send after nothing was in flight; two tests, two
-mutants caught) took the STW misfire from +491.5 to −1.4 ms (§The window through a silence). **Keep
-`cubic-restart`; drop `cubic-idle-restart`** — `cubic-restart` became the default controller
-2026-10-02, and the idle restart is retired (code in history at `6e9c126`). Whether a radio
+**The restart keeps its whole win under loss and costs nothing without a blink**: 4.6–6.6 s off every
+dropped blink, the next ask back to the clean 109 ms where Cubic's is 121–184, and within 21 ms of
+Cubic with no blink or a held one. The fix — the gap measured from the first send after nothing was in
+flight (two tests, two mutants caught) — took STW's misfire from +491.5 to −1.4 ms without touching
+the win. **`cubic-restart` became the default controller 2026-10-02**; the idle restart, never
+resolvably ahead (+96 to +120 ms behind a dropped 0.5 s blink at 0.3–1 %), is retired. Whether a radio
 drops or holds through an outage still decides whether the restart has a target at all.
 
 ### The fill's order, 2026-09-19
@@ -1094,32 +801,16 @@ mechanisms.
   a buffer returns to the thread that read it; a thread-local arm measured a tie on every column
   (0.1–0.8 %, 2–3/6), so the shared shape buys the invariant, not speed.
 
-**Without per-core endpoints, it still pays — after one false alarm (2026-09-18).** The first check
-on the stock multi-thread runtime read −38 % throughput. It was a measurement bug: the revert of §6
-had left `#[tokio::main(flavor = "current_thread")]`, so every arm was single-threaded. Recorded
-because the wrong answer was convincing — CPU per ask down, context switches down, throughput down
-reads like lock contention and is equally what one worker looks like. With `#[tokio::main]`
-restored, against the tree before this work, release builds without PGO, six repeats paired, all
-6/6: sixteen sessions at depth 4 **+13.5 % asks/s at 250 KB and +23.2 % at 32 KB** (CPU per ask
-−16.8 and −22.0 %); a 250 KB fill +73.9 % asks/s (CPU −44.0 %); one session at depth 1, the latency
-cell, **p50 −32.5 % at 250 KB and −6.9 % at 32 KB** (CPU −46.3 and −30.9 %).
-
-The quinn patch alone carries +10 and +21 % asks/s and −11 and −21 % CPU at saturation, and −71 %
-receive drops; the pooled hand-off roughly doubles the throughput half at 250 KB. PGO on this
-runtime: −8.6 to −10.6 % CPU per ask and +7 to +8 % asks/s (6/6), 250 KB depth-1 p50 −4.7 % (6/6).
-An earlier "−15 % throughput at 250 KB, depth 1" was against the per-core tree, not the stock one;
-against the stock tree that cell goes the other way.
-
-**The depth × sessions plane, 2026-09-18.** `lab/scripts/depth_session_matrix.sh`, 24 cells — both
-frame sizes, depth 1/2/4/8, 1/4/16 sessions, six interleaved repeats. **CPU per ask falls in all
-24, 6/6 in each**, by −5.9 to −45.3 %. Throughput is up in 22, +1.5 to +63 %. **One cell is
-materially worse, and it is the product's shape today** — 250 KB, depth 1, four sessions: p50
-1 220 → 757 µs (−37 %), **p99 2 210 → 27 786 µs (+1 163 %)**, asks/s −29 %, and `main` carrying only
-the quinn patch reproduces it to within 1 %.
-The median gets faster and the tail becomes a probe timeout: ~28 ms is `srtt + 4·rttvar` plus the
-peer's 25 ms `max_ack_delay`. **The GSO cap is the whole of it.** *Corrected 2026-09-24 (GS1):* the
-band is the frame's size against the client's 212 KB receive queue, not the session count — §5 has
-the mechanism and the sweep.
+**First measured 2026-09-18, after one false alarm.** The first check on the stock multi-thread
+runtime read −38 % throughput: the revert of §6 had left `#[tokio::main(flavor = "current_thread")]`,
+so every arm was single-threaded — CPU per ask down, context switches down, throughput down reads
+like lock contention and is equally what one worker looks like. Restored, six repeats paired, all
+6/6: sixteen sessions at depth 4 +13.5 % asks/s at 250 KB and +23.2 % at 32 KB, a 250 KB fill
++73.9 %, one session at depth 1 p50 −32.5 % and −6.9 %. Over 24 cells of depth × sessions
+(`lab/scripts/depth_session_matrix.sh`) CPU per ask fell in all 24, 6/6 each, by −5.9 to −45.3 %;
+**one cell was materially worse, 250 KB at depth 1 with four sessions: p99 2.2 → 27.8 ms**, a probe
+timeout (`srtt + 4·rttvar` plus the peer's 25 ms `max_ack_delay`), and the GSO cap is the whole of it
+— the frame's size against the client's 212 KB receive queue, not the session count (§5, GS1).
 
 **Re-checked on this tree, 2026-09-23.** Four release binaries of the same source — `base` (before
 the merge), `pool` (the hand-off, the default build), `gso` (`pool` + the patch), `pgo` (`gso`
@@ -1276,48 +967,36 @@ seen twice.
 
 ### The controller's tax on a steady ask, against an ideal TCP, 2026-10-01 (TAX)
 
-Depth-1 asks of 131 072 B on a fresh session, 30 a run, through the relay at 60 ms with a 50-packet
-queue (`lab/stream-shape/run.mjs --tax`, headless Chromium, the raw TS client, arms in a Williams
-order, every relay `--self-timing`, `VOID` runs dropped). The `ws` arm is the WebSocket through the
-relay's TCP plane, which has no loss and no window: an **ideal-TCP floor**, not a TCP reference
-([`../rig-limits.md`](../rig-limits.md) §3). Tax is the median of asks 2–30 over RTT + size/rate;
-paired is against `ws` in the same round. A floor arm dialled past the relay (the mutant) reads
-−128 ms, below arithmetic.
+`d6068e9`. Depth-1 asks of 131 072 B on a fresh session, 30 a run, through the relay at 60 ms with a
+50-packet queue (`lab/stream-shape/run.mjs --tax`, headless Chromium, the raw TS client, a Williams
+order, `--self-timing`, 8–14 rounds an arm after `VOID` runs). The `ws` arm, the WebSocket through the
+relay's TCP plane with no loss and no window, is an **ideal-TCP floor**, not a TCP reference
+([`../rig-limits.md`](../rig-limits.md) §3). Tax is the median of asks 2–30 over RTT + size / rate:
 
-| arm | 15 Mbit (floor 129.9 ms) | tax | paired | 25 Mbit (floor 101.9) | tax | paired |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `ws`, ideal TCP | 131.6 | +1.7 | | 103.6 | +1.6 | |
-| Cubic | 132.3 | +2.4 | +0.7, 7/7 | 115.6 | +13.7 | +11.8, 7/7 |
-| Cubic, `--initial-window-bytes 38400` | 132.3 | +2.4 | +0.7, 7/7 | 117.1 | +15.2 | +13.4, 11/11 |
-| bounded BBR (`bbr-bounded`, 1.25) | **235.7** | **+105.8** | +103.6, 7/7 | **197.0** | **+95.1** | +76.8, 10/10 |
+| arm | 15 Mbit (floor 129.9 ms) | tax | 25 Mbit (floor 101.9) | tax |
+| --- | ---: | ---: | ---: | ---: |
+| `ws`, ideal TCP | 131.6 | +1.7 | 103.6 | +1.6 |
+| Cubic | 132.3 | +2.4 | 115.6 | +13.7 |
+| Cubic, `--initial-window-bytes 38400` | 132.3 | +2.4 | 117.1 | +15.2 |
+| bounded BBR, retired | 235.7 | +105.8 | 197.0 | +95.1 |
 
-15 Mbit: 8 rounds, 1 of 32 runs `VOID`. 25 Mbit: two campaigns pooled (the first cut short by a
-container restart), 15 of 62 `VOID`, so arms keep 8–14.
-
-* **Cubic's tax is under 2 % where the ask is longer than a round trip's worth of link, and 13 % where
-  it is not.** At 25 Mbit 131 KB is 0.7 of the path's BDP; the 12 ms is consistent with the pacer
-  (quinn paces at 1.25 × window / RTT, and a depth-1 ask leaves the window app-limited near the ask's
-  size) — a mechanism inferred, not measured; a qlog cell would show it.
-* **The initial window is spent on the first ask** (284 → 197 ms at 15 Mbit) and changes nothing
-  after it.
-* **The bounded BBR pays 77–104 ms on every steady ask**, close to a round trip and a half, on a link
-  with no loss and no neighbour; its first ask is the best of the arms (105 at 25 Mbit). Its window
-  was not logged. This is row 91's question (the bound's all-time minimum RTT, §1 BB2) from the
-  ask's side, and the first cell where the bound loses to Cubic without an outage.
+**Cubic's tax is under 2 % where an ask is longer than a round trip's worth of link, and 13 % where it
+is not** (at 25 Mbit 131 KB is 0.7 of the BDP; paired against `ws` 7/7) — consistent with quinn pacing
+an app-limited window at 1.25 × window / RTT, inferred, not measured. The initial window is spent on
+the first ask (284 → 197 ms at 15 Mbit) and changes nothing after it. A floor arm dialled past the
+relay (the mutant) reads −128 ms, below arithmetic.
 
 ### The ask's loss sensitivity, QUIC against kernel TCP, 2026-10-02 (ASKL)
 
-Measured on the workstation 2026-10-01 against the reference implementation: one ask's median grows
-130 → 609 ms from 0 to 4 % loss. Whether that is QUIC's or any reliable transport's was not
-measurable there. Here, through the packet-layer relay ([`../rig-limits.md`](../rig-limits.md) §3,
-TUN), where kernel TCP meets the same loss as QUIC: depth-1 asks of 256 000 B on a fresh session, 30
-a run, the raw TS client in headless Chromium, over QUIC (`exact-server`) or over the WebSocket
-fallback, 80 ms, a 24 / 12 Mbit step trace (1 s each) down and 20 Mbit up, a 100-packet queue,
-Gilbert–Elliott loss both ways in bursts of 3.5 at the cell's mean. Four arms in a Williams order, 9
-rounds, every relay `--self-timing`, `VOID` runs dropped (33 of 180). `ws:<cc>` is the WebSocket with
-that controller on the server's sockets (`lab/stream-shape/tcp_cc.c`). `lab/scripts/askl_cells.sh`,
-summarised by `lab/stream-shape/askl.py`; p50 and p99 are over every steady ask of the cell (asks 2–30):
-
+`6c681d1`. On the workstation one ask's median grew 130 → 609 ms from 0 to 4 % loss; whether that is
+QUIC's or any reliable transport's was not measurable there. Through the packet-layer relay
+([`../rig-limits.md`](../rig-limits.md) §3, TUN) kernel TCP meets the same loss: depth-1 asks of
+256 000 B on a fresh session, 30 a run, the raw TS client in headless Chromium over QUIC
+(`exact-server`) or the WebSocket fallback; 80 ms, a 24 / 12 Mbit step trace down and 20 Mbit up, a
+100-packet queue, Gilbert–Elliott loss both ways in bursts of 3.5. `ws:<cc>` sets the server sockets'
+controller (`lab/stream-shape/tcp_cc.c`). Williams order, 9 rounds, `--self-timing` (33 of 180 runs
+`VOID`); `lab/scripts/askl_cells.sh`, summarised by `lab/stream-shape/askl.py`; p50 · p99 over asks
+2–30:
 | loss | QUIC Cubic p50 · p99 | TCP Cubic | QUIC BBR | TCP BBR |
 | --- | ---: | ---: | ---: | ---: |
 | 0 | 176 · 415 | 255 · 1 188 | 337 · 514 | 210 · 477 |
@@ -1327,44 +1006,24 @@ summarised by `lab/stream-shape/askl.py`; p50 and p99 are over every steady ask 
 | 4 % | 1 549 · 11 031 | 1 675 · 11 596 | 338 · 3 645 | 298 · 4 674 |
 | **per 1 %, p50 · p99** | **+339 · +2 606** | **+354 · +2 841** | **+1 · +865** | **+18 · +627** |
 
-* **The slope is the controller's, not QUIC's.** With the same controller, QUIC and kernel TCP grow
-  alike: Cubic +339 against +354 ms a percent at the median, BBR +1 against +18. The workstation's
-  +118 ms a percent fits a loss-based controller on either transport.
-* **The mechanism, for QUIC Cubic at 1 %** (path telemetry every 50 ms, one of two runs read): the first loss
-  ends slow start at ~42 KB, and the window then sits at **20–56 KB for the whole run** — one
-  reduction a burst, a regrowth of ~1 packet in 2.5 round trips, a burst every ~1.5 s — where the
-  path holds 120–240 KB. A 256 KB ask then takes ~8 round trips. That is Cubic's loss-limited window;
-  kernel BBR holds 186–312 packets through the same losses (`TCP_INFO` at every ask of a Python
-  client asking the same bytes). PTO fires and
-  time-threshold losses were not counted: the server has no qlog, and the path counters count a loss,
-  not how it was detected.
-* **The smallest change that flattens it is a knob that exists**: `--congestion bbr` (+1 ms a percent)
-  or `bbr-bounded` (a second campaign, 0 / 1 / 4 %, same cell: +16 ms a percent at the median, +103 at
-  p99, 236 · 258 · 302 ms). Each costs the lossless ask: BBR +160 ms paired, the bound +50 (§1 BB2,
-  TAX); both win from 1 % (at 0.5 % BBR reads −66 ms, 3 of 5 rounds).
-* **The first ask** (a fresh session, the median of each arm's runs): QUIC Cubic 463–1 096 ms, TCP
-  Cubic 421–494, QUIC BBR 206–274.
-* **At 4 % asks fail**: an ask with no byte for 15 s is the client's timeout, and 44 asks over 8 TCP
-  Cubic runs and 23 over 2 QUIC Cubic runs failed, 2 for each BBR arm. Part of it is the relay's
-  model: Gilbert–Elliott steps once a packet, so a link in its bad state stays there through a
-  silence, and a backed-off probe that leaves into it is lost with the burst's odds rather than the
-  link's.
-* **The fallback's head-of-line cost during a fill** (the iPhone-below-26.4 case): 40 frames of
-  256 000 B at 1 %, both on Cubic, 9 rounds alternated, 4 of 18 runs `VOID` — the gap between
-  consecutive frames is p50 479 · p90 824 · p99 1 522 ms over TCP and 578 · 932 · 1 368 over QUIC's
-  shared stream, the fill 20.9 s against 24.2 (medians, 8 and 6 runs). **No difference resolved:**
-  the product's one stream blocks behind a loss as TCP does, and both fills are held to ~3.5 Mbit
-  by Cubic's window.
-* *Retracted the same day:* a first campaign read QUIC's median **20× steeper than TCP's** (+334
-  against +17 ms a percent). Its `ws` arm took the host's default controller, which in this
-  container is **BBR**: it compared Cubic with BBR, not QUIC with TCP.
+**The slope is the controller's, not QUIC's**: with the same controller QUIC and kernel TCP grow
+alike, Cubic +339 against +354 ms a percent at the median, BBR +1 against +18. For QUIC Cubic at 1 %
+(path telemetry every 50 ms) the first loss ends slow start at ~42 KB and the window then sits at
+20–56 KB for the run where the path holds 120–240 KB, so a 256 KB ask takes ~8 round trips; kernel BBR
+holds 186–312 packets through the same losses. `--congestion bbr` flattens it and costs the lossless
+ask +160 ms paired; it wins from 1 %. At 4 % asks fail on the client's 15 s timeout (44 over 8 TCP
+Cubic runs, 23 over 2 QUIC Cubic runs), partly the relay's model: Gilbert–Elliott steps once a
+packet, so a silence does not leave the bad state. During a 40-frame fill at 1 % the fallback's
+head-of-line cost ties QUIC's shared stream (frame gap p99 1 522 against 1 368 ms, 9 rounds).
+*Retracted the same day:* a first campaign read QUIC 20× steeper than TCP; its `ws` arm took the
+container's default controller, BBR, so it compared controllers, not transports.
 
 ---
 
 ## 6 · One endpoint per core — parked
 
-**Not in `server/`.** The work is whole on branch `claude/per-core-endpoints`. It was `--workers N`:
-N OS threads, each a `current_thread` runtime owning its own endpoint on an `SO_REUSEPORT` socket,
+**Not in `server/`.** The work is whole at `d9ebe32`, the tip of `claude/per-core-endpoints`. It was
+`--workers N`: N OS threads, each a `current_thread` runtime owning its own endpoint on an `SO_REUSEPORT` socket,
 so the kernel hashes a client's 4-tuple to one thread for the life of the session.
 
 **Why it was built.** On one endpoint on the multi-thread runtime a frame crosses five tasks and
@@ -1429,9 +1088,8 @@ BBR); BBR's 12–19× under random loss in a browser, and its queue cost; the sh
 hardware and in a browser; the first ask as slow start and its levers, within cell on one relay and
 one address; CPU per ask from the GSO cap, PGO and the hand-off, 6/6 in every saturation cell on
 three boxes; the depth-1 tail as the rig client's receive queue, on loopback. **Moderate**: the
-windows never approached (loopback, N ≤ 16); per-core endpoints at saturation. **Weak or
-unmeasured**: which regime the deployment mix is in; the bounded BBR (one rig, no competing flow, no
-congestive loss — and disqualified by jitter as built, BBF); which outage
+windows never approached (loopback, N ≤ 16); per-core endpoints at saturation; the phone profiles
+(picked, not fitted). **Weak or unmeasured**: which regime the deployment mix is in; which outage
 model a radio follows; anything on the target, on a phone, or in a browser at depth 1.
 
 What would overturn the shipped defaults: a cell where per-frame separates in its favour (none
@@ -1453,35 +1111,24 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    flow-control SETTING, so only quinn's two windows bound a session; by report a WebKit browser
    offered draft-14 without `WT_MAX_DATA` capsules hangs, and its certificate-hash pinning fails in
    some releases. A failure is a release blocker.
-2. **The loss mix** (§1): client telemetry, the round-trip trend in the second before each loss.
-   Until then, one calibration of `link_impair.py` against `netem`. The bounded BBR is no longer
-   the candidate to put on a rig: jitter pins it to its floor (BBF, §1); a bound whose round-trip
-   floor jitter cannot lower would have to be built and pass BBF's cells first — and a Cubic
-   neighbour's queue, which starves the bound as built (NBR, §1). A deep buffer's BBR-against-TCP
-   share needs a real TCP neighbour: the relay's proxy does not reproduce it. *Measured 2026-10-02 (FQC,
-§1): against kernel TCP it is 49.6 %; behind fq_codel BBR's neighbour cost is gone in every profile,
-its own queue (27–196 ms) is not.* On phone-like profiles (PROF, §1)
-   BBR ties or beats Cubic on every one, by 1.0–2.3×, and CoDel widens the gap; under loss an ask's
-   slope is the controller's on either transport (§5, ASKL). Which mix holds on a real radio is still
-   the telemetry's question. The smallest controller that could keep BBR's loss tolerance without
-   its queue costs is v3's loss bound alone over quinn's BBR, unbuilt; its deciding cell is PROF's
-   LTE-good + CoDel (BB3, §1).
+2. **The loss mix** (§1): client telemetry, the round-trip trend in the second before each loss; until
+   then, one calibration of `link_impair.py` against `netem`. On phone-like profiles BBR ties or beats
+   Cubic (PROF); behind fq_codel it costs a neighbour nothing but keeps 27–196 ms of its own queue
+   (FQC); an ask's loss slope is the controller's on either transport (§5 ASKL). The candidate is v3's
+   loss bound over quinn's BBR, ~150 lines, unbuilt, decided on PROF's LTE-good + CoDel cell (BB3).
 3. **The first ask's defaults**: the push at session open is on by default since 2026-10-02; the
    initial window stays the owner's call (§3). A port-only rebind keeps quinn's window,
    and a new address resets it, which re-applies the window lever but not the push (§3, PUSH). Not
    tested: whether a real mobile NAT keeps the address.
-4. *The restart at 0.1–1 % loss: sized 2026-10-02 (§3 W5b) — it keeps its win and costs nothing,
-   and its idle-spell misfire (§3 STW) is fixed; the default since 2026-10-02.* **Hold or drop** — which
-   a radio does through an outage, from a device trace; what declares ~140 losses a session under ±10 ms reordering (a qlog cell: quinn's
-   `qlog_stream` reads pacing, flow-control blocking and recovery instead of inferring them);
-   delivery-trace replay in the relay; and the idle radio — by report carriers drop a radio to idle
-   after 5–10.5 s without traffic and promotion back costs 190–396 ms on 4G and 341–1 907 ms on 5G;
+4. **Hold or drop**: which a radio does through an outage, from a device trace — it decides whether the
+   restart (§3 W5b) has a target. What declares ~140 losses a session under ±10 ms reordering (a qlog
+   cell: quinn's `qlog_stream` reads pacing, flow-control blocking and recovery instead of inferring
+   them). Delivery-trace replay in the relay. **The idle radio**: by report carriers drop a radio to
+   idle after 5–10.5 s without traffic, and promotion costs 190–396 ms on 4G and 341–1 907 ms on 5G;
    neither a browser's 15 s ping nor the 20 s keep-alive ([`adr-idle-sessions.md`](adr-idle-sessions.md))
-   comes often enough to prevent it, so every idle ask may pay it. The relay models it now, and one
-   datagram sent L ahead of the ask takes L off the promotion (§3, IDL); a device decides how long
-   S and P are, how much a gesture's lead overlaps, and what the extra wake costs in energy. On the
-   relay a late first packet costs P and nothing more — no loss, the next ask unaffected — and a
-   keep-alive at ≤ S keeps it off the ask (§3, I1); what that keep-alive costs a battery is a device's.
+   comes often enough to prevent it. On the relay it costs P once, a wake sent L ahead takes L off it,
+   and a keep-alive at ≤ S keeps it off the ask (§3, IDL and I1); S, P, the gesture's lead and the
+   energy are a device's.
 5. **`--initial-rtt-ms`**, at the target's real round trip (§3).
 6. **The GSO cap: 24, or 45 behind the product's buffer** — the owner's call (§5). Owed: 44 against
    10 on CPU per ask at 20 Mbit / 50 ms and 100 Mbit / 30 ms, with a 1 Gbit / 1 ms control that must
@@ -1512,7 +1159,8 @@ its own queue (27–196 ms) is not.* On phone-like profiles (PROF, §1)
 TLS resumption: a browser never resumed a WebTransport session in 216 dials, and the draft forbids
 CONNECT in 0-RTT. Connection pooling, and the browser's `congestionControl` hint, which shapes only
 its send side, which carries only asks. A 10-segment clamp everywhere (§5). Per-frame without
-priority, `send_fairness`, `pool:k` (§2). `yield_now`, `--workers` above the cores, per-core
-endpoints until §6's conditions (§6). The persistent-congestion and reordering thresholds as levers,
-the slow-start exit as a default (§3). `aws-lc-rs`, mimalloc (§3, §4). Window equalisation
+priority, `send_fairness`, a fixed stream pool (§2). `yield_now`, `--workers` above the cores, per-core
+endpoints until §6's conditions (§6). The persistent-congestion and reordering thresholds as levers
+(§3). The bounded BBR, the slow-start exit and the idle restart, retired (§1, §3). `aws-lc-rs`,
+mimalloc (§3, §4). Window equalisation
 ([`adr-quic-stream-receive-window-defaults.md`](adr-quic-stream-receive-window-defaults.md)).

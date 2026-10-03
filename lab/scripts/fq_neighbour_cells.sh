@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FQC: our steady asks, then our fill, against a kernel-TCP Cubic neighbour through the packet-layer
-# relay, behind a FIFO or fq_codel of the same depth, under Cubic, BBR and the bounded BBR.
+# relay, behind a FIFO or fq_codel of the same depth, under Cubic and BBR.
 # Per run: the neighbour starts; 3 s on, ASKS 64 KB asks one at a time on a fresh session; then a
 # DWELL_MS saturating fill beside it. Results: docs/transport/transport-conclusions.md §1 (FQC).
 #
