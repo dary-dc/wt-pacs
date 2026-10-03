@@ -54,7 +54,7 @@ PORT=$((20000 + RANDOM % 10000))
 printf '{"wt_url": "https://127.0.0.1:%s/", "cert_sha256": "%s"}\n' "$WT_PORT" "$HASH" > "$CFG"
 python3 server/dev-server.py --port "$PORT" >"$T/static.log" 2>&1 &
 STATIC=$!
-for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/harness/ts.html" >/dev/null 2>&1 && break; sleep 0.1; done
+for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/harness/cell.html" >/dev/null 2>&1 && break; sleep 0.1; done
 
 # One measurement: start the server in this arm, drive one page, stop it. The page cache is the
 # kernel's and outlives the process, so restarting between arms does not reset what warm means.
@@ -67,7 +67,7 @@ run_one() {
   for _ in $(seq 100); do grep -q "wt_url=" "$log" 2>/dev/null && break; sleep 0.1; done
   # frames= overrides /study/metadata, which the static host answers from fixtures/ and not
   # from the study this server was given.
-  local url="http://127.0.0.1:$PORT/harness/ts.html?autorun=1&frames=$FRAMES"
+  local url="http://127.0.0.1:$PORT/harness/cell.html?autorun=1&frames=$FRAMES"
   case "$scenario" in
     ask)  url="$url&cell=ondemand&n=1&d=1" ;;
     fill) url="$url&cell=fill&n=$FRAMES" ;;

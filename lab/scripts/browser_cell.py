@@ -56,7 +56,7 @@ try:
             page = browser.new_page()
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
-            url = f"http://127.0.0.1:{HTTP}/harness/ts.html?autorun=1&cell={cell}&stream_mode=shared&{ask}&n={n}&frames={frames}"
+            url = f"http://127.0.0.1:{HTTP}/harness/cell.html?autorun=1&cell={cell}&stream_mode=shared&{ask}&n={n}&frames={frames}"
             page.goto(url, wait_until="networkidle", timeout=30_000)
             page.wait_for_function("() => globalThis.__wtpacsDone === true || globalThis.__wtpacsError != null", timeout=120_000)
             err = page.evaluate("() => globalThis.__wtpacsError ?? null")

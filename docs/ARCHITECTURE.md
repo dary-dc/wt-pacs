@@ -6,9 +6,9 @@ page. Below it the transport is a seam — TypeScript, WASM or WebSocket — who
 [`CLIENTS.md`](CLIENTS.md); the bytes are [`WIRE.md`](WIRE.md). What each part is for, what was
 measured and chosen, and what is open.
 
-**Status.** Built in `client/downloader/`, run by `client/harness/downloader.html`, beside the
-harness's own path. The comparison rig has run it as its default client since 2026-09-20; removing the
-harness's path is an owner decision (§Open), not yet measured on this head. Figures are a container's unless they say otherwise; none is a phone
+**Status.** Built in `client/downloader/`; the lab's only client since 2026-10-03, when the harness's
+own page path was removed after S4's last run on it (§S4). `client/harness/index.html` is its self-check,
+`client/harness/cell.html` runs lab cells over it. Figures are a container's unless they say otherwise; none is a phone
 ([`rig-limits.md`](rig-limits.md) §7).
 
 ## Why a downloader
@@ -111,7 +111,6 @@ so none needs a handshake:
 | downloader → decoder: `init`, the first `decode` | the same, for each decoder | the same clause; `decoder.js` sets `onmessage` at top level |
 | decoder → consumer, on the pixel port | the consumer has the port | HTML, *message ports*: a port's queue starts disabled, its messages move with it on transfer, and setting `onmessage` starts it — **`addEventListener` would not** |
 | downloader / decoder → their `Worker` objects | — | the owner sets `onmessage` in the task that created the worker |
-| `client/harness/ts.html` → `session-worker.js`: `connect` | the worker's script has run | as the first row |
 
 The one pattern that does lose messages — a `BroadcastChannel` a worker constructs and the page posts
 to at once — is used only by the conformance fakes, which wait for `listening`. **Measured**
@@ -232,7 +231,7 @@ identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 
 
 ## Capabilities
 
-Nothing on the harness's path is removed until every row passes on the downloader. **conformance** is
+Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **conformance** is
 `client/conformance/run.mjs`, every clause against every transport; **dispatch** is `run_dispatch.sh`,
 the downloader against a stalling fake decoder so contention is forced; both are in `scripts/gate.sh`.
 
@@ -245,8 +244,8 @@ the downloader against a stalling fake decoder so contention is forced; both are
 | worker-safe clocks; transferable results | `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | the same: stamps across two worker boundaries non-zero and ordered, a delivered buffer movable. **Move-not-copy across the boundary is not page-observable** — a dropped transfer list arrives as a clone that still detaches, found by a mutant that passed |
 | an ask during a fill, served before the fill's queue | `ask-during-fill.html` against a real server: the ask is served, the fill ends — 28 of 120 arrive, then nothing | the same page: the ask is served and the fill completes without being asked again, no frame twice; dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill`, `asksTheWireForAnOwedFrame`, `reissuesAfterAsk` |
 | `stats`; one dial serves later asks; re-dial after closure | `reportsStats`, `oneDialServesLaterAsks`, `redialsAfterClosure` | the same; `stats` answered on the page |
-| 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `downloader.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed study** |
-| every decoded frame byte-identical to `.sha256` | `parity.mjs`, `lab/decode-bench/` | `downloader.html`, mutation-checked both ways: one perturbed sample turns every line to `MISMATCH`, every fifth frame dropped reports 9/12 |
+| 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `client/harness/index.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed study** |
+| every decoded frame byte-identical to `.sha256` | `parity.mjs`, `lab/decode-bench/` | `client/harness/index.html`, mutation-checked both ways: one perturbed sample turns every line to `MISMATCH`, every fifth frame dropped reports 9/12 |
 | TS, WASM and WebSocket transports behind the same downloader | every clause against every transport; the gate requires the WASM package | `lab/scripts/downloader_both_clients.sh`: single ask byte-exact on TS and WASM, fill a tie (120 / 125 ms); WebSocket and the race in §What was built |
 
 Every clause was broken on purpose and seen to fail by name. A mutant that passes is a finding about
@@ -489,7 +488,7 @@ through the relay. "po §" is a section of [`../lab/page-open/README.md`](../lab
 
 | lever | round trips | state | where |
 | --- | --- | --- | --- |
-| `preload` the config, `modulepreload` the shell and client, `preload` the worker graph | −3.1 / −5.1 / −6.2 to the session (TypeScript / WASM / downloader) | in `index.html`, `ts.html` and the lab's `downloader.html`; not in `client/harness/downloader.html` | po §The cuts, one at a time |
+| `preload` the config, `modulepreload` the shell and client, `preload` the worker graph | −3.1 / −5.1 / −6.2 to the session (TypeScript / WASM / downloader) | in `client/harness/cell.html` and the lab's `downloader.html`; not in `client/harness/index.html` (TypeScript and WASM figures: the harness pages, removed 2026-10-03) | po §The cuts, one at a time |
 | the server's SETTINGS at 0.5 RTT (lever 2) | −1.0 off the dial, every cell | **on**, a build-time patch | §Lever 2 |
 | a handshake probe in every space | −1 when the server's first flight is lost | **on**, a build-time patch | §The losing phase, removed |
 | the opening ask in the session URL (lever 1) | −1.06 to the first frame at 1×, −1.52 at 4× | **on** since 2026-10-02 | po §The push in a browser, at 4× |
@@ -943,9 +942,6 @@ drops UDP, the race's time to ready against the four seconds.
 
 ## Open
 
-* **The downloader as the only client**, and with it the harness's page path and the `window` default
-  ([`adr-client-window-depth.md`](adr-client-window-depth.md)): an owner decision, structural, so
-  proposed before it is built.
 * **The decoder count**: `min(3, hardwareConcurrency)` or a pool that follows the queue, neither the
   default (§The decoders); a phone's scheduler (efficiency cores) and decode speed.
 * **The reader pause** that bounds the compressed queue (§The downloader) — not built.

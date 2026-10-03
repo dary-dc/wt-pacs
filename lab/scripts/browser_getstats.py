@@ -39,7 +39,7 @@ try:
     with sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, headless=True, args=["--enable-features=WebTransport", "--no-sandbox"])
         page = b.new_page()
-        page.goto(f"http://127.0.0.1:{HTTP}/harness/ts.html", wait_until="domcontentloaded")
+        page.goto(f"http://127.0.0.1:{HTTP}/harness/cell.html", wait_until="domcontentloaded")
         print(json.dumps(page.evaluate(PROBE, [f"https://127.0.0.1:{port}/", pin]), indent=1, default=str))
         b.close()
 finally:

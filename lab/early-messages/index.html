@@ -21,14 +21,6 @@
       page.close();
       return ok;
     },
-    async harness() {
-      const w = new Worker("/harness/session-worker.js", { type: "module" });
-      const reply = new Promise((r) => (w.onmessage = r));
-      w.postMessage({ t: "close", id: 1 });
-      const ok = await within(reply, 1000);
-      w.terminate();
-      return ok;
-    },
     async downloader() {
       const ch = `early-dl-${++world}`;
       const fake = fakeOn(ch);

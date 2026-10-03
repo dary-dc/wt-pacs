@@ -137,7 +137,7 @@ def one_run(browser, i, r):
     page = browser.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    url = f"http://127.0.0.1:{HTTP}/harness/ts.html?cell={cell}&stream_mode=shared&{ask}&n={n}&frames={frames}"
+    url = f"http://127.0.0.1:{HTTP}/harness/cell.html?cell={cell}&stream_mode=shared&{ask}&n={n}&frames={frames}"
     page.goto(url, wait_until="networkidle", timeout=30_000)
     in0, drop0 = udp_counters()
     sock0 = socket_drops(port)

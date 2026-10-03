@@ -16,7 +16,7 @@ HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS
 ```
 
 `run.mjs` takes `RTTS=` (default `0,40,80`), `STAGES=` (the first-byte ladder's rungs in place of
-the three clients, cold only), `THROTTLE=N` (every browser thread N× slower,
+the downloader page, cold only; the TypeScript and WASM page arms were removed with the harness's own page path), `THROTTLE=N` (every browser thread N× slower,
 [`../scripts/cpu_throttle.mjs`](../scripts/cpu_throttle.mjs)), `RELAY_ARGS=` (shapes each relay
 beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=` and `PORT_BASE=`. `HOST=dns` runs as root.
 
@@ -66,7 +66,7 @@ cold `config` and `session` counts are high by one to two round trips.
 Cut 3 is the downloader's alone: its chain is page → consumer → downloader worker → decoder worker →
 decoder glue → decoder WASM, each link found only once the previous one ran. A module worker has its
 own module map, so a `modulepreload` there does nothing; the worker and decoder are `preload`ed as
-scripts, which warms the HTTP cache the worker reads. `client/harness/downloader.html` carries none
+scripts, which warms the HTTP cache the worker reads. `client/harness/index.html` carries none
 of the three cuts; the lab's [`downloader.html`](downloader.html) does.
 
 ## The first byte on a fill
@@ -217,7 +217,7 @@ lever 2, the server's SETTINGS at 0.5 RTT, and its numbers are
 this file counts as 3.0 round trips is 2.1 with it.
 
 ```bash
-SERVERS=unpatched=/path/a,patched=/path/b ONLY=ts NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 8
+SERVERS=unpatched=/path/a,patched=/path/b ONLY=downloader NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 8
 SERVERS=unpatched=/path/a,patched=/path/b NODE_PATH=$(npm root -g) node lab/page-open/dial-blink.mjs 5
 ```
 

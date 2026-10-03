@@ -68,8 +68,6 @@ const ARMS = STAGES
       return `https://${p.page}/lab/page-open/${p.meta ?? "downloader.html"}?${q}`;
     }]))
   : {
-      ts: (base) => `${base}/harness/ts.html?autorun=1&n=1&frames=${FRAMES}`,
-      wasm: (base) => `${base}/harness/index.html?autorun=1&n=1&frames=${FRAMES}`,
       downloader: (base) => `${base}/lab/page-open/downloader.html`,
     };
 for (const arm of Object.keys(ARMS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(arm)) delete ARMS[arm];

@@ -90,7 +90,7 @@ try:
         b = p.chromium.launch(executable_path=CHROME, headless=True, args=["--enable-features=WebTransport", "--no-sandbox"])
         for mode in ("default", "byob-min", "default", "byob-min"):
             page = b.new_page()
-            page.goto(f"http://127.0.0.1:{HTTP}/harness/ts.html", wait_until="domcontentloaded")
+            page.goto(f"http://127.0.0.1:{HTTP}/harness/cell.html", wait_until="domcontentloaded")
             r, front = relay() if "RELAY" in os.environ else (None, port)
             out = page.evaluate(PROBE, [f"https://127.0.0.1:{front}/", pin, frames, mode])
             if r:

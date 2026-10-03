@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <!-- The open is serial without these: each is otherwise discovered one round trip
+       later than it could be. lab/page-open/README.md -->
+  <link rel="preload" as="fetch" href="/wt/dev-transport.json" />
+  <link rel="modulepreload" href="/harness/shell.js" />
+  <link rel="modulepreload" href="/client/downloader/consumer.js" />
+  <title>wt-pacs harness — a cell</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre-wrap; font-size: 12px; background: #111; color: #0f0; padding: 1rem; }
+    button { margin: 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>harness — a cell over the downloader</h1>
+  <p>The run lives in <code>shell.js</code>; its query parameters are listed there. <a href="/harness/">Self-check</a></p>
+  <button id="frame0">Frame 0</button>
+  <button id="run">Run cell (from query)</button>
+  <div id="log"></div>
+  <script type="module">
+    // Simulated main-thread contention: `busy` ms of work every 100 ms, which the downloader's worker escapes.
+    const busy = Number(new URLSearchParams(location.search).get("busy") || 0);
+    if (busy > 0) {
+      setInterval(() => { const end = performance.now() + busy; while (performance.now() < end); }, 100);
+    }
+  </script>
+  <script type="module" src="/harness/shell.js"></script>
+</body>
+</html>

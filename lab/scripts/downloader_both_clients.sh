@@ -62,13 +62,13 @@ SERVER=$!
 for _ in $(seq 100); do grep -q "wt_url=" "$T/srv.log" 2>/dev/null && break; sleep 0.1; done
 python3 server/dev-server.py --port "$PORT" >"$T/static.log" 2>&1 &
 STATIC=$!
-for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/harness/downloader.html" >/dev/null 2>&1 && break; sleep 0.1; done
+for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/harness/" >/dev/null 2>&1 && break; sleep 0.1; done
 
 : > "$T/rows.tsv"
 for r in $(seq 1 "$ROUNDS"); do
   if (( r % 2 )); then arms=(ts wasm); else arms=(wasm ts); fi
   for arm in "${arms[@]}"; do
-    url="http://127.0.0.1:$PORT/harness/downloader.html"
+    url="http://127.0.0.1:$PORT/harness/"
     if [[ "$arm" == wasm ]]; then url="$url?transport=/client/transport-wasm/session-adapter.js"; fi
     out="$(node client/conformance/drive_downloader.cjs "$url" 2>&1 || true)"
     printf '%s\t%s\n' "$arm" "$(tr '\n' '|' <<<"$out")" >> "$T/rows.tsv"

@@ -1,7 +1,7 @@
 # downloader
 
 One worker owns the session, every frame's record and the queue; decoders hand pixels straight to
-the consumer over a port the downloader hands out. Beside today's path, not instead of it.
+the consumer over a port the downloader hands out. It is the lab's only client.
 Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 
 | file | |
@@ -114,14 +114,14 @@ ready the old one is closed and the records' remainder is issued on the new one,
 issues it, and the page is told as `stats().recycledAt`. It is for WebKit's session that stalls after
 16 MB; what it costs, and against what, is `docs/ARCHITECTURE.md` §Recycling before the stall.
 
-Run the arm (`client/harness/downloader.html`) the way the README's quick start runs the others,
-against any study — it checks each decoded frame against the fixture's `.sha256`:
+Its self-check (`client/harness/index.html`) checks each decoded frame of the `decode_c512` study
+against the fixture's `.sha256`; `client/harness/cell.html` runs a lab cell over any study:
 
 ```bash
 ./server/scripts/gen_dev_cert.sh
 cargo run --release -p exact-server -- --port 4433 --study <study>.sbnd
 python3 server/dev-server.py --port 8765
-# then open http://127.0.0.1:8765/harness/downloader.html in a cross-origin-isolated context
+# then open http://127.0.0.1:8765/harness/ in a cross-origin-isolated context
 ```
 
 **The page must be cross-origin isolated.** Pixels are written once into a `SharedArrayBuffer`;

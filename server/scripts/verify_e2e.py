@@ -326,9 +326,9 @@ def main() -> int:
 
         paths = []
         if args.harness in ("wasm", "both"):
-            paths.append(("/harness/", "wasm"))
+            paths.append(("/harness/cell.html?transport=wasm", "wasm"))
         if args.harness in ("ts", "both"):
-            paths.append(("/harness/ts.html", "ts"))
+            paths.append(("/harness/cell.html?transport=ts", "ts"))
 
         if args.telemetry and args.interleave and len(paths) > 1:
             # Alternate arms across repeats: (r0 arm0), (r0 arm1), (r1 arm0), ...
@@ -410,7 +410,7 @@ def main() -> int:
                         q.append(f"trace={args.trace}")
                     if args.interval_ms is not None:
                         q.append(f"interval_ms={args.interval_ms}")
-                qs = ("?" + "&".join(q)) if q else ""
+                qs = (("&" if "?" in path else "?") + "&".join(q)) if q else ""
                 url = f"http://127.0.0.1:{args.port_http}{path}{qs}"
                 print(f"verify {label} rep={rep}: {url}")
                 page = browser.new_page()

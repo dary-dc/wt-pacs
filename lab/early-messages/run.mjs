@@ -17,7 +17,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 5));
 const N = Number(arg("--n", 1000));
-const ARMS = arg("--arms", "bc,downloader,harness").split(",");
+const ARMS = arg("--arms", "bc,downloader").split(",");
 const PORT = Number(process.env.PORT || 8774);
 const CHROME = process.env.CHROME_PATH || chromium.executablePath();
 

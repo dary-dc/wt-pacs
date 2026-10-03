@@ -41,11 +41,13 @@ python3 server/dev-server.py --port 8765 --study us_cine_smoke
 
 Open in Chrome:
 
-- WASM: `http://127.0.0.1:8765/harness/`
-- TypeScript: `http://127.0.0.1:8765/harness/ts.html`
+- A cell over the downloader: `http://127.0.0.1:8765/harness/cell.html?autorun=1` — `&transport=wasm` or
+  `&transport=ws` for the other transports behind it; the query parameters are listed in `client/harness/shell.js`.
+- The downloader's self-check (decoded frames against `.sha256`): `http://127.0.0.1:8765/harness/` against
+  the `decode_c512` study, with the decoder vendor built (`client/downloader/README.md`).
 
-Both speak the same wire (FoD on bidi control + envelope on server uni streams).
-The WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
+The TypeScript and WASM transports speak the same wire (FoD on bidi control + envelope on server uni
+streams); the WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
 
 A TCP fallback serves the same envelopes over a WebSocket: `--websocket` on the server, and
 `client/transport-ts/dist/ws-session.js` or `race-session.js` on the page

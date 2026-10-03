@@ -441,7 +441,7 @@ browser, which sat inside `send` while the page decoded. **Compare wall time, an
 To re-run the cells: `server_ab --mode fill --asks 87` and `server_ab --mode on-demand --depth 1
 --asks 10` against `exact-server --stream-mode shared` built with `--features telemetry`
 (`WTPACS_TELEMETRY=1`), one server and one session per run; in a browser,
-`/harness/?autorun=1&stream_mode=shared&frames=87&cell=fill` (or `&cell=ondemand&d=1&n=10`) on
+`/harness/cell.html?autorun=1&stream_mode=shared&frames=87&cell=fill` (or `&cell=ondemand&d=1&n=10`) on
 `server/dev-server.py`, after `server/scripts/gen_dev_cert.sh` — Chromium refuses a dev certificate
 older than ~14 days. Read `summary.totals.serve_us` from each run's JSON and take the percentile
 across runs.

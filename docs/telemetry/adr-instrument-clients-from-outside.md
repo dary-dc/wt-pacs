@@ -124,8 +124,8 @@ compression), or a stage that can only be stamped inside the session. Neither is
 
 | Arm | Build | Loaded by |
 | --- | --- | --- |
-| TS | `client/transport-ts/build.sh` → `dist/session.telemetry.js` (entry `session-telemetry.ts`) | `client/harness/ts.html?telemetry=1` |
-| WASM | `WTPACS_TELEMETRY_BUILD=1 client/transport-wasm/build.sh` → `pkg-telemetry/` | `client/harness/index.html?telemetry=1` |
+| TS | `client/transport-ts/build.sh` → `dist/session.telemetry.js` (entry `session-telemetry.ts`), the downloader's transport | `client/harness/cell.html?telemetry=1` |
+| WASM | `WTPACS_TELEMETRY_BUILD=1 client/transport-wasm/build.sh` → `pkg-telemetry/` | no page since 2026-10-03: the harness's WASM page was removed with its path |
 
 The WASM crate's `telemetry` feature is vacant: `pkg-telemetry/` is the product wasm in its own
 directory, and the recorder is the same JS patch. Both outputs are gitignored. The code is `client/record/` (`install.ts` patches the global;

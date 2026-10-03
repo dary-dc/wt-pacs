@@ -210,11 +210,12 @@ written as `telemetry-client.VOID.json` and fails the harvest unless `--allow-vo
 missing server report always fails it. The harvest restarts the server for every run, so each run
 has its own report.
 
-**The shell** (`client/harness/shell.js`) is one implementation for both arms; `ts.html` and
-`index.html` only supply `loadSession`. It stamps `gesture` when a step becomes due, keeps `D` asks
-in flight (never the same index twice), touches every 4 KiB of each codestream so the copy is real,
-and ends with `run_end`, `session.close()` and `window.__wtpacsDone`, which is what the harvest
-waits on. The `session.close()` matters: headless Chromium does not close a WebTransport session on
+**The shell** (`client/harness/shell.js`, loaded by `cell.html`) runs every cell over the downloader;
+with `telemetry=1` the recorder sits in the downloader's worker as its transport and the page harvests
+it over a `BroadcastChannel` before closing (the recorder's wrapper stamps `gesture` when an ask
+leaves). The shell keeps `D` asks in flight (never the same index twice), touches every 4 KiB of each
+codestream so the copy is real, and ends with `run_end`, the harvest, the client's `close()` and
+`window.__wtpacsDone`, which is what the harvest waits on. The `session.close()` matters: headless Chromium does not close a WebTransport session on
 page close, so without it the server saw only the 30 s idle timeout and the server report was
 missing from every run (found 2026-09-06).
 
