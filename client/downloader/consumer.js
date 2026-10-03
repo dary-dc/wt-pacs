@@ -44,6 +44,11 @@ export class DownloaderClient {
     // A frame handed to the wrong decoder can decode to something: refused before anything starts.
     const codec = opts.decoder?.codec ?? "htj2k";
     if (!CODECS.includes(codec)) throw new Error(`unknown codec "${codec}"`);
+    // A group is asked whole, so its last frame has to be known. docs/av1/adr-unit.md §3
+    const g = opts.groupLength ?? 1;
+    if (!Number.isInteger(g) || g < 1 || (g > 1 && !Number.isInteger(opts.frameCount))) {
+      throw new Error(`groupLength ${g} needs a whole number ≥ 1, and above 1 the series' frameCount`);
+    }
     if (!globalThis.crossOriginIsolated && opts.decode !== false) {
       throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
     }
@@ -54,6 +59,8 @@ export class DownloaderClient {
       decode: opts.decode,
       perDecoder: opts.perDecoder,
       decoder: opts.decoder,
+      groupLength: opts.groupLength,
+      frameCount: opts.frameCount,
       transport: opts.transport,
       decoderWorker: opts.decoderWorker,
       // A codestream of the series' shape, decoded in each decoder before the first bytes arrive.

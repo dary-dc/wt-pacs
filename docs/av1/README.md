@@ -44,7 +44,9 @@ group from the keyframe, or the client keeps the group's decoder state). Rows SI
 the curve. The shape is proposed in [`adr-unit.md`](adr-unit.md): a `codec` field in the bundle's
 metadata, one decoder module per codec behind `decoder.js`, and for G > 1 the group as the
 *client's* unit — an ask for N is `request_frames [k … N]`, a group goes to one decoder — with the
-wire, the store and the server unchanged.
+wire, the store and the server unchanged. *Built since (row GOP), the simplest form:* a group is the
+item, an ask for N asks k … k+G−1, a group decodes in order on one decoder, every frame exact on a
+G = 8 and a one-group set; no wire, store or server change was needed (`adr-unit.md` §3, *Built*).
 
 *Measured (SIZE, libaom 3.15.1, every coding exact; [`lab/av1`](../../lab/av1/README.md) §SIZE):*
 **inter coding does not pay on any real series here**, and coded whole, AV1 does not beat HTJ2K —

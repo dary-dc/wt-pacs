@@ -1,6 +1,6 @@
 # ADR: the codec seam, and the group as the client's unit
 
-**Status:** §1–2 built for G = 1 (row DEC, three departures marked *Built:*; the transforms and WebCodecs by row WCDEC), §3 proposed · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
+**Status:** §1–2 built for G = 1 (row DEC; the transforms and WebCodecs by row WCDEC), §3 built in its simplest form (row GOP); departures marked *Built:* · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
 · **Answers:** [`README.md`](README.md) §A1, the shape half; SIZE and SPEED own the numbers.
 
 Read against [`WIRE.md`](../WIRE.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md),
@@ -106,6 +106,31 @@ built — a field the client does not read is ignored.
 
 Only if SIZE shows inter coding pays on real content, and SPEED shows the ask it costs is
 acceptable. Until then G = 1 and §1–2 are the whole change (row DEC).
+
+*Built (row GOP), on the owner's brief of 2026-10-03 — a group is the item, asked and sent whole,
+no seek inside one.* Beside G = 1, which dispatches as before (every frame a keyframe, no decoder
+ever holding a group); measured on synthetic frames only, nothing timed. Where it departs from the
+proposal below:
+
+* **An ask for N asks its whole group, k … k+G−1**, not k … N, cut at the series' end. So
+  `connect` takes `groupLength` *and* `frameCount` beside `decoder` and refuses G > 1 without the
+  second. The group goes out as G `request_frame` messages in order, not one `request_frames`: the
+  transport's batch call holds one batch at a time, and the server serves both the same way.
+* **A fill cut by an ask resumes where it was cut**, mid-group, on the decoder still holding that
+  group — nothing re-fetched, nothing decoded twice. The ask's own group starts at its keyframe.
+* **A group split across two decoders is impossible by construction, and refused if it happens.**
+  A frame that is not a keyframe goes only to the decoder that took its predecessor, in index order
+  whatever order the frames land in; a decoder holds its group while its next frame is still owed,
+  and takes no keyframe meanwhile. `decode-av1.js` refuses a frame unless it is a keyframe (`key`
+  in the decode message, `index % G == 0`; it flushes then) or follows the frame it decoded last in
+  the same request.
+* **A failure fails the rest of its group by name** (invariant 4): a frame that does not decode
+  drops its decoder's state, so each later frame is refused; a frame whose predecessor never
+  reached a decoder is failed by the downloader. A frame refused for its order leaves the state.
+* **A series in groups decodes through dav1d-WASM**, whatever its depth: the WebCodecs module
+  flushes after every frame, and a flush makes the next chunk a keyframe. A split series is G = 1.
+* Not built: an ask served from a held state (an ask always starts at its keyframe unless its
+  frames are already in hand), the wire ring's re-size (invariant 6), the compressed-group cache.
 
 ### The proposal: the group is the client's unit, not the transport's
 

@@ -28,6 +28,14 @@ transforms). `warmup/colour-8.av1` and
 `warmup/grey-12.av1` are its warm-ups, made by `lab/av1/dav1d-wasm/make_client_frames.sh`; the
 dispatch arm checks every shape against its source's checksum (`client/conformance/av1/`).
 
+**An AV1 series in groups.** `opts.groupLength: G` (absent = 1) with `opts.frameCount` says a
+keyframe sits at every multiple of G and the frames between decode only after it. A group is the
+item: an ask for any frame asks its whole group from the keyframe, a fill asks whole groups, and a
+group's frames go to one decoder in index order. A frame that fails fails the rest of its group,
+each by name. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §3, *Built*; the dispatch arm
+checks a G = 8 set and a one-group set (`client/conformance/av1/{g8x20,whole12}`) frame by frame.
+A series in groups decodes through dav1d-WASM, never WebCodecs, which is flushed per frame.
+
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
 
