@@ -16,8 +16,6 @@ use wtransport::stream::SendStream;
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
-use crate::record::LocateOutcome;
-#[cfg(feature = "telemetry")]
 use frame_envelope::ENVELOPE_LEN;
 
 /// Implementors override **steps**, never [`serve`](Self::serve).
@@ -248,7 +246,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         self.tap.boundary_prepare_done(); // entry: close prepare
         let result = self.inner.locate(store, frame);
         if let Ok(span) = &result {
-            self.tap.note_locate(LocateOutcome::Ok, span.len as usize);
+            self.tap.note_locate(span.len as usize);
         }
         result
     }

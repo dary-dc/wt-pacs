@@ -4,7 +4,6 @@
 //! per-session batch; one `try_send` on an owned `SyncSender` clone per [`BATCH`] rows — no
 //! global lock, and no drain-thread wake per row.
 
-use crate::record::{LocateOutcome, WriteOutcome};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -27,6 +26,21 @@ pub(super) static ROWS_CLOSED: AtomicU64 = AtomicU64::new(0);
 pub(super) static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
 /// Every session the server accepted while telemetry was on, sampled or not.
 pub(super) static SESSIONS_SEEN: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+enum LocateOutcome {
+    Ok = 0,
+    NotFound = 1,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+enum WriteOutcome {
+    Sent = 0,
+    WriteErr = 1,
+    Refused = 2,
+}
 
 /// Process clock origin for `t_ask_us` — set when the first Tap is created, so rows from every
 /// session in a run share one axis and can be laid beside the client file offline.
@@ -320,11 +334,8 @@ impl Tap {
         self.pending_locate_us = Some(self.close_against_mark());
     }
 
-    pub(crate) fn note_locate(&mut self, outcome: LocateOutcome, byte_len: usize) {
-        self.pending_locate = outcome as u8;
-        if outcome == LocateOutcome::Ok {
-            self.pending_bytes = usize_to_u32(byte_len);
-        }
+    pub(crate) fn note_locate(&mut self, byte_len: usize) {
+        self.pending_bytes = usize_to_u32(byte_len);
     }
 
     pub(crate) fn emit_sent(&mut self, envelope_len: usize) {
@@ -572,7 +583,7 @@ mod tests {
     fn serve_frame(t: &mut Tap, frame: u32, bytes: usize) {
         t.begin_frame(frame);
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, bytes);
+        t.note_locate(bytes);
         t.boundary_locate_done();
         t.emit_sent(bytes + 4);
     }
@@ -595,7 +606,7 @@ mod tests {
         assert!(t.serve_start.is_some());
         assert!(t.stage_mark.is_some());
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 8);
+        t.note_locate(8);
         t.boundary_locate_done();
         t.emit_sent(16);
         assert!(t.serve_start.is_none());
@@ -610,7 +621,7 @@ mod tests {
         let serve0 = t.serve_start.expect("serve_start armed");
         std::thread::sleep(std::time::Duration::from_millis(20));
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 100);
+        t.note_locate(100);
         t.boundary_locate_done();
         let before_emit = Instant::now();
         t.emit_sent(104);
@@ -623,7 +634,7 @@ mod tests {
         let serve1 = t.serve_start.expect("new serve_start");
         assert!(serve1 > serve0);
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 100);
+        t.note_locate(100);
         t.boundary_locate_done();
         let before_emit1 = Instant::now();
         t.emit_sent(104);
@@ -651,7 +662,7 @@ mod tests {
         t.begin_frame(2);
         std::thread::sleep(std::time::Duration::from_millis(1));
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 8);
+        t.note_locate(8);
         t.boundary_locate_done();
         std::thread::sleep(std::time::Duration::from_millis(1));
         t.emit_sent(16);
