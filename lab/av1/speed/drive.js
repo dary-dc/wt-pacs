@@ -33,7 +33,7 @@ async function start(env, kind, decoder) {
     async decode(bytes, index) {
       const done = next();
       const copy = bytes.slice();
-      worker.postMessage({ kind: "decode", index, gen: 0, bytes: copy, stamps: {} }, [copy.buffer]);
+      worker.postMessage({ kind: "decode", index, gen: 0, key: true, bytes: copy, stamps: {} }, [copy.buffer]);
       const f = await done;
       return { ms: f.stamps.decodeEnd - f.stamps.decodeStart, pixels: f.pixels };
     },

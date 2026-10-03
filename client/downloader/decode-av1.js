@@ -16,10 +16,10 @@ export async function init(d) {
   // The glue is a classic script, as OpenJPH's is: decoder.js says why it is evaluated this way.
   const src = await (await fetch(d.glue)).text();
   const factory = new Function(`${src}\nreturn Dav1dModule;`).call(self);
-  const opts = { locateFile: (f) => d.dir + "/" + f };
+  const opts = { locateFile: (f) => d.dir + "/" + f, mainScriptUrlOrBlob: d.glue };
   if (!d.streaming) opts.wasmBinary = await (await fetch(d.wasm)).arrayBuffer();
   M = await factory(opts);
-  const opened = M._av1_open(1);
+  const opened = M._av1_open(d.threads ?? 1);
   if (opened < 0) throw new Error(`dav1d_open: ${opened}`);
 }
 

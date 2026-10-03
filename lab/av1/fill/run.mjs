@@ -6,7 +6,10 @@
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/fill/run.mjs [--rounds 10] [--rates 20000,50000]
  *     [--throttles 1,4] [--rtt 40] [--sets a,b] [--frames lab/.av1-work/fill] [--mutate sample|truth]
- *     [--first-round 0] [--out rows.jsonl]
+ *     [--first-round 0] [--out rows.jsonl] [--arms htj2k,av1,av1-t4@2/3] [--cores 3]
+ *
+ * An arm `EXT[@T][/D]` is the frames NNN.EXT on dav1d-WASM, threaded with T threads (the simd-mt build)
+ * and D decoders (default 3); `htj2k` and `webcodecs` are as above. lab/av1/decspeed/README.md
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
@@ -27,6 +30,10 @@ const RTT = Number(arg("--rtt", 40));
 const FRAMES = arg("--frames", "lab/.av1-work/fill");
 const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", null);
+const ARMS = arg("--arms", null)?.split(",");
+/** With it, 4× is that many slowed cores for the whole browser, not a quarter-core for each thread. */
+const CORES = arg("--cores", null) && Number(arg("--cores"));
+const ext = (arm) => (arm === "webcodecs" ? "av1" : arm.split(/[@/]/)[0]);
 const ROOT = new URL("../../..", import.meta.url).pathname;
 const T = mkdtempSync(path.join(tmpdir(), "av1-fill-"));
 const port = () => 20000 + ((Math.random() * 25000) | 0);
@@ -64,10 +71,10 @@ writeFileSync(`${T}/chrome.sh`, `#!/bin/sh\nexec taskset -c ${BROWSER_CORES} "${
 
 const sets = manifest.filter((s) => SETS.includes(s.name)).map((s) => ({
   ...s,
-  studies: { htj2k: pack(s, "htj2k"), av1: pack(s, "av1") },
-  arms: s.webcodecs ? ["htj2k", "av1", "webcodecs"] : ["htj2k", "av1"],
+  arms: ARMS?.filter((a) => a !== "webcodecs" || s.webcodecs) ?? (s.webcodecs ? ["htj2k", "av1", "webcodecs"] : ["htj2k", "av1"]),
   truth: s.frames.map((f) => (MUTATE === "truth" ? f.truth.replace(/^./, (c) => (c === "0" ? "1" : "0")) : f.truth)),
 }));
+for (const s of sets) s.studies = Object.fromEntries([...new Set(s.arms.map(ext))].map((e) => [e, pack(s, e)]));
 
 const HTTP = port();
 const http = spawn("python3", ["server/dev-server.py", "--port", String(HTTP)], { cwd: ROOT, stdio: "ignore" });
@@ -84,7 +91,7 @@ async function visit(set, arm, rate, throttle, round) {
   const srv = port();
   const relayPort = port();
   const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/exact-server"), "--port", String(srv), "--bind", "127.0.0.1",
-    "--study", set.studies[arm === "htj2k" ? "htj2k" : "av1"], "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`],
+    "--study", set.studies[ext(arm)], "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`],
   { stdio: "ignore" });
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`, "--seed", String(round),
     "--delay-ms", String(RTT / 2), "--rate-kbit", String(rate), "--queue-pkts", "200", "--self-timing"], { cwd: ROOT });
@@ -99,7 +106,7 @@ async function visit(set, arm, rate, throttle, round) {
   const page = await client.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  const stop = throttleTree(browser.process().pid, throttle);
+  const stop = throttleTree(browser.process().pid, throttle, CORES ? { cores: CORES } : {});
   const q = new URLSearchParams({ arm, fill: set.frames.length, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(arm === "webcodecs" ? { wc: set.webcodecs } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}) });
   let r = null;
