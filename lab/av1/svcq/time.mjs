@@ -85,3 +85,4 @@ for (const [k, g] of groups) {
   const exact = g[0].exact === null ? "lossy" : `${g.reduce((n, x) => n + x.exact, 0)}/${g.reduce((n, x) => n + x.frames, 0)}`;
   console.log(`${k}\t${median(ms).toFixed(2)} [${Math.min(...ms).toFixed(2)}–${Math.max(...ms).toFixed(2)}] ms/frame\tn=${g.length}\t${g[0].size}\t${exact}`);
 }
+process.exit(0);
