@@ -1,6 +1,6 @@
 # ADR: the codec seam, and the group as the client's unit
 
-**Status:** proposed, not built · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
+**Status:** §1–2 built for G = 1 (row DEC, three departures marked *Built:*), §3 proposed · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
 · **Answers:** [`README.md`](README.md) §A1, the shape half; SIZE and SPEED own the numbers.
 
 Read against [`WIRE.md`](../WIRE.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md),
@@ -29,7 +29,9 @@ brings it.
   a series over 12 bits its split carried in metadata for the decoder to undo. Row DEPTH chooses
   which transforms survive and names their fields; this ADR only fixes the rule below for them.
 * **A value the client does not know is a refusal, before the dial.** `connect` rejects with
-  `unknown codec "<value>"` (or `unknown transform …`) and no frame is asked for. Not a fallback to
+  `unknown codec "<value>"` (or `unknown transform …`) and no frame is asked for. *Built:* the
+  check is in `DownloaderClient.connect`, on the page, before the downloader's worker starts — so
+  before the dial with nothing to tear down. Not a fallback to
   HTJ2K: a frame handed to the wrong decoder either fails one by one, a failure per frame of a whole
   series, or — the case that matters — decodes to something. Bit-exact or nothing.
 
@@ -55,7 +57,10 @@ export function decodeFrame(bytes) {}     // → { info, sab, byteCount, range }
 
 `init` in `decoder.js` loads the module by `m.decoder.codec` with a dynamic `import()` (it is a
 module worker), so an HTJ2K page never fetches AV1 code and the HTJ2K path is today's code moved,
-not changed. The `frame` message to the consumer is built from that return value exactly as now, so
+not changed. *Built:* only AV1 is a separate module (`decode-av1.js`); HTJ2K's half stays in
+`decoder.js`, moved into `initHtj2k` and otherwise unchanged, so an HTJ2K decoder's boot fetches
+what it did (the worker graph `lab/page-open` preloads). The AV1 module is a relative `import()`,
+which resolves nothing from a blob: a page booting `decoder.js` from one serves HTJ2K only. The `frame` message to the consumer is built from that return value exactly as now, so
 the contract `{pixels, width, bits, signed, range}` and everything above it are untouched.
 
 **What the AV1 module owes the contract**, each against the encoder input's `.sha256`, never
@@ -71,6 +76,10 @@ against another decoder:
 * **The failure rule** of [`decode/README.md`](../decode/README.md) §A frame that did not decode
   holds: a frame whose output is shorter than its header declares is refused, never the previous
   frame's pixels.
+* *Built:* **at G = 1 the decoder is flushed before every frame** (`dav1d_flush`: every reference
+  and the sequence header dropped), so a frame decodes from its own bytes or fails. Without it a
+  frame of a group handed to a G = 1 series decodes against the previous frame's references to
+  wrong pixels — the conformance clause sees exactly that when the flush is removed.
 
 ## 3 · If a group of G > 1 frames is the unit
 

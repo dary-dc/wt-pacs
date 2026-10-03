@@ -9,6 +9,19 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time and re-issued after an ask, two-priority queue, dispatch, cancel |
 | `decoder.js` | one decoder instance, reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
+| `decode-av1.js` | an AV1 series' decoding behind `decoder.js`'s contract, loaded only for one |
+
+**An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
+path untouched, `"av1"` loads `decode-av1.js` and the dav1d build of
+[`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md) (`glue`, `wasm`, `dir` as for OpenJPH,
+`THIRD_PARTY.txt` served beside them), and anything else makes `connect` reject with
+`unknown codec "…"` before a worker starts. Every AV1 frame is one temporal unit that must decode
+alone — 8/10/12-bit grey (4:0:0) or RGB (4:4:4, identity matrix) — and comes out in the same
+`{pixels, width, bits, signed, range}` as an HTJ2K frame, colour interleaved R, G, B. A frame of a
+group, which needs the frames before it, is refused rather than decoded against the previous frame
+([`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §2, G = 1). `warmup/colour-8.av1` and
+`warmup/grey-12.av1` are its warm-ups, made by `lab/av1/dav1d-wasm/make_client_frames.sh`; the
+dispatch arm checks every shape against its source's checksum (`client/conformance/av1/`).
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.

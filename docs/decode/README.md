@@ -1090,6 +1090,16 @@ hash, a corrupted payload byte (to native dav1d).
 
 What this cannot say: anything about a phone, Safari, a GPU decoder, or a Chromium other than 141.
 
+### dav1d-WASM, the decoder the client runs
+
+dav1d 1.5.4 under emscripten 3.1.74, `-msimd128`, one thread, 623 KB `.wasm` (238 KB gzipped), is
+exact against two native dav1d builds on every frame tried — 8/10/12-bit, 4:0:0 and 4:4:4, intra and
+inter ([`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)). It is what `decode-av1.js` runs
+for an AV1 series, flushed before each frame (G = 1: [`docs/av1/adr-unit.md`](../av1/adr-unit.md)
+§2), and the dispatch arm decodes all six shapes through the downloader to their source's checksum.
+Unlike WebCodecs it takes 12 bits and returns one frame per unit with no `flush()` to wait on. Its
+decode time is not measured yet (row SPEED).
+
 ## What these numbers are not
 
 * **Every millisecond is container-measured** and reported, not decided on. Heap, byte-exactness and
