@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Browser round trip per frame: the TS harness cell in headless Chromium against one server binary.
+"""Browser round trip per frame: a harness cell in headless Chromium against one server binary.
 Needs the static host (`server/dev-server.py --port 8765`) and `client/transport-ts/dist`.
-usage: browser.py <label> <server-bin> <fixture> <cell> <n> <depth> <repeats> [server args...]
+usage: browser_cell.py <label> <server-bin> <fixture> <cell> <n> <depth> <repeats> [server args...]
 <depth> is the shell's asks in flight.
 Prints one line per repeat: label cell depth n wall_ms us_per_frame delivered failed.
 `RELAY_ARGS` (e.g. "--delay-ms 20 --rate-kbit 20000") puts lab/scripts/link_impair.py between page and server.
@@ -16,9 +16,8 @@ extra = sys.argv[8:]
 n, reps = int(n), int(reps)
 ask = f"d={int(depth)}"
 if os.environ.get("INTERVAL_MS"): ask += f"&interval_ms={int(os.environ['INTERVAL_MS'])}"
-# T5: `worker=1` runs the session in a Worker, `busy` simulates main-thread contention.
-for k in ("worker", "busy"):
-    if os.environ.get(k.upper()): ask += f"&{k}={int(os.environ[k.upper()])}"
+# `busy` simulates main-thread contention.
+if os.environ.get("BUSY"): ask += f"&busy={int(os.environ['BUSY'])}"
 HTTP = int(os.environ.get("HTTP_PORT", "8765"))
 CHROME = os.environ.get("CHROME_PATH", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
 

@@ -711,3 +711,9 @@ TSVs and the design diary: tags `read-path-evidence-2026-09-09` (do not move it)
 `read-path-workstation-2026-09-09`, `read-path-evidence-2026-09-10`, `read-path-w2-2026-09-10`,
 `read-path-w3-2026-09-10`. Earlier campaigns: `git show a330783:docs/disk-access/`. The
 2026-08-31 decision: `git show be78860:docs/disk-access/adr.md`.
+
+Retired lab binaries, code at the commit named:
+
+* `crossover_bench` (`265044b`) made the miss rate the knob: below ~5% misses the hybrid ties the pool; above it the hybrid wins, -45 to -77% CPU per ask, more with depth. It disagreed with `read_campaign` at one read in flight (-2.1% vs -53.4% at 100% misses), cause not found.
+* `frame_budget` (`b2b6554`) split a warm 250 KB frame: 49% kernel copy, 15% copy into the connection, 27% scheduler, 8% loop; a warm 4 KiB read is 561 ns, `ReadFixed` 852 ns, an `O_DIRECT` round trip 27 543 ns on virtio-blk.
+* `wire_send_bench` (`b2b6554`) drove the send path over quinn on loopback: the disk-access decision is about a fifth of a frame's server CPU; `write_chunk` is the rejected row in section 5.
