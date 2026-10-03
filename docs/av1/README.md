@@ -275,7 +275,8 @@ of HTJ2K's**, against a separate preview plus exact HTJ2K at 1.008 and 1.07 abov
 frame decodes 3–30 % slower than single-layer AV1 (dav1d-WASM, Chromium 141 and Node, 1× and 4×,
 n = 15 interleaved). `decode-av1.js` opens dav1d with `all_layers` 1, which returns the base and then
 fails on such a payload; WebCodecs returns the top exactly but cannot be asked for the base, only
-fed its units. Against row RESID's residual: not yet measured.
+fed its units. Row RESID's preview plus HTJ2K residual (0.947–1.002 of HTJ2K's bytes, 1.31–1.89× its
+decode) beats it on both.
 
 *LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
 answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
