@@ -60,7 +60,7 @@ and its branch belong to other work.
 | 14 | **ENC** — encode time, uncontended, per preset and content: ingest cost, and whether lossless can run live | claimed 2026-10-03 |
 | 15 | **SVC** — libaom's real-time scalable encoder in lossless mode at 10 and 12 bits: exact or not | claimed 2026-10-03 |
 | 16 | **GOP** — the group as the item: whole groups asked and sent in order, a group to one decoder, fill start to end | claimed 2026-10-03 |
-| 17 | **RESID** — a lossy AV1 preview plus a lossless residual: does the exact frame cost more than HTJ2K alone? | ready |
+| 17 | **RESID** — a lossy AV1 preview plus a lossless residual: does the exact frame cost more than HTJ2K alone? | claimed 2026-10-03 |
 | 18 | **SVCQ** — one scalable AV1 payload, a lossy base layer and a lossless top: the overhead of the layers | after 15 |
 | 19 | **LCEVC** — the enhancement-layer standard: licence, whether it can end lossless, a browser decoder, a trial | ready |
 | 20 | **WCDEC** — a WebCodecs AV1 decoder module beside dav1d-WASM, chosen per series where exact | ready |
