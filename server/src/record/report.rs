@@ -14,7 +14,7 @@
 use super::rows;
 use super::tap::{
     run_meta, FrameRecord, Record, RunMeta, SessionRecord, BATCH, DROP_TOTAL, RING_CAP,
-    ROWS_CLOSED, ROWS_OPENED, SESSIONS_SEEN, SESSIONS_STARTED,
+    ROWS_CLOSED, ROWS_OPENED, SESSIONS_STARTED,
 };
 use std::path::Path;
 use std::sync::atomic::Ordering;
@@ -22,8 +22,8 @@ use std::sync::atomic::Ordering;
 pub(super) const SCHEMA: &str = "server-pipeline-v2";
 pub(super) const METHOD_EXACT: &str = "exact-sort";
 pub(super) const METHOD_HIST: &str = "histogram-loglinear-1024";
-/// `server_frames` is inlined only up to this many rows (`WTPACS_TELEMETRY_INLINE_CAP`).
-pub(super) const INLINE_CAP_DEFAULT: u64 = 1_000_000;
+/// `server_frames` is inlined, and the summary exact, only up to this many rows.
+const INLINE_CAP: u64 = 1_000_000;
 
 #[derive(serde::Serialize)]
 pub(super) struct TelemetryReport {
@@ -57,8 +57,6 @@ pub(super) struct IntegrityBlock {
     pub rows_closed: u64,
     pub rows_dropped: u64,
     pub sessions: u64,
-    /// Sessions accepted while telemetry was on, sampled or not.
-    pub sessions_seen: u64,
     pub ring_capacity: u64,
     pub batch_size: u64,
     pub rows_file_bytes: u64,
@@ -388,7 +386,6 @@ fn integrity(rows_file_bytes: u64) -> IntegrityBlock {
         rows_closed: ROWS_CLOSED.load(Ordering::Relaxed),
         rows_dropped: dropped_process,
         sessions: SESSIONS_STARTED.load(Ordering::Relaxed),
-        sessions_seen: SESSIONS_SEEN.load(Ordering::Relaxed),
         ring_capacity: RING_CAP as u64,
         batch_size: BATCH as u64,
         rows_file_bytes,
@@ -428,13 +425,9 @@ pub(super) fn progress_report(live: &LiveSummary, rows_path: Option<&Path>) -> T
 
 /// Final report: exact from the row file when the rows fit the inline cap, else the live
 /// histogram summary with the row file as the record.
-pub(super) fn final_report(
-    live: &LiveSummary,
-    rows_path: Option<&Path>,
-    inline_cap: u64,
-) -> TelemetryReport {
+pub(super) fn final_report(live: &LiveSummary, rows_path: Option<&Path>) -> TelemetryReport {
     if let Some(path) = rows_path {
-        if live.frames <= inline_cap {
+        if live.frames <= INLINE_CAP {
             match exact_report_from_rows(path) {
                 Ok(report) => return report,
                 Err(err) => {

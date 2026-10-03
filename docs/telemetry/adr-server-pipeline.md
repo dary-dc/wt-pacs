@@ -77,11 +77,13 @@ WTPACS_TELEMETRY=1 target/release/exact-server …
 | --- | --- | --- |
 | `WTPACS_TELEMETRY` | off | `1` / `true` / `yes` records sessions |
 | `WTPACS_TELEMETRY_PATH` | `telemetry-server.json` | the report; rows go beside it as `.rows` |
-| `WTPACS_TELEMETRY_SAMPLE` | `1` | record one session in K; an unsampled session costs one branch per frame |
 | `WTPACS_TELEMETRY_SUMMARY_MS` | `5000` (floor 100) | how often the drain rewrites the summary |
-| `WTPACS_TELEMETRY_INLINE_CAP` | `1000000` | rows up to which the final report is exact and inlines `server_frames` |
 
-The defaults were set on 2026-09-06 without a product answer; change them by env.
+The defaults were set on 2026-09-06 without a product answer; change them by env. Every session is
+recorded, and the final report is exact and inlines `server_frames` up to 1 000 000 rows
+(`INLINE_CAP`, `record/report.rs`). Both were env variables with no caller, `WTPACS_TELEMETRY_SAMPLE`
+and `WTPACS_TELEMETRY_INLINE_CAP`, until 2026-10-03; code:
+`git show archive/arms-2026-10-03:server/src/record/tap.rs`.
 
 **Path sampling** rides the same feature on its own switch: `WTPACS_PATH_TELEMETRY=1` appends one
 JSON line per connection per `WTPACS_PATH_TELEMETRY_MS` (default 1000, floor 50) to
@@ -223,7 +225,7 @@ codestream so the copy is real, and ends with `run_end`, the harvest, the client
 page close, so without it the server saw only the 30 s idle timeout and the server report was
 missing from every run (found 2026-09-06).
 
-**Known defect, not fixed: one sampled run per server process.** When the last `Tap` drops, the sink
+**Known defect, not fixed: one recorded run per server process.** When the last `Tap` drops, the sink
 shuts down; the next session starts a new drain, whose `File::create` truncates
 `telemetry-server.rows`. The report after a second sequential session carries only that session's
 rows while `integrity` counts both (2 907 rows opened, 1 441 in the file), and the first session
@@ -253,7 +255,7 @@ In the telemetry build, measured 2026-09-06 (§Pipeline baseline): **+0.3 to +2.
 over the serving path at 1–32 sessions, throughput inside run-to-run spread, the recorder's own
 share of `serve_us` (`overhead_us`) 1 µs p50. Peak RSS 4–10 MB above telemetry off (six histograms,
 the 1 MB row-file write buffer, the exit-time re-read for inlined frames), none of it per row; a
-sampled session's recorder ≈ 3 KB. The SIGTERM lock adds ~11 ns per row (§The tail at SIGTERM).
+recorded session's recorder ≈ 3 KB. The SIGTERM lock adds ~11 ns per row (§The tail at SIGTERM).
 In the default build: nothing, by §Absence.
 
 ## Pipeline baseline, 2026-09-06

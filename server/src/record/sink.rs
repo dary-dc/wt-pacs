@@ -7,9 +7,7 @@
 //! written when the last session's `Tap` drops (normal end) or when [`flush_on_exit`] is called
 //! from the signal handler; it is exact from the row file when the rows fit the inline cap.
 
-use super::report::{
-    final_report, progress_report, LiveSummary, TelemetryReport, INLINE_CAP_DEFAULT,
-};
+use super::report::{final_report, progress_report, LiveSummary, TelemetryReport};
 use super::rows;
 use super::tap::{env_u64, Batch, BATCH, LIVE, RING_CAP};
 use std::fs::File;
@@ -129,7 +127,6 @@ fn drain_loop(rx: Receiver<Batch>, json_path: PathBuf) {
     };
     let mut live = LiveSummary::new();
     let period = Duration::from_millis(env_u64("WTPACS_TELEMETRY_SUMMARY_MS", 5_000).max(100));
-    let inline_cap = env_u64("WTPACS_TELEMETRY_INLINE_CAP", INLINE_CAP_DEFAULT);
     let mut last_summary = Instant::now();
 
     loop {
@@ -163,7 +160,7 @@ fn drain_loop(rx: Receiver<Batch>, json_path: PathBuf) {
         let _ = f.writer.flush();
     }
 
-    let report = final_report(&live, rows_path.as_deref(), inline_cap);
+    let report = final_report(&live, rows_path.as_deref());
     match write_json(&json_path, &report) {
         Ok(()) => info!(
             path = %json_path.display(),

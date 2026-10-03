@@ -24,8 +24,6 @@ pub(super) static DROP_TOTAL: AtomicU64 = AtomicU64::new(0);
 pub(super) static ROWS_OPENED: AtomicU64 = AtomicU64::new(0);
 pub(super) static ROWS_CLOSED: AtomicU64 = AtomicU64::new(0);
 pub(super) static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
-/// Every session the server accepted while telemetry was on, sampled or not.
-pub(super) static SESSIONS_SEEN: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -226,22 +224,12 @@ pub struct Tap {
     rows_dropped: u32,
 }
 
-/// `WTPACS_TELEMETRY_SAMPLE=K`: record one session in K. `seen` counts from 0.
-pub(super) fn sampled(seen: u64, k: u64) -> bool {
-    seen.is_multiple_of(k.max(1))
-}
-
 impl Tap {
     /// Enabled when `WTPACS_TELEMETRY` is `1` / `true` / `yes`. Path from `WTPACS_TELEMETRY_PATH`
-    /// (default `telemetry-server.json`; rows go beside it as `.rows`). `WTPACS_TELEMETRY_SAMPLE=K`
-    /// records one session in K (default every session). Report is written on a timer and when
-    /// the last session ends or the process is told to flush.
+    /// (default `telemetry-server.json`; rows go beside it as `.rows`). Report is written on a
+    /// timer and when the last session ends or the process is told to flush.
     pub fn for_session() -> Option<Self> {
         if !env_enabled("WTPACS_TELEMETRY") {
-            return None;
-        }
-        let seen = SESSIONS_SEEN.fetch_add(1, Ordering::Relaxed);
-        if !sampled(seen, env_u64("WTPACS_TELEMETRY_SAMPLE", 1)) {
             return None;
         }
         let path = std::env::var("WTPACS_TELEMETRY_PATH")
@@ -898,12 +886,5 @@ mod tests {
             }
             std::thread::sleep(Duration::from_micros(200));
         }
-    }
-
-    #[test]
-    fn sampling_records_one_session_in_k() {
-        assert!(sampled(0, 1) && sampled(1, 1) && sampled(7, 1));
-        assert!(sampled(0, 4) && !sampled(1, 4) && !sampled(3, 4) && sampled(4, 4));
-        assert!(sampled(0, 0), "k = 0 behaves as 1");
     }
 }
