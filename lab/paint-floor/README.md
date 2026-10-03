@@ -1,9 +1,7 @@
 # What the platform can do with a decoded frame
 
-A viewer built on a third-party SDK spends **15.5 ms of an asked frame's ~27.8 ms** putting it on
-the screen — *measured elsewhere, not in this repository, and nothing here depends on it*. Nobody
-had measured the other end: what the browser costs for the same pixels with nothing in the way.
-This page measures that floor.
+What the browser costs to put a decoded frame's pixels on the screen, with nothing in the way:
+this page measures that floor.
 
 **An instrument and a target number, not a renderer.** It does the least that makes the two routes
 comparable, and nothing a viewer would need.
@@ -30,10 +28,9 @@ is what makes a mutation run bearable; `--passes`, `--paints` and `--dprs` size 
 | **2d** | builds a lookup table, maps every sample into a **new** RGBA `ImageData` at source size, `putImageData` onto an `OffscreenCanvas` at source size, `drawImage` onto a second one at display size, `transferToImageBitmap`, main-thread `drawImage` |
 | **gl** | uploads the samples to an integer texture (`RGB8UI`, `R16UI`, `R16I`), window and level as shader uniforms, one draw at display size |
 
-The 2D route is the SDK's route as it was described to us, rebuilt without the SDK. The decoded
-pixels the downloader produces are a `SharedArrayBuffer` (`client/downloader/decoder.js`), which
-can back `texImage2D` but never an `ImageData` — so the 2D route's per-frame copy is not an
-implementation detail it could drop.
+The decoded pixels the downloader produces are a `SharedArrayBuffer`
+(`client/downloader/decoder.js`), which can back `texImage2D` but never an `ImageData` — so the 2D
+route's per-frame copy is not an implementation detail it could drop.
 
 ## The sample sets
 

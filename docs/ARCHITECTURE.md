@@ -415,9 +415,8 @@ Both arms were mutated and moved as they should: `shared` given a transfer list 
 
 ### The downloader arm during a fill, against direct
 
-Another stack running this downloader and decoder pair read a per-frame interval during a fill of
-10.4 ms colour / 13.8 ms 16-bit through the pair, against ~9.2 / 9.1 for a client on the page. The
-same comparison on this lab's transport: [`../lab/decode-tail/`](../lab/decode-tail/run.mjs) `page.js`
+Does the downloader worker lengthen the per-frame interval during a fill, against a client on the
+page feeding the same decoders? [`../lab/decode-tail/`](../lab/decode-tail/run.mjs) `page.js`
 is the product path, `direct.js` the same TS transport on the page feeding the same `decoder.js`
 workers by the same rule, so the downloader worker is the only difference. Driverless Chromium,
 loopback, the 87-frame colour and 16-bit sets, 7 rounds interleaved, medians:
@@ -429,7 +428,7 @@ loopback, the 87-frame colour and 16-bit sets, 7 rounds interleaved, medians:
 | 3 | colour | **5.55** | 6.26 | 2/7 |
 | 3 | 16-bit | 2.95 | 2.92 | 2/7 — a tie |
 
-**The gap does not reproduce, and nothing on this path is worth removing.** With one decoder the
+**No: nothing on this path is worth removing.** With one decoder the
 interval *is* the decode; with three the downloader is level or ahead — its loop hands a frame to a
 decoder in **0.04 ms** where the page's main thread takes **1.04**, and the pixel port delivers in
 0.17–0.36 ms either way. The one cost, **+0.29 ms a 16-bit frame at one decoder (6/7)**, sits inside

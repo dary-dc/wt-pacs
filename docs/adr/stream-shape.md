@@ -123,9 +123,8 @@ and neither stream arm changes that. That points at the congestion controller
 
 ## HOL1 — in Chromium, through the relay (2026-09-25)
 
-Queue row 78. The same question asked of a browser, for an owner deciding whether another stack
-should move from one shared stream to K persistent ones — so the pool at `k` = 2, 4, 8 is the arm
-that matters. `lab/stream-shape/` ([README](../../lab/stream-shape/README.md)); rows in history at
+Queue row 78. The same question asked of a browser, for a client deciding whether to move from
+one shared stream to K persistent ones — so the pool at `k` = 2, 4, 8 is the arm that matters. `lab/stream-shape/` ([README](../../lab/stream-shape/README.md)); rows in history at
 `d184333`.
 
 **The rig.** 20 Mbit, 40 ms each way, a 200-packet queue (`lab/scripts/link_impair.py`), Cubic,

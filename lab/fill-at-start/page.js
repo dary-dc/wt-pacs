@@ -3,7 +3,7 @@
  *   after  connect(), wait for `started`, then fill() — what the page did before
  *   start  the fill handed to connect(), so it rides in the `start` message
  * `?block=<ms>` holds the main thread for that long, `?at=call` inside connect()'s own task and
- * `?at=<ms>` that far after it — a viewer's SDK boot task, before or after its worker is alive.
+ * `?at=<ms>` that far after it — a page's long boot task, before or after its worker is alive.
  * Numbers go to window.__wtpacsResult; run.mjs interleaves the arms and README.md reads them.
  */
 import { DownloaderClient } from "/client/downloader/consumer.js";
@@ -21,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function hold(ms) {
   const until = performance.now() + ms;
   while (performance.now() < until) {
-    /* the SDK's boot task, as far as this worker is concerned */
+    /* a long boot task, as far as this worker is concerned */
   }
 }
 

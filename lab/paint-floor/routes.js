@@ -16,10 +16,9 @@ export function windows(frame) {
 }
 
 /**
- * The route a viewer built on the reference implementation takes, rebuilt without it: a lookup
- * table per paint, every sample into a new RGBA `ImageData` at source size, an `OffscreenCanvas`
- * at source size, a scale onto a second one, `transferToImageBitmap`, a main-thread `drawImage`.
- * The two canvases are created once rather than per paint — README §Fairness.
+ * The lookup-table route: a table per paint, every sample into a new RGBA `ImageData` at source
+ * size, an `OffscreenCanvas` at source size, a scale onto a second one, `transferToImageBitmap`,
+ * a main-thread `drawImage`. Both canvases are created once, not per paint — README §Fairness.
  */
 export class Canvas2DRoute {
   static label = "2d";

@@ -100,7 +100,7 @@ On the target link 768 KB is five times the bandwidth-delay product and never bi
 4 it cost the server +17.8 % CPU per MB (6/6). **Recorded as the drop lever for a fast-link
 deployment, not adopted.** Nor is a client-host `rmem_max`: the Linux-default buffer costs no
 resolved throughput (−5.9 %, 3/6). The workstation saw the same event earlier: 403–559 drops per 3.6 MB
-fill from this server and from another stack alike, quinn's `lost_packets` matching the kernel's
+fill from this server and from a comparison server alike, quinn's `lost_packets` matching the kernel's
 count one for one, and the 768 KB window removing them in 4/4 without moving the ask or the page
 clock (n = 4, interleaved).
 
@@ -355,14 +355,14 @@ it can price at a median — every cell, warm included, has a p99 of 60–100 ms
 ## 5. Natively, the send path is already at its ceiling
 
 Browser-free, with native drivers on both sides (connect, ask, drain, end, no decode) on a 61.18 MB
-study of 237 frames of ~259 KB, evicted before every run: this server and another stack serving
+study of 237 frames of ~259 KB, evicted before every run: this server and a comparison server of
 the same protocol shape both land at 225–284 MB/s with **99 %+ of `serve_us` inside `send`**;
 `locate` and `prepare` are ~0. Cold, n = 5 per arm, all three arms sat inside one arm's own
 run-to-run range, so the workstation could not separate them. A server-side change that does not touch
 `send` has nowhere to show.
 
 **Warm, n = 20, with a 3 s settle gap after each run, fill separates.** On the 61 MB study this
-server fills **6.2 % faster** than the other stack (median paired Δ, 95 % CI −12.3 … −2.2 %,
+server fills **6.2 % faster** than the comparison server (median paired Δ, 95 % CI −12.3 … −2.2 %,
 17/20 pairs) and spends **10.9 % less server CPU** (−13.8 … −3.6 %, 16/20). On-demand at depth 1
 ties (+0.9 %, 8/20). A 3.6 MB study stays undecided: its 25–50 ms runs move 22–33 % with their
 place in the pair. Cold was not re-run at n = 20. Each side drives its server with its own native
