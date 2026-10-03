@@ -77,11 +77,16 @@ Rows WCAP (what WebCodecs supports and returns exactly), WASM (the dav1d build) 
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
 unsigned. Signed data is offset by 2^(B−1), which is reversible; data over 12 bits (stored 16-bit)
 needs a split into planes or streams. Row DEPTH measures the options against HTJ2K on the same frames.
+On row DATA's sets, measured: the CT spans −2048..3746 (−1097..3746 without its pad), so it does
+**not** fit 12 bits after an offset; the cone-beam volume needs 13 bits; MR, fluoroscopy and
+ultrasound fit 12 or fewer.
 
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never
-committed); a size verdict names its content.
+committed); a size verdict names its content. They are a CT stack, an MR stack, an RGB ultrasound
+cine, a 12-bit fluoroscopy run and a 16-bit cone-beam volume, all CC BY
+([`FIXTURES.md`](../FIXTURES.md) §AV1 data); no open angiography run was found.
 
 ## Prior evidence, not reproduced here
 

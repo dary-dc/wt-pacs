@@ -67,3 +67,5 @@ lab/page-open/boot/
 # Python bytecode from lab analysis scripts
 __pycache__/
 *.pyc
+# AV1 public series and their frames (fetch with lab/av1/fetch_data.sh)
+lab/av1/data/
