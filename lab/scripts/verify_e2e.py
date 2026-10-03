@@ -12,19 +12,12 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CHROME = (
-    Path.home()
-    / ".local/share/containers/storage/overlay"
-    / "d8f9f58ac864cb2e87fb0fadfe0593525f471b66ba10507ab273c8d0ea509aff"
-    / "diff/root/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome"
-)
 
 
 def find_chrome(explicit: str | None) -> str:
     candidates = [
         explicit,
         os.environ.get("CHROME_PATH"),
-        str(DEFAULT_CHROME) if DEFAULT_CHROME.is_file() else None,
         "/usr/bin/google-chrome-stable",
         "/usr/bin/google-chrome",
         "/usr/bin/chromium-browser",
@@ -157,25 +150,6 @@ def main() -> int:
                 p.kill()
 
     try:
-        # Avoid colliding with other local WebTransport demos.
-        from shutil import which as _which
-
-        if _which("fuser"):
-            for port in (args.port_http,):
-                subprocess.run(
-                    ["fuser", "-k", f"{port}/tcp"],
-                    check=False,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            subprocess.run(
-                ["fuser", "-k", f"{args.port_wt}/udp"],
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            time.sleep(0.5)
-
         if remote_wt:
             print(f"remote WebTransport: {args.wt_url} (skip local exact-server)")
             server_proc = None

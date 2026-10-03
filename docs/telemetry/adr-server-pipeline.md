@@ -181,7 +181,7 @@ session and contended only by the shutdown walker, once.
 
 ## Harvest
 
-`server/scripts/verify_e2e.py --telemetry` drives the browser client and the server together and
+`lab/scripts/verify_e2e.py --telemetry` drives the browser client and the server together and
 writes **two independent files** per run, plus the server's rows:
 
 | File | Source |
@@ -191,10 +191,10 @@ writes **two independent files** per run, plus the server's rows:
 | `telemetry-server.rows` | every server record, exact; the summary's source |
 
 ```bash
-server/scripts/verify_e2e.py --telemetry --cell ondemand --depth 1 --n 320   # the control
-server/scripts/verify_e2e.py --telemetry --cell ondemand --trace /lab/traces/live_cell_scroll.json
-server/scripts/verify_e2e.py --telemetry --cell fill
-server/scripts/verify_e2e.py --telemetry --cell fill --wt-url wss://… --cert-sha256 <sha256> --frames 320
+lab/scripts/verify_e2e.py --telemetry --cell ondemand --depth 1 --n 320   # the control
+lab/scripts/verify_e2e.py --telemetry --cell ondemand --trace /lab/traces/live_cell_scroll.json
+lab/scripts/verify_e2e.py --telemetry --cell fill
+lab/scripts/verify_e2e.py --telemetry --cell fill --wt-url wss://… --cert-sha256 <sha256> --frames 320
 ```
 
 Flags: `--cell {ondemand,fill}`, `--depth D` (on-demand asks in flight; `1` is the control),

@@ -14,6 +14,7 @@ cites; the doc holds the number, the directory holds how to get it. Arms are int
 | `stream-shape/`, `tcp-fallback/` | the stream shape under loss, the WebSocket and the race — `docs/adr-stream-shape.md`, `docs/transport/transport-conclusions.md` |
 | `disk-access-bench/` | the server's read path — `docs/disk-access/adr.md` |
 | `telemetry-bench/`, `telemetry-cost/` | what telemetry costs — `docs/telemetry/` |
+| `clock-resolution/`, `idle-sessions/` | the browser's clock floor and what an idle session survives — `docs/rig-limits.md` §6, `docs/transport/adr-idle-sessions.md` |
 | `fixtures/`, `traces/` | studies and link traces the cells use |
 
 Older campaign drivers are on tag `archive/transport-lab-2026-09`.
