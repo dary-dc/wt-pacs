@@ -154,8 +154,10 @@ repository** and are recorded only so the queue tests them rather than rediscove
 * **WebCodecs on Chromium returned no frames from lossless streams** (Main 4:2:0 and High 4:4:4,
   8-bit), with `isConfigSupported` answering true; whether that was the probe's packaging was not
   settled. *Not reproduced here (WCAP):* both cells decode exactly in Chromium 141. Lossless is not
-  the cause; the decoder holds two frames until `flush()`, so one chunk unflushed returns nothing —
-  consistent with that probe, whose code is not here to check.
+  the cause; the decoder holds two frames until `flush()`, so one chunk unflushed returns nothing.
+  *Corrected 2026-10-03:* this file first called that "consistent with that probe"; the probe did
+  call `flush()` after every chunk of a 15-frame clip, so a missing flush does not explain it, and
+  why it returned nothing is **unexplained**.
 * **dav1d in WASM decoded an 8-bit 4:4:4 clip exactly** in a browser over WebTransport (dav1d 1.5.0,
   no SIMD, one thread). Nothing above 8 bits or 4:0:0 was decoded in WASM, and no WASM decode time
   was taken.
