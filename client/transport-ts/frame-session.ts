@@ -131,13 +131,10 @@ export abstract class FrameSession {
     if (fill) for (const index of fill.pending) fill.onError(index, this.closedReason);
   }
 
+  /** Throws, rather than rejecting, so a refused ask never reaches the wire. */
   private armWaiter(frameIndex: number): Promise<{ bytes: Uint8Array; receivedMs: number }> {
-    if (this.closedReason) {
-      return Promise.reject(new Error(`frame ${frameIndex} unavailable: ${this.closedReason}`));
-    }
-    if (this.waiters.has(frameIndex)) {
-      return Promise.reject(new Error(`frame ${frameIndex} already requested`));
-    }
+    if (this.closedReason) throw new Error(`frame ${frameIndex} unavailable: ${this.closedReason}`);
+    if (this.waiters.has(frameIndex)) throw new Error(`frame ${frameIndex} already requested`);
     return new Promise((resolve, reject) => {
       const armedAt = performance.now();
       // Late when the session goes quiet, not when the ask is old: a long burst still owes its tail.
@@ -229,7 +226,17 @@ export abstract class FrameSession {
   async requestExactFrame(frameIndex: number): Promise<FrameResult> {
     const askMs = performance.now();
     const pending = this.armWaiter(frameIndex);
-    await this.sendFod({ op: "request_frame", frame: frameIndex });
+    const armed = this.waiters.get(frameIndex)!;
+    try {
+      await this.sendFod({ op: "request_frame", frame: frameIndex });
+    } catch (e) {
+      pending.catch(() => {});
+      if (this.waiters.get(frameIndex) === armed) {
+        clearTimeout(armed.timer);
+        this.waiters.delete(frameIndex);
+      }
+      throw e;
+    }
     return this.settle(frameIndex, askMs, pending);
   }
 
@@ -263,7 +270,8 @@ export abstract class FrameSession {
     if (to < from) throw new Error("fillFrames: to < from");
     if (this.closedReason) throw new Error(`session unavailable: ${this.closedReason}`);
     const askMs = this.armFill(from, to, onFrame, onError);
-    void this.sendFod({ op: "stream_frames", from, to });
+    // A write that fails means the session is going, and its closure names what the fill owed.
+    this.sendFod({ op: "stream_frames", from, to }).catch(() => {});
     return askMs;
   }
 

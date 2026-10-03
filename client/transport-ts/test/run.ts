@@ -102,6 +102,26 @@ async function telemetryKeepsTheReadersArguments() {
   }
 }
 
+/** A control write that fails takes its waiter with it: the same frame asked again is a fresh
+ *  ask, not "already requested", and neither it nor a fill leaves a rejection unobserved. */
+async function aFailedAskWriteDisarmsItsWaiter() {
+  const unobserved: string[] = [];
+  const onUnobserved = (e: unknown) => void unobserved.push(String(e));
+  process.on("unhandledRejection", onUnobserved);
+  StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 16, failWrites: true };
+  const session = await TransportSession.connect("https://stub/", HASH);
+  const why = (p: Promise<unknown>) => p.then(() => "delivered", (e) => String(e.message));
+  const first = await why(session.requestExactFrame(4));
+  const again = await why(session.requestExactFrame(4));
+  session.fillFrames(0, 1, () => {});
+  await new Promise((r) => setTimeout(r, 50));
+  process.off("unhandledRejection", onUnobserved);
+  assert(/reset/.test(first), `failed ask write: the ask rejects with the write's error, saw "${first}"`);
+  assert(/reset/.test(again), `failed ask write: asking again is a fresh ask, saw "${again}"`);
+  assert(session.stats().inFlight === 0, `failed ask write: no waiter is left armed (${session.stats().inFlight})`);
+  assert(unobserved.length === 0, `failed ask write: no rejection goes unobserved (${unobserved.join("; ") || "none"})`);
+}
+
 /** An opening fill rides the session URL, yet the Tap opens a row per frame and drops none. */
 async function telemetryOpensRowsForAnOpeningFill() {
   StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 1000 };
@@ -118,7 +138,7 @@ async function telemetryOpensRowsForAnOpeningFill() {
   uninstall();
 }
 
-for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
+for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, aFailedAskWriteDisarmsItsWaiter, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);
