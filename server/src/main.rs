@@ -35,8 +35,7 @@ struct Args {
     keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t)]
     congestion: Congestion,
-    /// Controller knobs, all at quinn's default unless set. What each one measured:
-    /// docs/transport/transport-conclusions.md §3.
+    /// Controller knobs, quinn's default unless set: docs/transport/transport-conclusions.md §3.
     #[arg(long)]
     initial_window_bytes: Option<u64>,
     #[arg(long)]
