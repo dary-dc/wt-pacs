@@ -1045,6 +1045,50 @@ sampler reads 1.10 MB in every arm — it does not weigh `ArrayBuffer` backing s
 nothing. Counts, not timing, from one `wasm-pack` build per feature flag; 237 of 237 frames every
 run.
 
+## AV1
+
+### WebCodecs, what it decodes exactly
+
+Headless Chromium 141.0.7390.37 (the lab's), Linux container, no GPU, 2026-10-03
+(`lab/av1/wcap/`). 24 lossless libaom streams, 256×192, 8 frames each: 4:0:0, 4:2:0, 4:2:2 and
+4:4:4 (identity matrix, GBR) × 8/10/12 bit × intra-only and inter (one keyframe, seven inter
+frames). Each frame's planes are hashed against the encoder input's SHA-256; native dav1d 1.4.1
+reproduces all 24, so a miss would be the browser's.
+
+| | 8 bit | 10 bit | 12 bit |
+| --- | --- | --- | --- |
+| 4:0:0 (Main / Professional) | exact, `I420` | exact, `I420P10` | **refused** |
+| 4:2:0 (Main) | exact, `I420` | exact, `I420P10` | **refused** |
+| 4:2:2 (Professional) | exact, `I422` | exact, `I422P10` | **refused** |
+| 4:4:4 GBR (High) | exact, `I444` | exact, `I444P10` | **refused** |
+
+Exact means 8/8 frames, every plane, intra and inter alike, with `no-preference` and
+`prefer-software`. Mutated, every cell fails: a flipped sample in the copy, a wrong ground-truth
+hash, a corrupted payload byte (to native dav1d).
+
+* **12 bit is refused before the decoder sees it**: `decode()` throws `DataError: A key frame is
+  required` on the stream's first chunk, which is a keyframe with its sequence header. 8- and 10-bit
+  4:2:2 are Professional profile too and decode, so it is the depth, not the profile — the check
+  that classifies a chunk as key does not take a 12-bit sequence header. Why, inside Chromium, is
+  not read from its source.
+* **`isConfigSupported` does not tell**: it answers `true` for every 12-bit string, and for strings
+  the AV1 spec forbids (profile 0 with 4:4:4 or 12 bit, profile 1 with 4:2:0); only profile 1 with
+  4:0:0 is `false`. So a client learns what this decoder takes by decoding a known frame, not by
+  asking — the warm-up frame (§Warming the decoders) can be that frame.
+* **`prefer-hardware` is unsupported** for every config here (no GPU); nothing about a hardware
+  decoder's read-back follows.
+* **A 4:0:0 stream comes back as three planes**: `I420`, the chroma filled with the mid value (128,
+  512), `colorSpace` reported BT.709 limited range. Only plane 0 is the image; `copyTo` costs the
+  chroma's half again.
+* **GBR comes back as `I444`, planes in G, B, R order**, `colorSpace.matrix` `null` (not `"rgb"`),
+  sRGB transfer, full range. The samples are untouched; the conversion to RGBA is the client's.
+* **The decoder holds two frames until `flush()`**: 8 temporal units unflushed give 6 frames, 3
+  give 1, 2 give 0 or 1, 1 gives **0**. One chunk, no flush, is an empty decode. Temporal
+  delimiters make no difference (stripped: same 24 results). A decoder serving one frame at a time
+  has to flush each, and a flush wants a keyframe next — fine at a group of 1.
+
+What this cannot say: anything about a phone, Safari, a GPU decoder, or a Chromium other than 141.
+
 ## What these numbers are not
 
 * **Every millisecond is container-measured** and reported, not decided on. Heap, byte-exactness and

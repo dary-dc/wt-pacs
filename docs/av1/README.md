@@ -51,10 +51,13 @@ AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to W
 Neither is assumed faster or exact:
 
 * the profiles, per the AV1 spec: Main is 8/10-bit 4:0:0 or 4:2:0; High is 8/10-bit 4:4:4 (no
-  4:0:0); Professional adds 12-bit, 4:0:0 included. Chromium's software decoder maps all three
-  (and turns a 4:0:0 frame into three planes); whether `isConfigSupported` accepts Professional, and
-  whether 12-bit samples survive `copyTo`, is unconfirmed. Safari offers AV1 only on hardware with an
-  AV1 decoder (M3 and later, iPhone 15 Pro and later), at profiles unconfirmed.
+  4:0:0); Professional adds 12-bit, 4:0:0 included. **Measured (WCAP), headless Chromium 141, no
+  GPU:** every 8- and 10-bit layout comes back exact through `copyTo`, intra and inter, Professional
+  4:2:2 included; **12-bit is refused** — `decode()` will not take its keyframe — although
+  `isConfigSupported` says `true` for it (and for strings the spec forbids), so the answer to that
+  call decides nothing. A 4:0:0 frame comes back as three planes. Safari offers AV1 only on hardware
+  with an AV1 decoder (M3 and later, iPhone 15 Pro and later), at profiles unconfirmed.
+  [`decode/README.md`](../decode/README.md) §AV1.
 * lossless coding is part of the normative decode process, not an optional tool, so every
   conforming decoder must take it.
 * a hardware decoder may hand back a GPU frame whose read-back is converted; exactness is per
@@ -97,7 +100,9 @@ repository** and are recorded only so the queue tests them rather than rediscove
   4:4:4 inexact (up to 15 904 of 1 M samples, |Δ| ≤ 11), three decoders agreeing — [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md).
 * **WebCodecs on Chromium returned no frames from lossless streams** (Main 4:2:0 and High 4:4:4,
   8-bit), with `isConfigSupported` answering true; whether that was the probe's packaging was not
-  settled.
+  settled. *Not reproduced here (WCAP):* both cells decode exactly in Chromium 141. Lossless is not
+  the cause; the decoder holds two frames until `flush()`, so one chunk unflushed returns nothing —
+  consistent with that probe, whose code is not here to check.
 * **dav1d in WASM decoded an 8-bit 4:4:4 clip exactly** in a browser over WebTransport (dav1d 1.5.0,
   no SIMD, one thread). Nothing above 8 bits or 4:0:0 was decoded in WASM, and no WASM decode time
   was taken.
