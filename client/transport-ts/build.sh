@@ -5,7 +5,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
-if [[ ! -d node_modules ]]; then
+# npm writes node_modules/.package-lock.json on install: older than the lockfile means a dependency changed since.
+if [[ ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules/.package-lock.json ]]; then
   npm install
 fi
 npx esbuild session.ts --bundle --format=esm --outfile=dist/session.js --platform=browser --target=es2022
