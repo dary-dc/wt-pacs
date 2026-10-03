@@ -291,7 +291,3 @@ export function getTap(): Tap | null {
 export function setTap(tap: Tap | null) {
   ACTIVE = tap;
 }
-
-export function ensureReport(): TelemetryReport | null {
-  return ACTIVE ? ACTIVE.finish() : null;
-}

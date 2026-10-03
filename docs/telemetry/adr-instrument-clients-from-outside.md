@@ -81,7 +81,9 @@ different points, because it is the same code stamping.
 - **`gesture` is not covered**: it happens before the transport is called. The harness shell
   supplies it; without one, `queue` exports `null`.
 - The tap sees bytes, not frames, so frame boundaries are recovered arithmetically from byte
-  offsets (Decision A), reusing `wire.ts`'s `parseLengthPrefixed`.
+  offsets (Decision A), by `record/attribution.ts` against `wire.ts`'s `MAX_FRAME_LEN`.
+  *Corrected 2026-10-03:* this said it reused `wire.ts`'s `parseLengthPrefixed`, which nothing
+  imported; it is removed.
 - It does **not** fix the event-loop timing confound; only D would.
 - **What it cannot see.** A session over the WebSocket fallback (no `WebTransport` to patch). The
   downloader's pushed fill is seen since 2026-10-03: the wrapper wraps `fillFrames` and an opening fill.
