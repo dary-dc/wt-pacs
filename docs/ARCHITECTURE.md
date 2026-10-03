@@ -212,7 +212,7 @@ carries its `generation`; `cancel()` resolves once the downloader has ended the 
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
 consumer keeps no timer: the downloader settles every ask. `url` and `certHash` may be promises;
-`openAsk` puts the opening fill in the session URL (§Lever 1). The page forwards the triggers a
+the opening fill rides the session URL unless `openAsk` is `false` (§Lever 1). The page forwards the triggers a
 worker cannot see — `visibilitychange`, `pageshow`, `freeze`, `resume` — as one message.
 
 ### Closing a client
@@ -515,8 +515,11 @@ such a session was dropped; `refuse` now waits for the stream (`an_opening_ask_i
 **Worth −1.13 round trips to the first frame of a fill in a browser** — 13.44 against 14.57, seven
 rounds an arm at 40, 80 and 160 ms, interleaved, against a ±0.2 spread on milestones it does not touch:
 41 ms at 40, 178 at 160. Re-run 2026-10-02 (PUSH), 14 rounds Williams-ordered: −1.06 at 1×, **−1.52 at
-4×**, and −1.9 / −1.8 with the URL inlined ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The push in a browser, at 4×). **Off by default** (`--open-ask`, `openAsk`): the URL carries one contiguous
-run, and no host but this box's relay has served it. Two clauses hold it (honoured and optional; a
+4×**, and −1.9 / −1.8 with the URL inlined ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The push in a browser, at 4×). **On by default** since 2026-10-02 (a measured win with no cell against it):
+`--open-ask false` on the server and `openAsk: false` on the client turn it off, together — a client
+that sends it to a server that ignores it gets no frame. The URL carries one contiguous run, and no
+host but this box's relay has served it. The WASM client has no opening ask; its downloader adapter
+asks the opening fill on the control stream. Two clauses hold it (honoured and optional; a
 malformed ask leaves the session serving). A re-dial puts the fill's remainder in the new URL too.
 
 ### Lever 2
@@ -887,7 +890,7 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
   the upgrade's URL and serves it right behind the 101; `ws-session.ts` puts an opening fill there.
   **−1.03 to −1.09 round trips to the first frame**, every paired round: −43.6 ms at 40 (7/7), −83.8
   at 80 (10/10), −164.3 at 160 (7/7), the fill's end the same. Lever 1 taken from the upgrade, for
-  every WebSocket client. Off by default, like lever 1; the race's default unchanged
+  every WebSocket client. On by default, like lever 1; the race puts it on the WebSocket's URL alone
   ([`../lab/tcp-fallback/`](../lab/tcp-fallback/README.md) §The opening ask in the upgrade's URL).
 
 **Before it is enabled anywhere**: a device check of the iOS stall and of recycling. **What the shaped

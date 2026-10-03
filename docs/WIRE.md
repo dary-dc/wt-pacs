@@ -129,7 +129,7 @@ and is not measured here.
 
 ## The opening ask
 
-Off by default; `exact-server --open-ask` turns it on. The session URL may carry
+On by default; `exact-server --open-ask false` turns it off. The session URL may carry
 `?ask=frame:N` or `?ask=fill:A-B`, which the server reads before accepting the session and serves
 at once, behind the accept rather than behind the control stream. A malformed or out-of-range
 value is ignored and the session proceeds as without it. A refusal of an opening ask waits for the

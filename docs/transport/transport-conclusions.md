@@ -4,8 +4,9 @@ What the transport measured and chose, why each change exists, and what is still
 per decision, not per commit; the code carries a one-line pointer here and this file carries the
 reason.
 
-**The tree as it builds.** `--stream-mode` defaults to `shared`, the controller to Cubic, and every
-flow-control window to quinn's default. A frame goes to quinn as the reader's own buffer
+**The tree as it builds.** `--stream-mode` defaults to `shared`, the controller to Cubic with
+slow start restarted after a silence (`cubic-restart`, §3), the opening ask to on (§3 Lever 1), and
+every flow-control window to quinn's default. A frame goes to quinn as the reader's own buffer
 (`media/frame_pool.rs`), the only send path. The release profile is `lto = "fat"`, one codegen unit.
 Two crate patches are on by default through `[patch.crates-io]` — wtransport's SETTINGS in the
 handshake flight and quinn-proto's probe of every space — and why they exist is
@@ -38,7 +39,7 @@ git checkout archive/transport-lab-2026-09 -- lab/transport                     
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Cubic, by default, until the loss mix is measured.** Congestive loss → Cubic; radio loss → BBR; both directions large (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster and pays with ~45 % of its datagrams overflowing a 120 ms queue, or 294 ms of standing queue in a 900 ms one (CC1). BBR with its window held to 1.25× its own path estimate keeps that fill with no overflow and 13–16 ms of queue (BB2) — *corrected 2026-10-01:* only while the round trip stays near its minimum; under ±20 ms of jitter it falls to a 4-packet window, 80 s for a 7 s fill, and a windowed minimum does not save it (BBF). Not a candidate as built |
+| **Congestion controller** | **Cubic, restarted after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill on a dropped blink, a tie otherwise, §3 W5b); BBR stays opt-in until the loss mix is measured.** Congestive loss → Cubic; radio loss → BBR; both directions large (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster and pays with ~45 % of its datagrams overflowing a 120 ms queue, or 294 ms of standing queue in a 900 ms one (CC1). BBR with its window held to 1.25× its own path estimate keeps that fill with no overflow and 13–16 ms of queue (BB2) — *corrected 2026-10-01:* only while the round trip stays near its minimum; under ±20 ms of jitter it falls to a 4-packet window, 80 s for a 7 s fill, and a windowed minimum does not save it (BBF). Not a candidate as built |
 | **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed (§2, [`../adr-stream-shape.md`](../adr-stream-shape.md)) |
 | **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
@@ -47,9 +48,9 @@ git checkout archive/transport-lab-2026-09 -- lab/transport                     
 | **Flow-control windows** | **quinn's defaults.** A client that asks for 25 MB and stops reading costs the server **180 kB** on this send path (§3) |
 | **Runtime shape** | **One endpoint on the multi-thread runtime.** One endpoint per core won every single-session cell and most saturation cells, and **12 of 16 NAT rebinds kill the session** on it. Parked on `claude/per-core-endpoints` (§6) |
 
-`--stream-mode per-frame`, `--congestion cubic-restart | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`, `--packet-threshold`,
-`--persistent-congestion-threshold`, `--ack-frequency-max-delay-ms` and `--open-ask` are flags at
-quinn's behaviour, each for the cell named where it is measured below.
+`--stream-mode per-frame`, `--congestion cubic | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`,
+`--packet-threshold`, `--persistent-congestion-threshold`, `--ack-frequency-max-delay-ms` and
+`--open-ask false` are flags, each for the cell named where it is measured below.
 
 ---
 
@@ -70,7 +71,7 @@ still beats BBR's best). BBR also drops 30–100× more packets at the bottlenec
 queueing delay? RTT rising before loss → congestive → Cubic; loss with RTT flat → radio →
 BBR.
 
-**Default Cubic** until that mix is measured: it is the incumbent; it is the safer error
+**Default Cubic** (since 2026-10-02 with slow start restarted after a silence, §3) until that mix is measured: it is the incumbent; it is the safer error
 (63 % worse if wrong, against 48 % the other way); and BBRv1's queue-drop excess is
 inflicted on other traffic sharing the link.
 
@@ -653,7 +654,7 @@ untested; this container has one loopback address.
 #### Lever 1 — the bytes the viewer needs anyway, pushed at session open
 
 `--open-ask`: the session URL carries `?ask=fill:0-k`, so the study's first frames are moving when
-the control stream opens. Both clients can send it (`openAsk`), off by default; the design and its
+the control stream opens. The TypeScript client sends it (`openAsk`), on by default since 2026-10-02; the design and its
 browser measurement are [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Lever 1. Pushing 1, 2, 4 and 8
 frames before one more is asked takes that ask at 250 KB / 80 ms from 454.7 ms to 204.0, 157.2,
 127.6 and **103.9 — the filled arm's 104.3**; at 50 KB, 248.2 to 165.9, 124.8, 108.5 and 98.1. **It
@@ -976,7 +977,7 @@ queue, which a blackout does not drop).
 `server/src/transport/restart.rs` is `--congestion cubic-restart`: a wrapper over the public
 `Controller` trait that, when a congestion event's lost packets all predate a silence of four round
 trips, replaces the inner Cubic with a fresh one — quinn's only way back into slow start. It takes
-**4.8 to 4.9 s off every start-of-fill row, 5/5**. It is **not** the default. Its first form
+**4.8 to 4.9 s off every start-of-fill row, 5/5**. It is the default since 2026-10-02 (W5b below). Its first form
 compared only the two most recent acknowledgements and missed the 500 ms outage, because quinn
 declares the loss an acknowledgement or two *after* the one that ended the silence; the silence is
 now remembered until a congestion event spends it, and measured against the RTT estimate from
@@ -1036,7 +1037,8 @@ touching the win**: unfixed, the first 15-round run read the same — −4.64 to
 held — plus a +121.8 ms lean at 1 % with no blink (6/14), gone in the second run (+4.7, 5/11); the
 fix (`restart.rs`, the gap measured from the first send after nothing was in flight; two tests, two
 mutants caught) took the STW misfire from +491.5 to −1.4 ms (§The window through a silence). **Keep
-`cubic-restart`; drop `cubic-idle-restart`** — the owner's call, no default changed. Whether a radio
+`cubic-restart`; drop `cubic-idle-restart`** — `cubic-restart` became the default controller
+2026-10-02, and the idle restart is retired (code in history at `6e9c126`). Whether a radio
 drops or holds through an outage still decides whether the restart has a target at all.
 
 ### The fill's order, 2026-09-19
@@ -1464,11 +1466,12 @@ its own queue (27–196 ms) is not.* On phone-like profiles (PROF, §1)
    the telemetry's question. The smallest controller that could keep BBR's loss tolerance without
    its queue costs is v3's loss bound alone over quinn's BBR, unbuilt; its deciding cell is PROF's
    LTE-good + CoDel (BB3, §1).
-3. **The first ask's defaults** — the owner's call (§3). A port-only rebind keeps quinn's window,
+3. **The first ask's defaults**: the push at session open is on by default since 2026-10-02; the
+   initial window stays the owner's call (§3). A port-only rebind keeps quinn's window,
    and a new address resets it, which re-applies the window lever but not the push (§3, PUSH). Not
    tested: whether a real mobile NAT keeps the address.
 4. *The restart at 0.1–1 % loss: sized 2026-10-02 (§3 W5b) — it keeps its win and costs nothing,
-   and its idle-spell misfire (§3 STW) is fixed.* **Hold or drop** — which
+   and its idle-spell misfire (§3 STW) is fixed; the default since 2026-10-02.* **Hold or drop** — which
    a radio does through an outage, from a device trace; what declares ~140 losses a session under ±10 ms reordering (a qlog cell: quinn's
    `qlog_stream` reads pacing, flow-control blocking and recovery instead of inferring them);
    delivery-trace replay in the relay; and the idle radio — by report carriers drop a radio to idle

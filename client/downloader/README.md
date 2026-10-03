@@ -14,9 +14,10 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
 
 **Only the dial needs the URL.** `url` and `certHash` may each be a promise: the worker, the
-decoders and the transport import start at once and the dial waits alone. With `opts.openAsk` the
-opening fill rides the session URL as `?ask=fill:A-B` and is never asked for on the control stream —
-off by default, as the server's `--open-ask` is. `lab/page-open/README.md` §The first byte on a
+decoders and the transport import start at once and the dial waits alone. The opening fill rides
+the session URL as `?ask=fill:A-B` and is never asked for on the control stream — on by default, as
+the server's `--open-ask` is; `opts.openAsk: false` asks it on the control stream instead, and a
+server run with `--open-ask false` needs that. `lab/page-open/README.md` §The first byte on a
 fill prices both: the opening ask is **−1.13 round trips** to the first frame of a fill, 41 ms at a
 40 ms link and 178 ms at 160; the promise is worth nothing measurable on that box.
 

@@ -36,7 +36,8 @@ type OpenOpts = {
   decode?: boolean;
   fill?: number[];
   readyDelayMs?: number;
-  openAsk?: boolean;
+  /** `"default"` leaves it unset; the other clauses ask on the control stream. */
+  openAsk?: boolean | "default";
   urlDelayMs?: number;
   warmup?: string;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
@@ -57,7 +58,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     decoders: opts.decoders,
     perDecoder: opts.perDecoder,
     fill: opts.fill,
-    openAsk: opts.openAsk,
+    openAsk: opts.openAsk === "default" ? undefined : (opts.openAsk ?? false),
     transport: `/client/conformance/dist/fake-session.js?ch=${ch}&hang=${opts.hangDials ?? 0}`,
     decoderWorker: opts.realDecoder ? undefined : `/client/conformance/fake-decoder.js?ch=${ch}`,
     decoder: opts.realDecoder ?? { delayMs: opts.delayMs, readyDelayMs: opts.readyDelayMs },
@@ -552,7 +553,7 @@ async function theDecodersComeUpWhileTheUrlIsUnknown(DownloaderClient: Downloade
 
 /**
  * R1: the fill the consumer opens with rides the session URL, so the server serves it behind its
- * accept, and the control stream is never asked for it a second time. Off unless asked for, as
+ * accept, and the control stream is never asked for it a second time. On unless turned off, as
  * the server's `--open-ask` is. docs/ARCHITECTURE.md
  */
 async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
@@ -560,7 +561,7 @@ async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor,
   const got: Frame[] = [];
   const { c, fake } = await open(DownloaderClient, {
     decode: false, decoders: 0, perDecoder: 2, delayMs: 0,
-    fill: indices, openAsk: true, onFrame: (f) => got.push(f),
+    fill: indices, openAsk: "default", onFrame: (f) => got.push(f),
   });
   const url = await fake.dialUrl();
   check(url.endsWith("?ask=fill:0-3"), `open ask: the session URL carries the fill (${url})`);
@@ -571,10 +572,10 @@ async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor,
   c.close();
 
   const { c: c2, fake: fake2 } = await open(DownloaderClient, {
-    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, fill: indices, onFrame: () => {},
+    decode: false, decoders: 0, perDecoder: 2, delayMs: 0, fill: indices, openAsk: false, onFrame: () => {},
   });
   const plain = await fake2.dialUrl();
-  check(!plain.includes("ask="), `open ask: the session URL carries nothing unless asked for (${plain})`);
+  check(!plain.includes("ask="), `open ask: turned off, the session URL carries nothing (${plain})`);
   c2.close();
 }
 

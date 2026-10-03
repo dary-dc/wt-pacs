@@ -1,4 +1,4 @@
-//! QUIC transport knobs. Unset reproduces quinn's stock configuration byte for byte.
+//! QUIC transport knobs. Cubic with nothing else set is quinn's stock configuration byte for byte.
 
 use crate::transport::restart::SlowStartRestartConfig;
 use anyhow::Result;
@@ -8,10 +8,10 @@ use wtransport::quinn::TransportConfig;
 /// Congestion controller. quinn's BBR is a port of quiche's BBRv1, not BBRv3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, clap::ValueEnum)]
 pub enum Congestion {
-    #[default]
     Cubic,
     Bbr,
     /// Cubic that restarts slow start after a silence instead of halving. `restart.rs`.
+    #[default]
     CubicRestart,
 }
 
@@ -64,7 +64,7 @@ impl Default for TransportTuning {
             send_window: None,
             max_idle_timeout_ms: None,
             keep_alive_interval_ms: None,
-            congestion: Congestion::Cubic,
+            congestion: Congestion::CubicRestart,
             initial_window: None,
             persistent_congestion_threshold: None,
             packet_threshold: None,
@@ -207,6 +207,11 @@ fn varint(v: u64, what: &str) -> Result<wtransport::quinn::VarInt> {
 mod tests {
     use super::*;
 
+    /// quinn's stock stack: the knob under test is then the only departure from it.
+    fn stock() -> TransportTuning {
+        TransportTuning { congestion: Congestion::Cubic, ..TransportTuning::default() }
+    }
+
     #[test]
     fn default_tuning_builds() {
         TransportTuning::default().to_transport_config().unwrap();
@@ -237,7 +242,7 @@ mod tests {
     fn keep_alive_alone_leaves_the_library_default_behind() {
         let t = TransportTuning {
             keep_alive_interval_ms: Some(20_000),
-            ..TransportTuning::default()
+            ..stock()
         };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("keep_alive_interval_ms=20000"));
@@ -250,7 +255,7 @@ mod tests {
     fn an_initial_window_alone_leaves_the_library_default_behind() {
         let t = TransportTuning {
             initial_window: Some(38_400),
-            ..TransportTuning::default()
+            ..stock()
         };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("initial_window=38400"));
@@ -265,12 +270,12 @@ mod tests {
             (
                 TransportTuning {
                     persistent_congestion_threshold: Some(6),
-                    ..TransportTuning::default()
+                    ..stock()
                 },
                 "persistent_congestion_threshold=6",
             ),
             (
-                TransportTuning { initial_rtt_ms: Some(100), ..TransportTuning::default() },
+                TransportTuning { initial_rtt_ms: Some(100), ..stock() },
                 "initial_rtt_ms=100",
             ),
         ] {
@@ -285,7 +290,7 @@ mod tests {
     /// measure nothing. docs/transport/transport-conclusions.md §3.
     #[test]
     fn a_packet_threshold_alone_leaves_the_library_default_behind() {
-        let t = TransportTuning { packet_threshold: Some(12), ..TransportTuning::default() };
+        let t = TransportTuning { packet_threshold: Some(12), ..stock() };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("packet_threshold=12"));
         t.to_transport_config().unwrap();
@@ -297,7 +302,7 @@ mod tests {
     fn gso_off_leaves_the_library_default_behind() {
         let t = TransportTuning {
             segmentation_offload: false,
-            ..TransportTuning::default()
+            ..stock()
         };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("segmentation_offload=false"));
@@ -309,18 +314,28 @@ mod tests {
     fn asking_for_an_ack_delay_is_not_the_library_default() {
         let t = TransportTuning {
             ack_frequency_max_delay_ms: Some(5),
-            ..Default::default()
+            ..stock()
         };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("ack_frequency_max_delay_ms=5"));
-        assert!(TransportTuning::default().quic_is_library_default());
+        assert!(stock().quic_is_library_default());
+    }
+
+    /// The default controller is the restart after a silence, which quinn's stock stack lacks: it
+    /// must reach quinn as a custom transport, and a run must say it carries it.
+    #[test]
+    fn the_default_controller_is_cubic_restart_and_leaves_the_library_default_behind() {
+        let t = TransportTuning::default();
+        assert_eq!(t.congestion, Congestion::CubicRestart);
+        assert!(!t.quic_is_library_default());
+        assert!(t.describe().contains("congestion=cubic-restart"));
     }
 
     #[test]
     fn oversized_window_is_an_error() {
         let t = TransportTuning {
             receive_window: Some(u64::MAX),
-            ..Default::default()
+            ..stock()
         };
         assert!(t.to_transport_config().is_err());
     }

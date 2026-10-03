@@ -44,7 +44,7 @@ struct Args {
     /// timeouts to work. docs/transport/adr-idle-sessions.md.
     #[arg(long)]
     keep_alive_interval_ms: Option<u64>,
-    #[arg(long, value_enum, default_value_t = Congestion::Cubic)]
+    #[arg(long, value_enum, default_value_t = Congestion::CubicRestart)]
     congestion: Congestion,
     /// Controller knobs, all at quinn's default unless set. What each one measured:
     /// docs/transport/transport-conclusions.md §3.
@@ -66,8 +66,8 @@ struct Args {
     /// Lab only: serve every frame as a miss, for measuring a study nobody has read.
     #[arg(long, default_value_t = false)]
     force_pool_reads: bool,
-    /// Prototype: honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL.
-    #[arg(long, default_value_t = false)]
+    /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--open-ask false` turns it off.
+    #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set)]
     open_ask: bool,
     #[arg(long, default_value_t = false, help = "Lab only: take each CONNECT and never answer it")]
     hold_sessions: bool,
@@ -178,5 +178,30 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {}
         _ = term.recv() => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(flags: &[&str]) -> Args {
+        Args::try_parse_from([&["exact-server", "--study", "s.sbnd"], flags].concat()).expect("parses")
+    }
+
+    /// The restart after a silence is the default controller: it won every dropped blink and tied
+    /// everywhere else. docs/transport/transport-conclusions.md §3.
+    #[test]
+    fn the_default_controller_is_cubic_restart() {
+        assert_eq!(parse(&[]).congestion, Congestion::CubicRestart);
+        assert_eq!(parse(&["--congestion", "cubic"]).congestion, Congestion::Cubic);
+    }
+
+    /// The opening ask is on unless turned off, and the bare flag the lab scripts pass still parses.
+    #[test]
+    fn the_opening_ask_is_on_by_default_with_a_way_off() {
+        assert!(parse(&[]).open_ask);
+        assert!(parse(&["--open-ask"]).open_ask);
+        assert!(!parse(&["--open-ask", "false"]).open_ask);
     }
 }

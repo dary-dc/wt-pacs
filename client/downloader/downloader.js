@@ -318,7 +318,7 @@ async function connect() {
   dialling ??= (async () => {
     // The range is known here, so it rides the session URL and is served behind the accept
     // rather than a round trip later. docs/ARCHITECTURE.md
-    const run = cfg.openAsk ? nextRun() : null;
+    const run = cfg.openAsk !== false ? nextRun() : null;
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
     adopt(await openSession(opening));
     return opening;

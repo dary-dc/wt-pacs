@@ -40,8 +40,8 @@ pub struct ServeConfig {
     /// Lab only: serve every frame as a miss, so a cold study can be measured without
     /// relying on page-cache eviction. `docs/disk-access/adr.md`.
     pub force_pool_reads: bool,
-    /// Prototype, off by default: honour `?ask=` in the session URL, so the first frame moves
-    /// behind the accept instead of behind the control stream. `docs/ARCHITECTURE.md`.
+    /// Honour `?ask=` in the session URL, so the first frame moves behind the accept instead of
+    /// behind the control stream. `docs/ARCHITECTURE.md`.
     pub open_ask: bool,
     /// Lab only: every session request is taken and never answered — WebKit bug 319879's dial
     /// that never settles, made on purpose. `docs/ARCHITECTURE.md` §A dial that never settles.
@@ -290,7 +290,7 @@ pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
     }
 }
 
-/// Lab path: serve the opening ask immediately, and take the control stream whenever it turns
+/// Serve the opening ask immediately, and take the control stream whenever it turns
 /// up. A refusal waits for it, since that is the only way one can be sent.
 async fn serve_opening_ask(
     connection: wtransport::Connection,
