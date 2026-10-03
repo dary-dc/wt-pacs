@@ -38,7 +38,7 @@ STUDY="${1:-us_cine_smoke}"
 PY_PORT=18765
 NG_PORT=18766
 PATHS=(/harness/ /harness/index.html /harness/shell.js /wt/dev-transport.json /study/metadata
-       /client/transport-ts/session.ts /client/harness/index.html /nope-404)
+       /client/downloader/downloader.js /client/harness/index.html /nope-404)
 
 python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --study "$STUDY" >/dev/null 2>&1 &
 PY=$!
@@ -68,15 +68,15 @@ done
 fail=0
 if [ -n "${CERT_PEM:-}" ]; then cert_chain "$CERT_PEM" 1 || fail=1
 else cert_chain "$ROOT/server/dev-cert/cert.pem" 0 || fail=1; fi
-probe() {  # port path -> "status|coop|coep|corp|ctype|sha"
+probe() {  # port path -> "status|coop|coep|corp|ctype|cache-control|sha"
   local url="http://127.0.0.1:$1$2"
   local h; h=$(curl -sS -D- -o /tmp/body.$$ "$url" 2>/dev/null)
   local get; get() { printf '%s' "$h" | grep -i "^$1:" | head -1 | tr -d '\r' | cut -d' ' -f2-; }
-  printf '%s|%s|%s|%s|%s|%s' \
+  printf '%s|%s|%s|%s|%s|%s|%s' \
     "$(printf '%s' "$h" | head -1 | awk '{print $2}')" \
     "$(get cross-origin-opener-policy)" "$(get cross-origin-embedder-policy)" \
     "$(get cross-origin-resource-policy)" \
-    "$(get content-type | cut -d';' -f1 | tr -d ' ')" \
+    "$(get content-type | cut -d';' -f1 | tr -d ' ')" "$(get cache-control)" \
     "$(sha256sum /tmp/body.$$ | cut -c1-12)"
   rm -f /tmp/body.$$
 }

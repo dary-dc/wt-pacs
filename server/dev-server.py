@@ -8,6 +8,10 @@ from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
+# What the pages fetch; the rest of the checkout holds the dev key and .git. deploy/README.md
+SERVED = {"client", "fixtures", "lab"}
+# A re-packed catalog or an edited page must not be read stale from a heuristic cache.
+REVALIDATED = {"text/html", "application/json"}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -29,17 +33,24 @@ class Handler(SimpleHTTPRequestHandler):
             return super().translate_path("/client/harness/" + rel)
         return super().translate_path(path)
 
+    def send_head(self):
+        top = Path(self.translate_path(self.path)).relative_to(ROOT).parts[:1]
+        if not top or top[0] not in SERVED:
+            self.send_error(404)
+            return None
+        return super().send_head()
+
+    def send_header(self, keyword, value):
+        super().send_header(keyword, value)
+        if keyword.lower() == "content-type" and value.split(";")[0].strip() in REVALIDATED:
+            super().send_header("Cache-Control", "no-cache")
+
     def end_headers(self):
         # Cross-origin isolation sets the clock floor: docs/rig-limits.md §6.
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         super().end_headers()
-
-    def guess_type(self, path):
-        if path.endswith(".ts"):
-            return "text/typescript"
-        return super().guess_type(path)
 
     def log_message(self, fmt, *args):
         return

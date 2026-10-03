@@ -49,6 +49,18 @@ unchanged because the harness pages depend on them. gzip and an immutable cache 
 content-hashed names are two deliberate divergences from `dev-server.py`, asserted rather than compared
 ([`../lab/page-open/README.md`](../lab/page-open/README.md) §Compression and cache headers).
 
+**Pages and the catalog are revalidated.** Both hosts answer `text/html` and `application/json` with
+`Cache-Control: no-cache`, so a re-packed `metadata.json` or an edited page is never read stale out of
+a heuristic cache; nginx's `ETag` and `Last-Modified`, and `dev-server.py`'s `Last-Modified`, make each
+revalidation a 304. Modules and WASM keep heuristic caching, unchanged. The `types` block exists
+because nginx's `mime.types` (1.31) answers `.js` as `application/javascript` and has no `.mjs`; the
+`.ts` and `.wasm` lines it once carried are gone — no page fetches TypeScript, which ships as bundles,
+and `mime.types` has `application/wasm`.
+
+**`dev-server.py` serves what the pages fetch**: `client/`, `fixtures/` and `lab/`, plus its three
+rewrites. Everything else in the checkout — `server/dev-cert/key.pem`, `.git/` — is a 404, as it is
+in the web image, which copies only `client/` and `fixtures/`. `server/dev-server.test.py` holds it.
+
 **TLS on the page host.** The page is served plainly **on localhost only**, which is a secure context.
 Served from any other host over `http://` it is not, `SharedArrayBuffer` is gone, and the client
 degrades silently; the first run off this workstation needs a certificate for the page. The transport's
@@ -58,14 +70,16 @@ certificate is separate: `server/scripts/gen_dev_cert.sh` writes it and pins its
 ## The checks
 
 `check_equivalence.sh` runs `dev-server.py` and the web image side by side and compares status, the
-three isolation headers, content type and body bytes on every path the harness uses; it passes on 8
+three isolation headers, content type, `Cache-Control` and body bytes on every path the harness uses; it passes on 8
 paths. Two things it treats as equal on purpose: an error page's body is each server's own, so 404 is
 compared on status and headers only; and `dev-server.py`'s aliases for `pkg/` and
 `transport-ts/` were identity mappings under the root, so the config carries no rule for them.
 
 `--local` verifies the config, not the image: it runs `nginx` from `PATH` on the template with `root`
 pointed at this tree. It passes, and each assertion was mutated (`gzip off`, the immutable rule deleted,
-`always` dropped from a header) and seen to fail. **The images were built and run on 2026-10-03** with
+`always` dropped from a header) and seen to fail. Re-run 2026-10-03 with `Cache-Control` compared, the `nginx:1-alpine`
+image's nginx 1.31.5 standing in for a host one: it passes, and dropping the `Cache-Control` line, its
+JSON arm or the `.js` type each fails it. **The images were built and run on 2026-10-03** with
 docker 29 (podman was not available, so the podman lines are unrun): both targets build from a clean
 context, `compose up` starts both, the server prints `wt_url=` and `ws_url=`, TCP 4433 answers a
 WebSocket upgrade with 101, the check passes against the image on its 8 paths, and
@@ -99,13 +113,13 @@ run, or treat the older numbers as a different cell.
 ## Open
 
 Found by reading the built shape; still open. Fixed on 2026-10-03: the private `Z` label (now `z`),
-the certificate hash baked into the image (now mounted), and the two uncommented Containerfile decisions.
+the certificate hash baked into the image (now mounted), and the two uncommented Containerfile decisions;
+`dev-server.py` serving the whole tree, and no `Cache-Control` on the catalog or the pages.
 
 | what | why it matters | fix |
 | --- | --- | --- |
-| the check does not compare caching headers | nginx sends `ETag`, `dev-server.py` does not, so repeat loads can revalidate differently across the swap and the check still passes — and page-load timing is part of the page clock | compare them, or say the check does not cover them |
+| the check compares `Cache-Control`, not the validators | nginx sends `ETag`, `dev-server.py` only `Last-Modified`, so a module's repeat load can revalidate differently across the swap and the check still passes — and page-load timing is part of the page clock | compare them, or say the check does not cover them |
 | `/harness/` has two names | aliased at `/harness/` and also reachable at `/client/harness/` under `root` | one name, or a line saying both are kept |
-| `dev-server.py` serves the whole tree | it is rooted at the repository, so `server/dev-cert/key.pem` and `.git/` answer 200 on the quick start's host (bound to 127.0.0.1). The web image copies only `client/` and `fixtures/` | a deny-list, or retire `dev-server.py` once the image has run |
 
 Keep: the server runs as a non-root user, and `fixtures/` is small enough (32 KB) that baking it into
 the web image costs nothing.

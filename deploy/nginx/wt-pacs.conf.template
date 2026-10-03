@@ -2,6 +2,14 @@
 # server/dev-server.py served, in the server deployment will run.
 # deploy/README.md says why. STUDY is substituted at container start.
 
+# A re-packed catalog or an edited page must not be read stale from a heuristic cache;
+# nginx's ETag and Last-Modified make each revalidation a 304.
+map $sent_http_content_type $revalidate {
+    ~^text/html         no-cache;
+    ~^application/json  no-cache;
+    default             "";
+}
+
 server {
     listen       8765;
     server_name  localhost;
@@ -14,13 +22,11 @@ server {
     add_header Cross-Origin-Opener-Policy   same-origin   always;
     add_header Cross-Origin-Embedder-Policy require-corp  always;
     add_header Cross-Origin-Resource-Policy same-origin   always;
+    add_header Cache-Control                $revalidate   always;
 
-    # nginx types map .ts to video/mp2t; the TypeScript client is served from source.
-    types { }
+    # mime.types says application/javascript for .js and has no .mjs; dev-server.py says text/javascript.
     include      /etc/nginx/mime.types;
     types {
-        text/typescript  ts;
-        application/wasm wasm;
         text/javascript  js mjs;
     }
 
@@ -31,7 +37,7 @@ server {
     gzip_comp_level 6;
     gzip_min_length 1024;
     gzip_vary       on;
-    gzip_types      text/css text/javascript text/typescript application/javascript
+    gzip_types      text/css text/javascript application/javascript
                     application/json application/wasm image/svg+xml;
 
     # A name carrying a content hash cannot go stale. `add_header` in a location REPLACES the
