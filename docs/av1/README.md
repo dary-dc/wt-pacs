@@ -269,6 +269,15 @@ ultrasound (7.2 s). 30 frames/s of 512² lossless is reached only at `--allintra
 costing 5–19 % in bytes and landing above HTJ2K's; `ojph_compress` encodes 73–136 frames/s into fewer
 bytes. Real-time inter (`--rt`, no alt-ref) is exact at 11–13 bits.
 
+**The real-time scalable encoder (row SVC; [`lab/av1/svc`](../../lab/av1/svc/README.md)).**
+libaom 3.15.1's `svc_encoder_rtc` at quantizer 0 (`--min-q=0 --max-q=0`, no hook needed) is
+**exact in every cell it can encode**: grey 4:0:0 and RGB 4:4:4 at 8, 10 and 12 bits, L1T1 to L3T3
+(scaled and full-size spatial layers), speeds 7 and 10, on synthetic frames and on the fluoroscopy,
+MR and ultrasound series — 418 layers, 10 436 frames, each operating point decoded alone by dav1d.
+The stock example encodes 8- and 10-bit 4:2:0 only; 12-bit, 4:4:4 and 4:0:0 need a patch to its
+command line (the library unchanged), kept in the lab. A downscaled layer has no truth outside the
+encoder and is not compared. Lossless here costs 1.07–1.58 of HTJ2K's bytes at L1T1.
+
 ## Decided
 
 * **Bit-exact or nothing**: a codec, depth or decoder path that does not round-trip exactly is not
