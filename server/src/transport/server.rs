@@ -353,7 +353,7 @@ fn report_path(connection: &wtransport::Connection) {
         congestion_events = s.path.congestion_events,
         datagrams_tx = s.udp_tx.datagrams,
         sendmsg = s.udp_tx.ios,
-        // Non-zero only where the peer advertised `min_ack_delay` (T7).
+        // Non-zero only where the peer advertised `min_ack_delay`.
         ack_frequency = s.frame_tx.ack_frequency,
         "session path"
     );
@@ -672,8 +672,7 @@ mod tests {
 
     /// The ask in the session URL is served without the client ever writing to the control
     /// stream, an out-of-range one is ignored rather than taken, and a refusal in such a session
-    /// waits for the control stream instead of being dropped. R1 —
-    /// `docs/ARCHITECTURE.md`.
+    /// waits for the control stream instead of being dropped. `docs/ARCHITECTURE.md`.
     #[test]
     fn an_opening_ask_is_served_behind_the_accept() {
         for (query, want) in [("?ask=frame:3", Some(3u32)), ("?ask=frame:99", None)] {
@@ -759,8 +758,8 @@ mod tests {
     }
 
     /// Over the WebSocket the ask in the upgrade's URL is served without the client ever sending
-    /// a message, and an out-of-range one is ignored rather than taken. WSA — `docs/WIRE.md`
-    /// §The WebSocket mapping.
+    /// a message, and an out-of-range one is ignored rather than taken. `docs/WIRE.md` §The
+    /// WebSocket mapping.
     #[test]
     fn an_opening_ask_rides_the_websocket_upgrade() {
         use futures_util::StreamExt;
@@ -1424,7 +1423,7 @@ mod tests {
     }
 
     /// `EndStream` after the fill has started stops it before the study ends.
-    /// Does not pin the last frame delivered — QUIC may already hold one. §13.4.
+    /// Does not pin the last frame delivered — QUIC may already hold one.
     #[test]
     fn end_stream_stops_a_fill_on_the_wire() {
         let frames = 64u32;

@@ -13,7 +13,7 @@ pub enum FodMsg {
     RequestFrame {
         frame: u32,
     },
-    /// Current use is start-to-end (`{}`); `from` / `to` stay so a later range does not need a new type.
+    /// `{}` is the whole study; an omitted `from` is the first frame, an omitted `to` the last.
     StreamFrames {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         from: Option<u32>,

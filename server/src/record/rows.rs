@@ -184,8 +184,8 @@ pub(super) fn decode(buf: &[u8; RECORD_BYTES]) -> Option<Record> {
     }
 }
 
-/// Iterate every record in a row file. A truncated trailing record is ignored; an unknown tag
-/// is skipped. Errors other than a short final read are returned.
+/// Iterate every record in a row file. A bad header is an error; after it, an unknown tag is
+/// skipped, and a truncated trailing record or any read error ends the iteration.
 pub(super) fn read_records(path: &Path) -> IoResult<RowReader> {
     let mut reader = BufReader::with_capacity(1 << 20, File::open(path)?);
     let mut header = [0u8; HEADER_BYTES];

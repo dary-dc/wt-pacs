@@ -88,13 +88,10 @@ pub struct FrameRecord {
     /// Ask accepted, µs since the process telemetry origin (first Tap). Same axis across
     /// sessions; inter-ask spacing is read from it.
     pub t_ask_us: u64,
-    /// Pre-read work before locating. Always ~0 since the disk-access ADR of 2026-09-04:
-    /// the pool hop that pre-faulted the frame's pages is gone, and bytes are read inside
-    /// `send` instead. A trace showing it high is a trace of an older build.
+    /// Pre-read work before locating; ~0 in this build. `docs/telemetry/adr-server-pipeline.md`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prepare_us: Option<u32>,
-    /// Locating the frame — an index lookup and nothing else, so this reads ~0 where older
-    /// traces showed the pre-touch hop. The frame's real cost is in `send_us`.
+    /// An index lookup and nothing else; the frame's real cost is in `send_us`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locate_us: Option<u32>,
     /// Read **and** write: the streaming loop reads each window and hands it to the

@@ -1,6 +1,6 @@
 //! An outage is not congestion. When a congestion event closes a silence rather than a loss
-//! among acknowledgements, restart slow start instead of halving — over any quinn controller,
-//! through the public `Controller` trait alone. What it measured:
+//! among acknowledgements, restart slow start instead of halving — over quinn's Cubic, through
+//! the public `Controller` trait alone. What it measured:
 //! `docs/transport/transport-conclusions.md` §3, after a blink.
 
 use quinn_proto::RttEstimator;
@@ -63,7 +63,7 @@ impl SlowStartRestart {
 impl Controller for SlowStartRestart {
     fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
         if self.empty_since.take().is_some() {
-            // Nothing was owed before this send: an idle spell is no outage (W5b).
+            // Nothing was owed before this send: an idle spell is no outage.
             self.last_ack = Some(now);
         }
         self.inner.on_sent(now, bytes, last_packet_number);
@@ -317,7 +317,7 @@ mod tests {
     }
 
     /// An idle spell is the application's silence, not the path's: loss in the first flight after
-    /// it is congestion. The misfire row 96 measured.
+    /// it is congestion; reading it as an outage restarted sessions that were only idle.
     #[test]
     fn an_idle_spell_is_not_an_outage() {
         let mut r = idle_then_send(0, 10 * RTT);

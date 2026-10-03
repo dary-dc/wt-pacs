@@ -306,7 +306,9 @@ the harness processes saturate the four cores, not the server; nothing is claime
 * **`prepare_us`**, on that mapping build, was 60–70 µs a frame with one session and 111–121 µs at
   16–32, while `locate_us` was 0: the per-frame `spawn_blocking` prefault round trip, not page
   faults, and about a fifth of the default server's CPU on a fixture whose pages were always
-  resident. Handed to the disk track, which removed the hop ([`../disk-access/adr.md`](../disk-access/adr.md)).
+  resident. Handed to the disk track, which removed the hop on 2026-09-04 and reads the frame inside
+  `send` instead ([`../disk-access/adr.md`](../disk-access/adr.md)). `prepare_us` and `locate_us`
+  have read ~0 since; a trace showing either high is a trace of an older build.
 * **`ack_us`**, on the withdrawn build: 0.45 ms p50 with one session on localhost, growing to
   4–10 ms at 16–32 as the harness processes starved for CPU before acknowledging.
 * **Kill** (one saturating session, summary timer 1 s, `SIGKILL` after 4 s): the row file held

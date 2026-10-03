@@ -34,14 +34,14 @@ pub struct TransportTuning {
     /// has no such knob, so this is the only lever that reaches one. docs/transport/adr-idle-sessions.md.
     pub keep_alive_interval_ms: Option<u64>,
     pub congestion: Congestion,
-    /// Bytes the controller may send before the first ACK. quinn default: 12 000 (S7).
+    /// Bytes the controller may send before the first ACK. quinn default: 12 000.
     pub initial_window: Option<u64>,
-    /// Round trips of unbroken loss that declare persistent congestion. quinn default: 3 (S9).
+    /// Round trips of unbroken loss that declare persistent congestion. quinn default: 3.
     pub persistent_congestion_threshold: Option<u32>,
-    /// Packets of reordering tolerated before a gap is called a loss. quinn default: 3 (S26).
+    /// Packets of reordering tolerated before a gap is called a loss. quinn default: 3.
     pub packet_threshold: Option<u32>,
     /// The RTT assumed before the first sample, which sets the first probe timeout.
-    /// quinn default: 333 ms (S10).
+    /// quinn default: 333 ms.
     pub initial_rtt_ms: Option<u64>,
     /// Lab only: off sends each datagram alone, so netem on the sending host drops datagrams,
     /// not whole GSO batches (docs/rig-limits.md §3).
@@ -216,8 +216,8 @@ mod tests {
         t.to_transport_config();
     }
 
-    /// An initial window alone is a custom transport: S7's second lever is this knob, and
-    /// taking the library default would drop it. docs/transport/transport-conclusions.md.
+    /// An initial window alone is a custom transport: taking the library default would drop it.
+    /// docs/transport/transport-conclusions.md.
     #[test]
     fn an_initial_window_alone_leaves_the_library_default_behind() {
         let t = TransportTuning {
@@ -229,8 +229,8 @@ mod tests {
         t.to_transport_config();
     }
 
-    /// W2's two knobs are custom transport too, and each is named in `describe` so a campaign
-    /// row cannot be mislabelled. docs/transport/transport-conclusions.md §3.
+    /// The persistent-congestion and initial-RTT knobs are custom transport too, and each is named
+    /// in `describe` so a campaign row cannot be mislabelled. docs/transport/transport-conclusions.md §3.
     #[test]
     fn the_outage_and_timeout_knobs_leave_the_library_default_behind() {
         for (t, want) in [
@@ -252,9 +252,9 @@ mod tests {
         }
     }
 
-    /// Reordering tolerance is a custom transport too. S26 reads every loss in the jitter cells
-    /// as this knob firing, so an arm that set it and then took the library default would
-    /// measure nothing. docs/transport/transport-conclusions.md §3.
+    /// Reordering tolerance is a custom transport too. Every loss in the jitter cells reads as this
+    /// knob firing, so an arm that set it and then took the library default would measure nothing.
+    /// docs/transport/transport-conclusions.md §3.
     #[test]
     fn a_packet_threshold_alone_leaves_the_library_default_behind() {
         let t = TransportTuning { packet_threshold: Some(12), ..stock() };

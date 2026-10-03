@@ -381,7 +381,7 @@ mod tests {
     }
 
     /// An upcoming frame outside the study is dropped from `ahead`, never an error for the
-    /// frame being served. §13.3.
+    /// frame being served.
     #[test]
     fn an_upcoming_frame_out_of_range_is_dropped_not_refused() {
         let (path, mut rec) = recorder("seam-oob", 2);

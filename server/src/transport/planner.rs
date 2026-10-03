@@ -27,7 +27,6 @@ impl Ask {
     }
 }
 
-/// The next thing to do. Decided without I/O, so it is tested with a `Vec`.
 /// Which reader serves a frame: a fill knows what comes next, an on-demand ask does not.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -35,6 +34,7 @@ pub enum Mode {
     OnDemand,
 }
 
+/// The next thing to do. Decided without I/O, so it is tested with a `Vec`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Step {
     Serve {
