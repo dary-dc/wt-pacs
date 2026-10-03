@@ -20,9 +20,11 @@ relying on a clause. Anything not confirmed from a primary source says so.
 | FFmpeg, the distribution's package (6.1.1, libaom 3.8.2, libdav1d 1.4.1) | lab only: makes WCAP's streams, decodes the native reference | GPL-2.0-or-later as that package is configured (`--enable-gpl`) | — | [LICENSE.md](https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/LICENSE.md) |
 | NumPy (2.4.6 in `fetch_data.sh`) | lab only: the synthetic frames, row DATA's extraction | BSD-3-Clause (its wheel also bundles 0BSD, MIT, Zlib, CC0 parts) | — | [LICENSE.txt](https://raw.githubusercontent.com/numpy/numpy/main/LICENSE.txt) |
 | pydicom 3.0.1 | lab only: row DATA's extraction (`lab/av1/fetch_data.sh`, hash-pinned in `lab/av1/requirements.txt`) | MIT | — | PyPI metadata |
+| LCEVCdec 4.2.2 (the MPEG-5 Part 2 decoder SDK), LCEVCdecJS 1.3.0 (its web decoder) | nowhere: read for row LCEVC, not built, fetched or shipped | BSD-3-Clause-Clear; its notice adds that the code must keep that licence when incorporated and that onward distribution stays under the patent exclusion | **none granted**: "No patent licenses are granted under this license", patent enquiries to the licensor; its commercial terms are royalty-bearing per service per secondary reports (2021), **unconfirmed** — the licensor's pages were refused by the container's network policy | [LICENSE.md](https://raw.githubusercontent.com/v-novaltd/LCEVCdec/main/LICENSE.md), [COPYING](https://raw.githubusercontent.com/v-novaltd/LCEVCdec/main/COPYING), [LCEVCdecJS LICENSE](https://raw.githubusercontent.com/v-novaltd/LCEVCdecJS/main/LICENSE) |
 
-All of these are compatible with this repository's MIT licence: nothing is relicensed, and none
-but FFmpeg carries a copyleft or source-offer duty — which never reaches here, since the lab runs
+All of these are compatible with this repository's MIT licence — LCEVC's code too, though its
+patents are not granted and no open LCEVC encoder exists ([`lab/av1/lcevc`](../../lab/av1/lcevc/README.md)).
+Nothing is relicensed, and none but FFmpeg carries a copyleft or source-offer duty — which never reaches here, since the lab runs
 it as a separate program, links nothing against it and ships nothing built from it.
 
 ## What it obliges
