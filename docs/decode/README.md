@@ -740,7 +740,7 @@ against the envelope's declared length — [`../CLIENTS.md`](../CLIENTS.md) §A 
 failure. The two checks are disjoint on purpose. A codestream the server truncated *before* framing
 passes both; only a per-frame `.sha256` oracle sees it. Conformance:
 `anUndecodableFrameIsAFailureNotAFrame` in `client/conformance/dispatch-rig.ts`, real decoder,
-skipped loudly where `vendor/openjph` is absent.
+which the gate requires (`run_browser.sh` exits 2 without `vendor/openjph`).
 
 ## The range pass
 

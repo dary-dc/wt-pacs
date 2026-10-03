@@ -4,38 +4,41 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 ## Prerequisites
 
-A Rust toolchain, Python 3 and Node. The WASM client is part of the product, not an optional
-arm, so `scripts/gate.sh` requires it built and fails when `client/transport-wasm/pkg/` is
-absent — the gate's conformance and worker-safe steps cover both clients or neither:
+A Rust toolchain, Python 3 and Node. `scripts/gate.sh` requires everything below and exits 2,
+with the install command, when any is missing: the WASM client is part of the product, not an
+optional arm (the conformance and worker-safe steps cover both clients or neither), and the
+browser steps need playwright, Chromium and the decoder vendor. `scripts/gate.sh --no-browser`
+skips the browser steps and says so in its last line.
 
 ```bash
 rustup target add wasm32-unknown-unknown
 npm i -g wasm-pack                    # or: cargo install wasm-pack
-bash client/transport-wasm/build.sh   # once per clone; fetches wasm-opt on first run
+npm i -g playwright && npx playwright install chromium
+bash lab/decode-bench/fetch_decoder.sh   # the decoder vendor
 ```
 
 ## Quick start (harness)
 
 ```bash
-# Terminal 1 — dev TLS + dev-transport.json
+# 1. Build the clients (once, and after changes; dist/ and pkg/ are not tracked)
+bash client/transport-wasm/build.sh   # web_sys WASM client; fetches wasm-opt on first run
+bash client/transport-ts/build.sh     # TypeScript client → dist/
+
+# 2. Dev TLS + dev-transport.json
 ./server/scripts/gen_dev_cert.sh
 
-# Terminal 2 — pack or use smoke bundle
+# 3. Pack the smoke bundle, or use the tracked one
 cargo run -p pack-study -- \
   --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames \
   --output fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
-# Terminal 3 — WebTransport server
+# Terminal 1 — WebTransport server
 cargo run --release -p exact-server -- \
   --port 4433 \
   --study fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
-# Terminal 4 — clients (after changes)
-client/transport-wasm/build.sh   # web_sys WASM client
-client/transport-ts/build.sh     # TypeScript client → dist/
-
-# Terminal 5 — static host
+# Terminal 2 — static host
 python3 server/dev-server.py --port 8765 --study us_cine_smoke
 ```
 
