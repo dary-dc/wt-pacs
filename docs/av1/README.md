@@ -276,7 +276,10 @@ frame decodes 3–30 % slower than single-layer AV1 (dav1d-WASM, Chromium 141 an
 n = 15 interleaved). `decode-av1.js` opens dav1d with `all_layers` 1, which returns the base and then
 fails on such a payload; WebCodecs returns the top exactly but cannot be asked for the base, only
 fed its units. Row RESID's preview plus HTJ2K residual (0.947–1.002 of HTJ2K's bytes, 1.31–1.89× its
-decode) beats it on both.
+decode) beats it on both. *Bases before tops, proposed (row SVCORDER):* each frame as two
+entries, layer-major — the base alone, then the whole unit — so a fill is every base and then every
+exact frame with the wire, the store's format and the server unchanged, for the base's bytes twice
+([`adr-unit.md`](adr-unit.md) §5).
 
 *LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
 answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
