@@ -20,8 +20,8 @@ relying on a clause. Anything not confirmed from a primary source says so.
 | NumPy | lab only: the synthetic frames | BSD-3-Clause | — | [LICENSE.txt](https://raw.githubusercontent.com/numpy/numpy/main/LICENSE.txt) |
 
 All of these are compatible with this repository's MIT licence: nothing is relicensed, and none
-carries a copyleft or source-offer duty. FFmpeg is the one copyleft row: the lab runs it as a
-separate program, links nothing against it and ships nothing built from it.
+but FFmpeg carries a copyleft or source-offer duty — which never reaches here, since the lab runs
+it as a separate program, links nothing against it and ships nothing built from it.
 
 ## What it obliges
 
