@@ -5,6 +5,8 @@
  */
 /** How long a closed client waits for the downloader's answer before ending it anyway. */
 const CLOSE_DEADLINE_MS = 1_000;
+/** What `opts.decoder.codec` may name; absent is HTJ2K. docs/av1/adr-unit.md §1 */
+const CODECS = ["htj2k", "av1"];
 
 export class DownloaderClient {
   #worker;
@@ -39,6 +41,9 @@ export class DownloaderClient {
   #started = false;
 
   static async connect(url, certHash, opts = {}) {
+    // A frame handed to the wrong decoder can decode to something: refused before anything starts.
+    const codec = opts.decoder?.codec ?? "htj2k";
+    if (!CODECS.includes(codec)) throw new Error(`unknown codec "${codec}"`);
     if (!globalThis.crossOriginIsolated && opts.decode !== false) {
       throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
     }

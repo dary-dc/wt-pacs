@@ -12,7 +12,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decoderReady?: number; dispatched?: number } } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decoderReady?: number; dispatched?: number } } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -40,7 +40,7 @@ type OpenOpts = {
   urlDelayMs?: number;
   warmup?: string;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
-  realDecoder?: { glue: string; wasm: string; dir: string };
+  realDecoder?: { glue: string; wasm: string; dir: string; codec?: string };
   survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
   hangDials?: number;
   recycleAtBytes?: number;
@@ -789,6 +789,99 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(
   }
 }
 
+const AV1_DIR = "/lab/.av1-build/out";
+const AV1 = { codec: "av1", glue: `${AV1_DIR}/simd.js`, wasm: `${AV1_DIR}/simd.wasm`, dir: AV1_DIR };
+const AV1_SET = "/client/conformance/av1";
+const served = (url: string) => fetch(url, { method: "HEAD" }).then((r) => r.ok, () => false);
+const fetched = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+const sha256 = async (b: Uint8Array) =>
+  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(b)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+
+/**
+ * An AV1 series decodes to its source: at every depth and layout the AV1 path takes, a frame's
+ * pixels hash to the checksum the generator wrote for the encoder's input, through decoders warmed
+ * on an AV1 frame — and the notices the build owes are served beside it. docs/av1/adr-unit.md §2
+ */
+async function anAv1FrameDecodesToItsSource(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const shapes = [["g8", 1, 8], ["g10", 1, 10], ["g12", 1, 12], ["c8", 3, 8], ["c10", 3, 10], ["c12", 3, 12]] as const;
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: AV1,
+    warmup: "/client/downloader/warmup/colour-8.av1", onFrame: (f) => got.push(f),
+  });
+  c.fill(shapes.map((_, i) => i));
+  for (const [i, [name]] of shapes.entries()) await fake.pushFrame(i, await fetched(`${AV1_SET}/${name}.av1`));
+  await until(() => got.length >= shapes.length, 5000);
+  for (const [i, [name, components, bits]] of shapes.entries()) {
+    const f = got.find((g) => g.frameIndex === i);
+    const want = (await (await fetch(`${AV1_SET}/${name}.sha256`)).text()).trim();
+    const have = f ? await sha256(f.bytes) : "no frame";
+    check(have === want, `av1: ${name} decodes to its source's samples (${have.slice(0, 12)}, source ${want.slice(0, 12)})`);
+    const shape = `${f?.info.width}x${f?.info.height} ${f?.info.components}x${f?.info.bits}-bit${f?.info.signed ? " signed" : ""}`;
+    check(shape === `90x70 ${components}x${bits}-bit`, `av1: ${name} says what it is (${shape})`);
+  }
+  c.close();
+  const notices = await fetch(`${AV1_DIR}/THIRD_PARTY.txt`).then((r) => (r.ok ? r.text() : ""), () => "");
+  check(notices.includes("VideoLAN and dav1d authors") && notices.includes("Alliance for Open Media Patent License 1.0"),
+    "av1: the decoder's notices and the AOM patent licence are served beside it");
+}
+
+/**
+ * At G = 1 a frame decodes alone or not at all: a frame of a group, an empty unit and a file that is
+ * not AV1 each reach the consumer as a failure, never as pixels decoded against the frame before,
+ * and the decoder that refused them still decodes the next frame exactly. docs/av1/adr-unit.md §2
+ */
+async function anAv1FrameThatCannotDecodeAloneIsAFailure(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 refusals — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const frames: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 1, perDecoder: 1, delayMs: 0, realDecoder: AV1,
+    onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
+  });
+  c.fill([0, 1, 2, 3, 4]);
+  await fake.pushFrame(0, await fetched(`${AV1_SET}/c8.av1`));
+  await fake.pushFrame(1, await fetched(`${AV1_SET}/inter.av1`));
+  await fake.pushFrame(2, new Uint8Array(0));
+  await fake.pushFrame(3, await fetched("/client/downloader/README.md"));
+  await fake.pushFrame(4, await fetched(`${AV1_SET}/g12.av1`));
+  await until(() => frames.length + failures.length >= 5, 5000);
+  const refused = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join() || "none";
+  check(refused === "1,2,3", `av1: a frame of a group, an empty unit and a non-AV1 file are refused (${refused})`);
+  check(frames.map((f) => f.frameIndex).join() === "0,4", `av1: none of them arrives as a frame (${frames.map((f) => f.frameIndex).join() || "none"})`);
+  const after = frames.find((f) => f.frameIndex === 4);
+  const want = (await (await fetch(`${AV1_SET}/g12.sha256`)).text()).trim();
+  check(after !== undefined && (await sha256(after.bytes)) === want, "av1: the next frame after them is still exact");
+  c.close();
+}
+
+/**
+ * A codec the client does not know is refused by `connect` before anything starts: no dial, so no
+ * frame of the series can reach a decoder that would decode it to something. docs/av1/adr-unit.md §1
+ */
+async function anUnknownCodecIsRefusedBeforeTheDial(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const { connect, fake } = begin(DownloaderClient, {
+    decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: { ...AV1, codec: "jxl" }, onFrame: () => {},
+  });
+  const refused = await connect.then(
+    (c) => void c.close() ?? "connected",
+    (e) => String((e as Error)?.message ?? e),
+  );
+  check(refused === 'unknown codec "jxl"', `codec: an unknown one is refused by name (${refused})`);
+  // The fake lives in the transport the downloader loads to dial; it answers only once loaded.
+  const loaded = await fake.dials().then(() => true, () => false);
+  check(!loaded, "codec: and no transport was loaded, so nothing was dialled");
+}
+
 /** The fake answers over a channel, so a condition that reads its wire has to be awaited. */
 async function untilAsync(cond: () => Promise<boolean>, ms = 3000): Promise<boolean> {
   const t0 = Date.now();
@@ -1065,6 +1158,9 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     anUndecodableFrameIsAFailureNotAFrame,
     aFrameCarriesItsWireBytes,
     aFrameCarriesItsDecodersRangeOrItsOwn,
+    anAv1FrameDecodesToItsSource,
+    anAv1FrameThatCannotDecodeAloneIsAFailure,
+    anUnknownCodecIsRefusedBeforeTheDial,
     aSessionWhoseBytesKeepComingIsKept,
     aSilentSessionIsRedialled,
     theWaitDoublesAfterEachRedialItCauses,

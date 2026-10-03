@@ -31,6 +31,10 @@ it as a separate program, links nothing against it and ships nothing built from 
   materials shipped with it — a `THIRD_PARTY` notices file served beside the client.
 * **The AOM Patent License text ships with any AV1 implementation we distribute** (§1.2), and a
   distributor makes its own necessary claims available under the same licence.
+* **How the client meets both:** `lab/av1/dav1d-wasm/build.sh` writes `THIRD_PARTY.txt` beside the
+  `.wasm` from the pinned sources' own files — dav1d's `COPYING` and `doc/PATENTS` (the AOM Patent
+  License 1.0), emscripten's `LICENSE` and musl's `COPYRIGHT` — and the dispatch arm checks it is
+  served there. Nothing is copied by hand, so a tag bump carries its own text.
 * **Defensive termination** (§1.3): the patent licence ends for whoever starts patent litigation
   alleging an AV1 implementation infringes.
 * **No endorsement**: VideoLAN's, AOM's or SVT-AV1's names are not used to promote this project

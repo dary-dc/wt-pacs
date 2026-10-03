@@ -23,6 +23,9 @@ EMSCRIPTEN_KEEPALIVE void av1_close(void) {
     dav1d_close(&ctx);
 }
 
+/* Drops every reference and the sequence header: what decodes next must decode alone. */
+EMSCRIPTEN_KEEPALIVE void av1_flush(void) { dav1d_flush(ctx); }
+
 /* One temporal unit in; 0 with a picture held, or a negative errno. The bytes are copied. */
 EMSCRIPTEN_KEEPALIVE int av1_decode(const uint8_t *bytes, size_t len) {
     if (have_pic) dav1d_picture_unref(&pic);

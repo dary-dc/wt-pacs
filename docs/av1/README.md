@@ -70,7 +70,9 @@ dav1d 1.5.4 under emscripten 3.1.74, scalar, `-msimd128` and `-msimd128 -pthread
 matches the native dav1d CLI and a second native build with assembly on every frame of 12 lossless
 streams — 8/10/12-bit 4:0:0 and 4:4:4 identity, intra and G = 8 — one picture per temporal unit at a
 frame delay of 1. 546 KB `.wasm` scalar, 623 KB with SIMD (219 and 238 KB gzipped). Decode time is
-row SPEED's; nothing here says it is fast enough.
+row SPEED's; nothing here says it is fast enough. **It is the client's AV1 decoder at G = 1** (row
+DEC): `decoder.codec: "av1"` loads it behind `decoder.js`'s contract, and every shape decodes
+through the downloader to its source's checksum ([`client/downloader/README.md`](../../client/downloader/README.md)).
 
 Rows WCAP (what WebCodecs supports and returns exactly), WASM (the dav1d build) and SPEED decide it.
 

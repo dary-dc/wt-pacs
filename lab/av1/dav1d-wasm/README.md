@@ -33,9 +33,9 @@ libdav1d, is the one that runs assembly.
 
 | arm | compile flags | link | `.wasm` | gzip -9 |
 | --- | --- | --- | --- | --- |
-| plain | — | — | 546 249 B | 218 934 B |
-| simd | `-msimd128` | — | 623 007 B | 237 946 B |
-| simd-mt | `-msimd128 -pthread` | `-sPTHREAD_POOL_SIZE=4` | 635 143 B | 243 815 B |
+| plain | — | — | 546 284 B | 218 863 B |
+| simd | `-msimd128` | — | 623 042 B | 237 924 B |
+| simd-mt | `-msimd128 -pthread` | `-sPTHREAD_POOL_SIZE=4` | 635 174 B | 243 738 B |
 
 `-msimd128` is the compiler's auto-vectorisation only: dav1d has no hand-written WASM SIMD. The
 threaded arm builds and decodes (four threads, Node 22); in a browser it needs cross-origin
@@ -46,6 +46,10 @@ What the link pulls in (`-Wl,--trace`): `libdav1d.a`, emscripten's libc (musl, M
 (public domain) and compiler-rt (Apache-2.0 with LLVM exception). No libc++: the wrapper is C.
 
 ## The wrapper
+
+The client's own module is `client/downloader/decode-av1.js`, which runs the `simd` arm and flushes
+before every frame (G = 1); `make_client_frames.sh` makes its warm-ups and conformance frames.
+`build.sh` also writes `THIRD_PARTY.txt` beside the builds — the notices a shipped build owes.
 
 `dav1d.mjs`: `createDecoder(factory, {threads})` gives `decode(bytes)` — one temporal unit in, one
 picture out as tightly packed planes (`Uint8Array` at 8 bits, `Uint16Array` above), with `width`,

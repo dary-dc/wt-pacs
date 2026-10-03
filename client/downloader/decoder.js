@@ -5,6 +5,7 @@
 let M = null;
 let dec = null;
 let toConsumer = null;
+let decodeOne = decodeFrame;
 
 const abs = () => performance.timeOrigin + performance.now();
 
@@ -59,9 +60,7 @@ function decodeFrame(bytes) {
 const warmupBytes = (url) =>
   fetch(url).then((r) => r.arrayBuffer()).then((b) => new Uint8Array(b), () => null);
 
-async function init(m) {
-  // Fetched beside the compile: it has to fit the idle window — docs/decode/README.md §Warming.
-  const warmup = m.warmup ? warmupBytes(m.warmup) : null;
+async function initHtj2k(m) {
   // A module worker has no importScripts and the glue is a classic script. Its factory is a
   // top-level `var`, which inside a Function body is local, so hand it back explicitly.
   const src = await (await fetch(m.decoder.glue)).text();
@@ -74,10 +73,21 @@ async function init(m) {
   M = await factory(opts);
   // One decoder object reused: parity.mjs is byte-identical on every fixture, so reuse is safe.
   dec = new M.HTJ2KDecoder();
+}
+
+async function init(m) {
+  // Fetched beside the compile: it has to fit the idle window — docs/decode/README.md §Warming.
+  const warmup = m.warmup ? warmupBytes(m.warmup) : null;
+  // Only an AV1 series loads AV1 code. docs/av1/adr-unit.md §2
+  if (m.decoder?.codec === "av1") {
+    const av1 = await import("./decode-av1.js");
+    await av1.init(m.decoder);
+    decodeOne = av1.decodeFrame;
+  } else await initHtj2k(m);
   const w = warmup && (await warmup);
   if (w) {
     try {
-      decodeFrame(w);
+      decodeOne(w);
     } catch {
       /* a decoder that cannot warm is still a decoder */
     }
@@ -99,7 +109,7 @@ onmessage = async (e) => {
   if (m.kind !== "decode") return;
   const stamps = { ...m.stamps, decodeStart: abs() };
   try {
-    const { info, sab, byteCount, range } = decodeFrame(m.bytes);
+    const { info, sab, byteCount, range } = decodeOne(m.bytes);
     stamps.decodeEnd = abs();
     toConsumer.postMessage({
       kind: "frame",

@@ -66,12 +66,22 @@ build_arm() {
   emcc -O3 $flags "$HERE/dav1d_wrap.c" -I"$BUILD/dav1d-src/include" -I"$b/include" "$b/src/libdav1d.a" \
     -sMODULARIZE=1 -sEXPORT_NAME=Dav1dModule -sENVIRONMENT=node,worker,web $link \
     -sALLOW_MEMORY_GROWTH=1 -sEXPORTED_FUNCTIONS=_malloc,_free \
-    -sEXPORTED_RUNTIME_METHODS=HEAPU8 -o "$BUILD/out/$arm.js"
+    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16 -o "$BUILD/out/$arm.js"
   echo "$arm ($flags $link) -> $BUILD/out/$arm.wasm  $(stat -c%s "$BUILD/out/$arm.wasm") B," \
     "$(gzip -9c "$BUILD/out/$arm.wasm" | wc -c) B gzip -9"
 }
 
+# The notices a shipped build owes, from the pinned sources themselves. docs/av1/licensing.md
 mkdir -p "$BUILD/out"
+{
+  printf 'Third-party notices for the dav1d WebAssembly decoder (dav1d %s, emscripten %s)\n' "$DAV1D_TAG" "$EMSDK_TAG"
+  for f in "dav1d-src/COPYING" "dav1d-src/doc/PATENTS" "emsdk/upstream/emscripten/LICENSE" \
+    "emsdk/upstream/emscripten/system/lib/libc/musl/COPYRIGHT"; do
+    printf '\n==== %s ====\n\n' "$f"
+    cat "$BUILD/$f"
+  done
+} >"$BUILD/out/THIRD_PARTY.txt"
+
 for arm in $ARMS; do
   case "$arm" in
     plain) build_arm plain "" "" ;;
