@@ -226,9 +226,9 @@ fillFrames(from, to, onFrame, onError?)   → askMs
 ```
 
 On the wire it is `stream_frames {from, to}`, a fill the server recites and **drops the moment an
-ask arrives** (WIRE.md §An ask during a fill). A `request_frames` batch, which the server still accepts and
-no client sends since 2026-10-03, is not that: the server serves it index by index, in order, so an
-ask behind a 200-frame batch waits for all 200. A pushed fill is how an ask gets the wire.
+ask arrives** (WIRE.md §An ask during a fill). A `request_frames` batch, which left the wire on 2026-10-03
+(a group is G pipelined `request_frame`s, WIRE.md), was not that: the server served it index by index, in order, so an
+ask behind a 200-frame batch waited for all 200. A pushed fill is how an ask gets the wire.
 
 **The shape.** The session keeps one fill: the set still owed, the ask time and the callbacks. A
 frame that lands and is owed goes straight to `onFrame`; one outside the fill is dropped. No waiter and no timer per frame. A frame *asked* during the fill

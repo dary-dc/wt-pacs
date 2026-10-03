@@ -38,6 +38,13 @@ start up to `TILE_SLOTS` (4) reads at once
 ([`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §6d). A run from
 start to end without naming every index is `stream_frames`, not a large batch (§6c there).
 
+**A group ask is G pipelined `request_frame`s.** `request_frames` left the wire on 2026-10-03
+(`202644d`); the server had already turned it into one `Ask::Frame` per index, so G
+`request_frame`s in a row give the planner the same input, order and per-index refusals. A fill of
+whole groups is `stream_frames {from: k, …}`. Not measured: with pipelined asks the first frame may
+be planned before the rest are parsed, so its read-ahead can name fewer upcoming frames; the bytes
+are identical.
+
 `CancelFrames`, `generation` and `RequestPath` were removed:
 [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md),
 [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
