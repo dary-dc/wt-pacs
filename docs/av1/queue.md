@@ -52,7 +52,7 @@ and its branch belong to other work.
 | 6 | **SIZE** — lossless bytes: AV1 intra, AV1 inter by group length, HTJ2K | done `4c8b288` — **AV1 lossless is larger than HTJ2K on every real series, and inter collects nothing**: bytes over HTJ2K's at libaom 3.15.1 cpu0, intra → whole series, fluoroscopy 1.024 → 1.027, MR 1.034 → 1.062, ultrasound RGB 1.117 → 1.534 (cpu6 1.04–1.75); smallest G with most of the gain is G = 1; JPEG XL 0.83–0.93 (reference); CT and cone-beam need 13 bits (DEPTH); 122/122 codings exact, each group decoded alone; cjxl 0.7.0 found inexact on 12-bit PGM; 5 mutations caught — [`lab/av1`](../../lab/av1/README.md) §SIZE, [`README.md`](README.md) §A1 |
 | 7 | **DEPTH** — 12-bit, signed and 16-bit samples in AV1 | claimed 2026-10-03 |
 | 8 | **DEC** — an AV1 decoder behind `decoder.js`'s contract, chosen by the series' codec | done `794c42d` — built at G = 1: `decoder.codec: "av1"` loads `decode-av1.js` (dav1d-WASM `simd`, 623 KB, flushed before every frame) behind the unchanged contract; all 6 shapes (8/10/12-bit grey and RGB) exact through the downloader against the generator's checksums, a frame of a group, an empty unit and a non-AV1 file refused, an unknown codec refused before the dial; dispatch 105 → 123/123, every new check mutated to fail; no wire or store change needed — [`client/downloader/README.md`](../../client/downloader/README.md), [`adr-unit.md`](adr-unit.md) §2 |
-| 9 | **SPEED** — decode time per frame and per group: dav1d-WASM, WebCodecs, OpenJPH; the ask and fill it implies | ready |
+| 9 | **SPEED** — decode time per frame and per group: dav1d-WASM, WebCodecs, OpenJPH; the ask and fill it implies | claimed 2026-10-03 |
 
 ## Briefs
 
