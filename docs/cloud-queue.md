@@ -33,7 +33,7 @@ file names, branch names or commit messages.
 
 | # | what | state |
 | --- | --- | --- |
-| 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **ready** |
+| 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **claimed** 2026-10-03 |
 | 59 | **A1b** — the handover on a device: does a session survive Wi-Fi → cellular, and how long is the freeze ([`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice) | **waiting on a device** — no container can take it |
 | 40 | **E1** — the ingest format | **held** by the owner (§What a row may not change) |
 
