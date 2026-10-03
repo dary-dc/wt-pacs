@@ -69,7 +69,7 @@ and its branch belong to other work.
 | 23 | **TOTAL** — total time on phone-like links, the measure that decided against AV1 before: HTJ2K against every AV1 form, per taxonomy series | claimed 2026-10-03 |
 | 24 | **SVCDEC** — a scalable payload in the client: the base operating point first, the exact frame from the same bytes | claimed 2026-10-03 |
 | 25 | **SVCSHAPE** — the scalable shape with the least overhead: layers, scale, base quality, per content | claimed 2026-10-03 |
-| 26 | **SVCORDER** — delivering bases first: what the store and the group-as-item model need (a proposal) | ready |
+| 26 | **SVCORDER** — delivering bases first: what the store and the group-as-item model need (a proposal) | claimed 2026-10-03 |
 | 27 | **DECSPEED** — the decode is what loses on a phone: encoder settings and decoder threads that cut it, lossless kept | ready |
 | 28 | **LLSIZE** — closing lossless AV1's byte gap to HTJ2K with AV1 alone | ready |
 | 29 | **SWEEP** — AV1-only options nobody has listed yet: a read-only identification sweep | ready |
