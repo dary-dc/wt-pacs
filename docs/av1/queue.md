@@ -59,6 +59,14 @@ and its branch belong to other work.
 | 13 | **SPLIT10** — the top10+low split through WebCodecs: exact, and how fast | done `25ddebd` — **exact, and 2–3× faster than dav1d-WASM, still 2–4× slower than HTJ2K**: Chromium 141 headless, CT, cone-beam, MR and fluoroscopy, first 18 frames, 16 interleaved rounds at 1× and 4×, 9 216/9 216 frames exact; WebCodecs top10+low (two `VideoDecoder`s, merged) 0.44–0.50 of dav1d-WASM top11+low's time at 1× and 0.32–0.40 at 4× (faster in 128/128 paired rounds; CT 13.5 against 29.2 ms, fluoroscopy 36.3 against 83.4), 2.6–3.9× OpenJPH at 1×, 2.1–3.7× at 4×; the decoder, not the split, is the gain (dav1d-WASM on top10+low 0.89–0.97 of top11+low); bytes top10+low 0.973–1.064 of HTJ2K, top11+low 0.904–0.998; WebCodecs' thread count not measured; 5 mutations caught — [`README.md`](README.md) §A3, [`lab/av1/split10`](../../lab/av1/split10/README.md) |
 | 14 | **ENC** — encode time, uncontended, per preset and content: ingest cost, and whether lossless can run live | claimed 2026-10-03 |
 | 15 | **SVC** — libaom's real-time scalable encoder in lossless mode at 10 and 12 bits: exact or not | claimed 2026-10-03 |
+| 16 | **GOP** — the group as the item: whole groups asked and sent in order, a group to one decoder, fill start to end | ready |
+| 17 | **RESID** — a lossy AV1 preview plus a lossless residual: does the exact frame cost more than HTJ2K alone? | ready |
+| 18 | **SVCQ** — one scalable AV1 payload, a lossy base layer and a lossless top: the overhead of the layers | after 15 |
+| 19 | **LCEVC** — the enhancement-layer standard: licence, whether it can end lossless, a browser decoder, a trial | ready |
+| 20 | **WCDEC** — a WebCodecs AV1 decoder module beside dav1d-WASM, chosen per series where exact | ready |
+| 21 | **TAXO** — the cine-like taxonomy's content: breast ultrasound cine, automated breast ultrasound, tomosynthesis projections, angiography | ready |
+| 22 | **EMBED** — embedded lossy-to-lossless intra codecs for contrast: JPEG 2000 quality layers, progressive lossless JPEG XL | ready |
+| 23 | **TOTAL** — total time on phone-like links, the measure that decided against AV1 before: HTJ2K against every AV1 form, per taxonomy series | after 11, 16, 20 |
 
 ## Briefs
 
@@ -242,6 +250,95 @@ covered. Build libaom 3.15.1's `svc_encoder_rtc` (pinned), and test lossless (`-
 or whatever its lossless control is — find it; if lossless needs a source patch, write it in the row's
 README and keep it outside the product) at 8/10/12-bit 4:0:0 and 4:4:4, spatial and temporal layers,
 every layer's frames against the input. Verdict per cell: exact, inexact, or not encodable.
+
+## The integration and options rows (16–23)
+
+The owner, 2026-10-03: AV1 is retaken; earlier it lost on **total time** in network-profile
+simulations (decoding was the bottleneck) and because groups > 1 were not lossless (row TOOL has
+since fixed that with `--auto-alt-ref=0`). Goals: the codec seam (the workstation's), AV1 integrated
+and measured for the cine-like taxonomy (tomosynthesis, breast ultrasound, the mammography family
+first), and every option tried that might give a preview and a lossless final view from one payload.
+Rows 16, 20 and 23 are integration; 17–19 and 22 are options; 21 is content. Keep it simple: a group
+is requested and sent whole, in order; no seeking inside a group.
+
+### 16 GOP
+
+Build [`adr-unit.md`](adr-unit.md) §3 in its simplest form, beside G = 1: `groupLength` in the
+series metadata (absent = 1, keyframe at every multiple of G); **a group is the item** — the fill
+asks whole groups start to end as `request_frames [k … k+G−1]`, an ask for any frame asks its whole
+group (no partial group, no seek inside one); a group goes to one decoder and its frames decode in
+order, the decoder's state reset at each keyframe; frames still leave the decoder one by one under the
+unchanged contract. No wire, store or server change — if one turns out to be needed, stop and say so
+under `## Blocked`. Conformance: a G = 8 and a whole-series set in the downloader arm, every frame
+exact, a group split across two decoders refused or impossible by construction (say which), an ask
+mid-fill re-issued from a keyframe; every check mutated. Gate green.
+
+### 17 RESID
+
+Row 12 measured a lossy AV1 preview at 0.8–7 % of the exact bytes. Can the exact frame be the
+preview **plus** a lossless residual, so the preview is not extra? AV1 decoding is normative, so a
+preview frame decodes to the same samples on every conforming decoder — verify that on dav1d native,
+dav1d-WASM and WebCodecs for the 8- and 10-bit cases (bit-identical lossy output), since the residual
+is only exact against identical predictions. Then per content (rows 2, 10): residual = source −
+preview (signed, one bit wider), coded losslessly with HTJ2K and with AV1 intra; bytes of preview +
+residual against HTJ2K alone; decode time of preview + residual + the add against HTJ2K alone,
+interleaved. Verdict: the preview's net cost (or saving) in bytes and decode time.
+
+### 18 SVCQ
+
+After row 15 (which encoders code lossless SVC exactly): one AV1 payload with a lossy base layer
+(spatial ½ and/or a quality layer) and a lossless top layer predicted from it. Bytes of base, of top,
+and of both against single-layer lossless AV1 and HTJ2K; decode time of the base alone and of
+everything, dav1d-WASM and WebCodecs (does WebCodecs decode a chosen operating point? say). Verdict:
+the overhead of scalability against row 17's residual and row 12's separate preview.
+
+### 19 LCEVC
+
+MPEG-5 Part 2 adds enhancement layers over any base codec. Answer from primary sources, then try:
+(a) the licence of the reference/open decoder and encoder (code licence and patent terms — whether an
+MIT project may ship or depend on them; add to [`licensing.md`](licensing.md)); (b) whether its
+enhancement can reconstruct **losslessly** (a lossless or near-lossless mode, residual precision,
+bit depths up to 12/16); (c) a browser decoder (WASM/JS) and its licence; (d) if (a)–(c) allow, a
+trial on the ultrasound cine and one grey series: base AV1 lossy + LCEVC, bytes and exactness. Stop
+at the first hard no and record it; an answer row if no trial is possible.
+
+### 20 WCDEC
+
+Row 13: WebCodecs decodes ≤ 10-bit AV1 exactly and 2–3× faster than dav1d-WASM. Add
+`decode-av1-webcodecs.js` beside `decode-av1.js`, behind the same contract (flush per frame at
+G = 1, per group at G > 1; 4:0:0 read from the Y plane; the top10+low split merged), chosen per
+series only where row 3's list says exact (≤ 10 bits) and the browser has `VideoDecoder`; otherwise
+dav1d-WASM. Conformance in headless Chromium, every frame exact, the fallback exercised, mutated.
+Gate green.
+
+### 21 TAXO
+
+The taxonomy the owner names first: breast tomosynthesis (reconstructed slices — row 10 — and the
+projections if open), breast ultrasound **cine** and automated breast ultrasound volumes, other
+mammography-family multi-frame content, and a contrast angiography run (row 10 found none reachable).
+Search IDC and every source the container can reach; record licences (CC BY/CC0; a non-commercial one
+fetched at run time only, flagged under `## Blocked`); extend `lab/av1/fetch_data.sh` and
+`FIXTURES.md`. Run row 6's SIZE matrix and row 7's splits on each new series. If the network policy
+refuses a source, name the host so the owner can allow it.
+
+### 22 EMBED
+
+For contrast with rows 17–19: intra codecs whose one codestream is a preview first and lossless at
+the end. JPEG 2000 Part 1 with quality layers (OpenJPEG, pinned; reversible 5/3, several layers):
+bytes against single-layer HTJ2K, bytes and PSNR to the first layer, decode time in WASM of the first
+layer and of all. JPEG XL progressive lossless (libjxl, squeeze): the same, with a WASM decoder
+(record its licence). HTJ2K's own resolution prefix is the baseline already measured (row 12).
+
+### 23 TOTAL
+
+The measure that decided before: total time, wire plus decode, for a fill start to end through the
+downloader against the real server, on row 86's phone-like link profiles (`docs/cloud-queue.md`
+§Rows 83–86: the LTE traces and Wi-Fi steps, `--self-timing`, VOID runs dropped) and at 5/20/50
+Mbit/s, 1× and 4× CPU, interleaved (`lab/order.mjs`), n ≥ 10. Arms per series: HTJ2K; AV1 intra
+(dav1d-WASM and row 20's WebCodecs where exact); AV1 at the best G of rows 6/10/21 through row 16;
+the split where it applies; and the time to a playable preview for row 12's preview arm. Report
+time to first frame, to all frames exact, and the preview's time where it applies. Verdict per
+taxonomy series: which arm wins on which link, and where the host saturates.
 
 ## Blocked
 
