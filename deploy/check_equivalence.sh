@@ -4,6 +4,7 @@
 # transport's PEM must carry its own chain.
 # usage: deploy/check_equivalence.sh [--local] [study]
 #        deploy/check_equivalence.sh --cert [PEM]        the PEM check alone
+# IMAGE names the web image; RUNTIME is podman, else docker.
 # --local runs nginx on this host from the template, so the config is checked without a
 # container runtime; the image itself is not.
 set -u
@@ -11,9 +12,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # A PEM holding one certificate that something else issued leaves the browser to fetch the
 # intermediate over AIA on every cold open. docs/ARCHITECTURE.md §What production adds.
-cert_chain() {  # pem
-  local pem="$1" n subject issuer
-  if [ ! -r "$pem" ]; then printf '  skip %-38s no such PEM\n' "cert chain"; return 0; fi
+cert_chain() {  # pem named
+  local pem="$1" named="$2" n subject issuer
+  if [ ! -r "$pem" ]; then
+    if [ "$named" -eq 1 ]; then printf '  FAIL %-38s no such PEM: %s\n' "cert chain" "$pem"; return 1; fi
+    printf '  skip %-38s no such PEM\n' "cert chain"; return 0
+  fi
   n=$(grep -c -- '-----BEGIN CERTIFICATE-----' "$pem")
   if [ "$n" -gt 1 ]; then printf '  ok   %-38s %s certificates\n' "cert chain" "$n"; return 0; fi
   subject=$(openssl x509 -in "$pem" -noout -subject -nameopt rfc2253 | cut -d= -f2-)
@@ -28,7 +32,7 @@ cert_chain() {  # pem
 }
 
 LOCAL=0
-if [ "${1:-}" = "--cert" ]; then cert_chain "${2:-$ROOT/server/dev-cert/cert.pem}"; exit; fi
+if [ "${1:-}" = "--cert" ]; then cert_chain "${2:-$ROOT/server/dev-cert/cert.pem}" "$(( $# > 1 ))"; exit; fi
 if [ "${1:-}" = "--local" ]; then LOCAL=1; shift; fi
 STUDY="${1:-us_cine_smoke}"
 PY_PORT=18765
@@ -49,10 +53,12 @@ if [ "$LOCAL" -eq 1 ]; then
   nginx -c "$NG/nginx.conf" || { kill $PY; exit 2; }
   trap 'kill $PY 2>/dev/null; nginx -s stop -c "$NG/nginx.conf" 2>/dev/null; rm -rf "$NG"' EXIT
 else
-  podman rm -f wtpacs-web-check >/dev/null 2>&1
-  podman run -d --rm --name wtpacs-web-check -e STUDY="$STUDY" -p "$NG_PORT:8765" \
-    localhost/wt-pacs-web:check >/dev/null || { kill $PY; exit 2; }
-  trap 'kill $PY 2>/dev/null; podman rm -f wtpacs-web-check >/dev/null 2>&1' EXIT
+  RUNTIME="${RUNTIME:-$(command -v podman || command -v docker)}"
+  "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1
+  "$RUNTIME" run -d --rm --name wtpacs-web-check -e STUDY="$STUDY" -p "$NG_PORT:8765" \
+    -v "$ROOT/client/dev-transport.json:/srv/wt-pacs/client/dev-transport.json:ro,z" \
+    "${IMAGE:-wt-pacs-web:latest}" >/dev/null || { kill $PY; exit 2; }
+  trap 'kill $PY 2>/dev/null; "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1' EXIT
 fi
 
 for port in "$PY_PORT" "$NG_PORT"; do
@@ -60,7 +66,8 @@ for port in "$PY_PORT" "$NG_PORT"; do
 done
 
 fail=0
-cert_chain "${CERT_PEM:-$ROOT/server/dev-cert/cert.pem}" || fail=1
+if [ -n "${CERT_PEM:-}" ]; then cert_chain "$CERT_PEM" 1 || fail=1
+else cert_chain "$ROOT/server/dev-cert/cert.pem" 0 || fail=1; fi
 probe() {  # port path -> "status|coop|coep|corp|ctype|sha"
   local url="http://127.0.0.1:$1$2"
   local h; h=$(curl -sS -D- -o /tmp/body.$$ "$url" 2>/dev/null)

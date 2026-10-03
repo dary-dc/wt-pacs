@@ -1,0 +1,8 @@
+# docker reads this file, podman ../.containerignore: keep the two equal.
+target/
+**/node_modules
+lab/fixtures
+.local
+.git
+server/dev-cert
+client/dev-transport.json
