@@ -1,0 +1,178 @@
+# ADR: the codec seam, and the group as the client's unit
+
+**Status:** proposed, not built · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
+· **Answers:** [`README.md`](README.md) §A1, the shape half; SIZE and SPEED own the numbers.
+
+Read against [`WIRE.md`](../WIRE.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md),
+[`adr-stream-shape.md`](../adr-stream-shape.md) and [`FIXTURES.md`](../FIXTURES.md) §SBND as they
+stand at this commit. Nothing below is measured; where a choice needs a number, it says which row
+brings it.
+
+## 1 · Where the codec tag lives
+
+**In the bundle's metadata JSON, beside `frameCount`:**
+
+```json
+{ "frameCount": 120, "codec": "av1" }
+```
+
+* **Values:** `"htj2k"` and `"av1"`. **Absent means `"htj2k"`**, so every bundle and fixture made
+  so far reads unchanged and nothing has to be repacked.
+* **A bundle carries one codec.** `exact-server --study` serves one bundle, and a bundle is one
+  series today, so "the codec belongs to the series" ([`README.md`](README.md) §Decided) needs no
+  per-frame field. The envelope stays `[len][index][opaque]`.
+* **The server does not read it.** It serves bytes by index; the metadata is opaque to it except
+  `frameCount`. The only server-side change is in ingest: `pack-study` reads `DIR/NNN.htj2k`
+  today and would read `NNN.<codec>`, the extension taken from the metadata.
+* **A transform that makes a series codable is the codec's, and named beside it.** AV1 codes at most
+  12 bits and only unsigned ([`README.md`](README.md) §A3), so a signed series needs its offset and
+  a series over 12 bits its split carried in metadata for the decoder to undo. Row DEPTH chooses
+  which transforms survive and names their fields; this ADR only fixes the rule below for them.
+* **A value the client does not know is a refusal, before the dial.** `connect` rejects with
+  `unknown codec "<value>"` (or `unknown transform …`) and no frame is asked for. Not a fallback to
+  HTJ2K: a frame handed to the wrong decoder either fails one by one, a failure per frame of a whole
+  series, or — the case that matters — decodes to something. Bit-exact or nothing.
+
+**Who reads it.** Not the downloader from the wire: no metadata crosses the session. The caller
+already holds the series metadata and already chooses the decoder files and the warm-up for it
+([`client/downloader/README.md`](../../client/downloader/README.md) §A warm-up frame). So the
+codec rides the same config: `decoder: { codec, glue, wasm, dir }`, and `warmup` is a frame of the
+series' codec *and* shape. The downloader checks `codec` against the set it knows at `start` and
+refuses there; the decoders never see a codec they cannot decode.
+
+## 2 · How `decoder.js` dispatches
+
+`decoder.js` keeps the worker, the message handling, the `SharedArrayBuffer`, `finish()` and the
+reply to the consumer. What is codec-specific today — `init` (glue, factory, decoder object) and
+`decodeFrame(bytes)` — moves behind one interface, one module per codec:
+
+```js
+// decode-htj2k.js, decode-av1.js
+export async function init(m) {}          // compile, construct the decoder object
+export function decodeFrame(bytes) {}     // → { info, sab, byteCount, range }
+// info: { width, height, bitsPerSample, componentCount, isSigned }
+```
+
+`init` in `decoder.js` loads the module by `m.decoder.codec` with a dynamic `import()` (it is a
+module worker), so an HTJ2K page never fetches AV1 code and the HTJ2K path is today's code moved,
+not changed. The `frame` message to the consumer is built from that return value exactly as now, so
+the contract `{pixels, width, bits, signed, range}` and everything above it are untouched.
+
+**What the AV1 module owes the contract**, each against the encoder input's `.sha256`, never
+against another decoder:
+
+* **Layout.** The HTJ2K path hands the consumer pixel-interleaved samples. dav1d returns planes;
+  4:4:4 with the identity matrix comes out G, B, R. The module interleaves into the order the source
+  was in. 4:0:0 is one plane, `componentCount` 1, no chroma.
+* **Width.** 8-bit samples as bytes, 10/12-bit in 16-bit containers, as the HTJ2K path does above 8.
+* **`bits` and `signed` are the source's, not the stream's.** The stream says 12-bit unsigned;
+  after the metadata's offset is undone a series is, say, 12-bit signed, and `finish()` (or the
+  module's own pack) sign-extends and takes the range as it does for HTJ2K.
+* **The failure rule** of [`decode/README.md`](../decode/README.md) §A frame that did not decode
+  holds: a frame whose output is shorter than its header declares is refused, never the previous
+  frame's pixels.
+
+## 3 · If a group of G > 1 frames is the unit
+
+Only if SIZE shows inter coding pays on real content, and SPEED shows the ask it costs is
+acceptable. Until then G = 1 and §1–2 are the whole change (row DEC).
+
+### The proposal: the group is the client's unit, not the transport's
+
+**G is fixed per series and a keyframe sits at every multiple of G.** One more metadata field,
+`"groupLength": G` (absent means 1). The keyframe of frame N is `k = G·⌊N/G⌋`; nothing needs to be
+looked up.
+
+**An ask for N is a batch the client names: `request_frames [k … N]`.** No new message, no server
+change, no store change:
+
+* **The store** keeps one table entry per frame. A group is an arithmetic range of indices, so the
+  bundle needs no group table; SBND is unchanged.
+* **Which bytes first** is forced by decode order: the keyframe, then each frame to N. That is the
+  batch's own order, served as one ask per index in order ([`WIRE.md`](../WIRE.md) §FoD messages),
+  with the planner naming the rest as upcoming so the tile reader reads ahead as it does today.
+* **Not past N.** Frames N+1 … k+G−1 are not fetched for the ask. A step forward to N+1 continues
+  from the decoder state the ask left (below); a step back is a frame already delivered.
+* **An ask during a fill** ends the fill, as any message does, and the downloader re-issues what is
+  not yet delivered ([`WIRE.md`](../WIRE.md) §An ask during a fill). Unchanged — but the re-issued
+  run must start at a keyframe or at a frame whose predecessor's state a decoder still holds.
+
+**Why not the server.** A server that answered `request_frame N` with the group from k would need
+to know G (a metadata read it does not do), would change what one ask returns on the wire, and
+would save one JSON array of at most G integers in a message the client sends anyway, in the same
+round trip. The client already owns which frames it wants; the group is that decision.
+
+### The decoder pool: a group to one decoder
+
+* **Affinity.** A group's keyframe goes to the first free decoder (first-free, as today), and every
+  later frame of that group goes to the same decoder, in index order. `perDecoder` still bounds what
+  is outstanding on it; a frame whose decoder is full waits **even while another decoder is idle**.
+* **One decoder state per decoder worker.** A decoder holds one group at a time: a new keyframe
+  replaces the state (a keyframe with its sequence header resets references). The decoder must hand
+  a frame back for every frame it is given — no frame delay held for reordering — so the AV1 module
+  runs dav1d with a frame delay of 1 and lossless streams are coded without reordered frames; row
+  WASM checks both.
+* **The fill's order** is still ascending, one `stream_frames` run. Groups land one after another on
+  the shared stream, so the first G frames decode serially on one decoder: frame G−1 of a fill shows
+  after about G decodes, not one. Decoders run in parallel across groups only, so parallelism is at
+  most `min(decoders, groups in flight)`.
+* **The downloader's record** gains, per group, the decoder bound to it and the last index decoded
+  in it. An ask for N is served from that state when `last = N−1` on a decoder still bound to the
+  group; otherwise from k.
+
+### What the cache holds
+
+Decoded pixels per frame, as now: **every frame a group decodes is delivered**, k … N, not only N,
+so the frames decoded on the way to N are not decoded again. Asked frame N settles the ask; k … N−1
+reach the consumer as fill frames do, at background priority. Compressed bytes are released after
+their decode as today, so a group whose decoder was taken by another group is re-fetched from k and
+the frames already delivered are decoded again and dropped. No compressed group is kept to avoid
+that until SPEED says what the re-decode costs.
+
+### Invariants this breaks
+
+Each holds today and is named so that nothing relying on it is changed by accident.
+
+1. **A frame decodes alone** ([`ARCHITECTURE.md`](../ARCHITECTURE.md) §The decoders). First-free
+   dispatch of any frame to any decoder, and the reason it beats round-robin
+   ([`decode/README.md`](../decode/README.md) §Dispatch), hold per group, not per frame.
+2. **One ask, one frame.** `requestExactFrame(N)` puts up to G frames on the wire and costs up to G
+   serial decodes; an ask behind it waits for its whole batch ([`WIRE.md`](../WIRE.md): "an ask sent
+   after a 200-frame batch waits for all 200"). A fast scroll across groups pays G per step.
+3. **Frames are decoded once** — only while a group's decoder keeps its state; otherwise up to G − 1
+   frames are decoded twice (§What the cache holds).
+4. **A failure is one frame.** A frame refused, truncated
+   ([`CLIENTS.md`](../CLIENTS.md#a-truncated-frame-is-a-failure)) or undecodable fails every later
+   frame of its group that depends on it; the downloader fails them by name rather than decoding
+   them against a broken reference.
+5. **The decoders are not told of a cancel** ([`ARCHITECTURE.md`](../ARCHITECTURE.md) §Messages).
+   Generations still drop stale results, but a decoder's group binding must be dropped with the
+   cancel, or the next request's frame is decoded against the old group's state.
+6. **The wire buffer ring** is sized `decoders × perDecoder + 2` on the premise that a frame waits
+   only for *a* decoder ([`decode/README.md`](../decode/README.md) §The wire buffer ring). With
+   affinity it waits for *its* decoder, so more buffers can be out; the ring never pauses the reader,
+   so this costs allocations, not a deadlock. Re-sized when built.
+7. **A prefix draws a smaller image** ([`decode/README.md`](../decode/README.md) §A prefix draws a
+   smaller image) is a property of the HTJ2K progression. AV1 has no resolution prefix, at any G,
+   so a series coded as AV1 is outside the resolution-fitting path of
+   [`adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md).
+
+Not broken: a frame is still identified by its index and never by its stream; the envelope, the
+stream shape ([`adr-stream-shape.md`](../adr-stream-shape.md)), the planner and the store are
+unchanged; the server stays codec-blind.
+
+## 4 · What has to be measured before a G is chosen
+
+| needed | from | for |
+| --- | --- | --- |
+| bytes per frame against HTJ2K at G = 1, 2, 4, 8, 16, 32, per content | SIZE (6) | whether any G > 1 pays, and the smallest G that collects most of it |
+| decode time per frame, dav1d-WASM and WebCodecs against OpenJPH, n ≥ 15, interleaved | SPEED (9) | whether G = 1 alone is affordable — the fill is decoder-bound |
+| an ask's cost at G: bytes and serial decodes from k to N, mean (G + 1)/2 frames | SIZE × SPEED | the latency a mid-group ask pays, against today's one decode |
+| the fill's decode time with `min(decoders, groups)` in parallel and the first G serial | SPEED | the fill's cost of affinity |
+| a frame delay of 1 and no reordered frames in the lossless streams | TOOL (1), WASM (4) | that a decoder returns one frame per frame given |
+
+**The rule to choose by, proposed for the owner's review and set before the numbers:** G > 1 is adopted for a content only if its bytes
+fall by at least a fifth against AV1 intra *and* against HTJ2K on that content, and the mid-group
+ask's serial decodes at that G stay inside what SPEED measures for one HTJ2K frame's ask plus the
+wire time saved. Otherwise G = 1, and AV1 earns its place, if at all, on intra size and decode
+speed alone.

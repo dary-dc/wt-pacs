@@ -39,9 +39,12 @@ fill). With a group of G frames that only decode in order:
   ([`ARCHITECTURE.md`](../ARCHITECTURE.md)).
 
 So G trades bytes on the wire against the ask's latency and the fill's parallelism. A G of 1 keeps
-today's model; any G > 1 makes the group the transport's unit (an ask names a frame and receives its
-group from the keyframe, or the client keeps the group's decoder state). Rows SIZE and GOP give
-the curve; the shape is proposed in row SEAM before any code changes it.
+today's model; any G > 1 makes the group a unit of delivery (an ask names a frame and receives its
+group from the keyframe, or the client keeps the group's decoder state). Rows SIZE and SPEED give
+the curve. The shape is proposed in [`adr-unit.md`](adr-unit.md): a `codec` field in the bundle's
+metadata, one decoder module per codec behind `decoder.js`, and for G > 1 the group as the
+*client's* unit — an ask for N is `request_frames [k … N]`, a group goes to one decoder — with the
+wire, the store and the server unchanged.
 
 **A2 — which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
