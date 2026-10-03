@@ -10,6 +10,7 @@ wasm=client/transport-wasm/pkg/transport_wasm_bg.wasm
 artifacts=(client/transport-ts/dist/session.js client/transport-ts/dist/ws-session.js
   client/transport-ts/dist/race-session.js client/transport-wasm/pkg/transport_wasm.js)
 
+command -v strings >/dev/null || { echo "strings is missing (binutils)" >&2; exit 2; }
 bad=0
 for f in "${artifacts[@]}" "$wasm"; do
   [[ -f "$f" ]] || {
@@ -28,7 +29,7 @@ for f in "${artifacts[@]}"; do
   fi
 done
 
-if strings "$wasm" | grep -qx window; then
+if grep -qx window <(strings "$wasm"); then
   echo "$wasm carries the string 'window'" >&2
   bad=1
 fi
