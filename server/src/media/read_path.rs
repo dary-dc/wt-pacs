@@ -29,8 +29,6 @@ pub enum ReadMode {
     #[default]
     Auto,
     Pool,
-    /// Lab lever, not a production mode: every frame through the ring, hits included.
-    Uring,
 }
 
 impl ReadMode {
@@ -39,8 +37,7 @@ impl ReadMode {
         match value {
             None | Some("auto") => Ok(Self::Auto),
             Some("pool") => Ok(Self::Pool),
-            Some("uring") => Ok(Self::Uring),
-            Some(other) => Err(format!("WTPACS_READ_PATH is not auto|pool|uring: `{other}`")),
+            Some(other) => Err(format!("WTPACS_READ_PATH is not auto|pool: `{other}`")),
         }
     }
 }
@@ -269,8 +266,6 @@ enum InFlight {
 /// **The tile reader.** A scattered ask is a miss by nature, so its queue is the ring's
 /// submissions rather than one blocked thread per outstanding read.
 pub struct TileReader {
-    /// Try the page cache before escalating. False only under [`ReadMode::Uring`].
-    probe: bool,
     #[cfg(feature = "uring")]
     ring: Ring,
     slots: Vec<Slot>,
@@ -286,11 +281,9 @@ impl TileReader {
         #[cfg(feature = "uring")]
         let wants_ring = match mode {
             ReadMode::Auto => store.nowait_supported(),
-            ReadMode::Uring => true,
             ReadMode::Pool => false,
         };
         Self {
-            probe: mode != ReadMode::Uring,
             #[cfg(feature = "uring")]
             ring: if wants_ring { Ring::Wanted } else { Ring::Off },
             slots: (0..slots.max(1))
@@ -365,11 +358,7 @@ impl TileReader {
     fn begin(&mut self, store: &Arc<FrameStore>, w: usize, span: FrameSpan) -> Result<()> {
         let len = span.len as usize;
         fit(&mut self.slots[w].buf, len);
-        let hit = if self.probe {
-            store.read_at_nowait(&mut self.slots[w].buf[..len], span.offset)?
-        } else {
-            0
-        };
+        let hit = store.read_at_nowait(&mut self.slots[w].buf[..len], span.offset)?;
         let slot = &mut self.slots[w];
         slot.key = Some(span);
         slot.at = span.offset;
@@ -861,19 +850,19 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// The three values the ADR documents parse to their own mode, unset is `Auto`, and anything
+    /// The values the ADR documents parse to their own mode, unset is `Auto`, and anything
     /// else is refused rather than read as one of them.
     #[test]
-    fn read_mode_parses_the_three_it_documents() {
+    fn read_mode_parses_the_values_it_documents() {
         for (value, want) in [
             (Some("pool"), Ok(ReadMode::Pool)),
-            (Some("uring"), Ok(ReadMode::Uring)),
             (Some("auto"), Ok(ReadMode::Auto)),
             (None, Ok(ReadMode::Auto)),
         ] {
             assert_eq!(ReadMode::parse(value), want, "WTPACS_READ_PATH={value:?}");
         }
         assert!(ReadMode::parse(Some("nonsense")).is_err(), "an unknown value was taken");
+        assert!(ReadMode::parse(Some("uring")).is_err(), "the retired lab lever was taken");
     }
 
     #[test]
@@ -1007,36 +996,17 @@ mod tests {
             .and_then(|f| f.set_len(span.offset))
             .expect("cut the frames off");
         let rt = rt();
-        let mut tile = TileReader::new(ReadMode::Uring, &store, TILE_SLOTS);
+        let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
         let read = rt.block_on(async {
             tokio::time::timeout(std::time::Duration::from_secs(5), tile.read(&store, span, &[]))
                 .await
         });
         if !tile.ring_built() {
-            eprintln!("skipped: io_uring is unavailable on this host");
+            eprintln!("skipped: io_uring or RWF_NOWAIT is unavailable on this host");
         } else {
             let read = read.expect("the ring read hung on the end of the file");
             assert!(read.is_err(), "a frame past the end of the file was served");
         }
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// The lab lever reads every frame through the ring, so a layout experiment measures
-    /// the `uring` arm and not a broken one.
-    #[test]
-    #[cfg(feature = "uring")]
-    fn the_uring_lever_serves_whole_frames_through_the_ring() {
-        let dir = scratch("lever");
-        let path = write_bundle(&dir, 3, LEN);
-        let store = Arc::new(FrameStore::open(&path).expect("open store"));
-        let rt = rt();
-        let mut tile = TileReader::new(ReadMode::Uring, &store, TILE_SLOTS);
-        for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
-            let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
-            assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} came back wrong");
-        }
-        assert!(tile.ring_built(), "the lever never built a ring");
         std::fs::remove_dir_all(&dir).ok();
     }
 }

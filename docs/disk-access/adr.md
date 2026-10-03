@@ -46,7 +46,7 @@ no registered buffers, no cursor reads.
 | | |
 | --- | --- |
 | Where | `server/src/media/read_path.rs` (`SeqReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the write) |
-| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles) · `uring` (lab lever, every tile through the ring) |
+| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles). The `uring` lab lever (every tile through the ring) was removed 2026-10-03; code: `git show archive/arms-2026-10-03:server/src/media/read_path.rs` |
 | Feature | `uring`, on by default; the pool path is `--no-default-features --features crypto-ring` |
 | Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build, with fill/tile hits split (§10) |
 
@@ -339,8 +339,8 @@ so the bytes after `next` are the frames after it.
 measured order. The probe is the whole frame; a shortfall goes to the ring, or to the pool where
 the ring is refused. A new read takes a slot with no read in flight when there is one.
 `WTPACS_READ_PATH` is resolved once at server start, and an unknown value is warned about and read as
-`auto`; `probe: false` *is* the `uring` lever. **Corrected 2026-10-03:** this said "once in
-`TileReader::new`"; it was read, and warned about, in every session's pipeline.
+`auto`. The `uring` lever, `probe: false`, was removed 2026-10-03 (§Flags). **Corrected 2026-10-03:**
+this said "once in `TileReader::new`"; it was read, and warned about, in every session's pipeline.
 `Ring` is not an `Option`: a refused ring must be neither retried on every miss nor fail the
 ask, so `Off` means both "never wanted" and "refused".
 
@@ -374,8 +374,8 @@ arm, **+131 to +142 % on hits, RESOLVED**. The ring is gated on
 
 No performance toggle: `TileReader` already chooses per session, and the arm a "miss-optimised"
 flag would pick is the trap above. `WTPACS_READ_PATH=pool` is the **kill switch** (the pre-ring
-path on tiles); `uring` is a lab lever; an unrecognised value warns and uses `auto`; a fill
-ignores it. `--force-pool-reads` (lab) clears the store's `nowait` at open, so every frame
+path on tiles); an unrecognised value, `uring` included since its lever was removed, warns and
+uses `auto`; a fill ignores it. `--force-pool-reads` (lab) clears the store's `nowait` at open, so every frame
 misses and takes the pool — the state a refusing filesystem produces, so it trips the same
 warning. It exists because eviction is not a lever ([`CLAUDE.md`](../../CLAUDE.md)
 §Measurement). One saturate run over `queue_large`: 3 648 hits, 0 misses by default; 0 hits,
@@ -418,7 +418,6 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
 | Slot count is a constructor argument | `a_tile_reader_holds_as_many_frames_as_it_was_given_slots` |
 | A hit never builds a ring | `lazy_ring_is_not_built_when_every_read_hits` |
 | No ring where `RWF_NOWAIT` is refused | `lazy_ring_is_never_built_without_nowait` |
-| The `uring` lever serves whole frames through the ring | `the_uring_lever_serves_whole_frames_through_the_ring` |
 | Dropping a ring mid-read waits for the kernel | `dropping_a_reader_mid_read_waits_for_the_kernel` |
 | A parked reader is woken (the `_async` eventfd hangs it) | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
 | The session line reports the miss rate | `read_stats_report_the_session_miss_rate` |
