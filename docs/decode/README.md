@@ -1053,7 +1053,8 @@ Headless Chromium 141.0.7390.37 (the lab's), Linux container, no GPU, 2026-10-03
 (`lab/av1/wcap/`). 24 lossless libaom streams, 256×192, 8 frames each: 4:0:0, 4:2:0, 4:2:2 and
 4:4:4 (identity matrix, GBR) × 8/10/12 bit × intra-only and inter (one keyframe, seven inter
 frames). Each frame's planes are hashed against the encoder input's SHA-256; native dav1d 1.4.1
-reproduces all 24, so a miss would be the browser's.
+reproduces all 24, so a miss would be the browser's. That holds per stream, not per encoder: on
+other content libaom 3.8.2's inter 10- and 12-bit frames were not exact (row WASM).
 
 | | 8 bit | 10 bit | 12 bit |
 | --- | --- | --- | --- |
