@@ -5,6 +5,8 @@ Every DICOM file is checked against the SHA-256 pinned in data.json before it is
 set's frames against the digest pinned there after extraction: a mismatch exits non-zero and
 leaves nothing marked good. docs/FIXTURES.md §AV1 data says what each set is and why.
 
+A set with a "crop" [y, x, h, w] keeps that window of every frame.
+
 Frames land in OUT/<set>/NNN.raw: the stored samples, little-endian, colour interleaved as stored,
 signed sign-extended to int16 — the layout and checksum convention of the HTJ2K sets.
 NNN.sha256 is the hex digest of NNN.raw; the set digest is the digest of those hex strings
@@ -54,12 +56,14 @@ def extract(spec: dict, out: str) -> None:
     dest = os.path.join(out, spec["name"])
     os.makedirs(dest, exist_ok=True)
     digests, lo, hi, first = [], None, None, None
+    y, x, h, w = spec.get("crop", (0, 0, None, None))
     for entry in spec["files"]:
         ds = pydicom.dcmread(fetch(entry, out))
         first = ds if first is None else first
         signed = ds.PixelRepresentation == 1
         dtype = "<u1" if ds.BitsAllocated == 8 else ("<i2" if signed else "<u2")
         for f in frames(ds):
+            f = f[y:y + h if h else None, x:x + w if w else None]
             samples = np.ascontiguousarray(f, dtype=dtype).tobytes()
             name = os.path.join(dest, "%03d" % len(digests))
             with open(name + ".raw", "wb") as fh:
@@ -75,8 +79,8 @@ def extract(spec: dict, out: str) -> None:
         sys.exit(f"{spec['name']}: frames digest {got}, pinned {spec['frames_sha256']}")
     meta = {
         "frameCount": len(digests),
-        "width": int(first.Columns),
-        "height": int(first.Rows),
+        "width": w or int(first.Columns),
+        "height": h or int(first.Rows),
         "channels": int(first.SamplesPerPixel),
         "bitsStored": int(first.BitsStored),
         "signed": first.PixelRepresentation == 1,
