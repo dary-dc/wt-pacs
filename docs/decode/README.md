@@ -329,18 +329,11 @@ time was found — §The wrapper's two passes.
 * **A newer OpenJPH: none exists**; 0.31.0 is the newest tag.
 * **Worth taking, and it is not time: LTO makes the binary 16 % smaller** (200 KB against 239 KB),
   heap identical.
-* **Native Wasm exceptions: bit-exact, a tie, not adopted** (row 84). Under `-fexceptions` every call
-  that may throw goes through a JS `invoke_*` trampoline: 81 call sites in 17 functions of the 4 MB
-  build, 11 trampolines. `-fwasm-exceptions` on the library and the wrapper (`ARMS=wex
-  EXTRA_FLAGS=-fwasm-exceptions`; the library's own `-fexceptions` stays harmlessly, and 3.1.74 asked
-  for no `SUPPORT_LONGJMP`) leaves none, 43 native `try`s instead. Parity: six sets, 522 frames,
-  identical. An undecodable input throws on both — a pointer against a `WebAssembly.Exception`, which
-  `decoder.js` stringifies alike — and the reused decoder then decodes a good frame byte-identically.
-  `cold_arms.mjs`, 4 MB builds, n = 15 rotated, a fresh Node process or browser context per sample,
-  on cine512, ct512, c512 and g512: **steady −0.2 to −1.7 %** (9–13/15 rounds), **frames 0–2 a tie
-  either way** (5–12/15), every range overlapping, in Node and headless Chromium alike. The estimate
-  was 2–5 %, more on cold frames; neither shows. What it does buy is bytes: glue 55,155 → 50,266 B,
-  `.wasm` 452 B less. Default unchanged; switching is one flag, and those bytes are the only case.
+* **Native Wasm exceptions: bit-exact, a tie, not adopted** (row 84, `4957d5a`). `-fwasm-exceptions`
+  replaces the 81 call sites that went through a JS `invoke_*` trampoline with native `try`s; six
+  parity sets identical, and an undecodable input still throws. `cold_arms.mjs`, n = 15, Node and
+  headless Chromium: **steady −0.2 to −1.7 %**, frames 0–2 a tie, every range overlapping — under the
+  5 % bar. It buys 4.9 KB of glue; the default is unchanged, and switching is one flag.
 
 *A baseline of your own making:* LTO first measured −17.8 % against a `plain` build the lane had
 rebuilt with the newer, slower toolchain. Record which emscripten a rebuild used and compare against
@@ -448,9 +441,9 @@ the retained decoders hold (100.7, 211.3 and 912.4 MB), the package's heaps are 
 MB build's **4.58–5.10×** on the 512² series (1.74–1.89× at 2048²): a build that starts at 4 MB
 grows by two orders of magnitude and carries every step.
 
-**The floor stands for a viewer that copies out, and only then.** In the copy-out arms the heap
+**The 4 MB floor is right if and only if the pixels leave the heap.** In the copy-out arms the heap
 holds only transients — 4.0 MB on the 512×512 series, 24.6 MB on the 2048×2048 one, reproducing
-§Where to put the floor. **The 4 MB floor is right if and only if the pixels leave the heap.**
+§Where to put the floor.
 
 * **Pool size costs each instance its floor**: copying out, each extra instance adds **+50.9 MB on
   the package in every series**, against +6.6, +4.8 and +25.3 MB on the 4 MB build.
@@ -624,8 +617,8 @@ on it). Removing the `try` around it was not caught either, because the wrapper 
 `catch` is load-bearing now that `decodeFrame` checks the header (§A frame that did not decode).
 
 **What this is not.** Loopback and a userspace relay on a four-core box with other work: only
-within-round differences are claimed. At 40 ms only frame 0 is a cold decoder's first frame. The
-warm-up's size was not swept, and 12-bit signed has no shipped warm-up frame.
+within-round differences are claimed. At 40 ms only frame 0 is a cold decoder's first frame. 12-bit
+signed has no shipped warm-up frame; the warm-up's size is §Sizing the warm-up.
 
 ### On a slow CPU
 
@@ -1016,7 +1009,7 @@ truncation (117/120 conformance). The TypeScript client's `readMin` is a separat
   is a CSP without `unsafe-eval`, a deploy decision, or a device cell where the glue's compile is
   no longer hidden.
 * A heap floor chosen for first-frame latency; the package's own build re-timed since D10.
-* The warm-up's size, and the device cell that decides it (§Warming the decoders).
+* The device cell that decides whether the warm-up is on (§Warming the decoders).
 * BYOB's ~12 ms first frame, and what an errored stream owes the frame in flight (§The BYOB read
   path).
 * Looked at and dropped, not measured: GPU decode (nothing runs in a browser), fewer decompositions

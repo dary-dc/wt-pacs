@@ -288,73 +288,37 @@ for large frames. On the target link none of this binds.
 ## Reading a frame whole
 
 `ConnectOptions.readMin` (the downloader's `readMin`) reads the media stream through a BYOB reader,
-each frame straight into its wire buffer, a read resolving at no fewer than `readMin` bytes or the
-frame's rest; unset, the default reader and its copy. WebTransport only. **Off by default — adoption is
-the workstation's call.** A cut stream's last read resolves done with the bytes it holds, so the
-frame is still named truncated with its count (`aCutFrameIsNamedWithItsBytes`).
+`read(view, {min})`, each frame straight into its wire buffer, a read resolving at no fewer than
+`readMin` bytes or the frame's rest; unset, the default reader and its copy. WebTransport only. A
+stream that is not a byte stream is read the default way (`readMinWithoutByobFallsBack`). A cut
+stream's last read resolves done with the bytes it holds, so the frame is still named truncated with
+its count (`aCutFrameIsNamedWithItsBytes`).
 
 **Bound on K.** Each read moves `lastByteAt`, which the downloader's stall watch reads, so a read
-must resolve inside `stallMs` (3 s) at the slowest rate a session should survive: a whole 410 KB
-frame needs ≥ 1.1 Mbit/s, 64 KB ≥ 175 kbit/s, 16 KB ≥ 44. **Across an outage the budget is what the
-outage leaves**: K ≤ rate × (`stallMs` − outage − QUIC's recovery after it). Measured (RMD,
-2026-10-02, `reads.mjs` with `FILL=4 QUEUE_MS=500 TRACE=R:3000,0:2000,R:3000`, 2 s outages every
-8 s, decode off, 1×, 6 rounds Williams-ordered, self-timed, none `VOID`): sessions re-dialled by
-the stall watch (visits re-dialled / re-dials), against a default reader re-dialled in none —
+must resolve inside `stallMs` (3 s) at the slowest rate a session should survive, and across an
+outage inside what the outage leaves: **K ≤ rate × (`stallMs` − outage − QUIC's recovery after
+it).** Measured (RMD, 2026-10-02, `lab/downloader-campaign/reads.mjs`, 2 s outages every 8 s, 6
+rounds, self-timed): at 0.5 Mbit/s while up, 16 KB kept every session the default reader keeps; 32 KB
+(0.52 s a read) was re-dialled in 1 of 6 visits, 64 KB and a whole frame in all of them, each re-dial
+costing the fill seconds. **16 KB is the largest K inside the bound.** At 1 Mbit/s only the whole
+frame failed. Bit-exact in every visit.
 
-| rate while up | 16 KB | 32 KB | 64 KB | whole frame |
-| --- | --: | --: | --: | --: |
-| 0.5 Mbit/s | **0/6** | 1/6, 1 | 6/6, 6 (fill +3.3 s) | 6/6, 15 (+18.6 s) |
-| 1 Mbit/s | 0/6 | 0/6 | 0/6 | 6/6, 6 (+6.2 s) |
+**What it buys.** A whole-frame read on a 40 Mbit trace (BYM, 2026-10-01) took a quarter to a third
+off the downloader thread's CPU (~34 µs a read saved) and ~40 MB off the renderer's peak, the clock
+not moving because the link binds — but a whole frame is outside the bound. At 16 KB on that link
+(RMD, 15 rounds, Williams-ordered, `VOID` visits dropped; paired leads on the default reader): the
+downloader's CPU **−105 ms at 1× and −90 at 4×** a fill and the renderer's peak **−37 MB**, every
+round; the fill ties (−5 / +3 ms).
 
-So **16 KB is the largest K that keeps every session the default reader keeps at 0.5 Mbit/s with
-2 s outages**; a 32 KB read takes 0.52 s there, which the 1 s the outage leaves holds only until
-QUIC's recovery after the outage eats the rest (once in six). The whole-frame and
-64 KB columns are the cell's own mutant: a K above the bound is condemned in every visit. Each
-re-dial costs the fill seconds, not just a frame. Bit-exact in every visit.
-
-**At K = 16, 32, 64 and 128 KB on the fast link** (RMD, BYM's cell below, Dd, 15 rounds,
-Williams-ordered, self-timed, 21 + 6 of 180 visits `VOID` and dropped; paired leads on the
-default reader, wins/rounds):
-
-| | 16 KB | 32 KB | 64 KB | 128 KB |
-| --- | --: | --: | --: | --: |
-| downloader CPU, 1× / 4× | −105 / −90 (all) | −129 / −98 (all) | −113 / −132 (all) | −143 / −165 (all) |
-| renderer peak | −37 / −38 MB (all) | −40 / −41 (all) | −41 / −40 (all) | −40 / −43 (all) |
-| fill, 1× / 4× | −5 / +3 ms | −1 / −8 | −2 / −6 | +2 / −5 |
-| frame 0, 1× | +3 (4/13) | +4 (3/10) | +1 (4/11) | +5 (4/14) |
-| frame 0, 4× | **+12 (4/11)**, IQR −12…+31 | −4 (5/8) | −1 (5/9) | +8 (3/8) |
-
-**Not adopted — the 4× frame 0 at 16 KB is unresolved**: +12 ms (4/11) here and +7 (2/7) in BYM,
-while 32 and 64 KB tie; no mechanism makes a read with a smaller `min` finish a frame later (the
-last read resolves at the frame's rest), but two leans the same way are not a tie. A 12-round
-top-up could not be taken: after a container restart the relay ran p99 1.3–1.8 ms late in 23 of
-24 visits (`VOID`). The decision and what would settle it are in `cloud-queue.md` §Blocked. A
-stream that is not a byte stream, under `readMin`, is read the default way
-(`readMinWithoutByobFallsBack`).
-
-**What it buys, on a packet-paced link** (BYM, 2026-10-01, `lab/downloader-campaign/reads.mjs`): 87
-16-bit 512² frames (`decode_g512`, 410 KB each) through `link_impair.py --trace` at a uniform
-40 Mbit/s, 20 ms one way, a 200 ms queue, every visit self-timed (7 of 128 `VOID`, dropped); a fresh
-headless Chromium 141 a visit, decode off (Dw) and on with three decoders (Dd), 1× and 4×
-(`cpu_throttle.mjs`), eight arms in a Williams order, 8 rounds; every frame's sha256 matched (wire bytes
-for Dw, samples for Dd; a byte flipped in the BYOB path reads 87 of 87 wrong). Medians, paired lead on
-the same decode's default reader:
-
-| | default | K = whole frame | 64 KB | 16 KB |
-| --- | --: | --: | --: | --: |
-| reads a frame | 72–74 | 2.0 | 7.3–7.5 | 20.3–20.7 |
-| downloader thread CPU, a fill | 729–769 ms | **−191 to −227** (all rounds) | −156 to −192 | −119 to −157 |
-| its voluntary context switches | 6 762–6 969 | −364 to −582 | −425 to −531 | −342 to −530 |
-| renderer peak PSS | 189 / 243 MB | **−39 to −41** (all rounds) | −38 to −40 | −36 to −38 |
-| fill time, frame 0 | 7.45 s, 269–343 ms | tie | tie (4× Dd frame 0 +11, 2/7) | tie (4× Dd +7, 2/7) |
-
-So **a whole-frame read takes a quarter to a third off the downloader thread (~34 µs a read saved) and
-~40 MB off the renderer's peak**, the default reader's per-read chunks; the clock does not move,
-since the link binds. The context switches barely move: the thread wakes per packet either way.
-The throttle caps a share of a core, which stretches wall time but not on-CPU time, so the 4× rows
-read like 1×; on a CPU 4× slower the CPU saving is ~4× (derived, ~0.8 s a fill, unmeasured).
-Container, one host, one trace; a device and the burst profiles are the workstation's. Row 5's
-~12 ms BYOB frame 0 is the WASM client's path and was not rechecked; this path's frame 0 ties at 1×.
+**Off by default, and an open owner decision** ([`cloud-queue.md`](cloud-queue.md) §Open owner
+decisions). For it, the CPU and memory above with every slow-link session kept. Against it, **frame 0
+at 4× is +12 ms (4/11)** at 16 KB, +7 (2/7) in BYM, while 32 and 64 KB tie — unresolved: no mechanism
+makes a smaller `min` finish a frame later (the last read resolves at the frame's rest), but two leans
+the same way are not a tie. What would settle it is a ≥ 20-round 4× cell (`KS=0,16384 DECODE=1
+THROTTLES=4 node lab/downloader-campaign/reads.mjs 20`) on a host whose relay times: after a container
+restart the relay ran late in 23 of 24 visits (`VOID`). Container, one host, one trace; the per-K tables
+are in `git show 6e9c126:docs/CLIENTS.md`. Row 5's ~12 ms BYOB frame 0 is the WASM client's retired
+path ([`decode/README.md`](decode/README.md) §The BYOB read path), not rechecked here.
 
 ## ACK frequency, by browser
 
