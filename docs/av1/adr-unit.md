@@ -1,6 +1,6 @@
 # ADR: the codec seam, and the group as the client's unit
 
-**Status:** §1–2 built for G = 1 (row DEC; the transforms and WebCodecs by row WCDEC), §3 built in its simplest form (row GOP); departures marked *Built:* · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
+**Status:** §1–2 built for G = 1 (row DEC; the transforms and WebCodecs by row WCDEC), §3 built in its simplest form (row GOP); departures marked *Built:*; §5 proposed (row SVCORDER) · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
 · **Answers:** [`README.md`](README.md) §A1, the shape half; SIZE and SPEED own the numbers.
 
 Read against [`WIRE.md`](../WIRE.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md),
@@ -234,3 +234,101 @@ fall by at least a fifth against AV1 intra *and* against HTJ2K on that content, 
 ask's serial decodes at that G stay inside what SPEED measures for one HTJ2K frame's ask plus the
 wire time saved. Otherwise G = 1, and AV1 earns its place, if at all, on intra size and decode
 speed alone.
+
+## 5 · Bases first: a scalable frame's layers as separate entries
+
+*Proposed (row SVCORDER), not built, nothing measured.* A scalable payload (row SVCQ: a lossy base
+layer and a lossless top in one temporal unit) buys a preview only if **the bases of a whole cine
+arrive before the tops**. Stored as one entry per frame, as row SVCQ coded it, base and top travel
+together and the fill's last preview lands with its last exact frame.
+
+**The base is a prefix of its temporal unit.** The spec orders a temporal unit's layers by
+ascending `spatial_id` (AV1 §7.5), so the base's OBUs — the temporal delimiter, the sequence header
+on a keyframe, the frame OBUs with `spatial_id` 0 — come before the top's. *Not checked on libaom's
+output here*; the splitter below refuses a unit where it does not hold.
+
+### The options
+
+| | A · base and top as entries, top alone | **B · base and exact as entries, exact whole** | C · a byte range per layer in one entry |
+| --- | --- | --- | --- |
+| store | 2F entries; the top entry holds only the top's OBUs | 2F entries; the exact entry is the whole temporal unit, base included | F entries, the table gains a per-layer length: SBND version 2 |
+| wire, server | unchanged | unchanged | a layer in the ask and in the envelope; the server reads the table's layers, so it is no longer codec-blind |
+| bytes over the scalable payload | 0 | **the base's share again**: 0.07–2.4 % of HTJ2K's at a half-size base, q 40 (row SVCQ); up to 10.4 % at q 20 on the ultrasound | 0 |
+| the exact frame decodes from | the base's entry *and* the top's, joined; the base's compressed bytes held until then, or fetched again | **its own entry**, as a single-layer frame does today | its own entry |
+| an ask for exact N, G = 1 | two entries, two decodes if the base is not in hand | **one entry, one decode** | one entry, one partial |
+
+**B, recommended.** It costs the base's bytes a second time — the same order as row PREVIEW's
+separate preview — and in exchange
+the exact frame needs nothing from its preview: no bytes held across entries, no join, no order
+between a frame's two entries, a failure confined to its entry, and the wire, the store's format and
+the server unchanged. A carries the same delivery for those bytes and breaks each of those. C moves
+the change into the wire and the server for the same delivery, and is structural twice over.
+
+B also settles what row SVCQ left open: **WebCodecs cannot be asked for an operating point, but it
+returns the base when fed the base alone and the top when fed the whole unit** (row SVCQ, 8-bit), so
+separate entries choose the picture by what is fed, on either decoder. dav1d-WASM decodes the
+exact entry at operating point 0 with `all_layers` 0 and the base at operating point 1 (row SVCQ);
+whether one decoder at operating point 0 also returns a base fed alone is row SVCDEC's to find.
+
+### The layout: layer-major
+
+**Entry i < F is frame i's base; entry F + i is frame i's exact unit.** Not interleaved (2i, 2i+1):
+
+* **A bases-first fill is `stream_frames` over the bundle**, in index order: entries 0 … F−1 are
+  every base, F … 2F−1 every exact frame. The downloader's one contiguous run (`nextRun`) is
+  already that order; nothing in the planner or the server changes. Interleaved would need a
+  `request_frames` batch of every even index, which an ask then waits behind ([`WIRE.md`](../WIRE.md)).
+* **The bases are contiguous on disk**, so the read-ahead of a bases run reads one small region.
+* **The metadata** gains `"layers": 2`; `frameCount` stays the entry count the bundle and
+  `pack-study` mean, so the series has `frameCount / layers` frames. Absent means 1: entry = frame,
+  and every HTJ2K and single-layer AV1 bundle reads unchanged.
+* **Ingest** splits each temporal unit at the first OBU with `spatial_id` > 0 and writes the prefix
+  as entry i, the whole unit as entry F + i; `pack-study` itself does not change.
+
+### What each part changes
+
+* **The wire and the server: nothing.** The envelope's `display_index` is the entry index; the
+  server serves entries by index as now. The opening ask's `?ask=fill:A-B` names entries.
+* **The downloader** maps. The consumer keeps naming frames: `fill([…])` wants entries {i, F + i},
+  `requestExactFrame(N)` asks F + N only — an ask is for the exact frame, so its base is not fetched
+  for it. Frame N's base leaves the wanted set once N's exact unit is delivered. Groups (§3, G > 1)
+  are index arithmetic on `i mod F`: a base group decodes from its base keyframe and an exact group
+  from its own, each on one decoder, independent of each other.
+* **The decoders.** A base entry decodes to a frame marked `preview: true` with the base's own width
+  and height (row SVCDEC's contract); an exact entry decodes as a single-layer frame does.
+* **The consumer and the cache.** Pixels go from a decoder to the consumer directly, so it is the
+  consumer, not the downloader, that **drops a preview for a frame whose exact pixels it already
+  holds** — a base decoded late on a slow decoder must never replace an exact frame on screen. A
+  preview is held only until its frame's exact pixels arrive.
+* **The ask during a fill.** Unchanged in kind: the ask ends the fill, is served next, and the
+  downloader re-issues the rest — the remaining bases, then the exact run.
+
+### Invariants this breaks
+
+1. **An entry is a frame.** The index on the wire, in `frame_error` and in the downloader's records
+   is an entry; the frame is `i mod F`. Everything below the consumer must map, and a check that
+   compares an entry's pixels against a frame's `.sha256` by index compares the wrong one.
+2. **Frames are decoded once.** Every base is decoded twice — alone as a preview, again inside its
+   exact unit: 2–13 % of a lossless frame's decode for a half-size base (row SVCQ, dav1d-WASM).
+3. **A frame's bytes cross the wire once.** The base's do twice; `wire bytes` per delivery stays
+   per entry, and a frame's traffic is the sum of its two.
+4. **`frameCount` is the series' frame count.** It stays the entry count; a client reading it as
+   frames shows twice the series.
+5. **Every delivered frame is exact.** A delivery marked `preview` is not, and is never the last
+   delivery for its frame unless the exact unit failed — then the frame fails by name and the preview
+   stays marked (row SVCDEC).
+
+Not broken: the envelope, the stream shape, the store's format, the planner, a frame decoding from
+its own entry, a failure being one entry, and an ask being one entry at G = 1.
+
+### The smallest arm that measures it
+
+Row SVCQ's streams split by a lab script into layer-major bundles, served by the unchanged server
+through row FILL's harness ([`lab/av1/fill`](../../lab/av1/fill/README.md)), after row SVCDEC's
+decoder and row SVCSHAPE's shape: two arms per series, **single-layer lossless AV1 in frame order**
+(today) against **B layer-major, bases first**, on fluoroscopy (dav1d-WASM) and the ultrasound
+(WebCodecs and dav1d-WASM), 5/20/50 Mbit/s, 1× and 4×, Williams-ordered. Report the time to every
+preview on screen, to every frame exact, and the exact fill's delay against the first arm — every
+exact frame against its source's checksum, every preview replaced. The arithmetic it tests: every
+base is in after the bases' share of the exact fill's wire time plus a round trip, and the last
+exact frame is late by that share.
