@@ -26,7 +26,6 @@ pub struct FrameSpan {
 pub struct FrameStore {
     file: File,
     index: Vec<(u64, u32)>,
-    metadata: String,
     nowait: bool,
     /// Test-only ceiling on one `read_at_nowait`, for forcing a partial hit.
     #[cfg(test)]
@@ -47,7 +46,6 @@ impl FrameStore {
             nowait: probe_nowait(&file, layout.data_base as u64),
             file,
             index: layout.index,
-            metadata: layout.metadata,
             #[cfg(test)]
             nowait_cap: None,
             #[cfg(test)]
@@ -69,10 +67,6 @@ impl FrameStore {
 
     pub fn frame_count(&self) -> u32 {
         self.index.len() as u32
-    }
-
-    pub fn metadata_json(&self) -> &str {
-        &self.metadata
     }
 
     /// No I/O, so an out-of-range ask is refused before a stream is opened.
@@ -154,7 +148,7 @@ impl FrameStore {
     }
 
     /// Force a partial hit: real bytes at the front, a shortfall behind them.
-    #[cfg(test)]
+    #[cfg(all(test, feature = "uring"))]
     pub(crate) fn force_short_reads(&mut self, cap: usize) {
         self.nowait_cap = Some(cap);
     }
@@ -262,7 +256,6 @@ mod tests {
 
         let store = FrameStore::open(&path)?;
         assert_eq!(store.frame_count(), 2);
-        assert_eq!(store.metadata_json(), r#"{"frameCount":2}"#);
         assert!(store.frame_span(99).is_err());
 
         for (index, want) in [(0u32, f0.as_slice()), (1, f1.as_slice())] {

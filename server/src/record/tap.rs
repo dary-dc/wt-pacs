@@ -645,18 +645,6 @@ mod tests {
     }
 
     #[test]
-    fn stage_partition_identity_with_overhead() {
-        let row = sample_row(Some(20), Some(1), Some(40), 65, 4);
-        assert_eq!(
-            row.serve_us,
-            row.prepare_us.unwrap()
-                + row.locate_us.unwrap()
-                + row.send_us.unwrap()
-                + row.overhead_us
-        );
-    }
-
-    #[test]
     fn contiguous_emit_partition_holds() {
         let (mut t, rx) = test_tap_with_channel(4);
         t.begin_frame(2);

@@ -18,12 +18,6 @@ pub struct ParsedLayout {
     pub data_base: usize,
 }
 
-impl ParsedLayout {
-    pub fn frame_count(&self) -> u32 {
-        self.index.len() as u32
-    }
-}
-
 /// `bytes` is the prefix; `file_len` is the study file, which the index is checked against.
 fn parse_layout_checked(bytes: &[u8], file_len: u64) -> Result<ParsedLayout> {
     if bytes.len() < HEADER_SIZE {
@@ -73,7 +67,8 @@ fn parse_layout_checked(bytes: &[u8], file_len: u64) -> Result<ParsedLayout> {
     })
 }
 
-pub fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
+#[cfg(test)]
+fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
     parse_layout_checked(bytes, bytes.len() as u64)
 }
 
@@ -103,30 +98,31 @@ fn prefix_len(header: &[u8]) -> Result<u64> {
     Ok(HEADER_SIZE as u64 + index_len + u64::from(metadata_len))
 }
 
+/// A bundle laid out by hand from the format, for the parser and the writer to be checked against.
+#[cfg(test)]
+pub(crate) fn bundle(frames: &[&[u8]], metadata: &[u8]) -> Vec<u8> {
+    let data_base = HEADER_SIZE + frames.len() * INDEX_ENTRY_SIZE + metadata.len();
+    let mut out = Vec::new();
+    out.extend_from_slice(MAGIC);
+    out.extend_from_slice(&VERSION.to_le_bytes());
+    out.extend_from_slice(&(metadata.len() as u32).to_le_bytes());
+    out.extend_from_slice(&(frames.len() as u32).to_le_bytes());
+    let mut offset = data_base as u64;
+    for frame in frames {
+        out.extend_from_slice(&offset.to_le_bytes());
+        out.extend_from_slice(&(frame.len() as u32).to_le_bytes());
+        offset += frame.len() as u64;
+    }
+    out.extend_from_slice(metadata);
+    for frame in frames {
+        out.extend_from_slice(frame);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A two-frame bundle in memory, laid out exactly as `BundleWriter` writes it.
-    fn bundle(frames: &[&[u8]], metadata: &[u8]) -> Vec<u8> {
-        let data_base = HEADER_SIZE + frames.len() * INDEX_ENTRY_SIZE + metadata.len();
-        let mut out = Vec::new();
-        out.extend_from_slice(MAGIC);
-        out.extend_from_slice(&VERSION.to_le_bytes());
-        out.extend_from_slice(&(metadata.len() as u32).to_le_bytes());
-        out.extend_from_slice(&(frames.len() as u32).to_le_bytes());
-        let mut offset = data_base as u64;
-        for frame in frames {
-            out.extend_from_slice(&offset.to_le_bytes());
-            out.extend_from_slice(&(frame.len() as u32).to_le_bytes());
-            offset += frame.len() as u64;
-        }
-        out.extend_from_slice(metadata);
-        for frame in frames {
-            out.extend_from_slice(frame);
-        }
-        out
-    }
 
     fn set_entry(bytes: &mut [u8], i: usize, offset: u64, length: u32) {
         let base = HEADER_SIZE + i * INDEX_ENTRY_SIZE;
@@ -138,7 +134,7 @@ mod tests {
     fn well_formed_bundle_parses() {
         let bytes = bundle(&[b"aaa", b"bbbb"], b"{}");
         let layout = parse_layout(&bytes).unwrap();
-        assert_eq!(layout.frame_count(), 2);
+        assert_eq!(layout.index.len(), 2);
         assert_eq!(layout.index[0], (layout.data_base as u64, 3));
         assert_eq!(layout.index[1], (layout.data_base as u64 + 3, 4));
         assert_eq!(layout.metadata, "{}");

@@ -56,7 +56,8 @@ pub struct ReadStats {
 }
 
 impl ReadStats {
-    pub fn miss_rate(&self) -> Option<f64> {
+    #[cfg(test)]
+    fn miss_rate(&self) -> Option<f64> {
         let total = self.hits + self.misses;
         (total > 0).then(|| self.misses as f64 / total as f64)
     }
@@ -69,37 +70,43 @@ fn fit(buf: &mut Vec<u8>, need: usize) {
 }
 
 /// Probe the page cache for the whole frame; hand any shortfall to the blocking pool.
-fn start_pooled(store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>) -> Result<Ahead> {
+fn start_pooled(store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>) -> Result<Fetch> {
     let len = span.len as usize;
     fit(&mut buf, len);
     let hit = store.read_at_nowait(&mut buf[..len], span.offset)?;
     if hit == len {
-        return Ok(Ahead::Ready { span, buf });
+        return Ok(Fetch::Ready(buf));
     }
     #[cfg(test)]
     store.account_pool_start();
     let store = Arc::clone(store);
     let at = span.offset + hit as u64;
-    Ok(Ahead::InFlight {
-        span,
-        join: tokio::task::spawn_blocking(move || {
-            store.read_at_blocking(&mut buf[hit..len], at)?;
-            Ok(buf)
-        }),
-    })
+    Ok(Fetch::Pooled(tokio::task::spawn_blocking(move || {
+        store.read_at_blocking(&mut buf[hit..len], at)?;
+        Ok(buf)
+    })))
 }
 
-/// A frame's read: parked, landed inline, or still with the pool.
+/// A frame's read: landed inline, or still with the pool.
+enum Fetch {
+    Ready(Vec<u8>),
+    Pooled(JoinHandle<Result<Vec<u8>>>),
+}
+
+impl Fetch {
+    /// The buffer once its bytes are in, and whether the pool had to fetch them.
+    async fn land(self) -> Result<(Vec<u8>, bool)> {
+        match self {
+            Self::Ready(buf) => Ok((buf, false)),
+            Self::Pooled(join) => Ok((join.await.context("join frame read")??, true)),
+        }
+    }
+}
+
+/// The fill's next frame: its read, or the spare buffer when nothing is named.
 enum Ahead {
     Idle(Vec<u8>),
-    Ready {
-        span: FrameSpan,
-        buf: Vec<u8>,
-    },
-    InFlight {
-        span: FrameSpan,
-        join: JoinHandle<Result<Vec<u8>>>,
-    },
+    Named(FrameSpan, Fetch),
 }
 
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
@@ -145,11 +152,7 @@ impl SeqReader {
             }
             _ => {
                 let buf = mem::take(&mut self.cur);
-                let (buf, missed) = match start_pooled(store, span, buf)? {
-                    Ahead::Ready { buf, .. } => (buf, false),
-                    Ahead::InFlight { join, .. } => (join.await.context("join frame read")??, true),
-                    Ahead::Idle(buf) => (buf, false),
-                };
+                let (buf, missed) = start_pooled(store, span, buf)?.land().await?;
                 self.count(missed);
                 self.cur = buf;
                 spare
@@ -157,9 +160,9 @@ impl SeqReader {
         };
         self.ahead = match next {
             Some(next) => {
-                let ahead = start_pooled(store, next, spare)?;
+                let fetch = start_pooled(store, next, spare)?;
                 self.advise(store, next);
-                ahead
+                Ahead::Named(next, fetch)
             }
             None => Ahead::Idle(spare),
         };
@@ -167,7 +170,7 @@ impl SeqReader {
         self.stats.peak_in_flight = self
             .stats
             .peak_in_flight
-            .max(u16::from(matches!(self.ahead, Ahead::InFlight { .. })));
+            .max(u16::from(matches!(self.ahead, Ahead::Named(_, Fetch::Pooled(_)))));
         let frame = mem::replace(&mut self.cur, frame_pool::take());
         Ok(frame_pool::hand_off(frame, span.len as usize))
     }
@@ -175,15 +178,13 @@ impl SeqReader {
     /// Awaits whatever the last call started, so its buffer can be reused whether or not
     /// this frame is the one it holds.
     async fn settle(&mut self) -> Result<(Option<(FrameSpan, bool)>, Vec<u8>)> {
-        Ok(
-            match mem::replace(&mut self.ahead, Ahead::Idle(Vec::new())) {
-                Ahead::Idle(buf) => (None, buf),
-                Ahead::Ready { span, buf } => (Some((span, false)), buf),
-                Ahead::InFlight { span, join } => {
-                    (Some((span, true)), join.await.context("join read-ahead")??)
-                }
-            },
-        )
+        match mem::replace(&mut self.ahead, Ahead::Idle(Vec::new())) {
+            Ahead::Idle(buf) => Ok((None, buf)),
+            Ahead::Named(span, fetch) => {
+                let (buf, missed) = fetch.land().await?;
+                Ok((Some((span, missed)), buf))
+            }
+        }
     }
 
     /// Extended a quarter window at a time, so the syscall is per megabyte of walk and not
@@ -557,6 +558,7 @@ mod tests {
 
     /// Six windows long, so a frame that misses can be told from a window that does.
     const LEN: u32 = (READ_WINDOW * 5 + 17) as u32;
+    #[cfg(feature = "uring")]
     const SHORT: usize = READ_WINDOW / 3;
 
     /// **The ADR's claim, as an assertion**: a miss reads to the end of the *frame*, so a
