@@ -31,9 +31,11 @@ carries a copyleft or source-offer duty.
   alleging an AV1 implementation infringes.
 * **No endorsement**: VideoLAN's, AOM's or SVT-AV1's names are not used to promote this project
   (SVT-AV1's third clause).
-* **Unconfirmed**: whether Emscripten's generated glue needs its notice (treated as yes), and the
-  licence of any libc++ linked into a build (believed Apache-2.0 with LLVM exception) — the WASM row
-  checks what is actually linked.
+* **Unconfirmed**: whether Emscripten's generated glue needs its notice (treated as yes).
+* **What the dav1d build links** (`-Wl,--trace`, [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)):
+  dav1d, emscripten's libc (musl, MIT), dlmalloc (public domain) and compiler-rt (Apache-2.0 with
+  LLVM exception, whose exception waives notice for what compiles into a binary). No libc++: the
+  wrapper is C. The libc++ question this line used to ask is answered by that.
 
 ## Patents, as a fact base
 
