@@ -46,6 +46,15 @@ metadata, one decoder module per codec behind `decoder.js`, and for G > 1 the gr
 *client's* unit — an ask for N is `request_frames [k … N]`, a group goes to one decoder — with the
 wire, the store and the server unchanged.
 
+*Measured (SIZE, libaom 3.15.1, every coding exact; [`lab/av1`](../../lab/av1/README.md) §SIZE):*
+**inter coding does not pay on any real series here, and AV1 does not beat HTJ2K.** Bytes over
+HTJ2K's at the slowest preset, intra → whole series: fluoroscopy (12-bit, 2 frames/s) 1.024 → 1.027,
+MR (11-bit, 3.5 mm) 1.034 → 1.062, ultrasound cine (RGB 8) 1.117 → 1.534; at a practical preset
+1.04–1.75. The smallest G that collects most of the gain is **G = 1**: there is no gain to collect
+(fluoroscopy's best group, G = 2, is 0.04 % under intra). Lossless JPEG XL, for reference, is
+0.83–0.93 of HTJ2K. CT and the cone-beam set need 13 bits — row DEPTH. Bytes therefore give G > 1
+no reason; the content measured is three series, none of them a contrast angiography run.
+
 **A2 — which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
 Neither is assumed faster or exact:
@@ -99,6 +108,9 @@ repository** and are recorded only so the queue tests them rather than rediscove
   ultrasound clip, HTJ2K 768 KB against AV1 inter (G = 5) 1 082 KB and intra 1 693 KB; a 12-bit CT
   stack of 24, HTJ2K 4.78 MB against AV1 intra 4.79 and inter 4.95; the median over 73 series,
   HTJ2K 0.138, AV1 intra 0.124, AV1 inter 0.106 (lossless JPEG XL 0.090, for reference).
+  *Not reproduced here (SIZE)*: on the three real series AV1 lossless, intra or inter, is 2–53 %
+  larger than HTJ2K at libaom's slowest preset (§A1); the settings and series behind those medians
+  are not known here.
 * **libaom's lossless mode was not always lossless.** With libaom 3.8.2, inter-coded 10- and 12-bit
   grey came back wrong on P-frames (up to 38 of 6.3 M samples, |Δ| ≤ 11), the same from two
   independent decoders — so the encoder, not a decoder. Intra-only was exact up to 12 bits; 3.14.1
