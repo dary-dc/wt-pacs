@@ -1113,7 +1113,11 @@ dav1d's are, by the shared `av1-frame.js`. What it refuses where dav1d refuses, 
 alone: anything but `I420`/`I420P10` with every chroma sample mid-grey (4:0:0) or
 `I444`/`I444P10` with no matrix reported (GBR). That last is weaker than dav1d's check —
 `colorSpace` does not distinguish the identity matrix from an unspecified one — so a 4:4:4 stream
-with matrix 2 would pass here and fail there.
+with matrix 2 would pass here and fail there. *And the other way (row TOTAL):* an identity stream
+that is not also tagged sRGB (primaries BT.709, transfer sRGB) is reported as matrix `bt709`, limited
+range, and refused here on every frame although dav1d takes it — libaom's `--matrix-coefficients=identity`
+alone, as every lab encode before TOTAL. So an RGB series meant for WebCodecs is coded with all three
+tags; ffmpeg's `-colorspace rgb` writes them.
 
 The dispatch arm (headless Chromium 141) checks, every frame against its source's checksum and its
 range against its own samples: 8/10-bit grey and RGB through WebCodecs, every unit counted reaching

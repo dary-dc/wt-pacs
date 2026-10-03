@@ -57,6 +57,10 @@ The public series of row DATA ([`../FIXTURES.md`](../FIXTURES.md) §AV1 data) ar
 redistribution allowed with attribution. Fetched, never committed; anything derived from them that
 is published carries the collection DOIs listed there.
 
+Row TOTAL's LTE link replays mahimahi's `TMobile-LTE-short` trace (GPL-3.0), fetched by
+`lab/av1/total/run.mjs` into a local cache and checked against the hash PROF recorded; a trace is
+input to the lab's relay, never committed and never shipped.
+
 ## Patents, as a fact base
 
 AOM's grant covers its members' and distributors' necessary claims only. Sisvel runs an AV1 pool
