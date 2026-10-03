@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Layer-2 harness + cold-page bench. No commits.
+# Layer-2 harness. No commits.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,10 +17,9 @@ if [[ ! -f "$CERT" ]]; then
   "$ROOT/server/scripts/gen_dev_cert.sh"
 fi
 
-cargo build -p exact-server -p window-harness -p cold-page-bench --release >/dev/null
+cargo build -p exact-server -p window-harness --release >/dev/null
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 SERVER="$CARGO_TARGET_DIR/release/exact-server"
-COLD="$CARGO_TARGET_DIR/release/cold-page-bench"
 
 REPORT="$OUT/RESULTS.md"
 {
@@ -76,11 +75,5 @@ for trace in fly_and_settle_window fly_and_settle reversal_storm dense_scrub; do
   echo "" >> "$REPORT"
   run_trace "$tp" "$READ_BPS"
 done
-
-echo "## Cold-page bench" >> "$REPORT"
-echo "" >> "$REPORT"
-echo '```' >> "$REPORT"
-"$COLD" --study "$STUDY" >> "$REPORT" 2>&1 || cargo run -p cold-page-bench --release -- --study "$STUDY" >> "$REPORT" 2>&1 || true
-echo '```' >> "$REPORT"
 
 echo "Wrote $REPORT"

@@ -317,18 +317,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cold-page-bench"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "disk-access-bench",
- "exact-server",
- "libc",
- "tokio",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -8,7 +8,6 @@ and Q2 (head-of-line). **No product crate depends on these.**
 | Crate | Purpose |
 | ----- | ------- |
 | `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2), `--mode stall` (pathological client). Stream-shape cells need `--reader-mode open` |
-| `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
 | `telemetry-bench` | Telemetry pipeline microbench: emit seams under contention, drain shapes at scale — no network, no product crate. See `docs/telemetry/adr-server-pipeline.md` §Pipeline baseline, 2026-09-06 |
 
 ## Run
@@ -17,7 +16,6 @@ and Q2 (head-of-line). **No product crate depends on these.**
 ./lab/scripts/gen_tf_fixtures.sh          # ~32 KB / ~250 KB studies
 ./lab/scripts/e1_saturation_sweep.sh      # → .local/measurements/E1_SATURATION.tsv
 ./lab/scripts/e2_miss_cost_sweep.sh       # → .local/measurements/E2_MISS_COST.tsv
-cargo run -p cold-page-bench --release -- --study lab/fixtures/queue_large/queue_large.sbnd
 
 # Server telemetry pipeline baseline (docs/telemetry/adr-server-pipeline.md §Pipeline baseline, 2026-09-06)
 lab/scripts/telemetry_bench_matrix.sh                       # → .local/measurements/telemetry-bench-*.jsonl
