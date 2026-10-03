@@ -4,6 +4,7 @@
  */
 
 import { install, uninstall } from "../../record/install.ts";
+import { getTap } from "../../record/tap.ts";
 import { wrapSession } from "../../record/wrap-session.ts";
 import { TransportSession } from "../session.ts";
 import { codestreamByte, StubTransport, type StubLink } from "./stub.ts";
@@ -101,7 +102,23 @@ async function telemetryKeepsTheReadersArguments() {
   }
 }
 
-for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, telemetryKeepsTheReadersArguments]) {
+/** An opening fill rides the session URL, yet the Tap opens a row per frame and drops none. */
+async function telemetryOpensRowsForAnOpeningFill() {
+  StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 1000 };
+  // Imported here: it patches WebTransport when it loads, and must find the stub there.
+  const { TransportSession: Telemetry } = await import("../session-telemetry.ts");
+  const got: number[] = [];
+  await Telemetry.connect("https://stub/", HASH, { fill: { from: 0, to: 2, onFrame: (f) => got.push(f.frameIndex), onError: () => {} } });
+  const t0 = Date.now();
+  while (got.length < 3 && Date.now() - t0 < 2000) await new Promise((r) => setTimeout(r, 10));
+  const report = getTap()!.finish();
+  assert(got.length === 3, `opening fill under telemetry: every frame delivered (${got.length}/3)`);
+  assert(report.client_frames.length === 3 && report.summary.integrity.rows_dropped === 0,
+    `opening fill under telemetry: a row per frame and none dropped (${report.client_frames.length} rows, ${report.summary.integrity.rows_dropped} dropped)`);
+  uninstall();
+}
+
+for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

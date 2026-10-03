@@ -8,6 +8,7 @@ import { install } from "../record/install.ts";
 import { wrapSession } from "../record/wrap-session.ts";
 import type { ConnectOptions } from "./frame-session.ts";
 import { TransportSession as Inner } from "./session.ts";
+import { encodeFodMsg } from "./wire.ts";
 
 const query = new URL(import.meta.url).searchParams;
 const tap = install({
@@ -34,6 +35,8 @@ function wrapOpening(options: ConnectOptions): ConnectOptions {
   const fill = options.fill;
   if (!fill) return options;
   tap.gesture();
+  // It rides the session URL, so no control write opens its rows.
+  tap.onControlWrite(encodeFodMsg({ op: "stream_frames", from: fill.from, to: fill.to }));
   return {
     ...options,
     fill: {

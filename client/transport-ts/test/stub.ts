@@ -24,7 +24,7 @@ export class StubTransport {
   private media!: ReadableByteStreamController;
   private readonly link: StubLink;
 
-  constructor(_url: string, _opts: unknown) {
+  constructor(url: string, _opts: unknown) {
     this.link = StubTransport.link;
     StubTransport.last = this;
     const mediaStream = this.link.plain
@@ -33,6 +33,9 @@ export class StubTransport {
     this.incomingUnidirectionalStreams = new ReadableStream({
       start: (c) => c.enqueue(mediaStream),
     });
+    // An opening fill, served behind the accept as the server serves `?ask=fill:a-b`.
+    const fill = /[?&]ask=fill:(\d+)-(\d+)/.exec(url);
+    if (fill) for (let i = Number(fill[1]); i <= Number(fill[2]); i++) this.send(envelope(i, this.link.bytes));
   }
 
   async createBidirectionalStream() {
