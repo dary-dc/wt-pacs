@@ -113,6 +113,12 @@ tail, not the head.
 
 ## Open owner decisions
 
+* **E0 — the emulated link against a real network path, not done.** It needs the cloud VM's real
+  path to this host, unshaped, or a device on a real network; no container can take it. Why: every
+  shaped-link figure rests on the emulation, and "if the emulation is wrong they are all wrong
+  together"; the relay was calibrated only against netem, and the one real-path cell checked stream
+  shape alone ([`adr-stream-shape.md`](adr-stream-shape.md) §1) — driver
+  `lab/scripts/e0_netem_validation.sh`, method in [`adr-client-window-depth.md`](adr-client-window-depth.md) §E0.
 * **The keep-alive pair** (20 s keep-alive, 60 s idle timeout): measured, battery unmeasured —
   [`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md), status proposed.
 * **`readMin` at 16 KB by default**: frame 0 ties (RMD4, 24 rounds at 4×); the cost is re-dials below

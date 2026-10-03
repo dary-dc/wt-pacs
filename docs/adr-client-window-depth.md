@@ -303,7 +303,8 @@ together. Run the harness over the rig's **real path, unshaped**, recording RTT 
 the same trace locally under netem set to those values; compare `mean_wait_ms`, mean and p95.
 Within ~15 %: the emulated grid is trustworthy. Diverges: stop and re-read every emulated result.
 `mean_wait_ms` is measured client-side end to end, so no clock is compared across machines.
-Driver `lab/scripts/e0_netem_validation.sh`. **Not run.** What was calibrated instead is the
+Driver `lab/scripts/e0_netem_validation.sh`. **Not run**, and listed as open in
+[`cloud-queue.md`](cloud-queue.md) §Open owner decisions (2026-10-03). What was calibrated instead is the
 container's userspace relay against netem on the rig, on delay only
 ([`rig-limits.md`](rig-limits.md) §3).
 
