@@ -151,9 +151,10 @@ vocabularies are not unified; that is deferred.
   and inlines `server_frames`. Above it, percentiles come from the histograms
   (`"histogram-loglinear-1024"`: counts, totals, min and max exact; percentiles at most 0.1 % low,
   exact below 2 048 µs) and `server_frames` is empty.
-* **Rebuild offline:** `exact-server --telemetry-report telemetry-server.rows` writes the full exact
-  report to `<rows>.exact.json` (`--telemetry-report-out` to choose). It reproduced the inline
-  report on the 2026-09-06 smoke run: distributions, frame count and rows identical.
+* **Rebuild offline** was `exact-server --telemetry-report telemetry-server.rows`, for runs past the
+  inline cap. It reproduced the inline report on the 2026-09-06 smoke run (distributions, frame
+  count and rows identical) and had no caller since; removed 2026-10-03, code:
+  `git show archive/arms-2026-10-03:server/src/record/report.rs`.
 
 ## The tail at SIGTERM
 
@@ -244,8 +245,7 @@ check; `--quick` skips both, because this one needs a release build (≈ 75 s co
 runs the server's tests under both feature sets.
 
 The `cfg` forks sit at construction and shutdown only: `set_run_meta`, the path sampler's spawn and
-the `Tap::for_session` match in `transport/server.rs`, and `flush_on_exit` and `--telemetry-report`
-in `main.rs`. None is per frame.
+the `Tap::for_session` match in `transport/server.rs`, and `flush_on_exit` in `main.rs`. None is per frame.
 
 ## What it costs
 

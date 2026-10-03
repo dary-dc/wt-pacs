@@ -9,12 +9,8 @@ use tracing_subscriber::EnvFilter;
 struct Args {
     #[arg(long, default_value = "4433")]
     port: u16,
-    #[cfg_attr(
-        feature = "telemetry",
-        arg(long, required_unless_present = "telemetry_report")
-    )]
-    #[cfg_attr(not(feature = "telemetry"), arg(long, required = true))]
-    study: Option<PathBuf>,
+    #[arg(long)]
+    study: PathBuf,
     #[arg(long, default_value = "server/dev-cert/cert.pem")]
     cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
@@ -63,14 +59,6 @@ struct Args {
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = false)]
     websocket: bool,
-    /// Rebuild the full telemetry JSON, exact, from a `.rows` file and exit.
-    #[cfg(feature = "telemetry")]
-    #[arg(long, value_name = "ROWS")]
-    telemetry_report: Option<PathBuf>,
-    /// Where `--telemetry-report` writes (default: `<rows>.exact.json`).
-    #[cfg(feature = "telemetry")]
-    #[arg(long, value_name = "JSON")]
-    telemetry_report_out: Option<PathBuf>,
 }
 
 fn install_crypto_provider() -> anyhow::Result<()> {
@@ -88,24 +76,9 @@ async fn main() -> anyhow::Result<()> {
     install_crypto_provider()?;
 
     let args = Args::parse();
-
-    #[cfg(feature = "telemetry")]
-    if let Some(rows) = &args.telemetry_report {
-        let out = args
-            .telemetry_report_out
-            .clone()
-            .unwrap_or_else(|| rows.with_extension("exact.json"));
-        exact_server::record::write_report_from_rows(rows, &out)?;
-        println!("telemetry_report={}", out.display());
-        return Ok(());
-    }
-
-    let study_path = args
-        .study
-        .ok_or_else(|| anyhow::anyhow!("--study is required"))?;
     let server = run_server(ServeConfig {
         wt_port: args.port,
-        study_path,
+        study_path: args.study,
         cert_pem: args.cert_pem,
         key_pem: args.key_pem,
         mode: args.stream_mode,
