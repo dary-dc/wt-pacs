@@ -313,6 +313,13 @@ The verdict is the same as the container's. Main thread and heap are settled. Th
 ranges overlapping. A cold ask leans H by 0.6 ms, the hop, with ranges overlapping. The fill dies on H
 once an ask lands.
 
+**After the removal** (2026-10-03, the same box and server binary; `641df69` against the tip with the
+harness's page path, the window and the batch API gone, interleaved by rotation, 12 rounds, 240 runs,
+no errors): the downloader's path is unchanged, as it should be, since nothing removed was on it. Dw
+fill 246 [225 … 276] ms before, 244 [223 … 285] after (6/12); cold ask 6.1 [5.3 … 6.8] against 5.9
+[5.0 … 7.2] (9/12, ranges overlapping); main thread 18 against 18 ms; every fill 80/80; Dd the same
+picture (fill 456 against 464 ms, ranges overlapping).
+
 ### Under a throttled CPU
 
 The same 80-frame fill on H, Dw and Dd at 1×, 4× and 6× Chromium CPU throttle, arms and throttles

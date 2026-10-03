@@ -636,7 +636,7 @@ serving shape. The workstation's ladder on HEAD: 2 831 → 4 813 → 7 710 asks/
 
 ### A study nobody has read (2026-09-18)
 
-L20, headless Chromium through the shipped client (`lab/scripts/cold_study.sh`, 8 rounds,
+L20, headless Chromium through the harness's page path, before 2026-10-03 (`lab/scripts/cold_study.sh`, 8 rounds,
 120 × 256 KB), cold forced by `--force-pool-reads`, the server's `misses` read back per run.
 One ask on an idle session: 6.5 ms warm, 7.0 cold (1 miss). A whole fill: 318.5 ms warm, 320.5
 cold (120 misses). **A tie in both** (3/8 and 5/8 slower). The forced miss still reads from the

@@ -1076,7 +1076,8 @@ target the wire binds first, so fewer bytes is the only lever above ~2×, and ab
 tail with `RESET_STREAM_AT` is not carried by quinn or wtransport yet. **Ask window depth** —
 [`../adr-client-window-depth.md`](../adr-client-window-depth.md): in a browser a fixed window of 4
 against serial asks is −26.6 % per frame at 250 KB and −59.4 % at 32 KB (6/6), the largest latency
-lever measured, and the client's. **Cache size** — a 64-frame cap on a 500-frame series costs +65 %
+lever measured, and the client's — measured on the harness's page path; the window went with that path
+on 2026-10-03, and behind the downloader, which asks every frame at once, it is unmeasured. **Cache size** — a 64-frame cap on a 500-frame series costs +65 %
 offered load for +2.8 pp of misses.
 
 ---

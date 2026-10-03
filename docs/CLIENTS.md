@@ -31,8 +31,7 @@ A `FrameResult` is `{ frameIndex, tier: "exact", codec: "htj2k", bytes, timing: 
 firstChunkMs, lastChunkMs, chunks, serveUs } }`, times in `performance.now()` milliseconds.
 
 **Where the implementations differ**, and the conformance adapters are the only code that knows:
-`endStream` is a promise in TypeScript and synchronous in WASM; `startStreamFrames` takes a range
-object in TypeScript and two optional arguments in WASM; the WASM handle is exported as
+`endStream` is a promise in TypeScript and synchronous in WASM; the WASM handle is exported as
 `TransportSessionHandle`. `connect`'s options are TypeScript's alone except `wireBuffers`, which
 the WASM `connect` takes as its third argument:
 
@@ -209,9 +208,8 @@ claim; both implementations, same numbers:
 `close()` on the WASM handle takes `&self`: taking `self` made wasm-bindgen claim a handle an
 in-flight request still borrowed, and closing mid-fill is ordinary.
 
-**Still open:** a cancelled waiter-per-frame fill (`startStreamFrames`) leaves its waiters armed
-until `FRAME_TIMEOUT_MS`, because `endStream()` settles nothing on the client; it wants a decision
-about what a cancelled waiter rejects with. A pushed fill does not have this problem.
+A cancelled waiter-per-frame fill used to leave its waiters armed until `FRAME_TIMEOUT_MS`; that fill
+was removed on 2026-10-03, and a pushed fill has no waiters to leave.
 
 ## Fills are pushed
 
@@ -273,7 +271,7 @@ Measured 2026-09-19 in headless Chromium 141 on loopback, the regime where the b
 wire binds (`lab/scripts/browser_receive.py`, `browser_reads.py`). The ceiling is the browser's
 network-service thread ([`rig-limits.md`](rig-limits.md) §1): 6.6 ms of CPU per MB at either frame
 size, a full core through a fill, ~150 MB/s on that host, and no code here raises it beyond the
-1.4 % a 1 472-byte packet would. The TypeScript client on the main thread costs the renderer
+1.4 % a 1 472-byte packet would. The TypeScript client on the main thread (the harness's page path, removed 2026-10-03) costs the renderer
 2.5 ms per MB at 250 KB and 3.9 at 32 KB (~50 µs per frame plus 2.3 ms per MB) — that, not
 throughput, is all a session off the main thread could move. A stream per frame costs the browser
 a quarter of its throughput at 250 KB and three fifths at 32 KB, and a third more latency at depth

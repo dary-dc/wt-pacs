@@ -83,9 +83,8 @@ different points, because it is the same code stamping.
 - The tap sees bytes, not frames, so frame boundaries are recovered arithmetically from byte
   offsets (Decision A), reusing `wire.ts`'s `parseLengthPrefixed`.
 - It does **not** fix the event-loop timing confound; only D would.
-- **What it cannot see.** A session over the WebSocket fallback (no `WebTransport` to patch), and
-  the downloader's pushed fill: the session wrapper wraps `waitExactFrame` and the batch methods,
-  not `fillFrames`, so per-frame telemetry is blind to that path until it does.
+- **What it cannot see.** A session over the WebSocket fallback (no `WebTransport` to patch). The
+  downloader's pushed fill is seen since 2026-10-03: the wrapper wraps `fillFrames` and an opening fill.
 
 ## Decision A — frame boundaries stay in byte attribution (2026-09-06)
 
