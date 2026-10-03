@@ -5,6 +5,8 @@ let decoder = null;
 let toConsumer = null;
 let codec = null;
 let pending = null;
+// The downloader keeps two frames outstanding a decoder; one VideoDecoder takes them one at a time.
+let queue = Promise.resolve();
 const abs = () => performance.timeOrigin + performance.now();
 
 function configure() {
@@ -38,17 +40,24 @@ onmessage = async (e) => {
   const m = e.data;
   if (m.kind === "init") {
     toConsumer = m.toConsumer;
-    codec = m.decoder.codec;
+    // The downloader's own `codec` names the series' codec; the WebCodecs string rides beside it.
+    codec = m.decoder.webcodecs ?? m.decoder.codec;
     configure();
     postMessage({ kind: "ready" });
     return;
   }
-  const stamps = { decodeStart: abs() };
+  queue = queue.then(() => decodeOne(m));
+};
+
+async function decodeOne(m) {
+  const stamps = { ...m.stamps, decodeStart: abs() };
   try {
     const { sab, width, height } = await decodeFrame(m.bytes);
     stamps.decodeEnd = abs();
-    toConsumer.postMessage({ kind: "frame", index: m.index, pixels: sab, width, height, stamps });
+    toConsumer.postMessage({ kind: "frame", index: m.index, gen: m.gen, pixels: sab, width, height, stamps });
+    postMessage({ kind: "done", index: m.index, gen: m.gen, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   } catch (err) {
-    postMessage({ kind: "failed", index: m.index, reason: String(err?.message ?? err) });
+    postMessage({ kind: "failed", index: m.index, gen: m.gen, reason: String(err?.message ?? err), buffer: m.bytes.buffer },
+      [m.bytes.buffer]);
   }
-};
+}

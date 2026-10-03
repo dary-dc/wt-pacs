@@ -1140,7 +1140,8 @@ HTJ2K, paired by round:
   4.1–4.2× OpenJPH — and that is only 8- and 10-bit (§WebCodecs): of these series, the ultrasound.
 * Where the host saturates: one decoder at a time on four cores, so nothing here contends; three
   decoders in parallel were not run, and the fill figures in `docs/av1/README.md` §A1 multiply a
-  single decoder's time out by arithmetic.
+  single decoder's time out by arithmetic. *Since measured (row FILL):* three decoders through the downloader,
+  `docs/av1/README.md` §A1 — the arithmetic's verdict holds, its sizes were optimistic.
 
 ## What these numbers are not
 

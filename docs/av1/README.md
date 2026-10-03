@@ -63,14 +63,36 @@ cpu6), against the fifth `adr-unit.md` §4 asks. Coded whole, AV1 is 1.043 of HT
 volume and **0.977 on the 10-bit one — the first series where AV1 coded whole is smaller**; split
 top11+low, 0.943 and 0.946. Still no contrast angiography run: none is open.
 
-*What G = 1 costs an ask and a fill (SPEED's decode times × SIZE's bytes; arithmetic, not
-measured).* An ask is one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of
-decoding** in Chromium at 1×–4× (fluoroscopy 9.8 → 70 ms at 1×, 35 → 291 ms at 4×). A fill's
-decoding with the three decoders, each series whole: fluoroscopy 0.06 → 0.42 s, MR 0.09 → 0.51 s,
-ultrasound 0.18 → 1.13 s (0.78 s through WebCodecs) at 1×; at 4× 0.21 → 1.74 s, 0.33 → 2.01 s and
-0.67 → 4.59 s. Their AV1 bytes take 1.5–3.8 s, 1.8–4.5 s and 3.2–8.1 s on a 50–20 Mbit/s link, so at
-1× AV1's decoding still hides under the wire; **at 4× and the fast end of that link AV1 becomes the
-fill's clock on every series, where HTJ2K never is.** Three decoders in parallel were not run.
+*What G = 1 costs an ask (SPEED's decode times × SIZE's bytes; arithmetic, not measured).* An ask is
+one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of decoding** in Chromium
+at 1×–4× (fluoroscopy 9.8 → 70 ms at 1×, 35 → 291 ms at 4×).
+
+*What it costs a fill, measured (row FILL, [`lab/av1/fill`](../../lab/av1/fill/README.md)).* Each
+series whole through the downloader with today's three decoders, the real server behind the relay
+(40 ms round trip), headless Chromium 141 at 1× and 4×; 40 rounds at 20 Mbit/s and 16 at 50,
+Williams-ordered, `VOID` visits dropped (230 of 784), n = 12–30 a cell; **40 544 of 40 544 frames
+exact**. Seconds from the fill's issue to the last frame's pixels on the page, medians (every cell's
+range within 7 %), and in brackets the ms of decoding left after the last byte arrived:
+
+| series | link | HTJ2K 1× | AV1 1× | HTJ2K 4× | AV1 4× |
+| --- | --- | --: | --: | --: | --: |
+| fluoroscopy, 18 × 768², 12-bit | 20 Mbit | 3.93 (10) | 4.07 (66) | 3.95 (34) | 4.28 (274) |
+| | 50 Mbit | 1.72 (10) | 1.82 (72) | 1.75 (38) | **2.36 (604)** |
+| MR, 58 × 512², 11 bits | 20 Mbit | 4.56 (5) | 4.72 (25) | 4.57 (16) | 4.79 (94) |
+| | 50 Mbit | 1.97 (6) | 2.06 (24) | 1.99 (20) | **2.53 (503)** |
+| ultrasound, 70 × 760×421, RGB 8 | 20 Mbit | 7.49 (9) | 8.38 (45) | 7.51 (32) | 8.52 (182) |
+| | 50 Mbit | 3.15 (10) | 3.53 (44) | 3.17 (34) | **5.34 (1 854)** |
+
+AV1 is slower in all 174 round-paired fills. **At 1× both codecs fill at the wire's pace**: AV1's
+decoding ends 24–72 ms after its last byte, and what it costs is its extra bytes, +86 to +895 ms
+(+4–12 %). **At 4× on the 50 Mbit link AV1 is the fill's clock on every series and HTJ2K on none**:
+0.5–1.9 s of decoding after the last byte against HTJ2K's 20–38 ms, the fill +27 % (MR), +35 %
+(fluoroscopy) and +68 % (ultrasound) over HTJ2K's; at 20 Mbit its decoders fall 94–274 ms behind.
+That is the verdict the arithmetic gave, but its sizes were optimistic: it set the decoders' total
+time against the wire's (0.2–1.4 s apart) as if every decode overlapped a frame still arriving.
+WebCodecs on the ultrasound, its one exact series, keeps up — 3.60 s (116) at 4× and 50 Mbit, 8.45
+(115) at 20; 3.52 (38) and 8.37 (36) at 1× — so there its fill is AV1's bytes alone. A container's
+4 cores, the browser on 3 of them and the relay alone on the fourth; not a phone.
 
 **A2 — which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
