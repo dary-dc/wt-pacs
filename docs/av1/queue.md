@@ -20,6 +20,10 @@ and its branch belong to other work.
    all done to `ready` in the same commit. Push.
 6. Back to 1. Stop when no row is `ready` and say so; do not invent work.
 
+**`night` rows** are held for the night routine (the owner, 2026-10-03: cloud work runs while the workstation
+sleeps, so the two never share a usage window). A session started by the night routine treats `night` exactly as
+`ready`; any other session leaves them.
+
 **Rules every row keeps.**
 
 * **Bit-exact, always.** Ground truth is the encoder's input samples (a checksum written when the
@@ -68,14 +72,14 @@ and its branch belong to other work.
 | 22 | **EMBED** — embedded lossy-to-lossless intra codecs for contrast: JPEG 2000 quality layers, progressive lossless JPEG XL | done `9862837` — **an embedded preview is free in bytes and dear in decode**: JPEG 2000 Part 1 with three quality layers (OpenJPEG 2.5.4, 5/3, LRCP) costs 0.09–0.19 % over one layer and is 0.93–0.96 of HTJ2K's bytes whole; its first layer is 0.4–0.9 % of them at 37–43 dB on grey (25 dB RGB ultrasound) and decodes in 1.0–1.4× OpenJPH's exact time, but **the exact frame decodes 6–12× slower than OpenJPH** (210/210 paired rounds); about twice AV1's preview bytes for the same PSNR, though inside the exact frame; progressive lossless JPEG XL (libjxl 0.12.0, `-p`) draws its first picture only after 6–48 % of the bytes (28–47 dB; libjxl pauses at no step in a lossless frame), first picture 1.3–2.9× and whole 4.0–6.2× OpenJPH, 0.91–0.95 of its bytes; all seven sets, headless Chromium 141, 15 interleaved rounds at 1× and 4×, 22 680/22 680 frames exact, 4 mutations caught — [`README.md`](README.md) §A5, [`lab/av1/embed`](../../lab/av1/embed/README.md), [`licensing.md`](licensing.md) |
 | 23 | **TOTAL** — total time on phone-like links, the measure that decided against AV1 before: HTJ2K against every AV1 form, per taxonomy series | claimed 2026-10-03 |
 | 24 | **SVCDEC** — a scalable payload in the client: the base operating point first, the exact frame from the same bytes | claimed 2026-10-03 |
-| 25 | **SVCSHAPE** — the scalable shape with the least overhead: layers, scale, base quality, per content | ready |
+| 25 | **SVCSHAPE** — the scalable shape with the least overhead: layers, scale, base quality, per content | night |
 | 26 | **SVCORDER** — delivering bases first: what the store and the group-as-item model need (a proposal) | done `089f322` — **proposed: each frame as two entries, layer-major — the base alone (entry i), then the whole temporal unit (entry F + i)** — so a fill over the bundle is every base and then every exact frame, with the wire, the store's format, the planner and the server unchanged and an ask for exact N one entry and one decode at G = 1; costs the base's bytes twice (0.07–2.4 % of HTJ2K's at a half-size base, q 40, row 18) and a second decode of each base (2–13 % of a lossless frame's); a top-only entry (no duplicate) breaks the exact frame's independence, a per-layer byte range changes the wire and the server; WebCodecs picks the layer by what it is fed; 5 invariants named broken; the arm: single-layer AV1 against bases-first on row 11's harness after rows 24–25; nothing measured — [`adr-unit.md`](adr-unit.md) §5 |
-| 27 | **DECSPEED** — the decode is what loses on a phone: encoder settings and decoder threads that cut it, lossless kept | ready |
-| 28 | **LLSIZE** — closing lossless AV1's byte gap to HTJ2K with AV1 alone | ready |
+| 27 | **DECSPEED** — the decode is what loses on a phone: encoder settings and decoder threads that cut it, lossless kept | night |
+| 28 | **LLSIZE** — closing lossless AV1's byte gap to HTJ2K with AV1 alone | night |
 | 29 | **SWEEP** — AV1-only options nobody has listed yet: a read-only identification sweep | done `8f257a2` — **three options worth a row, four not, phones blocked**, read from primary sources (AV1 spec `5e04f3f`, dav1d 1.5.4, libaom 3.15.1, Chromium `d84e3b8`, WebKit `10740b3`, Android framework `1cdfff5`, AVM `v1.0.0`), nothing run: WebCodecs' `optimizeForLatency` is dav1d's `max_frame_delay = 1` in Chromium — the cause of WCAP's two frames held until `flush()` and of the flush per unit that keeps WebCodecs at G = 1 (row 30); the base layer through WebCodecs by dropping OBUs with `spatial_id` > 0, since Chromium's dav1d at `all_layers = 0` outputs the highest layer it holds (row 31); AV2's AVM v1.0.0 (2026-05-27) has lossless, monochrome and 10/12 bits, its lossless gain claimed, unconfirmed (row 32); S-frames cannot switch exactly (other references), super-resolution breaks `AllLossless` (libaom disables it under `--lossless`), large-scale tile is camera-array only and dav1d lacks it, reference scaling is already the spatial layers; Android names AV1 Main 8/10 only and guarantees level 4.1 (2 359 296 samples, under the 4.9 and 2.6 M-sample projections), WebKit's in-process WebCodecs AV1 takes 8-bit 4:2:0 only (Blocked) — [`README.md`](README.md) §Options to try |
-| 30 | **WCLAT** — WebCodecs with `optimizeForLatency`: a frame out per unit without a flush, groups through WebCodecs, and tiles | ready |
-| 31 | **WCBASE** — the base operating point of a scalable payload through WebCodecs, by dropping the top's OBUs | ready |
-| 32 | **AV2** — AVM v1.0.0 lossless: bytes and decode against libaom 3.15.1 and HTJ2K | ready |
+| 30 | **WCLAT** — WebCodecs with `optimizeForLatency`: a frame out per unit without a flush, groups through WebCodecs, and tiles | night |
+| 31 | **WCBASE** — the base operating point of a scalable payload through WebCodecs, by dropping the top's OBUs | night |
+| 32 | **AV2** — AVM v1.0.0 lossless: bytes and decode against libaom 3.15.1 and HTJ2K | night |
 
 ## Briefs
 
