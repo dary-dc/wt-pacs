@@ -213,6 +213,16 @@ fluoroscopy and the ultrasound cine; no angiography run was available:*
 Serving a preview is a second representation of a frame in the store and on the wire: structural,
 and not proposed here.
 
+*LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
+answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
+width 1 its dequantisation is the identity and its residuals are added at 2^−f of a sample (f = 7,
+5, 3, 1 at 8–14 bits), so an exact frame is reachable in principle at 8 and 10 bits with either
+transform and at 12 bits with the 2×2 (256/256 offset classes; the 4×4 not proven, 36/36 patterns
+tried reachable). **At 14 bits it is not**: 128 of 256 offset classes of a 2×2 block are
+unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot end exact. No trial
+is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
+samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
+
 ## Prior evidence, not reproduced here
 
 An earlier private proof of concept measured parts of this. Its numbers are **not measured in this
