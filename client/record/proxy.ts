@@ -2,7 +2,7 @@
 
 import { getTap } from "./tap.ts";
 
-function bindGet(target: object): ProxyHandler<object> {
+function bindGet<T extends object>(_target: T): ProxyHandler<T> {
   return {
     get(t, prop, _receiver) {
       // Use the real target as Reflect receiver so brand-checked accessors
@@ -55,31 +55,30 @@ export function proxyWriter(writer: WritableStreamDefaultWriter<Uint8Array>) {
   });
 }
 
-export function proxyReader(reader: ReadableStreamDefaultReader<Uint8Array>, streamId: number) {
+type Readable = { read(...args: never[]): Promise<ReadableStreamReadResult<ArrayBufferView>> };
+
+/** `read` called with the reader's own arguments — a BYOB read needs its view and `{min}` — and
+ *  every byte it returns handed to `onBytes`. */
+function proxyRead<R extends Readable>(reader: R, onBytes: (bytes: Uint8Array) => void): R {
   const base = bindGet(reader);
   return new Proxy(reader, {
     ...base,
     get(t, prop, receiver) {
-      if (prop === "read") {
-        return () => {
-          return reader.read().then((result) => {
-            const tap = getTap();
-            if (tap && result && !result.done && result.value) {
-              // BYOB readers can hand back other views; the tap wants bytes.
-              const v = result.value as ArrayBufferView;
-              const bytes =
-                v instanceof Uint8Array
-                  ? v
-                  : new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
-              tap.onMediaRead(streamId, bytes);
-            }
-            return result;
-          });
-        };
-      }
-      return base.get!(t, prop, receiver);
+      if (prop !== "read") return base.get!(t, prop, receiver);
+      return (...args: never[]) =>
+        t.read(...args).then((result) => {
+          const v = result.value;
+          if (v && v.byteLength) {
+            onBytes(v instanceof Uint8Array ? v : new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+          }
+          return result;
+        });
     },
   });
+}
+
+export function proxyReader(reader: ReadableStreamDefaultReader<Uint8Array>, streamId: number) {
+  return proxyRead(reader, (bytes) => getTap()?.onMediaRead(streamId, bytes));
 }
 
 export function proxyMediaStream(stream: ReadableStream<Uint8Array>) {
@@ -105,29 +104,7 @@ export function proxyMediaStream(stream: ReadableStream<Uint8Array>) {
 
 /** Control downlink: the server's `frame_error` refusals arrive here. */
 export function proxyControlReader(reader: ReadableStreamDefaultReader<Uint8Array>) {
-  const base = bindGet(reader);
-  return new Proxy(reader, {
-    ...base,
-    get(t, prop, receiver) {
-      if (prop === "read") {
-        return () => {
-          return reader.read().then((result) => {
-            const tap = getTap();
-            if (tap && result && !result.done && result.value) {
-              const v = result.value as ArrayBufferView;
-              const bytes =
-                v instanceof Uint8Array
-                  ? v
-                  : new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
-              tap.onControlRead(bytes);
-            }
-            return result;
-          });
-        };
-      }
-      return base.get!(t, prop, receiver);
-    },
-  });
+  return proxyRead(reader, (bytes) => getTap()?.onControlRead(bytes));
 }
 
 export function proxyBidi(bidi: {

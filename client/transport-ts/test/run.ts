@@ -3,6 +3,8 @@
  *   bash client/transport-ts/build.sh && node client/transport-ts/test/run.mjs
  */
 
+import { install, uninstall } from "../../record/install.ts";
+import { wrapSession } from "../../record/wrap-session.ts";
 import { TransportSession } from "../session.ts";
 import { codestreamByte, StubTransport, type StubLink } from "./stub.ts";
 
@@ -78,7 +80,28 @@ async function aCutFrameIsNamedWithItsBytes() {
   }
 }
 
-for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes]) {
+const within = <T>(p: Promise<T>, ms: number) =>
+  Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+
+/** Under the telemetry patch a `readMin` session still reads with its view and `{min}`: every
+ *  frame arrives bit-exact, and the Tap closes a row for each. */
+async function telemetryKeepsTheReadersArguments() {
+  const tap = install({ arm: "transport-ts" });
+  try {
+    StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
+    const session = wrapSession(await TransportSession.connect("https://stub/", HASH, { readMin: 16_384 }));
+    const results = await Promise.all([0, 1, 2].map((i) => within(session.requestExactFrame(i), 2000)));
+    assert(results.every((r) => r !== null && intact(r)), "telemetry + readMin: every frame delivered bit-exact");
+    const report = tap.finish();
+    const closed = report.client_frames.filter((r) => r.closed_at === "delivered").length;
+    assert(closed === 3 && report.summary.integrity.valid === true,
+      `telemetry + readMin: the Tap closes a row per frame (${closed} of 3, ${report.summary.integrity.invalid_reasons?.join("; ") || "valid"})`);
+  } finally {
+    uninstall();
+  }
+}
+
+for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, telemetryKeepsTheReadersArguments]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

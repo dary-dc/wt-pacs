@@ -7,6 +7,7 @@
 import { install } from "../record/install.ts";
 import { wrapSession } from "../record/wrap-session.ts";
 import type { ConnectOptions } from "./frame-session.ts";
+import { TransportSession as Inner } from "./session.ts";
 
 const query = new URL(import.meta.url).searchParams;
 const tap = install({
@@ -19,8 +20,6 @@ const harvest = new BroadcastChannel("wtpacs-telemetry");
 harvest.onmessage = (e) => {
   if (e.data === "harvest") harvest.postMessage({ report: tap.finish() });
 };
-
-import { TransportSession as Inner } from "./session.ts";
 
 export type { FrameResult } from "./session.ts";
 
