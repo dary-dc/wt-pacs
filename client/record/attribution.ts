@@ -1,12 +1,7 @@
-/**
- * Streaming frame attributor — O(chunk) work, O(1) memory per stream.
- * Semantics match offsets.ts attributeFrames(); keep that as the test oracle.
- */
+/** Streaming frame attributor — O(chunk) work, O(1) memory per stream. Its oracle is test/offsets.ts. */
 
 import { MAX_FRAME_LEN } from "../transport-ts/wire.ts";
-import type { FrameTiming } from "./offsets.ts";
-
-export type { FrameTiming };
+import type { FrameTiming } from "./types.ts";
 
 type OpenFrame = {
   start: number;
@@ -27,15 +22,9 @@ export class StreamAttributor {
   private cur: OpenFrame | null = null;
   private bad = false;
   private readonly maxFrameLen: number;
-  private readonly emitted: FrameTiming[] = [];
 
   constructor(maxFrameLen: number = MAX_FRAME_LEN) {
     this.maxFrameLen = maxFrameLen;
-  }
-
-  /** Frames finished so far (append-only). */
-  get finished(): readonly FrameTiming[] {
-    return this.emitted;
   }
 
   onRead(value: Uint8Array, tUs: number): FrameTiming[] {
@@ -90,7 +79,6 @@ export class StreamAttributor {
           start: this.cur.start,
           end: this.cur.end,
         };
-        this.emitted.push(frame);
         newly.push(frame);
         this.nextStart = this.cur.end;
         this.cur = null;

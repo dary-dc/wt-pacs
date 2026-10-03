@@ -1,31 +1,6 @@
-/** Same framing constant as transport-ts/wire.ts; shared by both arms, pulls no session. */
+/** The control stream's FoD messages, as the Tap reads them; shared by both arms, pulls no session. */
 
-import { MAX_FRAME_LEN } from "../transport-ts/wire.ts";
 import type { RowKind } from "./types.ts";
-
-/** Parse consecutive `[4B BE len][4B BE index][codestream]` frames from a byte buffer. */
-export function parseFootprintsFromBytes(
-  buf: Uint8Array,
-): { footprints: { frame_index: number; start: number; end: number; bytes: number }[]; consumed: number } {
-  const footprints: { frame_index: number; start: number; end: number; bytes: number }[] = [];
-  let off = 0;
-  while (off + 4 <= buf.length) {
-    const len = new DataView(buf.buffer, buf.byteOffset + off, 4).getUint32(0, false);
-    if (len === 0 || len > MAX_FRAME_LEN) break;
-    const total = 4 + len;
-    if (off + total > buf.length) break;
-    if (len < 4) break;
-    const index = new DataView(buf.buffer, buf.byteOffset + off + 4, 4).getUint32(0, false);
-    footprints.push({
-      frame_index: index,
-      start: off,
-      end: off + total,
-      bytes: len - 4,
-    });
-    off += total;
-  }
-  return { footprints, consumed: off };
-}
 
 export type FodAsk = { kind: RowKind; frames: number[] };
 

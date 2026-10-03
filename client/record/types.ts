@@ -19,6 +19,17 @@ export type ChunkMark = {
   cum: number;
 };
 
+/** A frame the attributor has seen whole: its wire timing and where it sat in its stream. */
+export type FrameTiming = {
+  frame_index: number;
+  first_byte_us: number;
+  last_byte_us: number;
+  chunks: number;
+  bytes: number;
+  start: number;
+  end: number;
+};
+
 export type FrameFootprint = {
   frame_index: number;
   /** Absolute offset of frame start in the stream. */

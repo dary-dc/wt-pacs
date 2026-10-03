@@ -5,13 +5,13 @@
  */
 
 import { StreamAttributor } from "../attribution.ts";
-import { attributeFrames } from "../offsets.ts";
 import { nearestRank, distributionStats } from "../percentiles.ts";
-import { MessageAccumulator, parseFodAsks, parseFootprintsFromBytes } from "../parse.ts";
+import { MessageAccumulator, parseFodAsks } from "../parse.ts";
 import { judgeIntegrity, minOf, maxOf } from "../report.ts";
 import { pickBinding } from "../rows.ts";
 import { Tap } from "../tap.ts";
-import type { ChunkMark, TapConfig } from "../types.ts";
+import type { ChunkMark, FrameTiming, TapConfig } from "../types.ts";
+import { attributeFrames, parseFootprintsFromBytes } from "./offsets.ts";
 
 let failed = 0;
 function assert(cond: boolean, msg: string) {
@@ -169,13 +169,13 @@ function sliceRiver(
     const { chunks, slices } = sliceRiver(river, cuts);
 
     const attr = new StreamAttributor();
+    const got: FrameTiming[] = [];
     let tBase = 1000;
     for (const sl of slices) {
       tBase += 12;
-      attr.onRead(sl, tBase);
+      got.push(...attr.onRead(sl, tBase));
     }
     const { frames: oracle } = attributeFrames(chunks, footprints);
-    const got = attr.finished;
     if (got.length !== oracle.length) {
       mismatches += 1;
       continue;
@@ -210,12 +210,14 @@ function sliceRiver(
 {
   const river = buildRiver([{ index: 0, codestreamLen: 20 }]); // total 28 bytes
   const attr = new StreamAttributor();
-  attr.onRead(river.subarray(0, 3), 1020); // partial header
-  attr.onRead(river.subarray(3, 10), 1032); // complete header + some body
-  attr.onRead(river.subarray(10), 1040);
-  assertEq(attr.finished.length, 1, "straddle: one frame");
-  assertEq(attr.finished[0].first_byte_us, 1020, "straddle: firstByte from first header byte");
-  assertEq(attr.finished[0].last_byte_us, 1040, "straddle: lastByte on completing read");
+  const got = [
+    ...attr.onRead(river.subarray(0, 3), 1020), // partial header
+    ...attr.onRead(river.subarray(3, 10), 1032), // complete header + some body
+    ...attr.onRead(river.subarray(10), 1040),
+  ];
+  assertEq(got.length, 1, "straddle: one frame");
+  assertEq(got[0].first_byte_us, 1020, "straddle: firstByte from first header byte");
+  assertEq(got[0].last_byte_us, 1040, "straddle: lastByte on completing read");
   assert(attr.closureOk(), "straddle: closure ok");
 }
 
@@ -227,11 +229,10 @@ function sliceRiver(
   ]);
   const mid = 4 + 4 + 4; // end of frame 0
   const attr = new StreamAttributor();
-  attr.onRead(river.subarray(0, mid), 100);
-  attr.onRead(river.subarray(mid), 200);
-  assertEq(attr.finished.length, 2, "boundary: two frames");
-  assertEq(attr.finished[0].last_byte_us, 100, "boundary: frame0 ends on first read");
-  assertEq(attr.finished[1].first_byte_us, 200, "boundary: frame1 starts on second read");
+  const got = [...attr.onRead(river.subarray(0, mid), 100), ...attr.onRead(river.subarray(mid), 200)];
+  assertEq(got.length, 2, "boundary: two frames");
+  assertEq(got[0].last_byte_us, 100, "boundary: frame0 ends on first read");
+  assertEq(got[1].first_byte_us, 200, "boundary: frame1 starts on second read");
 }
 
 // Single read carrying several whole frames
@@ -242,10 +243,10 @@ function sliceRiver(
     { index: 3, codestreamLen: 4 },
   ]);
   const attr = new StreamAttributor();
-  attr.onRead(river, 50);
-  assertEq(attr.finished.length, 3, "multi-in-one: three frames");
+  const got = attr.onRead(river, 50);
+  assertEq(got.length, 3, "multi-in-one: three frames");
   assert(
-    attr.finished.every((f) => f.first_byte_us === 50 && f.last_byte_us === 50 && f.chunks === 1),
+    got.every((f) => f.first_byte_us === 50 && f.last_byte_us === 50 && f.chunks === 1),
     "multi-in-one: same stamp, one chunk each",
   );
 }
@@ -563,14 +564,15 @@ function sliceRiver(
   const step = 48 * 1024;
   let off = 0;
   let tUs = 0;
+  let attributed = 0;
   while (off < river.length) {
     const end = Math.min(river.length, off + step);
     tUs += 1;
-    attr.onRead(river.subarray(off, end), tUs);
+    attributed += attr.onRead(river.subarray(off, end), tUs).length;
     off = end;
   }
   const ms = performance.now() - t0;
-  assert(attr.finished.length === 100, "bench: 100 frames attributed");
+  assert(attributed === 100, "bench: 100 frames attributed");
   assert(attr.closureOk(), "bench: closure ok");
   assert(ms < 100, `bench: streaming cost ${ms.toFixed(1)}ms < 100ms (was seconds with concat path)`);
 }
