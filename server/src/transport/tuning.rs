@@ -1,8 +1,10 @@
 //! QUIC transport knobs. Cubic with nothing else set is quinn's stock configuration byte for byte.
 
 use crate::transport::restart::SlowStartRestartConfig;
+use anyhow::{anyhow, Result};
 use std::sync::Arc;
-use wtransport::quinn::TransportConfig;
+use std::time::Duration;
+use wtransport::quinn::{IdleTimeout, TransportConfig};
 
 /// Congestion controller. quinn's BBR is a port of quiche's BBRv1, not BBRv3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, clap::ValueEnum)]
@@ -28,7 +30,7 @@ impl Congestion {
 pub struct TransportTuning {
     /// Cap on buffered unacknowledged send bytes. quinn default: 10_000_000.
     pub send_window: Option<u64>,
-    /// Idle timeout. Applied on the wtransport builder, not inside `TransportConfig`.
+    /// quinn default: 30 000.
     pub max_idle_timeout_ms: Option<u64>,
     /// Server-sent keep-alive. One side is enough to hold a session open, and a browser client
     /// has no such knob, so this is the only lever that reaches one. docs/transport/adr-idle-sessions.md.
@@ -59,7 +61,7 @@ impl Default for TransportTuning {
 }
 
 impl TransportTuning {
-    pub fn to_transport_config(&self) -> TransportConfig {
+    pub fn to_transport_config(&self) -> Result<TransportConfig> {
         use wtransport::quinn::congestion;
 
         let mut tc = TransportConfig::default();
@@ -67,11 +69,16 @@ impl TransportTuning {
         if let Some(v) = self.send_window {
             tc.send_window(v);
         }
+        if let Some(ms) = self.max_idle_timeout_ms {
+            let idle = IdleTimeout::try_from(Duration::from_millis(ms))
+                .map_err(|_| anyhow!("max_idle_timeout_ms {ms} out of range"))?;
+            tc.max_idle_timeout(Some(idle));
+        }
         if let Some(ms) = self.keep_alive_interval_ms {
-            tc.keep_alive_interval(Some(std::time::Duration::from_millis(ms)));
+            tc.keep_alive_interval(Some(Duration::from_millis(ms)));
         }
         if let Some(ms) = self.initial_rtt_ms {
-            tc.initial_rtt(std::time::Duration::from_millis(ms));
+            tc.initial_rtt(Duration::from_millis(ms));
         }
         tc.enable_segmentation_offload(self.segmentation_offload);
 
@@ -95,24 +102,10 @@ impl TransportTuning {
                 tc.congestion_controller_factory(Arc::new(SlowStartRestartConfig::new(iw)))
             }
         };
-        tc
-    }
-
-    /// QUIC stack is still the library default — use `with_identity`, not a custom transport.
-    pub fn quic_is_library_default(&self) -> bool {
-        self.send_window.is_none()
-            && self.max_idle_timeout_ms.is_none()
-            && self.keep_alive_interval_ms.is_none()
-            && self.initial_window.is_none()
-            && self.initial_rtt_ms.is_none()
-            && matches!(self.congestion, Congestion::Cubic)
-            && self.segmentation_offload
+        Ok(tc)
     }
 
     pub fn describe(&self) -> String {
-        if self.quic_is_library_default() {
-            return "default".to_string();
-        }
         let mut parts = Vec::new();
         if let Some(v) = self.send_window {
             parts.push(format!("send_window={v}"));
@@ -135,6 +128,9 @@ impl TransportTuning {
         if !self.segmentation_offload {
             parts.push("segmentation_offload=false".to_string());
         }
+        if parts.is_empty() {
+            return "default".to_string();
+        }
         parts.join(",")
     }
 }
@@ -150,7 +146,7 @@ mod tests {
 
     #[test]
     fn default_tuning_builds() {
-        TransportTuning::default().to_transport_config();
+        TransportTuning::default().to_transport_config().expect("builds");
     }
 
     #[test]
@@ -164,64 +160,40 @@ mod tests {
             initial_rtt_ms: Some(100),
             segmentation_offload: false,
         };
-        t.to_transport_config();
+        t.to_transport_config().expect("builds");
     }
 
-    /// A keep-alive interval is a custom transport: taking the library default would drop it
-    /// silently, and a session held open is the whole point. docs/transport/adr-idle-sessions.md.
+    /// Every departure from quinn's stock stack is named in the banner, so a campaign row cannot
+    /// be mislabelled, and the stock stack names none. docs/transport/transport-conclusions.md §3.
     #[test]
-    fn keep_alive_alone_leaves_the_library_default_behind() {
-        let t = TransportTuning {
-            keep_alive_interval_ms: Some(20_000),
-            ..stock()
-        };
-        assert!(!t.quic_is_library_default());
-        assert!(t.describe().contains("keep_alive_interval_ms=20000"));
-        t.to_transport_config();
+    fn each_knob_set_is_named_in_the_banner() {
+        assert_eq!(stock().describe(), "default");
+        for (t, want) in [
+            (TransportTuning { send_window: Some(1 << 20), ..stock() }, "send_window=1048576"),
+            (TransportTuning { max_idle_timeout_ms: Some(60_000), ..stock() }, "max_idle_timeout_ms=60000"),
+            (TransportTuning { keep_alive_interval_ms: Some(20_000), ..stock() }, "keep_alive_interval_ms=20000"),
+            (TransportTuning { initial_window: Some(38_400), ..stock() }, "initial_window=38400"),
+            (TransportTuning { initial_rtt_ms: Some(100), ..stock() }, "initial_rtt_ms=100"),
+            (TransportTuning { segmentation_offload: false, ..stock() }, "segmentation_offload=false"),
+        ] {
+            assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
+            t.to_transport_config().expect("builds");
+        }
     }
 
-    /// An initial window alone is a custom transport: taking the library default would drop it.
-    /// docs/transport/transport-conclusions.md.
+    /// An idle timeout quinn cannot encode stops the server at start rather than being dropped.
     #[test]
-    fn an_initial_window_alone_leaves_the_library_default_behind() {
-        let t = TransportTuning {
-            initial_window: Some(38_400),
-            ..stock()
-        };
-        assert!(!t.quic_is_library_default());
-        assert!(t.describe().contains("initial_window=38400"));
-        t.to_transport_config();
+    fn an_idle_timeout_out_of_range_is_refused() {
+        let t = TransportTuning { max_idle_timeout_ms: Some(u64::MAX), ..stock() };
+        assert!(t.to_transport_config().is_err());
     }
 
-    /// The initial-RTT knob is custom transport too, and is named in `describe` so a campaign row
-    /// cannot be mislabelled. docs/transport/transport-conclusions.md §3.
+    /// The default controller is the restart after a silence, which quinn's stock stack lacks, and
+    /// a run must say it carries it.
     #[test]
-    fn an_initial_rtt_alone_leaves_the_library_default_behind() {
-        let t = TransportTuning { initial_rtt_ms: Some(100), ..stock() };
-        assert!(!t.quic_is_library_default());
-        assert!(t.describe().contains("initial_rtt_ms=100"), "{}", t.describe());
-        t.to_transport_config();
-    }
-
-    /// Turning GSO off must reach quinn: taking the library default would send batches anyway,
-    /// and netem would go back to dropping them whole.
-    #[test]
-    fn gso_off_leaves_the_library_default_behind() {
-        let t = TransportTuning {
-            segmentation_offload: false,
-            ..stock()
-        };
-        assert!(!t.quic_is_library_default());
-        assert!(t.describe().contains("segmentation_offload=false"));
-    }
-
-    /// The default controller is the restart after a silence, which quinn's stock stack lacks: it
-    /// must reach quinn as a custom transport, and a run must say it carries it.
-    #[test]
-    fn the_default_controller_is_cubic_restart_and_leaves_the_library_default_behind() {
+    fn the_default_controller_is_cubic_restart() {
         let t = TransportTuning::default();
         assert_eq!(t.congestion, Congestion::CubicRestart);
-        assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("congestion=cubic-restart"));
     }
 }

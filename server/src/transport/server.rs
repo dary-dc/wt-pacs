@@ -16,7 +16,6 @@ use std::future::Future;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 use wtransport::config::{states, IpBindConfig, ServerConfigBuilder};
@@ -226,16 +225,7 @@ fn build_endpoint(
         identity: Identity,
         tuning: &TransportTuning,
     ) -> Result<ServerConfig> {
-        if tuning.quic_is_library_default() {
-            return Ok(builder.with_identity(identity).build());
-        }
-        let mut builder = builder.with_custom_transport(identity, tuning.to_transport_config());
-        if let Some(ms) = tuning.max_idle_timeout_ms {
-            builder = builder
-                .max_idle_timeout(Some(Duration::from_millis(ms)))
-                .map_err(|_| anyhow::anyhow!("max_idle_timeout_ms {ms} out of range"))?;
-        }
-        Ok(builder.build())
+        Ok(builder.with_custom_transport(identity, tuning.to_transport_config()?).build())
     }
 
     if let Some(ip) = config.bind {
@@ -420,6 +410,7 @@ mod tests {
     use fod::FodMsg;
     use frame_envelope::unwrap;
     use std::io::Write;
+    use std::time::Duration;
     use wtransport::stream::SendStream;
     use wtransport::ClientConfig;
 
