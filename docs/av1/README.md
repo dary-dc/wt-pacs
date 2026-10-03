@@ -273,8 +273,9 @@ scalability is nearly free; a half-size base is 0.03–2.4 % of HTJ2K's bytes at
 decodes in 2–13 % of a lossless frame's time. But the payload carries lossless AV1's size, **1.04–1.64
 of HTJ2K's**, against a separate preview plus exact HTJ2K at 1.008 and 1.07 above; and the exact
 frame decodes 3–30 % slower than single-layer AV1 (dav1d-WASM, Chromium 141 and Node, 1× and 4×,
-n = 15 interleaved). `decode-av1.js` opens dav1d with `all_layers` 1, which returns the base and then
-fails on such a payload; WebCodecs returns the top exactly but cannot be asked for the base, only
+n = 15 interleaved). `decode-av1.js` opened dav1d with `all_layers` 1, which returned the base and then
+failed on such a payload (*corrected by row SVCDEC:* the wrapper dropped the rest of the unit after
+the first picture; it now returns the base as a preview and then the exact frame, [`adr-unit.md`](adr-unit.md) §6); WebCodecs returns the top exactly but cannot be asked for the base, only
 fed its units. Row RESID's preview plus HTJ2K residual (0.947–1.002 of HTJ2K's bytes, 1.31–1.89× its
 decode) beats it on both. *Bases before tops, proposed (row SVCORDER):* each frame as two
 entries, layer-major — the base alone, then the whole unit — so a fill is every base and then every

@@ -50,6 +50,22 @@ EMSCRIPTEN_KEEPALIVE int av1_decode(const uint8_t *bytes, size_t len) {
     return have_pic ? 0 : r;
 }
 
+/* The unit's next picture, a higher spatial layer than the last: 0 with it held, EAGAIN if none is
+ * left, or a negative errno. */
+EMSCRIPTEN_KEEPALIVE int av1_next(void) {
+    if (have_pic) dav1d_picture_unref(&pic);
+    const int r = dav1d_get_picture(ctx, &pic);
+    have_pic = r == 0;
+    return r;
+}
+
+EMSCRIPTEN_KEEPALIVE int av1_layer(void) { return pic.frame_hdr->spatial_id; }
+/* The highest spatial layer of operating point 0, the one dav1d decodes; 0 for a single-layer stream. */
+EMSCRIPTEN_KEEPALIVE int av1_top_layer(void) {
+    const unsigned spatial = (unsigned)pic.seq_hdr->operating_points[0].idc >> 8;
+    return spatial ? 31 - __builtin_clz(spatial) : 0;
+}
+
 EMSCRIPTEN_KEEPALIVE int av1_width(void) { return pic.p.w; }
 EMSCRIPTEN_KEEPALIVE int av1_height(void) { return pic.p.h; }
 EMSCRIPTEN_KEEPALIVE int av1_bits(void) { return pic.p.bpc; }

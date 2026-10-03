@@ -115,29 +115,34 @@ onmessage = async (e) => {
 
 async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };
+  const preview = (r) => toConsumer.postMessage({ ...picture(m, r, { ...stamps, decodeEnd: abs() }), preview: true });
   try {
-    const { info, sab, byteCount, range } = await decodeOne(m.bytes, m);
+    const r = await decodeOne(m.bytes, m, preview);
     stamps.decodeEnd = abs();
-    toConsumer.postMessage({
-      kind: "frame",
-      index: m.index,
-      gen: m.gen,
-      pixels: sab,
-      width: info.width,
-      height: info.height,
-      bits: info.bitsPerSample,
-      components: info.componentCount,
-      signed: info.isSigned,
-      min: range.min,
-      max: range.max,
-      byteCount,
-      wireBytes: m.bytes.length,
-      stamps,
-    });
+    toConsumer.postMessage(picture(m, r, stamps));
     // The wire buffer goes back to the transport's ring, where the next frame is read into it.
-    postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount, buffer: m.bytes.buffer }, [m.bytes.buffer]);
+    postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: r.byteCount, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   } catch (err) {
     const reason = String(err?.message ?? err);
     postMessage({ kind: "failed", index: m.index, gen: m.gen, reason, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   }
+}
+
+function picture(m, { info, sab, byteCount, range }, stamps) {
+  return {
+    kind: "frame",
+    index: m.index,
+    gen: m.gen,
+    pixels: sab,
+    width: info.width,
+    height: info.height,
+    bits: info.bitsPerSample,
+    components: info.componentCount,
+    signed: info.isSigned,
+    min: range.min,
+    max: range.max,
+    byteCount,
+    wireBytes: m.bytes.length,
+    stamps,
+  };
 }

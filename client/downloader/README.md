@@ -36,6 +36,13 @@ each by name. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §3, *Built*;
 checks a G = 8 set and a one-group set (`client/conformance/av1/{g8x20,whole12}`) frame by frame.
 A series in groups decodes through dav1d-WASM, never WebCodecs, which is flushed per frame.
 
+**A scalable AV1 series.** A unit with a lossy base layer under a lossless top decodes through
+dav1d-WASM twice from the same bytes: the base reaches `opts.onPreview` as a frame whose `info` says
+`preview: true` at the base's own size, then the exact frame reaches the ask or `onFrame`, which
+never receive a preview. A unit without its top fails by name after its preview. WebCodecs returns
+the exact frame and no preview. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §6; the
+dispatch arm checks `client/conformance/av1/scalable/`.
+
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
 

@@ -44,7 +44,7 @@ process each round, cells in a Williams order (`lab/order.mjs`), sets and arms r
 
 | decoder | units fed | returns |
 | --- | --- | --- |
-| dav1d-WASM as the product opens it (`all_layers` 1, dav1d's default) | both layers | base and top mixed, then an error (−28): **not usable** |
+| dav1d-WASM as the product opened it (`all_layers` 1, dav1d's default) | both layers | base and top mixed, then an error (−28): **not usable** (*corrected by row SVCDEC:* the wrapper kept one picture a unit; it now returns the base, then the top, exact — [`adr-unit.md`](../../../docs/av1/adr-unit.md) §6) |
 | dav1d-WASM, operating point 0, `all_layers` 0 | both layers | the top, exact |
 | dav1d-WASM, operating point 1 | both layers, or the base's alone | the base |
 | WebCodecs (Chromium 141), 8-bit | both layers | the top, exact |

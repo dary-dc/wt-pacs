@@ -12,7 +12,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decoderReady?: number; dispatched?: number } } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decoderReady?: number; dispatched?: number } } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -32,6 +32,7 @@ type OpenOpts = {
   perDecoder: number;
   delayMs: number;
   onFrame: (f: Frame) => void;
+  onPreview?: (f: Frame) => void;
   onError?: (f: Fail) => void;
   decode?: boolean;
   fill?: number[];
@@ -71,6 +72,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
     onFrame: opts.onFrame,
+    onPreview: opts.onPreview,
     onError: opts.onError,
   });
   return { connect, fake };
@@ -1228,6 +1230,123 @@ async function aDecoderRefusesAFrameWhosePredecessorItDidNotDecode(
   worker.terminate();
 }
 
+const SCALABLE = `${AV1_SET}/scalable`;
+
+/** What the page saw, in order — `p3` a preview of 3, `f3` its frame, `x3` its failure — and what is on screen. */
+async function scalableThrough(
+  DownloaderClient: DownloaderCtor,
+  units: Uint8Array[],
+  opts: { depth: number; groupLength?: number; mode: "spy" | "none"; ask: boolean },
+) {
+  const ch = `wtpacs-scalable-${++world}`;
+  let toWebCodecs = 0;
+  const spy = new BroadcastChannel(ch);
+  spy.onmessage = () => void (toWebCodecs += 1);
+  const seen: string[] = [];
+  const previews: Frame[] = [];
+  const frames: Frame[] = [];
+  const screen = new Map<number, Frame>();
+  const shown = (f: Frame) => void screen.set(f.frameIndex, f);
+  const n = units.length;
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: { ...AV1, depth: opts.depth },
+    decoderWorker: `/client/conformance/webcodecs-spy.js?mode=${opts.mode}&ch=${ch}`,
+    groupLength: opts.groupLength, frameCount: opts.groupLength ? n : undefined,
+    onPreview: (f) => { seen.push(`p${f.frameIndex}`); previews.push(f); shown(f); },
+    onFrame: (f) => { seen.push(`f${f.frameIndex}`); frames.push(f); shown(f); },
+    onError: (f) => void seen.push(`x${f.frameIndex}`),
+  });
+  const reasons = new Map<number, string>();
+  const asks = opts.ask
+    ? range(0, n - 1).map((i) => c.requestExactFrame(i).then(
+      (f) => { seen.push(`f${i}`); frames.push(f); shown(f); },
+      (e) => { seen.push(`x${i}`); reasons.set(i, String(e?.message ?? e)); }))
+    : (c.fill(range(0, n - 1)), []);
+  for (const [i, b] of units.entries()) await fake.pushFrame(i, b);
+  await within(Promise.all(asks));
+  await until(() => seen.filter((e) => e[0] !== "p").length >= n, 5000);
+  c.close();
+  await settle(50);
+  spy.close();
+  return { seen, previews, frames, screen, reasons, toWebCodecs };
+}
+
+const scalableUnits = (set: string, n: number) => Promise.all(range(0, n - 1).map((i) => unit(`${SCALABLE}/${set}`, i)));
+
+/**
+ * A scalable frame — a lossy half-size base under a lossless top — reaches the page twice from the same
+ * bytes through dav1d-WASM: its base, marked a preview at its own size and the same samples native dav1d
+ * returns at the base's operating point, then its exact frame, which replaces it. An ask resolves with
+ * the exact frame only. At G = 1 and in groups. docs/av1/adr-unit.md §6
+ */
+async function aScalableFrameShowsItsBaseThenItsExactFrame(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 scalable — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const arms = [["l2g1", 4, 10, undefined, true], ["l2g8x20", 20, 12, 8, false]] as const;
+  for (const [set, n, depth, groupLength, ask] of arms) {
+    const what = `scalable ${set}, ${ask ? "asked" : "filled"}`;
+    const r = await scalableThrough(DownloaderClient, await scalableUnits(set, n), { depth, groupLength, mode: "none", ask });
+    const all = range(0, n - 1);
+    check((await inexact(`${SCALABLE}/${set}`, r.frames, all)) === "none",
+      `${what}: every exact frame its source's (inexact: ${await inexact(`${SCALABLE}/${set}`, r.frames, all)})`);
+    check(r.frames.every((f) => !f.info.preview && f.info.width === 64 && f.info.height === 48),
+      `${what}: no frame is marked a preview, each at the series' size (${r.frames.map((f) => `${f.info.width}x${f.info.height}`).join() || "none"})`);
+    const late = all.filter((i) => !(r.seen.indexOf(`p${i}`) >= 0 && r.seen.indexOf(`p${i}`) < r.seen.indexOf(`f${i}`)));
+    check(late.length === 0, `${what}: each frame's preview reached the page before it (not: ${late.join() || "none"})`);
+    check(r.previews.length === n, `${what}: one preview a frame (${r.previews.length} of ${n})`);
+    const wrong: number[] = [];
+    for (const p of r.previews) {
+      const want = (await (await fetch(`${SCALABLE}/${set}/${String(p.frameIndex).padStart(3, "0")}.preview.sha256`)).text()).trim();
+      if (!p.info.preview || p.info.width !== 32 || p.info.height !== 24 || (await sha256(p.bytes)) !== want) wrong.push(p.frameIndex);
+    }
+    check(wrong.length === 0, `${what}: each preview is marked, 32x24, native dav1d's base (not: ${wrong.join() || "none"})`);
+    const stale = all.filter((i) => r.screen.get(i)?.info.preview);
+    check(stale.length === 0 && r.screen.size === n, `${what}: no preview is left on screen after its frame (${stale.join() || "none"})`);
+  }
+  const single = await scalableThrough(DownloaderClient, await Promise.all(range(0, 19).map((i) => unit(G8, i))), { depth: 8, groupLength: 8, mode: "none", ask: false });
+  check(single.previews.length === 0 && (await inexact(G8, single.frames, range(0, 19))) === "none",
+    `scalable: a single-layer series sends no preview and stays exact (${single.previews.length} previews)`);
+}
+
+/**
+ * A scalable unit whose top layer is missing shows its base as a preview, still marked, and the frame
+ * fails by name, never arriving as the base; the frames either side are exact. docs/av1/adr-unit.md §6
+ */
+async function aScalableFrameWithoutItsTopFailsByName(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 scalable, no top — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const units = await scalableUnits("l2g1", 3);
+  units[1] = await fetched(`${SCALABLE}/notop.av1`);
+  const r = await scalableThrough(DownloaderClient, units, { depth: 10, mode: "none", ask: true });
+  check(r.seen.filter((e) => e.endsWith("1")).join() === "p1,x1", `scalable, no top: frame 1 shows its preview, then fails (${r.seen.join()})`);
+  check(/spatial layer 0 of 1 is the unit's last/.test(r.reasons.get(1) ?? ""), `scalable, no top: by name (${r.reasons.get(1) ?? "no failure"})`);
+  check(r.screen.get(1)?.info.preview === true, "scalable, no top: what stays on screen is still marked a preview");
+  check((await inexact(`${SCALABLE}/l2g1`, r.frames, [0, 2])) === "none" && r.frames.length === 2,
+    `scalable, no top: the frames either side are exact (${r.frames.map((f) => f.frameIndex).join()})`);
+}
+
+/**
+ * Through WebCodecs, a ≤ 10-bit scalable series is exact but has no preview: it returns the highest
+ * layer it is fed and cannot be asked for the base (row 31). docs/av1/adr-unit.md §6
+ */
+async function aScalableFrameThroughWebCodecsIsExactWithoutAPreview(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (typeof VideoDecoder !== "function") return void log("  SKIPPED: WebCodecs scalable — this browser has no VideoDecoder");
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: WebCodecs scalable — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const r = await scalableThrough(DownloaderClient, await scalableUnits("l2g1", 4), { depth: 10, mode: "spy", ask: true });
+  check(r.toWebCodecs === 4 && r.previews.length === 0 && (await inexact(`${SCALABLE}/l2g1`, r.frames, range(0, 3))) === "none",
+    `webcodecs scalable: 4 units decoded by WebCodecs, every frame exact, no preview (${r.toWebCodecs} units, ${r.previews.length} previews)`);
+}
+
 /** A group is asked whole, so a series coded in groups without its frame count is refused at `connect`. */
 async function aGroupWithoutItsSeriesLengthIsRefused(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const { connect } = begin(DownloaderClient, { decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: 8, onFrame: () => {} });
@@ -1523,6 +1642,9 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aFailedFrameFailsTheRestOfItsGroup,
     aDecoderRefusesAFrameWhosePredecessorItDidNotDecode,
     aGroupWithoutItsSeriesLengthIsRefused,
+    aScalableFrameShowsItsBaseThenItsExactFrame,
+    aScalableFrameWithoutItsTopFailsByName,
+    aScalableFrameThroughWebCodecsIsExactWithoutAPreview,
     aSessionWhoseBytesKeepComingIsKept,
     aSilentSessionIsRedialled,
     theWaitDoublesAfterEachRedialItCauses,
