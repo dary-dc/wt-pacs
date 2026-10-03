@@ -88,6 +88,12 @@ and `s12` (12-bit in 16).
 So `finish`'s sign extension in `client/downloader/decoder.js` is idempotent on this decoder's
 output. The source build was wrong (§A build of our own).
 
+*Corrected 2026-10-03:* the pass shifted by `16 − bits`, and JS shifts are 32-bit, so it left a raw
+12-bit pattern as it was — a no-op, not an extension; it held only because the package extends
+first. It shifts by `32 − bits` now, skipped when the sample fills its container, and
+`client/downloader/decoder.test.mjs` holds it to raw patterns. On `ct512` it changes 0 of 87 frames
+before and after the fix.
+
 *Corrected:* an earlier record said the package saturates negatives to 32767 and the source build
 does not. That was read off codestreams the encoder's `-signed true` path had already damaged; with
 a valid signed codestream and an independent truth it was the other way round, and now neither is

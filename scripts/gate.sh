@@ -38,6 +38,7 @@ step "client: build bundles + unit tests"
 bash client/transport-ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
 node client/transport-ts/test/run.mjs | tail -1
+node client/downloader/decoder.test.mjs
 
 step "client: worker-safe (no artifact reaches for window)"
 bash client/scripts/check_worker_safe.sh
