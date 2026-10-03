@@ -1100,6 +1100,29 @@ for an AV1 series, flushed before each frame (G = 1: [`docs/av1/adr-unit.md`](..
 Unlike WebCodecs it takes 12 bits and returns one frame per unit with no `flush()` to wait on. It
 is 5–10× slower than OpenJPH on the same frames (§Decode time against HTJ2K).
 
+### WebCodecs, the decoder the client runs where it is exact
+
+Row WCDEC (2026-10-03). `decode-av1-webcodecs.js` sits beside `decode-av1.js` behind the same
+contract, and `decoder.js` takes it only for a series that says `depth` ≤ 10 (every stream it codes,
+[`docs/av1/adr-unit.md`](../av1/adr-unit.md) §2) in a browser with `VideoDecoder`; any other AV1
+series, one that does not say its depth included, gets dav1d-WASM. Each unit is one key chunk,
+flushed (G = 1); a split frame's two units go to two `VideoDecoder`s at once and are merged as
+dav1d's are, by the shared `av1-frame.js`. What it refuses where dav1d refuses, from the frame
+alone: anything but `I420`/`I420P10` with every chroma sample mid-grey (4:0:0) or
+`I444`/`I444P10` with no matrix reported (GBR). That last is weaker than dav1d's check —
+`colorSpace` does not distinguish the identity matrix from an unspecified one — so a 4:4:4 stream
+with matrix 2 would pass here and fail there.
+
+The dispatch arm (headless Chromium 141) checks, every frame against its source's checksum and its
+range against its own samples: 8/10-bit grey and RGB through WebCodecs, every unit counted reaching
+it; the same frames with `VideoDecoder` removed, and 12-bit grey and RGB with it present, through
+dav1d-WASM with none reaching it; 13-bit split, 13-bit signed and 16-bit signed split frames
+through both; a frame of a group, an empty unit, a non-AV1 file, YUV 4:2:0 and 4:4:4 colour, a cut
+keyframe and a decoder closed under a frame refused by both, the next frame exact; and one decoder
+taking its frames one at a time. 17 mutations of the new code each failed a check. One did not and
+is equivalent here: reading `codedWidth` for `visibleRect` — Chromium 141 reports them equal, odd
+sizes included. G > 1 (one flush a group) waits on row GOP's group path.
+
 ### Decode time against HTJ2K
 
 Row SPEED ([`lab/av1/speed`](../../lab/av1/speed/README.md)), 2026-10-03. The first 18 frames of three
