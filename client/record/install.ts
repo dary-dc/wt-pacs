@@ -1,7 +1,4 @@
-/**
- * Telemetry entry — patch WebTransport before any client module loads.
- * Plan §3 / ADR option G.
- */
+/** Telemetry entry — patch WebTransport before any client module loads. docs/telemetry/adr-instrument-clients-from-outside.md (option G) */
 
 import { proxyTransport } from "./proxy.ts";
 import { DEFAULT_RING_CAPACITY, setTap, Tap } from "./tap.ts";
@@ -28,7 +25,7 @@ export function install(opts: InstallOptions = {}) {
       opts.copies_source ??
       (arm === "transport-wasm"
         ? "source: session.rs RecvBuf::push_chunk + js_buffer_from"
-        : "source: session.ts ByteAccumulator.take"),
+        : "source: frame-session.ts ByteAccumulator.take"),
     ring_capacity: opts.ring_capacity ?? DEFAULT_RING_CAPACITY,
   };
   const tap = new Tap(config);

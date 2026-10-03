@@ -106,7 +106,7 @@ export type IntegrityJudgement = {
   invalid_reasons: string[];
 };
 
-/** Cost of the recorder's own read path — the G5 guard. Null when no read was observed. */
+/** Cost of the recorder's own read path. Null when no read was observed. */
 export type TapReadCost = {
   count: number;
   p50_us: number;

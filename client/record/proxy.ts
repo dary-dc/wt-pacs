@@ -182,7 +182,6 @@ export function proxyIncomingUnis(incoming: ReadableStream<ReadableStream<Uint8A
           });
         };
       }
-      // Also support async iteration if used
       return base.get!(t, prop, receiver);
     },
   });

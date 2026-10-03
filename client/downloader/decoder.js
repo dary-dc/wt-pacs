@@ -29,7 +29,7 @@ export function finish(view, bits, signed) {
 export const unranged = (info) => info.componentCount === 3 && info.bitsPerSample === 8 && !info.isSigned;
 
 function decodeFrame(bytes) {
-  // Already a Uint8Array over the transferred buffer; re-wrapping copied it for nothing (S14).
+  // Already a Uint8Array over the transferred buffer; wrapping it again is a copy. docs/decode/README.md §The range pass
   dec.getEncodedBuffer(bytes.length).set(bytes);
   dec.readHeader();
   const info = dec.getFrameInfo();

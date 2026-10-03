@@ -18,7 +18,7 @@ let dialling = null;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
 let generation = 0;
 let asksInFlight = 0;
-// S6: the dial and the decoders start together; dispatch waits on this, the dial does not.
+// The dial and the decoders start together; dispatch waits on this, the dial does not.
 let decodersUp = false;
 let decoderLoss = "none is configured";
 /** The session's identity: `+1` when one is declared dead, so its callbacks become no-ops. */
@@ -144,7 +144,7 @@ function arrived(index, frame) {
   pump();
 }
 
-/** The server ends a running fill for an ask (L16), so the remainder is re-issued once the ask settles. */
+/** The server ends a running fill for an ask, so the remainder is re-issued once the ask settles. docs/WIRE.md §An ask during a fill */
 async function ask(index, promise) {
   const gen = generation;
   const ep = epoch;
