@@ -9,6 +9,14 @@ import { FakeTransport, installFakeTransport } from "./fake-transport.ts";
 export { TransportSession } from "../transport-ts/session.ts";
 
 installFakeTransport();
+/** When each transport was dialled, on this worker's clock. */
+const dialledAt: number[] = [];
+(globalThis as Record<string, unknown>).WebTransport = class extends FakeTransport {
+  constructor(url: string, options: unknown) {
+    super(url, options);
+    dialledAt.push(performance.now());
+  }
+};
 // Before the first dial, which is what loads this module: `?hang=` dials never settle.
 FakeTransport.hangNext = Number(new URL(import.meta.url).searchParams.get("hang") ?? 0);
 
@@ -17,8 +25,10 @@ type Command = { id: number; cmd: string; args: unknown[] };
 function run(cmd: string, args: unknown[]): unknown {
   const t = FakeTransport.last as FakeTransport | undefined;
   if (cmd === "dials") return FakeTransport.dials;
+  if (cmd === "dialledAt") return dialledAt;
   if (cmd === "replacedClosed") return FakeTransport.all.slice(0, -1).every((t) => t.didClose);
   if (cmd === "failDials") return void (FakeTransport.failNext = args[0] as number);
+  if (cmd === "openAfterMs") return void (FakeTransport.openAfterMs = args[0] as number);
   if (!t) throw new Error(`${cmd}: nothing has dialled yet`);
   if (cmd === "pushFrame") return void t.pushFrame(args[0] as number, args[1] as Uint8Array);
   if (cmd === "pushOnOneStream") return void t.pushOnOneStream(args[0] as [number, Uint8Array][]);
@@ -29,6 +39,11 @@ function run(cmd: string, args: unknown[]): unknown {
     return void t.pushTruncatedFrame(args[0] as number, args[1] as Uint8Array, args[2] as number);
   if (cmd === "serverClose")
     return void t.serverClose(args[0] as number, args[1] as string, args[2] as boolean | undefined);
+  // As a browser's control stream does once its session is gone.
+  if (cmd === "failWrites")
+    return void (t.sent.push = () => {
+      throw new Error("the session is closed");
+    });
   if (cmd === "controlMessages") return t.controlMessages();
   if (cmd === "dialUrl") return t.url;
   if (cmd === "didClose") return t.didClose;

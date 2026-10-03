@@ -28,18 +28,11 @@ export type OpeningFill = {
   onError: (frameIndex: number, reason: string) => void;
 };
 
+/** Times are `performance.now()` milliseconds; `lastChunkMs` is when the whole envelope was parsed. */
 export type FrameResult = {
   frameIndex: number;
-  tier: "exact";
-  codec: "htj2k";
   bytes: Uint8Array;
-  timing: {
-    askMs: number;
-    firstChunkMs: number;
-    lastChunkMs: number;
-    chunks: number;
-    serveUs: null;
-  };
+  timing: { askMs: number; lastChunkMs: number };
 };
 
 /** Closes a dial whose `ready` outlives `ms`, so an abandoned dial leaves nothing open. */
@@ -96,7 +89,6 @@ class WireBuffers {
 
 export abstract class FrameSession {
   private waiters = new Map<number, Waiter>();
-  private errors = new Map<number, string>();
   private fill: Fill | null = null;
   private droppedEarly = 0;
   private frameErrors = 0;
@@ -131,13 +123,10 @@ export abstract class FrameSession {
     if (fill) for (const index of fill.pending) fill.onError(index, this.closedReason);
   }
 
+  /** Throws, rather than rejecting, so a refused ask never reaches the wire. */
   private armWaiter(frameIndex: number): Promise<{ bytes: Uint8Array; receivedMs: number }> {
-    if (this.closedReason) {
-      return Promise.reject(new Error(`frame ${frameIndex} unavailable: ${this.closedReason}`));
-    }
-    if (this.waiters.has(frameIndex)) {
-      return Promise.reject(new Error(`frame ${frameIndex} already requested`));
-    }
+    if (this.closedReason) throw new Error(`frame ${frameIndex} unavailable: ${this.closedReason}`);
+    if (this.waiters.has(frameIndex)) throw new Error(`frame ${frameIndex} already requested`);
     return new Promise((resolve, reject) => {
       const armedAt = performance.now();
       // Late when the session goes quiet, not when the ask is old: a long burst still owes its tail.
@@ -172,7 +161,6 @@ export abstract class FrameSession {
 
   protected failWaiter(frameIndex: number, reason: string) {
     const w = this.waiters.get(frameIndex);
-    this.errors.set(frameIndex, reason);
     this.frameErrors += 1;
     const owed = this.fill?.pending.delete(frameIndex) ?? false;
     if (!w) {
@@ -229,25 +217,19 @@ export abstract class FrameSession {
   async requestExactFrame(frameIndex: number): Promise<FrameResult> {
     const askMs = performance.now();
     const pending = this.armWaiter(frameIndex);
-    await this.sendFod({ op: "request_frame", frame: frameIndex });
-    return this.settle(frameIndex, askMs, pending);
-  }
-
-  /** Await one armed waiter; a refusal the server sent for this frame wins over the raw error. */
-  private async settle(
-    frameIndex: number,
-    askMs: number,
-    pending: Promise<{ bytes: Uint8Array; receivedMs: number }>,
-  ): Promise<FrameResult> {
+    const armed = this.waiters.get(frameIndex)!;
     try {
-      const { bytes, receivedMs } = await pending;
-      return toResult(frameIndex, askMs, bytes, receivedMs);
+      await this.sendFod({ op: "request_frame", frame: frameIndex });
     } catch (e) {
-      const reason = this.errors.get(frameIndex);
-      this.errors.delete(frameIndex);
-      if (reason) throw new Error(`frame ${frameIndex} unavailable: ${reason}`);
+      pending.catch(() => {});
+      if (this.waiters.get(frameIndex) === armed) {
+        clearTimeout(armed.timer);
+        this.waiters.delete(frameIndex);
+      }
       throw e;
     }
+    const { bytes, receivedMs } = await pending;
+    return toResult(frameIndex, askMs, bytes, receivedMs);
   }
 
   /**
@@ -263,7 +245,8 @@ export abstract class FrameSession {
     if (to < from) throw new Error("fillFrames: to < from");
     if (this.closedReason) throw new Error(`session unavailable: ${this.closedReason}`);
     const askMs = this.armFill(from, to, onFrame, onError);
-    void this.sendFod({ op: "stream_frames", from, to });
+    // A write that fails means the session is going, and its closure names what the fill owed.
+    this.sendFod({ op: "stream_frames", from, to }).catch(() => {});
     return askMs;
   }
 
@@ -302,25 +285,8 @@ export abstract class FrameSession {
   }
 }
 
-function toResult(
-  frameIndex: number,
-  askMs: number,
-  bytes: Uint8Array,
-  receivedMs: number,
-): FrameResult {
-  return {
-    frameIndex,
-    tier: "exact",
-    codec: "htj2k",
-    bytes,
-    timing: {
-      askMs,
-      firstChunkMs: receivedMs,
-      lastChunkMs: receivedMs,
-      chunks: 1,
-      serveUs: null,
-    },
-  };
+function toResult(frameIndex: number, askMs: number, bytes: Uint8Array, receivedMs: number): FrameResult {
+  return { frameIndex, bytes, timing: { askMs, lastChunkMs: receivedMs } };
 }
 
 /** A frame off a media stream, or the index of the one a stream that ended mid-frame lost. */

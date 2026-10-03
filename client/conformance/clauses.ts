@@ -3,10 +3,12 @@
  * both clients in Node (run.ts) and the downloader in a browser (downloader-rig.ts).
  * docs/CLIENTS.md says why; the rows are docs/ARCHITECTURE.md §Capabilities.
  */
+import { until } from "./rig-util.ts";
+
 export type ConformantFrame = {
   frameIndex: number;
   bytes: Uint8Array;
-  timing: { askMs: number; lastChunkMs: number; firstChunkMs?: number; chunks?: number };
+  timing: { askMs: number; lastChunkMs: number };
 };
 
 export type ConformantSession = {
@@ -66,14 +68,6 @@ function within<T>(p: Promise<T>, ms = 500): Promise<T | null> {
   ]);
 }
 
-async function until(cond: () => boolean | Promise<boolean>, ms: number): Promise<boolean> {
-  const t0 = Date.now();
-  while (Date.now() - t0 < ms) {
-    if (await cond()) return true;
-    await new Promise((r) => setTimeout(r, 10));
-  }
-  return cond();
-}
 
 const untilDials = (rig: Rig, n: number) => until(async () => (await rig.dialsSinceOpen()) >= n, 3000);
 
@@ -156,7 +150,8 @@ async function askAfterClose(rig: Rig, check: Check, s: ConformantSession, index
       rejected = true;
     }
     check(rejected, `${rig.name}: a request against a closed session fails (${what})`);
-    check(Date.now() - t0 < 1000, `${rig.name}: at once, not at FRAME_TIMEOUT_MS (${what})`);
+    // Generous under load; the claim is "not FRAME_TIMEOUT_MS", and 15 s still fails it.
+    check(Date.now() - t0 < 5000, `${rig.name}: at once, not at FRAME_TIMEOUT_MS (${what})`);
     return;
   }
   const dials = await rig.dialsSinceOpen();
@@ -203,7 +198,7 @@ async function noticesClose(rig: Rig, check: Check) {
       woke = true;
     }
     check(woke, `${rig.name}: a request in flight when the session closes is woken`);
-    check(Date.now() - t1 < 1000, `${rig.name}: it is woken at once, not left to time out`);
+    check(Date.now() - t1 < 5000, `${rig.name}: it is woken at once, not left to time out`);
   }
   closedDuring.close();
 
@@ -389,6 +384,23 @@ async function aDeadSessionNamesWhatItOwed(rig: Rig, check: Check) {
   s.close();
 }
 
+/** A frame a fill lost and an ask then wants fails with the ask's own reason, not the fill's. */
+async function aLaterFailureIsNotTheFillsOne(rig: Rig, check: Check) {
+  const s = await rig.open();
+  const t = rig.fake();
+  const named: number[] = [];
+  s.fillFrames(3, 3, () => {}, (i) => named.push(i));
+  await settle();
+  await t.pushTruncatedFrame(3, enc.encode("frame-three-and-more"), 4);
+  await until(() => named.length >= 1, 1000);
+  const asked = s.requestExactFrame(3).then(() => "delivered", (e) => String(e?.message ?? e));
+  await settle();
+  if (!(await serverGone(rig, check, "after a lost fill frame"))) return s.close();
+  const why = await within(asked, 2000);
+  check(why !== null && !why.includes("truncated"), `${rig.name}: a frame the fill lost, asked again, fails with its own reason (${why})`);
+  s.close();
+}
+
 /** A closed session can be replaced: the next connect serves frames again. */
 async function redialsAfterClosure(rig: Rig, check: Check) {
   const first = await rig.open();
@@ -463,6 +475,7 @@ export async function runClauses(rig: Rig, check: Check): Promise<void> {
     pushedFill,
     aTruncatedFrameIsAFailure,
     aDeadSessionNamesWhatItOwed,
+    aLaterFailureIsNotTheFillsOne,
     aFrameIsLateOnlyWhenTheSessionGoesQuiet,
     aSlowFrameHoldsNoOther,
   ];

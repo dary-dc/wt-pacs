@@ -27,8 +27,9 @@ and the downloader takes any module exporting `TransportSession` as `config.tran
 | `releaseWireBuffer(buffer)` | hand a delivered frame's buffer back to the session's ring ([`decode/README.md`](decode/README.md) §The wire buffer ring) |
 | `stats()` / `close()` | `closed`, `inFlight`, `droppedEarlyMedia`, `frameErrors`, `lastByteAt`, … / end the session now |
 
-A `FrameResult` is `{ frameIndex, tier: "exact", codec: "htj2k", bytes, timing: { askMs,
-firstChunkMs, lastChunkMs, chunks, serveUs } }`, times in `performance.now()` milliseconds.
+A `FrameResult` is `{ frameIndex, bytes, timing: { askMs, lastChunkMs } }`, times in
+`performance.now()` milliseconds. *Corrected 2026-10-03:* it also carried `tier`, `codec`,
+`firstChunkMs`, `chunks` and `serveUs`, constants nobody read; both clients dropped them.
 
 **Where the implementations differ**, and the conformance adapters are the only code that knows:
 `endStream` is a promise in TypeScript and synchronous in WASM; the WASM handle is exported as

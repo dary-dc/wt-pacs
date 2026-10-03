@@ -7,6 +7,8 @@
 import { install } from "../record/install.ts";
 import { wrapSession } from "../record/wrap-session.ts";
 import type { ConnectOptions } from "./frame-session.ts";
+import { TransportSession as Inner } from "./session.ts";
+import { encodeFodMsg } from "./wire.ts";
 
 const query = new URL(import.meta.url).searchParams;
 const tap = install({
@@ -19,8 +21,6 @@ const harvest = new BroadcastChannel("wtpacs-telemetry");
 harvest.onmessage = (e) => {
   if (e.data === "harvest") harvest.postMessage({ report: tap.finish() });
 };
-
-import { TransportSession as Inner } from "./session.ts";
 
 export type { FrameResult } from "./session.ts";
 
@@ -35,12 +35,14 @@ function wrapOpening(options: ConnectOptions): ConnectOptions {
   const fill = options.fill;
   if (!fill) return options;
   tap.gesture();
+  // It rides the session URL, so no control write opens its rows.
+  tap.onControlWrite(encodeFodMsg({ op: "stream_frames", from: fill.from, to: fill.to }));
   return {
     ...options,
     fill: {
       ...fill,
       onFrame: (f) => {
-        tap.onDelivered(f.frameIndex, "single");
+        tap.onDelivered(f.frameIndex);
         fill.onFrame(f);
       },
       onError: (i, reason) => {

@@ -4,9 +4,10 @@
  */
 
 /** `chunk`: bytes a piece, each a task apart; `cutAfter`: the media stream ends inside the first envelope;
- *  `plain`: the media stream is not a byte stream, so it has no BYOB reader. */
+ *  `plain`: the media stream is not a byte stream, so it has no BYOB reader; `failWrites`: every
+ *  control write rejects. */
 export type StubLink = {
-  rttMs: number; tfMs: number; bytes: number; chunk?: number; cutAfter?: number; plain?: boolean;
+  rttMs: number; tfMs: number; bytes: number; chunk?: number; cutAfter?: number; plain?: boolean; failWrites?: boolean;
 };
 
 export class StubTransport {
@@ -24,7 +25,7 @@ export class StubTransport {
   private media!: ReadableByteStreamController;
   private readonly link: StubLink;
 
-  constructor(_url: string, _opts: unknown) {
+  constructor(url: string, _opts: unknown) {
     this.link = StubTransport.link;
     StubTransport.last = this;
     const mediaStream = this.link.plain
@@ -33,11 +34,19 @@ export class StubTransport {
     this.incomingUnidirectionalStreams = new ReadableStream({
       start: (c) => c.enqueue(mediaStream),
     });
+    // An opening fill, served behind the accept as the server serves `?ask=fill:a-b`.
+    const fill = /[?&]ask=fill:(\d+)-(\d+)/.exec(url);
+    if (fill) for (let i = Number(fill[1]); i <= Number(fill[2]); i++) this.send(envelope(i, this.link.bytes));
   }
 
   async createBidirectionalStream() {
     const readable = new ReadableStream<Uint8Array>();
-    const writable = new WritableStream<Uint8Array>({ write: (chunk) => this.onAsk(chunk) });
+    const writable = new WritableStream<Uint8Array>({
+      write: (chunk) => {
+        if (this.link.failWrites) throw new Error("the control stream was reset");
+        this.onAsk(chunk);
+      },
+    });
     return { readable, writable };
   }
 

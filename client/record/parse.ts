@@ -1,38 +1,12 @@
-/** Same framing constant as transport-ts/wire.ts; shared by both arms, pulls no session. */
+/** The control stream's FoD messages, as the Tap reads them; shared by both arms, pulls no session. */
 
-import { MAX_FRAME_LEN } from "../transport-ts/wire.ts";
 import type { RowKind } from "./types.ts";
-
-/** Parse consecutive `[4B BE len][4B BE index][codestream]` frames from a byte buffer. */
-export function parseFootprintsFromBytes(
-  buf: Uint8Array,
-): { footprints: { frame_index: number; start: number; end: number; bytes: number }[]; consumed: number } {
-  const footprints: { frame_index: number; start: number; end: number; bytes: number }[] = [];
-  let off = 0;
-  while (off + 4 <= buf.length) {
-    const len = new DataView(buf.buffer, buf.byteOffset + off, 4).getUint32(0, false);
-    if (len === 0 || len > MAX_FRAME_LEN) break;
-    const total = 4 + len;
-    if (off + total > buf.length) break;
-    if (len < 4) break;
-    const index = new DataView(buf.buffer, buf.byteOffset + off + 4, 4).getUint32(0, false);
-    footprints.push({
-      frame_index: index,
-      start: off,
-      end: off + total,
-      bytes: len - 4,
-    });
-    off += total;
-  }
-  return { footprints, consumed: off };
-}
 
 export type FodAsk = { kind: RowKind; frames: number[] };
 
 /** One FoD message decoded from the control stream (either direction). */
 export type FodMessage =
   | { op: "request_frame"; frame: number }
-  | { op: "request_frames"; frames: number[] }
   | { op: "stream_frames"; from?: number; to?: number }
   | { op: "end_stream" }
   | { op: "frame_error"; frame_index: number; reason: string }
@@ -53,7 +27,6 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
       const msg = JSON.parse(text) as {
         op?: string;
         frame?: number;
-        frames?: number[];
         from?: number;
         to?: number;
         frame_index?: number;
@@ -61,8 +34,6 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
       };
       if (msg.op === "request_frame" && typeof msg.frame === "number") {
         messages.push({ op: "request_frame", frame: msg.frame });
-      } else if (msg.op === "request_frames" && Array.isArray(msg.frames)) {
-        messages.push({ op: "request_frames", frames: msg.frames.map(Number) });
       } else if (msg.op === "stream_frames") {
         messages.push({
           op: "stream_frames",
@@ -83,12 +54,11 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
   return { messages, consumed: off };
 }
 
-/** Kind comes from the op, not the frame count: a `request_frames` of one is still a batch. */
+/** Kind comes from the op, not the frame count: a `stream_frames` of one frame is still a fill. */
 export function parseFodAsks(chunk: Uint8Array): FodAsk[] {
   const asks: FodAsk[] = [];
   for (const m of parseFodMessages(chunk).messages) {
     if (m.op === "request_frame") asks.push({ kind: "interaction", frames: [m.frame] });
-    else if (m.op === "request_frames") asks.push({ kind: "preload", frames: m.frames });
     else if (m.op === "stream_frames") {
       const from = m.from ?? 0;
       asks.push({
@@ -98,13 +68,6 @@ export function parseFodAsks(chunk: Uint8Array): FodAsk[] {
     }
   }
   return asks;
-}
-
-/** @deprecated kept for callers that want a flat frame list; kind is lost. */
-export function parseFodFrames(chunk: Uint8Array): number[] | null {
-  const asks = parseFodAsks(chunk);
-  if (asks.length === 0) return null;
-  return asks.flatMap((a) => a.frames);
 }
 
 /** Byte accumulator for a message stream whose messages may straddle reads. */

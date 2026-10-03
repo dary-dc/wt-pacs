@@ -81,7 +81,9 @@ different points, because it is the same code stamping.
 - **`gesture` is not covered**: it happens before the transport is called. The harness shell
   supplies it; without one, `queue` exports `null`.
 - The tap sees bytes, not frames, so frame boundaries are recovered arithmetically from byte
-  offsets (Decision A), reusing `wire.ts`'s `parseLengthPrefixed`.
+  offsets (Decision A), by `record/attribution.ts` against `wire.ts`'s `MAX_FRAME_LEN`.
+  *Corrected 2026-10-03:* this said it reused `wire.ts`'s `parseLengthPrefixed`, which nothing
+  imported; it is removed.
 - It does **not** fix the event-loop timing confound; only D would.
 - **What it cannot see.** A session over the WebSocket fallback (no `WebTransport` to patch). The
   downloader's pushed fill is seen since 2026-10-03: the wrapper wraps `fillFrames` and an opening fill.
@@ -124,10 +126,11 @@ compression), or a stage that can only be stamped inside the session. Neither is
 | Arm | Build | Loaded by |
 | --- | --- | --- |
 | TS | `client/transport-ts/build.sh` → `dist/session.telemetry.js` (entry `session-telemetry.ts`), the downloader's transport | `client/harness/cell.html?telemetry=1` |
-| WASM | `WTPACS_TELEMETRY_BUILD=1 client/transport-wasm/build.sh` → `pkg-telemetry/` | no page since 2026-10-03: the harness's WASM page was removed with its path |
+| WASM | none: the recorder is the same JS patch over the product `pkg/` | no page since 2026-10-03: the harness's WASM page was removed with its path |
 
-The WASM crate's `telemetry` feature is vacant: `pkg-telemetry/` is the product wasm in its own
-directory, and the recorder is the same JS patch. Both outputs are gitignored. The code is `client/record/` (`install.ts` patches the global;
+*Corrected 2026-10-03:* the WASM row named a `WTPACS_TELEMETRY_BUILD=1` build into `pkg-telemetry/`
+behind a vacant `telemetry` feature. It was the product wasm in another directory, nothing set it,
+and both are removed. The TS output is gitignored. The code is `client/record/` (`install.ts` patches the global;
 `proxy.ts`, `wrap-session.ts`, `attribution.ts`, `clock.ts`, `rows.ts`, `report.ts`, `tap.ts`),
 shared by both arms. The report is read from `window.__wtpacsTelemetry()`; the harvest writes it to
 `telemetry-client.json` ([server ADR §Harvest](adr-server-pipeline.md#harvest)).
@@ -151,9 +154,10 @@ localhost, 2026-09-06), forty clock ticks, not one.
 
 Report shape: `summary → client_frames → run_end`.
 
-- **`closed_at`:** `last_byte` · `delivered` · `batch_delivered` (the batch method returned; not a
-  per-frame delivery) · `refused` (server `frame_error`, reason carried) · `timeout` · `error`.
-  `summary.outcomes` counts rows by it. Failed rows have no stages and are not usable, but they
+- **`closed_at`:** `last_byte` · `delivered` · `refused` (server `frame_error`, reason carried) ·
+  `timeout` · `error`. `summary.outcomes` counts rows by it. *Corrected 2026-10-03:* this listed
+  `batch_delivered`, for a batch method no client has called since the fill moved to
+  `stream_frames`; it is removed, and a fill report's `ask_granularity` is `stream_frames`. Failed rows have no stages and are not usable, but they
   close their row, so a refusal does not void a run.
 - **First ask:** the run's earliest ask by ask time is `summary.first_ask_row`, excluded from every
   mean and headline whatever its frame index; first stream, cold pages and JIT land on it
@@ -161,10 +165,11 @@ Report shape: `summary → client_frames → run_end`.
 - **Fill:** one gesture and one ask stamp per fill, so `summary.fill_queue_us` is reported once and
   `distributions.queue` covers interaction rows only. Preload rows close at `last_byte`; a later
   `delivered` mark fills their `deliver_us`.
-- **Long tasks:** `integrity.long_tasks` counts only tasks overlapping [first ask, last row end]
-  (`long_tasks_outside_window` holds the rest; WASM compile lands there). Per row,
-  `main_thread_busy_us` is the overlap with [ask, close]; rows with any overlap are left out of
-  distributions and headlines and counted in `busy_rows_excluded`.
+- **Long tasks: not recorded.** *Corrected 2026-10-03:* this described `integrity.long_tasks`,
+  per-row `main_thread_busy_us` and `busy_rows_excluded`. The Tap now runs only in the downloader's
+  worker (and in Node), where `longtask` entries are never delivered, so those fields were always 0
+  and a report read as a clean run. They are removed; a stamp delayed by the worker's own work is
+  not detected.
 - **Integrity:** `summary.integrity.valid` is false on open/closed disagreement, byte-closure
   failure, first-write conflicts, or ring evictions. `open_rows` lists rows never closed with the
   stamps they have. `marks_after_close` is recorded but does not void alone.
@@ -175,8 +180,9 @@ Report shape: `summary → client_frames → run_end`.
   `copies_per_frame_declared` (TS 1, WASM 2) and `copies_source` are a source read, not measured.
 - **Compare within a cell only:** on-demand with on-demand, fill with fill.
 
-Not telemetry: the product's `FrameResult.timing` reports `chunks: 1` and `firstChunkMs ===
-lastChunkMs`, one stamp after the whole envelope was parsed. Do not read it as wire timing.
+Not telemetry: the product's `FrameResult.timing.lastChunkMs` is one stamp after the whole
+envelope was parsed. Do not read it as wire timing. (*Corrected 2026-10-03:* the constant
+`chunks: 1` and `firstChunkMs` it described are gone from `FrameResult`.)
 
 ## Absence
 

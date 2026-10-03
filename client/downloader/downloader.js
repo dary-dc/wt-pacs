@@ -18,8 +18,9 @@ let dialling = null;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
 let generation = 0;
 let asksInFlight = 0;
-// S6: the dial and the decoders start together; dispatch waits on this, the dial does not.
+// The dial and the decoders start together; dispatch waits on this, the dial does not.
 let decodersUp = false;
+let decoderLoss = "none is configured";
 /** The session's identity: `+1` when one is declared dead, so its callbacks become no-ops. */
 let epoch = 0;
 let resuming = null;
@@ -38,16 +39,12 @@ const queue = { ask: [], fill: [] };
 /** Fill frames the consumer wants and the wire has not delivered. */
 const wanted = new Set();
 
-function post(msg, transfer) {
-  postMessage(msg, transfer ?? []);
-}
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function fail(index, reason) {
   records.delete(index);
   wanted.delete(index);
-  post({ kind: "failed", index, gen: generation, reason });
+  postMessage({ kind: "failed", index, gen: generation, reason });
 }
 
 /** Asks come before fill frames; a frame already in hand moves up rather than being re-asked. */
@@ -75,6 +72,7 @@ function nextDecoder() {
 /** Never leave a decoder idle: up to `perDecoder` outstanding each. docs/decode/README.md §Dispatch */
 function pump() {
   if (!decodersUp) return;
+  if (decoders.length === 0) return failQueued();
   for (;;) {
     const d = nextDecoder();
     if (!d) return;
@@ -93,6 +91,23 @@ function pump() {
     );
     rec.bytes = null;
   }
+}
+
+function failQueued() {
+  for (const index of queue.ask.splice(0).concat(queue.fill.splice(0))) {
+    if (records.get(index)?.gen === generation) fail(index, `no decoder: ${decoderLoss}`);
+  }
+}
+
+/** A decoder that never came up leaves the pool; with none left, the start has failed. */
+function lose(d, reason) {
+  // Not terminated: it ends with this worker, as every decoder does. docs/ARCHITECTURE.md §Closing a client
+  decoders.splice(decoders.indexOf(d), 1);
+  d.ready();
+  if (decoders.length > 0) return;
+  decoderLoss = reason;
+  postMessage({ kind: "failed", index: -1, reason });
+  pump();
 }
 
 function want(indices, askMs) {
@@ -120,7 +135,7 @@ function arrived(index, frame) {
   rec.stamps.mediaReads = session?.stats().mediaReads;
   if (!cfg.decode) {
     records.delete(index);
-    post({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
+    postMessage({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
     return;
   }
   rec.bytes = frame.bytes;
@@ -129,7 +144,7 @@ function arrived(index, frame) {
   pump();
 }
 
-/** The server ends a running fill for an ask (L16), so the remainder is re-issued once the ask settles. */
+/** The server ends a running fill for an ask, so the remainder is re-issued once the ask settles. docs/WIRE.md §An ask during a fill */
 async function ask(index, promise) {
   const gen = generation;
   const ep = epoch;
@@ -224,7 +239,7 @@ async function recycle() {
   adopt(next);
   for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
   issueFill();
-  post({ kind: "recycled" });
+  postMessage({ kind: "recycled" });
 }
 
 /** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
@@ -240,7 +255,7 @@ async function resume() {
     try {
       await connect();
       for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
-      return void post({ kind: "resumed" });
+      return void postMessage({ kind: "resumed" });
     } catch {
       await sleep(deadlines.redialMs);
     }
@@ -262,7 +277,7 @@ async function start(m) {
   const ready = [];
   // The decoder is a seam like the transport: a test points it at a controllable stand-in.
   const decoderUrl = cfg.decoderWorker ?? new URL("./decoder.js", import.meta.url);
-  for (let i = 0; i < cfg.decoders; i++) {
+  for (let i = 0; i < (cfg.decode ? cfg.decoders : 0); i++) {
     const worker = new Worker(decoderUrl, { type: "module" });
     const d = { worker, outstanding: 0 };
     ready.push(new Promise((r) => { d.ready = r; }));
@@ -275,14 +290,14 @@ async function start(m) {
         d.readyAt = abs();
         d.ready();
       }
-      else if (e.data.kind === "init-failed") d.ready(post({ kind: "failed", index: -1, reason: e.data.reason }));
+      else if (e.data.kind === "init-failed") lose(d, e.data.reason);
       else if (e.data.kind === "failed") {
         d.outstanding -= 1;
         if (e.data.gen === generation) fail(e.data.index, e.data.reason);
         pump();
       }
     };
-    post({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
+    postMessage({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
     decoders.push(d);
   }
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
@@ -302,9 +317,7 @@ async function openSession(opening) {
   if (cfg.survival) options.dialMs = deadlines.dialMs;
   if (cfg.readMin) options.readMin = cfg.readMin;
   if (opening) options.fill = opening;
-  const next = await TransportSession.connect(dial.url, dial.certHash, options);
-  next.closedPromise?.catch(() => {});
-  return next;
+  return TransportSession.connect(dial.url, dial.certHash, options);
 }
 
 function adopt(next) {
@@ -358,15 +371,17 @@ navigator.connection?.addEventListener?.("change", watch);
 
 onmessage = async (e) => {
   const m = e.data;
+  const gen = generation;
   try {
     if (m.kind === "start") return void (await start(m));
     if (m.kind === "dial") {
       dial = { url: m.url, certHash: m.certHash };
       await firstDial();
-      return void post({ kind: "started" });
+      return void postMessage({ kind: "started" });
     }
     if (m.kind === "ask") {
       const s = await live();
+      if (gen !== generation) return;
       const rec = records.get(m.index);
       if (rec?.priority === "ask") return;
       // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
@@ -377,6 +392,7 @@ onmessage = async (e) => {
     }
     if (m.kind === "fill") {
       await live();
+      if (gen !== generation) return;
       want(m.indices, abs());
       return void issueFill();
     }
@@ -389,17 +405,23 @@ onmessage = async (e) => {
       records.clear();
       wanted.clear();
       asksInFlight = 0;
-      await session?.endStream();
-      return void post({ kind: "cancelled", gen: generation });
+      try {
+        await session?.endStream();
+      } catch {
+        /* a dead session has no stream to end */
+      }
+      return void postMessage({ kind: "cancelled", gen: generation });
     }
-    if (m.kind === "stats") return void post({ kind: "stats", id: m.id, stats: session ? session.stats() : { inFlight: 0 } });
     if (m.kind === "close") {
       clearTimeout(stall);
       session?.close();
       // The decoders end with this worker; ending them here first can strand it. docs/ARCHITECTURE.md §Closing a client
-      return void post({ kind: "closed", reason: "closed by the consumer" });
+      return void postMessage({ kind: "closed", reason: "closed by the consumer" });
     }
   } catch (err) {
-    post({ kind: "failed", index: m.index ?? -1, reason: String(err?.message ?? err) });
+    const reason = String(err?.message ?? err);
+    // Index -1 is the start failing; an ask or a fill names its own frames, in its own generation.
+    if (m.kind !== "ask" && m.kind !== "fill") return void postMessage({ kind: "failed", index: -1, reason });
+    if (gen === generation) for (const index of m.indices ?? [m.index]) fail(index, reason);
   }
 };

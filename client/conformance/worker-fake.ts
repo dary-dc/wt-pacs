@@ -14,9 +14,15 @@ export type WorkerFake = {
   dialUrl(): Promise<string>;
   didClose(): Promise<boolean>;
   dials(): Promise<number>;
+  /** `performance.now()` of each dial, on the downloader worker's clock. */
+  dialledAt(): Promise<number[]>;
   /** Whether every transport before the latest was closed by the client. */
   replacedClosed(): Promise<boolean>;
   failDials(n: number): Promise<void>;
+  /** The dials from now on are ready only after `ms`. */
+  openAfterMs(ms: number): Promise<void>;
+  /** Every control write on the latest transport rejects from now on. */
+  failWrites(): Promise<void>;
   /** Resolves once the downloader's worker has started a busy loop of `ms` that answers nothing. */
   block(ms: number): Promise<void>;
   /** The fakes still running in this world's workers, by kind: a terminated worker cannot answer. */
@@ -58,8 +64,11 @@ export function workerFake(name: string): WorkerFake {
     dialUrl: () => call("dialUrl") as Promise<string>,
     didClose: () => call("didClose") as Promise<boolean>,
     dials: () => call("dials") as Promise<number>,
+    dialledAt: () => call("dialledAt") as Promise<number[]>,
     replacedClosed: () => call("replacedClosed") as Promise<boolean>,
     failDials: (n) => call("failDials", n) as Promise<void>,
+    openAfterMs: (ms) => call("openAfterMs", ms) as Promise<void>,
+    failWrites: () => call("failWrites") as Promise<void>,
     block: (ms) => call("block", ms) as Promise<void>,
     alive: () => alive(name),
   };

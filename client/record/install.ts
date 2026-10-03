@@ -1,12 +1,8 @@
-/**
- * Telemetry entry — patch WebTransport before any client module loads.
- * Plan §3 / ADR option G.
- */
+/** Telemetry entry — patch WebTransport before any client module loads. docs/telemetry/adr-instrument-clients-from-outside.md (option G) */
 
 import { proxyTransport } from "./proxy.ts";
-import { DEFAULT_RING_CAPACITY, ensureReport, getTap, setTap, Tap } from "./tap.ts";
+import { DEFAULT_RING_CAPACITY, setTap, Tap } from "./tap.ts";
 import type { TapConfig } from "./types.ts";
-export { wrapSession } from "./wrap-session.ts";
 
 export type InstallOptions = Partial<TapConfig> & {
   /** If false, skip patching (tests). Default true. */
@@ -29,17 +25,12 @@ export function install(opts: InstallOptions = {}) {
       opts.copies_source ??
       (arm === "transport-wasm"
         ? "source: session.rs RecvBuf::push_chunk + js_buffer_from"
-        : "source: session.ts ByteAccumulator.take"),
+        : "source: frame-session.ts ByteAccumulator.take"),
     ring_capacity: opts.ring_capacity ?? DEFAULT_RING_CAPACITY,
   };
   const tap = new Tap(config);
   setTap(tap);
-  (globalThis as unknown as { __wtpacsTap?: Tap }).__wtpacsTap = tap;
-
-  if (opts.patch === false) {
-    exposeGlobal(tap);
-    return tap;
-  }
+  if (opts.patch === false) return tap;
 
   if (!installed) {
     RealWebTransport = globalThis.WebTransport;
@@ -58,14 +49,7 @@ export function install(opts: InstallOptions = {}) {
     });
     installed = true;
   }
-
-  exposeGlobal(tap);
   return tap;
-}
-
-function exposeGlobal(tap: Tap) {
-  (globalThis as unknown as { __wtpacsTelemetry?: () => unknown }).__wtpacsTelemetry = () =>
-    tap.finish();
 }
 
 export function uninstall() {
@@ -77,10 +61,5 @@ export function uninstall() {
     });
   }
   setTap(null);
-  delete (globalThis as unknown as { __wtpacsTelemetry?: unknown }).__wtpacsTelemetry;
-  delete (globalThis as unknown as { __wtpacsTap?: unknown }).__wtpacsTap;
   installed = false;
 }
-
-export { ensureReport, getTap } from "./tap.ts";
-export type { TelemetryReport } from "./types.ts";

@@ -17,7 +17,7 @@ type SessionLike = {
 async function settle<T>(frameIndex: number, p: Promise<T>): Promise<T> {
   try {
     const result = await p;
-    getTap()?.onDelivered(frameIndex, "single");
+    getTap()?.onDelivered(frameIndex);
     return result;
   } catch (e) {
     // A refusal already closed the row from the control stream; this then finds no open row
@@ -49,7 +49,7 @@ export function wrapSession<T extends object & SessionLike>(session: T): T {
             from,
             to,
             (f) => {
-              getTap()?.onDelivered(f.frameIndex, "single");
+              getTap()?.onDelivered(f.frameIndex);
               onFrame(f);
             },
             (i, reason) => {

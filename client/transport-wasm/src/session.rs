@@ -81,11 +81,8 @@ fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
         .collect()
 }
 
-/// One `reader.read()`; `None` at end of stream.
-///
-/// The result is read through the typed `ReadableStreamReadResult` getters: a `Reflect::get`
-/// with a fresh `JsValue::from_str("done")` would encode that key across the boundary on
-/// every read, which showed up as `decodeText` in the browser profile (one read per chunk).
+/// One `reader.read()`; `None` at end of stream. Read through the typed getters: a `Reflect::get`
+/// with a fresh key string re-encodes that key across the boundary on every read.
 async fn reader_read_value(
     reader: &ReadableStreamDefaultReader,
 ) -> Result<Option<JsValue>, JsValue> {
@@ -105,7 +102,7 @@ async fn reader_read_bytes(
     }
 }
 
-/// Receive buffer with a read cursor — avoids per-frame `to_vec` + `drain` memmove (P4).
+/// Receive buffer with a read cursor — avoids per-frame `to_vec` + `drain` memmove.
 struct RecvBuf {
     data: Vec<u8>,
     pos: usize,
@@ -284,13 +281,15 @@ fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f6
 }
 
 /// A frame that will not arrive: the waiter rejects, or the fill's `onError` names it — the
-/// path a server `FrameError` takes. `client/transport-ts/session.ts` `failWaiter`.
+/// path a server `FrameError` takes. `client/transport-ts/frame-session.ts` `failWaiter`.
 fn fail_waiter(st: &Rc<RefCell<SessionState>>, index: u32, reason: &str) {
     let refused = {
         let mut s = st.borrow_mut();
-        s.errors.insert(index, reason.to_string());
         s.frame_errors += 1;
         let asked = s.waiters.remove(&index).is_some();
+        if asked {
+            s.errors.insert(index, reason.to_string());
+        }
         let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&index));
         if asked || !owed {
             None
@@ -370,6 +369,7 @@ struct SessionState {
     /// Set once the session is gone; a waiter armed after this would only reach the timeout.
     closed: Option<String>,
     dropped_early: u64,
+    /// The refusal an asked frame's waiter was dropped for, read by its `settle`.
     errors: HashMap<u32, String>,
     frame_errors: u64,
     wire: WireBuffers,
@@ -595,7 +595,7 @@ impl TransportSession {
     }
 
     /// Close the WebTransport session now. Without this the server only notices the session is
-    /// gone at the QUIC idle timeout (~30 s), which is what the telemetry harvest used to wait on.
+    /// gone at the QUIC idle timeout (~30 s).
     pub fn close(&self) {
         self.transport.close();
     }
@@ -667,24 +667,18 @@ fn result_to_js(
 ) -> Result<JsValue, String> {
     let timing = Object::new();
     set(&timing, "askMs", &JsValue::from(ask_ms))?;
-    set(&timing, "firstChunkMs", &JsValue::from(received_ms))?;
     set(&timing, "lastChunkMs", &JsValue::from(received_ms))?;
-    set(&timing, "chunks", &JsValue::from(1u32))?;
-    set(&timing, "serveUs", &JsValue::NULL)?;
 
     let result = Object::new();
     set(&result, "frameIndex", &JsValue::from(frame_index))?;
-    set(&result, "tier", &js_string("exact"))?;
-    set(&result, "codec", &js_string("htj2k"))?;
     set(&result, "bytes", &bytes)?;
     set(&result, "timing", &timing)?;
     Ok(result.into())
 }
 
 thread_local! {
-    /// The JS strings this module writes as keys or constant values, encoded once per thread.
-    /// `JsValue::from_str` re-encodes its argument across the boundary on every call, and at
-    /// twelve strings per delivered frame that was the `decodeText` line of the browser profile.
+    /// The JS strings this module writes as keys, encoded once per thread: `JsValue::from_str`
+    /// re-encodes its argument across the boundary on every call.
     static JS_STRINGS: RefCell<HashMap<&'static str, JsValue>> = RefCell::new(HashMap::new());
 }
 
