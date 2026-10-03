@@ -65,9 +65,10 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 | [`docs/decode/README.md`](docs/decode/README.md) | the decoder: builds, dispatch, warm-up, the range, the decode tail |
 | [`docs/disk-access/adr.md`](docs/disk-access/adr.md) | how the server reads frame bytes, and its deployment |
 | [`docs/rig-limits.md`](docs/rig-limits.md) | what the measurement hosts can and cannot claim |
+| [`lab/README.md`](lab/README.md) | which lab directory reproduces which claim; each lab README runs its cells — [`lab/page-open/README.md`](lab/page-open/README.md) the page open |
 | `docs/adr-*.md`, `docs/transport/adr-*.md`, `docs/telemetry/adr-*.md` | the decisions: stream shape, ask window, framing, stride, resolution fitting, what the server refuses to do, idle sessions, receive windows, telemetry |
 | [`docs/transport/upstream-*.md`](docs/transport/) | upstream drafts, not filed |
-| [`docs/cloud-queue.md`](docs/cloud-queue.md) | the live work queue |
+| [`docs/cloud-queue.md`](docs/cloud-queue.md) | the work queue, closed: its protocol, where each row's verdict lives, and the open owner decisions |
 
 Older campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`; every
 retired doc is in the history before the commit that folded it.
