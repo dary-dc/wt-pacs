@@ -3,7 +3,7 @@
  * frame's last byte reached the downloader and when its pixels reached the page, every frame
  * hashed against its source. run.mjs drives it. lab/av1/fill/README.md
  *
- *   ?arm=htj2k|av1|webcodecs&fill=N&wt=URL&hash=CERT_SHA256[&wc=av01…]
+ *   ?arm=htj2k|av1|webcodecs|EXT[@T][/D]&fill=N&wt=URL&hash=CERT_SHA256[&wc=av01…]
  */
 import { DownloaderClient } from "/client/downloader/consumer.js";
 
@@ -16,7 +16,15 @@ const DECODER = {
   av1: { decoder: { codec: "av1", glue: "/lab/.av1-build/out/simd.js",
     wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" } },
   webcodecs: { decoderWorker: "/lab/av1/speed/webcodecs-worker.js", decoder: { codec: "av1", webcodecs: q.get("wc") } },
-}[ARM];
+}[ARM] ?? dav1d(ARM);
+
+/** `EXT[@T][/D]`: dav1d-WASM, the threaded build with T threads when T is given, D decoders. */
+function dav1d(arm) {
+  const [, t, d] = arm.match(/^[^@/]+(?:@(\d+))?(?:\/(\d+))?$/);
+  const build = t ? "simd-mt" : "simd";
+  return { decoders: Number(d ?? 3), decoder: { codec: "av1", glue: `/lab/.av1-build/out/${build}.js`,
+    wasm: `/lab/.av1-build/out/${build}.wasm`, dir: "/lab/.av1-build/out", threads: Number(t ?? 1) } };
+}
 
 const at = () => performance.timeOrigin + performance.now();
 const frames = [];

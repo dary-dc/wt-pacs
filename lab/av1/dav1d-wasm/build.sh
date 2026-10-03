@@ -4,7 +4,8 @@
 #   lab/av1/dav1d-wasm/build.sh            # all arms
 #   ARMS="plain simd" lab/av1/dav1d-wasm/build.sh
 #
-# Arms: plain (scalar, one thread), simd (-msimd128, one thread), simd-mt (-msimd128 -pthread).
+# Arms: plain (scalar, one thread), simd (-msimd128, one thread), simd-mt (-msimd128 -pthread),
+# simd-prof (simd with function names, for a profile).
 # Nothing built is committed; everything lands under lab/.av1-build. lab/av1/dav1d-wasm/README.md
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -87,6 +88,7 @@ for arm in $ARMS; do
     plain) build_arm plain "" "" ;;
     simd) build_arm simd "-msimd128" "" ;;
     simd-mt) build_arm simd-mt "-msimd128 -pthread" "-sPTHREAD_POOL_SIZE=4" ;;
+    simd-prof) build_arm simd-prof "-msimd128" "--profiling-funcs" ;;
     *) echo "unknown arm $arm" >&2; exit 2 ;;
   esac
 done
