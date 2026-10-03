@@ -56,6 +56,12 @@ MR (11-bit, 3.5 mm) 1.034 → 1.062, ultrasound cine (RGB 8) 1.117 → 1.534; at
 (fluoroscopy's best group, G = 2, is 0.04 % under intra). Lossless JPEG XL, for reference, is
 0.83–0.93 of HTJ2K. CT and the cone-beam set need 13 bits — row DEPTH. Bytes therefore give G > 1
 no reason; the content measured is three series, none of them a contrast angiography run.
+*Tomosynthesis since (row CONTENT, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter still does
+not pay.* Two reconstructed volumes, 1 mm slices — the content where neighbours share most: the best
+group is 1.2 % larger than intra on the 12-bit volume and 0.6 % smaller on the 10-bit one (1.8 % at
+cpu6), against the fifth `adr-unit.md` §4 asks. Coded whole, AV1 is 1.043 of HTJ2K on the 12-bit
+volume and **0.977 on the 10-bit one — the first series where AV1 coded whole is smaller**; split
+top11+low, 0.943 and 0.946. Still no contrast angiography run: none is open.
 
 *What G = 1 costs an ask and a fill (SPEED's decode times × SIZE's bytes; arithmetic, not
 measured).* An ask is one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of
@@ -123,7 +129,8 @@ code whole it beats direct coding too — MR 0.990 against 1.034, fluoroscopy 0.
 Hi/lo bytes is the worst split (1.20–1.37). Two streams decode in the time of one (native dav1d,
 within the spread; the merge is 0.05 ms a 512² frame); the 12-bit stream needs dav1d — WebCodecs
 refuses 12-bit — while top10+low keeps every stream ≤ 10 bits at 0.994–1.071. Measured on 11- to
-13-bit data; a full 16-bit series is not. A split frame is two temporal units in one store entry:
+13-bit data, and by CONTENT on tomosynthesis: top11+low 0.943 (12-bit) and 0.946 (10-bit, against
+0.977 direct); a full 16-bit series is not. A split frame is two temporal units in one store entry:
 the store and the wire stay opaque, but this project's AV1 frame format and `decode-av1.js` change,
 which is a proposal for [`adr-unit.md`](adr-unit.md) — not written yet.
 
@@ -154,8 +161,9 @@ that count was not measured. The dav1d-WASM build is single-threaded. These are 
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never
 committed); a size verdict names its content. They are a CT stack, an MR stack, an RGB ultrasound
-cine, a 12-bit fluoroscopy run and a 16-bit cone-beam volume, all CC BY
-([`FIXTURES.md`](../FIXTURES.md) §AV1 data); no open angiography run was found.
+cine, a 12-bit fluoroscopy run, a 16-bit cone-beam volume and, from row CONTENT, two breast
+tomosynthesis volumes (12- and 10-bit), all CC BY ([`FIXTURES.md`](../FIXTURES.md) §AV1 data); no
+open angiography run was found, re-checked by CONTENT.
 
 **A5 — Preview.** The rule is that every frame ends bit-exact; a lossy picture shown first and
 replaced by the exact frame keeps it. Whether a lossy first picture is acceptable in the product is

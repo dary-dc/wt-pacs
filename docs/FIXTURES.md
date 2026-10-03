@@ -75,12 +75,12 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §A4). Five public series, fetched at run time from the NCI Imaging
+([`av1/README.md`](av1/README.md) §A4). Seven public series, fetched at run time from the NCI Imaging
 Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
 never committed:
 
 ```bash
-lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~205 MB fetched, 1¼ min here
+lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~476 MB fetched, 1¼ min here
 ```
 
 `lab/av1/data.json` pins every file's S3 key and SHA-256 and each set's frame digest;
@@ -88,8 +88,9 @@ lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~205 MB fetched
 with `NNN.sha256`, in the HTJ2K sets' convention: stored samples, little-endian, colour interleaved,
 signed as sign-extended int16. The set digest is the SHA-256 of the frames' hex digests
 concatenated in order. Stacks are ordered by position along the slice normal (uniform spacing,
-checked). Every frame was checked once against the file's `PixelData` bytes read directly, not
-through the DICOM library's pixel decoder: all 310 identical, and no sample carries bits above
+checked). A set may name a `crop` [y, x, h, w], kept from every frame. Every frame was checked once
+against the file's `PixelData` bytes read directly, not through the DICOM library's pixel decoder:
+all 363 identical, and no sample carries bits above
 `BitsStored`. Dependencies: pydicom 3.0.1 and numpy 2.4.6, installed with `--require-hashes` from
 `lab/av1/requirements.txt`.
 
@@ -100,14 +101,22 @@ through the DICOM library's pixel decoder: all 310 identical, and no sample carr
 | `us_liver` | ultrasound cine, liver B-mode/CEUS | 70 × 760×421 | 3 × 8-bit RGB | 0..255 | B-mode-and-CEUS-Liver, CC BY 4.0 |
 | `rf_fluoro` | fluoroscopy, barium, 2 frames/s | 18 × 768² | 12 of 16 bits, unsigned | 26..3984 | VAREPOP-APOLLO, CC BY 4.0 |
 | `xa_dynact16` | cone-beam CT from a rotational angiography run, 64 contiguous of 386 slices, 0.49 mm | 64 × 512² | 16-bit unsigned | 0..7364 | CMB-AML, CC BY 4.0 |
+| `dbt12_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm | 29 × 614×1359 | 12 of 16 bits, unsigned | 0..2690 | EA1141, CC BY 4.0 |
+| `dbt10_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm, cropped to the breast | 24 × 678×1727 of 1890×2457 | 10 of 16 bits, unsigned | 0..1012 | EA1141, CC BY 4.0 |
 
 * **Ranges are measured, not the header's.** 21.5 % of `ct_lidc`'s samples are −2048, the pad
   outside the reconstruction circle; the rest span −1097..3746, so the set needs 13 bits after
   any offset, pad or not. `xa_dynact16` needs 13; `mr_ispy1` is signed by its header and holds no
   negative sample.
-* **No angiography run is open here.** IDC holds no multi-frame XA under CC BY; `rf_fluoro` is the
-  nearest X-ray sequence (a slow fluoroscopy run, not a contrast run at 15–30 frames/s), and
+* **No angiography run is open here.** IDC holds no multi-frame XA under CC BY (re-checked for
+  row CONTENT: every XA series but `xa_dynact16`'s volume is single frames, mostly monitor
+  captures); `rf_fluoro` is the nearest X-ray sequence (a slow fluoroscopy run, not a contrast run at 15–30 frames/s), and
   `xa_dynact16` is a reconstructed volume, kept for its depth. A verdict on angiography says so.
+* **The tomosynthesis volumes** are each the reconstructed slices of one view, from two different
+  reconstruction systems, uncompressed in the file. `dbt10_ea1141`'s crop is the bounding box of
+  its non-zero samples over all slices: everything outside it is 0 (checked), so it drops only
+  background. Only the slice volume of each series is taken, not its slab or 2-D companions. A
+  non-commercial screening tomosynthesis collection exists in IDC (CC BY-NC 4.0); not used.
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
   archived is not known (not checked). It is what an archive serves, not a probe's raw output.
 * TCIA's own API, Zenodo and PhysioNet are refused by this container's network policy; IDC mirrors
@@ -118,7 +127,8 @@ LIDC-IDRI [10.7937/K9/TCIA.2015.LO9QL9SX](https://doi.org/10.7937/K9/TCIA.2015.L
 [10.7937/K9/TCIA.2016.HdHpgJLK](https://doi.org/10.7937/K9/TCIA.2016.HdHpgJLK), B-mode-and-CEUS-Liver
 [10.7937/TCIA.2021.v4z7-tc39](https://doi.org/10.7937/TCIA.2021.v4z7-tc39), VAREPOP-APOLLO
 [10.7937/GHKN-MD15](https://doi.org/10.7937/GHKN-MD15), CMB-AML
-[10.7937/PCTE-6M66](https://doi.org/10.7937/PCTE-6M66) — reached through the NCI Imaging Data
+[10.7937/PCTE-6M66](https://doi.org/10.7937/PCTE-6M66), EA1141
+[10.7937/2BAS-HR33](https://doi.org/10.7937/2BAS-HR33) — reached through the NCI Imaging Data
 Commons. The licence is IDC's per-series `license_short_name`, read for each series chosen; the
 full citation each collection asks for is on its DOI page, which this container could not reach.
 Series UIDs are in `data.json`. Frames derived from these sets (their AV1 or HTJ2K codings) carry

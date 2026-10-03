@@ -141,8 +141,13 @@ Bytes over HTJ2K's (lower is better); HTJ2K's own bytes over raw in brackets:
 | | | | cpu6 | 1.747 | 1.650 | 1.615 | 1.594 | 1.584 | 1.579 | 1.572 |
 | `ct_lidc`, 100 × 512², 13 bits signed | 16.36 MB (0.312) | 0.831 | — | DEPTH | | | | | | |
 | `xa_dynact16`, 64 × 512², 13 bits | 14.81 MB (0.441) | 0.913 | — | DEPTH | | | | | | |
+| `dbt12_ea1141`, 29 × 614×1359, 12-bit tomosynthesis, 1 mm | 14.48 MB (0.299) | 0.917 | cpu0 | **1.043** | 1.056 | 1.062 | 1.066 | 1.068 | — | 1.068 |
+| | | | cpu6 | 1.071 | 1.071 | 1.072 | 1.071 | 1.071 | — | 1.071 |
+| `dbt10_ea1141`, 24 × 678×1727, 10-bit tomosynthesis, 1 mm | 13.64 MB (0.243) | 0.851 | cpu0 | 0.977 | 0.974 | 0.978 | 0.974 | 0.973 | — | **0.971** |
+| | | | cpu6 | 0.996 | 0.987 | 0.982 | 0.980 | 0.979 | — | 0.978 |
 
-**On every real series AV1 is larger than HTJ2K, and inter coding collects nothing.** At the
+**On every real series AV1 is larger than HTJ2K, and inter coding collects nothing** — *corrected
+by CONTENT (below): the 10-bit tomosynthesis is the one series where AV1 coded whole is smaller.* At the
 slowest preset intra is the smallest AV1 coding of each set but fluoroscopy, where G = 2 is 0.04 %
 smaller; a group costs up to 37 % more than intra on the ultrasound. Two checks against the
 settings: on the ultrasound (8-bit, where alt-ref is exact) alt-ref on gives 1.572 at G = 8 and
@@ -153,6 +158,14 @@ The synthetic sets (16 frames, row TOOL's; independent noise in every frame, so 
 for completeness: grey 8 AV1 0.91–0.93 of HTJ2K (SVT-AV1 0.91–0.94), grey 10 1.10–1.12, grey 12
 1.27–1.31, odd-sized grey 12 1.27–1.30; `cine` RGB 8, posterised to three levels, is screen
 content — AV1 intra 0.055, JPEG XL 0.039 of HTJ2K — and the real ultrasound goes the other way.
+
+**Tomosynthesis (queue row CONTENT).** Two reconstructed volumes, 1 mm slices, from two
+reconstruction systems ([`docs/FIXTURES.md`](../../docs/FIXTURES.md) §AV1 data) — the content
+where neighbouring frames share most, and still **inter collects at most 1.8 %**: the best group
+against intra is 1.2 % *larger* on the 12-bit volume (G = 2, cpu0) and 0.6 % smaller on the 10-bit
+one (whole volume, cpu0; 1.8 % at cpu6). On the 10-bit volume AV1 is under HTJ2K at every G, by
+2–3 % at cpu0 — the first series where AV1 coded whole is; SVT-AV1 intra there 0.988 (preset 0) and
+1.046 (8). The 12-bit volume is 4–7 % over. Every coding exact (30/30, each group decoded alone).
 
 **Encode time** (an ingest cost; single runs on this container's 4 cores, the ultrasound sharing
 them with the synthetic run): AV1 intra at cpu0 7.6, 2.4 and 7.9 s a frame on fluoroscopy, MR and
@@ -171,6 +184,8 @@ negative, then needs `bit_length(max + offset)` bits — measured per series, ne
 | --- | --- | --- | --- | --- | --- |
 | `ct_lidc` | 16-bit signed | −2048..3746 (−1097..3746 without the pad) | +2048 | 13 | no |
 | `xa_dynact16` | 16-bit unsigned | 0..7364 | 0 | 13 | no |
+| `dbt12_ea1141` | 12 of 16 bits | 0..2690 | 0 | 12 | yes, at 12 bits (Professional) |
+| `dbt10_ea1141` | 10 of 16 bits | 0..1012 | 0 | 10 | yes, at 10 bits |
 | `mr_ispy1` | 16-bit signed, no negative sample | 0..1765 | 0 | 11 | yes, at 12 bits (Professional) |
 | `rf_fluoro` | 12 of 16 bits | 26..3984 | 0 | 12 | yes, at 12 bits (Professional) |
 
@@ -180,7 +195,8 @@ python3 lab/av1/depth.py lab/.av1-build lab/.av1-work/depth OUT.tsv 15 lab/av1/d
 
 `depth.py` splits each sample v (after the offset; b = 13 for every set here) into planes, codes
 each as a 4:0:0 intra stream with libaom 3.15.1 (cpu0 and cpu6, `--lossless=1`), decodes them with
-dav1d and merges; every merged frame matched its checksum (44/44 cells).
+dav1d and merges; every merged frame matched its checksum (44/44 cells; with the two
+tomosynthesis sets of row CONTENT, run with 0 rounds — bytes only, not timed — 68/68).
 
 | split | planes (stream bits) | merge |
 | --- | --- | --- |
@@ -197,19 +213,23 @@ Bytes over HTJ2K's (SIZE's served profile), cpu0 (cpu6):
 | --- | --- | --- | --- | --- | --- | --- |
 | `ct_lidc` | — | 1.199 (1.243) | 0.927 (0.938) | **0.918 (0.927)** | 0.994 (1.002) | 0.980 (1.009) |
 | `xa_dynact16` | — | 1.336 (1.365) | 1.075 (1.102) | **0.997 (1.015)** | 1.000 (1.011) | 1.184 (1.218) |
+| `dbt12_ea1141` | 1.043 (1.071) | 1.269 (1.303) | 0.970 (0.986) | **0.943 (0.948)** | 0.990 (0.993) | 1.043 (1.071) |
+| `dbt10_ea1141` | 0.977 (0.996) | 1.038 (1.060) | 0.950 (0.958) | **0.946 (0.952)** | 1.029 (1.036) | 0.978 (0.996) |
 | `mr_ispy1` | 1.034 (1.058) | 1.069 (1.091) | 1.000 (1.009) | **0.990 (0.997)** | 1.071 (1.077) | 1.034 (1.058) |
 | `rf_fluoro` | 1.024 (1.039) | 1.263 (1.287) | 0.967 (0.973) | **0.946 (0.950)** | 0.999 (1.002) | 1.024 (1.039) |
 
 **Coding the two lowest bits apart is smaller than coding the sample whole** — on every set,
 including the two AV1 can code directly (MR 0.990 against 1.034, fluoroscopy 0.946 against 1.024),
-and it is the only AV1 coding here below HTJ2K. Why libaom codes the bits better apart is not
+and on every set but the 10-bit tomosynthesis it is the only AV1 coding below HTJ2K. Why libaom codes the bits better apart is not
 established. Splitting off three bits gives back the gain but keeps every stream at ≤ 10 bits; hi/lo
-bytes, the obvious split, is the worst (1.20–1.37). Measured on 11- to 13-bit data only: what
+bytes, the obvious split, is the worst (1.04–1.37). A set under 13 bits is split as if it were
+13 (the 10-bit volume's top11 is v ≫ 2, 8 bits in a 12-bit stream), and the gain holds on 10-bit
+tomosynthesis too: 0.946 against 0.977 direct. Measured on 10- to 13-bit data only: what
 top11+low costs on a full 16-bit series (a 5-bit low plane) is not.
 
 **What each costs the decoder.** Native dav1d 1.5.4 (its assembly on), one thread, a whole cpu6
 stream a process with its start-up, output discarded; ms a frame summed over a split's streams,
-median [min–max], n = 15, arms interleaved per set; container numbers:
+median [min–max], n = 15, arms interleaved per set; container numbers (tomosynthesis not timed):
 
 | set | direct | hi8+lo8 | top12+low | top11+low | top10+low | low12+top |
 | --- | --- | --- | --- | --- | --- | --- |
