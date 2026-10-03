@@ -267,10 +267,7 @@ fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f6
         }
         match s.fill.as_ref() {
             Some(f) if owed => Some((f.ask_ms, f.on_frame.clone())),
-            _ => {
-                s.dropped_early += 1;
-                None
-            }
+            _ => None,
         }
     };
     if let Some((ask_ms, on_frame)) = push {
@@ -285,7 +282,6 @@ fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f6
 fn fail_waiter(st: &Rc<RefCell<SessionState>>, index: u32, reason: &str) {
     let refused = {
         let mut s = st.borrow_mut();
-        s.frame_errors += 1;
         let asked = s.waiters.remove(&index).is_some();
         if asked {
             s.errors.insert(index, reason.to_string());
@@ -368,10 +364,8 @@ struct SessionState {
     fill: Option<Fill>,
     /// Set once the session is gone; a waiter armed after this would only reach the timeout.
     closed: Option<String>,
-    dropped_early: u64,
     /// The refusal an asked frame's waiter was dropped for, read by its `settle`.
     errors: HashMap<u32, String>,
-    frame_errors: u64,
     wire: WireBuffers,
     /// `performance.now()` of the last byte any stream delivered: what a dead path stops moving.
     last_byte_ms: f64,
@@ -605,12 +599,6 @@ impl TransportSession {
         let out = Object::new();
         set(&out, "closed", &s.closed.as_deref().map_or(JsValue::NULL, JsValue::from_str))?;
         set(&out, "inFlight", &JsValue::from(s.waiters.len() as u32))?;
-        set(
-            &out,
-            "droppedEarlyMedia",
-            &JsValue::from(s.dropped_early as f64),
-        )?;
-        set(&out, "frameErrors", &JsValue::from(s.frame_errors as f64))?;
         set(&out, "lastByteAt", &JsValue::from(s.last_byte_ms))?;
         Ok(out.into())
     }

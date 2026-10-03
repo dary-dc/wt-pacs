@@ -90,8 +90,6 @@ class WireBuffers {
 export abstract class FrameSession {
   private waiters = new Map<number, Waiter>();
   private fill: Fill | null = null;
-  private droppedEarly = 0;
-  private frameErrors = 0;
   /** `performance.now()` of the last byte any stream delivered: what a dead path stops moving. */
   private lastByteAt = 0;
   private reads = 0;
@@ -154,14 +152,11 @@ export abstract class FrameSession {
     }
     if (fill && owed) {
       fill.onFrame(toResult(frameIndex, fill.askMs, bytes, receivedMs));
-      return;
     }
-    this.droppedEarly += 1;
   }
 
   protected failWaiter(frameIndex: number, reason: string) {
     const w = this.waiters.get(frameIndex);
-    this.frameErrors += 1;
     const owed = this.fill?.pending.delete(frameIndex) ?? false;
     if (!w) {
       if (owed) this.fill?.onError(frameIndex, reason);
@@ -272,8 +267,6 @@ export abstract class FrameSession {
     return {
       closed: this.closedReason,
       inFlight: this.waiters.size,
-      droppedEarlyMedia: this.droppedEarly,
-      frameErrors: this.frameErrors,
       lastByteAt: this.lastByteAt,
       mediaReads: this.reads,
     };

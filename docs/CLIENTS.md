@@ -25,11 +25,13 @@ and the downloader takes any module exporting `TransportSession` as `config.tran
 | `fillFrames(from, to, onFrame, onError?)` | a fill **pushed** as it lands, no waiter per frame — §Fills are pushed |
 | `endStream()` | **stop a running fill without ending the session** |
 | `releaseWireBuffer(buffer)` | hand a delivered frame's buffer back to the session's ring ([`decode/README.md`](decode/README.md) §The wire buffer ring) |
-| `stats()` / `close()` | `closed`, `inFlight`, `droppedEarlyMedia`, `frameErrors`, `lastByteAt`, … / end the session now |
+| `stats()` / `close()` | `closed`, `inFlight`, `lastByteAt`, … / end the session now |
 
 A `FrameResult` is `{ frameIndex, bytes, timing: { askMs, lastChunkMs } }`, times in
 `performance.now()` milliseconds. *Corrected 2026-10-03:* it also carried `tier`, `codec`,
-`firstChunkMs`, `chunks` and `serveUs`, constants nobody read; both clients dropped them.
+`firstChunkMs`, `chunks` and `serveUs`, constants nobody read; both clients dropped them, and
+`stats()` its `droppedEarlyMedia` and `frameErrors` counters, which nothing read (code:
+`git show archive/arms-2026-10-03:client/transport-ts/frame-session.ts`).
 
 **Where the implementations differ**, and the conformance adapters are the only code that knows:
 `endStream` is a promise in TypeScript and synchronous in WASM; the WASM handle is exported as
@@ -226,8 +228,7 @@ no client sends since 2026-10-03, is not that: the server serves it index by ind
 ask behind a 200-frame batch waits for all 200. A pushed fill is how an ask gets the wire.
 
 **The shape.** The session keeps one fill: the set still owed, the ask time and the callbacks. A
-frame that lands and is owed goes straight to `onFrame`; one outside the fill is dropped and
-counted in `droppedEarlyMedia`. No waiter and no timer per frame. A frame *asked* during the fill
+frame that lands and is owed goes straight to `onFrame`; one outside the fill is dropped. No waiter and no timer per frame. A frame *asked* during the fill
 keeps its own waiter and wins — it settles the ask's promise and is not pushed as well.
 `endStream()` or a later `fillFrames` drops what is still owed, leaving nothing armed. A refused
 range is one `frame_error` at `from`, delivered to `onError`.
