@@ -166,7 +166,7 @@ different route — `serve_batch` was a `for` loop with an `.await`.
 ### What it costs
 
 16 tiles of 16 KiB, all missing the page cache. Depths 1, 4 and 16 are
-[`disk-access/v32_depth.tsv`](disk-access/v32_depth.tsv); **depth 2 — the only depth the
+`v32_depth.tsv` (`git show 2a14c47^:docs/disk-access/v32_depth.tsv`); **depth 2 — the only depth the
 shape below reaches — was measured on 2026-09-08**,
 `v35_depth2.tsv` at tag `read-path-evidence-2026-09-09`, 12 interleaved repeats, paired
 by repeat:

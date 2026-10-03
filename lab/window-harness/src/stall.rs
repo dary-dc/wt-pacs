@@ -1,4 +1,4 @@
-//! The pathological client: asks a lot, stops reading, stays connected. mem/stall-client.md §3.1.
+//! The pathological client: asks a lot, stops reading, stays connected. docs/transport/transport-conclusions.md §3.
 
 use crate::metrics::RunConfig;
 use anyhow::{Context, Result};

@@ -94,7 +94,8 @@ message: it implies a capability that does not exist.
 
 ## 5 · Consequences for the code
 
-`server/src/transport/queue.rs` is 209 of the product server's 562 lines. With cancel rejected and
+The ask queue (`server/src/transport/queue.rs`, removed in `1268091`) was 209 of the product server's
+562 lines. With cancel rejected and
 ordering rejected, it earns nothing measurable. The remaining argument for holding asks server-side is
 a **cap on outstanding work**, which is robustness, not priority — and a serial loop already bounds it,
 because unread asks are bounded by QUIC stream flow control and each is served to completion before the
