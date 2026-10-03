@@ -62,6 +62,13 @@ Neither is assumed faster or exact:
 * one decoder for everything is the simplest shape; a second path earns its place by a measured
   win, interleaved, on the frames it would serve.
 
+**dav1d in WASM is exact** (row WASM, [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)):
+dav1d 1.5.4 under emscripten 3.1.74, scalar, `-msimd128` and `-msimd128 -pthread` (four threads),
+matches the native dav1d CLI and a second native build with assembly on every frame of 12 lossless
+streams — 8/10/12-bit 4:0:0 and 4:4:4 identity, intra and G = 8 — one picture per temporal unit at a
+frame delay of 1. 546 KB `.wasm` scalar, 623 KB with SIMD (219 and 238 KB gzipped). Decode time is
+row SPEED's; nothing here says it is fast enough.
+
 Rows WCAP (what WebCodecs supports and returns exactly), WASM (the dav1d build) and SPEED decide it.
 
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
@@ -86,12 +93,15 @@ repository** and are recorded only so the queue tests them rather than rediscove
   grey came back wrong on P-frames (up to 38 of 6.3 M samples, |Δ| ≤ 11), the same from two
   independent decoders — so the encoder, not a decoder. Intra-only was exact up to 12 bits; 3.14.1
   passed its own lossless cases, but the failing grey clips were never re-run on it.
+  *Reproduced here* with the same 3.8.2 through ffmpeg: inter (G = 8) 10- and 12-bit grey and 12-bit
+  4:4:4 inexact (up to 15 904 of 1 M samples, |Δ| ≤ 11), three decoders agreeing — [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md).
 * **WebCodecs on Chromium returned no frames from lossless streams** (Main 4:2:0 and High 4:4:4,
   8-bit), with `isConfigSupported` answering true; whether that was the probe's packaging was not
   settled.
 * **dav1d in WASM decoded an 8-bit 4:4:4 clip exactly** in a browser over WebTransport (dav1d 1.5.0,
   no SIMD, one thread). Nothing above 8 bits or 4:0:0 was decoded in WASM, and no WASM decode time
   was taken.
+  *Superseded here*: 8/10/12-bit, 4:0:0 and 4:4:4, SIMD and threads, exact (§A2).
 * **Decode cost is the risk to watch**: on a desktop, through a subprocess (pessimistic), AV1 took
   12–14 ms a frame against HTJ2K's 1.2. The fill here is decoder-bound, so a slower decoder costs
   the fill directly, whatever it saves on the wire.

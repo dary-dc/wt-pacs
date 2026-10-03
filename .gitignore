@@ -51,6 +51,8 @@ lab/fixtures/frames_32k_big/*.sbnd
 # Large lab fixture, regenerate with the snippet in its README
 lab/fixtures/frames_500x64k/*.sbnd
 lab/fixtures/frames_500x250k/*.sbnd
+# AV1 tools, builds and streams (lab/av1)
+lab/.av1-build/
 # Generated decode fixtures (regenerate with lab/scripts/gen_htj2k_fixtures.sh)
 lab/fixtures/decode_*/*.j2c
 lab/fixtures/decode_*/*.sha256

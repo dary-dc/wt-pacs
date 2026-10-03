@@ -110,8 +110,11 @@ round trip. The client already owns which frames it wants; the group is that dec
 * **One decoder state per decoder worker.** A decoder holds one group at a time: a new keyframe
   replaces the state (a keyframe with its sequence header resets references). The decoder must hand
   a frame back for every frame it is given — no frame delay held for reordering — so the AV1 module
-  runs dav1d with a frame delay of 1 and lossless streams are coded without reordered frames; row
-  WASM checks both.
+  runs dav1d with a frame delay of 1. *Corrected by row WASM:* libaom's lossless inter streams are
+  coded **with** hidden alt-reference frames (a temporal unit carries up to 3 frames), and that is
+  harmless — every temporal unit still shows exactly one frame and dav1d at a frame delay of 1 hands
+  it back before the next goes in ([`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)). What
+  it changes is size: a group's bytes are not even across its frames.
 * **The fill's order** is still ascending, one `stream_frames` run. Groups land one after another on
   the shared stream, so the first G frames decode serially on one decoder: frame G−1 of a fill shows
   after about G decodes, not one. Decoders run in parallel across groups only, so parallelism is at
@@ -169,7 +172,7 @@ unchanged; the server stays codec-blind.
 | decode time per frame, dav1d-WASM and WebCodecs against OpenJPH, n ≥ 15, interleaved | SPEED (9) | whether G = 1 alone is affordable — the fill is decoder-bound |
 | an ask's cost at G: bytes and serial decodes from k to N, mean (G + 1)/2 frames | SIZE × SPEED | the latency a mid-group ask pays, against today's one decode |
 | the fill's decode time with `min(decoders, groups)` in parallel and the first G serial | SPEED | the fill's cost of affinity |
-| a frame delay of 1 and no reordered frames in the lossless streams | TOOL (1), WASM (4) | that a decoder returns one frame per frame given |
+| a frame delay of 1 returns one frame per temporal unit, hidden frames or not | WASM (4): **yes**, dav1d-WASM, threads on and off | that a decoder returns one frame per frame given |
 
 **The rule to choose by, proposed for the owner's review and set before the numbers:** G > 1 is adopted for a content only if its bytes
 fall by at least a fifth against AV1 intra *and* against HTJ2K on that content, and the mid-group
