@@ -7,8 +7,8 @@ page. Below it the transport is a seam — TypeScript, WASM or WebSocket — who
 measured and chosen, and what is open.
 
 **Status.** Built in `client/downloader/`, run by `client/harness/downloader.html`, beside the
-harness's own path; removing that path waits on the browser campaign against the baseline, not yet run
-on this head. Figures are a container's unless they say otherwise; none is a phone
+harness's own path. The comparison rig has run it as its default client since 2026-09-20; removing the
+harness's path is an owner decision (§Open), not yet measured on this head. Figures are a container's unless they say otherwise; none is a phone
 ([`rig-limits.md`](rig-limits.md) §7).
 
 ## Why a downloader
@@ -466,6 +466,29 @@ trips and is 2.1–2.5 with lever 2; everything a page spends before it is
 of a cold open, not the dial: the session and the worker complete only at activation
 ([`rig-limits.md`](rig-limits.md) §8; Chromium only).
 
+**Every page-open lever, in round trips**: slopes against the link's round trip, headless Chromium
+through the relay. "po §" is a section of [`../lab/page-open/README.md`](../lab/page-open/README.md),
+"§" one of this file.
+
+| lever | round trips | state | where |
+| --- | --- | --- | --- |
+| `preload` the config, `modulepreload` the shell and client, `preload` the worker graph | −3.1 / −5.1 / −6.2 to the session (TypeScript / WASM / downloader) | in `index.html`, `ts.html` and the lab's `downloader.html`; not in `client/harness/downloader.html` | po §The cuts, one at a time |
+| the server's SETTINGS at 0.5 RTT (lever 2) | −1.0 off the dial, every cell | **on**, a build-time patch | §Lever 2 |
+| a handshake probe in every space | −1 when the server's first flight is lost | **on**, a build-time patch | §The losing phase, removed |
+| the opening ask in the session URL (lever 1) | −1.06 to the first frame at 1×, −1.52 at 4× | **on** since 2026-10-02 | po §The push in a browser, at 4× |
+| the transport URL in the page, no config fetch | a further −1.24 at 1×, −0.73 at 4× | opt-in | po §The dial before the config |
+| the page carrying the worker graph and the consumer (`page`) | a further −1.02 to the session, −1.14 to the first frame, on HTTP/2 | opt-in; a bundle or a blob alone moves nothing on HTTP/2 | po §The worker graph's boot |
+| HTTP/2 from the static host | the config's round trip: 2.15 → 0.9 cold | opt-in; the template serves HTTP/1.1 | po §The first frame on a real host |
+| an HTTPS DNS record with `alpn=h3` | −1.06 to every milestone | needs an HTTP/3 static host | §What production adds |
+| `dns-prefetch` naming the transport's origin and port | −1.0 off the dial, when the transport shares the page's host | opt-in | §What production adds |
+| an ECDSA certificate, not RSA-2048 | avoids +1 on every cold open and reconnect | deploy advice | §What production adds |
+| gzip; the order the page's files leave in; the worker graph un-gated from the config | 0 | gzip **on** in the template; the others not built | po §Compression and cache headers, §The order the page's files leave in, §The first byte on a fill |
+
+A head-script dial reaches the session ~2 round trips sooner still, but Chromium cannot hand a
+`WebTransport` to a worker, so it is a ceiling, not a shape a page can ship (po §The dial before the
+config). Which opt-in rows to take is an owner decision ([`cloud-queue.md`](cloud-queue.md) §Open owner
+decisions).
+
 ### What production adds
 
 The counts above use this tree's dev dial: a self-signed 450 B leaf pinned by hash. **Before it has
@@ -903,8 +926,9 @@ drops UDP, the race's time to ready against the four seconds.
 
 ## Open
 
-* **Adoption.** The browser campaign against the baseline on this head; removing the harness's path
-  follows it.
+* **The downloader as the only client**, and with it the harness's page path and the `window` default
+  ([`adr-client-window-depth.md`](adr-client-window-depth.md)): an owner decision, structural, so
+  proposed before it is built.
 * **The decoder count**: `min(3, hardwareConcurrency)` or a pool that follows the queue, neither the
   default (§The decoders); a phone's scheduler (efficiency cores) and decode speed.
 * **The reader pause** that bounds the compressed queue (§The downloader) — not built.
@@ -921,8 +945,8 @@ drops UDP, the race's time to ready against the four seconds.
 * **Survival on a device**: the Wi-Fi → cellular freeze and what the page sees; the triggers where a
   radio change and `freeze` are real; the screen-lock pair; whether 5 s suits a dial on a phone.
   Detection of a dead *idle* session with a server idle timeout below 30 s is not measured.
-* **Lever 1 as a default** (a non-contiguous first fill; a host other than this box's relay), and **the
-  TCP fallback** (the device check before enabling, the recycling cost, the shaped A/B).
+* **Lever 1 beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
+  check before enabling, the recycling cost, the shaped A/B).
 
 ## Looked at and dropped
 
