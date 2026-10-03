@@ -288,6 +288,22 @@ unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot 
 is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
 samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
 
+## Threads (owner, 2026-10-03)
+
+**Focus: AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
+use, and where the learning is. Active threads are queue rows 24–29 ([`queue.md`](queue.md)).
+
+**Parked, kept for the decision later** — every result stays in its row and in §A1–A5:
+
+* **A lossy AV1 preview plus an HTJ2K residual** (row 17): the exact frame at 0.947–1.002 of HTJ2K
+  alone, the preview costing nothing in bytes; decode 1.3–1.9× HTJ2K through WebCodecs.
+* **A separate lossy AV1 preview, then exact HTJ2K** (row 12): playable 14–124× sooner on 5 Mbit/s
+  (arithmetic over measured bytes and decode), +0.8–7 % bytes.
+* **Embedded intra codecs** (row 22): JPEG 2000 quality layers (preview inside the exact payload,
+  0.93–0.96 of HTJ2K's bytes, exact decode 6–12× slower); progressive lossless JPEG XL.
+* **LCEVC** (row 19): closed until an open encoder exists and the decoder returns samples; cannot end
+  exact at 14 bits.
+
 ## Prior evidence, not reproduced here
 
 An earlier private proof of concept measured parts of this. Its numbers are **not measured in this
