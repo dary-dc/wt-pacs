@@ -73,6 +73,9 @@ and its branch belong to other work.
 | 27 | **DECSPEED** — the decode is what loses on a phone: encoder settings and decoder threads that cut it, lossless kept | claimed 2026-10-03 |
 | 28 | **LLSIZE** — closing lossless AV1's byte gap to HTJ2K with AV1 alone | claimed 2026-10-03 |
 | 29 | **SWEEP** — AV1-only options nobody has listed yet: a read-only identification sweep | claimed 2026-10-03 |
+| 30 | **WCLAT** — WebCodecs with `optimizeForLatency`: a frame out per unit without a flush, groups through WebCodecs, and tiles | ready |
+| 31 | **WCBASE** — the base operating point of a scalable payload through WebCodecs, by dropping the top's OBUs | ready |
+| 32 | **AV2** — AVM v1.0.0 lossless: bytes and decode against libaom 3.15.1 and HTJ2K | ready |
 
 ## Briefs
 
@@ -417,6 +420,41 @@ what it is, why it might help here, the measurement that would decide it, and wh
 run it. Answer in `README.md` (a new §Options to try) and add each worthwhile one as a new `ready` row
 at the bottom of this table with a brief.
 
+### 30 WCLAT
+
+README §Options to try: Chromium maps `optimizeForLatency: true` to dav1d's `max_frame_delay = 1`;
+without it dav1d holds frames (WCAP's two before `flush()`), and `decode-av1-webcodecs.js` flushes
+every unit. In the lab first (row 3's and row 20's harness, headless Chromium 141): does a unit give
+its frame with `optimizeForLatency` and no flush, on every depth and layout WebCodecs takes exactly,
+intra and G = 8; the decode time a frame, flush per unit against none, interleaved, 1× and 4×; the
+same with tiled lossless frames (2 and 4 tile columns, libaom 3.15.1), since Chromium gives dav1d 2–4
+tile threads by coded height, bytes reported per tiling. If it holds, build the smallest change
+behind the decoder module (G > 1 through WebCodecs, row 20's open item), conformance as row 20's,
+mutated, gate green. Verdict: frames without a flush, yes or no, and the time per frame it saves.
+
+### 31 WCBASE
+
+README §Options to try: WebCodecs cannot choose an operating point, but every OBU of a scalable
+payload carries its `spatial_id`, and dav1d at `all_layers = 0` (Chromium's setting) outputs the
+highest layer it holds at the end of a unit or on a flush. Using row 18's two-layer streams
+(fluoroscopy, MR, ultrasound, synthetic): feed WebCodecs each unit with the OBUs of `spatial_id` > 0
+dropped, flushed; check the base comes out at its own size, identical sample for sample to native
+dav1d at the base's operating point, then the whole unit through a decoder that took it whole, exact
+against the source. Time the base out against dav1d-WASM's base (row 24's path where built, else
+`operating_point` set in the lab build), interleaved, 1× and 4×. Mutate the filter (keep a top OBU,
+drop a base one) and watch it fail. Verdict: base through WebCodecs, exact to native, and its time.
+
+### 32 AV2
+
+README §Options to try: AVM v1.0.0 (tag `v1.0.0`, commit `966a7d7`), the AV2 reference software, has
+a lossless mode, monochrome and 10/12-bit coding. Licence and patent terms into
+[`licensing.md`](licensing.md) before it is built. Build it pinned in `lab/av1/tools.sh`; code the
+series of rows 2, 10 and 21 losslessly, intra and at the best G of row 6, at the slowest preset and a
+practical one, grey as 4:0:0, RGB as 4:4:4 identity, over 12 bits split as row 7 found; every frame
+exact through AVM's own decoder against the generator's checksums. Bytes against libaom 3.15.1's and
+HTJ2K's on the same frames, encode and native decode time a frame, interleaved. No browser decoder
+exists: say so, and do not build one. Verdict: AV2's lossless bytes over AV1's and HTJ2K's per series.
+
 ## Blocked
 
 * **A contrast angiography run (row 10).** No open one is reachable: every XA series in the NCI
@@ -434,3 +472,9 @@ at the bottom of this table with a brief.
   `drive.google.com`. The owner decides whether to allow one, and which dataset and licence to
   take. IDC also holds an in-silico tomosynthesis collection (VICTRE, CC BY 3.0, simulated
   projections and volumes); not used, since the question is about real content.
+* **Phone hardware decoders (row 29).** Whether a phone's AV1 decoder takes lossless frames and
+  returns them exactly needs phones; a container has none. From source only: Android's public API
+  names AV1 Main 8/10-bit only, and its performance class guarantees a hardware Main 10 decoder at
+  level 4.1, under the tomosynthesis projections' picture size; WebKit's in-process WebCodecs AV1
+  path refuses all but 8-bit 4:2:0 (README §Options to try). The owner decides whether to source
+  devices — which phones, and whether through a hosted device service — and the row follows.
