@@ -273,11 +273,12 @@ mode. 12-bit 4:4:4 behaves alike on 3.8.2; 3.15.1's `aomenc` cannot encode it at
 encode of row DATA's series re-checks exactness on real content.
 
 **Encode cost (row ENC; [`lab/av1/README.md`](../../lab/av1/README.md) §ENC).** libaom 3.15.1
-lossless on one uncontended container core: the slowest preset takes 3.0–10.1 s a frame; the fastest
-within 2 % of its bytes 0.35–0.91 s (1.1–2.9 frames/s) on four sets and the slowest itself on the RGB
-ultrasound (7.2 s). 30 frames/s of 512² lossless is reached only at `--allintra` 9, on MR and CT,
-costing 5–19 % in bytes and landing above HTJ2K's; `ojph_compress` encodes 73–136 frames/s into fewer
-bytes. Real-time inter (`--rt`, no alt-ref) is exact at 11–13 bits.
+lossless on one uncontended container core: the slowest preset takes 3.0–11.1 s a frame; the fastest
+intra preset within 2 % of its bytes 0.35–1.6 s (0.6–2.9 frames/s) on six sets and the slowest itself
+on the RGB ultrasound (7.2 s). 30 frames/s of 512² lossless is reached only at `--allintra` 9, on MR
+and CT, costing 5–19 % in bytes and landing above HTJ2K's; `ojph_compress` encodes 58–136 frames/s
+into fewer bytes. Real-time inter (`--rt`, no alt-ref) is exact at 10–13 bits, and on the 10-bit
+tomosynthesis it is the smallest AV1 coding, 0.94 of HTJ2K at 5.5–9.6 frames/s.
 
 **The real-time scalable encoder (row SVC; [`lab/av1/svc`](../../lab/av1/svc/README.md)).**
 libaom 3.15.1's `svc_encoder_rtc` at quantizer 0 (`--min-q=0 --max-q=0`, no hook needed) is
