@@ -145,6 +145,8 @@ Bytes over HTJ2K's (lower is better); HTJ2K's own bytes over raw in brackets:
 | | | | cpu6 | 1.071 | 1.071 | 1.072 | 1.071 | 1.071 | — | 1.071 |
 | `dbt10_ea1141`, 24 × 678×1727, 10-bit tomosynthesis, 1 mm | 13.64 MB (0.243) | 0.851 | cpu0 | 0.977 | 0.974 | 0.978 | 0.974 | 0.973 | — | **0.971** |
 | | | | cpu6 | 0.996 | 0.987 | 0.982 | 0.980 | 0.979 | — | 0.978 |
+| `dbtproj_ge`, 9 × 1914×2572, 14-bit tomosynthesis projections | 36.73 MB (0.415) | 0.937 | — | DEPTH | | | | | | |
+| `dbtproj_holo`, 15 × 1280×2048, 14-bit tomosynthesis projections | 29.34 MB (0.373) | 0.929 | — | DEPTH | | | | | | |
 
 **On every real series AV1 is larger than HTJ2K, and inter coding collects nothing** — *corrected
 by CONTENT (below): the 10-bit tomosynthesis is the one series where AV1 coded whole is smaller.* At the
@@ -167,6 +169,11 @@ one (whole volume, cpu0; 1.8 % at cpu6). On the 10-bit volume AV1 is under HTJ2K
 2–3 % at cpu0 — the first series where AV1 coded whole is; SVT-AV1 intra there 0.988 (preset 0) and
 1.046 (8). The 12-bit volume is 4–7 % over. Every coding exact (30/30, each group decoded alone).
 
+**Tomosynthesis projections (queue row TAXO).** The raw views two vendors' systems reconstruct a
+volume from, one per tube angle ([`docs/FIXTURES.md`](../../docs/FIXTURES.md) §AV1 data) — the
+taxonomy's other cine-like content. Both need 14 bits as stored (one saturated value, 16383, above
+data that ends at 3648 and 1794), so AV1 codes them only split: DEPTH below, groups included.
+
 **Encode time** (an ingest cost; single runs on this container's 4 cores, the ultrasound sharing
 them with the synthetic run): AV1 intra at cpu0 7.6, 2.4 and 7.9 s a frame on fluoroscopy, MR and
 ultrasound, at cpu6 0.3–1.4 s; HTJ2K under 1 s a set; JPEG XL 9–33 s a set.
@@ -188,12 +195,15 @@ negative, then needs `bit_length(max + offset)` bits — measured per series, ne
 | `dbt10_ea1141` | 10 of 16 bits | 0..1012 | 0 | 10 | yes, at 10 bits |
 | `mr_ispy1` | 16-bit signed, no negative sample | 0..1765 | 0 | 11 | yes, at 12 bits (Professional) |
 | `rf_fluoro` | 12 of 16 bits | 26..3984 | 0 | 12 | yes, at 12 bits (Professional) |
+| `dbtproj_ge` | 14 of 16 bits | 0..3648, and 16383 | 0 | 14 | no |
+| `dbtproj_holo` | 14 of 16 bits | 103..1794, and 16383 | 0 | 14 | no |
 
 ```bash
 python3 lab/av1/depth.py lab/.av1-build lab/.av1-work/depth OUT.tsv 15 lab/av1/data/ct_lidc …
+DEPTH_SPLITS=top11+low DEPTH_GROUPS=1,2,4,8,0 python3 lab/av1/depth.py … 0 lab/av1/data/dbtproj_ge
 ```
 
-`depth.py` splits each sample v (after the offset; b = 13 for every set here) into planes, codes
+`depth.py` splits each sample v (after the offset; b = 13, 14 for the projections) into planes, codes
 each as a 4:0:0 intra stream with libaom 3.15.1 (cpu0 and cpu6, `--lossless=1`), decodes them with
 dav1d and merges; every merged frame matched its checksum (44/44 cells; with the two
 tomosynthesis sets of row CONTENT, run with 0 rounds — bytes only, not timed — 68/68).
@@ -217,6 +227,8 @@ Bytes over HTJ2K's (SIZE's served profile), cpu0 (cpu6):
 | `dbt10_ea1141` | 0.977 (0.996) | 1.038 (1.060) | 0.950 (0.958) | **0.946 (0.952)** | 1.029 (1.036) | 0.978 (0.996) |
 | `mr_ispy1` | 1.034 (1.058) | 1.069 (1.091) | 1.000 (1.009) | **0.990 (0.997)** | 1.071 (1.077) | 1.034 (1.058) |
 | `rf_fluoro` | 1.024 (1.039) | 1.263 (1.287) | 0.967 (0.973) | **0.946 (0.950)** | 0.999 (1.002) | 1.024 (1.039) |
+| `dbtproj_ge` | — | 1.312 (1.341) | **0.952 (0.951)** | 0.998 (0.995) | 1.000 (1.001) | 1.067 (1.093) |
+| `dbtproj_holo` | — | 1.081 (1.089) | **0.923 (0.924)** | 1.002 (1.002) | 1.047 (1.047) | 0.950 (0.951) |
 
 **Coding the two lowest bits apart is smaller than coding the sample whole** — on every set,
 including the two AV1 can code directly (MR 0.990 against 1.034, fluoroscopy 0.946 against 1.024),
@@ -226,6 +238,28 @@ bytes, the obvious split, is the worst (1.04–1.37). A set under 13 bits is spl
 13 (the 10-bit volume's top11 is v ≫ 2, 8 bits in a 12-bit stream), and the gain holds on 10-bit
 tomosynthesis too: 0.946 against 0.977 direct. Measured on 10- to 13-bit data only: what
 top11+low costs on a full 16-bit series (a 5-bit low plane) is not.
+
+**On 14 bits the rule is the two low bits apart, which is top12+low there** (v ≫ 2, v & 3 — the
+same cut top11+low makes on 13 bits): 0.952 and 0.923 of HTJ2K on the two projection sets, where
+top11+low, three bits apart, is 0.998 and 1.002. JPEG XL (reference) is 0.937 and 0.929. On the
+second vendor's views low12+top, which leaves the saturated value alone in a nearly empty top plane
+(3–4 KB), is 0.950; on the first it is 1.067.
+
+**Groups on a split (row TAXO).** `DEPTH_GROUPS=1,2,4,8,0` codes both planes in groups of G (0 is
+the whole series; `--auto-alt-ref=0`, keyframes at every G, as SIZE) and decodes each group alone.
+top11+low on the projections, bytes over HTJ2K, cpu0 (cpu6):
+
+| set | G = 1 | 2 | 4 | 8 | whole |
+| --- | --- | --- | --- | --- | --- |
+| `dbtproj_ge` (whole = 9) | 0.998 (0.995) | 0.997 (0.994) | 0.996 (0.994) | **0.995 (0.993)** | 0.995 (0.993) |
+| `dbtproj_holo` (whole = 15) | **1.002 (1.002)** | 1.004 (1.006) | 1.005 (1.008) | 1.005 (1.009) | 1.005 (1.010) |
+
+**Inter does not pay on projections**: at most 0.29 % under intra (first vendor, G = 8, cpu0), and
+0.2–1.0 % over it on the second. Groups were run on top11+low, chosen before the 14-bit result made
+top12+low the better split; groups on top12+low were not run. Every cell exact (32/32 on the two
+sets, each group decoded alone); 0 rounds, so bytes only. Mutated: the group window shifted by one
+unit, keyframes one frame off, a group's frames reversed — each reported inexact in every cell it
+reaches.
 
 **What each costs the decoder.** Native dav1d 1.5.4 (its assembly on), one thread, a whole cpu6
 stream a process with its start-up, output discarded; ms a frame summed over a split's streams,
