@@ -1106,7 +1106,9 @@ Row WCDEC (2026-10-03). `decode-av1-webcodecs.js` sits beside `decode-av1.js` be
 contract, and `decoder.js` takes it only for a series that says `depth` ≤ 10 (every stream it codes,
 [`docs/av1/adr-unit.md`](../av1/adr-unit.md) §2) in a browser with `VideoDecoder`; any other AV1
 series, one that does not say its depth included, gets dav1d-WASM. Each unit is one key chunk,
-flushed (G = 1); a split frame's two units go to two `VideoDecoder`s at once and are merged as
+flushed (G = 1), the decoder configured as `av01.0.04M.10` whatever the stream — Chromium decodes
+from the in-band sequence header, and four strings tried gave the same frames for every shape; a
+split frame's two units go to two `VideoDecoder`s at once and are merged as
 dav1d's are, by the shared `av1-frame.js`. What it refuses where dav1d refuses, from the frame
 alone: anything but `I420`/`I420P10` with every chroma sample mid-grey (4:0:0) or
 `I444`/`I444P10` with no matrix reported (GBR). That last is weaker than dav1d's check —

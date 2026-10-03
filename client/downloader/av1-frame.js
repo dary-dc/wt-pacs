@@ -11,7 +11,6 @@ export function units(bytes) {
   return [bytes.subarray(4, 4 + n), bytes.subarray(4 + n)];
 }
 
-/** The frame's samples from its (top) picture; final unless a low picture is still to come. */
 export function begin(pic, d) {
   const components = pic.planes.length;
   const split = d.split ?? 0;
