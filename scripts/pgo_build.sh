@@ -11,7 +11,7 @@ OUT="${OUT:-$ROOT/target/pgo}"
 PROFILES="${PROFILES:-$OUT/profiles}"
 rm -rf "$PROFILES" && mkdir -p "$PROFILES"
 
-PROFDATA=$(ls "$HOME"/.rustup/toolchains/*/lib/rustlib/*/bin/llvm-profdata 2>/dev/null | head -1)
+PROFDATA=$(ls "$(rustc --print sysroot)"/lib/rustlib/*/bin/llvm-profdata 2>/dev/null | head -1)
 [[ -n "$PROFDATA" ]] || { echo "llvm-profdata missing: rustup component add llvm-tools-preview" >&2; exit 1; }
 [[ -f server/dev-cert/cert.pem ]] || bash server/scripts/gen_dev_cert.sh >/dev/null
 [[ -f lab/fixtures/frames_32k/frames_32k.sbnd ]] || FRAMES=80 bash lab/scripts/gen_tf_fixtures.sh >/dev/null
