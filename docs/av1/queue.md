@@ -44,7 +44,7 @@ and its branch belong to other work.
 
 | # | what | state |
 | --- | --- | --- |
-| 1 | **TOOL** — the encoders and a native decoder, pinned, and a lossless round trip at every depth and layout | ready |
+| 1 | **TOOL** — the encoders and a native decoder, pinned, and a lossless round trip at every depth and layout | claimed 2026-10-03 |
 | 2 | **DATA** — public, freely licensed multi-frame series, fetched and checksummed | ready |
 | 3 | **WCAP** — what WebCodecs' AV1 decoder supports in headless Chromium, and whether it returns samples exactly | ready |
 | 4 | **WASM** — dav1d built to WASM, exact against native dav1d | ready |
