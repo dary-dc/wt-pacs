@@ -122,6 +122,8 @@ over single-layer lossless AV1** — the scalability itself is nearly free — a
 for the exact frame. Its base is cheap: a half-size base is 0.03–2.4 % of HTJ2K's bytes at q 40–55
 and decodes in a few ms. But the payload inherits lossless AV1's size: 1.04–1.64 of HTJ2K's bytes
 against row PREVIEW's separate lossy preview plus exact HTJ2K at 1.008 (fluoroscopy) and 1.07
-(ultrasound). Against row RESID's residual: not measured yet (row 17 open). The product decoder
+(ultrasound). Against row RESID's lossy preview plus an HTJ2K residual, 0.947–1.002 of HTJ2K's bytes and 1.31–1.89×
+its decode through WebCodecs, it loses on both: its exact frame is a lossless AV1 decode, 5–10× HTJ2K's
+(row SPEED), plus 3–30 %. The product decoder
 cannot take such a payload until it opens dav1d with `all_layers` 0; WebCodecs takes it but cannot
 be asked for the base.
