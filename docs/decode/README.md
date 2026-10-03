@@ -247,9 +247,10 @@ costs is this section.
 
 ### The build, as delivered
 
-`~/.cache/wt-pacs-decoder-2026-09-20/` on the workstation is the adopted wrapper built for a
-consumer to take: `openjphjs.js`, `openjphjs.wasm`, OpenJPH's `LICENSE`, and a `SOURCE.txt`
-repeating this.
+The adopted wrapper, built for a consumer to take, is the `deliver` arm of
+`lab/decode-bench/wasm/build.sh`: it writes `lab/.openjph-build/wasm/deliver.js` and `deliver.wasm`,
+delivered as `openjphjs.js` and `openjphjs.wasm` beside OpenJPH's `LICENSE` and a `SOURCE.txt`
+repeating this. The delivered pair:
 
 ```
 6a9abcc85363adb0864f4d1afed8dc899640a2f51e8945432d25d2069ecf6900  openjphjs.js    55,158 B
@@ -261,7 +262,7 @@ Commit `a28587f`, emscripten 3.1.74, `-O3 -msimd128 -fexceptions`, `INITIAL_MEMO
 the `plain` build of the 522-frame parity run; the glue differs only in the filename it loads. It
 exports `OpenJPHModule` where the package exports `Module`, which `decoder.js` handles. **It
 predates §The range in the pack**; that win reaches a page only once this is rebuilt from the
-current wrapper, and the delivered build is the workstation's.
+current wrapper, and the hashes above are of the build before it.
 
 ## A second decoder
 

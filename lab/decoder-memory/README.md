@@ -2,15 +2,16 @@
 
 What **one decoder worker** costs the renderer, resident. The numbers and what they mean live in
 [`docs/decode/README.md`](../../docs/decode/README.md) §What a decoder worker costs, resident;
-this says how they were made.
+this says how they were made. The wrapper's published hashes are in §The build, as delivered there.
 
 ```bash
 cp -r <a worktree with them>/lab/fixtures/decode_g512 lab/fixtures/     # or gen_htj2k_fixtures.sh
-cp ~/.cache/wt-pacs-decoder-2026-09-20/openjphjs.* lab/.openjph-build/deliver/   # the wrapper as delivered
-PATH=~/.local/opt/node-v22.23.2-linux-x64/bin:$PATH \
-NODE_PATH=~/.local/opt/node-v22.23.2-linux-x64/lib/node_modules \
-CHROME_PATH=~/Apps/chrome-portable/opt/google/chrome/google-chrome \
-  node lab/decoder-memory/run.mjs --rounds 6 --out /tmp/mem.jsonl
+EMSDK=… INITIAL_MB=4 ARMS=deliver lab/decode-bench/wasm/build.sh        # the wrapper as delivered
+mkdir -p lab/.openjph-build/deliver
+cp lab/.openjph-build/wasm/deliver.js lab/.openjph-build/deliver/openjphjs.js
+cp lab/.openjph-build/wasm/deliver.wasm lab/.openjph-build/deliver/openjphjs.wasm
+export NODE_PATH=$(npm root -g) CHROME_PATH=/path/to/google-chrome
+node lab/decoder-memory/run.mjs --rounds 6 --out mem.jsonl
 ```
 
 **A worker has no RSS of its own** — dedicated workers are threads in the page's renderer — so the
