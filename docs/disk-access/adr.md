@@ -272,7 +272,10 @@ What the code depends on and the types do not enforce, each pinned by a named te
 * **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm tile would
   go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
 * **A buffer is never grown or reused while the kernel owns it.** Dropping a ring drains its
-  reads first; an abandoned fill read is settled before its buffer is reused.
+  reads first, retrying an interrupted wait; a ring that fails with reads in flight leaks the
+  slots' buffers with a WARN rather than free them. An abandoned fill read is settled before its
+  buffer is reused. *Corrected 2026-10-03:* the drain gave up on any failed wait and the slots were
+  then freed under a live read.
   `dropping_a_reader_mid_read_waits_for_the_kernel`, `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused`.
 * **A fill never builds a ring.** `SeqReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
 * **A fill keeps `FILL_WINDOW` advised past the named frame.** Otherwise its depth on the device is one blocking read. `a_fill_tells_the_kernel_what_follows_the_named_frame`.
@@ -419,6 +422,9 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
 | A hit never builds a ring | `lazy_ring_is_not_built_when_every_read_hits` |
 | No ring where `RWF_NOWAIT` is refused | `lazy_ring_is_never_built_without_nowait` |
 | Dropping a ring mid-read waits for the kernel | `dropping_a_reader_mid_read_waits_for_the_kernel` |
+| An interrupted wait does not end the drain | `an_interrupted_drain_still_waits_for_the_kernel` |
+| A failed drain reports the read still in flight | `a_failed_drain_reports_the_read_still_in_flight` |
+| A tile reader whose ring fails mid-read leaks its slots | `a_tile_reader_whose_ring_fails_mid_read_leaks_its_slots` |
 | A parked reader is woken (the `_async` eventfd hangs it) | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
 | The session line reports the miss rate | `read_stats_report_the_session_miss_rate` |
 | The frame quinn sends is the pooled buffer, and it comes back | `a_handed_off_frame_is_the_buffer_itself_and_comes_back_when_dropped` |

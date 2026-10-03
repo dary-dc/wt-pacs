@@ -18,6 +18,12 @@ use crate::media::uring_reader::UringReader;
 #[cfg(feature = "uring")]
 use tracing::warn;
 
+#[cfg(all(test, feature = "uring"))]
+thread_local! {
+    /// Test-only: tile readers dropped with their slots leaked.
+    static LEAKED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
 pub const TILE_SLOTS: usize = 4;
 /// Bytes past the named frame a fill asks the kernel to have ready. `docs/disk-access/adr.md`.
@@ -484,7 +490,15 @@ impl Drop for TileReader {
     fn drop(&mut self) {
         #[cfg(feature = "uring")]
         if let Ring::Built(ring) = &mut self.ring {
-            ring.drain_in_flight();
+            if !ring.drain_in_flight() {
+                warn!("io_uring failed with reads in flight; their buffers are leaked, not freed");
+                #[cfg(test)]
+                LEAKED_ON_DROP.set(LEAKED_ON_DROP.get() + 1);
+                // SAFETY: the kernel may still write into any slot's buffer, so none is freed.
+                for slot in &mut self.slots {
+                    mem::forget(mem::take(&mut slot.buf));
+                }
+            }
         }
     }
 }
@@ -1007,6 +1021,48 @@ mod tests {
             let read = read.expect("the ring read hung on the end of the file");
             assert!(read.is_err(), "a frame past the end of the file was served");
         }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A tile reader whose ring fails with a read in flight leaks its slots instead of freeing
+    /// memory the kernel may still write. The read is on a pipe nobody writes, so it never lands.
+    #[test]
+    #[cfg(feature = "uring")]
+    fn a_tile_reader_whose_ring_fails_mid_read_leaks_its_slots() {
+        use crate::media::uring_reader::FAILED_WAITS;
+        use std::os::fd::FromRawFd;
+        let dir = scratch("ringleak");
+        let path = write_bundle(&dir, 1, LEN);
+        let store = FrameStore::open(&path).expect("open store");
+        let rt = rt();
+        let _guard = rt.enter();
+        let mut fds = [0i32; 2];
+        // SAFETY: `pipe` fills two fds or fails.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe");
+        // SAFETY: fresh fds, owned here and nowhere else.
+        let (rd, wr) =
+            unsafe { (std::fs::File::from_raw_fd(fds[0]), std::fs::File::from_raw_fd(fds[1])) };
+        let Ok(ring) = UringReader::new(&rd, TILE_SLOTS as u32) else {
+            eprintln!("skipped: io_uring is unavailable on this host");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        };
+        let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
+        tile.ring = Ring::Built(Box::new(ring));
+        let TileReader { ring: Ring::Built(ring), slots, .. } = &mut tile else {
+            unreachable!("built above")
+        };
+        slots[0].buf = vec![0u8; 64];
+        // SAFETY: the test's subject: the slot's buffer must outlive the read, leaked or drained.
+        unsafe { ring.submit(0, &mut slots[0].buf, 0) }.expect("submit");
+        slots[0].read = Some(InFlight::Ring);
+
+        // One for the tile reader's drain, one for the ring's own on drop.
+        FAILED_WAITS.with(|f| f.borrow_mut().extend([libc::EBADF, libc::EBADF]));
+        let before = LEAKED_ON_DROP.get();
+        drop(tile);
+        assert_eq!(LEAKED_ON_DROP.get(), before + 1, "the slots were freed under a live read");
+        drop(wr);
         std::fs::remove_dir_all(&dir).ok();
     }
 }
