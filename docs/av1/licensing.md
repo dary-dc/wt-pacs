@@ -16,9 +16,12 @@ relying on a clause. Anything not confirmed from a primary source says so.
 | Emscripten runtime and glue | client | MIT / UIUC-NCSA, bundled musl MIT | — | [LICENSE](https://raw.githubusercontent.com/emscripten-core/emscripten/main/LICENSE) |
 | WebCodecs | the browser's | — (the browser vendor's software) | — | [AV1 registration](https://w3c.github.io/webcodecs/av1_codec_registration.html) |
 | OpenJPH (today's HTJ2K decoder) | client | BSD-2-Clause | — | [LICENSE](https://raw.githubusercontent.com/aous72/OpenJPH/master/LICENSE) |
+| FFmpeg, the distribution's package (6.1.1, libaom 3.8.2, libdav1d 1.4.1) | lab only: makes WCAP's streams, decodes the native reference | GPL-2.0-or-later as that package is configured (`--enable-gpl`) | — | [LICENSE.md](https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/LICENSE.md) |
+| NumPy | lab only: the synthetic frames | BSD-3-Clause | — | [LICENSE.txt](https://raw.githubusercontent.com/numpy/numpy/main/LICENSE.txt) |
 
 All of these are compatible with this repository's MIT licence: nothing is relicensed, and none
-carries a copyleft or source-offer duty.
+carries a copyleft or source-offer duty. FFmpeg is the one copyleft row: the lab runs it as a
+separate program, links nothing against it and ships nothing built from it.
 
 ## What it obliges
 
