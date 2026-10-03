@@ -321,9 +321,7 @@ async function openSession(opening) {
   if (cfg.survival) options.dialMs = deadlines.dialMs;
   if (cfg.readMin) options.readMin = cfg.readMin;
   if (opening) options.fill = opening;
-  const next = await TransportSession.connect(dial.url, dial.certHash, options);
-  next.closedPromise?.catch(() => {});
-  return next;
+  return TransportSession.connect(dial.url, dial.certHash, options);
 }
 
 function adopt(next) {
@@ -418,7 +416,6 @@ onmessage = async (e) => {
       }
       return void post({ kind: "cancelled", gen: generation });
     }
-    if (m.kind === "stats") return void post({ kind: "stats", id: m.id, stats: session ? session.stats() : { inFlight: 0 } });
     if (m.kind === "close") {
       clearTimeout(stall);
       session?.close();
