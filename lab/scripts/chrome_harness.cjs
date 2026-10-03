@@ -1,4 +1,4 @@
-// Drive the TS harness page in headless Chromium until it sets window.__wtpacsDone, then
+// Drive a harness cell page (`/harness/cell.html?autorun=1`) in headless Chromium until it sets window.__wtpacsDone, then
 // print its log. usage: NODE_PATH=$(npm root -g) node chrome_harness.cjs URL [timeout_ms]
 const { chromium } = require("playwright");
 const url = process.argv[2];
