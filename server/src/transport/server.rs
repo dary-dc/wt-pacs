@@ -4,7 +4,7 @@
 use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
-use crate::transport::planner::{Ask, Planner, Step, ASKS_AHEAD};
+use crate::transport::planner::{fill_range, Ask, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::websocket;
@@ -267,7 +267,7 @@ async fn handle_incoming(
 }
 
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
-/// session then proceeds as today and the client's own ask gets the normal refusal.
+/// session then proceeds as without it.
 pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
     let value = path
         .split_once('?')?
@@ -278,13 +278,13 @@ pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
         ("frame", n) => Ask::Frame(n.parse().ok()?),
         ("fill", range) => {
             let (from, to) = range.split_once('-')?;
-            Ask::Fill { from: from.parse().ok(), to: to.parse().ok() }
+            Ask::Fill { from: Some(from.parse().ok()?), to: Some(to.parse().ok()?) }
         }
         _ => return None,
     };
     match ask {
         Ask::Frame(n) if n >= frames => None,
-        Ask::Fill { to: Some(to), .. } if to >= frames => None,
+        Ask::Fill { from, to } if fill_range(from, to, frames).is_err() => None,
         ask => Some(ask),
     }
 }
@@ -531,6 +531,28 @@ mod tests {
         );
         assert_eq!(rec.fills, 1, "a fill that served was not counted once");
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// An opening ask is taken only whole and in range: each end of a fill is a frame number, the
+    /// range is one the planner would serve, and anything else is ignored rather than widened.
+    #[test]
+    fn an_opening_ask_is_taken_only_whole_and_in_range() {
+        for (path, want) in [
+            ("/?ask=fill:0-3", Some("Fill { from: Some(0), to: Some(3) }")),
+            ("/?x=1&ask=frame:2", Some("Frame(2)")),
+            ("/?ask=fill:abc-xyz", None),
+            ("/?ask=fill:-", None),
+            ("/?ask=fill:3-x", None),
+            ("/?ask=fill:7-3", None),
+            ("/?ask=fill:99-", None),
+            ("/?ask=fill:3-6", None),
+            ("/?ask=frame:6", None),
+            ("/?ask=frame:x", None),
+            ("/", None),
+        ] {
+            let got = parse_open_ask(path, 6).map(|ask| format!("{ask:?}"));
+            assert_eq!(got.as_deref(), want, "{path}");
+        }
     }
 
     /// A study of `frames` frames, each a different length and pattern, so a batch served

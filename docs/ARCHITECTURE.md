@@ -554,9 +554,13 @@ a static host and a DNS change.
 readable before `accept()`, so the server opens the media stream behind its own accept while the client
 is still opening its control stream; no crate patch. The control stream is unchanged and owns every
 later ask; a session with no URL ask behaves as before. The URL is untrusted: the study resolves against
-the configured root, and a bad ask is refused with `FrameError` on the control stream, not by dropping
-the session. *Corrected in place:* the prototype had no control stream to refuse on, so every refusal in
-such a session was dropped; `refuse` now waits for the stream (`an_opening_ask_is_served_behind_the_accept`).
+the configured root, and a malformed or out-of-range ask is ignored, the session going on as without it
+(`WIRE.md` §The opening ask). **Corrected 2026-10-03:** this line said a bad ask is refused with
+`FrameError`. Until that date only an inverted fill (`fill:7-3`) was, once the control stream opened; an
+out-of-range one was ignored, and a fill with a non-numeric end (`fill:abc-xyz`, `fill:3-x`) was widened
+to the whole study or to its end. All three are now ignored (`an_opening_ask_is_taken_only_whole_and_in_range`).
+A refusal in such a session, for a later ask, waits for the control stream: the prototype had none to
+refuse on and dropped it (`an_opening_ask_is_served_behind_the_accept`).
 
 **Worth −1.13 round trips to the first frame of a fill in a browser** — 13.44 against 14.57, seven
 rounds an arm at 40, 80 and 160 ms, interleaved, against a ±0.2 spread on milestones it does not touch:
