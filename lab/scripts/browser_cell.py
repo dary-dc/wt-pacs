@@ -2,8 +2,8 @@
 """Browser round trip per frame: the TS harness cell in headless Chromium against one server binary.
 Needs the static host (`server/dev-server.py --port 8765`) and `client/transport-ts/dist`.
 usage: browser.py <label> <server-bin> <fixture> <cell> <n> <depth> <repeats> [server args...]
-<depth> is the shell's own loop, or `w:N` / `w:auto` to hand the asks to the library's window.
-Prints one line per repeat: label cell depth n wall_ms us_per_frame delivered failed window_depth.
+<depth> is the shell's asks in flight.
+Prints one line per repeat: label cell depth n wall_ms us_per_frame delivered failed.
 `RELAY_ARGS` (e.g. "--delay-ms 20 --rate-kbit 20000") puts lab/scripts/link_impair.py between page and server.
 """
 import hashlib, json, os, signal, socket, subprocess, sys, threading, time
@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 label, bin_, fixture, cell, n, depth, reps = sys.argv[1:8]
 extra = sys.argv[8:]
 n, reps = int(n), int(reps)
-ask = f"w={depth[2:]}" if depth.startswith("w:") else f"d={int(depth)}"
+ask = f"d={int(depth)}"
 if os.environ.get("INTERVAL_MS"): ask += f"&interval_ms={int(os.environ['INTERVAL_MS'])}"
 # T5: `worker=1` runs the session in a Worker, `busy` simulates main-thread contention.
 for k in ("worker", "busy"):
@@ -67,7 +67,7 @@ try:
             if r == 0:
                 continue
             asked = summary["asked"]
-            print(f"{label}\t{cell}\t{depth}\t{asked}\t{summary['wall_ms']}\t{summary['wall_ms']*1000/asked:.1f}\t{summary['delivered']}\t{summary['failed']}\t{summary.get('window_depth')}", flush=True)
+            print(f"{label}\t{cell}\t{depth}\t{asked}\t{summary['wall_ms']}\t{summary['wall_ms']*1000/asked:.1f}\t{summary['delivered']}\t{summary['failed']}", flush=True)
         browser.close()
 finally:
     if relay: relay.terminate()

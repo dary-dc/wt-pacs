@@ -2,6 +2,10 @@
 
 **Status:** accepted · **Date:** 2026-08-26 · **Tags:** delivery, client, transport
 
+*2026-10-03: the browser client's window (`ask-window.ts`, the harness's `w=`) is removed — the downloader asks
+every frame at once and its win there was never measured; the code is in history at `7bda871`.
+The depth model and the native experiments below stand.*
+
 ## Context and Problem Statement
 
 The client asks the server for frames. If it asks for one, waits, then asks for the next, the link

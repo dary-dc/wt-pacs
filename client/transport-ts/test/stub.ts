@@ -6,7 +6,7 @@
 /** `chunk`: bytes a piece, each a task apart; `cutAfter`: the media stream ends inside the first envelope;
  *  `plain`: the media stream is not a byte stream, so it has no BYOB reader. */
 export type StubLink = {
-  rttMs: number; tfMs: number; bytes: number; stats?: boolean; chunk?: number; cutAfter?: number; plain?: boolean;
+  rttMs: number; tfMs: number; bytes: number; chunk?: number; cutAfter?: number; plain?: boolean;
 };
 
 export class StubTransport {
@@ -33,11 +33,6 @@ export class StubTransport {
     this.incomingUnidirectionalStreams = new ReadableStream({
       start: (c) => c.enqueue(mediaStream),
     });
-    if (this.link.stats) {
-      (this as { getStats?: () => Promise<{ smoothedRtt: number }> }).getStats = async () => ({
-        smoothedRtt: this.link.rttMs,
-      });
-    }
   }
 
   async createBidirectionalStream() {

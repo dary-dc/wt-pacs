@@ -98,17 +98,6 @@ export class TransportSession extends FrameSession {
     await this.controlWriter.write(encodeFodMsg(msg));
   }
 
-  // Not in this TypeScript version's DOM library yet; Chromium has it, other browsers may not.
-  protected async smoothedRtt(): Promise<number | undefined> {
-    const t = this.transport as { getStats?: () => Promise<{ smoothedRtt?: number }> };
-    if (typeof t.getStats !== "function") return undefined;
-    try {
-      return (await t.getStats()).smoothedRtt;
-    } catch {
-      return undefined;
-    }
-  }
-
   close() {
     try {
       this.transport.close();

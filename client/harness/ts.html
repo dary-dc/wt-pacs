@@ -66,14 +66,14 @@
 
     bootShell({
       arm: "transport-ts",
-      async loadSession({ telemetry, streamMode, cfg, askWindow }) {
+      async loadSession({ telemetry, streamMode, cfg }) {
         if (telemetry) {
           globalThis.__wtpacsArm = "transport-ts";
           globalThis.__wtpacsStreamMode = streamMode;
         }
         // The telemetry entry installs the WebTransport patch before the client module
         // evaluates and returns a wrapped session; the product entry is the product.
-        const opts = askWindow ? { window: askWindow } : {};
+        const opts = {};
         if (q.get("worker") === "1") return workerSession(cfg.wt_url, cfg.cert_sha256, opts);
         const mod = telemetry
           ? await import("/client/transport-ts/dist/session.telemetry.js")

@@ -64,10 +64,6 @@ export class TransportSession extends FrameSession {
     this.socket.send(JSON.stringify(msg));
   }
 
-  protected async smoothedRtt(): Promise<number | undefined> {
-    return undefined;
-  }
-
   close() {
     this.socket.close(1000);
   }

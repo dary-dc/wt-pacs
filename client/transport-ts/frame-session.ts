@@ -5,13 +5,10 @@
  */
 
 import { MAX_FRAME_LEN, type FodMsg } from "./wire.ts";
-import { AskWindow, type AskWindowConfig } from "./ask-window.ts";
 
 const FRAME_TIMEOUT_MS = 15_000;
 
 export type ConnectOptions = {
-  /** Hold on-demand asks to a depth: fixed, or `"auto"` from the link. `ask-window.ts`. */
-  window?: AskWindowConfig;
   /** A fill the session URL carries, served behind the accept. docs/ARCHITECTURE.md */
   fill?: OpeningFill;
   /** Wire buffers to keep for reuse; 0 allocates one per frame. docs/decode/README.md §The wire buffer ring */
@@ -109,19 +106,15 @@ export abstract class FrameSession {
   private reads = 0;
   /** Set once the session is gone; a waiter armed after this would only reach the timeout. */
   private closedReason: string | null = null;
-  private readonly window: AskWindow | null;
   private readonly wire: WireBuffers;
   private readonly readMin: number;
 
   protected constructor(options: ConnectOptions) {
-    this.window = options.window ? new AskWindow(options.window, () => this.smoothedRtt()) : null;
     this.wire = new WireBuffers(options.wireBuffers ?? 0);
     this.readMin = options.readMin ?? 0;
   }
 
   protected abstract sendFod(msg: FodMsg): Promise<void>;
-
-  protected abstract smoothedRtt(): Promise<number | undefined>;
 
   abstract close(): void;
 
@@ -169,8 +162,6 @@ export abstract class FrameSession {
       clearTimeout(w.timer);
       this.waiters.delete(frameIndex);
       w.resolve({ bytes, receivedMs });
-      // The window paces on-demand asks, so only a settled waiter closes one of its slots.
-      this.window?.done(frameIndex, bytes.length, receivedMs);
       return;
     }
     if (fill && owed) {
@@ -192,7 +183,6 @@ export abstract class FrameSession {
     clearTimeout(w.timer);
     this.waiters.delete(frameIndex);
     w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
-    this.window?.done(frameIndex, 0, performance.now());
   }
 
   protected onControl(msg: FodMsg) {
@@ -240,14 +230,7 @@ export abstract class FrameSession {
   async requestExactFrame(frameIndex: number): Promise<FrameResult> {
     const askMs = performance.now();
     const pending = this.armWaiter(frameIndex);
-    const ask: FodMsg = { op: "request_frame", frame: frameIndex };
-    if (this.window) {
-      this.window.ask(frameIndex, () => {
-        this.sendFod(ask).catch((e) => this.failWaiter(frameIndex, `control write: ${e}`));
-      });
-    } else {
-      await this.sendFod(ask);
-    }
+    await this.sendFod({ op: "request_frame", frame: frameIndex });
     return this.settle(frameIndex, askMs, pending);
   }
 
@@ -358,7 +341,6 @@ export abstract class FrameSession {
       inFlight: this.waiters.size,
       droppedEarlyMedia: this.droppedEarly,
       frameErrors: this.frameErrors,
-      windowDepth: this.window?.current() ?? null,
       lastByteAt: this.lastByteAt,
       mediaReads: this.reads,
     };

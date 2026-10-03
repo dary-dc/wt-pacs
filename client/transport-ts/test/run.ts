@@ -1,5 +1,5 @@
 /**
- * Tests for the TypeScript client's ask window, against the Node stub — run with:
+ * Tests for the TypeScript client's asks and reads, against the Node stub — run with:
  *   bash client/transport-ts/build.sh && node client/transport-ts/test/run.mjs
  */
 
@@ -19,9 +19,9 @@ function assert(cond: boolean, msg: string) {
   }
 }
 
-async function drive(link: StubLink, asks: number, window?: Parameters<typeof TransportSession.connect>[2]) {
+async function drive(link: StubLink, asks: number, options?: Parameters<typeof TransportSession.connect>[2]) {
   StubTransport.link = link;
-  const session = await TransportSession.connect("https://stub/", HASH, window);
+  const session = await TransportSession.connect("https://stub/", HASH, options);
   const stub = StubTransport.last!;
   const results = await Promise.all(
     Array.from({ length: asks }, (_, i) => session.requestExactFrame(i)),
@@ -33,57 +33,11 @@ function inOrder(v: number[]): boolean {
   return v.every((x, i) => i === 0 || v[i - 1] < x);
 }
 
-/** Without a window every ask goes out at once, as before. */
-async function noWindowIsUnchanged() {
+/** Every ask goes out at once, and every frame comes back in ask order. */
+async function everyAskGoesOutAtOnce() {
   const { stub, results } = await drive({ rttMs: 20, tfMs: 2, bytes: 16 }, 6);
-  assert(stub.maxInFlight === 6, `no window: 6 asks in flight, saw ${stub.maxInFlight}`);
-  assert(results.length === 6 && inOrder(results.map((r) => r.frameIndex)), "no window: all frames, in order");
-}
-
-/** A fixed depth caps the asks in flight and keeps ask order. */
-async function fixedDepthCapsInFlight() {
-  const { stub, results, session } = await drive({ rttMs: 20, tfMs: 2, bytes: 16 }, 12, { window: { depth: 3 } });
-  assert(stub.maxInFlight === 3, `depth 3: at most 3 in flight, saw ${stub.maxInFlight}`);
-  assert(inOrder(stub.askOrder) && stub.askOrder.length === 12, "depth 3: asks sent in order");
-  assert(results.length === 12, "depth 3: every queued ask is answered");
-  assert(session.stats().windowDepth === 3, "depth 3: reported");
-}
-
-/** `auto` climbs from its initial depth to the smallest that saturates the link, ±1. */
-async function autoDepthFindsTheLink() {
-  const link = { rttMs: 40, tfMs: 6, bytes: 16, stats: true };
-  const want = Math.ceil(0.95 * (1 + link.rttMs / link.tfMs));
-  const { stub, session } = await drive(link, 200, { window: { depth: "auto", initial: 2 } });
-  const d = session.stats().windowDepth ?? 0;
-  assert(Math.abs(d - want) <= 1, `auto: depth ${d} within 1 of ${want}`);
-  assert(stub.maxInFlight <= 16, `auto: never past the clamp, saw ${stub.maxInFlight}`);
-  assert(stub.maxInFlight >= want - 1, `auto: opened up to the link, saw ${stub.maxInFlight} for want ${want}`);
-  assert(inOrder(stub.askOrder), "auto: asks sent in order");
-}
-
-/**
- * Without the transport's RTT and without a pause the only idle ask is the session's first,
- * whose trip carries the warm-up, so `auto` holds its initial depth rather than trust it.
- */
-async function autoWithoutStatsHoldsWithoutAPause() {
-  const { session, stub } = await drive({ rttMs: 40, tfMs: 6, bytes: 16 }, 200, { window: { depth: "auto", initial: 2 } });
-  assert(session.stats().windowDepth === 2, "auto without getStats, no pause: depth stays 2");
-  assert(stub.maxInFlight === 2, `auto without getStats, no pause: 2 in flight, saw ${stub.maxInFlight}`);
-}
-
-/** Without the transport's RTT, a reader that pauses gives `auto` idle asks to read the RTT from. */
-async function autoWithoutStatsReadsIdleAsks() {
-  const link = { rttMs: 40, tfMs: 6, bytes: 16 };
-  const want = Math.ceil(0.95 * (1 + link.rttMs / link.tfMs));
-  StubTransport.link = link;
-  const session = await TransportSession.connect("https://stub/", HASH, { window: { depth: "auto", initial: 2 } });
-  let frame = 0;
-  for (let burst = 0; burst < 12; burst++) {
-    await Promise.all(Array.from({ length: 16 }, () => session.requestExactFrame(frame++)));
-    await new Promise((r) => setTimeout(r, 30));
-  }
-  const d = session.stats().windowDepth ?? 0;
-  assert(Math.abs(d - want) <= 1, `auto without getStats, bursts with pauses: depth ${d} within 1 of ${want}`);
+  assert(stub.maxInFlight === 6, `6 asks in flight, saw ${stub.maxInFlight}`);
+  assert(results.length === 6 && inOrder(results.map((r) => r.frameIndex)), "all frames, in order");
 }
 
 const intact = (r: { frameIndex: number; bytes: Uint8Array }) => r.bytes.every((b, i) => b === codestreamByte(r.frameIndex, i));
@@ -124,8 +78,7 @@ async function aCutFrameIsNamedWithItsBytes() {
   }
 }
 
-for (const t of [noWindowIsUnchanged, fixedDepthCapsInFlight, autoDepthFindsTheLink, autoWithoutStatsHoldsWithoutAPause, autoWithoutStatsReadsIdleAsks,
-  readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes]) {
+for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

@@ -9,7 +9,7 @@ client socket dropped (`Udp: RcvbufErrors`). Needs the static host (`server/dev-
 
 usage: browser_receive.py <fixture> <cell> <n> <depth> <repeats> \\
          <label-a> <bin-a> [server args...] -- <label-b> <bin-b> [server args...] [-- ...]
-<depth> is the shell's own loop, or `w:N` / `w:auto` for the library's window.
+<depth> is the shell's asks in flight.
 An arm arg `@rmem=<bytes>` sets `net.core.rmem_max` for that arm's runs (root), restored after.
 One TSV row per run: label arm cell depth asked wall_ms mb_per_s delivered failed sock_drops
 rcvbuf_drops in_datagrams srv_ms ns_main_ms ns_io_ms rend_main_ms rend_other_ms chrome_other_ms heap_peak_mb
@@ -25,7 +25,7 @@ RMEM = Path("/proc/sys/net/core/rmem_max")
 
 fixture, cell, n, depth, reps = sys.argv[1:6]
 n, reps = int(n), int(reps)
-ask = f"w={depth[2:]}" if depth.startswith("w:") else f"d={int(depth)}"
+ask = f"d={int(depth)}"
 if os.environ.get("INTERVAL_MS"): ask += f"&interval_ms={int(os.environ['INTERVAL_MS'])}"
 frame_bytes = json.loads((Path(fixture).parent / "metadata.json").read_text())["meanFrameBytes"]
 

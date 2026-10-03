@@ -42,7 +42,6 @@ the WASM `connect` takes as its third argument:
 | option | what it does |
 | --- | --- |
 | `wireBuffers` | the size of the wire buffer ring; unset or 0 keeps none |
-| `window` | hold on-demand asks to a depth, fixed or `"auto"` from the link (`ask-window.ts`, [`adr-client-window-depth.md`](adr-client-window-depth.md)) |
 | `dialMs` | a dial whose `ready` has not settled by then is closed and rejected with a `DialTimeoutError`. The WASM client has no deadline and waits for ever |
 | `fill` | an opening fill carried in the session URL (WIRE.md §The opening ask); armed at once, never sent as `stream_frames` |
 
