@@ -55,6 +55,15 @@ MR (11-bit, 3.5 mm) 1.034 → 1.062, ultrasound cine (RGB 8) 1.117 → 1.534; at
 0.83–0.93 of HTJ2K. CT and the cone-beam set need 13 bits — row DEPTH. Bytes therefore give G > 1
 no reason; the content measured is three series, none of them a contrast angiography run.
 
+*What G = 1 costs an ask and a fill (SPEED's decode times × SIZE's bytes; arithmetic, not
+measured).* An ask is one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of
+decoding** in Chromium at 1×–4× (fluoroscopy 9.8 → 70 ms at 1×, 35 → 291 ms at 4×). A fill's
+decoding with the three decoders, each series whole: fluoroscopy 0.06 → 0.42 s, MR 0.09 → 0.51 s,
+ultrasound 0.18 → 1.13 s (0.78 s through WebCodecs) at 1×; at 4× 0.21 → 1.74 s, 0.33 → 2.01 s and
+0.67 → 4.59 s. Their AV1 bytes take 1.5–3.8 s, 1.8–4.5 s and 3.2–8.1 s on a 50–20 Mbit/s link, so at
+1× AV1's decoding still hides under the wire; **at 4× and the fast end of that link AV1 becomes the
+fill's clock on every series, where HTJ2K never is.** Three decoders in parallel were not run.
+
 **A2 — which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
 Neither is assumed faster or exact:
@@ -79,11 +88,20 @@ dav1d 1.5.4 under emscripten 3.1.74, scalar, `-msimd128` and `-msimd128 -pthread
 matches the native dav1d CLI and a second native build with assembly on every frame of 12 lossless
 streams — 8/10/12-bit 4:0:0 and 4:4:4 identity, intra and G = 8 — one picture per temporal unit at a
 frame delay of 1. 546 KB `.wasm` scalar, 623 KB with SIMD (219 and 238 KB gzipped). Decode time is
-row SPEED's; nothing here says it is fast enough. **It is the client's AV1 decoder at G = 1** (row
+5–10× OpenJPH's on the same frames (below). **It is the client's AV1 decoder at G = 1** (row
 DEC): `decoder.codec: "av1"` loads it behind `decoder.js`'s contract, and every shape decodes
 through the downloader to its source's checksum ([`client/downloader/README.md`](../../client/downloader/README.md)).
 
-Rows WCAP (what WebCodecs supports and returns exactly), WASM (the dav1d build) and SPEED decide it.
+**Decode time, measured (SPEED, [`decode/README.md`](../decode/README.md) §Decode time against
+HTJ2K):** the product's worker, the same 18 frames of three real series, 16 interleaved rounds, Node
+and Chromium 141, 1× and 4×, every frame exact. dav1d-WASM takes **5.4–9.7× OpenJPH's time** a frame
+— 70 against 9.8 ms on 12-bit fluoroscopy in Chromium, 26 against 4.9 on MR, 48 against 7.9 on RGB
+ultrasound — slower in all 224 paired rounds, and dav1d itself is ~90 % of it. WebCodecs, on the one
+series it decodes exactly (8-bit), is 1.55× faster than dav1d-WASM and still 4.1–4.2× OpenJPH. So
+neither AV1 path wins on decode, and with §A1's bytes AV1 at G = 1 wins on nothing on this content:
+by [`adr-unit.md`](adr-unit.md) §4's rule it does not earn its place. Whether the phase continues is
+the owner's call; DEPTH (CT, cone-beam) is the content not yet measured. Container figures, not a
+phone's.
 
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
 unsigned. Signed data is offset by 2^(B−1), which is reversible; data over 12 bits (stored 16-bit)
@@ -130,6 +148,8 @@ repository** and are recorded only so the queue tests them rather than rediscove
 * **Decode cost is the risk to watch**: on a desktop, through a subprocess (pessimistic), AV1 took
   12–14 ms a frame against HTJ2K's 1.2. The fill here is decoder-bound, so a slower decoder costs
   the fill directly, whatever it saves on the wire.
+  *Reproduced here in size (SPEED)*: dav1d-WASM 5.4–9.7× OpenJPH a frame in the product's
+  worker, WebCodecs 4.1–4.2× (§A2).
 * Signed CT there spanned −1024..2461, which fits 12 bits after a +1024 offset; it was not tried.
 
 ## Measured here
