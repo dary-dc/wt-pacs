@@ -26,17 +26,10 @@ struct Args {
     /// `0.0.0.0` when the host has no IPv6.
     #[arg(long)]
     bind: Option<IpAddr>,
-    /// Connection-wide receive window in bytes (quinn default: unlimited).
-    #[arg(long)]
-    receive_window: Option<u64>,
     /// QUIC send window per connection in bytes (unacknowledged data held). Default: library
     /// default, 10 MB. Bounds memory under slow clients: N sessions × this value.
-    /// `--send-window` is the name lab scripts already pass.
-    #[arg(long, visible_alias = "send-window")]
+    #[arg(long)]
     send_window_bytes: Option<u64>,
-    /// QUIC per-stream receive window in bytes. Default: library default, 1.25 MB.
-    #[arg(long, visible_alias = "stream-receive-window")]
-    stream_receive_window_bytes: Option<u64>,
     /// QUIC idle timeout in milliseconds. Default: library default, 30 000.
     #[arg(long)]
     max_idle_timeout_ms: Option<u64>,
@@ -44,7 +37,7 @@ struct Args {
     /// timeouts to work. docs/transport/adr-idle-sessions.md.
     #[arg(long)]
     keep_alive_interval_ms: Option<u64>,
-    #[arg(long, value_enum, default_value_t = Congestion::CubicRestart)]
+    #[arg(long, value_enum, default_value_t)]
     congestion: Congestion,
     /// Controller knobs, all at quinn's default unless set. What each one measured:
     /// docs/transport/transport-conclusions.md §3.
@@ -87,14 +80,8 @@ struct Args {
     telemetry_report_out: Option<PathBuf>,
 }
 
-/// Install the rustls provider selected at compile time (`crypto-ring` by default).
 fn install_crypto_provider() -> anyhow::Result<()> {
-    #[cfg(feature = "crypto-aws-lc-rs")]
-    let provider = rustls::crypto::aws_lc_rs::default_provider();
-    #[cfg(not(feature = "crypto-aws-lc-rs"))]
-    let provider = rustls::crypto::ring::default_provider();
-
-    provider
+    rustls::crypto::ring::default_provider()
         .install_default()
         .map_err(|_| anyhow::anyhow!("rustls crypto provider already installed"))
 }
@@ -131,8 +118,6 @@ async fn main() -> anyhow::Result<()> {
         mode: args.stream_mode,
         bind: args.bind,
         tuning: TransportTuning {
-            receive_window: args.receive_window,
-            stream_receive_window: args.stream_receive_window_bytes,
             send_window: args.send_window_bytes,
             max_idle_timeout_ms: args.max_idle_timeout_ms,
             keep_alive_interval_ms: args.keep_alive_interval_ms,

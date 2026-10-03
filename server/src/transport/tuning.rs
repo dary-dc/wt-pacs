@@ -1,7 +1,6 @@
 //! QUIC transport knobs. Cubic with nothing else set is quinn's stock configuration byte for byte.
 
 use crate::transport::restart::SlowStartRestartConfig;
-use anyhow::Result;
 use std::sync::Arc;
 use wtransport::quinn::TransportConfig;
 
@@ -27,10 +26,6 @@ impl Congestion {
 
 #[derive(Clone, Debug)]
 pub struct TransportTuning {
-    /// Connection-wide receive window. quinn default: unlimited.
-    pub receive_window: Option<u64>,
-    /// Per-stream flow-control window. quinn default: 1_250_000.
-    pub stream_receive_window: Option<u64>,
     /// Cap on buffered unacknowledged send bytes. quinn default: 10_000_000.
     pub send_window: Option<u64>,
     /// Idle timeout. Applied on the wtransport builder, not inside `TransportConfig`.
@@ -59,12 +54,10 @@ pub struct TransportTuning {
 impl Default for TransportTuning {
     fn default() -> Self {
         Self {
-            receive_window: None,
-            stream_receive_window: None,
             send_window: None,
             max_idle_timeout_ms: None,
             keep_alive_interval_ms: None,
-            congestion: Congestion::CubicRestart,
+            congestion: Congestion::default(),
             initial_window: None,
             persistent_congestion_threshold: None,
             packet_threshold: None,
@@ -76,19 +69,13 @@ impl Default for TransportTuning {
 }
 
 impl TransportTuning {
-    pub fn to_transport_config(&self) -> Result<TransportConfig> {
+    pub fn to_transport_config(&self) -> TransportConfig {
         use wtransport::quinn::congestion;
 
         let mut tc = TransportConfig::default();
 
-        if let Some(v) = self.receive_window {
-            tc.receive_window(varint(v, "receive-window")?);
-        }
         if let Some(v) = self.send_window {
             tc.send_window(v);
-        }
-        if let Some(v) = self.stream_receive_window {
-            tc.stream_receive_window(varint(v, "stream-receive-window")?);
         }
         if let Some(ms) = self.keep_alive_interval_ms {
             tc.keep_alive_interval(Some(std::time::Duration::from_millis(ms)));
@@ -129,15 +116,12 @@ impl TransportTuning {
                 tc.congestion_controller_factory(Arc::new(SlowStartRestartConfig::new(iw)))
             }
         };
-
-        Ok(tc)
+        tc
     }
 
     /// QUIC stack is still the library default — use `with_identity`, not a custom transport.
     pub fn quic_is_library_default(&self) -> bool {
-        self.receive_window.is_none()
-            && self.send_window.is_none()
-            && self.stream_receive_window.is_none()
+        self.send_window.is_none()
             && self.max_idle_timeout_ms.is_none()
             && self.keep_alive_interval_ms.is_none()
             && self.initial_window.is_none()
@@ -156,12 +140,6 @@ impl TransportTuning {
         let mut parts = Vec::new();
         if let Some(v) = self.send_window {
             parts.push(format!("send_window={v}"));
-        }
-        if let Some(v) = self.receive_window {
-            parts.push(format!("receive_window={v}"));
-        }
-        if let Some(v) = self.stream_receive_window {
-            parts.push(format!("stream_receive_window={v}"));
         }
         if let Some(v) = self.max_idle_timeout_ms {
             parts.push(format!("max_idle_timeout_ms={v}"));
@@ -190,17 +168,8 @@ impl TransportTuning {
         if let Some(ms) = self.ack_frequency_max_delay_ms {
             parts.push(format!("ack_frequency_max_delay_ms={ms}"));
         }
-        if parts.is_empty() {
-            "default".to_string()
-        } else {
-            parts.join(",")
-        }
+        parts.join(",")
     }
-}
-
-fn varint(v: u64, what: &str) -> Result<wtransport::quinn::VarInt> {
-    wtransport::quinn::VarInt::from_u64(v)
-        .map_err(|_| anyhow::anyhow!("{what} {v} exceeds the QUIC varint maximum"))
 }
 
 #[cfg(test)]
@@ -214,14 +183,12 @@ mod tests {
 
     #[test]
     fn default_tuning_builds() {
-        TransportTuning::default().to_transport_config().unwrap();
+        TransportTuning::default().to_transport_config();
     }
 
     #[test]
     fn every_knob_builds() {
         let t = TransportTuning {
-            receive_window: Some(64 << 20),
-            stream_receive_window: Some(8 << 20),
             send_window: Some(32 << 20),
             max_idle_timeout_ms: Some(60_000),
             keep_alive_interval_ms: Some(20_000),
@@ -233,7 +200,7 @@ mod tests {
             segmentation_offload: false,
             ack_frequency_max_delay_ms: Some(5),
         };
-        t.to_transport_config().unwrap();
+        t.to_transport_config();
     }
 
     /// A keep-alive interval is a custom transport: taking the library default would drop it
@@ -246,7 +213,7 @@ mod tests {
         };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("keep_alive_interval_ms=20000"));
-        t.to_transport_config().unwrap();
+        t.to_transport_config();
     }
 
     /// An initial window alone is a custom transport: S7's second lever is this knob, and
@@ -259,7 +226,7 @@ mod tests {
         };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("initial_window=38400"));
-        t.to_transport_config().unwrap();
+        t.to_transport_config();
     }
 
     /// W2's two knobs are custom transport too, and each is named in `describe` so a campaign
@@ -281,7 +248,7 @@ mod tests {
         ] {
             assert!(!t.quic_is_library_default());
             assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
-            t.to_transport_config().unwrap();
+            t.to_transport_config();
         }
     }
 
@@ -293,7 +260,7 @@ mod tests {
         let t = TransportTuning { packet_threshold: Some(12), ..stock() };
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("packet_threshold=12"));
-        t.to_transport_config().unwrap();
+        t.to_transport_config();
     }
 
     /// Turning GSO off must reach quinn: taking the library default would send batches anyway,
@@ -329,14 +296,5 @@ mod tests {
         assert_eq!(t.congestion, Congestion::CubicRestart);
         assert!(!t.quic_is_library_default());
         assert!(t.describe().contains("congestion=cubic-restart"));
-    }
-
-    #[test]
-    fn oversized_window_is_an_error() {
-        let t = TransportTuning {
-            receive_window: Some(u64::MAX),
-            ..stock()
-        };
-        assert!(t.to_transport_config().is_err());
     }
 }

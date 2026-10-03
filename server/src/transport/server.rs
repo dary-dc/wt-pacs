@@ -174,8 +174,7 @@ async fn build_endpoint(config: &ServeConfig) -> Result<(Endpoint<endpoint_side:
         if tuning.quic_is_library_default() {
             return Ok(builder.with_identity(identity).build());
         }
-        let transport = tuning.to_transport_config()?;
-        let mut builder = builder.with_custom_transport(identity, transport);
+        let mut builder = builder.with_custom_transport(identity, tuning.to_transport_config());
         if let Some(ms) = tuning.max_idle_timeout_ms {
             builder = builder
                 .max_idle_timeout(Some(Duration::from_millis(ms)))

@@ -18,10 +18,7 @@ telemetry = []
 # io_uring for a tile miss. Optional so a build without it still compiles, to the
 # pool path -- see docs/disk-access/adr.md.
 uring = ["dep:io-uring"]
-# rustls/quinn crypto provider. `aws-lc-rs` uses AWS-LC's vectorised AES-GCM
-# (VAES/AVX-512 where the CPU has it); `ring` is the historical default.
 crypto-ring = ["rustls/ring", "wtransport/ring"]
-crypto-aws-lc-rs = ["rustls/aws-lc-rs", "wtransport/aws-lc-rs"]
 # RFC 8879 certificate compression. Off: it pulls brotli and zlib-rs into the tree and does
 # nothing until a peer offers the extension -- docs/ARCHITECTURE.md §What production adds.
 cert-compression = ["rustls/brotli", "rustls/zlib"]
