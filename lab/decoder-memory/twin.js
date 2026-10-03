@@ -15,10 +15,10 @@ const abs = () => performance.timeOrigin + performance.now();
 function finish(view, bits, signed) {
   let min = Infinity;
   let max = -Infinity;
-  const shift = 16 - bits;
+  const shift = signed && bits < 8 * view.BYTES_PER_ELEMENT ? 32 - bits : 0;
   for (let i = 0; i < view.length; i++) {
     let v = view[i];
-    if (signed && shift > 0) {
+    if (shift) {
       v = (v << shift) >> shift;
       view[i] = v;
     }

@@ -8,10 +8,10 @@ const worker = `
 function product(view, bits, signed) {
   let min = Infinity;
   let max = -Infinity;
-  const shift = 16 - bits;
+  const shift = signed && bits < 8 * view.BYTES_PER_ELEMENT ? 32 - bits : 0;
   for (let i = 0; i < view.length; i++) {
     let v = view[i];
-    if (signed && shift > 0) {
+    if (shift) {
       v = (v << shift) >> shift;
       view[i] = v;
     }
@@ -21,8 +21,8 @@ function product(view, bits, signed) {
   return { min, max };
 }
 function ints(view, bits, signed) {
-  const shift = 16 - bits;
-  if (signed && shift > 0) for (let i = 0; i < view.length; i++) view[i] = (view[i] << shift) >> shift;
+  const shift = signed && bits < 8 * view.BYTES_PER_ELEMENT ? 32 - bits : 0;
+  if (shift) for (let i = 0; i < view.length; i++) view[i] = (view[i] << shift) >> shift;
   let min = view[0];
   let max = min;
   for (let i = 1; i < view.length; i++) {
