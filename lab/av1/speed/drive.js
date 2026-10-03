@@ -41,7 +41,7 @@ async function start(env, kind, decoder) {
   };
 }
 
-const ARMS = {
+export const ARMS = {
   htj2k: (base) => ({ kind: "product", ext: "htj2k", decoder: {
     glue: `${base}/lab/decode-bench/vendor/openjph/openjphjs.js`,
     wasm: `${base}/lab/decode-bench/vendor/openjph/openjphjs.wasm`,
@@ -53,14 +53,14 @@ const ARMS = {
 };
 
 /** rows: { set, arm, ms[], exact, frames }. A frame that fails to decode is a row with an error. */
-export async function round(env, { base, frames: dir, arms, round: r, mutate = [] }) {
+export async function round(env, { base, frames: dir, arms, round: r, mutate = [] }, kinds = ARMS) {
   for (const k of mutate) MUTATE[k] = true;
   const manifest = await (await fetch(`${base}/${dir}/manifest.json`)).json();
   const rows = [];
   for (const set of order(manifest, r)) {
     const truth = set.frames.map((f) => (MUTATE.truth ? f.truth.replace(/^./, (c) => (c === "0" ? "1" : "0")) : f.truth));
     for (const name of order(arms, r)) {
-      const arm = ARMS[name](base, set);
+      const arm = kinds[name](base, set);
       if (!arm) continue;
       const bytes = await Promise.all(set.frames.map((_, i) =>
         fetch(`${base}/${dir}/${set.name}/${String(i).padStart(3, "0")}.${arm.ext}`)

@@ -105,7 +105,9 @@ by [`adr-unit.md`](adr-unit.md) §4's rule it does not earn its place. Whether t
 the owner's call; DEPTH (CT, cone-beam) is the content not yet measured. Container figures, not a
 phone's. *DEPTH since (§A3):* split into two streams, AV1 is 0.3–8 % under HTJ2K's bytes on the four
 series over 10 bits (CT 0.918) — the one place it wins, set against a decode SPEED measures at
-5–10× (a split's two streams decode natively in the time of one; not timed in WASM).
+5–10× (a split's two streams decode natively in the time of one; not timed in WASM). *SPLIT10 since
+(§A3):* timed in Chromium, top11+low through dav1d-WASM is 5.7–8.2× OpenJPH and top10+low through
+WebCodecs 2.6–3.9×.
 
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
 unsigned. Signed data is offset by 2^(B−1), which is reversible; data over 12 bits (stored 16-bit)
@@ -124,6 +126,29 @@ refuses 12-bit — while top10+low keeps every stream ≤ 10 bits at 0.994–1.0
 13-bit data; a full 16-bit series is not. A split frame is two temporal units in one store entry:
 the store and the wire stay opaque, but this project's AV1 frame format and `decode-av1.js` change,
 which is a proposal for [`adr-unit.md`](adr-unit.md) — not written yet.
+
+*Measured (SPLIT10; [`lab/av1/split10`](../../lab/av1/split10/README.md)):* **top10+low decodes
+exactly through WebCodecs** on all four series. Two `VideoDecoder`s, 10- and 8-bit 4:0:0, take the
+units together and the samples are merged in the worker. 9 216/9 216 frames were exact across every
+arm. Chromium 141 headless decoded the first 18 frames a series in 16 interleaved rounds at 1× and
+4×. Each figure is ms a frame, bytes in to merged samples and range out, as the median of round
+medians:
+
+| series | OpenJPH | WebCodecs top10+low | dav1d-WASM top11+low | WebCodecs ÷ dav1d-WASM | WebCodecs ÷ OpenJPH |
+| --- | --- | --- | --- | --- | --- |
+| CT 512² | 5.2 · 19.1 | 13.5 · 38.7 | 29.2 · 121 | 0.46 · 0.32 | 2.6 · 2.1 |
+| cone-beam 512² | 4.9 · 17.3 | 19.1 · 64.8 | 38.6 · 162 | 0.50 · 0.40 | 3.9 · 3.7 |
+| MR 512² | 5.3 · 19.8 | 15.0 · 45.5 | 33.5 · 138 | 0.45 · 0.33 | 2.8 · 2.4 |
+| fluoroscopy 768² | 10.2 · 39.9 | 36.3 · 126 | 83.4 · 351 | 0.44 · 0.36 | 3.6 · 3.2 |
+
+Each cell gives 1× · 4×, and each ratio is the median of paired rounds. WebCodecs was faster than
+dav1d-WASM in 128/128 paired rounds and slower than OpenJPH in all of them. Of the gain, the decoder
+accounts for nearly all and the split for little: dav1d-WASM on top10+low is 0.89–0.97 of its
+top11+low time. On these 18 frames top10+low costs 0.973–1.064 of HTJ2K's bytes and top11+low
+0.904–0.998. So top10+low trades AV1's one byte win for a decoder two to three times faster, and it
+still ends 2–4× slower than HTJ2K. WebCodecs ran with however many threads Chromium gives it, and
+that count was not measured. The dav1d-WASM build is single-threaded. These are container figures on
+4 cores with one decoder at a time, not a phone's.
 
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
