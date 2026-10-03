@@ -853,6 +853,27 @@ mod tests {
             .port()
     }
 
+    /// Until the server holds `port`: a server that never binds fails the test rather than hangs it.
+    async fn until_bound(port: u16, deadline: Duration) {
+        let give_up = tokio::time::Instant::now() + deadline;
+        while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
+            assert!(tokio::time::Instant::now() < give_up, "the server never bound port {port}");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+
+    /// The wait for the server's port has a deadline: on a port nobody binds it panics, it does not spin.
+    #[test]
+    fn the_wait_for_a_port_fails_rather_than_hangs() {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_time().build().expect("rt");
+        let waited = rt.block_on(async {
+            let wait = tokio::spawn(until_bound(free_port(), Duration::from_millis(200)));
+            tokio::time::timeout(Duration::from_secs(5), wait).await
+        });
+        let joined = waited.expect("the wait for a port has no deadline");
+        assert!(joined.expect_err("a port nobody bound passed the wait").is_panic());
+    }
+
     /// Read one length-prefixed envelope off the shared media stream.
     async fn read_envelope(recv: &mut RecvStream) -> (u32, Vec<u8>) {
         let mut head = [0u8; 4];
@@ -1326,9 +1347,7 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
             let server = tokio::spawn(run_server(serve_config(study, cert_pem, key_pem, port)));
-            while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
+            until_bound(port, Duration::from_secs(5)).await;
             assert_settings_before_the_handshake(port, cert_hash).await;
             server.abort();
         });
@@ -1444,9 +1463,7 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
             let server = tokio::spawn(run_server(serve_config(study, cert_pem, key_pem, port)));
-            while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
+            until_bound(port, Duration::from_secs(5)).await;
 
             // Every datagram is delayed ONE_WAY; the server's burst in the first ONE_WAY after its
             // first datagram — its first flight — is dropped.
