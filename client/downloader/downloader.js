@@ -105,7 +105,7 @@ function failQueued() {
 
 /** A decoder that never came up leaves the pool; with none left, the start has failed. */
 function lose(d, reason) {
-  d.worker.terminate();
+  // Not terminated: it ends with this worker, as every decoder does. docs/ARCHITECTURE.md §Closing a client
   decoders.splice(decoders.indexOf(d), 1);
   d.ready();
   if (decoders.length > 0) return;
