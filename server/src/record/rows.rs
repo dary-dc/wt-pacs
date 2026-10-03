@@ -2,7 +2,7 @@
 //!
 //! Every record the drain receives is appended here as one 56-byte record, so the rows are
 //! exact and on disk whatever happens to the process afterwards. The JSON report is a summary
-//! over this file; `exact-server --telemetry-report <rows>` rebuilds the full JSON from it.
+//! over this file.
 //!
 //! Layout: 16-byte header (`WTPR`, u16 version, u16 record size, u64 reserved) then records.
 //! Record: `tag: u8`, `flags: u8`, `pad: u16`, then tag-specific fields, little-endian.
