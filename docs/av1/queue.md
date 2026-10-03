@@ -347,3 +347,13 @@ taxonomy series: which arm wins on which link, and where the host saturates.
   the container's network policy. The owner decides whether one is worth sourcing elsewhere (a host
   to allow, or a licence other than CC BY/CC0); until then no verdict covers angiography. A
   CC BY-NC 4.0 tomosynthesis collection exists in IDC and was not needed: two CC BY 4.0 volumes were.
+* **Breast ultrasound cine, automated breast ultrasound and angiography (row 21).** None is open
+  and reachable: IDC v24 holds no ultrasound of the breast but one series of 14 single-frame stills
+  (CMB-BRCA, Ultrasound Image Storage), no automated breast ultrasound volume, and no multi-frame
+  XA; its only multi-frame ultrasound is liver (`us_liver`) and colorectal (CMB-CRC). The other
+  hosts such data lives on are refused by this container's network policy: `zenodo.org`,
+  `figshare.com`, `data.mendeley.com`, `huggingface.co`, `www.kaggle.com`, `physionet.org`,
+  `www.cancerimagingarchive.net`, `grand-challenge.org`, `www.synapse.org`, `osf.io`,
+  `drive.google.com`. The owner decides whether to allow one, and which dataset and licence to
+  take. IDC also holds an in-silico tomosynthesis collection (VICTRE, CC BY 3.0, simulated
+  projections and volumes); not used, since the question is about real content.

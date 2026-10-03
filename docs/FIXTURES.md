@@ -75,12 +75,12 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §A4). Seven public series, fetched at run time from the NCI Imaging
+([`av1/README.md`](av1/README.md) §A4). Nine public series, fetched at run time from the NCI Imaging
 Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
 never committed:
 
 ```bash
-lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~476 MB fetched, 1¼ min here
+lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~664 MB fetched
 ```
 
 `lab/av1/data.json` pins every file's S3 key and SHA-256 and each set's frame digest;
@@ -90,7 +90,7 @@ signed as sign-extended int16. The set digest is the SHA-256 of the frames' hex 
 concatenated in order. Stacks are ordered by position along the slice normal (uniform spacing,
 checked). A set may name a `crop` [y, x, h, w], kept from every frame. Every frame was checked once
 against the file's `PixelData` bytes read directly, not through the DICOM library's pixel decoder:
-all 363 identical, and no sample carries bits above
+all 387 identical, and no sample carries bits above
 `BitsStored`. Dependencies: pydicom 3.0.1 and numpy 2.4.6, installed with `--require-hashes` from
 `lab/av1/requirements.txt`.
 
@@ -103,6 +103,8 @@ all 363 identical, and no sample carries bits above
 | `xa_dynact16` | cone-beam CT from a rotational angiography run, 64 contiguous of 386 slices, 0.49 mm | 64 × 512² | 16-bit unsigned | 0..7364 | CMB-AML, CC BY 4.0 |
 | `dbt12_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm | 29 × 614×1359 | 12 of 16 bits, unsigned | 0..2690 | EA1141, CC BY 4.0 |
 | `dbt10_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm, cropped to the breast | 24 × 678×1727 of 1890×2457 | 10 of 16 bits, unsigned | 0..1012 | EA1141, CC BY 4.0 |
+| `dbtproj_ge` | breast tomosynthesis **projections**, R CC, one view per tube angle, acquisition order, cropped to the breast | 9 × 1914×2572 of 2394×2850 | 14 of 16 bits, unsigned | 0..3648 and 16383 | EA1141, CC BY 4.0 |
+| `dbtproj_holo` | breast tomosynthesis **projections**, R CC, one multi-frame file, frames as stored | 15 × 1280×2048 | 14 of 16 bits, unsigned | 103..1794 and 16383 | EA1141, CC BY 4.0 |
 
 * **Ranges are measured, not the header's.** 21.5 % of `ct_lidc`'s samples are −2048, the pad
   outside the reconstruction circle; the rest span −1097..3746, so the set needs 13 bits after
@@ -117,6 +119,13 @@ all 363 identical, and no sample carries bits above
   its non-zero samples over all slices: everything outside it is 0 (checked), so it drops only
   background. Only the slice volume of each series is taken, not its slab or 2-D companions. A
   non-commercial screening tomosynthesis collection exists in IDC (CC BY-NC 4.0); not used.
+* **The projections** are the raw (`FOR PROCESSING`) views a tomosynthesis volume is reconstructed
+  from, from two vendors' systems, in two different studies. Both store 14 bits, and both hold one
+  value apart from the rest: every sample is ≤ 3648 (`dbtproj_ge`) or ≤ 1794 (`dbtproj_holo`) except
+  16383, the saturated background — so they need 14 bits as stored, and 12 or 11 without that one
+  value. `dbtproj_ge`'s crop is the bounding box of its samples that are not 16383 over all views
+  (outside it every sample is 16383, checked); the second vendor's views have no such margin. Its
+  series has 9 views; the same study's L CC series, missing one, was not used.
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
   archived is not known (not checked). It is what an archive serves, not a probe's raw output.
 * TCIA's own API, Zenodo and PhysioNet are refused by this container's network policy; IDC mirrors
