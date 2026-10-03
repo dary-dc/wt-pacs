@@ -13,6 +13,9 @@ export class DownloaderClient {
   #onFrame;
   #onError;
   #ready;
+  #resolveReady;
+  #rejectReady;
+  #started = false;
   /** The page's copy of the downloader's generation: both step on `cancel`, and messages are ordered. */
   #gen = 0;
   #cancels = [];
@@ -34,39 +37,17 @@ export class DownloaderClient {
     });
   }
 
-  #resolveReady;
-  #rejectReady;
-  #started = false;
-
+  /** Every option but the page's own three goes to the downloader, so each must survive structured clone. */
   static async connect(url, certHash, opts = {}) {
     if (!globalThis.crossOriginIsolated && opts.decode !== false) {
       throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
     }
-    const c = new DownloaderClient(opts);
-    // Only what survives structured clone: `onFrame` is the consumer's, not the downloader's.
-    const config = {
-      decoders: opts.decoders,
-      decode: opts.decode,
-      perDecoder: opts.perDecoder,
-      decoder: opts.decoder,
-      transport: opts.transport,
-      decoderWorker: opts.decoderWorker,
-      // A codestream of the series' shape, decoded in each decoder before the first bytes arrive.
-      warmup: opts.warmup,
-      // `false` turns resumption off; an object overrides its deadlines. docs/ARCHITECTURE.md
-      survival: opts.survival,
-      // `opts.fill` rides with `start`: a page inside a long task cannot post one. docs/ARCHITECTURE.md §The downloader
-      fill: opts.fill,
-      openAsk: opts.openAsk,
-      wireBuffers: opts.wireBuffers,
-      readMin: opts.readMin,
-      // Bytes a session may carry before it stalls: its replacement is dialled at three quarters. docs/ARCHITECTURE.md
-      recycleAtBytes: opts.recycleAtBytes,
-    };
-    // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
-    // may be promises. docs/ARCHITECTURE.md
-    c.#worker.postMessage({ kind: "start", config });
+    const { onFrame, onError, worker, ...config } = opts;
+    const c = new DownloaderClient({ onFrame, onError, worker });
     try {
+      c.#worker.postMessage({ kind: "start", config });
+      // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
+      // may be promises. docs/ARCHITECTURE.md
       c.#worker.postMessage({ kind: "dial", url: await url, certHash: await certHash });
       await c.#ready;
     } catch (e) {

@@ -39,16 +39,12 @@ const queue = { ask: [], fill: [] };
 /** Fill frames the consumer wants and the wire has not delivered. */
 const wanted = new Set();
 
-function post(msg, transfer) {
-  postMessage(msg, transfer ?? []);
-}
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function fail(index, reason) {
   records.delete(index);
   wanted.delete(index);
-  post({ kind: "failed", index, gen: generation, reason });
+  postMessage({ kind: "failed", index, gen: generation, reason });
 }
 
 /** Asks come before fill frames; a frame already in hand moves up rather than being re-asked. */
@@ -110,7 +106,7 @@ function lose(d, reason) {
   d.ready();
   if (decoders.length > 0) return;
   decoderLoss = reason;
-  post({ kind: "failed", index: -1, reason });
+  postMessage({ kind: "failed", index: -1, reason });
   pump();
 }
 
@@ -139,7 +135,7 @@ function arrived(index, frame) {
   rec.stamps.mediaReads = session?.stats().mediaReads;
   if (!cfg.decode) {
     records.delete(index);
-    post({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
+    postMessage({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
     return;
   }
   rec.bytes = frame.bytes;
@@ -243,7 +239,7 @@ async function recycle() {
   adopt(next);
   for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
   issueFill();
-  post({ kind: "recycled" });
+  postMessage({ kind: "recycled" });
 }
 
 /** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
@@ -259,7 +255,7 @@ async function resume() {
     try {
       await connect();
       for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
-      return void post({ kind: "resumed" });
+      return void postMessage({ kind: "resumed" });
     } catch {
       await sleep(deadlines.redialMs);
     }
@@ -281,7 +277,7 @@ async function start(m) {
   const ready = [];
   // The decoder is a seam like the transport: a test points it at a controllable stand-in.
   const decoderUrl = cfg.decoderWorker ?? new URL("./decoder.js", import.meta.url);
-  for (let i = 0; i < cfg.decoders; i++) {
+  for (let i = 0; i < (cfg.decode ? cfg.decoders : 0); i++) {
     const worker = new Worker(decoderUrl, { type: "module" });
     const d = { worker, outstanding: 0 };
     ready.push(new Promise((r) => { d.ready = r; }));
@@ -301,7 +297,7 @@ async function start(m) {
         pump();
       }
     };
-    post({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
+    postMessage({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
     decoders.push(d);
   }
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
@@ -381,7 +377,7 @@ onmessage = async (e) => {
     if (m.kind === "dial") {
       dial = { url: m.url, certHash: m.certHash };
       await firstDial();
-      return void post({ kind: "started" });
+      return void postMessage({ kind: "started" });
     }
     if (m.kind === "ask") {
       const s = await live();
@@ -414,18 +410,18 @@ onmessage = async (e) => {
       } catch {
         /* a dead session has no stream to end */
       }
-      return void post({ kind: "cancelled", gen: generation });
+      return void postMessage({ kind: "cancelled", gen: generation });
     }
     if (m.kind === "close") {
       clearTimeout(stall);
       session?.close();
       // The decoders end with this worker; ending them here first can strand it. docs/ARCHITECTURE.md §Closing a client
-      return void post({ kind: "closed", reason: "closed by the consumer" });
+      return void postMessage({ kind: "closed", reason: "closed by the consumer" });
     }
   } catch (err) {
     const reason = String(err?.message ?? err);
     // Index -1 is the start failing; an ask or a fill names its own frames, in its own generation.
-    if (m.kind !== "ask" && m.kind !== "fill") return void post({ kind: "failed", index: -1, reason });
+    if (m.kind !== "ask" && m.kind !== "fill") return void postMessage({ kind: "failed", index: -1, reason });
     if (gen === generation) for (const index of m.indices ?? [m.index]) fail(index, reason);
   }
 };

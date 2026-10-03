@@ -1181,6 +1181,14 @@ async function framesWithNoDecoderLeftAreNamed(DownloaderClient: DownloaderCtor,
   c.close();
 }
 
+/** An option that cannot cross to the worker fails `connect` by name; drive_page.cjs counts the worker it must not leave. */
+async function anOptionThatCannotBeClonedFailsConnect(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
+  const outcome = await DownloaderClient.connect("https://conformance.invalid/", CERT, {
+    decode: false, decoders: 0, transport: "/client/conformance/dist/fake-session.js", notCloneable: () => {},
+  }).then((c) => (c.close(), "started"), (e: Error) => e.name);
+  check(outcome === "DataCloneError", `connect: an option that cannot be cloned fails it (${outcome})`);
+}
+
 export async function run(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
@@ -1231,6 +1239,7 @@ export async function run(DownloaderClient: DownloaderCtor, log: (line: string) 
     anAskAfterCloseRejectsAtOnce,
     aDecoderThatFailsItsInitLeavesThePool,
     framesWithNoDecoderLeftAreNamed,
+    anOptionThatCannotBeClonedFailsConnect,
   ];
   log("dispatch");
   for (const clause of clauses) {
