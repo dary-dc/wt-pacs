@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use study_bundle::BundleWriter;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "pack-study")]
@@ -14,8 +14,6 @@ struct Args {
     frames: PathBuf,
     #[arg(long)]
     output: PathBuf,
-    #[arg(long)]
-    sidecar: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -54,23 +52,11 @@ fn main() -> Result<()> {
         .finish()
         .with_context(|| format!("finish {}", args.output.display()))?;
 
-    if let Some(sidecar) = args.sidecar {
-        write_sidecar(&sidecar, &metadata)?;
-    }
-
     println!(
         "wrote {} ({} frames, {} bytes)",
         args.output.display(),
         frame_count,
         std::fs::metadata(&args.output)?.len()
     );
-    Ok(())
-}
-
-fn write_sidecar(path: &Path, metadata: &[u8]) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).context("create sidecar parent dir")?;
-    }
-    std::fs::write(path, metadata).with_context(|| format!("write {}", path.display()))?;
     Ok(())
 }

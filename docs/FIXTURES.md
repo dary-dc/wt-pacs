@@ -21,7 +21,8 @@ with a table entry outside its data region fails to open.
 
 Pack loose frames with `cargo run -p pack-study -- --metadata M.json --frames DIR --output
 X.sbnd`: `metadata.json` must carry `frameCount`, and the frames are `DIR/000.htj2k`,
-`001.htj2k`, …; `--sidecar PATH` also writes the metadata beside the bundle.
+`001.htj2k`, …. The metadata a host serves is that input file; `--sidecar`, which copied it, was
+removed 2026-10-03 (code: `git show archive/arms-2026-10-03:tools/pack-study/src/main.rs`).
 
 ## The sets
 
