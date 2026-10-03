@@ -58,7 +58,7 @@ server {
     location = /harness/ { alias /srv/wt-pacs/client/harness/; index index.html; }
     location   /harness/ { alias /srv/wt-pacs/client/harness/; }
 
-    # /client/** already resolves under root; dev-server.py's aliases for pkg/, pkg-telemetry/
+    # /client/** already resolves under root; dev-server.py's aliases for pkg/
     # and transport-ts/ were identity mappings and need no rule here.
     location / { try_files $uri $uri/ =404; }
 }

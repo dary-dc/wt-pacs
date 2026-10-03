@@ -1,7 +1,7 @@
 # Two targets from one file: `web` serves the page, `server` speaks the transport.
 # nginx cannot front the transport — it is QUIC on UDP and nginx has no QUIC upstream —
 # so the browser dials the server directly, exactly as it does in development.
-# deploy/README.md
+# A build with no --target stops at the last stage, `web`. deploy/README.md
 
 # ---------------------------------------------------------------- server
 FROM docker.io/library/rust:1-bookworm AS build
@@ -14,20 +14,32 @@ COPY client/transport-wasm/src ./client/transport-wasm/src
 COPY ingest ./ingest
 COPY tools ./tools
 COPY lab ./lab
+COPY patched ./patched
+COPY patches ./patches
+COPY scripts/patch_crate.sh ./scripts/
 RUN cargo build --release -p exact-server
 
+# Same Debian release as `build`: the binary links glibc and a mismatch fails only at start.
 FROM docker.io/library/debian:bookworm-slim AS server
 RUN useradd -r -u 10001 wtpacs
 COPY --from=build /src/target/release/exact-server /usr/local/bin/exact-server
 USER wtpacs
-EXPOSE 4433/udp 4434/tcp
+EXPOSE 4433/udp 4433/tcp
 ENTRYPOINT ["exact-server"]
+
+# ---------------------------------------------------------------- client bundles
+FROM docker.io/library/node:22-bookworm-slim AS bundles
+WORKDIR /src
+COPY client ./client
+COPY lab/telemetry-cost ./lab/telemetry-cost
+RUN client/transport-ts/build.sh
 
 # ---------------------------------------------------------------- web
 FROM docker.io/library/nginx:1-alpine AS web
 COPY deploy/nginx/wt-pacs.conf.template /etc/nginx/templates/wt-pacs.conf.template
 COPY deploy/nginx/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY client   /srv/wt-pacs/client
+COPY client /srv/wt-pacs/client
+COPY --from=bundles /src/client/transport-ts/dist /srv/wt-pacs/client/transport-ts/dist
 COPY fixtures /srv/wt-pacs/fixtures
 RUN rm -f /etc/nginx/conf.d/default.conf
 EXPOSE 8765
