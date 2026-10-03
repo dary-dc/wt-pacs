@@ -157,6 +157,32 @@ committed); a size verdict names its content. They are a CT stack, an MR stack, 
 cine, a 12-bit fluoroscopy run and a 16-bit cone-beam volume, all CC BY
 ([`FIXTURES.md`](../FIXTURES.md) §AV1 data); no open angiography run was found.
 
+**A5 — Preview.** The rule is that every frame ends bit-exact; a lossy picture shown first and
+replaced by the exact frame keeps it. Whether a lossy first picture is acceptable in the product is
+the owner's ruling, not a measurement's. *Measured (PREVIEW; [`lab/av1/preview`](../../lab/av1/preview/README.md)),
+fluoroscopy and the ultrasound cine; no angiography run was available:*
+
+* **Bytes and quality, against the source.** Lossy AV1 (libaom 3.15.1, cpu6) at G = 8:
+  fluoroscopy at CRF 20 is **0.78 % of the exact HTJ2K bytes at 43.9 dB** (12-bit peak; max \|Δ\|
+  433 of 4095), coded as 10-bit 4:0:0 so WebCodecs takes it; the ultrasound at CRF 32 is **7.0 % at
+  34.2 dB** (max \|Δ\| 109), 4:2:0 capping any colour preview at 43.8 dB before coding. HTJ2K's own
+  preview, its half-size resolution prefix, is 26 % and 32 % of the bytes at 27.6 and 26.6 dB.
+* **Decode.** dav1d-WASM decodes a lossy frame 1.1–3.3× slower than OpenJPH decodes the exact one,
+  and 3–11× slower than OpenJPH's half-size prefix; WebCodecs 2.4–13× faster than dav1d-WASM and
+  faster than OpenJPH's exact decode on every cell (headless Chromium, this container, 1× and 4×,
+  15 interleaved rounds, 68 640 frames matching their references).
+* **What it buys, arithmetic over those numbers** (three decoders, frames in order; nothing serves
+  a preview, so no transfer ran): on 5 Mbit/s the cine is playable **74–124× sooner on fluoroscopy
+  (0.12–0.20 s against 14.8 s) and 14× sooner on the ultrasound (2.0 s against 28.8 s)**, 4–32×
+  sooner than HTJ2K's prefix-first order. Every frame is exact later by the preview's share of the
+  bytes: +0.8 % and +7 %. At 50 Mbit/s and 4× through dav1d-WASM the ultrasound's preview (1.21 s)
+  is later than HTJ2K's prefix (0.93 s); through WebCodecs it is 0.24 s. One group for the whole
+  series puts the preview on one decoder and gives most of it back (3.52 s at 4×, 50 Mbit/s);
+  G = 8 is within 1–16 % of its bytes.
+
+Serving a preview is a second representation of a frame in the store and on the wire: structural,
+and not proposed here.
+
 ## Prior evidence, not reproduced here
 
 An earlier private proof of concept measured parts of this. Its numbers are **not measured in this
