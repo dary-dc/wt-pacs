@@ -49,8 +49,9 @@ start to end without naming every index is `stream_frames`, not a large batch (Â
 envelope_len = 4 + codestream bytes
 ```
 
-Every frame is length-prefixed in every stream mode (`common/frame-envelope`; the server's
-`frame_out.rs` pins the bytes in `streamed_bytes_match_the_envelope_they_replaced`). A frame is
+Every frame is length-prefixed in every stream mode. `common/frame-envelope` is the one definition:
+the server streams its `frame_head` before the codestream, clients `unwrap`, and
+`the_head_is_the_envelope_length_then_the_index_big_endian` pins the bytes. A frame is
 identified by its index, never by the stream it came on. Clients stop reading a stream whose
 `envelope_len` is under 4 or over 64 MiB (`MAX_FRAME_LEN`), and name a frame whose stream ends
 before `envelope_len` bytes ([`CLIENTS.md`](CLIENTS.md#a-truncated-frame-is-a-failure)).

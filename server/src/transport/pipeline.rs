@@ -3,11 +3,12 @@
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
-use crate::transport::frame_out::{FrameOut, FRAME_HEAD_LEN};
+use crate::transport::frame_out::FrameOut;
 use crate::transport::planner::Mode;
 use crate::transport::wire::Control;
 use anyhow::{Error, Result};
 use fod::FodMsg;
+use frame_envelope::FRAME_HEAD_LEN;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{info, warn};
