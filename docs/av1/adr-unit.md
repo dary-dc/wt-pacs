@@ -268,7 +268,8 @@ B also settles what row SVCQ left open: **WebCodecs cannot be asked for an opera
 returns the base when fed the base alone and the top when fed the whole unit** (row SVCQ, 8-bit), so
 separate entries choose the picture by what is fed, on either decoder. dav1d-WASM decodes the
 exact entry at operating point 0 with `all_layers` 0 and the base at operating point 1 (row SVCQ);
-whether one decoder at operating point 0 also returns a base fed alone is row SVCDEC's to find.
+whether one decoder at operating point 0 also returns a base fed alone is row SVCDEC's to find
+(*it does, as a preview, and then fails the frame:* §6).
 
 ### The layout: layer-major
 
@@ -332,3 +333,61 @@ preview on screen, to every frame exact, and the exact fill's delay against the 
 exact frame against its source's checksum, every preview replaced. The arithmetic it tests: every
 base is in after the bases' share of the exact fill's wire time plus a round trip, and the last
 exact frame is late by that share.
+
+## 6 · A scalable frame: its base as a preview, then the exact frame, from the same bytes
+
+*Built (row SVCDEC), not timed.* A scalable temporal unit (row SVCQ: a lossy base layer, a lossless
+top predicted from it) reaches the page twice through dav1d-WASM: its base as a **preview**, then
+its exact frame. One entry, one decode, no wire, store or server change.
+
+**Why dav1d returned the base and then failed (row SVCQ).** dav1d at its default `all_layers` 1
+outputs every spatial layer as it decodes it, so `dav1d_get_picture` gives the base while the top's
+OBUs are still in the decoder's input. The wrapper took that one picture and returned; the next
+unit then found the previous unit's top still queued (`EAGAIN`), took *that* as its picture, and
+dropped its own bytes. At G = 1 the flush before each keyframe discarded the top instead, so every
+frame came back as its base.
+
+**What changed.**
+
+* `dav1d_wrap.c` gains `av1_next()` (the unit's next picture, or `EAGAIN` when none is left),
+  `av1_layer()` (the picture's `spatial_id`) and `av1_top_layer()` (the highest spatial layer of
+  operating point 0, from the sequence header's `operating_point_idc`; 0 for a single-layer stream).
+  The build is otherwise unchanged (623 146 B).
+* `decode-av1.js` decodes the unit, and while the picture's layer is below the top it hands that
+  picture to a `preview` callback and asks for the next. A single-layer stream's first picture is
+  its top, so it decodes as before. A unit that ends below the top fails by name:
+  `spatial layer 0 of 1 is the unit's last`.
+* `decoder.js` posts a preview to the consumer as a frame message with **`preview: true`**, at the
+  base's own `width` and `height`, before the exact frame's message on the same port.
+* `consumer.js` hands a preview to **`opts.onPreview`** and never to a waiter: `requestExactFrame`
+  resolves with the exact frame only, and `onFrame` receives exact frames only.
+
+**What holds, and why.** A frame's preview and its exact pixels leave one decoder in order on one
+port, so a preview always reaches the page before its frame and never after it: nothing in the
+consumer has to drop a late one. That stops holding under §5's layout, where a base and its exact
+unit are two entries that may reach two decoders; there the consumer must drop a preview for a
+frame it already holds exactly. When the top is missing the page has seen the preview, marked, and
+the frame fails as any undecodable frame does — at G > 1 the rest of its group with it.
+
+**What §5 asked.** One decoder at operating point 0 *does* return a base fed alone — as a preview —
+but then fails the frame, because operating point 0 promises a top. §5's base entry therefore needs
+the decoder told that the entry ends at the base (the `layers` in its metadata would say so); not
+built.
+
+**Not covered.** WebCodecs (a ≤ 10-bit series at G = 1) returns the top exactly and no preview: it
+outputs the highest layer it is fed (row SVCQ), and taking its base is row WCBASE's. A split series
+takes no preview. Three or more spatial layers send every layer below the top as a preview; only two
+were made.
+
+**Checked** (the dispatch arm, headless Chromium; units from
+[`lab/av1/svcdec/make_frames.sh`](../../lab/av1/svcdec/make_frames.sh): libaom 3.15.1's
+`svc_encoder_rtc`, two spatial layers, a half-size base at q 40, a lossless top, 64×48 grey): a
+10-bit G = 1 stream asked frame by frame and a 12-bit G = 8 stream of 20 filled — every exact frame
+its source's checksum, at 64×48, never marked; one preview a frame, before it, marked, 32×24, the
+same samples native dav1d returns at operating point 1; nothing left on screen as a preview. A unit
+with the top's OBUs dropped shows its preview, still marked, and fails by name between two exact
+frames. A single-layer G = 8 series sends no preview. The 10-bit stream through WebCodecs: 4 units
+reach it, every frame exact, no preview. 18 checks, 199/199; 8 mutations caught 8/8 (a preview
+resolving the ask, a preview not marked, no preview, the missing top returning the base, previews
+posted after the frame, a preview checksum corrupted, WebCodecs never taken, the wrapper's top layer
+read as 0).

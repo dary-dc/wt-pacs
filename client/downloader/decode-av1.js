@@ -24,12 +24,12 @@ export async function init(d) {
 }
 
 /** A split frame's low unit replaces the top's picture, so it goes second; a split series is G = 1. */
-export function decodeFrame(bytes, unit = { key: true }) {
+export function decodeFrame(bytes, unit = { key: true }, preview) {
   const follows = last !== null && unit.gen === last.gen && unit.index === last.index + 1;
   if (!unit.key && !follows) throw new Error(`undecodable: frame ${unit.index - 1} was not decoded before it here`);
   last = null;
   if (!cfg.split) {
-    const f = end(begin(picture(bytes, unit.key), cfg));
+    const f = end(begin(picture(bytes, unit.key, preview), cfg));
     last = { gen: unit.gen, index: unit.index };
     return f;
   }
@@ -38,8 +38,8 @@ export function decodeFrame(bytes, unit = { key: true }) {
   return end(f, picture(low, true));
 }
 
-/** A view of dav1d's picture, valid until its next decode. */
-function picture(bytes, key) {
+/** A view of the unit's top layer, valid until the next decode; layers under it go to `preview` (adr-unit.md §6). */
+function picture(bytes, key, preview) {
   if (bytes.length > cap) {
     if (ptr) M._free(ptr);
     cap = bytes.length;
@@ -50,7 +50,15 @@ function picture(bytes, key) {
   if (key) M._av1_flush();
   const r = M._av1_decode(ptr, bytes.length);
   if (r < 0) throw new Error(`undecodable: dav1d ${r}`);
+  for (let layer, top = M._av1_top_layer(); (layer = M._av1_layer()) < top; ) {
+    preview?.(end(begin(held(), cfg)));
+    const next = M._av1_next();
+    if (next < 0) throw new Error(`undecodable: spatial layer ${layer} of ${top} is the unit's last (dav1d ${next})`);
+  }
+  return held();
+}
 
+function held() {
   const layout = M._av1_layout();
   // Grey is 4:0:0; colour is lossless only as 4:4:4 with the identity matrix (0), planes G, B, R.
   if (layout !== 0 && !(layout === 3 && M._av1_matrix() === 0)) {

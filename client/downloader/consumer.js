@@ -13,6 +13,7 @@ export class DownloaderClient {
   #waiters = new Map();
   #closedReason = null;
   #onFrame;
+  #onPreview;
   #onError;
   #ready;
   /** The page's copy of the downloader's generation: both step on `cancel`, and messages are ordered. */
@@ -25,6 +26,8 @@ export class DownloaderClient {
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
+    // A scalable AV1 frame's lower layer, sent before its exact frame on the same port. docs/av1/adr-unit.md §6
+    this.#onPreview = opts.onPreview ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
     // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
     this.#worker = new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
@@ -125,6 +128,7 @@ export class DownloaderClient {
       timing: { askMs: m.stamps?.ask ?? 0, lastChunkMs: m.stamps?.lastByte || m.stamps?.decodeEnd || 0 },
       info: m,
     };
+    if (m.preview) return void this.#onPreview(frame);
     if (w) {
       this.#waiters.delete(m.index);
       w.resolve(frame);
