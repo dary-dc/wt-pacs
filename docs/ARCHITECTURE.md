@@ -396,7 +396,7 @@ A second decoder shortens the fill in 7 of 7 rounds everywhere, a third in 7 of 
 
 ## What a thread hop costs
 
-Priced before the shape was chosen ([`../lab/thread-hops/`](../lab/thread-hops/README.md): workers
+Priced before the shape was chosen (`git show 90a7f64:lab/thread-hops/README.md`: workers
 standing in for decode and receive, no transport, no decoder; headless Chromium 141, 4 vCPU,
 cross-origin isolated so `performance.now()` is 5 µs and a one-tick difference is quantisation).
 
@@ -854,11 +854,11 @@ WASM client.
 ### Resumption and 0-RTT
 
 **The server resumes already** — rustls's defaults, two TLS 1.3 tickets a handshake, no 0-RTT; the
-native client was resumed 21 of 21 times ([`../lab/scripts/client_hello.py`](../lab/scripts/client_hello.py)
+native client was resumed 21 of 21 times (`git show 90a7f64:lab/scripts/client_hello.py`
 decrypts each Initial) — **and resumption buys no round trip**: the flights are the same, only the
 certificate drops (native, 7 rounds: 85.2 against 85.0 ms ready at 40 ms, 165.8 against 165.3 at 80).
 **Chrome never offers a PSK on a WebTransport dial**: none of 216 dials in Chromium 141
-([`../lab/session-resume/run.mjs`](../lab/session-resume/run.mjs)) — same page, new page, pinned hash or
+(`git show 90a7f64:lab/session-resume/run.mjs`) — same page, new page, pinned hash or
 CA-signed certificate, against a server accepting early data — carried `pre_shared_key` (inferred: no
 session cache in its WebTransport client). **So nothing changes in the server.** 0-RTT would need the
 server's early data, a `wtransport` that accepts a session before its handshake, and a browser that

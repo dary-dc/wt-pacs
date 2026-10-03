@@ -269,7 +269,7 @@ current wrapper, and the delivered build is the workstation's.
 open implementation with WASM SIMD paths for the block coder, the wavelet and the colour transform.
 Licence first, because it is a gate: BSD 3-Clause, its bundled `highway` Apache-2.0 — both
 permissive. Pinned at **v0.9.1**, `8cf42e90e6f54a51c8247587437c12f96eb131ec`;
-`lab/decode-bench/wasm/build_openhtj2k.sh` fetches it (never vendored) and links
+`git show 90a7f64:lab/decode-bench/wasm/build_openhtj2k.sh` fetched it (never vendored) and linked
 `openhtj2k_decoder.cpp` at the same flags, single-threaded, 4 MB, with the same class surface and
 `pack<T>()`, so `build_arms.mjs` and `parity.mjs` drive both with no branch. It decodes through
 `invoke_line_based_stream()`, the per-row analogue of `pull()`. **It exposes no header surface**
@@ -322,7 +322,7 @@ time was found — §The wrapper's two passes.
   recovers that and stops there**: three ties against 3.1.74. So the pin in `wasm/build.sh` holds
   about 15 % of decode time, and moving it is a performance decision.
 * **A decoder object reused vs created per frame: tie** (−1.6 % 8/8 at 512 KB, a wash elsewhere).
-  Reuse stays the product's shape; what it costs is memory (§Where to put the floor).
+  Reuse stays the product's shape; what it costs is memory (§Where to put the floor). The bench: `git show 90a7f64:lab/decode-bench/reuse_cost.mjs`.
 * **`wasm-opt -O4`: tie** (+0.1 %, 275 B larger) — emcc already runs it at `-O3`. Use the emsdk's
   own `wasm-opt`: binaryen 117 cannot validate 6.0.9's output, and `--all-features` yields a binary
   Node will not instantiate.

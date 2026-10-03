@@ -422,8 +422,8 @@ Figures taken before row 90 (`abc55e6`) used each driver's former order (a fixed
 or two arms reversed every other round) and are left as written; a cell re-run now takes the square. Which driver had which order, and where each doc quotes it, is
 in `git show 6e9c126:docs/rig-limits.md` §6. **Not converted**, outside the row's three groups
 (page-open, the link campaigns, the decode benches): `lab/downloader-campaign/`, `decoder-memory/`,
-`session-survival/`, `session-resume/`, `early-messages/`, `stream-shape/`, `tcp-fallback/`,
-`worker-leak/`, `thread-hops/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-arm scripts
+`session-survival/`, `early-messages/`, `stream-shape/`, `tcp-fallback/`,
+`worker-leak/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-arm scripts
 that reverse every other round (already the square, with no split printed).
 
 **`serve_us` is not a speed, and it is not the server's alone.** It covers the read plus
@@ -518,7 +518,7 @@ and the worker's first message both land ~20 ms after activation, never before. 
 the worklist can therefore hide the page's fetches and script — the 3.6 round trips before the
 dial that [`../lab/page-open/README.md`](../lab/page-open/README.md) counts — and none of the
 dial's 3.0, and nothing that boots in a worker. The probe and its numbers:
-[`../lab/prerender/`](../lab/prerender/).
+`git show 90a7f64:lab/prerender/`.
 
 **Nor does every build resolve like a browser** (2026-09-26). Playwright's headless shell never
 turns on Chromium's own DNS client: it asks the system for A and AAAA and never for an HTTPS record.
