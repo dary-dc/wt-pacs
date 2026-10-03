@@ -14,6 +14,8 @@ export type WorkerFake = {
   dialUrl(): Promise<string>;
   didClose(): Promise<boolean>;
   dials(): Promise<number>;
+  /** `performance.now()` of each dial, on the downloader worker's clock. */
+  dialledAt(): Promise<number[]>;
   /** Whether every transport before the latest was closed by the client. */
   replacedClosed(): Promise<boolean>;
   failDials(n: number): Promise<void>;
@@ -62,6 +64,7 @@ export function workerFake(name: string): WorkerFake {
     dialUrl: () => call("dialUrl") as Promise<string>,
     didClose: () => call("didClose") as Promise<boolean>,
     dials: () => call("dials") as Promise<number>,
+    dialledAt: () => call("dialledAt") as Promise<number[]>,
     replacedClosed: () => call("replacedClosed") as Promise<boolean>,
     failDials: (n) => call("failDials", n) as Promise<void>,
     openAfterMs: (ms) => call("openAfterMs", ms) as Promise<void>,

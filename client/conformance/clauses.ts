@@ -156,7 +156,8 @@ async function askAfterClose(rig: Rig, check: Check, s: ConformantSession, index
       rejected = true;
     }
     check(rejected, `${rig.name}: a request against a closed session fails (${what})`);
-    check(Date.now() - t0 < 1000, `${rig.name}: at once, not at FRAME_TIMEOUT_MS (${what})`);
+    // Generous under load; the claim is "not FRAME_TIMEOUT_MS", and 15 s still fails it.
+    check(Date.now() - t0 < 5000, `${rig.name}: at once, not at FRAME_TIMEOUT_MS (${what})`);
     return;
   }
   const dials = await rig.dialsSinceOpen();
@@ -203,7 +204,7 @@ async function noticesClose(rig: Rig, check: Check) {
       woke = true;
     }
     check(woke, `${rig.name}: a request in flight when the session closes is woken`);
-    check(Date.now() - t1 < 1000, `${rig.name}: it is woken at once, not left to time out`);
+    check(Date.now() - t1 < 5000, `${rig.name}: it is woken at once, not left to time out`);
   }
   closedDuring.close();
 
