@@ -89,7 +89,6 @@ class WireBuffers {
 
 export abstract class FrameSession {
   private waiters = new Map<number, Waiter>();
-  private errors = new Map<number, string>();
   private fill: Fill | null = null;
   private droppedEarly = 0;
   private frameErrors = 0;
@@ -162,7 +161,6 @@ export abstract class FrameSession {
 
   protected failWaiter(frameIndex: number, reason: string) {
     const w = this.waiters.get(frameIndex);
-    this.errors.set(frameIndex, reason);
     this.frameErrors += 1;
     const owed = this.fill?.pending.delete(frameIndex) ?? false;
     if (!w) {
@@ -230,24 +228,8 @@ export abstract class FrameSession {
       }
       throw e;
     }
-    return this.settle(frameIndex, askMs, pending);
-  }
-
-  /** Await one armed waiter; a refusal the server sent for this frame wins over the raw error. */
-  private async settle(
-    frameIndex: number,
-    askMs: number,
-    pending: Promise<{ bytes: Uint8Array; receivedMs: number }>,
-  ): Promise<FrameResult> {
-    try {
-      const { bytes, receivedMs } = await pending;
-      return toResult(frameIndex, askMs, bytes, receivedMs);
-    } catch (e) {
-      const reason = this.errors.get(frameIndex);
-      this.errors.delete(frameIndex);
-      if (reason) throw new Error(`frame ${frameIndex} unavailable: ${reason}`);
-      throw e;
-    }
+    const { bytes, receivedMs } = await pending;
+    return toResult(frameIndex, askMs, bytes, receivedMs);
   }
 
   /**

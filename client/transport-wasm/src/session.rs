@@ -288,9 +288,11 @@ fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f6
 fn fail_waiter(st: &Rc<RefCell<SessionState>>, index: u32, reason: &str) {
     let refused = {
         let mut s = st.borrow_mut();
-        s.errors.insert(index, reason.to_string());
         s.frame_errors += 1;
         let asked = s.waiters.remove(&index).is_some();
+        if asked {
+            s.errors.insert(index, reason.to_string());
+        }
         let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&index));
         if asked || !owed {
             None
@@ -370,6 +372,7 @@ struct SessionState {
     /// Set once the session is gone; a waiter armed after this would only reach the timeout.
     closed: Option<String>,
     dropped_early: u64,
+    /// The refusal an asked frame's waiter was dropped for, read by its `settle`.
     errors: HashMap<u32, String>,
     frame_errors: u64,
     wire: WireBuffers,

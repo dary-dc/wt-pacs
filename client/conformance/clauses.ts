@@ -390,6 +390,23 @@ async function aDeadSessionNamesWhatItOwed(rig: Rig, check: Check) {
   s.close();
 }
 
+/** A frame a fill lost and an ask then wants fails with the ask's own reason, not the fill's. */
+async function aLaterFailureIsNotTheFillsOne(rig: Rig, check: Check) {
+  const s = await rig.open();
+  const t = rig.fake();
+  const named: number[] = [];
+  s.fillFrames(3, 3, () => {}, (i) => named.push(i));
+  await settle();
+  await t.pushTruncatedFrame(3, enc.encode("frame-three-and-more"), 4);
+  await until(() => named.length >= 1, 1000);
+  const asked = s.requestExactFrame(3).then(() => "delivered", (e) => String(e?.message ?? e));
+  await settle();
+  if (!(await serverGone(rig, check, "after a lost fill frame"))) return s.close();
+  const why = await within(asked, 2000);
+  check(why !== null && !why.includes("truncated"), `${rig.name}: a frame the fill lost, asked again, fails with its own reason (${why})`);
+  s.close();
+}
+
 /** A closed session can be replaced: the next connect serves frames again. */
 async function redialsAfterClosure(rig: Rig, check: Check) {
   const first = await rig.open();
@@ -464,6 +481,7 @@ export async function runClauses(rig: Rig, check: Check): Promise<void> {
     pushedFill,
     aTruncatedFrameIsAFailure,
     aDeadSessionNamesWhatItOwed,
+    aLaterFailureIsNotTheFillsOne,
     aFrameIsLateOnlyWhenTheSessionGoesQuiet,
     aSlowFrameHoldsNoOther,
   ];
