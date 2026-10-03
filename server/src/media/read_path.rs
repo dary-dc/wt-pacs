@@ -12,17 +12,18 @@ use bytes::Bytes;
 use std::mem;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
-use tracing::warn;
 
 #[cfg(feature = "uring")]
 use crate::media::uring_reader::UringReader;
+#[cfg(feature = "uring")]
+use tracing::warn;
 
 /// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
 pub const TILE_SLOTS: usize = 4;
 /// Bytes past the named frame a fill asks the kernel to have ready. `docs/disk-access/adr.md`.
 pub const FILL_WINDOW: u64 = 4 << 20;
 
-/// Which escalation a tile session takes, from `WTPACS_READ_PATH`.
+/// Which escalation a tile session takes, from `WTPACS_READ_PATH`, read once at server start.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ReadMode {
     #[default]
@@ -33,18 +34,13 @@ pub enum ReadMode {
 }
 
 impl ReadMode {
-    pub fn from_env() -> Self {
-        match std::env::var("WTPACS_READ_PATH").as_deref() {
-            Ok("pool") => Self::Pool,
-            Ok("uring") => Self::Uring,
-            Ok("auto") | Err(_) => Self::Auto,
-            Ok(other) => {
-                warn!(
-                    value = other,
-                    "WTPACS_READ_PATH is not auto|pool|uring; using auto"
-                );
-                Self::Auto
-            }
+    /// Unset is `Auto`.
+    pub fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("auto") => Ok(Self::Auto),
+            Some("pool") => Ok(Self::Pool),
+            Some("uring") => Ok(Self::Uring),
+            Some(other) => Err(format!("WTPACS_READ_PATH is not auto|pool|uring: `{other}`")),
         }
     }
 }
@@ -863,19 +859,19 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// The three values the ADR documents parse to their own mode, unset is `Auto`, and anything
+    /// else is refused rather than read as one of them.
     #[test]
     fn read_mode_parses_the_three_it_documents() {
         for (value, want) in [
-            ("pool", ReadMode::Pool),
-            ("uring", ReadMode::Uring),
-            ("auto", ReadMode::Auto),
-            ("nonsense", ReadMode::Auto),
+            (Some("pool"), Ok(ReadMode::Pool)),
+            (Some("uring"), Ok(ReadMode::Uring)),
+            (Some("auto"), Ok(ReadMode::Auto)),
+            (None, Ok(ReadMode::Auto)),
         ] {
-            unsafe { std::env::set_var("WTPACS_READ_PATH", value) };
-            assert_eq!(ReadMode::from_env(), want, "WTPACS_READ_PATH={value}");
+            assert_eq!(ReadMode::parse(value), want, "WTPACS_READ_PATH={value:?}");
         }
-        unsafe { std::env::remove_var("WTPACS_READ_PATH") };
-        assert_eq!(ReadMode::from_env(), ReadMode::Auto, "unset is auto");
+        assert!(ReadMode::parse(Some("nonsense")).is_err(), "an unknown value was taken");
     }
 
     #[test]

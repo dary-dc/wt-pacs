@@ -3,7 +3,6 @@
 //! FoD message's JSON. `docs/WIRE.md` §The WebSocket mapping.
 
 use crate::transport::frame_out::FrameOut;
-use crate::transport::pipeline::ProductPipeline;
 use crate::transport::server::{forward, parse_open_ask, Sessions};
 use crate::transport::wire::{Control, MAX_FOD_LEN};
 use anyhow::{bail, Context, Result};
@@ -127,7 +126,8 @@ async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions) -> Result
     let (sink, mut stream) = socket.split();
     let sink = WsSink(Arc::new(Mutex::new(sink)));
 
-    let product = ProductPipeline::new(Arc::clone(&sessions.store), FrameOut::WebSocket(sink.clone()))
+    let product = sessions
+        .pipeline(FrameOut::WebSocket(sink.clone()))
         .with_control(Control::WebSocket(sink.clone()));
     let read = |tx| async move { while forward(next_fod(&mut stream).await, &tx).await.is_ok() {} };
     // Served right behind the 101, a round trip before the client's first message could land.

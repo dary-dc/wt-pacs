@@ -433,7 +433,8 @@ async fn reader_product_tile(
 ) -> Result<()> {
     let asks = plan.len();
     let slots = cell.depth.max(1);
-    let mut tile = TileReader::new(ReadMode::from_env(), &store, slots);
+    let mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref());
+    let mut tile = TileReader::new(mode.map_err(anyhow::Error::msg)?, &store, slots);
     let mut mine = Vec::with_capacity(asks);
     let mut miss = 0u64;
     let mut upcoming: Vec<FrameSpan> = Vec::with_capacity(slots);

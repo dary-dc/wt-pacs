@@ -338,7 +338,9 @@ so the bytes after `next` are the frames after it.
 **Tiles — `TileReader`.** `slots` frames: current first, then upcoming that fit, then wait — the
 measured order. The probe is the whole frame; a shortfall goes to the ring, or to the pool where
 the ring is refused. A new read takes a slot with no read in flight when there is one.
-`WTPACS_READ_PATH` is resolved once in `TileReader::new`; `probe: false` *is* the `uring` lever.
+`WTPACS_READ_PATH` is resolved once at server start, and an unknown value is warned about and read as
+`auto`; `probe: false` *is* the `uring` lever. **Corrected 2026-10-03:** this said "once in
+`TileReader::new`"; it was read, and warned about, in every session's pipeline.
 `Ring` is not an `Option`: a refused ring must be neither retried on every miss nor fail the
 ask, so `Off` means both "never wanted" and "refused".
 

@@ -2,6 +2,7 @@
 //! `docs/adr-reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
+use crate::media::read_path::ReadMode;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{fill_range, Ask, Planner, Step, ASKS_AHEAD};
@@ -109,8 +110,14 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     if let Some(bytes) = config.stall_after_bytes {
         warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
     }
+    let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
+        .unwrap_or_else(|err| {
+            warn!("{err}; using auto");
+            ReadMode::Auto
+        });
     let sessions = Sessions {
         store,
+        read_mode,
         mode: config.mode,
         open_ask: config.open_ask,
         stall: config.stall_after_bytes,
@@ -139,6 +146,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 #[derive(Clone)]
 pub(super) struct Sessions {
     pub(super) store: Arc<FrameStore>,
+    read_mode: ReadMode,
     mode: StreamMode,
     pub(super) open_ask: bool,
     stall: Option<u64>,
@@ -147,6 +155,10 @@ pub(super) struct Sessions {
 }
 
 impl Sessions {
+    pub(super) fn pipeline(&self, out: FrameOut) -> ProductPipeline {
+        ProductPipeline::new(Arc::clone(&self.store), out, self.read_mode)
+    }
+
     /// One session, whatever carries it: `opening` first, then each ask `read` forwards, until
     /// the asks end or a send fails. The reader is stopped before this returns.
     pub(super) async fn serve<F>(
@@ -286,8 +298,7 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let product =
-        |out| ProductPipeline::new(Arc::clone(&sessions.store), out).with_stall_after(sessions.stall);
+    let product = |out| sessions.pipeline(out).with_stall_after(sessions.stall);
     let result = match opening {
         Some(ask) => {
             let out = FrameOut::open(sessions.mode, connection.clone()).await?;
@@ -904,6 +915,7 @@ mod tests {
         let (tx, rows) = std::sync::mpsc::sync_channel(64);
         let sessions = Sessions {
             store: Arc::new(FrameStore::open(&study).expect("open store")),
+            read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
             open_ask: true,
             stall: None,

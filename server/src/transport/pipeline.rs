@@ -82,13 +82,13 @@ pub(crate) struct ProductPipeline {
 }
 
 impl ProductPipeline {
-    pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut) -> Self {
+    pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut, mode: ReadMode) -> Self {
         Self {
             store,
             out,
             seq: None,
             tile: None,
-            mode: ReadMode::from_env(),
+            mode,
             control: None,
             late_control: None,
             fills: 0,
@@ -423,7 +423,7 @@ mod tests {
 
         let sessions = 8;
         let pipelines: Vec<ProductPipeline> = (0..sessions)
-            .map(|_| ProductPipeline::new(Arc::clone(&store), FrameOut::Detached))
+            .map(|_| ProductPipeline::new(Arc::clone(&store), FrameOut::Detached, ReadMode::Auto))
             .collect();
 
         for (n, pipeline) in pipelines.iter().enumerate() {
