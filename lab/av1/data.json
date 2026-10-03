@@ -1213,6 +1213,84 @@
      "bytes": 222913990
     }
    ]
+  },
+  {
+   "name": "dbtproj_ge",
+   "what": "breast tomosynthesis projections, R CC, 9 views in acquisition order, cropped to the breast",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.241153237908295365473272556342",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "c838e036214e0eb3677cd497e643462d21ea301ee4f2a62037b790337f8d0e93",
+   "files": [
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/e356716f-5666-4db6-9a3f-1c19e33eacd2.dcm",
+     "sha256": "1b2470e5699e972334cd42899fe12d886081440315f8125b50327963b9ecab6c",
+     "bytes": 13650068
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/e61d24bf-d9e3-4aef-92bf-c702feeacb61.dcm",
+     "sha256": "13f965bd31db6bb5bef7917ad3e3d2abb08ad7ee0dd69037697f4cc13898f9b2",
+     "bytes": 13650068
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/9b59fbc3-7ed9-4ff0-9adc-4c8bef1f3073.dcm",
+     "sha256": "3183a8f19ff4c9cd988a0ee7847dce8098fb69e7e17659cc82b1536c4d0c0f1a",
+     "bytes": 13650070
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/0f4ccbcb-5f03-4b85-86f8-6889a42ac38f.dcm",
+     "sha256": "5e6c16dde55c9cd5b8170f17d65c8bf90c6a8856f8d5583affd06e1c24f6f47b",
+     "bytes": 13650070
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/c595df2c-65f7-4006-9f12-61d56582dfd0.dcm",
+     "sha256": "0c2ca4ddb25e797e6a3c0351facc176c7a2850212e7b70c4b75e37a54715fdc6",
+     "bytes": 13650068
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/bec41504-feda-46b0-b9b3-bdc5457deb7d.dcm",
+     "sha256": "f7f95aaf1b372bb1cab14fb1169e292257a55be5dcd9dc3c4cad0be41878cff3",
+     "bytes": 13650070
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/f93a3560-eb85-4d55-8cfa-58da7ee9f097.dcm",
+     "sha256": "04ad19ca4b7f04ae1b111b0e930a9dd7061ace1e34de27d13af571566efe652f",
+     "bytes": 13650070
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/1ac5f56e-76fe-44d7-80e2-9c8a8e9908a4.dcm",
+     "sha256": "905f0179a6c76215641845ac7f789800f219361991ce37af541e7c0e4f8fb5ed",
+     "bytes": 13650076
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/5a142946-da9e-4f3b-aa1a-2cd9cc279e5d.dcm",
+     "sha256": "a5393c6a95f35dbd79bfbaa807baed71c87ddf68d3937c35398ea77ba2286a16",
+     "bytes": 13650076
+    }
+   ],
+   "crop": [
+    278,
+    480,
+    2572,
+    1914
+   ]
+  },
+  {
+   "name": "dbtproj_holo",
+   "what": "breast tomosynthesis projections, R CC, 15 views as stored",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.199124033119197150122057139774",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "e9056e3eb3ee45fbdbb7bcd3681b1d2b1bbd4b95590dcc4f354dc73774024408",
+   "files": [
+    {
+     "key": "66c85b23-1435-40c2-97c7-a994ab9884d0/fc6eba5c-7da9-4701-92da-e55e77705e3e.dcm",
+     "sha256": "53191cd641724471dd12e4abba1cff4fe9882cc58ca0b7e048fb9de5d4f32960",
+     "bytes": 78655368
+    }
+   ]
   }
  ]
 }

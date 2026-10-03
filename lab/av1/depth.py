@@ -4,7 +4,7 @@
 A sample v (after its series' offset) becomes planes whose merge is v again; every frame is merged
 from the decoded planes and compared with the checksum written when the frame was made.
 
-usage: [DEPTH_SPLITS=a,b] depth.py BUILD WORK OUT.tsv ROUNDS SETDIR ...   — lab/av1/README.md §DEPTH.
+usage: [DEPTH_SPLITS=a,b] [DEPTH_GROUPS=1,8,0] depth.py BUILD WORK OUT.tsv ROUNDS SETDIR ...   — lab/av1/README.md §DEPTH.
 """
 import os
 import subprocess
@@ -47,11 +47,13 @@ def write_y4m(planes, bits, w, h, path):
             fh.write(b"FRAME\n" + p.astype(dt).tobytes() + neutral + neutral)
 
 
-def encode(build, y4m, ivf, n, bits, preset):
+def encode(build, y4m, ivf, n, bits, preset, group):
     cmd = [build / f"aom-{size.AOM}/bin/aomenc", "-q", "--ivf", "-o", ivf, "--lossless=1",
            f"--cpu-used={preset}", f"--limit={n}", f"--bit-depth={bits}", f"--input-bit-depth={bits}",
-           f"--profile={2 if bits == 12 else 0}", "--monochrome", "--kf-max-dist=0", y4m]
-    return size.timed(cmd)
+           f"--profile={2 if bits == 12 else 0}", "--monochrome"]
+    cmd += ["--kf-max-dist=0"] if group == 1 else \
+        [f"--kf-min-dist={group}", f"--kf-max-dist={group}", "--auto-alt-ref=0"]
+    return size.timed(cmd + [y4m])
 
 
 def dav1d(build, ivf, *out):
@@ -62,8 +64,8 @@ def dav1d(build, ivf, *out):
     return time.perf_counter() - t0
 
 
-def decode_all(build, ivf, out):
-    dav1d(build, ivf, "-o", out)
+def decode_all(build, ivf, out, *args):
+    dav1d(build, ivf, "-o", out, *args)
     raw = out.read_bytes()
     head, rest = raw.split(b"\n", 1)
     w = next(int(t[1:]) for t in head.split() if t.startswith(b"W"))
@@ -77,29 +79,42 @@ def decode_all(build, ivf, out):
     return frames
 
 
-def run_split(build, s, work, split, preset):
+def decode_groups(build, ivf, work, group):
+    """Each group decoded alone, from its own keyframe, as the group as the transport's unit would be."""
+    units, frames = size.ivf_units(ivf), []
+    for g0 in range(0, len(units), group):
+        (work / "g.obu").write_bytes(b"".join(units[g0:g0 + group]))
+        try:
+            frames += decode_all(build, work / "g.obu", work / "dec.y4m", "--demuxer", "section5")
+        except subprocess.CalledProcessError:
+            return []
+    return frames
+
+
+def run_split(build, s, work, split, preset, group=1):
     b = coded_bits(s)
-    if split == "direct" and b > 12:
+    group = group or s.n
+    if split == "direct" and b > 12 or group > s.n:
         return None
     v = [s.frame(i)[..., 0].astype(np.int32) + s.offset for i in range(s.n)]
     streams = []
     shape = SPLITS[split](b if split == "direct" else max(b, 13))
     for k, (bits, take, _) in enumerate(shape):
-        y4m, ivf = work / f"p{k}.y4m", work / f"{s.name}.{split}.{preset}.p{k}.ivf"
+        y4m, ivf = work / f"p{k}.y4m", work / f"{s.name}.{split}.{preset}.g{group}.p{k}.ivf"
         planes = [take(x) for x in v]
         assert all(p.min() >= 0 and p.max() < (1 << bits) for p in planes)
         write_y4m(planes, bits, s.w, s.h, y4m)
-        enc = encode(build, y4m, ivf, s.n, bits, preset)
+        enc = encode(build, y4m, ivf, s.n, bits, preset, group)
         streams.append(dict(ivf=ivf, bits=bits, bytes=ivf.stat().st_size, encode_s=enc))
     merged = [np.zeros((s.h, s.w), np.int32) for _ in range(s.n)]
     for st, (_, _, put) in zip(streams, shape):
-        frames = decode_all(build, st["ivf"], work / "dec.y4m")
+        frames = decode_groups(build, st["ivf"], work, group)
         if len(frames) != s.n:
-            return dict(split=split, preset=preset, streams=streams, exact=False)
+            return dict(split=split, preset=preset, group=group, streams=streams, exact=False)
         for m, f in zip(merged, frames):
             m += put(f.astype(np.int32))
     exact = all(size.exact(s, i, m[..., None]) for i, m in enumerate(merged))
-    return dict(split=split, preset=preset, streams=streams, exact=exact)
+    return dict(split=split, preset=preset, group=group, streams=streams, exact=exact)
 
 
 def merge_cost(n=200):
@@ -115,7 +130,7 @@ def merge_cost(n=200):
 def decode_rounds(build, work, s, cells, rounds):
     """Decode time a frame for each cell, summed over its streams, rounds interleaved; process
     start-up included, output discarded."""
-    arms = [c for c in cells if c and c["exact"] and c["preset"] == PRESETS[-1]]
+    arms = [c for c in cells if c and c["exact"] and c["preset"] == PRESETS[-1] and c["group"] == 1]
     times = {a["split"]: [] for a in arms}
     for r in range(rounds):
         for a in order(arms, r):
@@ -129,15 +144,16 @@ def main():
     rounds = int(sys.argv[4])
     work.mkdir(parents=True, exist_ok=True)
     with open(out, "w") as fh:
-        fh.write("set\tsplit\tpreset\texact\tbytes\tstreams\tencode_s\tdecode_ms_frame\n")
+        fh.write("set\tsplit\tpreset\tgroup\texact\tbytes\tstreams\tencode_s\tdecode_ms_frame\n")
         for d in sys.argv[5:]:
             s = size.Set(Path(d))
             names = os.environ.get("DEPTH_SPLITS", ",".join(SPLITS)).split(",")
-            cells = [run_split(build, s, work, sp, p) for p in PRESETS for sp in names]
+            groups = [int(g) for g in os.environ.get("DEPTH_GROUPS", "1").split(",")]
+            cells = [run_split(build, s, work, sp, p, g) for p in PRESETS for sp in names for g in groups]
             times = decode_rounds(build, work, s, cells, rounds)
             for c in filter(None, cells):
-                t = times.get(c["split"]) if c["preset"] == PRESETS[-1] else None
-                line = [s.name, c["split"], c["preset"], c["exact"], sum(st["bytes"] for st in c["streams"]),
+                t = times.get(c["split"]) if c["preset"] == PRESETS[-1] and c["group"] == 1 else None
+                line = [s.name, c["split"], c["preset"], c["group"], c["exact"], sum(st["bytes"] for st in c["streams"]),
                         "+".join(f"{st['bits']}b:{st['bytes']}" for st in c["streams"]),
                         round(sum(st["encode_s"] for st in c["streams"]), 1),
                         f"{np.median(t):.2f} [{min(t):.2f}-{max(t):.2f}] n={len(t)}" if t else "-"]
