@@ -1,6 +1,6 @@
 # Cloud queue
 
-**Closed 2026-10-02 at `6e9c126`.** Every finding lives in the doc that owns its subject (the index is
+**Closed 2026-10-02 at `6e9c126`; reopened 2026-10-03 for row 112 alone.** Every finding lives in the doc that owns its subject (the index is
 `README.md` §Docs). The rows' briefs and cells are in the history before the commit that closed the
 queue: `git show 6e9c126:docs/cloud-queue.md`.
 
@@ -33,8 +33,38 @@ file names, branch names or commit messages.
 
 | # | what | state |
 | --- | --- | --- |
+| 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **ready** |
 | 59 | **A1b** — the handover on a device: does a session survive Wi-Fi → cellular, and how long is the freeze ([`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice) | **waiting on a device** — no container can take it |
 | 40 | **E1** — the ingest format | **held** by the owner (§What a row may not change) |
+
+### Row 112
+
+Opened 2026-10-03 by the owner's ruling: keep `deploy/` and make it work. The nginx template is verified
+(`deploy/check_equivalence.sh --local`); the image and the compose file have never been built, and a review
+found them broken. Fix, then **build both targets and start them once** before claiming they work; if no
+container runtime is available in your environment, say "not built" in the row and in `deploy/README.md`
+rather than claiming it.
+
+* **The image build** (`deploy/Containerfile:9-17`): `patched/`, `patches/` and `scripts/patch_crate.sh`
+  are not copied, so the `[patch.crates-io]` build fails. Copy them. Add a `.containerignore` (`target/`,
+  `**/node_modules`, `lab/fixtures`, `.local`, `.git`) — today the context ships `target/` and
+  `node_modules`. On a fresh clone the web image has no built client bundles: build them in the image or
+  say what must be built first.
+* **compose** (`deploy/compose.yml:10,12`, `Containerfile:23`): `--study` gets a study name, but the server
+  wants a `.sbnd` path; the cert defaults are relative paths that exist nowhere in the image; `--websocket`
+  is missing; the WebSocket is TCP on 4433, not 4434. Pass `--study /fixtures/$S/$S.sbnd --cert-pem
+  /certs/cert.pem --key-pem /certs/key.pem --websocket`, mount the dev cert directory read-only at `/certs`,
+  publish UDP and TCP 4433.
+* **`check_equivalence.sh`** (`:54`, README `:8`): the script runs the image tagged `:check`, the README builds
+  `:latest` — take `IMAGE=${IMAGE:-localhost/wt-pacs-web:latest}`. It also "skips" a named PEM that does not
+  exist and passes (`:15-16,27,31,63`): return 1 when `--cert` or `CERT_PEM` was given explicitly, and mutate it.
+* **The WASM telemetry alias** (`deploy/README.md:53`, `deploy/nginx/wt-pacs.conf.template:61`): the
+  `pkg-telemetry` build is being removed from the client; drop the alias and its mentions here.
+
+Done means: `check_equivalence.sh --local` passes; `--cert /nope.pem` exits 1; both targets build; `compose
+up` starts both, the server prints `wt_url=`, the page loads, and TCP 4433 answers; `deploy/README.md`
+runs as written from a fresh clone. Touch only `deploy/` and a new `.containerignore` — other trees are
+being changed at the same time on the workstation.
 
 ## Finished
 
