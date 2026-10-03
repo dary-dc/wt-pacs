@@ -68,6 +68,7 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 | `docs/adr-*.md`, `docs/transport/adr-*.md`, `docs/telemetry/adr-*.md` | the decisions: stream shape, ask window, framing, stride, resolution fitting, what the server refuses to do, idle sessions, receive windows, telemetry |
 | [`docs/transport/upstream-*.md`](docs/transport/) | upstream drafts, not filed |
 | [`docs/cloud-queue.md`](docs/cloud-queue.md) | the live work queue |
+| [`docs/av1/`](docs/av1/README.md) | the AV1 phase: a second lossless codec, what is open and what decides it; its own queue |
 
 Older campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`; every
 retired doc is in the history before the commit that folded it.
