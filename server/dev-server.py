@@ -24,24 +24,13 @@ class Handler(SimpleHTTPRequestHandler):
         if path.startswith("/wt/dev-transport.json"):
             p = ROOT / "client" / "dev-transport.json"
             return str(p)
-        if path.startswith("/harness"):
-            rel = path[len("/harness") :]
-            if not rel or rel == "/":
-                rel = "/index.html"
-            return str(ROOT / "client" / "harness" / rel.lstrip("/"))
-        if path.startswith("/client/transport-wasm/pkg-telemetry/"):
-            rel = path[len("/client/transport-wasm/pkg-telemetry/") :]
-            return str(ROOT / "client" / "transport-wasm" / "pkg-telemetry" / rel)
-        if path.startswith("/client/transport-wasm/pkg/"):
-            rel = path[len("/client/transport-wasm/pkg/") :]
-            return str(ROOT / "client" / "transport-wasm" / "pkg" / rel)
-        if path.startswith("/client/transport-ts/"):
-            rel = path[len("/client/transport-ts/") :]
-            return str(ROOT / "client" / "transport-ts" / rel)
+        if path == "/harness" or path.startswith("/harness/"):
+            rel = path[len("/harness") :].lstrip("/") or "index.html"
+            return super().translate_path("/client/harness/" + rel)
         return super().translate_path(path)
 
     def end_headers(self):
-        # Cross-origin isolation → performance.now() at 5 µs (plan §11).
+        # Cross-origin isolation sets the clock floor: docs/rig-limits.md §6.
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
@@ -58,13 +47,14 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=8765, help="0 picks a free one")
     parser.add_argument("--study", default="us_cine_smoke")
     args = parser.parse_args()
     Handler.study_name = args.study
-    host = ("127.0.0.1", args.port)
-    print(f"static host http://{host[0]}:{host[1]}/harness/ study={args.study}")
-    ThreadingHTTPServer(host, Handler).serve_forever()
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    port = server.server_address[1]
+    print(f"port={port} http://127.0.0.1:{port}/harness/ study={args.study}", flush=True)
+    server.serve_forever()
 
 
 if __name__ == "__main__":
