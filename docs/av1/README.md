@@ -64,6 +64,11 @@ group is 1.2 % larger than intra on the 12-bit volume and 0.6 % smaller on the 1
 cpu6), against the fifth `adr-unit.md` §4 asks. Coded whole, AV1 is 1.043 of HTJ2K on the 12-bit
 volume and **0.977 on the 10-bit one — the first series where AV1 coded whole is smaller**; split
 top11+low, 0.943 and 0.946. Still no contrast angiography run: none is open.
+*Tomosynthesis projections since (row TAXO, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter
+does not pay there either.* The raw views of two vendors' systems, 9 and 15 a series, 14 bits
+stored: on top11+low the best group is 0.3 % under intra on one and 0.2–0.8 % over it on the other.
+Split top12+low they are 0.952 and 0.923 of HTJ2K (§A3). No breast ultrasound cine, automated breast
+ultrasound or angiography run is reachable ([`queue.md`](queue.md) §Blocked).
 
 *What G = 1 costs an ask (SPEED's decode times × SIZE's bytes; arithmetic, not measured).* An ask is
 one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of decoding** in Chromium
@@ -158,7 +163,9 @@ Hi/lo bytes is the worst split (1.20–1.37). Two streams decode in the time of 
 within the spread; the merge is 0.05 ms a 512² frame); the 12-bit stream needs dav1d — WebCodecs
 refuses 12-bit — while top10+low keeps every stream ≤ 10 bits at 0.994–1.071. Measured on 11- to
 13-bit data, and by CONTENT on tomosynthesis: top11+low 0.943 (12-bit) and 0.946 (10-bit, against
-0.977 direct); a full 16-bit series is not. A split frame is two temporal units in one store entry:
+0.977 direct); a full 16-bit series is not. *Corrected by TAXO:* the rule is **the two low bits
+apart**, not top11 — on 14-bit tomosynthesis projections top12+low (v ≫ 2, v & 3) is 0.952 and 0.923
+of HTJ2K, and top11+low (three low bits) 0.998 and 1.002. A split frame is two temporal units in one store entry:
 the store and the wire stay opaque, but this project's AV1 frame format and `decode-av1.js` change,
 which is a proposal for [`adr-unit.md`](adr-unit.md) — *built since by row WCDEC: the framing and
 its fields are [`adr-unit.md`](adr-unit.md) §2, the transforms.*
