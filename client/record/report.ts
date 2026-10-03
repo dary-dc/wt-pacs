@@ -177,7 +177,6 @@ export function assembleReport(args: {
   const outcomes: Record<ClosedAt, number> = {
     last_byte: 0,
     delivered: 0,
-    batch_delivered: 0,
     refused: 0,
     timeout: 0,
     error: 0,
@@ -186,7 +185,7 @@ export function assembleReport(args: {
 
   const hasPreload = frames.some((f) => f.kind === "preload");
   const report_mode = hasPreload ? "fill" : "ondemand";
-  const ask_granularity = hasPreload ? "request_frames_batch" : "request_frame";
+  const ask_granularity = hasPreload ? "stream_frames" : "request_frame";
 
   const serve = usable
     .map((f) => f.serve_plus_path_us)

@@ -189,11 +189,8 @@ export class Tap {
     }
   }
 
-  /**
-   * The app has the bytes. Interaction rows close here; a closed preload row takes the mark as
-   * its `deliver` stage. `via: "batch"` = the batch method marked it after the whole batch.
-   */
-  onDelivered(frame_index: number, via: "single" | "batch" = "single") {
+  /** The app has the bytes. Interaction rows close here; a closed preload row takes the mark as its `deliver` stage. */
+  onDelivered(frame_index: number) {
     const t = nowUs();
     const row = this.openIndex.findOpen(frame_index) ?? this.deliveredLater.take(frame_index);
     if (!row) {
@@ -206,7 +203,7 @@ export class Tap {
     }
     row.delivered_us = t;
     if (!row.closed && row.kind === "interaction") {
-      this.closeRow(row, via === "batch" ? "batch_delivered" : "delivered");
+      this.closeRow(row, "delivered");
     }
   }
 

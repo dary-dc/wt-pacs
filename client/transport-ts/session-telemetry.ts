@@ -42,7 +42,7 @@ function wrapOpening(options: ConnectOptions): ConnectOptions {
     fill: {
       ...fill,
       onFrame: (f) => {
-        tap.onDelivered(f.frameIndex, "single");
+        tap.onDelivered(f.frameIndex);
         fill.onFrame(f);
       },
       onError: (i, reason) => {

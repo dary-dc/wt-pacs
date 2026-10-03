@@ -151,9 +151,10 @@ localhost, 2026-09-06), forty clock ticks, not one.
 
 Report shape: `summary → client_frames → run_end`.
 
-- **`closed_at`:** `last_byte` · `delivered` · `batch_delivered` (the batch method returned; not a
-  per-frame delivery) · `refused` (server `frame_error`, reason carried) · `timeout` · `error`.
-  `summary.outcomes` counts rows by it. Failed rows have no stages and are not usable, but they
+- **`closed_at`:** `last_byte` · `delivered` · `refused` (server `frame_error`, reason carried) ·
+  `timeout` · `error`. `summary.outcomes` counts rows by it. *Corrected 2026-10-03:* this listed
+  `batch_delivered`, for a batch method no client has called since the fill moved to
+  `stream_frames`; it is removed, and a fill report's `ask_granularity` is `stream_frames`. Failed rows have no stages and are not usable, but they
   close their row, so a refusal does not void a run.
 - **First ask:** the run's earliest ask by ask time is `summary.first_ask_row`, excluded from every
   mean and headline whatever its frame index; first stream, cold pages and JIT land on it

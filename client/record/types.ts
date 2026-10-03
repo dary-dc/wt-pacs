@@ -4,16 +4,15 @@ export type Us = number; // integer microseconds
 
 export type RowKind = "preload" | "interaction";
 
-/** The first three close a row; the rest are failures. */
+/** The first two close a row; the rest are failures. */
 export type ClosedAt =
   | "last_byte"
   | "delivered"
-  | "batch_delivered"
   | "refused"
   | "timeout"
   | "error";
 
-export const OK_CLOSED_AT: readonly ClosedAt[] = ["last_byte", "delivered", "batch_delivered"];
+export const OK_CLOSED_AT: readonly ClosedAt[] = ["last_byte", "delivered"];
 
 export type ChunkMark = {
   t_us: Us;

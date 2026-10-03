@@ -51,8 +51,8 @@ function fodRequest(frame: number): Uint8Array {
   return fod({ op: "request_frame", frame });
 }
 
-function fodBatch(frames: number[]): Uint8Array {
-  return fod({ op: "request_frames", frames });
+function fodStream(from: number, to?: number): Uint8Array {
+  return fod({ op: "stream_frames", from, to });
 }
 
 /** One wire frame: `[len=4+n][index][n bytes]`. */
@@ -431,21 +431,25 @@ function sliceRiver(
   assert(report.summary.integrity.marks_after_close === 2, "marks_after_close still recorded for the reader");
 }
 
-// Fill: preload rows close at last_byte, then take `delivered` as their deliver stage
+// Fill: `stream_frames 3-5` opens three preload rows, which close at last_byte and then take
+// `delivered` as their deliver stage
 {
   const tap = new Tap(cfg());
   tap.gesture();
-  tap.onControlWrite(fodBatch([3, 4, 5]));
+  tap.onControlWrite(fodStream(3, 5));
+  assertEq(tap.integrity.rows_opened, 3, "stream_frames 3-5 opens three rows");
   const sid = tap.nextStreamId();
   tap.onMediaRead(sid, mediaFor(3));
   tap.onMediaRead(sid, mediaFor(4));
   tap.onMediaRead(sid, mediaFor(5));
-  // A batch's frames are marked after their rows already closed.
+  // A fill's frames are marked after their rows already closed.
   tap.onDelivered(3);
   tap.onDelivered(4);
   tap.onDelivered(5);
   const report = tap.finish();
   assertEq(report.summary.report_mode, "fill", "preload → fill mode");
+  assertEq(report.client_frames.map((r) => r.frame_index), [3, 4, 5], "the rows are frames 3, 4 and 5");
+  assertEq(report.summary.ask_granularity, "stream_frames", "a fill report names the op it was asked with");
   for (const r of report.client_frames) {
     assertEq(r.kind, "preload", "row kind preload");
     assertEq(r.closed_at, "last_byte", "preload closed_at last_byte");
@@ -459,16 +463,23 @@ function sliceRiver(
   assertEq(report.summary.integrity.valid, true, "preload fill run valid");
 }
 
-// Row kind comes from the op: request_frames with ONE index is still preload
+// Row kind comes from the op: a stream_frames of ONE frame is still preload
 {
   const tap = new Tap(cfg());
   tap.gesture();
-  tap.onControlWrite(fodBatch([6]));
+  tap.onControlWrite(fodStream(6, 6));
   const sid = tap.nextStreamId();
   tap.onMediaRead(sid, mediaFor(6));
   const report = tap.finish();
-  assertEq(report.client_frames[0].kind, "preload", "single-index request_frames is preload");
-  assertEq(report.summary.ask_granularity, "request_frames_batch", "granularity follows the op");
+  assertEq(report.client_frames[0].kind, "preload", "a one-frame stream_frames is preload");
+  assertEq(report.summary.ask_granularity, "stream_frames", "granularity follows the op");
+}
+
+// A stream_frames without `to` runs to the study's end, which the client cannot see: no rows
+{
+  const tap = new Tap(cfg());
+  tap.onControlWrite(fodStream(3));
+  assertEq(tap.integrity.rows_opened, 0, "stream_frames without to opens no rows");
 }
 
 // Two FoD messages in one control write open two rows
@@ -476,19 +487,8 @@ function sliceRiver(
   const tap = new Tap(cfg());
   tap.onControlWrite(concat([fodRequest(1), fodRequest(2)]));
   assertEq(tap.integrity.rows_opened, 2, "both asks in one write are rows");
-  const asks = parseFodAsks(concat([fodRequest(1), fodBatch([2, 3])]));
+  const asks = parseFodAsks(concat([fodRequest(1), fodStream(2, 3)]));
   assertEq(asks.map((a) => a.kind), ["interaction", "preload"], "kinds per message");
-}
-
-// Batch-method delivery closes rows as batch_delivered
-{
-  const tap = new Tap(cfg());
-  tap.onControlWrite(fodRequest(8));
-  const sid = tap.nextStreamId();
-  tap.onMediaRead(sid, mediaFor(8));
-  tap.onDelivered(8, "batch");
-  const report = tap.finish();
-  assertEq(report.client_frames[0].closed_at, "batch_delivered", "batch delivery is named");
 }
 
 // Ring capacity is enforced and evictions void the run
