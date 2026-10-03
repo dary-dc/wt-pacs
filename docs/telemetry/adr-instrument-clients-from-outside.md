@@ -180,8 +180,9 @@ Report shape: `summary → client_frames → run_end`.
   `copies_per_frame_declared` (TS 1, WASM 2) and `copies_source` are a source read, not measured.
 - **Compare within a cell only:** on-demand with on-demand, fill with fill.
 
-Not telemetry: the product's `FrameResult.timing` reports `chunks: 1` and `firstChunkMs ===
-lastChunkMs`, one stamp after the whole envelope was parsed. Do not read it as wire timing.
+Not telemetry: the product's `FrameResult.timing.lastChunkMs` is one stamp after the whole
+envelope was parsed. Do not read it as wire timing. (*Corrected 2026-10-03:* the constant
+`chunks: 1` and `firstChunkMs` it described are gone from `FrameResult`.)
 
 ## Absence
 

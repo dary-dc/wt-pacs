@@ -6,7 +6,7 @@
 export type ConformantFrame = {
   frameIndex: number;
   bytes: Uint8Array;
-  timing: { askMs: number; lastChunkMs: number; firstChunkMs?: number; chunks?: number };
+  timing: { askMs: number; lastChunkMs: number };
 };
 
 export type ConformantSession = {

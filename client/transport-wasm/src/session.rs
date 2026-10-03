@@ -667,15 +667,10 @@ fn result_to_js(
 ) -> Result<JsValue, String> {
     let timing = Object::new();
     set(&timing, "askMs", &JsValue::from(ask_ms))?;
-    set(&timing, "firstChunkMs", &JsValue::from(received_ms))?;
     set(&timing, "lastChunkMs", &JsValue::from(received_ms))?;
-    set(&timing, "chunks", &JsValue::from(1u32))?;
-    set(&timing, "serveUs", &JsValue::NULL)?;
 
     let result = Object::new();
     set(&result, "frameIndex", &JsValue::from(frame_index))?;
-    set(&result, "tier", &js_string("exact"))?;
-    set(&result, "codec", &js_string("htj2k"))?;
     set(&result, "bytes", &bytes)?;
     set(&result, "timing", &timing)?;
     Ok(result.into())

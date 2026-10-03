@@ -28,18 +28,11 @@ export type OpeningFill = {
   onError: (frameIndex: number, reason: string) => void;
 };
 
+/** Times are `performance.now()` milliseconds; `lastChunkMs` is when the whole envelope was parsed. */
 export type FrameResult = {
   frameIndex: number;
-  tier: "exact";
-  codec: "htj2k";
   bytes: Uint8Array;
-  timing: {
-    askMs: number;
-    firstChunkMs: number;
-    lastChunkMs: number;
-    chunks: number;
-    serveUs: null;
-  };
+  timing: { askMs: number; lastChunkMs: number };
 };
 
 /** Closes a dial whose `ready` outlives `ms`, so an abandoned dial leaves nothing open. */
@@ -310,25 +303,8 @@ export abstract class FrameSession {
   }
 }
 
-function toResult(
-  frameIndex: number,
-  askMs: number,
-  bytes: Uint8Array,
-  receivedMs: number,
-): FrameResult {
-  return {
-    frameIndex,
-    tier: "exact",
-    codec: "htj2k",
-    bytes,
-    timing: {
-      askMs,
-      firstChunkMs: receivedMs,
-      lastChunkMs: receivedMs,
-      chunks: 1,
-      serveUs: null,
-    },
-  };
+function toResult(frameIndex: number, askMs: number, bytes: Uint8Array, receivedMs: number): FrameResult {
+  return { frameIndex, bytes, timing: { askMs, lastChunkMs: receivedMs } };
 }
 
 /** A frame off a media stream, or the index of the one a stream that ended mid-frame lost. */
