@@ -78,7 +78,7 @@ function nodeRig(impl: Implementation, fake: Fake): Rig {
   };
 }
 
-// Both WebTransport arms or none: the WASM clock is the bug this suite exists for. docs/cloud-queue.md §Blocked.
+// Both WebTransport arms or none: the WASM clock is the bug this suite exists for. docs/CLIENTS.md §The seam.
 if (!wasmBuilt()) {
   console.error(
     "transport-wasm is not built — no client/transport-wasm/pkg/.\n" +
