@@ -51,7 +51,7 @@ and its branch belong to other work.
 | 5 | **SEAM** — the codec seam and, if inter coding pays, the group as the transport's unit: a proposal | done `7e42c0a` — proposed, not measured: `codec` in the bundle's metadata (absent = htj2k, unknown = refused before the dial), one decoder module per codec behind `decoder.js`; G > 1 as the client's unit (`request_frames [k … N]`, a group to one decoder) with 0 wire, store or server changes, 7 invariants named as broken; needs SIZE and SPEED before a G — [`adr-unit.md`](adr-unit.md) |
 | 6 | **SIZE** — lossless bytes: AV1 intra, AV1 inter by group length, HTJ2K | after 1, 2 |
 | 7 | **DEPTH** — 12-bit, signed and 16-bit samples in AV1 | after 1, 2 |
-| 8 | **DEC** — an AV1 decoder behind `decoder.js`'s contract, chosen by the series' codec | ready |
+| 8 | **DEC** — an AV1 decoder behind `decoder.js`'s contract, chosen by the series' codec | claimed 2026-10-03 |
 | 9 | **SPEED** — decode time per frame and per group: dav1d-WASM, WebCodecs, OpenJPH; the ask and fill it implies | after 3, 4, 6 |
 
 ## Briefs
