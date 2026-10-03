@@ -17,8 +17,8 @@ const timeoutMs = Number(process.argv[3] || 120000);
   await page.goto(url);
   await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: timeoutMs });
   const log = await page.evaluate(() => document.getElementById("log")?.innerText || "");
-  // A failed check must survive the gate's `| tail -2`: name it on stderr as well.
-  for (const line of log.split("\n")) if (/FAIL|threw/.test(line)) process.stderr.write(line + "\n");
+  // A failed or skipped check must survive the gate's `| tail -2`: name it on stderr as well.
+  for (const line of log.split("\n")) if (/FAIL|threw|SKIPPED/.test(line)) process.stderr.write(line + "\n");
   let failed = await page.evaluate(() => globalThis.__wtpacsFailed ?? 1);
   // Every clause closes what it opened, so a worker still here is one a closed client left running.
   const t0 = Date.now();
