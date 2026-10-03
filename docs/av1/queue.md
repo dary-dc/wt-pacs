@@ -67,6 +67,12 @@ and its branch belong to other work.
 | 21 | **TAXO** — the cine-like taxonomy's content: breast ultrasound cine, automated breast ultrasound, tomosynthesis projections, angiography | done `3ad8171` — **inter does not pay on tomosynthesis projections either, and split they are under HTJ2K**: two CC BY 4.0 EA1141 series of raw views from two vendors' systems (9 × 1914×2572 cropped to the breast, 15 × 1280×2048), 14 bits as stored (one saturated value, 16383, above data ending at 3648 and 1794); top11+low by group, libaom 3.15.1: best group 0.29 % under intra (G = 8) on one, 0.2–1.0 % over on the other; **top12+low — the two low bits apart, the rule DEPTH found at 13 bits — 0.952 and 0.923 of HTJ2K**, top11+low 0.998 and 1.002, hi8+lo8 1.08–1.34; JPEG XL 0.937, 0.929; 32/32 split codings exact, each group decoded alone, 387/387 frames identical to `PixelData`; 3 pin and 3 group mutations caught 6/6; **no breast ultrasound cine, ABUS or multi-frame angiography reachable** — IDC has none, the other hosts are refused (Blocked) — [`lab/av1`](../../lab/av1/README.md) §SIZE, §DEPTH, [`FIXTURES.md`](../FIXTURES.md) §AV1 data, [`README.md`](README.md) §A1, §A3 |
 | 22 | **EMBED** — embedded lossy-to-lossless intra codecs for contrast: JPEG 2000 quality layers, progressive lossless JPEG XL | done `9862837` — **an embedded preview is free in bytes and dear in decode**: JPEG 2000 Part 1 with three quality layers (OpenJPEG 2.5.4, 5/3, LRCP) costs 0.09–0.19 % over one layer and is 0.93–0.96 of HTJ2K's bytes whole; its first layer is 0.4–0.9 % of them at 37–43 dB on grey (25 dB RGB ultrasound) and decodes in 1.0–1.4× OpenJPH's exact time, but **the exact frame decodes 6–12× slower than OpenJPH** (210/210 paired rounds); about twice AV1's preview bytes for the same PSNR, though inside the exact frame; progressive lossless JPEG XL (libjxl 0.12.0, `-p`) draws its first picture only after 6–48 % of the bytes (28–47 dB; libjxl pauses at no step in a lossless frame), first picture 1.3–2.9× and whole 4.0–6.2× OpenJPH, 0.91–0.95 of its bytes; all seven sets, headless Chromium 141, 15 interleaved rounds at 1× and 4×, 22 680/22 680 frames exact, 4 mutations caught — [`README.md`](README.md) §A5, [`lab/av1/embed`](../../lab/av1/embed/README.md), [`licensing.md`](licensing.md) |
 | 23 | **TOTAL** — total time on phone-like links, the measure that decided against AV1 before: HTJ2K against every AV1 form, per taxonomy series | claimed 2026-10-03 |
+| 24 | **SVCDEC** — a scalable payload in the client: the base operating point first, the exact frame from the same bytes | ready |
+| 25 | **SVCSHAPE** — the scalable shape with the least overhead: layers, scale, base quality, per content | ready |
+| 26 | **SVCORDER** — delivering bases first: what the store and the group-as-item model need (a proposal) | ready |
+| 27 | **DECSPEED** — the decode is what loses on a phone: encoder settings and decoder threads that cut it, lossless kept | ready |
+| 28 | **LLSIZE** — closing lossless AV1's byte gap to HTJ2K with AV1 alone | ready |
+| 29 | **SWEEP** — AV1-only options nobody has listed yet: a read-only identification sweep | ready |
 
 ## Briefs
 
@@ -339,6 +345,77 @@ Mbit/s, 1× and 4× CPU, interleaved (`lab/order.mjs`), n ≥ 10. Arms per serie
 the split where it applies; and the time to a playable preview for row 12's preview arm. Report
 time to first frame, to all frames exact, and the preview's time where it applies. Verdict per
 taxonomy series: which arm wins on which link, and where the host saturates.
+
+## The AV1-only rows (24–29)
+
+The owner, 2026-10-03: AV1 **alone**, without HTJ2K, is the focus (README §Threads). Scalable AV1 —
+a lossy base layer and a lossless top in one payload — is the AV1-only way to a preview first and an
+exact frame last: rows 15 and 18 found it exact at 8–12 bits, nearly free over single-layer lossless
+AV1, but carrying lossless AV1's size (1.04–1.64 of HTJ2K) and decode. The rows below develop it and
+attack AV1's two losses, decode time and bytes. A lossy first picture is shown only as a preview that
+the exact frame replaces; whether the product shows one at all is the owner's ruling, not a row's.
+
+### 24 SVCDEC
+
+Row 18: `decode-av1.js` with `all_layers` 1 returns the base and then fails on a scalable payload, and
+WebCodecs returns the top exactly but cannot choose an operating point. Make dav1d-WASM decode a
+scalable frame twice from the same bytes as they arrive: the base operating point as a **preview**
+(marked as such through the contract — propose the smallest addition, e.g. `preview: true` and the
+base's own width/height, rather than reshaping the contract), then the full operating point, exact.
+Single-layer streams unchanged. Conformance: every exact frame against the source, the preview
+delivered before it and never left on screen after it, a top layer missing → the preview stays marked
+and the frame fails by name; mutated. Gate green. If the contract change looks structural, propose it
+in `adr-unit.md` and build only what the proposal allows.
+
+### 25 SVCSHAPE
+
+Rows 15/18 tried two spatial layers. Sweep the shapes (libaom 3.15.1 `svc_encoder_rtc`, the lab
+patch): spatial ½ and ¼, a quality-only layer (same size, lossy base), two and three layers, temporal
+layers L1T2/L1T3, base q 20–60, keyframe interval; per content of rows 2, 10, 21. For each: total
+bytes against single-layer lossless AV1 and HTJ2K, base bytes and PSNR / max |Δ|, decode time of the
+base and of the full point (dav1d-WASM, 1× and 4×, interleaved), every exact frame exact. Verdict per
+content: the shape with the least overhead, and the time to a playable base on 5/20/50 Mbit/s.
+
+### 26 SVCORDER
+
+An answer, not code. A preview is only worth having if the bases of a whole cine arrive before the
+tops. Today a scalable frame is one store entry, so its base and top travel together. Propose, in
+`adr-unit.md`: how bases-first delivery fits the group-as-item model (row 16) — the layers of a frame
+as separate entries (index arithmetic, as groups are), or a byte range per layer in the entry, or
+something better — what the store, the wire, the fill order, the ask during a fill and the cache each
+change, every invariant it breaks, and the smallest arm that would measure it. Read `WIRE.md`,
+`ARCHITECTURE.md`, `adr-stream-shape.md` first.
+
+### 27 DECSPEED
+
+Row 11: at 4× CPU AV1's decode is the fill's clock on every series. Find what cuts it with the frame
+still exact: (a) encoder settings that make decoding cheaper or parallel — tiles (and whether dav1d
+uses them in WASM), superblock size, tools a lossless frame can drop, rows 6/10's presets; (b) dav1d-WASM
+with threads (row 4's pthread build) — per-decoder threads against more decoders, under the fill's
+decoder count, at 1× and 4×; (c) where a lossless frame's decode time goes (a profile: entropy decoding,
+reconstruction, copy-out). Measure every candidate with row 11's fill harness, interleaved, exact.
+Verdict: the best combination and its fill time against HTJ2K's at 4×.
+
+### 28 LLSIZE
+
+Lossless AV1 is 2–53 % over HTJ2K coded whole (rows 6, 10, 21), under it only split. Search AV1-only
+ways to close that, every coding exact: libaom's lossless controls beyond the defaults (palette,
+intra block copy, `--tune-content=screen`, superblock size, transform/partition search depth,
+reference structure, `--enable-*` tools that still apply at qindex 0), the splits of row 7 applied to
+≤ 12-bit content, SVT-AV1's lossless intra where it is exact (row 1: 4:2:0 8/10-bit), and anything
+newer in libaom's changelog since 3.15.1. Bytes per content against HTJ2K, encode and decode time for
+each winner. Verdict: the best AV1-only lossless coding per content and what it costs to decode.
+
+### 29 SWEEP
+
+Read-only research, primary sources only (AV1 spec, AOM, libaom/dav1d/SVT-AV1 changelogs and issues,
+browser WebCodecs docs, AV2 if published): AV1-only options this queue has not tried for **scalable
+preview-to-lossless, lossless size, decode speed, random access and real-time delivery** — e.g.
+operating-point selection in browsers, S-frames, large-scale tile, reference scaling, hardware decoders'
+lossless and bit-depth support per phone platform, AV2's lossless and scalability changes. For each:
+what it is, why it might help here, the measurement that would decide it, and whether a container can
+run it. Answer in `README.md` (a new §Options to try) and add each worthwhile one as a new `ready` row
+at the bottom of this table with a brief.
 
 ## Blocked
 
