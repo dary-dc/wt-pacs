@@ -2,11 +2,9 @@
 //! cannot reach. Binary messages, joined, are the shared uni stream's bytes; a text message is one
 //! FoD message's JSON. `docs/WIRE.md` §The WebSocket mapping.
 
-use crate::media::frame_store::FrameStore;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::ProductPipeline;
-use crate::transport::planner::ASKS_AHEAD;
-use crate::transport::server::{drive, forward, parse_open_ask};
+use crate::transport::server::{forward, parse_open_ask, Sessions};
 use crate::transport::wire::{Control, MAX_FOD_LEN};
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
@@ -20,7 +18,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
@@ -89,12 +87,7 @@ fn tls_acceptor(cert_pem: &Path, key_pem: &Path) -> Result<TlsAcceptor> {
     Ok(TlsAcceptor::from(Arc::new(config)))
 }
 
-pub(crate) async fn serve(
-    listener: TcpListener,
-    tls: TlsAcceptor,
-    store: Arc<FrameStore>,
-    open_ask: bool,
-) {
+pub(super) async fn serve(listener: TcpListener, tls: TlsAcceptor, sessions: Sessions) {
     loop {
         let tcp = match listener.accept().await {
             Ok((tcp, _)) => tcp,
@@ -103,26 +96,21 @@ pub(crate) async fn serve(
                 continue;
             }
         };
-        let (tls, store) = (tls.clone(), Arc::clone(&store));
+        let (tls, sessions) = (tls.clone(), sessions.clone());
         tokio::spawn(async move {
-            if let Err(err) = session(tcp, tls, store, open_ask).await {
+            if let Err(err) = session(tcp, tls, sessions).await {
                 warn!(%err, "WebSocket session ended");
             }
         });
     }
 }
 
-async fn session(
-    tcp: TcpStream,
-    tls: TlsAcceptor,
-    store: Arc<FrameStore>,
-    open_ask: bool,
-) -> Result<()> {
+async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions) -> Result<()> {
     tcp.set_nodelay(true).context("TCP_NODELAY")?;
     let mut opening = None;
     let read_ask = |request: &Request, response: Response| {
-        if open_ask {
-            opening = parse_open_ask(&request.uri().to_string(), store.frame_count());
+        if sessions.open_ask {
+            opening = parse_open_ask(&request.uri().to_string(), sessions.store.frame_count());
         }
         Ok(response)
     };
@@ -139,19 +127,11 @@ async fn session(
     let (sink, mut stream) = socket.split();
     let sink = WsSink(Arc::new(Mutex::new(sink)));
 
-    let (tx, mut asks) = mpsc::channel(ASKS_AHEAD);
-    // Served right behind the 101, a round trip before the client's first message could land.
-    if let Some(ask) = opening {
-        tx.send(ask).await.ok();
-    }
-    let reader = tokio::spawn(async move {
-        while forward(next_fod(&mut stream).await, &tx).await.is_ok() {}
-    });
-    let mut product = ProductPipeline::new(store, FrameOut::WebSocket(sink.clone()))
+    let product = ProductPipeline::new(Arc::clone(&sessions.store), FrameOut::WebSocket(sink.clone()))
         .with_control(Control::WebSocket(sink.clone()));
-    let result = drive(&mut product, &mut asks).await;
-    reader.abort();
-    let _ = reader.await;
+    let read = |tx| async move { while forward(next_fod(&mut stream).await, &tx).await.is_ok() {} };
+    // Served right behind the 101, a round trip before the client's first message could land.
+    let result = sessions.serve(product, opening, read).await;
     let _ = sink.0.lock().await.close().await;
     result
 }

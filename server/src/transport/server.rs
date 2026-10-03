@@ -11,6 +11,7 @@ use crate::transport::websocket;
 use crate::transport::wire::{read_fod_msg, Control};
 use anyhow::{anyhow, Context, Result};
 use fod::FodMsg;
+use std::future::Future;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -105,27 +106,73 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         "exact-server ready (Media-complete)"
     );
 
-    if let Some((listener, tls)) = websocket {
-        tokio::spawn(websocket::serve(listener, tls, Arc::clone(&store), config.open_ask));
-    }
-    let mode = config.mode;
-    let open_ask = config.open_ask;
-    let hold = config.hold_sessions;
-    let stall = config.stall_after_bytes;
-    if let Some(bytes) = stall {
+    if let Some(bytes) = config.stall_after_bytes {
         warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
     }
+    let sessions = Sessions {
+        store,
+        mode: config.mode,
+        open_ask: config.open_ask,
+        stall: config.stall_after_bytes,
+        #[cfg(feature = "telemetry")]
+        taps: Arc::new(Tap::for_session),
+    };
+    if let Some((listener, tls)) = websocket {
+        tokio::spawn(websocket::serve(listener, tls, sessions.clone()));
+    }
+    let hold = config.hold_sessions;
     loop {
         let incoming = endpoint.accept().await;
-        let store = Arc::clone(&store);
+        let sessions = sessions.clone();
         tokio::spawn(async move {
             if hold {
                 return hold_session(incoming).await;
             }
-            if let Err(err) = handle_incoming(incoming, store, mode, open_ask, stall).await {
+            if let Err(err) = handle_incoming(incoming, sessions).await {
                 warn!(%err, "session ended");
             }
         });
+    }
+}
+
+/// What every session is served with, fixed at start.
+#[derive(Clone)]
+pub(super) struct Sessions {
+    pub(super) store: Arc<FrameStore>,
+    mode: StreamMode,
+    pub(super) open_ask: bool,
+    stall: Option<u64>,
+    #[cfg(feature = "telemetry")]
+    taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
+}
+
+impl Sessions {
+    /// One session, whatever carries it: `opening` first, then each ask `read` forwards, until
+    /// the asks end or a send fails. The reader is stopped before this returns.
+    pub(super) async fn serve<F>(
+        &self,
+        mut product: ProductPipeline,
+        opening: Option<Ask>,
+        read: impl FnOnce(mpsc::Sender<Ask>) -> F,
+    ) -> Result<()>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        let (tx, mut asks) = mpsc::channel(ASKS_AHEAD);
+        if let Some(ask) = opening {
+            tx.send(ask).await.ok();
+        }
+        let reader = tokio::spawn(read(tx));
+        #[cfg(feature = "telemetry")]
+        let result = match (self.taps)() {
+            Some(tap) => drive(&mut RecordedPipeline::new(product, tap), &mut asks).await,
+            None => drive(&mut product, &mut asks).await,
+        };
+        #[cfg(not(feature = "telemetry"))]
+        let result = drive(&mut product, &mut asks).await;
+        reader.abort();
+        let _ = reader.await;
+        result
     }
 }
 
@@ -225,44 +272,42 @@ async fn hold_session(incoming: wtransport::endpoint::IncomingSession) {
 
 async fn handle_incoming(
     incoming: wtransport::endpoint::IncomingSession,
-    store: Arc<FrameStore>,
-    mode: StreamMode,
-    open_ask: bool,
-    stall: Option<u64>,
+    sessions: Sessions,
 ) -> Result<()> {
     let session_request = incoming.await.context("incoming session")?;
     // Read before accepting: the whole point of an opening ask is to serve behind the accept
     // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
-    let opening = open_ask.then(|| parse_open_ask(session_request.path(), store.frame_count()));
+    let opening = sessions
+        .open_ask
+        .then(|| parse_open_ask(session_request.path(), sessions.store.frame_count()))
+        .flatten();
     let connection = session_request.accept().await.context("accept session")?;
 
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    if let Some(Some(ask)) = opening {
-        return serve_opening_ask(connection, store, mode, ask, stall).await;
-    }
-
-    let (control_send, control_recv) = connection
-        .accept_bi()
-        .await
-        .context("accept control bidi")?;
-
-    let path = connection.clone();
-    let out = FrameOut::open(mode, connection).await?;
-    let mut product = ProductPipeline::new(store, out)
-        .with_control(Control::Stream(control_send))
-        .with_stall_after(stall);
-
-    #[cfg(feature = "telemetry")]
-    let result = match Tap::for_session() {
-        Some(tap) => run_session(&mut RecordedPipeline::new(product, tap), control_recv).await,
-        None => run_session(&mut product, control_recv).await,
+    let product =
+        |out| ProductPipeline::new(Arc::clone(&sessions.store), out).with_stall_after(sessions.stall);
+    let result = match opening {
+        Some(ask) => {
+            let out = FrameOut::open(sessions.mode, connection.clone()).await?;
+            let (ctl_tx, ctl_rx) = oneshot::channel();
+            let control = connection.clone();
+            let read = |tx| async move {
+                let Ok((send, mut recv)) = control.accept_bi().await else { return };
+                ctl_tx.send(send).ok();
+                while read_asks(&mut recv, &tx).await.is_ok() {}
+            };
+            sessions.serve(product(out).with_late_control(ctl_rx), Some(ask), read).await
+        }
+        None => {
+            let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
+            let out = FrameOut::open(sessions.mode, connection.clone()).await?;
+            let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_ok() {} };
+            sessions.serve(product(out).with_control(Control::Stream(send)), None, read).await
+        }
     };
-    #[cfg(not(feature = "telemetry"))]
-    let result = run_session(&mut product, control_recv).await;
-
-    report_path(&path);
+    report_path(&connection);
     result
 }
 
@@ -289,38 +334,6 @@ pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
     }
 }
 
-/// Serve the opening ask immediately, and take the control stream whenever it turns
-/// up. A refusal waits for it, since that is the only way one can be sent.
-async fn serve_opening_ask(
-    connection: wtransport::Connection,
-    store: Arc<FrameStore>,
-    mode: StreamMode,
-    ask: Ask,
-    stall: Option<u64>,
-) -> Result<()> {
-    let path = connection.clone();
-    let control = connection.clone();
-    let out = FrameOut::open(mode, connection).await?;
-    let (ctl_tx, ctl_rx) = oneshot::channel();
-    let mut product = ProductPipeline::new(store, out)
-        .with_late_control(ctl_rx)
-        .with_stall_after(stall);
-
-    let (tx, mut asks) = mpsc::channel(ASKS_AHEAD);
-    tx.send(ask).await.ok();
-    let reader = tokio::spawn(async move {
-        let Ok((send, mut recv)) = control.accept_bi().await else { return };
-        ctl_tx.send(send).ok();
-        while read_asks(&mut recv, &tx).await.is_ok() {}
-    });
-
-    let result = drive(&mut product, &mut asks).await;
-    reader.abort();
-    let _ = reader.await;
-    report_path(&path);
-    result
-}
-
 /// Once per session, so a deployment can see the MTU, loss and RTT it actually got.
 fn report_path(connection: &wtransport::Connection) {
     let s = connection.quic_connection().stats();
@@ -337,16 +350,6 @@ fn report_path(connection: &wtransport::Connection) {
         ack_frequency = s.frame_tx.ack_frequency,
         "session path"
     );
-}
-
-/// The reader owns the control stream; the planner decides; the pipeline serves.
-/// `docs/disk-access/adr.md`.
-async fn run_session<P: FramePipeline>(pipeline: &mut P, control_recv: RecvStream) -> Result<()> {
-    let (reader, mut asks) = spawn_ask_reader(control_recv);
-    let result = drive(pipeline, &mut asks).await;
-    reader.abort();
-    let _ = reader.await;
-    result
 }
 
 /// The loop over `Ask`, with no stream in it, so a test can drive it without QUIC.
@@ -375,20 +378,6 @@ pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::R
     }
     pipeline.drain_acks().await;
     Ok(())
-}
-
-fn spawn_ask_reader(
-    mut control_recv: RecvStream,
-) -> (tokio::task::JoinHandle<()>, mpsc::Receiver<Ask>) {
-    let (tx, rx) = mpsc::channel(ASKS_AHEAD);
-    let reader = tokio::spawn(async move {
-        loop {
-            if read_asks(&mut control_recv, &tx).await.is_err() {
-                return;
-            }
-        }
-    });
-    (reader, rx)
 }
 
 async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
@@ -892,6 +881,78 @@ mod tests {
             );
             server.abort();
         });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A session opened on its URL ask is recorded like any other: an opening fill of three
+    /// frames leaves three `server_frame` rows and a session row.
+    #[cfg(feature = "telemetry")]
+    #[test]
+    fn an_opening_fill_is_recorded_like_any_other_session() {
+        use crate::record::tap::{Record, Tap};
+        let dir = std::env::temp_dir().join(format!("wtpacs-open-tap-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 4);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let (tx, rows) = std::sync::mpsc::sync_channel(64);
+        let sessions = Sessions {
+            store: Arc::new(FrameStore::open(&study).expect("open store")),
+            mode: StreamMode::Shared,
+            open_ask: true,
+            stall: None,
+            taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone())))),
+        };
+        rt.block_on(async move {
+            let config = serve_config(study, cert_pem, key_pem, port);
+            let (endpoint, _) = build_endpoint(&config).await.expect("endpoint");
+            let server = tokio::spawn(async move {
+                handle_incoming(endpoint.accept().await, sessions).await
+            });
+            let client = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                    .build(),
+            )
+            .expect("client endpoint");
+            let connection = client
+                .connect(format!("https://127.0.0.1:{port}/?ask=fill:0-2"))
+                .await
+                .expect("connect");
+            let mut media = connection.accept_uni().await.expect("accept media uni");
+            for want in 0..3 {
+                let (idx, _) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                    .await
+                    .expect("frame never arrived");
+                assert_eq!(idx, want, "the opening fill served the wrong frame");
+            }
+            connection.close(0u32.into(), b"done");
+            tokio::time::timeout(Duration::from_secs(10), server)
+                .await
+                .expect("the session never ended")
+                .expect("session task")
+                .ok();
+        });
+        let records: Vec<Record> = rows.try_iter().flatten().collect();
+        let frames: Vec<u32> = records
+            .iter()
+            .filter_map(|r| match r {
+                Record::Frame(f) => Some(f.frame_index),
+                Record::Session(_) => None,
+            })
+            .collect();
+        assert_eq!(frames, vec![0, 1, 2], "the opening fill left no rows, or the wrong ones");
+        assert!(
+            matches!(records.last(), Some(Record::Session(_))),
+            "the session row is missing"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -222,7 +222,7 @@ impl Tap {
         Some(Self::new(SESSION_IDS.fetch_add(1, Ordering::Relaxed), tx))
     }
 
-    pub(super) fn new(session_id: u64, tx: Option<SyncSender<Batch>>) -> Self {
+    pub(crate) fn new(session_id: u64, tx: Option<SyncSender<Batch>>) -> Self {
         let batch: Pending = Arc::new(Mutex::new(Vec::with_capacity(BATCH)));
         if let Ok(mut live) = live_cell().lock() {
             live.retain(|w| w.strong_count() > 0);
