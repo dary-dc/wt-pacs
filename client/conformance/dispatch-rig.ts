@@ -39,7 +39,6 @@ type OpenOpts = {
   hold?: "decode" | "ready";
   /** `"default"` leaves it unset; the other clauses ask on the control stream. */
   openAsk?: boolean | "default";
-  /** The session URL, when the clause decides when it is known. */
   url?: Promise<string>;
   warmup?: string;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
@@ -51,8 +50,7 @@ type OpenOpts = {
   failOneInit?: boolean;
 };
 
-/** The page's end of the stand-in decoders' hold: how many wait on it, how many are ready, and the
- *  release — which only a stand-in already holding is sure to hear. */
+/** The stand-ins' hold, seen from the page; only a stand-in already holding is sure to hear the release. */
 function decoderHold(ch: string) {
   const bc = new BroadcastChannel(`${ch}-decoder`);
   const seen = { holding: 0, ready: 0 };
@@ -119,7 +117,6 @@ const wireOf = (msgs: Wire[]) =>
     m.op === "stream_frames" ? `stream_frames ${m.from}-${m.to}` : m.op === "request_frame" ? `request_frame ${m.frame}` : m.op,
   );
 
-/** The wire as the fake saw it, read until it holds `needle`. */
 const onTheWire = (fake: WorkerFake, needle: string) =>
   untilAsync(async () => wireOf((await fake.controlMessages()) as Wire[]).includes(needle));
 
