@@ -11,7 +11,7 @@ use super::report::{
     final_report, progress_report, LiveSummary, TelemetryReport, INLINE_CAP_DEFAULT,
 };
 use super::rows;
-use super::tap::{env_u64, take_live_batches, Batch, BATCH, RING_CAP};
+use super::tap::{env_u64, Batch, BATCH, LIVE, RING_CAP};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -70,7 +70,7 @@ pub fn flush_on_exit() {
     // Sessions still open will not drop their Tap in time, so take their buffered rows first —
     // while a sender still exists to carry them. Bounded; it never waits on a session.
     if let Some(tx) = clone_sender() {
-        for batch in take_live_batches(Duration::from_millis(50)) {
+        for batch in LIVE.take(Duration::from_millis(50)) {
             let _ = tx.try_send(batch);
         }
     }
@@ -191,7 +191,7 @@ fn absorb(batch: &Batch, row_file: &mut Option<RowFile>, live: &mut LiveSummary)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::record::tap::{FrameRecord, Record, Tap};
+    use crate::record::tap::{FrameRecord, Record, Tap, LIVE};
 
     fn a_frame(frame_index: u32) -> Record {
         Record::Frame(FrameRecord {
@@ -229,7 +229,7 @@ mod tests {
 
         // A session still open, holding rows that have not reached the channel: fewer than BATCH,
         // so nothing has flushed them and its Tap will not drop before the process goes.
-        let mut open_session = Tap::new(9, Some(tx.clone()));
+        let mut open_session = Tap::new(9, Some(tx.clone()), &LIVE);
         for i in 0..3u32 {
             open_session.buffer_for_test(a_frame(100 + i));
         }

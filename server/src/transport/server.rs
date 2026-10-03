@@ -900,7 +900,7 @@ mod tests {
     #[cfg(feature = "telemetry")]
     #[test]
     fn an_opening_fill_is_recorded_like_any_other_session() {
-        use crate::record::tap::{Record, Tap};
+        use crate::record::tap::{Live, Record, Tap};
         let dir = std::env::temp_dir().join(format!("wtpacs-open-tap-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let study = write_study(&dir, 4);
@@ -919,7 +919,7 @@ mod tests {
             mode: StreamMode::Shared,
             open_ask: true,
             stall: None,
-            taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone())))),
+            taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };
         rt.block_on(async move {
             let config = serve_config(study, cert_pem, key_pem, port);

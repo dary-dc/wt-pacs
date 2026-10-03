@@ -130,40 +130,69 @@ pub type Batch = Vec<Record>;
 /// go with it. docs/telemetry/adr-server-pipeline.md#the-tail-at-sigterm.
 type Pending = Arc<Mutex<Batch>>;
 
-static LIVE: OnceLock<Mutex<Vec<Weak<Mutex<Batch>>>>> = OnceLock::new();
+/// The live sessions' buffers. The process has one; a test that takes from it makes its own.
+#[derive(Default)]
+pub(crate) struct Live(Mutex<Vec<Weak<Mutex<Batch>>>>);
 
-fn live_cell() -> &'static Mutex<Vec<Weak<Mutex<Batch>>>> {
-    LIVE.get_or_init(|| Mutex::new(Vec::new()))
-}
+pub(crate) static LIVE: Live = Live(Mutex::new(Vec::new()));
 
-/// Take what every live session has buffered. Bounded by `deadline`: a batch its own task is
-/// holding right now is retried and then skipped, so this can never wait on a session.
-pub(super) fn take_live_batches(deadline: Duration) -> Vec<Batch> {
-    let handles: Vec<Pending> = match live_cell().lock() {
-        Ok(live) => live.iter().filter_map(Weak::upgrade).collect(),
-        Err(_) => return Vec::new(),
-    };
-    let give_up = Instant::now() + deadline;
-    let mut taken = Vec::new();
-    for handle in handles {
-        loop {
-            if let Ok(mut batch) = handle.try_lock() {
-                if !batch.is_empty() {
-                    taken.push(std::mem::take(&mut *batch));
-                }
-                break;
-            }
-            if Instant::now() >= give_up {
-                break;
-            }
-            std::thread::yield_now();
+impl Live {
+    fn register(&self, batch: &Pending) {
+        if let Ok(mut live) = self.0.lock() {
+            live.retain(|w| w.strong_count() > 0);
+            live.push(Arc::downgrade(batch));
         }
     }
-    taken
+
+    /// Take what every live session has buffered. Bounded by `deadline`: a batch its own task is
+    /// holding right now is retried and then skipped, so this can never wait on a session.
+    pub(super) fn take(&self, deadline: Duration) -> Vec<Batch> {
+        let handles: Vec<Pending> = match self.0.lock() {
+            Ok(live) => live.iter().filter_map(Weak::upgrade).collect(),
+            Err(_) => return Vec::new(),
+        };
+        let give_up = Instant::now() + deadline;
+        let mut taken = Vec::new();
+        for handle in handles {
+            loop {
+                if let Ok(mut batch) = handle.try_lock() {
+                    if !batch.is_empty() {
+                        taken.push(std::mem::take(&mut *batch));
+                    }
+                    break;
+                }
+                if Instant::now() >= give_up {
+                    break;
+                }
+                std::thread::yield_now();
+            }
+        }
+        taken
+    }
+}
+
+/// Held by every session `for_session` opens; the last one dropped closes the sink, so the
+/// report is written.
+struct Counted;
+
+impl Counted {
+    fn enter() -> Self {
+        ACTIVE_TAPS.fetch_add(1, Ordering::Relaxed);
+        Self
+    }
+}
+
+impl Drop for Counted {
+    fn drop(&mut self) {
+        if ACTIVE_TAPS.fetch_sub(1, Ordering::Relaxed) == 1 {
+            shutdown_sink();
+        }
+    }
 }
 
 pub struct Tap {
     session_id: u64,
+    counted: Option<Counted>,
     /// Owned clone of the process sink — emit without taking the global lock.
     tx: Option<SyncSender<Batch>>,
     batch: Pending,
@@ -217,19 +246,18 @@ impl Tap {
         // is connect → first ask and later sessions share the axis.
         let _ = origin();
         let tx = clone_sender();
-        ACTIVE_TAPS.fetch_add(1, Ordering::Relaxed);
         SESSIONS_STARTED.fetch_add(1, Ordering::Relaxed);
-        Some(Self::new(SESSION_IDS.fetch_add(1, Ordering::Relaxed), tx))
+        let mut tap = Self::new(SESSION_IDS.fetch_add(1, Ordering::Relaxed), tx, &LIVE);
+        tap.counted = Some(Counted::enter());
+        Some(tap)
     }
 
-    pub(crate) fn new(session_id: u64, tx: Option<SyncSender<Batch>>) -> Self {
+    pub(crate) fn new(session_id: u64, tx: Option<SyncSender<Batch>>, live: &Live) -> Self {
         let batch: Pending = Arc::new(Mutex::new(Vec::with_capacity(BATCH)));
-        if let Ok(mut live) = live_cell().lock() {
-            live.retain(|w| w.strong_count() > 0);
-            live.push(Arc::downgrade(&batch));
-        }
+        live.register(&batch);
         Self {
             session_id,
+            counted: None,
             tx,
             batch,
             ordinals: HashMap::new(),
@@ -461,9 +489,6 @@ impl Drop for Tap {
             batch.push(Record::Session(session));
         }
         self.flush_batch();
-        if ACTIVE_TAPS.fetch_sub(1, Ordering::Relaxed) == 1 {
-            shutdown_sink();
-        }
     }
 }
 
@@ -498,12 +523,12 @@ mod tests {
     use std::sync::mpsc::{sync_channel, Receiver};
 
     fn test_tap() -> Tap {
-        Tap::new(1, None)
+        Tap::new(1, None, &Live::default())
     }
 
     fn test_tap_with_channel(cap_batches: usize) -> (Tap, Receiver<Batch>) {
         let (tx, rx) = sync_channel::<Batch>(cap_batches);
-        (Tap::new(1, Some(tx)), rx)
+        (Tap::new(1, Some(tx), &Live::default()), rx)
     }
 
     /// Everything queued so far, flattened.
@@ -597,7 +622,7 @@ mod tests {
         t.begin_frame(5);
         assert_eq!(t.ask_ordinal, 0);
         let serve0 = t.serve_start.expect("serve_start armed");
-        std::thread::sleep(std::time::Duration::from_millis(2));
+        std::thread::sleep(std::time::Duration::from_millis(20));
         t.boundary_prepare_done();
         t.note_locate(LocateOutcome::Ok, 100);
         t.boundary_locate_done();
@@ -605,13 +630,12 @@ mod tests {
         t.emit_sent(104);
         let serve_us_0 = duration_us(serve0, before_emit);
         assert!(t.serve_start.is_none());
-        assert!(serve_us_0 >= 1_500, "got {serve_us_0}");
+        assert!(serve_us_0 >= 20_000, "got {serve_us_0}");
 
         t.begin_frame(5);
         assert_eq!(t.ask_ordinal, 1);
         let serve1 = t.serve_start.expect("new serve_start");
         assert!(serve1 > serve0);
-        std::thread::sleep(std::time::Duration::from_millis(1));
         t.boundary_prepare_done();
         t.note_locate(LocateOutcome::Ok, 100);
         t.boundary_locate_done();
@@ -847,7 +871,8 @@ mod tests {
     /// A session mid-push must not be able to hold up a shutdown: the deadline wins.
     #[test]
     fn taking_live_batches_gives_up_on_a_held_batch() {
-        let tap = Tap::new(77, None);
+        let live = Live::default();
+        let tap = Tap::new(77, None, &live);
         let held = Arc::clone(&tap.batch);
         held.lock().expect("hold the batch").push(Record::Session(SessionRecord {
             kind: "server_session",
@@ -864,7 +889,7 @@ mod tests {
 
         let guard = held.lock().expect("still holding");
         let started = Instant::now();
-        let taken = take_live_batches(Duration::from_millis(20));
+        let taken = live.take(Duration::from_millis(20));
         let waited = started.elapsed();
         drop(guard);
 
@@ -877,6 +902,20 @@ mod tests {
             "a batch held by its own task should be skipped, not taken"
         );
         std::mem::forget(tap);
+    }
+
+    /// Taps other tests hold, rows buffered, must stay out of any other test's take of the
+    /// live sessions, and out of the process's.
+    #[test]
+    fn taps_made_elsewhere_stay_out_of_every_other_take() {
+        let until = Instant::now() + Duration::from_millis(300);
+        let mut taps: Vec<Tap> = (0..4).map(|_| test_tap()).collect();
+        while Instant::now() < until {
+            for t in &mut taps {
+                serve_frame(t, 1, 8);
+            }
+            std::thread::sleep(Duration::from_micros(200));
+        }
     }
 
     #[test]
