@@ -48,7 +48,7 @@ and its branch belong to other work.
 | 2 | **DATA** — public, freely licensed multi-frame series, fetched and checksummed | claimed 2026-10-03 |
 | 3 | **WCAP** — what WebCodecs' AV1 decoder supports in headless Chromium, and whether it returns samples exactly | claimed 2026-10-03 |
 | 4 | **WASM** — dav1d built to WASM, exact against native dav1d | claimed 2026-10-03 |
-| 5 | **SEAM** — the codec seam and, if inter coding pays, the group as the transport's unit: a proposal | claimed 2026-10-03 |
+| 5 | **SEAM** — the codec seam and, if inter coding pays, the group as the transport's unit: a proposal | done `7e42c0a` — proposed, not measured: `codec` in the bundle's metadata (absent = htj2k, unknown = refused before the dial), one decoder module per codec behind `decoder.js`; G > 1 as the client's unit (`request_frames [k … N]`, a group to one decoder) with 0 wire, store or server changes, 7 invariants named as broken; needs SIZE and SPEED before a G — [`adr-unit.md`](adr-unit.md) |
 | 6 | **SIZE** — lossless bytes: AV1 intra, AV1 inter by group length, HTJ2K | after 1, 2 |
 | 7 | **DEPTH** — 12-bit, signed and 16-bit samples in AV1 | after 1, 2 |
 | 8 | **DEC** — an AV1 decoder behind `decoder.js`'s contract, chosen by the series' codec | after 4, 5 |
