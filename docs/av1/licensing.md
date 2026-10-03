@@ -17,7 +17,8 @@ relying on a clause. Anything not confirmed from a primary source says so.
 | WebCodecs | the browser's | — (the browser vendor's software) | — | [AV1 registration](https://w3c.github.io/webcodecs/av1_codec_registration.html) |
 | OpenJPH (today's HTJ2K decoder) | client | BSD-2-Clause | — | [LICENSE](https://raw.githubusercontent.com/aous72/OpenJPH/master/LICENSE) |
 | FFmpeg, the distribution's package (6.1.1, libaom 3.8.2, libdav1d 1.4.1) | lab only: makes WCAP's streams, decodes the native reference | GPL-2.0-or-later as that package is configured (`--enable-gpl`) | — | [LICENSE.md](https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/LICENSE.md) |
-| NumPy | lab only: the synthetic frames | BSD-3-Clause | — | [LICENSE.txt](https://raw.githubusercontent.com/numpy/numpy/main/LICENSE.txt) |
+| NumPy (2.4.6 in `fetch_data.sh`) | lab only: the synthetic frames, row DATA's extraction | BSD-3-Clause (its wheel also bundles 0BSD, MIT, Zlib, CC0 parts) | — | [LICENSE.txt](https://raw.githubusercontent.com/numpy/numpy/main/LICENSE.txt) |
+| pydicom 3.0.1 | lab only: row DATA's extraction (`lab/av1/fetch_data.sh`, hash-pinned in `lab/av1/requirements.txt`) | MIT | — | PyPI metadata |
 
 All of these are compatible with this repository's MIT licence: nothing is relicensed, and none
 but FFmpeg carries a copyleft or source-offer duty — which never reaches here, since the lab runs
@@ -39,6 +40,13 @@ it as a separate program, links nothing against it and ships nothing built from 
   dav1d, emscripten's libc (musl, MIT), dlmalloc (public domain) and compiler-rt (Apache-2.0 with
   LLVM exception, whose exception waives notice for what compiles into a binary). No libc++: the
   wrapper is C. The libc++ question this line used to ask is answered by that.
+
+## Data
+
+The public series of row DATA ([`../FIXTURES.md`](../FIXTURES.md) §AV1 data) are CC BY 3.0 or
+4.0, per series as the NCI Imaging Data Commons index records it: reuse, derivatives and
+redistribution allowed with attribution. Fetched, never committed; anything derived from them that
+is published carries the collection DOIs listed there.
 
 ## Patents, as a fact base
 
