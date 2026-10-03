@@ -3,7 +3,7 @@
  *
  * Query parameters:
  *   transport=…        ts (default) | ws | wasm | a module URL exporting TransportSession
- *   telemetry=1        record in the downloader's worker; harvest via window.__wtpacsTelemetry
+ *   telemetry=1        record in the downloader's worker; harvest via window.__wtpacsTelemetry (transport=ts only)
  *   stream_mode=…      shared | per-frame (must match the server; recorded in the report)
  *   cell=…             ondemand (one ask per step, `d` in flight) | fill (one pushed fill) | refuse (ondemand past the study: no media)
  *   d=…                outstanding asks for on-demand (default 1 — the control)
@@ -28,9 +28,12 @@ const TRANSPORTS = {
   ws: "/client/transport-ts/dist/ws-session.js",
   wasm: "/client/transport-wasm/session-adapter.js",
 };
-const transport = telemetry
-  ? `/client/transport-ts/dist/session.telemetry.js?stream_mode=${streamMode}`
-  : transportName in TRANSPORTS ? TRANSPORTS[transportName] : transportName;
+
+function transportModule() {
+  if (!telemetry) return transportName in TRANSPORTS ? TRANSPORTS[transportName] : transportName;
+  if (transportName !== "ts") throw new Error(`telemetry=1 records the TS transport only, not transport=${transportName}`);
+  return `/client/transport-ts/dist/session.telemetry.js?stream_mode=${streamMode}`;
+}
 
 const logEl = document.getElementById("log");
 function log(...a) {
@@ -184,7 +187,7 @@ async function boot() {
     const client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
       decode: false,
       decoders: 0,
-      transport,
+      transport: transportModule(),
       onFrame: (f) => {
         touch(f.bytes);
         stats.delivered += 1;

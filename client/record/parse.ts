@@ -1,4 +1,4 @@
-/** The control stream's FoD messages, as the Tap reads them; shared by both arms, pulls no session. */
+/** The control stream's FoD messages, as the Tap reads them; pulls no session. */
 
 import type { RowKind } from "./types.ts";
 

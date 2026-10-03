@@ -41,7 +41,8 @@ def main() -> int:
     parser.add_argument(
         "--harness",
         choices=("wasm", "ts", "both"),
-        default="both",
+        default=None,
+        help="default: both, or ts with --telemetry (the only arm it records)",
     )
     parser.add_argument(
         "--stream-mode",
@@ -53,7 +54,7 @@ def main() -> int:
     parser.add_argument(
         "--telemetry",
         action="store_true",
-        help="load telemetry builds and harvest window.__wtpacsTelemetry",
+        help="load the TS telemetry build and harvest window.__wtpacsTelemetry",
     )
     parser.add_argument(
         "--cell",
@@ -74,11 +75,6 @@ def main() -> int:
         help="keep going when a client report is not valid (written as telemetry-client.VOID.json)",
     )
     parser.add_argument(
-        "--interleave",
-        action="store_true",
-        help="with --telemetry and harness=both: alternate arms per repeat",
-    )
-    parser.add_argument(
         "--wt-url",
         default=None,
         help="override WebTransport URL (e.g. shaped cloud rig). Skips local exact-server.",
@@ -89,6 +85,9 @@ def main() -> int:
         help="cert pin for --wt-url (hex). Required with --wt-url.",
     )
     args = parser.parse_args()
+    if args.telemetry and args.harness not in (None, "ts"):
+        raise SystemExit("--telemetry records the TS transport only: drop --harness or pass --harness ts")
+    args.harness = args.harness or ("ts" if args.telemetry else "both")
 
     if (args.wt_url is None) ^ (args.cert_sha256 is None):
         raise SystemExit("--wt-url and --cert-sha256 must be passed together")
@@ -121,17 +120,6 @@ def main() -> int:
             ["bash", str(ROOT / "client/transport-ts/build.sh")],
             check=True,
             cwd=ROOT,
-        )
-
-    if args.telemetry and want_wasm:
-        # Optional separate wasm out-dir; product wasm is identical.
-        env_tel = os.environ.copy()
-        env_tel["WTPACS_TELEMETRY_BUILD"] = "1"
-        subprocess.run(
-            ["bash", str(ROOT / "client/transport-wasm/build.sh")],
-            check=False,
-            cwd=ROOT,
-            env=env_tel,
         )
 
     # Prefer a local target dir inside the repo for predictability.
@@ -304,17 +292,7 @@ def main() -> int:
         if args.harness in ("ts", "both"):
             paths.append(("/harness/cell.html?transport=ts", "ts"))
 
-        if args.telemetry and args.interleave and len(paths) > 1:
-            # Alternate arms across repeats: (r0 arm0), (r0 arm1), (r1 arm0), ...
-            schedule: list[tuple[str, str, int]] = []
-            for rep in range(args.repeats):
-                for path, label in paths:
-                    schedule.append((path, label, rep))
-        else:
-            schedule = []
-            for path, label in paths:
-                for rep in range(args.repeats):
-                    schedule.append((path, label, rep))
+        schedule = [(path, label, rep) for path, label in paths for rep in range(args.repeats)]
 
         meas_root = ROOT / ".local" / "measurements"
         if args.telemetry:

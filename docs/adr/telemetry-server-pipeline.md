@@ -207,9 +207,9 @@ lab/scripts/verify_e2e.py --telemetry --cell fill --wt-url wss://… --cert-sha2
 
 Flags: `--cell {ondemand,fill}`, `--depth D` (on-demand asks in flight; `1` is the control),
 `--n N` (steps; default one pass over the study), `--trace URL` (a `lab/traces/*.json`: its
-`steps[].frame` and `step_interval_ms`), `--interval-ms`, `--harness {ts,wasm,both}`,
-`--stream-mode {shared,per-frame}` (default `per-frame`), `--repeats N`, `--interleave` (alternate
-arms per repeat), `--allow-void`. `--wt-url` skips the local server: a client-only harvest.
+`steps[].frame` and `step_interval_ms`), `--interval-ms`, `--harness ts` (the default and the only
+arm `--telemetry` records; another is refused), `--stream-mode {shared,per-frame}` (default
+`per-frame`), `--repeats N`, `--allow-void`. `--wt-url` skips the local server: a client-only harvest.
 
 Output goes to `.local/measurements/<stamp>-…/`. Each run folder holds `run.json` (arm, stream
 mode, cell, depth, schedule, study, git sha, Chromium version, the shell's JS-heap and WASM-memory

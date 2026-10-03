@@ -126,13 +126,13 @@ compression), or a stage that can only be stamped inside the session. Neither is
 | Arm | Build | Loaded by |
 | --- | --- | --- |
 | TS | `client/transport-ts/build.sh` → `dist/session.telemetry.js` (entry `session-telemetry.ts`), the downloader's transport | `client/harness/cell.html?telemetry=1` |
-| WASM | none: the recorder is the same JS patch over the product `pkg/` | no page since 2026-10-03: the harness's WASM page was removed with its path |
+| WASM | none | not recorded since 2026-10-03: the harness refuses `telemetry=1` with `transport=wasm`, and `verify_e2e.py --telemetry` with a non-TS `--harness` |
 
 *Corrected 2026-10-03:* the WASM row named a `WTPACS_TELEMETRY_BUILD=1` build into `pkg-telemetry/`
 behind a vacant `telemetry` feature. It was the product wasm in another directory, nothing set it,
 and both are removed. The TS output is gitignored. The code is `client/record/` (`install.ts` patches the global;
 `proxy.ts`, `wrap-session.ts`, `attribution.ts`, `clock.ts`, `rows.ts`, `report.ts`, `tap.ts`),
-shared by both arms. The report is read from `window.__wtpacsTelemetry()`; the harvest writes it to
+which only the TS arm loads. The report is read from `window.__wtpacsTelemetry()`; the harvest writes it to
 `telemetry-client.json` ([server ADR §Harvest](telemetry-server-pipeline.md#harvest)).
 
 ## What it records
