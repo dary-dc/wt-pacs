@@ -18,6 +18,7 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex};
 use tokio_rustls::server::TlsStream;
@@ -33,6 +34,9 @@ type Socket = WebSocketStream<TlsStream<TcpStream>>;
 /// Codestream bytes per binary message. A browser hands a message over only whole, so this is
 /// the grain at which the client sees a frame's bytes move.
 const CHUNK: usize = 64 * 1024;
+
+/// TLS and the upgrade together; a peer silent past this holds a task and a descriptor for nothing.
+pub(crate) const HANDSHAKE: Duration = Duration::from_secs(10);
 
 /// A session's one writer, shared by its frames and its refusals.
 #[derive(Clone)]
@@ -115,8 +119,6 @@ async fn session(
     open_ask: bool,
 ) -> Result<()> {
     tcp.set_nodelay(true).context("TCP_NODELAY")?;
-    let tls = tls.accept(tcp).await.context("TLS handshake")?;
-    let config = WebSocketConfig::default().max_message_size(Some(MAX_FOD_LEN));
     let mut opening = None;
     let read_ask = |request: &Request, response: Response| {
         if open_ask {
@@ -124,9 +126,16 @@ async fn session(
         }
         Ok(response)
     };
-    let socket = tokio_tungstenite::accept_hdr_async_with_config(tls, read_ask, Some(config))
+    let handshake = async {
+        let tls = tls.accept(tcp).await.context("TLS handshake")?;
+        let config = WebSocketConfig::default().max_message_size(Some(MAX_FOD_LEN));
+        tokio_tungstenite::accept_hdr_async_with_config(tls, read_ask, Some(config))
+            .await
+            .context("WebSocket upgrade")
+    };
+    let socket = tokio::time::timeout(HANDSHAKE, handshake)
         .await
-        .context("WebSocket upgrade")?;
+        .context("WebSocket handshake deadline")??;
     let (sink, mut stream) = socket.split();
     let sink = WsSink(Arc::new(Mutex::new(sink)));
 

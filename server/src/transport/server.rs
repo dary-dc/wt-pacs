@@ -848,6 +848,53 @@ mod tests {
         }
     }
 
+    /// A TCP peer that never starts its TLS handshake is let go at the handshake deadline,
+    /// instead of holding a task and a descriptor for ever.
+    #[test]
+    fn a_silent_websocket_peer_is_dropped_at_the_handshake_deadline() {
+        use tokio::io::AsyncReadExt;
+        let dir = std::env::temp_dir().join(format!("wtpacs-ws-silent-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let study = write_study(&dir, 1);
+        let (cert_pem, key_pem, _) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                websocket: true,
+                ..serve_config(study, cert_pem, key_pem, port)
+            }));
+            let mut tcp = None;
+            for _ in 0..50 {
+                match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
+                    Ok(t) => {
+                        tcp = Some(t);
+                        break;
+                    }
+                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+                }
+            }
+            let mut tcp = tcp.expect("server never listened");
+            let mut byte = [0u8; 1];
+            let closed = tokio::time::timeout(
+                websocket::HANDSHAKE + Duration::from_secs(3),
+                tcp.read(&mut byte),
+            )
+            .await;
+            assert!(
+                matches!(closed, Ok(Ok(0) | Err(_))),
+                "the silent peer was still held past the handshake deadline: {closed:?}"
+            );
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// With `hold_sessions` the client's dial neither completes nor fails: the handshake is done,
     /// the CONNECT is taken, and nothing answers it — the dial a client needs its own deadline
     /// for. `docs/ARCHITECTURE.md` §A dial that never settles.
