@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # N2: what the relay's radio modes change, against the models they sit beside.
-#   jitter      S26 — jitter that reorders against jitter that does not, Cubic and BBR, and
-#               Cubic's packet threshold raised under the reordering one.
+#   jitter      S26 — jitter that reorders against jitter that does not, Cubic and BBR. The
+#               packet-threshold arms went with their flag: `git show archive/arms-2026-10-03:lab/scripts/radio_link_cells.sh`.
 #   outage      S33 — a blackout that drops against one that holds, Cubic and BBR.
 #   two-blinks  S33's prediction — a second blink 3 s after the first, on both models.
 # Arms are interleaved inside every round in a Williams order (lab/scripts/order.py), and the relay
@@ -33,19 +33,13 @@ case "$CELL" in
       "cubic j2 ordered|--jitter-ms 2 --jitter-mode ordered||"
       "bbr j2 reorder|--jitter-ms 2 --jitter-mode reorder|--congestion bbr|"
       "bbr j2 ordered|--jitter-ms 2 --jitter-mode ordered|--congestion bbr|"
-      "cubic j2 reorder pt6|--jitter-ms 2 --jitter-mode reorder|--packet-threshold 6|"
-      "cubic j2 reorder pt12|--jitter-ms 2 --jitter-mode reorder|--packet-threshold 12|"
-      "cubic j2 reorder pt48|--jitter-ms 2 --jitter-mode reorder|--packet-threshold 48|"
       "cubic j10 reorder|--jitter-ms 10 --jitter-mode reorder||"
       "cubic j10 ordered|--jitter-ms 10 --jitter-mode ordered||"
       "bbr j10 reorder|--jitter-ms 10 --jitter-mode reorder|--congestion bbr|"
       "bbr j10 ordered|--jitter-ms 10 --jitter-mode ordered|--congestion bbr|"
-      "cubic j10 reorder pt6|--jitter-ms 10 --jitter-mode reorder|--packet-threshold 6|"
-      "cubic j10 reorder pt12|--jitter-ms 10 --jitter-mode reorder|--packet-threshold 12|"
-      "cubic j10 reorder pt48|--jitter-ms 10 --jitter-mode reorder|--packet-threshold 48|"
     )
     STATE=filled
-    PAIRS="cubic j2 reorder>cubic j0;cubic j2 ordered>cubic j0;bbr j2 reorder>bbr j0;bbr j2 ordered>bbr j0;cubic j2 reorder pt6>cubic j2 reorder;cubic j2 reorder pt12>cubic j2 reorder;cubic j2 reorder pt48>cubic j2 reorder;cubic j10 reorder>cubic j0;cubic j10 ordered>cubic j0;bbr j10 reorder>bbr j0;bbr j10 ordered>bbr j0;cubic j10 reorder pt6>cubic j10 reorder;cubic j10 reorder pt12>cubic j10 reorder;cubic j10 reorder pt48>cubic j10 reorder"
+    PAIRS="cubic j2 reorder>cubic j0;cubic j2 ordered>cubic j0;bbr j2 reorder>bbr j0;bbr j2 ordered>bbr j0;cubic j10 reorder>cubic j0;cubic j10 ordered>cubic j0;bbr j10 reorder>bbr j0;bbr j10 ordered>bbr j0"
     ;;
   outage)
     FILL="${FILL:-40}"

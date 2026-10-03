@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# W2: the three controller questions, through lab/scripts/link_impair.py.
+# W2: the controller questions, through lab/scripts/link_impair.py.
 #   S8  an early slow-start exit — Cubic against BBR (the exit itself is retired); shallow and deep buffer,
 #       with and without jitter.
-#   S9  the persistent-congestion threshold against 0.5 / 1 / 2 s blackouts. Where in the
-#       transfer the blink lands, and the controller arms through it: blink_cells.sh.
+#   S9  retired with its flag; code: `git show archive/arms-2026-10-03:lab/scripts/controller_cells.sh`.
+#       Where in the transfer a blink lands, and the controller arms through it: blink_cells.sh.
 #   S10 `initial_rtt` against the cold-connect tail at 1 % loss.
 # Results: docs/transport/transport-conclusions.md §3.
 #
@@ -115,16 +115,6 @@ for buffer in "shallow:20" "deep:1500"; do
       SERVER_ARGS=(--congestion "$arm")
       run "$arm" filled
     done
-  done
-done
-
-RELAY_ARGS=(--rate-kbit "$RATE" --queue-pkts 1500)
-for ms in 500 1000 2000; do
-  head_row "S9 · a ${ms} ms blackout, deep buffer"
-  for threshold in 3 6 12; do
-    if [[ $threshold -eq 3 ]]; then SERVER_ARGS=(); else
-      SERVER_ARGS=(--persistent-congestion-threshold "$threshold"); fi
-    run "threshold $threshold" lossy --blackout-ms "$ms"
   done
 done
 

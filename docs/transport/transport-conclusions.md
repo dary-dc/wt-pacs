@@ -53,8 +53,9 @@ at `6e9c126`.
 | **Runtime shape** | **One endpoint on the multi-thread runtime.** One endpoint per core won every single-session cell and most saturation cells, and **12 of 16 NAT rebinds kill the session** on it. Parked at `d9ebe32` (§6) |
 
 `--stream-mode per-frame`, `--congestion cubic | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`,
-`--packet-threshold`, `--persistent-congestion-threshold`, `--ack-frequency-max-delay-ms` and
-`--open-ask false` are flags, each for the cell named where it is measured below.
+`--ack-frequency-max-delay-ms` and `--open-ask false` are flags, each for the cell named where it is
+measured below. `--packet-threshold` and `--persistent-congestion-threshold` were removed with their
+arms once closed (§3); code: `git show archive/arms-2026-10-03:server/src/transport/tuning.rs`.
 
 ---
 
@@ -592,7 +593,8 @@ was the reordering too. The reordering cells stand as what a multi-leg path woul
 them supports "Cubic cannot take a radio's jitter", and §1, which rests on loss, is untouched.
 
 **The reordering threshold is not the mechanism — a prediction refuted.** `--packet-threshold`
-exposes quinn's setter (default 3, unchanged). Under reordering jitter, fill ms at thresholds 3 / 6
+exposed quinn's setter (default 3, unchanged; flag and arms removed 2026-10-03, code:
+`git show archive/arms-2026-10-03:lab/scripts/radio_link_cells.sh`). Under reordering jitter, fill ms at thresholds 3 / 6
 / 12 / 48: ±2 ms 11 880 / 6 124 / 6 135 / 6 124; ±10 ms 34 217 / 30 214 / 31 094 / 31 428. At ±2 ms
 raising it removes the spurious losses (21 per session become 0 or 1) and still leaves **4.2×**,
 because *one* congestion event is worth that much: every round that declared one ended on an 84 ms
@@ -639,8 +641,9 @@ less queue than Cubic in four. With no exogenous loss no verdict of §1 moves.
 
 #### An outage: the threshold is not the lever
 
-Fill ms through a blackout, persistent-congestion threshold 3 (default) / 6 / 12, against 1 437 with
-no outage: 500 ms 6 836 / 6 881 / 6 871; 1 s 7 503 / 7 508 / 7 626; 2 s 8 704 / 9 058 / 9 092.
+Fill ms through a blackout, persistent-congestion threshold 3 (default) / 6 / 12 (flag and arm removed
+2026-10-03; code: `git show archive/arms-2026-10-03:lab/scripts/controller_cells.sh`), against 1 437
+with no outage: 500 ms 6 836 / 6 881 / 6 871; 1 s 7 503 / 7 508 / 7 626; 2 s 8 704 / 9 058 / 9 092.
 **Raising the persistent-congestion threshold changes nothing**: one congestion event and 3 to 11
 lost datagrams per session, so persistent congestion is never declared. The outage costs **+5.4 s**
 of fill at 500 ms, +6.1 s at 1 s and +7.3 s at 2 s. **"The cost is the probe-timeout ladder" was

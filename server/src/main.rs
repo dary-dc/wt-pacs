@@ -44,10 +44,6 @@ struct Args {
     #[arg(long)]
     initial_window_bytes: Option<u64>,
     #[arg(long)]
-    persistent_congestion_threshold: Option<u32>,
-    #[arg(long)]
-    packet_threshold: Option<u32>,
-    #[arg(long)]
     initial_rtt_ms: Option<u64>,
     /// Lab only: `false` sends each datagram alone, so netem here drops datagrams, not GSO
     /// batches.
@@ -123,8 +119,6 @@ async fn main() -> anyhow::Result<()> {
             keep_alive_interval_ms: args.keep_alive_interval_ms,
             congestion: args.congestion,
             initial_window: args.initial_window_bytes,
-            persistent_congestion_threshold: args.persistent_congestion_threshold,
-            packet_threshold: args.packet_threshold,
             initial_rtt_ms: args.initial_rtt_ms,
             segmentation_offload: args.segmentation_offload,
             ack_frequency_max_delay_ms: args.ack_frequency_max_delay_ms,

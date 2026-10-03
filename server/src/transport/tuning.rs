@@ -36,10 +36,6 @@ pub struct TransportTuning {
     pub congestion: Congestion,
     /// Bytes the controller may send before the first ACK. quinn default: 12 000.
     pub initial_window: Option<u64>,
-    /// Round trips of unbroken loss that declare persistent congestion. quinn default: 3.
-    pub persistent_congestion_threshold: Option<u32>,
-    /// Packets of reordering tolerated before a gap is called a loss. quinn default: 3.
-    pub packet_threshold: Option<u32>,
     /// The RTT assumed before the first sample, which sets the first probe timeout.
     /// quinn default: 333 ms.
     pub initial_rtt_ms: Option<u64>,
@@ -59,8 +55,6 @@ impl Default for TransportTuning {
             keep_alive_interval_ms: None,
             congestion: Congestion::default(),
             initial_window: None,
-            persistent_congestion_threshold: None,
-            packet_threshold: None,
             initial_rtt_ms: None,
             segmentation_offload: true,
             ack_frequency_max_delay_ms: None,
@@ -79,12 +73,6 @@ impl TransportTuning {
         }
         if let Some(ms) = self.keep_alive_interval_ms {
             tc.keep_alive_interval(Some(std::time::Duration::from_millis(ms)));
-        }
-        if let Some(n) = self.persistent_congestion_threshold {
-            tc.persistent_congestion_threshold(n);
-        }
-        if let Some(n) = self.packet_threshold {
-            tc.packet_threshold(n);
         }
         if let Some(ms) = self.initial_rtt_ms {
             tc.initial_rtt(std::time::Duration::from_millis(ms));
@@ -125,8 +113,6 @@ impl TransportTuning {
             && self.max_idle_timeout_ms.is_none()
             && self.keep_alive_interval_ms.is_none()
             && self.initial_window.is_none()
-            && self.persistent_congestion_threshold.is_none()
-            && self.packet_threshold.is_none()
             && self.initial_rtt_ms.is_none()
             && matches!(self.congestion, Congestion::Cubic)
             && self.segmentation_offload
@@ -149,12 +135,6 @@ impl TransportTuning {
         }
         if let Some(v) = self.initial_window {
             parts.push(format!("initial_window={v}"));
-        }
-        if let Some(v) = self.persistent_congestion_threshold {
-            parts.push(format!("persistent_congestion_threshold={v}"));
-        }
-        if let Some(v) = self.packet_threshold {
-            parts.push(format!("packet_threshold={v}"));
         }
         if let Some(v) = self.initial_rtt_ms {
             parts.push(format!("initial_rtt_ms={v}"));
@@ -194,8 +174,6 @@ mod tests {
             keep_alive_interval_ms: Some(20_000),
             congestion: Congestion::Bbr,
             initial_window: Some(32 * 1200),
-            persistent_congestion_threshold: Some(6),
-            packet_threshold: Some(6),
             initial_rtt_ms: Some(100),
             segmentation_offload: false,
             ack_frequency_max_delay_ms: Some(5),
@@ -229,37 +207,13 @@ mod tests {
         t.to_transport_config();
     }
 
-    /// The persistent-congestion and initial-RTT knobs are custom transport too, and each is named
-    /// in `describe` so a campaign row cannot be mislabelled. docs/transport/transport-conclusions.md §3.
+    /// The initial-RTT knob is custom transport too, and is named in `describe` so a campaign row
+    /// cannot be mislabelled. docs/transport/transport-conclusions.md §3.
     #[test]
-    fn the_outage_and_timeout_knobs_leave_the_library_default_behind() {
-        for (t, want) in [
-            (
-                TransportTuning {
-                    persistent_congestion_threshold: Some(6),
-                    ..stock()
-                },
-                "persistent_congestion_threshold=6",
-            ),
-            (
-                TransportTuning { initial_rtt_ms: Some(100), ..stock() },
-                "initial_rtt_ms=100",
-            ),
-        ] {
-            assert!(!t.quic_is_library_default());
-            assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
-            t.to_transport_config();
-        }
-    }
-
-    /// Reordering tolerance is a custom transport too. Every loss in the jitter cells reads as this
-    /// knob firing, so an arm that set it and then took the library default would measure nothing.
-    /// docs/transport/transport-conclusions.md §3.
-    #[test]
-    fn a_packet_threshold_alone_leaves_the_library_default_behind() {
-        let t = TransportTuning { packet_threshold: Some(12), ..stock() };
+    fn an_initial_rtt_alone_leaves_the_library_default_behind() {
+        let t = TransportTuning { initial_rtt_ms: Some(100), ..stock() };
         assert!(!t.quic_is_library_default());
-        assert!(t.describe().contains("packet_threshold=12"));
+        assert!(t.describe().contains("initial_rtt_ms=100"), "{}", t.describe());
         t.to_transport_config();
     }
 
