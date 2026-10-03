@@ -1,25 +1,13 @@
 #!/usr/bin/env bash
 # The client against the real server, headless, over QUIC and over its WebSocket: refusals back to
 # back with none lost, and an ask during a fill seen with the server's own semantics. Builds a debug server, packs a synthetic
-# study and makes its own cert under a temp dir — nothing in the tree is touched. Skips loudly
-# without playwright or Chromium, as the other headless steps do.
+# study and makes its own cert under a temp dir — nothing in the tree is touched. Needs playwright
+# and Chromium.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-
-if ! node -e 'require("playwright")' 2>/dev/null; then
-  export NODE_PATH="${NODE_PATH:-$(npm root -g 2>/dev/null || true)}"
-  if ! node -e 'require("playwright")' 2>/dev/null; then
-    echo "SKIPPED: against the real server — playwright is not installed (npm install -g playwright)"
-    exit 0
-  fi
-fi
-CHROME="$(node -e 'console.log(process.env.CHROME_PATH || require("playwright").chromium.executablePath())' 2>/dev/null || true)"
-if [[ ! -x "$CHROME" ]]; then
-  echo "SKIPPED: against the real server — no headless Chromium (set CHROME_PATH or: npx playwright install chromium)"
-  exit 0
-fi
-export CHROME_PATH="$CHROME"
+source client/conformance/browser_env.sh
+require_browser
 
 cargo build -q -p exact-server -p pack-study
 BIN="${CARGO_TARGET_DIR:-target}/debug"
@@ -43,32 +31,23 @@ for i in $(seq 0 199); do head -c 262144 /dev/urandom > "$T/frames/$(printf '%03
 echo '{"frameCount": 200}' > "$T/metadata.json"
 "$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
 
+serving() { grep -q "wt_url=" "$T/server.log"; }
 for _ in 1 2 3; do
   WT_PORT=$((30000 + RANDOM % 20000))
   "$BIN/exact-server" --port "$WT_PORT" --study "$T/study.sbnd" --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" \
     --send-window-bytes 2000000 --websocket > "$T/server.log" 2>&1 &
   SERVER=$!
-  for _ in $(seq 50); do grep -q "wt_url=" "$T/server.log" 2>/dev/null && break; sleep 0.1; done
-  kill -0 "$SERVER" 2>/dev/null && grep -q "wt_url=" "$T/server.log" && break
+  for _ in $(seq 50); do serving || ! kill -0 "$SERVER" 2>/dev/null && break; sleep 0.1; done
+  serving && break
 done
-for _ in 1 2 3; do
-  PORT=$((20000 + RANDOM % 10000))
-  python3 server/dev-server.py --port "$PORT" &
-  STATIC=$!
-  sleep 0.3
-  kill -0 "$STATIC" 2>/dev/null && break
-done
-for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/client/conformance/refusals.html" >/dev/null 2>&1 && break; sleep 0.1; done
+serving || { echo "the server did not start:" >&2; cat "$T/server.log" >&2; exit 1; }
+start_static "$T/static.log"
 
 WT="wt=https://127.0.0.1:$WT_PORT/&hash=$HASH"
 drive() { node client/conformance/drive_page.cjs "http://127.0.0.1:$PORT/$1" | grep . | tail -1; }
 failed=0
 drive "client/conformance/refusals.html?arm=ts&n=64&$WT" || failed=1
-if [[ -f client/transport-wasm/pkg/transport_wasm_bg.wasm ]]; then
-  drive "client/conformance/refusals.html?arm=wasm&n=64&$WT" || failed=1
-else
-  echo "SKIPPED arm: transport-wasm refusals — no pkg/"
-fi
+drive "client/conformance/refusals.html?arm=wasm&n=64&$WT" || failed=1
 drive "client/conformance/refusals.html?arm=ws&n=64&$WT" || failed=1
 drive "client/conformance/ask-during-fill.html?arm=ts&$WT" || failed=1
 drive "client/conformance/ask-during-fill.html?arm=downloader&$WT" || failed=1

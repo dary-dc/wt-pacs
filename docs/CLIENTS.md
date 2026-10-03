@@ -175,9 +175,11 @@ are in flight that its end is observable. Nothing in the tree is touched.
 (`client/scripts/check_worker_safe.sh`: no built artifact may contain a `window.` reference), the
 downloader and dispatch arms, and `run_wire.sh`. **The WASM arm is required**: `run.mjs` exits 2
 without `client/transport-wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the arm
-loudly"). The headless steps skip loudly when playwright or Chromium is missing. The suite itself
-is not type-checked — it needs `@types/node`, which `client/transport-ts` does not carry; esbuild
-still fails on anything malformed.
+loudly"). The headless steps are required too: the gate exits 2 with the install command when
+playwright, Chromium or the decoder vendor is missing (decided 2026-10-03; it was "skip loudly"
+until then, and a gate without a browser passed none of the browser checks);
+`scripts/gate.sh --no-browser` skips them and says so in its last line. The suite and the
+transport-ts tests are type-checked (`client/conformance/tsconfig.json`).
 
 Every clause was mutated — the implementation broken on purpose, the check watched failing.
 

@@ -35,7 +35,7 @@ function check(cond: boolean, what: string) {
   }
 }
 
-type Fake = RingFake & {
+type Fake = Omit<RingFake, "last"> & {
   dials(): number;
   last(): FakeTransport | FakeWebSocket;
 };

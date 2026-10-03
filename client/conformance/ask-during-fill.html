@@ -42,6 +42,13 @@
         else if (performance.now() - since >= ms) return;
       }
     }
+    async function until(cond, what, ms = 5000) {
+      const t0 = performance.now();
+      while (!cond()) {
+        if (performance.now() - t0 > ms) throw new Error(`${what}: not within ${ms} ms`);
+        await sleep(10);
+      }
+    }
     const served = (p, ms = 3000) => Promise.race([p.then((r) => r, () => null), sleep(ms).then(() => null)]);
 
     try {
@@ -56,7 +63,7 @@
           got.push(f.frameIndex);
           if (got.length === AT && !askP) { askAt = performance.now(); askP = s.requestExactFrame(ASK); }
         });
-        while (!askP) await sleep(10);
+        await until(() => askP, `${arm}: ${AT} frames of the fill arrive`);
         const asked = await served(askP);
         check(asked?.frameIndex === ASK, `${arm}: the ask is served during the fill (${asked ? (performance.now() - askAt).toFixed(0) + " ms" : "not within 3 s"})`);
         await quiet(() => got.length, 500);
@@ -78,7 +85,7 @@
           onFrame: (f) => { got.push(f.frameIndex); if (got.length === AT && !askP) askP = c.requestExactFrame(ASK); },
         });
         c.fill(Array.from({ length: FILL }, (_, i) => i));
-        while (!askP) await sleep(10);
+        await until(() => askP, `${arm}: ${AT} frames of the fill arrive`);
         const asked = await served(askP);
         check(asked?.frameIndex === ASK, `${arm}: the ask is served during the fill`);
         await quiet(() => got.length, 500);

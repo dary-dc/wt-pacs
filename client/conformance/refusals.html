@@ -12,8 +12,8 @@
 <body>
   <h1>Back-to-back refusals</h1>
   <p>
-    One <code>RequestFrames</code> whose every index is out of range, so the server answers with
-    <code>n</code> <code>FrameError</code> messages back to back on the control stream. Every
+    <code>n</code> asks (<code>requestExactFrame</code>) whose every index is out of range, so the
+    server answers with <code>n</code> <code>FrameError</code> messages back to back on the control stream. Every
     waiter must reject promptly with the server's reason; a waiter that only ends on the
     15 s client timeout means a control message was lost.
   </p>
@@ -81,8 +81,9 @@
       session.close();
       globalThis.__wtpacsDone = true;
     } catch (e) {
-      log("boot error", e && e.stack ? e.stack : e);
-      globalThis.__wtpacsError = String(e);
+      log("  FAIL: boot error", e && e.stack ? e.stack : e);
+      globalThis.__wtpacsFailed = 1;
+      globalThis.__wtpacsDone = true;
     }
   </script>
 </body>

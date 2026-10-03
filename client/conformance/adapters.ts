@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ConformantSession } from "./clauses.ts";
+import type { ConformantFrame, ConformantSession } from "./clauses.ts";
 
 export type { ConformantFrame, ConformantSession } from "./clauses.ts";
 
@@ -24,7 +24,7 @@ export type ConnectOptions = { wireBuffers?: number };
 function repoRoot(): string {
   let at = path.dirname(new URL(import.meta.url).pathname);
   for (let i = 0; i < 8; i++) {
-    if (fs.existsSync(path.join(at, "CLAUDE.md"))) return at;
+    if (fs.existsSync(path.join(at, "Cargo.lock"))) return at;
     at = path.dirname(at);
   }
   return process.cwd();
@@ -60,7 +60,7 @@ async function sessionImpl(name: string, bundle: string): Promise<Implementation
         fillFrames: (
           from: number,
           to: number,
-          onFrame: (f: unknown) => void,
+          onFrame: (f: ConformantFrame) => void,
           onError?: (i: number, reason: string) => void,
         ) => s.fillFrames(from, to, onFrame, onError),
         endStream: () => s.endStream(),
@@ -94,7 +94,7 @@ export async function wasmImpl(): Promise<Implementation> {
         fillFrames: (
           from: number,
           to: number,
-          onFrame: (f: unknown) => void,
+          onFrame: (f: ConformantFrame) => void,
           onError?: (i: number, reason: string) => void,
         ) => s.fillFrames(from, to, onFrame, onError),
         endStream: async () => s.endStream(),

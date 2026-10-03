@@ -7,12 +7,12 @@
 # A file that needs more than this is either doing too much or is being explained in the
 # wrong place. CLAUDE.md#comments says where the explanation goes instead.
 #
-# Two exemptions, and only two:
+# Exempt:
 #   `SAFETY:` / `# Safety` blocks — contracts the compiler cannot express, and no budget
 #   should argue for dropping one.
-#   Everything from `mod tests {` to the end of the file — a test's doc comment states the
-#   claim the test makes, which is worth more than the test's name alone. Clippy's
-#   `items_after_test_module` keeps that module last, so the tail is the whole of it.
+#   Tests — a test's doc comment states the claim the test makes, which is worth more than
+#   the test's name alone: everything from `mod tests {` to the end of the file (Clippy's
+#   `items_after_test_module` keeps that module last), `client/conformance/` and `*/test/`.
 set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -21,7 +21,7 @@ FLOOR=${FLOOR:-10}   # what any file may spend regardless of size: header and po
 list=0
 [[ "${1:-}" == "--list" ]] && list=1
 
-files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' | grep -v -e '/node_modules/' -e '^target/')
+files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' | grep -v -e '/node_modules/' -e '^target/' -e '^client/conformance/' -e '/test/')
 
 # shellcheck disable=SC2086
 awk -v ratio="$RATIO" -v floor="$FLOOR" -v list="$list" '
