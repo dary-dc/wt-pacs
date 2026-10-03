@@ -14,7 +14,7 @@ The study on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does w
 
 ## FoD messages
 
-FoD is *frames on demand*: the client's asks and the server's refusals. On the control stream
+FoD names the control messages: the client's asks and the server's refusals. On the control stream
 each message is `[4B LE len][JSON]` — little-endian, unlike the envelope — tagged by `op`
 (`common/fod`, `client/transport-ts/wire.ts`). The server refuses a length of 0 or over 4 MiB
 (`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
