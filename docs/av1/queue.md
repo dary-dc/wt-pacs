@@ -47,7 +47,7 @@ and its branch belong to other work.
 | 1 | **TOOL** — the encoders and a native decoder, pinned, and a lossless round trip at every depth and layout | claimed 2026-10-03 |
 | 2 | **DATA** — public, freely licensed multi-frame series, fetched and checksummed | claimed 2026-10-03 |
 | 3 | **WCAP** — what WebCodecs' AV1 decoder supports in headless Chromium, and whether it returns samples exactly | claimed 2026-10-03 |
-| 4 | **WASM** — dav1d built to WASM, exact against native dav1d | ready |
+| 4 | **WASM** — dav1d built to WASM, exact against native dav1d | claimed 2026-10-03 |
 | 5 | **SEAM** — the codec seam and, if inter coding pays, the group as the transport's unit: a proposal | ready |
 | 6 | **SIZE** — lossless bytes: AV1 intra, AV1 inter by group length, HTJ2K | after 1, 2 |
 | 7 | **DEPTH** — 12-bit, signed and 16-bit samples in AV1 | after 1, 2 |
