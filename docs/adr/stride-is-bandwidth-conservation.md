@@ -67,13 +67,13 @@ stride is the only lever.
 - Design the stride control law: how stride is chosen from measured reader speed, and how fast gap-fill
   engages on deceleration. Currently **paused**; the design record lives outside this repo. Its
   missing input is the bytes a displayed frame needs
-  ([`adr-resolution-fitting-for-large-frames.md`](adr-resolution-fitting-for-large-frames.md) §6)
+  ([`resolution-fitting-for-large-frames.md`](resolution-fitting-for-large-frames.md) §6)
 
 ## What a queue behind the window can recover
 
 *Derived 2026-08-24, predicted analytically and never measured. The queue half is rejected
-([`adr-reject-server-cancel.md`](adr-reject-server-cancel.md)); the derivation stands, and both
-rejections — cancel and [ordering](adr-reject-server-ordering.md) — cite it.*
+([`reject-server-cancel.md`](reject-server-cancel.md)); the derivation stands, and both
+rejections — cancel and [ordering](reject-server-ordering.md) — cite it.*
 
 Stride and a server-side queue looked like one question: the queue can only hold something if the
 client keeps more than one ask outstanding, and that depth `D` is set by client policy. **At
@@ -156,5 +156,5 @@ fix **before** a run. What a model cannot answer:
 
 ## More Information
 
-- [`adr-client-window-depth.md`](adr-client-window-depth.md) — the ask window. Stride engages when `demand > 1`
+- [`client-window-depth.md`](client-window-depth.md) — the ask window. Stride engages when `demand > 1`
 - The resolution constraint is recorded outside this repo

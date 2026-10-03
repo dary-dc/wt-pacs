@@ -2,8 +2,8 @@
 
 **Status:** accepted · **Date:** 2026-09-04 ·
 **Context:** L1 S vs Q (shared uni vs per-frame uni) under loss ·
-**Related:** [`adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md),
-[`adr-client-window-depth.md`](../adr-client-window-depth.md)
+**Related:** [`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md),
+[`client-window-depth.md`](client-window-depth.md)
 
 ---
 

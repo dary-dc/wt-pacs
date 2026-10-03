@@ -49,7 +49,7 @@ Rung shares come from the measured resolution ladder (0.35 / 0.70 / 1.97 / 6.90 
 **They are content-dependent** (measured 2026-09-18): the half-size image takes 23–25 % of the
 bytes at ~2:1 compression (CT-like) and **48 %** at ~18:1 (ultrasound-like cine), where an
 eighth-size image is 5.9 % rather than ~1–2 % — the better the content compresses, the larger the
-low-resolution share of a smaller whole ([`decode/README.md`](decode/README.md) §A prefix draws a
+low-resolution share of a smaller whole ([`decode/README.md`](../decode/README.md) §A prefix draws a
 smaller image).
 
 ---
@@ -78,7 +78,7 @@ smaller image).
   is ever queued. Dropping a rung raises `D` to 2 and introduces a 180–670 ms miss cost. Cheap for what
   it buys, but it is a new cost, not a free win
 - **`U` loses most of its justification.** Large `Tf` was the main case where `U` changed the answer
-  (see [`adr-client-window-depth.md`](adr-client-window-depth.md)). If large frames ship at a rung, `U`
+  (see [`client-window-depth.md`](client-window-depth.md)). If large frames ship at a rung, `U`
   fires only for ordinary frames on ~1 Mbps links
 - Reduced sharpness during motion. Whether that is acceptable is a fidelity ruling, not an engineering
   one
@@ -109,7 +109,7 @@ Today everything ships at rung 0.
 that. Three levers above it cut bytes per displayed frame, none of them a transport change, and
 each needs the render path to accept less than the whole frame: a **prefix** (a truncated HTJ2K
 codestream is a viewable smaller image), a lower **rung** (§2), and **stride**
-([`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md)).
+([`stride-is-bandwidth-conservation.md`](stride-is-bandwidth-conservation.md)).
 
 **What a prefix is worth, answered for the decoder** (L19, 2026-09-18): the
 fixtures are encoded RPCL, one layer, one tile, five decompositions, so a prefix is a whole smaller
@@ -117,12 +117,12 @@ image. The smallest prefix that decodes byte-identical to the full codestream at
 quarter of the frame for the half-size image at ~2:1 and half of it at ~18:1, mutation-checked at
 the boundary. **Only the shipped decoder package can do it** (`decodeSubResolution(level)`); the
 source build returns a full-size image with detail missing, and only past a floor that is 72 % of a
-colour frame ([`decode/README.md`](decode/README.md) §A prefix draws a smaller image). Handing a
+colour frame ([`decode/README.md`](../decode/README.md) §A prefix draws a smaller image). Handing a
 decoder a frame's first bytes is not built into the clients: it waits on how a smaller first image
 is displayed.
 
 **The rule, fixed before the cell runs:** at 20 Mbit / 50 ms on the rig
-([`rig-limits.md`](rig-limits.md) §9), 250 KB frames, time from ask to a viewable image with a 25 %
+([`rig-limits.md`](../rig-limits.md) §9), 250 KB frames, time from ask to a viewable image with a 25 %
 prefix against the whole frame. **Apply prefix delivery if it is at least 2× faster to first
 viewable and the viewer accepts the prefix as an image**; the full frame then follows on the same
 stream. The rung and stride decisions follow from the same number at their own byte counts. If no
@@ -139,6 +139,6 @@ quinn nor wtransport carries yet, and whose support in Chromium is unchecked.
 
 ## References
 
-- [`adr-client-window-depth.md`](adr-client-window-depth.md) — `D`, `Tf`, and `U`
-- [`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md) — the other motion lever
-- [`decode/README.md`](decode/README.md) §A prefix draws a smaller image — the measured prefix curve
+- [`client-window-depth.md`](client-window-depth.md) — `D`, `Tf`, and `U`
+- [`stride-is-bandwidth-conservation.md`](stride-is-bandwidth-conservation.md) — the other motion lever
+- [`decode/README.md`](../decode/README.md) §A prefix draws a smaller image — the measured prefix curve

@@ -30,7 +30,7 @@ struct Args {
     #[arg(long)]
     max_idle_timeout_ms: Option<u64>,
     /// Server-sent keep-alive in milliseconds. Off by default; must be below both peers' idle
-    /// timeouts to work. docs/transport/adr-idle-sessions.md.
+    /// timeouts to work. docs/adr/transport-idle-sessions.md.
     #[arg(long)]
     keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t)]

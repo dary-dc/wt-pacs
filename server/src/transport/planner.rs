@@ -1,11 +1,11 @@
-//! What to serve next, decided without I/O. `docs/disk-access/adr.md`.
+//! What to serve next, decided without I/O. `docs/adr/disk-access.md`.
 
 use anyhow::Result;
 use std::collections::VecDeque;
 
 /// Asks the server holds beyond the frame being served. A tile reader takes what fits (`slots − 1`).
 pub const ASKS_AHEAD: usize = 8;
-/// A fill reads one frame ahead: two buffers, pool only. `docs/disk-access/adr.md`.
+/// A fill reads one frame ahead: two buffers, pool only. `docs/adr/disk-access.md`.
 pub const FILL_AHEAD: usize = 1;
 
 /// What the loop consumes: one item per frame, whichever message carried it.

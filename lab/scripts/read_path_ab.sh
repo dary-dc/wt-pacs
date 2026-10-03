@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Interleaved A/B of the product read path: HEAD against a worktree at <base-commit>.
 # A sequential before/after already read +8.1 % on a tie here; this alternates inside
-# each round. `docs/disk-access/adr.md`.
+# each round. `docs/adr/disk-access.md`.
 #
 #   lab/scripts/read_path_ab.sh <base-commit>
 #
@@ -16,7 +16,8 @@ cd "$ROOT"
 BASE="${1:?usage: lab/scripts/read_path_ab.sh <base-commit>}"
 REPEATS="${REPEATS:-12}"
 ASKS="${ASKS:-256}"
-OUT="${OUT:-$ROOT/docs/disk-access/read_path_ab.tsv}"
+OUT="${OUT:-$ROOT/.local/measurements/read_path_ab.tsv}"
+mkdir -p "$(dirname "$OUT")"
 W="${W:-$(sed -n 's/^pub const TILE_SLOTS: usize = \([0-9]*\);/\1/p' server/src/media/read_path.rs)}"
 TILE="${TILE:-$ROOT/lab/fixtures/frames_16k_big/frames_16k_big.sbnd}"
 SEQ="${SEQ:-$ROOT/lab/fixtures/frames_16k_seq/frames_16k_seq.sbnd}"

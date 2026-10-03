@@ -1,5 +1,5 @@
 //! How media frames leave the server for a session (process-wide CLI choice).
-//! What separates the two shapes: `docs/adr-stream-shape.md`.
+//! What separates the two shapes: `docs/adr/stream-shape.md`.
 
 use std::fmt;
 use std::str::FromStr;

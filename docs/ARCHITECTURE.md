@@ -53,7 +53,7 @@ boundary is the API, and `stats()` is async because it cannot be truthful and sy
   first-free against round-robin).
 * **Dial early, stay alive, notice death**: the session opens when the user picks a series and is used
   when the viewer mounts, minutes later; only the server can keep a browser's session open
-  ([`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md)).
+  ([`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md)).
 * **A cache seam and a paint sink** — the viewer paints from a cache filled ahead of it, through a
   renderer the client does not know. **Neither is built** (§Open).
 
@@ -473,7 +473,7 @@ display. DPR 1, identity window, main-thread ms a paint:
 
 **Not answered**: neither route filters when it minifies — 96.5 % of a 12.58 Mpx frame is discarded at
 768×576 either way, which a resolution rung answers
-([`adr-resolution-fitting-for-large-frames.md`](adr-resolution-fitting-for-large-frames.md)); nothing
+([`adr/resolution-fitting-for-large-frames.md`](adr/resolution-fitting-for-large-frames.md)); nothing
 here is a viewer or the target — the shape transfers, not the milliseconds. On a 60 Hz display a change
 to one ask moves the median only when it crosses a 16.7 ms line.
 
@@ -709,7 +709,7 @@ at 10 s and 30 s idle timeouts alike. Not modelled: a new IP address.
   session**: Chrome offers no TLS ticket and pools nothing (§Resumption and 0-RTT), so §The session
   open's round trips are paid again on every handover.
 * **The idle timeout is a detection bound, and the wrong instrument.** The effective one is the lower
-  of the two ends ([`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md) §Picking the
+  of the two ends ([`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md) §Picking the
   pair), so a 60 s server timeout leaves an idle session's detection at Chromium's 30 s. *Corrected in
   place:* this once said the 20 s / 60 s pair doubles a 30 s freeze; it cannot push detection past the
   client's bound. And **a fill does not freeze for 30 s**: with data owed Chromium ends the session in
@@ -906,7 +906,7 @@ was "nobody has measured what recycling costs":* with the stall emulated in the 
 takes a 61 MB fill from ~25 s to 47–51 s, and recycling to 27–31 s (§Recycling before the stall).
 
 **What TCP gives up**: independent streams, so a slow frame blocks every frame behind it
-([`adr-stream-shape.md`](adr-stream-shape.md)); loss recovery per stream; the idle behaviour measured
+([`adr/stream-shape.md`](adr/stream-shape.md)); loss recovery per stream; the idle behaviour measured
 for QUIC; `stream_frames` as the same protocol. A degraded viewer beats none, but the conformance
 clauses about independent delivery are marked not applicable on it rather than green.
 

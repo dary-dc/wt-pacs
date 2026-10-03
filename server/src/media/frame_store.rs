@@ -1,4 +1,4 @@
-//! Server-side SBND reader. Why `pread` and not a memory mapping: `docs/disk-access/adr.md`.
+//! Server-side SBND reader. Why `pread` and not a memory mapping: `docs/adr/disk-access.md`.
 
 use anyhow::{Context, Result};
 use std::fs::File;
@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(test)]
 use std::sync::Mutex;
 
-/// The retired 64 KiB read chunk: tests size frames across several. `docs/disk-access/adr.md`.
+/// The retired 64 KiB read chunk: tests size frames across several. `docs/adr/disk-access.md`.
 #[cfg(test)]
 pub(crate) const READ_WINDOW: usize = 64 * 1024;
 
@@ -23,7 +23,7 @@ pub struct FrameSpan {
     pub len: u32,
 }
 
-/// **Open once per study, never per session.** `docs/disk-access/adr.md` §Invariants.
+/// **Open once per study, never per session.** `docs/adr/disk-access.md` §Invariants.
 pub struct FrameStore {
     file: File,
     index: Vec<(u64, u32)>,
@@ -57,7 +57,7 @@ impl FrameStore {
     }
 
     /// Where this is false every read reports a miss, cached or not, so a caller that
-    /// branches on a miss must gate on it — `docs/disk-access/adr.md` §The trap.
+    /// branches on a miss must gate on it — `docs/adr/disk-access.md` §The trap.
     pub fn nowait_supported(&self) -> bool {
         self.nowait
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Default client artifacts carry no telemetry surface: docs/telemetry/adr-instrument-clients-from-outside.md.
+# Default client artifacts carry no telemetry surface: docs/adr/telemetry-instrument-clients-from-outside.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"

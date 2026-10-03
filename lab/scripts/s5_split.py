@@ -14,7 +14,7 @@ subtraction valid:
 first miss, which is the design the split implies (keep L on hits, keep R on misses, skip
 the idle ring).
 
-The rule is `docs/disk-access/adr.md` §11, applied mechanically: a difference counts only if
+The rule is `docs/adr/disk-access.md` §11, applied mechanically: a difference counts only if
 |median| >= 28.5% **and** sign agreement >= 0.8n **and** it keeps its sign across runs.
 Regime is read off `pool`'s miss rate so every arm in a cell is classified identically.
 
@@ -24,7 +24,7 @@ bucket-for-bucket — v25's L-on-mix reads a flat tie with `C_readers` in and RE
 with it out, on the same runs. Pass `--phases` to restrict every file to the same phases;
 without it, a warning is printed whenever the files disagree about which phases they contain.
 
-    lab/scripts/s5_split.py docs/disk-access/v24_s5_loop_vs_ring.tsv [more.tsv ...]
+    lab/scripts/s5_split.py v24_s5_loop_vs_ring.tsv [more.tsv ...]
     lab/scripts/s5_split.py --phases A_stride,A_sweep v25_*.tsv v28_*.tsv
 """
 import csv

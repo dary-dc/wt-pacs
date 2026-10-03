@@ -3,7 +3,7 @@
 # loopback, a 4 GB study on a 954 MB host, so reads reach the throttled block device without any
 # eviction; every run starts at a frame no earlier run read. Arms: read_ahead_kb 2048 (the rig's)
 # against 128 (the workstation's), interleaved. The server's own hit/miss line says how cold each
-# run was. A warm 80 MB study is the hit reference. Results: docs/disk-access/adr.md.
+# run was. A warm 80 MB study is the hit reference. Results: docs/adr/disk-access.md.
 #
 #   SSH_KEY=~/.ssh/id_ed25519_rig lab/scripts/l7_read_path.sh [ROUNDS]
 set -euo pipefail

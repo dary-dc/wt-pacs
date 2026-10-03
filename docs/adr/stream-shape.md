@@ -2,7 +2,7 @@
 
 **Status:** accepted · **Date:** 2026-09-26 — default set 2026-09-11, confirmed natively 2026-09-15
 and in Chromium 2026-09-25 (HOL1) · **Closes:** §6 of
-[`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) · **Tags:** transport,
+[`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md) · **Tags:** transport,
 wire
 
 ## Decision
@@ -15,7 +15,7 @@ wire
 * **The WebSocket path is one ordered stream by construction**, so the question does not arise
   there.
 
-All three shapes carry the same length-prefixed envelope ([`WIRE.md`](WIRE.md)); they differ only in
+All three shapes carry the same length-prefixed envelope ([`WIRE.md`](../WIRE.md)); they differ only in
 how long a stream lives: one per session, `k` per session dealt round-robin, or one per frame.
 
 ## Context
@@ -25,7 +25,7 @@ stream per frame confines a loss to its own frame. It was pre-registered as H4, 
 
 **The validity condition, before any number.** The arms are byte-identical when one frame is in
 flight: at depth 1 all three send one frame on one stream. A cell measures stream shape only where
-`D_min > 1` ([`adr-client-window-depth.md`](adr-client-window-depth.md)) — 32 KB to 250 KB on a
+`D_min > 1` ([`client-window-depth.md`](client-window-depth.md)) — 32 KB to 250 KB on a
 10 Mbit link. **Nothing here transfers to mammography and tomosynthesis sizes**, where `Tf ≫ RTT`
 puts `D_min` at 1. And the family's value is exactly zero on a lossless link, so a lossless run
 says nothing for or against independent delivery.
@@ -34,7 +34,7 @@ says nothing for or against independent delivery.
 
 **A misplaced `await` first.** Per-frame streams read a flat 7.00 Mbps at `D` = 1–8 against 8.50
 shared, because `wtransport`'s `finish()` waits for the peer's ack (~272 ms) and was awaited on the
-serial loop ([`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §1). With
+serial loop ([`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md) §1). With
 it moved into a `JoinSet`, per-frame at 250 KB, `D` = 4, 10 Mbit / 60 ms reads **8.0 Mbps** (X1,
 2026-08-28), clear of the old `Tf/(Tf+RTT)` ceiling.
 
@@ -81,7 +81,7 @@ gone from the product.
 frames' data. `ask_priority(seq) = −seq` gives every frame its own level. quinn warns that many
 levels per connection may cost performance; that concerns streams *concurrently pending*, which is
 only `D` of them, so it stands. It is also the rule
-[`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) settled — the client's ask order is
+[`reject-server-ordering.md`](reject-server-ordering.md) settled — the client's ask order is
 the priority — expressed at the transport. Before the campaign below it had been measured only at
 32 KB, inside noise at the decision cell (pooled CI [−7.3, +26.3] % at 0.5 % loss; the one tight
 cell +1.5 %, CI [+0.6, +5.1]).
@@ -119,13 +119,13 @@ runs and **collapsed to 26 s in two of eighteen**.
 **Bursts cost more than the arms do.** From the same baselines, bursty loss at 0.5 % mean degrades
 `shared`'s tail by 38 % (18 repeats; 46 % at six) where scattered loss of the same mean costs 9 %,
 and neither stream arm changes that. That points at the congestion controller
-([`transport/transport-conclusions.md`](transport/transport-conclusions.md) §1), not at the streams.
+([`transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1), not at the streams.
 
 ## HOL1 — in Chromium, through the relay (2026-09-25)
 
 Queue row 78. The same question asked of a browser, for an owner deciding whether another stack
 should move from one shared stream to K persistent ones — so the pool at `k` = 2, 4, 8 is the arm
-that matters. `lab/stream-shape/` ([README](../lab/stream-shape/README.md)); rows in history at
+that matters. `lab/stream-shape/` ([README](../../lab/stream-shape/README.md)); rows in history at
 `d184333`.
 
 **The rig.** 20 Mbit, 40 ms each way, a 200-packet queue (`lab/scripts/link_impair.py`), Cubic,
@@ -176,7 +176,7 @@ asks only where 3 asks share 2 streams. Without priority the pool round-robins; 
 Either way it is the shape, not the build.
 
 **What HOL1 does not say.** One link, 128 KB frames, Cubic, one host through a userspace relay
-([`rig-limits.md`](rig-limits.md) §3). Under BBR the controller stops being the limit, and
+([`rig-limits.md`](../rig-limits.md) §3). Under BBR the controller stops being the limit, and
 independent delivery may then have something to rescue; that cell was not run.
 
 ## Corrections on record
@@ -214,7 +214,7 @@ Each was published or specified, then found wrong. Kept so none is re-derived.
   0.28–0.30 against 0.70–0.84), making `shared` 50× the worst arm with it and the best without.
 * **A first 2 % cell over-demanded ~2×**: the step interval came from the link label while Cubic
   carried 2.5–4.3 of 10 Mbit, and every arm censored 5–33 % of waits.
-* **Shared was not "worst under loss".** [`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md)
+* **Shared was not "worst under loss".** [`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md)
   §4 ranked it so by argument; measured against per-frame with priority, it is level.
 
 ## How a stream-shape cell is read
@@ -246,10 +246,10 @@ What the corrections above cost to learn, and what the cell drivers enforced (re
   acks as it sends (before 2026-09-06 they were held to session end: RSS 30.8 MB after 35 k frames,
   12.5 MB flat after). `Pool` stays only so the recorded cells reproduce; nothing recommends it.
 * **Priority under `shared`** cannot raise a new ask above frames already committed to the stream.
-  The planner does it instead: an ask ends a fill and is served next ([`WIRE.md`](WIRE.md)).
+  The planner does it instead: an ask ends a fill and is served next ([`WIRE.md`](../WIRE.md)).
 * **A truncated frame is reported the same in both modes**; the client cannot tell them apart, and
   narrowing per-frame's report would need a wire field for a mode the default does not use
-  ([`CLIENTS.md`](CLIENTS.md)).
+  ([`CLIENTS.md`](../CLIENTS.md)).
 * **The WebSocket path** (`exact-server --websocket`) carries the shared stream's bytes as binary
   messages on one TCP stream, which the session's refusals share. It gives up independent streams
   and per-stream loss recovery; the conformance clauses that need them are not applicable there.
@@ -259,7 +259,7 @@ What the corrections above cost to learn, and what the cell drivers enforced (re
 
 * **Progressive delivery.** Once a frame's viewable prefix goes out beside the next frame's and the
   server abandons the tail, per-frame is required: `RESET_STREAM_AT` abandons a tail per stream
-  ([`transport/transport-conclusions.md`](transport/transport-conclusions.md) §4). The per-frame flag
+  ([`transport/transport-conclusions.md`](../transport/transport-conclusions.md) §4). The per-frame flag
   is kept for this.
 * **BBR, or any controller that is not the limit under loss.** Independent delivery may then have
   something to rescue. HOL1's cells under BBR; `lab/stream-shape/run.mjs` would take `--congestion`
@@ -272,11 +272,11 @@ reordering with it — and it grew, not shrank, from `k` = 2 to `k` = 4 in the b
 
 ## References
 
-* [`transport/transport-conclusions.md`](transport/transport-conclusions.md) §2 — the summary this
+* [`transport/transport-conclusions.md`](../transport/transport-conclusions.md) §2 — the summary this
   ADR details
-* [`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) — the options and the
+* [`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md) — the options and the
   `finish()` retraction
-* [`adr-client-window-depth.md`](adr-client-window-depth.md) — `D_min`
-* [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) — ask order is the priority
+* [`client-window-depth.md`](client-window-depth.md) — `D_min`
+* [`reject-server-ordering.md`](reject-server-ordering.md) — ask order is the priority
 * `lab/stream-shape/` — the browser instrument; the harness cell drivers are in history at `6e9c126`,
   raw rows under `docs/measurements/`

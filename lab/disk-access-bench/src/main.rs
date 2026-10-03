@@ -1,4 +1,4 @@
-//! Disk-access campaign harness (lab-only). Decision record: `docs/disk-access/`.
+//! Disk-access campaign harness (lab-only). Decision record: `docs/adr/disk-access.md`.
 //! Rejected arms (mincore gate, WILLNEED) use `rejected_access` — not product FrameStore.
 //!
 //! Instrument (post-review):
@@ -49,7 +49,7 @@ enum Arm {
     /// Same, streamed through one small reusable window instead of a whole-frame buffer:
     /// bounds both the executor's uninterrupted copy and per-session memory. **The shipped
     /// shape until 2026-09-07**, kept because it is what every earlier number in
-    /// `docs/disk-access/` was measured against.
+    /// `docs/adr/disk-access.md` was measured against.
     PreadNowaitChunked,
     /// The accepted path plus one `POSIX_FADV_WILLNEED` for the *next* ask's range.
     ///
@@ -215,7 +215,7 @@ impl AccessMode {
 
 /// Bytes of each frame actually served — `--prefix` caps it.
 ///
-/// Rung delivery (`docs/adr-resolution-fitting-for-large-frames.md`) sends the first slice
+/// Rung delivery (`docs/adr/resolution-fitting-for-large-frames.md`) sends the first slice
 /// of a progressive codestream, not the whole thing. That changes the *shape* of the disk
 /// access, not just its size: reads take a prefix and skip the rest of the frame, so the
 /// file is strided rather than swept, and the kernel read-ahead the `RWF_NOWAIT` fast path

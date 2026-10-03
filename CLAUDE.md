@@ -43,7 +43,7 @@ a reason to raise the budget.
 
 Lean, and placed where they belong — extend the file that owns the subject rather than adding
 one per finding. A claim that is not measured says so. A retracted claim is corrected in
-place, not quietly dropped: `docs/disk-access/adr.md` §2 is the model.
+place, not quietly dropped: `docs/adr/disk-access.md` §2 is the model.
 
 ## Measurement
 

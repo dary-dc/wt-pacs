@@ -5,7 +5,7 @@
 **Decides:** Decision C — the lab wraps the product's **steps**, not call-site closures; the story is
 a trait default. Supersedes the inline `FrameSink` / `RecordedSink` hooks and the `server_work_us`
 field, whose name is not to be revived.  
-**Client side:** [`adr-instrument-clients-from-outside.md`](adr-instrument-clients-from-outside.md).
+**Client side:** [`telemetry-instrument-clients-from-outside.md`](telemetry-instrument-clients-from-outside.md).
 
 Lab-only frame-pipeline timing. **A default build contains no telemetry code**, and
 `server/scripts/check_telemetry_absent.sh` proves it (§Absence).
@@ -31,7 +31,7 @@ it.
 **`ProductPipeline`** holds the `Arc<FrameStore>` and the `FrameOut`. `prepare` does nothing;
 `locate` is an index lookup returning a `FrameSpan` (no I/O, so an out-of-range ask is refused
 before a stream opens); `send` reads the frame with the session's reader and writes it
-([`../disk-access/adr.md`](../disk-access/adr.md)). A `locate` failure calls `refuse`, which writes a
+([`disk-access.md`](disk-access.md)). A `locate` failure calls `refuse`, which writes a
 `FrameError` on control; a `send` failure ends the session.
 
 *Corrected 2026-09-26.* Earlier text here said `prepare` pre-faulted the frame's pages on a
@@ -114,7 +114,7 @@ as 0. **Null ≠ 0:** a refused row exports the stages it never entered as JSON 
 *start* of the next frame's read (an `RWF_NOWAIT` probe and, on a shortfall, one submit, no wait),
 and excludes most of its own frame's read where the frame before started it. Within a run of
 pipelined asks, per-frame `send_us` is a pipeline stage, not a per-frame cost; the run's total is
-exact. (This said "a `RequestFrames` batch", which left the wire on 2026-10-03.) [`../adr-frame-framing-and-loop-shape.md`](../adr-frame-framing-and-loop-shape.md) §6b.
+exact. (This said "a `RequestFrames` batch", which left the wire on 2026-10-03.) [`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md) §6b.
 A trace showing `prepare_us` in the tens of µs is a trace of the mapping build (§Pipeline baseline).
 
 Also on each row: `session_id`, `frame_index`, `ask_ordinal`, `server_bytes_sent`,
@@ -194,7 +194,7 @@ writes **two independent files** per run, plus the server's rows:
 
 | File | Source |
 | --- | --- |
-| `telemetry-client.json` | the page's `window.__wtpacsTelemetry` ([client ADR](adr-instrument-clients-from-outside.md)) |
+| `telemetry-client.json` | the page's `window.__wtpacsTelemetry` ([client ADR](telemetry-instrument-clients-from-outside.md)) |
 | `telemetry-server.json` | the server `Tap` |
 | `telemetry-server.rows` | every server record, exact; the summary's source |
 
@@ -311,7 +311,7 @@ the harness processes saturate the four cores, not the server; nothing is claime
   16–32, while `locate_us` was 0: the per-frame `spawn_blocking` prefault round trip, not page
   faults, and about a fifth of the default server's CPU on a fixture whose pages were always
   resident. Handed to the disk track, which removed the hop on 2026-09-04 and reads the frame inside
-  `send` instead ([`../disk-access/adr.md`](../disk-access/adr.md)). `prepare_us` and `locate_us`
+  `send` instead ([`disk-access.md`](disk-access.md)). `prepare_us` and `locate_us`
   have read ~0 since; a trace showing either high is a trace of an older build.
 * **`ack_us`**, on the withdrawn build: 0.45 ms p50 with one session on localhost, growing to
   4–10 ms at 16–32 as the harness processes starved for CPU before acknowledging.

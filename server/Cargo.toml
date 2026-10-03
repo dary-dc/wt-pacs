@@ -16,7 +16,7 @@ path = "src/main.rs"
 default = ["uring", "crypto-ring"]
 telemetry = []
 # io_uring for a tile miss. Optional so a build without it still compiles, to the
-# pool path -- see docs/disk-access/adr.md.
+# pool path -- see docs/adr/disk-access.md.
 uring = ["dep:io-uring"]
 crypto-ring = ["rustls/ring", "wtransport/ring"]
 # RFC 8879 certificate compression. Off: it pulls brotli and zlib-rs into the tree and does

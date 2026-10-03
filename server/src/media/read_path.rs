@@ -3,7 +3,7 @@
 //! A fill knows the frame after this one and starts it underneath; a tile ask does not, and
 //! is a miss by nature. That difference picks the escalation — the blocking pool for a fill,
 //! whose misses are rare, and a ring for tiles, whose queue would otherwise be OS threads.
-//! `docs/disk-access/adr.md`.
+//! `docs/adr/disk-access.md`.
 
 use crate::media::frame_pool;
 use crate::media::frame_store::{FrameSpan, FrameStore};
@@ -24,9 +24,9 @@ thread_local! {
     static LEAKED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
-/// Frames a tile session holds at once, and its ring depth. `docs/disk-access/adr.md`.
+/// Frames a tile session holds at once, and its ring depth. `docs/adr/disk-access.md`.
 pub const TILE_SLOTS: usize = 4;
-/// Bytes past the named frame a fill asks the kernel to have ready. `docs/disk-access/adr.md`.
+/// Bytes past the named frame a fill asks the kernel to have ready. `docs/adr/disk-access.md`.
 pub const FILL_WINDOW: u64 = 4 << 20;
 
 /// Which escalation a tile session takes, from `WTPACS_READ_PATH`, read once at server start.
@@ -48,7 +48,7 @@ impl ReadMode {
     }
 }
 
-/// Counted per frame. `docs/disk-access/adr.md` §Reporting.
+/// Counted per frame. `docs/adr/disk-access.md` §Reporting.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ReadStats {
     pub hits: u64,
@@ -114,7 +114,7 @@ enum Ahead {
 
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
 /// and no ring: a sequential walk is read-ahead's best case and misses about one read in
-/// sixty. `docs/disk-access/adr.md` §Fill at scale.
+/// sixty. `docs/adr/disk-access.md` §Fill at scale.
 pub struct SeqReader {
     cur: Vec<u8>,
     ahead: Ahead,
@@ -281,7 +281,7 @@ pub struct TileReader {
 
 impl TileReader {
     /// Without `RWF_NOWAIT` a ring keyed on the shortfall would serve every *warm* read
-    /// too — `docs/disk-access/adr.md` §The trap.
+    /// too — `docs/adr/disk-access.md` §The trap.
     #[cfg_attr(not(feature = "uring"), allow(unused_variables))]
     pub fn new(mode: ReadMode, store: &FrameStore, slots: usize) -> Self {
         #[cfg(feature = "uring")]
@@ -566,7 +566,7 @@ mod tests {
 
     /// **The ADR's claim, as an assertion**: a miss reads to the end of the *frame*, so a
     /// missing frame costs one round trip however wide it is. Capping the probe at
-    /// `READ_WINDOW` cost +55–82 % at two windows and up; `docs/disk-access/adr.md`.
+    /// `READ_WINDOW` cost +55–82 % at two windows and up; `docs/adr/disk-access.md`.
     #[test]
     fn a_missing_frame_costs_one_round_trip_however_wide_it_is() {
         let dir = scratch("oneshot");
@@ -662,7 +662,7 @@ mod tests {
     }
 
     /// A fill holds **one** read at a time whatever it names, which is what bounds its
-    /// blocking threads at scale. `docs/disk-access/adr.md` §Fill at scale.
+    /// blocking threads at scale. `docs/adr/disk-access.md` §Fill at scale.
     #[test]
     fn a_fill_never_holds_more_than_one_read_at_once() {
         let dir = scratch("onedeep");
@@ -689,7 +689,7 @@ mod tests {
     /// A fill asks the kernel for `FILL_WINDOW` past the named frame, extends it only once a
     /// quarter window has been walked, and restarts it on a seek past it. Without the
     /// advice a 250 kB fill at the stock 128 KiB read-ahead misses six frames in ten —
-    /// `docs/disk-access/adr.md`.
+    /// `docs/adr/disk-access.md`.
     #[test]
     fn a_fill_tells_the_kernel_what_follows_the_named_frame() {
         let dir = scratch("advise");
@@ -834,7 +834,7 @@ mod tests {
     }
 
     /// Slots are a constructor argument, so the depth a tile session runs at is a number the
-    /// campaign can sweep rather than a constant. `docs/disk-access/adr.md` §1.
+    /// campaign can sweep rather than a constant. `docs/adr/disk-access.md` §1.
     #[test]
     fn a_tile_reader_holds_as_many_frames_as_it_was_given_slots() {
         let dir = scratch("slots");

@@ -40,11 +40,11 @@ range outside the study with one `frame_error` at `from` (0 when omitted), reaso
 A..=B outside 0..=last`; an empty study with `study is empty`. A refusal takes no media stream.
 
 **Depth is the client's.** The real-time path is one `request_frame` per message, and the client's
-window ([`adr-client-window-depth.md`](adr-client-window-depth.md)) is how many it keeps
+window ([`adr/client-window-depth.md`](adr/client-window-depth.md)) is how many it keeps
 outstanding. An ask-reader task owns the control stream and feeds a planner, which keeps up to
 `ASKS_AHEAD` (8) asks in hand and names what follows the current frame, so the tile reader can
 start up to `TILE_SLOTS` (4) reads at once
-([`adr-frame-framing-and-loop-shape.md`](adr-frame-framing-and-loop-shape.md) §6d). A run from
+([`adr/frame-framing-and-loop-shape.md`](adr/frame-framing-and-loop-shape.md) §6d). A run from
 start to end without naming every index is `stream_frames`, not a large batch (§6c there).
 
 **A group ask is G pipelined `request_frame`s.** `request_frames` left the wire on 2026-10-03
@@ -55,8 +55,8 @@ be planned before the rest are parsed, so its read-ahead can name fewer upcoming
 are identical.
 
 `CancelFrames`, `generation` and `RequestPath` were removed:
-[`adr-reject-server-cancel.md`](adr-reject-server-cancel.md),
-[`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
+[`adr/reject-server-cancel.md`](adr/reject-server-cancel.md),
+[`adr/reject-server-ordering.md`](adr/reject-server-ordering.md).
 
 ## The envelope
 
@@ -84,7 +84,7 @@ of envelopes, so both are read by the same code.
 | `per-frame` | one uni per frame, finished after it; the session waits up to 2 s for outstanding finishes when it ends, however it ends | each stream ranks by ask order: an earlier ask outranks a later one, so a lost frame's retransmit goes before newer frames' data |
 
 Why `shared` is the default, and what `per-frame` (and the retired `pool:k`, in history at `6e9c126`)
-cost under loss: [`adr-stream-shape.md`](adr-stream-shape.md).
+cost under loss: [`adr/stream-shape.md`](adr/stream-shape.md).
 
 ## The send path
 
@@ -92,7 +92,7 @@ Each frame is written as two chunks: the 8-byte head, then the whole codestream 
 buffer from the server's frame pool (`server/src/media/frame_pool.rs`). quinn holds that buffer
 until the peer acknowledges it and the pool gets it back, so a frame is copied once — page cache
 into the buffer — and never into quinn's send buffer. The bytes are process-private; `server/`
-has no memory mapping ([`disk-access/adr.md`](disk-access/adr.md)).
+has no memory mapping ([`adr/disk-access.md`](adr/disk-access.md)).
 
 *Corrected 2026-09-26, in place:* this section said the codestream was written in 64 KiB
 `READ_WINDOW` pieces through `write_all(&[u8])`, leaving one full-frame copy into quinn's send
@@ -172,7 +172,7 @@ frame path, the store and the planner are the QUIC path's; one process serves bo
 A binary message from the client, or any message over 4 MiB, ends the session. The library
 answers pings. Not on this path: the QUIC knobs (`--congestion`, the windows — TCP's are the
 kernel's), the per-session `session path` line, and telemetry rows. The idle-session behaviour of
-[`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md) is QUIC's and does not
+[`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md) is QUIC's and does not
 transfer; nothing here measures TCP's.
 
 One ordered byte stream gives up what QUIC's streams give: a slow or lost frame holds every frame

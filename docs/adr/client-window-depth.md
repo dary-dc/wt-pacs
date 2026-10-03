@@ -19,7 +19,7 @@ reason is not obvious.
 
 - Minimise time from *reader wants a frame* to *first byte of that frame*
 - Keep the link at 100% — unused bandwidth cannot be banked, except in the cache
-- The client cannot un-ask. Cancel was measured and rejected (see [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md))
+- The client cannot un-ask. Cancel was measured and rejected (see [`reject-server-cancel.md`](reject-server-cancel.md))
 
 ## Considered Options
 
@@ -78,7 +78,7 @@ the tile default.
 
 - Requires **no server change**. Asks pipeline in the QUIC receive buffer on the existing serial loop
 - Link runs at 100% while the miss penalty stays at its theoretical minimum
-- Ask order carries priority; a FIFO server preserves it exactly (see [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md))
+- Ask order carries priority; a FIFO server preserves it exactly (see [`reject-server-ordering.md`](reject-server-ordering.md))
 
 ### Negative consequences
 
@@ -127,7 +127,7 @@ the cost was waiting for the acknowledgement, and nothing the client did could f
 > now. `finish()` is awaited off the session loop (`server/src/transport/frame_out.rs`): the per-frame
 > arm then reached 8.0 Mbps against the old ~7.0 ceiling (250 KB, `D`=4, 10 Mbit, 60 ms). And the
 > binary's default has been `--stream-mode shared` since 2026-09-11
-> ([`adr-stream-shape.md`](adr-stream-shape.md)). With the fix in, per-frame still needed more
+> ([`stream-shape.md`](stream-shape.md)). With the fix in, per-frame still needed more
 > depth than `shared` to saturate — `D_min` 3–8 against 2–5 on the same grid, the gap widest at
 > 150 ms — which is a stream-shape finding, not a window one.
 
@@ -197,7 +197,7 @@ before any run (T1):
   the grid is extended until the curve turns over); a dead cell (§Live cells).
 
 The campaign: a browser on the workstation against `exact-server` on the rig
-([`rig-limits.md`](rig-limits.md) §9), `lab/scripts/cloud_netem.sh` at 20, 60 and 150 ms (and
+([`rig-limits.md`](../rig-limits.md) §9), `lab/scripts/cloud_netem.sh` at 20, 60 and 150 ms (and
 0.5 % loss) on the server's egress, 10 Mbit; `frames_32k` and `frames_250k`; arms interleaved, six
 repeats: `d=1` (control), `w:<formula D>` (fixed), `w:auto:2` and `w:auto:16` (which must descend).
 `lab/scripts/browser_getstats.py` first says whether the browser build exposes `smoothedRtt`;
@@ -304,9 +304,9 @@ the same trace locally under netem set to those values; compare `mean_wait_ms`, 
 Within ~15 %: the emulated grid is trustworthy. Diverges: stop and re-read every emulated result.
 `mean_wait_ms` is measured client-side end to end, so no clock is compared across machines.
 Driver `lab/scripts/e0_netem_validation.sh`. **Not run**, and listed as open in
-[`cloud-queue.md`](cloud-queue.md) §Open owner decisions (2026-10-03). What was calibrated instead is the
+[`cloud-queue.md`](../cloud-queue.md) §Open owner decisions (2026-10-03). What was calibrated instead is the
 container's userspace relay against netem on the rig, on delay only
-([`rig-limits.md`](rig-limits.md) §3).
+([`rig-limits.md`](../rig-limits.md) §3).
 
 ### What invalidates a run
 
@@ -337,12 +337,12 @@ control; a dead cell; `peak_outstanding` below `D`.
 
 - ✅ Would recover the miss penalty while keeping deep fill
 - ⚠️ The extra fill it protects does not exist: depth past saturation adds no coverage
-- ⚠️ Rejected on its own merits — see [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md)
+- ⚠️ Rejected on its own merits — see [`reject-server-ordering.md`](reject-server-ordering.md)
 
 ## More Information
 
-- [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) — why the server stays FIFO
-- [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md) — why the client cannot un-ask
-- [`adr-stride-is-bandwidth-conservation.md`](adr-stride-is-bandwidth-conservation.md) — stride, which handles the case where demand exceeds 1, and what a queue behind this window could recover
+- [`reject-server-ordering.md`](reject-server-ordering.md) — why the server stays FIFO
+- [`reject-server-cancel.md`](reject-server-cancel.md) — why the client cannot un-ask
+- [`stride-is-bandwidth-conservation.md`](stride-is-bandwidth-conservation.md) — stride, which handles the case where demand exceeds 1, and what a queue behind this window could recover
 - Reader behaviour: published measurements of radiologist scroll speed, oscillation over adjacent
   slices, and repeated depth passes over ≥80% of a series

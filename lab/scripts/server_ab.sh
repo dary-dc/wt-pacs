@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Interleaved A/B of exact-server: HEAD against a worktree at <base-commit>.
 # The driver is a client; both servers stay up for the whole run.
-# `docs/disk-access/adr.md`.
+# `docs/adr/disk-access.md`.
 #
 #   lab/scripts/server_ab.sh <base-commit>
 #
@@ -14,8 +14,9 @@ cd "$ROOT"
 BASE="${1:?usage: lab/scripts/server_ab.sh <base-commit>}"
 REPEATS="${REPEATS:-12}"
 ASKS="${ASKS:-256}"
-OUT="${OUT:-$ROOT/docs/disk-access/server_ab.tsv}"
-HOST="${HOST:-$ROOT/docs/disk-access/server_ab_host.txt}"
+OUT="${OUT:-$ROOT/.local/measurements/server_ab.tsv}"
+HOST="${HOST:-$ROOT/.local/measurements/server_ab_host.txt}"
+mkdir -p "$(dirname "$OUT")" "$(dirname "$HOST")"
 TILE="${TILE:-$ROOT/lab/fixtures/frames_16k_big/frames_16k_big.sbnd}"
 FRAME_BYTES="${FRAME_BYTES:-16384}"
 # Consecutive asks must clear the kernel read-ahead, or a cold cell is a hit cell wearing

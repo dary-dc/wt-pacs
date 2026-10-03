@@ -86,7 +86,7 @@ pub struct FrameRecord {
     /// Ask accepted, µs since the process telemetry origin (first Tap). Same axis across
     /// sessions; inter-ask spacing is read from it.
     pub t_ask_us: u64,
-    /// Pre-read work before locating; ~0 in this build. `docs/telemetry/adr-server-pipeline.md`.
+    /// Pre-read work before locating; ~0 in this build. `docs/adr/telemetry-server-pipeline.md`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prepare_us: Option<u32>,
     /// An index lookup and nothing else; the frame's real cost is in `send_us`.
@@ -133,7 +133,7 @@ pub type Batch = Vec<Record>;
 
 /// A live session's buffered rows. Shared because a shutdown has to take them from outside the
 /// session's own task: a session still open at SIGTERM never drops its `Tap`, and its tail would
-/// go with it. docs/telemetry/adr-server-pipeline.md#the-tail-at-sigterm.
+/// go with it. docs/adr/telemetry-server-pipeline.md#the-tail-at-sigterm.
 type Pending = Arc<Mutex<Batch>>;
 
 /// The live sessions' buffers. The process has one; a test that takes from it makes its own.

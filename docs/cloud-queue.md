@@ -70,11 +70,11 @@ being changed at the same time on the workstation.
 
 One line a batch; what each found is in the doc named.
 
-* **Rows 1–14** (2026-09-14 to 16): the gate, thread hops, retained memory, idle sessions, an ask overtaking a fill, a faster decoder, the WASM BYOB path (retired) — `decode/README.md`, `ARCHITECTURE.md`, `transport/adr-idle-sessions.md`, `WIRE.md` §An ask during a fill.
+* **Rows 1–14** (2026-09-14 to 16): the gate, thread hops, retained memory, idle sessions, an ask overtaking a fill, a faster decoder, the WASM BYOB path (retired) — `decode/README.md`, `ARCHITECTURE.md`, `adr/transport-idle-sessions.md`, `WIRE.md` §An ask during a fill.
 * **Rows 15–26** (2026-09-16 to 18): the downloader, its capabilities, the conformance suite's downloader arm, a signed fixture — `ARCHITECTURE.md`, `CLIENTS.md` §The conformance suite, `FIXTURES.md`.
-* **Rows 27–29**: a prefix draws a smaller image; a study nobody has read; the UDP-fallback proposal — `decode/README.md`, `disk-access/adr.md`, `ARCHITECTURE.md` §The TCP fallback.
+* **Rows 27–29**: a prefix draws a smaller image; a study nobody has read; the UDP-fallback proposal — `decode/README.md`, `adr/disk-access.md`, `ARCHITECTURE.md` §The TCP fallback.
 * **Rows 30–58** (2026-09-18 to 22): the QUIC bump, the session-open levers, detection and resumption, the impaired link and the radio's shapes, the first ask, slow-start exit, after a blink, WebKit's dial, the production handshake, the static plane, the decoder passes — `transport/transport-conclusions.md` §3, `ARCHITECTURE.md`, `decode/README.md`, `rig-limits.md` §3.
-* **Rows 60–81** (2026-09-23 to 25): a closed client's worker, early messages, detection by the bytes, the decode tail, the warm-up, the hand-off to the page, the TCP fallback, stream shape under loss, the range in the pack, quinn's withheld ACK — `ARCHITECTURE.md`, `WIRE.md`, `CLIENTS.md`, `adr-stream-shape.md`, `decode/README.md`, `transport/transport-conclusions.md` §1 and §5, `transport/upstream-*.md`.
+* **Rows 60–81** (2026-09-23 to 25): a closed client's worker, early messages, detection by the bytes, the decode tail, the warm-up, the hand-off to the page, the TCP fallback, stream shape under loss, the range in the pack, quinn's withheld ACK — `ARCHITECTURE.md`, `WIRE.md`, `CLIENTS.md`, `adr/stream-shape.md`, `decode/README.md`, `transport/transport-conclusions.md` §1 and §5, `transport/upstream-*.md`.
 * **Row 82** (2026-09-26, `0752e5d`): the docs folded to the ones that own their subjects.
 * **Rows 83–85**: the decoder — the range skipped for 8-bit colour, `-fwasm-exceptions` (not adopted), the warm-up's size — `decode/README.md`.
 * **Rows 86, 91, 92, 95, 99, 100, 107, 110, 111**: the relay as a phone link (traces, CoDel, fq_codel, the TUN plane, the idle penalty) and the controllers on it — `transport/transport-conclusions.md` §1, `rig-limits.md` §3.
@@ -117,10 +117,10 @@ tail, not the head.
   path to this host, unshaped, or a device on a real network; no container can take it. Why: every
   shaped-link figure rests on the emulation, and "if the emulation is wrong they are all wrong
   together"; the relay was calibrated only against netem, and the one real-path cell checked stream
-  shape alone ([`adr-stream-shape.md`](adr-stream-shape.md) §1) — driver
-  `lab/scripts/e0_netem_validation.sh`, method in [`adr-client-window-depth.md`](adr-client-window-depth.md) §E0.
+  shape alone ([`adr/stream-shape.md`](adr/stream-shape.md) §1) — driver
+  `lab/scripts/e0_netem_validation.sh`, method in [`adr/client-window-depth.md`](adr/client-window-depth.md) §E0.
 * **The keep-alive pair** (20 s keep-alive, 60 s idle timeout): measured, battery unmeasured —
-  [`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md), status proposed.
+  [`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md), status proposed.
 * **`readMin` at 16 KB by default**: frame 0 ties (RMD4, 24 rounds at 4×); the cost is re-dials below
   ~44 kbit/s, and a cut queued before the read goes unnamed, a defect to fix first —
   [`CLIENTS.md`](CLIENTS.md) §Reading a frame whole.

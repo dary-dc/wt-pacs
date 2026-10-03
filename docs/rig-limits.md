@@ -74,7 +74,7 @@ bound is in the network service, one process away from anything a page or a Work
 client decides is the renderer's 2.5–3.9 ms per MB, which is what the page has left for decode and
 paint. On the target link (2.5 MB/s) the network service costs 1.7 % of a core and none of this
 binds; there the bound is bytes per frame
-([`adr-resolution-fitting-for-large-frames.md`](adr-resolution-fitting-for-large-frames.md) §6) and
+([`adr/resolution-fitting-for-large-frames.md`](adr/resolution-fitting-for-large-frames.md) §6) and
 decode.
 
 **Every fill overflows the browser's socket once, and the send window is the lever, not the
@@ -123,7 +123,7 @@ per stream what it pays per packet, and the renderer opens a reader per stream; 
 frames above is the same finding. A pool of 2–4 is a throughput tie that costs the renderer 9–20 %
 more CPU per MB. The 10-segment batch ties everywhere but a 2.6 % (6/6) shorter ask at depth 1,
 too small to move a default from loopback. Under loss the stream shapes have their own case,
-which is not this one ([`adr-stream-shape.md`](adr-stream-shape.md)). On the unified tree the
+which is not this one ([`adr/stream-shape.md`](adr/stream-shape.md)). On the unified tree the
 45-segment cap is a build-time opt-in, so `shared` sends quinn's stock 10-segment batch unless
 built with the patch.
 
@@ -174,7 +174,7 @@ Shaping the loopback interface needs root, which this box's agent context does n
 **What lifts it:** the cloud rig (§9). `lab/scripts/cloud_netem.sh` shapes rate, one-way delay and
 loss on the server's egress, with an iid and a Gilbert-Elliott burst model;
 `lab/scripts/e0_netem_validation.sh` compares the real path with an emulated one of the same RTT
-and rate ([`adr-client-window-depth.md`](adr-client-window-depth.md) §E0).
+and rate ([`adr/client-window-depth.md`](adr/client-window-depth.md) §E0).
 
 **Measured there, 2026-09-18 (lane L3):** `lab/scripts/l3_lossy_link.sh`, summarised by
 `lab/scripts/l3_summary.py`. The native driver runs on the workstation, and the server runs on the rig
@@ -338,19 +338,19 @@ test levers.
 
 So the design question the read path exists to answer cannot be priced here from a natural miss:
 a major fault taken inline on the async executor thread (mmap) against a probe with `RWF_NOWAIT`
-that escalates to a blocking pool ([`disk-access/adr.md`](disk-access/adr.md)). On hardware where
+that escalates to a blocking pool ([`adr/disk-access.md`](adr/disk-access.md)). On hardware where
 a major fault costs milliseconds the first should lose badly, but this box never produces one.
 **A rig that cannot make the reader miss cannot price either design.**
 
 **What lifts it:** slower storage, a study far past the 15 GB of RAM, or a reduced
-`read_ahead_kb` — already recorded as moving miss rate 2–15× ([`disk-access/adr.md`](disk-access/adr.md)
+`read_ahead_kb` — already recorded as moving miss rate 2–15× ([`adr/disk-access.md`](adr/disk-access.md)
 §8). Drivers: `lab/scripts/e2_miss_cost_cloud.sh`, `lab/scripts/read_path_ab.sh`.
 
 **On the cloud rig it does** (2026-09-18, L7, `lab/scripts/l7_read_path.sh`). A 4 GB study on its
 954 MB host misses 76–97 % of spread asks, and each is ~1 ms slower at p50 than warm, 6/6 with
 disjoint ranges. The fill still does not miss: 1 % cold, as warm. That host's stolen CPU caps what
 it can price at a median — every cell, warm included, has a p99 of 60–100 ms
-([`disk-access/adr.md`](disk-access/adr.md)).
+([`adr/disk-access.md`](adr/disk-access.md)).
 
 ## 5. Natively, the send path is already at its ceiling
 

@@ -1,6 +1,6 @@
 # Decode — codestream to pixels
 
-`disk-access/` owns how a frame is brought in and `transport/` how it is sent. This owns what
+[`../adr/disk-access.md`](../adr/disk-access.md) owns how a frame is brought in and `../transport/` how it is sent. This owns what
 happens after it arrives: turning a codestream into samples, what that costs, and where those
 samples live. How to run each bench is in its own directory, `lab/decode-bench/README.md` first;
 this file holds the numbers and the reasons. Every millisecond here is container-measured unless it

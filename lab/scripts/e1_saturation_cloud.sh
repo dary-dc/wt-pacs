@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E1 saturation on cloud — server tc netem + 10 Mbps. docs/adr-client-window-depth.md §E1 — does `D_min` saturate the link?
+# E1 saturation on cloud — server tc netem + 10 Mbps. docs/adr/client-window-depth.md §E1 — does `D_min` saturate the link?
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

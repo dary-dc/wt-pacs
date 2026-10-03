@@ -1,7 +1,7 @@
 # ADR: reject server-side ask ordering
 
 **Status:** accepted · **Date:** 2026-08-26 ·
-**Supersedes:** §4 and §5 of [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md)
+**Supersedes:** §4 and §5 of [`reject-server-cancel.md`](reject-server-cancel.md)
 
 > **Stream architecture, added 2026-08-26.** The measurements behind this ADR were taken on a server
 > opening **one uni stream per frame**; the viewer integration target uses **one shared stream**. The
@@ -10,8 +10,8 @@
 > useful, not more: frames commit to one stream strictly in order, so less work remains reorderable in
 > the deque. **The rejection is safe on both architectures.** What is *not* transferable is the depth
 > arithmetic in §2, whose measured `D_min` values are architecture-specific — see
-> [`adr-client-window-depth.md`](adr-client-window-depth.md) and §3e of
-> [`adr-client-window-depth.md`](adr-client-window-depth.md).
+> [`client-window-depth.md`](client-window-depth.md) and §3e of
+> [`client-window-depth.md`](client-window-depth.md).
 
 ---
 
@@ -115,5 +115,5 @@ size, tiling, or trace shape changes the answer.
 
 ## References
 
-- [`adr-reject-server-cancel.md`](adr-reject-server-cancel.md) — the measured null result, §4 and §5 superseded here
-- [`adr-client-window-depth.md`](adr-client-window-depth.md) — the experiment that replaces the ordering sweep
+- [`reject-server-cancel.md`](reject-server-cancel.md) — the measured null result, §4 and §5 superseded here
+- [`client-window-depth.md`](client-window-depth.md) — the experiment that replaces the ordering sweep

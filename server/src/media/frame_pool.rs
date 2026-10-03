@@ -1,5 +1,5 @@
 //! Frame buffers handed to quinn whole and reclaimed when it drops them after acknowledgement,
-//! so a frame is copied once (page cache → buffer), not twice. `docs/disk-access/adr.md` §5.
+//! so a frame is copied once (page cache → buffer), not twice. `docs/adr/disk-access.md` §5.
 
 use bytes::Bytes;
 use std::mem;

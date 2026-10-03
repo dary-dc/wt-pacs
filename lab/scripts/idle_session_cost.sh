@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # What an idle held session costs the server: memory, CPU and packets, against session count
-# and keep-alive interval. docs/transport/adr-idle-sessions.md holds the numbers.
+# and keep-alive interval. docs/adr/transport-idle-sessions.md holds the numbers.
 #
 #   SESSIONS="1 10 50 200" HOLD=30 lab/scripts/idle_session_cost.sh
 #

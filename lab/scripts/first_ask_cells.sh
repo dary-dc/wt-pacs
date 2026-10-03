@@ -21,7 +21,7 @@ SIZES="${SIZES:-50 250}"
 RTTS="${RTTS:-40 80}"
 TARGET=$((WARM + 1))
 FRAMES=$((TARGET + 2))
-# The pair docs/transport/adr-idle-sessions.md proposes, in every `idle` arm; `HOLD=` runs the same
+# The pair docs/adr/transport-idle-sessions.md proposes, in every `idle` arm; `HOLD=` runs the same
 # cell without it, which is the survive-or-die question.
 HOLD="${HOLD---keep-alive-interval-ms 20000 --max-idle-timeout-ms 60000}"
 T="$(mktemp -d)"

@@ -94,5 +94,5 @@ paint of `bench` (the frame cycles each round).
 
 Neither route filters when it minifies: both point-sample, so a 12 Mpx frame fitted to 768×576
 throws away 96.5 % of its samples in either route. Fitting wants a resolution rung
-([`../../docs/adr-resolution-fitting-for-large-frames.md`](../../docs/adr-resolution-fitting-for-large-frames.md))
+([`../../docs/adr/resolution-fitting-for-large-frames.md`](../../docs/adr/resolution-fitting-for-large-frames.md))
 or an area reduction, and that is a renderer's decision, not a floor.

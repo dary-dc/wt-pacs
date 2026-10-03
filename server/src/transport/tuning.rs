@@ -33,7 +33,7 @@ pub struct TransportTuning {
     /// quinn default: 30 000.
     pub max_idle_timeout_ms: Option<u64>,
     /// Server-sent keep-alive. One side is enough to hold a session open, and a browser client
-    /// has no such knob, so this is the only lever that reaches one. docs/transport/adr-idle-sessions.md.
+    /// has no such knob, so this is the only lever that reaches one. docs/adr/transport-idle-sessions.md.
     pub keep_alive_interval_ms: Option<u64>,
     pub congestion: Congestion,
     /// Bytes the controller may send before the first ACK. quinn default: 12 000.

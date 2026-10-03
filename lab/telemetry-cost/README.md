@@ -1,7 +1,7 @@
 # telemetry-cost
 
 What `client/record/` costs when it is installed, against the same client without it.
-`docs/telemetry/adr-instrument-clients-from-outside.md` §What installing it costs holds the numbers.
+`docs/adr/telemetry-instrument-clients-from-outside.md` §What installing it costs holds the numbers.
 
 ```bash
 bash client/transport-ts/build.sh

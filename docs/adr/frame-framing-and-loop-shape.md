@@ -2,12 +2,12 @@
 
 **Status:** open — analysis recorded, decision deferred · **Date:** 2026-08-27 ·
 **Corrects:** the architecture comparison quoted in
-[`adr-client-window-depth.md`](adr-client-window-depth.md) and §4b of the August cleanup plan
+[`client-window-depth.md`](client-window-depth.md) and §4b of the August cleanup plan
 (retired, in history) ·
-**Amends:** [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md)
+**Amends:** [`reject-server-ordering.md`](reject-server-ordering.md)
 
 *2026-10-03: `RequestFrames` left the wire (`202644d`); a group ask is G pipelined `RequestFrame`s
-([`WIRE.md`](WIRE.md)). Where on-demand reads "`RequestFrame` / `RequestFrames`" below, read
+([`WIRE.md`](../WIRE.md)). Where on-demand reads "`RequestFrame` / `RequestFrames`" below, read
 `RequestFrame`; §6d's batch look-ahead (`frames[i + 1]`) is now the planner's peek alone.*
 
 ---
@@ -81,7 +81,7 @@ raised in priority and **preempts buffered prefetch at the transport layer**, wi
 no application logic.
 
 This is the useful half of server-side ordering, obtained as a QUIC primitive.
-[`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) rejected *application-level*
+[`reject-server-ordering.md`](reject-server-ordering.md) rejected *application-level*
 reordering and did not consider per-stream priority. That rejection stands as written; this is a
 different mechanism, not a reopening of it.
 
@@ -124,7 +124,7 @@ reader, `EndStream` is not seen until the recitation ends. That is why §6d reco
 below still holds for the framing decision; it does not hold for fill.
 
 The channel is FIFO and preserves client ask order, so it is not the queue rejected in
-[`adr-reject-server-ordering.md`](adr-reject-server-ordering.md).
+[`reject-server-ordering.md`](reject-server-ordering.md).
 
 **Rank loop shape below the framing decision, not beside it** — for on-demand. Fill ranks the split
 with the message, not under framing.
@@ -150,7 +150,7 @@ measuring.
 **Status: built 2026-09-09.** Option B shipped: an ask-reader task owns `control_recv` and
 feeds a planner; `RequestFrame` and `RequestFrames` are the same `Ask::Frame` to the loop.
 The read path split on 2026-09-10 (`SeqReader` / `TileReader`). Historical cost of depth 1
-is the table below. [`adr.md`](disk-access/adr.md).
+is the table below. [`disk-access.md`](disk-access.md).
 
 Until then, `FodMsg::RequestFrame` was documented as "one frame per message (**depth =
 outstanding asks**)" and the server did not realise that depth. `run_session` read one
@@ -192,7 +192,7 @@ it never uses.
 
 ### It is not forbidden — it is unbuilt
 
-[`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) rejects serving the *newest*
+[`reject-server-ordering.md`](reject-server-ordering.md) rejects serving the *newest*
 ask first, on the grounds that FIFO already carries the client's priority. Reading frame *n+1*
 while frame *n* is on the wire preserves FIFO delivery exactly. That is **pipelining, not
 reordering**, and nothing in that ADR speaks against it.
@@ -220,7 +220,7 @@ none of the table above — that number is device queueing, not wire time.
 **A page-cache hit still never touches the ring.** The read ahead probes with
 `RWF_NOWAIT` first, exactly as an on-demand read does, and only a shortfall is submitted.
 Anything else would rebuild the `uring` arm's +131% on hits
-([`adr.md`](disk-access/adr.md) §The trap).
+([`disk-access.md`](disk-access.md) §The trap).
 
 **This does not change the read arm.** At depth 1 `hybrid_lazyring` and `uring` tie; the
 choice between them only becomes interesting once this is built
@@ -237,8 +237,7 @@ uses. 16 missing tiles: 1.14 ms → 0.62 ms.
 
 ## 6c · Server-driven streaming
 
-**Status: built 2026-09-09.** Messages and the loop: [`disk-access/adr.md`](disk-access/adr.md),
-[`adr.md`](disk-access/adr.md).
+**Status: built 2026-09-09.** Messages and the loop: [`disk-access.md`](disk-access.md).
 
 This is the **fill** app mode. The client sends `StreamFrames` (empty = the whole study;
 optional `from` / `to` default to 0 and the last frame). Current use is start-to-end; `from`
@@ -254,7 +253,7 @@ is QUIC: when the client stops reading, `write_all` waits and the read-ahead wai
 `EndStream` is seen by the serving loop between frames; it does not queue behind generated
 indexes. A data request during a fill ends the fill and is then served: a second
 `StreamFrames` is a seek, a `RequestFrame` or `RequestFrames` puts the session back on demand
-([`disk-access/adr.md`](disk-access/adr.md)).
+([`disk-access.md`](disk-access.md)).
 
 ## 6d · The other half of §6b: `RequestFrame` is still depth 1
 
@@ -286,7 +285,7 @@ there is no next ask to name.
 **Recommendation: B, not A.** A buys nothing over B and puts a cancel-safety hazard in the
 session loop's hot path. C is not enough: the two app modes are fill (`StreamFrames`) and
 on-demand (`RequestFrame` / `RequestFrames`), and fill needs the reader task.
-[`adr.md`](disk-access/adr.md).
+[`disk-access.md`](disk-access.md).
 
 Note the owners' requirement is **depth 4 or more**, and C alone does not reach it for a
 client that asks per tile: `RequestFrames` gives depth 2 today, and widening past two is a
@@ -315,7 +314,7 @@ else:                                             // RequestFrame / RequestFrame
 Invariants an implementation has to keep, each of which is a way to get this wrong:
 
 1. **FIFO.** Asks are served in the order they were read. This is pipelining, not the
-   reordering [`adr-reject-server-ordering.md`](adr-reject-server-ordering.md) rejects.
+   reordering [`reject-server-ordering.md`](reject-server-ordering.md) rejects.
 2. **`EndSession` must not overtake queued asks** — it is a message in the same stream, so it
    must be handled where it arrives in the sequence, not when it is read. **`EndStream` is
    different:** it stops a fill. Generated indexes are not in the channel, so the loop must
@@ -326,7 +325,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
    generated stream indexes. The tile reader takes at most `slots − 1` of what the planner
    names; a fill takes `FILL_AHEAD`. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
-   ([`adr.md`](disk-access/adr.md)). Depth 2 → 4 is a further
+   ([`disk-access.md`](disk-access.md)). Depth 2 → 4 is a further
    0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion
    demultiplexer. Build the loop first — four asks in flight is worth nothing while the loop
    supplies one — then widen the read path with that measurement in hand.
@@ -341,7 +340,7 @@ the one thing the read path is built not to do.
 
 ## 7 · Corrections owed
 
-- [`adr-client-window-depth.md`](adr-client-window-depth.md) — the architecture comparison must be
+- [`client-window-depth.md`](client-window-depth.md) — the architecture comparison must be
   labelled as measuring a misplaced `await`, not framing
 - the August cleanup plan's §4b (retired) — the shared-stream default stands, now on the measured
-  decision in [`adr-stream-shape.md`](adr-stream-shape.md), not the measurement it cited
+  decision in [`stream-shape.md`](stream-shape.md), not the measurement it cited

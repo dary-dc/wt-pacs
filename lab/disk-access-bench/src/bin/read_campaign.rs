@@ -1,7 +1,7 @@
 //! Read-path campaign harness: arm × prefetch × depth × readers × temp × stride × size, one
 //! factor per axis. The controls that make a cell evidence rather than a hope — rotated arm
 //! order, asserted cold residency, a co-tenant monitor, and CPU and threads reported beside
-//! latency — are in `docs/disk-access/adr.md` §The rule every number below obeys.
+//! latency — are in `docs/adr/disk-access.md` §The rule every number below obeys.
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -32,7 +32,7 @@ enum Arm {
     /// `ReadCtx` did that no other arm did. The positive control for that cap.
     PoolCappedProbe,
     /// **The S5 control**: `hybrid`'s loop with `pool`'s miss mechanism, so the delta
-    /// against `pool` is loop shape alone. `docs/disk-access/adr.md`.
+    /// against `pool` is loop shape alone. `docs/adr/disk-access.md`.
     PoolRingLoop,
     /// `hybrid`, but the ring is built on the *first miss* rather than at session start.
     HybridLazyRing,
@@ -40,12 +40,12 @@ enum Arm {
     /// session instead of two. The loop is `uring`'s; only the wake differs (`x14`).
     UringRingFd,
     /// `hybrid_lazyring` with the same one-fd wake — the pair that decides whether the
-    /// product should drop its eventfd. `docs/disk-access/adr.md`.
+    /// product should drop its eventfd. `docs/adr/disk-access.md`.
     HybridLazyRingFd,
     /// One `tokio::fs::File` cursor per stream — no positional read, so it is meaningful
     /// only on the sweep shape, and depth splits the plan into that many cursors rather than
     /// reads in flight. Under `--cfg tokio_unstable` it reports as `tokio_fs_uring`.
-    /// Sequential cursor only; rejected as a product reader. `docs/disk-access/adr.md` §5.
+    /// Sequential cursor only; rejected as a product reader. `docs/adr/disk-access.md` §5.
     TokioFs,
     /// **The shipped fill reader itself** — `server`'s `SeqReader`, not a model of it.
     ProductFill,

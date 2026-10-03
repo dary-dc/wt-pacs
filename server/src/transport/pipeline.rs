@@ -1,5 +1,5 @@
 //! Per-frame story: prepare → locate → send, or refuse. Written once as trait defaults;
-//! implementors override steps, never the story. `docs/telemetry/adr-server-pipeline.md`.
+//! implementors override steps, never the story. `docs/adr/telemetry-server-pipeline.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
@@ -67,7 +67,7 @@ pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
     out: FrameOut,
     /// Built on the first frame of its kind, so a session pays for neither reader it
-    /// does not use. `docs/disk-access/adr.md`.
+    /// does not use. `docs/adr/disk-access.md`.
     seq: Option<SeqReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
@@ -184,7 +184,7 @@ impl FramePipeline for ProductPipeline {
 
 impl Drop for ProductPipeline {
     /// In `Drop` because a session ends several ways, and a miss rate only some of them
-    /// report is worse than none. `docs/disk-access/adr.md` §Reporting.
+    /// report is worse than none. `docs/adr/disk-access.md` §Reporting.
     fn drop(&mut self) {
         let seq = self.seq.as_ref().map(SeqReader::stats).unwrap_or_default();
         let tile = self
@@ -360,7 +360,7 @@ mod tests {
 
     /// **The seam.** `serve`'s default body turns the planner's frame indexes into the spans
     /// the read path starts on. Nothing on the wire and no other test can see that line, so
-    /// this one owns it. `docs/disk-access/adr.md`.
+    /// this one owns it. `docs/adr/disk-access.md`.
     #[test]
     fn serve_hands_every_named_frame_to_the_read_path_as_a_span() {
         let (path, mut rec) = recorder("seam", 4);
@@ -403,7 +403,7 @@ mod tests {
     /// **A refused range is its own row.** The planner refuses a `stream_frames` range outside
     /// the study before any frame opens; its row carries the refused frame, not the last one
     /// served. A frame refused at `locate` keeps the one row it opened, and every row opened is
-    /// closed. `docs/telemetry/adr-server-pipeline.md`.
+    /// closed. `docs/adr/telemetry-server-pipeline.md`.
     #[cfg(feature = "telemetry")]
     #[test]
     fn a_refused_range_records_a_row_of_its_own() {
@@ -466,7 +466,7 @@ mod tests {
 
     /// **One index per study, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
-    /// `docs/disk-access/adr.md` §Invariants.
+    /// `docs/adr/disk-access.md` §Invariants.
     #[test]
     fn sessions_share_one_store_rather_than_opening_their_own() {
         let path = std::env::temp_dir().join(format!("wtpacs-share-{}.sbnd", std::process::id()));

@@ -106,7 +106,7 @@ a **tie**, which is a real answer.
 | "`uring` has the better p99 at depth 4" | a 4-vCPU sandbox artefact; on the workstation misses tie at every depth |
 | "`uring` is 47–61 % worse on latency" | a one-reader p50; does not survive crossing depth with readers |
 | "throughput confirms the latency result" | throughput is depth ÷ latency; quoting both counts one measurement twice |
-| "`adr-reject-server-ordering.md` fixes the loop at depth 1" | it rejects *reordering*, not concurrency; pipelining reads keeps FIFO delivery |
+| "`reject-server-ordering.md` fixes the loop at depth 1" | it rejects *reordering*, not concurrency; pipelining reads keeps FIFO delivery |
 | "ring construction costs 82 µs" | that is 1 000 rings at once; one ring is 15.6 µs |
 | "the ring's per-miss latency win carries to production" | on cloud block storage a miss is device-bound; the ring's claim there is threads and CPU per miss, and P0 (§6) tests it |
 | "depth 4 and 16 differ by far less than 1 and 4" | not in throughput: in `v32` 1 → 4 is ×1.90 and 4 → 16 ×1.52. The case for building depth 2 first is `v35`, where 2 alone collects 62 % |

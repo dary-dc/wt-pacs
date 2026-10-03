@@ -1,4 +1,4 @@
-//! Session-scoped outbound media: length-prefixed envelopes on one shared uni or one per frame; the codestream handed to quinn whole and uncopied. `docs/disk-access/adr.md`.
+//! Session-scoped outbound media: length-prefixed envelopes on one shared uni or one per frame; the codestream handed to quinn whole and uncopied. `docs/adr/disk-access.md`.
 
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::websocket::WsSink;
@@ -115,7 +115,7 @@ impl FrameOut {
 }
 
 /// Earlier asks outrank later ones, so quinn sends a lost frame's retransmit before newer
-/// frames' data instead of behind every stream already queued. `docs/adr-stream-shape.md`.
+/// frames' data instead of behind every stream already queued. `docs/adr/stream-shape.md`.
 fn ask_priority(seq: u32) -> i32 {
     i32::try_from(seq).map_or(i32::MIN, |s| -s)
 }

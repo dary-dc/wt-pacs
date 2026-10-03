@@ -1,6 +1,6 @@
 //! Open N sessions, hold them idle, then prove each still works. What an idle held session
 //! costs is measured from outside by `lab/scripts/idle_session_cost.sh`; this only creates the
-//! condition and reports which sessions survived. docs/transport/adr-idle-sessions.md.
+//! condition and reports which sessions survived. docs/adr/transport-idle-sessions.md.
 //!
 //! usage: idle_sessions --url https://127.0.0.1:4433 --sessions 50 --hold-secs 60 [--keep-alive-secs 3]
 use anyhow::{Context, Result};

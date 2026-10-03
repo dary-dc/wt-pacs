@@ -16,7 +16,7 @@ the interval is meaningless without the timeout beside it.
 and **off by default**; nothing changes until this ADR is accepted.
 
 **What the silence costs the warmed congestion window: nothing** — measured 2026-09-20 in
-[`transport-conclusions.md` §3](transport-conclusions.md), where after 30 s of quiet the first ask
+[`transport-conclusions.md` §3](../transport/transport-conclusions.md), where after 30 s of quiet the first ask
 is within 3 % (Cubic) and 17 % (BBR, the worst cell) of no silence at all and the window is
 unchanged, on this pair; the same cell on the library defaults loses the native session outright,
 2 of 2 rounds on both controllers.

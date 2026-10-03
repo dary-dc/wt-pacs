@@ -1,5 +1,5 @@
 //! FoD ask → envelope on a server uni stream. No server-side ask queue —
-//! `docs/adr-reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
+//! `docs/adr/reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
 use crate::media::read_path::ReadMode;
@@ -39,7 +39,7 @@ pub struct ServeConfig {
     /// QUIC transport knobs. Unset fields keep the library default.
     pub tuning: TransportTuning,
     /// Lab only: serve every frame as a miss, so a cold study can be measured without
-    /// relying on page-cache eviction. `docs/disk-access/adr.md`.
+    /// relying on page-cache eviction. `docs/adr/disk-access.md`.
     pub force_pool_reads: bool,
     /// Honour `?ask=` in the session URL, so the first frame moves behind the accept instead of
     /// behind the control stream. `docs/ARCHITECTURE.md`.
@@ -203,14 +203,14 @@ fn cert_sha256_hex(identity: &Identity) -> Result<String> {
 }
 
 /// Warns where the fast path is absent: the fallback is correct and ~2.5x slower per frame.
-/// `docs/disk-access/adr.md`.
+/// `docs/adr/disk-access.md`.
 fn read_fast_path(store: &FrameStore) -> &'static str {
     if store.nowait_supported() {
         return "preadv2";
     }
     warn!(
         "RWF_NOWAIT is refused here (overlayfs or tmpfs?); every frame costs a blocking-pool \
-         round trip. See docs/disk-access/adr.md"
+         round trip. See docs/adr/disk-access.md"
     );
     "pooled_pread"
 }
@@ -484,7 +484,7 @@ mod tests {
 
     /// **The loop's own line.** `Step::Serve`'s `upcoming` reaches `serve`; a fill names
     /// `FILL_AHEAD` and is counted once. No QUIC — the seam below `serve` is
-    /// `pipeline.rs`'s. `docs/disk-access/adr.md`.
+    /// `pipeline.rs`'s. `docs/adr/disk-access.md`.
     #[test]
     fn the_loop_hands_serve_the_frames_the_planner_named() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drive-{}", std::process::id()));
@@ -876,7 +876,7 @@ mod tests {
     }
 
     /// Pipelined `RequestFrame`s reach the loop as `current` + `upcoming`, not one-at-a-time.
-    /// `docs/adr-frame-framing-and-loop-shape.md` §6d.
+    /// `docs/adr/frame-framing-and-loop-shape.md` §6d.
     #[test]
     fn pipelined_single_asks_arrive_whole_and_in_ask_order() {
         let frames = 6u32;
@@ -1622,7 +1622,7 @@ mod tests {
     }
 
     /// `StreamFrames {}` recites the whole study, in order, and nothing past it.
-    /// `docs/disk-access/adr.md`.
+    /// `docs/adr/disk-access.md`.
     #[test]
     fn empty_stream_frames_is_the_whole_study() {
         let frames = 4u32;

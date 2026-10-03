@@ -1,4 +1,4 @@
-/** Telemetry entry — patch WebTransport before any client module loads. docs/telemetry/adr-instrument-clients-from-outside.md (option G) */
+/** Telemetry entry — patch WebTransport before any client module loads. docs/adr/telemetry-instrument-clients-from-outside.md (option G) */
 
 import { proxyTransport } from "./proxy.ts";
 import { DEFAULT_RING_CAPACITY, setTap, Tap } from "./tap.ts";

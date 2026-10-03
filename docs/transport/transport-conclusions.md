@@ -44,7 +44,7 @@ at `6e9c126`.
 | decision | verdict |
 | -------- | ------- |
 | **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). A bounded BBR was built and retired (BB2, BBF); the next candidate is v3's loss bound, unbuilt (BB3) |
-| **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed and retired (§2, [`../adr-stream-shape.md`](../adr-stream-shape.md)) |
+| **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed and retired (§2, [`../adr/stream-shape.md`](../adr/stream-shape.md)) |
 | **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever and the default (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
 | **GSO segment cap 10 → `65527 / mtu`** | **Opt-in at build time.** −16 to −21 % CPU per ask, 6/6, and +10 to +30 % throughput where the pipe is full — and at 250 KB, depth 1, four sessions it takes p99 from ~2 ms to ~28 ms, reproduced twice. GS1 found that tail to be the rig client's receive queue, which a browser does not share, and a ceiling of 24 that keeps two thirds of the win with no tail seen. Ship 24, or 45 behind the product's buffer: **the owner's call** (§4, §5) |
@@ -343,7 +343,7 @@ no default changed.**
 
 **The binary defaults to `shared`; `per-frame` is a product flag.** The decision, the
 three campaigns behind it and every retraction are
-[`../adr-stream-shape.md`](../adr-stream-shape.md). In short:
+[`../adr/stream-shape.md`](../adr/stream-shape.md). In short:
 
 * **Per-frame + FIFO lost to retransmit deferral.** quinn's `retransmit()` re-queues a lost stream
   with `push_pending`, behind every already-queued stream; on one stream recovery goes out ahead of
@@ -486,7 +486,7 @@ Against the push alone the combined arm is −4.9 to +1.7 %, on ranges
 that overlap in all four cells. The push leaves no slow start for a wider first flight to skip.
 
 **A warmed window survives a silence, on both controllers.** Eight frames, then 0, 10 or 30 s of
-silence, then the ask, with the keep-alive pair of [`adr-idle-sessions.md`](adr-idle-sessions.md) in
+silence, then the ask, with the keep-alive pair of [`../adr/transport-idle-sessions.md`](../adr/transport-idle-sessions.md) in
 every arm (without it the native session died at 30 s in 2 of 2 rounds; a browser pings every 15 s).
 After 30 s, 50 / 250 KB at 80 ms: Cubic 99.4 / 111.1 ms against 103.3 / 108.0 with no silence, BBR
 94.8 / 107.3 against 97.2 / 105.1. The worst cell is 250 KB at 40 ms, Cubic +9 % and BBR +17 %; every
@@ -884,7 +884,7 @@ Throughput is depth over latency, and the table is where the division stops payi
 is 2.2× the asks for 1.6× the p50 and −42 % CPU per ask; past 4 the p50 grows and the throughput
 barely. At 250 KB one session saturates its thread at depth 2. The depth that takes the link's
 throughput at the least queueing is
-[`../adr-client-window-depth.md`](../adr-client-window-depth.md)'s `D_min`. Disk look-ahead is
+[`../adr/client-window-depth.md`](../adr/client-window-depth.md)'s `D_min`. Disk look-ahead is
 already the server's and independent of how the client asks (`TILE_SLOTS`, `FILL_AHEAD`,
 `ASKS_AHEAD`); network depth belongs to the client. **Depth 1 is `D_min`'s answer when `Tf ≫ RTT`**
 — a large frame on a slow link — and that is the case the tail below has to survive, because "just
@@ -965,7 +965,7 @@ frame — the next ask at depth ≥ 2, or an ACK-eliciting probe after an isolat
 **A payload above 1 472 bytes is closed for browsers.** Chromium advertises 1 472 and quinn takes
 the smaller bound: through the relay with the server's bound at 4 000 and 8 972, no datagram above
 1 472 in 85 k (2026-09-10). It was worth −35 % CPU with a quinn peer on a jumbo-frame LAN, the only
-taker left ([`../disk-access/adr.md`](../disk-access/adr.md) §8). quinn's own discovery stops at
+taker left ([`../adr/disk-access.md`](../adr/disk-access.md) §8). quinn's own discovery stops at
 1 452; the 20 bytes between are open (§9). `quinn-proto` 0.11.18 also fixed a black-hole detection
 that pinned the MTU at 1 200 for 60 s after one ACK revealing four holes, which this project had
 seen twice.
@@ -1075,11 +1075,11 @@ multi-thread arm wins throughput by more than 10 % or p99 by more than 30 % on t
 
 On a real-looking link a third to a half of steps wait on the network, and these outweigh everything
 above: **bytes per displayed frame** — a truncated HTJ2K prefix, resolution rungs and the stride law
-([`../adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md),
-[`../adr-stride-is-bandwidth-conservation.md`](../adr-stride-is-bandwidth-conservation.md)); on the
+([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md),
+[`../adr/stride-is-bandwidth-conservation.md`](../adr/stride-is-bandwidth-conservation.md)); on the
 target the wire binds first, so fewer bytes is the only lever above ~2×, and abandoning a frame's
 tail with `RESET_STREAM_AT` is not carried by quinn or wtransport yet. **Ask window depth** —
-[`../adr-client-window-depth.md`](../adr-client-window-depth.md): in a browser a fixed window of 4
+[`../adr/client-window-depth.md`](../adr/client-window-depth.md): in a browser a fixed window of 4
 against serial asks is −26.6 % per frame at 250 KB and −59.4 % at 32 KB (6/6), the largest latency
 lever measured, and the client's — measured on the harness's page path; the window went with that path
 on 2026-10-03, and behind the downloader, which asks every frame at once, it is unmeasured. **Cache size** — a 64-frame cap on a 500-frame series costs +65 %
@@ -1131,7 +1131,7 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    cell: quinn's `qlog_stream` reads pacing, flow-control blocking and recovery instead of inferring
    them). Delivery-trace replay in the relay. **The idle radio**: by report carriers drop a radio to
    idle after 5–10.5 s without traffic, and promotion costs 190–396 ms on 4G and 341–1 907 ms on 5G;
-   neither a browser's 15 s ping nor the 20 s keep-alive ([`adr-idle-sessions.md`](adr-idle-sessions.md))
+   neither a browser's 15 s ping nor the 20 s keep-alive ([`../adr/transport-idle-sessions.md`](../adr/transport-idle-sessions.md))
    comes often enough to prevent it. On the relay it costs P once, a wake sent L ahead takes L off it,
    and a keep-alive at ≤ S keeps it off the ask (§3, IDL and I1); S, P, the gesture's lead and the
    energy are a device's.
@@ -1153,13 +1153,13 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    [`upstream-wtransport-settings.md`](upstream-wtransport-settings.md).
 9. **A thousand stalled sessions.** `window-harness --mode stall` at 1 000 sessions on the rig, RSS
    and fds per session from `/proc`: under 300 kB and 3 fds, and the deployment manifest
-   ([`../disk-access/adr.md`](../disk-access/adr.md) §6) is enough; otherwise an accept cap. There
+   ([`../adr/disk-access.md`](../adr/disk-access.md) §6) is enough; otherwise an accept cap. There
    is no admission control at accept today.
 10. **Reachability.** By report 3–5 % of networks impair UDP. A WebSocket carrying the same wire
     exists behind `--websocket` ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The TCP fallback); the
     field failure rate that decides whether it is enabled is unmeasured.
 11. **Stream shape under BBR**: HOL1 ran Cubic only
-    ([`../adr-stream-shape.md`](../adr-stream-shape.md)).
+    ([`../adr/stream-shape.md`](../adr/stream-shape.md)).
 12. **WebKit**: every browser number here is Chromium ([`../CLIENTS.md`](../CLIENTS.md) §On WebKit).
 
 **Closed — reopen only on new evidence.** A payload above 1 472 bytes for browsers (§5). 0-RTT and
@@ -1170,4 +1170,4 @@ priority, `send_fairness`, a fixed stream pool (§2). `yield_now`, `--workers` a
 endpoints until §6's conditions (§6). The persistent-congestion and reordering thresholds as levers
 (§3). The bounded BBR, the slow-start exit and the idle restart, retired (§1, §3). `aws-lc-rs`,
 mimalloc (§3, §4). Window equalisation
-([`adr-quic-stream-receive-window-defaults.md`](adr-quic-stream-receive-window-defaults.md)).
+([`../adr/transport-quic-stream-receive-window-defaults.md`](../adr/transport-quic-stream-receive-window-defaults.md)).

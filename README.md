@@ -68,10 +68,10 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the client above the transport: downloader, decoders, consumer; the session's open, survival and fallback |
 | [`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) | what the transport measured and chose, why, and what is open |
 | [`docs/decode/README.md`](docs/decode/README.md) | the decoder: builds, dispatch, warm-up, the range, the decode tail |
-| [`docs/disk-access/adr.md`](docs/disk-access/adr.md) | how the server reads frame bytes, and its deployment |
+| [`docs/adr/disk-access.md`](docs/adr/disk-access.md) | how the server reads frame bytes, and its deployment |
 | [`docs/rig-limits.md`](docs/rig-limits.md) | what the measurement hosts can and cannot claim |
 | [`lab/README.md`](lab/README.md) | which lab directory reproduces which claim; each lab README runs its cells — [`lab/page-open/README.md`](lab/page-open/README.md) the page open |
-| `docs/adr-*.md`, `docs/transport/adr-*.md`, `docs/telemetry/adr-*.md` | the decisions: stream shape, ask window, framing, stride, resolution fitting, what the server refuses to do, idle sessions, receive windows, telemetry |
+| [`docs/adr/`](docs/adr/README.md) | the decisions, one per record, indexed with their status: stream shape, the session loop, ask window, stride, resolution fitting, what the server refuses to do, the read path, idle sessions, receive windows, telemetry |
 | [`docs/transport/upstream-*.md`](docs/transport/) | upstream drafts, not filed |
 | [`docs/cloud-queue.md`](docs/cloud-queue.md) | the work queue, closed: its protocol, where each row's verdict lives, and the open owner decisions |
 

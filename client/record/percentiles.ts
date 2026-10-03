@@ -1,4 +1,4 @@
-/** Nearest-rank percentiles: docs/telemetry/adr-server-pipeline.md §What a row records. */
+/** Nearest-rank percentiles: docs/adr/telemetry-server-pipeline.md §What a row records. */
 
 /** Rank = ceil(p/100 × N), clamped to [1, N]; value = sorted[rank - 1]. */
 export function nearestRank(sortedAsc: number[], p: number): number {

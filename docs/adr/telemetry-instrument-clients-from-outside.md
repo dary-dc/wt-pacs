@@ -2,7 +2,7 @@
 
 **Status:** accepted (option G, 2026-08-30; Decision A = A4, 2026-09-06) · **Tags:** telemetry,
 client, lab  
-**Server side:** [`adr-server-pipeline.md`](adr-server-pipeline.md), which also owns the harvest
+**Server side:** [`telemetry-server-pipeline.md`](telemetry-server-pipeline.md), which also owns the harvest
 that collects both reports.
 
 ## Context and Problem Statement
@@ -133,7 +133,7 @@ behind a vacant `telemetry` feature. It was the product wasm in another director
 and both are removed. The TS output is gitignored. The code is `client/record/` (`install.ts` patches the global;
 `proxy.ts`, `wrap-session.ts`, `attribution.ts`, `clock.ts`, `rows.ts`, `report.ts`, `tap.ts`),
 shared by both arms. The report is read from `window.__wtpacsTelemetry()`; the harvest writes it to
-`telemetry-client.json` ([server ADR §Harvest](adr-server-pipeline.md#harvest)).
+`telemetry-client.json` ([server ADR §Harvest](telemetry-server-pipeline.md#harvest)).
 
 ## What it records
 
@@ -254,4 +254,4 @@ session produces, which nothing here measures.
 ## The server — deliberately different
 
 The server has no global to patch. It wraps its own pipeline steps in a lab type compiled only with
-`--features telemetry`: [`adr-server-pipeline.md`](adr-server-pipeline.md).
+`--features telemetry`: [`telemetry-server-pipeline.md`](telemetry-server-pipeline.md).
