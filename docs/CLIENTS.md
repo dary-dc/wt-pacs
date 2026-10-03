@@ -61,7 +61,10 @@ the WASM `connect` takes as its third argument:
 **Over WebTransport, TypeScript and WASM.** One bidirectional control stream, which the client
 opens; media on every unidirectional stream the server opens, each read as a sequence of envelopes,
 so every server stream mode is read by the same code. The certificate is pinned by
-`serverCertificateHashes`; `congestionControl: "low-latency"` is requested.
+`serverCertificateHashes`. No `congestionControl` hint is requested: it shapes only the browser's
+send side, which carries only asks, Chrome does not expose it, and it is not measured elsewhere
+(the `"low-latency"` request was removed 2026-10-03; code:
+`git show archive/arms-2026-10-03:client/transport-ts/session.ts`).
 
 **Over a WebSocket, TypeScript** (`ws-session.ts`). The same `FrameSession` over one socket to
 `wss://` on the same host and port number; the certificate hash is ignored, since a WebSocket

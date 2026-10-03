@@ -22,7 +22,6 @@ web-sys = { version = "0.3", features = [
     "WebTransportHash",
     "WebTransportBidirectionalStream",
     "WebTransportCloseInfo",
-    "WebTransportCongestionControl",
     "WebTransportReceiveStream",
     "WebTransportSendStream",
     "ReadableStream",

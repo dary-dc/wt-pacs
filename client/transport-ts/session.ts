@@ -40,7 +40,6 @@ export class TransportSession extends FrameSession {
     const fill = options.fill;
     const transport = new WebTransport(fill ? openAskUrl(wtUrl, fill) : wtUrl, {
       serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
-      congestionControl: "low-latency",
     });
     await (options.dialMs
       ? settleWithin(transport.ready, () => transport.close(), options.dialMs)

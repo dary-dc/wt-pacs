@@ -15,8 +15,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::{
     ReadableStream, ReadableStreamDefaultReader, ReadableStreamReadResult, WebTransport,
-    WebTransportCongestionControl, WebTransportHash, WebTransportOptions,
-    WritableStreamDefaultWriter,
+    WebTransportHash, WebTransportOptions, WritableStreamDefaultWriter,
 };
 
 const FRAME_TIMEOUT_MS: u32 = 15_000;
@@ -392,7 +391,6 @@ impl TransportSession {
 
         let options = WebTransportOptions::new();
         options.set_server_certificate_hashes(&[hash]);
-        options.set_congestion_control(WebTransportCongestionControl::LowLatency);
 
         let transport = WebTransport::new_with_options(&wt_url, &options)
             .map_err(|e| format!("WebTransport new: {e:?}"))?;
