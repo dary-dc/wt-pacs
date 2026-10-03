@@ -8,12 +8,15 @@ use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
-use exact_server::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
+use exact_server::media::frame_store::{FrameSpan, FrameStore};
 use exact_server::media::read_path::{ReadMode, SeqReader, TileReader};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+/// The product's retired 64 KiB chunk, which `PoolCappedProbe` reproduces.
+const READ_WINDOW: usize = 64 * 1024;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Arm {

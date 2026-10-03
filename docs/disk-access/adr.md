@@ -353,8 +353,8 @@ against `RLIMIT_MEMLOCK`, and the lab arm that registered them tied on misses.
 Also: the pool path reads ahead too (the `JoinHandle` is held, not awaited); delivery stays in
 ask order — reading *n+1* early is pipelining, not reordering; the planner bounds `in_hand` at
 `ASKS_AHEAD`, streams `RequestFrames` rather than collecting the batch, and stops upcoming at
-the first `Fill` or `EndSession`. `READ_WINDOW` (64 KiB) is off the product path; it survives in
-tests and in the lab arms that reproduce the capped probe. `--no-default-features` alone has no
+the first `Fill` or `EndSession`. `READ_WINDOW` (64 KiB) is off the product path: a test-only constant in
+`frame_store.rs`, and `read_campaign.rs`'s own for the arm that reproduces the capped probe. `--no-default-features` alone has no
 rustls provider and does not link; add `--features crypto-ring`.
 
 ### The trap

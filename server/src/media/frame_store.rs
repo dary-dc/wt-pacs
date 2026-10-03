@@ -12,8 +12,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(test)]
 use std::sync::Mutex;
 
-/// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
-pub const READ_WINDOW: usize = 64 * 1024;
+/// The retired 64 KiB read chunk: tests size frames across several. `docs/disk-access/adr.md`.
+#[cfg(test)]
+pub(crate) const READ_WINDOW: usize = 64 * 1024;
 
 /// Where a frame's codestream lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
