@@ -305,14 +305,24 @@ downloader's CPU **−105 ms at 1× and −90 at 4×** a fill and the renderer's
 round; the fill ties (−5 / +3 ms).
 
 **Off by default, and an open owner decision** ([`cloud-queue.md`](cloud-queue.md) §Open owner
-decisions). For it, the CPU and memory above with every slow-link session kept. Against it, **frame 0
-at 4× is +12 ms (4/11)** at 16 KB, +7 (2/7) in BYM, while 32 and 64 KB tie — unresolved: no mechanism
-makes a smaller `min` finish a frame later (the last read resolves at the frame's rest), but two leans
-the same way are not a tie. What would settle it is a ≥ 20-round 4× cell (`KS=0,16384 DECODE=1
-THROTTLES=4 node lab/downloader-campaign/reads.mjs 20`) on a host whose relay times: after a container
-restart the relay ran late in 23 of 24 visits (`VOID`). Container, one host, one trace; the per-K tables
-are in `git show 6e9c126:docs/CLIENTS.md`. Row 5's ~12 ms BYOB frame 0 is the WASM client's retired
-path ([`decode/README.md`](decode/README.md) §The BYOB read path), not rechecked here.
+decisions). Frame 0 does not lean: on the workstation (RMD4, 2026-10-03; Chrome 148, `KS=0,16384,32768
+DECODE=1`, 24 rounds at 4× and 12 at 1×, Williams-ordered, self-timed, 3 of 108 visits `VOID`, every
+frame bit-exact), paired leads on the default reader, wins/rounds:
+
+| | 16 KB | 32 KB |
+| --- | --: | --: |
+| frame 0, 4× | **−4.0 (14/23)**, IQR −12.8…+7.8 | −5.3 (16/22) |
+| frame 0, 1× | +2.6 (2/11) | +8.4 (2/12) |
+| downloader CPU, 4× / 1× | −97 (23/23) / −104 (10/11) | −114 (22/22) / −43 (9/12) |
+| renderer peak | −38 MB (all) | −39 / −38 (all) |
+
+The container's +12 ms (4/11) does not reproduce. **What holds it back is liveness:** as the default,
+two dispatch clauses fail. A session whose bytes come slower than 16 KB per `stallMs` (< 44 kbit/s)
+is re-dialled, since a read with `min` resolves only at `min` bytes (the bound above, made a default) — the
+owner's trade against −97 ms and −38 MB a fill. And a cut whose end is already queued when the read is
+made errors the stream (a pull-into it cannot fill), which is taken for a stream end, so the frame is
+not named — **a defect of the `readMin` path, to fix before any default**. Row 5's ~12 ms BYOB frame 0
+is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
 
 ## ACK frequency, by browser
 

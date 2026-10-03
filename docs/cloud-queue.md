@@ -85,9 +85,8 @@ tail, not the head.
 
 * **The keep-alive pair** (20 s keep-alive, 60 s idle timeout): measured, battery unmeasured —
   [`transport/adr-idle-sessions.md`](transport/adr-idle-sessions.md), status proposed.
-* **The downloader as the only client**, and with it the harness's page path and the `window` default —
-  [`ARCHITECTURE.md`](ARCHITECTURE.md) §Open, [`adr-client-window-depth.md`](adr-client-window-depth.md).
-* **`readMin` at 16 KB by default**: every figure for it but frame 0 at 4× (+12 ms, 4/11, unresolved) —
+* **`readMin` at 16 KB by default**: frame 0 ties (RMD4, 24 rounds at 4×); the cost is re-dials below
+  ~44 kbit/s, and a cut queued before the read goes unnamed, a defect to fix first —
   [`CLIENTS.md`](CLIENTS.md) §Reading a frame whole.
 * **The controller beyond `cubic-restart`**: BBR stays opt-in until the target's loss mix is known; the
   candidate build is v3's loss bound — [`transport/transport-conclusions.md`](transport/transport-conclusions.md) §1 BB3.
