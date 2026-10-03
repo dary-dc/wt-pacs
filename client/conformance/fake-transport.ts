@@ -15,7 +15,7 @@ class WebTransportBidirectionalStream {
   ) {}
 }
 
-export function frameBytes(index: number, codestream: Uint8Array): Uint8Array {
+export function frameBytes(index: number, codestream: Uint8Array): Uint8Array<ArrayBuffer> {
   const inner = new Uint8Array(4 + codestream.length);
   new DataView(inner.buffer).setUint32(0, index, false);
   inner.set(codestream, 4);
@@ -111,7 +111,7 @@ export class FakeTransport {
 
   /** One media stream, ended after its chunks: a byte stream, as a WebTransport receive stream
    *  is — only those take a BYOB reader. Enqueueing detaches, so each chunk is its own. */
-  private pushMediaStream(chunks: Uint8Array[]) {
+  private pushMediaStream(chunks: Uint8Array<ArrayBuffer>[]) {
     this.uni.enqueue(
       new ReadableStream({
         type: "bytes",

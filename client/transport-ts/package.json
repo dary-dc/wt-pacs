@@ -6,6 +6,7 @@
     "build": "esbuild session.ts --bundle --format=esm --outfile=dist/session.js --platform=browser --target=es2022"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "esbuild": "^0.25.0",
     "typescript": "^5.8.0"
   }
