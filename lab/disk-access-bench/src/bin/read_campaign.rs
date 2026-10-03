@@ -149,7 +149,7 @@ struct Args {
     /// Print the header row (omit when appending to an existing file).
     #[arg(long)]
     no_header: bool,
-    /// Replay a read sequence from `lab/scripts/gen_access_trace.py` instead of a synthetic
+    /// Replay a read sequence from `2a14c47^:lab/scripts/gen_access_trace.py` instead of a synthetic
     /// stride. `--size` and `--stride` are then ignored; `--asks` defaults to the trace
     /// length. The reported `shape` becomes `trace` and `size` the median read length.
     #[arg(long)]
@@ -241,7 +241,7 @@ fn span_at(plan: &Plan, i: usize) -> Option<FrameSpan> {
     plan.get(i).map(|&(offset, len)| FrameSpan { offset, len })
 }
 
-/// Read a `gen_access_trace.py` TSV: `offset<TAB>length`, `#` comments ignored.
+/// Read a `gen_access_trace.py` TSV (`2a14c47^:lab/scripts/`): `offset<TAB>length`, `#` comments ignored.
 fn load_trace(path: &PathBuf) -> Result<Vec<(u64, u32)>> {
     let text = std::fs::read_to_string(path).with_context(|| format!("read {path:?}"))?;
     let mut out = Vec::new();
