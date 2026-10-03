@@ -26,9 +26,8 @@ function decoder() {
   let vd = null;
   let got = [];
   const open = () => {
-    // An error closes the decoder and rejects the flush, which is where it is seen.
+    // An error closes the decoder and rejects the flush: seen there.
     vd = new VideoDecoder({ output: (f) => got.push(f), error: () => {} });
-    // Chromium decodes from the in-band sequence header whatever profile this names.
     vd.configure({ codec: "av01.0.04M.10", hardwareAcceleration: "prefer-software" });
   };
   open();
@@ -37,7 +36,6 @@ function decoder() {
       try {
         // Throws for a unit that is not a keyframe: a frame of a group never decodes here at G = 1.
         vd.decode(new EncodedVideoChunk({ type: "key", timestamp: 0, data: unit }));
-        // Every output is out once the flush resolves.
         await vd.flush();
         return await read(got[0]);
       } catch (err) {
@@ -53,7 +51,7 @@ function decoder() {
 
 const FORMATS = { I420: [8, 1], I420P10: [10, 1], I444: [8, 3], I444P10: [10, 3] };
 
-/** The VideoFrame's planes as a picture, after checking it is grey 4:0:0 or GBR 4:4:4. */
+/** The frame's planes as a picture, if it is grey 4:0:0 or GBR 4:4:4. */
 async function read(frame) {
   const [bits, components] = FORMATS[frame.format] ?? [];
   if (!bits) throw new Error(`format ${frame.format}`);
@@ -62,8 +60,8 @@ async function read(frame) {
   const buf = new ArrayBuffer(frame.allocationSize());
   const layout = await frame.copyTo(buf);
   const heap = bits > 8 ? new Uint16Array(buf) : new Uint8Array(buf);
-  // copyTo's layout is in bytes.
   const shift = bits > 8 ? 1 : 0;
+  // copyTo's layout is in bytes.
   const planes = layout.map(({ offset, stride }) => ({ heap, offset: offset >> shift, stride: stride >> shift }));
   const { width, height } = frame.visibleRect;
   // 4:0:0 comes back as 4:2:0 with every chroma sample mid-grey; colour 4:2:0 is not lossless.
