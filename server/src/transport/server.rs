@@ -605,6 +605,24 @@ mod tests {
         (cert_path, key_path, Sha256::digest(cert.der()).into())
     }
 
+    /// A server on loopback `port`: shared streams, every lab flag off, no opening ask.
+    fn serve_config(study: PathBuf, cert_pem: PathBuf, key_pem: PathBuf, port: u16) -> ServeConfig {
+        ServeConfig {
+            wt_port: port,
+            study_path: study,
+            cert_pem,
+            key_pem,
+            mode: StreamMode::Shared,
+            bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+            tuning: TransportTuning::default(),
+            force_pool_reads: false,
+            open_ask: false,
+            hold_sessions: false,
+            stall_after_bytes: None,
+            websocket: false,
+        }
+    }
+
     /// A port nobody is listening on right now. Racy in principle; the alternative is a
     /// fixed port, which collides with a developer running the server.
     fn free_port() -> u16 {
@@ -682,18 +700,8 @@ mod tests {
             let _ = rustls::crypto::ring::default_provider().install_default();
             rt.block_on(async move {
                 let server = tokio::spawn(run_server(ServeConfig {
-                    wt_port: port,
-                    study_path: study,
-                    cert_pem,
-                    key_pem,
-                    mode: StreamMode::Shared,
-                    bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                    tuning: TransportTuning::default(),
-                    force_pool_reads: false,
                     open_ask: true,
-                    hold_sessions: false,
-                    stall_after_bytes: None,
-                    websocket: false,
+                    ..serve_config(study, cert_pem, key_pem, port)
                 }));
                 let endpoint = wtransport::Endpoint::client(
                     ClientConfig::builder()
@@ -790,18 +798,9 @@ mod tests {
             ));
             rt.block_on(async move {
                 let server = tokio::spawn(run_server(ServeConfig {
-                    wt_port: port,
-                    study_path: study,
-                    cert_pem,
-                    key_pem,
-                    mode: StreamMode::Shared,
-                    bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                    tuning: TransportTuning::default(),
-                    force_pool_reads: false,
                     open_ask: true,
-                    hold_sessions: false,
                     websocket: true,
-                    stall_after_bytes: None,
+                    ..serve_config(study, cert_pem, key_pem, port)
                 }));
                 let mut tcp = None;
                 for _ in 0..50 {
@@ -867,18 +866,8 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
-                wt_port: port,
-                study_path: study,
-                cert_pem,
-                key_pem,
-                mode: StreamMode::Shared,
-                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                tuning: TransportTuning::default(),
-                force_pool_reads: false,
-                open_ask: false,
                 hold_sessions: true,
-                stall_after_bytes: None,
-                websocket: false,
+                ..serve_config(study, cert_pem, key_pem, port)
             }));
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
@@ -926,18 +915,8 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
-                wt_port: port,
-                study_path: study,
-                cert_pem,
-                key_pem,
-                mode: StreamMode::Shared,
-                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                tuning: TransportTuning::default(),
-                force_pool_reads: false,
-                open_ask: false,
-                hold_sessions: false,
                 stall_after_bytes: Some(budget),
-                websocket: false,
+                ..serve_config(study, cert_pem, key_pem, port)
             }));
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
@@ -1003,20 +982,7 @@ mod tests {
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
-            let server = tokio::spawn(run_server(ServeConfig {
-                wt_port: port,
-                study_path: study,
-                cert_pem,
-                key_pem,
-                mode: StreamMode::Shared,
-                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                tuning: TransportTuning::default(),
-                force_pool_reads: false,
-                open_ask: false,
-                hold_sessions: false,
-                stall_after_bytes: None,
-                websocket: false,
-            }));
+            let server = tokio::spawn(run_server(serve_config(study, cert_pem, key_pem, port)));
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
             }
@@ -1134,20 +1100,7 @@ mod tests {
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
-            let server = tokio::spawn(run_server(ServeConfig {
-                wt_port: port,
-                study_path: study,
-                cert_pem,
-                key_pem,
-                mode: StreamMode::Shared,
-                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                tuning: TransportTuning::default(),
-                force_pool_reads: false,
-                open_ask: false,
-                hold_sessions: false,
-                stall_after_bytes: None,
-                websocket: false,
-            }));
+            let server = tokio::spawn(run_server(serve_config(study, cert_pem, key_pem, port)));
             while std::net::UdpSocket::bind(("127.0.0.1", port)).is_ok() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
             }
@@ -1238,18 +1191,8 @@ mod tests {
         mode: StreamMode,
     ) -> (tokio::task::JoinHandle<Result<()>>, wtransport::Connection, SendStream) {
         let server = tokio::spawn(run_server(ServeConfig {
-            wt_port: port,
-            study_path: study,
-            cert_pem,
-            key_pem,
             mode,
-            bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-            tuning: TransportTuning::default(),
-            force_pool_reads: false,
-            open_ask: false,
-            hold_sessions: false,
-            stall_after_bytes: None,
-            websocket: false,
+            ..serve_config(study, cert_pem, key_pem, port)
         }));
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()
@@ -1459,18 +1402,8 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
-                wt_port: port,
-                study_path: study,
-                cert_pem,
-                key_pem,
-                mode: StreamMode::Shared,
-                bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-                tuning: TransportTuning::default(),
-                force_pool_reads: false,
-                open_ask: false,
-                hold_sessions: false,
-                stall_after_bytes: None,
                 websocket: true,
+                ..serve_config(study, cert_pem, key_pem, port)
             }));
             let mut roots = rustls::RootCertStore::empty();
             for der in rustls::pki_types::CertificateDer::pem_slice_iter(&cert) {
