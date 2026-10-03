@@ -56,7 +56,7 @@ and its branch belong to other work.
 | 10 | **CONTENT** — the content the verdicts lack: tomosynthesis and a contrast angiography run | claimed 2026-10-03 |
 | 11 | **FILL** — the fill's decode measured, not multiplied: three decoders, HTJ2K against AV1, through the downloader | claimed 2026-10-03 |
 | 12 | **PREVIEW** — a lossy first picture, the exact frame after: what it buys a cine on a phone link | claimed 2026-10-03 |
-| 13 | **SPLIT10** — the top10+low split through WebCodecs: exact, and how fast | ready |
+| 13 | **SPLIT10** — the top10+low split through WebCodecs: exact, and how fast | claimed 2026-10-03 |
 | 14 | **ENC** — encode time, uncontended, per preset and content: ingest cost, and whether lossless can run live | ready |
 | 15 | **SVC** — libaom's real-time scalable encoder in lossless mode at 10 and 12 bits: exact or not | ready |
 
