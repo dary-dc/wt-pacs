@@ -3,6 +3,8 @@
  * both clients in Node (run.ts) and the downloader in a browser (downloader-rig.ts).
  * docs/CLIENTS.md says why; the rows are docs/ARCHITECTURE.md §Capabilities.
  */
+import { until } from "./rig-util.ts";
+
 export type ConformantFrame = {
   frameIndex: number;
   bytes: Uint8Array;
@@ -66,14 +68,6 @@ function within<T>(p: Promise<T>, ms = 500): Promise<T | null> {
   ]);
 }
 
-async function until(cond: () => boolean | Promise<boolean>, ms: number): Promise<boolean> {
-  const t0 = Date.now();
-  while (Date.now() - t0 < ms) {
-    if (await cond()) return true;
-    await new Promise((r) => setTimeout(r, 10));
-  }
-  return cond();
-}
 
 const untilDials = (rig: Rig, n: number) => until(async () => (await rig.dialsSinceOpen()) >= n, 3000);
 

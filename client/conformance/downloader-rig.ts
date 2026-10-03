@@ -3,10 +3,9 @@
  * fake transport inside its worker over the BroadcastChannel fake-session.ts listens on.
  * The page passes DownloaderClient in, so its worker URLs resolve from its own module.
  */
-import { type Check, type ConformantFrame, type ConformantSession, type Rig, runClauses } from "./clauses.ts";
+import { type ConformantFrame, type ConformantSession, type Rig, runClauses } from "./clauses.ts";
+import { CERT, started, tally } from "./rig-util.ts";
 import { workerFake } from "./worker-fake.ts";
-
-const CERT = "ab".repeat(32);
 
 type Downloader = {
   requestExactFrame(index: number): Promise<{ frameIndex: number; bytes: Uint8Array; timing: { askMs: number; lastChunkMs: number } }>;
@@ -63,13 +62,7 @@ function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
         onFrame: (f: ConformantFrame) => route.onFrame(f),
         onError: (f: { frameIndex: number; reason: string }) => route.onError(f.frameIndex, f.reason),
       });
-      const c = await Promise.race([
-        connect,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("the downloader did not start in 5 s")), 5000),
-        ),
-      ]);
-      return adapt(c, route);
+      return adapt(await started(connect), route);
     },
     fake: () => {
       if (!handle) throw new Error("fake() before open()");
@@ -83,33 +76,14 @@ function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
 }
 
 /** Entry for the page: run every clause against the downloader, report, and say done. */
-export async function run(
-  DownloaderClient: DownloaderCtor,
-  log: (line: string) => void,
-): Promise<void> {
+export async function run(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   const strays: string[] = [];
   addEventListener("unhandledrejection", (e) => {
     e.preventDefault();
     strays.push(String(e.reason?.message ?? e.reason));
   });
-  let failed = 0;
-  let ran = 0;
-  const check: Check = (cond, what) => {
-    ran += 1;
-    if (!cond) {
-      failed += 1;
-      log(`  FAIL: ${what}`);
-    }
-  };
-  log("downloader");
-  try {
+  await tally(log, "downloader", "conformance", async (check) => {
     await runClauses(downloaderRig(DownloaderClient), check);
-  } catch (e) {
-    failed += 1;
-    log(`  FAIL: a clause threw: ${(e as Error)?.message ?? e}`);
-  }
-  if (strays.length) log(`\n  ${strays.length} abandoned waiter(s) rejected after their fill was cancelled`);
-  log(`\nconformance: ${ran - failed}/${ran} checks passed on the downloader arm`);
-  (globalThis as Record<string, unknown>).__wtpacsFailed = failed;
-  (globalThis as Record<string, unknown>).__wtpacsDone = true;
+    if (strays.length) log(`\n  ${strays.length} abandoned waiter(s) rejected after their fill was cancelled`);
+  });
 }
