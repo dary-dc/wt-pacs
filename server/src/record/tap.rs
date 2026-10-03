@@ -333,8 +333,12 @@ impl Tap {
     }
 
     /// Close whichever stage was open when we bailed (prepare or locate), then emit.
-    /// `send_us` stays null; refuse never entered send.
-    pub(crate) fn emit_refused(&mut self) {
+    /// `send_us` stays null; refuse never entered send. A refusal no frame opened, the planner's,
+    /// opens its own row first.
+    pub(crate) fn emit_refused(&mut self, frame_index: u32) {
+        if self.serve_start.is_none() {
+            self.begin_frame(frame_index);
+        }
         if self.pending_prepare_us.is_none() {
             self.boundary_prepare_done();
         } else if self.pending_locate_us.is_none() {
@@ -723,7 +727,7 @@ mod tests {
         t.begin_frame(1);
         std::thread::sleep(std::time::Duration::from_millis(1));
         // No boundary — refuse owns finalize (prepare failed path).
-        t.emit_refused();
+        t.emit_refused(1);
         let row = one_row(&mut t, &rx);
         assert!(row.prepare_us.is_some());
         assert!(row.locate_us.is_none());
@@ -741,7 +745,7 @@ mod tests {
         t.boundary_prepare_done();
         std::thread::sleep(std::time::Duration::from_millis(1));
         // No locate boundary — refuse owns finalize (locate failed path).
-        t.emit_refused();
+        t.emit_refused(2);
         let row = one_row(&mut t, &rx);
         assert!(row.prepare_us.is_some());
         assert!(row.locate_us.is_some());
@@ -819,7 +823,7 @@ mod tests {
         serve_frame(&mut t, 1, 100);
         serve_frame(&mut t, 2, 100);
         t.begin_frame(3);
-        t.emit_refused();
+        t.emit_refused(3);
         drop(t);
         let records = drain_all(&rx);
         let Some(Record::Session(s)) = records.last() else {

@@ -270,7 +270,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
     }
 
     async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
-        self.tap.emit_refused(); // close open stage + emit
+        self.tap.emit_refused(frame); // close open stage + emit
         self.inner.refuse(frame, err).await
     }
 
@@ -396,6 +396,45 @@ mod tests {
             rec.seen,
             vec![(0, want, Mode::OnDemand)],
             "a bad name broke the good one"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// **A refused range is its own row.** The planner refuses a `stream_frames` range outside
+    /// the study before any frame opens; its row carries the refused frame, not the last one
+    /// served. A frame refused at `locate` keeps the one row it opened, and every row opened is
+    /// closed. `docs/telemetry/adr-server-pipeline.md`.
+    #[cfg(feature = "telemetry")]
+    #[test]
+    fn a_refused_range_records_a_row_of_its_own() {
+        use crate::record::tap::{Live, Record};
+        use crate::transport::planner::{Ask, ASKS_AHEAD};
+        let (path, rec) = recorder("refused-row", 4);
+        let (tx, rows) = std::sync::mpsc::sync_channel(64);
+        let mut recorded = RecordedPipeline::new(rec, Tap::new(1, Some(tx), &Live::default()));
+        let (asks_tx, mut asks) = tokio::sync::mpsc::channel(ASKS_AHEAD);
+        asks_tx.try_send(Ask::Frame(1)).expect("queue ask");
+        asks_tx.try_send(Ask::Fill { from: Some(6), to: Some(9) }).expect("queue fill");
+        asks_tx.try_send(Ask::Frame(99)).expect("queue ask");
+        drop(asks_tx);
+        let rt = tokio::runtime::Builder::new_current_thread().build().expect("rt");
+        rt.block_on(crate::transport::server::drive(&mut recorded, &mut asks)).expect("drive");
+        drop(recorded);
+
+        let records: Vec<Record> = rows.try_iter().flatten().collect();
+        let frames: Vec<(u32, u8)> = records
+            .iter()
+            .filter_map(|r| match r {
+                Record::Frame(f) => Some((f.frame_index, f.write_outcome)),
+                Record::Session(_) => None,
+            })
+            .collect();
+        assert_eq!(frames, vec![(1, 0), (6, 2), (99, 2)], "a refusal's row is not its own");
+        let Some(Record::Session(session)) = records.last() else { panic!("no session row") };
+        assert_eq!(
+            (session.rows_opened, session.rows_closed),
+            (3, 3),
+            "rows opened and rows closed disagree"
         );
         let _ = std::fs::remove_file(&path);
     }

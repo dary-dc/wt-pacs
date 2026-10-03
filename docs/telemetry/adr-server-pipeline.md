@@ -42,7 +42,9 @@ which parsed and did nothing, is removed.
 **`RecordedPipeline<P>`** wraps any `FramePipeline` and holds a live `Tap`. It is constructed only
 when `Tap::for_session()` returns `Some`, and does not override `serve`. It is generic, so it cannot
 reach product fields. A refusal is finalised by `Tap::emit_refused`, which closes whichever stage
-was open.
+was open; a refusal no frame opened, the planner's of a `stream_frames` range outside the study,
+opens its own row first. *Corrected 2026-10-03:* that refusal used to emit a row carrying the
+previous frame's index, ordinal and times, and `rows_closed` ran ahead of `rows_opened`.
 
 **Clock model.** Stamp at method entry; each stamp closes the previous stage, so the chain is
 contiguous; the emit closes the last. Four `Instant::now` reads on the happy path; integer µs.
