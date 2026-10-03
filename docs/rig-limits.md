@@ -405,7 +405,32 @@ never above target, the sojourn read as zero, no interval before the first drop,
 that never drops (369 ms). **One run each, not a campaign:** quinn's BBR under `--codel 5:100` at
 the same link lost 2 219 of 4 273 packets to CoDel and stood 53 ms of queue against 71 tail drop
 only, the probe losing a third — its model does not read loss. Row 86's cells are where that is
-measured. fq_codel (RFC 8290) is not built: one FIFO, shared by every `--udp` pair.
+measured. *fq_codel was built the same day (row 110, below).*
+
+**fq_codel, 2026-10-02 (row 110, FQC).** `--fq-codel` puts RFC 8290 on each direction's link of the
+UDP and TUN planes: a queue per flow, deficit round robin with a 1 514-byte quantum, new flows served
+first, CoDel on each queue at its dequeue (`--codel`'s parameters, `5:100` unless given), and over the
+queue limit (`--queue-pkts` or bytes, the total's) the fattest queue loses its head. Here a departure
+is decided at each dequeue rather than at the offer, in virtual time — the dequeue the link would have
+made, at the instant it would have made it — so the loop also wakes for the queue's next dequeue.
+Two things differ from Linux: flows are exact 5-tuples, so no two collide (Linux hashes into 1 024
+buckets), and an overflow drops one packet, not up to half the fat queue. CoDel's one-packet guard
+reads its own queue's bytes, as Linux's does. Every link now tallies each flow's packets, bytes and sojourn
+(`flow <side> <proto> <src> <dst> …`) at exit and on `stats`, FIFO or not. `link_impair_check.sh`:
+
+| Asked | Read |
+| --- | --- |
+| 1 500 B at 1.2 Mbit against 300 B at 0.6 on 1 Mbit, open loop, 12 s, virtual clock | the first flow's share of the bytes 0.501 (one FIFO: 0.704) |
+| 100 B every 200 ms beside four 1 500 B flows at 0.5 Mbit, a 10-packet limit | the sparse flow's sojourn p99 10.1 ms, under one packet's 12; none lost (FIFO: 107.7 ms, 27 lost) |
+| two 500 B flows at 0.75 Mbit each | each queue's first ten drop gaps within 12.6 ms of 100/√count (one DRR turn of the other flow is 16 ms); 62.0 and 62.4 drops a second against each one's excess of 62.5 |
+| live: a sparse 100 B probe every 30 ms on one `--udp` pair, a 2× open-loop blast on another, 1 Mbit, 40 ms | the probe's round trip 46.6 ms, 100 of 100 (FIFO: 1 499 ms, 42 of 100) |
+| live: five datagrams into a 275 ms held blackout, nothing else due | worst 309.6 ms, the hold plus the round trip and five packets' serialisation |
+
+Six mutants caught: packets round-robined instead of bytes (0.833), no new-flow list (sparse p99
+65.3 ms), the drop taken from the arriving flow (19 sparse lost), one CoDel for every queue (135.5
+drops a second), the guard on the total backlog (12 sparse lost to CoDel), and no wake for a held
+queue (326.8 ms). The three older checks noted above fail on this box as before.
+
 
 **A rebind that changes the address, 2026-10-02 (row 104).** `rebind` used to move only the
 relay's server-side port, and quinn keeps a path's controller across a port-only change. With

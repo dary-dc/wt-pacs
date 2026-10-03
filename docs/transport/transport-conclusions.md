@@ -125,12 +125,68 @@ every depth. Our flow's share, median [range], n:
   explains 3.7 points of it. What is left is the neighbour itself — quinn's Cubic paces and has no
   HyStart, the rig's was Linux's, unpaced behind `netem`, over ssh — and is not separated here. So
   through this relay a deep buffer's verdict on BBR against TCP is not admissible; the shallow one
-  is.
+  is. *Answered 2026-10-02 (FQC, below): against kernel TCP Cubic through the packet-layer relay the
+  deep cell reads 49.6 %, within 6 points of the rig — the proxy was the difference.*
 * **The bounded BBR is the worst neighbour to itself.** Behind a 20-packet queue it keeps 17.6 %,
   behind 500 it keeps 2.5 % (0.12 Mbit) in every round. That is BBF's mechanism (below) with a
   neighbour's queue in place of jitter: the smoothed round trip stands above 1.25 × the all-time
   minimum, so each cap shrinks the next — though the window was not read here. Only at 10 packets,
   where Cubic's own queue is short, does it hold 80 %.
+
+### A neighbour behind fq_codel, 2026-10-02 (FQC)
+
+NBR and PROF put BBR's neighbour cost on one shared FIFO. [`fq_neighbour_cells.sh`](../../lab/scripts/fq_neighbour_cells.sh)
+asks whether it survives RFC 8290's fq_codel, now in the relay ([`rig-limits.md`](../rig-limits.md) §3),
+against a **kernel TCP Cubic** neighbour: the TUN plane (row 107), so the neighbour is Linux's own
+Cubic under the same queue and loss, not NBR's proxy. Per run the neighbour starts, 3 s later our
+fresh session makes 20 asks of 64 KB one at a time (the first dropped, p50 and p99 of the other 19),
+then a 30 s saturating fill (depth 8) runs beside it. Profiles: NBR's 5 Mbit, 56 ms with a shallow
+(20-packet) or deep (500-packet) buffer, the uplink unshaped; PROF's LTE-loaded (`Verizon-LTE-short`,
+60 ms, 0.1 % in bursts of 3.5, 1 s of buffer). FIFO and fq_codel (5:100) hold the same total, so the
+discipline is the only change. Six arms (three controllers × two queues) ordered by `order.py`,
+7 rounds, `--self-timing`, 1 of 126 runs `VOID` and dropped. Share is ours over ours plus the
+neighbour's over the fill; queue is each flow's median sojourn in the relay's own tally. Medians:
+
+| profile | arm | ask p50 / p99 ms | share | our fill's queue ms | the neighbour's queue ms | fq − FIFO share, rounds |
+| --- | --- | --- | --- | --- | --- | --- |
+| shallow | Cubic, FIFO | 289 / 401 | 44.8 % | 35.5 | 34.2 | |
+| | Cubic, fq | 278 / 319 | 50.1 % | 6.5 | 5.5 | +5.5 (5/7) |
+| | BBR, FIFO | 257 / 543 | **98.8 %** | 44.0 | 29.7 | |
+| | BBR, fq | 274 / 330 | **49.9 %** | 27.1 | 4.3 | **−48.9 (0/7)** |
+| | bounded, FIFO | 254 / 537 | 18.2 % | 33.2 | 34.7 | |
+| | bounded, fq | 275 / 333 | 50.4 % | 12.0 | 4.0 | +32.2 (7/7) |
+| deep | Cubic, FIFO | **2 159 / 4 262** | **13.1 %** | 1 077 | 1 028 | |
+| | Cubic, fq | 277 / 330 | 50.6 % | 6.4 | 5.5 | +37.7 (7/7) |
+| | BBR, FIFO | 1 045 / 3 438 | 49.6 % | 1 058 | 1 014 | |
+| | BBR, fq | 302 / 405 | 49.7 % | **102.6** | 4.7 | +0.0 (4/7) |
+| | bounded, FIFO | 1 046 / 3 484 | 24.6 % | 1 080 | 1 036 | |
+| | bounded, fq | 302 / 487 | 50.3 % | 12.0 | 5.0 | +25.7 (7/7) |
+| LTE-loaded | Cubic, FIFO | 871 / 2 530 | 51.7 % | 881 | 504 | |
+| | Cubic, fq | 351 / 540 | 50.6 % | 9.3 | 8.5 | −3.0 (3/7) |
+| | BBR, FIFO | 602 / 2 327 | 66.8 % | 833 | 467 | |
+| | BBR, fq | 271 / 539 | 59.6 % | **196.1** | 8.5 | −6.2 (0/6) |
+| | bounded, FIFO | 639 / 2 739 | 25.2 % | 450 | 553 | |
+| | bounded, fq | 266 / 590 | 37.7 % | 28.8 | 7.6 | +21.3 (6/7) |
+
+* **BBR's neighbour cost does not survive fq_codel.** Behind a shallow FIFO BBR leaves kernel TCP
+  1.2 % (0.06 Mbit); behind fq_codel of the same depth the split is 49.9 / 50.1 in every round. In
+  every fq_codel arm the neighbour's queue is 4–9 ms, CoDel's target plus a packet, whatever our
+  controller does.
+* **BBR's queue does survive, in its own flow queue.** It ignores CoDel's drops (14–26 % of its
+  packets dropped by CoDel, against 0.6–1.4 % for Cubic), so its fill stands 27, 103 and 196 ms of
+  queue where Cubic's stands 6–9. Under fq_codel that cost lands on BBR's own packets — its asks
+  share the session's queue — not on the neighbour. The shallow ask's p50 is the one figure fq_codel
+  makes worse for BBR, +17 ms (bounded +23); its p99 still falls 200 ms.
+* **The deep FIFO verdict, with real TCP:** BBR 49.6 % — the rig read 55.1 %, NBR's QUIC proxy
+  15–19 %, so the proxy was the difference (corrected above). And a deep FIFO starves *QUIC Cubic*
+  against kernel Cubic, 13.1 % in every round with a 2.2 s median ask; quinn's paced Cubic loses to
+  Linux's. fq_codel gives it 50.6 %.
+* **The bounded BBR's starvation (NBR) is a FIFO's**: 18 → 50 % shallow, 25 → 50 % deep (7/7 each).
+  On LTE-loaded it keeps 37.7 % behind fq_codel (6/7 up) — the trace's swings, not measured apart.
+* **Every steady ask is faster behind fq_codel except both BBRs' p50 at a shallow buffer**: p99 −81 ms to
+  −3.9 s, the deep and LTE cells by 2–4 s, since our asks no longer wait behind the neighbour's
+  queue. Whether a user's bottleneck runs a FIFO or fq_codel is not measured here.
+* No default changed.
 
 ### Why two answers and not one
 
@@ -1402,7 +1458,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    the candidate to put on a rig: jitter pins it to its floor (BBF, §1); a bound whose round-trip
    floor jitter cannot lower would have to be built and pass BBF's cells first — and a Cubic
    neighbour's queue, which starves the bound as built (NBR, §1). A deep buffer's BBR-against-TCP
-   share needs a real TCP neighbour: the relay's proxy does not reproduce it. On phone-like profiles (PROF, §1)
+   share needs a real TCP neighbour: the relay's proxy does not reproduce it. *Measured 2026-10-02 (FQC,
+§1): against kernel TCP it is 49.6 %; behind fq_codel BBR's neighbour cost is gone in every profile,
+its own queue (27–196 ms) is not.* On phone-like profiles (PROF, §1)
    BBR ties or beats Cubic on every one, by 1.0–2.3×, and CoDel widens the gap; under loss an ask's
    slope is the controller's on either transport (§5, ASKL). Which mix holds on a real radio is still
    the telemetry's question. The smallest controller that could keep BBR's loss tolerance without
