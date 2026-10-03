@@ -781,15 +781,15 @@ mechanisms.
 **What each is.**
 
 - **The GSO cap** — `patches/quinn-0.11.11-mtu-gso.patch`, applied at build time to the crates.io
-  tarball (`scripts/patch_quinn.sh`, `patched/quinn`): segments per `sendmsg` are
+  tarball (`scripts/patch_crate.sh quinn`, `patched/quinn`): segments per `sendmsg` are
   `min(platform, 65527 / mtu)` — **45 at 1 452 bytes, 44 at 1 472** (an earlier write-up said 44 at
   1 452) — and the driver may emit 64 datagrams per poll instead of 20. quinn 0.11.11 and upstream
   `main` hard-code 10 with no `TransportConfig` knob (quinn-rs/quinn#2189, the shape that would
   remove the patch). Never raise the cap from `max_gso_segments()` alone: over 65 527 bytes returns
   `EINVAL` and `quinn-udp` disables offload for that socket permanently. **Opt-in**:
   `cargo build --release -p exact-server --config 'patch.crates-io.quinn.path="patched/quinn"'`;
-  the gate runs `scripts/patch_quinn.sh --check`. Refresh: bump the version in
-  `scripts/patch_quinn.sh` and `patched/quinn/Cargo.toml`, retarget the hunks, `--check`.
+  the gate runs `scripts/patch_crate.sh quinn --check`. Refresh: bump the version in
+  `scripts/patch_crate.sh` and `patched/quinn/Cargo.toml`, retarget the hunks, `--check`.
 - **PGO** — `scripts/pgo_build.sh` instruments, trains on the cells this section measures, and
   rebuilds. A profile is bound to its source, so the script runs per release build and
   `cargo build --release` stays the plain build; a stale profile is worse than none. It doubles the
