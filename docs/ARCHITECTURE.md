@@ -227,12 +227,12 @@ per client** — 40 clients took the renderer from 10 to 50 threads and 106 to 2
 identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 141 headless); after,
 10–12 threads and 118–123 MB. **Terminating the decoders from the downloader as well strands it**:
 10–12 of 40 downloader workers stayed alive, script dead, thread and memory held — a race
-`client/conformance/drive_downloader.cjs` checks for by counting leftover workers after every page.
+`client/conformance/drive_page.cjs` checks for by counting leftover workers after every page.
 
 ## Capabilities
 
 Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **conformance** is
-`client/conformance/run.mjs`, every clause against every transport; **dispatch** is `run_dispatch.sh`,
+`client/conformance/run.mjs`, every clause against every transport; **dispatch** is `run_browser.sh dispatch`,
 the downloader against a stalling fake decoder so contention is forced; both are in `scripts/gate.sh`.
 
 | capability | the harness's path | the downloader |

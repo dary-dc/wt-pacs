@@ -83,7 +83,7 @@ function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
 }
 
 /** Entry for the page: run every clause against the downloader, report, and say done. */
-export async function runDownloaderArm(
+export async function run(
   DownloaderClient: DownloaderCtor,
   log: (line: string) => void,
 ): Promise<void> {

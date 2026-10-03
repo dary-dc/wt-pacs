@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# D2d: the downloader over each transport client in turn, against a real server. A fill and a
+# The downloader over each transport client in turn, against a real server. A fill and a
 # cold ask per arm, interleaved with the order reversed each round.
 # docs/ARCHITECTURE.md §Capabilities.
 #
@@ -70,7 +70,7 @@ for r in $(seq 1 "$ROUNDS"); do
   for arm in "${arms[@]}"; do
     url="http://127.0.0.1:$PORT/harness/"
     if [[ "$arm" == wasm ]]; then url="$url?transport=/client/transport-wasm/session-adapter.js"; fi
-    out="$(node client/conformance/drive_downloader.cjs "$url" 2>&1 || true)"
+    out="$(node client/conformance/drive_page.cjs "$url" 2>&1 || true)"
     printf '%s\t%s\n' "$arm" "$(tr '\n' '|' <<<"$out")" >> "$T/rows.tsv"
   done
   echo "round $r/$ROUNDS" >&2

@@ -34,11 +34,8 @@ bash client/scripts/check_worker_safe.sh
 step "client: transport conformance (every implementation, and the race)"
 node client/conformance/run.mjs | tail -2
 
-step "client: transport conformance (downloader arm, headless Chromium)"
-bash client/conformance/run_downloader.sh | tail -2
-
-step "client: downloader dispatch — ordering and the per-decoder bound (headless Chromium)"
-bash client/conformance/run_dispatch.sh | tail -2
+step "client: the downloader in headless Chromium — the clauses through it, and its dispatch order and per-decoder bound"
+bash client/conformance/run_browser.sh
 
 step "client: type-check (product + shared record)"
 (cd client/transport-ts && npx tsc -p tsconfig.check.json)

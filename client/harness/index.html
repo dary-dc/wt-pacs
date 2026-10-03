@@ -48,7 +48,7 @@
       if (!globalThis.crossOriginIsolated) { log("FATAL: not cross-origin isolated"); globalThis.__wtpacsDone = true; return; }
       await groundTruth(FRAMES);
       const cfg = await (await fetch("/wt/dev-transport.json")).json();
-      // D2d: the seam takes a module exporting TransportSession; absent, the downloader's default.
+      // The seam takes a module exporting TransportSession; absent, the downloader's default.
       const transport = new URLSearchParams(location.search).get("transport") || undefined;
 
       const fillFrames = [];

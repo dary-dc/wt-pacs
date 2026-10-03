@@ -1,5 +1,5 @@
 /**
- * A decoder stand-in for D2c: it decodes nothing, it stalls. Each decode holds for `delayMs`
+ * A decoder stand-in for the dispatch rig: it decodes nothing, it stalls. Each decode holds for `delayMs`
  * so the downloader's queue backs up on purpose — contention forced, not waited for, and
  * `readyDelayMs` holds `ready` back so a fill can be on the wire while no decoder exists. It tags
  * every frame with the order it started (`decodeSeq`) and the most it ever held at once

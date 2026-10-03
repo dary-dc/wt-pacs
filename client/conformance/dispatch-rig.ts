@@ -1,5 +1,5 @@
 /**
- * D2c: the behaviours the downloader implements and D2b's surface clauses cannot see — an ask
+ * Dispatch: the behaviours the downloader implements and the surface clauses cannot see — an ask
  * served before the fill frames still waiting for a decoder, never more than `perDecoder` frames
  * outstanding on one decoder, and a fill handed to `start` reaching the wire while the decoders
  * are still coming up. Each needs the stand-in decoder (fake-decoder.js) made to stall or to hold
@@ -1034,7 +1034,7 @@ async function aDownloaderThatNeverAnswersIsEndedAnyway(DownloaderClient: Downlo
   check(gone, `close: and the wedged downloader and its decoders are ended (${JSON.stringify(await fake.alive())})`);
 }
 
-export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
+export async function run(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   let failed = 0;
   let ran = 0;
@@ -1078,7 +1078,7 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     aClosedClientEndsEveryWorkerItStarted,
     aDownloaderThatNeverAnswersIsEndedAnyway,
   ];
-  log("dispatch (D2c)");
+  log("dispatch");
   for (const clause of clauses) {
     try {
       await clause(DownloaderClient, check, log);

@@ -58,18 +58,18 @@ for _ in 1 2 3; do
   sleep 0.3
   kill -0 "$STATIC" 2>/dev/null && break
 done
-for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/harness/refusals.html" >/dev/null 2>&1 && break; sleep 0.1; done
+for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/client/conformance/refusals.html" >/dev/null 2>&1 && break; sleep 0.1; done
 
 WT="wt=https://127.0.0.1:$WT_PORT/&hash=$HASH"
-drive() { node client/conformance/drive_downloader.cjs "http://127.0.0.1:$PORT/$1" | grep . | tail -1; }
+drive() { node client/conformance/drive_page.cjs "http://127.0.0.1:$PORT/$1" | grep . | tail -1; }
 failed=0
-drive "harness/refusals.html?arm=ts&n=64&$WT" || failed=1
+drive "client/conformance/refusals.html?arm=ts&n=64&$WT" || failed=1
 if [[ -f client/transport-wasm/pkg/transport_wasm_bg.wasm ]]; then
-  drive "harness/refusals.html?arm=wasm&n=64&$WT" || failed=1
+  drive "client/conformance/refusals.html?arm=wasm&n=64&$WT" || failed=1
 else
   echo "SKIPPED arm: transport-wasm refusals — no pkg/"
 fi
-drive "harness/refusals.html?arm=ws&n=64&$WT" || failed=1
+drive "client/conformance/refusals.html?arm=ws&n=64&$WT" || failed=1
 drive "client/conformance/ask-during-fill.html?arm=ts&$WT" || failed=1
 drive "client/conformance/ask-during-fill.html?arm=downloader&$WT" || failed=1
 drive "client/conformance/ask-during-fill.html?arm=ws&$WT" || failed=1

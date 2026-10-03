@@ -139,7 +139,7 @@ A truncated frame does apply — on TCP it is the connection ending inside one.
 
 **The downloader arm.** The downloader dials inside its own worker, out of the test's reach, so
 `fake-session.ts` is the module `config.transport` names during a run: it installs the fake inside
-that worker and answers the page over a `BroadcastChannel` named in its URL. `run_downloader.sh`
+that worker and answers the page over a `BroadcastChannel` named in its URL. `run_browser.sh`
 drives the same clauses in headless Chromium. Two read what the arm does from the rig: an ask after
 a closure **re-dials and is served** rather than failing, and the dead-session clause runs with
 resumption off, since its claim is the transport's. One thing the page cannot see is whether the
@@ -157,7 +157,7 @@ packs 200 random 256 KB frames, makes its own certificate under a temp dir, and 
 send window and `--websocket`, so a fill is still running when an ask lands and few enough frames
 are in flight that its end is observable. Nothing in the tree is touched.
 
-* `client/harness/refusals.html`: 64 out-of-range asks in flight at once, every waiter
+* `client/conformance/refusals.html`: 64 out-of-range asks in flight at once, every waiter
   rejected promptly with **the server's own reason** — TS and WASM over WebTransport, TS over the
   WebSocket. Mutant: the TS control pump dropping one `frame_error` reports 63 of 64, 1 timed out.
   *Corrected 2026-09-25:* the page counted any `unavailable` rejection, and a session that died
