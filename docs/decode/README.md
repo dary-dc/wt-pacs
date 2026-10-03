@@ -555,8 +555,10 @@ steady state. Not confirmed — a different path and rig.
 
 V8 caches compiled WebAssembly only for a **streaming** compile of a module served as
 `application/wasm`, and what it caches is tiered-up code. The product hands Emscripten a
-`wasmBinary`, which forbids that. `decoder.js` takes `decoder.streaming`; given it, no binary is
-passed and the glue's own `WebAssembly.instantiateStreaming` runs. **The default is unchanged.**
+`wasmBinary`, which forbids that. `decoder.js` took `decoder.streaming`; given it, no binary was
+passed and the glue's own `WebAssembly.instantiateStreaming` ran. **The default is unchanged**, and
+the option, a tie with no caller, was removed 2026-10-03; code:
+`git show archive/arms-2026-10-03:client/downloader/decoder.js`. The lab arm below keeps its own copy.
 
 `lab/decode-first-frame/arms.mjs`, 5 rounds interleaved, a fresh persistent profile per arm, three
 visits each: **a tie.** Streaming's wins on frame 0 are 2/5, 2/5, 1/5 on `g512` and 4/5, 4/5, 2/5 on
