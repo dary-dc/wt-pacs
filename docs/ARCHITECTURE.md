@@ -297,6 +297,23 @@ stream chunk, into the WASM heap, out to the `SharedArrayBuffer`); Dw posts 1 an
 none but holds a promise and a 15 s timer per frame on the page. Loopback in a container throughout:
 the window the ask waits behind is this host's, and a long fat link holds more of it.
 
+**Re-run on `641df69`, H's last run before its removal** (2026-10-02, workstation, 8 cores, headless
+Chrome 148, the same page and arms, 12 rounds, 180 runs, no errors). Median [min … max], and the rounds
+in which Dw beat H:
+
+| | H | Dw | Dw better | Dd |
+| --- | --- | --- | --- | --- |
+| fill: issue → last frame (ms) | 270 [234 … 291] | 249 [231 … 273] | 8/12 | 472 [424 … 550] |
+| fill: page main thread (ms) | 122 [107 … 136] | **19 [17 … 22]** | 12/12 | 35 [33 … 45] |
+| fill: page JS heap peak (MB) | 52.7 [46.6 … 57.8] | **30.4 [26.5 … 33.5]** | 12/12 | 1.7 |
+| cold ask (ms) | 5.9 [5.2 … 6.4] | 6.5 [6.0 … 7.8] | 3/12 | 44.8 [38.8 … 66.1] |
+| ask at 10 / 50 / 90 % (ms) | 47.1 / 40.2 / 33.9 | 49.2 / 37.5 / **25.3** | 5 / 6 / 11 of 12 | 100.1 / 80.4 / 30.7 |
+| fill frames delivered, ask at 10 % / 50 % | **23 / 53** of 80 | 80 / 80 | 12/12 | 80 / 80 |
+
+The verdict is the same as the container's. Main thread and heap are settled. The fill is a tie, with
+ranges overlapping. A cold ask leans H by 0.6 ms, the hop, with ranges overlapping. The fill dies on H
+once an ask lands.
+
 ### Under a throttled CPU
 
 The same 80-frame fill on H, Dw and Dd at 1×, 4× and 6× Chromium CPU throttle, arms and throttles
