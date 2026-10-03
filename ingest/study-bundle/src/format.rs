@@ -1,6 +1,6 @@
 //! Shared SBND layout constants and header/index parser.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 
@@ -82,19 +82,25 @@ pub fn read_layout(file: &File) -> Result<ParsedLayout> {
     let file_len = file.metadata().context("stat bundle")?.len();
     let mut prefix = vec![0u8; HEADER_SIZE];
     file.read_exact_at(&mut prefix, 0).context("read header")?;
-    prefix.resize(prefix_len(&prefix)?, 0);
+    let len = prefix_len(&prefix)?;
+    ensure!(
+        len <= file_len,
+        "bundle header declares {len} bytes of index and metadata in a {file_len}-byte file"
+    );
+    prefix.resize(len as usize, 0);
     file.read_exact_at(&mut prefix, 0).context("read index")?;
     parse_layout_checked(&prefix, file_len)
 }
 
 /// Bytes from the start of the file up to the first frame, read off the fixed header.
-fn prefix_len(header: &[u8]) -> Result<usize> {
+fn prefix_len(header: &[u8]) -> Result<u64> {
     if header.len() < HEADER_SIZE {
         bail!("bundle too small");
     }
-    let metadata_len = u32::from_le_bytes(header[8..12].try_into()?) as usize;
-    let frame_count = u32::from_le_bytes(header[12..16].try_into()?) as usize;
-    Ok(HEADER_SIZE + frame_count * INDEX_ENTRY_SIZE + metadata_len)
+    let metadata_len = u32::from_le_bytes(header[8..12].try_into()?);
+    let frame_count = u32::from_le_bytes(header[12..16].try_into()?);
+    let index_len = u64::from(frame_count) * INDEX_ENTRY_SIZE as u64;
+    Ok(HEADER_SIZE as u64 + index_len + u64::from(metadata_len))
 }
 
 #[cfg(test)]
@@ -136,6 +142,19 @@ mod tests {
         assert_eq!(layout.index[0], (layout.data_base as u64, 3));
         assert_eq!(layout.index[1], (layout.data_base as u64 + 3, 4));
         assert_eq!(layout.metadata, "{}");
+    }
+
+    /// A header that declares more index than its file holds is refused before anything is
+    /// allocated for it, rather than by running out of memory.
+    #[test]
+    fn a_header_larger_than_its_file_is_refused_before_allocating() {
+        let mut header = bundle(&[], b"");
+        header[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
+        let path = std::env::temp_dir().join(format!("sbnd-huge-{}.sbnd", std::process::id()));
+        std::fs::write(&path, &header).unwrap();
+        let got = read_layout(&File::open(&path).unwrap());
+        let _ = std::fs::remove_file(&path);
+        assert!(got.is_err(), "a 16-byte file declaring u32::MAX frames was accepted");
     }
 
     /// An index entry that points past the end of the file is a corrupt bundle. It must be
