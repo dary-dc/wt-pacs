@@ -162,10 +162,11 @@ Report shape: `summary → client_frames → run_end`.
 - **Fill:** one gesture and one ask stamp per fill, so `summary.fill_queue_us` is reported once and
   `distributions.queue` covers interaction rows only. Preload rows close at `last_byte`; a later
   `delivered` mark fills their `deliver_us`.
-- **Long tasks:** `integrity.long_tasks` counts only tasks overlapping [first ask, last row end]
-  (`long_tasks_outside_window` holds the rest; WASM compile lands there). Per row,
-  `main_thread_busy_us` is the overlap with [ask, close]; rows with any overlap are left out of
-  distributions and headlines and counted in `busy_rows_excluded`.
+- **Long tasks: not recorded.** *Corrected 2026-10-03:* this described `integrity.long_tasks`,
+  per-row `main_thread_busy_us` and `busy_rows_excluded`. The Tap now runs only in the downloader's
+  worker (and in Node), where `longtask` entries are never delivered, so those fields were always 0
+  and a report read as a clean run. They are removed; a stamp delayed by the worker's own work is
+  not detected.
 - **Integrity:** `summary.integrity.valid` is false on open/closed disagreement, byte-closure
   failure, first-write conflicts, or ring evictions. `open_rows` lists rows never closed with the
   stamps they have. `marks_after_close` is recorded but does not void alone.

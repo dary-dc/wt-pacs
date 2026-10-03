@@ -1,7 +1,7 @@
 /** Core tap — coordinates stamps, rows, attribution, and the report. */
 
 import { StreamAttributor } from "./attribution.ts";
-import { nowUs, probeClockResolution, watchLongTasks, type LongTaskSpan } from "./clock.ts";
+import { nowUs, probeClockResolution } from "./clock.ts";
 import { MessageAccumulator, parseFodAsks } from "./parse.ts";
 import { assembleReport } from "./report.ts";
 import { createOpenRow, DeliveredLater, OpenRowIndex, stampsPresent } from "./rows.ts";
@@ -33,8 +33,6 @@ export class Tap {
   private report: TelemetryReport | null = null;
   /** Control downlink bytes → FoD messages (refusals). */
   private controlIn = new MessageAccumulator();
-  private longTaskSpans: LongTaskSpan[] = [];
-  private stopLongTasks: () => LongTaskSpan[] = () => [];
   /** Wall cost of each onMediaRead, µs — the recorder timing itself. */
   private readCosts: number[] = [];
 
@@ -46,10 +44,6 @@ export class Tap {
     marks_after_close: 0,
     first_write_conflicts: 0,
     byte_closure_ok: true,
-    long_tasks: 0,
-    long_task_total_us: 0,
-    long_tasks_outside_window: 0,
-    busy_rows_excluded: 0,
     clock_resolution_us: null,
     clock_probe_us: null,
     cross_origin_isolated: null,
@@ -65,7 +59,6 @@ export class Tap {
         ? globalThis.crossOriginIsolated
         : null;
     // Clock probe runs at finish() — not here — so it cannot inflate connect_ms.
-    this.stopLongTasks = watchLongTasks((span) => this.longTaskSpans.push(span));
   }
 
   /**
@@ -86,11 +79,6 @@ export class Tap {
     const id = this.streamSeq++;
     this.attributors.set(id, new StreamAttributor());
     return id;
-  }
-
-  /** A main-thread long task on the `performance.now()` clock (tests inject; the observer feeds). */
-  noteLongTask(span: LongTaskSpan) {
-    this.longTaskSpans.push(span);
   }
 
   /** `ask` = the control write was called. Stamp first; decoding the message is not the ask. */
@@ -243,7 +231,6 @@ export class Tap {
   /** Finalize and return the report. Idempotent. */
   finish(): TelemetryReport {
     if (this.report) return this.report;
-    this.longTaskSpans.push(...this.stopLongTasks());
 
     const probe = probeClockResolution();
     this.integrity.clock_resolution_us = probe.resolution_us;
@@ -274,7 +261,6 @@ export class Tap {
       install_t0_ms: this.install_t0_ms,
       first_ask_ms: this.first_ask_ms,
       closedRows: this.closedRows,
-      longTasks: this.longTaskSpans,
       integrity: this.integrity,
     });
     // Mirror judgement onto the live integrity object for callers that read tap.integrity.

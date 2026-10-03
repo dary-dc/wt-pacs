@@ -543,14 +543,10 @@ function sliceRiver(
     marks_after_close: 0,
     first_write_conflicts: 0,
     byte_closure_ok: true,
-    long_tasks: 0,
     clock_resolution_us: 5,
     clock_probe_us: 100,
     cross_origin_isolated: true,
     tap_read_cost_us: null,
-    long_task_total_us: 0,
-    long_tasks_outside_window: 0,
-    busy_rows_excluded: 0,
     open_rows: [],
   });
   assertEq(j.valid, false, "judge: open!=closed invalid");
@@ -630,47 +626,15 @@ function sliceRiver(
   assertEq(report.summary.integrity.open_rows, [{ kind: "interaction", frame_index: 3, ask_ordinal: 0, have: ["gesture", "ask", "ask_flush"] }], "open_rows says which row and what it has");
 }
 
-// Long tasks: windowed to the run; overlapping rows are flagged and set aside
+// The Tap runs in a worker, where no long task can be observed: the report claims no exclusion
 {
   const tap = new Tap(cfg());
-  const t0 = performance.now();
-  // A compile-like long task well before the first ask must not count.
-  tap.noteLongTask({ start_us: Math.round((t0 - 5000) * 1000), end_us: Math.round((t0 - 4900) * 1000) });
-  for (const idx of [1, 2, 3]) {
-    tap.gesture(idx);
-    tap.onControlWrite(fodRequest(idx));
-    const sid = tap.nextStreamId();
-    tap.onMediaRead(sid, mediaFor(idx));
-    tap.onDelivered(idx);
-  }
-  // A long task covering the whole run (all rows overlap it).
-  const tEnd = performance.now();
-  tap.noteLongTask({ start_us: Math.round((t0 - 1) * 1000), end_us: Math.round((tEnd + 1) * 1000) });
+  tap.onControlWrite(fodRequest(1));
+  tap.onMediaRead(tap.nextStreamId(), mediaFor(1));
+  tap.onDelivered(1);
   const report = tap.finish();
-  assertEq(report.summary.integrity.long_tasks, 1, "only the in-window long task counts");
-  assertEq(report.summary.integrity.long_tasks_outside_window, 1, "the pre-ask one is reported outside");
-  assert(report.summary.integrity.long_task_total_us > 0, "overlap total recorded");
-  assert(report.client_frames.every((r) => r.main_thread_busy_us > 0), "every row carries its busy overlap");
-  assertEq(report.summary.integrity.busy_rows_excluded, 2, "the two non-first rows are set aside");
-  assertEq(report.summary.distributions.bytes, null, "no usable rows remain");
-  assertEq(report.summary.integrity.valid, true, "busy rows do not void; they are excluded and counted");
-}
-
-// Long task disjoint from the run: nothing flagged
-{
-  const tap = new Tap(cfg());
-  for (const idx of [1, 2]) {
-    tap.onControlWrite(fodRequest(idx));
-    const sid = tap.nextStreamId();
-    tap.onMediaRead(sid, mediaFor(idx));
-    tap.onDelivered(idx);
-  }
-  const later = performance.now() + 10_000;
-  tap.noteLongTask({ start_us: Math.round(later * 1000), end_us: Math.round((later + 60) * 1000) });
-  const report = tap.finish();
-  assertEq(report.summary.integrity.long_tasks, 0, "disjoint long task not counted in window");
-  assertEq(report.summary.integrity.busy_rows_excluded, 0, "no rows set aside");
-  assertEq(report.summary.distributions.bytes?.count, 1, "the non-first row is usable");
+  const fields = [...Object.keys(report.summary.integrity), ...Object.keys(report.client_frames[0])];
+  assertEq(fields.filter((k) => /long_task|busy/.test(k)), [], "no long-task field in the report");
 }
 
 // MessageAccumulator reassembles split control messages

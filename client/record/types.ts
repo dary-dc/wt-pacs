@@ -70,8 +70,6 @@ export type ClientFrameRow = {
   bytes: number;
   chunks: number;
   stall: null;
-  /** Non-zero means the stamps may be late by this much; the row is then excluded. */
-  main_thread_busy_us: number;
   binding_term: string | null;
 };
 
@@ -124,12 +122,6 @@ export type Integrity = {
   marks_after_close: number;
   first_write_conflicts: number;
   byte_closure_ok: boolean;
-  /** Overlapping [first ask, last close]; compile before the first ask is not here. */
-  long_tasks: number;
-  long_task_total_us: number;
-  long_tasks_outside_window: number;
-  /** Usable rows set aside because a long task overlapped their stamps. */
-  busy_rows_excluded: number;
   clock_resolution_us: number | null;
   /** Cost of the finish-time clock probe (µs); auditable, not on the connect path. */
   clock_probe_us: number | null;
