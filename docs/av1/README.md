@@ -307,6 +307,67 @@ use, and where the learning is. Active threads are queue rows 24–29 ([`queue.m
 * **LCEVC** (row 19): closed until an open encoder exists and the decoder returns samples; cannot end
   exact at 14 bits.
 
+## Options to try (row SWEEP, 2026-10-03)
+
+Read from primary sources, nothing run: the AV1 spec (`AOMediaCodec/av1-spec` `5e04f3f`), dav1d
+1.5.4's source, libaom 3.15.1's, Chromium (`d84e3b8`), WebKit (`10740b3`), Android's framework
+(`1cdfff5`), AV2's reference software AVM (`v1.0.0`). Options rows 24–28 already hold — palette,
+intra block copy, tiles, dav1d-WASM threads, the base operating point in dav1d-WASM, the order of
+layers on the wire — are not repeated.
+
+**Worth a row** (queue rows 30–32):
+
+* **WebCodecs' `optimizeForLatency`.** Chromium maps it to dav1d's `max_frame_delay = 1`; without
+  it dav1d buffers up to ⌈√threads⌉ frames, Chromium's own comment says two before the first is out
+  (`media/filters/dav1d_video_decoder.cc`). That is WCAP's "holds 2 frames until `flush()`", and
+  `decode-av1-webcodecs.js` sets neither it nor anything but `prefer-software`, so it flushes every
+  unit — which is why WebCodecs has no G > 1 path (row 20). Chromium also gives dav1d 2–4 tile
+  threads by coded height (≥ 300, ≥ 700 rows), used only if a frame has tiles. Decides: frames out
+  per unit without a flush, exact, and the time against today's flush per unit. Container: yes.
+* **The base operating point through WebCodecs.** WebCodecs has no operating-point field (its AV1
+  registration defines none) and Chromium opens dav1d with `all_layers = 0` at operating point 0, the
+  whole stream. But each OBU's extension header carries its `spatial_id`, and dav1d at
+  `all_layers = 0` outputs the highest layer it holds when the temporal unit ends or on a drain
+  (`src/lib.c`, `output_picture_ready`). So a client that drops the top's OBUs should get the base
+  out of a native decoder 2–3× faster than dav1d-WASM (SPLIT10). Decides: the base out, identical to
+  native dav1d's at the base operating point, then the whole unit exact. Container: yes.
+* **AV2.** AVM v1.0.0 was tagged 2026-05-27 (BSD-3-Clause-Clear) and the specification announced
+  2026-06-09. Its encoder has `--lossless`, `--monochrome`, 10/12-bit coding, 1–16 operating-point
+  sets and S-frames; better lossless coding is claimed in reports of the release, *not confirmed
+  here* (the specification's and AOMedia's hosts are refused by this container). No browser decoder
+  exists. Decides: lossless bytes against libaom 3.15.1 and HTJ2K on the same series, exact, and the
+  reference decoder's time. Container: yes, natively.
+
+**Not worth a row, and why:**
+
+* **S-frames** overwrite every reference and are meant to be decoded on *another* stream's
+  references (spec, *Switch Frame*). A lossless residual is against the encoder's own prediction, so
+  a frame decoded on other references is not exact. No exact switch from a lossy stream.
+* **Super-resolution.** The spec's `AllLossless` needs `FrameWidth == UpscaledWidth`; with upscaling
+  a frame is lossless only at its coded width, and loop restoration runs. libaom 3.15.1 turns
+  super-resolution off under `--lossless`.
+* **Large-scale tile** (spec Annex D) serves camera arrays rendered from uncompressed anchor frames;
+  libaom writes it to IVF only and dav1d 1.5.4 does not decode it. A lossless frame's tiles already
+  decode independently — every in-loop filter is off — which is row 27's lever.
+* **Reference scaling** (a reference between ½ and 16× the frame's size) is what the scalable
+  encoder's spatial layers already use (rows 15, 18, 25).
+* **dav1d's `decode_frame_type`** (keyframes or intra frames only) and intra-only frames help a
+  scrub only at G > 1, which no series' bytes justify (§A1); an intra-only frame is not a random
+  access point (only a key frame resets the references).
+* **WebCodecs' AV1 encoder** takes a per-frame quantizer 0–255 in the browser: not this path.
+* **The order of layers on the wire** needs no AV1 parsing beyond the OBU header's `spatial_id`;
+  that is row 26's input, not a row.
+
+**Phones — blocked on devices** ([`queue.md`](queue.md) §Blocked). From source, not run: Android's
+public codec API names AV1 Main profiles only (8 and 10 bits; no High, so no 4:4:4 RGB, no
+Professional, so no 12-bit), and a handheld's performance class guarantees a hardware Main 10 decoder
+at level 4.1, whose 2 359 296-sample picture limit is under both tomosynthesis projection sets (4.9 and
+2.6 M samples need level 5.0). WebKit's in-process WebCodecs AV1 decoder is dav1d behind a wrapper
+that refuses anything but 8-bit 4:2:0 — so 4:0:0 and 10 bits fail there — unless the GPU process
+substitutes a hardware one, which was not traced. Whether a hardware decoder's read-back is exact is
+per platform (§A2). The client asks for `prefer-software`, so Chromium on a phone should run dav1d, as
+here; not checked on one.
+
 ## Prior evidence, not reproduced here
 
 An earlier private proof of concept measured parts of this. Its numbers are **not measured in this
