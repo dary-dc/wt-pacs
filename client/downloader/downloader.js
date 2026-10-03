@@ -119,7 +119,7 @@ function want(indices, askMs) {
 }
 
 function record(index, priority, askMs) {
-  const stamps = { ask: askMs, firstByte: 0, lastByte: 0, dispatched: 0, decodeStart: 0, decodeEnd: 0 };
+  const stamps = { ask: askMs, lastByte: 0, dispatched: 0, decodeStart: 0, decodeEnd: 0 };
   records.set(index, { state: "wire", gen: generation, priority, stamps });
 }
 
