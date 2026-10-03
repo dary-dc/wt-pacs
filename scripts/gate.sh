@@ -62,7 +62,7 @@ step "server: tests, default features"
 cargo test -p exact-server --quiet
 step "server: tests, telemetry feature"
 cargo test -p exact-server --features telemetry --quiet
-step "server: compiles with ring as the only crypto provider"
+step "server: compiles without io_uring (the pool path alone)"
 cargo check -p exact-server --no-default-features --features crypto-ring --all-targets --quiet
 step "common + ingest: wire, envelope and study-bundle tests"
 cargo test -p fod -p frame-envelope -p study-bundle --quiet

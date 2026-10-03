@@ -152,9 +152,9 @@ tables (`Tf/(Tf+RTT)` = 40.8/100.8). The netem grid above replaces that run.
 
 ## How it is built
 
-`client/transport-ts` carries the window as an opt-in, `connect(url, hash, { window })`: fixed
-`{ depth: N }`, or `{ depth: "auto", initial }` (`initial` 2 by default). Only the TypeScript client has it, and
-nothing sets it by default.
+`client/transport-ts` carried the window as an opt-in until 2026-10-03 (`connect(url, hash, { window })`: fixed
+`{ depth: N }`, or `{ depth: "auto", initial }`, `initial` 2 by default); only the TypeScript client had it, and
+nothing set it by default.
 
 ### The estimator, as built
 

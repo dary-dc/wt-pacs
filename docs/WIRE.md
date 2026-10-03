@@ -14,9 +14,10 @@ The study on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does w
 
 ## FoD messages
 
-On the control stream each message is `[4B LE len][JSON]` — little-endian, unlike the envelope —
-tagged by `op` (`common/fod`, `client/transport-ts/wire.ts`). The server refuses a length of 0 or
-over 4 MiB (`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
+FoD is *frames on demand*: the client's asks and the server's refusals. On the control stream
+each message is `[4B LE len][JSON]` — little-endian, unlike the envelope — tagged by `op`
+(`common/fod`, `client/transport-ts/wire.ts`). The server refuses a length of 0 or over 4 MiB
+(`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
 
 **A goodbye is not an error.** No client sends `end_session`: a session ends with the client closing
 it, a FIN on the control stream between messages, or a WebSocket Close. Each is a normal end, logged

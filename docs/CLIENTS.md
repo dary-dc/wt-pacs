@@ -43,6 +43,7 @@ the WASM `connect` takes as its third argument:
 | `wireBuffers` | the size of the wire buffer ring; unset or 0 keeps none |
 | `dialMs` | a dial whose `ready` has not settled by then is closed and rejected with a `DialTimeoutError`. The WASM client has no deadline and waits for ever |
 | `fill` | an opening fill carried in the session URL (WIRE.md §The opening ask); armed at once, never sent as `stream_frames` |
+| `readMin` | read the media stream through a BYOB reader, opt-in — §Reading a frame whole |
 
 **Three clauses the surface requires.** Each cost real time before it was written down.
 

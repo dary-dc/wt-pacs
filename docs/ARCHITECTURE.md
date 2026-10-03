@@ -238,7 +238,7 @@ the downloader against a stalling fake decoder so contention is forced; both are
 
 | capability | the harness's path | the downloader |
 | --- | --- | --- |
-| connect, single ask, fill; shared and per-frame stream modes | conformance `workerSafe`, `cancellable`, `bothStreamModes`; server `stream_frames_range_arrives_in_order`, `a_batch_arrives_whole_and_in_ask_order` | the same clauses plus `pushedFill`; `downloader.html` against the real server, byte-identical |
+| connect, single ask, fill; shared and per-frame stream modes | conformance `workerSafe`, `cancellable`, `bothStreamModes`; server `stream_frames_range_arrives_in_order` (`a_batch_arrives_whole_and_in_ask_order` was removed with `request_frames`, `202644d`) | the same clauses plus `pushedFill`; `downloader.html` against the real server, byte-identical |
 | a fill cancelled mid-way, the session still serving | `cancellable`; server `end_stream_stops_a_fill_on_the_wire` | `cancellable`; dispatch `lateFramesOfACancelledRequestAreDropped`, `aLateDoneDoesNotDropTheNewRequestsFrame`, `cancelCompletesAndUnblocksTheNextFill` |
 | a closed session noticed at once, waiters failed; a live one's frame owed its full wait | `noticesClose` | the same — an in-flight ask is woken at once; an ask after the closure re-dials and is served |
 | refusals delivered, none lost | `refusals.html` headless against a real server (`run_wire.sh`), both clients | a refused ask arrives with the server's reason; a refused fill through `onError` — dispatch `aRefusedFillReachesTheConsumer` |
