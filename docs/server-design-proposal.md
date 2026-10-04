@@ -589,7 +589,9 @@ surface rather than sideways into a sibling transport. `endpoint.rs` imports the
 * **Doc paths** (`scripts/check_links.py` checks them): `transport/server.rs` in
   `adr/reject-server-ordering.md` and `adr/telemetry-server-pipeline.md`; `transport/planner.rs` in
   `adr/disk-access.md` and `lab/window-harness/src/bin/ask_during_fill.rs`; `transport/pipeline.rs` in
-  `adr/telemetry-server-pipeline.md`.
+  `adr/telemetry-server-pipeline.md`; and `server/README.md`, whose diagrams and object table name the
+  files and types R4b moves and R4c renames — its diagrams are fenced, so the link check does not see
+  them, and they are corrected by hand.
 
 ### Commit order inside R4
 
