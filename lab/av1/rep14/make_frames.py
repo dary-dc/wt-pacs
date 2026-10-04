@@ -3,7 +3,7 @@
 
 d12: the two low bits apart, v >> 2 at 12 bits (dav1d only) + v & 3. w10: v >> (b - 10) at 10 bits +
 the b - 10 low bits, every stream WebCodecs takes. Each stream is libaom 3.15.1, lossless intra,
-`--tune-content=screen --sb-size=64` at PRESET; a frame is `[u32le len(top)][top unit][low unit]`.
+`--tune-content=screen --sb-size=64` at PRESET (aN: `--allintra --cpu-used=N`); a frame is `[u32le len(top)][top unit][low unit]`.
 Every unit is decoded alone by native dav1d, merged and matched with the series' checksum before a
 frame is written; HTJ2K is the served profile.
 
@@ -27,7 +27,7 @@ import depth  # noqa: E402
 from make_frames import htj2k  # noqa: E402
 from size import AOM, Set, decode_y4m, exact, ivf_units, timed  # noqa: E402
 
-PRESET = int(os.environ.get("PRESET", 0))
+PRESET = os.environ.get("PRESET", "0")
 FRAMES = int(os.environ.get("FRAMES", 2))
 FLAGS = ["--tune-content=screen", "--sb-size=64"]
 
@@ -40,7 +40,8 @@ def layouts(bits):
 def stream(build, planes, bits, work, preset):
     y4m, ivf = work / "in.y4m", work / "out.ivf"
     depth.write_y4m(planes, bits, planes[0].shape[1], planes[0].shape[0], y4m)
-    secs = timed([build / f"aom-{AOM}/bin/aomenc", "-q", "--ivf", "-o", ivf, "--lossless=1", f"--cpu-used={preset}",
+    mode = ["--allintra", f"--cpu-used={preset[1:]}"] if preset.startswith("a") else [f"--cpu-used={preset}"]
+    secs = timed([build / f"aom-{AOM}/bin/aomenc", "-q", "--ivf", "-o", ivf, "--lossless=1", *mode,
                   "--threads=1", f"--limit={len(planes)}", f"--bit-depth={bits}", f"--input-bit-depth={bits}",
                   f"--profile={2 if bits == 12 else 0}", "--monochrome", "--kf-max-dist=0", *FLAGS, y4m])
     return ivf_units(ivf), secs
@@ -145,7 +146,7 @@ def main():
     build, out = Path(build).resolve(), Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     if rest[0] == "--sweep":
-        sweep(build, out, [int(x) for x in rest[1].split(",")], rest[2:])
+        sweep(build, out, rest[1].split(","), rest[2:])
     else:
         frames(build, out, rest)
 
