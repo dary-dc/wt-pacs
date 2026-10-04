@@ -83,3 +83,30 @@ the faster presets decode slower — more bytes to entropy-decode. dav1d's threa
 without tiles (a lossless frame has no loop filters for them to run) and with tiles split the
 frame's entropy decoding: 2 threads ×0.50–0.68, 3 threads ×0.37–0.50. Frame by frame the best,
 `t4sb64@3`, is still 2.6–2.9× HTJ2K's time.
+
+**Fill** (`lab/av1/fill/run.mjs --cores 3`: row FILL's harness, the downloader against the real
+server behind the relay at 50 Mbit/s and 40 ms, headless Chromium 141; `--cores 3` makes 4× three
+slowed cores for the whole browser, not a quarter-core per thread, so its 4× AV1 times are longer
+than row FILL's; 12 rounds, Williams-ordered, 17 of 504 visits `VOID` and dropped, n = 9–12 a cell;
+**every frame of every visit exact**, 24 528 of 24 528; `--mutate sample` turned three arms to
+0/18). `EXT@T/D` is T threads × D decoders on frames `NNN.EXT`. Seconds to every frame on the page,
+medians:
+
+| arm | fluoroscopy 1× · 4× | MR 1× · 4× | ultrasound 1× · 4× |
+| --- | --- | --- | --- |
+| `htj2k` (3 decoders) | 1.73 · 1.75 | 1.98 · 1.99 | 3.15 · 3.18 |
+| `av1` (3 decoders, today) | 1.83 · 3.20 | 2.05 · 3.69 | 3.54 · 7.37 |
+| `av1/6` | 1.83 · 3.31 | 2.06 · 3.76 | 3.54 · 7.43 |
+| `av1-t4sb64@3/1` | 1.79 · 3.21 | 2.05 · 3.60 | 3.52 · 7.62 |
+| `av1-t4sb64@2/2` | 1.79 · 3.25 | 2.05 · 3.75 | 3.52 · 7.50 |
+| `av1-t4sb64@2/3` | 1.80 · 3.32 | 2.05 · 4.09 | 3.52 · 7.71 |
+| `av1-t4sb64@3/3` | 1.78 · 3.32 | 2.04 · 4.25 | 3.51 · 7.80 |
+
+At 1× every AV1 arm follows its bytes; threads trim the decoding left after the last byte by
+20–40 ms. At 4× AV1 is the clock in every arm, slower than HTJ2K in every paired fill (1.81–2.45×).
+The arms differ by −3 to +4 % on two series. Oversubscribing the three cores (2 × 3, 3 × 3 threads)
+costs 11–15 % on the MR. The decoder's total CPU work sets the fill's time, and only fewer coded
+symbols would cut it.
+
+**Pins.** As [`../fill`](../fill/README.md); `simd-mt.wasm` 635 278 B (`-pthread`,
+`PTHREAD_POOL_SIZE=4`), `simd-prof.wasm` 646 295 B. Nothing built or generated is committed.
