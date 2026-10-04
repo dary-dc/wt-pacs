@@ -5,7 +5,7 @@ exact are used; the page checks every merged frame against the series' checksum 
 
 A part frame is `[u8 n][u32le length × n][part × n]` — a lab framing, not a store format.
 
-usage: make_frames.py WORK OUT SET_DIR ...   [ARMS=name,...]  — README.md here
+usage: make_frames.py WORK OUT SET_DIR ...   [ARMS=name,...; default GREY or RGB below]  — README.md here
 """
 import json
 import os
@@ -33,6 +33,9 @@ ARMS = {
     "wc-low3+deflate": [("{p}top3", "av1:{v}", "wc"), ("{p}low3", "deflate", "deflate")],
     "j2k-low2+deflate": [("{p}top2", "j2k", "j2k"), ("{p}low2", "deflate", "deflate")],
 }
+# The arms timed by default: row 28's coding, the winners on bytes, and HTJ2K's split.
+GREY = ["av1-low2", "av1-low2+deflate", "av1-low3+deflate", "wc-low2+deflate", "wc-low3+deflate", "j2k-low2+deflate"]
+RGB = ["av1-direct", "wc-direct"]
 
 
 def codec_string(bits, ch):
@@ -42,7 +45,6 @@ def codec_string(bits, ch):
 def main():
     work, out, *sets = sys.argv[1:]
     work, out = Path(work).resolve(), Path(out).resolve()
-    wanted = os.environ.get("ARMS", ",".join(ARMS)).split(",")
     manifest = []
     for d in sets:
         s = Set(Path(d))
@@ -57,8 +59,8 @@ def main():
         entry = dict(name=s.name, width=s.w, height=s.h, channels=s.ch, signed=s.signed, offset=s.offset, arms={},
                      frames=[dict(truth=s.truth[i], htj2k=(dst / f"{i:03d}.htj2k").stat().st_size) for i in range(n)])
         p, v = ("rct" if s.ch == 3 else ""), encx.best(s)
-        for name in wanted:
-            spec = [(pl.format(p=p), c.format(v=v), codec) for pl, c, codec in ARMS[name]]
+        for name in os.environ["ARMS"].split(",") if "ARMS" in os.environ else (RGB if s.ch == 3 else GREY):
+            spec = [(pl.format(p=p).replace("rctdirect", "rct"), c.format(v=v), codec) for pl, c, codec in ARMS[name]]
             cells = [encx.cell_dir(work, s, pl, c) for pl, c, _ in spec]
             rows = [json.loads((c / "row.json").read_text()) if (c / "row.json").exists() else {} for c in cells]
             if not all(r.get("exact") == n for r in rows):

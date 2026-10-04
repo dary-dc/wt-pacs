@@ -8,7 +8,7 @@ Every stream is decoded and matched with the plane it was made from, frame by fr
 then decoded again from its stored bytes, merged, and matched with the checksum written when the series
 was fetched. An inexact stream or coding is reported and its bytes not used.
 
-usage: encx.py BUILD WORK OUT.json SET_DIR ...   [STAGE=bytes|tools JOBS=4]  — README.md here
+usage: encx.py BUILD WORK OUT.json SET_DIR ...   [STAGE=bytes|tools JOBS=4 FRAMES=8 PIXELS=8000000]  — README.md here
 """
 import json
 import os
@@ -26,6 +26,8 @@ sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE.parent / "llsize"))
 import llsize  # noqa: E402
 import size  # noqa: E402
+
+llsize.PIXELS = int(os.environ.get("PIXELS", llsize.PIXELS))
 
 # Row 28's best encoder variant per set.
 BEST = {"ct_lidc": "sb64", "dbtproj_ge": "sb64", "dbtproj_holo": "sb64"}
@@ -269,6 +271,7 @@ def codings(s, stage):
         out["av1.low2.low-screen"] = [(top, f"av1:{plain}"), (low, "av1:screen+sb64")]
         out["av1.low2.low-screen-nointrabc"] = [(top, f"av1:{plain}"), (low, "av1:screen+sb64+nointrabc")]
         out["av1.low2.low-screen-nopalette"] = [(top, f"av1:{plain}"), (low, "av1:screen+sb64+nopalette")]
+        out["av1.low2"] = [(top, f"av1:{v}"), (low, f"av1:{v}")]
         out[f"av1.low2.plain-{plain}"] = [(top, f"av1:{plain}"), (low, f"av1:{plain}")]
         for t in TOOLS:
             if t == "cfl-intra" and s.ch == 1:
