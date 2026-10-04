@@ -13,7 +13,6 @@ let up = false;
 let inFlight = 0;
 let maxInFlight = 0;
 let decodeSeq = 0;
-let warmed = false;
 
 const abs = () => performance.timeOrigin + performance.now();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -44,8 +43,6 @@ onmessage = async (e) => {
       await held();
       return void postMessage({ kind: "init-failed", reason: "the stand-in failed its init on purpose" });
     }
-    // The real decoder warms before it answers `ready`; the stand-in waits as long and says so.
-    if (m.warmup) warmed = !!(await fetch(m.warmup).catch(() => null))?.ok;
     if (hold === "ready") await held();
     up = true;
     postMessage({ kind: "ready" });
@@ -80,7 +77,6 @@ onmessage = async (e) => {
     stamps,
     decodeSeq: seq,
     maxInFlight,
-    warmed,
   });
   postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: bytes.length });
   inFlight -= 1;

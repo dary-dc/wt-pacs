@@ -53,8 +53,7 @@ profile the project serves: reversible 5/3, 5 levels, 64×64 blocks, RPCL, one l
 | `s512`, `s12` | 512², 1 × 16-bit / 12-bit, **signed** | `field` |
 | `cine512` | 512², 3 × 8-bit | `cine`: compresses like an ultrasound cine |
 | `ct512` | 512², 1 × 12-bit signed | `ct`: compresses like CT |
-| `warmup_c`, `warmup_g` | 160², colour / 16-bit grey, one frame | the client's warm-up frames (`client/downloader/warmup/`) |
-| `warmup_c92`, `warmup_g277` | 92² colour, 277² grey, one frame | the other shape's sample count, for `lab/decoder-warmup` |
+| `rig_c`, `rig_g` | 160², colour / 16-bit grey, one frame | the dispatch rig's real codestreams (`client/conformance/frames/`); the warm-up frames until 2026-10-03 |
 
 **Content decides the numbers.** `field` compresses about 1.25:1, which no modality does, and skews
 every decode number toward block decoding; `cine` and `ct` land near the ratios their modalities

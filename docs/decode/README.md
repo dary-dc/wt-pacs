@@ -588,12 +588,14 @@ the decoder's is not, and `new Function` would need `unsafe-eval` under a CSP. D
 
 If the first frames are slow because the engine tiers the decoder over them, that cost can be
 **moved**: decode a frame in each decoder while the session is still opening.
-`client/downloader/decoder.js` takes `warmup`, a codestream URL fetched beside its own WASM compile
-and decoded through the path a real frame takes, before that decoder answers `ready`. `decodersUp`
-gates dispatch on `ready`; nothing reaches the session. **Off by default, and the numbers below are
-why.**
+`client/downloader/decoder.js` took `warmup`, a codestream URL fetched beside its own WASM compile
+and decoded through the path a real frame takes, before that decoder answered `ready`. `decodersUp`
+gates dispatch on `ready`; nothing reached the session. **Removed on 2026-10-03** by the owner's
+ruling: it moves only per-frame waits, not the page's clock (below). The option, its rig clause,
+`lab/decoder-warmup/` and the frames' `ready` stamp are at tag `archive/downloader-opts-2026-10-03`;
+the numbers stay here.
 
-`lab/decoder-warmup/`: four arms interleaved with the order rotated, 12 rounds, a 12-frame fill on
+`lab/decoder-warmup/` (removed, at the tag): four arms interleaved with the order rotated, 12 rounds, a 12-frame fill on
 three decoders, a fresh page and session per visit, loopback. **none** · **mismatch** (the other
 set's shape) · **mismatch-sized** (the other shape at the matching sample count) · **match**. The
 shipped frames: `colour-8.j2c`, 160×160×3 8-bit, 6 708 B; `grey-16.j2c`, 160×160 16-bit, 38 331 B.
@@ -663,7 +665,7 @@ of 7 better with the warm-up:
 On the lab's transport the session is ready early and the warm-up was judged not to reach the page
 (above). The workstation's other transport dials longer — a session ready ~1.5 s after navigation on
 an 80 ms link, by its measurement — so the question becomes what a warm-up costs, what it saves, and
-how long an idle window it needs. [`../../lab/decoder-warmup/size.mjs`](../../lab/decoder-warmup/size.mjs)
+how long an idle window it needs. `lab/decoder-warmup/size.mjs` (removed, at tag `archive/downloader-opts-2026-10-03`)
 (row 85): one decoder (the package), a fresh browser context per sample, compiled from a buffer as
 `decoder.js` does, then the warm-up, then the series' frames 0–5; 12 rounds, arms and 1× / 4× rotated
 inside each; every frame checked against the encoder's input. Warm-ups: the shipped 160² frame
@@ -707,7 +709,7 @@ warm-up's cost the first frame is sooner by part of `s1`; past it, by all of it.
   fill on colour at 1× and 77 at 4× (CT 15 and 63), paid for with 18–85 decoder-ms of warm-up in the
   idle window. The workstation's ~190 decoder-ms is its own measurement, not reproduced here.
 
-**The `ready` stamp.** Every frame now carries `stamps.decoderReady`, the moment its decoder's
+**The `ready` stamp** (removed with the option). Every frame carried `stamps.decoderReady`, the moment its decoder's
 `ready` reached the downloader, beside `lastByte` and `dispatched`: `lastByte − decoderReady` is the
 window a warm-up had, per frame, on whatever transport the page runs. `dispatch-rig.ts` holds it to
 no sooner than a stand-in decoder's delayed `ready` and never after the frame's dispatch; a stamp
@@ -715,18 +717,18 @@ taken at the worker's creation, one never copied, and one taken after dispatch e
 
 **What this is not.** One decoder on the page's main thread, not three workers sharing four cores;
 the headless shell; the package decoder; 4× is a cgroup quota whose tick shows in the 4× ranges. The
-host is not saturated at one decoder. Whether the warm-up should be on by default is still the
-workstation's call per transport — the table says what it costs and the stamp says whether it hid.
+host is not saturated at one decoder. The table says what a warm-up costs; the option is gone
+(§Warming the decoders).
 
 ## A frame that did not decode
 
 The wrapper reports nothing: it logs an `ojph error` and returns, and `decoder.js` reuses **one**
-`HTJ2KDecoder` across every frame. Decoder 2.4.11, one reused object, the two shipped warm-up
-codestreams:
+`HTJ2KDecoder` across every frame. Decoder 2.4.11, one reused object, the two 160² codestreams
+the dispatch rig decodes (`client/conformance/frames/`, the warm-up frames until 2026-10-03):
 
 | input | `getFrameInfo()` | `getDecodedBuffer().length` | the pixels |
 | --- | --- | ---: | --- |
-| `warmup/colour-8.j2c`, 6 708 B | 160x160x3@8 | 76 800 | the frame |
+| `colour-8.j2c`, 6 708 B | 160x160x3@8 | 76 800 | the frame |
 | the same, truncated to 60 % or 25 % | 160x160x3@8 | 76 800 | **different, and nothing is reported** |
 | 100 B of it, an empty body, a README | **0x0x0@0** | 76 800 | **the previous frame's, byte for byte** |
 
@@ -818,7 +820,7 @@ new: the one 8-bit frame that still takes a range. Mutants, each caught: min −
 the range read from the narrowed unsigned sample (s12 and s512, 174), the skip widened to 8-bit grey
 in the wrapper or in `unranged` (g8, 87), `unranged` never true (c512, 87); the row-80 wrapper itself
 fails on c512 alone. In the gate, `dispatch-rig.ts` holds `decoder.js` to 0..255 on the colour
-warm-up frame through the package (pixels 0..199) and through `range-glue.js` (which answers −7..7);
+160² frame through the package (pixels 0..199) and through `range-glue.js` (which answers −7..7);
 the constant dropped or one short fails both.
 
 **The WASM call** (`build_arms.mjs`, Node, container, 20 timed rounds rotated, two runs led by either
@@ -1025,7 +1027,6 @@ truncation (117/120 conformance). The TypeScript client's `readMin` is a separat
   is a CSP without `unsafe-eval`, a deploy decision, or a device cell where the glue's compile is
   no longer hidden.
 * A heap floor chosen for first-frame latency; the package's own build re-timed since D10.
-* The device cell that decides whether the warm-up is on (§Warming the decoders).
 * BYOB's ~12 ms first frame, and what an errored stream owes the frame in flight (§The BYOB read
   path).
 * Looked at and dropped, not measured: GPU decode (nothing runs in a browser), fewer decompositions

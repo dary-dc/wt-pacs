@@ -42,6 +42,7 @@ bash client/transport-ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
 node client/transport-ts/test/run.mjs | tail -1
 node client/downloader/decoder.test.mjs
+node client/downloader/downloader.test.mjs
 python3 server/dev-server.test.py 2>&1 | tail -1
 
 step "client: worker-safe (no artifact reaches for window)"
