@@ -46,7 +46,20 @@ matches the checksum written when the series was fetched before it writes a fram
 
 **Preset.** The fastest preset within 2 % of cpu0's bytes, on the first two frames of each series:
 good-quality 0–6, then `--allintra` 6–9. The sweep ran four encodes at once on four cores, so its
-seconds rank the presets and are not ENC's uncontended figures.
+seconds rank the presets and are not ENC's uncontended figures. Bytes over cpu0's on the two frames:
+
+| set, layout | 1–2 | 3–6 | a6 | a7 | a8 | a9 |
+| --- | --- | --- | --- | --- | --- | --- |
+| system 1, d12 | 1.054 | 0.994–0.995 | 1.000 | 0.999 | 1.064 | 1.062 |
+| system 1, w10 | 1.000 | 1.000–1.002 | 1.005 | 1.005 | 1.011 | 1.008 |
+| system 2, d12 | 1.075 | 0.999–1.000 | 1.001 | 1.002 | 1.086 | 1.085 |
+| system 2, w10 | 1.002 | 1.001–1.003 | 1.006 | 1.008 | 1.018 | 1.016 |
+| CT, d12 | 1.069 | 1.002–1.008 | 1.016 | 1.022 | 1.133 | 1.176 |
+| CT, w10 | 1.001 | 1.003–1.007 | 1.015 | 1.023 | 1.108 | 1.130 |
+
+At presets 1–2 libaom codes the 8-bit two-bit stream 20 % larger, which presets 0 and 3–7 do not.
+On the whole series the CT's a6 is 1.026 (d12) and 1.021 (w10) of cpu0, so its fast preset is cpu6
+(1.010, 1.009); the projections' a7 (d12) is 1.000 and 1.002, a9 (w10) 1.008 and 1.013.
 
 **Decode** (`decode.mjs`): the product's `decoder.js` in headless Chromium, one worker an arm, one
 warm-up frame, then every frame one at a time; the time is the worker's `decodeStart`–`decodeEnd`
