@@ -105,7 +105,7 @@ Full gate, link check, then push.
 
 ### Row 115
 
-The server PR's design is `docs/server-design-proposal.md` on `claude/server-design` — read it whole first.
+The server PR's design is the proposal file under `docs/` on branch `claude/server-design` (server-design-proposal.md) — read it whole first.
 This row builds only the commits that need no owner decision; the refactors R0–R4 wait for decisions D1,
 D3–D7 (add nothing for them). Work on `claude/server-design` and push only to it — **not** to
 `claude/unified-2026-09-23`; the branch is rebased onto `main` after PR #33 merges.
