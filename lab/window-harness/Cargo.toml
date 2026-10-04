@@ -8,6 +8,15 @@ description = "Headless WebTransport client for window-saturation / HoL lab (sca
 name = "window-harness"
 path = "src/main.rs"
 
+[[bin]]
+name = "rebind-probe"
+path = "src/bin/rebind_probe.rs"
+
+[features]
+# The RFC 8879 decompressor, so the probe can negotiate compression with a server built with
+# exact-server's `cert-compression`. docs/ARCHITECTURE.md §What production adds.
+cert-compression = ["rustls/brotli", "rustls/zlib"]
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }

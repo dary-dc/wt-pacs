@@ -1,9 +1,7 @@
 //! SBND on-disk format and streaming writer (ingest).
 
-pub mod format;
-pub mod writer;
+mod format;
+mod writer;
 
-pub use format::{
-    parse_layout, read_layout, ParsedLayout, HEADER_SIZE, INDEX_ENTRY_SIZE, MAGIC, VERSION,
-};
+pub use format::{read_layout, ParsedLayout};
 pub use writer::{write_bundle, BundleWriter};

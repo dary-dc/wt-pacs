@@ -1,33 +1,20 @@
-# wt-pacs lab (scaffolding)
+# lab
 
-Measurement for [`docs/window-saturation-experiment.md`](../docs/window-saturation-experiment.md)
-and Q2 (head-of-line). **No product crate depends on these.**
+Measurement only: no product crate depends on anything here. Each directory reproduces a claim a doc
+cites; the doc holds the number, the directory holds how to get it. Arms are interleaved with
+`order.mjs` (`scripts/order.py` for shell), which the gate tests.
 
-## Crates
+| where | what |
+| --- | --- |
+| `window-harness/` | headless Rust client: saturate, depth and stall modes; `first_ask`, `cold_open`, `fill_order`, `idle_sessions`, `rebind_probe`, `ask_during_fill` |
+| `scripts/` | the impaired link (`link_impair.py`, checked by `link_impair_check.sh`, `tun_check.sh`) and the cell drivers (`*_cells.sh`) — `docs/rig-limits.md` §3 |
+| `page-open/`, `dial-deadline/`, `other-clients/` | the session open — `docs/ARCHITECTURE.md` §The session open |
+| `downloader-campaign/`, `fill-at-start/`, `early-messages/`, `worker-leak/`, `session-survival/` | the downloader — `docs/ARCHITECTURE.md` |
+| `decode-bench/`, `decode-first-frame/`, `decode-tail/`, `decoder-memory/`, `paint-floor/` | the decoder and the paint — `docs/decode/README.md` |
+| `stream-shape/`, `tcp-fallback/` | the stream shape under loss, the WebSocket and the race — `docs/adr/stream-shape.md`, `docs/transport/transport-conclusions.md` |
+| `disk-access-bench/` | the server's read path — `docs/adr/disk-access.md` |
+| `telemetry-bench/`, `telemetry-cost/` | what telemetry costs — `docs/adr/telemetry-*.md` |
+| `clock-resolution/`, `idle-sessions/` | the browser's clock floor and what an idle session survives — `docs/rig-limits.md` §6, `docs/adr/transport-idle-sessions.md` |
+| `fixtures/`, `traces/` | studies and link traces the cells use |
 
-| Crate | Purpose |
-| ----- | ------- |
-| `window-harness` | Headless client — `--mode saturate` (E1), `--depth` + traces (E2), `--mode stall` (pathological client). Stream-shape cells need `--reader-mode open` |
-| `cold-page-bench` | Warm/cold `frame_slice` + heartbeat stall (E3) |
-| `telemetry-bench` | Telemetry pipeline microbench: emit seams under contention, drain shapes at scale — no network, no product crate. See `docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md` §5 |
-
-## Run
-
-```bash
-./lab/scripts/gen_tf_fixtures.sh          # ~32 KB / ~250 KB studies
-./lab/scripts/e1_saturation_sweep.sh      # → .local/measurements/E1_SATURATION.tsv
-./lab/scripts/e2_miss_cost_sweep.sh       # → .local/measurements/E2_MISS_COST.tsv
-cargo run -p cold-page-bench --release -- --study lab/fixtures/queue_large/queue_large.sbnd
-
-# Server telemetry pipeline baseline (docs/telemetry/analysis-scale-and-serving-path-2026-09-06.md §5)
-lab/scripts/telemetry_bench_matrix.sh                       # → .local/measurements/telemetry-bench-*.jsonl
-SERVER_DEFAULT=… SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
-  lab/scripts/telemetry_e2e_baseline.sh                     # → .local/measurements/telemetry-e2e-*.jsonl
-SERVER_TELEMETRY=… BIND=127.0.0.1 HARNESS_IPV4=1 \
-  lab/scripts/telemetry_kill_test.sh                        # SIGKILL mid-run: rows + timer summary survive
-```
-
-Focused defaults: RTT≈0 (localhost read pacing). Add netem for RTT axis later.
-
-This lane's campaign drivers (`lab/transport/`, extra fixtures/traces) are on tag
-`archive/transport-lab-2026-09`. Restore: see [`docs/transport/README.md`](../docs/transport/README.md).
+Older campaign drivers are on tag `archive/transport-lab-2026-09`.

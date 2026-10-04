@@ -4,20 +4,30 @@ export type Us = number; // integer microseconds
 
 export type RowKind = "preload" | "interaction";
 
-/** The first three close a row; the rest are failures. */
+/** The first two close a row; the rest are failures. */
 export type ClosedAt =
   | "last_byte"
   | "delivered"
-  | "batch_delivered"
   | "refused"
   | "timeout"
   | "error";
 
-export const OK_CLOSED_AT: readonly ClosedAt[] = ["last_byte", "delivered", "batch_delivered"];
+export const OK_CLOSED_AT: readonly ClosedAt[] = ["last_byte", "delivered"];
 
 export type ChunkMark = {
   t_us: Us;
   cum: number;
+};
+
+/** A frame the attributor has seen whole: its wire timing and where it sat in its stream. */
+export type FrameTiming = {
+  frame_index: number;
+  first_byte_us: number;
+  last_byte_us: number;
+  chunks: number;
+  bytes: number;
+  start: number;
+  end: number;
 };
 
 export type FrameFootprint = {
@@ -71,8 +81,6 @@ export type ClientFrameRow = {
   bytes: number;
   chunks: number;
   stall: null;
-  /** Non-zero means the stamps may be late by this much; the row is then excluded. */
-  main_thread_busy_us: number;
   binding_term: string | null;
 };
 
@@ -98,7 +106,7 @@ export type IntegrityJudgement = {
   invalid_reasons: string[];
 };
 
-/** Cost of the recorder's own read path — the G5 guard. Null when no read was observed. */
+/** Cost of the recorder's own read path. Null when no read was observed. */
 export type TapReadCost = {
   count: number;
   p50_us: number;
@@ -125,12 +133,6 @@ export type Integrity = {
   marks_after_close: number;
   first_write_conflicts: number;
   byte_closure_ok: boolean;
-  /** Overlapping [first ask, last close]; compile before the first ask is not here. */
-  long_tasks: number;
-  long_task_total_us: number;
-  long_tasks_outside_window: number;
-  /** Usable rows set aside because a long task overlapped their stamps. */
-  busy_rows_excluded: number;
   clock_resolution_us: number | null;
   /** Cost of the finish-time clock probe (µs); auditable, not on the connect path. */
   clock_probe_us: number | null;

@@ -1,0 +1,418 @@
+/**
+ * What every session does whatever carries its bytes: one waiter per asked frame, a fill pushed
+ * as it lands, refusals, and the reader of `[4B BE len][4B BE index][codestream…]`. The carrier —
+ * WebTransport (`session.ts`) or a WebSocket (`ws-session.ts`) — only dials, sends and feeds bytes.
+ */
+
+import { MAX_FRAME_LEN, type FodMsg } from "./wire.ts";
+
+const FRAME_TIMEOUT_MS = 15_000;
+
+export type ConnectOptions = {
+  /** A fill the session URL carries, served behind the accept. docs/ARCHITECTURE.md */
+  fill?: OpeningFill;
+  /** Wire buffers to keep for reuse; 0 allocates one per frame. docs/decode/README.md §The wire buffer ring */
+  wireBuffers?: number;
+  /** ms: a dial whose `ready` has not settled by then is closed and rejected with a `DialTimeoutError`.
+   *  docs/ARCHITECTURE.md §A dial that never settles */
+  dialMs?: number;
+  /** Bytes: read each frame straight into its wire buffer, a read resolving at no fewer than this
+   *  many (BYOB `{min}`); unset, the default reader. WebTransport only. docs/CLIENTS.md §Reading a frame whole */
+  readMin?: number;
+};
+
+export type OpeningFill = {
+  from: number;
+  to: number;
+  onFrame: (f: FrameResult) => void;
+  onError: (frameIndex: number, reason: string) => void;
+};
+
+/** Times are `performance.now()` milliseconds; `lastChunkMs` is when the whole envelope was parsed. */
+export type FrameResult = {
+  frameIndex: number;
+  bytes: Uint8Array;
+  timing: { askMs: number; lastChunkMs: number };
+};
+
+/** Closes a dial whose `ready` outlives `ms`, so an abandoned dial leaves nothing open. */
+export function settleWithin(ready: Promise<unknown>, close: () => void, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      // First: `close()` rejects a connecting `ready` at once, and the race must see this error.
+      reject(Object.assign(new Error(`the dial did not settle in ${ms} ms`), { name: "DialTimeoutError" }));
+      close();
+    }, ms);
+  });
+  return Promise.race([ready, late]).then(() => {}).finally(() => clearTimeout(timer));
+}
+
+export function closedReasonOf(info: { closeCode?: number; reason?: string } | undefined): string {
+  const code = info?.closeCode ?? 0;
+  const why = info?.reason ? `: ${info.reason}` : "";
+  return `session closed (code ${code})${why}`;
+}
+
+type Waiter = {
+  resolve: (v: { bytes: Uint8Array; receivedMs: number }) => void;
+  reject: (e: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+/** A fill pushed as it lands: what is still owed, and where each frame goes. No timer per frame. */
+type Fill = {
+  pending: Set<number>;
+  askMs: number;
+  onFrame: (f: FrameResult) => void;
+  onError: (frameIndex: number, reason: string) => void;
+};
+
+/**
+ * The ring: a frame is read into a buffer the consumer hands back, so a fill's peak is the pool
+ * and not the series. A buffer too small for the frame being read is dropped rather than grown.
+ */
+class WireBuffers {
+  private free: ArrayBuffer[] = [];
+
+  constructor(private readonly cap: number) {}
+
+  take(len: number): Uint8Array {
+    const buf = this.free.pop();
+    return new Uint8Array(buf && buf.byteLength >= len ? buf : new ArrayBuffer(len), 0, len);
+  }
+
+  release(buffer: ArrayBuffer) {
+    if (this.free.length < this.cap) this.free.push(buffer);
+  }
+}
+
+export abstract class FrameSession {
+  private waiters = new Map<number, Waiter>();
+  private fill: Fill | null = null;
+  /** `performance.now()` of the last byte any stream delivered: what a dead path stops moving. */
+  private lastByteAt = 0;
+  private reads = 0;
+  /** Set once the session is gone; a waiter armed after this would only reach the timeout. */
+  private closedReason: string | null = null;
+  private readonly wire: WireBuffers;
+  private readonly readMin: number;
+
+  protected constructor(options: ConnectOptions) {
+    this.wire = new WireBuffers(options.wireBuffers ?? 0);
+    this.readMin = options.readMin ?? 0;
+  }
+
+  protected abstract sendFod(msg: FodMsg): Promise<void>;
+
+  abstract close(): void;
+
+  /** First reason wins: the stream ending and `closed` settling are the same event twice. */
+  protected failAll(reason: string) {
+    this.closedReason ??= reason;
+    const fill = this.fill;
+    this.fill = null;
+    for (const [index, w] of this.waiters) {
+      clearTimeout(w.timer);
+      w.reject(new Error(`frame ${index} unavailable: ${this.closedReason}`));
+    }
+    this.waiters.clear();
+    // A fill that lost a frame is not complete: what it was still owed is named, not dropped.
+    if (fill) for (const index of fill.pending) fill.onError(index, this.closedReason);
+  }
+
+  /** Throws, rather than rejecting, so a refused ask never reaches the wire. */
+  private armWaiter(frameIndex: number): Promise<{ bytes: Uint8Array; receivedMs: number }> {
+    if (this.closedReason) throw new Error(`frame ${frameIndex} unavailable: ${this.closedReason}`);
+    if (this.waiters.has(frameIndex)) throw new Error(`frame ${frameIndex} already requested`);
+    return new Promise((resolve, reject) => {
+      const armedAt = performance.now();
+      // Late when the session goes quiet, not when the ask is old: a long burst still owes its tail.
+      const expire = () => {
+        const quiet = performance.now() - Math.max(armedAt, this.lastByteAt);
+        if (quiet < FRAME_TIMEOUT_MS) return void (w.timer = setTimeout(expire, FRAME_TIMEOUT_MS - quiet));
+        this.waiters.delete(frameIndex);
+        reject(new Error(`timeout waiting for frame ${frameIndex}: no byte for ${FRAME_TIMEOUT_MS} ms`));
+      };
+      const w = { resolve, reject, timer: setTimeout(expire, FRAME_TIMEOUT_MS) };
+      this.waiters.set(frameIndex, w);
+    });
+  }
+
+  /** An asked frame settles its waiter; a fill frame goes straight to the fill's callback. */
+  private deliver(frameIndex: number, bytes: Uint8Array, receivedMs: number) {
+    const fill = this.fill;
+    const owed = fill?.pending.delete(frameIndex) ?? false;
+    const w = this.waiters.get(frameIndex);
+    if (w) {
+      clearTimeout(w.timer);
+      this.waiters.delete(frameIndex);
+      w.resolve({ bytes, receivedMs });
+      return;
+    }
+    if (fill && owed) {
+      fill.onFrame(toResult(frameIndex, fill.askMs, bytes, receivedMs));
+    }
+  }
+
+  protected failWaiter(frameIndex: number, reason: string) {
+    const w = this.waiters.get(frameIndex);
+    const owed = this.fill?.pending.delete(frameIndex) ?? false;
+    if (!w) {
+      if (owed) this.fill?.onError(frameIndex, reason);
+      return;
+    }
+    clearTimeout(w.timer);
+    this.waiters.delete(frameIndex);
+    w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
+  }
+
+  protected onControl(msg: FodMsg) {
+    if (msg.op === "frame_error") this.failWaiter(msg.frame_index, msg.reason ?? "frame error");
+  }
+
+  protected newAccumulator(): ByteAccumulator {
+    return new ByteAccumulator(() => (this.lastByteAt = performance.now()));
+  }
+
+  /** Read envelopes until the stream ends. docs/CLIENTS.md#a-truncated-frame-is-a-failure */
+  protected async pumpFramedStream(stream: ReadableStream<Uint8Array>) {
+    const onRead = () => {
+      this.lastByteAt = performance.now();
+      this.reads += 1;
+    };
+    let next: (() => Promise<Envelope | null>) | null = null;
+    if (this.readMin) {
+      // A stream that is not a byte stream has no BYOB reader: it is read the default way.
+      const reader = byobReader(stream);
+      if (reader) next = () => readEnvelopeInto(reader, this.wire, this.readMin, onRead);
+    }
+    if (!next) {
+      const reader = stream.getReader();
+      const buf = new ByteAccumulator(onRead);
+      next = () => readEnvelope(reader, buf, this.wire);
+    }
+    try {
+      for (;;) {
+        const env = await next();
+        if (!env) break;
+        if (env.ok) {
+          this.deliver(env.index, env.codestream, performance.now());
+          continue;
+        }
+        // One stream carrying the whole run loses every frame behind the cut one too.
+        if (env.index >= 0) this.failWaiter(env.index, env.lost);
+        break;
+      }
+    } catch {
+      /* stream ended */
+    }
+  }
+
+  async requestExactFrame(frameIndex: number): Promise<FrameResult> {
+    const askMs = performance.now();
+    const pending = this.armWaiter(frameIndex);
+    const armed = this.waiters.get(frameIndex)!;
+    try {
+      await this.sendFod({ op: "request_frame", frame: frameIndex });
+    } catch (e) {
+      pending.catch(() => {});
+      if (this.waiters.get(frameIndex) === armed) {
+        clearTimeout(armed.timer);
+        this.waiters.delete(frameIndex);
+      }
+      throw e;
+    }
+    const { bytes, receivedMs } = await pending;
+    return toResult(frameIndex, askMs, bytes, receivedMs);
+  }
+
+  /**
+   * A fill pushed as it lands, on the wire as `stream_frames`: no waiter and no timer per frame,
+   * so `endStream()` or a later fill simply drops what is still owed. docs/CLIENTS.md#fills-are-pushed
+   */
+  fillFrames(
+    from: number,
+    to: number,
+    onFrame: (f: FrameResult) => void,
+    onError: (frameIndex: number, reason: string) => void = () => {},
+  ): number {
+    if (to < from) throw new Error("fillFrames: to < from");
+    if (this.closedReason) throw new Error(`session unavailable: ${this.closedReason}`);
+    const askMs = this.armFill(from, to, onFrame, onError);
+    // A write that fails means the session is going, and its closure names what the fill owed.
+    this.sendFod({ op: "stream_frames", from, to }).catch(() => {});
+    return askMs;
+  }
+
+  protected armFill(
+    from: number,
+    to: number,
+    onFrame: (f: FrameResult) => void,
+    onError: (frameIndex: number, reason: string) => void,
+  ): number {
+    const askMs = performance.now();
+    const pending = new Set<number>();
+    for (let i = from; i <= to; i++) pending.add(i);
+    this.fill = { pending, askMs, onFrame, onError };
+    return askMs;
+  }
+
+  async endStream() {
+    this.fill = null;
+    await this.sendFod({ op: "end_stream" });
+  }
+
+  stats() {
+    return {
+      closed: this.closedReason,
+      inFlight: this.waiters.size,
+      lastByteAt: this.lastByteAt,
+      mediaReads: this.reads,
+    };
+  }
+
+  /** A wire buffer the consumer has finished with, back into the ring. */
+  releaseWireBuffer(buffer: ArrayBuffer) {
+    this.wire.release(buffer);
+  }
+}
+
+function toResult(frameIndex: number, askMs: number, bytes: Uint8Array, receivedMs: number): FrameResult {
+  return { frameIndex, bytes, timing: { askMs, lastChunkMs: receivedMs } };
+}
+
+/** A frame off a media stream, or the index of the one a stream that ended mid-frame lost. */
+type Envelope =
+  | { ok: true; index: number; codestream: Uint8Array }
+  | { ok: false; index: number; lost: string };
+
+const be32 = (b: Uint8Array) => new DataView(b.buffer, b.byteOffset, 4).getUint32(0, false);
+export const le32 = (b: Uint8Array) => new DataView(b.buffer, b.byteOffset, 4).getUint32(0, true);
+
+/** Read until `buf` holds `n` bytes; false when the stream ended before that. */
+export async function fillTo(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  buf: ByteAccumulator,
+  n: number,
+): Promise<boolean> {
+  while (buf.length < n) {
+    const { value, done } = await reader.read();
+    if (done) return false;
+    if (value) buf.push(value);
+  }
+  return true;
+}
+
+/** `[4B BE len][4B BE index][codestream…]`: the index is read first so a loss can be named. */
+async function readEnvelope(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  buf: ByteAccumulator,
+  wire: WireBuffers,
+): Promise<Envelope | null> {
+  if (!(await fillTo(reader, buf, 4))) return null;
+  const len = be32(buf.take(4));
+  if (len < 4 || len > MAX_FRAME_LEN) throw new Error(`invalid frame length ${len}`);
+  if (!(await fillTo(reader, buf, len))) {
+    if (buf.length < 4) return { ok: false, index: -1, lost: "truncated before its index" };
+    const index = be32(buf.take(4));
+    return { ok: false, index, lost: `truncated: ${buf.length} of ${len - 4} bytes` };
+  }
+  return { ok: true, index: be32(buf.take(4)), codestream: buf.take(len - 4, wire.take(len - 4)) };
+}
+
+/** A BYOB reader with `read(view, { min })`, which this TypeScript's DOM library does not have yet. */
+type MinReader = {
+  read(view: Uint8Array, opts: { min: number }): Promise<{ value?: Uint8Array; done: boolean }>;
+};
+
+function byobReader(stream: ReadableStream<Uint8Array>): MinReader | null {
+  try {
+    return stream.getReader({ mode: "byob" }) as unknown as MinReader;
+  } catch {
+    return null;
+  }
+}
+
+/** `readEnvelope` through a BYOB reader: the codestream lands in its wire buffer, no copy. */
+async function readEnvelopeInto(
+  reader: MinReader,
+  wire: WireBuffers,
+  min: number,
+  onRead: () => void,
+): Promise<Envelope | null> {
+  const head = await readInto(reader, new Uint8Array(8), min, onRead);
+  if (head.filled === 0) return null;
+  if (head.filled < 4) return { ok: false, index: -1, lost: "truncated before its index" };
+  const len = be32(head.bytes);
+  if (len < 4 || len > MAX_FRAME_LEN) throw new Error(`invalid frame length ${len}`);
+  if (head.filled < 8) return { ok: false, index: -1, lost: "truncated before its index" };
+  const index = be32(head.bytes.subarray(4));
+  const body = await readInto(reader, wire.take(len - 4), min, onRead);
+  if (body.filled < len - 4) return { ok: false, index, lost: `truncated: ${body.filled} of ${len - 4} bytes` };
+  return { ok: true, index, codestream: body.bytes };
+}
+
+/** Fill `view`, each read resolving at `min` bytes or the rest; a cut stream's last read is done with bytes. */
+async function readInto(reader: MinReader, view: Uint8Array, min: number, onRead: () => void) {
+  // Each read detaches the buffer it was given and hands back its successor, so `view` is read once.
+  const { byteOffset, length } = view;
+  let buffer = view.buffer as ArrayBuffer;
+  let filled = 0;
+  while (filled < length) {
+    const rest = length - filled;
+    const { value, done } = await reader.read(new Uint8Array(buffer, byteOffset + filled, rest), {
+      min: Math.min(rest, min),
+    });
+    if (value) {
+      buffer = value.buffer as ArrayBuffer;
+      filled += value.byteLength;
+      if (value.byteLength) onRead();
+    }
+    if (done) break;
+  }
+  return { bytes: new Uint8Array(buffer, byteOffset, length), filled };
+}
+
+export class ByteAccumulator {
+  private parts: Uint8Array[] = [];
+  private len = 0;
+
+  constructor(private onBytes: () => void) {}
+
+  push(chunk: Uint8Array) {
+    this.onBytes();
+    this.parts.push(chunk);
+    this.len += chunk.length;
+  }
+
+  get length() {
+    return this.len;
+  }
+
+  /** Consume `n` bytes from the front, into `out` when the caller owns a buffer for them. */
+  take(n: number, out: Uint8Array = new Uint8Array(n)): Uint8Array {
+    if (n > this.len) throw new Error("take past length");
+    let filled = 0;
+    while (filled < n) {
+      const head = this.parts[0];
+      const need = n - filled;
+      if (head.length <= need) {
+        out.set(head, filled);
+        filled += head.length;
+        this.parts.shift();
+      } else {
+        out.set(head.subarray(0, need), filled);
+        this.parts[0] = head.subarray(need);
+        filled += need;
+      }
+    }
+    this.len -= n;
+    return out;
+  }
+}
+
+/** `:` and `-` are legal in a query, and `parse_open_ask` splits on them literally. */
+export function openAskUrl(url: string, fill: { from: number; to: number }): string {
+  return `${url}${url.includes("?") ? "&" : "?"}ask=fill:${fill.from}-${fill.to}`;
+}

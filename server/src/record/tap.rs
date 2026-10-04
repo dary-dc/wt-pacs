@@ -4,13 +4,12 @@
 //! per-session batch; one `try_send` on an owned `SyncSender` clone per [`BATCH`] rows — no
 //! global lock, and no drain-thread wake per row.
 
-use crate::record::{LocateOutcome, WriteOutcome};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::sync::mpsc::{SyncSender, TrySendError};
-use std::sync::OnceLock;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::sink::{clone_sender, ensure_sink, shutdown_sink};
 
@@ -25,8 +24,21 @@ pub(super) static DROP_TOTAL: AtomicU64 = AtomicU64::new(0);
 pub(super) static ROWS_OPENED: AtomicU64 = AtomicU64::new(0);
 pub(super) static ROWS_CLOSED: AtomicU64 = AtomicU64::new(0);
 pub(super) static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
-/// Every session the server accepted while telemetry was on, sampled or not.
-pub(super) static SESSIONS_SEEN: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+enum LocateOutcome {
+    Ok = 0,
+    NotFound = 1,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+enum WriteOutcome {
+    Sent = 0,
+    WriteErr = 1,
+    Refused = 2,
+}
 
 /// Process clock origin for `t_ask_us` — set when the first Tap is created, so rows from every
 /// session in a run share one axis and can be laid beside the client file offline.
@@ -47,7 +59,7 @@ fn since_origin_us() -> u64 {
 /// checked against the client file it sits beside (stream mode, fixture) without a filename.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct RunMeta {
-    pub stream_mode: &'static str,
+    pub stream_mode: String,
     pub study: String,
     /// Frames in the study bundle (the summary's `frame_count` is rows recorded).
     pub study_frames: u32,
@@ -72,18 +84,12 @@ pub struct FrameRecord {
     pub frame_index: u32,
     pub ask_ordinal: u32,
     /// Ask accepted, µs since the process telemetry origin (first Tap). Same axis across
-    /// sessions; inter-ask spacing and batch queueing are read from it.
+    /// sessions; inter-ask spacing is read from it.
     pub t_ask_us: u64,
-    /// Position in a `RequestFrames` batch; `0` of `1` for a `RequestFrame`.
-    pub batch_position: u32,
-    pub batch_size: u32,
-    /// Pre-read work before locating. Always ~0 since the disk-access ADR of 2026-09-04:
-    /// the pool hop that pre-faulted the frame's pages is gone, and bytes are read inside
-    /// `send` instead. A trace showing it high is a trace of an older build.
+    /// Pre-read work before locating; ~0 in this build. `docs/adr/telemetry-server-pipeline.md`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prepare_us: Option<u32>,
-    /// Locating the frame — an index lookup and nothing else, so this reads ~0 where older
-    /// traces showed the pre-touch hop. The frame's real cost is in `send_us`.
+    /// An index lookup and nothing else; the frame's real cost is in `send_us`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locate_us: Option<u32>,
     /// Read **and** write: the streaming loop reads each window and hands it to the
@@ -125,11 +131,77 @@ pub enum Record {
 
 pub type Batch = Vec<Record>;
 
+/// A live session's buffered rows. Shared because a shutdown has to take them from outside the
+/// session's own task: a session still open at SIGTERM never drops its `Tap`, and its tail would
+/// go with it. docs/adr/telemetry-server-pipeline.md#the-tail-at-sigterm.
+type Pending = Arc<Mutex<Batch>>;
+
+/// The live sessions' buffers. The process has one; a test that takes from it makes its own.
+#[derive(Default)]
+pub(crate) struct Live(Mutex<Vec<Weak<Mutex<Batch>>>>);
+
+pub(crate) static LIVE: Live = Live(Mutex::new(Vec::new()));
+
+impl Live {
+    fn register(&self, batch: &Pending) {
+        if let Ok(mut live) = self.0.lock() {
+            live.retain(|w| w.strong_count() > 0);
+            live.push(Arc::downgrade(batch));
+        }
+    }
+
+    /// Take what every live session has buffered. Bounded by `deadline`: a batch its own task is
+    /// holding right now is retried and then skipped, so this can never wait on a session.
+    pub(super) fn take(&self, deadline: Duration) -> Vec<Batch> {
+        let handles: Vec<Pending> = match self.0.lock() {
+            Ok(live) => live.iter().filter_map(Weak::upgrade).collect(),
+            Err(_) => return Vec::new(),
+        };
+        let give_up = Instant::now() + deadline;
+        let mut taken = Vec::new();
+        for handle in handles {
+            loop {
+                if let Ok(mut batch) = handle.try_lock() {
+                    if !batch.is_empty() {
+                        taken.push(std::mem::take(&mut *batch));
+                    }
+                    break;
+                }
+                if Instant::now() >= give_up {
+                    break;
+                }
+                std::thread::yield_now();
+            }
+        }
+        taken
+    }
+}
+
+/// Held by every session `for_session` opens; the last one dropped closes the sink, so the
+/// report is written.
+struct Counted;
+
+impl Counted {
+    fn enter() -> Self {
+        ACTIVE_TAPS.fetch_add(1, Ordering::Relaxed);
+        Self
+    }
+}
+
+impl Drop for Counted {
+    fn drop(&mut self) {
+        if ACTIVE_TAPS.fetch_sub(1, Ordering::Relaxed) == 1 {
+            shutdown_sink();
+        }
+    }
+}
+
 pub struct Tap {
     session_id: u64,
+    counted: Option<Counted>,
     /// Owned clone of the process sink — emit without taking the global lock.
     tx: Option<SyncSender<Batch>>,
-    batch: Batch,
+    batch: Pending,
     ordinals: HashMap<u32, u32>,
     frame_index: u32,
     ask_ordinal: u32,
@@ -142,8 +214,6 @@ pub struct Tap {
     /// End of last closed stage = start of next (contiguous chain).
     stage_mark: Option<Instant>,
     t_ask_us: u64,
-    batch_position: u32,
-    batch_size: u32,
     // Session counters — the session row and its integrity block.
     t_open_us: u64,
     frames: u32,
@@ -154,22 +224,12 @@ pub struct Tap {
     rows_dropped: u32,
 }
 
-/// `WTPACS_TELEMETRY_SAMPLE=K`: record one session in K. `seen` counts from 0.
-pub(super) fn sampled(seen: u64, k: u64) -> bool {
-    seen.is_multiple_of(k.max(1))
-}
-
 impl Tap {
     /// Enabled when `WTPACS_TELEMETRY` is `1` / `true` / `yes`. Path from `WTPACS_TELEMETRY_PATH`
-    /// (default `telemetry-server.json`; rows go beside it as `.rows`). `WTPACS_TELEMETRY_SAMPLE=K`
-    /// records one session in K (default every session). Report is written on a timer and when
-    /// the last session ends or the process is told to flush.
+    /// (default `telemetry-server.json`; rows go beside it as `.rows`). Report is written on a
+    /// timer and when the last session ends or the process is told to flush.
     pub fn for_session() -> Option<Self> {
         if !env_enabled("WTPACS_TELEMETRY") {
-            return None;
-        }
-        let seen = SESSIONS_SEEN.fetch_add(1, Ordering::Relaxed);
-        if !sampled(seen, env_u64("WTPACS_TELEMETRY_SAMPLE", 1)) {
             return None;
         }
         let path = std::env::var("WTPACS_TELEMETRY_PATH")
@@ -180,16 +240,20 @@ impl Tap {
         // is connect → first ask and later sessions share the axis.
         let _ = origin();
         let tx = clone_sender();
-        ACTIVE_TAPS.fetch_add(1, Ordering::Relaxed);
         SESSIONS_STARTED.fetch_add(1, Ordering::Relaxed);
-        Some(Self::new(SESSION_IDS.fetch_add(1, Ordering::Relaxed), tx))
+        let mut tap = Self::new(SESSION_IDS.fetch_add(1, Ordering::Relaxed), tx, &LIVE);
+        tap.counted = Some(Counted::enter());
+        Some(tap)
     }
 
-    fn new(session_id: u64, tx: Option<SyncSender<Batch>>) -> Self {
+    pub(crate) fn new(session_id: u64, tx: Option<SyncSender<Batch>>, live: &Live) -> Self {
+        let batch: Pending = Arc::new(Mutex::new(Vec::with_capacity(BATCH)));
+        live.register(&batch);
         Self {
             session_id,
+            counted: None,
             tx,
-            batch: Vec::with_capacity(BATCH),
+            batch,
             ordinals: HashMap::new(),
             frame_index: 0,
             ask_ordinal: 0,
@@ -201,8 +265,6 @@ impl Tap {
             serve_start: None,
             stage_mark: None,
             t_ask_us: 0,
-            batch_position: 0,
-            batch_size: 1,
             t_open_us: since_origin_us(),
             frames: 0,
             bytes: 0,
@@ -257,11 +319,8 @@ impl Tap {
         self.pending_locate_us = Some(self.close_against_mark());
     }
 
-    pub(crate) fn note_locate(&mut self, outcome: LocateOutcome, byte_len: usize) {
-        self.pending_locate = outcome as u8;
-        if outcome == LocateOutcome::Ok {
-            self.pending_bytes = usize_to_u32(byte_len);
-        }
+    pub(crate) fn note_locate(&mut self, byte_len: usize) {
+        self.pending_bytes = usize_to_u32(byte_len);
     }
 
     pub(crate) fn emit_sent(&mut self, envelope_len: usize) {
@@ -274,8 +333,12 @@ impl Tap {
     }
 
     /// Close whichever stage was open when we bailed (prepare or locate), then emit.
-    /// `send_us` stays null; refuse never entered send.
-    pub(crate) fn emit_refused(&mut self) {
+    /// `send_us` stays null; refuse never entered send. A refusal no frame opened, the planner's,
+    /// opens its own row first.
+    pub(crate) fn emit_refused(&mut self, frame_index: u32) {
+        if self.serve_start.is_none() {
+            self.begin_frame(frame_index);
+        }
         if self.pending_prepare_us.is_none() {
             self.boundary_prepare_done();
         } else if self.pending_locate_us.is_none() {
@@ -318,8 +381,6 @@ impl Tap {
             frame_index: self.frame_index,
             ask_ordinal: self.ask_ordinal,
             t_ask_us: self.t_ask_us,
-            batch_position: self.batch_position,
-            batch_size: self.batch_size,
             prepare_us: self.pending_prepare_us,
             locate_us: self.pending_locate_us,
             send_us,
@@ -330,9 +391,6 @@ impl Tap {
             write_outcome: write_outcome as u8,
             dropped_since_last: dropped,
         };
-        // A single ask that follows a batch is 0 of 1 again.
-        self.batch_position = 0;
-        self.batch_size = 1;
         match write_outcome {
             WriteOutcome::Sent => {
                 self.frames = self.frames.saturating_add(1);
@@ -344,9 +402,20 @@ impl Tap {
         self.push(Record::Frame(row));
     }
 
+    #[cfg(test)]
+    pub(super) fn buffer_for_test(&mut self, rec: Record) {
+        self.push(rec);
+    }
+
     fn push(&mut self, rec: Record) {
-        self.batch.push(rec);
-        if self.batch.len() >= BATCH {
+        let full = match self.batch.lock() {
+            Ok(mut batch) => {
+                batch.push(rec);
+                batch.len() >= BATCH
+            }
+            Err(_) => false,
+        };
+        if full {
             self.flush_batch();
         }
     }
@@ -354,10 +423,12 @@ impl Tap {
     /// One channel op for the whole batch. A full ring drops the batch; the rows are counted
     /// so the next row's `dropped_since_last` and the integrity blocks say so.
     pub(crate) fn flush_batch(&mut self) {
-        if self.batch.is_empty() {
-            return;
-        }
-        let batch = std::mem::replace(&mut self.batch, Vec::with_capacity(BATCH));
+        let batch = match self.batch.lock() {
+            Ok(mut held) if !held.is_empty() => {
+                std::mem::replace(&mut *held, Vec::with_capacity(BATCH))
+            }
+            _ => return,
+        };
         let frames = batch
             .iter()
             .filter(|r| matches!(r, Record::Frame(_)))
@@ -402,11 +473,10 @@ impl Drop for Tap {
         // batch before it is accounted for.
         self.flush_batch();
         let session = self.session_record();
-        self.batch.push(Record::Session(session));
-        self.flush_batch();
-        if ACTIVE_TAPS.fetch_sub(1, Ordering::Relaxed) == 1 {
-            shutdown_sink();
+        if let Ok(mut batch) = self.batch.lock() {
+            batch.push(Record::Session(session));
         }
+        self.flush_batch();
     }
 }
 
@@ -441,12 +511,12 @@ mod tests {
     use std::sync::mpsc::{sync_channel, Receiver};
 
     fn test_tap() -> Tap {
-        Tap::new(1, None)
+        Tap::new(1, None, &Live::default())
     }
 
     fn test_tap_with_channel(cap_batches: usize) -> (Tap, Receiver<Batch>) {
         let (tx, rx) = sync_channel::<Batch>(cap_batches);
-        (Tap::new(1, Some(tx)), rx)
+        (Tap::new(1, Some(tx), &Live::default()), rx)
     }
 
     /// Everything queued so far, flattened.
@@ -487,8 +557,6 @@ mod tests {
             frame_index: 0,
             ask_ordinal: 0,
             t_ask_us: 0,
-            batch_position: 0,
-            batch_size: 1,
             prepare_us: prepare,
             locate_us: locate,
             send_us: send,
@@ -504,7 +572,7 @@ mod tests {
     fn serve_frame(t: &mut Tap, frame: u32, bytes: usize) {
         t.begin_frame(frame);
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, bytes);
+        t.note_locate(bytes);
         t.boundary_locate_done();
         t.emit_sent(bytes + 4);
     }
@@ -527,7 +595,7 @@ mod tests {
         assert!(t.serve_start.is_some());
         assert!(t.stage_mark.is_some());
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 8);
+        t.note_locate(8);
         t.boundary_locate_done();
         t.emit_sent(16);
         assert!(t.serve_start.is_none());
@@ -540,23 +608,22 @@ mod tests {
         t.begin_frame(5);
         assert_eq!(t.ask_ordinal, 0);
         let serve0 = t.serve_start.expect("serve_start armed");
-        std::thread::sleep(std::time::Duration::from_millis(2));
+        std::thread::sleep(std::time::Duration::from_millis(20));
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 100);
+        t.note_locate(100);
         t.boundary_locate_done();
         let before_emit = Instant::now();
         t.emit_sent(104);
         let serve_us_0 = duration_us(serve0, before_emit);
         assert!(t.serve_start.is_none());
-        assert!(serve_us_0 >= 1_500, "got {serve_us_0}");
+        assert!(serve_us_0 >= 20_000, "got {serve_us_0}");
 
         t.begin_frame(5);
         assert_eq!(t.ask_ordinal, 1);
         let serve1 = t.serve_start.expect("new serve_start");
         assert!(serve1 > serve0);
-        std::thread::sleep(std::time::Duration::from_millis(1));
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 100);
+        t.note_locate(100);
         t.boundary_locate_done();
         let before_emit1 = Instant::now();
         t.emit_sent(104);
@@ -567,24 +634,12 @@ mod tests {
     }
 
     #[test]
-    fn stage_partition_identity_with_overhead() {
-        let row = sample_row(Some(20), Some(1), Some(40), 65, 4);
-        assert_eq!(
-            row.serve_us,
-            row.prepare_us.unwrap()
-                + row.locate_us.unwrap()
-                + row.send_us.unwrap()
-                + row.overhead_us
-        );
-    }
-
-    #[test]
     fn contiguous_emit_partition_holds() {
         let (mut t, rx) = test_tap_with_channel(4);
         t.begin_frame(2);
         std::thread::sleep(std::time::Duration::from_millis(1));
         t.boundary_prepare_done();
-        t.note_locate(LocateOutcome::Ok, 8);
+        t.note_locate(8);
         t.boundary_locate_done();
         std::thread::sleep(std::time::Duration::from_millis(1));
         t.emit_sent(16);
@@ -672,7 +727,7 @@ mod tests {
         t.begin_frame(1);
         std::thread::sleep(std::time::Duration::from_millis(1));
         // No boundary — refuse owns finalize (prepare failed path).
-        t.emit_refused();
+        t.emit_refused(1);
         let row = one_row(&mut t, &rx);
         assert!(row.prepare_us.is_some());
         assert!(row.locate_us.is_none());
@@ -690,7 +745,7 @@ mod tests {
         t.boundary_prepare_done();
         std::thread::sleep(std::time::Duration::from_millis(1));
         // No locate boundary — refuse owns finalize (locate failed path).
-        t.emit_refused();
+        t.emit_refused(2);
         let row = one_row(&mut t, &rx);
         assert!(row.prepare_us.is_some());
         assert!(row.locate_us.is_some());
@@ -768,7 +823,7 @@ mod tests {
         serve_frame(&mut t, 1, 100);
         serve_frame(&mut t, 2, 100);
         t.begin_frame(3);
-        t.emit_refused();
+        t.emit_refused(3);
         drop(t);
         let records = drain_all(&rx);
         let Some(Record::Session(s)) = records.last() else {
@@ -787,10 +842,53 @@ mod tests {
             .all(|r| matches!(r, Record::Frame(_) | Record::Session(_))));
     }
 
+    /// A session mid-push must not be able to hold up a shutdown: the deadline wins.
     #[test]
-    fn sampling_records_one_session_in_k() {
-        assert!(sampled(0, 1) && sampled(1, 1) && sampled(7, 1));
-        assert!(sampled(0, 4) && !sampled(1, 4) && !sampled(3, 4) && sampled(4, 4));
-        assert!(sampled(0, 0), "k = 0 behaves as 1");
+    fn taking_live_batches_gives_up_on_a_held_batch() {
+        let live = Live::default();
+        let tap = Tap::new(77, None, &live);
+        let held = Arc::clone(&tap.batch);
+        held.lock().expect("hold the batch").push(Record::Session(SessionRecord {
+            kind: "server_session",
+            session_id: 77,
+            t_open_us: 0,
+            t_close_us: 0,
+            frames: 0,
+            bytes: 0,
+            refused: 0,
+            rows_opened: 0,
+            rows_closed: 0,
+            rows_dropped: 0,
+        }));
+
+        let guard = held.lock().expect("still holding");
+        let started = Instant::now();
+        let taken = live.take(Duration::from_millis(20));
+        let waited = started.elapsed();
+        drop(guard);
+
+        assert!(
+            waited < Duration::from_millis(500),
+            "shutdown waited {waited:?} on a held batch"
+        );
+        assert!(
+            taken.iter().all(|b| b.is_empty()) || taken.is_empty(),
+            "a batch held by its own task should be skipped, not taken"
+        );
+        std::mem::forget(tap);
+    }
+
+    /// Taps other tests hold, rows buffered, must stay out of any other test's take of the
+    /// live sessions, and out of the process's.
+    #[test]
+    fn taps_made_elsewhere_stay_out_of_every_other_take() {
+        let until = Instant::now() + Duration::from_millis(300);
+        let mut taps: Vec<Tap> = (0..4).map(|_| test_tap()).collect();
+        while Instant::now() < until {
+            for t in &mut taps {
+                serve_frame(t, 1, 8);
+            }
+            std::thread::sleep(Duration::from_micros(200));
+        }
     }
 }

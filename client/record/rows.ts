@@ -112,15 +112,7 @@ export function stampsPresent(row: OpenRow): string[] {
   return have;
 }
 
-/** The stamp that ends a row's window: the last thing that could have been late. */
-export function rowEndUs(row: OpenRow): Us | null {
-  const candidates = [row.last_byte_us, row.delivered_us, row.failed_us].filter(
-    (v): v is number => v != null,
-  );
-  return candidates.length === 0 ? null : Math.max(...candidates);
-}
-
-export function toClientFrame(row: OpenRow, main_thread_busy_us = 0): ClientFrameRow {
+export function toClientFrame(row: OpenRow): ClientFrameRow {
   const queue_us =
     row.gesture_us != null && row.ask_us != null ? row.ask_us - row.gesture_us : null;
   const ask_flush_us =
@@ -191,7 +183,6 @@ export function toClientFrame(row: OpenRow, main_thread_busy_us = 0): ClientFram
     bytes: row.bytes ?? 0,
     chunks,
     stall: null,
-    main_thread_busy_us,
     binding_term,
   };
 }

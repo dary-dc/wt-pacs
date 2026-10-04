@@ -1,4 +1,5 @@
 pub mod media;
+#[cfg(feature = "telemetry")]
 pub mod record;
 pub mod transport;
 

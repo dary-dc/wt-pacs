@@ -1,19 +1,23 @@
-/** Wrap a session so `delivered` (or a failure) stamps when public methods settle. */
+/** Wrap a session so `delivered` (or a failure) stamps when an ask settles or a fill frame lands. */
 
 import { getTap } from "./tap.ts";
 
+type Frame = { frameIndex: number };
+
 type SessionLike = {
   requestExactFrame(frameIndex: number): Promise<unknown>;
-  waitExactFrame(frameIndex: number, askMs: number): Promise<unknown>;
-  startExactFrames(indices: ArrayLike<number>): number;
-  requestExactFrames?(indices: ArrayLike<number>): Promise<unknown>;
-  startStreamFrames?(waitLast: number, range?: { from?: number; to?: number }): number;
+  fillFrames?(
+    from: number,
+    to: number,
+    onFrame: (f: Frame) => void,
+    onError?: (frameIndex: number, reason: string) => void,
+  ): number;
 };
 
-async function settle<T>(frameIndex: number, p: Promise<T>, via: "single" | "batch" = "single"): Promise<T> {
+async function settle<T>(frameIndex: number, p: Promise<T>): Promise<T> {
   try {
     const result = await p;
-    getTap()?.onDelivered(frameIndex, via);
+    getTap()?.onDelivered(frameIndex);
     return result;
   } catch (e) {
     // A refusal already closed the row from the control stream; this then finds no open row
@@ -33,36 +37,26 @@ export function wrapSession<T extends object & SessionLike>(session: T): T {
           return settle(frameIndex, target.requestExactFrame(frameIndex));
         };
       }
-      if (prop === "waitExactFrame") {
-        return (frameIndex: number, askMs: number) =>
-          settle(frameIndex, target.waitExactFrame(frameIndex, askMs));
-      }
-      if (prop === "startExactFrames") {
-        return (indices: ArrayLike<number>) => {
+      if (prop === "fillFrames" && typeof target.fillFrames === "function") {
+        return (
+          from: number,
+          to: number,
+          onFrame: (f: Frame) => void,
+          onError: (frameIndex: number, reason: string) => void = () => {},
+        ) => {
           getTap()?.gesture();
-          return target.startExactFrames(indices);
-        };
-      }
-      if (prop === "startStreamFrames" && typeof target.startStreamFrames === "function") {
-        return (waitLast: number, range?: { from?: number; to?: number }) => {
-          getTap()?.gesture();
-          return target.startStreamFrames!(waitLast, range);
-        };
-      }
-      if (prop === "requestExactFrames" && typeof target.requestExactFrames === "function") {
-        return async (indices: ArrayLike<number>) => {
-          getTap()?.gesture();
-          const list = Array.from(indices);
-          try {
-            const result = await target.requestExactFrames!(indices);
-            // The whole batch has landed by now; rows say so rather than posing as per-frame.
-            for (const i of list) getTap()?.onDelivered(i, "batch");
-            return result;
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            for (const i of list) getTap()?.onAskFailed(i, msg);
-            throw e;
-          }
+          return target.fillFrames!(
+            from,
+            to,
+            (f) => {
+              getTap()?.onDelivered(f.frameIndex);
+              onFrame(f);
+            },
+            (i, reason) => {
+              getTap()?.onAskFailed(i, reason);
+              onError(i, reason);
+            },
+          );
         };
       }
       if (typeof v === "function") {

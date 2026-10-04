@@ -1,8 +1,8 @@
 //! Fixed-width row file (`telemetry-server.rows`) — exact rows at any scale.
 //!
-//! Every record the drain receives is appended here as one 64-byte record, so the rows are
+//! Every record the drain receives is appended here as one 56-byte record, so the rows are
 //! exact and on disk whatever happens to the process afterwards. The JSON report is a summary
-//! over this file; `exact-server --telemetry-report <rows>` rebuilds the full JSON from it.
+//! over this file.
 //!
 //! Layout: 16-byte header (`WTPR`, u16 version, u16 record size, u64 reserved) then records.
 //! Record: `tag: u8`, `flags: u8`, `pad: u16`, then tag-specific fields, little-endian.
@@ -13,8 +13,8 @@ use std::io::{BufReader, Read, Result as IoResult};
 use std::path::Path;
 
 pub(super) const MAGIC: &[u8; 4] = b"WTPR";
-pub(super) const VERSION: u16 = 1;
-pub(super) const RECORD_BYTES: usize = 64;
+pub(super) const VERSION: u16 = 2;
+pub(super) const RECORD_BYTES: usize = 56;
 pub(super) const HEADER_BYTES: usize = 16;
 
 const TAG_FRAME: u8 = 1;
@@ -103,8 +103,6 @@ pub(super) fn encode(record: &Record) -> [u8; RECORD_BYTES] {
             w.u32(f.frame_index);
             w.u32(f.ask_ordinal);
             w.u64(f.t_ask_us);
-            w.u32(f.batch_position);
-            w.u32(f.batch_size);
             w.u32(f.prepare_us.unwrap_or(0));
             w.u32(f.locate_us.unwrap_or(0));
             w.u32(f.send_us.unwrap_or(0));
@@ -144,8 +142,6 @@ pub(super) fn decode(buf: &[u8; RECORD_BYTES]) -> Option<Record> {
             let frame_index = r.u32();
             let ask_ordinal = r.u32();
             let t_ask_us = r.u64();
-            let batch_position = r.u32();
-            let batch_size = r.u32();
             let prepare = r.u32();
             let locate = r.u32();
             let send = r.u32();
@@ -161,8 +157,6 @@ pub(super) fn decode(buf: &[u8; RECORD_BYTES]) -> Option<Record> {
                 frame_index,
                 ask_ordinal,
                 t_ask_us,
-                batch_position,
-                batch_size,
                 prepare_us: (flags & FLAG_PREPARE != 0).then_some(prepare),
                 locate_us: (flags & FLAG_LOCATE != 0).then_some(locate),
                 send_us: (flags & FLAG_SEND != 0).then_some(send),
@@ -190,8 +184,8 @@ pub(super) fn decode(buf: &[u8; RECORD_BYTES]) -> Option<Record> {
     }
 }
 
-/// Iterate every record in a row file. A truncated trailing record is ignored; an unknown tag
-/// is skipped. Errors other than a short final read are returned.
+/// Iterate every record in a row file. A bad header is an error; after it, an unknown tag is
+/// skipped, and a truncated trailing record or any read error ends the iteration.
 pub(super) fn read_records(path: &Path) -> IoResult<RowReader> {
     let mut reader = BufReader::with_capacity(1 << 20, File::open(path)?);
     let mut header = [0u8; HEADER_BYTES];
@@ -245,8 +239,6 @@ mod tests {
             frame_index: 1234,
             ask_ordinal: 2,
             t_ask_us: 5_000_000_001,
-            batch_position: 3,
-            batch_size: 8,
             prepare_us: Some(10),
             locate_us: None,
             send_us: Some(0),
