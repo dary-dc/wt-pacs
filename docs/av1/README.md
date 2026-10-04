@@ -320,6 +320,20 @@ at 4× on 5–50 Mbit/s, decode-bound (arithmetic over measured bytes and dav1d-
 n = 10 interleaved). A full-size q 20 base is 1–5 % smaller on CT, MR, fluoroscopy and the
 ultrasound, but a full-size base decodes 5–32 % slower (q 40); a third layer, temporal layers and shorter keyframe intervals
 buy nothing. No shape moves the payload off lossless AV1's size: 0.94–1.59 of HTJ2K's.
+*The base through WebCodecs (row WCBASE; [`lab/av1/wcbase`](../../lab/av1/wcbase/README.md)).*
+WebCodecs has no operating point, but dropping the OBUs with `spatial_id` > 0 from a unit — the
+unit's prefix, byte for byte the encoder's own base-only stream — makes it return **the base,
+identical sample for sample to native dav1d's at operating point 1**, while a decoder fed the whole
+unit returns the exact frame: 534/534 each on the ultrasound, the fluoroscopy and MR as their top
+10 bits, and synthetic grey 10 and RGB 8, half- and full-size bases at q 40; 12 bits refused (row
+WCAP). Flushing a unit for its picture needs G = 1, since WebCodecs wants a key chunk after every
+flush (−1 to +1 % bytes on the grey series, +7–13 % on the ultrasound); past G = 1,
+`optimizeForLatency` returns each base from its own unit with no flush. Against row SVCDEC's
+dav1d-WASM preview, unit sent to picture in the contract: **0.65× on the ultrasound at 1× and
+0.36–0.76× on every series at 4×** (faster in 87/90 paired rounds; ultrasound half-size base 12.6
+against 36.5 ms), but 1.1–1.3× — slower — on the 2–4 ms grey bases at 1×. The base is 7–36 % of
+WebCodecs' own exact frame (headless Chromium 141, this container, 15 interleaved rounds,
+19 440/19 440 pictures matched). Not built into `decode-av1-webcodecs.js`.
 
 *LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
 answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
@@ -444,6 +458,8 @@ layers on the wire — are not repeated.
   (`src/lib.c`, `output_picture_ready`). So a client that drops the top's OBUs should get the base
   out of a native decoder 2–3× faster than dav1d-WASM (SPLIT10). Decides: the base out, identical to
   native dav1d's at the base operating point, then the whole unit exact. Container: yes.
+  *Measured (row WCBASE, §A5): exact, and 0.36–0.76× dav1d-WASM's base at 4×; slower on small grey
+  bases at 1×.*
 * **AV2.** AVM v1.0.0 was tagged 2026-05-27 (BSD-3-Clause-Clear) and the specification announced
   2026-06-09. Its encoder has `--lossless`, `--monochrome`, 10/12-bit coding, 1–16 operating-point
   sets and S-frames; better lossless coding is claimed in reports of the release, *not confirmed
