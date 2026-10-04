@@ -49,9 +49,10 @@ item, an ask for N asks k … k+G−1, a group decodes in order on one decoder, 
 G = 8 and a one-group set; no wire, store or server change was needed (`adr-unit.md` §3, *Built*).
 
 *Measured (SIZE, libaom 3.15.1, every coding exact; [`lab/av1`](../../lab/av1/README.md) §SIZE):*
-**inter coding does not pay on any real series here**, and coded whole, AV1 does not beat HTJ2K —
+**inter coding does not pay on any real series here** (*corrected by LLSIZE: on the ultrasound it
+does once the colour is transformed, below*), and coded whole, AV1 does not beat HTJ2K —
 *corrected by DEPTH (§A3): coded as two streams, the two low bits apart, it does on every series
-over 10 bits, 0.918–0.997*. Bytes over
+over 10 bits, 0.918–0.997; and by LLSIZE: on every series, below*. Bytes over
 HTJ2K's at the slowest preset, intra → whole series: fluoroscopy (12-bit, 2 frames/s) 1.024 → 1.027,
 MR (11-bit, 3.5 mm) 1.034 → 1.062, ultrasound cine (RGB 8) 1.117 → 1.534; at a practical preset
 1.04–1.75. The smallest G that collects most of the gain is **G = 1**: there is no gain to collect
@@ -69,6 +70,17 @@ does not pay there either.* The raw views of two vendors' systems, 9 and 15 a se
 stored: on top11+low the best group is 0.3 % under intra on one and 0.2–0.8 % over it on the other.
 Split top12+low they are 0.952 and 0.923 of HTJ2K (§A3). No breast ultrasound cine, automated breast
 ultrasound or angiography run is reachable ([`queue.md`](queue.md) §Blocked).
+*AV1 alone under HTJ2K on every series (row LLSIZE, [`lab/av1/llsize`](../../lab/av1/llsize/README.md)).*
+At G = 1, libaom 3.15.1 at its slowest preset, the first 2–8 frames of all nine series, every coding
+exact: **0.902–0.987 of HTJ2K's bytes** once the samples are represented for AV1 — the two low bits
+apart at every depth over 8 (fluoroscopy 1.027 → 0.942, 12-bit tomosynthesis 1.040 → 0.941, MR
+1.013 → 0.977, 10-bit tomosynthesis 0.977 → 0.942) and JPEG 2000's reversible colour transform on
+RGB (ultrasound 1.117 → 0.962), plus `--tune-content=screen --sb-size=64` for 0–1 %. libaom's other
+controls, SVT-AV1 and YCoCg-R do not beat that. Decode (dav1d-WASM, n = 15 interleaved): the colour
+transform 0.89–0.95× row SIZE's coding, the split +1–5 % on large frames and +16–23 % on 512² MR and
+10-bit tomosynthesis — still 5–10× HTJ2K (row SPEED). **Inter pays on the colour-transformed
+ultrasound**: one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
+intra; on grey it does not (0.942–1.006 against intra's 0.902–0.987).
 
 *What G = 1 costs an ask (SPEED's decode times × SIZE's bytes; arithmetic, not measured).* An ask is
 one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of decoding** in Chromium

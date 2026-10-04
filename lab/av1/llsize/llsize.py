@@ -4,9 +4,10 @@ transforms, and SVT-AV1 where it is exact — against HTJ2K on the same frames.
 
 A coding is a representation (the planes the samples are coded as, and their merge back) and an
 encoder variant, applied to every plane stream. Intra only, one keyframe a frame: the unit is one
-frame (rows SIZE and TAXO found inter collecting nothing). Every frame of every coding is decoded by
+frame (rows SIZE and TAXO found inter collecting nothing), but for the inter variants: one keyframe,
+the rest predicted, --auto-alt-ref=0 (row TOOL: exact only without it). Every frame of every coding is decoded by
 native dav1d, merged, and compared with the checksum written when the series was fetched; the last
-frame is decoded alone as well. An inexact coding is reported and its bytes not used.
+frame of an intra coding is decoded alone as well. An inexact coding is reported and its bytes not used.
 
 Stage 1 crosses every encoder variant with the set's plain representation (direct, gbr, or low2 over
 12 bits) and every representation with libaom's defaults and SVT-AV1; CODINGS=rep.variant,... runs
@@ -36,6 +37,8 @@ AOM = {
     "sb64": ["--sb-size=64"],
     "sb128": ["--sb-size=128"],
     "screen-sb64": ["--tune-content=screen", "--sb-size=64"],
+    "inter": ["--kf-min-dist=1000", "--kf-max-dist=1000", "--auto-alt-ref=0"],
+    "inter-screen": ["--kf-min-dist=1000", "--kf-max-dist=1000", "--auto-alt-ref=0", "--tune-content=screen"],
     "lean": ["--enable-filter-intra=0", "--enable-intra-edge-filter=0", "--enable-smooth-intra=0",
              "--enable-paeth-intra=0", "--enable-cfl-intra=0", "--enable-palette=0", "--enable-intrabc=0",
              "--enable-angle-delta=0", "--enable-directional-intra=0"],
@@ -136,6 +139,7 @@ def run_coding(build, work, s, rep, variant):
     cell = work / f"{s.name}.{rep.name}.{variant}"
     cell.mkdir(parents=True, exist_ok=True)
     n = frames(s)
+    inter = variant.startswith("inter")
     streams, secs = [], 0.0
     for j, (used, ch, plane) in enumerate(rep.planes):
         bits = container(used)
@@ -151,20 +155,22 @@ def run_coding(build, work, s, rep, variant):
         units = size.ivf_units(ivf)
         (cell / "all.obu").write_bytes(b"".join(units))
         (cell / "last.obu").write_bytes(units[-1])
-        frames = decoded(build, cell / "all.obu", cell / "dec.y4m")
-        last = decoded(build, cell / "last.obu", cell / "dec.y4m")
-        streams.append(dict(units=units, frames=frames, last=last))
+        got = decoded(build, cell / "all.obu", cell / "dec.y4m")
+        last = None if inter else decoded(build, cell / "last.obu", cell / "dec.y4m")
+        streams.append(dict(units=units, frames=got, last=last))
     exact = 0
     for i in range(n):
         if all(len(st["frames"]) == n for st in streams):
             got = rep.merge([st["frames"][i][:s.h, :s.w].astype(np.int32) for st in streams])
             exact += size.exact(s, i, got.reshape(s.h, s.w, s.ch))
-    alone = rep.merge([st["last"][0][:s.h, :s.w].astype(np.int32) for st in streams])
-    exact_alone = size.exact(s, n - 1, alone.reshape(s.h, s.w, s.ch))
+    exact_alone = None
+    if not inter:
+        alone = rep.merge([st["last"][0][:s.h, :s.w].astype(np.int32) for st in streams])
+        exact_alone = size.exact(s, n - 1, alone.reshape(s.h, s.w, s.ch))
     total = sum(len(u) for st in streams for u in st["units"])
     return dict(set=s.name, rep=rep.name, variant=variant, frames=n, exact=exact, last_alone=exact_alone,
                 bytes=total, encode_s=round(secs, 2),
-                verdict="exact" if exact == n and exact_alone else "INEXACT")
+                verdict="exact" if exact == n and (exact_alone or inter) else "INEXACT")
 
 
 def frames(s):
