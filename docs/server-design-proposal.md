@@ -440,10 +440,10 @@ New branch off `main` after PR #33 merges (per the handoff). One worktree, its o
 
 | Commit | What | Needs | Measure |
 | --- | --- | --- | --- |
-| C1 | #2 leftover: a close during session setup is a goodbye too | — | none |
-| C2 | Doc corrections with no code: `frame-framing-and-loop-shape.md:324` (capacity is 8 + 8), `WIRE.md:152-153` (an opening ask is never refused) | — | none |
+| C1 | #2 leftover: a close during session setup is a goodbye too | — | none — **done `ffb05b1`**; `session_request.accept()` itself stays unclassified, since no connection exists yet to ask for a close reason |
+| C2 | Doc corrections with no code: `frame-framing-and-loop-shape.md:324` (capacity is 8 + 8), `WIRE.md:152-153` (an opening ask is never refused) | — | none — **done `8db4e64`** |
 | C3 | #9: one frame limit, refused at bundle load naming the frame | decision D6 | none |
-| C4 | #10: `TransportTuning` derives `clap::Args` | — | none |
+| C4 | #10: `TransportTuning` derives `clap::Args` | — | none — **done `d649fe8`** |
 
 **Refactors.**
 
