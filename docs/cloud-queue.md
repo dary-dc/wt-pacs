@@ -33,14 +33,14 @@ file names, branch names or commit messages.
 
 | # | what | state |
 | --- | --- | --- |
-| 113 | **ONERR** — finish the `fillHandlers.onError` fix on `claude/onerror` and land it here (§Row 113) | **claimed** 2026-10-04 |
+| 113 | **ONERR** — finish the `fillHandlers.onError` fix on `claude/onerror` and land it here (§Row 113) | **done** `9b2deef`, docs `4523538` — full gate green, the mutant fails 2 of 127 dispatch checks; `CLIENTS.md` §Fills are pushed, `ARCHITECTURE.md` §The downloader, `client/downloader/README.md`. The remote `claude/onerror` is not deleted: this environment refuses branch deletes |
 | 115 | **SRV-C** — the server design's small commits C1, C2, C4 on `claude/server-design` (§Row 115) | **claimed** 2026-10-04 |
 | 116 | **SRV-C3** — one frame limit, refused at load (§Row 116) | after 115 |
 | 117 | **SRV-R1** — the planner owns every ask decision; one refusal path (§Row 117) | after 116 |
 | 118 | **SRV-R2** — one writer per session, `Link` (§Row 118) | after 117 |
 | 119 | **SRV-R3** — pipeline steps `read`/`write`, telemetry row v3 (§Row 119) | after 118 |
 | 120 | **SRV-R4-PLAN** — the layout commit written out in full for the owner's review; no code (§Row 120) | after 119 |
-| 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | after 113 |
+| 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | **ready** |
 | 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **done** `0a17e17` — both images build and run under docker (podman unrun); `compose up`: `wt_url=`, TCP 4433 answers 101, the cell delivers 3/3 frames over WebTransport and WebSocket; the check passes on the image — `deploy/README.md` |
 | 59 | **A1b** — the handover on a device: does a session survive Wi-Fi → cellular, and how long is the freeze ([`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice) | **waiting on a device** — no container can take it |
 | 40 | **E1** — the ingest format | **held** by the owner (§What a row may not change) |
