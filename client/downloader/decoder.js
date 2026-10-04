@@ -76,7 +76,7 @@ async function initHtj2k(m) {
   dec = new M.HTJ2KDecoder();
 }
 
-const webcodecs = (m) => m.decoder.depth <= 10 && !(m.groupLength > 1) && typeof VideoDecoder === "function";
+const webcodecs = (m) => m.decoder.depth <= 10 && typeof VideoDecoder === "function";
 
 async function init(m) {
   // Fetched beside the compile: it has to fit the idle window — docs/decode/README.md §Warming.
@@ -84,7 +84,7 @@ async function init(m) {
   // Only an AV1 series loads AV1 code, and WebCodecs only where exact. docs/av1/adr-unit.md §2
   if (m.decoder?.codec === "av1") {
     const av1 = await import(webcodecs(m) ? "./decode-av1-webcodecs.js" : "./decode-av1.js");
-    await av1.init(m.decoder);
+    await av1.init({ ...m.decoder, groupLength: m.groupLength });
     decodeOne = av1.decodeFrame;
   } else await initHtj2k(m);
   const w = warmup && (await warmup);
