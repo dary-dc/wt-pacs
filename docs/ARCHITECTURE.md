@@ -136,7 +136,8 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once an ask settles
   the downloader re-issues what is not yet delivered as a new run — the client owns that decision,
   the server stays as it is. An ask for a frame the fill still owes goes to the wire, where the
-  server serves it next.
+  server serves it next, and the ask then owns that frame: a refusal that fails the rest of the run
+  spares it.
 * **Cancel** ends the stream, drops queued work by generation, fails outstanding asks with an
   `AbortError`, **resets the count of asks in flight** (it gates the fill; one left over stalled the
   next fill) and answers `cancelled`.

@@ -67,7 +67,7 @@ downloader has ended the stream and dropped that request's work; every frame and
 generation it was made under, and anything older is dropped on the page rather than handed over
 under an index the new request is using. A refused *fill* frame has no waiter, so it reaches the
 consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
-rejects its own promise. [`ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §The consumer.
+rejects its own promise, and a refusal that fails the rest of a fill spares a frame an ask carries. [`ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §The consumer.
 
 **What a frame reports.** Beside the decoded `byteCount`, every frame message the decoder and the
 downloader post carries `wireBytes` — the codestream length the frame's envelope declared, which is
