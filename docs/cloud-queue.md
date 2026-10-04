@@ -44,6 +44,7 @@ file names, branch names or commit messages.
 | 119 | **SRV-R3** — pipeline steps `read`/`write`, telemetry row v3 (§Row 119) | **done** on `claude/server-design`: `58b26e6`, measurement and lab script `05dcb0b`, noted `002511e` — full gate green at `58b26e6` (`05dcb0b` is a script and docs), link check clean; new `a_slow_write_lands_in_write_us_not_read_us`, `a_rows_file_of_another_version_is_refused`; mutants (the read boundary moved after the write, the version check dropped, a refusal keeping a stage, `ahead` dropping a name) each fail a test. **Measurement, in this container only:** old build against new, telemetry on in both arms (`DEFAULT_TELEMETRY=1`, added), 6 interleaved pairs at 1/4/16 sessions: CPU per frame −2.2/−1.0/−0.4 %, a tie — telemetry ADR §What it costs. The readers owning an `Arc<FrameStore>` (design §6) not done: nothing asked for it |
 | 120 | **SRV-R4-PLAN** — the layout commit written out in full for the owner's review; no code (§Row 120) | **waiting on the owner** — written `679b9ce` on `claude/server-design`, the design file's §R4 written out: tree, moves, tests' destinations, renames with call sites, the test kit, two questions (Q1 where `run_server` lives, Q2 the small study). Found: the move changes a log target `lab/scripts/runtime_ab.sh` filters on, so R4b must carry it |
 | 121 | **SRV-R3b** — the readers own the study's `FrameStore` (§Row 121) | **done** on `claude/server-design`: `15efab9` — full gate green, link check clean. No new test and no mutant: the misuse it removes, a reader handed another store than its ring registered, no longer type-checks. No measurement: the same reads, one `Arc` clone per reader. `disk-access.md` §10 says why |
+| 122 | **SRV-STOP** — a client that stops the media stream mid-fill is a goodbye, not a WARN (§Row 122) | **done** on `claude/server-design`: `d68a7c1` (the log), `2d3d2dd` (the fix) — the log now prints the error chain, which named the cause: `write frame: sending stopped by peer`, quinn's `WriteError::Stopped`, when the client's stream stop reaches the server before its close. Full gate green, link check clean; new `a_client_that_stops_its_media_stream_ends_its_session_cleanly` (20/20 runs), fails on its mutant (`stopped` dropped from `closed_by_peer`). Measured in this container with the lab's own fill driver (`server_ab --mode fill`, 256 of 5120 frames then walk away), 30 interleaved sessions per arm: WARN 8/30 before, 0/30 after; after, 20 closed as connection lost, 10 as stopped |
 | 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | **done** `4fda9f1` — full gate green (dispatch 119/119: the 6 warm-up and 2 ready-stamp checks went with them); `decoders` pinned at 2, 8 and unreported cores by `client/downloader/downloader.test.mjs`, four mutants each fail; the two codestreams the rig decodes moved to `client/conformance/frames/`; `lab/decode-first-frame` (its own in-page warm-up arm) and `telemetry-cost` (JIT rounds) kept — `docs/decode/README.md` §Warming the decoders, `ARCHITECTURE.md` §The decoders |
 | 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **done** `0a17e17` — both images build and run under docker (podman unrun); `compose up`: `wt_url=`, TCP 4433 answers 101, the cell delivers 3/3 frames over WebTransport and WebSocket; the check passes on the image — `deploy/README.md` |
 | 59 | **A1b** — the handover on a device: does a session survive Wi-Fi → cellular, and how long is the freeze ([`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice) | **waiting on a device** — no container can take it |
@@ -174,6 +175,10 @@ construction and `read` takes none. Asked by the owner on 2026-10-04 as a correc
 one store (the ring's registered file, the slots' offset keys), and the signature said otherwise. Before R4a, so
 the test kit is written against the final signatures.
 
+### Row 122
+The open decision "a client that closes mid-fill still logs a WARN": print the whole error chain, find
+the variant, classify it in `closed_by_peer` if it is the peer's doing, with a test that forces it.
+
 ## Finished
 
 One line a batch; what each found is in the doc named.
@@ -230,9 +235,6 @@ tail, not the head.
   agreed (every cell a p50 tie, `named` 4 on both arms). One earlier attempt stopped in round 1: a fill
   session on the R1 server outlived its driver by 22 s with no `session reads` line. Not reproduced in
   60 interleaved fill sessions or the 12 rounds after; watch for it in this run.
-* **A client that closes mid-fill still logs a WARN** — `session ended err=write frame` in 6–9 of 30
-  fill sessions on both builds (`ca74421`, `7f7730e`): the write error is not classified as the
-  peer's close. The C1 leftover's sibling; a row if wanted.
 * **Delete the remote `claude/onerror`** — row 113 landed it; this environment refuses branch deletes.
 * **E0 — the emulated link against a real network path, not done.** It needs the cloud VM's real
   path to this host, unshaped, or a device on a real network; no container can take it. Why: every
