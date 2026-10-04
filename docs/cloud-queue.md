@@ -216,7 +216,16 @@ tail, not the head.
   `serve.rs`) and Q2 (keep a small-frame study for `pipeline.rs`'s tests). R4 is built only after.
 * **The R1 tie on the workstation** — `lab/scripts/server_ab.sh 7f7730e^` under the rig lock; the
   container run tied on every cell but is not evidence, and the script's `WANT` still expects a
-  `cold_d4` win from the change it was written for, so it exits 1 on a tie.
+  `cold_d4` win from the change it was written for, so it exits 1 on a tie. A second container run
+  agreed (every cell a p50 tie, `named` 4 on both arms). One earlier attempt stopped in round 1: a fill
+  session on the R1 server outlived its driver by 22 s with no `session reads` line. Not reproduced in
+  60 interleaved fill sessions or the 12 rounds after; watch for it in this run.
+* **R3 left the readers taking the store per call** — design §6's "the readers own an
+  `Arc<FrameStore>`" was not built (`58b26e6`): fold it into R4 or drop it from the design.
+* **A client that closes mid-fill still logs a WARN** — `session ended err=write frame` in 6–9 of 30
+  fill sessions on both builds (`ca74421`, `7f7730e`): the write error is not classified as the
+  peer's close. The C1 leftover's sibling; a row if wanted.
+* **Delete the remote `claude/onerror`** — row 113 landed it; this environment refuses branch deletes.
 * **E0 — the emulated link against a real network path, not done.** It needs the cloud VM's real
   path to this host, unshaped, or a device on a real network; no container can take it. Why: every
   shaped-link figure rests on the emulation, and "if the emulation is wrong they are all wrong
