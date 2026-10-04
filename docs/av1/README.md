@@ -222,6 +222,34 @@ still ends 2–4× slower than HTJ2K. WebCodecs ran with however many threads Ch
 that count was not measured. The dav1d-WASM build is single-threaded. These are container figures on
 4 cores with one decoder at a time, not a phone's.
 
+*Measured (REP14; [`lab/av1/rep14`](../../lab/av1/rep14/README.md)): at 13 and 14 bits.* Two layouts
+were compared on every frame of the two 14-bit tomosynthesis projection series and the CT (13 bits
+after its offset). **d12** keeps the two low bits apart: v ≫ 2 as a 12-bit stream, which only dav1d
+takes. **w10** codes v ≫ (b − 10) as a 10-bit stream and the 4 (or 3) low bits at 8, so WebCodecs
+takes both. Both use libaom 3.15.1 with `--tune-content=screen --sb-size=64`, and every frame was
+exact natively, through dav1d-WASM and through WebCodecs. Bytes over HTJ2K's at cpu0, then at the
+fastest preset within 2 % of it (`--allintra` 7 for d12 and 9 for w10 on the projections, cpu6 on the CT):
+
+| series | d12 | w10 | d12, fast | w10, fast |
+| --- | --- | --- | --- | --- |
+| projections, system 1, 9 × 1914×2572 | **0.953** | 0.999 | 0.953 | 1.007 |
+| projections, system 2, 15 × 1280×2048 | **0.923** | 1.046 | 0.925 | 1.059 |
+| CT 100 × 512² | **0.917** | 0.931 | 0.926 | 0.940 |
+
+**The four low bits cost what d12 saved.** At 14 bits, on the sweep's first two frames, the w10 low
+stream is 60–71 % of w10's bytes and 2.2× d12's two-bit one. On one projection series w10 is larger than HTJ2K. At 13 bits three low
+bits cost only 1.6 % over d12. Decode in headless Chromium through the product's `decoder.js`, ms a
+frame, median of 10 interleaved rounds at 1× · 4×, 9 920/9 920 frames exact:
+
+| series | OpenJPH | d12, dav1d-WASM | w10, WebCodecs | w10, dav1d-WASM | w10 ÷ d12 |
+| --- | --- | --- | --- | --- | --- |
+| projections, system 1 | 93 · 396 | 622 · 2 665 | 246 · 1 023 | 586 · 2 520 | 0.39 · 0.38 |
+| projections, system 2 | 53 · 216 | 294 · 1 277 | 141 · 579 | 302 · 1 315 | 0.48 · 0.45 |
+| CT | 4.9 · 15.2 | 27.4 · 111 | 13.8 · 41.0 | 28.3 · 112 | 0.51 · 0.37 |
+
+WebCodecs was faster than d12 in 60/60 paired rounds. It is still 2.6–2.8× OpenJPH, against 5.5–7.1×
+for d12. The decoder accounts for the gain: dav1d-WASM on w10 takes 0.94–1.04 of its d12 time.
+
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never
