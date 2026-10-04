@@ -304,7 +304,9 @@ pub(crate) trait FramePipeline: Send {
     async fn finish(&mut self);
 }
 ```
-* The readers own an `Arc<FrameStore>`.
+* The readers own an `Arc<FrameStore>`. **Done after R3, `15efab9`:** not for a measurement but for an
+  invariant the types did not hold — the ring registers the store's file and the slots key on its
+  offsets, so `read` no longer takes a store.
 * `RecordedPipeline` stamps three times: `begin_frame` at `read` entry, the read boundary at
   `read` exit, and the emit after `write`.
 * The rows file and the report move to **v3**: `read_us` and `write_us` replace `prepare_us`,
@@ -452,7 +454,7 @@ New branch off `main` after PR #33 merges (per the handoff). One worktree, its o
 | R0a / R0b | Strip per-frame mode (W4) / strip the stall (W16), each tagged `archive/…` first, **only if decided** | D1, D2 | none (removals; the per-frame half of conformance goes with W4) |
 | R1 | #1: planner owns range and refusal text; `Next`; fill plumbing gone; #8's `Mode` / `forward` / `Ask` doc | — | **`server_ab.sh <R1^>`, interleaved; expect tie on every cell; p50 verdict only** — **built `7f7730e`.** Run in a 4-core cloud container, not the workstation, so not evidence (the script says so): 12 rounds, every cell a tie on p50, `named` 4 at cold depth 4 on both arms, cold miss ≥ 0.99. The script exits 1 because its `WANT` table still expects `cold_d4` to win, as written for the change it was built for. **The workstation run is owed** |
 | R2 | #3: `Link`, one writer per session; `Control` and the WebSocket mutex gone | R1; shape from D1, D2 | none (QUIC bytes identical) — **done `d3565c7`**, keep-both shape; `frame_out.rs` became `link.rs`, and the late-control refusal test moved there against `ControlStream` |
-| R3 | #6 + #7 rename: `read` / `write` steps; row v3 (`read_us`, `write_us`, `t_serve_us`; `overhead_us` gone); ADR amended in place | R1, R2; D3 | none required — **done `58b26e6`**; measured in a container, both arms recording: a tie on CPU per frame (telemetry ADR §What it costs). Not done: the readers owning an `Arc<FrameStore>`, which no measurement or test asked for |
+| R3 | #6 + #7 rename: `read` / `write` steps; row v3 (`read_us`, `write_us`, `t_serve_us`; `overhead_us` gone); ADR amended in place | R1, R2; D3 | none required — **done `58b26e6`**; measured in a container, both arms recording: a tie on CPU per frame (telemetry ADR §What it costs). The readers owning an `Arc<FrameStore>` followed as `15efab9` (§6) |
 | R4 | #5: `session/` module, `endpoint.rs`, `testkit.rs`, tests beside their code; #8's renames | R1–R3 | none |
 
 **Dependencies, checked.** The review's "5 after 1–3" still holds, plus after #6. "6 after 1"

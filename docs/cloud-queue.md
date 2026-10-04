@@ -43,6 +43,7 @@ file names, branch names or commit messages.
 | 118 | **SRV-R2** — one writer per session, `Link` (§Row 118) | **done** on `claude/server-design`: `d3565c7`, noted `6d2aa06` — keep-both shape, full gate green, link check clean; new `a_websocket_session_ends_with_a_close_frame`; mutants (`finish` skips the close, a gone control stream still awaited, the stall budget never spent) each fail a test. `frame_out.rs` is now `link.rs`; the docs naming it follow. QUIC bytes identical: no measurement |
 | 119 | **SRV-R3** — pipeline steps `read`/`write`, telemetry row v3 (§Row 119) | **done** on `claude/server-design`: `58b26e6`, measurement and lab script `05dcb0b`, noted `002511e` — full gate green at `58b26e6` (`05dcb0b` is a script and docs), link check clean; new `a_slow_write_lands_in_write_us_not_read_us`, `a_rows_file_of_another_version_is_refused`; mutants (the read boundary moved after the write, the version check dropped, a refusal keeping a stage, `ahead` dropping a name) each fail a test. **Measurement, in this container only:** old build against new, telemetry on in both arms (`DEFAULT_TELEMETRY=1`, added), 6 interleaved pairs at 1/4/16 sessions: CPU per frame −2.2/−1.0/−0.4 %, a tie — telemetry ADR §What it costs. The readers owning an `Arc<FrameStore>` (design §6) not done: nothing asked for it |
 | 120 | **SRV-R4-PLAN** — the layout commit written out in full for the owner's review; no code (§Row 120) | **waiting on the owner** — written `679b9ce` on `claude/server-design`, the design file's §R4 written out: tree, moves, tests' destinations, renames with call sites, the test kit, two questions (Q1 where `run_server` lives, Q2 the small study). Found: the move changes a log target `lab/scripts/runtime_ab.sh` filters on, so R4b must carry it |
+| 121 | **SRV-R3b** — the readers own the study's `FrameStore` (§Row 121) | **done** on `claude/server-design`: `15efab9` — full gate green, link check clean. No new test and no mutant: the misuse it removes, a reader handed another store than its ring registered, no longer type-checks. No measurement: the same reads, one `Arc` clone per reader. `disk-access.md` §10 says why |
 | 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | **done** `4fda9f1` — full gate green (dispatch 119/119: the 6 warm-up and 2 ready-stamp checks went with them); `decoders` pinned at 2, 8 and unreported cores by `client/downloader/downloader.test.mjs`, four mutants each fail; the two codestreams the rig decodes moved to `client/conformance/frames/`; `lab/decode-first-frame` (its own in-page warm-up arm) and `telemetry-cost` (JIT rounds) kept — `docs/decode/README.md` §Warming the decoders, `ARCHITECTURE.md` §The decoders |
 | 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **done** `0a17e17` — both images build and run under docker (podman unrun); `compose up`: `wt_url=`, TCP 4433 answers 101, the cell delivers 3/3 frames over WebTransport and WebSocket; the check passes on the image — `deploy/README.md` |
 | 59 | **A1b** — the handover on a device: does a session survive Wi-Fi → cellular, and how long is the freeze ([`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice) | **waiting on a device** — no container can take it |
@@ -167,6 +168,12 @@ file: the before → after tree; every item that moves (function, type, test) wi
 every rename with each call site's count; the shared test kit's API; what `websocket.rs` imports after; the
 commit order inside R4. Then mark the row "waiting on the owner" and stop — R4 is built only after approval.
 
+### Row 121
+Design §6's last line, left out of R3: `SeqReader` and `TileReader` take the `Arc<FrameStore>` at
+construction and `read` takes none. Asked by the owner on 2026-10-04 as a correctness change: a reader is bound to
+one store (the ring's registered file, the slots' offset keys), and the signature said otherwise. Before R4a, so
+the test kit is written against the final signatures.
+
 ## Finished
 
 One line a batch; what each found is in the doc named.
@@ -223,8 +230,6 @@ tail, not the head.
   agreed (every cell a p50 tie, `named` 4 on both arms). One earlier attempt stopped in round 1: a fill
   session on the R1 server outlived its driver by 22 s with no `session reads` line. Not reproduced in
   60 interleaved fill sessions or the 12 rounds after; watch for it in this run.
-* **R3 left the readers taking the store per call** — design §6's "the readers own an
-  `Arc<FrameStore>`" was not built (`58b26e6`): fold it into R4 or drop it from the design.
 * **A client that closes mid-fill still logs a WARN** — `session ended err=write frame` in 6–9 of 30
   fill sessions on both builds (`ca74421`, `7f7730e`): the write error is not classified as the
   peer's close. The C1 leftover's sibling; a row if wanted.
