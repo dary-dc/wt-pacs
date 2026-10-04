@@ -461,6 +461,13 @@ exists: say so, and do not build one. Verdict: AV2's lossless bytes over AV1's a
 
 ## Blocked
 
+* **2026-10-04 07:10 UTC: row 23 TOTAL is measured twice over, or about to be.** The session that claimed it at
+  `04fa4d3` was mid-run when its claim was set stale (14 rounds × 160 visits take ~10 h, with no commit until the
+  end); it finished and pushed the reading as `bc35549` — 2 257 visits, n = 10–16 a cell, 70 022/70 022 frames
+  exact, [`README.md`](README.md) §Total time. Row 23 was claimed again by another session meanwhile, so this one
+  leaves the row as it stands. The owner, or the claim's holder, decides whether `bc35549` closes it. A stale
+  rule that counts commits misses a timed lane; a long lane could push its partial rows.
+
 * **2026-10-04 05:20 UTC: row 23 TOTAL's claim (2026-10-03 22:54 UTC) went stale** — over six hours with no commit from its lane; set back to `night`.
 
 * **2026-10-03 19:43 UTC: every session hit the account's five-hour usage limit mid-row** — rows 23, 24, 25, 27, 28 and 30 were set back to `ready`; nothing of theirs had been pushed, so a session taking one starts it fresh.
