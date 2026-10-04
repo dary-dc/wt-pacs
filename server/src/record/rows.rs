@@ -13,7 +13,7 @@ use std::io::{BufReader, Read, Result as IoResult};
 use std::path::Path;
 
 pub(super) const MAGIC: &[u8; 4] = b"WTPR";
-pub(super) const VERSION: u16 = 2;
+pub(super) const VERSION: u16 = 3;
 pub(super) const RECORD_BYTES: usize = 56;
 pub(super) const HEADER_BYTES: usize = 16;
 
@@ -21,9 +21,8 @@ const TAG_FRAME: u8 = 1;
 /// Tag 2 is reserved (a withdrawn per-frame acknowledgement record); readers skip it.
 const TAG_SESSION: u8 = 3;
 
-const FLAG_PREPARE: u8 = 1;
-const FLAG_LOCATE: u8 = 2;
-const FLAG_SEND: u8 = 4;
+const FLAG_READ: u8 = 1;
+const FLAG_WRITE: u8 = 2;
 
 pub(super) fn header() -> [u8; HEADER_BYTES] {
     let mut h = [0u8; HEADER_BYTES];
@@ -86,31 +85,21 @@ pub(super) fn encode(record: &Record) -> [u8; RECORD_BYTES] {
     let mut w = W(&mut buf, 0);
     match record {
         Record::Frame(f) => {
-            let mut flags = 0u8;
-            if f.prepare_us.is_some() {
-                flags |= FLAG_PREPARE;
-            }
-            if f.locate_us.is_some() {
-                flags |= FLAG_LOCATE;
-            }
-            if f.send_us.is_some() {
-                flags |= FLAG_SEND;
-            }
+            let flags = if f.read_us.is_some() { FLAG_READ } else { 0 }
+                | if f.write_us.is_some() { FLAG_WRITE } else { 0 };
             w.u8(TAG_FRAME);
             w.u8(flags);
             w.u16(0);
             w.u64(f.session_id);
             w.u32(f.frame_index);
             w.u32(f.ask_ordinal);
-            w.u64(f.t_ask_us);
-            w.u32(f.prepare_us.unwrap_or(0));
-            w.u32(f.locate_us.unwrap_or(0));
-            w.u32(f.send_us.unwrap_or(0));
+            w.u64(f.t_serve_us);
+            w.u32(f.read_us.unwrap_or(0));
+            w.u32(f.write_us.unwrap_or(0));
             w.u32(f.serve_us);
-            w.u32(f.overhead_us);
             w.u32(f.server_bytes_sent);
-            w.u8(f.locate_outcome);
             w.u8(f.write_outcome);
+            w.u8(0);
             w.u16(f.dropped_since_last);
         }
         Record::Session(s) => {
@@ -141,29 +130,24 @@ pub(super) fn decode(buf: &[u8; RECORD_BYTES]) -> Option<Record> {
             let session_id = r.u64();
             let frame_index = r.u32();
             let ask_ordinal = r.u32();
-            let t_ask_us = r.u64();
-            let prepare = r.u32();
-            let locate = r.u32();
-            let send = r.u32();
+            let t_serve_us = r.u64();
+            let read = r.u32();
+            let write = r.u32();
             let serve_us = r.u32();
-            let overhead_us = r.u32();
             let server_bytes_sent = r.u32();
-            let locate_outcome = r.u8();
             let write_outcome = r.u8();
+            let _pad = r.u8();
             let dropped_since_last = r.u16();
             Some(Record::Frame(FrameRecord {
                 kind: "server_frame",
                 session_id,
                 frame_index,
                 ask_ordinal,
-                t_ask_us,
-                prepare_us: (flags & FLAG_PREPARE != 0).then_some(prepare),
-                locate_us: (flags & FLAG_LOCATE != 0).then_some(locate),
-                send_us: (flags & FLAG_SEND != 0).then_some(send),
+                t_serve_us,
+                read_us: (flags & FLAG_READ != 0).then_some(read),
+                write_us: (flags & FLAG_WRITE != 0).then_some(write),
                 serve_us,
-                overhead_us,
                 server_bytes_sent,
-                locate_outcome,
                 write_outcome,
                 dropped_since_last,
             }))
@@ -194,6 +178,13 @@ pub(super) fn read_records(path: &Path) -> IoResult<RowReader> {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             "not a telemetry row file (bad magic)",
+        ));
+    }
+    let version = u16::from_le_bytes([header[4], header[5]]);
+    if version != VERSION {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("row file version {version}, this build reads {VERSION}"),
         ));
     }
     let record_size = u16::from_le_bytes([header[6], header[7]]) as usize;
@@ -238,14 +229,11 @@ mod tests {
             session_id: 9,
             frame_index: 1234,
             ask_ordinal: 2,
-            t_ask_us: 5_000_000_001,
-            prepare_us: Some(10),
-            locate_us: None,
-            send_us: Some(0),
+            t_serve_us: 5_000_000_001,
+            read_us: None,
+            write_us: Some(0),
             serve_us: 55,
-            overhead_us: 45,
             server_bytes_sent: 250_004,
-            locate_outcome: 1,
             write_outcome: 2,
             dropped_since_last: 7,
         };
@@ -255,11 +243,11 @@ mod tests {
         };
         assert_eq!(g.session_id, 9);
         assert_eq!(g.frame_index, 1234);
-        assert_eq!(g.t_ask_us, 5_000_000_001);
-        assert_eq!(g.prepare_us, Some(10));
-        assert_eq!(g.locate_us, None, "null stays null, never 0");
-        assert_eq!(g.send_us, Some(0), "a measured 0 stays 0, never null");
+        assert_eq!(g.t_serve_us, 5_000_000_001);
+        assert_eq!(g.read_us, None, "null stays null, never 0");
+        assert_eq!(g.write_us, Some(0), "a measured 0 stays 0, never null");
         assert_eq!(g.serve_us, 55);
+        assert_eq!(g.server_bytes_sent, 250_004);
         assert_eq!(g.dropped_since_last, 7);
         assert_eq!(g.write_outcome, 2);
     }
@@ -292,6 +280,20 @@ mod tests {
         let mut buf = [0u8; RECORD_BYTES];
         buf[0] = 42;
         assert!(decode(&buf).is_none());
+    }
+
+    /// A row file of another version is refused, not decoded: v2 has the same record size,
+    /// so the size check alone would read its frames as v3 garbage.
+    #[test]
+    fn a_rows_file_of_another_version_is_refused() {
+        let path = std::env::temp_dir().join(format!("wtpacs-rows-v2-{}.rows", std::process::id()));
+        let mut v2 = header();
+        v2[4..6].copy_from_slice(&2u16.to_le_bytes());
+        std::fs::write(&path, v2).expect("write");
+        let opened = read_records(&path);
+        let _ = std::fs::remove_file(&path);
+        let err = opened.err().expect("a v2 row file was read as v3");
+        assert!(err.to_string().contains("version 2"), "{err}");
     }
 
     #[test]

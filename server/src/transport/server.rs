@@ -426,7 +426,6 @@ pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Ask>)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::frame_store::FrameSpan;
     use crate::transport::planner::Next;
     use anyhow::anyhow;
     use crate::transport::wire::write_fod_msg;
@@ -449,9 +448,12 @@ mod tests {
         fn store(&self) -> &Arc<FrameStore> {
             &self.store
         }
-        async fn send(&mut self, frame: u32, _span: FrameSpan, _ahead: &[FrameSpan], next: &Next) -> Result<()> {
+        async fn read(&mut self, frame: u32, next: &Next) -> Result<bytes::Bytes> {
             self.fills += u32::from(matches!(next, Next::Fill { first: true, .. }));
             self.seen.push((frame, next.clone()));
+            Ok(bytes::Bytes::new())
+        }
+        async fn write(&mut self, _frame: u32, _body: bytes::Bytes) -> Result<()> {
             Ok(())
         }
         async fn refuse(&mut self, _frame: u32, _reason: String) -> Result<()> {

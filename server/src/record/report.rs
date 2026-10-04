@@ -19,7 +19,7 @@ use super::tap::{
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
-pub(super) const SCHEMA: &str = "server-pipeline-v2";
+pub(super) const SCHEMA: &str = "server-pipeline-v3";
 pub(super) const METHOD_EXACT: &str = "exact-sort";
 pub(super) const METHOD_HIST: &str = "histogram-loglinear-1024";
 /// `server_frames` is inlined, and the summary exact, only up to this many rows.
@@ -75,22 +75,18 @@ pub(super) struct RunSummary {
     pub percentile_method: &'static str,
     pub totals: SummaryTotals,
     /// Absent when no sample — JSON `null`, never a zero-filled stats object.
-    pub prepare_us: Option<DistributionStats>,
-    pub locate_us: Option<DistributionStats>,
-    pub send_us: Option<DistributionStats>,
+    pub read_us: Option<DistributionStats>,
+    pub write_us: Option<DistributionStats>,
     pub serve_us: Option<DistributionStats>,
-    pub overhead_us: Option<DistributionStats>,
     pub server_bytes_sent: Option<DistributionStats>,
     pub integrity: IntegrityBlock,
 }
 
 #[derive(serde::Serialize)]
 pub(super) struct SummaryTotals {
-    pub prepare_us: u64,
-    pub locate_us: u64,
-    pub send_us: u64,
+    pub read_us: u64,
+    pub write_us: u64,
     pub serve_us: u64,
-    pub overhead_us: u64,
     pub server_bytes_sent: u64,
 }
 
@@ -113,28 +109,22 @@ pub(super) struct DistributionStats {
 
 #[derive(Default)]
 pub(super) struct RunAccumulator {
-    prepare: Vec<u32>,
-    locate: Vec<u32>,
-    send: Vec<u32>,
+    read: Vec<u32>,
+    write: Vec<u32>,
     serve: Vec<u32>,
-    overhead: Vec<u32>,
     bytes: Vec<u32>,
 }
 
 impl RunAccumulator {
     pub(super) fn push(&mut self, row: &FrameRecord) {
         // Null ≠ 0: absent stages must not enter distributions as fake zeros.
-        if let Some(us) = row.prepare_us {
-            self.prepare.push(us);
+        if let Some(us) = row.read_us {
+            self.read.push(us);
         }
-        if let Some(us) = row.locate_us {
-            self.locate.push(us);
-        }
-        if let Some(us) = row.send_us {
-            self.send.push(us);
+        if let Some(us) = row.write_us {
+            self.write.push(us);
         }
         self.serve.push(row.serve_us);
-        self.overhead.push(row.overhead_us);
         self.bytes.push(row.server_bytes_sent);
     }
 
@@ -146,18 +136,14 @@ impl RunAccumulator {
             sessions: 0,
             percentile_method: METHOD_EXACT,
             totals: SummaryTotals {
-                prepare_us: sum(&self.prepare),
-                locate_us: sum(&self.locate),
-                send_us: sum(&self.send),
+                read_us: sum(&self.read),
+                write_us: sum(&self.write),
                 serve_us: sum(&self.serve),
-                overhead_us: sum(&self.overhead),
                 server_bytes_sent: sum(&self.bytes),
             },
-            prepare_us: distribution_stats(&self.prepare),
-            locate_us: distribution_stats(&self.locate),
-            send_us: distribution_stats(&self.send),
+            read_us: distribution_stats(&self.read),
+            write_us: distribution_stats(&self.write),
             serve_us: distribution_stats(&self.serve),
-            overhead_us: distribution_stats(&self.overhead),
             server_bytes_sent: distribution_stats(&self.bytes),
             integrity: IntegrityBlock::default(),
         }
@@ -301,14 +287,12 @@ impl Hist {
     }
 }
 
-/// Everything the drain keeps in memory while rows stream past: six histograms, counters,
+/// Everything the drain keeps in memory while rows stream past: four histograms, counters,
 /// and the (small) list of session rows.
 pub(super) struct LiveSummary {
-    prepare: Hist,
-    locate: Hist,
-    send: Hist,
+    read: Hist,
+    write: Hist,
     serve: Hist,
-    overhead: Hist,
     bytes: Hist,
     pub(super) frames: u64,
     pub(super) records: u64,
@@ -318,11 +302,9 @@ pub(super) struct LiveSummary {
 impl LiveSummary {
     pub(super) fn new() -> Self {
         Self {
-            prepare: Hist::new(),
-            locate: Hist::new(),
-            send: Hist::new(),
+            read: Hist::new(),
+            write: Hist::new(),
             serve: Hist::new(),
-            overhead: Hist::new(),
             bytes: Hist::new(),
             frames: 0,
             records: 0,
@@ -335,17 +317,13 @@ impl LiveSummary {
         match rec {
             Record::Frame(f) => {
                 self.frames += 1;
-                if let Some(us) = f.prepare_us {
-                    self.prepare.record(us);
+                if let Some(us) = f.read_us {
+                    self.read.record(us);
                 }
-                if let Some(us) = f.locate_us {
-                    self.locate.record(us);
-                }
-                if let Some(us) = f.send_us {
-                    self.send.record(us);
+                if let Some(us) = f.write_us {
+                    self.write.record(us);
                 }
                 self.serve.record(f.serve_us);
-                self.overhead.record(f.overhead_us);
                 self.bytes.record(f.server_bytes_sent);
             }
             Record::Session(s) => self.sessions.push(*s),
@@ -359,18 +337,14 @@ impl LiveSummary {
             sessions: self.sessions.len() as u64,
             percentile_method: METHOD_HIST,
             totals: SummaryTotals {
-                prepare_us: self.prepare.sum,
-                locate_us: self.locate.sum,
-                send_us: self.send.sum,
+                read_us: self.read.sum,
+                write_us: self.write.sum,
                 serve_us: self.serve.sum,
-                overhead_us: self.overhead.sum,
                 server_bytes_sent: self.bytes.sum,
             },
-            prepare_us: self.prepare.dist(),
-            locate_us: self.locate.dist(),
-            send_us: self.send.dist(),
+            read_us: self.read.dist(),
+            write_us: self.write.dist(),
             serve_us: self.serve.dist(),
-            overhead_us: self.overhead.dist(),
             server_bytes_sent: self.bytes.dist(),
             integrity: IntegrityBlock::default(),
         }
@@ -459,7 +433,7 @@ pub(super) fn exact_report_from_rows(rows_path: &Path) -> std::io::Result<Teleme
             Record::Session(s) => sessions.push(s),
         }
     }
-    frames.sort_by_key(|f| (f.session_id, f.t_ask_us, f.frame_index, f.ask_ordinal));
+    frames.sort_by_key(|f| (f.session_id, f.t_serve_us, f.frame_index, f.ask_ordinal));
     sessions.sort_by_key(|s| s.session_id);
     let mut summary = acc.build_summary();
     summary.sessions = sessions.len() as u64;
