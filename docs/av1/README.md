@@ -292,6 +292,65 @@ unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot 
 is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
 samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
 
+## Total time (row TOTAL, [`lab/av1/total`](../../lab/av1/total/README.md))
+
+The measure that decided against AV1 before, now with every form this queue made exact. Each arm
+fills a whole series through the downloader against the real server behind the relay. The browser
+is headless Chromium 141 at 1× and 4×, with three decoders. Links are fixed 5/20/50 Mbit/s and
+row PROF's LTE trace and Wi-Fi steps, without their competing flow and outage. 14 rounds ran in a
+Williams order (more where `VOID` drops left a cell short), n = 10–16 a cell, and 135 of 2 257
+visits were dropped. **70 022/70 022 frames were exact against the source**; the 2 520 preview
+frames matched native dav1d. Each HTJ2K cell gives the median seconds to every frame on the page.
+Each AV1 cell gives the median of round-paired ratios to HTJ2K, at 1× · 4×. In brackets, each
+arm's bytes over HTJ2K's:
+
+| series | arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| --- | --- | --- | --- | --- | --- | --- |
+| fluoroscopy 18 × 768², 12-bit | HTJ2K, s | 15.2 · 15.2 | 3.93 · 3.97 | 1.73 · 1.76 | 3.43 · 3.42 | 5.85 · 5.59 |
+| | AV1 intra, dav1d (1.024) | 1.03 · 1.04 | 1.04 · 1.10 | 1.07 · 1.74 | 1.04 · 1.22 | 1.04 · 1.08 |
+| | top11+low, dav1d (0.946) | **0.95 · 0.97** | **0.97** · 1.03 | 1.00 · 1.74 | 0.98 · 1.17 | **0.96** · 1.01 |
+| | top10+low, WebCodecs (0.999) | 1.00 · 1.01 | 1.01 · 1.03 | 1.02 · 1.10 | 1.01 · 1.03 | 1.00 · 1.02 |
+| | preview, lossy, G = 8 (0.008) | 0.03 · 0.08 | 0.11 · 0.29 | 0.26 · 0.64 | 0.14 · 0.35 | 0.08 · 0.21 |
+| tomosynthesis 29 × 614×1359, 12-bit | HTJ2K, s | 23.7 · 23.7 | 6.05 · 6.10 | 2.58 · 2.63 | 4.96 · 4.92 | 10.1 · 9.44 |
+| | AV1 intra, dav1d (1.043) | 1.05 · 1.05 | 1.05 · 1.09 | 1.07 · 1.78 | 1.04 · 1.15 | 1.02 · 1.09 |
+| | top11+low, dav1d (0.942) | **0.95 · 0.96** | **0.95** · 0.99 | 0.97 · 1.77 | 0.97 · 1.09 | **0.95** · 0.98 |
+| | top10+low, WebCodecs (0.990) | 0.99 · 0.99 | 0.99 · 1.00 | 1.00 · 1.13 | 1.00 · 1.01 | 0.98 · 0.99 |
+| tomosynthesis 24 × 678×1727, 10-bit | HTJ2K, s | 22.3 · 22.4 | 5.72 · 5.79 | 2.45 · 2.52 | 4.73 · 4.80 | 9.39 · 8.84 |
+| | AV1 intra, dav1d (0.977) | 0.98 · 0.99 | 0.99 · 1.03 | 1.01 · 1.78 | 0.99 · 1.13 | 0.96 · 1.05 |
+| | AV1 intra, WebCodecs (0.977) | 0.98 · 0.99 | 0.99 · 1.01 | 1.00 · 1.36 | 0.99 · 1.02 | 0.98 · 1.01 |
+| | one group, dav1d (0.971) | **0.97 · 0.98** | 0.98 · 1.79 | 1.13 · 4.10 | 0.99 · 2.18 | 0.98 · 1.24 |
+| ultrasound 70 × 760×421, RGB 8 | HTJ2K, s | 29.4 · 29.5 | 7.49 · 7.52 | 3.15 · 3.19 | 5.81 · 5.80 | 12.5 · 13.2 |
+| | AV1 intra, dav1d (1.117) | 1.12 · 1.12 | 1.12 · 1.14 | 1.13 · 2.22 | 1.11 · 1.35 | 1.10 · 1.13 |
+| | AV1 intra, WebCodecs (1.117) | 1.12 · 1.12 | 1.12 · 1.13 | 1.12 · 1.38 | 1.11 · 1.12 | 1.14 · 1.13 |
+
+* **Where the link is the clock, bytes decide.** At 1× and on every link at 5 Mbit, each arm's
+  total follows its bytes. On the 12-bit series top11+low is 0–5 % under HTJ2K. The 10-bit
+  tomosynthesis coded whole is within 1 % of it or up to 4 % under. The ultrasound
+  loses 10–14 % everywhere, which is its bytes.
+* **Where the CPU is the clock, HTJ2K wins.** At 4× on 50 Mbit every intra dav1d-WASM arm
+  takes 1.74–2.22× HTJ2K's time, and WebCodecs takes 1.10–1.38×. At 4× on LTE dav1d-WASM takes
+  1.09–1.35×. A whole series as one group puts it on one decoder. That group needs 10.3–10.8 s at
+  4× on every link of 20 Mbit or more, against HTJ2K's 2.5–8.8 s.
+* **The first frame is HTJ2K's on every cell**, by 55–160 ms at 1× and by 290–470 ms at 4× through
+  dav1d-WASM. Through WebCodecs the gap is 5–70 ms at 1× and 70–210 ms at 4×.
+* **The preview makes the fluoroscopy playable in 0.45 s at 1× and 1.1–1.2 s at 4× on any link**,
+  against 1.7–15 s for every exact frame. Its first picture arrives in 0.11–0.29 s. At 4× the
+  preview's own decode through dav1d-WASM is its clock. This arm fills the preview only, and the
+  exact frames would follow it by its 0.8 % of the bytes (row PREVIEW).
+* **Saturation.** At 4× on 50 Mbit, AV1's decode on the browser's three cores is the fill's clock;
+  HTJ2K's is not on any cell. Nothing is claimed about a phone. The Wi-Fi cells spread ±20 %
+  between rounds, because the trace's steps fall at a different point in each fill; the paired
+  ratios still hold.
+
+**Verdict per series.** On the 12-bit fluoroscopy and tomosynthesis, **top11+low wins at 1× on
+every link (0.95–0.98)**, except a tie on the fluoroscopy at 50 Mbit. At 4× it wins on 5 Mbit
+(0.96–0.97) and is within 3 % on 20 Mbit and Wi-Fi. HTJ2K wins at 4× on LTE and 50 Mbit. top10+low through WebCodecs never loses by more than 3 % short of 4× on 50 Mbit,
+where it loses 10–13 %. On the 10-bit tomosynthesis, AV1 intra through WebCodecs ties or wins
+everywhere but 4× on 50 Mbit (1.36). One group gains 1 % at 5 Mbit and loses up to 4.1× at 4×. **The RGB
+ultrasound is HTJ2K's on every cell.** So the measure that decided before now splits by the
+clock: AV1's lossless forms win by their bytes wherever the wire is slower than the decoder. They
+lose wherever a slow CPU meets a fast link, and WebCodecs halves that loss.
+
 ## Threads (owner, 2026-10-03)
 
 **Focus: AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
