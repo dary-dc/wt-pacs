@@ -20,8 +20,10 @@ at 8, 10 and 12 bits, made with `roundtrip.frames_for`; the real ones are row DA
 libaom **3.15.1**, from the tarball `tools.sh` pins (SHA-256 `8ca0c527…8d01bf`): the stock example
 from `tools.sh`'s own build tree, and a second build with
 [`svc_encoder_rtc.patch`](svc_encoder_rtc.patch) applied. The patch touches the example's command
-line only, not the library: `--bit-depth=12` (profile 2), `--profile=N`, `--monochrome`, and
-`--layer-q` (row SVCQ's per-layer quantizers, unused here). Without
+line only, not the library: `--bit-depth=12` (profile 2), `--profile=N`, `--monochrome`,
+`--layer-q` (row SVCQ's per-layer quantizers) and `--rgb` (row WCBASE: 4:4:4 tagged as G, B, R —
+BT.709 primaries, sRGB transfer, identity matrix — as dav1d's and WebCodecs' paths in the product
+require), the last two unused here. Without
 it the example takes 8 and 10 bits only, sets profile 0, and has no way to ask for 4:0:0. It stays in
 the lab; nothing in the product encodes. dav1d 1.5.4 decodes.
 
