@@ -101,6 +101,23 @@ WebCodecs on the ultrasound, its one exact series, keeps up — 3.60 s (116) at 
 (115) at 20; 3.52 (38) and 8.37 (36) at 1× — so there its fill is AV1's bytes alone. A container's
 4 cores, the browser on 3 of them and the relay alone on the fourth; not a phone.
 
+*Cutting the decode (row DECSPEED, [`lab/av1/decspeed`](../../lab/av1/decspeed/README.md)): tiles
+and threads cut a frame's latency, not a fill's.* A lossless frame's decode is 66–84 % entropy
+decoding (a profile of dav1d-WASM), serial within a tile. No encoder setting cuts it by more than
+10 %: presets, 64² superblocks, and every optional intra tool off, at +6–72 % bytes. dav1d's threads
+do nothing without tiles. With 4 tile columns (+0.1–0.4 % bytes) and 3 threads, one frame decodes in
+0.37–0.44 of its time: 29 against 76 ms on the fluoroscopy at 1×, 116 against 314 at 4×. That is
+still 2.6–2.9× HTJ2K's. Through the fill at 50 Mbit, 12 rounds, 487 of 504 visits kept and all 24 528
+frames exact, the gain goes away at 4×. Here 4× is three slowed cores for the whole browser, as a
+phone has, which is stricter than row FILL's quarter-core per thread. Seven arms ran: today's
+3 decoders; 6 decoders; and the tiled frames on 1 decoder × 3 threads, 2 × 2, 3 × 2 and 3 × 3. They
+end within −3 to +4 % of each other on the fluoroscopy and ultrasound, and the oversubscribed arms
+are worst on the MR (+11–15 %). The cores are the clock, and threads only move the same work between
+them. **The best combination is 1 decoder × 3 threads on 4-tile frames**: 1.83×, 1.81× and 2.39× HTJ2K's
+fill at 4× (3.21, 3.60, 7.62 s against 1.75, 1.99, 3.18), against today's 1.82×, 1.86× and 2.32×.
+At 1× it ends 20–40 ms sooner. What it buys is an ask's single frame at 0.37–0.44 of
+the time; a fill's total stays where the decoder's CPU work puts it. Containers, not phones.
+
 **A2 — which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
 Neither is assumed faster or exact:
