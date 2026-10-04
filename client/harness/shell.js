@@ -1,14 +1,11 @@
 /**
- * One harness shell, two adapters.
- *
- * `index.html` (WASM) and `ts.html` (TypeScript) each supply `loadSession`; everything a run
- * does — the ask schedule, depth, using the bytes, the telemetry marks, closing the session —
- * lives here, so the two arms cannot be driven differently by accident.
+ * The harness cell: one run of asks over the downloader, the lab's only client. `cell.html` loads it.
  *
  * Query parameters:
- *   telemetry=1        load the telemetry build and harvest via window.__wtpacsTelemetry
+ *   transport=…        ts (default) | ws | wasm | a module URL exporting TransportSession
+ *   telemetry=1        record in the downloader's worker; harvest via window.__wtpacsTelemetry (transport=ts only)
  *   stream_mode=…      shared | per-frame (must match the server; recorded in the report)
- *   cell=…             ondemand (one RequestFrame per step, `d` in flight) | fill (one StreamFrames)
+ *   cell=…             ondemand (one ask per step, `d` in flight) | fill (one pushed fill) | refuse (ondemand past the study: no media)
  *   d=…                outstanding asks for on-demand (default 1 — the control)
  *   n=…                steps to run (default: one pass over the study)
  *   frames=…           study frame count (default: /study/metadata frameCount)
@@ -17,21 +14,40 @@
  *   autorun=1          run the cell on load, then close the session and set window.__wtpacsDone
  */
 
+import { DownloaderClient } from "/client/downloader/consumer.js";
+
 const params = new URLSearchParams(location.search);
 const telemetry = params.get("telemetry") === "1";
 const streamMode = params.get("stream_mode") || "shared";
 const cell = params.get("cell") || "ondemand";
 const autorun = params.get("autorun") === "1";
 const depth = Math.max(1, Number(params.get("d") || 1));
+const transportName = params.get("transport") || "ts";
+const TRANSPORTS = {
+  ts: undefined,
+  ws: "/client/transport-ts/dist/ws-session.js",
+  wasm: "/client/transport-wasm/session-adapter.js",
+};
+
+function transportModule() {
+  if (!telemetry) return transportName in TRANSPORTS ? TRANSPORTS[transportName] : transportName;
+  if (transportName !== "ts") throw new Error(`telemetry=1 records the TS transport only, not transport=${transportName}`);
+  return `/client/transport-ts/dist/session.telemetry.js?stream_mode=${streamMode}`;
+}
 
 const logEl = document.getElementById("log");
-export function log(...a) {
+function log(...a) {
   logEl.textContent += a.join(" ") + "\n";
 }
+
+/** Milestones since navigation, in ms. What R2 counts round trips from — lab/page-open/. */
+const open = (globalThis.__wtpacsOpen = {});
+const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
 
 /** Touch one byte per 4 KiB and the last byte, so the bytes are used and the copy is real. */
 let checksum = 0;
 function touch(bytes) {
+  mark("frame");
   for (let i = 0; i < bytes.length; i += 4096) checksum = (checksum * 31 + bytes[i]) >>> 0;
   if (bytes.length) checksum = (checksum * 31 + bytes[bytes.length - 1]) >>> 0;
 }
@@ -41,12 +57,7 @@ function heapBytes() {
   return m && typeof m.usedJSHeapSize === "number" ? m.usedJSHeapSize : null;
 }
 
-/**
- * Track the JS-heap peak on a timer, not per delivered frame: `performance.memory` walks the
- * heap and cost ~45 µs per call, which put 3–11 % of the run's main-thread time into the
- * harness itself (Chromium 141 profile, 2026-09-06). 100 ms keeps the peak within a few
- * frames of the truth at any rate this harness runs at.
- */
+/** On a timer, not per frame: `performance.memory` walks the heap, ~45 µs a call. */
 function heapPeakSampler(stats) {
   const sample = () => {
     stats.heap_peak = Math.max(stats.heap_peak ?? 0, heapBytes() ?? 0);
@@ -89,11 +100,10 @@ async function schedule() {
 }
 
 /**
- * On-demand: steps become due on the pacing timer (gesture = due time); an ask goes out when
- * fewer than `depth` are in flight. The same index never overlaps itself in flight.
+ * On-demand: steps become due on the pacing timer; an ask goes out when fewer than `depth` are
+ * in flight. The same index never overlaps itself in flight.
  */
-function runOndemand(session, steps, interval, stats) {
-  const tap = globalThis.__wtpacsTap ?? null;
+function runOndemand(client, steps, interval, stats) {
   const due = [];
   const inflight = new Set();
   let nextStep = 0;
@@ -105,7 +115,7 @@ function runOndemand(session, steps, interval, stats) {
         if (inflight.has(frame)) break;
         due.shift();
         inflight.add(frame);
-        session.requestExactFrame(frame).then(
+        client.requestExactFrame(frame).then(
           (r) => {
             touch(r.bytes);
             stats.delivered += 1;
@@ -113,7 +123,7 @@ function runOndemand(session, steps, interval, stats) {
           },
           (err) => {
             stats.failed += 1;
-            log("frame", frame, "failed:", err && err.message ? err.message : String(err));
+            if (cell !== "refuse") log("frame", frame, "failed:", err?.message ?? String(err));
             finish(frame);
           },
         );
@@ -127,9 +137,7 @@ function runOndemand(session, steps, interval, stats) {
     };
     const makeDue = () => {
       if (nextStep >= steps.length) return;
-      const frame = steps[nextStep++];
-      if (tap) tap.gesture(frame); // intent, at the time the reader wanted it
-      due.push(frame);
+      due.push(steps[nextStep++]);
       pump();
       if (nextStep < steps.length) {
         if (interval > 0) setTimeout(makeDue, interval);
@@ -140,60 +148,82 @@ function runOndemand(session, steps, interval, stats) {
   });
 }
 
-/** Fill: one StreamFrames {}, waited start to end through the schedule's last index. */
-async function runFill(session, steps, stats) {
+/** Fill: one pushed fill through the schedule's last index, waited until every frame settles. */
+function runFill(fill, client, steps, stats) {
   const last = Math.max(...steps);
-  const askMs = session.startStreamFrames(last);
-  for (let i = 0; i <= last; i++) {
-    try {
-      const r = await session.waitExactFrame(i, askMs);
-      touch(r.bytes);
-      stats.delivered += 1;
-    } catch (err) {
-      stats.failed += 1;
-      log("frame", i, "failed:", err && err.message ? err.message : String(err));
-    }
-  }
-  return last + 1;
+  return new Promise((resolve) => {
+    fill.settle = () => {
+      if (stats.delivered + stats.failed === last + 1) resolve(last + 1);
+    };
+    client.fill(Array.from({ length: last + 1 }, (_, i) => i));
+  });
 }
 
-export async function bootShell({ arm, loadSession, memoryBytes }) {
+/** The report lives in the downloader's worker, which a closed session ends: ask before closing.
+ *  No answer within 5 s is no recorder, and resolves null. */
+function harvestTelemetry() {
+  const ch = new BroadcastChannel("wtpacs-telemetry");
+  return new Promise((resolve) => {
+    const done = (report) => {
+      ch.close();
+      resolve(report);
+    };
+    const timer = setTimeout(() => done(null), 5_000);
+    ch.onmessage = (e) => {
+      clearTimeout(timer);
+      done(e.data.report);
+    };
+    ch.postMessage("harvest");
+  });
+}
+
+async function boot() {
   try {
     const cfg = await fetch("/wt/dev-transport.json").then((r) => r.json());
-    log("connecting", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
-    const session = await loadSession({ telemetry, streamMode, cfg });
+    mark("config");
+    log("connecting", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell, "transport=" + transportName);
+    const stats = { delivered: 0, failed: 0, heap_peak: heapBytes() };
+    const fill = { settle: () => {} };
+    const client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
+      decode: false,
+      decoders: 0,
+      transport: transportModule(),
+      onFrame: (f) => {
+        touch(f.bytes);
+        stats.delivered += 1;
+        fill.settle();
+      },
+      onError: ({ frameIndex, reason }) => {
+        stats.failed += 1;
+        log("frame", frameIndex, "failed:", reason);
+        fill.settle();
+      },
+    });
+    mark("session");
     log("connect", cfg.wt_url, telemetry ? "telemetry=1" : "telemetry=0", "cell=" + cell);
+    if (telemetry) globalThis.__wtpacsTelemetry = harvestTelemetry;
 
     const frame0 = async () => {
-      const r = await session.requestExactFrame(0);
+      const r = await client.requestExactFrame(0);
       touch(r.bytes);
       log("frame0 bytes", r.bytes.length);
     };
-    const bulk = async () => {
-      const indices = Uint32Array.from([0, 1, 2]);
-      const askMs = session.startExactFrames(indices);
-      for (const i of indices) {
-        const r = await session.waitExactFrame(i, askMs);
-        touch(r.bytes);
-        log("bulk", r.frameIndex, r.bytes.length);
-      }
-    };
 
     const runCell = async () => {
-      const { steps, interval, frames, name } = await schedule();
-      const stats = { delivered: 0, failed: 0, heap_peak: heapBytes() };
+      const { steps: due, interval, frames, name } = await schedule();
+      const steps = cell === "refuse" ? due.map((_, i) => 1_000_000 + i) : due;
+      Object.assign(stats, { delivered: 0, failed: 0, heap_peak: heapBytes() });
       const heapStart = heapBytes();
-      const wasmStart = memoryBytes ? memoryBytes() : null;
       log("run", cell, "steps", steps.length, "frames", frames, "d", depth, "interval_ms", interval, "schedule", name);
       const stopHeapSampler = heapPeakSampler(stats);
       const t0 = performance.now();
       let asked = steps.length;
-      if (cell === "fill") asked = await runFill(session, steps, stats);
-      else await runOndemand(session, steps, interval, stats);
+      if (cell === "fill") asked = await runFill(fill, client, steps, stats);
+      else await runOndemand(client, steps, interval, stats);
       const wallMs = performance.now() - t0;
       stopHeapSampler();
       const summary = {
-        arm,
+        arm: `downloader/${transportName}`,
         cell,
         depth: cell === "fill" ? asked : depth,
         interval_ms: interval,
@@ -206,7 +236,6 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
         wall_ms: Math.round(wallMs),
         checksum,
         js_heap_bytes: { start: heapStart, end: heapBytes(), peak: stats.heap_peak },
-        wasm_memory_bytes: { start: wasmStart, end: memoryBytes ? memoryBytes() : null },
       };
       globalThis.__wtpacsShell = summary;
       log("run_end", JSON.stringify(summary));
@@ -214,19 +243,23 @@ export async function bootShell({ arm, loadSession, memoryBytes }) {
     };
 
     document.getElementById("frame0").onclick = () => frame0().catch((e) => log("error", e));
-    document.getElementById("bulk").onclick = () => bulk().catch((e) => log("error", e));
     document.getElementById("run").onclick = () => runCell().catch((e) => log("error", e));
 
     if (autorun) {
       await runCell();
-      // Close the session so the server ends it now and flushes its Tap — otherwise it only
-      // notices at the QUIC idle timeout (~30 s) and the harvest misses the server report.
-      session.close();
+      if (telemetry) {
+        const report = await harvestTelemetry();
+        globalThis.__wtpacsTelemetry = () => report;
+      }
+      // Closing ends the session now, so the server flushes its Tap instead of waiting out the idle timeout.
+      client.close();
       log("session closed");
       globalThis.__wtpacsDone = true;
     }
   } catch (e) {
-    log("boot error", e && e.stack ? e.stack : e);
+    log("boot error", e?.stack ?? e);
     globalThis.__wtpacsError = String(e);
   }
 }
+
+boot();

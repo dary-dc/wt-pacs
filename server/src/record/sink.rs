@@ -7,11 +7,9 @@
 //! written when the last session's `Tap` drops (normal end) or when [`flush_on_exit`] is called
 //! from the signal handler; it is exact from the row file when the rows fit the inline cap.
 
-use super::report::{
-    final_report, progress_report, LiveSummary, TelemetryReport, INLINE_CAP_DEFAULT,
-};
+use super::report::{final_report, progress_report, LiveSummary, TelemetryReport};
 use super::rows;
-use super::tap::{env_u64, Batch, BATCH, RING_CAP};
+use super::tap::{env_u64, Batch, BATCH, LIVE, RING_CAP};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -67,6 +65,13 @@ pub(super) fn clone_sender() -> Option<SyncSender<Batch>> {
 /// Rows emitted after this point are counted as drops, not lost silently.
 pub fn flush_on_exit() {
     SHUTDOWN.store(true, Ordering::SeqCst);
+    // Sessions still open will not drop their Tap in time, so take their buffered rows first —
+    // while a sender still exists to carry them. Bounded; it never waits on a session.
+    if let Some(tx) = clone_sender() {
+        for batch in LIVE.take(Duration::from_millis(50)) {
+            let _ = tx.try_send(batch);
+        }
+    }
     shutdown_sink();
     let handle = drain_cell().lock().ok().and_then(|mut guard| guard.take());
     if let Some(handle) = handle {
@@ -122,7 +127,6 @@ fn drain_loop(rx: Receiver<Batch>, json_path: PathBuf) {
     };
     let mut live = LiveSummary::new();
     let period = Duration::from_millis(env_u64("WTPACS_TELEMETRY_SUMMARY_MS", 5_000).max(100));
-    let inline_cap = env_u64("WTPACS_TELEMETRY_INLINE_CAP", INLINE_CAP_DEFAULT);
     let mut last_summary = Instant::now();
 
     loop {
@@ -156,7 +160,7 @@ fn drain_loop(rx: Receiver<Batch>, json_path: PathBuf) {
         let _ = f.writer.flush();
     }
 
-    let report = final_report(&live, rows_path.as_deref(), inline_cap);
+    let report = final_report(&live, rows_path.as_deref());
     match write_json(&json_path, &report) {
         Ok(()) => info!(
             path = %json_path.display(),
@@ -184,26 +188,15 @@ fn absorb(batch: &Batch, row_file: &mut Option<RowFile>, live: &mut LiveSummary)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::record::tap::{FrameRecord, Record};
+    use crate::record::tap::{FrameRecord, Record, Tap, LIVE};
 
-    /// The process-global sink exists once; this is the one test that owns it.
-    #[test]
-    fn flush_on_exit_writes_report_and_rows_while_a_sender_is_still_alive() {
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("wtpacs-sink-{stamp}.json"));
-        ensure_sink(path.clone());
-        let tx = clone_sender().expect("sender after ensure_sink");
-        tx.try_send(vec![Record::Frame(FrameRecord {
+    fn a_frame(frame_index: u32) -> Record {
+        Record::Frame(FrameRecord {
             kind: "server_frame",
             session_id: 1,
-            frame_index: 4,
+            frame_index,
             ask_ordinal: 0,
             t_ask_us: 0,
-            batch_position: 0,
-            batch_size: 1,
             prepare_us: Some(10),
             locate_us: Some(0),
             send_us: Some(30),
@@ -213,23 +206,45 @@ mod tests {
             locate_outcome: 0,
             write_outcome: 0,
             dropped_since_last: 0,
-        })])
-        .expect("queue batch");
+        })
+    }
+
+    /// The process-global sink exists once; this is the one test that owns it. It asserts both
+    /// halves: rows already in the channel, and rows a still-open session has only buffered.
+    #[test]
+    fn flush_on_exit_takes_an_open_sessions_buffered_tail() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("wtpacs-sink-{stamp}.json"));
+        ensure_sink(path.clone());
+        let tx = clone_sender().expect("sender after ensure_sink");
+        tx.try_send(vec![a_frame(4)]).expect("queue batch");
+
+        // A session still open, holding rows that have not reached the channel: fewer than BATCH,
+        // so nothing has flushed them and its Tap will not drop before the process goes.
+        let mut open_session = Tap::new(9, Some(tx.clone()), &LIVE);
+        for i in 0..3u32 {
+            open_session.buffer_for_test(a_frame(100 + i));
+        }
 
         // `tx` is still alive here — a session mid-flight. Flush must not wait for it.
         flush_on_exit();
 
         let text = std::fs::read_to_string(&path).expect("report written by flush");
         assert!(text.contains("\"server_frames\""));
-        assert!(text.contains("\"written_records\": 1"));
+        assert!(text.contains("\"written_records\": 4"), "the open session's tail is missing: {text}");
         assert!(text.contains("\"frame_index\": 4"));
+        assert!(text.contains("\"frame_index\": 102"), "the open session's last row is missing");
         assert!(text.contains("\"percentile_method\": \"exact-sort\""));
         assert!(text.contains("\"rows_file\": \"wtpacs-sink-"));
         let rows_path = rows_path_for(&path);
         let rows_len = std::fs::metadata(&rows_path).expect("row file").len();
-        assert_eq!(rows_len as usize, rows::HEADER_BYTES + rows::RECORD_BYTES);
+        assert_eq!(rows_len as usize, rows::HEADER_BYTES + 4 * rows::RECORD_BYTES);
         let _ = std::fs::remove_file(path);
         let _ = std::fs::remove_file(rows_path);
+        std::mem::forget(open_session);
         drop(tx);
     }
 }

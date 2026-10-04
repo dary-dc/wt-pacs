@@ -4,7 +4,7 @@
 //! `summary.percentile_method`:
 //!
 //! - **exact** (`exact-sort`): every value sorted, nearest-rank percentiles. Used for the final
-//!   report when the rows fit the inline cap, and always by the offline builder.
+//!   report when the rows fit the inline cap.
 //! - **live** (`histogram-loglinear-1024`): log-linear histograms folded as rows stream past.
 //!   Fixed memory; exact counts, totals, min and max; percentiles within 0.1 % (1 µs below
 //!   2 048 µs). Used for the timer rewrite and above the cap.
@@ -14,7 +14,7 @@
 use super::rows;
 use super::tap::{
     run_meta, FrameRecord, Record, RunMeta, SessionRecord, BATCH, DROP_TOTAL, RING_CAP,
-    ROWS_CLOSED, ROWS_OPENED, SESSIONS_SEEN, SESSIONS_STARTED,
+    ROWS_CLOSED, ROWS_OPENED, SESSIONS_STARTED,
 };
 use std::path::Path;
 use std::sync::atomic::Ordering;
@@ -22,8 +22,8 @@ use std::sync::atomic::Ordering;
 pub(super) const SCHEMA: &str = "server-pipeline-v2";
 pub(super) const METHOD_EXACT: &str = "exact-sort";
 pub(super) const METHOD_HIST: &str = "histogram-loglinear-1024";
-/// `server_frames` is inlined only up to this many rows (`WTPACS_TELEMETRY_INLINE_CAP`).
-pub(super) const INLINE_CAP_DEFAULT: u64 = 1_000_000;
+/// `server_frames` is inlined, and the summary exact, only up to this many rows.
+const INLINE_CAP: u64 = 1_000_000;
 
 #[derive(serde::Serialize)]
 pub(super) struct TelemetryReport {
@@ -57,8 +57,6 @@ pub(super) struct IntegrityBlock {
     pub rows_closed: u64,
     pub rows_dropped: u64,
     pub sessions: u64,
-    /// Sessions accepted while telemetry was on, sampled or not.
-    pub sessions_seen: u64,
     pub ring_capacity: u64,
     pub batch_size: u64,
     pub rows_file_bytes: u64,
@@ -388,7 +386,6 @@ fn integrity(rows_file_bytes: u64) -> IntegrityBlock {
         rows_closed: ROWS_CLOSED.load(Ordering::Relaxed),
         rows_dropped: dropped_process,
         sessions: SESSIONS_STARTED.load(Ordering::Relaxed),
-        sessions_seen: SESSIONS_SEEN.load(Ordering::Relaxed),
         ring_capacity: RING_CAP as u64,
         batch_size: BATCH as u64,
         rows_file_bytes,
@@ -428,14 +425,10 @@ pub(super) fn progress_report(live: &LiveSummary, rows_path: Option<&Path>) -> T
 
 /// Final report: exact from the row file when the rows fit the inline cap, else the live
 /// histogram summary with the row file as the record.
-pub(super) fn final_report(
-    live: &LiveSummary,
-    rows_path: Option<&Path>,
-    inline_cap: u64,
-) -> TelemetryReport {
+pub(super) fn final_report(live: &LiveSummary, rows_path: Option<&Path>) -> TelemetryReport {
     if let Some(path) = rows_path {
-        if live.frames <= inline_cap {
-            match exact_report_from_rows(path, true) {
+        if live.frames <= INLINE_CAP {
+            match exact_report_from_rows(path) {
                 Ok(report) => return report,
                 Err(err) => {
                     tracing::warn!(%err, "telemetry: exact report from rows failed; using live summary")
@@ -448,11 +441,8 @@ pub(super) fn final_report(
     report
 }
 
-/// Exact report from a row file. Frames are inlined only when asked (`inline`).
-pub(super) fn exact_report_from_rows(
-    rows_path: &Path,
-    inline: bool,
-) -> std::io::Result<TelemetryReport> {
+/// Exact report from a row file, every frame row inlined.
+pub(super) fn exact_report_from_rows(rows_path: &Path) -> std::io::Result<TelemetryReport> {
     let mut frames: Vec<FrameRecord> = Vec::new();
     let mut sessions: Vec<SessionRecord> = Vec::new();
     let mut acc = RunAccumulator::default();
@@ -464,16 +454,12 @@ pub(super) fn exact_report_from_rows(
             Record::Frame(f) => {
                 frame_count += 1;
                 acc.push(&f);
-                if inline {
-                    frames.push(f);
-                }
+                frames.push(f);
             }
             Record::Session(s) => sessions.push(s),
         }
     }
-    if inline {
-        frames.sort_by_key(|f| (f.session_id, f.t_ask_us, f.frame_index, f.ask_ordinal));
-    }
+    frames.sort_by_key(|f| (f.session_id, f.t_ask_us, f.frame_index, f.ask_ordinal));
     sessions.sort_by_key(|s| s.session_id);
     let mut summary = acc.build_summary();
     summary.sessions = sessions.len() as u64;
@@ -488,27 +474,10 @@ pub(super) fn exact_report_from_rows(
             event: "run_end",
             written_records: frame_count,
             rows_in_file: records,
-            frames_inlined: inline,
+            frames_inlined: true,
             dropped_records_process_total: DROP_TOTAL.load(Ordering::Relaxed),
         },
     })
-}
-
-/// `exact-server --telemetry-report <rows>`: rebuild the full JSON, exact, from a row file.
-/// Frames are inlined up to `WTPACS_TELEMETRY_INLINE_CAP` (default 1 M); the summary is exact
-/// regardless. Memory: about 28 bytes per frame row for the sorts, plus the inlined rows.
-pub fn write_report_from_rows(rows_path: &Path, out_path: &Path) -> anyhow::Result<()> {
-    use anyhow::Context;
-    let cap = super::tap::env_u64("WTPACS_TELEMETRY_INLINE_CAP", INLINE_CAP_DEFAULT);
-    let frame_rows = rows::read_records(rows_path)
-        .with_context(|| format!("open {}", rows_path.display()))?
-        .filter(|r| matches!(r, Record::Frame(_)))
-        .count() as u64;
-    let report = exact_report_from_rows(rows_path, frame_rows <= cap)
-        .with_context(|| format!("read {}", rows_path.display()))?;
-    super::sink::write_json(out_path, &report)
-        .with_context(|| format!("write {}", out_path.display()))?;
-    Ok(())
 }
 
 #[cfg(test)]

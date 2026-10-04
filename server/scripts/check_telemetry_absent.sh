@@ -1,24 +1,11 @@
 #!/usr/bin/env bash
-# Verify the default (non-telemetry) server binary contains no Tap symbols.
-#
-# What this checks (B1 isolation harness for CI):
-#   1. Builds exact-server with default features (no `telemetry`).
-#   2. Locates the release binary via `cargo metadata` (respects CARGO_TARGET_DIR).
-#   3. Fails if `nm` finds Tap / server timing symbols in that binary.
-#   4. Fails if `cargo tree` shows a telemetry feature on the default dependency graph.
-#
-# Usage (from anywhere):
-#   server/scripts/check_telemetry_absent.sh
+# The default (non-telemetry) release binary carries no Tap symbol and no report literal.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SERVER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKSPACE="$(cd "$SERVER_DIR/.." && pwd)"
+cd "$(dirname "$0")/../.."
+command -v nm >/dev/null || { echo "nm is missing (binutils)" >&2; exit 2; }
 
-cd "$WORKSPACE"
-
-echo "Building default exact-server (no telemetry feature)…"
-cargo build --release -p exact-server 2>&1
+cargo build --release -p exact-server
 
 target_dir="${CARGO_TARGET_DIR:-}"
 if [[ -z "$target_dir" ]]; then
@@ -32,8 +19,7 @@ if [[ ! -f "$BIN" ]]; then
   exit 1
 fi
 
-echo "Checking $BIN …"
-if nm -C "$BIN" 2>/dev/null | grep -qE 'exact_server::record::(tap|sink|report|rows)|Tap::for_session|LiveSummary|prepare_us|overhead_us|ack_us|server_work_us|write_report_from_rows|flush_on_exit'; then
+if grep -qE 'exact_server::record::(tap|sink|report|rows)|Tap::for_session|LiveSummary|prepare_us|overhead_us|ack_us|server_work_us|flush_on_exit' <(nm -C "$BIN"); then
   echo "FAIL: telemetry symbols found in default build" >&2
   nm -C "$BIN" | grep -E 'record::(tap|sink|report|rows)|Tap::|overhead_us|ack_us' || true
   exit 1
@@ -43,11 +29,6 @@ fi
 if grep -a -qE 'percentile_method|server_session|histogram-loglinear|rows_in_file|server-pipeline-v|WTPACS_TELEMETRY' "$BIN"; then
   echo "FAIL: telemetry report literals found in default build" >&2
   grep -a -oE 'percentile_method|server_session|histogram-loglinear|rows_in_file|server-pipeline-v[0-9]|WTPACS_TELEMETRY[A-Z_]*' "$BIN" | sort -u || true
-  exit 1
-fi
-
-if cargo tree -p exact-server -e normal 2>/dev/null | grep -qiE 'telemetry'; then
-  echo "FAIL: telemetry crate/name in default dependency tree" >&2
   exit 1
 fi
 

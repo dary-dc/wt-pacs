@@ -1,6 +1,6 @@
 //! io_uring reader for the campaign. Three properties of this workload shape it rather than
 //! io_uring's usual benchmarks — serving depth 1, a task that migrates between workers, and
-//! completions awaited rather than waited on. `docs/disk-access/IMPLEMENTATION.md`.
+//! completions awaited rather than waited on. `docs/adr/disk-access.md`.
 
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
@@ -15,7 +15,7 @@ pub enum Completion {
     /// Two fds per ring. What the product ships.
     Eventfd,
     /// One fd per ring, and how tokio's own driver parks. Why a `COOP_TASKRUN` ring is
-    /// pollable from setup. `docs/disk-access/NEXT.md`.
+    /// pollable from setup. `docs/adr/disk-access.md`.
     RingFd,
 }
 
@@ -34,7 +34,7 @@ enum Parker {
 }
 
 /// What the kernel still owes an in-flight slot, so a short completion is finished rather
-/// than credited whole. `docs/disk-access/EVIDENCE.md` §Short io_uring completions.
+/// than credited whole. `docs/adr/disk-access.md` §Short io_uring completions.
 #[derive(Clone, Copy, Default)]
 struct Owed {
     at: usize,
@@ -488,7 +488,7 @@ mod tests {
             from_other,
             Err(Some(libc::EEXIST)),
             "kernel accepted a second submitting task under SINGLE_ISSUER \
-             (got {from_other:?}) — if this ever passes, revisit docs/disk-access/adr.md, \
+             (got {from_other:?}) — if this ever passes, revisit docs/adr/disk-access.md, \
              which rules the flag out for Tokio's work-stealing runtime on the strength of \
              this rejection"
         );

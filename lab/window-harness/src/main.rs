@@ -38,8 +38,8 @@ struct Args {
     rtt_ms: u64,
     #[arg(long, default_value = "?")]
     arm: String,
-    /// Must match the server's `--stream-mode`.
-    #[arg(long, value_enum, default_value_t = StreamMode::PerFrame)]
+    /// Labels the run with the server's arm; the reader accepts whatever the server opens.
+    #[arg(long, default_value = "per-frame")]
     stream_mode: StreamMode,
     /// Local bind IP. Omit for wtransport's dual-stack default (what L1 used);
     /// pass `0.0.0.0` on hosts without an IPv6 stack.

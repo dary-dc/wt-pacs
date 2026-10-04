@@ -1,3 +1,4 @@
+pub mod frame_pool;
 pub mod frame_store;
 pub mod read_path;
 #[cfg(feature = "uring")]

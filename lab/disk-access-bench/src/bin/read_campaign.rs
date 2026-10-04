@@ -1,19 +1,22 @@
 //! Read-path campaign harness: arm × prefetch × depth × readers × temp × stride × size, one
 //! factor per axis. The controls that make a cell evidence rather than a hope — rotated arm
 //! order, asserted cold residency, a co-tenant monitor, and CPU and threads reported beside
-//! latency — are in `docs/disk-access/EVIDENCE.md` §The rule every number below obeys.
+//! latency — are in `docs/adr/disk-access.md` §The rule every number below obeys.
 
 use anyhow::{Context, Result};
 use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
-use exact_server::media::frame_store::{FrameSpan, FrameStore, READ_WINDOW};
+use exact_server::media::frame_store::{FrameSpan, FrameStore};
 use exact_server::media::read_path::{ReadMode, SeqReader, TileReader};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+/// The product's retired 64 KiB chunk, which `PoolCappedProbe` reproduces.
+const READ_WINDOW: usize = 64 * 1024;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Arm {
@@ -29,7 +32,7 @@ enum Arm {
     /// `ReadCtx` did that no other arm did. The positive control for that cap.
     PoolCappedProbe,
     /// **The S5 control**: `hybrid`'s loop with `pool`'s miss mechanism, so the delta
-    /// against `pool` is loop shape alone. `docs/disk-access/EVIDENCE.md`.
+    /// against `pool` is loop shape alone. `docs/adr/disk-access.md`.
     PoolRingLoop,
     /// `hybrid`, but the ring is built on the *first miss* rather than at session start.
     HybridLazyRing,
@@ -37,12 +40,12 @@ enum Arm {
     /// session instead of two. The loop is `uring`'s; only the wake differs (`x14`).
     UringRingFd,
     /// `hybrid_lazyring` with the same one-fd wake — the pair that decides whether the
-    /// product should drop its eventfd. `docs/disk-access/NEXT.md`.
+    /// product should drop its eventfd. `docs/adr/disk-access.md`.
     HybridLazyRingFd,
     /// One `tokio::fs::File` cursor per stream — no positional read, so it is meaningful
     /// only on the sweep shape, and depth splits the plan into that many cursors rather than
     /// reads in flight. Under `--cfg tokio_unstable` it reports as `tokio_fs_uring`.
-    /// Sequential cursor only; rejected as a product reader. `docs/disk-access/adr.md` §5.
+    /// Sequential cursor only; rejected as a product reader. `docs/adr/disk-access.md` §5.
     TokioFs,
     /// **The shipped fill reader itself** — `server`'s `SeqReader`, not a model of it.
     ProductFill,
@@ -149,7 +152,7 @@ struct Args {
     /// Print the header row (omit when appending to an existing file).
     #[arg(long)]
     no_header: bool,
-    /// Replay a read sequence from `lab/scripts/gen_access_trace.py` instead of a synthetic
+    /// Replay a read sequence from `2a14c47^:lab/scripts/gen_access_trace.py` instead of a synthetic
     /// stride. `--size` and `--stride` are then ignored; `--asks` defaults to the trace
     /// length. The reported `shape` becomes `trace` and `size` the median read length.
     #[arg(long)]
@@ -241,7 +244,7 @@ fn span_at(plan: &Plan, i: usize) -> Option<FrameSpan> {
     plan.get(i).map(|&(offset, len)| FrameSpan { offset, len })
 }
 
-/// Read a `gen_access_trace.py` TSV: `offset<TAB>length`, `#` comments ignored.
+/// Read a `gen_access_trace.py` TSV (`2a14c47^:lab/scripts/`): `offset<TAB>length`, `#` comments ignored.
 fn load_trace(path: &PathBuf) -> Result<Vec<(u64, u32)>> {
     let text = std::fs::read_to_string(path).with_context(|| format!("read {path:?}"))?;
     let mut out = Vec::new();
@@ -433,7 +436,8 @@ async fn reader_product_tile(
 ) -> Result<()> {
     let asks = plan.len();
     let slots = cell.depth.max(1);
-    let mut tile = TileReader::new(ReadMode::from_env(), &store, slots);
+    let mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref());
+    let mut tile = TileReader::new(mode.map_err(anyhow::Error::msg)?, &store, slots);
     let mut mine = Vec::with_capacity(asks);
     let mut miss = 0u64;
     let mut upcoming: Vec<FrameSpan> = Vec::with_capacity(slots);

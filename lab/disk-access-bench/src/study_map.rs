@@ -1,5 +1,5 @@
 //! A study, plus the memory mapping the rejected mmap arms need. It lives here and not in
-//! `server/` because mmap lost: `docs/disk-access/adr.md`.
+//! `server/` because mmap lost: `docs/adr/disk-access.md`.
 
 use anyhow::{bail, Context, Result};
 use exact_server::media::frame_store::FrameStore;

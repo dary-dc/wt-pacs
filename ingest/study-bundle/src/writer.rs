@@ -88,28 +88,19 @@ pub fn write_bundle(path: &Path, metadata: &[u8], frames: &[&[u8]]) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use crate::format::bundle;
 
+    /// The writer lays a bundle out byte for byte as the format does: header, index of offset
+    /// then length, metadata, frames.
     #[test]
-    fn streamed_write_matches_buffered_write() -> Result<()> {
+    fn the_writer_lays_out_the_format_byte_for_byte() -> Result<()> {
         let meta = br#"{"frameCount":3}"#;
         let frames: [&[u8]; 3] = [b"aaa", b"bbbb", b"cc"];
-        let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-        let a = std::env::temp_dir().join(format!("sbnd-buffered-{stamp}.sbnd"));
-        let b = std::env::temp_dir().join(format!("sbnd-streamed-{stamp}.sbnd"));
-
-        write_bundle(&a, meta, &frames)?;
-
-        let lengths: Vec<u32> = frames.iter().map(|f| f.len() as u32).collect();
-        let mut w = BundleWriter::create(&b, meta, &lengths)?;
-        for frame in frames {
-            w.write_frame(frame)?;
-        }
-        w.finish()?;
-
-        assert_eq!(std::fs::read(&a)?, std::fs::read(&b)?);
-        let _ = std::fs::remove_file(a);
-        let _ = std::fs::remove_file(b);
+        let path = std::env::temp_dir().join(format!("sbnd-writer-{}.sbnd", std::process::id()));
+        write_bundle(&path, meta, &frames)?;
+        let written = std::fs::read(&path)?;
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(written, bundle(&frames, meta));
         Ok(())
     }
 }

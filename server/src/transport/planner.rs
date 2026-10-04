@@ -1,11 +1,11 @@
-//! What to serve next, decided without I/O. `docs/disk-access/IMPLEMENTATION.md`.
+//! What to serve next, decided without I/O. `docs/adr/disk-access.md`.
 
 use anyhow::Result;
 use std::collections::VecDeque;
 
 /// Asks the server holds beyond the frame being served. A tile reader takes what fits (`slots − 1`).
 pub const ASKS_AHEAD: usize = 8;
-/// A fill reads one frame ahead: two buffers, pool only. `docs/disk-access/adr.md`.
+/// A fill reads one frame ahead: two buffers, pool only. `docs/adr/disk-access.md`.
 pub const FILL_AHEAD: usize = 1;
 
 /// What the loop consumes: one item per frame, whichever message carried it.
@@ -27,7 +27,6 @@ impl Ask {
     }
 }
 
-/// The next thing to do. Decided without I/O, so it is tested with a `Vec`.
 /// Which reader serves a frame: a fill knows what comes next, an on-demand ask does not.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -35,6 +34,7 @@ pub enum Mode {
     OnDemand,
 }
 
+/// The next thing to do. Decided without I/O, so it is tested with a `Vec`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Step {
     Serve {
@@ -180,12 +180,11 @@ mod tests {
         assert_eq!((frame, upcoming), (4, vec![5, 6]));
     }
 
-    /// `RequestFrame` then `RequestFrames`: the batch's frames are upcoming.
+    /// Each ask served names the asks still behind it, and the next one served names one fewer.
     #[test]
-    fn a_batch_after_a_single_ask_supplies_its_first_frame() {
+    fn each_served_ask_names_the_asks_still_behind_it() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Frame(1));
-        for frame in [4, 5] {
+        for frame in [1, 4, 5] {
             plan.push(Ask::Frame(frame));
         }
         let Step::Serve {

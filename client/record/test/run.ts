@@ -5,13 +5,13 @@
  */
 
 import { StreamAttributor } from "../attribution.ts";
-import { attributeFrames } from "../offsets.ts";
 import { nearestRank, distributionStats } from "../percentiles.ts";
-import { MessageAccumulator, parseFodAsks, parseFootprintsFromBytes } from "../parse.ts";
+import { MessageAccumulator, parseFodAsks } from "../parse.ts";
 import { judgeIntegrity, minOf, maxOf } from "../report.ts";
 import { pickBinding } from "../rows.ts";
 import { Tap } from "../tap.ts";
-import type { ChunkMark, TapConfig } from "../types.ts";
+import type { ChunkMark, FrameTiming, TapConfig } from "../types.ts";
+import { attributeFrames, parseFootprintsFromBytes } from "./offsets.ts";
 
 let failed = 0;
 function assert(cond: boolean, msg: string) {
@@ -51,8 +51,8 @@ function fodRequest(frame: number): Uint8Array {
   return fod({ op: "request_frame", frame });
 }
 
-function fodBatch(frames: number[]): Uint8Array {
-  return fod({ op: "request_frames", frames });
+function fodStream(from: number, to?: number): Uint8Array {
+  return fod({ op: "stream_frames", from, to });
 }
 
 /** One wire frame: `[len=4+n][index][n bytes]`. */
@@ -169,13 +169,13 @@ function sliceRiver(
     const { chunks, slices } = sliceRiver(river, cuts);
 
     const attr = new StreamAttributor();
+    const got: FrameTiming[] = [];
     let tBase = 1000;
     for (const sl of slices) {
       tBase += 12;
-      attr.onRead(sl, tBase);
+      got.push(...attr.onRead(sl, tBase));
     }
     const { frames: oracle } = attributeFrames(chunks, footprints);
-    const got = attr.finished;
     if (got.length !== oracle.length) {
       mismatches += 1;
       continue;
@@ -210,12 +210,14 @@ function sliceRiver(
 {
   const river = buildRiver([{ index: 0, codestreamLen: 20 }]); // total 28 bytes
   const attr = new StreamAttributor();
-  attr.onRead(river.subarray(0, 3), 1020); // partial header
-  attr.onRead(river.subarray(3, 10), 1032); // complete header + some body
-  attr.onRead(river.subarray(10), 1040);
-  assertEq(attr.finished.length, 1, "straddle: one frame");
-  assertEq(attr.finished[0].first_byte_us, 1020, "straddle: firstByte from first header byte");
-  assertEq(attr.finished[0].last_byte_us, 1040, "straddle: lastByte on completing read");
+  const got = [
+    ...attr.onRead(river.subarray(0, 3), 1020), // partial header
+    ...attr.onRead(river.subarray(3, 10), 1032), // complete header + some body
+    ...attr.onRead(river.subarray(10), 1040),
+  ];
+  assertEq(got.length, 1, "straddle: one frame");
+  assertEq(got[0].first_byte_us, 1020, "straddle: firstByte from first header byte");
+  assertEq(got[0].last_byte_us, 1040, "straddle: lastByte on completing read");
   assert(attr.closureOk(), "straddle: closure ok");
 }
 
@@ -227,11 +229,10 @@ function sliceRiver(
   ]);
   const mid = 4 + 4 + 4; // end of frame 0
   const attr = new StreamAttributor();
-  attr.onRead(river.subarray(0, mid), 100);
-  attr.onRead(river.subarray(mid), 200);
-  assertEq(attr.finished.length, 2, "boundary: two frames");
-  assertEq(attr.finished[0].last_byte_us, 100, "boundary: frame0 ends on first read");
-  assertEq(attr.finished[1].first_byte_us, 200, "boundary: frame1 starts on second read");
+  const got = [...attr.onRead(river.subarray(0, mid), 100), ...attr.onRead(river.subarray(mid), 200)];
+  assertEq(got.length, 2, "boundary: two frames");
+  assertEq(got[0].last_byte_us, 100, "boundary: frame0 ends on first read");
+  assertEq(got[1].first_byte_us, 200, "boundary: frame1 starts on second read");
 }
 
 // Single read carrying several whole frames
@@ -242,10 +243,10 @@ function sliceRiver(
     { index: 3, codestreamLen: 4 },
   ]);
   const attr = new StreamAttributor();
-  attr.onRead(river, 50);
-  assertEq(attr.finished.length, 3, "multi-in-one: three frames");
+  const got = attr.onRead(river, 50);
+  assertEq(got.length, 3, "multi-in-one: three frames");
   assert(
-    attr.finished.every((f) => f.first_byte_us === 50 && f.last_byte_us === 50 && f.chunks === 1),
+    got.every((f) => f.first_byte_us === 50 && f.last_byte_us === 50 && f.chunks === 1),
     "multi-in-one: same stamp, one chunk each",
   );
 }
@@ -431,21 +432,25 @@ function sliceRiver(
   assert(report.summary.integrity.marks_after_close === 2, "marks_after_close still recorded for the reader");
 }
 
-// Fill: preload rows close at last_byte, then take `delivered` as their deliver stage
+// Fill: `stream_frames 3-5` opens three preload rows, which close at last_byte and then take
+// `delivered` as their deliver stage
 {
   const tap = new Tap(cfg());
   tap.gesture();
-  tap.onControlWrite(fodBatch([3, 4, 5]));
+  tap.onControlWrite(fodStream(3, 5));
+  assertEq(tap.integrity.rows_opened, 3, "stream_frames 3-5 opens three rows");
   const sid = tap.nextStreamId();
   tap.onMediaRead(sid, mediaFor(3));
   tap.onMediaRead(sid, mediaFor(4));
   tap.onMediaRead(sid, mediaFor(5));
-  // The harness's waitExactFrame marks each one after the row already closed.
+  // A fill's frames are marked after their rows already closed.
   tap.onDelivered(3);
   tap.onDelivered(4);
   tap.onDelivered(5);
   const report = tap.finish();
   assertEq(report.summary.report_mode, "fill", "preload → fill mode");
+  assertEq(report.client_frames.map((r) => r.frame_index), [3, 4, 5], "the rows are frames 3, 4 and 5");
+  assertEq(report.summary.ask_granularity, "stream_frames", "a fill report names the op it was asked with");
   for (const r of report.client_frames) {
     assertEq(r.kind, "preload", "row kind preload");
     assertEq(r.closed_at, "last_byte", "preload closed_at last_byte");
@@ -459,16 +464,23 @@ function sliceRiver(
   assertEq(report.summary.integrity.valid, true, "preload fill run valid");
 }
 
-// Row kind comes from the op: request_frames with ONE index is still preload
+// Row kind comes from the op: a stream_frames of ONE frame is still preload
 {
   const tap = new Tap(cfg());
   tap.gesture();
-  tap.onControlWrite(fodBatch([6]));
+  tap.onControlWrite(fodStream(6, 6));
   const sid = tap.nextStreamId();
   tap.onMediaRead(sid, mediaFor(6));
   const report = tap.finish();
-  assertEq(report.client_frames[0].kind, "preload", "single-index request_frames is preload");
-  assertEq(report.summary.ask_granularity, "request_frames_batch", "granularity follows the op");
+  assertEq(report.client_frames[0].kind, "preload", "a one-frame stream_frames is preload");
+  assertEq(report.summary.ask_granularity, "stream_frames", "granularity follows the op");
+}
+
+// A stream_frames without `to` runs to the study's end, which the client cannot see: no rows
+{
+  const tap = new Tap(cfg());
+  tap.onControlWrite(fodStream(3));
+  assertEq(tap.integrity.rows_opened, 0, "stream_frames without to opens no rows");
 }
 
 // Two FoD messages in one control write open two rows
@@ -476,19 +488,8 @@ function sliceRiver(
   const tap = new Tap(cfg());
   tap.onControlWrite(concat([fodRequest(1), fodRequest(2)]));
   assertEq(tap.integrity.rows_opened, 2, "both asks in one write are rows");
-  const asks = parseFodAsks(concat([fodRequest(1), fodBatch([2, 3])]));
+  const asks = parseFodAsks(concat([fodRequest(1), fodStream(2, 3)]));
   assertEq(asks.map((a) => a.kind), ["interaction", "preload"], "kinds per message");
-}
-
-// Batch-method delivery closes rows as batch_delivered
-{
-  const tap = new Tap(cfg());
-  tap.onControlWrite(fodRequest(8));
-  const sid = tap.nextStreamId();
-  tap.onMediaRead(sid, mediaFor(8));
-  tap.onDelivered(8, "batch");
-  const report = tap.finish();
-  assertEq(report.client_frames[0].closed_at, "batch_delivered", "batch delivery is named");
 }
 
 // Ring capacity is enforced and evictions void the run
@@ -543,14 +544,10 @@ function sliceRiver(
     marks_after_close: 0,
     first_write_conflicts: 0,
     byte_closure_ok: true,
-    long_tasks: 0,
     clock_resolution_us: 5,
     clock_probe_us: 100,
     cross_origin_isolated: true,
     tap_read_cost_us: null,
-    long_task_total_us: 0,
-    long_tasks_outside_window: 0,
-    busy_rows_excluded: 0,
     open_rows: [],
   });
   assertEq(j.valid, false, "judge: open!=closed invalid");
@@ -567,14 +564,15 @@ function sliceRiver(
   const step = 48 * 1024;
   let off = 0;
   let tUs = 0;
+  let attributed = 0;
   while (off < river.length) {
     const end = Math.min(river.length, off + step);
     tUs += 1;
-    attr.onRead(river.subarray(off, end), tUs);
+    attributed += attr.onRead(river.subarray(off, end), tUs).length;
     off = end;
   }
   const ms = performance.now() - t0;
-  assert(attr.finished.length === 100, "bench: 100 frames attributed");
+  assert(attributed === 100, "bench: 100 frames attributed");
   assert(attr.closureOk(), "bench: closure ok");
   assert(ms < 100, `bench: streaming cost ${ms.toFixed(1)}ms < 100ms (was seconds with concat path)`);
 }
@@ -630,47 +628,15 @@ function sliceRiver(
   assertEq(report.summary.integrity.open_rows, [{ kind: "interaction", frame_index: 3, ask_ordinal: 0, have: ["gesture", "ask", "ask_flush"] }], "open_rows says which row and what it has");
 }
 
-// Long tasks: windowed to the run; overlapping rows are flagged and set aside
+// The Tap runs in a worker, where no long task can be observed: the report claims no exclusion
 {
   const tap = new Tap(cfg());
-  const t0 = performance.now();
-  // A compile-like long task well before the first ask must not count.
-  tap.noteLongTask({ start_us: Math.round((t0 - 5000) * 1000), end_us: Math.round((t0 - 4900) * 1000) });
-  for (const idx of [1, 2, 3]) {
-    tap.gesture(idx);
-    tap.onControlWrite(fodRequest(idx));
-    const sid = tap.nextStreamId();
-    tap.onMediaRead(sid, mediaFor(idx));
-    tap.onDelivered(idx);
-  }
-  // A long task covering the whole run (all rows overlap it).
-  const tEnd = performance.now();
-  tap.noteLongTask({ start_us: Math.round((t0 - 1) * 1000), end_us: Math.round((tEnd + 1) * 1000) });
+  tap.onControlWrite(fodRequest(1));
+  tap.onMediaRead(tap.nextStreamId(), mediaFor(1));
+  tap.onDelivered(1);
   const report = tap.finish();
-  assertEq(report.summary.integrity.long_tasks, 1, "only the in-window long task counts");
-  assertEq(report.summary.integrity.long_tasks_outside_window, 1, "the pre-ask one is reported outside");
-  assert(report.summary.integrity.long_task_total_us > 0, "overlap total recorded");
-  assert(report.client_frames.every((r) => r.main_thread_busy_us > 0), "every row carries its busy overlap");
-  assertEq(report.summary.integrity.busy_rows_excluded, 2, "the two non-first rows are set aside");
-  assertEq(report.summary.distributions.bytes, null, "no usable rows remain");
-  assertEq(report.summary.integrity.valid, true, "busy rows do not void; they are excluded and counted");
-}
-
-// Long task disjoint from the run: nothing flagged
-{
-  const tap = new Tap(cfg());
-  for (const idx of [1, 2]) {
-    tap.onControlWrite(fodRequest(idx));
-    const sid = tap.nextStreamId();
-    tap.onMediaRead(sid, mediaFor(idx));
-    tap.onDelivered(idx);
-  }
-  const later = performance.now() + 10_000;
-  tap.noteLongTask({ start_us: Math.round(later * 1000), end_us: Math.round((later + 60) * 1000) });
-  const report = tap.finish();
-  assertEq(report.summary.integrity.long_tasks, 0, "disjoint long task not counted in window");
-  assertEq(report.summary.integrity.busy_rows_excluded, 0, "no rows set aside");
-  assertEq(report.summary.distributions.bytes?.count, 1, "the non-first row is usable");
+  const fields = [...Object.keys(report.summary.integrity), ...Object.keys(report.client_frames[0])];
+  assertEq(fields.filter((k) => /long_task|busy/.test(k)), [], "no long-task field in the report");
 }
 
 // MessageAccumulator reassembles split control messages

@@ -2,55 +2,121 @@
 
 WebTransport PACS — web-native medical imaging transport (MIT).
 
+## Prerequisites
+
+A Rust toolchain, Python 3 and Node. `scripts/gate.sh` requires everything below and exits 2,
+with the install command, when any is missing: the WASM client is part of the product, not an
+optional arm (the conformance and worker-safe steps cover both clients or neither), and the
+browser steps need playwright, Chromium and the decoder vendor. `scripts/gate.sh --no-browser`
+skips the browser steps and says so in its last line.
+
+```bash
+rustup target add wasm32-unknown-unknown
+npm i -g wasm-pack                    # or: cargo install wasm-pack
+npm i -g playwright && npx playwright install chromium
+bash lab/decode-bench/fetch_decoder.sh   # the decoder vendor
+```
+
 ## Quick start (harness)
 
 ```bash
-# Terminal 1 — dev TLS + dev-transport.json
+# 1. Build the clients (once, and after changes; dist/ and pkg/ are not tracked)
+bash client/transport-wasm/build.sh   # web_sys WASM client; fetches wasm-opt on first run
+bash client/transport-ts/build.sh     # TypeScript client → dist/
+
+# 2. Dev TLS + dev-transport.json
 ./server/scripts/gen_dev_cert.sh
 
-# Terminal 2 — pack or use smoke bundle
+# 3. Pack the smoke bundle, or use the tracked one
 cargo run -p pack-study -- \
   --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames \
   --output fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
-# Terminal 3 — WebTransport server
+# Terminal 1 — WebTransport server
 cargo run --release -p exact-server -- \
   --port 4433 \
   --study fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
-# Terminal 4 — clients (after changes)
-client/transport-wasm/build.sh   # web_sys WASM client
-client/transport-ts/build.sh     # TypeScript client → dist/
-
-# Terminal 5 — static host
+# Terminal 2 — static host
 python3 server/dev-server.py --port 8765 --study us_cine_smoke
 ```
 
 Open in Chrome:
 
-- WASM: `http://127.0.0.1:8765/harness/`
-- TypeScript: `http://127.0.0.1:8765/harness/ts.html`
+- A cell over the downloader, on any study: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the
+  URL the static host prints. `&transport=wasm` runs the WASM client. `&transport=ws` runs the
+  WebSocket fallback, which needs the server started with `--websocket` (add it to Terminal 1's
+  command) and a Chrome that trusts the dev certificate, since a WebSocket cannot pin it by hash
+  ([`docs/WIRE.md`](docs/WIRE.md) §The WebSocket mapping):
 
-Both speak the same wire (FoD on bidi control + envelope on server uni streams).
-The WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
+  ```bash
+  SPKI=$(openssl x509 -in server/dev-cert/cert.pem -pubkey -noout | openssl pkey -pubin -outform DER \
+    | openssl dgst -sha256 -binary | base64)
+  google-chrome --user-data-dir="$(mktemp -d)" --ignore-certificate-errors-spki-list="$SPKI" \
+    'http://127.0.0.1:8765/harness/cell.html?autorun=1&transport=ws'
+  ```
 
-Open product/lab work outside the transport and disk lanes lives in
-[`docs/improvements/`](docs/improvements/README.md).
+  The query parameters are listed in `client/harness/shell.js`.
+- The downloader's self-check (decoded frames against `.sha256`): `http://127.0.0.1:8765/harness/`.
+  It needs the decoder vendor (§Prerequisites) and the server running the `decode_c512` study in
+  place of the smoke one ([`docs/FIXTURES.md`](docs/FIXTURES.md), `client/downloader/README.md`):
 
+```bash
+lab/scripts/gen_htj2k_fixtures.sh c512   # 87 frames and their .sha256; builds OpenJPH's encoder once (cmake, a C++ compiler)
+mkdir -p target/c512
+for f in lab/fixtures/decode_c512/*.j2c; do cp "$f" "target/c512/$(basename "$f" .j2c).htj2k"; done
+cargo run -p pack-study -- \
+  --metadata lab/fixtures/decode_c512/metadata.json \
+  --frames target/c512 \
+  --output target/c512.sbnd
 
-## Transport performance
+# Terminal 1, in place of the smoke study
+cargo run --release -p exact-server -- --port 4433 --study target/c512.sbnd
+```
 
-Front door: [`docs/transport/`](docs/transport/).
+`scripts/cellcheck.sh` runs both pages headless in one go: the cells over both clients (on-demand at
+depth 1 and 4, fill, refuse, a fill on a busy main thread, telemetry) must each deliver what they asked,
+the refuse cell none of it, and the self-check must pass. It builds a release server, packs the c512
+study and makes its own cert under a temp dir, so it needs the c512 frames above, the WASM `pkg/` and
+the browser prerequisites, but not the two terminals or `gen_dev_cert.sh`. `scripts/gate.sh` does not run
+it, since the gate does not require the c512 frames.
 
-- [`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) — **the answer**
-- [`docs/transport/why-these-changes.md`](docs/transport/why-these-changes.md) — why each decision exists
+The TypeScript and WASM transports speak the same wire (FoD on bidi control + envelope on server uni
+streams); the WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
 
-Campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`.
+A TCP fallback serves the same envelopes over a WebSocket: `--websocket` on the server, and
+`client/transport-ts/dist/ws-session.js` or `race-session.js` on the page
+([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §Race it).
+
+## Docs
+
+Each subject has one owner; a claim lives there, corrected in place when it is wrong (`CLAUDE.md` §Docs).
+
+| doc | owns |
+| --- | --- |
+| [`docs/WIRE.md`](docs/WIRE.md) | the wire: FoD messages, the envelope, stream modes, an ask during a fill, the WebSocket mapping |
+| [`docs/CLIENTS.md`](docs/CLIENTS.md) | the client contract: the transport seam, its implementations, the conformance suite |
+| [`docs/FIXTURES.md`](docs/FIXTURES.md) | the fixtures and how each is made |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the client above the transport: downloader, decoders, consumer; the session's open, survival and fallback |
+| [`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) | what the transport measured and chose, why, and what is open |
+| [`docs/decode/README.md`](docs/decode/README.md) | the decoder: builds, dispatch, warm-up, the range, the decode tail |
+| [`docs/adr/disk-access.md`](docs/adr/disk-access.md) | how the server reads frame bytes, and its deployment |
+| [`docs/rig-limits.md`](docs/rig-limits.md) | what the measurement hosts can and cannot claim |
+| [`lab/README.md`](lab/README.md) | which lab directory reproduces which claim; each lab README runs its cells — [`lab/page-open/README.md`](lab/page-open/README.md) the page open |
+| [`docs/adr/`](docs/adr/README.md) | the decisions, one per record, indexed with their status: stream shape, the session loop, ask window, stride, resolution fitting, what the server refuses to do, the read path, idle sessions, receive windows, telemetry |
+| [`docs/transport/upstream-*.md`](docs/transport/) | upstream drafts, not filed |
+| [`docs/cloud-queue.md`](docs/cloud-queue.md) | the work queue, closed: its protocol, where each row's verdict lives, and the open owner decisions |
+
+Older campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`; every
+retired doc is in the history before the commit that folded it.
 
 
 ## Provenance
 
-Public MIT extract of work that began in a private codebase. Names, license,
-and git history were cleaned for publication; treat the log as an engineering
-timeline of this tree, not a byte-for-byte mirror of the private repo.
+Public MIT extract of work that began in a private codebase. Names and license
+were cleaned for publication; treat the log as an engineering timeline of this
+tree, not a byte-for-byte mirror of the private repo.
+
+*Corrected 2026-10-03:* this said the git history was cleaned too. Its commit
+metadata was not rewritten: some commits carry attribution trailers.

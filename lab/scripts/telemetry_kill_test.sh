@@ -44,7 +44,7 @@ rows = os.path.join(work, "telemetry-server.rows")
 out = {"bench": "kill", "rows_file_exists": os.path.exists(rows), "summary_exists": os.path.exists(report)}
 if out["rows_file_exists"]:
     size = os.path.getsize(rows)
-    out["rows_in_file"] = max(0, (size - 16) // 64)
+    out["rows_in_file"] = max(0, (size - 16) // 56)
 if out["summary_exists"]:
     r = json.load(open(report))
     out["summary_event"] = r["run_end"]["event"]
