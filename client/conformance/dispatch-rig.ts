@@ -878,6 +878,7 @@ async function av1Through(
   names: readonly (string | Uint8Array)[],
   decoder: Partial<NonNullable<OpenOpts["realDecoder"]>>,
   mode: "spy" | "none",
+  group: Partial<OpenOpts> = {},
 ) {
   const ch = `wtpacs-webcodecs-${++world}`;
   let units = 0;
@@ -888,7 +889,7 @@ async function av1Through(
   const { c, fake } = await open(DownloaderClient, {
     decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: { ...AV1, ...decoder },
     decoderWorker: `/client/conformance/webcodecs-spy.js?mode=${mode}&ch=${ch}`,
-    onFrame: (f) => got.push(f), onError: (f) => failures.push(f),
+    onFrame: (f) => got.push(f), onError: (f) => failures.push(f), ...group,
   });
   c.fill(names.map((_, i) => i));
   const frames = await Promise.all(names.map((n) => (typeof n !== "string" ? n : fetched(n.startsWith("/") ? n : `${AV1_SET}/${n}.av1`))));
@@ -1066,7 +1067,6 @@ async function aGroupDecodesOnOneDecoderInOrder(
   log: (line: string) => void,
 ) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 groups — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  // 8 bits would take WebCodecs at G = 1; flushed per frame, it cannot hold a group.
   for (const [set, g, n, depth] of [[G8, 8, 20, 8], [`${AV1_SET}/whole12`, 12, 12, 12]] as const) {
     const got: Frame[] = [];
     const { c, fake } = await open(DownloaderClient, {
@@ -1080,6 +1080,42 @@ async function aGroupDecodesOnOneDecoderInOrder(
     const split = range(0, n - 1).filter((i) => i % g && got.find((f) => f.frameIndex === i)?.info.stamps?.decoder !== got.find((f) => f.frameIndex === i - (i % g))?.info.stamps?.decoder);
     check(split.length === 0, `group: G = ${g}, every frame on its keyframe's decoder (elsewhere: ${split.join() || "none"})`);
     c.close();
+  }
+}
+
+/**
+ * A group decodes through WebCodecs as through dav1d-WASM: an 8-bit G = 8 series reaches WebCodecs
+ * unit by unit, every frame its source's; a unit mid-group that gives neither a frame nor an error
+ * fails by name, the rest of its group with it, and the next group is exact; a keyframe that is not
+ * one is refused even by a decoder whose group was cut short. lab/av1/wclat
+ */
+async function aGroupDecodesThroughEitherDecoder(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 groups by decoder — no ${AV1_DIR}`);
+  const names = range(0, 19).map((i) => `${G8}/${String(i).padStart(3, "0")}.av1`);
+  const group = { groupLength: 8, frameCount: 20 };
+  for (const mode of typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const)) {
+    const what = mode === "spy" ? "webcodecs" : "dav1d";
+    const r = await av1Through(DownloaderClient, names, { depth: 8 }, mode, group);
+    check((await inexact(G8, r.got, range(0, 19))) === "none" && r.failures.length === 0,
+      `${what}: G = 8, every frame its source's (inexact: ${await inexact(G8, r.got, range(0, 19))})`);
+    check(r.units === (mode === "spy" ? 20 : 0), `${what}: a group's units reach WebCodecs only where it is there (${r.units})`);
+    // A temporal delimiter alone: a unit with no frame in it.
+    const stalled = await av1Through(DownloaderClient, names.map((n, i) => (i === 3 ? new Uint8Array([0x12, 0]) : n)), { depth: 8 }, mode, group);
+    const refused = stalled.failures.map((f) => f.frameIndex).sort((a, b) => a - b).join() || "none";
+    check(refused === "3,4,5,6,7", `${what}: a unit mid-group with no frame fails, and its group's rest (${refused})`);
+    check((await inexact(G8, stalled.got, range(8, 19))) === "none", `${what}: the next group is still exact (inexact: ${await inexact(G8, stalled.got, range(8, 19))})`);
+    // Group 0 left at frame 4 still holds its references: frame 9's bytes sent as a keyframe must not decode against them.
+    const module = `/client/downloader/${mode === "spy" ? "decode-av1-webcodecs.js" : "decode-av1.js"}`;
+    const av1 = await import(module);
+    await av1.init({ ...AV1, depth: 8, groupLength: 8 });
+    for (const i of range(0, 4)) await av1.decodeFrame(await fetched(names[i]), { key: i === 0, gen: 0, index: i });
+    const nine = await fetched(names[9]);
+    const late = await Promise.resolve().then(() => av1.decodeFrame(nine, { key: true, gen: 0, index: 8 })).then(() => "decoded", (e) => String(e?.message ?? e));
+    check(late.startsWith("undecodable"), `${what}: a keyframe that is not one, after a group cut short, is refused (${late})`);
   }
 }
 
@@ -1637,6 +1673,7 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure,
     anUnknownCodecIsRefusedBeforeTheDial,
     aGroupDecodesOnOneDecoderInOrder,
+    aGroupDecodesThroughEitherDecoder,
     anAskForAFrameAsksItsWholeGroup,
     anAskMidFillStartsAtItsKeyframe,
     aFailedFrameFailsTheRestOfItsGroup,
