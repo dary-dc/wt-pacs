@@ -378,6 +378,17 @@ ultrasound is HTJ2K's on every cell.** So the measure that decided before now sp
 clock: AV1's lossless forms win by their bytes wherever the wire is slower than the decoder. They
 lose wherever a slow CPU meets a fast link, and WebCodecs halves that loss.
 
+*Replicated (the claim's holder, 2026-10-04):* a second container ran the same harness from scratch
+for 10 rounds on SVCDEC's 623 146 B dav1d-WASM build: 1 441 of 1 600 visits kept, n = 5–10 a cell,
+**51 200/51 200 frames exact**. Every verdict above holds. Wherever the wire is the clock, the
+round-paired ratios match the table within 0.03 (Wi-Fi within 0.07). Wherever the CPU is the clock,
+AV1's loss was smaller here: at 4× on 50 Mbit, dav1d-WASM intra took 1.40–1.75× HTJ2K's time
+(table: 1.74–2.22), top11+low 1.45–1.46× (1.74–1.77), WebCodecs 1.17× (1.36–1.38) and top10+low
+1.02–1.05× (1.10–1.13). At 4× on LTE dav1d-WASM took 1.03–1.13× (1.13–1.35), and one group took
+7.7–7.9 s (10.3–10.8). The preview was playable in 0.34–0.39 s at 1× and 0.83–0.86 s at 4×. So a
+decode-bound cell moves by 15–25 % between two containers and builds, and those were not
+interleaved; only the ranking is claimed, not the size of the loss.
+
 ## Threads (owner, 2026-10-03)
 
 **Focus: AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
