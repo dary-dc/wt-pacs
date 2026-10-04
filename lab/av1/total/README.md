@@ -40,6 +40,17 @@ what `connect` is told:
 | `gop` | the whole series one group, no alt-ref | `groupLength: n` → dav1d-WASM | `dbt10`, the one series a group beat intra on |
 | `pre` | row PREVIEW's lossy preview: 10-bit 4:0:0, G = 8, CRF 20, cpu6 | `groupLength: 8` → dav1d-WASM | `rf_fluoro` |
 
+**Row TOTAL2** adds row LLSIZE's best codings (libaom 3.15.1, cpu0, one thread), made with
+`ARMS=l2,rct make_frames.py …` and run on the fixed links only (`--links r5000,r20000,r50000`):
+
+| arm | stored | `connect` | series |
+| --- | --- | --- | --- |
+| `l2` | v ≫ 2 at its container + v & 3 at 8, `--tune-content=screen --sb-size=64` | `split: 2` → dav1d-WASM | grey |
+| `l2wc` | the same frames | `+ depth` (10, or 8 on `dbt10`) → WebCodecs | grey |
+| `rct` | the reversible colour transform, 10-bit 4:4:4, sRGB-tagged, screen + sb64 | `rct: true` → dav1d-WASM | `us_liver` |
+| `rctwc` | the same frames | `+ depth: 10` → WebCodecs | `us_liver` |
+| `rct8wc` | the same transform, G = 8, no alt-ref, libaom's default tuning | `+ groupLength: 8` → WebCodecs | `us_liver` |
+
 The ultrasound's preview is 4:2:0 colour, which neither product decoder takes, so it has no `pre`
 arm. Colour is tagged sRGB (primaries BT.709, transfer sRGB, identity matrix): with the identity
 matrix alone, WebCodecs reports BT.709 and the product module refuses every frame
