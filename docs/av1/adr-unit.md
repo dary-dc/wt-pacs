@@ -97,6 +97,10 @@ Three more fields of `decoder`, from the series' metadata beside `codec`:
   at 13 bits is `split: 3`. A frame that is not split in a split series is refused.
 * **`offset`** — subtracted after the merge; present means the source is signed, so `signed` and
   the range are the source's.
+* **`rct`** — *built since (row TOTAL2):* 8-bit RGB coded as JPEG 2000's reversible colour
+  transform, row LLSIZE's best coding on RGB: planes Y = ⌊(R + 2G + B)/4⌋, B − G + 256, R − G + 256 in
+  a 10-bit 4:4:4 identity stream, tagged sRGB as any RGB series for WebCodecs; `depth: 10`. Undone in
+  `av1-frame.js` to the contract's 8-bit R, G, B; a frame that is not three 10-bit planes is refused.
 
 `bits` out is the stream's plus `split`. The store, the wire and SBND are unchanged: the framing is
 inside the opaque frame. The rule above that an unknown transform is refused before the dial is not

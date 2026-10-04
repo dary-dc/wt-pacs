@@ -1,7 +1,7 @@
 /**
  * An AV1 frame's decoded pictures as decoder.js's contract, whichever decoder made them. A picture is
  * `{ width, height, bits, planes: [{ heap, offset, stride }] }` in samples: one plane for grey, G, B, R
- * for colour. A series' `split` and `offset` are undone here. docs/av1/adr-unit.md §2
+ * for colour. A series' `split`, `rct` and `offset` are undone here. docs/av1/adr-unit.md §2
  */
 
 /** A split frame is `[u32le top length][top unit][low unit]`. */
@@ -14,14 +14,17 @@ export function units(bytes) {
 export function begin(pic, d) {
   const components = pic.planes.length;
   const split = d.split ?? 0;
-  const bits = pic.bits + split;
+  // RCT codes 8-bit RGB in 9 bits, so in a 10-bit container.
+  if (d.rct && (components !== 3 || pic.bits !== 10)) throw new Error(`undecodable: ${components}x${pic.bits}-bit in an RCT series`);
+  const bits = d.rct ? 8 : pic.bits + split;
   const signed = d.offset !== undefined;
   if (bits > 16) throw new Error(`undecodable: ${bits} bits`);
   const wide = bits > 8;
   const sab = new SharedArrayBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
   const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);
   const f = { pic, out, sab, components, bits, signed, mask: 2 ** bits - 1, offset: d.offset ?? 0, range: { min: Infinity, max: -Infinity } };
-  place(f, pic, split, !split);
+  if (d.rct) unrct(f, pic);
+  else place(f, pic, split, !split);
   return f;
 }
 
@@ -60,6 +63,22 @@ function place(f, pic, shift, last) {
         if (v < range.min) range.min = v;
         if (v > range.max) range.max = v;
       }
+    }
+  }
+}
+
+/** JPEG 2000's reversible colour transform undone: planes Y, B − G + 256, R − G + 256 to R, G, B. lab/av1/llsize */
+function unrct(f, pic) {
+  const { out } = f;
+  const { width, height, planes: [y, cb, cr] } = pic;
+  for (let r = 0, o = 0; r < height; r++) {
+    for (let x = 0, sy = y.offset + r * y.stride, sb = cb.offset + r * cb.stride, sr = cr.offset + r * cr.stride; x < width; x++, o += 3) {
+      const b = cb.heap[sb + x] - 256;
+      const red = cr.heap[sr + x] - 256;
+      const g = y.heap[sy + x] - ((b + red) >> 2);
+      out[o] = red + g;
+      out[o + 1] = g;
+      out[o + 2] = b + g;
     }
   }
 }
