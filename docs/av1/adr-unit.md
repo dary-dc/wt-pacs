@@ -375,7 +375,9 @@ the decoder told that the entry ends at the base (the `layers` in its metadata w
 built.
 
 **Not covered.** WebCodecs (a ≤ 10-bit series at G = 1) returns the top exactly and no preview: it
-outputs the highest layer it is fed (row SVCQ), and taking its base is row WCBASE's. A split series
+outputs the highest layer it is fed (row SVCQ). *Row WCBASE:* fed the unit's prefix before the
+first OBU with `spatial_id` 1, it returns the base, identical to native dav1d's at operating point 1
+([`README.md`](README.md) §A5); not built. A split series
 takes no preview. Three or more spatial layers send every layer below the top as a preview; only two
 were made.
 
