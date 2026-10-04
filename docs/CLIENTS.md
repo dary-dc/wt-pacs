@@ -235,7 +235,8 @@ ask behind a 200-frame batch waited for all 200. A pushed fill is how an ask get
 frame that lands and is owed goes straight to `onFrame`; one outside the fill is dropped. No waiter and no timer per frame. A frame *asked* during the fill
 keeps its own waiter and wins — it settles the ask's promise and is not pushed as well.
 `endStream()` or a later `fillFrames` drops what is still owed, leaving nothing armed. A refused
-range is one `frame_error` at `from`, delivered to `onError`.
+range is one `frame_error` at `from`, delivered to `onError`; the downloader fails the whole run on it
+except a frame an ask carries, which settles on its own promise.
 
 **A dead session names what it owed.** `failAll` (Rust: `fail_all`) reports each index the fill
 still owed once, through `onError`, with the closure's reason, after the waiters are rejected.

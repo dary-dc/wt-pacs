@@ -136,7 +136,8 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once an ask settles
   the downloader re-issues what is not yet delivered as a new run — the client owns that decision,
   the server stays as it is. An ask for a frame the fill still owes goes to the wire, where the
-  server serves it next.
+  server serves it next, and the ask then owns that frame: a refusal that fails the rest of the run
+  spares it.
 * **Cancel** ends the stream, drops queued work by generation, fails outstanding asks with an
   `AbortError`, **resets the count of asks in flight** (it gates the fill; one left over stalled the
   next fill) and answers `cancelled`.
@@ -193,12 +194,13 @@ blocked. So it pays only where the worker was alive when the long task began.
 * `frame` goes to the consumer; `done` goes to the downloader, carrying the wire buffer back to the
   ring. The compressed bytes never reach the page.
 
-**How many.** A start parameter, default 3; two rules were argued and neither is the default yet.
+**How many.** A start parameter, default **`min(3, hardwareConcurrency || 3)`** since 2026-10-03 (the
+owner's ruling, on §Resources); before it, a flat 3. The other rule argued:
 **Follow the queue** — start at one, add one while the decode queue stays non-empty across a dispatch,
 retire one left idle — because at 20 Mbit a cine frame needs 0.34 of a desktop decoder and ~0.86 of a
 phone's (arithmetic), so one decoder keeps up on every fixture; not built, and a pool that resizes
-must keep both dispatch clauses (asks first, at most `perDecoder` a decoder) while it resizes. Or
-**`min(3, hardwareConcurrency)`** as a resource rule (§Resources), measured at two and four cores only.
+must keep both dispatch clauses (asks first, at most `perDecoder` a decoder) while it resizes. The
+default is measured at two and four cores only.
 A multithreaded decoder is a separate question ([`decode/README.md`](decode/README.md) §Threads).
 
 ## The consumer
@@ -386,7 +388,7 @@ A second decoder shortens the fill in 7 of 7 rounds everywhere, a third in 7 of 
   reserves a 50 MB heap floor a 512² frame barely touches. Which one a phone kills a tab by is not
   measured. The GPU process (~35 MB), the browser (~99 MB) and the workers' total CPU (~1.5–1.9 s a
   fill) do not follow the decoder count.
-* **The count should be `min(3, hardwareConcurrency)`.** On two cores the third decoder is no faster at
+* **The count should be `min(3, hardwareConcurrency)`**, the default since 2026-10-03. On two cores the third decoder is no faster at
   1× and slower at 4× (1/7), and starves the page's main thread; on four, three win every round. "More
   decoders" is not a lever. A phone reports its little cores too, so the rule bites only on two-core
   devices; whether a phone's scheduler behaves like this emulation is for a device.
@@ -955,8 +957,8 @@ drops UDP, the race's time to ready against the four seconds.
 
 ## Open
 
-* **The decoder count**: `min(3, hardwareConcurrency)` or a pool that follows the queue, neither the
-  default (§The decoders); a phone's scheduler (efficiency cores) and decode speed.
+* **The decoder count**: `min(3, hardwareConcurrency)` is the default; a pool that follows the queue
+  is not built (§The decoders); a phone's scheduler (efficiency cores) and decode speed.
 * **The reader pause** that bounds the compressed queue (§The downloader) — not built.
 * **Coalescing decoded frames across decoders** — a merge point for ~10 ms of a throttled fill's main
   thread: design it or drop it, the owner's call (§The hand-off).

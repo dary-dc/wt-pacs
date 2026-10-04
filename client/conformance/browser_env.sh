@@ -18,6 +18,15 @@ require_browser() {
   export CHROME_PATH
 }
 
+# A two-day cert in $1 (cert.pem, key.pem), within Chrome's hash-pinning limit: sets CERT_HASH.
+make_test_cert() {
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$1/key.pem" -out "$1/cert.pem" \
+    -days 2 -nodes -subj '/CN=localhost' -addext 'basicConstraints=critical,CA:FALSE' \
+    -addext 'keyUsage=critical,digitalSignature' -addext 'extendedKeyUsage=serverAuth' \
+    -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
+  CERT_HASH="$(openssl x509 -in "$1/cert.pem" -outform DER | openssl dgst -sha256 | awk '{print $2}')"
+}
+
 # The static host on a free port: sets STATIC (its pid) and PORT, or exits 1 with its log.
 start_static() {
   local log=$1

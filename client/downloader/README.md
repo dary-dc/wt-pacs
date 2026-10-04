@@ -9,6 +9,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time and re-issued after an ask, two-priority queue, dispatch, cancel |
 | `decoder.js` | one decoder instance, reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
+| `decoder.test.mjs`, `downloader.test.mjs` | node: the range pass; how many decoders a start makes |
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
@@ -21,25 +22,11 @@ server run with `--open-ask false` needs that. `lab/page-open/README.md` §The f
 fill prices both: the opening ask is **−1.13 round trips** to the first frame of a fill, 41 ms at a
 40 ms link and 178 ms at 160; the promise is worth nothing measurable on that box.
 
-**A warm-up frame.** `opts.warmup` is a URL to a codestream **of the series' shape**. Each decoder
-fetches it beside its own WASM compile and decodes it — through the same path a real frame takes —
-before it answers `ready`, so the tiering the first frames of a fill pay is spent in the idle
-window before the first bytes instead of on the frames a user is waiting for.
-`warmup/` ships one per shape the product serves, 160x160, made by
-`lab/scripts/gen_htj2k_fixtures.sh warmup_c warmup_g`. The **caller** picks the file, because the
-caller is what holds the series metadata; a file of the wrong shape warms the wrong code
-([`docs/decode/README.md`](../../docs/decode/README.md) §Warming the decoders). It is one
-same-origin GET, nothing on the session, and a warm-up that cannot be fetched leaves a working
-decoder — `client/conformance/dispatch-rig.ts` holds all three to account. One that is *not a
-codestream* also leaves one, now because `decodeFrame` refuses it rather than because the wrapper
-is silent (`docs/decode/README.md` §A frame that did not decode).
-Every frame carries `stamps.decoderReady`, when its decoder's `ready` arrived, so `lastByte −
-decoderReady` is the window the warm-up had.
-**Off by default, and the shape is not a detail**: a warm-up takes 30–45 % off frames 0–2 of a
-fill, but a warm-up of the *wrong* shape leaves the frames after them slower than no warm-up at
-all, and on the box that measured it the decoders answer `ready` later by about what the frames
-save, so the page's clock does not move. `docs/decode/README.md` §Warming the decoders has the
-table and the conditions it would pay under.
+**How many decoders.** `opts.decoders` defaults to `min(3, navigator.hardwareConcurrency || 3)`:
+a third decoder helps on four cores and not on two ([`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
+§Resources); `downloader.test.mjs` pins it at two cores and eight. The warm-up frame `opts.warmup` was
+removed on 2026-10-03 — it moved only per-frame waits, not the page's clock; the code is at tag
+`archive/downloader-opts-2026-10-03` and its numbers in `docs/decode/README.md` §Warming the decoders.
 
 **What a decoder worker costs.** 5.9 MB resident each, 5.7 MB of it the worker's own JS+WASM heap,
 measured as the slope in the decoder count with the instrument calibrated against 32 MB of ballast
@@ -67,7 +54,7 @@ downloader has ended the stream and dropped that request's work; every frame and
 generation it was made under, and anything older is dropped on the page rather than handed over
 under an index the new request is using. A refused *fill* frame has no waiter, so it reaches the
 consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
-rejects its own promise. [`ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §The consumer.
+rejects its own promise, and a refusal that fails the rest of a fill spares a frame an ask carries. [`ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §The consumer.
 
 **What a frame reports.** Beside the decoded `byteCount`, every frame message the decoder and the
 downloader post carries `wireBytes` — the codestream length the frame's envelope declared, which is

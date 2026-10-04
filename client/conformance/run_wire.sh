@@ -16,11 +16,7 @@ SERVER=""
 STATIC=""
 trap 'kill "$SERVER" "$STATIC" 2>/dev/null || true; rm -rf "$T"' EXIT
 
-openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" -out "$T/cert.pem" \
-  -days 2 -nodes -subj '/CN=localhost' -addext 'basicConstraints=critical,CA:FALSE' \
-  -addext 'keyUsage=critical,digitalSignature' -addext 'extendedKeyUsage=serverAuth' \
-  -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
-HASH="$(openssl x509 -in "$T/cert.pem" -outform DER | openssl dgst -sha256 | awk '{print $2}')"
+make_test_cert "$T"
 export WTPACS_TRUST_SPKI="$(openssl x509 -in "$T/cert.pem" -pubkey -noout | openssl pkey -pubin -outform DER |
   openssl dgst -sha256 -binary | base64)"
 
@@ -43,7 +39,7 @@ done
 serving || { echo "the server did not start:" >&2; cat "$T/server.log" >&2; exit 1; }
 start_static "$T/static.log"
 
-WT="wt=https://127.0.0.1:$WT_PORT/&hash=$HASH"
+WT="wt=https://127.0.0.1:$WT_PORT/&hash=$CERT_HASH"
 drive() { node client/conformance/drive_page.cjs "http://127.0.0.1:$PORT/$1" | grep . | tail -1; }
 failed=0
 drive "client/conformance/refusals.html?arm=ts&n=64&$WT" || failed=1

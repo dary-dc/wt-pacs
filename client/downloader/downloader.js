@@ -10,7 +10,8 @@ let TransportSession = null;
 const abs = () => performance.timeOrigin + performance.now();
 
 let session = null;
-let cfg = { decoders: 3, decode: true, perDecoder: 2, survival: true };
+/** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns it all off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 };
 let dial = null;
@@ -38,7 +39,7 @@ const decoders = [];
 /** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
 const records = new Map();
 const queue = { ask: [], fill: [] };
-/** Fill frames the consumer wants and the wire has not delivered. */
+/** Fill frames the consumer wants and the wire has not delivered; never one an ask carries, which the ask settles. */
 const wanted = new Set();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -85,7 +86,6 @@ function pump() {
     rec.state = "decoding";
     rec.stamps.dispatched = abs();
     rec.stamps.decoder = decoders.indexOf(d);
-    rec.stamps.decoderReady = d.readyAt;
     d.outstanding += 1;
     d.worker.postMessage(
       { kind: "decode", index, gen: generation, bytes: rec.bytes, stamps: rec.stamps },
@@ -287,14 +287,11 @@ async function start(m) {
     const d = { worker, outstanding: 0 };
     ready.push(new Promise((r) => { d.ready = r; }));
     const ch = new MessageChannel();
-    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, warmup: cfg.warmup }, [ch.port1]);
+    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder }, [ch.port1]);
     worker.onmessage = (e) => {
       if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
       if (e.data.kind === "done") onDone(d, e.data);
-      else if (e.data.kind === "ready") {
-        d.readyAt = abs();
-        d.ready();
-      }
+      else if (e.data.kind === "ready") d.ready();
       else if (e.data.kind === "init-failed") lose(d, e.data.reason);
       else if (e.data.kind === "failed") {
         d.outstanding -= 1;
@@ -391,6 +388,7 @@ onmessage = async (e) => {
       if (rec?.priority === "ask") return;
       // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
       if (rec && rec.state !== "wire") return void promote(m.index);
+      wanted.delete(m.index);
       if (rec) rec.priority = "ask";
       else record(m.index, "ask", abs());
       return void ask(m.index, s.requestExactFrame(m.index));

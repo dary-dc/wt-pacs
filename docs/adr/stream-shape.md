@@ -12,6 +12,9 @@ wire
   Retired; code in history at `6e9c126`.
 * **`per-frame` stays a flag**, and ranks each stream by ask order — earlier asks outrank later
   ones. It measured level with `shared`, not better, and level is not a reason to change a default.
+  **It is kept on purpose (the owner, 2026-10-03):** `shared` is not proven best either. On one
+  stream a lost packet holds back every frame behind it (head-of-line blocking), and the cells so far
+  only show the two level, not that the blocking never costs.
 * **The WebSocket path is one ordered stream by construction**, so the question does not arise
   there.
 

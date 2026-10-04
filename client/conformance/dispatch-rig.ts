@@ -10,7 +10,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; warmed?: boolean; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decoderReady?: number; dispatched?: number } } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -42,7 +42,6 @@ type OpenOpts = {
   /** `"default"` leaves it unset; the other clauses ask on the control stream. */
   openAsk?: boolean | "default";
   url?: Promise<string>;
-  warmup?: string;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
   realDecoder?: RealDecoder;
   survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
@@ -83,7 +82,6 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
       hold: opts.hold,
       failOneInit: opts.failOneInit && { ticket: new Int32Array(new SharedArrayBuffer(4)) },
     },
-    warmup: opts.warmup,
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
     onFrame: opts.onFrame ?? (() => {}),
@@ -390,6 +388,37 @@ async function aRefusedFillReachesTheConsumer(DownloaderClient: DownloaderCtor, 
   c.close();
 }
 
+/** A refusal that fails the rest of a run spares a frame of that run an ask is carrying: the ask settles
+ *  it on its own promise, not with the refused frame's reason. */
+async function aRefusalInTheRunSparesTheFrameAnAskCarries(DownloaderClient: DownloaderCtor, check: Check) {
+  const captured: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, onFrame: (f) => captured.push(f), onError: (f) => failures.push(f),
+  });
+  c.fill([0, 1, 2, 3, 4, 5]);
+  await settle();
+  for (const i of [0, 1, 2]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+  await until(() => captured.length >= 3);
+
+  let asked = -1;
+  let rejected = "";
+  c.requestExactFrame(3).then((f) => { asked = f.frameIndex; }, (e: Error) => { rejected = String(e.message); });
+  await onTheWire(fake, "request_frame 3");
+  await fake.pushFrame(4, enc.encode("fill-4"));
+  await until(() => captured.length >= 4);
+  await fake.pushRefusal(5, "refused-5");
+  await until(() => failures.length >= 1);
+  await fake.pushFrame(3, enc.encode("ask-3"));
+  await until(() => asked >= 0 || rejected !== "");
+
+  const named = failures.map((f) => f.frameIndex).join();
+  check(named === "5", `refusal in a run: the refused frame reaches the error callback (${named || "none"})`);
+  check(rejected === "", `refusal in a run: the frame an ask carries is not failed with it (${rejected || "not failed"})`);
+  check(asked === 3, `refusal in a run: it is served on the ask's own promise (${asked})`);
+  c.close();
+}
+
 const same = (a?: Uint8Array, b?: Uint8Array) =>
   !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -457,8 +486,7 @@ async function fillWithStartRunsAheadOfTheDecoders(DownloaderClient: DownloaderC
 
 /**
  * The race the wire-ahead-of-the-decoders change opens: frames that land before any decoder
- * exists are held for one, not handed to a decoder that cannot take them. `pump()`'s guard. Each
- * carries when its decoder answered `ready`: no sooner than the stand-in let it, and before dispatch.
+ * exists are held for one, not handed to a decoder that cannot take them. `pump()`'s guard.
  */
 async function framesBeforeAnyDecoderAreHeld(DownloaderClient: DownloaderCtor, check: Check) {
   const indices = [...Array(12).keys()];
@@ -473,7 +501,6 @@ async function framesBeforeAnyDecoderAreHeld(DownloaderClient: DownloaderCtor, c
   for (const i of indices) await fake.pushFrame(i, enc.encode(`held-${i}`));
   check(hold.ready() === 0, `held: all ${indices.length} frames land before any decoder is ready (${hold.ready()} ready)`);
   await until(() => hold.holding() >= 3);
-  const releasedAt = performance.timeOrigin + performance.now();
   hold.release();
 
   const c = await connect.catch(() => null);
@@ -481,11 +508,6 @@ async function framesBeforeAnyDecoderAreHeld(DownloaderClient: DownloaderCtor, c
   check(all, `held: every frame that arrived before a decoder existed is delivered (${held.length}/${indices.length})`);
   check(held.every((f) => (f.info.decodeSeq ?? 0) > 0), `held: each of them went through a decoder`);
   check(new Set(held.map((f) => f.frameIndex)).size === indices.length, `held: each of them exactly once`);
-  const late = held.map((f) => (f.info.stamps?.decoderReady ?? 0) - releasedAt);
-  check(late.every((ms) => ms >= 0),
-    `ready stamp: each frame carries its decoder's, taken after the release (${Math.min(...late).toFixed(1)} ms at the least)`);
-  check(held.every((f) => (f.info.stamps?.decoderReady ?? Infinity) <= (f.info.stamps?.dispatched ?? 0)),
-    `ready stamp: and never after the frame was dispatched to that decoder`);
   c?.close();
 }
 
@@ -586,40 +608,6 @@ async function aRefusedOpeningFillReachesTheConsumer(DownloaderClient: Downloade
 }
 
 /**
- * The warm-up lives inside the decoders: the session carries exactly what it carried without one,
- * every frame comes from a warmed decoder, and a warm-up that cannot be fetched still leaves a
- * decoder that decodes. docs/decode/README.md §Warming the decoders
- */
-async function aWarmUpChangesNothingOnTheWire(DownloaderClient: DownloaderCtor, check: Check) {
-  const indices = [0, 1, 2, 3, 4, 5, 6, 7];
-  const payload = (i: number) => enc.encode(`frame-${i}-${"ab".repeat(i + 1)}`);
-  const run = async (warmup?: string) => {
-    const got: Frame[] = [];
-    const { connect, fake } = begin(DownloaderClient, {
-      decoders: 3, fill: indices, warmup, onFrame: (f) => got.push(f),
-    });
-    await firstSeenMs(fake, "stream_frames 0-7");
-    for (const i of indices) await fake.pushFrame(i, payload(i));
-    const c = await connect.catch(() => null);
-    await until(() => got.length >= indices.length, 5000);
-    const wire = wireOf((await fake.controlMessages()) as Wire[]);
-    c?.close();
-    return { by: new Map(got.map((f) => [f.frameIndex, f])), n: got.length, wire };
-  };
-
-  const plain = await run();
-  const warm = await run("/client/conformance/fake-decoder.js");
-  check(warm.wire.join(", ") === plain.wire.join(", "), `warm-up: the wire is what it was without one (${warm.wire.join(", ")})`);
-  check(warm.n === indices.length, `warm-up: every frame of the fill arrives (${warm.n}/${indices.length})`);
-  check(indices.every((i) => same(warm.by.get(i)?.bytes, plain.by.get(i)?.bytes)), `warm-up: each frame byte-identical to the fill without one`);
-  check([...warm.by.values()].every((f) => f.info.warmed), `warm-up: every frame came from a warmed decoder`);
-
-  const missing = await run("/client/conformance/no-such-frame.j2c");
-  check(missing.n === indices.length, `warm-up: one that cannot be fetched still delivers the fill (${missing.n}/${indices.length})`);
-  check([...missing.by.values()].every((f) => !f.info.warmed), `warm-up: and the decoders say they did not warm`);
-}
-
-/**
  * A media stream that ends before the length its own header declares has lost that frame: the
  * consumer is told which frame, in the generation it is living in, and is never handed the part
  * that did arrive as pixels. docs/CLIENTS.md#a-truncated-frame-is-a-failure
@@ -666,7 +654,7 @@ async function anUndecodableFrameIsAFailureNotAFrame(DownloaderClient: Downloade
   const realDecoder = await vendorDecoder(log, "an undecodable frame");
   if (!realDecoder) return;
   const bytesOf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
-  const good = await bytesOf("/client/downloader/warmup/colour-8.j2c");
+  const good = await bytesOf("/client/conformance/frames/colour-8.j2c");
   const wrong = await bytesOf("/client/downloader/README.md");
 
   const frames: Frame[] = [];
@@ -709,7 +697,7 @@ async function aFrameCarriesItsWireBytes(DownloaderClient: DownloaderCtor, check
 
   const realDecoder = await vendorDecoder(log, "wire bytes behind a decoder");
   if (!realDecoder) return;
-  const codestream = new Uint8Array(await (await fetch("/client/downloader/warmup/colour-8.j2c")).arrayBuffer());
+  const codestream = new Uint8Array(await (await fetch("/client/conformance/frames/colour-8.j2c")).arrayBuffer());
 
   const decoded: Frame[] = [];
   const { c: c2, fake: fake2 } = await open(DownloaderClient, {
@@ -735,8 +723,8 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(DownloaderClient: Downloade
   const vendor = await vendorDecoder(log, "a frame's range");
   if (!vendor) return;
   const bytesOf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
-  const grey = await bytesOf("/client/downloader/warmup/grey-16.j2c");
-  const colour = await bytesOf("/client/downloader/warmup/colour-8.j2c");
+  const grey = await bytesOf("/client/conformance/frames/grey-16.j2c");
+  const colour = await bytesOf("/client/conformance/frames/colour-8.j2c");
   const rangeOf = async (glue: string, codestream: Uint8Array) => {
     const got: Frame[] = [];
     const { c, fake } = await open(DownloaderClient, {
@@ -1177,10 +1165,10 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<v
     aLateDoneDoesNotDropTheNewRequestsFrame,
     cancelCompletesAndUnblocksTheNextFill,
     aRefusedFillReachesTheConsumer,
+    aRefusalInTheRunSparesTheFrameAnAskCarries,
     theDecodersComeUpWhileTheUrlIsUnknown,
     anOpeningFillRidesTheSessionUrl,
     aRefusedOpeningFillReachesTheConsumer,
-    aWarmUpChangesNothingOnTheWire,
     aTruncatedFrameIsAFailureNotAFrame,
     anUndecodableFrameIsAFailureNotAFrame,
     aFrameCarriesItsWireBytes,

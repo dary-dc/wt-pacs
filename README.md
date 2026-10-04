@@ -75,6 +75,13 @@ cargo run -p pack-study -- \
 cargo run --release -p exact-server -- --port 4433 --study target/c512.sbnd
 ```
 
+`scripts/cellcheck.sh` runs both pages headless in one go: the cells over both clients (on-demand at
+depth 1 and 4, fill, refuse, a fill on a busy main thread, telemetry) must each deliver what they asked,
+the refuse cell none of it, and the self-check must pass. It builds a release server, packs the c512
+study and makes its own cert under a temp dir, so it needs the c512 frames above, the WASM `pkg/` and
+the browser prerequisites, but not the two terminals or `gen_dev_cert.sh`. `scripts/gate.sh` does not run
+it, since the gate does not require the c512 frames.
+
 The TypeScript and WASM transports speak the same wire (FoD on bidi control + envelope on server uni
 streams); the WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
 

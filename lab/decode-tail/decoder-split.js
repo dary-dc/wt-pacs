@@ -56,13 +56,7 @@ function decodeFrame(bytes, t = {}) {
   return { info, sab, byteCount: out.length, range };
 }
 
-/** The warm-up's bytes, or none: an optimisation must never reject a decoder's init. */
-const warmupBytes = (url) =>
-  fetch(url).then((r) => r.arrayBuffer()).then((b) => new Uint8Array(b), () => null);
-
 async function init(m) {
-  // Fetched beside the compile: it has to fit the idle window — docs/decode/README.md §Warming.
-  const warmup = m.warmup ? warmupBytes(m.warmup) : null;
   // A module worker has no importScripts and the glue is a classic script. Its factory is a
   // top-level `var`, which inside a Function body is local, so hand it back explicitly.
   const src = await (await fetch(m.decoder.glue)).text();
@@ -73,14 +67,6 @@ async function init(m) {
   M = await factory({ locateFile: (f) => m.decoder.dir + "/" + f, wasmBinary });
   // One decoder object reused: parity.mjs is byte-identical on every fixture, so reuse is safe.
   dec = new M.HTJ2KDecoder();
-  const w = warmup && (await warmup);
-  if (w) {
-    try {
-      decodeFrame(w);
-    } catch {
-      /* a decoder that cannot warm is still a decoder */
-    }
-  }
 }
 
 onmessage = async (e) => {
