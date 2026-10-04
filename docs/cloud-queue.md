@@ -40,7 +40,7 @@ file names, branch names or commit messages.
 | 118 | **SRV-R2** — one writer per session, `Link` (§Row 118) | after 117 |
 | 119 | **SRV-R3** — pipeline steps `read`/`write`, telemetry row v3 (§Row 119) | after 118 |
 | 120 | **SRV-R4-PLAN** — the layout commit written out in full for the owner's review; no code (§Row 120) | after 119 |
-| 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | **claimed** 2026-10-04 |
+| 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | **done** `4fda9f1` — full gate green (dispatch 119/119: the 6 warm-up and 2 ready-stamp checks went with them); `decoders` pinned at 2, 8 and unreported cores by `client/downloader/downloader.test.mjs`, four mutants each fail; the two codestreams the rig decodes moved to `client/conformance/frames/`; `lab/decode-first-frame` (its own in-page warm-up arm) and `telemetry-cost` (JIT rounds) kept — `docs/decode/README.md` §Warming the decoders, `ARCHITECTURE.md` §The decoders |
 | 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **done** `0a17e17` — both images build and run under docker (podman unrun); `compose up`: `wt_url=`, TCP 4433 answers 101, the cell delivers 3/3 frames over WebTransport and WebSocket; the check passes on the image — `deploy/README.md` |
 | 59 | **A1b** — the handover on a device: does a session survive Wi-Fi → cellular, and how long is the freeze ([`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice) | **waiting on a device** — no container can take it |
 | 40 | **E1** — the ingest format | **held** by the owner (§What a row may not change) |
