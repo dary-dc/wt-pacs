@@ -345,20 +345,20 @@ pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
         .1
         .split('&')
         .find_map(|f| f.strip_prefix("ask="))?;
-    let ask = match value.split_once(':')? {
-        ("frame", n) => Ask::Frame(n.parse().ok()?),
+    match value.split_once(':')? {
+        ("frame", n) => {
+            let frame = n.parse().ok()?;
+            frame_in_range(frame, frames).ok()?;
+            Some(Ask::Frame(frame))
+        }
         ("fill", range) => {
             let (from, to) = range.split_once('-')?;
-            Ask::Fill { from: Some(from.parse().ok()?), to: Some(to.parse().ok()?) }
+            let (from, to) = (Some(from.parse().ok()?), Some(to.parse().ok()?));
+            fill_range(from, to, frames).ok()?;
+            Some(Ask::Fill { from, to })
         }
-        _ => return None,
-    };
-    let in_range = match ask {
-        Ask::Frame(n) => frame_in_range(n, frames).is_ok(),
-        Ask::Fill { from, to } => fill_range(from, to, frames).is_ok(),
-        _ => false,
-    };
-    in_range.then_some(ask)
+        _ => None,
+    }
 }
 
 /// Once per session, so a deployment can see the MTU, loss and RTT it actually got.
