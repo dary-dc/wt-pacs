@@ -3,16 +3,11 @@
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
-use crate::transport::frame_out::FrameOut;
+use crate::transport::link::Link;
 use crate::transport::planner::Next;
-use crate::transport::wire::Control;
 use anyhow::Result;
-use fod::FodMsg;
-use frame_envelope::FRAME_HEAD_LEN;
 use std::sync::Arc;
-use tokio::sync::oneshot;
-use tracing::{info, warn};
-use wtransport::stream::SendStream;
+use tracing::info;
 
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
@@ -46,53 +41,31 @@ pub(crate) trait FramePipeline: Send {
 
     async fn refuse(&mut self, frame: u32, reason: String) -> Result<()>;
 
-    async fn drain_acks(&mut self);
+    /// However the session ended. `Link::finish`.
+    async fn finish(&mut self);
 }
 
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
-    out: FrameOut,
+    link: Link,
     /// Built on the first frame of its kind, so a session pays for neither reader it
     /// does not use. `docs/adr/disk-access.md`.
     seq: Option<SeqReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
-    control: Option<Control>,
-    /// The opening ask is served before the client opens control, so a refusal of it waits here.
-    late_control: Option<oneshot::Receiver<SendStream>>,
     fills: u64,
-    /// Lab only: envelope bytes left before the session stalls. `FrameOut::stall_within`.
-    stall_left: Option<u64>,
 }
 
 impl ProductPipeline {
-    pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut, mode: ReadMode) -> Self {
+    pub(crate) fn new(store: Arc<FrameStore>, link: Link, mode: ReadMode) -> Self {
         Self {
             store,
-            out,
+            link,
             seq: None,
             tile: None,
             mode,
-            control: None,
-            late_control: None,
             fills: 0,
-            stall_left: None,
         }
-    }
-
-    pub(crate) fn with_stall_after(mut self, bytes: Option<u64>) -> Self {
-        self.stall_left = bytes;
-        self
-    }
-
-    pub(crate) fn with_control(mut self, control: Control) -> Self {
-        self.control = Some(control);
-        self
-    }
-
-    pub(crate) fn with_late_control(mut self, control: oneshot::Receiver<SendStream>) -> Self {
-        self.late_control = Some(control);
-        self
     }
 }
 
@@ -104,13 +77,11 @@ impl FramePipeline for ProductPipeline {
     async fn send(&mut self, frame: u32, span: FrameSpan, ahead: &[FrameSpan], next: &Next) -> Result<()> {
         let Self {
             store,
-            out,
+            link,
             seq,
             tile,
             mode: read_mode,
-            stall_left,
             fills,
-            ..
         } = self;
         let body = match next {
             Next::Fill { first, .. } => {
@@ -125,37 +96,15 @@ impl FramePipeline for ProductPipeline {
                     .await?
             }
         };
-        let Some(left) = stall_left else {
-            return out.send_frame(frame, body).await;
-        };
-        let whole = (FRAME_HEAD_LEN + body.len()) as u64;
-        if whole > *left {
-            return out.stall_within(frame, body, *left as usize).await;
-        }
-        *left -= whole;
-        out.send_frame(frame, body).await
+        link.send_frame(frame, body).await
     }
 
     async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
-        warn!(frame, %reason, "frame refused");
-        if self.control.is_none() {
-            if let Some(late) = self.late_control.take() {
-                self.control = late.await.ok().map(Control::Stream);
-            }
-        }
-        let Some(control) = self.control.as_mut() else {
-            return Ok(());
-        };
-        control
-            .write(&FodMsg::FrameError {
-                frame_index: frame,
-                reason,
-            })
-            .await
+        self.link.refuse(frame, reason).await
     }
 
-    async fn drain_acks(&mut self) {
-        self.out.drain_acks().await;
+    async fn finish(&mut self) {
+        self.link.finish().await;
     }
 }
 
@@ -243,8 +192,8 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         self.inner.refuse(frame, reason).await
     }
 
-    async fn drain_acks(&mut self) {
-        self.inner.drain_acks().await;
+    async fn finish(&mut self) {
+        self.inner.finish().await;
     }
 }
 
@@ -301,7 +250,7 @@ mod tests {
             Ok(())
         }
 
-        async fn drain_acks(&mut self) {}
+        async fn finish(&mut self) {}
     }
 
     fn recorder(tag: &str, frames: u32) -> (std::path::PathBuf, SeamRecorder) {
@@ -378,31 +327,6 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// A refusal in a session whose control stream never came returns once the session has
-    /// closed, rather than waiting for a stream that cannot arrive.
-    #[test]
-    fn a_refusal_with_no_control_stream_returns_once_the_session_closes() {
-        let path = std::env::temp_dir().join(format!("wtpacs-late-{}.sbnd", std::process::id()));
-        one_frame_study(&path);
-        let store = Arc::new(FrameStore::open(&path).expect("open store"));
-        let (closed, late) = oneshot::channel();
-        let mut product =
-            ProductPipeline::new(store, FrameOut::Detached, ReadMode::Auto).with_late_control(late);
-        drop(closed);
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("rt");
-        rt.block_on(async {
-            let refused = product.refuse(9, "out of range".into());
-            tokio::time::timeout(std::time::Duration::from_secs(2), refused)
-                .await
-                .expect("the refusal waited on a control stream that can no longer come")
-                .expect("refuse");
-        });
-        let _ = std::fs::remove_file(&path);
-    }
-
     /// **One index per study, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
     /// `docs/adr/disk-access.md` §Invariants.
@@ -414,7 +338,7 @@ mod tests {
 
         let sessions = 8;
         let pipelines: Vec<ProductPipeline> = (0..sessions)
-            .map(|_| ProductPipeline::new(Arc::clone(&store), FrameOut::Detached, ReadMode::Auto))
+            .map(|_| ProductPipeline::new(Arc::clone(&store), Link::Detached, ReadMode::Auto))
             .collect();
 
         for (n, pipeline) in pipelines.iter().enumerate() {

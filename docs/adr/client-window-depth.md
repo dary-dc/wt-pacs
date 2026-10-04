@@ -124,7 +124,7 @@ ask until it returned. Throughput capped at `Tf / (Tf + RTT)`. Opening a stream 
 the cost was waiting for the acknowledgement, and nothing the client did could fix it.
 
 > **Corrected — this section used to call it a live defect of the product default.** It is neither
-> now. `finish()` is awaited off the session loop (`server/src/transport/frame_out.rs`): the per-frame
+> now. `finish()` is awaited off the session loop (`server/src/transport/link.rs`): the per-frame
 > arm then reached 8.0 Mbps against the old ~7.0 ceiling (250 KB, `D`=4, 10 Mbit, 60 ms). And the
 > binary's default has been `--stream-mode shared` since 2026-09-11
 > ([`stream-shape.md`](stream-shape.md)). With the fix in, per-frame still needed more

@@ -1,6 +1,5 @@
 //! Length-prefixed FoD read/write on WebTransport streams.
 
-use crate::transport::websocket::WsSink;
 use anyhow::{Context, Result};
 use fod::{decode_fod_body, encode_fod_msg, FodMsg};
 use wtransport::stream::{RecvStream, SendStream};
@@ -39,21 +38,6 @@ pub async fn write_fod_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
     let bytes = encode_fod_msg(msg)?;
     send.write_all(&bytes).await.context("write FoD")?;
     Ok(())
-}
-
-/// Where a session's refusals go: its QUIC control stream, or the WebSocket its frames share.
-pub(crate) enum Control {
-    Stream(SendStream),
-    WebSocket(WsSink),
-}
-
-impl Control {
-    pub(crate) async fn write(&mut self, msg: &FodMsg) -> Result<()> {
-        match self {
-            Self::Stream(send) => write_fod_msg(send, msg).await,
-            Self::WebSocket(ws) => ws.send_fod(msg).await,
-        }
-    }
 }
 
 /// False when the stream ended before the first byte; an end part-way is an error.

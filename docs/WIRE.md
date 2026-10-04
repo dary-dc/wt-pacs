@@ -100,7 +100,7 @@ has no memory mapping ([`adr/disk-access.md`](adr/disk-access.md)).
 *Corrected 2026-09-26, in place:* this section said the codestream was written in 64 KiB
 `READ_WINDOW` pieces through `write_all(&[u8])`, leaving one full-frame copy into quinn's send
 buffer. That was the send path before whole frames were handed to quinn over pooled buffers; the
-code today is `frame_out.rs` `write_frame`. The copy-cost knee sweep once listed as open against
+code today is `link.rs` `write_frame`. The copy-cost knee sweep once listed as open against
 that copy (link rate against memcpy time) was never run and now has no copy to price. Over the
 WebSocket the codestream is still split, every 64 KiB (§The WebSocket mapping).
 

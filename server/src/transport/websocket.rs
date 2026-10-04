@@ -2,9 +2,9 @@
 //! cannot reach. Binary messages, joined, are the shared uni stream's bytes; a text message is one
 //! FoD message's JSON. `docs/WIRE.md` §The WebSocket mapping.
 
-use crate::transport::frame_out::FrameOut;
+use crate::transport::link::Link;
 use crate::transport::server::{forward, parse_open_ask, Sessions};
-use crate::transport::wire::{Control, MAX_FOD_LEN};
+use crate::transport::wire::MAX_FOD_LEN;
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
 use fod::{decode_fod_body, FodMsg};
@@ -18,7 +18,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
@@ -36,13 +35,12 @@ const CHUNK: usize = 64 * 1024;
 /// TLS and the upgrade together; a peer silent past this holds a task and a descriptor for nothing.
 pub(crate) const HANDSHAKE: Duration = Duration::from_secs(10);
 
-/// A session's one writer, shared by its frames and its refusals.
-#[derive(Clone)]
-pub(crate) struct WsSink(Arc<Mutex<SplitSink<Socket, Message>>>);
+/// A session's one writer, for its frames and its refusals alike; every write is on the session task.
+pub(crate) struct WsWriter(SplitSink<Socket, Message>);
 
-impl WsSink {
-    pub(crate) async fn send_frame(&self, head: Bytes, body: Bytes) -> Result<()> {
-        let mut sink = self.0.lock().await;
+impl WsWriter {
+    pub(crate) async fn send_frame(&mut self, head: Bytes, body: Bytes) -> Result<()> {
+        let sink = &mut self.0;
         sink.feed(Message::Binary(head)).await.context("write frame")?;
         for at in (0..body.len()).step_by(CHUNK) {
             let chunk = body.slice(at..body.len().min(at + CHUNK));
@@ -51,9 +49,13 @@ impl WsSink {
         sink.flush().await.context("write frame")
     }
 
-    pub(crate) async fn send_fod(&self, msg: &FodMsg) -> Result<()> {
+    pub(crate) async fn send_fod(&mut self, msg: &FodMsg) -> Result<()> {
         let json = serde_json::to_string(msg).context("serialize FodMsg")?;
-        self.0.lock().await.send(Message::text(json)).await.context("write FoD")
+        self.0.send(Message::text(json)).await.context("write FoD")
+    }
+
+    pub(crate) async fn close(&mut self) {
+        let _ = self.0.close().await;
     }
 }
 
@@ -125,11 +127,7 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
         .await
         .context("WebSocket handshake deadline")??;
     let (sink, mut stream) = socket.split();
-    let sink = WsSink(Arc::new(Mutex::new(sink)));
-
-    let product = sessions
-        .pipeline(FrameOut::WebSocket(sink.clone()))
-        .with_control(Control::WebSocket(sink.clone()));
+    let product = sessions.pipeline(Link::WebSocket(WsWriter(sink)));
     let closed = Arc::new(AtomicBool::new(false));
     let saw_close = Arc::clone(&closed);
     let read = |tx| async move {
@@ -142,9 +140,7 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
         }
     };
     // Served right behind the 101, a round trip before the client's first message could land.
-    let result = sessions.serve(product, opening, read).await;
-    let _ = sink.0.lock().await.close().await;
-    match result {
+    match sessions.serve(product, opening, read).await {
         Err(err) if closed.load(Ordering::Relaxed) => {
             info!(%err, "WebSocket session closed by peer");
             Ok(())

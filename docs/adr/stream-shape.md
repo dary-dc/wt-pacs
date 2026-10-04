@@ -240,7 +240,7 @@ What the corrections above cost to learn, and what the cell drivers enforced (re
 
 ## Consequences
 
-* **The server.** `server/src/transport/frame_out.rs`: `Shared` opens one uni at session start;
+* **The server.** `server/src/transport/link.rs`: `Shared` opens one uni at session start;
   `PerFrame` opens a uni per frame at `ask_priority`, finishes it off the loop and reaps finished
   acks as it sends (before 2026-09-06 they were held to session end: RSS 30.8 MB after 35 k frames,
   12.5 MB flat after). `Pool` stays only so the recorded cells reproduce; nothing recommends it.
