@@ -5,6 +5,7 @@
 #   client/conformance/av1/{g8,g10,g12,c8,c10,c12}.av1  90x70, with the generator's .sha256
 #   client/conformance/av1/inter.av1                    a frame of a group: must not decode alone
 #   client/conformance/av1/{s13,n13,n16}.av1            grey split top10+low: 13-bit, 13 and 16 signed
+#   client/conformance/av1/r8.av1                       8-bit RGB as its reversible colour transform
 #   client/conformance/av1/{yuv420,yuv444}.av1          colour as YUV: must be refused, not returned
 #   client/conformance/av1/{g8x20,whole12}/NNN.av1      every unit of a G = 8 and a one-group stream
 #
@@ -84,6 +85,11 @@ split() {
 split "$C/s13.av1" 8191 0 3
 split "$C/n13.av1" 8191 4096 3
 split "$C/n16.av1" 65535 32768 6
+"$PY" "$ROOT/lab/scripts/gen_frame_pnm.py" "$TMP/f.pnm" 90 70 3 255 0 1 field
+"$PY" "$(dirname "$0")/rct_planes.py" "$TMP/f.pnm" >"$TMP/in.raw"
+encode "$TMP/in.raw" gbrp10le 90 70 3 1 0 "$C/r8.av1"
+cp "$TMP/f.pnm.sha256" "$C/r8.sha256"
+echo "$C/r8.av1: $(stat -c%s "$C/r8.av1") B"
 "$PY" "$ROOT/lab/scripts/gen_frame_pnm.py" "$TMP/f.pnm" 90 70 3 255 0 1 field
 "$PY" "$(dirname "$0")/pnm_planar.py" "$TMP/f.pnm" >"$TMP/in.raw"
 for yuv in yuv420 yuv444; do

@@ -5,12 +5,17 @@ htj2k (the served profile) and av1 (libaom lossless intra, cpu0) for every set; 
 the two splits as the client takes them (`[u32le len(top)][top unit][low unit]`): t11 (v >> 2 at 12
 bits + v & 3, dav1d-WASM) and t10 (v >> 3 at 10 bits + v & 7, WebCodecs); on a set where a group
 beat intra, gop (the whole series one group, no alt-ref); on the fluoroscopy, pre — row PREVIEW's
-lossy preview, 10-bit 4:0:0, G = 8, CRF 20, cpu6. Every exact arm is decoded natively and matched
-with the series' checksum; a preview's truth is its native decode's hash.
+lossy preview, 10-bit 4:0:0, G = 8, CRF 20, cpu6. Row TOTAL2 adds row LLSIZE's best codings: l2,
+the two low bits apart on grey; rct, the reversible colour transform on RGB, intra and G = 8. Every
+exact arm is decoded natively and matched with the series' checksum; a preview's truth is its native
+decode's hash.
 
-usage: make_frames.py BUILD OUT SETDIR ...  (OUT/SET/arms.json says what was made) — lab/av1/total/README.md
+usage: [ARMS=av1,split,gop,pre,l2,rct] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/arms.json says
+what was made; ARMS limits it, htj2k always) — lab/av1/total/README.md
 """
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,13 +25,16 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE.parent / "speed"))
 sys.path.insert(0, str(HERE.parent / "preview"))
+sys.path.insert(0, str(HERE.parent / "llsize"))
 import depth  # noqa: E402
+import llsize  # noqa: E402
 import encode as preview  # noqa: E402
 from make_frames import htj2k  # noqa: E402
 from size import AOM, Set, av1_cell, decode_y4m, exact, ivf_units, timed, write_y4m  # noqa: E402
 
 GOP = {"dbt10_ea1141"}
 PREVIEW = {"rf_fluoro": (8, 20)}
+SRGB = ["--color-primaries=bt709", "--transfer-characteristics=srgb", "--matrix-coefficients=identity"]
 
 
 def intra(build, s, work):
@@ -67,6 +75,32 @@ def split(build, s, work, top_bits, shift):
     return frames
 
 
+def represented(build, s, work, rep, flags, group):
+    """Row LLSIZE's coding of every plane stream, a frame's streams as the client takes them."""
+    streams = []
+    for j, (used, ch, plane) in enumerate(rep.planes):
+        bits = llsize.container(used)
+        y4m, ivf = work / f"r{j}.y4m", work / f"r{j}.ivf"
+        llsize.write_y4m(y4m, s.n, bits, ch, s.h, s.w, plane)
+        kf = ["--kf-max-dist=0"] if group == 1 else [f"--kf-min-dist={group}", f"--kf-max-dist={group}", "--auto-alt-ref=0"]
+        timed([build / f"aom-{AOM}/bin/aomenc", "-q", "--ivf", "-o", ivf, "--lossless=1", "--cpu-used=0", "--threads=1",
+               f"--limit={s.n}", f"--bit-depth={bits}", f"--input-bit-depth={bits}",
+               f"--profile={2 if bits == 12 else (1 if ch == 3 else 0)}", *kf, *flags,
+               *(["--monochrome"] if ch == 1 else SRGB), y4m])
+        streams.append(ivf_units(ivf))
+    for g0 in range(0, s.n, group):
+        planes = []
+        for units in streams:
+            (work / "g.obu").write_bytes(b"".join(units[g0:g0 + group]))
+            planes.append(llsize.decoded(build, work / "g.obu", work / "g.y4m"))
+        for k in range(min(group, s.n - g0)):
+            if not exact(s, g0 + k, rep.merge([p[k][:s.h, :s.w].astype(np.int32) for p in planes]).reshape(s.h, s.w, s.ch)):
+                sys.exit(f"{s.name} {g0 + k}: {rep.name} G = {group} not exact")
+    if len(streams) == 1:
+        return streams[0]
+    return [len(top).to_bytes(4, "little") + top + low for top, low in zip(*streams)]
+
+
 def gop(build, s, work):
     y4m = work / "in.y4m"
     write_y4m(s, y4m)
@@ -92,19 +126,33 @@ def main():
         dst, work = out / s.name, out / f".{s.name}-work"
         dst.mkdir(parents=True, exist_ok=True)
         work.mkdir(exist_ok=True)
-        files = {"av1": intra(build, s, work)}
-        arms = {"htj2k": {}, "av1": {}}
-        if s.av1_bits <= 10:
+        want = os.environ.get("ARMS", "av1,split,gop,pre,l2,rct").split(",")
+        files, arms = {}, {"htj2k": {}}
+        if "av1" in want:
+            files["av1"] = intra(build, s, work)
+            arms["av1"] = {}
+        if "av1" in want and s.av1_bits <= 10:
             arms["wc"] = dict(ext="av1", depth=s.av1_bits)
-        if s.ch == 1 and s.av1_bits == 12:
+        reps = {r.name: r for r in llsize.representations(s)}
+        if "l2" in want and "low2" in reps:
+            files["l2"] = represented(build, s, work, reps["low2"], ["--tune-content=screen", "--sb-size=64"], 1)
+            arms["l2"] = dict(split=2)
+            arms["l2wc"] = dict(ext="l2", split=2, depth=llsize.container(reps["low2"].planes[0][0]))
+        if "rct" in want and "rct" in reps:
+            files["rct"] = represented(build, s, work, reps["rct"], ["--tune-content=screen", "--sb-size=64"], 1)
+            files["rct8"] = represented(build, s, work, reps["rct"], [], 8)
+            arms["rct"] = dict(rct=True)
+            arms["rctwc"] = dict(ext="rct", rct=True, depth=10)
+            arms["rct8wc"] = dict(ext="rct8", rct=True, depth=10, group=8)
+        if "split" in want and s.ch == 1 and s.av1_bits == 12:
             files["t11"] = split(build, s, work, 12, 2)
             files["t10"] = split(build, s, work, 10, 3)
             arms["t11"] = dict(split=2)
             arms["t10"] = dict(split=3, depth=10)
-        if s.name in GOP:
+        if "gop" in want and s.name in GOP:
             files["gop"] = gop(build, s, work)
             arms["gop"] = dict(group=s.n)
-        if s.name in PREVIEW:
+        if "pre" in want and s.name in PREVIEW:
             group, crf = PREVIEW[s.name]
             files["pre"], truth = lossy(build, s, work, group, crf)
             arms["pre"] = dict(group=group, truth=truth)

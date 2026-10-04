@@ -41,7 +41,7 @@ type OpenOpts = {
   urlDelayMs?: number;
   warmup?: string;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
-  realDecoder?: { glue: string; wasm: string; dir: string; codec?: string; depth?: number; split?: number; offset?: number };
+  realDecoder?: { glue: string; wasm: string; dir: string; codec?: string; depth?: number; split?: number; offset?: number; rct?: boolean };
   /** A worker that wraps the real decoder, in place of decoder.js itself. */
   decoderWorker?: string;
   groupLength?: number;
@@ -999,6 +999,28 @@ async function anAv1SplitFrameDecodesToItsSource(
 }
 
 /**
+ * An 8-bit RGB frame coded as its reversible colour transform decodes to its source through either
+ * decoder, and a series that says RCT refuses a frame coded otherwise. lab/av1/llsize
+ */
+async function anAv1RctFrameDecodesToItsSource(
+  DownloaderClient: DownloaderCtor,
+  check: (c: boolean, w: string) => void,
+  log: (line: string) => void,
+) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 RCT — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const arms = typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const);
+  for (const mode of arms) {
+    const what = `rct, ${mode === "spy" ? "webcodecs" : "dav1d"}`;
+    const r = await av1Through(DownloaderClient, ["r8"], { depth: 10, rct: true }, mode);
+    await exactAv1(check, what, r.got, ["r8"], () => "90x70 3x8-bit");
+    check(mode === "none" || r.units === 1, `${what}: the frame reached the decoder named (${r.units} WebCodecs units)`);
+    const odd = await av1Through(DownloaderClient, ["c8", "g10"], { depth: 10, rct: true }, mode);
+    check(odd.failures.length === 2 && odd.got.length === 0,
+      `${what}: an 8-bit colour frame and a grey one are refused in an RCT series (${odd.failures.map((f) => f.reason).join("; ") || "decoded"})`);
+  }
+}
+
+/**
  * Through WebCodecs as through dav1d: a frame of a group, an empty unit, a file that is not AV1,
  * colour coded as YUV 4:2:0 or 4:4:4, a keyframe cut short and a unit that closes WebCodecs' decoder
  * are each a failure, never samples, and the decoder that refused them decodes the next frame exactly.
@@ -1670,6 +1692,7 @@ export async function runDispatchArm(DownloaderClient: DownloaderCtor, log: (lin
     anAv1FrameThatCannotDecodeAloneIsAFailure,
     anAv1SeriesTakesWebCodecsOnlyWhereItIsExact,
     anAv1SplitFrameDecodesToItsSource,
+    anAv1RctFrameDecodesToItsSource,
     anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure,
     anUnknownCodecIsRefusedBeforeTheDial,
     aGroupDecodesOnOneDecoderInOrder,

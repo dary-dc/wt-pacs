@@ -1,7 +1,7 @@
 /**
  * TOTAL: a whole series filled through the downloader, wire plus decode, every arm of a series on
  * the same link and CPU: HTJ2K, AV1 intra through dav1d-WASM and WebCodecs, the splits, one group,
- * a lossy preview. Fixed rates and phone-like profiles behind the relay, headless Chromium at 1× and
+ * a lossy preview, row LLSIZE's codings (TOTAL2). Fixed rates and phone-like profiles behind the relay, headless Chromium at 1× and
  * 4×. Every visit is its own server, relay and browser; (set × link × throttle) cells in a Williams
  * order each round, the arms inside each cell the same way. lab/av1/total/README.md
  *
@@ -67,7 +67,8 @@ function arm(set, name) {
   const a = set.arms[name];
   const ext = a.ext ?? (name === "wc" ? "av1" : name);
   if (name === "htj2k") return { ext, opts: { decoder: OPENJPH } };
-  const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }) };
+  const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
+    ...(a.rct && { rct: true }) };
   return { ext, opts: { decoder, ...(a.group && { groupLength: a.group, frameCount: set.frames }) }, truth: a.truth };
 }
 
