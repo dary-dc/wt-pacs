@@ -274,6 +274,12 @@ over the serving path at 1–32 sessions, throughput inside run-to-run spread, t
 share of `serve_us` (v2's `overhead_us`) 1 µs p50. Peak RSS 4–10 MB above telemetry off (six histograms then, four since v3,
 the 1 MB row-file write buffer, the exit-time re-read for inlined frames), none of it per row; a
 recorded session's recorder ≈ 3 KB. The SIGTERM lock adds ~11 ns per row (§The tail at SIGTERM).
+
+**Row v3 against v2** (2026-10-04, a 4-core cloud container, not the workstation: a tie on that
+host, nothing more). `lab/scripts/telemetry_e2e_baseline.sh` with `DEFAULT_TELEMETRY=1`, so both
+arms record: the build before the change against it, per-frame streams, depth 4, six interleaved
+pairs at 1, 4 and 16 sessions. Server CPU per frame, paired median: −2.2 %, −1.0 %, −0.4 %, with the
+new build lower in 5, 4 and 4 of 6 pairs; no harness failed.
 In the default build: nothing, by §Absence.
 
 ## Pipeline baseline, 2026-09-06

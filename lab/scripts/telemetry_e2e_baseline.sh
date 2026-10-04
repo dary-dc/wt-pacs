@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end telemetry cost on localhost: exact-server + N saturate harnesses.
-# Compares a default binary against a telemetry binary (feature + env on) at the same N.
+# Compares a default binary against a telemetry binary (feature + env on) at the same N;
+# DEFAULT_TELEMETRY=1 records the first arm too, for one telemetry build against another.
 # Localhost, unshaped, shared CPU — relative comparisons only (T2-local).
 #
 # Usage:
@@ -20,13 +21,13 @@ DWELL_MS="${DWELL_MS:-5000}"
 DEPTH="${DEPTH:-4}"
 STREAM_MODE="${STREAM_MODE:-per-frame}"
 PORT="${PORT:-4433}"
-# Hosts without IPv6: BIND=127.0.0.1 HARNESS_IPV4=1
+# Hosts without IPv6: BIND=127.0.0.1
 BIND="${BIND:-}"
-HARNESS_IPV4="${HARNESS_IPV4:-0}"
 # Extra server flags (e.g. "--send-window-bytes 1000000") and a harness read pace (0 = unpaced).
 SERVER_EXTRA_ARGS="${SERVER_EXTRA_ARGS:-}"
 HARNESS_READ_BPS="${HARNESS_READ_BPS:-0}"
 LABEL_SUFFIX="${LABEL_SUFFIX:-}"
+DEFAULT_TELEMETRY="${DEFAULT_TELEMETRY:-0}"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
 mkdir -p "$(dirname "$OUT")" "$WORK"
@@ -52,8 +53,6 @@ one_run() {
   [[ -n "$BIND" ]] && bind_args=(--bind "$BIND")
   # shellcheck disable=SC2206
   [[ -n "$SERVER_EXTRA_ARGS" ]] && bind_args+=($SERVER_EXTRA_ARGS)
-  local harness_args=()
-  [[ "$HARNESS_IPV4" == "1" ]] && harness_args=(--ipv4)
   if [[ "$telemetry" == "1" ]]; then
     WTPACS_TELEMETRY=1 WTPACS_TELEMETRY_PATH="$report" \
       "$bin" --port "$PORT" --study "$STUDY" --cert-pem "$CERT" --key-pem "$KEY" \
@@ -69,7 +68,7 @@ one_run() {
   for i in $(seq 1 "$n"); do
     "$HARNESS" --url "https://127.0.0.1:$PORT/" --mode saturate --depth "$DEPTH" \
       --read-bps "$HARNESS_READ_BPS" --fill-dwell-ms "$DWELL_MS" --frame-count 20 \
-      --stream-mode "$STREAM_MODE" --arm "s$i" --json "${harness_args[@]}" \
+      --stream-mode "$STREAM_MODE" --arm "s$i" --json \
       > "$dir/harness-$i.json" 2> "$dir/harness-$i.err" &
     pids+=($!)
   done
@@ -146,7 +145,7 @@ PY
 
 for rep in $(seq 1 "$REPEATS"); do
   for n in $SESSIONS; do
-    one_run default "$SERVER_DEFAULT" 0 "$n" "$rep"
+    one_run default "$SERVER_DEFAULT" "$DEFAULT_TELEMETRY" "$n" "$rep"
     one_run telemetry "$SERVER_TELEMETRY" 1 "$n" "$rep"
   done
 done
