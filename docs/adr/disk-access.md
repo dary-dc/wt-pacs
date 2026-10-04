@@ -330,7 +330,9 @@ on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
 ### How a read works
 
-The planner's `Mode` picks the reader; each is built on the first frame of its kind.
+The planner's `Next` picks the reader; each is built on the first frame of its kind, and keeps
+the study's `FrameStore` it was built with: the ring registers that store's file and the slots key
+on its offsets, so a reader can serve no other store.
 
 **Fill — `SeqReader`.** Two buffers. `next` is the frame the planner will ask for after this
 one, and its pooled read is running by the time `read` returns; only it may still be with the

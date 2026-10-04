@@ -80,13 +80,13 @@ impl FramePipeline for ProductPipeline {
         match next {
             Next::Fill { first, .. } => {
                 *fills += u64::from(*first);
-                seq.get_or_insert_with(SeqReader::new)
-                    .read(store, span, ahead.first().copied())
+                seq.get_or_insert_with(|| SeqReader::new(Arc::clone(store)))
+                    .read(span, ahead.first().copied())
                     .await
             }
             Next::Tiles(_) => {
-                tile.get_or_insert_with(|| TileReader::new(*read_mode, store, TILE_SLOTS))
-                    .read(store, span, &ahead)
+                tile.get_or_insert_with(|| TileReader::new(*read_mode, Arc::clone(store), TILE_SLOTS))
+                    .read(span, &ahead)
                     .await
             }
         }
