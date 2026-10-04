@@ -50,11 +50,11 @@ def synthetic(work, layout, bits):
     return frames
 
 
-def real(data, name, n):
+def real(data, name):
     d = data / name
     meta = json.loads((d / "metadata.json").read_text())
     frames = []
-    for i in range(n):
+    for i in range(meta["frameCount"]):
         raw = (d / f"{i:03d}.raw").read_bytes()
         if hashlib.sha256(raw).hexdigest() != (d / f"{i:03d}.sha256").read_text().strip():
             sys.exit(f"{name} {i}: raw frame does not match its fetch checksum")
@@ -138,7 +138,7 @@ def job(build, out, data, spec):
         shutil.rmtree(work)
         name = f"{layout}_{bits}_{'intra' if gop == 1 else f'g{gop}'}"
     else:
-        frames = real(data, kind, 1000 if kind == "us_liver" else 18)
+        frames = real(data, kind)
         name = f"{kind}_{'intra' if gop == 1 else f'g{gop}'}_t{tiles}"
     return encode(build, out, name, frames, layout, bits, gop, tiles)
 
