@@ -66,5 +66,5 @@ of every checksum) each turned every arm on the fluoroscopy to 0 exact.
 
 **Pins.** Node 22.22.0; playwright's Chromium 141.0.7390.37 (`CHROME_PATH` overrides);
 `@cornerstonejs/codec-openjph` 2.4.11; dav1d 1.5.4 under emscripten 3.1.74 (`simd.wasm`,
-623 042 B); libaom 3.15.1 and OpenJPH 0.31.0 as `tools.sh` and `gen_htj2k_fixtures.sh` pin them;
+623 146 B since SVCDEC); libaom 3.15.1 and OpenJPH 0.31.0 as `tools.sh` and `gen_htj2k_fixtures.sh` pin them;
 `TMobile-LTE-short.down` sha256 `4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43`. Nothing built, fetched or generated is committed.
