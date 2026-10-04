@@ -800,7 +800,7 @@ mechanisms.
   `cargo build --release` stays the plain build; a stale profile is worse than none. It doubles the
   release build.
 - **The pooled hand-off** — `media/frame_pool.rs`: both readers hand the frame off as `Bytes` over
-  their own buffer and take the next from a pool; `FrameOut` gives quinn head and body with
+  their own buffer and take the next from a pool; `Link` gives quinn head and body with
   `write_all_chunks`, and the buffer returns when quinn drops it after acknowledgement. One copy of
   four gone. The pool is shared, not thread-local, because a work-stealing runtime does not promise
   a buffer returns to the thread that read it; a thread-local arm measured a tie on every column

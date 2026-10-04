@@ -922,8 +922,8 @@ time above records the cost of not racing; no client should depend on it.
 The frame path, the store and the planner are untouched; the wire mapping is [`WIRE.md`](WIRE.md).
 
 * **Server** (`server/src/transport/websocket.rs`, `--websocket`): TCP on the QUIC port's number, the
-  same certificate, `TCP_NODELAY`; `FrameOut::WebSocket` beside `Shared` and `PerFrame`, refusals
-  through the same writer; one process serves both. Without the QUIC knobs, the `session path` line,
+  same certificate, `TCP_NODELAY`; `Link::WebSocket` beside `Link::Quic`, refusals through the same
+  writer, which the session owns outright; one process serves both. Without the QUIC knobs, the `session path` line,
   or telemetry rows. The opening ask rides the upgrade's URL (WSA, below), with the same flag.
 * **Client**: `client/transport-ts/frame-session.ts` is everything a session does whatever carries its
   bytes; `session.ts` and `ws-session.ts` are carriers over it, and the downloader takes either as

@@ -3,13 +3,13 @@
 
 use crate::media::frame_store::FrameStore;
 use crate::media::read_path::ReadMode;
-use crate::transport::frame_out::FrameOut;
+use crate::transport::link::{ControlStream, Link};
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{fill_range, frame_in_range, Ask, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::websocket;
-use crate::transport::wire::{read_fod_msg, Control};
+use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::future::Future;
@@ -154,8 +154,8 @@ pub(super) struct Sessions {
 }
 
 impl Sessions {
-    pub(super) fn pipeline(&self, out: FrameOut) -> ProductPipeline {
-        ProductPipeline::new(Arc::clone(&self.store), out, self.read_mode)
+    pub(super) fn pipeline(&self, link: Link) -> ProductPipeline {
+        ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode)
     }
 
     /// One session, whatever carries it: `opening` first, then each ask `read` forwards, until
@@ -285,25 +285,25 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let product = |out| sessions.pipeline(out).with_stall_after(sessions.stall);
+    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall);
     let result = async {
         match opening {
             Some(ask) => {
-                let out = FrameOut::open(sessions.mode, connection.clone()).await?;
                 let (ctl_tx, ctl_rx) = oneshot::channel();
+                let link = link(ControlStream::Coming(ctl_rx)).await?;
                 let control = connection.clone();
                 let read = |tx| async move {
                     let Ok((send, mut recv)) = control.accept_bi().await else { return };
                     ctl_tx.send(send).ok();
                     while read_asks(&mut recv, &tx).await.is_continue() {}
                 };
-                sessions.serve(product(out).with_late_control(ctl_rx), Some(ask), read).await
+                sessions.serve(sessions.pipeline(link), Some(ask), read).await
             }
             None => {
                 let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
-                let out = FrameOut::open(sessions.mode, connection.clone()).await?;
+                let link = link(ControlStream::Open(send)).await?;
                 let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
-                sessions.serve(product(out).with_control(Control::Stream(send)), None, read).await
+                sessions.serve(sessions.pipeline(link), None, read).await
             }
         }
     }
@@ -381,7 +381,7 @@ fn report_path(connection: &wtransport::Connection) {
 /// ends, outstanding finishes get their grace.
 pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
     let result = steps(pipeline, asks).await;
-    pipeline.drain_acks().await;
+    pipeline.finish().await;
     result
 }
 
@@ -457,7 +457,7 @@ mod tests {
         async fn refuse(&mut self, _frame: u32, _reason: String) -> Result<()> {
             Ok(())
         }
-        async fn drain_acks(&mut self) {
+        async fn finish(&mut self) {
             self.drained = true;
         }
     }
@@ -688,12 +688,60 @@ mod tests {
     #[test]
     fn a_websocket_close_ends_its_session_cleanly() {
         use futures_util::{SinkExt, StreamExt};
-        use rustls::pki_types::pem::PemObject;
         use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
         use tokio_tungstenite::tungstenite::protocol::CloseFrame;
         use tokio_tungstenite::tungstenite::Message;
 
-        let dir = std::env::temp_dir().join(format!("wtpacs-ws-bye-{}", std::process::id()));
+        let ended = ws_session("ws-bye", |mut ws| async move {
+            let ask = serde_json::to_string(&FodMsg::RequestFrame { frame: 1 }).unwrap();
+            ws.send(Message::text(ask)).await.expect("ask");
+            let (want, mut got) = (8 + pattern(1).len(), 0);
+            while got < want {
+                let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                    .await
+                    .expect("the frame stalled")
+                    .expect("socket ended")
+                    .expect("read");
+                got += msg.into_data().len();
+            }
+            ws.close(Some(CloseFrame { code: CloseCode::Normal, reason: "".into() }))
+                .await
+                .expect("close");
+        });
+        assert!(ended.is_ok(), "a WebSocket Close ended its session as {ended:?}");
+    }
+
+    /// A session the server ends sends the client a Close frame, not a bare TCP teardown, so a
+    /// client can tell an end from a broken link. `docs/WIRE.md` §The WebSocket mapping.
+    #[test]
+    fn a_websocket_session_ends_with_a_close_frame() {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+
+        let ended = ws_session("ws-close", |mut ws| async move {
+            let end = serde_json::to_string(&FodMsg::EndSession).unwrap();
+            ws.send(Message::text(end)).await.expect("end_session");
+            let last = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                .await
+                .expect("the session never ended");
+            assert!(
+                matches!(last, Some(Ok(Message::Close(_)))),
+                "the session ended without a Close frame: {last:?}"
+            );
+        });
+        assert!(ended.is_ok(), "end_session ended the session as {ended:?}");
+    }
+
+    /// One WebSocket session served by `websocket::session` on a two-frame study; `client`
+    /// gets the upgraded socket, and the result is what the session ended with.
+    fn ws_session<F, Fut>(tag: &str, client: F) -> Result<()>
+    where
+        F: FnOnce(tokio_tungstenite::WebSocketStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>) -> Fut,
+        Fut: Future<Output = ()>,
+    {
+        use rustls::pki_types::pem::PemObject;
+
+        let dir = std::env::temp_dir().join(format!("wtpacs-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let study = write_study(&dir, 2);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
@@ -726,30 +774,17 @@ mod tests {
             let tcp = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.expect("tcp");
             let name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
             let tls = connector.connect(name, tcp).await.expect("TLS");
-            let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
+            let (ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
                 .await
                 .expect("WebSocket upgrade");
-            let ask = serde_json::to_string(&FodMsg::RequestFrame { frame: 1 }).unwrap();
-            ws.send(Message::text(ask)).await.expect("ask");
-            let (want, mut got) = (8 + pattern(1).len(), 0);
-            while got < want {
-                let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
-                    .await
-                    .expect("the frame stalled")
-                    .expect("socket ended")
-                    .expect("read");
-                got += msg.into_data().len();
-            }
-            ws.close(Some(CloseFrame { code: CloseCode::Normal, reason: "".into() }))
-                .await
-                .expect("close");
+            client(ws).await;
             tokio::time::timeout(Duration::from_secs(10), server)
                 .await
                 .expect("the session never ended")
                 .expect("session task")
         });
-        assert!(ended.is_ok(), "a WebSocket Close ended its session as {ended:?}");
         std::fs::remove_dir_all(&dir).ok();
+        ended
     }
 
     /// An opening ask is taken only whole and in range: each end of a fill is a frame number, the

@@ -22,13 +22,13 @@ it.
 | --- | --- | --- | --- |
 | App seam | `server/src/transport/pipeline.rs` | trait `FramePipeline` + `ProductPipeline` | prepare → locate → send, or refuse |
 | Lab wrapper | same file | `RecordedPipeline<P>`, `#[cfg(feature = "telemetry")]` | stamp at each step's entry, delegate |
-| Wire seam | `server/src/transport/frame_out.rs` | `FrameOut` | open the media path; write envelopes |
+| Wire seam | `server/src/transport/link.rs` | `Link` | open the media path; write envelopes and refusals; `finish` the session |
 
 **The trait default `serve` owns the story**, written once; implementors override steps, never
-`serve`. The session loop calls only `serve`, `refuse` and `drain_acks` on a generic
+`serve`. The session loop calls only `serve`, `refuse` and `finish` on a generic
 `P: FramePipeline`, so it carries no telemetry token and no enum match per call.
 
-**`ProductPipeline`** holds the `Arc<FrameStore>` and the `FrameOut`. `prepare` does nothing;
+**`ProductPipeline`** holds the `Arc<FrameStore>` and the session's `Link`, its one writer. `prepare` does nothing;
 `locate` is an index lookup returning a `FrameSpan`, which cannot fail: the planner refuses an
 out-of-range frame, fill or name before `serve` is called, and its `Step::Refuse` is the only
 caller of `refuse`, which writes a `FrameError` on control. `send` reads the frame with the reader
@@ -61,7 +61,7 @@ contiguous; the emit closes the last. Four `Instant::now` reads on the happy pat
   Built as an `ack_hook` step plus a hook argument on `send`, measured (§Pipeline baseline), and
   withdrawn the same day: every shape puts a telemetry-shaped token in product code. If a
   server-side delivery number is ever wanted, the smallest shape is an optional observer field on
-  `FrameOut`'s per-frame variant, set only inside the existing `#[cfg(feature = "telemetry")]`
+  `Link`'s per-frame `Media`, set only inside the existing `#[cfg(feature = "telemetry")]`
   construction site, taking a clock only when set. Rules then: `null` in shared mode; it is
   delivery to the peer's transport, not its application (ACK delay applies); never evidence in the
   stream-mode question. Until then delivery timing comes from the client report's `last_byte` and
