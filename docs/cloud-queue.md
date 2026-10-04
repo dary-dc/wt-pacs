@@ -33,7 +33,7 @@ file names, branch names or commit messages.
 
 | # | what | state |
 | --- | --- | --- |
-| 113 | **ONERR** — finish the `fillHandlers.onError` fix on `claude/onerror` and land it here (§Row 113) | **ready** |
+| 113 | **ONERR** — finish the `fillHandlers.onError` fix on `claude/onerror` and land it here (§Row 113) | **claimed** 2026-10-04 |
 | 115 | **SRV-C** — the server design's small commits C1, C2, C4 on `claude/server-design` (§Row 115) | **ready** |
 | 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | after 113 |
 | 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **done** `0a17e17` — both images build and run under docker (podman unrun); `compose up`: `wt_url=`, TCP 4433 answers 101, the cell delivers 3/3 frames over WebTransport and WebSocket; the check passes on the image — `deploy/README.md` |
