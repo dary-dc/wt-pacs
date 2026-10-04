@@ -7,9 +7,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use wtransport::stream::{RecvStream, SendStream};
 
-/// Maximum envelope payload (64 MiB), matching the server guard.
-pub const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
-
 pub async fn write_fod_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
     let bytes = encode_fod_msg(msg)?;
     send.write_all(&bytes).await.context("write FoD")?;
@@ -88,10 +85,7 @@ pub async fn read_framed_paced(
 ) -> Result<Vec<u8>> {
     let mut len_buf = [0u8; 4];
     read_exact_paced(recv, &mut len_buf, pacer).await?;
-    let len = u32::from_be_bytes(len_buf) as usize;
-    if len == 0 || len > MAX_FRAME_LEN {
-        anyhow::bail!("invalid frame length {len}");
-    }
+    let len = frame_envelope::envelope_len(len_buf).map_err(anyhow::Error::msg)?;
     let mut payload = vec![0u8; len];
     read_exact_paced(recv, &mut payload, pacer).await?;
     Ok(payload)

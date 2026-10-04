@@ -7,7 +7,6 @@ use std::time::Duration;
 use wtransport::stream::RecvStream;
 use wtransport::Connection;
 
-use crate::wire::MAX_FRAME_LEN;
 
 pub struct Frames {
     pub connection: Connection,
@@ -34,10 +33,7 @@ impl Frames {
                 self.current = None;
                 continue;
             }
-            let n = u32::from_be_bytes(len) as usize;
-            if n == 0 || n > MAX_FRAME_LEN {
-                bail!("invalid frame length {n}");
-            }
+            let n = frame_envelope::envelope_len(len).map_err(anyhow::Error::msg)?;
             let mut payload = vec![0u8; n];
             if !read_exact(uni, &mut payload).await? {
                 bail!("stream ended mid-envelope");

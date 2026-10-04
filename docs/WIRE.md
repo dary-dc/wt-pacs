@@ -70,7 +70,9 @@ Every frame is length-prefixed in every stream mode. `common/frame-envelope` is 
 the server streams its `frame_head` before the codestream, clients `unwrap`, and
 `the_head_is_the_envelope_length_then_the_index_big_endian` pins the bytes. A frame is
 identified by its index, never by the stream it came on. Clients stop reading a stream whose
-`envelope_len` is under 4 or over 64 MiB (`MAX_FRAME_LEN`), and name a frame whose stream ends
+`envelope_len` is under 4 or over 64 MiB (`MAX_FRAME_LEN`, checked by the crate's `envelope_len` in the
+Rust clients and the harness; `wire.ts` holds the TypeScript copy), and a study holding a larger frame
+fails to open ([`FIXTURES.md`](FIXTURES.md#sbnd-study-bundle)). Clients name a frame whose stream ends
 before `envelope_len` bytes ([`CLIENTS.md`](CLIENTS.md#a-truncated-frame-is-a-failure)).
 
 ## Stream modes

@@ -17,7 +17,9 @@ frame_table[frame_count]: offset u64 · length u32
 ```
 
 The server stores codestreams raw and adds the envelope at send ([`WIRE.md`](WIRE.md)). A bundle
-with a table entry outside its data region fails to open.
+with a table entry outside its data region fails to open, and so does one with a frame no client
+reads (a codestream over `MAX_FRAME_LEN` − 4 bytes, [`WIRE.md`](WIRE.md#the-envelope)), naming
+the frame: the server stops at startup and `pack-study` refuses to write it.
 
 Pack loose frames with `cargo run -p pack-study -- --metadata M.json --frames DIR --output
 X.sbnd`: `metadata.json` must carry `frameCount`, and the frames are `DIR/000.htj2k`,

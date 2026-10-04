@@ -269,6 +269,28 @@ mod tests {
         Ok(())
     }
 
+    /// A study holding a frame no client would read stops the server at startup, naming the
+    /// frame. Laid out by hand, since the writer refuses it too; sparse, so nothing is written.
+    #[test]
+    fn a_study_with_an_oversized_frame_fails_to_open_naming_it() -> Result<()> {
+        let too_big = frame_envelope::MAX_CODESTREAM_LEN as u32 + 1;
+        let data_base = 16 + 12;
+        let mut bytes = b"SBND".to_vec();
+        for word in [1u32, 0, 1] {
+            bytes.extend_from_slice(&word.to_le_bytes());
+        }
+        bytes.extend_from_slice(&(data_base as u64).to_le_bytes());
+        bytes.extend_from_slice(&too_big.to_le_bytes());
+        let path = scratch("frame-store-oversized");
+        std::fs::write(&path, &bytes)?;
+        File::options().write(true).open(&path)?.set_len(data_base + u64::from(too_big))?;
+        let opened = FrameStore::open(&path);
+        let _ = std::fs::remove_file(&path);
+        let err = format!("{:#}", opened.err().expect("the oversized study opened"));
+        assert!(err.contains("frame 0 "), "the refusal does not name the frame: {err}");
+        Ok(())
+    }
+
     /// `check-fastpath` is only worth running if it answers what the server will decide, so
     /// this pins the agreement rather than trusting the shared `probe_nowait`.
     #[test]

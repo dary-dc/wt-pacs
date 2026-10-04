@@ -173,7 +173,6 @@ async fn read_exact(
     Ok(true)
 }
 
-const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
 
 /// A frame off a media stream, or the index of the one a stream that ended mid-frame lost.
 enum Envelope {
@@ -193,10 +192,7 @@ async fn read_length_prefixed_frame(
     if !read_exact(reader, buf, 4, st).await? {
         return Ok(Envelope::Eof);
     }
-    let len = u32::from_be_bytes(buf.as_slice()[0..4].try_into().unwrap()) as usize;
-    if len < frame_envelope::ENVELOPE_LEN || len > MAX_FRAME_LEN {
-        return Err(format!("invalid frame length {len}"));
-    }
+    let len = frame_envelope::envelope_len(buf.as_slice()[0..4].try_into().unwrap())?;
     buf.reserve_for(4 + len);
     if !read_exact(reader, buf, 4 + len, st).await? {
         return Ok(lost(buf.as_slice(), len - frame_envelope::ENVELOPE_LEN));

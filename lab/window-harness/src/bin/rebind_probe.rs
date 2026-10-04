@@ -14,7 +14,6 @@ use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{ClientConfig, Connection, Endpoint};
 
 /// Matches the server's envelope guard.
-const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
 
 #[derive(Parser)]
 #[command(name = "rebind-probe")]
@@ -127,10 +126,7 @@ async fn write_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
 async fn read_framed(recv: &mut RecvStream) -> Result<Vec<u8>> {
     let mut len = [0u8; 4];
     read_exact(recv, &mut len).await?;
-    let n = u32::from_be_bytes(len) as usize;
-    if n == 0 || n > MAX_FRAME_LEN {
-        bail!("invalid frame length {n}");
-    }
+    let n = frame_envelope::envelope_len(len).map_err(anyhow::Error::msg)?;
     let mut payload = vec![0u8; n];
     read_exact(recv, &mut payload).await?;
     Ok(payload)
