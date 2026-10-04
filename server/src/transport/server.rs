@@ -285,25 +285,28 @@ async fn handle_incoming(
     tokio::spawn(crate::record::path::run(connection.clone()));
 
     let product = |out| sessions.pipeline(out).with_stall_after(sessions.stall);
-    let result = match opening {
-        Some(ask) => {
-            let out = FrameOut::open(sessions.mode, connection.clone()).await?;
-            let (ctl_tx, ctl_rx) = oneshot::channel();
-            let control = connection.clone();
-            let read = |tx| async move {
-                let Ok((send, mut recv)) = control.accept_bi().await else { return };
-                ctl_tx.send(send).ok();
-                while read_asks(&mut recv, &tx).await.is_ok() {}
-            };
-            sessions.serve(product(out).with_late_control(ctl_rx), Some(ask), read).await
+    let result = async {
+        match opening {
+            Some(ask) => {
+                let out = FrameOut::open(sessions.mode, connection.clone()).await?;
+                let (ctl_tx, ctl_rx) = oneshot::channel();
+                let control = connection.clone();
+                let read = |tx| async move {
+                    let Ok((send, mut recv)) = control.accept_bi().await else { return };
+                    ctl_tx.send(send).ok();
+                    while read_asks(&mut recv, &tx).await.is_ok() {}
+                };
+                sessions.serve(product(out).with_late_control(ctl_rx), Some(ask), read).await
+            }
+            None => {
+                let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
+                let out = FrameOut::open(sessions.mode, connection.clone()).await?;
+                let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_ok() {} };
+                sessions.serve(product(out).with_control(Control::Stream(send)), None, read).await
+            }
         }
-        None => {
-            let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
-            let out = FrameOut::open(sessions.mode, connection.clone()).await?;
-            let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_ok() {} };
-            sessions.serve(product(out).with_control(Control::Stream(send)), None, read).await
-        }
-    };
+    }
+    .await;
     report_path(&connection);
     match result {
         Err(err) if closed_by_peer(&connection, &err) => {
@@ -570,11 +573,11 @@ mod tests {
     }
 
     /// One session served by `handle_incoming` itself, so the test sees what the session ended
-    /// with. `client` gets the connection and its control stream; the connection stays open
-    /// until the session has ended unless `client` closes it.
+    /// with. `client` gets the connection, which stays open until the session has ended unless
+    /// `client` closes it.
     fn one_session<F, Fut>(tag: &str, tuning: TransportTuning, client: F) -> Result<()>
     where
-        F: FnOnce(wtransport::Connection, SendStream) -> Fut,
+        F: FnOnce(wtransport::Connection) -> Fut,
         Fut: Future<Output = ()>,
     {
         let dir = std::env::temp_dir().join(format!("wtpacs-{tag}-{}", std::process::id()));
@@ -608,9 +611,7 @@ mod tests {
                 .connect(format!("https://127.0.0.1:{port}/"))
                 .await
                 .expect("connect");
-            let (control, _control_recv) =
-                connection.open_bi().await.expect("open bi").await.expect("bi ready");
-            client(connection.clone(), control).await;
+            client(connection.clone()).await;
             let ended = tokio::time::timeout(Duration::from_secs(10), server)
                 .await
                 .expect("the session never ended")
@@ -620,6 +621,10 @@ mod tests {
         });
         std::fs::remove_dir_all(&dir).ok();
         ended
+    }
+
+    async fn open_control(connection: &wtransport::Connection) -> (SendStream, RecvStream) {
+        connection.open_bi().await.expect("open bi").await.expect("bi ready")
     }
 
     /// Shared streams, no opening ask, nothing recorded.
@@ -639,7 +644,8 @@ mod tests {
     /// client closing it, and that is a normal end, not a WARN. `docs/WIRE.md` §FoD messages.
     #[test]
     fn a_client_that_closes_after_its_frames_ends_its_session_cleanly() {
-        let ended = one_session("bye", TransportTuning::default(), |connection, mut control| async move {
+        let ended = one_session("bye", TransportTuning::default(), |connection| async move {
+            let (mut control, _recv) = open_control(&connection).await;
             control
                 .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrame { frame: 1 }).unwrap())
                 .await
@@ -657,7 +663,8 @@ mod tests {
     /// A message the server cannot read still ends the session in error, a goodbye or not.
     #[test]
     fn a_malformed_ask_ends_its_session_in_error() {
-        let ended = one_session("malformed", TransportTuning::default(), |_connection, mut control| async move {
+        let ended = one_session("malformed", TransportTuning::default(), |connection| async move {
+            let (mut control, _recv) = open_control(&connection).await;
             let mut bytes = 5u32.to_le_bytes().to_vec();
             bytes.extend_from_slice(b"xxxxx");
             control.write_all(&bytes).await.expect("write");
@@ -669,7 +676,8 @@ mod tests {
     #[test]
     fn a_session_that_times_out_ends_in_error() {
         let idle = TransportTuning { max_idle_timeout_ms: Some(300), ..TransportTuning::default() };
-        let ended = one_session("idle", idle, |_connection, control| async move {
+        let ended = one_session("idle", idle, |connection| async move {
+            let (control, _recv) = open_control(&connection).await;
             // Held open past the timeout: dropping it would finish it, which is a goodbye.
             tokio::time::sleep(Duration::from_secs(1)).await;
             drop(control);
@@ -680,10 +688,21 @@ mod tests {
     /// A client that finishes its control stream between messages has said goodbye too.
     #[test]
     fn a_client_that_finishes_its_control_stream_ends_its_session_cleanly() {
-        let ended = one_session("fin", TransportTuning::default(), |_connection, mut control| async move {
+        let ended = one_session("fin", TransportTuning::default(), |connection| async move {
+            let (mut control, _recv) = open_control(&connection).await;
             control.finish().await.expect("finish");
         });
         assert!(ended.is_ok(), "a FIN between messages ended the session as {ended:?}");
+    }
+
+    /// A client that dials and goes before opening its control stream has said goodbye too: a
+    /// close during session setup is classified like one during serving.
+    #[test]
+    fn a_client_that_closes_right_after_the_accept_ends_cleanly() {
+        let ended = one_session("setup-bye", TransportTuning::default(), |connection| async move {
+            connection.close(0u32.into(), b"gone");
+        });
+        assert!(ended.is_ok(), "a close during setup ended the session as {ended:?}");
     }
 
     /// A WebSocket client's Close is a goodbye too. `docs/WIRE.md` §The WebSocket mapping.
