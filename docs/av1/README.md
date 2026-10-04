@@ -281,6 +281,16 @@ decode) beats it on both. *Bases before tops, proposed (row SVCORDER):* each fra
 entries, layer-major — the base alone, then the whole unit — so a fill is every base and then every
 exact frame with the wire, the store's format and the server unchanged, for the base's bytes twice
 ([`adr-unit.md`](adr-unit.md) §5).
+*Which shape (row SVCSHAPE; [`lab/av1/svcshape`](../../lab/av1/svcshape/README.md)).* Over 20 shapes
+on all nine series (spatial ½ and ¼, a full-size lossy base, three layers, temporal layers, base q
+20–60, keyframe interval; over 12 bits the two low bits apart), every exact frame exact: **a
+quarter-size base at q 40 has the least overhead everywhere** — 0.968–1.003 of single-layer lossless
+AV1's bytes, the exact frame 0.97–1.10× its decode, the base 0.01–0.36 % of HTJ2K's bytes at 30 dB
+(ultrasound) and 34–47 dB (grey), so a series' bases are playable in 0.01–0.11 s at 1× and 0.06–0.5 s
+at 4× on 5–50 Mbit/s, decode-bound (arithmetic over measured bytes and dav1d-WASM decode, Chromium 141,
+n = 10 interleaved). A full-size q 20 base is 1–5 % smaller on CT, MR, fluoroscopy and the
+ultrasound, but a full-size base decodes 5–32 % slower (q 40); a third layer, temporal layers and shorter keyframe intervals
+buy nothing. No shape moves the payload off lossless AV1's size: 0.94–1.59 of HTJ2K's.
 
 *LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
 answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
