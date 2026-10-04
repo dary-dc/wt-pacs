@@ -31,6 +31,9 @@ fi
 step "repo: comment budget"
 scripts/comment_budget.sh
 
+step "repo: every doc link, anchor and backticked path resolves"
+python3 scripts/check_links.py
+
 step "quinn: the opt-in GSO patch still applies to crates.io quinn"
 scripts/patch_crate.sh quinn --check
 
