@@ -53,3 +53,33 @@ sample` made it 0 exact on every series). One thread, 2 decodes of every frame:
 9–17 %: a lossless frame is almost all coefficient tokens through the arithmetic decoder, which is
 serial within a tile and has no SIMD form. The 4-tile variant profiles the same on one thread
 (92, 32, 62 ms). So only tiles decoded in parallel can cut it; no tool switched off can.
+
+**Screen** (`screen.mjs`: ms a frame, one frame at a time through the product's decoder worker in
+headless Chromium 141, the browser on three cores, at 4× three cores each a quarter as fast; a fresh
+browser per (round × throttle), Williams-ordered, series and arms rotated inside it; 6 rounds, the
+median of each round's median; **every arm exact on every frame of every round**; `--mutate sample`
+turned every arm to 0 exact). `@T` is the `simd-mt` build with T threads; × is paired by round
+against `av1`:
+
+| arm | fluoroscopy 1× · 4× | MR 1× · 4× | ultrasound 1× · 4× |
+| --- | --- | --- | --- |
+| `htj2k`, ms | 10.3 · 39.8 | 5.04 · 18.6 | 8.51 · 32.4 |
+| `av1`, ms | 75.7 · 314 | 28.0 · 113 | 51.2 · 214 |
+| `cpu6` | ×0.97 · 0.99 | ×0.94 · 0.97 | ×1.26 · 1.30 |
+| `ai9` | ×0.94 · 0.94 | ×0.99 · 0.97 | ×1.27 · 1.28 |
+| `lean` | ×0.90 · 0.93 | ×0.93 · 0.94 | ×1.19 · 1.20 |
+| `sb64` | ×1.01 · 1.00 | ×1.00 · 0.98 | ×1.00 · 1.01 |
+| `t4`, one thread | ×1.00 · 1.00 | ×0.99 · 1.02 | ×0.99 · 0.99 |
+| `av1@2`, no tiles | ×1.01 · 0.98 | ×1.04 · 0.96 | ×1.02 · 0.97 |
+| `t2@2` | ×0.55 · 0.56 | ×0.56 · 0.52 | ×0.68 · 0.61 |
+| `t4@2` | ×0.53 · 0.53 | ×0.55 · 0.51 | ×0.60 · 0.55 |
+| `t2x2@2` | ×0.55 · 0.50 | ×0.56 · 0.49 | ×0.65 · 0.61 |
+| `t4@3` | ×0.43 · 0.41 | ×0.42 · 0.39 | ×0.50 · 0.45 |
+| `t2x2@3` | ×0.44 · 0.41 | ×0.46 · 0.39 | ×0.47 · 0.44 |
+| `t4sb64@3` | ×0.39 · 0.37 | ×0.41 · 0.39 | ×0.44 · 0.39 |
+
+So: no encoder setting helps by more than 10 % (`lean`, at +6–72 % bytes), and on the ultrasound
+the faster presets decode slower — more bytes to entropy-decode. dav1d's threads do nothing
+without tiles (a lossless frame has no loop filters for them to run) and with tiles split the
+frame's entropy decoding: 2 threads ×0.50–0.68, 3 threads ×0.37–0.50. Frame by frame the best,
+`t4sb64@3`, is still 2.6–2.9× HTJ2K's time.
