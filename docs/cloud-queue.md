@@ -34,8 +34,8 @@ file names, branch names or commit messages.
 | # | what | state |
 | --- | --- | --- |
 | 113 | **ONERR** — finish the `fillHandlers.onError` fix on `claude/onerror` and land it here (§Row 113) | **done** `9b2deef`, docs `4523538` — full gate green, the mutant fails 2 of 127 dispatch checks; `CLIENTS.md` §Fills are pushed, `ARCHITECTURE.md` §The downloader, `client/downloader/README.md`. The remote `claude/onerror` is not deleted: this environment refuses branch deletes |
-| 115 | **SRV-C** — the server design's small commits C1, C2, C4 on `claude/server-design` (§Row 115) | **claimed** 2026-10-04 |
-| 116 | **SRV-C3** — one frame limit, refused at load (§Row 116) | after 115 |
+| 115 | **SRV-C** — the server design's small commits C1, C2, C4 on `claude/server-design` (§Row 115) | **done** on `claude/server-design`: C1 `ffb05b1`, C2 `8db4e64`, C4 `d649fe8`, marked in the proposal `56f3a57` — full gate green at C1 and C4 (C2 is docs only), link check clean; mutants: classifying only `serve` fails the new setup-close test, dropping `long = "send-window-bytes"` and a `Default` that disagrees with clap each fail one CLI test. `session_request.accept()` stays unclassified: no connection exists yet to read a close reason from |
+| 116 | **SRV-C3** — one frame limit, refused at load (§Row 116) | **ready** |
 | 117 | **SRV-R1** — the planner owns every ask decision; one refusal path (§Row 117) | after 116 |
 | 118 | **SRV-R2** — one writer per session, `Link` (§Row 118) | after 117 |
 | 119 | **SRV-R3** — pipeline steps `read`/`write`, telemetry row v3 (§Row 119) | after 118 |
