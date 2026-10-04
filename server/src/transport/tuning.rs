@@ -1,16 +1,19 @@
-//! QUIC transport knobs. Unset reproduces quinn's stock configuration byte for byte.
+//! QUIC transport knobs. Cubic with nothing else set is quinn's stock configuration byte for byte.
 
-use anyhow::Result;
+use crate::transport::restart::SlowStartRestartConfig;
+use anyhow::{anyhow, Result};
 use std::sync::Arc;
-use wtransport::quinn::TransportConfig;
+use std::time::Duration;
+use wtransport::quinn::{IdleTimeout, TransportConfig};
 
 /// Congestion controller. quinn's BBR is a port of quiche's BBRv1, not BBRv3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, clap::ValueEnum)]
 pub enum Congestion {
-    #[default]
     Cubic,
     Bbr,
-    NewReno,
+    /// Cubic that restarts slow start after a silence instead of halving. `restart.rs`.
+    #[default]
+    CubicRestart,
 }
 
 impl Congestion {
@@ -18,35 +21,50 @@ impl Congestion {
         match self {
             Self::Cubic => "cubic",
             Self::Bbr => "bbr",
-            Self::NewReno => "new-reno",
+            Self::CubicRestart => "cubic-restart",
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, clap::Args)]
 pub struct TransportTuning {
-    /// Connection-wide receive window. quinn default: unlimited.
-    pub receive_window: Option<u64>,
-    /// Per-stream flow-control window. quinn default: 1_250_000.
-    pub stream_receive_window: Option<u64>,
-    /// Cap on buffered unacknowledged send bytes. quinn default: 10_000_000.
+    /// QUIC send window per connection in bytes: unacknowledged data held, so N sessions × this
+    /// bounds memory under slow clients. quinn default: 10_000_000.
+    #[arg(long = "send-window-bytes")]
     pub send_window: Option<u64>,
-    /// Idle timeout. Applied on the wtransport builder, not inside `TransportConfig`.
+    /// QUIC idle timeout. quinn default: 30 000.
+    #[arg(long)]
     pub max_idle_timeout_ms: Option<u64>,
+    /// Server-sent keep-alive, off by default; below both peers' idle timeouts to work. A browser
+    /// has no such knob, so this is the only lever. docs/adr/transport-idle-sessions.md.
+    #[arg(long)]
+    pub keep_alive_interval_ms: Option<u64>,
+    #[arg(long, value_enum, default_value_t)]
     pub congestion: Congestion,
-    /// Fault frame pages in from a blocking thread, because a major fault is not an `.await`.
-    pub prefault: bool,
+    /// Bytes the controller may send before the first ACK. quinn default: 12 000.
+    /// docs/transport/transport-conclusions.md §3.
+    #[arg(long = "initial-window-bytes")]
+    pub initial_window: Option<u64>,
+    /// The RTT assumed before the first sample, which sets the first probe timeout.
+    /// quinn default: 333 ms.
+    #[arg(long)]
+    pub initial_rtt_ms: Option<u64>,
+    /// Lab only: `false` sends each datagram alone, so netem on the sending host drops datagrams,
+    /// not whole GSO batches (docs/rig-limits.md §3).
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    pub segmentation_offload: bool,
 }
 
 impl Default for TransportTuning {
     fn default() -> Self {
         Self {
-            receive_window: None,
-            stream_receive_window: None,
             send_window: None,
             max_idle_timeout_ms: None,
-            congestion: Congestion::Cubic,
-            prefault: false,
+            keep_alive_interval_ms: None,
+            congestion: Congestion::default(),
+            initial_window: None,
+            initial_rtt_ms: None,
+            segmentation_offload: true,
         }
     }
 }
@@ -57,101 +75,134 @@ impl TransportTuning {
 
         let mut tc = TransportConfig::default();
 
-        if let Some(v) = self.receive_window {
-            tc.receive_window(varint(v, "receive-window")?);
-        }
         if let Some(v) = self.send_window {
             tc.send_window(v);
         }
-        if let Some(v) = self.stream_receive_window {
-            tc.stream_receive_window(varint(v, "stream-receive-window")?);
+        if let Some(ms) = self.max_idle_timeout_ms {
+            let idle = IdleTimeout::try_from(Duration::from_millis(ms))
+                .map_err(|_| anyhow!("max_idle_timeout_ms {ms} out of range"))?;
+            tc.max_idle_timeout(Some(idle));
         }
+        if let Some(ms) = self.keep_alive_interval_ms {
+            tc.keep_alive_interval(Some(Duration::from_millis(ms)));
+        }
+        if let Some(ms) = self.initial_rtt_ms {
+            tc.initial_rtt(Duration::from_millis(ms));
+        }
+        tc.enable_segmentation_offload(self.segmentation_offload);
 
+        let iw = self.initial_window;
         match self.congestion {
             Congestion::Cubic => {
-                tc.congestion_controller_factory(Arc::new(congestion::CubicConfig::default()))
+                let mut c = congestion::CubicConfig::default();
+                if let Some(v) = iw {
+                    c.initial_window(v);
+                }
+                tc.congestion_controller_factory(Arc::new(c))
             }
             Congestion::Bbr => {
-                tc.congestion_controller_factory(Arc::new(congestion::BbrConfig::default()))
+                let mut c = congestion::BbrConfig::default();
+                if let Some(v) = iw {
+                    c.initial_window(v);
+                }
+                tc.congestion_controller_factory(Arc::new(c))
             }
-            Congestion::NewReno => {
-                tc.congestion_controller_factory(Arc::new(congestion::NewRenoConfig::default()))
+            Congestion::CubicRestart => {
+                tc.congestion_controller_factory(Arc::new(SlowStartRestartConfig::new(iw)))
             }
         };
-
         Ok(tc)
     }
 
-    /// QUIC stack is still the library default — use `with_identity`, not a custom transport.
-    pub fn quic_is_library_default(&self) -> bool {
-        self.receive_window.is_none()
-            && self.send_window.is_none()
-            && self.stream_receive_window.is_none()
-            && self.max_idle_timeout_ms.is_none()
-            && matches!(self.congestion, Congestion::Cubic)
-    }
-
     pub fn describe(&self) -> String {
-        if self.quic_is_library_default() {
-            return "default".to_string();
-        }
         let mut parts = Vec::new();
         if let Some(v) = self.send_window {
             parts.push(format!("send_window={v}"));
         }
-        if let Some(v) = self.receive_window {
-            parts.push(format!("receive_window={v}"));
-        }
-        if let Some(v) = self.stream_receive_window {
-            parts.push(format!("stream_receive_window={v}"));
-        }
         if let Some(v) = self.max_idle_timeout_ms {
             parts.push(format!("max_idle_timeout_ms={v}"));
+        }
+        if let Some(v) = self.keep_alive_interval_ms {
+            parts.push(format!("keep_alive_interval_ms={v}"));
+        }
+        if let Some(v) = self.initial_window {
+            parts.push(format!("initial_window={v}"));
+        }
+        if let Some(v) = self.initial_rtt_ms {
+            parts.push(format!("initial_rtt_ms={v}"));
         }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
         }
-        if parts.is_empty() {
-            "default".to_string()
-        } else {
-            parts.join(",")
+        if !self.segmentation_offload {
+            parts.push("segmentation_offload=false".to_string());
         }
+        if parts.is_empty() {
+            return "default".to_string();
+        }
+        parts.join(",")
     }
-}
-
-fn varint(v: u64, what: &str) -> Result<wtransport::quinn::VarInt> {
-    wtransport::quinn::VarInt::from_u64(v)
-        .map_err(|_| anyhow::anyhow!("{what} {v} exceeds the QUIC varint maximum"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// quinn's stock stack: the knob under test is then the only departure from it.
+    fn stock() -> TransportTuning {
+        TransportTuning { congestion: Congestion::Cubic, ..TransportTuning::default() }
+    }
+
     #[test]
     fn default_tuning_builds() {
-        TransportTuning::default().to_transport_config().unwrap();
+        TransportTuning::default().to_transport_config().expect("builds");
     }
 
     #[test]
     fn every_knob_builds() {
         let t = TransportTuning {
-            receive_window: Some(64 << 20),
-            stream_receive_window: Some(8 << 20),
             send_window: Some(32 << 20),
             max_idle_timeout_ms: Some(60_000),
+            keep_alive_interval_ms: Some(20_000),
             congestion: Congestion::Bbr,
-            prefault: false,
+            initial_window: Some(32 * 1200),
+            initial_rtt_ms: Some(100),
+            segmentation_offload: false,
         };
-        t.to_transport_config().unwrap();
+        t.to_transport_config().expect("builds");
     }
 
+    /// Every departure from quinn's stock stack is named in the banner, so a campaign row cannot
+    /// be mislabelled, and the stock stack names none. docs/transport/transport-conclusions.md §3.
     #[test]
-    fn oversized_window_is_an_error() {
-        let t = TransportTuning {
-            receive_window: Some(u64::MAX),
-            ..Default::default()
-        };
+    fn each_knob_set_is_named_in_the_banner() {
+        assert_eq!(stock().describe(), "default");
+        for (t, want) in [
+            (TransportTuning { send_window: Some(1 << 20), ..stock() }, "send_window=1048576"),
+            (TransportTuning { max_idle_timeout_ms: Some(60_000), ..stock() }, "max_idle_timeout_ms=60000"),
+            (TransportTuning { keep_alive_interval_ms: Some(20_000), ..stock() }, "keep_alive_interval_ms=20000"),
+            (TransportTuning { initial_window: Some(38_400), ..stock() }, "initial_window=38400"),
+            (TransportTuning { initial_rtt_ms: Some(100), ..stock() }, "initial_rtt_ms=100"),
+            (TransportTuning { segmentation_offload: false, ..stock() }, "segmentation_offload=false"),
+        ] {
+            assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
+            t.to_transport_config().expect("builds");
+        }
+    }
+
+    /// An idle timeout quinn cannot encode stops the server at start rather than being dropped.
+    #[test]
+    fn an_idle_timeout_out_of_range_is_refused() {
+        let t = TransportTuning { max_idle_timeout_ms: Some(u64::MAX), ..stock() };
         assert!(t.to_transport_config().is_err());
+    }
+
+    /// The default controller is the restart after a silence, which quinn's stock stack lacks, and
+    /// a run must say it carries it.
+    #[test]
+    fn the_default_controller_is_cubic_restart() {
+        let t = TransportTuning::default();
+        assert_eq!(t.congestion, Congestion::CubicRestart);
+        assert!(t.describe().contains("congestion=cubic-restart"));
     }
 }

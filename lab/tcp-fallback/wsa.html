@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs lab — the opening ask in the WebSocket upgrade's URL</title>
+</head>
+<body>
+  <p>Driven by <code>lab/tcp-fallback/wsa.mjs</code>: one WebSocket session, a fill asked on the
+  socket after the upgrade (<code>ws</code>) or carried in the upgrade's URL (<code>ask</code>).</p>
+  <script type="module">
+    import { TransportSession } from "/client/transport-ts/dist/ws-session.js";
+
+    const hex = async (bytes) =>
+      [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    /** ms from the dial to the first frame and to the fill's last, on the page clock; null if it never came. */
+    globalThis.runArm = async ({ arm, url, from, to, expected, limitMs }) => {
+      const got = new Map();
+      let first = null;
+      let done;
+      const all = new Promise((r) => (done = r));
+      const onFrame = (f) => {
+        first ??= performance.now() - t0;
+        got.set(f.frameIndex, f.bytes);
+        if (got.size === to - from + 1) done(performance.now() - t0);
+      };
+      const onError = () => {};
+      const t0 = performance.now();
+      const s = await TransportSession.connect(url, "", arm === "ask" ? { fill: { from, to, onFrame, onError } } : {});
+      if (arm === "ws") s.fillFrames(from, to, onFrame, onError);
+      const fill = await Promise.race([all, new Promise((r) => setTimeout(() => r(null), limitMs))]);
+      s.close();
+      let exact = 0;
+      for (const [i, bytes] of got) if ((await hex(bytes)) === expected[i]) exact += 1;
+      return { first, fill, exact };
+    };
+    globalThis.__ready = true;
+  </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs conformance — a rig</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>conformance — a rig against the downloader</h1>
+  <p>
+    <code>?rig=downloader</code>: the clauses in <code>clauses.ts</code> through the downloader, over a fake
+    transport inside its worker. <code>?rig=dispatch</code>: the downloader's own ordering and per-decoder
+    bound, contention forced with a stalling decoder. No server; <code>run_browser.sh</code> drives both from the gate.
+  </p>
+  <div id="log"></div>
+  <script type="module">
+    import { DownloaderClient } from "/client/downloader/consumer.js";
+
+    const logEl = document.getElementById("log");
+    const log = (line) => { logEl.textContent += line + "\n"; };
+    const rig = new URLSearchParams(location.search).get("rig") || "downloader";
+    import(`/client/conformance/dist/${rig}-rig.js`)
+      .then(({ run }) => run(DownloaderClient, log))
+      .catch((e) => {
+        log("FAILED: " + (e?.stack || e?.message || e));
+        globalThis.__wtpacsFailed = 1;
+        globalThis.__wtpacsDone = true;
+      });
+  </script>
+</body>
+</html>

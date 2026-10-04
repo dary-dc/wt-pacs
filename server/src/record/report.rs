@@ -4,7 +4,7 @@
 //! `summary.percentile_method`:
 //!
 //! - **exact** (`exact-sort`): every value sorted, nearest-rank percentiles. Used for the final
-//!   report when the rows fit the inline cap, and always by the offline builder.
+//!   report when the rows fit the inline cap.
 //! - **live** (`histogram-loglinear-1024`): log-linear histograms folded as rows stream past.
 //!   Fixed memory; exact counts, totals, min and max; percentiles within 0.1 % (1 µs below
 //!   2 048 µs). Used for the timer rewrite and above the cap.
@@ -14,16 +14,16 @@
 use super::rows;
 use super::tap::{
     run_meta, FrameRecord, Record, RunMeta, SessionRecord, BATCH, DROP_TOTAL, RING_CAP,
-    ROWS_CLOSED, ROWS_OPENED, SESSIONS_SEEN, SESSIONS_STARTED,
+    ROWS_CLOSED, ROWS_OPENED, SESSIONS_STARTED,
 };
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
-pub(super) const SCHEMA: &str = "server-pipeline-v2";
+pub(super) const SCHEMA: &str = "server-pipeline-v3";
 pub(super) const METHOD_EXACT: &str = "exact-sort";
 pub(super) const METHOD_HIST: &str = "histogram-loglinear-1024";
-/// `server_frames` is inlined only up to this many rows (`WTPACS_TELEMETRY_INLINE_CAP`).
-pub(super) const INLINE_CAP_DEFAULT: u64 = 1_000_000;
+/// `server_frames` is inlined, and the summary exact, only up to this many rows.
+const INLINE_CAP: u64 = 1_000_000;
 
 #[derive(serde::Serialize)]
 pub(super) struct TelemetryReport {
@@ -57,8 +57,6 @@ pub(super) struct IntegrityBlock {
     pub rows_closed: u64,
     pub rows_dropped: u64,
     pub sessions: u64,
-    /// Sessions accepted while telemetry was on, sampled or not.
-    pub sessions_seen: u64,
     pub ring_capacity: u64,
     pub batch_size: u64,
     pub rows_file_bytes: u64,
@@ -77,22 +75,18 @@ pub(super) struct RunSummary {
     pub percentile_method: &'static str,
     pub totals: SummaryTotals,
     /// Absent when no sample — JSON `null`, never a zero-filled stats object.
-    pub prepare_us: Option<DistributionStats>,
-    pub locate_us: Option<DistributionStats>,
-    pub send_us: Option<DistributionStats>,
+    pub read_us: Option<DistributionStats>,
+    pub write_us: Option<DistributionStats>,
     pub serve_us: Option<DistributionStats>,
-    pub overhead_us: Option<DistributionStats>,
     pub server_bytes_sent: Option<DistributionStats>,
     pub integrity: IntegrityBlock,
 }
 
 #[derive(serde::Serialize)]
 pub(super) struct SummaryTotals {
-    pub prepare_us: u64,
-    pub locate_us: u64,
-    pub send_us: u64,
+    pub read_us: u64,
+    pub write_us: u64,
     pub serve_us: u64,
-    pub overhead_us: u64,
     pub server_bytes_sent: u64,
 }
 
@@ -115,28 +109,22 @@ pub(super) struct DistributionStats {
 
 #[derive(Default)]
 pub(super) struct RunAccumulator {
-    prepare: Vec<u32>,
-    locate: Vec<u32>,
-    send: Vec<u32>,
+    read: Vec<u32>,
+    write: Vec<u32>,
     serve: Vec<u32>,
-    overhead: Vec<u32>,
     bytes: Vec<u32>,
 }
 
 impl RunAccumulator {
     pub(super) fn push(&mut self, row: &FrameRecord) {
         // Null ≠ 0: absent stages must not enter distributions as fake zeros.
-        if let Some(us) = row.prepare_us {
-            self.prepare.push(us);
+        if let Some(us) = row.read_us {
+            self.read.push(us);
         }
-        if let Some(us) = row.locate_us {
-            self.locate.push(us);
-        }
-        if let Some(us) = row.send_us {
-            self.send.push(us);
+        if let Some(us) = row.write_us {
+            self.write.push(us);
         }
         self.serve.push(row.serve_us);
-        self.overhead.push(row.overhead_us);
         self.bytes.push(row.server_bytes_sent);
     }
 
@@ -148,18 +136,14 @@ impl RunAccumulator {
             sessions: 0,
             percentile_method: METHOD_EXACT,
             totals: SummaryTotals {
-                prepare_us: sum(&self.prepare),
-                locate_us: sum(&self.locate),
-                send_us: sum(&self.send),
+                read_us: sum(&self.read),
+                write_us: sum(&self.write),
                 serve_us: sum(&self.serve),
-                overhead_us: sum(&self.overhead),
                 server_bytes_sent: sum(&self.bytes),
             },
-            prepare_us: distribution_stats(&self.prepare),
-            locate_us: distribution_stats(&self.locate),
-            send_us: distribution_stats(&self.send),
+            read_us: distribution_stats(&self.read),
+            write_us: distribution_stats(&self.write),
             serve_us: distribution_stats(&self.serve),
-            overhead_us: distribution_stats(&self.overhead),
             server_bytes_sent: distribution_stats(&self.bytes),
             integrity: IntegrityBlock::default(),
         }
@@ -303,14 +287,12 @@ impl Hist {
     }
 }
 
-/// Everything the drain keeps in memory while rows stream past: six histograms, counters,
+/// Everything the drain keeps in memory while rows stream past: four histograms, counters,
 /// and the (small) list of session rows.
 pub(super) struct LiveSummary {
-    prepare: Hist,
-    locate: Hist,
-    send: Hist,
+    read: Hist,
+    write: Hist,
     serve: Hist,
-    overhead: Hist,
     bytes: Hist,
     pub(super) frames: u64,
     pub(super) records: u64,
@@ -320,11 +302,9 @@ pub(super) struct LiveSummary {
 impl LiveSummary {
     pub(super) fn new() -> Self {
         Self {
-            prepare: Hist::new(),
-            locate: Hist::new(),
-            send: Hist::new(),
+            read: Hist::new(),
+            write: Hist::new(),
             serve: Hist::new(),
-            overhead: Hist::new(),
             bytes: Hist::new(),
             frames: 0,
             records: 0,
@@ -337,17 +317,13 @@ impl LiveSummary {
         match rec {
             Record::Frame(f) => {
                 self.frames += 1;
-                if let Some(us) = f.prepare_us {
-                    self.prepare.record(us);
+                if let Some(us) = f.read_us {
+                    self.read.record(us);
                 }
-                if let Some(us) = f.locate_us {
-                    self.locate.record(us);
-                }
-                if let Some(us) = f.send_us {
-                    self.send.record(us);
+                if let Some(us) = f.write_us {
+                    self.write.record(us);
                 }
                 self.serve.record(f.serve_us);
-                self.overhead.record(f.overhead_us);
                 self.bytes.record(f.server_bytes_sent);
             }
             Record::Session(s) => self.sessions.push(*s),
@@ -361,18 +337,14 @@ impl LiveSummary {
             sessions: self.sessions.len() as u64,
             percentile_method: METHOD_HIST,
             totals: SummaryTotals {
-                prepare_us: self.prepare.sum,
-                locate_us: self.locate.sum,
-                send_us: self.send.sum,
+                read_us: self.read.sum,
+                write_us: self.write.sum,
                 serve_us: self.serve.sum,
-                overhead_us: self.overhead.sum,
                 server_bytes_sent: self.bytes.sum,
             },
-            prepare_us: self.prepare.dist(),
-            locate_us: self.locate.dist(),
-            send_us: self.send.dist(),
+            read_us: self.read.dist(),
+            write_us: self.write.dist(),
             serve_us: self.serve.dist(),
-            overhead_us: self.overhead.dist(),
             server_bytes_sent: self.bytes.dist(),
             integrity: IntegrityBlock::default(),
         }
@@ -388,7 +360,6 @@ fn integrity(rows_file_bytes: u64) -> IntegrityBlock {
         rows_closed: ROWS_CLOSED.load(Ordering::Relaxed),
         rows_dropped: dropped_process,
         sessions: SESSIONS_STARTED.load(Ordering::Relaxed),
-        sessions_seen: SESSIONS_SEEN.load(Ordering::Relaxed),
         ring_capacity: RING_CAP as u64,
         batch_size: BATCH as u64,
         rows_file_bytes,
@@ -428,14 +399,10 @@ pub(super) fn progress_report(live: &LiveSummary, rows_path: Option<&Path>) -> T
 
 /// Final report: exact from the row file when the rows fit the inline cap, else the live
 /// histogram summary with the row file as the record.
-pub(super) fn final_report(
-    live: &LiveSummary,
-    rows_path: Option<&Path>,
-    inline_cap: u64,
-) -> TelemetryReport {
+pub(super) fn final_report(live: &LiveSummary, rows_path: Option<&Path>) -> TelemetryReport {
     if let Some(path) = rows_path {
-        if live.frames <= inline_cap {
-            match exact_report_from_rows(path, true) {
+        if live.frames <= INLINE_CAP {
+            match exact_report_from_rows(path) {
                 Ok(report) => return report,
                 Err(err) => {
                     tracing::warn!(%err, "telemetry: exact report from rows failed; using live summary")
@@ -448,11 +415,8 @@ pub(super) fn final_report(
     report
 }
 
-/// Exact report from a row file. Frames are inlined only when asked (`inline`).
-pub(super) fn exact_report_from_rows(
-    rows_path: &Path,
-    inline: bool,
-) -> std::io::Result<TelemetryReport> {
+/// Exact report from a row file, every frame row inlined.
+pub(super) fn exact_report_from_rows(rows_path: &Path) -> std::io::Result<TelemetryReport> {
     let mut frames: Vec<FrameRecord> = Vec::new();
     let mut sessions: Vec<SessionRecord> = Vec::new();
     let mut acc = RunAccumulator::default();
@@ -464,16 +428,12 @@ pub(super) fn exact_report_from_rows(
             Record::Frame(f) => {
                 frame_count += 1;
                 acc.push(&f);
-                if inline {
-                    frames.push(f);
-                }
+                frames.push(f);
             }
             Record::Session(s) => sessions.push(s),
         }
     }
-    if inline {
-        frames.sort_by_key(|f| (f.session_id, f.t_ask_us, f.frame_index, f.ask_ordinal));
-    }
+    frames.sort_by_key(|f| (f.session_id, f.t_serve_us, f.frame_index, f.ask_ordinal));
     sessions.sort_by_key(|s| s.session_id);
     let mut summary = acc.build_summary();
     summary.sessions = sessions.len() as u64;
@@ -488,27 +448,10 @@ pub(super) fn exact_report_from_rows(
             event: "run_end",
             written_records: frame_count,
             rows_in_file: records,
-            frames_inlined: inline,
+            frames_inlined: true,
             dropped_records_process_total: DROP_TOTAL.load(Ordering::Relaxed),
         },
     })
-}
-
-/// `exact-server --telemetry-report <rows>`: rebuild the full JSON, exact, from a row file.
-/// Frames are inlined up to `WTPACS_TELEMETRY_INLINE_CAP` (default 1 M); the summary is exact
-/// regardless. Memory: about 28 bytes per frame row for the sorts, plus the inlined rows.
-pub fn write_report_from_rows(rows_path: &Path, out_path: &Path) -> anyhow::Result<()> {
-    use anyhow::Context;
-    let cap = super::tap::env_u64("WTPACS_TELEMETRY_INLINE_CAP", INLINE_CAP_DEFAULT);
-    let frame_rows = rows::read_records(rows_path)
-        .with_context(|| format!("open {}", rows_path.display()))?
-        .filter(|r| matches!(r, Record::Frame(_)))
-        .count() as u64;
-    let report = exact_report_from_rows(rows_path, frame_rows <= cap)
-        .with_context(|| format!("read {}", rows_path.display()))?;
-    super::sink::write_json(out_path, &report)
-        .with_context(|| format!("write {}", out_path.display()))?;
-    Ok(())
 }
 
 #[cfg(test)]

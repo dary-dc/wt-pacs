@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use fod::{decode_fod_body, encode_fod_msg, FodMsg};
 use wtransport::stream::{RecvStream, SendStream};
 
-/// Largest FoD message the server will read. Asks are small; a `RequestFrames` of 700 k
-/// indices fits. Anything larger is a broken or hostile peer, not a study.
+/// Largest FoD message the server will read. Asks are small; anything larger is a broken or
+/// hostile peer.
 pub const MAX_FOD_LEN: usize = 4 * 1024 * 1024;
 
 /// The wire-supplied length is checked before a single byte is allocated for it.
@@ -19,14 +19,19 @@ pub fn check_fod_len(len: usize) -> Result<()> {
     Ok(())
 }
 
-pub async fn read_fod_msg(recv: &mut RecvStream) -> Result<FodMsg> {
+/// `None` once the peer has finished the stream between messages.
+pub async fn read_fod_msg(recv: &mut RecvStream) -> Result<Option<FodMsg>> {
     let mut len_buf = [0u8; 4];
-    read_exact(recv, &mut len_buf).await?;
+    if !read_exact(recv, &mut len_buf).await? {
+        return Ok(None);
+    }
     let len = u32::from_le_bytes(len_buf) as usize;
     check_fod_len(len)?;
     let mut body = vec![0u8; len];
-    read_exact(recv, &mut body).await?;
-    decode_fod_body(&body)
+    if !read_exact(recv, &mut body).await? {
+        anyhow::bail!("stream ended before {len} bytes");
+    }
+    decode_fod_body(&body).map(Some)
 }
 
 pub async fn write_fod_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
@@ -35,15 +40,17 @@ pub async fn write_fod_msg(send: &mut SendStream, msg: &FodMsg) -> Result<()> {
     Ok(())
 }
 
-async fn read_exact(recv: &mut RecvStream, out: &mut [u8]) -> Result<()> {
+/// False when the stream ended before the first byte; an end part-way is an error.
+async fn read_exact(recv: &mut RecvStream, out: &mut [u8]) -> Result<bool> {
     let mut filled = 0;
     while filled < out.len() {
         match recv.read(&mut out[filled..]).await? {
             Some(n) => filled += n,
+            None if filled == 0 => return Ok(false),
             None => anyhow::bail!("stream ended before {} bytes", out.len()),
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(test)]

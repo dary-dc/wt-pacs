@@ -1,0 +1,135 @@
+--- a/src/connection/mod.rs
++++ b/src/connection/mod.rs
+@@ -524,6 +524,7 @@ impl Connection {
+         let mut pad_datagram = false;
+         let mut pad_datagram_to_mtu = false;
+         let mut congestion_blocked = false;
++        let mut acks_only = false;
+ 
+         // Iterate over all spaces and find data to send
+         let mut space_idx = 0;
+@@ -612,17 +613,28 @@ impl Connection {
+ 
+                     let bytes_to_send = segment_size as u64 + untracked_bytes;
+                     if self.path.in_flight.bytes + bytes_to_send >= self.path.congestion.window() {
+-                        space_idx += 1;
+                         congestion_blocked = true;
+-                        // We continue instead of breaking here in order to avoid
+-                        // blocking loss probes queued for higher spaces.
+-                        trace!("blocked by congestion control");
+-                        continue;
++                        // An ACK that is due is not congestion controlled (RFC 9002 §7), and
++                        // holding it until the window reopens misses the peer's `max_ack_delay`
++                        // (RFC 9000 §13.2.1): send it alone.
++                        if can_send.acks {
++                            trace!("blocked by congestion control; sending the due ACK alone");
++                            acks_only = true;
++                            ack_eliciting = false;
++                        } else {
++                            space_idx += 1;
++                            // We continue instead of breaking here in order to avoid
++                            // blocking loss probes queued for higher spaces.
++                            trace!("blocked by congestion control");
++                            continue;
++                        }
+                     }
+ 
+                     // Check whether the next datagram is blocked by pacing
+                     let smoothed_rtt = self.path.rtt.get();
+-                    if let Some(delay) = self.path.pacing.delay(
++                    if acks_only {
++                        // Not congestion controlled, so not paced either.
++                    } else if let Some(delay) = self.path.pacing.delay(
+                         smoothed_rtt,
+                         bytes_to_send,
+                         self.path.current_mtu(),
+@@ -886,8 +898,21 @@ impl Connection {
+                 }
+             }
+ 
+-            let sent =
+-                self.populate_packet(now, space_id, buf, builder.max_size, builder.exact_number);
++            let sent = if mem::take(&mut acks_only) {
++                let mut sent = SentFrames::default();
++                Self::try_populate_acks(
++                    now,
++                    self.receiving_ecn,
++                    &mut sent,
++                    &mut self.spaces[space_id],
++                    buf,
++                    &mut self.stats,
++                    builder.max_size,
++                );
++                sent
++            } else {
++                self.populate_packet(now, space_id, buf, builder.max_size, builder.exact_number)
++            };
+ 
+             // ACK-only packets should only be sent when explicitly allowed. If we write them due to
+             // any other reason, there is a bug which leads to one component announcing write
+--- a/src/tests/mod.rs
++++ b/src/tests/mod.rs
+@@ -4180,3 +4180,63 @@ fn preferred_address() {
+     let mut pair = Pair::new(Arc::new(EndpointConfig::default()), server_config);
+     pair.connect();
+ }
++
++const ACK_TEST_LATENCY: Duration = Duration::from_millis(100);
++
++/// Time from a client PING to the client receiving the server's ACK of it, with the server
++/// either idle or congestion-blocked with stream data still queued.
++fn ack_of_ping_after(server_blocked: bool) -> Duration {
++    let _guard = subscribe();
++    // Two packets of window: full at once and for the whole round trip, pacing or not.
++    let mut cubic = congestion::CubicConfig::default();
++    cubic.initial_window(2 * 1452);
++    let mut transport = TransportConfig::default();
++    transport.deterministic_packet_numbers(true);
++    transport.congestion_controller_factory(Arc::new(cubic));
++    let mut server = server_config();
++    server.transport = Arc::new(transport);
++    let mut pair = Pair::new(Default::default(), server);
++    pair.latency = ACK_TEST_LATENCY;
++    let (client_ch, server_ch) = pair.connect_with(client_config_with_deterministic_pns());
++    pair.drive();
++
++    if server_blocked {
++        let s = pair.server_streams(server_ch).open(Dir::Uni).unwrap();
++        pair.server_send(server_ch, s).write(&[0; 200_000]).unwrap();
++        pair.drive_server();
++        let conn = pair.server_conn_mut(server_ch);
++        assert!(
++            conn.bytes_in_flight() + 1500 > conn.congestion_window(),
++            "the server's window did not fill: {} of {}",
++            conn.bytes_in_flight(),
++            conn.congestion_window()
++        );
++    }
++
++    let acks = pair.client_conn_mut(client_ch).stats().frame_rx.acks;
++    let start = pair.time;
++    pair.client_conn_mut(client_ch).ping();
++    pair.drive_client();
++    // A millisecond clock rather than `step()`, which stops once no timer is armed although a
++    // packet is still on the simulated wire.
++    while pair.client_conn_mut(client_ch).stats().frame_rx.acks == acks {
++        assert!(pair.time - start < Duration::from_secs(1), "the PING was never acknowledged");
++        pair.time += Duration::from_millis(1);
++        pair.drive_client();
++        pair.drive_server();
++    }
++    pair.time - start
++}
++
++/// RFC 9000 §13.2.1: an ack-eliciting packet is acknowledged within `max_ack_delay`, and RFC 9002
++/// §7: an ACK-only packet is not congestion controlled. A server whose window is full, with more
++/// stream data queued, still owes the client its ACK on time — one latency out, `max_ack_delay`,
++/// one latency back — not when the window reopens a round trip after it filled.
++#[test]
++fn ack_is_not_held_back_by_a_full_congestion_window() {
++    let max_ack_delay = Duration::from_millis(TransportParameters::default().max_ack_delay.into_inner());
++    let on_time = 2 * ACK_TEST_LATENCY + max_ack_delay;
++    assert_eq!(ack_of_ping_after(false), on_time, "the idle control");
++    let blocked = ack_of_ping_after(true);
++    assert!(blocked <= on_time, "the ACK came {blocked:?} after the PING, not within {on_time:?}");
++}

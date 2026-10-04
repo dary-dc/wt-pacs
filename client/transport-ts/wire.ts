@@ -2,10 +2,8 @@
 
 export type FodMsg =
   | { op: "request_frame"; frame: number }
-  | { op: "request_frames"; frames: number[] }
   | { op: "stream_frames"; from?: number; to?: number }
   | { op: "end_stream" }
-  | { op: "end_session" }
   | { op: "frame_error"; frame_index: number; reason?: string };
 
 const utf8Encoder = new TextEncoder();
@@ -31,30 +29,8 @@ export function decodeFodBody(body: Uint8Array): FodMsg {
   return JSON.parse(utf8Decoder.decode(body)) as FodMsg;
 }
 
-/** Frame envelope: [4B BE display_index][codestream…] */
-export function unwrapEnvelope(payload: Uint8Array): { index: number; codestream: Uint8Array } {
-  if (payload.length < 4) throw new Error("envelope too short");
-  const index = new DataView(payload.buffer, payload.byteOffset, payload.byteLength).getUint32(0, false);
-  return { index, codestream: payload.subarray(4) };
-}
-
-/** Max media frame length — matches server/harness guard. */
+/** Max `envelope_len`; the definition is docs/WIRE.md §The envelope. */
 export const MAX_FRAME_LEN = 64 * 1024 * 1024;
-
-/**
- * Parse one `[4B BE len][payload]` from the front of `buf`.
- * Returns null if truncated or invalid.
- */
-export function parseLengthPrefixed(
-  buf: Uint8Array,
-): { payload: Uint8Array; consumed: number } | null {
-  if (buf.length < 4) return null;
-  const len = new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getUint32(0, false);
-  if (len === 0 || len > MAX_FRAME_LEN) return null;
-  const total = 4 + len;
-  if (buf.length < total) return null;
-  return { payload: buf.subarray(4, total), consumed: total };
-}
 
 export function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
   if (hex.length % 2 !== 0) throw new Error("hex length must be even");

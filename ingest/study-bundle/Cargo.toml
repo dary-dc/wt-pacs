@@ -6,3 +6,4 @@ description = "SBND study-bundle on-disk format and streaming writer"
 
 [dependencies]
 anyhow = { workspace = true }
+frame-envelope = { path = "../../common/frame-envelope" }

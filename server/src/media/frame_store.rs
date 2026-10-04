@@ -1,4 +1,4 @@
-//! Server-side SBND reader. Why `pread` and not a memory mapping: `docs/disk-access/adr.md`.
+//! Server-side SBND reader. Why `pread` and not a memory mapping: `docs/adr/disk-access.md`.
 
 use anyhow::{Context, Result};
 use std::fs::File;
@@ -9,9 +9,12 @@ use study_bundle::read_layout;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
+use std::sync::Mutex;
 
-/// A read that *misses* is not bounded by this. Why 64 KiB: `docs/disk-access/adr.md`.
-pub const READ_WINDOW: usize = 64 * 1024;
+/// The retired 64 KiB read chunk: tests size frames across several. `docs/adr/disk-access.md`.
+#[cfg(test)]
+pub(crate) const READ_WINDOW: usize = 64 * 1024;
 
 /// Where a frame's codestream lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,17 +23,18 @@ pub struct FrameSpan {
     pub len: u32,
 }
 
-/// **Open once per study, never per session.** `docs/disk-access/adr.md` §Invariants.
+/// **Open once per study, never per session.** `docs/adr/disk-access.md` §Invariants.
 pub struct FrameStore {
     file: File,
     index: Vec<(u64, u32)>,
-    metadata: String,
     nowait: bool,
     /// Test-only ceiling on one `read_at_nowait`, for forcing a partial hit.
     #[cfg(test)]
     nowait_cap: Option<usize>,
     #[cfg(test)]
     pool_starts: AtomicUsize,
+    #[cfg(test)]
+    advised: Mutex<Vec<(u64, u64)>>,
 }
 
 impl FrameStore {
@@ -43,16 +47,17 @@ impl FrameStore {
             nowait: probe_nowait(&file, layout.data_base as u64),
             file,
             index: layout.index,
-            metadata: layout.metadata,
             #[cfg(test)]
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
+            #[cfg(test)]
+            advised: Mutex::new(Vec::new()),
         })
     }
 
     /// Where this is false every read reports a miss, cached or not, so a caller that
-    /// branches on a miss must gate on it — `docs/disk-access/IMPLEMENTATION.md` §The trap.
+    /// branches on a miss must gate on it — `docs/adr/disk-access.md` §The trap.
     pub fn nowait_supported(&self) -> bool {
         self.nowait
     }
@@ -65,16 +70,10 @@ impl FrameStore {
         self.index.len() as u32
     }
 
-    pub fn metadata_json(&self) -> &str {
-        &self.metadata
-    }
-
-    /// No I/O, so an out-of-range ask is refused before a stream is opened.
-    pub fn frame_span(&self, index: u32) -> Result<FrameSpan> {
-        self.index
-            .get(index as usize)
-            .map(|&(offset, len)| FrameSpan { offset, len })
-            .with_context(|| format!("frame index {index} out of range ({})", self.frame_count()))
+    /// Panics past `frame_count()`: the planner refuses out of range before anything reads.
+    pub fn frame_span(&self, index: u32) -> FrameSpan {
+        let (offset, len) = self.index[index as usize];
+        FrameSpan { offset, len }
     }
 
     /// Never waits, which is what makes it safe on the executor. A short return means the
@@ -124,6 +123,22 @@ impl FrameStore {
         Ok(done)
     }
 
+    /// Advisory: ask the kernel to bring `len` bytes from `offset` into the page cache. It
+    /// copies nothing and never fails a read, so the result is not checked.
+    pub fn advise_ahead(&self, offset: u64, len: u64) {
+        #[cfg(test)]
+        self.advised.lock().unwrap().push((offset, len));
+        // SAFETY: `posix_fadvise` reads no user memory; a bad range is an errno, not UB.
+        unsafe {
+            libc::posix_fadvise(
+                self.file.as_raw_fd(),
+                offset as libc::off_t,
+                len as libc::off_t,
+                libc::POSIX_FADV_WILLNEED,
+            );
+        }
+    }
+
     /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
         self.file
@@ -132,15 +147,14 @@ impl FrameStore {
     }
 
     /// Force a partial hit: real bytes at the front, a shortfall behind them.
-    #[cfg(test)]
+    #[cfg(all(test, feature = "uring"))]
     pub(crate) fn force_short_reads(&mut self, cap: usize) {
         self.nowait_cap = Some(cap);
     }
 
-    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test
-    /// can rely on — CLAUDE.md#measurement.
-    #[cfg(test)]
-    pub(crate) fn force_pool_reads(&mut self) {
+    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test or
+    /// a lab run can rely on — CLAUDE.md#measurement. Reachable in a build for `--force-pool-reads`.
+    pub fn force_pool_reads(&mut self) {
         self.nowait = false;
     }
 
@@ -157,6 +171,11 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn reset_pool_starts(&self) {
         self.pool_starts.store(0, Ordering::SeqCst);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut *self.advised.lock().unwrap())
     }
 }
 
@@ -236,16 +255,35 @@ mod tests {
 
         let store = FrameStore::open(&path)?;
         assert_eq!(store.frame_count(), 2);
-        assert_eq!(store.metadata_json(), r#"{"frameCount":2}"#);
-        assert!(store.frame_span(99).is_err());
-
         for (index, want) in [(0u32, f0.as_slice()), (1, f1.as_slice())] {
-            let span = store.frame_span(index)?;
+            let span = store.frame_span(index);
             let mut buf = vec![0u8; span.len as usize];
             store.read_at_blocking(&mut buf, span.offset)?;
             assert_eq!(buf, want, "frame {index}");
         }
         let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+
+    /// A study holding a frame no client would read stops the server at startup, naming the
+    /// frame. Laid out by hand, since the writer refuses it too; sparse, so nothing is written.
+    #[test]
+    fn a_study_with_an_oversized_frame_fails_to_open_naming_it() -> Result<()> {
+        let too_big = frame_envelope::MAX_CODESTREAM_LEN as u32 + 1;
+        let data_base = 16 + 12;
+        let mut bytes = b"SBND".to_vec();
+        for word in [1u32, 0, 1] {
+            bytes.extend_from_slice(&word.to_le_bytes());
+        }
+        bytes.extend_from_slice(&(data_base as u64).to_le_bytes());
+        bytes.extend_from_slice(&too_big.to_le_bytes());
+        let path = scratch("frame-store-oversized");
+        std::fs::write(&path, &bytes)?;
+        File::options().write(true).open(&path)?.set_len(data_base + u64::from(too_big))?;
+        let opened = FrameStore::open(&path);
+        let _ = std::fs::remove_file(&path);
+        let err = format!("{:#}", opened.err().expect("the oversized study opened"));
+        assert!(err.contains("frame 0 "), "the refusal does not name the frame: {err}");
         Ok(())
     }
 
@@ -281,7 +319,7 @@ mod tests {
         let path = scratch("frame-store-nowait");
         write_bundle(&path, br#"{"frameCount":1}"#, &[body.as_slice()])?;
         let store = FrameStore::open(&path)?;
-        let span = store.frame_span(0)?;
+        let span = store.frame_span(0);
 
         let mut out = vec![0u8; span.len as usize];
         let mut pos = 0usize;

@@ -1,6 +1,6 @@
 //! Bounded, process-private frame cache — **a lab arm**; nothing in `server/` uses it. A
 //! byte budget with LRU eviction, admission on the *second* ask, and fills from bytes the
-//! caller already holds. What it is worth: `docs/disk-access/adr.md` §Levers.
+//! caller already holds. What it is worth: `docs/adr/disk-access.md` §Levers.
 
 use bytes::{Bytes, BytesMut};
 use std::collections::{HashMap, HashSet};
