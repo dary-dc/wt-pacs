@@ -161,7 +161,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         let read = self.inner.read(frame, next).await;
         match &read {
             Ok(_) => self.tap.boundary_read_done(),
-            Err(_) => self.tap.emit_write_err(),
+            Err(_) => self.tap.emit_failed(),
         }
         read
     }
@@ -171,7 +171,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         let written = self.inner.write(frame, body).await;
         match &written {
             Ok(()) => self.tap.emit_sent(envelope_len),
-            Err(_) => self.tap.emit_write_err(),
+            Err(_) => self.tap.emit_failed(),
         }
         written
     }

@@ -29,7 +29,7 @@ pub(super) static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
 #[repr(u8)]
 enum WriteOutcome {
     Sent = 0,
-    WriteErr = 1,
+    Failed = 1,
     Refused = 2,
 }
 
@@ -288,9 +288,9 @@ impl Tap {
         self.try_emit(WriteOutcome::Sent);
     }
 
-    /// A read or a write failed; a failed read leaves both stages null.
-    pub(crate) fn emit_write_err(&mut self) {
-        self.try_emit(WriteOutcome::WriteErr);
+    /// A failed read leaves both stages null.
+    pub(crate) fn emit_failed(&mut self) {
+        self.try_emit(WriteOutcome::Failed);
     }
 
     /// The planner's refusal: its own row, with no stage, since nothing was read or written.
@@ -333,7 +333,7 @@ impl Tap {
                 self.bytes = self.bytes.saturating_add(u64::from(self.pending_bytes));
             }
             WriteOutcome::Refused => self.refused = self.refused.saturating_add(1),
-            WriteOutcome::WriteErr => {}
+            WriteOutcome::Failed => {}
         }
         self.push(Record::Frame(row));
     }
@@ -648,10 +648,10 @@ mod tests {
     fn a_failed_read_has_no_write_stage() {
         let (mut t, rx) = test_tap_with_channel(4);
         t.begin_frame(3);
-        t.emit_write_err();
+        t.emit_failed();
         let row = one_row(&mut t, &rx);
         assert_eq!((row.read_us, row.write_us), (None, None));
-        assert_eq!(row.write_outcome, WriteOutcome::WriteErr as u8);
+        assert_eq!(row.write_outcome, WriteOutcome::Failed as u8);
     }
 
     #[test]
