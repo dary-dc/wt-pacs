@@ -466,6 +466,12 @@ layers on the wire — are not repeated.
   here* (the specification's and AOMedia's hosts are refused by this container). No browser decoder
   exists. Decides: lossless bytes against libaom 3.15.1 and HTJ2K on the same series, exact, and the
   reference decoder's time. Container: yes, natively.
+  *Measured since (row AV2, [`lab/av1`](../../lab/av1/README.md) §AV2), one middle frame a series:*
+  AV2 has no profile over 10 bits, so it codes 11–14-bit samples split. On grey up to 13 bits but
+  CT it is the smallest coding here, 0.937–0.964 of HTJ2K and 0.4–4.7 % under libaom on the same
+  planes; libaom's 12-bit split stays 3–8 % smaller on CT and the 14-bit projections. The RGB
+  ultrasound is 1.648 of HTJ2K against libaom's 1.117. Encoding takes 50–110× libaom's time
+  (450–11 900 s a frame), native decoding 3.1–6.5× dav1d's. All 68 cells are exact.
 
 **Not worth a row, and why:**
 
