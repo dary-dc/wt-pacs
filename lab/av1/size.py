@@ -139,6 +139,10 @@ def ivf_units(path):
 def decode_y4m(build, src, out):
     subprocess.run([build / "dav1d/bin/dav1d", "-q", "-i", src, "-o", out, "--demuxer", "section5"],
                    check=True, capture_output=True, env={"LD_LIBRARY_PATH": str(build / "dav1d/lib")})
+    return read_y4m(out)
+
+
+def read_y4m(out):
     raw = out.read_bytes()
     head, rest = raw.split(b"\n", 1)
     c = next(t[1:].decode() for t in head.split() if t.startswith(b"C"))
