@@ -5,14 +5,15 @@ use crate::media::frame_store::FrameStore;
 use crate::media::read_path::ReadMode;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
-use crate::transport::planner::{fill_range, Ask, Planner, Step, ASKS_AHEAD};
+use crate::transport::planner::{fill_range, frame_in_range, Ask, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::websocket;
 use crate::transport::wire::{read_fod_msg, Control};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::future::Future;
+use std::ops::ControlFlow;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -294,14 +295,14 @@ async fn handle_incoming(
                 let read = |tx| async move {
                     let Ok((send, mut recv)) = control.accept_bi().await else { return };
                     ctl_tx.send(send).ok();
-                    while read_asks(&mut recv, &tx).await.is_ok() {}
+                    while read_asks(&mut recv, &tx).await.is_continue() {}
                 };
                 sessions.serve(product(out).with_late_control(ctl_rx), Some(ask), read).await
             }
             None => {
                 let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
                 let out = FrameOut::open(sessions.mode, connection.clone()).await?;
-                let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_ok() {} };
+                let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
                 sessions.serve(product(out).with_control(Control::Stream(send)), None, read).await
             }
         }
@@ -352,11 +353,12 @@ pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
         }
         _ => return None,
     };
-    match ask {
-        Ask::Frame(n) if n >= frames => None,
-        Ask::Fill { from, to } if fill_range(from, to, frames).is_err() => None,
-        ask => Some(ask),
-    }
+    let in_range = match ask {
+        Ask::Frame(n) => frame_in_range(n, frames).is_ok(),
+        Ask::Fill { from, to } => fill_range(from, to, frames).is_ok(),
+        _ => false,
+    };
+    in_range.then_some(ask)
 }
 
 /// Once per session, so a deployment can see the MTU, loss and RTT it actually got.
@@ -386,19 +388,9 @@ pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::R
 async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
     let mut plan = Planner::new(pipeline.store().frame_count());
     loop {
-        let step = plan.next(|| asks.try_recv().ok())?;
-        if plan.take_noted_fill() {
-            pipeline.note_fill();
-        }
-        match step {
-            Step::Serve {
-                frame,
-                upcoming,
-                mode,
-            } => pipeline.serve(frame, &upcoming, mode).await?,
-            Step::Refuse { frame, reason } => {
-                pipeline.refuse(frame, anyhow!(reason)).await?;
-            }
+        match plan.next(|| asks.try_recv().ok())? {
+            Step::Serve { frame, next } => pipeline.serve(frame, &next).await?,
+            Step::Refuse { frame, reason } => pipeline.refuse(frame, reason).await?,
             Step::Wait => match asks.recv().await {
                 Some(ask) => plan.push(ask),
                 None => return Ok(()),
@@ -408,39 +400,35 @@ async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask
     }
 }
 
-async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> ControlFlow<()> {
     forward(read_fod_msg(control_recv).await, tx).await
 }
 
-/// One FoD message as the loop's asks; `Err` once the reader should stop. `None`, the peer's
+/// One FoD message as the loop's asks; `Break` once the reader should stop. `None`, the peer's
 /// goodbye, stops it with no ask, so the loop ends when it next waits.
-pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Ask>) -> ControlFlow<()> {
     let ask = match msg {
-        Ok(Some(FodMsg::RequestFrame { frame })) => {
-            tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
-            return Ok(());
-        }
+        Ok(Some(FodMsg::RequestFrame { frame })) => Ask::Frame(frame),
         Ok(Some(FodMsg::StreamFrames { from, to })) => Ask::Fill { from, to },
         Ok(Some(FodMsg::EndStream)) => Ask::EndStream,
         Ok(Some(FodMsg::EndSession)) => Ask::EndSession,
-        Ok(Some(FodMsg::FrameError { .. })) => return Ok(()),
-        Ok(None) => return Err(()),
+        Ok(Some(FodMsg::FrameError { .. })) => return ControlFlow::Continue(()),
+        Ok(None) => return ControlFlow::Break(()),
         Err(err) => Ask::Failed(err),
     };
     let failed = matches!(ask, Ask::Failed(_));
-    tx.send(ask).await.map_err(|_| ())?;
-    if failed {
-        Err(())
-    } else {
-        Ok(())
+    if tx.send(ask).await.is_err() || failed {
+        return ControlFlow::Break(());
     }
+    ControlFlow::Continue(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::media::frame_store::FrameSpan;
-    use crate::transport::planner::Mode;
+    use crate::transport::planner::Next;
+    use anyhow::anyhow;
     use crate::transport::wire::write_fod_msg;
     use fod::FodMsg;
     use frame_envelope::unwrap;
@@ -449,10 +437,10 @@ mod tests {
     use wtransport::stream::SendStream;
     use wtransport::ClientConfig;
 
-    /// Records what the loop hands the pipeline: the frame and the names that go with it.
+    /// Records what the loop hands the pipeline: the frame and what follows it.
     struct LoopRecorder {
         store: Arc<FrameStore>,
-        seen: Vec<(u32, Vec<u32>)>,
+        seen: Vec<(u32, Next)>,
         fills: u32,
         drained: bool,
     }
@@ -461,33 +449,22 @@ mod tests {
         fn store(&self) -> &Arc<FrameStore> {
             &self.store
         }
-        async fn send(
-            &mut self,
-            _frame: u32,
-            _span: FrameSpan,
-            _ahead: &[FrameSpan],
-            _mode: Mode,
-        ) -> Result<()> {
+        async fn send(&mut self, frame: u32, _span: FrameSpan, _ahead: &[FrameSpan], next: &Next) -> Result<()> {
+            self.fills += u32::from(matches!(next, Next::Fill { first: true, .. }));
+            self.seen.push((frame, next.clone()));
             Ok(())
         }
-        async fn serve(&mut self, frame: u32, upcoming: &[u32], _mode: Mode) -> Result<()> {
-            self.seen.push((frame, upcoming.to_vec()));
-            Ok(())
-        }
-        async fn refuse(&mut self, _frame: u32, _err: anyhow::Error) -> Result<()> {
+        async fn refuse(&mut self, _frame: u32, _reason: String) -> Result<()> {
             Ok(())
         }
         async fn drain_acks(&mut self) {
             self.drained = true;
         }
-        fn note_fill(&mut self) {
-            self.fills += 1;
-        }
     }
 
-    /// **The loop's own line.** `Step::Serve`'s `upcoming` reaches `serve`; a fill names
-    /// `FILL_AHEAD` and is counted once. No QUIC — the seam below `serve` is
-    /// `pipeline.rs`'s. `docs/adr/disk-access.md`.
+    /// **The loop's own line.** `Step::Serve`'s `next` reaches `serve`; a fill names one frame
+    /// ahead and is counted once. No QUIC — the seam below `serve` is `pipeline.rs`'s.
+    /// `docs/adr/disk-access.md`.
     #[test]
     fn the_loop_hands_serve_the_frames_the_planner_named() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drive-{}", std::process::id()));
@@ -509,9 +486,10 @@ mod tests {
             tx.try_send(ask).expect("queue ask");
         }
         rt.block_on(drive(&mut rec, &mut rx)).expect("drive");
+        let tiles = |names: &[u32]| Next::Tiles(names.to_vec());
         assert_eq!(
             rec.seen,
-            vec![(0, vec![2, 3]), (2, vec![3]), (3, vec![])],
+            vec![(0, tiles(&[2, 3])), (2, tiles(&[3])), (3, tiles(&[]))],
             "the planner's names did not reach serve"
         );
 
@@ -546,9 +524,10 @@ mod tests {
         .expect("queue fill");
         drop(tx);
         rt.block_on(drive(&mut rec, &mut rx)).expect("drive fill");
+        let fill = |after, first| Next::Fill { after, first };
         assert_eq!(
             rec.seen,
-            vec![(1, vec![2]), (2, vec![3]), (3, vec![])],
+            vec![(1, fill(Some(2), true)), (2, fill(Some(3), false)), (3, fill(None, false))],
             "a fill did not name one frame ahead"
         );
         assert_eq!(rec.fills, 1, "a fill that served was not counted once");

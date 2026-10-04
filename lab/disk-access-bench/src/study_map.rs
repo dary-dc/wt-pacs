@@ -27,7 +27,7 @@ impl StudyMap {
 
     /// The frame's bytes, straight from the mapping — a major fault where they are cold.
     pub fn frame_slice(&self, index: u32) -> Result<&[u8]> {
-        let span = self.store.frame_span(index)?;
+        let span = self.store.frame_span(index);
         let start = span.offset as usize;
         let end = start + span.len as usize;
         if end > self.mmap.len() {
@@ -41,7 +41,7 @@ impl StudyMap {
 
     /// The whole data region, for arms that unmap or advise the study as a unit.
     pub fn data_span(&self) -> Result<&[u8]> {
-        let first = self.store.frame_span(0)?;
+        let first = self.store.frame_span(0);
         Ok(&self.mmap[first.offset as usize..])
     }
 }

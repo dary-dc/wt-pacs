@@ -885,8 +885,8 @@ is 2.2× the asks for 1.6× the p50 and −42 % CPU per ask; past 4 the p50 grow
 barely. At 250 KB one session saturates its thread at depth 2. The depth that takes the link's
 throughput at the least queueing is
 [`../adr/client-window-depth.md`](../adr/client-window-depth.md)'s `D_min`. Disk look-ahead is
-already the server's and independent of how the client asks (`TILE_SLOTS`, `FILL_AHEAD`,
-`ASKS_AHEAD`); network depth belongs to the client. **Depth 1 is `D_min`'s answer when `Tf ≫ RTT`**
+already the server's and independent of how the client asks (`TILE_SLOTS`, a fill's one
+frame ahead, `ASKS_AHEAD`); network depth belongs to the client. **Depth 1 is `D_min`'s answer when `Tf ≫ RTT`**
 — a large frame on a slow link — and that is the case the tail below has to survive, because "just
 ask two" is then the wrong latency trade.
 

@@ -555,7 +555,7 @@ mod tests {
 
     fn spans(store: &Arc<FrameStore>, idx: &[u32]) -> Vec<FrameSpan> {
         idx.iter()
-            .map(|&i| store.frame_span(i).expect("span"))
+            .map(|&i| store.frame_span(i))
             .collect()
     }
 
@@ -575,7 +575,7 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let rt = rt();
-        let span = store.frame_span(0).expect("span");
+        let span = store.frame_span(0);
 
         for (name, got) in [
             ("fill", {
@@ -618,8 +618,8 @@ mod tests {
             let mut seq = SeqReader::new();
             let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
             for idx in 0..4u32 {
-                let span = store.frame_span(idx).expect("span");
-                let next = (idx + 1 < 4).then(|| store.frame_span(idx + 1).expect("next"));
+                let span = store.frame_span(idx);
+                let next = (idx + 1 < 4).then(|| store.frame_span(idx + 1));
                 let fill = rt.block_on(seq.read(&store, span, next)).expect("fill");
                 assert_eq!(&fill[..], &frame_pattern(idx, LEN)[..], "fill {idx}, pooled={pooled}");
                 let one = rt.block_on(tile.read(&store, span, &[])).expect("tile");
@@ -673,8 +673,8 @@ mod tests {
         let rt = rt();
         let mut seq = SeqReader::new();
         for idx in 0..8u32 {
-            let span = store.frame_span(idx).expect("span");
-            let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1).expect("next"));
+            let span = store.frame_span(idx);
+            let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1));
             rt.block_on(seq.read(&store, span, next)).expect("read");
         }
         assert_eq!(
@@ -895,7 +895,7 @@ mod tests {
             "nothing read, nothing to say"
         );
         for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
+            let span = store.frame_span(idx);
             rt.block_on(tile.read(&store, span, &[])).expect("read");
         }
         let stats = tile.stats();
@@ -909,7 +909,7 @@ mod tests {
         if store.nowait_supported() {
             let mut seq = SeqReader::new();
             for idx in 0..3u32 {
-                let span = store.frame_span(idx).expect("span");
+                let span = store.frame_span(idx);
                 rt.block_on(seq.read(&store, span, None)).expect("read");
             }
             assert_eq!(seq.stats().miss_rate(), Some(0.0), "a warm fill escalated");
@@ -934,7 +934,7 @@ mod tests {
         let rt = rt();
         let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
         for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
+            let span = store.frame_span(idx);
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
             assert_eq!(&out[..], &frame_pattern(idx, LEN)[..]);
         }
@@ -958,7 +958,7 @@ mod tests {
         let rt = rt();
         let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
         for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
+            let span = store.frame_span(idx);
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
             assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "the pooled path still serves");
         }
@@ -987,7 +987,7 @@ mod tests {
         let rt = rt();
         let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
         for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
+            let span = store.frame_span(idx);
             let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
             assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} did not compose");
         }
@@ -1003,7 +1003,7 @@ mod tests {
         let dir = scratch("ringeof");
         let path = write_bundle(&dir, 2, LEN);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
-        let span = store.frame_span(0).expect("span");
+        let span = store.frame_span(0);
         std::fs::OpenOptions::new()
             .write(true)
             .open(&path)

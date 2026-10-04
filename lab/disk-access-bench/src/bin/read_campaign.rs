@@ -738,7 +738,7 @@ fn run_cell(
     let store = Arc::new(FrameStore::open(path)?);
     let file = Arc::new(std::fs::File::open(path)?);
     let flen = file.metadata()?.len();
-    let base = store.frame_span(0)?.offset;
+    let base = store.frame_span(0).offset;
     let span = flen - base - cell.size as u64;
 
     let partition = cell.partition;
