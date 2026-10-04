@@ -157,7 +157,28 @@ as row 28 found, on the RCT whole; split, it pays less. The ultrasound's RCT int
 
 ## libaom's remaining lossless tools
 
-*Not yet measured: the stage is running.*
+Each tool off on both streams, and `--tune-content=screen` (palette and intra block copy allowed) on
+the low stream alone, against row 28's coding on the same frames; bytes over it (`STAGE=tools`,
+118/118 codings exact):
+
+| set | row 28 over HTJ2K | screen on the low only | … without intra block copy | … without palette | screen on neither | no filter-intra | no intra-edge | no smooth | no paeth | no palette | no intra block copy | no angle delta | no directional | no CfL |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `ct_lidc` | 0.902 | 1.000 | 1.000 | 1.069 | 1.000 | 1.004 | 1.000 | 1.002 | 1.000 | 1.092 | 1.000 | 1.005 | 1.012 | — |
+| `xa_dynact16` | 0.987 | 1.010 | 1.010 | 1.056 | 1.010 | 1.003 | 1.000 | 1.002 | 1.000 | 1.052 | 1.001 | 1.003 | 1.013 | — |
+| `mr_ispy1` | 0.977 | 1.000 | 1.000 | 1.073 | 1.000 | 1.003 | 1.000 | 1.003 | 1.000 | 1.073 | 1.000 | 1.001 | 1.003 | — |
+| `rf_fluoro` | 0.942 | 1.000 | 1.000 | 1.063 | 1.000 | 1.001 | 1.000 | 1.002 | 1.000 | 1.062 | 1.000 | 1.001 | 1.005 | — |
+| `dbt12_ea1141` | 0.941 | 1.000 | 1.000 | 1.060 | 1.000 | 1.003 | 1.000 | 1.002 | 1.000 | 1.060 | 1.000 | 1.004 | 1.008 | — |
+| `dbt10_ea1141` | 0.942 | 1.006 | 1.006 | 1.080 | 1.006 | 1.003 | 1.000 | 1.003 | 1.000 | 1.076 | 1.001 | 1.001 | 1.003 | — |
+| `dbtproj_ge` | 0.953 | 1.000 | 1.000 | 1.058 | 1.000 | 1.002 | 1.000 | 0.998 | 1.000 | 1.051 | 1.000 | 1.001 | 1.001 | — |
+| `dbtproj_holo` | 0.923 | 1.000 | 1.000 | 1.075 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.074 | 1.000 | 1.001 | 1.003 | — |
+| `us_liver` (RCT top2 + low2) | 1.022 | 1.003 | 1.004 | 1.046 | 1.003 | 1.002 | 1.000 | 1.005 | 1.000 | 1.045 | 1.001 | 1.001 | 1.006 | 1.001 |
+
+**Palette is the one tool that matters, and it works on the low stream**: off there alone the coding
+grows 4.6–8.0 %, off on both 4.5–9.2 %, and libaom already allows it on the low stream without
+`--tune-content=screen` wherever row 28 did not ask for it. Intra block copy, Paeth and the intra edge
+filter move nothing (≤ 0.1 %); each other tool off costs 0–1.3 %, but smooth intra on one set of
+projections (−0.2 %). `--tune-content=screen` on the top stream is worth 0.6–1.0 % on the cone-beam
+set and the 10-bit tomosynthesis and nothing elsewhere. Nothing is left in libaom's tools.
 
 ## Decode a frame
 
@@ -210,4 +231,32 @@ refuses (row 3), or the arm was not built for that set.
 
 ## Verdict
 
-*Pending the tools stage.*
+**HTJ2K on the same representation first: it gains 0.9–1.6 % from the split, and only with its low
+bits deflated** (0.984–0.991 of HTJ2K whole, for 1.02–1.69× its decode); split into two HTJ2K
+codestreams it loses 8–20 %. Row 28's 1.3–9.8 % is AV1's: on the same split AV1 is 0.916–0.997 of
+HTJ2K.
+
+Encoding changes over row 28's coding, ranked (bytes over HTJ2K; decode ratio to row 28's coding,
+dav1d-WASM in Chromium, 1× and 4×):
+
+1. **The low bits deflated, not coded by AV1** (`DecompressionStream("deflate-raw")`): bytes −0.2 to
+   +0.5 points on every grey series; decode **0.64–0.83× at 1×, 0.63–0.76× at 4×**. Not on RGB, where
+   no split beats the colour transform whole.
+2. **k = 3 on the four series with σ ≥ 17** (cone-beam, fluoroscopy, 12-bit tomosynthesis, one set
+   of projections), the low bits deflated: **0.5–3.9 % fewer bytes** (cone-beam 0.987 → 0.948) and
+   decode **0.59–0.78× at 1×, 0.60–0.71× at 4×**; k = 2 stays best on the other four. ⌊log2 σ⌋ − 1
+   picks the oracle's k on all nine, fitted to them; ⌊log2 σ⌋ alone is wrong on four (+0.7–1.8 %).
+   Row 28's "three low bits are worse than two" held at libaom's defaults only (corrected there).
+3. **The top through WebCodecs wherever it is ≤ 10 bits, the low deflated**: the same bytes, decode
+   **0.34–0.56× of row 28's**, 2.1–3.4× HTJ2K's. k = 3 brings CT and the cone-beam set under 10 bits.
+4. Nothing from inter coding of the noise (the low stream inter is 0–3.6 % larger; the top inter
+   gains 0.7 % on one series) or from libaom's remaining tools (palette is on already; the rest ±1 %).
+
+*What it means for total time on row 23's links — arithmetic, not measured* (row 34 TOTAL2 measures
+it). Where the wire is the clock, totals follow bytes: k = 3 takes the cone-beam set 4 % lower, the
+others under 1 %. Where the CPU is the clock (4× on 50 Mbit and on LTE), row 23 found dav1d-WASM AV1
+1.4–2.2× HTJ2K's fill and top10+low through WebCodecs 1.02–1.13×; WebCodecs top with the low
+deflated decodes at 2.1–3.4× HTJ2K, about what row 13's top10+low did, at 0.937–0.939 of HTJ2K's
+bytes on the fluoroscopy and 12-bit tomosynthesis against top10+low's 0.990–0.999 (row 23's whole series; 8 frames here) — so it should hold
+row 23's WebCodecs ranking at 5–6 % fewer bytes. Containers, not phones; nothing past four cores is
+claimed.

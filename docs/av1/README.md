@@ -81,6 +81,18 @@ transform 0.89–0.95× row SIZE's coding, the split +1–5 % on large frames an
 10-bit tomosynthesis — still 5–10× HTJ2K (row SPEED). **Inter pays on the colour-transformed
 ultrasound**: one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
 intra; on grey it does not (0.942–1.006 against intra's 0.902–0.987).
+*What is left to cut (row ENCX, [`lab/av1/encx`](../../lab/av1/encx/README.md)).* On row 28's
+frames, every coding exact (358/358 codings, 7 100/7 100 frames in Chromium): **HTJ2K gains only
+0.9–1.6 % from the same split, and only with its low bits deflated** (0.984–0.991, at 1.02–1.69× its
+decode), so row 28's gain is AV1's — on the same split AV1 is 0.916–0.997 of HTJ2K. The low bits are
+near noise: **deflated (`DecompressionStream`) they cost what AV1 codes them in, ±0.5 points, and the
+frame decodes in 0.64–0.83× of row 28's time** (0.63–0.76× at 4×, dav1d-WASM, n = 10 interleaved).
+**Three low bits apart beat two on the four series whose noise σ is ≥ 17**, 0.5–3.9 % (cone-beam
+0.987 → 0.948), decoding in 0.59–0.78× — row 28 measured three only at libaom's defaults. With the top
+through WebCodecs where it is ≤ 10 bits (k = 3 brings CT and the cone-beam set there) a frame decodes
+in **0.34–0.56× of row 28's time, 2.1–3.4× HTJ2K's**. Inter coding finds nothing predictable in the
+noise (the low stream inter is 0–3.6 % larger), and libaom's remaining tools nothing (palette, already
+on, is worth 4.5–9.2 %; the rest ±1 %). What that does to total time is arithmetic until row TOTAL2.
 
 *What G = 1 costs an ask (SPEED's decode times × SIZE's bytes; arithmetic, not measured).* An ask is
 one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of decoding** in Chromium
