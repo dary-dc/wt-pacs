@@ -14,7 +14,10 @@ lab/av1/fetch_data.sh rf_fluoro us_liver dbt12_ea1141 dbt10_ea1141
 for s in rf_fluoro us_liver dbt12_ea1141 dbt10_ea1141; do        # ~40 min, one core each
   lab/av1/.venv/bin/python lab/av1/total/make_frames.py lab/.av1-build lab/.av1-work/total lab/av1/data/$s &
 done; wait
-NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs --rounds 10 --out rows.jsonl    # ~6 h
+for r in $(seq 0 13); do                                         # ~45 min a round
+  NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs --rounds 1 --first-round $r --out rows.jsonl
+done                                    # then --first-round 14 on any cell VOID left under n = 10
+NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs --summary --out rows.jsonl
 NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs --rounds 1 --links r50000 --throttles 1 --mutate sample
 ```
 
@@ -62,7 +65,7 @@ each cell the same way offset by the cell's position; a visit whose relay prints
 **The rig.** Four cores: the relay alone on core 3 at `chrt -f 50`, browser and server on 0–2.
 
 **Checked.** `--mutate sample` (one bit of every decoded frame) and `--mutate truth` (one hex digit
-of every checksum) each turned every arm on the fluoroscopy to 0 exact.
+of every checksum) each turned every arm of all four series to 0 exact.
 
 **Pins.** Node 22.22.0; playwright's Chromium 141.0.7390.37 (`CHROME_PATH` overrides);
 `@cornerstonejs/codec-openjph` 2.4.11; dav1d 1.5.4 under emscripten 3.1.74 (`simd.wasm`,
