@@ -65,9 +65,9 @@ const OPENJPH = { glue: "/lab/decode-bench/vendor/openjph/openjphjs.js", wasm: "
 /** What the store holds for an arm, and what connect is told: the product's own decoder choice. */
 function arm(set, name) {
   const a = set.arms[name];
-  const ext = name === "wc" ? "av1" : name;
+  const ext = a.ext ?? (name === "wc" ? "av1" : name);
   if (name === "htj2k") return { ext, opts: { decoder: OPENJPH } };
-  const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }) };
+  const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }) };
   return { ext, opts: { decoder, ...(a.group && { groupLength: a.group, frameCount: set.frames }) }, truth: a.truth };
 }
 
