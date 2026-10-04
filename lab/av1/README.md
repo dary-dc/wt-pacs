@@ -369,41 +369,44 @@ bits) beside them. Grey is 4:0:0, RGB 4:4:4 identity (`--profile=4`). Every stre
 own codec's decoder (`avmdec`, `dav1d`), merged, and matched with the checksum written when the
 frame was made: **34/34 cells exact** at `cpu-used` 6.
 
-**The frames.** AVM at its fastest lossless setting codes ~3 200 samples a second on one core, so
+**The frames.** AVM codes ~3 200 samples a second on one core at its fastest lossless setting, so
 the series' **middle frame** stands in for each series, and HTJ2K and libaom are measured on the
-same frame. `cpu-used` 6, 8 and 9 code identically (AVM has no speed feature past 6); `cpu-used` 0
-took 4.2× as long as 6 on one 10-bit tomosynthesis frame (1 548 against 365 s) for 1.3 % fewer bytes.
+same frame. `cpu-used` 6, 8 and 9 code identically (AVM has no speed feature past 6); 0 is the
+slowest. Every stream is decoded by its own codec's decoder, merged and matched with the checksum
+written when the frame was made: **68/68 cells exact**, 34 a preset.
 
-Bytes over HTJ2K's on that frame, `cpu-used` 6 both encoders; encode seconds a frame on one core
-(three encodes at a time on four cores); native decode ms a frame, one thread, process start
-included, medians of 10 interleaved rounds:
+Bytes over HTJ2K's on that frame, `cpu-used` 0 (6) for both encoders; encode seconds a frame at
+`cpu-used` 0 on one core, three or four encodes at a time on four cores; native decode ms a frame,
+one thread, process start included, medians of 10 interleaved rounds with one other core busy:
 
-| set | HTJ2K B | AV2, k | libaom, same k | libaom best | encode s: libaom · AV2 | decode ms: OpenJPH · dav1d · avmdec |
-| --- | --: | --- | --- | --- | --- | --- |
-| `rf_fluoro` 768², 12-bit | 506 722 | **0.944**, 2 | 0.951 | 0.951, k 2 | 3.4 · 616 | 9.6 · 65 · 233 |
-| `mr_ispy1` 512², 11-bit | 191 534 | **0.957**, 2 | 1.012 | 1.012, k 2 | 1.1 · 256 | 7.2 · 28 · 137 |
-| `us_liver` 760×421, RGB 8 | 256 736 | 1.646, 0 | 1.747 | 1.747 | 0.7 · 150 | 10.7 · 51 · 135 |
-| `ct_lidc` 512², 13 bits | 163 624 | 0.971, 3 | 1.009 | **0.933**, k 2 | 1.0 · 212 | 7.2 · 24 · 147 |
-| `xa_dynact16` 512², 13 bits | 231 739 | **0.974**, 3 | 1.011 | 1.011, k 3 | 0.6 · 201 | 7.5 · 29 · 147 |
-| `dbt12_ea1141` 614×1359, 12-bit | 508 789 | 0.951, 2 | 0.951 | 0.951, k 2 | 2.1 · 554 | 11.3 · 63 · 274 |
-| `dbt10_ea1141` 678×1727, 10-bit | 571 039 | **0.955**, 2 | 0.957 | 0.957, k 2 | 2.8 · 763 | 12.7 · 69 · 316 |
-| `dbtproj_ge` 1914×2572, 14-bit | 4 090 008 | 0.998, 4 | 1.002 | **0.951**, k 2 | 18.7 · 2 589 | 44 · 373 · 1 201 |
-| `dbtproj_holo` 1280×2048, 14-bit | 1 958 459 | 1.010, 4 | 1.045 | **0.927**, k 2 | 7.2 · 1 427 | 27 · 200 · 633 |
+| set | HTJ2K B | AV2 k | AV2 | libaom, same k | libaom best | encode s: libaom · AV2 | decode ms: OpenJPH · dav1d · avmdec |
+| --- | --: | --- | --- | --- | --- | --- | --- |
+| `rf_fluoro` 768², 12-bit | 506 722 | 2 | **0.937** (0.944) | 0.947 (0.951) | k 2 | 17 · 1 653 | 9.6 · 60 · 236 |
+| `mr_ispy1` 512², 11-bit | 191 534 | 2 | **0.953** (0.957) | 1.001 (1.012) | k 2 | 5.6 · 477 | 7.2 · 28 · 137 |
+| `us_liver` 760×421, RGB 8 | 256 736 | 0 | 1.648 (1.646) | **1.117** (1.747) | whole | 9.3 · 454 | 10.7 · 38 · 148 |
+| `ct_lidc` 512², 13 bits | 163 624 | 3 | 0.954 (0.971) | 1.000 (1.009) | **0.922** (0.933), k 2 | 5.4 · 605 | 7.2 · 22 · 144 |
+| `xa_dynact16` 512², 13 bits | 231 739 | 3 | **0.964** (0.974) | 1.000 (1.011) | 0.997 (1.016), k 2 | 5.6 · 505 | 7.5 · 28 · 156 |
+| `dbt12_ea1141` 614×1359, 12-bit | 508 789 | 2 | **0.941** (0.951) | 0.944 (0.951) | k 2 | 15 · 1 468 | 11.3 · 67 · 273 |
+| `dbt10_ea1141` 678×1727, 10-bit | 571 039 | 2 | **0.941** (0.955) | 0.950 (0.957) | k 2 | 21 · 2 115 | 12.7 · 74 · 314 |
+| `dbtproj_ge` 1914×2572, 14-bit | 4 090 008 | 4 | 0.992 (0.998) | 1.000 (1.002) | **0.953** (0.951), k 2 | 182 · 11 864 | 44 · 424 · 1 381 |
+| `dbtproj_holo` 1280×2048, 14-bit | 1 958 459 | 4 | 1.009 (1.010) | 1.045 (1.045) | **0.925** (0.927), k 2 | 61 · 5 606 | 27 · 217 · 682 |
 
-Coded whole, the 10-bit tomosynthesis is 0.975 through AV2 and 0.999 through libaom. Groups, the
-best G of rows SIZE and CONTENT on the middle frames: the fluoroscopy at G = 2, k = 2, is 0.972
-through AV2 and 0.962 through libaom; four tomosynthesis slices as one group of 4, coded whole, are
-**0.928 through AV2** and 0.981 through libaom, which is the one place AV2's inter coding collects
-something; AV2 intra on those four frames was not run.
+Coded whole, the 10-bit tomosynthesis is 0.963 (0.975) through AV2 and 0.980 (0.999) through
+libaom. Groups, the best G of rows SIZE and CONTENT, on the middle frames: four tomosynthesis slices
+as one group, coded whole, are **0.922 (0.928) through AV2** against libaom's 0.978 (0.981) — the one
+place AV2's inter coding collects something, AV2 intra on those four frames not run; the
+fluoroscopy at G = 2, k = 2, is 0.958 (0.972) through AV2 and 0.947 (0.962) through libaom.
 
-**At `cpu-used` 6, on the same planes, AV2 is 0.2–5.8 % smaller than libaom on every set but the
-12-bit tomosynthesis, a tie** (+0.04 %), and the smallest coding here on the fluoroscopy, MR, the
-10-bit tomosynthesis and the cone-beam set. It cannot take libaom's best split over 12 bits, so on CT
-and the 14-bit projections libaom stays 4–8 % smaller. It costs **150–2 600 s to encode a frame**
-(140–350× libaom's on the same planes) and **2.6–6.3× dav1d's native decode time**, 13–27× OpenJPH's.
-One frame a series: not a series' bytes.
+**On grey, AV2 is the smallest coding here on every series up to 13 bits but CT**: on the
+same planes it is 0.4–4.7 % under libaom at `cpu-used` 0, and 0.937–0.964 of HTJ2K on the 10- to
+13-bit series. It has no profile over 10 bits, so it cannot code libaom's best split (the top at 12
+bits) on CT and the 14-bit projections, where libaom stays 3–8 % smaller. **On the RGB ultrasound it
+loses**: 1.648 of HTJ2K at either preset, against libaom's 1.117 at `cpu-used` 0. It costs **450–11 900
+s to encode a frame**, 50–110× libaom's on the same planes (140–350× at `cpu-used` 6, where AVM takes
+150–2 600 s), and **3.1–6.5× dav1d's native decode time**, 14–31× OpenJPH's. One frame a series: not a
+series' bytes; and AV2's specification text could not be read here, so its claims about lossless are
+neither confirmed nor refuted beyond these frames.
 
 **Mutated** (on 64×48 crops of the real series): the top plane's shift one bit short, one truth
 checksum corrupted, a group decoded one frame short, RGB planes misordered at input — each reported
 inexact in every cell it reaches, and nowhere else.
-
