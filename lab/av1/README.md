@@ -18,6 +18,7 @@ Both write only under `lab/.av1-build/` and `lab/.av1-work/` (gitignored).
 | libaom `aomenc` | **3.15.1 — the one the project uses** | same | SHA-256 `8ca0c527…8d01bf` |
 | SVT-AV1 `SvtAv1EncApp` | v4.2.0, static | `gitlab.com/AOMediaCodec/SVT-AV1` tag | commit `9292ec8e` |
 | dav1d (CLI, `-Dbitdepths=8,16`) | 1.5.4 | `github.com/videolan/dav1d` tag | commit `54706fc6` |
+| AVM `avmenc`, `avmdec` (AV2's reference software) | v1.0.0 | `github.com/AOMediaCodec/avm` tag; its third-party sources are vendored in that tree | commit `966a7d7c` |
 
 The full checksums and commits are in [`tools.sh`](tools.sh), which refuses a mismatch. Host: gcc
 13.3.0, cmake 3.28.3, meson 1.3.2, nasm 2.16.01, numpy 2.4.6. The libaom git host refused this
@@ -347,3 +348,62 @@ open angiography run, so none is here.
 **Mutated**: lossy encode, OpenJPH irreversible, the low plane of a split dropped, one frame short,
 RGB planes misordered — each reported inexact; a `yes` loop beside the run showed as 1.02 cores in
 the contention probe.
+
+## AV2 — AVM v1.0.0 lossless against libaom and HTJ2K
+
+Queue row 32. AVM is AV2's reference software ([`docs/av1/licensing.md`](../../docs/av1/licensing.md));
+no browser decoder exists, and none is built.
+
+```bash
+lab/av1/tools.sh                         # AVM v1.0.0 beside libaom 3.15.1 and dav1d
+lab/av1/fetch_data.sh                    # every row-DATA, CONTENT and TAXO series
+AV2_GROUPS=rf_fluoro:2,dbt10_ea1141:4 AV2_PRESETS=6 python3 lab/av1/av2.py lab/.av1-build WORK OUT.tsv 10 lab/av1/data/…
+```
+
+**AV2 has no profile over 10 bits.** AVM v1.0.0 defines Main 4:2:0, 4:2:2 and 4:4:4 at 10 bits
+(`av2/common/enums.h`); 12-bit is a build flag marked test-only, "not defined in AV2 spec", and is not
+built here. So a sample over 10 bits is coded split, v ≫ k at 10 bits and v & (2^k − 1) at 8, with
+the fewest k that fits (1 on 11-bit MR, 2 at 12 bits, 3 at 13, 4 at 14), and also at k = 2, DEPTH's
+rule, wherever that fits. libaom codes the same planes, and its best split (k = 2, the top up to 12
+bits) beside them. Grey is 4:0:0, RGB 4:4:4 identity (`--profile=4`). Every stream is decoded by its
+own codec's decoder (`avmdec`, `dav1d`), merged, and matched with the checksum written when the
+frame was made: **34/34 cells exact** at `cpu-used` 6.
+
+**The frames.** AVM at its fastest lossless setting codes ~3 200 samples a second on one core, so
+the series' **middle frame** stands in for each series, and HTJ2K and libaom are measured on the
+same frame. `cpu-used` 6, 8 and 9 code identically (AVM has no speed feature past 6); `cpu-used` 0
+took 4.2× as long as 6 on one 10-bit tomosynthesis frame (1 548 against 365 s) for 1.3 % fewer bytes.
+
+Bytes over HTJ2K's on that frame, `cpu-used` 6 both encoders; encode seconds a frame on one core
+(three encodes at a time on four cores); native decode ms a frame, one thread, process start
+included, medians of 10 interleaved rounds:
+
+| set | HTJ2K B | AV2, k | libaom, same k | libaom best | encode s: libaom · AV2 | decode ms: OpenJPH · dav1d · avmdec |
+| --- | --: | --- | --- | --- | --- | --- |
+| `rf_fluoro` 768², 12-bit | 506 722 | **0.944**, 2 | 0.951 | 0.951, k 2 | 3.4 · 616 | 9.6 · 65 · 233 |
+| `mr_ispy1` 512², 11-bit | 191 534 | **0.957**, 2 | 1.012 | 1.012, k 2 | 1.1 · 256 | 7.2 · 28 · 137 |
+| `us_liver` 760×421, RGB 8 | 256 736 | 1.646, 0 | 1.747 | 1.747 | 0.7 · 150 | 10.7 · 51 · 135 |
+| `ct_lidc` 512², 13 bits | 163 624 | 0.971, 3 | 1.009 | **0.933**, k 2 | 1.0 · 212 | 7.2 · 24 · 147 |
+| `xa_dynact16` 512², 13 bits | 231 739 | **0.974**, 3 | 1.011 | 1.011, k 3 | 0.6 · 201 | 7.5 · 29 · 147 |
+| `dbt12_ea1141` 614×1359, 12-bit | 508 789 | 0.951, 2 | 0.951 | 0.951, k 2 | 2.1 · 554 | 11.3 · 63 · 274 |
+| `dbt10_ea1141` 678×1727, 10-bit | 571 039 | **0.955**, 2 | 0.957 | 0.957, k 2 | 2.8 · 763 | 12.7 · 69 · 316 |
+| `dbtproj_ge` 1914×2572, 14-bit | 4 090 008 | 0.998, 4 | 1.002 | **0.951**, k 2 | 18.7 · 2 589 | 44 · 373 · 1 201 |
+| `dbtproj_holo` 1280×2048, 14-bit | 1 958 459 | 1.010, 4 | 1.045 | **0.927**, k 2 | 7.2 · 1 427 | 27 · 200 · 633 |
+
+Coded whole, the 10-bit tomosynthesis is 0.975 through AV2 and 0.999 through libaom. Groups, the
+best G of rows SIZE and CONTENT on the middle frames: the fluoroscopy at G = 2, k = 2, is 0.972
+through AV2 and 0.962 through libaom; four tomosynthesis slices as one group of 4, coded whole, are
+**0.928 through AV2** and 0.981 through libaom, which is the one place AV2's inter coding collects
+something; AV2 intra on those four frames was not run.
+
+**At `cpu-used` 6, on the same planes, AV2 is 0.2–5.8 % smaller than libaom on every set but the
+12-bit tomosynthesis, a tie** (+0.04 %), and the smallest coding here on the fluoroscopy, MR, the
+10-bit tomosynthesis and the cone-beam set. It cannot take libaom's best split over 12 bits, so on CT
+and the 14-bit projections libaom stays 4–8 % smaller. It costs **150–2 600 s to encode a frame**
+(140–350× libaom's on the same planes) and **2.6–6.3× dav1d's native decode time**, 13–27× OpenJPH's.
+One frame a series: not a series' bytes.
+
+**Mutated** (on 64×48 crops of the real series): the top plane's shift one bit short, one truth
+checksum corrupted, a group decoded one frame short, RGB planes misordered at input — each reported
+inexact in every cell it reaches, and nowhere else.
+
