@@ -465,6 +465,14 @@ deciding, build R2 for the keep-both shape; a later strip then shrinks it.
 
 ## Decisions for the owner
 
+**Decided 2026-10-03** (queue rows 116–120 build from these): **D1 keep `per-frame`**, on purpose —
+`shared` is not proven best either (head-of-line blocking; [`adr/stream-shape.md`](adr/stream-shape.md)
+§Decision), so R2 takes the keep-both shape; **D2** the stall stays; **D3** row v3, yes; **D4** no arrival
+stamp, the `t_serve_us` rename only; **D5** keep `fills=` via `Next::Fill { first }`; **D6** #9 in this PR,
+the study refused at load naming the frame; **D7 not yet approved** — the owner reviews the layout in
+detail first, so R4 is written out for review (row 120) and not built. The list below is the question as
+it was put.
+
 1. **D1 — keep the `per-frame` stream mode (W4)?** It opens one QUIC stream per frame instead of
    one shared stream. `adr/stream-shape.md` measured it level with `shared`, not better, and kept
    it for progressive delivery, which is unbuilt. Keeping it means #3 carries `Media` and the 2 s
