@@ -1,5 +1,5 @@
 use clap::Parser;
-use exact_server::{run_server, Congestion, ServeConfig, StreamMode, TransportTuning};
+use exact_server::{run_server, ServeConfig, StreamMode, TransportTuning};
 use std::net::IpAddr;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
@@ -22,28 +22,8 @@ struct Args {
     /// `0.0.0.0` when the host has no IPv6.
     #[arg(long)]
     bind: Option<IpAddr>,
-    /// QUIC send window per connection in bytes (unacknowledged data held). Default: library
-    /// default, 10 MB. Bounds memory under slow clients: N sessions × this value.
-    #[arg(long)]
-    send_window_bytes: Option<u64>,
-    /// QUIC idle timeout in milliseconds. Default: library default, 30 000.
-    #[arg(long)]
-    max_idle_timeout_ms: Option<u64>,
-    /// Server-sent keep-alive in milliseconds. Off by default; must be below both peers' idle
-    /// timeouts to work. docs/adr/transport-idle-sessions.md.
-    #[arg(long)]
-    keep_alive_interval_ms: Option<u64>,
-    #[arg(long, value_enum, default_value_t)]
-    congestion: Congestion,
-    /// Controller knobs, quinn's default unless set: docs/transport/transport-conclusions.md §3.
-    #[arg(long)]
-    initial_window_bytes: Option<u64>,
-    #[arg(long)]
-    initial_rtt_ms: Option<u64>,
-    /// Lab only: `false` sends each datagram alone, so netem here drops datagrams, not GSO
-    /// batches.
-    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
-    segmentation_offload: bool,
+    #[command(flatten)]
+    tuning: TransportTuning,
     /// Lab only: serve every frame as a miss, for measuring a study nobody has read.
     #[arg(long, default_value_t = false)]
     force_pool_reads: bool,
@@ -82,15 +62,7 @@ async fn main() -> anyhow::Result<()> {
         key_pem: args.key_pem,
         mode: args.stream_mode,
         bind: args.bind,
-        tuning: TransportTuning {
-            send_window: args.send_window_bytes,
-            max_idle_timeout_ms: args.max_idle_timeout_ms,
-            keep_alive_interval_ms: args.keep_alive_interval_ms,
-            congestion: args.congestion,
-            initial_window: args.initial_window_bytes,
-            initial_rtt_ms: args.initial_rtt_ms,
-            segmentation_offload: args.segmentation_offload,
-        },
+        tuning: args.tuning,
         force_pool_reads: args.force_pool_reads,
         open_ask: args.open_ask,
         hold_sessions: args.hold_sessions,
@@ -131,6 +103,7 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use exact_server::Congestion;
 
     fn parse(flags: &[&str]) -> Args {
         Args::try_parse_from([&["exact-server", "--study", "s.sbnd"], flags].concat()).expect("parses")
@@ -140,8 +113,8 @@ mod tests {
     /// everywhere else. docs/transport/transport-conclusions.md §3.
     #[test]
     fn the_default_controller_is_cubic_restart() {
-        assert_eq!(parse(&[]).congestion, Congestion::CubicRestart);
-        assert_eq!(parse(&["--congestion", "cubic"]).congestion, Congestion::Cubic);
+        assert_eq!(parse(&[]).tuning.congestion, Congestion::CubicRestart);
+        assert_eq!(parse(&["--congestion", "cubic"]).tuning.congestion, Congestion::Cubic);
     }
 
     /// The opening ask is on unless turned off, and the bare flag the lab scripts pass still parses.
@@ -150,5 +123,35 @@ mod tests {
         assert!(parse(&[]).open_ask);
         assert!(parse(&["--open-ask"]).open_ask);
         assert!(!parse(&["--open-ask", "false"]).open_ask);
+    }
+
+    /// `TransportTuning::default()` is what the server runs with when no transport flag is given.
+    #[test]
+    fn no_transport_flag_parses_to_the_default_tuning() {
+        assert_eq!(parse(&[]).tuning, TransportTuning::default());
+    }
+
+    /// Every transport flag `lab/` passes still parses, under its old name, into its field.
+    #[test]
+    fn every_transport_flag_the_lab_passes_parses() {
+        let flags = [
+            "--send-window-bytes", "1",
+            "--max-idle-timeout-ms", "2",
+            "--keep-alive-interval-ms", "3",
+            "--congestion", "bbr",
+            "--initial-window-bytes", "4",
+            "--initial-rtt-ms", "5",
+            "--segmentation-offload", "false",
+        ];
+        let tuning = TransportTuning {
+            send_window: Some(1),
+            max_idle_timeout_ms: Some(2),
+            keep_alive_interval_ms: Some(3),
+            congestion: Congestion::Bbr,
+            initial_window: Some(4),
+            initial_rtt_ms: Some(5),
+            segmentation_offload: false,
+        };
+        assert_eq!(parse(&flags).tuning, tuning);
     }
 }

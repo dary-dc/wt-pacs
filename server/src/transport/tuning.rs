@@ -26,23 +26,32 @@ impl Congestion {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, clap::Args)]
 pub struct TransportTuning {
-    /// Cap on buffered unacknowledged send bytes. quinn default: 10_000_000.
+    /// QUIC send window per connection in bytes: unacknowledged data held, so N sessions × this
+    /// bounds memory under slow clients. quinn default: 10_000_000.
+    #[arg(long = "send-window-bytes")]
     pub send_window: Option<u64>,
-    /// quinn default: 30 000.
+    /// QUIC idle timeout. quinn default: 30 000.
+    #[arg(long)]
     pub max_idle_timeout_ms: Option<u64>,
-    /// Server-sent keep-alive. One side is enough to hold a session open, and a browser client
-    /// has no such knob, so this is the only lever that reaches one. docs/adr/transport-idle-sessions.md.
+    /// Server-sent keep-alive, off by default; below both peers' idle timeouts to work. A browser
+    /// has no such knob, so this is the only lever. docs/adr/transport-idle-sessions.md.
+    #[arg(long)]
     pub keep_alive_interval_ms: Option<u64>,
+    #[arg(long, value_enum, default_value_t)]
     pub congestion: Congestion,
     /// Bytes the controller may send before the first ACK. quinn default: 12 000.
+    /// docs/transport/transport-conclusions.md §3.
+    #[arg(long = "initial-window-bytes")]
     pub initial_window: Option<u64>,
     /// The RTT assumed before the first sample, which sets the first probe timeout.
     /// quinn default: 333 ms.
+    #[arg(long)]
     pub initial_rtt_ms: Option<u64>,
-    /// Lab only: off sends each datagram alone, so netem on the sending host drops datagrams,
+    /// Lab only: `false` sends each datagram alone, so netem on the sending host drops datagrams,
     /// not whole GSO batches (docs/rig-limits.md §3).
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     pub segmentation_offload: bool,
 }
 
