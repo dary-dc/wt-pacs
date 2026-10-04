@@ -80,6 +80,9 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 30 | **WCLAT** — WebCodecs with `optimizeForLatency`: a frame out per unit without a flush, groups through WebCodecs, and tiles | done `e41701b` (`b12ae2d`, `1c99323`, `841da6d`) — **yes: with `optimizeForLatency` every unit gives its frame without a flush, exact, and a group now goes through WebCodecs**: headless Chromium 141, libaom 3.15.1, 28 streams (8/10-bit 4:0:0, 4:2:0, 4:2:2, 4:4:4 identity, intra and G = 8; fluoroscopy top10 and ultrasound at 1/2/4 tile columns), 784/784 frames out per unit and exact, 0/784 with neither option; skipping the flush 7–20 % faster a frame at 1×, 3–28 % at 4× (10 interleaved rounds), but a keyframe needs one (else a non-keyframe labelled key decodes against the last frame), and flushing before each costs as much — so `decode-av1-webcodecs.js` flushes at a group's end (G = 1 unchanged) and before a keyframe only while a cut group is held, a stalled unit after 2 s; 4 tile columns 33 → 15 ms (1×), 118–135 → 66–70 ms (4×) at −0.6 to +0.4 % bytes; dispatch 209 → 219/219, each guard mutated to fail — [`decode/README.md`](../decode/README.md) §WebCodecs without a flush, [`lab/av1/wclat`](../../lab/av1/wclat/README.md) |
 | 31 | **WCBASE** — the base operating point of a scalable payload through WebCodecs, by dropping the top's OBUs | done `5c193e6` (`7718c88`) — **exact, and faster than dav1d-WASM's preview except on small grey bases at 1×**: row SVCQ's two-layer payloads (q 40 base, half and full size, one keyframe and G = 1) on the ultrasound, the fluoroscopy and MR as their top 10 bits and synthetic grey 10 / RGB 8; the unit with the OBUs of `spatial_id` > 0 dropped — its prefix, byte for byte the encoder's base-only stream, 762/762 — gives through WebCodecs the base identical to native dav1d's at operating point 1, 534/534, and the whole unit the exact frame, 534/534; 12 bits refused (row 3); a flush per unit needs G = 1 (a key chunk after every flush: −1 to +1 % bytes on grey, +7–13 % on the ultrasound), past G = 1 `optimizeForLatency` gives each base from its own unit, 0/178 late; unit to picture in the contract, headless Chromium 141, 15 interleaved rounds: 0.65–0.66× dav1d-WASM's preview on the ultrasound at 1× (5.5 against 8.4 ms), 0.36–0.76× on every series at 4× (faster in 87/90 paired rounds; 12.6 against 36.5 ms), 1.10–1.31× on the 2–4 ms grey bases at 1×; the base 7–36 % of WebCodecs' exact frame; 19 440/19 440 timed pictures matched; 3 mutations caught (top OBUs kept, base OBUs dropped, a sample flipped); the scalable encoder's lab patch gains `--rgb` (sRGB tags, identity matrix), which WebCodecs needs; not built into the product — [`README.md`](README.md) §A5, [`lab/av1/wcbase`](../../lab/av1/wcbase/README.md) |
 | 32 | **AV2** — AVM v1.0.0 lossless: bytes and decode against libaom 3.15.1 and HTJ2K | done `c7ffb30` — **AV2 is the smallest lossless coding on grey up to 13 bits but CT, at 50–110× libaom's encode time**: AVM v1.0.0 has no profile over 10 bits, so 11–14-bit samples are coded split (v ≫ k at 10 bits + the k low bits); one middle frame a series, 68/68 cells exact through `avmdec`; at `cpu-used` 0 it is 0.937–0.964 of HTJ2K on fluoroscopy, MR, cone-beam and both tomosynthesis volumes, 0.4–4.7 % under libaom on the same planes; libaom's 12-bit split stays 3–8 % smaller on CT and the 14-bit projections; the RGB ultrasound is 1.648 against libaom's 1.117; four tomosynthesis slices as one group 0.922 against libaom's 0.978; 450–11 900 s to encode a frame, native decode 3.1–6.5× dav1d's; no browser decoder exists — [`lab/av1`](../../lab/av1/README.md) §AV2 |
+| 33 | **REP14** — the layout of 13- and 14-bit samples: two low bits apart (12-bit top, dav1d only) against streams of ≤ 10 bits (WebCodecs), by total time | night |
+| 34 | **TOTAL2** — row 23 again with row 28's representations, and the colour-transformed ultrasound at G = 8 through WebCodecs | night |
+| 35 | **DATA2** — breast ultrasound cine and contrast angiography, if their hosts are now reachable: bytes, decode and total time | night |
 
 ## Briefs
 
@@ -458,6 +461,41 @@ practical one, grey as 4:0:0, RGB as 4:4:4 identity, over 12 bits split as row 7
 exact through AVM's own decoder against the generator's checksums. Bytes against libaom 3.15.1's and
 HTJ2K's on the same frames, encode and native decode time a frame, interleaved. No browser decoder
 exists: say so, and do not build one. Verdict: AV2's lossless bytes over AV1's and HTJ2K's per series.
+
+## The representation and content rows (33–35)
+
+### 33 REP14
+
+Row 28 found the two low bits apart the smallest coding on grey, but at 13 and 14 bits that leaves an 11- or
+12-bit top stream, which only dav1d decodes (row 3: WebCodecs refuses 12-bit). The other cut keeps every stream
+≤ 10 bits and opens WebCodecs, 2–3× faster to decode (row 13), at more bytes — not measured at 14 bits. On the
+tomosynthesis projections of row 21 (both systems, 14 bits) and the CT of row 2 (13 bits after its offset): top
+two bits short of the depth + low 2 (dav1d-WASM) against top 10 + low 3 or 4 (WebCodecs, dav1d-WASM beside it),
+libaom 3.15.1 with row 28's best settings (`--tune-content=screen --sb-size=64`) at cpu0 and at the fastest preset
+within 2 % of it; every frame exact against the source checksums. Bytes over HTJ2K; decode a frame in headless
+Chromium at 1× and 4×, interleaved; then total time on row 23's links and CPU with row 23's harness. Verdict: the
+layout per depth by total time, and where each wins.
+
+### 34 TOTAL2
+
+Row 23 ranked HTJ2K against the AV1 forms of rows 6–13. Row 28 then found representations that put AV1 alone
+under HTJ2K's bytes on every series (the two low bits apart on grey over 8 bits; JPEG 2000's reversible colour
+transform on RGB), and row 30 found WebCodecs takes a group with `optimizeForLatency`. Re-run row 23's harness —
+same series, links (5, 20 and 50 Mbit/s, 40 ms), CPU (1× and 4×), interleaving and n — with: HTJ2K; AV1 in row
+28's best representation at G = 1 through dav1d-WASM, and through WebCodecs where every stream is ≤ 10 bits; and
+the colour-transformed ultrasound at G = 8 through WebCodecs (row 28 measured it at 0.850 of HTJ2K's bytes). Every
+frame exact. Report fill time and first frame separately. Verdict: per series and cell, which coding fills first,
+against row 23's ranking.
+
+### 35 DATA2
+
+Rows 10 and 21 found no reachable breast ultrasound cine or multi-frame angiography (`## Blocked`). First test
+whether `zenodo.org` and `www.cancerimagingarchive.net` are reachable from the container; if not, add one line
+under `## Blocked` and stop the row. If they are: find open (CC BY or CC0) multi-frame breast ultrasound cine and
+contrast angiography, record their licences in [`licensing.md`](licensing.md), pin and checksum each fetch in
+`lab/av1/fetch_data.sh`; then on them: bytes (row 28's best representation and G, against HTJ2K), decode a frame
+(dav1d-WASM, and WebCodecs where it applies, interleaved, 1× and 4×), and total time with row 23's harness. Verdict
+per series, beside rows 23 and 28.
 
 ## Blocked
 
