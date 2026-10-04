@@ -318,12 +318,17 @@ async fn handle_incoming(
     }
 }
 
-/// The session failed because the connection went, and the peer closed it: its own close, or
-/// wtransport's local close answering the peer's CLOSE_WEBTRANSPORT_SESSION. A malformed
-/// message, a timeout or a protocol abort is not a goodbye.
+/// The session failed because the peer went: it stopped a stream the server was writing, or the
+/// connection went and the peer closed it — its own close, or wtransport's local close answering
+/// the peer's CLOSE_WEBTRANSPORT_SESSION. A malformed message, a timeout or a protocol abort is not
+/// a goodbye.
 fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> bool {
     use wtransport::error::{ConnectionError, StreamOpeningError, StreamReadError, StreamWriteError};
     use wtransport::quinn;
+    let stopped = err.chain().any(|e| {
+        matches!(e.downcast_ref(), Some(quinn::WriteError::Stopped(_)))
+            || matches!(e.downcast_ref(), Some(StreamWriteError::Stopped(_)))
+    });
     let gone = err.chain().any(|e| {
         matches!(e.downcast_ref(), Some(StreamReadError::NotConnected))
             || matches!(e.downcast_ref(), Some(StreamWriteError::NotConnected))
@@ -331,10 +336,11 @@ fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> b
             || matches!(e.downcast_ref(), Some(quinn::WriteError::ConnectionLost(_)))
             || e.downcast_ref::<ConnectionError>().is_some()
     });
-    gone && matches!(
+    let closed = matches!(
         connection.quic_connection().close_reason(),
         Some(quinn::ConnectionError::ApplicationClosed(_) | quinn::ConnectionError::LocallyClosed)
-    )
+    );
+    stopped || (gone && closed)
 }
 
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
@@ -639,6 +645,26 @@ mod tests {
             connection.close(0u32.into(), b"done");
         });
         assert!(ended.is_ok(), "a client's close ended its session as {ended:?}");
+    }
+
+    /// **A client that stops reading has said goodbye too.** Dropping the media stream stops it;
+    /// the server's next write then fails as stopped, before any close reaches it, and that is
+    /// the client walking away from a fill, not a failure. `docs/WIRE.md` §FoD messages.
+    #[test]
+    fn a_client_that_stops_its_media_stream_ends_its_session_cleanly() {
+        let ended = one_session("stopped", TransportTuning::default(), |connection| async move {
+            let (mut control, _recv) = open_control(&connection).await;
+            let ask = |frame| fod::encode_fod_msg(&FodMsg::RequestFrame { frame }).unwrap();
+            control.write_all(&ask(0)).await.expect("ask");
+            let mut media = connection.accept_uni().await.expect("accept media uni");
+            tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                .await
+                .expect("frame never arrived");
+            drop(media);
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            control.write_all(&ask(1)).await.expect("ask");
+        });
+        assert!(ended.is_ok(), "a stopped media stream ended the session as {ended:?}");
     }
 
     /// A message the server cannot read still ends the session in error, a goodbye or not.

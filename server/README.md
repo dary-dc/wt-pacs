@@ -86,9 +86,9 @@ registered that store's file and its slots key on that store's offsets.
 ## How a session ends
 
 * The client sends `EndSession`, or closes the control stream: the loop ends when it next waits.
-* A write fails because the client went: logged at info, `session closed by peer`. Any other failure:
-  a WARN, `session ended` — and so, still, some closes mid-fill (an open item in
-  [`docs/cloud-queue.md`](../docs/cloud-queue.md) §Open owner decisions).
+* A write fails because the client went — it closed the session or stopped the stream: logged at
+  info, `session closed by peer`. Any other failure: a WARN, `session ended`. Both print the whole
+  error chain ([`docs/WIRE.md`](../docs/WIRE.md) §FoD messages).
 * However it ended, `finish` runs: per-frame streams get two seconds to be acknowledged, a WebSocket
   gets its close frame. Then two log lines: `session path` (MTU, RTT, loss — QUIC only) and
   `session reads` (hits, misses, which reader, whether the ring was built), the latter when

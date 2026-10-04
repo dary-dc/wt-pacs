@@ -20,13 +20,15 @@ each message is `[4B LE len][JSON]` — little-endian, unlike the envelope — t
 (`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
 
 **A goodbye is not an error.** No client sends `end_session`: a session ends with the client closing
-it, a FIN on the control stream between messages, or a WebSocket Close. Each is a normal end, logged
+it, stopping a stream the server is writing (`STOP_SENDING`, as dropping its receive half does), a FIN
+on the control stream between messages, or a WebSocket Close. Each is a normal end, logged
 `session closed by peer` at INFO, and a send it interrupts is part of it; a malformed message, a
 timeout or a protocol abort is a WARN. On QUIC the peer's close is read from quinn's close reason, the
 peer's application close or wtransport's local close answering its `CLOSE_WEBTRANSPORT_SESSION`, so
 an HTTP/3 violation by the peer, which wtransport also answers with a local close, reads as one too.
 *Corrected 2026-10-03:* every ordinary session used to end as a WARN, and skipped the per-frame
-grace below.
+grace below. *Corrected 2026-10-04:* a client walking away mid-fill still did, in 8 of 30 sessions —
+those where its stream's stop reached the server before its close, so the write failed as stopped.
 
 | Message | Direction | What the server does |
 | --- | --- | --- |
