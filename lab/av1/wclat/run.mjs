@@ -3,7 +3,7 @@
  * Each (round × throttle) is a fresh browser in a Williams order; streams and arms rotate inside it.
  * lab/av1/wclat/README.md
  *
- *   NODE_PATH=$(npm root -g) node lab/av1/wclat/run.mjs [--arms flush,latency,hold] [--rounds 10]
+ *   NODE_PATH=$(npm root -g) node lab/av1/wclat/run.mjs [--arms flush,latency,keyflush,hold] [--rounds 10]
  *     [--throttles 1,4] [--streams a,b] [--wait-ms 1000] [--cores 3] [--dir lab/.av1-work/wclat]
  *     [--mutate] [--out rows.json]
  */

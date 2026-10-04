@@ -1,6 +1,6 @@
 /**
  * WebCodecs' AV1 decoder, a unit at a time: flushed after each (the product today), with
- * `optimizeForLatency` and no flush, or with neither. Each unit's frame is awaited up to a deadline,
+ * `optimizeForLatency` and no flush, the same flushed before each keyframe, or with neither. Each unit's frame is awaited up to a deadline,
  * timed from decode() to the output callback, and every frame's planes hashed against the encoder's
  * input. run.mjs drives it. lab/av1/wclat/README.md
  */
@@ -9,6 +9,7 @@ import { order } from "../../order.mjs";
 const CONFIG = {
   flush: { flush: true },
   latency: { optimizeForLatency: true },
+  keyflush: { optimizeForLatency: true, before: true },
   hold: {},
 };
 
@@ -55,7 +56,7 @@ async function stream(cell, arm, { dir, mutate, waitMs }) {
     },
     error: (e) => row.errors.push(`${e.name}: ${e.message}`),
   });
-  const { flush, ...extra } = CONFIG[arm];
+  const { flush, before, ...extra } = CONFIG[arm];
   try {
     decoder.configure({ codec: cell.codec, hardwareAcceleration: "prefer-software", ...extra });
     for (const [i, unit] of units(bytes).entries()) {
@@ -64,6 +65,8 @@ async function stream(cell, arm, { dir, mutate, waitMs }) {
         setTimeout(() => resolve(false), waitMs);
       });
       const t0 = performance.now();
+      // The product's guard: a keyframe decodes alone, never against the frame before it.
+      if (before && i > 0 && i % cell.gop === 0) await decoder.flush();
       decoder.decode(new EncodedVideoChunk({ type: i % cell.gop ? "delta" : "key", timestamp: i, data: unit }));
       if (flush) await decoder.flush();
       if (got.has(i) || (await out)) {
