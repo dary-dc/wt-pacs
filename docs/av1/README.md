@@ -434,6 +434,9 @@ layers on the wire — are not repeated.
   unit — which is why WebCodecs has no G > 1 path (row 20). Chromium also gives dav1d 2–4 tile
   threads by coded height (≥ 300, ≥ 700 rows), used only if a frame has tiles. Decides: frames out
   per unit without a flush, exact, and the time against today's flush per unit. Container: yes.
+  *Measured (row WCLAT): yes, every unit, exact, 784/784 frames; 7–28 % faster a frame without the
+  flush; a group now goes through WebCodecs ([`decode/README.md`](../decode/README.md) §WebCodecs
+  without a flush).*
 * **The base operating point through WebCodecs.** WebCodecs has no operating-point field (its AV1
   registration defines none) and Chromium opens dav1d with `all_layers = 0` at operating point 0, the
   whole stream. But each OBU's extension header carries its `spatial_id`, and dav1d at

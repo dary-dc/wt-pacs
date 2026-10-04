@@ -34,7 +34,8 @@ item: an ask for any frame asks its whole group from the keyframe, a fill asks w
 group's frames go to one decoder in index order. A frame that fails fails the rest of its group,
 each by name. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §3, *Built*; the dispatch arm
 checks a G = 8 set and a one-group set (`client/conformance/av1/{g8x20,whole12}`) frame by frame.
-A series in groups decodes through dav1d-WASM, never WebCodecs, which is flushed per frame.
+A ≤ 10-bit series in groups decodes through WebCodecs, not flushed inside a group
+([`docs/decode/README.md`](../../docs/decode/README.md) §WebCodecs without a flush).
 
 **A scalable AV1 series.** A unit with a lossy base layer under a lossless top decodes through
 dav1d-WASM twice from the same bytes: the base reaches `opts.onPreview` as a frame whose `info` says

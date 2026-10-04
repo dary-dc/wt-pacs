@@ -1127,7 +1127,41 @@ through both; a frame of a group, an empty unit, a non-AV1 file, YUV 4:2:0 and 4
 keyframe and a decoder closed under a frame refused by both, the next frame exact; and one decoder
 taking its frames one at a time. 17 mutations of the new code each failed a check. One did not and
 is equivalent here: reading `codedWidth` for `visibleRect` — Chromium 141 reports them equal, odd
-sizes included. G > 1 (one flush a group) waits on row GOP's group path.
+sizes included. G > 1 (one flush a group) waits on row GOP's group path. *Built since (row WCLAT),
+below: a group goes through WebCodecs with no flush inside it.*
+
+### WebCodecs without a flush
+
+Row WCLAT ([`lab/av1/wclat`](../../lab/av1/wclat/README.md)), 2026-10-04, headless Chromium 141.
+With `optimizeForLatency: true` **each unit gives its frame before the next is sent, exact**. That
+held on every depth and layout WebCodecs takes (8 and 10 bits; 4:0:0, 4:2:0, 4:2:2, 4:4:4), intra
+and G = 8, and on 1, 2 and 4 tile columns: 784 of 784 frames against the encoder's input. With
+neither the option nor a flush, no unit gave its frame. That is WCAP's held frames. A flush per unit
+cannot carry a group: after a flush the next unit must be a keyframe.
+
+Skipping the flush makes a frame 7–20 % faster at 1× and 3–28 % at 4×, intra, 10 interleaved rounds
+(every frame exact). A keyframe still needs one, though, or a unit labelled key that is not a
+keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
+build. Flushing before every keyframe costs what flushing after did, and 5–15 % more at 4× on tiled
+frames. So **the decoder flushes at a group's end**, which at G = 1 is every frame, as before. It
+flushes before a keyframe only when a cut group is still held, and never inside a group. Tiles help
+here too: Chromium gives dav1d 2–4 threads by coded height, and 4 tile columns take a frame from 33
+to 15 ms at 1× and from 118–135 to 66–70 ms at 4×, for −0.6 to +0.4 % bytes.
+
+`decoder.js` now hands a ≤ 10-bit series in groups to WebCodecs. A unit that gives neither a frame
+nor an error would stall its decoder. Chromium does this on a one-byte or delimiter-only delta, so
+after 2 s the unit is flushed and fails by name, and the rest of its group fails with it. The
+dispatch arm checks four things, each through WebCodecs and through dav1d-WASM:
+
+* a G = 8 colour series, every frame exact and all 20 units reaching WebCodecs (none with
+  `VideoDecoder` removed);
+* a delimiter-only unit at frame 3, which fails frames 3–7 while 8–19 stay exact;
+* frame 9's bytes sent as a keyframe to a decoder holding frames 0–4, refused;
+* G = 1 unchanged: the refusals above still hold.
+
+Taking groups away from WebCodecs, dropping the stall guard, and dropping the flush before a held
+keyframe each failed a check. Dropping the flush at a group's end failed none, and is not meant to:
+the flush before the next keyframe then covers it, at the cost measured above.
 
 ### Decode time against HTJ2K
 
