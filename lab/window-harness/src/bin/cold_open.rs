@@ -17,7 +17,6 @@ use wtransport::tls::client::{build_default_tls_config, NoServerVerification};
 use wtransport::tls::rustls::{ClientConfig as TlsClientConfig, RootCertStore};
 use wtransport::{ClientConfig, Endpoint};
 
-const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
 
 #[derive(Parser)]
 struct Args {
@@ -71,10 +70,7 @@ async fn one_round(args: &Args, tls: TlsClientConfig) -> Result<Round> {
     let mut len = [0u8; 4];
     read_exact(&mut uni, &mut len).await?;
     let first_byte_ms = ms(t0);
-    let n = u32::from_be_bytes(len) as usize;
-    if n == 0 || n > MAX_FRAME_LEN {
-        bail!("invalid frame length {n}");
-    }
+    let n = frame_envelope::envelope_len(len).map_err(anyhow::Error::msg)?;
     let mut payload = vec![0u8; n];
     read_exact(&mut uni, &mut payload).await?;
     let ask_to_last_byte_ms = ms(asked);

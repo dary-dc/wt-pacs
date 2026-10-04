@@ -1,6 +1,6 @@
 //! Streams a `.sbnd` bundle to disk one frame at a time.
 
-use crate::format::{HEADER_SIZE, INDEX_ENTRY_SIZE, MAGIC, VERSION};
+use crate::format::{check_frame_len, HEADER_SIZE, INDEX_ENTRY_SIZE, MAGIC, VERSION};
 use anyhow::{bail, Context, Result};
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -18,6 +18,9 @@ impl BundleWriter {
         let metadata_len = metadata.len() as u32;
         let index_bytes = frame_lengths.len() * INDEX_ENTRY_SIZE;
         let data_base = HEADER_SIZE + index_bytes + metadata.len();
+        for (i, &length) in frame_lengths.iter().enumerate() {
+            check_frame_len(i, length)?;
+        }
 
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).context("create bundle parent dir")?;
@@ -102,5 +105,15 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         assert_eq!(written, bundle(&frames, meta));
         Ok(())
+    }
+
+    /// A study with a frame no client would read is refused before anything is written.
+    #[test]
+    fn the_writer_refuses_an_oversized_frame_naming_it() {
+        let path = std::env::temp_dir().join(format!("sbnd-writer-big-{}.sbnd", std::process::id()));
+        let too_big = frame_envelope::MAX_CODESTREAM_LEN as u32 + 1;
+        let err = BundleWriter::create(&path, b"{}", &[3, too_big]).err().expect("accepted");
+        assert!(format!("{err:#}").contains("frame 1 "), "the refusal does not name the frame: {err:#}");
+        assert!(!path.exists(), "the refused study was written anyway");
     }
 }
