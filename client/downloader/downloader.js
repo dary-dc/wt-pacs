@@ -38,7 +38,7 @@ const decoders = [];
 /** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
 const records = new Map();
 const queue = { ask: [], fill: [] };
-/** Fill frames the consumer wants and the wire has not delivered. */
+/** Fill frames the consumer wants and the wire has not delivered; never one an ask carries, which the ask settles. */
 const wanted = new Set();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -391,6 +391,7 @@ onmessage = async (e) => {
       if (rec?.priority === "ask") return;
       // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
       if (rec && rec.state !== "wire") return void promote(m.index);
+      wanted.delete(m.index);
       if (rec) rec.priority = "ask";
       else record(m.index, "ask", abs());
       return void ask(m.index, s.requestExactFrame(m.index));

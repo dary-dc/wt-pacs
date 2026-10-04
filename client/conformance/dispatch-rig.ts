@@ -390,6 +390,37 @@ async function aRefusedFillReachesTheConsumer(DownloaderClient: DownloaderCtor, 
   c.close();
 }
 
+/** A refusal that fails the rest of a run spares a frame of that run an ask is carrying: the ask settles
+ *  it on its own promise, not with the refused frame's reason. */
+async function aRefusalInTheRunSparesTheFrameAnAskCarries(DownloaderClient: DownloaderCtor, check: Check) {
+  const captured: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decode: false, onFrame: (f) => captured.push(f), onError: (f) => failures.push(f),
+  });
+  c.fill([0, 1, 2, 3, 4, 5]);
+  await settle();
+  for (const i of [0, 1, 2]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+  await until(() => captured.length >= 3);
+
+  let asked = -1;
+  let rejected = "";
+  c.requestExactFrame(3).then((f) => { asked = f.frameIndex; }, (e: Error) => { rejected = String(e.message); });
+  await onTheWire(fake, "request_frame 3");
+  await fake.pushFrame(4, enc.encode("fill-4"));
+  await until(() => captured.length >= 4);
+  await fake.pushRefusal(5, "refused-5");
+  await until(() => failures.length >= 1);
+  await fake.pushFrame(3, enc.encode("ask-3"));
+  await until(() => asked >= 0 || rejected !== "");
+
+  const named = failures.map((f) => f.frameIndex).join();
+  check(named === "5", `refusal in a run: the refused frame reaches the error callback (${named || "none"})`);
+  check(rejected === "", `refusal in a run: the frame an ask carries is not failed with it (${rejected || "not failed"})`);
+  check(asked === 3, `refusal in a run: it is served on the ask's own promise (${asked})`);
+  c.close();
+}
+
 const same = (a?: Uint8Array, b?: Uint8Array) =>
   !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -1177,6 +1208,7 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<v
     aLateDoneDoesNotDropTheNewRequestsFrame,
     cancelCompletesAndUnblocksTheNextFill,
     aRefusedFillReachesTheConsumer,
+    aRefusalInTheRunSparesTheFrameAnAskCarries,
     theDecodersComeUpWhileTheUrlIsUnknown,
     anOpeningFillRidesTheSessionUrl,
     aRefusedOpeningFillReachesTheConsumer,
