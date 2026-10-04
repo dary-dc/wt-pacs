@@ -6,6 +6,9 @@ queue: `git show 6e9c126:docs/cloud-queue.md`.
 
 ## Protocol
 
+**New session?** [`handoff-2026-10-04.md`](handoff-2026-10-04.md) has where the server redesign
+stands after PR #33's merge, what comes next, and what cost time in the container.
+
 Kept so the queue can reopen. The queue lives on the branch that carries every lab improvement.
 
 1. `git fetch && git rebase` onto that branch — the queue changes while you work.
