@@ -4,9 +4,9 @@
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
 use crate::transport::frame_out::FrameOut;
-use crate::transport::planner::Mode;
+use crate::transport::planner::Next;
 use crate::transport::wire::Control;
-use anyhow::{Error, Result};
+use anyhow::Result;
 use fod::FodMsg;
 use frame_envelope::FRAME_HEAD_LEN;
 use std::sync::Arc;
@@ -23,44 +23,30 @@ use frame_envelope::ENVELOPE_LEN;
 pub(crate) trait FramePipeline: Send {
     fn store(&self) -> &Arc<FrameStore>;
 
-    /// `upcoming` are the frames this session will be asked for after `frame`, where known.
-    async fn serve(&mut self, frame: u32, upcoming: &[u32], mode: Mode) -> Result<()> {
+    /// `frame` and `next` come from the planner, which has already refused anything out of range.
+    async fn serve(&mut self, frame: u32, next: &Next) -> Result<()> {
         self.prepare(frame);
-
-        let span = match self.locate(frame) {
-            Ok(span) => span,
-            Err(err) => return self.refuse(frame, err).await,
+        let span = self.locate(frame);
+        let ahead: Vec<FrameSpan> = match next {
+            Next::Fill { after, .. } => after.iter().map(|&f| self.store().frame_span(f)).collect(),
+            Next::Tiles(names) => names.iter().map(|&f| self.store().frame_span(f)).collect(),
         };
-        let ahead: Vec<FrameSpan> = upcoming
-            .iter()
-            .filter_map(|&frame| self.store().frame_span(frame).ok())
-            .collect();
-
-        self.send(frame, span, &ahead, mode).await
+        self.send(frame, span, &ahead, next).await
     }
 
     /// The frame begins. The product does nothing here; the lab starts its clock.
     fn prepare(&mut self, _frame: u32) {}
 
-    /// No I/O, so an out-of-range ask is refused before a stream opens.
-    fn locate(&mut self, frame: u32) -> Result<FrameSpan> {
+    fn locate(&mut self, frame: u32) -> FrameSpan {
         self.store().frame_span(frame)
     }
 
-    /// Read the frame with the reader `mode` names, then write it.
-    async fn send(
-        &mut self,
-        frame: u32,
-        span: FrameSpan,
-        ahead: &[FrameSpan],
-        mode: Mode,
-    ) -> Result<()>;
+    /// Read the frame with the reader `next` names, then write it.
+    async fn send(&mut self, frame: u32, span: FrameSpan, ahead: &[FrameSpan], next: &Next) -> Result<()>;
 
-    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()>;
+    async fn refuse(&mut self, frame: u32, reason: String) -> Result<()>;
 
     async fn drain_acks(&mut self);
-
-    fn note_fill(&mut self) {}
 }
 
 pub(crate) struct ProductPipeline {
@@ -115,13 +101,7 @@ impl FramePipeline for ProductPipeline {
         &self.store
     }
 
-    async fn send(
-        &mut self,
-        frame: u32,
-        span: FrameSpan,
-        ahead: &[FrameSpan],
-        mode: Mode,
-    ) -> Result<()> {
+    async fn send(&mut self, frame: u32, span: FrameSpan, ahead: &[FrameSpan], next: &Next) -> Result<()> {
         let Self {
             store,
             out,
@@ -129,15 +109,17 @@ impl FramePipeline for ProductPipeline {
             tile,
             mode: read_mode,
             stall_left,
+            fills,
             ..
         } = self;
-        let body = match mode {
-            Mode::Fill => {
+        let body = match next {
+            Next::Fill { first, .. } => {
+                *fills += u64::from(*first);
                 seq.get_or_insert_with(SeqReader::new)
                     .read(store, span, ahead.first().copied())
                     .await?
             }
-            Mode::OnDemand => {
+            Next::Tiles(_) => {
                 tile.get_or_insert_with(|| TileReader::new(*read_mode, store, TILE_SLOTS))
                     .read(store, span, ahead)
                     .await?
@@ -154,8 +136,7 @@ impl FramePipeline for ProductPipeline {
         out.send_frame(frame, body).await
     }
 
-    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
-        let reason = err.to_string();
+    async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
         warn!(frame, %reason, "frame refused");
         if self.control.is_none() {
             if let Some(late) = self.late_control.take() {
@@ -175,10 +156,6 @@ impl FramePipeline for ProductPipeline {
 
     async fn drain_acks(&mut self) {
         self.out.drain_acks().await;
-    }
-
-    fn note_fill(&mut self) {
-        self.fills += 1;
     }
 }
 
@@ -238,26 +215,18 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         self.inner.prepare(frame);
     }
 
-    fn locate(&mut self, frame: u32) -> Result<FrameSpan> {
+    fn locate(&mut self, frame: u32) -> FrameSpan {
         self.tap.boundary_prepare_done(); // entry: close prepare
-        let result = self.inner.locate(frame);
-        if let Ok(span) = &result {
-            self.tap.note_locate(span.len as usize);
-        }
-        result
+        let span = self.inner.locate(frame);
+        self.tap.note_locate(span.len as usize);
+        span
     }
 
-    async fn send(
-        &mut self,
-        frame: u32,
-        span: FrameSpan,
-        ahead: &[FrameSpan],
-        mode: Mode,
-    ) -> Result<()> {
+    async fn send(&mut self, frame: u32, span: FrameSpan, ahead: &[FrameSpan], next: &Next) -> Result<()> {
         // `send_us` covers read and write together, plus the next frame's read starting.
         self.tap.boundary_locate_done(); // entry: close locate
         let envelope_len = ENVELOPE_LEN + span.len as usize;
-        match self.inner.send(frame, span, ahead, mode).await {
+        match self.inner.send(frame, span, ahead, next).await {
             Ok(()) => {
                 self.tap.emit_sent(envelope_len);
                 Ok(())
@@ -269,17 +238,13 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         }
     }
 
-    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
+    async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
         self.tap.emit_refused(frame); // close open stage + emit
-        self.inner.refuse(frame, err).await
+        self.inner.refuse(frame, reason).await
     }
 
     async fn drain_acks(&mut self) {
         self.inner.drain_acks().await;
-    }
-
-    fn note_fill(&mut self) {
-        self.inner.note_fill();
     }
 }
 
@@ -319,7 +284,7 @@ mod tests {
     /// test's, because the sink is the observation point.
     struct SeamRecorder {
         store: Arc<FrameStore>,
-        seen: Vec<(u32, Vec<FrameSpan>, Mode)>,
+        seen: Vec<(u32, Vec<FrameSpan>, Next)>,
     }
 
     impl FramePipeline for SeamRecorder {
@@ -327,18 +292,12 @@ mod tests {
             &self.store
         }
 
-        async fn send(
-            &mut self,
-            frame: u32,
-            _span: FrameSpan,
-            ahead: &[FrameSpan],
-            mode: Mode,
-        ) -> Result<()> {
-            self.seen.push((frame, ahead.to_vec(), mode));
+        async fn send(&mut self, frame: u32, _span: FrameSpan, ahead: &[FrameSpan], next: &Next) -> Result<()> {
+            self.seen.push((frame, ahead.to_vec(), next.clone()));
             Ok(())
         }
 
-        async fn refuse(&mut self, _frame: u32, _err: Error) -> Result<()> {
+        async fn refuse(&mut self, _frame: u32, _reason: String) -> Result<()> {
             Ok(())
         }
 
@@ -366,44 +325,24 @@ mod tests {
         let (path, mut rec) = recorder("seam", 4);
         let want: Vec<FrameSpan> = [1u32, 2, 3]
             .iter()
-            .map(|&f| rec.store.frame_span(f).unwrap())
+            .map(|&f| rec.store.frame_span(f))
             .collect();
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .expect("rt");
-        rt.block_on(rec.serve(0, &[1, 2, 3], Mode::OnDemand))
-            .expect("serve");
-        assert_eq!(
-            rec.seen,
-            vec![(0, want, Mode::OnDemand)],
-            "the planner's names did not reach the read path"
-        );
+        let tiles = Next::Tiles(vec![1, 2, 3]);
+        rt.block_on(rec.serve(0, &tiles)).expect("serve");
+        assert_eq!(rec.seen, vec![(0, want, tiles)], "the planner's names did not reach the read path");
+
+        let fill = Next::Fill { after: Some(3), first: true };
+        rt.block_on(rec.serve(2, &fill)).expect("serve");
+        assert_eq!(rec.seen[1], (2, vec![rec.store.frame_span(3)], fill), "a fill's next frame was lost");
         let _ = std::fs::remove_file(&path);
     }
 
-    /// An upcoming frame outside the study is dropped from `ahead`, never an error for the
-    /// frame being served.
-    #[test]
-    fn an_upcoming_frame_out_of_range_is_dropped_not_refused() {
-        let (path, mut rec) = recorder("seam-oob", 2);
-        let want = vec![rec.store.frame_span(1).unwrap()];
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("rt");
-        rt.block_on(rec.serve(0, &[1, 99], Mode::OnDemand))
-            .expect("serve");
-        assert_eq!(
-            rec.seen,
-            vec![(0, want, Mode::OnDemand)],
-            "a bad name broke the good one"
-        );
-        let _ = std::fs::remove_file(&path);
-    }
-
-    /// **A refused range is its own row.** The planner refuses a `stream_frames` range outside
-    /// the study before any frame opens; its row carries the refused frame, not the last one
-    /// served. A frame refused at `locate` keeps the one row it opened, and every row opened is
-    /// closed. `docs/adr/telemetry-server-pipeline.md`.
+    /// **A refusal is its own row.** The planner refuses a `stream_frames` range and a frame
+    /// outside the study before any frame opens; each row carries the refused frame, not the
+    /// last one served, and every row opened is closed. `docs/adr/telemetry-server-pipeline.md`.
     #[cfg(feature = "telemetry")]
     #[test]
     fn a_refused_range_records_a_row_of_its_own() {
@@ -455,7 +394,7 @@ mod tests {
             .build()
             .expect("rt");
         rt.block_on(async {
-            let refused = product.refuse(9, anyhow::anyhow!("out of range"));
+            let refused = product.refuse(9, "out of range".into());
             tokio::time::timeout(std::time::Duration::from_secs(2), refused)
                 .await
                 .expect("the refusal waited on a control stream that can no longer come")

@@ -109,7 +109,7 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
     }
     let mut scratch = vec![0u8; 1 << 20];
     for &idx in &plan.hit {
-        let FrameSpan { offset, len } = store.frame_span(idx)?;
+        let FrameSpan { offset, len } = store.frame_span(idx);
         let len = len as usize;
         if scratch.len() < len {
             scratch.resize(len, 0);
@@ -121,7 +121,7 @@ pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Res
     // Merged into runs first, so only the ends of a run pay the inward rounding.
     let mut runs: Vec<(u64, u64)> = Vec::new();
     for &idx in &plan.miss {
-        let FrameSpan { offset, len } = store.frame_span(idx)?;
+        let FrameSpan { offset, len } = store.frame_span(idx);
         let end = offset + len as u64;
         match runs.last_mut() {
             Some(last) if last.1 == offset => last.1 = end,

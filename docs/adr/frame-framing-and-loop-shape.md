@@ -260,7 +260,7 @@ indexes. A data request during a fill ends the fill and is then served: a second
 **Status: built 2026-09-09; readers split 2026-09-10.** `TileReader::read` starts upcoming
 frames that fit before waiting on this one. A batch supplies that from `frames[i + 1]`. A
 stream of single `RequestFrame` asks supplies it from the ask-reader channel — the planner
-peeks what is already in hand. `SeqReader` names one frame ahead (`FILL_AHEAD`).
+peeks what is already in hand. `SeqReader` names one frame ahead (`Next::Fill`'s `after`).
 
 ### Why the loop change is not optional
 
@@ -325,7 +325,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
    wait; this said "shared with `in_hand`" until 2026-10-04, which the code never did
    (`mpsc::channel(ASKS_AHEAD)` in `server.rs`, the planner's fill loop). The channel holds control messages, not
    generated stream indexes. The tile reader takes at most `slots − 1` of what the planner
-   names; a fill takes `FILL_AHEAD`. A running fill is not sized by this queue.
+   names; a fill names one. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
    ([`disk-access.md`](disk-access.md)). Depth 2 → 4 is a further
    0.21 ms on 16 tiles, 4 → 16 another 0.12 ms, against a slot table and a completion

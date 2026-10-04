@@ -136,7 +136,7 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
         loop {
             let msg = next_fod(&mut stream).await;
             saw_close.store(matches!(msg, Ok(None)), Ordering::Relaxed);
-            if forward(msg, &tx).await.is_err() {
+            if forward(msg, &tx).await.is_break() {
                 break;
             }
         }

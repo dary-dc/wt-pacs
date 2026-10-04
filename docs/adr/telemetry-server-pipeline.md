@@ -25,14 +25,19 @@ it.
 | Wire seam | `server/src/transport/frame_out.rs` | `FrameOut` | open the media path; write envelopes |
 
 **The trait default `serve` owns the story**, written once; implementors override steps, never
-`serve`. The session loop calls only `serve`, `drain_acks` and `note_fill` on a generic
+`serve`. The session loop calls only `serve`, `refuse` and `drain_acks` on a generic
 `P: FramePipeline`, so it carries no telemetry token and no enum match per call.
 
 **`ProductPipeline`** holds the `Arc<FrameStore>` and the `FrameOut`. `prepare` does nothing;
-`locate` is an index lookup returning a `FrameSpan` (no I/O, so an out-of-range ask is refused
-before a stream opens); `send` reads the frame with the session's reader and writes it
-([`disk-access.md`](disk-access.md)). A `locate` failure calls `refuse`, which writes a
-`FrameError` on control; a `send` failure ends the session.
+`locate` is an index lookup returning a `FrameSpan`, which cannot fail: the planner refuses an
+out-of-range frame, fill or name before `serve` is called, and its `Step::Refuse` is the only
+caller of `refuse`, which writes a `FrameError` on control. `send` reads the frame with the reader
+the planner's `Next` names and writes it ([`disk-access.md`](disk-access.md)); a `send` failure ends
+the session.
+
+*Corrected 2026-10-04.* Until then `locate` refused a frame out of range too, a second refusal path
+beside the planner's, and the loop also called `note_fill` to count `fills=`; a fill's first frame
+now says so in `Next::Fill { first }`.
 
 *Corrected 2026-09-26.* Earlier text here said `prepare` pre-faulted the frame's pages on a
 `spawn_blocking` hop and that `locate` returned a `Bytes` view of the mapping (amended 2026-09-09).

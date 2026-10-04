@@ -71,7 +71,7 @@ the link is always full and cursor-driven asks always go first.
 
 **Where the window applies (2026-09-14).** A fill stays one `StreamFrames` ask, for throughput.
 On-demand network depth is this client window, not a server queue; disk depth is the server's
-`TILE_SLOTS` and `FILL_AHEAD`. Depth 1 is the right answer where `Tf ≫ RTT` — large frames — not
+`TILE_SLOTS` and a fill's one frame ahead. Depth 1 is the right answer where `Tf ≫ RTT` — large frames — not
 the tile default.
 
 ### Positive consequences

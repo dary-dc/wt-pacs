@@ -5,10 +5,8 @@ use std::collections::VecDeque;
 
 /// Asks the server holds beyond the frame being served. A tile reader takes what fits (`slots − 1`).
 pub const ASKS_AHEAD: usize = 8;
-/// A fill reads one frame ahead: two buffers, pool only. `docs/adr/disk-access.md`.
-pub const FILL_AHEAD: usize = 1;
 
-/// What the loop consumes: one item per frame, whichever message carried it.
+/// What the loop consumes. `EndSession` and `Failed` end it; every other ask carries frames.
 #[derive(Debug)]
 pub enum Ask {
     Frame(u32),
@@ -18,44 +16,36 @@ pub enum Ask {
     Failed(anyhow::Error),
 }
 
-impl Ask {
-    pub fn frame(&self) -> Option<u32> {
-        match self {
-            Self::Frame(f) => Some(*f),
-            _ => None,
-        }
-    }
-}
-
-/// Which reader serves a frame: a fill knows what comes next, an on-demand ask does not.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Mode {
-    Fill,
-    OnDemand,
-}
-
 /// The next thing to do. Decided without I/O, so it is tested with a `Vec`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Step {
-    Serve {
-        frame: u32,
-        upcoming: Vec<u32>,
-        mode: Mode,
-    },
-    Refuse {
-        frame: u32,
-        reason: String,
-    },
+    /// `frame` and every name in `next` are in range.
+    Serve { frame: u32, next: Next },
+    /// The only source of refusal text.
+    Refuse { frame: u32, reason: String },
     Wait,
     End,
 }
 
+/// What follows the served frame, which also picks its reader. `docs/adr/disk-access.md`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Next {
+    /// A fill reads one frame ahead; `first` is its first frame, for `fills=`.
+    Fill { after: Option<u32>, first: bool },
+    /// The frames asked for behind this one, in ask order; the reader takes what fits.
+    Tiles(Vec<u32>),
+}
+
+struct Fill {
+    frame: u32,
+    to: u32,
+    first: bool,
+}
+
 pub struct Planner {
     in_hand: VecDeque<Ask>,
-    fill: Option<(u32, u32)>,
+    fill: Option<Fill>,
     frames: u32,
-    note_fill: bool,
-    count_this_fill: bool,
 }
 
 impl Planner {
@@ -64,18 +54,11 @@ impl Planner {
             in_hand: VecDeque::new(),
             fill: None,
             frames,
-            note_fill: false,
-            count_this_fill: false,
         }
     }
 
     pub fn push(&mut self, ask: Ask) {
         self.in_hand.push_back(ask);
-    }
-
-    /// True once after a fill's first frame is served, so the session can count `fills=N`.
-    pub fn take_noted_fill(&mut self) -> bool {
-        std::mem::take(&mut self.note_fill)
     }
 
     #[cfg(test)]
@@ -90,22 +73,13 @@ impl Planner {
             self.in_hand.push_back(ask);
         }
         loop {
-            if let Some((frame, to)) = self.fill {
+            if let Some(Fill { frame, to, first }) = self.fill.take() {
                 if self.in_hand.is_empty() {
-                    self.fill = (frame < to).then_some((frame + 1, to));
-                    let upcoming = (frame + 1..=to).take(FILL_AHEAD).collect();
-                    if self.count_this_fill {
-                        self.note_fill = true;
-                        self.count_this_fill = false;
-                    }
-                    return Ok(Step::Serve {
-                        frame,
-                        upcoming,
-                        mode: Mode::Fill,
-                    });
+                    let after = (frame < to).then_some(frame + 1);
+                    self.fill = after.map(|frame| Fill { frame, to, first: false });
+                    let next = Next::Fill { after, first };
+                    return Ok(Step::Serve { frame, next });
                 }
-                self.fill = None;
-                self.count_this_fill = false;
                 if matches!(self.in_hand.front(), Some(Ask::EndStream)) {
                     self.in_hand.pop_front();
                 }
@@ -116,34 +90,34 @@ impl Planner {
                 Some(Ask::Failed(err)) => return Err(err),
                 Some(Ask::EndStream) => continue,
                 Some(Ask::Fill { from, to }) => match fill_range(from, to, self.frames) {
-                    Ok(range) => {
-                        self.fill = Some(range);
-                        self.count_this_fill = true;
-                        continue;
-                    }
-                    Err(reason) => {
-                        return Ok(Step::Refuse {
-                            frame: from.unwrap_or(0),
-                            reason,
-                        })
-                    }
+                    Ok((frame, to)) => self.fill = Some(Fill { frame, to, first: true }),
+                    Err(reason) => return Ok(Step::Refuse { frame: from.unwrap_or(0), reason }),
                 },
                 Some(Ask::Frame(frame)) => {
-                    let upcoming = self
+                    if let Err(reason) = frame_in_range(frame, self.frames) {
+                        return Ok(Step::Refuse { frame, reason });
+                    }
+                    let names = self
                         .in_hand
                         .iter()
                         .take_while(|a| matches!(a, Ask::Frame(_) | Ask::EndStream))
-                        .filter_map(Ask::frame)
-                        .take(ASKS_AHEAD)
+                        .filter_map(|a| match a {
+                            Ask::Frame(f) => frame_in_range(*f, self.frames).is_ok().then_some(*f),
+                            _ => None,
+                        })
                         .collect();
-                    return Ok(Step::Serve {
-                        frame,
-                        upcoming,
-                        mode: Mode::OnDemand,
-                    });
+                    return Ok(Step::Serve { frame, next: Next::Tiles(names) });
                 }
             }
         }
+    }
+}
+
+pub fn frame_in_range(frame: u32, frames: u32) -> Result<(), String> {
+    if frame < frames {
+        Ok(())
+    } else {
+        Err(format!("frame index {frame} out of range ({frames})"))
     }
 }
 
@@ -164,6 +138,10 @@ pub fn fill_range(from: Option<u32>, to: Option<u32>, frames: u32) -> Result<(u3
 mod tests {
     use super::*;
 
+    fn tiles(names: &[u32]) -> Next {
+        Next::Tiles(names.to_vec())
+    }
+
     /// Two `RequestFrame`s in hand: the first is served with the second as upcoming.
     #[test]
     fn pipelined_asks_supply_the_upcoming_frames() {
@@ -171,13 +149,7 @@ mod tests {
         for frame in [4, 5, 6] {
             plan.push(Ask::Frame(frame));
         }
-        let Step::Serve {
-            frame, upcoming, ..
-        } = plan.next(|| None).unwrap()
-        else {
-            panic!()
-        };
-        assert_eq!((frame, upcoming), (4, vec![5, 6]));
+        assert_eq!(plan.next(|| None).unwrap(), Step::Serve { frame: 4, next: tiles(&[5, 6]) });
     }
 
     /// Each ask served names the asks still behind it, and the next one served names one fewer.
@@ -187,55 +159,32 @@ mod tests {
         for frame in [1, 4, 5] {
             plan.push(Ask::Frame(frame));
         }
-        let Step::Serve {
-            frame, upcoming, ..
-        } = plan.next(|| None).unwrap()
-        else {
-            panic!()
-        };
-        assert_eq!((frame, upcoming), (1, vec![4, 5]));
-        let Step::Serve {
-            frame, upcoming, ..
-        } = plan.next(|| None).unwrap()
-        else {
-            panic!()
-        };
-        assert_eq!((frame, upcoming), (4, vec![5]));
+        assert_eq!(plan.next(|| None).unwrap(), Step::Serve { frame: 1, next: tiles(&[4, 5]) });
+        assert_eq!(plan.next(|| None).unwrap(), Step::Serve { frame: 4, next: tiles(&[5]) });
     }
 
-    /// A fill recites `from..=to` inclusive, each frame naming the next.
+    /// A fill recites `from..=to` inclusive, each frame naming the next, and only its first
+    /// frame says so, for `fills=`.
     #[test]
     fn a_fill_recites_from_to_inclusive_in_order() {
         let mut plan = Planner::new(8);
-        plan.push(Ask::Fill {
-            from: Some(3),
-            to: Some(7),
-        });
+        plan.push(Ask::Fill { from: Some(3), to: Some(7) });
         let mut served = Vec::new();
-        let mut noted = 0u32;
         loop {
             match plan.next(|| None).unwrap() {
-                Step::Serve {
-                    frame, upcoming, ..
-                } => {
-                    if plan.take_noted_fill() {
-                        noted += 1;
-                    }
-                    served.push((frame, upcoming));
-                }
+                Step::Serve { frame, next: Next::Fill { after, first } } => served.push((frame, after, first)),
                 Step::Wait => break,
                 other => panic!("{other:?}"),
             }
         }
-        assert_eq!(noted, 1, "a fill that served frames was not counted once");
         assert_eq!(
             served,
             vec![
-                (3, vec![4]),
-                (4, vec![5]),
-                (5, vec![6]),
-                (6, vec![7]),
-                (7, vec![]),
+                (3, Some(4), true),
+                (4, Some(5), false),
+                (5, Some(6), false),
+                (6, Some(7), false),
+                (7, None, false),
             ]
         );
     }
@@ -244,14 +193,8 @@ mod tests {
     #[test]
     fn end_stream_stops_a_fill_before_the_next_frame() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Fill {
-            from: Some(3),
-            to: Some(7),
-        });
-        assert!(matches!(
-            plan.next(|| None).unwrap(),
-            Step::Serve { frame: 3, .. }
-        ));
+        plan.push(Ask::Fill { from: Some(3), to: Some(7) });
+        assert!(matches!(plan.next(|| None).unwrap(), Step::Serve { frame: 3, .. }));
         let mut arrived = Some(Ask::EndStream);
         assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::Wait));
     }
@@ -260,36 +203,18 @@ mod tests {
     #[test]
     fn a_data_request_during_a_fill_ends_it_and_is_served_next() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Fill {
-            from: Some(0),
-            to: Some(5),
-        });
-        assert!(matches!(
-            plan.next(|| None).unwrap(),
-            Step::Serve { frame: 0, .. }
-        ));
+        plan.push(Ask::Fill { from: Some(0), to: Some(5) });
+        assert!(matches!(plan.next(|| None).unwrap(), Step::Serve { frame: 0, .. }));
         let mut arrived = Some(Ask::Frame(9));
-        let Step::Serve {
-            frame, upcoming, ..
-        } = plan.next(|| arrived.take()).unwrap()
-        else {
-            panic!()
-        };
-        assert_eq!((frame, upcoming), (9, vec![]));
+        assert_eq!(plan.next(|| arrived.take()).unwrap(), Step::Serve { frame: 9, next: tiles(&[]) });
     }
 
     /// `EndSession` mid-fill: nothing more is served.
     #[test]
     fn end_session_during_a_fill_ends_the_session() {
         let mut plan = Planner::new(6);
-        plan.push(Ask::Fill {
-            from: Some(0),
-            to: Some(5),
-        });
-        assert!(matches!(
-            plan.next(|| None).unwrap(),
-            Step::Serve { frame: 0, .. }
-        ));
+        plan.push(Ask::Fill { from: Some(0), to: Some(5) });
+        assert!(matches!(plan.next(|| None).unwrap(), Step::Serve { frame: 0, .. }));
         let mut arrived = Some(Ask::EndSession);
         assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::End));
         assert!(matches!(plan.next(|| None).unwrap(), Step::Wait));
@@ -313,10 +238,7 @@ mod tests {
     #[test]
     fn an_empty_study_is_refused_with_from() {
         let mut plan = Planner::new(0);
-        plan.push(Ask::Fill {
-            from: None,
-            to: None,
-        });
+        plan.push(Ask::Fill { from: None, to: None });
         match plan.next(|| None).unwrap() {
             Step::Refuse { frame, reason } => {
                 assert_eq!(frame, 0);
@@ -326,20 +248,49 @@ mod tests {
         }
     }
 
-    /// `EndStream` before the first fill frame is not a fill that served anything.
+    /// A frame past the study is refused by the planner, before any reader or stream is touched.
     #[test]
-    fn a_fill_stopped_before_its_first_frame_is_not_counted() {
-        let mut plan = Planner::new(10);
-        plan.push(Ask::Fill {
-            from: None,
-            to: None,
-        });
-        plan.push(Ask::EndStream);
-        assert!(matches!(plan.next(|| None).unwrap(), Step::Wait));
-        assert!(
-            !plan.take_noted_fill(),
-            "a fill that never served a frame was counted"
+    fn a_frame_out_of_range_is_refused_by_the_planner() {
+        let mut plan = Planner::new(4);
+        plan.push(Ask::Frame(99));
+        assert_eq!(
+            plan.next(|| None).unwrap(),
+            Step::Refuse { frame: 99, reason: "frame index 99 out of range (4)".into() }
         );
+    }
+
+    /// A name past the study behind the served frame is skipped, and the names after it kept.
+    #[test]
+    fn an_out_of_range_name_is_skipped_not_a_stop() {
+        let mut plan = Planner::new(4);
+        for frame in [1, 99, 2] {
+            plan.push(Ask::Frame(frame));
+        }
+        assert_eq!(plan.next(|| None).unwrap(), Step::Serve { frame: 1, next: tiles(&[2]) });
+    }
+
+    /// A fill is counted by its first frame once, and a fill stopped before its first frame never.
+    #[test]
+    fn a_fill_counts_once_and_a_cancelled_fill_not_at_all() {
+        let firsts = |asks: Vec<Ask>| {
+            let mut plan = Planner::new(10);
+            asks.into_iter().for_each(|a| plan.push(a));
+            let mut firsts = 0;
+            while let Step::Serve { next, .. } = plan.next(|| None).unwrap() {
+                firsts += u32::from(matches!(next, Next::Fill { first: true, .. }));
+            }
+            firsts
+        };
+        assert_eq!(firsts(vec![Ask::Fill { from: Some(2), to: Some(5) }]), 1);
+        assert_eq!(firsts(vec![Ask::Fill { from: None, to: None }, Ask::EndStream]), 0);
+    }
+
+    /// Both refusal texts are the ones `docs/WIRE.md` §FoD messages documents, word for word.
+    #[test]
+    fn the_refusal_texts_are_the_documented_ones() {
+        assert_eq!(frame_in_range(9, 4), Err("frame index 9 out of range (4)".into()));
+        assert_eq!(fill_range(Some(2), Some(9), 4), Err("StreamFrames 2..=9 outside 0..=3".into()));
+        assert_eq!(fill_range(None, None, 0), Err("study is empty".into()));
     }
 
     /// A flood of asks does not grow `in_hand` past `ASKS_AHEAD`; the rest stay in `poll`.
@@ -369,20 +320,11 @@ mod tests {
     fn upcoming_stops_at_the_first_ask_that_is_not_a_frame() {
         let mut plan = Planner::new(10);
         plan.push(Ask::Frame(5));
-        plan.push(Ask::Fill {
-            from: Some(7),
-            to: Some(9),
-        });
+        plan.push(Ask::Fill { from: Some(7), to: Some(9) });
         plan.push(Ask::Frame(9));
-        let Step::Serve {
-            frame, upcoming, ..
-        } = plan.next(|| None).unwrap()
-        else {
-            panic!()
-        };
         assert_eq!(
-            (frame, upcoming),
-            (5, vec![]),
+            plan.next(|| None).unwrap(),
+            Step::Serve { frame: 5, next: tiles(&[]) },
             "a fill is queued, so 9 is not the next frame to read"
         );
     }
