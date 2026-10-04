@@ -1,0 +1,8 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 WCBASE</title>
+<script type="module">
+  import { prepare, round } from "./bench.mjs";
+  globalThis.run = async ({ names, codings, frames, r, opts }) => round(await prepare(names, codings, frames), r, opts);
+  globalThis.ready = true;
+</script>
