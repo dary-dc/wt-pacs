@@ -83,6 +83,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 33 | **REP14** — the layout of 13- and 14-bit samples: two low bits apart (12-bit top, dav1d only) against streams of ≤ 10 bits (WebCodecs), by total time | night |
 | 34 | **TOTAL2** — row 23 again with row 28's representations, and the colour-transformed ultrasound at G = 8 through WebCodecs | night |
 | 35 | **DATA2** — breast ultrasound cine and contrast angiography, if their hosts are now reachable: bytes, decode and total time | night |
+| 36 | **ENCX** — where lossless bytes and decode can still be cut: the low stream, the split per series, temporal noise, and whether HTJ2K gains from the same representations | night |
 
 ## Briefs
 
@@ -496,6 +497,29 @@ contrast angiography, record their licences in [`licensing.md`](licensing.md), p
 `lab/av1/fetch_data.sh`; then on them: bytes (row 28's best representation and G, against HTJ2K), decode a frame
 (dav1d-WASM, and WebCodecs where it applies, interleaved, 1× and 4×), and total time with row 23's harness. Verdict
 per series, beside rows 23 and 28.
+
+### 36 ENCX
+
+Row 28 cut lossless AV1 under HTJ2K by representing the samples for it (two low bits apart; JPEG 2000's reversible
+colour transform on RGB). Smaller items are fewer bytes on the wire as well as on disk, so the remaining room is
+worth finding — but a phone's decoder pays for every extra stream (rows 23, 27). On row 28's nine series, every
+coding exact against the source checksums, bytes over HTJ2K and decode a frame (headless Chromium, dav1d-WASM and
+WebCodecs where it applies, 1× and 4×, interleaved):
+
+* **Fairness first: HTJ2K on the same representations.** The two low bits apart coded with HTJ2K (top and low as
+  two codestreams), against HTJ2K whole. If HTJ2K gains too, row 28's gain is the representation's, not AV1's.
+* **The low stream.** It is close to noise. AV1 (as row 28 codes it) against the bits packed raw, and against a
+  general entropy coder the browser can decode cheaply (pin it; `DecompressionStream` formats count): bytes and
+  decode time. A cheaper coder at similar bytes is a decode win.
+* **The split per series.** A cheap estimate of how many low bits are noise (their entropy, per series or per
+  frame) choosing k = 1, 2 or 3, against a fixed 2.
+* **Temporal noise.** The low streams of a group coded as one inter stream, and the top stream inter with the low
+  intra, on the grey series and the colour-transformed ultrasound: is any of the noise predictable across frames?
+* **libaom's remaining lossless tools** on the split streams, if row 28 did not try them (palette and intra block
+  copy on the low stream alone, the intra tools one by one).
+
+Verdict: a ranked list of encoding changes, each with its bytes over HTJ2K, its decode cost at 1× and 4×, and what
+it means for total time on row 23's links — and the HTJ2K-on-the-same-representation result stated first.
 
 ## Blocked
 
