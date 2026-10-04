@@ -1,6 +1,6 @@
 # Cloud queue
 
-**Closed 2026-10-02 at `6e9c126`; reopened 2026-10-03 for rows 112–115.** Every finding lives in the doc that owns its subject (the index is
+**Closed 2026-10-02 at `6e9c126`; reopened 2026-10-03 for rows 112–120.** Every finding lives in the doc that owns its subject (the index is
 `README.md` §Docs). The rows' briefs and cells are in the history before the commit that closed the
 queue: `git show 6e9c126:docs/cloud-queue.md`.
 
@@ -35,6 +35,11 @@ file names, branch names or commit messages.
 | --- | --- | --- |
 | 113 | **ONERR** — finish the `fillHandlers.onError` fix on `claude/onerror` and land it here (§Row 113) | **claimed** 2026-10-04 |
 | 115 | **SRV-C** — the server design's small commits C1, C2, C4 on `claude/server-design` (§Row 115) | **claimed** 2026-10-04 |
+| 116 | **SRV-C3** — one frame limit, refused at load (§Row 116) | after 115 |
+| 117 | **SRV-R1** — the planner owns every ask decision; one refusal path (§Row 117) | after 116 |
+| 118 | **SRV-R2** — one writer per session, `Link` (§Row 118) | after 117 |
+| 119 | **SRV-R3** — pipeline steps `read`/`write`, telemetry row v3 (§Row 119) | after 118 |
+| 120 | **SRV-R4-PLAN** — the layout commit written out in full for the owner's review; no code (§Row 120) | after 119 |
 | 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | after 113 |
 | 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **done** `0a17e17` — both images build and run under docker (podman unrun); `compose up`: `wt_url=`, TCP 4433 answers 101, the cell delivers 3/3 frames over WebTransport and WebSocket; the check passes on the image — `deploy/README.md` |
 | 59 | **A1b** — the handover on a device: does a session survive Wi-Fi → cellular, and how long is the freeze ([`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice) | **waiting on a device** — no container can take it |
@@ -120,6 +125,44 @@ D3–D7 (add nothing for them). Work on `claude/server-design` and push only to 
   a test that `TransportTuning::default()` equals parsing no flags, and one that parses every transport flag
   `lab/` passes. Mutant: drop one `long =`.
 One commit each; the gate at each. In the proposal, mark C1, C2, C4 done with their hashes.
+
+### Rows 116–120: the server design, as the owner decided it (2026-10-03)
+
+All on `claude/server-design`, pushed only there; read the design file there whole first (row 115). The
+owner's decisions: **D1 keep `per-frame`** (kept on purpose — `shared` is not proven best either, head-of-line
+blocking; `docs/adr/stream-shape.md` §Decision says so); **D2 the stall stays** (it tests `recycleAtBytes`);
+**D3 row v3 yes**; **D4 no arrival stamp** (the `t_serve_us` rename only); **D5 keep `fills=`** via
+`Next::Fill { first }`; **D6 #9 in this PR, the study refused at load** naming the frame; **D7 not yet
+approved** — the owner reviews the layout in detail first. Record these in the design file's §Decisions in
+row 116's first commit. Every commit passes the full gate; mutate every new test.
+
+### Row 116
+C3, design §9: one `MAX_FRAME_LEN` and `Head::decode` in `frame-envelope`, refusing `< ENVELOPE_LEN` and
+`> MAX`; every client and harness uses it; `FrameStore::open` and the bundle writer refuse an oversized frame
+naming its index, so the server fails at startup. Tests per the design; mutant: drop the store check.
+
+### Row 117
+R1, design §1 (with the shape the design corrects). The one measurement: `lab/scripts/server_ab.sh` with the
+commit before R1 as the other arm, interleaved; expect a tie on every cell and the `named ≥ 2` guard to hold;
+quote the p50 per-ask verdict only; it is loopback, so claim nothing past "tie on this host". Correct
+`docs/adr/disk-access.md` if `fills=` moves.
+
+### Row 118
+R2, design §3, in the **keep-both** shape: `Link::Quic` carries the per-frame `Media` with its 2 s finish grace
+(D1) and the stall as one `Option<u64>` (D2); `Control`, `with_control`, `with_late_control` and the
+WebSocket mutex go. QUIC bytes identical: no measurement.
+
+### Row 119
+R3, design §6 + §7's rename: `read` / `write` steps, row v3 (`read_us`, `write_us`, `t_serve_us`;
+`prepare_us`, `locate_us`, `overhead_us` gone), a version check in `read_records` (a same-size v3 must not
+read as v2), the telemetry ADR amended in place (§2 style). Measurement per the design (server telemetry
+cost, old build against new, interleaved — **not** `lab/telemetry-cost`, which measures the client).
+
+### Row 120
+No code. Write R4 (design §5 + §8) out for the owner's line-by-line review, as a new section of the design
+file: the before → after tree; every item that moves (function, type, test) with its source and destination;
+every rename with each call site's count; the shared test kit's API; what `websocket.rs` imports after; the
+commit order inside R4. Then mark the row "waiting on the owner" and stop — R4 is built only after approval.
 
 ## Finished
 
