@@ -118,9 +118,9 @@ if tel=="1":
     try:
         r=json.load(open(report))
         s=r["summary"]
-        # schema server-pipeline-v1 (serve_us / send_us, may be null) or the pre-v1 names
+        # v3's write_us; v1-v2's send_us held the read too; pre-v1 names last
         serve=s.get("serve_us") or s.get("server_serve_us") or {}
-        send=s.get("send_us") or s.get("server_write_us") or {}
+        send=s.get("write_us") or s.get("send_us") or s.get("server_write_us") or {}
         run_end=r.get("run_end",{})
         rows_file=os.path.join(d, r["rows_file"]) if r.get("rows_file") else None
         row["report"]={

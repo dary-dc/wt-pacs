@@ -27,20 +27,13 @@ pub(super) static SESSIONS_STARTED: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
-enum LocateOutcome {
-    Ok = 0,
-    NotFound = 1,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
 enum WriteOutcome {
     Sent = 0,
     WriteErr = 1,
     Refused = 2,
 }
 
-/// Process clock origin for `t_ask_us` — set when the first Tap is created, so rows from every
+/// Process clock origin for `t_serve_us` — set when the first Tap is created, so rows from every
 /// session in a run share one axis and can be laid beside the client file offline.
 static ORIGIN: OnceLock<Instant> = OnceLock::new();
 
@@ -83,25 +76,18 @@ pub struct FrameRecord {
     pub session_id: u64,
     pub frame_index: u32,
     pub ask_ordinal: u32,
-    /// Ask accepted, µs since the process telemetry origin (first Tap). Same axis across
-    /// sessions; inter-ask spacing is read from it.
-    pub t_ask_us: u64,
-    /// Pre-read work before locating; ~0 in this build. `docs/adr/telemetry-server-pipeline.md`.
+    /// Serving began, µs since the process telemetry origin (first Tap): not when the ask
+    /// arrived, which may have queued. `docs/adr/telemetry-server-pipeline.md`.
+    pub t_serve_us: u64,
+    /// Until the frame's bytes are in hand, starting the next frame's read included.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prepare_us: Option<u32>,
-    /// An index lookup and nothing else; the frame's real cost is in `send_us`.
+    pub read_us: Option<u32>,
+    /// Until quinn, or the WebSocket, has accepted the frame.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub locate_us: Option<u32>,
-    /// Read **and** write: the streaming loop reads each window and hands it to the
-    /// connection, so disk time and wire time are not separable here by construction.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub send_us: Option<u32>,
-    /// Full span: `begin_frame` → row emit (measured independently, not a sum).
+    pub write_us: Option<u32>,
+    /// `begin_frame` → row emit; equals `read_us + write_us` to within their rounding.
     pub serve_us: u32,
-    /// `serve_us − prepare − locate − send` (saturating).
-    pub overhead_us: u32,
     pub server_bytes_sent: u32,
-    pub locate_outcome: u8,
     pub write_outcome: u8,
     pub dropped_since_last: u16,
 }
@@ -205,15 +191,13 @@ pub struct Tap {
     ordinals: HashMap<u32, u32>,
     frame_index: u32,
     ask_ordinal: u32,
-    pending_prepare_us: Option<u32>,
-    pending_locate_us: Option<u32>,
+    pending_read_us: Option<u32>,
     pending_bytes: u32,
-    pending_locate: u8,
     drops_since_emit: u16,
     serve_start: Option<Instant>,
     /// End of last closed stage = start of next (contiguous chain).
     stage_mark: Option<Instant>,
-    t_ask_us: u64,
+    t_serve_us: u64,
     // Session counters — the session row and its integrity block.
     t_open_us: u64,
     frames: u32,
@@ -236,8 +220,8 @@ impl Tap {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("telemetry-server.json"));
         ensure_sink(path);
-        // Anchor the row clock at the first session's start, so the first row's `t_ask_us`
-        // is connect → first ask and later sessions share the axis.
+        // Anchor the row clock at the first session's start, so the first row's `t_serve_us`
+        // is connect → first serve and later sessions share the axis.
         let _ = origin();
         let tx = clone_sender();
         SESSIONS_STARTED.fetch_add(1, Ordering::Relaxed);
@@ -257,14 +241,12 @@ impl Tap {
             ordinals: HashMap::new(),
             frame_index: 0,
             ask_ordinal: 0,
-            pending_prepare_us: None,
-            pending_locate_us: None,
+            pending_read_us: None,
             pending_bytes: 0,
-            pending_locate: LocateOutcome::Ok as u8,
             drops_since_emit: 0,
             serve_start: None,
             stage_mark: None,
-            t_ask_us: 0,
+            t_serve_us: 0,
             t_open_us: since_origin_us(),
             frames: 0,
             bytes: 0,
@@ -286,108 +268,62 @@ impl Tap {
         ROWS_OPENED.fetch_add(1, Ordering::Relaxed);
         self.rows_opened = self.rows_opened.saturating_add(1);
         let t = Instant::now();
-        self.t_ask_us = t.duration_since(origin()).as_micros().min(u64::MAX as u128) as u64;
+        self.t_serve_us = t.duration_since(origin()).as_micros().min(u64::MAX as u128) as u64;
         self.serve_start = Some(t);
         self.stage_mark = Some(t);
         self.frame_index = frame_index;
         self.ask_ordinal = self.take_ordinal(frame_index);
-        self.pending_prepare_us = None;
-        self.pending_locate_us = None;
+        self.pending_read_us = None;
         self.pending_bytes = 0;
-        self.pending_locate = LocateOutcome::Ok as u8;
     }
 
-    /// One `Instant::now` — duration since mark, then advance mark.
-    fn close_against_mark(&mut self) -> u32 {
+    /// The frame's bytes are in hand: close `read` against the mark and open `write`.
+    pub(crate) fn boundary_read_done(&mut self) {
         let now = Instant::now();
-        let us = self
-            .stage_mark
-            .take()
-            .map(|mark| duration_us(mark, now))
-            .unwrap_or(0);
-        self.stage_mark = Some(now);
-        us
-    }
-
-    /// Entering locate (or prepare failed): close prepare against the mark.
-    pub(crate) fn boundary_prepare_done(&mut self) {
-        self.pending_prepare_us = Some(self.close_against_mark());
-    }
-
-    /// Entering send (or locate failed): close locate against the mark.
-    pub(crate) fn boundary_locate_done(&mut self) {
-        self.pending_locate_us = Some(self.close_against_mark());
-    }
-
-    pub(crate) fn note_locate(&mut self, byte_len: usize) {
-        self.pending_bytes = usize_to_u32(byte_len);
+        self.pending_read_us = self.stage_mark.replace(now).map(|mark| duration_us(mark, now));
     }
 
     pub(crate) fn emit_sent(&mut self, envelope_len: usize) {
         self.pending_bytes = usize_to_u32(envelope_len);
-        self.try_emit(WriteOutcome::Sent, true);
+        self.try_emit(WriteOutcome::Sent);
     }
 
+    /// A read or a write failed; a failed read leaves both stages null.
     pub(crate) fn emit_write_err(&mut self) {
-        self.try_emit(WriteOutcome::WriteErr, true);
+        self.try_emit(WriteOutcome::WriteErr);
     }
 
-    /// Close whichever stage was open when we bailed (prepare or locate), then emit.
-    /// `send_us` stays null; refuse never entered send. A refusal no frame opened, the planner's,
-    /// opens its own row first.
+    /// The planner's refusal: its own row, with no stage, since nothing was read or written.
     pub(crate) fn emit_refused(&mut self, frame_index: u32) {
-        if self.serve_start.is_none() {
-            self.begin_frame(frame_index);
-        }
-        if self.pending_prepare_us.is_none() {
-            self.boundary_prepare_done();
-        } else if self.pending_locate_us.is_none() {
-            self.boundary_locate_done();
-        }
-        self.pending_locate = LocateOutcome::NotFound as u8;
-        self.try_emit(WriteOutcome::Refused, false);
+        self.begin_frame(frame_index);
+        self.stage_mark = None;
+        self.try_emit(WriteOutcome::Refused);
     }
 
-    fn try_emit(&mut self, write_outcome: WriteOutcome, measure_send: bool) {
+    fn try_emit(&mut self, write_outcome: WriteOutcome) {
         let dropped = self.drops_since_emit;
         self.drops_since_emit = 0;
         let now = Instant::now();
-        let send_us = if measure_send {
-            let us = self
-                .stage_mark
-                .take()
-                .map(|mark| duration_us(mark, now))
-                .unwrap_or(0);
-            Some(us)
-        } else {
-            self.stage_mark = None;
-            None
+        let read_us = self.pending_read_us.take();
+        let write_us = match (read_us, self.stage_mark.take()) {
+            (Some(_), Some(mark)) => Some(duration_us(mark, now)),
+            _ => None,
         };
         let serve_us = self
             .serve_start
             .take()
             .map(|t| duration_us(t, now))
             .unwrap_or(0);
-        let prep = self.pending_prepare_us.unwrap_or(0);
-        let loc = self.pending_locate_us.unwrap_or(0);
-        let send = send_us.unwrap_or(0);
-        let overhead_us = serve_us
-            .saturating_sub(prep)
-            .saturating_sub(loc)
-            .saturating_sub(send);
         let row = FrameRecord {
             kind: "server_frame",
             session_id: self.session_id,
             frame_index: self.frame_index,
             ask_ordinal: self.ask_ordinal,
-            t_ask_us: self.t_ask_us,
-            prepare_us: self.pending_prepare_us,
-            locate_us: self.pending_locate_us,
-            send_us,
+            t_serve_us: self.t_serve_us,
+            read_us,
+            write_us,
             serve_us,
-            overhead_us,
             server_bytes_sent: self.pending_bytes,
-            locate_outcome: self.pending_locate,
             write_outcome: write_outcome as u8,
             dropped_since_last: dropped,
         };
@@ -544,26 +480,17 @@ mod tests {
         rows[0]
     }
 
-    fn sample_row(
-        prepare: Option<u32>,
-        locate: Option<u32>,
-        send: Option<u32>,
-        serve: u32,
-        overhead: u32,
-    ) -> FrameRecord {
+    fn sample_row(read: Option<u32>, write: Option<u32>, serve: u32) -> FrameRecord {
         FrameRecord {
             kind: "server_frame",
             session_id: 1,
             frame_index: 0,
             ask_ordinal: 0,
-            t_ask_us: 0,
-            prepare_us: prepare,
-            locate_us: locate,
-            send_us: send,
+            t_serve_us: 0,
+            read_us: read,
+            write_us: write,
             serve_us: serve,
-            overhead_us: overhead,
             server_bytes_sent: 100,
-            locate_outcome: 0,
             write_outcome: 0,
             dropped_since_last: 0,
         }
@@ -571,9 +498,7 @@ mod tests {
 
     fn serve_frame(t: &mut Tap, frame: u32, bytes: usize) {
         t.begin_frame(frame);
-        t.boundary_prepare_done();
-        t.note_locate(bytes);
-        t.boundary_locate_done();
+        t.boundary_read_done();
         t.emit_sent(bytes + 4);
     }
 
@@ -594,9 +519,7 @@ mod tests {
         t.begin_frame(1);
         assert!(t.serve_start.is_some());
         assert!(t.stage_mark.is_some());
-        t.boundary_prepare_done();
-        t.note_locate(8);
-        t.boundary_locate_done();
+        t.boundary_read_done();
         t.emit_sent(16);
         assert!(t.serve_start.is_none());
         assert!(t.stage_mark.is_none());
@@ -609,9 +532,7 @@ mod tests {
         assert_eq!(t.ask_ordinal, 0);
         let serve0 = t.serve_start.expect("serve_start armed");
         std::thread::sleep(std::time::Duration::from_millis(20));
-        t.boundary_prepare_done();
-        t.note_locate(100);
-        t.boundary_locate_done();
+        t.boundary_read_done();
         let before_emit = Instant::now();
         t.emit_sent(104);
         let serve_us_0 = duration_us(serve0, before_emit);
@@ -622,9 +543,7 @@ mod tests {
         assert_eq!(t.ask_ordinal, 1);
         let serve1 = t.serve_start.expect("new serve_start");
         assert!(serve1 > serve0);
-        t.boundary_prepare_done();
-        t.note_locate(100);
-        t.boundary_locate_done();
+        t.boundary_read_done();
         let before_emit1 = Instant::now();
         t.emit_sent(104);
         let serve_us_1 = duration_us(serve1, before_emit1);
@@ -633,22 +552,20 @@ mod tests {
         assert_eq!(t.ask_ordinal, 0);
     }
 
+    /// `read` and `write` are contiguous, so they partition `serve_us` but for each one's
+    /// truncation to whole µs.
     #[test]
     fn contiguous_emit_partition_holds() {
         let (mut t, rx) = test_tap_with_channel(4);
         t.begin_frame(2);
         std::thread::sleep(std::time::Duration::from_millis(1));
-        t.boundary_prepare_done();
-        t.note_locate(8);
-        t.boundary_locate_done();
+        t.boundary_read_done();
         std::thread::sleep(std::time::Duration::from_millis(1));
         t.emit_sent(16);
         let row = one_row(&mut t, &rx);
-        let sum = row.prepare_us.unwrap_or(0)
-            + row.locate_us.unwrap_or(0)
-            + row.send_us.unwrap_or(0)
-            + row.overhead_us;
-        assert_eq!(row.serve_us, sum);
+        let (read, write) = (row.read_us.expect("read"), row.write_us.expect("write"));
+        assert!(read >= 1_000 && write >= 1_000, "read {read} write {write}");
+        assert!((0..=1).contains(&(row.serve_us - read - write)), "{row:?}");
     }
 
     #[test]
@@ -674,46 +591,39 @@ mod tests {
     #[test]
     fn run_summary_percentiles() {
         let mut acc = RunAccumulator::default();
-        acc.push(&sample_row(Some(1), Some(0), Some(100), 101, 0));
+        acc.push(&sample_row(Some(1), Some(100), 101));
         acc.push(&FrameRecord {
             frame_index: 1,
-            send_us: Some(300),
-            serve_us: 305,
-            overhead_us: 4,
             server_bytes_sent: 2000,
-            ..sample_row(Some(1), Some(0), Some(300), 305, 4)
+            ..sample_row(Some(5), Some(300), 305)
         });
         let summary = acc.build_summary();
         assert_eq!(summary.frame_count, 2);
         assert_eq!(summary.totals.serve_us, 406);
-        let send = summary.send_us.expect("send");
-        assert_eq!(send.total, 400);
-        assert_eq!(send.min, 100);
-        assert_eq!(send.max, 300);
+        let write = summary.write_us.expect("write");
+        assert_eq!(write.total, 400);
+        assert_eq!(write.min, 100);
+        assert_eq!(write.max, 300);
+        assert_eq!(summary.totals.read_us, 6);
     }
 
     #[test]
-    fn refused_row_excluded_from_send_distribution() {
+    fn refused_row_excluded_from_stage_distributions() {
         let mut acc = RunAccumulator::default();
-        acc.push(&sample_row(Some(10), Some(2), Some(50), 70, 8));
+        acc.push(&sample_row(Some(10), Some(50), 60));
         acc.push(&FrameRecord {
             frame_index: 1,
-            locate_us: None,
-            send_us: None,
-            serve_us: 12,
-            overhead_us: 2,
             server_bytes_sent: 0,
-            locate_outcome: LocateOutcome::NotFound as u8,
             write_outcome: WriteOutcome::Refused as u8,
-            ..sample_row(Some(10), None, None, 12, 2)
+            ..sample_row(None, None, 2)
         });
         let summary = acc.build_summary();
         assert_eq!(summary.frame_count, 2);
-        let send = summary.send_us.expect("send");
-        assert_eq!(send.count, 1);
-        assert_eq!(send.total, 50);
-        assert_eq!(summary.totals.send_us, 50);
-        assert_eq!(summary.locate_us.expect("locate").count, 1);
+        let write = summary.write_us.expect("write");
+        assert_eq!(write.count, 1);
+        assert_eq!(write.total, 50);
+        assert_eq!(summary.totals.write_us, 50);
+        assert_eq!(summary.read_us.expect("read").count, 1);
     }
 
     #[test]
@@ -721,50 +631,37 @@ mod tests {
         assert!(distribution_stats(&[]).is_none());
     }
 
+    /// A refusal is its own row, of the refused frame, with neither stage: nothing was read.
     #[test]
-    fn emit_refused_closes_open_prepare() {
+    fn a_refusal_is_a_row_with_no_stage() {
         let (mut t, rx) = test_tap_with_channel(4);
-        t.begin_frame(1);
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        // No boundary — refuse owns finalize (prepare failed path).
-        t.emit_refused(1);
+        t.emit_refused(7);
         let row = one_row(&mut t, &rx);
-        assert!(row.prepare_us.is_some());
-        assert!(row.locate_us.is_none());
-        assert!(row.send_us.is_none());
-        assert_eq!(row.locate_outcome, LocateOutcome::NotFound as u8);
+        assert_eq!(row.frame_index, 7);
+        assert_eq!((row.read_us, row.write_us), (None, None));
         assert_eq!(row.write_outcome, WriteOutcome::Refused as u8);
-        assert_eq!(row.serve_us, row.prepare_us.unwrap_or(0) + row.overhead_us);
-        assert_eq!(t.refused, 1);
+        assert_eq!((t.refused, t.rows_opened), (1, 1));
     }
 
+    /// A read that fails leaves both stages null rather than calling its time a write.
     #[test]
-    fn emit_refused_closes_open_locate() {
+    fn a_failed_read_has_no_write_stage() {
         let (mut t, rx) = test_tap_with_channel(4);
-        t.begin_frame(2);
-        t.boundary_prepare_done();
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        // No locate boundary — refuse owns finalize (locate failed path).
-        t.emit_refused(2);
+        t.begin_frame(3);
+        t.emit_write_err();
         let row = one_row(&mut t, &rx);
-        assert!(row.prepare_us.is_some());
-        assert!(row.locate_us.is_some());
-        assert!(row.send_us.is_none());
-        assert_eq!(row.locate_outcome, LocateOutcome::NotFound as u8);
-        assert_eq!(
-            row.serve_us,
-            row.prepare_us.unwrap_or(0) + row.locate_us.unwrap_or(0) + row.overhead_us
-        );
+        assert_eq!((row.read_us, row.write_us), (None, None));
+        assert_eq!(row.write_outcome, WriteOutcome::WriteErr as u8);
     }
 
     #[test]
-    fn t_ask_us_advances_between_asks() {
+    fn t_serve_us_advances_between_frames() {
         let mut t = test_tap();
         t.begin_frame(1);
-        let a = t.t_ask_us;
+        let a = t.t_serve_us;
         std::thread::sleep(std::time::Duration::from_millis(1));
         t.begin_frame(2);
-        assert!(t.t_ask_us >= a + 1_000, "got {} then {}", a, t.t_ask_us);
+        assert!(t.t_serve_us >= a + 1_000, "got {} then {}", a, t.t_serve_us);
     }
 
     #[test]
@@ -774,13 +671,6 @@ mod tests {
         let row = one_row(&mut t, &rx);
         assert_eq!(row.frame_index, 3);
         assert_eq!(row.kind, "server_frame");
-        assert_eq!(
-            row.serve_us,
-            row.prepare_us.unwrap_or(0)
-                + row.locate_us.unwrap_or(0)
-                + row.send_us.unwrap_or(0)
-                + row.overhead_us
-        );
     }
 
     /// The point of batching: `BATCH` rows cost one channel send, `BATCH − 1` cost none.
@@ -822,7 +712,6 @@ mod tests {
         let (mut t, rx) = test_tap_with_channel(8);
         serve_frame(&mut t, 1, 100);
         serve_frame(&mut t, 2, 100);
-        t.begin_frame(3);
         t.emit_refused(3);
         drop(t);
         let records = drain_all(&rx);
