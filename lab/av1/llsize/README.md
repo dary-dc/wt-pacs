@@ -158,7 +158,10 @@ CT 0.902, cone-beam 0.987, MR 0.977, fluoroscopy 0.942, ultrasound 0.962, tomosy
 0.942, projections 0.953 and 0.923. libaom's own controls move little: palette and intra block copy
 through `--tune-content=screen` 0–1.0 %, superblock size and the all-intra usage nothing, every
 optional intra tool off +6–64 %; SVT-AV1 is never smaller than libaom (0.98–1.08); one low bit or
-three are worse than two; YCoCg-R is 1.2 % behind the RCT. libaom has no release after 3.15.1.
+three are worse than two (*corrected by ENCX, [`../encx`](../encx/README.md): at libaom's defaults
+only, the one variant tried on low3; with `--tune-content=screen` three low bits are the best split on
+the cone-beam set (0.949 against two's 0.987), the fluoroscopy, the 12-bit tomosynthesis and one set
+of projections, 0.5–3.9 % under two*); YCoCg-R is 1.2 % behind the RCT. libaom has no release after 3.15.1.
 
 What it costs to decode (dav1d-WASM, Node, n = 15 interleaved, against row SIZE's coding): the
 colour transform is **faster** (0.89–0.92× at 1×, 0.90–0.95× at 4×); the split costs one more
