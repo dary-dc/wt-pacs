@@ -463,6 +463,142 @@ deciding, build R2 for the keep-both shape; a later strip then shrinks it.
 **Not in this PR.** The arrival stamp (#7 full fix) unless D4 says yes, and the AV1 notes (a
 "contiguous run" `Next` variant is a measurement for the AV1 phase, not a given).
 
+## R4 written out for the owner's review (row 120)
+
+**Not built; waiting on the owner (D7).** Every file:line here is at `002511e` (R3 done). R4 moves
+and renames only: no behaviour, no measurement. Questions the owner may want to answer are marked
+**Q**.
+
+### The tree, before → after
+
+```text
+server/src/                         server/src/
+  lib.rs                              lib.rs            + `mod session;`; `pub use` unchanged
+  main.rs                             main.rs           unchanged
+  media/  (4 files)                   media/            unchanged
+  record/ (5 files)                   record/           unchanged
+  transport/                          session/
+    server.rs     1873 lines            mod.rs          the session: config, serve, loop, ask reader, opening ask
+    planner.rs                          planner.rs      ← transport/planner.rs, unchanged
+    pipeline.rs                         pipeline.rs     ← transport/pipeline.rs
+    link.rs                           transport/
+    websocket.rs                        endpoint.rs     ← the QUIC half of server.rs
+    wire.rs                             link.rs, websocket.rs, wire.rs,
+    tuning.rs                           tuning.rs, restart.rs, stream_mode.rs   unchanged in place
+    restart.rs                        testkit.rs        `#[cfg(test)]`, the shared fixtures
+    stream_mode.rs
+```
+
+`transport/server.rs` goes. **Q1:** the design put `ServeConfig` and `run_server` in no named file; this
+puts them in `transport/endpoint.rs` beside the QUIC accept loop, since `run_server` builds both
+endpoints. The alternative is a top-level `serve.rs`.
+
+### What moves (product code)
+
+| Item | From `transport/server.rs` | To |
+| --- | --- | --- |
+| `ServeConfig`, `run_server` | `:32`, `:59` | `transport/endpoint.rs` |
+| `cert_sha256_hex`, `read_fast_path`, `build_endpoint`, `hold_session` | `:192`, `:208`, `:220`, `:266` | `transport/endpoint.rs` |
+| `handle_incoming`, `closed_by_peer`, `report_path` | `:272`, `:324`, `:365` | `transport/endpoint.rs` (the QUIC twin of `websocket::session`) |
+| `Sessions` and its `impl` (`pipeline`, `serve`) | `:146`, `:156` | `session/mod.rs`, renamed (below) |
+| `drive`, `steps` | `:382`, `:388` | `session/mod.rs` |
+| `read_asks`, `forward`, `parse_open_ask` | `:403`, `:409`, `:342` | `session/mod.rs` |
+
+`transport/planner.rs` and `transport/pipeline.rs` move whole (`git mv`). `transport/mod.rs` loses
+`server`, `planner`, `pipeline` and gains `endpoint`; its `pub use server::{run_server, ServeConfig}`
+becomes `pub use endpoint::…`, so `lib.rs`'s public names, and so `main.rs`, do not change. No lab
+crate imports anything that moves (they import `media::…` only).
+
+### What moves (tests)
+
+From `transport/server.rs`'s `mod tests` (from `:427`):
+
+| Test or helper | Line | To |
+| --- | --- | --- |
+| `LoopRecorder`, `the_loop_hands_serve_the_frames_the_planner_named`, `the_loop_drains_its_finishes_however_the_asks_end` | `:440`, `:471`, `:542` | `session/mod.rs` |
+| `an_opening_ask_is_taken_only_whole_and_in_range` | `:795` | `session/mod.rs` (it tests `parse_open_ask`) |
+| `wire_test`, `stream_frames_range_arrives_in_order`, `empty_stream_frames_is_the_whole_study`, `end_stream_stops_a_fill_on_the_wire`, `request_frame_during_fill_switches_to_on_demand`, `pipelined_single_asks_arrive_whole_and_in_ask_order` | `:1620`, `:1650`, `:1679`, `:1709`, `:1745`, `:937` | `session/mod.rs`: the session's FoD behaviour, end to end |
+| `an_opening_ask_is_served_behind_the_accept`, `an_opening_fill_is_recorded_like_any_other_session` | `:962`, `:1178` | `session/mod.rs` |
+| `one_session`, `open_control`, and the five close/error tests (`a_client_that_closes_after_its_frames_…`, `a_malformed_ask_…`, `a_session_that_times_out_…`, `a_client_that_finishes_its_control_stream_…`, `a_client_that_closes_right_after_the_accept_…`) | `:559`, `:607`, `:627`–`:682` | `transport/endpoint.rs`: they test `handle_incoming`'s classification |
+| `a_held_dial_neither_connects_nor_fails`, `settings_ride_the_handshake_flight`, `…_from_a_quic_connecting`, `assert_settings_before_the_handshake`, `a_lost_first_flight_is_repeated_whole` | `:1254`, `:1371`, `:1397`, `:1433`, `:1486` | `transport/endpoint.rs` |
+| `a_stalled_session_sends_its_budget_and_then_nothing` | `:1301` | `transport/link.rs` (the stall lives in `Link::Quic`) |
+| `ws_session`, `a_websocket_close_ends_its_session_cleanly`, `a_websocket_session_ends_with_a_close_frame`, `an_opening_ask_rides_the_websocket_upgrade`, `a_silent_websocket_peer_is_dropped_at_the_handshake_deadline`, `a_websocket_carries_the_same_envelopes_and_refusals` | `:739`, `:691`, `:719`, `:1049`, `:1130`, `:1780` | `transport/websocket.rs` |
+| `write_study`, `pattern`, `write_dev_cert`, `serve_config`, `free_port`, `until_bound`, `the_wait_for_a_port_fails_rather_than_hangs`, `read_envelope`, `read_exact`, `connect_session`, `plain_sessions` | `:816`–`:922`, `:1580`, `:612` | `testkit.rs` (below) |
+
+Elsewhere, into `testkit.rs`: `pipeline.rs`'s `one_frame_study` (`:194`) and `study` (`:210`),
+`read_path.rs`'s `write_bundle` (`:514`), `frame_pattern` and `scratch` (`:542`), `frame_store.rs`'s
+`scratch` (`:235`). Every other test stays where it is.
+
+### The shared test kit (a new server/src/testkit.rs, `#[cfg(test)]`)
+
+```rust
+pub(crate) struct TempDir(PathBuf);              // unique per call (pid + counter); removed on drop
+impl TempDir { pub fn new(tag: &str) -> Self; pub fn path(&self) -> &Path; }
+pub(crate) fn study(dir: &TempDir, frames: u32) -> PathBuf;            // frame i = pattern(i)
+pub(crate) fn study_of(dir: &TempDir, frames: u32, len: u32) -> PathBuf; // read_path's fixed length
+pub(crate) fn pattern(i: u32) -> Vec<u8>;        // over one read window, distinct per frame
+pub(crate) struct DevCert { pub cert_pem: PathBuf, pub key_pem: PathBuf, pub hash: [u8; 32] }
+pub(crate) fn dev_cert(dir: &TempDir) -> DevCert;
+pub(crate) fn free_port() -> u16;
+pub(crate) async fn until_bound(port: u16, deadline: Duration);
+pub(crate) fn serve_config(study: PathBuf, cert: &DevCert, port: u16) -> ServeConfig;
+pub(crate) fn session_config(study: &Path) -> SessionConfig;        // was plain_sessions
+pub(crate) async fn connect_session(cert: &DevCert, config: ServeConfig)
+    -> (JoinHandle<Result<()>>, wtransport::Connection, SendStream);
+pub(crate) async fn read_envelope(recv: &mut RecvStream) -> (u32, Vec<u8>);
+```
+
+`TempDir` replaces the 23 `process::id()` temp paths (`server.rs` 15, `pipeline.rs` 2,
+`uring_reader.rs` 2, and one each in `frame_store.rs`, `read_path.rs`, `path.rs`, `rows.rs`) and
+the `remove_dir_all` at the end of each test, which a failing test skips today. The study writers
+collapse from five to two: `pipeline.rs`'s hand-written SBND bytes and its `study` both become
+`study`, whose frames already differ in length. **Q2:** `pipeline.rs`'s `study` used 4 + i bytes a
+frame; `pattern` is over 64 KiB a frame, so its tests read more. Keep a small variant, or accept it.
+
+### Renames, with each call site
+
+| Now | After | Sites at `002511e` |
+| --- | --- | --- |
+| `ProductPipeline` | `SessionPipeline` | `pipeline.rs:39` (def) and `:50`, `:71`, `:108` (impls), tests `:348`, `:349`; `server.rs:7`, `:157`, `:158`, `:165`; docs: `adr/telemetry-server-pipeline.md` ×2 |
+| `drive` | `run_session` | `server.rs:382` (def); product `:179`, `:180`, `:183`; tests `:490`, `:512`, `:528`, `:551`, `pipeline.rs:317` |
+| `Sessions` | `SessionConfig` | `server.rs:146` (def), `:156`, `:117`, `:274`, tests `:612`, `:613`, `:1192`; `websocket.rs:6`, `:92`, `:110` |
+| `Sessions::serve` | `session::serve(&config, pipeline, opening, read)` | `server.rs:300`, `:306`; `websocket.rs:143` |
+
+`Sessions::pipeline` keeps its name on `SessionConfig`. #8's other rows landed in R1–R3.
+
+### What `websocket.rs` imports after
+
+```rust
+use crate::session::{forward, parse_open_ask, serve, SessionConfig};
+use crate::transport::link::Link;
+use crate::transport::wire::MAX_FOD_LEN;
+```
+
+It still reaches into the session for `forward` and `parse_open_ask`, now as the session's public
+surface rather than sideways into a sibling transport. `endpoint.rs` imports the same four.
+
+### What else must change in the same commits
+
+* **Log targets follow module paths.** `lab/scripts/runtime_ab.sh:26` filters
+  `RUST_LOG=…,exact_server::transport::server=info` to get each `session path` line; after the move
+  `report_path` logs as `exact_server::transport::endpoint`, and the script would count 0 paths
+  without failing. Change it to that target in the move commit. Nothing else in `lab/`, `scripts/` or
+  `deploy/` names a module target.
+* **Doc paths** (`scripts/check_links.py` checks them): `transport/server.rs` in
+  `adr/reject-server-ordering.md` and `adr/telemetry-server-pipeline.md`; `transport/planner.rs` in
+  `adr/disk-access.md` and `lab/window-harness/src/bin/ask_during_fill.rs`; `transport/pipeline.rs` in
+  `adr/telemetry-server-pipeline.md`.
+
+### Commit order inside R4
+
+1. **R4a, the test kit.** `testkit.rs` and every test switched to it, nothing moved: the diff is
+   fixture code going away. Gate.
+2. **R4b, the move.** `git mv` of `planner.rs` and `pipeline.rs`; `server.rs` split into
+   `session/mod.rs` and `transport/endpoint.rs`; tests beside their code per the tables; the log
+   target and doc paths above. No identifier changes, so `git diff -M --stat` shows moves. Gate, plus
+   `cargo check --no-default-features --features crypto-ring --all-targets` warning-free.
+3. **R4c, the renames.** The table above, and nothing else. Gate.
+
 ## Decisions for the owner
 
 **Decided 2026-10-03** (queue rows 116–120 build from these): **D1 keep `per-frame`**, on purpose —
