@@ -42,9 +42,13 @@ def splits(s):
     return sorted({0, 2, max(need - 10, 0)}) if s.ch == 1 else [0]
 
 
+def middle(s, n):
+    return (s.n - n) // 2
+
+
 def streams(s, k, n):
-    """[(bits, [plane per frame])]: the planes the merge takes back with top << k | low."""
-    v = [s.frame(i).astype(np.int32) + s.offset for i in range(n)]
+    """[(bits, [plane per frame])] for the series' middle n frames: the merge takes them back with top << k | low."""
+    v = [s.frame(middle(s, n) + i).astype(np.int32) + s.offset for i in range(n)]
     if k == 0:
         return [(fit(depth.coded_bits(s)) if s.ch == 1 else s.av1_bits, v)]
     return [(fit(depth.coded_bits(s) - k), [x >> k for x in v]), (8, [x & ((1 << k) - 1) for x in v])]
@@ -100,14 +104,14 @@ def check(build, s, cell, work):
             return False, None
         part = [g.astype(np.int32) << (cell["k"] if j == 0 and cell["k"] else 0) for g in got]
         merged = part if merged is None else [m + p for m, p in zip(merged, part)]
-    return all(size.exact(s, i, merged[i]) for i in range(cell["n"])), secs
+    return all(size.exact(s, middle(s, cell["n"]) + i, merged[i]) for i in range(cell["n"])), secs
 
 
 def htj2k(s, n, work):
-    """The served profile, one codestream a frame (as size.py codes it); bytes, encode seconds, exact."""
+    """The served profile on the middle n frames, one codestream a frame (as size.py codes it); bytes, encode seconds, exact."""
     env = {"LD_LIBRARY_PATH": str(size.OJPH / "lib")}
     files, secs, ok, ext = [], 0.0, True, ".pgm" if s.ch == 1 else ".ppm"
-    for i in range(n):
+    for i in range(middle(s, n), middle(s, n) + n):
         src, out = work / f"{s.name}-{i}{ext}", work / f"{s.name}-{i}.j2c"
         shift = size.pnm(s, i, src)
         secs += size.timed([size.OJPH / "bin/ojph_compress", "-i", src, "-o", out, "-num_decomps", "5", "-block_size",
