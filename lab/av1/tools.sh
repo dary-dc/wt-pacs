@@ -4,7 +4,7 @@
 #
 #   BUILD=... lab/av1/tools.sh
 #
-# libaom ships as release tarballs (checksummed below); SVT-AV1 and dav1d as git tags whose
+# libaom ships as release tarballs (checksummed below); SVT-AV1, dav1d and AVM (AV2) as git tags whose
 # commit is checked. Two libaom versions, because lossless correctness changed between them.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -20,6 +20,8 @@ SVT_TAG=v4.2.0
 SVT_COMMIT=9292ec8e32bce26f781f277ec8739b53426c4300
 DAV1D_TAG=1.5.4
 DAV1D_COMMIT=54706fc6bc0cdecab7e9593974a4039cc038fca7
+AVM_TAG=v1.0.0
+AVM_COMMIT=966a7d7cd6fcf60360caf5dc413b2aeeb65e144d
 
 mkdir -p "$BUILD"
 
@@ -60,6 +62,15 @@ if [[ ! -x "$BUILD/dav1d/bin/dav1d" ]]; then
   meson install -C "$BUILD/dav1d-b" >/dev/null
 fi
 
+if [[ ! -x "$BUILD/avm/bin/avmenc" ]]; then
+  clone_pinned https://github.com/AOMediaCodec/avm.git "$AVM_TAG" "$AVM_COMMIT" "$BUILD/avm-src"
+  cmake -S "$BUILD/avm-src" -B "$BUILD/avm-b" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$BUILD/avm" -DENABLE_TESTS=0 -DENABLE_DOCS=0 -DENABLE_TOOLS=0 >/dev/null
+  cmake --build "$BUILD/avm-b" -j"$JOBS" >/dev/null
+  cmake --install "$BUILD/avm-b" >/dev/null
+fi
+
 for v in "${AOM_VERSIONS[@]}"; do "$BUILD/aom-$v/bin/aomenc" --help 2>&1 | grep "AV1 Encoder"; done
 "$BUILD/svt/bin/SvtAv1EncApp" --version
 LD_LIBRARY_PATH="$BUILD/dav1d/lib" "$BUILD/dav1d/bin/dav1d" --version
+"$BUILD/avm/bin/avmenc" --help 2>&1 | grep -m1 "AV2 Encoder"
