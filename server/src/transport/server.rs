@@ -135,7 +135,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
                 return hold_session(incoming).await;
             }
             if let Err(err) = handle_incoming(incoming, sessions).await {
-                warn!(%err, "session ended");
+                warn!(err = %format_args!("{err:#}"), "session ended");
             }
         });
     }
@@ -311,7 +311,7 @@ async fn handle_incoming(
     report_path(&connection);
     match result {
         Err(err) if closed_by_peer(&connection, &err) => {
-            info!(%err, "session closed by peer");
+            info!(err = %format_args!("{err:#}"), "session closed by peer");
             Ok(())
         }
         result => result,

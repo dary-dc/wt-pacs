@@ -101,7 +101,7 @@ pub(super) async fn serve(listener: TcpListener, tls: TlsAcceptor, sessions: Ses
         let (tls, sessions) = (tls.clone(), sessions.clone());
         tokio::spawn(async move {
             if let Err(err) = session(tcp, tls, sessions).await {
-                warn!(%err, "WebSocket session ended");
+                warn!(err = %format_args!("{err:#}"), "WebSocket session ended");
             }
         });
     }
@@ -142,7 +142,7 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
     // Served right behind the 101, a round trip before the client's first message could land.
     match sessions.serve(product, opening, read).await {
         Err(err) if closed.load(Ordering::Relaxed) => {
-            info!(%err, "WebSocket session closed by peer");
+            info!(err = %format_args!("{err:#}"), "WebSocket session closed by peer");
             Ok(())
         }
         result => result,
