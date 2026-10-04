@@ -321,7 +321,9 @@ Invariants an implementation has to keep, each of which is a way to get this wro
    `try_recv` between stream frames or `EndStream` waits until the study ends.
 3. **A closed channel ends the session**, and the reader task's error is the session's error —
    losing it turns a broken control stream into a silent hang.
-4. **Capacity `ASKS_AHEAD`, shared with `in_hand`.** The channel holds control messages, not
+4. **Capacity `ASKS_AHEAD` in the channel and `ASKS_AHEAD` more in `in_hand`**, so up to 16 asks
+   wait; this said "shared with `in_hand`" until 2026-10-04, which the code never did
+   (`mpsc::channel(ASKS_AHEAD)` in `server.rs`, the planner's fill loop). The channel holds control messages, not
    generated stream indexes. The tile reader takes at most `slots − 1` of what the planner
    names; a fill takes `FILL_AHEAD`. A running fill is not sized by this queue.
 5. **Depth 2 is the first step, not the target.** The owners asked for depth 4 or more
