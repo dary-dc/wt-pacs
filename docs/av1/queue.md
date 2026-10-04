@@ -83,7 +83,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 33 | **REP14** — the layout of 13- and 14-bit samples: two low bits apart (12-bit top, dav1d only) against streams of ≤ 10 bits (WebCodecs), by total time | claimed 2026-10-04 20:40 UTC |
 | 34 | **TOTAL2** — row 23 again with row 28's representations, and the colour-transformed ultrasound at G = 8 through WebCodecs | claimed 2026-10-04 20:41 UTC |
 | 35 | **DATA2** — breast ultrasound cine and contrast angiography, if their hosts are now reachable: bytes, decode and total time | claimed 2026-10-04 20:42 UTC |
-| 36 | **ENCX** — where lossless bytes and decode can still be cut: the low stream, the split per series, temporal noise, and whether HTJ2K gains from the same representations | night |
+| 36 | **ENCX** — where lossless bytes and decode can still be cut: the low stream, the split per series, temporal noise, and whether HTJ2K gains from the same representations | claimed 2026-10-04 20:41 UTC |
 
 ## Briefs
 
