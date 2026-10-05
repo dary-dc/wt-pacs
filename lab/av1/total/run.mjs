@@ -7,7 +7,7 @@
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--throttles 1,4] [--sets a,b] [--arms a,b]
- *     [--frames lab/.av1-work/total] [--mutate sample|truth] [--out rows.jsonl] [--summary]
+ *     [--frames lab/.av1-work/total] [--mutate sample|truth] [--out rows.jsonl] [--summary [--ref htj2k]]
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
@@ -27,6 +27,7 @@ const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const FRAMES = arg("--frames", "lab/.av1-work/total");
 const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", null);
+const REF = arg("--ref", "htj2k");
 const ROOT = new URL("../../..", import.meta.url).pathname;
 const T = mkdtempSync(path.join(tmpdir(), "av1-total-"));
 const port = () => 20000 + ((Math.random() * 25000) | 0);
@@ -214,11 +215,11 @@ const span = (a) => `${med(a).toFixed(0)} [${Math.min(...a)}–${Math.max(...a)}
 if (OUT) rows.splice(0, rows.length, ...readFileSync(OUT, "utf8").trim().split("\n").map((l) => JSON.parse(l)));
 const kept = rows.filter((r) => !r.void && r.frames);
 console.log("ms from the fill's issue: first frame on the page, every frame on the page — median [min–max], n kept; " +
-  "÷ HTJ2K on every frame, median of rounds paired; frames exact over every visit");
+  `÷ ${REF} on every frame, median of rounds paired; frames exact over every visit`);
 for (const { set: name, link: l, throttle } of cells) {
   const set = sets.find((s) => s.name === name);
   const of = (a, from = kept) => from.filter((r) => r.set === name && r.link === l && r.throttle === throttle && r.arm === a);
-  const ref = new Map(of("htj2k").map((r) => [r.round, r.decodedMs]));
+  const ref = new Map(of(REF).map((r) => [r.round, r.decodedMs]));
   const parts = set.armNames.map((a) => {
     const rs = of(a);
     const all = of(a, rows);
@@ -227,7 +228,7 @@ for (const { set: name, link: l, throttle } of cells) {
     let s = `${a} first ${span(rs.map((r) => r.firstMs))}`;
     if (rs[0].previews !== undefined) s += ` shown ${span(rs.map((r) => r.shownMs))} previews ${all.reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all.length * set.frames} as native`;
     s += ` all ${span(rs.map((r) => r.decodedMs))} n=${rs.length} exact ${exact}`;
-    const d = rs.filter((r) => a !== "htj2k" && ref.has(r.round)).map((r) => r.decodedMs / ref.get(r.round));
+    const d = rs.filter((r) => a !== REF && ref.has(r.round)).map((r) => r.decodedMs / ref.get(r.round));
     if (d.length) s += ` ×${med(d).toFixed(2)} (slower ${d.filter((x) => x > 1).length}/${d.length})`;
     return s;
   });
