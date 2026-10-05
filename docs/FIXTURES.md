@@ -105,14 +105,14 @@ all 387 identical (row DATA3's nine sets: 565/565), and no sample carries bits a
 | `dbt10_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm, cropped to the breast | 24 × 678×1727 of 1890×2457 | 10 of 16 bits, unsigned | 0..1012 | EA1141, CC BY 4.0 |
 | `dbtproj_ge` | breast tomosynthesis **projections**, R CC, one view per tube angle, acquisition order, cropped to the breast | 9 × 1914×2572 of 2394×2850 | 14 of 16 bits, unsigned | 0..3648 and 16383 | EA1141, CC BY 4.0 |
 | `dbtproj_holo` | breast tomosynthesis **projections**, R CC, one multi-frame file, frames as stored | 15 × 1280×2048 | 14 of 16 bits, unsigned | 103..1794 and 16383 | EA1141, CC BY 4.0 |
-| `ffdm_holo` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO | 4 × 2560×3328 | 12 of 16 bits, unsigned | 0..4093 | EA1141, CC BY 4.0 |
-| `ffdm_ge` | full-field digital mammogram, for presentation, R CC, L CC (second vendor) | 2 × 1914×2294 | 12 of 16 bits, unsigned | 407..4095 | EA1141, CC BY 4.0 |
-| `syn2d_holo` | synthesized 2D mammogram from tomosynthesis, R CC, L CC | 2 × 2560×3328 | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 |
-| `syn2d_ge` | synthesized 2D mammogram from tomosynthesis, R CC, R MLO, L CC, L MLO (second vendor) | 4 × 2394×2850 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 |
+| `ffdm_a` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO | 4 × 2560×3328 | 12 of 16 bits, unsigned | 0..4093 | EA1141, CC BY 4.0 |
+| `ffdm_b` | full-field digital mammogram, for presentation, R CC, L CC (second vendor) | 2 × 1914×2294 | 12 of 16 bits, unsigned | 407..4095 | EA1141, CC BY 4.0 |
+| `syn2d_a` | synthesized 2D mammogram from tomosynthesis, R CC, L CC | 2 × 2560×3328 | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 |
+| `syn2d_b` | synthesized 2D mammogram from tomosynthesis, R CC, R MLO, L CC, L MLO (second vendor) | 4 × 2394×2850 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 |
 | `pt15_cptac` | PET, whole body, axial, 3.27 mm | 335 × 256² | 16-bit signed | 0..32767 | CPTAC-LUAD, CC BY 4.0 |
 | `mg16_cbis` | digitized screen-film mammogram, L MLO | 1 × 4366×6871 | 16-bit unsigned | 0..65535 | CBIS-DDSM, CC BY 3.0 |
-| `ct_toshiba` | CT chest, axial, 1.8 mm, the longer of the series' two contiguous runs | 76 × 512² | 16-bit signed | −2048..2353 | NLST, CC BY 4.0 |
-| `ct_canon` | CT, axial, 5 mm | 107 × 512² | 16-bit signed | −2048..3373 | CMB-CRC, CC BY 4.0 |
+| `ct_nlst` | CT chest, axial, 1.8 mm, the longer of the series' two contiguous runs | 76 × 512² | 16-bit signed | −2048..2353 | NLST, CC BY 4.0 |
+| `ct_crc` | CT, axial, 5 mm | 107 × 512² | 16-bit signed | −2048..3373 | CMB-CRC, CC BY 4.0 |
 | `mr9_ispy2` | MR breast, axial TIRM, 5 mm | 34 × 320² | 12 of 16 bits, unsigned | 0..356 | ISPY2, CC BY 4.0 |
 
 * **Ranges are measured, not the header's.** 21.5 % of `ct_lidc`'s samples are −2048, the pad
@@ -136,15 +136,15 @@ all 387 identical (row DATA3's nine sets: 565/565), and no sample carries bits a
   (outside it every sample is 16383, checked); the second vendor's views have no such margin. Its
   series has 9 views; the same study's L CC series, missing one, was not used.
 * **Row DATA3's depths, after the offset (the series' minimum) and measured over every frame:**
-  9 bits `mr9_ispy2`; 10 `syn2d_holo`; 12 `ffdm_holo`, `ffdm_ge`, `syn2d_ge`; 13 `ct_toshiba`, `ct_canon`;
+  9 bits `mr9_ispy2`; 10 `syn2d_a`; 12 `ffdm_a`, `ffdm_b`, `syn2d_b`; 13 `ct_nlst`, `ct_crc`;
   15 `pt15_cptac`; 16 `mg16_cbis`. `BitsStored` says 12 or 16 for all of them. The PET is scaled per slice
   to 32767 (signed by its header, no negative sample, 38 % zeros). `mg16_cbis` spans 0..65535 but holds 2 969
   distinct values, ~21 apart: a ~12-bit scan stretched to 16 bits, 48 % zeros and 2.1 % saturated; it is
   4366×6871, larger than any other frame here. The two CTs are signed with negatives, from two vendors other
   than `ct_lidc`'s; both pad with −2048 (21.5 % of samples) and need 13 bits with or without it. Probed and not
-  taken: CMMD's mammograms (8-bit), three NM series (5, 7 and 10 bits), a GE CT and a Philips CT
-  (12 bits, no negative sample), a Fujifilm CT (an MPR clipped at −2000..4000), the raw (`FOR PROCESSING`)
-  Hologic mammogram (13 bits, MONOCHROME1).
+  taken: CMMD's mammograms (8-bit), three NM series (5, 7 and 10 bits), CTs from two more vendors
+  (12 bits, no negative sample), a third's (an MPR clipped at −2000..4000), the raw (`FOR PROCESSING`)
+  mammogram behind `ffdm_a` (13 bits, MONOCHROME1).
 * **Still not open here (row DATA3, IDC v24, the newest release on PyPI, `idc-index-data` 24.2.2):** no
   breast ultrasound cine or still beyond CMB-BRCA's 14, no automated breast ultrasound, and no multi-frame XA
   (all 35 XA series single frames, re-read). Every other host tried refused the tunnel (CONNECT 403,
