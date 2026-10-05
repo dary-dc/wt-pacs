@@ -84,6 +84,8 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 34 | **TOTAL2** — row 23 again with row 28's representations, and the colour-transformed ultrasound at G = 8 through WebCodecs | claimed 2026-10-04 20:41 UTC |
 | 35 | **DATA2** — breast ultrasound cine and contrast angiography, if their hosts are now reachable: bytes, decode and total time | done `e8896ae` — **stopped at its first step: the hosts are still refused** — `zenodo.org` and `www.cancerimagingarchive.net` (and `services.cancerimagingarchive.net`, `figshare.com`, `data.mendeley.com`, `huggingface.co`, `physionet.org`, `www.kaggle.com`, `osf.io`) answer CONNECT 403 from the container's egress policy, 2026-10-04 20:43 UTC; nothing fetched or measured, no verdict on breast ultrasound cine or angiography — [`## Blocked`](#blocked) |
 | 36 | **ENCX** — where lossless bytes and decode can still be cut: the low stream, the split per series, temporal noise, and whether HTJ2K gains from the same representations | done `e0ba8e1` (`67fba68`, `84a1e15`, `bf9d1df`, `c7f8b68`) — **HTJ2K gains 0.9–1.6 % from the same split, only with its low bits deflated, so row 28's gain is AV1's (0.916–0.997 of HTJ2K on the same split); the low bits deflated cost AV1's bytes ±0.5 points and decode 0.64–0.83× of row 28's coding**: all nine series, libaom 3.15.1 cpu0, 358/358 codings exact; three low bits beat two on the four series with noise σ ≥ 17 (0.5–3.9 %, cone-beam 0.987 → 0.948; row 28 tried three at libaom's defaults only, corrected in place), decoding 0.59–0.78×; the top through WebCodecs (≤ 10 bits, k = 3 brings CT and cone-beam there) with the low deflated 0.34–0.56× of row 28's decode, 2.1–3.4× HTJ2K's (headless Chromium 141, 1× and 4×, 10 interleaved rounds, 7 100/7 100 frames exact); k̂ = ⌊log2 σ⌋ wrong on four series, ⌊log2 σ⌋ − 1 right on all nine but fitted to them; inter finds nothing in the noise (low stream inter 0–3.6 % larger); libaom's tools: palette worth 4.5–9.2 % and already on, the rest ±1 %; total time arithmetic only (row 34); 9 byte and 4 browser mutations caught — [`lab/av1/encx`](../../lab/av1/encx/README.md), [`README.md`](README.md) §A1 |
+| 37 | **XBROWSER** — the AV1 decode path (dav1d-WASM, the WebCodecs probe and its fallback) in WebKit and Firefox engines: exact, chosen right, how fast | night |
+| 38 | **FOOTPRINT** — the AV1 path's memory and first-use cost: dav1d-WASM heap per worker at the largest frames, and the first item's import and compile at 1× and 4× | night |
 
 ## Briefs
 
@@ -520,6 +522,28 @@ WebCodecs where it applies, 1× and 4×, interleaved):
 
 Verdict: a ranked list of encoding changes, each with its bytes over HTJ2K, its decode cost at 1× and 4×, and what
 it means for total time on row 23's links — and the HTJ2K-on-the-same-representation result stated first.
+
+### 37 XBROWSER
+
+Rows 3, 13, 20, 30 and 31 ran in Chromium only. A phone may run WebKit (every iOS browser) or Gecko. With
+Playwright's pinned WebKit and Firefox builds (record their versions), run the lab's AV1 decode path as it is —
+`decode-av1.js` (dav1d-WASM SIMD build of row 4), `decode-av1-webcodecs.js`, the per-layout probe and the fallback to
+dav1d — on row 28's shapes (grey 8/10/12 direct and split, signed after an offset, RGB through the colour transform
+and as G, B, R) and on row 2/10/21 series frames: every frame exact against the source checksums; which decoder each
+engine chose and why (VideoDecoder absent, probe refused, decode refused); whether the SIMD build loads (WebAssembly
+SIMD support) and what happens if it does not; decode a frame against the HTJ2K path in the same engine, 1× and 4×,
+interleaved. Desktop engines are not phones: say so. Verdict: per engine, the AV1 path exact or not, its decoder,
+and its decode time against HTJ2K's.
+
+### 38 FOOTPRINT
+
+A phone has little memory and a slow CPU. For the lab's AV1 path in headless Chromium: the dav1d-WASM heap after
+the first item and its high-water mark across a series, per worker, at the largest frames here (the 14-bit
+projections, about 4.9 M samples; RGB ultrasound), against the HTJ2K decoder's; whether the heap is returned or
+grows; with two and four decode workers. And the first AV1 item's cost on a fresh worker: fetching, compiling and
+instantiating the module (and the WebCodecs probe), from the decode message to the first frame, against the next
+item's and against HTJ2K's first, at 1× and 4×, interleaved, cold and with the module cached by the browser.
+Verdict: memory per worker and first-use cost, with what each means for a phone.
 
 ## Blocked
 
