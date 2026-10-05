@@ -187,7 +187,11 @@ phone's. *DEPTH since (§A3):* split into two streams, AV1 is 0.3–8 % under HT
 series over 10 bits (CT 0.918) — the one place it wins, set against a decode SPEED measures at
 5–10× (a split's two streams decode natively in the time of one; not timed in WASM). *SPLIT10 since
 (§A3):* timed in Chromium, top11+low through dav1d-WASM is 5.7–8.2× OpenJPH and top10+low through
-WebCodecs 2.6–3.9×.
+WebCodecs 2.6–3.9×. *XBROWSER since:* in Firefox 157 and WebKitGTK 2.52 the
+client's choice of WebCodecs fails every frame of every series that says `depth` ≤ 10 (Firefox
+refuses monochrome AV1 and returns 4:4:4 as 8-bit `BGRX`; WebKitGTK's GStreamer decodes no AV1
+here), with no fallback to dav1d-WASM; dav1d-WASM and OpenJPH are exact in all three engines, at
+4–10× apart as in Chromium ([`decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox).
 
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
 unsigned. Signed data is offset by 2^(B−1), which is reversible; data over 12 bits (stored 16-bit)
