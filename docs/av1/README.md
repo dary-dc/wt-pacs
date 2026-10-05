@@ -327,6 +327,15 @@ wins or ties every cell. At 14 bits store the two low bits apart (d12, dav1d-WAS
 of HTJ2K's bytes and 0.93–0.99 of its fill time where the wire is the clock, and HTJ2K wherever a slow
 CPU meets a link of 20 Mbit or more. w10 is the 14-bit choice on one cell only.
 
+*Checked (SPLITOK; [`lab/av1/splitok`](../../lab/av1/splitok/README.md)): the split is exact at every depth and
+layout a rule could pick.* Every b = 8…16 bits after the offset, unsigned and signed, at every k = max(0, b − 12) …
+max(b − 8, 4), item format widened to match ([`item-format.md`](item-format.md) §Built): every value split and merged
+back in the writer and the reader; 8 280 synthetic frames (seven geometries from 1 pixel wide to 256², ramps holding
+every value, extremes, noise, a pad at the series minimum) and all 3 310 frames of the nine real series at each of
+their k, cpu0 and the shipped preset, exact natively, in Node and in Chromium, Firefox and WebKitGTK, each decoder the
+one its engine should choose — WebCodecs in Chromium wherever every stream is ≤ 10 bits, dav1d-WASM elsewhere; and 20
+mutations caught. Nothing in the split stops a per-depth rule: row 44 may pick any k of this range on bytes and time.
+
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never

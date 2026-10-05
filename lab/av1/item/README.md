@@ -43,3 +43,7 @@ planes, checked against native dav1d before it is written.
 * **The check catches what it must.** With the low stream left out of the merge, with RGB's planes
   unpermuted, or with the inverse colour transform's ⌊/4⌋ as ⌊/2⌋, `ingest.py` writes nothing and
   names the frame (3 mutations, each on a 13-bit signed and an RGB source, each caught).
+* **Every depth and split (row 43).** Grey of 8–16 bits after the offset, unsigned and signed, at every
+  k a per-depth rule could pick, synthetic and all nine real series, every frame exact natively, in
+  Node and in three engines; 90 golden items in `client/conformance/av1/items/matrix/` — the counts,
+  the mutations and the reader's corrected mask are [`lab/av1/splitok`](../splitok/README.md) §Checked.

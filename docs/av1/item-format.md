@@ -93,3 +93,12 @@ decoded by the reader to their sources; optimized over plain matches row 28 to t
 ([`lab/av1/item`](../../lab/av1/item/README.md) §Checked). The lab harnesses of rows 9–38 that hand the client bare temporal units, or import the decoder modules
 (`lab/av1/{speed,fill,total,decspeed,wcbase,xbrowser,footprint,rep14}`), are not ported: on this branch they would
 need their frames written as items; their readings stand as measured on `claude/av1`.
+
+**Widened (row 43 SPLITOK, [`lab/av1/splitok`](../../lab/av1/splitok/README.md)).** The writer (`ingest.py --split K`)
+and the reader take grey of 8–16 bits after the offset, unsigned and signed, at any k ≤ 8 whose top fits a 12-bit
+stream; the defaults above are unchanged until row 44. Checked exact at every b = 8…16 and every k = max(0, b − 12) …
+max(b − 8, 4), natively, in Node and in Chromium, Firefox and WebKitGTK, synthetic and real, and the old and new
+refusals matched by message. The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
+2^(depth + split) − 1 reports a wrong range for signed 8-bit with a split and for signed 16-bit at k = 5 and 7.
+**New limits:** `bits` ≤ 16, `split` ≤ 8, a top of at most 12 bits; an item's `depth` is the smallest of 8, 10, 12
+holding its top.
