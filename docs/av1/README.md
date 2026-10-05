@@ -331,7 +331,8 @@ CPU meets a link of 20 Mbit or more. w10 is the 14-bit choice on one cell only.
 layout a rule could pick.* Every b = 8…16 bits after the offset, unsigned and signed, at every k = max(0, b − 12) …
 max(b − 8, 4), item format widened to match ([`item-format.md`](item-format.md) §Built): every value split and merged
 back in the writer and the reader; 8 280 synthetic frames (seven geometries from 1 pixel wide to 256², ramps holding
-every value, extremes, noise, a pad at the series minimum) and all 3 310 frames of the nine real series at each of
+every value, extremes, noise, a pad at the series minimum), 540 frames of 1914×2572 and 4096×5120 at the
+fastest preset, and all 3 310 frames of the nine real series at each of
 their k, cpu0 and the shipped preset, exact natively, in Node and in Chromium, Firefox and WebKitGTK, each decoder the
 one its engine should choose — WebCodecs in Chromium wherever every stream is ≤ 10 bits, dav1d-WASM elsewhere; and 20
 mutations caught. Nothing in the split stops a per-depth rule: row 44 may pick any k of this range on bytes and time.

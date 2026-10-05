@@ -18,8 +18,8 @@ $P lab/av1/splitok/run.py lab/.av1-build $W/sets $W/items       # cpu0 and allin
 node lab/av1/splitok/check.mjs $W/sets $W/items                 # the reader in Node, ~10 s
 FIREFOX_PATH=... node lab/av1/splitok/browser.mjs $W/sets $W/items   # three engines (row 37's), ~1 h
 $P lab/av1/splitok/make_sets.py $W/large --large                # 1914×2572 and 4096×5120, 2.5 GB
-$P lab/av1/splitok/run.py lab/.av1-build $W/large $W/litems --presets allintra:7
-$P lab/av1/splitok/run.py lab/.av1-build lab/av1/data $W/real --presets cpu0,shipped
+$P lab/av1/splitok/run.py lab/.av1-build $W/large $W/litems --presets allintra:7   # ~2.5 h
+$P lab/av1/splitok/run.py lab/.av1-build lab/av1/data $W/real --presets cpu0,shipped  # ~7 h, cpu0 dominates
 $P lab/av1/splitok/mutate.py lab/.av1-build $W/sets $W/items    # 19 mutations, ~10 min
 ```
 
@@ -61,6 +61,11 @@ bits, dav1d-WASM otherwise and in the two others.
   Firefox refuses monochrome, WebKitGTK's WebCodecs decodes no AV1); 8 280/8 280 chose as expected in
   each engine. No size or
   depth was refused.
+* **The large frames.** 1914×2572 and 4096×5120, the ramp (every value), the noise and the extremes,
+  every b, sign and k at `--allintra` 7: 180/180 cells, 540 frames, exact natively, in Node and in
+  the three engines — Chromium 408 through WebCodecs and 132 through dav1d-WASM, the two others all
+  through dav1d-WASM, each as expected. Not coded at cpu0 (3–20 min a projection frame there, below);
+  the real projections were.
 * **The golden matrix.** 90 items (32×24, b = 8…16, every k, both signs) in
   `client/conformance/av1/items/matrix/`, exact in Node and through the downloader in Chromium, by
   WebCodecs and by dav1d-WASM; every refusal of `item-format.md`, old and new, matched by its message
