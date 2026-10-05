@@ -2,7 +2,7 @@
  * One item through the client's reader (client/downloader/av1.js), in Node or a browser worker: which
  * decoder gave its pictures, each stream's picture against the stream the writer planned from the
  * source (top = v ≫ k, low = v & (2^k − 1), v after the series' offset), and the merged frame's SHA-256
- * against the source's. Queue row 43; lab/av1/splitok/README.md
+ * against the source's, and the range the contract reports against the source's. Queue row 43; README.md
  */
 import { parseItem } from "../../../client/downloader/av1-item.js";
 
@@ -46,8 +46,9 @@ export async function verify(av1, bytes, raw, meta, truth, sha256) {
     const used = calls.filter((c) => !c.error);
     const decoder = used.at(-1)?.decoder ?? "none";
     const streams = used.filter((c) => c.decoder === decoder);
+    const range = planned && `${f.range.min}..${f.range.max}` === `${planned.min}..${planned.max}`;
     return {
-      decoder, exact: (await sha256(new Uint8Array(f.sab))) === truth,
+      decoder, exact: (await sha256(new Uint8Array(f.sab))) === truth && range !== false,
       streamsSame: planned ? streams.length === (header.split ? 2 : 1) && streams.every((c) => c.same) : null,
       fellBack: calls.some((c) => c.error), header: { bits: header.bits, depth: header.depth, split: header.split },
     };
@@ -63,12 +64,14 @@ function plan(raw, meta, split) {
   const offset = meta.min < 0 ? -meta.min : 0;
   const top = new Uint16Array(n);
   const low = new Uint16Array(n);
+  let [min, max] = [Infinity, -Infinity];
   for (let i = 0; i < n; i++) {
+    [min, max] = [Math.min(min, view[i]), Math.max(max, view[i])];
     const v = view[i] + offset;
     top[i] = v >> split;
     low[i] = v & ((1 << split) - 1);
   }
-  return { top, low, width: meta.width, height: meta.height };
+  return { top, low, min, max, width: meta.width, height: meta.height };
 }
 
 function same(pic, values) {
