@@ -34,10 +34,14 @@ def main():
     got = {(b, sg, k): cell(b, sg, k) for b in range(8, 17) for sg in (False, True) for k in range(9)}
     refused = [c for c, why in got.items() if why and why.startswith("refused") and c[0] - c[2] > 12]
     wrong = [(c, why) for c, why in got.items() if why and c not in refused]
+    for b, k, want in ((17, 5, "over 16"), (16, 9, "not 0 to 8"), (15, None, "no default layout over 14 bits")):
+        why = cell(b, False, k)
+        if not (why or "").startswith("refused") or want not in why:
+            wrong.append(((b, False, k), f"not refused by name ({why})"))
     for (b, sg, k), why in wrong:
         print(f"{b}-bit {'signed' if sg else 'unsigned'} k={k}: {why}")
     print(f"writer's split and merge: {len(got) - len(refused) - len(wrong)}/{len(got) - len(refused)} cells exact, "
-          f"{len(refused)} with a top over 12 bits refused by name")
+          f"{len(refused)} with a top over 12 bits refused by name, as are 17 bits, k = 9 and a default over 14 bits")
     sys.exit(1 if wrong else 0)
 
 
