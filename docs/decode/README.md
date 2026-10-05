@@ -1147,7 +1147,9 @@ through the platform's media stack, not GStreamer.
   caps. **So in both every series that says `depth` ≤ 10 fails every frame, 0/240 a cell**: the
   8-bit grey, the 10-bit tomosynthesis, the ultrasound and every split whose top is ≤ 10 bits.
   There is no fallback: a WebCodecs refusal is the frame's failure, not a turn to dav1d. Series
-  coded over 10 bits are unaffected.
+  coded over 10 bits are unaffected. *Since row 39 (UNIFY, the item format):* the choice is per item behind a per-layout probe, and
+  an item WebCodecs fails on is decoded by dav1d-WASM — built and checked in Chromium, not re-run in
+  Firefox or WebKitGTK.
 * **WebKitGTK leaves `SharedArrayBuffer` off** under cross-origin isolation (Safari turns it on),
   so as shipped every frame of every codec fails — `Can't find variable: SharedArrayBuffer`, HTJ2K
   included, 0/148. With `JSC_useSharedArrayBuffer=1` it decodes as above.

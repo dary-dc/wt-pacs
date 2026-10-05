@@ -3,7 +3,9 @@
 The phase's goal: a study can be served as lossless AV1 as well as lossless HTJ2K, the codec chosen
 per series, and **every frame on screen is bit-exact with the source**, whichever codec carried it.
 This file owns the phase: what is decided, what is open and the measurement that decides each. The
-work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md).
+work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md). The AV1 item — what one stored entry
+carries, in its plain and optimized representations — is [`item-format.md`](item-format.md), adopted
+2026-10-04 and built end to end on `claude/av1-unified` (row 39).
 
 ## What already does not care about the codec
 
@@ -190,7 +192,8 @@ series over 10 bits (CT 0.918) — the one place it wins, set against a decode S
 WebCodecs 2.6–3.9×. *XBROWSER since:* in Firefox 157 and WebKitGTK 2.52 the
 client's choice of WebCodecs fails every frame of every series that says `depth` ≤ 10 (Firefox
 refuses monochrome AV1 and returns 4:4:4 as 8-bit `BGRX`; WebKitGTK's GStreamer decodes no AV1
-here), with no fallback to dav1d-WASM; dav1d-WASM and OpenJPH are exact in all three engines, at
+here), with no fallback to dav1d-WASM (*since row 39 there is one, and a per-layout probe; not re-run
+in those engines*); dav1d-WASM and OpenJPH are exact in all three engines, at
 4–10× apart as in Chromium ([`decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox).
 
 **Memory and first use (FOOTPRINT, [`lab/av1/footprint`](../../lab/av1/footprint/README.md)):** the
