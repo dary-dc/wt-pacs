@@ -4,7 +4,9 @@ ingest.py — which writes nothing unless native dav1d decodes each item back to
 
   ITEMS/{b}{u|s}/{geometry}/k{K}.{preset}/NNN.av1 …   and ITEMS/native.json, a row a cell
 
-usage: run.py BUILD SETS ITEMS [--presets cpu0,allintra:7] [--ks all|2,3,b-10] [--jobs 4]   — README.md
+A colour set is coded in its two shapes, plain and optimized (RCT), with no split.
+
+usage: run.py BUILD SETS ITEMS [--presets cpu0,allintra:7,shipped] [--ks all|2,3,b-10] [--jobs 4]   — README.md
 """
 import argparse
 import json
@@ -17,6 +19,11 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from make_sets import splits  # noqa: E402
 
+# The fastest preset within 2 % of cpu0's bytes per series: rows 14 (lab/av1 §ENC) and 33 (README §A3).
+SHIPPED = {"ct_lidc": "allintra:6", "mr_ispy1": "good:6", "us_liver": "cpu0", "rf_fluoro": "allintra:7",
+           "xa_dynact16": "good:6", "dbt12_ea1141": "allintra:5", "dbt10_ea1141": "good:6",
+           "dbtproj_ge": "allintra:7", "dbtproj_holo": "allintra:7"}
+
 
 def ks(b, which):
     if which == "all":
@@ -27,7 +34,8 @@ def ks(b, which):
 
 def cell(job):
     build, src, out, k, preset, name = job
-    r = subprocess.run([sys.executable, HERE.parent / "item/ingest.py", build, src, out, "--split", str(k),
+    shape = ["--representation", k] if k in ("plain", "optimized") else ["--split", str(k)]
+    r = subprocess.run([sys.executable, HERE.parent / "item/ingest.py", build, src, out, *shape,
                         "--preset", preset, "--jobs", "1"], capture_output=True, text=True)
     meta = json.loads((src / "metadata.json").read_text())
     said = (r.stdout + r.stderr).strip().splitlines()
@@ -49,9 +57,10 @@ def main():
         name = str(src.relative_to(a.sets))
         meta = json.loads((src / "metadata.json").read_text())
         b = meta.get("bits") or max(1, int(meta["max"] - min(meta["min"], 0)).bit_length())
-        for k in ks(b, a.ks):
-            for preset in a.presets.split(","):
-                out = a.items / name / f"k{k}.{preset.replace(':', '')}"
+        presets = {SHIPPED[name] if p == "shipped" else p for p in a.presets.split(",")}
+        for k in ("plain", "optimized") if meta["channels"] == 3 else ks(b, a.ks):
+            for preset in sorted(presets):
+                out = a.items / name / f"{k if meta['channels'] == 3 else f'k{k}'}.{preset.replace(':', '')}"
                 jobs.append((a.build.resolve(), src, out, k, preset, name))
     with ThreadPoolExecutor(a.jobs) as pool:
         rows = list(pool.map(cell, jobs))
