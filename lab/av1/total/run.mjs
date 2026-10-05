@@ -1,7 +1,7 @@
 /**
  * TOTAL: a whole series filled through the downloader, wire plus decode, every arm of a series on
  * the same link and CPU: HTJ2K, AV1 intra through dav1d-WASM and WebCodecs, the splits, one group,
- * a lossy preview, row LLSIZE's codings (TOTAL2). Fixed rates and phone-like profiles behind the relay, headless Chromium at 1× and
+ * a lossy preview, row LLSIZE's codings (TOTAL2), a layer-major scalable series (BASES). Fixed rates and phone-like profiles behind the relay, headless Chromium at 1× and
  * 4×. Every visit is its own server, relay and browser; (set × link × throttle) cells in a Williams
  * order each round, the arms inside each cell the same way. lab/av1/total/README.md
  *
@@ -66,10 +66,14 @@ const OPENJPH = { glue: "/lab/decode-bench/vendor/openjph/openjphjs.js", wasm: "
 function arm(set, name) {
   const a = set.arms[name];
   const ext = a.ext ?? (name === "wc" ? "av1" : name);
-  if (name === "htj2k") return { ext, opts: { decoder: OPENJPH } };
+  if (name === "htj2k") return { ext, entries: set.frames, opts: { decoder: OPENJPH } };
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
-    ...(a.rct && { rct: true }) };
-  return { ext, opts: { decoder, ...(a.group && { groupLength: a.group, frameCount: set.frames }) }, truth: a.truth };
+    ...(a.rct && { rct: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
+  const entries = set.frames * (a.layers ?? 1);
+  // A layer-major series decodes in lab/av1/bases' worker: the product's has no base entry.
+  const worker = a.layers && { decoderWorker: "/lab/av1/bases/decoder.js" };
+  return { ext, entries, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }) },
+    truth: a.truth, previewTruth: a.previewTruth };
 }
 
 const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.join(ROOT, FRAMES, d, "arms.json")))
@@ -86,15 +90,15 @@ const der = execFileSync("openssl", ["x509", "-in", `${T}/cert.pem`, "-outform",
 const HASH = execFileSync("openssl", ["dgst", "-sha256", "-r"], { input: der }).toString().split(" ")[0];
 
 /** One study per (set × stored form): the store holds a frame's bytes whatever made them. */
-function pack(set, ext) {
+function pack(set, ext, entries) {
   const dir = `${T}/${set.name}-${ext}`;
   if (existsSync(`${dir}.sbnd`)) return `${dir}.sbnd`;
   mkdirSync(dir);
-  for (let i = 0; i < set.frames; i++) {
+  for (let i = 0; i < entries; i++) {
     const n = String(i).padStart(3, "0");
     symlinkSync(path.join(ROOT, FRAMES, set.name, `${n}.${ext}`), `${dir}/${n}.htj2k`);
   }
-  writeFileSync(`${dir}.json`, JSON.stringify({ frameCount: set.frames, codec: ext === "htj2k" ? "htj2k" : "av1" }));
+  writeFileSync(`${dir}.json`, JSON.stringify({ frameCount: entries, codec: ext === "htj2k" ? "htj2k" : "av1" }));
   execFileSync(path.join(ROOT, "target/release/pack-study"),
     ["--metadata", `${dir}.json`, "--frames", dir, "--output", `${dir}.sbnd`], { stdio: "ignore" });
   return `${dir}.sbnd`;
@@ -116,11 +120,13 @@ const started = (child, re) => new Promise((resolve, reject) => {
 
 async function visit(set, armName, linkName, throttle, round) {
   const a = arm(set, armName);
-  const truth = (a.truth ?? set.truth).map((t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t));
+  const flip = (t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t);
+  const truth = (a.truth ?? set.truth).map(flip);
+  const previewTruth = a.previewTruth?.map(flip);
   const srv = port();
   const relayPort = port();
   const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/exact-server"), "--port", String(srv), "--bind", "127.0.0.1",
-    "--study", pack(set, a.ext), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" });
+    "--study", pack(set, a.ext, a.entries), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" });
   const [oneWay, linkArgs] = link(linkName);
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`,
     "--seed", String(round), "--delay-ms", String(oneWay), ...linkArgs, "--self-timing"], { cwd: ROOT });
@@ -136,7 +142,7 @@ async function visit(set, armName, linkName, throttle, round) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const stop = throttleTree(browser.process().pid, throttle);
-  const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill: set.frames, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
+  const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill: a.entries, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(MUTATE === "sample" ? { mutate: "sample" } : {}) });
   let r = null;
   try {
@@ -161,6 +167,16 @@ async function visit(set, armName, linkName, throttle, round) {
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
+  // A frame's first picture: its base when one came before its exact frame.
+  const shown = new Map(r.frames.map((f) => [f.i, f.page]));
+  for (const p of r.previews ?? []) if (!p.late) shown.set(p.i, Math.min(shown.get(p.i) ?? Infinity, p.page));
+  const previews = r.previews?.length ? {
+    previews: r.previews.length,
+    late: r.previews.filter((p) => p.late).length,
+    previewExact: r.previews.filter((p) => r.previewSha[p.i] === previewTruth?.[p.i]).length,
+    firstMs: Math.round(Math.min(...shown.values()) - r.issuedAt),
+    shownMs: Math.round(Math.max(...shown.values()) - r.issuedAt),
+  } : {};
   return {
     ...row,
     frames: r.frames.length,
@@ -170,6 +186,7 @@ async function visit(set, armName, linkName, throttle, round) {
     firstMs: Math.round(t("page", Math.min)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
+    ...previews,
   };
 }
 
@@ -185,7 +202,7 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.error(`round ${round} ${name} ${l} ${throttle}x ${a}: first ${row.firstMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
-        ` exact ${row.exact}/${set.frames}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
+        ` exact ${row.exact}/${set.frames}${row.previews ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${row.previews} as native, ${row.late} late` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
 }
@@ -205,7 +222,9 @@ for (const { set: name, link: l, throttle } of cells) {
     const all = of(a, rows);
     const exact = `${all.reduce((n, r) => n + r.exact, 0)}/${all.length * set.frames}`;
     if (!rs.length) return `${a} none kept, exact ${exact}`;
-    let s = `${a} first ${span(rs.map((r) => r.firstMs))} all ${span(rs.map((r) => r.decodedMs))} n=${rs.length} exact ${exact}`;
+    let s = `${a} first ${span(rs.map((r) => r.firstMs))}`;
+    if (rs[0].previews) s += ` shown ${span(rs.map((r) => r.shownMs))} previews ${all.reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all.length * set.frames} as native`;
+    s += ` all ${span(rs.map((r) => r.decodedMs))} n=${rs.length} exact ${exact}`;
     const d = rs.filter((r) => a !== "htj2k" && ref.has(r.round)).map((r) => r.decodedMs / ref.get(r.round));
     if (d.length) s += ` ×${med(d).toFixed(2)} (slower ${d.filter((x) => x > 1).length}/${d.length})`;
     return s;
