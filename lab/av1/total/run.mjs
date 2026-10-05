@@ -1,7 +1,7 @@
 /**
  * TOTAL: a whole series filled through the downloader, wire plus decode, every arm of a series on
  * the same link and CPU: HTJ2K, AV1 intra through dav1d-WASM and WebCodecs, the splits, one group,
- * a lossy preview, row LLSIZE's codings (TOTAL2), a layer-major scalable series (BASES). Fixed rates and phone-like profiles behind the relay, headless Chromium at 1× and
+ * a lossy preview, row LLSIZE's codings (TOTAL2), a layer-major scalable series (BASES), row ENCX's (TOTAL3). Fixed rates and phone-like profiles behind the relay, headless Chromium at 1× and
  * 4×. Every visit is its own server, relay and browser; (set × link × throttle) cells in a Williams
  * order each round, the arms inside each cell the same way. lab/av1/total/README.md
  *
@@ -71,7 +71,7 @@ function arm(set, name) {
     ...(a.rct && { rct: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
   const entries = set.frames * (a.layers ?? 1);
   // A layer-major series decodes in lab/av1/bases' worker: the product's has no base entry.
-  const worker = a.layers && { decoderWorker: "/lab/av1/bases/decoder.js" };
+  const worker = a.layers ? { decoderWorker: "/lab/av1/bases/decoder.js" } : a.worker && { decoderWorker: a.worker };
   return { ext, entries, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }) },
     truth: a.truth, previewTruth: a.previewTruth };
 }
