@@ -86,6 +86,10 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 36 | **ENCX** — where lossless bytes and decode can still be cut: the low stream, the split per series, temporal noise, and whether HTJ2K gains from the same representations | done `e0ba8e1` (`67fba68`, `84a1e15`, `bf9d1df`, `c7f8b68`) — **HTJ2K gains 0.9–1.6 % from the same split, only with its low bits deflated, so row 28's gain is AV1's (0.916–0.997 of HTJ2K on the same split); the low bits deflated cost AV1's bytes ±0.5 points and decode 0.64–0.83× of row 28's coding**: all nine series, libaom 3.15.1 cpu0, 358/358 codings exact; three low bits beat two on the four series with noise σ ≥ 17 (0.5–3.9 %, cone-beam 0.987 → 0.948; row 28 tried three at libaom's defaults only, corrected in place), decoding 0.59–0.78×; the top through WebCodecs (≤ 10 bits, k = 3 brings CT and cone-beam there) with the low deflated 0.34–0.56× of row 28's decode, 2.1–3.4× HTJ2K's (headless Chromium 141, 1× and 4×, 10 interleaved rounds, 7 100/7 100 frames exact); k̂ = ⌊log2 σ⌋ wrong on four series, ⌊log2 σ⌋ − 1 right on all nine but fitted to them; inter finds nothing in the noise (low stream inter 0–3.6 % larger); libaom's tools: palette worth 4.5–9.2 % and already on, the rest ±1 %; total time arithmetic only (row 34); 9 byte and 4 browser mutations caught — [`lab/av1/encx`](../../lab/av1/encx/README.md), [`README.md`](README.md) §A1 |
 | 37 | **XBROWSER** — the AV1 decode path (dav1d-WASM, the WebCodecs probe and its fallback) in WebKit and Firefox engines: exact, chosen right, how fast | done `da7c3b6` (`d43145e`, `4b4efcc`) — **dav1d-WASM and OpenJPH exact in Chromium 141, Firefox 157 and WebKitGTK 2.52; the client's WebCodecs choice exact in Chromium only**: first 4 frames of all nine series and an 8-bit grey set in every row-28 layout, stock engines (Playwright's builds refused), 6 interleaved rounds at 1× and 4×; dav1d-WASM 408/408 and HTJ2K 240/240 a cell in every engine, 4.1–9.6× OpenJPH at 1× and 3.9–10.0× at 4× (slower in 732/732 paired rounds), each engine 0.85–1.22× Chromium's time on the same arm; the SIMD build loads in all three, and OpenJPH needs SIMD as well; WebCodecs (chosen at `depth` ≤ 10) 240/240 in Chromium at 2.6–5.0× OpenJPH, **0/240 a cell in Firefox** (monochrome refused, 4:4:4 returned as 8-bit `BGRX`) **and WebKitGTK** (GStreamer's `av1dec` takes no AV1 here, 4:2:0 controls included), with no fallback to dav1d; WebKitGTK as shipped has no `SharedArrayBuffer`, so HTJ2K fails too (0/148); a decode probe with fallback proposed, not built; desktop engines in a container, not phones; 5 mutations caught — [`decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox, [`lab/av1/xbrowser`](../../lab/av1/xbrowser/README.md) |
 | 38 | **FOOTPRINT** — the AV1 path's memory and first-use cost: dav1d-WASM heap per worker at the largest frames, and the first item's import and compile at 1× and 4× | done `0a73811` — **a dav1d-WASM worker costs 31.6 MB resident [31.2–32.2] on the 4.9 M-sample projections against HTJ2K's 24.6 (adopted wrapper; 26.1 the package), 7.6 against 7.1 on the RGB ultrasound; first use is HTJ2K's**: headless Chromium 141, product worker, renderer RSS slope over 1/2/4 workers, 6 rounds; its WebAssembly heap 19.7 MB after one projection, 34.8 by the series' end (16.4 ultrasound), flat over a second pass, never returned; WebCodecs 5–10 MB settled, peaks 32–58 MB a worker outside its heap; a fresh AV1 worker ready in 28–39 ms at 1×, 84–93 at 4× (HTJ2K 30–41, 96–115), first-frame surcharge 65–97 / 200–280 ms against 45–82 / 164–225, 12 rounds cold and cached, the cache 5–11 ms off init; 13 440/13 440 frames exact, 4 mutations caught — [`README.md`](README.md) §A2, [`lab/av1/footprint`](../../lab/av1/footprint/README.md) |
+| 39 | **UNIFY** — one AV1 branch on the cleaned `main`: this branch's AV1 work merged onto it, and the item format of [`item-format.md`](item-format.md) (plain and optimized) built end to end | night |
+| 40 | **SVC** — scalable payloads end to end in the lab: bases first, then the exact frames (row 26's proposal), measured as time to first picture and to exact | night |
+| 41 | **FASTHTJ2K** — faster HTJ2K decode in the browser: where OpenJPH-WASM's time goes, what GPU decoders move to the GPU, whether WebGPU can, and the CPU levers not yet tried | night |
+| 42 | **TOTAL3** — total time with row 36's encoding findings (low bits deflated, k per series, the top through WebCodecs) against HTJ2K and the plain AV1 control | night |
 
 ## Briefs
 
@@ -544,6 +548,62 @@ grows; with two and four decode workers. And the first AV1 item's cost on a fres
 instantiating the module (and the WebCodecs probe), from the decode message to the first frame, against the next
 item's and against HTJ2K's first, at 1× and 4×, interleaved, cold and with the module cached by the browser.
 Verdict: memory per worker and first-use cost, with what each means for a phone.
+
+## The unification and decode-speed rows (39–42)
+
+### 39 UNIFY
+
+`main` now holds the cleaned lab (the unification merged 2026-10-04); this branch was cut before it. On a NEW branch
+`claude/av1-unified` from `origin/main` (push only that branch and this queue's branch; never `main`): merge
+`claude/av1`, resolving each conflict in favour of `main`'s redesigned code with the AV1 pieces re-applied on its
+shapes — the decoder seam, `decode-av1.js`, `decode-av1-webcodecs.js`, the codec tag, the lab harnesses. Then build
+[`item-format.md`](item-format.md) end to end, as the owner adopted it: the 16-byte item header, both representations
+(plain: samples direct, the minimum split over 12 bits, RGB as G, B, R; optimized: two low bits apart, the reversible
+colour transform, `--tune-content=screen --sb-size=64`), ingest that writes nothing unless every item decodes back
+exactly through native dav1d, a reader that refuses every case the doc lists by name, the decoder choice (WebCodecs
+when every stream is ≤ 10 bits and its per-layout probe passes, dav1d-WASM otherwise, a failed module import retried
+and WebCodecs falling back to dav1d), each WebCodecs run taking only its own frames. Golden items from the writer
+decoded by the reader in Node and in headless Chromium, every refusal matched by its message; HTJ2K unchanged; the
+gate green; every new test mutated. G stays 1. Verdict: the branch, what conflicted and how it was resolved, and the
+test counts.
+
+### 40 SVC
+
+Rows 15, 18, 24, 25, 26 and 31 built and measured scalable AV1 (a lossy base, a lossless top, one payload): the base
+reaches the page as a preview and the exact frame follows from the same bytes. Build row 26's proposal in the lab on
+the row 39 branch if it is done, else on this one: each frame as two entries, layer-major (every base, then every
+whole unit), the planner and the fill asking bases first, the decoder showing a base then replacing it with the exact
+frame, the page marking a preview as not exact. Row 25's shape (a quarter-size base at q 40). Measure on row 23's
+links and CPU, interleaved: time to the first picture of every frame and time to every exact frame, against HTJ2K and
+against single-layer lossless AV1; total bytes. Every final frame exact. A lossy first picture is not adopted by the
+product (owner, 2026-10-04): this is the number for a later decision. Verdict: the preview's lead and its cost.
+
+### 41 FASTHTJ2K
+
+Decode is a phone's clock for both codecs, and GPU decoders make HTJ2K much faster: NVIDIA's nvJPEG2000 runs the HT
+block decoder and the wavelet on the GPU (Tier 2 on the CPU), and Kakadu's GPU work (ICIP 2019) reports block-decoding
+gains of about 10× lossy to 40× lossless over classic JPEG 2000. Browsers have no CUDA; `docs/decode/README.md`
+dropped GPU decode unmeasured. In order, stopping where the evidence says to:
+* **Where the time goes:** OpenJPH-WASM as the lab ships it, profiled per stage (HT cleanup and refinement passes,
+  inverse 5/3 wavelet, colour transform, copies) on row 2/10/21 frames, headless Chromium 1× and 4× — the ceiling
+  of any lever on one stage.
+* **What exists:** primary sources for GPU JPEG 2000/HTJ2K decoding (nvJPEG2000 docs, Kakadu's papers, any
+  WebGPU or WebGL JPEG 2000 decoder, open or published) and which stages they move; WebGPU's availability on phones
+  (Chromium Android, Safari) from primary sources.
+* **A prototype, if the profile and the sources say it can pay:** the inverse wavelet (and colour transform) in a
+  WebGPU compute shader on the CPU's decoded subbands, exact against OpenJPH, timed with the copies to and from the
+  GPU; the headless container may lack a GPU — say what that leaves unmeasured.
+* **CPU levers not yet tried** (check the lab's decode history first; do not repeat it).
+Verdict: a ranked list of levers with measured or bounded gains, and what a phone would need.
+
+### 42 TOTAL3
+
+Row 36 found encoding changes the product has not adopted: the low bits deflated (decoded by the browser's
+`DecompressionStream`), k = 3 on series whose noise σ ≥ 17, and the top stream through WebCodecs where it is ≤ 10
+bits. Re-run row 23's total-time harness (row 34's settings) with: HTJ2K; the plain AV1 control of
+[`item-format.md`](item-format.md); the optimized representation as adopted; and the optimized one with row 36's
+changes. Every frame exact; fill time and first frame apart. Verdict: per series and cell, what row 36's changes buy
+in total time over the adopted representation, and over HTJ2K.
 
 ## Blocked
 
