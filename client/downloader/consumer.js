@@ -5,12 +5,15 @@
  */
 /** How long a closed client waits for the downloader's answer before ending it anyway. */
 const CLOSE_DEADLINE_MS = 1_000;
+/** What `opts.decoder.codec` may name; absent is HTJ2K. docs/av1/adr-unit.md §1 */
+const CODECS = ["htj2k", "av1"];
 
 export class DownloaderClient {
   #worker;
   #waiters = new Map();
   #closedReason = null;
   #onFrame;
+  #onPreview;
   #onError;
   #ready;
   #resolveReady;
@@ -26,6 +29,8 @@ export class DownloaderClient {
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
+    // A scalable AV1 frame's lower layer, sent before its exact frame on the same port. docs/av1/adr-unit.md §6
+    this.#onPreview = opts.onPreview ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
     // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
     this.#worker = new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
@@ -37,13 +42,21 @@ export class DownloaderClient {
     });
   }
 
-  /** Every option but the page's own three goes to the downloader, so each must survive structured clone. */
+  /** Every option but the page's own four goes to the downloader, so each must survive structured clone. */
   static async connect(url, certHash, opts = {}) {
+    // A frame handed to the wrong decoder can decode to something: refused before anything starts.
+    const codec = opts.decoder?.codec ?? "htj2k";
+    if (!CODECS.includes(codec)) throw new Error(`unknown codec "${codec}"`);
+    // A group is asked whole, so its last frame has to be known. docs/av1/adr-unit.md §3
+    const g = opts.groupLength ?? 1;
+    if (!Number.isInteger(g) || g < 1 || (g > 1 && !Number.isInteger(opts.frameCount))) {
+      throw new Error(`groupLength ${g} needs a whole number ≥ 1, and above 1 the series' frameCount`);
+    }
     if (!globalThis.crossOriginIsolated && opts.decode !== false) {
       throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
     }
-    const { onFrame, onError, worker, ...config } = opts;
-    const c = new DownloaderClient({ onFrame, onError, worker });
+    const { onFrame, onPreview, onError, worker, ...config } = opts;
+    const c = new DownloaderClient({ onFrame, onPreview, onError, worker });
     try {
       c.#worker.postMessage({ kind: "start", config });
       // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
@@ -94,6 +107,7 @@ export class DownloaderClient {
       timing: { askMs: m.stamps?.ask ?? 0, lastChunkMs: m.stamps?.lastByte || m.stamps?.decodeEnd || 0 },
       info: m,
     };
+    if (m.preview) return void this.#onPreview(frame);
     if (w) {
       this.#waiters.delete(m.index);
       w.resolve(frame);

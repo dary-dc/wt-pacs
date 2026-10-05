@@ -5,6 +5,8 @@
 let M = null;
 let dec = null;
 let toConsumer = null;
+let decodeOne = decodeFrame;
+let queue = Promise.resolve();
 
 const abs = () => performance.timeOrigin + performance.now();
 
@@ -55,7 +57,7 @@ function decodeFrame(bytes) {
   return { info, sab, byteCount: out.length, range };
 }
 
-async function init(m) {
+async function initHtj2k(m) {
   // A module worker has no importScripts and the glue is a classic script. Its factory is a
   // top-level `var`, which inside a Function body is local, so hand it back explicitly.
   const src = await (await fetch(m.decoder.glue)).text();
@@ -66,6 +68,17 @@ async function init(m) {
   M = await factory({ locateFile: (f) => m.decoder.dir + "/" + f, wasmBinary });
   // One decoder object reused: parity.mjs is byte-identical on every fixture, so reuse is safe.
   dec = new M.HTJ2KDecoder();
+}
+
+const webcodecs = (m) => m.decoder.depth <= 10 && typeof VideoDecoder === "function";
+
+async function init(m) {
+  // Only an AV1 series loads AV1 code, and WebCodecs only where exact. docs/av1/adr-unit.md §2
+  if (m.decoder?.codec === "av1") {
+    const av1 = await import(webcodecs(m) ? "./decode-av1-webcodecs.js" : "./decode-av1.js");
+    await av1.init({ ...m.decoder, groupLength: m.groupLength });
+    decodeOne = av1.decodeFrame;
+  } else await initHtj2k(m);
 }
 
 onmessage = async (e) => {
@@ -80,31 +93,40 @@ onmessage = async (e) => {
     }
     return;
   }
-  if (m.kind !== "decode") return;
+  // A decoder that answers later still takes its frames one at a time, in order.
+  if (m.kind === "decode") queue = queue.then(() => decode(m));
+};
+
+async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };
+  const preview = (r) => toConsumer.postMessage({ ...picture(m, r, { ...stamps, decodeEnd: abs() }), preview: true });
   try {
-    const { info, sab, byteCount, range } = decodeFrame(m.bytes);
+    const r = await decodeOne(m.bytes, m, preview);
     stamps.decodeEnd = abs();
-    toConsumer.postMessage({
-      kind: "frame",
-      index: m.index,
-      gen: m.gen,
-      pixels: sab,
-      width: info.width,
-      height: info.height,
-      bits: info.bitsPerSample,
-      components: info.componentCount,
-      signed: info.isSigned,
-      min: range.min,
-      max: range.max,
-      byteCount,
-      wireBytes: m.bytes.length,
-      stamps,
-    });
+    toConsumer.postMessage(picture(m, r, stamps));
     // The wire buffer goes back to the transport's ring, where the next frame is read into it.
-    postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount, buffer: m.bytes.buffer }, [m.bytes.buffer]);
+    postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: r.byteCount, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   } catch (err) {
     const reason = String(err?.message ?? err);
     postMessage({ kind: "failed", index: m.index, gen: m.gen, reason, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   }
-};
+}
+
+function picture(m, { info, sab, byteCount, range }, stamps) {
+  return {
+    kind: "frame",
+    index: m.index,
+    gen: m.gen,
+    pixels: sab,
+    width: info.width,
+    height: info.height,
+    bits: info.bitsPerSample,
+    components: info.componentCount,
+    signed: info.isSigned,
+    min: range.min,
+    max: range.max,
+    byteCount,
+    wireBytes: m.bytes.length,
+    stamps,
+  };
+}

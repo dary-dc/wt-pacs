@@ -63,36 +63,77 @@ function promote(index) {
   }
 }
 
-function nextDecoder() {
+/** Frames per group, a keyframe at every multiple of it. docs/av1/adr-unit.md §3 */
+const groupLength = () => cfg.groupLength ?? 1;
+const isKey = (index) => index % groupLength() === 0;
+
+/** Every frame of every group `indices` touch: a group is asked whole, from its keyframe. */
+function wholeGroups(indices) {
+  const g = groupLength();
+  if (g === 1) return indices;
+  const out = new Set();
+  for (const i of indices) {
+    for (let j = i - (i % g); j < Math.min(i - (i % g) + g, cfg.frameCount); j++) out.add(j);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** A decoder still owed the next frame of its group takes no other keyframe. */
+const holdsAGroup = (d) => d.next !== null && !isKey(d.next) && records.has(d.next);
+
+/** A keyframe to the least busy free decoder; any other frame only to the one that took the frame before it. */
+function decoderFor(index) {
+  if (!isKey(index)) return decoders.find((d) => d.next === index && d.outstanding < cfg.perDecoder);
   let best = null;
   for (const d of decoders) {
-    if (d.outstanding >= cfg.perDecoder) continue;
+    if (d.outstanding >= cfg.perDecoder || holdsAGroup(d)) continue;
     if (!best || d.outstanding < best.outstanding) best = d;
   }
   return best;
 }
 
+/** A frame whose predecessor will never reach a decoder cannot decode: it fails by name. */
+const orphaned = (index) => !isKey(index) && !records.has(index - 1) && !decoders.some((d) => d.next === index);
+
 /** Never leave a decoder idle: up to `perDecoder` outstanding each. docs/decode/README.md §Dispatch */
 function pump() {
   if (!decodersUp) return;
   if (decoders.length === 0) return failQueued();
-  for (;;) {
-    const d = nextDecoder();
-    if (!d) return;
-    const index = queue.ask.shift() ?? queue.fill.shift();
-    if (index === undefined) return;
-    const rec = records.get(index);
-    if (!rec || rec.gen !== generation || rec.state !== "queued" || !rec.bytes) continue;
-    rec.state = "decoding";
-    rec.stamps.dispatched = abs();
-    rec.stamps.decoder = decoders.indexOf(d);
-    d.outstanding += 1;
-    d.worker.postMessage(
-      { kind: "decode", index, gen: generation, bytes: rec.bytes, stamps: rec.stamps },
-      [rec.bytes.buffer],
-    );
-    rec.bytes = null;
+  for (const q of [queue.ask, queue.fill]) {
+    for (let at = 0; at < q.length && decoders.some((d) => d.outstanding < cfg.perDecoder); ) {
+      const index = q[at];
+      const rec = records.get(index);
+      if (!rec || rec.gen !== generation || rec.state !== "queued" || !rec.bytes) {
+        q.splice(at, 1);
+        continue;
+      }
+      if (orphaned(index)) {
+        q.splice(at, 1);
+        fail(index, `frame ${index - 1} of its group did not decode`);
+        continue;
+      }
+      const d = decoderFor(index);
+      if (!d) {
+        at += 1;
+        continue;
+      }
+      q.splice(at, 1);
+      dispatch(d, index, rec);
+    }
   }
+}
+
+function dispatch(d, index, rec) {
+  rec.state = "decoding";
+  rec.stamps.dispatched = abs();
+  rec.stamps.decoder = decoders.indexOf(d);
+  d.outstanding += 1;
+  d.next = index + 1;
+  d.worker.postMessage(
+    { kind: "decode", index, gen: generation, key: isKey(index), bytes: rec.bytes, stamps: rec.stamps },
+    [rec.bytes.buffer],
+  );
+  rec.bytes = null;
 }
 
 function failQueued() {
@@ -113,7 +154,7 @@ function lose(d, reason) {
 }
 
 function want(indices, askMs) {
-  for (const i of indices) {
+  for (const i of wholeGroups(indices)) {
     if (records.has(i)) continue;
     record(i, "fill", askMs);
     wanted.add(i);
@@ -158,7 +199,10 @@ async function ask(index, promise) {
     const frame = await promise;
     if (gen === generation && ep === epoch) arrived(index, frame);
   } catch (e) {
-    if (gen === generation && ep === epoch && !lost()) fail(index, String(e?.message ?? e));
+    if (gen === generation && ep === epoch && !lost()) {
+      fail(index, String(e?.message ?? e));
+      pump();
+    }
   } finally {
     // A cancelled ask's count was already dropped with the rest of its generation's work.
     if (gen === generation && ep === epoch) {
@@ -166,6 +210,17 @@ async function ask(index, promise) {
       issueFill();
     }
   }
+}
+
+function askFor(s, index) {
+  const rec = records.get(index);
+  if (rec?.priority === "ask") return;
+  // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
+  if (rec && rec.state !== "wire") return void promote(index);
+  wanted.delete(index);
+  if (rec) rec.priority = "ask";
+  else record(index, "ask", abs());
+  ask(index, s.requestExactFrame(index));
 }
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */
@@ -284,10 +339,10 @@ async function start(m) {
   const decoderUrl = cfg.decoderWorker ?? new URL("./decoder.js", import.meta.url);
   for (let i = 0; i < (cfg.decode ? cfg.decoders : 0); i++) {
     const worker = new Worker(decoderUrl, { type: "module" });
-    const d = { worker, outstanding: 0 };
+    const d = { worker, outstanding: 0, next: null };
     ready.push(new Promise((r) => { d.ready = r; }));
     const ch = new MessageChannel();
-    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder }, [ch.port1]);
+    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength }, [ch.port1]);
     worker.onmessage = (e) => {
       if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
       if (e.data.kind === "done") onDone(d, e.data);
@@ -384,14 +439,8 @@ onmessage = async (e) => {
     if (m.kind === "ask") {
       const s = await live();
       if (gen !== generation) return;
-      const rec = records.get(m.index);
-      if (rec?.priority === "ask") return;
-      // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
-      if (rec && rec.state !== "wire") return void promote(m.index);
-      wanted.delete(m.index);
-      if (rec) rec.priority = "ask";
-      else record(m.index, "ask", abs());
-      return void ask(m.index, s.requestExactFrame(m.index));
+      for (const i of wholeGroups([m.index])) askFor(s, i);
+      return;
     }
     if (m.kind === "fill") {
       await live();
@@ -407,6 +456,7 @@ onmessage = async (e) => {
       queue.fill.length = 0;
       records.clear();
       wanted.clear();
+      for (const d of decoders) d.next = null;
       asksInFlight = 0;
       try {
         await session?.endStream();
