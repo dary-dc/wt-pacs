@@ -75,12 +75,12 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §A4). Eighteen public series, fetched at run time from the NCI Imaging
-Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
-never committed:
+([`av1/README.md`](av1/README.md) §A4). Twenty-eight public series, fetched at run time — twenty-five from the
+NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
+three of breast ultrasound from two Zenodo records — never committed:
 
 ```bash
-lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~1.06 GB fetched
+lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~3.8 GB fetched
 ```
 
 `lab/av1/data.json` pins every file's S3 key and SHA-256 and each set's frame digest;
@@ -90,8 +90,11 @@ signed as sign-extended int16. The set digest is the SHA-256 of the frames' hex 
 concatenated in order. Stacks are ordered by position along the slice normal (uniform spacing,
 checked). A set may name a `crop` [y, x, h, w], kept from every frame. Every frame was checked once
 against the file's `PixelData` bytes read directly, not through the DICOM library's pixel decoder:
-all 387 identical (row DATA3's nine sets: 565/565), and no sample carries bits above
-`BitsStored`. Dependencies: pydicom 3.0.1 and numpy 2.4.6, installed with `--require-hashes` from
+all 387 identical (row DATA3's nine sets: 565/565; row BREAST's seven: 140/140), and no sample carries bits above
+`BitsStored`. The ultrasound sets are a pinned zip's pinned members decoded by FFmpeg 6.1.1 (`-threads 1`;
+RGB through its bit-exact `swscale` flags, which the digest pins: other flags change it): their frames are what
+that decoder makes of a lossy clip, checked against a second run with FFmpeg's default threads (128/128) and the
+stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 and numpy 2.4.6, installed with `--require-hashes` from
 `lab/av1/requirements.txt`.
 
 | set | content | frames | stored | range | collection, licence |
@@ -114,6 +117,16 @@ all 387 identical (row DATA3's nine sets: 565/565), and no sample carries bits a
 | `ct_nlst` | CT chest, axial, 1.8 mm, the longer of the series' two contiguous runs | 76 × 512² | 16-bit signed | −2048..2353 | NLST, CC BY 4.0 |
 | `ct_crc` | CT, axial, 5 mm | 107 × 512² | 16-bit signed | −2048..3373 | CMB-CRC, CC BY 4.0 |
 | `mr9_ispy2` | MR breast, axial TIRM, 5 mm | 34 × 320² | 12 of 16 bits, unsigned | 0..356 | ISPY2, CC BY 4.0 |
+| `dbt12_c` | breast tomosynthesis, reconstructed volume, 1 mm, a third reconstruction system | 68 × 931×2124 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 |
+| `dbt10_d` | breast tomosynthesis, reconstructed volume, 1 mm, R MLO, cropped to the breast | 48 × 757×2336 of 1890×2457 | 10 of 16 bits, unsigned | 0..895 | EA1141, CC BY 4.0 |
+| `dbtproj_c` | breast tomosynthesis **projections**, L CC, one view per tube angle, cropped to the breast | 9 × 1914×2294 of 2394×3062 | 14 of 16 bits, unsigned, MONOCHROME1 | 122..16370 | EA1141, CC BY 4.0 |
+| `ffdm_c` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO (a third detector) | 4 × 1914×2294 | 12 of 16 bits, unsigned | 0..3756 | EA1141, CC BY 4.0 |
+| `ffdm_d` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO (an earlier detector) | 4 × 3328×4096 | 12 of 16 bits, unsigned | 0..4095 | Breast-Diagnosis, CC BY 3.0 |
+| `syn2d_c` | synthesized 2D mammogram, L CC, R MLO, L MLO (an earlier algorithm) | 3 × 1996×2457 | 10 of 16 bits, unsigned | 0..1023 | CMB-BRCA, CC BY 4.0 |
+| `syn2d_d` | synthesized 2D mammogram, four views (a later software version) | 4 × 2394×2850 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 |
+| `usb_cine` | breast ultrasound cine, B-mode, 25 frames/s, the first 64 of 515 frames, luma | 64 × 512² | 8-bit | 4..242 | BUVFM demo dataset, CC BY 4.0 |
+| `usb_cine_rgb` | breast ultrasound cine, tinted B-mode with colour annotations, 30 frames/s, the first 64 of 413 | 64 × 512² | 3 × 8-bit RGB | 0..255 | BUVFM demo dataset, CC BY 4.0 |
+| `usb_still` | breast ultrasound stills, B-mode, one scanner, every 276×305 image of the set | 29 × 276×305 | 8-bit | 4..235 | BUS-BRA, CC BY 4.0 |
 
 * **Ranges are measured, not the header's.** 21.5 % of `ct_lidc`'s samples are −2048, the pad
   outside the reconstruction circle; the rest span −1097..3746, so the set needs 13 bits after
@@ -155,6 +168,37 @@ all 387 identical (row DATA3's nine sets: 565/565), and no sample carries bits a
   `openneuro.org`, `data.kitware.com`, `www.ebi.ac.uk`. `github.com` and `api.github.com` answer 403;
   `raw.githubusercontent.com` answers. pydicom's test data (MIT) holds DICOM test files, none of the missing
   content.
+* **The breast family, per target series** (row BREAST): bits after the offset (the series' minimum, measured over
+  every frame, never `BitsStored`). **Nothing presented or reconstructed exceeds 12 bits; only the raw projections
+  (14) and the digitized film (16, a ~12-bit scan stretched) do.**
+
+  | series | kind | bits after offset | signed | frames | frame size |
+  | --- | --- | --: | --- | --: | --- |
+  | `dbt12_ea1141` | DBT slices | 12 | no | 29 | 614×1359 |
+  | `dbt12_c` | DBT slices | 12 | no | 68 | 931×2124 |
+  | `dbt10_ea1141` | DBT slices | 10 | no | 24 | 678×1727 |
+  | `dbt10_d` | DBT slices | 10 | no | 48 | 757×2336 |
+  | `dbtproj_ge` | DBT projections | 14 (12 without the saturated 16383) | no | 9 | 1914×2572 |
+  | `dbtproj_holo` | DBT projections | 14 (11 without 16383) | no | 15 | 1280×2048 |
+  | `dbtproj_c` | DBT projections | 14 | no | 9 | 1914×2294 |
+  | `ffdm_a`, `ffdm_b`, `ffdm_c`, `ffdm_d` | FFDM, for presentation | 12, 12, 12, 12 | no | 4, 2, 4, 4 | 2560×3328, 1914×2294, 1914×2294, 3328×4096 |
+  | `syn2d_a`, `syn2d_b`, `syn2d_c`, `syn2d_d` | synthesized 2D | 10, 12, 10, 12 | no | 2, 4, 3, 4 | 2560×3328, 2394×2850, 1996×2457, 2394×2850 |
+  | `mg16_cbis` | digitized film | 16 | no | 1 | 4366×6871 |
+  | `usb_cine`, `usb_cine_rgb` | ultrasound cine | 8, 3 × 8 | no | 64, 64 | 512² |
+  | `usb_still` | ultrasound stills | 8 | no | 29 | 276×305 |
+
+  No automated breast ultrasound volume is open (below). The raw (`FOR PROCESSING`) mammogram row DATA3 probed is
+  13 bits.
+* **Row BREAST's sources.** The DBT volumes add a third reconstruction system (`dbt12_c`, stored in slice order, 1 mm
+  apart, checked) and a second volume of the lab's 10-bit system from another patient; `dbtproj_c` is the third
+  system's raw views, 16383 only outside its crop. Every DBT series in IDC and in TCIA's own index (both reachable
+  since 2026-10-05) comes from the lab's two vendors: no third vendor's tomosynthesis is open. `usb_cine` is a
+  full-length clip whose chroma is neutral (every chroma sample within ±1 of 128 on 40 frames), so its luma is the
+  picture; `usb_cine_rgb`'s chroma departs from neutral on 59 % of samples. Both are 512² MPEG-4 Part 2 clips, so
+  their frames carry that coding's loss and resizing: what an archive of such clips holds, not a scanner's output.
+  `usb_still`'s images are crops around the lesion, PNG.
+* **Hosts, 2026-10-05 15:49 UTC (row BREAST), after the environment's network access was set to full:** every host
+  row DATA3 found refused answered (200, 202, 301, 302, 400 or 404), but `pan.baidu.com` (connection reset).
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
   archived is not known (not checked). It is what an archive serves, not a probe's raw output.
 * TCIA's own API, Zenodo and PhysioNet are refused by this container's network policy; IDC mirrors
@@ -171,8 +215,13 @@ LIDC-IDRI [10.7937/K9/TCIA.2015.LO9QL9SX](https://doi.org/10.7937/K9/TCIA.2015.L
 [10.7937/K9/TCIA.2016.7O02S9CY](https://doi.org/10.7937/K9/TCIA.2016.7O02S9CY), NLST
 [10.7937/TCIA.HMQ8-J677](https://doi.org/10.7937/TCIA.HMQ8-J677), CMB-CRC
 [10.7937/DJG7-GZ87](https://doi.org/10.7937/DJG7-GZ87), ISPY2
-[10.7937/TCIA.D8Z0-9T85](https://doi.org/10.7937/TCIA.D8Z0-9T85) — reached through the NCI Imaging Data
-Commons. The licence is IDC's per-series `license_short_name`, read for each series chosen; the
+[10.7937/TCIA.D8Z0-9T85](https://doi.org/10.7937/TCIA.D8Z0-9T85), Breast-Diagnosis
+[10.7937/K9/TCIA.2015.SDNRQXXR](https://doi.org/10.7937/K9/TCIA.2015.SDNRQXXR), CMB-BRCA
+[10.7937/DX22-8J71](https://doi.org/10.7937/DX22-8J71) — reached through the NCI Imaging Data
+Commons. The ultrasound: the BUVFM demo dataset, [10.5281/zenodo.20901197](https://doi.org/10.5281/zenodo.20901197),
+and BUS-BRA, [10.5281/zenodo.8231412](https://doi.org/10.5281/zenodo.8231412), whose licence asks that its article
+be cited: W. Gómez-Flores, M. J. Gregorio-Calas and W. C. de Albuquerque Pereira, "BUS-BRA: A Breast Ultrasound
+Dataset for Assessing Computer-aided Diagnosis Systems", Medical Physics 51, 3110–3123 (2024). The licence is IDC's per-series `license_short_name`, read for each series chosen; the
 full citation each collection asks for is on its DOI page, which this container could not reach.
 Series UIDs are in `data.json`. Frames derived from these sets (their AV1 or HTJ2K codings) carry
 the same attribution wherever they are published; none are.

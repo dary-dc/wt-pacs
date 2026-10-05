@@ -19,7 +19,7 @@ relying on a clause. Anything not confirmed from a primary source says so.
 | OpenJPEG 2.5.4 (`opj_compress`, `opj_decompress`, a WASM decoder) | lab only (row EMBED); not shipped | BSD-2-Clause | none granted (its licence says so) | [LICENSE](https://raw.githubusercontent.com/uclouvain/openjpeg/master/LICENSE), read from the pinned tag |
 | libjxl 0.12.0 (`cjxl`, `djxl`, a WASM decoder) | lab only (row EMBED); not shipped | BSD-3-Clause; its WASM decoder links Highway (Apache-2.0 or BSD-3-Clause) and emscripten's libc++ (Apache-2.0 with LLVM exception) | its own royalty-free grant (`PATENTS`) | [LICENSE](https://raw.githubusercontent.com/libjxl/libjxl/main/LICENSE), [PATENTS](https://raw.githubusercontent.com/libjxl/libjxl/main/PATENTS), the submodules' own files at the pinned tag |
 | OpenJPH (today's HTJ2K decoder) | client | BSD-2-Clause | — | [LICENSE](https://raw.githubusercontent.com/aous72/OpenJPH/master/LICENSE) |
-| FFmpeg, the distribution's package (6.1.1, libaom 3.8.2, libdav1d 1.4.1) | lab only: makes WCAP's streams, decodes the native reference | GPL-2.0-or-later as that package is configured (`--enable-gpl`) | — | [LICENSE.md](https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/LICENSE.md) |
+| FFmpeg, the distribution's package (6.1.1, libaom 3.8.2, libdav1d 1.4.1) | lab only: makes WCAP's streams, decodes the native reference, and decodes row BREAST's ultrasound clips and stills in `fetch_data.sh` | GPL-2.0-or-later as that package is configured (`--enable-gpl`) | — | [LICENSE.md](https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/LICENSE.md) |
 | NumPy (2.4.6 in `fetch_data.sh`) | lab only: the synthetic frames, row DATA's extraction | BSD-3-Clause (its wheel also bundles 0BSD, MIT, Zlib, CC0 parts) | — | [LICENSE.txt](https://raw.githubusercontent.com/numpy/numpy/main/LICENSE.txt) |
 | zlib 1.3 (through Python 3.11's `zlib`) and the browser's `DecompressionStream` | lab only (row ENCX: deflating the low bits); at ingest if adopted, and the browser's own code on the client, nothing shipped | zlib licence | — | [LICENSE](https://raw.githubusercontent.com/madler/zlib/master/LICENSE); `DecompressionStream`: [Compression Streams](https://compression.spec.whatwg.org/) |
 | pydicom 3.0.1 | lab only: row DATA's extraction (`lab/av1/fetch_data.sh`, hash-pinned in `lab/av1/requirements.txt`) | MIT | — | PyPI metadata |
@@ -57,9 +57,13 @@ it as a separate program, links nothing against it and ships nothing built from 
 
 The public series of rows DATA and DATA3 ([`../FIXTURES.md`](../FIXTURES.md) §AV1 data) are CC BY 3.0
 or 4.0, per series as the NCI Imaging Data Commons index records it (row DATA3: CBIS-DDSM CC BY 3.0;
-EA1141, CPTAC-LUAD, NLST, CMB-CRC and ISPY2 CC BY 4.0): reuse, derivatives and
-redistribution allowed with attribution. Fetched, never committed; anything derived from them that
-is published carries the collection DOIs listed there.
+EA1141, CPTAC-LUAD, NLST, CMB-CRC and ISPY2 CC BY 4.0; row BREAST: Breast-Diagnosis CC BY 3.0,
+CMB-BRCA CC BY 4.0): reuse, derivatives and redistribution allowed with attribution. Row BREAST's
+ultrasound comes from two Zenodo records, each licence read from the record itself: the BUVFM demo
+dataset (breast ultrasound video clips, CC BY 4.0) and BUS-BRA (breast ultrasound stills, CC BY 4.0;
+the archive's own `LICENSE.txt` is an MIT-style permission that asks for its article to be cited).
+Fetched, never committed; anything derived from them that is published carries the citations
+listed there.
 
 Row TOTAL's LTE link replays mahimahi's `TMobile-LTE-short` trace (GPL-3.0), fetched by
 `lab/av1/total/run.mjs` into a local cache and checked against the hash PROF recorded; a trace is
