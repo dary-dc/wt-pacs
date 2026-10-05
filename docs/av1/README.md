@@ -193,6 +193,23 @@ refuses monochrome AV1 and returns 4:4:4 as 8-bit `BGRX`; WebKitGTK's GStreamer 
 here), with no fallback to dav1d-WASM; dav1d-WASM and OpenJPH are exact in all three engines, at
 4–10× apart as in Chromium ([`decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox).
 
+**Memory and first use (FOOTPRINT, [`lab/av1/footprint`](../../lab/av1/footprint/README.md)):** the
+product's worker in headless Chromium 141, the largest frames here (14-bit projections, 4.92 M samples,
+split two low bits apart; RGB ultrasound as the reversible colour transform), every frame exact
+(13 440/13 440). **A dav1d-WASM worker costs 31.6 MB resident [31.2–32.2] on the projections against
+24.6 [24.4–25.0] for HTJ2K's adopted wrapper (26.1 the package), and 7.6 against 7.1 on the
+ultrasound** — the renderer's RSS slope over 1, 2 and 4 workers, 6 rounds. Its WebAssembly heap is
+19.7 MB after one projection and 34.8 MB by the series' end (16.4 on the ultrasound; HTJ2K's 28.3 and
+6.0), not a byte more over a second pass, and never returned: linear memory does not shrink. A
+WebCodecs worker holds 5–10 MB settled but peaks at 58 (projections) and 32 MB (ultrasound) a worker
+over 1 → 4 workers (88 and 76 over 1 → 2), outside its heap. **First use is HTJ2K's:** a fresh AV1 worker is ready in 28–39 ms at 1× and 84–93
+at 4× (HTJ2K 30–41, 96–115), and init plus frame 0's excess over the next frames is 65–97 ms at 1×
+and 200–280 at 4× against HTJ2K's 45–82 and 164–225 — 12 rounds, cold and twice cached; the cache
+takes 5–11 ms off init at 1× and nothing off the frame. On a phone that is ~28 MB more for four workers on
+the largest frames and a first frame about as late as HTJ2K's, both small beside the decode itself
+(645 against 67 ms a projection at 1×). Desktop figures; a phone's memory is these bytes, its time is
+not.
+
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
 unsigned. Signed data is offset by 2^(B−1), which is reversible; data over 12 bits (stored 16-bit)
 needs a split into planes or streams. Row DEPTH measures the options against HTJ2K on the same frames.
