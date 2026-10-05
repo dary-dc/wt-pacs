@@ -170,8 +170,10 @@ async function visit(set, armName, linkName, throttle, round) {
   // A frame's first picture: its base when one came before its exact frame.
   const shown = new Map(r.frames.map((f) => [f.i, f.page]));
   for (const p of r.previews ?? []) if (!p.late) shown.set(p.i, Math.min(shown.get(p.i) ?? Infinity, p.page));
-  const previews = r.previews?.length ? {
+  // A layered arm owes one preview a frame, and exact frames only under frame indices.
+  const previews = previewTruth ? {
     previews: r.previews.length,
+    strays: r.frames.filter((f) => !(f.i >= 0 && f.i < set.frames)).length,
     late: r.previews.filter((p) => p.late).length,
     previewExact: r.previews.filter((p) => r.previewSha[p.i] === previewTruth?.[p.i]).length,
     firstMs: Math.round(Math.min(...shown.values()) - r.issuedAt),
@@ -202,7 +204,7 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.error(`round ${round} ${name} ${l} ${throttle}x ${a}: first ${row.firstMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
-        ` exact ${row.exact}/${set.frames}${row.previews ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${row.previews} as native, ${row.late} late` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
+        ` exact ${row.exact}/${set.frames}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
 }
@@ -223,7 +225,7 @@ for (const { set: name, link: l, throttle } of cells) {
     const exact = `${all.reduce((n, r) => n + r.exact, 0)}/${all.length * set.frames}`;
     if (!rs.length) return `${a} none kept, exact ${exact}`;
     let s = `${a} first ${span(rs.map((r) => r.firstMs))}`;
-    if (rs[0].previews) s += ` shown ${span(rs.map((r) => r.shownMs))} previews ${all.reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all.length * set.frames} as native`;
+    if (rs[0].previews !== undefined) s += ` shown ${span(rs.map((r) => r.shownMs))} previews ${all.reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all.length * set.frames} as native`;
     s += ` all ${span(rs.map((r) => r.decodedMs))} n=${rs.length} exact ${exact}`;
     const d = rs.filter((r) => a !== "htj2k" && ref.has(r.round)).map((r) => r.decodedMs / ref.get(r.round));
     if (d.length) s += ` ×${med(d).toFixed(2)} (slower ${d.filter((x) => x > 1).length}/${d.length})`;
