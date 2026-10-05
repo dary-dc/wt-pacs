@@ -2,7 +2,8 @@
 
 A design review of `server/`, `common/` and `ingest/` (written at `6d3a0e8`, before the RV7 batch)
 re-checked line by line at `4a45122` (PR #33's head). Every file:line below is at `4a45122`. This file
-is the design the server PR builds from; it goes when the PR lands, and what it decides moves into the
+is the design the server PR builds from. PR #34 goes into `main` with R1–R3, before R4 is built (the
+owner, 2026-10-05), so this file stays until R4 lands; then it goes, and what it decides moves into the
 ADRs it names.
 
 **What moved since the review.** RV7 fixed three of the review's findings: `b694ca4` (#4, the ring),
