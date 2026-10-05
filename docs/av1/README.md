@@ -6,6 +6,7 @@ This file owns the phase: what is decided, what is open and the measurement that
 work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md). The AV1 item — what one stored entry
 carries, in its plain and optimized representations — is [`item-format.md`](item-format.md), adopted
 2026-10-04 and built end to end on `claude/av1-unified` (row 39).
+What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
 
 ## What already does not care about the codec
 
