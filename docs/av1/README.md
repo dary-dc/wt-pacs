@@ -455,6 +455,55 @@ AV1's loss was smaller here: at 4× on 50 Mbit, dav1d-WASM intra took 1.40–1.7
 decode-bound cell moves by 15–25 % between two containers and builds, and those were not
 interleaved; only the ranking is claimed, not the size of the loss.
 
+### Row LLSIZE's codings, by total time (row TOTAL2, [`lab/av1/total`](../../lab/av1/total/README.md))
+
+The same harness on the fixed links (5/20/50 Mbit/s, 40 ms), 1× and 4×, the arms interleaved, with
+row LLSIZE's best coding of each series: the two low bits apart on grey (`--tune-content=screen
+--sb-size=64`; top 10 bits on the 12-bit series, 8 on the 10-bit one, so every stream is ≤ 10 bits)
+through dav1d-WASM and through WebCodecs; on the ultrasound JPEG 2000's reversible colour transform,
+intra through both and in groups of 8 through WebCodecs. 12 rounds and top-ups where `VOID` drops
+left a cell short: 932 of 1 022 visits kept, n = 10–15 a cell, **38 744/38 744 frames exact**. The
+client undoes the transform as `rct` (`adr-unit.md` §2, the dispatch arm checks it). Cells as in the
+table above, in brackets bytes over HTJ2K's on the whole series:
+
+| series | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| --- | --- | --- | --- | --- |
+| fluoroscopy, 12-bit | HTJ2K, s | 15.2 · 15.2 | 3.93 · 3.96 | 1.73 · 1.75 |
+| | top10+low2, dav1d (0.943) | 0.95 · 0.96 | 0.96 · 1.01 | 0.99 · 1.43 |
+| | top10+low2, WebCodecs (0.943) | **0.95 · 0.95** | **0.95 · 0.97** | **0.97** · 1.02 |
+| tomosynthesis, 12-bit | HTJ2K, s | 23.7 · 23.7 | 6.05 · 6.09 | 2.58 · 2.61 |
+| | top10+low2, dav1d (0.942) | 0.94 · 0.95 | 0.95 · 0.99 | 0.97 · 1.48 |
+| | top10+low2, WebCodecs (0.942) | **0.94 · 0.95** | **0.95 · 0.96** | **0.96 · 0.99** |
+| tomosynthesis, 10-bit | HTJ2K, s | 22.3 · 22.4 | 5.71 · 5.76 | 2.44 · 2.49 |
+| | top8+low2, dav1d (0.944) | 0.95 · 0.96 | 0.96 · 1.00 | 0.98 · 1.62 |
+| | top8+low2, WebCodecs (0.944) | **0.95 · 0.95** | **0.95 · 0.96** | **0.96 · 0.99** |
+| ultrasound, RGB 8 | HTJ2K, s | 29.4 · 29.5 | 7.49 · 7.51 | 3.15 · 3.17 |
+| | RCT intra, dav1d (0.958) | 0.96 · 0.96 | 0.96 · 0.98 | 0.97 · 1.43 |
+| | RCT intra, WebCodecs (0.958) | 0.96 · 0.96 | 0.96 · 0.97 | 0.97 · 1.06 |
+| | RCT G = 8, WebCodecs (0.948) | **0.95 · 0.95** | **0.95 · 0.97** | **0.96** · 1.16 |
+
+* **AV1 through WebCodecs fills first on 22 of 24 cells** (series × link × CPU). Its two losses are both at 4× on
+  50 Mbit: the fluoroscopy at 1.02 (slower in 12/12 rounds) and the ultrasound at 1.06 (RCT intra)
+  and 1.16 (G = 8, its group on one decoder). It ties there on both tomosynthesis volumes (0.99,
+  slower in 2–3 of 10). Elsewhere it is 3–6 % under HTJ2K, which is its bytes.
+* **Through dav1d-WASM the same frames lose wherever the CPU is the clock:** 1.43–1.62 at 4× on
+  50 Mbit, 0.98–1.01 at 4× on 20 Mbit. It wins at 1× on every link and at 4× on 5 Mbit.
+* **The ultrasound turns over.** Row TOTAL found it HTJ2K's on every cell (1.11–1.14 at 1×). With
+  the transform it is AV1's on every cell but 4× on 50 Mbit. Groups of 8 over all 70 frames are
+  0.948 of HTJ2K's bytes, not row LLSIZE's 0.850 on its first 8, so they gain 1 % over intra and
+  cost more than that at 4×.
+* **First frame.** Through WebCodecs it is within −38 to +17 ms of HTJ2K's at 1× and 2–88 ms behind
+  at 4×; through dav1d-WASM 37–104 ms behind at 1× and 210–409 ms at 4×.
+* **Saturation** as in row TOTAL: at 4× on 50 Mbit the decode on three cores is the clock. Nothing
+  is claimed about a phone or about the LTE and Wi-Fi profiles, which this row did not run.
+
+**Verdict.** Against row TOTAL's ranking, where HTJ2K won every cell where the CPU was the clock and
+every ultrasound cell, **row LLSIZE's codings through WebCodecs fill first on every series and every
+cell measured but two, both at 4× on 50 Mbit, where the better of them loses by 2–6 %**. The split now opens
+WebCodecs on the 12-bit series (top10+low2 at 0.943, against row TOTAL's top10+low3 at 0.999), so
+the bytes and the faster decoder no longer trade. dav1d-WASM keeps the same bytes and keeps losing
+40–60 % to HTJ2K where a slow CPU meets a fast link.
+
 ## Threads (owner, 2026-10-03)
 
 **Focus: AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
