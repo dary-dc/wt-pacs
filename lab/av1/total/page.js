@@ -1,8 +1,6 @@
 /**
- * One fill through the downloader against the real server, configured by the runner: when each
- * frame's last byte reached the downloader and its pixels the page, every frame hashed. run.mjs
- * drives it. A layer-major series (`decoder.layers` 2, lab/av1/bases) fills 2F entries: F bases as
- * previews, then F exact frames. lab/av1/total/README.md
+ * One fill through the downloader, every frame timed and hashed; a layer-major series (lab/av1/bases)
+ * fills F bases as previews, then F exact frames. run.mjs drives it. lab/av1/total/README.md
  *
  *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256
  */
