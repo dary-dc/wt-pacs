@@ -95,11 +95,12 @@ function pack(set, ext, entries) {
   const dir = `${T}/${set.name}-${ext}`;
   if (existsSync(`${dir}.sbnd`)) return `${dir}.sbnd`;
   mkdirSync(dir);
+  const codec = ext === "htj2k" ? "htj2k" : "av1";
   for (let i = 0; i < entries; i++) {
     const n = String(i).padStart(3, "0");
-    symlinkSync(path.join(ROOT, FRAMES, set.name, `${n}.${ext}`), `${dir}/${n}.htj2k`);
+    symlinkSync(path.join(ROOT, FRAMES, set.name, `${n}.${ext}`), `${dir}/${n}.${codec}`);
   }
-  writeFileSync(`${dir}.json`, JSON.stringify({ frameCount: entries, codec: ext === "htj2k" ? "htj2k" : "av1" }));
+  writeFileSync(`${dir}.json`, JSON.stringify({ frameCount: entries, codec }));
   execFileSync(path.join(ROOT, "target/release/pack-study"),
     ["--metadata", `${dir}.json`, "--frames", dir, "--output", `${dir}.sbnd`], { stdio: "ignore" });
   return `${dir}.sbnd`;
