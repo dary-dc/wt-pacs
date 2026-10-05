@@ -283,6 +283,42 @@ frame, median of 10 interleaved rounds at 1× · 4×, 9 920/9 920 frames exact:
 WebCodecs was faster than d12 in 60/60 paired rounds. It is still 2.6–2.8× OpenJPH, against 5.5–7.1×
 for d12. The decoder accounts for the gain: dav1d-WASM on w10 takes 0.94–1.04 of its d12 time.
 
+Total time used row TOTAL's harness: links, CPU, rig and Williams order unchanged, 12 rounds, n = 10–12
+a cell, 28 of 1 080 visits `VOID` and dropped. **44 640/44 640 frames were exact.** Each HTJ2K cell gives
+the median seconds to every frame on the page. Each layout cell gives the median of round-paired
+ratios to HTJ2K, at 1× · 4×:
+
+| series | arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| --- | --- | --- | --- | --- | --- | --- |
+| CT, 13 bits | HTJ2K, s | 26.7 · 26.7 | 6.81 · 6.82 | 2.87 · 2.88 | 5.41 · 5.37 | 11.3 · 11.1 |
+| | d12, dav1d | 0.92 · 0.92 | 0.92 · 0.93 | 0.93 · 1.52 | 0.94 · 1.02 | 0.90 · 0.93 |
+| | w10, WebCodecs | 0.93 · 0.93 | 0.93 · **0.94** | 0.94 · **0.94** | 0.95 · **0.96** | 0.87 · 0.95 |
+| projections, system 1, 14 bits | HTJ2K, s | 60.0 · 60.3 | 15.2 · 15.5 | 6.27 · 6.54 | 14.0 · 14.4 | 28.5 · 28.7 |
+| | d12, dav1d | **0.96 · 0.99** | **0.99** · 1.10 | 1.04 · 1.63 | **0.95** · 1.07 | **0.98** · 1.02 |
+| | w10, WebCodecs | 1.00 · 1.01 | 1.01 · 1.04 | 1.03 · 1.11 | 1.01 · 1.04 | 1.01 · 0.98 |
+| projections, system 2, 14 bits | HTJ2K, s | 47.9 · 48.0 | 12.1 · 12.3 | 5.03 · 5.18 | 9.21 · 9.36 | 21.8 · 22.2 |
+| | d12, dav1d | **0.93 · 0.94** | **0.95** · 1.01 | **0.97** · 1.46 | **0.94** · 1.03 | **0.95 · 0.95** |
+| | w10, WebCodecs | 1.05 · 1.05 | 1.05 · 1.07 | 1.06 · 1.11 | 1.10 · 1.13 | 0.99 · 1.09 |
+
+* **At 13 bits w10 is the layout.** It is within 1 % of d12 wherever the wire is the clock and wins
+  every cell, 0.87–0.96. At 4× it holds 0.94–0.96 on 50 Mbit and LTE, where d12 takes 1.52 and 1.02.
+  Its first frame comes 4–30 ms before HTJ2K's on every cell.
+* **At 14 bits d12 is the layout, and only where the wire is the clock.** At 1× it wins on every link
+  but system 1 at 50 Mbit (0.93–0.99). At 4× it wins at 5 Mbit (0.94–0.99) and on system 2's Wi-Fi,
+  and loses 1–63 % elsewhere: HTJ2K wins those cells, but for system 1's Wi-Fi at 4×, where w10 is
+  0.98. w10 carries four low bits. It is 0.98–1.11 on system 1 and 0.99–1.13 on system 2, which is
+  its bytes (0.999 and 1.046). WebCodecs' faster decode does not pay back four low bits at 14 bits.
+* **The first frame is HTJ2K's at 14 bits** on every cell but one: d12 is 89–572 ms behind it at 1×
+  and 0.89–2.4 s at 4×, and w10 25–239 ms and 211–471 ms (16 ms ahead on system 1's LTE at 1×).
+* **Saturation.** As row TOTAL found: at 4× on 50 Mbit (and on 20 Mbit for the 5-megapixel
+  projections), dav1d-WASM's decode on the browser's three cores is the fill's clock. Nothing is
+  claimed about a phone.
+
+**Verdict, REP14:** at 13 bits store top10+low (w10, WebCodecs), which is 0.931 of HTJ2K's bytes and
+wins or ties every cell. At 14 bits store the two low bits apart (d12, dav1d-WASM), which is 0.92–0.95
+of HTJ2K's bytes and 0.93–0.99 of its fill time where the wire is the clock, and HTJ2K wherever a slow
+CPU meets a link of 20 Mbit or more. w10 is the 14-bit choice on one cell only.
+
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never
