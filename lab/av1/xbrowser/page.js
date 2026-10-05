@@ -121,9 +121,54 @@ async function run({ frames: dir, round, mutate = [], warm = 1 }) {
   return rows;
 }
 
+const hex = async (bytes) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+
+/** Each WebCodecs arm's first frame straight into VideoDecoder: what the engine returns, and an 8-bit RGB frame's samples against the truth. */
+async function probe({ frames: dir }) {
+  const manifest = await (await fetch(`/${dir}/manifest.json`)).json();
+  const controls = await fetch(`/${dir}/control.json`).then((r) => (r.ok ? r.json() : []));
+  const sets = [{ name: "control", arms: Object.fromEntries(controls.map((c) => [c, { ext: "obu", depth: 10 }])) }, ...manifest];
+  const rows = [];
+  for (const set of sets) {
+    for (const [name, arm] of Object.entries(set.arms)) {
+      if (!(arm.depth <= 10)) continue;
+      const file = set.name === "control" ? `control/${name}.obu` : `${set.name}/000.${arm.ext}`;
+      const bytes = new Uint8Array(await (await fetch(`/${dir}/${file}`)).arrayBuffer());
+      const n = arm.split ? new DataView(bytes.buffer).getUint32(0, true) : bytes.length;
+      const units = arm.split ? [bytes.subarray(4, 4 + n), bytes.subarray(4 + n)] : [bytes];
+      for (const [k, unit] of units.entries()) {
+        const row = { set: set.name, arm: name, unit: k ? "low" : "top" };
+        try {
+          const frame = await new Promise((resolve, reject) => {
+            const vd = new VideoDecoder({ output: resolve, error: reject });
+            vd.configure({ codec: "av01.0.04M.10", hardwareAcceleration: "prefer-software", optimizeForLatency: true });
+            vd.decode(new EncodedVideoChunk({ type: "key", timestamp: 0, data: unit }));
+            vd.flush().catch(reject);
+          });
+          Object.assign(row, { format: frame.format, coded: `${frame.codedWidth}x${frame.codedHeight}`, matrix: frame.colorSpace.matrix });
+          if (/^(BGRX|RGBX|BGRA|RGBA)$/.test(frame.format) && !arm.rct && set.ch === 3) {
+            const px = new Uint8Array(frame.allocationSize());
+            await frame.copyTo(px);
+            const rgb = new Uint8Array((px.length / 4) * 3);
+            const [r, g, b] = frame.format.startsWith("BGR") ? [2, 1, 0] : [0, 1, 2];
+            for (let i = 0, o = 0; i < px.length; i += 4, o += 3) (rgb[o] = px[i + r]), (rgb[o + 1] = px[i + g]), (rgb[o + 2] = px[i + b]);
+            row.exactAsRgb = (await hex(rgb)) === set.frames[0].truth;
+          }
+          frame.close();
+        } catch (e) {
+          row.error = `${e?.name}: ${e?.message}`;
+        }
+        rows.push(row);
+      }
+    }
+  }
+  return rows;
+}
+
 try {
   const opts = await (await post("/xb/hello", await caps())).json();
-  await post("/xb/result", opts.frames ? { rows: await run(opts) } : {});
+  if (opts.probe) await post("/xb/result", { probe: await probe(opts) });
+  else await post("/xb/result", opts.frames ? { rows: await run(opts) } : {});
 } catch (e) {
   await post("/xb/result", { error: String(e?.stack ?? e) });
 }
