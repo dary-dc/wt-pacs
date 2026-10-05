@@ -58,6 +58,11 @@ matrix alone, WebCodecs reports BT.709 and the product module refuses every fram
 decoded natively and matched with the checksum written when the series was fetched before they
 are written; `pre`'s truth is its native decode's per-frame hash.
 
+Row TOTAL2's run: `make_frames.py` with `ARMS=l2,rct` into `lab/.av1-work/total2`, then rounds 0–11
+of `run.mjs --links r5000,r20000,r50000 --frames lab/.av1-work/total2`, rounds 12–15 on the cells
+`VOID` left under n = 10; the reading is in the same README, §Total time. `--mutate sample` and
+`--mutate truth` each turned every new arm to 0 exact.
+
 **Links.** `r5000`, `r20000`, `r50000`: a fixed rate, 40 ms round trip, a 200-packet queue, as row
 FILL. `lte-good` and `wifi-home`: row PROF's profiles (`lab/scripts/profile_cells.sh`) — mahimahi's
 `TMobile-LTE-short` trace (16.7 Mbit mean, 50 ms, Gilbert–Elliott 0.01 % in bursts of 3.5, a 500 ms
