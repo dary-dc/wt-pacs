@@ -1,0 +1,104 @@
+diff --git a/src/core/codestream/ojph_subband.cpp b/src/core/codestream/ojph_subband.cpp
+index eae112d..aeb0e60 100644
+--- a/src/core/codestream/ojph_subband.cpp
++++ b/src/core/codestream/ojph_subband.cpp
+@@ -48,6 +48,85 @@
+ #include "ojph_codeblock.h"
+ #include "ojph_precinct.h"
+ 
++#ifdef OJPH_CB_THREADS
++#include <atomic>
++#include <condition_variable>
++#include <exception>
++#include <mutex>
++#include <thread>
++#include <vector>
++
++namespace {
++  // A row of code-blocks decoded by the caller and OJPH_CB_THREADS helpers. Each block owns
++  // its buffer and the block decoder reads only its arguments and constant tables.
++  struct cb_pool
++  {
++    static cb_pool& get() { static cb_pool p; return p; }
++
++    void run(ojph::local::codeblock* b, ojph::ui32 count)
++    {
++      if (count < 2) {
++        for (ojph::ui32 i = 0; i < count; ++i) b[i].decode();
++        return;
++      }
++      ojph::ui64 g;
++      {
++        std::lock_guard<std::mutex> l(m);
++        blocks = b; n = count; done.store(0);
++        g = (cursor.load() >> 32) + 1;
++        cursor.store(g << 32);
++      }
++      cv.notify_all();
++      work(g, b, count);
++      while (done.load(std::memory_order_acquire) < count) {}
++      if (err) { std::exception_ptr e = err; err = nullptr; std::rethrow_exception(e); }
++    }
++
++  private:
++    cb_pool() {
++      for (int t = 0; t < OJPH_CB_THREADS; ++t)
++        std::thread([this] { loop(); }).detach();
++    }
++
++    // The cursor is generation << 32 | next index, so a helper late from one row takes no
++    // block of the next.
++    void work(ojph::ui64 g, ojph::local::codeblock* b, ojph::ui32 count)
++    {
++      for (;;) {
++        ojph::ui64 v = cursor.load();
++        if ((v >> 32) != g || (ojph::ui32)v >= count) return;
++        if (!cursor.compare_exchange_weak(v, v + 1)) continue;
++        try { b[(ojph::ui32)v].decode(); }
++        catch (...) { std::lock_guard<std::mutex> l(m); if (!err) err = std::current_exception(); }
++        done.fetch_add(1, std::memory_order_release);
++      }
++    }
++
++    void loop()
++    {
++      ojph::ui64 seen = 0;
++      for (;;) {
++        ojph::local::codeblock* b; ojph::ui32 count; ojph::ui64 g;
++        {
++          std::unique_lock<std::mutex> l(m);
++          cv.wait(l, [&] { return (cursor.load() >> 32) != seen; });
++          g = seen = cursor.load() >> 32; b = blocks; count = n;
++        }
++        work(g, b, count);
++      }
++    }
++
++    std::mutex m;
++    std::condition_variable cv;
++    ojph::local::codeblock* blocks = nullptr;
++    ojph::ui32 n = 0;
++    std::atomic<ojph::ui64> cursor{0};
++    std::atomic<ojph::ui32> done{0};
++    std::exception_ptr err;
++  };
++}
++#endif
++
+ namespace ojph {
+ 
+   namespace local
+@@ -364,8 +443,13 @@ namespace ojph {
+             cb_size.w = cbx1 - cbx0;
+             blocks[i].recreate(cb_size,
+                                coded_cbs + i + cur_cb_row * num_blocks.w);
++#ifndef OJPH_CB_THREADS
+             blocks[i].decode();
++#endif
+           }
++#ifdef OJPH_CB_THREADS
++          cb_pool::get().run(blocks, num_blocks.w);
++#endif
+           ++cur_cb_row;
+         }
+       }
