@@ -393,7 +393,7 @@ async fn reader_product_fill(
     reads: Arc<AtomicU64>,
 ) -> Result<()> {
     let asks = plan.len();
-    let mut seq = SeqReader::new();
+    let mut seq = SeqReader::new(Arc::clone(&store));
     let mut mine = Vec::with_capacity(asks);
     let mut miss = 0u64;
     for i in 0..asks {
@@ -403,7 +403,7 @@ async fn reader_product_fill(
         let before = seq.stats().misses;
         let mut pos = 0u32;
         while pos < span.len {
-            let ready = seq.read(&store, span, next).await.expect("fill read");
+            let ready = seq.read(span, next).await.expect("fill read");
             pos += ready.len() as u32;
         }
         mine.push(t.elapsed().as_nanos() as u64);
@@ -437,7 +437,7 @@ async fn reader_product_tile(
     let asks = plan.len();
     let slots = cell.depth.max(1);
     let mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref());
-    let mut tile = TileReader::new(mode.map_err(anyhow::Error::msg)?, &store, slots);
+    let mut tile = TileReader::new(mode.map_err(anyhow::Error::msg)?, Arc::clone(&store), slots);
     let mut mine = Vec::with_capacity(asks);
     let mut miss = 0u64;
     let mut upcoming: Vec<FrameSpan> = Vec::with_capacity(slots);
@@ -449,7 +449,7 @@ async fn reader_product_tile(
         let before = tile.stats().misses;
         let mut pos = 0u32;
         while pos < span.len {
-            let ready = tile.read(&store, span, &upcoming).await.expect("tile read");
+            let ready = tile.read(span, &upcoming).await.expect("tile read");
             pos += ready.len() as u32;
         }
         mine.push(t.elapsed().as_nanos() as u64);
@@ -738,7 +738,7 @@ fn run_cell(
     let store = Arc::new(FrameStore::open(path)?);
     let file = Arc::new(std::fs::File::open(path)?);
     let flen = file.metadata()?.len();
-    let base = store.frame_span(0)?.offset;
+    let base = store.frame_span(0).offset;
     let span = flen - base - cell.size as u64;
 
     let partition = cell.partition;

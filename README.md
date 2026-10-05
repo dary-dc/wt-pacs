@@ -98,6 +98,7 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 | [`docs/WIRE.md`](docs/WIRE.md) | the wire: FoD messages, the envelope, stream modes, an ask during a fill, the WebSocket mapping |
 | [`docs/CLIENTS.md`](docs/CLIENTS.md) | the client contract: the transport seam, its implementations, the conformance suite |
 | [`docs/FIXTURES.md`](docs/FIXTURES.md) | the fixtures and how each is made |
+| [`server/README.md`](server/README.md) | the server's map: how a session's data flows, which object does what, what runs where |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the client above the transport: downloader, decoders, consumer; the session's open, survival and fallback |
 | [`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) | what the transport measured and chose, why, and what is open |
 | [`docs/decode/README.md`](docs/decode/README.md) | the decoder: builds, dispatch, warm-up, the range, the decode tail |

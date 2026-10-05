@@ -70,12 +70,10 @@ impl FrameStore {
         self.index.len() as u32
     }
 
-    /// No I/O, so an out-of-range ask is refused before a stream is opened.
-    pub fn frame_span(&self, index: u32) -> Result<FrameSpan> {
-        self.index
-            .get(index as usize)
-            .map(|&(offset, len)| FrameSpan { offset, len })
-            .with_context(|| format!("frame index {index} out of range ({})", self.frame_count()))
+    /// Panics past `frame_count()`: the planner refuses out of range before anything reads.
+    pub fn frame_span(&self, index: u32) -> FrameSpan {
+        let (offset, len) = self.index[index as usize];
+        FrameSpan { offset, len }
     }
 
     /// Never waits, which is what makes it safe on the executor. A short return means the
@@ -257,15 +255,35 @@ mod tests {
 
         let store = FrameStore::open(&path)?;
         assert_eq!(store.frame_count(), 2);
-        assert!(store.frame_span(99).is_err());
-
         for (index, want) in [(0u32, f0.as_slice()), (1, f1.as_slice())] {
-            let span = store.frame_span(index)?;
+            let span = store.frame_span(index);
             let mut buf = vec![0u8; span.len as usize];
             store.read_at_blocking(&mut buf, span.offset)?;
             assert_eq!(buf, want, "frame {index}");
         }
         let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+
+    /// A study holding a frame no client would read stops the server at startup, naming the
+    /// frame. Laid out by hand, since the writer refuses it too; sparse, so nothing is written.
+    #[test]
+    fn a_study_with_an_oversized_frame_fails_to_open_naming_it() -> Result<()> {
+        let too_big = frame_envelope::MAX_CODESTREAM_LEN as u32 + 1;
+        let data_base = 16 + 12;
+        let mut bytes = b"SBND".to_vec();
+        for word in [1u32, 0, 1] {
+            bytes.extend_from_slice(&word.to_le_bytes());
+        }
+        bytes.extend_from_slice(&(data_base as u64).to_le_bytes());
+        bytes.extend_from_slice(&too_big.to_le_bytes());
+        let path = scratch("frame-store-oversized");
+        std::fs::write(&path, &bytes)?;
+        File::options().write(true).open(&path)?.set_len(data_base + u64::from(too_big))?;
+        let opened = FrameStore::open(&path);
+        let _ = std::fs::remove_file(&path);
+        let err = format!("{:#}", opened.err().expect("the oversized study opened"));
+        assert!(err.contains("frame 0 "), "the refusal does not name the frame: {err}");
         Ok(())
     }
 
@@ -301,7 +319,7 @@ mod tests {
         let path = scratch("frame-store-nowait");
         write_bundle(&path, br#"{"frameCount":1}"#, &[body.as_slice()])?;
         let store = FrameStore::open(&path)?;
-        let span = store.frame_span(0)?;
+        let span = store.frame_span(0);
 
         let mut out = vec![0u8; span.len as usize];
         let mut pos = 0usize;

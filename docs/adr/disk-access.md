@@ -17,7 +17,7 @@ ask does not. That difference picks the escalation.
    `preadv2(RWF_NOWAIT)` on the executor thread. It returns short instead of waiting on the
    disk, so a cold frame can never park a worker, and a warm ask takes no thread hop at all.
 2. **A fill (`SeqReader`) stays on the pool, and tells the kernel what comes next.** Two
-   buffers, the next frame named (`FILL_AHEAD = 1`), one `spawn_blocking` + `pread` for a
+   buffers, the next frame named (`Next::Fill`'s `after`), one `spawn_blocking` + `pread` for a
    miss. No ring, no extra fd. `peak_in_flight` is 1. The device's queue depth comes from
    `posix_fadvise(WILLNEED)` over `FILL_WINDOW` (4 MiB) past the named frame, issued a
    quarter window at a time — since 2026-09-10, because the kernel's own read-ahead only
@@ -45,7 +45,7 @@ no registered buffers, no cursor reads.
 
 | | |
 | --- | --- |
-| Where | `server/src/media/read_path.rs` (`SeqReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the write) |
+| Where | `server/src/media/read_path.rs` (`SeqReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/link.rs` (the write) |
 | Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles). The `uring` lab lever (every tile through the ring) was removed 2026-10-03; code: `git show archive/arms-2026-10-03:server/src/media/read_path.rs` |
 | Feature | `uring`, on by default; the pool path is `--no-default-features --features crypto-ring` |
 | Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build, with fill/tile hits split (§10) |
@@ -158,7 +158,7 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
 | **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool arm **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring arm, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | one slot table, no mode machine | **Accepted** |
 | **`SeqReader` — probe, pool on the miss, one frame named** | S | ties every serious arm on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
-| **Read ahead (`TILE_SLOTS` / `FILL_AHEAD`)** | B | tiles name up to `slots − 1`, a fill names one; look-ahead **is** depth 2, not a separate effect (§11) | four tile slots / two fill buffers | `slots` is a constructor argument, so a campaign sweeps depth | **Accepted** |
+| **Read ahead (`TILE_SLOTS` / a fill's one ahead)** | B | tiles name up to `slots − 1`, a fill names one; look-ahead **is** depth 2, not a separate effect (§11) | four tile slots / two fill buffers | `slots` is a constructor argument, so a campaign sweeps depth | **Accepted** |
 | **`WILLNEED` window ahead of a fill (`FILL_WINDOW`)** | S | misses **60 % → ~1 %** at the stock read-ahead, 3/3; p99 −62 % where read-ahead is 8 MB; warm a tie once per quarter window (per frame it cost −8.7 % at 16 KiB) | one syscall per MiB walked; no thread, no fd, no buffer | ~15 lines, one test | **Accepted** 2026-09-10 |
 | **Whole frame handed to quinn over pooled buffers** (`media/frame_pool.rs`) | B | **−3 to −8 % CPU per ask in every cell, 5–6/6** | no allocation per frame once the pool is warm | one module, no `unsafe` | **Accepted** 2026-09-23 — [`transport-conclusions.md`](../transport/transport-conclusions.md) |
 | `write_chunk` owned windows to quinn | B | −3.2 % at one session; **+14.6 / +19.1 % at 16 / 32**, RESOLVED | a fresh 64 KiB allocation per window | — | Rejected as built. **Corrected 2026-09-23:** the allocation was the cost, not the hand-off — the row above |
@@ -330,7 +330,9 @@ on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
 ### How a read works
 
-The planner's `Mode` picks the reader; each is built on the first frame of its kind.
+The planner's `Next` picks the reader; each is built on the first frame of its kind, and keeps
+the study's `FrameStore` it was built with: the ring registers that store's file and the slots key
+on its offsets, so a reader can serve no other store.
 
 **Fill — `SeqReader`.** Two buffers. `next` is the frame the planner will ask for after this
 one, and its pooled read is running by the time `read` returns; only it may still be with the

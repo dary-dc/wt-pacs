@@ -1526,6 +1526,7 @@ name = "study-bundle"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "frame-envelope",
 ]
 
 [[package]]

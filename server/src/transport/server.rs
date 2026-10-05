@@ -3,16 +3,17 @@
 
 use crate::media::frame_store::FrameStore;
 use crate::media::read_path::ReadMode;
-use crate::transport::frame_out::FrameOut;
+use crate::transport::link::{ControlStream, Link};
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
-use crate::transport::planner::{fill_range, Ask, Planner, Step, ASKS_AHEAD};
+use crate::transport::planner::{fill_range, frame_in_range, Ask, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::websocket;
-use crate::transport::wire::{read_fod_msg, Control};
-use anyhow::{anyhow, Context, Result};
+use crate::transport::wire::read_fod_msg;
+use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::future::Future;
+use std::ops::ControlFlow;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -134,7 +135,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
                 return hold_session(incoming).await;
             }
             if let Err(err) = handle_incoming(incoming, sessions).await {
-                warn!(%err, "session ended");
+                warn!(err = %format_args!("{err:#}"), "session ended");
             }
         });
     }
@@ -153,8 +154,8 @@ pub(super) struct Sessions {
 }
 
 impl Sessions {
-    pub(super) fn pipeline(&self, out: FrameOut) -> ProductPipeline {
-        ProductPipeline::new(Arc::clone(&self.store), out, self.read_mode)
+    pub(super) fn pipeline(&self, link: Link) -> ProductPipeline {
+        ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode)
     }
 
     /// One session, whatever carries it: `opening` first, then each ask `read` forwards, until
@@ -284,42 +285,47 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let product = |out| sessions.pipeline(out).with_stall_after(sessions.stall);
-    let result = match opening {
-        Some(ask) => {
-            let out = FrameOut::open(sessions.mode, connection.clone()).await?;
-            let (ctl_tx, ctl_rx) = oneshot::channel();
-            let control = connection.clone();
-            let read = |tx| async move {
-                let Ok((send, mut recv)) = control.accept_bi().await else { return };
-                ctl_tx.send(send).ok();
-                while read_asks(&mut recv, &tx).await.is_ok() {}
-            };
-            sessions.serve(product(out).with_late_control(ctl_rx), Some(ask), read).await
+    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall);
+    let result = async {
+        match opening {
+            Some(ask) => {
+                let (ctl_tx, ctl_rx) = oneshot::channel();
+                let link = link(ControlStream::Coming(ctl_rx)).await?;
+                let control = connection.clone();
+                let read = |tx| async move {
+                    let Ok((send, mut recv)) = control.accept_bi().await else { return };
+                    ctl_tx.send(send).ok();
+                    while read_asks(&mut recv, &tx).await.is_continue() {}
+                };
+                sessions.serve(sessions.pipeline(link), Some(ask), read).await
+            }
+            None => {
+                let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
+                let link = link(ControlStream::Open(send)).await?;
+                let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
+                sessions.serve(sessions.pipeline(link), None, read).await
+            }
         }
-        None => {
-            let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
-            let out = FrameOut::open(sessions.mode, connection.clone()).await?;
-            let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_ok() {} };
-            sessions.serve(product(out).with_control(Control::Stream(send)), None, read).await
-        }
-    };
+    }
+    .await;
     report_path(&connection);
     match result {
         Err(err) if closed_by_peer(&connection, &err) => {
-            info!(%err, "session closed by peer");
+            info!(err = %format_args!("{err:#}"), "session closed by peer");
             Ok(())
         }
         result => result,
     }
 }
 
-/// The session failed because the connection went, and the peer closed it: its own close, or
-/// wtransport's local close answering the peer's CLOSE_WEBTRANSPORT_SESSION. A malformed
-/// message, a timeout or a protocol abort is not a goodbye.
+/// The peer went: it stopped a stream the server was writing, or closed. `docs/WIRE.md` §FoD messages.
 fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> bool {
     use wtransport::error::{ConnectionError, StreamOpeningError, StreamReadError, StreamWriteError};
     use wtransport::quinn;
+    let stopped = err.chain().any(|e| {
+        matches!(e.downcast_ref(), Some(quinn::WriteError::Stopped(_)))
+            || matches!(e.downcast_ref(), Some(StreamWriteError::Stopped(_)))
+    });
     let gone = err.chain().any(|e| {
         matches!(e.downcast_ref(), Some(StreamReadError::NotConnected))
             || matches!(e.downcast_ref(), Some(StreamWriteError::NotConnected))
@@ -327,10 +333,11 @@ fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> b
             || matches!(e.downcast_ref(), Some(quinn::WriteError::ConnectionLost(_)))
             || e.downcast_ref::<ConnectionError>().is_some()
     });
-    gone && matches!(
+    let closed = matches!(
         connection.quic_connection().close_reason(),
         Some(quinn::ConnectionError::ApplicationClosed(_) | quinn::ConnectionError::LocallyClosed)
-    )
+    );
+    stopped || (gone && closed)
 }
 
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
@@ -341,18 +348,19 @@ pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
         .1
         .split('&')
         .find_map(|f| f.strip_prefix("ask="))?;
-    let ask = match value.split_once(':')? {
-        ("frame", n) => Ask::Frame(n.parse().ok()?),
+    match value.split_once(':')? {
+        ("frame", n) => {
+            let frame = n.parse().ok()?;
+            frame_in_range(frame, frames).ok()?;
+            Some(Ask::Frame(frame))
+        }
         ("fill", range) => {
             let (from, to) = range.split_once('-')?;
-            Ask::Fill { from: Some(from.parse().ok()?), to: Some(to.parse().ok()?) }
+            let (from, to) = (Some(from.parse().ok()?), Some(to.parse().ok()?));
+            fill_range(from, to, frames).ok()?;
+            Some(Ask::Fill { from, to })
         }
-        _ => return None,
-    };
-    match ask {
-        Ask::Frame(n) if n >= frames => None,
-        Ask::Fill { from, to } if fill_range(from, to, frames).is_err() => None,
-        ask => Some(ask),
+        _ => None,
     }
 }
 
@@ -376,26 +384,16 @@ fn report_path(connection: &wtransport::Connection) {
 /// ends, outstanding finishes get their grace.
 pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
     let result = steps(pipeline, asks).await;
-    pipeline.drain_acks().await;
+    pipeline.finish().await;
     result
 }
 
 async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
     let mut plan = Planner::new(pipeline.store().frame_count());
     loop {
-        let step = plan.next(|| asks.try_recv().ok())?;
-        if plan.take_noted_fill() {
-            pipeline.note_fill();
-        }
-        match step {
-            Step::Serve {
-                frame,
-                upcoming,
-                mode,
-            } => pipeline.serve(frame, &upcoming, mode).await?,
-            Step::Refuse { frame, reason } => {
-                pipeline.refuse(frame, anyhow!(reason)).await?;
-            }
+        match plan.next(|| asks.try_recv().ok())? {
+            Step::Serve { frame, next } => pipeline.serve(frame, &next).await?,
+            Step::Refuse { frame, reason } => pipeline.refuse(frame, reason).await?,
             Step::Wait => match asks.recv().await {
                 Some(ask) => plan.push(ask),
                 None => return Ok(()),
@@ -405,39 +403,34 @@ async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask
     }
 }
 
-async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> ControlFlow<()> {
     forward(read_fod_msg(control_recv).await, tx).await
 }
 
-/// One FoD message as the loop's asks; `Err` once the reader should stop. `None`, the peer's
+/// One FoD message as the loop's asks; `Break` once the reader should stop. `None`, the peer's
 /// goodbye, stops it with no ask, so the loop ends when it next waits.
-pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Ask>) -> ControlFlow<()> {
     let ask = match msg {
-        Ok(Some(FodMsg::RequestFrame { frame })) => {
-            tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
-            return Ok(());
-        }
+        Ok(Some(FodMsg::RequestFrame { frame })) => Ask::Frame(frame),
         Ok(Some(FodMsg::StreamFrames { from, to })) => Ask::Fill { from, to },
         Ok(Some(FodMsg::EndStream)) => Ask::EndStream,
         Ok(Some(FodMsg::EndSession)) => Ask::EndSession,
-        Ok(Some(FodMsg::FrameError { .. })) => return Ok(()),
-        Ok(None) => return Err(()),
+        Ok(Some(FodMsg::FrameError { .. })) => return ControlFlow::Continue(()),
+        Ok(None) => return ControlFlow::Break(()),
         Err(err) => Ask::Failed(err),
     };
     let failed = matches!(ask, Ask::Failed(_));
-    tx.send(ask).await.map_err(|_| ())?;
-    if failed {
-        Err(())
-    } else {
-        Ok(())
+    if tx.send(ask).await.is_err() || failed {
+        return ControlFlow::Break(());
     }
+    ControlFlow::Continue(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::frame_store::FrameSpan;
-    use crate::transport::planner::Mode;
+    use crate::transport::planner::Next;
+    use anyhow::anyhow;
     use crate::transport::wire::write_fod_msg;
     use fod::FodMsg;
     use frame_envelope::unwrap;
@@ -446,10 +439,10 @@ mod tests {
     use wtransport::stream::SendStream;
     use wtransport::ClientConfig;
 
-    /// Records what the loop hands the pipeline: the frame and the names that go with it.
+    /// Records what the loop hands the pipeline: the frame and what follows it.
     struct LoopRecorder {
         store: Arc<FrameStore>,
-        seen: Vec<(u32, Vec<u32>)>,
+        seen: Vec<(u32, Next)>,
         fills: u32,
         drained: bool,
     }
@@ -458,33 +451,25 @@ mod tests {
         fn store(&self) -> &Arc<FrameStore> {
             &self.store
         }
-        async fn send(
-            &mut self,
-            _frame: u32,
-            _span: FrameSpan,
-            _ahead: &[FrameSpan],
-            _mode: Mode,
-        ) -> Result<()> {
+        async fn read(&mut self, frame: u32, next: &Next) -> Result<bytes::Bytes> {
+            self.fills += u32::from(matches!(next, Next::Fill { first: true, .. }));
+            self.seen.push((frame, next.clone()));
+            Ok(bytes::Bytes::new())
+        }
+        async fn write(&mut self, _frame: u32, _body: bytes::Bytes) -> Result<()> {
             Ok(())
         }
-        async fn serve(&mut self, frame: u32, upcoming: &[u32], _mode: Mode) -> Result<()> {
-            self.seen.push((frame, upcoming.to_vec()));
+        async fn refuse(&mut self, _frame: u32, _reason: String) -> Result<()> {
             Ok(())
         }
-        async fn refuse(&mut self, _frame: u32, _err: anyhow::Error) -> Result<()> {
-            Ok(())
-        }
-        async fn drain_acks(&mut self) {
+        async fn finish(&mut self) {
             self.drained = true;
-        }
-        fn note_fill(&mut self) {
-            self.fills += 1;
         }
     }
 
-    /// **The loop's own line.** `Step::Serve`'s `upcoming` reaches `serve`; a fill names
-    /// `FILL_AHEAD` and is counted once. No QUIC — the seam below `serve` is
-    /// `pipeline.rs`'s. `docs/adr/disk-access.md`.
+    /// **The loop's own line.** `Step::Serve`'s `next` reaches `serve`; a fill names one frame
+    /// ahead and is counted once. No QUIC — the seam below `serve` is `pipeline.rs`'s.
+    /// `docs/adr/disk-access.md`.
     #[test]
     fn the_loop_hands_serve_the_frames_the_planner_named() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drive-{}", std::process::id()));
@@ -506,9 +491,10 @@ mod tests {
             tx.try_send(ask).expect("queue ask");
         }
         rt.block_on(drive(&mut rec, &mut rx)).expect("drive");
+        let tiles = |names: &[u32]| Next::Tiles(names.to_vec());
         assert_eq!(
             rec.seen,
-            vec![(0, vec![2, 3]), (2, vec![3]), (3, vec![])],
+            vec![(0, tiles(&[2, 3])), (2, tiles(&[3])), (3, tiles(&[]))],
             "the planner's names did not reach serve"
         );
 
@@ -543,9 +529,10 @@ mod tests {
         .expect("queue fill");
         drop(tx);
         rt.block_on(drive(&mut rec, &mut rx)).expect("drive fill");
+        let fill = |after, first| Next::Fill { after, first };
         assert_eq!(
             rec.seen,
-            vec![(1, vec![2]), (2, vec![3]), (3, vec![])],
+            vec![(1, fill(Some(2), true)), (2, fill(Some(3), false)), (3, fill(None, false))],
             "a fill did not name one frame ahead"
         );
         assert_eq!(rec.fills, 1, "a fill that served was not counted once");
@@ -570,11 +557,11 @@ mod tests {
     }
 
     /// One session served by `handle_incoming` itself, so the test sees what the session ended
-    /// with. `client` gets the connection and its control stream; the connection stays open
-    /// until the session has ended unless `client` closes it.
+    /// with. `client` gets the connection, which stays open until the session has ended unless
+    /// `client` closes it.
     fn one_session<F, Fut>(tag: &str, tuning: TransportTuning, client: F) -> Result<()>
     where
-        F: FnOnce(wtransport::Connection, SendStream) -> Fut,
+        F: FnOnce(wtransport::Connection) -> Fut,
         Fut: Future<Output = ()>,
     {
         let dir = std::env::temp_dir().join(format!("wtpacs-{tag}-{}", std::process::id()));
@@ -608,9 +595,7 @@ mod tests {
                 .connect(format!("https://127.0.0.1:{port}/"))
                 .await
                 .expect("connect");
-            let (control, _control_recv) =
-                connection.open_bi().await.expect("open bi").await.expect("bi ready");
-            client(connection.clone(), control).await;
+            client(connection.clone()).await;
             let ended = tokio::time::timeout(Duration::from_secs(10), server)
                 .await
                 .expect("the session never ended")
@@ -620,6 +605,10 @@ mod tests {
         });
         std::fs::remove_dir_all(&dir).ok();
         ended
+    }
+
+    async fn open_control(connection: &wtransport::Connection) -> (SendStream, RecvStream) {
+        connection.open_bi().await.expect("open bi").await.expect("bi ready")
     }
 
     /// Shared streams, no opening ask, nothing recorded.
@@ -639,7 +628,8 @@ mod tests {
     /// client closing it, and that is a normal end, not a WARN. `docs/WIRE.md` §FoD messages.
     #[test]
     fn a_client_that_closes_after_its_frames_ends_its_session_cleanly() {
-        let ended = one_session("bye", TransportTuning::default(), |connection, mut control| async move {
+        let ended = one_session("bye", TransportTuning::default(), |connection| async move {
+            let (mut control, _recv) = open_control(&connection).await;
             control
                 .write_all(&fod::encode_fod_msg(&FodMsg::RequestFrame { frame: 1 }).unwrap())
                 .await
@@ -654,10 +644,31 @@ mod tests {
         assert!(ended.is_ok(), "a client's close ended its session as {ended:?}");
     }
 
+    /// **A client that stops reading has said goodbye too.** Dropping the media stream stops it;
+    /// the server's next write then fails as stopped, before any close reaches it, and that is
+    /// the client walking away from a fill, not a failure. `docs/WIRE.md` §FoD messages.
+    #[test]
+    fn a_client_that_stops_its_media_stream_ends_its_session_cleanly() {
+        let ended = one_session("stopped", TransportTuning::default(), |connection| async move {
+            let (mut control, _recv) = open_control(&connection).await;
+            let ask = |frame| fod::encode_fod_msg(&FodMsg::RequestFrame { frame }).unwrap();
+            control.write_all(&ask(0)).await.expect("ask");
+            let mut media = connection.accept_uni().await.expect("accept media uni");
+            tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                .await
+                .expect("frame never arrived");
+            drop(media);
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            control.write_all(&ask(1)).await.expect("ask");
+        });
+        assert!(ended.is_ok(), "a stopped media stream ended the session as {ended:?}");
+    }
+
     /// A message the server cannot read still ends the session in error, a goodbye or not.
     #[test]
     fn a_malformed_ask_ends_its_session_in_error() {
-        let ended = one_session("malformed", TransportTuning::default(), |_connection, mut control| async move {
+        let ended = one_session("malformed", TransportTuning::default(), |connection| async move {
+            let (mut control, _recv) = open_control(&connection).await;
             let mut bytes = 5u32.to_le_bytes().to_vec();
             bytes.extend_from_slice(b"xxxxx");
             control.write_all(&bytes).await.expect("write");
@@ -669,7 +680,8 @@ mod tests {
     #[test]
     fn a_session_that_times_out_ends_in_error() {
         let idle = TransportTuning { max_idle_timeout_ms: Some(300), ..TransportTuning::default() };
-        let ended = one_session("idle", idle, |_connection, control| async move {
+        let ended = one_session("idle", idle, |connection| async move {
+            let (control, _recv) = open_control(&connection).await;
             // Held open past the timeout: dropping it would finish it, which is a goodbye.
             tokio::time::sleep(Duration::from_secs(1)).await;
             drop(control);
@@ -680,22 +692,81 @@ mod tests {
     /// A client that finishes its control stream between messages has said goodbye too.
     #[test]
     fn a_client_that_finishes_its_control_stream_ends_its_session_cleanly() {
-        let ended = one_session("fin", TransportTuning::default(), |_connection, mut control| async move {
+        let ended = one_session("fin", TransportTuning::default(), |connection| async move {
+            let (mut control, _recv) = open_control(&connection).await;
             control.finish().await.expect("finish");
         });
         assert!(ended.is_ok(), "a FIN between messages ended the session as {ended:?}");
+    }
+
+    /// A client that dials and goes before opening its control stream has said goodbye too: a
+    /// close during session setup is classified like one during serving.
+    #[test]
+    fn a_client_that_closes_right_after_the_accept_ends_cleanly() {
+        let ended = one_session("setup-bye", TransportTuning::default(), |connection| async move {
+            connection.close(0u32.into(), b"gone");
+        });
+        assert!(ended.is_ok(), "a close during setup ended the session as {ended:?}");
     }
 
     /// A WebSocket client's Close is a goodbye too. `docs/WIRE.md` §The WebSocket mapping.
     #[test]
     fn a_websocket_close_ends_its_session_cleanly() {
         use futures_util::{SinkExt, StreamExt};
-        use rustls::pki_types::pem::PemObject;
         use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
         use tokio_tungstenite::tungstenite::protocol::CloseFrame;
         use tokio_tungstenite::tungstenite::Message;
 
-        let dir = std::env::temp_dir().join(format!("wtpacs-ws-bye-{}", std::process::id()));
+        let ended = ws_session("ws-bye", |mut ws| async move {
+            let ask = serde_json::to_string(&FodMsg::RequestFrame { frame: 1 }).unwrap();
+            ws.send(Message::text(ask)).await.expect("ask");
+            let (want, mut got) = (8 + pattern(1).len(), 0);
+            while got < want {
+                let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                    .await
+                    .expect("the frame stalled")
+                    .expect("socket ended")
+                    .expect("read");
+                got += msg.into_data().len();
+            }
+            ws.close(Some(CloseFrame { code: CloseCode::Normal, reason: "".into() }))
+                .await
+                .expect("close");
+        });
+        assert!(ended.is_ok(), "a WebSocket Close ended its session as {ended:?}");
+    }
+
+    /// A session the server ends sends the client a Close frame, not a bare TCP teardown, so a
+    /// client can tell an end from a broken link. `docs/WIRE.md` §The WebSocket mapping.
+    #[test]
+    fn a_websocket_session_ends_with_a_close_frame() {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+
+        let ended = ws_session("ws-close", |mut ws| async move {
+            let end = serde_json::to_string(&FodMsg::EndSession).unwrap();
+            ws.send(Message::text(end)).await.expect("end_session");
+            let last = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                .await
+                .expect("the session never ended");
+            assert!(
+                matches!(last, Some(Ok(Message::Close(_)))),
+                "the session ended without a Close frame: {last:?}"
+            );
+        });
+        assert!(ended.is_ok(), "end_session ended the session as {ended:?}");
+    }
+
+    /// One WebSocket session served by `websocket::session` on a two-frame study; `client`
+    /// gets the upgraded socket, and the result is what the session ended with.
+    fn ws_session<F, Fut>(tag: &str, client: F) -> Result<()>
+    where
+        F: FnOnce(tokio_tungstenite::WebSocketStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>) -> Fut,
+        Fut: Future<Output = ()>,
+    {
+        use rustls::pki_types::pem::PemObject;
+
+        let dir = std::env::temp_dir().join(format!("wtpacs-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let study = write_study(&dir, 2);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
@@ -728,30 +799,17 @@ mod tests {
             let tcp = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.expect("tcp");
             let name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
             let tls = connector.connect(name, tcp).await.expect("TLS");
-            let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
+            let (ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
                 .await
                 .expect("WebSocket upgrade");
-            let ask = serde_json::to_string(&FodMsg::RequestFrame { frame: 1 }).unwrap();
-            ws.send(Message::text(ask)).await.expect("ask");
-            let (want, mut got) = (8 + pattern(1).len(), 0);
-            while got < want {
-                let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
-                    .await
-                    .expect("the frame stalled")
-                    .expect("socket ended")
-                    .expect("read");
-                got += msg.into_data().len();
-            }
-            ws.close(Some(CloseFrame { code: CloseCode::Normal, reason: "".into() }))
-                .await
-                .expect("close");
+            client(ws).await;
             tokio::time::timeout(Duration::from_secs(10), server)
                 .await
                 .expect("the session never ended")
                 .expect("session task")
         });
-        assert!(ended.is_ok(), "a WebSocket Close ended its session as {ended:?}");
         std::fs::remove_dir_all(&dir).ok();
+        ended
     }
 
     /// An opening ask is taken only whole and in range: each end of a fill is a frame number, the

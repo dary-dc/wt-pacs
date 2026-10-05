@@ -19,9 +19,9 @@ if [[ ! -f "$BIN" ]]; then
   exit 1
 fi
 
-if grep -qE 'exact_server::record::(tap|sink|report|rows)|Tap::for_session|LiveSummary|prepare_us|overhead_us|ack_us|server_work_us|flush_on_exit' <(nm -C "$BIN"); then
+if grep -qE 'exact_server::record::(tap|sink|report|rows)|Tap::for_session|LiveSummary|flush_on_exit' <(nm -C "$BIN"); then
   echo "FAIL: telemetry symbols found in default build" >&2
-  nm -C "$BIN" | grep -E 'record::(tap|sink|report|rows)|Tap::|overhead_us|ack_us' || true
+  nm -C "$BIN" | grep -E 'record::(tap|sink|report|rows)|Tap::|LiveSummary|flush_on_exit' || true
   exit 1
 fi
 

@@ -116,6 +116,7 @@ enum Ahead {
 /// and no ring: a sequential walk is read-ahead's best case and misses about one read in
 /// sixty. `docs/adr/disk-access.md` §Fill at scale.
 pub struct SeqReader {
+    store: Arc<FrameStore>,
     cur: Vec<u8>,
     ahead: Ahead,
     /// End of what the kernel has been asked for; a walk extends it, a seek restarts it.
@@ -123,15 +124,10 @@ pub struct SeqReader {
     stats: ReadStats,
 }
 
-impl Default for SeqReader {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SeqReader {
-    pub fn new() -> Self {
+    pub fn new(store: Arc<FrameStore>) -> Self {
         Self {
+            store,
             cur: Vec::new(),
             ahead: Ahead::Idle(Vec::new()),
             advised_to: 0,
@@ -141,12 +137,7 @@ impl SeqReader {
 
     /// The whole of `span`, handed off to the wire. `next` is the frame the planner will ask
     /// for after it, and its read is running by the time this returns.
-    pub async fn read(
-        &mut self,
-        store: &Arc<FrameStore>,
-        span: FrameSpan,
-        next: Option<FrameSpan>,
-    ) -> Result<Bytes> {
+    pub async fn read(&mut self, span: FrameSpan, next: Option<FrameSpan>) -> Result<Bytes> {
         let (held, spare) = self.settle().await?;
         let spare = match held {
             Some((s, missed)) if s == span => {
@@ -155,7 +146,7 @@ impl SeqReader {
             }
             _ => {
                 let buf = mem::take(&mut self.cur);
-                let (buf, missed) = start_pooled(store, span, buf)?.land().await?;
+                let (buf, missed) = start_pooled(&self.store, span, buf)?.land().await?;
                 self.count(missed);
                 self.cur = buf;
                 spare
@@ -163,8 +154,8 @@ impl SeqReader {
         };
         self.ahead = match next {
             Some(next) => {
-                let fetch = start_pooled(store, next, spare)?;
-                self.advise(store, next);
+                let fetch = start_pooled(&self.store, next, spare)?;
+                self.advise(next);
                 Ahead::Named(next, fetch)
             }
             None => Ahead::Idle(spare),
@@ -192,16 +183,16 @@ impl SeqReader {
 
     /// Extended a quarter window at a time, so the syscall is per megabyte of walk and not
     /// per frame; a seek past the window restarts it.
-    fn advise(&mut self, store: &FrameStore, next: FrameSpan) {
+    fn advise(&mut self, next: FrameSpan) {
         let end = next.offset + u64::from(next.len);
         let want = end + FILL_WINDOW;
         if (end..=want).contains(&self.advised_to) {
             if want - self.advised_to < FILL_WINDOW / 4 {
                 return;
             }
-            store.advise_ahead(self.advised_to, want - self.advised_to);
+            self.store.advise_ahead(self.advised_to, want - self.advised_to);
         } else {
-            store.advise_ahead(end, FILL_WINDOW);
+            self.store.advise_ahead(end, FILL_WINDOW);
         }
         self.advised_to = want;
     }
@@ -272,6 +263,7 @@ enum InFlight {
 /// **The tile reader.** A scattered ask is a miss by nature, so its queue is the ring's
 /// submissions rather than one blocked thread per outstanding read.
 pub struct TileReader {
+    store: Arc<FrameStore>,
     #[cfg(feature = "uring")]
     ring: Ring,
     slots: Vec<Slot>,
@@ -283,13 +275,14 @@ impl TileReader {
     /// Without `RWF_NOWAIT` a ring keyed on the shortfall would serve every *warm* read
     /// too — `docs/adr/disk-access.md` §The trap.
     #[cfg_attr(not(feature = "uring"), allow(unused_variables))]
-    pub fn new(mode: ReadMode, store: &FrameStore, slots: usize) -> Self {
+    pub fn new(mode: ReadMode, store: Arc<FrameStore>, slots: usize) -> Self {
         #[cfg(feature = "uring")]
         let wants_ring = match mode {
             ReadMode::Auto => store.nowait_supported(),
             ReadMode::Pool => false,
         };
         Self {
+            store,
             #[cfg(feature = "uring")]
             ring: if wants_ring { Ring::Wanted } else { Ring::Off },
             slots: (0..slots.max(1))
@@ -310,12 +303,7 @@ impl TileReader {
 
     /// The whole of `span`, handed off to the wire; reads of `upcoming` that fit are started
     /// underneath. Current first, then upcoming, then wait — the measured order.
-    pub async fn read(
-        &mut self,
-        store: &Arc<FrameStore>,
-        span: FrameSpan,
-        upcoming: &[FrameSpan],
-    ) -> Result<Bytes> {
+    pub async fn read(&mut self, span: FrameSpan, upcoming: &[FrameSpan]) -> Result<Bytes> {
         let named = 1 + upcoming.len().min(self.slots.len() - 1);
         self.stats.peak_named = self.stats.peak_named.max(named as u16);
         for i in 0..named {
@@ -323,7 +311,7 @@ impl TileReader {
             if self.holding(want).is_none() {
                 let w = self.free_slot(span, upcoming);
                 self.wait(w).await?;
-                self.begin(store, w, want)?;
+                self.begin(w, want)?;
             }
         }
         let started = self.slots.iter().filter(|s| s.read.is_some()).count() as u16;
@@ -361,10 +349,10 @@ impl TileReader {
     }
 
     /// Probe the whole frame without waiting; on a shortfall ask for what is missing.
-    fn begin(&mut self, store: &Arc<FrameStore>, w: usize, span: FrameSpan) -> Result<()> {
+    fn begin(&mut self, w: usize, span: FrameSpan) -> Result<()> {
         let len = span.len as usize;
         fit(&mut self.slots[w].buf, len);
-        let hit = store.read_at_nowait(&mut self.slots[w].buf[..len], span.offset)?;
+        let hit = self.store.read_at_nowait(&mut self.slots[w].buf[..len], span.offset)?;
         let slot = &mut self.slots[w];
         slot.key = Some(span);
         slot.at = span.offset;
@@ -374,17 +362,17 @@ impl TileReader {
         if !slot.miss {
             return Ok(());
         }
-        let pending = self.escalate(store, w)?;
+        let pending = self.escalate(w)?;
         self.slots[w].read = Some(pending);
         Ok(())
     }
 
     /// The ring if this session has one, the pool otherwise. Neither is waited on here.
-    fn escalate(&mut self, store: &Arc<FrameStore>, w: usize) -> Result<InFlight> {
+    fn escalate(&mut self, w: usize) -> Result<InFlight> {
         #[cfg(feature = "uring")]
         {
             let slots = self.slots.len();
-            let Self { ring, slots: s, .. } = self;
+            let Self { store, ring, slots: s, .. } = self;
             if let Some(reader) = ring.build_on_first_miss(store, slots) {
                 let slot = &mut s[w];
                 // SAFETY: `slot.buf` is neither grown, read nor dropped while `slot.read` is
@@ -400,8 +388,8 @@ impl TileReader {
             }
         }
         #[cfg(test)]
-        store.account_pool_start();
-        let store = Arc::clone(store);
+        self.store.account_pool_start();
+        let store = Arc::clone(&self.store);
         let slot = &mut self.slots[w];
         let (from, len, at) = (slot.filled, slot.len, slot.at);
         let mut buf = mem::take(&mut slot.buf);
@@ -555,7 +543,7 @@ mod tests {
 
     fn spans(store: &Arc<FrameStore>, idx: &[u32]) -> Vec<FrameSpan> {
         idx.iter()
-            .map(|&i| store.frame_span(i).expect("span"))
+            .map(|&i| store.frame_span(i))
             .collect()
     }
 
@@ -575,23 +563,23 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let rt = rt();
-        let span = store.frame_span(0).expect("span");
+        let span = store.frame_span(0);
 
         for (name, got) in [
             ("fill", {
                 store.reset_pool_starts();
-                let mut seq = SeqReader::new();
+                let mut seq = SeqReader::new(Arc::clone(&store));
                 let out = rt
-                    .block_on(seq.read(&store, span, None))
+                    .block_on(seq.read(span, None))
                     .expect("read")
                     .to_vec();
                 (out, store.pool_starts())
             }),
             ("tile", {
                 store.reset_pool_starts();
-                let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
+                let mut tile = TileReader::new(ReadMode::Pool, Arc::clone(&store), TILE_SLOTS);
                 let out = rt
-                    .block_on(tile.read(&store, span, &[]))
+                    .block_on(tile.read(span, &[]))
                     .expect("read")
                     .to_vec();
                 (out, store.pool_starts())
@@ -615,14 +603,14 @@ mod tests {
                 store.force_pool_reads();
             }
             let store = Arc::new(store);
-            let mut seq = SeqReader::new();
-            let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
+            let mut seq = SeqReader::new(Arc::clone(&store));
+            let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
             for idx in 0..4u32 {
-                let span = store.frame_span(idx).expect("span");
-                let next = (idx + 1 < 4).then(|| store.frame_span(idx + 1).expect("next"));
-                let fill = rt.block_on(seq.read(&store, span, next)).expect("fill");
+                let span = store.frame_span(idx);
+                let next = (idx + 1 < 4).then(|| store.frame_span(idx + 1));
+                let fill = rt.block_on(seq.read(span, next)).expect("fill");
                 assert_eq!(&fill[..], &frame_pattern(idx, LEN)[..], "fill {idx}, pooled={pooled}");
-                let one = rt.block_on(tile.read(&store, span, &[])).expect("tile");
+                let one = rt.block_on(tile.read(span, &[])).expect("tile");
                 assert_eq!(&one[..], &frame_pattern(idx, LEN)[..], "tile {idx}, pooled={pooled}");
             }
         }
@@ -643,11 +631,11 @@ mod tests {
             unreachable!("two frames")
         };
 
-        let mut seq = SeqReader::new();
-        rt.block_on(seq.read(&store, first, Some(second)))
+        let mut seq = SeqReader::new(Arc::clone(&store));
+        rt.block_on(seq.read(first, Some(second)))
             .expect("first");
         store.reset_pool_starts();
-        let out = rt.block_on(seq.read(&store, second, None)).expect("second");
+        let out = rt.block_on(seq.read(second, None)).expect("second");
         assert_eq!(
             &out[..],
             &frame_pattern(1, LEN)[..],
@@ -671,11 +659,11 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let rt = rt();
-        let mut seq = SeqReader::new();
+        let mut seq = SeqReader::new(Arc::clone(&store));
         for idx in 0..8u32 {
-            let span = store.frame_span(idx).expect("span");
-            let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1).expect("next"));
-            rt.block_on(seq.read(&store, span, next)).expect("read");
+            let span = store.frame_span(idx);
+            let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1));
+            rt.block_on(seq.read(span, next)).expect("read");
         }
         assert_eq!(
             seq.stats().peak_in_flight,
@@ -699,8 +687,8 @@ mod tests {
         let all = spans(&store, &(0..24u32).collect::<Vec<_>>());
         let end = |s: FrameSpan| s.offset + u64::from(s.len);
 
-        let mut seq = SeqReader::new();
-        rt.block_on(seq.read(&store, all[0], Some(all[1]))).expect("read");
+        let mut seq = SeqReader::new(Arc::clone(&store));
+        rt.block_on(seq.read(all[0], Some(all[1]))).expect("read");
         assert_eq!(
             store.take_advice(),
             vec![(end(all[1]), FILL_WINDOW)],
@@ -708,7 +696,7 @@ mod tests {
         );
         let mut walked = 0u64;
         for i in 1..20u32 {
-            rt.block_on(seq.read(&store, all[i as usize], Some(all[i as usize + 1])))
+            rt.block_on(seq.read(all[i as usize], Some(all[i as usize + 1])))
                 .expect("read");
             walked += u64::from(all[i as usize + 1].len);
             let advice = store.take_advice();
@@ -724,13 +712,13 @@ mod tests {
             }
         }
         assert!(walked >= FILL_WINDOW / 4, "the walk never extended the window");
-        rt.block_on(seq.read(&store, all[20], Some(all[21]))).expect("read");
+        rt.block_on(seq.read(all[20], Some(all[21]))).expect("read");
         assert_eq!(
             store.take_advice(),
             vec![(end(all[21]), FILL_WINDOW)],
             "a seek past the window restarts it"
         );
-        rt.block_on(seq.read(&store, all[3], Some(all[4]))).expect("read");
+        rt.block_on(seq.read(all[3], Some(all[4]))).expect("read");
         assert_eq!(
             store.take_advice(),
             vec![(end(all[4]), FILL_WINDOW)],
@@ -753,11 +741,11 @@ mod tests {
             unreachable!("three frames")
         };
 
-        let mut seq = SeqReader::new();
-        rt.block_on(seq.read(&store, first, Some(second)))
+        let mut seq = SeqReader::new(Arc::clone(&store));
+        rt.block_on(seq.read(first, Some(second)))
             .expect("first");
         // Frame 1 was named and is in flight; the session asks for 2 instead.
-        let out = rt.block_on(seq.read(&store, third, None)).expect("third");
+        let out = rt.block_on(seq.read(third, None)).expect("third");
         assert_eq!(
             &out[..],
             &frame_pattern(2, LEN)[..],
@@ -780,9 +768,9 @@ mod tests {
         let all = spans(&store, &(0..TILE_SLOTS as u32).collect::<Vec<_>>());
         let (span, upcoming) = all.split_first().expect("one frame at least");
 
-        let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
+        let mut tile = TileReader::new(ReadMode::Pool, Arc::clone(&store), TILE_SLOTS);
         let out = rt
-            .block_on(tile.read(&store, *span, upcoming))
+            .block_on(tile.read(*span, upcoming))
             .expect("read");
         assert_eq!(
             &out[..],
@@ -821,10 +809,10 @@ mod tests {
             unreachable!("four frames")
         };
 
-        let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
-        rt.block_on(tile.read(&store, first, &[named])).expect("first");
+        let mut tile = TileReader::new(ReadMode::Pool, Arc::clone(&store), TILE_SLOTS);
+        rt.block_on(tile.read(first, &[named])).expect("first");
         // Frame 1 was named and is in flight; the session jumps to 2, naming 3 behind it.
-        rt.block_on(tile.read(&store, jump, &[behind])).expect("jump");
+        rt.block_on(tile.read(jump, &[behind])).expect("jump");
         assert_eq!(
             tile.stats().peak_in_flight,
             3,
@@ -842,10 +830,10 @@ mod tests {
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         let rt = rt();
         for slots in [2usize, 8] {
-            let mut tile = TileReader::new(ReadMode::Pool, &store, slots);
+            let mut tile = TileReader::new(ReadMode::Pool, Arc::clone(&store), slots);
             let all = spans(&store, &(0..9u32).collect::<Vec<_>>());
             let (span, upcoming) = all.split_first().expect("frames");
-            rt.block_on(tile.read(&store, *span, upcoming))
+            rt.block_on(tile.read(*span, upcoming))
                 .expect("read");
             assert_eq!(
                 tile.stats().peak_named as usize,
@@ -888,15 +876,15 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
 
-        let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
+        let mut tile = TileReader::new(ReadMode::Pool, Arc::clone(&store), TILE_SLOTS);
         assert_eq!(
             tile.stats().miss_rate(),
             None,
             "nothing read, nothing to say"
         );
         for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
-            rt.block_on(tile.read(&store, span, &[])).expect("read");
+            let span = store.frame_span(idx);
+            rt.block_on(tile.read(span, &[])).expect("read");
         }
         let stats = tile.stats();
         assert_eq!(
@@ -907,10 +895,10 @@ mod tests {
 
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         if store.nowait_supported() {
-            let mut seq = SeqReader::new();
+            let mut seq = SeqReader::new(Arc::clone(&store));
             for idx in 0..3u32 {
-                let span = store.frame_span(idx).expect("span");
-                rt.block_on(seq.read(&store, span, None)).expect("read");
+                let span = store.frame_span(idx);
+                rt.block_on(seq.read(span, None)).expect("read");
             }
             assert_eq!(seq.stats().miss_rate(), Some(0.0), "a warm fill escalated");
             assert_eq!(seq.stats().hits, 3);
@@ -932,10 +920,10 @@ mod tests {
             return;
         }
         let rt = rt();
-        let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
+        let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
         for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
-            let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
+            let span = store.frame_span(idx);
+            let out = rt.block_on(tile.read(span, &[])).expect("read");
             assert_eq!(&out[..], &frame_pattern(idx, LEN)[..]);
         }
         assert!(
@@ -956,10 +944,10 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let rt = rt();
-        let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
+        let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
         for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
-            let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
+            let span = store.frame_span(idx);
+            let out = rt.block_on(tile.read(span, &[])).expect("read");
             assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "the pooled path still serves");
         }
         assert!(
@@ -985,10 +973,10 @@ mod tests {
         store.force_short_reads(SHORT);
         let store = Arc::new(store);
         let rt = rt();
-        let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
+        let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
         for idx in 0..3u32 {
-            let span = store.frame_span(idx).expect("span");
-            let out = rt.block_on(tile.read(&store, span, &[])).expect("read");
+            let span = store.frame_span(idx);
+            let out = rt.block_on(tile.read(span, &[])).expect("read");
             assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} did not compose");
         }
         assert!(tile.ring_built(), "the miss path never reached the ring");
@@ -1003,16 +991,16 @@ mod tests {
         let dir = scratch("ringeof");
         let path = write_bundle(&dir, 2, LEN);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
-        let span = store.frame_span(0).expect("span");
+        let span = store.frame_span(0);
         std::fs::OpenOptions::new()
             .write(true)
             .open(&path)
             .and_then(|f| f.set_len(span.offset))
             .expect("cut the frames off");
         let rt = rt();
-        let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
+        let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
         let read = rt.block_on(async {
-            tokio::time::timeout(std::time::Duration::from_secs(5), tile.read(&store, span, &[]))
+            tokio::time::timeout(std::time::Duration::from_secs(5), tile.read(span, &[]))
                 .await
         });
         if !tile.ring_built() {
@@ -1033,7 +1021,7 @@ mod tests {
         use std::os::fd::FromRawFd;
         let dir = scratch("ringleak");
         let path = write_bundle(&dir, 1, LEN);
-        let store = FrameStore::open(&path).expect("open store");
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
         let rt = rt();
         let _guard = rt.enter();
         let mut fds = [0i32; 2];
@@ -1047,7 +1035,7 @@ mod tests {
             std::fs::remove_dir_all(&dir).ok();
             return;
         };
-        let mut tile = TileReader::new(ReadMode::Pool, &store, TILE_SLOTS);
+        let mut tile = TileReader::new(ReadMode::Pool, store, TILE_SLOTS);
         tile.ring = Ring::Built(Box::new(ring));
         let TileReader { ring: Ring::Built(ring), slots, .. } = &mut tile else {
             unreachable!("built above")

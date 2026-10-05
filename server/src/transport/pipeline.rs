@@ -1,18 +1,14 @@
-//! Per-frame story: prepare → locate → send, or refuse. Written once as trait defaults;
-//! implementors override steps, never the story. `docs/adr/telemetry-server-pipeline.md`.
+//! Per-frame story: read → write, or refuse. Written once as a trait default; implementors
+//! override steps, never the story. `docs/adr/telemetry-server-pipeline.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
 use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
-use crate::transport::frame_out::FrameOut;
-use crate::transport::planner::Mode;
-use crate::transport::wire::Control;
-use anyhow::{Error, Result};
-use fod::FodMsg;
-use frame_envelope::FRAME_HEAD_LEN;
+use crate::transport::link::Link;
+use crate::transport::planner::Next;
+use anyhow::Result;
+use bytes::Bytes;
 use std::sync::Arc;
-use tokio::sync::oneshot;
-use tracing::{info, warn};
-use wtransport::stream::SendStream;
+use tracing::info;
 
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
@@ -23,90 +19,52 @@ use frame_envelope::ENVELOPE_LEN;
 pub(crate) trait FramePipeline: Send {
     fn store(&self) -> &Arc<FrameStore>;
 
-    /// `upcoming` are the frames this session will be asked for after `frame`, where known.
-    async fn serve(&mut self, frame: u32, upcoming: &[u32], mode: Mode) -> Result<()> {
-        self.prepare(frame);
-
-        let span = match self.locate(frame) {
-            Ok(span) => span,
-            Err(err) => return self.refuse(frame, err).await,
-        };
-        let ahead: Vec<FrameSpan> = upcoming
-            .iter()
-            .filter_map(|&frame| self.store().frame_span(frame).ok())
-            .collect();
-
-        self.send(frame, span, &ahead, mode).await
+    /// `frame` and `next` come from the planner, which has already refused anything out of range.
+    async fn serve(&mut self, frame: u32, next: &Next) -> Result<()> {
+        let body = self.read(frame, next).await?;
+        self.write(frame, body).await
     }
 
-    /// The frame begins. The product does nothing here; the lab starts its clock.
-    fn prepare(&mut self, _frame: u32) {}
+    /// The frame's bytes, by the reader `next` names, with `next`'s reads started underneath.
+    async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes>;
 
-    /// No I/O, so an out-of-range ask is refused before a stream opens.
-    fn locate(&mut self, frame: u32) -> Result<FrameSpan> {
-        self.store().frame_span(frame)
-    }
+    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()>;
 
-    /// Read the frame with the reader `mode` names, then write it.
-    async fn send(
-        &mut self,
-        frame: u32,
-        span: FrameSpan,
-        ahead: &[FrameSpan],
-        mode: Mode,
-    ) -> Result<()>;
+    async fn refuse(&mut self, frame: u32, reason: String) -> Result<()>;
 
-    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()>;
-
-    async fn drain_acks(&mut self);
-
-    fn note_fill(&mut self) {}
+    /// However the session ended. `Link::finish`.
+    async fn finish(&mut self);
 }
 
 pub(crate) struct ProductPipeline {
     store: Arc<FrameStore>,
-    out: FrameOut,
+    link: Link,
     /// Built on the first frame of its kind, so a session pays for neither reader it
     /// does not use. `docs/adr/disk-access.md`.
     seq: Option<SeqReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
-    control: Option<Control>,
-    /// The opening ask is served before the client opens control, so a refusal of it waits here.
-    late_control: Option<oneshot::Receiver<SendStream>>,
     fills: u64,
-    /// Lab only: envelope bytes left before the session stalls. `FrameOut::stall_within`.
-    stall_left: Option<u64>,
 }
 
 impl ProductPipeline {
-    pub(crate) fn new(store: Arc<FrameStore>, out: FrameOut, mode: ReadMode) -> Self {
+    pub(crate) fn new(store: Arc<FrameStore>, link: Link, mode: ReadMode) -> Self {
         Self {
             store,
-            out,
+            link,
             seq: None,
             tile: None,
             mode,
-            control: None,
-            late_control: None,
             fills: 0,
-            stall_left: None,
         }
     }
+}
 
-    pub(crate) fn with_stall_after(mut self, bytes: Option<u64>) -> Self {
-        self.stall_left = bytes;
-        self
-    }
-
-    pub(crate) fn with_control(mut self, control: Control) -> Self {
-        self.control = Some(control);
-        self
-    }
-
-    pub(crate) fn with_late_control(mut self, control: oneshot::Receiver<SendStream>) -> Self {
-        self.late_control = Some(control);
-        self
+/// The spans the read path starts on: the planner's names, through the study's index.
+fn ahead(store: &FrameStore, next: &Next) -> Vec<FrameSpan> {
+    match next {
+        Next::Fill { after, .. } => after.iter().map(|&f| store.frame_span(f)).collect(),
+        Next::Tiles(names) => names.iter().map(|&f| store.frame_span(f)).collect(),
     }
 }
 
@@ -115,70 +73,35 @@ impl FramePipeline for ProductPipeline {
         &self.store
     }
 
-    async fn send(
-        &mut self,
-        frame: u32,
-        span: FrameSpan,
-        ahead: &[FrameSpan],
-        mode: Mode,
-    ) -> Result<()> {
-        let Self {
-            store,
-            out,
-            seq,
-            tile,
-            mode: read_mode,
-            stall_left,
-            ..
-        } = self;
-        let body = match mode {
-            Mode::Fill => {
-                seq.get_or_insert_with(SeqReader::new)
-                    .read(store, span, ahead.first().copied())
-                    .await?
+    async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
+        let Self { store, seq, tile, mode: read_mode, fills, .. } = self;
+        let span = store.frame_span(frame);
+        let ahead = ahead(store, next);
+        match next {
+            Next::Fill { first, .. } => {
+                *fills += u64::from(*first);
+                seq.get_or_insert_with(|| SeqReader::new(Arc::clone(store)))
+                    .read(span, ahead.first().copied())
+                    .await
             }
-            Mode::OnDemand => {
-                tile.get_or_insert_with(|| TileReader::new(*read_mode, store, TILE_SLOTS))
-                    .read(store, span, ahead)
-                    .await?
-            }
-        };
-        let Some(left) = stall_left else {
-            return out.send_frame(frame, body).await;
-        };
-        let whole = (FRAME_HEAD_LEN + body.len()) as u64;
-        if whole > *left {
-            return out.stall_within(frame, body, *left as usize).await;
-        }
-        *left -= whole;
-        out.send_frame(frame, body).await
-    }
-
-    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
-        let reason = err.to_string();
-        warn!(frame, %reason, "frame refused");
-        if self.control.is_none() {
-            if let Some(late) = self.late_control.take() {
-                self.control = late.await.ok().map(Control::Stream);
+            Next::Tiles(_) => {
+                tile.get_or_insert_with(|| TileReader::new(*read_mode, Arc::clone(store), TILE_SLOTS))
+                    .read(span, &ahead)
+                    .await
             }
         }
-        let Some(control) = self.control.as_mut() else {
-            return Ok(());
-        };
-        control
-            .write(&FodMsg::FrameError {
-                frame_index: frame,
-                reason,
-            })
-            .await
     }
 
-    async fn drain_acks(&mut self) {
-        self.out.drain_acks().await;
+    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()> {
+        self.link.send_frame(frame, body).await
     }
 
-    fn note_fill(&mut self) {
-        self.fills += 1;
+    async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
+        self.link.refuse(frame, reason).await
+    }
+
+    async fn finish(&mut self) {
+        self.link.finish().await;
     }
 }
 
@@ -233,53 +156,33 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         self.inner.store()
     }
 
-    fn prepare(&mut self, frame: u32) {
+    async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
         self.tap.begin_frame(frame);
-        self.inner.prepare(frame);
-    }
-
-    fn locate(&mut self, frame: u32) -> Result<FrameSpan> {
-        self.tap.boundary_prepare_done(); // entry: close prepare
-        let result = self.inner.locate(frame);
-        if let Ok(span) = &result {
-            self.tap.note_locate(span.len as usize);
+        let read = self.inner.read(frame, next).await;
+        match &read {
+            Ok(_) => self.tap.boundary_read_done(),
+            Err(_) => self.tap.emit_failed(),
         }
-        result
+        read
     }
 
-    async fn send(
-        &mut self,
-        frame: u32,
-        span: FrameSpan,
-        ahead: &[FrameSpan],
-        mode: Mode,
-    ) -> Result<()> {
-        // `send_us` covers read and write together, plus the next frame's read starting.
-        self.tap.boundary_locate_done(); // entry: close locate
-        let envelope_len = ENVELOPE_LEN + span.len as usize;
-        match self.inner.send(frame, span, ahead, mode).await {
-            Ok(()) => {
-                self.tap.emit_sent(envelope_len);
-                Ok(())
-            }
-            Err(e) => {
-                self.tap.emit_write_err();
-                Err(e)
-            }
+    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()> {
+        let envelope_len = ENVELOPE_LEN + body.len();
+        let written = self.inner.write(frame, body).await;
+        match &written {
+            Ok(()) => self.tap.emit_sent(envelope_len),
+            Err(_) => self.tap.emit_failed(),
         }
+        written
     }
 
-    async fn refuse(&mut self, frame: u32, err: Error) -> Result<()> {
-        self.tap.emit_refused(frame); // close open stage + emit
-        self.inner.refuse(frame, err).await
+    async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
+        self.tap.emit_refused(frame);
+        self.inner.refuse(frame, reason).await
     }
 
-    async fn drain_acks(&mut self) {
-        self.inner.drain_acks().await;
-    }
-
-    fn note_fill(&mut self) {
-        self.inner.note_fill();
+    async fn finish(&mut self) {
+        self.inner.finish().await;
     }
 }
 
@@ -315,95 +218,88 @@ mod tests {
         .expect("write study");
     }
 
-    /// Records what reaches the read path. `locate` is the product's; only the sink is the
-    /// test's, because the sink is the observation point.
-    struct SeamRecorder {
+    /// Serves nothing from disk: `read` hands back an empty frame, and `write` takes
+    /// `write_delay`, so a test can tell the stages apart.
+    struct StubPipeline {
         store: Arc<FrameStore>,
-        seen: Vec<(u32, Vec<FrameSpan>, Mode)>,
+        write_delay: std::time::Duration,
     }
 
-    impl FramePipeline for SeamRecorder {
+    impl FramePipeline for StubPipeline {
         fn store(&self) -> &Arc<FrameStore> {
             &self.store
         }
 
-        async fn send(
-            &mut self,
-            frame: u32,
-            _span: FrameSpan,
-            ahead: &[FrameSpan],
-            mode: Mode,
-        ) -> Result<()> {
-            self.seen.push((frame, ahead.to_vec(), mode));
+        async fn read(&mut self, _frame: u32, _next: &Next) -> Result<Bytes> {
+            Ok(Bytes::new())
+        }
+
+        async fn write(&mut self, _frame: u32, _body: Bytes) -> Result<()> {
+            if !self.write_delay.is_zero() {
+                tokio::time::sleep(self.write_delay).await;
+            }
             Ok(())
         }
 
-        async fn refuse(&mut self, _frame: u32, _err: Error) -> Result<()> {
+        async fn refuse(&mut self, _frame: u32, _reason: String) -> Result<()> {
             Ok(())
         }
 
-        async fn drain_acks(&mut self) {}
+        async fn finish(&mut self) {}
     }
 
-    fn recorder(tag: &str, frames: u32) -> (std::path::PathBuf, SeamRecorder) {
+    fn recorder(tag: &str, frames: u32) -> (std::path::PathBuf, StubPipeline) {
         let path = std::env::temp_dir().join(format!("wtpacs-{tag}-{}.sbnd", std::process::id()));
         study(&path, frames);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
-        (
-            path,
-            SeamRecorder {
-                store,
-                seen: Vec::new(),
-            },
-        )
+        (path, StubPipeline { store, write_delay: std::time::Duration::ZERO })
     }
 
-    /// **The seam.** `serve`'s default body turns the planner's frame indexes into the spans
-    /// the read path starts on. Nothing on the wire and no other test can see that line, so
-    /// this one owns it. `docs/adr/disk-access.md`.
+    /// **The seam.** The planner's frame indexes become the spans the read path starts on, a
+    /// fill's one frame ahead included. Nothing on the wire and no other test can see that
+    /// line, so this one owns it. `docs/adr/disk-access.md`.
     #[test]
-    fn serve_hands_every_named_frame_to_the_read_path_as_a_span() {
-        let (path, mut rec) = recorder("seam", 4);
-        let want: Vec<FrameSpan> = [1u32, 2, 3]
-            .iter()
-            .map(|&f| rec.store.frame_span(f).unwrap())
-            .collect();
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("rt");
-        rt.block_on(rec.serve(0, &[1, 2, 3], Mode::OnDemand))
-            .expect("serve");
-        assert_eq!(
-            rec.seen,
-            vec![(0, want, Mode::OnDemand)],
-            "the planner's names did not reach the read path"
-        );
+    fn every_named_frame_reaches_the_read_path_as_its_span() {
+        let (path, rec) = recorder("seam", 4);
+        let store = &rec.store;
+        let want: Vec<FrameSpan> = [1u32, 2, 3].iter().map(|&f| store.frame_span(f)).collect();
+        assert_eq!(ahead(store, &Next::Tiles(vec![1, 2, 3])), want, "the planner's names did not reach the read path");
+        let fill = Next::Fill { after: Some(3), first: true };
+        assert_eq!(ahead(store, &fill), vec![store.frame_span(3)], "a fill's next frame was lost");
+        assert_eq!(ahead(store, &Next::Fill { after: None, first: false }), vec![]);
         let _ = std::fs::remove_file(&path);
     }
 
-    /// An upcoming frame outside the study is dropped from `ahead`, never an error for the
-    /// frame being served.
+    /// A frame slow on the wire shows as `write_us`, not `read_us`: the split a slow frame's
+    /// row exists to make. `docs/adr/telemetry-server-pipeline.md`.
+    #[cfg(feature = "telemetry")]
     #[test]
-    fn an_upcoming_frame_out_of_range_is_dropped_not_refused() {
-        let (path, mut rec) = recorder("seam-oob", 2);
-        let want = vec![rec.store.frame_span(1).unwrap()];
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("rt");
-        rt.block_on(rec.serve(0, &[1, 99], Mode::OnDemand))
-            .expect("serve");
-        assert_eq!(
-            rec.seen,
-            vec![(0, want, Mode::OnDemand)],
-            "a bad name broke the good one"
-        );
+    fn a_slow_write_lands_in_write_us_not_read_us() {
+        use crate::record::tap::{Live, Record};
+        let (path, mut rec) = recorder("slow-write", 2);
+        rec.write_delay = std::time::Duration::from_millis(20);
+        let (tx, rows) = std::sync::mpsc::sync_channel(64);
+        let mut recorded = RecordedPipeline::new(rec, Tap::new(1, Some(tx), &Live::default()));
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("rt");
+        rt.block_on(recorded.serve(0, &Next::Tiles(vec![]))).expect("serve");
+        drop(recorded);
+        let row = rows
+            .try_iter()
+            .flatten()
+            .find_map(|r| match r {
+                Record::Frame(f) => Some(f),
+                Record::Session(_) => None,
+            })
+            .expect("a frame row");
+        let (read, write) = (row.read_us.expect("read"), row.write_us.expect("write"));
+        assert!(write >= 20_000, "the slow write is missing from write_us: {row:?}");
+        assert!(read < 20_000, "the slow write landed in read_us: {row:?}");
         let _ = std::fs::remove_file(&path);
     }
 
-    /// **A refused range is its own row.** The planner refuses a `stream_frames` range outside
-    /// the study before any frame opens; its row carries the refused frame, not the last one
-    /// served. A frame refused at `locate` keeps the one row it opened, and every row opened is
-    /// closed. `docs/adr/telemetry-server-pipeline.md`.
+    /// **A refusal is its own row.** The planner refuses a `stream_frames` range and a frame
+    /// outside the study before any frame opens; each row carries the refused frame, not the
+    /// last one served, and every row opened is closed. `docs/adr/telemetry-server-pipeline.md`.
     #[cfg(feature = "telemetry")]
     #[test]
     fn a_refused_range_records_a_row_of_its_own() {
@@ -439,31 +335,6 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// A refusal in a session whose control stream never came returns once the session has
-    /// closed, rather than waiting for a stream that cannot arrive.
-    #[test]
-    fn a_refusal_with_no_control_stream_returns_once_the_session_closes() {
-        let path = std::env::temp_dir().join(format!("wtpacs-late-{}.sbnd", std::process::id()));
-        one_frame_study(&path);
-        let store = Arc::new(FrameStore::open(&path).expect("open store"));
-        let (closed, late) = oneshot::channel();
-        let mut product =
-            ProductPipeline::new(store, FrameOut::Detached, ReadMode::Auto).with_late_control(late);
-        drop(closed);
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("rt");
-        rt.block_on(async {
-            let refused = product.refuse(9, anyhow::anyhow!("out of range"));
-            tokio::time::timeout(std::time::Duration::from_secs(2), refused)
-                .await
-                .expect("the refusal waited on a control stream that can no longer come")
-                .expect("refuse");
-        });
-        let _ = std::fs::remove_file(&path);
-    }
-
     /// **One index per study, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
     /// `docs/adr/disk-access.md` §Invariants.
@@ -475,7 +346,7 @@ mod tests {
 
         let sessions = 8;
         let pipelines: Vec<ProductPipeline> = (0..sessions)
-            .map(|_| ProductPipeline::new(Arc::clone(&store), FrameOut::Detached, ReadMode::Auto))
+            .map(|_| ProductPipeline::new(Arc::clone(&store), Link::Detached, ReadMode::Auto))
             .collect();
 
         for (n, pipeline) in pipelines.iter().enumerate() {

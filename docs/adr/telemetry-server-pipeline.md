@@ -1,7 +1,7 @@
 # ADR: server telemetry — a product seam and a lab wrapper
 
 **Status:** accepted (amended 2026-09-05; `ack_us` considered and not taken 2026-09-06; corrected
-2026-09-26 to the read path as it ships) · **Tags:** telemetry, server  
+2026-09-26 to the read path as it ships; steps `read` / `write` and row v3 2026-10-04) · **Tags:** telemetry, server  
 **Decides:** Decision C — the lab wraps the product's **steps**, not call-site closures; the story is
 a trait default. Supersedes the inline `FrameSink` / `RecordedSink` hooks and the `server_work_us`
 field, whose name is not to be revived.  
@@ -20,19 +20,28 @@ it.
 
 | Layer | Where | Type | Responsibility |
 | --- | --- | --- | --- |
-| App seam | `server/src/transport/pipeline.rs` | trait `FramePipeline` + `ProductPipeline` | prepare → locate → send, or refuse |
+| App seam | `server/src/transport/pipeline.rs` | trait `FramePipeline` + `ProductPipeline` | read → write, or refuse |
 | Lab wrapper | same file | `RecordedPipeline<P>`, `#[cfg(feature = "telemetry")]` | stamp at each step's entry, delegate |
-| Wire seam | `server/src/transport/frame_out.rs` | `FrameOut` | open the media path; write envelopes |
+| Wire seam | `server/src/transport/link.rs` | `Link` | open the media path; write envelopes and refusals; `finish` the session |
 
 **The trait default `serve` owns the story**, written once; implementors override steps, never
-`serve`. The session loop calls only `serve`, `drain_acks` and `note_fill` on a generic
+`serve`. The session loop calls only `serve`, `refuse` and `finish` on a generic
 `P: FramePipeline`, so it carries no telemetry token and no enum match per call.
 
-**`ProductPipeline`** holds the `Arc<FrameStore>` and the `FrameOut`. `prepare` does nothing;
-`locate` is an index lookup returning a `FrameSpan` (no I/O, so an out-of-range ask is refused
-before a stream opens); `send` reads the frame with the session's reader and writes it
-([`disk-access.md`](disk-access.md)). A `locate` failure calls `refuse`, which writes a
-`FrameError` on control; a `send` failure ends the session.
+**`ProductPipeline`** holds the `Arc<FrameStore>` and the session's `Link`, its one writer. `read`
+looks the frame and the planner's names up in the index, which cannot fail (the planner refuses an
+out-of-range frame, fill or name before `serve` is called), and returns the frame's bytes from the
+reader `Next` names, the next frames' reads started underneath ([`disk-access.md`](disk-access.md)).
+`write` hands them to the `Link`. A failure of either ends the session. `Step::Refuse` is the only
+caller of `refuse`, which writes a `FrameError` on control.
+
+*Amended 2026-10-04.* The steps were `prepare` → `locate` → `send`: `prepare` did nothing, `locate`
+was the index lookup, and `send` read and wrote together, so a slow frame's row could not say
+whether the disk or the wire was slow.
+
+*Corrected 2026-10-04.* Until then `locate` refused a frame out of range too, a second refusal path
+beside the planner's, and the loop also called `note_fill` to count `fills=`; a fill's first frame
+now says so in `Next::Fill { first }`.
 
 *Corrected 2026-09-26.* Earlier text here said `prepare` pre-faulted the frame's pages on a
 `spawn_blocking` hop and that `locate` returned a `Bytes` view of the mapping (amended 2026-09-09).
@@ -41,13 +50,14 @@ which parsed and did nothing, is removed.
 
 **`RecordedPipeline<P>`** wraps any `FramePipeline` and holds a live `Tap`. It is constructed only
 when `Tap::for_session()` returns `Some`, and does not override `serve`. It is generic, so it cannot
-reach product fields. A refusal is finalised by `Tap::emit_refused`, which closes whichever stage
-was open; a refusal no frame opened, the planner's of a `stream_frames` range outside the study,
-opens its own row first. *Corrected 2026-10-03:* that refusal used to emit a row carrying the
-previous frame's index, ordinal and times, and `rows_closed` ran ahead of `rows_opened`.
+reach product fields. A refusal is the planner's only, so `Tap::emit_refused` opens a row of
+its own with neither stage. *Corrected 2026-10-03:* the planner's refusal used to emit a row
+carrying the previous frame's index, ordinal and times, and `rows_closed` ran ahead of
+`rows_opened`.
 
-**Clock model.** Stamp at method entry; each stamp closes the previous stage, so the chain is
-contiguous; the emit closes the last. Four `Instant::now` reads on the happy path; integer µs.
+**Clock model.** `begin_frame` at `read` entry, the read boundary at `read` exit, the emit after
+`write`; each stamp closes the previous stage, so the chain is contiguous. Three `Instant::now`
+reads on the happy path (four before 2026-10-04); integer µs.
 
 ### Considered and not taken
 
@@ -56,7 +66,7 @@ contiguous; the emit closes the last. Four `Instant::now` reads on the happy pat
   Built as an `ack_hook` step plus a hook argument on `send`, measured (§Pipeline baseline), and
   withdrawn the same day: every shape puts a telemetry-shaped token in product code. If a
   server-side delivery number is ever wanted, the smallest shape is an optional observer field on
-  `FrameOut`'s per-frame variant, set only inside the existing `#[cfg(feature = "telemetry")]`
+  `Link`'s per-frame `Media`, set only inside the existing `#[cfg(feature = "telemetry")]`
   construction site, taking a clock only when set. Rules then: `null` in shared mode; it is
   delivery to the peer's transport, not its application (ACK delay applies); never evidence in the
   stream-mode question. Until then delivery timing comes from the client report's `last_byte` and
@@ -97,33 +107,38 @@ are its own; joining path rows to frame rows needs both switches on.
 
 ## What a row records
 
-`telemetry-server.json`, `schema: "server-pipeline-v2"`. One `server_frame` row per ask:
+`telemetry-server.json`, `schema: "server-pipeline-v3"`. One `server_frame` row per ask:
 
 | Field | Interval |
 | --- | --- |
-| `prepare_us` | `serve` entry → `locate` entry. ~0 on this build, since `prepare` does nothing |
-| `locate_us` | the index lookup; ~0 |
-| `send_us` | read **and** write of the frame, interleaved |
-| `serve_us` | `serve` entry → row emit, measured on its own clock, not summed |
-| `overhead_us` | `serve − prepare − locate − send`, saturating |
+| `read_us` | `read` entry → the frame's bytes in hand |
+| `write_us` | → `Link::send_frame` returned: quinn, or the WebSocket, accepted the frame |
+| `serve_us` | `read` entry → row emit, measured on its own clock, not summed |
 
-**Invariant:** `serve_us == prepare_us + locate_us + send_us + overhead_us`, absent stages counting
-as 0. **Null ≠ 0:** a refused row exports the stages it never entered as JSON `null`.
+**Invariant:** `serve_us == read_us + write_us` to within their truncation to µs (0–1 µs).
+**Null ≠ 0:** a refused row, and a row whose read failed, export the stages they never finished as
+JSON `null`.
 
-**`send_us` is not separable into disk and wire time.** Since read-ahead-by-one it also carries the
-*start* of the next frame's read (an `RWF_NOWAIT` probe and, on a shortfall, one submit, no wait),
-and excludes most of its own frame's read where the frame before started it. Within a run of
-pipelined asks, per-frame `send_us` is a pipeline stage, not a per-frame cost; the run's total is
-exact. (This said "a `RequestFrames` batch", which left the wire on 2026-10-03.) [`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md) §6b.
-A trace showing `prepare_us` in the tens of µs is a trace of the mapping build (§Pipeline baseline).
+**`read_us` is a pipeline stage, not a per-frame disk cost.** It carries the *start* of the next
+frame's read (an `RWF_NOWAIT` probe and, on a shortfall, one submit, no wait), and excludes most of
+its own frame's read where the frame before started it; over a run its total is exact.
+[`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md) §6b.
 
 Also on each row: `session_id`, `frame_index`, `ask_ordinal`, `server_bytes_sent`,
-`locate_outcome`, `write_outcome`, `dropped_since_last`, and one field that lets the row be laid
-beside the client file by hand (there is no join product):
+`write_outcome`, `dropped_since_last`, and one field that lets the row be laid beside the client
+file by hand (there is no join product):
 
 | Field | Meaning |
 | --- | --- |
-| `t_ask_us` | ask accepted, µs since the process's first `Tap` — one axis for every session; inter-ask spacing is read from it |
+| `t_serve_us` | serving began, µs since the process's first `Tap` — one axis for every session. Not arrival: an ask may wait behind 8 in the channel and 8 in hand first, so spacing read from it is inter-serve spacing; the client's `serve_plus_rtt` is the queue time |
+
+*Amended 2026-10-04 (v3).* v2 rows carried `prepare_us` and `locate_us` (each ~0: `prepare` did
+nothing, `locate` was an index lookup), `send_us` (read and write together, not separable), and
+`overhead_us`, which only ever held the stages' rounding, since every stage closed against one
+contiguous mark; `locate_outcome` repeated what `write_outcome = Refused` says. `t_ask_us` was
+renamed `t_serve_us`: it was always stamped when serving began, never when the ask arrived, which
+the old name and the old "ask accepted" here both claimed. Arrival time was considered and not
+taken: it puts a telemetry token in the product's `Ask`, the cost `ack_us` was refused for.
 
 `batch_position` and `batch_size` were removed on 2026-10-03: nothing set them past `0` of `1`, and
 `request_frames`, the batch they described, left the wire the same day.
@@ -145,8 +160,9 @@ vocabularies are not unified; that is deferred.
 * **Ring.** 4 096 rows, counted as 64 batches. A full ring drops the batch and says so: the next
   row's `dropped_since_last`, the session row and `integrity` all count it.
 * **Rows are exact at any scale; the JSON is a summary.** The drain appends every record to
-  `telemetry-server.rows` (16-byte `WTPR` header, then 56-byte little-endian records; version 2,
-64-byte version-1 files are refused by their record size) and folds it
+  `telemetry-server.rows` (16-byte `WTPR` header, then 56-byte little-endian records; version 3,
+and a file of any other version is refused by its header: v2 has the same record size, which until
+2026-10-04 was the only check, refusing 64-byte v1 files by luck) and folds it
   into log-linear histograms. Every `WTPACS_TELEMETRY_SUMMARY_MS` it rewrites the JSON
   (`run_end.event: "run_progress"`) by rename, so a reader never sees half a file and a hard kill
   loses at most the unflushed rows.
@@ -255,9 +271,15 @@ the `Tap::for_session` match in `transport/server.rs`, and `flush_on_exit` in `m
 
 In the telemetry build, measured 2026-09-06 (§Pipeline baseline): **+0.3 to +2.1 % server CPU**
 over the serving path at 1–32 sessions, throughput inside run-to-run spread, the recorder's own
-share of `serve_us` (`overhead_us`) 1 µs p50. Peak RSS 4–10 MB above telemetry off (six histograms,
+share of `serve_us` (v2's `overhead_us`) 1 µs p50. Peak RSS 4–10 MB above telemetry off (six histograms then, four since v3,
 the 1 MB row-file write buffer, the exit-time re-read for inlined frames), none of it per row; a
 recorded session's recorder ≈ 3 KB. The SIGTERM lock adds ~11 ns per row (§The tail at SIGTERM).
+
+**Row v3 against v2** (2026-10-04, a 4-core cloud container, not the workstation: a tie on that
+host, nothing more). `lab/scripts/telemetry_e2e_baseline.sh` with `DEFAULT_TELEMETRY=1`, so both
+arms record: the build before the change against it, per-frame streams, depth 4, six interleaved
+pairs at 1, 4 and 16 sessions. Server CPU per frame, paired median: −2.2 %, −1.0 %, −0.4 %, with the
+new build lower in 5, 4 and 4 of 6 pairs; no harness failed.
 In the default build: nothing, by §Absence.
 
 ## Pipeline baseline, 2026-09-06
@@ -323,8 +345,8 @@ the harness processes saturate the four cores, not the server; nothing is claime
   from the link's BDP.
 
 The same review capped a wire-supplied FoD length at 4 MiB (`MAX_FOD_LEN`), which had let any
-client make the server allocate 4 GB. **Not measured:** `send_us` under real flow control on a
-shaped link.
+client make the server allocate 4 GB. **Not measured:** `write_us` (v2's `send_us`) under real flow
+control on a shaped link.
 
 ## Consequences
 

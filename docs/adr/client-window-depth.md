@@ -71,7 +71,7 @@ the link is always full and cursor-driven asks always go first.
 
 **Where the window applies (2026-09-14).** A fill stays one `StreamFrames` ask, for throughput.
 On-demand network depth is this client window, not a server queue; disk depth is the server's
-`TILE_SLOTS` and `FILL_AHEAD`. Depth 1 is the right answer where `Tf ≫ RTT` — large frames — not
+`TILE_SLOTS` and a fill's one frame ahead. Depth 1 is the right answer where `Tf ≫ RTT` — large frames — not
 the tile default.
 
 ### Positive consequences
@@ -124,7 +124,7 @@ ask until it returned. Throughput capped at `Tf / (Tf + RTT)`. Opening a stream 
 the cost was waiting for the acknowledgement, and nothing the client did could fix it.
 
 > **Corrected — this section used to call it a live defect of the product default.** It is neither
-> now. `finish()` is awaited off the session loop (`server/src/transport/frame_out.rs`): the per-frame
+> now. `finish()` is awaited off the session loop (`server/src/transport/link.rs`): the per-frame
 > arm then reached 8.0 Mbps against the old ~7.0 ceiling (250 KB, `D`=4, 10 Mbit, 60 ms). And the
 > binary's default has been `--stream-mode shared` since 2026-09-11
 > ([`stream-shape.md`](stream-shape.md)). With the fix in, per-frame still needed more

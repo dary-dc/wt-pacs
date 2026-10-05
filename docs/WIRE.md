@@ -20,13 +20,20 @@ each message is `[4B LE len][JSON]` — little-endian, unlike the envelope — t
 (`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
 
 **A goodbye is not an error.** No client sends `end_session`: a session ends with the client closing
-it, a FIN on the control stream between messages, or a WebSocket Close. Each is a normal end, logged
+it, stopping a stream the server is writing (`STOP_SENDING`, as dropping its receive half does), a FIN
+on the control stream between messages, or a WebSocket Close. Each is a normal end, logged
 `session closed by peer` at INFO, and a send it interrupts is part of it; a malformed message, a
 timeout or a protocol abort is a WARN. On QUIC the peer's close is read from quinn's close reason, the
 peer's application close or wtransport's local close answering its `CLOSE_WEBTRANSPORT_SESSION`, so
 an HTTP/3 violation by the peer, which wtransport also answers with a local close, reads as one too.
-*Corrected 2026-10-03:* every ordinary session used to end as a WARN, and skipped the per-frame
-grace below.
+A stream stop is a goodbye whatever its code: the WASM client also stops the stream when it cannot
+decode an envelope, so a server framing bug shows on the client, as frames failed with "the media
+stream ended", and not in the server's log; the client drops the decode error's own text. Over a
+WebSocket the Close excuses only a failure on the socket: a read from disk that fails is a WARN even
+when the client's Close, or its echo of the server's, arrives first. *Corrected 2026-10-03:* every
+ordinary session used to end as a WARN, and skipped the per-frame grace below. *Corrected
+2026-10-04:* a client walking away mid-fill still did, in 8 of 30 sessions — those where its
+stream's stop reached the server before its close, so the write failed as stopped.
 
 | Message | Direction | What the server does |
 | --- | --- | --- |
@@ -70,7 +77,9 @@ Every frame is length-prefixed in every stream mode. `common/frame-envelope` is 
 the server streams its `frame_head` before the codestream, clients `unwrap`, and
 `the_head_is_the_envelope_length_then_the_index_big_endian` pins the bytes. A frame is
 identified by its index, never by the stream it came on. Clients stop reading a stream whose
-`envelope_len` is under 4 or over 64 MiB (`MAX_FRAME_LEN`), and name a frame whose stream ends
+`envelope_len` is under 4 or over 64 MiB (`MAX_FRAME_LEN`, checked by the crate's `envelope_len` in the
+Rust clients and the harness; `wire.ts` holds the TypeScript copy), and a study holding a larger frame
+fails to open ([`FIXTURES.md`](FIXTURES.md#sbnd-study-bundle)). Clients name a frame whose stream ends
 before `envelope_len` bytes ([`CLIENTS.md`](CLIENTS.md#a-truncated-frame-is-a-failure)).
 
 ## Stream modes
@@ -98,7 +107,7 @@ has no memory mapping ([`adr/disk-access.md`](adr/disk-access.md)).
 *Corrected 2026-09-26, in place:* this section said the codestream was written in 64 KiB
 `READ_WINDOW` pieces through `write_all(&[u8])`, leaving one full-frame copy into quinn's send
 buffer. That was the send path before whole frames were handed to quinn over pooled buffers; the
-code today is `frame_out.rs` `write_frame`. The copy-cost knee sweep once listed as open against
+code today is `link.rs` `write_frame`. The copy-cost knee sweep once listed as open against
 that copy (link rate against memcpy time) was never run and now has no copy to price. Over the
 WebSocket the codestream is still split, every 64 KiB (§The WebSocket mapping).
 
@@ -149,8 +158,9 @@ and is not measured here.
 On by default; `exact-server --open-ask false` turns it off. The session URL may carry
 `?ask=frame:N` or `?ask=fill:A-B`, which the server reads before accepting the session and serves
 at once, behind the accept rather than behind the control stream. A malformed or out-of-range
-value is ignored and the session proceeds as without it. A refusal of an opening ask waits for the
-control stream, since that is the only place one can be sent. The TypeScript client sends it for
+value is ignored and the session proceeds as without it, so an opening ask is never refused (this
+said until 2026-10-04 that a refusal of one waits for the control stream: that case cannot occur).
+The TypeScript client sends it for
 `connect(url, hash, { fill })` and arms the fill without sending `stream_frames`. Why:
 [`ARCHITECTURE.md`](ARCHITECTURE.md), session open.
 

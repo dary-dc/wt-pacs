@@ -6,6 +6,9 @@ queue: `git show 6e9c126:docs/cloud-queue.md`.
 
 ## Protocol
 
+**New session?** [`handoff-2026-10-04.md`](handoff-2026-10-04.md) has where the server redesign
+stands after PR #33's merge, what comes next, and what cost time in the container.
+
 Kept so the queue can reopen. The queue lives on the branch that carries every lab improvement.
 
 1. `git fetch && git rebase` onto that branch — the queue changes while you work.
@@ -34,12 +37,15 @@ file names, branch names or commit messages.
 | # | what | state |
 | --- | --- | --- |
 | 113 | **ONERR** — finish the `fillHandlers.onError` fix on `claude/onerror` and land it here (§Row 113) | **done** `9b2deef`, docs `4523538` — full gate green, the mutant fails 2 of 127 dispatch checks; `CLIENTS.md` §Fills are pushed, `ARCHITECTURE.md` §The downloader, `client/downloader/README.md`. The remote `claude/onerror` is not deleted: this environment refuses branch deletes |
-| 115 | **SRV-C** — the server design's small commits C1, C2, C4 on `claude/server-design` (§Row 115) | **done** on `claude/server-design`: C1 `ffb05b1`, C2 `8db4e64`, C4 `d649fe8`, marked in the proposal `56f3a57` — full gate green at C1 and C4 (C2 is docs only), link check clean; mutants: classifying only `serve` fails the new setup-close test, dropping `long = "send-window-bytes"` and a `Default` that disagrees with clap each fail one CLI test. `session_request.accept()` stays unclassified: no connection exists yet to read a close reason from |
-| 116 | **SRV-C3** — one frame limit, refused at load (§Row 116) | **done** on `claude/server-design`: decisions recorded `1c7ae15`, C3 `8dc4b05`, marked `ca74421` — full gate green, link check clean; four mutants each fail a new test (`<`→`<=` and `>`→`>=` in `envelope_len`, the parser's check dropped — fails the bundle test and `FrameStore::open`'s, the writer's dropped). The check is `frame_envelope::envelope_len(prefix)` rather than `Head::decode`: every reader holds only the 4-byte prefix at that point. TypeScript keeps its own constant; `WIRE.md` §The envelope, `FIXTURES.md` |
-| 117 | **SRV-R1** — the planner owns every ask decision; one refusal path (§Row 117) | **done** on `claude/server-design`: `7f7730e`, noted `0916f2e` — full gate green, link check clean; mutants (`frame_in_range` always `Ok`, `take_while` for the name filter, `first` always true, either refusal `format!`, no `begin_frame` in `emit_refused`) each fail a test. `fills=` kept, so `disk-access.md` stands. **Measurement: run in this container only, so not evidence** — `server_ab.sh ca74421`, 12 interleaved rounds, every cell a p50 tie, `named` 4 at cold d4 on both arms (the script exits 1 on its stale `WANT` of a `cold_d4` win). **The workstation run is owed** |
-| 118 | **SRV-R2** — one writer per session, `Link` (§Row 118) | **done** on `claude/server-design`: `d3565c7`, noted `6d2aa06` — keep-both shape, full gate green, link check clean; new `a_websocket_session_ends_with_a_close_frame`; mutants (`finish` skips the close, a gone control stream still awaited, the stall budget never spent) each fail a test. `frame_out.rs` is now `link.rs`; the docs naming it follow. QUIC bytes identical: no measurement |
-| 119 | **SRV-R3** — pipeline steps `read`/`write`, telemetry row v3 (§Row 119) | **done** on `claude/server-design`: `58b26e6`, measurement and lab script `05dcb0b`, noted `002511e` — full gate green at `58b26e6` (`05dcb0b` is a script and docs), link check clean; new `a_slow_write_lands_in_write_us_not_read_us`, `a_rows_file_of_another_version_is_refused`; mutants (the read boundary moved after the write, the version check dropped, a refusal keeping a stage, `ahead` dropping a name) each fail a test. **Measurement, in this container only:** old build against new, telemetry on in both arms (`DEFAULT_TELEMETRY=1`, added), 6 interleaved pairs at 1/4/16 sessions: CPU per frame −2.2/−1.0/−0.4 %, a tie — telemetry ADR §What it costs. The readers owning an `Arc<FrameStore>` (design §6) not done: nothing asked for it |
-| 120 | **SRV-R4-PLAN** — the layout commit written out in full for the owner's review; no code (§Row 120) | **waiting on the owner** — written `679b9ce` on `claude/server-design`, the design file's §R4 written out: tree, moves, tests' destinations, renames with call sites, the test kit, two questions (Q1 where `run_server` lives, Q2 the small study). Found: the move changes a log target `lab/scripts/runtime_ab.sh` filters on, so R4b must carry it |
+| 115 | **SRV-C** — the server design's small commits C1, C2, C4 on `claude/server-design` (§Row 115) | **done** on `claude/server-design`: C1 `b5aab47`, C2 `ab58271`, C4 `f7773ab`, marked in the proposal `da592ca` — full gate green at C1 and C4 (C2 is docs only), link check clean; mutants: classifying only `serve` fails the new setup-close test, dropping `long = "send-window-bytes"` and a `Default` that disagrees with clap each fail one CLI test. `session_request.accept()` stays unclassified: no connection exists yet to read a close reason from |
+| 116 | **SRV-C3** — one frame limit, refused at load (§Row 116) | **done** on `claude/server-design`: decisions recorded `0258b9f`, C3 `7935a98`, marked `04eb520` — full gate green, link check clean; four mutants each fail a new test (`<`→`<=` and `>`→`>=` in `envelope_len`, the parser's check dropped — fails the bundle test and `FrameStore::open`'s, the writer's dropped). The check is `frame_envelope::envelope_len(prefix)` rather than `Head::decode`: every reader holds only the 4-byte prefix at that point. TypeScript keeps its own constant; `WIRE.md` §The envelope, `FIXTURES.md` |
+| 117 | **SRV-R1** — the planner owns every ask decision; one refusal path (§Row 117) | **done** on `claude/server-design`: `77e76dd`, noted `ee140bd` — full gate green, link check clean; mutants (`frame_in_range` always `Ok`, `take_while` for the name filter, `first` always true, either refusal `format!`, no `begin_frame` in `emit_refused`) each fail a test. `fills=` kept, so `disk-access.md` stands. **Measurement: run in this container only, so not evidence** — `server_ab.sh 04eb520`, 12 interleaved rounds, every cell a p50 tie, `named` 4 at cold d4 on both arms (the script exits 1 on its stale `WANT` of a `cold_d4` win). **The workstation run is owed** |
+| 118 | **SRV-R2** — one writer per session, `Link` (§Row 118) | **done** on `claude/server-design`: `fe47632`, noted `5bea99e` — keep-both shape, full gate green, link check clean; new `a_websocket_session_ends_with_a_close_frame`; mutants (`finish` skips the close, a gone control stream still awaited, the stall budget never spent) each fail a test. `frame_out.rs` is now `link.rs`; the docs naming it follow. QUIC bytes identical: no measurement |
+| 119 | **SRV-R3** — pipeline steps `read`/`write`, telemetry row v3 (§Row 119) | **done** on `claude/server-design`: `dfa74d9`, measurement and lab script `0ba112e`, noted `88163ec` — full gate green at `dfa74d9` (`0ba112e` is a script and docs), link check clean; new `a_slow_write_lands_in_write_us_not_read_us`, `a_rows_file_of_another_version_is_refused`; mutants (the read boundary moved after the write, the version check dropped, a refusal keeping a stage, `ahead` dropping a name) each fail a test. **Measurement, in this container only:** old build against new, telemetry on in both arms (`DEFAULT_TELEMETRY=1`, added), 6 interleaved pairs at 1/4/16 sessions: CPU per frame −2.2/−1.0/−0.4 %, a tie — telemetry ADR §What it costs. The readers owning an `Arc<FrameStore>` (design §6) not done here: *corrected 2026-10-05,* done since as row 121 |
+| 120 | **SRV-R4-PLAN** — the layout commit written out in full for the owner's review; no code (§Row 120) | **waiting on the owner** — written `cec7df2` on `claude/server-design`, the design file's §R4 written out: tree, moves, tests' destinations, renames with call sites, the test kit, two questions (Q1 where `run_server` lives, Q2 the small study). Found: the move changes a log target `lab/scripts/runtime_ab.sh` filters on, so R4b must carry it |
+| 121 | **SRV-R3b** — the readers own the study's `FrameStore` (§Row 121) | **done** on `claude/server-design`: `4eaa170` — full gate green, link check clean. No new test and no mutant: the misuse it removes, a reader handed another store than its ring registered, no longer type-checks. No measurement: the same reads, one `Arc` clone per reader. `disk-access.md` §10 says why |
+| 122 | **SRV-STOP** — a client that stops the media stream mid-fill is a goodbye, not a WARN (§Row 122) | **done** on `claude/server-design`: `483223f` (the log), `bd1e640` (the fix) — the log now prints the error chain, which named the cause: `write frame: sending stopped by peer`, quinn's `WriteError::Stopped`, when the client's stream stop reaches the server before its close. Full gate green, link check clean; new `a_client_that_stops_its_media_stream_ends_its_session_cleanly` (20/20 runs), fails on its mutant (`stopped` dropped from `closed_by_peer`). Measured in this container with the lab's own fill driver (`server_ab --mode fill`, 256 of 5120 frames then walk away), 30 interleaved sessions per arm: WARN 8/30 before, 0/30 after; after, 20 closed as connection lost, 10 as stopped |
+| 123 | **SRV-REVIEW** — fixes from the review of PR #34 | **done** on `claude/server-design`: `a292fb3` (the fix), `c606e34` (comments, lab, the absence check), `ac5fdb3` (docs). A WebSocket session whose disk read failed logged `closed by peer` when the client's echo of the server's Close beat the reader's abort: seen only with the window widened by a 50 ms sleep, never at normal timing in 10 runs, so the test is on the classifier, `only_a_failure_on_the_socket_is_the_clients_close`, which fails on both mutants (always true, always false). The absence check's field names could never match a symbol, and `write_us` matched clap's `write_usage`; it passes on a default build and finds 112 symbols in a telemetry one. Server tests both features, link check, comment budget green; the browser steps not run here |
 | 114 | **OPTS** — the owner's downloader option rulings: warm-up removed, `decoders` = `min(3, cores)` (§Row 114) | **done** `4fda9f1` — full gate green (dispatch 119/119: the 6 warm-up and 2 ready-stamp checks went with them); `decoders` pinned at 2, 8 and unreported cores by `client/downloader/downloader.test.mjs`, four mutants each fail; the two codestreams the rig decodes moved to `client/conformance/frames/`; `lab/decode-first-frame` (its own in-page warm-up arm) and `telemetry-cost` (JIT rounds) kept — `docs/decode/README.md` §Warming the decoders, `ARCHITECTURE.md` §The decoders |
 | 112 | **DEPLOY** — make `deploy/` build and run, and prove it (§Row 112) | **done** `0a17e17` — both images build and run under docker (podman unrun); `compose up`: `wt_url=`, TCP 4433 answers 101, the cell delivers 3/3 frames over WebTransport and WebSocket; the check passes on the image — `deploy/README.md` |
 | 59 | **A1b** — the handover on a device: does a session survive Wi-Fi → cellular, and how long is the freeze ([`ARCHITECTURE.md`](ARCHITECTURE.md) §What this means for the stack choice) | **waiting on a device** — no container can take it |
@@ -164,6 +170,16 @@ file: the before → after tree; every item that moves (function, type, test) wi
 every rename with each call site's count; the shared test kit's API; what `websocket.rs` imports after; the
 commit order inside R4. Then mark the row "waiting on the owner" and stop — R4 is built only after approval.
 
+### Row 121
+Design §6's last line, left out of R3: `SeqReader` and `TileReader` take the `Arc<FrameStore>` at
+construction and `read` takes none. Asked by the owner on 2026-10-04 as a correctness change: a reader is bound to
+one store (the ring's registered file, the slots' offset keys), and the signature said otherwise. Before R4a, so
+the test kit is written against the final signatures.
+
+### Row 122
+The open decision "a client that closes mid-fill still logs a WARN": print the whole error chain, find
+the variant, classify it in `closed_by_peer` if it is the peer's doing, with a test that forces it.
+
 ## Finished
 
 One line a batch; what each found is in the doc named.
@@ -211,20 +227,20 @@ tail, not the head.
 
 ## Open owner decisions
 
-* **R4, the server's layout and names (D7)** — review §R4 of the design file on `claude/server-design`
-  (`679b9ce`) line by line, and answer Q1 (`run_server` in `transport/endpoint.rs` or a top-level
+* **R4, the server's layout and names (D7)** — review §R4 of [`server-design-proposal.md`](server-design-proposal.md)
+  (`cec7df2`) line by line, and answer Q1 (`run_server` in `transport/endpoint.rs` or a top-level
   `serve.rs`) and Q2 (keep a small-frame study for `pipeline.rs`'s tests). R4 is built only after.
-* **The R1 tie on the workstation** — `lab/scripts/server_ab.sh 7f7730e^` under the rig lock; the
+* **The R1 tie on the workstation** — `lab/scripts/server_ab.sh 77e76dd^` under the rig lock; the
   container run tied on every cell but is not evidence, and the script's `WANT` still expects a
   `cold_d4` win from the change it was written for, so it exits 1 on a tie. A second container run
   agreed (every cell a p50 tie, `named` 4 on both arms). One earlier attempt stopped in round 1: a fill
   session on the R1 server outlived its driver by 22 s with no `session reads` line. Not reproduced in
   60 interleaved fill sessions or the 12 rounds after; watch for it in this run.
-* **R3 left the readers taking the store per call** — design §6's "the readers own an
-  `Arc<FrameStore>`" was not built (`58b26e6`): fold it into R4 or drop it from the design.
-* **A client that closes mid-fill still logs a WARN** — `session ended err=write frame` in 6–9 of 30
-  fill sessions on both builds (`ca74421`, `7f7730e`): the write error is not classified as the
-  peer's close. The C1 leftover's sibling; a row if wanted.
+* **A client stop is never a server failure** — the WASM client stops the media stream the same way,
+  with no code, whether it walks away or cannot decode an envelope, so since row 122 a server framing
+  bug ends its session at INFO. Kept and written down (`WIRE.md` §FoD messages). To tell them apart the
+  client would stop with its own code on a decode failure and the server would excuse only code 0: a
+  wire change, a client rebuild and the browser conformance run. A row if wanted.
 * **Delete the remote `claude/onerror`** — row 113 landed it; this environment refuses branch deletes.
 * **E0 — the emulated link against a real network path, not done.** It needs the cloud VM's real
   path to this host, unshaped, or a device on a real network; no container can take it. Why: every

@@ -29,7 +29,7 @@ export function decodeFodBody(body: Uint8Array): FodMsg {
   return JSON.parse(utf8Decoder.decode(body)) as FodMsg;
 }
 
-/** Max media frame length — matches server/harness guard. */
+/** Max `envelope_len`; the definition is docs/WIRE.md §The envelope. */
 export const MAX_FRAME_LEN = 64 * 1024 * 1024;
 
 export function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
