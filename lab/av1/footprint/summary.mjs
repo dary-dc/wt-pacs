@@ -51,10 +51,12 @@ if (first.length) {
       if (!rs.length) continue;
       const ref = (r) => first.find((x) => x.round === r.round && x.throttle === throttle && x.set === set && x.arm === "htj2k" && x.visit === visit && clean(x));
       const ratio = rs.filter(ref).map((r) => cost(r) / cost(ref(r)));
-      const cached = rs.filter((r) => r.resources.some((e) => e.name.endsWith(".wasm") && e.transfer === 0 && e.body > 0)).length;
+      const wasm = (r) => r.resources.filter((e) => e.name.endsWith(".wasm"));
+      const cached = rs.some((r) => wasm(r).length)
+        ? `${rs.filter((r) => wasm(r).some((e) => e.transfer === 0 && e.body > 0)).length}/${rs.length}` : "no module";
       console.log(`| ${throttle}× | ${set} | ${arm} | ${visit} | ${fmt(rs.map((r) => r.init_ms))} | ${fmt(rs.map((r) => r.decode[0].page_ms))} | ` +
         `${fmt(rs.flatMap((r) => [r.decode[1].page_ms, r.decode[2].page_ms]))} | **${fmt(rs.map(cost))}** | ` +
-        `${arm === "htj2k" ? "" : fmt(ratio, 2)} | ${cached}/${rs.length} | ${rs.length} |`);
+        `${arm === "htj2k" ? "" : fmt(ratio, 2)} | ${cached} | ${rs.length} |`);
     }
   }
 }

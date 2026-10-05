@@ -56,6 +56,44 @@ in a Williams order, arms rotating inside; 4× is `lab/scripts/cpu_throttle.mjs`
 bit short) turned both AV1 arms to 0 with HTJ2K exact. `probe.js` keeping no memory read 0 MB on every
 arm.
 
+## The reading
+
+Memory, 6 rounds each (the two sets ran as separate campaigns); MB a worker; median [range]. *Heap* is
+the WebAssembly linear memory at the series' end, the same after a second pass in every cell; *resident*
+the renderer's RSS slope from 1 to 4 workers, settled and at its peak (`VmHWM`):
+
+| set | arm | heap after frame 1 | heap | resident | resident peak |
+| --- | --- | ---: | ---: | ---: | ---: |
+| projections | `htj2k` | 50.0 | 50.0 | 26.1 [26.0–26.3] | 31.4 [31.2–43.7] |
+| | `htj2k4` | 20.5 | 28.3 | 24.6 [24.4–25.0] | 30.2 [29.5–31.2] |
+| | `d12` | 19.7 | 34.8 | **31.6 [31.2–32.2]** | 33.7 [30.7–36.8] |
+| | `w10` | — | — | 6.3 [4.9–7.3] | 58.3 [49.2–62.9] |
+| ultrasound | `htj2k` | 50.0 | 50.0 | 7.1 [6.7–7.6] | 9.3 [7.6–16.7] |
+| | `htj2k4` | 6.0 | 6.0 | 7.1 [7.0–7.4] | 8.2 [8.0–16.3] |
+| | `rct` | 16.4 | 16.4 | **7.6 [7.1–8.5]** | 8.4 [8.1–9.1] |
+| | `rctwc` | — | — | 9.7 [6.5–30.0] | 32.4 [30.5–43.2] |
+
+The package's heap is its 50 MB initial memory, mostly mapped and not resident. A WebCodecs worker's
+pictures live outside its heap and the page's measure (0.4 MB a worker); from 1 to 2 workers its peak
+slope reads 88 and 76 MB.
+
+First use, 12 rounds, ms, median over rounds; *cost* is init + frame 0 − the mean of frames 1–2, the
+range over the cold and both cached visits' medians; every cached visit took its `.wasm` from the cache:
+
+| set | arm | init 1× | frames 1–2, 1× | cost 1× | init 4× | cost 4× |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| projections | `htj2k` | 30–36 | 101–102 | 61–65 | 101–107 | 164–187 |
+| | `htj2k4` | 30–38 | 67–68 | 69–82 | 96–104 | 215–225 |
+| | `d12` | 31–39 | 637–647 | 93–97 | 85–91 | 205–280 |
+| | `w10` | 18–28 | 275–289 | 14–27 | 50–58 | 35–73 |
+| ultrasound | `htj2k` | 32–38 | 11–13 | 48–53 | 100–115 | 183–195 |
+| | `htj2k4` | 31–41 | 13–15 | 45–56 | 98–108 | 171–186 |
+| | `rct` | 28–39 | 50 | 65–76 | 84–93 | 200–227 |
+| | `rctwc` | 17–24 | 37 | 23–29 | 50–59 | 64–78 |
+
+Per-round ratios of the dav1d arms' cost to `htj2k`'s span 0.1–4.8: the cost is a difference of two
+noisy times, so only the ranges above are claimed, not an ordering inside them.
+
 **Read before trusting a number.** Desktop Chromium on a 4-core container, not a phone: a phone's
 memory is what the bytes here say, its time is not what the milliseconds here say. `worker.js` adds one
 module import in front of the product's worker. The dev server sends no `Cache-Control`, so a cached visit
