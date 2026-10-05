@@ -57,6 +57,32 @@ every arm to 0/18 exact and every base to 0/18 as native; a base entry decoded t
 every base by name; previews left unmarked showed 0/18 previews and 18 stray exact frames; previews
 posted 3 s late showed 18 late and *shown* fell back to the exact frames.
 
+## Reading
+
+13 rounds (10, then 3 more for the cells `VOID` thinned), 624 visits, 133 dropped `VOID`, n = 4–13 a
+cell; 27 456/27 456 frames exact, 6 864/6 864 bases as native, none late, no stray. ms from the fill's
+issue, median [min–max]; *shown* is every frame with a picture, *all* every frame exact:
+
+| set, link | HTJ2K all | `av1` all | `single` all | `svc` first / shown | `svc` all | `svc` ÷ `single` |
+| --- | --- | --- | --- | --- | --- | --- |
+| fluoroscopy 5 Mbit 1× | 15 188 | 15 622 | 16 287 | 77 / 150 [137–167] | 16 297 | 1.00 |
+| fluoroscopy 5 Mbit 4× | 15 228 | 15 915 | 16 602 | 127 / 339 [295–401] | 16 614 | 1.00 |
+| fluoroscopy 20 Mbit 1× | 3 930 | 4 100 | 4 260 | 69 / 143 [125–188] | 4 276 | 1.00 |
+| fluoroscopy 20 Mbit 4× | 3 970 | 4 395 | 7 614 | 128 / 327 [306–420] | 8 080 | 1.06 |
+| fluoroscopy 50 Mbit 1× | 1 730 | 1 855 | 2 040 | 68 / 132 [123–178] | 2 138 | 1.05 |
+| fluoroscopy 50 Mbit 4× | 1 775 | 3 206 | 7 513 | 129 / 364 [312–416] | 8 127 | 1.08 |
+| ultrasound 5 Mbit 1× | 29 437 | 32 912 | 46 560 | 86 / 328 [299–386] | 46 782 | 1.00 |
+| ultrasound 5 Mbit 4× | 29 475 | 33 096 | 46 788 | 164 / 1 012 [947–1 120] | 47 040 | 1.01 |
+| ultrasound 20 Mbit 1× | 7 492 | 8 393 | 11 817 | 79 / 327 [305–377] | 11 874 | 1.00 |
+| ultrasound 20 Mbit 4× | 7 526 | 8 609 | 23 337 | 156 / 1 096 [1 073–1 122] | 23 800 (n = 4) | 1.02 |
+| ultrasound 50 Mbit 1× | 3 152 | 3 549 | 5 722 | 77 / 330 [294–415] | 5 874 | 1.03 |
+| ultrasound 50 Mbit 4× | 3 192 | 7 266 | 22 909 | 163 / 1 098 [975–1 249] | 23 505 | 1.03 |
+
+Bytes, the fill's whole: fluoroscopy HTJ2K 9 267 247, `av1` 1.024 of it, `single` 1.068, `svc` 1.067
+(its bases 5 854 B, 0.063 %, counted twice); ultrasound HTJ2K 18 019 334, `av1` 1.117, `single` 1.581,
+`svc` 1.589 (bases 63 728 B, 0.35 %). `single` and `svc` decode the series as one group on one decoder,
+which is the 4× columns' clock; the bases decode on another, ahead of it.
+
 **Pins.** As row TOTAL's, plus `svc_encoder_rtc` from libaom 3.15.1 with
 [`../svc/svc_encoder_rtc.patch`](../svc/svc_encoder_rtc.patch). Nothing built, fetched or generated is
 committed.
